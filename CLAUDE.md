@@ -13,7 +13,7 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
 `sim.luau` 512, `sim_save.luau` 126, `sim_clock.luau` 79, `sim_world.luau` 316). Previews: `sh tools/preview/render.sh
-<office|dev|office2|office3|review|street|visit|build|plot3|panel=<newgame|staff|research|office|games>> <outdir
+<office|dev|office2|office3|review|street|visit|build|plot3|late|panel=<newgame|staff|research|office|games>> <outdir
 outside the repo> "desktop phone"`. The place file is
 `ByteSizeStudio-<short hash>.rbxlx` in the repository root (git-ignored).
 

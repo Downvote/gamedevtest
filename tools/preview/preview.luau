@@ -470,6 +470,52 @@ function SCEN.build()
 end
 
 -- A Studio Floor studio with a dozen pieces of decor on its plot, the home view.
+-- "late": the screen's size settles after the HUD is built, the two ways Roblox does it: (1) the top bar's inset
+-- arrives with no ViewportSize event (the roots shrink by it on their own), (2) a phone turns and the camera's
+-- ViewportSize event comes before the roots are laid out again. The menu bar must stay wholly on screen, at the
+-- bottom, each time (frames late_inset, late_turn; the log says where it is).
+local function menuBarReport(p, tag)
+	local bar
+	for _, x in I.descendants(p:FindFirstChild("PlayerGui"), {}) do
+		if getD(x).props.Name == "MenuBar" then
+			bar = x
+		end
+	end
+	if bar == nil then
+		log("late %s: no MenuBar", tag)
+		return
+	end
+	local top = bar.AbsolutePosition.Y + E.inset
+	local bottom = top + bar.AbsoluteSize.Y
+	local ok = H.guiVisible(bar) and bottom <= E.viewport.Y and bottom >= E.viewport.Y - 3 * 20
+	log("late %s: menu bar at y %d..%d on a %dx%d screen (inset %d): %s", tag, math.floor(top), math.floor(bottom), E.viewport.X, E.viewport.Y, E.inset, if ok then "ON SCREEN" else "HIDDEN")
+end
+
+function SCEN.late()
+	local inset = E.inset
+	E.inset = 0
+	local p = join(7, "Late")
+	settle(p, 30, 1)
+	-- (1) the top bar's inset arrives on its own
+	E.inset = inset
+	E.run(1.5)
+	menuBarReport(p, "inset")
+	capture(p, "late_inset")
+	-- (2) the screen turns; ViewportSize fires while the roots still have the old size
+	local old = E.viewport
+	local turned = v2(math.floor(old.X * 0.8), old.Y)
+	E.guiViewport = old
+	E.viewport = turned
+	local cam = E.workspace.CurrentCamera
+	I.firePropChanged(cam, getD(cam), "ViewportSize")
+	E.flushDeferred()
+	E.guiViewport = nil
+	E.run(1.5)
+	menuBarReport(p, "turn")
+	capture(p, "late_turn")
+	return p
+end
+
 function SCEN.plot3()
 	seedProfile(55, 3, 8, true, {
 		{ id = "fountain", x = 22, z = 16 },

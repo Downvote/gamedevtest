@@ -88,6 +88,21 @@ local function layoutCanvas(rec: CanvasRec)
 	rec.canvas.Size = UDim2.fromOffset(math.max(1, math.floor(size.X / K)), math.max(1, math.floor((size.Y - (if oy == 0 then 0 else K - oy)) / K)))
 end
 
+-- A root's canvas changed size on its own (Roblox lays ScreenGuis out after the camera's ViewportSize event, and the
+-- top bar's inset or a safe area can settle with no viewport change at all): tell the UI once this frame, so
+-- everything laid out from the canvas's size (the HUD's bars and cards, Build mode's tray) is laid out again.
+local resizePending = false
+local function scheduleResized()
+	if resizePending then
+		return
+	end
+	resizePending = true
+	task.defer(function()
+		resizePending = false
+		UIKit.Resized:Fire(UIKit.size())
+	end)
+end
+
 local function makeRoot(name: string, order: number, fullScreen: boolean): ScreenGui
 	local existing = roots[name]
 	if existing then
@@ -114,7 +129,11 @@ local function makeRoot(name: string, order: number, fullScreen: boolean): Scree
 	roots[name] = gui
 	layoutCanvas(rec)
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		local before = rec.canvas.Size
 		layoutCanvas(rec)
+		if rec.canvas.Size ~= before then
+			scheduleResized()
+		end
 	end)
 	gui.Parent = playerGui()
 	return gui
@@ -166,7 +185,7 @@ local function relayoutAll()
 	for _, rec in recs do
 		layoutCanvas(rec)
 	end
-	UIKit.Resized:Fire(UIKit.size())
+	scheduleResized()
 end
 
 ------------------------------------------------------------------ text

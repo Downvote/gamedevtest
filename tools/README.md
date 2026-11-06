@@ -106,6 +106,7 @@ PREVIEW_KEEP=1 sh tools/preview/render.sh <scenario> <outdir> "desktop phone" [t
 | `visit` | `visit`, `visit_fresh` | the founder inside the neighbour's garage while their crew types; the same pan baked fresh |
 | `build` | `build`, `build_red` | a studio with nine pieces bought and ten placed through `plot.place`, Build mode opened from the HUD, the oak picked and its ghost tapped onto a lawn cell where it fits (green), then onto the office (red, Place off) |
 | `plot3` | `plot3` | a Studio Floor studio with fourteen pieces of decor on its plot (seeded: owned and placed where Logic/Plot says they fit), the home view |
+| `late` | `late_inset`, `late_turn` | the screen's size settling after the HUD is built, the two ways Roblox does it: the top bar's inset arriving with no ViewportSize event (the roots shrink on their own), then the screen turning with ViewportSize fired before the roots are laid out again (`E.guiViewport`); the log line `late <case>: menu bar at y .. on a WxH screen: ON SCREEN / HIDDEN` says whether the HUD's menu bar is still wholly on screen at the bottom (it was HIDDEN before UIKit fired `Resized` on a root's own size change) |
 | `all` | | `office`, `dev`, `review`, `street`, `build` |
 
 Devices: `desktop` 1920x1080 mouse, `phone` 844x390 touch, also `laptop`, `tablet`, `portrait`, `android`, `iphone8`,

@@ -172,7 +172,9 @@ local function buildBar()
 	f.Name = "MenuBar"
 	f.BackgroundTransparency = 1
 	f.Size = UDim2.fromOffset(total, BAR_H)
-	f.Position = UDim2.fromOffset(math.floor((s.X - total) / 2), s.Y - BAR_H - 2)
+	-- pinned to the canvas's bottom edge (not a measured y: it stays on screen while the canvas settles)
+	f.AnchorPoint = Vector2.new(0, 1)
+	f.Position = UDim2.new(0, math.floor((s.X - total) / 2), 1, -2)
 	f.Parent = canvas
 	local x = 0
 	for _, m in MENUS do
@@ -336,7 +338,8 @@ local function updateTips(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = math.min(UIKit.textWidth(text) + 40, s.X - 20)
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 14), UDim2.fromOffset(math.floor((s.X - w) / 2), s.Y - BAR_H - 19), UIKit.color("paper"), 0, 2)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 14), UDim2.new(0, math.floor((s.X - w) / 2), 1, -(BAR_H + 5)), UIKit.color("paper"), 0, 2)
+	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "Tips"
 	UIKit.text(f, text, UDim2.new(1, -36, 1, 0), UDim2.fromOffset(5, 0), { color = UIKit.color("text_ink"), kind = "plain", name = "Words" })
 	UIKit.button(f, "OK", UDim2.fromOffset(24, 10), UDim2.new(1, -27, 0, 2), function()

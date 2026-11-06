@@ -206,7 +206,8 @@ rebuild = function()
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 8, TRAY_H), UDim2.fromOffset(4, s.Y - TRAY_H - 2), UIKit.color("plate"), 0.05, 3)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 8, TRAY_H), UDim2.new(0, 4, 1, -2), UIKit.color("plate"), 0.05, 3)
+	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "BuildTray"
 	local p = pick
 	if p then
@@ -385,6 +386,11 @@ function BuildUI.open()
 	table.insert(conns, StateClient.Changed:Connect(function()
 		if open then
 			showGhost()
+			rebuild()
+		end
+	end))
+	table.insert(conns, UIKit.Resized:Connect(function()
+		if open then
 			rebuild()
 		end
 	end))

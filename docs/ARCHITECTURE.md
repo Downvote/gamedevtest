@@ -267,7 +267,11 @@ with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `
 "Words" label; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
 `setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, panels
 (`registerPanel(name, { title, w, h, build })`, `openPanel(name, arg)`, `closePanel`, `currentPanel`,
-`refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `notice(text, color, seconds)` (a toast at the top; while a
+`refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
+changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
+ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
+rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
+canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top; while a
 panel is open, its status line next to the title instead, and opening a panel clears the toasts, so nothing covers
 a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, `tween`,
 `Resized`.
