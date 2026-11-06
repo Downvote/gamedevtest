@@ -17,8 +17,14 @@
 --     rects are restored and uploaded.
 --   The classic style ("off", or no EditableImage on this device): the layer hides and the Roblox camera shows the
 --     3D world (CameraController poses it at CamOffFov).
--- Changes to the office (a move rebuilds Workspace.Plots.Plot_<i>.Static) re-bake the whole layer behind the old
--- picture. Nothing here moves or parents a part of the world.
+-- Pans (the view following the founder down the street, Build mode's drag) scroll the static layer by whole art px
+-- and cast only the strips they uncover (anchors first, so a strip's pixels share sun rays like the bake's), at most
+-- Tuning.PixelPanRays rays a frame (a longer pan catches up over frames); a jump past half the layer re-bakes. Parts
+-- that come or go under Workspace.Plots (a piece of decor placed, a neighbour moving in) re-cast the rect they and
+-- their shadow cover (in global art px, so a pan does not move them), at most Tuning.PixelInvalidateRaysFrame rays a
+-- frame; a change over a third of the layer re-bakes it whole behind the old picture. Players' characters are never
+-- in the bake (AvatarView draws the founders). Nothing here moves or parents a part of the world.
+local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,6 +35,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Palette = require(ReplicatedStorage.Shared.Data.Palette)
+local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Shading = require(ReplicatedStorage.Shared.Render.Shading)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -47,6 +54,9 @@ local EMISSIVE = 0x1000000 -- flag bit stored with the albedo of Neon parts
 local UP_INDEX = Shading.normalIndex(0, 1, 0)
 local DYN_ID0 = 32768 -- dynamic part ids start here (static ids are 1..32767)
 local MAX_RECTS = 12
+local CULL = 48 -- art px past the layer's edge a dynamic model may stand and still be drawn
+local PICK_LEN = 2000
+local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
 
 local NX: { number } = {}
 local NY: { number } = {}
@@ -112,7 +122,16 @@ local dyns: { [Model]: Dyn } = {}
 local nextDyn = DYN_ID0
 local prevRects: { Rect } = {}
 local tickAcc = 0
-local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0 }
+local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
+local needFull = false -- the next compose copies the whole static layer and uploads the whole image
+
+-- invalidated rects in global art px, and the one being re-cast (its cursor: phase 1 anchors, phase 2 the rest)
+local invQueue: { Rect } = {}
+local invCur: { r: Rect, phase: number, gx: number, gy: number }? = nil
+
+-- what the bake's rays never see: the crew's rigs and every player's character
+local excluded: { Instance } = {}
+local excludeDirty = true
 
 ------------------------------------------------------------------ helpers
 local function rgbOf(c: Color3): number
@@ -317,14 +336,16 @@ end
 
 -- Contact shade (Random Bakery's gentle ambient occlusion): an up-facing pixel whose neighbour above it on screen is
 -- the foot of an upright face standing on it shades one band darker, so desks, shelves and pots sit on the floor.
-local function contactPass(s: Surf)
+local function contactPass(s: Surf, rx0: number?, ry0: number?, rx1: number?, ry1: number?)
 	local W, H = s.W, s.H
 	local sId, sNormal, sDepth, sColor, sShade, sLit = s.sId, s.sNormal, s.sDepth, s.sColor, s.sShade, s.sLit
 	local cam = s.cam
 	local ly, jy = cam.ly, cam.jy
-	for y = 1, H - 1 do
+	local x0, y0 = math.max(0, rx0 or 0), math.max(1, ry0 or 1)
+	local x1, y1 = math.min(W - 1, rx1 or (W - 1)), math.min(H - 1, ry1 or (H - 1))
+	for y = y0, y1 do
 		local row = y * W
-		for x = 0, W - 1 do
+		for x = x0, x1 do
 			local i = row + x
 			local id = buffer.readu16(sId, i * 2)
 			if id ~= 0 and buffer.readu8(sNormal, i) == UP_INDEX and buffer.readu8(sLit, i) <= 1 then
@@ -462,12 +483,28 @@ local function startBake()
 	bakeGX, bakeGY = bakeOX, bakeOY
 	bakePass = 1
 	baking = true
-	-- the raycasts see only the static world: never the crew, never other players' things
-	params.FilterDescendantsInstances = { dynFolder() }
+	invQueue = {}
+	invCur = nil
+end
+
+-- The raycasts see only the static world: never the crew's rigs, never a player's character.
+local function refreshExclude()
+	if not excludeDirty then
+		return
+	end
+	excludeDirty = false
+	excluded = { dynFolder() }
+	for _, pl in Players:GetPlayers() do
+		if pl.Character then
+			table.insert(excluded, pl.Character)
+		end
+	end
+	params.FilterDescendantsInstances = excluded
 end
 
 -- A layer for the camera's view: buffers, image and a fresh bake.
 local function buildSurf(v: CameraController.View)
+	refreshExclude()
 	local K = v.K
 	local W, H = math.ceil(v.fullX / K), math.ceil(v.fullY / K)
 	local _, im = ensureLayer()
@@ -491,7 +528,8 @@ local function buildSurf(v: CameraController.View)
 	end
 	im.Size = UDim2.fromOffset(W * K, H * K)
 	im.Visible = true
-	local cam = Raster.gridCam(v.rot12, v.grid, v.fullX, v.fullY, K, Tuning.CamRayBack)
+	local px, py = CameraController.pan()
+	local cam = Raster.gridCam(v.rot12, CameraController.gridAt(px, py), v.fullX, v.fullY, K, Tuning.CamRayBack)
 	local n = W * H
 	local frame = Raster.newFrame(W, H)
 	local sColor, sDepth, sId = buffer.create(n * 4), buffer.create(n * 4), buffer.create(n * 2)
@@ -555,13 +593,33 @@ local function compose()
 	local t0 = os.clock()
 	local cam = s.cam
 	panX, panY = cam.gx, cam.gy
-	for _, r in prevRects do
-		restoreRect(s, r)
+	local full = needFull
+	if full then
+		local n = s.W * s.H
+		local f = s.frame
+		buffer.copy(f.color, 0, s.sColor, 0, n * 4)
+		buffer.copy(f.depth, 0, s.sDepth, 0, n * 4)
+		buffer.copy(f.id, 0, s.sId, 0, n * 2)
+		prevRects = {}
+	else
+		for _, r in prevRects do
+			restoreRect(s, r)
+		end
 	end
 	local rects: { Rect } = {}
 	local drawn = 0
 	for model, d in dyns do
 		if model.Parent == nil then
+			continue
+		end
+		-- off the layer: skip it (one projected point: its first part)
+		local first = d.parts[1]
+		if first == nil then
+			continue
+		end
+		local fp = first.part.Position
+		local fx, fy = Raster.project(cam, fp.X, fp.Y, fp.Z)
+		if fx < -CULL or fy < -CULL or fx > s.W + CULL or fy > s.H + CULL then
 			continue
 		end
 		drawn += 1
@@ -589,24 +647,232 @@ local function compose()
 	for _, r in rects do
 		Shading.outline(s.frame, r.x0, r.y0, r.x1, r.y1)
 	end
-	-- upload the old and the new rects (merged when there are many)
-	local up: { Rect } = table.clone(prevRects)
-	for _, r in rects do
-		table.insert(up, r)
-	end
-	if #up > MAX_RECTS then
-		local u: Rect = { x0 = math.huge, y0 = math.huge, x1 = -math.huge, y1 = -math.huge }
-		for _, r in up do
-			u.x0, u.y0, u.x1, u.y1 = math.min(u.x0, r.x0), math.min(u.y0, r.y0), math.max(u.x1, r.x1), math.max(u.y1, r.y1)
+	if full then
+		needFull = false
+		uploadAll(s)
+	else
+		-- upload the old and the new rects (merged when there are many)
+		local up: { Rect } = table.clone(prevRects)
+		for _, r in rects do
+			table.insert(up, r)
 		end
-		up = { u }
-	end
-	for _, r in up do
-		uploadRect(s, r)
+		if #up > MAX_RECTS then
+			local u: Rect = { x0 = math.huge, y0 = math.huge, x1 = -math.huge, y1 = -math.huge }
+			for _, r in up do
+				u.x0, u.y0, u.x1, u.y1 = math.min(u.x0, r.x0), math.min(u.y0, r.y0), math.max(u.x1, r.x1), math.max(u.y1, r.y1)
+			end
+			up = { u }
+		end
+		for _, r in up do
+			uploadRect(s, r)
+		end
 	end
 	prevRects = rects
 	stats.ticks += 1
 	stats.composeMs = (os.clock() - t0) * 1000
+end
+
+------------------------------------------------------------------ pans
+-- Shift a buffer of W x H elements of e bytes so that new (x, y) = old (x + dx, y + dy) (rows overlap: buffer.copy
+-- moves overlapping bytes correctly).
+local function shift(b: buffer, W: number, H: number, e: number, dx: number, dy: number)
+	local w = W - math.abs(dx)
+	if w <= 0 or math.abs(dy) >= H then
+		return
+	end
+	local sx, tx = math.max(0, dx), math.max(0, -dx)
+	if dy >= 0 then
+		for y = 0, H - 1 - dy do
+			buffer.copy(b, (y * W + tx) * e, b, ((y + dy) * W + sx) * e, w * e)
+		end
+	else
+		for y = H - 1, -dy, -1 do
+			buffer.copy(b, (y * W + tx) * e, b, ((y + dy) * W + sx) * e, w * e)
+		end
+	end
+end
+
+-- Cast every pixel of a layer rect (inclusive) by the bake's last pass: the 2x2 anchors first, then the pixels that
+-- share their sun rays. Returns the rays cast.
+local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number): number
+	x0, y0 = math.max(0, x0), math.max(0, y0)
+	x1, y1 = math.min(s.W - 1, x1), math.min(s.H - 1, y1)
+	if x0 > x1 or y0 > y1 then
+		return 0
+	end
+	local shadows = tierSpec(tier).shadows
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local before = bakeRays
+	for phase = 1, 2 do
+		for y = y0, y1 do
+			local gy = y + gy0
+			for x = x0, x1 do
+				local gx = x + gx0
+				local anchor = gx % 2 == 0 and gy % 2 == 0
+				if anchor == (phase == 1) then
+					castSample(s, gx, gy, gx, gy, false, shadows)
+				end
+			end
+		end
+	end
+	return bakeRays - before
+end
+
+-- The ink and the contact shade over a layer rect and one pixel round it.
+local function reoutline(s: Surf, x0: number, y0: number, x1: number, y1: number)
+	Shading.outline(s.static, x0 - 1, y0 - 1, x1 + 1, y1 + 1, s.sShade)
+	contactPass(s, x0 - 1, y0 - 1, x1 + 1, y1 + 1)
+end
+
+-- Scroll the layer toward the pan (tx, ty): by whole art px, the uncovered strips cast, within the frame's ray budget.
+local function scrollToward(s: Surf, tx: number, ty: number)
+	local cam = s.cam
+	local dx, dy = tx - cam.gx, ty - cam.gy
+	if dx == 0 and dy == 0 then
+		return
+	end
+	local W, H = s.W, s.H
+	local v = s.view
+	if math.abs(dx) >= W // 2 or math.abs(dy) >= H // 2 then
+		-- a jump (the view sent home from the far end of the street): bake again at the new pan
+		s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(tx, ty), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
+		startBake()
+		return
+	end
+	-- the step this frame: the strips' rays within the budget (a strip pixel costs about 1.5 rays with its sun ray)
+	local budget = Tuning.PixelPanRays
+	local mx = math.max(1, math.floor(budget / (H * 1.5)))
+	local my = math.max(1, math.floor(budget / (W * 1.5)))
+	local sx, sy = math.clamp(dx, -mx, mx), math.clamp(dy, -my, my)
+	for _, b in { s.sColor, s.sShade, s.sAlbedo, s.sDepth } do
+		shift(b, W, H, 4, sx, sy)
+	end
+	shift(s.sNormal, W, H, 1, sx, sy)
+	shift(s.sLit, W, H, 1, sx, sy)
+	shift(s.sId, W, H, 2, sx, sy)
+	s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(cam.gx + sx, cam.gy + sy), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
+	local rays = 0
+	local strips: { Rect } = {}
+	if sx > 0 then
+		table.insert(strips, { x0 = W - sx, y0 = 0, x1 = W - 1, y1 = H - 1 })
+	elseif sx < 0 then
+		table.insert(strips, { x0 = 0, y0 = 0, x1 = -sx - 1, y1 = H - 1 })
+	end
+	local cx0, cx1 = if sx > 0 then 0 else -sx, if sx > 0 then W - sx - 1 else W - 1
+	if sy > 0 then
+		table.insert(strips, { x0 = cx0, y0 = H - sy, x1 = cx1, y1 = H - 1 })
+	elseif sy < 0 then
+		table.insert(strips, { x0 = cx0, y0 = 0, x1 = cx1, y1 = -sy - 1 })
+	end
+	for _, r in strips do
+		rays += castRect(s, r.x0, r.y0, r.x1, r.y1)
+	end
+	for _, r in strips do
+		reoutline(s, r.x0, r.y0, r.x1, r.y1)
+	end
+	stats.scrolls += 1
+	stats.scrollRays += rays
+	needFull = true
+end
+
+------------------------------------------------------------------ invalidation
+-- The global art px rect a part and its sun shadow on the lawn cover (nil when the view has none yet).
+local function partRect(part: BasePart): Rect?
+	local v = CameraController.view()
+	local cf, size = part.CFrame, part.Size / 2
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	local sun = SUN_V
+	local ground = Street.LAWN_Y
+	for _, sxk in { -1, 1 } do
+		for _, syk in { -1, 1 } do
+			for _, szk in { -1, 1 } do
+				local p = cf:PointToWorldSpace(Vector3.new(size.X * sxk, size.Y * syk, size.Z * szk))
+				local gx, gy = Raster.gridPoint(v.rot12, v.grid, p.X, p.Y, p.Z)
+				x0, y0, x1, y1 = math.min(x0, gx), math.min(y0, gy), math.max(x1, gx), math.max(y1, gy)
+				if p.Y > ground then
+					local t = (p.Y - ground) / sun.Y
+					local q = p - sun * t
+					local qx, qy = Raster.gridPoint(v.rot12, v.grid, q.X, q.Y, q.Z)
+					x0, y0, x1, y1 = math.min(x0, qx), math.min(y0, qy), math.max(x1, qx), math.max(y1, qy)
+				end
+			end
+		end
+	end
+	if x0 > x1 then
+		return nil
+	end
+	return { x0 = math.floor(x0) - 2, y0 = math.floor(y0) - 2, x1 = math.ceil(x1) + 2, y1 = math.ceil(y1) + 2 }
+end
+
+local function queueRect(r: Rect)
+	local s = surf
+	if s == nil then
+		return
+	end
+	-- only what is on the layer (a rect off it is cast when a pan uncovers it)
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	if r.x1 < gx0 or r.y1 < gy0 or r.x0 > gx0 + s.W - 1 or r.y0 > gy0 + s.H - 1 then
+		return
+	end
+	table.insert(invQueue, r)
+	local area = 0
+	for _, q in invQueue do
+		area += (math.min(q.x1, gx0 + s.W - 1) - math.max(q.x0, gx0) + 1) * (math.min(q.y1, gy0 + s.H - 1) - math.max(q.y0, gy0) + 1)
+	end
+	if area > s.W * s.H * REBAKE_SHARE then
+		-- a big change (a new office): bake again, behind the old picture
+		rebakeAt = os.clock() + 0.5
+		invQueue = {}
+		invCur = nil
+	end
+end
+
+-- Re-cast queued rects within the frame's ray budget. A rect's pixels are cast exactly by the bake's rule; once a
+-- rect is done its ink and contact shade are drawn again and the frame takes the new pixels.
+local function processInvalidation()
+	local s = surf
+	if s == nil then
+		return
+	end
+	local budget = Tuning.PixelInvalidateRaysFrame
+	local start = bakeRays
+	while bakeRays - start < budget do
+		local cur = invCur
+		if cur == nil then
+			local r = table.remove(invQueue, 1)
+			if r == nil then
+				return
+			end
+			cur = { r = r, phase = 1, gx = r.x0, gy = r.y0 }
+			invCur = cur
+		end
+		local c = cur :: { r: Rect, phase: number, gx: number, gy: number }
+		local r = c.r
+		local shadows = tierSpec(tier).shadows
+		local gx0, gy0 = s.cam.gx, s.cam.gy
+		while c.phase <= 2 and bakeRays - start < budget do
+			local gx, gy = c.gx, c.gy
+			local x, y = gx - gx0, gy - gy0
+			if x >= 0 and y >= 0 and x < s.W and y < s.H and ((gx % 2 == 0 and gy % 2 == 0) == (c.phase == 1)) then
+				castSample(s, gx, gy, gx, gy, false, shadows)
+			end
+			c.gx += 1
+			if c.gx > r.x1 then
+				c.gx = r.x0
+				c.gy += 1
+				if c.gy > r.y1 then
+					c.gy = r.y0
+					c.phase += 1
+				end
+			end
+		end
+		if c.phase > 2 then
+			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
+			invCur = nil
+			stats.recasts += 1
+			needFull = true
+		end
+	end
 end
 
 ------------------------------------------------------------------ tiers
@@ -650,10 +916,20 @@ local function onHeartbeat(dt: number)
 		rebakeAt = -1
 		startBake()
 	end
+	refreshExclude()
 	if baking then
 		local budget = Tuning.PixelBakeMsPerFrame + (if shown then 0 else 8)
 		bakeSome(os.clock() + budget / 1000)
 		return
+	end
+	local s = surf
+	if s then
+		local tx, ty = CameraController.pan()
+		scrollToward(s, tx, ty)
+		if baking then
+			return -- a jump started a bake
+		end
+		processInvalidation()
 	end
 	local hz = tierSpec(tier).hz
 	tickAcc += dt
@@ -664,24 +940,45 @@ local function onHeartbeat(dt: number)
 end
 
 local function watchStatic()
-	-- a change to any plot's Static (the office rebuilt on a move) re-bakes the layer behind the old picture
+	-- a part that comes or goes anywhere on the street (decor placed, a neighbour's studio built or gone) re-casts
+	-- the rect it and its shadow cover (a big change re-bakes the layer behind the old picture)
 	local plots = workspace:WaitForChild("Plots", 30)
 	if plots == nil then
 		return
 	end
-	-- only the player's own plot: other players' offices are far off screen
 	local function poke(d: Instance)
-		local s = surf
-		if s == nil then
+		if not d:IsA("BasePart") or surf == nil then
 			return
 		end
-		local mine = plots:FindFirstChild("Plot_" .. s.view.plot)
-		if mine and d:IsDescendantOf(mine) then
-			rebakeAt = os.clock() + 0.5
+		local r = partRect(d)
+		if r then
+			queueRect(r)
 		end
 	end
 	plots.DescendantAdded:Connect(poke)
-	plots.DescendantRemoving:Connect(poke)
+	plots.DescendantRemoving:Connect(function(d: Instance)
+		poke(d)
+		staticIds[d] = nil
+	end)
+end
+
+-- Characters come and go: the bake's filter follows.
+local function watchCharacters()
+	local function hook(pl: Player)
+		pl.CharacterAdded:Connect(function()
+			excludeDirty = true
+		end)
+		pl.CharacterRemoving:Connect(function()
+			excludeDirty = true
+		end)
+	end
+	for _, pl in Players:GetPlayers() do
+		hook(pl)
+	end
+	Players.PlayerAdded:Connect(hook)
+	Players.PlayerRemoving:Connect(function()
+		excludeDirty = true
+	end)
 end
 
 function PixelRenderer.init()
@@ -711,6 +1008,7 @@ function PixelRenderer.start()
 		setting = v.settings.pixel
 	end
 	applyTier(setting)
+	watchCharacters()
 	RunService.Heartbeat:Connect(onHeartbeat)
 	task.spawn(watchStatic)
 end
@@ -836,6 +1134,27 @@ function PixelRenderer.project(world: Vector3): (Vector2, boolean)
 	return Vector2.new(p.X, p.Y), on
 end
 
+-- The pick ray through a screen point (pos = InputObject.Position, below the top bar): origin and direction * length,
+-- through what the layer shows (its own camera, the pan it shows) when the filter is on, the Roblox camera's otherwise.
+function PixelRenderer.screenRay(pos: Vector2): (Vector3, Vector3)
+	local inset = GuiService:GetGuiInset()
+	local x, y = pos.X + inset.X, pos.Y + inset.Y
+	local s = surf
+	if s and tier ~= "off" then
+		local cam = s.cam
+		local i = math.clamp(math.floor((x + cam.offX) / cam.K), 0, cam.W - 1)
+		local j = math.clamp(math.floor((y + cam.offY) / cam.K), 0, cam.H - 1)
+		local ox, oy, oz = Raster.origin(cam, i, j)
+		return Vector3.new(ox, oy, oz), Vector3.new(cam.lx, cam.ly, cam.lz) * FAR
+	end
+	local cam = workspace.CurrentCamera
+	if cam == nil then
+		return Vector3.zero, Vector3.new(0, -PICK_LEN, 0)
+	end
+	local ray = cam:ViewportPointToRay(x, y)
+	return ray.Origin, ray.Direction.Unit * PICK_LEN
+end
+
 -- The art pixel (i, j) of the top-left grid that shows a world point (UI on a pixel canvas), and whether on screen.
 function PixelRenderer.projectPixel(world: Vector3): (number, number, boolean)
 	local pos, on = PixelRenderer.project(world)
@@ -844,7 +1163,7 @@ function PixelRenderer.projectPixel(world: Vector3): (number, number, boolean)
 end
 
 -- CLI checks only: the layer, its bake and what the ticks cost.
-function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number }
+function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number, px: number, py: number, scrolls: number, scrollRays: number, recasts: number, queued: number }
 	local s = surf
 	local n = 0
 	for _ in dyns do
@@ -862,6 +1181,12 @@ function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking:
 		ticks = stats.ticks,
 		composeMs = stats.composeMs,
 		dyn = n,
+		px = if s then s.cam.gx else 0,
+		py = if s then s.cam.gy else 0,
+		scrolls = stats.scrolls,
+		scrollRays = stats.scrollRays,
+		recasts = stats.recasts,
+		queued = #invQueue + (if invCur then 1 else 0),
 	}
 end
 

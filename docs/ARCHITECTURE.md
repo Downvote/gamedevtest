@@ -14,13 +14,13 @@ read-only as the reference: nothing there was changed). What was copied, and how
 
 ```
 default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScriptService, Client -> StarterPlayerScripts;
-                       Players.CharacterAutoLoads false (no avatar: the game is played from the menus)
+                       characters on (the founder walks the street; jump power 0)
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
                        maths, copied), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, StudioService, PlotService)
-src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView),
+src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView),
                        Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud, Menus,
-                       NewGameUI, ReviewUI)
+                       NewGameUI, ReviewUI, BuildUI)
 tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
 scripts/gen_pixelfont.py  the pixel font's glyph tables (copied; README "Fonts and licences")
@@ -49,8 +49,9 @@ ModuleScript; there are no `init.luau` files.
 
 `Axis` (`fun ideas graphics sound`), `SkillKey` (`code design art sound`), `Match` (`great good okay poor`), `Phase`
 (`build polish`), `Skills`, `Scores`, `Look`, `Staff`, `Candidate`, `Project`, `Release`, `Award`, `Settings`,
-`Stats`, `Profile` (the save), `ClientView` (what the client sees), `ErrCode`, `Response`, `WorkPop` (a popup over a
-developer: `{ id, axis, n, spark }`), and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The
+`Stats`, `Piece` (a piece of decor on the plot: `{ id, x, z, rot }`), `PlotSave` (`{ owned, placed }`), `Profile` (the
+save; `founder: Look`, `plot: PlotSave` since version 2), `ClientView` (what the client sees; `founder`, `decor`),
+`ErrCode` (with `blocked`), `Response`, `WorkPop` (a popup over a developer: `{ id, axis, n, spark }`), and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The
 file is the reference for every field; the comments there say what each holds.
 
 ## 4. Config
@@ -58,8 +59,11 @@ file is the reference for every field; the comments there say what each holds.
 - `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the clock (`WeekSec`), money,
   crew, development, reviews, sales, offices (`Offices[tier] = { desks, rent, cost, fans }`), sizes
   (`Sizes[id] = { weeks, cost, price, expect, sales }`), the safety net (`RescueSize`, `RescuePlatform`), research
-  costs, the server's step and rate limit, the plot spacing, and the camera and pixel filter values copied from
-  Random Bakery (`CamYaw` 45, `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`, ...).
+  costs, the server's step and rate limit, the street (`MaxPlots` 6, `PlotSpacing` 80, `PlotPieces` by office,
+  `HomeCooldown`), and the camera and pixel filter values (from Random Bakery: `CamYaw` 45, `CamPitch` 30,
+  `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack` 500 and `PixelMaxRayDist` 1400 so the
+  whole street lies in front of the rays' plane, `CamFollowBox`, `CamGlide`, `CamBuildPan`, `PixelPanRays`,
+  `PixelInvalidateRaysFrame`).
 - `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges`, `Sounds`, all empty or 0 in this version.
 
 ## 5. Data (pure content tables)
@@ -72,7 +76,9 @@ file is the reference for every field; the comments there say what each holds.
 | `Data/Platforms` | `{ id, name, short, from, to, licence, market, loves, color, accent, kind }` |
 | `Data/Critics` | the four critics `{ name, outlet, axis }` in review order |
 | `Data/Names`, `Data/Looks` | developer names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
-| `Data/Office` | the three rooms (`plans[tier]`: bounds, wall height, lot, desk anchors, props, windows, `OUTLINE` boxes), `origin(plot)`, `seat(anchor)`, `outlinePts(tier, ox, oz)` and the desk and seat sizes |
+| `Data/Office` | the three rooms (`plans[tier]`: bounds, wall height, lot, desk anchors, props, windows, `OUTLINE` boxes), `origin(plot)` (Data/Street's), `seat(anchor)`, `outlinePts(tier, ox, oz)` and the desk and seat sizes |
+| `Data/Street` | the street (§12 of GAME_DESIGN): `MAX`, `SPACING`, `LAWN_Y` (-0.5), `ROAD` / `PAVE_N` / `PAVE_S` / `VERGE` (plot-local z bands), `LOT`, `plot(tier)` (the plot's rect), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `TREES` |
+| `Data/Decor` | the plot's decor `{ id, name, price, fans, w, d, office }` (footprint in whole studs facing south) |
 
 Coordinates in `Data/Office` are studs, plot-local, +Y up. The camera looks from the south-east, so the back walls are
 the north (`minZ`) and west (`minX`) ones; a developer sits on a desk's north side facing south (toward the camera),
@@ -91,7 +97,8 @@ Pure rules (`src/shared/Logic`), all specced in `tests/specs`:
 | `Crew` | `SKILLS`, `SKILL_NAMES`, `ROLES`, `total`, `salary`, `role`, `randomLook`, `randomName`, `candidate(rng, year)`, `candidates(rng, year, n?)`, `hire(c, id, desk)`, `freeDesk`, `trainGain(level)`, `tired`, `rate`, `energyWeek(s, working)`, `partyCost(n)`, `payroll` |
 | `Dev` | `AXES`, `AXIS_NAMES`, `MATCH_NAMES`, `SIZE_ORDER`, `SIZE_NAMES`; `match(genre, topic)`, `matchKey`, `onSale(p, year)`, `platformsIn(year)`, `genreCost`, `topicCost`, `startCost(size, platform)`, `title(genre, topic, seed)`, `sequelTitle(base, releases, inProgress?)`, `newProject(...)`, `focusMult`, `output(skills)`, `teamFactor(n)`, `workWeek(project, staff, rng) -> (pops, rp)`, `progress`, `novelty`, `love`, `quality(project, releases) -> (Q, match)`, `expectation(size, year)`, `baseScore(Q, E)`, `reviews(project, year, releases, rng) -> (reviews, total, match)`, `salesPlan(total, fans, platform, size) -> (peak, decay)`, `release(...)`, `salesWeek(release) -> (copies, money, fans)`, `award(releases, year, weeksPerYear) -> (kind?, release?)`, `adCost`, `adFans` |
 | `Studio` | the rules over a profile, every action returning `(true, data?)` or `(false, ErrCode)` and changing the profile only on success: `week(profile, rng) -> { Event }` (month start: pay, candidates, a new platform on a year's first week; the work week; energy; sales; the awards night after a year's last week; then `week += 1`), `start`, `titleFor`, `rescue`, `release`, `hire`, `fire`, `train`, `party`, `unlockGenre`, `unlockTopic`, `move`, `ad`, and helpers `year`, `desks`, `staffById`, `canAd`, `canParty`. `Event.kind` is `pay candidates work built ready sales award platform broke` |
-| `Schema` | `VERSION` (1), `default(now, seed)`, `migrate(raw)`, `reconcile(raw, now, seed)` (any table -> a valid Profile: types and ranges checked, unknown ids dropped, desks unique and inside the office, the starting genres and topics always open, releases capped at `Tuning.ReleasesKept`) |
+| `Plot` | the plot's rules: `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the office with a stud round it, the footpath, the sign, the mailbox), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" / "blocked" / "overlap" / "unknown")`, and the actions `buy` (once; its fans join), `place` (an owned piece, up to the limit), `move`, `store`, `clean` (after a move: pieces the bigger room covers go back in the box) |
+| `Schema` | `VERSION` (2: the founder and the plot), `default(now, seed)`, `migrate(raw)` (1 -> 2: nothing moves; reconcile gives a founder and an empty plot), `reconcile(raw, now, seed)` (any table -> a valid Profile: types and ranges checked, unknown ids dropped, desks unique and inside the office, the starting genres and topics always open, releases capped at `Tuning.ReleasesKept`, owned decor that exists, placed pieces that are owned and fit, up to the limit) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
 
 Models (`src/shared/Models`, Roblox modules):
@@ -105,7 +112,15 @@ Models (`src/shared/Models`, Roblox modules):
   arcade`). `paint(model, theme)` gives the floor and wall parts their theme's colours.
 - `CharacterModels.build(look, name, seed) -> Rig` (`{ model, parts, rest, seed }`): a seated chibi developer facing
   +Z, origin on the seat's top centre; parts are not queryable or collidable. `pose(rig, base, t, state)` with state
-  `type idle tired cheer`; `HEAD_TOP` is where popups start.
+  `type idle tired cheer`; `HEAD_TOP` is where popups start. `buildStanding(look, name, seed)`: a founder (the same
+  head on a standing body, origin between the feet); `poseStanding(rig, base, t, speed)` (a walk cycle by speed,
+  breathing and looking round when still); `STAND_TOP` (the name label).
+- `StreetModels`: `road(parent, origin)` (a plot's stretch: pavements with kerbs, the road and its dashed line, the
+  verge, lamp posts, trees), `land(parent, origin, tier)` (meadow, the plot's lawn, the stepping-stone footpath, the
+  plot sign with its `SignBoard`, the mailbox), `emptyLot(parent, origin)`, `ends(parent)` (the street's ends and the
+  invisible, unqueryable walls round the world). Tops: lawn -0.5, meadow -0.55, road -0.45, pavements -0.3.
+- `DecorModels.build(id, at) -> Model` (`at`: the footprint's centre on the lawn, turned; parts don't collide), `has`.
+- `OfficeModels` no longer builds a lawn (the street does); its low rim doesn't collide; a doorstep fills the gap.
 
 ## 7. Server
 
@@ -137,6 +152,11 @@ handler under pcall; success marks the session dirty).
 | `office.ad` | - | `ad` | cooldown, money |
 | `settings.set` | `k` ("pixel"), `v` | the pixel tier: high, medium, low, off | bad_payload |
 | `tut.next` | - | the tips banner goes away for good | - |
+| `plot.buy` | `id` | `Plot.buy` (data: `{ fans }`) | max, locked, money, bad_payload |
+| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place`, then PlotService rebuilds the decor by difference (data: `{ i }`) | locked, full, blocked |
+| `plot.move` | `i x z rot` | `Plot.move`, the decor rebuilt | blocked, bad_payload |
+| `plot.store` | `i` | `Plot.store`, the decor rebuilt | bad_payload |
+| `char.home` | - | PlotService puts the founder on their footpath | cooldown (`Tuning.HomeCooldown`), not_ready |
 
 Signal `pause` `{ key, on }`: the client holds the player's clock while a menu or a card is open (at most 4 keys).
 
@@ -144,10 +164,18 @@ Signal `pause` `{ key, on }`: the client holds the player's clock while a menu o
 Registers the actions above; `step(dt)` (Main's fixed 10 Hz step) moves every ready, unpaused session on a week every
 `Tuning.WeekSec`, runs `Studio.week` and sends `Fx { kind = "week", week, events }`.
 
-### 7.5 `PlotService`
-`claim(player) -> plot` (the lowest free index; plots in a row along X, `Tuning.PlotSpacing` apart), `release(i)`,
-`build(s)`: `Workspace.Plots.Plot_<i>` (attributes `Owner`, `Tier`) gets a new `Static` folder with the office of the
-session's tier, before the old one is destroyed.
+### 7.5 `PlotService` (the street)
+`init()` builds the whole street: `Workspace.Plots.Street` (every plot's road stretch and the street's ends) and an
+empty lot on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
+free index, 0 when the street is full: Main kicks), `release(i)` (back to an empty lot, attributes cleared).
+`build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName`; its `Static` gets `Office` and `Land` for the session's
+tier (rebuilt only when `Static`'s `Built` attribute differs: a new folder goes up before the old comes down) and
+`Decor` by difference (`buildDecor(s)`: one model a piece, named `id:x:z:rot`; models whose piece is still there stay,
+gone ones are destroyed, new ones built), then `sync(s)`: the attributes `Tier`, `Games`, `Best`, `Crew` (a crew
+member a `;`-separated entry `desk.skin.hair.style.shirt.tired`) and `Working`, and the player's `Founder`
+(`skin.hair.style.shirt`) and `Plot` attributes (Main syncs every dirty session before sending its view; only changed
+values replicate). The founder: `watchCharacters(player)` (a new character goes to its footpath once it has a root),
+`placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`).
 
 ### 7.6 Persistence (`DataService`, `Logic/Schema`)
 One key per player (`u_<userId>`) in `Tuning.DataStoreName`, a record `{ data = Profile, lock = { job, t }? }`.
@@ -162,7 +190,8 @@ Without DataStores (Studio without API access) saves live in memory and a warnin
 ## 8. Client bootstrap and the mirror
 
 `Main.client`: `StateClient.init` (remotes), `PixelRenderer.init` (lighting), `CameraController.init`, wait for the
-first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `WorldView.start`, `Hud.start`.
+first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `WorldView.start`, `AvatarView.start`,
+`Hud.start`.
 
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `request(action,
@@ -170,7 +199,7 @@ payload) -> Response` (never errors), `signal(kind, payload)`.
 
 ## 9. The pixel filter and the camera
 
-### 9.1 Principle (Random Bakery's, cut down to one still view)
+### 9.1 Principle (Random Bakery's, cut down: one fitted scale, pans, no Actors)
 One EditableImage, shown full screen through an ImageLabel with `ResampleMode = Pixelated` from the screen's top-left
 corner: one art pixel is K × K screen px. K is the game's one pixel size (2 on phones and 768p, 3 at 1080p, 4 at
 1440p; a tier only makes it coarser). The **static layer** is a raycast G-buffer of the view: progressive passes (one
@@ -187,16 +216,36 @@ Classic picked) the layer hides and the Roblox camera shows the 3D world.
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
 Orthographic yaw 45° pitch 30°: floor edges step 2:1. The office's outline (`Office.outlinePts`) is fitted on screen
 clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`, `Raster.gridPhase`)
-whose placement is clear (`Raster.place`), its box centred where the fit puts it. `view()`, `refit()`,
-`ViewChanged: Signal<View>` (when the key changes), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera
-is posed on the view: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
+whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`). The grid's ray plane
+`l` is fixed per plot (`CamRayBack` behind the plot's origin), so the key (`plot|tier|a|phase|l|screen|K`) only
+changes with the plot, the office, the screen or K: anything else (the HUD's blocks) only moves the home pan.
+The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): home while they
+stand on their own lot inside the home view's middle; else the least move that keeps them `CamFollowBox` of the
+screen from its edges, gliding `CamGlide` of the way a frame; a target more than three quarters of the screen away
+snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood
+on its own lot once or 3 s have passed (Roblox drops it mid-street before the server moves it home). Build mode: `setFree(true)` starts at home and the view
+stays where `panBy(dx, dy)` (full-screen px) drags it, its centre within `CamBuildPan` studs of the plot; `isFree()`.
+`gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
+`ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
+pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
 progress)`, `registerDynamic(model)`, `unregisterDynamic`, `refreshDynamic`, `rebake`, `setPaused`,
-`project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `debugStatic()` (CLI checks),
-`Changed: Signal<PixelTier>`. A change under `Workspace.Plots` (a move) re-bakes behind the old picture. Raycasts
-exclude `Workspace.PixelDynamic`, where the crew live.
+`project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `screenRay(pos) -> (origin,
+direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `debugStatic()`
+(CLI checks: layer, pan, bakes, ticks, `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`.
+- **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
+  art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
+  even-even anchor first with its sun ray, then the pixels sharing it), re-outlined with a pixel round them; at most
+  `Tuning.PixelPanRays` rays a frame (a longer pan catches up over frames); a pan of half the layer or more re-bakes
+  at the new pan behind the old picture. The next compose copies the whole static layer and uploads the whole image.
+- **Invalidation**: a part that comes or goes anywhere under `Workspace.Plots` queues the global-art-px rect it and its
+  sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
+  the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
+  layer re-bake it (a new office). Rects in global px survive pans.
+- The bake's rays exclude `Workspace.PixelDynamic` and every player's character (refreshed when characters come and
+  go). Dynamic models whose first part lies more than `CULL` (48) art px off the layer are skipped.
 
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
@@ -222,12 +271,17 @@ a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent
 ### 10.2 `WorldView`
 A rig per developer at their desk (rebuilt when their look, desk, office or plot changes), registered with the
 renderer and posed every frame: typing while a game is in the works, idle otherwise, dozing with a "z" when tired,
-cheering on a spark. The week's `work` pops float over their heads ("+12" in the score's colour, "Spark! +N" in gold).
-`rigCount()` for the sims.
+cheering on a spark. The own crew comes from the view (keys `own:<staff id>`; the week's `work` pops float over their
+heads: "+12" in the score's colour, "Spark! +N" in gold); every other studio's from its plot's `Crew` and `Working`
+attributes (keys `<plot>:<desk>`). Only rigs on plots within 90 studs of the view's centre are posed. Each plot sign
+gets a World-root label (the studio's name, the own in gold, or "Empty lot"); a tap on a sign (a press let go within
+8 px, not on the interface, not in Build mode) shows `signCard(i)`. `rigCount()` / `ownRigCount()` for the sims.
 
 ### 10.3 `Hud`
-Chips (date, with "II" while paused; money; fans; RP), the menu bar (`Menu_newgame`, `Menu_staff`,
-`Menu_research`, `Menu_office`, `Menu_games`; New game is off while a game is in the works), the project card
+Chips (date, with "II" while paused; money; fans; RP; then `Home`, a button shown while the founder is off their own
+lot, sending `char.home`), the menu bar (`Menu_newgame`, `Menu_staff`, `Menu_research`, `Menu_office`, `Menu_games`,
+`Menu_build`; New game is off while a game is in the works; while Build mode is open the bar, the cards and the tips
+step aside), the project card
 (`ProjectCard`: title, topic, genre and platform, phase and progress, the four scores, bugs, `Release!` once built),
 the tips banner (`Tips`, "OK" sends `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`), the week's
 notices, money popups and the awards card. With no game in the works the card's place shows the games on sale
@@ -245,11 +299,29 @@ no bars) may overlap its margins. Any open panel holds the clock
 `release()` sends `project.release` and shows `show(release)`: the critics one by one, the total, Hall of Fame, the
 match learned; `award(event)` shows the awards night. Both hold the clock (key "card") until "Nice!".
 
+### 10.6 `AvatarView`
+A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
+UserId), registered with the renderer and posed every frame at their character: feet on the ground under the
+HumanoidRootPart (a raycast down past characters and rigs), facing the root's look direction, walking at the speed
+the root moves. The Roblox avatar is hidden on every client (`LocalTransparencyModifier` 1 on its parts and decals).
+Other players' names float over their heads (World root). `founderPos()`, `count()`.
+
+### 10.7 `BuildUI` (Build mode)
+`open()` (the HUD's Build button): closes any panel, `CameraController.setFree(true)`, holds the clock (pause key
+"build"), the tray `BuildTray` along the bottom (a card a piece: `Buy_<id>` buys it or, when owned, picks it; the line
+"Pieces n/limit"; `BuildDone`). With a piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in
+`Workspace.PixelDynamic`: the piece and a neon `Footprint`, green where `Plot.fits` says it fits, red where not)
+stands on the cell under the pointer (mouse) or the last tap; the bar shows `Rotate`, `Place` / `Move here`, `Store`
+(when moving) and `Cancel`. A tap on a placed piece of the own plot (a ray into its `Static.Decor`) picks it up to
+move. A press dragged more than 8 px pans the view (`CameraController.panBy`). `confirm()` sends `plot.place` (the
+piece stays picked for another copy) or `plot.move`; `close()`; `isOpen()`; `Changed: Signal<boolean>`;
+`tapScreen(pos, mouse?)` (the sims' and previews' tap).
+
 ## 11. Verification
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
-  lists them: Util, Validate, Numbers, Calendar, DataIntegrity, Crew, Dev, Economy, Schema, Shading, Raster, Rim,
-  PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
+  lists them: Util, Validate, Numbers, Calendar, DataIntegrity, Crew, Dev, Economy, Plot, Schema, Shading, Raster,
+  Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.
 - `tools/preview`: PNGs of the real renderer and UI at device sizes (`tools/README.md`).
@@ -263,4 +335,8 @@ Copied unchanged or nearly: `Render/Raster`, `Render/Picture`, `Render/PixelFont
 preview engines, `docs/WORKFLOW.md`. Adapted: `Render/Shading` (its LUT colours are the palette and the office
 themes; the bakery's wallpapers and land tiles are gone) and its spec, `scripts/check.sh` (no locale or server-codes
 steps; builds `ByteSizeStudio.rbxlx`), `Net`. Written new for this game: everything else, including a much smaller
-`PixelRenderer` (one still view, no street, no pans, no Actors) and `CameraController` (one fitted view).
+`PixelRenderer` (one fitted scale with pans and rect re-casts, no Actors, no Hold, no per-plot indoor light) and
+`CameraController` (the fitted home view, following the founder, Build mode's free pan), and the street itself
+(`Data/Street`, `StreetModels`, PlotService's plots and empty lots, AvatarView's founders), modelled on Random
+Bakery's street of bakeries and its plot (ROUND3.md 6.6, 9) but smaller: decor on a whole-stud grid, no drawn paths,
+water or fences.

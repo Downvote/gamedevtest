@@ -11,6 +11,7 @@ local Platforms = require(script.Parent.Parent.Data.Platforms)
 local Calendar = require(script.Parent.Calendar)
 local Crew = require(script.Parent.Crew)
 local Dev = require(script.Parent.Dev)
+local Plot = require(script.Parent.Plot)
 
 type Profile = Types.Profile
 type Rng = Types.Rng
@@ -327,7 +328,9 @@ function Studio.move(p: Profile): (boolean, any)
 	end
 	p.money -= spec.cost
 	p.office = nextTier
-	return true, { office = nextTier }
+	-- the bigger room may cover pieces that stood by the old one: those go back in the box
+	local stored = Plot.clean(p)
+	return true, { office = nextTier, stored = stored }
 end
 
 function Studio.ad(p: Profile): (boolean, any)

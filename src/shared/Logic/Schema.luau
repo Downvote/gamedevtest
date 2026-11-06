@@ -8,14 +8,16 @@ local Genres = require(script.Parent.Parent.Data.Genres)
 local Topics = require(script.Parent.Parent.Data.Topics)
 local Platforms = require(script.Parent.Parent.Data.Platforms)
 local Looks = require(script.Parent.Parent.Data.Looks)
+local Decor = require(script.Parent.Parent.Data.Decor)
 local Util = require(script.Parent.Util)
 local Crew = require(script.Parent.Crew)
+local Plot = require(script.Parent.Plot)
 
 type Profile = Types.Profile
 
 local Schema = {}
 
-Schema.VERSION = 1
+Schema.VERSION = 2 -- 1: the first shape; 2: the founder's look and the plot (GAME_DESIGN 12, 13)
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -109,6 +111,7 @@ function Schema.default(now: number, seed: number): Profile
 	for i = 1, Tuning.StartStaff do
 		table.insert(staff, Crew.hire(Crew.candidate(rng, 1), i, i))
 	end
+	local founder = Crew.randomLook(rng)
 	local genres, topics = {}, {}
 	for _, g in Genres.list do
 		if g.tier == 1 then
@@ -144,14 +147,22 @@ function Schema.default(now: number, seed: number): Profile
 		stats = { games = 0, copies = 0, revenue = 0, hof = 0, best = 0 },
 		settings = { pixel = "high" },
 		createdAt = now,
+		founder = founder,
+		plot = { owned = {}, placed = {} },
 	}
 end
 
 ------------------------------------------------------------------ migrate
--- Brings an older save up to VERSION (each step one version). Version 1 is the first shape: nothing to do yet.
+-- Brings an older save up to VERSION (each step one version).
+--   1 -> 2: a founder's look and an empty plot. Nothing in the old save moves; reconcile gives the founder the new
+--           default's look (from the player's seed) and the plot no decor.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
-	-- (future steps go here: if v < 2 then ... v = 2 end)
+	if v < 2 then
+		raw.founder = nil
+		raw.plot = nil
+		v = 2
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -293,6 +304,31 @@ local function releasesOf(v: any): { Types.Release }
 	return out
 end
 
+-- The plot: owned decor that exists; pieces of owned decor that fit the office's plot, in order, up to its limit.
+local function plotOf(v: any, office: number): Types.PlotSave
+	local t = if type(v) == "table" then v else {}
+	local owned: { [string]: boolean } = {}
+	if type(t.owned) == "table" then
+		for id, on in t.owned do
+			if type(id) == "string" and Decor.byId[id] ~= nil and on == true then
+				owned[id] = true
+			end
+		end
+	end
+	local placed: { Types.Piece } = {}
+	if type(t.placed) == "table" then
+		for _, q in t.placed do
+			if type(q) == "table" and type(q.id) == "string" and owned[q.id] and #placed < Plot.limit(office) then
+				local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
+				if Plot.fits(office, placed, q.id, x, z, rot) then
+					table.insert(placed, { id = q.id, x = x, z = z, rot = rot })
+				end
+			end
+		end
+	end
+	return { owned = owned, placed = placed }
+end
+
 local function setOf(v: any, valid: { [string]: any }): { [string]: boolean }
 	local out: { [string]: boolean } = {}
 	if type(v) == "table" then
@@ -391,6 +427,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",
 		},
 		createdAt = num(r.createdAt, now),
+		founder = if type(r.founder) == "table" then look(r.founder) else d.founder,
+		plot = plotOf(r.plot, office),
 	}
 end
 

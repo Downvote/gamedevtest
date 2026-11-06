@@ -34,6 +34,7 @@ local ORDER: { string } = {
 	"paper",
 	"sofa",
 	"rug",
+	"road",
 	-- generic hues
 	"cream",
 	"berry_red",
@@ -87,6 +88,7 @@ local COLORS: { [string]: number } = {
 	paper = 0xFFFDF4,
 	sofa = 0xE86F6F,
 	rug = 0xF2C66D,
+	road = 0x625E6B,
 
 	cream = 0xFFF3D9,
 	berry_red = 0xE8465B,

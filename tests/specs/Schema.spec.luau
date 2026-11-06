@@ -97,4 +97,34 @@ return function()
 		T.eq(back.matches["x|y"], nil)
 		T.eq(back.matches["action|space"], nil)
 	end)
+	T.it("a version 1 save (before the street) loads: same studio, a founder, an empty plot", function()
+		local p = Schema.default(1000, 7) :: any
+		p.v = 1
+		p.founder = nil
+		p.plot = nil
+		p.money = 12345
+		local back = Schema.reconcile(roundTrip(p), 2000, 9)
+		T.eq(back.v, Schema.VERSION)
+		T.eq(back.money, 12345)
+		T.eq(#back.staff, #p.staff)
+		T.truthy(type(back.founder) == "table" and back.founder.skin >= 1)
+		T.eq(#back.plot.placed, 0)
+		T.eq(next(back.plot.owned), nil)
+	end)
+	T.it("the plot keeps only owned decor that fits, up to the limit", function()
+		local p = Schema.default(1, 1) :: any
+		p.plot = {
+			owned = { gnome = true, castle = true, bench = "yes" },
+			placed = {
+				{ id = "gnome", x = 16, z = 18, rot = 0 },
+				{ id = "gnome", x = 16, z = 18, rot = 0 }, -- on the first
+				{ id = "gnome", x = 0, z = 0, rot = 0 }, -- in the office
+				{ id = "bench", x = 10, z = 20, rot = 0 }, -- not owned
+				{ id = "gnome", x = 18, z = 18, rot = 45 }, -- not a quarter turn
+			},
+		}
+		local back = Schema.reconcile(roundTrip(p), 1, 1)
+		T.truthy(back.plot.owned.gnome and back.plot.owned.castle == nil and back.plot.owned.bench == nil)
+		T.eq(#back.plot.placed, 1)
+	end)
 end

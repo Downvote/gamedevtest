@@ -3,6 +3,7 @@
 -- the menu bar along the bottom (New game, Staff, Research, Office, Games), the project card on the right while a
 -- game is in the works, the tips banner, the loading curtain until the first picture, and the week's notices.
 -- The camera fits the office clear of the HUD's blocks (CameraController.setHudRects).
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -10,6 +11,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Genres = require(ReplicatedStorage.Shared.Data.Genres)
 local Topics = require(ReplicatedStorage.Shared.Data.Topics)
 local Platforms = require(ReplicatedStorage.Shared.Data.Platforms)
+local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Calendar = require(ReplicatedStorage.Shared.Logic.Calendar)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Dev = require(ReplicatedStorage.Shared.Logic.Dev)
@@ -20,6 +22,7 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local Menus = require(script.Parent.Menus)
 local ReviewUI = require(script.Parent.ReviewUI)
+local BuildUI = require(script.Parent.BuildUI)
 
 local Hud = {}
 
@@ -38,6 +41,7 @@ local card: Frame? = nil
 local cardParts: { [string]: any } = {}
 local tips: Frame? = nil
 local curtain: Frame? = nil
+local homeButton: TextButton? = nil
 local lastKey = ""
 
 ------------------------------------------------------------------ layout
@@ -83,7 +87,27 @@ local function buildTop()
 	x = chip("date", x, 64, UIKit.color("text_dim"))
 	x = chip("money", x, 60, UIKit.color("good"))
 	x = chip("fans", x, 58, UIKit.color("fun"))
-	chip("rp", x, 50, UIKit.color("ideas"))
+	x = chip("rp", x, 50, UIKit.color("ideas"))
+	-- Home: shown while the founder is off their own lot (char.home sends them back to their footpath)
+	local hb = UIKit.button(UIKit.canvas("Hud"), "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(x, 2), function()
+		local res = StateClient.request("char.home", {})
+		if not res.ok and res.err ~= "cooldown" then
+			UIKit.notice("You can't go home right now.", UIKit.color("bad"))
+		end
+	end, { name = "Home", color = UIKit.color("button_warn") })
+	hb.Visible = false
+	homeButton = hb
+end
+
+-- Whether the founder stands on their own lot.
+local function atHome(): boolean
+	local v = StateClient.view()
+	local char = Players.LocalPlayer.Character
+	local root = if char then char:FindFirstChild("HumanoidRootPart") else nil
+	if v == nil or root == nil or not root:IsA("BasePart") then
+		return true
+	end
+	return Street.plotAt(root.Position.X, root.Position.Z) == v.plot
 end
 
 local function updateTop(v: Types.ClientView)
@@ -131,6 +155,7 @@ local MENUS: { { text: string, panel: string } } = {
 	{ text = "Research", panel = "research" },
 	{ text = "Office", panel = "office" },
 	{ text = "Games", panel = "games" },
+	{ text = "Build", panel = "build" },
 }
 
 local function buildBar()
@@ -153,8 +178,15 @@ local function buildBar()
 	for _, m in MENUS do
 		local w = UIKit.buttonWidth(m.text, 5)
 		local b = UIKit.button(f, m.text, UDim2.fromOffset(w, BAR_H), UDim2.fromOffset(x, 0), function()
-			UIKit.openPanel(m.panel)
-		end, { name = "Menu_" .. m.panel, color = if m.panel == "newgame" then UIKit.color("button_ok") else nil })
+			if m.panel == "build" then
+				BuildUI.open()
+			else
+				UIKit.openPanel(m.panel)
+			end
+		end, {
+			name = "Menu_" .. m.panel,
+			color = if m.panel == "newgame" then UIKit.color("button_ok") elseif m.panel == "build" then UIKit.color("button_warn") else nil,
+		})
 		b.ZIndex = 2
 		x += w + 3
 	end
@@ -385,6 +417,13 @@ local function refresh(v: Types.ClientView)
 	updateBar(v)
 	updateCard(v)
 	updateTips(v)
+	if BuildUI.isOpen() then
+		for _, f in { bar, card, salesCard, tips } do
+			if f then
+				f.Visible = false
+			end
+		end
+	end
 	local key = string.format("%d", v.office)
 	if key ~= lastKey then
 		lastKey = key
@@ -413,6 +452,10 @@ local function rebuild()
 		tips:Destroy()
 		tips = nil
 	end
+	if homeButton then
+		homeButton:Destroy()
+		homeButton = nil
+	end
 	CARD_W = cardWidth()
 	buildTop()
 	buildBar()
@@ -440,6 +483,29 @@ function Hud.start()
 	-- full-screen menus hold the clock (the server pauses this player's weeks)
 	UIKit.PanelChanged:Connect(function(name)
 		StateClient.signal("pause", { key = "menu", on = name ~= nil })
+	end)
+	-- Build mode has its own tray: the menu bar, the cards and the tips step aside
+	BuildUI.Changed:Connect(function(on)
+		for _, f in { bar, card, salesCard, tips } do
+			if f then
+				f.Visible = not on
+			end
+		end
+		if not on then
+			local v = StateClient.view()
+			if v then
+				refresh(v)
+			end
+		end
+	end)
+	RunService.Heartbeat:Connect(function()
+		local b = homeButton
+		if b then
+			local show = not atHome() and not BuildUI.isOpen()
+			if b.Visible ~= show then
+				b.Visible = show
+			end
+		end
 	end)
 end
 

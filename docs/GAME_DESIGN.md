@@ -41,8 +41,8 @@ the years go by. Each year ends with an awards night for your best game.
 - **Interface:** pixel-art plates with stepped corners, the pixel font from Random Bakery, no borders. Popups float
   up over the crew's heads in the score's colour ("+12" Fun in pink, Ideas in yellow, Graphics in blue, Sound in
   green, "Spark!" bigger and gold).
-- **No player character:** `Players.CharacterAutoLoads` is false; the game is driven from the menus, the camera holds
-  still on your office.
+- **The founder:** you walk the street as a chibi founder in the crew's style (§12); the camera holds still on your
+  office while you are home and follows you when you walk out.
 
 ## 3. Time
 
@@ -185,4 +185,54 @@ check has built `build/luautest`. A typical career: reviews average about 21/40 
 
 Own consoles, game shows and expos, job classes, staff levels, cancelling a project, offline progress, purchases
 (no game passes or products yet: `Config/Monetization.luau` is empty), other languages (English only; every string
-goes through `Locale/Lang.t` so translations can be added the Random Bakery way), visiting other studios.
+goes through `Locale/Lang.t` so translations can be added the Random Bakery way). Drawing paths, water and fences on
+the plot (Random Bakery has them) and dressing the founder are left for later.
+
+## 12. The street
+
+> The request (2026-11-06): "could you also make an overworld and plot, just like the baking game?" Asked how far the
+> plot's decorating should go, the user chose "Street + build mode": the street, walking and visiting, plus a Build
+> mode for outdoor decor; no path, water or fence drawing yet.
+
+Like Random Bakery's street of bakeries, every studio on a server stands on its own plot in one row along a road
+(`Data/Street`): six plots (`Tuning.MaxPlots`, the server's size), 80 studs apart, centred on the road's middle. An
+empty plot is an empty lot: meadow, a low white fence along the front and an "Empty lot" sign. A player who joins
+takes the lowest free plot; one who leaves leaves an empty lot (their save keeps everything).
+
+- **The road** runs the street's whole length on the plots' south side (the side the camera sees): a pavement, the
+  road with its dashed line, a second pavement, a grass verge with trees and lamp posts; a hedge and a lamp at both
+  ends, and invisible walls round the world so nobody walks off its edge.
+- **A studio's plot** (§13) is lawn round the office, a shade lighter than the meadow so the land shows; a footpath of
+  stepping stones runs from the office's doorway down to the pavement, the plot sign (the studio's name floats over
+  it: "Ava's Studio") and a mailbox stand by the pavement.
+- **The founder:** each player walks as a little chibi in the crew's style (a random look of their own, kept in the
+  save), on their Roblox character (jumping is off; the avatar itself is hidden). They appear on their own footpath.
+  Their name floats over them for the others.
+- **The camera** keeps the office-sized view: at home (on your own lot, in the home view's middle) it holds the home
+  view; off your lot it follows you, keeping you out of the screen's edges, and glides home when you come back. The
+  pixel filter scrolls its picture with the view and casts only what comes into sight (no re-bake while you walk).
+  A **Home** button shows while you are away and puts you back on your footpath (once every 3 s).
+- **Visiting:** you can walk into any studio and watch its crew at work (typing while it has a game in the works,
+  dozing when tired). Tapping a plot sign shows a card: "Bo's Studio: Loft, 12 games, best 34/40, a game in the
+  works". You can't touch another studio's things: every action only ever changes your own profile.
+- Your studio runs on while you walk: the clock keeps going (only menus, cards and Build mode hold it).
+
+## 13. The plot and Build mode
+
+- **The plot grows with the office** (`Data/Street` PLOT): the Garage's is 40 x 42 studs, the Loft's 50 x 44, the Studio
+  Floor's 60 x 46, always down to the pavement and mostly in front of and east of the office (the sides the camera
+  sees). The office stands near its back.
+- **Decor** (`Data/Decor`, 15 pieces): Garden Gnome, Flower Bed, Round Bush, Park Bench, Street Lamp, Oak Tree, Pine
+  Tree, Bike Rack, Picnic Table (from the Garage), Arcade Kiosk, Fountain, Hero Statue (from the Loft), Satellite
+  Dish, Billboard, Food Truck (from the Studio Floor). A piece is **bought once** ($200 to $40,000) and its fans join
+  the studio then (5 to 1,000: a small, one-off bonus); you then place as many copies of it as you like, up to the
+  plot's piece limit (20 / 32 / 48 by office).
+- **Where a piece stands** (`Logic/Plot`): on whole studs at a quarter turn, wholly on the plot a stud in from its
+  edges, off the office (its room, walls and a stud round them), the footpath, the sign and the mailbox, and off every
+  other piece. Pieces don't block the founder.
+- **Build mode** (the HUD's Build button): the clock holds; the view stops following the founder and shows your plot
+  (a drag pans it over the plot); a tray lists every piece: buy one with a tap, or pick an owned one and tap the lawn:
+  its ghost stands there on a footprint, green where it fits and red where it doesn't. Place (or a second click on the
+  same spot) puts it there and keeps it picked for another copy; Rotate turns it. Tapping a piece on the plot picks it
+  up: Move here, Rotate, Store (back in the box) or Cancel. Done closes it.
+- **A bigger office** (a move): the plot grows, and pieces the bigger room now covers go back in the box.

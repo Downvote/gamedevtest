@@ -42,12 +42,7 @@ local function room(c: Ctx, plan: Office.Plan, model: Model)
 	local minX, maxX, minZ, maxZ = plan.minX, plan.maxX, plan.minZ, plan.maxZ
 	local t = Office.WALL_T
 	local h = plan.wallH
-	local lot = plan.lot
-	-- the lot: lawn round the room and a paved strip along the open sides
-	local gx0, gx1, gz0, gz1 = minX - t - lot, maxX + lot, minZ - t - lot, maxZ + lot
-	box(model, o, (gx0 + gx1) / 2, -0.75, (gz0 + gz1) / 2, gx1 - gx0, 0.5, gz1 - gz0, "grass", "Lawn")
-	box(model, o, (minX - t + maxX + 1.5) / 2, -0.4, maxZ + 0.75, maxX + 1.5 - minX + t, 0.25, 1.5, "pavement", "Path")
-	box(model, o, maxX + 0.75, -0.4, (minZ - t + maxZ) / 2, 1.5, 0.25, maxZ - minZ + t, "pavement", "Path")
+	-- (the lawn, the footpath and the street round the room: Models/StreetModels)
 	-- the floor slab and its tiles (floor_a under, floor_b tiles in a checker on top)
 	local floor = Blocks.model(model, "Floor")
 	box(floor, o, (minX + maxX) / 2, -0.375, (minZ + maxZ) / 2, maxX - minX, 0.5, maxZ - minZ, "floor_a", "Slab")
@@ -70,11 +65,14 @@ local function room(c: Ctx, plan: Office.Plan, model: Model)
 	box(walls, o, (minX - t + maxX) / 2, h + 0.25, minZ - t / 2, maxX - minX + t + 0.5, 0.5, t + 0.5, "wall_trim", "Crown")
 	box(walls, o, minX - t / 2, h + 0.25, (minZ + maxZ) / 2 + 0.25, t + 0.5, 0.5, maxZ - minZ - 0.5, "wall_trim", "Crown")
 	-- the low rim along the open sides (a gap on the south side: the way in)
+	-- (it does not collide: the founder steps in and out over it, through the doorway or not)
 	local rim = Office.RIM_H
 	local gapX0, gapX1 = maxX - 6, maxX - 3
-	box(walls, o, (minX + gapX0) / 2 - t / 2, rim / 2, maxZ - 0.25, gapX0 - minX + t, rim, 0.5, "wall_trim", "Rim")
-	box(walls, o, (gapX1 + maxX) / 2, rim / 2, maxZ - 0.25, maxX - gapX1, rim, 0.5, "wall_trim", "Rim")
-	box(walls, o, maxX - 0.25, rim / 2, (minZ - t + maxZ - 0.5) / 2, 0.5, rim, maxZ - 0.5 - minZ + t, "wall_trim", "Rim")
+	box(walls, o, (minX + gapX0) / 2 - t / 2, rim / 2, maxZ - 0.25, gapX0 - minX + t, rim, 0.5, "wall_trim", "Rim").CanCollide = false
+	box(walls, o, (gapX1 + maxX) / 2, rim / 2, maxZ - 0.25, maxX - gapX1, rim, 0.5, "wall_trim", "Rim").CanCollide = false
+	box(walls, o, maxX - 0.25, rim / 2, (minZ - t + maxZ - 0.5) / 2, 0.5, rim, maxZ - 0.5 - minZ + t, "wall_trim", "Rim").CanCollide = false
+	-- the doorstep in the gap
+	box(walls, o, (gapX0 + gapX1) / 2, -0.125, maxZ + 0.5, gapX1 - gapX0, 0.25, 1, "pavement", "Doorstep")
 	-- windows in the north wall: a frame, the pane and a sill
 	for _, w in plan.windows do
 		local f = o * CFrame.new(w.at, 0, minZ)

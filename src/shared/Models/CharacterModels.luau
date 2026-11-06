@@ -155,4 +155,77 @@ end
 -- Where the popups float from (rig space): just above the hair.
 CharacterModels.HEAD_TOP = Vector3.new(0, 3.4, 0)
 
+------------------------------------------------------------------ standing (the founders on the street)
+-- A founder: the same head, hair and face as a seated developer, raised a stud, on a standing body: legs, shoes, arms
+-- at the sides. The rig's origin is between the feet on the ground, facing +Z.
+local HEAD_SET: { [string]: boolean } = {}
+for _, n in HEAD_PARTS do
+	HEAD_SET[n] = true
+end
+local HEAD_LIFT = Vector3.new(0, 1.0, 0.05)
+
+function CharacterModels.buildStanding(look: Types.Look, name: string, seed: number?): Rig
+	local model = Blocks.model(nil, name)
+	local parts: { [string]: BasePart } = {}
+	local rest: { [string]: CFrame } = {}
+	local skin = Looks.skin[look.skin] or "skin1"
+	local shirt = Looks.shirt[look.shirt] or "blue"
+	local list: { Spec } = {
+		{ name = "ShoeL", size = Vector3.new(0.5, 0.25, 0.75), at = Vector3.new(-0.32, 0.125, 0.1), color = "black" },
+		{ name = "ShoeR", size = Vector3.new(0.5, 0.25, 0.75), at = Vector3.new(0.32, 0.125, 0.1), color = "black" },
+		{ name = "LegL", size = Vector3.new(0.5, 1.0, 0.5), at = Vector3.new(-0.32, 0.75, 0), color = "jeans" },
+		{ name = "LegR", size = Vector3.new(0.5, 1.0, 0.5), at = Vector3.new(0.32, 0.75, 0), color = "jeans" },
+		{ name = "Torso", size = Vector3.new(1.25, 1.25, 0.75), at = Vector3.new(0, 1.875, 0), color = shirt },
+		{ name = "ArmL", size = Vector3.new(0.375, 1.0, 0.375), at = Vector3.new(-0.8, 1.95, 0), color = shirt },
+		{ name = "ArmR", size = Vector3.new(0.375, 1.0, 0.375), at = Vector3.new(0.8, 1.95, 0), color = shirt },
+		{ name = "HandL", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(-0.8, 1.3, 0), color = skin },
+		{ name = "HandR", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0.8, 1.3, 0), color = skin },
+	}
+	for _, sp in specs(look) do
+		if HEAD_SET[sp.name] then
+			table.insert(list, { name = sp.name, size = sp.size, at = sp.at + HEAD_LIFT, color = sp.color, shape = sp.shape })
+		end
+	end
+	for _, sp in list do
+		local p = Blocks.part(model, { size = sp.size, cf = CFrame.new(sp.at), color = sp.color, name = sp.name, shape = sp.shape, collide = false, query = false })
+		p.CastShadow = false
+		parts[sp.name] = p
+		rest[sp.name] = CFrame.new(sp.at)
+	end
+	model.PrimaryPart = parts.Torso
+	return { model = model, parts = parts, rest = rest, seed = seed or 0 }
+end
+
+local HIP_L, HIP_R = Vector3.new(-0.32, 1.25, 0), Vector3.new(0.32, 1.25, 0)
+local ARM_L, ARM_R = Vector3.new(-0.8, 2.4, 0), Vector3.new(0.8, 2.4, 0)
+local STAND_NECK = Vector3.new(0, 2.5, 0)
+
+-- Pose a founder at `base` (the ground between the feet, facing +Z) at time t, walking at `speed` studs a second
+-- (0: standing, breathing, looking round now and then).
+function CharacterModels.poseStanding(rig: Rig, base: CFrame, t: number, speed: number)
+	local ph = rig.seed * 1.3
+	local walk = math.clamp(speed / 16, 0, 1)
+	local cycle = (t + ph) * 11
+	local swing = math.sin(cycle) * math.rad(32) * walk
+	local bob = if walk > 0.05 then math.abs(math.cos(cycle)) * 0.12 * walk else math.sin((t + ph) * 2) * 0.03
+	local body = Vector3.new(0, bob, 0)
+	turn(rig, base, { "LegL", "ShoeL" }, HIP_L, CFrame.Angles(swing, 0, 0), nil)
+	turn(rig, base, { "LegR", "ShoeR" }, HIP_R, CFrame.Angles(-swing, 0, 0), nil)
+	local torso = rig.parts.Torso
+	if torso then
+		torso.CFrame = base * CFrame.new(body) * rig.rest.Torso
+	end
+	turn(rig, base, { "ArmL", "HandL" }, ARM_L, CFrame.Angles(-swing * 0.8, 0, 0), body)
+	turn(rig, base, { "ArmR", "HandR" }, ARM_R, CFrame.Angles(swing * 0.8, 0, 0), body)
+	local headRot = CFrame.identity
+	if walk <= 0.05 then
+		local look = math.sin((t + ph) * 0.6)
+		headRot = CFrame.Angles(0, if math.abs(look) > 0.85 then math.rad(20) * math.sign(look) else 0, 0)
+	end
+	turn(rig, base, HEAD_PARTS, STAND_NECK, headRot, body)
+end
+
+-- Where a founder's name label floats (rig space).
+CharacterModels.STAND_TOP = Vector3.new(0, 4.6, 0)
+
 return CharacterModels

@@ -9,6 +9,8 @@ local Critics = require("../../build/luautest/shared/Data/Critics")
 local Office = require("../../build/luautest/shared/Data/Office")
 local Palette = require("../../build/luautest/shared/Data/Palette")
 local Looks = require("../../build/luautest/shared/Data/Looks")
+local Street = require("../../build/luautest/shared/Data/Street")
+local Decor = require("../../build/luautest/shared/Data/Decor")
 return function()
 	T.it("genres and topics: unique ids, names, tiers with a cost, five title words", function()
 		for _, list in { Genres.list, Topics.list } do
@@ -99,6 +101,47 @@ return function()
 		end
 		for _, a in { "fun", "ideas", "graphics", "sound" } do
 			T.truthy(Palette.axis[a] ~= nil, a)
+		end
+	end)
+	T.it("the street: plots inside their lots, the office on its plot, the door's path to the road", function()
+		T.eq(Street.MAX, Tuning.MaxPlots)
+		local lot = Street.LOT
+		for tier = 1, #Tuning.Offices do
+			local p = Street.plot(tier)
+			local plan = Office.plan(tier)
+			T.truthy(p.x0 >= lot.x0 and p.x1 <= lot.x1 and p.z0 >= lot.z0 and p.z1 <= lot.z1, "plot " .. tier .. " inside the lot")
+			T.truthy(p.z1 == Street.PAVE_N.z0, "plot " .. tier .. " runs down to the pavement")
+			T.truthy(plan.minX - Office.WALL_T > p.x0 and plan.maxX < p.x1 and plan.minZ - Office.WALL_T > p.z0 and plan.maxZ < p.z1, "office " .. tier .. " on its plot")
+			if tier > 1 then
+				local q = Street.plot(tier - 1)
+				T.truthy(p.x0 <= q.x0 and p.x1 >= q.x1 and p.z0 <= q.z0, "plot " .. tier .. " grows")
+			end
+			local fp = Street.footpath(plan.maxX, plan.maxZ)
+			T.truthy(fp.z0 == plan.maxZ and fp.z1 == Street.PAVE_N.z0 and fp.x0 > plan.minX and fp.x1 < plan.maxX, "path " .. tier)
+			local sx = Street.sign(plan.maxX, plan.maxZ)
+			local mx = Street.mailbox(plan.maxX, plan.maxZ)
+			T.truthy(sx - 1.5 > p.x0 and mx + 0.75 < p.x1, "sign and mailbox on plot " .. tier)
+		end
+		T.truthy(Street.ROAD.z0 == Street.PAVE_N.z1 and Street.ROAD.z1 == Street.PAVE_S.z0 and Street.VERGE.z0 == Street.PAVE_S.z1)
+		-- neighbouring lots meet edge to edge, plot origins in a row centred on x = 0
+		local a = Street.origin(1)
+		local b = Street.origin(2)
+		T.eq(b - a, Street.SPACING)
+		T.eq(lot.x1 - lot.x0, Street.SPACING)
+		T.eq(Street.origin(1) + Street.origin(Street.MAX), 0)
+		for i = 1, Street.MAX do
+			local ox, oz = Street.origin(i)
+			T.eq(Street.plotAt(ox + 1, oz + 1), i)
+		end
+		T.eq(Street.plotAt(0, 200), 0)
+	end)
+	T.it("decor: unique ids, prices, fans, footprints, offices", function()
+		local seen = {}
+		for _, d in Decor.list do
+			T.truthy(not seen[d.id], d.id)
+			seen[d.id] = true
+			T.truthy(d.price > 0 and d.fans > 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id)
+			T.truthy(d.office >= 1 and d.office <= #Tuning.Offices, d.id .. " office")
 		end
 	end)
 end

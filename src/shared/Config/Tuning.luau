@@ -134,7 +134,13 @@ local Tuning = {
 	-- server
 	StepHz = 10,
 	RateLimitPerSec = 12, -- requests per player per second (more are refused with "rate")
-	PlotSpacing = 240, -- studs between offices along X
+
+	-- the street and the plot (GAME_DESIGN 12, 13; Data/Street)
+	MaxPlots = 6, -- plots along the road (the server's size)
+	PlotSpacing = 80, -- studs between plot origins along X
+	PlotPieces = { 20, 32, 48 }, -- decor pieces standing on a plot, by office tier
+	HomeCooldown = 3, -- s between two "go home" requests
+	WalkSpeed = 16,
 
 	-- camera and pixel filter (Random Bakery's values; ARCHITECTURE 9)
 	CamYaw = 45,
@@ -142,7 +148,10 @@ local Tuning = {
 	CamFov = 1, -- Roblox camera FieldOfView while the pixel filter is on (far away, visually orthographic)
 	CamOffFov = 8, -- the classic "off" style
 	CamPad = 4, -- art px kept free between the office's outline and the screen edges or a HUD block
-	CamRayBack = 150, -- studs: orthographic rays start this far behind the view centre
+	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
+	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
+	CamGlide = 0.18, -- share of the way to its target the view moves a frame (in whole art px)
+	CamBuildPan = 30, -- studs: in Build mode the view may be dragged this far past the plot's edges
 	CamHudTop = 22, -- art px: the top HUD strip assumed until the HUD reports its blocks
 	CamHudBottom = 26, -- art px: the bottom HUD strip assumed until then
 	PixelTiers = PixelTiers,
@@ -150,7 +159,9 @@ local Tuning = {
 	PixelScaleSides = { 820, 1250, 1700, 2100 },
 	PixelSnapshotMsPerFrame = 2,
 	PixelBakeMsPerFrame = 6,
-	PixelMaxRayDist = 400,
+	PixelMaxRayDist = 1400,
+	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
+	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 40, -- dynamic models drawn a tick at most
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects

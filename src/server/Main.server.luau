@@ -24,7 +24,12 @@ Router.init()
 StudioService.init()
 
 local function join(player: Player)
+	PlotService.watchCharacters(player)
 	local plot = PlotService.claim(player)
+	if plot == 0 then
+		player:Kick("This street is full. Please join another server.")
+		return
+	end
 	local raw, ok = DataService.load(player.UserId)
 	if player.Parent == nil then
 		PlotService.release(plot)
@@ -40,6 +45,7 @@ local function join(player: Player)
 	local s = Session.create(player, profile, plot)
 	PlotService.build(s)
 	s.ready = true
+	PlotService.placeCharacter(s)
 	Session.markDirty(s)
 	Session.flush(s)
 end
@@ -74,6 +80,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 	local now = os.clock()
 	for player, s in Session.all() do
+		if s.dirty and s.ready then
+			PlotService.sync(s)
+		end
 		Session.flush(s)
 		if s.ready and now >= s.saveAt then
 			s.saveAt = now + Tuning.AutosaveSec

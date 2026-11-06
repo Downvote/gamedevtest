@@ -8,6 +8,9 @@
 --   "int"   a whole number in [0, 1e6]
 --   "small" a whole number in [1, 16]
 --   "key"   a settings key ("pixel")
+--   "coord" a whole number in [-64, 64] (a plot-local stud)
+--   "rot"   a quarter turn: 0, 90, 180 or 270
+--   "index" a whole number in [1, 64] (a placed piece)
 --   "any"   anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
 local Tuning = require(script.Parent.Parent.Config.Tuning)
@@ -27,6 +30,11 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["office.ad"] = {},
 	["settings.set"] = { k = "key", v = "any" },
 	["tut.next"] = {},
+	["plot.buy"] = { id = "id" },
+	["plot.place"] = { id = "id", x = "coord", z = "coord", rot = "rot" },
+	["plot.move"] = { i = "index", x = "coord", z = "coord", rot = "rot" },
+	["plot.store"] = { i = "index" },
+	["char.home"] = {},
 }
 Validate.ACTIONS = ACTIONS
 
@@ -51,6 +59,12 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 0, 1e6)
 	elseif kind == "small" then
 		return isInt(v, 1, 16)
+	elseif kind == "coord" then
+		return isInt(v, -64, 64)
+	elseif kind == "rot" then
+		return v == 0 or v == 90 or v == 180 or v == 270
+	elseif kind == "index" then
+		return isInt(v, 1, 64)
 	elseif kind == "key" then
 		return type(v) == "string" and SETTINGS[v] == true
 	elseif kind == "any" then

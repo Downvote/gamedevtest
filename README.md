@@ -7,6 +7,10 @@ it out of 10, and it sells week after week. Hits bring money and fans; money tra
 you into a bigger office; research points unlock new genres and topics; new platforms come out as the years go by;
 each year ends with an awards night.
 
+Every studio on a server stands on its own plot along one street. You walk out of your office as a little chibi
+founder, the camera following, to visit the other studios and watch their crews at work, and you decorate your plot
+in Build mode: trees, benches, lamps, a fountain, an arcade kiosk, a billboard, a food truck.
+
 The loop is a simplified take on the studio-sim genre, with Kairosoft's *Game Dev Story* as the reference for how it
 plays. The names, platforms, critics, content, numbers and art are this game's own. The look, the build system and
 the formats are Random Bakery's (`Downvote/test`): a cut-away isometric diorama seen through the pixel filter (an

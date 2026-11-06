@@ -70,6 +70,11 @@ export type Release = {
 
 export type Award = { year: number, kind: string, title: string, total: number }
 
+-- A piece of decor standing on the plot (Logic/Plot): plot-local north-west corner and a quarter turn.
+export type Piece = { id: string, x: number, z: number, rot: number }
+-- The plot (GAME_DESIGN 13): the decor bought (once each) and where copies stand.
+export type PlotSave = { owned: { [string]: boolean }, placed: { Piece } }
+
 export type Settings = { pixel: string }
 
 export type Stats = { games: number, copies: number, revenue: number, hof: number, best: number }
@@ -98,6 +103,8 @@ export type Profile = {
 	stats: Stats,
 	settings: Settings,
 	createdAt: number,
+	founder: Look, -- the player's chibi on the street (AvatarView)
+	plot: PlotSave,
 }
 
 -- What the client sees (Session.view): the profile plus derived fields.
@@ -122,6 +129,8 @@ export type ClientView = {
 	canAd: boolean,
 	canParty: boolean,
 	paused: boolean,
+	founder: Look,
+	decor: PlotSave,
 }
 
 export type ErrCode =
@@ -141,6 +150,7 @@ export type ErrCode =
 	| "fans"
 	| "max"
 	| "last"
+	| "blocked"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }
 

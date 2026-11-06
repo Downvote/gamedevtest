@@ -5,7 +5,7 @@
 -- (minZ) and west (minX) edges and the south and east edges are open, with a low rim.
 -- Desks: the desk's centre; a developer sits on its north side facing south (+Z, toward the camera) with the
 -- monitor at the desk's south-west corner turned toward them, so faces show above it.
-local Tuning = require(script.Parent.Parent.Config.Tuning)
+local Street = require(script.Parent.Street)
 
 export type Anchor = { x: number, z: number }
 export type Prop = { kind: string, x: number, z: number, rot: number, y: number? }
@@ -141,9 +141,9 @@ function Office.plan(tier: number): Plan
 	return PLANS[math.clamp(math.floor(tier), 1, #PLANS)]
 end
 
--- The plot's origin in world studs (plots in a row along X).
+-- The plot's origin in world studs (Data/Street: plots in a row along X, centred on x = 0).
 function Office.origin(plot: number): (number, number)
-	return (plot - 1) * Tuning.PlotSpacing, 0
+	return Street.origin(plot)
 end
 
 -- Where a developer at desk `a` sits (plot-local): the seat's centre, at seat height.

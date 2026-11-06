@@ -89,6 +89,8 @@ function Session.view(s: S): Types.ClientView
 		canAd = Studio.canAd(p),
 		canParty = Studio.canParty(p),
 		paused = Session.isPaused(s),
+		founder = p.founder,
+		decor = p.plot,
 	}
 end
 

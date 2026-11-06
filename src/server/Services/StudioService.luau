@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
+local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Session = require(script.Parent.Session)
 local Router = require(script.Parent.Router)
 local PlotService = require(script.Parent.PlotService)
@@ -55,6 +56,34 @@ function StudioService.init()
 			return true, nil
 		end
 		return false, "bad_payload"
+	end)
+	-- the plot (GAME_DESIGN 13): every change rebuilds the plot's decor by difference
+	Router.on("plot.buy", function(s, a)
+		return Plot.buy(s.profile, a.id)
+	end)
+	Router.on("plot.place", function(s, a)
+		local ok, data = Plot.place(s.profile, a.id, a.x, a.z, a.rot)
+		if ok then
+			PlotService.buildDecor(s)
+		end
+		return ok, data
+	end)
+	Router.on("plot.move", function(s, a)
+		local ok, data = Plot.move(s.profile, a.i, a.x, a.z, a.rot)
+		if ok then
+			PlotService.buildDecor(s)
+		end
+		return ok, data
+	end)
+	Router.on("plot.store", function(s, a)
+		local ok, data = Plot.store(s.profile, a.i)
+		if ok then
+			PlotService.buildDecor(s)
+		end
+		return ok, data
+	end)
+	Router.on("char.home", function(s, _a)
+		return PlotService.home(s)
 	end)
 	Router.on("tut.next", function(s, _a)
 		s.profile.tut = 0
