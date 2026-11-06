@@ -1,0 +1,27 @@
+{
+  "name": "byte-size-studio",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "Server": { "$path": "src/server" }
+    },
+    "Players": {
+      "$properties": { "CharacterAutoLoads": false }
+    },
+    "StarterGui": {
+      "$properties": { "ScreenOrientation": "LandscapeSensor" }
+    },
+    "StarterPlayer": {
+      "$properties": { "EnableMouseLockOption": false },
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/client" }
+      }
+    },
+    "Workspace": {
+      "$properties": { "StreamingEnabled": false }
+    }
+  }
+}

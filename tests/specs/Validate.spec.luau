@@ -1,0 +1,40 @@
+local T = require("../TestKit")
+local Validate = require("../../build/luautest/shared/Logic/Validate")
+return function()
+	T.it("a well-formed start passes", function()
+		local ok = Validate.request("project.start", { genre = "action", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 3 })
+		T.truthy(ok)
+	end)
+	T.it("unknown actions and junk are refused", function()
+		local ok, err = Validate.request("money.give", {})
+		T.eq(ok, false)
+		T.eq(err, "unknown_action")
+		T.eq(select(2, Validate.request(nil, {})), "unknown_action")
+		T.eq(select(2, Validate.request("staff.party", "x")), "bad_payload")
+	end)
+	T.it("every field is checked, missing and extra fields refused", function()
+		local base = { genre = "action", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 3 }
+		for k, bad in { genre = "act ion", topic = 5, platform = string.rep("a", 30), size = "huge", focus = "speed", seed = -1 } do
+			local p = table.clone(base)
+			p[k] = bad
+			T.eq(Validate.request("project.start", p), false, "bad " .. k)
+		end
+		local missing = table.clone(base)
+		missing.seed = nil
+		T.eq(Validate.request("project.start", missing), false, "missing seed")
+		local extra = table.clone(base)
+		extra.money = 1
+		T.eq(Validate.request("project.start", extra), false, "extra field")
+		T.eq(Validate.request("staff.train", { id = 1.5, skill = "code" }), false, "fractional id")
+		T.eq(Validate.request("staff.train", { id = 1, skill = "speed" }), false, "unknown skill")
+		T.eq(Validate.request("staff.hire", { i = 0 }), false, "candidate 0")
+		T.eq(Validate.request("staff.hire", { i = 0 / 0 }), false, "NaN")
+		T.truthy(Validate.request("staff.hire", { i = 2 }))
+		T.truthy(Validate.request("project.release", nil), "no payload is an empty one")
+	end)
+	T.it("settings take known keys and plain values", function()
+		T.truthy(Validate.request("settings.set", { k = "pixel", v = "low" }))
+		T.eq(Validate.request("settings.set", { k = "money", v = 1 }), false)
+		T.eq(Validate.request("settings.set", { k = "pixel", v = {} }), false)
+	end)
+end

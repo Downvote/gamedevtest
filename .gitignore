@@ -1,0 +1,17 @@
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxm
+sourcemap.json
+build/
+# font files stay out of the repo until their licence is confirmed (README "Fonts and licences")
+*.ttf
+*.otf
+# what the tools write (tools/README.md): generated sources, logs, renders, scratch runs
+tools/sim/sources*.luau
+tools/sim/sourcemap.json
+tools/sim/*.log
+tools/preview/work/
+tools/preview/out*/
+__pycache__/
