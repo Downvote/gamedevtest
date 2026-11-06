@@ -1,4 +1,4 @@
--- Harness helpers for the preview (a copy of tools/sim/harness.luau over the preview's engine copies); Byte-Size Studio's simulations (trimmed from Random Bakery's): module access, client requests,
+-- Harness helpers for Byte-Size Studio's previews (a copy of tools/sim/harness.luau run over the preview's engine copies): module access, client requests,
 -- UI driving, this game's invariants (profile and client mirror), findings. The fake engine (loader, engine, inst,
 -- classes, services) is game-agnostic.
 local E = require("./loader")
@@ -63,11 +63,14 @@ function H.patchMonetizationIds(tree)
 	walk(tree)
 end
 
--- This game never loads characters (Players.CharacterAutoLoads false in default.project.json; the fake engine does
--- not read project properties), so a player joins with no character unless opts.charDelay says otherwise.
+-- A player joins with a full client and, like Roblox with Players.CharacterAutoLoads on, a character half a second
+-- later (the founder AvatarView draws, placed on their own footpath by PlotService). opts.noCharacter: no character
+-- at all (the fake engine does not read project properties, so the harness decides); opts.charDelay: another delay.
 function H.addPlayer(opts)
-	if opts.charDelay == nil then
+	if opts.noCharacter then
 		opts.charDelay = 1e9
+	elseif opts.charDelay == nil then
+		opts.charDelay = 0.5
 	end
 	if opts.client == nil then
 		opts.client = "full"
@@ -291,6 +294,30 @@ function H.dismissCards(p, max)
 		end
 	end
 	return n
+end
+-- The visible button named `name` (its Instance name: Menu_build, Place, BuildDone...), or nil.
+function H.buttonNamed(p, name, includeDisabled)
+	for _, x in H.buttons(p, nil, includeDisabled) do
+		if getD(x).props.Name == name then
+			return x
+		end
+	end
+	return nil
+end
+function H.clickNamed(p, name, opts)
+	opts = opts or {}
+	local b = H.buttonNamed(p, name, opts.includeDisabled)
+	if not b then
+		if not opts.optional then
+			H.finding("ui-driver", "no visible button named '" .. name .. "'")
+		end
+		return false
+	end
+	I.fire(I.getSig(b, "Activated"), nil, 1)
+	I.fire(I.getSig(b, "MouseButton1Click"))
+	E.flushDeferred()
+	E.run(opts.wait or 0.6)
+	return true
 end
 function H.dumpButtons(p, label)
 	local vis = {}

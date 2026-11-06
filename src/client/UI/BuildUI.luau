@@ -106,9 +106,17 @@ local function showGhost()
 			part.CanCollide = false
 		end
 	end
-	local mk = Blocks.part(m, { size = Vector3.new(w, 0.25, d), cf = CFrame.new(cx, Street.LAWN_Y + 0.05, cz), color = "green", name = "Footprint", neon = true, collide = false, query = false })
-	mk.Color = if fits(p) then UIKit.color("good") else UIKit.color("bad")
-	marker = mk
+	-- the footprint: a raised neon frame round it (cyan where it fits, red where not), from the lawn to just above the
+	-- office floor, so it shows on the lawn and on a floor alike
+	local ok = fits(p)
+	local color = if ok then "screen_on" else "berry_red"
+	local y0, y1 = Street.LAWN_Y, 0.375
+	local h = y1 - y0
+	local frame = Blocks.model(m, "Footprint")
+	for _, e in { { 0, -d / 2, w, 0.25 }, { 0, d / 2, w, 0.25 }, { -w / 2, 0, 0.25, d }, { w / 2, 0, 0.25, d } } do
+		Blocks.part(frame, { size = Vector3.new(e[3], h, e[4]), cf = CFrame.new(cx + e[1], (y0 + y1) / 2, cz + e[2]), color = color, name = "Edge", neon = true, collide = false, query = false })
+	end
+	marker = frame:FindFirstChildWhichIsA("BasePart")
 	m.Name = "Ghost"
 	m.Parent = workspace:FindFirstChild("PixelDynamic") or workspace
 	ghost = m
@@ -335,7 +343,7 @@ function BuildUI.open()
 	end
 	open = true
 	UIKit.closePanel()
-	CameraController.setFree(true)
+	CameraController.setFree(true, TRAY_H)
 	StateClient.signal("pause", { key = "build", on = true })
 	local downAt: Vector2? = nil
 	local last: Vector2? = nil

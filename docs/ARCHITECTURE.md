@@ -77,7 +77,7 @@ file is the reference for every field; the comments there say what each holds.
 | `Data/Critics` | the four critics `{ name, outlet, axis }` in review order |
 | `Data/Names`, `Data/Looks` | developer names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
 | `Data/Office` | the three rooms (`plans[tier]`: bounds, wall height, lot, desk anchors, props, windows, `OUTLINE` boxes), `origin(plot)` (Data/Street's), `seat(anchor)`, `outlinePts(tier, ox, oz)` and the desk and seat sizes |
-| `Data/Street` | the street (§12 of GAME_DESIGN): `MAX`, `SPACING`, `LAWN_Y` (-0.5), `ROAD` / `PAVE_N` / `PAVE_S` / `VERGE` (plot-local z bands), `LOT`, `plot(tier)` (the plot's rect), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `TREES` |
+| `Data/Street` | the street (§12 of GAME_DESIGN): `MAX`, `SPACING`, `LAWN_Y` (-0.5), `ROAD` / `PAVE_N` / `PAVE_S` / `VERGE` (plot-local z bands), `FAR` / `END_FAR` (ground past the invisible walls: no sky at the world's edges), `LOT`, `plot(tier)` (the plot's rect), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `TREES` |
 | `Data/Decor` | the plot's decor `{ id, name, price, fans, w, d, office }` (footprint in whole studs facing south) |
 
 Coordinates in `Data/Office` are studs, plot-local, +Y up. The camera looks from the south-east, so the back walls are
@@ -219,12 +219,16 @@ clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Ras
 whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`). The grid's ray plane
 `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the key (`plot|tier|a|phase|l|screen|K`) only
 changes with the plot, the office, the screen or K: anything else (the HUD's blocks) only moves the home pan.
-The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): home while they
-stand on their own lot inside the home view's middle; else the least move that keeps them `CamFollowBox` of the
-screen from its edges, gliding `CamGlide` of the way a frame; a target more than three quarters of the screen away
+The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): on any lot (the
+own or a neighbour's) that lot framed like the home view (`lotPan`: the home pan shifted by the grid offset between
+the two plots' origins) as long as the founder shows there clear of the HUD's strips; on the road the least move
+that keeps them `CamFollowBox` of the screen from its edges and clear of the HUD's top and bottom strips (and the tips
+banner), gliding `CamGlide` of the way a frame, never more a frame than the renderer can scroll in one (`panCaps`:
+`PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake; a target more than three quarters of the screen away
 snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood
-on its own lot once or 3 s have passed (Roblox drops it mid-street before the server moves it home). Build mode: `setFree(true)` starts at home and the view
-stays where `panBy(dx, dy)` (full-screen px) drags it, its centre within `CamBuildPan` studs of the plot; `isFree()`.
+on its own lot once or 3 s have passed (Roblox drops it mid-street before the server moves it home). Build mode: `setFree(true, down?)` starts at home lowered by
+`down` art px (Build mode's tray height, so the front yard shows above it) and the view stays where `panBy(dx, dy)`
+(full-screen px) drags it, its centre within `CamBuildPan` studs of the plot; `isFree()`.
 `gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
 `ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
 pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
@@ -310,7 +314,9 @@ Other players' names float over their heads (World root). `founderPos()`, `count
 `open()` (the HUD's Build button): closes any panel, `CameraController.setFree(true)`, holds the clock (pause key
 "build"), the tray `BuildTray` along the bottom (a card a piece: `Buy_<id>` buys it or, when owned, picks it; the line
 "Pieces n/limit"; `BuildDone`). With a piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in
-`Workspace.PixelDynamic`: the piece and a neon `Footprint`, green where `Plot.fits` says it fits, red where not)
+`Workspace.PixelDynamic`: the piece and its `Footprint`, a raised neon frame of four edges from the lawn to just above
+the office floor, cyan (`screen_on`) where `Plot.fits` says it fits, red (`berry_red`) where not: a flat green one was
+lost in the lawn's ramp and hidden under the office floor)
 stands on the cell under the pointer (mouse) or the last tap; the bar shows `Rotate`, `Place` / `Move here`, `Store`
 (when moving) and `Cancel`. A tap on a placed piece of the own plot (a ray into its `Static.Decor`) picks it up to
 move. A press dragged more than 8 px pans the view (`CameraController.panBy`). `confirm()` sends `plot.place` (the

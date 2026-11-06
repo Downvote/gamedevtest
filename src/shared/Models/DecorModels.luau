@@ -153,10 +153,12 @@ end
 B.dish = function(m, f)
 	box(m, f, 0, 0.25, 0, 2.5, 0.5, 2.5, "steel_dark", "Base")
 	box(m, f, 0, 1.2, 0, 0.5, 1.5, 0.5, "steel", "Mast")
-	local tilt = f * CFrame.new(0, 2.6, 0.2) * CFrame.Angles(math.rad(-35), 0, 0)
-	cyl(m, tilt, 0, 0, 0, 3, 0.3, "white", "Dish")
-	box(m, tilt, 0, 0.8, 0, 0.25, 1.5, 0.25, "steel", "Arm")
-	box(m, tilt, 0, 1.6, 0, 0.5, 0.5, 0.5, "berry_red", "Feed", true)
+	-- the bowl faces up and toward the south-east (the camera), so it reads as a dish: a rim and a deeper centre
+	local tilt = f * CFrame.new(0, 2.7, 0) * CFrame.Angles(0, math.rad(45), 0) * CFrame.Angles(math.rad(40), 0, 0)
+	cyl(m, tilt, 0, 0, 0, 3, 0.5, "white", "Dish")
+	cyl(m, tilt, 0, -0.35, 0, 1.75, 0.5, "plastic_dark", "Back")
+	box(m, tilt, 0, 0.9, 0, 0.25, 1.5, 0.25, "steel", "Arm")
+	box(m, tilt, 0, 1.75, 0, 0.5, 0.5, 0.5, "berry_red", "Feed", true)
 end
 
 B.billboard = function(m, f)

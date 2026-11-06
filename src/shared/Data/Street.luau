@@ -28,6 +28,10 @@ Street.ROAD = { z0 = 32, z1 = 42 }
 Street.PAVE_N = { z0 = 30, z1 = 32 }
 Street.PAVE_S = { z0 = 42, z1 = 44 }
 Street.VERGE = { z0 = 44, z1 = 58 }
+-- Ground past the invisible walls (studs): the meadow north of the lots, the verge south of the road and both ends,
+-- so no sky shows past the world's edges wherever the view goes.
+Street.FAR = 40
+Street.END_FAR = 60
 
 -- The lot: the land between two neighbours (plot-local).
 Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -24, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect

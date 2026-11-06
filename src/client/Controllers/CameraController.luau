@@ -225,6 +225,32 @@ local function founderRoot(v: View): BasePart?
 	return root
 end
 
+-- The HUD's strips across the top and the bottom of the screen (art px): the follow keeps the founder clear of them.
+local function hudStrips(v: View): (number, number)
+	local top, bottom = 0, 0
+	local rects: { Raster.Rect } = hudRects or {}
+	for _, r in rects do
+		if r.x1 - r.x0 >= v.fullX * 0.3 then
+			if r.y0 <= 1 then
+				top = math.max(top, r.y1)
+			elseif r.y1 >= v.fullY - 1 then
+				bottom = math.max(bottom, v.fullY - r.y0)
+			end
+		end
+	end
+	-- (the tips banner stands just above the bottom strip)
+	return top / v.K, bottom / v.K + 20
+end
+
+-- The pan that frames lot `i` the way the home pan frames the own lot.
+local function lotPan(v: View, i: number): (number, number)
+	local lx, lz = Street.origin(i)
+	local ox, oz = Street.origin(v.plot)
+	local ax, ay = Raster.gridPoint(ROT12, v.grid, lx, 0, lz)
+	local bx, by = Raster.gridPoint(ROT12, v.grid, ox, 0, oz)
+	return v.grid.px + math.floor(ax - bx + 0.5), v.grid.py + math.floor(ay - by + 0.5)
+end
+
 -- Where the view should be this frame.
 local function target(v: View): (number, number)
 	if free then
@@ -237,17 +263,30 @@ local function target(v: View): (number, number)
 	local p = root.Position
 	local gx, gy = Raster.gridPoint(ROT12, v.grid, p.X, p.Y, p.Z)
 	local W, H = v.fullX / v.K, v.fullY / v.K
-	local mx, my = W * Tuning.CamFollowBox, H * Tuning.CamFollowBox
-	local hx, hy = v.grid.px, v.grid.py
-	-- home: on the own lot and in the home view's middle
-	local own = Street.plotAt(p.X, p.Z) == v.plot
-	if own and gx - hx >= mx and gx - hx <= W - mx and gy - hy >= my and gy - hy <= H - my then
-		return hx, hy
+	local top, bottom = hudStrips(v)
+	local mx = W * Tuning.CamFollowBox
+	local my0, my1 = H * Tuning.CamFollowBox + top, H * Tuning.CamFollowBox + bottom
+	-- on a lot (the own or a neighbour's): that lot framed like the home view, as long as the founder shows there
+	-- clear of the HUD's strips (walking on into the front yard or onto the road, the view follows)
+	local lot = Street.plotAt(p.X, p.Z)
+	if lot ~= 0 then
+		local hx, hy = lotPan(v, lot)
+		local edge = 8
+		if gx - hx >= edge and gx - hx <= W - edge and gy - hy >= top + edge and gy - hy <= H - (bottom - 20) - edge then
+			return hx, hy
+		end
 	end
-	-- out: the least move that keeps them inside the box
+	-- on the road: the least move that keeps them inside the box, clear of the HUD's strips
 	local tx = math.clamp(panX, gx - (W - mx), gx - mx)
-	local ty = math.clamp(panY, gy - (H - my), gy - my)
+	local ty = math.clamp(panY, gy - (H - my1), gy - my0)
 	return math.floor(tx + 0.5), math.floor(ty + 0.5)
+end
+
+-- The most the view moves a frame: what the renderer can scroll in one (its strips within Tuning.PixelPanRays rays,
+-- about 1.5 rays a pixel with the sun's), so its picture never falls behind into a re-bake.
+local function panCaps(v: View): (number, number)
+	local W, H = v.fullX / v.K, v.fullY / v.K
+	return math.max(1, math.floor(Tuning.PixelPanRays / (H * 1.5))), math.max(1, math.floor(Tuning.PixelPanRays / (W * 1.5)))
 end
 
 local function step()
@@ -263,29 +302,30 @@ local function step()
 		pose(v)
 		return
 	end
-	local function toward(cur: number, to: number): number
+	local capX, capY = panCaps(v)
+	local function toward(cur: number, to: number, cap: number): number
 		local d = to - cur
 		if d == 0 then
 			return cur
 		end
-		local move = math.max(1, math.ceil(math.abs(d) * Tuning.CamGlide))
+		local move = math.min(cap, math.max(1, math.ceil(math.abs(d) * Tuning.CamGlide)))
 		return cur + math.sign(d) * math.min(move, math.abs(d))
 	end
-	local nx, ny = toward(panX, tx), toward(panY, ty)
+	local nx, ny = toward(panX, tx, capX), toward(panY, ty, capY)
 	if nx ~= panX or ny ~= panY then
 		panX, panY = nx, ny
 		pose(v)
 	end
 end
 
--- Build mode: the view stays where it is dragged (true) or follows the founder again (false).
-function CameraController.setFree(on: boolean)
+-- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts from home,
+-- lowered by `down` art px (Build mode's tray covers the bottom of the screen: the front yard shows above it).
+function CameraController.setFree(on: boolean, down: number?)
 	free = on
 	freeX, freeY = panX, panY
 	if on then
-		-- start from home: the own plot in view
 		local v = CameraController.view()
-		freeX, freeY = v.grid.px, v.grid.py
+		freeX, freeY = v.grid.px, v.grid.py + math.floor(down or 0)
 	end
 end
 

@@ -208,8 +208,9 @@ takes the lowest free plot; one who leaves leaves an empty lot (their save keeps
 - **The founder:** each player walks as a little chibi in the crew's style (a random look of their own, kept in the
   save), on their Roblox character (jumping is off; the avatar itself is hidden). They appear on their own footpath.
   Their name floats over them for the others.
-- **The camera** keeps the office-sized view: at home (on your own lot, in the home view's middle) it holds the home
-  view; off your lot it follows you, keeping you out of the screen's edges, and glides home when you come back. The
+- **The camera** keeps the office-sized view: on a lot (yours or a neighbour's) it frames that lot like your home
+  view; on the road it follows you, keeping you clear of the screen's edges and the HUD, and glides to a lot's framing
+  when you step onto it. The
   pixel filter scrolls its picture with the view and casts only what comes into sight (no re-bake while you walk).
   A **Home** button shows while you are away and puts you back on your footpath (once every 3 s).
 - **Visiting:** you can walk into any studio and watch its crew at work (typing while it has a game in the works,

@@ -62,7 +62,7 @@ function StreetModels.road(parent: Instance, origin: Vector3): Model
 	slab(m, o, x0, Street.PAVE_N.z0, x1, Street.PAVE_N.z1, -0.3, 0.5, "pavement", "Pavement")
 	slab(m, o, x0, Street.ROAD.z0, x1, Street.ROAD.z1, -0.45, 0.5, "road", "Road")
 	slab(m, o, x0, Street.PAVE_S.z0, x1, Street.PAVE_S.z1, -0.3, 0.5, "pavement", "Pavement")
-	slab(m, o, x0, Street.VERGE.z0, x1, Street.VERGE.z1, -0.5, 0.5, "grass", "Verge")
+	slab(m, o, x0, Street.VERGE.z0, x1, Street.VERGE.z1 + Street.FAR, -0.5, 0.5, "grass", "Verge")
 	-- kerbs along the pavements' road sides
 	slab(m, o, x0, Street.PAVE_N.z1 - 0.25, x1, Street.PAVE_N.z1, -0.25, 0.5, "steel", "Kerb")
 	slab(m, o, x0, Street.PAVE_S.z0, x1, Street.PAVE_S.z0 + 0.25, -0.25, 0.5, "steel", "Kerb")
@@ -79,6 +79,9 @@ function StreetModels.road(parent: Instance, origin: Vector3): Model
 	for k, t in Street.TREES do
 		tree(m, o * CFrame.new(t[1], -0.5, t[2]), k % 2 == 0)
 	end
+	-- a second row past the walls
+	tree(m, o * CFrame.new(-18, -0.5, Street.VERGE.z1 + 10), true)
+	tree(m, o * CFrame.new(14, -0.5, Street.VERGE.z1 + 16), false)
 	m.Parent = parent
 	return m
 end
@@ -86,7 +89,7 @@ end
 ------------------------------------------------------------------ an occupied lot
 local function meadow(m: Instance, o: CFrame)
 	local lot = Street.LOT
-	slab(m, o, lot.x0, lot.z0, lot.x1, lot.z1, -0.55, 0.5, "grass_dark", "Meadow")
+	slab(m, o, lot.x0, lot.z0 - Street.FAR, lot.x1, lot.z1, -0.55, 0.5, "grass_dark", "Meadow")
 end
 
 local function sign(m: Instance, at: CFrame, words: string?)
@@ -160,16 +163,21 @@ function StreetModels.ends(parent: Instance): Model
 	local first = Street.origin(1) + Street.LOT.x0
 	local last = Street.origin(Street.MAX) + Street.LOT.x1
 	for _, e in { { b.x0, first }, { last, b.x1 } } do
-		local x0, x1 = e[1], e[2]
-		slab(m, o, x0, Street.LOT.z0, x1, Street.PAVE_N.z0, -0.55, 0.5, "grass_dark", "Meadow")
+		local west = e[1] == b.x0
+		-- the ground runs on END_FAR studs past the walls
+		local x0 = if west then e[1] - Street.END_FAR else e[1]
+		local x1 = if west then e[2] else e[2] + Street.END_FAR
+		slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.PAVE_N.z0, -0.55, 0.5, "grass_dark", "Meadow")
 		slab(m, o, x0, Street.PAVE_N.z0, x1, Street.PAVE_N.z1, -0.3, 0.5, "pavement", "Pavement")
 		slab(m, o, x0, Street.ROAD.z0, x1, Street.ROAD.z1, -0.45, 0.5, "road", "Road")
 		slab(m, o, x0, Street.PAVE_S.z0, x1, Street.PAVE_S.z1, -0.3, 0.5, "pavement", "Pavement")
-		slab(m, o, x0, Street.VERGE.z0, x1, Street.VERGE.z1, -0.5, 0.5, "grass", "Verge")
-		-- a hedge across the end of the street
-		local hx = if x0 == b.x0 then x0 + 1 else x1 - 1
+		slab(m, o, x0, Street.VERGE.z0, x1, Street.VERGE.z1 + Street.FAR, -0.5, 0.5, "grass", "Verge")
+		-- a hedge across the end of the street, on the wall
+		local hx = if west then b.x0 + 1 else b.x1 - 1
 		slab(m, o, hx - 1, Street.LOT.z0, hx + 1, Street.VERGE.z1, 1.5, 2, "leaf_dark", "Hedge")
-		lampPost(m, o * CFrame.new(if x0 == b.x0 then hx + 3 else hx - 3, -0.3, Street.PAVE_N.z0 + 1))
+		lampPost(m, o * CFrame.new(if west then hx + 3 else hx - 3, -0.3, Street.PAVE_N.z0 + 1))
+		tree(m, o * CFrame.new(if west then hx - 12 else hx + 12, -0.55, 6), true)
+		tree(m, o * CFrame.new(if west then hx - 20 else hx + 20, -0.5, 52), false)
 	end
 	-- invisible walls round the world (the founder never walks off its edge); the bake's rays ignore them
 	local H = 30

@@ -76,9 +76,11 @@ local function pixelImageState(p)
 	return nil, 1
 end
 
--- Steps until the pixel renderer has its picture on screen and is quiet (no bake under way), or `maxSec` passed.
+-- Steps until the pixel renderer has its picture on screen and is quiet (no bake under way, its pan caught up with
+-- the camera's, no re-cast waiting), or `maxSec` passed.
 local function settle(p, maxSec, minSec)
 	local PR = modOr(p, "Pixel.PixelRenderer")
+	local CC0 = modOr(p, "Controllers.CameraController")
 	local t, quiet = 0, 0
 	local minT = minSec or 0.5
 	while t < (maxSec or 40) do
@@ -86,11 +88,16 @@ local function settle(p, maxSec, minSec)
 		t += E.dt
 		local st = PR and select(2, pcall(PR.debugStatic))
 		local active = PR ~= nil and select(2, pcall(PR.isActive)) == true
+		local caught = true
+		if CC0 and CC0.pan and type(st) == "table" and st.px ~= nil then
+			local cx, cy = CC0.pan()
+			caught = st.px == cx and st.py == cy and (st.queued or 0) == 0
+		end
 		if not active then
 			if t >= math.max(minT, 1.5) then
 				break
 			end
-		elseif type(st) == "table" and st.shown and not st.baking then
+		elseif type(st) == "table" and st.shown and not st.baking and caught then
 			local _, tr = pixelImageState(p)
 			if tr < 0.01 then
 				quiet += 1
@@ -105,8 +112,9 @@ local function settle(p, maxSec, minSec)
 	local img, tr = pixelImageState(p)
 	local st = PR and select(2, pcall(PR.debugStatic))
 	if type(st) == "table" then
-		log("settled after %.1fs: tier %s, layer %dx%d K %d, image %s transparency %.2f, bake rays %d, bakes %d, ticks %d, compose %.2f ms, dynamic %d",
-			t, tostring(PR.tier()), st.W, st.H, st.K, tostring(img ~= nil), tr, st.rays, st.bakes, st.ticks, st.composeMs, st.dyn)
+		log("settled after %.1fs: tier %s, layer %dx%d K %d, image %s transparency %.2f, bake rays %d, bakes %d, ticks %d, compose %.2f ms, dynamic %d, pan %s,%s, scrolls %s (%s rays), recasts %s, queued %s",
+			t, tostring(PR.tier()), st.W, st.H, st.K, tostring(img ~= nil), tr, st.rays, st.bakes, st.ticks, st.composeMs, st.dyn,
+			tostring(st.px), tostring(st.py), tostring(st.scrolls), tostring(st.scrollRays), tostring(st.recasts), tostring(st.queued))
 	else
 		log("settled after %.1fs (no pixel renderer stats)", t)
 	end
@@ -144,21 +152,26 @@ local function setTier(p)
 	end
 end
 
-local function join(userId, name)
-	local p = H.addPlayer({ userId = userId, name = name })
+local function join(userId, name, opts)
+	opts = opts or {}
+	opts.userId, opts.name = userId, name
+	local p = H.addPlayer(opts)
 	E.run(3)
 	if p.Parent == nil then
 		log("player %s was kicked or left while joining", name)
 	elseif H.session(p) == nil or not H.session(p).ready then
 		log("player %s has no ready session after 3 s", name)
 	end
-	setTier(p)
+	if opts.client ~= false then
+		setTier(p)
+	end
 	return p
 end
 
 -- A saved profile for `userId` (put in the fake cloud before they join): office `tier`, `staff` developers, a game
--- in the works when `working`.
-local function seedProfile(userId, tier, staff, working)
+-- in the works when `working`, and `decor` ({ id, x, z, rot } wanted spots: owned, and placed where Logic/Plot says
+-- they fit, else at the nearest cell that does).
+local function seedProfile(userId, tier, staff, working, decor)
 	local Schema = H.sharedServer("Logic.Schema")
 	local Crew = H.sharedServer("Logic.Crew")
 	local Dev = H.sharedServer("Logic.Dev")
@@ -184,6 +197,26 @@ local function seedProfile(userId, tier, staff, working)
 		proj.bugs = 3
 		prof.project = proj
 		prof.genres.rpg = true
+	end
+	if decor then
+		local Plot = H.sharedServer("Logic.Plot")
+		for _, d in decor do
+			prof.plot.owned[d.id] = true
+			local done = false
+			for r = 0, 6 do
+				for dz = -r, r do
+					for dx = -r, r do
+						if not done and (math.abs(dx) == r or math.abs(dz) == r) and Plot.fits(tier, prof.plot.placed, d.id, d.x + dx, d.z + dz, d.rot or 0) then
+							table.insert(prof.plot.placed, { id = d.id, x = d.x + dx, z = d.z + dz, rot = d.rot or 0 })
+							done = true
+						end
+					end
+				end
+			end
+			if not done then
+				log("seed: %s does not fit near %d,%d", d.id, d.x, d.z)
+			end
+		end
 	end
 	local key = Tuning.DataStoreName .. "/global"
 	E.cloud.stores[key] = E.cloud.stores[key] or {}
@@ -288,8 +321,182 @@ function SCEN.review()
 	return p
 end
 
+------------------------------------------------------------------ the street and the plot (GAME_DESIGN 12, 13)
+local function rootOf(p)
+	return p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Put a player's founder at a world point (as if they had walked there) and let the view follow and settle.
+local function walkTo(p, x, z)
+	local root = rootOf(p)
+	if root == nil then
+		log("walkTo: %s has no character", p.Name)
+		return
+	end
+	p.Character:PivotTo(E.cf.new(x, 3, z))
+	E.run(2)
+	settle(p, 30, 1)
+end
+
+-- The founder walked onto the road between two studios (the neighbour in the Loft, at work); then the same pan
+-- baked from scratch, to compare a scrolled picture with a fresh one.
+function SCEN.street()
+	local p = join(50, "Walker")
+	seedProfile(51, 2, 5, true)
+	join(51, "Neighbour", { client = false })
+	settle(p)
+	local Street = H.sharedServer("Data.Street")
+	local x1 = Street.origin(1)
+	local x2 = Street.origin(2)
+	walkTo(p, (x1 + x2) / 2 + 6, (Street.ROAD.z0 + Street.ROAD.z1) / 2)
+	E.run(0.5)
+	settle(p, 10, 0.5)
+	capture(p, "street")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR and PR.isActive() then
+		H.inClient(p, function()
+			PR.rebake()
+		end)
+		settle(p, 40, 1)
+		capture(p, "street_fresh")
+	end
+	return p
+end
+
+-- The founder inside the neighbour's office while their crew works.
+function SCEN.visit()
+	local p = join(52, "Visitor")
+	seedProfile(53, 1, 3, true)
+	join(53, "Host", { client = false })
+	settle(p)
+	local x2, z2 = H.sharedServer("Data.Street").origin(2)
+	walkTo(p, x2 - 7, z2 + 7)
+	capture(p, "visit")
+	-- the scrolled picture against a fresh bake at the same pan (only the crew's typing should differ)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR and PR.isActive() then
+		H.inClient(p, function()
+			PR.rebake()
+		end)
+		settle(p, 40, 1)
+		capture(p, "visit_fresh")
+	end
+	return p
+end
+
+-- Build mode: pieces bought and placed, then one picked and its ghost on a cell where it fits (green), then on the
+-- office (red).
+function SCEN.build()
+	local p = join(54, "Builder")
+	local prof = H.profile(p)
+	prof.money = 200000
+	prof.fans = 500
+	H.push(p, 0.5)
+	for _, id in { "gnome", "flowers", "bush", "bench", "lamp", "oak", "pine", "bikes", "picnic" } do
+		local res = H.req(p, "plot.buy", { id = id })
+		if not (res and res.ok) then
+			log("plot.buy %s: %s", id, tostring(res and res.err))
+		end
+		E.run(0.12)
+	end
+	local Plot = H.sharedServer("Logic.Plot")
+	local wanted = {
+		{ "oak", 14, -6, 0 },
+		{ "pine", 19, 1, 0 },
+		{ "bench", 13, 14, 0 },
+		{ "flowers", -8, 13, 0 },
+		{ "picnic", 14, 21, 0 },
+		{ "lamp", 9, 12, 0 },
+		{ "bush", -14, 22, 0 },
+		{ "gnome", 1, 13, 0 },
+		{ "bikes", -7, 22, 90 },
+		{ "flowers", -2, 22, 0 },
+	}
+	for _, w in wanted do
+		local id, x, z, rot = w[1], w[2], w[3], w[4]
+		local okFit = Plot.fits(1, prof.plot.placed, id, x, z, rot)
+		if okFit then
+			local res = H.req(p, "plot.place", { id = id, x = x, z = z, rot = rot })
+			if not (res and res.ok) then
+				log("plot.place %s %d,%d: %s", id, x, z, tostring(res and res.err))
+			end
+		else
+			log("plot.place %s %d,%d: does not fit (skipped)", id, x, z)
+		end
+		E.run(0.12)
+	end
+	settle(p, 30, 1)
+	if not H.clickNamed(p, "Menu_build", { optional = true }) then
+		log("no Build button")
+	end
+	E.run(0.5)
+	local BuildUI = modOr(p, "UI.BuildUI")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local Street = H.sharedServer("Data.Street")
+	local ox, oz = Street.origin(1)
+	local function tapWorld(world)
+		H.inClient(p, function()
+			local pos = PR.project(world)
+			BuildUI.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
+		end)
+	end
+	if BuildUI and PR then
+		H.inClient(p, function()
+			BuildUI.pick("oak", 0)
+		end)
+		-- a fitting cell in the east yard for the oak (3 x 3)
+		local cx, cz = 18, 8
+		for r = 0, 6 do
+			local found = false
+			for dz = -r, r do
+				for dx = -r, r do
+					if not found and Plot.fits(1, prof.plot.placed, "oak", 18 + dx, 8 + dz, 0) then
+						cx, cz, found = 18 + dx, 8 + dz, true
+					end
+				end
+			end
+			if found then
+				break
+			end
+		end
+		tapWorld(E.v3(ox + cx + 1.5, Street.LAWN_Y, oz + cz + 1.5))
+		settle(p, 10, 0.5)
+		capture(p, "build")
+		tapWorld(E.v3(ox + 2, 0, oz + 1))
+		settle(p, 10, 0.5)
+		capture(p, "build_red")
+	end
+	return p
+end
+
+-- A Studio Floor studio with a dozen pieces of decor on its plot, the home view.
+function SCEN.plot3()
+	seedProfile(55, 3, 8, true, {
+		{ id = "fountain", x = 22, z = 16 },
+		{ id = "statue", x = 29, z = 4 },
+		{ id = "truck", x = 22, z = 24 },
+		{ id = "billboard", x = 19, z = -14 },
+		{ id = "dish", x = 30, z = -9 },
+		{ id = "kiosk", x = 19, z = 4 },
+		{ id = "oak", x = -22, z = 17 },
+		{ id = "pine", x = -21, z = 24 },
+		{ id = "bench", x = -9, z = 16 },
+		{ id = "picnic", x = -3, z = 21 },
+		{ id = "flowers", x = 1, z = 16 },
+		{ id = "lamp", x = 15, z = 15 },
+		{ id = "bush", x = -16, z = 25 },
+		{ id = "bikes", x = 4, z = 24 },
+	})
+	local p = join(55, "Mogul")
+	settle(p)
+	nextWeek(p)
+	E.run(0.35)
+	capture(p, "plot3")
+	return p
+end
+
 ------------------------------------------------------------------ run
-local list = if scenario == "all" then { "office", "dev", "review" } else { scenario }
+local list = if scenario == "all" then { "office", "dev", "review", "street", "build" } else { scenario }
 for _, name in list do
 	local fn = SCEN[name]
 	local panel = string.match(name, "^panel=(%w+)$")

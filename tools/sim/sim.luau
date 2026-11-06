@@ -33,16 +33,31 @@ H.expect(prof.week == 0 and prof.office == 1 and prof.tut == 1, "join", "week 0,
 H.expect(s.plot == 1, "join", "the first player gets plot 1", tostring(s.plot))
 local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_1")
 local static = plot1 and plot1:FindFirstChild("Static")
-local office = static and static:FindFirstChild("Office")
-H.expect(office ~= nil, "join", "the office is built under Plots.Plot_1.Static")
+-- Static.Office (a folder PlotService replaces as a whole) holds the office model (OfficeModels.build)
+local function officeOf(st)
+	local f = st and st:FindFirstChild("Office")
+	return f and f:FindFirstChild("Office")
+end
+local office = officeOf(static)
+H.expect(office ~= nil, "join", "the office is built under Plots.Plot_1.Static.Office")
 if office then
 	H.expect(office:GetAttribute("Tier") == 1, "join", "a tier 1 office")
 	H.expect(#office.Desks:GetChildren() == Tuning.Offices[1].desks, "join", "three desks in the garage", tostring(#office.Desks:GetChildren()))
 end
 local WV = H.cmod(p, "Controllers.WorldView")
-H.expect(WV.rigCount() == 2, "join", "a rig per developer", tostring(WV.rigCount()))
+H.expect(WV.ownRigCount() == 2, "join", "a rig per developer", tostring(WV.ownRigCount()))
+H.expect(WV.rigCount() == 2, "join", "no other studio on the street yet", tostring(WV.rigCount()))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
-H.expect(dyn ~= nil and #dyn:GetChildren() == 2, "join", "the rigs are in Workspace.PixelDynamic", tostring(dyn and #dyn:GetChildren()))
+local devRigs = 0
+if dyn then
+	for _, c in dyn:GetChildren() do
+		if string.sub(c.Name, 1, 8) == "Dev_own:" then
+			devRigs += 1
+		end
+	end
+end
+H.expect(devRigs == 2, "join", "the rigs are in Workspace.PixelDynamic", tostring(devRigs))
+H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there too")
 local v = H.view(p)
 H.expect(v ~= nil and v.money == prof.money and v.plot == 1, "join", "the client has the view")
 H.checkProfile(p, "join")
@@ -186,19 +201,26 @@ res = H.req(p, "office.move", {})
 H.expect(res.ok and prof.office == 2, "office", "move to the Loft", tostring(res.err))
 E.run(1)
 static = plot1:FindFirstChild("Static")
-office = static and static:FindFirstChild("Office")
+office = officeOf(static)
 H.expect(office ~= nil and office:GetAttribute("Tier") == 2, "office", "the office is rebuilt as the Loft")
 H.expect(office ~= nil and #office.Desks:GetChildren() == Tuning.Offices[2].desks, "office", "five desks", tostring(office and #office.Desks:GetChildren()))
-local statics = 0
+local statics, olds, offices = 0, 0, 0
 for _, c in plot1:GetChildren() do
-	if c.Name == "Static" or c.Name == "Old" then
+	if c.Name == "Static" then
 		statics += 1
 	end
 end
-H.expect(statics == 1, "office", "the old office came down", tostring(statics))
+for _, c in static:GetChildren() do
+	if c.Name == "Old" then
+		olds += 1
+	elseif c.Name == "Office" then
+		offices += 1
+	end
+end
+H.expect(statics == 1 and olds == 0 and offices == 1, "office", "the old office came down", string.format("%d static, %d old, %d offices", statics, olds, offices))
 local CC = H.cmod(p, "Controllers.CameraController")
 H.expect(CC.view().tier == 2, "office", "the client's camera frames the Loft", tostring(CC.view().tier))
-H.expect(WV.rigCount() == #prof.staff, "office", "the rigs moved with the crew", tostring(WV.rigCount()))
+H.expect(WV.ownRigCount() == #prof.staff, "office", "the rigs moved with the crew", tostring(WV.ownRigCount()))
 res = H.req(p, "office.move", {})
 H.expect(not res.ok and (res.err == "fans" or res.err == "money"), "office", "the Studio Floor needs more", tostring(res.err))
 res = H.req(p, "settings.set", { k = "pixel", v = "low" })
