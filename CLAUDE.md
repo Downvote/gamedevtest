@@ -15,7 +15,7 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 `sim.luau` 512, `sim_save.luau` 126, `sim_clock.luau` 79, `sim_world.luau` 316). Previews: `sh tools/preview/render.sh
 <office|dev|office2|office3|review|street|visit|build|plot3|late|panel=<newgame|staff|research|office|games>> <outdir
 outside the repo> "desktop phone"`. The place file is
-`ByteSizeStudio-<short hash>.rbxlx` in the repository root (git-ignored).
+`ByteSizeStudio-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The repository `Downvote/test` (Random Bakery) is the reference this game was built from: read it, never change it.
 
