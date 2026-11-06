@@ -9,9 +9,10 @@ local SEEDS = { 1, 2, 3, 4, 5, 6 }
 local YEARS = 10
 
 return function()
-	local runs = {}
+	local runs, played = {}, {}
 	for _, seed in SEEDS do
 		runs[seed] = Career.play(seed, YEARS)
+		played[seed] = Career.play(seed, YEARS, nil, 80)
 	end
 	T.it("the first year: a few games out, the studio still afloat", function()
 		for seed, r in runs do
@@ -58,6 +59,28 @@ return function()
 			end
 			T.truthy(r.profile.fans < 1e8 and r.profile.money == r.profile.money, "seed " .. seed .. ": finite")
 		end
+	end)
+	T.it("minigames (GAME_DESIGN 14): a player who plays them well makes better games, still inside the bounds", function()
+		local sumA, sumB, n = 0, 0, 0
+		for seed, r in played do
+			local base = runs[seed]
+			T.truthy(r.yearly[1].money > 0, "seed " .. seed .. ": afloat after year 1")
+			T.truthy(r.yearly[1].avg <= 30, "seed " .. seed .. ": first reviews still modest, got " .. r.yearly[1].avg)
+			T.truthy(r.profile.stats.best <= 40)
+			for i = 2, #r.yearly do
+				local a, b = r.yearly[i - 1].fans, r.yearly[i].fans
+				if a > 50000 then
+					T.truthy(b < a * 2.5, string.format("seed %d: fans at most x2.5 a year (year %d)", seed, i))
+				end
+			end
+			for i = 1, 3 do
+				sumA += base.yearly[i].avg
+				sumB += r.yearly[i].avg
+				n += 1
+			end
+		end
+		T.truthy(sumB / n >= sumA / n + 1, string.format("better early reviews: %.1f vs %.1f", sumB / n, sumA / n))
+		T.truthy(sumB / n <= sumA / n + 6, string.format("but not a different game: %.1f vs %.1f", sumB / n, sumA / n))
 	end)
 	T.it("the safety net: a broke studio can still start a small Home PC game", function()
 		local p = runs[1].profile

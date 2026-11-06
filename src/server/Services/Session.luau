@@ -21,7 +21,11 @@ export type S = {
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
+	mini: Mini?, -- the minigame in play (GAME_DESIGN 14): its clock is held until it finishes
 }
+
+-- A started minigame: what it is, the token its finish must carry, when it started (os.clock) and its content seed.
+export type Mini = { kind: string, token: number, at: number, seed: number }
 
 local Session = {}
 

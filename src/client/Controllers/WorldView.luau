@@ -34,7 +34,11 @@ type Entry = {
 	tired: boolean,
 	cheerUntil: number,
 	zAt: number,
+	codeAt: number, -- when the next bit of code floats up from their screen
 }
+
+-- What floats up from a typing developer's screen.
+local CODE_BITS = { "</>", "{ }", "01", "();", "if", "++", "#", "[]" }
 
 local rigs: { [string]: Entry } = {} -- key: "own:<staff id>" or "<plot>:<desk>"
 local ownWorking = false
@@ -89,7 +93,7 @@ local function ensure(key: string, sig: string, plot: number, office: number, de
 	CharacterModels.pose(rig, base, 0, "idle")
 	rig.model.Parent = dyn()
 	PixelRenderer.registerDynamic(rig.model)
-	local ne: Entry = { rig = rig, base = base, sig = sig, plot = plot, staff = nil, tired = false, cheerUntil = 0, zAt = 0 }
+	local ne: Entry = { rig = rig, base = base, sig = sig, plot = plot, staff = nil, tired = false, cheerUntil = 0, zAt = 0, codeAt = os.clock() + math.random() * 2.5 }
 	rigs[key] = ne
 	return ne
 end
@@ -299,6 +303,24 @@ local function onWeek(msg: { [string]: any })
 	end
 end
 
+-- The own crew cheers (arms up) with a word over each head, one after another (a minigame's reward landing).
+function WorldView.cheer(words: { string }, color: Color3)
+	local k = 0
+	for key, entry in rigs do
+		if string.sub(key, 1, 4) ~= "own:" then
+			continue
+		end
+		k += 1
+		local word = words[(k - 1) % math.max(1, #words) + 1] or "!"
+		local at = (entry.base * CFrame.new(CharacterModels.HEAD_TOP)).Position
+		local first = k == 1
+		task.delay((k - 1) * 0.1, function()
+			entry.cheerUntil = os.clock() + 1.4
+			UIKit.floatText(at, word, color, first)
+		end)
+	end
+end
+
 ------------------------------------------------------------------ lifecycle
 function WorldView.init() end
 
@@ -355,6 +377,11 @@ function WorldView.start()
 				state = "type"
 			end
 			CharacterModels.pose(e.rig, e.base, t, state)
+			if state == "type" and t >= e.codeAt then
+				e.codeAt = t + (if e.staff then 1.6 + math.random() * 2.4 else 3 + math.random() * 3)
+				local at = (e.base * CFrame.new(0.3, 2.9, Office.SEAT_BACK * 0.7)).Position
+				UIKit.floatText(at, CODE_BITS[math.random(1, #CODE_BITS)], UIKit.color("screen_code"), false)
+			end
 			if state == "tired" and t >= e.zAt then
 				e.zAt = t + 2.2
 				UIKit.floatText((e.base * CFrame.new(CharacterModels.HEAD_TOP + Vector3.new(0.6, 0, 0))).Position, "z", UIKit.color("text_dim"), false)

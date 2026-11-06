@@ -21,6 +21,7 @@ local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local PixelText = require(script.Parent.Parent.Pixel.PixelText)
 local Snapshot = require(script.Parent.Parent.Pixel.Snapshot)
+local Audio = require(script.Parent.Parent.Controllers.Audio)
 
 local UIKit = {}
 UIKit.Resized = Util.Signal() :: Types.Signal<Vector2>
@@ -322,7 +323,35 @@ export type ButtonOpts = { color: Color3?, textColor: Color3?, enabled: boolean?
 
 local buttonColor: { [GuiButton]: Color3 } = {}
 
--- A plate button with its words in a child label.
+-- The plate colour a button shows now: its own (lighter while hovered) or the disabled grey.
+local hovered: { [GuiButton]: boolean } = {}
+local function paintButton(b: GuiButton)
+	local plate = b:FindFirstChild("Plate")
+	if plate == nil then
+		return
+	end
+	local c = if b.AutoButtonColor then (buttonColor[b] or UIKit.color("button")) else UIKit.color("button_off")
+	if hovered[b] and b.AutoButtonColor then
+		c = c:Lerp(Color3.new(1, 1, 1), 0.18)
+	end
+	UIKit.setPlate(plate, c)
+end
+
+-- Pressed: the plate and its words sink one UI px (and come back up on release).
+local function pressButton(b: GuiButton, down: boolean)
+	local plate = b:FindFirstChild("Plate")
+	local words = b:FindFirstChild("Words")
+	local dy = if down and b.AutoButtonColor then 1 else 0
+	if plate and plate:IsA("GuiObject") then
+		plate.Position = UDim2.fromOffset(0, dy)
+	end
+	if words and words:IsA("GuiObject") then
+		words.Position = UDim2.fromOffset(words.Position.X.Offset, dy)
+	end
+end
+
+-- A plate button with its words in a child label. It lightens under the mouse, sinks a pixel while pressed and
+-- clicks (or buzzes, disabled).
 function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?, onClick: () -> (), opts: ButtonOpts?): TextButton
 	local o: ButtonOpts = opts or {}
 	local b = Instance.new("TextButton")
@@ -350,11 +379,30 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 	l.Active = false
 	b.Activated:Connect(function()
 		if b.AutoButtonColor then
+			Audio.play("click")
 			onClick()
+		else
+			Audio.play("deny")
 		end
+	end)
+	b.MouseEnter:Connect(function()
+		hovered[b] = true
+		paintButton(b)
+	end)
+	b.MouseLeave:Connect(function()
+		hovered[b] = nil
+		paintButton(b)
+		pressButton(b, false)
+	end)
+	b.MouseButton1Down:Connect(function()
+		pressButton(b, true)
+	end)
+	b.MouseButton1Up:Connect(function()
+		pressButton(b, false)
 	end)
 	b.Destroying:Connect(function()
 		buttonColor[b] = nil
+		hovered[b] = nil
 	end)
 	b.Parent = parent
 	if o.enabled == false then
@@ -364,11 +412,12 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 end
 
 function UIKit.setEnabled(b: GuiButton, on: boolean)
-	b.AutoButtonColor = on
-	local plate = b:FindFirstChild("Plate")
-	if plate then
-		UIKit.setPlate(plate, if on then (buttonColor[b] or UIKit.color("button")) else UIKit.color("button_off"))
+	if b.AutoButtonColor == on and b:GetAttribute("Painted") then
+		return
 	end
+	b:SetAttribute("Painted", true)
+	b.AutoButtonColor = on
+	paintButton(b)
 	local words = b:FindFirstChild("Words")
 	if words and words:IsA("TextLabel") then
 		UIKit.setTextColor(words, if on then UIKit.color("text") else UIKit.color("text_dim"))
@@ -385,10 +434,7 @@ end
 function UIKit.setButtonColor(b: GuiButton, c: Color3)
 	buttonColor[b] = c
 	if b.AutoButtonColor then
-		local plate = b:FindFirstChild("Plate")
-		if plate then
-			UIKit.setPlate(plate, c)
-		end
+		paintButton(b)
 	end
 end
 
@@ -526,11 +572,12 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Text = ""
 	shade.AutoButtonColor = false
 	shade.BackgroundColor3 = UIKit.color("ink")
-	shade.BackgroundTransparency = 0.45
+	shade.BackgroundTransparency = 1
 	shade.BorderSizePixel = 0
 	shade.Size = UDim2.fromScale(1, 1)
 	shade.ZIndex = 1
-	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)), UIKit.color("plate"), 0, 3)
+	local fx, fy = math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)
+	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), UIKit.color("plate"), 0, 3)
 	frame.Name = "Frame"
 	frame.ZIndex = 2
 	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(6, 2), { color = UIKit.color("accent"), name = "Title" })
@@ -538,6 +585,7 @@ function UIKit.openPanel(name: string, arg: any?)
 	local titleW = UIKit.textWidth(def.title) + 14
 	UIKit.text(frame, "", UDim2.new(1, -(titleW + UIKit.buttonWidth("Close", 4) + 8), 0, 14), UDim2.fromOffset(titleW, 2), { color = UIKit.color("text"), name = "Status", x = "right" })
 	UIKit.button(frame, "Close", UDim2.fromOffset(UIKit.buttonWidth("Close", 4), 12), UDim2.new(1, -UIKit.buttonWidth("Close", 4) - 3, 0, 3), function()
+		Audio.play("close")
 		UIKit.closePanel()
 	end, { color = UIKit.color("plate_light"), name = "Close" })
 	local body = Instance.new("Frame")
@@ -552,6 +600,9 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Parent = canvas
 	openFrame = shade :: any
 	openName = name
+	UIKit.tween(shade, 0.15, { BackgroundTransparency = 0.45 })
+	UIKit.tween(frame, 0.15, { Position = UDim2.fromOffset(fx, fy) })
+	Audio.play("open")
 	local ok, err = pcall(function()
 		def.build(body, arg)
 	end)
@@ -631,7 +682,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), UIKit.color("plate"), 0.08, 2)
 	f.Name = "Notice"
 	UIKit.rect(f, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(2, 2), color or UIKit.color("accent"), 1)
-	UIKit.text(f, text, UDim2.new(1, -12, 1, -2), UDim2.fromOffset(7, 1), { wrap = true, name = "Words" })
+	local words = UIKit.text(f, text, UDim2.new(1, -12, 1, -2), UDim2.fromOffset(7, 1), { wrap = true, name = "Words" })
 	table.insert(noticeList, f)
 	while #noticeList > 3 do
 		local old = table.remove(noticeList, 1)
@@ -641,10 +692,42 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	end
 	local y = 24
 	for _, n in noticeList do
-		n.Position = UDim2.fromOffset(n.Position.X.Offset, y)
+		if n == f then
+			-- the new one slides down into its place
+			n.Position = UDim2.fromOffset(n.Position.X.Offset, y - 8)
+			UIKit.tween(n, 0.18, { Position = UDim2.fromOffset(n.Position.X.Offset, y) })
+		else
+			n.Position = UDim2.fromOffset(n.Position.X.Offset, y)
+		end
 		y += n.Size.Y.Offset + 2
 	end
 	task.delay(seconds or 3.5, function()
+		if f.Parent == nil then
+			return
+		end
+		-- fade away, then go
+		for _, r in f:GetDescendants() do
+			if r:IsA("Frame") and r.BackgroundTransparency < 1 then
+				UIKit.tween(r, 0.25, { BackgroundTransparency = 1 })
+			end
+		end
+		if PixelText.isBound(words) then
+			local t0 = os.clock()
+			local conn: RBXScriptConnection? = nil
+			conn = RunService.Heartbeat:Connect(function()
+				local a = math.clamp((os.clock() - t0) / 0.25, 0, 1)
+				if words.Parent == nil or a >= 1 then
+					if conn then
+						conn:Disconnect()
+					end
+					return
+				end
+				PixelText.setTransparency(words, a)
+			end)
+		else
+			UIKit.tween(words, 0.25, { TextTransparency = 1 })
+		end
+		task.wait(0.25)
 		local i = table.find(noticeList, f)
 		if i then
 			table.remove(noticeList, i)
@@ -691,6 +774,53 @@ function UIKit.floatText(world: Vector3, text: string, color: Color3, big: boole
 			l.TextTransparency = a
 			if PixelText.isBound(l) then
 				PixelText.setTransparency(l, a)
+			end
+		end
+	end)
+end
+
+------------------------------------------------------------------ confetti
+-- A burst of confetti over a frame (a Hall of Fame game, an award, a perfect minigame): little rects that fly up,
+-- tumble down, sway and fade, then go.
+function UIKit.confetti(parent: GuiObject, n: number?, colors: { string }?)
+	local w = parent.AbsoluteSize.X / math.max(1, K)
+	local h = parent.AbsoluteSize.Y / math.max(1, K)
+	if w < 4 then
+		w, h = parent.Size.X.Offset, parent.Size.Y.Offset
+	end
+	local keys = colors or { "accent", "fun", "ideas", "graphics", "sound", "white" }
+	type Bit = { f: Frame, x: number, y: number, vx: number, vy: number, ph: number }
+	local bits: { Bit } = {}
+	for i = 1, n or 40 do
+		local c = UIKit.color(keys[(i - 1) % #keys + 1])
+		local r = UIKit.rect(parent, UDim2.fromOffset(if i % 3 == 0 then 1 else 2, 2), UDim2.fromOffset(0, 0), c, 20)
+		r.Name = "Confetti"
+		table.insert(bits, { f = r, x = w * (0.2 + 0.6 * math.random()), y = h * 0.45, vx = (math.random() - 0.5) * 140, vy = -60 - math.random() * 90, ph = math.random() * 6 })
+	end
+	local t0 = os.clock()
+	local last = t0
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		local t, dt = now - t0, math.min(0.05, now - last)
+		last = now
+		if t > 2.2 or parent.Parent == nil then
+			for _, b in bits do
+				b.f:Destroy()
+			end
+			if conn then
+				conn:Disconnect()
+			end
+			return
+		end
+		for _, b in bits do
+			b.vy = math.min(b.vy + 160 * dt, 50)
+			b.vx *= 0.98
+			b.x += (b.vx + math.sin(t * 6 + b.ph) * 12) * dt
+			b.y += b.vy * dt
+			b.f.Position = UDim2.fromOffset(math.floor(b.x), math.floor(b.y))
+			if t > 1.6 then
+				b.f.BackgroundTransparency = (t - 1.6) / 0.6
 			end
 		end
 	end)

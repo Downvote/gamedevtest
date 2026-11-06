@@ -3,6 +3,7 @@
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Studio = require("../build/luautest/shared/Logic/Studio")
+local Minigames = require("../build/luautest/shared/Logic/Minigames")
 local Dev = require("../build/luautest/shared/Logic/Dev")
 local Crew = require("../build/luautest/shared/Logic/Crew")
 local Calendar = require("../build/luautest/shared/Logic/Calendar")
@@ -33,7 +34,8 @@ local function pickPair(p): (string, string)
 	return bg, bt
 end
 
-function Career.play(seed: number, years: number, log: ((string) -> ())?)
+-- `mini`: the score this player gets in every minigame (GAME_DESIGN 14), or nil for one who never plays them.
+function Career.play(seed: number, years: number, log: ((string) -> ())?, mini: number?)
 	local p = Schema.default(0, seed)
 	local rng = Util.newRng(seed * 7 + 1)
 	local polishWeeks = 0
@@ -138,6 +140,19 @@ function Career.play(seed: number, years: number, log: ((string) -> ())?)
 		end
 		if p.money > 60000 * p.office and Studio.canAd(p) then
 			Studio.ad(p)
+		end
+		-- minigames: spend every push (the four scores in turn), squash bugs whenever allowed
+		local cur = p.project
+		if mini and cur then
+			while cur.pushes > 0 do
+				local kind = Minigames.PUSH_ORDER[cur.played % #Minigames.PUSH_ORDER + 1]
+				Minigames.start(p, kind)
+				Minigames.finish(p, kind, mini)
+			end
+			if Minigames.canStart(p, "bugs") then
+				Minigames.start(p, "bugs")
+				Minigames.finish(p, "bugs", mini)
+			end
 		end
 		local events = Studio.week(p, rng)
 		for _, e in events do

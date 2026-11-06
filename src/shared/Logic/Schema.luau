@@ -253,6 +253,10 @@ local function projectOf(v: any): Types.Project?
 		rp = int(v.rp, 0, 0),
 		sparks = int(v.sparks, 0, 0),
 		cost = int(v.cost, 0, 0),
+		pushes = int(v.pushes, 0, 0, Tuning.MiniMaxPushes),
+		nextPush = int(v.nextPush, 0, 0, 8),
+		squashWeek = int(v.squashWeek, 0, 0),
+		played = int(v.played, 0, 0),
 	}
 end
 

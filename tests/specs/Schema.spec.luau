@@ -49,6 +49,20 @@ return function()
 		local back = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(back, p)
 	end)
+	T.it("a project saved before the minigames gets none banked", function()
+		local p = Schema.default(1000, 7)
+		Studio.start(p, { genre = "puzzle", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 0 })
+		local raw = roundTrip(p)
+		for _, k in { "pushes", "nextPush", "squashWeek", "played" } do
+			raw.project[k] = nil
+		end
+		local back = Schema.reconcile(raw, 2000, 9)
+		T.eq(back.project.pushes, 0)
+		T.eq(back.project.nextPush, 0)
+		T.eq(back.project.squashWeek, 0)
+		raw.project.pushes = 99
+		T.eq(Schema.reconcile(raw, 2000, 9).project.pushes, Tuning.MiniMaxPushes, "clamped")
+	end)
 	T.it("reconcile turns garbage into a valid profile", function()
 		for _, raw in { nil, 5, "x", {}, { money = 0 / 0, staff = "no", office = 99, week = -4, releases = { 1, { reviews = { 99, -1 } } } } } :: { any } do
 			local p = Schema.reconcile(raw, 1000, 3)

@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Genres = require(ReplicatedStorage.Shared.Data.Genres)
 local Topics = require(ReplicatedStorage.Shared.Data.Topics)
 local Platforms = require(ReplicatedStorage.Shared.Data.Platforms)
@@ -15,20 +16,25 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Calendar = require(ReplicatedStorage.Shared.Logic.Calendar)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Dev = require(ReplicatedStorage.Shared.Logic.Dev)
+local Minigames = require(ReplicatedStorage.Shared.Logic.Minigames)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
+local WorldView = require(script.Parent.Parent.Controllers.WorldView)
+local Audio = require(script.Parent.Parent.Controllers.Audio)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local Menus = require(script.Parent.Menus)
 local ReviewUI = require(script.Parent.ReviewUI)
 local BuildUI = require(script.Parent.BuildUI)
+local MinigameUI = require(script.Parent.MinigameUI)
 
 local Hud = {}
 
 local TOP_H = 13
 local BAR_H = 15
 local CARD_W = 124 -- the project card's width (100 on phones: no bars, the numbers only)
+local CARD_MAX_H = 118 -- the card's tallest (polishing: the minigame row and Release!)
 
 local function cardWidth(): number
 	return if UIKit.phone() then 100 else 124
@@ -43,6 +49,35 @@ local tips: Frame? = nil
 local curtain: Frame? = nil
 local homeButton: TextButton? = nil
 local lastKey = ""
+
+------------------------------------------------------------------ smooth numbers
+-- Values the HUD shows ease toward their targets (the chips count up, the card's bars glide); `apply` draws a value.
+type Ease = { cur: number, target: number, apply: (number) -> () }
+local eases: { [string]: Ease } = {}
+local function easeTo(key: string, target: number, apply: (number) -> (), instant: boolean?)
+	local e = eases[key]
+	if e == nil or instant then
+		eases[key] = { cur = target, target = target, apply = apply }
+		apply(target)
+		return
+	end
+	e.target = target
+	e.apply = apply
+end
+local function stepEases(dt: number)
+	local k = math.min(1, dt * 7)
+	for _, e in eases do
+		if e.cur ~= e.target then
+			local d = e.target - e.cur
+			e.cur = if math.abs(d) < math.max(0.5, math.abs(e.target) * 0.002) then e.target else e.cur + d * k
+			e.apply(e.cur)
+		end
+	end
+end
+-- the chips flash when their value changes (chip name -> when)
+local chipBump: { [string]: number } = {}
+local weekClock = 0 -- seconds into this game week (the date chip's bar)
+local weekBar: Frame? = nil
 
 ------------------------------------------------------------------ layout
 local function hudRects()
@@ -66,7 +101,7 @@ local function hudRects()
 			r(0, s.Y - BAR_H - 3, s.X, s.Y),
 		}
 		-- the card's place is kept whether a game is in the works or not, so the view never moves when one starts
-		table.insert(list, r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 2 + 104))
+		table.insert(list, r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 4 + CARD_MAX_H))
 	end
 	CameraController.setHudRects(list)
 end
@@ -85,6 +120,10 @@ end
 local function buildTop()
 	local x = 3
 	x = chip("date", x, 64, UIKit.color("text_dim"))
+	-- the week's progress along the date chip's bottom edge
+	local wb = UIKit.rect(chipFrames.date, UDim2.fromOffset(0, 1), UDim2.new(0, 3, 1, -2), UIKit.color("accent"), 3)
+	wb.Name = "WeekBar"
+	weekBar = wb
 	x = chip("money", x, 60, UIKit.color("good"))
 	x = chip("fans", x, 58, UIKit.color("fun"))
 	x = chip("rp", x, 50, UIKit.color("ideas"))
@@ -110,12 +149,35 @@ local function atHome(): boolean
 	return Street.plotAt(root.Position.X, root.Position.Z) == v.plot
 end
 
+local lastTop: { [string]: number } = {}
 local function updateTop(v: Types.ClientView)
 	UIKit.setText(chips.date, Calendar.label(v.week) .. (if v.paused then " II" else ""))
-	UIKit.setText(chips.money, Numbers.money(v.money))
 	UIKit.setTextColor(chips.money, if v.money < 0 then UIKit.color("bad") else UIKit.color("text"))
-	UIKit.setText(chips.fans, Numbers.short(v.fans) .. " fans")
-	UIKit.setText(chips.rp, tostring(v.rp) .. " RP")
+	local fresh = next(lastTop) == nil
+	for name, value in { money = v.money, fans = v.fans, rp = v.rp } :: { [string]: number } do
+		if lastTop[name] ~= nil and lastTop[name] ~= value then
+			chipBump[name] = os.clock()
+		end
+		lastTop[name] = value
+	end
+	easeTo("money", v.money, function(x: number)
+		local l = chips.money
+		if l then
+			UIKit.setText(l, Numbers.money(math.floor(x + 0.5)))
+		end
+	end, fresh)
+	easeTo("fans", v.fans, function(x: number)
+		local l = chips.fans
+		if l then
+			UIKit.setText(l, Numbers.short(math.floor(x + 0.5)) .. " fans")
+		end
+	end, fresh)
+	easeTo("rp", v.rp, function(x: number)
+		local l = chips.rp
+		if l then
+			UIKit.setText(l, tostring(math.floor(x + 0.5)) .. " RP")
+		end
+	end, fresh)
 end
 
 -- "+$1.2K" floating up from the money chip (a week's sales).
@@ -232,7 +294,15 @@ local function buildCard()
 		p.rows[axis] = { value = value, bar = setBar }
 	end
 	p.bugs = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 78), { name = "Bugs" })
-	p.release = UIKit.button(f, "Release!", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 89), function()
+	-- the minigames (GAME_DESIGN 14): a banked push, Bug Squash while polishing, or when the next push comes
+	p.push = UIKit.button(f, "Push!", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 89), function()
+		MinigameUI.picker()
+	end, { color = UIKit.color("accent"), textColor = UIKit.color("ink"), name = "Push" })
+	p.squash = UIKit.button(f, "Squash bugs", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 89), function()
+		MinigameUI.play("bugs")
+	end, { color = UIKit.color("button_warn"), name = "Squash" })
+	p.nextPush = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 90), { color = UIKit.color("text_dim"), name = "NextPush" })
+	p.release = UIKit.button(f, "Release!", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 103), function()
 		ReviewUI.release()
 	end, { color = UIKit.color("button_ok"), name = "Release" })
 	card = f
@@ -299,19 +369,84 @@ local function updateCard(v: Types.ClientView)
 	else
 		UIKit.setText(p.phase, if proj.bugs > 0 then "Polishing..." else "Ready to ship!")
 	end
-	p.progress(Dev.progress(proj))
+	local key = proj.title .. "|" .. tostring(proj.startWeek)
+	local newGame = p.key ~= key
+	p.key = key
+	easeTo("card:progress", Dev.progress(proj), function(x: number)
+		local set = cardParts.progress
+		if set then
+			set(x)
+		end
+	end, newGame)
 	local most = 1
 	for _, a in Dev.AXES do
 		most = math.max(most, (proj.scores :: any)[a])
 	end
 	for _, a in Dev.AXES do
 		local n = (proj.scores :: any)[a] :: number
-		UIKit.setText(p.rows[a].value, Numbers.short(n))
-		p.rows[a].bar(n / most)
+		easeTo("card:" .. a, n, function(x: number)
+			local row = cardParts.rows and cardParts.rows[a]
+			if row then
+				UIKit.setText(row.value, Numbers.short(math.floor(x + 0.5)))
+			end
+		end, newGame)
+		easeTo("card:bar:" .. a, n / most, function(x: number)
+			local row = cardParts.rows and cardParts.rows[a]
+			if row then
+				row.bar(x)
+			end
+		end, newGame)
 	end
 	UIKit.setText(p.bugs, string.format("Bugs: %d", proj.bugs))
 	UIKit.setTextColor(p.bugs, if proj.bugs > 0 then UIKit.color("bad") else UIKit.color("good"))
+	-- the bottom rows: the minigames, then Release! while polishing
+	local inner = CARD_W - 8
+	local y = 89
+	local pushes = proj.pushes or 0
+	local showPush = pushes > 0
+	local showSquash = proj.phase == "polish" and proj.bugs > 0
+	local ms = Minigames.milestones(proj.size)
+	local nextAt = ms[(proj.nextPush or 0) + 1]
+	local showNext = not showPush and proj.phase == "build" and nextAt ~= nil
+	UIKit.setButtonText(p.push, if pushes > 1 then string.format("Push! x%d", pushes) else "Push!")
+	local half = math.floor((inner - 3) / 2)
+	p.push.Visible = showPush
+	p.squash.Visible = showSquash
+	if showPush and showSquash then
+		p.push.Size = UDim2.fromOffset(half, 13)
+		p.squash.Size = UDim2.fromOffset(inner - half - 3, 13)
+		p.push.Position = UDim2.fromOffset(4, y)
+		p.squash.Position = UDim2.fromOffset(4 + half + 3, y)
+	else
+		p.push.Size = UDim2.fromOffset(inner, 13)
+		p.squash.Size = UDim2.fromOffset(inner, 13)
+		p.push.Position = UDim2.fromOffset(4, y)
+		p.squash.Position = UDim2.fromOffset(4, y)
+	end
+	if showSquash then
+		local wait = (proj.squashWeek or 0) - v.week
+		local short = showPush or UIKit.phone()
+		if wait > 0 then
+			UIKit.setButtonText(p.squash, string.format(if short then "Squash %dw" else "Squash in %d wk", wait))
+			UIKit.setEnabled(p.squash, false)
+		else
+			UIKit.setButtonText(p.squash, if short then "Squash!" else "Squash bugs!")
+			UIKit.setEnabled(p.squash, true)
+		end
+	end
+	p.nextPush.Visible = showNext
+	if showNext then
+		UIKit.setText(p.nextPush, string.format("Next push: week %d", nextAt))
+	end
+	if showPush or showSquash or showNext then
+		y += 14
+	end
 	p.release.Visible = proj.phase == "polish"
+	p.release.Position = UDim2.fromOffset(4, y)
+	if proj.phase == "polish" then
+		y += 14
+	end
+	f.Size = UDim2.fromOffset(CARD_W, math.max(90, y + 1))
 end
 
 ------------------------------------------------------------------ tips
@@ -398,14 +533,24 @@ local function onWeek(msg: { [string]: any })
 			moneyPop(-(e.amount or 0))
 		elseif e.kind == "broke" then
 			UIKit.notice("Out of money! A small Home PC game is free to start.", UIKit.color("bad"), 6)
+			Audio.play("sad")
+		elseif e.kind == "push" then
+			UIKit.notice("Push ready! Play a minigame to make " .. (e.title or "the game") .. " better.", UIKit.color("accent"), 5)
+			Audio.play("ding")
 		elseif e.kind == "built" then
 			UIKit.notice((e.title or "The game") .. " is built! Polish it or release it.", UIKit.color("accent"), 5)
+			Audio.play("level_up")
 		elseif e.kind == "ready" then
 			UIKit.notice((e.title or "The game") .. " has no bugs left: ready to ship!", UIKit.color("good"), 5)
+			Audio.play("ding")
 		elseif e.kind == "sales" then
 			moneyPop(e.amount or 0)
+			if (e.amount or 0) > 0 then
+				Audio.play("coin", { volume = 0.7 })
+			end
 		elseif e.kind == "platform" then
 			UIKit.notice("New platform out: " .. (e.title or "?") .. "!", UIKit.color("graphics"), 6)
+			Audio.play("notice")
 		elseif e.kind == "candidates" and v and #v.staff < 8 then
 			UIKit.notice("New job seekers are waiting in Staff.", UIKit.color("text_dim"))
 		elseif e.kind == "award" then
@@ -477,6 +622,7 @@ function Hud.start()
 	StateClient.Changed:Connect(refresh)
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "week" then
+			weekClock = 0
 			onWeek(msg)
 		end
 	end)
@@ -486,6 +632,18 @@ function Hud.start()
 	-- full-screen menus hold the clock (the server pauses this player's weeks)
 	UIKit.PanelChanged:Connect(function(name)
 		StateClient.signal("pause", { key = "menu", on = name ~= nil })
+	end)
+	-- a minigame's reward lands: the crew cheers over their desks
+	MinigameUI.Finished:Connect(function(data)
+		if data.axis then
+			local v = StateClient.view()
+			local n = if v then math.max(1, #v.staff) else 1
+			local share = math.max(1, math.floor((data.points or 0) / n + 0.5))
+			WorldView.cheer({ "+" .. tostring(data.points or 0) .. " " .. (Dev.AXIS_NAMES[data.axis] or ""), "+" .. share }, UIKit.color(data.axis))
+		else
+			WorldView.cheer({ "Squashed!", "Yay!" }, UIKit.color("good"))
+		end
+		Audio.play("cheer")
 	end)
 	-- Build mode has its own tray: the menu bar, the cards and the tips step aside
 	BuildUI.Changed:Connect(function(on)
@@ -501,7 +659,46 @@ function Hud.start()
 			end
 		end
 	end)
+	local lastBeat = os.clock()
 	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		local dt = math.min(0.1, now - lastBeat)
+		lastBeat = now
+		stepEases(dt)
+		-- the week's bar fills while the clock runs (it holds while a menu or a card holds the clock)
+		local v = StateClient.view()
+		if v and not v.paused then
+			weekClock = math.min(Tuning.WeekSec, weekClock + dt)
+		end
+		local wb = weekBar
+		local dateChip = chipFrames.date
+		if wb and wb.Parent and dateChip then
+			local full = dateChip.Size.X.Offset - 6
+			wb.Size = UDim2.fromOffset(math.floor(full * weekClock / Tuning.WeekSec), 1)
+		end
+		-- a chip whose value changed flashes for a moment
+		for name, at in chipBump do
+			local f = chipFrames[name]
+			local k = 1 - (now - at) / 0.45
+			if f then
+				UIKit.setPlate(f, UIKit.color("plate"):Lerp(UIKit.color("plate_light"), math.max(0, k)))
+			end
+			if k <= 0 then
+				chipBump[name] = nil
+			end
+		end
+		-- the Push! button pulses while a push is banked, Release! once the game is ready to ship
+		local pulse = (math.sin(now * 5) + 1) / 2
+		local push = cardParts.push
+		if push and push.Visible and push.AutoButtonColor then
+			UIKit.setButtonColor(push, UIKit.color("accent"):Lerp(UIKit.color("button_warn"), pulse))
+		end
+		local rel = cardParts.release
+		if rel and rel.Visible and v and v.project and v.project.bugs == 0 then
+			UIKit.setButtonColor(rel, UIKit.color("button_ok"):Lerp(UIKit.color("accent"), pulse * 0.6))
+		elseif rel then
+			UIKit.setButtonColor(rel, UIKit.color("button_ok"))
+		end
 		local b = homeButton
 		if b then
 			local show = not atHome() and not BuildUI.isOpen()

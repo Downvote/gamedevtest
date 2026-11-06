@@ -12,6 +12,7 @@ local Calendar = require(script.Parent.Calendar)
 local Crew = require(script.Parent.Crew)
 local Dev = require(script.Parent.Dev)
 local Plot = require(script.Parent.Plot)
+local Minigames = require(script.Parent.Minigames)
 
 type Profile = Types.Profile
 type Rng = Types.Rng
@@ -19,7 +20,7 @@ type ErrCode = Types.ErrCode
 
 -- What a week did, for the client's notices and popups (Fx messages; docs/ARCHITECTURE.md 7.4).
 export type Event = {
-	kind: string, -- "pay" | "candidates" | "work" | "built" | "ready" | "sales" | "award" | "platform" | "broke"
+	kind: string, -- "pay" | "candidates" | "work" | "push" | "built" | "ready" | "sales" | "award" | "platform" | "broke"
 	pops: { Types.WorkPop }?,
 	amount: number?, -- pay: what was paid; sales: the week's money
 	copies: number?, -- sales: the week's copies
@@ -104,6 +105,9 @@ function Studio.week(p: Profile, rng: Rng): { Event }
 		local pops, rp = Dev.workWeek(proj, p.staff, rng)
 		p.rp += rp
 		table.insert(events, { kind = "work", pops = pops })
+		if Minigames.afterWeek(proj) then
+			table.insert(events, { kind = "push", title = proj.title })
+		end
 		if before == "build" and proj.phase == "polish" then
 			table.insert(events, { kind = "built", title = proj.title })
 			tutTo(p, 2, 3)

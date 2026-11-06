@@ -47,10 +47,12 @@ the years go by. Each year ends with an awards night for your best game.
 ## 3. Time
 
 - The calendar is Year / Month / Week: 4 weeks a month, 12 months a year, starting Year 1, Month 1, Week 1.
-- One game week passes every `Tuning.WeekSec` (4 s) of real time while you are in the game. Time stops when you
+- One game week passes every `Tuning.WeekSec` (2.5 s) of real time while you are in the game ("make the game
+  development faster", 2026-11-06: it was 4 s, so a small game now builds in 20 s instead of 32). A thin bar along the
+  date chip fills as the week goes by. Time stops when you
   leave: nothing happens offline (salaries included), so nobody comes back to a bankrupt studio. It also stops while
-  a menu or a card (the reviews, the awards) is open: the client tells the server, which holds that player's clock,
-  so reading a menu on a phone never costs weeks.
+  a menu or a card (the reviews, the awards, the minigames) is open: the client tells the server, which holds that
+  player's clock, so reading a menu on a phone never costs weeks.
 - Monthly (on week 1 of each month): salaries and rent are paid, three new job candidates arrive.
 - Yearly (after the last week of month 12): the awards night.
 
@@ -124,6 +126,8 @@ Each developer has four skills, an energy bar, a salary and a look.
 - **Polish:** once the build weeks are done the game is ready to ship. While you wait, every developer fixes
   `1 + Code / 30` bugs a week (rounded down) and adds a little to the scores (a fifth of the build rate).
   Release is up to you; a game with no bugs left says "Ready to ship!".
+- **Minigames** (§14): at milestones of the build the crew earns pushes, each a short minigame that adds to one
+  score; while polishing, Bug Squash clears bugs.
 - A game in progress cannot be cancelled in this version.
 
 ### 6.3 Reviews
@@ -180,11 +184,14 @@ reviews (an average total of 15-28) and the studio in the black; the Loft in yea
 reviews 5 or more points better late than in year 1 and at least one Hall of Fame game; fans that never shrink and at
 most ×2.5 a year once past 50,000 (no runaway). Print a career with `luau tests/career.luau -a <seed>` after the
 check has built `build/luautest`. A typical career: reviews average about 21/40 in year 1, 25 in year 4, 31 in year 8.
+The same careers played by a player who scores 80 in every minigame (§14) stay inside the same bounds and review
+1 to 6 points better in years 1-3 (about +2.5): the minigames reward playing them, without making a different game.
+`luau tests/career.luau -a <seed> <years> <minigame score>` prints one.
 
 ## 11. Out of scope for this first version
 
 Own consoles, game shows and expos, job classes, staff levels, cancelling a project, offline progress, purchases
-(no game passes or products yet: `Config/Monetization.luau` is empty), other languages (English only; every string
+(no game passes or products yet: `Config/Monetization.luau` holds only the sound ids), music, other languages (English only; every string
 goes through `Locale/Lang.t` so translations can be added the Random Bakery way). Drawing paths, water and fences on
 the plot (Random Bakery has them) and dressing the founder are left for later.
 
@@ -237,3 +244,61 @@ takes the lowest free plot; one who leaves leaves an empty lot (their save keeps
   same spot) puts it there and keeps it picked for another copy; Rotate turns it. Tapping a piece on the plot picks it
   up: Move here, Rotate, Store (back in the box) or Cancel. Done closes it.
 - **A bigger office** (a move): the plot grows, and pieces the bigger room now covers go back in the box.
+
+## 14. Minigames
+
+> The request (2026-11-06): "can you polish it, and make the game development faster and more involved with
+> different minigames to make your game better?"
+
+Development is no longer only watching: the crew earns **pushes** while it builds, and each push is a short
+minigame the player plays to make the game better. Every minigame lasts `Tuning.MiniSeconds` (15 s) after a
+"3, 2, 1, Go!", scores 0-100 and earns a grade (S 90+, A 70+, B 45+, else C). The clock holds while one is up.
+
+- **Pushes:** a build earns one at each of its milestones (Small 2, Medium 3, Large 4, spread evenly over the build
+  weeks, never the last one; `Logic/Minigames.milestones`). The week's notice says "Push ready!" and the project
+  card's **Push!** button pulses; at most 2 are banked (unspent ones stay usable while polishing). The card says when
+  the next push comes ("Next push: week 5").
+- **The four score games** (the picker after Push!), each adding up to `Tuning.MiniWeeks` (1.5) weeks of the crew's
+  own output on its score, times the score/100 (focus and tired developers included, so a bigger, better crew makes
+  every push worth more):
+  - **Code Rush** (+Fun): a row of six arrows; type them in order (arrow keys or WASD, or tap the pads). A right key
+    lights green; a wrong one flashes red, shakes the card and costs a key. Each finished row adds a line to the
+    little code editor. 26 right keys (less wrong ones) score 100.
+  - **Idea Match** (+Ideas): twelve cards, six pairs of ideas (a bulb, a star, a heart, a note, a gem, a controller),
+    all shown for 1.6 s, then face down; tap two to find a pair. Each pair is 14 points; finding all six ends the
+    game early with a time bonus of up to 16.
+  - **Pixel Paint** (+Graphics): copy a 5x5 sprite (a heart, a tree, a sword, a mushroom, a potion, a gem, a key, a
+    crab) onto a canvas from a palette of its colours and a decoy (keys 1-3); a tap paints a cell, a second tap
+    clears it. Two sprites score 100; a sprite in progress counts its right cells less the wrong ones.
+  - **Beat Keeper** (+Sound): notes fall down two lanes to a line; tap the lane (F / J, the arrows or the pads) as each
+    one crosses it: Perfect (within 0.08 s) 1, Good 0.7, OK 0.4; a tap with no note near costs a quarter. Combos
+    count up. The game ends after the last note.
+- **Bug Squash** (the card's Squash button while polishing a game with bugs, once every `Tuning.SquashCooldown` (3)
+  weeks): bugs pop up on twelve monitors and hide again, faster as the clock runs; tap them. 15 squashed (less 2 a
+  miss) score 100, and the score squashes up to `Tuning.SquashWeeks` (1.5) weeks of the crew's own bug fixing.
+- **Results:** the grade letter drops onto a badge with a burst of sparkles (more for a better grade) and a sound to
+  match; the card says the score and what it did ("+27 Graphics", "6 bugs squashed!"). On Nice! the crew cheers at
+  their desks with the reward over their heads.
+- **Fair play:** the server spends the push (or starts Bug Squash's cooldown) when the game starts, so quitting or
+  replaying never rerolls; a finish sooner than 5 s after the start, or later than 2 minutes, counts as 0, and a game
+  left open is dropped after 2 minutes. The score itself is the client's word (as in any minigame), which is why a
+  perfect push is only worth 1.5 weeks of work.
+- **Balance:** see §10: a good player's reviews run about 2.5 points higher in the first years.
+
+## 15. Polish and animation
+
+> The request (2026-11-06, with §14): "make the it more polished and animated as well".
+
+- **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled.
+- **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
+- **The HUD:** money, fans and research count up to their new values and their chip flashes when they change; the
+  date chip's bar shows the week going by; the project card's bars and numbers glide; Push! pulses while a push is
+  banked and Release! once the game has no bugs left.
+- **Release day:** a drumroll, each critic's score slams down with a pop pitched by the score, the total counts up,
+  then confetti and a fanfare for a Hall of Fame game (a smaller burst for 28+), applause for a fair one, a sad
+  trombone for a flop. The awards night has a trumpet and confetti.
+- **The office:** bits of code ("</>", "{ }", "01") float up from the screens of developers at work; the crew
+  cheers with the reward over their heads after a minigame.
+- **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,
+  `Config/Monetization.Sounds`), its pitch varied a little, repeats inside a short cooldown dropped. No music in this
+  version.

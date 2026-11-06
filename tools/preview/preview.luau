@@ -1,7 +1,7 @@
 -- Byte-Size Studio's preview driver: boots the real server and client scripts in the fake engine (with the real
 -- raycast and a pixel-storing EditableImage), drives a scenario and dumps frames for topng.py.
 -- Usage: luau preview.luau -a <workdir> <scenario> <device> [tier] [inset]
---   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>" or "all";
+--   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "mini=<kind>" or "all";
 --   device: a DEVICES key; tier: auto | low | medium | high | off
 -- A scenario is a function in SCEN: it joins players (join / joinWith), drives them through H.req or the UI
 -- (H.click, H.openPanel), waits for the pixel layer (settle) and calls capture(p, label) for every frame it wants.
@@ -541,6 +541,63 @@ function SCEN.plot3()
 	return p
 end
 
+------------------------------------------------------------------ the minigames (GAME_DESIGN 14)
+-- mini=<kind>: a game in the works with two pushes banked (polishing with bugs for Bug Squash); the push picker (for
+-- code), the game a few seconds in (played by MinigameUI.debugAuto: a good player, not a perfect one), the results
+-- card, and the crew cheering once it is closed.
+local function miniScenario(kind)
+	local p = join(60, "Player")
+	H.req(p, "project.start", { genre = "action", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 3 })
+	settle(p)
+	local proj = H.profile(p).project
+	if proj then
+		proj.pushes, proj.nextPush, proj.weeksDone = 2, 1, 3
+		proj.scores = { fun = 60, ideas = 40, graphics = 35, sound = 20 }
+		if kind == "bugs" then
+			proj.weeksDone, proj.phase, proj.bugs = proj.buildWeeks, "polish", 9
+		end
+	end
+	H.push(p, 1)
+	E.run(0.5)
+	if kind == "bugs" then
+		H.clickNamed(p, "Squash", { wait = 0.2 })
+	else
+		H.clickNamed(p, "Push", { wait = 0.4 })
+		if kind == "code" then
+			capture(p, "mini_picker")
+		end
+		H.clickNamed(p, "Mini_" .. kind, { wait = 0.2 })
+	end
+	local MUI = modOr(p, "UI.MinigameUI")
+	E.run(1.7)
+	log("playing: %s", tostring(MUI and MUI.playing and H.inClient(p, MUI.playing)))
+	local steps = 0
+	local stop = E.SIM.now + (if kind == "ideas" then 5 elseif kind == "pixels" then 4 else 6)
+	while E.SIM.now < stop do
+		E.run(if kind == "beats" then 0.05 elseif kind == "code" then 0.3 else 0.35)
+		if MUI and MUI.debugAuto and (kind ~= "code" or steps % 4 ~= 3) then
+			H.inClient(p, MUI.debugAuto)
+		end
+		steps += 1
+	end
+	capture(p, "mini_" .. kind)
+	E.runUntil(function()
+		if MUI and MUI.debugAuto and kind == "beats" then
+			H.inClient(p, MUI.debugAuto)
+		end
+		return H.buttonNamed(p, "Nice") ~= nil
+	end, 30, 0.05)
+	E.run(1.0)
+	capture(p, "mini_" .. kind .. "_result")
+	local before = H.profile(p).project
+	log("result: pushes %s, scores %s/%s/%s/%s, bugs %s", tostring(before and before.pushes), tostring(before and before.scores.fun), tostring(before and before.scores.ideas), tostring(before and before.scores.graphics), tostring(before and before.scores.sound), tostring(before and before.bugs))
+	H.clickNamed(p, "Nice", { wait = 0.35 })
+	if kind == "code" then
+		capture(p, "mini_cheer")
+	end
+	return p
+end
+
 ------------------------------------------------------------------ run
 local list = if scenario == "all" then { "office", "dev", "review", "street", "build" } else { scenario }
 for _, name in list do
@@ -549,6 +606,12 @@ for _, name in list do
 	if panel then
 		fn = function()
 			return panelScenario(panel)
+		end
+	end
+	local mini = string.match(name, "^mini=(%w+)$")
+	if mini then
+		fn = function()
+			return miniScenario(mini)
 		end
 	end
 	if fn == nil then

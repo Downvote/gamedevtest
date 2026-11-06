@@ -41,6 +41,10 @@ export type Project = {
 	rp: number, -- research points earned by this project so far
 	sparks: number,
 	cost: number, -- what starting it cost (size + licence)
+	pushes: number, -- minigame pushes banked (GAME_DESIGN 14: one at each build milestone)
+	nextPush: number, -- milestones reached so far (Logic/Minigames.milestones)
+	squashWeek: number, -- the week Bug Squash can be played again
+	played: number, -- minigames played on this game
 }
 
 export type Release = {

@@ -127,6 +127,10 @@ function Dev.newProject(genre: string, topic: string, platform: string, size: st
 		rp = 0,
 		sparks = 0,
 		cost = Dev.startCost(size, platform),
+		pushes = 0,
+		nextPush = 0,
+		squashWeek = 0,
+		played = 0,
 	}
 end
 

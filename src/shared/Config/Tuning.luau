@@ -39,7 +39,7 @@ local Tuning = {
 	ViewReleases = 30, -- the client view's newest releases
 
 	-- time (GAME_DESIGN 3)
-	WeekSec = 4, -- real seconds per game week
+	WeekSec = 2.5, -- real seconds per game week (was 4: "make the game development faster")
 	WeeksPerMonth = 4,
 	MonthsPerYear = 12,
 
@@ -123,6 +123,17 @@ local Tuning = {
 	PickTotal = 28,
 	PickFans = 0.1,
 	PickMoney = 5000, -- times the year
+
+	-- minigames (GAME_DESIGN 14)
+	MiniMilestones = { small = 2, medium = 3, large = 4 }, -- pushes a build earns, spread over its weeks
+	MiniMaxPushes = 2, -- pushes a project can bank
+	MiniWeeks = 1.5, -- a perfect push adds this many weeks of the crew's output on its score
+	MiniSeconds = 15, -- each minigame's length (the client's timer)
+	MiniMinSec = 5, -- a finish sooner than this after its start is refused
+	MiniMaxSec = 120, -- a finish later than this counts as a score of 0
+	SquashCooldown = 3, -- weeks between two Bug Squash games
+	SquashWeeks = 1.5, -- a perfect Bug Squash fixes this many weeks of the crew's polish fixes
+	MiniGrades = { S = 90, A = 70, B = 45 }, -- the score a grade needs (else C)
 
 	-- research costs (GAME_DESIGN 6.1), by the genre's or topic's tier (1 = open at the start)
 	GenreRp = { 0, 30, 60 },

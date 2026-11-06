@@ -48,7 +48,8 @@ ModuleScript; there are no `init.luau` files.
 ## 3. Types (`src/shared/Types.luau`)
 
 `Axis` (`fun ideas graphics sound`), `SkillKey` (`code design art sound`), `Match` (`great good okay poor`), `Phase`
-(`build polish`), `Skills`, `Scores`, `Look`, `Staff`, `Candidate`, `Project`, `Release`, `Award`, `Settings`,
+(`build polish`), `Skills`, `Scores`, `Look`, `Staff`, `Candidate`, `Project` (with the minigames' `pushes` banked,
+`nextPush` milestones reached, `squashWeek` when Bug Squash is open again, `played`; GAME_DESIGN 14), `Release`, `Award`, `Settings`,
 `Stats`, `Piece` (a piece of decor on the plot: `{ id, x, z, rot }`), `PlotSave` (`{ owned, placed }`), `Profile` (the
 save; `founder: Look`, `plot: PlotSave` since version 2), `ClientView` (what the client sees; `founder`, `decor`),
 `ErrCode` (with `blocked`), `Response`, `WorkPop` (a popup over a developer: `{ id, axis, n, spark }`), and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The
@@ -56,7 +57,9 @@ file is the reference for every field; the comments there say what each holds.
 
 ## 4. Config
 
-- `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the clock (`WeekSec`), money,
+- `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the clock (`WeekSec` 2.5),
+  the minigames (`MiniMilestones` by size, `MiniMaxPushes` 2, `MiniWeeks` 1.5, `MiniSeconds` 15, `MiniMinSec` 5,
+  `MiniMaxSec` 120, `SquashCooldown` 3, `SquashWeeks` 1.5, `MiniGrades`), money,
   crew, development, reviews, sales, offices (`Offices[tier] = { desks, rent, cost, fans }`), sizes
   (`Sizes[id] = { weeks, cost, price, expect, sales }`), the safety net (`RescueSize`, `RescuePlatform`), research
   costs, the server's step and rate limit, the street (`MaxPlots` 6, `PlotSpacing` 80, `PlotPieces` by office,
@@ -64,7 +67,10 @@ file is the reference for every field; the comments there say what each holds.
   `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack` 500 and `PixelMaxRayDist` 1400 so the
   whole street lies in front of the rays' plane, `CamFollowBox`, `CamGlide`, `CamBuildPan`, `PixelPanRays`,
   `PixelInvalidateRaysFrame`).
-- `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges`, `Sounds`, all empty or 0 in this version.
+- `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0 in this version) and `Sounds`: the
+  Creator Store library ids `Controllers/Audio` plays (Random Bakery's: `Click Hover Open Close Deny Notice Ding Coin
+  CoinsMany LevelUp Reward Fanfare RareFanfare Combo Tick Drumroll Applause Cheer CardFlip TypeKey Pop Sparkle
+  Trumpet SadTrombone Squish`).
 
 ## 5. Data (pure content tables)
 
@@ -96,7 +102,8 @@ Pure rules (`src/shared/Logic`), all specced in `tests/specs`:
 | `Numbers` | `int` ("1,234"), `short` ("12.3K"), `money` ("$12.3K", exact "$12,345") |
 | `Crew` | `SKILLS`, `SKILL_NAMES`, `ROLES`, `total`, `salary`, `role`, `randomLook`, `randomName`, `candidate(rng, year)`, `candidates(rng, year, n?)`, `hire(c, id, desk)`, `freeDesk`, `trainGain(level)`, `tired`, `rate`, `energyWeek(s, working)`, `partyCost(n)`, `payroll` |
 | `Dev` | `AXES`, `AXIS_NAMES`, `MATCH_NAMES`, `SIZE_ORDER`, `SIZE_NAMES`; `match(genre, topic)`, `matchKey`, `onSale(p, year)`, `platformsIn(year)`, `genreCost`, `topicCost`, `startCost(size, platform)`, `title(genre, topic, seed)`, `sequelTitle(base, releases, inProgress?)`, `newProject(...)`, `focusMult`, `output(skills)`, `teamFactor(n)`, `workWeek(project, staff, rng) -> (pops, rp)`, `progress`, `novelty`, `love`, `quality(project, releases) -> (Q, match)`, `expectation(size, year)`, `baseScore(Q, E)`, `reviews(project, year, releases, rng) -> (reviews, total, match)`, `salesPlan(total, fans, platform, size) -> (peak, decay)`, `release(...)`, `salesWeek(release) -> (copies, money, fans)`, `award(releases, year, weeksPerYear) -> (kind?, release?)`, `adCost`, `adFans` |
-| `Studio` | the rules over a profile, every action returning `(true, data?)` or `(false, ErrCode)` and changing the profile only on success: `week(profile, rng) -> { Event }` (month start: pay, candidates, a new platform on a year's first week; the work week; energy; sales; the awards night after a year's last week; then `week += 1`), `start`, `titleFor`, `rescue`, `release`, `hire`, `fire`, `train`, `party`, `unlockGenre`, `unlockTopic`, `move`, `ad`, and helpers `year`, `desks`, `staffById`, `canAd`, `canParty`. `Event.kind` is `pay candidates work built ready sales award platform broke` |
+| `Studio` | the rules over a profile, every action returning `(true, data?)` or `(false, ErrCode)` and changing the profile only on success: `week(profile, rng) -> { Event }` (month start: pay, candidates, a new platform on a year's first week; the work week; energy; sales; the awards night after a year's last week; then `week += 1`), `start`, `titleFor`, `rescue`, `release`, `hire`, `fire`, `train`, `party`, `unlockGenre`, `unlockTopic`, `move`, `ad`, and helpers `year`, `desks`, `staffById`, `canAd`, `canParty`. `Event.kind` is `pay candidates work push built ready sales award platform broke` (`push`: the build reached a milestone, `title`) |
+| `Minigames` | GAME_DESIGN 14: `KINDS` (`code ideas pixels beats bugs`: `{ id, name, axis?, blurb }`), `PUSH_ORDER`, `milestones(size)`, `afterWeek(project) -> boolean` (Studio.week calls it after the work week: a push at the next milestone, at most `MiniMaxPushes` banked, none while polishing), `grade(score)`, `weekOutput(staff, axis, focus)`, `axisPoints(staff, axis, focus, score)`, `fixWeek(staff)`, `squashed(staff, bugs, score)`, `canStart(profile, kind) -> (ok, err?)` (no_project, bad_payload, cooldown: no push or Bug Squash's cooldown, not_built: Bug Squash needs a polish with bugs), `start(profile, kind)` (spends the push or starts the cooldown; `played += 1`), `finish(profile, kind, score) -> (ok, { kind, score, grade, axis?, points?, removed? })` |
 | `Plot` | the plot's rules: `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the office with a stud round it, the footpath, the sign, the mailbox), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" / "blocked" / "overlap" / "unknown")`, and the actions `buy` (once; its fans join), `place` (an owned piece, up to the limit), `move`, `store`, `clean` (after a move: pieces the bigger room covers go back in the box) |
 | `Schema` | `VERSION` (2: the founder and the plot), `default(now, seed)`, `migrate(raw)` (1 -> 2: nothing moves; reconcile gives a founder and an empty plot), `reconcile(raw, now, seed)` (any table -> a valid Profile: types and ranges checked, unknown ids dropped, desks unique and inside the office, the starting genres and topics always open, releases capped at `Tuning.ReleasesKept`, owned decor that exists, placed pieces that are owned and fit, up to the limit) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
@@ -130,7 +137,8 @@ C->S `(kind, payload)`), `State` (RemoteEvent, S->C the whole `ClientView` when 
 `{ kind = "week", week, events }`). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
 
 ### 7.2 `Session`
-`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, clock, paused, dirty, saveAt, reqTimes }`),
+`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, clock, paused, dirty, saveAt, reqTimes,
+mini? }`; `mini: Mini = { kind, token, at, seed }` is the minigame in play),
 `get`, `remove`, `all`, `isPaused`, `view(s) -> ClientView` (the newest `Tuning.ViewReleases` releases, `canAd`,
 `canParty`, `paused`), `markDirty`, `flush` (sends State when dirty), `fx(s, msg)`, `allow(s, now)` (the rate limit).
 
@@ -157,12 +165,16 @@ handler under pcall; success marks the session dirty).
 | `plot.move` | `i x z rot` | `Plot.move`, the decor rebuilt | blocked, bad_payload |
 | `plot.store` | `i` | `Plot.store`, the decor rebuilt | bad_payload |
 | `char.home` | - | PlotService puts the founder on their footpath | cooldown (`Tuning.HomeCooldown`), not_ready |
+| `mini.start` | `kind` | `Minigames.start`; the session keeps `mini` and holds the clock (pause key "mini", the server's own: a client signal cannot lift it) (data: `{ kind, token, seed, seconds }`) | busy (one in play), cooldown, not_built, no_project, bad_payload |
+| `mini.finish` | `token score` | `Minigames.finish` with the score, or 0 when it comes sooner than `MiniMinSec` or later than `MiniMaxSec` after the start; lets go of `mini` and the clock (data: the finish) | busy (no game or a wrong token) |
 
-Signal `pause` `{ key, on }`: the client holds the player's clock while a menu or a card is open (at most 4 keys).
+Signal `pause` `{ key, on }`: the client holds the player's clock while a menu or a card is open (at most 4 keys; the
+key "mini" is refused: it is the server's).
 
 ### 7.4 `StudioService`
 Registers the actions above; `step(dt)` (Main's fixed 10 Hz step) moves every ready, unpaused session on a week every
-`Tuning.WeekSec`, runs `Studio.week` and sends `Fx { kind = "week", week, events }`.
+`Tuning.WeekSec`, runs `Studio.week` and sends `Fx { kind = "week", week, events }`. It also drops a minigame left
+open past `Tuning.MiniMaxSec` (its push stays spent) so the clock runs again.
 
 ### 7.5 `PlotService` (the street)
 `init()` builds the whole street: `Workspace.Plots.Street` (every plot's road stretch and the street's ends) and an
@@ -196,6 +208,12 @@ first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `Worl
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `request(action,
 payload) -> Response` (never errors), `signal(kind, payload)`.
+
+### 8.2 `Audio`
+`play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's), `has(name)`, `EVENTS`: every sound by
+name (`click hover open close deny notice ding coin coins level_up reward fanfare rare_fanfare combo sparkle cheer
+applause trumpet sad drumroll tick key flip pop squish`), each one `Monetization.Sounds` id (0 = silent) with a volume,
+a pitch range, a cooldown (a repeat inside it is dropped) and a few voices (Sounds in `SoundService.UISounds`, reused).
 
 ## 9. The pixel filter and the camera
 
@@ -265,7 +283,8 @@ with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound), `setText`, `setTextColor`, `textWidth`,
 `lineHeight`, `plate` (stepped corners, Random Bakery's), `setPlate`, `rect`, `button` (a TextButton with a child
 "Words" label; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
-`setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, panels
+`setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
+colors?)` (a burst of little rects that fly, tumble and fade), panels
 (`registerPanel(name, { title, w, h, build })`, `openPanel(name, arg)`, `closePanel`, `currentPanel`,
 `refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
@@ -274,7 +293,9 @@ rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mod
 canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top; while a
 panel is open, its status line next to the title instead, and opening a panel clears the toasts, so nothing covers
 a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, `tween`,
-`Resized`.
+`Resized`. Motion (GAME_DESIGN 15): a button lightens while hovered, its plate and words sink 1 UI px while pressed,
+and `Activated` plays `click` (or `deny` when disabled); a panel's shade fades in and its frame rises 10 UI px into
+place; a notice slides down into the stack and fades out.
 
 ### 10.2 `WorldView`
 A rig per developer at their desk (rebuilt when their look, desk, office or plot changes), registered with the
@@ -284,28 +305,40 @@ heads: "+12" in the score's colour, "Spark! +N" in gold); every other studio's f
 attributes (keys `<plot>:<desk>`). Only rigs on plots within 90 studs of the view's centre are posed. Each plot sign
 gets a World-root label (the studio's name, the own in gold, or "Empty lot"); a tap on a sign (a press let go within
 8 px, not on the interface, not in Build mode) shows `signCard(i)`. `rigCount()` / `ownRigCount()` for the sims.
+A typing developer sends a bit of code ("</>", "{ }", "01" ...) up from their screen every few seconds (the own crew
+more often); `cheer(words, color)` makes the own crew cheer with the words over their heads in turn (a minigame's
+reward).
 
 ### 10.3 `Hud`
 Chips (date, with "II" while paused; money; fans; RP; then `Home`, a button shown while the founder is off their own
 lot, sending `char.home`), the menu bar (`Menu_newgame`, `Menu_staff`, `Menu_research`, `Menu_office`, `Menu_games`,
 `Menu_build`; New game is off while a game is in the works; while Build mode is open the bar, the cards and the tips
 step aside), the project card
-(`ProjectCard`: title, topic, genre and platform, phase and progress, the four scores, bugs, `Release!` once built),
+(`ProjectCard`: title, topic, genre and platform, phase and progress, the four scores, bugs, then a minigame row:
+`Push` (pulsing, "Push! x2", opens `MinigameUI.picker`) while a push is banked, `Squash` (Bug Squash; disabled with
+the weeks left while on cooldown) while polishing a game with bugs, or "Next push: week N" while building; then
+`Release!` once built, pulsing once no bugs are left; the card is 104 UI px tall building, 118 polishing, and the
+camera keeps 118 clear),
 the tips banner (`Tips`, "OK" sends `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`), the week's
 notices, money popups and the awards card. With no game in the works the card's place shows the games on sale
 (`SalesCard`). It reports its blocks to the camera: on PC the top strip, the menu bar and the card's place (kept
 whether a game is in the works or not, so the view never moves when one starts); on a phone only Roblox's top bar
 and the menu bar (Random Bakery's rule), so the office fills the screen and the chips and the card (100 UI px wide,
 no bars) may overlap its margins. Any open panel holds the clock
-(`pause` signal, key "menu").
+(`pause` signal, key "menu"). Motion: money, fans and RP ease to their new values (and their chip flashes when one
+changes), the card's bars and numbers glide, a bar along the date chip fills over the week (held while paused). The
+week's events make sounds (`coin` on sales, `level_up` built, `ding` ready and push, `sad` broke). On
+`MinigameUI.Finished` the crew cheers (`WorldView.cheer`) with the reward.
 
 ### 10.4 Menus
 `NewGameUI` (panel "newgame": five pages, Start sends `project.start`; `errText(err)` words every ErrCode) and `Menus`
 (panels "staff" with tabs crew and hire, "research" with genres, topics and notebook, "office", "games").
 
 ### 10.5 `ReviewUI`
-`release()` sends `project.release` and shows `show(release)`: the critics one by one, the total, Hall of Fame, the
-match learned; `award(event)` shows the awards night. Both hold the clock (key "card") until "Nice!".
+`release()` sends `project.release` and shows `show(release)`: a drumroll, the critics one by one (each score slams
+down with a pop), the total counting up, Hall of Fame (confetti and a fanfare; a smaller burst for 28+, applause or a
+sad trombone below), the match learned; `award(event)` shows the awards night (a trumpet and confetti). Both rise
+into place and hold the clock (key "card") until "Nice!".
 
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
@@ -327,11 +360,26 @@ move. A press dragged more than 8 px pans the view (`CameraController.panBy`). `
 piece stays picked for another copy) or `plot.move`; `close()`; `isOpen()`; `Changed: Signal<boolean>`;
 `tapScreen(pos, mouse?)` (the sims' and previews' tap).
 
+### 10.8 Minigames (`MinigameUI`, `MinigameGames`, `PixelSprites`)
+`MinigameUI`: `picker()` (card `MiniPicker`: the four score games `Mini_<kind>` and `Later`; holds the clock, key
+"pick"), `play(kind)` (sends `mini.start`; card `MiniPlay`: the name, its score, a clock bar that turns red under 4 s,
+the play area, the controls and a tally; a "3, 2, 1, Go!" count-in; while it runs the keys are bound through
+ContextActionService above the founder's walking keys (arrows, WASD, F J Z X, 1 2 3; UserInputService when that is not
+available); it ends at `Tuning.MiniSeconds` or when the game is done, waits out `MiniMinSec` if need be, sends
+`mini.finish` and shows the results: the grade letter (the pixel font's glyph at 5-6x on a badge, ink outline and
+shadow) drops in with a back-out bounce and a burst of sparkles, the score, the reward, `Nice`), `isOpen()`,
+`Finished: Signal<data>`, `playing() -> kind?` and `debugAuto()` (one right move: the sims' and previews' player).
+`MinigameGames`: `code ideas pixels beats bugs (ctx) -> Game` with `ctx { area, w, h, rng (the server's seed), seconds,
+pop, shake }` and `Game { hint, update(t, dt), key(name), score() -> 0..100, progress() -> string, done(), auto() }`;
+named buttons `Key_<dir>`, `Card_<i>`, `Cell_<r>_<c>`, `Swatch_<i>`, `Pad_<lane>`, `Hole_<i>`. `PixelSprites`:
+`draw(parent, rows, colors, pos, scale, z)` (runs of rects, one a row of a colour), `sprite`, `tint`, `size`,
+`glyphRows(ch, big?)`, and the sprites `ARROWS`, `IDEAS`, `BUG`, `SPLAT`, `NOTE`.
+
 ## 11. Verification
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
-  lists them: Util, Validate, Numbers, Calendar, DataIntegrity, Crew, Dev, Economy, Plot, Schema, Shading, Raster,
-  Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
+  lists them: Util, Validate, Numbers, Calendar, DataIntegrity, Crew, Dev, Minigames, Economy, Plot, Schema, Shading,
+  Raster, Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.
 - `tools/preview`: PNGs of the real renderer and UI at device sizes (`tools/README.md`).

@@ -35,6 +35,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.move"] = { i = "index", x = "coord", z = "coord", rot = "rot" },
 	["plot.store"] = { i = "index" },
 	["char.home"] = {},
+	["mini.start"] = { kind = "id" },
+	["mini.finish"] = { token = "int", score = "int" },
 }
 Validate.ACTIONS = ACTIONS
 

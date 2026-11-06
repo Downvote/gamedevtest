@@ -10,5 +10,8 @@
 #                   client, walking (the camera follows, Home), decor (buy, place, move, store, every refusal), Build
 #                   mode's UI, the Loft covering a piece, malicious plot payloads, a leaving player, a v1 save, a full
 #                   street
+#   sim_mini.luau   the minigames: pushes at the milestones, the picker, the four score games through the UI to their
+#                   results and points, the clock held while one is up, Bug Squash, the server's refusals, junk
+#                   payloads, a player leaving mid-game
 SIM=$(cd "$(dirname "$0")" && pwd)
-sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log"
+sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_mini.luau:out_mini.log"
