@@ -1,10 +1,9 @@
 --!strict
--- The street's life (docs/ARCHITECTURE.md 10.2; GAME_DESIGN 2, 12): a rig per developer at their desk
+-- The street's life (docs/ARCHITECTURE.md 10.2; GAME_DESIGN 2, 3, 8): a rig per idea team member at their desk
 -- (Models/CharacterModels) in Workspace.PixelDynamic, registered with the pixel renderer and posed every frame:
--- typing while a game is in the works, idle otherwise, dozing ("z") when worn out, cheering on a spark. The player's
--- own crew comes from their view (and a week's work pops out of their heads: "+12" in the score's colour, a spark
--- bigger and in gold); every other studio's crew from its plot's attributes (PlotService: Crew, Working), so a visit
--- shows a studio at work. Only plots near the view are posed. Every plot sign gets its studio's name (or "Empty lot")
+-- typing away (thinking up ideas), cheering when one of theirs is rare. The player's own team comes from their view
+-- (a new idea pops out of a head in its tier's colour); every other studio's team from its plot's attributes
+-- (PlotService: Crew, Working), so a visit shows a studio at work. Only plots near the view are posed. Every plot sign gets its studio's name (or "Empty lot")
 -- floating over it; tapping a sign shows a card about the studio.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,8 +14,8 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
-local Palette = require(ReplicatedStorage.Shared.Data.Palette)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
+local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local StateClient = require(script.Parent.StateClient)
 local CameraController = require(script.Parent.CameraController)
@@ -101,9 +100,9 @@ end
 ------------------------------------------------------------------ the own crew (the view)
 local function syncOwn(v: Types.ClientView)
 	myPlot = v.plot
-	ownWorking = v.project ~= nil
+	ownWorking = true
 	local keep: { [string]: boolean } = {}
-	for _, s in v.staff do
+	for _, s in v.team do
 		local key = "own:" .. s.id
 		keep[key] = true
 		local l = s.look
@@ -111,7 +110,7 @@ local function syncOwn(v: Types.ClientView)
 		local e = ensure(key, sig, v.plot, v.office, s.desk, s.look, s.id)
 		if e then
 			e.staff = s.id
-			e.tired = s.energy < Tuning.EnergyTired
+			e.tired = false
 		end
 	end
 	for key in rigs do
@@ -234,11 +233,11 @@ function WorldView.signCard(i: number)
 		UIKit.notice("An empty lot: a new studio could move in here.", UIKit.color("text_dim"))
 		return
 	end
-	local tier = m:GetAttribute("Tier")
 	local games = m:GetAttribute("Games")
 	local best = m:GetAttribute("Best")
-	local office = Office.plan(if type(tier) == "number" then tier else 1).name
-	UIKit.notice(string.format("%s: %s, %s games, best %d/40%s", name, office, Numbers.int(if type(games) == "number" then games else 0), if type(best) == "number" then best else 0, if m:GetAttribute("Working") == true then ", a game in the works" else ""), UIKit.color("accent"), 5)
+	local rate = m:GetAttribute("Rate")
+	local bestText = if type(best) == "number" and best > 0 then ", rarest idea " .. Numbers.oneIn(best) else ""
+	UIKit.notice(string.format("%s: %s games%s, earning %s", name, Numbers.int(if type(games) == "number" then games else 0), bestText, Numbers.rate(if type(rate) == "number" then rate else 0)), UIKit.color("accent"), 5)
 end
 
 -- A tap (not a drag, not on the interface, not in Build mode) on a plot sign shows its card.
@@ -274,33 +273,34 @@ local function onTap(pos: Vector2)
 end
 
 ------------------------------------------------------------------ the week's popups
-local function axisColor(axis: string): Color3
-	return UIKit.hex(Palette.axis[axis] or 0xFFFFFF)
-end
 
-local function onWeek(msg: { [string]: any })
-	local events = msg.events
-	if type(events) ~= "table" then
+-- A new idea pops out of a team member's head (its name in its tier's colour; Rare and up: they cheer).
+local ideaTurn = 0
+local function onIdea(msg: { [string]: any })
+	local card = msg.card
+	if type(card) ~= "table" or not Ideas.valid(card) then
 		return
 	end
-	for _, e in events do
-		if type(e) == "table" and e.kind == "work" and type(e.pops) == "table" then
-			for k, pop in e.pops do
-				local entry = rigs["own:" .. tostring(pop.id)]
-				if entry then
-					local at = (entry.base * CFrame.new(CharacterModels.HEAD_TOP)).Position
-					task.delay((k - 1) * 0.12, function()
-						if pop.spark then
-							entry.cheerUntil = os.clock() + 1.2
-							UIKit.floatText(at, "Spark! +" .. tostring(pop.n), UIKit.color("accent"), true)
-						elseif pop.n > 0 then
-							UIKit.floatText(at, "+" .. tostring(pop.n), axisColor(pop.axis), false)
-						end
-					end)
-				end
-			end
+	local own = {}
+	for key, entry in rigs do
+		if string.sub(key, 1, 4) == "own:" then
+			table.insert(own, entry)
 		end
 	end
+	if #own == 0 then
+		return
+	end
+	table.sort(own, function(a, b)
+		return (a.staff or 0) < (b.staff or 0)
+	end)
+	ideaTurn += 1
+	local entry = own[(ideaTurn - 1) % #own + 1]
+	local tier = if type(msg.tier) == "number" then msg.tier else 1
+	if tier >= Tuning.RevealTier then
+		entry.cheerUntil = os.clock() + 1.4
+	end
+	local at = (entry.base * CFrame.new(CharacterModels.HEAD_TOP)).Position
+	UIKit.floatText(at, Ideas.name(card), UIKit.color(Ideas.tierColor(tier)), tier >= Tuning.RevealTier)
 end
 
 -- The own crew cheers (arms up) with a word over each head, one after another (a minigame's reward landing).
@@ -332,8 +332,8 @@ function WorldView.start()
 	end
 	task.spawn(watchPlots)
 	StateClient.Fx:Connect(function(msg)
-		if msg.kind == "week" then
-			onWeek(msg)
+		if msg.kind == "idea" then
+			onIdea(msg)
 		end
 	end)
 	-- taps on the world (a press let go within 8 px of where it began)

@@ -365,61 +365,67 @@ function H.checkProfile(p, label)
 		return
 	end
 	local Tuning = H.sharedServer("Config.Tuning")
-	for _, k in { "money", "fans", "rp", "week", "office", "nextStaff", "nextRelease" } do
+	local Ideas = H.sharedServer("Logic.Ideas")
+	local Office = H.sharedServer("Data.Office")
+	for _, k in { "coins", "rate", "office", "nextGame", "tut" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
-	H.expect(prof.fans >= 0 and prof.rp >= 0 and prof.week >= 0, "profile", label .. ": negative fans/rp/week", string.format("%s/%s/%s", prof.fans, prof.rp, prof.week))
-	local spec = Tuning.Offices[prof.office]
-	if H.expect(spec ~= nil, "profile", label .. ": office tier out of range", tostring(prof.office)) then
-		H.expect(#prof.staff >= 1 and #prof.staff <= spec.desks, "profile", label .. ": staff count outside 1..desks", string.format("%d of %d", #prof.staff, spec.desks))
-		local desks, ids = {}, {}
-		for _, s in prof.staff do
-			H.expect(s.desk >= 1 and s.desk <= spec.desks and not desks[s.desk], "profile", label .. ": desk out of range or shared", tostring(s.desk))
-			desks[s.desk] = true
-			H.expect(not ids[s.id], "profile", label .. ": staff id used twice", tostring(s.id))
-			ids[s.id] = true
-			H.expect(s.id < prof.nextStaff, "profile", label .. ": staff id >= nextStaff", tostring(s.id))
-			H.expect(finite(s.energy) and s.energy >= 0 and s.energy <= Tuning.EnergyMax, "profile", label .. ": energy outside 0..100", tostring(s.energy))
-			for _, k in { "code", "design", "art", "sound" } do
-				local v = s.skills[k]
-				H.expect(finite(v) and v >= 0 and v <= Tuning.SkillMax, "profile", label .. ": skill out of range " .. k, tostring(v))
-			end
+	H.expect(prof.coins >= 0 and prof.rate >= 0, "profile", label .. ": negative coins or rate", string.format("%s/%s", prof.coins, prof.rate))
+	H.expect(#prof.ideas <= Tuning.BoardSize, "profile", label .. ": board over BoardSize", tostring(#prof.ideas))
+	for _, c in prof.ideas do
+		H.expect(Ideas.valid(c), "profile", label .. ": an invalid card on the board", tostring(c.id) .. "|" .. tostring(c.mod))
+	end
+	for k, n in prof.found do
+		local id, mod = string.match(k, "^(%w+)|(%w+)$")
+		H.expect(id ~= nil and Ideas.valid({ id = id, mod = mod }) and finite(n) and n >= 1, "profile", label .. ": a bad Index entry", k)
+	end
+	local plan = Office.plans[prof.office]
+	if H.expect(plan ~= nil, "profile", label .. ": office tier out of range", tostring(prof.office)) then
+		H.expect(#prof.team >= 1 and #prof.team <= #plan.desks, "profile", label .. ": team outside 1..desks", tostring(#prof.team))
+		local desks = {}
+		for _, m in prof.team do
+			H.expect(m.desk >= 1 and m.desk <= #plan.desks and not desks[m.desk], "profile", label .. ": desk out of range or shared", tostring(m.desk))
+			desks[m.desk] = true
 		end
 	end
-	for _, r in prof.releases do
-		local sum = 0
-		for _, v in r.reviews do
-			H.expect(finite(v) and v >= 1 and v <= 10 and v == math.floor(v), "profile", label .. ": review outside 1..10", tostring(v))
-			sum += v
-		end
-		H.expect(#r.reviews == 4 and sum == r.total, "profile", label .. ": reviews do not sum to the total", r.title)
-		H.expect(finite(r.copies) and r.copies >= 0 and finite(r.revenue) and r.revenue >= 0, "profile", label .. ": bad sales numbers", r.title)
+	local sum = 0
+	for _, g in prof.games do
+		H.expect(#g.ideas == 3 and finite(g.rate) and g.rate > 0 and g.wins >= 0 and g.wins <= 3, "profile", label .. ": a bad game record", tostring(g.title))
+		H.expect(g.id < prof.nextGame, "profile", label .. ": game id >= nextGame", tostring(g.id))
+		sum += g.rate
 	end
-	H.expect(#prof.releases <= Tuning.ReleasesKept, "profile", label .. ": too many releases kept", tostring(#prof.releases))
+	H.expect(prof.rate >= sum - 1e-6, "profile", label .. ": rate below the listed games' sum", string.format("%s < %s", prof.rate, sum))
+	H.expect(#prof.games <= Tuning.GamesKept, "profile", label .. ": too many games kept", tostring(#prof.games))
 	local proj = prof.project
 	if proj then
-		H.expect(proj.weeksDone >= 0 and (proj.phase == "build") == (proj.weeksDone < proj.buildWeeks), "profile", label .. ": project phase and weeks disagree", string.format("%s %d/%d", proj.phase, proj.weeksDone, proj.buildWeeks))
-		H.expect(proj.bugs >= 0, "profile", label .. ": negative bugs")
+		H.expect(#proj.ideas == 3 and #proj.won == 3, "profile", label .. ": project shape")
+		for _, w in proj.won do
+			H.expect(w == -1 or w == 0 or w == 1, "profile", label .. ": a bad minigame result", tostring(w))
+		end
 	end
+	H.expect(prof.upgrades.speed >= 0 and prof.upgrades.luck >= 0, "profile", label .. ": negative upgrade levels")
 end
 
--- The client's view mirrors the server's profile.
+-- The client's view mirrors the server's profile (the coins may trail by one income tick).
 function H.checkMirror(p, label)
 	local prof = H.profile(p)
 	local v = H.view(p)
 	if not H.expect(prof ~= nil and v ~= nil, "mirror", label .. ": no profile or no view") then
 		return
 	end
-	for _, k in { "money", "fans", "rp", "week", "office", "tut" } do
+	for _, k in { "office", "tut" } do
 		H.expect(v[k] == prof[k], "mirror", string.format("%s: view.%s differs", label, k), string.format("view %s, server %s", tostring(v[k]), tostring(prof[k])))
 	end
-	H.expect(#v.staff == #prof.staff, "mirror", label .. ": view staff count differs", string.format("%d vs %d", #v.staff, #prof.staff))
+	H.expect(math.abs(v.rate - prof.rate) < 1e-6, "mirror", label .. ": view rate differs", string.format("%s vs %s", v.rate, prof.rate))
+	H.expect(math.abs(v.coins - prof.coins) <= math.max(2, prof.rate * 1.5 + 1), "mirror", label .. ": view coins differ by more than a tick", string.format("%s vs %s", v.coins, prof.coins))
+	H.expect(#v.ideas == #prof.ideas, "mirror", label .. ": board size differs", string.format("%d vs %d", #v.ideas, #prof.ideas))
+	H.expect(#v.team == #prof.team, "mirror", label .. ": team size differs")
 	H.expect((v.project == nil) == (prof.project == nil), "mirror", label .. ": project presence differs")
 	if v.project and prof.project then
-		H.expect(v.project.weeksDone == prof.project.weeksDone and v.project.title == prof.project.title, "mirror", label .. ": project differs")
+		H.expect(v.project.title == prof.project.title, "mirror", label .. ": project differs")
 	end
-	local n = math.min(#prof.releases, 30)
-	H.expect(#v.releases == n, "mirror", label .. ": view releases differ", string.format("%d vs %d", #v.releases, n))
+	H.expect(#v.games == #prof.games, "mirror", label .. ": games differ", string.format("%d vs %d", #v.games, #prof.games))
+	H.expect(v.upgrades.speed == prof.upgrades.speed and v.upgrades.luck == prof.upgrades.luck, "mirror", label .. ": upgrades differ")
 end
 
 function H.errorsSince(i0)

@@ -1,3 +1,5 @@
+-- The save (Logic/Schema; docs/ARCHITECTURE.md 7.6): a new studio, a played profile surviving a round trip, garbage,
+-- the old saves (version 1 and 2: the old studio) loading into the idea loop, the plot kept to what fits.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
@@ -16,114 +18,132 @@ local function roundTrip(v: any): any
 	return out
 end
 
+-- a played profile: ideas rolled, two games launched, one in the works, upgrades, decor
+local function played(): any
+	local p = Schema.default(1000, 7)
+	local rng = Util.newRng(1)
+	for g = 1, 3 do
+		for _ = 1, 5 do
+			Studio.rollIdea(p, rng)
+		end
+		Studio.make(p, 1, 2, 3, g)
+		Studio.result(p, 1, true)
+		Studio.result(p, 2, g % 2 == 0)
+		if g < 3 then
+			Studio.result(p, 3, true)
+			Studio.launch(p, 1000 + g)
+		end
+	end
+	p.coins = 5000
+	Studio.buyUpgrade(p, "speed")
+	Studio.buyUpgrade(p, "luck")
+	p.plot.owned.gnome = true
+	table.insert(p.plot.placed, { id = "gnome", x = 16, z = 18, rot = 0 })
+	return p
+end
+
 return function()
 	T.it("a new studio", function()
 		local p = Schema.default(1000, 42)
 		T.eq(p.v, Schema.VERSION)
-		T.eq(p.money, Tuning.StartMoney)
-		T.eq(#p.staff, Tuning.StartStaff)
+		T.eq(p.coins, Tuning.StartCoins)
+		T.eq(#p.team, Tuning.TeamSize)
+		T.eq(p.team[1].desk, 1)
+		T.eq(p.team[3].desk, 3)
 		T.eq(p.office, 1)
-		T.eq(p.week, 0)
-		T.truthy(p.genres.action and p.genres.puzzle and p.genres.adventure and not p.genres.rpg)
-		T.truthy(p.topics.space and not p.topics.robots)
-		T.eq(p.tut, 1)
 		T.eq(p.project, nil)
-		T.eq(p.staff[1].desk, 1)
-		T.eq(p.staff[2].desk, 2)
-	end)
-	T.it("the same seed makes the same crew", function()
-		T.deepEq(Schema.default(1, 5).staff, Schema.default(1, 5).staff)
+		T.eq(p.tut, 1)
+		T.deepEq(Schema.default(1, 5).team, Schema.default(1, 5).team, "the same seed, the same team")
 	end)
 	T.it("reconcile keeps a played profile as it is", function()
-		local p = Schema.default(1000, 7)
-		local rng = Util.newRng(1)
-		Studio.start(p, { genre = "puzzle", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 0 })
-		for _ = 1, 9 do
-			Studio.week(p, rng)
-		end
-		Studio.release(p, rng)
-		Studio.start(p, { genre = "action", topic = "pirates", platform = "pocket", size = "small", focus = "ideas", seed = 4 })
-		for _ = 1, 3 do
-			Studio.week(p, rng)
-		end
+		local p = played()
+		T.truthy(p.project ~= nil and #p.games == 2 and p.upgrades.speed == 1)
 		local back = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(back, p)
 	end)
-	T.it("a project saved before the minigames gets none banked", function()
-		local p = Schema.default(1000, 7)
-		Studio.start(p, { genre = "puzzle", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 0 })
-		local raw = roundTrip(p)
-		for _, k in { "pushes", "nextPush", "squashWeek", "played" } do
-			raw.project[k] = nil
-		end
-		local back = Schema.reconcile(raw, 2000, 9)
-		T.eq(back.project.pushes, 0)
-		T.eq(back.project.nextPush, 0)
-		T.eq(back.project.squashWeek, 0)
-		raw.project.pushes = 99
-		T.eq(Schema.reconcile(raw, 2000, 9).project.pushes, Tuning.MiniMaxPushes, "clamped")
-	end)
 	T.it("reconcile turns garbage into a valid profile", function()
-		for _, raw in { nil, 5, "x", {}, { money = 0 / 0, staff = "no", office = 99, week = -4, releases = { 1, { reviews = { 99, -1 } } } } } :: { any } do
+		for _, raw in { nil, 5, "x", {}, { coins = 0 / 0, team = "no", office = 99, ideas = { 1, { id = "chess", mod = "plain" }, { id = "action", mod = "plain" } }, found = { ["action|plain"] = -3, ["x|y"] = 2, ["space|turbo"] = 4 }, rate = 1 / 0, upgrades = { speed = -1, luck = "x" }, project = { ideas = { { id = "action", mod = "plain" } } }, games = { { ideas = {} }, 7 } } } :: { any } do
 			local p = Schema.reconcile(raw, 1000, 3)
-			T.truthy(p.money == p.money, "money is a number")
-			T.truthy(#p.staff >= 1)
-			T.truthy(p.office >= 1 and p.office <= #Tuning.Offices)
-			T.truthy(p.week >= 0)
-			for _, r in p.releases do
-				for _, v in r.reviews do
-					T.truthy(v >= 1 and v <= 10)
-				end
+			T.truthy(p.coins == p.coins and p.coins >= 0, "coins")
+			T.truthy(p.rate == p.rate and p.rate < math.huge, "rate")
+			T.truthy(#p.team >= 1)
+			T.truthy(p.office >= 1 and p.office <= 3)
+			T.truthy(p.upgrades.speed >= 0 and p.upgrades.luck >= 0)
+			T.eq(p.project, nil, "a project needs three valid ideas")
+			for _, c in p.ideas do
+				T.truthy(c.id ~= "chess")
 			end
+			T.eq(p.found["x|y"], nil)
+			T.eq(p.found["action|plain"], nil)
+			T.eq(#p.games, 0)
 		end
+		local p = Schema.reconcile({ found = { ["space|turbo"] = 4 } }, 1, 1)
+		T.eq(p.found["space|turbo"], 4)
 	end)
-	T.it("sanitize: desks stay unique and inside the office, too many developers are cut", function()
+	T.it("the board holds BoardSize, the team its desks, the income never below the listed games'", function()
 		local p = Schema.default(1, 1) :: any
-		p.staff[2].desk = 1
-		local extra = {}
-		for i = 3, 9 do
-			local s = table.clone(p.staff[1])
-			s.id = i
-			s.desk = 1
-			table.insert(extra, s)
+		for _ = 1, 20 do
+			table.insert(p.ideas, { id = "action", mod = "plain" })
 		end
-		for _, s in extra do
-			table.insert(p.staff, s)
+		for i = 1, 6 do
+			table.insert(p.team, { id = 10 + i, name = "X", look = p.team[1].look, desk = 1 })
 		end
+		p.games = { { id = 1, title = "A", ideas = { { id = "music", mod = "cosmic" }, { id = "music", mod = "cosmic" }, { id = "music", mod = "cosmic" } }, rate = 1, wins = 3, at = 0 } }
+		p.rate = 2
 		local back = Schema.reconcile(roundTrip(p), 1, 1)
-		T.eq(#back.staff, Tuning.Offices[1].desks)
+		T.eq(#back.ideas, Tuning.BoardSize)
+		T.eq(#back.team, Tuning.TeamSize)
 		local seen = {}
-		for _, s in back.staff do
-			T.truthy(s.desk >= 1 and s.desk <= Tuning.Offices[1].desks and not seen[s.desk])
-			seen[s.desk] = true
+		for _, m in back.team do
+			T.truthy(m.desk >= 1 and not seen[m.desk])
+			seen[m.desk] = true
 		end
-		T.truthy(back.nextStaff > 9 or back.nextStaff > 3)
+		T.truthy(back.games[1].rate > 1, "a game's rate is worked out again from its ideas")
+		T.truthy(back.rate >= back.games[1].rate)
 	end)
-	T.it("unknown genres and topics are dropped, the starting ones always open", function()
-		local p = Schema.default(1, 1) :: any
-		p.genres = { hacking = true, rpg = true }
-		p.topics = {}
-		p.matches = { ["puzzle|space"] = "great", ["x|y"] = "great", ["action|space"] = "awesome" }
-		local back = Schema.reconcile(roundTrip(p), 1, 1)
-		T.truthy(back.genres.rpg and back.genres.action and back.genres.hacking == nil)
-		T.truthy(back.topics.space)
-		T.eq(back.matches["puzzle|space"], "great")
-		T.eq(back.matches["x|y"], nil)
-		T.eq(back.matches["action|space"], nil)
+	T.it("a version 2 save (the old studio) loads into the idea loop: founder, decor, office and crew kept", function()
+		local old = {
+			v = 2,
+			money = 123456,
+			fans = 999,
+			rp = 40,
+			week = 300,
+			office = 2,
+			staff = {
+				{ id = 1, name = "Ada Byte", look = { skin = 2, hair = 3, style = 1, shirt = 4 }, desk = 2, skills = { code = 40 } },
+				{ id = 2, name = "Bo Pixel", look = { skin = 1, hair = 1, style = 2, shirt = 1 }, desk = 1 },
+			},
+			releases = { { title = "Old Game" } },
+			project = { title = "Galaxy Blocks", genre = "puzzle" },
+			genres = { action = true },
+			stats = { games = 9, best = 33 },
+			founder = { skin = 3, hair = 2, style = 4, shirt = 6 },
+			plot = { owned = { gnome = true, fountain = true }, placed = { { id = "gnome", x = 16, z = 18, rot = 0 } } },
+			settings = { pixel = "low" },
+			tut = 0,
+		}
+		local p = Schema.reconcile(old, 2000, 9) :: any
+		T.eq(p.v, Schema.VERSION)
+		T.eq(p.coins, Tuning.StartCoins)
+		T.eq(p.office, 2)
+		T.eq(#p.team, 2)
+		T.eq(p.team[1].name, "Ada Byte")
+		T.eq(p.team[1].desk, 2)
+		T.deepEq(p.founder, { skin = 3, hair = 2, style = 4, shirt = 6 })
+		T.truthy(p.plot.owned.gnome and p.plot.owned.fountain)
+		T.eq(#p.plot.placed, 1)
+		T.eq(p.settings.pixel, "low")
+		T.eq(p.project, nil)
+		T.eq(p.stats.games, 0)
+		T.eq(p.tut, 1, "the tips start over for the new loop")
+		T.eq(p.money, nil)
+		T.eq(p.staff, nil)
 	end)
-	T.it("a version 1 save (before the street) loads: same studio, a founder, an empty plot", function()
-		local p = Schema.default(1000, 7) :: any
-		p.v = 1
-		p.founder = nil
-		p.plot = nil
-		p.money = 12345
-		local back = Schema.reconcile(roundTrip(p), 2000, 9)
-		T.eq(back.v, Schema.VERSION)
-		T.eq(back.money, 12345)
-		T.eq(#back.staff, #p.staff)
-		T.truthy(type(back.founder) == "table" and back.founder.skin >= 1)
-		T.eq(#back.plot.placed, 0)
-		T.eq(next(back.plot.owned), nil)
+	T.it("a version 1 save (before the street) loads too", function()
+		local p = Schema.reconcile({ v = 1, money = 5, office = 1, staff = {} }, 2000, 9)
+		T.eq(p.v, Schema.VERSION)
+		T.truthy(type(p.founder) == "table" and p.founder.skin >= 1)
+		T.eq(#p.team, Tuning.TeamSize)
 	end)
 	T.it("the plot keeps only owned decor that fits, up to the limit", function()
 		local p = Schema.default(1, 1) :: any

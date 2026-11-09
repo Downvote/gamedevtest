@@ -38,4 +38,24 @@ function Numbers.money(n: number, exact: boolean?): string
 	return (if n < 0 then "-$" else "$") .. body
 end
 
+-- Coins: "1.2K" with the coin word's short form left to the caller; rates: "+12.4/s".
+function Numbers.coins(n: number): string
+	return Numbers.short(math.floor(n))
+end
+
+function Numbers.rate(n: number): string
+	if n < 100 then
+		return "+" .. string.gsub(string.format("%.1f", math.floor(n * 10) / 10), "%.0$", "") .. "/s"
+	end
+	return "+" .. Numbers.short(n) .. "/s"
+end
+
+-- A rarity: "1 in 1,250" (short past a million: "1 in 4.5M").
+function Numbers.oneIn(n: number): string
+	if n >= 1e6 then
+		return "1 in " .. Numbers.short(n)
+	end
+	return "1 in " .. Numbers.int(n)
+end
+
 return Numbers

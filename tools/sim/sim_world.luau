@@ -1,10 +1,10 @@
--- The street and the plot (GAME_DESIGN 12, 13; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole street built at
+-- The street and the plot (GAME_DESIGN 8, 9; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole street built at
 -- start (every road stretch, an empty lot on every plot); two studios on plots 1 and 2 with their offices, lands,
--- attributes and founders; each client drawing its own crew, the neighbour's and both founders; a founder walking
--- onto the neighbour's lot (the camera follows, Home shows) and going home (and its cooldown); buying, placing,
--- moving and storing decor with every refusal, the server's Static.Decor following piece by piece; the same through
--- Build mode's UI; the move to the Loft putting a covered piece back in the box; malicious plot payloads; a leaving
--- player's plot back to an empty lot; a version 1 save loading; a full street kicking the seventh player.
+-- attributes and founders; each client drawing its own idea team, the neighbour's and both founders; a founder
+-- walking onto the neighbour's lot (the camera follows, Home shows) and going home (and its cooldown); buying (with
+-- coins), placing, moving and storing decor with every refusal, the server's Static.Decor following piece by piece;
+-- the same through Build mode's UI; malicious plot payloads; a leaving player's plot back to an empty lot; an old
+-- save (the old studio in its Loft) loading; a full street kicking the seventh player.
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -86,7 +86,7 @@ local function crewMatches(i, prof)
 		n += 1
 		local desk, skin, hair, style, shirt = string.match(part, "^(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d+)%.%d$")
 		local found = false
-		for _, s in prof.staff do
+		for _, s in prof.team do
 			local l = s.look
 			if s.desk == tonumber(desk) and l.skin == tonumber(skin) and l.hair == tonumber(hair) and l.style == tonumber(style) and l.shirt == tonumber(shirt) then
 				found = true
@@ -94,14 +94,14 @@ local function crewMatches(i, prof)
 		end
 		ok = ok and found
 	end
-	return ok and n == #prof.staff
+	return ok and n == #prof.team
 end
 for k, p in { a, b } do
 	local m = plotModel(k)
 	local prof = H.profile(p)
 	H.expect(m:GetAttribute("Owner") == p.UserId and m:GetAttribute("StudioName") == p.Name .. "'s Studio", "studios", p.Name .. ": owner and studio name", tostring(m:GetAttribute("StudioName")))
-	H.expect(m:GetAttribute("Tier") == 1 and m:GetAttribute("Working") == false, "studios", p.Name .. ": tier 1, idle")
-	H.expect(crewMatches(k, prof), "studios", p.Name .. ": the Crew attribute is their staff", tostring(m:GetAttribute("Crew")))
+	H.expect(m:GetAttribute("Tier") == 1 and m:GetAttribute("Working") == true, "studios", p.Name .. ": tier 1, the idea team at work")
+	H.expect(crewMatches(k, prof), "studios", p.Name .. ": the Crew attribute is their idea team", tostring(m:GetAttribute("Crew")))
 	local office = officeOf(k)
 	H.expect(office ~= nil and office:GetAttribute("Tier") == 1, "studios", p.Name .. ": the office is built")
 	H.expect(staticOf(k):FindFirstChild("Land") ~= nil and staticOf(k).Land:FindFirstChild("Land") ~= nil and m:FindFirstChild("EmptyLot", true) == nil, "studios", p.Name .. ": the land replaced the empty lot")
@@ -116,16 +116,18 @@ for k, p in { a, b } do
 	H.checkProfile(p, "studio " .. p.Name)
 	H.checkMirror(p, "studio " .. p.Name)
 end
-local res = H.req(a, "project.start", { genre = "puzzle", topic = "animals", platform = "pc", size = "small", focus = "fun", seed = 1 })
-H.expect(res.ok, "studios", "Ava starts a game", tostring(res.err))
-E.run(0.5)
-H.expect(plotModel(1):GetAttribute("Working") == true, "studios", "Working once a game is in the works")
+local res
+local pa = H.profile(a)
+pa.rate = 7.5
+pa.stats.games = 3
+H.push(a, 0.5)
+H.expect(plotModel(1):GetAttribute("Games") == 3 and plotModel(1):GetAttribute("Rate") == 7, "studios", "the plot shows the games and the income", string.format("%s %s", tostring(plotModel(1):GetAttribute("Games")), tostring(plotModel(1):GetAttribute("Rate"))))
 -- each client draws its own crew, the neighbour's and both founders
 for _, pair in { { a, b }, { b, a } } do
 	local me, other = pair[1], pair[2]
 	local WV = H.cmod(me, "Controllers.WorldView")
 	local AV = H.cmod(me, "Controllers.AvatarView")
-	local own, oth = #H.profile(me).staff, #H.profile(other).staff
+	local own, oth = #H.profile(me).team, #H.profile(other).team
 	H.expect(WV.ownRigCount() == own and WV.rigCount() == own + oth, "studios", me.Name .. ": own crew and the neighbour's", string.format("%d own of %d, %d all of %d", WV.ownRigCount(), own, WV.rigCount(), own + oth))
 	H.expect(AV.count() == 2, "studios", me.Name .. ": both founders", tostring(AV.count()))
 end
@@ -173,24 +175,21 @@ H.expect(H.buttonNamed(a, "Home") == nil, "walk", "the Home button goes once hom
 
 ------------------------------------------------------------------ 4. decor: buy, place, move, store
 E.phase = "decor"
-H.signal(a, "pause", { key = "sim", on = true })
-E.run(0.3)
 local prof = H.profile(a)
-prof.money = 100000
-local m0, f0 = prof.money, prof.fans
+prof.rate = 0 -- no income ticks while the coins are compared
+prof.coins = 1000000
+local m0 = prof.coins
 res = H.req(a, "plot.buy", { id = "gnome" })
-H.expect(res.ok and prof.money == m0 - Decor.byId.gnome.price and prof.fans == f0 + Decor.byId.gnome.fans and prof.plot.owned.gnome, "decor", "buy a gnome: money and fans move", tostring(res.err))
+H.expect(res.ok and prof.coins == m0 - Decor.byId.gnome.price and prof.plot.owned.gnome, "decor", "buy a gnome: its price in coins", tostring(res.err))
 res = H.req(a, "plot.buy", { id = "gnome" })
 H.expect(not res.ok and res.err == "max", "decor", "a piece once", tostring(res.err))
-res = H.req(a, "plot.buy", { id = "fountain" })
-H.expect(not res.ok and res.err == "locked", "decor", "the Loft's fountain", tostring(res.err))
 H.req(a, "plot.buy", { id = "flowers" })
 H.req(a, "plot.buy", { id = "bench" })
-local keep = prof.money
-prof.money = 10
+local keep = prof.coins
+prof.coins = 10
 res = H.req(a, "plot.buy", { id = "oak" })
-H.expect(not res.ok and res.err == "money", "decor", "no money", tostring(res.err))
-prof.money = keep
+H.expect(not res.ok and res.err == "money", "decor", "not enough coins", tostring(res.err))
+prof.coins = keep
 E.run(0.3)
 H.checkMirror(a, "bought")
 local v = H.view(a)
@@ -292,14 +291,13 @@ H.checkMirror(a, "decor")
 
 ------------------------------------------------------------------ 5. Build mode through the UI
 E.phase = "build-ui"
-H.signal(a, "pause", { key = "sim", on = false })
 E.run(0.3)
 local BuildUI = H.cmod(a, "UI.BuildUI")
 local UIKit = H.cmod(a, "UI.UIKit")
 H.expect(H.clickNamed(a, "Menu_build"), "build", "the HUD's Build button")
 H.expect(BuildUI.isOpen() and CCa.isFree(), "build", "Build mode is open, the view free")
 E.run(0.4)
-H.expect(sa.paused.build == true and H.view(a).paused, "build", "the clock holds in Build mode")
+H.expect(H.buttonNamed(a, "Buy_oak") ~= nil, "build", "the tray offers what the coins can buy")
 -- the screen point (InputObject space: below the top bar) where the client shows a world point
 local function screenOf(world)
 	return H.inClient(a, function()
@@ -363,31 +361,13 @@ E.run(0.3)
 H.expect(#prof.plot.placed == placedBefore, "build", "stored through the UI", tostring(#prof.plot.placed))
 H.clickNamed(a, "BuildDone")
 E.run(0.4)
-H.expect(not BuildUI.isOpen() and not CCa.isFree() and sa.paused.build == nil, "build", "Done: closed, the view follows again, the clock runs")
+H.expect(not BuildUI.isOpen() and not CCa.isFree(), "build", "Done: closed, the view follows again")
 H.expect(ghostFootprint() == nil, "build", "no ghost left")
 
------------------------------------------------------------------- 6. the Loft covers a piece
+------------------------------------------------------------------ 6. a bigger room from an old save
 E.phase = "loft"
-H.signal(a, "pause", { key = "sim", on = true })
-E.run(0.3)
-prof.plot.placed = {}
-local okA = Plot.fits(1, prof.plot.placed, "gnome", plan1.maxX + 1, 0, 0)
-H.expect(okA, "loft", "a gnome fits right by the garage's east side")
-table.insert(prof.plot.placed, { id = "gnome", x = plan1.maxX + 1, z = 0, rot = 0 })
-local fx2, fz2 = spot("gnome", 0, prof.plot.placed)
-table.insert(prof.plot.placed, { id = "gnome", x = fx2, z = fz2, rot = 0 })
-prof.fans = Tuning.Offices[2].fans + 10
-prof.money = Tuning.Offices[2].cost + 20000
-H.push(a)
-res = H.req(a, "office.move", {})
-H.expect(res.ok and res.data and res.data.stored == 1, "loft", "the move puts the covered piece back in the box", res.data and tostring(res.data.stored) or tostring(res.err))
-E.run(1)
-H.expect(#prof.plot.placed == 1 and prof.plot.placed[1].x == fx2, "loft", "the far piece stays")
-H.expect(officeOf(1) ~= nil and officeOf(1):GetAttribute("Tier") == 2 and staticOf(1):GetAttribute("Built") == 2, "loft", "Static.Office rebuilt for tier 2")
-H.expect(staticOf(1).Land:FindFirstChild("Land") ~= nil and staticOf(1):FindFirstChild("Old") == nil, "loft", "Static.Land rebuilt, nothing old left")
-H.expect(#decorOf(1):GetChildren() == 1, "loft", "the decor follows", tostring(#decorOf(1):GetChildren()))
-H.expect(plotModel(1):GetAttribute("Tier") == 2, "loft", "the Tier attribute")
-H.expect(H.cmod(b, "Controllers.WorldView").rigCount() == #H.profile(b).staff + #prof.staff, "loft", "Bo still draws Ava's crew in the Loft")
+-- no office moves any more: a studio keeps the room its save had (an old Loft save, here), and its plot
+H.expect(plotModel(1):GetAttribute("Tier") == 1 and officeOf(1):GetAttribute("Tier") == 1, "loft", "a new studio stays in the garage")
 H.checkProfile(a, "loft")
 H.checkMirror(a, "loft")
 
@@ -404,7 +384,7 @@ local function snap()
 	for _, x in q.plot.placed do
 		table.insert(placed, string.format("%s:%d:%d:%d", x.id, x.x, x.z, x.rot))
 	end
-	return { money = q.money, fans = q.fans, owned = table.concat(owned, ","), placed = table.concat(placed, ";") }
+	return { coins = q.coins, owned = table.concat(owned, ","), placed = table.concat(placed, ";") }
 end
 local function refused(label, err, action, payload)
 	local ok, out = H.raw(a, action, payload)
@@ -426,7 +406,6 @@ refused("placing an unknown piece", "locked", "plot.place", { id = "castle", x =
 refused("a string coord", "bad_payload", "plot.place", { id = "gnome", x = "20", z = 20, rot = 0 })
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
-H.signal(a, "pause", { key = "sim", on = false })
 E.run(0.3)
 
 ------------------------------------------------------------------ 8. a player leaves
@@ -439,22 +418,26 @@ local WVa = H.cmod(a, "Controllers.WorldView")
 H.expect(WVa.rigCount() == WVa.ownRigCount(), "leave", "Ava no longer draws Bo's crew", string.format("%d all, %d own", WVa.rigCount(), WVa.ownRigCount()))
 H.expect(H.cmod(a, "Controllers.AvatarView").count() == 1, "leave", "one founder left")
 
------------------------------------------------------------------- 9. a version 1 save
+------------------------------------------------------------------ 9. an old save (version 2, the old studio in the Loft)
 E.phase = "v1"
 local STORE = Tuning.DataStoreName .. "/global"
-local old = Schema.default(0, 77)
-old.v = 1
-old.founder = nil
-old.plot = nil
-old.money = 23456
+local old = {
+	v = 2,
+	money = 23456,
+	office = 2,
+	staff = { { id = 1, name = "Old Timer", look = { skin = 1, hair = 2, style = 3, shirt = 4 }, desk = 2 } },
+	founder = { skin = 4, hair = 1, style = 2, shirt = 3 },
+	plot = { owned = { gnome = true }, placed = { { id = "gnome", x = 30, z = 30, rot = 0 } } },
+}
 E.cloud.stores[STORE] = E.cloud.stores[STORE] or {}
 E.cloud.stores[STORE]["u_9403"] = { value = { data = E.deepCopy(old) }, meta = {}, userIds = {}, version = 1, created = E.SIM.now, updated = E.SIM.now }
 local c = H.addPlayer({ userId = 9403, name = "Old" })
 E.run(3)
 local cp = H.profile(c)
-H.expect(cp ~= nil and cp.v == Schema.VERSION and cp.money == 23456, "v1", "a version 1 save loads as the new version", cp and string.format("v%d $%d", cp.v, cp.money))
-H.expect(cp ~= nil and type(cp.founder) == "table" and #cp.plot.placed == 0 and next(cp.plot.owned) == nil, "v1", "with a founder and an empty plot")
+H.expect(cp ~= nil and cp.v == Schema.VERSION and cp.money == nil, "v1", "a version 2 save loads as the idea loop", cp and string.format("v%d", cp.v))
+H.expect(cp ~= nil and cp.office == 2 and cp.founder.skin == 4 and cp.plot.owned.gnome and cp.team[1].name == "Old Timer", "v1", "its Loft, founder, decor and crew kept")
 H.expect(H.session(c) and H.session(c).plot == 2, "v1", "on the freed plot 2", tostring(H.session(c) and H.session(c).plot))
+H.expect(officeOf(2) ~= nil and officeOf(2):GetAttribute("Tier") == 2, "v1", "its Loft is built")
 H.checkProfile(c, "v1")
 H.checkMirror(c, "v1")
 

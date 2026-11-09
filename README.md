@@ -1,22 +1,24 @@
 # Byte-Size Studio
 
-A small game-studio management sim for Roblox. You open a tiny studio in a garage with two developers and a little
-money, pick a genre, a topic, a platform, a size and a focus, and watch your crew type away at their desks while
-their ideas pop out over their heads. When the build is done you polish out the bugs or ship it, four critics review
-it out of 10, and it sells week after week. Hits bring money and fans; money trains the crew, hires more and moves
-you into a bigger office; research points unlock new genres and topics; new platforms come out as the years go by;
-each year ends with an awards night.
+An RNG game about making games, for Roblox. Your idea team of three sits in a garage thinking up ideas: a genre or a
+theme with a modifier, each with its rarity ("Glitched Ninjas, 1 in 9,600"). Ideas collect on the idea board; pick
+three and make a game. Each idea brings its own short microgame (24 of them on twelve engines: dodge the blocks, stop
+the cursor on the green, whack the zombies, copy the tune...), harder the rarer the idea, played differently under its
+modifier (Turbo, Tiny, Shaky, Glitched, Haunted, Cosmic). Each one won adds a third to the game's sales; retry as
+often as you like, then launch it, and it earns coins every second for good. Coins make the idea team faster and
+luckier, and buy decor.
 
 Every studio on a server stands on its own plot along one street. You walk out of your office as a little chibi
-founder, the camera following, to visit the other studios and watch their crews at work, and you decorate your plot
-in Build mode: trees, benches, lamps, a fountain, an arcade kiosk, a billboard, a food truck.
+founder (your look set in the Looks panel), the camera following, to visit the other studios and watch their idea
+teams at work, and you decorate your plot in Build mode: trees, benches, lamps, a fountain, an arcade kiosk, a
+billboard, a food truck.
 
-The loop is a simplified take on the studio-sim genre, with Kairosoft's *Game Dev Story* as the reference for how it
-plays. The names, platforms, critics, content, numbers and art are this game's own. The look, the build system and
-the formats are Random Bakery's (`Downvote/test`): a cut-away isometric diorama seen through the pixel filter (an
-orthographic camera at 45° and 30°, so every floor edge steps exactly two pixels across for one down, toon-shaded on
-a palette with 1 px ink outlines), the same pixel font, Rojo with strict Luau, a server that decides everything,
-pure Data and Logic modules with specs, and the fake-engine simulator and preview tools.
+The microgames are in the spirit of the WarioWare kind of game (a one-word order, a few seconds, win or lose); the
+ideas, the microgames, the numbers and the art are this game's own. The look, the build system and the formats are
+Random Bakery's (`Downvote/test`): a cut-away isometric diorama seen through the pixel filter (an orthographic camera
+at 45° and 30°, so every floor edge steps exactly two pixels across for one down, toon-shaded on a palette with 1 px
+ink outlines), the same pixel font, Rojo with strict Luau, a server that decides everything, pure Data and Logic
+modules with specs, and the fake-engine simulator and preview tools.
 
 The whole game is built from code with [Rojo](https://rojo.space): no meshes, decals or uploaded images. Every model
 is put together from parts at runtime.

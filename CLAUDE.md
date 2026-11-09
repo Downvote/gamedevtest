@@ -12,11 +12,11 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` 513, `sim_save.luau` 126, `sim_clock.luau` 79, `sim_world.luau` 316, `sim_mini.luau` 134). Previews:
-`sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `office dev
-office2 office3 review street visit build plot3 late`, `panel=<newgame|staff|research|office|games>` or
-`mini=<code|ideas|pixels|beats|bugs>`. The place file is `ByteSizeStudio-<short hash>.rbxl` (binary, the format the
-user asked for) in the repository root (git-ignored).
+`sim.luau` 307, `sim_save.luau` 128, `sim_clock.luau` 114, `sim_world.luau` 247, `sim_micro.luau` 231). Previews:
+`sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `office reveal
+office2 office3 make launch street visit build plot3 late`, `panel=<ideas|index|upgrades|games|looks>` or
+`micro=<idea>[_<modifier>]` (e.g. `micro=space_haunted`). The place file is `ByteSizeStudio-<short hash>.rbxl` (binary,
+the format the user asked for) in the repository root (git-ignored).
 
 The repository `Downvote/test` (Random Bakery) is the reference this game was built from: read it, never change it.
 

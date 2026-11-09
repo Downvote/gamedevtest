@@ -196,7 +196,6 @@ function PlotService.build(s: S)
 			OfficeModels.build(f, tier, o)
 		end)
 		static:SetAttribute("Built", tier)
-		-- the decor's pieces the bigger office covers were put back in the box (Plot.clean): rebuild by difference
 	end
 	PlotService.buildDecor(s)
 	PlotService.sync(s)
@@ -207,9 +206,9 @@ function PlotService.sync(s: S)
 	local m = plotModel(s.plot)
 	local p = s.profile
 	local crew = {}
-	for _, st in p.staff do
+	for _, st in p.team do
 		local l = st.look
-		table.insert(crew, string.format("%d.%d.%d.%d.%d.%d", st.desk, l.skin, l.hair, l.style, l.shirt, if st.energy < Tuning.EnergyTired then 1 else 0))
+		table.insert(crew, string.format("%d.%d.%d.%d.%d.%d", st.desk, l.skin, l.hair, l.style, l.shirt, 0))
 	end
 	local function set(k: string, v: any)
 		if m:GetAttribute(k) ~= v then
@@ -219,8 +218,9 @@ function PlotService.sync(s: S)
 	set("Tier", p.office)
 	set("Games", p.stats.games)
 	set("Best", p.stats.best)
+	set("Rate", math.floor(p.rate))
 	set("Crew", table.concat(crew, ";"))
-	set("Working", p.project ~= nil)
+	set("Working", true)
 	local f = p.founder
 	local look = string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt)
 	if s.player:GetAttribute("Founder") ~= look then

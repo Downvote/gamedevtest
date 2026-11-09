@@ -1,8 +1,8 @@
 --!strict
--- Build mode (GAME_DESIGN 13; docs/ARCHITECTURE.md 10.7): decorating the plot. The HUD's Build button opens it: the
--- clock holds (pause key "build"), the view stops following the founder and shows the own plot (a drag on the world
--- pans it, CameraController.setFree / panBy), and a tray along the bottom lists every piece of decor: the ones not
--- bought yet with their price and fans (a tap buys it: plot.buy), the owned ones ready to place. With a piece picked,
+-- Build mode (GAME_DESIGN 9; docs/ARCHITECTURE.md 10.7): decorating the plot. The HUD's Build button opens it: the
+-- view stops following the founder and shows the own plot (a drag on the world pans it, CameraController.setFree /
+-- panBy), and a tray along the bottom lists every piece of decor: the ones not bought yet with their price in coins (a
+-- tap buys it: plot.buy), the owned ones ready to place. With a piece picked,
 -- a ghost of it stands where the pointer is (mouse) or was tapped (touch), on a footprint that is green where it fits
 -- (Logic/Plot.fits, the server's own rule) and red where it does not; Place (or a second click on the same spot) asks
 -- the server (plot.place), Rotate turns it a quarter. Tapping a piece standing on the plot picks it up to move
@@ -23,7 +23,7 @@ local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
-local NewGameUI = require(script.Parent.NewGameUI)
+local Words = require(script.Parent.Words)
 
 local BuildUI = {}
 BuildUI.Changed = Util.Signal() :: Types.Signal<boolean>
@@ -61,7 +61,7 @@ local function ask(action: string, payload: { [string]: any }, ok: string?): Typ
 			UIKit.notice(ok, UIKit.color("good"))
 		end
 	else
-		UIKit.notice(if res.err == "blocked" then "It doesn't fit there." else NewGameUI.errText(res.err), UIKit.color("bad"))
+		UIKit.notice(if res.err == "blocked" then "It doesn't fit there." else Words.errText(res.err), UIKit.color("bad"))
 	end
 	return res
 end
@@ -169,12 +169,11 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 	UIKit.hlist(list, 3)
 	for k, def in Decor.list do
 		local owned = v.decor.owned[def.id] == true
-		local locked = v.office < def.office
-		local text = if owned then "Place" elseif locked then Office.plan(def.office).name else Numbers.money(def.price)
+		local text = if owned then "Place" else Numbers.coins(def.price)
 		local card = UIKit.plate(list, UDim2.fromOffset(62, 27), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2)
 		card.Name = "Card_" .. def.id
 		card.LayoutOrder = k
-		UIKit.text(card, def.name, UDim2.fromOffset(60, 10), UDim2.fromOffset(2, 1), { color = if locked then UIKit.color("text_dim") else UIKit.color("text") })
+		UIKit.text(card, def.name, UDim2.fromOffset(60, 10), UDim2.fromOffset(2, 1), { color = UIKit.color("text") })
 		UIKit.button(card, text, UDim2.fromOffset(58, 13), UDim2.fromOffset(2, 12), function()
 			if owned then
 				pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false }
@@ -182,12 +181,12 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 				UIKit.notice("Tap the lawn where it should go.", UIKit.color("text_dim"), 2.5)
 				rebuild()
 			else
-				ask("plot.buy", { id = def.id }, string.format("%s bought: +%d fans!", def.name, def.fans))
+				ask("plot.buy", { id = def.id }, def.name .. " bought!")
 			end
 		end, {
 			name = "Buy_" .. def.id,
 			color = if owned then UIKit.color("button_ok") else nil,
-			enabled = owned or (not locked and v.money >= def.price),
+			enabled = owned or v.coins >= def.price,
 		})
 	end
 end
@@ -345,7 +344,6 @@ function BuildUI.open()
 	open = true
 	UIKit.closePanel()
 	CameraController.setFree(true, TRAY_H)
-	StateClient.signal("pause", { key = "build", on = true })
 	local downAt: Vector2? = nil
 	local last: Vector2? = nil
 	local dragged = false
@@ -389,6 +387,20 @@ function BuildUI.open()
 			rebuild()
 		end
 	end))
+	-- the income ticks: the Buy buttons follow the coins without rebuilding the tray
+	table.insert(conns, StateClient.Coins:Connect(function(coins: number)
+		local t = tray
+		if not open or t == nil then
+			return
+		end
+		local v = view()
+		for _, def in Decor.list do
+			local b = t:FindFirstChild("Buy_" .. def.id, true)
+			if b and b:IsA("TextButton") and v and not v.decor.owned[def.id] then
+				UIKit.setEnabled(b, coins >= def.price)
+			end
+		end
+	end))
 	table.insert(conns, UIKit.Resized:Connect(function()
 		if open then
 			rebuild()
@@ -414,7 +426,6 @@ function BuildUI.close()
 		tray = nil
 	end
 	CameraController.setFree(false)
-	StateClient.signal("pause", { key = "build", on = false })
 	BuildUI.Changed:Fire(false)
 end
 

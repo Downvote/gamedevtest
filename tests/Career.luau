@@ -1,181 +1,115 @@
--- A sensible player for the Economy spec and the tuning runs: plays a career through Logic/Studio (the server's own
--- rules) and logs what happened year by year.
+-- A sensible player for the Economy spec and the tuning runs: plays a session second by second through Logic/Studio
+-- (the server's own rules) and logs what happened minute by minute. The idea team rolls on its clock; with three
+-- ideas on the board the player makes a game of the three most valuable, plays its minigames (each about
+-- MicroIntro + its clock long, won with a chance by difficulty and `skill`, a lost one retried up to `retries` times)
+-- and launches it; the games pay their income every second; coins go on the cheaper of the two upgrades.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Studio = require("../build/luautest/shared/Logic/Studio")
-local Minigames = require("../build/luautest/shared/Logic/Minigames")
-local Dev = require("../build/luautest/shared/Logic/Dev")
-local Crew = require("../build/luautest/shared/Logic/Crew")
-local Calendar = require("../build/luautest/shared/Logic/Calendar")
+local Ideas = require("../build/luautest/shared/Logic/Ideas")
 local Util = require("../build/luautest/shared/Logic/Util")
-local Genres = require("../build/luautest/shared/Data/Genres")
-local Topics = require("../build/luautest/shared/Data/Topics")
 
 local Career = {}
 
-local MATCH_RANK = { great = 4, good = 3, okay = 2, poor = 1 }
+export type Opts = { skill: number?, retries: number?, log: ((string) -> ())? }
 
--- the best open pair the player has not just made (they read the notebook, and guess "good" for pairs not tried)
-local function pickPair(p): (string, string)
-	local best, bg, bt = -1, "action", "space"
-	for g in p.genres do
-		for t in p.topics do
-			local known = p.matches[Dev.matchKey(g, t)]
-			local rank = if known then MATCH_RANK[known] else 2.5
-			if Dev.novelty(g, t, p.releases) < 1 then
-				rank -= 2
-			end
-			rank += (Util.hash32(g .. t .. p.week) % 100) / 1000
-			if rank > best then
-				best, bg, bt = rank, g, t
-			end
-		end
-	end
-	return bg, bt
+-- The chance to win a minigame of difficulty d (1 .. DiffMax) for a player of `skill` (0..1).
+function Career.winChance(skill: number, d: number): number
+	return math.clamp(skill - 0.07 * (d - 1), 0.05, 0.98)
 end
 
--- `mini`: the score this player gets in every minigame (GAME_DESIGN 14), or nil for one who never plays them.
-function Career.play(seed: number, years: number, log: ((string) -> ())?, mini: number?)
+local function microSeconds(d: number): number
+	return Tuning.MicroIntro + math.max(Tuning.MicroSecondsMin, Tuning.MicroSeconds - Tuning.MicroSecondsStep * (d - 1)) + 1.5
+end
+
+function Career.play(seed: number, seconds: number, opts: Opts?)
+	local o: Opts = opts or {}
+	local skill = o.skill or 0.85
+	local retries = o.retries or 1
 	local p = Schema.default(0, seed)
 	local rng = Util.newRng(seed * 7 + 1)
-	local polishWeeks = 0
-	local yearly = {}
-	local minMoney = math.huge
+	local roll = 0
+	local busy = 0 -- seconds left playing minigames
+	local frac = 0
+	local log = o.log
+	local firstGame: number? = nil
+	local firstUpgrade: number? = nil
+	local firstTier: { [number]: number } = {}
+	local timeline = {}
 	local function say(s: string)
 		if log then
 			log(s)
 		end
 	end
-	while Calendar.year(p.week) <= years do
-		local payroll = Crew.payroll(p.staff) + Tuning.Offices[p.office].rent
-		-- start a game
-		if p.project == nil then
-			local g, t = pickPair(p)
-			local year = Studio.year(p)
-			local plat, bestScore = "pc", -1
-			for _, pl in Dev.platformsIn(year) do
-				local score = pl.market * Dev.love(pl.id, g)
-				if p.money - pl.licence > payroll * 3 + 3000 and score > bestScore then
-					plat, bestScore = pl.id, score
-				end
-			end
-			local size = "small"
-			if #p.staff >= 3 and p.money > Dev.startCost("medium", plat) + payroll * 4 then
-				size = "medium"
-			end
-			if #p.staff >= 5 and p.money > Dev.startCost("large", plat) + payroll * 5 then
-				size = "large"
-			end
-			local ok = Studio.start(p, { genre = g, topic = t, platform = plat, size = size, focus = "fun", seed = p.week })
-			if not ok then
-				Studio.start(p, { genre = g, topic = t, platform = "pc", size = "small", focus = "fun", seed = p.week })
-			end
-			polishWeeks = 0
-		end
-		-- release once the bugs are gone or after a few weeks of polish
-		local proj = p.project
-		if proj and proj.phase == "polish" then
-			polishWeeks += 1
-			if proj.bugs == 0 or polishWeeks >= 4 then
-				local ok, r = Studio.release(p, rng)
-				if ok then
-					say(string.format("  %s: %s %s/%s on %s (%s) reviews %d %d %d %d = %d %s, peak %d", Calendar.label(p.week), r.title, r.genre, r.topic, r.platform, r.size, r.reviews[1], r.reviews[2], r.reviews[3], r.reviews[4], r.total, r.match, r.peak))
+	for t = 1, seconds do
+		-- the idea team
+		roll += 1
+		while roll >= Studio.rollEvery(p) do
+			roll -= Studio.rollEvery(p)
+			local r = Studio.rollIdea(p, rng)
+			if firstTier[r.tier] == nil then
+				firstTier[r.tier] = t
+				if r.tier >= 3 then
+					say(string.format("  %5ds first %s: %s (%s)", t, Ideas.tierName(r.tier), Ideas.name(r.card), tostring(r.oneIn)))
 				end
 			end
 		end
-		-- hire when there is room and money
-		if Crew.freeDesk(p.staff, Studio.desks(p)) and #p.candidates > 0 and p.money > payroll * 6 then
-			local bi, bt = 1, -1
-			for i, c in p.candidates do
-				if Crew.total(c.skills) > bt then
-					bi, bt = i, Crew.total(c.skills)
-				end
+		-- the games' income
+		frac += p.rate
+		local whole = math.floor(frac)
+		frac -= whole
+		Studio.earn(p, whole)
+		-- making a game
+		if busy > 0 then
+			busy -= 1
+			if busy <= 0 and p.project then
+				Studio.launch(p, t)
+				firstGame = firstGame or t
 			end
-			Studio.hire(p, bi)
-		end
-		-- research and training
-		for _, list in { Genres.list, Topics.list } do
-			for _, d in list :: { any } do
-				local isGenre = Genres.byId[d.id] ~= nil and list == Genres.list
-				local set = if isGenre then p.genres else p.topics
-				local cost = if isGenre then Dev.genreCost(d.id) else Dev.topicCost(d.id)
-				if not set[d.id] and p.rp >= cost + Tuning.TrainRp then
-					if isGenre then
-						Studio.unlockGenre(p, d.id)
-					else
-						Studio.unlockTopic(p, d.id)
+		elseif p.project == nil and #p.ideas >= 3 then
+			local order = {}
+			for i = 1, #p.ideas do
+				table.insert(order, i)
+			end
+			table.sort(order, function(a, b)
+				return Ideas.value(p.ideas[a]) > Ideas.value(p.ideas[b])
+			end)
+			Studio.make(p, order[1], order[2], order[3], t)
+			local proj = p.project :: any
+			local spent = 4 -- picking
+			for slot, c in proj.ideas do
+				local d = Ideas.difficulty(c)
+				for _ = 0, retries do
+					spent += microSeconds(d)
+					if rng:chance(Career.winChance(skill, d)) then
+						Studio.result(p, slot, true)
+						break
 					end
+					Studio.result(p, slot, false)
 				end
 			end
+			busy = math.ceil(spent)
 		end
-		while p.rp >= Tuning.TrainRp * 2 and p.money > payroll * 4 + Tuning.TrainMoney do
-			local weakest, wv = p.staff[1], math.huge
-			for _, s in p.staff do
-				if Crew.total(s.skills) < wv then
-					weakest, wv = s, Crew.total(s.skills)
-				end
-			end
-			local low, lk = math.huge, "code"
-			for _, k in Crew.SKILLS do
-				if (weakest.skills :: any)[k] < low then
-					low, lk = (weakest.skills :: any)[k], k
-				end
-			end
-			if not Studio.train(p, weakest.id, lk) then
+		-- upgrades: the cheaper one
+		local guard = 0
+		while guard < 20 do
+			guard += 1
+			local cs = if Studio.speedMaxed(p) then math.huge else Studio.upgradeCost("speed", p.upgrades.speed)
+			local cl = Studio.upgradeCost("luck", p.upgrades.luck)
+			local k = if cs <= cl then "speed" else "luck"
+			if not Studio.buyUpgrade(p, k) then
 				break
 			end
+			firstUpgrade = firstUpgrade or t
 		end
-		-- pizza when tired
-		for _, s in p.staff do
-			if s.energy < 30 and Studio.canParty(p) and p.money > payroll * 2 then
-				Studio.party(p)
-				break
-			end
-		end
-		-- move and advertise
-		local nextOffice = Tuning.Offices[p.office + 1]
-		if nextOffice and p.fans >= nextOffice.fans and p.money > nextOffice.cost + (payroll + nextOffice.rent) * 8 then
-			Studio.move(p)
-			say(string.format("  %s: moved to office %d", Calendar.label(p.week), p.office))
-		end
-		if p.money > 60000 * p.office and Studio.canAd(p) then
-			Studio.ad(p)
-		end
-		-- minigames: spend every push (the four scores in turn), squash bugs whenever allowed
-		local cur = p.project
-		if mini and cur then
-			while cur.pushes > 0 do
-				local kind = Minigames.PUSH_ORDER[cur.played % #Minigames.PUSH_ORDER + 1]
-				Minigames.start(p, kind)
-				Minigames.finish(p, kind, mini)
-			end
-			if Minigames.canStart(p, "bugs") then
-				Minigames.start(p, "bugs")
-				Minigames.finish(p, "bugs", mini)
-			end
-		end
-		local events = Studio.week(p, rng)
-		for _, e in events do
-			if e.kind == "award" then
-				say(string.format("  awards %d: %s %s (%d)", e.year or 0, e.award or "", e.title or "", e.total or 0))
-			end
-		end
-		minMoney = math.min(minMoney, p.money)
-		if Calendar.isYearEnd(p.week - 1) then
-			local y = Calendar.year(p.week - 1)
-			local sum, n = 0, 0
-			for _, r in p.releases do
-				if Calendar.year(r.week) == y then
-					sum += r.total
-					n += 1
-				end
-			end
-			local row = { year = y, money = p.money, fans = p.fans, staff = #p.staff, office = p.office, games = n, avg = if n > 0 then sum / n else 0, rp = p.rp }
-			table.insert(yearly, row)
-			say(string.format("Y%d money %.0f fans %.0f staff %d office %d games %d avg total %.1f rp %d", y, p.money, p.fans, #p.staff, p.office, n, row.avg, p.rp))
+		if t % 600 == 0 then
+			local nextCost = math.min(if Studio.speedMaxed(p) then math.huge else Studio.upgradeCost("speed", p.upgrades.speed), Studio.upgradeCost("luck", p.upgrades.luck))
+			local row = { t = t, coins = p.coins, rate = p.rate, games = p.stats.games, speed = p.upgrades.speed, luck = p.upgrades.luck, best = p.stats.best, wait = (nextCost - p.coins) / math.max(1e-9, p.rate) }
+			table.insert(timeline, row)
+			say(string.format("%3dmin coins %s rate %.1f/s games %d speed %d (%.1fs) luck %d (x%.1f) best 1 in %d next upgrade in %.0fs", t // 60, tostring(math.floor(p.coins)), p.rate, p.stats.games, p.upgrades.speed, Studio.rollEvery(p), p.upgrades.luck, Studio.luck(p), p.stats.best, row.wait))
 		end
 	end
-	return { profile = p, yearly = yearly, minMoney = minMoney }
+	return { profile = p, timeline = timeline, firstGame = firstGame, firstUpgrade = firstUpgrade, firstTier = firstTier }
 end
 
 return Career

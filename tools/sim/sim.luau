@@ -1,6 +1,7 @@
--- The main simulation: a new studio's first game end to end through the real client API (StateClient.request), the
--- crew, research, ads, the move to the Loft, settings, the tips banner, then a malicious client, then a second
--- player. Every check is an H.expect; the SIM REPORT must show 0 findings and 0 errors.
+-- The main simulation: a new studio's first game end to end through the real client and its UI (the idea team's
+-- first ideas, the board, Make, the three microgames played by MicroUI.debugAuto, Launch, the income), the upgrades,
+-- the founder's looks, the panels, settings, the tips banner, then a malicious client, then a second player. Every
+-- check is an H.expect; the SIM REPORT must show 0 findings and 0 errors.
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -8,7 +9,7 @@ local report = require("./report")
 local tree = require("./sources")
 E.verbose = false
 E.verboseUi = false
-E.dt = 0.1
+E.dt = 0.05
 H.patchMonetizationIds(tree)
 E.boot(tree)
 E.phase = "boot"
@@ -16,289 +17,239 @@ E.startServer()
 E.run(1)
 
 local Tuning = H.sharedServer("Config.Tuning")
-local Util = H.sharedServer("Logic.Util")
-local Crew = H.sharedServer("Logic.Crew")
+local Ideas = H.sharedServer("Logic.Ideas")
 local getD = I.getD
+local _ = getD
 
 ------------------------------------------------------------------ 1. a new studio
 E.phase = "join"
 local p = H.addPlayer({ userId = 9101, name = "Pixel" })
-E.run(2)
+E.run(1.5)
+local fx = H.watchFx(p)
 local s = H.session(p)
 H.expect(s ~= nil and s.ready, "join", "the session is ready")
 local prof = H.profile(p)
-H.expect(#prof.staff == Tuning.StartStaff, "join", "two developers to start", tostring(#prof.staff))
-H.expect(prof.money == Tuning.StartMoney, "join", "start money", tostring(prof.money))
-H.expect(prof.week == 0 and prof.office == 1 and prof.tut == 1, "join", "week 0, the garage, tips at step 1", string.format("%d %d %d", prof.week, prof.office, prof.tut))
+H.expect(#prof.team == Tuning.TeamSize, "join", "an idea team of three", tostring(#prof.team))
+H.expect(prof.coins == Tuning.StartCoins and prof.rate == 0, "join", "no coins, no income yet", string.format("%s %s", prof.coins, prof.rate))
+H.expect(prof.office == 1 and prof.tut == 1 and #prof.ideas == 0 and prof.project == nil, "join", "the garage, tips at step 1, an empty board")
 H.expect(s.plot == 1, "join", "the first player gets plot 1", tostring(s.plot))
 local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_1")
 local static = plot1 and plot1:FindFirstChild("Static")
--- Static.Office (a folder PlotService replaces as a whole) holds the office model (OfficeModels.build)
-local function officeOf(st)
-	local f = st and st:FindFirstChild("Office")
-	return f and f:FindFirstChild("Office")
-end
-local office = officeOf(static)
-H.expect(office ~= nil, "join", "the office is built under Plots.Plot_1.Static.Office")
-if office then
-	H.expect(office:GetAttribute("Tier") == 1, "join", "a tier 1 office")
-	H.expect(#office.Desks:GetChildren() == Tuning.Offices[1].desks, "join", "three desks in the garage", tostring(#office.Desks:GetChildren()))
-end
+local officeF = static and static:FindFirstChild("Office")
+local office = officeF and officeF:FindFirstChild("Office")
+H.expect(office ~= nil and office:GetAttribute("Tier") == 1, "join", "the garage is built under Plots.Plot_1.Static.Office")
 local WV = H.cmod(p, "Controllers.WorldView")
-H.expect(WV.ownRigCount() == 2, "join", "a rig per developer", tostring(WV.ownRigCount()))
-H.expect(WV.rigCount() == 2, "join", "no other studio on the street yet", tostring(WV.rigCount()))
+H.expect(WV.ownRigCount() == Tuning.TeamSize, "join", "a rig per team member", tostring(WV.ownRigCount()))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
-local devRigs = 0
-if dyn then
-	for _, c in dyn:GetChildren() do
-		if string.sub(c.Name, 1, 8) == "Dev_own:" then
-			devRigs += 1
-		end
-	end
-end
-H.expect(devRigs == 2, "join", "the rigs are in Workspace.PixelDynamic", tostring(devRigs))
-H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there too")
-local v = H.view(p)
-H.expect(v ~= nil and v.money == prof.money and v.plot == 1, "join", "the client has the view")
+H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")
+H.expect(H.buttonNamed(p, "MakeGame", true) ~= nil and H.buttonNamed(p, "MakeGame") == nil, "join", "the board card's Make a game! waits for three ideas")
 H.checkProfile(p, "join")
 H.checkMirror(p, "join")
 
------------------------------------------------------------------- 2. the first game
-E.phase = "first-game"
-local fx = H.watchFx(p)
-local money0 = prof.money
-local res = H.req(p, "project.start", { genre = "puzzle", topic = "animals", platform = "pc", size = "small", focus = "fun", seed = 0 })
-H.expect(res.ok, "game", "project.start", tostring(res.err))
-prof = H.profile(p)
-H.expect(prof.project ~= nil and prof.project.title == "Kitty Blocks", "game", "the project and its title", prof.project and prof.project.title)
-H.expect(prof.money == money0 - Tuning.Sizes.small.cost, "game", "the small game's cost is paid", tostring(money0 - prof.money))
-H.expect(prof.tut == 2, "game", "tips at step 2 once a game is in the works", tostring(prof.tut))
-local again = H.req(p, "project.start", { genre = "puzzle", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 0 })
-H.expect(not again.ok and again.err == "busy", "game", "one project at a time", tostring(again.err))
-local early = H.req(p, "project.release", {})
-H.expect(not early.ok and early.err == "not_built", "game", "no release before the build is done", tostring(early.err))
+------------------------------------------------------------------ 2. the idea team's ideas
+E.phase = "ideas"
+local function ideaFx(i0: number): number
+	local n = 0
+	for i = i0 + 1, #fx do
+		if fx[i].kind == "idea" then
+			n += 1
+		end
+	end
+	return n
+end
+local f0 = #fx
+E.run(Tuning.RollBase + 0.4)
+H.expect(prof.stats.rolls == 1 and #prof.ideas == 1, "ideas", "an idea after RollBase seconds", string.format("%d rolls, %d on the board", prof.stats.rolls, #prof.ideas))
+H.expect(ideaFx(f0) == 1, "ideas", "the client hears of it (Fx idea)")
+local c1 = prof.ideas[1]
+H.expect(Ideas.valid(c1) and prof.found[Ideas.key(c1)] == 1, "ideas", "it is in the Index")
+E.runUntil(function()
+	return #prof.ideas >= 3
+end, Tuning.RollBase * 3, 0.1)
 E.run(0.5)
-H.checkMirror(p, "started")
-local build = prof.project.buildWeeks
-E.run(Tuning.WeekSec * build + 0.5)
-prof = H.profile(p)
-H.expect(prof.project ~= nil and prof.project.phase == "polish", "game", "the build is done after its weeks", prof.project and string.format("%s %d", prof.project.phase, prof.project.weeksDone))
-local weeks, works, built = 0, 0, false
-for _, m in fx do
-	if m.kind == "week" then
-		weeks += 1
-		for _, e in m.events do
-			if e.kind == "work" then
-				works += 1
-				H.expect(type(e.pops) == "table" and #e.pops == #prof.staff, "game", "a popup per developer", tostring(e.pops and #e.pops))
-			elseif e.kind == "built" then
-				built = true
-			end
+H.expect(#prof.ideas >= 3, "ideas", "three ideas within three rolls", tostring(#prof.ideas))
+H.expect(H.buttonNamed(p, "MakeGame") ~= nil, "ideas", "Make a game! is on")
+H.checkMirror(p, "ideas")
+
+------------------------------------------------------------------ 3. making a game through the UI
+E.phase = "make"
+H.clickNamed(p, "MakeGame", { wait = 0.5 })
+H.expect(H.currentPanel(p) == "ideas", "make", "the idea board opens", tostring(H.currentPanel(p)))
+H.expect(H.buttonNamed(p, "Make", true) ~= nil and H.buttonNamed(p, "Make") == nil, "make", "Make is off until three are picked")
+local picks = { prof.ideas[1], prof.ideas[2], prof.ideas[3] }
+for i = 1, 3 do
+	H.clickNamed(p, "Pick_" .. i, { wait = 0.2 })
+end
+H.clickNamed(p, "Make", { wait = 1 })
+local proj = prof.project
+H.expect(proj ~= nil, "make", "the game is being made")
+if proj then
+	for i = 1, 3 do
+		H.expect(Ideas.key(proj.ideas[i]) == Ideas.key(picks[i]), "make", "idea " .. i .. " is the one picked")
+	end
+	H.expect(proj.won[1] == -1 and proj.won[2] == -1 and proj.won[3] == -1, "make", "no minigame played yet")
+end
+H.expect(prof.tut == 2, "make", "the tips move on", tostring(prof.tut))
+H.expect(H.currentPanel(p) == nil, "make", "the board closes")
+H.expect(H.buttonNamed(p, "Play_1") ~= nil and H.buttonNamed(p, "PlayAll") ~= nil, "make", "the making card opens with its Play buttons")
+H.expect(H.buttonNamed(p, "Launch", true) ~= nil and H.buttonNamed(p, "Launch") == nil, "make", "Launch! waits for all three")
+
+------------------------------------------------------------------ 4. the three microgames and the launch
+E.phase = "play"
+local MUI = H.cmod(p, "UI.MicroUI")
+H.clickNamed(p, "PlayAll", { wait = 0.2 })
+H.expect(s.micro ~= nil and s.micro.slot == 1, "play", "the server started slot 1's microgame")
+E.run(1.2)
+H.expect(H.inClient(p, MUI.playing) ~= nil, "play", "the client plays it", tostring(H.inClient(p, MUI.playing)))
+E.runUntil(function()
+	H.inClient(p, MUI.debugAuto)
+	local pr = prof.project
+	return pr ~= nil and pr.won[1] >= 0 and pr.won[2] >= 0 and pr.won[3] >= 0 and H.buttonNamed(p, "Launch") ~= nil
+end, 120, 0.05)
+proj = prof.project
+local wins = 0
+if proj then
+	for i = 1, 3 do
+		H.expect(proj.won[i] >= 0, "play", "slot " .. i .. " played (Play all chains them)", tostring(proj.won[i]))
+		if proj.won[i] == 1 then
+			wins += 1
 		end
 	end
 end
-H.expect(weeks >= build and works >= build, "game", "a week message with work every week", string.format("%d weeks, %d work", weeks, works))
-H.expect(built, "game", "the build-done event")
-H.expect(prof.tut == 3, "game", "tips at step 3 once the build is done", tostring(prof.tut))
-local s1 = prof.project.scores
-H.expect(s1.fun > 0 and s1.ideas > 0 and s1.graphics > 0 and s1.sound > 0, "game", "every score grew")
-H.expect(prof.rp > 0, "game", "research points from the work", tostring(prof.rp))
-H.checkProfile(p, "built")
-H.checkMirror(p, "built")
-res = H.req(p, "project.release", {})
-H.expect(res.ok, "game", "project.release", tostring(res.err))
-local r = res.data
-if H.expect(type(r) == "table" and type(r.reviews) == "table", "game", "the release comes back with its reviews") then
-	local sum = 0
-	for _, x in r.reviews do
-		H.expect(x >= 1 and x <= 10, "game", "a review in 1..10", tostring(x))
-		sum += x
-	end
-	H.expect(#r.reviews == 4 and sum == r.total, "game", "four reviews summing to the total")
-	H.log("released %s: %s = %d (%s), peak %d", r.title, table.concat(r.reviews, " "), r.total, r.match, r.peak)
-end
-prof = H.profile(p)
-H.expect(prof.project == nil and #prof.releases == 1 and prof.releases[1].onSale, "game", "on sale, no project left")
-H.expect(prof.matches["puzzle|animals"] == "great", "game", "the match is learned", tostring(prof.matches["puzzle|animals"]))
-H.expect(prof.stats.games == 1 and prof.tut == 4, "game", "stats and tips step 4", string.format("%d %d", prof.stats.games, prof.tut))
-local fans0, rev0 = prof.fans, prof.releases[1].revenue
-E.run(Tuning.WeekSec * 3 + 0.2)
-prof = H.profile(p)
-local rel = prof.releases[1]
-H.expect(rel.copies > 0 and rel.revenue > rev0 and rel.weeks >= 3, "game", "it sells week after week", string.format("%d copies, $%d, %d weeks", rel.copies, rel.revenue, rel.weeks))
-H.expect(prof.fans > fans0, "game", "fans from the sales", string.format("%d -> %d", fans0, prof.fans))
-H.checkProfile(p, "selling")
-H.checkMirror(p, "selling")
+H.expect(wins >= 1, "play", "the auto player wins some", tostring(wins))
+H.expect(s.micro == nil, "play", "no microgame left open on the server")
+local launchB = H.buttonNamed(p, "Launch")
+H.expect(launchB ~= nil, "play", "Launch! is on")
+local cards = if proj then proj.ideas else {}
+H.clickNamed(p, "Launch", { wait = 1 })
+H.expect(prof.project == nil and #prof.games == 1 and prof.stats.games == 1, "play", "launched: one game")
+H.expect(math.abs(prof.rate - Ideas.rate(cards, wins)) < 1e-6, "play", "its income is the ideas' worth with the wins' boost", string.format("%s vs %s", prof.rate, Ideas.rate(cards, wins)))
+H.expect(prof.tut == 3, "play", "the tips move on", tostring(prof.tut))
+H.expect(H.buttonNamed(p, "Nice") ~= nil, "play", "the launch card shows")
+H.clickNamed(p, "Nice", { wait = 0.5 })
+H.expect(H.buttonNamed(p, "Nice") == nil and not H.inClient(p, MUI.isOpen), "play", "Nice! closes it")
+H.checkProfile(p, "play")
+H.checkMirror(p, "play")
 
------------------------------------------------------------------- 3. the crew
-E.phase = "crew"
-v = H.view(p)
-H.expect(#v.candidates == Tuning.Candidates, "crew", "three candidates this month", tostring(#v.candidates))
-local n0 = #prof.staff
-res = H.req(p, "staff.hire", { i = 1 })
-H.expect(res.ok, "crew", "hire a candidate", tostring(res.err))
-prof = H.profile(p)
-H.expect(#prof.staff == n0 + 1 and prof.tut == 0, "crew", "a third developer, the tips banner done", string.format("%d %d", #prof.staff, prof.tut))
-res = H.req(p, "staff.hire", { i = 1 })
-H.expect(not res.ok and res.err == "full", "crew", "the garage has three desks", tostring(res.err))
-local newId = prof.staff[#prof.staff].id
-res = H.req(p, "staff.fire", { id = newId })
-H.expect(res.ok and #H.profile(p).staff == n0, "crew", "let a developer go", tostring(res.err))
-res = H.req(p, "staff.fire", { id = 99999 })
-H.expect(not res.ok and res.err == "bad_payload", "crew", "letting go of nobody", tostring(res.err))
-res = H.req(p, "staff.hire", { i = 1 })
-H.expect(res.ok, "crew", "hire again", tostring(res.err))
--- training happens in the Staff panel, which holds the clock (a week passing mid-request would pay and tire)
-H.signal(p, "pause", { key = "menu", on = true })
-E.run(0.2)
-prof = H.profile(p)
-prof.rp = 100
-local dev = prof.staff[1]
-local code0, e0, rp0, m0 = dev.skills.code, dev.energy, prof.rp, prof.money
-res = H.req(p, "staff.train", { id = dev.id, skill = "code" })
-H.expect(res.ok, "crew", "train", tostring(res.err))
-H.expect(dev.skills.code > code0 and prof.rp == rp0 - Tuning.TrainRp and prof.money == m0 - Tuning.TrainMoney, "crew", "training costs and pays", string.format("code %d -> %d", code0, dev.skills.code))
-H.expect(dev.energy == math.max(0, e0 - Tuning.TrainEnergy), "crew", "training tires", string.format("%g -> %g", e0, dev.energy))
-H.signal(p, "pause", { key = "menu", on = false })
-H.expect(dev.salary == Crew.salary(dev.skills), "crew", "the salary follows the skills")
-res = H.req(p, "staff.party", {})
-H.expect(res.ok, "crew", "a pizza party", tostring(res.err))
-for _, x in H.profile(p).staff do
-	H.expect(x.energy == Tuning.EnergyMax, "crew", "the party fills everyone's energy", tostring(x.energy))
-end
-res = H.req(p, "staff.party", {})
-H.expect(not res.ok and res.err == "cooldown", "crew", "one party a month", tostring(res.err))
-E.run(0.3)
-H.checkProfile(p, "crew")
-H.checkMirror(p, "crew")
-
------------------------------------------------------------------- 4. research and ads
-E.phase = "research"
-prof = H.profile(p)
-prof.rp = 100
-res = H.req(p, "research.genre", { id = "rpg" })
-H.expect(res.ok and prof.genres.rpg and prof.rp == 100 - Tuning.GenreRp[2], "research", "unlock a genre", tostring(res.err))
-res = H.req(p, "research.genre", { id = "rpg" })
-H.expect(not res.ok and res.err == "max", "research", "a genre once", tostring(res.err))
-res = H.req(p, "research.topic", { id = "robots" })
-H.expect(res.ok and prof.topics.robots, "research", "unlock a topic", tostring(res.err))
-res = H.req(p, "research.genre", { id = "nope" })
-H.expect(not res.ok and res.err == "bad_payload", "research", "an unknown genre", tostring(res.err))
-prof.rp = 0
-res = H.req(p, "research.genre", { id = "horror" })
-H.expect(not res.ok and res.err == "rp", "research", "not enough research points", tostring(res.err))
-local fansAd = prof.fans
-res = H.req(p, "office.ad", {})
-H.expect(res.ok and prof.fans == fansAd + Tuning.AdFans * prof.office, "research", "an ad campaign brings fans", tostring(res.err))
-res = H.req(p, "office.ad", {})
-H.expect(not res.ok and res.err == "cooldown", "research", "one campaign a month", tostring(res.err))
-
------------------------------------------------------------------- 5. the Loft
-E.phase = "office"
-res = H.req(p, "office.move", {})
-H.expect(not res.ok and res.err == "fans", "office", "the Loft needs fans", tostring(res.err))
-prof = H.profile(p)
-prof.fans = Tuning.Offices[2].fans + 100
-prof.money = Tuning.Offices[2].cost + 50000
-H.push(p)
-res = H.req(p, "office.move", {})
-H.expect(res.ok and prof.office == 2, "office", "move to the Loft", tostring(res.err))
-E.run(1)
-static = plot1:FindFirstChild("Static")
-office = officeOf(static)
-H.expect(office ~= nil and office:GetAttribute("Tier") == 2, "office", "the office is rebuilt as the Loft")
-H.expect(office ~= nil and #office.Desks:GetChildren() == Tuning.Offices[2].desks, "office", "five desks", tostring(office and #office.Desks:GetChildren()))
-local statics, olds, offices = 0, 0, 0
-for _, c in plot1:GetChildren() do
-	if c.Name == "Static" then
-		statics += 1
+------------------------------------------------------------------ 5. the income
+E.phase = "income"
+local coins0, fx0 = prof.coins, #fx
+E.run(3.05)
+local gained = prof.coins - coins0
+H.expect(gained >= math.floor(prof.rate * 2) - 1 and gained <= math.ceil(prof.rate * 4) + 1, "income", "about three seconds of income", string.format("+%d at %.2f a second", gained, prof.rate))
+local paid = 0
+for i = fx0 + 1, #fx do
+	if fx[i].kind == "coins" then
+		paid += 1
 	end
 end
-for _, c in static:GetChildren() do
-	if c.Name == "Old" then
-		olds += 1
-	elseif c.Name == "Office" then
-		offices += 1
-	end
-end
-H.expect(statics == 1 and olds == 0 and offices == 1, "office", "the old office came down", string.format("%d static, %d old, %d offices", statics, olds, offices))
-local CC = H.cmod(p, "Controllers.CameraController")
-H.expect(CC.view().tier == 2, "office", "the client's camera frames the Loft", tostring(CC.view().tier))
-H.expect(WV.ownRigCount() == #prof.staff, "office", "the rigs moved with the crew", tostring(WV.ownRigCount()))
-res = H.req(p, "office.move", {})
-H.expect(not res.ok and (res.err == "fans" or res.err == "money"), "office", "the Studio Floor needs more", tostring(res.err))
-res = H.req(p, "settings.set", { k = "pixel", v = "low" })
-H.expect(res.ok and prof.settings.pixel == "low", "office", "settings.set pixel", tostring(res.err))
-res = H.req(p, "settings.set", { k = "pixel", v = "ultra" })
-H.expect(not res.ok and res.err == "bad_payload", "office", "an unknown tier", tostring(res.err))
-H.req(p, "settings.set", { k = "pixel", v = "high" })
-prof.tut = 2
-res = H.req(p, "tut.next", {})
-H.expect(res.ok and prof.tut == 0, "office", "tut.next dismisses the tips", tostring(prof.tut))
+H.expect(paid >= 2, "income", "the client hears of each payment (Fx coins)", tostring(paid))
+E.run(0.1)
+local v = H.view(p)
+H.expect(v ~= nil and math.abs(v.coins - prof.coins) <= math.ceil(prof.rate) + 1, "income", "the view's coins follow the payments", string.format("%s vs %s", v and v.coins, prof.coins))
+
+------------------------------------------------------------------ 6. upgrades through the UI
+E.phase = "upgrades"
+prof.coins = 1e6
+H.push(p, 0.4)
+H.openPanel(p, "upgrades")
 E.run(0.4)
-H.checkProfile(p, "office")
-H.checkMirror(p, "office")
+local every0 = H.view(p).rollEvery
+H.clickNamed(p, "Buy_speed", { wait = 0.5 })
+H.expect(prof.upgrades.speed == 1, "upgrades", "roll speed level 1", tostring(prof.upgrades.speed))
+local spent = 1e6 - prof.coins
+local price = H.sharedServer("Logic.Studio").upgradeCost("speed", 0)
+H.expect(spent <= price and spent >= price - math.ceil(prof.rate * 1.5) - 1, "upgrades", "its price paid (an income tick may land meanwhile)", string.format("%d spent, price %d", spent, price))
+H.expect(H.view(p).rollEvery < every0, "upgrades", "ideas come faster", string.format("%s -> %s", every0, H.view(p).rollEvery))
+H.clickNamed(p, "Buy_luck", { wait = 0.5 })
+H.expect(prof.upgrades.luck == 1 and math.abs(H.view(p).luck - (1 + Tuning.LuckStep)) < 1e-9, "upgrades", "luck level 1")
+H.closePanel(p)
+prof.coins = 0
+local res = H.req(p, "upgrade.buy", { k = "luck" })
+H.expect(not res.ok and res.err == "money", "upgrades", "no coins: refused", tostring(res.err))
+H.checkProfile(p, "upgrades")
 
------------------------------------------------------------------- 6. a malicious client
+------------------------------------------------------------------ 7. the founder's looks
+E.phase = "looks"
+local skin0 = prof.founder.skin
+H.openPanel(p, "looks")
+E.run(0.4)
+H.clickNamed(p, "Next_skin", { wait = 0.2 })
+H.clickNamed(p, "SaveLook", { wait = 0.6 })
+H.expect(prof.founder.skin == skin0 % 4 + 1, "looks", "the new skin is saved", string.format("%d -> %d", skin0, prof.founder.skin))
+H.expect(p:GetAttribute("Founder") == string.format("%d.%d.%d.%d", prof.founder.skin, prof.founder.hair, prof.founder.style, prof.founder.shirt), "looks", "every client sees the new look (the Founder attribute)", tostring(p:GetAttribute("Founder")))
+H.closePanel(p)
+
+------------------------------------------------------------------ 8. the other panels, settings, tips
+E.phase = "panels"
+local errs0 = #E.errors
+for _, name in { "ideas", "index", "games", "upgrades", "looks" } do
+	H.openPanel(p, name)
+	E.run(0.3)
+	H.expect(H.currentPanel(p) == name, "panels", name .. " opens")
+end
+H.closePanel(p)
+H.expect(#E.errors == errs0, "panels", "no script errors in the panels", tostring(#E.errors - errs0))
+res = H.req(p, "settings.set", { k = "pixel", v = "low" })
+H.expect(res.ok and prof.settings.pixel == "low", "panels", "the pixel tier setting")
+res = H.req(p, "settings.set", { k = "pixel", v = "ultra" })
+H.expect(not res.ok and res.err == "bad_payload", "panels", "an unknown tier refused")
+H.req(p, "settings.set", { k = "pixel", v = "high" })
+E.run(0.4)
+H.expect(H.buttonNamed(p, "TipsOk") ~= nil, "panels", "the tips banner shows")
+H.clickNamed(p, "TipsOk", { wait = 0.5 })
+H.expect(prof.tut == 0 and H.buttonNamed(p, "TipsOk") == nil, "panels", "OK puts the tips away for good")
+H.checkProfile(p, "panels")
+H.checkMirror(p, "panels")
+
+------------------------------------------------------------------ 9. a malicious client
 E.phase = "malicious"
-prof = H.profile(p)
-prof.money = 30000
 local function snap()
 	local q = H.profile(p)
-	return { money = q.money, fans = q.fans, rp = q.rp, staff = #q.staff, project = q.project ~= nil, releases = #q.releases, office = q.office, week = q.week }
+	local owned = 0
+	for _ in q.plot.owned do
+		owned += 1
+	end
+	return { project = q.project ~= nil, games = #q.games, speed = q.upgrades.speed, luck = q.upgrades.luck, skin = q.founder.skin, owned = owned, placed = #q.plot.placed, tut = q.tut, office = q.office }
 end
 local function expectRefused(label, ok, out, err)
 	H.expect(ok and type(out) == "table" and out.ok == false and out.err == err, "malicious", label .. " refused with " .. err, string.format("%s %s", tostring(ok), type(out) == "table" and tostring(out.err) or tostring(out)))
 end
--- pause the clock so the snapshots compare like with like
-H.signal(p, "pause", { key = "sim", on = true })
-E.run(0.3)
 local before = snap()
-local ok, out = H.raw(p, "money.give", { n = 1e9 })
+local ok, out = H.raw(p, "coins.give", { n = 1e9 })
 expectRefused("an unknown action", ok, out, "unknown_action")
 ok, out = H.rawArgs(p, nil)
 expectRefused("no action", ok, out, "unknown_action")
-ok, out = H.raw(p, "project.start", { genre = 5, topic = "space", platform = "pc", size = "small", focus = "fun", seed = 0 })
-expectRefused("a number for a genre", ok, out, "bad_payload")
-ok, out = H.raw(p, "staff.hire", { i = 0 / 0 })
+ok, out = H.raw(p, "project.start", { genre = "action" })
+expectRefused("the old studio's actions", ok, out, "unknown_action")
+ok, out = H.raw(p, "game.make", { a = 0 / 0, b = 1, c = 2 })
 expectRefused("NaN", ok, out, "bad_payload")
-ok, out = H.raw(p, "staff.hire", { i = math.huge })
+ok, out = H.raw(p, "game.make", { a = math.huge, b = 1, c = 2 })
 expectRefused("infinity", ok, out, "bad_payload")
-ok, out = H.raw(p, "research.genre", { id = string.rep("a", 100000) })
+ok, out = H.raw(p, "plot.buy", { id = string.rep("a", 100000) })
 expectRefused("a huge string", ok, out, "bad_payload")
-ok, out = H.raw(p, "project.release", { x = 1 })
+ok, out = H.raw(p, "game.launch", { x = 1 })
 expectRefused("an extra field", ok, out, "bad_payload")
-ok, out = H.rawArgs(p, "staff.party", "x")
+ok, out = H.rawArgs(p, "game.launch", "x")
 expectRefused("a string payload", ok, out, "bad_payload")
-ok, out = H.raw(p, "staff.train", { id = { 1 }, skill = "code" })
-expectRefused("a table for an id", ok, out, "bad_payload")
-ok, out = H.raw(p, "project.release", {})
-expectRefused("a release with no project", ok, out, "no_project")
-ok, out = H.raw(p, "project.start", { genre = "horror", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 0 })
-expectRefused("a locked genre", ok, out, "locked")
-ok, out = H.raw(p, "project.start", { genre = "action", topic = "space", platform = "cloud", size = "small", focus = "fun", seed = 0 })
-expectRefused("a platform not out yet", ok, out, "unavailable")
+ok, out = H.raw(p, "micro.start", { slot = { 1 } })
+expectRefused("a table for a slot", ok, out, "bad_payload")
+ok, out = H.raw(p, "game.launch", {})
+expectRefused("a launch with no game", ok, out, "no_project")
+ok, out = H.raw(p, "micro.start", { slot = 1 })
+expectRefused("a microgame with no game", ok, out, "no_project")
+ok, out = H.raw(p, "micro.finish", { token = 1, won = 1 })
+expectRefused("a finish with no microgame", ok, out, "busy")
+ok, out = H.raw(p, "game.make", { a = 1, b = 2, c = 16 })
+expectRefused("a board index past the board", ok, out, "bad_payload")
+ok, out = H.raw(p, "founder.set", { skin = 9, hair = 1, style = 1, shirt = 1 })
+expectRefused("a skin that does not exist", ok, out, "bad_payload")
+ok, out = H.raw(p, "upgrade.buy", { k = "coins" })
+expectRefused("an unknown upgrade", ok, out, "bad_payload")
+ok, out = H.raw(p, "plot.buy", { id = "castle" })
+expectRefused("unknown decor", ok, out, "bad_payload")
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
--- hiring into a full office
-prof.money = 1e6
-prof.candidates = Crew.candidates(Util.newRng(5), 1, 3)
-local hires = 0
-for _ = 1, 3 do
-	local okH, outH = H.raw(p, "staff.hire", { i = 1 })
-	if okH and outH.ok then
-		hires += 1
-	end
-end
-ok, out = H.raw(p, "staff.hire", { i = 1 })
-prof = H.profile(p)
-H.expect(#prof.staff == Tuning.Offices[2].desks, "malicious", "the Loft fills up", string.format("%d hired, %d staff", hires, #prof.staff))
-expectRefused("a hire with every desk taken", ok, out, "full")
--- no money: a large game is refused (and never takes the studio below zero)
-prof.money = 0
-ok, out = H.raw(p, "project.start", { genre = "action", topic = "space", platform = "pc", size = "large", focus = "fun", seed = 0 })
-expectRefused("a game the studio cannot pay for", ok, out, "money")
-H.expect(prof.money == 0 and prof.project == nil, "malicious", "nothing spent")
 -- a flood: 30 requests at once, the rate limit refuses most
 local results = {}
 H.inClient(p, function()
@@ -306,7 +257,7 @@ H.inClient(p, function()
 	local done = 0
 	for i = 1, 30 do
 		E.task.spawn(function()
-			results[i] = remote:InvokeServer("staff.party", {})
+			results[i] = remote:InvokeServer("tut.next", {})
 			done += 1
 		end)
 	end
@@ -321,13 +272,11 @@ for _, x in results do
 	end
 end
 H.expect(rated >= 30 - Tuning.RateLimitPerSec, "malicious", "the rate limit refuses a flood", string.format("%d of 30 refused", rated))
-prof.money = 30000
-H.signal(p, "pause", { key = "sim", on = false })
 E.run(0.5)
 H.checkProfile(p, "malicious")
 H.checkMirror(p, "malicious")
 
------------------------------------------------------------------- 7. a second player
+------------------------------------------------------------------ 10. a second player
 E.phase = "second"
 local q = H.addPlayer({ userId = 9102, name = "Byte" })
 E.run(3)
@@ -335,6 +284,7 @@ local sq = H.session(q)
 H.expect(sq ~= nil and sq.ready and sq.plot == 2, "second", "the second player gets plot 2", tostring(sq and sq.plot))
 H.expect(E.workspace.Plots:FindFirstChild("Plot_2") ~= nil, "second", "their office is built")
 H.expect(H.cmod(q, "Controllers.CameraController").view().plot == 2, "second", "their camera frames their own office")
+H.expect(H.cmod(p, "Controllers.WorldView").rigCount() >= Tuning.TeamSize * 2, "second", "the first client draws both teams")
 H.checkProfile(q, "second")
 H.checkMirror(q, "second")
 H.checkProfile(p, "end")

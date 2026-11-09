@@ -99,16 +99,12 @@ function Plot.buy(p: Profile, id: string): (boolean, any)
 	if p.plot.owned[id] then
 		return false, "max" :: ErrCode
 	end
-	if p.office < def.office then
-		return false, "locked" :: ErrCode
-	end
-	if p.money < def.price then
+	if p.coins < def.price then
 		return false, "money" :: ErrCode
 	end
-	p.money -= def.price
-	p.fans += def.fans
+	p.coins -= def.price
 	p.plot.owned[id] = true
-	return true, { fans = def.fans }
+	return true, nil
 end
 
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
@@ -145,22 +141,6 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 	end
 	table.remove(p.plot.placed, i)
 	return true, nil
-end
-
--- After the office changed (a move to a bigger office): the pieces that no longer fit go back in the box (they stay
--- owned). Returns how many went.
-function Plot.clean(p: Profile): number
-	local keep: { Piece } = {}
-	local gone = 0
-	for _, q in p.plot.placed do
-		if #keep < Plot.limit(p.office) and Plot.fits(p.office, keep, q.id, q.x, q.z, q.rot) then
-			table.insert(keep, q)
-		else
-			gone += 1
-		end
-	end
-	p.plot.placed = keep
-	return gone
 end
 
 return Plot

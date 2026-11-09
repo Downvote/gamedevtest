@@ -1,77 +1,70 @@
--- The content tables agree with each other and with Tuning (GAME_DESIGN 5-7).
+-- The content tables agree with each other and with Tuning (GAME_DESIGN 4, 5, 9).
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
-local Genres = require("../../build/luautest/shared/Data/Genres")
-local Topics = require("../../build/luautest/shared/Data/Topics")
-local Matches = require("../../build/luautest/shared/Data/Matches")
-local Platforms = require("../../build/luautest/shared/Data/Platforms")
-local Critics = require("../../build/luautest/shared/Data/Critics")
+local IdeasData = require("../../build/luautest/shared/Data/Ideas")
+local Modifiers = require("../../build/luautest/shared/Data/Modifiers")
 local Office = require("../../build/luautest/shared/Data/Office")
 local Palette = require("../../build/luautest/shared/Data/Palette")
 local Looks = require("../../build/luautest/shared/Data/Looks")
 local Street = require("../../build/luautest/shared/Data/Street")
 local Decor = require("../../build/luautest/shared/Data/Decor")
 return function()
-	T.it("genres and topics: unique ids, names, tiers with a cost, five title words", function()
-		for _, list in { Genres.list, Topics.list } do
-			local seen = {}
-			for _, d in list :: { any } do
-				T.truthy(not seen[d.id], "unique " .. d.id)
-				seen[d.id] = true
-				T.truthy(#d.name > 0 and #d.words == 5, d.id)
-				T.truthy(d.tier >= 1 and d.tier <= 3, d.id .. " tier")
-			end
-		end
-		T.eq(#Genres.list, 10)
-		T.eq(#Topics.list, 14)
-		T.truthy(Palette.colors[Genres.byId.action.color] ~= nil)
-		for _, g in Genres.list do
-			T.truthy(Palette.colors[g.color] ~= nil, g.id .. " colour")
-		end
-	end)
-	T.it("matches: every genre, real topics, no topic twice", function()
-		for _, g in Genres.list do
-			local m = Matches.byGenre[g.id]
-			T.truthy(m ~= nil, g.id)
-			local seen = {}
-			for _, list in { m.great, m.good, m.poor } do
-				for _, t in list do
-					T.truthy(Topics.byId[t] ~= nil, g.id .. ": " .. t)
-					T.truthy(not seen[t], g.id .. ": " .. t .. " once")
-					seen[t] = true
-				end
-			end
-			T.truthy(#m.great >= 2, g.id .. " has great topics")
-		end
-		for g in Matches.byGenre do
-			T.truthy(Genres.byId[g] ~= nil, "match table genre " .. g)
-		end
-	end)
-	T.it("platforms: real genres, a PC from year 1, colours", function()
-		T.eq(Platforms.list[1].id, "pc")
-		T.eq(Platforms.list[1].from, 1)
-		T.eq(Platforms.list[1].licence, 0)
-		for _, p in Platforms.list do
-			for _, g in p.loves do
-				T.truthy(Genres.byId[g] ~= nil, p.id .. " loves " .. g)
-			end
-			T.truthy(p.to == 0 or p.to > p.from, p.id .. " years")
-			T.truthy(Palette.colors[p.color] ~= nil and Palette.colors[p.accent] ~= nil, p.id .. " colours")
-		end
-	end)
-	T.it("critics: one per score", function()
+	T.it("ideas: unique ids, names, kinds, odds, engines, words, colours", function()
 		local seen = {}
-		for _, c in Critics.list do
-			seen[c.axis] = true
+		local engines = { dodge = 1, pick = 1, mash = 1, whack = 1, timing = 1, jump = 1, catch = 1, sequence = 1, rhythm = 1, slice = 1, hide = 1, stack = 1 }
+		local used: { [string]: number } = {}
+		for _, d in IdeasData.list do
+			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
+			seen[d.id] = true
+			T.truthy(#d.name > 0 and (d.kind == "Genre" or d.kind == "Theme"), d.id .. " name and kind")
+			T.truthy(d.odds >= 2 and d.odds == math.floor(d.odds), d.id .. " odds")
+			T.truthy(engines[d.micro] ~= nil and #d.variant > 0 and #d.word > 0, d.id .. " microgame")
+			T.truthy(d.reuse >= 0 and d.reuse <= 2, d.id .. " reuse")
+			T.truthy(#d.words >= 2, d.id .. " title words")
+			T.truthy(Palette.ui[d.color] or Palette.colors[d.color] or Palette.axis[d.color], d.id .. " colour")
+			used[d.micro] = (used[d.micro] or 0) + 1
 		end
-		T.eq(#Critics.list, 4)
-		T.truthy(seen.fun and seen.ideas and seen.graphics and seen.sound)
+		T.eq(#IdeasData.list, 24)
+		for e in engines do
+			T.truthy((used[e] or 0) >= 1, "engine " .. e .. " used")
+		end
+		-- an idea that shares its engine with a commoner one plays it harder (GAME_DESIGN 5)
+		local first: { [string]: number } = {}
+		for _, d in IdeasData.list do
+			if first[d.micro] then
+				T.truthy(d.reuse >= 1, d.id .. " reuses " .. d.micro .. " a step harder")
+			else
+				first[d.micro] = d.odds
+			end
+		end
 	end)
-	T.it("offices: one plan per Tuning office, its desks, everything inside the room", function()
-		T.eq(#Office.plans, #Tuning.Offices)
+	T.it("modifiers: Plain first, rarer ones pay more, known effects", function()
+		local effects = { speed = true, tiny = true, shake = true, glitch = true, dark = true }
+		T.eq(Modifiers.list[1].id, "plain")
+		T.eq(Modifiers.list[1].odds, 1)
+		for i, m in Modifiers.list do
+			if i > 1 then
+				T.truthy(m.odds > Modifiers.list[i - 1].odds and m.mult > Modifiers.list[i - 1].mult, m.id .. " rarer pays more")
+				T.truthy(#m.effects >= 1, m.id .. " changes play")
+			end
+			for _, e in m.effects do
+				T.truthy(effects[e], m.id .. " effect " .. e)
+			end
+			T.truthy(Palette.ui[m.color] or Palette.colors[m.color] or Palette.axis[m.color], m.id .. " colour")
+		end
+	end)
+	T.it("tiers: names and colours for every tier", function()
+		T.eq(#Tuning.TierNames, #Tuning.TierOneIn + 1)
+		T.eq(#Tuning.TierColors, #Tuning.TierNames)
+		for i = 2, #Tuning.TierOneIn do
+			T.truthy(Tuning.TierOneIn[i] > Tuning.TierOneIn[i - 1])
+		end
+	end)
+	T.it("offices: a plan per tier, desks for the idea team, everything inside the room", function()
+		T.truthy(#Office.plans >= 1)
+		T.truthy(#Office.plans[1].desks >= Tuning.TeamSize, "the garage seats the idea team")
 		for i, plan in Office.plans do
 			T.eq(plan.tier, i)
-			T.eq(#plan.desks, Tuning.Offices[i].desks, plan.name .. " desks")
 			T.truthy(Palette.themes[plan.theme] ~= nil, plan.name .. " theme")
 			local hw, hd = Office.DESK_W / 2, Office.DESK_D / 2
 			for k, a in plan.desks do
@@ -88,10 +81,6 @@ return function()
 			end
 			T.truthy(#Office.outlinePts(i, 0, 0) == #plan.OUTLINE * 24)
 		end
-		T.truthy(Tuning.Offices[1].cost == 0 and Tuning.Offices[1].fans == 0)
-		for i = 2, #Tuning.Offices do
-			T.truthy(Tuning.Offices[i].desks > Tuning.Offices[i - 1].desks and Tuning.Offices[i].cost > Tuning.Offices[i - 1].cost)
-		end
 	end)
 	T.it("looks: palette keys", function()
 		for _, list in { Looks.skin, Looks.hair, Looks.shirt } do
@@ -106,7 +95,7 @@ return function()
 	T.it("the street: plots inside their lots, the office on its plot, the door's path to the road", function()
 		T.eq(Street.MAX, Tuning.MaxPlots)
 		local lot = Street.LOT
-		for tier = 1, #Tuning.Offices do
+		for tier = 1, #Office.plans do
 			local p = Street.plot(tier)
 			local plan = Office.plan(tier)
 			T.truthy(p.x0 >= lot.x0 and p.x1 <= lot.x1 and p.z0 >= lot.z0 and p.z1 <= lot.z1, "plot " .. tier .. " inside the lot")
@@ -135,13 +124,12 @@ return function()
 		end
 		T.eq(Street.plotAt(0, 200), 0)
 	end)
-	T.it("decor: unique ids, prices, fans, footprints, offices", function()
+	T.it("decor: unique ids, prices, footprints", function()
 		local seen = {}
 		for _, d in Decor.list do
 			T.truthy(not seen[d.id], d.id)
 			seen[d.id] = true
-			T.truthy(d.price > 0 and d.fans > 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id)
-			T.truthy(d.office >= 1 and d.office <= #Tuning.Offices, d.id .. " office")
+			T.truthy(d.price > 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id)
 		end
 	end)
 end

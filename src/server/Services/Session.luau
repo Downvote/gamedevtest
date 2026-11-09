@@ -1,7 +1,8 @@
 --!strict
--- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the clock, and what
--- the client is sent. The client mirrors the profile through State messages (the whole ClientView, sent when
--- something changed: Session.dirty) and shows Fx messages (a week's events).
+-- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the idea team's and
+-- the income's clocks, the microgame in play, and what the client is sent. The client mirrors the profile through
+-- State messages (the whole ClientView, sent when something changed: Session.dirty) and shows Fx messages (a new
+-- idea, the coins the games just paid).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -16,16 +17,17 @@ export type S = {
 	plot: number,
 	rng: Types.Rng,
 	ready: boolean,
-	clock: number, -- seconds toward the next game week
-	paused: { [string]: boolean }, -- the client's reasons to hold the clock (a full-screen menu)
+	rollClock: number, -- seconds toward the idea team's next idea
+	payClock: number, -- seconds toward the next income payment
+	coinFrac: number, -- income earned but not yet a whole coin
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
-	mini: Mini?, -- the minigame in play (GAME_DESIGN 14): its clock is held until it finishes
+	micro: Micro?, -- the microgame in play (GAME_DESIGN 5)
 }
 
--- A started minigame: what it is, the token its finish must carry, when it started (os.clock) and its content seed.
-export type Mini = { kind: string, token: number, at: number, seed: number }
+-- A started microgame: its slot (1..3), the token its finish must carry, when it started (os.clock), its seed.
+export type Micro = { slot: number, token: number, at: number, seed: number }
 
 local Session = {}
 
@@ -38,8 +40,9 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		plot = plot,
 		rng = Util.newRng(Util.hash32(tostring(player.UserId) .. ":" .. tostring(os.time()))),
 		ready = false,
-		clock = 0,
-		paused = {},
+		rollClock = 0,
+		payClock = 0,
+		coinFrac = 0,
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
@@ -60,39 +63,25 @@ function Session.all(): { [Player]: S }
 	return sessions
 end
 
-function Session.isPaused(s: S): boolean
-	return next(s.paused) ~= nil
-end
-
--- What the client sees: the profile minus the old releases, plus derived fields.
+-- What the client sees: the profile plus derived fields.
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
-	local releases = {}
-	local n = #p.releases
-	for i = math.max(1, n - Tuning.ViewReleases + 1), n do
-		table.insert(releases, p.releases[i])
-	end
 	return {
-		money = p.money,
-		fans = p.fans,
-		rp = p.rp,
-		week = p.week,
-		office = p.office,
-		staff = p.staff,
-		candidates = p.candidates,
+		coins = p.coins,
+		rate = p.rate,
+		ideas = p.ideas,
+		found = p.found,
 		project = p.project,
-		releases = releases,
-		genres = p.genres,
-		topics = p.topics,
-		matches = p.matches,
-		awards = p.awards,
+		games = p.games,
+		upgrades = p.upgrades,
+		team = p.team,
+		office = p.office,
 		tut = p.tut,
 		stats = p.stats,
 		settings = p.settings,
 		plot = s.plot,
-		canAd = Studio.canAd(p),
-		canParty = Studio.canParty(p),
-		paused = Session.isPaused(s),
+		rollEvery = Studio.rollEvery(p),
+		luck = Studio.luck(p),
 		founder = p.founder,
 		decor = p.plot,
 	}

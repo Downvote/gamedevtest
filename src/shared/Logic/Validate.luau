@@ -1,33 +1,28 @@
 --!strict
 -- Payload checks for every client request (docs/ARCHITECTURE.md 7.3). Pure. Router refuses anything that does not
 -- pass with "bad_payload" before a service sees it. A schema maps field -> kind:
---   "id"    a string of 1-24 letters, digits or underscores (genre, topic, platform ids...)
---   "axis"  one of Types.Axis
---   "skill" one of Types.SkillKey
---   "size"  a Tuning.Sizes key
+--   "id"    a string of 1-24 letters, digits or underscores (a decor id ...)
+--   "upgrade" "speed" or "luck"
+--   "slot"  a minigame slot: 1, 2 or 3
+--   "bit"   0 or 1
 --   "int"   a whole number in [0, 1e6]
---   "small" a whole number in [1, 16]
+--   "small" a whole number in [1, 16] (a board index, a look index)
 --   "key"   a settings key ("pixel")
 --   "coord" a whole number in [-64, 64] (a plot-local stud)
 --   "rot"   a quarter turn: 0, 90, 180 or 270
 --   "index" a whole number in [1, 64] (a placed piece)
 --   "any"   anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
-local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 local Validate = {}
 
 local ACTIONS: { [string]: { [string]: string } } = {
-	["project.start"] = { genre = "id", topic = "id", platform = "id", size = "size", focus = "axis", seed = "int" },
-	["project.release"] = {},
-	["staff.hire"] = { i = "small" },
-	["staff.fire"] = { id = "int" },
-	["staff.train"] = { id = "int", skill = "skill" },
-	["staff.party"] = {},
-	["research.genre"] = { id = "id" },
-	["research.topic"] = { id = "id" },
-	["office.move"] = {},
-	["office.ad"] = {},
+	["game.make"] = { a = "small", b = "small", c = "small" },
+	["game.launch"] = {},
+	["micro.start"] = { slot = "slot" },
+	["micro.finish"] = { token = "int", won = "bit" },
+	["upgrade.buy"] = { k = "upgrade" },
+	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
 	["tut.next"] = {},
 	["plot.buy"] = { id = "id" },
@@ -35,13 +30,10 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.move"] = { i = "index", x = "coord", z = "coord", rot = "rot" },
 	["plot.store"] = { i = "index" },
 	["char.home"] = {},
-	["mini.start"] = { kind = "id" },
-	["mini.finish"] = { token = "int", score = "int" },
 }
 Validate.ACTIONS = ACTIONS
 
-local AXIS = { fun = true, ideas = true, graphics = true, sound = true }
-local SKILL = { code = true, design = true, art = true, sound = true }
+local UPGRADES = { speed = true, luck = true }
 local SETTINGS = { pixel = true }
 
 local function isInt(v: any, lo: number, hi: number): boolean
@@ -51,12 +43,12 @@ end
 local function check(kind: string, v: any): boolean
 	if kind == "id" then
 		return type(v) == "string" and #v >= 1 and #v <= 24 and string.match(v, "^[%w_]+$") ~= nil
-	elseif kind == "axis" then
-		return type(v) == "string" and AXIS[v] == true
-	elseif kind == "skill" then
-		return type(v) == "string" and SKILL[v] == true
-	elseif kind == "size" then
-		return type(v) == "string" and Tuning.Sizes[v] ~= nil
+	elseif kind == "upgrade" then
+		return type(v) == "string" and UPGRADES[v] == true
+	elseif kind == "slot" then
+		return isInt(v, 1, 3)
+	elseif kind == "bit" then
+		return v == 0 or v == 1
 	elseif kind == "int" then
 		return isInt(v, 0, 1e6)
 	elseif kind == "small" then

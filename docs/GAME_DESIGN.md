@@ -1,201 +1,158 @@
 # Byte-Size Studio: Game Design
 
-> The request (2026-11-06): "Read docs/WORKFLOW.md and tools/README.md, then let's design a new game using its style
-> and rules as a base. use its pixel art style and filters and isometric style, along with its build system and
+> The first request (2026-11-06): "Read docs/WORKFLOW.md and tools/README.md, then let's design a new game using its
+> style and rules as a base. use its pixel art style and filters and isometric style, along with its build system and
 > formats. reference game dev story from kariosoft and make a simplified version of it in gamedevtest. dont touch the
 > "test" repo at all, only use it for reference"
 
-Byte-Size Studio is a small game-studio management sim for Roblox. Kairosoft's *Game Dev Story* is its reference
-for the **loop**: hire a crew, pick what to make, watch them work, then sweat through the reviews and the sales.
-The content is our own: the names, platforms, critics, genres, numbers and art are not taken from that game. The look,
-the build system and the file formats come from our own Random Bakery (`Downvote/test`): the 2:1 pixel-art
-isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that decides
-everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
+> The redesign (2026-11-09): "scrap the whole system. can  i make the gameplay loop as such: rng system, where an idea
+> team thinks of random ideas to do, allowing players to discover genres and ideas with different modifiers that they
+> can get randomly that boost certain aspects of it.  (1 in x, etc.) the player can then choose to make a game based on
+> the ideas gotten which are listed in an idea board. the player can combine 3 ideas into one game, in which the player
+> has to play 3 minigames based on the ideas they are using. there should a vast variety of minigames themed around the
+> idea, just like warioware, and some can be reused but have a higher difficulty. modifiers also change the minigames
+> to be played differently. the higher the rarity, the harder the minigames will be. succeeding in all 3 minigames
+> will boost sales up to double, each one adding a 33% boost if won. the player can retry at any point or after they
+> finish as well. Once the minigames are done, the game is launched, which generates income passively. coins can be
+> used to boost the idea team, with an upgrade for increasing the roll speed of ideas and  another upgrade for chance
+> of getting rarer ideas. there is no need for other details or upgrades of any kind, but customizing player and
+> spending money to decorate your plot is still ok."
+
+Byte-Size Studio is a small game-studio game for Roblox: an RNG game about ideas. Your idea team thinks up random
+ideas, each one a genre or a theme with a modifier and a rarity ("1 in 3,200"); you make games out of three of them
+by playing a short, themed microgame for each; a launched game earns coins for good; coins make the idea team faster
+and luckier. The old studio (crew, research, reviews, platforms, offices) is gone. The look, the build system and the
+file formats come from our own Random Bakery (`Downvote/test`): the 2:1 pixel-art isometric diorama seen through the
+pixel filter, the pixel font, Rojo with strict Luau, a server that decides everything, pure Data/Logic modules with
+specs, and the fake-engine simulator and preview tools. The microgames follow the WarioWare kind of game (a one-word
+order, a few seconds, win or lose) with our own content.
 
 Numbers below are the starting balance. `src/shared/Config/Tuning.luau` holds every number the game uses and wins
 when this document disagrees.
 
 ## 1. The loop in one paragraph
 
-You open a tiny studio in a garage with two developers and a little money. You pick a **genre**, a **topic**, a
-**platform**, a **size** and a **focus**, and your crew sit down at their desks and type. Every game week they add
-points to the game's four scores (Fun, Ideas, Graphics, Sound), and now and then one of them has a spark and a big
-number pops out of their head. Bugs creep in too. When the build is done you can polish (fix bugs) or ship at once.
-Four critics review it out of 10 each; a total of 32 or more puts it in the Hall of Fame. Then it sells week after
-week, bringing money and fans. Money pays salaries and rent, trains your crew and moves you into a bigger office
-with more desks; research points (earned while developing) unlock new genres and topics; new platforms come out as
-the years go by. Each year ends with an awards night for your best game.
+The idea team (three chibis at their desks) thinks up an idea every few seconds: an idea (Puzzle, Pirates, Dinosaurs...)
+with a modifier (Plain, Turbo, Tiny, Shaky, Glitched, Haunted, Cosmic), rolled by its odds. Ideas collect on the idea
+board (12 places). Pick three and make a game: each idea brings its own microgame, harder the rarer the idea, played
+differently under its modifier. Each microgame won adds a third to the game's sales (all three: double); retry any of
+them as often as you like, then launch. The game earns coins every second from then on, its income set by how rare
+its ideas are and how many microgames were won. Spend the coins on the idea team (faster ideas, luckier ideas) and on
+decor for your plot.
 
 ## 2. Look and feel
 
 - **World:** one office per player, a cut-away diorama (floor, two back walls, furniture, desks with monitors) on a
-  small lot, seen whole and centred from the Random Bakery camera: orthographic, yaw 45°, pitch 30°, the 2:1
-  pixel-art "isometric" grid where floor edges step two pixels across for one down. Everything is built from parts
-  in code (no meshes, decals or uploaded images).
-- **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively (4×4, 2×2, every
-  pixel), three toon bands from one sun, sun shadows, a 48-colour palette LUT, a 1 px ink outline where parts meet,
-  and the crew drawn analytically every tick on top with the same projection. One pixel size K for the world, the UI
-  and the text (2 screen px on phones, 3 at 1080p, 4 at 1440p).
-- **Crew:** little chibi developers sitting at their desks: they type (arms bob), glance at the screen, stretch, and
-  doze off with a "z" when they are worn out. Their monitors flicker with code while a game is in development.
-- **Interface:** pixel-art plates with stepped corners, the pixel font from Random Bakery, no borders. Popups float
-  up over the crew's heads in the score's colour ("+12" Fun in pink, Ideas in yellow, Graphics in blue, Sound in
-  green, "Spark!" bigger and gold).
-- **The founder:** you walk the street as a chibi founder in the crew's style (§12); the camera holds still on your
-  office while you are home and follows you when you walk out.
+  plot along a shared street, seen from the Random Bakery camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art
+  "isometric" grid. Everything is built from parts in code (no meshes, decals or uploaded images).
+- **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
+  from one sun, sun shadows, a 48-colour palette LUT, a 1 px ink outline, and the characters drawn analytically every
+  tick on top with the same projection. One pixel size K for the world, the UI and the text.
+- **The idea team:** little chibis typing away at their desks, bits of code ("</>", "{ }", "01") floating up from
+  their screens. A new idea pops out of a head in its tier's colour; a rare one makes them cheer.
+- **Interface:** pixel-art plates with stepped corners, the pixel font from Random Bakery, no borders; each idea has
+  an 8x8 pixel icon.
+- **The founder:** you walk the street as a chibi founder in the team's style (§8, §9).
 
-## 3. Time
+## 3. The idea team and time
 
-- The calendar is Year / Month / Week: 4 weeks a month, 12 months a year, starting Year 1, Month 1, Week 1.
-- One game week passes every `Tuning.WeekSec` (2.5 s) of real time while you are in the game ("make the game
-  development faster", 2026-11-06: it was 4 s, so a small game now builds in 20 s instead of 32). A thin bar along the
-  date chip fills as the week goes by. Time stops when you
-  leave: nothing happens offline (salaries included), so nobody comes back to a bankrupt studio. It also stops while
-  a menu or a card (the reviews, the awards, the minigames) is open: the client tells the server, which holds that
-  player's clock, so reading a menu on a phone never costs weeks.
-- Monthly (on week 1 of each month): salaries and rent are paid, three new job candidates arrive.
-- Yearly (after the last week of month 12): the awards night.
+- The team thinks up an idea every `Studio.rollEvery` seconds: `Tuning.RollBase` (8 s) at the start, x0.92 for each
+  level of the speed upgrade, down to `Tuning.RollMin` (1 s). The HUD's chip counts down to the next one.
+- The clocks run while you are in the game, whatever you are doing (menus, cards, microgames, Build mode hold
+  nothing). Nothing happens while you are away: no ideas, no income.
+- The team is three (`Tuning.TeamSize`, the garage's desks). It never grows: the two upgrades make it better.
 
-## 4. Money, fans and research
+## 4. Ideas, modifiers and rarity
 
-- **Money** starts at $40,000. It can go negative (salaries are always paid); while it is negative you cannot hire,
-  train, move or advertise, and the only game you can start is the **safety net**: a Small game for the Home PC,
-  free. So no studio is ever stuck with nothing to sell (the first tuning runs went broke in year one and could never
-  start another game).
-- **Fans** grow from sales (`FanPerCopy` per copy sold, more for a Hall of Fame game) and ad campaigns. Fans buy your
-  next game in its first weeks and unlock the bigger offices.
-- **Research points (RP)** come from development: every developer earns 1 RP per week of work, a spark 2 more.
-  RP unlock genres and topics and pay for training.
+**Ideas** (`Data/Ideas`, 24): ten genres and fourteen themes, each with its own odds (its "1 in N") and its microgame
+(§5).
 
-## 5. The crew
-
-Each developer has four skills, an energy bar, a salary and a look.
-
-| Skill | Feeds |
-|---|---|
-| Code | Fun (half), bug fixing, fewer bugs |
-| Design | Fun (half), Ideas |
-| Art | Graphics |
-| Sound | Sound |
-
-- **Hiring:** three candidates a month, their skills 4-40 each plus 3 a year after Year 1. Hiring costs one month's
-  salary up front. You can have as many developers as your office has desks (3, 5, 8).
-- **Salary** per month: $300 + $12 per skill point (a beginner with 80 skill points costs $1,260 a month).
-- **Energy** 0-100: -6 a week while working, +12 a week while idle. Under 25 a developer works at half speed and
-  dozes at the desk. A **pizza party** ($400 a developer, once a month) fills everyone's energy.
-- **Training:** 15 RP and $2,000: +4 to +6 in one skill (more for a lower skill), -20 energy. Skills top out at 250.
-- **Letting go:** a developer can be let go at any time (nothing is refunded). The last developer stays.
-- Two developers start with you.
-
-## 6. Making a game
-
-### 6.1 Choices
-
-- **Genre** (10): Action, Puzzle, Adventure, RPG, Racing, Sports, Simulation, Strategy, Rhythm, Horror. Action,
-  Puzzle and Adventure are open at the start; the others cost 30 or 60 RP.
-- **Topic** (14): Space, Fantasy, Animals, Pirates, Robots, Ninjas, Cooking, School, Zombies, Dinosaurs, Detectives,
-  Farming, Music, Ocean. Four are open at the start; the others cost 20 or 40 RP.
-- **Combo:** every genre and topic pair is a Great, Good, Okay or Poor match (×1.3, ×1.1, ×1.0, ×0.8 on quality).
-  You only learn a pair's match by releasing a game with it; the Research screen's notebook keeps what you learned.
-- **Platform:** each has a licence fee (paid when the game starts), a market size (how many people can buy it), one
-  or two genres its players love (×1.1 quality) and the years it is on sale:
-
-| Platform | Years | Licence | Market | Loves |
+| Commons (1 in 7-12) | Uncommon (1 in 15-40) | Rare (1 in 60-150) | Epic (1 in 400-1,000) | Legendary (1 in 3,000+) |
 |---|---|---|---|---|
-| Home PC | 1- | $0 | 1.0 | Strategy, Simulation |
-| Pocket Pal (handheld) | 1-10 | $6,000 | 1.2 | Puzzle, RPG |
-| Byte Box (console) | 3-14 | $20,000 | 1.8 | Action, Sports |
-| Smartphone | 5- | $8,000 | 2.2 | Puzzle, Rhythm |
-| Orbit VR (headset) | 9- | $60,000 | 2.0 | Action, Simulation |
-| Cloud Arcade (streaming) | 13- | $120,000 | 3.2 | Racing, Adventure |
+| Action, Puzzle, Animals, Space, Cooking, School | Adventure, Racing, Sports, Pirates, Farming, Ocean | RPG, Fantasy, Rhythm, Robots, Ninjas, Zombies | Strategy, Horror, Dinosaurs, Detectives | Simulation (1 in 3,000), Music (1 in 6,000) |
 
-- **Size:** Small (8 weeks of build, $2,000), Medium (14 weeks, $12,000), Large (22 weeks, $40,000). Bigger games
-  sell for more per copy ($10 / $18 / $30) and the critics expect more of them.
-- **Focus:** one of the four scores; that score gets +30% and the others -10%.
-- **Title:** made from the topic's and genre's words ("Galaxy Blocks", "Pirate Quest"); Shuffle picks another. A
-  second game with the same title is a sequel ("Galaxy Blocks 2").
+**Modifiers** (`Data/Modifiers`, rolled on their own after the idea): each multiplies the idea's income and changes
+how its microgame plays.
 
-### 6.2 Development
+| Modifier | Odds | Income | Its microgame |
+|---|---|---|---|
+| Plain | the rest (about 2 in 3) | x1 | as it is |
+| Turbo | 1 in 5 | x1.2 | everything 1.35x faster, on a fuse 0.8x as long |
+| Tiny | 1 in 12 | x1.4 | everything half the size |
+| Shaky | 1 in 30 | x1.7 | the screen shakes |
+| Glitched | 1 in 80 | x2.2 | it blinks out for a moment, now and then |
+| Haunted | 1 in 250 | x3 | dark: only a roving spotlight shows it |
+| Cosmic | 1 in 1,000 | x5 | Turbo, Shaky and Glitched at once |
 
-- **Build:** every week each developer adds to the four scores: Fun `(Code + Design) / 2 × 0.5`, Ideas
-  `Design × 0.5`, Graphics `Art × 0.5`, Sound `Sound × 0.5`, each times a random 0.7-1.3, times 0.5 when tired,
-  times the focus. A crew of n works like n^0.75 developers (they talk, they wait for each other), so a bigger crew
-  is better but not linearly. With 8% chance a week a developer has a **spark**: one score gets 3× that week and
-  +2 RP.
-- **Bugs:** each developer adds a bug a week with chance `1 - Code / 150` (at least 10%).
-- **Polish:** once the build weeks are done the game is ready to ship. While you wait, every developer fixes
-  `1 + Code / 30` bugs a week (rounded down) and adds a little to the scores (a fifth of the build rate).
-  Release is up to you; a game with no bugs left says "Ready to ship!".
-- **Minigames** (§14): at milestones of the build the crew earns pushes, each a short minigame that adds to one
-  score; while polishing, Bug Squash clears bugs.
-- A game in progress cannot be cancelled in this version.
+- **The odds** (`Logic/Ideas`, Random Bakery's rule): ideas and modifiers rarer than 1 in 60 (`Tuning.RareOdds`) roll
+  at luck / odds; the Uncommon ones (and Turbo, Tiny, Shaky) at 1 / odds; the commonest (the Commons; Plain) share what
+  is left, never less than a tenth (`Tuning.CommonFloor`; past that the lucky ones are scaled down to fit). So at
+  luck x1 a "1 in 3,000" idea really comes once in 3,000 ideas, and luck x3 makes it three times as likely.
+- **An idea's rarity** is its idea's odds times its modifier's: Glitched Ninjas is 1 in 120 x 80 = 1 in 9,600. Its
+  **tier** follows: Common (under 1 in 20), Uncommon (from 1 in 20), Rare (250), Epic (3,000), Legendary (40,000),
+  Mythic (500,000), each with its colour.
+- **The board** holds 12 (`Tuning.BoardSize`). When it is full a new idea takes the place of the board's commonest one
+  if it is rarer; otherwise it is dropped. So an idle team keeps the board's best.
+- **The Index** (the Index panel) counts every idea the team ever thought of, dropped ones too: each idea's icon (a
+  dark "???" until found), its odds, and a dot per modifier lit once found with it. "Found 13 of 168".
+- **Reveals:** a Rare idea or better drops a banner in at the top ("EPIC IDEA! New!" the first time, its name, its
+  1 in N) with a sound to match and confetti from Epic; over an open panel it is a line in the panel's status bar.
 
-### 6.3 Reviews
+## 5. Making a game: three ideas, three microgames
 
-- **Quality** `Q = (Fun + 0.8 Ideas + 0.8 Graphics + 0.6 Sound) × combo × platform love × novelty - 25 × bugs`.
-  Novelty is ×0.85 when the same genre and topic pair was one of your last three games.
-- **Expectation** `E = 600 × size factor (1, 1.8, 3) × (1 + 0.3 × (year - 1))`: the critics expect more each year.
-- **Base score** `s = 1 + 9 × (1 - 2^(-Q / E))` (Q = E gives 5.5).
-- **Four critics**, each with a favourite score: Pixel Pete (Fun), Ada Quill (Ideas), Max Render (Graphics) and
-  Echo Lane (Sound). Each gives `s` plus up to ±1 for how much of the game is their favourite score, plus a small
-  seeded wobble (±0.6), rounded, 1-10.
-- **Hall of Fame:** a total of 32 or more out of 40.
+- **Pick three** ideas on the idea board (Make a game!). The panel shows what the game would earn (with no wins, and
+  with three). Make: the three leave the board, and the game gets a title from a word of each ("Treasure Galaxy
+  Saga"). One game at a time.
+- **The making card** lists the three ideas, each with its microgame's order word, its modifier and its difficulty,
+  and Play (or Retry) for each; Play all plays the unplayed ones in turn. Each one won adds a third to the game's sales
+  (`Tuning.WinBoost`): all three double them. A retry, at any time (in the middle of one, or after all three), keeps a
+  win: the best result counts. Launch! once all three have been played.
+- **A microgame** (WarioWare style): its order word drops in ("Dodge!"), then a few seconds on a burning fuse: 6 s at
+  difficulty 1, a quarter second less a level, at least 4 s (`Tuning.MicroSeconds...`; the longer ones get more:
+  Repeat!, Sneak!, Build!, and Tap the beat! runs its song). WIN or LOSE stamps it. Arrow keys / WASD, Space or F / J,
+  1-6, or the on-screen pads and taps.
+- **The difficulty** (1 to 8) is the idea's tier, plus a step when its idea reuses an engine another (commoner) idea
+  already has, so a reused game always comes back harder. Harder means faster, more of it, smaller windows.
+- **Twelve engines, 24 themed microgames** (UI/MicroGames; the reused ones a step or two harder):
 
-### 6.4 Sales
+| Engine | Ideas (order) | What you do |
+|---|---|---|
+| dodge | Action (Dodge!), Racing (Steer!) | step left and right between lanes as blocks or cones fall (a lane always stays open) |
+| timing | Cooking (Flip!), Sports (Kick!), RPG (Strike!) | stop the sweeping cursor on the green, once to three times |
+| mash | Animals (Pet!) | tap the pet fast enough |
+| whack | Space (Shoot!), Farming (Water!), Zombies (Whack!) | tap what pops up; from difficulty 4 rockets and kids pop up too: leave them |
+| pick | Puzzle (Match!), School (Answer!), Strategy (Count!), Detectives (Spot it!) | pick the matching icon, the sum's answer, how many soldiers, the odd one out |
+| sequence | Fantasy (Cast!), Robots (Program!), Music (Repeat!) | type the arrows in order (Robots' hide after a look); repeat the four pads' tune |
+| catch | Pirates (Loot!), Ocean (Catch!) | move the basket under the coins or fish, never the bombs or jellies |
+| jump | Adventure (Leap!), Dinosaurs (Jump!) | jump the rocks or cacti |
+| rhythm | Rhythm (Tap the beat!) | tap each lane as its note crosses the line; a few misses allowed |
+| slice | Ninjas (Slice!) | tap the flying fruit; from difficulty 3, not the bombs |
+| hide | Horror (Sneak!) | step toward the door only while the ghost looks away |
+| stack | Simulation (Build!) | drop each sliding floor onto the last; what hangs over is cut off |
 
-- Week 1 copies: `(800 × market × size factor (1, 1.5, 2.2) + 0.1 × fans) × (average / 5)^2`, where average is the
-  total / 4. Each later week sells `decay` times the week before, `decay = 0.70 + 0.025 × average` (0.725-0.95).
-  Fans buy a share of week one rather than raising the base: an earlier draft fed fans into sales into fans and
-  grew without bound.
-- A game is on sale until a week sells under 5 copies or 40 weeks pass.
-- The studio keeps 70% of the price of every copy; fans grow by 0.08 per copy (0.1 for a Hall of Fame game).
-- Several released games sell at once; the Games screen lists every game with its scores, copies and money.
+- **Fair play:** the server starts each microgame (a token, a seed for its content, its difficulty) and records its
+  result. A win sooner than 1 s after the start (`Tuning.MicroMinSec`) or a result later than a minute counts as a
+  loss; a microgame left open is dropped after a minute. The result itself is the client's word, as in any minigame.
 
-## 7. The office
+## 6. Launch and income
 
-| Office | Desks | Rent / month | Move | Needs |
-|---|---|---|---|---|
-| Garage | 3 | $1,000 | start | - |
-| Loft | 5 | $3,000 | $120,000 | 3,000 fans |
-| Studio Floor | 8 | $8,000 | $500,000 | 25,000 fans |
+- **A launched game earns** the sum of its ideas' values times its boost, every second, for good:
+  an idea is worth `0.5 x odds ^ 0.35 x its modifier's income` coins a second (Action: 1/s; Music: 10.5/s; Cosmic
+  Music: 52/s), and the boost is `1 + wins / 3`. A first game of three Commons earns about 3/s, 6/s with three wins.
+- The income is paid every second (`Tuning.IncomeTickSec`). The launch card shows it ("+8.4/s coins") and the team
+  cheers with it over their heads. The Games panel lists the newest 50 games; every game ever launched keeps earning.
 
-- Moving rebuilds the diorama: a bigger room, a new floor and walls, more desks and more furniture.
-- **Ad campaign** (once a month): `$4,000 × office` → `250 × office` new fans (a flat amount: a share of the fans
-  compounded every month).
-- **Pizza party** (once a month): see §5.
+## 7. Upgrades (the idea team)
 
-## 8. Awards
+Two upgrades, nothing else (Upgrades panel):
 
-After the last week of each year the studio's best game released that year is judged: a total of 34 or more wins
-**Game of the Year** (+30% fans, +$20,000 × year); 28 or more wins **Critics' Choice** (+10% fans,
-+$5,000 × year). Otherwise the night passes quietly.
+- **Faster ideas:** an idea every 8 s x 0.92 per level, down to 1 s (about 25 levels). Price 50 x 2.5 ^ level.
+- **Lucky ideas:** luck +0.2 per level (x1 at level 0): Rare and rarer ideas and modifiers come that much more often.
+  Price 80 x 2.5 ^ level.
 
-## 9. First steps (the tips banner)
+Coins also buy decor (§9).
 
-A short banner guides a new studio: (1) "Tap New game to make your first game", (2) while it is in development
-"Your crew is working: watch the ideas pop!", (3) when the build is done "Polish fixes bugs. Release when you're
-ready!", (4) after the first reviews "Hire more crew in Staff", then it goes away for good.
-
-## 10. The economy, checked
-
-`tests/specs/Economy.spec.luau` plays six ten-year careers with a sensible player (`tests/Career.luau`) through the
-server's own rules (`Logic/Studio`) and holds the balance to these bounds: two or more games in year 1 with middling
-reviews (an average total of 15-28) and the studio in the black; the Loft in years 2-4 and the Studio Floor by year 6;
-reviews 5 or more points better late than in year 1 and at least one Hall of Fame game; fans that never shrink and at
-most ×2.5 a year once past 50,000 (no runaway). Print a career with `luau tests/career.luau -a <seed>` after the
-check has built `build/luautest`. A typical career: reviews average about 21/40 in year 1, 25 in year 4, 31 in year 8.
-The same careers played by a player who scores 80 in every minigame (§14) stay inside the same bounds and review
-1 to 6 points better in years 1-3 (about +2.5): the minigames reward playing them, without making a different game.
-`luau tests/career.luau -a <seed> <years> <minigame score>` prints one.
-
-## 11. Out of scope for this first version
-
-Own consoles, game shows and expos, job classes, staff levels, cancelling a project, offline progress, purchases
-(no game passes or products yet: `Config/Monetization.luau` holds only the sound ids), music, other languages (English only; every string
-goes through `Locale/Lang.t` so translations can be added the Random Bakery way). Drawing paths, water and fences on
-the plot (Random Bakery has them) and dressing the founder are left for later.
-
-## 12. The street
+## 8. The street
 
 > The request (2026-11-06): "could you also make an overworld and plot, just like the baking game?" Asked how far the
 > plot's decorating should go, the user chose "Street + build mode": the street, walking and visiting, plus a Build
@@ -209,96 +166,68 @@ takes the lowest free plot; one who leaves leaves an empty lot (their save keeps
 - **The road** runs the street's whole length on the plots' south side (the side the camera sees): a pavement, the
   road with its dashed line, a second pavement, a grass verge with trees and lamp posts; a hedge and a lamp at both
   ends, and invisible walls round the world so nobody walks off its edge.
-- **A studio's plot** (§13) is lawn round the office, a shade lighter than the meadow so the land shows; a footpath of
-  stepping stones runs from the office's doorway down to the pavement, the plot sign (the studio's name floats over
-  it: "Ava's Studio") and a mailbox stand by the pavement.
-- **The founder:** each player walks as a little chibi in the crew's style (a random look of their own, kept in the
-  save), on their Roblox character (jumping is off; the avatar itself is hidden). They appear on their own footpath.
-  Their name floats over them for the others.
-- **The camera** keeps the office-sized view: on a lot (yours or a neighbour's) it frames that lot like your home
-  view; on the road it follows you, keeping you clear of the screen's edges and the HUD, and glides to a lot's framing
-  when you step onto it. The
-  pixel filter scrolls its picture with the view and casts only what comes into sight (no re-bake while you walk).
-  A **Home** button shows while you are away and puts you back on your footpath (once every 3 s).
-- **Visiting:** you can walk into any studio and watch its crew at work (typing while it has a game in the works,
-  dozing when tired). Tapping a plot sign shows a card: "Bo's Studio: Loft, 12 games, best 34/40, a game in the
-  works". You can't touch another studio's things: every action only ever changes your own profile.
-- Your studio runs on while you walk: the clock keeps going (only menus, cards and Build mode hold it).
+- **A studio's plot** (§9) is lawn round the office, a shade lighter than the meadow; a footpath of stepping stones
+  runs from the office's doorway down to the pavement, the plot sign (the studio's name floats over it) and a mailbox
+  stand by the pavement.
+- **The founder:** each player walks as a little chibi in the team's style (their look is kept in the save and set in
+  the Looks panel, §9), on their Roblox character (jumping is off; the avatar itself is hidden). They appear on their
+  own footpath. Their name floats over them for the others.
+- **The camera** keeps the office-sized view: on a lot it frames that lot like your home view; on the road it follows
+  you, keeping you clear of the screen's edges and the HUD. The pixel filter scrolls its picture with the view and
+  casts only what comes into sight. A **Home** button shows while you are away and puts you back on your footpath.
+- **Visiting:** you can walk into any studio and watch its idea team at work. Tapping a plot sign shows a card: "Bo's
+  Studio: 12 games, rarest idea 1 in 9,600, earning +340/s". Every action only ever changes your own profile.
 
-## 13. The plot and Build mode
+## 9. The plot, Build mode and your looks
 
-- **The plot grows with the office** (`Data/Street` PLOT): the Garage's is 40 x 42 studs, the Loft's 50 x 44, the Studio
-  Floor's 60 x 46, always down to the pavement and mostly in front of and east of the office (the sides the camera
-  sees). The office stands near its back.
-- **Decor** (`Data/Decor`, 15 pieces): Garden Gnome, Flower Bed, Round Bush, Park Bench, Street Lamp, Oak Tree, Pine
-  Tree, Bike Rack, Picnic Table (from the Garage), Arcade Kiosk, Fountain, Hero Statue (from the Loft), Satellite
-  Dish, Billboard, Food Truck (from the Studio Floor). A piece is **bought once** ($200 to $40,000) and its fans join
-  the studio then (5 to 1,000: a small, one-off bonus); you then place as many copies of it as you like, up to the
-  plot's piece limit (20 / 32 / 48 by office).
+- **The plot** (`Data/Street` PLOT) is the garage's: 40 x 42 studs, down to the pavement and mostly in front of and
+  east of the office. (A studio from before the redesign keeps the room it had, the Loft or the Studio Floor, and its
+  bigger plot.)
+- **Decor** (`Data/Decor`, 15 pieces, all on sale from the start): Garden Gnome, Flower Bed, Round Bush, Park Bench,
+  Street Lamp, Oak Tree, Pine Tree, Bike Rack, Picnic Table, Arcade Kiosk, Fountain, Hero Statue, Satellite Dish,
+  Billboard, Food Truck. A piece is **bought once** (1,000 to 200,000 coins); you then place as many copies of it as
+  you like, up to the plot's piece limit (20 in the garage).
 - **Where a piece stands** (`Logic/Plot`): on whole studs at a quarter turn, wholly on the plot a stud in from its
-  edges, off the office (its room, walls and a stud round them), the footpath, the sign and the mailbox, and off every
-  other piece. Pieces don't block the founder.
-- **Build mode** (the HUD's Build button): the clock holds; the view stops following the founder and shows your plot
-  (a drag pans it over the plot); a tray lists every piece: buy one with a tap, or pick an owned one and tap the lawn:
-  its ghost stands there on a footprint, green where it fits and red where it doesn't. Place (or a second click on the
-  same spot) puts it there and keeps it picked for another copy; Rotate turns it. Tapping a piece on the plot picks it
-  up: Move here, Rotate, Store (back in the box) or Cancel. Done closes it.
-- **A bigger office** (a move): the plot grows, and pieces the bigger room now covers go back in the box.
+  edges, off the office, the footpath, the sign and the mailbox, and off every other piece.
+- **Build mode** (the HUD's Build button): the view stops following the founder and shows your plot (a drag pans it);
+  a tray lists every piece: buy one with a tap, or pick an owned one and tap the lawn: its ghost stands there on a
+  footprint, cyan where it fits and red where it doesn't. Place puts it there and keeps it picked for another copy;
+  Rotate turns it. Tapping a piece on the plot picks it up: Move here, Rotate, Store or Cancel. Done closes it.
+- **Looks** (the Looks panel): the founder's skin, hair colour, hair style and shirt, each stepped with < and >, a
+  portrait to preview; Save look. Free.
 
-## 14. Minigames
+## 10. The economy, checked
 
-> The request (2026-11-06): "can you polish it, and make the game development faster and more involved with
-> different minigames to make your game better?"
+`tests/specs/Economy.spec.luau` plays four three-hour sessions with a sensible player (`tests/Career.luau`: makes a
+game of the board's three most valuable ideas as soon as there are three, wins a microgame with a chance falling
+with its difficulty, retries a loss once, spends every coin on the cheaper upgrade) through the server's own rules and
+holds the pacing to these bounds: a game launched within 90 s and an upgrade within 3 minutes; a Rare idea within 10
+minutes, an Epic within 30, no Mythic in the first hour; about ten levels of each upgrade in the first hour (8 to 14)
+and a few more by the third (at most 20); by hour three the next upgrade takes 5 to 40 minutes of income and the
+income grows less than x6 from hour one to hour three (no runaway); a player who wins every microgame earns 1.5 to 2.8
+times as much as one who loses them all. A typical session: the first game at about a minute, a Rare at 1-2 minutes,
+an Epic at about 5, a Legendary somewhere between 20 minutes and a few hours; hour one ends at speed and luck level 11
+earning about 1,500 a second, hour three at levels 13-14 earning about 5,000. Print one with
+`luau tests/career.luau -a <seed> [minutes] [skill]` after the check has built `build/luautest`.
 
-Development is no longer only watching: the crew earns **pushes** while it builds, and each push is a short
-minigame the player plays to make the game better. Every minigame lasts `Tuning.MiniSeconds` (15 s) after a
-"3, 2, 1, Go!", scores 0-100 and earns a grade (S 90+, A 70+, B 45+, else C). The clock holds while one is up.
+## 11. Out of scope for this version
 
-- **Pushes:** a build earns one at each of its milestones (Small 2, Medium 3, Large 4, spread evenly over the build
-  weeks, never the last one; `Logic/Minigames.milestones`). The week's notice says "Push ready!" and the project
-  card's **Push!** button pulses; at most 2 are banked (unspent ones stay usable while polishing). The card says when
-  the next push comes ("Next push: week 5").
-- **The four score games** (the picker after Push!), each adding up to `Tuning.MiniWeeks` (1.5) weeks of the crew's
-  own output on its score, times the score/100 (focus and tired developers included, so a bigger, better crew makes
-  every push worth more):
-  - **Code Rush** (+Fun): a row of six arrows; type them in order (arrow keys or WASD, or tap the pads). A right key
-    lights green; a wrong one flashes red, shakes the card and costs a key. Each finished row adds a line to the
-    little code editor. 26 right keys (less wrong ones) score 100.
-  - **Idea Match** (+Ideas): twelve cards, six pairs of ideas (a bulb, a star, a heart, a note, a gem, a controller),
-    all shown for 1.6 s, then face down; tap two to find a pair. Each pair is 14 points; finding all six ends the
-    game early with a time bonus of up to 16.
-  - **Pixel Paint** (+Graphics): copy a 5x5 sprite (a heart, a tree, a sword, a mushroom, a potion, a gem, a key, a
-    crab) onto a canvas from a palette of its colours and a decoy (keys 1-3); a tap paints a cell, a second tap
-    clears it. Two sprites score 100; a sprite in progress counts its right cells less the wrong ones.
-  - **Beat Keeper** (+Sound): notes fall down two lanes to a line; tap the lane (F / J, the arrows or the pads) as each
-    one crosses it: Perfect (within 0.08 s) 1, Good 0.7, OK 0.4; a tap with no note near costs a quarter. Combos
-    count up. The game ends after the last note.
-- **Bug Squash** (the card's Squash button while polishing a game with bugs, once every `Tuning.SquashCooldown` (3)
-  weeks): bugs pop up on twelve monitors and hide again, faster as the clock runs; tap them. 15 squashed (less 2 a
-  miss) score 100, and the score squashes up to `Tuning.SquashWeeks` (1.5) weeks of the crew's own bug fixing.
-- **Results:** the grade letter drops onto a badge with a burst of sparkles (more for a better grade) and a sound to
-  match; the card says the score and what it did ("+27 Graphics", "6 bugs squashed!"). On Nice! the crew cheers at
-  their desks with the reward over their heads.
-- **Fair play:** the server spends the push (or starts Bug Squash's cooldown) when the game starts, so quitting or
-  replaying never rerolls; a finish sooner than 5 s after the start, or later than 2 minutes, counts as 0, and a game
-  left open is dropped after 2 minutes. The score itself is the client's word (as in any minigame), which is why a
-  perfect push is only worth 1.5 weeks of work.
-- **Balance:** see §10: a good player's reviews run about 2.5 points higher in the first years.
+Trading or selling ideas, more upgrades of any kind (the request: "no need for other details or upgrades"), offline
+income, purchases (no game passes or products: `Config/Monetization.luau` holds only the sound ids), music, other
+languages (English only; every string goes through `Locale/Lang.t`), drawing paths, water and fences on the plot.
 
-## 15. Polish and animation
+## 12. Polish and animation
 
-> The request (2026-11-06, with §14): "make the it more polished and animated as well".
+> The request (2026-11-06): "make the it more polished and animated as well".
 
 - **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled.
 - **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
-- **The HUD:** money, fans and research count up to their new values and their chip flashes when they change; the
-  date chip's bar shows the week going by; the project card's bars and numbers glide; Push! pulses while a push is
-  banked and Release! once the game has no bugs left.
-- **Release day:** a drumroll, each critic's score slams down with a pop pitched by the score, the total counts up,
-  then confetti and a fanfare for a Hall of Fame game (a smaller burst for 28+), applause for a fair one, a sad
-  trombone for a flop. The awards night has a trumpet and confetti.
-- **The office:** bits of code ("</>", "{ }", "01") float up from the screens of developers at work; the crew
-  cheers with the reward over their heads after a minigame.
+- **The HUD:** the coins count up and their chip flashes when they change; the idea chip counts down to the next idea
+  with a bar along its edge; the card's main button (Make a game!, Play!, Launch!) pulses when it is the thing to do.
+- **The microgames:** the order word drops in, the fuse burns down with a spark and turns red near the end, words pop
+  up as you score, a wrong move shakes the card, WIN brings confetti; the launch card brings confetti and a fanfare
+  and the team cheers with the new income over their heads.
+- **The office:** bits of code float up from the screens; a new idea pops out of a head in its tier's colour; rare
+  reveals drop in with a fanfare and confetti.
 - **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,
-  `Config/Monetization.Sounds`), its pitch varied a little, repeats inside a short cooldown dropped. No music in this
-  version.
+  `Config/Monetization.Sounds`), its pitch varied a little, repeats inside a short cooldown dropped.

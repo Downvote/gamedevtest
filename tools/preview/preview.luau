@@ -1,7 +1,8 @@
 -- Byte-Size Studio's preview driver: boots the real server and client scripts in the fake engine (with the real
 -- raycast and a pixel-storing EditableImage), drives a scenario and dumps frames for topng.py.
 -- Usage: luau preview.luau -a <workdir> <scenario> <device> [tier] [inset]
---   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "mini=<kind>" or "all";
+--   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "micro=<idea>[_<mod>]"
+--   or "all";
 --   device: a DEVICES key; tier: auto | low | medium | high | off
 -- A scenario is a function in SCEN: it joins players (join / joinWith), drives them through H.req or the UI
 -- (H.click, H.openPanel), waits for the pixel layer (settle) and calls capture(p, label) for every frame it wants.
@@ -168,39 +169,66 @@ local function join(userId, name, opts)
 	return p
 end
 
--- A saved profile for `userId` (put in the fake cloud before they join): office `tier`, `staff` developers, a game
--- in the works when `working`, and `decor` ({ id, x, z, rot } wanted spots: owned, and placed where Logic/Plot says
--- they fit, else at the nearest cell that does).
-local function seedProfile(userId, tier, staff, working, decor)
-	local Schema = H.sharedServer("Logic.Schema")
-	local Crew = H.sharedServer("Logic.Crew")
-	local Dev = H.sharedServer("Logic.Dev")
-	local Util = H.sharedServer("Logic.Util")
+-- A saved profile for `userId` (put in the fake cloud before they join): office `tier`; opts: board (a list of
+-- "idea:mod" cards), games (how many launched games of three commons), project ({ "idea:mod" x3 } and won), coins,
+-- found (every board and project card counted), decor ({ id, x, z, rot } wanted spots: owned, and placed where
+-- Logic/Plot says they fit, else at the nearest cell that does), tut.
+local function cardOf(spec)
+	local id, mod = string.match(spec, "^(%w+):?(%w*)$")
+	return { id = id, mod = if mod == nil or mod == "" then "plain" else mod }
+end
+
+local function seedProfile(userId, tier, opts)
+	opts = opts or {}
 	local Tuning = H.sharedServer("Config.Tuning")
+	local Schema = H.sharedServer("Logic.Schema")
+	local Studio = H.sharedServer("Logic.Studio")
+	local Ideas = H.sharedServer("Logic.Ideas")
 	local now = math.floor(E.now())
 	local prof = Schema.default(now, userId)
-	local rng = Util.newRng(userId * 31 + 7)
 	prof.office = tier
-	prof.money = 250000 * tier
-	prof.fans = Tuning.Offices[tier].fans + 1200
-	prof.week = 52 * (tier - 1) + 9
-	prof.tut = 0
-	while #prof.staff < staff do
-		local id = prof.nextStaff
-		table.insert(prof.staff, Crew.hire(Crew.candidate(rng, tier), id, #prof.staff + 1))
-		prof.nextStaff += 1
+	prof.coins = opts.coins or 25000
+	prof.tut = opts.tut or 0
+	local Office = H.sharedServer("Data.Office")
+	local desks = #Office.plan(tier).desks
+	local rng = H.sharedServer("Logic.Util").newRng(userId)
+	while #prof.team < math.min(desks, 3) do
+		table.insert(prof.team, Studio.newTeam(rng, 1)[1])
+		prof.team[#prof.team].id = #prof.team
+		prof.team[#prof.team].desk = #prof.team
 	end
-	if working then
-		local proj = Dev.newProject("rpg", "fantasy", "pc", "medium", "ideas", "Dragon Legends", prof.week - 4)
-		proj.weeksDone = 4
-		proj.scores = { fun = 120, ideas = 160, graphics = 90, sound = 70 }
-		proj.bugs = 3
-		prof.project = proj
-		prof.genres.rpg = true
+	for _, spec in opts.board or {} do
+		local c = cardOf(spec)
+		table.insert(prof.ideas, c)
+		prof.found[Ideas.key(c)] = (prof.found[Ideas.key(c)] or 0) + 1
+		prof.stats.best = math.max(prof.stats.best, Ideas.oneIn(c))
 	end
-	if decor then
+	for g = 1, opts.games or 0 do
+		local cards = { cardOf("action"), cardOf("puzzle:turbo"), cardOf("space") }
+		if g % 3 == 0 then
+			cards[2] = cardOf("rpg:shaky")
+		end
+		local wins = g % 4
+		local game = { id = g, title = Ideas.title(cards, g * 13), ideas = cards, rate = Ideas.rate(cards, math.min(3, wins)), wins = math.min(3, wins), at = now }
+		table.insert(prof.games, game)
+		prof.rate += game.rate
+		prof.nextGame = g + 1
+		prof.stats.games = g
+		for _, c in cards do
+			prof.found[Ideas.key(c)] = (prof.found[Ideas.key(c)] or 0) + 1
+		end
+	end
+	if opts.project then
+		local cards = {}
+		for _, spec in opts.project do
+			table.insert(cards, cardOf(spec))
+		end
+		prof.project = { title = Ideas.title(cards, 7), ideas = cards, won = opts.won or { -1, -1, -1 }, seed = 7 }
+	end
+	prof.upgrades = opts.upgrades or { speed = 3, luck = 2 }
+	if opts.decor then
 		local Plot = H.sharedServer("Logic.Plot")
-		for _, d in decor do
+		for _, d in opts.decor do
 			prof.plot.owned[d.id] = true
 			local done = false
 			for r = 0, 6 do
@@ -223,67 +251,62 @@ local function seedProfile(userId, tier, staff, working, decor)
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
 end
 
--- Steps until the next game week has been processed for the player (popups go up then).
-local function nextWeek(p)
-	local prof = H.profile(p)
-	local w = prof.week
-	E.runUntil(function()
-		return prof.week ~= w
-	end, 12, 0.05)
-end
+local BOARD = { "action", "puzzle:turbo", "animals", "space:tiny", "pirates", "rpg:shaky", "cooking", "ocean:glitched", "horror", "school" }
 
 ------------------------------------------------------------------ scenarios
 local SCEN = {}
 
--- A brand-new studio: the garage with its two developers, the HUD.
+-- A brand-new studio: the garage with its idea team, a first idea or two popping out of their heads, the HUD.
 function SCEN.office()
 	local p = join(1, "Pixel")
 	settle(p)
+	E.run(9)
+	E.run(0.4)
 	capture(p, "office")
 	return p
 end
 
--- A game in the works: the crew typing, popups over their heads.
-function SCEN.dev()
-	local p = join(2, "Typer")
-	local res = H.req(p, "project.start", { genre = "puzzle", topic = "animals", platform = "pc", size = "small", focus = "fun", seed = 0 })
-	log("project.start: %s %s", tostring(res and res.ok), tostring(res and res.err))
+-- A studio at work: a board of ideas, games earning, and a Mythic idea's reveal dropping in.
+function SCEN.reveal()
+	seedProfile(2, 1, { board = BOARD, games = 6 })
+	local p = join(2, "Lucky")
 	settle(p)
-	for _ = 1, 2 do
-		nextWeek(p)
-	end
-	nextWeek(p)
-	E.run(0.35)
-	capture(p, "dev")
+	local s = H.session(p)
+	E.call(E.serverCtx, 5, function()
+		H.smod("Session").fx(s, { kind = "idea", card = { id = "music", mod = "haunted" }, slot = 0, oneIn = 1500000, tier = 6, first = true })
+	end)
+	E.run(0.6)
+	capture(p, "reveal")
 	return p
 end
 
-local function officeScenario(tier, staff, label)
+local function officeScenario(tier, label)
 	return function()
-		seedProfile(10 + tier, tier, staff, true)
+		seedProfile(10 + tier, tier, { board = BOARD, games = 12 })
 		local p = join(10 + tier, "Studio" .. tier)
 		settle(p)
-		nextWeek(p)
-		E.run(0.35)
+		E.run(1.5)
 		capture(p, label)
 		return p
 	end
 end
-SCEN.office2 = officeScenario(2, 5, "office2")
-SCEN.office3 = officeScenario(3, 8, "office3")
+SCEN.office2 = officeScenario(2, "office2")
+SCEN.office3 = officeScenario(3, "office3")
 
--- A UI panel by name (UIKit.openPanel); without one, just the HUD.
+-- A UI panel by name (UIKit.openPanel); the idea board with three ideas picked.
 local function panelScenario(name)
+	seedProfile(20, 1, { board = BOARD, games = 9, upgrades = { speed = 6, luck = 4 } })
 	local p = join(20, "Menus")
-	-- a game in the works for every panel but the New game wizard (which only shows its steps with none)
-	if name ~= "newgame" then
-		H.req(p, "project.start", { genre = "action", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 2 })
-	end
 	settle(p)
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
 		H.openPanel(p, name)
-		E.run(1)
+		E.run(0.8)
+		if name == "ideas" then
+			for _, i in { 2, 6, 8 } do
+				H.clickNamed(p, "Pick_" .. i, { wait = 0.2 })
+			end
+		end
 		log("panel open: %s", tostring(UIKit.currentPanel and UIKit.currentPanel()))
 	else
 		log("no UIKit.openPanel: capturing the HUD")
@@ -292,36 +315,69 @@ local function panelScenario(name)
 	return p
 end
 
--- The reviews: a finished build released through the HUD's Release button when there is one, else straight through
--- the request (and UI.ReviewUI.show with the release, when that module exists).
-function SCEN.review()
-	local p = join(30, "Shipper")
-	H.req(p, "project.start", { genre = "puzzle", topic = "animals", platform = "pc", size = "small", focus = "fun", seed = 0 })
+-- Making a game: three ideas picked on the board, Make, the making card.
+function SCEN.make()
+	seedProfile(30, 1, { board = BOARD, games = 2 })
+	local p = join(30, "Maker")
 	settle(p)
-	local prof = H.profile(p)
-	local proj = prof.project
-	if proj then
-		proj.weeksDone = proj.buildWeeks
-		proj.phase = "polish"
-		proj.scores = { fun = 300, ideas = 220, graphics = 240, sound = 150 }
+	H.clickNamed(p, "MakeGame", { wait = 0.6 })
+	for _, i in { 1, 6, 9 } do
+		H.clickNamed(p, "Pick_" .. i, { wait = 0.2 })
 	end
-	H.push(p, 1)
-	if not H.click(p, "Release", { optional = true, wait = 0.5 }) then
-		local res = H.req(p, "project.release", {})
-		log("project.release: %s %s", tostring(res and res.ok), tostring(res and res.err))
-		local RUI = modOr(p, "UI.ReviewUI")
-		if RUI and RUI.show and res and res.ok then
-			H.inClient(p, function()
-				RUI.show(res.data)
-			end)
-		end
-	end
-	E.run(3)
-	capture(p, "review")
+	H.clickNamed(p, "Make", { wait = 1 })
+	capture(p, "make")
 	return p
 end
 
------------------------------------------------------------------- the street and the plot (GAME_DESIGN 12, 13)
+-- The launch: a game with all three minigames played (two won), Launch! on its card, then the crew cheering.
+function SCEN.launch()
+	seedProfile(31, 1, { board = BOARD, games = 3, project = { "pirates:turbo", "rpg", "space" }, won = { 1, 0, 1 } })
+	local p = join(31, "Shipper")
+	settle(p)
+	H.clickNamed(p, "CardLaunch", { wait = 0.6 })
+	H.clickNamed(p, "Launch", { wait = 1.2 })
+	capture(p, "launch")
+	H.clickNamed(p, "Nice", { wait = 0.35 })
+	capture(p, "launch_cheer")
+	return p
+end
+
+-- micro=<idea>[_<mod>]: a game being made with that idea first; its microgame a few seconds in (MicroUI.debugAuto
+-- playing: a good player, not a perfect one), then the end of it.
+local function microScenario(spec)
+	local id, mod = string.match(spec, "^(%w+)_?(%w*)$")
+	mod = if mod == nil or mod == "" then "plain" else mod
+	seedProfile(40, 1, { board = { "action", "puzzle" }, games = 2, project = { id .. ":" .. mod, "space", "school" } })
+	local p = join(40, "Player")
+	settle(p)
+	H.clickNamed(p, "CardPlay", { wait = 0.5 })
+	H.clickNamed(p, "Play_1", { wait = 0.1 })
+	local MUI = modOr(p, "UI.MicroUI")
+	E.run(1.0)
+	log("playing: %s", tostring(MUI and H.inClient(p, MUI.playing)))
+	-- a moment in, a right move now and then (the quick ones would be over at once)
+	local stop = E.SIM.now + 1.6
+	local k = 0
+	while E.SIM.now < stop do
+		E.run(0.05)
+		k += 1
+		if MUI and k % 12 == 0 then
+			H.inClient(p, MUI.debugAuto)
+		end
+	end
+	capture(p, "micro_" .. spec)
+	E.runUntil(function()
+		if MUI then
+			H.inClient(p, MUI.debugAuto)
+		end
+		return H.buttonNamed(p, "Retry_1") ~= nil
+	end, 40, 0.05)
+	E.run(0.5)
+	capture(p, "micro_" .. spec .. "_card")
+	return p
+end
+
+------------------------------------------------------------------ the street and the plot (GAME_DESIGN 8, 9)
 local function rootOf(p)
 	return p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 end
@@ -342,7 +398,7 @@ end
 -- baked from scratch, to compare a scrolled picture with a fresh one.
 function SCEN.street()
 	local p = join(50, "Walker")
-	seedProfile(51, 2, 5, true)
+	seedProfile(51, 2, { board = BOARD, games = 8 })
 	join(51, "Neighbour", { client = false })
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -366,7 +422,7 @@ end
 -- The founder inside the neighbour's office while their crew works.
 function SCEN.visit()
 	local p = join(52, "Visitor")
-	seedProfile(53, 1, 3, true)
+	seedProfile(53, 1, { board = BOARD, games = 4 })
 	join(53, "Host", { client = false })
 	settle(p)
 	local x2, z2 = H.sharedServer("Data.Street").origin(2)
@@ -389,8 +445,8 @@ end
 function SCEN.build()
 	local p = join(54, "Builder")
 	local prof = H.profile(p)
-	prof.money = 200000
-	prof.fans = 500
+	prof.coins = 1000000
+	prof.tut = 0
 	H.push(p, 0.5)
 	for _, id in { "gnome", "flowers", "bush", "bench", "lamp", "oak", "pine", "bikes", "picnic" } do
 		local res = H.req(p, "plot.buy", { id = id })
@@ -517,7 +573,7 @@ function SCEN.late()
 end
 
 function SCEN.plot3()
-	seedProfile(55, 3, 8, true, {
+	seedProfile(55, 3, { board = BOARD, games = 20, decor = {
 		{ id = "fountain", x = 22, z = 16 },
 		{ id = "statue", x = 29, z = 4 },
 		{ id = "truck", x = 22, z = 24 },
@@ -532,74 +588,16 @@ function SCEN.plot3()
 		{ id = "lamp", x = 15, z = 15 },
 		{ id = "bush", x = -16, z = 25 },
 		{ id = "bikes", x = 4, z = 24 },
-	})
+	} })
 	local p = join(55, "Mogul")
 	settle(p)
-	nextWeek(p)
-	E.run(0.35)
+	E.run(1.5)
 	capture(p, "plot3")
 	return p
 end
 
------------------------------------------------------------------- the minigames (GAME_DESIGN 14)
--- mini=<kind>: a game in the works with two pushes banked (polishing with bugs for Bug Squash); the push picker (for
--- code), the game a few seconds in (played by MinigameUI.debugAuto: a good player, not a perfect one), the results
--- card, and the crew cheering once it is closed.
-local function miniScenario(kind)
-	local p = join(60, "Player")
-	H.req(p, "project.start", { genre = "action", topic = "space", platform = "pc", size = "small", focus = "fun", seed = 3 })
-	settle(p)
-	local proj = H.profile(p).project
-	if proj then
-		proj.pushes, proj.nextPush, proj.weeksDone = 2, 1, 3
-		proj.scores = { fun = 60, ideas = 40, graphics = 35, sound = 20 }
-		if kind == "bugs" then
-			proj.weeksDone, proj.phase, proj.bugs = proj.buildWeeks, "polish", 9
-		end
-	end
-	H.push(p, 1)
-	E.run(0.5)
-	if kind == "bugs" then
-		H.clickNamed(p, "Squash", { wait = 0.2 })
-	else
-		H.clickNamed(p, "Push", { wait = 0.4 })
-		if kind == "code" then
-			capture(p, "mini_picker")
-		end
-		H.clickNamed(p, "Mini_" .. kind, { wait = 0.2 })
-	end
-	local MUI = modOr(p, "UI.MinigameUI")
-	E.run(1.7)
-	log("playing: %s", tostring(MUI and MUI.playing and H.inClient(p, MUI.playing)))
-	local steps = 0
-	local stop = E.SIM.now + (if kind == "ideas" then 5 elseif kind == "pixels" then 4 else 6)
-	while E.SIM.now < stop do
-		E.run(if kind == "beats" then 0.05 elseif kind == "code" then 0.3 else 0.35)
-		if MUI and MUI.debugAuto and (kind ~= "code" or steps % 4 ~= 3) then
-			H.inClient(p, MUI.debugAuto)
-		end
-		steps += 1
-	end
-	capture(p, "mini_" .. kind)
-	E.runUntil(function()
-		if MUI and MUI.debugAuto and kind == "beats" then
-			H.inClient(p, MUI.debugAuto)
-		end
-		return H.buttonNamed(p, "Nice") ~= nil
-	end, 30, 0.05)
-	E.run(1.0)
-	capture(p, "mini_" .. kind .. "_result")
-	local before = H.profile(p).project
-	log("result: pushes %s, scores %s/%s/%s/%s, bugs %s", tostring(before and before.pushes), tostring(before and before.scores.fun), tostring(before and before.scores.ideas), tostring(before and before.scores.graphics), tostring(before and before.scores.sound), tostring(before and before.bugs))
-	H.clickNamed(p, "Nice", { wait = 0.35 })
-	if kind == "code" then
-		capture(p, "mini_cheer")
-	end
-	return p
-end
-
 ------------------------------------------------------------------ run
-local list = if scenario == "all" then { "office", "dev", "review", "street", "build" } else { scenario }
+local list = if scenario == "all" then { "office", "reveal", "make", "launch", "street", "build" } else { scenario }
 for _, name in list do
 	local fn = SCEN[name]
 	local panel = string.match(name, "^panel=(%w+)$")
@@ -608,10 +606,10 @@ for _, name in list do
 			return panelScenario(panel)
 		end
 	end
-	local mini = string.match(name, "^mini=(%w+)$")
-	if mini then
+	local micro = string.match(name, "^micro=([%w_]+)$")
+	if micro then
 		fn = function()
-			return miniScenario(mini)
+			return microScenario(micro)
 		end
 	end
 	if fn == nil then

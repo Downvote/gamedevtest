@@ -1,53 +1,38 @@
 --!strict
--- The HUD's menus (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-8): Staff (the crew: skills, energy, training, letting
--- go, the pizza party; and the job seekers), Research (genres, topics, the notebook of matches), Office (moving up,
--- the ad campaign, the pixel filter) and Games (every release with its reviews and sales, the awards). The New game
--- wizard is NewGameUI. Every action is a request; the panel rebuilds from the next view.
+-- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 4-9): Ideas (the idea board: pick three, make a game),
+-- Index (every idea and modifier the team has thought of), Upgrades (roll speed and luck), Games (the launched games
+-- and their income) and Looks (the founder's look). Every action is a request; the panel rebuilds from the next view.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
-local Genres = require(ReplicatedStorage.Shared.Data.Genres)
-local Topics = require(ReplicatedStorage.Shared.Data.Topics)
-local Platforms = require(ReplicatedStorage.Shared.Data.Platforms)
-local Office = require(ReplicatedStorage.Shared.Data.Office)
-local Calendar = require(ReplicatedStorage.Shared.Logic.Calendar)
+local IdeasData = require(ReplicatedStorage.Shared.Data.Ideas)
+local Modifiers = require(ReplicatedStorage.Shared.Data.Modifiers)
+local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
-local Crew = require(ReplicatedStorage.Shared.Logic.Crew)
-local Dev = require(ReplicatedStorage.Shared.Logic.Dev)
+local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
+local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
+local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
-local NewGameUI = require(script.Parent.NewGameUI)
+local PixelSprites = require(script.Parent.PixelSprites)
+local MicroUI = require(script.Parent.MicroUI)
+local Words = require(script.Parent.Words)
 
 local Menus = {}
 
-local SKILL_SHORT: { [string]: string } = { code = "Cod", design = "Des", art = "Art", sound = "Snd" }
-local SKILL_COLOR: { [string]: string } = { code = "fun", design = "ideas", art = "graphics", sound = "sound" }
-
 -- Ask the server; tell the player when it says no.
-local function ask(action: string, payload: { [string]: any }?, ok: string?)
+local function ask(action: string, payload: { [string]: any }?, ok: string?): Types.Response
 	local res = StateClient.request(action, payload)
 	if res.ok then
 		if ok then
 			UIKit.notice(ok, UIKit.color("good"))
 		end
 	else
-		UIKit.notice(NewGameUI.errText(res.err), UIKit.color("bad"))
+		Audio.play("deny")
+		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
 	end
 	return res
-end
-
--- Tabs along the body's top: returns the y below them.
-local function tabs(body: Frame, list: { { text: string, key: string } }, current: string, panel: string): number
-	local x = 0
-	for _, t in list do
-		local w = UIKit.buttonWidth(t.text, 5)
-		UIKit.button(body, t.text, UDim2.fromOffset(w, 12), UDim2.fromOffset(x, 0), function()
-			UIKit.openPanel(panel, t.key)
-		end, { color = if t.key == current then UIKit.color("accent") else UIKit.color("plate_light"), name = "Tab_" .. t.key })
-		x += w + 3
-	end
-	return 15
 end
 
 local function row(list: Instance, order: number, h: number): Frame
@@ -57,245 +42,331 @@ local function row(list: Instance, order: number, h: number): Frame
 	return f
 end
 
-local function skillLine(parent: Instance, s: Types.Skills, x: number, y: number)
-	local cx = x
-	for _, k in Crew.SKILLS do
-		local text = SKILL_SHORT[k] .. " " .. tostring((s :: any)[k])
-		local w = UIKit.textWidth(text) + 6
-		UIKit.text(parent, text, UDim2.fromOffset(w, 10), UDim2.fromOffset(cx, y), { color = UIKit.color(SKILL_COLOR[k]) })
-		cx += w
+-- An idea's icon; a dark silhouette when `known` is false.
+local function icon(parent: Instance, id: string, pos: UDim2, scale: number, known: boolean?): Frame?
+	local s = PixelSprites.ICONS[id]
+	if s == nil then
+		return nil
+	end
+	if known == false then
+		local colors: { [string]: string } = {}
+		for ch in s.colors do
+			colors[ch] = "plate"
+		end
+		return PixelSprites.draw(parent, s.rows, colors, pos, scale, 4)
+	end
+	return PixelSprites.sprite(parent, s, pos, scale, 4)
+end
+
+------------------------------------------------------------------ Ideas: the board
+local picked: { number } = {} -- board indices, in the order picked
+local pickedKeys: { string } = {}
+
+local function validPicks(v: Types.ClientView)
+	for i = #picked, 1, -1 do
+		local c = v.ideas[picked[i]]
+		if c == nil or Ideas.key(c) ~= pickedKeys[i] then
+			table.remove(picked, i)
+			table.remove(pickedKeys, i)
+		end
 	end
 end
 
------------------------------------------------------------------- staff
-local trainFor: number? = nil
-
-local function staffCrew(body: Frame, v: Types.ClientView, y: number)
-	local desks = Tuning.Offices[v.office].desks
-	local party = Crew.partyCost(#v.staff)
-	UIKit.text(body, string.format("Crew %d/%d desks   Payroll %s/month", #v.staff, desks, Numbers.money(Crew.payroll(v.staff))), UDim2.new(1, -90, 0, 12), UDim2.fromOffset(0, y), { color = UIKit.color("text_dim") })
-	UIKit.button(body, "Pizza party " .. Numbers.money(party), UDim2.fromOffset(88, 12), UDim2.new(1, -88, 0, y), function()
-		ask("staff.party", {}, "Pizza! Everyone's full of energy.")
-	end, { enabled = v.canParty and v.money >= party, color = UIKit.color("button_warn"), name = "Party" })
-	local list = UIKit.scroll(body, UDim2.new(1, 0, 1, -(y + 15)), UDim2.fromOffset(0, y + 15))
-	UIKit.vlist(list, 2)
-	for i, s in v.staff do
-		local training = trainFor == s.id
-		local r = row(list, i, if training then 40 else 26)
-		UIKit.portrait(r, s.look, 22, UDim2.fromOffset(2, 2))
-		UIKit.text(r, s.name, UDim2.fromOffset(80, 10), UDim2.fromOffset(26, 2), { color = UIKit.color("text") })
-		UIKit.text(r, Crew.role(s.skills), UDim2.fromOffset(70, 10), UDim2.fromOffset(26, 13), { color = UIKit.color("text_dim") })
-		skillLine(r, s.skills, 94, 2)
-		UIKit.text(r, "Energy", UDim2.fromOffset(34, 10), UDim2.fromOffset(94, 13), { color = UIKit.color("text_dim") })
-		local _, set = UIKit.bar(r, UDim2.fromOffset(46, 3), UDim2.fromOffset(130, 17), if s.energy < Tuning.EnergyTired then UIKit.color("bad") else UIKit.color("good"), UIKit.color("ink"))
-		set(s.energy / Tuning.EnergyMax)
-		UIKit.button(r, "Train", UDim2.fromOffset(34, 11), UDim2.new(1, -74, 0, 2), function()
-			trainFor = if trainFor == s.id then nil else s.id
+local function buildIdeas(body: Frame, _arg: any?)
+	local v = StateClient.view()
+	if v == nil then
+		return
+	end
+	validPicks(v)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local proj = v.project
+	if proj then
+		UIKit.text(body, "You're making " .. proj.title .. ". Finish it to make the next one.", UDim2.fromOffset(W - 70, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Making" })
+		UIKit.button(body, "Continue", UDim2.fromOffset(64, 12), UDim2.fromOffset(W - 64, 0), function()
+			UIKit.closePanel()
+			MicroUI.open()
+		end, { name = "Continue", color = UIKit.color("button_ok") })
+	else
+		UIKit.text(body, string.format("Pick three ideas to make a game. Board %d/%d", #v.ideas, Tuning.BoardSize), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
+	end
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 46), UDim2.fromOffset(0, 14))
+	local cols = if W >= 290 then 3 else 2
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 30)
+	grid.CellPadding = UDim2.fromOffset(3, 3)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = list
+	if #v.ideas == 0 then
+		UIKit.text(list, "No ideas yet: your team is thinking.", UDim2.fromOffset(W - 8, 12), nil, { color = UIKit.color("text_dim") })
+	end
+	for i, c in v.ideas do
+		local tier = Ideas.tier(c)
+		local mod = Modifiers.byId[c.mod]
+		local def = IdeasData.byId[c.id]
+		local order = table.find(picked, i)
+		local b = Instance.new("TextButton")
+		b.Name = "Pick_" .. i
+		b.Text = ""
+		b.AutoButtonColor = proj == nil
+		b.BackgroundTransparency = 1
+		b.LayoutOrder = i
+		b.ZIndex = 3
+		local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, if order then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
+		plate.ZIndex = 3
+		UIKit.rect(b, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(1, 2), UIKit.color(Ideas.tierColor(tier)), 4)
+		icon(b, c.id, UDim2.fromOffset(5, 7), 2)
+		UIKit.text(b, if def then def.name else "?", UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 1), { color = UIKit.color("text"), z = 4 })
+		UIKit.text(b, if mod then mod.name else "", UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 10), { color = UIKit.color(if mod then mod.color else "text_dim"), z = 4 })
+		UIKit.text(b, Numbers.oneIn(Ideas.oneIn(c)), UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 19), { color = UIKit.color(Ideas.tierColor(tier)), z = 4 })
+		if order then
+			UIKit.plate(b, UDim2.fromOffset(11, 11), UDim2.new(1, -13, 0, 2), UIKit.color("accent"), 0, 1).ZIndex = 5
+			UIKit.text(b, tostring(order), UDim2.fromOffset(11, 11), UDim2.new(1, -13, 0, 2), { x = "center", color = UIKit.color("ink"), kind = "plain", z = 6 })
+		end
+		b.Activated:Connect(function()
+			if proj then
+				return
+			end
+			local k = table.find(picked, i)
+			if k then
+				table.remove(picked, k)
+				table.remove(pickedKeys, k)
+			elseif #picked < 3 then
+				table.insert(picked, i)
+				table.insert(pickedKeys, Ideas.key(c))
+			else
+				Audio.play("deny")
+				return
+			end
+			Audio.play("flip")
 			UIKit.refreshPanel()
-		end, { name = "Train_" .. s.id })
-		UIKit.button(r, "Let go", UDim2.fromOffset(36, 11), UDim2.new(1, -38, 0, 2), function()
-			ask("staff.fire", { id = s.id }, s.name .. " has left the studio.")
-		end, { enabled = #v.staff > 1, color = UIKit.color("plate"), name = "Fire_" .. s.id })
-		if training then
-			local can = v.rp >= Tuning.TrainRp and v.money >= Tuning.TrainMoney
-			UIKit.text(r, string.format("Train (%d RP, %s):", Tuning.TrainRp, Numbers.money(Tuning.TrainMoney)), UDim2.fromOffset(110, 10), UDim2.fromOffset(4, 27), { color = UIKit.color("text_dim") })
-			local x = 116
-			for _, k in Crew.SKILLS do
-				UIKit.button(r, "+" .. Crew.SKILL_NAMES[k], UDim2.fromOffset(40, 11), UDim2.fromOffset(x, 27), function()
-					local res = ask("staff.train", { id = s.id, skill = k })
-					if res.ok then
-						UIKit.notice(string.format("%s: %s +%d", s.name, Crew.SKILL_NAMES[k], (res.data and res.data.gain) or 0), UIKit.color("good"))
-					end
-				end, { enabled = can and (s.skills :: any)[k] < Tuning.SkillMax, color = UIKit.color(SKILL_COLOR[k]), name = "TrainSkill_" .. k })
-				x += 43
-			end
-		end
-	end
-end
-
-local function staffHire(body: Frame, v: Types.ClientView, y: number)
-	local desks = Tuning.Offices[v.office].desks
-	local full = #v.staff >= desks
-	UIKit.text(body, if full then "Every desk is taken: a bigger office has more." else "Hiring costs one month's salary.", UDim2.new(1, 0, 0, 12), UDim2.fromOffset(0, y), { color = UIKit.color("text_dim") })
-	local list = UIKit.scroll(body, UDim2.new(1, 0, 1, -(y + 15)), UDim2.fromOffset(0, y + 15))
-	UIKit.vlist(list, 2)
-	if #v.candidates == 0 then
-		UIKit.text(list, "Nobody new this month. More come next month.", UDim2.new(1, -6, 0, 12), nil, { color = UIKit.color("text_dim") })
-	end
-	for i, c in v.candidates do
-		local r = row(list, i, 26)
-		UIKit.portrait(r, c.look, 22, UDim2.fromOffset(2, 2))
-		UIKit.text(r, c.name, UDim2.fromOffset(80, 10), UDim2.fromOffset(26, 2), { color = UIKit.color("text") })
-		UIKit.text(r, Crew.role(c.skills) .. ", " .. Numbers.money(c.salary) .. "/mo", UDim2.fromOffset(140, 10), UDim2.fromOffset(26, 13), { color = UIKit.color("text_dim") })
-		skillLine(r, c.skills, 110, 2)
-		UIKit.button(r, "Hire " .. Numbers.money(c.salary), UDim2.fromOffset(62, 11), UDim2.new(1, -64, 0, 13), function()
-			ask("staff.hire", { i = i }, c.name .. " joins the studio!")
-		end, { enabled = not full and v.money >= c.salary, color = UIKit.color("button_ok"), name = "Hire_" .. i })
-	end
-end
-
-local function buildStaff(body: Frame, arg: any?)
-	local v = StateClient.view()
-	if v == nil then
-		return
-	end
-	local tab = if arg == "hire" then "hire" else "crew"
-	local y = tabs(body, { { text = "Crew", key = "crew" }, { text = "Hire (" .. #v.candidates .. ")", key = "hire" } }, tab, "staff")
-	if tab == "hire" then
-		staffHire(body, v, y)
-	else
-		staffCrew(body, v, y)
-	end
-end
-
------------------------------------------------------------------- research
-local function buildResearch(body: Frame, arg: any?)
-	local v = StateClient.view()
-	if v == nil then
-		return
-	end
-	local tab = if arg == "topics" or arg == "notebook" then arg else "genres"
-	local y = tabs(body, { { text = "Genres", key = "genres" }, { text = "Topics", key = "topics" }, { text = "Notebook", key = "notebook" } }, tab, "research")
-	UIKit.text(body, string.format("%d RP to spend", v.rp), UDim2.fromOffset(90, 12), UDim2.new(1, -90, 0, 0), { x = "right", color = UIKit.color("ideas") })
-	local list = UIKit.scroll(body, UDim2.new(1, 0, 1, -y), UDim2.fromOffset(0, y))
-	UIKit.vlist(list, 2)
-	if tab == "notebook" then
-		local known = {}
-		for key, m in v.matches do
-			local g, t = string.match(key, "^(%w+)|(%w+)$")
-			local gd, td = Genres.byId[g or ""], Topics.byId[t or ""]
-			if gd and td then
-				table.insert(known, { text = td.name .. " " .. gd.name, m = m })
-			end
-		end
-		table.sort(known, function(a, b)
-			return a.text < b.text
 		end)
-		if #known == 0 then
-			UIKit.text(list, "Release a game to learn how well its genre and topic go together.", UDim2.new(1, -6, 0, 22), nil, { wrap = true, color = UIKit.color("text_dim") })
-		end
-		for i, k in known do
-			local r = row(list, i, 13)
-			UIKit.text(r, k.text, UDim2.new(1, -70, 1, 0), UDim2.fromOffset(4, 0), { color = UIKit.color("text") })
-			UIKit.text(r, Dev.MATCH_NAMES[k.m], UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 0), { x = "right", color = UIKit.color(k.m) })
-		end
-		return
+		b.Parent = list
 	end
-	local defs: { any } = if tab == "topics" then Topics.list else Genres.list
-	for i, d in defs do
-		local open = if tab == "topics" then v.topics[d.id] else v.genres[d.id]
-		local cost = if tab == "topics" then Dev.topicCost(d.id) else Dev.genreCost(d.id)
-		local r = row(list, i, 14)
-		UIKit.text(r, d.name, UDim2.fromOffset(120, 14), UDim2.fromOffset(4, 0), { color = if open then UIKit.color("text") else UIKit.color("text_dim") })
-		if open then
-			UIKit.text(r, "Open", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 0), { x = "right", color = UIKit.color("good") })
-		else
-			UIKit.button(r, string.format("Unlock %d RP", cost), UDim2.fromOffset(70, 11), UDim2.new(1, -72, 0, 1), function()
-				ask(if tab == "topics" then "research.topic" else "research.genre", { id = d.id }, d.name .. " is open!")
-			end, { enabled = v.rp >= cost, color = UIKit.color("ideas"), name = "Unlock_" .. d.id })
-		end
+	-- the game these three would make
+	local ready = proj == nil and #picked == 3
+	local cards: { Types.Card } = {}
+	for _, k in picked do
+		table.insert(cards, v.ideas[k])
 	end
+	local preview = if #cards > 0 then string.format("%d/3 picked: about %s, up to %s with three wins", #cards, Numbers.rate(Ideas.rate(cards, 0)), Numbers.rate(Ideas.rate(cards, 3))) else "Each idea brings a minigame. Rarer ideas earn more and play harder."
+	UIKit.text(body, preview, UDim2.fromOffset(W, 12), UDim2.fromOffset(0, H - 30), { color = if ready then UIKit.color("good") else UIKit.color("text_dim"), name = "Preview" })
+	UIKit.button(body, if ready then "Make this game!" else "Pick three ideas", UDim2.fromOffset(W, 14), UDim2.fromOffset(0, H - 16), function()
+		local a, b, c = picked[1], picked[2], picked[3]
+		local res = ask("game.make", { a = a, b = b, c = c })
+		if res.ok then
+			table.clear(picked)
+			table.clear(pickedKeys)
+			UIKit.closePanel()
+			Audio.play("level_up")
+			MicroUI.open()
+		end
+	end, { name = "Make", color = UIKit.color("button_ok"), enabled = ready })
 end
 
------------------------------------------------------------------- office
-local PIXEL_CHOICES = { { "high", "High" }, { "medium", "Medium" }, { "low", "Low" }, { "off", "Classic" } }
-
-local function buildOffice(body: Frame, _arg: any?)
+------------------------------------------------------------------ Index: the discoveries
+local function buildIndex(body: Frame, _arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
-	local plan = Office.plan(v.office)
-	local spec = Tuning.Offices[v.office]
-	local y = 0
-	local function line(text: string, color: Color3?)
-		UIKit.text(body, text, UDim2.new(1, 0, 0, 10), UDim2.fromOffset(0, y), { color = color or UIKit.color("text") })
-		y += 11
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local total = #IdeasData.list * #Modifiers.list
+	local found = 0
+	for _, n in v.found do
+		if n > 0 then
+			found += 1
+		end
 	end
-	line(string.format("%s: %d desks, rent %s a month", plan.name, spec.desks, Numbers.money(spec.rent)), UIKit.color("accent"))
-	local nextSpec = Tuning.Offices[v.office + 1]
-	if nextSpec then
-		local nextPlan = Office.plan(v.office + 1)
-		line(string.format("Next: %s, %d desks, rent %s", nextPlan.name, nextSpec.desks, Numbers.money(nextSpec.rent)))
-		line(string.format("Needs %s fans (you have %s) and %s", Numbers.int(nextSpec.fans), Numbers.int(v.fans), Numbers.money(nextSpec.cost, true)), if v.fans >= nextSpec.fans and v.money >= nextSpec.cost then UIKit.color("good") else UIKit.color("text_dim"))
-		UIKit.button(body, "Move to the " .. nextPlan.name, UDim2.fromOffset(UIKit.buttonWidth("Move to the " .. nextPlan.name, 6), 12), UDim2.fromOffset(0, y), function()
-			ask("office.move", {}, "Welcome to the " .. nextPlan.name .. "!")
-		end, { enabled = v.fans >= nextSpec.fans and v.money >= nextSpec.cost, color = UIKit.color("button_ok"), name = "Move" })
-		y += 15
-	else
-		line("This is the biggest office there is.", UIKit.color("text_dim"))
+	UIKit.text(body, string.format("Found %d of %d   Rarest: %s", found, total, if v.stats.best > 0 then Numbers.oneIn(v.stats.best) else "-"), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Found" })
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	local cols = if W >= 300 then 4 elseif W >= 220 then 3 else 2
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 32)
+	grid.CellPadding = UDim2.fromOffset(3, 3)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = list
+	for i, d in IdeasData.list do
+		local known = false
+		for _, m in Modifiers.list do
+			if (v.found[d.id .. "|" .. m.id] or 0) > 0 then
+				known = true
+			end
+		end
+		local f = UIKit.plate(list, UDim2.fromOffset(60, 32), nil, UIKit.color("plate_light"), 0, 2)
+		f.Name = "Entry_" .. d.id
+		f.LayoutOrder = i
+		icon(f, d.id, UDim2.fromOffset(4, 4), 2, known)
+		UIKit.text(f, if known then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(22, 1), { color = if known then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, Numbers.oneIn(d.odds), UDim2.new(1, -24, 0, 10), UDim2.fromOffset(22, 10), { color = UIKit.color(Ideas.tierColor(Ideas.tierOf(d.odds))), z = 4 })
+		-- a dot a modifier: lit in its colour once found with this idea
+		for k, m in Modifiers.list do
+			local on = (v.found[d.id .. "|" .. m.id] or 0) > 0
+			UIKit.rect(f, UDim2.fromOffset(3, 3), UDim2.fromOffset(22 + (k - 1) * 5, 24), if on then UIKit.color(m.color) else UIKit.color("plate"), 4)
+		end
 	end
-	local adCost = Dev.adCost(v.office)
-	line(string.format("Ad campaign: %s for about %s new fans (once a month)", Numbers.money(adCost), Numbers.int(Dev.adFans(v.office))))
-	UIKit.button(body, "Run an ad", UDim2.fromOffset(56, 12), UDim2.fromOffset(0, y), function()
-		ask("office.ad", {}, "The ads are out: new fans are on their way!")
-	end, { enabled = v.canAd and v.money >= adCost, color = UIKit.color("button_warn"), name = "Ad" })
-	y += 16
-	local s = v.stats
-	line(string.format("Games %d   Hall of Fame %d   Best %d/40   Copies %s", s.games, s.hof, s.best, Numbers.short(s.copies)), UIKit.color("text_dim"))
-	y += 2
-	line("Picture:", UIKit.color("text_dim"))
-	local x = 44
-	y -= 11
-	for _, c in PIXEL_CHOICES do
-		local w = UIKit.buttonWidth(c[2], 4)
-		UIKit.button(body, c[2], UDim2.fromOffset(w, 11), UDim2.fromOffset(x, y), function()
-			ask("settings.set", { k = "pixel", v = c[1] })
-		end, { color = if v.settings.pixel == c[1] then UIKit.color("accent") else UIKit.color("plate_light"), name = "Pixel_" .. c[1] })
-		x += w + 3
+	-- the modifiers' key
+	local key = UIKit.plate(list, UDim2.fromOffset(60, 32), nil, UIKit.color("plate"), 0, 2)
+	key.Name = "Key"
+	key.LayoutOrder = #IdeasData.list + 1
+	UIKit.text(key, "Dots:", UDim2.new(1, -4, 0, 10), UDim2.fromOffset(3, 1), { color = UIKit.color("text_dim"), z = 4 })
+	for k, m in Modifiers.list do
+		UIKit.rect(key, UDim2.fromOffset(3, 3), UDim2.fromOffset(4 + (k - 1) * 8, 14), UIKit.color(m.color), 4)
 	end
+	UIKit.text(key, "Plain..Cosmic", UDim2.new(1, -4, 0, 10), UDim2.fromOffset(3, 20), { color = UIKit.color("text_dim"), z = 4 })
 end
 
------------------------------------------------------------------- games
-local function totalColor(total: number): Color3
-	if total >= Tuning.HallOfFame then
-		return UIKit.color("accent")
-	elseif total >= 24 then
-		return UIKit.color("good")
-	elseif total >= 16 then
-		return UIKit.color("text")
+------------------------------------------------------------------ Upgrades: the idea team
+local upgradeButtons: { [string]: TextButton } = {}
+
+local function costOf(v: Types.ClientView, k: string): number?
+	if k == "speed" and Studio.rollEvery({ upgrades = v.upgrades } :: any) <= Tuning.RollMin then
+		return nil
 	end
-	return UIKit.color("bad")
+	return Studio.upgradeCost(k, if k == "speed" then v.upgrades.speed else v.upgrades.luck)
 end
 
+local function buildUpgrades(body: Frame, _arg: any?)
+	local v = StateClient.view()
+	if v == nil then
+		return
+	end
+	local W = UIKit.bodyWidth(body)
+	table.clear(upgradeButtons)
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, UIKit.bodyHeight(body)), nil)
+	UIKit.vlist(list, 3)
+	local items = {
+		{
+			k = "speed",
+			title = "Faster ideas",
+			level = v.upgrades.speed,
+			now = string.format("An idea every %.1fs", v.rollEvery),
+			next = string.format("then every %.1fs", math.max(Tuning.RollMin, v.rollEvery * Tuning.RollStep)),
+		},
+		{
+			k = "luck",
+			title = "Lucky ideas",
+			level = v.upgrades.luck,
+			now = string.format("Luck x%.1f: rare ideas come more often", v.luck),
+			next = string.format("then x%.1f", v.luck + Tuning.LuckStep),
+		},
+	}
+	for i, it in items do
+		local f = row(list, i, 40)
+		UIKit.text(f, it.title, UDim2.new(1, -90, 0, 10), UDim2.fromOffset(5, 3), { color = UIKit.color("accent"), z = 4 })
+		UIKit.text(f, "Lv " .. it.level, UDim2.fromOffset(40, 10), UDim2.new(1, -130, 0, 3), { x = "right", color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, it.now, UDim2.new(1, -90, 0, 10), UDim2.fromOffset(5, 14), { color = UIKit.color("text"), z = 4 })
+		local cost = costOf(v, it.k)
+		UIKit.text(f, if cost then it.next else "maxed out", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(5, 25), { color = UIKit.color("text_dim"), z = 4 })
+		local b = UIKit.button(f, if cost then Numbers.coins(cost) .. " coins" else "Max", UDim2.fromOffset(80, 16), UDim2.new(1, -84, 0, 12), function()
+			local res = ask("upgrade.buy", { k = it.k })
+			if res.ok then
+				Audio.play("level_up")
+			end
+		end, { name = "Buy_" .. it.k, color = UIKit.color("button_ok"), enabled = cost ~= nil and v.coins >= cost })
+		b.ZIndex = 4
+		upgradeButtons[it.k] = b
+	end
+	local f = row(list, 3, 24)
+	UIKit.text(f, "Rarer ideas earn more coins and play harder minigames. Coins also buy decor in Build.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
+end
+
+------------------------------------------------------------------ Games: the launched games
 local function buildGames(body: Frame, _arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
-	local list = UIKit.scroll(body, UDim2.fromScale(1, 1), nil)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	UIKit.text(body, string.format("%d games earning %s (%s coins made)", v.stats.games, Numbers.rate(v.rate), Numbers.coins(v.stats.earned)), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Total" })
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
 	UIKit.vlist(list, 2)
-	local order = 0
-	for i = #v.awards, 1, -1 do
-		local a = v.awards[i]
-		order += 1
-		local r = row(list, order, 13)
-		UIKit.setPlate(r, UIKit.color("plate"))
-		UIKit.text(r, string.format("Y%d %s: %s (%d)", a.year, if a.kind == "goty" then "Game of the Year" else "Critics' Choice", a.title, a.total), UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 0), { color = UIKit.color("accent") })
+	if #v.games == 0 then
+		UIKit.text(list, "No games yet: make one from the idea board.", UDim2.fromOffset(W - 8, 12), nil, { color = UIKit.color("text_dim") })
 	end
-	if #v.releases == 0 then
-		order += 1
-		UIKit.text(list, "No games yet. Make your first one with New game!", UDim2.new(1, -6, 0, 12), nil, { color = UIKit.color("text_dim") }).LayoutOrder = order
-	end
-	for i = #v.releases, 1, -1 do
-		local r = v.releases[i]
-		order += 1
-		local f = row(list, order, 24)
-		local pl = Platforms.byId[r.platform]
-		local gd, td = Genres.byId[r.genre], Topics.byId[r.topic]
-		UIKit.text(f, r.title .. (if r.hof then "  Hall of Fame" else ""), UDim2.new(1, -60, 0, 10), UDim2.fromOffset(4, 2), { color = if r.hof then UIKit.color("accent") else UIKit.color("text") })
-		UIKit.text(f, string.format("%d/40", r.total), UDim2.fromOffset(40, 10), UDim2.new(1, -44, 0, 2), { x = "right", color = totalColor(r.total) })
-		local sub = string.format("%s %s, %s, %s   %s copies, %s%s", if td then td.name else r.topic, if gd then gd.name else r.genre, if pl then pl.short else r.platform, Calendar.label(r.week), Numbers.short(r.copies), Numbers.money(r.revenue), if r.onSale then "  selling" else "")
-		UIKit.text(f, sub, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 12), { color = UIKit.color("text_dim") })
+	for i = #v.games, 1, -1 do
+		local g = v.games[i]
+		local f = row(list, #v.games - i, 24)
+		UIKit.text(f, g.title, UDim2.new(1, -70, 0, 10), UDim2.fromOffset(5, 2), { color = UIKit.color("accent"), z = 4 })
+		UIKit.text(f, Numbers.rate(g.rate), UDim2.fromOffset(60, 10), UDim2.new(1, -64, 0, 2), { x = "right", color = UIKit.color("good"), z = 4 })
+		local names = {}
+		for _, c in g.ideas do
+			table.insert(names, Ideas.name(c))
+		end
+		UIKit.text(f, table.concat(names, " + "), UDim2.new(1, -70, 0, 10), UDim2.fromOffset(5, 12), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, string.rep("*", g.wins) .. string.rep("-", 3 - g.wins), UDim2.fromOffset(60, 10), UDim2.new(1, -64, 0, 12), { x = "right", color = UIKit.color("accent"), z = 4 })
 	end
 end
 
+------------------------------------------------------------------ Looks: the founder
+local draft: Types.Look? = nil
+local LOOK_ROWS: { { key: string, label: string, n: number } } = {
+	{ key = "skin", label = "Skin", n = #Looks.skin },
+	{ key = "hair", label = "Hair", n = #Looks.hair },
+	{ key = "style", label = "Style", n = #Looks.styles },
+	{ key = "shirt", label = "Shirt", n = #Looks.shirt },
+}
+
+local function buildLooks(body: Frame, _arg: any?)
+	local v = StateClient.view()
+	if v == nil then
+		return
+	end
+	local d: Types.Look = draft or table.clone(v.founder)
+	draft = d
+	UIKit.portrait(body, d, 48, UDim2.fromOffset(4, 4))
+	for i, r in LOOK_ROWS do
+		local y = (i - 1) * 16
+		UIKit.text(body, r.label, UDim2.fromOffset(40, 12), UDim2.fromOffset(64, y), { color = UIKit.color("text") })
+		local function step(delta: number)
+			local cur = (d :: any)[r.key] :: number
+			;(d :: any)[r.key] = (cur - 1 + delta) % r.n + 1
+			Audio.play("flip")
+			UIKit.refreshPanel()
+		end
+		UIKit.button(body, "<", UDim2.fromOffset(14, 12), UDim2.fromOffset(106, y), function()
+			step(-1)
+		end, { name = "Prev_" .. r.key, color = UIKit.color("plate_light") })
+		UIKit.text(body, string.format("%d/%d", (d :: any)[r.key], r.n), UDim2.fromOffset(30, 12), UDim2.fromOffset(122, y), { x = "center", color = UIKit.color("text_dim") })
+		UIKit.button(body, ">", UDim2.fromOffset(14, 12), UDim2.fromOffset(154, y), function()
+			step(1)
+		end, { name = "Next_" .. r.key, color = UIKit.color("plate_light") })
+	end
+	UIKit.button(body, "Save look", UDim2.fromOffset(104, 14), UDim2.fromOffset(64, 66), function()
+		local res = ask("founder.set", { skin = d.skin, hair = d.hair, style = d.style, shirt = d.shirt }, "Looking good!")
+		if res.ok then
+			Audio.play("reward")
+		end
+	end, { name = "SaveLook", color = UIKit.color("button_ok") })
+end
+
 function Menus.init()
-	NewGameUI.init()
-	UIKit.registerPanel("staff", { title = "Staff", w = 340, h = 180, build = buildStaff })
-	UIKit.registerPanel("research", { title = "Research", w = 300, h = 172, build = buildResearch })
-	UIKit.registerPanel("office", { title = "Office", w = 320, h = 140, build = buildOffice })
-	UIKit.registerPanel("games", { title = "Games", w = 340, h = 180, build = buildGames })
+	UIKit.registerPanel("ideas", { title = "Idea board", w = 320, h = 186, build = buildIdeas })
+	UIKit.registerPanel("index", { title = "Index", w = 320, h = 186, build = buildIndex })
+	UIKit.registerPanel("upgrades", { title = "Upgrades", w = 300, h = 140, build = buildUpgrades })
+	UIKit.registerPanel("games", { title = "Games", w = 320, h = 170, build = buildGames })
+	UIKit.registerPanel("looks", { title = "Looks", w = 200, h = 106, build = buildLooks })
+	UIKit.PanelChanged:Connect(function(name: string?)
+		if name ~= "looks" then
+			draft = nil
+		end
+		if name ~= "ideas" then
+			table.clear(picked)
+			table.clear(pickedKeys)
+		end
+	end)
+	-- the income ticks: the upgrade buttons follow the coins without rebuilding the panel
+	StateClient.Coins:Connect(function(coins: number)
+		local v = StateClient.view()
+		if v == nil or UIKit.currentPanel() ~= "upgrades" then
+			return
+		end
+		for k, b in upgradeButtons do
+			if b.Parent then
+				local cost = costOf(v, k)
+				UIKit.setEnabled(b, cost ~= nil and coins >= cost)
+			end
+		end
+	end)
 end
 
 return Menus

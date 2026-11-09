@@ -1,56 +1,67 @@
 --!strict
--- The studio on the server (docs/ARCHITECTURE.md 7.4): every player action and the game clock, as thin wrappers
--- round Logic/Studio (the rules) that mark the session dirty, tell PlotService when the office changes and send the
--- week's events to the client.
+-- The studio on the server (docs/ARCHITECTURE.md 7.4): every player action and the two clocks, as thin wrappers round
+-- Logic/Studio (the rules) that mark the session dirty and tell the client what happened. The idea team thinks up an
+-- idea every Studio.rollEvery seconds (Fx "idea"); the launched games pay their income every Tuning.IncomeTickSec
+-- (Fx "coins", so the whole view is not sent every second). Both run while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
+local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
-local Minigames = require(ReplicatedStorage.Shared.Logic.Minigames)
 local Session = require(script.Parent.Session)
 local Router = require(script.Parent.Router)
 local PlotService = require(script.Parent.PlotService)
 
 local StudioService = {}
 
-local MINI_KEY: string = "mini" -- the clock's hold while a minigame is in play (the server's own pause key)
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
 function StudioService.init()
-	Router.on("project.start", function(s, a)
-		return Studio.start(s.profile, a)
-	end)
-	Router.on("project.release", function(s, _a)
-		return Studio.release(s.profile, s.rng)
-	end)
-	Router.on("staff.hire", function(s, a)
-		return Studio.hire(s.profile, a.i)
-	end)
-	Router.on("staff.fire", function(s, a)
-		return Studio.fire(s.profile, a.id)
-	end)
-	Router.on("staff.train", function(s, a)
-		return Studio.train(s.profile, a.id, a.skill)
-	end)
-	Router.on("staff.party", function(s, _a)
-		return Studio.party(s.profile)
-	end)
-	Router.on("research.genre", function(s, a)
-		return Studio.unlockGenre(s.profile, a.id)
-	end)
-	Router.on("research.topic", function(s, a)
-		return Studio.unlockTopic(s.profile, a.id)
-	end)
-	Router.on("office.move", function(s, _a)
-		local ok, data = Studio.move(s.profile)
+	-- making a game (GAME_DESIGN 5)
+	Router.on("game.make", function(s, a)
+		local ok, data = Studio.make(s.profile, a.a, a.b, a.c, s.rng:int(1, 999999))
 		if ok then
-			PlotService.build(s)
+			s.micro = nil
 		end
 		return ok, data
 	end)
-	Router.on("office.ad", function(s, _a)
-		return Studio.ad(s.profile)
+	-- a microgame for slot 1..3: a new start replaces one in play (a retry at any point); its finish must carry the
+	-- start's token, and a win sooner than Tuning.MicroMinSec or a result later than Tuning.MicroMaxSec is a loss
+	Router.on("micro.start", function(s, a)
+		local proj = s.profile.project
+		if proj == nil then
+			return false, "no_project"
+		end
+		local micro: Session.Micro = { slot = a.slot, token = s.rng:int(1, 999999), at = os.clock(), seed = s.rng:int(1, 999999) }
+		s.micro = micro
+		local card = proj.ideas[a.slot]
+		return true, { slot = micro.slot, token = micro.token, seed = micro.seed, diff = Ideas.difficulty(card), card = card }
+	end)
+	Router.on("micro.finish", function(s, a)
+		local micro = s.micro
+		if micro == nil or micro.token ~= a.token then
+			return false, "busy"
+		end
+		s.micro = nil
+		local elapsed = os.clock() - micro.at
+		local won = a.won == 1 and elapsed >= Tuning.MicroMinSec and elapsed <= Tuning.MicroMaxSec
+		return Studio.result(s.profile, micro.slot, won)
+	end)
+	Router.on("game.launch", function(s, _a)
+		local ok, data = Studio.launch(s.profile, os.time())
+		if ok then
+			s.micro = nil
+		end
+		return ok, data
+	end)
+	-- the idea team's upgrades (GAME_DESIGN 7)
+	Router.on("upgrade.buy", function(s, a)
+		return Studio.buyUpgrade(s.profile, a.k)
+	end)
+	-- the founder's look (GAME_DESIGN 9): the player's attribute follows on the next sync
+	Router.on("founder.set", function(s, a)
+		return Studio.setFounder(s.profile, a.skin, a.hair, a.style, a.shirt)
 	end)
 	Router.on("settings.set", function(s, a)
 		if a.k == "pixel" and type(a.v) == "string" and PIXEL_TIERS[a.v] then
@@ -59,7 +70,7 @@ function StudioService.init()
 		end
 		return false, "bad_payload"
 	end)
-	-- the plot (GAME_DESIGN 13): every change rebuilds the plot's decor by difference
+	-- the plot (GAME_DESIGN 9): every change rebuilds the plot's decor by difference
 	Router.on("plot.buy", function(s, a)
 		return Plot.buy(s.profile, a.id)
 	end)
@@ -87,81 +98,50 @@ function StudioService.init()
 	Router.on("char.home", function(s, _a)
 		return PlotService.home(s)
 	end)
-	-- minigames (GAME_DESIGN 14): start spends the push (or starts Bug Squash's cooldown) and holds the clock; the
-	-- finish must carry the start's token. One finished sooner than Tuning.MiniMinSec or later than Tuning.MiniMaxSec
-	-- counts as a score of 0 (a quit, or a game left open).
-	Router.on("mini.start", function(s, a)
-		if s.mini then
-			return false, "busy"
-		end
-		local ok, err = Minigames.start(s.profile, a.kind)
-		if not ok then
-			return false, err
-		end
-		local mini: Session.Mini = { kind = a.kind, token = s.rng:int(1, 999999), at = os.clock(), seed = s.rng:int(1, 999999) }
-		s.mini = mini
-		s.paused[MINI_KEY] = true
-		return true, { kind = mini.kind, token = mini.token, seed = mini.seed, seconds = Tuning.MiniSeconds }
-	end)
-	Router.on("mini.finish", function(s, a)
-		local mini = s.mini
-		if mini == nil or mini.token ~= a.token then
-			return false, "busy"
-		end
-		s.mini = nil
-		s.paused[MINI_KEY] = nil
-		local elapsed = os.clock() - mini.at
-		local score = if elapsed < Tuning.MiniMinSec or elapsed > Tuning.MiniMaxSec then 0 else a.score
-		return Minigames.finish(s.profile, mini.kind, score)
-	end)
 	Router.on("tut.next", function(s, _a)
 		s.profile.tut = 0
 		return true, nil
 	end)
-	-- the client holds the clock while a full-screen menu is open (the new game wizard, the reviews)
-	Router.onSignal("pause", function(s, payload)
-		-- "mini" is the server's own key (a minigame in play)
-		if type(payload) == "table" and type(payload.key) == "string" and #payload.key <= 16 and payload.key ~= MINI_KEY then
-			if payload.on == true then
-				local n = 0
-				for _ in s.paused do
-					n += 1
-				end
-				if n < 4 then
-					s.paused[payload.key] = true
-				end
-			else
-				s.paused[payload.key] = nil
-			end
-			Session.markDirty(s)
-		end
-	end)
 end
 
--- One game week for a session: the rules, then its events to the client.
-function StudioService.week(s: Session.S)
-	local events = Studio.week(s.profile, s.rng)
+-- The idea team's next idea for a session: the rules, then the client is told.
+function StudioService.roll(s: Session.S)
+	local r = Studio.rollIdea(s.profile, s.rng)
 	Session.markDirty(s)
-	Session.fx(s, { kind = "week", week = s.profile.week, events = events })
+	Session.fx(s, { kind = "idea", card = r.card, slot = r.slot, replaced = r.replaced, oneIn = r.oneIn, tier = r.tier, first = r.first })
 end
 
--- The clock (Main's fixed step): every unpaused, ready session moves on a week every Tuning.WeekSec. A minigame left
--- open past Tuning.MiniMaxSec is dropped (its push stays spent) and the clock runs again.
+-- The clocks (Main's fixed step): every ready session's idea team and income. A microgame left open past
+-- Tuning.MicroMaxSec is dropped.
 function StudioService.step(dt: number)
 	local now = os.clock()
 	for _, s in Session.all() do
-		local mini = s.mini
-		if mini and now - mini.at > Tuning.MiniMaxSec then
-			s.mini = nil
-			s.paused[MINI_KEY] = nil
-			Session.markDirty(s)
+		if not s.ready then
+			continue
 		end
-		if s.ready and not Session.isPaused(s) then
-			s.clock += dt
-			if s.clock >= Tuning.WeekSec then
-				s.clock -= Tuning.WeekSec
-				StudioService.week(s)
+		local p = s.profile
+		s.rollClock += dt
+		local every = Studio.rollEvery(p)
+		local guard = 0
+		while s.rollClock >= every and guard < 4 do
+			s.rollClock -= every
+			guard += 1
+			StudioService.roll(s)
+		end
+		s.coinFrac += p.rate * dt
+		s.payClock += dt
+		if s.payClock >= Tuning.IncomeTickSec then
+			s.payClock -= Tuning.IncomeTickSec
+			local whole = math.floor(s.coinFrac)
+			if whole > 0 then
+				s.coinFrac -= whole
+				Studio.earn(p, whole)
+				Session.fx(s, { kind = "coins", coins = p.coins, paid = whole })
 			end
+		end
+		local micro = s.micro
+		if micro and now - micro.at > Tuning.MicroMaxSec then
+			s.micro = nil
 		end
 	end
 end

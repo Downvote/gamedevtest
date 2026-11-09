@@ -1,5 +1,5 @@
 --!strict
--- Tiny pixel-art sprites for the interface (docs/ARCHITECTURE.md 10.8): the minigames' arrows, ideas, bugs and notes,
+-- Tiny pixel-art sprites for the interface (docs/ARCHITECTURE.md 10.8): the ideas' icons, the microgames' things,
 -- drawn as rows of characters, one UI px (times `scale`) each, from runs of UIKit rects. A sprite's `colors` maps its
 -- characters to UIKit colour keys; "." is clear.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +14,7 @@ local PixelSprites = {}
 local function S(rows: { string }, colors: { [string]: string }): Sprite
 	return { rows = rows, colors = colors }
 end
+PixelSprites.S = S
 
 -- the four arrow keys (Code Rush)
 local ARROW_UP = { "...#...", "..###..", ".#####.", "#######", "..###..", "..###..", "..###.." }
@@ -41,15 +42,33 @@ PixelSprites.ARROWS = {
 	left = ARROW_LEFT,
 } :: { [string]: { string } }
 
--- Idea Match's six ideas (8x8)
-PixelSprites.IDEAS = {
-	S({ "..####..", ".#yyyy#.", "#yywyyy#", "#yyyyyy#", ".#yyyy#.", "..#yy#..", "..#ss#..", "...##..." }, { ["#"] = "ink", y = "yellow", w = "white", s = "steel" }),
-	S({ "...##...", "...#y#..", "#####y##", "#yyyyyy#", ".#yyyy#.", "..#yy#..", ".#y##y#.", ".##..##." }, { ["#"] = "ink", y = "gold" }),
-	S({ ".##..##.", "#rr##rr#", "#rwrrrr#", "#rrrrrr#", ".#rrrr#.", "..#rr#..", "...##...", "........" }, { ["#"] = "ink", r = "berry_red", w = "pink" }),
-	S({ "....###.", "....#bb#", "....#..#", "....#...", ".###....", "#bbb#...", "#bbb#...", ".###...." }, { ["#"] = "ink", b = "blue" }),
-	S({ "..####..", ".#cwcc#.", "#cccccc#", "#ccccc##", ".#ccc#..", "..#c#...", "...#....", "........" }, { ["#"] = "ink", c = "screen_on", w = "white" }),
-	S({ "........", ".######.", "#gggggg#", "#g#gg#g#", "#gggggg#", "#gg##gg#", ".##..##.", "........" }, { ["#"] = "ink", g = "green" }),
-} :: { Sprite }
+-- The ideas' icons (8x8, Data/Ideas ids): the board's cards, the Index, the microgames' intros.
+PixelSprites.ICONS = {
+	action = S({ "....##..", "...#y#..", "..#yy#..", ".#yyyy#.", ".###yy#.", "...#y#..", "..#y#...", "..##...." }, { ["#"] = "ink", y = "yellow" }),
+	puzzle = S({ "..##....", ".#bb#...", ".#bb###.", "#bbbbbb#", "#bbbbb#.", ".#bbbbb#", ".#bbbb#.", "..####.." }, { ["#"] = "ink", b = "graphics" }),
+	animals = S({ "#......#", "##....##", "#o####o#", "#oooooo#", "#o#oo#o#", "#oooooo#", ".#oppo#.", "..####.." }, { ["#"] = "ink", o = "orange", p = "pink" }),
+	space = S({ "...##...", "..#ww#..", "..#wb#..", "..#ww#..", ".#wwww#.", "#r#ww#r#", "#r#rr#r#", "...##..." }, { ["#"] = "ink", w = "white", b = "screen_on", r = "berry_red" }),
+	cooking = S({ "........", ".####...", "#yyyy#..", "#yoyy#..", "#yyyy###", ".####.##", "........", "........" }, { ["#"] = "ink", y = "yellow", o = "orange" }),
+	school = S({ "....#l..", "...#l...", ".##.##..", "#rrrrr#.", "#rrrwr#.", "#rrrrr#.", ".#rrr#..", "..###..." }, { ["#"] = "ink", l = "leaf", r = "berry_red", w = "white" }),
+	adventure = S({ "..####..", ".#gggg#.", "#gg#ggg#", "#g#r#gg#", "#gg#ggg#", "#ggg#gg#", ".#gggg#.", "..####.." }, { ["#"] = "ink", g = "gold", r = "berry_red" }),
+	racing = S({ "........", "..####..", ".#rwwr#.", "#rrrrrr#", "#rrrrrr#", "########", ".##..##.", "........" }, { ["#"] = "ink", r = "berry_red", w = "window" }),
+	sports = S({ "..####..", ".#ww#w#.", "#w##www#", "#ww#ww##", "##ww#ww#", "#www##w#", ".#w#ww#.", "..####.." }, { ["#"] = "ink", w = "white" }),
+	pirates = S({ ".######.", "#wwwwww#", "#w##w##w", "#wwwwwww", ".#ww#ww#", "..#wwww#", "..#w#w#.", "...###.." }, { ["#"] = "ink", w = "cream" }),
+	farming = S({ "...#l#l.", "....#l#.", "...##...", "..#oo#..", "..#oo#..", ".#oo#...", ".#o#....", "..#....." }, { ["#"] = "ink", l = "leaf", o = "orange" }),
+	ocean = S({ "........", ".####..#", "#bbbb##b", "bwbbbbbb", "bbbbbbbb", "#bbbb##b", ".####..#", "........" }, { ["#"] = "ink", b = "blue", w = "white" }),
+	rpg = S({ "......##", ".....#s#", "....#s#.", "...#s#..", "#.#s#...", ".#g#....", ".#g#....", "#..#...." }, { ["#"] = "ink", s = "steel", g = "gold" }),
+	fantasy = S({ "....#...", "...#p#..", "...#y#..", "..#ppp#.", "..#ppp#.", ".#ppppp#", "#pppppp#", "########" }, { ["#"] = "ink", p = "purple", y = "yellow" }),
+	rhythm = S({ "#......#", ".#....#.", "..####..", ".#rrrr#.", "#wwwwww#", "#rrrrrr#", "#rrrrrr#", ".######." }, { ["#"] = "ink", r = "berry_red", w = "white" }),
+	robots = S({ "...#....", "..#r#...", ".######.", "#ssssss#", "#sb##bs#", "#ssssss#", "#s####s#", ".######." }, { ["#"] = "ink", s = "steel", b = "screen_on", r = "berry_red" }),
+	ninjas = S({ "...#....", "..#k#...", "###k####", "#kkskkk#", "####k###", "...#k#..", "....#...", "........" }, { ["#"] = "ink", k = "black", s = "steel" }),
+	zombies = S({ ".######.", "#gggggg#", "#g#gg#g#", "#gggggg#", "#gg##gg#", "#g#gg#g#", ".#gggg#.", "..####.." }, { ["#"] = "ink", g = "green" }),
+	strategy = S({ "#.#..#.#", "########", "#ssssss#", "#ss##ss#", "#ssssss#", "#ss##ss#", "#ss##ss#", "########" }, { ["#"] = "ink", s = "steel" }),
+	horror = S({ "..####..", ".#wwww#.", "#w#ww#w#", "#wwwwww#", "#ww##ww#", "#wwwwww#", "#w#ww#w#", ".#.##.#." }, { ["#"] = "ink", w = "white" }),
+	dinosaurs = S({ ".#####..", "#gggg#g#", "#gwggggg", "#gggg###", "#ggg#...", "#gggg#..", ".#gg#...", ".####..." }, { ["#"] = "ink", g = "leaf", w = "white" }),
+	detectives = S({ "..####..", ".#bbbb#.", "#bwbbbb#", "#bbbbbb#", ".#bbbb#.", "..####..", "....#w#.", ".....##." }, { ["#"] = "ink", b = "window", w = "wood" }),
+	simulation = S({ "....###.", "....#b#.", ".###bb#.", ".#bbbb#.", "##bwbbw#", "#bbbbbb#", "#bwbbwb#", "########" }, { ["#"] = "ink", b = "blue", w = "window" }),
+	music = S({ "...####.", "...#pp#.", "...#..#.", "...#..#.", ".###.##.", "#pp##pp#", "#pp##pp#", ".##..##." }, { ["#"] = "ink", p = "pink" }),
+} :: { [string]: Sprite }
 
 -- Bug Squash's bug and its splat (8x7)
 PixelSprites.BUG = S({ "#..##..#", ".#.##.#.", "..####..", "#gggggg#", ".#gggg#.", "#.gggg.#", "..#..#.." }, { ["#"] = "ink", g = "green" })

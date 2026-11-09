@@ -1,97 +1,53 @@
--- Whole careers through Logic/Studio (the server's own rules) by a sensible player (tests/Career.luau): the economy
--- stays inside the bounds GAME_DESIGN promises. Print a career with: luau tests/career.luau -a <seed> (after the
--- check has built build/luautest).
+-- Whole sessions through Logic/Studio (the server's own rules) by a sensible player (tests/Career.luau): the pacing
+-- stays inside the bounds GAME_DESIGN 10 promises. Print a session with: luau tests/career.luau -a <seed> [minutes]
+-- [skill] (after the check has built build/luautest).
 local T = require("../TestKit")
-local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Career = require("../Career")
 
-local SEEDS = { 1, 2, 3, 4, 5, 6 }
-local YEARS = 10
+local SEEDS = { 1, 2, 3, 4 }
+local MINUTES = 180
 
 return function()
-	local runs, played = {}, {}
+	local runs = {}
 	for _, seed in SEEDS do
-		runs[seed] = Career.play(seed, YEARS)
-		played[seed] = Career.play(seed, YEARS, nil, 80)
+		runs[seed] = Career.play(seed, MINUTES * 60)
 	end
-	T.it("the first year: a few games out, the studio still afloat", function()
+	local function at(r: any, minute: number): any
+		return r.timeline[minute // 10]
+	end
+	T.it("the first minutes: a game launched within 90 s, an upgrade within 3 minutes", function()
 		for seed, r in runs do
-			local y1 = r.yearly[1]
-			T.truthy(y1.games >= 2, "seed " .. seed .. ": two or more games in year 1")
-			T.truthy(y1.avg >= 15 and y1.avg <= 28, "seed " .. seed .. ": first reviews middling, got " .. y1.avg)
-			T.truthy(y1.money > 0, "seed " .. seed .. ": in the black after year 1")
+			T.truthy(r.firstGame and r.firstGame <= 90, "seed " .. seed .. ": first game at " .. tostring(r.firstGame))
+			T.truthy(r.firstUpgrade and r.firstUpgrade <= 180, "seed " .. seed .. ": first upgrade at " .. tostring(r.firstUpgrade))
 		end
 	end)
-	T.it("offices: the Loft in years 2-4, the Studio Floor by year 6", function()
+	T.it("finds: a Rare within 10 minutes, an Epic within 30, no Mythic in the first hour", function()
 		for seed, r in runs do
-			local loft, studio = 99, 99
-			for _, row in r.yearly do
-				if row.office >= 2 then
-					loft = math.min(loft, row.year)
-				end
-				if row.office >= 3 then
-					studio = math.min(studio, row.year)
-				end
-			end
-			T.truthy(loft >= 2 and loft <= 4, "seed " .. seed .. ": Loft in year " .. loft)
-			T.truthy(studio <= 6, "seed " .. seed .. ": Studio Floor in year " .. studio)
+			T.truthy(r.firstTier[3] and r.firstTier[3] <= 600, "seed " .. seed .. ": Rare at " .. tostring(r.firstTier[3]))
+			T.truthy(r.firstTier[4] and r.firstTier[4] <= 1800, "seed " .. seed .. ": Epic at " .. tostring(r.firstTier[4]))
+			T.truthy(r.firstTier[6] == nil or r.firstTier[6] > 3600, "seed " .. seed .. ": Mythic at " .. tostring(r.firstTier[6]))
 		end
 	end)
-	T.it("reviews climb as the studio grows, and a Hall of Fame game comes", function()
+	T.it("upgrades: about ten levels each in the first hour, a few more by the third", function()
 		for seed, r in runs do
-			local late = r.yearly[YEARS].avg
-			if late == 0 then
-				late = r.yearly[YEARS - 1].avg
-			end
-			T.truthy(late >= r.yearly[1].avg + 5, "seed " .. seed .. ": better games later")
-			T.truthy(r.profile.stats.hof >= 1, "seed " .. seed .. ": a Hall of Fame game")
-			T.truthy(r.profile.stats.best <= 40)
+			local h1, h3 = at(r, 60), at(r, 180)
+			T.truthy(h1.speed >= 8 and h1.speed <= 14 and h1.luck >= 8 and h1.luck <= 14, string.format("seed %d: hour 1 speed %d luck %d", seed, h1.speed, h1.luck))
+			T.truthy(h3.speed > h1.speed and h3.luck > h1.luck, "seed " .. seed .. ": still climbing")
+			T.truthy(h3.speed <= 20 and h3.luck <= 20, string.format("seed %d: hour 3 speed %d luck %d", seed, h3.speed, h3.luck))
 		end
 	end)
-	T.it("no runaway: fans grow, but not exponentially", function()
+	T.it("no runaway: the next upgrade takes 5 to 40 minutes of income by hour 3, the income grows slower than x6", function()
 		for seed, r in runs do
-			for i = 2, #r.yearly do
-				local a, b = r.yearly[i - 1].fans, r.yearly[i].fans
-				T.truthy(b >= a, "seed " .. seed .. ": fans never shrink")
-				if a > 50000 then
-					T.truthy(b < a * 2.5, string.format("seed %d: fans at most x2.5 a year (year %d: %d -> %d)", seed, i, a, b))
-				end
-			end
-			T.truthy(r.profile.fans < 1e8 and r.profile.money == r.profile.money, "seed " .. seed .. ": finite")
+			local h1, h3 = at(r, 60), at(r, 180)
+			T.truthy(h3.wait >= 300 and h3.wait <= 2400, string.format("seed %d: wait %.0f s", seed, h3.wait))
+			T.truthy(h3.rate < h1.rate * 6, string.format("seed %d: %.0f -> %.0f a second", seed, h1.rate, h3.rate))
+			T.truthy(r.profile.coins == r.profile.coins and r.profile.rate < 1e9, "seed " .. seed .. ": finite")
 		end
 	end)
-	T.it("minigames (GAME_DESIGN 14): a player who plays them well makes better games, still inside the bounds", function()
-		local sumA, sumB, n = 0, 0, 0
-		for seed, r in played do
-			local base = runs[seed]
-			T.truthy(r.yearly[1].money > 0, "seed " .. seed .. ": afloat after year 1")
-			T.truthy(r.yearly[1].avg <= 30, "seed " .. seed .. ": first reviews still modest, got " .. r.yearly[1].avg)
-			T.truthy(r.profile.stats.best <= 40)
-			for i = 2, #r.yearly do
-				local a, b = r.yearly[i - 1].fans, r.yearly[i].fans
-				if a > 50000 then
-					T.truthy(b < a * 2.5, string.format("seed %d: fans at most x2.5 a year (year %d)", seed, i))
-				end
-			end
-			for i = 1, 3 do
-				sumA += base.yearly[i].avg
-				sumB += r.yearly[i].avg
-				n += 1
-			end
-		end
-		T.truthy(sumB / n >= sumA / n + 1, string.format("better early reviews: %.1f vs %.1f", sumB / n, sumA / n))
-		T.truthy(sumB / n <= sumA / n + 6, string.format("but not a different game: %.1f vs %.1f", sumB / n, sumA / n))
-	end)
-	T.it("the safety net: a broke studio can still start a small Home PC game", function()
-		local p = runs[1].profile
-		p.project = nil
-		p.money = -5000
-		local Studio = require("../../build/luautest/shared/Logic/Studio")
-		local ok, err = Studio.start(p, { genre = "action", topic = "space", platform = "phone", size = "small", focus = "fun", seed = 1 })
-		T.eq(ok, false)
-		T.eq(err, "money")
-		ok = Studio.start(p, { genre = "action", topic = "space", platform = Tuning.RescuePlatform, size = Tuning.RescueSize, focus = "fun", seed = 1 })
-		T.truthy(ok)
-		T.eq(p.money, -5000, "for free")
+	T.it("the minigames pay: winning them all earns about twice as much as losing them all", function()
+		local good = Career.play(1, 30 * 60, { skill = 1, retries = 0 })
+		local bad = Career.play(1, 30 * 60, { skill = 0, retries = 0 })
+		local ratio = at(good, 30).rate / at(bad, 30).rate
+		T.truthy(ratio >= 1.5 and ratio <= 2.8, string.format("x%.2f", ratio))
 	end)
 end

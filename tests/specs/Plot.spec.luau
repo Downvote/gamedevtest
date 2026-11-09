@@ -1,5 +1,5 @@
 -- The plot's rules (Logic/Plot; GAME_DESIGN 13): where decor may stand, buying once, placing copies, moving, storing,
--- the piece limit, and the pieces a bigger office covers going back in the box.
+-- the piece limit.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Plot = require("../../build/luautest/shared/Logic/Plot")
@@ -10,7 +10,7 @@ local Decor = require("../../build/luautest/shared/Data/Decor")
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
-	p.money = 1e6
+	p.coins = 1e6
 	return p
 end
 
@@ -40,16 +40,13 @@ return function()
 		T.truthy(Plot.fits(1, placed, "flowers", 17, 19, 0, 1), "moving a piece over its own old place")
 		T.eq(select(2, Plot.fits(1, {}, "castle", 16, 18, 0)), "unknown")
 	end)
-	T.it("buy once: money, fans, the office it needs", function()
+	T.it("buy once, with coins", function()
 		local p = fresh()
-		local ok, data = Plot.buy(p, "oak")
-		T.truthy(ok)
-		T.eq(data.fans, Decor.byId.oak.fans)
-		T.eq(p.money, 1e6 - Decor.byId.oak.price)
-		T.eq(p.fans, Decor.byId.oak.fans)
+		T.truthy(Plot.buy(p, "oak"))
+		T.eq(p.coins, 1e6 - Decor.byId.oak.price)
 		T.eq(select(2, Plot.buy(p, "oak")), "max", "only once")
-		T.eq(select(2, Plot.buy(p, "fountain")), "locked", "the Loft's")
-		p.money = 10
+		T.truthy(Plot.buy(p, "fountain"), "every piece from the start")
+		p.coins = 10
 		T.eq(select(2, Plot.buy(p, "bench")), "money")
 		T.eq(select(2, Plot.buy(p, "castle")), "bad_payload")
 	end)
@@ -82,26 +79,13 @@ return function()
 		T.eq(select(2, Plot.place(p, "gnome", plot.x1 - 3, plot.z1 - 3, 0)), "full")
 		T.eq(Plot.limit(3), Tuning.PlotPieces[3])
 	end)
-	T.it("a bigger office puts the pieces it covers back in the box", function()
-		local p = fresh()
-		Plot.buy(p, "gnome")
-		local plan1 = Office.plan(1)
-		-- right against the tier 1 room's east side: inside the tier 2 room
-		T.truthy(Plot.place(p, "gnome", plan1.maxX + 1, 0, 0))
-		T.truthy(Plot.place(p, "gnome", 20, 22, 0))
-		p.office = 2
-		T.eq(Plot.clean(p), 1)
-		T.eq(#p.plot.placed, 1)
-		T.eq(p.plot.placed[1].x, 20)
-		T.truthy(p.plot.owned.gnome, "still owned")
-	end)
-	T.it("every piece fits somewhere on the plot of the office it needs", function()
+	T.it("every piece fits somewhere on the garage's plot", function()
 		for _, d in Decor.list do
-			local plot = Street.plot(d.office)
+			local plot = Street.plot(1)
 			local found = false
 			for z = plot.z0, plot.z1 do
 				for x = plot.x0, plot.x1 do
-					if Plot.fits(d.office, {}, d.id, x, z, 0) then
+					if Plot.fits(1, {}, d.id, x, z, 0) then
 						found = true
 						break
 					end

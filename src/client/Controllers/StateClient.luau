@@ -1,6 +1,6 @@
 --!strict
--- The client's mirror of the server (docs/ARCHITECTURE.md 8.1): the latest ClientView (State messages), the week's
--- events (Fx messages) and requests. The client never trusts itself: every change is a Router request.
+-- The client's mirror of the server (docs/ARCHITECTURE.md 8.1): the latest ClientView (State messages), the server's
+-- news (Fx messages: a new idea, an income payment) and requests. The client never trusts itself: every change is a Router request.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -12,6 +12,8 @@ local StateClient = {}
 local current: Types.ClientView? = nil
 StateClient.Changed = Util.Signal() :: Types.Signal<Types.ClientView>
 StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
+-- The coins after an income payment (Fx "coins"): the view's coins are patched in place, no whole view is sent.
+StateClient.Coins = Util.Signal() :: Types.Signal<number>
 
 function StateClient.init()
 	local r = Net.clientInit()
@@ -23,6 +25,11 @@ function StateClient.init()
 	end)
 	r.Fx.OnClientEvent:Connect(function(msg: any)
 		if type(msg) == "table" then
+			local cur = current
+			if msg.kind == "coins" and type(msg.coins) == "number" and cur then
+				cur.coins = msg.coins
+				StateClient.Coins:Fire(msg.coins)
+			end
 			StateClient.Fx:Fire(msg)
 		end
 	end)

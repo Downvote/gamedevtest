@@ -1,8 +1,6 @@
 --!strict
 -- Every balance and timing number (docs/GAME_DESIGN.md quotes them; this file wins). Pure.
 export type PixelTierSpec = { h: number, hz: number, budgetMs: number, minFps: number, shadows: boolean }
-export type SizeSpec = { weeks: number, cost: number, price: number, expect: number, sales: number }
-export type OfficeSpec = { desks: number, rent: number, cost: number, fans: number }
 
 -- The pixel scale K (whole screen px per art pixel) is the one pixel size of the world, the UI and the text (Random
 -- Bakery's rule): PixelScaleMin plus one for each PixelScaleSides entry that the screen's short side exceeds. A tier
@@ -14,139 +12,59 @@ local PixelTiers: { [string]: PixelTierSpec } = {
 	high = { h = 540, hz = 30, budgetMs = 10, minFps = 40, shadows = true },
 }
 
--- Game sizes (GAME_DESIGN 6.1): build weeks, cost to start, price per copy, the critics' expectation factor and the
--- sales factor.
-local Sizes: { [string]: SizeSpec } = {
-	small = { weeks = 8, cost = 2000, price = 10, expect = 1, sales = 1 },
-	medium = { weeks = 14, cost = 12000, price = 18, expect = 1.8, sales = 1.5 },
-	large = { weeks = 22, cost = 40000, price = 30, expect = 3, sales = 2.2 },
-}
-
--- Offices (GAME_DESIGN 7), by tier: desks, rent a month, the move's price, fans needed.
-local Offices: { OfficeSpec } = {
-	{ desks = 3, rent = 1000, cost = 0, fans = 0 },
-	{ desks = 5, rent = 3000, cost = 120000, fans = 3000 },
-	{ desks = 8, rent = 8000, cost = 500000, fans = 25000 },
-}
-
 local Tuning = {
 	-- persistence (never rename a store: the players' saves are there)
 	DataStoreName = "BSS_Profile_v1",
 	AutosaveSec = 120,
 	LockTTL = 330, -- s: a session lock older than this is stale (a crashed server)
 	LoadRetries = 4,
-	ReleasesKept = 60, -- the profile keeps the newest releases; older ones live on in stats
-	ViewReleases = 30, -- the client view's newest releases
+	GamesKept = 50, -- the profile lists the newest launched games; every one keeps earning (Profile.rate)
 
-	-- time (GAME_DESIGN 3)
-	WeekSec = 2.5, -- real seconds per game week (was 4: "make the game development faster")
-	WeeksPerMonth = 4,
-	MonthsPerYear = 12,
+	-- the idea team (GAME_DESIGN 3, 4)
+	StartCoins = 0,
+	TeamSize = 3, -- the idea team (the garage's desks)
+	BoardSize = 12, -- ideas the board holds; when full, a rarer idea takes the commonest one's place
+	RollBase = 8, -- seconds between two ideas at speed level 0
+	RollStep = 0.92, -- each speed level multiplies it by this ...
+	RollMin = 1, -- ... down to this
+	LuckStep = 0.2, -- each luck level adds this to the luck (x1 at level 0)
+	RareOdds = 60, -- ideas and modifiers this rare or rarer roll at luck / odds; rarer than Uncommon: 1 / odds
+	CommonOdds = 13, -- ideas commoner than this (their odds below it) are the Commons, sharing what the others leave
+	CommonFloor = 0.1, -- the commons always keep at least this share of the rolls, however lucky
+	-- the rarity tiers by an idea's combined 1 in N (Common below the first, Mythic from the last)
+	TierOneIn = { 20, 250, 3000, 40000, 500000 },
+	TierNames = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" },
+	TierColors = { "text_dim", "good", "button", "purple", "accent", "fun" },
+	RevealTier = 3, -- ideas of this tier and up get the big reveal
 
-	-- money, fans, research (GAME_DESIGN 4)
-	StartMoney = 40000,
-	StartFans = 0,
-	StartRp = 0,
-	StartStaff = 2,
-	RescueSize = "small", -- a broke studio (money < 0) can always start a game of this size on the RescuePlatform, free
-	RescuePlatform = "pc",
+	-- upgrades (GAME_DESIGN 7): price = base x growth ^ level
+	SpeedCost = 50,
+	SpeedGrowth = 2.5,
+	LuckCost = 80,
+	LuckGrowth = 2.5,
 
-	-- crew (GAME_DESIGN 5)
-	SalaryBase = 300,
-	SalaryPerSkill = 12,
-	SkillMax = 250,
-	CandidateMin = 4,
-	CandidateMax = 40,
-	CandidateYearly = 3, -- every skill of a candidate +this per year after Year 1
-	Candidates = 3,
-	EnergyMax = 100,
-	EnergyWork = 6, -- per week of work
-	EnergyRest = 12, -- per idle week
-	EnergyTired = 25, -- under this a developer works at half speed (and dozes)
-	TiredRate = 0.5,
-	PartyPerStaff = 400,
-	TrainRp = 15,
-	TrainMoney = 2000,
-	TrainEnergy = 20,
-	TrainMin = 4, -- +skill for a skill at SkillMax ... TrainMax for a skill at 0
-	TrainMax = 6,
+	-- launched games (GAME_DESIGN 6): an idea earns IdeaValue x odds ^ IdeaValuePow x its modifier's mult a second
+	IdeaValue = 0.5,
+	IdeaValuePow = 0.35,
+	WinBoost = 1 / 3, -- each won minigame adds this to the game's income (all three: x2)
+	IncomeTickSec = 1, -- the server pays the games' income this often
 
-	-- development (GAME_DESIGN 6.2)
-	WorkRate = 0.5, -- points per skill point per week
-	TeamPower = 0.75, -- a crew of n works like n ^ TeamPower developers (they talk, they wait for each other)
-	WorkSpread = 0.3, -- each week's output times 1 +- this
-	SparkChance = 0.08,
-	SparkMult = 3,
-	SparkRp = 2,
-	RpPerWeek = 1,
-	FocusBoost = 1.3,
-	FocusOther = 0.9,
-	BugBase = 1, -- a developer adds a bug a week with chance BugBase - Code / BugCode, at least BugMin
-	BugCode = 150,
-	BugMin = 0.1,
-	FixBase = 1, -- bugs fixed a week while polishing: FixBase + Code / FixCode (rounded down)
-	FixCode = 30,
-	PolishRate = 0.2, -- share of the build rate a developer still adds while polishing
-
-	-- reviews (GAME_DESIGN 6.3)
-	QualityWeights = { fun = 1, ideas = 0.8, graphics = 0.8, sound = 0.6 },
-	BugPenalty = 25,
-	MatchMult = { great = 1.3, good = 1.1, okay = 1, poor = 0.8 },
-	LoveMult = 1.1,
-	NoveltyMult = 0.85,
-	NoveltyLookback = 3,
-	ExpectBase = 600,
-	ExpectYearly = 0.3,
-	CriticLean = 1, -- the most a critic's favourite score moves their review
-	CriticWobble = 0.6,
-	HallOfFame = 32,
-
-	-- sales (GAME_DESIGN 6.4)
-	SalesBase = 800, -- week-one copies of an average game on a market-1 platform, before fans
-	FanBuy = 0.1, -- share of the fans who buy a game in its first week (times the game's quality factor)
-	SalesPivot = 5, -- average review that sells the base amount
-	SalesPower = 2,
-	DecayBase = 0.7,
-	DecayPerPoint = 0.025,
-	SalesMinWeek = 5, -- a game leaves the shelves after a week under this many copies
-	SalesMaxWeeks = 40,
-	StudioCut = 0.7,
-	FanPerCopy = 0.08,
-	FanHofMult = 1.25,
-
-	-- office, ads, awards (GAME_DESIGN 7, 8)
-	AdCost = 4000, -- times the office tier
-	AdFans = 250, -- times the office tier (a flat amount: a share of the fans would compound every month)
-	GotyTotal = 34,
-	GotyFans = 0.3,
-	GotyMoney = 20000, -- times the year
-	PickTotal = 28,
-	PickFans = 0.1,
-	PickMoney = 5000, -- times the year
-
-	-- minigames (GAME_DESIGN 14)
-	MiniMilestones = { small = 2, medium = 3, large = 4 }, -- pushes a build earns, spread over its weeks
-	MiniMaxPushes = 2, -- pushes a project can bank
-	MiniWeeks = 1.5, -- a perfect push adds this many weeks of the crew's output on its score
-	MiniSeconds = 15, -- each minigame's length (the client's timer)
-	MiniMinSec = 5, -- a finish sooner than this after its start is refused
-	MiniMaxSec = 120, -- a finish later than this counts as a score of 0
-	SquashCooldown = 3, -- weeks between two Bug Squash games
-	SquashWeeks = 1.5, -- a perfect Bug Squash fixes this many weeks of the crew's polish fixes
-	MiniGrades = { S = 90, A = 70, B = 45 }, -- the score a grade needs (else C)
-
-	-- research costs (GAME_DESIGN 6.1), by the genre's or topic's tier (1 = open at the start)
-	GenreRp = { 0, 30, 60 },
-	TopicRp = { 0, 20, 40 },
-
-	Sizes = Sizes,
-	Offices = Offices,
+	-- microgames (GAME_DESIGN 5)
+	MicroSeconds = 6, -- a microgame's clock at difficulty 1 ...
+	MicroSecondsMin = 4, -- ... shortening with difficulty to this
+	MicroSecondsStep = 0.25,
+	MicroIntro = 0.9, -- the instruction word shows this long before the clock starts
+	MicroMinSec = 1, -- a win sooner than this after the start counts as a loss
+	MicroMaxSec = 60, -- a result later than this counts as a loss
+	DiffMax = 8,
+	TurboSpeed = 1.35, -- the Turbo modifier: everything this much faster ...
+	TurboClock = 0.8, -- ... on a clock this much shorter
 
 	-- server
 	StepHz = 10,
 	RateLimitPerSec = 12, -- requests per player per second (more are refused with "rate")
 
-	-- the street and the plot (GAME_DESIGN 12, 13; Data/Street)
+	-- the street and the plot (GAME_DESIGN 8, 9; Data/Street)
 	MaxPlots = 6, -- plots along the road (the server's size)
 	PlotSpacing = 80, -- studs between plot origins along X
 	PlotPieces = { 20, 32, 48 }, -- decor pieces standing on a plot, by office tier

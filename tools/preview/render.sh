@@ -3,8 +3,8 @@
 # and writes PNGs at the device resolution (pixel layer + GUI).
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
-#   scenario: office | dev | office2 | office3 | review | panel=<name> | mini=<code|ideas|pixels|beats|bugs> | street |
-#             visit | build | plot3 | late | all
+#   scenario: office | reveal | office2 | office3 | make | launch | panel=<ideas|index|upgrades|games|looks> |
+#             micro=<idea>[_<modifier>] | street | visit | build | plot3 | late | all
 #             (preview.luau's SCEN; all = office dev review street build)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off
@@ -17,15 +17,15 @@
 PREVIEW=$(cd "$(dirname "$0")" && pwd)
 T=${TOOLS:-$HOME/.local/rbx-tools}
 REPO=${REPO:-$(cd "$(dirname "$0")/../.." && pwd)}
-scen=${1:?usage: render.sh <office|dev|office2|office3|review|panel=name|mini=kind|street|visit|build|plot3|late|all> <outdir> [devices] [tier]}
+scen=${1:?usage: render.sh <office|reveal|office2|office3|make|launch|panel=name|micro=idea|street|visit|build|plot3|late|all> <outdir> [devices] [tier]}
 out=${2:?usage: render.sh <scenario> <outdir> [devices] [tier]}
 devices=${3:-desktop phone}
 tier=${4:-auto}
 jobs=${PREVIEW_JOBS:-4}
 
 case $scen in
-	all) scens="office dev review street build" ;;
-	office|dev|office2|office3|review|panel=*|mini=*|street|visit|build|plot3|late) scens=$scen ;;
+	all) scens="office reveal make launch street build" ;;
+	office|reveal|office2|office3|make|launch|panel=*|micro=*|street|visit|build|plot3|late) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

@@ -1,22 +1,18 @@
 --!strict
--- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 2, 9): the chips along the top (the date, money, fans, research),
--- the menu bar along the bottom (New game, Staff, Research, Office, Games), the project card on the right while a
--- game is in the works, the tips banner, the loading curtain until the first picture, and the week's notices.
--- The camera fits the office clear of the HUD's blocks (CameraController.setHudRects).
+-- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 2-7): the chips along the top (coins, the income, the next idea's
+-- timer, the idea board's count), the menu bar along the bottom (Ideas, Index, Upgrades, Games, Looks, Build), the
+-- card on the right (the game being made, or the newest ideas on the board), the tips banner, the loading curtain, and
+-- the big reveal for a rare idea. The camera fits the office clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
-local Genres = require(ReplicatedStorage.Shared.Data.Genres)
-local Topics = require(ReplicatedStorage.Shared.Data.Topics)
-local Platforms = require(ReplicatedStorage.Shared.Data.Platforms)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
-local Calendar = require(ReplicatedStorage.Shared.Logic.Calendar)
+local IdeasData = require(ReplicatedStorage.Shared.Data.Ideas)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
-local Dev = require(ReplicatedStorage.Shared.Logic.Dev)
-local Minigames = require(ReplicatedStorage.Shared.Logic.Minigames)
+local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -24,34 +20,35 @@ local WorldView = require(script.Parent.Parent.Controllers.WorldView)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
+local PixelSprites = require(script.Parent.PixelSprites)
 local Menus = require(script.Parent.Menus)
-local ReviewUI = require(script.Parent.ReviewUI)
 local BuildUI = require(script.Parent.BuildUI)
-local MinigameUI = require(script.Parent.MinigameUI)
+local MicroUI = require(script.Parent.MicroUI)
+local Words = require(script.Parent.Words)
 
 local Hud = {}
 
 local TOP_H = 13
 local BAR_H = 15
-local CARD_W = 124 -- the project card's width (100 on phones: no bars, the numbers only)
-local CARD_MAX_H = 118 -- the card's tallest (polishing: the minigame row and Release!)
+local CARD_W = 124 -- the card's width (104 on phones)
+local CARD_MAX_H = 104
 
 local function cardWidth(): number
-	return if UIKit.phone() then 100 else 124
+	return if UIKit.phone() then 104 else 124
 end
 
 local chips: { [string]: TextLabel } = {}
 local chipFrames: { [string]: Frame } = {}
 local bar: Frame? = nil
 local card: Frame? = nil
-local cardParts: { [string]: any } = {}
 local tips: Frame? = nil
-local curtain: Frame? = nil
 local homeButton: TextButton? = nil
+local ideaBar: Frame? = nil
+local reveal: Frame? = nil
 local lastKey = ""
 
 ------------------------------------------------------------------ smooth numbers
--- Values the HUD shows ease toward their targets (the chips count up, the card's bars glide); `apply` draws a value.
+-- Values the HUD shows ease toward their targets (the coins count up); `apply` draws a value.
 type Ease = { cur: number, target: number, apply: (number) -> () }
 local eases: { [string]: Ease } = {}
 local function easeTo(key: string, target: number, apply: (number) -> (), instant: boolean?)
@@ -74,10 +71,8 @@ local function stepEases(dt: number)
 		end
 	end
 end
--- the chips flash when their value changes (chip name -> when)
 local chipBump: { [string]: number } = {}
-local weekClock = 0 -- seconds into this game week (the date chip's bar)
-local weekBar: Frame? = nil
+local rollClock = 0 -- seconds since the last idea (the timer chip's bar)
 
 ------------------------------------------------------------------ layout
 local function hudRects()
@@ -89,8 +84,7 @@ local function hudRects()
 	end
 	local list: { Raster.Rect }
 	if UIKit.phone() then
-		-- a phone (Random Bakery's rule): only Roblox's top bar and the menu bar are kept clear, so the office fills the
-		-- screen; the chips and the card may overlap its margins
+		-- a phone (Random Bakery's rule): only Roblox's top bar and the menu bar are kept clear
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y },
 			r(math.floor(s.X / 2) - 140, s.Y - BAR_H - 3, math.floor(s.X / 2) + 140, s.Y),
@@ -99,9 +93,8 @@ local function hudRects()
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (TOP_H + 3) * K },
 			r(0, s.Y - BAR_H - 3, s.X, s.Y),
+			r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 4 + CARD_MAX_H),
 		}
-		-- the card's place is kept whether a game is in the works or not, so the view never moves when one starts
-		table.insert(list, r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 4 + CARD_MAX_H))
 	end
 	CameraController.setHudRects(list)
 end
@@ -119,14 +112,14 @@ end
 
 local function buildTop()
 	local x = 3
-	x = chip("date", x, 64, UIKit.color("text_dim"))
-	-- the week's progress along the date chip's bottom edge
-	local wb = UIKit.rect(chipFrames.date, UDim2.fromOffset(0, 1), UDim2.new(0, 3, 1, -2), UIKit.color("accent"), 3)
-	wb.Name = "WeekBar"
-	weekBar = wb
-	x = chip("money", x, 60, UIKit.color("good"))
-	x = chip("fans", x, 58, UIKit.color("fun"))
-	x = chip("rp", x, 50, UIKit.color("ideas"))
+	x = chip("coins", x, 62, UIKit.color("accent"))
+	x = chip("rate", x, 54, UIKit.color("good"))
+	x = chip("idea", x, 72, UIKit.color("ideas"))
+	-- the next idea's progress along the idea chip's bottom edge
+	local ib = UIKit.rect(chipFrames.idea, UDim2.fromOffset(0, 1), UDim2.new(0, 3, 1, -2), UIKit.color("ideas"), 3)
+	ib.Name = "IdeaBar"
+	ideaBar = ib
+	x = chip("board", x, 66, UIKit.color("text_dim"))
 	-- Home: shown while the founder is off their own lot (char.home sends them back to their footpath)
 	local hb = UIKit.button(UIKit.canvas("Hud"), "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(x, 2), function()
 		local res = StateClient.request("char.home", {})
@@ -149,74 +142,34 @@ local function atHome(): boolean
 	return Street.plotAt(root.Position.X, root.Position.Z) == v.plot
 end
 
-local lastTop: { [string]: number } = {}
-local function updateTop(v: Types.ClientView)
-	UIKit.setText(chips.date, Calendar.label(v.week) .. (if v.paused then " II" else ""))
-	UIKit.setTextColor(chips.money, if v.money < 0 then UIKit.color("bad") else UIKit.color("text"))
-	local fresh = next(lastTop) == nil
-	for name, value in { money = v.money, fans = v.fans, rp = v.rp } :: { [string]: number } do
-		if lastTop[name] ~= nil and lastTop[name] ~= value then
-			chipBump[name] = os.clock()
-		end
-		lastTop[name] = value
+local lastCoins: number? = nil
+local function showCoins(coins: number, instant: boolean?)
+	if lastCoins ~= nil and lastCoins ~= coins then
+		chipBump.coins = os.clock()
 	end
-	easeTo("money", v.money, function(x: number)
-		local l = chips.money
+	lastCoins = coins
+	easeTo("coins", coins, function(x: number)
+		local l = chips.coins
 		if l then
-			UIKit.setText(l, Numbers.money(math.floor(x + 0.5)))
+			UIKit.setText(l, Numbers.coins(x) .. " coins")
 		end
-	end, fresh)
-	easeTo("fans", v.fans, function(x: number)
-		local l = chips.fans
-		if l then
-			UIKit.setText(l, Numbers.short(math.floor(x + 0.5)) .. " fans")
-		end
-	end, fresh)
-	easeTo("rp", v.rp, function(x: number)
-		local l = chips.rp
-		if l then
-			UIKit.setText(l, tostring(math.floor(x + 0.5)) .. " RP")
-		end
-	end, fresh)
+	end, instant)
 end
 
--- "+$1.2K" floating up from the money chip (a week's sales).
-local function moneyPop(amount: number)
-	local f = chipFrames.money
-	if not f or amount == 0 then
-		return
-	end
-	local canvas = UIKit.canvas("Hud")
-	local text = (if amount > 0 then "+" else "-") .. Numbers.money(math.abs(amount))
-	local w = UIKit.textWidth(text) + 4
-	local x, y = f.Position.X.Offset + 6, f.Position.Y.Offset + TOP_H + 1
-	local l = UIKit.text(canvas, text, UDim2.fromOffset(w, 10), UDim2.fromOffset(x, y), {
-		color = if amount > 0 then UIKit.color("good") else UIKit.color("bad"),
-		kind = "outline",
-		name = "MoneyPop",
-	})
-	local t0 = os.clock()
-	local conn: RBXScriptConnection? = nil
-	conn = RunService.Heartbeat:Connect(function()
-		local t = os.clock() - t0
-		if t > 1.6 or l.Parent == nil then
-			if conn then
-				conn:Disconnect()
-			end
-			l:Destroy()
-			return
-		end
-		l.Position = UDim2.fromOffset(x, y + math.floor(math.min(t, 1) * 8))
-	end)
+local function updateTop(v: Types.ClientView)
+	showCoins(v.coins, lastCoins == nil)
+	UIKit.setText(chips.rate, Numbers.rate(v.rate))
+	UIKit.setText(chips.board, string.format("Board %d/%d", #v.ideas, Tuning.BoardSize))
+	UIKit.setTextColor(chips.board, if #v.ideas >= Tuning.BoardSize then UIKit.color("accent") else UIKit.color("text"))
 end
 
 ------------------------------------------------------------------ the menu bar
 local MENUS: { { text: string, panel: string } } = {
-	{ text = "New game", panel = "newgame" },
-	{ text = "Staff", panel = "staff" },
-	{ text = "Research", panel = "research" },
-	{ text = "Office", panel = "office" },
+	{ text = "Ideas", panel = "ideas" },
+	{ text = "Index", panel = "index" },
+	{ text = "Upgrades", panel = "upgrades" },
 	{ text = "Games", panel = "games" },
+	{ text = "Looks", panel = "looks" },
 	{ text = "Build", panel = "build" },
 }
 
@@ -249,7 +202,7 @@ local function buildBar()
 			end
 		end, {
 			name = "Menu_" .. m.panel,
-			color = if m.panel == "newgame" then UIKit.color("button_ok") elseif m.panel == "build" then UIKit.color("button_warn") else nil,
+			color = if m.panel == "ideas" then UIKit.color("button_ok") elseif m.panel == "build" then UIKit.color("button_warn") else nil,
 		})
 		b.ZIndex = 2
 		x += w + 3
@@ -257,204 +210,88 @@ local function buildBar()
 	bar = f
 end
 
-local function updateBar(v: Types.ClientView)
-	local f = bar
-	if f == nil then
-		return
+------------------------------------------------------------------ the card
+-- A small idea line: its icon, its name in its tier's colour.
+local function ideaLine(parent: Instance, c: Types.Card, y: number, w: number, extra: string?): TextLabel
+	local def = IdeasData.byId[c.id]
+	local icon = PixelSprites.ICONS[c.id]
+	if def and icon then
+		PixelSprites.sprite(parent, icon, UDim2.fromOffset(4, y + 1), 1, 3)
 	end
-	local b = f:FindFirstChild("Menu_newgame")
-	if b and b:IsA("TextButton") then
-		UIKit.setEnabled(b, v.project == nil)
+	local tier = Ideas.tier(c)
+	local l = UIKit.text(parent, Ideas.name(c), UDim2.fromOffset(w - 16 - (if extra then 26 else 0), 10), UDim2.fromOffset(14, y), { color = UIKit.color(Ideas.tierColor(tier)), name = "Idea" })
+	if extra then
+		UIKit.text(parent, extra, UDim2.fromOffset(24, 10), UDim2.fromOffset(w - 28, y), { x = "right", color = UIKit.color("text"), name = "Mark" })
 	end
-end
-
------------------------------------------------------------------- the project card
-local function buildCard()
-	local phone = UIKit.phone()
-	local canvas = UIKit.canvas("Hud")
-	local s = UIKit.size("Hud")
-	local f = UIKit.plate(canvas, UDim2.fromOffset(CARD_W, 104), UDim2.fromOffset(s.X - CARD_W - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
-	f.Name = "ProjectCard"
-	local p: { [string]: any } = {}
-	p.title = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), name = "Title" })
-	p.sub = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 12), { color = UIKit.color("text_dim"), name = "Sub" })
-	p.phase = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 22), { name = "Phase" })
-	local _, setProgress = UIKit.bar(f, UDim2.fromOffset(CARD_W - 8, 3), UDim2.fromOffset(4, 33), UIKit.color("accent"))
-	p.progress = setProgress
-	p.rows = {}
-	for i, axis in Dev.AXES do
-		local y = 38 + (i - 1) * 10
-		UIKit.text(f, Dev.AXIS_NAMES[axis], UDim2.fromOffset(48, 10), UDim2.fromOffset(4, y), { color = UIKit.color(axis) })
-		local value = UIKit.text(f, "0", UDim2.fromOffset(28, 10), UDim2.fromOffset(CARD_W - 32, y), { x = "right", name = "Value_" .. axis })
-		local setBar = function(_: number) end
-		if not phone then
-			local _, sb = UIKit.bar(f, UDim2.fromOffset(CARD_W - 90, 3), UDim2.fromOffset(52, y + 4), UIKit.color(axis), UIKit.color("plate_light"))
-			setBar = sb
-		end
-		p.rows[axis] = { value = value, bar = setBar }
-	end
-	p.bugs = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 78), { name = "Bugs" })
-	-- the minigames (GAME_DESIGN 14): a banked push, Bug Squash while polishing, or when the next push comes
-	p.push = UIKit.button(f, "Push!", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 89), function()
-		MinigameUI.picker()
-	end, { color = UIKit.color("accent"), textColor = UIKit.color("ink"), name = "Push" })
-	p.squash = UIKit.button(f, "Squash bugs", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 89), function()
-		MinigameUI.play("bugs")
-	end, { color = UIKit.color("button_warn"), name = "Squash" })
-	p.nextPush = UIKit.text(f, "", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 90), { color = UIKit.color("text_dim"), name = "NextPush" })
-	p.release = UIKit.button(f, "Release!", UDim2.fromOffset(CARD_W - 8, 13), UDim2.fromOffset(4, 103), function()
-		ReviewUI.release()
-	end, { color = UIKit.color("button_ok"), name = "Release" })
-	card = f
-	cardParts = p
-end
-
--- With no game in the works the card's place shows the games on sale and their last week.
-local salesCard: Frame? = nil
-local function updateSales(v: Types.ClientView)
-	if salesCard then
-		salesCard:Destroy()
-		salesCard = nil
-	end
-	if v.project ~= nil then
-		return
-	end
-	local canvas = UIKit.canvas("Hud")
-	local s = UIKit.size("Hud")
-	local selling = {}
-	for i = #v.releases, 1, -1 do
-		local r = v.releases[i]
-		if r.onSale then
-			table.insert(selling, r)
-		end
-	end
-	local rows = math.min(#selling, 5)
-	local h = 26 + math.max(1, rows) * 10
-	local f = UIKit.plate(canvas, UDim2.fromOffset(CARD_W, h), UDim2.fromOffset(s.X - CARD_W - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
-	f.Name = "SalesCard"
-	UIKit.text(f, "On sale", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent") })
-	if rows == 0 then
-		UIKit.text(f, "Nothing yet", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, 13), { color = UIKit.color("text_dim") })
-	end
-	for i = 1, rows do
-		local r = selling[i]
-		local y = 3 + i * 10
-		UIKit.text(f, r.title, UDim2.fromOffset(CARD_W - 44, 10), UDim2.fromOffset(4, y), { color = UIKit.color("text") })
-		UIKit.text(f, if r.weeks == 0 then "new!" else Numbers.short(r.last) .. "/wk", UDim2.fromOffset(40, 10), UDim2.fromOffset(CARD_W - 44, y), { x = "right", color = if r.weeks == 0 then UIKit.color("accent") else UIKit.color("text_dim") })
-	end
-	UIKit.text(f, "No game in the works", UDim2.fromOffset(CARD_W - 8, 10), UDim2.fromOffset(4, h - 12), { color = UIKit.color("text_dim") })
-	salesCard = f
+	return l
 end
 
 local function updateCard(v: Types.ClientView)
-	updateSales(v)
 	local proj = v.project
-	if proj == nil then
-		if card then
-			card.Visible = false
-		end
+	local key = if proj then "p:" .. proj.title .. table.concat(proj.won, ",") else "b:" .. #v.ideas .. (if #v.ideas > 0 then Ideas.key(v.ideas[#v.ideas]) else "")
+	if card and card:GetAttribute("Key") == key then
 		return
 	end
-	if card == nil then
-		buildCard()
+	if card then
+		card:Destroy()
+		card = nil
 	end
-	local f = card :: Frame
-	f.Visible = true
-	local p = cardParts
-	UIKit.setText(p.title, proj.title)
-	local g, t, pl = Genres.byId[proj.genre], Topics.byId[proj.topic], Platforms.byId[proj.platform]
-	UIKit.setText(p.sub, (if t then t.name else "?") .. " " .. (if g then g.name else "?") .. " / " .. (if pl then pl.short else "?"))
-	if proj.phase == "build" then
-		UIKit.setText(p.phase, string.format("Building %d/%d weeks", proj.weeksDone, proj.buildWeeks))
-	else
-		UIKit.setText(p.phase, if proj.bugs > 0 then "Polishing..." else "Ready to ship!")
-	end
-	local key = proj.title .. "|" .. tostring(proj.startWeek)
-	local newGame = p.key ~= key
-	p.key = key
-	easeTo("card:progress", Dev.progress(proj), function(x: number)
-		local set = cardParts.progress
-		if set then
-			set(x)
+	local canvas = UIKit.canvas("Hud")
+	local s = UIKit.size("Hud")
+	local w = CARD_W
+	local f: Frame
+	if proj then
+		f = UIKit.plate(canvas, UDim2.fromOffset(w, 84), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
+		f.Name = "ProjectCard"
+		UIKit.text(f, "Making", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("text_dim") })
+		UIKit.text(f, proj.title, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 11), { color = UIKit.color("accent"), name = "Title" })
+		local played = true
+		for i, c in proj.ideas do
+			local won = proj.won[i]
+			played = played and won >= 0
+			local mark = if won == 1 then "WIN" elseif won == 0 then "lose" else "-"
+			local l = ideaLine(f, c, 13 + i * 10, w, mark)
+			l.Name = "Idea_" .. i
 		end
-	end, newGame)
-	local most = 1
-	for _, a in Dev.AXES do
-		most = math.max(most, (proj.scores :: any)[a])
-	end
-	for _, a in Dev.AXES do
-		local n = (proj.scores :: any)[a] :: number
-		easeTo("card:" .. a, n, function(x: number)
-			local row = cardParts.rows and cardParts.rows[a]
-			if row then
-				UIKit.setText(row.value, Numbers.short(math.floor(x + 0.5)))
+		local wins = 0
+		for _, x in proj.won do
+			if x == 1 then
+				wins += 1
 			end
-		end, newGame)
-		easeTo("card:bar:" .. a, n / most, function(x: number)
-			local row = cardParts.rows and cardParts.rows[a]
-			if row then
-				row.bar(x)
-			end
-		end, newGame)
-	end
-	UIKit.setText(p.bugs, string.format("Bugs: %d", proj.bugs))
-	UIKit.setTextColor(p.bugs, if proj.bugs > 0 then UIKit.color("bad") else UIKit.color("good"))
-	-- the bottom rows: the minigames, then Release! while polishing
-	local inner = CARD_W - 8
-	local y = 89
-	local pushes = proj.pushes or 0
-	local showPush = pushes > 0
-	local showSquash = proj.phase == "polish" and proj.bugs > 0
-	local ms = Minigames.milestones(proj.size)
-	local nextAt = ms[(proj.nextPush or 0) + 1]
-	local showNext = not showPush and proj.phase == "build" and nextAt ~= nil
-	UIKit.setButtonText(p.push, if pushes > 1 then string.format("Push! x%d", pushes) else "Push!")
-	local half = math.floor((inner - 3) / 2)
-	p.push.Visible = showPush
-	p.squash.Visible = showSquash
-	if showPush and showSquash then
-		p.push.Size = UDim2.fromOffset(half, 13)
-		p.squash.Size = UDim2.fromOffset(inner - half - 3, 13)
-		p.push.Position = UDim2.fromOffset(4, y)
-		p.squash.Position = UDim2.fromOffset(4 + half + 3, y)
-	else
-		p.push.Size = UDim2.fromOffset(inner, 13)
-		p.squash.Size = UDim2.fromOffset(inner, 13)
-		p.push.Position = UDim2.fromOffset(4, y)
-		p.squash.Position = UDim2.fromOffset(4, y)
-	end
-	if showSquash then
-		local wait = (proj.squashWeek or 0) - v.week
-		local short = showPush or UIKit.phone()
-		if wait > 0 then
-			UIKit.setButtonText(p.squash, string.format(if short then "Squash %dw" else "Squash in %d wk", wait))
-			UIKit.setEnabled(p.squash, false)
-		else
-			UIKit.setButtonText(p.squash, if short then "Squash!" else "Squash bugs!")
-			UIKit.setEnabled(p.squash, true)
 		end
+		UIKit.text(f, string.format("Sales x%.2f", 1 + Tuning.WinBoost * wins), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 55), { color = UIKit.color("good"), name = "Boost" })
+		local b = UIKit.button(f, if played then "Launch!" else "Play!", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 67), function()
+			MicroUI.open()
+		end, { name = if played then "CardLaunch" else "CardPlay", color = if played then UIKit.color("button_ok") else UIKit.color("accent"), textColor = if played then nil else UIKit.color("ink") })
+		b:SetAttribute("Pulse", true)
+	else
+		local shown = math.min(#v.ideas, 4)
+		local h = 40 + math.max(1, shown) * 10
+		f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
+		f.Name = "BoardCard"
+		UIKit.text(f, "Idea board", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent") })
+		if shown == 0 then
+			UIKit.text(f, "Your team is thinking...", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = UIKit.color("text_dim") })
+		end
+		for i = 1, shown do
+			ideaLine(f, v.ideas[#v.ideas - i + 1], 3 + i * 10, w)
+		end
+		local ready = #v.ideas >= 3
+		local b = UIKit.button(f, if ready then "Make a game!" else string.format("%d/3 ideas", #v.ideas), UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, h - 16), function()
+			UIKit.openPanel("ideas")
+		end, { name = "MakeGame", color = if ready then UIKit.color("button_ok") else nil, enabled = ready })
+		b:SetAttribute("Pulse", ready)
 	end
-	p.nextPush.Visible = showNext
-	if showNext then
-		UIKit.setText(p.nextPush, string.format("Next push: week %d", nextAt))
-	end
-	if showPush or showSquash or showNext then
-		y += 14
-	end
-	p.release.Visible = proj.phase == "polish"
-	p.release.Position = UDim2.fromOffset(4, y)
-	if proj.phase == "polish" then
-		y += 14
-	end
-	f.Size = UDim2.fromOffset(CARD_W, math.max(90, y + 1))
+	f:SetAttribute("Key", key)
+	f.Visible = not BuildUI.isOpen()
+	card = f
 end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Tap New game to make your first game!",
-	[2] = "Your crew is working: watch the ideas pop!",
-	[3] = "Built! Polishing fixes bugs. Release when you're ready.",
-	[4] = "Reviews are in! Hire more crew in Staff.",
+	[1] = "Your idea team is thinking up ideas. Collect three, then make a game!",
+	[2] = "Play the game's three minigames: every win boosts its sales!",
+	[3] = "Your game earns coins for good. Spend them in Upgrades!",
 }
 
 local function updateTips(v: Types.ClientView)
@@ -480,6 +317,7 @@ local function updateTips(v: Types.ClientView)
 	UIKit.button(f, "OK", UDim2.fromOffset(24, 10), UDim2.new(1, -27, 0, 2), function()
 		StateClient.request("tut.next", {})
 	end, { name = "TipsOk" })
+	f.Visible = not BuildUI.isOpen()
 	tips = f
 end
 
@@ -499,7 +337,6 @@ local function buildCurtain()
 	title.AnchorPoint = Vector2.new(0, 1)
 	UIKit.text(f, "Opening your studio...", UDim2.fromOffset(s.X, 10), UDim2.new(0, 0, 0.5, 26), { x = "center", color = UIKit.color("text_dim"), z = 21 })
 	local _, set = UIKit.bar(f, UDim2.fromOffset(120, 3), UDim2.new(0.5, -60, 0.5, 42), UIKit.color("accent"), UIKit.color("plate_light"))
-	curtain = f
 	task.spawn(function()
 		local t0 = os.clock()
 		while true do
@@ -513,65 +350,72 @@ local function buildCurtain()
 		UIKit.tween(f, 0.3, { BackgroundTransparency = 1 })
 		task.wait(0.3)
 		f:Destroy()
-		curtain = nil
 	end)
 end
 
------------------------------------------------------------------- the week's notices
-local function onWeek(msg: { [string]: any })
-	local events = msg.events
-	if type(events) ~= "table" then
+------------------------------------------------------------------ a new idea
+-- Rare and up: a banner drops in at the top (the tier, the idea, its 1 in N, "New!" the first time), with a sound to
+-- match and confetti from Epic. Every idea restarts the timer chip's bar.
+local function onIdea(msg: { [string]: any })
+	rollClock = 0
+	local c = msg.card
+	if type(c) ~= "table" or not Ideas.valid(c) then
 		return
 	end
-	local v = StateClient.view()
-	for _, e in events do
-		if type(e) ~= "table" then
-			continue
-		end
-		if e.kind == "pay" and (e.amount or 0) > 0 then
-			UIKit.notice("Payday: " .. Numbers.money(e.amount or 0) .. " for salaries and rent", UIKit.color("text_dim"))
-			moneyPop(-(e.amount or 0))
-		elseif e.kind == "broke" then
-			UIKit.notice("Out of money! A small Home PC game is free to start.", UIKit.color("bad"), 6)
-			Audio.play("sad")
-		elseif e.kind == "push" then
-			UIKit.notice("Push ready! Play a minigame to make " .. (e.title or "the game") .. " better.", UIKit.color("accent"), 5)
-			Audio.play("ding")
-		elseif e.kind == "built" then
-			UIKit.notice((e.title or "The game") .. " is built! Polish it or release it.", UIKit.color("accent"), 5)
-			Audio.play("level_up")
-		elseif e.kind == "ready" then
-			UIKit.notice((e.title or "The game") .. " has no bugs left: ready to ship!", UIKit.color("good"), 5)
-			Audio.play("ding")
-		elseif e.kind == "sales" then
-			moneyPop(e.amount or 0)
-			if (e.amount or 0) > 0 then
-				Audio.play("coin", { volume = 0.7 })
-			end
-		elseif e.kind == "platform" then
-			UIKit.notice("New platform out: " .. (e.title or "?") .. "!", UIKit.color("graphics"), 6)
-			Audio.play("notice")
-		elseif e.kind == "candidates" and v and #v.staff < 8 then
-			UIKit.notice("New job seekers are waiting in Staff.", UIKit.color("text_dim"))
-		elseif e.kind == "award" then
-			ReviewUI.award(e)
-		end
+	local tier = if type(msg.tier) == "number" then msg.tier else 1
+	if tier < Tuning.RevealTier then
+		Audio.play("pop", { volume = 0.5, pitch = 1.2 })
+		return
 	end
+	-- over a panel or the making card the banner would hide it: a line in the status bar (or a toast) instead
+	if UIKit.currentPanel() ~= nil or MicroUI.isOpen() then
+		UIKit.notice(string.format("%s idea: %s (%s)!", Ideas.tierName(tier), Ideas.name(c), Numbers.oneIn(if type(msg.oneIn) == "number" then msg.oneIn else Ideas.oneIn(c))), UIKit.color(Ideas.tierColor(tier)), 4)
+		Audio.play(if tier >= 5 then "rare_fanfare" elseif tier >= 4 then "fanfare" else "sparkle")
+		return
+	end
+	if reveal then
+		reveal:Destroy()
+		reveal = nil
+	end
+	local canvas = UIKit.canvas("Popup")
+	local s = UIKit.size("Popup")
+	local col = UIKit.color(Ideas.tierColor(tier))
+	local w = math.min(200, s.X - 16)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 44), UDim2.fromOffset(math.floor((s.X - w) / 2), -50), UIKit.color("plate"), 0, 3)
+	f.Name = "Reveal"
+	f.ZIndex = 8
+	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), col, 9)
+	local icon = PixelSprites.ICONS[c.id]
+	if icon then
+		PixelSprites.sprite(f, icon, UDim2.fromOffset(6, 10), 3, 9)
+	end
+	UIKit.text(f, string.upper(Ideas.tierName(tier)) .. " IDEA!" .. (if msg.first == true then "  New!" else ""), UDim2.fromOffset(w - 40, 10), UDim2.fromOffset(36, 4), { color = col, z = 9, name = "Tier" })
+	UIKit.text(f, Ideas.name(c), UDim2.fromOffset(w - 40, 18), UDim2.fromOffset(36, 14), { face = "big", kind = "title", color = UIKit.color("text"), z = 9, name = "Name" })
+	UIKit.text(f, Numbers.oneIn(if type(msg.oneIn) == "number" then msg.oneIn else Ideas.oneIn(c)), UDim2.fromOffset(w - 40, 10), UDim2.fromOffset(36, 32), { color = UIKit.color("text_dim"), z = 9, name = "OneIn" })
+	reveal = f
+	UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(math.floor((s.X - w) / 2), 22) })
+	Audio.play(if tier >= 5 then "rare_fanfare" elseif tier >= 4 then "fanfare" else "sparkle")
+	if tier >= 4 then
+		task.delay(0.25, function()
+			if f.Parent then
+				UIKit.confetti(f, if tier >= 5 then 50 else 28)
+			end
+		end)
+	end
+	task.delay(if tier >= 5 then 4 else 2.8, function()
+		if f.Parent then
+			UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(math.floor((s.X - w) / 2), -50) })
+			task.wait(0.3)
+			f:Destroy()
+		end
+	end)
 end
 
 ------------------------------------------------------------------ lifecycle
 local function refresh(v: Types.ClientView)
 	updateTop(v)
-	updateBar(v)
 	updateCard(v)
 	updateTips(v)
-	if BuildUI.isOpen() then
-		for _, f in { bar, card, salesCard, tips } do
-			if f then
-				f.Visible = false
-			end
-		end
-	end
 	local key = string.format("%d", v.office)
 	if key ~= lastKey then
 		lastKey = key
@@ -580,6 +424,7 @@ local function refresh(v: Types.ClientView)
 	if UIKit.currentPanel() ~= nil then
 		UIKit.refreshPanel()
 	end
+	MicroUI.refresh()
 end
 
 local function rebuild()
@@ -588,23 +433,14 @@ local function rebuild()
 	end
 	table.clear(chips)
 	table.clear(chipFrames)
-	if card then
-		card:Destroy()
-		card = nil
+	for _, f in { card, tips, homeButton } :: { Instance? } do
+		if f then
+			f:Destroy()
+		end
 	end
-	if salesCard then
-		salesCard:Destroy()
-		salesCard = nil
-	end
-	if tips then
-		tips:Destroy()
-		tips = nil
-	end
-	if homeButton then
-		homeButton:Destroy()
-		homeButton = nil
-	end
+	card, tips, homeButton = nil, nil, nil
 	CARD_W = cardWidth()
+	lastCoins = nil
 	buildTop()
 	buildBar()
 	local v = StateClient.view()
@@ -617,45 +453,29 @@ end
 function Hud.start()
 	buildCurtain()
 	Menus.init()
-	ReviewUI.init()
+	MicroUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
+	StateClient.Coins:Connect(function(coins: number)
+		showCoins(coins)
+	end)
 	StateClient.Fx:Connect(function(msg)
-		if msg.kind == "week" then
-			weekClock = 0
-			onWeek(msg)
+		if msg.kind == "idea" then
+			onIdea(msg)
 		end
 	end)
 	UIKit.Resized:Connect(function()
 		rebuild()
 	end)
-	-- full-screen menus hold the clock (the server pauses this player's weeks)
-	UIKit.PanelChanged:Connect(function(name)
-		StateClient.signal("pause", { key = "menu", on = name ~= nil })
+	-- a launched game: the team cheers with its income over their heads
+	MicroUI.Launched:Connect(function(g: Types.Game)
+		WorldView.cheer({ Numbers.rate(g.rate), "Yay!", "Woo!" }, UIKit.color("accent"))
 	end)
-	-- a minigame's reward lands: the crew cheers over their desks
-	MinigameUI.Finished:Connect(function(data)
-		if data.axis then
-			local v = StateClient.view()
-			local n = if v then math.max(1, #v.staff) else 1
-			local share = math.max(1, math.floor((data.points or 0) / n + 0.5))
-			WorldView.cheer({ "+" .. tostring(data.points or 0) .. " " .. (Dev.AXIS_NAMES[data.axis] or ""), "+" .. share }, UIKit.color(data.axis))
-		else
-			WorldView.cheer({ "Squashed!", "Yay!" }, UIKit.color("good"))
-		end
-		Audio.play("cheer")
-	end)
-	-- Build mode has its own tray: the menu bar, the cards and the tips step aside
+	-- Build mode has its own tray: the menu bar, the card and the tips step aside
 	BuildUI.Changed:Connect(function(on)
-		for _, f in { bar, card, salesCard, tips } do
+		for _, f in { bar, card, tips } :: { GuiObject? } do
 			if f then
 				f.Visible = not on
-			end
-		end
-		if not on then
-			local v = StateClient.view()
-			if v then
-				refresh(v)
 			end
 		end
 	end)
@@ -665,16 +485,19 @@ function Hud.start()
 		local dt = math.min(0.1, now - lastBeat)
 		lastBeat = now
 		stepEases(dt)
-		-- the week's bar fills while the clock runs (it holds while a menu or a card holds the clock)
 		local v = StateClient.view()
-		if v and not v.paused then
-			weekClock = math.min(Tuning.WeekSec, weekClock + dt)
-		end
-		local wb = weekBar
-		local dateChip = chipFrames.date
-		if wb and wb.Parent and dateChip then
-			local full = dateChip.Size.X.Offset - 6
-			wb.Size = UDim2.fromOffset(math.floor(full * weekClock / Tuning.WeekSec), 1)
+		-- the next idea: its seconds left on the chip, its progress along the bar
+		if v then
+			rollClock = math.min(v.rollEvery, rollClock + dt)
+			local l = chips.idea
+			if l then
+				UIKit.setText(l, string.format("Idea in %.1fs", math.max(0, v.rollEvery - rollClock)))
+			end
+			local ib = ideaBar
+			local chipF = chipFrames.idea
+			if ib and ib.Parent and chipF then
+				ib.Size = UDim2.fromOffset(math.floor((chipF.Size.X.Offset - 6) * rollClock / math.max(0.1, v.rollEvery)), 1)
+			end
 		end
 		-- a chip whose value changed flashes for a moment
 		for name, at in chipBump do
@@ -687,26 +510,26 @@ function Hud.start()
 				chipBump[name] = nil
 			end
 		end
-		-- the Push! button pulses while a push is banked, Release! once the game is ready to ship
-		local pulse = (math.sin(now * 5) + 1) / 2
-		local push = cardParts.push
-		if push and push.Visible and push.AutoButtonColor then
-			UIKit.setButtonColor(push, UIKit.color("accent"):Lerp(UIKit.color("button_warn"), pulse))
+		-- the card's main button pulses when it is the thing to do
+		local c = card
+		if c then
+			local pulse = (math.sin(now * 5) + 1) / 2
+			for _, b in c:GetChildren() do
+				if b:IsA("TextButton") and b:GetAttribute("Pulse") == true and b.AutoButtonColor then
+					local base = if b.Name == "CardPlay" then UIKit.color("accent") else UIKit.color("button_ok")
+					UIKit.setButtonColor(b, base:Lerp(UIKit.color("button_warn"), pulse * 0.7))
+				end
+			end
 		end
-		local rel = cardParts.release
-		if rel and rel.Visible and v and v.project and v.project.bugs == 0 then
-			UIKit.setButtonColor(rel, UIKit.color("button_ok"):Lerp(UIKit.color("accent"), pulse * 0.6))
-		elseif rel then
-			UIKit.setButtonColor(rel, UIKit.color("button_ok"))
-		end
-		local b = homeButton
-		if b then
+		local hb = homeButton
+		if hb then
 			local show = not atHome() and not BuildUI.isOpen()
-			if b.Visible ~= show then
-				b.Visible = show
+			if hb.Visible ~= show then
+				hb.Visible = show
 			end
 		end
 	end)
+	local _ = Words
 end
 
 return Hud
