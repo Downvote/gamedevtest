@@ -258,6 +258,9 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
 
 > The request (2026-11-06): "make the it more polished and animated as well".
 
+> The request (2026-11-09): "Polish everything to the max. Add animations and details to everything, including the
+> minigames"
+
 - **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled.
 - **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
 - **The HUD:** the coins count up and their chip flashes when they change; the idea chip counts down to the next idea
@@ -274,7 +277,30 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
   turns with red eyes (the room goes red while it watches), floors swing on the crane's rope and what hangs over falls
   off, a perfect drop says so. A wrong move shakes the screen; WIN flashes and brings confetti. The launch card brings
   confetti and a fanfare and the team cheers with the new income over their heads.
-- **The office:** bits of code float up from the screens; a new idea pops out of a head in its tier's colour; rare
-  reveals drop in with a fanfare and confetti.
+- **The microgames' stages live** (§5): every stage has its own ambient life while you play: birds and blinking
+  antenna lights over the rooftop, steam off the pan, flags waving over the stands, flickering torches throwing
+  embers, a yarn ball rolling round the living room, a UFO hovering past twinkling stars, butterflies over the field,
+  bats circling the graveyard in the mist, a ball bouncing in the playroom, a paper plane looping round the classroom,
+  flags on the war map, steam from the detective's coffee, sparkles and a floating book in the wizard's tower, server
+  lights and a drone in the lab, stage lights sweeping the music stage, a gull and a glinting chest on the beach,
+  bubbles and a crab on the sea floor, a pterodactyl and volcano smoke in the desert, the disco floor lighting up,
+  cherry petals falling in the dojo, candles and dust motes in the haunted hall, a bird over the building site.
+- **3D bits:** dust, sparks, debris, confetti, splashes, steam and smoke fly out as little cubes on the stage (and
+  bounce on the floor): crates splinter, the slime splats, coins spark, fruit splashes, a goal bursts into confetti,
+  footsteps kick up dust, a win throws confetti from your founder, a loss a puff of dust.
+- **The curtain** is a set of ink blinds that open from the middle; your founder drops in from above and lands in a
+  puff of dust; the order word drops in with a bounce; the burning fuse spits sparks and the last three seconds tick;
+  the stamp bounces in; a loss plays the sad trombone, a win cheers.
+- **The street lives:** cars drive both ways along the road (and wait for a founder standing in their lane), a flock of
+  birds crosses now and then, clouds drift over and their shadows slide across the lawns and the offices; walking
+  founders kick up dust.
+- **The office:** bits of code float up from the screens; a new idea pops out of a head in its tier's colour with a
+  burst of sparkles (more the rarer); the team cheering throws confetti; rare reveals drop in with a fanfare and
+  confetti, their icon bouncing in with sparkles and a glint running along the tier's band.
+- **The interface's juice:** money coming in rises from the coin chip ("+12"); a new idea slides into the HUD's card
+  under a white flash while the idea and board chips flash; the card's main button gleams now and then; picking an
+  idea on the board, making a game and buying an upgrade ("Level up!") burst into bits; the making card's rows slide in
+  one after another, a new WIN or LOSE stamps in with a burst and the Launch button gleams; the launch card's title
+  bounces in, the three ideas pop up one by one and the income counts up to what the game earns.
 - **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,
   `Config/Monetization.Sounds`), its pitch varied a little, repeats inside a short cooldown dropped.

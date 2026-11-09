@@ -13,7 +13,8 @@
 --   stage.adopt(thing, shadow?), stage.refresh(thing),
 --   stage.remove(thing), stage.flash(thing, seconds?), stage.glow(thing, on), stage.screen(pos) -> (x, y, on) (UI px on
 --   the Stage canvas), stage.hold(kind?) (a thing in the founder's right hand), stage.hat(kind?), stage.pose(u, v, y, yaw,
---   t, speed, action, k), stage.close()
+--   t, speed, action, k), stage.puff(pos, kind, n?, color?) (3D bits from a pool), stage.lift() (the founder drops in),
+--   stage.step(t, dt) (every frame: the bits and the stage's ambient life: birds, flames, steam, bats...), stage.close()
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -22,6 +23,7 @@ local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
+local Audio = require(script.Parent.Parent.Controllers.Audio)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
@@ -53,6 +55,9 @@ export type Stage = {
 	hold: (kind: string?) -> Thing?,
 	hat: (kind: string?) -> Thing?,
 	pose: (u: number, v: number, y: number, yaw: number, t: number, speed: number, action: string, k: number?) -> (),
+	puff: (pos: Vector3, kind: string, n: number?, color: string?) -> (), -- 3D bits (PUFFS: dust spark debris confetti...)
+	lift: () -> (), -- the curtain lifted: the founder drops in
+	step: (t: number, dt: number) -> (), -- every frame: the bits and the stage's ambient life
 	ready: () -> boolean,
 	close: () -> (),
 }
@@ -387,6 +392,8 @@ end
 SETS.spot = function(b) -- Detectives: an office with a desk lamp
 	room(b, { ground = "black", a = "wood_dark", b = "hair_brown", tile = 3, wall = "cream", wallH = 7, trim = "wood_dark" })
 	b.box(-HALF, FLOOR, -HALF, -HALF + 2, FLOOR + 4, -HALF + 4, "steel_dark")
+	b.box(-11.25, FLOOR + 4, -10.25, -10.75, FLOOR + 4.75, -9.75, "white") -- a mug of coffee on the cabinet
+	b.box(-10.75, FLOOR + 4.25, -10.125, -10.5, FLOOR + 4.5, -9.875, "white")
 	for k = 0, 2 do
 		b.box(-HALF + 2, FLOOR + 0.5 + k * 1.25, -HALF + 0.5, -HALF + 2.125, FLOOR + 1.25 + k * 1.25, -HALF + 3.5, "steel")
 	end
@@ -559,6 +566,380 @@ local function dynFolder(): Instance
 	return nf
 end
 
+------------------------------------------------------------------ 3D bits (one pooled model, a part a bit)
+-- Each kind: how many, its colours, its speeds out and up, gravity, life, size, glow, whether it bounces on the floor,
+-- grows (steam, smoke) or sways (petals, bubbles). The bits stay world-aligned cubes (clean iso edges).
+type PuffSpec = { n: number, colors: { string }, out: { number }, up: { number }, grav: number, life: { number }, size: { number }, neon: boolean?, bounce: boolean?, grow: boolean?, sway: number? }
+local PUFFS: { [string]: PuffSpec } = {
+	dust = { n = 6, colors = { "white", "plastic" }, out = { 2.5, 4.5 }, up = { 1.5, 3.5 }, grav = 9, life = { 0.3, 0.5 }, size = { 0.5, 0.75 }, grow = true },
+	spark = { n = 8, colors = { "yellow", "white", "gold" }, out = { 6, 11 }, up = { 2, 7 }, grav = 8, life = { 0.2, 0.4 }, size = { 0.25, 0.4 }, neon = true },
+	debris = { n = 8, colors = { "wood" }, out = { 3, 7 }, up = { 5, 10 }, grav = 32, life = { 0.6, 0.9 }, size = { 0.35, 0.6 }, bounce = true },
+	confetti = { n = 18, colors = { "berry_red", "yellow", "blue", "green", "pink", "white" }, out = { 3, 7 }, up = { 9, 15 }, grav = 14, life = { 1.0, 1.6 }, size = { 0.25, 0.4 }, bounce = true },
+	steam = { n = 1, colors = { "white", "plastic" }, out = { 0, 0.4 }, up = { 1.5, 2.5 }, grav = -0.6, life = { 0.8, 1.2 }, size = { 0.35, 0.5 }, grow = true, sway = 0.6 },
+	smoke = { n = 1, colors = { "steel", "steel_dark" }, out = { 0, 0.6 }, up = { 1.5, 2.5 }, grav = -0.4, life = { 1.4, 2.0 }, size = { 0.8, 1.2 }, grow = true, sway = 0.8 },
+	bubble = { n = 1, colors = { "window", "white" }, out = { 0, 0.3 }, up = { 2, 3 }, grav = -0.5, life = { 1.6, 2.4 }, size = { 0.25, 0.4 }, sway = 1.2 },
+	petal = { n = 1, colors = { "pink", "white" }, out = { 0.5, 1 }, up = { -1.5, -1 }, grav = 0, life = { 3.5, 4.5 }, size = { 0.25, 0.3 }, sway = 1.6 },
+	ember = { n = 1, colors = { "orange", "yellow" }, out = { 0, 0.4 }, up = { 1.5, 3 }, grav = -0.5, life = { 0.5, 0.9 }, size = { 0.25, 0.25 }, neon = true, sway = 0.5 },
+	twinkle = { n = 1, colors = { "yellow", "white", "purple" }, out = { 0, 0.3 }, up = { 0.3, 0.8 }, grav = 0, life = { 0.8, 1.2 }, size = { 0.25, 0.35 }, neon = true, sway = 0.4 },
+	splash = { n = 8, colors = { "water", "window", "white" }, out = { 2, 4 }, up = { 4, 7 }, grav = 26, life = { 0.4, 0.6 }, size = { 0.25, 0.4 }, bounce = true },
+}
+local POOL = 56
+
+local function rnd(r: { number }): number
+	return r[1] + (r[2] - r[1]) * math.random()
+end
+
+type Bit = { p: BasePart, pos: Vector3, vel: Vector3, life: number, age: number, size: number, grav: number, bounce: boolean, grow: boolean, sway: number, ph: number }
+
+-- yaws for things flying along a stage-space direction
+local function yawOf(du: number, dv: number): number
+	return math.atan2(du * U_DIR.X + dv * V_DIR.X, du * U_DIR.Z + dv * V_DIR.Z)
+end
+
+-- room space (world-aligned x, z from the floor's middle; y over the floor's top)
+local function atXZ(x: number, z: number, y: number): Vector3
+	return ORIGIN + Vector3.new(x, FLOOR + y, z)
+end
+
+-- A bird's, bat's or butterfly's wings beat: up a moment, then down.
+local function flap(t: Thing, cf: CFrame, phase: number)
+	MicroModels.place(t, cf)
+	local up = if phase % 1 < 0.5 then 0.3 else -0.15
+	for _, n in { "WingL", "WingR" } do
+		local w = t.parts[n]
+		if w then
+			w.CFrame = cf * t.rest[n] * CFrame.new(0, up, 0)
+		end
+	end
+end
+
+local function recolorThing(t: Thing, color: string)
+	for _, p in t.parts do
+		p.Color = Blocks.color(color)
+	end
+	PixelRenderer.refreshDynamic(t.model)
+end
+
+------------------------------------------------------------------ the stages' ambient life
+-- Per variant: what moves on the stage while the game plays (built when the stage opens; update(t, dt) every frame).
+type Ambient = (st: Stage) -> (t: number, dt: number) -> ()
+local AMBIENT: { [string]: Ambient } = {}
+
+-- A bird (or bat) flying a loop over the stage: centre (room x, z), radius, height, period, colour.
+local function circler(st: Stage, kind: string, color: string, x: number, z: number, r: number, h: number, period: number, ph: number): (t: number) -> ()
+	local b = st.spawn(kind, { color = color, alt = if color == "black" then "black" else "orange" })
+	return function(t: number)
+		local a = (t / period + ph) * math.pi * 2
+		local px, pz = x + math.cos(a) * r, z + math.sin(a) * r
+		local cf = CFrame.lookAt(atXZ(px, pz, h + math.sin(t * 2 + ph) * 0.4), atXZ(x + math.cos(a + 0.2) * r, z + math.sin(a + 0.2) * r, h))
+		flap(b, cf, t * (if kind == "butterfly" then 5 else 3) + ph)
+	end
+end
+
+-- A butterfly wandering over the floor.
+local function wanderer(st: Stage, color: string, x: number, z: number, ph: number): (t: number) -> ()
+	local b = st.spawn("butterfly", { color = color }, 0.3)
+	return function(t: number)
+		local px = x + math.sin(t * 0.9 + ph) * 5
+		local pz = z + math.sin(t * 0.6 + ph * 2) * 4
+		local nx = x + math.sin((t + 0.1) * 0.9 + ph) * 5
+		local nz = z + math.sin((t + 0.1) * 0.6 + ph * 2) * 4
+		local h = 2.2 + math.sin(t * 3 + ph) * 0.5
+		flap(b, CFrame.lookAt(atXZ(px, pz, h), atXZ(nx, nz, h)), t * 6 + ph)
+	end
+end
+
+-- A light blinking at a world point.
+local function blinker(st: Stage, at: Vector3, color: string, period: number, ph: number): (t: number) -> ()
+	local l = st.spawn("light", { color = color })
+	MicroModels.place(l, CFrame.new(at))
+	return function(t: number)
+		MicroModels.show(l, ((t / period + ph) % 1) < 0.5)
+	end
+end
+
+-- A flame flickering over a torch or a candle (room space).
+local function flicker(st: Stage, x: number, z: number, y: number, ph: number): (t: number) -> ()
+	local f = st.spawn("flame")
+	return function(t: number)
+		local k = math.floor(t * 12 + ph) % 3
+		MicroModels.scale(f, Vector3.new(1, 0.8 + k * 0.2, 1))
+		MicroModels.place(f, CFrame.new(atXZ(x, z, y)))
+		if math.random() < 0.03 then
+			st.puff(atXZ(x, z, y + 0.8), "ember")
+		end
+	end
+end
+
+-- Every `every` seconds a bit of `kind` from a room point (steam, smoke, bubbles...).
+local function emitter(st: Stage, kind: string, at: () -> Vector3, every: number): (t: number) -> ()
+	local nextAt = 0
+	return function(t: number)
+		if t >= nextAt then
+			nextAt = t + every * (0.7 + 0.6 * math.random())
+			st.puff(at(), kind)
+		end
+	end
+end
+
+local function all(list: { (t: number) -> () }): (t: number, dt: number) -> ()
+	return function(t: number, _dt: number)
+		for _, f in list do
+			f(t)
+		end
+	end
+end
+
+AMBIENT.blocks = function(st)
+	return all({
+		blinker(st, ORIGIN + Vector3.new(-18, 15.5, -27), "berry_red", 1.2, 0),
+		blinker(st, ORIGIN + Vector3.new(0, 11.5, -27), "berry_red", 1.2, 0.5),
+		blinker(st, ORIGIN + Vector3.new(-27, 14, -6), "yellow", 2.0, 0.3),
+		circler(st, "bird", "steel", -6, -6, 16, 13, 9, 0),
+	})
+end
+
+AMBIENT.race = function(st)
+	return all({ circler(st, "bird", "white", 0, 0, 18, 11, 8, 0.4) })
+end
+
+AMBIENT.flip = function(st)
+	return all({ emitter(st, "steam", function()
+		return atXZ(math.random() - 0.5, math.random() - 0.5, 4.1)
+	end, 0.18) })
+end
+
+AMBIENT.kick = function(st)
+	local flags: { Thing } = {}
+	local spots = { { -HALF - 7, -8 }, { -HALF - 7, 4 }, { -4, -HALF - 7 }, { 8, -HALF - 7 } }
+	for i, sp in spots do
+		local f = st.spawn("flag")
+		flags[i] = f
+		local _ = sp
+	end
+	return function(t: number, _dt: number)
+		for i, f in flags do
+			local sp = spots[i]
+			MicroModels.scale(f, Vector3.new(1, 1, 1))
+			MicroModels.place(f, CFrame.new(ORIGIN + Vector3.new(sp[1], 5, sp[2])))
+			local cloth = f.parts.Cloth
+			if cloth then
+				local wave = math.floor(t * 6 + i) % 2
+				cloth.Size = Vector3.new(1.25, 0.75 - wave * 0.25, 0.25)
+			end
+		end
+	end
+end
+
+AMBIENT.strike = function(st)
+	return all({
+		flicker(st, -HALF + 0.5, -3.75, 4.25 - FLOOR + 0.6, 0),
+		flicker(st, -HALF + 0.5, 6.25, 4.25 - FLOOR + 0.6, 1),
+		flicker(st, 4.25, -HALF + 0.5, 4.25 - FLOOR + 0.6, 2),
+	})
+end
+
+AMBIENT.pet = function(st)
+	local yarn = st.spawn("yarn", nil, 0.5)
+	return function(t: number, _dt: number)
+		local x = math.sin(t * 0.8) * 5
+		MicroModels.place(yarn, CFrame.new(atXZ(x, -7, 0)) * CFrame.Angles(0, 0, -x * 0.8))
+	end
+end
+
+AMBIENT.space = function(st)
+	local ufo = st.spawn("ufo")
+	local twinkles = {}
+	for i = 1, 6 do
+		table.insert(twinkles, blinker(st, ORIGIN + Vector3.new(-30 + i * 9, 0.6, -24 + (i % 3) * 3), "white", 1.5 + i * 0.2, i * 0.37))
+	end
+	return function(t: number, _dt: number)
+		for _, f in twinkles do
+			f(t)
+		end
+		MicroModels.place(ufo, CFrame.new(ORIGIN + Vector3.new(-26 + math.sin(t * 0.5) * 4, 8 + math.sin(t * 2) * 0.6, -14)))
+		ufo.parts.Light.Transparency = if math.floor(t * 4) % 2 == 0 then 0 else 1
+	end
+end
+
+AMBIENT.water = function(st)
+	return all({ wanderer(st, "yellow", -4, -4, 0), wanderer(st, "pink", 5, 3, 2), circler(st, "bird", "white", 0, 0, 20, 10, 10, 0.2) })
+end
+
+AMBIENT.zombie = function(st)
+	return all({
+		circler(st, "bird", "black", -4, -6, 7, 8, 4, 0),
+		circler(st, "bird", "black", 5, -2, 6, 9.5, 5, 0.5),
+		emitter(st, "smoke", function()
+			return atXZ(-HALF - 2 + math.random() * 4, -8 + math.random() * 16, 0.3)
+		end, 0.5),
+	})
+end
+
+AMBIENT.match = function(st)
+	local ball = st.spawn("ball", nil, 0.8)
+	recolorThing(ball, "berry_red")
+	return function(t: number, _dt: number)
+		local k = (t * 1.6) % 1
+		local y = 3.5 * 4 * k * (1 - k)
+		MicroModels.scale(ball, if y < 0.2 then Vector3.new(1.2, 0.75, 1.2) else Vector3.one)
+		MicroModels.place(ball, CFrame.new(atXZ(8, -9, y)))
+	end
+end
+
+AMBIENT.answer = function(st)
+	local plane = st.spawn("plane", nil, 0.4)
+	return function(t: number, _dt: number)
+		local k = (t / 5) % 1
+		local u = -16 + 32 * k
+		local p = st.at(u, -4 + math.sin(k * math.pi * 2) * 2, 5 + math.sin(k * math.pi * 4) * 0.8)
+		local q = st.at(u + 1, -4 + math.sin((k + 0.03) * math.pi * 2) * 2, 5)
+		MicroModels.place(plane, CFrame.lookAt(p, q))
+	end
+end
+
+AMBIENT.count = function(st)
+	local flags: { Thing } = {}
+	for i, at in { { 6.5, -7 }, { -7, 7 } } do
+		local f = st.spawn("flag", nil, 0.4)
+		MicroModels.scale(f, Vector3.one * 0.7)
+		MicroModels.place(f, CFrame.new(atXZ(at[1], at[2], 0.25)))
+		flags[i] = f
+	end
+	return function(t: number, _dt: number)
+		for i, f in flags do
+			local cloth = f.parts.Cloth
+			if cloth then
+				cloth.Size = Vector3.new(0.875, if math.floor(t * 6 + i) % 2 == 0 then 0.5 else 0.375, 0.175)
+			end
+		end
+	end
+end
+
+AMBIENT.spot = function(st)
+	return all({ emitter(st, "steam", function()
+		return atXZ(-11, -10, 4.9)
+	end, 0.35) })
+end
+
+AMBIENT.cast = function(st)
+	local book = st.spawn("book", nil, 0.5)
+	local sparkle = emitter(st, "twinkle", function()
+		return atXZ(-10 + math.random() * 20, -10 + math.random() * 20, 1 + math.random() * 4)
+	end, 0.12)
+	return function(t: number, _dt: number)
+		sparkle(t)
+		MicroModels.place(book, CFrame.new(atXZ(-6, 6, 3 + math.sin(t * 2) * 0.4)) * CFrame.Angles(0, t * 0.6, 0))
+	end
+end
+
+AMBIENT.program = function(st)
+	local drone = st.spawn("drone", nil, 0.6)
+	local list = {}
+	for i, c in { "screen_code", "berry_red", "yellow", "screen_on" } do
+		table.insert(list, blinker(st, atXZ(6.75 + i, -9.85, 0.75 + (i % 2) * 0.5), c, 0.6 + i * 0.25, i * 0.3))
+	end
+	return function(t: number, _dt: number)
+		for _, f in list do
+			f(t)
+		end
+		local p = atXZ(math.sin(t * 0.7) * 6, -6 + math.cos(t * 0.5) * 2, 6 + math.sin(t * 3) * 0.3)
+		flap(drone, CFrame.new(p) * CFrame.Angles(0, t, 0), t * 10)
+	end
+end
+
+AMBIENT.simon = function(st)
+	-- stage lights sweeping the back of the floor (purple and pink: never the pads' colours)
+	local spots: { Thing } = {}
+	local colors = { "purple", "pink", "purple", "pink" }
+	for i = 1, 3 do
+		spots[i] = st.spawn("spot", { color = colors[i] })
+	end
+	return function(t: number, _dt: number)
+		for i, sp in spots do
+			local a = t * 0.8 + i * 2.1
+			MicroModels.place(sp, CFrame.new(atXZ(-7 + math.cos(a) * 3, -7 + math.sin(a * 1.3) * 3, 0)))
+			sp.parts.Tile.Color = Blocks.color(colors[(math.floor(t * 2) + i) % #colors + 1])
+		end
+		for _, sp in spots do
+			PixelRenderer.refreshDynamic(sp.model)
+		end
+	end
+end
+
+AMBIENT.loot = function(st)
+	return all({
+		circler(st, "bird", "white", -6, -6, 12, 9, 7, 0),
+		emitter(st, "twinkle", function()
+			return atXZ(8.5 + math.random() * 2 - 1, -10 + math.random() - 0.5, 2.4)
+		end, 0.4),
+	})
+end
+
+AMBIENT.fish = function(st)
+	local crab = st.spawn("crab", nil, 0.6)
+	local bubbles = emitter(st, "bubble", function()
+		local i = math.random(0, 6)
+		return atXZ(-HALF + 0.75, -HALF + 1 + i * 3.5, 1 + math.random() * 2)
+	end, 0.25)
+	return function(t: number, _dt: number)
+		bubbles(t)
+		local x = math.sin(t * 0.6) * 7
+		MicroModels.place(crab, CFrame.new(atXZ(x, -9, 0)) * CFrame.new(0, if math.floor(t * 8) % 2 == 0 then 0.05 else 0, 0))
+	end
+end
+
+AMBIENT.leap = function(st)
+	return all({ wanderer(st, "yellow", -5, -6, 0), wanderer(st, "blue", 6, 6, 1.5), circler(st, "bird", "white", -4, -4, 16, 12, 9, 0.6) })
+end
+
+AMBIENT.dino = function(st)
+	return all({
+		circler(st, "bird", "hair_brown", -14, -14, 10, 14, 7, 0),
+		emitter(st, "smoke", function()
+			return ORIGIN + Vector3.new(-23 + math.random() * 2 - 1, 11, -23 + math.random() * 2 - 1)
+		end, 0.3),
+	})
+end
+
+AMBIENT.beat = function(st)
+	local tiles: { Thing } = {}
+	local colors = { "yellow", "screen_on", "pink", "purple", "screen_code" }
+	local cells = { { -10, -10 }, { -10, -2 }, { -10, 6 }, { -2, -10 }, { 6, -10 } }
+	for i = 1, #cells do
+		tiles[i] = st.spawn("spot", { color = colors[i] })
+	end
+	return function(t: number, _dt: number)
+		local beat = math.floor(t * 2)
+		for i, tl in tiles do
+			local c = cells[(i + beat) % #cells + 1]
+			MicroModels.place(tl, CFrame.new(atXZ(c[1], c[2], 0)))
+			tl.parts.Tile.Color = Blocks.color(colors[(i + beat * 2) % #colors + 1])
+			PixelRenderer.refreshDynamic(tl.model)
+		end
+	end
+end
+
+AMBIENT.fruit = function(st)
+	return all({ emitter(st, "petal", function()
+		return st.at(-14 + math.random() * 28, -10 + math.random() * 14, 10)
+	end, 0.25) })
+end
+
+AMBIENT.ghost = function(st)
+	return all({
+		flicker(st, -HALF + 0.75, -7.75, 1.6, 0),
+		flicker(st, -HALF + 0.75, 4.25, 1.6, 1.3),
+		emitter(st, "twinkle", function()
+			return atXZ(-10 + math.random() * 20, -10 + math.random() * 20, 0.5 + math.random() * 3)
+		end, 0.5),
+	})
+end
+
+AMBIENT.tower = function(st)
+	return all({ circler(st, "bird", "white", 0, -4, 14, 14, 8, 0.1) })
+end
+
 local current: Stage? = nil
 
 function MicroStage.open(variant: string): Stage
@@ -584,6 +965,22 @@ function MicroStage.open(variant: string): Stage
 	PixelRenderer.registerDynamic(rig.model)
 	local avatar: Avatar = { rig = rig, held = nil, hat = nil }
 
+	-- the pool of 3D bits
+	local pool = Blocks.model(nil, "MicroPuffs")
+	local bits: { Bit } = {}
+	local idle = uv(0, 0, -3)
+	for i = 1, POOL do
+		local p = Blocks.part(pool, { size = Vector3.one * 0.5, cf = CFrame.new(idle), color = "white", collide = false, query = false, transparency = 1, name = "Bit" .. i })
+		p.CastShadow = false
+		bits[i] = { p = p, pos = idle, vel = Vector3.zero, life = 0, age = 1, size = 0.5, grav = 0, bounce = false, grow = false, sway = 0, ph = 0 }
+	end
+	pool.Parent = dyn
+	PixelRenderer.registerDynamic(pool)
+	local cursor = 0
+	local poolDirty = false
+	local liftAt: number? = nil
+	local landed = false
+	local ENTRY_H = 8
 	local function register(t: Thing, shadow: number?)
 		if shadow and shadow > 0 then
 			t.model:SetAttribute("PixelShadow", shadow)
@@ -594,6 +991,7 @@ function MicroStage.open(variant: string): Stage
 		table.insert(things, t)
 	end
 
+	local ambient: ((t: number, dt: number) -> ())? = nil
 	local st: Stage
 	st = {
 		variant = variant,
@@ -668,7 +1066,20 @@ function MicroStage.open(variant: string): Stage
 			return avatar.hat
 		end,
 		pose = function(u: number, v: number, y: number, yaw: number, t: number, speed: number, action: string, k: number?)
-			CharacterModels.poseAction(rig, CFrame.new(uv(u, v, y)) * CFrame.Angles(0, yaw, 0), t, speed, action, k)
+			-- the entrance: high above until the curtain lifts, then a drop and a puff of dust on landing
+			local entry = ENTRY_H
+			local la = liftAt
+			if la then
+				local e = math.clamp((os.clock() - la) / 0.32, 0, 1)
+				entry = ENTRY_H * (1 - e) * (1 - e)
+				if e >= 1 and not landed then
+					landed = true
+					st.puff(uv(u, v, 0.2), "dust", 10)
+					Audio.play("pop", { pitch = 0.75 })
+				end
+			end
+			local act = if entry > 0.05 then "jump" else action
+			CharacterModels.poseAction(rig, CFrame.new(uv(u, v, y + entry)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
 			local hand = rig.parts.HandR
 			if avatar.held and hand then
 				MicroModels.place(avatar.held :: Thing, hand.CFrame * CFrame.new(0, -0.1, 0))
@@ -676,6 +1087,67 @@ function MicroStage.open(variant: string): Stage
 			local head = rig.parts.Head
 			if avatar.hat and head then
 				MicroModels.place(avatar.hat :: Thing, head.CFrame * CFrame.new(0, head.Size.Y / 2 + 0.2, 0))
+			end
+		end,
+		puff = function(pos: Vector3, kind: string, n: number?, color: string?)
+			local spec = PUFFS[kind] or PUFFS.dust
+			for i = 1, n or spec.n do
+				cursor = cursor % POOL + 1
+				local b = bits[cursor]
+				local a = math.random() * math.pi * 2
+				local out = rnd(spec.out)
+				b.pos = pos
+				b.vel = Vector3.new(math.cos(a) * out, rnd(spec.up), math.sin(a) * out)
+				b.life = rnd(spec.life)
+				b.age = 0
+				b.size = rnd(spec.size)
+				b.grav = spec.grav
+				b.bounce = spec.bounce == true
+				b.grow = spec.grow == true
+				b.sway = spec.sway or 0
+				b.ph = math.random() * 6
+				b.p.Color = Blocks.color(color or spec.colors[(i - 1) % #spec.colors + 1])
+				b.p.Material = if spec.neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				b.p.Transparency = 0
+			end
+			poolDirty = true
+		end,
+		lift = function()
+			if liftAt == nil then
+				liftAt = os.clock()
+			end
+		end,
+		step = function(t: number, dt: number)
+			local floorY = groundY
+			for _, b in bits do
+				if b.age < b.life then
+					b.age += dt
+					if b.age >= b.life then
+						b.p.Transparency = 1
+						b.p.CFrame = CFrame.new(idle)
+					else
+						b.vel += Vector3.new(0, -b.grav * dt, 0)
+						local sway = if b.sway > 0 then Vector3.new(math.sin(b.age * 5 + b.ph), 0, math.cos(b.age * 4 + b.ph)) * b.sway * dt else Vector3.zero
+						b.pos += b.vel * dt + sway
+						if b.bounce and b.pos.Y < floorY + b.size / 2 then
+							b.pos = Vector3.new(b.pos.X, floorY + b.size / 2, b.pos.Z)
+							b.vel = Vector3.new(b.vel.X * 0.55, -b.vel.Y * 0.35, b.vel.Z * 0.55)
+						end
+						local k = b.age / b.life
+						local sz = if b.grow then b.size * (0.6 + 0.9 * k) * math.min(1, (1 - k) / 0.3) else b.size * math.min(1, (1 - k) / 0.4)
+						sz = math.max(0.12, sz)
+						b.p.Size = Vector3.one * sz
+						b.p.CFrame = CFrame.new(b.pos)
+					end
+				end
+			end
+			if poolDirty then
+				poolDirty = false
+				PixelRenderer.refreshDynamic(pool)
+			end
+			local amb = ambient
+			if amb then
+				amb(t, dt)
 			end
 		end,
 		ready = function(): boolean
@@ -690,6 +1162,8 @@ function MicroStage.open(variant: string): Stage
 			table.clear(things)
 			PixelRenderer.unregisterDynamic(rig.model)
 			rig.model:Destroy()
+			PixelRenderer.unregisterDynamic(pool)
+			pool:Destroy()
 			folder:Destroy()
 			PixelRenderer.setOffset(0, 0)
 			if current == st then
@@ -699,6 +1173,8 @@ function MicroStage.open(variant: string): Stage
 		end,
 	}
 	st.pose(0, 2, 0, MicroStage.FACE_VIEWER, 0, 0, "stand")
+	local build = AMBIENT[variant]
+	ambient = if build then build(st) else nil
 
 	-- the camera frames the room: its floor, the walls' tops, a little over the floor's front
 	local pts: { number } = {}

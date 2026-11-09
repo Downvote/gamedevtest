@@ -4,7 +4,7 @@
 -- sets it from profile.founder). The rig follows the player's character every frame: its feet on the ground under the
 -- HumanoidRootPart, facing where the character faces, its legs and arms swinging with its speed. The Roblox avatar
 -- itself is hidden on this client (LocalTransparencyModifier; the pixel bake never sees characters), so the classic
--- style shows the chibis too. Other players' names float over their heads.
+-- style shows the chibis too. Other players' names float over their heads; walking feet kick up puffs of dust.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -23,6 +23,7 @@ type Rec = {
 	speed: number,
 	label: TextLabel?,
 	char: Model?,
+	dustAt: number, -- when their feet next kick up a puff of dust (walking)
 }
 
 local recs: { [Player]: Rec } = {}
@@ -118,7 +119,7 @@ local function step(dt: number)
 			if pl ~= me then
 				label = UIKit.text(UIKit.canvas("World"), pl.DisplayName, UDim2.fromOffset(UIKit.textWidth(pl.DisplayName) + 4, 10), nil, { x = "center", kind = "outline", name = "Name" })
 			end
-			r = { rig = rig, sig = sig, last = nil, speed = 0, label = label, char = nil }
+			r = { rig = rig, sig = sig, last = nil, speed = 0, label = label, char = nil, dustAt = 0 }
 			recs[pl] = r
 		end
 		local rec = r :: Rec
@@ -138,6 +139,11 @@ local function step(dt: number)
 		local yaw = if flat.Magnitude > 1e-3 then math.atan2(flat.X, flat.Z) else 0
 		local base = CFrame.new(pos.X, feetY(char, root), pos.Z) * CFrame.Angles(0, yaw, 0)
 		CharacterModels.poseStanding(rec.rig, base, t, rec.speed)
+		-- a walk kicks up a puff of dust now and then, a run more often
+		if rec.speed > 6 and t >= rec.dustAt then
+			rec.dustAt = t + (if rec.speed > 14 then 0.18 else 0.3)
+			UIKit.bitsAt((base * CFrame.new(0, 0.1, -0.4)).Position, { "white", "text_dim" }, 2, 14, 40)
+		end
 		local label = rec.label
 		if label then
 			local top = (base * CFrame.new(CharacterModels.STAND_TOP)).Position

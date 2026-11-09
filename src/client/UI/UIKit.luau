@@ -782,6 +782,168 @@ function UIKit.floatText(world: Vector3, text: string, color: Color3, big: boole
 	end)
 end
 
+------------------------------------------------------------------ bits over the world
+-- 1 px bits flying out of a world point on the World canvas (its UI px are the world's art px): dust from a
+-- founder's feet, sparkles round a head with a new idea. They arc, fall and go. One Heartbeat runs them all.
+type WorldBit = { f: Frame, x: number, y: number, vx: number, vy: number, grav: number, t0: number, life: number }
+local worldBits: { WorldBit } = {}
+local worldConn: RBXScriptConnection? = nil
+function UIKit.bitsAt(world: Vector3, colors: { string }, n: number, speed: number?, grav: number?)
+	local i, j, on = PixelRenderer.projectPixel(world)
+	if not on then
+		return
+	end
+	local canvas = UIKit.canvas("World")
+	local sp = speed or 30
+	for k = 1, n do
+		local r = UIKit.rect(canvas, UDim2.fromOffset(1, 1), UDim2.fromOffset(i, j), UIKit.color(colors[(k - 1) % #colors + 1]), 3)
+		r.Name = "Bit"
+		r.Active = false
+		local a = math.random() * math.pi * 2
+		local v = sp * (0.4 + 0.6 * math.random())
+		table.insert(worldBits, { f = r, x = i, y = j, vx = math.cos(a) * v, vy = math.sin(a) * v * 0.6 - sp * 0.5, grav = grav or 90, t0 = os.clock(), life = 0.35 + math.random() * 0.35 })
+	end
+	if worldConn == nil then
+		local last = os.clock()
+		worldConn = RunService.Heartbeat:Connect(function()
+			local now = os.clock()
+			local dt = math.min(0.05, now - last)
+			last = now
+			for idx = #worldBits, 1, -1 do
+				local b = worldBits[idx]
+				if now - b.t0 > b.life or b.f.Parent == nil then
+					b.f:Destroy()
+					table.remove(worldBits, idx)
+				else
+					b.vy += b.grav * dt
+					b.x += b.vx * dt
+					b.y += b.vy * dt
+					b.f.Position = UDim2.fromOffset(math.floor(b.x + 0.5), math.floor(b.y + 0.5))
+				end
+			end
+			if #worldBits == 0 and worldConn then
+				worldConn:Disconnect()
+				worldConn = nil
+			end
+		end)
+	end
+end
+
+------------------------------------------------------------------ UI effects: bits, rising words, a shine
+-- Bits of 1 px flying out of a point of a frame (UI px), rising words that fade, and a light band sweeping across a
+-- button: the interface's juice (a purchase, a new idea, money coming in). One Heartbeat runs every bit and word.
+type UiBit = { f: GuiObject, x: number, y: number, vx: number, vy: number, grav: number, t0: number, life: number, fade: boolean }
+local uiBits: { UiBit } = {}
+local uiConn: RBXScriptConnection? = nil
+local function runUiBits()
+	if uiConn then
+		return
+	end
+	local last = os.clock()
+	uiConn = RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		local dt = math.min(0.05, now - last)
+		last = now
+		for idx = #uiBits, 1, -1 do
+			local b = uiBits[idx]
+			local age = now - b.t0
+			if age > b.life or b.f.Parent == nil then
+				b.f:Destroy()
+				table.remove(uiBits, idx)
+			else
+				b.vy += b.grav * dt
+				b.x += b.vx * dt
+				b.y += b.vy * dt
+				b.f.Position = UDim2.fromOffset(math.floor(b.x + 0.5), math.floor(b.y + 0.5))
+				if b.fade and age > b.life * 0.6 and b.f:IsA("TextLabel") then
+					local a = (age - b.life * 0.6) / (b.life * 0.4)
+					local l = b.f :: TextLabel
+					l.TextTransparency = a
+					if PixelText.isBound(l) then
+						PixelText.setTransparency(l, a)
+					end
+				end
+			end
+		end
+		if #uiBits == 0 and uiConn then
+			uiConn:Disconnect()
+			uiConn = nil
+		end
+	end)
+end
+
+function UIKit.burst(parent: Instance, x: number, y: number, colors: { string }, n: number?, speed: number?)
+	local sp = speed or 45
+	for k = 1, n or 8 do
+		local r = UIKit.rect(parent, UDim2.fromOffset(1, 1), UDim2.fromOffset(math.floor(x), math.floor(y)), UIKit.color(colors[(k - 1) % #colors + 1]), 30)
+		r.Name = "Bit"
+		r.Active = false
+		local a = math.random() * math.pi * 2
+		local v = sp * (0.4 + 0.6 * math.random())
+		local g: GuiObject = r
+		table.insert(uiBits, { f = g, x = x, y = y, vx = math.cos(a) * v, vy = math.sin(a) * v - sp * 0.4, grav = 140, t0 = os.clock(), life = 0.35 + math.random() * 0.3, fade = false })
+	end
+	runUiBits()
+end
+
+-- The canvas a GUI object sits on, and its middle there (UI px).
+local function onCanvas(gui: GuiObject): (Frame?, number, number)
+	local c: Instance? = gui.Parent
+	while c and not (c:IsA("Frame") and c.Name == "Canvas") do
+		c = c.Parent
+	end
+	if c == nil or not c:IsA("Frame") then
+		return nil, 0, 0
+	end
+	local canvasF = c :: Frame
+	local kk = math.max(1, K)
+	local x = (gui.AbsolutePosition.X - canvasF.AbsolutePosition.X + gui.AbsoluteSize.X / 2) / kk
+	local y = (gui.AbsolutePosition.Y - canvasF.AbsolutePosition.Y + gui.AbsoluteSize.Y / 2) / kk
+	return canvasF, x, y
+end
+
+-- A burst from the middle of a GUI object, on its canvas (it outlives the object: a panel rebuilt).
+function UIKit.burstOn(gui: GuiObject, colors: { string }, n: number?, speed: number?)
+	local canvasF, x, y = onCanvas(gui)
+	if canvasF then
+		UIKit.burst(canvasF, x, y, colors, n, speed)
+	end
+end
+
+-- A word rising from a point of a frame and fading (money coming in).
+function UIKit.popText(parent: Instance, x: number, y: number, text: string, color: Color3)
+	local w = UIKit.textWidth(text) + 4
+	local l = UIKit.text(parent, text, UDim2.fromOffset(w, 10), UDim2.fromOffset(math.floor(x - w / 2), math.floor(y)), { x = "center", color = color, kind = "outline", z = 30, name = "PopText" })
+	l.Active = false
+	local g: GuiObject = l
+	table.insert(uiBits, { f = g, x = math.floor(x - w / 2), y = math.floor(y), vx = 0, vy = -16, grav = 0, t0 = os.clock(), life = 0.9, fade = true })
+	runUiBits()
+end
+
+-- A light band (2 px, clear of the stepped corners) sweeping across a button's plate.
+function UIKit.shine(b: GuiObject)
+	local plate = b:FindFirstChild("Plate")
+	if plate == nil or not plate:IsA("Frame") or b.AbsoluteSize.X < 4 then
+		return
+	end
+	local w = b.Size.X.Offset
+	local h = b.Size.Y.Offset
+	if w < 8 or h < 6 then
+		return
+	end
+	plate.ClipsDescendants = true
+	local band = UIKit.rect(plate, UDim2.fromOffset(2, h - 4), UDim2.fromOffset(-2, 2), Color3.new(1, 1, 1), 2)
+	band.Name = "Shine"
+	band.BackgroundTransparency = 0.55
+	band.Active = false
+	local band2 = UIKit.rect(band, UDim2.fromOffset(1, h - 4), UDim2.fromOffset(3, 0), Color3.new(1, 1, 1), 2)
+	band2.BackgroundTransparency = 0.3
+	UIKit.tween(band, 0.45, { Position = UDim2.fromOffset(w, 2) })
+	task.delay(0.5, function()
+		band:Destroy()
+	end)
+end
+
 ------------------------------------------------------------------ confetti
 -- A burst of confetti over a frame (a Hall of Fame game, an award, a perfect minigame): little rects that fly up,
 -- tumble down, sway and fade, then go.

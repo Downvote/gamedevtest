@@ -83,6 +83,7 @@ local function close()
 end
 
 -- The card's frame (made once while open; its content is cleared and rebuilt for each screen).
+local fresh = false -- the card was just opened: its rows slide in
 local function ensureFrame(): Frame
 	if frame and shade and shade.Parent then
 		return frame :: Frame
@@ -108,8 +109,11 @@ local function ensureFrame(): Frame
 	UIKit.tween(f, 0.15, { Position = UDim2.fromOffset(x, y) })
 	Audio.play("open")
 	shade, frame = sh, f
+	fresh = true
 	return f
 end
+
+local shownWon: { [string]: { number } } = {} -- the results the card last showed, by game title (a new one stamps in)
 
 local function clearFrame(f: Frame)
 	for _, c in f:GetChildren() do
@@ -158,12 +162,26 @@ showCard = function()
 	UIKit.text(f, p.title, UDim2.fromOffset(w - 12, 18), UDim2.fromOffset(6, 11), { face = "big", kind = "title", color = UIKit.color("accent"), z = 7, name = "GameTitle" })
 	local rowH = math.min(32, math.floor((h - 66) / 3))
 	local played, wins = true, 0
+	local slideIn = fresh
+	fresh = false
+	local before = shownWon[p.title]
+	shownWon[p.title] = table.clone(p.won)
 	for i, c in p.ideas do
 		local y = 31 + (i - 1) * (rowH + 2)
 		local def = IdeasData.byId[c.id]
 		local r = UIKit.plate(f, UDim2.fromOffset(w - 12, rowH), UDim2.fromOffset(6, y), UIKit.color("plate_light"), 0, 2)
 		r.Name = "Slot_" .. i
 		r.ZIndex = 7
+		if slideIn then
+			-- the rows slide in one after another
+			r.Position = UDim2.fromOffset(6 + 40 + i * 12, y)
+			task.delay((i - 1) * 0.05, function()
+				if r.Parent then
+					UIKit.tween(r, 0.16, { Position = UDim2.fromOffset(6, y) })
+					Audio.play("flip", { volume = 0.6, pitch = 0.95 + i * 0.05 })
+				end
+			end)
+		end
 		PixelSprites.image(r, "icon_" .. c.id, UDim2.fromOffset(4, math.floor((rowH - 16) / 2)), 8)
 		local tier = Ideas.tier(c)
 		UIKit.text(r, Ideas.name(c), UDim2.fromOffset(w - 110, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(Ideas.tierColor(tier)), z = 8 })
@@ -175,7 +193,19 @@ showCard = function()
 		if won == 1 then
 			wins += 1
 		end
-		UIKit.text(r, if won == 1 then "WIN" elseif won == 0 then "LOSE" else "", UDim2.fromOffset(34, 10), UDim2.new(1, -86, 0, math.floor(rowH / 2) - 5), { x = "right", color = if won == 1 then UIKit.color("good") else UIKit.color("bad"), z = 8, name = "Result" })
+		local result = UIKit.text(r, if won == 1 then "WIN" elseif won == 0 then "LOSE" else "", UDim2.fromOffset(34, 10), UDim2.new(1, -86, 0, math.floor(rowH / 2) - 5), { x = "right", color = if won == 1 then UIKit.color("good") else UIKit.color("bad"), z = 8, name = "Result" })
+		if before and before[i] ~= won and won >= 0 then
+			-- a new result stamps in from above with a burst
+			local at = result.Position
+			result.Position = UDim2.new(at.X.Scale, at.X.Offset, at.Y.Scale, at.Y.Offset - 10)
+			UIKit.tween(result, 0.14, { Position = at })
+			task.delay(0.14, function()
+				if r.Parent then
+					UIKit.burst(r, r.Size.X.Offset - 70, math.floor(rowH / 2), if won == 1 then { "good", "white", "accent" } else { "bad", "white" }, if won == 1 then 14 else 6)
+					Audio.play(if won == 1 then "ding" else "pop")
+				end
+			end)
+		end
 		local b = UIKit.button(r, if won < 0 then "Play" else "Retry", UDim2.fromOffset(44, 14), UDim2.new(1, -48, 0, math.floor((rowH - 14) / 2)), function()
 			playSlot(i, false)
 		end, { name = (if won < 0 then "Play_" else "Retry_") .. i, color = if won < 0 then UIKit.color("accent") else UIKit.color("plate"), textColor = if won < 0 then UIKit.color("ink") else nil })
@@ -201,6 +231,15 @@ showCard = function()
 		end
 	end, { name = "Launch", color = UIKit.color("button_ok"), enabled = played })
 	la.ZIndex = 7
+	if played then
+		-- the Launch button gleams while it is the thing to do
+		task.spawn(function()
+			while la.Parent and mode == "card" do
+				UIKit.shine(la)
+				task.wait(1.8)
+			end
+		end)
+	end
 	local cl = UIKit.button(f, "Later", UDim2.fromOffset(bw, 14), UDim2.new(0, 12 + 2 * bw, 1, -18), function()
 		Audio.play("close")
 		close()
@@ -492,24 +531,59 @@ playSlot = function(slot: number, chain: boolean)
 	fx.Active = false
 	fx.Parent = area
 
-	-- the curtain: dark over the screen while the stage's picture is baked, the idea's icon and its order word on it;
-	-- it lifts once the stage is ready and the word has shown for MicroIntro
+	-- the curtain: blinds of ink over the screen while the stage's picture is baked, the idea's icon and its order word
+	-- on them; they open from the middle once the stage is ready and the word has shown for MicroIntro (the
+	-- container's "Lifted" attribute turns true then)
 	local curtain = Instance.new("Frame")
 	curtain.Name = "Curtain"
-	curtain.BackgroundColor3 = UIKit.color("ink")
-	curtain.BackgroundTransparency = 0
+	curtain.BackgroundTransparency = 1
 	curtain.BorderSizePixel = 0
 	curtain.Size = UDim2.fromScale(1, 1)
 	curtain.ZIndex = 35
 	curtain.Active = false
+	curtain:SetAttribute("Lifted", false)
 	curtain.Parent = pf
-	local introIcon = PixelSprites.image(pf, "icon_" .. card.id, UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 44), 40)
+	local BLIND = 12
+	local blinds: { Frame } = {}
+	for y = 0, h - 1, BLIND do
+		local band = UIKit.rect(curtain, UDim2.fromOffset(w, math.min(BLIND, h - y)), UDim2.fromOffset(0, y), UIKit.color("ink"), 35)
+		band.Name = "Blind"
+		UIKit.rect(band, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -1), UIKit.hex(0x3B3048), 35)
+		table.insert(blinds, band)
+	end
+	-- the word drops in with a bounce, the icon over it
+	local introIcon = PixelSprites.image(pf, "icon_" .. card.id, UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 60), 40)
 	introIcon.Name = "WordIcon"
-	UIKit.tween(introIcon, 0.18, { Position = UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 24) })
-	local word = UIKit.text(pf, def.word, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 22), { x = "center", face = "big", kind = "title", color = UIKit.color(Ideas.tierColor(math.max(2, tier))), z = 40, name = "Word" })
-	UIKit.tween(word, 0.18, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 4) })
+	local word = UIKit.text(pf, def.word, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 40), { x = "center", face = "big", kind = "title", color = UIKit.color(Ideas.tierColor(math.max(2, tier))), z = 40, name = "Word" })
+	UIKit.tween(introIcon, 0.16, { Position = UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 20) })
+	UIKit.tween(word, 0.16, { Position = UDim2.fromOffset(0, math.floor(h / 2)) })
+	task.delay(0.16, function()
+		if word.Parent then
+			UIKit.tween(introIcon, 0.1, { Position = UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 24) })
+			UIKit.tween(word, 0.1, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 4) })
+		end
+	end)
 	local ready = UIKit.text(pf, "Get ready...", UDim2.fromOffset(w, 10), UDim2.fromOffset(0, math.floor(h / 2) + 18), { x = "center", color = UIKit.color("text_dim"), z = 40, name = "GetReady" })
 	Audio.play("ding")
+	local function openBlinds()
+		curtain:SetAttribute("Lifted", true)
+		local mid = #blinds / 2
+		for i, band in blinds do
+			local delay = math.abs(i - 0.5 - mid) * 0.018
+			local y0 = band.Position.Y.Offset
+			local bh = band.Size.Y.Offset
+			task.delay(delay, function()
+				if band.Parent then
+					UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, 0), Position = UDim2.fromOffset(0, y0 + math.floor(bh / 2)) })
+				end
+			end)
+		end
+		task.delay(0.5, function()
+			if curtain.Parent then
+				curtain:Destroy()
+			end
+		end)
+	end
 
 	live = false
 	local unbind = bindKeys(function(k: string)
@@ -534,17 +608,29 @@ playSlot = function(slot: number, chain: boolean)
 		finishedAt = os.clock()
 		playing, playingKind = nil, nil
 		unbind()
-		-- the stamp (the stage and the effects keep moving under it)
-		local stamp = UIKit.text(pf, if won then "WIN!" else "LOSE", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 40), { x = "center", face = "big", kind = "title", color = if won then UIKit.color("good") else UIKit.color("bad"), z = 40, name = "Stamp" })
-		UIKit.tween(stamp, 0.15, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 30) })
+		-- the stamp drops in with a bounce (the stage and the effects keep moving under it)
+		local sy = math.floor(h / 2) - 30
+		local stamp = UIKit.text(pf, if won then "WIN!" else "LOSE", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, sy - 30), { x = "center", face = "big", kind = "title", color = if won then UIKit.color("good") else UIKit.color("bad"), z = 40, name = "Stamp" })
+		UIKit.tween(stamp, 0.12, { Position = UDim2.fromOffset(0, sy + 4) })
+		task.delay(0.12, function()
+			if stamp.Parent then
+				UIKit.tween(stamp, 0.1, { Position = UDim2.fromOffset(0, sy) })
+			end
+		end)
 		ctx.flash(if won then "white" else "bad")
 		spark.f.Visible = false
+		local torso = stage.avatar.rig.parts.Torso
+		local at = if torso then torso.Position else stage.at(0, 0, 2)
 		if won then
 			Audio.play("combo")
+			Audio.play("cheer")
 			UIKit.confetti(area, 30)
+			stage.puff(at + Vector3.new(0, 2, 0), "confetti", 24)
+			stage.puff(at + Vector3.new(0, 1, 0), "spark", 10)
 		else
-			Audio.play("deny")
+			Audio.play("sad")
 			bomb.flash(0.2)
+			stage.puff(at - Vector3.new(0, 1.5, 0), "dust", 12)
 		end
 		task.spawn(function()
 			local wait = math.max(1.1, Tuning.MicroMinSec + 0.2 - (os.clock() - asked))
@@ -574,6 +660,8 @@ playSlot = function(slot: number, chain: boolean)
 		end)
 	end
 	local fxLast = os.clock()
+	local nextSpark = 0
+	local lastTick = 4
 	conn = RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		if pf.Parent == nil or area.Parent == nil then
@@ -624,6 +712,10 @@ playSlot = function(slot: number, chain: boolean)
 			end
 		end
 		flashFrame.BackgroundTransparency = if now < flashUntil then 0.45 else 1
+		-- the stage's bits and its ambient life
+		pcall(function()
+			stage.step(now - opened, fdt)
+		end)
 		if finished then
 			-- the founder cheers or stumbles under the stamp
 			local after = eng.after
@@ -644,7 +736,8 @@ playSlot = function(slot: number, chain: boolean)
 				t0 = now
 				last = now
 				live = true
-				UIKit.tween(curtain, 0.2, { BackgroundTransparency = 1 })
+				openBlinds()
+				stage.lift()
 				ready:Destroy()
 				task.delay(0.35, function()
 					if word.Parent then
@@ -678,6 +771,19 @@ playSlot = function(slot: number, chain: boolean)
 		fuse.Size = UDim2.fromOffset(lw, 4)
 		spark.moveTo(ropeX + lw - 4, ropeY - 2)
 		spark.set(math.floor(now * 16) + 1)
+		-- the burning end spits sparks; the last seconds tick
+		if now >= nextSpark and lw > 0 then
+			nextSpark = now + 0.07
+			ctx.burst(ropeX + lw - 1, ropeY + 1, { "yellow", "orange" }, 2)
+		end
+		if eng.clock ~= 99 then
+			local leftSec = math.ceil(seconds - t)
+			if leftSec <= 3 and leftSec >= 1 and leftSec < lastTick then
+				lastTick = leftSec
+				Audio.play("tick", { pitch = 1.2 + (3 - leftSec) * 0.15 })
+				bomb.flash(0.12)
+			end
+		end
 		if left < 0.25 and math.floor(now * 6) % 2 == 0 then
 			bomb.flash(0.05)
 		end
@@ -727,15 +833,54 @@ function MicroUI.showLaunch(g: Types.Game)
 	clearFrame(f)
 	mode = "launch"
 	local w, h = f.Size.X.Offset, f.Size.Y.Offset
-	UIKit.text(f, "Launched!", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 10), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 7, name = "Launched" })
+	-- the title drops in with a bounce
+	local title = UIKit.text(f, "Launched!", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, -14), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 7, name = "Launched" })
+	UIKit.tween(title, 0.14, { Position = UDim2.fromOffset(0, 13) })
+	task.delay(0.14, function()
+		if title.Parent then
+			UIKit.tween(title, 0.1, { Position = UDim2.fromOffset(0, 10) })
+		end
+	end)
 	UIKit.text(f, g.title, UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 32), { x = "center", color = UIKit.color("text"), z = 7, name = "GameTitle" })
+	-- the three ideas pop up one after another, a star over each won one
 	for i, c in g.ideas do
-		local pl = UIKit.plate(f, UDim2.fromOffset(24, 24), UDim2.fromOffset(math.floor(w / 2 - 40 + (i - 1) * 28), 46), UIKit.color("plate_light"), 0, 2)
+		local x = math.floor(w / 2 - 40 + (i - 1) * 28)
+		local pl = UIKit.plate(f, UDim2.fromOffset(24, 24), UDim2.fromOffset(x, 62), UIKit.color("plate_light"), 0, 2)
 		pl.ZIndex = 7
+		pl.Visible = false
 		PixelSprites.image(pl, "icon_" .. c.id, UDim2.fromOffset(4, 4), 8)
+		task.delay(0.25 + (i - 1) * 0.15, function()
+			if pl.Parent then
+				pl.Visible = true
+				UIKit.tween(pl, 0.12, { Position = UDim2.fromOffset(x, 44) })
+				task.delay(0.12, function()
+					if pl.Parent then
+						UIKit.tween(pl, 0.08, { Position = UDim2.fromOffset(x, 46) })
+						UIKit.burst(f, x + 12, 58, { "accent", "white" }, 8)
+					end
+				end)
+				Audio.play("pop", { pitch = 0.9 + i * 0.1 })
+			end
+		end)
 	end
 	UIKit.text(f, string.format("%d of 3 minigames won: sales x%.2f", g.wins, 1 + Tuning.WinBoost * g.wins), UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 74), { x = "center", color = UIKit.color("good"), z = 7 })
-	UIKit.text(f, Numbers.rate(g.rate) .. " coins", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 88), { x = "center", face = "big", kind = "title", color = UIKit.color("good"), z = 7, name = "Rate" })
+	-- the income counts up to what the game earns
+	local rateLabel = UIKit.text(f, Numbers.rate(0) .. " coins", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 88), { x = "center", face = "big", kind = "title", color = UIKit.color("good"), z = 7, name = "Rate" })
+	task.spawn(function()
+		task.wait(0.3)
+		local t0 = os.clock()
+		while rateLabel.Parent do
+			local k = math.clamp((os.clock() - t0) / 0.8, 0, 1)
+			local e = 1 - (1 - k) * (1 - k)
+			UIKit.setText(rateLabel, Numbers.rate(g.rate * e) .. " coins")
+			if k >= 1 then
+				UIKit.burst(f, w / 2, 96, { "good", "accent", "white" }, 16)
+				Audio.play("coins")
+				break
+			end
+			task.wait()
+		end
+	end)
 	UIKit.text(f, "It earns this for good, even while you make the next one.", UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 110), { x = "center", color = UIKit.color("text_dim"), z = 7 })
 	local nice = UIKit.button(f, "Nice!", UDim2.fromOffset(60, 14), UDim2.new(0.5, -30, 1, -20), function()
 		close()

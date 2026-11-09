@@ -219,7 +219,11 @@ local function lanes(ctx: Ctx, n: number, v: number, m: Me): Lanes
 			return lane
 		end,
 		move = function(d: number)
-			lane = math.clamp(lane + d, 1, n)
+			local nl = math.clamp(lane + d, 1, n)
+			if nl ~= lane then
+				ctx.stage.puff(ctx.stage.at(m.u, v, 0.2), "dust", 4)
+			end
+			lane = nl
 		end,
 		u = laneU,
 		-- the founder glides to the lane; true while moving
@@ -271,6 +275,7 @@ function Games.dodge(ctx: Ctx): Micro
 		end
 		return g
 	end
+	local nextPuff = 0
 	local function animate(t: number, dt: number)
 		local moving = L.step(dt)
 		m.speed = if moving and not race then 14 else 0
@@ -279,6 +284,11 @@ function Games.dodge(ctx: Ctx): Micro
 		pose(ctx, m, t)
 		if kart then
 			st.place(kart, m.u, row, 0, AWAY)
+			-- puffs from the exhaust
+			if t >= nextPuff then
+				nextPuff = t + 0.12
+				st.puff(st.at(m.u + (math.random() - 0.5) * 0.6, row + 2, 0.5), "smoke", 1)
+			end
 		end
 	end
 	return {
@@ -322,6 +332,7 @@ function Games.dodge(ctx: Ctx): Micro
 						dead = true
 						st.flash(it.t, 0.3)
 						burstAt(ctx, st.at(m.u, row, 2.5), { "white", "accent", "bad" }, 16)
+						st.puff(st.at(m.u, row, 2.5), "spark", 12)
 						ctx.shake()
 						ctx.lose()
 						return
@@ -331,6 +342,8 @@ function Games.dodge(ctx: Ctx): Micro
 						it.gone = true
 						if not race then
 							burstAt(ctx, st.at(L.u(it.lane), row, 0.5), { "wood", "berry_red", "white" }, 7)
+							st.puff(st.at(L.u(it.lane), row, 0.6), "debris", 9, if it.lane % 2 == 0 then "wood_dark" else "berry_red")
+							st.puff(st.at(L.u(it.lane), row, 0.3), "dust", 5)
 						end
 						st.remove(it.t)
 					end
@@ -448,10 +461,16 @@ function Games.timing(ctx: Ctx): Micro
 		if v == "flip" then
 			launch(home, 4, 0.45, 1, "home")
 			burstAt(ctx, st.at(home.X, home.Y, home.Z + 0.5), { "yellow", "white", "orange" }, 8)
+			st.puff(st.at(home.X, home.Y, home.Z + 0.6), "spark", 6)
+			task.delay(0.45, function()
+				st.puff(st.at(home.X, home.Y, home.Z + 0.4), "steam", 4)
+			end)
 		elseif v == "kick" then
 			launch(Vector3.new(ctx.rng:int(-25, 25) / 10, MicroStage.GOAL_V - 0.5, 1), 3.5, 0.4, 0, "back")
+			st.puff(st.at(home.X, home.Y, 0.3), "dust", 6)
 			task.delay(0.4, function()
 				burstAt(ctx, st.at(0, MicroStage.GOAL_V, 2.5), { "white", "good", "yellow" }, 14)
+				st.puff(st.at(0, MicroStage.GOAL_V + 0.5, 2.5), "confetti", 18)
 			end)
 		elseif slime then
 			dashT = now
@@ -461,6 +480,8 @@ function Games.timing(ctx: Ctx): Micro
 				if sl and sl.model.Parent then
 					st.flash(sl, 0.12)
 					burstAt(ctx, st.at(SLIME_U, SLIME_V, 1.5), { "green", "white", "leaf" }, 10)
+					st.puff(st.at(SLIME_U, SLIME_V, 1.2), "debris", 8, "green")
+					st.puff(st.at(SLIME_U - 1, SLIME_V, 1.6), "spark", 6)
 				end
 			end)
 		end
@@ -483,6 +504,8 @@ function Games.timing(ctx: Ctx): Micro
 					task.delay(0.3, function()
 						if sl.model.Parent then
 							burstAt(ctx, st.at(SLIME_U, SLIME_V, 1), { "green", "leaf", "white" }, 20)
+							st.puff(st.at(SLIME_U, SLIME_V, 1), "debris", 18, "green")
+							st.puff(st.at(SLIME_U, SLIME_V, 0.5), "dust", 8)
 							st.remove(sl)
 							slime = nil
 						end
@@ -612,6 +635,7 @@ function Games.mash(ctx: Ctx): Micro
 		local heart = PixelSprites.image(ctx.area, "heart", UDim2.fromOffset(x - 5 + ctx.rng:int(-8, 8), y - 6), 13)
 		ctx.float(heart, (ctx.rng:next() - 0.5) * 16, -30, 0.7)
 		ctx.burst(x, y, { "pink", "white" }, 4)
+		st.puff(st.at(catU, catV, cat.h), "twinkle", 2, "pink")
 		if n >= need then
 			done = true
 			ctx.burst(x, y + 10, { "pink", "white", "berry_red" }, 18)
@@ -722,6 +746,12 @@ function Games.whack(ctx: Ctx): Micro
 		Audio.play("squish")
 		st.flash(p, 0.12)
 		burstAt(ctx, at, colors, 10)
+		if v == "water" then
+			st.puff(at + Vector3.new(0, 1, 0), "splash", 10)
+		else
+			st.puff(at, "debris", 9, if v == "space" then "green" else "leaf_dark")
+			st.puff(at, "spark", 5)
+		end
 		popAt(ctx, st.at(hole.u, hole.v, p.h + 0.5), "+1", "good")
 		UIKit.setText(label, string.format("%s %d/%d", verb, hits, need))
 		if v == "water" then
@@ -729,6 +759,7 @@ function Games.whack(ctx: Ctx): Micro
 			MicroModels.show(p, false)
 			local fl = target(ctx, "flower")
 			st.place(fl, hole.u, hole.v, 0, FACE)
+			st.puff(st.at(hole.u, hole.v, 2.2), "confetti", 8)
 			hole.bloom = fl
 			hole.state = "bloom"
 			hole.since = now
@@ -820,6 +851,7 @@ function Games.whack(ctx: Ctx): Micro
 					local hole = holes[free[ctx.rng:int(1, #free)]]
 					local decoy = hole.d ~= nil and ctx.diff >= 4 and ctx.rng:chance(0.25)
 					hole.which = if decoy and hole.d then hole.d else hole.t
+					st.puff(st.at(hole.u, hole.v, 0.4), "dust", 4, if v == "space" then "purple" else "wood")
 					hole.state = "rising"
 					hole.since = t
 					hole.untilT = t + life
@@ -1141,6 +1173,9 @@ function Games.sequence(ctx: Ctx): Micro
 			light(i, true)
 			hopFrom, hopTo, hopT = Vector2.new(m.u, m.v), Vector2.new(padU[i], PAD_V), now
 			task.delay(0.18, function()
+				st.puff(st.at(padU[i], PAD_V, 0.6), "spark", 8, colors[i])
+			end)
+			task.delay(0.18, function()
 				if pads[i].model.Parent then
 					light(i, false)
 				end
@@ -1292,10 +1327,14 @@ function Games.sequence(ctx: Ctx): Micro
 				cell = Vector2.new(math.clamp(nx.X, 1, bd.cols), math.clamp(nx.Y, 1, bd.rows))
 				local u, vv = cellUV(cell)
 				walkFrom, walkTo, walkT = Vector2.new(m.u, m.v), Vector2.new(u, vv), now
+				task.delay(0.14, function()
+					st.puff(st.at(u, vv, 0.4), "dust", 4)
+				end)
 			else
 				level += 1
 				castUntil = now + 0.3
 				burstAt(ctx, st.at(m.u, m.v, 5.5 + level * 0.2), { "purple", "yellow", "white" }, 6)
+				st.puff(st.at(m.u, m.v, 5.3), "twinkle", 6, "purple")
 			end
 			at += 1
 			highlight()
@@ -1427,6 +1466,7 @@ function Games.catch(ctx: Ctx): Micro
 							Audio.play("coin")
 							bumpUntil = t + 0.08
 							burstAt(ctx, p, if fish then { "orange", "white", "blue" } else { "yellow", "white", "gold" }, 9)
+							st.puff(p, if fish then "splash" else "spark", 8)
 							popAt(ctx, p, "+1", "accent")
 							UIKit.setText(label, string.format("%s %d/%d", verb, got, need))
 							if got >= need then
@@ -1437,6 +1477,8 @@ function Games.catch(ctx: Ctx): Micro
 						else
 							done = true
 							burstAt(ctx, p, if fish then { "pink", "white", "purple" } else { "orange", "yellow", "bad", "white" }, 20)
+							st.puff(p, "debris", 12, if fish then "pink" else "black")
+							st.puff(p, if fish then "splash" else "spark", 12)
 							if not fish then
 								ctx.flash("white")
 							end
@@ -1447,6 +1489,7 @@ function Games.catch(ctx: Ctx): Micro
 					elseif it.y <= 0 then
 						it.gone = true
 						burstAt(ctx, st.at(L.u(it.lane), row, 0.3), if it.good then { "yellow", "white" } else { "steel", "white" }, 5)
+						st.puff(st.at(L.u(it.lane), row, 0.3), if fish then "splash" else "dust", 5)
 						st.remove(it.t)
 					end
 				end
@@ -1525,6 +1568,7 @@ function Games.jump(ctx: Ctx): Micro
 			jumpT = now
 			Audio.play("pop", { pitch = 1.3 })
 			burstAt(ctx, st.at(m.u, m.v, 0.2), dust, 5)
+			st.puff(st.at(m.u, m.v, 0.2), "dust", 6)
 		end
 	end
 	return {
@@ -1540,6 +1584,7 @@ function Games.jump(ctx: Ctx): Micro
 					jumpT = -1
 					m.y = 0
 					burstAt(ctx, st.at(m.u, m.v, 0.2), dust, 6)
+					st.puff(st.at(m.u, m.v, 0.2), "dust", 8)
 				else
 					m.y = 4 * H * k * (1 - k)
 				end
@@ -1564,6 +1609,7 @@ function Games.jump(ctx: Ctx): Micro
 						dead = true
 						st.flash(o.t, 0.3)
 						burstAt(ctx, st.at(m.u, m.v, 2), { "white", "bad", "accent" }, 14)
+						st.puff(st.at(m.u, m.v, 1.5), "debris", 10, if dino then "leaf" else "steel")
 						ctx.shake()
 						ctx.lose()
 						return
@@ -1687,6 +1733,7 @@ function Games.rhythm(ctx: Ctx): Micro
 			danceUntil = now + 0.25
 			local p = st.at(laneU[l], HIT_V, 0.8)
 			burstAt(ctx, p, { laneColors[l], "white" }, if perfect then 12 else 7)
+			st.puff(p, "spark", if perfect then 10 else 5, gemColors[l])
 			popAt(ctx, p, if perfect then "Perfect!" else "Good", if perfect then "yellow" else "accent")
 		else
 			miss(l)
@@ -1798,6 +1845,9 @@ function Games.slice(ctx: Ctx): Micro
 			done = true
 			ctx.flash("white")
 			burstAt(ctx, p, { "orange", "yellow", "bad", "white" }, 22)
+			st.puff(p, "debris", 14, "black")
+			st.puff(p, "spark", 14)
+			st.puff(p, "smoke", 4)
 			ctx.shake()
 			popAt(ctx, p, "Boom!", "bad")
 			ctx.lose()
@@ -1810,6 +1860,7 @@ function Games.slice(ctx: Ctx): Micro
 			table.insert(halves, { t = h, u = f.u, v = f.v, y = f.y + 0.6, vu = f.vu + side * 4, vy = 4, t0 = now })
 		end
 		burstAt(ctx, p, { "berry_red", "pink", "green" }, 12)
+		st.puff(p, "debris", 10, "berry_red")
 		popAt(ctx, p, "Slice!", "good")
 		UIKit.setText(label, string.format("Slice the fruit, not the bombs! %d/%d", got, need))
 		if got >= need then
@@ -1932,6 +1983,7 @@ function Games.hide(ctx: Ctx): Micro
 		if state == "watch" then
 			done = true
 			st.flash(ghost, 0.2)
+			st.puff(st.at(gu, gv, 3), "spark", 10, "berry_red")
 			ctx.shake()
 			popAt(ctx, st.at(m.u, m.v, 5), "Seen!", "bad")
 			ctx.lose()
@@ -1941,9 +1993,11 @@ function Games.hide(ctx: Ctx): Micro
 		hopT = now
 		Audio.play("key", { pitch = 0.8 })
 		burstAt(ctx, st.at(m.u, m.v, 0.2), { "wood_dark", "text_dim" }, 3)
+		st.puff(st.at(m.u, m.v, 0.2), "dust", 3)
 		if at >= steps then
 			done = true
 			burstAt(ctx, st.at(du, dv, 3), { "yellow", "white", "good" }, 16)
+			st.puff(st.at(du, dv, 3), "confetti", 16)
 			ctx.win()
 		end
 	end
@@ -2094,8 +2148,10 @@ function Games.stack(ctx: Ctx): Micro
 		local fu, fv = uvOf(cx + ox, cz + oz)
 		local pp = st.at(fu, fv, topY() + bh)
 		burstAt(ctx, pp, { "white", "steel" }, 6)
+		st.puff(st.at(fu, fv, topY()), "dust", 10)
 		if overlap >= size - 0.05 then
 			popAt(ctx, pp, "Perfect!", "yellow")
+			st.puff(pp, "spark", 12)
 		end
 		UIKit.setText(label, string.format("Drop the floors! %d/%d", level, need))
 		if level >= need then

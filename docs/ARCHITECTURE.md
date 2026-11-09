@@ -22,7 +22,7 @@ default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScript
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
                        maths, copied), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, StudioService, PlotService)
-src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView),
+src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView, StreetLife),
                        Audio, Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
                        Menus, MicroUI, MicroGames, MicroStage, PixelSprites, ArtData (generated), BuildUI, Words)
 tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), specs/*.spec.luau
@@ -132,7 +132,8 @@ Models (`src/shared/Models`, Roblox modules):
   ball pancake pan basket soldier suspect gem orb star flag pad shape kart goal pedestal dashes specks lane hat sword
   hammer can blaster`; `opts { color, alt }`), `slab(size, color, band?, neon?)` (a plain box), `place(t, cf)`,
   `scale(t, k)` (squash and stretch from the built shape), `recolor(t, color?)` (all but the `Keep` parts; nil: back),
-  `show(t, on)`, `has`, `SHAPES` (Match's).
+  `show(t, on)`, `has`, `SHAPES` (Match's). Ambient kinds (MicroStage, StreetLife): `bird butterfly ufo light flame
+  yarn plane book drone crab spot car` (birds, bats, butterflies and drones have `WingL` / `WingR` to beat).
 - `CharacterModels.poseAction(rig, base, t, speed, action, k?)`: a founder's poseStanding plus the arms (and legs) of
   `cheer hurt swing reach pet cast jump sneak dance` (k: a swing's progress).
 - `OfficeModels` no longer builds a lawn (the street does); its low rim doesn't collide; a doorstep fills the gap.
@@ -206,7 +207,7 @@ Without DataStores (Studio without API access) saves live in memory and a warnin
 
 `Main.client`: `StateClient.init` (remotes), `PixelRenderer.init` (lighting), `CameraController.init`, wait for the
 first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `WorldView.start`, `AvatarView.start`,
-`Hud.start`.
+`StreetLife.start`, `Hud.start`.
 
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Coins: Signal<number>`
@@ -284,7 +285,9 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   (the microgames' shake).
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
-  never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects.
+  never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects. The
+  shadowed tone of each static pixel is worked out once and cached (`sShadowC`) until the static layer changes (a
+  bake, a pan, a re-cast), so a cloud's big shadow stays cheap.
 
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
@@ -312,7 +315,11 @@ panel is open, its status line next to the title instead, and opening a panel cl
 a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, the `Stage` root (DisplayOrder
 22, full screen: a microgame's overlay, its UI px the world's art px), `tween` (a UDim2 property
 eases on Heartbeat snapped to whole UI px, Quad out, the newest tween of a property winning; the rest through
-TweenService), `Resized`. Motion (GAME_DESIGN 15): a button lightens while hovered, its plate and words sink 1 UI px while pressed,
+TweenService), `Resized`, the effects `burst(parent, x, y, colors, n?, speed?)` (1 px bits from a point of a frame), `burstOn(gui,
+colors, n?, speed?)` (from a GUI object's middle, on its canvas: it outlives a rebuilt panel), `popText(parent, x, y,
+text, color)` (a word rising and fading), `shine(button)` (a light band sweeping across its plate, clear of the
+corners) and `bitsAt(world, colors, n, speed?, gravity?)` (bits on the World canvas from a world point). Motion
+(GAME_DESIGN 15): a button lightens while hovered, its plate and words sink 1 UI px while pressed,
 and `Activated` plays `click` (or `deny` when disabled); a panel's shade fades in and its frame rises 10 UI px into
 place; a notice slides down into the stack and fades out.
 
@@ -325,7 +332,12 @@ rigs on plots within 90 studs of the view's centre are posed. Each plot sign get
 name, the own in gold, or "Empty lot"); a tap on a sign (a press let go within 8 px, not on the interface, not in
 Build mode) shows `signCard(i)` (games, the rarest idea, the income). `rigCount()` / `ownRigCount()` for the sims.
 A typing member sends a bit of code ("</>", "{ }", "01" ...) up from their screen every few seconds; `cheer(words,
-color)` makes the own team cheer with the words over their heads in turn (a launch).
+color)` makes the own team cheer with the words over their heads in turn (a launch), confetti bits over each; a new
+idea's head throws sparkles in its tier's colour (`UIKit.bitsAt`).
+`StreetLife` (client, started after AvatarView): four cars (`MicroModels` "car", blob shadows) driving both lanes of
+the road, wrapping round the street's ends and waiting while a founder stands in their lane ahead; a flock of three
+birds crossing every 14-24 s; two clouds: invisible models high up with a `PixelShadow` (their shadows drift east over
+the street). `count()` for the CLI.
 
 ### 10.3 `Hud`
 Chips (`Chip_coins`, easing to the coins and flashing when they change; `Chip_rate`, "+12.4/s"; `Chip_idea`, "Idea in
@@ -387,7 +399,9 @@ with `WordIcon`, `Word` and `GetReady` until the stage is `ready()` and `MicroIn
 `shake` (the stage's picture and the overlay jitter together: `PixelRenderer.setOffset`), `glitch` (`GlitchFlash`
 blinks over it), `dark` (`Dark1`..`Dark4` round a roving spotlight); a WIN / LOSE stamp (a flash; confetti for a win)
 while the engine's `after(t, won)` keeps the founder cheering or stumbling, then `micro.finish` (no sooner than
-`MicroMinSec` after the start), the stage closed (the street's picture back), the HUD back; Play all goes on to the
+`MicroMinSec` after the start), the stage closed (the street's picture back), the HUD back. The curtain is ink blinds (`Blind`) opening from the
+middle (`stage.lift()` drops the founder in); the burning end of the fuse spits bits; the last three seconds tick; a
+win plays combo and cheer with 3D confetti and sparks from the founder, a loss the sad trombone and a puff of dust; Play all goes on to the
 next unplayed slot. The runner owns the effects: `Pop` words, `Bit` bursts (1 px, their own Rng from the seed + 101),
 floats, the `Flash`. Its keys are bound through ContextActionService above the founder's walking keys (arrows, WASD,
 Space, Return, F, J, 1-6; UserInputService when that is not available).
@@ -400,7 +414,13 @@ then the founder (`CharacterModels.buildStanding` in the player's look, `AvatarV
 a blob shadow. `Stage { variant, floor, half, avatar, at(u, v, y) -> Vector3, spawn(kind, opts?, shadow?) -> Thing,
 adopt(thing, shadow?), place(thing, u, v, y, yaw?, tilt?), remove, flash(thing, seconds?), glow(thing, on), refresh,
 screen(pos) -> (x, y, on) (UI px on the Stage canvas), hold(kind?) (in the founder's right hand), hat(kind?) (on their
-head), pose(u, v, y, yaw, t, speed, action, k?), ready(), close() }`. Stage space: u to the screen's right, v toward
+head), pose(u, v, y, yaw, t, speed, action, k?) (until `lift()` the founder hangs 8 studs up; then drops in 0.32 s and
+lands in dust), puff(pos, kind, n?, color?) (3D bits from a pool of 56 parts in one dynamic model `MicroPuffs`; kinds
+`dust spark debris confetti steam smoke bubble petal ember twinkle splash`: speeds, gravity, life, size, glow, bounce,
+grow, sway), lift(), step(t, dt) (every frame from the runner: the bits and the stage's ambient life), ready(),
+close() }`. Each variant's ambient life (`AMBIENT`): circling birds and bats with beating wings, wandering
+butterflies, blinking lights, flickering flames with embers, emitters of steam, smoke, bubbles, petals and twinkles,
+a yarn ball, a UFO, a bouncing ball, a paper plane, waving flags, a book, a drone, sweeping floor lights, a crab. Stage space: u to the screen's right, v toward
 the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
 `MicroGames`: the twelve engines `dodge timing mash whack pick sequence catch jump rhythm slice hide stack`, each
 `(ctx) -> Micro` with `ctx { area, w, h, stage, rng (the server's seed), diff, speed, tiny, variant (the idea's

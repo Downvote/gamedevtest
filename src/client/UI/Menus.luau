@@ -126,6 +126,7 @@ local function buildIdeas(body: Frame, _arg: any?)
 			elseif #picked < 3 then
 				table.insert(picked, i)
 				table.insert(pickedKeys, Ideas.key(c))
+				UIKit.burstOn(b, { Ideas.tierColor(tier), "white" }, 8, 35)
 			else
 				Audio.play("deny")
 				return
@@ -147,6 +148,10 @@ local function buildIdeas(body: Frame, _arg: any?)
 		local a, b, c = picked[1], picked[2], picked[3]
 		local res = ask("game.make", { a = a, b = b, c = c })
 		if res.ok then
+			local mk = body:FindFirstChild("Make")
+			if mk and mk:IsA("GuiObject") then
+				UIKit.burstOn(mk, { "good", "accent", "white", "fun", "ideas" }, 22, 60)
+			end
 			table.clear(picked)
 			table.clear(pickedKeys)
 			UIKit.closePanel()
@@ -254,6 +259,11 @@ local function buildUpgrades(body: Frame, _arg: any?)
 			local res = ask("upgrade.buy", { k = it.k })
 			if res.ok then
 				Audio.play("level_up")
+				local bb = upgradeButtons[it.k]
+				if bb then
+					UIKit.burstOn(bb, { "good", "accent", "white" }, 18, 50)
+					UIKit.popText(bb.Parent or body, bb.Position.X.Offset + 40, 0, "Level up!", UIKit.color("good"))
+				end
 			end
 		end, { name = "Buy_" .. it.k, color = UIKit.color("button_ok"), enabled = cost ~= nil and v.coins >= cost })
 		b.ZIndex = 4

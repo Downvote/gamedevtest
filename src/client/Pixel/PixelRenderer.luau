@@ -82,6 +82,7 @@ type Surf = {
 	skyRef: number,
 	sColor: buffer, -- u32 RGBA shown (shaded and outlined)
 	sShade: buffer, -- u32 RGBA shaded, no outline
+	sShadowC: buffer, -- u32 RGBA the pixel shaded as in the sun's shadow (blob shadows' cache; 0: not worked out yet)
 	sAlbedo: buffer, -- u32 0xRRGGBB (+ EMISSIVE)
 	sNormal: buffer, -- u8 normal index
 	sLit: buffer, -- u8 0 shadow, 1 lit, 2 emissive
@@ -414,6 +415,7 @@ end
 ------------------------------------------------------------------ bake
 local function finishBake(s: Surf)
 	baking = false
+	buffer.fill(s.sShadowC, 0, 0)
 	Shading.outline(s.static, 0, 0, s.W - 1, s.H - 1, s.sShade)
 	contactPass(s)
 	local f = s.frame
@@ -578,6 +580,7 @@ local function buildSurf(v: CameraController.View)
 		skyRef = math.floor(floorY) - H,
 		sColor = sColor,
 		sShade = buffer.create(n * 4),
+		sShadowC = buffer.create(n * 4),
 		sAlbedo = buffer.create(n * 4),
 		sNormal = buffer.create(n),
 		sLit = buffer.create(n),
@@ -599,14 +602,23 @@ local function shadeGlow(rgb: number, nx: number, ny: number, nz: number, x: num
 	return Shading.toonAt(rgb, nx, ny, nz, 2, x + panX, y + panY, Shading.INDOOR, 0)
 end
 
--- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow).
+-- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow), cached per pixel until the static
+-- layer changes (a bake, a pan, a re-cast).
 local function shadeShadowed(s: Surf, idx: number, x: number, y: number): number
-	local a = buffer.readu32(s.sAlbedo, idx * 4)
-	if a >= EMISSIVE then
-		return buffer.readu32(s.sShade, idx * 4)
+	local cached = buffer.readu32(s.sShadowC, idx * 4)
+	if cached ~= 0 then
+		return cached
 	end
-	local ni = buffer.readu8(s.sNormal, idx) + 1
-	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], 0, x + s.cam.gx, y + s.cam.gy, Shading.OUTDOOR, 0)
+	local a = buffer.readu32(s.sAlbedo, idx * 4)
+	local c: number
+	if a >= EMISSIVE then
+		c = buffer.readu32(s.sShade, idx * 4)
+	else
+		local ni = buffer.readu8(s.sNormal, idx) + 1
+		c = Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], 0, x + s.cam.gx, y + s.cam.gy, Shading.OUTDOOR, 0)
+	end
+	buffer.writeu32(s.sShadowC, idx * 4, c)
+	return c
 end
 
 -- The ground's screen-right and toward-the-viewer directions (unit, on the ground): the blob shadows' ellipse axes.
@@ -861,6 +873,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		shift(b, W, H, 4, sx, sy)
 	end
 	shift(s.sNormal, W, H, 1, sx, sy)
+	buffer.fill(s.sShadowC, 0, 0)
 	shift(s.sLit, W, H, 1, sx, sy)
 	shift(s.sId, W, H, 2, sx, sy)
 	s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(cam.gx + sx, cam.gy + sy), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
@@ -981,6 +994,7 @@ local function processInvalidation()
 		end
 		if c.phase > 2 then
 			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
+			buffer.fill(s.sShadowC, 0, 0)
 			invCur = nil
 			stats.recasts += 1
 			needFull = true

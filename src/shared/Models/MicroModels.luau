@@ -409,6 +409,117 @@ BUILD.lane = function(o)
 	return t
 end
 
+------------------------------------------------------------------ the stages' ambient life (UI/MicroStage)
+-- birds and bats: a body and two wings ("WingL", "WingR": MicroStage flaps them)
+BUILD.bird = function(o)
+	local t = new("bird", 0.6, 0.6)
+	local c = o.color or "white"
+	add(t, "Body", "Block", Vector3.new(0.5, 0.5, 1.0), Vector3.new(0, 0.25, 0), c)
+	add(t, "Head", "Block", Vector3.new(0.5, 0.5, 0.5), Vector3.new(0, 0.5, 0.6), c)
+	add(t, "Beak", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(0, 0.45, 0.95), o.alt or "orange")
+	add(t, "WingL", "Block", Vector3.new(1.0, 0.25, 0.5), Vector3.new(-0.7, 0.4, 0), c)
+	add(t, "WingR", "Block", Vector3.new(1.0, 0.25, 0.5), Vector3.new(0.7, 0.4, 0), c)
+	return t
+end
+
+BUILD.butterfly = function(o)
+	local t = new("butterfly", 0.4, 0.4)
+	add(t, "Body", "Block", Vector3.new(0.25, 0.25, 0.5), Vector3.new(0, 0.15, 0), "black")
+	add(t, "WingL", "Block", Vector3.new(0.5, 0.25, 0.5), Vector3.new(-0.35, 0.2, 0), o.color or "yellow")
+	add(t, "WingR", "Block", Vector3.new(0.5, 0.25, 0.5), Vector3.new(0.35, 0.2, 0), o.color or "yellow")
+	return t
+end
+
+BUILD.ufo = function(_o)
+	local t = new("ufo", 1.5, 2)
+	add(t, "Disc", "Block", Vector3.new(3.5, 0.5, 3.5), Vector3.new(0, 0.5, 0), "steel")
+	add(t, "Dome", "Ball", Vector3.new(1.75, 1.25, 1.75), Vector3.new(0, 1.1, 0), "screen_on")
+	add(t, "Light", "Block", Vector3.new(0.5, 0.25, 0.5), Vector3.new(0, 0.125, 0), "screen_code", nil, true)
+	return t
+end
+
+-- a small light that blinks (MicroStage toggles it) and a flame that flickers
+BUILD.light = function(o)
+	local t = new("light", 0.5, 0.25)
+	add(t, "Light", "Block", Vector3.new(0.5, 0.5, 0.5), Vector3.new(0, 0.25, 0), o.color or "berry_red", nil, true)
+	return t
+end
+
+BUILD.flame = function(_o)
+	local t = new("flame", 1, 0.3)
+	add(t, "Outer", "Block", Vector3.new(0.5, 0.75, 0.5), Vector3.new(0, 0.375, 0), "orange", nil, true)
+	add(t, "Core", "Block", Vector3.new(0.25, 0.5, 0.25), Vector3.new(0, 0.3, 0.15), "yellow", nil, true)
+	return t
+end
+
+BUILD.yarn = function(_o)
+	local t = new("yarn", 1, 0.5)
+	add(t, "Ball", "Ball", Vector3.new(1.0, 1.0, 1.0), Vector3.new(0, 0.5, 0), "pink")
+	add(t, "Wrap", "Block", Vector3.new(1.05, 0.25, 0.25), Vector3.new(0, 0.6, 0), "berry_red")
+	add(t, "Thread", "Block", Vector3.new(0.25, 0.25, 1.5), Vector3.new(0.3, 0.1, -1.0), "pink")
+	return t
+end
+
+BUILD.plane = function(_o)
+	local t = new("plane", 0.5, 0.6)
+	add(t, "WingL", "Wedge", Vector3.new(0.5, 0.25, 1.25), Vector3.new(-0.3, 0.2, 0), "white")
+	add(t, "WingR", "Wedge", Vector3.new(0.5, 0.25, 1.25), Vector3.new(0.3, 0.2, 0), "white")
+	add(t, "Keel", "Block", Vector3.new(0.25, 0.25, 1.0), Vector3.new(0, 0.05, -0.1), "paper")
+	return t
+end
+
+BUILD.book = function(_o)
+	local t = new("book", 0.5, 0.6)
+	add(t, "Cover", "Block", Vector3.new(1.25, 0.25, 1.0), Vector3.new(0, 0.125, 0), "berry_red")
+	add(t, "Pages", "Block", Vector3.new(1.0, 0.25, 0.875), Vector3.new(0, 0.3, 0), "paper")
+	return t
+end
+
+BUILD.drone = function(_o)
+	local t = new("drone", 0.75, 1)
+	add(t, "Body", "Block", Vector3.new(1.0, 0.5, 1.0), Vector3.new(0, 0.25, 0), "steel_dark")
+	add(t, "Eye", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(0, 0.25, 0.55), "screen_code", nil, true)
+	add(t, "WingL", "Block", Vector3.new(0.75, 0.25, 0.25), Vector3.new(-0.85, 0.5, 0), "steel")
+	add(t, "WingR", "Block", Vector3.new(0.75, 0.25, 0.25), Vector3.new(0.85, 0.5, 0), "steel")
+	return t
+end
+
+BUILD.crab = function(_o)
+	local t = new("crab", 0.75, 0.7)
+	add(t, "Shell", "Block", Vector3.new(1.25, 0.5, 0.75), Vector3.new(0, 0.375, 0), "berry_red")
+	add(t, "ClawL", "Block", Vector3.new(0.375, 0.375, 0.375), Vector3.new(-0.8, 0.45, 0.35), "berry_red")
+	add(t, "ClawR", "Block", Vector3.new(0.375, 0.375, 0.375), Vector3.new(0.8, 0.45, 0.35), "berry_red")
+	add(t, "EyeL", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(-0.25, 0.75, 0.25), "black")
+	add(t, "EyeR", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(0.25, 0.75, 0.25), "black")
+	return t
+end
+
+-- The street's cars (Controllers/StreetLife): a body, a cabin with windows, wheels, lights (opts.color the paint)
+BUILD.car = function(o)
+	local t = new("car", 2.5, 2.4)
+	local c = o.color or "berry_red"
+	add(t, "Body", "Block", Vector3.new(2.5, 1.0, 4.5), Vector3.new(0, 0.85, 0), c)
+	add(t, "Cabin", "Block", Vector3.new(2.25, 1.0, 2.5), Vector3.new(0, 1.85, -0.25), c)
+	add(t, "Front", "Block", Vector3.new(2.0, 0.75, 0.25), Vector3.new(0, 1.85, 1.05), "window")
+	add(t, "SideL", "Block", Vector3.new(0.25, 0.75, 1.75), Vector3.new(-1.05, 1.85, -0.25), "window")
+	add(t, "SideR", "Block", Vector3.new(0.25, 0.75, 1.75), Vector3.new(1.05, 1.85, -0.25), "window")
+	add(t, "LampL", "Block", Vector3.new(0.5, 0.25, 0.25), Vector3.new(-0.8, 0.95, 2.2), "yellow", nil, true)
+	add(t, "LampR", "Block", Vector3.new(0.5, 0.25, 0.25), Vector3.new(0.8, 0.95, 2.2), "yellow", nil, true)
+	add(t, "TailL", "Block", Vector3.new(0.5, 0.25, 0.25), Vector3.new(-0.8, 0.95, -2.2), "berry_red", nil, true)
+	add(t, "TailR", "Block", Vector3.new(0.5, 0.25, 0.25), Vector3.new(0.8, 0.95, -2.2), "berry_red", nil, true)
+	for i, w in { { -1.2, 1.4 }, { 1.2, 1.4 }, { -1.2, -1.4 }, { 1.2, -1.4 } } do
+		add(t, "Wheel" .. i, "Block", Vector3.new(0.5, 0.75, 0.75), Vector3.new(w[1], 0.375, w[2]), "black")
+	end
+	return t
+end
+
+-- Disco and stage light on the floor: a flat glowing tile (opts.color)
+BUILD.spot = function(o)
+	local t = new("spot", 0.1, 1.4)
+	add(t, "Tile", "Block", Vector3.new(2.5, 0.25, 2.5), Vector3.new(0, 0.05, 0), o.color or "yellow", nil, true)
+	return t
+end
+
 ------------------------------------------------------------------ what the avatar holds (origin: the hand)
 BUILD.hat = function(_o)
 	local t = new("hat", 1.75, 1)

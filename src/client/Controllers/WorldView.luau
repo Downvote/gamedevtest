@@ -301,6 +301,8 @@ local function onIdea(msg: { [string]: any })
 	end
 	local at = (entry.base * CFrame.new(CharacterModels.HEAD_TOP)).Position
 	UIKit.floatText(at, Ideas.name(card), UIKit.color(Ideas.tierColor(tier)), tier >= Tuning.RevealTier)
+	-- sparkles round the head in the tier's colour: more the rarer the idea
+	UIKit.bitsAt(at, { Ideas.tierColor(tier), "white" }, 4 + tier * 3, 30 + tier * 6, 60)
 end
 
 -- The own crew cheers (arms up) with a word over each head, one after another (a minigame's reward landing).
@@ -317,6 +319,7 @@ function WorldView.cheer(words: { string }, color: Color3)
 		task.delay((k - 1) * 0.1, function()
 			entry.cheerUntil = os.clock() + 1.4
 			UIKit.floatText(at, word, color, first)
+			UIKit.bitsAt(at, { "accent", "fun", "ideas", "graphics", "sound", "white" }, 12, 40, 80)
 		end)
 	end
 end

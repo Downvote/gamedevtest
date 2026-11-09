@@ -367,7 +367,7 @@ local function microScenario(spec)
 	local function curtainUp(): boolean
 		local pg = p:FindFirstChild("PlayerGui")
 		local c = pg and pg:FindFirstChild("Curtain", true)
-		return c == nil or (getD(c).props.BackgroundTransparency or 0) >= 0.99
+		return c == nil or c:GetAttribute("Lifted") == true
 	end
 	local waited = 0
 	while waited < 60 and not curtainUp() do

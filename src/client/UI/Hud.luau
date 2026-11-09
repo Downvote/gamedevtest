@@ -213,18 +213,29 @@ end
 ------------------------------------------------------------------ the card
 -- A small idea line (LINE_H apart): its 11 px icon, its name in its tier's colour.
 local LINE_H = 11
-local function ideaLine(parent: Instance, c: Types.Card, y: number, w: number, extra: string?): TextLabel
+local function ideaLine(parent: Instance, c: Types.Card, y: number, w: number, extra: string?): (TextLabel, Frame)
+	-- the line's pieces sit in one frame, so a new line can slide in as one
+	local line = Instance.new("Frame")
+	line.Name = "Line"
+	line.BackgroundTransparency = 1
+	line.BorderSizePixel = 0
+	line.Size = UDim2.fromOffset(w, LINE_H)
+	line.Position = UDim2.fromOffset(0, y)
+	line.ZIndex = 3
+	line.Parent = parent
 	local def = IdeasData.byId[c.id]
 	if def then
-		PixelSprites.image(parent, "mini_" .. c.id, UDim2.fromOffset(3, y), 3)
+		PixelSprites.image(line, "mini_" .. c.id, UDim2.fromOffset(3, 0), 3)
 	end
 	local tier = Ideas.tier(c)
-	local l = UIKit.text(parent, Ideas.name(c), UDim2.fromOffset(w - 18 - (if extra then 26 else 0), 10), UDim2.fromOffset(16, y + 1), { color = UIKit.color(Ideas.tierColor(tier)), name = "Idea" })
+	local l = UIKit.text(line, Ideas.name(c), UDim2.fromOffset(w - 18 - (if extra then 26 else 0), 10), UDim2.fromOffset(16, 1), { color = UIKit.color(Ideas.tierColor(tier)), name = "Idea" })
 	if extra then
-		UIKit.text(parent, extra, UDim2.fromOffset(24, 10), UDim2.fromOffset(w - 28, y + 1), { x = "right", color = UIKit.color("text"), name = "Mark" })
+		UIKit.text(line, extra, UDim2.fromOffset(24, 10), UDim2.fromOffset(w - 28, 1), { x = "right", color = UIKit.color(if extra == "WIN" then "good" elseif extra == "lose" then "bad" else "text"), name = "Mark" })
 	end
-	return l
+	return l, line
 end
+
+local lastNewest = "" -- the board's newest idea last drawn (a new one slides into the card)
 
 local function updateCard(v: Types.ClientView)
 	local proj = v.project
@@ -274,7 +285,23 @@ local function updateCard(v: Types.ClientView)
 			UIKit.text(f, "Your team is thinking...", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = UIKit.color("text_dim") })
 		end
 		for i = 1, shown do
-			ideaLine(f, v.ideas[#v.ideas - i + 1], 2 + i * LINE_H, w)
+			local _, line = ideaLine(f, v.ideas[#v.ideas - i + 1], 2 + i * LINE_H, w)
+			if i == 1 then
+				local newest = Ideas.key(v.ideas[#v.ideas])
+				if lastNewest ~= "" and newest ~= lastNewest then
+					-- the new idea slides in from the right under a white flash
+					line.Position = UDim2.fromOffset(w, 2 + LINE_H)
+					UIKit.tween(line, 0.22, { Position = UDim2.fromOffset(0, 2 + LINE_H) })
+					local flash = UIKit.rect(f, UDim2.fromOffset(w - 6, LINE_H), UDim2.fromOffset(3, 2 + LINE_H), Color3.new(1, 1, 1), 4)
+					flash.Name = "NewFlash"
+					flash.BackgroundTransparency = 0.4
+					UIKit.tween(flash, 0.35, { BackgroundTransparency = 1 })
+					task.delay(0.4, function()
+						flash:Destroy()
+					end)
+				end
+				lastNewest = newest
+			end
 		end
 		local ready = #v.ideas >= 3
 		local b = UIKit.button(f, if ready then "Make a game!" else string.format("%d/3 ideas", #v.ideas), UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, h - 16), function()
@@ -363,6 +390,13 @@ local function onIdea(msg: { [string]: any })
 		return
 	end
 	local tier = if type(msg.tier) == "number" then msg.tier else 1
+	-- the board chip flashes and the card's top line sparkles
+	chipBump.board = os.clock()
+	chipBump.idea = os.clock()
+	local cd = card
+	if cd and cd.Parent then
+		UIKit.burst(cd, 10, 2 + LINE_H + 5, { Ideas.tierColor(tier), "white" }, 4 + tier * 2, 30)
+	end
 	if tier < Tuning.RevealTier then
 		Audio.play("pop", { volume = 0.5, pitch = 1.2 })
 		return
@@ -387,7 +421,29 @@ local function onIdea(msg: { [string]: any })
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), col, 9)
 	local holder = UIKit.plate(f, UDim2.fromOffset(24, 24), UDim2.fromOffset(6, 12), UIKit.color("plate_light"), 0, 2)
 	holder.ZIndex = 9
-	PixelSprites.image(holder, "icon_" .. c.id, UDim2.fromOffset(4, 4), 10)
+	local icon = PixelSprites.image(holder, "icon_" .. c.id, UDim2.fromOffset(4, -14), 10)
+	task.delay(0.22, function()
+		if icon.Parent then
+			UIKit.tween(icon, 0.12, { Position = UDim2.fromOffset(4, 6) })
+			task.delay(0.12, function()
+				if icon.Parent then
+					UIKit.tween(icon, 0.08, { Position = UDim2.fromOffset(4, 4) })
+					UIKit.burst(f, 18, 24, { Ideas.tierColor(tier), "white" }, 10 + tier * 3)
+				end
+			end)
+		end
+	end)
+	-- the tier's band glints now and then while it shows
+	local glint = UIKit.rect(f, UDim2.fromOffset(3, 2), UDim2.fromOffset(3, 1), Color3.new(1, 1, 1), 10)
+	glint.Name = "Glint"
+	glint.BackgroundTransparency = 0.2
+	task.spawn(function()
+		while f.Parent do
+			glint.Position = UDim2.fromOffset(3, 1)
+			UIKit.tween(glint, 0.5, { Position = UDim2.fromOffset(w - 6, 1) })
+			task.wait(1.2)
+		end
+	end)
 	UIKit.text(f, string.upper(Ideas.tierName(tier)) .. " IDEA!" .. (if msg.first == true then "  New!" else ""), UDim2.fromOffset(w - 40, 10), UDim2.fromOffset(36, 4), { color = col, z = 9, name = "Tier" })
 	UIKit.text(f, Ideas.name(c), UDim2.fromOffset(w - 40, 18), UDim2.fromOffset(36, 14), { face = "big", kind = "title", color = UIKit.color("text"), z = 9, name = "Name" })
 	UIKit.text(f, Numbers.oneIn(if type(msg.oneIn) == "number" then msg.oneIn else Ideas.oneIn(c)), UDim2.fromOffset(w - 40, 10), UDim2.fromOffset(36, 32), { color = UIKit.color("text_dim"), z = 9, name = "OneIn" })
@@ -455,8 +511,22 @@ function Hud.start()
 	MicroUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
+	-- money coming in rises from the coin chip ("+12"), at most about once a second
+	local popCoins: number? = nil
+	local gained, popAt = 0, 0
 	StateClient.Coins:Connect(function(coins: number)
+		if popCoins ~= nil and coins > (popCoins :: number) then
+			gained += coins - (popCoins :: number)
+		end
+		popCoins = coins
 		showCoins(coins)
+		local now = os.clock()
+		local cf = chipFrames.coins
+		if gained >= 1 and now - popAt >= 0.9 and cf and cf.Parent then
+			popAt = now
+			UIKit.popText(UIKit.canvas("Hud"), cf.Position.X.Offset + cf.Size.X.Offset / 2, TOP_H + 4, "+" .. Numbers.coins(gained), UIKit.color("accent"))
+			gained = 0
+		end
 	end)
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "idea" then
@@ -479,6 +549,7 @@ function Hud.start()
 		end
 	end)
 	local lastBeat = os.clock()
+	local nextShine = 0
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		local dt = math.min(0.1, now - lastBeat)
@@ -513,10 +584,17 @@ function Hud.start()
 		local c = card
 		if c then
 			local pulse = (math.sin(now * 5) + 1) / 2
+			local shineNow = now >= nextShine
+			if shineNow then
+				nextShine = now + 2.2
+			end
 			for _, b in c:GetChildren() do
 				if b:IsA("TextButton") and b:GetAttribute("Pulse") == true and b.AutoButtonColor then
 					local base = if b.Name == "CardPlay" then UIKit.color("accent") else UIKit.color("button_ok")
 					UIKit.setButtonColor(b, base:Lerp(UIKit.color("button_warn"), pulse * 0.7))
+					if shineNow then
+						UIKit.shine(b)
+					end
 				end
 			end
 		end
