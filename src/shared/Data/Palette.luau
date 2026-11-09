@@ -47,6 +47,12 @@ local ORDER: { string } = {
 	"gold",
 	"black",
 	"white",
+	-- the microgames' stages
+	"sand",
+	"sand_dark",
+	"water",
+	"night",
+	"chalk",
 	-- characters
 	"skin1",
 	"skin2",
@@ -101,6 +107,12 @@ local COLORS: { [string]: number } = {
 	gold = 0xFFCB30,
 	black = 0x3B3442,
 	white = 0xFFFFFF,
+
+	sand = 0xF2D49B,
+	sand_dark = 0xD9B577,
+	water = 0x3FA6C4,
+	night = 0x2E2A52,
+	chalk = 0x2F5A3E,
 
 	skin1 = 0xFFE1C9,
 	skin2 = 0xF1C39B,

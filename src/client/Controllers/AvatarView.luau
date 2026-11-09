@@ -177,4 +177,10 @@ function AvatarView.start()
 	Players.PlayerRemoving:Connect(drop)
 end
 
+-- A player's founder look (the microgames' stage dresses the player's own rig in it).
+function AvatarView.lookOf(pl: Player): Types.Look
+	local look = lookOf(pl)
+	return look
+end
+
 return AvatarView

@@ -24,6 +24,12 @@
 -- their shadow cover (in global art px, so a pan does not move them), at most Tuning.PixelInvalidateRaysFrame rays a
 -- frame; a change over a third of the layer re-bakes it whole behind the old picture. Players' characters are never
 -- in the bake (AvatarView draws the founders). Nothing here moves or parents a part of the world.
+-- A microgame's stage (CameraController.setStage) is a view of its own, baked with a bigger budget a frame while the
+-- play overlay's curtain covers the screen; the street's finished picture is kept aside meanwhile and comes back at
+-- once when the stage closes (baked again only if a part under Workspace.Plots came or went in between). A dynamic
+-- model with a "PixelShadow" attribute (a radius in studs) casts a blob shadow on the static picture under it (on
+-- the ground at its "PixelGroundY", default 0): the pixels there are shaded as in the sun's shadow, so it lands on the
+-- palette's own shadow tones, smaller the higher the model is.
 local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -124,6 +130,10 @@ local prevRects: { Rect } = {}
 local tickAcc = 0
 local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
+-- the street's finished picture, kept while a microgame's stage has the view (restored when its key comes back)
+type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, nextId: number, dirty: boolean }
+local stash: Stash? = nil
+local offX, offY = 0, 0 -- the layer's shake offset (art px)
 
 -- invalidated rects in global art px, and the one being re-cast (its cursor: phase 1 anchors, phase 2 the rest)
 local invQueue: { Rect } = {}
@@ -502,9 +512,32 @@ local function refreshExclude()
 	params.FilterDescendantsInstances = excluded
 end
 
--- A layer for the camera's view: buffers, image and a fresh bake.
+-- A layer for the camera's view: buffers, image and a fresh bake (or the kept street picture when its view comes back).
 local function buildSurf(v: CameraController.View)
 	refreshExclude()
+	local old = surf
+	if old and not baking and not old.view.stage and v.stage then
+		-- a stage takes the view: keep the street's finished picture
+		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), nextId = nextId, dirty = false }
+	end
+	local st = stash
+	if st and not v.stage then
+		stash = nil
+		if st.key == v.key and not st.dirty and img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H then
+			surf = st.surf
+			staticIds, albedos, nextId = st.ids, st.albedos, st.nextId
+			baking = false
+			invQueue = {}
+			invCur = nil
+			prevRects = {}
+			needFull = true
+			if image then
+				image.Visible = true
+				image.ImageTransparency = 0
+			end
+			return
+		end
+	end
 	local K = v.K
 	local W, H = math.ceil(v.fullX / K), math.ceil(v.fullY / K)
 	local _, im = ensureLayer()
@@ -565,6 +598,76 @@ end
 local function shadeGlow(rgb: number, nx: number, ny: number, nz: number, x: number, y: number): number
 	return Shading.toonAt(rgb, nx, ny, nz, 2, x + panX, y + panY, Shading.INDOOR, 0)
 end
+
+-- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow).
+local function shadeShadowed(s: Surf, idx: number, x: number, y: number): number
+	local a = buffer.readu32(s.sAlbedo, idx * 4)
+	if a >= EMISSIVE then
+		return buffer.readu32(s.sShade, idx * 4)
+	end
+	local ni = buffer.readu8(s.sNormal, idx) + 1
+	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], 0, x + s.cam.gx, y + s.cam.gy, Shading.OUTDOOR, 0)
+end
+
+-- The ground's screen-right and toward-the-viewer directions (unit, on the ground): the blob shadows' ellipse axes.
+local GROUND_R, GROUND_D = Vector3.xAxis, Vector3.zAxis
+do
+	local rot = Raster.rotation(Tuning.CamYaw, Tuning.CamPitch)
+	local r = Vector3.new(rot[4], 0, rot[10])
+	local d = Vector3.new(rot[6], 0, rot[12])
+	if r.Magnitude > 1e-6 then
+		GROUND_R = r.Unit
+	end
+	if d.Magnitude > 1e-6 then
+		GROUND_D = d.Unit
+	end
+end
+
+-- A blob shadow under a dynamic model; returns its rect on the layer (nil when none shows).
+local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
+	local radius = model:GetAttribute("PixelShadow")
+	if type(radius) ~= "number" or radius <= 0 then
+		return nil
+	end
+	local g = model:GetAttribute("PixelGroundY")
+	local ground = if type(g) == "number" then g else 0
+	local pp = model.PrimaryPart or first
+	local p = pp.Position
+	local h = math.max(0, p.Y - ground)
+	local r = radius * math.clamp(1 - h / 26, 0.45, 1)
+	local cam = s.cam
+	local cx, cy = Raster.project(cam, p.X, ground, p.Z)
+	local ex = Raster.project(cam, p.X + GROUND_R.X * r, ground, p.Z + GROUND_R.Z * r)
+	local _, ey = Raster.project(cam, p.X + GROUND_D.X * r, ground, p.Z + GROUND_D.Z * r)
+	local rx, ry = math.abs(ex - cx), math.abs(ey - cy)
+	if rx < 0.5 or ry < 0.5 then
+		return nil
+	end
+	local W, H = s.W, s.H
+	local f = s.frame
+	local y0, y1 = math.max(0, math.floor(cy - ry)), math.min(H - 1, math.ceil(cy + ry))
+	local any = false
+	for y = y0, y1 do
+		local dy = (y + 0.5 - cy) / ry
+		if math.abs(dy) < 1 then
+			local half = rx * math.sqrt(1 - dy * dy)
+			local x0, x1 = math.max(0, math.floor(cx - half + 0.5)), math.min(W - 1, math.floor(cx + half + 0.5) - 1)
+			for x = x0, x1 do
+				local idx = y * W + x
+				local id = buffer.readu16(f.id, idx * 2)
+				-- the static picture only, never its ink lines or the sky
+				if id ~= 0 and id < DYN_ID0 and buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) then
+					buffer.writeu32(f.color, idx * 4, shadeShadowed(s, idx, x, y))
+					any = true
+				end
+			end
+		end
+	end
+	if not any then
+		return nil
+	end
+	return { x0 = math.floor(cx - rx) - 1, y0 = y0 - 1, x1 = math.ceil(cx + rx) + 1, y1 = y1 + 1 }
+end
 Raster.markUniform(shadeLit)
 Raster.markUniform(shadeGlow)
 
@@ -607,6 +710,16 @@ local function compose()
 		end
 	end
 	local rects: { Rect } = {}
+	-- the blob shadows first (on the static picture), then the models over them
+	for model, d in dyns do
+		local first = d.parts[1]
+		if model.Parent ~= nil and first ~= nil and model:GetAttribute("PixelShadow") ~= nil then
+			local r = drawShadow(s, model, first.part)
+			if r then
+				table.insert(rects, r)
+			end
+		end
+	end
 	local drawn = 0
 	for model, d in dyns do
 		if model.Parent == nil then
@@ -918,7 +1031,8 @@ local function onHeartbeat(dt: number)
 	end
 	refreshExclude()
 	if baking then
-		local budget = Tuning.PixelBakeMsPerFrame + (if shown then 0 else 8)
+		-- a stage bakes behind the play overlay's curtain: faster
+		local budget = Tuning.PixelBakeMsPerFrame + (if shown then 0 else 8) + (if surf and surf.view.stage then Tuning.PixelStageBakeMs else 0)
 		bakeSome(os.clock() + budget / 1000)
 		return
 	end
@@ -948,6 +1062,14 @@ local function watchStatic()
 	end
 	local function poke(d: Instance)
 		if not d:IsA("BasePart") or surf == nil then
+			return
+		end
+		if CameraController.view().stage then
+			-- the street is not on screen: its kept picture is out of date
+			local st = stash
+			if st then
+				st.dirty = true
+			end
 			return
 		end
 		local r = partRect(d)
@@ -1104,6 +1226,25 @@ function PixelRenderer.refreshDynamic(model: Model)
 			p.rgb = if typeof(attr) == "Color3" then rgbOf(attr) else rgbOf(p.part.Color)
 			p.glow = p.part.Material == Enum.Material.Neon
 		end
+	end
+end
+
+-- Whether the picture of the camera's view now is finished (a stage's bake done; always true in the classic style).
+function PixelRenderer.ready(): boolean
+	if tier == "off" then
+		return true
+	end
+	local s = surf
+	return s ~= nil and not baking and s.view.key == CameraController.view().key
+end
+
+-- The layer shifted by whole art px (the Shaky modifier and a hit's jolt on a stage); 0, 0 puts it back.
+function PixelRenderer.setOffset(dx: number, dy: number)
+	offX, offY = math.floor(dx + 0.5), math.floor(dy + 0.5)
+	local im = image
+	if im then
+		local K = if surf then (surf :: Surf).K else CameraController.pixelK()
+		im.Position = UDim2.fromOffset(offX * K, offY * K)
 	end
 end
 

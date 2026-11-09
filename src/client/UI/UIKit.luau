@@ -140,10 +140,13 @@ local function makeRoot(name: string, order: number, fullScreen: boolean): Scree
 	return gui
 end
 
--- The roots: World (popups over the office, full screen), Hud, Modal (panels), Popup (cards, notices).
+-- The roots: World (popups over the office, full screen), Hud, Modal (panels), Stage (a microgame's overlay, full
+-- screen: its canvas is the world's art grid), Popup (cards, notices).
 function UIKit.root(name: string): ScreenGui
 	if name == "World" then
 		return makeRoot("World", 7, true)
+	elseif name == "Stage" then
+		return makeRoot("Stage", 22, true)
 	elseif name == "Modal" then
 		return makeRoot("Modal", 20, false)
 	elseif name == "Popup" then
@@ -926,12 +929,9 @@ function UIKit.tween(inst: Instance, time: number, props: { [string]: any })
 			local function lerp(a: number, b: number): number
 				return a + (b - a) * e
 			end
-			;(inst :: any)[k] = UDim2.new(
-				lerp(from.X.Scale, target.X.Scale),
-				math.floor(lerp(from.X.Offset, target.X.Offset) + 0.5),
-				lerp(from.Y.Scale, target.Y.Scale),
-				math.floor(lerp(from.Y.Offset, target.Y.Offset) + 0.5)
-			)
+			local at = UDim2.new(lerp(from.X.Scale, target.X.Scale), math.floor(lerp(from.X.Offset, target.X.Offset) + 0.5), lerp(from.Y.Scale, target.Y.Scale), math.floor(lerp(from.Y.Offset, target.Y.Offset) + 0.5))
+			local obj: any = inst
+			obj[k] = at
 			if p >= 1 then
 				mapping[k] = nil
 				if next(mapping) == nil then

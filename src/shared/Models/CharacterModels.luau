@@ -225,6 +225,50 @@ function CharacterModels.poseStanding(rig: Rig, base: CFrame, t: number, speed: 
 	turn(rig, base, HEAD_PARTS, STAND_NECK, headRot, body)
 end
 
+-- A founder doing something (the microgames, UI/MicroStage): the walk or stand of poseStanding, then the arms (and
+-- legs) of `action`, k 0..1 its progress where it has one:
+--   "cheer" both arms up, waving; "hurt" arms flung out; "swing" the right arm from high up (k 0) down in front (k 1);
+--   "reach" both arms out in front (holding something); "pet" the right arm patting; "cast" the right arm raised;
+--   "jump" knees up and arms up; "sneak" crouched with arms forward; "dance" the arms in turn.
+function CharacterModels.poseAction(rig: Rig, base: CFrame, t: number, speed: number, action: string, k: number?)
+	local kk = math.clamp(k or 0, 0, 1)
+	local b = if action == "sneak" then base * CFrame.new(0, -0.25, 0) else base
+	CharacterModels.poseStanding(rig, b, t, if action == "jump" then 0 else speed)
+	local function arm(left: boolean, rot: CFrame)
+		turn(rig, b, if left then { "ArmL", "HandL" } else { "ArmR", "HandR" }, if left then ARM_L else ARM_R, rot, nil)
+	end
+	if action == "cheer" then
+		local wave = math.sin(t * 12) * 0.25
+		arm(true, CFrame.Angles(0, 0, math.rad(-150 + wave * 25)))
+		arm(false, CFrame.Angles(0, 0, math.rad(150 - wave * 25)))
+	elseif action == "hurt" then
+		arm(true, CFrame.Angles(0, 0, math.rad(-100)))
+		arm(false, CFrame.Angles(0, 0, math.rad(100)))
+	elseif action == "swing" then
+		arm(false, CFrame.Angles(math.rad(-165 + 150 * kk), 0, 0))
+	elseif action == "reach" then
+		arm(true, CFrame.Angles(math.rad(-80), 0, 0))
+		arm(false, CFrame.Angles(math.rad(-80), 0, 0))
+	elseif action == "pet" then
+		arm(false, CFrame.Angles(math.rad(-70 + math.sin(t * 16) * 14 * kk), 0, 0))
+	elseif action == "cast" then
+		arm(false, CFrame.Angles(math.rad(-160), 0, 0))
+		arm(true, CFrame.Angles(math.rad(-35), 0, 0))
+	elseif action == "jump" then
+		turn(rig, b, { "LegL", "ShoeL" }, HIP_L, CFrame.Angles(math.rad(-40), 0, 0), nil)
+		turn(rig, b, { "LegR", "ShoeR" }, HIP_R, CFrame.Angles(math.rad(-25), 0, 0), nil)
+		arm(true, CFrame.Angles(0, 0, math.rad(-140)))
+		arm(false, CFrame.Angles(0, 0, math.rad(140)))
+	elseif action == "sneak" then
+		arm(true, CFrame.Angles(math.rad(-55), 0, 0))
+		arm(false, CFrame.Angles(math.rad(-55), 0, 0))
+	elseif action == "dance" then
+		local up = math.floor(t * 4) % 2 == 0
+		arm(true, CFrame.Angles(0, 0, math.rad(if up then -150 else -30)))
+		arm(false, CFrame.Angles(0, 0, math.rad(if up then 30 else 150)))
+	end
+end
+
 -- Where a founder's name label floats (rig space).
 CharacterModels.STAND_TOP = Vector3.new(0, 4.6, 0)
 

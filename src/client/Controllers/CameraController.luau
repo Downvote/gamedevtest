@@ -7,7 +7,9 @@
 --   follow (the default): while the founder (the player's character) is home (on their own lot and inside the home
 --     view's middle) the view holds the home pan; out on the street it keeps them out of the screen's edges
 --     (Tuning.CamFollowBox), gliding a share of the way a frame (Tuning.CamGlide) in whole art px;
---   free (Build mode): the view stays where Build mode drags it (`panBy`), over the own plot.
+--   free (Build mode): the view stays where Build mode drags it (`panBy`), over the own plot;
+--   stage (a microgame, `setStage`): the view frames a microgame's stage (UI/MicroStage, far from the street) over
+--     the whole screen, clear of the play overlay's top and bottom strips; it holds still.
 -- The ray plane sits Tuning.CamRayBack studs behind the plot's origin, so the whole street stays in front of it. In
 -- the classic style the Roblox camera shows the same view (CamOffFov), with the pixel filter on it sits far away at
 -- CamFov (looks orthographic).
@@ -25,6 +27,9 @@ local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local StateClient = require(script.Parent.StateClient)
 
 export type Room = { x0: number, x1: number, z0: number, z1: number, y1: number }
+-- A microgame's stage: its origin on the ground (the ray plane's anchor), the points its picture must show (x, y, z
+-- triples), the overlay's strips (art px) and a name for the view's key.
+export type Stage = { name: string, origin: Vector3, pts: { number }, top: number, bottom: number }
 export type View = {
 	rot12: { number },
 	center: Vector3, -- the home view's centre on the ground
@@ -39,6 +44,7 @@ export type View = {
 	plot: number,
 	room: Room, -- the own office's inside in world studs (lit as indoors)
 	box: Raster.Rect, -- the own office's outline box on screen at the home pan (full-screen px)
+	stage: boolean, -- a microgame's stage (setStage), not the street
 }
 
 local CameraController = {}
@@ -56,6 +62,7 @@ local plot, tier = 1, 1
 local panX, panY = 0, 0 -- the pan now (whole art px)
 local free = false -- Build mode: the view stays where it is dragged
 local freeX, freeY = 0, 0
+local stage: Stage? = nil
 
 local function screenSize(): Vector2
 	local cam = Workspace.CurrentCamera
@@ -85,6 +92,15 @@ local function build(): View
 	local ox, oz = Office.origin(plot)
 	local pts = Office.outlinePts(tier, ox, oz)
 	local bl = blocks(size, K)
+	local st = stage
+	if st then
+		ox, oz = st.origin.X, st.origin.Z
+		pts = st.pts
+		bl = {
+			{ x0 = 0, y0 = 0, x1 = fx, y1 = st.top * K },
+			{ x0 = 0, y0 = fy - st.bottom * K, x1 = fx, y1 = fy },
+		}
+	end
 	local pad = Tuning.CamPad * K
 	local _, _, _, viewH = Raster.fit(ROT12, fx, fy, bl, pad, pts)
 	local aFit = (fy / viewH) / (K * SQRT2)
@@ -114,20 +130,25 @@ local function build(): View
 	g.py = math.floor((by0 + by1) / 2 - sy / K + 0.5)
 	local ccx, ccy, ccz = Raster.gridCenter(ROT12, g, fx, fy, K)
 	local plan = Office.plan(tier)
+	local room = { x0 = ox + plan.minX - 0.1, x1 = ox + plan.maxX + 0.1, z0 = oz + plan.minZ - 0.1, z1 = oz + plan.maxZ + 0.1, y1 = plan.wallH + 0.1 }
+	if st then
+		room = { x0 = 1, x1 = 0, z0 = 1, z1 = 0, y1 = 0 } -- the stage is outdoors: no indoor tint
+	end
 	return {
 		rot12 = ROT12,
 		center = Vector3.new(ccx, ccy, ccz),
 		look = Vector3.new(LX, LY, LZ),
 		viewH = fy / (K * q),
 		grid = g,
-		key = string.format("%d|%d|%g|%.5f|%.5f|%.4f|%dx%d|%d", plot, tier, a, phX, phY, l, fx, fy, K),
+		key = (if st then "stage:" .. st.name .. "|" else "") .. string.format("%d|%d|%g|%.5f|%.5f|%.4f|%dx%d|%d", plot, tier, a, phX, phY, l, fx, fy, K),
 		fullX = fx,
 		fullY = fy,
 		K = K,
 		tier = tier,
 		plot = plot,
-		room = { x0 = ox + plan.minX - 0.1, x1 = ox + plan.maxX + 0.1, z0 = oz + plan.minZ - 0.1, z1 = oz + plan.maxZ + 0.1, y1 = plan.wallH + 0.1 },
+		room = room,
 		box = { x0 = (bx0 - g.px) * K, y0 = (by0 - g.py) * K, x1 = (bx1 - g.px) * K, y1 = (by1 - g.py) * K },
+		stage = st ~= nil,
 	}
 end
 
@@ -253,6 +274,9 @@ end
 
 -- Where the view should be this frame.
 local function target(v: View): (number, number)
+	if v.stage then
+		return v.grid.px, v.grid.py
+	end
 	if free then
 		return freeX, freeY
 	end
@@ -327,6 +351,16 @@ function CameraController.setFree(on: boolean, down: number?)
 		local v = CameraController.view()
 		freeX, freeY = v.grid.px, v.grid.py + math.floor(down or 0)
 	end
+end
+
+-- A microgame's stage takes the view (nil: back to the street; the renderer keeps the street's picture meanwhile).
+function CameraController.setStage(s: Stage?)
+	stage = s
+	CameraController.refit()
+end
+
+function CameraController.stage(): Stage?
+	return stage
 end
 
 function CameraController.isFree(): boolean

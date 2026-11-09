@@ -342,8 +342,8 @@ function SCEN.launch()
 	return p
 end
 
--- micro=<idea>[_<mod>]: a game being made with that idea first; its microgame a few seconds in (MicroUI.debugAuto
--- playing: a good player, not a perfect one), then the end of it.
+-- micro=<idea>[_<mod>]: a game being made with that idea first; its microgame on its 3D stage a moment in (after the
+-- stage's bake; MicroUI.debugAuto playing: a good player, not a perfect one), then the card back over the street.
 local function microScenario(spec)
 	local id, mod = string.match(spec, "^(%w+)_?(%w*)$")
 	mod = if mod == nil or mod == "" then "plain" else mod
@@ -353,17 +353,36 @@ local function microScenario(spec)
 	H.clickNamed(p, "CardPlay", { wait = 0.5 })
 	H.clickNamed(p, "Play_1", { wait = 0.1 })
 	local MUI = modOr(p, "UI.MicroUI")
-	E.run(1.0)
-	log("playing: %s", tostring(MUI and H.inClient(p, MUI.playing)))
-	-- a moment in, a right move now and then (the quick ones would be over at once)
-	local stop = E.SIM.now + 1.6
+	-- the timing games get a right move every frame (they are lost otherwise), the rest one now and then
 	local k = 0
-	while E.SIM.now < stop do
-		E.run(0.05)
+	local function autoStep()
 		k += 1
-		if MUI and k % 12 == 0 then
+		local kind = MUI and H.inClient(p, MUI.playing)
+		local every = if kind == "rhythm" or kind == "jump" or kind == "dodge" or kind == "catch" then 1 else 3
+		if MUI and k % every == 0 then
 			H.inClient(p, MUI.debugAuto)
 		end
+	end
+	-- the stage's picture bakes behind the curtain; the moves start as it lifts
+	local function curtainUp(): boolean
+		local pg = p:FindFirstChild("PlayerGui")
+		local c = pg and pg:FindFirstChild("Curtain", true)
+		return c == nil or (getD(c).props.BackgroundTransparency or 0) >= 0.99
+	end
+	local waited = 0
+	while waited < 60 and not curtainUp() do
+		E.run(0.05)
+		waited += 0.05
+		autoStep()
+	end
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local st = PR and select(2, pcall(PR.debugStatic))
+	log("curtain up after %.1fs; playing: %s; the stage's bake %s (%s bakes, %s rays)", waited, tostring(MUI and H.inClient(p, MUI.playing)),
+		if type(st) == "table" and st.baking then "still under way" else "done", tostring(type(st) == "table" and st.bakes), tostring(type(st) == "table" and st.rays))
+	local stop = E.SIM.now + 1.6
+	while E.SIM.now < stop do
+		E.run(0.05)
+		autoStep()
 	end
 	capture(p, "micro_" .. spec)
 	E.runUntil(function()

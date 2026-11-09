@@ -62,7 +62,8 @@ decor for your plot.
 
 - **No mixels.** One art pixel is one UI px is one K-sized block on the screen: nothing is ever drawn scaled up
   (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: an icon is 16x16, its
-  small version 11x11; every microgame thing has a `_t` sprite for Tiny.
+  small version 11x11. The microgames are 3D (§5) and drawn by the pixel filter like the office, so they keep the
+  same grid, palette and outline.
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
 - **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
@@ -99,7 +100,7 @@ how its microgame plays.
 |---|---|---|---|
 | Plain | the rest (about 2 in 3) | x1 | as it is |
 | Turbo | 1 in 5 | x1.2 | everything 1.35x faster, on a fuse 0.8x as long |
-| Tiny | 1 in 12 | x1.4 | everything small: the targets are their small sprites (never a scaled-down one), the windows narrower |
+| Tiny | 1 in 12 | x1.4 | everything small: the targets shrink (3D things, still drawn on the pixel grid), the windows narrower |
 | Shaky | 1 in 30 | x1.7 | the screen shakes |
 | Glitched | 1 in 80 | x2.2 | it blinks out for a moment, now and then |
 | Haunted | 1 in 250 | x3 | dark: only a roving spotlight shows it |
@@ -128,33 +129,44 @@ how its microgame plays.
   and Play (or Retry) for each; Play all plays the unplayed ones in turn. Each one won adds a third to the game's sales
   (`Tuning.WinBoost`): all three double them. A retry, at any time (in the middle of one, or after all three), keeps a
   win: the best result counts. Launch! once all three have been played.
-- **A microgame** (WarioWare style): the idea's icon and its order word drop in ("Dodge!") over the idea's own scene,
-  then a few seconds while a rope fuse burns down to its bomb: 6 s at difficulty 1, a quarter second less a level, at
+- **A microgame** (WarioWare style) plays **full screen, in 3D, with your own founder**:
+
+  > The request (2026-11-09): "make the minigames full screen, have depth and are 3d, using the player's avatar"
+
+  A curtain with the idea's icon and its order word ("Dodge!") covers the screen while the idea's stage is drawn, then
+  lifts on it: a little diorama room built from parts like the office (a floor, two back walls cut away, props),
+  drawn full screen by the same pixel filter (the 2:1 camera, toon bands, palette, sun shadows, 1 px ink outline),
+  with your founder (your look) standing in it and doing the thing: dodging, flipping, petting, walking, sneaking,
+  jumping. The HUD steps aside; a strip at the top names the idea, its difficulty and its modifier, and along the
+  bottom a rope fuse burns down to its bomb for a few seconds: 6 s at difficulty 1, a quarter second less a level, at
   least 4 s (`Tuning.MicroSeconds...`; the longer ones get more: Repeat!, Sneak!, Build!, and Tap the beat! runs its
-  song). WIN or LOSE stamps it. Arrow keys / WASD, Space or F / J, 1-6, or the on-screen pads and taps.
-- **Each one has its own scene** (UI/MicroScenes): Action's night city, Racing's scrolling road and kerbs, a kitchen
-  with a window and a shelf of jars, a stadium crowd, a torch-lit dungeon, a starfield with a planet, a field of
-  soil, a graveyard under the moon, squared paper, a chalkboard, a map, a detective's desk, a wizard's night sky, a
-  circuit board, a stage with spotlights, a beach, the sea with rising bubbles, hills, a desert at sunset, a disco
-  floor, a dojo, a haunted hall, a city skyline.
+  song). WIN or LOSE stamps it while your founder cheers or stumbles, then the making card comes back over the
+  street. Arrow keys / WASD, Space or F / J, 1-6, or the on-screen pads, and taps on the things themselves.
+- **Each idea has its own stage** (UI/MicroStage): a rooftop in a night city, a road with red and white kerbs, a
+  kitchen with a stove and a shelf of jars, a pitch with a crowd and a goal, a torch-lit dungeon, a living room, a
+  deck among the stars with craters, a field of soil rows, a graveyard under the moon, a playroom, a classroom with a
+  chalkboard, a war table's map, a detective's office, a wizard's tower, a lab with a board of pads, a stage with
+  curtains, a beach with a palm and a chest, the sea floor, a meadow path, a desert with a volcano, a disco floor, a
+  dojo, a haunted hall with a door, a building site with a crane. The things that move (crates, cones, coins, fish,
+  aliens, the cat, the slime, the ghost, the floors) are 3D too and cast blob shadows on the floor.
 - **The difficulty** (1 to 8) is the idea's tier, plus a step when its idea reuses an engine another (commoner) idea
   already has, so a reused game always comes back harder. Harder means faster, more of it, smaller windows.
 - **Twelve engines, 24 themed microgames** (UI/MicroGames; the reused ones a step or two harder):
 
 | Engine | Ideas (order) | What you do |
 |---|---|---|
-| dodge | Action (Dodge!), Racing (Steer!) | step left and right between lanes as blocks or cones fall (a lane always stays open) |
-| timing | Cooking (Flip!), Sports (Kick!), RPG (Strike!) | stop the sweeping cursor on the green, once to three times |
-| mash | Animals (Pet!) | tap the pet fast enough |
-| whack | Space (Shoot!), Farming (Water!), Zombies (Whack!) | tap what pops up; from difficulty 4 rockets and kids pop up too: leave them |
-| pick | Puzzle (Match!), School (Answer!), Strategy (Count!), Detectives (Spot it!) | pick the matching icon, the sum's answer, how many soldiers, the odd one out |
-| sequence | Fantasy (Cast!), Robots (Program!), Music (Repeat!) | type the arrows in order (Robots' hide after a look); repeat the four pads' tune |
-| catch | Pirates (Loot!), Ocean (Catch!) | move the basket under the coins or fish, never the bombs or jellies |
-| jump | Adventure (Leap!), Dinosaurs (Jump!) | jump the rocks or cacti |
-| rhythm | Rhythm (Tap the beat!) | tap each lane as its note crosses the line; a few misses allowed |
-| slice | Ninjas (Slice!) | tap the flying fruit; from difficulty 3, not the bombs |
-| hide | Horror (Sneak!) | step toward the door only while the ghost looks away |
-| stack | Simulation (Build!) | drop each sliding floor onto the last; what hangs over is cut off |
+| dodge | Action (Dodge!), Racing (Steer!) | step your founder left and right between lanes as crates fall from the sky (their shadows show where), or steer the kart round cones coming down the road (a lane always stays open) |
+| timing | Cooking (Flip!), Sports (Kick!), RPG (Strike!) | stop the sweeping needle on the green, once to three times: the pancake flips, the ball flies into the net, your founder dashes in and slashes the slime |
+| mash | Animals (Pet!) | tap the cat fast enough: your founder pets it, hearts float up |
+| whack | Space (Shoot!), Farming (Water!), Zombies (Whack!) | tap what rises out of the craters, soil or graves; from difficulty 4 rockets and kids rise too: leave them |
+| pick | Puzzle (Match!), School (Answer!), Strategy (Count!), Detectives (Spot it!) | pick the shape on the pedestals that matches the one over your founder, the chalkboard sum's answer, how many toy soldiers stand on the map, the suspect in the odd coat |
+| sequence | Fantasy (Cast!), Robots (Program!), Music (Repeat!) | type the arrows in order (your founder walks them across the lab's board to the flag; Robots' hide after a look; or casts them into the orb over their head); repeat the pads' tune: your founder hops onto each |
+| catch | Pirates (Loot!), Ocean (Catch!) | move your founder (a basket on their head) under the falling coins or fish, never the bombs or jellies |
+| jump | Adventure (Leap!), Dinosaurs (Jump!) | jump the rocks or cacti coming down the path |
+| rhythm | Rhythm (Tap the beat!) | tap each lane as its gem reaches the pad; a few misses allowed |
+| slice | Ninjas (Slice!) | tap the fruit thrown up over the dojo; from difficulty 3, not the bombs |
+| hide | Horror (Sneak!) | step your founder toward the door only while the ghost looks away |
+| stack | Simulation (Build!) | drop each floor swinging on the crane onto the last; what hangs over is cut off and falls |
 
 - **Fair play:** the server starts each microgame (a token, a seed for its content, its difficulty) and records its
   result. A win sooner than 1 s after the start (`Tuning.MicroMinSec`) or a result later than a minute counts as a
@@ -250,19 +262,18 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
 - **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
 - **The HUD:** the coins count up and their chip flashes when they change; the idea chip counts down to the next idea
   with a bar along its edge; the card's main button (Make a game!, Play!, Launch!) pulses when it is the thing to do.
-- **The microgames** (polished again with the pixel art rules, §2): the idea's icon and order word drop in on a dark
-  band; a rope fuse (twisted, ink-edged) burns toward its bomb with an animated spark, the bomb blinking near the end.
-  Things animate by frames: the hero and the dino run, coins spin, fish wiggle, jellies pulse, aliens wave, bombs
-  fizz, the slime squashes, the cat smiles when petted and breathes when not. Every hit flashes the thing white and
-  throws a burst of 1 px bits in its colours; words pop up ("Perfect!" in yellow for a dead-centre hit); a bomb
-  flashes the screen. The themes play out: the pancake flips off a pan over a flickering stove flame, the ball flies
-  into the net, the hero dashes at the slime and it bursts, hearts float up from the cat, things rise out of craters,
-  soil and graves (a watered sprout blooms), the robot walks each arrow across its board to the star, stars fly from
-  the wizard's hat, cut fruit falls in two halves behind a 1 px slash, the ghost bobs and turns (the room goes red
-  while it watches), the kid hops board to board to the door, floors swing on a crane rope and what hangs over falls
-  off, a perfect drop says so. A wrong move shakes the card; WIN flashes and brings confetti, a lost fuse blows its
-  bomb. The effects keep moving under the stamp. The launch card brings confetti and a fanfare and the team cheers
-  with the new income over their heads.
+- **The microgames** (3D, §5): the idea's icon and order word on the curtain; a rope fuse (twisted, ink-edged) burns
+  toward its bomb with an animated spark, the bomb blinking near the end. Your founder walks, runs, jumps (knees up),
+  swings a sword, hammer, blaster or watering can, pets, casts, dances, sneaks, cheers and stumbles. Coins spin, fish
+  wiggle, aliens and zombies sway as they rise, the slime bounces with squash and stretch, the cat breathes, bombs
+  fizz, things in the air cast shadows that grow as they fall. Every hit flashes the thing white and throws a burst
+  of 1 px bits in its colours; words pop up over the things ("Perfect!" in yellow for a dead-centre hit); a bomb
+  flashes the screen. The themes play out: the pancake flips over the stove, the ball arcs into the net, the slime
+  is knocked back and bursts, crates smash on the floor, a watered sprout blooms, a laser flashes from the blaster,
+  the orb over the wizard grows with each arrow, cut fruit falls in two halves behind a 1 px slash, the ghost bobs,
+  turns with red eyes (the room goes red while it watches), floors swing on the crane's rope and what hangs over falls
+  off, a perfect drop says so. A wrong move shakes the screen; WIN flashes and brings confetti. The launch card brings
+  confetti and a fanfare and the team cheers with the new income over their heads.
 - **The office:** bits of code float up from the screens; a new idea pops out of a head in its tier's colour; rare
   reveals drop in with a fanfare and confetti.
 - **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,

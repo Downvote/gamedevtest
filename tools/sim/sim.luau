@@ -155,9 +155,10 @@ H.push(p, 0.4)
 H.openPanel(p, "upgrades")
 E.run(0.4)
 local every0 = H.view(p).rollEvery
+local before = prof.coins -- (measured at the click: income ticks land while the panel opens)
 H.clickNamed(p, "Buy_speed", { wait = 0.5 })
 H.expect(prof.upgrades.speed == 1, "upgrades", "roll speed level 1", tostring(prof.upgrades.speed))
-local spent = 1e6 - prof.coins
+local spent = before - prof.coins
 local price = H.sharedServer("Logic.Studio").upgradeCost("speed", 0)
 H.expect(spent <= price and spent >= price - math.ceil(prof.rate * 1.5) - 1, "upgrades", "its price paid (an income tick may land meanwhile)", string.format("%d spent, price %d", spent, price))
 H.expect(H.view(p).rollEvery < every0, "upgrades", "ideas come faster", string.format("%s -> %s", every0, H.view(p).rollEvery))

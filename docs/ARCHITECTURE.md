@@ -24,7 +24,7 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, StudioService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView),
                        Audio, Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
-                       Menus, MicroUI, MicroGames, MicroScenes, PixelSprites, ArtData (generated), BuildUI, Words)
+                       Menus, MicroUI, MicroGames, MicroStage, PixelSprites, ArtData (generated), BuildUI, Words)
 tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
 scripts/gen_pixelfont.py  the pixel font's glyph tables (copied; README "Fonts and licences")
@@ -126,6 +126,15 @@ Models (`src/shared/Models`, Roblox modules):
   plot sign with its `SignBoard`, the mailbox), `emptyLot(parent, origin)`, `ends(parent)` (the street's ends and the
   invisible, unqueryable walls round the world). Tops: lawn -0.5, meadow -0.55, road -0.45, pavements -0.3.
 - `DecorModels.build(id, at) -> Model` (`at`: the footprint's centre on the lawn, turned; parts don't collide), `has`.
+- `MicroModels` (the microgames' 3D things, GAME_DESIGN 5): `build(kind, opts?) -> Thing` (`{ model, parts, rest,
+  sizes, baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin on the ground, facing +Z;
+  kinds `crate cone coin bomb fish jelly alien rocket sprout flower zombie kid fruit half rock cactus cat slime ghost
+  ball pancake pan basket soldier suspect gem orb star flag pad shape kart goal pedestal dashes specks lane hat sword
+  hammer can blaster`; `opts { color, alt }`), `slab(size, color, band?, neon?)` (a plain box), `place(t, cf)`,
+  `scale(t, k)` (squash and stretch from the built shape), `recolor(t, color?)` (all but the `Keep` parts; nil: back),
+  `show(t, on)`, `has`, `SHAPES` (Match's).
+- `CharacterModels.poseAction(rig, base, t, speed, action, k?)`: a founder's poseStanding plus the arms (and legs) of
+  `cheer hurt swing reach pet cast jump sneak dance` (k: a swing's progress).
 - `OfficeModels` no longer builds a lawn (the street does); its low rim doesn't collide; a doorstep fills the gap.
 
 ## 7. Server
@@ -245,6 +254,10 @@ on its own lot once or 3 s have passed (Roblox drops it mid-street before the se
 `gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
 `ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
 pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
+**Stage mode** (a microgame): `setStage(Stage?)` with `Stage = { name, origin, pts, top, bottom }` fits the stage's
+points full screen clear of the play overlay's top and bottom strips (art px), the ray plane at the stage's origin,
+the key `stage:<name>|...`, no indoor room; the view holds still (`view().stage` true); `setStage(nil)` goes back
+to the street; `stage()`.
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
@@ -262,7 +275,16 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
   layer re-bake it (a new office). Rects in global px survive pans.
 - The bake's rays exclude `Workspace.PixelDynamic` and every player's character (refreshed when characters come and
-  go). Dynamic models whose first part lies more than `CULL` (48) art px off the layer are skipped.
+  go). Dynamic models whose first part lies more than `CULL` (48) art px off the layer are skipped; at most
+  `PixelMaxDyn` are drawn a tick.
+- **Stages**: a stage view bakes with `PixelStageBakeMs` more a frame (the play overlay's curtain covers it); the
+  street's finished layer is kept aside (its buffers and part ids) and restored at once when the street's key comes
+  back, unless a part under `Workspace.Plots` came or went meanwhile (then it bakes again). `ready()`: the view now has
+  its finished picture (always true in the classic style). `setOffset(dx, dy)`: the layer shifted by whole art px
+  (the microgames' shake).
+- **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
+  ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
+  never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects.
 
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
@@ -287,7 +309,8 @@ ViewportSize event and when the top bar's inset or a safe area settles; everythi
 rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
 canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top; while a
 panel is open, its status line next to the title instead, and opening a panel clears the toasts, so nothing covers
-a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, `tween` (a UDim2 property
+a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, the `Stage` root (DisplayOrder
+22, full screen: a microgame's overlay, its UI px the world's art px), `tween` (a UDim2 property
 eases on Heartbeat snapped to whole UI px, Quad out, the newest tween of a property winning; the rest through
 TweenService), `Resized`. Motion (GAME_DESIGN 15): a button lightens while hovered, its plate and words sink 1 UI px while pressed,
 and `Activated` plays `click` (or `deny` when disabled); a panel's shade fades in and its frame rises 10 UI px into
@@ -346,45 +369,53 @@ move. A press dragged more than 8 px pans the view (`CameraController.panBy`). `
 piece stays picked for another copy) or `plot.move`; `close()`; `isOpen()`; `Changed: Signal<boolean>`;
 `tapScreen(pos, mouse?)` (the sims' and previews' tap).
 
-### 10.8 Making a game (`MicroUI`, `MicroGames`, `PixelSprites`)
+### 10.8 Making a game (`MicroUI`, `MicroStage`, `MicroGames`)
 `MicroUI`: `open()` (the making card `MicroCard`: the game's title, a row a slot with its icon, name, order word,
 modifier, difficulty, WIN / LOSE and `Play_<i>` / `Retry_<i>`; the sales boost; `PlayAll`, `Launch` (on once all three
 are played: `game.launch`, then the launch card with the income, confetti and `Nice`), `CloseMicro`; opened right
 after `game.make`, it waits for the view with the project), `refresh()` (the card follows the view), `isOpen()`,
 `Launched: Signal<Game>`, `play(slot, chain?)`, and for the sims and previews `playing() -> engine?`, `debugAuto()`
-(one right move) and `debugCtx()` (the last microgame's diff, speed, tiny, seconds, effects, area). A microgame:
-`micro.start`, the idea's icon (`WordIcon`) and order word (`Word`) drop in on `WordBand` for `Tuning.MicroIntro` over
-the idea's scene (`MicroScenes.build` into `Area`, its own Rng from the seed + 7), then the engine runs in `Area`
-while the `Fuse` rope burns down to `FuseBomb` with the `Spark` animation (seconds: `MicroSeconds - MicroSecondsStep x
-(diff - 1)`, at least `MicroSecondsMin`, times the engine's `clock` and Turbo's `TurboClock`); the modifier's effects:
-`speed` (ctx.speed `TurboSpeed`), `tiny` (ctx.tiny: the engines use the small sprites), `shake` (the area jitters),
-`glitch` (`GlitchFlash` blinks over it), `dark` (`Dark1`..`Dark4` round a roving spotlight); a WIN / LOSE stamp (a
-flash; confetti for a win), then `micro.finish` (no sooner than `MicroMinSec` after the start); Play all goes on to the
-next unplayed slot. The runner owns the effects and keeps them (and the scene) moving under the stamp until the card
-comes back: `Pop` words, `Bit` bursts (1 px, their own Rng from the seed + 101), floats, the area's `Flash`. Its keys
-are bound through ContextActionService above the founder's walking keys (arrows, WASD, Space, Return, F, J, 1-6;
-UserInputService when that is not available).
+(one right move, once the curtain has lifted) and `debugCtx()` (the last microgame's diff, speed, tiny, seconds,
+effects, area). A microgame plays full screen: `micro.start`, the card hidden with the `Hud` and `World` roots,
+`MicroStage.open(variant)` (the camera's stage mode), the overlay `MicroPlay` on the `Stage` root (UIKit; its canvas is
+the world's art grid): `Area` (the engine's overlay, the whole screen), the `Header` strip (icon, `IdeaName`, the
+difficulty, `ModTag`), the `Footer` strip (`FuseBomb`, the `Fuse` rope, the `Spark` animation, `Hint`), the `Curtain`
+with `WordIcon`, `Word` and `GetReady` until the stage is `ready()` and `MicroIntro` has passed (at most
+`MicroStageWait`; the engine is posed meanwhile, keys and pads do nothing), then the engine runs (seconds:
+`MicroSeconds - MicroSecondsStep x (diff - 1)`, at least `MicroSecondsMin`, times the engine's `clock` and Turbo's
+`TurboClock`); the modifier's effects: `speed` (ctx.speed `TurboSpeed`), `tiny` (ctx.tiny: the targets shrink),
+`shake` (the stage's picture and the overlay jitter together: `PixelRenderer.setOffset`), `glitch` (`GlitchFlash`
+blinks over it), `dark` (`Dark1`..`Dark4` round a roving spotlight); a WIN / LOSE stamp (a flash; confetti for a win)
+while the engine's `after(t, won)` keeps the founder cheering or stumbling, then `micro.finish` (no sooner than
+`MicroMinSec` after the start), the stage closed (the street's picture back), the HUD back; Play all goes on to the
+next unplayed slot. The runner owns the effects: `Pop` words, `Bit` bursts (1 px, their own Rng from the seed + 101),
+floats, the `Flash`. Its keys are bound through ContextActionService above the founder's walking keys (arrows, WASD,
+Space, Return, F, J, 1-6; UserInputService when that is not available).
+`MicroStage` (client): `open(variant) -> Stage`, `current()`, `has(variant)`, the yaws `FACE_VIEWER FACE_RIGHT
+FACE_LEFT FACE_AWAY`, the ground's `U_DIR` (screen right) and `V_DIR` (toward the viewer), the set's fixed pieces
+`HOLE_U HOLE_V` (twelve whack holes), `BOARD` (the robot's 7 x 5 pads), `TOWER` (the site's base), `GOAL_V`. A stage
+is a folder `MicroStage` at Z = 9000 (far from the street: no ray of either view reaches the other): a 24 x 24 room
+(the ground all round, a floor of one colour or a checker, two back walls with trims, or a fence) and its props,
+then the founder (`CharacterModels.buildStanding` in the player's look, `AvatarView.lookOf`), registered dynamic with
+a blob shadow. `Stage { variant, floor, half, avatar, at(u, v, y) -> Vector3, spawn(kind, opts?, shadow?) -> Thing,
+adopt(thing, shadow?), place(thing, u, v, y, yaw?, tilt?), remove, flash(thing, seconds?), glow(thing, on), refresh,
+screen(pos) -> (x, y, on) (UI px on the Stage canvas), hold(kind?) (in the founder's right hand), hat(kind?) (on their
+head), pose(u, v, y, yaw, t, speed, action, k?), ready(), close() }`. Stage space: u to the screen's right, v toward
+the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
 `MicroGames`: the twelve engines `dodge timing mash whack pick sequence catch jump rhythm slice hide stack`, each
-`(ctx) -> Micro` with `ctx { area, w, h, rng (the server's seed), diff, speed, tiny, variant (the idea's theme), pop(x,
-y, text, color), burst(x, y, colors, n?), float(gui, vx, vy, life, gravity?), flash(color), shake, win, lose, press }`
-and `Micro { update(t, dt), key(k), survive?, clock?, pace? (px/s the scene scrolls at), auto() }`; every thing is a
-sprite at its own size (`name`, or `name_t` when Tiny; the idea icons `icon_<id>` / `mini_<id>`), animated by frames;
-named buttons `Pad_<key>`, `Hole_<i>`, `Opt_<i>`, `Fruit_<i>` / `Bomb_<i>`.
-`MicroScenes`: `build(area, variant, w, h, rng) -> update(t, pace?)` (a `Scene` layer at ZIndex 4 under the game, one
-scene a Data/Ideas variant, drawn from 1 px rects and sprites: dithered sky bands, discs with anti-aliased edges,
-twinkling stars, scrolling kerbs, rising bubbles, flickering torches, flashing floor tiles, beams), `has(variant)`.
+`(ctx) -> Micro` with `ctx { area, w, h, stage, rng (the server's seed), diff, speed, tiny, variant (the idea's
+theme), pop(x, y, text, color), burst(x, y, colors, n?), float(gui, vx, vy, life, gravity?), flash(color), shake, win,
+lose, press }` and `Micro { update(t, dt), key(k), survive?, clock?, after?(t, won), auto() }`; every thing is a 3D
+`MicroModels` thing on the stage (Tiny: scaled 0.6), the founder posed every frame; tap targets are invisible buttons
+kept over the things' screen points; named buttons `Pad_<key>`, `Hole_<i>`, `Opt_<i>`, `Fruit_<i>` / `Bomb_<i>`.
 
 ### 10.9 Sprites (`PixelSprites`, `ArtData`)
 `ArtData` (generated by `scripts/gen_art.py`; do not edit): `{ [name]: { w, h, px, pal, alpha } }`, one character a
 pixel (`.` clear, else an index into `pal` 0xRRGGBB with its `alpha`: 1, or 0.35 for the outline's anti-aliasing).
-Every sprite also has a white `<name>_flash` (a hit, the same outline); the icons have a dark `<name>_sil` (not found
-yet); an animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the idea icons
-`icon_<id>` (16x16) and `mini_<id>` (11x11), Spot it's recoloured `icon_/mini_<detectives|pirates|horror|robots>_alt`,
-the microgames' things (`hero_1/2`, `dino_1/2`, `coin_1..3`, `fish_1/2`, `jelly_1/2`, `bomb_1/2`, `alien_1/2`,
-`slime_1/2`, `cat_1/2`, `block`, `cone`, `car`, `basket`, `sprout`, `flower`, `kid`, `fruit`, `fruit_cut`, `rock`,
-`cactus`, `note`, `soldier`, `ghost` / `ghost_glare`, `door`, `pan`, `pancake`, `ball`, `goal`, `hole` / `_crater` /
-`_grave`, `heart`, `star`, `spark_1..3`, `bombfuse`, the arrows `arrow_<dir>` 13x13), each with a `_t` small one
-where Tiny shows it. `PixelSprites`: `has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) ->
+The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not found yet); an
+animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the idea icons
+`icon_<id>` (16x16) and `mini_<id>` (11x11), the arrows `arrow_<dir>` (13x13) and `arrow_<dir>_t` (7x7), and the
+microgames' overlay: `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`: `has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) ->
 GuiObject` (an ImageLabel `Sprite_<name>` showing the sprite's EditableImage, made once and shared, `ResampleMode`
 Pixelated, at the sprite's own size: no scale; without EditableImages a Frame of 1 px run rects), `anim(parent, names,
 pos?, z?) -> Anim { f, w, h, set(i), flash(seconds?), moveTo(x, y) }` (frames stacked in `Anim_<first>`; `flash`

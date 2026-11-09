@@ -54,6 +54,7 @@ local Tuning = {
 	MicroSecondsMin = 4, -- ... shortening with difficulty to this
 	MicroSecondsStep = 0.25,
 	MicroIntro = 0.9, -- the instruction word shows this long before the clock starts
+	MicroStageWait = 6, -- seconds the curtain waits at most for a microgame stage's picture
 	MicroMinSec = 1, -- a win sooner than this after the start counts as a loss
 	MicroMaxSec = 60, -- a result later than this counts as a loss
 	DiffMax = 8,
@@ -88,11 +89,12 @@ local Tuning = {
 	PixelScaleSides = { 820, 1250, 1700, 2100 },
 	PixelSnapshotMsPerFrame = 2,
 	PixelBakeMsPerFrame = 6,
+	PixelStageBakeMs = 14, -- more ms a frame for a microgame stage's bake (the play overlay's curtain covers it)
 	PixelMaxRayDist = 1400,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	PixelDisplayOrder = -100,
-	PixelMaxDyn = 40, -- dynamic models drawn a tick at most
+	PixelMaxDyn = 64, -- dynamic models drawn a tick at most (a microgame stage has a few dozen)
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }
 
