@@ -48,9 +48,11 @@ for slot = 1, 3 do
 	H.req(p, "micro.finish", { token = r.data and r.data.token or 0, won = 1 })
 end
 res = H.req(p, "game.launch", {})
-H.expect(res.ok and prof.rate > 0, "save", "a game launched", tostring(res.err))
+H.expect(res.ok and prof.live ~= nil, "save", "a game launched: on sale", tostring(res.err))
+E.run(3)
 res = H.req(p, "game.make", { a = 1, b = 2, c = 3 })
 H.expect(res.ok, "save", "a second game in the works", tostring(res.err))
+H.expect(prof.live == nil and prof.games[1].earned > 0, "save", "making it took the first off sale, keeping what it made", tostring(prof.games[1].earned))
 play(1)
 prof.coins = 4242
 prof.upgrades.luck = 3
@@ -74,7 +76,7 @@ E.run(2)
 local after = E.deepCopy(H.profile(p2))
 -- the games have earned since the rejoin (nothing happens offline: only since)
 local earned = after.coins - before.coins
-H.expect(earned >= 0 and earned <= before.rate * 4 + 1, "save", "the coins are the saved ones plus what was earned since the rejoin", string.format("+%s", tostring(earned)))
+H.expect(earned == 0, "save", "the coins are the saved ones (no game on sale: nothing earned since)", string.format("+%s", tostring(earned)))
 after.coins, after.stats.earned = before.coins, before.stats.earned
 local diff = H.diff(before, after)
 H.expect(diff == nil, "save", "the rejoined profile is the one saved", tostring(diff))
@@ -144,12 +146,37 @@ seed(9205, { data = {
 local o = H.addPlayer({ userId = 9205, name = "Veteran" })
 E.run(3)
 local op = H.profile(o)
-H.expect(op ~= nil and op.v == 3, "save", "a version 2 save loads into the idea loop", tostring(op and op.v))
+H.expect(op ~= nil and op.v == H.sharedServer("Logic.Schema").VERSION, "save", "a version 2 save loads into the idea loop", tostring(op and op.v))
 if op then
 	H.expect(op.office == 2 and op.team[1].name == "Ada Byte" and op.founder.shirt == 6 and op.plot.owned.oak == true, "save", "the room, the crew (the idea team now), the founder and the decor kept")
 	H.expect(op.coins >= Tuning.StartCoins and op.money == nil and op.releases == nil, "save", "the old studio's money and releases gone")
 	H.checkProfile(o, "old-save")
 	H.checkMirror(o, "old-save")
 end
+
+------------------------------------------------------------------ the game on sale through a leave and a rejoin
+E.phase = "live-save"
+local sp = H.addPlayer({ userId = 9206, name = "Seller" })
+E.run(2)
+local spf = H.profile(sp)
+spf.ideas = { { id = "action", mod = "plain" }, { id = "puzzle", mod = "plain" }, { id = "music", mod = "turbo" } }
+H.req(sp, "game.make", { a = 1, b = 2, c = 3 })
+for slot = 1, 3 do
+	local r = H.req(sp, "micro.start", { slot = slot })
+	E.run(Tuning.MicroMinSec + 0.2)
+	H.req(sp, "micro.finish", { token = r.data and r.data.token or 0, won = 1 })
+end
+H.req(sp, "game.launch", {})
+E.run(10)
+local liveBefore = E.deepCopy(spf.live)
+E.removePlayer(sp, "leave")
+E.run(2)
+local sp2 = H.addPlayer({ userId = 9206, name = "Seller" })
+E.run(1.5)
+local la = H.profile(sp2).live
+H.expect(la ~= nil and liveBefore ~= nil and la.id == liveBefore.id and la.age >= liveBefore.age and la.age <= liveBefore.age + 2, "save", "the game on sale picks up where it was on its curve (nothing sold while away)", string.format("%s -> %s", liveBefore and liveBefore.age, la and la.age))
+H.expect(la ~= nil and liveBefore ~= nil and #la.samples >= #liveBefore.samples and la.samples[1] == liveBefore.samples[1], "save", "its graph is kept")
+H.checkProfile(sp2, "live-save")
+H.checkMirror(sp2, "live-save")
 
 report(E, H)

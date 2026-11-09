@@ -24,7 +24,7 @@ return function()
 		T.eq(p.coins, Tuning.StartCoins)
 		T.eq(#p.team, Tuning.TeamSize)
 		T.eq(#p.ideas, 0)
-		T.eq(p.rate, 0)
+		T.eq(p.live, nil)
 		T.eq(p.tut, 1)
 	end)
 	T.it("a new idea: on the board, in the Index, the stats", function()
@@ -77,7 +77,8 @@ return function()
 		T.truthy(ok)
 		T.eq(game.wins, 2)
 		T.near(game.rate, Ideas.rate(cards, 2), 1e-9)
-		T.near(p.rate, game.rate, 1e-9)
+		T.eq(p.live.id, game.id, "on sale")
+		T.near(p.live.top, game.rate / Tuning.CoinPerPlayer, 1e-6)
 		T.eq(p.project, nil)
 		T.eq(#p.games, 1)
 		T.eq(p.stats.games, 1)
@@ -86,7 +87,7 @@ return function()
 		T.eq(select(2, Studio.result(p, 1, true)), "no_project")
 		T.eq(select(2, Studio.launch(p, 0)), "no_project")
 	end)
-	T.it("games keep earning after they drop off the list", function()
+	T.it("the list keeps the newest games; only the newest sells", function()
 		local p = fresh()
 		for _ = 1, Tuning.GamesKept + 5 do
 			board(p, { "action", "puzzle", "space" })
@@ -94,10 +95,53 @@ return function()
 			for i = 1, 3 do
 				Studio.result(p, i, true)
 			end
-			Studio.launch(p, 0)
+			Studio.launch(p, 0, 5)
 		end
 		T.eq(#p.games, Tuning.GamesKept)
-		T.near(p.rate, (Tuning.GamesKept + 5) * p.games[1].rate, 1e-6)
+		T.eq(p.live.id, p.games[#p.games].id)
+	end)
+	T.it("on sale: it earns from its players, peaks, leaves the shops; making the next takes it off", function()
+		local p = fresh()
+		board(p, { "action", "puzzle", "space" })
+		Studio.make(p, 1, 2, 3, 0)
+		for i = 1, 3 do
+			Studio.result(p, i, true)
+		end
+		Studio.launch(p, 0, 77)
+		local l = p.live
+		local total, ended, endedAt = 0, false, 0
+		for t = 1, Tuning.LiveLife + 10 do
+			local c, e = Studio.sell(p, 1)
+			total += c
+			if e then
+				ended, endedAt = true, t
+			end
+		end
+		T.truthy(ended and endedAt == Tuning.LiveLife, "it leaves the shops at the end of its life")
+		T.eq(l.players, 0)
+		T.near(l.earned, total, 1e-6)
+		T.eq(p.games[1].earned, math.floor(total + 0.5), "its record keeps its coins")
+		T.eq(p.games[1].peak, l.peak)
+		T.truthy(l.peak > l.samples[1], "its players climbed from the launch")
+		T.eq(#l.samples, Tuning.LiveLife / Tuning.LiveSampleSec + 1)
+		T.eq(l.samples[#l.samples], 0)
+		T.eq(select(1, Studio.sell(p, 1)), 0, "off sale: nothing more")
+		-- the next game, made while this one sells, takes it off
+		board(p, { "action", "puzzle", "space" })
+		Studio.make(p, 1, 2, 3, 0)
+		for i = 1, 3 do
+			Studio.result(p, i, false)
+		end
+		Studio.launch(p, 10, 3)
+		for _ = 1, 30 do
+			Studio.sell(p, 1)
+		end
+		local earned = p.live.earned
+		board(p, { "action", "puzzle", "space" })
+		Studio.make(p, 1, 2, 3, 0)
+		T.eq(p.live, nil, "making a game takes the one on sale off")
+		T.eq(p.games[2].earned, math.floor(earned), "it keeps what it made")
+		T.eq(select(1, Studio.sell(p, 1)), 0)
 	end)
 	T.it("upgrades: prices grow, coins spent, speed stops at the floor", function()
 		local p = fresh()

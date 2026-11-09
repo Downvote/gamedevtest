@@ -30,7 +30,7 @@ local s = H.session(p)
 H.expect(s ~= nil and s.ready, "join", "the session is ready")
 local prof = H.profile(p)
 H.expect(#prof.team == Tuning.TeamSize, "join", "an idea team of three", tostring(#prof.team))
-H.expect(prof.coins == Tuning.StartCoins and prof.rate == 0, "join", "no coins, no income yet", string.format("%s %s", prof.coins, prof.rate))
+H.expect(prof.coins == Tuning.StartCoins and prof.live == nil, "join", "no coins, no game on sale yet", tostring(prof.coins))
 H.expect(prof.office == 1 and prof.tut == 1 and #prof.ideas == 0 and prof.project == nil, "join", "the garage, tips at step 1, an empty board")
 H.expect(s.plot == 1, "join", "the first player gets plot 1", tostring(s.plot))
 local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_1")
@@ -105,7 +105,7 @@ E.runUntil(function()
 	H.inClient(p, MUI.debugAuto)
 	local pr = prof.project
 	return pr ~= nil and pr.won[1] >= 0 and pr.won[2] >= 0 and pr.won[3] >= 0 and H.buttonNamed(p, "Launch") ~= nil
-end, 120, 0.05)
+end, 240, 0.05)
 proj = prof.project
 local wins = 0
 if proj then
@@ -123,7 +123,9 @@ H.expect(launchB ~= nil, "play", "Launch! is on")
 local cards = if proj then proj.ideas else {}
 H.clickNamed(p, "Launch", { wait = 1 })
 H.expect(prof.project == nil and #prof.games == 1 and prof.stats.games == 1, "play", "launched: one game")
-H.expect(math.abs(prof.rate - Ideas.rate(cards, wins)) < 1e-6, "play", "its income is the ideas' worth with the wins' boost", string.format("%s vs %s", prof.rate, Ideas.rate(cards, wins)))
+local game1 = prof.games[1]
+H.expect(game1 ~= nil and math.abs(game1.rate - Ideas.rate(cards, wins)) < 1e-6, "play", "its peak income is the ideas' worth with the wins' boost", string.format("%s vs %s", game1 and game1.rate, Ideas.rate(cards, wins)))
+H.expect(prof.live ~= nil and game1 ~= nil and prof.live.id == game1.id and prof.live.players > 0, "play", "it is on sale, with players", tostring(prof.live and prof.live.players))
 H.expect(prof.tut == 3, "play", "the tips move on", tostring(prof.tut))
 H.expect(H.buttonNamed(p, "Nice") ~= nil, "play", "the launch card shows")
 H.clickNamed(p, "Nice", { wait = 0.5 })
@@ -133,10 +135,13 @@ H.checkMirror(p, "play")
 
 ------------------------------------------------------------------ 5. the income
 E.phase = "income"
-local coins0, fx0 = prof.coins, #fx
+local Live = H.sharedServer("Logic.Live")
+local coins0, fx0, rate0 = prof.coins, #fx, Live.earning(prof.live)
 E.run(3.05)
 local gained = prof.coins - coins0
-H.expect(gained >= math.floor(prof.rate * 2) - 1 and gained <= math.ceil(prof.rate * 4) + 1, "income", "about three seconds of income", string.format("+%d at %.2f a second", gained, prof.rate))
+local rate1 = Live.earning(prof.live)
+H.expect(gained >= math.floor(math.min(rate0, rate1) * 2) - 1 and gained <= math.ceil(math.max(rate0, rate1) * 4) + 1, "income", "about three seconds of the game's sales", string.format("+%d at %.2f .. %.2f a second", gained, rate0, rate1))
+H.expect(prof.live ~= nil and prof.live.age >= 3 and #prof.live.samples >= 2, "income", "its players are sampled for the graph", tostring(prof.live and #prof.live.samples))
 local paid = 0
 for i = fx0 + 1, #fx do
 	if fx[i].kind == "coins" then
@@ -146,7 +151,8 @@ end
 H.expect(paid >= 2, "income", "the client hears of each payment (Fx coins)", tostring(paid))
 E.run(0.1)
 local v = H.view(p)
-H.expect(v ~= nil and math.abs(v.coins - prof.coins) <= math.ceil(prof.rate) + 1, "income", "the view's coins follow the payments", string.format("%s vs %s", v and v.coins, prof.coins))
+H.expect(v ~= nil and math.abs(v.coins - prof.coins) <= math.ceil(Live.earning(prof.live)) + 1, "income", "the view's coins follow the payments", string.format("%s vs %s", v and v.coins, prof.coins))
+H.expect(v ~= nil and v.live ~= nil and prof.live ~= nil and math.abs(#v.live.samples - #prof.live.samples) <= 1 and math.abs(v.live.players - prof.live.players) <= prof.live.peak, "income", "the view's game on sale follows (samples patched in)", string.format("%s vs %s samples", v and v.live and #v.live.samples, prof.live and #prof.live.samples))
 
 ------------------------------------------------------------------ 6. upgrades through the UI
 E.phase = "upgrades"
@@ -160,7 +166,7 @@ H.clickNamed(p, "Buy_speed", { wait = 0.5 })
 H.expect(prof.upgrades.speed == 1, "upgrades", "roll speed level 1", tostring(prof.upgrades.speed))
 local spent = before - prof.coins
 local price = H.sharedServer("Logic.Studio").upgradeCost("speed", 0)
-H.expect(spent <= price and spent >= price - math.ceil(prof.rate * 1.5) - 1, "upgrades", "its price paid (an income tick may land meanwhile)", string.format("%d spent, price %d", spent, price))
+H.expect(spent <= price and spent >= price - math.ceil(Live.earning(prof.live) * 1.5) - 1, "upgrades", "its price paid (an income tick may land meanwhile)", string.format("%d spent, price %d", spent, price))
 H.expect(H.view(p).rollEvery < every0, "upgrades", "ideas come faster", string.format("%s -> %s", every0, H.view(p).rollEvery))
 H.clickNamed(p, "Buy_luck", { wait = 0.5 })
 H.expect(prof.upgrades.luck == 1 and math.abs(H.view(p).luck - (1 + Tuning.LuckStep)) < 1e-9, "upgrades", "luck level 1")

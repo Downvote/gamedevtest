@@ -13,6 +13,7 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local IdeasData = require(ReplicatedStorage.Shared.Data.Ideas)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
+local Live = require(ReplicatedStorage.Shared.Logic.Live)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -25,6 +26,7 @@ local Menus = require(script.Parent.Menus)
 local BuildUI = require(script.Parent.BuildUI)
 local MicroUI = require(script.Parent.MicroUI)
 local Words = require(script.Parent.Words)
+local SalesGraph = require(script.Parent.SalesGraph)
 
 local Hud = {}
 
@@ -32,6 +34,7 @@ local TOP_H = 13
 local BAR_H = 15
 local CARD_W = 124 -- the card's width (104 on phones)
 local CARD_MAX_H = 104
+local SALES_H = 52 -- the sales card under it
 
 local function cardWidth(): number
 	return if UIKit.phone() then 104 else 124
@@ -45,6 +48,8 @@ local tips: Frame? = nil
 local homeButton: TextButton? = nil
 local ideaBar: Frame? = nil
 local reveal: Frame? = nil
+local sales: Frame? = nil
+local salesGraph: SalesGraph.Graph? = nil
 local lastKey = ""
 
 ------------------------------------------------------------------ smooth numbers
@@ -93,7 +98,7 @@ local function hudRects()
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (TOP_H + 3) * K },
 			r(0, s.Y - BAR_H - 3, s.X, s.Y),
-			r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 4 + CARD_MAX_H),
+			r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 4 + CARD_MAX_H + 3 + SALES_H),
 		}
 	end
 	CameraController.setHudRects(list)
@@ -314,11 +319,71 @@ local function updateCard(v: Types.ClientView)
 	card = f
 end
 
+------------------------------------------------------------------ the sales card
+-- The game on sale under the card (GAME_DESIGN 6): its title, rising / at its peak / falling / off sale, its
+-- players' graph (UI/SalesGraph) and what it earns now; off sale, what it made in all.
+local PHASES: { [string]: { text: string, color: string } } = {
+	rising = { text = "Rising", color = "good" },
+	peak = { text = "At its peak!", color = "accent" },
+	falling = { text = "Falling", color = "orange" },
+	off = { text = "Off sale", color = "text_dim" },
+}
+local function updateSales(v: Types.ClientView)
+	local l = v.live
+	if l == nil then
+		if sales then
+			sales:Destroy()
+			sales, salesGraph = nil, nil
+		end
+		return
+	end
+	local w = CARD_W
+	local s = UIKit.size("Hud")
+	if sales == nil or sales:GetAttribute("Id") ~= l.id then
+		if sales then
+			sales:Destroy()
+		end
+		local f = UIKit.plate(UIKit.canvas("Hud"), UDim2.fromOffset(w, SALES_H), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
+		f.Name = "SalesCard"
+		f.ClipsDescendants = true
+		f:SetAttribute("Id", l.id)
+		UIKit.text(f, "On sale", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("text_dim"), name = "Head" })
+		UIKit.text(f, "", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { x = "right", name = "Phase" })
+		UIKit.text(f, l.title, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 11), { color = UIKit.color("accent"), name = "Title" })
+		salesGraph = SalesGraph.new(f, w - 8, 18, 3)
+		;(salesGraph :: SalesGraph.Graph).frame.Position = UDim2.fromOffset(4, 22)
+		UIKit.text(f, "", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 41), { name = "Players" })
+		UIKit.text(f, "", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 41), { x = "right", color = UIKit.color("good"), name = "Earning" })
+		sales = f
+	end
+	local f = sales :: Frame
+	-- under the board or making card (on a phone on the left, clear of Roblox's jump button)
+	local c = card
+	if UIKit.phone() then
+		f.Position = UDim2.fromOffset(3, TOP_H + 4)
+	else
+		local y = if c and c.Visible then c.Position.Y.Offset + c.Size.Y.Offset + 3 else TOP_H + 4
+		f.Position = UDim2.fromOffset(s.X - w - 3, y)
+	end
+	f.Visible = not BuildUI.isOpen()
+	local ph = PHASES[Live.phase(l)] or PHASES.off
+	local phase = f:FindFirstChild("Phase") :: TextLabel
+	UIKit.setText(phase, ph.text)
+	UIKit.setTextColor(phase, UIKit.color(ph.color))
+	local over = Live.over(l)
+	UIKit.setText(f:FindFirstChild("Players") :: TextLabel, if over then "Made " .. Numbers.coins(l.earned) else Numbers.int(l.players) .. " players")
+	UIKit.setText(f:FindFirstChild("Earning") :: TextLabel, if over then "" else Numbers.rate(v.rate))
+	local g = salesGraph
+	if g then
+		g.set(l)
+	end
+end
+
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
 	[1] = "Your idea team is thinking up ideas. Collect three, then make a game!",
 	[2] = "Play the game's three minigames: every win boosts its sales!",
-	[3] = "Your game earns coins for good. Spend them in Upgrades!",
+	[3] = "Your game is on sale: watch its players climb, then fade. Spend the coins in Upgrades!",
 }
 
 local function updateTips(v: Types.ClientView)
@@ -470,6 +535,7 @@ end
 local function refresh(v: Types.ClientView)
 	updateTop(v)
 	updateCard(v)
+	updateSales(v)
 	updateTips(v)
 	local key = string.format("%d", v.office)
 	if key ~= lastKey then
@@ -488,12 +554,12 @@ local function rebuild()
 	end
 	table.clear(chips)
 	table.clear(chipFrames)
-	for _, f in { card, tips, homeButton } :: { Instance? } do
+	for _, f in { card, tips, homeButton, sales } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
-	card, tips, homeButton = nil, nil, nil
+	card, tips, homeButton, sales, salesGraph = nil, nil, nil, nil, nil
 	CARD_W = cardWidth()
 	lastCoins = nil
 	buildTop()
@@ -520,6 +586,12 @@ function Hud.start()
 		end
 		popCoins = coins
 		showCoins(coins)
+		-- the game on sale's players and graph, every payment
+		local v = StateClient.view()
+		if v then
+			UIKit.setText(chips.rate, Numbers.rate(v.rate))
+			updateSales(v)
+		end
 		local now = os.clock()
 		local cf = chipFrames.coins
 		if gained >= 1 and now - popAt >= 0.9 and cf and cf.Parent then
@@ -531,6 +603,10 @@ function Hud.start()
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "idea" then
 			onIdea(msg)
+		elseif msg.kind == "offsale" and type(msg.title) == "string" then
+			-- the game on sale left the shops
+			UIKit.notice(string.format("%s left the shops: %s coins, %s players at its peak. Make a new game!", msg.title, Numbers.coins(tonumber(msg.earned) or 0), Numbers.int(tonumber(msg.peak) or 0)), UIKit.color("accent"), 6)
+			Audio.play("notice")
 		end
 	end)
 	UIKit.Resized:Connect(function()
@@ -542,7 +618,7 @@ function Hud.start()
 	end)
 	-- Build mode has its own tray: the menu bar, the card and the tips step aside
 	BuildUI.Changed:Connect(function(on)
-		for _, f in { bar, card, tips } :: { GuiObject? } do
+		for _, f in { bar, card, tips, sales } :: { GuiObject? } do
 			if f then
 				f.Visible = not on
 			end

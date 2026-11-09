@@ -13,11 +13,13 @@
 --   stage.adopt(thing, shadow?), stage.refresh(thing),
 --   stage.remove(thing), stage.flash(thing, seconds?), stage.glow(thing, on), stage.screen(pos) -> (x, y, on) (UI px on
 --   the Stage canvas), stage.hold(kind?) (a thing in the founder's right hand), stage.hat(kind?), stage.pose(u, v, y, yaw,
---   t, speed, action, k), stage.puff(pos, kind, n?, color?) (3D bits from a pool), stage.lift() (the founder drops in),
+--   t, speed, action, k), stage.puff(pos, kind, n?, color?) (3D bits from a pool), stage.rival(look, delay) (a rival
+--   founder for a party round, posed the same way), stage.lift() (the founder and the rivals drop in),
 --   stage.step(t, dt) (every frame: the bits and the stage's ambient life: birds, flames, steam, bats...), stage.close()
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
@@ -38,6 +40,13 @@ export type Avatar = {
 	hat: Thing?,
 }
 
+-- A rival founder in a party round (UI/MicroArena): their own look, posed like the player's.
+export type Rival = {
+	rig: CharacterModels.Rig,
+	pose: (u: number, v: number, y: number, yaw: number, t: number, speed: number, action: string, k: number?) -> (),
+	hide: () -> (),
+}
+
 export type Stage = {
 	variant: string,
 	floor: number, -- the floor's top (world Y)
@@ -56,6 +65,7 @@ export type Stage = {
 	hat: (kind: string?) -> Thing?,
 	pose: (u: number, v: number, y: number, yaw: number, t: number, speed: number, action: string, k: number?) -> (),
 	puff: (pos: Vector3, kind: string, n: number?, color: string?) -> (), -- 3D bits (PUFFS: dust spark debris confetti...)
+	rival: (look: Types.Look, delay: number) -> Rival, -- a rival founder (drops in `delay` s after the founder)
 	lift: () -> (), -- the curtain lifted: the founder drops in
 	step: (t: number, dt: number) -> (), -- every frame: the bits and the stage's ambient life
 	ready: () -> boolean,
@@ -991,6 +1001,7 @@ function MicroStage.open(variant: string): Stage
 		table.insert(things, t)
 	end
 
+	local rivals: { CharacterModels.Rig } = {}
 	local ambient: ((t: number, dt: number) -> ())? = nil
 	local st: Stage
 	st = {
@@ -1112,6 +1123,35 @@ function MicroStage.open(variant: string): Stage
 			end
 			poolDirty = true
 		end,
+		rival = function(look: Types.Look, delay: number): Rival
+			local rr = CharacterModels.buildStanding(look, "MicroRival", #rivals + 2)
+			rr.model:SetAttribute("PixelShadow", 1.4)
+			rr.model:SetAttribute("PixelGroundY", groundY)
+			rr.model.Parent = dyn
+			PixelRenderer.registerDynamic(rr.model)
+			table.insert(rivals, rr)
+			local down = false
+			return {
+				rig = rr,
+				pose = function(u: number, v: number, y: number, yaw: number, t: number, speed: number, action: string, k: number?)
+					local entry = ENTRY_H
+					local la = liftAt
+					if la then
+						local e = math.clamp((os.clock() - la - delay) / 0.32, 0, 1)
+						entry = ENTRY_H * (1 - e) * (1 - e)
+						if e >= 1 and not down then
+							down = true
+							st.puff(uv(u, v, 0.2), "dust", 6)
+						end
+					end
+					local act = if entry > 0.05 then "jump" else action
+					CharacterModels.poseAction(rr, CFrame.new(uv(u, v, y + entry)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
+				end,
+				hide = function()
+					CharacterModels.poseAction(rr, CFrame.new(uv(0, 0, -60)), 0, 0, "stand")
+				end,
+			}
+		end,
 		lift = function()
 			if liftAt == nil then
 				liftAt = os.clock()
@@ -1162,6 +1202,11 @@ function MicroStage.open(variant: string): Stage
 			table.clear(things)
 			PixelRenderer.unregisterDynamic(rig.model)
 			rig.model:Destroy()
+			for _, rr in rivals do
+				PixelRenderer.unregisterDynamic(rr.model)
+				rr.model:Destroy()
+			end
+			table.clear(rivals)
 			PixelRenderer.unregisterDynamic(pool)
 			pool:Destroy()
 			folder:Destroy()

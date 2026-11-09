@@ -1,8 +1,8 @@
 -- The idea loop's clocks (GAME_DESIGN 3, 4, 6, 7; docs/ARCHITECTURE.md 7.4): an idea every Studio.rollEvery seconds,
 -- faster after the speed upgrade, on through open menus and cards (nothing holds it any more); the full board's rule
 -- (a rarer idea takes the commonest one's place, a commoner one is dropped but still counted in the Index); the
--- income paid every second at the games' rate; a microgame left open past Tuning.MicroMaxSec dropped; two studios
--- each on their own clock.
+-- game on sale's coins paid every second along its curve, until it leaves the shops; a microgame left open past
+-- Tuning.MicroMaxSec dropped; two studios each on their own clock.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -115,15 +115,48 @@ H.expect(found1 - found0 == prof.stats.rolls - rolls0, "clock", "the Index count
 
 ------------------------------------------------------------------ the income
 E.phase = "income"
+local Live = H.sharedServer("Logic.Live")
+local fx = H.watchFx(p)
 prof.coins = 0
-prof.rate = 12.5
+local game = { id = 77, title = "Clock Test", ideas = { { id = "action", mod = "plain" }, { id = "puzzle", mod = "plain" }, { id = "space", mod = "plain" } }, rate = 25, wins = 3, at = 0, peak = 0, earned = 0 }
+prof.games = { game }
+prof.nextGame = math.max(prof.nextGame, 78)
+prof.live = Live.new(game, 4242)
 H.push(p, 0.2)
 E.run(1.05)
-local c0 = prof.coins
+local c0, age0 = prof.coins, prof.live.age
 E.run(10)
 local got = prof.coins - c0
-H.expect(got >= 12.5 * 10 - 13 and got <= 12.5 * 10 + 13, "clock", "about ten seconds of income at 12.5 a second", tostring(got))
+-- the same curve replayed second by second
+local twin = Live.new(game, 4242)
+Live.step(twin, age0)
+local want = 0
+for _ = 1, 10 do
+	want += (Live.step(twin, 1))
+end
+H.expect(math.abs(got - want) <= want * 0.08 + 3, "clock", "ten seconds of sales along the game's curve", string.format("%d vs about %.1f", got, want))
 H.expect(prof.stats.earned >= got, "clock", "the earnings stat follows")
+local coinsMsgs = 0
+for _, m in fx do
+	if m.kind == "coins" and type(m.live) == "table" and m.live.id == 77 then
+		coinsMsgs += 1
+	end
+end
+H.expect(coinsMsgs >= 9, "clock", "each second's payment carries the players", tostring(coinsMsgs))
+-- its last seconds: it leaves the shops, the coins stop
+prof.live.age = prof.live.life - 2
+E.run(3.2)
+local offsale = false
+for _, m in fx do
+	if m.kind == "offsale" then
+		offsale = true
+	end
+end
+H.expect(Live.over(prof.live) and offsale, "clock", "it leaves the shops at the end of its life (Fx offsale)")
+H.expect(prof.games[1].earned > 0 and prof.games[1].peak > 0, "clock", "its record keeps its coins and its peak")
+local c1 = prof.coins
+E.run(3)
+H.expect(prof.coins == c1, "clock", "off sale: no more coins", string.format("+%d", prof.coins - c1))
 
 ------------------------------------------------------------------ a microgame left open
 E.phase = "micro-open"

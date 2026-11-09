@@ -12,12 +12,14 @@ local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
 local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
+local Live = require(ReplicatedStorage.Shared.Logic.Live)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local MicroUI = require(script.Parent.MicroUI)
 local Words = require(script.Parent.Words)
+local SalesGraph = require(script.Parent.SalesGraph)
 
 local Menus = {}
 
@@ -79,6 +81,10 @@ local function buildIdeas(body: Frame, _arg: any?)
 			UIKit.closePanel()
 			MicroUI.open()
 		end, { name = "Continue", color = UIKit.color("button_ok") })
+	elseif v.live and not Live.over(v.live) then
+		-- one game sells at a time: a new one takes the one on sale off
+		local l = v.live :: Types.Live
+		UIKit.text(body, string.format("Making a game takes %s off sale (%s players now)", l.title, Numbers.int(l.players)), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("orange"), name = "Hint" })
 	else
 		UIKit.text(body, string.format("Pick three ideas to make a game. Board %d/%d", #v.ideas, Tuning.BoardSize), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
 	end
@@ -142,7 +148,7 @@ local function buildIdeas(body: Frame, _arg: any?)
 	for _, k in picked do
 		table.insert(cards, v.ideas[k])
 	end
-	local preview = if #cards > 0 then string.format("%d/3 picked: about %s, up to %s with three wins", #cards, Numbers.rate(Ideas.rate(cards, 0)), Numbers.rate(Ideas.rate(cards, 3))) else "Each idea brings a minigame. Rarer ideas earn more and play harder."
+	local preview = if #cards > 0 then string.format("%d/3 picked: peaks at about %s, up to %s with three wins", #cards, Numbers.rate(Ideas.rate(cards, 0)), Numbers.rate(Ideas.rate(cards, 3))) else "Each idea brings a minigame. Rarer ideas sell more and play harder."
 	UIKit.text(body, preview, UDim2.fromOffset(W, 12), UDim2.fromOffset(0, H - 30), { color = if ready then UIKit.color("good") else UIKit.color("text_dim"), name = "Preview" })
 	UIKit.button(body, if ready then "Make this game!" else "Pick three ideas", UDim2.fromOffset(W, 14), UDim2.fromOffset(0, H - 16), function()
 		local a, b, c = picked[1], picked[2], picked[3]
@@ -280,8 +286,25 @@ local function buildGames(body: Frame, _arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	UIKit.text(body, string.format("%d games earning %s (%s coins made)", v.stats.games, Numbers.rate(v.rate), Numbers.coins(v.stats.earned)), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Total" })
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	UIKit.text(body, string.format("%d games made, %s coins earned", v.stats.games, Numbers.coins(v.stats.earned)), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Total" })
+	-- the game on sale: its players' graph, Game Dev Tycoon style, and its numbers
+	local top = 14
+	local l = v.live
+	if l then
+		local over = Live.over(l)
+		UIKit.text(body, (if over then "Off sale: " else "On sale: ") .. l.title, UDim2.fromOffset(W, 10), UDim2.fromOffset(0, top), { color = UIKit.color(if over then "text_dim" else "accent"), name = "LiveTitle" })
+		local gh = 44
+		local graph = SalesGraph.new(body, W, gh, 4)
+		graph.frame.Position = UDim2.fromOffset(0, top + 11)
+		graph.set(l)
+		local left = math.max(0, l.life - l.age)
+		local stats = if over
+			then string.format("Made %s coins. Peak: %s players", Numbers.coins(l.earned), Numbers.int(l.peak))
+			else string.format("%s players  %s  Peak %s  Made %s  %d:%02d left", Numbers.int(l.players), Numbers.rate(v.rate), Numbers.int(l.peak), Numbers.coins(l.earned), math.floor(left / 60), math.floor(left % 60))
+		UIKit.text(body, stats, UDim2.fromOffset(W, 10), UDim2.fromOffset(0, top + 12 + gh), { color = UIKit.color("good"), name = "LiveStats" })
+		top += 24 + gh
+	end
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	if #v.games == 0 then
 		UIKit.text(list, "No games yet: make one from the idea board.", UDim2.fromOffset(W - 8, 12), nil, { color = UIKit.color("text_dim") })
@@ -289,14 +312,17 @@ local function buildGames(body: Frame, _arg: any?)
 	for i = #v.games, 1, -1 do
 		local g = v.games[i]
 		local f = row(list, #v.games - i, 24)
-		UIKit.text(f, g.title, UDim2.new(1, -70, 0, 10), UDim2.fromOffset(5, 2), { color = UIKit.color("accent"), z = 4 })
-		UIKit.text(f, Numbers.rate(g.rate), UDim2.fromOffset(60, 10), UDim2.new(1, -64, 0, 2), { x = "right", color = UIKit.color("good"), z = 4 })
+		local onSale = l ~= nil and l.id == g.id
+		local peak = if onSale and l then l.peak else g.peak
+		local made = if onSale and l then l.earned else g.earned
+		UIKit.text(f, g.title, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(5, 2), { color = UIKit.color(if onSale then "accent" else "text"), z = 4 })
+		UIKit.text(f, string.format("%s coins", Numbers.coins(made)), UDim2.fromOffset(100, 10), UDim2.new(1, -104, 0, 2), { x = "right", color = UIKit.color("good"), z = 4 })
 		local names = {}
 		for _, c in g.ideas do
 			table.insert(names, Ideas.name(c))
 		end
-		UIKit.text(f, table.concat(names, " + "), UDim2.new(1, -70, 0, 10), UDim2.fromOffset(5, 12), { color = UIKit.color("text_dim"), z = 4 })
-		UIKit.text(f, string.rep("*", g.wins) .. string.rep("-", 3 - g.wins), UDim2.fromOffset(60, 10), UDim2.new(1, -64, 0, 12), { x = "right", color = UIKit.color("accent"), z = 4 })
+		UIKit.text(f, table.concat(names, " + "), UDim2.new(1, -110, 0, 10), UDim2.fromOffset(5, 12), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, string.format("peak %s  %s", Numbers.short(peak), string.rep("*", g.wins) .. string.rep("-", 3 - g.wins)), UDim2.fromOffset(100, 10), UDim2.new(1, -104, 0, 12), { x = "right", color = UIKit.color("accent"), z = 4 })
 	end
 end
 

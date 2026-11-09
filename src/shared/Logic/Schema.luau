@@ -7,9 +7,11 @@ local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Looks = require(script.Parent.Parent.Data.Looks)
 local Decor = require(script.Parent.Parent.Data.Decor)
 local Office = require(script.Parent.Parent.Data.Office)
+local Modifiers = require(script.Parent.Parent.Data.Modifiers)
 local Util = require(script.Parent.Util)
 local Ideas = require(script.Parent.Ideas)
 local Studio = require(script.Parent.Studio)
+local Live = require(script.Parent.Live)
 local Plot = require(script.Parent.Plot)
 
 type Profile = Types.Profile
@@ -17,8 +19,9 @@ type Card = Types.Card
 
 local Schema = {}
 
--- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop (GAME_DESIGN 1: the old studio is gone)
-Schema.VERSION = 3
+-- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop (GAME_DESIGN 1: the old studio is gone);
+-- 4: one game on sale at a time (GAME_DESIGN 6: Profile.live, no more income from every game)
+Schema.VERSION = 4
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -54,9 +57,14 @@ local function look(v: any): Types.Look
 	}
 end
 
+-- A modifier id, renamed when it is one that went (Data/Modifiers.renamed: the one with its odds took its place).
+local function modId(m: any): any
+	return if type(m) == "string" and Modifiers.renamed[m] then Modifiers.renamed[m] else m
+end
+
 local function card(v: any): Card?
-	if Ideas.valid(v) then
-		return { id = v.id, mod = v.mod }
+	if type(v) == "table" and Ideas.valid({ id = v.id, mod = modId(v.mod) }) then
+		return { id = v.id, mod = modId(v.mod) }
 	end
 	return nil
 end
@@ -86,11 +94,11 @@ function Schema.default(now: number, seed: number): Profile
 	return {
 		v = Schema.VERSION,
 		coins = Tuning.StartCoins,
-		rate = 0,
 		ideas = {},
 		found = {},
 		project = nil,
 		games = {},
+		live = nil,
 		nextGame = 1,
 		upgrades = { speed = 0, luck = 0 },
 		team = team,
@@ -109,6 +117,7 @@ end
 --   1 -> 2: a founder's look and an empty plot (reconcile fills them in).
 --   2 -> 3: the idea loop. The old studio's money, fans, research, releases and crew rules are gone; the founder, the
 --           decor bought and placed, the office's room and the crew's names and looks (now the idea team) stay.
+--   3 -> 4: the games no longer all earn for good: the newest one goes on sale afresh (reconcile), the rate is gone.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -123,6 +132,12 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		raw.tut = 1
 		v = 3
+	end
+	if v < 4 then
+		raw.rate = nil
+		raw.live = nil
+		raw.liveNewest = true
+		v = 4
 	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
@@ -186,7 +201,16 @@ local function gamesOf(v: any): { Types.Game }
 			local list = cards(g.ideas, 3)
 			if #list == 3 then
 				local wins = int(g.wins, 0, 0, 3)
-				table.insert(out, { id = int(g.id, #out + 1, 1), title = str(g.title, "Untitled", 60), ideas = list, rate = Ideas.rate(list, wins), wins = wins, at = int(g.at, 0, 0) })
+				table.insert(out, {
+					id = int(g.id, #out + 1, 1),
+					title = str(g.title, "Untitled", 60),
+					ideas = list,
+					rate = Ideas.rate(list, wins),
+					wins = wins,
+					at = int(g.at, 0, 0),
+					peak = int(g.peak, 0, 0),
+					earned = int(g.earned, 0, 0),
+				})
 			end
 		end
 	end
@@ -196,16 +220,51 @@ local function gamesOf(v: any): { Types.Game }
 	return out
 end
 
+-- The game on sale: kept when it is one of the listed games and its numbers make sense (its curve's height follows
+-- the game's rate, so a retune moves it too).
+local function liveOf(v: any, games: { Types.Game }): Types.Live?
+	if type(v) ~= "table" then
+		return nil
+	end
+	local id = int(v.id, 0, 0)
+	local game: Types.Game? = nil
+	for _, g in games do
+		if g.id == id then
+			game = g
+		end
+	end
+	if game == nil then
+		return nil
+	end
+	local l = Live.new(game, int(v.seed, 0, 0))
+	l.age = num(v.age, 0, 0, l.life)
+	l.players = Live.playersAt(l, l.age)
+	l.earned = num(v.earned, 0, 0)
+	l.peak = math.max(int(v.peak, 0, 0), l.players)
+	local samples: { number } = {}
+	if type(v.samples) == "table" then
+		for _, n in v.samples do
+			if #samples < Tuning.LiveSamples then
+				table.insert(samples, int(n, 0, 0))
+			end
+		end
+	end
+	l.samples = if #samples > 0 then samples else { l.players }
+	return l
+end
+
 local function foundOf(v: any): { [string]: number }
 	local out: { [string]: number } = {}
 	if type(v) == "table" then
 		for k, n in v do
 			if type(k) == "string" then
-				local id, mod = string.match(k, "^(%w+)|(%w+)$")
+				local id, old = string.match(k, "^(%w+)|(%w+)$")
+				local mod = modId(old)
 				if id and mod and Ideas.valid({ id = id, mod = mod }) then
 					local c = int(n, 0, 0)
 					if c > 0 then
-						out[k] = c
+						local key = id .. "|" .. mod
+						out[key] = (out[key] or 0) + c
 					end
 				end
 			end
@@ -253,26 +312,27 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		team = d.team
 	end
 	local games = gamesOf(r.games)
-	local maxId, rate = 0, 0
+	local maxId = 0
 	for _, g in games do
 		maxId = math.max(maxId, g.id)
+	end
+	local live = liveOf(r.live, games)
+	if r.liveNewest and #games > 0 then
+		local g = games[#games]
+		live = Live.new(g, g.id * 7919 + g.at)
 	end
 	local st = if type(r.stats) == "table" then r.stats else {}
 	local up = if type(r.upgrades) == "table" then r.upgrades else {}
 	local settings = if type(r.settings) == "table" then r.settings else {}
 	local pixel = settings.pixel
-	-- the income is every launched game's, kept apart from the listed (newest) ones; never less than theirs
-	for _, g in games do
-		rate += g.rate
-	end
 	return {
 		v = Schema.VERSION,
 		coins = int(r.coins, d.coins, 0),
-		rate = math.max(num(r.rate, 0, 0, 1e15), rate),
 		ideas = cards(r.ideas, Tuning.BoardSize),
 		found = foundOf(r.found),
 		project = projectOf(r.project),
 		games = games,
+		live = live,
 		nextGame = math.max(int(r.nextGame, 1, 1), maxId + 1),
 		upgrades = { speed = int(up.speed, 0, 0, 200), luck = int(up.luck, 0, 0, 1000) },
 		team = team,

@@ -65,7 +65,7 @@ return function()
 		for _, raw in { nil, 5, "x", {}, { coins = 0 / 0, team = "no", office = 99, ideas = { 1, { id = "chess", mod = "plain" }, { id = "action", mod = "plain" } }, found = { ["action|plain"] = -3, ["x|y"] = 2, ["space|turbo"] = 4 }, rate = 1 / 0, upgrades = { speed = -1, luck = "x" }, project = { ideas = { { id = "action", mod = "plain" } } }, games = { { ideas = {} }, 7 } } } :: { any } do
 			local p = Schema.reconcile(raw, 1000, 3)
 			T.truthy(p.coins == p.coins and p.coins >= 0, "coins")
-			T.truthy(p.rate == p.rate and p.rate < math.huge, "rate")
+			T.eq(p.live, nil)
 			T.truthy(#p.team >= 1)
 			T.truthy(p.office >= 1 and p.office <= 3)
 			T.truthy(p.upgrades.speed >= 0 and p.upgrades.luck >= 0)
@@ -88,8 +88,7 @@ return function()
 		for i = 1, 6 do
 			table.insert(p.team, { id = 10 + i, name = "X", look = p.team[1].look, desk = 1 })
 		end
-		p.games = { { id = 1, title = "A", ideas = { { id = "music", mod = "cosmic" }, { id = "music", mod = "cosmic" }, { id = "music", mod = "cosmic" } }, rate = 1, wins = 3, at = 0 } }
-		p.rate = 2
+		p.games = { { id = 1, title = "A", ideas = { { id = "music", mod = "cosmic" }, { id = "music", mod = "cosmic" }, { id = "music", mod = "cosmic" } }, rate = 1, wins = 3, at = 0, peak = 5, earned = 9 } }
 		local back = Schema.reconcile(roundTrip(p), 1, 1)
 		T.eq(#back.ideas, Tuning.BoardSize)
 		T.eq(#back.team, Tuning.TeamSize)
@@ -99,7 +98,49 @@ return function()
 			seen[m.desk] = true
 		end
 		T.truthy(back.games[1].rate > 1, "a game's rate is worked out again from its ideas")
-		T.truthy(back.rate >= back.games[1].rate)
+	end)
+	T.it("the game on sale: kept mid-curve through a round trip, dropped when its game is not listed", function()
+		local p = played()
+		Studio.result(p, 3, true)
+		Studio.launch(p, 5000, 11)
+		for _ = 1, 47 do
+			Studio.sell(p, 1)
+		end
+		local back = Schema.reconcile(roundTrip(p), 6000, 9)
+		T.deepEq(back.live, p.live)
+		local raw = roundTrip(p)
+		raw.live.id = 999
+		T.eq(Schema.reconcile(raw, 6000, 9).live, nil)
+		raw = roundTrip(p)
+		raw.live.age = 1 / 0
+		raw.live.samples = { -4, "x", 7 }
+		local odd = Schema.reconcile(raw, 6000, 9).live
+		T.truthy(odd ~= nil and odd.age == 0 and odd.samples[1] == 0 and odd.samples[3] == 7)
+	end)
+	T.it("a version 3 save: the newest game goes on sale afresh, the old modifiers take their new names", function()
+		local cards = { { id = "action", mod = "tiny" }, { id = "puzzle", mod = "shaky" }, { id = "space", mod = "haunted" } }
+		local old = {
+			v = 3,
+			coins = 50,
+			rate = 999,
+			ideas = { { id = "ninjas", mod = "glitched" }, { id = "music", mod = "cosmic" } },
+			found = { ["ninjas|glitched"] = 2, ["ninjas|frenzy"] = 1, ["action|tiny"] = 3 },
+			games = { { id = 1, title = "A", ideas = cards, rate = 5, wins = 1, at = 10 }, { id = 2, title = "B", ideas = cards, rate = 5, wins = 3, at = 20 } },
+			nextGame = 3,
+		}
+		local p = Schema.reconcile(old, 2000, 9) :: any
+		T.eq(p.v, Schema.VERSION)
+		T.eq(p.rate, nil)
+		T.eq(p.live.id, 2)
+		T.eq(p.live.age, 0)
+		T.deepEq(p.ideas[1], { id = "ninjas", mod = "frenzy" })
+		T.eq(p.found["ninjas|frenzy"], 3, "found counts merge")
+		T.eq(p.found["action|icy"], 3)
+		T.eq(p.found["action|tiny"], nil)
+		T.eq(p.games[1].ideas[1].mod, "icy")
+		T.eq(p.games[1].ideas[2].mod, "crowded")
+		T.eq(p.games[1].ideas[3].mod, "shrinking")
+		T.eq(p.games[1].peak, 0)
 	end)
 	T.it("a version 2 save (the old studio) loads into the idea loop: founder, decor, office and crew kept", function()
 		local old = {

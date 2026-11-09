@@ -18,14 +18,22 @@
 > of getting rarer ideas. there is no need for other details or upgrades of any kind, but customizing player and
 > spending money to decorate your plot is still ok."
 
+> The party-round request (2026-11-09): "the minigames should be longer and more interesting. use pummel party
+> minigames as a reference. also, the last game you made should have a live graph that shows its player count,
+> earnings, etc. just like game dev tycoon, this fluctuates, increasing then decreasing until it stops earning. also,
+> making a new game will overwrite and stop the progress of the last game you made. try to remove modifiers that make
+> the game annoying rather than hard like shaky or tiny and make more interesting ones"
+
 Byte-Size Studio is a small game-studio game for Roblox: an RNG game about ideas. Your idea team thinks up random
 ideas, each one a genre or a theme with a modifier and a rarity ("1 in 3,200"); you make games out of three of them
-by playing a short, themed microgame for each; a launched game earns coins for good; coins make the idea team faster
-and luckier. The old studio (crew, research, reviews, platforms, offices) is gone. The look, the build system and the
+by playing a themed party round against three rival founders for each; a launched game goes on sale, its players
+climbing and fading like a Game Dev Tycoon game's sales, until it leaves the shops or you make the next one; coins
+make the idea team faster and luckier. The old studio (crew, research, reviews, platforms, offices) is gone. The look, the build system and the
 file formats come from our own Random Bakery (`Downvote/test`): the 2:1 pixel-art isometric diorama seen through the
 pixel filter, the pixel font, Rojo with strict Luau, a server that decides everything, pure Data/Logic modules with
-specs, and the fake-engine simulator and preview tools. The microgames follow the WarioWare kind of game (a one-word
-order, a few seconds, win or lose) with our own content.
+specs, and the fake-engine simulator and preview tools. The minigames are half-minute party rounds of the kind party
+games are made of (everyone in one arena: last one standing, most points, first to the finish) with our own rules
+and content.
 
 Numbers below are the starting balance. `src/shared/Config/Tuning.luau` holds every number the game uses and wins
 when this document disagrees.
@@ -33,12 +41,14 @@ when this document disagrees.
 ## 1. The loop in one paragraph
 
 The idea team (three chibis at their desks) thinks up an idea every few seconds: an idea (Puzzle, Pirates, Dinosaurs...)
-with a modifier (Plain, Turbo, Tiny, Shaky, Glitched, Haunted, Cosmic), rolled by its odds. Ideas collect on the idea
-board (12 places). Pick three and make a game: each idea brings its own microgame, harder the rarer the idea, played
-differently under its modifier. Each microgame won adds a third to the game's sales (all three: double); retry any of
-them as often as you like, then launch. The game earns coins every second from then on, its income set by how rare
-its ideas are and how many microgames were won. Spend the coins on the idea team (faster ideas, luckier ideas) and on
-decor for your plot.
+with a modifier (Plain, Turbo, Icy, Crowded, Frenzy, Shrinking, Cosmic), rolled by its odds. Ideas collect on the idea
+board (12 places). Pick three and make a game: each idea brings its own party round against three rival founders,
+harder the rarer the idea, played differently under its modifier. Each round won adds a third to the game's sales
+(all three: double); retry any of them as often as you like, then launch. The game goes on sale: its players climb
+to a peak and fade away over five minutes, wobbling on the way (a live graph shows them), and each player pays coins
+every second; its peak is set by how rare its ideas are and how many rounds were won. Making the next game takes it
+off sale, so you choose when. Spend the coins on the idea team (faster ideas, luckier ideas) and on decor for your
+plot.
 
 ## 2. Look and feel
 
@@ -51,7 +61,7 @@ decor for your plot.
 - **The idea team:** little chibis typing away at their desks, bits of code ("</>", "{ }", "01") floating up from
   their screens. A new idea pops out of a head in its tier's colour; a rare one makes them cheer.
 - **Interface:** pixel-art plates with stepped corners, the pixel font from Random Bakery, no borders; each idea has
-  a 16x16 icon (and an 11x11 one for the HUD's lists and Tiny), drawn by the rules below.
+  a 16x16 icon (and an 11x11 one for the HUD's lists), drawn by the rules below.
 - **The founder:** you walk the street as a chibi founder in the team's style (§8, §9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
@@ -62,7 +72,7 @@ decor for your plot.
 
 - **No mixels.** One art pixel is one UI px is one K-sized block on the screen: nothing is ever drawn scaled up
   (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: an icon is 16x16, its
-  small version 11x11. The microgames are 3D (§5) and drawn by the pixel filter like the office, so they keep the
+  small version 11x11. The minigames are 3D (§5) and drawn by the pixel filter like the office, so they keep the
   same grid, palette and outline.
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
@@ -80,13 +90,13 @@ decor for your plot.
 
 - The team thinks up an idea every `Studio.rollEvery` seconds: `Tuning.RollBase` (8 s) at the start, x0.92 for each
   level of the speed upgrade, down to `Tuning.RollMin` (1 s). The HUD's chip counts down to the next one.
-- The clocks run while you are in the game, whatever you are doing (menus, cards, microgames, Build mode hold
+- The clocks run while you are in the game, whatever you are doing (menus, cards, minigames, Build mode hold
   nothing). Nothing happens while you are away: no ideas, no income.
 - The team is three (`Tuning.TeamSize`, the garage's desks). It never grows: the two upgrades make it better.
 
 ## 4. Ideas, modifiers and rarity
 
-**Ideas** (`Data/Ideas`, 24): ten genres and fourteen themes, each with its own odds (its "1 in N") and its microgame
+**Ideas** (`Data/Ideas`, 24): ten genres and fourteen themes, each with its own odds (its "1 in N") and its minigame
 (§5).
 
 | Commons (1 in 7-12) | Uncommon (1 in 15-40) | Rare (1 in 60-150) | Epic (1 in 400-1,000) | Legendary (1 in 3,000+) |
@@ -94,23 +104,25 @@ decor for your plot.
 | Action, Puzzle, Animals, Space, Cooking, School | Adventure, Racing, Sports, Pirates, Farming, Ocean | RPG, Fantasy, Rhythm, Robots, Ninjas, Zombies | Strategy, Horror, Dinosaurs, Detectives | Simulation (1 in 3,000), Music (1 in 6,000) |
 
 **Modifiers** (`Data/Modifiers`, rolled on their own after the idea): each multiplies the idea's income and changes
-how its microgame plays.
+how its round plays. They make it harder in a way you can play round, never one that only gets in the way: the
+annoying ones (Tiny, Shaky, Glitched, Haunted) went, and a saved idea with one of them now has the new modifier with
+the same odds (Tiny became Icy, Shaky Crowded, Glitched Frenzy, Haunted Shrinking; the Index's counts follow).
 
-| Modifier | Odds | Income | Its microgame |
+| Modifier | Odds | Income | Its round |
 |---|---|---|---|
 | Plain | the rest (about 2 in 3) | x1 | as it is |
-| Turbo | 1 in 5 | x1.2 | everything 1.35x faster, on a fuse 0.8x as long |
-| Tiny | 1 in 12 | x1.4 | everything small: the targets shrink (3D things, still drawn on the pixel grid), the windows narrower |
-| Shaky | 1 in 30 | x1.7 | the screen shakes |
-| Glitched | 1 in 80 | x2.2 | it blinks out for a moment, now and then |
-| Haunted | 1 in 250 | x3 | dark: only a roving spotlight shows it |
-| Cosmic | 1 in 1,000 | x5 | Turbo, Shaky and Glitched at once |
+| Turbo | 1 in 5 | x1.2 | everything 1.35x faster, on a clock 0.8x as long |
+| Icy | 1 in 12 | x1.4 | a slippery floor: everyone slides, stops late and bounces off each other harder |
+| Crowded | 1 in 30 | x1.7 | five rivals instead of three, and sharper ones |
+| Frenzy | 1 in 80 | x2.2 | more of everything: 1.6x the hazards, the coins and the bombs, an extra beam, more zombies |
+| Shrinking | 1 in 250 | x3 | the arena closes in: glowing walls (or the karts' ring) shrink to half over the round |
+| Cosmic | 1 in 1,000 | x5 | Turbo, Frenzy and Shrinking at once |
 
 - **The odds** (`Logic/Ideas`, Random Bakery's rule): ideas and modifiers rarer than 1 in 60 (`Tuning.RareOdds`) roll
-  at luck / odds; the Uncommon ones (and Turbo, Tiny, Shaky) at 1 / odds; the commonest (the Commons; Plain) share what
+  at luck / odds; the Uncommon ones (and Turbo, Icy, Crowded) at 1 / odds; the commonest (the Commons; Plain) share what
   is left, never less than a tenth (`Tuning.CommonFloor`; past that the lucky ones are scaled down to fit). So at
   luck x1 a "1 in 3,000" idea really comes once in 3,000 ideas, and luck x3 makes it three times as likely.
-- **An idea's rarity** is its idea's odds times its modifier's: Glitched Ninjas is 1 in 120 x 80 = 1 in 9,600. Its
+- **An idea's rarity** is its idea's odds times its modifier's: Frenzy Ninjas is 1 in 120 x 80 = 1 in 9,600. Its
   **tier** follows: Common (under 1 in 20), Uncommon (from 1 in 20), Rare (250), Epic (3,000), Legendary (40,000),
   Mythic (500,000), each with its colour.
 - **The board** holds 12 (`Tuning.BoardSize`). When it is full a new idea takes the place of the board's commonest one
@@ -120,73 +132,103 @@ how its microgame plays.
 - **Reveals:** a Rare idea or better drops a banner in at the top ("EPIC IDEA! New!" the first time, its name, its
   1 in N) with a sound to match and confetti from Epic; over an open panel it is a line in the panel's status bar.
 
-## 5. Making a game: three ideas, three microgames
+## 5. Making a game: three ideas, three party rounds
 
-- **Pick three** ideas on the idea board (Make a game!). The panel shows what the game would earn (with no wins, and
-  with three). Make: the three leave the board, and the game gets a title from a word of each ("Treasure Galaxy
-  Saga"). One game at a time.
-- **The making card** lists the three ideas, each with its microgame's order word, its modifier and its difficulty,
+- **Pick three** ideas on the idea board (Make a game!). The panel shows what the game would earn at its peak (with
+  no wins, and with three). Make: the three leave the board, and the game gets a title from a word of each ("Treasure
+  Galaxy Saga"). One game at a time; while one is on sale the panel warns that making the next takes it off sale.
+- **The making card** lists the three ideas, each with its round's order word, its modifier and its difficulty,
   and Play (or Retry) for each; Play all plays the unplayed ones in turn. Each one won adds a third to the game's sales
   (`Tuning.WinBoost`): all three double them. A retry, at any time (in the middle of one, or after all three), keeps a
   win: the best result counts. Launch! once all three have been played.
-- **A microgame** (WarioWare style) plays **full screen, in 3D, with your own founder**:
+- **A minigame is a party round** (`UI/MicroArena`, `UI/MicroGames`), full screen, in 3D, with your own founder and
+  three rival founders (five when Crowded), half a minute long (`Tuning.MicroSeconds`):
 
   > The request (2026-11-09): "make the minigames full screen, have depth and are 3d, using the player's avatar"
 
-  A curtain with the idea's icon and its order word ("Dodge!") covers the screen while the idea's stage is drawn, then
-  lifts on it: a little diorama room built from parts like the office (a floor, two back walls cut away, props),
-  drawn full screen by the same pixel filter (the 2:1 camera, toon bands, palette, sun shadows, 1 px ink outline),
-  with your founder (your look) standing in it and doing the thing: dodging, flipping, petting, walking, sneaking,
-  jumping. The HUD steps aside; a strip at the top names the idea, its difficulty and its modifier, and along the
-  bottom a rope fuse burns down to its bomb for a few seconds: 6 s at difficulty 1, a quarter second less a level, at
-  least 4 s (`Tuning.MicroSeconds...`; the longer ones get more: Repeat!, Sneak!, Build!, and Tap the beat! runs its
-  song). WIN or LOSE stamps it while your founder cheers or stumbles, then the making card comes back over the
-  street. Arrow keys / WASD, Space or F / J, 1-6, or the on-screen pads, and taps on the things themselves.
+  > The request (2026-11-09): "the minigames should be longer and more interesting. use pummel party minigames as a
+  > reference."
+
+  A curtain with the idea's icon, its order word ("Dodge!") and the round's rule ("Last one standing wins!") covers
+  the screen while the idea's stage is drawn, then lifts on it: a little diorama room built from parts like the office
+  (a floor, two back walls cut away, props), drawn full screen by the same pixel filter (the 2:1 camera, toon bands,
+  palette, sun shadows, 1 px ink outline). Everyone drops in, 3, 2, 1, GO! Then you run free round the room (hold the
+  arrow keys or WASD, or the on-screen cross on a phone) and press Space (or the action pad) to jump, dash or shove.
+  The rivals are other founders with their own looks, names and shirt colours; a scoreboard at the top right keeps
+  them in order, "YOU" floats over your head (with your score in the points rounds). A round ends as soon as it is
+  decided (you are out, the last one standing, the first to the door) or when the rope fuse along the bottom burns
+  down. WIN or LOSE stamps it with your placing ("1st place: 12 coins", "Last one standing!", "Out in 3rd") while the
+  winners cheer, then the making card comes back over the street.
+- **Three kinds of round:** *survive* (one hit and you are out, flying off in a puff; the last one standing wins, and
+  so does anyone still standing when the fuse runs out), *points* (the most at the end wins; a tie for first counts)
+  and *race* (the first to the finish).
 - **Each idea has its own stage** (UI/MicroStage): a rooftop in a night city, a road with red and white kerbs, a
   kitchen with a stove and a shelf of jars, a pitch with a crowd and a goal, a torch-lit dungeon, a living room, a
   deck among the stars with craters, a field of soil rows, a graveyard under the moon, a playroom, a classroom with a
   chalkboard, a war table's map, a detective's office, a wizard's tower, a lab with a board of pads, a stage with
   curtains, a beach with a palm and a chest, the sea floor, a meadow path, a desert with a volcano, a disco floor, a
-  dojo, a haunted hall with a door, a building site with a crane. The things that move (crates, cones, coins, fish,
-  aliens, the cat, the slime, the ghost, the floors) are 3D too and cast blob shadows on the floor.
+  dojo, a haunted hall with a door, a building site with a crane. Everything that moves is 3D and casts a blob shadow.
 - **The difficulty** (1 to 8) is the idea's tier, plus a step when its idea reuses an engine another (commoner) idea
-  already has, so a reused game always comes back harder. Harder means faster, more of it, smaller windows.
-- **Twelve engines, 24 themed microgames** (UI/MicroGames; the reused ones a step or two harder):
+  already has, so a reused round always comes back harder. Harder means sharper, quicker rivals (they react sooner,
+  run faster, make fewer mistakes) and thicker, faster hazards.
+- **Eleven engines, 24 themed rounds** (UI/MicroGames; the reused ones a step or two harder):
 
-| Engine | Ideas (order) | What you do |
+| Engine | Ideas (order) | The round |
 |---|---|---|
-| dodge | Action (Dodge!), Racing (Steer!) | step your founder left and right between lanes as crates fall from the sky (their shadows show where), or steer the kart round cones coming down the road (a lane always stays open) |
-| timing | Cooking (Flip!), Sports (Kick!), RPG (Strike!) | stop the sweeping needle on the green, once to three times: the pancake flips, the ball flies into the net, your founder dashes in and slashes the slime |
-| mash | Animals (Pet!) | tap the cat fast enough: your founder pets it, hearts float up |
-| whack | Space (Shoot!), Farming (Water!), Zombies (Whack!) | tap what rises out of the craters, soil or graves; from difficulty 4 rockets and kids rise too: leave them |
-| pick | Puzzle (Match!), School (Answer!), Strategy (Count!), Detectives (Spot it!) | pick the shape on the pedestals that matches the one over your founder, the chalkboard sum's answer, how many toy soldiers stand on the map, the suspect in the odd coat |
-| sequence | Fantasy (Cast!), Robots (Program!), Music (Repeat!) | type the arrows in order (your founder walks them across the lab's board to the flag; Robots' hide after a look; or casts them into the orb over their head); repeat the pads' tune: your founder hops onto each |
-| catch | Pirates (Loot!), Ocean (Catch!) | move your founder (a basket on their head) under the falling coins or fish, never the bombs or jellies |
-| jump | Adventure (Leap!), Dinosaurs (Jump!) | jump the rocks or cacti coming down the path |
-| rhythm | Rhythm (Tap the beat!) | tap each lane as its gem reaches the pad; a few misses allowed |
-| slice | Ninjas (Slice!) | tap the fruit thrown up over the dojo; from difficulty 3, not the bombs |
-| hide | Horror (Sneak!) | step your founder toward the door only while the ghost looks away |
-| stack | Simulation (Build!) | drop each floor swinging on the crane onto the last; what hangs over is cut off and falls |
+| bombs | Action (Dodge!), Space (Take cover!), Dinosaurs (Run!) | survive: crates, the aliens' bombs or meteors fall on red marks (aimed at the players more and more, a ring of them round someone now and then); one hit and you are out |
+| collect | Animals (Fetch!), Pirates (Loot!), Ocean (Catch!) | points: treats, coins or fish drop all over (a shiny one is worth three); grab the most; crabs, bombs or jellies roll about from difficulty 2: touch one and you are dazed and drop two |
+| tiles | Puzzle (Match!), Cooking (Hop!), Rhythm (Dance!) | survive: a floor of tiles. A colour is called and the others drop; hot plates glow, then burn; the disco floor lights up in patterns to the beat and zaps |
+| quiz | School (Answer!), Detectives (Spot it!) | points: a sum on the board (or four suspects, one in an odd coat) and four pads; run onto the right one before the time is up (a point, two for the first there); a wrong pad bucks you off |
+| sweep | Adventure (Jump!), Fantasy (Jump!), Robots (Jump!) | survive: a log, a magic beam or a laser sweeps round the room from a post in the middle, faster and faster, two from difficulty 4 (turning back from difficulty 6): jump it |
+| sumo | Racing (Bump!) | survive: bumper karts in a ring of kerbs; Dash! rams; out of the ring and you are out |
+| zone | Sports (Hold the ring!), Music (Spotlight!) | points: a glowing ring moves round the floor (the next spot shows first; it drifts from difficulty 5); the one nearest its middle scores; Shove! (the arm winds up first: a sharp eye steps aside) knocks the others out of the way and dazes them |
+| barrage | RPG (Dodge!), Ninjas (Dodge!) | survive: arrows or throwing stars fly in from the walls, aimed at someone or in walls with a gap, a red line showing each one's path first; step aside or jump them |
+| horde | Zombies (Survive!) | survive: zombies climb out of the ground, slower than you but more and more of them; jump one to get past it; a bite turns you |
+| sneak | Horror (Sneak!) | race: creep to the door while the ghost looks away; it shudders, then turns: anyone still moving goes back to the start |
+| paint | Farming (Water!), Strategy (Claim!), Simulation (Build!) | points: every tile you step on turns your colour until someone else's; a star paints all round you; the most tiles wins |
 
-- **Fair play:** the server starts each microgame (a token, a seed for its content, its difficulty) and records its
-  result. A win sooner than 1 s after the start (`Tuning.MicroMinSec`) or a result later than a minute counts as a
-  loss; a microgame left open is dropped after a minute. The result itself is the client's word, as in any minigame.
+- **Every round can be lost by doing nothing** (the hazards aim at you, the rivals score, the zombies and the rams come
+  for whoever stands still) and won by playing well (the simulator's auto player, the rivals' own brain at full skill,
+  wins every one of the 24).
+- **Fair play:** the server starts each round (a token, a seed for its content and its rivals, its difficulty) and
+  records its result. A win sooner than 1 s after the start (`Tuning.MicroMinSec`) or a result later than two and a
+  half minutes (`Tuning.MicroMaxSec`) counts as a loss; a round left open is dropped then. The result itself is the
+  client's word, as in any minigame.
 
-## 6. Launch and income
+## 6. Launch and sales
 
-- **A launched game earns** the sum of its ideas' values times its boost, every second, for good:
-  an idea is worth `0.5 x odds ^ 0.35 x its modifier's income` coins a second (Action: 1/s; Music: 10.5/s; Cosmic
-  Music: 52/s), and the boost is `1 + wins / 3`. A first game of three Commons earns about 3/s, 6/s with three wins.
-- The income is paid every second (`Tuning.IncomeTickSec`). The launch card shows it ("+8.4/s coins") and the team
-  cheers with it over their heads. The Games panel lists the newest 50 games; every game ever launched keeps earning.
+> The request (2026-11-09): "the last game you made should have a live graph that shows its player count, earnings,
+> etc. just like game dev tycoon, this fluctuates, increasing then decreasing until it stops earning. also, making a
+> new game will overwrite and stop the progress of the last game you made."
+
+- **A launched game goes on sale** (`Logic/Live`), and only the newest one sells. Its players climb from 15% of its
+  peak at the launch to the peak a fifth of the way through its life (`Tuning.LivePeakAt`), then fall away to none at
+  the end of its five minutes on sale (`Tuning.LiveLife`), wobbling all the way: a slow drift and a little jitter (up
+  to 16% and 8%), and two bumps of buzz on the way down (a streamer finds it: up to a third more players for a while).
+  The same game always draws the same curve (its seed). Each player pays `Tuning.CoinPerPlayer` (0.05) coins a
+  second, paid every second (`Tuning.IncomeTickSec`).
+- **Its peak** is the sum of its ideas' values times its boost: an idea is worth `1.5 x odds ^ 0.7 x its modifier's
+  income` coins a second (Action: 5.9/s; Pirates: 14.3/s; Music: 662/s), and the boost is `1 + wins / 3`. A first
+  game of three Commons peaks at about 19/s (390 players), 39/s with three wins. Over its life a game makes about 135
+  times its peak.
+- **The graph** (Game Dev Tycoon style): the HUD's sales card under the idea board shows the game on sale (Rising, At
+  its peak!, Falling, Off sale), its players' graph filling in as it sells (the days to come a dotted floor, its peak
+  marked), its players now and its coins a second. The Games panel shows the same graph big, with its peak, the coins
+  it made and the time left, then every game made with the coins it made and its peak players.
+- **It leaves the shops** at the end of its life (a notice: what it made, its peak; the graph stays, grey, until the
+  next game) or as soon as you make the next game: making a game overwrites the one on sale and stops it where it is
+  (its record keeps what it made). So the choice is yours: ride a hit to its end, or cut it short for a better board.
+  While you make the next game nothing sells.
+- Like every clock, it only runs while you are in the game: away, it waits where it was on its curve.
+- The launch card shows the game's peak ("up to +34/s") and the team cheers with it over their heads.
 
 ## 7. Upgrades (the idea team)
 
 Two upgrades, nothing else (Upgrades panel):
 
-- **Faster ideas:** an idea every 8 s x 0.92 per level, down to 1 s (about 25 levels). Price 50 x 2.5 ^ level.
+- **Faster ideas:** an idea every 8 s x 0.92 per level, down to 1 s (about 25 levels). Price 40 x 1.8 ^ level.
 - **Lucky ideas:** luck +0.2 per level (x1 at level 0): Rare and rarer ideas and modifiers come that much more often.
-  Price 80 x 2.5 ^ level.
+  Price 60 x 1.8 ^ level.
 
 Coins also buy decor (§9).
 
@@ -237,15 +279,18 @@ takes the lowest free plot; one who leaves leaves an empty lot (their save keeps
 ## 10. The economy, checked
 
 `tests/specs/Economy.spec.luau` plays four three-hour sessions with a sensible player (`tests/Career.luau`: makes a
-game of the board's three most valuable ideas as soon as there are three, wins a microgame with a chance falling
-with its difficulty, retries a loss once, spends every coin on the cheaper upgrade) through the server's own rules and
-holds the pacing to these bounds: a game launched within 90 s and an upgrade within 3 minutes; a Rare idea within 10
-minutes, an Epic within 30, no Mythic in the first hour; about ten levels of each upgrade in the first hour (8 to 14)
-and a few more by the third (at most 20); by hour three the next upgrade takes 5 to 40 minutes of income and the
-income grows less than x6 from hour one to hour three (no runaway); a player who wins every microgame earns 1.5 to 2.8
-times as much as one who loses them all. A typical session: the first game at about a minute, a Rare at 1-2 minutes,
-an Epic at about 5, a Legendary somewhere between 20 minutes and a few hours; hour one ends at speed and luck level 11
-earning about 1,500 a second, hour three at levels 13-14 earning about 5,000. Print one with
+game of the board's three most valuable ideas once there are three and the game on sale has faded (off sale, or
+falling under a third of its peak), plays its three half-minute rounds, winning each with a chance falling with its
+difficulty, retries a loss once, spends every coin on the cheaper upgrade) through the server's own rules and holds
+the pacing to these bounds: a game launched and an upgrade bought within 4 minutes; a Rare idea within 10 minutes,
+an Epic within 30, no Mythic in the first hour; twelve to eighteen levels of each upgrade in the first hour and a few
+more by the third (at most 22); by hour three the next upgrade takes 5 to 60 minutes of income and the income (the
+last twenty minutes' average) grows less than x6 from hour one to hour three (no runaway); a player who wins every
+round earns 1.4 to 2.8 times as much as one who loses them all; every game rises to a peak and leaves the shops with
+its coins. A typical session: the first game at about 3 minutes (three rounds to play), a Rare in the first few
+minutes, an Epic within about 10, a Legendary in the first half hour or so; hour one ends at speed and luck level
+14-15 earning about 300-450 a second on average (more at a game's peak, nothing while making the next), hour three
+at levels 16-17 earning about the same: from there a better game comes from rarer ideas, slowly. Print one with
 `luau tests/career.luau -a <seed> [minutes] [skill]` after the check has built `build/luautest`.
 
 ## 11. Out of scope for this version
@@ -265,19 +310,19 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
 - **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
 - **The HUD:** the coins count up and their chip flashes when they change; the idea chip counts down to the next idea
   with a bar along its edge; the card's main button (Make a game!, Play!, Launch!) pulses when it is the thing to do.
-- **The microgames** (3D, §5): the idea's icon and order word on the curtain; a rope fuse (twisted, ink-edged) burns
-  toward its bomb with an animated spark, the bomb blinking near the end. Your founder walks, runs, jumps (knees up),
-  swings a sword, hammer, blaster or watering can, pets, casts, dances, sneaks, cheers and stumbles. Coins spin, fish
-  wiggle, aliens and zombies sway as they rise, the slime bounces with squash and stretch, the cat breathes, bombs
-  fizz, things in the air cast shadows that grow as they fall. Every hit flashes the thing white and throws a burst
-  of 1 px bits in its colours; words pop up over the things ("Perfect!" in yellow for a dead-centre hit); a bomb
-  flashes the screen. The themes play out: the pancake flips over the stove, the ball arcs into the net, the slime
-  is knocked back and bursts, crates smash on the floor, a watered sprout blooms, a laser flashes from the blaster,
-  the orb over the wizard grows with each arrow, cut fruit falls in two halves behind a 1 px slash, the ghost bobs,
-  turns with red eyes (the room goes red while it watches), floors swing on the crane's rope and what hangs over falls
-  off, a perfect drop says so. A wrong move shakes the screen; WIN flashes and brings confetti. The launch card brings
-  confetti and a fanfare and the team cheers with the new income over their heads.
-- **The microgames' stages live** (§5): every stage has its own ambient life while you play: birds and blinking
+- **The party rounds** (3D, §5): the idea's icon, order word and rule on the curtain; everyone drops in from above
+  and lands in a puff of dust; 3, 2, 1, GO! ticks in; a rope fuse (twisted, ink-edged) burns toward its bomb with an
+  animated spark, the last three seconds ticking. The founders walk, run, jump (knees up), shove and cheer; a
+  knocked-out one flies off tumbling and vanishes in a puff of smoke ("Rex out!"); the scoreboard reorders as the
+  points come in and "+1"s pop over the heads. Crates, bombs and meteors fall on blinking red marks and smash into
+  debris, sparks or embers with a jolt; coins, fish and treats drop in and bob; the tiles blink before they drop, hot
+  plates glow and burn with embers, the disco floor pulses to the beat; the quiz's right pad flashes and bursts into
+  confetti, the wrong ones buck you off; the beam sweeps round its post (the laser and the magic beam spark); the karts
+  spark when they collide; the ring spins and twinkles; arrows and throwing stars (spinning) streak along their red
+  lines; zombies rise out of the ground in a spray of dirt; the ghost shudders before it turns; painted tiles puff in
+  their colour and a star splashes paint all round. WIN flashes and brings confetti; the launch card brings confetti
+  and a fanfare and the team cheers with the new game's peak over their heads.
+- **The minigames' stages live** (§5): every stage has its own ambient life while you play: birds and blinking
   antenna lights over the rooftop, steam off the pan, flags waving over the stands, flickering torches throwing
   embers, a yarn ball rolling round the living room, a UFO hovering past twinkling stars, butterflies over the field,
   bats circling the graveyard in the mist, a ball bouncing in the playroom, a paper plane looping round the classroom,
@@ -286,11 +331,11 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
   bubbles and a crab on the sea floor, a pterodactyl and volcano smoke in the desert, the disco floor lighting up,
   cherry petals falling in the dojo, candles and dust motes in the haunted hall, a bird over the building site.
 - **3D bits:** dust, sparks, debris, confetti, splashes, steam and smoke fly out as little cubes on the stage (and
-  bounce on the floor): crates splinter, the slime splats, coins spark, fruit splashes, a goal bursts into confetti,
-  footsteps kick up dust, a win throws confetti from your founder, a loss a puff of dust.
-- **The curtain** is a set of ink blinds that open from the middle; your founder drops in from above and lands in a
-  puff of dust; the order word drops in with a bounce; the burning fuse spits sparks and the last three seconds tick;
-  the stamp bounces in; a loss plays the sad trombone, a win cheers.
+  bounce on the floor): crates splinter, coins spark, a right answer bursts into confetti, landings kick up dust, a
+  win throws confetti from your founder, a loss a puff of dust.
+- **The curtain** is a set of ink blinds that open from the middle; your founder and the rivals drop in from above and
+  land in puffs of dust; the order word drops in with a bounce; the burning fuse spits sparks and the last three
+  seconds tick; the stamp bounces in with the placing under it; a loss plays the sad trombone, a win cheers.
 - **The street lives:** cars drive both ways along the road (and wait for a founder standing in their lane), a flock of
   birds crosses now and then, clouds drift over and their shadows slide across the lawns and the offices; walking
   founders kick up dust.
@@ -301,6 +346,7 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
   under a white flash while the idea and board chips flash; the card's main button gleams now and then; picking an
   idea on the board, making a game and buying an upgrade ("Level up!") burst into bits; the making card's rows slide in
   one after another, a new WIN or LOSE stamps in with a burst and the Launch button gleams; the launch card's title
-  bounces in, the three ideas pop up one by one and the income counts up to what the game earns.
+  bounces in, the three ideas pop up one by one and the peak counts up to what the game earns at its best; the sales
+  card's graph grows a column with each sample, the newest lit white.
 - **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,
   `Config/Monetization.Sounds`), its pitch varied a little, repeats inside a short cooldown dropped.

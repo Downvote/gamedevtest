@@ -206,17 +206,28 @@ local function seedProfile(userId, tier, opts)
 	for g = 1, opts.games or 0 do
 		local cards = { cardOf("action"), cardOf("puzzle:turbo"), cardOf("space") }
 		if g % 3 == 0 then
-			cards[2] = cardOf("rpg:shaky")
+			cards[2] = cardOf("rpg:crowded")
 		end
 		local wins = g % 4
-		local game = { id = g, title = Ideas.title(cards, g * 13), ideas = cards, rate = Ideas.rate(cards, math.min(3, wins)), wins = math.min(3, wins), at = now }
+		local game = { id = g, title = Ideas.title(cards, g * 13), ideas = cards, rate = Ideas.rate(cards, math.min(3, wins)), wins = math.min(3, wins), at = now, peak = 0, earned = 0 }
+		-- the older ones sold their run out
+		game.peak = math.floor(game.rate / H.sharedServer("Config.Tuning").CoinPerPlayer)
+		game.earned = math.floor(H.sharedServer("Logic.Live").lifetime(game.rate))
 		table.insert(prof.games, game)
-		prof.rate += game.rate
 		prof.nextGame = g + 1
 		prof.stats.games = g
 		for _, c in cards do
 			prof.found[Ideas.key(c)] = (prof.found[Ideas.key(c)] or 0) + 1
 		end
+	end
+	-- the newest game on sale, a way into its run (none while the next is being made: making it took it off)
+	if #prof.games > 0 and opts.project == nil then
+		local Live = H.sharedServer("Logic.Live")
+		local l = Live.new(prof.games[#prof.games], 99)
+		for _ = 1, opts.liveAge or 96 do
+			Live.step(l, 1)
+		end
+		prof.live = l
 	end
 	if opts.project then
 		local cards = {}
@@ -251,7 +262,7 @@ local function seedProfile(userId, tier, opts)
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
 end
 
-local BOARD = { "action", "puzzle:turbo", "animals", "space:tiny", "pirates", "rpg:shaky", "cooking", "ocean:glitched", "horror", "school" }
+local BOARD = { "action", "puzzle:turbo", "animals", "space:icy", "pirates", "rpg:crowded", "cooking", "ocean:frenzy", "horror", "school" }
 
 ------------------------------------------------------------------ scenarios
 local SCEN = {}
@@ -273,7 +284,7 @@ function SCEN.reveal()
 	settle(p)
 	local s = H.session(p)
 	E.call(E.serverCtx, 5, function()
-		H.smod("Session").fx(s, { kind = "idea", card = { id = "music", mod = "haunted" }, slot = 0, oneIn = 1500000, tier = 6, first = true })
+		H.smod("Session").fx(s, { kind = "idea", card = { id = "music", mod = "shrinking" }, slot = 0, oneIn = 1500000, tier = 6, first = true })
 	end)
 	E.run(0.6)
 	capture(p, "reveal")
@@ -358,7 +369,8 @@ local function microScenario(spec)
 	local function autoStep()
 		k += 1
 		local kind = MUI and H.inClient(p, MUI.playing)
-		local every = if kind == "rhythm" or kind == "jump" or kind == "dodge" or kind == "catch" then 1 else 3
+		local every = 1
+		local _ = kind
 		if MUI and k % every == 0 then
 			H.inClient(p, MUI.debugAuto)
 		end
@@ -379,7 +391,8 @@ local function microScenario(spec)
 	local st = PR and select(2, pcall(PR.debugStatic))
 	log("curtain up after %.1fs; playing: %s; the stage's bake %s (%s bakes, %s rays)", waited, tostring(MUI and H.inClient(p, MUI.playing)),
 		if type(st) == "table" and st.baking then "still under way" else "done", tostring(type(st) == "table" and st.bakes), tostring(type(st) == "table" and st.rays))
-	local stop = E.SIM.now + 1.6
+	-- 3, 2, 1, GO! and a few seconds of the round
+	local stop = E.SIM.now + H.sharedServer("Config.Tuning").MicroCountdown + 3.2
 	while E.SIM.now < stop do
 		E.run(0.05)
 		autoStep()
@@ -390,7 +403,7 @@ local function microScenario(spec)
 			H.inClient(p, MUI.debugAuto)
 		end
 		return H.buttonNamed(p, "Retry_1") ~= nil
-	end, 40, 0.05)
+	end, 70, 0.05)
 	E.run(0.5)
 	capture(p, "micro_" .. spec .. "_card")
 	return p

@@ -118,10 +118,17 @@ for k, p in { a, b } do
 end
 local res
 local pa = H.profile(a)
-pa.rate = 7.5
+local LiveW = H.sharedServer("Logic.Live")
+local gameA = { id = 1, title = "Street Hit", ideas = { { id = "action", mod = "plain" }, { id = "puzzle", mod = "plain" }, { id = "space", mod = "plain" } }, rate = 9, wins = 3, at = 0, peak = 0, earned = 0 }
+pa.games = { gameA }
+pa.nextGame = math.max(pa.nextGame, 2)
+pa.live = LiveW.new(gameA, 11)
+pa.live.age = pa.live.life * 0.2
 pa.stats.games = 3
 H.push(a, 0.5)
-H.expect(plotModel(1):GetAttribute("Games") == 3 and plotModel(1):GetAttribute("Rate") == 7, "studios", "the plot shows the games and the income", string.format("%s %s", tostring(plotModel(1):GetAttribute("Games")), tostring(plotModel(1):GetAttribute("Rate"))))
+local rateA = plotModel(1):GetAttribute("Rate")
+local nowA = LiveW.earning(pa.live)
+H.expect(plotModel(1):GetAttribute("Games") == 3 and type(rateA) == "number" and math.abs(rateA - nowA) <= nowA * 0.3 + 1, "studios", "the plot shows the games and the game on sale's income", string.format("%s %s vs %.1f", tostring(plotModel(1):GetAttribute("Games")), tostring(rateA), nowA))
 -- each client draws its own crew, the neighbour's and both founders
 for _, pair in { { a, b }, { b, a } } do
 	local me, other = pair[1], pair[2]
@@ -176,7 +183,7 @@ H.expect(H.buttonNamed(a, "Home") == nil, "walk", "the Home button goes once hom
 ------------------------------------------------------------------ 4. decor: buy, place, move, store
 E.phase = "decor"
 local prof = H.profile(a)
-prof.rate = 0 -- no income ticks while the coins are compared
+prof.live = nil -- no income ticks while the coins are compared
 prof.coins = 1000000
 local m0 = prof.coins
 res = H.req(a, "plot.buy", { id = "gnome" })

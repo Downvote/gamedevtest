@@ -352,9 +352,9 @@ BUILD.shape = function(o)
 end
 MicroModels.SHAPES = { "cube", "ball", "drum", "wedge", "tower", "cross" }
 
-BUILD.kart = function(_o)
+BUILD.kart = function(o)
 	local t = new("kart", 1.5, 1.8)
-	add(t, "Body", "Block", Vector3.new(2.5, 0.75, 3.25), Vector3.new(0, 0.75, 0), "berry_red")
+	add(t, "Body", "Block", Vector3.new(2.5, 0.75, 3.25), Vector3.new(0, 0.75, 0), o.color or "berry_red")
 	add(t, "Nose", "Block", Vector3.new(2.0, 0.5, 0.75), Vector3.new(0, 0.6, 1.9), "white")
 	add(t, "Seat", "Block", Vector3.new(1.75, 1.0, 0.5), Vector3.new(0, 1.4, -1.25), "black")
 	add(t, "WheelFL", "Block", Vector3.new(0.5, 0.75, 0.75), Vector3.new(-1.4, 0.375, 1.1), "black")
@@ -520,6 +520,54 @@ BUILD.spot = function(o)
 	return t
 end
 
+------------------------------------------------------------------ the party rounds' things (UI/MicroArena)
+-- an arrow flying along +Z, at a jumpable height
+BUILD.arrow = function(o)
+	local t = new("arrow", 1, 0.6)
+	add(t, "Shaft", "Block", Vector3.new(0.25, 0.25, 2.25), Vector3.new(0, 0.75, 0), "wood")
+	add(t, "Head", "Block", Vector3.new(0.5, 0.25, 0.5), Vector3.new(0, 0.75, 1.25), "steel", CFrame.Angles(0, math.rad(45), 0))
+	add(t, "Fletch", "Block", Vector3.new(0.75, 0.25, 0.5), Vector3.new(0, 0.75, -1.0), o.color or "berry_red")
+	return t
+end
+
+-- a throwing star spinning flat (MicroArena turns it)
+BUILD.shuriken = function(_o)
+	local t = new("shuriken", 1, 0.8)
+	add(t, "A", "Block", Vector3.new(1.75, 0.25, 0.5), Vector3.new(0, 0.75, 0), "steel")
+	add(t, "B", "Block", Vector3.new(0.5, 0.25, 1.75), Vector3.new(0, 0.75, 0), "steel")
+	add(t, "Hub", "Block", Vector3.new(0.5, 0.5, 0.5), Vector3.new(0, 0.75, 0), "steel_dark")
+	return t
+end
+
+-- a meteor: a rock on fire
+BUILD.meteor = function(_o)
+	local t = new("meteor", 2, 1.1)
+	add(t, "Rock", "Ball", Vector3.new(1.75, 1.75, 1.75), Vector3.new(0, 0.875, 0), "steel_dark")
+	add(t, "Lump", "Block", Vector3.new(0.75, 0.75, 0.75), Vector3.new(0.5, 1.25, 0.25), "steel")
+	add(t, "Fire", "Ball", Vector3.new(1.25, 1.25, 1.25), Vector3.new(-0.25, 1.75, -0.25), "orange", nil, true)
+	add(t, "Tip", "Ball", Vector3.new(0.75, 0.75, 0.75), Vector3.new(-0.5, 2.4, -0.5), "yellow", nil, true)
+	return t
+end
+
+-- a ring on the floor (opts.color, neon): twelve short bars round a radius of 2.5 studs
+BUILD.ring = function(o)
+	local t = new("ring", 0.25, 2.5)
+	for i = 1, 12 do
+		local a = (i - 0.5) / 12 * math.pi * 2
+		add(t, "R" .. i, "Block", Vector3.new(1.25, 0.25, 0.5), Vector3.new(math.cos(a) * 2.5, 0.15, math.sin(a) * 2.5), o.color or "yellow", CFrame.Angles(0, -a + math.pi / 2, 0), true)
+	end
+	return t
+end
+
+-- the pivot a sweeping beam turns round
+BUILD.pillar = function(o)
+	local t = new("pillar", 2, 1)
+	add(t, "Base", "Cylinder", Vector3.new(0.5, 2.25, 2.25), Vector3.new(0, 0.25, 0), "steel_dark", UPRIGHT)
+	add(t, "Post", "Cylinder", Vector3.new(1.5, 1.5, 1.5), Vector3.new(0, 1.25, 0), o.color or "steel", UPRIGHT)
+	add(t, "Cap", "Ball", Vector3.new(1, 1, 1), Vector3.new(0, 2.1, 0), o.alt or "yellow", nil, true)
+	return t
+end
+
 ------------------------------------------------------------------ what the avatar holds (origin: the hand)
 BUILD.hat = function(_o)
 	local t = new("hat", 1.75, 1)
@@ -567,6 +615,31 @@ function MicroModels.slab(size: Vector3, color: string, band: string?, neon: boo
 	add(t, "Body", "Block", size, Vector3.new(0, size.Y / 2, 0), color, nil, neon)
 	if band and size.Y >= 0.75 then
 		add(t, "Band", "Block", Vector3.new(size.X + 0.05, 0.25, size.Z + 0.05), Vector3.new(0, size.Y / 2, 0), band)
+	end
+	return t
+end
+
+-- A floor of n x n tiles in one thing (the party rounds' tiles): parts "T1" .. "Tn*n" row by row, `step` studs
+-- apart, each `size` wide and `h` high, centred on the origin. A tile moves with t.rest and recolours by its part.
+function MicroModels.grid(n: number, step: number, size: number, h: number, color: string): Thing
+	local t = new("grid", h, n * step / 2)
+	for r = 1, n do
+		for c = 1, n do
+			local x = (c - (n + 1) / 2) * step
+			local z = (r - (n + 1) / 2) * step
+			add(t, "T" .. ((r - 1) * n + c), "Block", Vector3.new(size, h, size), Vector3.new(x, h / 2, z), color)
+		end
+	end
+	return t
+end
+
+-- A ring of n bars round `radius` on the floor, alternating colours a and b (a ring to stay in, a kerb).
+function MicroModels.hoop(radius: number, n: number, a: string, b: string, neon: boolean?): Thing
+	local t = new("hoop", 0.5, radius)
+	local len = radius * 2 * math.pi / n + 0.1
+	for i = 1, n do
+		local an = (i - 0.5) / n * math.pi * 2
+		add(t, "H" .. i, "Block", Vector3.new(len, 0.5, 0.75), Vector3.new(math.cos(an) * radius, 0.25, math.sin(an) * radius), if i % 2 == 0 then b else a, CFrame.Angles(0, -an + math.pi / 2, 0), neon)
 	end
 	return t
 end

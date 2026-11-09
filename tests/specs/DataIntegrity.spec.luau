@@ -11,7 +11,7 @@ local Decor = require("../../build/luautest/shared/Data/Decor")
 return function()
 	T.it("ideas: unique ids, names, kinds, odds, engines, words, colours", function()
 		local seen = {}
-		local engines = { dodge = 1, pick = 1, mash = 1, whack = 1, timing = 1, jump = 1, catch = 1, sequence = 1, rhythm = 1, slice = 1, hide = 1, stack = 1 }
+		local engines = { bombs = 1, collect = 1, tiles = 1, quiz = 1, sweep = 1, sumo = 1, zone = 1, barrage = 1, horde = 1, sneak = 1, paint = 1 }
 		local used: { [string]: number } = {}
 		for _, d in IdeasData.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
@@ -39,7 +39,7 @@ return function()
 		end
 	end)
 	T.it("modifiers: Plain first, rarer ones pay more, known effects", function()
-		local effects = { speed = true, tiny = true, shake = true, glitch = true, dark = true }
+		local effects = { speed = true, ice = true, rival = true, more = true, shrink = true }
 		T.eq(Modifiers.list[1].id, "plain")
 		T.eq(Modifiers.list[1].odds, 1)
 		for i, m in Modifiers.list do

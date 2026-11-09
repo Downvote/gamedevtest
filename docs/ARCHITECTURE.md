@@ -24,7 +24,8 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, StudioService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView, StreetLife),
                        Audio, Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
-                       Menus, MicroUI, MicroGames, MicroStage, PixelSprites, ArtData (generated), BuildUI, Words)
+                       Menus, MicroUI, MicroGames, MicroArena, MicroStage, SalesGraph, PixelSprites, ArtData
+                       (generated), BuildUI, Words)
 tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
 scripts/gen_pixelfont.py  the pixel font's glyph tables (copied; README "Fonts and licences")
@@ -55,11 +56,14 @@ ModuleScript; there are no `init.luau` files.
 
 `Look`, `Member` (an idea team member: `{ id, name, look, desk }`), `Card` (an idea on the board: `{ id, mod }`, a
 Data/Ideas id and a Data/Modifiers id), `Making` (the game being made: `{ title, ideas: { Card } x3, won: { -1 | 0 |
-1 } x3, seed }`), `Game` (a launched game: `{ id, title, ideas, rate, wins, at }`), `Upgrades` (`{ speed, luck }`),
-`Piece`, `PlotSave`, `Settings`, `Stats` (`{ games, rolls, best, earned }`), `Profile` (the save, version 3: `coins`,
-`rate` (every launched game's coins a second), `ideas` (the board), `found` ("idea|mod" -> count: the Index),
-`project`, `games`, `nextGame`, `upgrades`, `team`, `office`, `tut`, `stats`, `settings`, `createdAt`, `founder`,
-`plot`), `ClientView` (the profile's fields plus `plot` (the plot index), `rollEvery`, `luck`, `decor`), `ErrCode`,
+1 } x3, seed }`), `Game` (a launched game: `{ id, title, ideas, rate (coins a second at its peak), wins, at, peak
+(players), earned (coins while on sale) }`), `Live` (the game on sale: `{ id, title, top (the curve's peak players),
+life, age, players, earned, peak, seed, samples (players every LiveSampleSec) }`), `Upgrades` (`{ speed, luck }`),
+`Piece`, `PlotSave`, `Settings`, `Stats` (`{ games, rolls, best, earned }`), `Profile` (the save, version 4: `coins`,
+`ideas` (the board), `found` ("idea|mod" -> count: the Index), `project`, `games`, `live?` (the newest game while it
+sells, kept over when it has left the shops until the next is made), `nextGame`, `upgrades`, `team`, `office`, `tut`,
+`stats`, `settings`, `createdAt`, `founder`, `plot`), `ClientView` (the profile's fields plus `rate` (what the game on
+sale earns a second now), `live`, `plot` (the plot index), `rollEvery`, `luck`, `decor`), `ErrCode`,
 `Response`, and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The file is the reference for
 every field.
 
@@ -68,9 +72,11 @@ every field.
 - `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed; `GamesKept`), the idea team
   (`StartCoins`, `TeamSize`, `BoardSize`, `RollBase`, `RollStep`, `RollMin`, `LuckStep`, `RareOdds`, `CommonOdds`,
   `CommonFloor`, `TierOneIn` / `TierNames` / `TierColors`, `RevealTier`), the upgrades (`SpeedCost`, `SpeedGrowth`,
-  `LuckCost`, `LuckGrowth`), the income (`IdeaValue`, `IdeaValuePow`, `WinBoost`, `IncomeTickSec`), the microgames
-  (`MicroSeconds`, `MicroSecondsMin`, `MicroSecondsStep`, `MicroIntro`, `MicroMinSec`, `MicroMaxSec`, `DiffMax`,
-  `TurboSpeed`, `TurboClock`), the server's step and rate limit, the street (`MaxPlots`, `PlotSpacing`, `PlotPieces`,
+  `LuckCost`, `LuckGrowth`), the income (`IdeaValue`, `IdeaValuePow`, `WinBoost`, `IncomeTickSec`), the game on sale
+  (`CoinPerPlayer`, `LiveLife`, `LivePeakAt`, `LiveStart`, `LiveFall`, `LiveWobble`, `LiveJitter`, `LiveBuzzes`,
+  `LiveBuzz`, `LiveFloor`, `LiveSampleSec`, `LiveSamples`), the minigames (`MicroSeconds`, `MicroIntro`,
+  `MicroCountdown`, `MicroStageWait`, `MicroMinSec`, `MicroMaxSec`, `DiffMax`, `TurboSpeed`, `TurboClock`,
+  `FrenzyMore`), the server's step and rate limit, the street (`MaxPlots`, `PlotSpacing`, `PlotPieces`,
   `HomeCooldown`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45, `CamPitch` 30, `PixelTiers`,
   `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`, `CamGlide`,
   `CamBuildPan`, `PixelPanRays`, `PixelInvalidateRaysFrame`).
@@ -83,7 +89,7 @@ every field.
 |---|---|
 | `Data/Palette` | the LUT colours (`order`, `colors`), the office tiers' floor and wall themes (`themes`), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
 | `Data/Ideas` | the 24 ideas `{ id, name, kind (Genre / Theme), odds, micro (its engine), variant, word (its order), reuse, color, words }`; `list`, `byId` |
-| `Data/Modifiers` | the 7 modifiers `{ id, name, odds, mult, effects (speed tiny shake glitch dark), color, blurb }`, Plain first |
+| `Data/Modifiers` | the 7 modifiers `{ id, name, odds, mult, effects (speed ice rival more shrink), color, blurb }`, Plain first; `renamed` (the modifiers that went, by the one with their odds: tiny -> icy, shaky -> crowded, glitched -> frenzy, haunted -> shrinking) |
 | `Data/Names`, `Data/Looks` | the team's names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
 | `Data/Office` | the three rooms (`plans[tier]`: bounds, wall height, lot, desk anchors, props, windows, `OUTLINE` boxes), `origin(plot)` (Data/Street's), `seat(anchor)`, `outlinePts(tier, ox, oz)` and the desk and seat sizes |
 | `Data/Street` | the street (§12 of GAME_DESIGN): `MAX`, `SPACING`, `LAWN_Y` (-0.5), `ROAD` / `PAVE_N` / `PAVE_S` / `VERGE` (plot-local z bands), `FAR` / `END_FAR` (ground past the invisible walls: no sky at the world's edges), `LOT`, `plot(tier)` (the plot's rect), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `TREES` |
@@ -101,10 +107,11 @@ Pure rules (`src/shared/Logic`), all specced in `tests/specs`:
 | Module | API |
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
-| `Ideas` | the rolls (GAME_DESIGN 4): `ideaChances(luck)`, `modChances(luck)` (Rare and rarer at luck / odds, Uncommon at 1 / odds, the commonest share the rest, at least `CommonFloor`), `roll(rng, luck) -> Card`, `oneIn(card)` (the idea's odds times the modifier's), `tierOf(n)`, `tier`, `tierName`, `tierColor`, `name` ("Glitched Ninjas"), `value(card)` (coins a second), `difficulty(card)` (tier + reuse, 1..`DiffMax`), `title(cards, seed)`, `rate(cards, wins)`, `rollEvery(speed)`, `luck(level)`, `place(board, card) -> (slot, replaced?)` (room first; full: a rarer idea takes the commonest's place, else dropped), `key`, `valid` |
-| `Studio` | the rules over a profile, every action returning `(true, data?)` or `(false, ErrCode)` and changing the profile only on success: `rollIdea(profile, rng) -> Rolled` (`{ card, slot, replaced?, oneIn, tier, first }`: counted in the Index and the stats, placed on the board), `make(profile, a, b, c, seed)` (busy, bad_payload), `result(profile, slot, won)` (the best result counts; no_project), `wins(making)`, `launch(profile, now) -> Game` (no_project, not_built), `earn(profile, coins)`, `upgradeCost(k, level)`, `speedMaxed`, `buyUpgrade(profile, k)` (money, max, bad_payload), `rollEvery(profile)`, `luck(profile)`, `randomLook(rng)`, `newTeam(rng, n)`, `setFounder(profile, skin, hair, style, shirt)` |
+| `Ideas` | the rolls (GAME_DESIGN 4): `ideaChances(luck)`, `modChances(luck)` (Rare and rarer at luck / odds, Uncommon at 1 / odds, the commonest share the rest, at least `CommonFloor`), `roll(rng, luck) -> Card`, `oneIn(card)` (the idea's odds times the modifier's), `tierOf(n)`, `tier`, `tierName`, `tierColor`, `name` ("Frenzy Ninjas"), `value(card)` (coins a second at a game's peak), `difficulty(card)` (tier + reuse, 1..`DiffMax`), `title(cards, seed)`, `rate(cards, wins)` (a game's peak coins a second), `rollEvery(speed)`, `luck(level)`, `place(board, card) -> (slot, replaced?)` (room first; full: a rarer idea takes the commonest's place, else dropped), `key`, `valid` |
+| `Studio` | the rules over a profile, every action returning `(true, data?)` or `(false, ErrCode)` and changing the profile only on success: `rollIdea(profile, rng) -> Rolled` (`{ card, slot, replaced?, oneIn, tier, first }`: counted in the Index and the stats, placed on the board), `make(profile, a, b, c, seed)` (busy, bad_payload; takes the game on sale off: `retire`), `result(profile, slot, won)` (the best result counts; no_project), `wins(making)`, `launch(profile, now, seed?) -> Game` (no_project, not_built; the game goes on sale: `Live.new`), `retire(profile)` (the game on sale leaves the shops, its record keeping its peak and coins), `sell(profile, dt) -> (coins, endedNow)` (the game on sale ages dt seconds: `Live.step`), `earn(profile, coins)`, `upgradeCost(k, level)`, `speedMaxed`, `buyUpgrade(profile, k)` (money, max, bad_payload), `rollEvery(profile)`, `luck(profile)`, `randomLook(rng)`, `newTeam(rng, n)`, `setFounder(profile, skin, hair, style, shirt)` |
+| `Live` | the game on sale (GAME_DESIGN 6): `shape(x)` (LiveStart up to 1 at LivePeakAt, eased; then down to 0 at the end, `LiveFall`), `wobble(seed, age, life)` (1 + a smooth drift + jitter + LiveBuzzes seeded bumps, at least LiveFloor), `playersAt(live, age)`, `new(game, seed)` (top = rate / CoinPerPlayer), `over`, `earning(live?)` (coins a second now), `phase` (rising, peak, falling, off), `step(live, dt) -> (coins, endedNow)` (the players' average over the step; a sample every LiveSampleSec; a last 0), `brief(live)` (what Fx "coins" carries), `lifetime(rate)` (a whole life's coins without the wobble) |
 | `Plot` | the plot's rules: `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the office with a stud round it, the footpath, the sign, the mailbox), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" / "blocked" / "overlap" / "unknown")`, and the actions `buy` (once, with coins), `place` (an owned piece, up to the limit), `move`, `store` |
-| `Schema` | `VERSION` (3: the idea loop), `default(now, seed)`, `migrate(raw)` (1 -> 2: a founder and a plot; 2 -> 3: the old studio's fields dropped, its staff kept as the idea team, the tips start over), `reconcile(raw, now, seed)` (any table -> a valid Profile: cards that exist, the board at most `BoardSize`, a project only with three valid ideas, games' rates worked out again from their ideas, the income never below the listed games', the team one to a desk inside the room, owned decor that exists and placed pieces that fit) |
+| `Schema` | `VERSION` (4: one game on sale), `default(now, seed)`, `migrate(raw)` (1 -> 2: a founder and a plot; 2 -> 3: the old studio's fields dropped, its staff kept as the idea team, the tips start over; 3 -> 4: the summed rate dropped, the newest game goes on sale afresh), `reconcile(raw, now, seed)` (any table -> a valid Profile: cards that exist (an old modifier by its new name, `Modifiers.renamed`; Index counts merged), the board at most `BoardSize`, a project only with three valid ideas, games' rates worked out again from their ideas, the game on sale only when its game is listed (its curve rebuilt from the game's rate, its age, coins and samples kept), the team one to a desk inside the room, owned decor that exists and placed pieces that fit) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
 
 Models (`src/shared/Models`, Roblox modules):
@@ -130,7 +137,9 @@ Models (`src/shared/Models`, Roblox modules):
   sizes, baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin on the ground, facing +Z;
   kinds `crate cone coin bomb fish jelly alien rocket sprout flower zombie kid fruit half rock cactus cat slime ghost
   ball pancake pan basket soldier suspect gem orb star flag pad shape kart goal pedestal dashes specks lane hat sword
-  hammer can blaster`; `opts { color, alt }`), `slab(size, color, band?, neon?)` (a plain box), `place(t, cf)`,
+  hammer can blaster arrow shuriken meteor ring pillar`; `opts { color, alt }`), `slab(size, color, band?, neon?)` (a
+  plain box), `grid(n, step, size, h, color)` (a floor of n x n tiles `T1..`, one thing), `hoop(radius, n, a, b,
+  neon?)` (a ring of bars), `place(t, cf)`,
   `scale(t, k)` (squash and stretch from the built shape), `recolor(t, color?)` (all but the `Keep` parts; nil: back),
   `show(t, on)`, `has`, `SHAPES` (Match's). Ambient kinds (MicroStage, StreetLife): `bird butterfly ufo light flame
   yarn plane book drone crab spot car` (birds, bats, butterflies and drones have `WingL` / `WingR` to beat).
@@ -143,13 +152,14 @@ Models (`src/shared/Models`, Roblox modules):
 ### 7.1 Remotes (`Net`)
 `ReplicatedStorage.Remotes`: `Request` (RemoteFunction, C->S `(action, payload) -> Response`), `Signal` (RemoteEvent,
 C->S `(kind, payload)`; no handlers in this version), `State` (RemoteEvent, S->C the whole `ClientView` when it
-changed), `Fx` (RemoteEvent, S->C `{ kind = "idea", card, slot, replaced?, oneIn, tier, first }` for each new idea and
-`{ kind = "coins", coins, paid }` after each income payment). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
+changed), `Fx` (RemoteEvent, S->C `{ kind = "idea", card, slot, replaced?, oneIn, tier, first }` for each new idea,
+`{ kind = "coins", coins, paid, rate, live? }` every income tick while a game sells (`live`: `Live.brief`, the players
+and the newest sample) and `{ kind = "offsale", title, earned, peak }` when it leaves the shops). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
 
 ### 7.2 `Session`
 `create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, rollClock, payClock, coinFrac, dirty,
 saveAt, reqTimes, micro? }`; `micro: Micro = { slot, token, at, seed }` is the microgame in play), `get`, `remove`,
-`all`, `view(s) -> ClientView` (with `rollEvery` and `luck`), `markDirty`, `flush` (sends State when dirty),
+`all`, `view(s) -> ClientView` (with `rate` = `Live.earning`, `live`, `rollEvery` and `luck`), `markDirty`, `flush` (sends State when dirty),
 `fx(s, msg)`, `allow(s, now)` (the rate limit).
 
 ### 7.3 `Router` and the action catalogue
@@ -159,10 +169,10 @@ handler under pcall; success marks the session dirty).
 
 | Action | Payload | Rule (`Logic/Studio`) | Errors |
 |---|---|---|---|
-| `game.make` | `a b c` (board indices 1..16) | `make` (data: the Making) | busy, bad_payload |
+| `game.make` | `a b c` (board indices 1..16) | `make` (data: the Making; the game on sale leaves the shops) | busy, bad_payload |
 | `micro.start` | `slot` (1..3) | the session keeps `micro` (a new start replaces one in play: a retry at any time) (data: `{ slot, token, seed, diff, card }`) | no_project, bad_payload |
 | `micro.finish` | `token won` (`won` 0 or 1) | `result` with the result, a loss when a win comes sooner than `MicroMinSec` or any result later than `MicroMaxSec` after the start; lets go of `micro` (data: `{ slot, won }`) | busy (no microgame or a wrong token) |
-| `game.launch` | - | `launch` (data: the Game) | no_project, not_built |
+| `game.launch` | - | `launch` with a seed from the session's Rng (data: the Game; it goes on sale) | no_project, not_built |
 | `upgrade.buy` | `k` ("speed" / "luck") | `buyUpgrade` (data: `{ level, cost }`) | money, max |
 | `founder.set` | `skin hair style shirt` | `setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `settings.set` | `k` ("pixel"), `v` | the pixel tier: high, medium, low, off | bad_payload |
@@ -175,9 +185,10 @@ handler under pcall; success marks the session dirty).
 
 ### 7.4 `StudioService`
 Registers the actions above. `step(dt)` (Main's fixed 10 Hz step), for every ready session: the idea team's clock
-(`roll(s)` every `Studio.rollEvery`: `Studio.rollIdea`, then `Fx "idea"`), the income (`rate x dt` accumulated, the
-whole coins paid every `Tuning.IncomeTickSec` with `Fx "coins"`; the whole view is not sent for it), and a microgame
-left open past `Tuning.MicroMaxSec` dropped. Nothing holds the clocks.
+(`roll(s)` every `Studio.rollEvery`: `Studio.rollIdea`, then `Fx "idea"`), the game on sale (`Studio.sell(p, dt)`
+accumulated, the whole coins paid every `Tuning.IncomeTickSec` with `Fx "coins"` carrying its players; the whole view
+is not sent for it; when it leaves the shops the view is sent and `Fx "offsale"`), and a microgame left open past
+`Tuning.MicroMaxSec` dropped. Nothing holds the clocks; nothing sells while the player is away.
 
 ### 7.5 `PlotService` (the street)
 `init()` builds the whole street: `Workspace.Plots.Street` (every plot's road stretch and the street's ends) and an
@@ -187,7 +198,7 @@ free index, 0 when the street is full: Main kicks), `release(i)` (back to an emp
 tier (rebuilt only when `Static`'s `Built` attribute differs: a new folder goes up before the old comes down) and
 `Decor` by difference (`buildDecor(s)`: one model a piece, named `id:x:z:rot`; models whose piece is still there stay,
 gone ones are destroyed, new ones built), then `sync(s)`: the attributes `Tier`, `Games`, `Best` (the rarest idea's
-1 in N), `Rate` (the whole coins a second), `Crew` (a team member a `;`-separated entry `desk.skin.hair.style.shirt.0`)
+1 in N), `Rate` (the whole coins a second the game on sale earns), `Crew` (a team member a `;`-separated entry `desk.skin.hair.style.shirt.0`)
 and `Working` (always true: the team is always thinking), and the player's `Founder`
 (`skin.hair.style.shirt`) and `Plot` attributes (Main syncs every dirty session before sending its view; only changed
 values replicate). The founder: `watchCharacters(player)` (a new character goes to its footpath once it has a root),
@@ -211,7 +222,8 @@ first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `Worl
 
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Coins: Signal<number>`
-(an income payment: the view's `coins` is patched in place, no whole view comes), `request(action, payload) ->
+(an income payment: the view's `coins`, `rate` and `live` (its players, peak, coins, and the graph's newest sample) are
+patched in place, no whole view comes), `request(action, payload) ->
 Response` (never errors), `signal(kind, payload)`.
 
 ### 8.2 `Audio`
@@ -282,7 +294,7 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   street's finished layer is kept aside (its buffers and part ids) and restored at once when the street's key comes
   back, unless a part under `Workspace.Plots` came or went meanwhile (then it bakes again). `ready()`: the view now has
   its finished picture (always true in the classic style). `setOffset(dx, dy)`: the layer shifted by whole art px
-  (the microgames' shake).
+  (a hit's jolt in a minigame).
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects. The
@@ -346,19 +358,27 @@ while the founder is off their own lot, sending `char.home`), the menu bar (`Men
 `Menu_upgrades`, `Menu_games`, `Menu_looks`, `Menu_build`; while Build mode is open the bar, the card and the tips step
 aside), the card on the right: `BoardCard` (the newest four ideas in their tiers' colours and `MakeGame`, on with three
 ideas, opening the idea board) or, while a game is being made, `ProjectCard` (its title, its three ideas with WIN /
-lose / -, the sales boost, and `CardPlay` / `CardLaunch` opening the making card); the main button pulses. The tips
+lose / -, the sales boost, and `CardPlay` / `CardLaunch` opening the making card); the main button pulses. Under it
+`SalesCard` (on a phone at the top left, clear of Roblox's jump button) while a game is on sale: "On sale", its phase (Rising, At its peak!, Falling, Off sale), its title, its
+players' graph (`SalesGraph`), its players and coins a second (off sale: what it made), redrawn with every payment;
+`Fx "offsale"` brings a notice. The tips
 banner (`Tips`, "OK" sends `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`), and the reveal
 (`Reveal`: a Rare idea or better drops in at the top with its icon, tier, name, 1 in N and "New!", a sound by tier,
 confetti from Epic; over an open panel or the making card it is a notice in the status line instead). It reports its
 blocks to the camera (on PC the top strip, the menu bar and the card's place; on a phone Roblox's top bar and the menu
-bar). On `MicroUI.Launched` the team cheers (`WorldView.cheer`) with the new income.
+bar). On `MicroUI.Launched` the team cheers (`WorldView.cheer`) with the new game's peak income.
+`SalesGraph.new(parent, w, h, z) -> { frame, set(live?) }`: a column a UI px over the whole life (`LiveLife /
+LiveSampleSec + 1` samples), each the most players among its samples, scaled to the larger of the peak and the
+curve's top; the newest column white, a lighter top pixel, the peak marked in accent, the days to come a dotted floor,
+grey once off sale.
 
 ### 10.4 Menus
 `Menus` registers the panels: "ideas" (the board: a card per idea `Pick_<i>` with its icon, tier strip, modifier and
-1 in N; three picks numbered in order; the preview of the income; `Make` sends `game.make` and opens the making card;
-with a game in the works, `Continue`), "index" (`Entry_<id>` for every idea: its icon or its dark silhouette (`icon_<id>_sil`) and "???", its odds, a dot
+1 in N; three picks numbered in order; the preview of the peak income; while a game sells, a warning that making
+one takes it off sale; `Make` sends `game.make` and opens the making card; with a game in the works, `Continue`), "index" (`Entry_<id>` for every idea: its icon or its dark silhouette (`icon_<id>_sil`) and "???", its odds, a dot
 per modifier lit once found; "Found n of 168"), "upgrades" (`Buy_speed`, `Buy_luck` with their prices, following the
-coins as they come), "games" (the launched games, newest first, their ideas, rates and wins) and "looks" (the founder's
+coins as they come), "games" (the game on sale's big graph (`SalesGraph`) with its players, coins a second, peak, coins made and time
+left; then the launched games, newest first, their ideas, coins made, peak players and wins) and "looks" (the founder's
 portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt, `SaveLook` sends `founder.set`). `Words.errText(err)`
 words every ErrCode.
 
@@ -387,31 +407,35 @@ modifier, difficulty, WIN / LOSE and `Play_<i>` / `Retry_<i>`; the sales boost; 
 are played: `game.launch`, then the launch card with the income, confetti and `Nice`), `CloseMicro`; opened right
 after `game.make`, it waits for the view with the project), `refresh()` (the card follows the view), `isOpen()`,
 `Launched: Signal<Game>`, `play(slot, chain?)`, and for the sims and previews `playing() -> engine?`, `debugAuto()`
-(one right move, once the curtain has lifted) and `debugCtx()` (the last microgame's diff, speed, tiny, seconds,
-effects, area). A microgame plays full screen: `micro.start`, the card hidden with the `Hud` and `World` roots,
+(the auto player steers the founder this frame, once the round is live) and `debugCtx()` (the last minigame's diff,
+speed, seconds, effects, micro, area, ice, more, shrink, rivals). A minigame plays full screen: `micro.start`, the card hidden with the `Hud` and `World` roots,
 `MicroStage.open(variant)` (the camera's stage mode), the overlay `MicroPlay` on the `Stage` root (UIKit; its canvas is
 the world's art grid): `Area` (the engine's overlay, the whole screen), the `Header` strip (icon, `IdeaName`, the
 difficulty, `ModTag`), the `Footer` strip (`FuseBomb`, the `Fuse` rope, the `Spark` animation, `Hint`), the `Curtain`
-with `WordIcon`, `Word` and `GetReady` until the stage is `ready()` and `MicroIntro` has passed (at most
-`MicroStageWait`; the engine is posed meanwhile, keys and pads do nothing), then the engine runs (seconds:
-`MicroSeconds - MicroSecondsStep x (diff - 1)`, at least `MicroSecondsMin`, times the engine's `clock` and Turbo's
-`TurboClock`); the modifier's effects: `speed` (ctx.speed `TurboSpeed`), `tiny` (ctx.tiny: the targets shrink),
-`shake` (the stage's picture and the overlay jitter together: `PixelRenderer.setOffset`), `glitch` (`GlitchFlash`
-blinks over it), `dark` (`Dark1`..`Dark4` round a roving spotlight); a WIN / LOSE stamp (a flash; confetti for a win)
-while the engine's `after(t, won)` keeps the founder cheering or stumbling, then `micro.finish` (no sooner than
-`MicroMinSec` after the start), the stage closed (the street's picture back), the HUD back. The curtain is ink blinds (`Blind`) opening from the
+with `WordIcon`, `Word`, the round's `Rule` and `GetReady` until the stage is `ready()` and `MicroIntro` + 1 s has
+passed (at most `MicroStageWait`; the engine is posed meanwhile, keys and pads do nothing), then the curtain lifts,
+everyone drops in, the `Countdown` (3, 2, 1, GO!: `MicroCountdown`), then the engine runs for `MicroSeconds` (times
+Turbo's `TurboClock`); the modifier's effects (ctx): `speed` (`TurboSpeed`), `ice` (everyone slides), `rival` (5
+rivals, sharper), `more` (`FrenzyMore` times the hazards and pickups), `shrink` (the arena closes in); the round ends
+when the engine calls `win` / `lose` (decided early: the player out, the last one standing, the first to the door) or
+the clock runs out (`finish()` says who won); a WIN / LOSE stamp with the `Placing` line ("1st place: 12 coins",
+"Last one standing!", "Out in 3rd") while the engine's `after(t, won)` keeps everyone cheering or stumbling, then
+`micro.finish` (no sooner than `MicroMinSec` after the start), the stage closed (the street's picture back), the HUD
+back. A hit's jolt moves the stage's picture and the overlay a pixel (`PixelRenderer.setOffset`). The curtain is ink blinds (`Blind`) opening from the
 middle (`stage.lift()` drops the founder in); the burning end of the fuse spits bits; the last three seconds tick; a
 win plays combo and cheer with 3D confetti and sparks from the founder, a loss the sad trombone and a puff of dust; Play all goes on to the
 next unplayed slot. The runner owns the effects: `Pop` words, `Bit` bursts (1 px, their own Rng from the seed + 101),
 floats, the `Flash`. Its keys are bound through ContextActionService above the founder's walking keys (arrows, WASD,
-Space, Return, F, J, 1-6; UserInputService when that is not available).
+Space, Return, F, J, 1-6; UserInputService when that is not available); their presses and releases set `ctx.held`
+(the arena moves with the held arrows) and a press of the action key calls the engine's `key("go")`.
 `MicroStage` (client): `open(variant) -> Stage`, `current()`, `has(variant)`, the yaws `FACE_VIEWER FACE_RIGHT
 FACE_LEFT FACE_AWAY`, the ground's `U_DIR` (screen right) and `V_DIR` (toward the viewer), the set's fixed pieces
 `HOLE_U HOLE_V` (twelve whack holes), `BOARD` (the robot's 7 x 5 pads), `TOWER` (the site's base), `GOAL_V`. A stage
 is a folder `MicroStage` at Z = 9000 (far from the street: no ray of either view reaches the other): a 24 x 24 room
 (the ground all round, a floor of one colour or a checker, two back walls with trims, or a fence) and its props,
 then the founder (`CharacterModels.buildStanding` in the player's look, `AvatarView.lookOf`), registered dynamic with
-a blob shadow. `Stage { variant, floor, half, avatar, at(u, v, y) -> Vector3, spawn(kind, opts?, shadow?) -> Thing,
+a blob shadow. `Stage { variant, floor, half, avatar, rival(look, delay) -> Rival (a rival founder: `{ rig, pose(...),
+hide() }`, dropping in `delay` after the founder), at(u, v, y) -> Vector3, spawn(kind, opts?, shadow?) -> Thing,
 adopt(thing, shadow?), place(thing, u, v, y, yaw?, tilt?), remove, flash(thing, seconds?), glow(thing, on), refresh,
 screen(pos) -> (x, y, on) (UI px on the Stage canvas), hold(kind?) (in the founder's right hand), hat(kind?) (on their
 head), pose(u, v, y, yaw, t, speed, action, k?) (until `lift()` the founder hangs 8 studs up; then drops in 0.32 s and
@@ -422,12 +446,25 @@ close() }`. Each variant's ambient life (`AMBIENT`): circling birds and bats wit
 butterflies, blinking lights, flickering flames with embers, emitters of steam, smoke, bubbles, petals and twinkles,
 a yarn ball, a UFO, a bouncing ball, a paper plane, waving flags, a book, a drone, sweeping floor lights, a crab. Stage space: u to the screen's right, v toward
 the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
-`MicroGames`: the twelve engines `dodge timing mash whack pick sequence catch jump rhythm slice hide stack`, each
-`(ctx) -> Micro` with `ctx { area, w, h, stage, rng (the server's seed), diff, speed, tiny, variant (the idea's
-theme), pop(x, y, text, color), burst(x, y, colors, n?), float(gui, vx, vy, life, gravity?), flash(color), shake, win,
-lose, press }` and `Micro { update(t, dt), key(k), survive?, clock?, after?(t, won), auto() }`; every thing is a 3D
-`MicroModels` thing on the stage (Tiny: scaled 0.6), the founder posed every frame; tap targets are invisible buttons
-kept over the things' screen points; named buttons `Pad_<key>`, `Hole_<i>`, `Opt_<i>`, `Fruit_<i>` / `Bomb_<i>`.
+`MicroArena` (the party round): `new(ctx, mode, opts?) -> Arena` with mode `survive` (out on a hit; the last one
+standing wins, and anyone still standing at the end), `score` (the most points at the end; a tie for first wins) or
+`race` (the first to the finish), `opts { label, act (the action pad's word), tags (scores over the heads), starts,
+walls }`. The players `P` (1: the founder, then `ctx.rivals` rivals with random looks, shirts in their colours, names
+from Data/Names, skill `0.3 + 0.07 x diff (+ sharp)` give or take, a pace from it) move in room space (x, z along the
+world's axes; the keys along the screen) with a grip (Icy: little), jump (`JUMP_V`, `GRAV`), bump each other apart
+(the engine's `onBump`), and are knocked out flying (`knock`), posed every frame (the founder through `stage.pose`,
+the rivals through `Rival.pose`, `lift` raising them onto tiles or karts). The `Scoreboard` (a `Row_<i>` a player,
+sorted by standing), the `Tag`s over the heads ("YOU", scores), the touch pads (`Pad_up` `Pad_down` `Pad_left`
+`Pad_right` held, `Pad_go`), Shrinking's walls (four glowing bars closing to 4.5 studs over the round). The brains'
+helpers: `steer`, `react` (a rival's reaction time), `sees` (a danger seen after its reaction time), `safest(p, cost,
+spots?)` (the cheapest spot near and far by the engine's cost of being there, the way there checked a stud at a
+time), `dangerCost(p, dangers)`; `auto()` gives the founder the rivals' brain at full skill for the frame.
+`MicroGames`: the eleven engines `bombs collect tiles quiz sweep sumo zone barrage horde sneak paint`, each
+`(ctx) -> Micro` with `ctx { area, w, h, stage, rng (the server's seed), diff, speed, seconds, ice, more, shrink,
+rivals, sharp, held, variant (the idea's theme), pop(x, y, text, color), burst(x, y, colors, n?), float(gui, vx, vy,
+life, gravity?), flash(color), shake, win, lose, press }` and `Micro { update(t, dt) (dt 0: posed before GO), key(k),
+finish() -> (won, line), after(t, won), auto(), rule }`; every thing is a 3D `MicroModels` thing on the stage; the
+quiz's answers are labels `Opt_<i>` kept over their pads.
 
 ### 10.9 Sprites (`PixelSprites`, `ArtData`)
 `ArtData` (generated by `scripts/gen_art.py`; do not edit): `{ [name]: { w, h, px, pal, alpha } }`, one character a
@@ -444,7 +481,7 @@ shows the frame's `_flash`; `moveTo` rounds to whole UI px).
 ## 11. Verification
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
-  lists them: Util, Validate, Numbers, DataIntegrity, Ideas, Studio, Economy, Plot, Schema, Shading, Raster, Rim,
+  lists them: Util, Validate, Numbers, DataIntegrity, Ideas, Live, Studio, Economy, Plot, Schema, Shading, Raster, Rim,
   PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.

@@ -13,8 +13,26 @@ export type Card = { id: string, mod: string }
 -- The game being made (GAME_DESIGN 5): three ideas and each one's minigame result (-1 not played yet, 0 lost, 1 won).
 export type Making = { title: string, ideas: { Card }, won: { number }, seed: number }
 
--- A launched game (GAME_DESIGN 6): it earns `rate` coins a second for good.
-export type Game = { id: number, title: string, ideas: { Card }, rate: number, wins: number, at: number }
+-- A launched game (GAME_DESIGN 6): `rate` is what it earns a second at its peak; `peak` the most players it had and
+-- `earned` the coins it made while on sale (both grow while it is the live game).
+export type Game = { id: number, title: string, ideas: { Card }, rate: number, wins: number, at: number, peak: number, earned: number }
+
+-- The game on sale (GAME_DESIGN 6, Logic/Live): only the newest launched game sells. Its players climb to a peak and
+-- fall away until it leaves the shops `life` seconds after the launch, fluctuating on the way (from `seed`); each
+-- player earns Tuning.CoinPerPlayer a second. `age` counts only the seconds its player was here. `samples` holds the
+-- player count every Tuning.LiveSampleSec (the graph), the first at the launch.
+export type Live = {
+	id: number,
+	title: string,
+	top: number, -- the players at the curve's peak (before the fluctuation)
+	life: number,
+	age: number,
+	players: number,
+	earned: number,
+	peak: number, -- the most players it had so far
+	seed: number,
+	samples: { number },
+}
 
 export type Upgrades = { speed: number, luck: number }
 
@@ -31,11 +49,11 @@ export type Stats = { games: number, rolls: number, best: number, earned: number
 export type Profile = {
 	v: number,
 	coins: number,
-	rate: number, -- coins a second from every launched game
 	ideas: { Card }, -- the idea board (at most Tuning.BoardSize)
 	found: { [string]: number }, -- "idea|mod" -> how many times the team thought of it (the Index)
 	project: Making?,
-	games: { Game }, -- the newest launched games, at most Tuning.GamesKept (the rate keeps every one)
+	games: { Game }, -- the newest launched games, at most Tuning.GamesKept
+	live: Live?, -- the game on sale (the newest one, until it leaves the shops or the next game is made)
 	nextGame: number,
 	upgrades: Upgrades,
 	team: { Member },
@@ -51,7 +69,8 @@ export type Profile = {
 -- What the client sees (Session.view): the profile plus derived fields.
 export type ClientView = {
 	coins: number,
-	rate: number,
+	rate: number, -- coins a second the game on sale earns right now
+	live: Live?,
 	ideas: { Card },
 	found: { [string]: number },
 	project: Making?,

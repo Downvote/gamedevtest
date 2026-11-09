@@ -12,7 +12,8 @@ local StateClient = {}
 local current: Types.ClientView? = nil
 StateClient.Changed = Util.Signal() :: Types.Signal<Types.ClientView>
 StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
--- The coins after an income payment (Fx "coins"): the view's coins are patched in place, no whole view is sent.
+-- The coins after an income payment (Fx "coins"): the view's coins, rate and game on sale are patched in place, no
+-- whole view is sent.
 StateClient.Coins = Util.Signal() :: Types.Signal<number>
 
 function StateClient.init()
@@ -28,6 +29,19 @@ function StateClient.init()
 			local cur = current
 			if msg.kind == "coins" and type(msg.coins) == "number" and cur then
 				cur.coins = msg.coins
+				if type(msg.rate) == "number" then
+					cur.rate = msg.rate
+				end
+				-- the game on sale's players: its numbers, and the graph's newest sample when one was added
+				local b, l = msg.live, cur.live
+				if type(b) == "table" and l and b.id == l.id and type(b.n) == "number" then
+					l.age, l.players, l.earned, l.peak = b.age, b.players, b.earned, b.peak
+					if b.n == #l.samples + 1 then
+						table.insert(l.samples, b.last)
+					elseif b.n == #l.samples then
+						l.samples[#l.samples] = b.last
+					end
+				end
 				StateClient.Coins:Fire(msg.coins)
 			end
 			StateClient.Fx:Fire(msg)

@@ -18,7 +18,7 @@ local Tuning = {
 	AutosaveSec = 120,
 	LockTTL = 330, -- s: a session lock older than this is stale (a crashed server)
 	LoadRetries = 4,
-	GamesKept = 50, -- the profile lists the newest launched games; every one keeps earning (Profile.rate)
+	GamesKept = 50, -- the profile lists the newest launched games (only the newest one sells: Profile.live)
 
 	-- the idea team (GAME_DESIGN 3, 4)
 	StartCoins = 0,
@@ -38,28 +38,42 @@ local Tuning = {
 	RevealTier = 3, -- ideas of this tier and up get the big reveal
 
 	-- upgrades (GAME_DESIGN 7): price = base x growth ^ level
-	SpeedCost = 50,
-	SpeedGrowth = 2.5,
-	LuckCost = 80,
-	LuckGrowth = 2.5,
+	SpeedCost = 40,
+	SpeedGrowth = 1.8,
+	LuckCost = 60,
+	LuckGrowth = 1.8,
 
-	-- launched games (GAME_DESIGN 6): an idea earns IdeaValue x odds ^ IdeaValuePow x its modifier's mult a second
-	IdeaValue = 0.5,
-	IdeaValuePow = 0.35,
-	WinBoost = 1 / 3, -- each won minigame adds this to the game's income (all three: x2)
-	IncomeTickSec = 1, -- the server pays the games' income this often
+	-- launched games (GAME_DESIGN 6): at its peak a game earns the sum of its ideas' worth, IdeaValue x odds ^
+	-- IdeaValuePow x its modifier's mult each, a second
+	IdeaValue = 1.5,
+	IdeaValuePow = 0.7,
+	WinBoost = 1 / 3, -- each won minigame adds this to the game's sales (all three: x2)
+	IncomeTickSec = 1, -- the server pays the game on sale's coins this often
+	-- the game on sale (Logic/Live): its players' curve over its life
+	CoinPerPlayer = 0.05, -- coins a player earns a second
+	LiveLife = 300, -- seconds on sale (a whole number of LiveSampleSec)
+	LivePeakAt = 0.2, -- the players peak this share of the way through ...
+	LiveStart = 0.15, -- ... from this share of the peak at the launch ...
+	LiveFall = 1.6, -- ... and fall away to none by the end (higher: the fall starts faster)
+	LiveWobble = 0.16, -- the slow drift up and down (share of the curve)
+	LiveJitter = 0.08, -- the second-to-second jitter
+	LiveBuzzes = 2, -- bumps of buzz on the way down (a streamer finds it) ...
+	LiveBuzz = 0.35, -- ... lifting the players by up to this share
+	LiveFloor = 0.3, -- the wobble never takes the players below this share of the curve
+	LiveSampleSec = 3, -- the graph's step
+	LiveSamples = 120, -- samples kept at most (LiveLife / LiveSampleSec + 2 fits)
 
 	-- microgames (GAME_DESIGN 5)
-	MicroSeconds = 6, -- a microgame's clock at difficulty 1 ...
-	MicroSecondsMin = 4, -- ... shortening with difficulty to this
-	MicroSecondsStep = 0.25,
-	MicroIntro = 0.9, -- the instruction word shows this long before the clock starts
+	MicroSeconds = 30, -- a minigame round's clock (an engine's `clock` scales it; last one standing ends it sooner)
+	MicroIntro = 0.9, -- the instruction word shows this long on the curtain at least
+	MicroCountdown = 3, -- then 3, 2, 1, GO! on the stage before the clock starts
 	MicroStageWait = 6, -- seconds the curtain waits at most for a microgame stage's picture
 	MicroMinSec = 1, -- a win sooner than this after the start counts as a loss
-	MicroMaxSec = 60, -- a result later than this counts as a loss
+	MicroMaxSec = 150, -- a result later than this counts as a loss
 	DiffMax = 8,
 	TurboSpeed = 1.35, -- the Turbo modifier: everything this much faster ...
 	TurboClock = 0.8, -- ... on a clock this much shorter
+	FrenzyMore = 1.6, -- the Frenzy modifier: hazards and pickups this many times as often
 
 	-- server
 	StepHz = 10,

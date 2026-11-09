@@ -1,14 +1,16 @@
 --!strict
 -- The studio on the server (docs/ARCHITECTURE.md 7.4): every player action and the two clocks, as thin wrappers round
 -- Logic/Studio (the rules) that mark the session dirty and tell the client what happened. The idea team thinks up an
--- idea every Studio.rollEvery seconds (Fx "idea"); the launched games pay their income every Tuning.IncomeTickSec
--- (Fx "coins", so the whole view is not sent every second). Both run while the player is here, whatever they do.
+-- idea every Studio.rollEvery seconds (Fx "idea"); the game on sale (Logic/Live) ages with the clock and its coins are
+-- paid every Tuning.IncomeTickSec (Fx "coins" with its players, so the whole view is not sent every second; Fx
+-- "offsale" when it leaves the shops). Both run while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
 local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
+local Live = require(ReplicatedStorage.Shared.Logic.Live)
 local Session = require(script.Parent.Session)
 local Router = require(script.Parent.Router)
 local PlotService = require(script.Parent.PlotService)
@@ -18,11 +20,12 @@ local StudioService = {}
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
 function StudioService.init()
-	-- making a game (GAME_DESIGN 5)
+	-- making a game (GAME_DESIGN 5): the game on sale leaves the shops
 	Router.on("game.make", function(s, a)
 		local ok, data = Studio.make(s.profile, a.a, a.b, a.c, s.rng:int(1, 999999))
 		if ok then
 			s.micro = nil
+			s.coinFrac = 0
 		end
 		return ok, data
 	end)
@@ -49,7 +52,7 @@ function StudioService.init()
 		return Studio.result(s.profile, micro.slot, won)
 	end)
 	Router.on("game.launch", function(s, _a)
-		local ok, data = Studio.launch(s.profile, os.time())
+		local ok, data = Studio.launch(s.profile, os.time(), s.rng:int(1, 999999))
 		if ok then
 			s.micro = nil
 		end
@@ -128,7 +131,8 @@ function StudioService.step(dt: number)
 			guard += 1
 			StudioService.roll(s)
 		end
-		s.coinFrac += p.rate * dt
+		local coins, ended = Studio.sell(p, dt)
+		s.coinFrac += coins
 		s.payClock += dt
 		if s.payClock >= Tuning.IncomeTickSec then
 			s.payClock -= Tuning.IncomeTickSec
@@ -136,8 +140,16 @@ function StudioService.step(dt: number)
 			if whole > 0 then
 				s.coinFrac -= whole
 				Studio.earn(p, whole)
-				Session.fx(s, { kind = "coins", coins = p.coins, paid = whole })
 			end
+			local l = p.live
+			if whole > 0 or (l and not Live.over(l)) then
+				Session.fx(s, { kind = "coins", coins = p.coins, paid = whole, rate = Live.earning(l), live = if l then Live.brief(l) else nil })
+			end
+		end
+		if ended then
+			local l = p.live :: any
+			Session.markDirty(s)
+			Session.fx(s, { kind = "offsale", title = l.title, earned = math.floor(l.earned + 0.5), peak = l.peak })
 		end
 		local micro = s.micro
 		if micro and now - micro.at > Tuning.MicroMaxSec then

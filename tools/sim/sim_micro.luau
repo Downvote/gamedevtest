@@ -1,10 +1,10 @@
--- The microgames (GAME_DESIGN 5; docs/ARCHITECTURE.md 7.4, 10.8): every one of the 24 ideas' microgames played
--- through the real making card to a WIN by MicroUI.debugAuto (one right move a frame), each of the 12 engines lost by
--- doing nothing, a retry never losing a win, the difficulty from the rarity (and a reused engine a step harder), each
--- modifier's effect on the runner (Turbo's speed and shorter fuse, Tiny's scale, Shaky, Glitched, Haunted's dark,
--- Cosmic's three), Play all chaining the slots, Launch only once all three are played, and the server's rules: a new
--- start replaces the one in play, a stale or wrong token refused, a win sooner than MicroMinSec a loss, a player
--- leaving mid-game.
+-- The minigames (GAME_DESIGN 5; docs/ARCHITECTURE.md 7.4, 10.8): every one of the 24 ideas' party rounds played
+-- through the real making card to a WIN by MicroUI.debugAuto (the rivals' brains at full skill steering the founder),
+-- each of the 11 engines lost by doing nothing, a retry never losing a win, the difficulty from the rarity (and a
+-- reused engine a step harder), the rivals and the scoreboard on the stage, each modifier's effect on the runner
+-- (Turbo's speed and shorter fuse, Icy, Crowded's two more rivals, Frenzy, Shrinking's closing walls, Cosmic's three),
+-- Play all chaining the slots, Launch only once all three are played, and the server's rules: a new start replaces
+-- the one in play, a stale or wrong token refused, a win sooner than MicroMinSec a loss, a player leaving mid-game.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -45,8 +45,17 @@ local function playIdea(card: any, auto: boolean): (boolean, string?, any)
 	-- the runner's layers, looked at while the game is up
 	if ctx then
 		ctx = table.clone(ctx)
-		ctx.dark = ctx.area:FindFirstChild("Dark1") ~= nil and ctx.area:FindFirstChild("Dark4") ~= nil
-		ctx.glitchLayer = ctx.area:FindFirstChild("GlitchFlash") ~= nil
+		local board = ctx.area:FindFirstChild("Scoreboard")
+		local rows = 0
+		if board then
+			for _, r in board:GetChildren() do
+				if string.sub(r.Name, 1, 4) == "Row_" then
+					rows += 1
+				end
+			end
+		end
+		ctx.rows = rows
+		ctx.pads = ctx.area:FindFirstChild("Pad_up") ~= nil and ctx.area:FindFirstChild("Pad_go") ~= nil
 	end
 	E.runUntil(function()
 		if auto then
@@ -68,6 +77,7 @@ for _, d in IdeasData.list do
 	local won, kind, ctx = playIdea({ id = d.id, mod = "plain" }, true)
 	H.expect(kind == d.micro, "micro", d.id .. " runs its engine " .. d.micro, tostring(kind))
 	H.expect(ctx ~= nil and ctx.diff == Ideas.difficulty({ id = d.id, mod = "plain" }), "micro", d.id .. ": the difficulty from its rarity", tostring(ctx and ctx.diff))
+	H.expect(ctx ~= nil and ctx.rivals == 3 and ctx.rows == 4 and ctx.pads, "micro", d.id .. ": three rivals on the scoreboard, the touch pads", string.format("%s rivals, %s rows", tostring(ctx and ctx.rivals), tostring(ctx and ctx.rows)))
 	if won then
 		wonCount += 1
 		engines[d.micro] = true
@@ -96,7 +106,7 @@ H.expect(won, "micro", "a win first")
 H.clickNamed(p, "Retry_1", { wait = 0.1 })
 E.runUntil(function()
 	return s.micro == nil and H.inClient(p, MUI.playing) == nil and H.buttonNamed(p, "Retry_1") ~= nil
-end, 30, 0.05)
+end, 60, 0.05)
 E.run(0.4)
 H.expect(prof.project.won[1] == 1, "micro", "a lost retry keeps the win")
 
@@ -113,21 +123,22 @@ for _, m in Modifiers.list do
 		if ctx then
 			H.expect(ctx.diff > plainCtx.diff or m.odds < 10, "micro", m.id .. ": a rarer card plays harder", string.format("%d vs %d", ctx.diff, plainCtx.diff))
 			H.expect((ctx.speed > 1) == (e.speed == true), "micro", m.id .. ": the speed effect", tostring(ctx.speed))
-			H.expect(ctx.tiny == (e.tiny == true), "micro", m.id .. ": the tiny effect", tostring(ctx.tiny))
-			H.expect(ctx.dark == (e.dark == true), "micro", m.id .. ": the dark effect")
+			H.expect(ctx.ice == (e.ice == true), "micro", m.id .. ": the icy floor", tostring(ctx.ice))
+			H.expect((ctx.more > 1) == (e.more == true), "micro", m.id .. ": more of everything", tostring(ctx.more))
+			H.expect(ctx.shrink == (e.shrink == true), "micro", m.id .. ": the closing walls", tostring(ctx.shrink))
+			H.expect(ctx.rivals == (if e.rival then 5 else 3) and ctx.rows == ctx.rivals + 1, "micro", m.id .. ": the rivals", string.format("%s rivals, %s rows", tostring(ctx.rivals), tostring(ctx.rows)))
 			if e.speed then
-				H.expect(ctx.seconds < plainCtx.seconds * Tuning.TurboClock + 1e-6 + Tuning.MicroSecondsStep * 8, "micro", m.id .. ": a shorter fuse", string.format("%.2f vs %.2f", ctx.seconds, plainCtx.seconds))
+				H.expect(math.abs(ctx.seconds - plainCtx.seconds * Tuning.TurboClock) < 1e-6, "micro", m.id .. ": a shorter fuse", string.format("%.2f vs %.2f", ctx.seconds, plainCtx.seconds))
 			end
-			H.expect(ctx.glitchLayer, "micro", m.id .. ": the runner's glitch layer is there")
 		else
 			H.finding("micro", m.id .. ": no runner settings")
 		end
-		H.expect(kind == "dodge", "micro", m.id .. ": still Action's engine")
+		H.expect(kind == "bombs", "micro", m.id .. ": still Action's engine")
 		local _ = w
 	end
 end
 -- Tuning.TurboClock and the effects lists stay what the design says
-H.expect(#Modifiers.byId.cosmic.effects == 3, "micro", "Cosmic is Turbo, Shaky and Glitched at once")
+H.expect(#Modifiers.byId.cosmic.effects == 3, "micro", "Cosmic is Turbo, Frenzy and Shrinking at once")
 
 ------------------------------------------------------------------ Play all and Launch
 E.phase = "play-all"
@@ -147,12 +158,11 @@ E.runUntil(function()
 	H.inClient(p, MUI.debugAuto)
 	local pr = prof.project
 	return pr ~= nil and pr.won[3] >= 0 and H.buttonNamed(p, "Launch") ~= nil
-end, 90, 0.05)
+end, 240, 0.05)
 H.expect(seen[1] and seen[2] and seen[3], "micro", "Play all plays the three in turn")
 H.expect(prof.project.won[1] >= 0 and prof.project.won[2] >= 0 and prof.project.won[3] >= 0, "micro", "all three played")
-local rate0 = prof.rate
 H.clickNamed(p, "Launch", { wait = 0.8 })
-H.expect(prof.project == nil and prof.rate > rate0, "micro", "launched: the income grows")
+H.expect(prof.project == nil and prof.live ~= nil and prof.live.id == prof.games[#prof.games].id, "micro", "launched: it is on sale")
 H.clickNamed(p, "Nice", { wait = 0.4 })
 
 ------------------------------------------------------------------ the server's rules

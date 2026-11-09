@@ -1,16 +1,17 @@
 --!strict
 -- Making a game (GAME_DESIGN 5, 6; docs/ARCHITECTURE.md 10.8): the card with the game's three ideas, each one's
--- microgame (Play, Retry at any time, or Play all for the ones not played yet), the sales boost so far, and Launch!
--- once all three have been played. A microgame: the server starts it (micro.start: a token, a seed, the difficulty),
+-- minigame (Play, Retry at any time, or Play all for the ones not played yet), the sales boost so far, and Launch!
+-- once all three have been played. A minigame: the server starts it (micro.start: a token, a seed, the difficulty),
 -- it plays full screen in 3D: the idea's stage (UI/MicroStage, a diorama room the pixel filter draws like the office)
--- with the player's own founder in it, the HUD hidden. A curtain with the idea's icon and order word covers the
--- screen while the stage's picture is baked (MicroIntro at least), then the engine (UI/MicroGames) runs while a rope
--- fuse burns down to its bomb along the bottom (shorter with the difficulty); the idea's modifier changes how it
--- plays (Turbo faster on a shorter fuse, Tiny small targets, Shaky the screen shakes, Glitched it blinks out, Haunted
--- only a roving spotlight shows it, Cosmic all but the dark). A WIN or LOSE stamp while the founder cheers or
--- stumbles, then micro.finish with the result, and back to the card over the street. The runner also draws the
--- engines' effects over the stage: floating words, bursts of 1 px bits, floating sprites and flashes. The launch card
--- shows the income it earns for good. While a microgame runs its keys are bound above the founder's walking keys.
+-- with the player's own founder and the rival founders in it (UI/MicroArena), the HUD hidden. A curtain with the
+-- idea's icon, its order word and the round's rule covers the screen while the stage's picture is baked (MicroIntro
+-- at least); it lifts, everyone drops in, 3, 2, 1, GO!, then the engine (UI/MicroGames) runs its party round while a
+-- rope fuse burns down to its bomb along the bottom (Tuning.MicroSeconds); the idea's modifier changes how it plays
+-- (Turbo faster on a shorter fuse, Icy slippery, Crowded more and sharper rivals, Frenzy more of everything,
+-- Shrinking the arena closes in, Cosmic three at once). A WIN or LOSE stamp with the placing while the winners cheer,
+-- then micro.finish with the result, and back to the card over the street. The runner also draws the engines'
+-- effects over the stage: floating words, bursts of 1 px bits, floating sprites and flashes. The launch card shows
+-- the game going on sale. While a minigame runs its keys are bound above the founder's walking keys, held ones too.
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -248,18 +249,19 @@ showCard = function()
 end
 
 ------------------------------------------------------------------ a microgame
-local function bindKeys(fn: (string) -> ()): () -> ()
+-- The keys while a minigame runs: fn(key, down) on each press and release (the arena moves with the held ones).
+local function bindKeys(fn: (string, boolean) -> ()): () -> ()
 	local keys: { Enum.KeyCode } = {}
 	for k in KEYMAP do
 		table.insert(keys, k)
 	end
 	local ok = pcall(function()
 		ContextActionService:BindActionAtPriority(ACTION, function(_name: string, state: Enum.UserInputState, input: InputObject): Enum.ContextActionResult
-			if state == Enum.UserInputState.Begin then
-				local m = KEYMAP[input.KeyCode]
-				if m then
-					fn(m)
-				end
+			local m = KEYMAP[input.KeyCode]
+			if m and state == Enum.UserInputState.Begin then
+				fn(m, true)
+			elseif m and (state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel) then
+				fn(m, false)
 			end
 			return Enum.ContextActionResult.Sink
 		end, false, Enum.ContextActionPriority.High.Value + 10, table.unpack(keys))
@@ -275,12 +277,19 @@ local function bindKeys(fn: (string) -> ()): () -> ()
 		if not processed then
 			local m = KEYMAP[input.KeyCode]
 			if m then
-				fn(m)
+				fn(m, true)
 			end
+		end
+	end)
+	local conn2 = UserInputService.InputEnded:Connect(function(input: InputObject)
+		local m = KEYMAP[input.KeyCode]
+		if m then
+			fn(m, false)
 		end
 	end)
 	return function()
 		conn:Disconnect()
+		conn2:Disconnect()
 	end
 end
 
@@ -438,6 +447,8 @@ playSlot = function(slot: number, chain: boolean)
 	local shakeUntil = 0
 	local outcome: boolean? = nil
 	local engine: Games.Micro? = nil
+	local held: { [string]: boolean } = {}
+	local seconds = Tuning.MicroSeconds * (if has(effects, "speed") then Tuning.TurboClock else 1)
 	local ctx: Games.Ctx = {
 		area = area,
 		w = w,
@@ -446,7 +457,13 @@ playSlot = function(slot: number, chain: boolean)
 		rng = Util.newRng(tonumber(data.seed) or 1),
 		diff = diff,
 		speed = if has(effects, "speed") then Tuning.TurboSpeed else 1,
-		tiny = has(effects, "tiny"),
+		seconds = seconds,
+		ice = has(effects, "ice"),
+		more = if has(effects, "more") then Tuning.FrenzyMore else 1,
+		shrink = has(effects, "shrink"),
+		rivals = if has(effects, "rival") then 5 else 3,
+		sharp = if has(effects, "rival") then 0.12 else 0,
+		held = held,
 		variant = def.variant,
 		pop = function(x: number, y: number, text: string, color: Color3)
 			local tw = UIKit.textWidth(text) + 4
@@ -498,38 +515,21 @@ playSlot = function(slot: number, chain: boolean)
 	end)
 	if not okE then
 		warn("[MicroUI] " .. def.micro .. ": " .. tostring(built))
-		built = { update = function() end, key = function() end, auto = function() end, survive = true }
+		built = {
+			update = function() end,
+			key = function() end,
+			auto = function() end,
+			after = function() end,
+			finish = function(): (boolean, string)
+				return false, ""
+			end,
+			rule = "",
+		}
 	end
 	engine = built :: Games.Micro
 	local eng = engine :: Games.Micro
 	playing, playingKind = eng, def.micro
-	local base = math.max(Tuning.MicroSecondsMin, Tuning.MicroSeconds - Tuning.MicroSecondsStep * (diff - 1))
-	local seconds = math.min(Tuning.MicroMaxSec - 10, base * (eng.clock or 1) * (if has(effects, "speed") then Tuning.TurboClock else 1))
-	if eng.clock == 99 then
-		seconds = Tuning.MicroMaxSec - 10 -- the song decides when it ends
-	end
-	lastCtx = { diff = diff, speed = ctx.speed, tiny = ctx.tiny, seconds = seconds, effects = effects, micro = def.micro, area = area }
-
-	-- the modifiers' screen effects
-	local dark: { Frame } = {}
-	if has(effects, "dark") then
-		for i = 1, 4 do
-			local r = UIKit.rect(area, UDim2.fromOffset(1, 1), nil, UIKit.color("ink"), 25)
-			r.Name = "Dark" .. i
-			r.Active = false
-			table.insert(dark, r)
-		end
-	end
-	local glitchAt, glitchUntil = 0.6, 0
-	local fx = Instance.new("Frame")
-	fx.Name = "GlitchFlash"
-	fx.BackgroundColor3 = UIKit.color("screen_code")
-	fx.BackgroundTransparency = 1
-	fx.BorderSizePixel = 0
-	fx.Size = UDim2.fromScale(1, 1)
-	fx.ZIndex = 26
-	fx.Active = false
-	fx.Parent = area
+	lastCtx = { diff = diff, speed = ctx.speed, seconds = seconds, effects = effects, micro = def.micro, area = area, ice = ctx.ice, more = ctx.more, shrink = ctx.shrink, rivals = ctx.rivals }
 
 	-- the curtain: blinds of ink over the screen while the stage's picture is baked, the idea's icon and its order word
 	-- on them; they open from the middle once the stage is ready and the word has shown for MicroIntro (the
@@ -563,7 +563,8 @@ playSlot = function(slot: number, chain: boolean)
 			UIKit.tween(word, 0.1, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 4) })
 		end
 	end)
-	local ready = UIKit.text(pf, "Get ready...", UDim2.fromOffset(w, 10), UDim2.fromOffset(0, math.floor(h / 2) + 18), { x = "center", color = UIKit.color("text_dim"), z = 40, name = "GetReady" })
+	local rule = UIKit.text(pf, eng.rule, UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 18), { x = "center", color = UIKit.color("text"), z = 40, name = "Rule" })
+	local ready = UIKit.text(pf, string.format("You and %d rivals. Get ready...", ctx.rivals), UDim2.fromOffset(w, 10), UDim2.fromOffset(0, math.floor(h / 2) + 30), { x = "center", color = UIKit.color("text_dim"), z = 40, name = "GetReady" })
 	Audio.play("ding")
 	local function openBlinds()
 		curtain:SetAttribute("Lifted", true)
@@ -586,8 +587,9 @@ playSlot = function(slot: number, chain: boolean)
 	end
 
 	live = false
-	local unbind = bindKeys(function(k: string)
-		if outcome == nil and mode == "play" and live then
+	local unbind = bindKeys(function(k: string, down: boolean)
+		held[k] = down
+		if down and outcome == nil and mode == "play" and live then
 			eng.key(k)
 		end
 	end)
@@ -598,7 +600,7 @@ playSlot = function(slot: number, chain: boolean)
 	local wonAs = false
 	local finishedAt = 0
 	local conn: RBXScriptConnection? = nil
-	local function finish(won: boolean)
+	local function finish(won: boolean, line: string?)
 		if finished then
 			return
 		end
@@ -608,7 +610,8 @@ playSlot = function(slot: number, chain: boolean)
 		finishedAt = os.clock()
 		playing, playingKind = nil, nil
 		unbind()
-		-- the stamp drops in with a bounce (the stage and the effects keep moving under it)
+		table.clear(held)
+		-- the stamp drops in with a bounce (the stage and the effects keep moving under it), the placing under it
 		local sy = math.floor(h / 2) - 30
 		local stamp = UIKit.text(pf, if won then "WIN!" else "LOSE", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, sy - 30), { x = "center", face = "big", kind = "title", color = if won then UIKit.color("good") else UIKit.color("bad"), z = 40, name = "Stamp" })
 		UIKit.tween(stamp, 0.12, { Position = UDim2.fromOffset(0, sy + 4) })
@@ -617,6 +620,9 @@ playSlot = function(slot: number, chain: boolean)
 				UIKit.tween(stamp, 0.1, { Position = UDim2.fromOffset(0, sy) })
 			end
 		end)
+		if line and line ~= "" then
+			UIKit.text(pf, line, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, sy + 22), { x = "center", color = UIKit.color("text"), kind = "outline", z = 40, name = "Placing" })
+		end
 		ctx.flash(if won then "white" else "bad")
 		spark.f.Visible = false
 		local torso = stage.avatar.rig.parts.Torso
@@ -660,6 +666,7 @@ playSlot = function(slot: number, chain: boolean)
 		end)
 	end
 	local fxLast = os.clock()
+	local countLabel: TextLabel? = nil
 	local nextSpark = 0
 	local lastTick = 4
 	conn = RunService.Heartbeat:Connect(function()
@@ -730,15 +737,16 @@ playSlot = function(slot: number, chain: boolean)
 			area.Position = UDim2.fromOffset(0, 0)
 			return
 		end
-		-- the curtain lifts once the stage is baked (or after a few seconds, whatever) and the word has shown
+		-- the curtain lifts once the stage is baked (or after a few seconds, whatever) and the word has shown; everyone
+		-- drops in, then 3, 2, 1, GO!
 		if t0 == math.huge then
-			if (stage.ready() and now - opened >= Tuning.MicroIntro) or now - opened > Tuning.MicroStageWait then
-				t0 = now
-				last = now
-				live = true
+			if (stage.ready() and now - opened >= Tuning.MicroIntro + 1) or now - opened > Tuning.MicroStageWait then
+				t0 = now + Tuning.MicroCountdown
+				last = t0
 				openBlinds()
 				stage.lift()
 				ready:Destroy()
+				rule:Destroy()
 				task.delay(0.35, function()
 					if word.Parent then
 						word:Destroy()
@@ -746,11 +754,42 @@ playSlot = function(slot: number, chain: boolean)
 					end
 				end)
 			else
-				-- the stage stands still behind the curtain, the founder in place
+				-- the stage stands still behind the curtain, everyone in place
 				pcall(function()
 					eng.update(0, 0)
 				end)
 				return
+			end
+		end
+		if now < t0 then
+			pcall(function()
+				eng.update(0, 0)
+			end)
+			local n = math.ceil(t0 - now)
+			local txt = if n >= 1 and n <= 3 then tostring(n) else ""
+			if countLabel == nil then
+				countLabel = UIKit.text(pf, "", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 24), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "Countdown" })
+			end
+			local cl = countLabel :: TextLabel
+			if cl.Text ~= txt and txt ~= "" then
+				Audio.play("tick", { pitch = 0.9 + (3 - n) * 0.1 })
+			end
+			UIKit.setText(cl, txt)
+			return
+		end
+		if not live then
+			live = true
+			last = now
+			local cl = countLabel
+			if cl then
+				UIKit.setText(cl, "GO!")
+				UIKit.setTextColor(cl, UIKit.color("good"))
+				Audio.play("ding", { pitch = 1.4 })
+				task.delay(0.6, function()
+					if cl.Parent then
+						cl:Destroy()
+					end
+				end)
 			end
 		end
 		local t = now - t0
@@ -776,53 +815,28 @@ playSlot = function(slot: number, chain: boolean)
 			nextSpark = now + 0.07
 			ctx.burst(ropeX + lw - 1, ropeY + 1, { "yellow", "orange" }, 2)
 		end
-		if eng.clock ~= 99 then
-			local leftSec = math.ceil(seconds - t)
-			if leftSec <= 3 and leftSec >= 1 and leftSec < lastTick then
-				lastTick = leftSec
-				Audio.play("tick", { pitch = 1.2 + (3 - leftSec) * 0.15 })
-				bomb.flash(0.12)
-			end
+		local leftSec = math.ceil(seconds - t)
+		if leftSec <= 3 and leftSec >= 1 and leftSec < lastTick then
+			lastTick = leftSec
+			Audio.play("tick", { pitch = 1.2 + (3 - leftSec) * 0.15 })
+			bomb.flash(0.12)
 		end
 		if left < 0.25 and math.floor(now * 6) % 2 == 0 then
 			bomb.flash(0.05)
 		end
-		-- the modifiers (a shake moves the stage's picture and the overlay together)
-		local ox, oy = 0, 0
-		if has(effects, "shake") then
-			ox, oy = math.floor(math.sin(now * 37) * 2 + 0.5), math.floor(math.cos(now * 29) * 2 + 0.5)
-		end
-		if now < shakeUntil then
-			ox += if math.floor(now * 40) % 2 == 0 then 2 else -2
-		end
-		area.Position = UDim2.fromOffset(ox, oy)
-		PixelRenderer.setOffset(ox, oy)
-		if has(effects, "glitch") then
-			if t >= glitchAt then
-				glitchUntil = t + 0.1 + 0.08 * ctx.rng:next()
-				glitchAt = t + 0.55 + 0.4 * ctx.rng:next()
-			end
-			fx.BackgroundTransparency = if t < glitchUntil then 0 else 1
-		end
-		if #dark == 4 then
-			local hw, hh = math.floor(w * 0.5), math.floor(h * 0.6)
-			local cx = math.floor(w / 2 + math.cos(t * 1.3) * w * 0.28)
-			local cy = math.floor(h / 2 + math.sin(t * 1.9) * h * 0.22)
-			local x0, y0 = math.clamp(cx - hw // 2, 0, w), math.clamp(cy - hh // 2, 0, h)
-			local x1, y1 = math.clamp(cx + hw // 2, 0, w), math.clamp(cy + hh // 2, 0, h)
-			dark[1].Position, dark[1].Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(w, y0)
-			dark[2].Position, dark[2].Size = UDim2.fromOffset(0, y1), UDim2.fromOffset(w, h - y1)
-			dark[3].Position, dark[3].Size = UDim2.fromOffset(0, y0), UDim2.fromOffset(x0, y1 - y0)
-			dark[4].Position, dark[4].Size = UDim2.fromOffset(x1, y0), UDim2.fromOffset(w - x1, y1 - y0)
-		end
+		-- a hit's jolt moves the stage's picture and the overlay together
+		local ox = if now < shakeUntil then (if math.floor(now * 40) % 2 == 0 then 1 else -1) else 0
+		area.Position = UDim2.fromOffset(ox, 0)
+		PixelRenderer.setOffset(ox, 0)
 		if outcome ~= nil then
-			finish(outcome :: boolean)
+			local o = outcome :: boolean
+			local okF, wonF, line = pcall(eng.finish)
+			finish(o, if okF and wonF == o then line else nil)
 		elseif t >= seconds then
-			if eng.survive ~= true then
-				-- the fuse reached the bomb
-				ctx.burst(4 + bombW / 2, h - 16, { "orange", "yellow", "white" }, 14)
-			end
-			finish(eng.survive == true)
+			-- the fuse reached the bomb: the round's standing decides
+			ctx.burst(4 + bombW / 2, h - 16, { "orange", "yellow", "white" }, 14)
+			local okF, wonF, line = pcall(eng.finish)
+			finish(okF and wonF == true, if okF then line else nil)
 		end
 	end)
 end
@@ -865,14 +879,14 @@ function MicroUI.showLaunch(g: Types.Game)
 	end
 	UIKit.text(f, string.format("%d of 3 minigames won: sales x%.2f", g.wins, 1 + Tuning.WinBoost * g.wins), UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 74), { x = "center", color = UIKit.color("good"), z = 7 })
 	-- the income counts up to what the game earns
-	local rateLabel = UIKit.text(f, Numbers.rate(0) .. " coins", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 88), { x = "center", face = "big", kind = "title", color = UIKit.color("good"), z = 7, name = "Rate" })
+	local rateLabel = UIKit.text(f, "up to " .. Numbers.rate(0), UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 88), { x = "center", face = "big", kind = "title", color = UIKit.color("good"), z = 7, name = "Rate" })
 	task.spawn(function()
 		task.wait(0.3)
 		local t0 = os.clock()
 		while rateLabel.Parent do
 			local k = math.clamp((os.clock() - t0) / 0.8, 0, 1)
 			local e = 1 - (1 - k) * (1 - k)
-			UIKit.setText(rateLabel, Numbers.rate(g.rate * e) .. " coins")
+			UIKit.setText(rateLabel, "up to " .. Numbers.rate(g.rate * e))
 			if k >= 1 then
 				UIKit.burst(f, w / 2, 96, { "good", "accent", "white" }, 16)
 				Audio.play("coins")
@@ -881,7 +895,7 @@ function MicroUI.showLaunch(g: Types.Game)
 			task.wait()
 		end
 	end)
-	UIKit.text(f, "It earns this for good, even while you make the next one.", UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 110), { x = "center", color = UIKit.color("text_dim"), z = 7 })
+	UIKit.text(f, "At its peak. It is on sale now: watch its players climb, then fade.", UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 110), { x = "center", color = UIKit.color("text_dim"), z = 7 })
 	local nice = UIKit.button(f, "Nice!", UDim2.fromOffset(60, 14), UDim2.new(0.5, -30, 1, -20), function()
 		close()
 		MicroUI.Launched:Fire(g)
@@ -938,7 +952,7 @@ function MicroUI.debugAuto()
 	end
 end
 
--- The last microgame's settings: diff, speed, tiny, seconds, effects, micro, area (the sims).
+-- The last minigame's settings: diff, speed, seconds, effects, micro, area, ice, more, shrink, rivals (the sims).
 function MicroUI.debugCtx(): { [string]: any }?
 	return lastCtx
 end

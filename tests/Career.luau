@@ -1,12 +1,14 @@
 -- A sensible player for the Economy spec and the tuning runs: plays a session second by second through Logic/Studio
 -- (the server's own rules) and logs what happened minute by minute. The idea team rolls on its clock; with three
--- ideas on the board the player makes a game of the three most valuable, plays its minigames (each about
+-- ideas on the board and no game selling well (none on sale, or its players fallen under a third of its peak), the
+-- player makes a game of the three most valuable (which takes the old one off sale), plays its minigames (each about
 -- MicroIntro + its clock long, won with a chance by difficulty and `skill`, a lost one retried up to `retries` times)
--- and launches it; the games pay their income every second; coins go on the cheaper of the two upgrades.
+-- and launches it; the game on sale pays its coins every second; coins go on the cheaper of the two upgrades.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Studio = require("../build/luautest/shared/Logic/Studio")
 local Ideas = require("../build/luautest/shared/Logic/Ideas")
+local Live = require("../build/luautest/shared/Logic/Live")
 local Util = require("../build/luautest/shared/Logic/Util")
 
 local Career = {}
@@ -19,7 +21,13 @@ function Career.winChance(skill: number, d: number): number
 end
 
 local function microSeconds(d: number): number
-	return Tuning.MicroIntro + math.max(Tuning.MicroSecondsMin, Tuning.MicroSeconds - Tuning.MicroSecondsStep * (d - 1)) + 1.5
+	return Tuning.MicroIntro + 1.5 + Tuning.MicroCountdown + Tuning.MicroSeconds * 0.9 + 4
+end
+
+-- Whether the game on sale is still worth keeping (the player waits for it to fade before making the next).
+local function selling(p: any): boolean
+	local l = p.live
+	return l ~= nil and not Live.over(l) and (Live.phase(l) ~= "falling" or l.players > l.peak / 3)
 end
 
 function Career.play(seed: number, seconds: number, opts: Opts?)
@@ -54,8 +62,8 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 				end
 			end
 		end
-		-- the games' income
-		frac += p.rate
+		-- the game on sale
+		frac += Studio.sell(p, 1)
 		local whole = math.floor(frac)
 		frac -= whole
 		Studio.earn(p, whole)
@@ -63,10 +71,10 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		if busy > 0 then
 			busy -= 1
 			if busy <= 0 and p.project then
-				Studio.launch(p, t)
+				Studio.launch(p, t, rng:int(1, 999999))
 				firstGame = firstGame or t
 			end
-		elseif p.project == nil and #p.ideas >= 3 then
+		elseif p.project == nil and #p.ideas >= 3 and not selling(p) then
 			local order = {}
 			for i = 1, #p.ideas do
 				table.insert(order, i)
@@ -104,9 +112,12 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		end
 		if t % 600 == 0 then
 			local nextCost = math.min(if Studio.speedMaxed(p) then math.huge else Studio.upgradeCost("speed", p.upgrades.speed), Studio.upgradeCost("luck", p.upgrades.luck))
-			local row = { t = t, coins = p.coins, rate = p.rate, games = p.stats.games, speed = p.upgrades.speed, luck = p.upgrades.luck, best = p.stats.best, wait = (nextCost - p.coins) / math.max(1e-9, p.rate) }
+			-- the income: the last twenty minutes' average (a game on sale rises and falls; making one earns nothing)
+			local back = timeline[#timeline - 1]
+			local rate = (p.stats.earned - (if back then back.earned else 0)) / (t - (if back then back.t else 0))
+			local row = { t = t, coins = p.coins, earned = p.stats.earned, rate = rate, games = p.stats.games, speed = p.upgrades.speed, luck = p.upgrades.luck, best = p.stats.best, wait = (nextCost - p.coins) / math.max(1e-9, rate) }
 			table.insert(timeline, row)
-			say(string.format("%3dmin coins %s rate %.1f/s games %d speed %d (%.1fs) luck %d (x%.1f) best 1 in %d next upgrade in %.0fs", t // 60, tostring(math.floor(p.coins)), p.rate, p.stats.games, p.upgrades.speed, Studio.rollEvery(p), p.upgrades.luck, Studio.luck(p), p.stats.best, row.wait))
+			say(string.format("%3dmin coins %s rate %.1f/s games %d speed %d (%.1fs) luck %d (x%.1f) best 1 in %d next upgrade in %.0fs", t // 60, tostring(math.floor(p.coins)), rate, p.stats.games, p.upgrades.speed, Studio.rollEvery(p), p.upgrades.luck, Studio.luck(p), p.stats.best, row.wait))
 		end
 	end
 	return { profile = p, timeline = timeline, firstGame = firstGame, firstUpgrade = firstUpgrade, firstTier = firstTier }

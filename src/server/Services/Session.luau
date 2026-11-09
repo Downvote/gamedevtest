@@ -2,7 +2,7 @@
 -- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the idea team's and
 -- the income's clocks, the microgame in play, and what the client is sent. The client mirrors the profile through
 -- State messages (the whole ClientView, sent when something changed: Session.dirty) and shows Fx messages (a new
--- idea, the coins the games just paid).
+-- idea, the coins the game on sale just paid and its players).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -10,6 +10,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
+local Live = require(ReplicatedStorage.Shared.Logic.Live)
 
 export type S = {
 	player: Player,
@@ -68,7 +69,8 @@ function Session.view(s: S): Types.ClientView
 	local p = s.profile
 	return {
 		coins = p.coins,
-		rate = p.rate,
+		rate = Live.earning(p.live),
+		live = p.live,
 		ideas = p.ideas,
 		found = p.found,
 		project = p.project,

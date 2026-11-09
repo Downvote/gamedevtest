@@ -1,2226 +1,1710 @@
 --!strict
--- The microgames (GAME_DESIGN 5; docs/ARCHITECTURE.md 10.8): twelve engines, each played by one or more ideas in
--- their own theme (Data/Ideas micro + variant), WarioWare style: a one-word order, a few seconds, win or lose. They
--- play out in 3D on the idea's stage (UI/MicroStage: a diorama room drawn full screen by the pixel filter) with the
--- player's own founder as the hero: they dodge falling crates, flip the pancake, pet the cat, walk the robot's
--- board, sneak past the ghost. An engine gets a context (the stage, the overlay frame for the words, pads and taps,
--- the difficulty 1..8 from the idea's rarity, the Turbo speed, Tiny, an Rng seeded by the server) and calls ctx.win()
--- or ctx.lose(); one that is `survive` wins when the clock runs out first; `after(t, won)` keeps the founder moving
--- (a cheer, a stumble) once it is over. MicroUI runs the clock, the effects and the modifiers' screen effects.
+-- The minigames (GAME_DESIGN 5; docs/ARCHITECTURE.md 10.8): eleven party-round engines, each played by one or more
+-- ideas in their own theme (Data/Ideas micro + variant). In the spirit of the party games' minigames: the player's
+-- founder and three rival founders (UI/MicroArena) on the idea's 3D stage (UI/MicroStage), free movement, about half
+-- a minute a round, last one standing, most points or first to the finish. An engine gets a context (the stage, the
+-- overlay, the difficulty 1..8 from the idea's rarity, the modifiers' effects: Turbo's speed, Icy, Crowded, Frenzy,
+-- Shrinking; an Rng seeded by the server) and its arena calls ctx.win() or ctx.lose() as soon as the round is
+-- decided; when the clock runs out first, `finish()` says who won. `after(t, won)` keeps everyone moving under the
+-- stamp. The rivals get sharper and the hazards thicker with the difficulty.
 --
--- Stage space (MicroStage): u to the screen's right, v toward the viewer, y up from the floor. Things are world-
--- aligned parts on the iso grid (clean 2:1 edges, the world's ink outline); Tiny shrinks the targets.
+-- Room space (UI/MicroArena): (x, z) from the floor's middle along the world's axes, y up.
 --
--- Every button a sim can press has a name (Pad_<key>, Hole_<i>, Opt_<i>, Fruit_<i>); `auto` makes one right move (the
--- sims' player).
+-- Every engine is lost by doing nothing (the hazards aim at the player, the rivals score, the bomb starts in the
+-- player's hands) and won by `auto` (the sims' player: the rivals' brains at full skill, one frame at a time).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Types = require(ReplicatedStorage.Shared.Types)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
-local PixelSprites = require(script.Parent.PixelSprites)
 local MicroStage = require(script.Parent.MicroStage)
+local Arena = require(script.Parent.MicroArena)
 
 type Thing = MicroModels.Thing
+type P = Arena.P
+type Danger = Arena.Danger
 
-export type Ctx = {
-	area: Frame, -- the full-screen overlay (UI px = the world's art px)
-	w: number,
-	h: number,
-	stage: MicroStage.Stage,
-	rng: Types.Rng,
-	diff: number, -- 1 .. Tuning.DiffMax
-	speed: number, -- 1, or Tuning.TurboSpeed
-	tiny: boolean, -- Tiny: the targets are small
-	variant: string,
-	pop: (x: number, y: number, text: string, color: Color3) -> (),
-	burst: (x: number, y: number, colors: { string }, n: number?) -> (), -- 1 px bits fly out and fall
-	float: (g: GuiObject, vx: number, vy: number, life: number, gravity: number?) -> (), -- moves it, then destroys it
-	flash: (color: string) -> (), -- the screen flashes for a moment
-	shake: () -> (),
-	win: () -> (),
-	lose: () -> (),
-	press: (key: string) -> (), -- what a pad does (the runner routes it to the engine's key)
-}
+export type Ctx = Arena.Ctx
 
 export type Micro = {
-	update: (t: number, dt: number) -> (),
-	key: (k: string) -> (), -- "left" | "right" | "up" | "down" | "go" | "1" .. "6"
-	survive: boolean?, -- wins when the clock runs out (dodge, jump)
-	clock: number?, -- the clock times this (the longer engines)
-	after: ((t: number, won: boolean) -> ())?, -- once it is over: the founder's cheer or stumble
-	auto: () -> (),
+	update: (t: number, dt: number) -> (), -- dt 0: before GO (everyone in place)
+	key: (k: string) -> (), -- "go" (the action) | "up" | "down" | "left" | "right"
+	finish: () -> (boolean, string), -- the clock ran out: won?, the line under the stamp
+	after: (t: number, won: boolean) -> (), -- once it is over
+	auto: () -> (), -- the sims' player takes this frame
+	rule: string, -- one line on the curtain under the order
 }
 
 local Games = {}
 
-local FACE = MicroStage.FACE_VIEWER
-local RIGHT = MicroStage.FACE_RIGHT
-local LEFT = MicroStage.FACE_LEFT
-local AWAY = MicroStage.FACE_AWAY
-local U_DIR, V_DIR = MicroStage.U_DIR, MicroStage.V_DIR
+local ROOM = Arena.ROOM
 
 ------------------------------------------------------------------ helpers
-local function snap(v: number): number
-	return math.floor(v + 0.5)
+local function dist(ax: number, az: number, bx: number, bz: number): number
+	local dx, dz = ax - bx, az - bz
+	return math.sqrt(dx * dx + dz * dz)
 end
 
--- world-aligned room space (x, z from the floor's middle) -> stage space (u, v)
-local function uvOf(x: number, z: number): (number, number)
-	local p = Vector3.new(x, 0, z)
-	return p:Dot(U_DIR), p:Dot(V_DIR)
+local function wrap(A: Arena.Arena, rule: string, step: (t: number, dt: number) -> (), after: ((t: number) -> ())?): Micro
+	return {
+		update = function(t: number, dt: number)
+			if dt > 0 and not A.over then
+				step(t, dt)
+				A.update(t, dt)
+			else
+				A.pose(t)
+			end
+		end,
+		key = A.key,
+		finish = A.finish,
+		after = function(t: number, won: boolean)
+			if after then
+				after(t)
+			end
+			A.after(t, won)
+		end,
+		auto = A.auto,
+		rule = rule,
+	}
 end
 
--- the yaw that faces along a stage-space direction (du, dv)
-local function yawTo(du: number, dv: number): number
-	return math.atan2(du * U_DIR.X + dv * V_DIR.X, du * U_DIR.Z + dv * V_DIR.Z)
-end
-
-local function screenAt(ctx: Ctx, pos: Vector3): (number, number)
-	local x, y = ctx.stage.screen(pos)
-	return x, y
-end
-
-local function popAt(ctx: Ctx, pos: Vector3, text: string, color: string)
-	local x, y = screenAt(ctx, pos)
-	ctx.pop(x, y - 8, text, UIKit.color(color))
-end
-
-local function burstAt(ctx: Ctx, pos: Vector3, colors: { string }, n: number?)
-	local x, y = screenAt(ctx, pos)
-	ctx.burst(x, y, colors, n)
-end
-
--- A target: small when Tiny.
-local function target(ctx: Ctx, kind: string, opts: MicroModels.Opts?, shadow: number?): Thing
-	local t = ctx.stage.spawn(kind, opts, shadow)
-	if ctx.tiny then
-		MicroModels.scale(t, Vector3.one * 0.6)
-		t.h *= 0.6
-		t.r *= 0.6
-	end
-	return t
-end
-
--- The player's founder on the stage.
-type Me = { u: number, v: number, y: number, yaw: number, action: string, k: number, speed: number }
-local function newMe(u: number, v: number, yaw: number): Me
-	return { u = u, v = v, y = 0, yaw = yaw, action = "stand", k = 0, speed = 0 }
-end
-
-local function pose(ctx: Ctx, m: Me, t: number)
-	ctx.stage.pose(m.u, m.v, m.y, m.yaw, t, m.speed, m.action, m.k)
-end
-
--- Once it is over: a cheer (turned to the viewer) or a stumble, back on the ground.
-local function ending(ctx: Ctx, m: Me, t: number, won: boolean)
-	m.action = if won then "cheer" else "hurt"
-	m.speed = 0
-	m.y = math.max(0, m.y - 0.25)
-	if won then
-		m.yaw = FACE
-	end
-	pose(ctx, m, t)
-end
-
-local WHITE = Color3.new(1, 1, 1)
-local INK = UIKit.color("ink")
-
-local function box(parent: Instance, w: number, h: number, x: number, y: number, color: string, z: number?): Frame
-	return UIKit.rect(parent, UDim2.fromOffset(math.max(0, snap(w)), math.max(0, snap(h))), UDim2.fromOffset(snap(x), snap(y)), UIKit.color(color), z or 8)
-end
-
--- A progress meter: a 1 px ink frame round a dark back, the fill with a lighter top row. Returns its setter (0..1).
-local function meter(parent: Instance, x: number, y: number, w: number, h: number, color: string, z: number): (number) -> ()
-	local back = UIKit.rect(parent, UDim2.fromOffset(w, h), UDim2.fromOffset(snap(x), snap(y)), INK, z)
-	back.Name = "Meter"
-	UIKit.rect(back, UDim2.fromOffset(w - 2, h - 2), UDim2.fromOffset(1, 1), UIKit.hex(0x463B5C), z)
-	local c = UIKit.color(color)
-	local fill = UIKit.rect(back, UDim2.fromOffset(0, h - 2), UDim2.fromOffset(1, 1), c, z)
-	fill.Name = "Fill"
-	UIKit.rect(fill, UDim2.new(1, 0, 0, 1), nil, c:Lerp(WHITE, 0.45), z)
-	return function(frac: number)
-		fill.Size = UDim2.fromOffset(math.floor((w - 2) * math.clamp(frac, 0, 1) + 0.5), h - 2)
-	end
-end
-
--- A touch pad: it presses `key`.
-local function pad(ctx: Ctx, text: string, key: string, x: number, y: number, w: number, h: number, color: string?): TextButton
-	local b = UIKit.button(ctx.area, text, UDim2.fromOffset(w, h), UDim2.fromOffset(snap(x), snap(y)), function()
-		ctx.press(key)
-	end, { name = "Pad_" .. key, color = UIKit.color(color or "plate_light") })
-	b.ZIndex = 10
-	return b
-end
-
-local PAD_Y = 18 -- the pads' row: this far above the screen's bottom edge (the fuse runs below it)
-
--- Arrow pads in a row at the bottom middle; each shows its 7 px arrow on the plate.
-local function arrowPads(ctx: Ctx, keys: { string })
-	local pw, ph = 28, 16
-	local total = #keys * (pw + 3) - 3
-	for i, k in keys do
-		local b = pad(ctx, "", k, (ctx.w - total) / 2 + (i - 1) * (pw + 3), ctx.h - PAD_Y - ph, pw, ph)
-		local plate = b:FindFirstChild("Plate") or b
-		PixelSprites.image(plate, "arrow_" .. k .. "_t", UDim2.fromOffset(math.floor((pw - 7) / 2), math.floor((ph - 7) / 2)), 4)
-	end
-end
-
-local function goPad(ctx: Ctx, text: string): TextButton
-	return pad(ctx, text, "go", ctx.w / 2 - 32, ctx.h - PAD_Y - 16, 64, 16, "accent")
-end
-
--- A one-line hint under the header.
+-- A line under the header (the call, the question).
 local function say(ctx: Ctx, text: string, color: string?): TextLabel
-	return UIKit.text(ctx.area, text, UDim2.fromOffset(ctx.w, 10), UDim2.fromOffset(0, 26), { x = "center", color = UIKit.color(color or "text"), kind = "outline", z = 12, name = "Say" })
+	return UIKit.text(ctx.area, text, UDim2.fromOffset(ctx.w - 180, 10), UDim2.fromOffset(90, 26), { x = "center", color = UIKit.color(color or "text"), kind = "outline", z = 12, name = "Say" })
 end
 
--- A tap target with nothing drawn on it, kept over a point of the stage by follow().
-local function hitbox(ctx: Ctx, name: string, w: number, h: number): TextButton
-	local b = Instance.new("TextButton")
-	b.Name = name
-	b.Text = ""
-	b.BackgroundTransparency = 1
-	b.BorderSizePixel = 0
-	b.AutoButtonColor = false
-	b.Size = UDim2.fromOffset(w, h)
-	b.ZIndex = 9
-	b.Parent = ctx.area
-	return b
-end
-
-local function follow(ctx: Ctx, b: GuiObject, pos: Vector3)
-	local x, y = screenAt(ctx, pos)
-	b.Position = UDim2.fromOffset(x - math.floor(b.Size.X.Offset / 2), y - math.floor(b.Size.Y.Offset / 2))
-end
-
------------------------------------------------------------------- lanes: dodge and catch
--- Lanes across the screen (along u) in one row at depth v, each marked by a flat tile; the founder glides between
--- them.
-local LANE = 3.5
-type Lanes = { n: number, v: number, lane: () -> number, move: (d: number) -> (), u: (l: number) -> number, step: (dt: number) -> boolean }
-local function lanes(ctx: Ctx, n: number, v: number, m: Me): Lanes
-	local function laneU(l: number): number
-		return (l - (n + 1) / 2) * LANE
-	end
-	for l = 1, n do
-		local mark = ctx.stage.spawn("pad", { color = "plastic_dark" })
-		MicroModels.scale(mark, Vector3.new(0.9, 0.2, 0.9))
-		ctx.stage.place(mark, laneU(l), v, 0)
-	end
-	local lane = math.ceil(n / 2)
-	m.u = laneU(lane)
-	arrowPads(ctx, { "left", "right" })
-	return {
+-- A floor of n x n tiles (MicroModels.grid) and its helpers; flush() once a frame.
+type Tiles = {
+	thing: Thing,
+	n: number,
+	step: number,
+	center: (i: number) -> (number, number),
+	index: (x: number, z: number) -> number,
+	color: (i: number, color: string, neon: boolean?) -> (),
+	drop: (i: number, y: number) -> (),
+	spots: () -> { { number } },
+	flush: () -> (),
+}
+local function tiles(A: Arena.Arena, n: number, step: number, size: number, color: string): Tiles
+	local st = A.st
+	local g = MicroModels.grid(n, step, size, 0.25, color)
+	st.adopt(g)
+	A.place(g, 0, 0, -0.2)
+	local half = n * step / 2
+	local dirty = false
+	local T: Tiles
+	T = {
+		thing = g,
 		n = n,
-		v = v,
-		lane = function(): number
-			return lane
+		step = step,
+		center = function(i: number): (number, number)
+			local r = (i - 1) // n + 1
+			local c = (i - 1) % n + 1
+			return (c - (n + 1) / 2) * step, (r - (n + 1) / 2) * step
 		end,
-		move = function(d: number)
-			local nl = math.clamp(lane + d, 1, n)
-			if nl ~= lane then
-				ctx.stage.puff(ctx.stage.at(m.u, v, 0.2), "dust", 4)
-			end
-			lane = nl
+		index = function(x: number, z: number): number
+			local c = math.clamp(math.floor((x + half) / step) + 1, 1, n)
+			local r = math.clamp(math.floor((z + half) / step) + 1, 1, n)
+			return (r - 1) * n + c
 		end,
-		u = laneU,
-		-- the founder glides to the lane; true while moving
-		step = function(dt: number): boolean
-			local tu = laneU(lane)
-			local d = tu - m.u
-			m.u += d * math.min(1, dt * 22)
-			if math.abs(tu - m.u) < 0.05 then
-				m.u = tu
+		color = function(i: number, c: string, neon: boolean?)
+			local p = g.parts["T" .. i]
+			if p then
+				local col = UIKit.color(c)
+				local mat = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				if p.Color ~= col or p.Material ~= mat then
+					p.Color = col
+					p.Material = mat
+					g.colors["T" .. i] = col
+					dirty = true
+				end
 			end
-			return math.abs(d) > 0.2
+		end,
+		drop = function(i: number, y: number)
+			local x, z = T.center(i)
+			g.rest["T" .. i] = CFrame.new(x, 0.125 + y, z)
+		end,
+		spots = function(): { { number } }
+			local out = {}
+			for i = 1, n * n do
+				local x, z = T.center(i)
+				table.insert(out, { x, z })
+			end
+			return out
+		end,
+		flush = function()
+			A.place(g, 0, 0, -0.2)
+			if dirty then
+				dirty = false
+				st.refresh(g)
+			end
 		end,
 	}
+	return T
 end
 
------------------------------------------------------------------- 1. dodge (Action "Dodge!", Racing "Steer!")
-type Fall = { t: Thing, lane: number, y: number, v: number, gone: boolean, good: boolean, spin: number }
-function Games.dodge(ctx: Ctx): Micro
+-- A thing dropped from `top` lands in `fall` seconds: its height at age a.
+local function fallY(a: number, fall: number, top: number): number
+	local k = math.clamp(a / fall, 0, 1)
+	return top * (1 - k * k)
+end
+
+-- whether a 1/f-second tick boundary was crossed this frame
+local function every(t: number, dt: number, f: number): boolean
+	return math.floor(t * f) ~= math.floor((t - dt) * f)
+end
+
+------------------------------------------------------------------ 1. bombs: things rain down (Action, Space, Dinosaurs)
+-- Crates (meteors, the aliens' bombs) fall on marked spots, aimed at the players more and more often; one hit and you
+-- are out. Last one standing wins.
+local BOMB_SKIN: { [string]: { kind: string, warn: string, puff: string, word: string } } = {
+	blocks = { kind = "crate", warn = "berry_red", puff = "debris", word = "crates" },
+	space = { kind = "bomb", warn = "purple", puff = "spark", word = "bombs" },
+	dino = { kind = "meteor", warn = "orange", puff = "ember", word = "meteors" },
+}
+type Drop = { t: Thing, mark: Thing, x: number, z: number, at: number, land: number, done: boolean, r: number }
+function Games.bombs(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "survive", { act = "Jump" })
 	local st = ctx.stage
-	local race = ctx.variant == "race"
-	local n = if ctx.diff >= 7 then 5 elseif ctx.diff >= 4 then 4 else 3
-	local row = if race then 6 else 2
-	local m = newMe(0, row, if race then AWAY else FACE)
-	local L = lanes(ctx, n, row, m)
-	local kart = if race then st.spawn("kart", nil, 1.8) else nil
-	local dashes: { Thing } = {}
-	if race then
-		for _ = 1, n - 1 do
-			table.insert(dashes, st.spawn("dashes"))
+	local rng = ctx.rng
+	local skin = BOMB_SKIN[ctx.variant] or BOMB_SKIN.blocks
+	local drops: { Drop } = {}
+	local nextAt = 1.0
+	local salvoAt = 7
+	local function warnTime(t: number): number
+		return math.max(0.75, (1.35 - 0.05 * ctx.diff - 0.25 * t / A.seconds) / ctx.speed)
+	end
+	local function drop(t: number, x: number, z: number)
+		local L = A.lim
+		x, z = math.clamp(x, -L, L), math.clamp(z, -L, L)
+		local r = 1.7
+		local mark = st.spawn("spot", { color = skin.warn })
+		MicroModels.scale(mark, Vector3.new(r * 2 / 2.5, 1, r * 2 / 2.5))
+		A.place(mark, x, z, 0.02)
+		local th = st.spawn(skin.kind, nil, 1.2)
+		table.insert(drops, { t = th, mark = mark, x = x, z = z, at = t, land = t + warnTime(t), done = false, r = r })
+	end
+	local function target(t: number)
+		local roll = rng:next()
+		local tgt: P? = nil
+		if roll < 0.35 and A.me.alive then
+			tgt = A.me
+		elseif roll < 0.7 then
+			local left = A.alive()
+			tgt = left[rng:int(1, #left)]
+		end
+		if tgt then
+			local w = warnTime(t)
+			drop(t, tgt.x + tgt.vx * w * 0.35 + (rng:next() - 0.5) * 1.2, tgt.z + tgt.vz * w * 0.35 + (rng:next() - 0.5) * 1.2)
+		else
+			drop(t, (rng:next() * 2 - 1) * A.lim, (rng:next() * 2 - 1) * A.lim)
 		end
 	end
-	local items: { Fall } = {}
-	local nextAt = 0.4
-	local fall = (8 + 1.6 * ctx.diff) * ctx.speed -- studs a second
-	local every = math.max(0.32, 0.8 - 0.06 * ctx.diff) / ctx.speed
-	local TOP, FAR = 16, -18
-	local dead = false
-	say(ctx, if race then "Steer clear of the cones!" else "Dodge the falling crates!")
-	-- how long until the nearest thing coming at a lane gets there: 0 or less while one is there, huge for none
-	local function gapT(l: number): number
-		local g = math.huge
-		for _, it in items do
-			if not it.gone and it.lane == l then
-				local inZone = if race then it.v < row + 1.6 else it.y > 0.2
-				if inZone then
-					g = math.min(g, (if race then (row - 1.6 - it.v) else (it.y - 4.2)) / fall)
-				end
+	local function dangers(): { Danger }
+		local out: { Danger } = {}
+		for _, d in drops do
+			if not d.done then
+				table.insert(out, { x = d.x, z = d.z, r = d.r, t = math.max(0, d.land - A.t), born = d.at })
 			end
 		end
-		return g
+		return out
 	end
-	local nextPuff = 0
-	local function animate(t: number, dt: number)
-		local moving = L.step(dt)
-		m.speed = if moving and not race then 14 else 0
-		m.action = if race then "reach" else "stand"
-		m.y = if race then 0.75 else 0
-		pose(ctx, m, t)
-		if kart then
-			st.place(kart, m.u, row, 0, AWAY)
-			-- puffs from the exhaust
-			if t >= nextPuff then
-				nextPuff = t + 0.12
-				st.puff(st.at(m.u + (math.random() - 0.5) * 0.6, row + 2, 0.5), "smoke", 1)
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if t >= p.think then
+			p.think = t + A.react(p)
+			p.tx, p.tz = A.safest(p, A.dangerCost(p, dangers()))
+		end
+		return A.steer(p, p.tx, p.tz)
+	end
+	local function step(t: number, _dt: number)
+		if t >= nextAt then
+			nextAt = t + math.max(0.2, (0.85 - 0.06 * ctx.diff) * (1 - 0.45 * t / A.seconds) / ctx.more / ctx.speed)
+			target(t)
+		end
+		if t >= salvoAt then
+			-- a ring round someone
+			salvoAt = t + math.max(3.5, 7 - 0.3 * ctx.diff)
+			local left = A.alive()
+			local p = if rng:next() < 0.5 and A.me.alive then A.me else left[rng:int(1, #left)]
+			for k = 0, 4 do
+				local a = k / 5 * math.pi * 2 + rng:next()
+				drop(t, p.x + math.cos(a) * 3, p.z + math.sin(a) * 3)
 			end
 		end
-	end
-	return {
-		survive = true,
-		update = function(t: number, dt: number)
-			if dead then
-				return
-			end
-			animate(t, dt)
-			for i, d in dashes do
-				st.place(d, (i - n / 2) * LANE, (t * fall) % 6, 0, FACE)
-			end
-			if t >= nextAt then
-				nextAt = t + every * (0.7 + 0.6 * ctx.rng:next())
-				-- never a wall: a lane stays open among the things just started
-				local busy: { [number]: boolean } = {}
-				local nBusy = 0
-				for _, it in items do
-					local fresh = if race then it.v < FAR + 8 else it.y > TOP - 7
-					if not it.gone and fresh and not busy[it.lane] then
-						busy[it.lane] = true
-						nBusy += 1
-					end
-				end
-				local l = ctx.rng:int(1, n)
-				if nBusy < n - 1 or busy[l] then
-					local th = target(ctx, if race then "cone" else "crate", nil, if race then 1.2 else 1.7)
-					table.insert(items, { t = th, lane = l, y = if race then 0 else TOP, v = if race then FAR else row, gone = false, good = false, spin = 0 })
-				end
-			end
-			for _, it in items do
-				if not it.gone then
-					if race then
-						it.v += fall * dt
-					else
-						it.y -= fall * dt
-					end
-					st.place(it.t, L.u(it.lane), it.v, math.max(0, it.y))
-					local hit = if race then it.lane == L.lane() and math.abs(it.v - row) < 1.6 else it.lane == L.lane() and it.y < 4.2 and it.y > 0.2
-					if hit then
-						dead = true
-						st.flash(it.t, 0.3)
-						burstAt(ctx, st.at(m.u, row, 2.5), { "white", "accent", "bad" }, 16)
-						st.puff(st.at(m.u, row, 2.5), "spark", 12)
+		for i = #drops, 1, -1 do
+			local d = drops[i]
+			if not d.done then
+				local y = fallY(t - d.at, d.land - d.at, 16)
+				A.place(d.t, d.x, d.z, y, if skin.kind == "crate" then 0 else (t - d.at) * 4)
+				-- the mark blinks faster as it comes
+				MicroModels.show(d.mark, math.floor(t * (if d.land - t < 0.4 then 16 else 7)) % 2 == 0)
+				if t >= d.land then
+					d.done = true
+					st.puff(A.at(d.x, d.z, 0.5), skin.puff, 10)
+					st.puff(A.at(d.x, d.z, 0.4), "dust", 6)
+					local near = dist(d.x, d.z, A.me.x, A.me.z)
+					Audio.play(if skin.kind == "crate" then "squish" else "pop", { pitch = 0.6 + rng:next() * 0.2, volume = math.clamp(1.2 - near / 12, 0.2, 1) })
+					if near < 5 then
 						ctx.shake()
-						ctx.lose()
-						return
 					end
-					if (not race and it.y <= 0) or (race and it.v > 14) then
-						-- a crate smashes on the floor; a cone goes by
-						it.gone = true
-						if not race then
-							burstAt(ctx, st.at(L.u(it.lane), row, 0.5), { "wood", "berry_red", "white" }, 7)
-							st.puff(st.at(L.u(it.lane), row, 0.6), "debris", 9, if it.lane % 2 == 0 then "wood_dark" else "berry_red")
-							st.puff(st.at(L.u(it.lane), row, 0.3), "dust", 5)
+					for _, p in A.players do
+						if p.alive and p.y < 1.4 and dist(p.x, p.z, d.x, d.z) < d.r + 0.4 then
+							A.knock(p, t, p.x - d.x, p.z - d.z)
 						end
-						st.remove(it.t)
 					end
+					st.remove(d.mark)
 				end
+			elseif t > d.land + 0.35 then
+				st.remove(d.t)
+				table.remove(drops, i)
 			end
-		end,
-		key = function(k: string)
-			if k == "left" then
-				L.move(-1)
-			elseif k == "right" then
-				L.move(1)
-			end
-		end,
-		after = function(t: number, won: boolean)
-			if race then
-				m.action = "reach"
-				pose(ctx, m, t)
-			else
-				ending(ctx, m, t, won)
-			end
-		end,
-		auto = function()
-			local here = L.lane()
-			if gapT(here) > 0.55 then
-				return
-			end
-			local best, bestGap = here, gapT(here)
-			for l = 1, n do
-				local g = gapT(l)
-				local clear = true
-				local step = if l > here then 1 else -1
-				for k = here + step, l, step do
-					if l ~= here and gapT(k) < 0.08 then
-						clear = false
-					end
-				end
-				if clear and (g > bestGap or (g == bestGap and math.abs(l - here) < math.abs(best - here))) then
-					best, bestGap = l, g
-				end
-			end
-			if best ~= here then
-				L.move(if best > here then 1 else -1)
-			end
-		end,
-	}
+		end
+	end
+	return wrap(A, "Dodge the falling " .. skin.word .. ". Last one standing wins!", step)
 end
 
------------------------------------------------------------------- 2. timing (Cooking "Flip!", Sports "Kick!", RPG "Strike!")
--- A needle swings along a meter; press while it is in the green. Each hit plays out on the stage: the pancake flips
--- over the stove, the ball flies into the net, the founder dashes in and slashes the slime.
-type Flight = { t0: number, dur: number, from: Vector3, to: Vector3, lift: number, turns: number, mode: string }
-function Games.timing(ctx: Ctx): Micro
+------------------------------------------------------------------ 2. collect: grab the most (Animals, Pirates, Ocean)
+-- Coins (fish, treats) drop all over; walk over them to grab them, the shiny ones worth three. Bombs (jellies, crabs)
+-- roll about from difficulty 2: touch one and you are dazed and drop two. Most at the end wins.
+local GRAB_SKIN: { [string]: { good: string, rare: string, bad: string, word: string, badWord: string } } = {
+	pet = { good = "yarn", rare = "star", bad = "crab", word = "treats", badWord = "crabs" },
+	loot = { good = "coin", rare = "gem", bad = "bomb", word = "coins", badWord = "bombs" },
+	fish = { good = "fish", rare = "star", bad = "jelly", word = "fish", badWord = "jellies" },
+}
+type Item = { t: Thing, x: number, z: number, at: number, worth: number, bad: boolean, vx: number, vz: number, gone: boolean }
+function Games.collect(ctx: Ctx): Micro
+	local skin = GRAB_SKIN[ctx.variant] or GRAB_SKIN.loot
+	local A = Arena.new(ctx, "score", { act = "Jump", tags = true, label = skin.word })
 	local st = ctx.stage
-	local v = ctx.variant
-	local need = if ctx.diff >= 7 then 3 elseif ctx.diff >= 4 then 2 else 1
-	local bw = math.min(220, ctx.w - 60)
-	local bx, by = math.floor((ctx.w - bw) / 2), 40
-	local zoneW = math.max(8, math.floor((40 - 4 * ctx.diff) * (if ctx.tiny then 0.5 else 1)))
-	-- the meter
-	local frame = UIKit.rect(ctx.area, UDim2.fromOffset(bw + 2, 10), UDim2.fromOffset(bx - 1, by - 1), INK, 8)
-	frame.Name = "Meter"
-	UIKit.rect(frame, UDim2.fromOffset(bw, 8), UDim2.fromOffset(1, 1), UIKit.hex(0x463B5C), 8)
-	for x = 8, bw - 4, 8 do
-		UIKit.rect(frame, UDim2.fromOffset(1, 2), UDim2.fromOffset(1 + x, 7), UIKit.hex(0x6E6488), 8)
+	local rng = ctx.rng
+	local items: { Item } = {}
+	local want = math.floor(5 + 2 * ctx.more)
+	local nBad = if ctx.diff >= 2 then math.floor((ctx.diff - 1) / 3 + 1) * (if ctx.more > 1 then 2 else 1) else 0
+	local function spawn(t: number, bad: boolean)
+		local L = A.lim - 0.6
+		local x, z = (rng:next() * 2 - 1) * L, (rng:next() * 2 - 1) * L
+		local rare = not bad and rng:next() < 0.12 + 0.02 * ctx.diff
+		local th = st.spawn(if bad then skin.bad elseif rare then skin.rare else skin.good, nil, 0.8)
+		local a = rng:next() * math.pi * 2
+		local sp = if bad then 1.2 + 0.25 * ctx.diff else 0
+		table.insert(items, { t = th, x = x, z = z, at = t, worth = if rare then 3 else 1, bad = bad, vx = math.cos(a) * sp, vz = math.sin(a) * sp, gone = false })
 	end
-	local zone = UIKit.rect(ctx.area, UDim2.fromOffset(zoneW, 8), UDim2.fromOffset(bx, by), UIKit.color("good"), 9)
-	zone.Name = "Zone"
-	UIKit.rect(zone, UDim2.fromOffset(zoneW, 1), nil, UIKit.color("good"):Lerp(WHITE, 0.45), 9)
-	UIKit.rect(zone, UDim2.fromOffset(1, 6), UDim2.fromOffset(math.floor(zoneW / 2), 1), UIKit.color("yellow"), 9)
-	local needle = UIKit.rect(ctx.area, UDim2.fromOffset(3, 14), UDim2.fromOffset(bx, by - 3), INK, 10)
-	needle.Name = "Needle"
-	UIKit.rect(needle, UDim2.fromOffset(1, 12), UDim2.fromOffset(1, 1), WHITE, 10)
-	local pos, dir = 0, 1
-	local speed = (70 + 16 * ctx.diff) * ctx.speed
-	local hits = 0
-	local zx = 0
-	-- the stage: the thing that flies (u, v, y at rest) and the founder
-	local m: Me
-	local thing: Thing? = nil
-	local home = Vector3.zero
-	local fly: Flight? = nil
-	local swingUntil = 0
-	local slime: Thing? = nil
-	local slimeHit = -10
-	local dashT = -10
-	local SLIME_U, SLIME_V = 4, 3
-	if v == "flip" then
-		m = newMe(-4.5, 0, RIGHT)
-		local pan = st.spawn("pan")
-		st.place(pan, 0, 0, 3.25, FACE)
-		home = Vector3.new(0, 0, 3.5)
-		thing = target(ctx, "pancake")
-	elseif v == "kick" then
-		m = newMe(-1.75, 6.5, AWAY)
-		home = Vector3.new(0, 4.5, 0)
-		thing = target(ctx, "ball", nil, 0.8)
-	else
-		m = newMe(-6, SLIME_V, RIGHT)
-		st.hold("sword")
-		slime = target(ctx, "slime", nil, 1.5)
+	for _ = 1, want do
+		spawn(-1, false)
 	end
-	local count = say(ctx, string.format("Hit the green: 0/%d", need))
-	local function placeZone()
-		zx = ctx.rng:int(0, bw - zoneW)
-		zone.Position = UDim2.fromOffset(bx + zx, by)
+	for _ = 1, nBad do
+		spawn(-1, true)
 	end
-	placeZone()
-	local done = false
-	local now = 0
-	local function launch(to: Vector3, lift: number, dur: number, turns: number, mode: string)
-		fly = { t0 = now, dur = dur, from = home, to = to, lift = lift, turns = turns, mode = mode }
-	end
-	local function hitFx()
-		swingUntil = now + 0.25
-		if v == "flip" then
-			launch(home, 4, 0.45, 1, "home")
-			burstAt(ctx, st.at(home.X, home.Y, home.Z + 0.5), { "yellow", "white", "orange" }, 8)
-			st.puff(st.at(home.X, home.Y, home.Z + 0.6), "spark", 6)
-			task.delay(0.45, function()
-				st.puff(st.at(home.X, home.Y, home.Z + 0.4), "steam", 4)
-			end)
-		elseif v == "kick" then
-			launch(Vector3.new(ctx.rng:int(-25, 25) / 10, MicroStage.GOAL_V - 0.5, 1), 3.5, 0.4, 0, "back")
-			st.puff(st.at(home.X, home.Y, 0.3), "dust", 6)
-			task.delay(0.4, function()
-				burstAt(ctx, st.at(0, MicroStage.GOAL_V, 2.5), { "white", "good", "yellow" }, 14)
-				st.puff(st.at(0, MicroStage.GOAL_V + 0.5, 2.5), "confetti", 18)
-			end)
-		elseif slime then
-			dashT = now
-			slimeHit = now + 0.12
-			task.delay(0.12, function()
-				local sl = slime
-				if sl and sl.model.Parent then
-					st.flash(sl, 0.12)
-					burstAt(ctx, st.at(SLIME_U, SLIME_V, 1.5), { "green", "white", "leaf" }, 10)
-					st.puff(st.at(SLIME_U, SLIME_V, 1.2), "debris", 8, "green")
-					st.puff(st.at(SLIME_U - 1, SLIME_V, 1.6), "spark", 6)
-				end
-			end)
-		end
-	end
-	local function press()
-		if done then
-			return
-		end
-		if pos >= zx - 1 and pos <= zx + zoneW + 1 then
-			hits += 1
-			Audio.play("pop", { pitch = 1 + hits * 0.15 })
-			local perfect = math.abs(pos - (zx + zoneW / 2)) <= 2
-			ctx.pop(bx + zx + zoneW / 2, by + 12, if perfect then "Perfect!" elseif v == "kick" then "Goal!" elseif v == "strike" then "Crit!" else "Flip!", UIKit.color(if perfect then "yellow" else "good"))
-			hitFx()
-			UIKit.setText(count, string.format("Hit the green: %d/%d", hits, need))
-			if hits >= need then
-				done = true
-				local sl = slime
-				if sl then
-					task.delay(0.3, function()
-						if sl.model.Parent then
-							burstAt(ctx, st.at(SLIME_U, SLIME_V, 1), { "green", "leaf", "white" }, 20)
-							st.puff(st.at(SLIME_U, SLIME_V, 1), "debris", 18, "green")
-							st.puff(st.at(SLIME_U, SLIME_V, 0.5), "dust", 8)
-							st.remove(sl)
-							slime = nil
-						end
-					end)
-				end
-				ctx.win()
-			else
-				placeZone()
-			end
-		else
-			done = true
-			ctx.pop(bx + math.floor(pos), by + 12, "Miss!", UIKit.color("bad"))
-			if v == "flip" then
-				launch(Vector3.new(4, 3, 0), 3, 0.5, 2, "stay")
-			elseif v == "kick" then
-				launch(Vector3.new(9, MicroStage.GOAL_V - 3, 0.5), 5, 0.5, 0, "stay")
-			end
-			ctx.shake()
-			ctx.lose()
-		end
-	end
-	goPad(ctx, "Go!")
-	local function animate(t: number)
-		now = t
-		local th = thing
-		if th then
-			local p = home
-			local tilt = CFrame.identity
-			local f = fly
-			if f then
-				local k = (t - f.t0) / f.dur
-				if k < 1 then
-					local base = f.from:Lerp(f.to, k)
-					p = base + Vector3.new(0, 0, 4 * f.lift * k * (1 - k))
-					tilt = CFrame.Angles(f.turns * 2 * math.pi * k, 0, 0)
-				elseif f.mode == "back" and k < 2.4 then
-					p = f.to -- in the net a moment, then back on the spot
-				elseif f.mode == "stay" then
-					p = f.to
-				else
-					fly = nil
-				end
-			end
-			st.place(th, p.X, p.Y, p.Z, FACE, tilt)
-		end
-		local sl = slime
-		if sl and sl.model.Parent then
-			-- it bounces: squash and stretch; a hit knocks it back
-			local b = math.abs(math.sin(t * 5))
-			local hitK = math.clamp(1 - (t - slimeHit) / 0.25, 0, 1)
-			if t < slimeHit then
-				hitK = 0
-			end
-			local s = if ctx.tiny then 0.6 else 1
-			MicroModels.scale(sl, Vector3.new(1 + 0.15 * (1 - b) + 0.2 * hitK, 1 - 0.15 * (1 - b) - 0.2 * hitK, 1 + 0.15 * (1 - b)) * s)
-			st.place(sl, SLIME_U + hitK * 1.5, SLIME_V, b * 0.8 * (1 - hitK), LEFT)
-		end
-		if v == "strike" then
-			local dk = (t - dashT) / 0.3
-			m.u = if dk >= 0 and dk < 1 then -6 + 7.5 * math.sin(dk * math.pi) else -6
-		end
-		local swinging = t < swingUntil
-		m.action = if swinging then "swing" elseif v == "flip" then "reach" else "stand"
-		m.k = math.clamp(1 - (swingUntil - t) / 0.25, 0, 1)
-		pose(ctx, m, t)
-	end
-	return {
-		update = function(t: number, dt: number)
-			animate(t)
-			if done then
-				return
-			end
-			pos += dir * speed * dt
-			if pos >= bw - 2 then
-				pos, dir = bw - 2, -1
-			elseif pos <= 0 then
-				pos, dir = 0, 1
-			end
-			needle.Position = UDim2.fromOffset(bx + math.floor(pos) - 1, by - 3)
-		end,
-		key = function(_k: string)
-			press()
-		end,
-		after = function(t: number, won: boolean)
-			animate(t)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			if pos >= zx + 1 and pos <= zx + zoneW - 1 then
-				press()
-			end
-		end,
-	}
-end
-
------------------------------------------------------------------- 3. mash (Animals "Pet!")
-function Games.mash(ctx: Ctx): Micro
-	local st = ctx.stage
-	local need = 8 + 2 * ctx.diff
-	local n = 0
-	local m = newMe(-2.75, 2.5, RIGHT)
-	local cat = target(ctx, "cat", nil, 1.6)
-	local catU, catV = 1.25, 2.5
-	local petBox = hitbox(ctx, "Pad_go", 48, 44)
-	petBox.Activated:Connect(function()
-		ctx.press("go")
-	end)
-	local setBar = meter(ctx.area, math.floor(ctx.w / 2 - 54), 40, 120, 6, "pink", 10)
-	setBar(0)
-	PixelSprites.image(ctx.area, "heart", UDim2.fromOffset(math.floor(ctx.w / 2 - 54) - 14, 37), 10)
-	local label = say(ctx, string.format("Pet it! 0/%d", need))
-	local done = false
-	local now = 0
-	local petUntil = 0
-	local squashUntil = 0
-	local function press()
-		if done then
-			return
-		end
-		n += 1
-		setBar(n / need)
-		UIKit.setText(label, string.format("Pet it! %d/%d", n, need))
-		Audio.play("pop", { volume = 0.6, pitch = 1 + (n % 5) * 0.06 })
-		petUntil = now + 0.3
-		squashUntil = now + 0.09
-		local x, y = screenAt(ctx, st.at(catU, catV, cat.h + 0.5))
-		local heart = PixelSprites.image(ctx.area, "heart", UDim2.fromOffset(x - 5 + ctx.rng:int(-8, 8), y - 6), 13)
-		ctx.float(heart, (ctx.rng:next() - 0.5) * 16, -30, 0.7)
-		ctx.burst(x, y, { "pink", "white" }, 4)
-		st.puff(st.at(catU, catV, cat.h), "twinkle", 2, "pink")
-		if n >= need then
-			done = true
-			ctx.burst(x, y + 10, { "pink", "white", "berry_red" }, 18)
-			ctx.win()
-		end
-	end
-	local function animate(t: number)
-		now = t
-		local breath = 1 + 0.04 * math.sin(t * 4)
-		local sq = if t < squashUntil then 0.85 else 1
-		local s = if ctx.tiny then 0.6 else 1
-		MicroModels.scale(cat, Vector3.new(1 / math.sqrt(sq), breath * sq, 1 / math.sqrt(sq)) * s)
-		st.place(cat, catU, catV, 0, yawTo(-1, 0.4))
-		m.action = if t < petUntil or done then "pet" else "stand"
-		m.k = 1
-		pose(ctx, m, t)
-		follow(ctx, petBox, st.at(catU, catV, 1.2))
-	end
-	return {
-		update = function(t: number, _dt: number)
-			animate(t)
-		end,
-		key = function(_k: string)
-			press()
-		end,
-		after = function(t: number, won: boolean)
-			animate(t)
-			if not won then
-				ending(ctx, m, t, won)
-			end
-		end,
-		auto = function()
-			press()
-		end,
-	}
-end
-
------------------------------------------------------------------- 4. whack (Space "Shoot!", Farming "Water!", Zombies "Whack!")
--- Things rise out of the holes dug in the stage's floor: tap the right ones (not the decoys).
-type Hole = { b: TextButton, u: number, v: number, t: Thing, d: Thing?, state: string, since: number, untilT: number, which: Thing?, bloom: Thing? }
-function Games.whack(ctx: Ctx): Micro
-	local st = ctx.stage
-	local cols = if ctx.diff >= 3 then 4 else 3
-	local rows = if ctx.diff >= 6 then 3 else 2
-	local need = 4 + ctx.diff
-	local v = ctx.variant
-	local targetKind = if v == "space" then "alien" elseif v == "water" then "sprout" else "zombie"
-	local decoyKind: string? = if v == "space" then "rocket" elseif v == "zombie" then "kid" else nil
-	local colors = if v == "space" then { "green", "white", "yellow" } elseif v == "water" then { "blue", "white" } else { "green", "leaf", "white" }
-	local m = newMe(10, 6, LEFT)
-	st.hold(if v == "space" then "blaster" elseif v == "water" then "can" else "hammer")
-	local holes: { Hole } = {}
-	local hits = 0
-	local now = 0
-	local nextAt = 0.2
-	local life = math.max(0.45, 1.05 - 0.07 * ctx.diff) / ctx.speed
-	local every = math.max(0.25, 0.6 - 0.04 * ctx.diff) / ctx.speed
-	local done = false
-	local swingUntil = 0
-	local beam: Thing? = nil
-	local beamUntil, beamTo = 0, Vector3.zero
-	if v == "space" then
-		beam = st.adopt(MicroModels.slab(Vector3.new(0.25, 0.25, 1), "screen_code", nil, true))
-	end
-	local verb = if v == "water" then "Water the dry ones:" elseif v == "space" then "Shoot the aliens:" else "Whack the zombies:"
-	local label = say(ctx, string.format("%s 0/%d", verb, need))
-	local hit: (idx: number) -> ()
-	local i = 0
-	for c = 1, cols do
-		for r = 4 - rows, 3 do
-			i += 1
-			local idx = i
-			local b = hitbox(ctx, "Hole_" .. idx, 30, 30)
-			local t = target(ctx, targetKind)
-			MicroModels.show(t, false)
-			local d = if decoyKind then target(ctx, decoyKind) else nil
-			if d then
-				MicroModels.show(d, false)
-			end
-			b.Activated:Connect(function()
-				hit(idx)
-			end)
-			holes[idx] = { b = b, u = MicroStage.HOLE_U[c], v = MicroStage.HOLE_V[r], t = t, d = d, state = "down", since = 0, untilT = 0, which = nil, bloom = nil }
-		end
-	end
-	hit = function(idx: number)
-		local hole = holes[idx]
-		if done or (hole.state ~= "rising" and hole.state ~= "up") then
-			return
-		end
-		local p = hole.which :: Thing
-		local at = st.at(hole.u, hole.v, p.h * 0.6)
-		swingUntil = now + 0.2
-		if beam then
-			beamUntil = now + 0.09
-			beamTo = at
-		end
-		if p == hole.d then
-			done = true
-			st.flash(p, 0.3)
-			ctx.shake()
-			burstAt(ctx, at, { "bad", "white" }, 10)
-			popAt(ctx, st.at(hole.u, hole.v, p.h + 0.5), "Oops!", "bad")
-			ctx.lose()
-			return
-		end
-		hits += 1
-		Audio.play("squish")
-		st.flash(p, 0.12)
-		burstAt(ctx, at, colors, 10)
-		if v == "water" then
-			st.puff(at + Vector3.new(0, 1, 0), "splash", 10)
-		else
-			st.puff(at, "debris", 9, if v == "space" then "green" else "leaf_dark")
-			st.puff(at, "spark", 5)
-		end
-		popAt(ctx, st.at(hole.u, hole.v, p.h + 0.5), "+1", "good")
-		UIKit.setText(label, string.format("%s %d/%d", verb, hits, need))
-		if v == "water" then
-			-- the sprout blooms a moment, then sinks
-			MicroModels.show(p, false)
-			local fl = target(ctx, "flower")
-			st.place(fl, hole.u, hole.v, 0, FACE)
-			st.puff(st.at(hole.u, hole.v, 2.2), "confetti", 8)
-			hole.bloom = fl
-			hole.state = "bloom"
-			hole.since = now
-		else
-			hole.state = "sinking"
-			hole.since = now + 0.1
-		end
-		if hits >= need then
-			done = true
-			ctx.win()
-		end
-	end
-	local function animate(t: number)
-		now = t
-		for _, hole in holes do
-			local p = hole.which
-			local k = 0
-			if hole.state == "rising" then
-				k = math.clamp((t - hole.since) / 0.12, 0, 1)
-				if k >= 1 then
-					hole.state = "up"
-				end
-			elseif hole.state == "up" then
-				k = 1
-			elseif hole.state == "sinking" then
-				k = 1 - math.clamp((t - hole.since) / 0.12, 0, 1)
-				if t - hole.since >= 0.12 then
-					hole.state = "down"
-					hole.which = nil
-				end
-			elseif hole.state == "bloom" and t - hole.since > 0.4 then
-				local fl = hole.bloom
-				if fl then
-					st.remove(fl)
-				end
-				hole.bloom = nil
-				hole.state = "down"
-				hole.which = nil
-			end
-			local list: { Thing } = { hole.t }
-			if hole.d then
-				table.insert(list, hole.d :: Thing)
-			end
-			for _, th in list do
-				local on = th == p and k > 0 and hole.state ~= "bloom"
-				MicroModels.show(th, on)
-				if on then
-					local wob = if th.kind == "alien" or th.kind == "zombie" then math.sin(t * 9 + hole.u) * 0.12 else 0
-					st.place(th, hole.u, hole.v, -(th.h + 0.3) * (1 - k), FACE, CFrame.Angles(0, 0, wob))
-				end
-			end
-			follow(ctx, hole.b, st.at(hole.u, hole.v, 1))
-		end
-		m.action = if t < swingUntil then "swing" else "stand"
-		m.k = math.clamp(1 - (swingUntil - t) / 0.2, 0, 1)
-		pose(ctx, m, t)
-		local bm = beam
-		if bm then
-			local on = t < beamUntil
-			MicroModels.show(bm, on)
-			local hand = st.avatar.rig.parts.HandR
-			if on and hand then
-				local from = hand.Position
-				local len = (beamTo - from).Magnitude
-				if len > 0.1 then
-					MicroModels.scale(bm, Vector3.new(1, 1, len))
-					MicroModels.place(bm, CFrame.lookAt((from + beamTo) / 2, beamTo) * CFrame.new(0, -0.125, 0))
-				end
-			end
-		end
-	end
-	return {
-		update = function(t: number, _dt: number)
-			for _, hole in holes do
-				if (hole.state == "rising" or hole.state == "up") and t >= hole.untilT then
-					hole.state = "sinking"
-					hole.since = t
-				end
-			end
-			if t >= nextAt and not done then
-				nextAt = t + every
-				local free = {}
-				for idx, hole in holes do
-					if hole.state == "down" then
-						table.insert(free, idx)
-					end
-				end
-				if #free > 0 then
-					local hole = holes[free[ctx.rng:int(1, #free)]]
-					local decoy = hole.d ~= nil and ctx.diff >= 4 and ctx.rng:chance(0.25)
-					hole.which = if decoy and hole.d then hole.d else hole.t
-					st.puff(st.at(hole.u, hole.v, 0.4), "dust", 4, if v == "space" then "purple" else "wood")
-					hole.state = "rising"
-					hole.since = t
-					hole.untilT = t + life
-				end
-			end
-			animate(t)
-		end,
-		key = function(_k: string) end,
-		after = function(t: number, won: boolean)
-			animate(t)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			for idx, hole in holes do
-				if (hole.state == "rising" or hole.state == "up") and hole.which == hole.t then
-					hit(idx)
-					return
-				end
-			end
-		end,
-	}
-end
-
------------------------------------------------------------------- 5. pick (Puzzle "Match!", School "Answer!", Strategy "Count!", Detectives "Spot it!")
-local SHAPE_COLORS = { "berry_red", "blue", "yellow", "green", "purple", "orange" }
-type Bobber = { t: Thing, u: number, v: number, y: number, ph: number }
-type Walker = { t: Thing, u: number, v: number, du: number, dv: number }
-function Games.pick(ctx: Ctx): Micro
-	local st = ctx.stage
-	local variant = ctx.variant
-	local n = if ctx.diff >= 7 then 6 elseif ctx.diff >= 5 then 5 elseif ctx.diff >= 3 then 4 else 3
-	local right = 1
-	local done = false
-	local m = newMe(0, 5, FACE)
-	local mark: (i: number, good: boolean) -> () = function(_i: number, _good: boolean) end
-	local where: (i: number) -> (number, number) = function(_i: number): (number, number)
-		return ctx.w / 2, ctx.h / 2
-	end
-	local function choose(i: number)
-		if done then
-			return
-		end
-		done = true
-		local x, y = where(i)
-		if i == right then
-			Audio.play("ding")
-			mark(i, true)
-			ctx.burst(x, y, { "good", "white", "yellow" }, 14)
-			ctx.win()
-		else
-			mark(i, false)
-			mark(right, true)
-			ctx.burst(x, y, { "bad", "white" }, 8)
-			ctx.shake()
-			ctx.lose()
-		end
-	end
-	local walkers: { Walker } = {}
-	local bobbers: { Bobber } = {}
-	local extra: ((t: number) -> ())? = nil
-	if variant == "spot" then
-		-- suspects in rows on the office floor, one in another coat: tap them
-		local cols = if ctx.diff >= 6 then 6 elseif ctx.diff >= 3 then 5 else 4
-		local rows = if ctx.diff >= 6 then 3 else 2
-		right = ctx.rng:int(1, cols * rows)
-		local coat = ({ "wood", "blue", "green", "steel_dark" })[ctx.rng:int(1, 4)]
-		local odd = ({ "berry_red", "purple", "orange", "yellow" })[ctx.rng:int(1, 4)]
-		type Cell = { u: number, v: number, b: TextButton, t: Thing }
-		local cells: { Cell } = {}
-		for i = 1, cols * rows do
-			local c, r = (i - 1) % cols, (i - 1) // cols
-			local u = (c - (cols - 1) / 2) * 3.2
-			local vv = -2 + r * 3.5
-			local t = target(ctx, "suspect", { color = if i == right then odd else coat }, 0.8)
-			local b = hitbox(ctx, "Opt_" .. i, 22, 30)
-			b.Activated:Connect(function()
-				choose(i)
-			end)
-			cells[i] = { u = u, v = vv, b = b, t = t }
-			table.insert(bobbers, { t = t, u = u, v = vv, y = 0, ph = i * 0.7 })
-		end
-		m = newMe(-11, 6, RIGHT)
-		mark = function(i: number, good: boolean)
-			st.flash(cells[i].t, if good then 0.6 else 0.3)
-		end
-		where = function(i: number): (number, number)
-			return screenAt(ctx, st.at(cells[i].u, cells[i].v, 1.5))
-		end
-		extra = function(_t: number)
-			for _, c in cells do
-				follow(ctx, c.b, st.at(c.u, c.v, 1.3))
-			end
-		end
-		say(ctx, "Spot the odd one out!")
-	else
-		-- a question; n options along the bottom (keys 1..n)
-		local labels: { string } = {}
-		if variant == "match" then
-			-- shapes on pedestals: which one is the shape floating over the founder?
-			right = ctx.rng:int(1, n)
-			local pool = table.clone(MicroModels.SHAPES)
-			for i = #pool, 2, -1 do
-				local j = ctx.rng:int(1, i)
-				pool[i], pool[j] = pool[j], pool[i]
-			end
-			local hues = table.clone(SHAPE_COLORS)
-			for i = #hues, 2, -1 do
-				local j = ctx.rng:int(1, i)
-				hues[i], hues[j] = hues[j], hues[i]
-			end
-			local spec: { { shape: string, color: string } } = {}
-			for i = 1, n do
-				local shape, color = pool[(i - 1) % #pool + 1], hues[(i - 1) % #hues + 1]
-				-- from difficulty 5 some options share the right one's shape (only the colour tells)
-				if ctx.diff >= 5 and i ~= right and i % 2 == 0 then
-					shape = pool[(right - 1) % #pool + 1]
-				end
-				spec[i] = { shape = shape, color = color }
-			end
-			local pedU: { number } = {}
-			for i = 1, n do
-				local u = (i - (n + 1) / 2) * 3.6
-				local p = st.spawn("pedestal", nil, 1.1)
-				st.place(p, u, 3, 0, FACE)
-				local s = target(ctx, "shape", { alt = spec[i].shape, color = spec[i].color })
-				table.insert(bobbers, { t = s, u = u, v = 3, y = 1.3, ph = i })
-				pedU[i] = u
-				labels[i] = tostring(i)
-			end
-			local wanted = st.spawn("shape", { alt = spec[right].shape, color = spec[right].color }, 1)
-			table.insert(bobbers, { t = wanted, u = 0, v = -5, y = 5.5, ph = 0 })
-			m = newMe(0, -5, FACE)
-			m.action = "cast"
-			where = function(i: number): (number, number)
-				return screenAt(ctx, st.at(pedU[i], 3, 2))
-			end
-			mark = function(i: number, good: boolean)
-				local b = bobbers[i]
-				if b then
-					st.flash(b.t, if good then 0.6 else 0.3)
-				end
-			end
-			say(ctx, "Which one matches?")
-		else
-			local answer: number
-			local q: string
-			if variant == "answer" then
-				local a, b = ctx.rng:int(1, 4 + 2 * ctx.diff), ctx.rng:int(1, 4 + 2 * ctx.diff)
-				if ctx.diff >= 5 then
-					a, b = ctx.rng:int(2, 3 + ctx.diff), ctx.rng:int(2, 9)
-					answer, q = a * b, string.format("%d x %d = ?", a, b)
-				elseif ctx.diff >= 3 and a > b then
-					answer, q = a - b, string.format("%d - %d = ?", a, b)
-				else
-					answer, q = a + b, string.format("%d + %d = ?", a, b)
-				end
-				-- chalk on the board: over the board's middle on screen
-				local bu, bv = uvOf(0, -12)
-				local qx, qy = screenAt(ctx, st.at(bu, bv, 4.25))
-				UIKit.text(ctx.area, q, UDim2.fromOffset(160, 18), UDim2.fromOffset(qx - 80, qy - 9), { x = "center", face = "big", color = WHITE, z = 10, name = "Question" })
-				m = newMe(1, 5, AWAY)
-			else
-				-- count: toy soldiers spread over the map, never on top of each other (marching from difficulty 5)
-				answer = ctx.rng:int(3, 5 + ctx.diff)
-				q = "How many soldiers?"
-				local cells: { number } = {}
-				local gc, gr = 7, 4
-				for i = 1, gc * gr do
-					cells[i] = i
-				end
-				for i = #cells, 2, -1 do
-					local j = ctx.rng:int(1, i)
-					cells[i], cells[j] = cells[j], cells[i]
-				end
-				answer = math.min(answer, #cells)
-				for k = 1, answer do
-					local c, r = (cells[k] - 1) % gc, (cells[k] - 1) // gc
-					local u = (c - (gc - 1) / 2) * 3 + ctx.rng:int(-4, 4) / 10
-					local vv = -4 + r * 2.8 + ctx.rng:int(-3, 3) / 10
-					local s = target(ctx, "soldier", nil, 0.6)
-					if ctx.diff >= 5 then
-						local a = ctx.rng:next() * math.pi * 2
-						table.insert(walkers, { t = s, u = u, v = vv, du = math.cos(a) * 1.6, dv = math.sin(a) * 1.2 })
-					else
-						table.insert(bobbers, { t = s, u = u, v = vv, y = 0, ph = k })
-					end
-				end
-				m = newMe(-11, 7, RIGHT)
-			end
-			say(ctx, if variant == "answer" then "Answer it!" else q)
-			right = ctx.rng:int(1, n)
-			for i = 1, n do
-				labels[i] = tostring(math.max(0, answer + (i - right) * (if variant == "count" then 1 else ctx.rng:int(1, 3))))
-			end
-			for i = 1, n do
-				for j = 1, i - 1 do
-					if labels[i] == labels[j] then
-						labels[i] = tostring(tonumber(labels[i]) :: number + 10 + i)
-					end
-				end
-			end
-		end
-		local ow = math.min(36, math.floor((ctx.w - 8) / n) - 4)
-		local oh = 18
-		local total = n * (ow + 4) - 4
-		local buttons: { TextButton } = {}
-		for i = 1, n do
-			local b = UIKit.button(ctx.area, labels[i] or "", UDim2.fromOffset(ow, oh), UDim2.fromOffset(math.floor((ctx.w - total) / 2) + (i - 1) * (ow + 4), ctx.h - PAD_Y - oh), function()
-				choose(i)
-			end, { name = "Opt_" .. i, color = UIKit.color("plate_light"), face = "big" })
-			b.ZIndex = 10
-			buttons[i] = b
-		end
-		local markStage = mark
-		mark = function(i: number, good: boolean)
-			UIKit.setButtonColor(buttons[i], UIKit.color(if good then "good" else "bad"))
-			markStage(i, good)
-		end
-		if variant ~= "match" then
-			where = function(i: number): (number, number)
-				local b = buttons[i]
-				return b.Position.X.Offset + ow / 2, b.Position.Y.Offset + oh / 2
-			end
-		end
-	end
-	local function animate(t: number, dt: number)
-		for _, w in walkers do
-			w.u += w.du * dt * ctx.speed
-			w.v += w.dv * dt * ctx.speed
-			if math.abs(w.u) > 9 then
-				w.du = -w.du
-				w.u = math.clamp(w.u, -9, 9)
-			end
-			if w.v < -5 or w.v > 5 then
-				w.dv = -w.dv
-				w.v = math.clamp(w.v, -5, 5)
-			end
-			st.place(w.t, w.u, w.v, if math.floor(t * 8 + w.u) % 2 == 0 then 0.15 else 0, yawTo(w.du, w.dv))
-		end
-		for _, b in bobbers do
-			st.place(b.t, b.u, b.v, b.y + (if math.floor(t * 3 + b.ph) % 4 == 0 then 0.25 else 0), FACE)
-		end
-		if extra then
-			extra(t)
-		end
-		pose(ctx, m, t)
-	end
-	return {
-		update = function(t: number, dt: number)
-			animate(t, dt)
-		end,
-		key = function(k: string)
-			local i = tonumber(k)
-			if i and i >= 1 and i <= n then
-				choose(i)
-			end
-		end,
-		after = function(t: number, won: boolean)
-			animate(t, 0)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			choose(right)
-		end,
-	}
-end
-
------------------------------------------------------------------- 6. sequence (Fantasy "Cast!", Robots "Program!", Music "Repeat!")
-local DIRS = { "up", "right", "down", "left" }
-local STEP: { [string]: Vector2 } = { up = Vector2.new(0, -1), right = Vector2.new(1, 0), down = Vector2.new(0, 1), left = Vector2.new(-1, 0) }
-function Games.sequence(ctx: Ctx): Micro
-	local st = ctx.stage
-	if ctx.variant == "simon" then
-		-- four coloured pads light up a tune; play it back: the founder hops onto each pad
-		local len = 2 + math.floor(ctx.diff / 2)
-		local seq: { number } = {}
-		for i = 1, len do
-			seq[i] = ctx.rng:int(1, 4)
-		end
-		local colors = { "berry_red", "yellow", "blue", "green" }
-		local uiColors = { "fun", "ideas", "graphics", "sound" }
-		local pads: { Thing } = {}
-		local padU: { number } = {}
-		local PAD_V = 2.5
-		local m = newMe(0, -2, FACE)
-		for i = 1, 4 do
-			padU[i] = (i - 2.5) * 3.75
-			local p = st.spawn("pad", { color = colors[i] })
-			st.place(p, padU[i], PAD_V, 0, 0)
-			pads[i] = p
-		end
-		local pw = 36
-		local total = 4 * (pw + 4) - 4
-		for i = 1, 4 do
-			local b = pad(ctx, tostring(i), tostring(i), (ctx.w - total) / 2 + (i - 1) * (pw + 4), ctx.h - PAD_Y - 16, pw, 16, "plate_light")
-			UIKit.setButtonColor(b, UIKit.color(uiColors[i]))
-		end
-		local label = say(ctx, "Watch...")
-		local step = 0.5 / ctx.speed
-		local showing = true
-		local at = 1
-		local done = false
-		local lit = 0
-		local hopFrom, hopTo, hopT = Vector2.new(0, -2), Vector2.new(0, -2), -10
-		local now = 0
-		local function light(i: number, on: boolean)
-			st.glow(pads[i], on)
-			if on then
-				local x, y = screenAt(ctx, st.at(padU[i], PAD_V, 1))
-				local note = PixelSprites.image(ctx.area, "note", UDim2.fromOffset(x - 5, y - 10), 13)
-				ctx.float(note, (ctx.rng:next() - 0.5) * 14, -32, 0.6)
-				ctx.burst(x, y, { uiColors[i], "white" }, 5)
-			end
-		end
-		local function press(i: number)
-			if showing or done then
-				return
-			end
-			light(i, true)
-			hopFrom, hopTo, hopT = Vector2.new(m.u, m.v), Vector2.new(padU[i], PAD_V), now
-			task.delay(0.18, function()
-				st.puff(st.at(padU[i], PAD_V, 0.6), "spark", 8, colors[i])
-			end)
-			task.delay(0.18, function()
-				if pads[i].model.Parent then
-					light(i, false)
-				end
-			end)
-			Audio.play("tick", { pitch = 0.8 + i * 0.15 })
-			if i == seq[at] then
-				at += 1
-				if at > len then
-					done = true
-					ctx.win()
-				end
-			else
-				done = true
-				ctx.shake()
-				ctx.lose()
-			end
-		end
-		local function animate(t: number)
-			now = t
-			local k = math.clamp((t - hopT) / 0.18, 0, 1)
-			m.u = hopFrom.X + (hopTo.X - hopFrom.X) * k
-			m.v = hopFrom.Y + (hopTo.Y - hopFrom.Y) * k
-			local onPad = hopT > 0
-			m.y = (if onPad then 0.5 else 0) + 1.6 * math.sin(k * math.pi)
-			m.action = if k < 1 then "jump" elseif showing then "stand" else "dance"
-			pose(ctx, m, t)
-		end
-		return {
-			clock = 1.6,
-			update = function(t: number, _dt: number)
-				animate(t)
-				if not showing then
-					return
-				end
-				local k = math.floor(t / step) + 1
-				local phase = (t / step) % 1
-				if k > len then
-					showing = false
-					if lit > 0 then
-						light(lit, false)
-					end
-					UIKit.setText(label, "Your turn: repeat it!")
-					return
-				end
-				local want = if phase < 0.7 then seq[k] else 0
-				if want ~= lit then
-					if lit > 0 then
-						light(lit, false)
-					end
-					if want > 0 then
-						light(want, true)
-						Audio.play("tick", { pitch = 0.8 + want * 0.15 })
-					end
-					lit = want
-				end
-			end,
-			key = function(kk: string)
-				local i = tonumber(kk) or table.find(DIRS, kk)
-				if i then
-					press(i)
-				end
-			end,
-			after = function(t: number, won: boolean)
-				animate(t)
-				ending(ctx, m, t, won)
-			end,
-			auto = function()
-				if not showing then
-					press(seq[at])
-				end
-			end,
-		}
-	end
-	-- a row of arrows to type in order (Robots from difficulty 4: they hide after a look)
-	local program = ctx.variant == "program"
-	local len = 3 + math.floor(ctx.diff / 2)
-	local seq: { string } = {}
-	for i = 1, len do
-		seq[i] = DIRS[ctx.rng:int(1, 4)]
-	end
-	local suffix = if ctx.tiny then "_t" else ""
-	local aw = if ctx.tiny then 7 else 13
-	local tw = math.min(aw + 6, math.floor((ctx.w - 10) / len) - 3)
-	local total = len * (tw + 3) - 3
-	local tx0, ty = math.floor((ctx.w - total) / 2), 38
-	type Tile = { p: Frame, a: GuiObject, x: number }
-	local tiles: { Tile } = {}
-	for i = 1, len do
-		local x = tx0 + (i - 1) * (tw + 3)
-		local p = UIKit.plate(ctx.area, UDim2.fromOffset(tw, tw), UDim2.fromOffset(x, ty), UIKit.color("plate_light"), 0, 2)
-		p.ZIndex = 8
-		local a = PixelSprites.image(p, "arrow_" .. seq[i] .. suffix, UDim2.fromOffset(math.floor((tw - aw) / 2), math.floor((tw - aw) / 2)), 9)
-		tiles[i] = { p = p, a = a, x = x }
-	end
-	-- the stage: the founder walks the board to the flag (Robots), or casts at the orb over their head (Fantasy)
-	local bd = MicroStage.BOARD
-	local cell = Vector2.new(math.ceil(bd.cols / 2), math.ceil(bd.rows / 2))
-	local function cellUV(c: Vector2): (number, number)
-		return (c.X - (bd.cols + 1) / 2) * bd.step, bd.v0 + (c.Y - (bd.rows + 1) / 2) * bd.step
-	end
-	local m = newMe(0, 2, FACE)
-	local walkFrom, walkTo, walkT = Vector2.zero, Vector2.zero, -10
-	local orb: Thing? = nil
-	local castUntil = 0
-	if program then
-		local goal = cell
-		for _, d in seq do
-			local nx = goal + STEP[d]
-			goal = Vector2.new(math.clamp(nx.X, 1, bd.cols), math.clamp(nx.Y, 1, bd.rows))
-		end
-		local flag = st.spawn("flag", nil, 0.6)
-		local gu, gv = cellUV(goal)
-		st.place(flag, gu + 0.7, gv - 0.7, 0.25, FACE)
-		local u, vv = cellUV(cell)
-		m = newMe(u, vv, FACE)
-		m.y = 0.25
-		walkFrom, walkTo = Vector2.new(u, vv), Vector2.new(u, vv)
-	else
-		st.hat("hat")
-		orb = st.spawn("orb", nil, 0.5)
-	end
-	local hideAt = if program and ctx.diff >= 4 then 1.2 / ctx.speed else math.huge
-	local hidden = false
-	local at = 1
-	local done = false
-	local now = 0
-	local level = 0
-	say(ctx, if program then "Walk the arrows to the flag!" else "Cast the spell!")
-	local function highlight()
-		for i, tl in ipairs(tiles) do
-			UIKit.setPlate(tl.p, if i < at then UIKit.color("good") elseif i == at then UIKit.color("button") else UIKit.color("plate_light"))
-		end
-	end
-	highlight()
-	arrowPads(ctx, { "left", "up", "down", "right" })
-	local function typeKey(k: string)
-		if done or table.find(DIRS, k) == nil then
-			return
-		end
-		local tl = tiles[at]
-		if k == seq[at] then
-			tl.a.Visible = true
-			Audio.play("key")
-			ctx.burst(tl.x + tw / 2, ty + tw / 2, if program then { "good", "white" } else { "purple", "yellow", "white" }, 5)
-			tl.p.Position = UDim2.fromOffset(tl.x, ty - 2)
-			UIKit.tween(tl.p, 0.1, { Position = UDim2.fromOffset(tl.x, ty) })
-			if program then
-				local nx = cell + STEP[k]
-				cell = Vector2.new(math.clamp(nx.X, 1, bd.cols), math.clamp(nx.Y, 1, bd.rows))
-				local u, vv = cellUV(cell)
-				walkFrom, walkTo, walkT = Vector2.new(m.u, m.v), Vector2.new(u, vv), now
-				task.delay(0.14, function()
-					st.puff(st.at(u, vv, 0.4), "dust", 4)
-				end)
-			else
-				level += 1
-				castUntil = now + 0.3
-				burstAt(ctx, st.at(m.u, m.v, 5.5 + level * 0.2), { "purple", "yellow", "white" }, 6)
-				st.puff(st.at(m.u, m.v, 5.3), "twinkle", 6, "purple")
-			end
-			at += 1
-			highlight()
-			if at > len then
-				done = true
-				burstAt(ctx, st.at(m.u, m.v, 3), if program then { "yellow", "white", "good" } else { "purple", "yellow", "white", "pink" }, 20)
-				ctx.win()
-			end
-		else
-			done = true
-			UIKit.setPlate(tl.p, UIKit.color("bad"))
-			tl.a.Visible = true
-			ctx.shake()
-			ctx.lose()
-		end
-	end
-	local function animate(t: number)
-		now = t
-		if program then
-			local k = math.clamp((t - walkT) / 0.14, 0, 1)
-			m.u = walkFrom.X + (walkTo.X - walkFrom.X) * k
-			m.v = walkFrom.Y + (walkTo.Y - walkFrom.Y) * k
-			m.y = 0.25 + 0.8 * math.sin(k * math.pi)
-			m.speed = if k < 1 then 14 else 0
-			local d = walkTo - walkFrom
-			if d.Magnitude > 0.1 then
-				m.yaw = yawTo(d.X, d.Y)
-			end
-			m.action = "stand"
-		else
-			m.action = if t < castUntil then "cast" else "stand"
-			local ob = orb
-			if ob and ob.model.Parent then
-				MicroModels.scale(ob, Vector3.one * (0.6 + 0.25 * level))
-				st.place(ob, m.u, m.v, 5.2 + math.sin(t * 4) * 0.2, 0)
-			end
-		end
-		pose(ctx, m, t)
-	end
-	return {
-		update = function(t: number, _dt: number)
-			animate(t)
-			if not hidden and t >= hideAt then
-				hidden = true
-				for i, tl in tiles do
-					if i >= at then
-						tl.a.Visible = false
-					end
-				end
-			end
-		end,
-		key = typeKey,
-		after = function(t: number, won: boolean)
-			animate(t)
-			ending(ctx, m, t, won)
-			local ob = orb
-			if ob and won then
-				st.remove(ob)
-				orb = nil
-			end
-		end,
-		auto = function()
-			if seq[at] then
-				typeKey(seq[at])
-			end
-		end,
-	}
-end
-
------------------------------------------------------------------- 7. catch (Pirates "Loot!", Ocean "Catch!")
-function Games.catch(ctx: Ctx): Micro
-	local st = ctx.stage
-	local fish = ctx.variant == "fish"
-	local n = if ctx.diff >= 5 then 5 else 4
-	local row = 2.5
-	local m = newMe(0, row, FACE)
-	local L = lanes(ctx, n, row, m)
-	st.hat("basket")
-	local goodKind = if fish then "fish" else "coin"
-	local badKind = if fish then "jelly" else "bomb"
-	local need = 3 + math.floor(ctx.diff / 2)
-	local got = 0
-	local items: { Fall } = {}
-	local nextAt = 0.3
-	local fall = (7 + 1.4 * ctx.diff) * ctx.speed
-	local every = math.max(0.3, 0.7 - 0.05 * ctx.diff) / ctx.speed
-	local badShare = math.min(0.5, 0.2 + 0.04 * ctx.diff)
-	local done = false
-	local TOP = 16
-	local CATCH = 5.0 -- the basket's rim over the floor
-	local bumpUntil = 0
-	local verb = if fish then "Catch fish, not jellies:" else "Grab coins, not bombs:"
-	local label = say(ctx, string.format("%s 0/%d", verb, need))
-	local function animate(t: number, dt: number)
-		local moving = L.step(dt)
-		m.speed = if moving then 14 else 0
-		m.y = if t < bumpUntil then -0.15 else 0
-		m.action = "cheer"
-		pose(ctx, m, t)
-	end
-	return {
-		update = function(t: number, dt: number)
-			animate(t, dt)
-			if done then
-				return
-			end
-			if t >= nextAt then
-				nextAt = t + every * (0.7 + 0.6 * ctx.rng:next())
-				local l = ctx.rng:int(1, n)
-				local good = not ctx.rng:chance(badShare)
-				local th = target(ctx, if good then goodKind else badKind, nil, 1)
-				table.insert(items, { t = th, lane = l, y = TOP, v = row, gone = false, good = good, spin = ctx.rng:next() * 6 })
-			end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		local held = p.data.item :: Item?
+		if t >= p.think or (held and held.gone) then
+			p.think = t + A.react(p)
+			local best, pick = -math.huge, nil :: Item?
+			local noisy = not p.me and rng:next() < (1 - p.skill) * 0.5
 			for _, it in items do
-				if not it.gone then
-					it.y -= fall * dt
-					local yaw = if it.good and not fish then (t * 6 + it.spin) elseif fish then FACE + math.sin(t * 10 + it.spin) * 0.35 else FACE
-					st.place(it.t, L.u(it.lane), row, math.max(0, it.y), yaw)
-					local spark = it.t.parts.Spark
-					if spark then
-						spark.Transparency = if math.floor(t * 12) % 2 == 0 then 0 else 1
+				if not it.bad and not it.gone and (it.at < 0 or t - it.at > 0.3) then
+					local mine = dist(p.x, p.z, it.x, it.z) / (A.speed * p.pace)
+					local value = it.worth / (mine + 0.4)
+					-- someone else gets there first: less worth it
+					for _, q in A.players do
+						if q ~= p and dist(q.x, q.z, it.x, it.z) / (A.speed * q.pace) < mine - 0.15 then
+							value *= 0.35
+							break
+						end
 					end
-					if it.lane == L.lane() and it.y < CATCH and it.y > CATCH - 1.5 then
+					if noisy then
+						value = rng:next()
+					end
+					if value > best then
+						best, pick = value, it
+					end
+				end
+			end
+			p.data.item = pick
+			if pick then
+				p.tx, p.tz = pick.x, pick.z
+			else
+				p.tx, p.tz = 0, 0
+			end
+		end
+		local dx, dz = A.steer(p, p.tx, p.tz)
+		-- keep clear of the bad ones
+		for _, it in items do
+			if it.bad and not it.gone then
+				local ex, ez = p.x - it.x, p.z - it.z
+				local d = math.sqrt(ex * ex + ez * ez)
+				if d < 2.6 and d > 0.01 then
+					local k = (2.6 - d) / 2.6 * (if p.me then 2.2 else 1.2 * p.skill)
+					dx += ex / d * k
+					dz += ez / d * k
+				end
+			end
+		end
+		return dx, dz, false
+	end
+	local function step(t: number, dt: number)
+		local good = 0
+		for _, it in items do
+			if not it.bad and not it.gone then
+				good += 1
+			end
+		end
+		if good < want then
+			spawn(t, false)
+		end
+		for i = #items, 1, -1 do
+			local it = items[i]
+			if it.gone then
+				st.remove(it.t)
+				table.remove(items, i)
+				continue
+			end
+			if it.bad then
+				it.x += it.vx * dt * ctx.speed
+				it.z += it.vz * dt * ctx.speed
+				local L = A.lim - 0.5
+				if math.abs(it.x) > L then
+					it.vx = -it.vx
+					it.x = math.clamp(it.x, -L, L)
+				end
+				if math.abs(it.z) > L then
+					it.vz = -it.vz
+					it.z = math.clamp(it.z, -L, L)
+				end
+			end
+			local y = if it.at < 0 then 0 else fallY(t - it.at, 0.4, 7)
+			local bob = if it.bad then 0 else math.abs(math.sin(t * 3 + i)) * 0.3
+			A.place(it.t, it.x, it.z, y + bob, t * 1.5 + i)
+			if y < 0.5 then
+				for _, p in A.players do
+					if p.alive and p.y < 1 and p.stun <= 0 and dist(p.x, p.z, it.x, it.z) < 1.2 then
 						it.gone = true
-						st.remove(it.t)
-						local p = st.at(m.u, row, CATCH)
-						if it.good then
-							got += 1
-							Audio.play("coin")
-							bumpUntil = t + 0.08
-							burstAt(ctx, p, if fish then { "orange", "white", "blue" } else { "yellow", "white", "gold" }, 9)
-							st.puff(p, if fish then "splash" else "spark", 8)
-							popAt(ctx, p, "+1", "accent")
-							UIKit.setText(label, string.format("%s %d/%d", verb, got, need))
-							if got >= need then
-								done = true
-								ctx.win()
-								return
+						if it.bad then
+							p.stun = 1.2
+							local lost = math.min(2, math.floor(p.score))
+							A.award(p, -lost)
+							st.puff(A.at(it.x, it.z, 0.8), "spark", 10)
+							st.puff(A.at(it.x, it.z, 0.6), "smoke", 3)
+							Audio.play("squish", { pitch = 0.9 })
+							if p.me then
+								ctx.shake()
 							end
+							-- what was dropped lands round about, and the bad one comes back elsewhere
+							for _ = 1, lost do
+								spawn(t, false)
+							end
+							spawn(t, true)
 						else
-							done = true
-							burstAt(ctx, p, if fish then { "pink", "white", "purple" } else { "orange", "yellow", "bad", "white" }, 20)
-							st.puff(p, "debris", 12, if fish then "pink" else "black")
-							st.puff(p, if fish then "splash" else "spark", 12)
-							if not fish then
-								ctx.flash("white")
-							end
-							ctx.shake()
-							ctx.lose()
-							return
+							A.award(p, it.worth)
+							st.puff(A.at(it.x, it.z, 0.6), if it.worth > 1 then "twinkle" else "spark", if it.worth > 1 then 6 else 4)
 						end
-					elseif it.y <= 0 then
-						it.gone = true
-						burstAt(ctx, st.at(L.u(it.lane), row, 0.3), if it.good then { "yellow", "white" } else { "steel", "white" }, 5)
-						st.puff(st.at(L.u(it.lane), row, 0.3), if fish then "splash" else "dust", 5)
-						st.remove(it.t)
-					end
-				end
-			end
-		end,
-		key = function(k: string)
-			if k == "left" then
-				L.move(-1)
-			elseif k == "right" then
-				L.move(1)
-			end
-		end,
-		after = function(t: number, won: boolean)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			local function badNear(l: number): boolean
-				for _, it in items do
-					if not it.gone and not it.good and it.lane == l and it.y < CATCH + 4 and it.y > CATCH - 1.5 then
-						return true
-					end
-				end
-				return false
-			end
-			local here = L.lane()
-			local best: Fall? = nil
-			for _, it in items do
-				if not it.gone and it.good and it.y > CATCH - 1.5 and not badNear(it.lane) and (best == nil or it.y < (best :: Fall).y) then
-					best = it
-				end
-			end
-			local tgt = if best then (best :: Fall).lane else here
-			if badNear(here) and tgt == here then
-				for _, d in { -1, 1, -2, 2 } do
-					local l = here + d
-					if l >= 1 and l <= n and not badNear(l) then
-						tgt = l
 						break
 					end
 				end
 			end
-			if tgt ~= here then
-				local step = if tgt > here then 1 else -1
-				if not badNear(here + step) or badNear(here) then
-					L.move(step)
-				end
-			end
-		end,
-	}
-end
-
------------------------------------------------------------------- 8. jump (Adventure "Leap!", Dinosaurs "Jump!")
--- The founder runs up the path (world -X, toward the screen's upper left); rocks or cacti come down it: jump them.
-function Games.jump(ctx: Ctx): Micro
-	local st = ctx.stage
-	local dino = ctx.variant == "dino"
-	local RUN_X = 5
-	local u0, v0 = uvOf(RUN_X, 0)
-	local m = newMe(u0, v0, math.atan2(-1, 0)) -- facing -X
-	local obKind = if dino then "cactus" else "rock"
-	type Ob = { t: Thing, x: number, gone: boolean }
-	local obs: { Ob } = {}
-	local speed = (7 + 1.1 * ctx.diff) * ctx.speed -- studs a second
-	local specks = st.spawn("specks", { color = if dino then "sand_dark" else "grass_dark" })
-	local nextAt = 0.6
-	local jumpT = -1
-	local JUMP = 0.62 / ctx.speed
-	local H = if ctx.tiny then 3.6 else 4.2
-	local dead = false
-	local dust = if dino then { "yellow", "wood" } else { "white", "leaf" }
-	goPad(ctx, "Jump!")
-	say(ctx, if dino then "Jump the cacti!" else "Leap over the rocks!")
-	local now = 0
-	local function jump()
-		if jumpT < 0 and not dead then
-			jumpT = now
-			Audio.play("pop", { pitch = 1.3 })
-			burstAt(ctx, st.at(m.u, m.v, 0.2), dust, 5)
-			st.puff(st.at(m.u, m.v, 0.2), "dust", 6)
 		end
 	end
-	return {
-		survive = true,
-		update = function(t: number, dt: number)
-			now = t
-			if dead then
-				return
-			end
-			if jumpT >= 0 then
-				local k = (t - jumpT) / JUMP
-				if k >= 1 then
-					jumpT = -1
-					m.y = 0
-					burstAt(ctx, st.at(m.u, m.v, 0.2), dust, 6)
-					st.puff(st.at(m.u, m.v, 0.2), "dust", 8)
-				else
-					m.y = 4 * H * k * (1 - k)
-				end
-			end
-			m.action = if m.y > 0 then "jump" else "stand"
-			m.speed = if m.y > 0 then 0 else 16
-			pose(ctx, m, t)
-			-- the ground runs under them
-			local su, sv = uvOf((t * speed) % 4 - 2, 0)
-			st.place(specks, su, sv, 0, math.pi / 2)
-			if t >= nextAt then
-				nextAt = t + math.max(0.55, (1.25 - 0.06 * ctx.diff)) / ctx.speed * (0.8 + 0.5 * ctx.rng:next())
-				table.insert(obs, { t = target(ctx, obKind, nil, 1.2), x = -15, gone = false })
-			end
-			for _, o in obs do
-				if not o.gone then
-					o.x += speed * dt
-					local ou, ov = uvOf(o.x, 0)
-					st.place(o.t, ou, ov, 0, 0)
-					-- the founder's body against the thing's (a little inside their outlines)
-					if math.abs(o.x - RUN_X) < o.t.r * 0.6 + 0.4 and m.y < o.t.h - 0.3 then
-						dead = true
-						st.flash(o.t, 0.3)
-						burstAt(ctx, st.at(m.u, m.v, 2), { "white", "bad", "accent" }, 14)
-						st.puff(st.at(m.u, m.v, 1.5), "debris", 10, if dino then "leaf" else "steel")
-						ctx.shake()
-						ctx.lose()
-						return
-					end
-					if o.x > 16 then
-						o.gone = true
-						st.remove(o.t)
-					end
-				end
-			end
-		end,
-		key = function(k: string)
-			if k == "go" or k == "up" then
-				jump()
-			end
-		end,
-		after = function(t: number, won: boolean)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			-- jump so the top of the arc comes as the thing goes under
-			for _, o in obs do
-				if not o.gone and o.x < RUN_X and RUN_X - o.x < speed * JUMP * 0.5 + 0.3 then
-					jump()
-					return
-				end
-			end
-		end,
-	}
+	return wrap(A, "Grab the most " .. skin.word .. "! Keep clear of the " .. skin.badWord .. ".", step)
 end
 
------------------------------------------------------------------- 9. rhythm (Rhythm "Tap the beat!")
--- Gems slide down the lanes toward the pads at the front: tap each lane as its gem reaches its pad.
-function Games.rhythm(ctx: Ctx): Micro
+------------------------------------------------------------------ 3. tiles: the floor gives way (Puzzle, Cooking, Rhythm)
+-- A floor of tiles. Puzzle: a colour is called; stand on it before the others drop. Cooking: hot plates glow, then
+-- burn. Rhythm: the floor lights up in patterns to the beat, then zaps. Caught on a bad tile and you are out; last
+-- one standing wins.
+local TILE_COLORS = { "berry_red", "blue", "yellow", "green" }
+local TILE_NAMES: { [string]: string } = { berry_red = "RED", blue = "BLUE", yellow = "YELLOW", green = "GREEN" }
+function Games.tiles(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "survive", { act = "Jump" })
 	local st = ctx.stage
-	local nLanes = if ctx.diff >= 5 then 3 else 2
-	local count = 6 + ctx.diff
-	local beat = math.max(0.3, 0.55 - 0.025 * ctx.diff) / ctx.speed
-	local travel = 1.1 / ctx.speed
-	local win = math.max(0.1, 0.2 - 0.01 * ctx.diff)
-	local allowed = math.max(0, 2 - math.floor(ctx.diff / 3))
-	type Note = { t: number, lane: number, g: Thing?, judged: boolean }
-	local notes: { Note } = {}
-	local tt = 0.9
-	for _ = 1, count do
-		table.insert(notes, { t = tt, lane = ctx.rng:int(1, nLanes), judged = false })
-		tt += beat * (if ctx.rng:chance(0.25) then 0.5 else 1)
+	local rng = ctx.rng
+	local N = 5
+	local T = tiles(A, N, 3.8, 3.5, "plastic")
+	A.lift = 0.1
+	local mode = if ctx.variant == "flip" then "hot" elseif ctx.variant == "beat" then "beat" else "call"
+	local count = N * N
+	-- per tile: when it turns deadly (math.huge: never), until when, and when its warning started
+	local deadAt: { number } = table.create(count, math.huge)
+	local deadUntil: { number } = table.create(count, -1)
+	local warnAt: { number } = table.create(count, math.huge)
+	local colorOf: { string } = table.create(count, "plastic")
+	local call: TextLabel = say(ctx, "", "text")
+	local nextRound = 1.2
+	local round = 0
+	local beatLen = 0.6 / ctx.speed
+	local lastBeat = -1
+	local base = if mode == "hot" then "steel" elseif mode == "beat" then "purple" else "plastic"
+	for i = 1, count do
+		T.color(i, base)
 	end
-	local lastT = notes[#notes].t
-	local HIT_V, FAR_V = 4, -12
-	local laneColors = { "sound", "fun", "ideas" }
-	local gemColors = { "pink", "yellow", "blue" }
-	local padColors = { "pink", "orange", "blue" }
-	local keysFor = { { "left", "1" }, { "down", "2", "go" }, { "right", "3" } }
-	if nLanes == 2 then
-		keysFor = { { "left", "1" }, { "right", "2", "go" } }
+	local function warnLen(): number
+		return math.max(1.1, (3.0 - 0.17 * ctx.diff) * 0.93 ^ round / ctx.speed)
 	end
-	local laneU: { number } = {}
+	local function newRound(t: number)
+		round += 1
+		if mode == "call" then
+			local k = if ctx.diff >= 4 then 4 else 3
+			local safe = TILE_COLORS[rng:int(1, k)]
+			for i = 1, count do
+				colorOf[i] = TILE_COLORS[rng:int(1, k)]
+			end
+			for _ = 1, 3 do
+				colorOf[rng:int(1, count)] = safe
+			end
+			local w = warnLen()
+			for i = 1, count do
+				T.color(i, colorOf[i])
+				if colorOf[i] ~= safe then
+					warnAt[i] = t
+					deadAt[i] = t + w
+					deadUntil[i] = t + w + 1.1
+				end
+			end
+			UIKit.setText(call, "Stand on " .. TILE_NAMES[safe] .. "!")
+			UIKit.setTextColor(call, UIKit.color(safe))
+			Audio.play("ding", { pitch = 1.2 })
+			nextRound = t + w + 1.9
+		else
+			local n = math.clamp(math.floor((6 + ctx.diff + round) * ctx.more), 6, count - 4)
+			local w = math.max(0.9, warnLen() * 0.6)
+			local order = {}
+			for i = 1, count do
+				table.insert(order, i)
+			end
+			for i = #order, 2, -1 do
+				local j = rng:int(1, i)
+				order[i], order[j] = order[j], order[i]
+			end
+			-- a hot plate under someone more often than not
+			local left = A.alive()
+			local p = if rng:next() < 0.5 and A.me.alive then A.me else left[rng:int(1, #left)]
+			if p then
+				local at = table.find(order, T.index(p.x, p.z))
+				if at then
+					order[at], order[1] = order[1], order[at]
+				end
+			end
+			for c = 1, n do
+				local i = order[c]
+				warnAt[i] = t
+				deadAt[i] = t + w
+				deadUntil[i] = t + w + 0.9
+			end
+			UIKit.setText(call, "Hot plates!")
+			UIKit.setTextColor(call, UIKit.color("orange"))
+			nextRound = t + w + math.max(0.5, 1.4 - 0.08 * ctx.diff)
+		end
+	end
+	-- Rhythm: a pattern lights on a beat and zaps two beats later
+	local PATTERNS: { (r: number, c: number, k: number) -> boolean } = {
+		function(r: number, _c: number, k: number): boolean
+			return r % 2 == k % 2
+		end,
+		function(_r: number, c: number, k: number): boolean
+			return c % 2 == k % 2
+		end,
+		function(r: number, c: number, k: number): boolean
+			return (r + c) % 2 == k % 2
+		end,
+		function(r: number, c: number, _k: number): boolean
+			return r == 1 or r == N or c == 1 or c == N
+		end,
+		function(r: number, c: number, _k: number): boolean
+			return r ~= 1 and r ~= N and c ~= 1 and c ~= N
+		end,
+		function(r: number, c: number, k: number): boolean
+			return r == (k * 2 % N) + 1 or c == ((k * 2 + 2) % N) + 1
+		end,
+	}
+	local function beat(t: number, b: number)
+		Audio.play(if b % 2 == 0 then "tick" else "key", { pitch = 1 + (b % 4) * 0.12 })
+		-- the idle floor pulses
+		for i = 1, count do
+			if warnAt[i] == math.huge and deadUntil[i] < t then
+				local r, c = (i - 1) // N + 1, (i - 1) % N + 1
+				T.color(i, if (r + c + b) % 2 == 0 then "purple" else "pink")
+			end
+		end
+		local gap = if ctx.diff >= 5 then 2 else 3
+		if b >= 2 and b % gap == 0 then
+			local pat = PATTERNS[rng:int(1, #PATTERNS)]
+			local k = rng:int(0, 1)
+			local w = beatLen * (if ctx.diff >= 6 then 1.5 else 2)
+			for i = 1, count do
+				local r, c = (i - 1) // N + 1, (i - 1) % N + 1
+				if pat(r, c, k) and deadUntil[i] < t then
+					warnAt[i] = t
+					deadAt[i] = t + w
+					deadUntil[i] = t + w + beatLen
+				end
+			end
+		end
+	end
+	local function dangers(): { Danger }
+		local out: { Danger } = {}
+		for i = 1, count do
+			if deadUntil[i] > A.t then
+				local x, z = T.center(i)
+				table.insert(out, { x = x, z = z, r = 1.55, t = math.max(0, deadAt[i] - A.t), born = warnAt[i] })
+			end
+		end
+		return out
+	end
+	local spots = T.spots()
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if t >= p.think then
+			p.think = t + A.react(p)
+			p.tx, p.tz = A.safest(p, A.dangerCost(p, dangers()), spots)
+		end
+		return A.steer(p, p.tx, p.tz)
+	end
+	local function step(t: number, dt: number)
+		if mode == "beat" then
+			local b = math.floor(t / beatLen)
+			if b ~= lastBeat then
+				lastBeat = b
+				beat(t, b)
+				UIKit.setText(call, if b % 2 == 0 then "Dance!" else "")
+				UIKit.setTextColor(call, UIKit.color("pink"))
+			end
+		elseif t >= nextRound then
+			newRound(t)
+		end
+		for i = 1, count do
+			local x, z = T.center(i)
+			if t >= deadAt[i] and t < deadUntil[i] then
+				-- deadly now
+				if mode == "call" then
+					T.drop(i, -math.min(3, (t - deadAt[i]) * 14))
+				elseif mode == "hot" then
+					T.color(i, if math.floor(t * 10) % 2 == 0 then "orange" else "berry_red", true)
+					if every(t, dt, 6) then
+						st.puff(A.at(x, z, 0.4), "ember", 1)
+					end
+				else
+					T.color(i, "white", true)
+				end
+				if t - dt < deadAt[i] then
+					if mode == "hot" then
+						st.puff(A.at(x, z, 0.5), "ember", 3)
+					elseif mode == "beat" then
+						st.puff(A.at(x, z, 0.4), "spark", 2)
+					end
+				end
+				for _, p in A.players do
+					if p.alive and p.y < 0.15 and T.index(p.x, p.z) == i then
+						A.knock(p, t, p.x, p.z)
+					end
+				end
+			elseif t >= deadUntil[i] and deadUntil[i] > 0 then
+				-- back to normal
+				deadAt[i], deadUntil[i], warnAt[i] = math.huge, -1, math.huge
+				T.drop(i, 0)
+				T.color(i, if mode == "call" then colorOf[i] else base)
+			elseif warnAt[i] <= t then
+				-- the warning: it blinks
+				local blink = math.floor(t * (if deadAt[i] - t < 0.5 then 14 else 6)) % 2 == 0
+				if mode == "call" then
+					T.drop(i, if blink then -0.08 else 0)
+				elseif mode == "hot" then
+					T.color(i, if blink then "orange" else base, blink)
+				else
+					T.color(i, if blink then "white" else "purple", blink)
+				end
+			end
+		end
+		T.flush()
+	end
+	local rules: { [string]: string } = { call = "Stand on the called colour before the floor drops!", hot = "Keep off the hot plates!", beat = "Keep off the lit tiles when they zap!" }
+	return wrap(A, rules[mode] .. " Last one standing wins.", step)
+end
+
+------------------------------------------------------------------ 4. quiz: run to the answer (School, Detectives)
+-- A question; four pads with an answer each. Run onto the right one before the time is up: a point for everyone on
+-- it, one more for the first there. The wrong pads buck you off. Most points wins.
+function Games.quiz(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "score", { act = "Jump", tags = true, label = "answers" })
+	local st = ctx.stage
+	local rng = ctx.rng
+	local PADS = { { -4.6, -4.6 }, { 4.6, -4.6 }, { -4.6, 4.6 }, { 4.6, 4.6 } }
+	local PAD_COLORS = { "blue", "green", "yellow", "pink" }
 	local pads: { Thing } = {}
-	local m = newMe(9.5, 4.5, LEFT)
-	for l = 1, nLanes do
-		laneU[l] = (l - (nLanes + 1) / 2) * 4
-		local strip = st.spawn("lane", { color = "plastic_dark" })
-		st.place(strip, laneU[l], (HIT_V + FAR_V) / 2 - 1, 0, FACE)
-		local p = st.spawn("pad", { color = padColors[l] })
-		MicroModels.scale(p, Vector3.new(0.8, 0.6, 0.8))
-		st.place(p, laneU[l], HIT_V, 0, 0)
-		pads[l] = p
+	local labels: { TextLabel } = {}
+	for i, at in PADS do
+		local pd = MicroModels.slab(Vector3.new(4.25, 0.25, 4.25), PAD_COLORS[i])
+		st.adopt(pd)
+		A.place(pd, at[1], at[2], -0.15)
+		pads[i] = pd
+		labels[i] = UIKit.text(ctx.area, "", UDim2.fromOffset(40, 18), UDim2.fromOffset(-100, -100), { x = "center", face = "big", kind = "outline", color = UIKit.color("white"), z = 9, name = "Opt_" .. i })
 	end
-	local pw = 34
-	local total = nLanes * (pw + 4) - 4
-	for l = 1, nLanes do
-		pad(ctx, tostring(l), tostring(l), (ctx.w - total) / 2 + (l - 1) * (pw + 4), ctx.h - PAD_Y - 16, pw, 16, laneColors[l])
-	end
-	local misses = 0
-	local now = 0
-	local done = false
-	local danceUntil = 0
-	local label = say(ctx, string.format("Tap on the pads! Misses %d/%d", 0, allowed))
-	local function glow(l: number)
-		st.glow(pads[l], true)
-		task.delay(0.12, function()
-			if pads[l].model.Parent then
-				st.glow(pads[l], false)
+	local q = say(ctx, "", "text")
+	local spot = ctx.variant == "spot"
+	local suspects: { Thing } = {}
+	local answer = 1
+	local endAt = 1.0
+	local first: P? = nil
+	local open = false
+	local function ask(t: number)
+		answer = rng:int(1, 4)
+		if spot then
+			-- the suspects: three alike, one in an odd coat
+			local coat = ({ "wood", "steel", "purple", "green" })[rng:int(1, 4)]
+			local odd = ({ "berry_red", "yellow", "blue", "pink" })[rng:int(1, 4)]
+			for i, at in PADS do
+				local sp = suspects[i]
+				if sp == nil then
+					sp = st.spawn("suspect", nil, 1)
+					suspects[i] = sp
+				end
+				MicroModels.recolor(sp, if i == answer then odd else coat)
+				st.refresh(sp)
+				A.place(sp, at[1] + 1.4, at[2] - 1.4, 0.1, MicroStage.FACE_VIEWER)
+				UIKit.setText(labels[i], "")
 			end
-		end)
-	end
-	local function miss(l: number?)
-		misses += 1
-		UIKit.setText(label, string.format("Tap on the pads! Misses %d/%d", misses, allowed))
-		if l then
-			st.flash(pads[l], 0.15)
-			popAt(ctx, st.at(laneU[l], HIT_V, 1), "Miss", "bad")
-		end
-		if misses > allowed and not done then
-			done = true
-			ctx.shake()
-			ctx.lose()
-		end
-	end
-	local function hit(l: number)
-		if done then
-			return
-		end
-		local best: Note? = nil
-		for _, nn in notes do
-			if not nn.judged and nn.lane == l and math.abs(nn.t - now) <= win and (best == nil or math.abs(nn.t - now) < math.abs((best :: Note).t - now)) then
-				best = nn
-			end
-		end
-		if best then
-			local b = best :: Note
-			b.judged = true
-			if b.g then
-				st.remove(b.g :: Thing)
-				b.g = nil
-			end
-			Audio.play("tick", { pitch = 0.9 + l * 0.15 })
-			local perfect = math.abs(b.t - now) < win / 2
-			glow(l)
-			danceUntil = now + 0.25
-			local p = st.at(laneU[l], HIT_V, 0.8)
-			burstAt(ctx, p, { laneColors[l], "white" }, if perfect then 12 else 7)
-			st.puff(p, "spark", if perfect then 10 else 5, gemColors[l])
-			popAt(ctx, p, if perfect then "Perfect!" else "Good", if perfect then "yellow" else "accent")
+			UIKit.setText(q, "Which suspect is the odd one out?")
 		else
-			miss(l)
+			local a, b, op = rng:int(2, 9 + ctx.diff), rng:int(2, 9), "+"
+			local right = a + b
+			if ctx.diff >= 3 and rng:next() < 0.5 then
+				op, right = "-", a
+				a = a + b
+			end
+			if ctx.diff >= 5 and rng:next() < 0.4 then
+				a, b = rng:int(2, 9), rng:int(2, 9)
+				op, right = "x", a * b
+			end
+			local used: { [number]: boolean } = { [right] = true }
+			for i = 1, 4 do
+				local v = right
+				if i ~= answer then
+					repeat
+						v = right + ({ -10, -2, -1, 1, 2, 10 })[rng:int(1, 6)]
+					until not used[v] and v >= 0
+					used[v] = true
+				end
+				UIKit.setText(labels[i], tostring(v))
+			end
+			UIKit.setText(q, string.format("%d %s %d = ?", a, op, b))
+		end
+		Audio.play("ding", { pitch = 1.1 })
+		endAt = t + math.max(2.6, (5.2 - 0.3 * ctx.diff) / ctx.speed)
+		first = nil
+		open = true
+		for _, p in A.players do
+			-- each rival makes up their mind after a moment, right as often as they are sharp
+			p.data.choice = if p.me then answer elseif rng:next() < 0.45 + 0.5 * p.skill then answer else rng:int(1, 4)
+			p.data.decide = if p.me then 0 else t + 0.5 + (1 - p.skill) * 1.6 + rng:next() * 0.5
 		end
 	end
-	return {
-		clock = 99, -- the song decides: it ends after its last note
-		update = function(t: number, _dt: number)
-			now = t
-			m.action = if t < danceUntil then "dance" else "stand"
-			pose(ctx, m, t)
-			if done then
-				return
+	local function padOf(p: P): number
+		for i, at in PADS do
+			if math.abs(p.x - at[1]) < 2.2 and math.abs(p.z - at[2]) < 2.2 then
+				return i
 			end
-			local open = false
-			for _, nn in notes do
-				if not nn.judged then
-					open = true
-					local d = nn.t - t
-					if d < -win then
-						nn.judged = true
-						if nn.g then
-							st.remove(nn.g :: Thing)
-							nn.g = nil
-						end
-						miss(nn.lane)
-					elseif d <= travel then
-						if nn.g == nil then
-							nn.g = target(ctx, "gem", { color = gemColors[nn.lane] }, 0.5)
-						end
-						st.place(nn.g :: Thing, laneU[nn.lane], HIT_V - (HIT_V - FAR_V) * (d / travel), 0.4, t * 3)
+		end
+		return 0
+	end
+	for _, p in A.players do
+		p.data.waitX = p.x * 0.4
+		p.data.waitZ = p.z * 0.4
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if open and t >= (p.data.decide or 0) then
+			local at = PADS[p.data.choice or 1]
+			-- not everyone on the pad's very middle
+			return A.steer(p, at[1] + ((p.i % 2) - 0.5) * 1.6, at[2] + ((p.i // 2 % 2) - 0.5) * 1.6)
+		end
+		return A.steer(p, p.data.waitX or 0, p.data.waitZ or 0)
+	end
+	local function step(t: number, _dt: number)
+		if not open and t >= endAt then
+			ask(t)
+		end
+		for i, at in PADS do
+			local x, y = st.screen(A.at(at[1], at[2], 0.4))
+			labels[i].Position = UDim2.fromOffset(x - 20, y - 9)
+		end
+		if open then
+			for _, p in A.players do
+				if first == nil and padOf(p) == answer and p.y < 0.2 then
+					first = p
+				end
+			end
+			if t >= endAt then
+				open = false
+				endAt = t + 1.3
+				st.flash(pads[answer], 0.6)
+				st.puff(A.at(PADS[answer][1], PADS[answer][2], 0.6), "confetti", 14)
+				for _, p in A.players do
+					local k = padOf(p)
+					if k == answer then
+						A.award(p, if p == first then 2 else 1)
+						p.act, p.actUntil = "cheer", t + 0.8
+					elseif k > 0 then
+						-- a wrong pad bucks you off
+						p.vy = Arena.JUMP_V * 0.8
+						p.y = 0.05
+						p.stun = 0.7
+						st.puff(A.at(p.x, p.z, 0.4), "smoke", 2)
+					end
+				end
+				Audio.play(if padOf(A.me) == answer then "combo" else "deny")
+				UIKit.setText(q, if spot then "That one!" else "= " .. labels[answer].Text)
+			end
+		end
+	end
+	return wrap(A, "Run onto the right answer! First one there gets a bonus.", step)
+end
+
+------------------------------------------------------------------ 5. sweep: jump the beam (Adventure, Fantasy, Robots)
+-- A log (a magic beam, a laser) sweeps round the room from a post in the middle, faster and faster, a second one from
+-- difficulty 4: jump it as it comes. Hit and you are out; last one standing wins.
+local SWEEP_SKIN: { [string]: { color: string, neon: boolean, post: string, cap: string, word: string } } = {
+	leap = { color = "wood", neon = false, post = "wood_dark", cap = "leaf", word = "log" },
+	cast = { color = "purple", neon = true, post = "steel_dark", cap = "pink", word = "beam" },
+	program = { color = "berry_red", neon = true, post = "steel", cap = "screen_on", word = "laser" },
+}
+function Games.sweep(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "survive", { act = "Jump" })
+	local st = ctx.stage
+	local rng = ctx.rng
+	local skin = SWEEP_SKIN[ctx.variant] or SWEEP_SKIN.leap
+	local post = st.spawn("pillar", { color = skin.post, alt = skin.cap }, 1.2)
+	A.place(post, 0, 0, 0)
+	local LEN = 15
+	local n = 1 + (if ctx.diff >= 4 then 1 else 0) + (if ctx.more > 1 then 1 else 0)
+	local beams: { Thing } = {}
+	local angles: { number } = {}
+	for i = 1, n do
+		local b = MicroModels.slab(Vector3.new(LEN, 0.6, 0.6), skin.color, nil, skin.neon)
+		st.adopt(b, 0.6)
+		beams[i] = b
+		angles[i] = (i - 1) / n * math.pi * 2 + rng:next() * 0.4
+	end
+	local dir = if rng:next() < 0.5 then 1 else -1
+	local TOP = 0.95
+	local function omega(t: number): number
+		return dir * (1.0 + 0.08 * ctx.diff) * (1 + 0.6 * math.clamp(t / A.seconds, 0, 1)) * ctx.speed
+	end
+	local reversed = false
+	-- seconds until the nearest beam reaches angle a
+	local function arrival(a: number, w: number): number
+		local best = math.huge
+		for _, b in angles do
+			local d = ((a - b) * (if w > 0 then 1 else -1)) % (math.pi * 2)
+			best = math.min(best, d / math.abs(w))
+		end
+		return best
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		local w = omega(t)
+		local a = math.atan2(p.z, p.x)
+		local tt = arrival(a, w)
+		if p.data.err == nil or t >= (p.data.errAt or 0) then
+			p.data.err = if p.me then 0 else (rng:next() - 0.5) * (1 - p.skill) * 0.55
+			p.data.errAt = t + 0.8
+		end
+		local jump = p.y <= 0.01 and tt < 0.32 + (p.data.err :: number) and tt > 0.14
+		-- drift about a little (the auto player stands still while a beam comes)
+		if p.me and tt < 0.9 then
+			return 0, 0, jump
+		end
+		if t >= p.think then
+			p.think = t + 1.2 + rng:next()
+			local r = 3.5 + rng:next() * math.max(0.5, A.lim - 4)
+			local an = a + (rng:next() - 0.5) * 1.2
+			p.tx, p.tz = math.cos(an) * r, math.sin(an) * r
+		end
+		local dx, dz = A.steer(p, p.tx, p.tz)
+		return dx * 0.5, dz * 0.5, jump
+	end
+	local function step(t: number, dt: number)
+		if not reversed and ctx.diff >= 6 and t > A.seconds * 0.5 then
+			reversed = true
+			dir = -dir
+			Audio.play("notice")
+			st.puff(A.at(0, 0, 2.5), "spark", 12)
+		end
+		local w = omega(t)
+		for i, b in beams do
+			local a0 = angles[i]
+			local a1 = a0 + w * dt
+			angles[i] = a1
+			local cx, cz = math.cos(a1) * (LEN / 2 + 1), math.sin(a1) * (LEN / 2 + 1)
+			-- a slab along +X turned to the angle a1 in room space
+			MicroModels.place(b, CFrame.new(A.at(cx, cz, 0.3)) * CFrame.Angles(0, -a1, 0))
+			for _, p in A.players do
+				if p.alive and p.y < TOP then
+					local pa = math.atan2(p.z, p.x)
+					local r = math.sqrt(p.x * p.x + p.z * p.z)
+					local crossed = ((pa - a0) * (if w > 0 then 1 else -1)) % (math.pi * 2) <= math.abs(w * dt) + 0.03
+					if crossed and r > 0.8 and r < LEN + 1.2 then
+						local s = if w > 0 then 1 else -1
+						A.knock(p, t, -math.sin(a1) * s, math.cos(a1) * s)
 					end
 				end
 			end
-			if not open and not done and t > lastT then
-				done = true
-				ctx.win()
+			if skin.neon and every(t, dt, 8) then
+				local rr = 2 + rng:next() * 10
+				st.puff(A.at(math.cos(a1) * rr, math.sin(a1) * rr, 0.6), "spark", 1)
 			end
-		end,
-		key = function(k: string)
-			for l, ks in keysFor do
-				if table.find(ks, k) then
-					hit(l)
-					return
-				end
+		end
+		-- the post pushes players out
+		for _, p in A.players do
+			local r = math.sqrt(p.x * p.x + p.z * p.z)
+			if r < 1.6 and r > 0.01 then
+				p.x, p.z = p.x / r * 1.6, p.z / r * 1.6
 			end
-		end,
-		after = function(t: number, won: boolean)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			for _, nn in notes do
-				if not nn.judged and math.abs(nn.t - now) <= win * 0.4 then
-					hit(nn.lane)
-					return
-				end
-			end
-		end,
-	}
+		end
+	end
+	return wrap(A, "Jump the " .. skin.word .. " as it sweeps round! Last one standing wins.", step)
 end
 
------------------------------------------------------------------- 10. slice (Ninjas "Slice!")
--- Fruit (and from difficulty 3 bombs) are thrown up over the dojo: tap the fruit to cut it.
-type Fly = { b: TextButton, t: Thing, u: number, v: number, y: number, vu: number, vy: number, bomb: boolean, gone: boolean, spin: number }
-type Half = { t: Thing, u: number, v: number, y: number, vu: number, vy: number, t0: number }
-function Games.slice(ctx: Ctx): Micro
+------------------------------------------------------------------ 6. sumo: bump them out (Racing)
+-- Bumper karts in a ring of kerbs: Dash! rams the kart ahead; out of the ring and you are out. Last one standing wins.
+function Games.sumo(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "survive", { act = "Dash!", walls = false })
 	local st = ctx.stage
-	local need = 4 + math.floor(ctx.diff / 2)
-	local got = 0
-	local flies: { Fly } = {}
-	local halves: { Half } = {}
-	local nextAt = 0.2
-	local every = math.max(0.3, 0.75 - 0.05 * ctx.diff) / ctx.speed
-	local g = 26 * ctx.speed * ctx.speed
-	local done = false
-	local k = 0
-	local m = newMe(-10, 6, RIGHT)
-	st.hold("sword")
-	local swingUntil = 0
-	local now = 0
-	local label = say(ctx, string.format("Slice the fruit, not the bombs! 0/%d", need))
-	-- a slash: a 1 px diagonal (a clean 1:1 line, no jaggies) gone in a blink
-	local function slash(x: number, y: number, len: number)
-		local f = Instance.new("Frame")
-		f.Name = "Slash"
-		f.BackgroundTransparency = 1
-		f.Size = UDim2.fromOffset(len, len)
-		f.Position = UDim2.fromOffset(snap(x - len / 2), snap(y - len / 2))
-		f.ZIndex = 14
-		f.Active = false
-		for i = 0, len - 1 do
-			UIKit.rect(f, UDim2.fromOffset(1, 1), UDim2.fromOffset(i, len - 1 - i), WHITE, 14)
-		end
-		f.Parent = ctx.area
-		ctx.float(f, 0, 0, 0.1)
+	A.base, A.lim = 11.4, 11.4
+	A.lift = 0.55
+	A.grip = if ctx.ice then 1.4 else 3.2
+	A.speed = 7.5 * ctx.speed
+	local R0 = 8.3
+	local ring = R0
+	local hoop = MicroModels.hoop(R0 + 0.4, 28, "berry_red", "white")
+	st.adopt(hoop)
+	A.place(hoop, 0, 0, 0)
+	local karts: { [P]: Thing } = {}
+	for _, p in A.players do
+		karts[p] = st.spawn("kart", { color = p.color }, 1.2)
 	end
-	local function cut(f: Fly)
-		if done or f.gone then
+	A.onAct = function(p: P, _t: number)
+		if p.cool > 0 then
 			return
 		end
-		f.gone = true
-		f.b:Destroy()
-		swingUntil = now + 0.2
-		local p = st.at(f.u, f.v, f.y + 0.9)
-		local x, y = screenAt(ctx, p)
-		slash(x, y, 18)
-		st.remove(f.t)
-		if f.bomb then
-			done = true
-			ctx.flash("white")
-			burstAt(ctx, p, { "orange", "yellow", "bad", "white" }, 22)
-			st.puff(p, "debris", 14, "black")
-			st.puff(p, "spark", 14)
-			st.puff(p, "smoke", 4)
-			ctx.shake()
-			popAt(ctx, p, "Boom!", "bad")
-			ctx.lose()
+		p.cool = 1.0
+		p.vx += math.sin(p.yaw) * 13
+		p.vz += math.cos(p.yaw) * 13
+		st.puff(A.at(p.x - math.sin(p.yaw) * 1.2, p.z - math.cos(p.yaw) * 1.2, 0.4), "dust", 4)
+		if p.me then
+			Audio.play("pop", { pitch = 0.8 })
+		end
+	end
+	A.onBump = function(a: P, b: P, nx: number, nz: number, hard: number)
+		if hard > 2 then
+			-- the faster one shoves the other along
+			local va = a.vx * nx + a.vz * nz
+			local vb = -(b.vx * nx + b.vz * nz)
+			local push = hard * 0.5
+			if va > vb then
+				b.vx += nx * push
+				b.vz += nz * push
+			else
+				a.vx -= nx * push
+				a.vz -= nz * push
+			end
+			st.puff(A.at((a.x + b.x) / 2, (a.z + b.z) / 2, 1), "spark", 5)
+			Audio.play("squish", { pitch = 1.2 + math.min(0.4, hard * 0.03), volume = 0.7 })
+		end
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		local r = math.sqrt(p.x * p.x + p.z * p.z)
+		-- the edge first
+		if r > ring - (if p.me then 2.4 else 1.2 + 1.2 * p.skill) then
+			return -p.x / math.max(0.1, r), -p.z / math.max(0.1, r), false
+		end
+		if t >= p.think then
+			p.think = t + A.react(p)
+			local best, pick = math.huge, nil :: P?
+			for _, q in A.others(p) do
+				local d = dist(p.x, p.z, q.x, q.z)
+				local qr = math.sqrt(q.x * q.x + q.z * q.z)
+				local score = d - qr * 0.6
+				if score < best then
+					best, pick = score, q
+				end
+			end
+			p.data.target = pick
+		end
+		local q = p.data.target :: P?
+		if q == nil or not q.alive then
+			return A.steer(p, 0, 0)
+		end
+		-- the auto player holds the middle, meets a ram head on, and only goes for one near the edge
+		if p.me then
+			if r > 2.2 then
+				return A.steer(p, 0, 0)
+			end
+			for _, o in A.others(p) do
+				local d = math.max(0.1, dist(p.x, p.z, o.x, o.z))
+				local ux, uz = (o.x - p.x) / d, (o.z - p.z) / d
+				local closing = -((o.vx - p.vx) * ux + (o.vz - p.vz) * uz)
+				if d < 4.5 and (closing > 3 or d < 2.2) then
+					local face = math.sin(p.yaw) * ux + math.cos(p.yaw) * uz
+					return ux, uz, face > 0.7 and p.cool <= 0
+				end
+			end
+			local qr0 = math.sqrt(q.x * q.x + q.z * q.z)
+			if qr0 < ring - 3 or dist(p.x, p.z, q.x, q.z) > 5 then
+				return A.steer(p, 0, 0)
+			end
+		end
+		-- come at it from the middle's side, then ram
+		local qr = math.max(0.1, math.sqrt(q.x * q.x + q.z * q.z))
+		local ox, oz = q.x / qr, q.z / qr
+		local d = math.max(0.1, dist(p.x, p.z, q.x, q.z))
+		local tx, tz = (q.x - p.x) / d, (q.z - p.z) / d
+		local aligned = tx * ox + tz * oz
+		local face = math.sin(p.yaw) * tx + math.cos(p.yaw) * tz
+		local ram = d < 3.2 and aligned > (if p.me then 0.4 else 0.2 - 0.3 * (1 - p.skill)) and face > 0.8 and p.cool <= 0
+		if d < 3.2 and aligned > 0 then
+			return tx, tz, ram
+		end
+		return A.steer(p, q.x - ox * 1.8, q.z - oz * 1.8)
+	end
+	local function placeKarts()
+		for _, p in A.players do
+			local k = karts[p]
+			if p.fly >= 0 then
+				A.place(k, p.x, p.z, if p.fly > 1.1 then -60 else p.fy, p.yaw + p.fly * 8)
+			else
+				A.place(k, p.x, p.z, p.y, p.yaw)
+			end
+		end
+	end
+	local function step(t: number, _dt: number)
+		if ctx.shrink then
+			ring = R0 - (R0 - 4.5) * math.clamp(t / A.seconds, 0, 1)
+			local k = (ring + 0.4) / (R0 + 0.4)
+			MicroModels.scale(hoop, Vector3.new(k, 1, k))
+		end
+		placeKarts()
+		for _, p in A.players do
+			-- a kart tops out
+			local sp = math.sqrt(p.vx * p.vx + p.vz * p.vz)
+			if sp > 15 then
+				p.vx, p.vz = p.vx / sp * 15, p.vz / sp * 15
+			end
+			if p.alive and math.sqrt(p.x * p.x + p.z * p.z) > ring + 0.4 then
+				A.knock(p, t, p.x, p.z)
+			end
+		end
+	end
+	return wrap(A, "Ram the others out of the ring! Last one standing wins.", step, function(_t: number)
+		placeKarts()
+	end)
+end
+
+------------------------------------------------------------------ 7. zone: hold the ring (Sports, Music)
+-- A glowing ring (a spotlight) on the floor, moving on now and then: the one nearest its middle scores. Shove!
+-- pushes the others out of the way. Most points wins.
+function Games.zone(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "score", { act = "Shove!", tags = true, label = "points" })
+	local st = ctx.stage
+	local rng = ctx.rng
+	local ring = st.spawn("ring", { color = if ctx.variant == "simon" then "pink" else "yellow" })
+	local nextRing = st.spawn("ring", { color = "white" })
+	MicroModels.show(nextRing, false)
+	local zx, zz = 0, 0
+	local nx, nz = 0, 0
+	local hold = math.max(3.2, 6 - 0.3 * ctx.diff) / ctx.speed
+	local moveAt = hold
+	local hinted = false
+	local tickAt = 0
+	local drift = ctx.diff >= 5
+	local R2 = 2.5
+	local status = say(ctx, "", "text")
+	-- the next spot: well away from this one (as far as the room allows: Shrinking closes it in)
+	local function pickNext()
+		local L = math.max(0.5, A.lim - 3)
+		local best = -1
+		for _ = 1, 8 do
+			local x, z = (rng:next() * 2 - 1) * L, (rng:next() * 2 - 1) * L
+			local d = dist(x, z, zx, zz)
+			if d > best then
+				best, nx, nz = d, x, z
+			end
+			if d > 5 then
+				break
+			end
+		end
+	end
+	pickNext()
+	-- a shove winds up first (the arm pulls back: a sharp eye can step aside), then lunges the way it faces
+	A.onAct = function(p: P, t: number)
+		if p.cool > 0 then
 			return
 		end
-		got += 1
-		Audio.play("squish", { pitch = 1.2 })
-		for _, side in { -1, 1 } do
-			local h = target(ctx, "half", nil, 0.6)
-			table.insert(halves, { t = h, u = f.u, v = f.v, y = f.y + 0.6, vu = f.vu + side * 4, vy = 4, t0 = now })
-		end
-		burstAt(ctx, p, { "berry_red", "pink", "green" }, 12)
-		st.puff(p, "debris", 10, "berry_red")
-		popAt(ctx, p, "Slice!", "good")
-		UIKit.setText(label, string.format("Slice the fruit, not the bombs! %d/%d", got, need))
-		if got >= need then
-			done = true
-			ctx.win()
+		p.cool = 1.0
+		p.data.lunge = t + 0.22
+		p.act, p.actUntil = "swing", t + 0.45
+		if p.me then
+			Audio.play("pop", { pitch = 0.9 })
 		end
 	end
-	local function animate(t: number, dt: number)
-		now = t
-		for i = #halves, 1, -1 do
-			local h = halves[i]
-			h.vy -= g * dt
-			h.u += h.vu * dt
-			h.y += h.vy * dt
-			if h.y < 0 then
-				h.y, h.vy, h.vu = 0, 0, 0
-			end
-			st.place(h.t, h.u, h.v, h.y, FACE, CFrame.Angles((t - h.t0) * 8 * (if h.vu < 0 then -1 else 1), 0, 0))
-			if t - h.t0 > 0.9 then
-				st.remove(h.t)
-				table.remove(halves, i)
+	local function lunges(t: number)
+		for _, p in A.players do
+			local at = p.data.lunge
+			if at and t >= at then
+				p.data.lunge = nil
+				p.vx += math.sin(p.yaw) * 12
+				p.vz += math.cos(p.yaw) * 12
 			end
 		end
-		m.action = if t < swingUntil then "swing" else "stand"
-		m.k = math.clamp(1 - (swingUntil - t) / 0.2, 0, 1)
-		pose(ctx, m, t)
 	end
-	return {
-		update = function(t: number, dt: number)
-			animate(t, dt)
-			if done then
-				return
+	A.onBump = function(a: P, b: P, bx: number, bz: number, hard: number)
+		if hard > 3.5 then
+			local va = a.vx * bx + a.vz * bz
+			local vb = -(b.vx * bx + b.vz * bz)
+			local victim = if va > vb then b else a
+			local s = if victim == b then 1 else -1
+			victim.vx += bx * s * hard * 0.8
+			victim.vz += bz * s * hard * 0.8
+			victim.stun = 0.45
+			st.puff(A.at(victim.x, victim.z, 1), "spark", 4)
+			Audio.play("squish", { pitch = 1.3, volume = 0.6 })
+		end
+	end
+	local function inside(p: P): boolean
+		return p.alive and dist(p.x, p.z, zx, zz) < R2
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if t >= p.think then
+			p.think = t + A.react(p)
+			if p.data.hint ~= moveAt then
+				-- a rival notices the next spot (once a spot), as often as they are sharp
+				p.data.hint = moveAt
+				p.data.sawNext = rng:next() < p.skill * 0.6
 			end
-			if t >= nextAt then
-				nextAt = t + every * (0.7 + 0.6 * ctx.rng:next())
-				k += 1
-				local bomb = ctx.diff >= 3 and ctx.rng:chance(0.25)
-				local b = hitbox(ctx, (if bomb then "Bomb_" else "Fruit_") .. k, 30, 30)
-				local th = target(ctx, if bomb then "bomb" else "fruit", nil, 1)
-				local fl: Fly = { b = b, t = th, u = ctx.rng:int(-70, 70) / 10, v = ctx.rng:int(-20, 30) / 10, y = -1, vu = (ctx.rng:next() - 0.5) * 5 * ctx.speed, vy = (12 + ctx.rng:next() * 3) * ctx.speed, bomb = bomb, gone = false, spin = ctx.rng:next() * 6 }
-				b.Activated:Connect(function()
-					cut(fl)
-				end)
-				table.insert(flies, fl)
-			end
-			for _, f in flies do
-				if not f.gone then
-					f.vy -= g * dt
-					f.u += f.vu * dt
-					f.y += f.vy * dt
-					st.place(f.t, f.u, f.v, f.y, f.spin + t * 2)
-					local spark = f.t.parts.Spark
-					if spark then
-						spark.Transparency = if math.floor(t * 12) % 2 == 0 then 0 else 1
+			-- (the auto player holds on until it is just time to go)
+			local goNext = hinted and (if p.me then dist(p.x, p.z, nx, nz) / A.speed >= moveAt - t - 0.15 else p.data.sawNext)
+			local gx, gz = if goNext then nx else zx, if goNext then nz else zz
+			-- spread round the ring's middle (the auto player: the very middle)
+			local spread = if p.me then 0 else 1.2
+			p.tx, p.tz = gx + (rng:next() - 0.5) * spread, gz + (rng:next() - 0.5) * spread
+		end
+		local dx, dz = A.steer(p, p.tx, p.tz)
+		-- the auto player steps aside from a shove winding up at it
+		if p.me then
+			for _, q in A.others(p) do
+				local d = math.max(0.1, dist(p.x, p.z, q.x, q.z))
+				local fx, fz = math.sin(q.yaw), math.cos(q.yaw)
+				local facing = ((p.x - q.x) * fx + (p.z - q.z) * fz) / d
+				if q.data.lunge and d < 3.5 and facing > 0.75 then
+					local sx, sz = -fz, fx
+					-- the side toward the ring's middle
+					if (zx - p.x) * sx + (zz - p.z) * sz < 0 then
+						sx, sz = -sx, -sz
 					end
-					follow(ctx, f.b, st.at(f.u, f.v, f.y + 0.9))
-					if f.y < -2 and f.vy < 0 then
-						f.gone = true
-						f.b:Destroy()
-						st.remove(f.t)
+					return sx, sz, false
+				end
+			end
+		end
+		-- shove one sharing the ring
+		local shove = false
+		if inside(p) and p.cool <= 0 then
+			-- shove one nearer the middle (a rival makes up their mind now and then, as often as they are sharp)
+			local mine = dist(p.x, p.z, zx, zz)
+			if not p.me and t >= (p.data.shoveAt or 0) then
+				p.data.shoveAt = t + A.react(p) + 0.4
+				p.data.keen = rng:next() < p.skill * 0.45
+			end
+			if p.me or p.data.keen then
+				for _, q in A.others(p) do
+					local d = math.max(0.1, dist(p.x, p.z, q.x, q.z))
+					-- (the auto player shoves anyone close before they shove it)
+					if inside(q) and d < 2.6 and (dist(q.x, q.z, zx, zz) < mine + 0.3 or (p.me and q.stun <= 0 and d < 2.2)) then
+						local fx, fz = (q.x - p.x) / d, (q.z - p.z) / d
+						dx, dz = fx, fz
+						shove = math.sin(p.yaw) * fx + math.cos(p.yaw) * fz > 0.7
+						break
 					end
 				end
 			end
-		end,
-		key = function(_k: string) end,
-		after = function(t: number, won: boolean)
-			animate(t, 1 / 60)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			for _, f in flies do
-				if not f.gone and not f.bomb and f.y > 1 then
-					cut(f)
-					return
+		end
+		return dx, dz, shove
+	end
+	local function step(t: number, dt: number)
+		lunges(t)
+		if drift then
+			zx += math.sin(t * 0.7) * dt * 0.8
+			zz += math.cos(t * 0.53) * dt * 0.8
+		end
+		if not hinted and t >= moveAt - 1.5 then
+			hinted = true
+			MicroModels.show(nextRing, true)
+			A.place(nextRing, nx, nz, 0.02)
+		end
+		if t >= moveAt then
+			zx, zz = nx, nz
+			st.puff(A.at(zx, zz, 0.3), "twinkle", 6)
+			Audio.play("ding", { pitch = 1.3 })
+			moveAt = t + hold
+			hinted = false
+			MicroModels.show(nextRing, false)
+			pickNext()
+		end
+		local L = A.lim - 2.5
+		zx, zz = math.clamp(zx, -L, L), math.clamp(zz, -L, L)
+		A.place(ring, zx, zz, 0.02, t * 1.2)
+		local who: { P } = {}
+		for _, p in A.players do
+			if inside(p) then
+				table.insert(who, p)
+			end
+		end
+		if t >= tickAt then
+			tickAt = t + 0.5
+			-- the one nearest the middle holds it
+			local king: P? = nil
+			local kd = math.huge
+			for _, p in who do
+				local d = dist(p.x, p.z, zx, zz)
+				if d < kd and p.stun <= 0 then
+					king, kd = p, d
 				end
 			end
-		end,
-	}
-end
-
------------------------------------------------------------------- 11. hide (Horror "Sneak!")
--- Sneak along the hall to the door while the ghost looks away; freeze while it watches.
-local DOOR_X = 9 -- the door's middle along the right wall (room space x; the wall at z = -12)
-function Games.hide(ctx: Ctx): Micro
-	local st = ctx.stage
-	local steps = 5 + ctx.diff
-	local at = 0
-	local du, dv = uvOf(DOOR_X, -12 + 1.6)
-	local u0, v0 = -12, 3.5
-	local function stepUV(i: number): (number, number)
-		local k = i / steps
-		return u0 + (du - u0) * k, v0 + (dv - v0) * k
-	end
-	local m = newMe(u0, v0, yawTo(du - u0, dv - v0))
-	local ghost = st.spawn("ghost", nil, 1.6)
-	local gu, gv = -1, -5
-	local red = box(ctx.area, ctx.w, ctx.h, 0, 0, "bad", 20)
-	red.Name = "Watching"
-	red.BackgroundTransparency = 1
-	red.Active = false
-	local eyes = say(ctx, "Sneak while it looks away!")
-	local state = "away" -- "away" | "warn" | "watch"
-	local untilT = 0.8 + ctx.rng:next()
-	local done = false
-	local now = 0
-	local warnT = math.max(0.25, 0.55 - 0.04 * ctx.diff) / ctx.speed
-	local hopT = -10
-	local function setEyes(watch: boolean)
-		for _, nm in { "EyeL", "EyeR" } do
-			local p = ghost.parts[nm]
-			p.Color = UIKit.color(if watch then "bad" else "ink")
-			p.Material = if watch then Enum.Material.Neon else Enum.Material.SmoothPlastic
-		end
-		st.refresh(ghost)
-	end
-	local function step()
-		if done then
-			return
-		end
-		if state == "watch" then
-			done = true
-			st.flash(ghost, 0.2)
-			st.puff(st.at(gu, gv, 3), "spark", 10, "berry_red")
-			ctx.shake()
-			popAt(ctx, st.at(m.u, m.v, 5), "Seen!", "bad")
-			ctx.lose()
-			return
-		end
-		at += 1
-		hopT = now
-		Audio.play("key", { pitch = 0.8 })
-		burstAt(ctx, st.at(m.u, m.v, 0.2), { "wood_dark", "text_dim" }, 3)
-		st.puff(st.at(m.u, m.v, 0.2), "dust", 3)
-		if at >= steps then
-			done = true
-			burstAt(ctx, st.at(du, dv, 3), { "yellow", "white", "good" }, 16)
-			st.puff(st.at(du, dv, 3), "confetti", 16)
-			ctx.win()
-		end
-	end
-	goPad(ctx, "Step")
-	local function animate(t: number)
-		now = t
-		local k = math.clamp((t - hopT) / 0.14, 0, 1)
-		local a1u, a1v = stepUV(at)
-		local a0u, a0v = stepUV(math.max(0, at - 1))
-		m.u = a0u + (a1u - a0u) * k
-		m.v = a0v + (a1v - a0v) * k
-		m.y = 0.6 * math.sin(k * math.pi)
-		m.speed = if k < 1 then 10 else 0
-		m.action = "sneak"
-		pose(ctx, m, t)
-		-- the ghost bobs; turning, it jitters; watching, it faces the hall with red eyes
-		local jig = if state == "warn" then (if math.floor(t * 30) % 2 == 0 then 0.25 else -0.25) else 0
-		local yaw = if state == "watch" then FACE elseif state == "warn" then AWAY + math.sin(t * 20) * 0.4 else AWAY
-		st.place(ghost, gu + jig, gv, 1 + math.sin(t * 3) * 0.3, yaw)
-	end
-	return {
-		clock = 1.5,
-		update = function(t: number, _dt: number)
-			animate(t)
-			if done then
-				return
-			end
-			if t >= untilT then
-				if state == "away" then
-					state = "warn"
-					untilT = t + warnT
-					popAt(ctx, st.at(gu, gv, 6), "!", "accent")
-				elseif state == "warn" then
-					state = "watch"
-					setEyes(true)
-					untilT = t + (0.6 + 0.6 * ctx.rng:next()) / ctx.speed
-				else
-					state = "away"
-					setEyes(false)
-					untilT = t + math.max(0.4, (1.2 - 0.07 * ctx.diff + ctx.rng:next() * 0.8)) / ctx.speed
+			if king then
+				A.award(king, 1, true)
+				st.puff(A.at(zx, zz, 0.4), "twinkle", 2)
+				if king.me then
+					Audio.play("tick", { pitch = 1.5 })
 				end
-				UIKit.setText(eyes, if state == "watch" then "It's watching! Freeze!" elseif state == "warn" then "It's turning..." else "Sneak while it looks away!")
-				UIKit.setTextColor(eyes, if state == "watch" then UIKit.color("bad") elseif state == "warn" then UIKit.color("accent") else UIKit.color("text"))
 			end
-			red.BackgroundTransparency = if state == "watch" then 0.88 else 1
-		end,
-		key = function(k: string)
-			if k == "go" or k == "right" then
-				step()
-			end
-		end,
-		after = function(t: number, won: boolean)
-			animate(t)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			if state == "away" and untilT - now > 0.12 then
-				step()
-			end
-		end,
-	}
+			UIKit.setText(status, if king then king.name .. " holds it!" else "")
+			UIKit.setTextColor(status, UIKit.color(if king then king.color else "text_dim"))
+		end
+	end
+	return wrap(A, "Hold the middle of the ring to score! Shove the others out.", step)
 end
 
------------------------------------------------------------------- 12. stack (Simulation "Build!")
--- Floors slide on the crane's rope along one side of the tower, then the other: drop each on the one below; what
--- hangs over is cut off and falls.
-local FLOOR_COLORS = { "blue", "orange", "purple", "green", "pink", "yellow", "berry_red" }
-type Falling = { t: Thing, x: number, z: number, y: number, vy: number, vx: number, vz: number, t0: number }
-function Games.stack(ctx: Ctx): Micro
+------------------------------------------------------------------ 8. barrage: dodge the volleys (RPG, Ninjas)
+-- Arrows (throwing stars) fly across the room from the walls, aimed at someone or in walls with a gap: a red line
+-- shows each one's path first. Step aside or jump them. Hit and you are out; last one standing wins.
+type Shot = { t: Thing?, line: Thing, x0: number, z0: number, dx: number, dz: number, at: number, fire: number, s: number, speed: number }
+function Games.barrage(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "survive", { act = "Jump" })
 	local st = ctx.stage
-	local need = 3 + math.floor(ctx.diff / 2)
-	local bh = 1
-	local tw = MicroStage.TOWER
-	local tp = U_DIR * tw.u + V_DIR * tw.v
-	local cx, cz = tp.X, tp.Z -- room space of the tower's middle
-	local sx, sz = if ctx.tiny then 2.5 else 4, if ctx.tiny then 2.5 else 4 -- the top floor's size
-	local ox, oz = 0, 0 -- the top floor's offset from the middle
-	local level = 1
-	local axis = "x" -- the moving floor slides along this axis
-	local speed = (6 + 1.2 * ctx.diff) * ctx.speed
-	local mpos, dir = -7, 1
-	local done = false
-	local label = say(ctx, string.format("Drop the floors! 0/%d", need))
-	local m = newMe(-10, 6, RIGHT)
-	local function floorThing(w: number, d: number, lv: number): Thing
-		return st.adopt(MicroModels.slab(Vector3.new(w, bh, d), FLOOR_COLORS[(lv - 1) % #FLOOR_COLORS + 1], "window"), math.max(w, d) * 0.45)
+	local rng = ctx.rng
+	local kind = if ctx.variant == "fruit" then "shuriken" else "arrow"
+	local shots: { Shot } = {}
+	local nextAt = 1.0
+	local SPAN = 26
+	local function warn(t: number): number
+		return math.max(0.6, (1.1 - 0.04 * ctx.diff - 0.2 * t / A.seconds) / ctx.speed)
 	end
-	local function placeXZ(t: Thing, x: number, z: number, y: number)
-		local u, v = uvOf(x, z)
-		st.place(t, u, v, y, 0)
+	-- one shot from the wall behind (x0, z0) along (dx, dz)
+	local function shoot(t: number, x0: number, z0: number, dx: number, dz: number)
+		local line = MicroModels.slab(Vector3.new(0.3, 0.1, SPAN), "berry_red", nil, true)
+		st.adopt(line)
+		A.place(line, x0 + dx * SPAN / 2, z0 + dz * SPAN / 2, 0.02, Arena.yaw(dx, dz))
+		table.insert(shots, { t = nil, line = line, x0 = x0, z0 = z0, dx = dx, dz = dz, at = t, fire = t + warn(t), s = 0, speed = (13 + 0.9 * ctx.diff) * ctx.speed })
 	end
-	local moving = floorThing(sx, sz, level)
-	local rope = st.adopt(MicroModels.slab(Vector3.new(0.25, 1, 0.25), "black"))
-	local falling: { Falling } = {}
-	local now = 0
-	local function topY(): number
-		return tw.base + bh * (level - 1)
+	local function fromWall(side: number, along: number): (number, number, number, number)
+		local E = 12
+		if side == 1 then
+			return along, -E, 0, 1
+		elseif side == 2 then
+			return along, E, 0, -1
+		elseif side == 3 then
+			return -E, along, 1, 0
+		end
+		return E, along, -1, 0
 	end
-	local function movingXZ(): (number, number)
-		if axis == "x" then
-			return cx + mpos, cz + oz
-		end
-		return cx + ox, cz + mpos
-	end
-	local function drop()
-		if done then
-			return
-		end
-		local cur = mpos
-		local base = if axis == "x" then ox else oz
-		local size = if axis == "x" then sx else sz
-		if math.abs(cur - base) <= 0.2 then
-			cur = base -- near enough is perfect
-		end
-		local lo = math.max(cur - size / 2, base - size / 2)
-		local hi = math.min(cur + size / 2, base + size / 2)
-		local overlap = hi - lo
-		local mx, mz = movingXZ()
-		if overlap <= 0.05 then
-			done = true
-			table.insert(falling, { t = moving, x = mx, z = mz, y = topY(), vy = 0, vx = if axis == "x" then dir * 3 else 0, vz = if axis == "z" then dir * 3 else 0, t0 = now })
-			MicroModels.show(rope, false)
-			ctx.shake()
-			ctx.lose()
-			return
-		end
-		Audio.play("pop", { pitch = 0.8 + level * 0.1 })
-		st.remove(moving)
-		-- the piece that hangs over falls off
-		if overlap < size - 0.05 then
-			local cutLo = if cur < base then cur - size / 2 else hi
-			local cutW = size - overlap
-			local mid = cutLo + cutW / 2
-			local chunk = floorThing(if axis == "x" then cutW else sx, if axis == "z" then cutW else sz, level)
-			local fx = if axis == "x" then cx + mid else cx + ox
-			local fz = if axis == "z" then cz + mid else cz + oz
-			local away = if mid > base then 2 else -2
-			table.insert(falling, { t = chunk, x = fx, z = fz, y = topY(), vy = 1, vx = if axis == "x" then away else 0, vz = if axis == "z" then away else 0, t0 = now })
-		end
-		local mid = (lo + hi) / 2
-		if axis == "x" then
-			sx, ox = overlap, mid
+	local function volley(t: number)
+		local roll = rng:next()
+		local left = A.alive()
+		local tgt = if rng:next() < 0.4 and A.me.alive then A.me else left[rng:int(1, #left)]
+		local n = 6
+		if roll < 0.45 then
+			-- aimed singles at one player, from one or two walls
+			for k = 1, (if ctx.diff >= 4 then 2 else 1) do
+				local side = rng:int(1, 4)
+				local along = if side <= 2 then tgt.x else tgt.z
+				local x0, z0, dx, dz = fromWall(side, along + (rng:next() - 0.5) * 0.8)
+				shoot(t + (k - 1) * 0.15, x0, z0, dx, dz)
+			end
 		else
-			sz, oz = overlap, mid
-		end
-		local fixed = floorThing(sx, sz, level)
-		placeXZ(fixed, cx + ox, cz + oz, topY())
-		local fu, fv = uvOf(cx + ox, cz + oz)
-		local pp = st.at(fu, fv, topY() + bh)
-		burstAt(ctx, pp, { "white", "steel" }, 6)
-		st.puff(st.at(fu, fv, topY()), "dust", 10)
-		if overlap >= size - 0.05 then
-			popAt(ctx, pp, "Perfect!", "yellow")
-			st.puff(pp, "spark", 12)
-		end
-		UIKit.setText(label, string.format("Drop the floors! %d/%d", level, need))
-		if level >= need then
-			done = true
-			MicroModels.show(rope, false)
-			burstAt(ctx, pp, { "yellow", "white", "good" }, 18)
-			ctx.win()
-			return
-		end
-		level += 1
-		axis = if axis == "x" then "z" else "x"
-		dir = if ctx.rng:chance(0.5) then 1 else -1
-		mpos = -7 * dir
-		moving = floorThing(sx, sz, level)
-	end
-	goPad(ctx, "Drop!")
-	local function animate(t: number, dt: number)
-		now = t
-		for i = #falling, 1, -1 do
-			local f = falling[i]
-			f.vy -= 30 * dt
-			f.x += f.vx * dt
-			f.z += f.vz * dt
-			f.y += f.vy * dt
-			placeXZ(f.t, f.x, f.z, f.y)
-			if t - f.t0 > 1.2 then
-				st.remove(f.t)
-				table.remove(falling, i)
+			-- a wall of shots with a gap
+			local side = rng:int(1, 4)
+			local gap = rng:int(1, n - 1)
+			for k = 1, n do
+				if k ~= gap and (k ~= gap + 1 or ctx.diff < 6) then
+					local x0, z0, dx, dz = fromWall(side, -ROOM + (k - 0.5) * (2 * ROOM / n))
+					shoot(t, x0, z0, dx, dz)
+				end
+			end
+			if roll > 0.85 and ctx.diff >= 3 then
+				local s2 = if side <= 2 then rng:int(3, 4) else rng:int(1, 2)
+				local g2 = rng:int(1, n)
+				for k = 1, n do
+					if k ~= g2 then
+						local x0, z0, dx, dz = fromWall(s2, -ROOM + (k - 0.5) * (2 * ROOM / n))
+						shoot(t + 0.6, x0, z0, dx, dz)
+					end
+				end
 			end
 		end
-		m.action = "stand"
-		pose(ctx, m, t)
 	end
-	return {
-		clock = 1.5,
-		update = function(t: number, dt: number)
-			animate(t, dt)
-			if done then
+	-- the cost of being at (x, z) tt seconds from now: a shot passing there after the player arrives
+	local function cost(p: P): (x: number, z: number, tt: number, stay: boolean) -> number
+		local list: { Shot } = {}
+		for _, s in shots do
+			if p.me or A.t - s.at >= (1 - p.skill) * 0.5 then
+				table.insert(list, s)
+			end
+		end
+		return function(x: number, z: number, tt: number, stay: boolean): number
+			local c = 0
+			for _, s in list do
+				local rx, rz = x - s.x0, z - s.z0
+				local along = rx * s.dx + rz * s.dz
+				local side = math.abs(rx * s.dz - rz * s.dx)
+				if side < 1.6 and along > s.s - 1 then
+					local when = math.max(0, s.fire - A.t) + (along - s.s) / s.speed
+					if (stay and when > tt - 0.25) or (not stay and math.abs(when - tt) < 0.4) then
+						c += 10 + 4 / (0.2 + math.max(0, when))
+					end
+				end
+			end
+			return c
+		end
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if t >= p.think then
+			p.think = t + A.react(p)
+			p.tx, p.tz = A.safest(p, cost(p))
+		end
+		-- jump one about to hit
+		local jump = false
+		for _, s in shots do
+			if t >= s.fire then
+				local rx, rz = p.x - s.x0, p.z - s.z0
+				local ahead = rx * s.dx + rz * s.dz - s.s
+				local side = math.abs(rx * s.dz - rz * s.dx)
+				local tt = ahead / s.speed
+				if p.y <= 0.01 and side < 0.95 and tt > 0.12 and tt < 0.28 + (if p.me then 0 else (1 - p.skill) * 0.2) then
+					jump = p.me or rng:next() < p.skill
+				end
+			end
+		end
+		local dx, dz = A.steer(p, p.tx, p.tz)
+		return dx, dz, jump
+	end
+	local function step(t: number, dt: number)
+		if t >= nextAt then
+			nextAt = t + math.max(0.7, (2.1 - 0.13 * ctx.diff) * (1 - 0.3 * t / A.seconds) / ctx.more / ctx.speed)
+			volley(t)
+		end
+		for i = #shots, 1, -1 do
+			local s = shots[i]
+			if t >= s.fire then
+				if s.t == nil then
+					s.t = st.spawn(kind, { color = "berry_red" }, 0.6)
+					st.remove(s.line)
+					if dist(s.x0, s.z0, A.me.x, A.me.z) < 14 then
+						Audio.play("flip", { pitch = 1.4 + rng:next() * 0.3, volume = 0.5 })
+					end
+				end
+				local s0 = s.s
+				s.s += s.speed * dt
+				A.place(s.t :: Thing, s.x0 + s.dx * s.s, s.z0 + s.dz * s.s, 0, if kind == "shuriken" then t * 18 else Arena.yaw(s.dx, s.dz))
+				for _, p in A.players do
+					if p.alive and p.y < 0.85 then
+						local rx, rz = p.x - s.x0, p.z - s.z0
+						local along = rx * s.dx + rz * s.dz
+						local side = math.abs(rx * s.dz - rz * s.dx)
+						if side < 0.85 and along > s0 - 1.1 and along < s.s + 1.1 then
+							A.knock(p, t, s.dx, s.dz)
+						end
+					end
+				end
+				if s.s > SPAN then
+					st.remove(s.t :: Thing)
+					table.remove(shots, i)
+				end
+			else
+				MicroModels.show(s.line, math.floor(t * (if s.fire - t < 0.3 then 16 else 8)) % 2 == 0)
+			end
+		end
+	end
+	return wrap(A, "Dodge the " .. (if kind == "shuriken" then "throwing stars" else "arrows") .. ": step aside or jump! Last one standing wins.", step)
+end
+
+------------------------------------------------------------------ 9. horde: outrun the zombies (Zombies)
+-- Zombies climb out of the ground at the edges, more and more of them, each shambling after the nearest founder
+-- (slower than you, but they never stop); jump one to get past it. One bite and you turn into one of them. Last one
+-- standing wins, and so does anyone still human at the end.
+type Zombie = { t: Thing, x: number, z: number, vx: number, vz: number, born: number, target: P?, think: number }
+function Games.horde(ctx: Ctx): Micro
+	local A = Arena.new(ctx, "survive", { act = "Jump" })
+	local st = ctx.stage
+	local rng = ctx.rng
+	local zombies: { Zombie } = {}
+	local MAX = 3 + ctx.diff // 3 + (if ctx.more > 1 then 2 else 0)
+	local pace = math.min(0.72, 0.45 + 0.03 * ctx.diff)
+	local nextAt = 0.5
+	local gap = math.max(2.5, 6.5 - 0.4 * ctx.diff) / ctx.more
+	local status = say(ctx, "Stay human!", "green")
+	local function spawn(t: number, x: number, z: number)
+		local zb = st.spawn("zombie", nil, 1)
+		table.insert(zombies, { t = zb, x = x, z = z, vx = 0, vz = 0, born = t, target = nil, think = 0 })
+		st.puff(A.at(x, z, 0.3), "debris", 6)
+		st.puff(A.at(x, z, 0.4), "dust", 4)
+	end
+	local function edgeSpot(): (number, number)
+		-- the far side of the room, away from everyone
+		local best, bx, bz = -1, 0, 0
+		for _ = 1, 6 do
+			local a = rng:next() * math.pi * 2
+			local x, z = math.clamp(math.cos(a) * 12, -A.lim, A.lim), math.clamp(math.sin(a) * 12, -A.lim, A.lim)
+			local near = math.huge
+			for _, p in A.alive() do
+				near = math.min(near, dist(p.x, p.z, x, z))
+			end
+			if near > best then
+				best, bx, bz = near, x, z
+			end
+		end
+		return bx, bz
+	end
+	-- running away: of sixteen ways to run (or none), the one that keeps the most room from the nearest zombie half a
+	-- second and a second on (the walls stop the player, the zombies close straight in), out of the corners
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if t < p.think then
+			return p.tx, p.tz, false
+		end
+		p.think = t + A.react(p)
+		local seen: { Zombie } = {}
+		for _, zb in zombies do
+			if (p.me or t - zb.born >= (1 - p.skill) * 0.6) and t - zb.born > 0.3 then
+				table.insert(seen, zb)
+			end
+		end
+		if #seen == 0 then
+			p.tx, p.tz = A.steer(p, 0, 0)
+			return p.tx, p.tz, false
+		end
+		local L = A.lim
+		local sp = A.speed * p.pace
+		local zs = A.speed * pace
+		local best, bx, bz = -math.huge, 0, 0
+		for k = -1, 15 do
+			local dx, dz = 0, 0
+			if k >= 0 then
+				local a = k / 16 * math.pi * 2
+				dx, dz = math.cos(a), math.sin(a)
+			end
+			local score = math.huge
+			for _, T in { 0.5, 1.1 } do
+				local mx, mz = math.clamp(p.x + dx * sp * T, -L, L), math.clamp(p.z + dz * sp * T, -L, L)
+				for _, zb in seen do
+					score = math.min(score, dist(mx, mz, zb.x, zb.z) - zs * T)
+				end
+				if T > 1 then
+					score -= (math.max(0, math.abs(mx) - L + 2.5) + math.max(0, math.abs(mz) - L + 2.5)) * 0.35
+				end
+			end
+			if score > best then
+				best, bx, bz = score, dx, dz
+			end
+		end
+		p.tx, p.tz = bx, bz
+		-- one about to bite: jump over it (the sooner, the faster they close in)
+		local jump = false
+		for _, zb in seen do
+			local d = dist(p.x, p.z, zb.x, zb.z)
+			local ux, uz = (zb.x - p.x) / math.max(0.1, d), (zb.z - p.z) / math.max(0.1, d)
+			local closing = (p.vx - zb.vx) * ux + (p.vz - zb.vz) * uz
+			local reach = 1.15 + math.max(0, closing) * (if p.me then 0.16 else 0.1 * p.skill) + 0.3
+			if t - zb.born > 0.6 and d < reach then
+				jump = p.me or rng:next() < p.skill
+			end
+		end
+		return bx, bz, jump
+	end
+	local function step(t: number, dt: number)
+		if t >= nextAt and #zombies < MAX then
+			nextAt = t + gap
+			local x, z = edgeSpot()
+			spawn(t, x, z)
+		end
+		for _, zb in zombies do
+			-- rising out of the ground, then after the nearest (the player a little more)
+			local rise = math.clamp((t - zb.born) / 0.7, 0, 1)
+			if rise >= 1 then
+				if t >= zb.think then
+					zb.think = t + 0.4
+					local best, pick = math.huge, nil :: P?
+					for _, p in A.alive() do
+						local d = dist(zb.x, zb.z, p.x, p.z)
+						if d < best then
+							best, pick = d, p
+						end
+					end
+					zb.target = pick
+				end
+				local q = zb.target
+				local tx, tz = zb.x, zb.z
+				if q and q.alive then
+					local lead = math.min(0.5, dist(zb.x, zb.z, q.x, q.z) / (A.speed * pace)) * 0.5
+					tx, tz = q.x + q.vx * lead, q.z + q.vz * lead
+				end
+				local dx, dz = tx - zb.x, tz - zb.z
+				local d = math.max(0.01, math.sqrt(dx * dx + dz * dz))
+				local sp = A.speed * pace
+				-- keep apart from each other a little
+				for _, o in zombies do
+					if o ~= zb then
+						local ox, oz = zb.x - o.x, zb.z - o.z
+						local od = math.sqrt(ox * ox + oz * oz)
+						if od < 1.4 and od > 0.01 then
+							dx += ox / od * (1.4 - od) * 2
+							dz += oz / od * (1.4 - od) * 2
+						end
+					end
+				end
+				d = math.max(0.01, math.sqrt(dx * dx + dz * dz))
+				local k = math.min(1, A.grip * 0.6 * dt)
+				zb.vx += (dx / d * sp - zb.vx) * k
+				zb.vz += (dz / d * sp - zb.vz) * k
+				zb.x = math.clamp(zb.x + zb.vx * dt, -A.lim, A.lim)
+				zb.z = math.clamp(zb.z + zb.vz * dt, -A.lim, A.lim)
+				-- a bite
+				for _, p in A.alive() do
+					if p.y < 0.6 and dist(zb.x, zb.z, p.x, p.z) < 1.15 then
+						A.knock(p, t, p.x - zb.x, p.z - zb.z)
+						st.puff(A.at(p.x, p.z, 1), "smoke", 4)
+						A.popAt(A.head(p), if p.me then "Bitten!" else p.name .. " turned!", "green")
+						if #zombies < MAX + 1 then
+							spawn(t, p.x, p.z)
+						end
+					end
+				end
+			end
+			local wob = math.sin(t * 6 + zb.born * 3) * 0.12
+			A.place(zb.t, zb.x, zb.z, -1.6 * (1 - rise), Arena.yaw(zb.vx, zb.vz) + wob)
+		end
+		local humans = #A.alive()
+		UIKit.setText(status, string.format("%d human%s left", humans, if humans == 1 then "" else "s"))
+	end
+	return wrap(A, "The zombies are coming: one bite and you turn. Run, and jump them!", step)
+end
+
+------------------------------------------------------------------ 10. sneak: creep to the door (Horror)
+-- Race to the door at the back while the ghost looks away; it turns round now and then (it shudders first): anyone
+-- still moving when it looks is sent back to the start. First one to the door wins.
+function Games.sneak(ctx: Ctx): Micro
+	local n = 1 + ctx.rivals
+	local START, GOAL = 8.5, -9.2
+	local starts: { { number } } = {}
+	for i = 1, n do
+		table.insert(starts, { -7 + (i - 1) * (14 / math.max(1, n - 1)), START })
+	end
+	-- the founder in the middle lane
+	local mid = math.ceil(n / 2)
+	starts[1], starts[mid] = starts[mid], starts[1]
+	local A = Arena.new(ctx, "race", { act = "Jump", starts = starts })
+	local st = ctx.stage
+	local rng = ctx.rng
+	-- a creep, not a run: the ghost turns round a good few times on the way
+	A.speed = 2.9 * ctx.speed
+	A.scoreOf = function(p: P): string
+		return tostring(math.floor(p.score)) .. "%"
+	end
+	local ghost = st.spawn("ghost", nil, 1)
+	local line = MicroModels.slab(Vector3.new(19, 0.1, 0.5), "berry_red", nil, true)
+	st.adopt(line)
+	A.place(line, 0, GOAL, 0.02)
+	local phase = "away"
+	local phaseEnd = 1.8 / ctx.speed
+	local status = say(ctx, "Go!", "good")
+	local function setPhase(t: number, ph: string)
+		phase = ph
+		if ph == "away" then
+			phaseEnd = t + (1.4 + rng:next() * 2.0) / ctx.speed
+			UIKit.setText(status, "Go!")
+			UIKit.setTextColor(status, UIKit.color("good"))
+		elseif ph == "turn" then
+			phaseEnd = t + math.max(0.3, 0.62 - 0.035 * ctx.diff) / ctx.speed
+			UIKit.setText(status, "It's turning...")
+			UIKit.setTextColor(status, UIKit.color("yellow"))
+			Audio.play("notice", { pitch = 0.8 })
+			for _, p in A.players do
+				-- a rival notices late, and sometimes pushes their luck
+				p.data.noticeAt = t + (if p.me then 0 else (1 - p.skill) * 0.5 + (if rng:next() < (1 - p.skill) * 0.6 then 0.5 else 0))
+			end
+		else
+			phaseEnd = t + (1.0 + rng:next() * 1.3) / ctx.speed
+			UIKit.setText(status, "FREEZE!")
+			UIKit.setTextColor(status, UIKit.color("bad"))
+		end
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		local see = phase
+		if phase == "turn" and t < (p.data.noticeAt or 0) then
+			see = "away"
+		end
+		-- the auto player creeps on through the shudder and stops just before it looks (a slippery floor sooner)
+		if p.me and phase == "turn" and phaseEnd - t > (if ctx.ice then 0.55 else 0.16) then
+			see = "away"
+		end
+		if see == "away" then
+			return A.steer(p, starts[p.i][1] * 0.6, GOAL - 1)
+		end
+		return 0, 0, false
+	end
+	local function step(t: number, _dt: number)
+		if t >= phaseEnd then
+			setPhase(t, if phase == "away" then "turn" elseif phase == "turn" then "look" else "away")
+		end
+		-- the ghost: its back to them while away, a shudder, then it faces them
+		local yaw = if phase == "look" then MicroStage.FACE_VIEWER + math.pi / 4 else MicroStage.FACE_AWAY + math.pi / 4
+		A.place(ghost, (if phase == "turn" then math.sin(t * 50) * 0.25 else 0), -10.6, 1 + math.sin(t * 2) * 0.3, yaw)
+		for _, p in A.players do
+			p.score = math.clamp((START - p.z) / (START - GOAL) * 100, 0, 100)
+			if p.alive and p.z <= GOAL then
+				A.finishRace(p)
 				return
 			end
-			mpos += dir * speed * dt
-			if mpos >= 7 then
-				mpos, dir = 7, -1
-			elseif mpos <= -7 then
-				mpos, dir = -7, 1
+			if phase == "look" and p.stun <= 0 then
+				local sp = math.sqrt(p.vx * p.vx + p.vz * p.vz)
+				if sp > 1.3 or p.y > 0.05 then
+					-- caught: back to the start
+					st.puff(A.at(p.x, p.z, 1), "smoke", 4)
+					A.popAt(A.head(p), if p.me then "Caught!" else p.name .. " caught!", "bad")
+					Audio.play("sad", { volume = if p.me then 1 else 0.4 })
+					p.z = START
+					p.x = starts[p.i][1]
+					p.vx, p.vz = 0, 0
+					p.stun = 0.6
+					if p.me then
+						ctx.flash("purple")
+					end
+				end
 			end
-			local mx, mz = movingXZ()
-			local y = topY() + 2.2
-			placeXZ(moving, mx, mz, y)
-			-- the rope from the crane's jib down to the floor
-			MicroModels.scale(rope, Vector3.new(1, math.max(0.2, 16 - y - bh), 1))
-			placeXZ(rope, mx, mz, y + bh)
-		end,
-		key = function(k: string)
-			if k == "go" or k == "down" then
-				drop()
+		end
+	end
+	return wrap(A, "Creep to the door while the ghost looks away. Freeze when it turns!", step)
+end
+
+------------------------------------------------------------------ 11. paint: claim the floor (Farming, Strategy, Simulation)
+-- Every tile you step on turns your colour (until someone else steps on it); a star paints all round you. Most tiles
+-- at the end wins.
+local PAINT_SKIN: { [string]: { base: string, star: string, word: string } } = {
+	water = { base = "wood_dark", star = "sprout", word = "plots" },
+	count = { base = "paper", star = "star", word = "lands" },
+	tower = { base = "steel", star = "star", word = "lots" },
+}
+function Games.paint(ctx: Ctx): Micro
+	local skin = PAINT_SKIN[ctx.variant] or PAINT_SKIN.count
+	local A = Arena.new(ctx, "score", { act = "Jump", tags = true, label = skin.word })
+	local st = ctx.stage
+	local rng = ctx.rng
+	local N = 6
+	local T = tiles(A, N, 3.15, 3.0, skin.base)
+	A.lift = 0.1
+	local count = N * N
+	local owner: { [number]: P } = {}
+	local star: Thing? = nil
+	local sx, sz = 0, 0
+	local starAt = 4 / ctx.more
+	local function claim(i: number, p: P, quiet: boolean?)
+		local was = owner[i]
+		if was == p then
+			return
+		end
+		if was then
+			was.score -= 1
+		end
+		owner[i] = p
+		p.score += 1
+		T.color(i, p.color)
+		if not quiet then
+			local x, z = T.center(i)
+			st.puff(A.at(x, z, 0.3), "dust", 2, p.color)
+			if p.me then
+				Audio.play("pop", { pitch = 1.4 + rng:next() * 0.3, volume = 0.5 })
 			end
-		end,
-		after = function(t: number, won: boolean)
-			animate(t, 1 / 60)
-			ending(ctx, m, t, won)
-		end,
-		auto = function()
-			local base = if axis == "x" then ox else oz
-			if math.abs(mpos - base) <= math.max(0.25, speed * 0.06) then
-				drop()
+		end
+	end
+	A.brain = function(p: P, t: number, _dt: number): (number, number, boolean)
+		if t >= p.think then
+			p.think = t + A.react(p)
+			local best, bi = -math.huge, 0
+			local noisy = not p.me and rng:next() < (1 - p.skill) * 0.4
+			for i = 1, count do
+				local o = owner[i]
+				if o ~= p then
+					local x, z = T.center(i)
+					local v = (if o then 1.4 else 1) / (dist(p.x, p.z, x, z) + 1)
+					if p.me then
+						-- far from the others (it stays painted), from the leader most
+						local near = math.huge
+						for _, q in A.others(p) do
+							near = math.min(near, dist(q.x, q.z, x, z))
+						end
+						v *= math.clamp(near / 5, 0.25, 1) * (if o and o.score >= p.score then 1.3 else 1)
+					end
+					if noisy then
+						v = rng:next()
+					end
+					if v > best then
+						best, bi = v, i
+					end
+				end
 			end
-		end,
-	}
+			-- the star is worth a detour
+			if star and dist(p.x, p.z, sx, sz) < (if p.me then 14 else 7) and (p.me or rng:next() < p.skill) then
+				p.tx, p.tz = sx, sz
+			elseif bi > 0 then
+				p.tx, p.tz = T.center(bi)
+			end
+		end
+		return A.steer(p, p.tx, p.tz)
+	end
+	local function step(t: number, dt: number)
+		for _, p in A.players do
+			if p.alive and p.y < 0.3 then
+				claim(T.index(p.x, p.z), p)
+			end
+		end
+		if star == nil and t >= starAt then
+			sx, sz = T.center(rng:int(1, count))
+			star = st.spawn(skin.star, nil, 0.6)
+			Audio.play("sparkle", { volume = 0.6 })
+		end
+		local s = star
+		if s then
+			A.place(s, sx, sz, 0.6 + math.sin(t * 4) * 0.25, t * 2)
+			if every(t, dt, 5) then
+				st.puff(A.at(sx, sz, 1), "twinkle", 1)
+			end
+			for _, p in A.players do
+				if p.alive and dist(p.x, p.z, sx, sz) < 1.3 then
+					-- everything round them turns their colour
+					local c = T.index(sx, sz)
+					local r0, c0 = (c - 1) // N, (c - 1) % N
+					for dr = -1, 1 do
+						for dc = -1, 1 do
+							local r, cc = r0 + dr, c0 + dc
+							if r >= 0 and r < N and cc >= 0 and cc < N then
+								claim(r * N + cc + 1, p, true)
+							end
+						end
+					end
+					st.puff(A.at(sx, sz, 0.8), "confetti", 12)
+					A.popAt(A.head(p), "Splash!", p.color)
+					Audio.play("combo", { volume = if p.me then 1 else 0.4 })
+					st.remove(s)
+					star = nil
+					starAt = t + (5 + rng:next() * 2) / ctx.more
+					break
+				end
+			end
+		end
+		T.flush()
+	end
+	return wrap(A, "Step on tiles to turn them your colour. Most tiles wins!", step)
 end
 
 return Games

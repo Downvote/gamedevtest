@@ -15,10 +15,10 @@ return function()
 	local function at(r: any, minute: number): any
 		return r.timeline[minute // 10]
 	end
-	T.it("the first minutes: a game launched within 90 s, an upgrade within 3 minutes", function()
+	T.it("the first minutes: a game launched and an upgrade bought within 4 minutes", function()
 		for seed, r in runs do
-			T.truthy(r.firstGame and r.firstGame <= 90, "seed " .. seed .. ": first game at " .. tostring(r.firstGame))
-			T.truthy(r.firstUpgrade and r.firstUpgrade <= 180, "seed " .. seed .. ": first upgrade at " .. tostring(r.firstUpgrade))
+			T.truthy(r.firstGame and r.firstGame <= 240, "seed " .. seed .. ": first game at " .. tostring(r.firstGame))
+			T.truthy(r.firstUpgrade and r.firstUpgrade <= 240, "seed " .. seed .. ": first upgrade at " .. tostring(r.firstUpgrade))
 		end
 	end)
 	T.it("finds: a Rare within 10 minutes, an Epic within 30, no Mythic in the first hour", function()
@@ -28,26 +28,34 @@ return function()
 			T.truthy(r.firstTier[6] == nil or r.firstTier[6] > 3600, "seed " .. seed .. ": Mythic at " .. tostring(r.firstTier[6]))
 		end
 	end)
-	T.it("upgrades: about ten levels each in the first hour, a few more by the third", function()
+	T.it("upgrades: twelve to eighteen levels each in the first hour, a few more by the third", function()
 		for seed, r in runs do
 			local h1, h3 = at(r, 60), at(r, 180)
-			T.truthy(h1.speed >= 8 and h1.speed <= 14 and h1.luck >= 8 and h1.luck <= 14, string.format("seed %d: hour 1 speed %d luck %d", seed, h1.speed, h1.luck))
+			T.truthy(h1.speed >= 12 and h1.speed <= 18 and h1.luck >= 12 and h1.luck <= 18, string.format("seed %d: hour 1 speed %d luck %d", seed, h1.speed, h1.luck))
 			T.truthy(h3.speed > h1.speed and h3.luck > h1.luck, "seed " .. seed .. ": still climbing")
-			T.truthy(h3.speed <= 20 and h3.luck <= 20, string.format("seed %d: hour 3 speed %d luck %d", seed, h3.speed, h3.luck))
+			T.truthy(h3.speed <= 22 and h3.luck <= 22, string.format("seed %d: hour 3 speed %d luck %d", seed, h3.speed, h3.luck))
 		end
 	end)
-	T.it("no runaway: the next upgrade takes 5 to 40 minutes of income by hour 3, the income grows slower than x6", function()
+	T.it("no runaway: the next upgrade takes 5 to 60 minutes of income by hour 3, the income grows slower than x6", function()
 		for seed, r in runs do
 			local h1, h3 = at(r, 60), at(r, 180)
-			T.truthy(h3.wait >= 300 and h3.wait <= 2400, string.format("seed %d: wait %.0f s", seed, h3.wait))
+			T.truthy(h3.wait >= 300 and h3.wait <= 3600, string.format("seed %d: wait %.0f s", seed, h3.wait))
 			T.truthy(h3.rate < h1.rate * 6, string.format("seed %d: %.0f -> %.0f a second", seed, h1.rate, h3.rate))
-			T.truthy(r.profile.coins == r.profile.coins and r.profile.rate < 1e9, "seed " .. seed .. ": finite")
+			T.truthy(r.profile.coins == r.profile.coins and r.profile.coins < 1e12, "seed " .. seed .. ": finite")
 		end
 	end)
 	T.it("the minigames pay: winning them all earns about twice as much as losing them all", function()
 		local good = Career.play(1, 30 * 60, { skill = 1, retries = 0 })
 		local bad = Career.play(1, 30 * 60, { skill = 0, retries = 0 })
-		local ratio = at(good, 30).rate / at(bad, 30).rate
-		T.truthy(ratio >= 1.5 and ratio <= 2.8, string.format("x%.2f", ratio))
+		local ratio = good.profile.stats.earned / bad.profile.stats.earned
+		T.truthy(ratio >= 1.4 and ratio <= 2.8, string.format("x%.2f", ratio))
+	end)
+	T.it("one game sells at a time: each one rises, peaks and leaves the shops", function()
+		for seed, r in runs do
+			local g = r.profile.games
+			T.truthy(#g >= 20, "seed " .. seed .. ": " .. #g .. " games")
+			local old = g[#g - 1]
+			T.truthy(old.peak > 0 and old.earned > 0, string.format("seed %d: an old game's peak %d, coins %d", seed, old.peak, old.earned))
+		end
 	end)
 end

@@ -1252,7 +1252,7 @@ function PixelRenderer.ready(): boolean
 	return s ~= nil and not baking and s.view.key == CameraController.view().key
 end
 
--- The layer shifted by whole art px (the Shaky modifier and a hit's jolt on a stage); 0, 0 puts it back.
+-- The layer shifted by whole art px (a hit's jolt on a minigame's stage); 0, 0 puts it back.
 function PixelRenderer.setOffset(dx: number, dy: number)
 	offX, offY = math.floor(dx + 0.5), math.floor(dy + 0.5)
 	local im = image

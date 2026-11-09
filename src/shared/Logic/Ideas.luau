@@ -108,7 +108,7 @@ function Ideas.tierColor(t: number): string
 	return Tuning.TierColors[math.clamp(t, 1, #Tuning.TierColors)]
 end
 
--- A card's name: "Glitched Ninjas" ("Ninjas" when Plain).
+-- A card's name: "Frenzy Ninjas" ("Ninjas" when Plain).
 function Ideas.name(c: Card): string
 	local d, m = IdeasData.byId[c.id], Modifiers.byId[c.mod]
 	local n = if d then d.name else "?"

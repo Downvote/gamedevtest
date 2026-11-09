@@ -367,10 +367,21 @@ function H.checkProfile(p, label)
 	local Tuning = H.sharedServer("Config.Tuning")
 	local Ideas = H.sharedServer("Logic.Ideas")
 	local Office = H.sharedServer("Data.Office")
-	for _, k in { "coins", "rate", "office", "nextGame", "tut" } do
+	for _, k in { "coins", "office", "nextGame", "tut" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
-	H.expect(prof.coins >= 0 and prof.rate >= 0, "profile", label .. ": negative coins or rate", string.format("%s/%s", prof.coins, prof.rate))
+	H.expect(prof.coins >= 0, "profile", label .. ": negative coins", tostring(prof.coins))
+	-- the game on sale: one of the listed games, on its curve
+	local l = prof.live
+	if l then
+		local listed = false
+		for _, g in prof.games do
+			listed = listed or g.id == l.id
+		end
+		H.expect(listed, "profile", label .. ": the game on sale is not a listed game", tostring(l.id))
+		H.expect(finite(l.age) and l.age >= 0 and l.age <= l.life and finite(l.players) and l.players >= 0 and finite(l.earned) and l.earned >= 0, "profile", label .. ": the game on sale's numbers", string.format("%s %s %s", tostring(l.age), tostring(l.players), tostring(l.earned)))
+		H.expect(#l.samples >= 1 and #l.samples <= Tuning.LiveSamples, "profile", label .. ": the game on sale's samples", tostring(#l.samples))
+	end
 	H.expect(#prof.ideas <= Tuning.BoardSize, "profile", label .. ": board over BoardSize", tostring(#prof.ideas))
 	for _, c in prof.ideas do
 		H.expect(Ideas.valid(c), "profile", label .. ": an invalid card on the board", tostring(c.id) .. "|" .. tostring(c.mod))
@@ -388,13 +399,10 @@ function H.checkProfile(p, label)
 			desks[m.desk] = true
 		end
 	end
-	local sum = 0
 	for _, g in prof.games do
-		H.expect(#g.ideas == 3 and finite(g.rate) and g.rate > 0 and g.wins >= 0 and g.wins <= 3, "profile", label .. ": a bad game record", tostring(g.title))
+		H.expect(#g.ideas == 3 and finite(g.rate) and g.rate > 0 and g.wins >= 0 and g.wins <= 3 and finite(g.peak) and finite(g.earned), "profile", label .. ": a bad game record", tostring(g.title))
 		H.expect(g.id < prof.nextGame, "profile", label .. ": game id >= nextGame", tostring(g.id))
-		sum += g.rate
 	end
-	H.expect(prof.rate >= sum - 1e-6, "profile", label .. ": rate below the listed games' sum", string.format("%s < %s", prof.rate, sum))
 	H.expect(#prof.games <= Tuning.GamesKept, "profile", label .. ": too many games kept", tostring(#prof.games))
 	local proj = prof.project
 	if proj then
@@ -416,8 +424,10 @@ function H.checkMirror(p, label)
 	for _, k in { "office", "tut" } do
 		H.expect(v[k] == prof[k], "mirror", string.format("%s: view.%s differs", label, k), string.format("view %s, server %s", tostring(v[k]), tostring(prof[k])))
 	end
-	H.expect(math.abs(v.rate - prof.rate) < 1e-6, "mirror", label .. ": view rate differs", string.format("%s vs %s", v.rate, prof.rate))
-	H.expect(math.abs(v.coins - prof.coins) <= math.max(2, prof.rate * 1.5 + 1), "mirror", label .. ": view coins differ by more than a tick", string.format("%s vs %s", v.coins, prof.coins))
+	local rate = H.sharedServer("Logic.Live").earning(prof.live)
+	H.expect(math.abs(v.rate - rate) <= math.max(1, rate * 0.5), "mirror", label .. ": view rate differs by more than a tick's change", string.format("%s vs %s", v.rate, rate))
+	H.expect(math.abs(v.coins - prof.coins) <= math.max(2, rate * 1.5 + 1), "mirror", label .. ": view coins differ by more than a tick", string.format("%s vs %s", v.coins, prof.coins))
+	H.expect((v.live == nil) == (prof.live == nil), "mirror", label .. ": the game on sale's presence differs")
 	H.expect(#v.ideas == #prof.ideas, "mirror", label .. ": board size differs", string.format("%d vs %d", #v.ideas, #prof.ideas))
 	H.expect(#v.team == #prof.team, "mirror", label .. ": team size differs")
 	H.expect((v.project == nil) == (prof.project == nil), "mirror", label .. ": project presence differs")

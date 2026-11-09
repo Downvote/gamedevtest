@@ -9,6 +9,7 @@ local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Looks = require(script.Parent.Parent.Data.Looks)
 local Names = require(script.Parent.Parent.Data.Names)
 local Ideas = require(script.Parent.Ideas)
+local Live = require(script.Parent.Live)
 local Util = require(script.Parent.Util)
 
 type Profile = Types.Profile
@@ -42,7 +43,25 @@ function Studio.rollIdea(p: Profile, rng: Rng): Rolled
 	return { card = c, slot = slot, replaced = replaced, oneIn = n, tier = Ideas.tierOf(n), first = first }
 end
 
--- Make a game from three board ideas (board indices a, b, c, all different): they leave the board for the project.
+-- The game on sale leaves the shops (the next game is being made): its record keeps its peak and its coins.
+function Studio.retire(p: Profile)
+	local l = p.live
+	if l == nil then
+		return
+	end
+	for i = #p.games, 1, -1 do
+		local g = p.games[i]
+		if g.id == l.id then
+			g.peak = math.max(g.peak, l.peak)
+			g.earned = math.max(g.earned, math.floor(l.earned))
+			break
+		end
+	end
+	p.live = nil
+end
+
+-- Make a game from three board ideas (board indices a, b, c, all different): they leave the board for the project,
+-- and the game on sale leaves the shops (GAME_DESIGN 6: one game sells at a time).
 function Studio.make(p: Profile, a: number, b: number, c: number, seed: number): (boolean, any)
 	if p.project ~= nil then
 		return false, "busy" :: ErrCode
@@ -67,6 +86,7 @@ function Studio.make(p: Profile, a: number, b: number, c: number, seed: number):
 	for _, k in order do
 		table.remove(p.ideas, k)
 	end
+	Studio.retire(p)
 	p.project = { title = Ideas.title(cards, seed), ideas = cards, won = { -1, -1, -1 }, seed = seed }
 	if p.tut == 1 then
 		p.tut = 2
@@ -97,8 +117,8 @@ function Studio.wins(proj: Types.Making): number
 	return n
 end
 
--- Launch the game once every minigame has been played: it earns its rate for good.
-function Studio.launch(p: Profile, now: number): (boolean, any)
+-- Launch the game once every minigame has been played: it goes on sale (Logic/Live, its curve from `seed`).
+function Studio.launch(p: Profile, now: number, seed: number?): (boolean, any)
 	local proj = p.project
 	if proj == nil then
 		return false, "no_project" :: ErrCode
@@ -109,10 +129,10 @@ function Studio.launch(p: Profile, now: number): (boolean, any)
 		end
 	end
 	local wins = Studio.wins(proj)
-	local game: Types.Game = { id = p.nextGame, title = proj.title, ideas = proj.ideas, rate = Ideas.rate(proj.ideas, wins), wins = wins, at = now }
+	local game: Types.Game = { id = p.nextGame, title = proj.title, ideas = proj.ideas, rate = Ideas.rate(proj.ideas, wins), wins = wins, at = now, peak = 0, earned = 0 }
 	p.nextGame += 1
-	p.rate += game.rate
 	table.insert(p.games, game)
+	p.live = Live.new(game, seed or (proj.seed * 31 + game.id))
 	while #p.games > Tuning.GamesKept do
 		table.remove(p.games, 1)
 	end
@@ -124,7 +144,28 @@ function Studio.launch(p: Profile, now: number): (boolean, any)
 	return true, game
 end
 
--- The coins the games made (the server's income tick).
+-- dt more seconds of the game on sale (the server's clock): the coins it earned (a fraction) and whether it left the
+-- shops just now (its record then gets its peak and its coins; it stays as the live game, over, for the graph).
+function Studio.sell(p: Profile, dt: number): (number, boolean)
+	local l = p.live
+	if l == nil then
+		return 0, false
+	end
+	local coins, ended = Live.step(l, dt)
+	if ended then
+		for i = #p.games, 1, -1 do
+			local g = p.games[i]
+			if g.id == l.id then
+				g.peak = math.max(g.peak, l.peak)
+				g.earned = math.max(g.earned, math.floor(l.earned + 0.5))
+				break
+			end
+		end
+	end
+	return coins, ended
+end
+
+-- The coins the game on sale made (the server's income tick).
 function Studio.earn(p: Profile, coins: number)
 	if coins > 0 then
 		p.coins += coins

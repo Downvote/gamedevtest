@@ -4,7 +4,7 @@ local TestKit = require("./TestKit")
 local SPECS = {
 	"Util", "Validate", "Numbers", -- helpers
 	"DataIntegrity", -- the content tables
-	"Ideas", "Studio", "Economy", "Plot", -- the rules
+	"Ideas", "Live", "Studio", "Economy", "Plot", -- the rules
 	"Schema", -- the save
 	"Shading", "Raster", "Rim", -- the pixel filter (from Random Bakery)
 	"PixelFont", -- the pixel font
