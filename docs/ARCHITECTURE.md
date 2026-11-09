@@ -24,10 +24,12 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, StudioService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView),
                        Audio, Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
-                       Menus, MicroUI, MicroGames, PixelSprites, BuildUI, Words)
+                       Menus, MicroUI, MicroGames, MicroScenes, PixelSprites, ArtData (generated), BuildUI, Words)
 tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
 scripts/gen_pixelfont.py  the pixel font's glyph tables (copied; README "Fonts and licences")
+scripts/gen_art.py     every interface sprite as a text mask -> UI/ArtData.luau (outline, anti-aliasing, shading;
+                       `--png <file>` writes a contact sheet; GAME_DESIGN 2's rules; §10.9)
 tools/                 setup.sh (installs rojo, luau, luau-lsp), defs/ (Roblox API types), sim/ (the fake engine and
                        this game's scenarios), preview/ (PNG renders of the real game); tools/README.md
 ```
@@ -277,7 +279,7 @@ with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `
 `lineHeight`, `plate` (stepped corners, Random Bakery's), `setPlate`, `rect`, `button` (a TextButton with a child
 "Words" label; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
 `setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
-colors?)` (a burst of little rects that fly, tumble and fade), panels
+colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
 (`registerPanel(name, { title, w, h, build })`, `openPanel(name, arg)`, `closePanel`, `currentPanel`,
 `refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
@@ -285,8 +287,9 @@ ViewportSize event and when the top bar's inset or a safe area settles; everythi
 rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
 canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top; while a
 panel is open, its status line next to the title instead, and opening a panel clears the toasts, so nothing covers
-a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, `tween`,
-`Resized`. Motion (GAME_DESIGN 15): a button lightens while hovered, its plate and words sink 1 UI px while pressed,
+a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, `tween` (a UDim2 property
+eases on Heartbeat snapped to whole UI px, Quad out, the newest tween of a property winning; the rest through
+TweenService), `Resized`. Motion (GAME_DESIGN 15): a button lightens while hovered, its plate and words sink 1 UI px while pressed,
 and `Activated` plays `click` (or `deny` when disabled); a panel's shade fades in and its frame rises 10 UI px into
 place; a notice slides down into the stack and fades out.
 
@@ -318,7 +321,7 @@ bar). On `MicroUI.Launched` the team cheers (`WorldView.cheer`) with the new inc
 ### 10.4 Menus
 `Menus` registers the panels: "ideas" (the board: a card per idea `Pick_<i>` with its icon, tier strip, modifier and
 1 in N; three picks numbered in order; the preview of the income; `Make` sends `game.make` and opens the making card;
-with a game in the works, `Continue`), "index" (`Entry_<id>` for every idea: its icon or a dark "???", its odds, a dot
+with a game in the works, `Continue`), "index" (`Entry_<id>` for every idea: its icon or its dark silhouette (`icon_<id>_sil`) and "???", its odds, a dot
 per modifier lit once found; "Found n of 168"), "upgrades" (`Buy_speed`, `Buy_luck` with their prices, following the
 coins as they come), "games" (the launched games, newest first, their ideas, rates and wins) and "looks" (the founder's
 portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt, `SaveLook` sends `founder.set`). `Words.errText(err)`
@@ -349,19 +352,43 @@ modifier, difficulty, WIN / LOSE and `Play_<i>` / `Retry_<i>`; the sales boost; 
 are played: `game.launch`, then the launch card with the income, confetti and `Nice`), `CloseMicro`; opened right
 after `game.make`, it waits for the view with the project), `refresh()` (the card follows the view), `isOpen()`,
 `Launched: Signal<Game>`, `play(slot, chain?)`, and for the sims and previews `playing() -> engine?`, `debugAuto()`
-(one right move) and `debugCtx()` (the last microgame's diff, speed, px, seconds, effects, area). A microgame:
-`micro.start`, the order word drops in for `Tuning.MicroIntro`, then the engine runs in `Area` on the `Fuse` (seconds:
-`MicroSeconds - MicroSecondsStep x (diff - 1)`, at least `MicroSecondsMin`, times the engine's `clock` and Turbo's
-`TurboClock`); the modifier's effects: `speed` (ctx.speed `TurboSpeed`), `tiny` (ctx.px 1), `shake` (the area jitters),
-`glitch` (`GlitchFlash` blinks over it), `dark` (`Dark1`..`Dark4` round a roving spotlight); a WIN / LOSE stamp, then
-`micro.finish` (no sooner than `MicroMinSec` after the start); Play all goes on to the next unplayed slot. Its keys are
-bound through ContextActionService above the founder's walking keys (arrows, WASD, Space, Return, F, J, 1-6;
+(one right move) and `debugCtx()` (the last microgame's diff, speed, tiny, seconds, effects, area). A microgame:
+`micro.start`, the idea's icon (`WordIcon`) and order word (`Word`) drop in on `WordBand` for `Tuning.MicroIntro` over
+the idea's scene (`MicroScenes.build` into `Area`, its own Rng from the seed + 7), then the engine runs in `Area`
+while the `Fuse` rope burns down to `FuseBomb` with the `Spark` animation (seconds: `MicroSeconds - MicroSecondsStep x
+(diff - 1)`, at least `MicroSecondsMin`, times the engine's `clock` and Turbo's `TurboClock`); the modifier's effects:
+`speed` (ctx.speed `TurboSpeed`), `tiny` (ctx.tiny: the engines use the small sprites), `shake` (the area jitters),
+`glitch` (`GlitchFlash` blinks over it), `dark` (`Dark1`..`Dark4` round a roving spotlight); a WIN / LOSE stamp (a
+flash; confetti for a win), then `micro.finish` (no sooner than `MicroMinSec` after the start); Play all goes on to the
+next unplayed slot. The runner owns the effects and keeps them (and the scene) moving under the stamp until the card
+comes back: `Pop` words, `Bit` bursts (1 px, their own Rng from the seed + 101), floats, the area's `Flash`. Its keys
+are bound through ContextActionService above the founder's walking keys (arrows, WASD, Space, Return, F, J, 1-6;
 UserInputService when that is not available).
 `MicroGames`: the twelve engines `dodge timing mash whack pick sequence catch jump rhythm slice hide stack`, each
-`(ctx) -> Micro` with `ctx { area, w, h, rng (the server's seed), diff, speed, px, variant (the idea's theme), pop,
-shake, win, lose, press }` and `Micro { update(t, dt), key(k), survive?, clock?, auto() }`; named buttons `Pad_<key>`,
-`Hole_<i>`, `Opt_<i>`, `Fruit_<i>` / `Bomb_<i>`. `PixelSprites`: `S`, `draw(parent, rows, colors, pos, scale, z)`,
-`sprite`, `tint`, `size`, `glyphRows(ch, big?)`, the idea icons `ICONS[id]` (8x8), `ARROWS`, `NOTE`.
+`(ctx) -> Micro` with `ctx { area, w, h, rng (the server's seed), diff, speed, tiny, variant (the idea's theme), pop(x,
+y, text, color), burst(x, y, colors, n?), float(gui, vx, vy, life, gravity?), flash(color), shake, win, lose, press }`
+and `Micro { update(t, dt), key(k), survive?, clock?, pace? (px/s the scene scrolls at), auto() }`; every thing is a
+sprite at its own size (`name`, or `name_t` when Tiny; the idea icons `icon_<id>` / `mini_<id>`), animated by frames;
+named buttons `Pad_<key>`, `Hole_<i>`, `Opt_<i>`, `Fruit_<i>` / `Bomb_<i>`.
+`MicroScenes`: `build(area, variant, w, h, rng) -> update(t, pace?)` (a `Scene` layer at ZIndex 4 under the game, one
+scene a Data/Ideas variant, drawn from 1 px rects and sprites: dithered sky bands, discs with anti-aliased edges,
+twinkling stars, scrolling kerbs, rising bubbles, flickering torches, flashing floor tiles, beams), `has(variant)`.
+
+### 10.9 Sprites (`PixelSprites`, `ArtData`)
+`ArtData` (generated by `scripts/gen_art.py`; do not edit): `{ [name]: { w, h, px, pal, alpha } }`, one character a
+pixel (`.` clear, else an index into `pal` 0xRRGGBB with its `alpha`: 1, or 0.35 for the outline's anti-aliasing).
+Every sprite also has a white `<name>_flash` (a hit, the same outline); the icons have a dark `<name>_sil` (not found
+yet); an animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the idea icons
+`icon_<id>` (16x16) and `mini_<id>` (11x11), Spot it's recoloured `icon_/mini_<detectives|pirates|horror|robots>_alt`,
+the microgames' things (`hero_1/2`, `dino_1/2`, `coin_1..3`, `fish_1/2`, `jelly_1/2`, `bomb_1/2`, `alien_1/2`,
+`slime_1/2`, `cat_1/2`, `block`, `cone`, `car`, `basket`, `sprout`, `flower`, `kid`, `fruit`, `fruit_cut`, `rock`,
+`cactus`, `note`, `soldier`, `ghost` / `ghost_glare`, `door`, `pan`, `pancake`, `ball`, `goal`, `hole` / `_crater` /
+`_grave`, `heart`, `star`, `spark_1..3`, `bombfuse`, the arrows `arrow_<dir>` 13x13), each with a `_t` small one
+where Tiny shows it. `PixelSprites`: `has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) ->
+GuiObject` (an ImageLabel `Sprite_<name>` showing the sprite's EditableImage, made once and shared, `ResampleMode`
+Pixelated, at the sprite's own size: no scale; without EditableImages a Frame of 1 px run rects), `anim(parent, names,
+pos?, z?) -> Anim { f, w, h, set(i), flash(seconds?), moveTo(x, y) }` (frames stacked in `Anim_<first>`; `flash`
+shows the frame's `_flash`; `moveTo` rounds to whole UI px).
 
 ## 11. Verification
 

@@ -2,11 +2,14 @@
 -- Making a game (GAME_DESIGN 5, 6; docs/ARCHITECTURE.md 10.8): the card with the game's three ideas, each one's
 -- microgame (Play, Retry at any time, or Play all for the ones not played yet), the sales boost so far, and Launch!
 -- once all three have been played. A microgame: the server starts it (micro.start: a token, a seed, the difficulty),
--- its order word drops in (MicroIntro), then the engine (UI/MicroGames) runs on a fuse that shortens with the
--- difficulty; the idea's modifier changes how it plays (Turbo faster on a shorter fuse, Tiny small targets, Shaky
--- the screen shakes, Glitched it blinks out, Haunted only a roving spotlight shows it, Cosmic all but the dark). A
--- WIN or LOSE stamp, then micro.finish with the result. The launch card shows the income it earns for good. While a
--- microgame runs its keys are bound above the founder's walking keys.
+-- its icon and order word drop in (MicroIntro) over the idea's scene (UI/MicroScenes), then the engine
+-- (UI/MicroGames) runs while a rope fuse burns down to its bomb (shorter with the difficulty); the idea's modifier
+-- changes how it plays (Turbo faster on a shorter fuse, Tiny small sprites, Shaky the screen shakes, Glitched it
+-- blinks out, Haunted only a roving spotlight shows it, Cosmic all but the dark). A WIN or LOSE stamp, then
+-- micro.finish with the result. The runner also draws the engines' effects: floating words, bursts of 1 px bits,
+-- floating sprites and flashes (they keep moving under the stamp). The launch card shows the income it earns for
+-- good. While a microgame runs its keys are bound above the founder's walking keys. Every sprite is drawn at its own
+-- size on the UI grid (GAME_DESIGN 2).
 local ContextActionService = game:GetService("ContextActionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -24,6 +27,7 @@ local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local Games = require(script.Parent.MicroGames)
+local Scenes = require(script.Parent.MicroScenes)
 local Words = require(script.Parent.Words)
 
 local MicroUI = {}
@@ -151,10 +155,7 @@ showCard = function()
 		local r = UIKit.plate(f, UDim2.fromOffset(w - 12, rowH), UDim2.fromOffset(6, y), UIKit.color("plate_light"), 0, 2)
 		r.Name = "Slot_" .. i
 		r.ZIndex = 7
-		local icon = PixelSprites.ICONS[c.id]
-		if icon then
-			PixelSprites.sprite(r, icon, UDim2.fromOffset(4, math.floor((rowH - 16) / 2)), 2, 8)
-		end
+		PixelSprites.image(r, "icon_" .. c.id, UDim2.fromOffset(4, math.floor((rowH - 16) / 2)), 8)
 		local tier = Ideas.tier(c)
 		UIKit.text(r, Ideas.name(c), UDim2.fromOffset(w - 110, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(Ideas.tierColor(tier)), z = 8 })
 		local mod = Modifiers.byId[c.mod]
@@ -270,10 +271,7 @@ playSlot = function(slot: number, chain: boolean)
 	local effects = mod.effects
 	local tier = Ideas.tier(card)
 	-- the header: the idea, its modifier, the difficulty
-	local icon = PixelSprites.ICONS[card.id]
-	if icon then
-		PixelSprites.sprite(f, icon, UDim2.fromOffset(6, 4), 2, 7)
-	end
+	PixelSprites.image(f, "icon_" .. card.id, UDim2.fromOffset(6, 4), 7)
 	UIKit.text(f, Ideas.name(card), UDim2.fromOffset(w - 90, 10), UDim2.fromOffset(26, 3), { color = UIKit.color(Ideas.tierColor(tier)), z = 7, name = "IdeaName" })
 	UIKit.text(f, string.format("Idea %d of 3  Difficulty %d", slot, diff), UDim2.fromOffset(w - 90, 10), UDim2.fromOffset(26, 12), { color = UIKit.color("text_dim"), z = 7 })
 	if mod.id ~= "plain" then
@@ -292,19 +290,50 @@ playSlot = function(slot: number, chain: boolean)
 	area.ClipsDescendants = true
 	area.Parent = f
 	local areaPos = area.Position
-	-- the fuse
-	local fuseBack = UIKit.rect(f, UDim2.fromOffset(w - 12, 4), UDim2.new(0, 6, 1, -22), UIKit.color("plate_light"), 7)
-	fuseBack.Name = "FuseBack"
-	local fuse = UIKit.rect(f, UDim2.fromOffset(w - 12, 4), UDim2.new(0, 6, 1, -22), UIKit.color("accent"), 8)
+	-- the fuse: a rope (1 px ink edges, a twist every 3 px) burning down from the right to its bomb on the left
+	local bombW = PixelSprites.size("bombfuse")
+	local ropeX, ropeY = 6 + bombW - 1, h - 23
+	local ropeW = w - 6 - ropeX
+	local bomb = PixelSprites.anim(f, { "bombfuse" }, UDim2.fromOffset(6, h - 26), 9)
+	bomb.f.Name = "FuseBomb"
+	local fuse = Instance.new("Frame")
 	fuse.Name = "Fuse"
-	local spark = UIKit.rect(f, UDim2.fromOffset(3, 6), UDim2.new(0, w - 9, 1, -23), UIKit.color("yellow"), 9)
-	spark.Name = "Spark"
+	fuse.BackgroundTransparency = 1
+	fuse.ClipsDescendants = true
+	fuse.Size = UDim2.fromOffset(ropeW, 4)
+	fuse.Position = UDim2.fromOffset(ropeX, ropeY)
+	fuse.ZIndex = 8
+	fuse.Parent = f
+	UIKit.rect(fuse, UDim2.fromOffset(ropeW, 1), UDim2.fromOffset(0, 0), UIKit.color("ink"), 8).Name = "Edge"
+	UIKit.rect(fuse, UDim2.fromOffset(ropeW, 1), UDim2.fromOffset(0, 3), UIKit.color("ink"), 8).Name = "Edge"
+	UIKit.rect(fuse, UDim2.fromOffset(ropeW, 2), UDim2.fromOffset(0, 1), UIKit.hex(0xEDC293), 8).Name = "Rope"
+	for x = 1, ropeW - 2, 3 do
+		UIKit.rect(fuse, UDim2.fromOffset(1, 1), UDim2.fromOffset(x, 1), UIKit.hex(0xC88D5C), 8).Name = "Twist"
+		UIKit.rect(fuse, UDim2.fromOffset(1, 1), UDim2.fromOffset(x + 1, 2), UIKit.hex(0xC88D5C), 8).Name = "Twist"
+	end
+	local spark = PixelSprites.anim(f, { "spark_1", "spark_2", "spark_3" }, UDim2.fromOffset(ropeX + ropeW - 4, ropeY - 2), 10)
+	spark.f.Name = "Spark"
 	local hintText = string.format('"%s"  %s', def.word, if #effects > 0 then mod.blurb else "")
 	UIKit.text(f, hintText, UDim2.fromOffset(w - 12, 10), UDim2.new(0, 6, 1, -14), { color = UIKit.color("text_dim"), z = 7, name = "Hint" })
 
-	-- floating words
+	-- the effects: floating words, 1 px bits, floating sprites, the flash
 	type Pop = { l: TextLabel, x: number, y: number, t0: number }
 	local pops: { Pop } = {}
+	type Bit = { f: Frame, x: number, y: number, vx: number, vy: number, t0: number, life: number }
+	local bits: { Bit } = {}
+	type Float = { g: GuiObject, x: number, y: number, vx: number, vy: number, grav: number, t0: number, life: number }
+	local floats: { Float } = {}
+	local fxRng = Util.newRng((tonumber(data.seed) or 1) + 101)
+	local flashFrame = Instance.new("Frame")
+	flashFrame.Name = "Flash"
+	flashFrame.BackgroundColor3 = UIKit.color("white")
+	flashFrame.BackgroundTransparency = 1
+	flashFrame.BorderSizePixel = 0
+	flashFrame.Size = UDim2.fromScale(1, 1)
+	flashFrame.ZIndex = 27
+	flashFrame.Active = false
+	flashFrame.Parent = area
+	local flashUntil = 0
 	local shakeUntil = 0
 	local outcome: boolean? = nil
 	local aw, ah = area.Size.X.Offset, area.Size.Y.Offset
@@ -316,12 +345,32 @@ playSlot = function(slot: number, chain: boolean)
 		rng = Util.newRng(tonumber(data.seed) or 1),
 		diff = diff,
 		speed = if has(effects, "speed") then Tuning.TurboSpeed else 1,
-		px = if has(effects, "tiny") then 1 else 2,
+		tiny = has(effects, "tiny"),
 		variant = def.variant,
 		pop = function(x: number, y: number, text: string, color: Color3)
 			local tw = UIKit.textWidth(text) + 4
 			local l = UIKit.text(area, text, UDim2.fromOffset(tw, 10), UDim2.fromOffset(math.floor(x - tw / 2), math.floor(y)), { x = "center", color = color, kind = "outline", z = 30, name = "Pop" })
 			table.insert(pops, { l = l, x = math.floor(x - tw / 2), y = math.floor(y), t0 = os.clock() })
+		end,
+		burst = function(x: number, y: number, colors: { string }, n: number?)
+			local count = n or 8
+			for i = 1, count do
+				local c = UIKit.color(colors[(i - 1) % #colors + 1])
+				local r = UIKit.rect(area, UDim2.fromOffset(1, 1), UDim2.fromOffset(math.floor(x), math.floor(y)), c, 28)
+				r.Name = "Bit"
+				r.Active = false
+				local a = (i / count) * math.pi * 2 + fxRng:next() * 0.8
+				local sp = 30 + fxRng:next() * 45
+				table.insert(bits, { f = r, x = x, y = y, vx = math.cos(a) * sp, vy = math.sin(a) * sp - 25, t0 = os.clock(), life = 0.3 + fxRng:next() * 0.25 })
+			end
+		end,
+		float = function(g: GuiObject, vx: number, vy: number, life: number, grav: number?)
+			local p = g.Position
+			table.insert(floats, { g = g, x = p.X.Offset, y = p.Y.Offset, vx = vx, vy = vy, grav = grav or 0, t0 = os.clock(), life = life })
+		end,
+		flash = function(color: string)
+			flashFrame.BackgroundColor3 = UIKit.color(color)
+			flashUntil = os.clock() + 0.08
 		end,
 		shake = function()
 			shakeUntil = os.clock() + 0.25
@@ -343,6 +392,8 @@ playSlot = function(slot: number, chain: boolean)
 			end
 		end,
 	}
+	-- the idea's scene under everything (its own Rng: the engine's draws stay the server's)
+	local sceneUpdate = Scenes.build(area, def.variant, aw, ah, Util.newRng((tonumber(data.seed) or 1) + 7))
 	local okE, built = pcall(function(): Games.Micro
 		return (Games :: any)[def.micro](ctx)
 	end)
@@ -358,7 +409,7 @@ playSlot = function(slot: number, chain: boolean)
 	if eng.clock == 99 then
 		seconds = Tuning.MicroMaxSec - 10 -- the song decides when it ends
 	end
-	lastCtx = { diff = diff, speed = ctx.speed, px = ctx.px, seconds = seconds, effects = effects, micro = def.micro, area = area }
+	lastCtx = { diff = diff, speed = ctx.speed, tiny = ctx.tiny, seconds = seconds, effects = effects, micro = def.micro, area = area }
 
 	-- the modifiers' screen effects
 	local dark: { Frame } = {}
@@ -381,9 +432,16 @@ playSlot = function(slot: number, chain: boolean)
 	fx.Active = false
 	fx.Parent = area
 
-	-- the order word drops in
-	local word = UIKit.text(f, def.word, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 30), { x = "center", face = "big", kind = "title", color = UIKit.color(Ideas.tierColor(math.max(2, tier))), z = 40, name = "Word" })
-	UIKit.tween(word, 0.18, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 14) })
+	-- the idea's icon and its order word drop in on a dark band
+	local band = UIKit.rect(f, UDim2.fromOffset(w - 12, 40), UDim2.fromOffset(6, math.floor(h / 2) - 22), UIKit.color("ink"), 39)
+	band.Name = "WordBand"
+	band.BackgroundTransparency = 0.25
+	band.Active = false
+	local introIcon = PixelSprites.image(f, "icon_" .. card.id, UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 44), 40)
+	introIcon.Name = "WordIcon"
+	UIKit.tween(introIcon, 0.18, { Position = UDim2.fromOffset(math.floor(w / 2) - 8, math.floor(h / 2) - 20) })
+	local word = UIKit.text(f, def.word, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 26), { x = "center", face = "big", kind = "title", color = UIKit.color(Ideas.tierColor(math.max(2, tier))), z = 40, name = "Word" })
+	UIKit.tween(word, 0.18, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 4) })
 	Audio.play("ding")
 
 	local unbind = bindKeys(function(k: string)
@@ -401,18 +459,18 @@ playSlot = function(slot: number, chain: boolean)
 		end
 		finished = true
 		playing, playingKind = nil, nil
-		if conn then
-			conn:Disconnect()
-		end
 		unbind()
-		-- the stamp
+		-- the stamp (the effects keep moving under it)
 		local stamp = UIKit.text(f, if won then "WIN!" else "LOSE", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 40), { x = "center", face = "big", kind = "title", color = if won then UIKit.color("good") else UIKit.color("bad"), z = 40, name = "Stamp" })
 		UIKit.tween(stamp, 0.15, { Position = UDim2.fromOffset(0, math.floor(h / 2) - 12) })
+		ctx.flash(if won then "white" else "bad")
+		spark.f.Visible = false
 		if won then
 			Audio.play("combo")
 			UIKit.confetti(area, 18)
 		else
 			Audio.play("deny")
+			bomb.flash(0.2)
 		end
 		task.spawn(function()
 			local wait = math.max(0.9, Tuning.MicroMinSec + 0.2 - (os.clock() - asked))
@@ -439,14 +497,18 @@ playSlot = function(slot: number, chain: boolean)
 			end
 		end)
 	end
+	local fxLast = os.clock()
 	conn = RunService.Heartbeat:Connect(function()
 		local now = os.clock()
-		if f.Parent == nil or shade == nil then
+		if f.Parent == nil or shade == nil or area.Parent == nil then
 			if conn then
 				conn:Disconnect()
 			end
-			unbind()
-			playing, playingKind = nil, nil
+			if not finished then
+				-- closed mid-game (a finished one already let go: the next may be playing by now)
+				unbind()
+				playing, playingKind = nil, nil
+			end
 			return
 		end
 		for i = #pops, 1, -1 do
@@ -459,11 +521,44 @@ playSlot = function(slot: number, chain: boolean)
 				p.l.Position = UDim2.fromOffset(p.x, p.y - math.floor(pt * 18))
 			end
 		end
+		local fdt = math.min(0.05, now - fxLast)
+		fxLast = now
+		for i = #bits, 1, -1 do
+			local b = bits[i]
+			if now - b.t0 > b.life or b.f.Parent == nil then
+				b.f:Destroy()
+				table.remove(bits, i)
+			else
+				b.vy += 160 * fdt
+				b.x += b.vx * fdt
+				b.y += b.vy * fdt
+				b.f.Position = UDim2.fromOffset(math.floor(b.x + 0.5), math.floor(b.y + 0.5))
+			end
+		end
+		for i = #floats, 1, -1 do
+			local o = floats[i]
+			if now - o.t0 > o.life or o.g.Parent == nil then
+				o.g:Destroy()
+				table.remove(floats, i)
+			else
+				o.vy += o.grav * fdt
+				o.x += o.vx * fdt
+				o.y += o.vy * fdt
+				o.g.Position = UDim2.fromOffset(math.floor(o.x + 0.5), math.floor(o.y + 0.5))
+			end
+		end
+		flashFrame.BackgroundTransparency = if now < flashUntil then 0.45 else 1
+		sceneUpdate(math.max(0, now - t0 + Tuning.MicroIntro), eng.pace)
+		if finished then
+			return
+		end
 		if now < t0 then
 			return
 		end
 		if word.Parent then
 			word:Destroy()
+			band:Destroy()
+			introIcon:Destroy()
 		end
 		local t = now - t0
 		local dt = math.min(0.1, now - last)
@@ -477,12 +572,15 @@ playSlot = function(slot: number, chain: boolean)
 				outcome = false
 			end
 		end
-		-- the fuse burns down
+		-- the fuse burns down to the bomb (it flashes when nearly there)
 		local left = math.clamp(1 - t / seconds, 0, 1)
-		fuse.Size = UDim2.fromOffset(math.floor((w - 12) * left), 4)
-		spark.Position = UDim2.new(0, 6 + math.floor((w - 12) * left) - 1, 1, -23)
-		spark.BackgroundColor3 = if math.floor(now * 12) % 2 == 0 then UIKit.color("yellow") else UIKit.color("orange")
-		fuse.BackgroundColor3 = if left < 0.3 then UIKit.color("bad") else UIKit.color("accent")
+		local lw = math.floor(ropeW * left)
+		fuse.Size = UDim2.fromOffset(lw, 4)
+		spark.moveTo(ropeX + lw - 4, ropeY - 2)
+		spark.set(math.floor(now * 16) + 1)
+		if left < 0.25 and math.floor(now * 6) % 2 == 0 then
+			bomb.flash(0.05)
+		end
 		-- the modifiers
 		local ox, oy = 0, 0
 		if has(effects, "shake") then
@@ -514,6 +612,10 @@ playSlot = function(slot: number, chain: boolean)
 		if outcome ~= nil then
 			finish(outcome :: boolean)
 		elseif t >= seconds then
+			if eng.survive ~= true then
+				-- the fuse reached the bomb
+				ctx.burst(6 + bombW / 2, h - 26 - 24, { "orange", "yellow", "white" }, 14)
+			end
 			finish(eng.survive == true)
 		end
 	end)
@@ -528,11 +630,9 @@ function MicroUI.showLaunch(g: Types.Game)
 	UIKit.text(f, "Launched!", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 10), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 7, name = "Launched" })
 	UIKit.text(f, g.title, UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 32), { x = "center", color = UIKit.color("text"), z = 7, name = "GameTitle" })
 	for i, c in g.ideas do
-		local x = math.floor(w / 2 - 54 + (i - 1) * 40)
-		local icon = PixelSprites.ICONS[c.id]
-		if icon then
-			PixelSprites.sprite(f, icon, UDim2.fromOffset(x + 4, 46), 3, 7)
-		end
+		local pl = UIKit.plate(f, UDim2.fromOffset(24, 24), UDim2.fromOffset(math.floor(w / 2 - 40 + (i - 1) * 28), 46), UIKit.color("plate_light"), 0, 2)
+		pl.ZIndex = 7
+		PixelSprites.image(pl, "icon_" .. c.id, UDim2.fromOffset(4, 4), 8)
 	end
 	UIKit.text(f, string.format("%d of 3 minigames won: sales x%.2f", g.wins, 1 + Tuning.WinBoost * g.wins), UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 74), { x = "center", color = UIKit.color("good"), z = 7 })
 	UIKit.text(f, Numbers.rate(g.rate) .. " coins", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 88), { x = "center", face = "big", kind = "title", color = UIKit.color("good"), z = 7, name = "Rate" })
@@ -593,7 +693,7 @@ function MicroUI.debugAuto()
 	end
 end
 
--- The last microgame's settings: diff, speed, px, seconds, effects, micro, area (the sims).
+-- The last microgame's settings: diff, speed, tiny, seconds, effects, micro, area (the sims).
 function MicroUI.debugCtx(): { [string]: any }?
 	return lastCtx
 end

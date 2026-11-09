@@ -42,20 +42,13 @@ local function row(list: Instance, order: number, h: number): Frame
 	return f
 end
 
--- An idea's icon; a dark silhouette when `known` is false.
-local function icon(parent: Instance, id: string, pos: UDim2, scale: number, known: boolean?): Frame?
-	local s = PixelSprites.ICONS[id]
-	if s == nil then
+-- An idea's 16 px icon; its dark silhouette (the same outline) when `known` is false.
+local function icon(parent: Instance, id: string, pos: UDim2, known: boolean?): GuiObject?
+	local name = "icon_" .. id
+	if not PixelSprites.has(name) then
 		return nil
 	end
-	if known == false then
-		local colors: { [string]: string } = {}
-		for ch in s.colors do
-			colors[ch] = "plate"
-		end
-		return PixelSprites.draw(parent, s.rows, colors, pos, scale, 4)
-	end
-	return PixelSprites.sprite(parent, s, pos, scale, 4)
+	return PixelSprites.image(parent, if known == false then name .. "_sil" else name, pos, 4)
 end
 
 ------------------------------------------------------------------ Ideas: the board
@@ -114,7 +107,7 @@ local function buildIdeas(body: Frame, _arg: any?)
 		local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, if order then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
 		plate.ZIndex = 3
 		UIKit.rect(b, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(1, 2), UIKit.color(Ideas.tierColor(tier)), 4)
-		icon(b, c.id, UDim2.fromOffset(5, 7), 2)
+		icon(b, c.id, UDim2.fromOffset(5, 7))
 		UIKit.text(b, if def then def.name else "?", UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 1), { color = UIKit.color("text"), z = 4 })
 		UIKit.text(b, if mod then mod.name else "", UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 10), { color = UIKit.color(if mod then mod.color else "text_dim"), z = 4 })
 		UIKit.text(b, Numbers.oneIn(Ideas.oneIn(c)), UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 19), { color = UIKit.color(Ideas.tierColor(tier)), z = 4 })
@@ -195,7 +188,7 @@ local function buildIndex(body: Frame, _arg: any?)
 		local f = UIKit.plate(list, UDim2.fromOffset(60, 32), nil, UIKit.color("plate_light"), 0, 2)
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
-		icon(f, d.id, UDim2.fromOffset(4, 4), 2, known)
+		icon(f, d.id, UDim2.fromOffset(4, 4), known)
 		UIKit.text(f, if known then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(22, 1), { color = if known then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
 		UIKit.text(f, Numbers.oneIn(d.odds), UDim2.new(1, -24, 0, 10), UDim2.fromOffset(22, 10), { color = UIKit.color(Ideas.tierColor(Ideas.tierOf(d.odds))), z = 4 })
 		-- a dot a modifier: lit in its colour once found with this idea

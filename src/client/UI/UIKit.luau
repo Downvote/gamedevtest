@@ -793,7 +793,9 @@ function UIKit.confetti(parent: GuiObject, n: number?, colors: { string }?)
 	local bits: { Bit } = {}
 	for i = 1, n or 40 do
 		local c = UIKit.color(keys[(i - 1) % #keys + 1])
-		local r = UIKit.rect(parent, UDim2.fromOffset(if i % 3 == 0 then 1 else 2, 2), UDim2.fromOffset(0, 0), c, 20)
+		-- 1 px pieces and short sticks (never a 2 x 2 block: that would read as one big pixel)
+		local shape = i % 4
+		local r = UIKit.rect(parent, UDim2.fromOffset(if shape == 1 then 2 else 1, if shape == 2 then 2 else 1), UDim2.fromOffset(0, 0), c, 20)
 		r.Name = "Confetti"
 		table.insert(bits, { f = r, x = w * (0.2 + 0.6 * math.random()), y = h * 0.45, vx = (math.random() - 0.5) * 140, vy = -60 - math.random() * 90, ph = math.random() * 6 })
 	end
@@ -886,9 +888,61 @@ function UIKit.init()
 end
 
 -- Tween helper (UI px offsets only).
+-- Tween helper. Positions and sizes (UDim2) move on the pixel grid: every frame their offsets are whole UI px (a
+-- Quad ease-out, snapped), so nothing is ever drawn between art pixels; anything else (transparencies, colours) is a
+-- TweenService tween.
+local gridTweens: { [Instance]: { [string]: number } } = {}
 function UIKit.tween(inst: Instance, time: number, props: { [string]: any })
-	local tw = TweenService:Create(inst, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props)
-	tw:Play()
+	local rest: { [string]: any } = {}
+	local grid: { [string]: UDim2 } = {}
+	for k, v in props do
+		if typeof(v) == "UDim2" then
+			grid[k] = v
+		else
+			rest[k] = v
+		end
+	end
+	if next(rest) ~= nil then
+		local tw = TweenService:Create(inst, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), rest)
+		tw:Play()
+	end
+	for k, target in grid do
+		local from = (inst :: any)[k] :: UDim2
+		local mine = (gridTweens[inst] and gridTweens[inst][k] or 0) + 1
+		gridTweens[inst] = gridTweens[inst] or {}
+		gridTweens[inst][k] = mine
+		local t0 = os.clock()
+		local conn: RBXScriptConnection? = nil
+		conn = RunService.Heartbeat:Connect(function()
+			local p = if time <= 0 then 1 else math.clamp((os.clock() - t0) / time, 0, 1)
+			local mapping = gridTweens[inst]
+			if inst.Parent == nil or mapping == nil or mapping[k] ~= mine then
+				if conn then
+					conn:Disconnect()
+				end
+				return
+			end
+			local e = 1 - (1 - p) * (1 - p)
+			local function lerp(a: number, b: number): number
+				return a + (b - a) * e
+			end
+			;(inst :: any)[k] = UDim2.new(
+				lerp(from.X.Scale, target.X.Scale),
+				math.floor(lerp(from.X.Offset, target.X.Offset) + 0.5),
+				lerp(from.Y.Scale, target.Y.Scale),
+				math.floor(lerp(from.Y.Offset, target.Y.Offset) + 0.5)
+			)
+			if p >= 1 then
+				mapping[k] = nil
+				if next(mapping) == nil then
+					gridTweens[inst] = nil
+				end
+				if conn then
+					conn:Disconnect()
+				end
+			end
+		end)
+	end
 end
 
 return UIKit

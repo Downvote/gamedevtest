@@ -51,8 +51,29 @@ decor for your plot.
 - **The idea team:** little chibis typing away at their desks, bits of code ("</>", "{ }", "01") floating up from
   their screens. A new idea pops out of a head in its tier's colour; a rare one makes them cheer.
 - **Interface:** pixel-art plates with stepped corners, the pixel font from Random Bakery, no borders; each idea has
-  an 8x8 pixel icon.
+  a 16x16 icon (and an 11x11 one for the HUD's lists and Tiny), drawn by the rules below.
 - **The founder:** you walk the street as a chibi founder in the team's style (§8, §9).
+
+**The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
+
+> The request (2026-11-09): "for pixel art, always dont use mixels. use pixel art techniques such as anti-aliasing,
+> avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pixel art grid. polish the minigames
+> much much more"
+
+- **No mixels.** One art pixel is one UI px is one K-sized block on the screen: nothing is ever drawn scaled up
+  (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: an icon is 16x16, its
+  small version 11x11; every microgame thing has a `_t` sprite for Tiny.
+- **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
+  1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
+- **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
+  and inner ink lines where shapes meet.
+- **Anti-aliasing, no jaggies.** Where the outline steps, the empty corner pixel gets a faint ink (35%); a colour
+  region's pixel that meets the outline only at a corner goes a tone darker; skies blend between bands with a 1 px
+  dither row; lines are drawn at clean slopes (a slash is a 1:1 diagonal).
+- **Shading:** every colour region is a 4-tone ramp lit from the top left (light top-left edge, shadow bottom right,
+  a second shadow band on big shapes), from one shared palette.
+- **One source:** `scripts/gen_art.py` holds every sprite as a text mask and makes `UI/ArtData` (and a contact sheet
+  with `--png`); the client draws each sprite once into an EditableImage shown pixelated (or from 1 px rects).
 
 ## 3. The idea team and time
 
@@ -78,7 +99,7 @@ how its microgame plays.
 |---|---|---|---|
 | Plain | the rest (about 2 in 3) | x1 | as it is |
 | Turbo | 1 in 5 | x1.2 | everything 1.35x faster, on a fuse 0.8x as long |
-| Tiny | 1 in 12 | x1.4 | everything half the size |
+| Tiny | 1 in 12 | x1.4 | everything small: the targets are their small sprites (never a scaled-down one), the windows narrower |
 | Shaky | 1 in 30 | x1.7 | the screen shakes |
 | Glitched | 1 in 80 | x2.2 | it blinks out for a moment, now and then |
 | Haunted | 1 in 250 | x3 | dark: only a roving spotlight shows it |
@@ -107,10 +128,15 @@ how its microgame plays.
   and Play (or Retry) for each; Play all plays the unplayed ones in turn. Each one won adds a third to the game's sales
   (`Tuning.WinBoost`): all three double them. A retry, at any time (in the middle of one, or after all three), keeps a
   win: the best result counts. Launch! once all three have been played.
-- **A microgame** (WarioWare style): its order word drops in ("Dodge!"), then a few seconds on a burning fuse: 6 s at
-  difficulty 1, a quarter second less a level, at least 4 s (`Tuning.MicroSeconds...`; the longer ones get more:
-  Repeat!, Sneak!, Build!, and Tap the beat! runs its song). WIN or LOSE stamps it. Arrow keys / WASD, Space or F / J,
-  1-6, or the on-screen pads and taps.
+- **A microgame** (WarioWare style): the idea's icon and its order word drop in ("Dodge!") over the idea's own scene,
+  then a few seconds while a rope fuse burns down to its bomb: 6 s at difficulty 1, a quarter second less a level, at
+  least 4 s (`Tuning.MicroSeconds...`; the longer ones get more: Repeat!, Sneak!, Build!, and Tap the beat! runs its
+  song). WIN or LOSE stamps it. Arrow keys / WASD, Space or F / J, 1-6, or the on-screen pads and taps.
+- **Each one has its own scene** (UI/MicroScenes): Action's night city, Racing's scrolling road and kerbs, a kitchen
+  with a window and a shelf of jars, a stadium crowd, a torch-lit dungeon, a starfield with a planet, a field of
+  soil, a graveyard under the moon, squared paper, a chalkboard, a map, a detective's desk, a wizard's night sky, a
+  circuit board, a stage with spotlights, a beach, the sea with rising bubbles, hills, a desert at sunset, a disco
+  floor, a dojo, a haunted hall, a city skyline.
 - **The difficulty** (1 to 8) is the idea's tier, plus a step when its idea reuses an engine another (commoner) idea
   already has, so a reused game always comes back harder. Harder means faster, more of it, smaller windows.
 - **Twelve engines, 24 themed microgames** (UI/MicroGames; the reused ones a step or two harder):
@@ -224,9 +250,19 @@ languages (English only; every string goes through `Locale/Lang.t`), drawing pat
 - **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
 - **The HUD:** the coins count up and their chip flashes when they change; the idea chip counts down to the next idea
   with a bar along its edge; the card's main button (Make a game!, Play!, Launch!) pulses when it is the thing to do.
-- **The microgames:** the order word drops in, the fuse burns down with a spark and turns red near the end, words pop
-  up as you score, a wrong move shakes the card, WIN brings confetti; the launch card brings confetti and a fanfare
-  and the team cheers with the new income over their heads.
+- **The microgames** (polished again with the pixel art rules, §2): the idea's icon and order word drop in on a dark
+  band; a rope fuse (twisted, ink-edged) burns toward its bomb with an animated spark, the bomb blinking near the end.
+  Things animate by frames: the hero and the dino run, coins spin, fish wiggle, jellies pulse, aliens wave, bombs
+  fizz, the slime squashes, the cat smiles when petted and breathes when not. Every hit flashes the thing white and
+  throws a burst of 1 px bits in its colours; words pop up ("Perfect!" in yellow for a dead-centre hit); a bomb
+  flashes the screen. The themes play out: the pancake flips off a pan over a flickering stove flame, the ball flies
+  into the net, the hero dashes at the slime and it bursts, hearts float up from the cat, things rise out of craters,
+  soil and graves (a watered sprout blooms), the robot walks each arrow across its board to the star, stars fly from
+  the wizard's hat, cut fruit falls in two halves behind a 1 px slash, the ghost bobs and turns (the room goes red
+  while it watches), the kid hops board to board to the door, floors swing on a crane rope and what hangs over falls
+  off, a perfect drop says so. A wrong move shakes the card; WIN flashes and brings confetti, a lost fuse blows its
+  bomb. The effects keep moving under the stamp. The launch card brings confetti and a fanfare and the team cheers
+  with the new income over their heads.
 - **The office:** bits of code float up from the screens; a new idea pops out of a head in its tier's colour; rare
   reveals drop in with a fanfare and confetti.
 - **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,

@@ -113,7 +113,7 @@ for _, m in Modifiers.list do
 		if ctx then
 			H.expect(ctx.diff > plainCtx.diff or m.odds < 10, "micro", m.id .. ": a rarer card plays harder", string.format("%d vs %d", ctx.diff, plainCtx.diff))
 			H.expect((ctx.speed > 1) == (e.speed == true), "micro", m.id .. ": the speed effect", tostring(ctx.speed))
-			H.expect((ctx.px == 1) == (e.tiny == true), "micro", m.id .. ": the tiny effect", tostring(ctx.px))
+			H.expect(ctx.tiny == (e.tiny == true), "micro", m.id .. ": the tiny effect", tostring(ctx.tiny))
 			H.expect(ctx.dark == (e.dark == true), "micro", m.id .. ": the dark effect")
 			if e.speed then
 				H.expect(ctx.seconds < plainCtx.seconds * Tuning.TurboClock + 1e-6 + Tuning.MicroSecondsStep * 8, "micro", m.id .. ": a shorter fuse", string.format("%.2f vs %.2f", ctx.seconds, plainCtx.seconds))

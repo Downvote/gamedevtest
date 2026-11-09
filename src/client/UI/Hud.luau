@@ -211,17 +211,17 @@ local function buildBar()
 end
 
 ------------------------------------------------------------------ the card
--- A small idea line: its icon, its name in its tier's colour.
+-- A small idea line (LINE_H apart): its 11 px icon, its name in its tier's colour.
+local LINE_H = 11
 local function ideaLine(parent: Instance, c: Types.Card, y: number, w: number, extra: string?): TextLabel
 	local def = IdeasData.byId[c.id]
-	local icon = PixelSprites.ICONS[c.id]
-	if def and icon then
-		PixelSprites.sprite(parent, icon, UDim2.fromOffset(4, y + 1), 1, 3)
+	if def then
+		PixelSprites.image(parent, "mini_" .. c.id, UDim2.fromOffset(3, y), 3)
 	end
 	local tier = Ideas.tier(c)
-	local l = UIKit.text(parent, Ideas.name(c), UDim2.fromOffset(w - 16 - (if extra then 26 else 0), 10), UDim2.fromOffset(14, y), { color = UIKit.color(Ideas.tierColor(tier)), name = "Idea" })
+	local l = UIKit.text(parent, Ideas.name(c), UDim2.fromOffset(w - 18 - (if extra then 26 else 0), 10), UDim2.fromOffset(16, y + 1), { color = UIKit.color(Ideas.tierColor(tier)), name = "Idea" })
 	if extra then
-		UIKit.text(parent, extra, UDim2.fromOffset(24, 10), UDim2.fromOffset(w - 28, y), { x = "right", color = UIKit.color("text"), name = "Mark" })
+		UIKit.text(parent, extra, UDim2.fromOffset(24, 10), UDim2.fromOffset(w - 28, y + 1), { x = "right", color = UIKit.color("text"), name = "Mark" })
 	end
 	return l
 end
@@ -241,7 +241,7 @@ local function updateCard(v: Types.ClientView)
 	local w = CARD_W
 	local f: Frame
 	if proj then
-		f = UIKit.plate(canvas, UDim2.fromOffset(w, 84), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
+		f = UIKit.plate(canvas, UDim2.fromOffset(w, 88), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
 		f.Name = "ProjectCard"
 		UIKit.text(f, "Making", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("text_dim") })
 		UIKit.text(f, proj.title, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 11), { color = UIKit.color("accent"), name = "Title" })
@@ -250,7 +250,7 @@ local function updateCard(v: Types.ClientView)
 			local won = proj.won[i]
 			played = played and won >= 0
 			local mark = if won == 1 then "WIN" elseif won == 0 then "lose" else "-"
-			local l = ideaLine(f, c, 13 + i * 10, w, mark)
+			local l = ideaLine(f, c, 10 + i * LINE_H, w, mark)
 			l.Name = "Idea_" .. i
 		end
 		local wins = 0
@@ -259,14 +259,14 @@ local function updateCard(v: Types.ClientView)
 				wins += 1
 			end
 		end
-		UIKit.text(f, string.format("Sales x%.2f", 1 + Tuning.WinBoost * wins), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 55), { color = UIKit.color("good"), name = "Boost" })
-		local b = UIKit.button(f, if played then "Launch!" else "Play!", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 67), function()
+		UIKit.text(f, string.format("Sales x%.2f", 1 + Tuning.WinBoost * wins), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 59), { color = UIKit.color("good"), name = "Boost" })
+		local b = UIKit.button(f, if played then "Launch!" else "Play!", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 71), function()
 			MicroUI.open()
 		end, { name = if played then "CardLaunch" else "CardPlay", color = if played then UIKit.color("button_ok") else UIKit.color("accent"), textColor = if played then nil else UIKit.color("ink") })
 		b:SetAttribute("Pulse", true)
 	else
 		local shown = math.min(#v.ideas, 4)
-		local h = 40 + math.max(1, shown) * 10
+		local h = 40 + math.max(1, shown) * LINE_H
 		f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
 		f.Name = "BoardCard"
 		UIKit.text(f, "Idea board", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent") })
@@ -274,7 +274,7 @@ local function updateCard(v: Types.ClientView)
 			UIKit.text(f, "Your team is thinking...", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = UIKit.color("text_dim") })
 		end
 		for i = 1, shown do
-			ideaLine(f, v.ideas[#v.ideas - i + 1], 3 + i * 10, w)
+			ideaLine(f, v.ideas[#v.ideas - i + 1], 2 + i * LINE_H, w)
 		end
 		local ready = #v.ideas >= 3
 		local b = UIKit.button(f, if ready then "Make a game!" else string.format("%d/3 ideas", #v.ideas), UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, h - 16), function()
@@ -385,10 +385,9 @@ local function onIdea(msg: { [string]: any })
 	f.Name = "Reveal"
 	f.ZIndex = 8
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), col, 9)
-	local icon = PixelSprites.ICONS[c.id]
-	if icon then
-		PixelSprites.sprite(f, icon, UDim2.fromOffset(6, 10), 3, 9)
-	end
+	local holder = UIKit.plate(f, UDim2.fromOffset(24, 24), UDim2.fromOffset(6, 12), UIKit.color("plate_light"), 0, 2)
+	holder.ZIndex = 9
+	PixelSprites.image(holder, "icon_" .. c.id, UDim2.fromOffset(4, 4), 10)
 	UIKit.text(f, string.upper(Ideas.tierName(tier)) .. " IDEA!" .. (if msg.first == true then "  New!" else ""), UDim2.fromOffset(w - 40, 10), UDim2.fromOffset(36, 4), { color = col, z = 9, name = "Tier" })
 	UIKit.text(f, Ideas.name(c), UDim2.fromOffset(w - 40, 18), UDim2.fromOffset(36, 14), { face = "big", kind = "title", color = UIKit.color("text"), z = 9, name = "Name" })
 	UIKit.text(f, Numbers.oneIn(if type(msg.oneIn) == "number" then msg.oneIn else Ideas.oneIn(c)), UDim2.fromOffset(w - 40, 10), UDim2.fromOffset(36, 32), { color = UIKit.color("text_dim"), z = 9, name = "OneIn" })
