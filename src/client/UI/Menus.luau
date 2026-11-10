@@ -400,7 +400,7 @@ local function buildExplore(body: Frame, _arg: any?)
 	local y0 = -2
 	-- the party: the captain, then up to PartyMax picks
 	UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, y0 + 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
-	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 52 - 30 - y0), UDim2.fromOffset(x0, y0 + 51))
+	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 52 - 46 - y0), UDim2.fromOffset(x0, y0 + 51))
 	UIKit.vlist(pl, 2)
 	local function member(order: number, key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look?)
 		local picked = key == "f" or table.find(party, key) ~= nil
@@ -460,6 +460,31 @@ local function buildExplore(body: Frame, _arg: any?)
 	end)
 	for i, cand in cands do
 		member(i, cand.key, cand.name, cand.lvl, cand.f, cand.icon, cand.look)
+	end
+	-- the snack pouch (GAME_DESIGN 7: snacks a trip, 5 up to 30): a bigger one for shells and wood
+	local pouch = v.pouch or 1
+	UIKit.text(body, string.format("Snacks: %d a trip", Tuning.SnackBase * pouch), UDim2.fromOffset(90, 10), UDim2.fromOffset(x0, H - 43), { color = UIKit.color("pink"), name = "Snacks" })
+	local pc = Tuning.PouchCost[pouch + 1]
+	if pc then
+		local bw = UIKit.buttonWidth("Bigger pouch", 5)
+		local short = v.shells < pc.shells or v.wood < pc.wood
+		local st, wt = Numbers.coins(pc.shells), Numbers.coins(pc.wood)
+		local px = W - bw - 3 - UIKit.textWidth(wt) - 12 - UIKit.textWidth(st) - 13
+		PixelSprites.image(body, "mini_shell", UDim2.fromOffset(px, H - 44), 4)
+		UIKit.text(body, st, UDim2.fromOffset(UIKit.textWidth(st) + 2, 10), UDim2.fromOffset(px + 11, H - 43), { color = if v.shells < pc.shells then UIKit.color("bad") else UIKit.color("text"), name = "PouchShells" })
+		local wx = px + 13 + UIKit.textWidth(st)
+		PixelSprites.image(body, "mini_wood", UDim2.fromOffset(wx, H - 44), 4)
+		UIKit.text(body, wt, UDim2.fromOffset(UIKit.textWidth(wt) + 2, 10), UDim2.fromOffset(wx + 11, H - 43), { color = if v.wood < pc.wood then UIKit.color("bad") else UIKit.color("text"), name = "PouchWood" })
+		UIKit.button(body, "Bigger pouch", UDim2.fromOffset(bw, 13), UDim2.fromOffset(W - bw, H - 45), function()
+			local res = ask("pouch.upgrade", {})
+			if res.ok then
+				Audio.play("level_up")
+				UIKit.notice(string.format("A bigger pouch: %d snacks a trip!", Tuning.SnackBase * (pouch + 1)), UIKit.color("good"), 3)
+				UIKit.refreshPanel()
+			end
+		end, { name = "PouchUp", color = if short then UIKit.color("button_off") else UIKit.color("button_ok"), enabled = v.exp == nil })
+	else
+		UIKit.text(body, "The biggest pouch", UDim2.fromOffset(100, 10), UDim2.fromOffset(W - 100, H - 43), { color = UIKit.color("good"), x = "right", name = "PouchMax" })
 	end
 	-- supplies and Set sail
 	local need = Tuning.Supplies * (1 + #party)

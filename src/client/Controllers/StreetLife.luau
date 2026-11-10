@@ -1,14 +1,13 @@
 --!strict
 -- The sea's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): sailboats crossing both ways beyond the
--- boardwalk, rocking on the swell, a flock of gulls crossing now and then, and clouds whose shadows drift over the
--- islands (invisible models with a blob shadow: PixelRenderer's PixelShadow). Client only, all in
+-- boardwalk, rocking on the swell, and a flock of gulls crossing now and then (no clouds' shadows: the player asked for
+-- them gone). Client only, all in
 -- Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the server's business; the
 -- expedition's stage (far away) never shows it. (The module keeps its old name: the street it once was.)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Street = require(ReplicatedStorage.Shared.Data.Street)
-local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local CameraController = require(script.Parent.CameraController)
@@ -17,12 +16,10 @@ local Audio = require(script.Parent.Audio)
 local StreetLife = {}
 
 local BOAT_SPEED = 4 -- studs a second
-local CLOUD_Y = 24
 local started = false
 
 type Boat = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number, ph: number }
 type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number }
-type Cloud = { m: Model, x: number, z: number, speed: number }
 
 local function dyn(): Instance
 	local f = workspace:FindFirstChild("PixelDynamic")
@@ -68,18 +65,6 @@ function StreetLife.start()
 		table.insert(birds, { t = t, x = b.x0 - 30 - i * 3, z = 0, y = 16 + i, ph = i * 0.7 })
 	end
 	local flockAt = 4
-	local clouds: { Cloud } = {}
-	for i = 1, 2 do
-		local m = Blocks.model(nil, "Cloud" .. i)
-		local p = Blocks.part(m, { size = Vector3.new(1, 1, 1), cf = CFrame.new(0, CLOUD_Y, 0), color = "white", transparency = 1, collide = false, query = false })
-		p.CastShadow = false
-		m.PrimaryPart = p
-		m:SetAttribute("PixelShadow", 15 + i * 2)
-		m:SetAttribute("PixelGroundY", Street.LAWN_Y)
-		m.Parent = dyn()
-		PixelRenderer.registerDynamic(m)
-		table.insert(clouds, { m = m, x = b.x0 + (b.x1 - b.x0) * (0.3 + 0.4 * (i - 1)), z = -6 + i * 14, speed = 1.2 + i * 0.4 })
-	end
 	local last = os.clock()
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
@@ -128,23 +113,12 @@ function StreetLife.start()
 				end
 			end
 		end
-		-- clouds drift east and come round again
-		for _, cl in clouds do
-			cl.x += cl.speed * dt
-			if cl.x > b.x1 + 30 then
-				cl.x = b.x0 - 30
-			end
-			local pp = cl.m.PrimaryPart
-			if pp then
-				pp.CFrame = CFrame.new(cl.x, CLOUD_Y, cl.z)
-			end
-		end
 	end)
 end
 
--- CLI checks only: the boats, gulls and clouds there are.
+-- CLI checks only: the boats and gulls there are.
 function StreetLife.count(): number
-	return if started then 9 else 0
+	return if started then 7 else 0
 end
 
 return StreetLife

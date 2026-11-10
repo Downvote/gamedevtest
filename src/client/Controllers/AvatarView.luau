@@ -24,6 +24,8 @@ type Rec = {
 	label: TextLabel?,
 	char: Model?,
 	dustAt: number, -- when their feet next kick up a puff of dust (walking)
+	air: boolean, -- in the air (a jump) last frame
+	rest: number?, -- the root's height over the ground as it last stood
 }
 
 local recs: { [Player]: Rec } = {}
@@ -82,8 +84,10 @@ local function drop(pl: Player)
 	end
 end
 
--- The ground under a character (the lawn, a floor, the road), else its root's height less a standing body.
-local function feetY(char: Model, root: BasePart): number
+-- Where a character's feet are: on the ground under it (the lawn, a floor, the boardwalk) while it stands there; in the
+-- air (a jump: Humanoid.FloorMaterial is Air) at its root's height less the root's height over the ground as it last
+-- stood (learnt, whatever the avatar's size), so the chibi leaves the ground with it. True while airborne.
+local function feetY(rec: Rec, char: Model, root: BasePart): (number, boolean)
 	local list: { Instance } = { dyn() }
 	for _, p in Players:GetPlayers() do
 		if p.Character then
@@ -91,13 +95,20 @@ local function feetY(char: Model, root: BasePart): number
 		end
 	end
 	groundParams.FilterDescendantsInstances = list
-	local hit = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), groundParams)
-	if hit then
-		return hit.Position.Y
-	end
 	local hum = char:FindFirstChildOfClass("Humanoid")
+	local inAir = hum ~= nil and hum.FloorMaterial == Enum.Material.Air
+	local hit = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), groundParams)
+	if hit and not inAir then
+		rec.rest = root.Position.Y - hit.Position.Y
+		return hit.Position.Y, false
+	end
 	local hip = if hum then hum.HipHeight else 2
-	return root.Position.Y - hip - root.Size.Y / 2
+	local rest = rec.rest or (hip + root.Size.Y / 2)
+	local fy = root.Position.Y - rest
+	if hit then
+		fy = math.max(fy, hit.Position.Y)
+	end
+	return fy, inAir
 end
 
 local function step(dt: number)
@@ -121,7 +132,7 @@ local function step(dt: number)
 			if pl ~= me then
 				label = UIKit.text(UIKit.canvas("World"), pl.DisplayName, UDim2.fromOffset(UIKit.textWidth(pl.DisplayName) + 4, 10), nil, { x = "center", kind = "outline", name = "Name" })
 			end
-			r = { rig = rig, sig = sig, last = nil, speed = 0, label = label, char = nil, dustAt = 0 }
+			r = { rig = rig, sig = sig, last = nil, speed = 0, label = label, char = nil, dustAt = 0, air = false }
 			recs[pl] = r
 		end
 		local rec = r :: Rec
@@ -144,10 +155,22 @@ local function step(dt: number)
 		local fwd = root.CFrame.LookVector
 		local flat = Vector3.new(fwd.X, 0, fwd.Z)
 		local yaw = if flat.Magnitude > 1e-3 then math.atan2(flat.X, flat.Z) else 0
-		local base = CFrame.new(pos.X, feetY(char, root), pos.Z) * CFrame.Angles(0, yaw, 0)
-		CharacterModels.poseStanding(rec.rig, base, t, rec.speed)
+		local fy, airborne = feetY(rec, char, root)
+		local base = CFrame.new(pos.X, fy, pos.Z) * CFrame.Angles(0, yaw, 0)
+		if airborne then
+			-- a jump: knees up, arms up, off the ground with the character
+			CharacterModels.poseAction(rec.rig, base, t, 0, "jump")
+			rec.air = true
+		else
+			if rec.air then
+				-- landing: a puff of dust at the feet
+				UIKit.bitsAt((base * CFrame.new(0, 0.1, 0)).Position, { "white", "text_dim" }, 4, 18, 40)
+			end
+			rec.air = false
+			CharacterModels.poseStanding(rec.rig, base, t, rec.speed)
+		end
 		-- a walk kicks up a puff of dust now and then, a run more often
-		if rec.speed > 6 and t >= rec.dustAt then
+		if not airborne and rec.speed > 6 and t >= rec.dustAt then
 			rec.dustAt = t + (if rec.speed > 14 then 0.18 else 0.3)
 			UIKit.bitsAt((base * CFrame.new(0, 0.1, -0.4)).Position, { "white", "text_dim" }, 2, 14, 40)
 		end

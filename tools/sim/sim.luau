@@ -2,7 +2,7 @@
 -- tips), building what the tips ask (food, a camp, a stall, a tent, a nest: the starting shells cover them), the days
 -- turning (a villager moves in and takes a job, the stores grow), an expedition from the Explore panel (the level
 -- slider, the party picked, Set sail, the sailing cutscene and the boat leaving the pier, the islet's screen with the
--- boat bringing the party ashore, its stops and battles played through ExpeditionUI, a treat, home with the loot and
+-- boat bringing the party ashore, its stops and timed battles on the screen (timers, a snack, a skill), home with the loot and
 -- the return voyage to the pier), the Villagers, Driftlings and Index panels, the founder's looks, settings, then a
 -- malicious client, then a second player. Every check is an H.expect; the SIM REPORT must show 0 findings and 0
 -- errors.
@@ -276,41 +276,53 @@ H.expect(st.arrived, "explore", "the boat brought them ashore", tostring(st.arri
 -- no Go on to click: between stops a bar fills and the party walks on by itself (by now it may already be in a
 -- battle: then its moves are up instead)
 H.expect(H.buttonNamed(p, "GoOn") == nil and (s.exp == nil or s.exp.battle ~= nil or H.buttonNamed(p, "SailHome") ~= nil), "explore", "no Go on button (Sail home between stops)")
-H.expect((s.exp ~= nil and s.exp.battle ~= nil and H.buttonNamed(p, "Act_fight") ~= nil) or H.buttons(p, "^AutoGo$", true)[1] ~= nil, "explore", "the next stop's bar (or a battle's moves)")
+H.expect((s.exp ~= nil and s.exp.battle ~= nil and H.buttonNamed(p, "Act_skills") ~= nil) or H.buttons(p, "^AutoGo$", true)[1] ~= nil, "explore", "the next stop's bar (or a battle's moves)")
 H.expect(s.exp ~= nil and s.exp.node > nodeAtLanding, "explore", "the expedition went on by itself", string.format("%d -> %s", nodeAtLanding, tostring(s.exp and s.exp.node)))
--- walk the islet: every stop, every battle fought (a treat when a wild one is hurt), until its first guardian falls (the
--- island never ends) or the party does
+-- walk the islet: every stop, every battle running by itself on the screen (a snack at a hurt wild one, a skill when
+-- the points cover one), until its first guardian falls (the island never ends) or the party does
 local Expedition = H.sharedServer("Logic.Expedition")
-local battles, treats, guard = 0, 0, 0
+local battles, treats, skillsUsed = 0, 0, 0
+local sawTimers, sawRun = false, false
+local lastBattle = nil
 local steps = 0
-while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 80 do
+while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 900 do
 	steps += 1
 	local e = s.exp
 	if e.battle then
-		battles += 1
+		if e.battle ~= lastBattle then
+			lastBattle = e.battle
+			battles += 1
+		end
+		local dst = H.inClient(p, EUI.debugState)
+		sawTimers = sawTimers or dst.timers >= 2
+		sawRun = sawRun or not e.battle.paused
 		local hurt = nil
 		for _, f in e.battle.foes do
 			if f.hp > 0 and f.hp < f.maxHp * 0.5 then
 				hurt = f
 			end
 		end
-		if hurt and not e.battle.boss and treats < 3 and Expedition.room(prof) then
+		if dst.busy or dst.aim or dst.menu or e.battle.paused then
+			-- (an action under way, or still landing)
+		elseif hurt and not e.battle.boss and treats < 3 and Expedition.room(prof) and e.snacks > 0 then
 			treats += 1
-			H.inClient(p, EUI.debugAct, "treat")
-		elseif guard < 1 then
-			guard += 1
-			H.inClient(p, EUI.debugAct, "guard")
-		else
-			H.inClient(p, EUI.debugAct, "fight")
+			H.inClient(p, EUI.debugSnack, hurt.key)
+		elseif e.battle.sp >= 3 and skillsUsed < 2 then
+			skillsUsed += 1
+			H.inClient(p, EUI.debugSkill, "f", "cry")
 		end
+		E.run(0.4)
 		-- (a won battle is a small alert: nothing to tap)
-		E.run(0.2)
 		H.expect(H.buttonNamed(p, "ResultOk") == nil or (s.exp and s.exp.over ~= nil), "explore", "no Onward card to tap after a win")
 	else
+		lastBattle = nil
 		H.inClient(p, EUI.debugGo)
+		E.run(0.2)
 	end
-	E.run(0.2)
 end
+H.expect(sawTimers, "explore", "a timer over the fighters' heads")
+H.expect(sawRun, "explore", "the battles run by themselves")
+H.expect(skillsUsed >= 1, "explore", "a skill used from the screen (Rally Cry)", tostring(skillsUsed))
 H.expect(battles >= 3, "explore", "battles fought through the UI", tostring(battles))
 H.expect(s.exp ~= nil and (s.exp.over == "lost" or (s.exp.beaten or 0) >= 1), "explore", "the first guardian beaten (the path goes on) or the party fallen", tostring(s.exp and s.exp.over))
 local over = if s.exp and (s.exp.beaten or 0) >= 1 then "won" else s.exp and s.exp.over
@@ -365,7 +377,7 @@ for _, sp in wild do
 	met = met or (prof.seen[sp] or 0) > 0
 end
 H.expect(met, "explore", "the island's driftlings are in the Index")
-H.log("expedition: %s, %d battles, %d treats, %d friends, %d islands charted", tostring(over), battles, treats, #prof.pals, prof.islets)
+H.log("expedition: %s, %d battles, %d snacks, %d skills, %d friends, %d islands charted", tostring(over), battles, treats, skillsUsed, #prof.pals, prof.islets)
 H.checkProfile(p, "explore")
 H.checkMirror(p, "explore")
 
@@ -483,10 +495,18 @@ ok, out = H.raw(p, "exp.start", { islet = 1, party = "" })
 expectRefused("the old islet field", ok, out, "bad_payload")
 ok, out = H.raw(p, "exp.next", {})
 expectRefused("a step with no expedition", ok, out, "no_exp")
-ok, out = H.raw(p, "exp.act", { act = "nuke", target = "" })
-expectRefused("an unknown battle move", ok, out, "bad_payload")
 ok, out = H.raw(p, "exp.act", { act = "fight", target = "" })
-expectRefused("a battle with no expedition", ok, out, "no_exp")
+expectRefused("the old battle move", ok, out, "unknown_action")
+ok, out = H.raw(p, "exp.snack", { target = "w1" })
+expectRefused("a snack with no expedition", ok, out, "no_exp")
+ok, out = H.raw(p, "exp.snack", { target = "f" })
+expectRefused("a snack at the leader", ok, out, "bad_payload")
+ok, out = H.raw(p, "exp.skill", { who = "w1", skill = "cry", target = "" })
+expectRefused("a wild one's skill", ok, out, "bad_payload")
+ok, out = H.raw(p, "exp.skill", { who = "f", skill = "cry", target = "" })
+expectRefused("a skill with no expedition", ok, out, "no_exp")
+ok, out = H.raw(p, "exp.pause", { on = 1 })
+expectRefused("a pause that is not on or off", ok, out, "bad_payload")
 ok, out = H.raw(p, "folk.work", { id = 424242, uid = 0 })
 expectRefused("a villager not there", ok, out, "not_found")
 ok, out = H.raw(p, "pal.release", { id = 424242 })

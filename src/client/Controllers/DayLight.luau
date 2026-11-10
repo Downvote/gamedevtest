@@ -4,7 +4,8 @@
 -- dawn, the plain day, a golden dusk, a violet twilight and a blue night with the lamps, torches and fires lit in
 -- pools of warm light, then the dawn again. The grade steps (a few steps a change, never a smear); the islands at
 -- sea (an islet's screen) follow the same clock. With the filter off, Roblox's own clock follows instead.
---   start(), at(frac) -> Grade? (nil: daylight), frac(), debugSet(frac?) (previews: a fixed time), debugState()
+--   start(), at(frac) -> Grade? (nil: daylight), frac(), hold(grade?) (a grade over the clock's: grey while aiming),
+--   debugSet(frac?) (previews: a fixed time), debugState()
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,6 +36,7 @@ local STEPS = 6 -- a change between two keys goes in this many steps
 
 local frac0, at0 = 0, os.clock() -- the last tick's dayFrac and when it came
 local forced: number? = nil
+local held: Grade? = nil -- a grade held over the clock's (a battle paused to aim: grey)
 
 -- The grade at a time of day (nil: plain daylight).
 function DayLight.at(frac: number): Grade?
@@ -109,14 +111,20 @@ function DayLight.start()
 			end)
 			return
 		end
-		-- the islands at sea share the clock: a battle at night is fought in the dark, by its fires and glows
-		PixelRenderer.setGrade(DayLight.at(f))
+		-- the islands at sea share the clock: a battle at night is fought in the dark, by its fires and glows; a held
+		-- grade (aiming a snack or a skill: grey) over it
+		PixelRenderer.setGrade(held or DayLight.at(f))
 	end)
 end
 
 -- The time of day now (0 a new day at dawn .. 1; the HUD's music follows it).
 function DayLight.frac(): number
 	return now()
+end
+
+-- Hold a grade over the day's (UI/ExpeditionUI: the picture greys while a snack or a skill is aimed); nil lets go.
+function DayLight.hold(g: Grade?)
+	held = g
 end
 
 -- Previews: hold the clock at a time of day (nil: the island's own again).

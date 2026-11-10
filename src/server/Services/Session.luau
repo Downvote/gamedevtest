@@ -22,6 +22,7 @@ export type S = {
 	turnClock: number, -- seconds into the island's turn
 	dayIndex: number, -- the sea's calendar day when this island last counted one (WorldClock.dayIndex)
 	tickClock: number, -- seconds toward the next stores message
+	gaugeClock: number, -- seconds since the battle's timers last went to the client
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
@@ -43,6 +44,7 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		turnClock = 0,
 		dayIndex = WorldClock.dayIndex(),
 		tickClock = 0,
+		gaugeClock = 0,
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
@@ -85,6 +87,7 @@ function Session.view(s: S): Types.ClientView
 		islets = p.islets,
 		sea = p.sea,
 		boat = p.boat,
+		pouch = p.pouch,
 		chart = p.chart,
 		seen = p.seen,
 		tut = p.tut,

@@ -109,9 +109,10 @@ return function()
 			while e.node < #e.nodes and not e.over do
 				Expedition.next(p, e, rng)
 				local guard = 0
-				while e.battle and guard < 60 do
+				while e.battle and guard < 2000 do
 					guard += 1
-					local _, data = Expedition.act(p, e, "fight", "", rng)
+					e.battle.paused = false
+					local data = Expedition.tick(p, e, 0.5, rng)
 					if data and data.reward then
 						reward = data.reward
 					end

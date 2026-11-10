@@ -1089,6 +1089,22 @@ BUILD.ring = function(o)
 	return t
 end
 
+-- The aim on the floor (GAME_DESIGN 7: a snack or a skill being aimed): a glowing ring round the one acting and an
+-- arrow on its edge pointing +Z (the stage turns it toward the target), all Neon (opts.color): it keeps its colour
+-- while the picture is greyed.
+BUILD.aim = function(o)
+	local t = new("aim", 0.2, 2.2)
+	local c = o.color or "yellow"
+	for i = 1, 12 do
+		local a = (i - 0.5) / 12 * math.pi * 2
+		add(t, "R" .. i, "Block", Vector3.new(0.75, 0.125, 0.25), Vector3.new(math.cos(a) * 1.75, 0.07, math.sin(a) * 1.75), c, CFrame.Angles(0, -a + math.pi / 2, 0), true)
+	end
+	add(t, "Shaft", "Block", Vector3.new(0.25, 0.125, 1.0), Vector3.new(0, 0.07, 2.35), c, nil, true)
+	add(t, "HeadL", "Block", Vector3.new(0.25, 0.125, 0.875), Vector3.new(-0.28, 0.07, 2.95), c, CFrame.Angles(0, math.rad(40), 0), true)
+	add(t, "HeadR", "Block", Vector3.new(0.25, 0.125, 0.875), Vector3.new(0.28, 0.07, 2.95), c, CFrame.Angles(0, math.rad(-40), 0), true)
+	return t
+end
+
 -- the pivot a sweeping beam turns round
 BUILD.pillar = function(o)
 	local t = new("pillar", 2, 1)

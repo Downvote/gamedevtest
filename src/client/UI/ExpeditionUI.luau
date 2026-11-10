@@ -20,12 +20,15 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
+local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
+local Skills = require(ReplicatedStorage.Shared.Data.Skills)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
+local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local MicroStage = require(script.Parent.MicroStage)
@@ -83,7 +86,6 @@ local root: Frame? = nil
 local actors: { [string]: Actor } = {}
 local bars: { [string]: Bar } = {}
 local busy = false
-local target: string? = nil
 local beat: RBXScriptConnection? = nil
 local keys: RBXScriptConnection? = nil
 local opened = 0
@@ -113,17 +115,37 @@ local AUTO_CARD = 3
 local idleSince: number? = nil
 local autoFill: Frame? = nil
 local autoW = 0
--- the auto battle (GAME_DESIGN 7: "an autobattle function as well that clicks fight every turn. make an option to stop
--- when party is low in health and likely to lose in the next fight"): Fight every round by itself (AUTO_FIGHT seconds
--- after the last round's playback); with `autoSafe` it stops before a fight the party is likely to lose
--- (Expedition.risk: the fight under way or the next stop's), and the party waits for the player. Kept for the session.
-local autoBattle = false
 local autoSafe = true
-local AUTO_FIGHT = 0.5
-local fightIdle: number? = nil
 local PATH_AHEAD = 7 -- the header shows the path from a stop back to this many ahead (it never ends)
+-- the timed battle (GAME_DESIGN 7: "the characters have a timer above their heads that is shown as a bar, and will
+-- attack or use its skill once a timer is done"): the server runs it; here the timers as it last told (`gaugeG` at
+-- `gaugeAt`, the action holding them then `gaugeLock`, paused or not) run on between its messages, as do the party's
+-- skill points; its actions play back one message after another (`playQueue`). The health shown follows the events
+-- (`shownHp`: the view's numbers come at the battle's end).
+local gaugeG: { [string]: number } = {}
+local gaugeAt = 0
+local gaugeLock = 0
+local gaugePaused = true
+local spNow = 0
+local snacksLeft = 0
+local shownHp: { [string]: number } = {}
+local timerBars: { [string]: { frame: Frame, fill: Frame, w: number } } = {}
+local playQueue: { { [string]: any } } = {}
+local pumping = false
+local runAt: number? = nil -- when to let the battle run (its wild ones landed, the screen lifted)
+-- aiming a snack or a skill (GAME_DESIGN 7: "using a snack greys and pauses the fighting, and allows you to select an
+-- enemy, with your leader having an arrow marked on the floor to whoever you are selecting in a circle"; the skill
+-- window "act[s] like the snack interface"): who acts, the skill, which side it aims at ("foe", "ally", "down" or
+-- "none"), the target picked. The picture greys (DayLight.hold) and the battle pauses while aiming or choosing.
+type Aim = { kind: string, who: string, skill: string?, side: string, target: string? }
+local aim: Aim? = nil
+local skillMenu = false
+local aimMark: MicroModels.Thing? = nil -- the ring and arrow on the floor round the one acting
+local aimPointer: GuiObject? = nil -- the little arrow over the target's head
+local GREY: PixelRenderer.Grade = { mr = 0.72, mg = 0.72, mb = 0.76, lift = 4, sat = 0.1, lamps = 0 }
 
 local refresh: () -> () = function() end
+local pickTarget: (key: string?) -> () = function(_key: string?) end
 local closeNow: () -> () = function() end
 
 local function view(): Types.ClientView?
@@ -149,7 +171,11 @@ local PARTY_SPOTS = { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 } }
 local FOE_SPOTS = { { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } }
 
 local function actorAt(a: Actor): Vector3
-	local st = stage :: MicroStage.Stage
+	local st = stage
+	if st == nil then
+		-- (the screen closed while an action was still playing: it finishes on nothing)
+		return Vector3.zero
+	end
 	return st.at(a.u + a.du, a.v + a.dv, a.dy)
 end
 
@@ -664,6 +690,7 @@ local function setBar(key: string, hp: number)
 		return
 	end
 	b.hp = math.clamp(hp, 0, b.maxHp)
+	shownHp[key] = b.hp
 	local fill, label = b.fill, b.label
 	if fill then
 		local k = b.hp / math.max(1, b.maxHp)
@@ -675,9 +702,244 @@ local function setBar(key: string, hp: number)
 	end
 end
 
--- A fighter's card: its portrait or icon, name and level, its health bar.
+------------------------------------------------------------------ the timed battle
+-- A fighter of the expedition (the view's: its speed sets its timer's pace), the party's or a wild one's.
+local function fighterOf(key: string): Types.Fighter?
+	local e = exp()
+	if e == nil then
+		return nil
+	end
+	for _, f in e.party do
+		if f.key == key then
+			return f
+		end
+	end
+	local b = e.battle
+	if b then
+		for _, f in b.foes do
+			if f.key == key then
+				return f
+			end
+		end
+	end
+	return nil
+end
+
+-- The health shown for a fighter (the battle's events move it; the view's between battles).
+local function hpOf(f: Types.Fighter): number
+	local h = shownHp[f.key]
+	return if h ~= nil then h else f.hp
+end
+
+-- A timer as it stands now (0 .. 1), run on from the server's last word (they fill while an action plays too).
+local function gaugeOf(key: string): number
+	local g0 = gaugeG[key] or 0
+	local f = fighterOf(key)
+	if gaugePaused or f == nil then
+		return g0
+	end
+	local t = os.clock() - gaugeAt
+	return math.min(1, g0 + t / Battle.fillTime(f :: Types.Fighter))
+end
+
+-- The party's skill points now.
+local function spOf(): number
+	if gaugePaused then
+		return spNow
+	end
+	return math.min(Tuning.SpMax, spNow + (os.clock() - gaugeAt) * Tuning.SpRate)
+end
+
+-- The server's word on the timers (an action's message, a sync, a pause's answer).
+local function takeGauges(d: any)
+	if type(d) ~= "table" then
+		return
+	end
+	if type(d.g) == "table" then
+		for k, v in d.g do
+			if type(k) == "string" and type(v) == "number" then
+				gaugeG[k] = v
+			end
+		end
+	end
+	gaugeLock = tonumber(d.lock) or 0
+	if type(d.paused) == "boolean" then
+		gaugePaused = d.paused
+	end
+	if type(d.sp) == "number" then
+		spNow = d.sp
+	end
+	if type(d.snacks) == "number" then
+		snacksLeft = d.snacks
+	end
+	gaugeAt = os.clock()
+end
+
+-- Pause the battle or let it run (the server's answer brings the timers as they stand).
+local function setPaused(on: boolean)
+	-- (the timers stop where they are shown at once)
+	if on and not gaugePaused then
+		for k in gaugeG do
+			gaugeG[k] = gaugeOf(k)
+		end
+		spNow = spOf()
+	end
+	gaugePaused = on
+	gaugeAt = os.clock()
+	gaugeLock = 0
+	task.spawn(function()
+		local res = StateClient.request("exp.pause", { on = on })
+		if res.ok then
+			takeGauges(res.data)
+		end
+	end)
+end
+
+-- The wild ones still in the battle (not beaten, not befriended) and the party's members, standing or down.
+local function foesLeft(): { Types.Fighter }
+	local out: { Types.Fighter } = {}
+	local e = exp()
+	local b = if e then e.battle else nil
+	if b then
+		for _, f in b.foes do
+			local a = actors[f.key]
+			if hpOf(f) > 0 and not (a and a.gone) then
+				table.insert(out, f)
+			end
+		end
+	end
+	return out
+end
+local function partyList(down: boolean): { Types.Fighter }
+	local out: { Types.Fighter } = {}
+	local e = exp()
+	if e then
+		for _, f in e.party do
+			if (hpOf(f) <= 0) == down then
+				table.insert(out, f)
+			end
+		end
+	end
+	return out
+end
+
+-- What an aim can pick, in order (the side's members left to right).
+local function candidates(side: string): { Types.Fighter }
+	if side == "foe" then
+		return foesLeft()
+	elseif side == "ally" then
+		return partyList(false)
+	elseif side == "down" then
+		return partyList(true)
+	end
+	return {}
+end
+
+-- A first pick: the most hurt (a foe for a snack or a blow, a member for a mend), the first one down for a revive.
+local function firstPick(side: string): string?
+	local best: Types.Fighter? = nil
+	for _, f in candidates(side) do
+		if best == nil or hpOf(f) / math.max(1, f.maxHp) < hpOf(best :: Types.Fighter) / math.max(1, (best :: Types.Fighter).maxHp) then
+			best = f
+		end
+	end
+	return if best then best.key else nil
+end
+
+-- The ring and arrow round the one acting, turned toward the pick; the pointer over the pick (every frame).
+local function updateAim()
+	local st, a, r = stage, aim, root
+	if st == nil or r == nil or a == nil then
+		if aimMark and st then
+			st.remove(aimMark :: MicroModels.Thing)
+		end
+		aimMark = nil
+		if aimPointer then
+			(aimPointer :: GuiObject):Destroy()
+			aimPointer = nil
+		end
+		return
+	end
+	local user = actors[a.who]
+	if user == nil then
+		return
+	end
+	if aimMark == nil then
+		aimMark = st.spawn("aim", { color = if a.kind == "snack" then "pink" else "screen_on" })
+	end
+	local yaw = if user.foe then MicroStage.FACE_LEFT else MicroStage.FACE_RIGHT
+	local tgt = if a.target then actors[a.target :: string] else nil
+	local p0 = actorAt(user)
+	if tgt and tgt ~= user then
+		local p1 = actorAt(tgt)
+		yaw = math.atan2(p1.X - p0.X, p1.Z - p0.Z)
+	end
+	st.place(aimMark :: MicroModels.Thing, user.u + user.du, user.v + user.dv, 0.05, yaw)
+	-- the pointer: a small arrow bobbing over the pick's head
+	if tgt then
+		if aimPointer == nil then
+			local img = PixelSprites.image(r, "arrow_down_t", UDim2.fromOffset(0, 0), 24)
+			img.Name = "AimPointer"
+			aimPointer = img
+		end
+		local x, y, on = st.screen(actorAt(tgt) + Vector3.new(0, if tgt.big then 5.2 else 3.9, 0))
+		local bob = math.floor(math.sin(os.clock() * 6) * 1.5 + 0.5)
+		local ap = aimPointer :: GuiObject
+		ap.Visible = on
+		ap.Position = UDim2.fromOffset(math.floor(x) - 3, math.floor(y) - 9 + bob)
+	elseif aimPointer then
+		(aimPointer :: GuiObject):Destroy()
+		aimPointer = nil
+	end
+end
+
+-- The timers over everyone's heads (every frame in a battle): a small bar each, gold for the party, orange for the
+-- wild ones; full (ready, waiting for the action playing to end) it flashes white.
+local function updateTimers()
+	local r, st = root, stage
+	local e = exp()
+	local folder = if r then r:FindFirstChild("Timers") else nil
+	local show = e ~= nil and e.battle ~= nil and lifted and st ~= nil and folder ~= nil
+	for key, tb in timerBars do
+		local a = actors[key]
+		local f = fighterOf(key)
+		if not show or a == nil or a.gone or a.ko or f == nil or hpOf(f :: Types.Fighter) <= 0 then
+			tb.frame:Destroy()
+			timerBars[key] = nil
+		end
+	end
+	if not show then
+		return
+	end
+	for key, a in actors do
+		local f = fighterOf(key)
+		if f == nil or a.gone or a.ko or hpOf(f :: Types.Fighter) <= 0 or a.deck > 0 then
+			continue
+		end
+		local tb = timerBars[key]
+		if tb == nil then
+			local w = if a.big then 22 else 16
+			local frame = UIKit.rect(folder :: Instance, UDim2.fromOffset(w, 4), UDim2.fromOffset(0, 0), UIKit.color("ink"), 20)
+			frame.Name = "Timer_" .. key
+			local fill = UIKit.rect(frame, UDim2.fromOffset(0, 2), UDim2.fromOffset(1, 1), UIKit.color("accent"), 21)
+			fill.Name = "Fill"
+			tb = { frame = frame, fill = fill, w = w }
+			timerBars[key] = tb
+		end
+		local bar = tb :: { frame: Frame, fill: Frame, w: number }
+		local x, y, on = (st :: MicroStage.Stage).screen(actorAt(a) + Vector3.new(0, if a.big then 4.9 else 3.6, 0))
+		bar.frame.Visible = on
+		bar.frame.Position = UDim2.fromOffset(math.floor(x) - math.floor(bar.w / 2), math.floor(y) - 2)
+		local g = gaugeOf(key)
+		bar.fill.Size = UDim2.fromOffset(math.floor((bar.w - 2) * g), 2)
+		local side = if a.foe then UIKit.color("orange") else UIKit.color("accent")
+		bar.fill.BackgroundColor3 = if g >= 1 and math.floor(os.clock() * 4) % 2 == 0 then UIKit.color("text") else side
+	end
+end
+
+-- A fighter's card: its portrait or icon, name and level, its health bar (a tap picks it while aiming).
 local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: number, w: number, foe: boolean): Frame
-	local selected = foe and target == f.key
+	local selected = aim ~= nil and (aim :: Aim).target == f.key
 	local card = UIKit.plate(parent, UDim2.fromOffset(w, 18), UDim2.fromOffset(x, y), if selected then UIKit.color("accent") else UIKit.color("plate"), 0.05, 2)
 	card.Name = "Card_" .. f.key
 	card.ZIndex = 10
@@ -699,25 +961,19 @@ local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: num
 	fill.Name = "HpFill"
 	local label = UIKit.text(card, "", UDim2.fromOffset(bw, 8), UDim2.fromOffset(19, 11), { x = "right", color = UIKit.color("text_dim"), z = 13, name = "Hp" })
 	label.Visible = false
-	bars[f.key] = { hp = f.hp, maxHp = f.maxHp, name = f.name, lvl = f.lvl, card = card, fill = fill, label = label, w = bw }
-	setBar(f.key, f.hp)
-	if foe then
-		local b = Instance.new("TextButton")
-		b.Name = "Pick"
-		b.Text = ""
-		b.BackgroundTransparency = 1
-		b.Size = UDim2.fromScale(1, 1)
-		b.ZIndex = 14
-		b.Parent = card
-		b.Activated:Connect(function()
-			if f.hp <= 0 then
-				return
-			end
-			target = f.key
-			Audio.play("flip")
-			refresh()
-		end)
-	end
+	bars[f.key] = { hp = hpOf(f), maxHp = f.maxHp, name = f.name, lvl = f.lvl, card = card, fill = fill, label = label, w = bw }
+	setBar(f.key, hpOf(f))
+	local _ = foe
+	local pick = Instance.new("TextButton")
+	pick.Name = "Pick"
+	pick.Text = ""
+	pick.BackgroundTransparency = 1
+	pick.Size = UDim2.fromScale(1, 1)
+	pick.ZIndex = 14
+	pick.Parent = card
+	pick.Activated:Connect(function()
+		pickTarget(f.key)
+	end)
 	return card
 end
 
@@ -766,38 +1022,220 @@ local function goOn()
 	refresh()
 end
 
-local function doAct(kind: string)
-	if busy then
-		return
+-- Aiming and choosing pause the battle and grey the picture; back to the battle: it runs again, in colour.
+local function holdBattle(on: boolean)
+	DayLight.hold(if on then GREY else nil)
+	setPaused(on)
+end
+
+-- Stop aiming (and choosing a skill); `resume`: the battle runs again (not when an action was sent: it runs then).
+local function endAim(resume: boolean)
+	local was = aim ~= nil or skillMenu
+	aim = nil
+	skillMenu = false
+	updateAim()
+	if was then
+		DayLight.hold(nil)
+		if resume then
+			setPaused(false)
+		end
 	end
+	refresh()
+end
+
+-- A snack: aim at a wild one (the leader's ring and arrow), then throw.
+local function startSnack()
 	local e = exp()
 	local b = if e then e.battle else nil
-	if b == nil then
+	if b == nil or busy or aim then
 		return
 	end
-	local tgt = ""
-	if kind == "treat" then
-		local t = target
-		if t == nil then
-			-- the most hurt one left
-			local best: Types.Fighter? = nil
-			for _, f in b.foes do
-				if f.hp > 0 and (best == nil or f.hp / f.maxHp < (best :: Types.Fighter).hp / (best :: Types.Fighter).maxHp) then
-					best = f
+	if b.boss then
+		UIKit.notice("The guardian won't take a snack.", UIKit.color("bad"))
+		Audio.play("deny")
+		return
+	end
+	if snacksLeft <= 0 then
+		UIKit.notice(Words.errText("no_snacks"), UIKit.color("bad"))
+		Audio.play("deny")
+		return
+	end
+	local lead = actors.f
+	if lead == nil or lead.ko then
+		UIKit.notice("The leader is down: no snacks till they're up.", UIKit.color("bad"))
+		Audio.play("deny")
+		return
+	end
+	skillMenu = false
+	aim = { kind = "snack", who = "f", skill = nil, side = "foe", target = firstPick("foe") }
+	holdBattle(true)
+	Audio.play("open")
+	refresh()
+end
+
+-- The skill window (it pauses and greys the battle like a snack).
+local function openSkills()
+	local e = exp()
+	if e == nil or e.battle == nil or busy then
+		return
+	end
+	if aim then
+		aim = nil
+		updateAim()
+	else
+		holdBattle(true)
+	end
+	skillMenu = true
+	Audio.play("open")
+	refresh()
+end
+
+-- Pick a skill from the window: one aiming at nobody goes at once; one with a side to aim at opens the aim.
+local useAim: () -> ()
+local function chooseSkill(who: string, id: string)
+	local d = Skills.byId[id]
+	if d == nil then
+		return
+	end
+	skillMenu = false
+	aim = { kind = "skill", who = who, skill = id, side = d.target, target = if d.target == "none" then nil else firstPick(d.target) }
+	if d.target == "none" then
+		useAim()
+	else
+		Audio.play("flip")
+		refresh()
+	end
+end
+
+-- The pick moves on (keys) or lands on a fighter (a tap on its card or on the stage).
+pickTarget = function(key: string?)
+	local a = aim
+	if a == nil or a.side == "none" then
+		return
+	end
+	local list = candidates(a.side)
+	if #list == 0 then
+		return
+	end
+	if key then
+		for _, f in list do
+			if f.key == key then
+				if a.target == key then
+					-- a second tap on the pick: go
+					task.spawn(useAim)
+					return
 				end
+				a.target = key
+				Audio.play("tick")
+				refresh()
+				return
 			end
-			t = if best then best.key else nil
 		end
-		tgt = t or ""
+		return
+	end
+	-- the next one along
+	local i = 0
+	for j, f in list do
+		if f.key == a.target then
+			i = j
+		end
+	end
+	a.target = list[i % #list + 1].key
+	Audio.play("tick")
+	refresh()
+end
+
+-- Throw the snack or use the skill at the pick: the server does it, its events come as the battle's next message.
+useAim = function()
+	local a = aim
+	if a == nil or busy then
+		return
+	end
+	if a.side ~= "none" and a.target == nil then
+		Audio.play("deny")
+		return
 	end
 	busy = true
-	refresh()
-	local res = ask("exp.act", { act = kind, target = tgt })
-	if res.ok and type(res.data) == "table" then
-		playRound(res.data :: { [string]: any })
+	local res: Types.Response
+	if a.kind == "snack" then
+		res = ask("exp.snack", { target = a.target or "" })
+	else
+		res = ask("exp.skill", { who = a.who, skill = a.skill or "", target = a.target or "" })
 	end
 	busy = false
+	if res.ok then
+		takeGauges(res.data)
+		endAim(false)
+	else
+		endAim(true)
+	end
+end
+
+-- Run (a chance; a miss starts the leader's timer again).
+local function flee()
+	local e = exp()
+	if e == nil or e.battle == nil or busy or aim or skillMenu then
+		return
+	end
+	busy = true
+	local res = ask("exp.flee", {})
+	busy = false
+	if res.ok then
+		takeGauges(res.data)
+	end
 	refresh()
+end
+
+-- The skill window: each standing member's skills learnt (their level), the cost in skill points; a skill the
+-- points don't cover yet, or with nobody to aim at, greyed.
+local function skillWindow(r: Frame, e: Types.Expedition)
+	local w, h = canvasSize()
+	local rows: { { f: Types.Fighter, list: { Skills.Skill } } } = {}
+	for _, f in e.party do
+		if hpOf(f) > 0 then
+			local list = Skills.known(Skills.lineOf(f.kind, f.skill), f.lvl)
+			if #list > 0 then
+				table.insert(rows, { f = f, list = list })
+			end
+		end
+	end
+	local ww = math.min(w - 16, 340)
+	local wh = 34 + #rows * 22
+	local win = UIKit.plate(r, UDim2.fromOffset(ww, wh), UDim2.fromOffset(math.floor((w - ww) / 2), math.max(topInset() + HEAD_H + 4, math.floor((h - FOOT_H - wh) / 2))), UIKit.color("plate"), 0, 3, { shadow = true })
+	win.Name = "SkillWindow"
+	win.ZIndex = 26
+	UIKit.text(win, "Skills", UDim2.fromOffset(80, 12), UDim2.fromOffset(6, 3), { color = UIKit.color("accent"), z = 28, name = "Title" })
+	local sp = spOf()
+	UIKit.text(win, string.format("Skill points %d/%d", math.floor(sp), Tuning.SpMax), UDim2.fromOffset(120, 12), UDim2.fromOffset(ww - 168, 3), { x = "right", color = UIKit.color("screen_on"), z = 28, name = "SpText" })
+	local close = UIKit.button(win, "Back", UDim2.fromOffset(40, 12), UDim2.fromOffset(ww - 44, 3), function()
+		endAim(true)
+	end, { name = "Skills_close", color = UIKit.color("plate_light") })
+	close.ZIndex = 28
+	for i, row in rows do
+		local y = 18 + (i - 1) * 22
+		local f = row.f
+		if f.sp then
+			PixelSprites.image(win, "icon_" .. (f.sp :: string), UDim2.fromOffset(5, y + 2), 28)
+		elseif f.look then
+			UIKit.portrait(win, f.look :: Types.Look, 16, UDim2.fromOffset(5, y + 2)).ZIndex = 28
+		end
+		UIKit.text(win, f.name, UDim2.fromOffset(46, 10), UDim2.fromOffset(23, y + 5), { color = UIKit.color("text"), z = 28, name = "Who_" .. f.key })
+		local x = 70
+		for _, d in row.list do
+			local label = string.format("%s %d", d.name, d.cost)
+			local bw = UIKit.buttonWidth(label, 4)
+			if x + bw > ww - 4 then
+				-- (no room left on the row: the rest wait for a wider screen)
+				break
+			end
+			local ok = sp + 1e-6 >= d.cost and (d.target == "none" or #candidates(d.target) > 0)
+			local b = UIKit.button(win, label, UDim2.fromOffset(bw, 15), UDim2.fromOffset(x, y + 2), function()
+				chooseSkill(f.key, d.id)
+			end, { name = "Skill_" .. f.key .. "_" .. d.id, color = if ok then UIKit.color("screen_on") else nil, enabled = ok })
+			b.ZIndex = 28
+			x += bw + 3
+		end
+	end
 end
 
 ------------------------------------------------------------------ playback
@@ -813,6 +1251,7 @@ local function flashActor(a: Actor)
 	end
 end
 
+local playingSkill = false -- the events playing are a learnt skill's (named once, by its "skill" event)
 local function playEvent(ev: { [string]: any })
 	local st = stage
 	if st == nil then
@@ -822,8 +1261,9 @@ local function playEvent(ev: { [string]: any })
 	if t == "hit" then
 		local by, to = actors[ev.by], actors[ev.to]
 		local skill = ev.skill
-		local kind = if skill == "bash" then "bash" elseif skill == "quick" then "quick" elseif skill == "zap" then "zap" else "attack"
-		if skill then
+		local kind = Battle.moveOf(skill)
+		if skill and Skills.byId[skill] == nil then
+			-- an auto skill names itself (a learnt one was named by its "skill" event)
 			floatOver(ev.by, (Creatures.skills[skill] or skill) .. "!", UIKit.color("accent"))
 			Audio.play("combo")
 		end
@@ -920,7 +1360,9 @@ local function playEvent(ev: { [string]: any })
 		at(MOVES[kind] - 0.15)
 	elseif t == "heal" then
 		local by, to = actors[ev.by], actors[ev.to]
-		floatOver(ev.by, "Soothe!", UIKit.color("good"))
+		if not playingSkill then
+			floatOver(ev.by, "Soothe!", UIKit.color("good"))
+		end
 		if by then
 			startMove(by, "cast")
 			st.puff(actorAt(by) + Vector3.new(0, 1.2, 0), "twinkle", 4)
@@ -940,7 +1382,9 @@ local function playEvent(ev: { [string]: any })
 		Audio.play("heal")
 	elseif t == "shield" then
 		local by = actors[ev.by]
-		floatOver(ev.by, "Shell Guard!", UIKit.color("accent"))
+		if not playingSkill then
+			floatOver(ev.by, "Shell Guard!", UIKit.color("accent"))
+		end
 		if by then
 			startMove(by, "cast")
 		end
@@ -959,7 +1403,9 @@ local function playEvent(ev: { [string]: any })
 		if by then
 			startMove(by, "cast")
 		end
-		floatOver(ev.by, "Rally!", UIKit.color("accent"))
+		if not playingSkill then
+			floatOver(ev.by, "Rally!", UIKit.color("accent"))
+		end
 		for _, a in actors do
 			if by and a.foe == by.foe and not a.ko and a ~= by then
 				startMove(a, "happy")
@@ -967,22 +1413,56 @@ local function playEvent(ev: { [string]: any })
 		end
 		Audio.play("poof")
 		Audio.play("cheer")
-	elseif t == "guard" then
+	elseif t == "skill" then
+		-- a learnt skill: its name over the one using it, a flourish
+		local by = actors[ev.by]
+		local d = Skills.byId[ev.id]
+		floatOver(ev.by, (if d then d.name else "Skill") .. "!", UIKit.color("screen_on"))
+		if by then
+			startMove(by, "cast")
+			st.puff(actorAt(by) + Vector3.new(0, 1.4, 0), "spark", 6)
+		end
+		Audio.play("combo")
+	elseif t == "revive" then
+		local by, to = actors[ev.by], actors[ev.to]
+		if by then
+			startMove(by, "cast")
+		end
+		task.wait(0.3)
+		if to then
+			to.ko = false
+			startMove(to, "happy")
+			st.puff(actorAt(to) + Vector3.new(0, 1, 0), "heal", 12)
+			st.puff(actorAt(to) + Vector3.new(0, 1.6, 0), "twinkle", 6)
+		end
+		setBar(ev.to, tonumber(ev.amt) or 1)
+		floatOver(ev.to, "Back up!", UIKit.color("good"))
+		Audio.play("heal", { pitch = 1.2 })
+	elseif t == "haste" then
 		for _, a in actors do
 			if not a.foe and not a.ko then
-				startMove(a, "guard")
-				st.puff(actorAt(a) + Vector3.new(1, 1, 0), "twinkle", 3)
+				startMove(a, "happy")
+				st.puff(actorAt(a) + Vector3.new(0, 0.3, 0), "dust", 5)
 			end
 		end
-		say("The party guards!", UIKit.color("accent"), 1)
-		Audio.play("shield", { pitch = 0.9 })
+		say("The party springs into action!", UIKit.color("screen_on"), 1.2)
+		Audio.play("whoosh", { pitch = 1.3 })
+	elseif t == "dizzy" then
+		for _, a in actors do
+			if a.foe and not a.ko then
+				startMove(a, "stumble")
+				st.puff(actorAt(a) + Vector3.new(0, 2, 0), "twinkle", 4)
+			end
+		end
+		say("The wild ones are dizzy!", UIKit.color("screen_on"), 1.2)
+		Audio.play("poof")
 	elseif t == "treat" then
 		local to = actors[ev.to]
 		local f = actors.f
 		if f then
 			startMove(f, "throw")
 		end
-		floatOver("f", "Here, a treat!", UIKit.color("text"))
+		floatOver("f", "Here, a snack!", UIKit.color("text"))
 		Audio.play("whoosh", { pitch = 1.3 })
 		task.wait(0.3)
 		if f and to then
@@ -1133,15 +1613,25 @@ end
 
 playRound = function(data: { [string]: any })
 	local events = if type(data.events) == "table" then data.events else {}
+	playingSkill = type(events[1]) == "table" and events[1].t == "skill"
 	for _, ev in events do
 		if type(ev) == "table" and isOpen then
 			playEvent(ev)
 		end
 	end
+	playingSkill = false
 	if not isOpen then
 		return
 	end
 	local result = data.result
+	if result then
+		-- the battle is over: the view's numbers (on their way) take over from the shown ones
+		table.clear(shownHp)
+		table.clear(gaugeG)
+		if aim or skillMenu then
+			endAim(false)
+		end
+	end
 	local st = stage
 	if result == "win" then
 		-- (no sound for a won fight: the party's jump for joy and the small alert say it)
@@ -1162,6 +1652,13 @@ playRound = function(data: { [string]: any })
 		if type(data.ups) == "table" then
 			for key, n in data.ups do
 				table.insert(lines, { text = string.format("%s grew %d level%s!", nameOf(key), n, if n == 1 then "" else "s"), color = UIKit.color("accent") })
+				-- a skill learnt on the way up (Data/Skills)
+				local f = fighterOf(key)
+				if f and type(n) == "number" then
+					for _, d in Skills.learnt(Skills.lineOf(f.kind, f.skill), f.lvl, f.lvl + n) do
+						table.insert(lines, { text = string.format("%s learnt %s!", nameOf(key), d.name), color = UIKit.color("screen_on") })
+					end
+				end
 			end
 		end
 		local icon: string? = nil
@@ -1244,7 +1741,22 @@ playNode = function(data: { [string]: any })
 	elseif kind == "boss" then
 		say((if isle then (isle :: Types.Isle).bossName else "The guardian") .. " blocks the way!", UIKit.color("bad"), 2.4)
 	end
-	target = nil
+	if kind == "wild" or kind == "boss" then
+		-- a battle: paused till its wild ones have landed, then it runs (the timers start where the server put them)
+		table.clear(shownHp)
+		table.clear(gaugeG)
+		if type(data.foes) == "table" then
+			for _, f in data.foes do
+				if type(f) == "table" and type(f.key) == "string" then
+					gaugeG[f.key] = tonumber(f.gauge) or 0
+				end
+			end
+		end
+		spNow = 0
+		gaugePaused = true
+		gaugeAt = os.clock()
+		runAt = os.clock() + (if kind == "boss" then 2.2 else 1.4)
+	end
 end
 
 goHome = function()
@@ -1295,7 +1807,7 @@ refresh = function()
 	end
 	-- everything but the curtain, a results card and the narration is laid out again
 	for _, c in r:GetChildren() do
-		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and not c:IsA("TextLabel") then
+		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and not c:IsA("TextLabel") then
 			c:Destroy()
 		end
 	end
@@ -1305,6 +1817,9 @@ refresh = function()
 	if stage then
 		buildParty(e)
 		buildFoes(e)
+	end
+	if e.battle == nil then
+		snacksLeft = e.snacks or 0
 	end
 	table.clear(bars)
 	local w, h = canvasSize()
@@ -1354,64 +1869,59 @@ refresh = function()
 		local col, rowI = (i - 1) % 2, (i - 1) // 2
 		fighterCard(foot, f, 4 + col * (cw + 3), 2 + rowI * 20, cw, false)
 	end
-	-- the foes down the right, under the header
+	-- the foes down the right, under the header (those still in the battle)
 	local b = e.battle
 	if b then
-		-- the treat's target: only a wild one still standing
-		local ok = false
-		for _, f in b.foes do
-			if f.key == target and f.hp > 0 then
-				ok = true
-			end
-		end
-		if not ok then
-			target = nil
-		end
-		local alive = 0
-		for _, f in b.foes do
-			if f.hp > 0 then
-				alive += 1
-				fighterCard(r, f, w - 86, top + HEAD_H + 2 + (alive - 1) * 20, 82, true)
-			end
+		local n = 0
+		for _, f in foesLeft() do
+			n += 1
+			fighterCard(r, f, w - 86, top + HEAD_H + 2 + (n - 1) * 20, 82, true)
 		end
 	end
 	-- the buttons
 	local bx = w - 104
-	if not e.over then
-		local ax = bx - 74
-		button(foot, if autoBattle then "Auto: on" else "Auto: off", ax, 4, 70, if autoBattle then UIKit.color("good") else UIKit.color("plate_light"), true, function()
-			autoBattle = not autoBattle
-			Audio.play(if autoBattle then "ding" else "click")
-			refresh()
-		end, "AutoBattle")
+	local ax = bx - 74
+	if e.over then
+		button(foot, "Sail home", bx, 13, 100, UIKit.color("button_ok"), true, goHome, "SailHome")
+	elseif b and aim then
+		-- aiming: whom at, then go (or back to the battle)
+		local a = aim :: Aim
+		local d = if a.skill then Skills.byId[a.skill :: string] else nil
+		local what = if d then d.name else "Snack"
+		local whoName = if bars[a.who] then bars[a.who].name else "You"
+		local hint = if a.side == "foe" then "tap a wild one" elseif a.side == "down" then "tap one who is down" else "tap a member"
+		UIKit.text(foot, string.format("%s: %s", what, whoName), UDim2.fromOffset(160, 10), UDim2.fromOffset(ax - 90, 5), { color = UIKit.color("accent"), z = 11, name = "AimWhat" })
+		UIKit.text(foot, hint .. " (arrows to switch)", UDim2.fromOffset(160, 10), UDim2.fromOffset(ax - 90, 24), { color = UIKit.color("text_dim"), z = 11, name = "AimHint" })
+		button(foot, if a.kind == "snack" then "Throw!" else "Use!", bx, 4, 100, UIKit.color("button_ok"), a.target ~= nil, function()
+			task.spawn(useAim)
+		end, "Aim_use")
+		button(foot, "Back", bx, 22, 100, UIKit.color("plate_light"), true, function()
+			endAim(true)
+		end, "Aim_back")
+	elseif b then
+		-- the battle runs by itself: a snack (a few a trip), the skill window, or run
+		local snackOk = not b.boss and snacksLeft > 0
+		button(foot, string.format("Snack x%d", snacksLeft), ax, 4, 70, UIKit.color("pink"), snackOk, startSnack, "Act_snack")
+		button(foot, "Flee", ax, 22, 70, UIKit.color("button_warn"), not b.boss, function()
+			task.spawn(flee)
+		end, "Act_flee")
+		button(foot, "Skills", bx, 4, 100, UIKit.color("screen_on"), true, openSkills, "Act_skills")
+		-- the skill points charging (the frame loop fills it)
+		local spf = UIKit.plate(foot, UDim2.fromOffset(100, 15), UDim2.fromOffset(bx, 22), UIKit.color("plate_light"), 0, 2)
+		spf.Name = "SpBar"
+		spf.ZIndex = 11
+		local fill = UIKit.rect(spf, UDim2.fromOffset(0, 3), UDim2.fromOffset(2, 10), UIKit.color("screen_on"), 12)
+		fill.Name = "Fill"
+		UIKit.text(spf, "", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 13, name = "Label" })
+		if skillMenu then
+			skillWindow(r, e)
+		end
+	else
 		button(foot, if autoSafe then "Stop if losing" else "Never stop", ax, 22, 70, if autoSafe then UIKit.color("accent") else UIKit.color("plate_light"), true, function()
 			autoSafe = not autoSafe
 			Audio.play("click")
 			refresh()
 		end, "AutoSafe")
-	end
-	if e.over then
-		button(foot, "Sail home", bx, 13, 100, UIKit.color("button_ok"), true, goHome, "SailHome")
-	elseif b then
-		local treatOk = not b.boss
-		button(foot, "Fight", bx, 4, 49, UIKit.color("button_ok"), true, function()
-			doAct("fight")
-		end, "Act_fight")
-		button(foot, "Guard", bx + 51, 4, 49, nil, true, function()
-			doAct("guard")
-		end, "Act_guard")
-		button(foot, "Treat", bx, 22, 49, UIKit.color("accent"), treatOk, function()
-			doAct("treat")
-		end, "Act_treat")
-		button(foot, "Flee", bx + 51, 22, 49, UIKit.color("button_warn"), not b.boss, function()
-			doAct("flee")
-		end, "Act_flee")
-		if treatOk then
-			local tname = if target and bars[target] then bars[target].name else "the most hurt one"
-			local hx = 4 + 2 * (cw + 3)
-			UIKit.text(foot, string.format("Treat (%d food): %s", Tuning.TreatFood, tname), UDim2.fromOffset(math.max(10, bx - 76 - hx - 2), 9), UDim2.fromOffset(hx, 32), { color = UIKit.color("text_dim"), z = 11, name = "TreatHint" })
-		end
-	else
 		-- between stops the party walks on by itself: a bar fills toward the next stop (Space or a tap on it: at once)
 		local plate = Instance.new("TextButton")
 		plate.Name = "AutoGo"
@@ -1476,7 +1986,33 @@ function ExpeditionUI.open()
 	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 }, e.isle.seed)
 	actors = {}
 	foeKey = ""
-	target = nil
+	-- the timers over the heads have their own layer (the layout's rebuilds leave it)
+	local timers = Instance.new("Frame")
+	timers.Name = "Timers"
+	timers.BackgroundTransparency = 1
+	timers.Size = UDim2.fromScale(1, 1)
+	timers.ZIndex = 20
+	timers.Parent = r
+	table.clear(timerBars)
+	table.clear(shownHp)
+	table.clear(gaugeG)
+	table.clear(playQueue)
+	aim, skillMenu = nil, false
+	snacksLeft = e.snacks or 0
+	runAt = nil
+	gaugePaused = true
+	gaugeAt = os.clock()
+	local b0 = e.battle
+	if b0 then
+		-- back to a battle under way (paused while the screen was closed): it runs again once the curtain lifts
+		for _, list in { e.party, b0.foes } :: { { Types.Fighter } } do
+			for _, f in list do
+				gaugeG[f.key] = f.gauge or 0
+			end
+		end
+		spNow = b0.sp or 0
+		runAt = os.clock() + 0.8
+	end
 	lifted = false
 	liftDelay = 0
 	opened = os.clock()
@@ -1578,7 +2114,6 @@ function ExpeditionUI.open()
 				local risk = if autoSafe and cur then Expedition.risk(cur) else nil
 				if risk and risk.danger then
 					-- the safety stop: the party is likely to lose the next fight; it waits for the player
-					autoBattle = false
 					idleSince = math.huge
 					say("The party is hurt: the next fight looks lost. Sail home, or tap to go on.", UIKit.color("bad"), 4)
 					Audio.play("deny")
@@ -1590,24 +2125,50 @@ function ExpeditionUI.open()
 		else
 			idleSince = nil
 		end
-		-- the auto battle: Fight every round, unless the fight looks lost (the safety stop)
-		local fighting = autoBattle and lifted and not busy and not closing and cur ~= nil and cur.battle ~= nil and cur.over == nil
-		if fighting then
-			fightIdle = fightIdle or now
-			if now - (fightIdle :: number) >= AUTO_FIGHT then
-				fightIdle = nil
-				local risk = if autoSafe and cur then Expedition.risk(cur) else nil
-				if risk and risk.danger then
-					autoBattle = false
-					say("Auto battle stopped: the party is likely to lose this fight.", UIKit.color("bad"), 4)
-					Audio.play("deny")
-					refresh()
-				else
-					task.spawn(doAct, "fight")
+		-- the timed battle: the timers over the heads, the aim on the floor, the skill points' bar, and a new battle
+		-- set running once its wild ones have landed
+		updateTimers()
+		updateAim()
+		local spf = if root then (root :: Frame):FindFirstChild("SpBar", true) else nil
+		if spf then
+			local sp = spOf()
+			local fill = spf:FindFirstChild("Fill")
+			if fill and fill:IsA("Frame") then
+				fill.Size = UDim2.fromOffset(math.floor(96 * sp / Tuning.SpMax), 3)
+			end
+			local label = spf:FindFirstChild("Label")
+			if label and label:IsA("TextLabel") then
+				local txt = string.format("SP %d/%d", math.floor(sp), Tuning.SpMax)
+				if label:GetAttribute("Source") ~= txt then
+					label:SetAttribute("Source", txt)
+					UIKit.setText(label, txt)
 				end
 			end
-		else
-			fightIdle = nil
+		end
+		local ra = runAt
+		if ra and now >= ra and lifted and not closing and aim == nil and not skillMenu then
+			runAt = nil
+			if cur and cur.battle and not cur.over then
+				setPaused(false)
+			end
+		end
+		-- the pick left the battle (beaten, befriended, back up): the next one
+		local am = aim
+		if am and am.side ~= "none" then
+			local still = false
+			for _, f in candidates(am.side) do
+				if f.key == am.target then
+					still = true
+				end
+			end
+			if not still then
+				am.target = firstPick(am.side)
+				if am.target == nil then
+					endAim(true)
+				else
+					refresh()
+				end
+			end
 		end
 	end)
 	keys = UserInputService.InputBegan:Connect(function(input, processed)
@@ -1620,14 +2181,25 @@ function ExpeditionUI.open()
 		end
 		local k = input.KeyCode
 		if cur.battle then
-			if k == Enum.KeyCode.Space or k == Enum.KeyCode.Return or k == Enum.KeyCode.One then
-				task.spawn(doAct, "fight")
-			elseif k == Enum.KeyCode.Two then
-				task.spawn(doAct, "guard")
-			elseif k == Enum.KeyCode.Three then
-				task.spawn(doAct, "treat")
-			elseif k == Enum.KeyCode.Four then
-				task.spawn(doAct, "flee")
+			if aim then
+				-- aiming: arrows switch the pick, Space / Return go, Escape / Backspace back
+				if k == Enum.KeyCode.Left or k == Enum.KeyCode.Right or k == Enum.KeyCode.Up or k == Enum.KeyCode.Down or k == Enum.KeyCode.Tab then
+					pickTarget(nil)
+				elseif k == Enum.KeyCode.Space or k == Enum.KeyCode.Return then
+					task.spawn(useAim)
+				elseif k == Enum.KeyCode.Escape or k == Enum.KeyCode.Backspace then
+					endAim(true)
+				end
+			elseif skillMenu then
+				if k == Enum.KeyCode.Escape or k == Enum.KeyCode.Backspace then
+					endAim(true)
+				end
+			elseif k == Enum.KeyCode.One or k == Enum.KeyCode.S then
+				startSnack()
+			elseif k == Enum.KeyCode.Two or k == Enum.KeyCode.K then
+				openSkills()
+			elseif k == Enum.KeyCode.Three or k == Enum.KeyCode.F then
+				task.spawn(flee)
 			end
 		elseif not cur.over and (k == Enum.KeyCode.Space or k == Enum.KeyCode.Return) then
 			task.spawn(goOn)
@@ -1642,6 +2214,14 @@ end
 function ExpeditionUI.close(after: (() -> ())?)
 	if not isOpen or closing then
 		return
+	end
+	-- a battle under way waits while the screen is closed
+	local cur = exp()
+	if cur and cur.battle and not cur.over then
+		aim, skillMenu = nil, false
+		DayLight.hold(nil)
+		runAt = nil
+		setPaused(true)
 	end
 	local r = root
 	if r == nil then
@@ -1686,6 +2266,10 @@ closeNow = function()
 	end
 	isOpen = false
 	idleSince, autoFill = nil, nil
+	aim, skillMenu, aimMark, aimPointer, runAt = nil, false, nil, nil, nil
+	DayLight.hold(nil)
+	table.clear(timerBars)
+	table.clear(playQueue)
 	if beat then
 		beat:Disconnect()
 		beat = nil
@@ -1720,8 +2304,44 @@ function ExpeditionUI.sail(keys: { string }, isleNow: Types.Isle?)
 	end)
 end
 
+-- The battle's messages (the server runs it): its actions play back one after another, the timers sync.
+local function enqueue(data: { [string]: any })
+	table.insert(playQueue, data)
+	if pumping then
+		return
+	end
+	pumping = true
+	task.spawn(function()
+		while #playQueue > 0 do
+			local d = table.remove(playQueue, 1)
+			if isOpen and d then
+				playRound(d)
+			end
+		end
+		pumping = false
+		if isOpen then
+			refresh()
+		end
+	end)
+end
+
 function ExpeditionUI.init()
 	Voyage.init()
+	StateClient.Fx:Connect(function(msg: any)
+		if type(msg) ~= "table" or msg.kind ~= "exp" or not isOpen then
+			return
+		end
+		local data = msg.data
+		if type(data) ~= "table" then
+			return
+		end
+		if msg.step == "act" then
+			takeGauges(data)
+			enqueue(data)
+		elseif msg.step == "timers" then
+			takeGauges(data)
+		end
+	end)
 	-- the view changed (the round's numbers settled, the expedition ended elsewhere): lay out again
 	StateClient.Changed:Connect(function(v: Types.ClientView)
 		if not isOpen then
@@ -1752,7 +2372,35 @@ function ExpeditionUI.debugState(): { [string]: any }
 			aboard += 1
 		end
 	end
-	return { open = isOpen, lifted = lifted, actors = n, busy = busy, node = lastNode, foes = foeKey, ship = ship ~= nil, arrived = ship ~= nil and aboard == 0, auto = autoBattle, safe = autoSafe }
+	local nt = 0
+	for _ in timerBars do
+		nt += 1
+	end
+	return {
+		open = isOpen,
+		lifted = lifted,
+		actors = n,
+		busy = busy,
+		node = lastNode,
+		foes = foeKey,
+		ship = ship ~= nil,
+		arrived = ship ~= nil and aboard == 0,
+		safe = autoSafe,
+		timers = nt,
+		paused = gaugePaused,
+		sp = spOf(),
+		snacks = snacksLeft,
+		aim = if aim then (aim :: Aim).kind else nil,
+		aimWho = if aim then (aim :: Aim).who else nil,
+		aimTarget = if aim then (aim :: Aim).target else nil,
+		marked = aimMark ~= nil,
+		menu = skillMenu,
+		queue = #playQueue,
+		gauge = gaugeOf("f"),
+		g0 = gaugeG.f,
+		lock = gaugeLock,
+		since = os.clock() - gaugeAt,
+	}
 end
 function ExpeditionUI.debugWait(seconds: number?)
 	stageWait = seconds
@@ -1760,8 +2408,35 @@ end
 function ExpeditionUI.debugGo()
 	goOn()
 end
-function ExpeditionUI.debugAct(kind: string)
-	doAct(kind)
+-- (the battle's moves as a player makes them: a snack at a wild one, a skill, run; aiming without going)
+function ExpeditionUI.debugSnack(targetKey: string?)
+	startSnack()
+	if aim and targetKey then
+		(aim :: Aim).target = targetKey
+	end
+	useAim()
+end
+function ExpeditionUI.debugSkill(who: string, id: string, targetKey: string?)
+	openSkills()
+	chooseSkill(who, id)
+	if aim then
+		if targetKey then
+			(aim :: Aim).target = targetKey
+		end
+		useAim()
+	end
+end
+function ExpeditionUI.debugFlee()
+	flee()
+end
+function ExpeditionUI.debugAim(kind: string)
+	if kind == "snack" then
+		startSnack()
+	elseif kind == "skills" then
+		openSkills()
+	else
+		endAim(true)
+	end
 end
 function ExpeditionUI.debugHome()
 	goHome()

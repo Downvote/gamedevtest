@@ -16,7 +16,7 @@
 -- The island's layers are whole-stud cells merged into as few boxes as they make (greedy rectangles), each layer a
 -- little lower than the one inside it, so the coast steps down to the sea. The sea, the shallows and the foam carry a
 -- "PixelWater" attribute (1, 2, 3): the pixel filter animates them. Walls are invisible and never queried (the
--- renderer's rays pass through), 8 studs high: higher than a jump.
+-- renderer's rays pass through), 40 studs high: far higher than a jump (nobody hops the coast onto the sea).
 local Street = require(script.Parent.Parent.Data.Street)
 local Util = require(script.Parent.Parent.Logic.Util)
 local Types = require(script.Parent.Parent.Types)
@@ -26,7 +26,7 @@ local BoatSpec = require(script.Parent.BoatSpec)
 local StreetModels = {}
 
 local BOARD_Y = -0.3
-local WALL_H = 8
+local WALL_H = 40 -- far over a jump (Tuning.JumpHeight): nobody hops the coast onto the sea
 
 type Rect = Street.Rect
 type Rng = Types.Rng

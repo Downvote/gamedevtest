@@ -15,14 +15,17 @@ local function fresh(): any
 	return p
 end
 
--- Fight every battle to its end; returns the last result.
-local function fightOut(p: any, e: any, rng: any, act: string?): string?
+-- Let the battle run to its end (half a second a step); returns the last result.
+local function fightOut(p: any, e: any, rng: any): string?
 	local result = nil
 	local guard = 0
-	while e.battle and guard < 60 do
+	while e.battle and guard < 2000 do
 		guard += 1
-		local _, data = Expedition.act(p, e, act or "fight", "", rng)
-		result = data.result
+		e.battle.paused = false
+		local out = Expedition.tick(p, e, 0.5, rng)
+		if out and out.result then
+			result = out.result
+		end
 	end
 	return result
 end
@@ -139,34 +142,37 @@ return function()
 		T.eq(p.shells, shells + got.shells)
 		T.eq(got.shells, e.loot.shells)
 	end)
-	T.it("befriending: a treat costs food and needs a nest; the friend joins the island", function()
+	T.it("befriending: a snack is one of the trip's few and needs a nest; the friend joins the island", function()
 		local p = fresh()
 		p.cap.lvl = 6
 		local _, e = Expedition.start(p, Expedition.chart(1, 3), {})
+		T.eq(e.snacks, Tuning.SnackBase, "five snacks a trip with the first pouch")
 		local rng = Util.newRng(4)
 		while e.battle == nil do
 			Expedition.next(p, e, rng)
 		end
-		T.eq(select(2, Expedition.act(p, e, "treat", "w1", rng)), "no_room")
+		T.eq(select(2, Expedition.snack(p, e, "w1", rng)), "no_room")
 		table.insert(p.plot.placed, { uid = 900, id = "nest", x = 0, z = 0, rot = 0 })
 		local food = p.food
 		local joined = nil
-		for _ = 1, 30 do
-			if e.battle == nil then
-				break
-			end
+		local thrown = 0
+		while e.battle and e.snacks > 0 do
 			local target = nil
 			for _, f in e.battle.foes do
 				if f.hp > 0 then
+					f.hp = 1 -- (worn out: the snack likelier caught)
 					target = f.key
 				end
 			end
-			local _, data = Expedition.act(p, e, "treat", target, rng)
+			local ok, data = Expedition.snack(p, e, target, rng)
+			T.truthy(ok)
+			thrown += 1
 			if data.friend then
 				joined = data.friend
 			end
 		end
-		T.truthy(p.food < food, "treats eaten")
+		T.eq(p.food, food, "snacks cost no food")
+		T.truthy(thrown <= Tuning.SnackBase)
 		T.truthy(joined ~= nil, "a driftling joined")
 		if joined then
 			T.eq(p.pals[#p.pals].sp, joined.sp)
@@ -174,6 +180,65 @@ return function()
 			T.eq(p.stats.befriended, #p.pals)
 			T.eq(e.befriended[#e.befriended], joined.sp)
 		end
+		-- none left: refused
+		e.snacks = 0
+		while e.battle == nil do
+			Expedition.next(p, e, rng)
+		end
+		if not e.battle.boss then
+			T.eq(select(2, Expedition.snack(p, e, "w1", rng)), "no_snacks")
+		end
+	end)
+	T.it("the snack pouch: 5 snacks a trip, 30 at its biggest; each level paid in shells and wood", function()
+		local p = fresh()
+		T.eq(p.pouch, 1)
+		T.eq(Expedition.snacksFor(p), 5)
+		p.shells, p.wood = 0, 0
+		T.eq(select(2, Expedition.upgradePouch(p)), "money")
+		p.shells, p.wood = 1e6, 1e6
+		for lvl = 2, #Tuning.PouchCost do
+			local shells = p.shells
+			local ok, data = Expedition.upgradePouch(p)
+			T.truthy(ok)
+			T.eq(data.pouch, lvl)
+			T.eq(p.shells, shells - Tuning.PouchCost[lvl].shells)
+		end
+		T.eq(Expedition.snacksFor(p), 30)
+		T.eq(select(2, Expedition.upgradePouch(p)), "max")
+		local _, e = Expedition.start(p, Expedition.chart(1, 3), {})
+		T.eq(e.snacks, 30)
+	end)
+	T.it("a battle starts paused; pause and run; skills and fleeing go through the expedition", function()
+		local p = fresh()
+		p.cap.lvl = 6
+		local _, e = Expedition.start(p, Expedition.chart(1, 5), {})
+		local rng = Util.newRng(6)
+		while e.battle == nil do
+			Expedition.next(p, e, rng)
+		end
+		T.truthy(e.battle.paused)
+		T.eq(Expedition.tick(p, e, 5, rng), nil, "paused: nothing happens")
+		local ok, g = Expedition.pause(e, false)
+		T.truthy(ok and not g.paused and type(g.g) == "table")
+		local seen = false
+		for _ = 1, 40 do
+			local out = Expedition.tick(p, e, 0.5, rng)
+			if out then
+				seen = true
+				T.truthy(type(out.events) == "table")
+				break
+			end
+		end
+		T.truthy(seen, "it runs")
+		if e.battle then
+			e.battle.sp = 10
+			local ok2 = Expedition.skill(p, e, "f", "cry", nil, rng)
+			T.truthy(ok2, "the leader's Rally Cry")
+			if not e.battle.boss then
+				T.truthy((Expedition.flee(p, e, rng)), "a run (whether it gets away or not)")
+			end
+		end
+		T.eq(select(2, Expedition.pause({ over = "home" } :: any, true)), "no_exp")
 	end)
 	T.it("losing: the expedition ends, half the loot comes home", function()
 		local p = fresh()
@@ -247,7 +312,7 @@ return function()
 		Expedition.next(p, e, rng)
 		T.truthy(e.battle ~= nil and Expedition.risk(e) ~= nil, "the fight under way")
 	end)
-	T.it("no fleeing a guardian, no treats for it", function()
+	T.it("no fleeing a guardian, no snacks for it", function()
 		local p = fresh()
 		p.cap.lvl = 30
 		local _, e = Expedition.start(p, Expedition.chart(1, 21), {})
@@ -259,7 +324,7 @@ return function()
 		Expedition.next(p, e, rng)
 		T.truthy(e.battle and e.battle.boss)
 		T.eq(e.battle.foes[1].name, e.isle.bossName)
-		T.eq(select(2, Expedition.act(p, e, "flee", "", rng)), "blocked")
-		T.eq(select(2, Expedition.act(p, e, "treat", "w1", rng)), "blocked")
+		T.eq(select(2, Expedition.flee(p, e, rng)), "blocked")
+		T.eq(select(2, Expedition.snack(p, e, "w1", rng)), "blocked")
 	end)
 end

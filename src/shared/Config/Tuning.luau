@@ -52,10 +52,23 @@ local Tuning = {
 	TrainXp = 2, -- xp a day for each villager or driftling resting at a Training Yard
 	PartyMax = 3, -- members beside the captain
 	Supplies = 4, -- food each member takes on an expedition
-	TreatFood = 3, -- food a treat costs in battle
 	SkillEvery = 3, -- a fighter's skill fires every this many actions
-	GuardTake = 0.5, -- damage taken while guarding
-	ShieldTake = 0.6, -- damage taken under a Shell Guard skill
+	ShieldTake = 0.6, -- damage taken under a Shell Guard skill ...
+	ShieldSecs = 6, -- ... for this many seconds
+	-- timed battles (GAME_DESIGN 7; Logic/Battle): a fighter's timer fills in AtbTime x 2 x AtbRef / (AtbRef + speed)
+	-- seconds (AtbTime at speed AtbRef), within AtbMin .. AtbMax; an action holds every timer ActLock seconds (times
+	-- its kind's: Battle.LOCK) while it plays
+	AtbTime = 2.8,
+	AtbRef = 10,
+	AtbMin = 1.2,
+	AtbMax = 6,
+	ActLock = 0.85,
+	-- the party's skill points in a battle (Data/Skills): this many a second while it runs, up to SpMax
+	SpRate = 0.5,
+	SpMax = 10,
+	-- snacks (thrown at wild ones to befriend them): SnackBase an expedition a pouch level; the pouch's levels' prices
+	SnackBase = 5,
+	PouchCost = { { shells = 0, wood = 0 }, { shells = 400, wood = 40 }, { shells = 1200, wood = 120 }, { shells = 3500, wood = 350 }, { shells = 9000, wood = 900 }, { shells = 20000, wood = 2000 } },
 	FleeBase = 0.55,
 	BossBoost = 1.7, -- a guardian's stats times this
 	RestHeal = 0.5,

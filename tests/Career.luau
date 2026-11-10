@@ -3,8 +3,10 @@
 -- they build what the island lacks most (a bed when the village is full, food when it runs short, a nest for a new
 -- friend, wood, a shop for every three villagers, decor with spare shells), expand the island when they can, and
 -- every couple of minutes sail on an expedition with the captain and the three strongest to an island at the
--- captain's level, or lower while the party looks too weak for its guardian or after defeats (the slider). In battle they treat a hurt wild one while a nest is
--- free, flee when the party is nearly beaten, and fight otherwise; a node takes NodeSec and a round RoundSec.
+-- captain's level, or lower while the party looks too weak for its guardian or after defeats (the slider). Battles run
+-- in time (Expedition.tick, a second at a time); in one they throw a snack at a hurt wild one while a nest is free,
+-- use a skill when the points cover one (a mend for the most hurt member, else the first that strikes), and flee when
+-- the party is nearly beaten; a node takes NodeSec.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Island = require("../build/luautest/shared/Logic/Island")
@@ -14,11 +16,11 @@ local Chart = require("../build/luautest/shared/Logic/Chart")
 local Buildings = require("../build/luautest/shared/Data/Buildings")
 local Street = require("../build/luautest/shared/Data/Street")
 local Util = require("../build/luautest/shared/Logic/Util")
+local Skills = require("../build/luautest/shared/Data/Skills")
 
 local Career = {}
 
 local NODE_SEC = 4
-local ROUND_SEC = 3
 
 export type Opts = { log: ((string) -> ())?, skill: number? }
 
@@ -293,22 +295,61 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 				nextTrip = t + 90
 			elseif e.battle then
 				local b = e.battle
-				local act, target = "fight", ""
+				b.paused = false
 				local hp, max = 0, 0
 				for _, f in e.party do
 					hp += f.hp
 					max += f.maxHp
 				end
+				local data: any = nil
 				if not b.boss and hp < max * 0.25 then
-					act = "flee"
-				elseif not b.boss and Expedition.room(p) and p.food >= Tuning.TreatFood + 10 then
+					local _, d = Expedition.flee(p, e, rng)
+					data = d
+				elseif not b.boss and Expedition.room(p) and e.snacks > 0 and rng:chance(0.3) then
 					for _, f in b.foes do
 						if f.hp > 0 and f.hp < f.maxHp * 0.5 then
-							act, target = "treat", f.key
+							local _, d = Expedition.snack(p, e, f.key, rng)
+							data = d
+							break
 						end
 					end
 				end
-				local _, data = Expedition.act(p, e, act, target, rng)
+				if data == nil and b.sp >= 3 then
+					-- a skill the points cover: a mend for the most hurt, else the first that strikes
+					local hurt: any = nil
+					for _, f in e.party do
+						if f.hp > 0 and (hurt == nil or f.hp / f.maxHp < hurt.hp / hurt.maxHp) then
+							hurt = f
+						end
+					end
+					for _, f in e.party do
+						if f.hp > 0 and data == nil then
+							for _, d in Skills.known(Skills.lineOf(f.kind, f.skill), f.lvl) do
+								if d.cost <= b.sp and data == nil then
+									local tgt: string? = nil
+									if d.target == "ally" and hurt and hurt.hp < hurt.maxHp * 0.6 then
+										tgt = hurt.key
+									elseif d.target == "foe" then
+										for _, w in b.foes do
+											if w.hp > 0 then
+												tgt = w.key
+											end
+										end
+									end
+									if d.target == "none" or tgt then
+										local ok, out = Expedition.skill(p, e, f.key, d.id, tgt, rng)
+										if ok then
+											data = out
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+				if e.battle then
+					data = Expedition.tick(p, e, 1, rng) or data
+				end
 				if data and data.friend then
 					mark("driftling", t)
 				end
@@ -316,7 +357,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 				if data and data.reward then
 					e.over = "won"
 				end
-				busyUntil = t + ROUND_SEC
+				busyUntil = t + 1
 			else
 				-- heading home early when hurt
 				local hp, max = 0, 0

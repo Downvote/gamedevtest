@@ -44,6 +44,7 @@ export type Profile = {
 	islets: number, -- islands charted: guardians beaten (each a charm, up to Tuning.ChartCharmMax)
 	sea: number, -- the seed of the player's own sea chart (Logic/Chart)
 	boat: number, -- the boat's level (its range on the chart)
+	pouch: number, -- the snack pouch's level (1 .. #Tuning.PouchCost): Tuning.SnackBase snacks an expedition a level
 	chart: { number }, -- the chart's islands charted (ids)
 	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
 	nextId: number, -- the next villager, driftling or piece id
@@ -54,7 +55,7 @@ export type Profile = {
 }
 
 -- Someone in a battle (Logic/Battle): the founder ("f"), a villager ("v<id>"), a driftling ("p<id>") or a wild one
--- ("w<i>"). `charge` counts the actions to its skill.
+-- ("w<i>"). `charge` counts the actions to its skill; `gauge` is its timer (0 .. 1: full, it acts).
 export type Fighter = {
 	key: string,
 	name: string,
@@ -69,10 +70,13 @@ export type Fighter = {
 	spd: number,
 	skill: string,
 	charge: number,
+	gauge: number,
 }
 
--- A battle in progress: the wild ones, the round, whether it is the islet's guardian.
-export type Battle = { foes: { Fighter }, round: number, boss: boolean, shield: number, foeShield: number }
+-- A battle in progress (GAME_DESIGN 7: timed): the wild ones, the actions so far, whether it is the islet's guardian,
+-- the shields' seconds left, the action playing (`lock`: seconds every timer waits), paused (landing, aiming a snack,
+-- off the screen), its clock, the party's skill points (they charge while it runs: Data/Skills).
+export type Battle = { foes: { Fighter }, acts: number, boss: boolean, shield: number, foeShield: number, lock: number, paused: boolean, clock: number, sp: number }
 
 -- An island found at sea (GAME_DESIGN 7; Logic/Expedition.chart): made from its seed and the level the captain
 -- picked; its kind (Data/Islets), name, the driftlings living there, its guardian, what its loot and chests hold and
@@ -102,6 +106,7 @@ export type Expedition = {
 	loot: { shells: number, food: number, wood: number },
 	battle: Battle?,
 	befriended: { string }, -- species that joined on this trip
+	snacks: number, -- snacks left to throw on this trip (Tuning.SnackBase a pouch level: 5 .. 30)
 	beaten: number?, -- the guardians beaten on this trip (the path never ends: a guardian every Tuning.BossEvery stages)
 	over: string?, -- "home" | "won" | "lost" (set when it ends: "won" only by a player that sails home after a guardian)
 }
@@ -123,6 +128,7 @@ export type ClientView = {
 	islets: number,
 	sea: number,
 	boat: number,
+	pouch: number, -- the snack pouch's level (snacks an expedition: Tuning.SnackBase x it)
 	chart: { number },
 	seen: { [string]: number },
 	tut: number,
@@ -155,6 +161,8 @@ export type ErrCode =
 	| "in_battle"
 	| "not_found"
 	| "far"
+	| "no_snacks"
+	| "sp"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }
 

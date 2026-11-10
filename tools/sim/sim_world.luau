@@ -87,6 +87,14 @@ for k, p in { a, b } do
 	H.expect(fw ~= nil and fw:GetAttribute("PixelWater") == 3, "islands", p.Name .. ": the foam animates (PixelWater)")
 	local bound = land and land:FindFirstChild("Bound", true)
 	H.expect(bound ~= nil and bound.CollisionGroup == "Bounds" and bound.Transparency == 1, "islands", p.Name .. ": invisible coast walls out of the pixel filter's rays")
+	-- (far over a jump: nobody hops the coast onto the sea)
+	local lowest = math.huge
+	for _, d in (land :: Instance):GetDescendants() do
+		if d.Name == "Bound" and d:IsA("BasePart") then
+			lowest = math.min(lowest, d.Position.Y + d.Size.Y / 2)
+		end
+	end
+	H.expect(lowest >= Street.LAWN_Y + Tuning.JumpHeight + 6, "islands", p.Name .. ": every coast wall far higher than a jump", tostring(lowest))
 	local f = prof.founder
 	H.expect(p:GetAttribute("Founder") == string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt) and p:GetAttribute("Plot") == k, "islands", p.Name .. ": Founder and Plot attributes", tostring(p:GetAttribute("Founder")))
 	local sx, sz = Street.spawn()

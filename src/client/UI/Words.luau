@@ -18,6 +18,8 @@ local ERRORS: { [string]: string } = {
 	in_battle = "Finish the battle first.",
 	not_found = "They're not here any more.",
 	far = "Too far for your boat: upgrade it to sail further.",
+	no_snacks = "No snacks left on this trip: a bigger pouch holds more.",
+	sp = "Not enough skill points yet: they charge up as the battle goes on.",
 	rate = "Slow down a little.",
 	not_ready = "One moment: your island is still waking up.",
 }

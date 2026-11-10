@@ -386,6 +386,7 @@ local function seedOfKind(kind, lvl)
 end
 
 -- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 5 reef) at the level it first turns up
+-- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window))
 -- (+1), on its 3D stage. what: "battle" (default: the first battle), "boss" (the guardian), "win" (a battle won: the
 -- results card), "loot" (a stop's narration). The island's seed is the first that charts the kind (a set seed, so
 -- the same layout every run); the expedition is set on the session directly (exp.start makes up its own seed).
@@ -461,26 +462,41 @@ local function expScenario(spec)
 			E.run(0.3)
 		end
 		E.run(2)
+		-- (the battle runs by itself once its wild ones land: the party made sturdy so a frame shows it under way)
+		if s.exp then
+			for _, f in s.exp.party do
+				f.hp, f.maxHp = math.max(f.maxHp, 200), math.max(f.maxHp, 200)
+			end
+		end
 		if what == "win" and s.exp and s.exp.battle then
 			for _, f in s.exp.battle.foes do
 				f.hp = 1
 			end
-			H.inClient(p, EUI.debugAct, "fight")
-			E.run(1.5)
+			E.run(3)
 		elseif what == "fight" and s.exp and s.exp.battle then
-			-- a round frame by frame (exp_<n>_fight_000 ..: make_gif.py makes a GIF): Fight tapped, the wind-ups,
-			-- dashes, strikes, hit-stops and knock-backs of both sides
+			-- the battle frame by frame (exp_<n>_fight_000 ..: make_gif.py makes a GIF): the timers filling over the
+			-- heads, the wind-ups, dashes, strikes, hit-stops and knock-backs of both sides
 			settle(p, 10, 0.5)
-			H.clickNamed(p, "Act_fight", { wait = 0 })
 			for k = 0, 39 do
 				capture(p, string.format("exp_%s_%03d", spec, k))
 				E.run(0.07)
 			end
 			return p
+		elseif (what == "snack" or what == "skills") and s.exp and s.exp.battle then
+			-- aiming a snack (greyed, paused, the leader's ring and arrow toward the pick) or the skill window
+			E.run(2)
+			if s.exp.battle then
+				s.exp.battle.sp = 8
+				for _, f in s.exp.battle.foes do
+					f.hp = math.max(1, math.floor(f.maxHp * 0.4))
+				end
+			end
+			H.push(p, 0.3)
+			H.inClient(p, EUI.debugAim, what)
+			E.run(0.6)
 		elseif s.exp and s.exp.battle then
-			-- a round played: the numbers, the bars
-			H.inClient(p, EUI.debugAct, "fight")
-			E.run(0.3)
+			-- a battle under way: the timers, the numbers, the bars
+			E.run(2.5)
 		end
 	end
 	settle(p, 10, 0.5)

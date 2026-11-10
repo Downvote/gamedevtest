@@ -4,7 +4,7 @@
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
 #   scenario: island | village | island2 | island3 | day | dusk | night | dawn | panel=<folk|pals|explore|index|looks> |
-#             exp=<kind 1-5>[_battle|_boss|_win|_loot] | sea | visit | build | water | voyage | late | all
+#             exp=<kind 1-5>[_battle|_boss|_win|_loot|_fight|_snack|_skills] | sea | visit | build | water | voyage | late | all
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off

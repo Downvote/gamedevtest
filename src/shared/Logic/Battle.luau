@@ -1,15 +1,24 @@
 --!strict
 -- Battles on expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 6): the party (the captain and up to three villagers or
--- driftlings) against one to three wild driftlings, turn by turn. Pure: every random draw comes from the Rng argument.
--- A round: the player picks what the party does ("fight", "guard", "treat" a wild one with food, or "flee"), then
--- everyone acts in speed order (the party first on a tie): a fighter attacks (the party the weakest foe, a foe a
--- random member) or, every Tuning.SkillEvery actions, uses its skill. Guarding takes Tuning.GuardTake of the damage
--- and mends a little; a treat may befriend the wild one (its trust, more the more hurt it is, less the higher its
--- level), which then leaves the battle; a guardian can't be befriended or fled from.
+-- driftlings) against one to three wild driftlings, in time (GAME_DESIGN 7: "the characters have a timer above their
+-- heads ... and will attack or use its skill once a timer is done, and reset the timer"). Pure: every random draw
+-- comes from the Rng argument, time from `step`'s dt.
+--   Each fighter's timer (`gauge`, 0 .. 1) fills in `fillTime(f)` seconds (faster the quicker it is); full, the
+--   fighter acts: attacks (the party the weakest foe, a foe a random member) or, every Tuning.SkillEvery actions, uses
+--   its skill, and its timer starts again. One action at a time: while one plays (`lock`: as long as its events take
+--   on screen, Battle.playTime) nobody else acts, so the screen can show it (the timers fill on meanwhile). A battle
+--   starts `paused` (its foes are still landing) and pauses while the player aims a snack or a skill, or is off the
+--   screen.
+--   The player's moves: a snack (`snack`: the leader's timer starts again and it throws one at a wild one, which
+--   catches it, and joins, as often as its trust says: more the more hurt it is, less the higher its level), a skill
+--   (`useSkill`: one of the party uses a skill it has learnt (Data/Skills), paid in the party's skill points (`sp`,
+--   charging Tuning.SpRate a second while the battle runs, up to Tuning.SpMax); its timer starts again), or `flee`
+--   (a chance by speed; a miss starts the leader's timer again). A guardian takes no snack, and is not fled.
 --   damage = max(1, atk x (0.85 .. 1.15) - def / 2), a skill's times that; stats grow Tuning.LevelGrow a level
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Skills = require(script.Parent.Parent.Data.Skills)
 local Util = require(script.Parent.Util)
 
 type Fighter = Types.Fighter
@@ -21,7 +30,8 @@ local Battle = {}
 export type Base = { hp: number, atk: number, def: number, spd: number, skill: string }
 -- One thing that happened, in order (the client plays them back):
 --   { t = "hit", by, to, dmg, skill?, ko? } { t = "heal", by, to, amt } { t = "shield", by } { t = "rally", by }
---   { t = "guard" } { t = "treat", to, ok } { t = "flee", ok }
+--   { t = "treat", by, to, ok } { t = "flee", ok } and the skills' { t = "skill", by, id } (first, naming it),
+--   { t = "revive", by, to, amt } { t = "haste", by } { t = "dizzy", by } (a skill's strikes are hits with its id)
 export type Event = { [string]: any }
 
 Battle.FOUNDER = { hp = 30, atk = 8, def = 5, spd = 6, skill = "rally" } :: Base
@@ -62,6 +72,7 @@ local function make(key: string, name: string, kind: string, base: Base, lvl: nu
 		spd = Battle.grow(base.spd, lvl),
 		skill = base.skill,
 		charge = 0,
+		gauge = 0,
 	}
 end
 
@@ -91,40 +102,65 @@ function Battle.wild(sp: string, lvl: number, i: number, boss: boolean, name: st
 	return f
 end
 
--- A fight's outlook (the auto battle's safety stop): the rounds the party needs to beat the foes and the rounds the
--- foes need to beat the party, each side hitting with its average blow (atk - def / 2 of the other side, at least 1)
--- every round. `danger`: the party would most likely go down first.
+-- A fight's outlook (the safety stop before walking on to a fight): the seconds the party needs to beat the foes and
+-- the seconds the foes need to beat the party, each fighter landing its average blow (atk - def / 2 of the other
+-- side's average, at least 1) every time its timer fills (`fillTime`). `danger`: the party would most likely go down
+-- first.
 export type Forecast = { win: number, lose: number, danger: boolean }
 function Battle.forecast(party: { Fighter }, foes: { Fighter }): Forecast
-	local function side(list: { Fighter }): (number, number, number, number)
-		local hp, atk, def, n = 0, 0, 0, 0
+	local function standing(list: { Fighter }): { Fighter }
+		local out = {}
 		for _, f in list do
 			if f.hp > 0 and not (f :: any).friend then
-				hp += f.hp
-				atk += f.atk
-				def += f.def
-				n += 1
+				table.insert(out, f)
 			end
 		end
-		return hp, atk, def, n
+		return out
 	end
-	local php, patk, pdef, pn = side(party)
-	local fhp, fatk, fdef, fn = side(foes)
-	if fn == 0 then
+	local ps, fs = standing(party), standing(foes)
+	if #fs == 0 then
 		return { win = 0, lose = math.huge, danger = false }
 	end
-	if pn == 0 then
+	if #ps == 0 then
 		return { win = math.huge, lose = 0, danger = true }
 	end
-	local pblow = math.max(pn, patk - fdef / fn * 0.5 * pn)
-	local fblow = math.max(fn, fatk - pdef / pn * 0.5 * fn)
-	local win = fhp / pblow
-	local lose = php / fblow
+	local function hp(list: { Fighter }): number
+		local n = 0
+		for _, f in list do
+			n += f.hp
+		end
+		return n
+	end
+	local function avgDef(list: { Fighter }): number
+		local n = 0
+		for _, f in list do
+			n += f.def
+		end
+		return n / #list
+	end
+	-- damage a second a side lands on the other
+	local function rate(list: { Fighter }, def: number): number
+		local n = 0
+		for _, f in list do
+			n += math.max(1, f.atk - def * 0.5) / Battle.fillTime(f)
+		end
+		return n
+	end
+	local win = hp(fs) / rate(ps, avgDef(fs))
+	local lose = hp(ps) / rate(fs, avgDef(ps))
 	return { win = win, lose = lose, danger = lose < win * 1.15 }
 end
 
-function Battle.new(foes: { Fighter }, boss: boolean): Battle
-	return { foes = foes, round = 0, boss = boss, shield = 0, foeShield = 0 }
+-- A fresh battle: paused (the client lets it run once the wild ones have landed), every timer a little way in (the
+-- party's from `rng` so not everyone starts together).
+function Battle.new(foes: { Fighter }, boss: boolean, party: { Fighter }?, rng: Rng?): Battle
+	local b: Battle = { foes = foes, acts = 0, boss = boss, shield = 0, foeShield = 0, lock = 0, paused = true, clock = 0, sp = 0 }
+	for _, list in { foes, party or {} } :: { { Fighter } } do
+		for _, f in list do
+			f.gauge = if rng then rng:range(0, 0.3) else 0
+		end
+	end
+	return b
 end
 
 function Battle.alive(list: { Fighter }): { Fighter }
@@ -135,6 +171,41 @@ function Battle.alive(list: { Fighter }): { Fighter }
 		end
 	end
 	return out
+end
+
+-- Seconds for a fighter's timer to fill: Tuning.AtbTime for an average speed (AtbRef), quicker for quicker ones.
+function Battle.fillTime(f: Fighter): number
+	return math.clamp(Tuning.AtbTime * 2 * Tuning.AtbRef / (Tuning.AtbRef + math.max(0, f.spd)), Tuning.AtbMin, Tuning.AtbMax)
+end
+
+-- How long each event plays on screen (seconds; a strike by its move): an action holds the battle that long
+-- (`playTime`, times Tuning.ActLock) so the screen keeps up.
+Battle.EVENT_SECS = { attack = 0.95, bash = 1.2, quick = 0.9, zap = 0.85, heal = 0.8, shield = 0.8, rally = 0.8, treat = 1.6, flee = 0.8, skill = 0.5, revive = 1.0, haste = 0.8, dizzy = 0.8 } :: { [string]: number }
+
+-- How a strike plays: an auto skill's own move (bash, quick, zap), a learnt skill's (Data/Skills), else an attack.
+function Battle.moveOf(skill: string?): string
+	if skill == nil then
+		return "attack"
+	end
+	if skill == "bash" or skill == "quick" or skill == "zap" then
+		return skill
+	end
+	local d = Skills.byId[skill]
+	if d and d.move ~= "cast" then
+		return d.move
+	end
+	return "attack"
+end
+
+-- Seconds a list of events plays for, a small gap after each action.
+function Battle.playTime(events: { Event }, from: number?): number
+	local t = 0.15
+	for i = from or 1, #events do
+		local ev = events[i]
+		local k = if ev.t == "hit" then Battle.moveOf(ev.skill) else ev.t
+		t += Battle.EVENT_SECS[k] or 0.8
+	end
+	return t * Tuning.ActLock
 end
 
 -- The chance a treat befriends this wild one.
@@ -174,151 +245,324 @@ local function damage(by: Fighter, to: Fighter, k: number, rng: Rng, take: numbe
 	return math.max(1, math.floor(raw * take + 0.5))
 end
 
--- One round. `act`: "fight" | "guard" | "treat" | "flee"; `target`: the wild one a treat is for. Returns the events
--- and how it ended: "win" (every foe beaten or befriended), "lose" (the party beaten), "fled", or nil (on it goes).
--- A befriended foe leaves the battle with `friend = true`.
-function Battle.round(party: { Fighter }, b: Battle, act: string, target: string?, rng: Rng): ({ Event }, string?)
-	local ev: { Event } = {}
-	b.round += 1
-	local guarding = act == "guard"
-	if act == "flee" then
-		local ok = not b.boss and rng:chance(Battle.fleeChance(party, b.foes))
-		table.insert(ev, { t = "flee", ok = ok })
-		if ok then
-			return ev, "fled"
-		end
-	elseif act == "guard" then
-		table.insert(ev, { t = "guard" })
-		for _, f in Battle.alive(party) do
-			f.hp = math.min(f.maxHp, f.hp + math.ceil(f.maxHp * 0.05))
-		end
-	elseif act == "treat" then
-		local foe: Fighter? = nil
-		for _, f in Battle.alive(b.foes) do
-			if f.key == target then
-				foe = f
-			end
-		end
-		if foe then
-			local ok = rng:chance(Battle.treatChance(foe, party, b.boss))
-			table.insert(ev, { t = "treat", to = foe.key, ok = ok })
-			if ok then
-				foe.hp = 0
-				local fa: any = foe
-				fa.friend = true
-				if #Battle.alive(b.foes) == 0 then
-					return ev, "win"
-				end
-			end
-		end
-	end
-	-- everyone acts in speed order
-	local order: { Fighter } = {}
-	for _, f in Battle.alive(party) do
-		table.insert(order, f)
-	end
-	for _, f in Battle.alive(b.foes) do
-		table.insert(order, f)
-	end
-	table.sort(order, function(a: Fighter, c: Fighter): boolean
-		if a.spd ~= c.spd then
-			return a.spd > c.spd
-		end
-		return a.kind ~= "wild" and c.kind == "wild"
-	end)
-	for _, f in order do
-		if f.hp <= 0 then
-			continue
-		end
-		local mine = f.kind ~= "wild"
-		local allies = if mine then party else b.foes
-		local enemies = Battle.alive(if mine then b.foes else party)
-		if #enemies == 0 then
-			break
-		end
-		if mine and (guarding or (act == "treat" and f.kind == "founder") or act == "flee") then
-			continue
-		end
-		local function take(to: Fighter): number
-			local k = 1
-			if to.kind ~= "wild" then
-				k = (if guarding then Tuning.GuardTake else 1) * (if b.shield > 0 then Tuning.ShieldTake else 1)
-			elseif b.foeShield > 0 then
-				k = Tuning.ShieldTake
-			end
-			return k
-		end
-		local function hit(to: Fighter, mult: number, skill: string?)
-			local dmg = damage(f, to, mult, rng, take(to))
-			to.hp = math.max(0, to.hp - dmg)
-			table.insert(ev, { t = "hit", by = f.key, to = to.key, dmg = dmg, skill = skill, ko = to.hp <= 0 })
-		end
-		local function pick(): Fighter
-			if mine then
-				local best = enemies[1]
-				for _, e in enemies do
-					if e.hp < best.hp then
-						best = e
-					end
-				end
-				return best
-			end
-			return enemies[rng:int(1, #enemies)]
-		end
-		f.charge += 1
-		local skill = if f.charge >= Tuning.SkillEvery then f.skill else nil
-		if skill then
-			f.charge = 0
-		end
-		if skill == "bash" then
-			hit(pick(), 1.8, "bash")
-		elseif skill == "quick" then
-			hit(pick(), 1, "quick")
-			local again = Battle.alive(if mine then b.foes else party)
-			if #again > 0 then
-				enemies = again
-				hit(pick(), 1, "quick")
-			end
-		elseif skill == "zap" then
-			for _, e in enemies do
-				hit(e, 0.6, "zap")
-			end
-		elseif skill == "heal" then
-			local worst, wr = f, 2
-			for _, a in Battle.alive(allies) do
-				local r = a.hp / math.max(1, a.maxHp)
-				if r < wr then
-					worst, wr = a, r
-				end
-			end
-			local amt = math.min(worst.maxHp - worst.hp, math.ceil(worst.maxHp * 0.35))
-			worst.hp += amt
-			table.insert(ev, { t = "heal", by = f.key, to = worst.key, amt = amt })
-		elseif skill == "shell" then
-			if mine then
-				b.shield = 2
-			else
-				b.foeShield = 2
-			end
-			table.insert(ev, { t = "shield", by = f.key })
-		elseif skill == "rally" then
-			for _, a in Battle.alive(allies) do
-				a.atk = math.floor(a.atk * 1.15 + 0.5)
-			end
-			table.insert(ev, { t = "rally", by = f.key })
-		else
-			hit(pick(), 1, nil)
-		end
-	end
-	b.shield = math.max(0, b.shield - 1)
-	b.foeShield = math.max(0, b.foeShield - 1)
+-- How it stands: "win" (every foe beaten or befriended), "lose" (the party beaten) or nil.
+local function outcome(party: { Fighter }, b: Battle): string?
 	if #Battle.alive(b.foes) == 0 then
-		return ev, "win"
+		return "win"
 	end
 	if #Battle.alive(party) == 0 then
-		return ev, "lose"
+		return "lose"
+	end
+	return nil
+end
+
+-- One fighter acts (its timer full): its attack or, every Tuning.SkillEvery actions, its skill. Returns the action's
+-- kind (Battle.LOCK's key).
+local function actOne(f: Fighter, party: { Fighter }, b: Battle, rng: Rng, ev: { Event }): string
+	local mine = f.kind ~= "wild"
+	local allies = if mine then party else b.foes
+	local enemies = Battle.alive(if mine then b.foes else party)
+	if #enemies == 0 then
+		return "attack"
+	end
+	local function take(to: Fighter): number
+		if to.kind ~= "wild" then
+			return if b.shield > 0 then Tuning.ShieldTake else 1
+		end
+		return if b.foeShield > 0 then Tuning.ShieldTake else 1
+	end
+	local function hit(to: Fighter, mult: number, skill: string?)
+		local dmg = damage(f, to, mult, rng, take(to))
+		to.hp = math.max(0, to.hp - dmg)
+		table.insert(ev, { t = "hit", by = f.key, to = to.key, dmg = dmg, skill = skill, ko = to.hp <= 0 })
+	end
+	local function pick(): Fighter
+		if mine then
+			local best = enemies[1]
+			for _, e in enemies do
+				if e.hp < best.hp then
+					best = e
+				end
+			end
+			return best
+		end
+		return enemies[rng:int(1, #enemies)]
+	end
+	f.charge += 1
+	local skill = if f.charge >= Tuning.SkillEvery then f.skill else nil
+	if skill then
+		f.charge = 0
+	end
+	if skill == "bash" then
+		hit(pick(), 1.8, "bash")
+	elseif skill == "quick" then
+		hit(pick(), 1, "quick")
+		local again = Battle.alive(if mine then b.foes else party)
+		if #again > 0 then
+			enemies = again
+			hit(pick(), 1, "quick")
+		end
+	elseif skill == "zap" then
+		for _, e in enemies do
+			hit(e, 0.6, "zap")
+		end
+	elseif skill == "heal" then
+		local worst, wr = f, 2
+		for _, a in Battle.alive(allies) do
+			local r = a.hp / math.max(1, a.maxHp)
+			if r < wr then
+				worst, wr = a, r
+			end
+		end
+		local amt = math.min(worst.maxHp - worst.hp, math.ceil(worst.maxHp * 0.35))
+		worst.hp += amt
+		table.insert(ev, { t = "heal", by = f.key, to = worst.key, amt = amt })
+	elseif skill == "shell" then
+		if mine then
+			b.shield = Tuning.ShieldSecs
+		else
+			b.foeShield = Tuning.ShieldSecs
+		end
+		table.insert(ev, { t = "shield", by = f.key })
+	elseif skill == "rally" then
+		for _, a in Battle.alive(allies) do
+			a.atk = math.floor(a.atk * 1.15 + 0.5)
+		end
+		table.insert(ev, { t = "rally", by = f.key })
+	else
+		hit(pick(), 1, nil)
+		return "attack"
+	end
+	return skill :: string
+end
+
+local SUB = 0.05 -- the step's slice (seconds): timers fill and actions start slice by slice
+
+-- Time passes (`dt` seconds, in slices): the timers fill, one full timer at a time acts (the party first on a tie),
+-- each action holding the rest while it plays. Returns what happened and how it ended ("win", "lose" or nil).
+function Battle.step(party: { Fighter }, b: Battle, dt: number, rng: Rng): ({ Event }, string?)
+	local ev: { Event } = {}
+	if b.paused then
+		return ev, nil
+	end
+	local left = math.max(0, dt)
+	while left > 1e-9 do
+		local h = math.min(left, SUB)
+		left -= h
+		b.clock += h
+		b.shield = math.max(0, b.shield - h)
+		b.foeShield = math.max(0, b.foeShield - h)
+		b.sp = math.min(Tuning.SpMax, b.sp + h * Tuning.SpRate)
+		-- every timer fills (an action playing too: the next is ready when it ends), one full one acts when none plays
+		local ready: Fighter? = nil
+		for _, list in { party, b.foes } :: { { Fighter } } do
+			for _, f in list do
+				if f.hp > 0 then
+					f.gauge = math.min(1, f.gauge + h / Battle.fillTime(f))
+					if f.gauge >= 1 and ready == nil then
+						ready = f
+					end
+				end
+			end
+		end
+		if b.lock > 0 then
+			b.lock = math.max(0, b.lock - h)
+			continue
+		end
+		if ready then
+			local f = ready :: Fighter
+			f.gauge = 0
+			b.acts += 1
+			local first = #ev + 1
+			actOne(f, party, b, rng, ev)
+			b.lock = Battle.playTime(ev, first)
+			local r = outcome(party, b)
+			if r then
+				return ev, r
+			end
+		end
 	end
 	return ev, nil
+end
+
+-- The leader (the founder), standing; nil when down.
+local function leader(party: { Fighter }): Fighter?
+	for _, f in party do
+		if f.key == "f" and f.hp > 0 then
+			return f
+		end
+	end
+	return nil
+end
+
+-- A snack for a wild one: the leader's timer starts again and it throws; the wild one catches it (and leaves the
+-- battle a friend, `friend = true`) as often as its trust says. The battle runs again. Returns (true, events, result)
+-- or (false, an ErrCode).
+function Battle.snack(party: { Fighter }, b: Battle, target: string?, rng: Rng): (boolean, any, string?)
+	if b.boss then
+		return false, "blocked"
+	end
+	local lead = leader(party)
+	if lead == nil then
+		return false, "blocked"
+	end
+	local foe: Fighter? = nil
+	for _, f in Battle.alive(b.foes) do
+		if f.key == target then
+			foe = f
+		end
+	end
+	if foe == nil then
+		return false, "not_found"
+	end
+	local fo = foe :: Fighter
+	lead.gauge = 0
+	local ok = rng:chance(Battle.treatChance(fo, party, b.boss))
+	local ev: { Event } = { { t = "treat", by = lead.key, to = fo.key, ok = ok } }
+	if ok then
+		fo.hp = 0
+		local fa: any = fo
+		fa.friend = true
+	end
+	b.lock = Battle.playTime(ev)
+	b.paused = false
+	return true, ev, outcome(party, b)
+end
+
+-- Run: away (the battle over, "fled") as often as the party's speed against the wild ones' says; a miss starts the
+-- leader's timer again and the battle runs on. Returns (true, events, result) or (false, an ErrCode).
+function Battle.flee(party: { Fighter }, b: Battle, rng: Rng): (boolean, any, string?)
+	if b.boss then
+		return false, "blocked"
+	end
+	local ok = rng:chance(Battle.fleeChance(party, b.foes))
+	local ev: { Event } = { { t = "flee", ok = ok } }
+	if ok then
+		return true, ev, "fled"
+	end
+	local lead = leader(party)
+	if lead then
+		lead.gauge = 0
+	end
+	b.lock = Battle.playTime(ev)
+	b.paused = false
+	return true, ev, nil
+end
+
+-- A learnt skill (Data/Skills): `who` (a standing member who knows it at their level) uses it on `target` (a member,
+-- a downed member or a wild one, as the skill aims), paying its cost in skill points; their timer starts again and
+-- the battle runs again. Returns (true, events, result) or (false, an ErrCode).
+function Battle.useSkill(party: { Fighter }, b: Battle, who: string, id: string, target: string?, rng: Rng): (boolean, any, string?)
+	local d = Skills.byId[id]
+	if d == nil then
+		return false, "not_found"
+	end
+	local user: Fighter? = nil
+	for _, f in party do
+		if f.key == who and f.hp > 0 then
+			user = f
+		end
+	end
+	if user == nil then
+		return false, "not_found"
+	end
+	local u = user :: Fighter
+	if not Skills.knows(Skills.lineOf(u.kind, u.skill), u.lvl, id) then
+		return false, "locked"
+	end
+	if b.sp + 1e-6 < d.cost then
+		return false, "sp"
+	end
+	-- the target the skill aims at
+	local tgt: Fighter? = nil
+	if d.target ~= "none" then
+		local list: { Fighter } = if d.target == "foe" then b.foes else party
+		for _, f in list do
+			if f.key == target and not (f :: any).friend then
+				if (d.target == "down" and f.hp <= 0) or (d.target ~= "down" and f.hp > 0) then
+					tgt = f
+				end
+			end
+		end
+		if tgt == nil then
+			return false, "not_found"
+		end
+	end
+	b.sp -= d.cost
+	u.gauge = 0
+	local ev: { Event } = { { t = "skill", by = u.key, id = id } }
+	local function healOne(f: Fighter, share: number)
+		local amt = math.min(f.maxHp - f.hp, math.ceil(f.maxHp * share))
+		f.hp += amt
+		table.insert(ev, { t = "heal", by = u.key, to = f.key, amt = amt })
+	end
+	if d.dmg then
+		local foes: { Fighter } = if d.all then Battle.alive(b.foes) else { tgt :: Fighter }
+		for _ = 1, d.hits or 1 do
+			for _, foe in foes do
+				if foe.hp > 0 then
+					local dmg = damage(u, foe, d.dmg, rng, if b.foeShield > 0 then Tuning.ShieldTake else 1)
+					foe.hp = math.max(0, foe.hp - dmg)
+					table.insert(ev, { t = "hit", by = u.key, to = foe.key, dmg = dmg, skill = id, ko = foe.hp <= 0 })
+				end
+			end
+		end
+	end
+	if d.shield then
+		b.shield = math.max(b.shield, d.shield)
+		table.insert(ev, { t = "shield", by = u.key })
+	end
+	if d.heal then
+		if d.all then
+			for _, f in Battle.alive(party) do
+				healOne(f, d.heal)
+			end
+		elseif tgt then
+			healOne(tgt, d.heal)
+		end
+	end
+	if d.revive and tgt then
+		local t = tgt :: Fighter
+		local amt = math.max(1, math.ceil(t.maxHp * d.revive))
+		t.hp = amt
+		t.gauge = 0
+		table.insert(ev, { t = "revive", by = u.key, to = t.key, amt = amt })
+	end
+	if d.rally then
+		for _, f in Battle.alive(party) do
+			f.atk = math.floor(f.atk * d.rally + 0.5)
+		end
+		table.insert(ev, { t = "rally", by = u.key })
+	end
+	if d.haste then
+		for _, f in Battle.alive(party) do
+			if f ~= u then
+				f.gauge = math.min(1, f.gauge + (d.haste :: number))
+			end
+		end
+		table.insert(ev, { t = "haste", by = u.key })
+	end
+	if d.dizzy then
+		for _, f in Battle.alive(b.foes) do
+			f.gauge = math.min(f.gauge, d.dizzy :: number)
+		end
+		table.insert(ev, { t = "dizzy", by = u.key })
+	end
+	b.lock = Battle.playTime(ev)
+	b.paused = false
+	return true, ev, outcome(party, b)
+end
+
+-- The timers as they stand (the client runs them on between syncs): { [key] = gauge }, the hold, the pause and the
+-- skill points.
+function Battle.gauges(party: { Fighter }, b: Battle): { g: { [string]: number }, lock: number, paused: boolean, sp: number }
+	local g: { [string]: number } = {}
+	for _, list in { party, b.foes } :: { { Fighter } } do
+		for _, f in list do
+			g[f.key] = math.floor(f.gauge * 1000 + 0.5) / 1000
+		end
+	end
+	return { g = g, lock = b.lock, paused = b.paused, sp = math.floor(b.sp * 100 + 0.5) / 100 }
 end
 
 return Battle

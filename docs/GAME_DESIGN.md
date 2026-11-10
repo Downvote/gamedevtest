@@ -13,8 +13,8 @@ requests (§11). The game studio of the earlier versions is gone (§10: an old s
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
 on its sand. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
 villagers take jobs. You sail out with a party of villagers to the islands of your own sea chart (the further from
-home, the higher their level; a bigger boat sails further), befriend the wild **driftlings** there with treats in
-turn-based battles, and bring them home to help at the buildings of their knack. Beating an island's guardian charts
+home, the higher their level; a bigger boat sails further), befriend the wild **driftlings** there with snacks in
+timed battles, and bring them home to help at the buildings of their knack. Beating an island's guardian charts
 it. The islands of everyone on the server sit side by side along one boardwalk on a
 shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
@@ -28,7 +28,7 @@ eats; a visitor moves into a free bed when the charm is high enough and takes a 
 then Explore: the sea chart shows the islands round yours; tap one in your boat's range, pick a party (you, the
 captain, and up to three villagers or driftlings), pay the supplies in food and set sail: your founder boards the boat
 at the pier and it sails off to that island. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
-end); in battle choose Fight, Guard, Treat (food: a hurt wild one may join you) or Flee. Sail home with the loot (the
+end); battles fight themselves on timers: throw a snack (a hurt wild one may join you), use a skill, or flee. Sail home with the loot (the
 boat brings the party back to the pier). Spend shells and wood on more buildings, a bigger boat (further islands), upgrades (a making building's Lv 2 and 3) and decor (charm), and expand the
 island twice for bigger buildings. Nothing happens while you are away (no offline progress).
 
@@ -223,11 +223,10 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
     trips); each later one pays more (`BossRewardGrow`: the n-th 1 + 0.6 x (n - 1) times the island's reward). A
     guardian's fall is an alert (charted, or "Guardian 2 beaten!") and the party walks on: Sail home whenever you like
     (between stops); a fall ends the trip with half the loot.
-  - **Auto battle** (`AutoBattle`, on the islet's screen): Fight every round by itself, the party walking on between
-    stops. **Stop if losing** (`AutoSafe`, on by default; Never stop the other way): before each round and before
-    walking into the next fight it weighs the party's health and blows against the foes' (the fight under way, or the
-    next stop's likely foes); when the party would most likely go down first, the auto battle stops and the party
-    waits ("The party is hurt: the next fight looks lost"), for you to fight on, guard, flee, sail home or go on anyway.
+  - **Battles fight themselves** (the timed battles below; the earlier auto battle is what every battle does now).
+    **Stop if losing** (`AutoSafe`, on by default; Never stop the other way): before walking into the next fight the
+    party's health and blows are weighed against the next stop's likely foes'; when the party would most likely go
+    down first, it waits ("The party is hurt: the next fight looks lost"), for you to sail home or go on anyway.
   Charting counts each island once (a flag on the map; the panel counts the islands charted; each is charm up to
   `ChartCharmMax`).
 - **The cutscene** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
@@ -251,13 +250,51 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 - **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
   strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
   dismissed or released. One expedition at a time; leaving the game brings it home with its loot.
-- **Battles**, round by round: you pick what the party does; then everyone acts in speed order. A fighter attacks
-  (the party the weakest foe, a wild one a random member) or, every `SkillEvery` actions, uses its skill. **Guard**
-  takes half the damage and mends a little; **Treat** (`TreatFood` food, a free nest) offers a treat to a wild one
-  (tap its card; the most hurt by default): it may join you (its trust, more the more hurt, less the higher its
-  level); **Flee** may get away. A guardian can't be befriended or fled from. A win gives xp to the party (levels) and
-  shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and half
-  the loot comes home.
+- **Battles, timed:**
+
+  > The request (2026-11-10): "make fights happen in this fashion: the characters have a timer above their heads that
+  > is shown as a bar, and will attack or use its skill once a timer is done, and reset the timer. using a snack greys
+  > and pauses the fighting, and allows you to select an enemy, with your leader having an arrow marked on the floor
+  > to whoever you are selecting in a circle. you are also only allowed to use snacks 5 times an expedition, which can
+  > be upgraded to 30. this causes the leader to reset its attack timer and throw a snack at the enemy, catching it if
+  > it can."
+
+  Everyone has a timer, a small bar over their head (gold for the party, orange for the wild ones), filling in
+  `AtbTime` seconds at an average speed (quicker for the quick, `AtbMin` .. `AtbMax`). Full, the fighter acts: an
+  attack (the party the weakest foe, a wild one a random member) or, every `SkillEvery` actions, its own skill; then
+  its timer starts again. One action plays at a time (`ActLock`: as long as it takes on screen; the timers fill on
+  meanwhile, flashing when full and waiting). The server runs the battle; a new one waits until its wild ones have
+  landed, and a battle waits while the screen is closed.
+  - **Snacks** (`Snack x5`; S or 1): the picture greys and the battle pauses; your leader stands in a glowing ring on
+    the floor with an arrow pointing at the wild one picked (the most hurt first; tap a card, or arrows to switch, a
+    pointer over its head). Throw!: the leader's timer starts again and the snack flies; the wild one catches it, and
+    joins you, as often as its trust says (more the more hurt it is, less the higher its level); else it shakes its
+    head. A snack needs a free nest. `SnackBase` (5) snacks a trip with the first pouch; a **bigger pouch** (the Explore
+    panel, `PouchCost` in shells and wood) holds 5 more a level, up to 30.
+  - **Skills** (K or 2): see below. **Flee** (F or 3): a chance by speed; a miss starts the leader's timer again.
+  A guardian takes no snack and is not fled from. A win gives xp to the party (levels; new skills learnt are named)
+  and shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and
+  half the loot comes home.
+- **Skills:**
+
+  > The request (2026-11-10): "also, make skills: you can select a menu in battle anytime that opens a skill window.
+  > you can choose different skills that act like the snack interface, doing so causes your teammates to do something
+  > like rally, heal team, heal selected member, do aoe damage, etc. they learn these skills on level up, including the
+  > leader as well. however, these cost skill points, which charge up over time in battle. stronger skills will cost
+  > more skill points"
+
+  The party shares **skill points** (the SP bar under Skills): they charge `SpRate` a second while a battle runs, up
+  to `SpMax` (10), from nothing at each battle's start. **Skills** opens the skill window any time in a battle: it
+  greys and pauses the battle like a snack; each member standing lists the skills they have learnt, with their cost
+  (greyed when the points don't cover it yet, or there is nobody to aim at). Picking one aiming at nobody uses it at
+  once; one aiming at a member, a fallen member or a wild one opens the aim like a snack's (that member's ring and
+  arrow on the floor). The one using it acts at once and their timer starts again. Who learns what, by level
+  (`Data/Skills`): the leader Rally Cry (Lv1, 3: the team hits harder), First Aid (Lv3, 3: mends one member), Group
+  Hug (Lv6, 5: mends the team) and Charge! (Lv10, 7: every ally acts at once); everyone else the family of their own
+  battle skill: bash (Power Bonk, Spin Swipe on every wild one, Mega Bonk), quick (Flurry of three hits, Zoom Zoom
+  past every wild one, Tailwind: every ally's timer jumps ahead), zap (Spark, Tide Wave, Squall on every wild one),
+  heal (Mend, Soothing Rain on the team, Revive a fallen member) and shell (Shell Up, Coral Wall: a long guard and a
+  little mending, Dizzy Shell: every wild one's timer starts over). The stronger, the costlier (3 to 9 points).
 - **The islet's screen** (3D, full screen): the island's own stage, its kind's set laid out by its seed (an island
   of its own, its shore stepping down into the moving sea: a beach with palms leaning out, a treasure chest, tide
   pools, maybe a rowboat, starfish and shells; a mossy meadow with trees, ferns, mushrooms, a winding stepping-stone
@@ -267,8 +304,8 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   villagers as their chibis, driftlings as their models) and the wild ones dropping in on the right. Along the top:
   the island's name and level, the loot so far, the path of stops (the ones ahead hidden but
   the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
-  the party's cards with their health bars and levels, and the buttons (Sail home between stops; Fight, Guard,
-  Treat and Flee in battle; Space or 1-4 on a keyboard). A win shows its xp, shells and level-ups, a new friend its
+  the party's cards with their health bars and levels, and the buttons (Sail home between stops; Snack, Skills,
+  Flee and the skill points' bar in battle; while aiming Throw! / Use! and Back, arrows to switch, Space to go). A win shows its xp, shells and level-ups, a new friend its
   portrait with confetti, a guardian's fall the island charted.
 
 > The request (2026-11-10): "after returning home, the player gets stuck at the bay. also, make animations much more
@@ -279,7 +316,7 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 - **It goes on by itself:** between stops there is no Go on to tap: a bar fills (`AUTO_GO`, 1.8 s) and the party
   walks on to the next stop (Space, or a tap on the bar, goes at once). A won battle is a small alert under the
   header (Victory!, the xp and shells, level-ups, a new friend's portrait) that goes by itself after `AUTO_CARD`
-  (3 s), with no button. The guardian's fall and a defeat still wait for Sail home; battles still wait for your move.
+  (3 s), with no button. A defeat still waits for Sail home.
 
 > The requests (2026-11-10): "the player is still stuck here. can you remove the invisible wall?"; "day night cycles
 > should also affect islands the player is battling on. also, the onward popup should just be a small alert with no
@@ -292,7 +329,9 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   stars). Skills have their own moves: a bash leaps high and slams down (a bigger shake, dust and debris), quick
   strikes three times in a blur of afterimages, a zap charges up in sparks where it stands and throws a bolt, a heal
   spins up with green bits and the healed one bounces, Shell Guard has everyone hunker down behind a glint, Rally
-  sets them jumping. Guard crouches the party behind crossed arms; a treat is thrown in an arc and the wild one hops
+  sets them jumping; a learnt skill shouts its name in a flourish of sparks, a revive brings the fallen up in a
+  shower of green, Tailwind sets the party springing, Dizzy Shell has the wild ones stumbling; a snack is thrown in an
+  arc and the wild one hops
   for joy with hearts, or shakes its head; fleeing turns everyone round to sprint off, or trip over their feet; a win
   has the party jumping and spinning in turn. Every driftling's limbs move with it: wings flap, claws and pincers
   snap open on the strike, tails wag, ears twitch (and droop when hurt), eyes blink and shut when hurt, mouths open to
@@ -360,7 +399,10 @@ The Looks panel sets the founder's skin, hair, style and shirt (every client see
 (`JumpHeight`) on the islands; jumping is held in Build mode, on an islet's screen and while sailing (the phone's jump
 button hides with it).
 
-> The request (2026-11-10): "allow the player to jump in their own island as well"
+> The request (2026-11-10): "allow the player to jump in their own island as well"; the bug report: "jumping seems
+> bugged. also, the player can walk on water" (the chibi stood still on the ground while the character jumped: it now
+> rises with it, knees up, and lands in a puff; the coast's invisible walls stood a little under a jump, so a jump
+> cleared them onto the sea: they now stand far higher)
 
 Settings: the pixel filter's quality, and the music (the note in the HUD's top right corner, on or off, kept with the
 profile). **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4), each saying where
@@ -407,7 +449,8 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
 - **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked in §7), leaves
   sway and flags ripple in the wind, sailboats (the boats of §8, their flags fluttering) rock on the swell as they
-  cross both ways, gulls cross now and then, clouds' shadows slide over the islands; each island's campfire flickers and smokes.
+  cross both ways, gulls cross now and then; each island's campfire flickers and smokes. (No clouds' shadows: the
+  player asked for the "random shadow that appears sometimes" gone.)
 - **Coming home:** blinds close over the islet and open on the boat sailing home to the pier, the founder hopping
   off and the party cheering (§7).
 - **Battles** play blow by blow (§7): wind-ups, dashes, strikes with hit-stop and shake, knock-backs, knock-outs,

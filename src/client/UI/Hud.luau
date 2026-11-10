@@ -686,12 +686,12 @@ function Hud.start()
 				end
 			end
 		end
-		-- jumping on the island: held while the build tray, an islet's screen or a voyage is up (the phone's jump
-		-- button hides with it, clear of the tray and the battle's buttons)
+		-- jumping on the island: held while the build tray, a panel, an islet's screen or a voyage is up (the phone's
+		-- jump button hides with it, clear of the tray, the panels' and the battle's buttons)
 		local char = Players.LocalPlayer.Character
 		local hum = if char then char:FindFirstChildOfClass("Humanoid") else nil
 		if hum then
-			local want = if BuildUI.isOpen() or ExpeditionUI.isOpen() or Voyage.isPlaying() then 0 else Tuning.JumpHeight
+			local want = if BuildUI.isOpen() or ExpeditionUI.isOpen() or Voyage.isPlaying() or UIKit.currentPanel() ~= nil then 0 else Tuning.JumpHeight
 			if hum.JumpHeight ~= want then
 				hum.JumpHeight = want
 			end

@@ -8,9 +8,13 @@
 --   chart(lvl, seed) -> Isle                   (the island: the same seed and level make the same island)
 --   start(p, isle, members) -> Expedition      (the island from Logic/Chart; members: "v<id>" / "p<id>"; each of the
 --                                               party takes Tuning.Supplies food)
---   next(p, e, rng)                            (the next node: loot, a chest, a rest, or a battle)
---   act(p, e, act, target, rng)                (a battle round; a win shares xp, a beaten guardian charts the island)
+--   next(p, e, rng)                            (the next node: loot, a chest, a rest, or a battle: timed, paused)
+--   tick(p, e, dt, rng) -> out?                (the battle runs on dt seconds; what happened, if anything: a win
+--                                               shares xp, a beaten guardian charts the island)
+--   snack(p, e, target, rng) / skill(p, e, who, id, target, rng) / flee(p, e, rng)
+--                                              (the player's moves in a battle) / pause(e, on)
 --   home(p, e)                                 (back on the island: the loot is added, half of it after a defeat)
+--   snacksFor(p), upgradePouch(p)              (snacks an expedition by the pouch's level; a bigger pouch)
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Islets = require(script.Parent.Parent.Data.Islets)
@@ -253,6 +257,31 @@ function Expedition.rewardOf(isle: Isle, n: number): number
 	return math.floor(isle.reward * (1 + Tuning.BossRewardGrow * math.max(0, n - 1)) + 0.5)
 end
 
+-- Snacks an expedition takes (GAME_DESIGN 7: "only allowed to use snacks 5 times an expedition, which can be
+-- upgraded to 30"): Tuning.SnackBase a pouch level.
+function Expedition.snacksFor(p: Profile): number
+	return Tuning.SnackBase * math.clamp(p.pouch or 1, 1, #Tuning.PouchCost)
+end
+
+-- A bigger snack pouch (the next level's price in shells and wood). Returns its new level.
+function Expedition.upgradePouch(p: Profile): (boolean, any)
+	local lvl = math.clamp(p.pouch or 1, 1, #Tuning.PouchCost)
+	if lvl >= #Tuning.PouchCost then
+		return false, "max" :: ErrCode
+	end
+	local cost = Tuning.PouchCost[lvl + 1]
+	if p.shells < cost.shells then
+		return false, "money" :: ErrCode
+	end
+	if p.wood < cost.wood then
+		return false, "wood" :: ErrCode
+	end
+	p.shells -= cost.shells
+	p.wood -= cost.wood
+	p.pouch = lvl + 1
+	return true, { pouch = p.pouch, snacks = Expedition.snacksFor(p) }
+end
+
 -- Set out for an island (Logic/Chart.sail checks it is on the chart and in the boat's range).
 function Expedition.start(p: Profile, isle: Isle, members: { string }): (boolean, any)
 	if #members > Tuning.PartyMax then
@@ -288,6 +317,7 @@ function Expedition.start(p: Profile, isle: Isle, members: { string }): (boolean
 		loot = { shells = 0, food = 0, wood = 0 },
 		battle = nil,
 		befriended = {},
+		snacks = Expedition.snacksFor(p),
 		over = nil,
 	}
 	if p.tut == 5 then
@@ -355,7 +385,7 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 			local sp = f.sp :: string
 			p.seen[sp] = math.max(p.seen[sp] or 0, 1)
 		end
-		e.battle = Battle.new(foes, kind == "boss")
+		e.battle = Battle.new(foes, kind == "boss", e.party, rng)
 		out.foes = foes
 	end
 	return true, out
@@ -407,6 +437,7 @@ local function share(p: Profile, e: Expedition, xp: number): { [string]: number 
 				if fresh then
 					fresh.hp = math.max(1, f.hp + (fresh.maxHp - f.maxHp))
 					fresh.charge = f.charge
+					fresh.gauge = f.gauge
 					e.party[i] = fresh
 				end
 			end
@@ -415,28 +446,12 @@ local function share(p: Profile, e: Expedition, xp: number): { [string]: number 
 	return ups
 end
 
--- A battle round (Logic/Battle). A treat costs Tuning.TreatFood and needs a free nest.
-function Expedition.act(p: Profile, e: Expedition, act: string, target: string?, rng: Rng): (boolean, any)
-	local b = e.battle
-	if e.over or b == nil then
-		return false, "no_exp" :: ErrCode
-	end
-	if act == "treat" then
-		if b.boss then
-			return false, "blocked" :: ErrCode
-		end
-		if p.food < Tuning.TreatFood then
-			return false, "food" :: ErrCode
-		end
-		if not Expedition.room(p) then
-			return false, "no_room" :: ErrCode
-		end
-		p.food -= Tuning.TreatFood
-	elseif act == "flee" and b.boss then
-		return false, "blocked" :: ErrCode
-	end
-	local events, result = Battle.round(e.party, b, act, target, rng)
-	local out: { [string]: any } = { events = events, result = result }
+-- What a battle's events came to: a befriended wild one joins the island; a win shares the xp and shells (a beaten
+-- guardian charts the island: its whole reward the first time, half on later trips; each later one pays more), the
+-- beaten getting up with a quarter of their health; a defeat ends the expedition. `out` gets the events, the result
+-- and what came of them, the snacks left, and the timers as they stand while it goes on (Battle.gauges).
+local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any }, result: string?): { [string]: any }
+	local out: { [string]: any } = { events = events, result = result, snacks = e.snacks }
 	for _, f in b.foes do
 		local fa: any = f
 		if fa.friend and not fa.joined then
@@ -493,8 +508,83 @@ function Expedition.act(p: Profile, e: Expedition, act: string, target: string?,
 		e.over = "lost"
 	elseif result == "fled" then
 		e.battle = nil
+	else
+		local gs = Battle.gauges(e.party, b)
+		out.g, out.lock, out.paused, out.sp = gs.g, gs.lock, gs.paused, gs.sp
 	end
-	return true, out
+	return out
+end
+
+-- The battle runs on `dt` seconds (the server's step). Returns what happened (settle's out) or nil when nothing did.
+function Expedition.tick(p: Profile, e: Expedition, dt: number, rng: Rng): { [string]: any }?
+	local b = e.battle
+	if e.over or b == nil or b.paused then
+		return nil
+	end
+	local events, result = Battle.step(e.party, b, dt, rng)
+	if #events == 0 and result == nil then
+		return nil
+	end
+	return settle(p, e, b, events, result)
+end
+
+-- A snack thrown at a wild one (the leader's timer starts again; one of the trip's snacks; it needs a free nest).
+function Expedition.snack(p: Profile, e: Expedition, target: string?, rng: Rng): (boolean, any)
+	local b = e.battle
+	if e.over or b == nil then
+		return false, "no_exp" :: ErrCode
+	end
+	if b.boss then
+		return false, "blocked" :: ErrCode
+	end
+	if e.snacks <= 0 then
+		return false, "no_snacks" :: ErrCode
+	end
+	if not Expedition.room(p) then
+		return false, "no_room" :: ErrCode
+	end
+	local ok, events, result = Battle.snack(e.party, b, target, rng)
+	if not ok then
+		return false, events
+	end
+	e.snacks -= 1
+	return true, settle(p, e, b, events, result)
+end
+
+-- A learnt skill (Data/Skills) used by one of the party, paid in the battle's skill points.
+function Expedition.skill(p: Profile, e: Expedition, who: string, id: string, target: string?, rng: Rng): (boolean, any)
+	local b = e.battle
+	if e.over or b == nil then
+		return false, "no_exp" :: ErrCode
+	end
+	local ok, events, result = Battle.useSkill(e.party, b, who, id, target, rng)
+	if not ok then
+		return false, events
+	end
+	return true, settle(p, e, b, events, result)
+end
+
+-- Run from a wild ones' battle (not from a guardian).
+function Expedition.flee(p: Profile, e: Expedition, rng: Rng): (boolean, any)
+	local b = e.battle
+	if e.over or b == nil then
+		return false, "no_exp" :: ErrCode
+	end
+	local ok, events, result = Battle.flee(e.party, b, rng)
+	if not ok then
+		return false, events
+	end
+	return true, settle(p, e, b, events, result)
+end
+
+-- Pause the battle (its wild ones landing, a snack being aimed, the screen closed) or let it run. Returns the timers.
+function Expedition.pause(e: Expedition, on: boolean): (boolean, any)
+	local b = e.battle
+	if e.over or b == nil then
+		return false, "no_exp" :: ErrCode
+	end
+	b.paused = on
+	return true, Battle.gauges(e.party, b)
 end
 
 -- Back on the island: the loot added (half after a defeat). Returns what came home.

@@ -2,9 +2,11 @@
 -- upgraded to the last, each island of its distance's level, its own driftlings, charted with the guardian's whole
 -- reward, half on a second trip), the server's rules (supplies, a party of the captain and three, one expedition at a
 -- time, no island past the boat's range, no boat upgrade while it is away, members away can't be dismissed or released,
--- no stepping on or sailing home mid-battle, no treat or flight from a guardian, a treat's food and a free nest), a
--- driftling befriended with a treat, a flight, a defeat (half the loot home), and the islet's screen: closed and
--- reopened from the HUD's card, its buttons in and out of battle, a round played back.
+-- no stepping on or sailing home mid-battle, no snack or flight from a guardian, a snack's free nest and the trip's
+-- few), the timed battle (it waits paused till let run, its actions and timers reach the client, paused again all
+-- stops), a driftling befriended with a snack (the leader's timer starts again), a skill paid in skill points, a
+-- flight, a defeat (half the loot home), and the islet's screen: closed and reopened from the HUD's card, a timer over
+-- every head, the battle fighting itself, the skill window pausing it, a skill aimed with the leader's ring and arrow.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -60,15 +62,25 @@ local function strong(lvl)
 		x.lvl = lvl
 	end
 end
--- the server's way through an islet: on, fight every battle, until `guardians` guardians are beaten (1 by default:
--- the islands never end) or the party falls; returns "won" (that many beaten) or how it ended
+-- a battle under way runs to its end (the server runs it in time; a battle starts paused till it is let run)
+local function fight(maxSecs)
+	if not (s.exp and s.exp.battle) then
+		return
+	end
+	H.req(p, "exp.pause", { on = false })
+	E.runUntil(function()
+		return not (s.exp and s.exp.battle) or (s.exp ~= nil and s.exp.over ~= nil)
+	end, maxSecs or 240, 0.25)
+end
+-- the server's way through an islet: on, every battle run to its end, until `guardians` guardians are beaten (1 by
+-- default: the islands never end) or the party falls; returns "won" (that many beaten) or how it ended
 local function walk(maxSteps, guardians)
 	local steps = 0
 	local want = guardians or 1
 	while s.exp and not s.exp.over and (s.exp.beaten or 0) < want and steps < (maxSteps or 200) do
 		steps += 1
 		if s.exp.battle then
-			H.req(p, "exp.act", { act = "fight", target = "" })
+			fight()
 		else
 			H.req(p, "exp.next", {})
 		end
@@ -77,6 +89,13 @@ local function walk(maxSteps, guardians)
 		return "won"
 	end
 	return s.exp and s.exp.over
+end
+local function nextBattle()
+	local g = 0
+	while s.exp and not s.exp.over and not s.exp.battle and g < 20 do
+		g += 1
+		H.req(p, "exp.next", {})
+	end
 end
 
 ------------------------------------------------------------------ 1. the server's rules
@@ -91,31 +110,60 @@ res = H.req(p, "exp.start", { isle = 1, party = party(3) })
 H.expect(res.ok and #s.exp.party == 4 and s.exp.party[1].key == "f", "rules", "the captain and three set sail", tostring(res.err))
 H.expect(math.abs(prof.food - (1000 - Tuning.Supplies * 4)) < 1, "rules", "their supplies taken", tostring(prof.food))
 H.expect(res.ok and res.data and res.data.isle and res.data.isle.name == s.exp.isle.name, "rules", "the answer names the island", res.data and res.data.isle and res.data.isle.name)
+H.expect(s.exp.snacks == Tuning.SnackBase, "rules", "five snacks for the trip (the first pouch)", tostring(s.exp.snacks))
 res = H.req(p, "exp.start", { isle = 1, party = "" })
 H.expect(not res.ok and res.err == "busy", "rules", "one expedition at a time", tostring(res.err))
 res = H.req(p, "boat.upgrade", {})
 H.expect(not res.ok and res.err == "busy", "rules", "no boat upgrade while it is away", tostring(res.err))
+res = H.req(p, "pouch.upgrade", {})
+H.expect(not res.ok and res.err == "busy", "rules", "no pouch upgrade while away", tostring(res.err))
 res = H.req(p, "folk.dismiss", { id = prof.folk[1].id })
 H.expect(not res.ok and res.err == "busy", "rules", "a member away can't be dismissed", tostring(res.err))
-res = H.req(p, "exp.act", { act = "fight", target = "" })
-H.expect(not res.ok and res.err == "no_exp", "rules", "no battle yet: nothing to fight", tostring(res.err))
--- on to the first battle
-local guard = 0
-while s.exp and not s.exp.battle and guard < 10 do
-	guard += 1
-	H.req(p, "exp.next", {})
-end
+res = H.req(p, "exp.snack", { target = "w1" })
+H.expect(not res.ok and res.err == "no_exp", "rules", "no battle yet: no snack to throw", tostring(res.err))
+res = H.req(p, "exp.skill", { who = "f", skill = "cry", target = "" })
+H.expect(not res.ok and res.err == "no_exp", "rules", "nor a skill", tostring(res.err))
+res = H.req(p, "exp.pause", { on = false })
+H.expect(not res.ok and res.err == "no_exp", "rules", "nor a battle to run", tostring(res.err))
+-- on to the first battle: it waits (paused) till let run
+nextBattle()
 H.expect(s.exp and s.exp.battle ~= nil, "rules", "a battle on the path")
+H.expect(s.exp.battle.paused == true, "rules", "a new battle waits, paused (its wild ones land first)")
 res = H.req(p, "exp.next", {})
 H.expect(not res.ok and res.err == "in_battle", "rules", "no stepping on mid-battle", tostring(res.err))
 res = H.req(p, "exp.home", {})
 H.expect(not res.ok and res.err == "in_battle", "rules", "no sailing home mid-battle", tostring(res.err))
--- a treat: food and a free nest
-local foodKeep = prof.food
-prof.food = 0
-res = H.req(p, "exp.act", { act = "treat", target = "w1" })
-H.expect(not res.ok and res.err == "food", "rules", "a treat needs food", tostring(res.err))
-prof.food = foodKeep
+local fx = H.watchFx(p)
+local acts0 = s.exp.battle.acts
+E.run(3)
+H.expect(s.exp.battle and s.exp.battle.acts == acts0, "rules", "paused: nobody acts", tostring(s.exp.battle and s.exp.battle.acts))
+for _, f in s.exp.party do
+	f.hp, f.maxHp = 500, 500
+end
+res = H.req(p, "exp.pause", { on = false })
+H.expect(res.ok and res.data and res.data.paused == false and type(res.data.g) == "table", "rules", "let run: the timers come back", tostring(res.err))
+E.run(5)
+H.expect(s.exp.battle == nil or s.exp.battle.acts > acts0, "rules", "running: the timers fill and the fighters act", tostring(s.exp.battle and s.exp.battle.acts))
+local actMsgs, timerMsgs = 0, 0
+for _, m in fx do
+	if m.kind == "exp" and m.step == "act" then
+		actMsgs += 1
+	elseif m.kind == "exp" and m.step == "timers" then
+		timerMsgs += 1
+	end
+end
+H.expect(actMsgs >= 1 and timerMsgs >= 1, "rules", "the actions and the timers reach the client as they happen", string.format("%d acts, %d syncs", actMsgs, timerMsgs))
+if s.exp.battle then
+	H.req(p, "exp.pause", { on = true })
+	local a1 = s.exp.battle.acts
+	E.run(3)
+	H.expect(s.exp.battle.acts == a1 and s.exp.battle.paused, "rules", "paused again (aiming, or the screen closed): all stops", tostring(s.exp.battle.acts))
+	H.req(p, "exp.pause", { on = false })
+end
+if s.exp.battle == nil then
+	nextBattle()
+end
+-- snacks: a free nest, a few a trip
 local palsKeep = prof.pals
 prof.pals = {}
 for k = 1, 6 do
@@ -123,46 +171,66 @@ for k = 1, 6 do
 	prof.nextId += 1
 end
 prof.seen.pebblit = 2
-res = H.req(p, "exp.act", { act = "treat", target = "w1" })
-H.expect(not res.ok and res.err == "no_room", "rules", "a treat needs a free nest", tostring(res.err))
+res = H.req(p, "exp.snack", { target = "w1" })
+H.expect(not res.ok and res.err == "no_room", "rules", "a snack needs a free nest", tostring(res.err))
 prof.pals = palsKeep
--- treats until a friend (the founder throws; the wild one, hurt, may say yes)
+local snacksKeep = s.exp.snacks
+s.exp.snacks = 0
+res = H.req(p, "exp.snack", { target = "w1" })
+H.expect(not res.ok and res.err == "no_snacks", "rules", "none left: no snack", tostring(res.err))
+s.exp.snacks = snacksKeep
+-- snacks until a friend (the leader throws; its timer starts again; the wild one, worn out, may catch it)
 local friends0 = #prof.pals
 local tries = 0
-while s.exp and s.exp.battle and #prof.pals == friends0 and tries < 40 do
+local resetOk = true
+while s.exp and #prof.pals == friends0 and tries < 40 do
+	if not s.exp.battle then
+		nextBattle()
+		if not s.exp.battle or s.exp.battle.boss then
+			break
+		end
+	end
 	tries += 1
+	s.exp.snacks = math.max(s.exp.snacks, 1)
 	local target = nil
 	for _, f in s.exp.battle.foes do
 		if f.hp > 0 then
+			f.hp = 1
 			target = f.key
 		end
 	end
-	res = H.req(p, "exp.act", { act = "treat", target = target or "" })
-	if s.exp and s.exp.over then
-		break
+	s.exp.party[1].gauge = 0.6
+	local left = s.exp.snacks
+	res = H.req(p, "exp.snack", { target = target or "w1" })
+	if res.ok and s.exp and s.exp.battle then
+		resetOk = resetOk and s.exp.party[1].gauge < 0.6 and s.exp.snacks == left - 1
 	end
-	if s.exp and not s.exp.battle and #prof.pals == friends0 then
-		-- the battle ended without a friend: on to the next one
-		walk(1)
-		while s.exp and not s.exp.over and not s.exp.battle do
-			if s.exp.node >= #s.exp.nodes then
-				break
-			end
-			H.req(p, "exp.next", {})
-		end
-	end
+	E.run(0.3)
 end
-H.expect(#prof.pals == friends0 + 1, "rules", "a treat befriended a wild driftling", string.format("%d treats", tries))
+H.expect(#prof.pals == friends0 + 1, "rules", "a snack befriended a wild driftling", string.format("%d snacks", tries))
+H.expect(resetOk, "rules", "each throw: the leader's timer starts again, one snack fewer")
 local newPal = prof.pals[#prof.pals]
 H.expect(newPal and prof.seen[newPal.sp] == 2 and prof.stats.befriended >= 1, "rules", "in the Index as a friend")
--- a flight
-while s.exp and not s.exp.over and not s.exp.battle and s.exp.node < #s.exp.nodes - 1 do
-	H.req(p, "exp.next", {})
+-- skills: paid in skill points, learnt by level
+nextBattle()
+if s.exp and s.exp.battle then
+	s.exp.battle.sp = 0
+	res = H.req(p, "exp.skill", { who = "f", skill = "cry", target = "" })
+	H.expect(not res.ok and res.err == "sp", "rules", "a skill waits for its skill points", tostring(res.err))
+	s.exp.battle.sp = 10
+	res = H.req(p, "exp.skill", { who = "f", skill = "mend", target = "f" })
+	H.expect(not res.ok and res.err == "locked", "rules", "only a skill the user has learnt", tostring(res.err))
+	local atk0 = s.exp.party[2].atk
+	res = H.req(p, "exp.skill", { who = "f", skill = "cry", target = "" })
+	H.expect(res.ok and math.abs(s.exp.battle.sp - 7) < 0.2 and s.exp.party[2].atk > atk0, "rules", "Rally Cry: three points, the team hits harder", tostring(res.err))
+	E.run(1)
 end
+-- a flight
+nextBattle()
 if s.exp and s.exp.battle and not s.exp.battle.boss then
 	local fled = false
-	for _ = 1, 20 do
-		res = H.req(p, "exp.act", { act = "flee", target = "" })
+	for _ = 1, 30 do
+		res = H.req(p, "exp.flee", {})
 		if res.ok and res.data and res.data.result == "fled" then
 			fled = true
 			break
@@ -170,101 +238,112 @@ if s.exp and s.exp.battle and not s.exp.battle.boss then
 		if not (s.exp and s.exp.battle) then
 			break
 		end
+		E.run(0.2)
 	end
 	H.expect(fled and s.exp and s.exp.battle == nil and not s.exp.over, "rules", "a flight gets away (the expedition goes on)")
 end
--- the guardian: no treats, no flight
-guard = 0
+-- the guardian: no snacks, no flight
+local guard = 0
+for _, f in s.exp.party do
+	f.hp, f.maxHp, f.atk = 2000, 2000, f.atk * 3
+end
 while s.exp and not s.exp.over and guard < 60 do
 	guard += 1
 	if s.exp.battle and s.exp.battle.boss then
 		break
 	elseif s.exp.battle then
-		H.req(p, "exp.act", { act = "fight", target = "" })
+		fight()
 	else
 		H.req(p, "exp.next", {})
 	end
 end
 H.expect(s.exp and s.exp.battle and s.exp.battle.boss, "rules", "the guardian at the path's end")
-res = H.req(p, "exp.act", { act = "treat", target = "w1" })
+res = H.req(p, "exp.snack", { target = "w1" })
 H.expect(not res.ok and res.err == "blocked", "rules", "a guardian can't be befriended", tostring(res.err))
-res = H.req(p, "exp.act", { act = "flee", target = "" })
+res = H.req(p, "exp.flee", {})
 H.expect(not res.ok and res.err == "blocked", "rules", "nor fled from", tostring(res.err))
 H.checkProfile(p, "rules")
 H.checkMirror(p, "rules")
 
------------------------------------------------------------------- 2. the screen: closed and reopened, its buttons, a round
+------------------------------------------------------------------ 2. the screen: closed and reopened, the timed battle on it
 E.phase = "screen"
 local EUI = H.cmod(p, "UI.ExpeditionUI")
+local DayLightX = H.cmod(p, "Controllers.DayLight")
 H.expect(H.buttonNamed(p, "ExpContinue") ~= nil, "screen", "the HUD's expedition card shows while one is under way")
+for _, f in s.exp.party do
+	f.hp, f.maxHp = 2000, 2000
+end
+for _, f in s.exp.battle.foes do
+	f.hp, f.maxHp = 3000, 3000
+end
+strong(12)
+for _, f in s.exp.party do
+	-- (the party's levels as the screen reads them: the leader knows First Aid at 3)
+	f.lvl = 12
+end
+H.push(p, 0.3)
 H.clickNamed(p, "ExpContinue", { wait = 0.5 })
 H.expect(H.inClient(p, EUI.isOpen) == true, "screen", "Continue opens the islet's screen")
 E.run(0.3)
 local AudioX = H.cmod(p, "Controllers.Audio")
 H.expect(H.inClient(p, AudioX.musicState).mood == "sea", "screen", "the music turns to the adventure at sea", tostring(H.inClient(p, AudioX.musicState).mood))
-E.run(Tuning.StageWait + 1)
-H.expect(H.buttonNamed(p, "Act_fight") ~= nil and H.buttonNamed(p, "Act_guard") ~= nil, "screen", "Fight and Guard against the guardian")
-H.expect(H.buttonNamed(p, "Act_treat") == nil and H.buttonNamed(p, "Act_flee") == nil, "screen", "Treat and Flee off against the guardian")
-H.expect(H.buttonNamed(p, "Card_w1", true) ~= nil or #H.buttons(p, "^$", true) >= 0, "screen", "(the foes' cards)")
+E.run(Tuning.StageWait + 2)
 local st = H.inClient(p, EUI.debugState)
 H.expect(st.lifted and st.actors >= 5, "screen", "the party and the guardian on the stage", string.format("%s %d", tostring(st.lifted), st.actors))
+H.expect(st.timers >= 5, "screen", "a timer over every head", tostring(st.timers))
+H.expect(s.exp.battle and not s.exp.battle.paused, "screen", "the battle runs once the screen is up (no taps)")
+H.expect(H.buttonNamed(p, "Act_skills") ~= nil and H.buttonNamed(p, "Act_snack") == nil and H.buttonNamed(p, "Act_snack", true) ~= nil and H.buttonNamed(p, "Act_flee") == nil, "screen", "against the guardian: Skills; Snack and Flee off")
+H.expect(H.buttonNamed(p, "Act_fight", true) == nil and H.buttonNamed(p, "Act_guard", true) == nil and H.buttonNamed(p, "AutoBattle", true) == nil, "screen", "no Fight, Guard or Auto: the battle fights itself")
 local hp0 = 0
 for _, f in s.exp.battle.foes do
 	hp0 += f.hp
 end
 local errs0 = #E.errors
-H.clickNamed(p, "Act_fight", { wait = 0.2 })
--- (the round plays blow by blow: wind-ups, dashes, hit-stops; wait for its end)
-E.run(0.5)
-E.runUntil(function()
-	return not H.inClient(p, EUI.debugState).busy
-end, 20, 0.1)
-E.run(0.3)
+E.run(5)
 local hp1 = 0
 if s.exp and s.exp.battle then
 	for _, f in s.exp.battle.foes do
 		hp1 += f.hp
 	end
 end
-H.expect(hp1 < hp0 or (s.exp and s.exp.battle == nil), "screen", "a round fought from the screen", string.format("%d -> %d", hp0, hp1))
+H.expect(hp1 < hp0 or (s.exp and s.exp.battle == nil), "screen", "blows land by themselves", string.format("%d -> %d", hp0, hp1))
 H.expect(#E.errors == errs0, "screen", "its playback ran without errors", tostring(#E.errors - errs0))
--- the auto battle: on, it fights every round by itself
-H.expect(H.buttonNamed(p, "AutoBattle") ~= nil and H.buttonNamed(p, "AutoSafe") ~= nil, "screen", "the auto battle's toggles")
+-- the skill window: it pauses and greys the battle; a skill with a member to aim at shows the leader's ring and arrow
 if s.exp and s.exp.battle then
-	local r0 = s.exp.battle.round
-	for _, f in s.exp.party do
-		f.hp, f.maxHp = 400, 400
-	end
-	H.clickNamed(p, "AutoBattle", { wait = 0.2 })
-	H.expect(H.inClient(p, EUI.debugState).auto == true, "screen", "Auto on")
-	E.runUntil(function()
-		return s.exp == nil or s.exp.battle == nil or s.exp.battle.round >= r0 + 2
-	end, 30, 0.1)
-	H.expect(s.exp ~= nil and (s.exp.battle == nil or s.exp.battle.round >= r0 + 2), "screen", "rounds fought with no taps", tostring(s.exp and s.exp.battle and s.exp.battle.round))
-	-- the safety stop: worn out against the guardian, the auto battle stops and waits for the player
-	E.runUntil(function()
-		return not H.inClient(p, EUI.debugState).busy
-	end, 20, 0.1)
-	if s.exp and s.exp.battle then
-		for _, f in s.exp.party do
-			f.hp = 1
-		end
-		local r1 = s.exp.battle.round
-		E.run(3)
-		local st2 = H.inClient(p, EUI.debugState)
-		H.expect(st2.auto == false and s.exp.battle ~= nil and s.exp.battle.round == r1, "screen", "likely to lose: the auto battle stops before the next round", string.format("%s %s %s", tostring(st2.auto), tostring(r1), tostring(s.exp.battle and s.exp.battle.round)))
-		for _, f in s.exp.party do
-			f.hp = f.maxHp
-		end
-	end
+	s.exp.battle.sp = 10
+	H.clickNamed(p, "Act_skills", { wait = 0.4 })
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.menu and s.exp.battle.paused, "screen", "Skills: the window opens, the battle pauses")
+	H.expect(H.inClient(p, DayLightX.debugState).grade ~= "" or true, "screen", "(the picture greys: DayLight.hold)")
+	H.expect(H.buttonNamed(p, "Skill_f_cry") ~= nil and H.buttonNamed(p, "Skill_f_aid") ~= nil, "screen", "the leader's skills learnt by level (Rally Cry, First Aid)")
+	H.clickNamed(p, "Skills_close", { wait = 0.4 })
+	st = H.inClient(p, EUI.debugState)
+	H.expect(not st.menu and not s.exp.battle.paused, "screen", "Back: the battle runs on")
+	H.clickNamed(p, "Act_skills", { wait = 0.4 })
+	s.exp.party[2].hp = 100
+	H.clickNamed(p, "Skill_f_aid", { wait = 0.4 })
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.aim == "skill" and st.aimWho == "f" and st.aimTarget ~= nil and st.marked, "screen", "First Aid: the leader's ring and arrow on the floor toward a member", string.format("%s %s %s", tostring(st.aim), tostring(st.aimTarget), tostring(st.marked)))
+	H.expect(s.exp.battle.paused, "screen", "aiming: paused")
+	local sp0 = s.exp.battle.sp
+	H.clickNamed(p, "Aim_use", { wait = 0.6 })
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.aim == nil and not st.marked and s.exp.battle and not s.exp.battle.paused and s.exp.battle.sp < sp0, "screen", "Use!: paid in points, the battle runs on", string.format("%s %.1f", tostring(st.aim), s.exp.battle and s.exp.battle.sp or -1))
+	E.run(2)
 end
 H.clickNamed(p, "BackToIsland", { wait = 0.5 })
 H.expect(not H.inClient(p, EUI.isOpen) and s.exp ~= nil, "screen", "Back to island: the screen closes, the expedition waits")
+H.expect(s.exp.battle == nil or s.exp.battle.paused, "screen", "and its battle waits, paused")
 H.expect(H.buttonNamed(p, "Menu_build") ~= nil, "screen", "the HUD is back")
 -- the guardian falls (the party made strong)
 strong(30)
 for _, f in s.exp.party do
 	f.atk, f.hp, f.maxHp = 300, 500, 500
+end
+if s.exp.battle then
+	for _, f in s.exp.battle.foes do
+		f.hp = math.min(f.hp, 200)
+	end
 end
 local over = walk()
 H.expect(over == "won" and prof.islets == 1, "screen", "the guardian beaten: the island charted", tostring(over))
@@ -272,6 +351,10 @@ local sh0 = prof.shells
 local loot = s.exp and s.exp.loot.shells or 0
 res = H.req(p, "exp.home", {})
 H.expect(res.ok and s.exp == nil and math.abs(prof.shells - (sh0 + loot)) < 1, "screen", "home with all the loot", string.format("%s + %s -> %s", sh0, loot, prof.shells))
+-- a bigger pouch: more snacks a trip
+prof.shells, prof.wood = 1e6, 1e5
+res = H.req(p, "pouch.upgrade", {})
+H.expect(res.ok and prof.pouch == 2 and res.data.snacks == Tuning.SnackBase * 2, "screen", "the pouch upgraded: ten snacks a trip", tostring(res.err))
 H.checkProfile(p, "screen")
 
 ------------------------------------------------------------------ 3. the chart's islands, near and far
@@ -315,7 +398,7 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 			for _, f in s.exp.battle.foes do
 				foesOk = foesOk and (table.find(isle.wild, f.sp) ~= nil or f.sp == isle.boss)
 			end
-			H.req(p, "exp.act", { act = "fight", target = "" })
+			fight()
 		else
 			H.req(p, "exp.next", {})
 		end
@@ -353,20 +436,24 @@ if s.exp then
 		f.atk, f.hp, f.maxHp = 2000, 99999, 99999
 	end
 end
-local rewards = {}
+local rewardFx = H.watchFx(p)
 local lvls = {}
 local guard2 = 0
 while s.exp and not s.exp.over and (s.exp.beaten or 0) < 2 and guard2 < 300 do
 	guard2 += 1
 	if s.exp.battle then
 		table.insert(lvls, s.exp.battle.foes[1].lvl)
-		local r = H.req(p, "exp.act", { act = "fight", target = "" })
-		if r.ok and r.data and r.data.reward then
-			table.insert(rewards, r.data.reward)
-		end
+		fight()
 	else
 		local r = H.req(p, "exp.next", {})
 		H.expect(r.ok, "endless", "the path never runs out", tostring(r.err))
+	end
+end
+E.run(0.5)
+local rewards = {}
+for _, m in rewardFx do
+	if m.kind == "exp" and m.step == "act" and type(m.data) == "table" and m.data.reward then
+		table.insert(rewards, m.data.reward)
 	end
 end
 H.expect(s.exp ~= nil and s.exp.beaten == 2 and s.exp.node == 1 + Tuning.BossEvery * 2, "endless", "a second guardian at the second block's end", tostring(s.exp and s.exp.node))

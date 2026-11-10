@@ -6,8 +6,10 @@
 --   "small"  a whole number in [1, 16] (a look index)
 --   "isle"   a whole number in [1, 64] (an island of the sea chart)
 --   "party"  up to three members "v<id>" / "p<id>" joined by commas ("" for the captain alone)
---   "act"    a battle move: "fight", "guard", "treat" or "flee"
---   "target" a wild driftling in the battle ("w1".."w9") or "" (none)
+--   "target" a wild driftling in the battle ("w1".."w9")
+--   "member" one of the party: the captain "f", a villager "v<id>", a driftling "p<id>"
+--   "aim"    whom a skill aims at: a member or a wild one, or "" (nobody: the team, every foe)
+--   "bool"   true or false
 --   "key"    a settings key ("pixel", "music")
 --   "coord"  a whole number in [-64, 64] (a plot-local stud)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
@@ -30,7 +32,11 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["exp.start"] = { isle = "isle", party = "party" },
 	["boat.upgrade"] = {},
 	["exp.next"] = {},
-	["exp.act"] = { act = "act", target = "target" },
+	["exp.snack"] = { target = "target" },
+	["exp.flee"] = {},
+	["exp.skill"] = { who = "member", skill = "id", target = "aim" },
+	["exp.pause"] = { on = "bool" },
+	["pouch.upgrade"] = {},
 	["exp.home"] = {},
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
@@ -39,7 +45,6 @@ local ACTIONS: { [string]: { [string]: string } } = {
 }
 Validate.ACTIONS = ACTIONS
 
-local ACTS = { fight = true, guard = true, treat = true, flee = true }
 local SETTINGS = { pixel = true, music = true }
 
 local function isInt(v: any, lo: number, hi: number): boolean
@@ -70,10 +75,14 @@ local function check(kind: string, v: any): boolean
 			end
 		end
 		return n >= 1 and n <= 3 and string.match(v, ",,") == nil and string.sub(v, 1, 1) ~= "," and string.sub(v, -1) ~= ","
-	elseif kind == "act" then
-		return type(v) == "string" and ACTS[v] == true
 	elseif kind == "target" then
-		return v == "" or (type(v) == "string" and string.match(v, "^w%d$") ~= nil)
+		return type(v) == "string" and string.match(v, "^w%d$") ~= nil
+	elseif kind == "member" then
+		return type(v) == "string" and (v == "f" or string.match(v, "^[vp]%d%d?%d?%d?%d?%d?%d?$") ~= nil)
+	elseif kind == "aim" then
+		return v == "" or (type(v) == "string" and (v == "f" or string.match(v, "^[vpw]%d%d?%d?%d?%d?%d?%d?$") ~= nil))
+	elseif kind == "bool" then
+		return type(v) == "boolean"
 	elseif kind == "coord" then
 		return isInt(v, -64, 64)
 	elseif kind == "rot" then

@@ -14,6 +14,7 @@ local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
+local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
@@ -157,16 +158,61 @@ function IslandService.init()
 		end
 		return ok, data
 	end)
-	Router.on("exp.act", function(s, a)
+	-- the timed battle (GAME_DESIGN 7): the player's moves; the battle itself runs in `step`
+	local function battleDone(s: Session.S, data: any)
+		if type(data) == "table" and data.result then
+			Session.markDirty(s)
+		end
+	end
+	Router.on("exp.snack", function(s, a)
 		local e = s.exp
 		if e == nil then
 			return false, "no_exp"
 		end
-		local ok, data = Expedition.act(s.profile, e, a.act, if a.target == "" then nil else a.target, s.rng)
+		local ok, data = Expedition.snack(s.profile, e, a.target, s.rng)
 		if ok then
-			Session.fx(s, { kind = "exp", step = "round", data = data })
+			battleDone(s, data)
+			Session.fx(s, { kind = "exp", step = "act", data = data })
 		end
 		return ok, data
+	end)
+	Router.on("exp.skill", function(s, a)
+		local e = s.exp
+		if e == nil then
+			return false, "no_exp"
+		end
+		local ok, data = Expedition.skill(s.profile, e, a.who, a.skill, if a.target == "" then nil else a.target, s.rng)
+		if ok then
+			battleDone(s, data)
+			Session.fx(s, { kind = "exp", step = "act", data = data })
+		end
+		return ok, data
+	end)
+	Router.on("exp.flee", function(s, _a)
+		local e = s.exp
+		if e == nil then
+			return false, "no_exp"
+		end
+		local ok, data = Expedition.flee(s.profile, e, s.rng)
+		if ok then
+			battleDone(s, data)
+			Session.fx(s, { kind = "exp", step = "act", data = data })
+		end
+		return ok, data
+	end)
+	Router.on("exp.pause", function(s, a)
+		local e = s.exp
+		if e == nil then
+			return false, "no_exp"
+		end
+		return Expedition.pause(e, a.on)
+	end)
+	-- a bigger snack pouch (GAME_DESIGN 7: snacks an expedition, 5 up to 30); not while away
+	Router.on("pouch.upgrade", function(s, _a)
+		if s.exp then
+			return false, "busy"
+		end
+		return Expedition.upgradePouch(s.profile)
 	end)
 	Router.on("exp.home", function(s, _a)
 		local e = s.exp
@@ -239,6 +285,26 @@ function IslandService.step(dt: number)
 			Island.newDay(p)
 			Session.markDirty(s)
 			Session.fx(s, { kind = "day", day = p.day })
+		end
+		-- the expedition's battle runs on in time (paused while landing, aiming a snack or off the screen); what
+		-- happens goes to the client as it happens, the timers as they stand twice a second
+		local e = s.exp
+		if e and e.battle and not e.over then
+			local out = Expedition.tick(p, e, dt, s.rng)
+			if out then
+				if out.result then
+					Session.markDirty(s)
+				end
+				Session.fx(s, { kind = "exp", step = "act", data = out })
+				s.gaugeClock = 0
+			else
+				s.gaugeClock += dt
+				local b = e.battle
+				if b and not b.paused and s.gaugeClock >= 0.5 then
+					s.gaugeClock = 0
+					Session.fx(s, { kind = "exp", step = "timers", data = Battle.gauges(e.party, b) })
+				end
+			end
 		end
 		s.tickClock += dt
 		if s.tickClock >= 1 then
