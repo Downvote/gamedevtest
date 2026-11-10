@@ -10,7 +10,8 @@ local RunService = game:GetService("RunService")
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 
 export type PlayOpts = { volume: number?, pitch: number? }
-type EventDef = { id: string, vol: number, pitch: { number }?, cd: number?, voices: number? }
+-- from / len: play only that stretch of the clip (seconds into it, and for how long at normal speed)
+type EventDef = { id: string, vol: number, pitch: { number }?, cd: number?, voices: number?, from: number?, len: number? }
 
 local Audio = {}
 
@@ -26,16 +27,16 @@ local EVENTS: { [string]: EventDef } = {
 	-- the shells and the celebrations: pebbles, a shaker, the conch, island stingers
 	coin = { id = "Coin", vol = 0.35, pitch = { 1.05, 1.2 }, cd = 0.08, voices = 3 },
 	coins = { id = "CoinsMany", vol = 0.35, pitch = { 0.95, 1.05 }, cd = 0.3 },
-	level_up = { id = "LevelUp", vol = 0.3, cd = 1 },
-	reward = { id = "Reward", vol = 0.32, cd = 0.4 },
-	fanfare = { id = "Fanfare", vol = 0.32, cd = 0.5 },
-	rare_fanfare = { id = "RareFanfare", vol = 0.36, cd = 1 },
+	-- the happy moments (a newcomer, a friend, a level up, home with the loot): one small music-box note each
+	fanfare = { id = "Chime", vol = 0.4, cd = 0.5 },
+	reward = { id = "Chime", vol = 0.38, pitch = { 1.26, 1.26 }, cd = 0.4 },
+	level_up = { id = "ChimeHigh", vol = 0.35, cd = 1 },
 	combo = { id = "Combo", vol = 0.4, pitch = { 1, 1.1 }, cd = 0.2 },
 	sparkle = { id = "Sparkle", vol = 0.45, pitch = { 0.96, 1.08 }, cd = 0.15 },
 	cheer = { id = "Cheer", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.6 },
 	trumpet = { id = "Trumpet", vol = 0.22, pitch = { 0.98, 1.02 }, cd = 1 },
-	sad = { id = "SadTrombone", vol = 0.35, cd = 1 },
-	drumroll = { id = "Drumroll", vol = 0.3, cd = 1 },
+	sad = { id = "Chime", vol = 0.35, pitch = { 0.75, 0.75 }, cd = 1 },
+	drumroll = { id = "Chime", vol = 0.35, pitch = { 0.67, 0.67 }, cd = 1 },
 	tick = { id = "Tick", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.03, voices = 3 },
 	flip = { id = "CardFlip", vol = 0.35, pitch = { 0.95, 1.08 }, cd = 0.04, voices = 3 },
 	pop = { id = "Pop", vol = 0.5, pitch = { 0.95, 1.15 }, cd = 0.04, voices = 3 },
@@ -53,7 +54,7 @@ local EVENTS: { [string]: EventDef } = {
 	-- the islands and the sea
 	chest = { id = "ChestOpen", vol = 0.5, cd = 0.3 },
 	splash = { id = "Splash", vol = 0.4, pitch = { 0.9, 1.1 }, cd = 0.08, voices = 3 },
-	hammer = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.05 }, cd = 0.2 },
+	hammer = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.05 }, cd = 0.2, from = 0.24, len = 0.17 },
 	horn = { id = "BoatHorn", vol = 0.3, cd = 2 },
 	gull = { id = "Gull", vol = 0.12, pitch = { 0.95, 1.1 }, cd = 4 },
 	birds = { id = "Birds", vol = 0.2, cd = 20 },
@@ -137,18 +138,19 @@ end
 -- Config/Monetization.Music ("day", "night", "sea"; nil: quiet), shuffled and played track after track; a change of
 -- mood, and each track's last seconds, crossfade over MUSIC_FADE seconds. Audio.setMusicOn(false) fades it away (the
 -- settings' Music switch). Never yields.
-local MUSIC_VOL = 0.3
+local MUSIC_VOL = 0.2
 local MUSIC_FADE = 3
-type Track = { s: Sound, mood: string, target: number, handed: boolean }
+type Track = { s: Sound, mood: string, target: number, handed: boolean, gain: number }
 local mood: string? = nil
 local musicOn = true
 local tracks: { Track } = {}
-local order: { [string]: { number } } = {}
+type Song = { id: number, gain: number }
+local order: { [string]: { Song } } = {}
 local nextIdx: { [string]: number } = {}
 local musicFader = false
 
 local function nextTrack(m: string)
-	local list = ((Monetization :: any).Music or {})[m] :: { number }?
+	local list = ((Monetization :: any).Music or {})[m] :: { Song }?
 	if list == nil or #list == 0 then
 		return
 	end
@@ -167,11 +169,12 @@ local function nextTrack(m: string)
 	nextIdx[m] = i % #o + 1
 	local snd = Instance.new("Sound")
 	snd.Name = "Music_" .. m
-	snd.SoundId = "rbxassetid://" .. tostring(o[i])
+	local song = o[i]
+	snd.SoundId = "rbxassetid://" .. tostring(song.id)
 	snd.Looped = #o == 1
 	snd.Volume = 0
 	snd.Parent = holder()
-	local t: Track = { s = snd, mood = m, target = 0, handed = false }
+	local t: Track = { s = snd, mood = m, target = 0, handed = false, gain = song.gain or 1 }
 	table.insert(tracks, t)
 	snd.Ended:Connect(function()
 		-- (a track that ran out before its crossfade: the next one starts now)
@@ -193,9 +196,9 @@ local function startFader()
 	end
 	musicFader = true
 	RunService.Heartbeat:Connect(function(dt: number)
-		local step = dt * MUSIC_VOL / MUSIC_FADE
 		for i = #tracks, 1, -1 do
 			local t = tracks[i]
+			local step = dt * MUSIC_VOL * t.gain / MUSIC_FADE
 			local s = t.s
 			-- near its end the next track of the mood fades in over it
 			if not t.handed and t.mood == mood and not s.Looped and s.TimeLength > MUSIC_FADE * 2 and s.TimePosition >= s.TimeLength - MUSIC_FADE then
@@ -204,7 +207,7 @@ local function startFader()
 				nextTrack(t.mood)
 			end
 			local v = s.Volume
-			local want = if t.mood == mood and musicOn and not t.handed then MUSIC_VOL else 0
+			local want = if t.mood == mood and musicOn and not t.handed then MUSIC_VOL * t.gain else 0
 			t.target = want
 			if v ~= want then
 				s.Volume = if math.abs(want - v) <= step then want elseif want > v then v + step else v - step
@@ -278,11 +281,23 @@ function Audio.play(name: string, opts: PlayOpts?): boolean
 		lo, hi = ev.pitch[1], ev.pitch[2]
 	end
 	snd.Volume = ev.vol * (o.volume or 1)
-	snd.PlaybackSpeed = (lo + (hi - lo) * math.random()) * (o.pitch or 1)
+	local speed = (lo + (hi - lo) * math.random()) * (o.pitch or 1)
+	snd.PlaybackSpeed = speed
 	pcall(function()
-		snd.TimePosition = 0
+		snd.TimePosition = ev.from or 0
 		snd:Play()
 	end)
+	local len = ev.len
+	if len then
+		-- only a stretch of the clip: it stops when the stretch is over (unless the voice was played again since)
+		local token = os.clock()
+		snd:SetAttribute("PlayedAt", token)
+		task.delay(len / math.max(0.05, speed), function()
+			if snd.Parent and snd:GetAttribute("PlayedAt") == token then
+				snd:Stop()
+			end
+		end)
+	end
 	return true
 end
 

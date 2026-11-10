@@ -1144,7 +1144,7 @@ playRound = function(data: { [string]: any })
 	local result = data.result
 	local st = stage
 	if result == "win" then
-		Audio.play("fanfare")
+		-- (no sound for a won fight: the party's jump for joy and the small alert say it)
 		local order = 0
 		for _, a in actors do
 			if not a.foe then
@@ -1180,7 +1180,6 @@ playRound = function(data: { [string]: any })
 					st.puff(st.at(0, 0, 2), "confetti")
 				end
 			end
-			Audio.play("rare_fanfare")
 			-- the path goes on: an alert, the party walks on (Sail home whenever the player likes)
 			local n = tonumber(data.guardian) or 1
 			local title = if data.first then (if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!") else string.format("Guardian %d beaten!", n)

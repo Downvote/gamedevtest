@@ -91,7 +91,8 @@ range a level in leagues, `BoatCost` `{ shells, wood }` a level), the server's s
   `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`, `PixelStageBakeMs`).
 - `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0), `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
-  Random Bakery's, each named in a comment) and `Music` (`{ day, night, sea }`: APM Music tracks, each named).
+  Random Bakery's, each named in a comment) and `Music` (`{ day, night, sea }`: lists of `{ id, gain }`, APM Music
+  tracks, each named; `gain` evens their loudness out).
 
 ## 5. Data (pure content tables)
 
@@ -271,14 +272,15 @@ comes), `request(action, payload) -> Response` (never errors), `signal(kind, pay
 
 ### 8.3 `Audio`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's), `has(name)`, `EVENTS`: every sound by
-name (`click open close deny notice ding coin coins level_up reward fanfare rare_fanfare combo sparkle cheer trumpet
-sad drumroll tick flip pop`, the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap heal shield poof bite`,
+name (`click open close deny notice ding coin coins level_up reward fanfare combo sparkle cheer trumpet sad drumroll
+tick flip pop`: `fanfare reward level_up sad drumroll` a music-box note, `Chime` or `ChimeHigh`, at its own pitch), the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap heal shield poof bite`,
 the world's `chest splash hammer horn gull birds`), each one `Monetization.Sounds` id (0 =
-silent) with a volume, a pitch range, a cooldown (a repeat inside it is dropped) and a few voices (Sounds in
+silent) with a volume, a pitch range, a cooldown (a repeat inside it is dropped), a few voices and maybe a stretch
+of the clip (`from`, `len`: the hammer's first two taps; the voice stops when it is over) (Sounds in
 `SoundService.UISounds`, reused). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
 (DayLight: the surf always, crickets at night). `music(mood?)`: the background music, a mood's playlist of
 `Monetization.Music` ("day", "night", "sea"; nil: quiet) shuffled once and played round, track after track
-(`Music_<mood>` Sounds at `MUSIC_VOL`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
+(`Music_<mood>` Sounds at `MUSIC_VOL` (0.2) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
 that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades
 it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mood every frame (sea while the islet's
 screen is open or a voyage plays, night from 0.74 of the day to the dawn, else day) and `on` from

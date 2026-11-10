@@ -426,9 +426,14 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 
   The interface is wood and bamboo: a temple-block tap for a click, a bamboo swish as a panel opens and closes, a low
   wooden knock for "no", wind chimes for a notice; shells coming in clack like pebbles (a handful for many); a bubble
-  pops; pages turn; a shaker for a cheer or a skill; the conch's call for the boat and a rally; island stingers (APM)
-  for a level up, a reward, a win and a guardian charted, a chase sting as a guardian steps up, a sad sting for a
-  defeat.
+  pops; pages turn; a shaker for a cheer or a skill; the conch's call for the boat and a rally. The happy moments (a
+  newcomer moving in, a friend joining, expanding, a level up, home with the loot) ring one small music-box note each
+  (pitched per moment); a guardian stepping up and a defeat a lower one. A won fight makes no sound of its own (the
+  party's jump for joy and the small alert say it). Building is two quick hammer taps.
+
+  > The requests (2026-11-10): "remove the victory sound whenever a fight finishes"; "the victory sound and wherever
+  > it plays in such as a villager coming is too noisy, find one with a small short chime instead"; "the building
+  > sound is also too, long, make it short"
 
   > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"
 
@@ -438,11 +443,15 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   or the party flees. The islands and the sea: a wooden chest creaking open, a splash as the party hops off the boat
   into the shallows, a boat horn as the boat casts off and comes home, a hammer on wood when a building goes up,
   gulls squawking as a flock passes over, the surf on the sand always, crickets through the night and birds at dawn.
-- **Music** (`Audio.music`): APM Music's library on the Creator Store, shuffled, one track after another, crossfaded:
-  easygoing island tunes by day (marimba, ukulele), softer ones from the twilight (a steel drum, a calypso ballad), a
-  light sea adventure on an islet and while sailing. The note in the HUD's corner switches it off and on.
+- **Music** (`Audio.music`): APM Music's library on the Creator Store, shuffled, one track after another, crossfaded,
+  quiet: calm, drumless music that sits in the background. Soft acoustic island guitar by day (Campfire Stories,
+  Tender Reflection, Home Camp), soft solo piano from the twilight (Gymnopedie No. 1, two Live Piano Stories), gentle
+  and a little more open on an islet and while sailing (Quietness Sustained, Daydreaming On A Hammock), each evened out
+  to the same loudness. Chosen by measuring the tracks (notes a second, the drums' share, the beat's strength, the
+  loudness section by section), not by their names. The note in the HUD's corner switches it off and on.
 
-  > The request (2026-11-10): "also, find cozy background music"
+  > The requests (2026-11-10): "also, find cozy background music"; "the background track is too upbeat and noisy.
+  > find one that would fit well as background noise and is cozy"
 
 ## 12. Out of scope for this version
 
