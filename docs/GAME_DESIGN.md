@@ -64,18 +64,25 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
 - **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
   and inner ink lines where shapes meet.
-- **Anti-aliasing, no jaggies.** A colour region's pixel that meets the outline only at a corner goes a tone darker; skies blend between bands with a 1 px
-  dither row; lines are drawn at clean slopes (a slash is a 1:1 diagonal).
-- **Shading:** every colour region is a 4-tone ramp from one shared palette, lit from the top left by the form of the
-  whole silhouette (a dome over the shape, never a band hugging each edge: no pillow shading), with the ink shading
-  the pixels under an overhang.
+- **Anti-aliasing, no jaggies.** A pixel that meets the outline only at a corner goes a step toward the shadow
+  (never a dark speck on the lit side); skies blend between bands with a 1 px dither row; lines are drawn at clean slopes (a slash is a 1:1 diagonal).
+- **Shading:** matte cel steps over the whole silhouette, lit from the top left (never a band hugging each colour
+  region's edges: no pillow shading): the base tone does most of the work, a 1 px shadow runs along the bottom and
+  right edges (two under a portrait's belly) and a short light along the upper half of the top-left edges. The ramps'
+  steps are close, no white glints and no near-black to near-white sweeps: nothing looks like polished metal.
 - **Hue shifting:** a ramp's darker tones lean cool (towards blue and purple), its lighter ones warm (towards yellow),
   never only darker or lighter of the same hue.
-- **Texture:** a material shows what it is made of on sprites big enough to carry it (13x10 and up): wood grain in
-  strands, stone in speckles and clusters, leaves in clumps, sand in grains, cloth in weave strands, at a tone's
-  step, never noise on every pixel.
+- **Calm and readable:** no grain or speckle noise; a material reads from its colour and silhouette. Every sprite is
+  first a silhouette that tells what it is on its own: each driftling its own outline (the crab's raised pincers,
+  the bun's long ears, the pup's floppy ears and flame, the fox's tall ears and pointed chin, the mole's claws, the
+  owl's tufts and round eyes, the jelly's tentacles...), each icon a plain object (an apple, a log, a scallop shell,
+  a house, an egg in a nest, a dumbbell, a flower, a sack, a paw print, a campfire, a hat on the visitor).
+
+  > The request (2026-11-10): "the sprites still look too busy and hard to read. make sure each sillouhette is
+  > distinct enough to tell what the sprites are. the sprites also all look metallic"
 - **The outline is not anti-aliased on its outside:** the ink edge stands against the background as it is; the
-  softening is inside (a colour pixel that meets the outline only at a corner goes a tone darker).
+  softening is inside (the anti-aliasing above).
+
 > The request (2026-11-10): "alot of the sprites seem to be pillow shaded without regard to texture. can you do some
 > respriting? also, no need to anti alias the outside of the outline. also, make sure to use hueshifting when deciding
 > to use darker or lighter shades of colors"

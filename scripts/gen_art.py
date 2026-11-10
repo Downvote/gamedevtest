@@ -8,45 +8,55 @@
 # The pixel art rules (GAME_DESIGN 2; the request: "for pixel art, always dont use mixels. use pixel art techniques
 # such as anti-aliasing, avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pixel art
 # grid"): every sprite is drawn at its own size, one sprite pixel = one art pixel, never scaled (a smaller or bigger
-# thing is its own mask: "icon_x" and its small "mini_x"). A mask gives the silhouette and its colour regions; this
-# script then
-#   * shades each region with its four-tone ramp, the light from the top left: the edge facing the light one tone up,
-#     the edges away from it one and two tones down (a 1 px feature stays mid-tone), and a region's pixels that touch
-#     the outline only at a corner one tone down (inner anti-aliasing on curves);
+# thing is its own mask: "icon_x" and its small "mini_x"). A mask gives the silhouette and its colour regions; each
+# silhouette is drawn to read on its own (the user: "make sure each sillouhette is distinct enough to tell what the
+# sprites are"). This script then
+#   * shades the whole silhouette in cel steps, lit from the top left (`cel_tones`): the base tone does most of the
+#     work, a 1 px shadow runs along the bottom and right edges (a portrait's belly two), a short light along the
+#     upper half of the top-left edges of masses at least 3 px thick; no grain, no speckles, no white glints (the
+#     user: the sprites looked "too busy" and "metallic"); the ramps' steps are close and hue-shifted (shadows a
+#     little cooler, lights a little warmer);
 #   * draws a 1 px ink outline round the silhouette (the 4-neighbours: convex corners come out cut, so no double
 #     pixels at the turns) - a mask leaves a 1 px margin for it;
-#   * anti-aliases the outline's steps: an empty pixel touching the outline on one side and one end gets 35% ink.
+#   * softens the curves inside the outline: a pixel that meets the outline only at a corner goes a step toward the
+#     shadow (never a dark speck on the lit side); nothing outside the outline.
 # Mask characters: "." empty; an UPPERCASE letter a shaded region (REGIONS: R red, O orange, Y yellow, G green, C cyan,
-# B blue, P purple, K pink, N brown, S steel grey, F skin, W white, D dark); a lowercase letter or digit a flat colour
+# B blue, P purple, K pink, N brown, S stone grey, F skin and peach, W white, D dark, M warm basalt); a lowercase letter or digit a flat colour
 # (FLAT, or the sprite's own "flat" map); "#" an ink line inside the sprite.
 import argparse, os, sys
 
 PAL = {
     "ink": 0x2B1E2E,
-    # every ramp shifts its hue: its shadows cool (toward blue and purple), its lights warm (toward yellow)
-    "red0": 0x5A1A4A, "red1": 0xA82B4E, "red2": 0xE8465B, "red3": 0xFF9273,
-    "org0": 0x7A2B33, "org1": 0xC25530, "org2": 0xF59342, "org3": 0xFFD780,
-    "yel0": 0x7D4A2A, "yel1": 0xD08E2A, "yel2": 0xFFCB30, "yel3": 0xFFF7A6,
-    "grn0": 0x1E4A55, "grn1": 0x2E7D57, "grn2": 0x6CC06A, "grn3": 0xC9EE8A,
-    "cyn0": 0x253F7A, "cyn1": 0x2F80B5, "cyn2": 0x6FD3F2, "cyn3": 0xD6FFEA,
-    "blu0": 0x2B2160, "blu1": 0x3B55B0, "blu2": 0x70A9EA, "blu3": 0xC4F2FF,
-    "pur0": 0x2C1C55, "pur1": 0x5E3C9E, "pur2": 0xA77DD7, "pur3": 0xF2C8EE,
-    "pnk0": 0x5E2457, "pnk1": 0xA84B86, "pnk2": 0xFF94C2, "pnk3": 0xFFE2D6,
-    "brn0": 0x3A2036, "brn1": 0x7A4532, "brn2": 0xC88D5C, "brn3": 0xF5D49A,
-    "gry0": 0x323650, "gry1": 0x5F6B88, "gry2": 0xA6B4C6, "gry3": 0xEBF1E8,
-    "skn0": 0x7E4150, "skn1": 0xC47A5E, "skn2": 0xF1C39B, "skn3": 0xFFF0D2,
+    # four tones a colour, the base (2) doing most of the work: a shadow (1) a step darker and a little cooler, a light
+    # (3) a step lighter and a little warmer, a deep (0) only where a shadow meets the outline on a curve. Close steps
+    # and saturated shadows: matte and soft, never a chrome sweep from near black to near white.
+    "red0": 0x6B1F48, "red1": 0xB83450, "red2": 0xE8535C, "red3": 0xFF8C72,
+    "org0": 0x8A3A2E, "org1": 0xD2652E, "org2": 0xF7963F, "org3": 0xFFC86E,
+    "yel0": 0x8F5E24, "yel1": 0xD99A2B, "yel2": 0xFFC93C, "yel3": 0xFFE98A,
+    "grn0": 0x1F5650, "grn1": 0x3A8C55, "grn2": 0x6CBF5E, "grn3": 0xAEE07A,
+    "cyn0": 0x26558F, "cyn1": 0x3B97C7, "cyn2": 0x6FCFEA, "cyn3": 0xB4F1F0,
+    "blu0": 0x2E2F7C, "blu1": 0x4561BA, "blu2": 0x6F98E8, "blu3": 0xA9CFFA,
+    "pur0": 0x3A2672, "pur1": 0x6A47AC, "pur2": 0x9B74D8, "pur3": 0xCAA6F0,
+    "pnk0": 0x76306B, "pnk1": 0xC2548F, "pnk2": 0xF286B5, "pnk3": 0xFFBACB,
+    "brn0": 0x4B2A33, "brn1": 0x8A553A, "brn2": 0xC28A57, "brn3": 0xE9BC7F,
+    "gry0": 0x45425A, "gry1": 0x75738C, "gry2": 0xA5A4B5, "gry3": 0xD3D2D8,
+    "skn0": 0x8F4C55, "skn1": 0xD18A6D, "skn2": 0xF4C49E, "skn3": 0xFFE3C2,
+    "wht0": 0x8D93BF, "wht1": 0xBAC4E2, "wht2": 0xEDF1F7,
+    "drk0": 0x2E2433, "drk1": 0x4B3D4E, "drk2": 0x685767, "drk3": 0x8C7886,
+    "bas0": 0x3A2D35, "bas1": 0x5A4549, "bas2": 0x7A5E5C, "bas3": 0x9E7D72,
     "wht": 0xFFFFFF, "crm": 0xFFF3D9, "blk": 0x3B3442, "plt": 0x463B5C,
 }
 RAMPS = {
     "R": ["red0", "red1", "red2", "red3"], "O": ["org0", "org1", "org2", "org3"], "Y": ["yel0", "yel1", "yel2", "yel3"],
     "G": ["grn0", "grn1", "grn2", "grn3"], "C": ["cyn0", "cyn1", "cyn2", "cyn3"], "B": ["blu0", "blu1", "blu2", "blu3"],
     "P": ["pur0", "pur1", "pur2", "pur3"], "K": ["pnk0", "pnk1", "pnk2", "pnk3"], "N": ["brn0", "brn1", "brn2", "brn3"],
-    "S": ["gry0", "gry1", "gry2", "gry3"], "F": ["skn0", "skn1", "skn2", "skn3"], "W": ["gry1", "gry2", "gry3", "wht"],
-    "D": ["ink", "blk", "plt", "gry0"],
+    "S": ["gry0", "gry1", "gry2", "gry3"], "F": ["skn0", "skn1", "skn2", "skn3"], "W": ["wht0", "wht1", "wht2", "wht"],
+    "D": ["drk0", "drk1", "drk2", "drk3"], "M": ["bas0", "bas1", "bas2", "bas3"],
 }
 FLAT = {
     "k": "ink", "w": "wht", "r": "red2", "o": "org2", "y": "yel2", "g": "grn2", "c": "cyn2", "b": "blu2", "p": "pnk2",
     "n": "brn1", "s": "gry2", "e": "yel3", "q": "red3", "u": "pur2", "x": "blk", "z": "cyn3", "h": "gry3", "m": "crm",
+    "t": "org1", "d": "brn0", "l": "grn1",
 }
 
 SPRITES = {}  # name -> dict(rows, flat, shade, outline, recolor)
@@ -78,150 +88,178 @@ def flipx(rows):
 # species is its shape in its own two ramps (CREATURE_RAMPS), so "icon_<species>" in the Index, the Driftlings panel
 # and the battle's bars.
 SHAPES = {
+    # a wide low pebble, two stone speckles, a little smile
     "blob": [
         "................",
         "................",
         "................",
-        ".....AAAAAA.....",
+        "................",
+        "......AAAA......",
         "....AAAAAAAA....",
-        "...AAwAAAAAAA...",
         "...AAAAAAAAAA...",
-        "..AAAAkAAkAAAA..",
-        "..AAAAkAAkAAAA..",
-        "..AAAAAAAAAAAA..",
-        "..AAAAAZZAAAAA..",
+        "..AAAAAAAAAAZA..",
+        "..AAAkAAAAkAAA..",
+        ".AAAAkAAAAkAAAA.",
+        ".AAZAAAAAAAAAAA.",
+        ".AAAAAAkkAAAAAA.",
         "..AAAAAAAAAAAA..",
         "...AAAAAAAAAA...",
-        "....ZZZZZZZZ....",
         "................",
         "................",
     ],
+    # open pincers held up, eyes on stalks, six legs
     "crab": [
         "................",
+        ".Z.Z........Z.Z.",
         ".ZZZ........ZZZ.",
-        ".Z.ZZ......ZZ.Z.",
-        ".ZZZZ......ZZZZ.",
-        "..ZZ..k..k..ZZ..",
-        "...Z..A..A..Z...",
-        "...ZAAAAAAAAZ...",
-        "...AAAAAAAAAA...",
-        "..AAwAAAAAAAAA..",
+        "..ZZ........ZZ..",
+        "..Z...k..k...Z..",
+        "..Z...Z..Z...Z..",
+        "..ZAAAAAAAAAAZ..",
         "..AAAAAAAAAAAA..",
-        "..AAAAZZZZAAAA..",
-        "...AAAAAAAAAA...",
-        "..Z.Z.Z..Z.Z.Z..",
-        "..Z.Z.Z..Z.Z.Z..",
+        ".AAAAAAAAAAAAAA.",
+        ".AAAAAAAAAAAAAA.",
+        "..AAAAAAAAAAAA..",
+        "..Z.Z.AAAA.Z.Z..",
+        ".Z..Z......Z..Z.",
+        "................",
         "................",
         "................",
     ],
+    # a gull side on: a yellow beak, a blue wing and a fish's tail
     "bird": [
         "................",
         "................",
-        "..........AAA...",
-        ".........AAAAA..",
-        ".........AkAAZZ.",
-        ".........AAAAZ..",
-        "..Z.....AAAAA...",
-        "..ZZ..AAAAAAA...",
-        "...ZZAAAZZZAA...",
-        "...ZAAAAAZZZA...",
-        "..ZZ.AAAAAAAA...",
-        "..Z...AAAAAA....",
-        ".........ZZ.....",
+        ".........AAA....",
+        "........AAAAA...",
+        "........AkAAAyy.",
+        "........AAAAAy..",
+        ".ZZ.....AAAAA...",
+        ".ZZZ..AAAAAAA...",
+        "..ZZAAAAZZZAA...",
+        "..ZZAAAAAZZZA...",
+        ".ZZ.AAAAAAAAA...",
+        ".Z...AAAAAAA....",
+        ".......y..y.....",
         "................",
         "................",
         "................",
     ],
+    # long ears with pink insides, a round body, two feet
     "bun": [
         "................",
-        "....AA....AA....",
-        "...AZZA..AZZA...",
-        "...AZZA..AZZA...",
-        "...AZZA..AZZA...",
+        "...AA......AA...",
+        "..AZZA....AZZA..",
+        "..AZZA....AZZA..",
+        "..AZZA....AZZA..",
         "...AAAAAAAAAA...",
         "..AAAAAAAAAAAA..",
-        "..AwAAAAAAAAAA..",
-        "..AAAkAAAAkAAA..",
+        ".AAAAAAAAAAAAAA.",
+        ".AAAAkAAAAkAAAA.",
+        ".AAAAkAAAAkAAAA.",
+        ".AAAAAAZZAAAAAA.",
         "..AAAAAAAAAAAA..",
-        "..AAAAAZZAAAAA..",
         "...AAAAAAAAAA...",
-        "....AAAAAAAA....",
-        "....ZZ....ZZ....",
+        "...AA......AA...",
         "................",
         "................",
     ],
+    # a lizard side on: a leafy crest, four legs, a curled tail
     "lizard": [
         "................",
         "................",
         "................",
-        "........ZZZ.....",
-        ".......ZAAAA....",
-        "......ZAAAkAA...",
-        "......AAAAAAAAA.",
-        ".....AAAAAAAA...",
-        "..AAAAAAwAAA....",
-        ".AAAAAAAAAAA....",
-        ".AA.AZAAAZAA....",
+        ".........ZZ.....",
+        "........ZAAAA...",
+        ".......ZAAkAAA..",
+        ".......AAAAAAAA.",
+        "...AAAAAAAAAA...",
+        "..AAAAAAAAAAA...",
+        ".AA.AAAAAAAAA...",
         ".AA..AA...AA....",
-        "..AA............",
-        "...AAA..........",
+        "..AAA...........",
+        "................",
+        "................",
         "................",
         "................",
     ],
+    # ear tufts, two big round eyes, a beak, feet
     "owl": [
         "................",
-        "...Z........Z...",
-        "...ZZ......ZZ...",
-        "...AAAAAAAAAA...",
+        "..Z..........Z..",
+        "..ZZ........ZZ..",
         "..AAAAAAAAAAAA..",
-        "..AwwwAAAAwwwA..",
-        "..AwkwAAAAwkwA..",
-        "..AwwwAZZAwwwA..",
-        "..AAAAAAZAAAAA..",
-        "..AAZAAAAAAZAA..",
-        "..AZAZAAAAZAZA..",
+        ".AAAAAAAAAAAAAA.",
+        ".AwwwAAAAAAwwwA.",
+        ".AwkwAAAAAAwkwA.",
+        ".AwwwAAZZAAwwwA.",
+        ".AAAAAAZZAAAAAA.",
+        ".AAAAAAAAAAAAAA.",
+        "..AAAAAAAAAAAA..",
+        "..AAAAAAAAAAAA..",
         "...AAAAAAAAAA...",
-        "....AAAAAAAA....",
         "....ZZ....ZZ....",
         "................",
         "................",
     ],
+    # a puppy: a flame for a tuft, floppy ears hanging at its sides, a tongue
     "pup": [
         "................",
-        "................",
-        "..ZZ........ZZ..",
-        "..ZAA......AAZ..",
-        "..ZAAA....AAAZ..",
+        "........Z.......",
+        ".......ZZ.......",
+        "......ZZZZ......",
+        ".....AAAAAA.....",
         "...AAAAAAAAAA...",
         "..AAAAAAAAAAAA..",
-        "..AwAkAAAAkAAA..",
-        "..AAAkAAAAkAAA..",
-        "..AAAAAAAAAAAA..",
-        "...AAZZkkZZAA...",
-        "....AZZZZZZA....",
-        ".....AAAAAA.....",
+        ".AA.AAAAAAAA.AA.",
+        ".AA.AkAAAAkA.AA.",
+        ".AA.AAAAAAAA.AA.",
+        ".AA.AAAkkAAA.AA.",
+        "..A..AArrAA..A..",
+        "......AAAA......",
         "................",
         "................",
         "................",
     ],
+    # a fox: tall pointed ears, a star on the brow, a pointed chin with cream cheeks
+    "fox": [
+        "................",
+        "..Z..........Z..",
+        "..ZZ........ZZ..",
+        "..AZA......AZA..",
+        "..AAAA....AAAA..",
+        "..AAAAAZZAAAAA..",
+        ".AAAAAAAAAAAAAA.",
+        ".AAAkAAAAAAkAAA.",
+        ".AAAkAAAAAAkAAA.",
+        "..mmAAAAAAAAmm..",
+        "...mmmAAAAmmm...",
+        "....mmmkkmmm....",
+        "......mmmm......",
+        ".......mm.......",
+        "................",
+        "................",
+    ],
+    # a mole: glowing cracks, a pink nose, big digging claws
     "mole": [
         "................",
         "................",
-        "................",
         ".....AAAAAA.....",
-        "....AAAAAAAA....",
-        "...AwAAAAAAAA...",
+        "....AAAZAAAA....",
+        "...AAAAZZAAAA...",
         "...AAkAAAAkAA...",
-        "..AAAAAZZAAAAA..",
-        "..AAAAAZZAAAAA..",
+        "..AAAAAppAAAAA..",
+        "..AAAAAAAAAAAA..",
+        "..AAAAAAAAAAAA..",
         ".ZZAAAAAAAAAAZZ.",
         ".ZZZAAAAAAAAZZZ.",
-        "..Z.AAAAAAAA.Z..",
-        "....AAAAAAAA....",
-        ".....ZZ..ZZ.....",
+        ".Z.Z.AAAAAA.Z.Z.",
+        ".....AA..AA.....",
+        "................",
         "................",
         "................",
     ],
+    # a bat: wings spread wide with scalloped edges, little ears
     "bat": [
         "................",
         "................",
@@ -230,79 +268,83 @@ SHAPES = {
         "......AAAA......",
         ".Z...AkAAkA...Z.",
         ".ZZ..AAAAAA..ZZ.",
-        ".ZZZAAAZZAAAZZZ.",
+        ".ZZZAAAAAAAAZZZ.",
         ".ZZZZAAAAAAZZZZ.",
         ".ZZZZZAAAAZZZZZ.",
-        ".Z.ZZ.AAAA.ZZ.Z.",
+        ".Z.Z.ZAAAAZ.Z.Z.",
         "......A..A......",
         "................",
         "................",
         "................",
         "................",
     ],
+    # a yeti: a furry hood round a blue face, long arms, short legs
     "yeti": [
         "................",
         "................",
         ".....AAAAAA.....",
         "....AAAAAAAA....",
         "...AAZZZZZZAA...",
-        "...AAZkZZkZAA...",
-        "..AAAZZZZZZAAA..",
-        ".AAAAAZZZZAAAAA.",
+        "...AZZkZZkZZA...",
+        "..AAZZZZZZZZAA..",
+        ".AAAAZZZZZZAAAA.",
+        ".AA.AAAAAAAA.AA.",
         ".AA.AAAAAAAA.AA.",
         ".AA.AAAAAAAA.AA.",
         "....AAAAAAAA....",
         "....AAA..AAA....",
-        "....AAA..AAA....",
         "................",
         "................",
         "................",
     ],
+    # a seal side on: its head up, a pale belly, a flipper and a tail
     "seal": [
         "................",
         "................",
         "................",
-        ".........AAAA...",
+        "..........AAA...",
+        ".........AAAAA..",
+        ".........AkAAAk.",
         "........AAAAAA..",
-        "........AAkAAAZ.",
-        "........AAAAAA..",
-        "......AAAAAAA...",
-        "....AAAAwwAA....",
-        "...AAAAAAAAA....",
-        "..ZAAAAAAAAAZ...",
-        ".ZZ.AAAAAAAA.ZZ.",
-        "................",
+        ".......AAAAAA...",
+        ".....AAAAZZZA...",
+        "...AAAAAZZZZA...",
+        ".AAAAAAAZZZZA...",
+        ".AA..AAAAAAA....",
+        ".........AA.....",
         "................",
         "................",
         "................",
     ],
+    # a frost sprite: a six-pointed star with a face, sparks at its tips
     "sprite": [
         "................",
+        ".......Z........",
         ".......A........",
-        ".......A........",
-        "......AAA.......",
-        ".A...AAAAA...A..",
-        "..AAAAAAAAAAA...",
-        "...AAkAAAkAA....",
+        "..Z...AAA...Z...",
+        "...A.AAAAA.A....",
         "....AAAAAAA.....",
-        "...AAAZZZAAA....",
+        "...AAkAAAkAA....",
         "..AAAAAAAAAAA...",
-        ".A...AAAAA...A..",
-        "......AAA.......",
+        "...AAAAkAAAA....",
+        "....AAAAAAA.....",
+        "...A.AAAAA.A....",
+        "..Z...AAA...Z...",
         ".......A........",
-        "................",
+        ".......Z........",
         "................",
         "................",
     ],
+    # a jellyfish: a round bell, a frill, wavy tentacles
     "jelly": [
         "................",
         "................",
         ".....AAAAAA.....",
-        "....AAwwAAAA....",
-        "...AAwAAAAAAA...",
+        "....AAAAAAAA....",
+        "...AAAAAAAAAA...",
         "...AAAAAAAAAA...",
         "..AAAkAAAAkAAA..",
-        "..AAAAAZZAAAAA..",
+        "..AAAAAkkAAAAA..",
         "..ZZZZZZZZZZZZ..",
         "...Z..Z..Z..Z...",
         "...Z..Z..Z..Z...",
@@ -312,32 +354,34 @@ SHAPES = {
         "................",
         "................",
     ],
+    # a sea serpent: a finned head held high, an S of a body, a tail fin
     "wyrm": [
         "................",
+        "...........AA...",
+        "..........AAAA..",
+        ".........ZAkAAA.",
+        ".........ZAAAA..",
         "..........AAA...",
-        ".........AAAAA..",
-        "........ZAkAAAZ.",
-        "........ZAAAAZ..",
-        ".........AAAA...",
-        "....AAA..AAZ....",
-        "...AAAAAAAAZ....",
-        "..AAZ.AAAAZ.....",
-        "..AZ...AAZ......",
-        "..AAZ...........",
+        "....AAAA..AAA...",
+        "...AAAAAA.AAAZ..",
+        "..AAZ..AAAAAZ...",
+        "..AAZ...AAAZ....",
+        "..AAA...........",
         "...AAAA.........",
-        "....ZZ..........",
+        ".....ZZ.........",
         "................",
         "................",
         "................",
     ],
 }
-# species -> (shape, body ramp, accent ramp): Data/Creatures' shapes, ramps near their 3D colours
+# species -> (shape, body ramp, accent ramp): Data/Creatures' shapes (the novafox has a portrait of its own: a fox),
+# ramps near their 3D colours (the magmole's black a warm basalt that reads on the panels)
 CREATURE_ICONS = {
     "pebblit": ("blob", "S", "D"), "clawdle": ("crab", "R", "O"), "gullfin": ("bird", "W", "B"),
     "mossbun": ("bun", "G", "K"), "frondle": ("lizard", "G", "Y"), "twiggle": ("owl", "N", "O"),
-    "emberpup": ("pup", "O", "Y"), "magmole": ("mole", "D", "O"), "scorchwing": ("bat", "P", "O"),
+    "emberpup": ("pup", "O", "Y"), "magmole": ("mole", "M", "O"), "scorchwing": ("bat", "P", "O"),
     "snowpuff": ("yeti", "W", "C"), "floe": ("seal", "C", "W"), "frostling": ("sprite", "C", "Y"),
-    "lumajelly": ("jelly", "K", "P"), "novafox": ("pup", "Y", "P"), "tidewyrm": ("wyrm", "B", "C"),
+    "lumajelly": ("jelly", "K", "P"), "novafox": ("fox", "Y", "P"), "tidewyrm": ("wyrm", "B", "C"),
 }
 for sp, (shape, body, accent) in CREATURE_ICONS.items():
     rows = [r.replace("A", body).replace("Z", accent) for r in SHAPES[shape]]
@@ -346,32 +390,33 @@ for sp, (shape, body, accent) in CREATURE_ICONS.items():
 # ---------------------------------------------------------------- the small icons, 11 x 11 (chips, lists, the path)
 SMALL = {
     # what the island has
-    "shell": [".........", "...YYY...", "..YoYoY..", ".YoYoYoY.", ".YoYoYoY.", ".YYoYoYY.", "..YYYYY..", "...YYY...", "........."],
-    "food": ["....g....", "...Ng....", "..RRNRR..", ".RRRRRRR.", ".RwRRRRR.", ".RRRRRRR.", ".RRRRRRR.", "..RRRRR..", "...R.R..."],
-    "wood": [".........", ".........", "..NNNNYY.", ".NNNNYoYY", ".NnNNYooY", ".NNNNYoYY", "..NNNNYY.", ".........", "........."],
-    "sun": ["....Y....", ".Y..Y..Y.", "..YYYYY..", "..YYwYY..", "YYYYYYYYY", "..YYYYY..", "..YYYYY..", ".Y..Y..Y.", "....Y...."],
-    "moon": [".........", "...BBB...", "..BB.....", ".BBB.....", ".BBB.....", ".BBB.....", "..BB.....", "...BBB...", "........."],
-    "charm": [".........", ".KK...KK.", "KKKK.KKKK", "KwKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K...."],
+    "shell": [".........", ".FFFFFFF.", "FFFFFFFFF", "FFjFjFjFF", "FFjFjFjFF", ".FFjjjFF.", "..FFjFF..", "...FFF...", "........."],
+    "food": ["....n....", "....nll..", ".RRRnRRR.", "RRRRRRRRR", "RRRRRRRRR", "RRRRRRRRR", ".RRRRRRR.", ".RRRRRRR.", "..RR.RR.."],
+    "wood": [".........", "..NNNNyy.", ".NNNNyyyy", ".NNNNytyy", ".NNNNyyyy", "..NNNNyy.", ".........", ".........", "........."],
+    "sun": ["....Y....", ".Y..Y..Y.", "..YYYYY..", "..YYYYY..", "YYYYYYYYY", "..YYYYY..", "..YYYYY..", ".Y..Y..Y.", "....Y...."],
+    "moon": ["...BBB...", "..BBB....", ".BBB.....", ".BBB.....", ".BBB.....", ".BBB.....", "..BBB....", "...BBB...", "........."],
+    "charm": [".........", ".KK...KK.", "KKKK.KKKK", "KKKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K...."],
     "folk": ["...NNN...", "..NNNNN..", "..NFFFN..", "..FkFkF..", "..FFFFF..", "...FFF...", ".BBBBBBB.", ".BBBBBBB.", "........."],
     "pal": [".........", "..C...C..", ".CCC.CCC.", ".CCCCCCC.", ".CkCCCkC.", ".CCCCCCC.", ".CCCpCCC.", "..CCCCC..", "........."],
-    "visitor": ["...YYY...", "..YYYYY..", "..FFFFF..", "..FkFkF..", "..FFFFF..", "...FFF...", ".OOOOOOO.", ".OOOOOOO.", "........."],
+    "visitor": ["...YYY...", ".YYYYYYY.", "..FFFFF..", "..FkFkF..", "..FFFFF..", "...FFF...", ".OOOOOOO.", ".OOOOOOO.", "........."],
     # what can be built (the build tray's tabs)
-    "home": ["....R....", "...RRR...", "..RRRRR..", ".RRRRRRR.", "..NNNNN..", "..NNkNN..", "..NNkNN..", ".........", "........."],
-    "nest": [".........", "...WWW...", "..WWWWW..", ".NNWWWNN.", "NNnNNNnNN", ".NNNNNNN.", "..NNNNN..", ".........", "........."],
-    "train": [".........", ".SS...SS.", ".SS...SS.", ".SSDDDSS.", ".SS...SS.", ".SS...SS.", ".........", ".........", "........."],
-    "decor": ["....G....", "...GGG...", "..GGKGG..", "...GGG...", "....N....", "..GGNGG..", "...GNG...", "....N....", "........."],
+    "home": ["....R....", "...RRR...", "..RRRRR..", ".RRRRRRR.", "RRRRRRRRR", ".mmmmmmm.", ".mnnmmcm.", ".mnnmmmm.", ".mnnmmmm."],
+    "nest": [".........", "...WWW...", "..WWWWW..", "..WWWWW..", "NNNWWWNNN", "NNNNNNNNN", ".NdNNNdN.", "..NNNNN..", "........."],
+    "train": [".........", ".S.....S.", "SSS...SSS", "SSSxxxSSS", "SSS...SSS", ".S.....S.", ".........", ".........", "........."],
+    "decor": ["..KK.KK..", ".KKKKKKK.", "..KKyKK..", ".KKKKKKK.", "..KK.KK..", "....G....", ".GG.G....", "..GGG.GG.", "....GGG.."],
     # the expedition's path
     "start": ["..R......", "..RRR....", "..RRRRR..", "..RRR....", "..N......", "..N......", "..N......", ".NNN.....", "........."],
-    "loot": ["....N....", "...NNN...", "....N....", "..OOOOO..", ".OOOOOOO.", ".OwOOOOO.", ".OOOOOOO.", "..OOOOO..", "........."],
-    "chest": [".........", "..NNNNN..", ".NNNNNNN.", ".YYYYYYY.", ".NNNyNNN.", ".NNNNNNN.", ".NNNNNNN.", ".........", "........."],
-    "wild": ["..O...O..", ".OOO.OOO.", "..O...O..", "O..OOO..O", "..OOOOO..", ".OOOOOOO.", ".OOOOOOO.", "..OO.OO..", "........."],
-    "rest": ["....O....", "...OYO...", "...OYO...", "..OYYYO..", "..OYwYO..", ".NN...NN.", "..NNNNN..", ".NN...NN.", "........."],
-    "boss": [".........", ".Y..Y..Y.", ".YY.Y.YY.", ".YYYYYYY.", ".YRYYYBY.", ".YYYYYYY.", ".........", ".........", "........."],
+    "loot": ["..N...N..", "...NNN...", "...ooo...", "..NNNNN..", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "..NNNNN..", "........."],
+    "chest": [".........", ".NNNNNNN.", "NNNNNNNNN", "YYYYYYYYY", "NNNNyNNNN", "NNNNNNNNN", "NNNNNNNNN", ".........", "........."],
+    "wild": ["..OO.OO..", "..OO.OO..", "OO.....OO", "OO.OOO.OO", "..OOOOO..", ".OOOOOOO.", ".OOOOOOO.", "..OO.OO..", "........."],
+    "rest": ["....O....", "...OO....", "...OYO...", "..OYYYO..", "..OYYYO..", ".N.OOO.N.", "..NNNNN..", ".N.....N.", "........."],
+    "boss": [".........", ".Y..Y..Y.", ".YY.Y.YY.", ".YYYYYYY.", ".YrYYYbY.", ".YYYYYYY.", ".........", ".........", "........."],
     "star": ["....Y....", "....Y....", "...YYY...", "YYYYYYYYY", ".YYYYYYY.", "..YYYYY..", "..YY.YY..", ".Y.....Y.", "........."],
     "boat": [".........", "....W....", "....WW...", "....WWW..", "....N....", ".NNNNNNN.", "..NNNNN..", "BBBBBBBBB", "........."],
 }
+SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():
-    S("mini_" + k, rows, pad=True)
+    S("mini_" + k, rows, flat=SMALL_FLAT.get(k), pad=True)
 
 # ---------------------------------------------------------------- the sea chart's islands (GAME_DESIGN 7), 13 x 10
 CHART = {
@@ -505,74 +550,49 @@ for nm, rows in (("arrow", ARROW), ("arrow_t", ARROW_T)):
 
 
 # ---------------------------------------------------------------- the passes
-def form_light(grid, w, h):
-    """How much each solid pixel of the whole silhouette faces the light (top left): a height from the distance to
-    the silhouette's edge (a gentle dome over the whole shape, not each colour region), lit along its slope."""
-    solid = [[grid[y][x] != "." for x in range(w)] for y in range(h)]
-    INF = 99
-    dist = [[0 if not solid[y][x] else INF for x in range(w)] for y in range(h)]
-    for _ in range(2):
-        for y in range(h):
-            for x in range(w):
-                if dist[y][x]:
-                    for dx, dy in ((-1, 0), (0, -1), (-1, -1), (1, -1)):
-                        nx, ny = x + dx, y + dy
-                        d = dist[ny][nx] if 0 <= nx < w and 0 <= ny < h else 0
-                        dist[y][x] = min(dist[y][x], d + 1)
-        for y in range(h - 1, -1, -1):
-            for x in range(w - 1, -1, -1):
-                if dist[y][x]:
-                    for dx, dy in ((1, 0), (0, 1), (1, 1), (-1, 1)):
-                        nx, ny = x + dx, y + dy
-                        d = dist[ny][nx] if 0 <= nx < w and 0 <= ny < h else 0
-                        dist[y][x] = min(dist[y][x], d + 1)
-    R = max(2, max(max(r) for r in dist) * 0.8)
-    def height(x, y):
-        if not (0 <= x < w and 0 <= y < h):
-            return 0.0
-        d = min(dist[y][x], R) / R
-        return (1 - (1 - d) ** 2) if d > 0 else 0.0
-    light = [[None] * w for _ in range(h)]
+def cel_tones(grid, w, h):
+    """The tone of every shaded pixel, for the whole silhouette at once (never region by region: no pillow shading):
+    the base (2) everywhere but a 1 px shadow (1) along the bottom and right edges (on a portrait also a second row
+    under the belly) and a short light (3) along the upper half of the top-left edges of masses at least 3 px thick.
+    No grain or speckle: a material reads from its colour and silhouette, the sprites stay calm."""
+    def solid(x, y):
+        return 0 <= x < w and 0 <= y < h and grid[y][x] != "."
+    big = w >= 13 and h >= 13
+    tone = [[2] * w for _ in range(h)]
     for y in range(h):
         for x in range(w):
-            if solid[y][x]:
-                gx = height(x + 1, y) - height(x - 1, y)
-                gy = height(x, y + 1) - height(x, y - 1)
-                # the light comes from the top left: a slope rising toward the bottom right faces it
-                light[y][x] = (gx + gy) * 0.5
-    return light
-
-
-def texture(letter, x, y, salt):
-    """A material's grain at a pixel: -1 a tone down, +1 a tone up, 0 none (wood grain, leaf clusters, stone
-    speckles, fur strands; smooth materials none)."""
-    hsh = ((x * 73856093) ^ (y * 19349663) ^ (salt * 83492791)) & 0xFFFF
-    r = hsh / 65535.0
-    if letter == "N":  # wood and bark: short dark grain lines along the width
-        return -1 if (y * 3 + x // 3 + salt) % 5 == 0 and x % 3 != 2 else 0
-    if letter == "G":  # leaves and moss: little lit clusters and dark gaps
-        if r < 0.12:
-            return 1
-        if r > 0.9:
-            return -1
-        return 0
-    if letter in ("S", "D"):  # stone: speckles
-        return -1 if r < 0.14 else 0
-    if letter in ("W", "C"):  # fur and snow: soft strands
-        return -1 if (x * 2 + y) % 7 == 0 and r < 0.5 else 0
-    return 0
-
-
-def tone_of(light, grid, x, y, letter, w, h, salt, textured):
-    v = light[y][x]
-    t = 3 if v > 0.18 else 2 if v > -0.08 else 1 if v > -0.3 else 0
-    # a shade under a region that overhangs this one (the light comes from above)
-    above = grid[y - 1][x] if y > 0 else "."
-    if above not in (".", letter) and t > 1:
-        t -= 1
-    if textured and t in (1, 2):
-        t = max(0, min(3, t + texture(letter, x, y, salt)))
-    return t
+            if not solid(x, y):
+                continue
+            shadow = not solid(x + 1, y) or not solid(x, y + 1) or not solid(x + 1, y + 1)
+            if big and not shadow and not solid(x, y + 2) and not solid(x + 1, y + 2):
+                shadow = True
+            if shadow:
+                tone[y][x] = 1
+                continue
+            # the light: a top or left edge, facing the top left, on a mass thick enough to hold it
+            top, left = not solid(x, y - 1), not solid(x - 1, y)
+            if not (top or left) or solid(x - 1, y - 1) or not (solid(x + 1, y + 1) and solid(x + 2, y + 2)):
+                continue
+            if top:  # the left half of this row's run
+                a = x
+                while solid(a - 1, y):
+                    a -= 1
+                b = x
+                while solid(b + 1, y):
+                    b += 1
+                if x > a + (b - a) * 0.5:
+                    continue
+            if left and not top:  # the upper half of this column's run
+                c = y
+                while solid(x, c - 1):
+                    c -= 1
+                d = y
+                while solid(x, d + 1):
+                    d += 1
+                if y > c + (d - c) * 0.5:
+                    continue
+            tone[y][x] = 3
+    return tone
 
 
 def build(name, spec, recolor=None):
@@ -589,9 +609,7 @@ def build(name, spec, recolor=None):
                 flat[k] = v
     px = [[None] * w for _ in range(h)]  # (hex, alpha)
     solid = [[grid[y][x] != "." for x in range(w)] for y in range(h)]
-    light = form_light(grid, w, h)
-    salt = sum(ord(c) for c in name)
-    textured = w >= 13 and h >= 10  # grain reads on the portraits and the chart's islands, not on 11 px icons
+    tones = cel_tones(grid, w, h)
     for y in range(h):
         for x in range(w):
             c = grid[y][x]
@@ -603,7 +621,7 @@ def build(name, spec, recolor=None):
                 ramp = RAMPS.get(c)
                 if ramp is None:
                     sys.exit("%s: no ramp for %r" % (name, c))
-                t = tone_of(light, grid, x, y, c, w, h, salt, textured) if spec["shade"] else 2
+                t = tones[y][x] if spec["shade"] else 2
                 px[y][x] = (PAL[ramp[t]], 1.0)
             else:
                 key = flat.get(c)
@@ -632,11 +650,22 @@ def build(name, spec, recolor=None):
                     if not c.isupper():
                         continue
                     orth = any(outl[y + dy][x + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
-                    diag = sum(1 for dx, dy in ((1, 1), (-1, 1), (1, -1), (-1, -1)) if outl[y + dy][x + dx])
-                    if not orth and diag >= 1:
-                        ramp = RAMPS[c]
-                        cur = ramp.index(next(k for k in ramp if PAL[k] == px[y][x][0])) if any(PAL[k] == px[y][x][0] for k in ramp) else 2
-                        px[y][x] = (PAL[ramp[max(0, cur - 1)]], 1.0)
+                    if orth:
+                        continue
+                    diag = [(dx, dy) for dx, dy in ((1, 1), (-1, 1), (1, -1), (-1, -1)) if outl[y + dy][x + dx]]
+                    if not diag:
+                        continue
+                    # a step softer toward the outline, never a dark speck on the lit side: a light pixel down to
+                    # the base, a base pixel to the shadow where the curve turns away from the light, a shadow
+                    # pixel deep only at the bottom right
+                    t = tones[y][x]
+                    if t == 3:
+                        t = 2
+                    elif t == 2 and any(d != (-1, -1) for d in diag):
+                        t = 1
+                    elif t == 1 and (1, 1) in diag:
+                        t = 0
+                    px[y][x] = (PAL[RAMPS[c][t]], 1.0)
         for y in range(h):
             for x in range(w):
                 if outl[y][x]:
