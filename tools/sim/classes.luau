@@ -1061,6 +1061,31 @@ IMPL.SoundService = {
 		IMPL.Sound.Play(s)
 	end,
 }
+-- Collision groups (what a game registers on the server): pairs set not collidable; every other pair collides.
+-- E.collisionGroupsCollide answers for the fake raycaster (tools/preview/raycast.luau).
+local groupRules: { [string]: boolean } = {}
+local function groupKey(a, b)
+	if a > b then
+		a, b = b, a
+	end
+	return a .. "|" .. b
+end
+E.collisionGroupsCollide = function(a, b)
+	local r = groupRules[groupKey(a or "Default", b or "Default")]
+	return r ~= false
+end
+IMPL.PhysicsService = {
+	RegisterCollisionGroup = function(_self, _name) end,
+	IsCollisionGroupRegistered = function(_self, _name)
+		return true
+	end,
+	CollisionGroupSetCollidable = function(_self, a, b, on)
+		groupRules[groupKey(a, b)] = on == true
+	end,
+	CollisionGroupsAreCollidable = function(_self, a, b)
+		return E.collisionGroupsCollide(a, b)
+	end,
+}
 IMPL.ServiceProvider = {
 	GetService = function(self, name)
 		local s = E.services[name]

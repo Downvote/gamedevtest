@@ -49,9 +49,9 @@ is `DriftlingIsle-<short hash>.rbxl`.)
 - Every number is in `Config/Tuning.luau`; every Roblox id is in `Config/Monetization.luau` (0 = not made yet).
 - One function stays under 200 locals and upvalues (luau-compile checks it).
 - Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
-- Some modules keep the names of the games before this one (the plots along a "street", the lodge an "office"):
-  `Data/Street` is the sea and the boardwalk, `Data/Office` the lodge, `Models/OfficeModels` builds it,
-  `Models/DecorModels` builds every building, `Models/StreetModels` the sea, `UI/MicroStage` the islets' stages,
+- Some modules keep the names of the games before this one (the plots along a "street", the island's tiers an
+  "office"): `Data/Street` is the islands, the sea and the boardwalk, `Data/Office` the island's tiers (their names),
+  `Models/DecorModels` builds every building, `Models/StreetModels` the islands and the sea, `UI/MicroStage` the islets' stages,
   `Models/MicroModels` the driftlings and the stages' things.
 
 ## 3. Types (`src/shared/Types.luau`)
@@ -87,17 +87,16 @@ every field.
 
 | Module | Holds |
 |---|---|
-| `Data/Palette` | the LUT colours (`order`, `colors`), the lodge tiers' floor and wall themes (`themes`), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
+| `Data/Palette` | the LUT colours (`order`, `colors`), the shore's `shallow`, `foam`, `rock` and `rock_dark`, the older rooms' floor and wall themes (`themes`, still in the LUT), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
 | `Data/Buildings` | the 27 pieces `{ id, name, kind (food wood shop home nest train decor), shells, wood, w, d, rate, eats, job, knack, beds, slots, charm, tier, blurb }`; `list`, `byId` |
 | `Data/Creatures` | the 15 driftlings `{ id, name, islet, hp, atk, def, spd, skill, knack, trust, shape, body, accent, blurb }`; `list`, `byId`, `skills` (their names) |
 | `Data/Islets` | the 5 islets `{ id, name, stage (its MicroStage set), lvl, wild, boss, bossName, nodes, loot, reward, color, blurb }`; `list` |
 | `Data/Names`, `Data/Looks` | the villagers' names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
-| `Data/Office` | the lodge's three rooms (`plans[tier]`: name, bounds, wall height, lot, props, windows, `OUTLINE` boxes; `desks` empty), `origin(plot)` (Data/Street's), `seat(anchor)`, `outlinePts(tier, ox, oz)` |
-| `Data/Street` | the sea (GAME_DESIGN 8): `MAX`, `SPACING`, `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WATER_Y`, `BEACH`, `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT`, `plot(tier)` (the island's grass), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `PIER_X` / `PIER_Z` / `PIER_W`, `pier()` |
+| `Data/Office` | the island's three tiers (`plans[tier]`: `{ tier, name }`, Castaway Cay, Palm Isle, Grand Isle: the island card's title), `plan(tier)`, `origin(plot)` (Data/Street's). The island has no house (GAME_DESIGN 8) |
+| `Data/Street` | the islands and the sea (GAME_DESIGN 8): `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT` (a plot's lot), `CENTER`, `PLAZA` (the campfire's plaza), `PATH` (the path to the jetty); the coast: `isle(tier)` (its oval: centre, radii, wobble phases), `coast(tier, x, z)` (studs from the coast, below 0 inland: the oval's radius times a wobble of four sines), `layerAt(d)`, and per whole-stud cell (cached per tier; `cellKey`) `layer`, `cellDist`, `cellBounds(tier)`, `buildable(tier, x, z)` (grass a stud or more inside the coast), `walkable` (grass, sand, wet sand), `plot(tier)` (the grass's bounding box); `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `footpath()`, `jetty(tier)` (planks from the island's sand to the boardwalk), `spawn()` (on the path below the plaza), `sign()` / `mailbox()` (either side of the jetty's foot), `LAMPS`, `PIER_X` / `PIER_Z` / `PIER_W`, `pier()` |
 
-Coordinates in `Data/Office` are studs, plot-local, +Y up. The camera looks from the south-east, so the back walls are
-the north (`minZ`) and west (`minX`) ones. A prop's `rot` turns its model (built facing +Z): 0 faces south (north-wall
-pieces), 90 faces east (west-wall pieces).
+Coordinates in `Data/Street` are studs, plot-local, +Y up. The camera looks from the south-east (+X, +Z), so an
+island's back is its north-west. A piece's `rot` turns its model (built facing +Z: south, toward the viewer).
 
 ## 6. Logic and models
 
@@ -108,10 +107,10 @@ ErrCode)` and changes the profile only on success:
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
 | `Island` | the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm`, `visitors`, `works(id)`, `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a day), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `newDay(p, rng, away?) -> { movedIn?, trained? }`, `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
-| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the lodge with a stud round it, the path, the sign, the mailbox), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" / "blocked" / "overlap" / "unknown")`, `place` (locked, full, money, wood, blocked; a building that takes workers gets an idle villager), `move`, `upgradeCost(q)`, `upgrade` (max, money, wood), `store` (no_room; `Refund` back), `refit(p) -> (moved, cleared)` (after the island grew: pieces the bigger lodge covers move to the nearest free spot) |
+| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `place` (locked, full, money, wood, blocked; a building that takes workers gets an idle villager), `move`, `upgradeCost(q)`, `upgrade` (max, money, wood), `store` (no_room; `Refund` back), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads) |
 | `Battle` | battles (GAME_DESIGN 7): `FOUNDER`, `villagerBase(seed)`, `speciesBase(sp)`, `grow(v, lvl)`, `founder(p)`, `villager(v)`, `pal(x)`, `wild(sp, lvl, i, boss, name?)`, `new(foes, boss)`, `alive`, `treatChance(foe, party, boss)`, `fleeChance`, `round(party, b, act, target?, rng) -> (events, result?)` (events `hit heal shield rally guard treat flee`; result `win lose fled`) |
 | `Expedition` | expeditions: `fighter(p, key)`, `away(e)`, `supplies(n)`, `levelAt(islet, node)`, `start(p, islet, members)` (bad_payload, locked, full, not_found, food), `next(p, e, rng)` (`{ kind, node, food?, wood?, shells?, foes? }`; in_battle, max), `room(p)`, `act(p, e, act, target?, rng)` (`{ events, result, friend?, xp?, shells?, ups?, reward?, first? }`; a treat: blocked on a guardian, food, no_room), `home(p, e)` (half after a defeat) |
-| `Schema` | `VERSION` (5: the island), `default(now, seed)`, `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist and fit with unique uids, villagers and driftlings with unique ids working only where they may, the Index's species, `nextId` past every id) |
+| `Schema` | `VERSION` (5: the island), `default(now, seed)`, `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist with unique uids and valid turns, then `Plot.refit` (one off the grass moves onto it), villagers and driftlings with unique ids working only where they may, the Index's species, `nextId` past every id) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
 | `Numbers` | `int`, `short`, `coins`, `rate`, `perDay` ("+12/day"), `oneIn` |
 
@@ -119,20 +118,22 @@ Models (`src/shared/Models`, Roblox modules):
 
 - `Blocks` (copied): `part(parent, spec)` (anchored, SmoothPlastic or Neon, sizes on the 0.25-stud grid, palette
   colours), `cylY`, `model`, `color`, `snap`.
-- `OfficeModels.build(parent, tier, origin) -> Model`: the lodge: the floor slab and its planks or tiles in the tier's
-  theme, the two back walls with skirting and crown, the north wall's windows, the low rim on the open sides with a
-  doorstep, and the props (`shelf boxes plant lamp beanbag barrel seachest chart poster bookcase rug sofa trophies`, and
-  the older `garage_door cooler whiteboard coffee server tv arcade`). `paint(model, theme)`.
 - `CharacterModels.build(look, name, seed) -> Rig` (a seated chibi, the portraits'), `buildStanding(look, name, seed)`
   (a standing chibi: the founder and the villagers), `poseStanding(rig, base, t, speed)`, `poseAction(rig, base, t,
   speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`), `STAND_TOP`.
-- `StreetModels`: `road(parent, origin)` (a plot's stretch of boardwalk, the sea before it, its pier and moored
-  boat), `land(parent, origin, tier)` (the island's grass and beach, the path, the sign with its `SignBoard`, the
-  mailbox), `emptyLot(parent, origin)` (open water), `ends(parent)` (the sea past the ends, the boardwalk's last
-  lantern, and the invisible, unqueryable walls round the world: 8 studs, higher than a jump and low enough that the
-  pixel filter's rays seldom pass more than one).
+- `StreetModels`: `road(parent, origin)` (a plot's stretch of the sea, `PixelWater` 1; the plank boardwalk on beams
+  and posts with its rope rail and lanterns; its pier and moored boat), `land(parent, origin, tier)` (the island: its
+  cells meshed into rectangles layer by layer (the shallows `PixelWater` 2, the foam 3, wet sand, the beach, the grass
+  in two tones), the invisible coast walls round the walkable cells, the campfire's plaza (`FireStone`s, logs, a
+  flame, seats, a flag, torches), the stepping-stone path and the jetty (`JettyPlank`s on beams and posts, a rope),
+  the sign with its `SignBoard`, the mailbox, and palms, rocks, shells, starfish, driftwood, seaweed and tufts strewn
+  by the plot's own seed), `emptyLot(parent, origin)` (open water and a sandbar), `ends(parent)` (the sea past the
+  ends, sandbars, the boardwalk's last lantern, and the invisible walls round the world, 8 studs high). Every wall is
+  in the collision group `Bounds`, which the pixel filter's rays (group `PixelRays`) pass through.
 - `DecorModels.build(id, at, lvl?) -> Model` (every building and piece of decor; `at`: the footprint's centre on the
-  grass, turned; a pennant from Lv 2; parts don't collide), `has`.
+  grass, turned; each with its doors, windows, ridged roofs with eaves and its own props (crates, barrels, sacks, pots,
+  fences, lamps); a lamp and a pennant at Lv 3; the pier's pond and the fountain's water `PixelWater` 2; parts don't
+  collide), `has`.
 - `MicroModels` (the driftlings and the stages' things): `build(kind, opts?) -> Thing` (`{ model, parts, rest, sizes,
   baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin, facing +Z), `driftling(shape, body,
   accent)` (the 14 shapes `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm`), `sailboat`,
@@ -165,7 +166,7 @@ handler under pcall; success marks the session dirty).
 | `plot.move` | `i x z rot` | `Plot.move` | blocked, bad_payload |
 | `plot.upgrade` | `i` | `Plot.upgrade` (data `{ lvl }`) | max, money, wood, bad_payload |
 | `plot.store` | `i` | `Plot.store` (clear away) | no_room, bad_payload |
-| `island.expand` | - | `Island.expand`, the lodge and island rebuilt (data `{ tier, moved, cleared }`) | max, money, wood |
+| `island.expand` | - | `Island.expand`, the island rebuilt (data `{ tier, moved, cleared }`) | max, money, wood |
 | `folk.work` / `pal.work` | `id uid` (0: rest) | `Island.setWork` / `setHelp` | not_found, bad_payload |
 | `folk.dismiss` / `pal.release` | `id` | `Island.dismiss` / `release` | busy (away), not_found |
 | `exp.start` | `islet party` ("v3,p7": up to three, "" the captain alone) | `Expedition.start`, the session keeps it (data `{ islet }`) | busy, locked, full, not_found, food, bad_payload |
@@ -184,11 +185,12 @@ the stores every second (Fx "tick": the whole view is not sent for them). `leavi
 home with its loot (on leave and at shutdown). Nothing happens while the player is away.
 
 ### 7.5 `PlotService` (the sea)
-`init()` builds the whole sea: `Workspace.Plots.Street` (every plot's boardwalk stretch and the sea's ends) and open
+`init()` registers the collision groups `Bounds` (the invisible walls) and `PixelRays` (the pixel filter's rays),
+not colliding with each other, and builds the whole sea: `Workspace.Plots.Street` (every plot's boardwalk stretch and the sea's ends) and open
 water on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
 free index, 0 when the sea is full: Main kicks), `release(i)` (back to open water, every attribute cleared).
-`build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets `Office` (the lodge)
-and `Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs) and `Decor` by difference
+`build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets
+`Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs) and `Decor` by difference
 (`buildDecor(s)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay), then `sync(s)`:
 the attributes `Tier`, `Day`, `Charm`, `Islets`, `Folk` (a villager a `;`-separated `id.skin.hair.style.shirt.work.away`),
 `Pals` (`id.species.work.away`), `Sailing`, and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs
@@ -230,7 +232,8 @@ corner: one art pixel is K × K screen px. K is the game's one pixel size (2 on 
 1440p; a tier only makes it coarser). The **static layer** is a raycast G-buffer of the view: progressive passes (one
 ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`), time-sliced (`Tuning.PixelBakeMsPerFrame`, more
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
-pixels when they show the same part and normal (their own shadow ray otherwise), shaded with `Render/Shading`'s three
+pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
+neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_DESIGN 2), shaded with `Render/Shading`'s three
 toon bands and the palette LUT (the indoor tint inside the room), then the ink outline (`Shading.outline`) and the
 contact shade at the foot of upright faces. The **dynamic layer** is the islanders (villagers and driftlings) and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
@@ -239,21 +242,21 @@ Classic picked) the layer hides and the Roblox camera shows the 3D world.
 
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
-Orthographic yaw 45° pitch 30°: floor edges step 2:1. The lodge's outline (`Office.outlinePts`) is fitted on screen
-clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`, `Raster.gridPhase`)
-whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`). The grid's ray plane
-`l` is fixed per plot (`CamRayBack` behind the plot's origin), so the key (`plot|tier|a|phase|l|screen|K`) only
-changes with the plot, the office, the screen or K: anything else (the HUD's blocks) only moves the home pan.
-The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): on any lot (the
-own or a neighbour's) that lot framed like the home view (`lotPan`: the home pan shifted by the grid offset between
-the two plots' origins) as long as the founder shows there clear of the HUD's strips; on the road the least move
-that keeps them `CamFollowBox` of the screen from its edges and clear of the HUD's top and bottom strips (and the tips
-banner), gliding `CamGlide` of the way a frame, never more a frame than the renderer can scroll in one (`panCaps`:
-`PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake; a target more than three quarters of the screen away
-snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood
-on its own lot once or 3 s have passed (Roblox drops it mid-street before the server moves it home). Build mode: `setFree(true, down?)` starts at home lowered by
-`down` art px (Build mode's tray height, so the front yard shows above it) and the view stays where `panBy(dx, dy)`
-(full-screen px) drags it, its centre within `CamBuildPan` studs of the plot; `isFree()`.
+Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the island's heart (`FRAME`, the same on every
+tier) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
+`Raster.gridPhase`) whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`),
+and its scale the one zoom. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
+key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: anything else (the HUD's blocks, the
+island's tier) only moves the home pan.
+The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
+the founder's ground point in the middle of the screen across and halfway between the HUD's top and bottom strips
+(and the tips banner), on any island or the boardwalk; the pan glides `CamGlide` of the way a frame, never more a frame
+than the renderer can scroll in one (`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never
+falls behind into a re-bake; a target more than three quarters of the screen away snaps (one bake instead of a scroll
+that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
+(Roblox drops it mid-street before the server moves it home). Build mode: `setFree(true, down?)` starts from the pan
+now lowered by `down` art px (Build mode's tray height) and the view stays where `panBy(dx, dy)` (full-screen px) drags
+it, its centre within `CamBuildPan` studs of the plot; `isFree()`.
 `gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
 `ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
 pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
@@ -276,8 +279,10 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
 - **Invalidation**: a part that comes or goes anywhere under `Workspace.Plots` queues the global-art-px rect it and its
   sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
   the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
-  layer re-bake it (a new office). Rects in global px survive pans.
-- The bake's rays exclude `Workspace.PixelDynamic` and every player's character (refreshed when characters come and
+  layer re-bake it (a new island). After a re-cast and at the end of a bake the shadow edges are refined
+  (`refineShadows`, the tiers with shadows). Rects in global px survive pans.
+- The bake's rays are in the collision group `PixelRays` (the invisible walls never meet them) and exclude
+  `Workspace.PixelDynamic` and every player's character (refreshed when characters come and
   go). Dynamic models whose first part lies more than `CULL` (48) art px off the layer are skipped; at most
   `PixelMaxDyn` are drawn a tick.
 - **Stages**: a stage view bakes with `PixelStageBakeMs` more a frame (the play overlay's curtain covers it); the
@@ -285,6 +290,11 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   back, unless a part under `Workspace.Plots` came or went meanwhile (then it bakes again). `ready()`: the view now has
   its finished picture (always true in the classic style). `setOffset(dx, dy)`: the layer shifted by whole art px
   (a hit's jolt in a minigame).
+- **Water**: a part with a `PixelWater` attribute (1 the sea, 2 the shallows, 3 the foam) marks its pixels in the bake
+  (`sWClass`) with a wave phase from their ground position (`sWave`: bands across the sea, bent by two sines);
+  `WATER_HZ` (6) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
+  baked tone: crests lighter, troughs darker, the foam's white coming and going (`waterColor`, cached per class, tone
+  and phase), and the whole image uploads. Its shadows and the islanders over it stay put. A stage's water moves too.
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects. The
@@ -300,7 +310,7 @@ it.
 ## 10. Interface
 
 ### 10.1 `UIKit`
-Roots `World` (DisplayOrder 7, full screen: popups over the office), `Hud` (10), `Modal` (20), `Popup` (25), each
+Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
 with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `hex`, `P`, `size(root)`, `phone`,
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound), `setText`, `setTextColor`, `textWidth`,
 `lineHeight`, `plate` (stepped corners, Random Bakery's), `setPlate`, `rect`, `button` (a TextButton with a child
@@ -330,8 +340,10 @@ The islanders: a walker per villager (`CharacterModels.buildStanding` in their l
 (`MicroModels.driftling` in its species' shape and colours), parsed from each owned plot's `Folk` and `Pals`
 attributes (those away left out) and placed among the buildings read from its `Static.Decor` models' names
 (`uid:id:x:z:rot:lvl`). Villagers walk to their building and work there (hoeing at a patch, chopping at a camp,
-selling at a shop: `poseAction`), wander when resting; driftlings hop beside the building they help at or round the
-nests. Only islands within 100 studs of the view's centre are drawn (synced every half second). Each island's sign gets
+selling at a shop: `poseAction`), wander the grass when resting (`strollPoint`: a buildable cell away from the
+campfire); driftlings hop beside the building they help at or round the
+nests. Only islands within 100 studs of the view's centre are drawn (synced every half second); each
+near owned island's campfire gets a flickering flame and rising smoke (`fireOn`, dynamic models). Each island's sign gets
 a World-root label (its name, the own in gold, or "Unclaimed isle"); a tap on a sign (a press let go within 8 px, not
 on the interface, not in Build mode) shows `signCard(i)` (the day, villagers, driftlings, charm, islets). A newcomer
 (Fx "day" `movedIn`) gets a welcome word and confetti; `cheer(words, color)` makes the own islanders cheer.
@@ -347,7 +359,7 @@ it changes (the food's red and blinking while hungry); `Chip_day`, "Day 3" with 
 sun that sets into a moon; then `Home`, a button shown while the founder is off their own island, sending
 `char.home`), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_explore`, `Menu_index`, `Menu_looks`;
 while Build mode or the islet's screen is open the bar, the cards and the tips step aside), the `IslandCard` on the
-right (the lodge's name, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
+right (the island's name for its tier, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
 shells: `Numbers.perDay`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
 battle!", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the tips banner (`Tips`; tip 4 has
 `TipsOk`, sending `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`) and the `DayBanner` (Fx
@@ -381,7 +393,7 @@ bottom: the tabs `Tab_food Tab_wood Tab_shop Tab_home Tab_nest Tab_decor` (their
 pieces count, `Expand` (`island.expand`, its price under it) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
 its price in shells and wood with their icons, red when short; a locked one says the island tier it needs). With a
 piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.PixelDynamic`: the piece and its `Footprint`, a
-raised neon frame of four edges from the grass to just above the lodge's floor, cyan (`screen_on`) where `Plot.fits`
+raised neon frame of four edges just above the grass, cyan (`screen_on`) where `Plot.fits`
 says it fits, red (`berry_red`) where not) stands on the cell under the pointer (mouse) or the last tap; the bar shows
 `Rotate`, `Place` / `Move here`, `Upgrade` and `Store` ("Clear away") when moving a building, `Cancel`, and the
 `Info` plate (what it is and makes, its charm, its price or the next level's). A tap on a placed piece of the own
@@ -409,8 +421,11 @@ a round's events play back one by one (`STEP` s each); keys: Space / Return go o
 `MicroStage` (client): `open(variant, margins?) -> Stage`, `current()`, `has(variant)`, the yaws `FACE_VIEWER
 FACE_RIGHT FACE_LEFT FACE_AWAY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer). A stage is a folder
 `MicroStage` at Z = 9000 (far from the islands: no ray of either view reaches the other): a 24 x 24 set and its props
-(the islets' `loot` beach, `leap` meadow, `dino` volcano sands, `frost` snowfield, `fish` sea floor; the older themed
-rooms are kept), the founder registered dynamic with a blob shadow, and `Stage { variant, floor, half, avatar,
+(the islets' `loot` beach, `leap` meadow, `dino` volcano sands, `frost` snowfield, `fish` sea floor; each but the sea
+floor an islet of its own: `shore` rings the floor with land, beach, wet sand, foam and shallows on a wobbly outline
+(`blobRects` meshes the cells), the tall landmark (the volcano, the snowy peak, a big tree) on its left shore
+(`VOLCANO`), beside the floor and clear of the top bar; the water moves (`PixelWater`); the older themed rooms are
+kept), the founder registered dynamic with a blob shadow, and `Stage { variant, floor, half, avatar,
 rival(look, delay) -> Rival, at(u, v, y), spawn(kind, opts?, shadow?), adopt(thing, shadow?), place(thing, u, v, y,
 yaw?, tilt?), remove, flash(thing, seconds?), glow, refresh, screen(pos) -> (x, y, on), hold, hat, pose(u, v, y, yaw,
 t, speed, action, k?), puff(pos, kind, n?, color?) (3D bits from a pool of 56 parts: `dust spark debris confetti steam
@@ -446,7 +461,7 @@ Copied unchanged or nearly: `Render/Raster`, `Render/Picture`, `Render/PixelFont
 `Render/Ramp`, `Pixel/BakeCast`, `Pixel/ImageMemory`, `Pixel/PixelText`, `Pixel/Snapshot`, `Logic/Util`,
 `Models/Blocks`, the specs `Raster` (its framing fixture now a local outline instead of the bakery's Layout), `Rim`,
 `PixelFont`, `Util`, `tests/TestKit.luau`, `scripts/gen_pixelfont.py`, `tools/setup.sh`, `tools/defs`, the sim and
-preview engines, `docs/WORKFLOW.md`. Adapted: `Render/Shading` (its LUT colours are the palette and the office
+preview engines, `docs/WORKFLOW.md`. Adapted: `Render/Shading` (its LUT colours are the palette and the older rooms'
 themes; the bakery's wallpapers and land tiles are gone) and its spec, `scripts/check.sh` (no locale or server-codes
 steps; builds `build/ByteSizeStudio.rbxlx` as its check), `Net`. Written new for this game: everything else, including a much smaller
 `PixelRenderer` (one fitted scale with pans and rect re-casts, no Actors, no Hold, no per-plot indoor light) and

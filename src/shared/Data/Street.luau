@@ -1,30 +1,43 @@
 --!strict
 -- The sea (GAME_DESIGN 8; docs/ARCHITECTURE.md 5): every island on the server stands on a plot in one row along X,
 -- all joined by one long boardwalk on their south side (the side the camera sees), the open sea beyond. Pure.
--- Coordinates are studs; plot-local ones are from the plot's origin (`Street.origin(i)`), where the lodge's room is
--- centred (Data/Office). (The module keeps its old name: the street it once was.)
+-- Coordinates are studs; plot-local ones are from the plot's origin (`Street.origin(i)`). (The module keeps its old
+-- name: the street it once was.)
 --
 --   north (-Z)   ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
---                |  lot (water)   [ plot (grass, a sand beach round it): the lodge, buildings ]   |
+--                |  lot (water)   (( an island: grass, sand, wet sand, foam, shallows ))      |
+--                |                     a plaza (the campfire) and a path south to a jetty    |
 --   z = 30..35   |================ the boardwalk (planks on posts) ===========================|
 --                |                 a pier from the boardwalk, a boat at its end               |
 --   z = 35..58   ~ ~ ~ ~ ~ ~ ~ ~ ~ the open sea ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 --   south (+Z)
 --
--- An island grows with its tier (PLOT[tier]): out to the east and west and back behind the lodge, always down to
--- the boardwalk. What is not island on a lot is water.
+-- An island is a wobbly ellipse that grows with its tier (ISLES[tier]): its coast is `coast(tier, x, z)`, the signed
+-- distance in studs from the grass's edge (negative on the grass). Round the grass, outward: the sand beach, the wet
+-- sand at the waterline, a ring of foam, the light shallows, then the sea. Whole-stud cells (x .. x + 1, z .. z + 1)
+-- have a `layer` by their centre's coast distance; buildings stand only on `buildable` cells (a stud in from the grass's
+-- edge, off the plaza and the path). The same tier is the same shape on every plot (a save does not depend on where
+-- the island is moored).
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 export type Rect = { x0: number, z0: number, x1: number, z1: number }
+export type Isle = { cx: number, cz: number, rx: number, rz: number, ph: { number } }
 
 local Street = {}
 
 Street.MAX = Tuning.MaxPlots
 Street.SPACING = Tuning.PlotSpacing
-Street.LAWN_Y = -0.5 -- the top of the island's grass (pieces stand here; the lodge floor's top is 0)
-Street.SAND_Y = -0.6 -- the beach round an island
+Street.LAWN_Y = -0.5 -- the top of the island's grass (pieces stand here)
+Street.SAND_Y = -0.6 -- the beach
+Street.WET_Y = -0.72 -- the wet sand at the waterline
+Street.FOAM_Y = -0.98 -- the foam lapping the shore
+Street.SHALLOW_Y = -1.04 -- the shallows round an island
 Street.WATER_Y = -1.1 -- the sea's surface
-Street.BEACH = 2 -- studs of beach round an island's grass (west, north and east)
+
+-- The layers of a cell, outward (0: the open sea).
+Street.GRASS, Street.SAND, Street.WET, Street.FOAM, Street.SHALLOW, Street.SEA_CELL = 1, 2, 3, 4, 5, 0
+-- Where each layer ends (studs past the grass's edge).
+Street.BANDS = { sand = 2.5, wet = 3.5, foam = 4.5, shallow = 8 }
 
 -- The boardwalk and the sea, plot-local z (the same for every plot).
 Street.BOARD = { z0 = 30, z1 = 35 }
@@ -35,17 +48,128 @@ Street.FAR = 120
 Street.END_FAR = 160
 
 -- The lot: the water between two neighbours (plot-local).
-Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -24, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
+Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -44, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
 
--- The island of each tier (plot-local): its grass, where buildings and decor stand.
-local PLOTS: { Rect } = {
-	{ x0 = -16, z0 = -12, x1 = 24, z1 = 30 },
-	{ x0 = -20, z0 = -14, x1 = 30, z1 = 30 },
-	{ x0 = -24, z0 = -16, x1 = 36, z1 = 30 },
+-- The island's heart: a plaza round the campfire (the same on every tier), and the path from it south down to the
+-- jetty and the boardwalk.
+Street.CENTER = { x = 0, z = 6 }
+Street.PLAZA = { x0 = -4, z0 = 2, x1 = 4, z1 = 10 } :: Rect
+Street.PATH = { x0 = -2, z0 = 10, x1 = 2, z1 = 30 } :: Rect
+
+-- The islands by tier: centre, radii, the coast's wobble phases (four sines round the coast).
+local ISLES: { Isle } = {
+	{ cx = 0, cz = 6, rx = 15, rz = 12, ph = { 0.6, 2.1, 0.3, 4.0 } },
+	{ cx = 0, cz = 2, rx = 22, rz = 16, ph = { 1.4, 0.4, 2.6, 1.1 } },
+	{ cx = 0, cz = -2, rx = 28, rz = 20, ph = { 2.2, 3.3, 1.7, 5.2 } },
 }
+local AMP = { 0.09, 0.06, 0.045, 0.025 }
+local FREQ = { 2, 3, 5, 7 }
 
+function Street.isle(tier: number): Isle
+	return ISLES[math.clamp(math.floor(tier), 1, #ISLES)]
+end
+
+-- The signed distance (studs, along the ray from the island's centre) from the grass's edge: negative on the grass.
+function Street.coast(tier: number, x: number, z: number): number
+	local s = Street.isle(tier)
+	local dx, dz = x - s.cx, z - s.cz
+	local a = math.atan2(dz, dx)
+	local c, sn = math.cos(a), math.sin(a)
+	local er = 1 / math.sqrt((c / s.rx) ^ 2 + (sn / s.rz) ^ 2)
+	local w = 1
+	for k = 1, #AMP do
+		w += AMP[k] * math.sin(FREQ[k] * a + s.ph[k])
+	end
+	return math.sqrt(dx * dx + dz * dz) - er * w
+end
+
+-- The layer of a coast distance.
+function Street.layerAt(d: number): number
+	if d <= 0 then
+		return Street.GRASS
+	elseif d <= Street.BANDS.sand then
+		return Street.SAND
+	elseif d <= Street.BANDS.wet then
+		return Street.WET
+	elseif d <= Street.BANDS.foam then
+		return Street.FOAM
+	elseif d <= Street.BANDS.shallow then
+		return Street.SHALLOW
+	end
+	return Street.SEA_CELL
+end
+
+-- Each tier's cells, worked out once: layer and coast distance by key.
+type Cells = { layer: { [number]: number }, dist: { [number]: number }, bounds: Rect, land: Rect }
+local cache: { [number]: Cells } = {}
+local function key(x: number, z: number): number
+	return (x + 256) * 1024 + (z + 256)
+end
+Street.cellKey = key
+
+local function cellsOf(tier: number): Cells
+	local t = math.clamp(math.floor(tier), 1, #ISLES)
+	local c = cache[t]
+	if c then
+		return c
+	end
+	local s = ISLES[t]
+	local reach = Street.BANDS.shallow + 1
+	local x0 = math.floor(s.cx - s.rx * 1.3 - reach)
+	local x1 = math.ceil(s.cx + s.rx * 1.3 + reach)
+	local z0 = math.floor(s.cz - s.rz * 1.3 - reach)
+	local z1 = math.ceil(s.cz + s.rz * 1.3 + reach)
+	local layer, dist = {}, {}
+	local lx0, lz0, lx1, lz1 = math.huge, math.huge, -math.huge, -math.huge
+	for z = z0, z1 do
+		for x = x0, x1 do
+			local d = Street.coast(t, x + 0.5, z + 0.5)
+			local l = Street.layerAt(d)
+			if l ~= Street.SEA_CELL then
+				local k = key(x, z)
+				layer[k] = l
+				dist[k] = d
+				if l == Street.GRASS then
+					lx0, lz0, lx1, lz1 = math.min(lx0, x), math.min(lz0, z), math.max(lx1, x + 1), math.max(lz1, z + 1)
+				end
+			end
+		end
+	end
+	local made: Cells = { layer = layer, dist = dist, bounds = { x0 = x0, z0 = z0, x1 = x1, z1 = z1 }, land = { x0 = lx0, z0 = lz0, x1 = lx1, z1 = lz1 } }
+	cache[t] = made
+	return made
+end
+
+-- The layer of the whole-stud cell x .. x + 1, z .. z + 1 (plot-local).
+function Street.layer(tier: number, x: number, z: number): number
+	return cellsOf(tier).layer[key(x, z)] or Street.SEA_CELL
+end
+
+-- The coast distance at a cell's centre (huge out at sea).
+function Street.cellDist(tier: number, x: number, z: number): number
+	return cellsOf(tier).dist[key(x, z)] or math.huge
+end
+
+-- Every cell the layers cover (the shallows' outer box) for drawing the island.
+function Street.cellBounds(tier: number): Rect
+	return cellsOf(tier).bounds
+end
+
+-- Whether a building may cover cell (x, z): grass a stud in from its edge (the plaza and the path are Logic/Plot's).
+function Street.buildable(tier: number, x: number, z: number): boolean
+	local d = cellsOf(tier).dist[key(x, z)]
+	return d ~= nil and d <= -1
+end
+
+-- Whether a founder may stand on cell (x, z): the grass, the beach and the wet sand.
+function Street.walkable(tier: number, x: number, z: number): boolean
+	local l = Street.layer(tier, x, z)
+	return l == Street.GRASS or l == Street.SAND or l == Street.WET
+end
+
+-- The island's grass's bounding box (plot-local): the scans for a free spot stay inside it.
 function Street.plot(tier: number): Rect
-	return PLOTS[math.clamp(math.floor(tier), 1, #PLOTS)]
+	return cellsOf(tier).land
 end
 
 -- The origin of plot i (1..MAX) in world studs: the row is centred on x = 0.
@@ -74,37 +198,36 @@ function Street.bounds(): Rect
 	return { x0 = x0, z0 = Street.LOT.z0, x1 = x1, z1 = Street.SEA.z1 }
 end
 
--- The lodge's doorway: the gap in the room's south rim (Models/OfficeModels), by the room's east edge.
--- `maxX` / `maxZ` are the room's (Data/Office plan).
-function Street.door(maxX: number, maxZ: number): (number, number)
-	return maxX - 4.5, maxZ
+-- The path from the plaza south to the boardwalk (plot-local): a jetty where it crosses the water.
+function Street.footpath(): Rect
+	return Street.PATH
 end
 
--- The sandy path from the doorway down to the boardwalk (plot-local).
-function Street.footpath(maxX: number, maxZ: number): Rect
-	local dx, dz = Street.door(maxX, maxZ)
-	return { x0 = dx - 1.5, z0 = dz, x1 = dx + 1.5, z1 = Street.BOARD.z0 }
+-- The jetty: where the path leaves the island's walkable sand for the boardwalk (plot-local z), on a tier.
+function Street.jetty(tier: number): Rect
+	local z = Street.CENTER.z
+	while z < Street.BOARD.z0 and Street.walkable(tier, 0, z) do
+		z += 1
+	end
+	return { x0 = Street.PATH.x0, z0 = z - 1, x1 = Street.PATH.x1, z1 = Street.BOARD.z0 }
 end
 
--- Where a founder appears: on the footpath just outside the doorway (plot-local x, z).
-function Street.spawn(maxX: number, maxZ: number): (number, number)
-	local dx, dz = Street.door(maxX, maxZ)
-	return dx, dz + 3
+-- Where a founder appears: on the path just south of the plaza (plot-local x, z).
+function Street.spawn(): (number, number)
+	return 0, Street.PLAZA.z1 + 2
 end
 
--- The island's sign and the mailbox by the boardwalk, west and east of the path (plot-local centres).
-function Street.sign(maxX: number, maxZ: number): (number, number)
-	local dx = Street.door(maxX, maxZ)
-	return dx - 6, 28.5
+-- The island's sign and the mailbox on the boardwalk's north edge, west and east of the jetty (plot-local centres).
+function Street.sign(): (number, number)
+	return -4.5, Street.BOARD.z0 + 0.75
 end
-function Street.mailbox(maxX: number, maxZ: number): (number, number)
-	local dx = Street.door(maxX, maxZ)
-	return dx + 3.5, 28.5
+function Street.mailbox(): (number, number)
+	return 3.5, Street.BOARD.z0 + 0.75
 end
 
 -- Along each plot's stretch (plot-local): lanterns on the boardwalk's posts, and the pier (its x, from the boardwalk
 -- out to PIER_Z) where the expedition boat is moored.
-Street.LAMPS = { -28, 12 } :: { number }
+Street.LAMPS = { -28, -8, 12, 28 } :: { number }
 Street.PIER_X = 0
 Street.PIER_Z = 44
 Street.PIER_W = 4

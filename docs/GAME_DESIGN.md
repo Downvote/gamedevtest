@@ -10,8 +10,8 @@ hold where they apply: the first ("reference game dev story from kariosoft and m
 gamedevtest. dont touch the "test" repo at all, only use it for reference"), the pixel art rules (§2) and the polish
 requests (§11). The game studio of the earlier versions is gone (§10: an old save starts a fresh island).
 
-Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a castaway's
-hut. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
+Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
+on its sand. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
 villagers take jobs. You sail out to the islets nearby with a party of villagers, befriend the wild **driftlings**
 there with treats in turn-based battles, and bring them home to help at the buildings of their knack. Beating each
 islet's guardian opens the next. The islands of everyone on the server sit side by side along one boardwalk on a
@@ -32,13 +32,16 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 
 ## 2. Look and feel
 
-- **World:** one island per player along a shared boardwalk on the open sea, the lodge a cut-away diorama (floor, two
-  back walls, furniture) in the middle of the island's grass and its sand beach, seen from the Random Bakery camera:
-  orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid. Everything is built from parts in code (no
+- **World:** one island per player along a shared boardwalk on the open sea, each of its own shape with a campfire at
+  its heart, its grass, a sand beach and a shore stepping down into a moving sea (§8), seen from the Random Bakery
+  camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
 - **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
   from one sun, sun shadows, a palette LUT, a 1 px ink outline, and the characters drawn analytically every tick on
-  top with the same projection. One pixel size K for the world, the UI and the text.
+  top with the same projection. One pixel size K for the world, the UI and the text. Shadows keep the grid: the sun's
+  ray is cast once for each 2x2 pixels, and every pixel on a shadow's edge then casts its own, so a shadow's edge
+  steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
+  respecting the pixel grid").
 - **Villagers** are little chibis (their own looks) walking the island and working at their buildings (hoeing,
   chopping, selling); **driftlings** are small 3D creatures of our own design hopping about and helping.
 - **Interface:** pixel-art plates with stepped corners, the pixel font, no borders; every driftling has a 16x16
@@ -86,8 +89,8 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 Sawmill), **shops** (Snack Stall, Beach Cafe, Seaside Inn), **homes** (Tent, Grass Hut, Cottage: beds), **nests**
 (Driftling Nest, Cozy Burrow: room for driftlings), the **Training Yard** (resting villagers and driftlings gain xp
 each dawn) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
-placed, on whole studs, turned a quarter at a time, off the lodge, the path to the boardwalk, the sign and the
-mailbox, and off every other piece, up to the island's piece limit (`PlotPieces`). The bigger buildings wait for a
+placed, on whole studs of the island's grass (a stud or more in from the sand), turned a quarter at a time, off the
+campfire's plaza and the path to the jetty, and off every other piece, up to the island's piece limit (`PlotPieces`). The bigger buildings wait for a
 bigger island (tier 2 or 3).
 
 - **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Food, Wood, Shops, Homes,
@@ -96,9 +99,9 @@ bigger island (tier 2 or 3).
   same spot) builds it. Tapping a standing piece picks it up to move, **Upgrade** it (a building that makes
   something: Lv 2 and 3 for `UpgradeCost` times its price, making `UpgradeMult` times as much) or **Clear it away**
   (half its price back; not a home or nest whose beds are needed).
-- **Expand** (in the tray's header): the island grows twice (`TierCost`), the lodge with it (Castaway Hut, Driftwood
-  Lodge, Harbor Hall). Buildings the bigger lodge would stand on move to the nearest free spot (none is lost; one with
-  no spot left would be cleared with its whole price back).
+- **Expand** (in the tray's header): the island grows twice (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, its coast
+  reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot (none is
+  lost; one with no spot left would be cleared with its whole price back).
 
 ## 5. Villagers (`Logic/Island`, the Villagers panel)
 
@@ -136,8 +139,11 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   level); **Flee** may get away. A guardian can't be befriended or fled from. A win gives xp to the party (levels) and
   shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and half
   the loot comes home.
-- **The islet's screen** (3D, full screen): the islet's own stage (a beach with a palm and a chest, a mossy meadow,
-  a volcano's sands, a snowfield with snowy pines and a frozen pond, the sea floor), drawn by the pixel filter, with
+- **The islet's screen** (3D, full screen): the islet's own stage (an islet of its own, its shore stepping down
+  into the moving sea: a beach with leaning palms, a treasure chest, tide pools and a rowboat; a mossy meadow with
+  ferns, mushrooms and a fallen log; Cinder Rock's dark sand by a volcano with lava running down it; a snowfield by a
+  snowy peak with pines, ice crystals and a frozen pond; the sea floor's corals, kelp, anemones, clams and a sunken
+  anchor), drawn by the pixel filter, with
   the party on the left (your founder, villagers as their chibis, driftlings as their models) and the wild ones
   dropping in on the right. Along the top: the islet, the loot so far, the path of stops (the ones ahead hidden but
   the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
@@ -146,13 +152,33 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   skills' names, heals, shells, a treat's hearts, knock-outs; a win shows its xp, shells and level-ups, a new friend
   its portrait with confetti, a guardian's fall the next islet.
 
-## 8. The sea (`Data/Street`, `Models/StreetModels`)
+## 8. The islands and the sea (`Data/Street`, `Models/StreetModels`, `Models/DecorModels`)
 
-Up to `MaxPlots` (6) islands sit in a row along one boardwalk (planks on posts, lanterns) on the open sea; an
-unclaimed lot is open water with a sign. Each island has its grass, a sand beach, a path from the lodge's door to the
-boardwalk, its sign ("Name's Isle") and a mailbox, and a pier with a moored boat. Sailboats cross the sea, gulls fly
-over and cloud shadows drift across. You can walk onto anyone's island; Home sends you back to your own path. A
-tap on a sign shows that island's day, villagers, driftlings, charm and islets.
+> The request (2026-11-10): "make islands more irregular like actual islands, add shorelines, animated water,much
+> much more detail and polish to all models and islands, no need for the house. in the main island, make the camera
+> always center to the player."
+
+- **Islands like islands:** each island's coast is a wobbly oval of whole-stud cells (an oval a tier, four sine
+  wobbles of their own phases), with its bays and points. From the coast inward is the grass; outward a sand beach,
+  wet sand, the foam line and the shallows, each a little lower than the one inside it, so the shore steps down into
+  the sea. Buildings stand on the grass a stud or more in from the sand.
+- **No house:** the island's heart is a plaza round a campfire (fire stones, logs, a flame with smoke, seats, a flag
+  and torches); a path of stepping stones runs from it down to a wooden jetty that meets the boardwalk, your sign and
+  mailbox either side of its foot. Villagers stroll the grass round it when they rest.
+- **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
+  roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
+  pier's pond, the fountain and the islets' seas and pools move the same way.
+- **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
+  each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with a moored
+  boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own
+  touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts, the stall's awning, the
+  lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks and a mouth.
+- **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
+  zoom on every tier; Build mode frees it to pan.
+- Up to `MaxPlots` (6) islands sit in a row along the boardwalk; an unclaimed lot is open water with a sandbar and a
+  sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. You can walk onto anyone's island
+  (the shore's edge holds you back from the sea); Home sends you back to your own. A tap on a sign shows that island's
+  day, villagers, driftlings, charm and islets.
 
 ## 9. Your founder, settings and the tips
 
@@ -185,8 +211,8 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   and bits when someone moved in).
 - **The island lives:** villagers walk to their work and back and do it (hoe, chop, sell), wander when resting;
   driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
-- **The sea lives:** sailboats rock on the swell as they cross both ways, gulls cross now and then, clouds' shadows
-  slide over the islands.
+- **The sea lives:** the water rolls and the foam laps the shore (§8), sailboats rock on the swell as they cross both
+  ways, gulls cross now and then, clouds' shadows slide over the islands; each island's campfire flickers and smokes.
 - **The islet's screen:** ink blinds open from the middle on the islet's name; the party and the wild ones drop in
   from above in puffs of dust; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,

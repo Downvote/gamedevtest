@@ -2,12 +2,11 @@
 -- The island's building rules (GAME_DESIGN 4; docs/ARCHITECTURE.md 6): where buildings and decor may stand, placing
 -- (paid in shells and wood), moving and clearing them away. Pure. Positions are plot-local whole studs: a piece's
 -- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
--- footprint's width and depth). A piece stands wholly on the island (Data/Street PLOT of its tier) a stud in from its
--- edges, off the lodge (its room, walls and a stud round them), the path to the dock, the island's sign and the
--- mailbox, and off every other piece.
+-- footprint's width and depth). A piece stands wholly on the island's buildable cells (Data/Street: the grass a stud
+-- in from its edge, the island's shape by its tier), off the plaza round the campfire and the path to the jetty, and
+-- off every other piece.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
-local Office = require(script.Parent.Parent.Data.Office)
 local Street = require(script.Parent.Parent.Data.Street)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 
@@ -45,27 +44,17 @@ local function overlaps(a: Rect, b: Rect): boolean
 	return a.x0 < b.x1 and b.x0 < a.x1 and a.z0 < b.z1 and b.z0 < a.z1
 end
 
--- The fixed things on a plot no piece may cover (plot-local): the office with a stud round it, the footpath, the
--- sign and the mailbox.
-function Plot.blockers(tier: number): { Rect }
-	local plan = Office.plan(tier)
-	local t = Office.WALL_T
-	local fp = Street.footpath(plan.maxX, plan.maxZ)
-	local sx, sz = Street.sign(plan.maxX, plan.maxZ)
-	local mx, mz = Street.mailbox(plan.maxX, plan.maxZ)
-	return {
-		{ x0 = plan.minX - t - 1, z0 = plan.minZ - t - 1, x1 = plan.maxX + 1, z1 = plan.maxZ + 1 },
-		{ x0 = fp.x0 - 0.5, z0 = fp.z0, x1 = fp.x1 + 0.5, z1 = fp.z1 },
-		{ x0 = sx - 1.5, z0 = sz - 1, x1 = sx + 1.5, z1 = sz + 1 },
-		{ x0 = mx - 0.75, z0 = mz - 0.75, x1 = mx + 0.75, z1 = mz + 0.75 },
-	}
+-- The fixed things on an island no piece may cover (plot-local): the plaza round the campfire and the path to the
+-- jetty (the same on every tier).
+function Plot.blockers(_tier: number): { Rect }
+	return { Street.PLAZA, Street.PATH }
 end
 
 local ROT_OK: { [number]: boolean } = { [0] = true, [90] = true, [180] = true, [270] = true }
 
--- Whether piece `id` fits at (x, z, rot) on a plot of `tier` with these pieces (skip = the index of the piece being
--- moved). Returns true, or false and why: "outside" (off the plot or not on the grid), "blocked" (the office, the
--- footpath, the sign or the mailbox), "overlap" (another piece), "unknown" (no such piece).
+-- Whether piece `id` fits at (x, z, rot) on an island of `tier` with these pieces (skip = the index of the piece
+-- being moved). Returns true, or false and why: "outside" (off the buildable grass or not on the grid), "blocked"
+-- (the plaza or the path), "overlap" (another piece), "unknown" (no such piece).
 function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number, skip: number?): (boolean, string?)
 	if Buildings.byId[id] == nil then
 		return false, "unknown"
@@ -74,9 +63,12 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 		return false, "outside"
 	end
 	local r = Plot.rect(id, x, z, rot)
-	local p = Street.plot(tier)
-	if r.x0 < p.x0 + 1 or r.x1 > p.x1 - 1 or r.z0 < p.z0 + 1 or r.z1 > p.z1 - 1 then
-		return false, "outside"
+	for cz = r.z0, r.z1 - 1 do
+		for cx = r.x0, r.x1 - 1 do
+			if not Street.buildable(tier, cx, cz) then
+				return false, "outside"
+			end
+		end
 	end
 	for _, b in Plot.blockers(tier) do
 		if overlaps(r, b) then

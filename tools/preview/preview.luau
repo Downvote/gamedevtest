@@ -123,7 +123,7 @@ local function settle(p, maxSec, minSec)
 	if CC and CC.view then
 		local okV, v = pcall(CC.view)
 		if okV and type(v) == "table" and v.grid then
-			log("camera: tier %d plot %d, %g art px per stud, pan %d,%d, office box %d,%d - %d,%d (screen px)", v.tier, v.plot, v.grid.a, v.grid.px, v.grid.py, v.box.x0, v.box.y0, v.box.x1, v.box.y1)
+			log("camera: tier %d plot %d, %g art px per stud, pan %d,%d, frame box %d,%d - %d,%d (screen px)", v.tier, v.plot, v.grid.a, v.grid.px, v.grid.py, v.box.x0, v.box.y0, v.box.x1, v.box.y1)
 		end
 	end
 end
@@ -238,21 +238,22 @@ local function seedProfile(userId, tier, opts)
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
 end
 
--- A tier-1 village: food, wood, a stall, homes, nests and some decor round the hut (plot-local NW corners).
+-- A tier-1 village round the plaza: food and wood east, homes and nests west, a stall and a pier by the path, decor
+-- (plot-local NW corners; the seeder moves each to the nearest spot that fits the coast).
 local VILLAGE = {
-	{ "patch", 12, 8 }, { "patch", 16, 8 }, { "lumber", 12, 13 }, { "pier", 18, 24 }, { "stall", 8, 21 },
-	{ "tent", -12, 8 }, { "hut", -12, 12 }, { "hut", -8, 16 }, { "nest", -5, 9 }, { "nest", -14, 22 },
-	{ "flowers", -3, 18 }, { "palm", -14, 1 }, { "torch", 1, 9 }, { "torch", 6, 9 }, { "bench", -8, 24 },
-	{ "shellpile", 14, 26 }, { "bush", 18, 1 }, { "palm", 19, 15 }, { "hammock", 0, 22 },
+	{ "patch", 6, -1 }, { "patch", 10, -1 }, { "lumber", 6, 3 }, { "pier", 10, 3 }, { "stall", 5, 11 },
+	{ "tent", -8, 0 }, { "hut", -12, 2 }, { "hut", -8, 4 }, { "nest", -6, 12 }, { "nest", -10, 9 },
+	{ "flowers", 4, 13 }, { "palm", -12, 7 }, { "torch", 5, 1 }, { "bench", -5, -3 }, { "shellpile", 9, 8 },
+	{ "bush", -3, -4 }, { "hammock", 0, -4 }, { "flowers", -4, 14 }, { "torch", -5, 10 },
 }
 -- A tier-3 harbour island: every kind of building, upgraded makers, the grand decor.
 local HARBOR = {
-	{ "greenhouse", 18, 8, 0, 3 }, { "orchard", 26, 8, 0, 2 }, { "orchard", 26, 14, 0, 2 }, { "sawmill", 18, 14, 0, 2 }, { "lumber", 31, 2 },
-	{ "inn", 16, 20, 0, 2 }, { "cafe", 22, 25, 0, 2 }, { "stall", 28, 26 }, { "pier", 31, 20 },
-	{ "cottage", -21, 12 }, { "cottage", -21, 17 }, { "hut", -16, 21 }, { "burrow", -22, 2 }, { "burrow", -18, -14 }, { "yard", -6, 14 },
-	{ "fountain", 0, 20 }, { "lighthouse", 30, -12 }, { "statue", -10, 24 }, { "totem", 20, -6 }, { "picnic", -18, 25 },
-	{ "palm", -22, -6 }, { "palm", 24, -12 }, { "flowers", -2, 13 }, { "flowers", 7, 26 }, { "torch", 12, 12 }, { "torch", 12, 18 },
-	{ "hammock", -13, 27 }, { "bench", 2, 27 }, { "shellpile", 33, 26 },
+	{ "greenhouse", 14, -7, 0, 3 }, { "orchard", 19, -7, 0, 2 }, { "orchard", 19, -2, 0, 2 }, { "sawmill", 14, -2, 0, 2 }, { "lumber", 22, 3 },
+	{ "inn", 7, 9, 0, 2 }, { "cafe", 13, 9, 0, 2 }, { "stall", 18, 9 }, { "pier", 22, 8 },
+	{ "cottage", -14, -7 }, { "cottage", -14, -2 }, { "hut", -9, 4 }, { "burrow", -19, -7 }, { "burrow", -19, -2 }, { "yard", -8, -12 },
+	{ "fountain", -13, 6 }, { "lighthouse", 21, -13 }, { "statue", -22, 4 }, { "totem", 6, -12 }, { "picnic", -20, -12 },
+	{ "palm", -25, 0 }, { "palm", 15, -14 }, { "flowers", 6, 3 }, { "flowers", -7, 12 }, { "torch", 5, 6 }, { "torch", -6, 6 },
+	{ "hammock", 8, -16 }, { "bench", -4, -7 }, { "shellpile", 10, 14 },
 }
 local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff" }
 
@@ -460,14 +461,14 @@ function SCEN.visit()
 	join(53, "Host", { client = false })
 	settle(p)
 	local x2, z2 = H.sharedServer("Data.Street").origin(2)
-	walkTo(p, x2 + 10, z2 + 18)
+	walkTo(p, x2 + 6, z2 + 12)
 	capture(p, "visit")
 	return p
 end
 
 -- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the hut (red).
 function SCEN.build()
-	seedProfile(54, 1, { pieces = { { "patch", 12, 8 }, { "tent", -12, 8 }, { "nest", -5, 9 }, { "flowers", -3, 18 } }, folk = 1, shells = 3000, wood = 300 })
+	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "tent", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, folk = 1, shells = 3000, wood = 300 })
 	local p = join(54, "Builder")
 	settle(p, 30, 1)
 	if not H.clickNamed(p, "Menu_build", { optional = true }) then
@@ -492,13 +493,13 @@ function SCEN.build()
 		H.inClient(p, function()
 			BuildUI.pick("lumber", 0)
 		end)
-		local cx, cz = 14, 14
+		local cx, cz = 8, 0
 		for r = 0, 6 do
 			local found = false
 			for dz = -r, r do
 				for dx = -r, r do
-					if not found and Plot.fits(1, prof.plot.placed, "lumber", 14 + dx, 14 + dz, 0) then
-						cx, cz, found = 14 + dx, 14 + dz, true
+					if not found and Plot.fits(1, prof.plot.placed, "lumber", 8 + dx, 0 + dz, 0) then
+						cx, cz, found = 8 + dx, 0 + dz, true
 					end
 				end
 			end
@@ -509,7 +510,7 @@ function SCEN.build()
 		tapWorld(E.v3(ox + cx + 2, Street.LAWN_Y, oz + cz + 1.5))
 		settle(p, 10, 0.5)
 		capture(p, "build")
-		tapWorld(E.v3(ox + 2, 0, oz + 1))
+		tapWorld(E.v3(ox + 0.5, Street.LAWN_Y, oz + 6.5))
 		settle(p, 10, 0.5)
 		capture(p, "build_red")
 	end

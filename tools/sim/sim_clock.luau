@@ -163,7 +163,7 @@ E.runUntil(function()
 	return prof.day > dd
 end, Tuning.DaySeconds + 2, 0.1)
 H.expect(#prof.folk == n0, "move-in", "not charming enough: nobody moves in", tostring(#prof.folk))
--- decor raises the charm (the island expanded for the grand pieces: the buildings round the lodge make room)
+-- decor raises the charm (the island expanded for the grand pieces: the buildings where the coast changed make room)
 prof.shells, prof.wood = 1e6, 1e5
 for _ = 1, 2 do
 	local rx = H.req(p, "island.expand", {})

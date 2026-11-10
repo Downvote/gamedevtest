@@ -253,7 +253,7 @@ local SERVICE_LIST = {
 	"StarterPack", "Lighting", "RunService", "TweenService", "UserInputService", "GuiService", "SoundService",
 	"TextChatService", "MarketplaceService", "DataStoreService", "AnalyticsService", "BadgeService", "SocialService",
 	"PolicyService", "GroupService", "HttpService", "ExperienceNotificationService", "AssetService", "ConfigService",
-	"CollectionService", "ContextActionService", "ContentProvider", "ReplicatedFirst",
+	"CollectionService", "ContextActionService", "ContentProvider", "ReplicatedFirst", "PhysicsService",
 }
 E.services = {}
 

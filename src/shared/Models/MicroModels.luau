@@ -542,6 +542,20 @@ local function eyes(t: Thing, y: number, z: number, gap: number, size: number?)
 	local r = add(t, "EyeR", "Block", Vector3.new(s, s, 0.2), Vector3.new(gap / 2, y, z), "black")
 	l:SetAttribute("Keep", true)
 	r:SetAttribute("Keep", true)
+	-- a shine in the top corner of each eye
+	local h = math.max(0.1, s * 0.4)
+	local sl = add(t, "ShineL", "Block", Vector3.new(h, h, 0.1), Vector3.new(-gap / 2 - s * 0.2, y + s * 0.2, z + 0.08), "white")
+	local sr = add(t, "ShineR", "Block", Vector3.new(h, h, 0.1), Vector3.new(gap / 2 - s * 0.2, y + s * 0.2, z + 0.08), "white")
+	sl:SetAttribute("Keep", true)
+	sr:SetAttribute("Keep", true)
+end
+
+-- Rosy cheeks under the eyes and a small mouth between them.
+local function face(t: Thing, y: number, z: number, gap: number, mouth: string?)
+	add(t, "CheekL", "Block", Vector3.new(0.25, 0.15, 0.1), Vector3.new(-gap / 2 - 0.1, y, z), "pink")
+	add(t, "CheekR", "Block", Vector3.new(0.25, 0.15, 0.1), Vector3.new(gap / 2 + 0.1, y, z), "pink")
+	local m = add(t, "Mouth", "Block", Vector3.new(0.25, 0.1, 0.1), Vector3.new(0, y - 0.05, z), mouth or "black")
+	m:SetAttribute("Keep", true)
 end
 
 local function feet(t: Thing, c: string, gap: number, z: number?)
@@ -557,6 +571,9 @@ BUILD.drift_blob = function(o)
 	add(t, "Spot", "Block", Vector3.new(0.5, 0.5, 0.25), Vector3.new(0.55, 0.7, 0.8), a)
 	eyes(t, 1.15, 0.88, 0.6)
 	feet(t, a, 0.9)
+	add(t, "Pebble", "Block", Vector3.new(0.35, 0.25, 0.35), Vector3.new(-0.55, 1.75, -0.1), a)
+	add(t, "Belly", "Ball", Vector3.new(1.1, 0.8, 0.3), Vector3.new(0, 0.7, 0.78), "steel")
+	face(t, 0.85, 0.9, 0.6)
 	return t
 end
 
@@ -573,6 +590,11 @@ BUILD.drift_crab = function(o)
 	for i, x in { -0.8, -0.4, 0.4, 0.8 } do
 		add(t, "Leg" .. i, "Block", Vector3.new(0.2, 0.35, 0.2), Vector3.new(x, 0.17, -0.2), a)
 	end
+	add(t, "Pincer", "Block", Vector3.new(0.25, 0.3, 0.35), Vector3.new(-1.25, 1.2, 0.75), a)
+	add(t, "Pincer2", "Block", Vector3.new(0.25, 0.3, 0.35), Vector3.new(1.25, 1.2, 0.75), a)
+	add(t, "Spots", "Block", Vector3.new(0.25, 0.1, 0.25), Vector3.new(0.4, 1.47, 0.1), "cream")
+	add(t, "Spots2", "Block", Vector3.new(0.25, 0.1, 0.25), Vector3.new(-0.35, 1.47, -0.2), "cream")
+	face(t, 0.85, 0.66, 0.7)
 	return t
 end
 
@@ -587,6 +609,10 @@ BUILD.drift_bird = function(o)
 	add(t, "Tail", "Block", Vector3.new(0.9, 0.25, 0.6), Vector3.new(0, 0.9, -0.95), a)
 	eyes(t, 1.85, 0.8, 0.45, 0.2)
 	feet(t, "orange", 0.5)
+	add(t, "Crest", "Block", Vector3.new(0.15, 0.4, 0.4), Vector3.new(0, 2.35, 0.25), a)
+	add(t, "Fin", "Block", Vector3.new(0.15, 0.5, 0.5), Vector3.new(0, 1.55, -0.6), a)
+	add(t, "Belly", "Ball", Vector3.new(0.9, 0.8, 0.3), Vector3.new(0, 0.85, 0.72), "cream")
+	face(t, 1.62, 0.83, 0.5)
 	return t
 end
 
@@ -600,6 +626,11 @@ BUILD.drift_bun = function(o)
 	add(t, "Tail", "Ball", Vector3.new(0.5, 0.5, 0.5), Vector3.new(0, 0.8, -0.8), "white")
 	eyes(t, 1.7, 0.8, 0.45, 0.2)
 	feet(t, a, 0.7, 0.35)
+	add(t, "EarInL", "Block", Vector3.new(0.15, 0.6, 0.1), Vector3.new(-0.3, 2.4, 0.3), "pink")
+	add(t, "EarInR", "Block", Vector3.new(0.15, 0.6, 0.1), Vector3.new(0.3, 2.4, 0.3), "pink")
+	add(t, "Moss", "Block", Vector3.new(0.6, 0.15, 0.6), Vector3.new(0, 1.62, -0.25), a)
+	add(t, "Belly", "Ball", Vector3.new(0.9, 0.8, 0.3), Vector3.new(0, 0.8, 0.68), "cream")
+	face(t, 1.5, 0.82, 0.45)
 	return t
 end
 
@@ -615,6 +646,11 @@ BUILD.drift_lizard = function(o)
 	for i, p in { { -0.5, 0.5 }, { 0.5, 0.5 }, { -0.5, -0.5 }, { 0.5, -0.5 } } do
 		add(t, "Leg" .. i, "Block", Vector3.new(0.3, 0.3, 0.3), Vector3.new(p[1], 0.15, p[2]), a)
 	end
+	for i = 0, 2 do
+		add(t, "Spike" .. i, "Block", Vector3.new(0.2, 0.3, 0.2), Vector3.new(0, 1.05, -0.6 + i * 0.45), a)
+	end
+	add(t, "Stripe", "Block", Vector3.new(1.05, 0.12, 0.25), Vector3.new(0, 0.7, -0.4), a)
+	face(t, 0.82, 1.57, 0.5)
 	return t
 end
 
@@ -632,6 +668,11 @@ BUILD.drift_owl = function(o)
 	add(t, "Beak", "Block", Vector3.new(0.2, 0.3, 0.2), Vector3.new(0, 1.15, 0.7), "orange")
 	eyes(t, 1.45, 0.72, 0.64, 0.25)
 	feet(t, "orange", 0.6)
+	add(t, "Twig", "Block", Vector3.new(0.12, 0.12, 0.6), Vector3.new(0.55, 1.95, -0.15), "wood_dark")
+	add(t, "Leaf", "Block", Vector3.new(0.3, 0.1, 0.25), Vector3.new(0.55, 2.03, 0.1), "leaf")
+	for i = 0, 2 do
+		add(t, "Chevron" .. i, "Block", Vector3.new(0.5, 0.08, 0.1), Vector3.new(0, 0.55 + i * 0.25, 0.73), a)
+	end
 	return t
 end
 
@@ -648,6 +689,11 @@ BUILD.drift_pup = function(o)
 	for i, p in { { -0.35, 0.5 }, { 0.35, 0.5 }, { -0.35, -0.6 }, { 0.35, -0.6 } } do
 		add(t, "Leg" .. i, "Block", Vector3.new(0.3, 0.45, 0.3), Vector3.new(p[1], 0.22, p[2]), b)
 	end
+	add(t, "Nose", "Block", Vector3.new(0.2, 0.15, 0.1), Vector3.new(0, 1.38, 1.56), "black")
+	add(t, "TailTip", "Block", Vector3.new(0.35, 0.35, 0.3), Vector3.new(0, 1.4, -1.6), "white", nil, true)
+	add(t, "Chest", "Block", Vector3.new(0.6, 0.5, 0.15), Vector3.new(0, 0.9, 0.72), a)
+	add(t, "CheekL", "Block", Vector3.new(0.2, 0.12, 0.1), Vector3.new(-0.42, 1.38, 1.27), "pink")
+	add(t, "CheekR", "Block", Vector3.new(0.2, 0.12, 0.1), Vector3.new(0.42, 1.38, 1.27), "pink")
 	return t
 end
 
@@ -660,6 +706,12 @@ BUILD.drift_mole = function(o)
 	add(t, "ClawR", "Block", Vector3.new(0.6, 0.3, 0.5), Vector3.new(0.85, 0.35, 0.7), a)
 	add(t, "Crest", "Block", Vector3.new(0.5, 0.4, 1.2), Vector3.new(0, 1.65, -0.1), a, nil, true)
 	eyes(t, 1.2, 0.9, 0.6, 0.2)
+	for i, x in { -0.95, -0.75 } do
+		add(t, "TalonL" .. i, "Block", Vector3.new(0.1, 0.15, 0.25), Vector3.new(x, 0.25, 1.0), "white")
+		add(t, "TalonR" .. i, "Block", Vector3.new(0.1, 0.15, 0.25), Vector3.new(-x, 0.25, 1.0), "white")
+	end
+	add(t, "Glow", "Block", Vector3.new(0.6, 0.12, 0.6), Vector3.new(0, 1.62, -0.6), a, nil, true)
+	face(t, 0.95, 0.98, 0.6)
 	return t
 end
 
@@ -674,6 +726,11 @@ BUILD.drift_bat = function(o)
 	add(t, "Fang", "Block", Vector3.new(0.15, 0.2, 0.1), Vector3.new(0.15, 1.0, 0.5), "white")
 	eyes(t, 1.45, 0.52, 0.4, 0.2)
 	feet(t, a, 0.4, 0)
+	add(t, "Belly", "Ball", Vector3.new(0.6, 0.7, 0.2), Vector3.new(0, 1.15, 0.45), "cream")
+	add(t, "EarInL", "Block", Vector3.new(0.15, 0.3, 0.1), Vector3.new(-0.3, 2.0, 0.08), a)
+	add(t, "EarInR", "Block", Vector3.new(0.15, 0.3, 0.1), Vector3.new(0.3, 2.0, 0.08), a)
+	add(t, "WingTipL", "Block", Vector3.new(0.3, 0.3, 0.2), Vector3.new(-1.75, 1.05, -0.1), b)
+	add(t, "WingTipR", "Block", Vector3.new(0.3, 0.3, 0.2), Vector3.new(1.75, 1.05, -0.1), b)
 	return t
 end
 
@@ -687,6 +744,10 @@ BUILD.drift_yeti = function(o)
 	add(t, "Tuft", "Block", Vector3.new(0.5, 0.4, 0.5), Vector3.new(0.2, 2.15, 0), b)
 	eyes(t, 1.55, 0.92, 0.5, 0.22)
 	feet(t, a, 0.9)
+	add(t, "Horn", "Block", Vector3.new(0.2, 0.35, 0.2), Vector3.new(-0.35, 2.2, 0.15), a)
+	add(t, "Horn2", "Block", Vector3.new(0.2, 0.35, 0.2), Vector3.new(0.35, 2.2, 0.15), a)
+	add(t, "Snow", "Block", Vector3.new(0.5, 0.15, 0.4), Vector3.new(-0.5, 0.6, 0.75), "window")
+	face(t, 1.3, 0.92, 0.5)
 	return t
 end
 
@@ -701,6 +762,10 @@ BUILD.drift_seal = function(o)
 	add(t, "Tail", "Block", Vector3.new(0.9, 0.2, 0.5), Vector3.new(0, 0.15, -1.3), a)
 	add(t, "Nose", "Block", Vector3.new(0.25, 0.2, 0.15), Vector3.new(0, 1.1, 1.3), "black")
 	eyes(t, 1.35, 1.27, 0.45, 0.2)
+	add(t, "Whisk", "Block", Vector3.new(0.5, 0.05, 0.05), Vector3.new(-0.35, 1.05, 1.32), "black")
+	add(t, "Whisk2", "Block", Vector3.new(0.5, 0.05, 0.05), Vector3.new(0.35, 1.05, 1.32), "black")
+	add(t, "Spot", "Block", Vector3.new(0.3, 0.1, 0.3), Vector3.new(0.3, 0.97, -0.4), a)
+	add(t, "Spot2", "Block", Vector3.new(0.25, 0.1, 0.25), Vector3.new(-0.3, 0.97, -0.7), a)
 	return t
 end
 
@@ -713,6 +778,9 @@ BUILD.drift_sprite = function(o)
 	add(t, "ShardR", "Block", Vector3.new(0.3, 0.6, 0.3), Vector3.new(0.8, 1.2, 0), a, nil, true)
 	add(t, "Tip", "Block", Vector3.new(0.4, 0.5, 0.4), Vector3.new(0, 0.55, 0), b, nil, true)
 	eyes(t, 1.4, 0.62, 0.36, 0.18)
+	add(t, "Orbit", "Block", Vector3.new(0.2, 0.2, 0.2), Vector3.new(0.6, 1.85, 0.3), "yellow", nil, true)
+	add(t, "Orbit2", "Block", Vector3.new(0.2, 0.2, 0.2), Vector3.new(-0.55, 0.8, -0.3), a, nil, true)
+	face(t, 1.22, 0.62, 0.36)
 	return t
 end
 
@@ -725,6 +793,9 @@ BUILD.drift_jelly = function(o)
 		add(t, "Tendril" .. i, "Block", Vector3.new(0.2, 0.9 + (i % 2) * 0.3, 0.2), Vector3.new(x, 0.55, 0.2 - (i % 2) * 0.4), a)
 	end
 	eyes(t, 1.8, 0.88, 0.55, 0.22)
+	add(t, "Spot", "Block", Vector3.new(0.3, 0.3, 0.1), Vector3.new(0.45, 2.25, 0.82), "white", nil, true)
+	add(t, "Spot2", "Block", Vector3.new(0.2, 0.2, 0.1), Vector3.new(-0.5, 2.35, 0.78), "white", nil, true)
+	face(t, 1.6, 0.92, 0.55)
 	return t
 end
 
@@ -740,6 +811,10 @@ BUILD.drift_wyrm = function(o)
 	add(t, "FinB", "Block", Vector3.new(0.2, 0.5, 0.6), Vector3.new(-0.4, 1.2, -0.3), a, nil, true)
 	add(t, "Tail", "Block", Vector3.new(0.4, 0.3, 1), Vector3.new(1.1, 0.3, -1.7), a)
 	eyes(t, 2.35, 1.56, 0.6, 0.22)
+	add(t, "HornL", "Block", Vector3.new(0.2, 0.45, 0.2), Vector3.new(-0.35, 2.75, 0.5), "white")
+	add(t, "HornR", "Block", Vector3.new(0.2, 0.45, 0.2), Vector3.new(0.35, 2.75, 0.5), "white")
+	add(t, "Scales", "Block", Vector3.new(0.85, 0.25, 0.1), Vector3.new(0, 1.2, 1.02), a)
+	add(t, "Scales2", "Block", Vector3.new(0.85, 0.25, 0.1), Vector3.new(0, 0.85, 1.02), a)
 	return t
 end
 

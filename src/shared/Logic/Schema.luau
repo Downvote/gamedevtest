@@ -111,7 +111,8 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 end
 
 ------------------------------------------------------------------ reconcile
--- The pieces that exist, fit the island of `tier` in order, up to its limit, each with its own uid.
+-- The pieces that exist, up to the island's limit, each with its own uid (where they stand is checked once the profile
+-- is whole: Plot.refit moves the ones that do not fit the island's coast, the shape of an older save's island).
 local function piecesOf(v: any, tier: number): { Types.Piece }
 	local out: { Types.Piece } = {}
 	local used: { [number]: boolean } = {}
@@ -122,7 +123,7 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 		if type(q) == "table" and type(q.id) == "string" and Buildings.byId[q.id] and #out < Plot.limit(tier) then
 			local uid = int(q.uid, 0, 0)
 			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
-			if uid > 0 and not used[uid] and Plot.fits(tier, out, q.id, x, z, rot) then
+			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
 				used[uid] = true
 				local lvl = if Island.works(q.id) then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
 				table.insert(out, { uid = uid, id = q.id, x = x, z = z, rot = rot, lvl = lvl })
@@ -218,7 +219,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	local st = if type(r.stats) == "table" then r.stats else {}
 	local settings = if type(r.settings) == "table" then r.settings else {}
 	local pixel = settings.pixel
-	return {
+	local out: Profile = {
 		v = Schema.VERSION,
 		shells = num(r.shells, d.shells, 0, 1e12),
 		food = num(r.food, d.food, 0, 1e12),
@@ -248,6 +249,9 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		},
 		createdAt = num(r.createdAt, now),
 	}
+	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
+	Plot.refit(out)
+	return out
 end
 
 return Schema

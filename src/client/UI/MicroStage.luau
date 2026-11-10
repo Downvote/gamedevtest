@@ -76,6 +76,9 @@ export type Stage = {
 local ORIGIN = Vector3.new(0, 0, 9000)
 local HALF = 12 -- the room's floor: 24 x 24 studs
 local FLOOR = 0.5 -- the floor slab's top over the ground
+-- where an islet's tall landmark stands (the volcano, the snowy peak, a big tree): on its left shore, beside the
+-- floor and clear of the top bar (room space)
+local VOLCANO = { x = -21, z = 13 }
 local WALL_T = 0.5
 
 -- the ground's screen-right (u) and toward-the-viewer (v) directions
@@ -118,7 +121,16 @@ local function builder(folder: Folder): Builder
 		h = 0,
 		box = function(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, color: string, neon: boolean?): BasePart
 			local cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
-			return Blocks.part(folder, { size = Vector3.new(math.abs(x1 - x0), math.abs(y1 - y0), math.abs(z1 - z0)), cf = CFrame.new(ORIGIN + Vector3.new(cx, cy, cz)), color = color, neon = neon })
+			local p = Blocks.part(folder, { size = Vector3.new(math.abs(x1 - x0), math.abs(y1 - y0), math.abs(z1 - z0)), cf = CFrame.new(ORIGIN + Vector3.new(cx, cy, cz)), color = color, neon = neon })
+			-- the sea round an islet's set moves like the islands' (the pixel filter's water)
+			if color == "water" then
+				p:SetAttribute("PixelWater", 1)
+			elseif color == "shallow" then
+				p:SetAttribute("PixelWater", 2)
+			elseif color == "foam" then
+				p:SetAttribute("PixelWater", 3)
+			end
+			return p
 		end,
 		prop = function(kind: string, u: number, v: number, y: number?, yaw: number?, opts: MicroModels.Opts?)
 			local t = MicroModels.build(kind, opts)
@@ -461,43 +473,237 @@ SETS.simon = function(b) -- Music: a stage with curtains
 	end
 end
 
-SETS.loot = function(b) -- Pirates: a beach, a palm and a chest
+------------------------------------------------------------------ the islets' sets (GAME_DESIGN 7)
+-- Cells in room space (x .. x + 1, z .. z + 1) where `test` holds, merged into rectangles (greedy).
+local function blobRects(test: (x: number, z: number) -> boolean, x0: number, x1: number, z0: number, z1: number): { { number } }
+	local used: { [number]: boolean } = {}
+	local out: { { number } } = {}
+	local function key(x: number, z: number): number
+		return (x + 512) * 2048 + (z + 512)
+	end
+	local function free(x: number, z: number): boolean
+		return test(x, z) and not used[key(x, z)]
+	end
+	for z = z0, z1 do
+		local x = x0
+		while x <= x1 do
+			if free(x, z) then
+				local xe = x
+				while xe + 1 <= x1 and free(xe + 1, z) do
+					xe += 1
+				end
+				local ze = z
+				while ze + 1 <= z1 do
+					local ok = true
+					for xx = x, xe do
+						if not free(xx, ze + 1) then
+							ok = false
+							break
+						end
+					end
+					if not ok then
+						break
+					end
+					ze += 1
+				end
+				for zz = z, ze do
+					for xx = x, xe do
+						used[key(xx, zz)] = true
+					end
+				end
+				table.insert(out, { x, z, xe + 1, ze + 1 })
+				x = xe + 1
+			else
+				x += 1
+			end
+		end
+	end
+	return out
+end
+
+-- An islet round the stage's floor on the open sea: its land, a beach, wet sand, foam and the shallows, each a
+-- little lower than the one inside it (the sea animates: Data/Street's layers, the pixel filter's water).
+local function shore(b: Builder, land: string, beach: string, wob: number)
+	local R = HALF + 5
+	local function dist(x: number, z: number): number
+		local cx, cz = x + 0.5, z + 0.5
+		local ang = math.atan2(cz, cx)
+		local w = 1 + 0.08 * math.sin(2 * ang + wob) + 0.06 * math.sin(3 * ang + wob * 2) + 0.04 * math.sin(5 * ang + 1)
+		local r = math.max(math.abs(cx), math.abs(cz)) * 0.6 + math.sqrt(cx * cx + cz * cz) * 0.4
+		return r - R * w
+	end
+	local layers = {
+		{ d = 7.5, top = 0.05, color = "shallow" },
+		{ d = 4.5, top = 0.12, color = "foam" },
+		{ d = 3.5, top = 0.25, color = "sand_dark" },
+		{ d = 2.5, top = 0.35, color = beach },
+		{ d = 0, top = FLOOR - 0.06, color = land },
+	}
+	for _, l in layers do
+		for _, r in blobRects(function(x, z)
+			return dist(x, z) <= l.d
+		end, -34, 33, -34, 33) do
+			b.box(r[1], 0, r[2], r[3], l.top, r[4], l.color)
+		end
+	end
+end
+
+-- A palm on a stage (room space x, z), leaning toward `lean` (radians about Y).
+local function stagePalm(b: Builder, x: number, z: number, s: number, lean: number)
+	local dx, dz = math.cos(lean), math.sin(lean)
+	local px, pz = x, z
+	for k = 0, 5 do
+		px += dx * 0.12 * k * s
+		pz += dz * 0.12 * k * s
+		local w = (0.45 - k * 0.03) * s
+		b.box(px - w, FLOOR + k * 0.9 * s, pz - w, px + w, FLOOR + (k + 1) * 0.9 * s, pz + w, if k % 2 == 0 then "wood" else "wood_dark")
+	end
+	local top = FLOOR + 5.6 * s
+	b.box(px - 0.6 * s, top - 0.2, pz - 0.6 * s, px + 0.6 * s, top + 0.35, pz + 0.6 * s, "leaf_dark")
+	for k, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+		local len = 2.6 * s
+		local fx0, fx1 = px + math.min(0, d[1] * len), px + math.max(0, d[1] * len)
+		local fz0, fz1 = pz + math.min(0, d[2] * len), pz + math.max(0, d[2] * len)
+		if d[1] == 0 then
+			fx0, fx1 = px - 0.45 * s, px + 0.45 * s
+		else
+			fz0, fz1 = pz - 0.45 * s, pz + 0.45 * s
+		end
+		b.box(fx0, top - 0.35, fz0, fx1, top, fz1, if k % 2 == 0 then "leaf" else "leaf_dark")
+	end
+	for _, d in { { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } } do
+		b.box(px + d[1] * 1.2 * s - 0.4, top - 0.55, pz + d[2] * 1.2 * s - 0.4, px + d[1] * 1.2 * s + 0.4, top - 0.25, pz + d[2] * 1.2 * s + 0.4, "leaf")
+	end
+	b.ball(px + 0.35, top - 0.4, pz + 0.2, 0.5, "wood_dark")
+	b.ball(px - 0.25, top - 0.45, pz - 0.3, 0.45, "wood_dark")
+end
+
+local function stageRocks(b: Builder, x: number, z: number, s: number, y: number?)
+	local y0 = y or FLOOR - 0.2
+	b.box(x - 0.8 * s, y0, z - 0.6 * s, x + 0.8 * s, y0 + 1.1 * s, z + 0.6 * s, "rock")
+	b.box(x - 0.5 * s, y0 + 1.1 * s, z - 0.3 * s, x + 0.4 * s, y0 + 1.4 * s, z + 0.4 * s, "rock")
+	b.box(x + 0.8 * s, y0, z + 0.1 * s, x + 1.4 * s, y0 + 0.55 * s, z + 0.7 * s, "rock_dark")
+	b.box(x - 1.3 * s, y0, z - 0.5 * s, x - 0.8 * s, y0 + 0.4 * s, z, "rock_dark")
+end
+
+local function starfish(b: Builder, x: number, z: number, color: string?)
+	local c = color or "orange"
+	b.box(x - 0.45, FLOOR, z - 0.12, x + 0.45, FLOOR + 0.1, z + 0.12, c)
+	b.box(x - 0.12, FLOOR, z - 0.45, x + 0.12, FLOOR + 0.1, z + 0.45, c)
+end
+
+-- Pebble Beach: a sandy islet, two palms leaning out, a treasure chest with spilled coins, tide pools ringed with
+-- pebbles, rocks, an upturned rowboat, starfish and shells, driftwood.
+SETS.loot = function(b)
 	room(b, { ground = "water", a = "sand" })
-	b.box(-HALF - 3, 0, -HALF - 3, HALF + 3, 0.25, -HALF, "sand_dark")
-	b.box(-HALF - 3, 0, -HALF, -HALF, 0.25, HALF + 3, "sand_dark")
-	-- a palm
-	for k = 0, 4 do
-		b.box(-HALF + 1 + k * 0.25, FLOOR + k * 1.25, -HALF + 1, -HALF + 2 + k * 0.25, FLOOR + (k + 1) * 1.25, -HALF + 2, "wood")
+	shore(b, "sand", "sand", 0.4)
+	stagePalm(b, -HALF - 3, -5, 1, math.rad(-150))
+	stagePalm(b, 20, -2, 0.9, math.rad(-30))
+	stagePalm(b, -HALF + 4, -HALF - 2, 0.85, math.rad(-110))
+	-- the chest: a wooden box with gold bands and a lock, its lid open, coins spilling
+	b.box(HALF - 5, FLOOR, -HALF + 1, HALF - 2, FLOOR + 1.4, -HALF + 3, "wood_dark")
+	b.box(HALF - 5.1, FLOOR + 0.3, -HALF + 0.95, HALF - 1.9, FLOOR + 0.5, -HALF + 3.05, "gold")
+	b.box(HALF - 5, FLOOR + 1.4, -HALF + 0.6, HALF - 2, FLOOR + 2.6, -HALF + 1, "wood")
+	b.box(HALF - 3.75, FLOOR + 0.8, -HALF + 2.95, HALF - 3.25, FLOOR + 1.2, -HALF + 3.1, "gold")
+	b.box(HALF - 4.6, FLOOR + 1.4, -HALF + 1.4, HALF - 2.4, FLOOR + 1.55, -HALF + 2.6, "gold", true)
+	for _, c in { { -4, 3.6 }, { -3.2, 4.1 }, { -2.5, 3.5 }, { -4.6, 4.3 } } do
+		b.box(HALF + c[1] - 0.2, FLOOR, -HALF + c[2] - 0.2, HALF + c[1] + 0.2, FLOOR + 0.1, -HALF + c[2] + 0.2, "gold")
 	end
-	b.box(-HALF - 1, 6.5, -HALF - 1, -HALF + 5, 7.25, -HALF + 4, "leaf")
-	b.box(-HALF + 0.5, 7.25, -HALF + 0.5, -HALF + 3.5, 7.75, -HALF + 2.5, "leaf_dark")
-	-- a treasure chest
-	b.box(HALF - 5, FLOOR, -HALF + 1, HALF - 2, FLOOR + 1.5, -HALF + 3, "wood_dark")
-	b.box(HALF - 5, FLOOR + 1.5, -HALF + 1, HALF - 2, FLOOR + 2.25, -HALF + 3, "gold")
+	-- tide pools: a ring of pebbles round a little pool
+	for _, tp in { { -HALF + 3, HALF - 3 }, { HALF - 3, 2 } } do
+		b.box(tp[1] - 1.5, FLOOR - 0.05, tp[2] - 1.0, tp[1] + 1.5, FLOOR + 0.02, tp[2] + 1.0, "shallow")
+		for k = 0, 7 do
+			local ang = k * math.pi / 4
+			local px, pz = tp[1] + math.cos(ang) * 1.6, tp[2] + math.sin(ang) * 1.1
+			b.box(px - 0.25, FLOOR, pz - 0.2, px + 0.25, FLOOR + 0.3, pz + 0.2, if k % 2 == 0 then "rock" else "rock_dark")
+		end
+	end
+	stageRocks(b, HALF + 2, -HALF + 6, 1.2, 0.1)
+	stageRocks(b, -HALF - 3, 4, 0.9, 0.1)
+	-- an upturned rowboat half in the sand
+	b.box(-HALF + 1, FLOOR, -3, -HALF + 2.5, FLOOR + 0.9, 1.5, "berry_red")
+	b.box(-HALF + 0.9, FLOOR + 0.9, -2.9, -HALF + 2.6, FLOOR + 1.1, 1.4, "wood")
+	b.box(-HALF + 1.6, FLOOR + 1.1, -2.9, -HALF + 1.9, FLOOR + 1.25, 1.4, "wood_dark")
+	starfish(b, 3, -HALF + 2)
+	starfish(b, -6, HALF - 1.5, "pink")
+	b.box(6, FLOOR, HALF - 2, 6.5, FLOOR + 0.15, HALF - 1.6, "pink")
+	b.box(-2, FLOOR, -HALF + 1.2, -1.6, FLOOR + 0.15, -HALF + 1.5, "cream")
+	b.box(HALF - 9, FLOOR, -HALF + 0.8, HALF - 6.5, FLOOR + 0.35, -HALF + 1.3, "wood")
 end
 
-SETS.fish = function(b) -- Ocean: the sea floor
+-- Coral Deep: the sea floor (the water above shimmers): corals in pink, purple and orange, anemones, swaying kelp,
+-- a sunken anchor on its chain, clams with glowing pearls, a sea fan.
+SETS.fish = function(b)
 	room(b, { ground = "water", a = "sand", b = "sand_dark", tile = 4 })
-	for i = 0, 6 do
-		local s = -HALF + 1 + i * 3.5
-		b.box(-HALF + 0.5, FLOOR, s, -HALF + 1, FLOOR + 2 + (i % 3), s + 0.5, "leaf")
-		b.box(s, FLOOR, -HALF + 0.5, s + 0.5, FLOOR + 1.5 + ((i + 1) % 3), -HALF + 1, "leaf_dark")
+	local function coral(x: number, z: number, c: string, s: number)
+		b.box(x - 0.25, FLOOR, z - 0.25, x + 0.25, FLOOR + 2 * s, z + 0.25, c)
+		b.box(x - 1.0 * s, FLOOR + 1.0 * s, z - 0.2, x - 0.25, FLOOR + 1.3 * s, z + 0.2, c)
+		b.box(x - 1.0 * s, FLOOR + 1.3 * s, z - 0.2, x - 0.7 * s, FLOOR + 2.2 * s, z + 0.2, c)
+		b.box(x + 0.25, FLOOR + 1.4 * s, z - 0.2, x + 0.9 * s, FLOOR + 1.7 * s, z + 0.2, c)
+		b.box(x + 0.6 * s, FLOOR + 1.7 * s, z - 0.2, x + 0.9 * s, FLOOR + 2.6 * s, z + 0.2, c)
+		b.ball(x, FLOOR + 2 * s + 0.2, z, 0.5, "white")
 	end
-	b.box(HALF - 4, FLOOR, -HALF + 1, HALF - 1, FLOOR + 1.5, -HALF + 3, "steel")
-	b.box(-HALF + 2, FLOOR, HALF - 4, -HALF + 4, FLOOR + 1, HALF - 2, "pink")
+	coral(-HALF + 2, -HALF + 3, "pink", 1.2)
+	coral(-HALF + 6, -HALF + 1.5, "purple", 1)
+	coral(HALF - 3, -HALF + 2, "orange", 1.1)
+	coral(-HALF + 1.5, 5, "berry_red", 0.9)
+	for i = 0, 6 do
+		local sx = -HALF + 1 + i * 3.5
+		for k = 0, 2 + (i % 3) do
+			b.box(-HALF + 0.4 + (k % 2) * 0.25, FLOOR + k * 0.8, sx, -HALF + 0.9 + (k % 2) * 0.25, FLOOR + (k + 1) * 0.8, sx + 0.5, if k % 2 == 0 then "leaf" else "leaf_dark")
+		end
+		for k = 0, 1 + ((i + 1) % 3) do
+			b.box(sx + (k % 2) * 0.25, FLOOR + k * 0.8, -HALF + 0.4, sx + 0.5 + (k % 2) * 0.25, FLOOR + (k + 1) * 0.8, -HALF + 0.9, if k % 2 == 0 then "leaf_dark" else "leaf")
+		end
+	end
+	-- anemones: a stalk and a crown of tendrils
+	local anemones: { { x: number, z: number, c: string } } = { { x = 4, z = -HALF + 3, c = "pink" }, { x = -3, z = -HALF + 2, c = "yellow" }, { x = HALF - 2, z = 4, c = "purple" } }
+	for _, an in anemones do
+		local x, z = an.x, an.z
+		b.box(x - 0.4, FLOOR, z - 0.4, x + 0.4, FLOOR + 0.6, z + 0.4, "cream")
+		for k = 0, 5 do
+			local ang = k * math.pi / 3
+			b.box(x + math.cos(ang) * 0.35 - 0.1, FLOOR + 0.6, z + math.sin(ang) * 0.35 - 0.1, x + math.cos(ang) * 0.35 + 0.1, FLOOR + 1.1, z + math.sin(ang) * 0.35 + 0.1, an.c)
+		end
+	end
+	-- the anchor and its chain
+	b.box(HALF - 4.25, FLOOR, -HALF + 6, HALF - 3.75, FLOOR + 3, -HALF + 6.5, "steel_dark")
+	b.box(HALF - 5.5, FLOOR, -HALF + 5.9, HALF - 2.5, FLOOR + 0.5, -HALF + 6.6, "steel_dark")
+	b.box(HALF - 5.75, FLOOR + 0.5, -HALF + 5.9, HALF - 5.25, FLOOR + 1.2, -HALF + 6.6, "steel_dark")
+	b.box(HALF - 2.75, FLOOR + 0.5, -HALF + 5.9, HALF - 2.25, FLOOR + 1.2, -HALF + 6.6, "steel_dark")
+	b.box(HALF - 4.75, FLOOR + 3, -HALF + 5.75, HALF - 3.25, FLOOR + 3.5, -HALF + 6.75, "steel_dark")
+	for k = 0, 4 do
+		b.box(HALF - 4.1 + k * 0.6, FLOOR + 3.6 + k * 0.5, -HALF + 6, HALF - 3.7 + k * 0.6, FLOOR + 4.0 + k * 0.5, -HALF + 6.5, "steel")
+	end
+	-- clams with pearls
+	for _, c in { { -HALF + 3, HALF - 3 }, { 2, HALF - 1.5 } } do
+		b.box(c[1] - 0.8, FLOOR, c[2] - 0.6, c[1] + 0.8, FLOOR + 0.4, c[2] + 0.6, "purple")
+		b.box(c[1] - 0.8, FLOOR + 0.4, c[2] - 0.9, c[1] + 0.8, FLOOR + 1.1, c[2] - 0.5, "purple")
+		b.ball(c[1], FLOOR + 0.6, c[2], 0.5, "white", true)
+	end
 end
 
-SETS.frost = function(b) -- Frostcap: a snowfield with snowy pines, an ice pond and a peak behind
-	room(b, { ground = "window", a = "white", b = "window", tile = 6 })
-	-- the far snowbanks and a peak
+-- Frostcap: a snowy islet in an icy sea: snowbanks, a peak behind, snowy pines, ice crystals, a frozen pond,
+-- snow mounds and icicled rocks.
+SETS.frost = function(b)
+	room(b, { ground = "water", a = "white", b = "window", tile = 6 })
+	shore(b, "white", "window", 1.3)
 	b.box(-HALF - 3, 0, -HALF - 3, HALF + 3, 0.75, -HALF, "white")
 	b.box(-HALF - 3, 0, -HALF, -HALF, 0.75, HALF + 3, "white")
-	b.box(-32, 0, -32, -16, 7, -16, "steel")
-	b.box(-29, 7, -29, -19, 11, -19, "steel")
-	b.box(-29.25, 9, -29.25, -18.75, 11.25, -18.75, "white")
-	b.box(-26, 11, -26, -22, 13, -22, "white")
-	-- snowy pines: a trunk, three tiers of needles, snow on each
-	for _, t in { { -16, -15, 1.1 }, { -17, 4, 0.9 }, { 5, -17, 1 }, { 15, -19, 0.8 } } do
+	-- the snowy peak on the islet's left shore (in view beside the floor)
+	local px, pz = VOLCANO.x, VOLCANO.z
+	b.box(px - 4, 0, pz - 4, px + 4, 3, pz + 4, "steel")
+	b.box(px - 3, 3, pz - 3, px + 3, 5, pz + 3, "steel")
+	b.box(px - 3.2, 4.4, pz - 3.2, px + 3.2, 5.2, pz + 3.2, "white")
+	b.box(px - 2, 5.2, pz - 2, px + 2, 6.4, pz + 2, "white")
+	b.box(px - 1, 6.4, pz - 1, px + 1, 7, pz + 1, "white")
+	-- snow run down its faces toward the viewer, a dark crag
+	b.box(px + 3, 3.4, pz - 1.5, px + 3.2, 5, pz + 0.5, "white")
+	b.box(px + 3.9, 1.6, pz - 1.2, px + 4.15, 3, pz + 0.2, "white")
+	b.box(px - 0.5, 3.6, pz + 3, px + 1.5, 5, pz + 3.2, "white")
+	b.box(px + 0.2, 1.8, pz + 3.9, px + 1.2, 3, pz + 4.15, "white")
+	b.box(px + 4, 0, pz + 1.5, px + 4.6, 1.5, pz + 3, "steel_dark")
+	for _, t in { { 20, -2, 1 }, { -17, 4, 0.9 }, { 5, -17, 1 }, { 15, -19, 0.8 }, { -HALF - 1, -HALF + 6, 0.7 } } do
 		local x, z, k = t[1], t[2], t[3]
 		b.box(x - 0.5 * k, 0, z - 0.5 * k, x + 0.5 * k, 2 * k, z + 0.5 * k, "wood_dark")
 		for i = 0, 2 do
@@ -507,27 +713,112 @@ SETS.frost = function(b) -- Frostcap: a snowfield with snowy pines, an ice pond 
 			b.box(x - r + 0.25, y + 1.25 * k, z - r + 0.25, x + r - 0.25, y + 1.5 * k, z + r - 0.25, "white")
 		end
 	end
-	-- a frozen pond at the front left
+	-- ice crystals: glowing shards in clusters
+	for _, c in { { HALF - 3, -HALF + 3 }, { -HALF + 3, 2 } } do
+		b.box(c[1] - 0.3, FLOOR, c[2] - 0.3, c[1] + 0.3, FLOOR + 2.2, c[2] + 0.3, "screen_on", true)
+		b.box(c[1] + 0.4, FLOOR, c[2] - 0.1, c[1] + 0.8, FLOOR + 1.3, c[2] + 0.3, "window", true)
+		b.box(c[1] - 0.9, FLOOR, c[2] + 0.1, c[1] - 0.5, FLOOR + 1.0, c[2] + 0.5, "window", true)
+	end
+	-- the frozen pond with a crack, snow mounds, a rock with icicles
 	b.box(-HALF + 2, FLOOR, HALF - 7, -HALF + 7, FLOOR + 0.125, HALF - 2, "screen_on")
 	b.box(-HALF + 3, FLOOR + 0.125, HALF - 6, -HALF + 4, FLOOR + 0.2, HALF - 5, "white")
+	b.box(-HALF + 4, FLOOR + 0.125, HALF - 5, -HALF + 6, FLOOR + 0.16, HALF - 4.8, "window")
+	for _, mnd in { { 2, -HALF + 2, 1.2 }, { HALF - 2, 6, 0.9 }, { -4, HALF - 1.5, 0.8 } } do
+		b.ball(mnd[1], FLOOR, mnd[2], 2 * mnd[3], "white")
+	end
+	stageRocks(b, HALF + 1.5, -HALF + 8, 1, 0.1)
+	for k = 0, 2 do
+		b.box(HALF + 0.7 + k * 0.5, 0.6, -HALF + 7.6, HALF + 0.9 + k * 0.5, 1.2, -HALF + 7.8, "window")
+	end
 end
 
-SETS.leap = function(b) -- Adventure: a path over the meadow
-	room(b, { ground = "grass_dark", a = "grass", b = "grass_dark", tile = 4 })
-	tree(b, -16, -16, 1.2)
+-- Mossgrove: a green islet of ferns and mossy stones: tall trees, a fallen mossy log, red-capped mushrooms, flowers,
+-- a stepping-stone path.
+SETS.leap = function(b)
+	room(b, { ground = "water", a = "grass", b = "grass_dark", tile = 4 })
+	shore(b, "grass_dark", "sand", 2.2)
+	tree(b, -19, 13, 1.2)
+	tree(b, 20, -2, 0.9)
 	tree(b, -18, 2, 1)
 	tree(b, 4, -18, 1)
 	tree(b, 16, -20, 0.9)
-	b.box(-HALF, FLOOR, -1, HALF, FLOOR + 0.125, 1, "pavement")
+	tree(b, -HALF - 2, -HALF + 5, 0.8)
+	for k = 0, 7 do
+		local x = -HALF + 1.5 + k * 3
+		b.box(x - 0.6, FLOOR, -0.6 + (k % 2) * 0.4, x + 0.6, FLOOR + 0.1, 0.6 + (k % 2) * 0.4, "pavement")
+	end
+	-- ferns: fans of leaves
+	for _, fe in { { -HALF + 2, -HALF + 2 }, { HALF - 2, -HALF + 2 }, { -HALF + 1.5, HALF - 3 }, { 5, -HALF + 1.5 } } do
+		local x, z = fe[1], fe[2]
+		for k = 0, 4 do
+			local ang = -math.pi / 2 + (k - 2) * 0.5
+			local fx, fz = x + math.cos(ang) * 0.8, z + math.sin(ang) * 0.8
+			b.box(fx - 0.25, FLOOR, fz - 0.25, fx + 0.25, FLOOR + 1.2 + (k % 2) * 0.3, fz + 0.25, if k % 2 == 0 then "leaf" else "leaf_dark")
+		end
+	end
+	-- mossy stones, a fallen log
+	stageRocks(b, -HALF + 4, -HALF + 5, 0.8)
+	b.box(-HALF + 3.6, FLOOR + 0.9, -HALF + 4.6, -HALF + 4.6, FLOOR + 1.1, -HALF + 5.4, "leaf_dark")
+	b.box(HALF - 7, FLOOR, -HALF + 1, HALF - 2, FLOOR + 1, -HALF + 2, "wood_dark")
+	b.box(HALF - 6.5, FLOOR + 1, -HALF + 1.1, HALF - 3, FLOOR + 1.2, -HALF + 1.9, "leaf")
+	b.box(HALF - 2.2, FLOOR, -HALF + 0.9, HALF - 1.9, FLOOR + 1.0, -HALF + 2.1, "sand")
+	-- mushrooms and flowers
+	for _, mu in { { -HALF + 6, -HALF + 1.5, 1 }, { -HALF + 1.5, -4, 0.8 }, { HALF - 1.5, -6, 1.1 } } do
+		local x, z, k = mu[1], mu[2], mu[3]
+		b.box(x - 0.2 * k, FLOOR, z - 0.2 * k, x + 0.2 * k, FLOOR + 0.8 * k, z + 0.2 * k, "cream")
+		b.box(x - 0.6 * k, FLOOR + 0.8 * k, z - 0.6 * k, x + 0.6 * k, FLOOR + 1.15 * k, z + 0.6 * k, "berry_red")
+		b.box(x - 0.15, FLOOR + 1.15 * k, z - 0.15, x + 0.15, FLOOR + 1.2 * k, z + 0.15, "white")
+	end
+	for k = 0, 5 do
+		local x, z = -HALF + 1 + k * 1.3, HALF - 1 - (k % 2) * 0.8
+		b.box(x - 0.08, FLOOR, z - 0.08, x + 0.08, FLOOR + 0.5, z + 0.08, "leaf")
+		b.box(x - 0.2, FLOOR + 0.5, z - 0.2, x + 0.2, FLOOR + 0.75, z + 0.2, if k % 2 == 0 then "yellow" else "purple")
+	end
 end
 
-SETS.dino = function(b) -- Dinosaurs: a desert with a volcano
-	room(b, { ground = "sand_dark", a = "sand", b = "sand_dark", tile = 4 })
-	b.box(-30, 0, -30, -16, 6, -16, "hair_brown")
-	b.box(-27, 6, -27, -19, 10, -19, "hair_brown")
-	b.box(-25, 10, -25, -21, 10.5, -21, "orange", true)
-	b.box(8, 0, -24, 14, 3, -18, "hair_brown")
-	b.box(-HALF, FLOOR, -1, HALF, FLOOR + 0.125, 1, "sand_dark")
+-- Cinder Rock: a volcanic islet of dark sand: the smoking volcano with a glowing crater, lava cracks across the
+-- ground's edges, obsidian rocks, charred stumps, steaming vents.
+SETS.dino = function(b)
+	room(b, { ground = "water", a = "sand", b = "sand_dark", tile = 4 })
+	shore(b, "rock_dark", "black", 3.1)
+	-- the volcano on the islet's left shore (in view beside the floor): two stepped cones, a black rim round a
+	-- glowing crater, lava running down the two faces toward the viewer
+	local vx, vz = VOLCANO.x, VOLCANO.z
+	b.box(vx - 4, 0, vz - 4, vx + 4, 3, vz + 4, "rock_dark")
+	b.box(vx - 3, 3, vz - 3, vx + 3, 5, vz + 3, "rock_dark")
+	b.box(vx - 2, 5, vz - 2, vx + 2, 6.5, vz + 2, "rock")
+	b.box(vx - 2.25, 6.5, vz - 2.25, vx + 2.25, 6.9, vz + 2.25, "black")
+	b.box(vx - 1.25, 6.6, vz - 1.25, vx + 1.25, 7, vz + 1.25, "orange", true)
+	b.box(vx - 0.5, 7, vz - 0.5, vx + 0.5, 7.1, vz + 0.5, "yellow", true)
+	b.box(vx + 1.9, 4.5, vz - 0.75, vx + 2.15, 6.5, vz, "orange", true)
+	b.box(vx + 2.9, 2.5, vz - 0.9, vx + 3.15, 5, vz + 0.1, "orange", true)
+	b.box(vx + 3.9, 0, vz - 1, vx + 4.15, 3, vz + 0.25, "orange", true)
+	b.box(vx + 0.25, 4.8, vz + 1.9, vx + 0.75, 6.5, vz + 2.15, "orange", true)
+	b.box(vx + 0.1, 2.2, vz + 2.9, vx + 0.9, 5, vz + 3.15, "orange", true)
+	b.box(vx, 0, vz + 3.9, vx + 1, 3, vz + 4.15, "orange", true)
+	-- boulders at its foot
+	b.box(vx + 4, 0, vz - 3, vx + 5, 0.8, vz - 2, "black")
+	b.box(vx - 1.5, 0, vz + 4, vx - 0.5, 0.6, vz + 5, "rock")
+	b.box(8, 0, -24, 14, 3, -18, "rock_dark")
+	b.box(9, 3, -23, 13, 4, -19, "rock_dark")
+	-- lava cracks at the floor's back edges
+	for k = 0, 3 do
+		local x = -HALF + 1 + k * 6
+		b.box(x, FLOOR - 0.02, -HALF + 0.3, x + 2.5, FLOOR + 0.04, -HALF + 0.6, "orange", true)
+		b.box(-HALF + 0.3, FLOOR - 0.02, x, -HALF + 0.6, FLOOR + 0.04, x + 2, "orange", true)
+	end
+	-- obsidian rocks and charred stumps
+	for _, ob in { { HALF - 3, -HALF + 3 }, { -HALF + 2, HALF - 4 } } do
+		b.box(ob[1] - 0.6, FLOOR, ob[2] - 0.5, ob[1] + 0.6, FLOOR + 1.6, ob[2] + 0.5, "black")
+		b.box(ob[1] + 0.6, FLOOR, ob[2] - 0.2, ob[1] + 1.1, FLOOR + 0.9, ob[2] + 0.4, "purple")
+	end
+	for _, st in { { -HALF + 2, -HALF + 2 }, { 4, -HALF + 1.5 } } do
+		b.box(st[1] - 0.4, FLOOR, st[2] - 0.4, st[1] + 0.4, FLOOR + 1.2, st[2] + 0.4, "black")
+		b.box(st[1] - 0.15, FLOOR + 1.2, st[2] - 0.15, st[1] + 0.15, FLOOR + 1.5, st[2] + 0.15, "orange", true)
+	end
+	-- a steaming vent
+	b.box(HALF - 2.5, FLOOR, 2, HALF - 1.5, FLOOR + 0.3, 3, "rock_dark")
+	b.box(HALF - 2.2, FLOOR + 0.3, 2.3, HALF - 1.8, FLOOR + 0.35, 2.7, "orange", true)
 end
 
 SETS.beat = function(b) -- Rhythm: a disco floor
@@ -938,9 +1229,9 @@ end
 
 AMBIENT.dino = function(st)
 	return all({
-		circler(st, "bird", "hair_brown", -14, -14, 10, 14, 7, 0),
+		circler(st, "bird", "hair_brown", VOLCANO.x, VOLCANO.z, 7, 12, 7, 0),
 		emitter(st, "smoke", function()
-			return ORIGIN + Vector3.new(-23 + math.random() * 2 - 1, 11, -23 + math.random() * 2 - 1)
+			return ORIGIN + Vector3.new(VOLCANO.x + math.random() * 2 - 1, 10.5, VOLCANO.z + math.random() * 2 - 1)
 		end, 0.3),
 	})
 end

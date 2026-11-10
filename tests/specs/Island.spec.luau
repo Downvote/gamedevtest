@@ -165,23 +165,28 @@ return function()
 		T.truthy(Island.expand(p))
 		T.eq(select(2, Island.expand(p)), "max")
 	end)
-	T.it("expanding: buildings the bigger lodge would cover move to the nearest free spot, nothing lost", function()
+	T.it("expanding: every building stays on the bigger island (moved over where the coast changed), nothing lost", function()
 		local Plot = require("../../build/luautest/shared/Logic/Plot")
-		local Office = require("../../build/luautest/shared/Data/Office")
+		local Street = require("../../build/luautest/shared/Data/Street")
 		local p = fresh()
-		-- pieces hugging the hut's walls, where the lodge of the next tier will stand
-		local plan = Office.plan(1)
-		local spots = { { "patch", math.floor(plan.maxX) + 2, -2 }, { "tent", -4, math.floor(plan.minZ) - 4 }, { "flowers", math.floor(plan.minX) - 4, 0 } }
-		for _, sp in spots do
-			local ok, err = Plot.place(p, sp[1], sp[2], sp[3], 0)
-			T.truthy(ok, sp[1] .. " placed: " .. tostring(err))
+		-- the small island filled from its edges in: pieces right up to its coast
+		local r = Street.plot(1)
+		for _, id in { "patch", "tent", "flowers", "lumber", "hut", "nest", "bush", "torch" } do
+			local done = false
+			for z = r.z1, r.z0, -1 do
+				for x = r.x1, r.x0, -1 do
+					if not done and Plot.fits(1, p.plot.placed, id, x, z, 0) then
+						T.truthy(Plot.place(p, id, x, z, 0))
+						done = true
+					end
+				end
+			end
 		end
 		local worker = villager(p, p.plot.placed[1].uid)
 		local before = #p.plot.placed
 		local shells = p.shells
 		local ok, data = Island.expand(p)
 		T.truthy(ok)
-		T.truthy(data.moved >= 1, "some had to move: " .. tostring(data.moved))
 		T.eq(#p.plot.placed, before, "none lost")
 		T.eq(data.cleared, 0)
 		T.eq(p.shells, shells - Tuning.TierCost[2].shells, "nothing refunded")

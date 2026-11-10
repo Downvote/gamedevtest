@@ -10,7 +10,8 @@
 --     a curtain the first time and behind the old picture after that. Each pixel: the part's colour (PixelColor
 --     attribute, else Color; Neon = emissive), its quantised normal, sun visibility (one shadow ray per 2x2 block's
 --     even-even anchor, shared by the other three pixels when they show the same part and normal, their own ray
---     otherwise), depth and part id. Shaded with Render/Shading's three toon bands and palette LUT (indoor tint
+--     otherwise; then every shared pixel next to a change of light and shadow casts its own, so shadow edges fall on
+--     the 1 px grid, never in 2 px steps), depth and part id. Shaded with Render/Shading's three toon bands and palette LUT (indoor tint
 --     inside the office), then the 1 px ink outline where parts meet and a contact shade at the foot of upright faces.
 --   Dynamic layer: the crew (registerDynamic) are drawn analytically every tick at the tier's rate with the same
 --     orthographic camera (Render/Raster), depth-tested against the static layer and outlined; only their dirty
@@ -30,6 +31,11 @@
 -- model with a "PixelShadow" attribute (a radius in studs) casts a blob shadow on the static picture under it (on
 -- the ground at its "PixelGroundY", default 0): the pixels there are shaded as in the sun's shadow, so it lands on the
 -- palette's own shadow tones, smaller the higher the model is.
+-- Water: a part with a "PixelWater" attribute (1 the sea, 2 the shallows, 3 the foam) marks its pixels in the bake
+-- with that class and a wave phase from the hit point's world position (sWClass, sWave: they scroll with the
+-- picture). WATER_HZ times a second (not on the low tier) the water pixels not under an ink line are shaded again
+-- from their baked shade: crests of light (and the sea's darker troughs) travel across the sea and the shallows along
+-- the phase's wavy lines, and the foam laps in and out along the shore. Only colours change: no ray is cast.
 local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -63,6 +69,11 @@ local MAX_RECTS = 12
 local CULL = 48 -- art px past the layer's edge a dynamic model may stand and still be drawn
 local PICK_LEN = 2000
 local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
+local WATER_HZ = 6 -- the water's frames a second
+local WATER_SPEED = 2 -- phase units a frame (a crest every 64 units: about 10 studs)
+local WATER_WHITE = 0xFFFFFF
+local WATER_DEEP = 0x1E5C7A
+local WATER_SHALLOW = 0x6CCFD2
 
 local NX: { number } = {}
 local NY: { number } = {}
@@ -88,6 +99,9 @@ type Surf = {
 	sLit: buffer, -- u8 0 shadow, 1 lit, 2 emissive
 	sDepth: buffer, -- f32 ray distance
 	sId: buffer, -- u16 part id (0 = sky)
+	sShare: buffer, -- u8 1: the pixel's sun visibility was copied from its 2x2 block's anchor (refined at edges)
+	sWClass: buffer, -- u8 water class (0: not water; PixelWater)
+	sWave: buffer, -- u8 the water's wave phase (from the world position)
 	static: Raster.Frame,
 	frame: Raster.Frame,
 }
@@ -111,6 +125,7 @@ local paused = false
 local params = RaycastParams.new()
 params.FilterType = Enum.RaycastFilterType.Exclude
 params.IgnoreWater = true
+params.CollisionGroup = "PixelRays" -- the invisible walls ("Bounds") never meet the rays (PlotService registers both)
 
 -- bake cursor (global art px)
 local baking = false
@@ -123,6 +138,9 @@ local rebakeAt = -1 -- os.clock() when a pending re-bake starts (debounce)
 
 local staticIds: { [Instance]: number } = {}
 local albedos: { [number]: number } = {}
+local waters: { [number]: number } = {} -- static id -> PixelWater class (0 none)
+local waterClock, waterFrame = 0, 0
+local waterTones: { [number]: number } = {} -- (base colour, class, tone) -> colour
 local nextId = 1
 
 local dyns: { [Model]: Dyn } = {}
@@ -132,7 +150,7 @@ local tickAcc = 0
 local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
 -- the street's finished picture, kept while a microgame's stage has the view (restored when its key comes back)
-type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, nextId: number, dirty: boolean }
+type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, nextId: number, dirty: boolean }
 local stash: Stash? = nil
 local offX, offY = 0, 0 -- the layer's shake offset (art px)
 
@@ -181,6 +199,8 @@ local function staticIdOf(part: BasePart): number
 		rgb += EMISSIVE
 	end
 	albedos[nid] = rgb
+	local wk = part:GetAttribute("PixelWater")
+	waters[nid] = if type(wk) == "number" then wk else 0
 	return nid
 end
 
@@ -287,6 +307,7 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	local part, depth, ni, lit, rays, tint = BakeCast.cast(params, Vector3.new(ox, oy, oz), s.look, FAR, mode, SUN_V)
 	bakeRays += rays
 	local id, albedo = 0, 0
+	local shared = false
 	if part ~= nil then
 		id = staticIdOf(part)
 		albedo = albedos[id]
@@ -300,7 +321,6 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 		elseif lit == LIT_UNKNOWN then
 			-- share the 2x2 block's anchor when it shows the same part and normal, else a ray of its own
 			local ax, ay = x - gx % 2, y - gy % 2
-			local shared = false
 			if ax >= 0 and ay >= 0 then
 				local c = ay * s.W + ax
 				local alit = buffer.readu8(s.sLit, c)
@@ -322,6 +342,17 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	local W = s.W
 	local x1, y1 = math.min(bx1 - cam.gx, W - 1), math.min(by1 - cam.gy, s.H - 1)
 	local idx = y * W + x
+	-- water: its class and the wave phase at the hit point (wavy lines across the world, about 10 studs apart)
+	local wcls = if part ~= nil and tint == nil then waters[id] or 0 else 0
+	local wph = 0
+	if wcls ~= 0 then
+		local wx, wz = ox + cam.lx * depth, oz + cam.lz * depth
+		local v = wx * 0.6 + wz * 0.35 + 1.6 * math.sin(wz * 0.23 + wx * 0.05) + 1.1 * math.sin(wx * 0.17)
+		wph = math.floor(v * 9.14) % 256
+	end
+	buffer.writeu8(s.sWClass, idx, wcls)
+	buffer.writeu8(s.sWave, idx, wph)
+	buffer.writeu8(s.sShare, idx, if shared then 1 else 0)
 	buffer.writeu16(s.sId, idx * 2, id)
 	buffer.writef32(s.sDepth, idx * 4, depth)
 	buffer.writeu32(s.sAlbedo, idx * 4, albedo)
@@ -334,6 +365,9 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 		for bx = x, x1 do
 			local b = row + bx
 			if b ~= idx then
+				buffer.writeu8(s.sShare, b, 1)
+				buffer.writeu8(s.sWClass, b, wcls)
+				buffer.writeu8(s.sWave, b, wph)
 				buffer.writeu16(s.sId, b * 2, id)
 				buffer.writef32(s.sDepth, b * 4, depth)
 				buffer.writeu32(s.sAlbedo, b * 4, albedo)
@@ -413,9 +447,78 @@ local function uploadRect(s: Surf, r: Rect)
 end
 
 ------------------------------------------------------------------ bake
+-- Shadow edges on the pixel grid: every pixel whose sun visibility was copied from its 2x2 block's anchor and that
+-- borders a pixel lit differently casts its own sun ray (and is shaded again), so a shadow's edge steps by single
+-- pixels like everything else, never in 2 px blocks (mixels). Over a layer rect (inclusive); a pixel it changes can
+-- reveal another edge, so it goes round twice. Returns the rays cast.
+local function refineShadows(s: Surf, x0: number, y0: number, x1: number, y1: number): number
+	local W, H = s.W, s.H
+	x0, y0 = math.max(0, x0), math.max(0, y0)
+	x1, y1 = math.min(W - 1, x1), math.min(H - 1, y1)
+	if x0 > x1 or y0 > y1 then
+		return 0
+	end
+	local share, lits, ids = s.sShare, s.sLit, s.sId
+	local cam = s.cam
+	local rays = 0
+	for _ = 1, 2 do
+		local changed = false
+		for y = y0, y1 do
+			local row = y * W
+			for x = x0, x1 do
+				local i = row + x
+				if buffer.readu8(share, i) == 1 then
+					local lit = buffer.readu8(lits, i)
+					if lit <= 1 and buffer.readu16(ids, i * 2) ~= 0 then
+						local edge = false
+						for dy = -1, 1 do
+							local ny = y + dy
+							if ny >= 0 and ny < H and not edge then
+								for dx = -1, 1 do
+									local nx = x + dx
+									if nx >= 0 and nx < W and (dx ~= 0 or dy ~= 0) then
+										local j = ny * W + nx
+										local nl = buffer.readu8(lits, j)
+										if nl <= 1 and nl ~= lit and buffer.readu16(ids, j * 2) ~= 0 then
+											edge = true
+											break
+										end
+									end
+								end
+							end
+						end
+						if edge then
+							local ox, oy, oz = Raster.origin(cam, x, y)
+							local depth = buffer.readf32(s.sDepth, i * 4)
+							local k = buffer.readu8(s.sNormal, i) + 1
+							local pos = Vector3.new(ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth)
+							local own = BakeCast.sunVisible(params, pos, Vector3.new(NX[k], NY[k], NZ[k]), SUN_V)
+							rays += 1
+							buffer.writeu8(share, i, 0)
+							if own ~= lit then
+								buffer.writeu8(lits, i, own)
+								buffer.writeu32(s.sShade, i * 4, shadeAt(s, i, x, y))
+								changed = true
+							end
+						end
+					end
+				end
+			end
+		end
+		if not changed then
+			break
+		end
+	end
+	bakeRays += rays
+	return rays
+end
+
 local function finishBake(s: Surf)
 	baking = false
 	buffer.fill(s.sShadowC, 0, 0)
+	if tierSpec(tier).shadows then
+		refineShadows(s, 0, 0, s.W - 1, s.H - 1)
+	end
 	Shading.outline(s.static, 0, 0, s.W - 1, s.H - 1, s.sShade)
 	contactPass(s)
 	local f = s.frame
@@ -487,6 +590,7 @@ local function startBake()
 	end
 	table.clear(staticIds)
 	table.clear(albedos)
+	table.clear(waters)
 	nextId = 1
 	local cam = s.cam
 	bakeRX0, bakeRY0 = cam.gx, cam.gy
@@ -520,14 +624,14 @@ local function buildSurf(v: CameraController.View)
 	local old = surf
 	if old and not baking and not old.view.stage and v.stage then
 		-- a stage takes the view: keep the street's finished picture
-		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), nextId = nextId, dirty = false }
+		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), nextId = nextId, dirty = false }
 	end
 	local st = stash
 	if st and not v.stage then
 		stash = nil
 		if st.key == v.key and not st.dirty and img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H then
 			surf = st.surf
-			staticIds, albedos, nextId = st.ids, st.albedos, st.nextId
+			staticIds, albedos, waters, nextId = st.ids, st.albedos, st.waters, st.nextId
 			baking = false
 			invQueue = {}
 			invCur = nil
@@ -586,6 +690,9 @@ local function buildSurf(v: CameraController.View)
 		sLit = buffer.create(n),
 		sDepth = sDepth,
 		sId = sId,
+		sShare = buffer.create(n),
+		sWClass = buffer.create(n),
+		sWave = buffer.create(n),
 		static = { W = W, H = H, color = sColor, depth = sDepth, id = sId },
 		frame = frame,
 	}
@@ -668,7 +775,7 @@ local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
 				local idx = y * W + x
 				local id = buffer.readu16(f.id, idx * 2)
 				-- the static picture only, never its ink lines or the sky
-				if id ~= 0 and id < DYN_ID0 and buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) then
+				if id ~= 0 and id < DYN_ID0 and (buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) or buffer.readu8(s.sWClass, idx) ~= 0) then
 					buffer.writeu32(f.color, idx * 4, shadeShadowed(s, idx, x, y))
 					any = true
 				end
@@ -698,6 +805,66 @@ local function restoreRect(s: Surf, r: Rect)
 		buffer.copy(f.depth, o * 4, s.sDepth, o * 4, w * 4)
 		buffer.copy(f.id, o * 2, s.sId, o * 2, w * 2)
 	end
+end
+
+------------------------------------------------------------------ water
+-- A water pixel's colour at frame k: its baked shade, lit along a crest, darker in the sea's troughs, the foam
+-- drawing back toward the shallows' colour now and then.
+local function waterTone(cls: number, ph: number, k: number): number
+	if cls == 3 then
+		return if (ph + k * 3) % 32 < 20 then 0 else 3
+	end
+	local t = (ph + k * WATER_SPEED) % 64
+	if t < 2 then
+		return 1
+	elseif cls == 1 and t >= 30 and t < 32 then
+		return 2
+	end
+	return 0
+end
+
+local function waterColor(base: number, cls: number, tone: number): number
+	if tone == 0 then
+		return base
+	end
+	local key = base * 16 + cls * 4 + tone
+	local c = waterTones[key]
+	if c == nil then
+		if tone == 1 then
+			c = mixRgb(WATER_WHITE, base, if cls == 2 then 0.32 else 0.24)
+		elseif tone == 2 then
+			c = mixRgb(WATER_DEEP, base, 0.18)
+		else
+			c = mixRgb(WATER_SHALLOW, base, 0.55)
+		end
+		waterTones[key] = c
+	end
+	return c :: number
+end
+
+-- One water frame: every water pixel not under an ink line (its colour is its baked shade or last frame's) shaded
+-- for the frame now; true when any changed.
+local function animateWater(s: Surf): boolean
+	local n = s.W * s.H
+	local cls, wave, shade, color = s.sWClass, s.sWave, s.sShade, s.sColor
+	local k = waterFrame
+	local changed = false
+	for i = 0, n - 1 do
+		local c = buffer.readu8(cls, i)
+		if c ~= 0 then
+			local base = buffer.readu32(shade, i * 4)
+			local cur = buffer.readu32(color, i * 4)
+			local ph = buffer.readu8(wave, i)
+			if cur == base or cur == waterColor(base, c, waterTone(c, ph, k - 1)) then
+				local nc = waterColor(base, c, waterTone(c, ph, k))
+				if nc ~= cur then
+					buffer.writeu32(color, i * 4, nc)
+					changed = true
+				end
+			end
+		end
+	end
+	return changed
 end
 
 local function compose()
@@ -840,6 +1007,10 @@ local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number)
 			end
 		end
 	end
+	-- the rect's shadow edges (and its border's, which may meet a changed pixel) on the pixel grid
+	if shadows then
+		refineShadows(s, x0 - 1, y0 - 1, x1 + 1, y1 + 1)
+	end
 	return bakeRays - before
 end
 
@@ -876,6 +1047,9 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	buffer.fill(s.sShadowC, 0, 0)
 	shift(s.sLit, W, H, 1, sx, sy)
 	shift(s.sId, W, H, 2, sx, sy)
+	shift(s.sShare, W, H, 1, sx, sy)
+	shift(s.sWClass, W, H, 1, sx, sy)
+	shift(s.sWave, W, H, 1, sx, sy)
 	s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(cam.gx + sx, cam.gy + sy), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
 	local rays = 0
 	local strips: { Rect } = {}
@@ -1059,9 +1233,20 @@ local function onHeartbeat(dt: number)
 		end
 		processInvalidation()
 	end
+	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
+	if s and tier ~= "low" then
+		waterClock += dt
+		if waterClock >= 1 / WATER_HZ then
+			waterClock = 0
+			waterFrame += 1
+			if animateWater(s) then
+				needFull = true
+			end
+		end
+	end
 	local hz = tierSpec(tier).hz
 	tickAcc += dt
-	if tickAcc >= 1 / hz then
+	if tickAcc >= 1 / hz or needFull then
 		tickAcc = 0
 		compose()
 	end

@@ -1,12 +1,12 @@
 --!strict
--- The camera (docs/ARCHITECTURE.md 9.2; Random Bakery's whole-shop view and its walk): orthographic, yaw 45°, pitch 30°,
--- the 2:1 pixel-art grid. The player's office is fitted on screen as big as the grid allows, clear of the HUD's blocks
--- (the "home" view). The view's grid (Raster.Grid: `a` art px per ground stud, its phase, the ray plane `l`) depends
--- only on the plot, the office's tier, the screen and K; on it the view pans by whole art px (`pan()`), so the pixel
--- renderer scrolls its picture instead of baking it again:
---   follow (the default): while the founder (the player's character) is home (on their own lot and inside the home
---     view's middle) the view holds the home pan; out on the street it keeps them out of the screen's edges
---     (Tuning.CamFollowBox), gliding a share of the way a frame (Tuning.CamGlide) in whole art px;
+-- The camera (docs/ARCHITECTURE.md 9.2; Random Bakery's view and its walk): orthographic, yaw 45°, pitch 30°, the 2:1
+-- pixel-art grid. Its zoom is fixed: a box round the island's heart (FRAME, the same on every tier) is fitted on screen
+-- as big as the grid allows, clear of the HUD's blocks (the "home" view). The view's grid (Raster.Grid: `a` art px per
+-- ground stud, its phase, the ray plane `l`) depends only on the plot, the screen and K; on it the view pans by whole
+-- art px (`pan()`), so the pixel renderer scrolls its picture instead of baking it again:
+--   follow (the default): the view keeps the founder (the player's character) in the middle of the screen between
+--     the HUD's strips, wherever they walk, gliding a share of the way a frame (Tuning.CamGlide) in whole art px (at
+--     most what the renderer can scroll in a frame);
 --   free (Build mode): the view stays where Build mode drags it (`panBy`), over the own plot;
 --   stage (a microgame, `setStage`): the view frames a microgame's stage (UI/MicroStage, far from the street) over
 --     the whole screen, clear of the play overlay's top and bottom strips; it holds still.
@@ -20,7 +20,6 @@ local Workspace = game:GetService("Workspace")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
-local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
@@ -42,8 +41,8 @@ export type View = {
 	K: number,
 	tier: number,
 	plot: number,
-	room: Room, -- the own office's inside in world studs (lit as indoors)
-	box: Raster.Rect, -- the own office's outline box on screen at the home pan (full-screen px)
+	room: Room, -- an inside lit as indoors (none any more: kept for the renderer)
+	box: Raster.Rect, -- the framing box on screen at the home pan (full-screen px)
 	stage: boolean, -- a microgame's stage (setStage), not the street
 }
 
@@ -85,12 +84,30 @@ local function blocks(size: Vector2, K: number): { Raster.Rect }
 	}
 end
 
+-- The box the zoom is fitted to (plot-local, round the island's heart): about the old hut and its yard.
+local FRAME = { x0 = -12, z0 = -6, x1 = 14, z1 = 18, y1 = 6 }
+
+local function framePts(ox: number, oz: number): { number }
+	local f = Street.CENTER
+	local pts = {}
+	for _, x in { FRAME.x0, FRAME.x1 } do
+		for _, y in { Street.LAWN_Y, FRAME.y1 } do
+			for _, z in { FRAME.z0, FRAME.z1 } do
+				table.insert(pts, ox + f.x + x)
+				table.insert(pts, y)
+				table.insert(pts, oz + f.z + z - 6)
+			end
+		end
+	end
+	return pts
+end
+
 local function build(): View
 	local size = screenSize()
 	local fx, fy = size.X, size.Y
 	local K = CameraController.pixelK(size)
-	local ox, oz = Office.origin(plot)
-	local pts = Office.outlinePts(tier, ox, oz)
+	local ox, oz = Street.origin(plot)
+	local pts = framePts(ox, oz)
 	local bl = blocks(size, K)
 	local st = stage
 	if st then
@@ -129,18 +146,14 @@ local function build(): View
 	g.px = math.floor((bx0 + bx1) / 2 - sx / K + 0.5)
 	g.py = math.floor((by0 + by1) / 2 - sy / K + 0.5)
 	local ccx, ccy, ccz = Raster.gridCenter(ROT12, g, fx, fy, K)
-	local plan = Office.plan(tier)
-	local room = { x0 = ox + plan.minX - 0.1, x1 = ox + plan.maxX + 0.1, z0 = oz + plan.minZ - 0.1, z1 = oz + plan.maxZ + 0.1, y1 = plan.wallH + 0.1 }
-	if st then
-		room = { x0 = 1, x1 = 0, z0 = 1, z1 = 0, y1 = 0 } -- the stage is outdoors: no indoor tint
-	end
+	local room = { x0 = 1, x1 = 0, z0 = 1, z1 = 0, y1 = 0 } -- everything is outdoors: no indoor tint
 	return {
 		rot12 = ROT12,
 		center = Vector3.new(ccx, ccy, ccz),
 		look = Vector3.new(LX, LY, LZ),
 		viewH = fy / (K * q),
 		grid = g,
-		key = (if st then "stage:" .. st.name .. "|" else "") .. string.format("%d|%d|%g|%.5f|%.5f|%.4f|%dx%d|%d", plot, tier, a, phX, phY, l, fx, fy, K),
+		key = (if st then "stage:" .. st.name .. "|" else "") .. string.format("%d|%g|%.5f|%.5f|%.4f|%dx%d|%d", plot, a, phX, phY, l, fx, fy, K),
 		fullX = fx,
 		fullY = fy,
 		K = K,
@@ -263,15 +276,6 @@ local function hudStrips(v: View): (number, number)
 	return top / v.K, bottom / v.K + 20
 end
 
--- The pan that frames lot `i` the way the home pan frames the own lot.
-local function lotPan(v: View, i: number): (number, number)
-	local lx, lz = Street.origin(i)
-	local ox, oz = Street.origin(v.plot)
-	local ax, ay = Raster.gridPoint(ROT12, v.grid, lx, 0, lz)
-	local bx, by = Raster.gridPoint(ROT12, v.grid, ox, 0, oz)
-	return v.grid.px + math.floor(ax - bx + 0.5), v.grid.py + math.floor(ay - by + 0.5)
-end
-
 -- Where the view should be this frame.
 local function target(v: View): (number, number)
 	if v.stage then
@@ -284,25 +288,13 @@ local function target(v: View): (number, number)
 	if root == nil then
 		return v.grid.px, v.grid.py
 	end
+	-- the founder in the middle of the screen between the HUD's strips (the ground under them: their feet)
 	local p = root.Position
-	local gx, gy = Raster.gridPoint(ROT12, v.grid, p.X, p.Y, p.Z)
+	local gx, gy = Raster.gridPoint(ROT12, v.grid, p.X, Street.LAWN_Y + 1.5, p.Z)
 	local W, H = v.fullX / v.K, v.fullY / v.K
 	local top, bottom = hudStrips(v)
-	local mx = W * Tuning.CamFollowBox
-	local my0, my1 = H * Tuning.CamFollowBox + top, H * Tuning.CamFollowBox + bottom
-	-- on a lot (the own or a neighbour's): that lot framed like the home view, as long as the founder shows there
-	-- clear of the HUD's strips (walking on into the front yard or onto the road, the view follows)
-	local lot = Street.plotAt(p.X, p.Z)
-	if lot ~= 0 then
-		local hx, hy = lotPan(v, lot)
-		local edge = 8
-		if gx - hx >= edge and gx - hx <= W - edge and gy - hy >= top + edge and gy - hy <= H - (bottom - 20) - edge then
-			return hx, hy
-		end
-	end
-	-- on the road: the least move that keeps them inside the box, clear of the HUD's strips
-	local tx = math.clamp(panX, gx - (W - mx), gx - mx)
-	local ty = math.clamp(panY, gy - (H - my1), gy - my0)
+	local tx = gx - W / 2
+	local ty = gy - (top + (H - bottom + 20)) / 2
 	return math.floor(tx + 0.5), math.floor(ty + 0.5)
 end
 
@@ -342,14 +334,13 @@ local function step()
 	end
 end
 
--- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts from home,
--- lowered by `down` art px (Build mode's tray covers the bottom of the screen: the front yard shows above it).
+-- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts where the
+-- view is (the founder in the middle), lowered by `down` art px (Build mode's tray covers the bottom of the screen).
 function CameraController.setFree(on: boolean, down: number?)
 	free = on
 	freeX, freeY = panX, panY
 	if on then
-		local v = CameraController.view()
-		freeX, freeY = v.grid.px, v.grid.py + math.floor(down or 0)
+		freeY = panY + math.floor((down or 0) / 2)
 	end
 end
 
@@ -374,7 +365,7 @@ function CameraController.panBy(dx: number, dy: number)
 	local nx = freeX - math.floor(dx / v.K + 0.5)
 	local ny = freeY - math.floor(dy / v.K + 0.5)
 	-- clamp: the centre's ground point inside the plot grown by CamBuildPan
-	local ox, oz = Office.origin(v.plot)
+	local ox, oz = Street.origin(v.plot)
 	local pr = Street.plot(v.tier)
 	local m = Tuning.CamBuildPan
 	local corners = { { pr.x0 - m, pr.z0 - m }, { pr.x1 + m, pr.z0 - m }, { pr.x0 - m, pr.z1 + m }, { pr.x1 + m, pr.z1 + m } }

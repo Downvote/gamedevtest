@@ -53,6 +53,11 @@ local ORDER: { string } = {
 	"water",
 	"night",
 	"chalk",
+	-- the coast
+	"shallow",
+	"foam",
+	"rock",
+	"rock_dark",
 	-- characters
 	"skin1",
 	"skin2",
@@ -113,6 +118,11 @@ local COLORS: { [string]: number } = {
 	water = 0x3FA6C4,
 	night = 0x2E2A52,
 	chalk = 0x2F5A3E,
+
+	shallow = 0x6CCFD2,
+	foam = 0xEEF9F6,
+	rock = 0x9E978F,
+	rock_dark = 0x6E6862,
 
 	skin1 = 0xFFE1C9,
 	skin2 = 0xF1C39B,

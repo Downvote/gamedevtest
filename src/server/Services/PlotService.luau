@@ -1,23 +1,22 @@
 --!strict
 -- The islands on the sea (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 8). At start the whole sea is built: every island
 -- plot's stretch of boardwalk and water (Workspace.Plots.Street) and an empty sandbar on every plot. A player who
--- joins takes the lowest free plot: Workspace.Plots.Plot_<i>.Static gets their lodge (Static.Office), their island
--- (Static.Land: sand, grass, the path to the dock, the sign, the mailbox) and their buildings and decor (Static.Decor,
--- one model a piece, named by its uid, kind, place and level); the lodge and island are rebuilt only when the
--- island's tier changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
+-- joins takes the lowest free plot: Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its grass and
+-- coast, the plaza and campfire, the path and jetty, the sign, the mailbox) and their buildings and decor
+-- (Static.Decor, one model a piece, named by its uid, kind, place and level); the island is rebuilt only when its tier
+-- changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
 -- goes up before an old one comes down. A player who leaves leaves an empty sandbar. Plot_<i>'s attributes tell every
 -- client who is there and who lives there (WorldView draws every island's villagers and driftlings from them):
 -- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Islets, Folk, Pals. The founder (the player's
 -- character) appears on their own path.
 local Players = game:GetService("Players")
+local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
-local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local OfficeModels = require(ReplicatedStorage.Shared.Models.OfficeModels)
 local StreetModels = require(ReplicatedStorage.Shared.Models.StreetModels)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
 local Session = require(script.Parent.Session)
@@ -113,6 +112,12 @@ local function emptyLot(i: number)
 end
 
 function PlotService.init()
+	-- the invisible walls ("Bounds") keep founders in but are never in the pixel filter's rays ("PixelRays")
+	pcall(function()
+		PhysicsService:RegisterCollisionGroup("Bounds")
+		PhysicsService:RegisterCollisionGroup("PixelRays")
+		PhysicsService:CollisionGroupSetCollidable("PixelRays", "Bounds", false)
+	end)
 	local root = folder()
 	local street = Instance.new("Folder")
 	street.Name = "Street"
@@ -181,7 +186,7 @@ function PlotService.buildDecor(s: S)
 	end
 end
 
--- (Re)build the session's plot: the office and land when the tier changed, then the decor and the attributes.
+-- (Re)build the session's plot: the island when the tier changed, then the decor and the attributes.
 function PlotService.build(s: S)
 	local m = plotModel(s.plot)
 	m:SetAttribute("Owner", s.player.UserId)
@@ -193,9 +198,6 @@ function PlotService.build(s: S)
 		local o = originOf(s.plot)
 		replace(static, "Land", function(f)
 			StreetModels.land(f, o, tier)
-		end)
-		replace(static, "Office", function(f)
-			OfficeModels.build(f, tier, o)
 		end)
 		static:SetAttribute("Built", tier)
 	end
@@ -240,10 +242,9 @@ function PlotService.sync(s: S)
 end
 
 ------------------------------------------------------------------ the founder
--- Where a session's founder appears (world CFrame, facing the road).
+-- Where a session's founder appears (world CFrame): on the path just south of the plaza.
 function PlotService.spawnCFrame(s: S): CFrame
-	local plan = Office.plan(s.profile.tier)
-	local x, z = Street.spawn(plan.maxX, plan.maxZ)
+	local x, z = Street.spawn()
 	local o = originOf(s.plot)
 	return CFrame.new(o + Vector3.new(x, 3, z))
 end
