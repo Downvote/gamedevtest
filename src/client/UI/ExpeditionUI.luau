@@ -31,6 +31,7 @@ local MicroStage = require(script.Parent.MicroStage)
 local Words = require(script.Parent.Words)
 local Voyage = require(script.Parent.Voyage)
 local BoatSpec = require(ReplicatedStorage.Shared.Models.BoatSpec)
+local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 
 local ExpeditionUI = {}
 ExpeditionUI.Changed = Util.Signal() :: Types.Signal<boolean>
@@ -60,7 +61,17 @@ type Actor = {
 	ph: number,
 	big: boolean,
 	deck: number, -- the party's place on the arriving boat's deck (0: none: dropped in)
+	dv: number, -- off its place across the stage (a dash to a foe)
+	move: Move?, -- what it is doing in a battle (an attack, a knock-back, a cheer...)
+	scale0: number, -- its built size (the guardian 1.6)
+	sqKey: string, -- the squash it is drawn at now
 }
+
+-- A battle move (GAME_DESIGN 7's expressive battles): its kind, when it began, how long it lasts and the gap it
+-- closes or the way it is knocked (studs along and across the stage).
+type Move = { kind: string, t0: number, dur: number, gu: number, gv: number }
+-- What a move does to its actor at a moment.
+type MoveFrame = { du: number, dv: number, dy: number, tilt: CFrame, sq: Vector3, spin: number, action: string, k: number, mood: string, speed: number }
 
 -- The shown health (the events move it; the view's numbers settle it after a round).
 type Bar = { hp: number, maxHp: number, name: string, lvl: number, card: Frame?, fill: Frame?, label: TextLabel?, w: number }
@@ -94,6 +105,13 @@ local closing = false
 local lastNode = 0
 local foeKey = "" -- the battle's foes shown (rebuilt when they change)
 local pendingOpen = 0 -- os.clock until which the screen opens as soon as the view has the expedition (just started)
+-- going on by itself (GAME_DESIGN 7: "no need to click on go on"): at a stop with nothing to answer, the party walks on
+-- to the next one after AUTO_GO seconds; a won battle's card goes after AUTO_CARD
+local AUTO_GO = 1.8
+local AUTO_CARD = 3
+local idleSince: number? = nil
+local autoFill: Frame? = nil
+local autoW = 0
 
 local refresh: () -> () = function() end
 local closeNow: () -> () = function() end
@@ -122,7 +140,7 @@ local FOE_SPOTS = { { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } }
 
 local function actorAt(a: Actor): Vector3
 	local st = stage :: MicroStage.Stage
-	return st.at(a.u + a.du, a.v, a.dy)
+	return st.at(a.u + a.du, a.v + a.dv, a.dy)
 end
 
 local function removeActor(key: string)
@@ -160,6 +178,10 @@ local function newActor(key: string, foe: boolean, spot: { number }): Actor
 		ph = math.random() * 4,
 		big = false,
 		deck = 0,
+		dv = 0,
+		move = nil,
+		scale0 = 1,
+		sqKey = "",
 	}
 end
 
@@ -223,6 +245,7 @@ local function buildFoes(e: Types.Expedition)
 		end
 		local a = newActor(f.key, true, FOE_SPOTS[i] or FOE_SPOTS[1])
 		a.big = b.boss and i == 1
+		a.scale0 = if a.big then 1.6 else 1
 		a.thing = driftling(st, f.sp or "pebblit", a.big)
 		a.dy = 10
 		a.enterAt = os.clock() + (i - 1) * 0.15
@@ -236,6 +259,190 @@ local function act(a: Actor, action: string, seconds: number)
 	a.until_ = os.clock() + seconds
 end
 
+------------------------------------------------------------------ the moves
+-- Each attack winds up (crouching back, squashed), dashes right up to its target (stretched, kicking up dust), strikes
+-- (a lunge and a swing, a bite or a ram leaning in) and hops back home; the hit freezes the action for a few frames
+-- (hit-stop) and shakes the picture; the one hit is knocked back leaning away (or sent flying, spinning, when it is
+-- down). Skills have their own: a bash leaps high and slams down, quick strikes three times in a blur, a zap charges
+-- up where it stands and throws a bolt. Times in seconds; IMPACTS are the moments the blows land.
+local MOVES: { [string]: number } = { attack = 0.92, bash = 1.15, quick = 0.85, zap = 0.8, hurt = 0.45, ko = 0.75, guard = 0.6, cast = 0.7, throw = 0.5, refuse = 0.7, happy = 1.0, flee = 0.7, stumble = 0.9, victory = 1.6 }
+local IMPACTS: { [string]: { number } } = { attack = { 0.44 }, bash = { 0.64 }, quick = { 0.24, 0.38, 0.52 }, zap = { 0.52 } }
+local REACH = 2.25 -- an attacker stops this far short of its target (studs)
+local freezeUntil = 0
+local shakeUntil, shakeAmp = 0, 0
+
+local function ease(x: number): number
+	x = math.clamp(x, 0, 1)
+	return 1 - (1 - x) * (1 - x)
+end
+local function easeIn(x: number): number
+	x = math.clamp(x, 0, 1)
+	return x * x
+end
+local function phase(e: number, a: number, b: number): number
+	return math.clamp((e - a) / (b - a), 0, 1)
+end
+
+local function startMove(a: Actor, kind: string, other: Actor?)
+	local gu, gv = 0, 0
+	if other then
+		local du, dv = other.u - a.u, other.v - a.v
+		local d = math.sqrt(du * du + dv * dv)
+		if kind == "hurt" or kind == "ko" then
+			-- knocked away from the one who hit it
+			gu, gv = if d > 0 then -du / d else (if a.foe then 1 else -1), if d > 0 then -dv / d else 0
+		elseif d > REACH then
+			gu, gv = du * (d - REACH) / d, dv * (d - REACH) / d
+		end
+	end
+	a.move = { kind = kind, t0 = os.clock(), dur = MOVES[kind] or 0.5, gu = gu, gv = gv }
+end
+
+-- The stage shakes by whole art px for a moment; the action freezes (a hit's weight).
+local function shake(amp: number, seconds: number)
+	shakeAmp = math.max(if os.clock() < shakeUntil then shakeAmp else 0, amp)
+	shakeUntil = os.clock() + seconds
+end
+local function freeze(seconds: number)
+	freezeUntil = math.max(freezeUntil, os.clock() + seconds)
+end
+
+local SQ1 = Vector3.one
+local shaking = false
+local function frameOf(a: Actor, mv: Move, e: number): MoveFrame
+	local dir = if a.foe then -1 else 1
+	local f: MoveFrame = { du = 0, dv = 0, dy = 0, tilt = CFrame.identity, sq = SQ1, spin = 0, action = "stand", k = 0, mood = "idle", speed = 0 }
+	local kind = mv.kind
+	local gu, gv = mv.gu, mv.gv
+	if kind == "attack" or kind == "quick" then
+		local w1 = if kind == "quick" then 0.08 else 0.2
+		local d1 = if kind == "quick" then 0.18 else 0.36
+		local s1 = if kind == "quick" then 0.6 else 0.5
+		local r0 = if kind == "quick" then 0.6 else 0.62
+		if e < w1 then
+			local k = ease(phase(e, 0, w1))
+			f.du, f.sq, f.action, f.mood = -0.75 * dir * k, Vector3.new(1 + 0.18 * k, 1 - 0.18 * k, 1 + 0.18 * k), "windup", "attack"
+			f.tilt = CFrame.Angles(math.rad(-12) * k, 0, 0)
+		elseif e < d1 then
+			local k = easeIn(phase(e, w1, d1))
+			f.du, f.dv = -0.75 * dir + (gu + 0.75 * dir) * k, gv * k
+			f.dy = math.sin(k * math.pi) * 0.6
+			f.sq, f.action, f.speed, f.mood, f.k = Vector3.new(0.85, 1.15, 0.85), "run", 30, "attack", 0.3
+			f.tilt = CFrame.Angles(math.rad(15), 0, 0)
+		elseif e < s1 then
+			local k = phase(e, d1, s1)
+			local jab = if kind == "quick" then math.abs(math.sin(k * math.pi * 3)) else math.sin(k * math.pi)
+			f.du, f.dv = gu + dir * 0.4 * jab, gv
+			f.action, f.k, f.mood = "strike", if kind == "quick" then (k * 3) % 1 else k, "attack"
+			f.tilt = CFrame.Angles(math.rad(28) * jab, 0, 0)
+			f.sq = Vector3.new(1 + 0.2 * jab, 1 - 0.15 * jab, 1 + 0.2 * jab)
+		elseif e < r0 then
+			f.du, f.dv, f.action, f.mood, f.k = gu - dir * 0.3, gv, "strike", "attack", 1
+		else
+			local k = ease(phase(e, r0, mv.dur))
+			f.du, f.dv = (gu - dir * 0.3) * (1 - k), gv * (1 - k)
+			f.dy = math.sin(k * math.pi) * 1.25
+			f.action = if k < 0.95 then "jump" else "stand"
+		end
+	elseif kind == "bash" then
+		if e < 0.3 then
+			local k = ease(phase(e, 0, 0.3))
+			f.du, f.sq, f.action, f.mood = -0.9 * dir * k, Vector3.new(1 + 0.3 * k, 1 - 0.3 * k, 1 + 0.3 * k), "windup", "attack"
+			f.tilt = CFrame.Angles(math.rad(-15) * k, 0, 0)
+		elseif e < 0.64 then
+			local k = phase(e, 0.3, 0.64)
+			f.du, f.dv = -0.9 * dir + (gu + 0.9 * dir) * k, gv * k
+			f.dy = math.sin(k * math.pi) * 4.5 * (1 - k * 0.15)
+			f.sq, f.action, f.mood, f.k = Vector3.new(0.8, 1.25, 0.8), "jump", "attack", 0.5
+			f.tilt = CFrame.Angles(math.rad(30) * k, 0, 0)
+		elseif e < 0.8 then
+			local k = phase(e, 0.64, 0.8)
+			f.du, f.dv = gu, gv
+			f.sq = Vector3.new(1.3 - 0.3 * k, 0.7 + 0.3 * k, 1.3 - 0.3 * k)
+			f.action, f.mood, f.k = "strike", "attack", 1
+		else
+			local k = ease(phase(e, 0.8, mv.dur))
+			f.du, f.dv = gu * (1 - k), gv * (1 - k)
+			f.dy = math.sin(k * math.pi) * 1.5
+			f.action = if k < 0.95 then "jump" else "stand"
+		end
+	elseif kind == "zap" then
+		if e < 0.45 then
+			local k = phase(e, 0, 0.45)
+			local pulse = if math.floor(e * 16) % 2 == 0 then 1 else 0
+			f.sq = Vector3.new(1 + 0.08 * pulse, 1 - 0.08 * pulse, 1 + 0.08 * pulse)
+			f.dy = 0.25 * k
+			f.tilt = CFrame.Angles(math.rad(-14) * k, 0, 0)
+			f.action, f.mood, f.k = "cast", "attack", k * 0.5
+		elseif e < 0.62 then
+			local k = phase(e, 0.45, 0.62)
+			f.du = dir * 0.6 * math.sin(k * math.pi)
+			f.tilt = CFrame.Angles(math.rad(25) * math.sin(k * math.pi), 0, 0)
+			f.dy = 0.25
+			f.action, f.mood, f.k = "strike", "attack", k
+		else
+			f.dy = 0.25 * (1 - phase(e, 0.62, mv.dur))
+		end
+	elseif kind == "hurt" then
+		local k = phase(e, 0, mv.dur)
+		local out = if k < 0.18 then ease(k / 0.18) else 1 - ease((k - 0.18) / 0.82)
+		f.du, f.dv = gu * 1.4 * out, gv * 1.4 * out
+		f.tilt = CFrame.Angles(math.rad(-24) * out, 0, 0)
+		f.sq = if k < 0.12 then Vector3.new(0.8, 1.2, 0.8) elseif k < 0.35 then Vector3.new(1.15, 0.85, 1.15) else SQ1
+		f.action, f.mood = "hurt", "hurt"
+	elseif kind == "ko" then
+		local k = phase(e, 0, 0.55)
+		f.du, f.dv = gu * 3.2 * ease(k), gv * 3.2 * ease(k)
+		f.dy = math.sin(k * math.pi) * 2.2
+		f.spin = k * math.pi * 2
+		f.action, f.mood = if k < 1 then "hurt" else "ko", if k < 1 then "hurt" else "ko"
+		if k >= 1 then
+			local b = phase(e, 0.55, mv.dur)
+			f.dy = math.sin(b * math.pi) * 0.5
+			f.sq = Vector3.new(1.2 - 0.2 * b, 0.8 + 0.2 * b, 1.2 - 0.2 * b)
+		end
+	elseif kind == "guard" then
+		local k = ease(phase(e, 0, 0.15))
+		f.sq = Vector3.new(1 + 0.12 * k, 1 - 0.12 * k, 1 + 0.12 * k)
+		f.tilt = CFrame.Angles(math.rad(8) * k, 0, 0)
+		f.action, f.mood = "guard", "idle"
+	elseif kind == "cast" then
+		local k = phase(e, 0, mv.dur)
+		f.dy = math.sin(k * math.pi) * 0.75
+		f.spin = ease(k) * math.pi * 2
+		f.action, f.mood = "cheer", "cheer"
+	elseif kind == "throw" then
+		f.action, f.k, f.mood = "throw", phase(e, 0, mv.dur), "cheer"
+	elseif kind == "refuse" then
+		f.spin = math.rad(28) * math.sin(e * 24) * (1 - phase(e, 0, mv.dur))
+		f.action, f.mood = "stand", "hurt"
+	elseif kind == "happy" then
+		f.dy = math.abs(math.sin(e * 11)) * 0.9
+		f.sq = if f.dy < 0.1 then Vector3.new(1.12, 0.88, 1.12) else Vector3.new(0.92, 1.08, 0.92)
+		f.action, f.mood = "cheer", "cheer"
+	elseif kind == "flee" or kind == "stumble" then
+		local k = phase(e, 0, 0.5)
+		f.spin = math.pi * ease(math.min(1, k * 3))
+		f.du = -dir * 5 * easeIn(k)
+		f.action, f.speed, f.mood = "run", 30, "walk"
+		if kind == "stumble" and e >= 0.35 then
+			-- trips over its feet and scrambles back
+			local b = phase(e, 0.35, mv.dur)
+			f.du = -dir * 5 * easeIn(phase(0.35, 0, 0.5)) * (1 - ease(b))
+			f.tilt = CFrame.Angles(math.rad(70) * math.sin(math.min(1, b * 2) * math.pi / 2) * (1 - b), 0, 0)
+			f.action, f.mood = if b < 0.5 then "hurt" else "run", "hurt"
+		end
+	elseif kind == "victory" then
+		local hop = math.abs(math.sin(e * 9))
+		f.dy = hop * 1.1
+		f.sq = if hop < 0.15 then Vector3.new(1.15, 0.85, 1.15) else Vector3.new(0.9, 1.1, 0.9)
+		f.spin = if e > 1.0 then ease(phase(e, 1.0, 1.4)) * math.pi * 2 else 0
+		f.action, f.mood = "victory", "cheer"
+	end
+	return f
+end
+
+
 -- Every frame: everyone posed (idle bobs, lunges, drops, knock-outs), the stage's life.
 local function poseAll(t: number, dt: number)
 	local st = stage
@@ -243,6 +450,7 @@ local function poseAll(t: number, dt: number)
 		return
 	end
 	local now = os.clock()
+	local frozen = now < freezeUntil
 	-- the boat gliding in to the shore once the curtain is up
 	local since = if lifted then now - opened - liftDelay else -1
 	local sh = ship
@@ -295,44 +503,95 @@ local function poseAll(t: number, dt: number)
 				continue
 			end
 		end
-		-- drops land, lunges ease back
-		if a.dy > 0 and lifted and now >= a.enterAt then
+		-- drops land
+		if a.dy > 0 and lifted and now >= a.enterAt and a.move == nil then
 			a.dy = math.max(0, a.dy - dt * 30)
 			if a.dy == 0 then
 				st.puff(st.at(a.u, a.v, 0.2), "dust", 6)
 			end
 		end
 		if now > a.until_ then
-			a.du = a.du * math.max(0, 1 - dt * 14)
-			if math.abs(a.du) < 0.05 then
-				a.du = 0
-			end
 			a.action = "stand"
 		end
-		local u = a.u + math.floor(a.du * 4 + 0.5) / 4
 		if a.gone then
 			if a.thing then
 				st.place(a.thing :: MicroModels.Thing, 0, 0, -50)
 			end
 			continue
 		end
-		local entry = if lifted then a.dy else 8
-		-- a knocked-out founder or villager crouches low (the stage drops the founder and the villagers in itself)
-		if a.founder then
-			st.pose(u, a.v, 0, a.yaw, t, 0, if a.ko then "sneak" else a.action, 1)
-		elseif a.rival then
-			local r = a.rival :: MicroStage.Rival
-			r.pose(u, a.v, 0, a.yaw, t, 0, if a.ko then "sneak" else a.action, 1)
-		elseif a.thing then
-			local th = a.thing :: MicroModels.Thing
-			if a.ko then
-				st.place(th, u, a.v, 0, a.yaw, CFrame.Angles(0, 0, math.rad(90)))
+		-- a battle move: where it is, how it leans and squashes, what it does (frozen during a hit-stop)
+		local fr: MoveFrame? = nil
+		local mv = a.move
+		if mv then
+			if frozen then
+				mv.t0 += dt
+			end
+			local e = now - mv.t0
+			if e >= mv.dur then
+				a.move = nil
+				if mv.kind == "ko" then
+					a.ko = true
+				end
 			else
-				-- an idle hop in whole quarter studs; a happy bounce while cheering
-				local hop = if a.action == "cheer" then (if math.floor(t * 8 + a.ph) % 2 == 0 then 0.75 else 0) else (if math.floor(t * 2.5 + a.ph) % 2 == 0 then 0.125 else 0)
-				st.place(th, u, a.v, entry + hop, a.yaw)
+				fr = frameOf(a, mv, e)
 			end
 		end
+		local du, dv, dy = 0, 0, 0
+		local tilt, sq, spin, action, k, mood, speed = CFrame.identity, Vector3.one, 0, a.action, 0, "idle", 0
+		if fr then
+			du, dv, dy, tilt, sq, spin, action, k, mood, speed = fr.du, fr.dv, fr.dy, fr.tilt, fr.sq, fr.spin, fr.action, fr.k, fr.mood, fr.speed
+		elseif a.action == "cheer" then
+			mood = "cheer"
+		end
+		a.du, a.dv = du, dv
+		if fr == nil then
+			dy = a.dy
+		end
+		local u = a.u + math.floor(du * 4 + 0.5) / 4
+		local v = a.v + math.floor(dv * 4 + 0.5) / 4
+		local y = math.floor(dy * 4 + 0.5) / 4
+		local yaw = a.yaw + spin
+		local entry = if lifted then a.dy else 8
+		-- the founder and the villagers: knocked out they lie flat
+		if a.founder or a.rival then
+			local act0 = if a.ko and fr == nil then "ko" else action
+			if a.founder then
+				st.pose(u, v, y, yaw, t, speed, act0, k)
+			else
+				(a.rival :: MicroStage.Rival).pose(u, v, y, yaw, t, speed, act0, k)
+			end
+		elseif a.thing then
+			local th = a.thing :: MicroModels.Thing
+			-- squash and stretch in whole eighths
+			local s0 = a.scale0
+			local sx, sy = math.floor(sq.X * 8 + 0.5) / 8, math.floor(sq.Y * 8 + 0.5) / 8
+			local key = sx .. ":" .. sy
+			if key ~= a.sqKey then
+				a.sqKey = key
+				MicroModels.scale(th, Vector3.new(s0 * sx, s0 * sy, s0 * sx))
+			end
+			if a.ko and fr == nil then
+				MicroModels.animate(th, t + a.ph, "ko", 0)
+				st.place(th, u, v, 0, yaw, CFrame.Angles(0, 0, math.rad(90)))
+			else
+				MicroModels.animate(th, t + a.ph, mood, k)
+				-- an idle hop in whole quarter studs; a happy bounce while cheering
+				local hop = 0
+				if fr == nil then
+					hop = if a.action == "cheer" then (if math.floor(t * 8 + a.ph) % 2 == 0 then 0.75 else 0) else (if math.floor(t * 2.5 + a.ph) % 2 == 0 then 0.125 else 0)
+				end
+				st.place(th, u, v, (if fr then y else entry) + hop, yaw, tilt)
+			end
+		end
+	end
+	-- the picture's shake (whole art px)
+	if now < shakeUntil then
+		local m = math.max(1, math.floor(shakeAmp))
+		PixelRenderer.setOffset(math.random(-m, m), math.random(-m, m))
+		shaking = true
+	elseif shaking then
+		shaking = false
+		PixelRenderer.setOffset(0, 0)
 	end
 	st.step(t, dt)
 end
@@ -549,40 +808,107 @@ local function playEvent(ev: { [string]: any })
 	local t = ev.t
 	if t == "hit" then
 		local by, to = actors[ev.by], actors[ev.to]
-		if by then
-			local dir = if by.foe then -1 else 1
-			by.du = dir * 2.5
-			act(by, if by.founder or by.rival then "swing" else "cheer", 0.18)
-		end
-		if ev.skill then
-			floatOver(ev.by, (Creatures.skills[ev.skill] or ev.skill) .. "!", UIKit.color("accent"))
+		local skill = ev.skill
+		local kind = if skill == "bash" then "bash" elseif skill == "quick" then "quick" elseif skill == "zap" then "zap" else "attack"
+		if skill then
+			floatOver(ev.by, (Creatures.skills[skill] or skill) .. "!", UIKit.color("accent"))
 			Audio.play("combo")
 		end
-		task.wait(0.14)
-		if to then
-			to.du = (if to.foe then 1 else -1) * 0.75
-			act(to, "hurt", 0.25)
-			flashActor(to)
-			st.puff(actorAt(to) + Vector3.new(0, 1.5, 0), if ev.skill == "zap" then "splash" else "spark", 6)
+		local t0 = os.clock()
+		local impacts = IMPACTS[kind]
+		if by then
+			startMove(by, kind, to)
+			Audio.play("flip", { pitch = if kind == "bash" then 0.7 else 1.2 })
+		else
+			impacts = { 0.05 }
 		end
-		Audio.play("squish", { pitch = if ev.skill then 0.85 else 1 })
+		local function at(seconds: number)
+			local w = t0 + seconds - os.clock()
+			if w > 0 then
+				task.wait(w)
+			end
+		end
+		-- the run-up's dust and the skills' own effects
+		if by and kind ~= "zap" then
+			at(if kind == "quick" then 0.08 else 0.2)
+			st.puff(actorAt(by) + Vector3.new(0, 0.2, 0), "dust", if kind == "bash" then 10 else 5)
+			if kind == "quick" then
+				-- afterimages along the dash
+				for j = 1, 3 do
+					task.delay(j * 0.03, function()
+						if by.thing or by.founder or by.rival then
+							st.puff(actorAt(by) + Vector3.new(0, 1, 0), "twinkle", 2)
+						end
+					end)
+				end
+			end
+		elseif by and kind == "zap" then
+			-- charging up: sparks gather round it, then a bolt runs to the target
+			for j = 1, 3 do
+				at(0.1 * j)
+				st.puff(actorAt(by) + Vector3.new(0, 1.2, 0), "spark", 4)
+				if by.thing then
+					st.flash(by.thing :: MicroModels.Thing, 0.05)
+				end
+			end
+			at(0.45)
+			Audio.play("sparkle", { pitch = 1.3 })
+			if to then
+				local p0, p1 = actorAt(by) + Vector3.new(0, 1.2, 0), actorAt(to) + Vector3.new(0, 1.2, 0)
+				for j = 0, 6 do
+					st.puff(p0:Lerp(p1, j / 6) + Vector3.new(0, (j % 2) * 0.5 - 0.25, 0), "spark", 2)
+				end
+			end
+		end
+		local dmg = tonumber(ev.dmg) or 0
+		for i, when in impacts do
+			at(when)
+			if to then
+				local last = i == #impacts
+				flashActor(to)
+				st.puff(actorAt(to) + Vector3.new(0, 1.4, 0), if kind == "zap" then "splash" else "spark", if kind == "bash" then 12 else 7)
+				if kind == "bash" then
+					st.puff(actorAt(to) + Vector3.new(0, 0.2, 0), "dust", 14)
+					st.puff(actorAt(to) + Vector3.new(0, 0.4, 0), "debris", 8)
+				end
+				if last then
+					startMove(to, if ev.ko then "ko" else "hurt", by)
+				end
+				shake(if kind == "bash" or ev.ko then 2 else 1, if kind == "bash" then 0.25 else 0.14)
+				freeze(if kind == "quick" then 0.035 else 0.07)
+				t0 += if kind == "quick" then 0.035 else 0.07
+			end
+			Audio.play("squish", { pitch = if skill then 0.85 else 1 })
+		end
 		local b = bars[ev.to]
 		if b then
-			setBar(ev.to, b.hp - (tonumber(ev.dmg) or 0))
+			setBar(ev.to, b.hp - dmg)
 		end
-		floatOver(ev.to, "-" .. tostring(ev.dmg), UIKit.color("bad"))
+		floatOver(ev.to, "-" .. tostring(dmg), UIKit.color("bad"))
 		if ev.ko and to then
-			task.wait(0.12)
-			to.ko = true
-			st.puff(actorAt(to), "dust", 10)
 			floatOver(ev.to, "Down!", UIKit.color("text_dim"))
 			Audio.play("pop", { pitch = 0.7 })
+			task.delay(0.55, function()
+				if isOpen and stage then
+					st.puff(actorAt(to), "dust", 10)
+					st.puff(actorAt(to) + Vector3.new(0, 1.2, 0), "twinkle", 4)
+				end
+			end)
 		end
+		at(MOVES[kind] - 0.15)
 	elseif t == "heal" then
-		local to = actors[ev.to]
+		local by, to = actors[ev.by], actors[ev.to]
 		floatOver(ev.by, "Soothe!", UIKit.color("good"))
+		if by then
+			startMove(by, "cast")
+			st.puff(actorAt(by) + Vector3.new(0, 1.2, 0), "twinkle", 4)
+		end
+		task.wait(0.3)
 		if to then
-			st.puff(actorAt(to) + Vector3.new(0, 1, 0), "heal", 8)
+			st.puff(actorAt(to) + Vector3.new(0, 1, 0), "heal", 10)
+			if to ~= by then
+				startMove(to, "happy")
+			end
 		end
 		local b = bars[ev.to]
 		if b then
@@ -593,29 +919,36 @@ local function playEvent(ev: { [string]: any })
 	elseif t == "shield" then
 		local by = actors[ev.by]
 		floatOver(ev.by, "Shell Guard!", UIKit.color("accent"))
+		if by then
+			startMove(by, "cast")
+		end
+		task.wait(0.25)
 		for _, a in actors do
 			if by and a.foe == by.foe and not a.ko then
-				st.puff(actorAt(a) + Vector3.new(0, 1.2, 0), "twinkle", 3)
+				if a ~= by then
+					startMove(a, "guard")
+				end
+				st.puff(actorAt(a) + Vector3.new(if a.foe then -1 else 1, 1.2, 0), "twinkle", 4)
 			end
 		end
 		Audio.play("ding")
 	elseif t == "rally" then
 		local by = actors[ev.by]
 		if by then
-			act(by, "cheer", 0.5)
+			startMove(by, "cast")
 		end
 		floatOver(ev.by, "Rally!", UIKit.color("accent"))
 		for _, a in actors do
-			if not a.foe and not a.ko and a ~= by then
-				act(a, "cheer", 0.4)
+			if by and a.foe == by.foe and not a.ko and a ~= by then
+				startMove(a, "happy")
 			end
 		end
 		Audio.play("cheer")
 	elseif t == "guard" then
 		for _, a in actors do
 			if not a.foe and not a.ko then
-				act(a, "reach", 0.5)
-				st.puff(actorAt(a) + Vector3.new(0, 1, 0), "twinkle", 2)
+				startMove(a, "guard")
+				st.puff(actorAt(a) + Vector3.new(1, 1, 0), "twinkle", 3)
 			end
 		end
 		say("The party guards!", UIKit.color("accent"), 1)
@@ -624,15 +957,24 @@ local function playEvent(ev: { [string]: any })
 		local to = actors[ev.to]
 		local f = actors.f
 		if f then
-			act(f, "reach", 0.5)
+			startMove(f, "throw")
 		end
 		floatOver("f", "Here, a treat!", UIKit.color("text"))
 		Audio.play("flip")
 		task.wait(0.3)
+		if f and to then
+			-- the treat's arc: a trail of sparkles from the founder's hand to the wild one
+			local p0, p1 = actorAt(f) + Vector3.new(0, 2.5, 0), actorAt(to) + Vector3.new(0, 1.5, 0)
+			for j = 1, 5 do
+				local q = j / 5
+				st.puff(p0:Lerp(p1, q) + Vector3.new(0, math.sin(q * math.pi) * 2.5, 0), "twinkle", 1)
+				task.wait(0.04)
+			end
+		end
 		if to then
 			if ev.ok then
-				st.puff(actorAt(to) + Vector3.new(0, 1.5, 0), "heart", 10)
-				act(to, "cheer", 0.9)
+				st.puff(actorAt(to) + Vector3.new(0, 1.5, 0), "heart", 12)
+				startMove(to, "happy")
 				floatOver(ev.to, "<3", UIKit.color("pink"))
 				Audio.play("fanfare")
 				say(nameOf(ev.to) .. " wants to be friends!", UIKit.color("pink"), 2)
@@ -644,30 +986,32 @@ local function playEvent(ev: { [string]: any })
 					(b.card :: Frame).Visible = false
 				end
 			else
+				startMove(to, "refuse")
+				st.puff(actorAt(to) + Vector3.new(0, 1.2, 0), "dust", 3)
 				floatOver(ev.to, "Hmph!", UIKit.color("text_dim"))
 				Audio.play("deny")
 			end
 		end
 	elseif t == "flee" then
+		for _, a in actors do
+			if not a.foe and not a.ko then
+				startMove(a, if ev.ok then "flee" else "stumble")
+				st.puff(actorAt(a) + Vector3.new(0, 0.2, 0), "dust", 4)
+			end
+		end
 		if ev.ok then
 			say("Got away!", UIKit.color("good"), 1.4)
-			for _, a in actors do
-				if not a.foe then
-					a.du = -3
-					act(a, "jump", 0.3)
-				end
-			end
 			Audio.play("pop")
 		else
 			say("Couldn't get away!", UIKit.color("bad"), 1.4)
 			Audio.play("deny")
 		end
 	end
-	task.wait(STEP)
+	task.wait(if t == "hit" then 0.15 else STEP)
 end
 
 -- A results card in the middle: lines, then a button.
-local function resultCard(title: string, color: Color3, lines: { { text: string, color: Color3? } }, icon: string?, button: string, onClick: () -> ())
+local function resultCard(title: string, color: Color3, lines: { { text: string, color: Color3? } }, icon: string?, button: string, onClick: () -> (), auto: number?)
 	local r = root
 	if r == nil then
 		return
@@ -693,11 +1037,35 @@ local function resultCard(title: string, color: Color3, lines: { { text: string,
 	for i, l in lines do
 		UIKit.text(f, l.text, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, ly + (i - 1) * 10), { x = "center", color = l.color or UIKit.color("text"), z = 21, name = "Line" .. i })
 	end
-	local b = UIKit.button(f, button, UDim2.fromOffset(cw - 40, 14), UDim2.new(0, 20, 1, -18), function()
+	local done = false
+	local function go()
+		if done then
+			return
+		end
+		done = true
 		f:Destroy()
 		onClick()
-	end, { name = "ResultOk", color = UIKit.color("button_ok") })
+	end
+	local b = UIKit.button(f, button, UDim2.fromOffset(cw - 40, 14), UDim2.new(0, 20, 1, -18), go, { name = "ResultOk", color = UIKit.color("button_ok") })
 	b.ZIndex = 22
+	if auto then
+		-- it goes by itself: a bar under the button runs down
+		local bw = cw - 40
+		local bar = UIKit.rect(f, UDim2.fromOffset(bw, 1), UDim2.new(0, 20, 1, -3), UIKit.color("good"), 22)
+		bar.Name = "AutoBar"
+		local t0 = os.clock()
+		task.spawn(function()
+			while not done and f.Parent do
+				local k = math.clamp((os.clock() - t0) / auto, 0, 1)
+				bar.Size = UDim2.fromOffset(math.floor(bw * (1 - k)), 1)
+				if k >= 1 then
+					go()
+					break
+				end
+				task.wait(0.05)
+			end
+		end)
+	end
 	UIKit.tween(f, 0.22, { Position = UDim2.fromOffset(x, y) })
 	task.delay(0.25, function()
 		if f.Parent then
@@ -720,10 +1088,16 @@ playRound = function(data: { [string]: any })
 	local st = stage
 	if result == "win" then
 		Audio.play("fanfare")
+		local order = 0
 		for _, a in actors do
 			if not a.foe then
 				a.ko = false
-				act(a, "cheer", 1.4)
+				order += 1
+				local who = a
+				task.delay(order * 0.1, function()
+					startMove(who, "victory")
+				end)
+				act(a, "cheer", 1.8)
 			end
 		end
 		local lines: { { text: string, color: Color3? } } = {}
@@ -754,7 +1128,7 @@ playRound = function(data: { [string]: any })
 		else
 			resultCard("Victory!", UIKit.color("good"), lines, icon, "Onward", function()
 				refresh()
-			end)
+			end, AUTO_CARD)
 		end
 	elseif result == "lose" then
 		Audio.play("sad")
@@ -956,8 +1330,26 @@ refresh = function()
 			UIKit.text(foot, string.format("Treat (%d food): %s", Tuning.TreatFood, tname), UDim2.fromOffset(math.max(10, bx - hx - 2), 9), UDim2.fromOffset(hx, 32), { color = UIKit.color("text_dim"), z = 11, name = "TreatHint" })
 		end
 	else
+		-- between stops the party walks on by itself: a bar fills toward the next stop (Space or a tap on it: at once)
 		local last = e.node >= #e.nodes
-		button(foot, if last then "All explored" else "Go on!", bx, 4, 100, UIKit.color("button_ok"), not last, goOn, "GoOn")
+		local plate = Instance.new("TextButton")
+		plate.Name = "AutoGo"
+		plate.Text = ""
+		plate.AutoButtonColor = false
+		plate.BackgroundTransparency = 1
+		plate.Size = UDim2.fromOffset(100, 15)
+		plate.Position = UDim2.fromOffset(bx, 4)
+		plate.ZIndex = 11
+		plate.Parent = foot
+		UIKit.plate(plate, UDim2.fromOffset(100, 15), UDim2.fromOffset(0, 0), UIKit.color("plate_light"), 0, 2).ZIndex = 11
+		autoW = 96
+		local fill = UIKit.rect(plate, UDim2.fromOffset(0, 2), UDim2.fromOffset(2, 11), UIKit.color("good"), 12)
+		fill.Name = "Fill"
+		autoFill = fill
+		UIKit.text(plate, if last then "All explored" elseif busy then "Walking on..." else "Next stop...", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
+		plate.Activated:Connect(function()
+			task.spawn(goOn)
+		end)
 		button(foot, "Sail home", bx, 22, 100, UIKit.color("button_warn"), true, goHome, "SailHome")
 	end
 	-- the wild ones' names stay on the cards; the stage's spots follow the fighters
@@ -1078,6 +1470,34 @@ function ExpeditionUI.open()
 			end
 		end
 		poseAll(now - opened, math.min(dt, 0.1))
+		-- going on by itself: at a stop with nothing to answer (no battle, no card, the party ashore)
+		local cur = exp()
+		local waiting = lifted and not busy and not closing and cur ~= nil and cur.battle == nil and cur.over == nil and cur.node < #cur.nodes
+		if waiting and root and (root :: Frame):FindFirstChild("Result") then
+			waiting = false
+		end
+		if waiting then
+			for _, a in actors do
+				if a.deck > 0 then
+					waiting = false
+					break
+				end
+			end
+		end
+		if waiting then
+			idleSince = idleSince or now
+			local k = math.clamp((now - (idleSince :: number)) / AUTO_GO, 0, 1)
+			local fill = autoFill
+			if fill and fill.Parent then
+				fill.Size = UDim2.fromOffset(math.floor(autoW * k), 2)
+			end
+			if k >= 1 then
+				idleSince = nil
+				task.spawn(goOn)
+			end
+		else
+			idleSince = nil
+		end
 	end)
 	keys = UserInputService.InputBegan:Connect(function(input, processed)
 		if processed or not lifted or busy then
@@ -1154,6 +1574,7 @@ closeNow = function()
 		return
 	end
 	isOpen = false
+	idleSince, autoFill = nil, nil
 	if beat then
 		beat:Disconnect()
 		beat = nil

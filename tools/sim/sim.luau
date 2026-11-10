@@ -221,11 +221,16 @@ for _ = 1, 160 do
 end
 H.expect(phases.walk and phases.hop and phases.sail, "explore", "walk, hop aboard, sail", string.format("%s %s %s", tostring(phases.walk), tostring(phases.hop), tostring(phases.sail)))
 H.expect(H.inClient(p, EUI.isOpen) == true, "explore", "the islet's screen opens after it")
+local nodeAtLanding = s.exp and s.exp.node or 0
 E.run(Tuning.StageWait + 3)
 local st = H.inClient(p, EUI.debugState)
 H.expect(st.lifted and st.actors >= 2, "explore", "the curtain lifts on the party", string.format("%s %d", tostring(st.lifted), st.actors))
 H.expect(st.arrived, "explore", "the boat brought them ashore", tostring(st.arrived))
-H.expect(H.buttonNamed(p, "GoOn") ~= nil and H.buttonNamed(p, "SailHome") ~= nil, "explore", "Go on and Sail home")
+-- no Go on to click: between stops a bar fills and the party walks on by itself (by now it may already be in a
+-- battle: then its moves are up instead)
+H.expect(H.buttonNamed(p, "GoOn") == nil and (s.exp == nil or s.exp.battle ~= nil or H.buttonNamed(p, "SailHome") ~= nil), "explore", "no Go on button (Sail home between stops)")
+H.expect((s.exp ~= nil and s.exp.battle ~= nil and H.buttonNamed(p, "Act_fight") ~= nil) or H.buttons(p, "^AutoGo$", true)[1] ~= nil, "explore", "the next stop's bar (or a battle's moves)")
+H.expect(s.exp ~= nil and s.exp.node > nodeAtLanding, "explore", "the expedition went on by itself", string.format("%d -> %s", nodeAtLanding, tostring(s.exp and s.exp.node)))
 -- walk the islet: every stop, every battle fought (a treat when a wild one is hurt), until the guardian or a fall
 local Expedition = H.sharedServer("Logic.Expedition")
 local battles, treats, guard = 0, 0, 0
@@ -294,8 +299,12 @@ H.expect(road ~= nil and road:FindFirstChild("Boat") ~= nil and not H.inClient(p
 local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 local ox1, oz1 = H.sharedServer("Data.Street").origin(1)
 H.expect(root ~= nil and root.Position.Z - oz1 > H.sharedServer("Data.Street").BOARD.z1, "explore", "the founder stands on the pier", root and tostring(root.Position))
+-- free to walk off: clear of the pier's walls (a character put inside one is stuck) and able to move again
+local pr = H.sharedServer("Data.Street").pier()
+local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+H.expect(root ~= nil and root.Position.X - ox1 > pr.x0 + 1.2 and root.Position.X - ox1 < pr.x1 - 1.2 and root.Position.Z - oz1 < pr.z1 - 1.2, "explore", "home: the founder clear of the pier's walls", root and tostring(root.Position))
+H.expect(hum ~= nil and hum.WalkSpeed > 0 and hum.JumpHeight > 0, "explore", "home: the founder can walk again", hum and string.format("%s %s", hum.WalkSpeed, hum.JumpHeight))
 H.expect(H.buttonNamed(p, "Menu_build") ~= nil, "explore", "the HUD is back")
-local _ = ox1
 if loot then
 	local k = if over == "lost" then 0.5 else 1
 	H.expect(prof.shells >= sh1 + math.floor(loot.shells * k) - 1, "explore", "the loot came home", string.format("%s -> %s (+%s)", sh1, prof.shells, loot.shells))

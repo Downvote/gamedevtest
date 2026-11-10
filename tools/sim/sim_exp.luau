@@ -208,7 +208,12 @@ for _, f in s.exp.battle.foes do
 end
 local errs0 = #E.errors
 H.clickNamed(p, "Act_fight", { wait = 0.2 })
-E.run(4)
+-- (the round plays blow by blow: wind-ups, dashes, hit-stops; wait for its end)
+E.run(0.5)
+E.runUntil(function()
+	return not H.inClient(p, EUI.debugState).busy
+end, 20, 0.1)
+E.run(0.3)
 local hp1 = 0
 if s.exp and s.exp.battle then
 	for _, f in s.exp.battle.foes do

@@ -3,7 +3,7 @@
 # and writes PNGs at the device resolution (pixel layer + GUI).
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
-#   scenario: island | village | island2 | island3 | day | panel=<folk|pals|explore|index|looks> |
+#   scenario: island | village | island2 | island3 | day | dusk | night | dawn | panel=<folk|pals|explore|index|looks> |
 #             exp=<kind 1-5>[_battle|_boss|_win|_loot] | sea | visit | build | water | voyage | late | all
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
@@ -17,7 +17,7 @@
 PREVIEW=$(cd "$(dirname "$0")" && pwd)
 T=${TOOLS:-$HOME/.local/rbx-tools}
 REPO=${REPO:-$(cd "$(dirname "$0")/../.." && pwd)}
-scen=${1:?usage: render.sh <island|village|island2|island3|day|panel=name|exp=kind|sea|visit|build|water|voyage|late|all> <outdir> [devices] [tier]}
+scen=${1:?usage: render.sh <island|village|island2|island3|day|dusk|night|dawn|panel=name|exp=kind|sea|visit|build|water|voyage|late|all> <outdir> [devices] [tier]}
 out=${2:?usage: render.sh <scenario> <outdir> [devices] [tier]}
 devices=${3:-desktop phone}
 tier=${4:-auto}
@@ -25,7 +25,7 @@ jobs=${PREVIEW_JOBS:-4}
 
 case $scen in
 	all) scens="island village island3 sea build day" ;;
-	island|village|island2|island3|day|panel=*|exp=*|sea|visit|build|water|voyage|late) scens=$scen ;;
+	island|village|island2|island3|day|dusk|night|dawn|panel=*|exp=*|sea|visit|build|water|voyage|late) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

@@ -58,6 +58,7 @@ local d0 = prof.day
 E.runUntil(function()
 	return prof.day > d0
 end, Tuning.DaySeconds + 2, 0.05)
+
 local t0 = E.SIM.now
 E.run(0.3) -- (the first day's Fx on its way)
 local f0 = #fx
@@ -244,6 +245,36 @@ local dq, dp = pq.day, prof.day
 E.run(Tuning.DaySeconds + 1)
 H.expect(pq.day == dq + 1 and prof.day == dp + 1, "two", "both islands' days turn", string.format("%d->%d, %d->%d", dq, pq.day, dp, prof.day))
 H.expect(sq.dayClock >= 0 and sq.dayClock < Tuning.DaySeconds and s.dayClock >= 0 and s.dayClock < Tuning.DaySeconds, "two", "each on its own clock")
+------------------------------------------------------------------ day and night
+E.phase = "daynight"
+-- the day and night (GAME_DESIGN 8): the island's clock grades the picture: plain by day, dark blue at night with the
+-- lamps lit, bright again at dawn (UI/DayLight; with the filter off, as in this engine, Roblox's own clock follows)
+do
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
+	local DL = H.cmod(p, "Controllers.DayLight")
+	local nightGrade = DL.at(0.88)
+	H.expect(DL.at(0.35) == nil and nightGrade ~= nil and nightGrade.mr < 0.6 and nightGrade.lamps > 0.9, "daynight", "the grade: none at noon, dark with the lamps lit at night")
+	local dusk = DL.at(0.68)
+	H.expect(dusk ~= nil and dusk.mr > dusk.mb, "daynight", "a warm dusk")
+	local function at(lo, hi)
+		E.runUntil(function()
+			local v = H.view(p)
+			return v ~= nil and v.dayFrac >= lo and v.dayFrac <= hi
+		end, Tuning.DaySeconds + 2, 0.05)
+		E.run(0.3)
+		local off = H.inClient(p, PR.tier) == "off"
+		local st = H.inClient(p, DL.debugState)
+		return st.grade, off, st.clock
+	end
+	local noon, off1, c1 = at(0.3, 0.45)
+	H.expect(noon == "" and (not off1 or (c1 >= 9 and c1 <= 15)), "daynight", "plain daylight at noon", string.format("%q %s %s", noon, tostring(off1), tostring(c1)))
+	local night, off2, c2 = at(0.84, 0.92)
+	local mr = tonumber(string.match(night, "^(%S+)"))
+	H.expect(if off2 then (c2 >= 19 or c2 <= 5) else (mr ~= nil and mr < 0.6), "daynight", "dark at night", string.format("%q %s %s", night, tostring(off2), tostring(c2)))
+	local dawn, off3, c3 = at(0.08, 0.2)
+	H.expect(dawn == "" and (not off3 or (c3 >= 6 and c3 <= 11)), "daynight", "bright again in the morning", string.format("%q %s %s", dawn, tostring(off3), tostring(c3)))
+end
+
 H.checkProfile(p, "end")
 H.checkMirror(p, "end")
 H.checkProfile(q, "end")

@@ -35,11 +35,19 @@ local function new(kind: string, h: number, r: number): Thing
 	return { model = m, parts = {}, rest = {}, sizes = {}, baseRest = {}, baseSize = {}, colors = {}, h = h, r = r, kind = kind }
 end
 
+-- the squash each thing is drawn at (MicroModels.scale), for MicroModels.animate
+local scaleOf: { [Thing]: Vector3 } = setmetatable({}, { __mode = "k" }) :: any
+
 -- One part: `at` is its centre in the thing's space, `rot` an extra turn about that centre.
 local function add(t: Thing, name: string, shape: string, size: Vector3, at: Vector3, color: string, rot: CFrame?, neon: boolean?): BasePart
 	local cf = CFrame.new(at) * (rot or CFrame.identity)
 	local shp: any = if shape == "Block" then nil else shape
 	local p = Blocks.part(t.model, { size = size, cf = cf, color = color, name = name, shape = shp, collide = false, query = false, neon = neon })
+	-- (sizes to the eighth of a stud, about an art pixel, not Blocks' quarter: whiskers, fangs and shines stay fine)
+	local function fine(v: number): number
+		return math.max(0.125, math.floor(v * 8 + 0.5) / 8)
+	end
+	p.Size = Vector3.new(fine(size.X), fine(size.Y), fine(size.Z))
 	p.CastShadow = false
 	t.parts[name] = p
 	t.rest[name] = cf
@@ -837,12 +845,209 @@ BUILD.drift_wyrm = function(o)
 	return t
 end
 
+-- Finer details on each shape (GAME_DESIGN 6: "much more detailed"): moss and stubby arms on the pebble, more legs, a
+-- ridge and bubbles on the crab, gills, brows and toes on the gull, paws, a nose, whiskers and a sprout on the bun, a
+-- curled tail tip and frills on the lizard, brows, toes and a tuft on the owl, a tuft, paws, inner ears and a tongue
+-- on the pup, whiskers, a tooth and glowing stripes on the mole, wing bones, a second fang and a tuft on the bat,
+-- palms, shoulder fur, a belly and teeth on the yeti, brow spots and tail flukes on the seal, shards and sparkles on
+-- the sprite, more tendrils and freckles on the jelly, teeth, fins and a tail fin on the wyrm.
+local DETAIL: { [string]: (t: Thing, b: string, a: string) -> () } = {
+	blob = function(t, b, a)
+		add(t, "Moss", "Block", Vector3.new(0.75, 0.125, 0.5), Vector3.new(0.3, 1.78, -0.1), "leaf")
+		add(t, "MossTuft", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(0.45, 1.9, -0.1), "leaf_dark")
+		add(t, "ArmL", "Block", Vector3.new(0.375, 0.5, 0.375), Vector3.new(-1.0, 0.85, 0.2), b)
+		add(t, "ArmR", "Block", Vector3.new(0.375, 0.5, 0.375), Vector3.new(1.0, 0.85, 0.2), b)
+		add(t, "Crack2", "Block", Vector3.new(0.125, 0.375, 0.125), Vector3.new(-0.42, 1.3, 0.84), a)
+		add(t, "PebbleB", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(0.85, 0.15, 0.6), a)
+	end,
+	crab = function(t, b, a)
+		add(t, "Leg5", "Block", Vector3.new(0.125, 0.375, 0.125), Vector3.new(-1.0, 0.2, 0.2), a)
+		add(t, "Leg6", "Block", Vector3.new(0.125, 0.375, 0.125), Vector3.new(1.0, 0.2, 0.2), a)
+		add(t, "Ridge", "Block", Vector3.new(1.5, 0.125, 0.125), Vector3.new(0, 1.0, 0.68), a)
+		add(t, "ClawLowL", "Block", Vector3.new(0.25, 0.25, 0.375), Vector3.new(-1.25, 0.5, 0.85), b)
+		add(t, "ClawLowR", "Block", Vector3.new(0.25, 0.25, 0.375), Vector3.new(1.25, 0.5, 0.85), b)
+		add(t, "Bubble", "Ball", Vector3.new(0.25, 0.25, 0.25), Vector3.new(0.45, 1.2, 0.85), "window")
+		add(t, "Bubble2", "Ball", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.6, 1.45, 0.85), "window")
+	end,
+	bird = function(t, _b, a)
+		add(t, "GillL", "Block", Vector3.new(0.125, 0.375, 0.125), Vector3.new(-0.5, 1.6, 0.55), a)
+		add(t, "GillR", "Block", Vector3.new(0.125, 0.375, 0.125), Vector3.new(0.5, 1.6, 0.55), a)
+		add(t, "BrowL", "Block", Vector3.new(0.25, 0.125, 0.125), Vector3.new(-0.25, 2.04, 0.82), a)
+		add(t, "BrowR", "Block", Vector3.new(0.25, 0.125, 0.125), Vector3.new(0.25, 2.04, 0.82), a)
+		add(t, "ToeL", "Block", Vector3.new(0.375, 0.125, 0.25), Vector3.new(-0.25, 0.06, 0.45), "orange")
+		add(t, "ToeR", "Block", Vector3.new(0.375, 0.125, 0.25), Vector3.new(0.25, 0.06, 0.45), "orange")
+		add(t, "TailStripe", "Block", Vector3.new(0.75, 0.125, 0.25), Vector3.new(0, 1.0, -1.15), "white")
+	end,
+	bun = function(t, b, _a)
+		add(t, "PawL", "Block", Vector3.new(0.375, 0.25, 0.375), Vector3.new(-0.35, 0.55, 0.72), b)
+		add(t, "PawR", "Block", Vector3.new(0.375, 0.25, 0.375), Vector3.new(0.35, 0.55, 0.72), b)
+		add(t, "Nose", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0, 1.56, 0.84), "pink")
+		add(t, "WhiskL", "Block", Vector3.new(0.375, 0.125, 0.125), Vector3.new(-0.45, 1.5, 0.78), "cream")
+		add(t, "WhiskR", "Block", Vector3.new(0.375, 0.125, 0.125), Vector3.new(0.45, 1.5, 0.78), "cream")
+		add(t, "Sprout", "Block", Vector3.new(0.125, 0.375, 0.125), Vector3.new(0, 2.2, 0), "leaf")
+		add(t, "SproutLeaf", "Block", Vector3.new(0.375, 0.125, 0.25), Vector3.new(0.12, 2.4, 0), "leaf")
+	end,
+	lizard = function(t, _b, a)
+		add(t, "TailTip", "Block", Vector3.new(0.375, 0.375, 0.5), Vector3.new(0.15, 0.55, -2.1), a)
+		add(t, "FrillL", "Block", Vector3.new(0.125, 0.375, 0.375), Vector3.new(-0.5, 0.95, 1.0), a)
+		add(t, "FrillR", "Block", Vector3.new(0.125, 0.375, 0.375), Vector3.new(0.5, 0.95, 1.0), a)
+		add(t, "NostrilL", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(-0.2, 0.95, 1.56), "black")
+		add(t, "NostrilR", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.2, 0.95, 1.56), "black")
+	end,
+	owl = function(t, _b, a)
+		add(t, "BrowL", "Block", Vector3.new(0.375, 0.125, 0.125), Vector3.new(-0.35, 1.78, 0.68), a)
+		add(t, "BrowR", "Block", Vector3.new(0.375, 0.125, 0.125), Vector3.new(0.35, 1.78, 0.68), a)
+		add(t, "ToeL", "Block", Vector3.new(0.125, 0.125, 0.25), Vector3.new(-0.42, 0.06, 0.45), "orange")
+		add(t, "ToeR", "Block", Vector3.new(0.125, 0.125, 0.25), Vector3.new(0.42, 0.06, 0.45), "orange")
+		add(t, "Feather", "Block", Vector3.new(0.25, 0.375, 0.125), Vector3.new(0, 1.95, 0.4), a)
+	end,
+	pup = function(t, _b, a)
+		add(t, "Tuft", "Block", Vector3.new(0.375, 0.375, 0.375), Vector3.new(0, 2.05, 0.55), a)
+		for i, p in { { -0.35, 0.5 }, { 0.35, 0.5 }, { -0.35, -0.6 }, { 0.35, -0.6 } } do
+			add(t, "Paw" .. i, "Block", Vector3.new(0.375, 0.125, 0.375), Vector3.new(p[1], 0.06, p[2] + 0.05), "cream")
+		end
+		add(t, "EarInL", "Block", Vector3.new(0.125, 0.25, 0.125), Vector3.new(-0.38, 2.1, 0.85), "pink")
+		add(t, "EarInR", "Block", Vector3.new(0.125, 0.25, 0.125), Vector3.new(0.38, 2.1, 0.85), "pink")
+		add(t, "Tongue", "Block", Vector3.new(0.25, 0.125, 0.25), Vector3.new(0, 1.0, 1.45), "pink")
+	end,
+	mole = function(t, _b, a)
+		add(t, "WhiskL", "Block", Vector3.new(0.5, 0.125, 0.125), Vector3.new(-0.45, 0.85, 1.02), "cream")
+		add(t, "WhiskR", "Block", Vector3.new(0.5, 0.125, 0.125), Vector3.new(0.45, 0.85, 1.02), "cream")
+		add(t, "Stripe", "Block", Vector3.new(0.25, 0.125, 1.0), Vector3.new(0.45, 1.5, -0.2), a, nil, true)
+		add(t, "Stripe2", "Block", Vector3.new(0.25, 0.125, 0.75), Vector3.new(-0.45, 1.45, -0.3), a, nil, true)
+		add(t, "Tooth", "Block", Vector3.new(0.125, 0.25, 0.125), Vector3.new(0.1, 0.65, 0.98), "white")
+	end,
+	bat = function(t, b, _a)
+		add(t, "RibL", "Block", Vector3.new(0.125, 0.625, 0.25), Vector3.new(-0.8, 1.3, -0.1), b)
+		add(t, "RibL2", "Block", Vector3.new(0.125, 0.5, 0.25), Vector3.new(-1.3, 1.25, -0.1), b)
+		add(t, "RibR", "Block", Vector3.new(0.125, 0.625, 0.25), Vector3.new(0.8, 1.3, -0.1), b)
+		add(t, "RibR2", "Block", Vector3.new(0.125, 0.5, 0.25), Vector3.new(1.3, 1.25, -0.1), b)
+		add(t, "Fang2", "Block", Vector3.new(0.125, 0.25, 0.125), Vector3.new(-0.15, 1.0, 0.5), "white")
+		add(t, "Tuft", "Block", Vector3.new(0.375, 0.25, 0.25), Vector3.new(0, 1.95, 0.1), b)
+	end,
+	yeti = function(t, _b, a)
+		add(t, "HandL", "Block", Vector3.new(0.5, 0.375, 0.5), Vector3.new(-1.05, 0.4, 0.15), a)
+		add(t, "HandR", "Block", Vector3.new(0.5, 0.375, 0.5), Vector3.new(1.05, 0.4, 0.15), a)
+		add(t, "FurL", "Block", Vector3.new(0.375, 0.375, 0.375), Vector3.new(-0.75, 1.95, 0), "window")
+		add(t, "FurR", "Block", Vector3.new(0.375, 0.375, 0.375), Vector3.new(0.75, 1.95, 0), "window")
+		add(t, "Belly", "Block", Vector3.new(1.0, 0.625, 0.125), Vector3.new(0, 0.75, 0.84), "cream")
+		add(t, "ToothL", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(-0.2, 1.2, 0.92), "white")
+		add(t, "ToothR", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.2, 1.2, 0.92), "white")
+	end,
+	seal = function(t, _b, a)
+		add(t, "BrowL", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(-0.25, 1.55, 1.15), a)
+		add(t, "BrowR", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.25, 1.55, 1.15), a)
+		add(t, "TailFlukeL", "Block", Vector3.new(0.375, 0.125, 0.375), Vector3.new(-0.3, 0.12, -1.6), a)
+		add(t, "TailFlukeR", "Block", Vector3.new(0.375, 0.125, 0.375), Vector3.new(0.3, 0.12, -1.6), a)
+	end,
+	sprite = function(t, _b, a)
+		add(t, "ShardUL", "Block", Vector3.new(0.25, 0.5, 0.25), Vector3.new(-0.6, 1.85, 0), a, CFrame.Angles(0, 0, math.rad(35)), true)
+		add(t, "ShardUR", "Block", Vector3.new(0.25, 0.5, 0.25), Vector3.new(0.6, 1.85, 0), a, CFrame.Angles(0, 0, math.rad(-35)), true)
+		add(t, "Sparkle", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.9, 1.6, 0.2), "white", nil, true)
+		add(t, "Sparkle2", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(-0.85, 1.6, -0.2), "white", nil, true)
+		add(t, "Sparkle3", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.3, 2.45, 0.1), "white", nil, true)
+	end,
+	jelly = function(t, _b, a)
+		add(t, "Tendril5", "Block", Vector3.new(0.2, 1.0, 0.2), Vector3.new(-0.35, 0.6, -0.45), a)
+		add(t, "Tendril6", "Block", Vector3.new(0.2, 0.8, 0.2), Vector3.new(0.35, 0.7, -0.45), a)
+		add(t, "Freckle", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(-0.3, 2.45, 0.8), "white", nil, true)
+		add(t, "Freckle2", "Block", Vector3.new(0.125, 0.125, 0.125), Vector3.new(0.65, 1.95, 0.84), "white", nil, true)
+	end,
+	wyrm = function(t, _b, a)
+		add(t, "ToothL", "Block", Vector3.new(0.125, 0.25, 0.125), Vector3.new(-0.25, 1.95, 1.62), "white")
+		add(t, "ToothR", "Block", Vector3.new(0.125, 0.25, 0.125), Vector3.new(0.25, 1.95, 1.62), "white")
+		add(t, "FinC", "Block", Vector3.new(0.125, 0.5, 0.625), Vector3.new(0.55, 0.95, -1.0), a, nil, true)
+		add(t, "TailFin", "Block", Vector3.new(0.75, 0.125, 0.5), Vector3.new(1.2, 0.35, -2.25), a)
+		add(t, "Scales3", "Block", Vector3.new(0.75, 0.25, 0.125), Vector3.new(0, 1.55, 1.02), a)
+	end,
+}
+
 -- The model for a species (Data/Creatures shape and colours).
 function MicroModels.driftling(shape: string, body: string, accent: string): Thing
 	local fn = BUILD["drift_" .. shape] or BUILD.drift_blob
 	local t = fn({ color = body, alt = accent })
+	local d = DETAIL[shape]
+	if d then
+		d(t, body, accent)
+	end
 	t.kind = "drift_" .. shape
 	return t
+end
+
+-- A driftling's limbs alive, time t (seconds), mood "idle" | "walk" | "attack" | "hurt" | "cheer" | "ko", k 0..1 an
+-- attack's progress: wings flap (fast in a fight), claws and pincers snap open, tails wag (faster when happy),
+-- ears twitch now and then and droop when hurt, arms swing up to strike, legs step when walking, tendrils and fins
+-- wave, eyes blink every few seconds (shut when hurt or down) and the mouth opens to bite, cry or cheer. Offsets from
+-- the built pose (times the squash of `scale`); call before `place`.
+function MicroModels.animate(t: Thing, time: number, mood: string, k: number?)
+	local sc = scaleOf[t] or Vector3.one
+	local kk = math.clamp(k or 0, 0, 1)
+	local fight = mood == "attack"
+	local excited = fight or mood == "cheer"
+	local blink = (time % 3.4) < 0.12
+	for name, p in t.parts do
+		local r0: CFrame? = t.baseRest[name]
+		local s0: Vector3? = t.baseSize[name]
+		if r0 == nil or s0 == nil then
+			continue
+		end
+		local r, s = r0 :: CFrame, s0 :: Vector3
+		local c = r.Position
+		local side = if c.X < 0 then -1 else 1
+		local off: CFrame? = nil
+		local n4 = string.sub(name, 1, 4)
+		if n4 == "Wing" or name == "RibL" or name == "RibR" or name == "RibL2" or name == "RibR2" then
+			local a = math.rad(if excited then math.sin(time * 20) * 38 else (if mood == "ko" then -25 else math.sin(time * 3.5) * 8))
+			local piv = Vector3.new(side * 0.35, c.Y, c.Z)
+			off = CFrame.new(piv) * CFrame.Angles(0, 0, side * a) * CFrame.new(-piv)
+		elseif n4 == "Claw" or string.sub(name, 1, 6) == "Pincer" then
+			local open = if fight then math.rad(-45) * math.sin(kk * math.pi) else math.rad(-6) * math.max(0, math.sin(time * 5))
+			local lower = string.find(name, "Low") ~= nil
+			local piv = Vector3.new(c.X, c.Y - (if lower then -0.15 else 0.15), c.Z - s.Z / 2)
+			off = CFrame.new(piv) * CFrame.Angles(if lower then -open else open, 0, 0) * CFrame.new(-piv)
+		elseif string.sub(name, 1, 4) == "Tail" then
+			local a = math.rad(if excited then math.sin(time * 16) * 28 else (if mood == "ko" then 0 else math.sin(time * 3) * 10))
+			local piv = Vector3.new(0, c.Y, c.Z + s.Z / 2 + (if name == "TailTip" or string.find(name, "Fluke") then 0.6 else 0))
+			off = CFrame.new(piv) * CFrame.Angles(0, a, 0) * CFrame.new(-piv)
+		elseif name == "EarL" or name == "EarR" or name == "EarInL" or name == "EarInR" then
+			local twitch = (time + side * 0.7) % 2.6 < 0.15
+			local a = if mood == "hurt" or mood == "ko" then math.rad(35) elseif twitch then math.rad(18) else 0
+			local piv = Vector3.new(c.X, c.Y - s.Y / 2, c.Z)
+			off = CFrame.new(piv) * CFrame.Angles(0, 0, side * a) * CFrame.new(-piv)
+		elseif name == "ArmL" or name == "ArmR" or name == "HandL" or name == "HandR" then
+			local a = if fight then math.rad(-110) * math.sin(kk * math.pi) elseif mood == "cheer" then math.rad(-150) else math.rad(math.sin(time * 2 + side) * 6)
+			local piv = Vector3.new(c.X, c.Y + (if string.sub(name, 1, 4) == "Hand" then 0.85 else s.Y / 2), c.Z)
+			off = CFrame.new(piv) * CFrame.Angles(a, 0, 0) * CFrame.new(-piv)
+		elseif string.sub(name, 1, 3) == "Leg" or n4 == "Foot" or string.sub(name, 1, 3) == "Paw" or n4 == "Toe" .. string.sub(name, 4, 4) then
+			if mood == "walk" or mood == "cheer" then
+				local up = (math.floor(time * 8) + (if c.X < 0 then 0 else 1) + (if c.Z < 0 then 1 else 0)) % 2 == 0
+				off = CFrame.new(0, if up then 0.125 else 0, 0)
+			end
+		elseif string.sub(name, 1, 7) == "Tendril" then
+			local a = math.rad(math.sin(time * 4 + c.X * 3) * (if excited then 22 else 10))
+			local piv = Vector3.new(c.X, c.Y + s.Y / 2, c.Z)
+			off = CFrame.new(piv) * CFrame.Angles(a, 0, 0) * CFrame.new(-piv)
+		elseif name == "FinL" or name == "FinR" then
+			local a = math.rad(if excited then math.sin(time * 14) * 25 else math.sin(time * 2.5) * 6)
+			local piv = Vector3.new(side * 0.5, c.Y, c.Z)
+			off = CFrame.new(piv) * CFrame.Angles(0, 0, side * a) * CFrame.new(-piv)
+		elseif name == "EyeL" or name == "EyeR" then
+			local shut = blink or mood == "hurt" or mood == "ko"
+			local h = if shut then 0.125 else s.Y
+			local sz = Vector3.new(s.X * sc.X, h * sc.Y, s.Z * sc.Z)
+			if p.Size ~= sz then
+				p.Size = sz
+			end
+		elseif name == "Mouth" then
+			local open = fight or mood == "hurt" or mood == "cheer"
+			local sz = Vector3.new(s.X * sc.X, (if open then math.max(0.25, s.Y * 2.5) else s.Y) * sc.Y, s.Z * sc.Z)
+			if p.Size ~= sz then
+				p.Size = sz
+			end
+		end
+		local rr = if off then off * r else r
+		t.rest[name] = CFrame.new(rr.Position * sc) * rr.Rotation
+	end
 end
 
 ------------------------------------------------------------------ more small things (projectiles, props)
@@ -1007,6 +1212,7 @@ end
 
 -- Its built sizes and offsets times k about the origin (a squash and stretch: k per axis; Vector3.one: as built).
 function MicroModels.scale(t: Thing, k: Vector3)
+	scaleOf[t] = k
 	for name, p in t.parts do
 		local r = t.baseRest[name]
 		local s = t.baseSize[name]

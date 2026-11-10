@@ -145,6 +145,7 @@ local nextId = 1
 
 local dyns: { [Model]: Dyn } = {}
 local nextDyn = DYN_ID0
+local dynGlow: { [number]: boolean } = {} -- dynamic part id -> Neon (it stays lit at night)
 local prevRects: { Rect } = {}
 local tickAcc = 0
 local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
@@ -448,6 +449,160 @@ local function contactPass(s: Surf, rx0: number?, ry0: number?, rx1: number?, ry
 	end
 end
 
+------------------------------------------------------------------ the time of day
+-- A colour grade over the picture as it is uploaded (GAME_DESIGN 8: the day and night; UI/DayLight sets it from the
+-- day's clock): the layers keep their daylight colours; each uploaded pixel goes through `gradeOf` (cached by colour
+-- and light level). Lamps, torches, fires and windows (Neon parts) keep their own colour and pool light round them
+-- in three stepped rings on the pixel grid (`lightMap`: the static layer's lamps and the dynamic ones, rebuilt when
+-- the picture moves, at most every LIGHT_EVERY seconds).
+export type Grade = {
+	mr: number, -- the light's colour: red, green, blue multipliers (1 by day)
+	mg: number,
+	mb: number,
+	lift: number, -- a blue lift in the shadows (0..40)
+	sat: number, -- saturation (1 by day)
+	lamps: number, -- how much the lamps' pools light (0 by day, 1 at night)
+}
+local grade: Grade? = nil
+local gradeKey = ""
+local gradeMap: { [number]: number } = {}
+local lightMap: buffer? = nil
+local lightStale = true
+local lightAt = 0
+local LIGHT_EVERY = 0.4
+local RING = { 3.5, 6.5, 10 } -- a pool's rings (art px, vertical; twice as wide: the ground is seen at 2:1)
+
+local function clampByte(v: number): number
+	return if v < 0 then 0 elseif v > 255 then 255 else math.floor(v + 0.5)
+end
+
+local function gradeOf(c: number, lvl: number): number
+	local g = grade :: Grade
+	local r, gg, b = c % 256, (c // 256) % 256, (c // 65536) % 256
+	local a = c - c % 16777216
+	local l = 0.3 * r + 0.59 * gg + 0.11 * b
+	local sat = g.sat
+	local nr, ng, nb = (l + (r - l) * sat) * g.mr + g.lift * 0.2, (l + (gg - l) * sat) * g.mg + g.lift * 0.35, (l + (b - l) * sat) * g.mb + g.lift
+	if lvl > 0 and g.lamps > 0 then
+		-- a lamp's pool: back toward the colour by day, warmed
+		local k = lvl / 3 * g.lamps
+		nr += (r * 1.04 - nr) * k
+		ng += (gg * 0.93 - ng) * k
+		nb += (b * 0.74 - nb) * k
+	end
+	return clampByte(nr) + clampByte(ng) * 256 + clampByte(nb) * 65536 + a
+end
+
+local function isGlow(id: number): boolean
+	if id == 0 then
+		return false
+	elseif id < DYN_ID0 then
+		return (albedos[id] or 0) >= EMISSIVE
+	end
+	return dynGlow[id] == true
+end
+
+local function splat(lm: buffer, W: number, H: number, px: number, py: number)
+	local R = RING[3]
+	for dy = -math.floor(R), math.floor(R) do
+		local y = py + dy
+		if y < 0 or y >= H then
+			continue
+		end
+		for dx = -math.floor(R * 2), math.floor(R * 2) do
+			local x = px + dx
+			if x < 0 or x >= W then
+				continue
+			end
+			local e = math.sqrt((dx * 0.5) ^ 2 + dy * dy)
+			local lvl = if e < RING[1] then 3 elseif e < RING[2] then 2 elseif e < R then 1 else 0
+			if lvl > 0 then
+				local i = y * W + x
+				if buffer.readu8(lm, i) < lvl then
+					buffer.writeu8(lm, i, lvl)
+				end
+			end
+		end
+	end
+end
+
+-- The lamps' pools: every 4x4 block of the static layer with a lamp's pixel, and every lit dynamic part.
+local function buildLight(s: Surf)
+	local W, H = s.W, s.H
+	local n = W * H
+	local lm = lightMap
+	if lm == nil or buffer.len(lm) ~= n then
+		lm = buffer.create(n)
+		lightMap = lm
+	else
+		buffer.fill(lm, 0, 0)
+	end
+	local sid = s.sId
+	for cy = 0, H - 1, 4 do
+		for cx = 0, W - 1, 4 do
+			local hit = false
+			for y = cy, math.min(H - 1, cy + 3) do
+				for x = cx, math.min(W - 1, cx + 3) do
+					local id = buffer.readu16(sid, (y * W + x) * 2)
+					if id ~= 0 and id < DYN_ID0 and (albedos[id] or 0) >= EMISSIVE then
+						hit = true
+						break
+					end
+				end
+				if hit then
+					break
+				end
+			end
+			if hit then
+				splat(lm :: buffer, W, H, cx + 2, cy + 5)
+			end
+		end
+	end
+	local cam = s.cam
+	for model, d in dyns do
+		if model.Parent == nil then
+			continue
+		end
+		for _, p in d.parts do
+			if p.glow and p.part.Parent ~= nil then
+				local pos = p.part.Position
+				local fx, fy = Raster.project(cam, pos.X, pos.Y, pos.Z)
+				local x, y = math.floor(fx), math.floor(fy)
+				if x >= -20 and x < W + 20 and y >= -10 and y < H + 10 then
+					splat(lm :: buffer, W, H, x, y + 3)
+				end
+			end
+		end
+	end
+	lightStale = false
+	lightAt = os.clock()
+end
+
+-- n pixels of the frame from pixel i0, graded into out from pixel o0.
+local function gradeSpan(s: Surf, i0: number, n: number, out: buffer, o0: number)
+	local src, fid = s.frame.color, s.frame.id
+	local lm = if (grade :: Grade).lamps > 0 then lightMap else nil
+	local map = gradeMap
+	for k = 0, n - 1 do
+		local i = i0 + k
+		local c = buffer.readu32(src, i * 4)
+		local id = buffer.readu16(fid, i * 2)
+		local o = c
+		if not isGlow(id) then
+			local lvl = if lm then buffer.readu8(lm, i) else 0
+			local key = c + lvl * 4294967296
+			o = map[key]
+			if o == nil then
+				o = gradeOf(c, lvl)
+				map[key] = o
+			end
+		end
+		buffer.writeu32(out, (o0 + k) * 4, o)
+	end
+end
+
+local gradeBuf: buffer? = nil
+
 ------------------------------------------------------------------ upload
 local function uploadAll(s: Surf)
 	local im = img
@@ -455,8 +610,23 @@ local function uploadAll(s: Surf)
 		return
 	end
 	local f = s.frame
+	local src = f.color
+	if grade then
+		local n = s.W * s.H
+		local now = os.clock()
+		if (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= n or ((lightStale or now - lightAt >= 1) and now - lightAt >= LIGHT_EVERY)) then
+			buildLight(s)
+		end
+		local b = gradeBuf
+		if b == nil or buffer.len(b) ~= n * 4 then
+			b = buffer.create(n * 4)
+			gradeBuf = b
+		end
+		gradeSpan(s, 0, n, b :: buffer, 0)
+		src = b :: buffer
+	end
 	pcall(function()
-		im:WritePixelsBuffer(Vector2.zero, Vector2.new(s.W, s.H), f.color)
+		im:WritePixelsBuffer(Vector2.zero, Vector2.new(s.W, s.H), src)
 	end)
 end
 
@@ -473,8 +643,17 @@ local function uploadRect(s: Surf, r: Rect)
 	local w, h = x1 - x0 + 1, y1 - y0 + 1
 	local b = buffer.create(w * h * 4)
 	local src = s.frame.color
-	for y = y0, y1 do
-		buffer.copy(b, (y - y0) * w * 4, src, (y * s.W + x0) * 4, w * 4)
+	if grade then
+		if (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= s.W * s.H) then
+			buildLight(s)
+		end
+		for y = y0, y1 do
+			gradeSpan(s, y * s.W + x0, w, b, (y - y0) * w)
+		end
+	else
+		for y = y0, y1 do
+			buffer.copy(b, (y - y0) * w * 4, src, (y * s.W + x0) * 4, w * 4)
+		end
 	end
 	pcall(function()
 		im:WritePixelsBuffer(Vector2.new(x0, y0), Vector2.new(w, h), b)
@@ -623,6 +802,7 @@ local function startBake()
 	if s == nil then
 		return
 	end
+	lightStale = true
 	table.clear(windSaved)
 	table.clear(windWrote)
 	windOn = nil
@@ -659,6 +839,7 @@ end
 -- A layer for the camera's view: buffers, image and a fresh bake (or the kept street picture when its view comes back).
 local function buildSurf(v: CameraController.View)
 	refreshExclude()
+	lightStale = true
 	local old = surf
 	if old then
 		windRestore(old) -- (the wind's paint off the layer going away: a kept street picture comes back clean)
@@ -1191,6 +1372,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	stats.scrolls += 1
 	stats.scrollRays += rays
 	needFull = true
+	lightStale = true
 end
 
 ------------------------------------------------------------------ invalidation
@@ -1223,6 +1405,7 @@ local function partRect(part: BasePart): Rect?
 end
 
 local function queueRect(r: Rect)
+	lightStale = true
 	local s = surf
 	if s == nil then
 		return
@@ -1527,7 +1710,9 @@ function PixelRenderer.registerDynamic(model: Model)
 			if nextDyn >= 65535 then
 				nextDyn = DYN_ID0 + 1
 			end
-			table.insert(parts, { part = d, id = nextDyn, shape = shape, glow = d.Material == Enum.Material.Neon, rgb = rgb })
+			local glow = d.Material == Enum.Material.Neon
+			dynGlow[nextDyn] = glow
+			table.insert(parts, { part = d, id = nextDyn, shape = shape, glow = glow, rgb = rgb })
 		end
 	end
 	dyns[model] = { model = model, parts = parts }
@@ -1545,6 +1730,7 @@ function PixelRenderer.refreshDynamic(model: Model)
 			local attr = p.part:GetAttribute("PixelColor")
 			p.rgb = if typeof(attr) == "Color3" then rgbOf(attr) else rgbOf(p.part.Color)
 			p.glow = p.part.Material == Enum.Material.Neon
+			dynGlow[p.id] = p.glow
 		end
 	end
 end
@@ -1621,6 +1807,23 @@ function PixelRenderer.projectPixel(world: Vector3): (number, number, boolean)
 	local pos, on = PixelRenderer.project(world)
 	local k = PixelRenderer.pixelScale()
 	return math.floor(pos.X / k), math.floor(pos.Y / k), on
+end
+
+-- The time of day's grade (UI/DayLight; nil: daylight as baked). A changed grade re-uploads the whole picture.
+function PixelRenderer.setGrade(g: Grade?)
+	local key = if g then string.format("%.2f %.2f %.2f %.0f %.2f %.2f", g.mr, g.mg, g.mb, g.lift, g.sat, g.lamps) else ""
+	if key == gradeKey then
+		return
+	end
+	gradeKey = key
+	grade = g
+	table.clear(gradeMap)
+	needFull = true
+end
+
+-- Sims and previews: the grade now ("" by day).
+function PixelRenderer.debugGrade(): string
+	return gradeKey
 end
 
 -- CLI checks only: the layer, its bake and what the ticks cost.

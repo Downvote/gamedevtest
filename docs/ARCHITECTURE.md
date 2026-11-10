@@ -126,9 +126,15 @@ Models (`src/shared/Models`, Roblox modules):
 
 - `Blocks` (copied): `part(parent, spec)` (anchored, SmoothPlastic or Neon, sizes on the 0.25-stud grid, palette
   colours), `cylY`, `model`, `color`, `snap`.
-- `CharacterModels.build(look, name, seed) -> Rig` (a seated chibi, the portraits'), `buildStanding(look, name, seed)`
-  (a standing chibi: the founder and the villagers), `poseStanding(rig, base, t, speed)`, `poseAction(rig, base, t,
-  speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`), `STAND_TOP`.
+- `CharacterModels.build(look, name, seed) -> Rig` (a seated chibi, the portraits'; the head's parts with a glint in
+  each eye, brows, a mouth and ears, sizes exact to the eighth of a stud), `buildStanding(look, name, seed)` (a
+  standing chibi: the founder and the villagers: soles, shoes, bare shins under shorts, a shirt with a belt and buckle,
+  a collar and two buttons, sleeves, bare forearms and fists, the head raised a stud), `posePose(rig, base, Pose)`
+  (`Pose { lean, twist, crouch (the knees bend to keep the feet down), lift, hipL/R, kneeL/R, armL/R (CFrames about
+  the shoulders), elbowL/R, head, mood }`; moods `calm fierce shout hurt happy ko` move the brows, open or shut the
+  eyes and the mouth), `poseStanding(rig, base, t, speed)` (the walk: knees and elbows bending, or the stand),
+  `poseAction(rig, base, t, speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance` and for the
+  battles `windup strike guard throw run victory ko`), `STAND_TOP`.
 - `Blocks.windy(root)`: the wind's tags for the pixel filter (§9.3): every part named `Flag...` or `Pennant...` (not
   a `...Pole`) gets `PixelWind` 2, every part in `leaf` or `leaf_dark` `PixelWind` 1 (water parts left alone). Called
   by `StreetModels.land`, `DecorModels.build` and `MicroStage` on their models.
@@ -157,7 +163,12 @@ Models (`src/shared/Models`, Roblox modules):
   `ship` (the expedition boat from `BoatSpec` at `opts.level`: its origin on the waterline), `flutter(thing, t)` (a
   thing's `Flag...` parts ripple: their depth and height step through four frames), ambient kinds (`bird
   butterfly light flame crab ...`), `slab`, `grid`, `hoop`, `place(t, cf)`, `scale(t, k)`,
-  `recolor(t, color?)`, `show(t, on)`, `has`.
+  `recolor(t, color?)`, `show(t, on)`, `has`. Parts keep their sizes to the eighth of a stud (about an art px), not
+  Blocks' quarter. Each driftling shape gets its finer details (`DETAIL`, GAME_DESIGN 2), and `animate(t, time, mood,
+  k?)` moves its limbs from their built pose (times the squash of `scale`), by name: `Wing*`/`Rib*` flap, `Claw*` and
+  `Pincer*` snap open on a strike, `Tail*` wag, `Ear*` twitch and droop, `Arm*`/`Hand*` swing up, `Leg*`/`Foot*`/
+  `Paw*`/`Toe*` step, `Tendril*` and side `Fin*` wave, `Eye*` blink (shut when hurt or down), `Mouth` opens; moods
+  `idle walk attack hurt cheer ko`. WorldView, Voyage and the islet's screen call it every frame.
 
 ## 7. Server
 
@@ -233,15 +244,23 @@ needs a `Schema.VERSION` step in `migrate` and a spec that an older profile stil
 ## 8. Client bootstrap and the mirror
 
 `Main.client`: `StateClient.init` (remotes), `PixelRenderer.init` (lighting), `CameraController.init`, wait for the
-first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `WorldView.start`, `AvatarView.start`,
-`StreetLife.start`, `Hud.start` (which starts `Menus` and `ExpeditionUI`).
+first view, `CameraController.start`, `PixelRenderer.start`, `DayLight.start`, `UIKit.init`, `WorldView.start`,
+`AvatarView.start`, `StreetLife.start`, `Hud.start` (which starts `Menus` and `ExpeditionUI`).
 
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Tick:
 Signal<ClientView>` (Fx "tick": the view's `shells`, `food`, `wood` and `dayFrac` are patched in place, no whole view
 comes), `request(action, payload) -> Response` (never errors), `signal(kind, payload)`.
 
-### 8.2 `Audio`
+### 8.2 `DayLight` (the day and night)
+`start()`: the view's `dayFrac` (each tick and view; run on smoothly by `Tuning.DaySeconds` between them) sets
+`PixelRenderer.setGrade(at(frac))` every frame (nil on an islet's stage: daylight there; with the filter off,
+`Lighting.ClockTime` instead: 6 at dawn, 18 at dusk). `at(frac) -> Grade?`: the day's keys (`KEYS`: dawn 0, morning
+0.07, afternoon 0.6, dusk 0.68, twilight 0.75, night 0.81 to 0.95, dawn again at 1), the step between two keys in
+`STEPS` (6) steps; nil when it is plain daylight. `debugSet(frac?)` (previews: a fixed time), `debugState() -> {
+frac, grade, clock }`.
+
+### 8.3 `Audio`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's), `has(name)`, `EVENTS`: every sound by
 name (`click hover open close deny notice ding coin coins level_up reward fanfare rare_fanfare combo sparkle cheer
 applause trumpet sad drumroll tick key flip pop squish`), each one `Monetization.Sounds` id (0 = silent) with a volume,
@@ -328,7 +347,16 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   farther behind it, never over anything nearer; its trailing edge's taken by what lay behind it, the outline a
   pixel in); a flag's columns drop or lift a pixel along the wave (the lifted fold a shade darker). What it painted is
   kept (`windSaved` / `windWrote`) and undone (`windRestore`) before the next wind frame, a pan, a stage's stash and
-  a bake; a pixel something else has painted since is left alone.
+  a bake; a pixel something else has painted since is left alone. They belong to their layer (`windOn`): another
+  layer's are dropped, never restored onto it.
+- **The time of day** (GAME_DESIGN 8; `setGrade(Grade?)`, `debugGrade() -> string` its key, "" by day): the layers
+  keep their daylight colours; every uploaded pixel (`uploadAll`, `uploadRect`) goes through `gradeOf` (cached per
+  colour and light level, cleared when the grade changes, which also uploads the whole picture): desaturated by
+  `sat`, times `mr mg mb`, plus a blue `lift` in the shadows. `Grade { mr, mg, mb, lift, sat, lamps }`. Neon parts
+  (`EMISSIVE` statics, `dynGlow` dynamics) keep their colour; round them `lightMap` (u8 a pixel, 0..3, rebuilt by
+  `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second
+  for the moving lights) pools warm light in three stepped rings (`RING`, twice as wide as tall: the ground at 2:1),
+  `lamps` of the way back to the colour by day, warmed.
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects. The
@@ -469,7 +497,8 @@ overlay starts with the blinds closed on "<Name>'s Isle" / "Home again!" ("Saili
 mooring's parts and moved `SAIL_Z` out to sea with the party on deck, waits ("wait") until the renderer is `ready()`
 on the island with no stage (at most `OPEN_WAIT` s), the blinds open, "arrive" (`ARRIVE` s, easing in to the pier;
 the view follows it), "hop" (the founder onto the pier), "land" (0.8 s, the party cheers), then the boat is docked,
-the founder's character stands on the pier, the HUD comes back and `onDone` (the loot's notice). Without the boat
+the founder's character stands on the pier (its middle, two studs and more from its walls: a character put inside a
+wall is stuck; WalkSpeed and JumpHeight back, never to 0), the HUD comes back and `onDone` (the loot's notice). Without the boat
 away it does `reveal(onDone)`: closed blinds that open once the island's picture is there. `skip()` lands at once.
 `isPlaying()`, `debugState() -> { dir ("out" | "home" | "reveal" | ""), phase, away, boat }`.
 
@@ -486,17 +515,24 @@ the picture: the fake engine bakes slowly). It hides the `Hud` and `World` roots
 and draws on the `Stage` root (full screen: Roblox's top bar's height, `TopBar`, is kept clear): the `Header` (the
 island's name and level, `Loot_<kind>`, the path's `Node<i>` icons (the ones ahead hidden
 but the guardian's), `Here`, `BackToIsland`), the `Footer` (the party's cards `Card_<key>`: portrait or icon, name,
-`Lv`, the health bar `HpFill`; the buttons `GoOn` and `SailHome` between stops, `Act_fight Act_guard Act_treat
-Act_flee` in battle (Treat and Flee off against a guardian), `TreatHint`), the foes' cards down the right (tap one:
-the treat's target), the `Say` narration, the `Result` card (`ResultOk`: Onward, or Sail home after the guardian or a
-fall) and the `Curtain` (ink blinds with the island's name, kind and level until the stage is `ready()` and 1.2 s
+`Lv`, the health bar `HpFill`; between stops `AutoGo` (a bar filling over `AUTO_GO` s, then the next stop by itself:
+`goOn`; a tap or Space at once) and `SailHome`; `Act_fight Act_guard Act_treat Act_flee` in battle (Treat and Flee off against a guardian), `TreatHint`), the foes' cards down the right (tap one:
+the treat's target), the `Say` narration, the `Result` card (`ResultOk`: Onward, going by itself after `AUTO_CARD` s
+(its `AutoBar` running down), or Sail home after the guardian or a fall) and the `Curtain` (ink blinds with the island's name, kind and level until the stage is `ready()` and 1.2 s
 passed, at most `StageWait`). The actors: the founder (the stage's own), villagers (`stage.rival(look)`), driftlings
 and wild ones (`MicroModels.driftling`, the guardian 1.6 times as big), posed every frame (drops, idle hops, lunges,
 KO). Arriving after the cutscene the stage's drop happens behind the curtain (`lift()` at once) and the expedition
 boat (`MicroModels` "ship" at the profile's boat level, its flags fluttering) glides in to the shallows off the floor's front-left edge (`SHIP_U`, `SHIP_V`, over
 `SHIP_IN` s from the curtain's lift); the party stands on its deck (`DECK_SPOTS`), then one after another hops off
 onto the shore (`HOP_T`, `LAND`) and runs to its places (`RUN` studs/s; the deck places from `BoatSpec.deck`);
-a round's events play back one by one (`STEP` s each); keys: Space / Return go on or fight, 1-4 the battle's moves.
+a round's events play back one by one as moves (GAME_DESIGN 7: `startMove(actor, kind, other?)`, `MOVES` their lengths,
+`frameOf` what each does at a moment: `{ du, dv, dy, tilt, sq, spin, action, k, mood, speed }`; `attack quick bash
+zap` (the attacker's run up to `REACH` short of its target and back, `IMPACTS` the blows' moments), `hurt ko` (a
+knock away from the attacker; `ko` flies, spins and lies down), `guard cast throw refuse happy flee stumble
+victory`); a blow `freeze`s the moves (hit-stop: their clocks held) and `shake`s the picture
+(`PixelRenderer.setOffset` by whole art px); the things squash by `MicroModels.scale` (whole eighths), lean by the
+move's tilt and move their limbs (`MicroModels.animate` with the move's mood); the founder and villagers take the
+move's action (`CharacterModels.poseAction`); keys: Space / Return go on or fight, 1-4 the battle's moves.
 `MicroStage` (client): `open(variant, margins?, seed?) -> Stage` (an islet set laid out by the island's seed), `current()`, `has(variant)`, the yaws `FACE_VIEWER
 FACE_RIGHT FACE_LEFT FACE_AWAY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer). A stage is a folder
 `MicroStage` at Z = 9000 (far from the islands: no ray of either view reaches the other): a 24 x 24 set and its props

@@ -373,6 +373,8 @@ local function stepWalker(w: Walker, t: number, dt: number)
 	elseif w.thing then
 		local hop = if speed > 0 then math.abs(math.sin(t * 9 + w.id)) * 0.5 else math.abs(math.sin(t * 2 + w.id)) * 0.12
 		local bob = if t < w.cheerUntil then math.abs(math.sin(t * 12)) * 1.2 else hop
+		-- its limbs alive: blinks, a wagging tail, stepping legs, a cheer
+		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then "cheer" elseif speed > 0 then "walk" else "idle", 0)
 		MicroModels.place(w.thing, CFrame.new(w.x, y + bob, w.z) * CFrame.Angles(0, w.yaw, 0))
 	end
 end

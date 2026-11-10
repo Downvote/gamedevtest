@@ -34,8 +34,16 @@ local function specs(look: Types.Look): { Spec }
 		{ name = "Head", size = Vector3.new(1.5, 1.25, 1.25), at = Vector3.new(0, 2.125, -0.05), color = skin },
 		{ name = "EyeL", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(-0.35, 2.15, 0.5), color = "black" },
 		{ name = "EyeR", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(0.35, 2.15, 0.5), color = "black" },
-		{ name = "CheekL", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(-0.55, 1.85, 0.5), color = "pink" },
-		{ name = "CheekR", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(0.55, 1.85, 0.5), color = "pink" },
+		-- a glint in each eye, the brows (the expressions move them), a mouth, ears
+		{ name = "GlintL", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(-0.41, 2.21, 0.6), color = "white" },
+		{ name = "GlintR", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(0.29, 2.21, 0.6), color = "white" },
+		{ name = "BrowL", size = Vector3.new(0.375, 0.125, 0.125), at = Vector3.new(-0.35, 2.36, 0.6), color = hair },
+		{ name = "BrowR", size = Vector3.new(0.375, 0.125, 0.125), at = Vector3.new(0.35, 2.36, 0.6), color = hair },
+		{ name = "Mouth", size = Vector3.new(0.25, 0.125, 0.125), at = Vector3.new(0, 1.8, 0.58), color = "black" },
+		{ name = "EarL", size = Vector3.new(0.125, 0.375, 0.375), at = Vector3.new(-0.8, 2.1, 0), color = skin },
+		{ name = "EarR", size = Vector3.new(0.125, 0.375, 0.375), at = Vector3.new(0.8, 2.1, 0), color = skin },
+		{ name = "CheekL", size = Vector3.new(0.25, 0.125, 0.125), at = Vector3.new(-0.55, 1.88, 0.56), color = "pink" },
+		{ name = "CheekR", size = Vector3.new(0.25, 0.125, 0.125), at = Vector3.new(0.55, 1.88, 0.56), color = "pink" },
 		{ name = "HairCap", size = Vector3.new(1.75, 0.5, 1.5), at = Vector3.new(0, 2.8, -0.1), color = hair },
 		{ name = "Fringe", size = Vector3.new(1.5, 0.25, 0.25), at = Vector3.new(0, 2.55, 0.55), color = hair },
 		{ name = "ArmL", size = Vector3.new(0.375, 0.375, 1.25), at = Vector3.new(-0.7, 1.15, 0.45), color = shirt },
@@ -77,6 +85,7 @@ function CharacterModels.build(look: Types.Look, name: string, seed: number?): R
 			collide = false,
 			query = false,
 		})
+		p.Size = sp.size -- (exact: the face's details are finer than Blocks' 0.25 grid, an art pixel and up)
 		p.CastShadow = false
 		parts[sp.name] = p
 		rest[sp.name] = CFrame.new(sp.at)
@@ -85,7 +94,7 @@ function CharacterModels.build(look: Types.Look, name: string, seed: number?): R
 	return { model = model, parts = parts, rest = rest, seed = seed or 0 }
 end
 
-local HEAD_PARTS = { "Head", "EyeL", "EyeR", "CheekL", "CheekR", "HairCap", "Fringe", "HairBack", "LockL", "LockR", "Bun", "SpikeA", "SpikeB", "SpikeC" }
+local HEAD_PARTS = { "Head", "EyeL", "EyeR", "GlintL", "GlintR", "BrowL", "BrowR", "Mouth", "EarL", "EarR", "CheekL", "CheekR", "HairCap", "Fringe", "HairBack", "LockL", "LockR", "Bun", "SpikeA", "SpikeB", "SpikeC" }
 local NECK = Vector3.new(0, 1.5, -0.05)
 local SHOULDER_L, SHOULDER_R = Vector3.new(-0.7, 1.3, -0.1), Vector3.new(0.7, 1.3, -0.1)
 
@@ -155,14 +164,22 @@ end
 -- Where the popups float from (rig space): just above the hair.
 CharacterModels.HEAD_TOP = Vector3.new(0, 3.4, 0)
 
------------------------------------------------------------------- standing (the founders on the street)
--- A founder: the same head, hair and face as a seated developer, raised a stud, on a standing body: legs, shoes, arms
--- at the sides. The rig's origin is between the feet on the ground, facing +Z.
+------------------------------------------------------------------ standing (the founders, villagers and the party)
+-- A founder or a villager: the same head, hair and face as a seated one, raised a stud, on a standing body with
+-- joints: shorts over bare shins, shoes on light soles, a shirt with a collar, two buttons and a belt with a buckle,
+-- sleeves over bare forearms and fists. The rig's origin is between the feet on the ground, facing +Z. Poses bend the
+-- knees and elbows, lean and twist the body and change the face (`Pose`: GAME_DESIGN 7's expressive battles).
 local HEAD_SET: { [string]: boolean } = {}
 for _, n in HEAD_PARTS do
 	HEAD_SET[n] = true
 end
 local HEAD_LIFT = Vector3.new(0, 1.0, 0.05)
+
+local BODY_PARTS = { "Torso", "Belt", "Buckle", "Collar", "ButtonA", "ButtonB" }
+local THIGH_L, THIGH_R = { "LegL" }, { "LegR" }
+local SHIN_L, SHIN_R = { "ShinL", "ShoeL", "SoleL" }, { "ShinR", "ShoeR", "SoleR" }
+local UPPER_L, UPPER_R = { "ArmL" }, { "ArmR" }
+local LOWER_L, LOWER_R = { "ForeL", "HandL" }, { "ForeR", "HandR" }
 
 function CharacterModels.buildStanding(look: Types.Look, name: string, seed: number?): Rig
 	local model = Blocks.model(nil, name)
@@ -170,16 +187,28 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 	local rest: { [string]: CFrame } = {}
 	local skin = Looks.skin[look.skin] or "skin1"
 	local shirt = Looks.shirt[look.shirt] or "blue"
+	local trim = if shirt == "white" then "blue" else "cream"
 	local list: { Spec } = {
-		{ name = "ShoeL", size = Vector3.new(0.5, 0.25, 0.75), at = Vector3.new(-0.32, 0.125, 0.1), color = "black" },
-		{ name = "ShoeR", size = Vector3.new(0.5, 0.25, 0.75), at = Vector3.new(0.32, 0.125, 0.1), color = "black" },
-		{ name = "LegL", size = Vector3.new(0.5, 1.0, 0.5), at = Vector3.new(-0.32, 0.75, 0), color = "jeans" },
-		{ name = "LegR", size = Vector3.new(0.5, 1.0, 0.5), at = Vector3.new(0.32, 0.75, 0), color = "jeans" },
+		{ name = "SoleL", size = Vector3.new(0.5, 0.125, 0.75), at = Vector3.new(-0.3, 0.0625, 0.1), color = "cream" },
+		{ name = "SoleR", size = Vector3.new(0.5, 0.125, 0.75), at = Vector3.new(0.3, 0.0625, 0.1), color = "cream" },
+		{ name = "ShoeL", size = Vector3.new(0.5, 0.25, 0.625), at = Vector3.new(-0.3, 0.25, 0.06), color = "black" },
+		{ name = "ShoeR", size = Vector3.new(0.5, 0.25, 0.625), at = Vector3.new(0.3, 0.25, 0.06), color = "black" },
+		{ name = "ShinL", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(-0.3, 0.5625, 0), color = skin },
+		{ name = "ShinR", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0.3, 0.5625, 0), color = skin },
+		{ name = "LegL", size = Vector3.new(0.5, 0.5, 0.5), at = Vector3.new(-0.3, 1.0, 0), color = "jeans" },
+		{ name = "LegR", size = Vector3.new(0.5, 0.5, 0.5), at = Vector3.new(0.3, 1.0, 0), color = "jeans" },
 		{ name = "Torso", size = Vector3.new(1.25, 1.25, 0.75), at = Vector3.new(0, 1.875, 0), color = shirt },
-		{ name = "ArmL", size = Vector3.new(0.375, 1.0, 0.375), at = Vector3.new(-0.8, 1.95, 0), color = shirt },
-		{ name = "ArmR", size = Vector3.new(0.375, 1.0, 0.375), at = Vector3.new(0.8, 1.95, 0), color = shirt },
-		{ name = "HandL", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(-0.8, 1.3, 0), color = skin },
-		{ name = "HandR", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0.8, 1.3, 0), color = skin },
+		{ name = "Belt", size = Vector3.new(1.375, 0.125, 0.875), at = Vector3.new(0, 1.3125, 0), color = "wood_dark" },
+		{ name = "Buckle", size = Vector3.new(0.25, 0.125, 0.125), at = Vector3.new(0, 1.3125, 0.45), color = "gold" },
+		{ name = "Collar", size = Vector3.new(0.75, 0.125, 0.25), at = Vector3.new(0, 2.4375, 0.28), color = trim },
+		{ name = "ButtonA", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(0, 2.125, 0.4), color = trim },
+		{ name = "ButtonB", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(0, 1.75, 0.4), color = trim },
+		{ name = "ArmL", size = Vector3.new(0.375, 0.5, 0.375), at = Vector3.new(-0.8125, 2.2, 0), color = shirt },
+		{ name = "ArmR", size = Vector3.new(0.375, 0.5, 0.375), at = Vector3.new(0.8125, 2.2, 0), color = shirt },
+		{ name = "ForeL", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(-0.8125, 1.7625, 0), color = skin },
+		{ name = "ForeR", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0.8125, 1.7625, 0), color = skin },
+		{ name = "HandL", size = Vector3.new(0.5, 0.375, 0.5), at = Vector3.new(-0.8125, 1.39, 0), color = skin },
+		{ name = "HandR", size = Vector3.new(0.5, 0.375, 0.5), at = Vector3.new(0.8125, 1.39, 0), color = skin },
 	}
 	for _, sp in specs(look) do
 		if HEAD_SET[sp.name] then
@@ -188,6 +217,7 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 	end
 	for _, sp in list do
 		local p = Blocks.part(model, { size = sp.size, cf = CFrame.new(sp.at), color = sp.color, name = sp.name, shape = sp.shape, collide = false, query = false })
+		p.Size = sp.size -- exact (an art pixel and up)
 		p.CastShadow = false
 		parts[sp.name] = p
 		rest[sp.name] = CFrame.new(sp.at)
@@ -196,77 +226,266 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 	return { model = model, parts = parts, rest = rest, seed = seed or 0 }
 end
 
-local HIP_L, HIP_R = Vector3.new(-0.32, 1.25, 0), Vector3.new(0.32, 1.25, 0)
-local ARM_L, ARM_R = Vector3.new(-0.8, 2.4, 0), Vector3.new(0.8, 2.4, 0)
+local HIP_L, HIP_R = Vector3.new(-0.3, 1.25, 0), Vector3.new(0.3, 1.25, 0)
+local KNEE_L, KNEE_R = Vector3.new(-0.3, 0.75, 0), Vector3.new(0.3, 0.75, 0)
+local ARM_L, ARM_R = Vector3.new(-0.8125, 2.4, 0), Vector3.new(0.8125, 2.4, 0)
+local ELBOW_L, ELBOW_R = Vector3.new(-0.8125, 1.95, 0), Vector3.new(0.8125, 1.95, 0)
+local WAIST = Vector3.new(0, 1.25, 0)
 local STAND_NECK = Vector3.new(0, 2.5, 0)
 
--- Pose a founder at `base` (the ground between the feet, facing +Z) at time t, walking at `speed` studs a second
--- (0: standing, breathing, looking round now and then).
-function CharacterModels.poseStanding(rig: Rig, base: CFrame, t: number, speed: number)
+-- A pose: the body's lean (+ forward) and twist, a crouch (studs down; the knees bend to keep the feet down), each
+-- leg's hip and knee (+ the knee bends back), each arm's shoulder (a CFrame: -X raises it forward) and elbow (+
+-- bends forward), the head's turn, and the face.
+export type Pose = {
+	lean: number?,
+	twist: number?,
+	crouch: number?,
+	lift: number?,
+	hipL: number?,
+	kneeL: number?,
+	hipR: number?,
+	kneeR: number?,
+	armL: CFrame?,
+	elbowL: number?,
+	armR: CFrame?,
+	elbowR: number?,
+	head: CFrame?,
+	mood: string?,
+}
+
+-- The faces: the eyes' height (closed: a line), the brows' tilt and lift, the mouth's size and colour.
+type Mood = { eyeH: number, eyeDy: number, brow: number, browDy: number, mouth: Vector3, mouthColor: string, glint: boolean }
+local MOODS: { [string]: Mood } = {
+	calm = { eyeH = 0.25, eyeDy = 0, brow = 0, browDy = 0, mouth = Vector3.new(0.25, 0.125, 0.125), mouthColor = "black", glint = true },
+	fierce = { eyeH = 0.25, eyeDy = 0, brow = math.rad(24), browDy = -0.04, mouth = Vector3.new(0.375, 0.125, 0.125), mouthColor = "black", glint = true },
+	shout = { eyeH = 0.25, eyeDy = 0, brow = math.rad(24), browDy = -0.04, mouth = Vector3.new(0.25, 0.25, 0.125), mouthColor = "berry_red", glint = true },
+	hurt = { eyeH = 0.125, eyeDy = 0, brow = math.rad(-20), browDy = 0.04, mouth = Vector3.new(0.25, 0.25, 0.125), mouthColor = "berry_red", glint = false },
+	happy = { eyeH = 0.125, eyeDy = 0.06, brow = 0, browDy = 0.06, mouth = Vector3.new(0.375, 0.25, 0.125), mouthColor = "berry_red", glint = false },
+	ko = { eyeH = 0.125, eyeDy = -0.04, brow = math.rad(-12), browDy = 0, mouth = Vector3.new(0.125, 0.125, 0.125), mouthColor = "black", glint = false },
+}
+local moodOf: { [Rig]: string } = setmetatable({}, { __mode = "k" }) :: any
+local restOf: { [Rig]: { [string]: CFrame } } = setmetatable({}, { __mode = "k" }) :: any
+
+local function setMood(rig: Rig, mood: string)
+	if moodOf[rig] == mood then
+		return
+	end
+	moodOf[rig] = mood
+	local m = MOODS[mood] or MOODS.calm
+	local base = restOf[rig]
+	if base == nil then
+		base = table.clone(rig.rest)
+		restOf[rig] = base
+	end
+	for _, side in { "L", "R" } do
+		local sign = if side == "L" then -1 else 1
+		local eye = rig.parts["Eye" .. side]
+		if eye and base["Eye" .. side] then
+			eye.Size = Vector3.new(0.25, m.eyeH, 0.25)
+			rig.rest["Eye" .. side] = base["Eye" .. side] * CFrame.new(0, m.eyeDy, 0)
+		end
+		local brow = rig.parts["Brow" .. side]
+		if brow and base["Brow" .. side] then
+			rig.rest["Brow" .. side] = base["Brow" .. side] * CFrame.new(0, m.browDy, 0) * CFrame.Angles(0, 0, -sign * m.brow)
+		end
+		local glint = rig.parts["Glint" .. side]
+		if glint then
+			glint.Transparency = if m.glint then 0 else 1
+		end
+	end
+	local mouth = rig.parts.Mouth
+	if mouth then
+		mouth.Size = m.mouth
+		mouth.Color = Blocks.color(m.mouthColor)
+	end
+end
+
+-- Moves the upper and lower part of a limb: the upper about its joint, the lower about its own joint after that.
+local function limb(rig: Rig, at: CFrame, upper: { string }, pivot: Vector3, rot: CFrame, lower: { string }, pivot2: Vector3, rot2: CFrame)
+	local up = at * CFrame.new(pivot) * rot * CFrame.new(-pivot)
+	for _, n in upper do
+		local p = rig.parts[n]
+		if p then
+			p.CFrame = up * rig.rest[n]
+		end
+	end
+	local low = up * CFrame.new(pivot2) * rot2 * CFrame.new(-pivot2)
+	for _, n in lower do
+		local p = rig.parts[n]
+		if p then
+			p.CFrame = low * rig.rest[n]
+		end
+	end
+end
+
+-- Pose a standing rig at `base` (the ground between the feet, facing +Z).
+function CharacterModels.posePose(rig: Rig, base: CFrame, P: Pose)
+	setMood(rig, P.mood or "calm")
+	local crouch = P.crouch or 0
+	-- a crouch: the thighs forward and the knees back by the angle that drops the hips this far
+	local bend = math.acos(math.clamp(1 - crouch / 1.1, -1, 1))
+	local root = base * CFrame.new(0, -crouch + (P.lift or 0), 0)
+	limb(rig, root, THIGH_L, HIP_L, CFrame.Angles(-bend + (P.hipL or 0), 0, 0), SHIN_L, KNEE_L, CFrame.Angles(bend * 2 + (P.kneeL or 0), 0, 0))
+	limb(rig, root, THIGH_R, HIP_R, CFrame.Angles(-bend + (P.hipR or 0), 0, 0), SHIN_R, KNEE_R, CFrame.Angles(bend * 2 + (P.kneeR or 0), 0, 0))
+	-- the body leans and twists about the waist; the arms and the head go with it
+	local body = root * CFrame.new(WAIST) * CFrame.Angles(P.lean or 0, P.twist or 0, 0) * CFrame.new(-WAIST)
+	for _, n in BODY_PARTS do
+		local p = rig.parts[n]
+		if p then
+			p.CFrame = body * rig.rest[n]
+		end
+	end
+	limb(rig, body, UPPER_L, ARM_L, P.armL or CFrame.identity, LOWER_L, ELBOW_L, CFrame.Angles(-(P.elbowL or 0), 0, 0))
+	limb(rig, body, UPPER_R, ARM_R, P.armR or CFrame.identity, LOWER_R, ELBOW_R, CFrame.Angles(-(P.elbowR or 0), 0, 0))
+	local head = body * CFrame.new(STAND_NECK) * (P.head or CFrame.identity) * CFrame.new(-STAND_NECK)
+	for _, n in HEAD_PARTS do
+		local p = rig.parts[n]
+		if p and rig.rest[n] then
+			p.CFrame = head * rig.rest[n]
+		end
+	end
+end
+
+-- The walk or the stand (breathing, looking round now and then) at `speed` studs a second, as a Pose.
+local function walkPose(rig: Rig, t: number, speed: number): Pose
 	local ph = rig.seed * 1.3
 	local walk = math.clamp(speed / 16, 0, 1)
-	local cycle = (t + ph) * 11
-	local swing = math.sin(cycle) * math.rad(32) * walk
+	local cycle = (t + ph) * (if walk > 0.7 then 13 else 11)
+	local swing = math.sin(cycle) * math.rad(34) * walk
 	local bob = if walk > 0.05 then math.abs(math.cos(cycle)) * 0.12 * walk else math.sin((t + ph) * 2) * 0.03
-	local body = Vector3.new(0, bob, 0)
-	turn(rig, base, { "LegL", "ShoeL" }, HIP_L, CFrame.Angles(swing, 0, 0), nil)
-	turn(rig, base, { "LegR", "ShoeR" }, HIP_R, CFrame.Angles(-swing, 0, 0), nil)
-	local torso = rig.parts.Torso
-	if torso then
-		torso.CFrame = base * CFrame.new(body) * rig.rest.Torso
-	end
-	turn(rig, base, { "ArmL", "HandL" }, ARM_L, CFrame.Angles(-swing * 0.8, 0, 0), body)
-	turn(rig, base, { "ArmR", "HandR" }, ARM_R, CFrame.Angles(swing * 0.8, 0, 0), body)
 	local headRot = CFrame.identity
 	if walk <= 0.05 then
 		local look = math.sin((t + ph) * 0.6)
 		headRot = CFrame.Angles(0, if math.abs(look) > 0.85 then math.rad(20) * math.sign(look) else 0, 0)
 	end
-	turn(rig, base, HEAD_PARTS, STAND_NECK, headRot, body)
+	-- the knee bends as the leg swings back; the elbows bend a little
+	return {
+		lean = math.rad(8) * walk,
+		lift = bob,
+		hipL = -swing,
+		kneeL = math.max(0, swing) * 1.1,
+		hipR = swing,
+		kneeR = math.max(0, -swing) * 1.1,
+		armL = CFrame.Angles(swing * 0.8, 0, 0),
+		elbowL = math.rad(15) + math.max(0, -swing) * 0.6,
+		armR = CFrame.Angles(-swing * 0.8, 0, 0),
+		elbowR = math.rad(15) + math.max(0, swing) * 0.6,
+		head = headRot,
+		mood = "calm",
+	}
 end
 
--- A founder doing something (the microgames, UI/MicroStage): the walk or stand of poseStanding, then the arms (and
--- legs) of `action`, k 0..1 its progress where it has one:
---   "cheer" both arms up, waving; "hurt" arms flung out; "swing" the right arm from high up (k 0) down in front (k 1);
---   "reach" both arms out in front (holding something); "pet" the right arm patting; "cast" the right arm raised;
---   "jump" knees up and arms up; "sneak" crouched with arms forward; "dance" the arms in turn.
+-- Pose a founder at `base` walking at `speed` studs a second (0: standing, breathing, looking round now and then).
+function CharacterModels.poseStanding(rig: Rig, base: CFrame, t: number, speed: number)
+	CharacterModels.posePose(rig, base, walkPose(rig, t, speed))
+end
+
+-- A founder doing something (the islands, the battles, the cutscenes): the walk or stand of poseStanding, then the
+-- action, k 0..1 its progress where it has one:
+--   "cheer" both arms up waving, happy; "hurt" flinching back, arms flung out; "swing" the right arm from high up (k 0)
+--   down in front (k 1); "reach" both arms out in front; "pet" the right arm patting; "cast" the right arm raised;
+--   "jump" knees up and arms up; "sneak" crouched with arms forward; "dance" the arms in turn; and for the battles
+--   "windup" (crouched, leaning back, the fist drawn back: fierce), "strike" (a lunge, the fist swinging through
+--   with k: shouting), "guard" (crouched behind crossed arms), "throw" (an overhand throw with k), "run" (leaning
+--   into a sprint), "victory" (a jump with a fist pumped up), "ko" (flat on the back, eyes shut).
 function CharacterModels.poseAction(rig: Rig, base: CFrame, t: number, speed: number, action: string, k: number?)
 	local kk = math.clamp(k or 0, 0, 1)
-	local b = if action == "sneak" then base * CFrame.new(0, -0.25, 0) else base
-	CharacterModels.poseStanding(rig, b, t, if action == "jump" then 0 else speed)
-	local function arm(left: boolean, rot: CFrame)
-		turn(rig, b, if left then { "ArmL", "HandL" } else { "ArmR", "HandR" }, if left then ARM_L else ARM_R, rot, nil)
-	end
+	local P = walkPose(rig, t, if action == "run" then math.max(speed, 20) else (if action == "jump" or action == "ko" then 0 else speed))
 	if action == "cheer" then
 		local wave = math.sin(t * 12) * 0.25
-		arm(true, CFrame.Angles(0, 0, math.rad(-150 + wave * 25)))
-		arm(false, CFrame.Angles(0, 0, math.rad(150 - wave * 25)))
+		P.armL = CFrame.Angles(0, 0, math.rad(-150 + wave * 25))
+		P.armR = CFrame.Angles(0, 0, math.rad(150 - wave * 25))
+		P.elbowL, P.elbowR = math.rad(20), math.rad(20)
+		P.mood = "happy"
 	elseif action == "hurt" then
-		arm(true, CFrame.Angles(0, 0, math.rad(-100)))
-		arm(false, CFrame.Angles(0, 0, math.rad(100)))
-	elseif action == "swing" then
-		arm(false, CFrame.Angles(math.rad(-165 + 150 * kk), 0, 0))
+		P.lean = math.rad(-18)
+		P.armL = CFrame.Angles(math.rad(-20), 0, math.rad(-100))
+		P.armR = CFrame.Angles(math.rad(-20), 0, math.rad(100))
+		P.elbowL, P.elbowR = math.rad(30), math.rad(30)
+		P.head = CFrame.Angles(math.rad(-15), 0, math.rad(10))
+		P.crouch = 0.1
+		P.mood = "hurt"
+	elseif action == "swing" or action == "strike" then
+		P.lean = math.rad(16)
+		P.crouch = 0.15
+		P.hipL, P.kneeL = math.rad(-35), math.rad(10)
+		P.hipR, P.kneeR = math.rad(30), math.rad(25)
+		P.armR = CFrame.Angles(math.rad(-165 + 150 * kk), 0, 0)
+		P.elbowR = math.rad(10)
+		P.armL = CFrame.Angles(math.rad(35), 0, math.rad(-20))
+		P.elbowL = math.rad(40)
+		P.twist = math.rad(-15 + 30 * kk)
+		P.mood = "shout"
+	elseif action == "windup" then
+		P.lean = math.rad(-10)
+		P.crouch = 0.35
+		P.twist = math.rad(20)
+		P.armR = CFrame.Angles(math.rad(55), 0, math.rad(15))
+		P.elbowR = math.rad(85)
+		P.armL = CFrame.Angles(math.rad(-50), 0, 0)
+		P.elbowL = math.rad(40)
+		P.mood = "fierce"
+	elseif action == "guard" then
+		P.crouch = 0.3
+		P.lean = math.rad(6)
+		P.armL = CFrame.Angles(math.rad(-95), math.rad(-25), 0)
+		P.armR = CFrame.Angles(math.rad(-95), math.rad(25), 0)
+		P.elbowL, P.elbowR = math.rad(75), math.rad(75)
+		P.head = CFrame.Angles(math.rad(10), 0, 0)
+		P.mood = "fierce"
+	elseif action == "throw" then
+		P.lean = math.rad(-12 + 28 * kk)
+		P.armR = CFrame.Angles(math.rad(-210 + 150 * kk), 0, 0)
+		P.elbowR = math.rad(40 * (1 - kk))
+		P.armL = CFrame.Angles(math.rad(-60 + 70 * kk), 0, 0)
+		P.hipL, P.hipR = math.rad(-20), math.rad(20)
+		P.mood = "happy"
+	elseif action == "victory" then
+		local up = math.floor(t * 5) % 2 == 0
+		P.lift = if up then 0.5 else 0
+		P.armR = CFrame.Angles(0, 0, math.rad(165))
+		P.elbowR = math.rad(10)
+		P.armL = CFrame.Angles(math.rad(-30), 0, math.rad(-25))
+		P.elbowL = math.rad(90)
+		P.hipL, P.kneeL = if up then math.rad(-30) else 0, if up then math.rad(60) else 0
+		P.mood = "happy"
+	elseif action == "ko" then
+		CharacterModels.posePose(rig, base * CFrame.new(0, 0.4, 0) * CFrame.Angles(math.rad(-90), 0, 0), {
+			armL = CFrame.Angles(0, 0, math.rad(-60)),
+			armR = CFrame.Angles(0, 0, math.rad(60)),
+			head = CFrame.Angles(0, 0, math.rad(15)),
+			mood = "ko",
+		})
+		return
 	elseif action == "reach" then
-		arm(true, CFrame.Angles(math.rad(-80), 0, 0))
-		arm(false, CFrame.Angles(math.rad(-80), 0, 0))
+		P.armL, P.armR = CFrame.Angles(math.rad(-80), 0, 0), CFrame.Angles(math.rad(-80), 0, 0)
+		P.elbowL, P.elbowR = math.rad(10), math.rad(10)
 	elseif action == "pet" then
-		arm(false, CFrame.Angles(math.rad(-70 + math.sin(t * 16) * 14 * kk), 0, 0))
+		P.armR = CFrame.Angles(math.rad(-70 + math.sin(t * 16) * 14 * kk), 0, 0)
+		P.elbowR = math.rad(20)
+		P.mood = "happy"
 	elseif action == "cast" then
-		arm(false, CFrame.Angles(math.rad(-160), 0, 0))
-		arm(true, CFrame.Angles(math.rad(-35), 0, 0))
+		P.armR = CFrame.Angles(math.rad(-160), 0, 0)
+		P.armL = CFrame.Angles(math.rad(-35), 0, 0)
 	elseif action == "jump" then
-		turn(rig, b, { "LegL", "ShoeL" }, HIP_L, CFrame.Angles(math.rad(-40), 0, 0), nil)
-		turn(rig, b, { "LegR", "ShoeR" }, HIP_R, CFrame.Angles(math.rad(-25), 0, 0), nil)
-		arm(true, CFrame.Angles(0, 0, math.rad(-140)))
-		arm(false, CFrame.Angles(0, 0, math.rad(140)))
+		P.hipL, P.kneeL = math.rad(-50), math.rad(85)
+		P.hipR, P.kneeR = math.rad(-30), math.rad(60)
+		P.armL = CFrame.Angles(0, 0, math.rad(-140))
+		P.armR = CFrame.Angles(0, 0, math.rad(140))
+		P.mood = "happy"
 	elseif action == "sneak" then
-		arm(true, CFrame.Angles(math.rad(-55), 0, 0))
-		arm(false, CFrame.Angles(math.rad(-55), 0, 0))
+		P.crouch = 0.3
+		P.armL, P.armR = CFrame.Angles(math.rad(-55), 0, 0), CFrame.Angles(math.rad(-55), 0, 0)
+		P.elbowL, P.elbowR = math.rad(30), math.rad(30)
 	elseif action == "dance" then
 		local up = math.floor(t * 4) % 2 == 0
-		arm(true, CFrame.Angles(0, 0, math.rad(if up then -150 else -30)))
-		arm(false, CFrame.Angles(0, 0, math.rad(if up then 30 else 150)))
+		P.armL = CFrame.Angles(0, 0, math.rad(if up then -150 else -30))
+		P.armR = CFrame.Angles(0, 0, math.rad(if up then 30 else 150))
+		P.mood = "happy"
+	elseif action == "run" then
+		P.lean = math.rad(18)
 	end
+	CharacterModels.posePose(rig, base, P)
 end
 
 -- Where a founder's name label floats (rig space).

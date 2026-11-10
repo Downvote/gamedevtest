@@ -294,6 +294,7 @@ local function posePuppets(s: State, now: number, cheer: boolean)
 			CharacterModels.poseAction(p.rig :: CharacterModels.Rig, cf, now + p.ph, 0, if cheer then "cheer" else "stand")
 		elseif p.thing then
 			local hop = if cheer and math.floor(now * 8 + p.ph) % 2 == 0 then 0.5 else 0
+			MicroModels.animate(p.thing :: MicroModels.Thing, now + p.ph, if cheer then "cheer" else "idle", 0)
 			MicroModels.place(p.thing :: MicroModels.Thing, cf * CFrame.new(0, hop, 0))
 		end
 	end
@@ -342,7 +343,9 @@ local function moorOf(plot: number, boat: Model): (CFrame, { Vector3 }, Vector3)
 	local deck = BoatSpec.deck(level)
 	local pr = Street.pier()
 	local dz = base0.Position.Z + deck[1].Z
-	local pier = Vector3.new(ox + pr.x1 - 0.7, Street.LAWN_Y, math.clamp(dz, oz + pr.z0 + 1, oz + pr.z1 - 0.6))
+	-- (the founder's spot on the pier: its middle, two studs and more from its walls, so the character put there after
+	-- the voyage home never starts inside one of them: a 2-stud-wide character in a wall is stuck)
+	local pier = Vector3.new(ox + (pr.x0 + pr.x1) / 2, Street.LAWN_Y, math.clamp(dz, oz + pr.z0 + 2, oz + pr.z1 - 2))
 	return base0, deck, pier
 end
 
@@ -447,8 +450,9 @@ local function finish(s: State)
 	local hum = myHumanoid()
 	if hum and s.walkSpeed then
 		pcall(function()
-			hum.WalkSpeed = s.walkSpeed or 16
-			hum.JumpHeight = s.jump or 7.2
+			-- (never back to a standstill: a speed held at 0 when the hold began is the game's own default)
+			hum.WalkSpeed = if (s.walkSpeed or 0) > 0 then s.walkSpeed :: number else 16
+			hum.JumpHeight = if (s.jump or 0) > 0 then s.jump :: number else 7.2
 		end)
 	end
 	if state == s then

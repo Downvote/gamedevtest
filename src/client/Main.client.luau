@@ -1,6 +1,6 @@
 --!strict
 -- Client bootstrap (docs/ARCHITECTURE.md 8): the server's mirror first, then the camera and the pixel filter, the
--- interface, the office's life and the HUD.
+-- day and night, the interface, the island's life and the HUD.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
@@ -13,6 +13,7 @@ local WorldView = require(script.Parent.Controllers.WorldView)
 local AvatarView = require(script.Parent.Controllers.AvatarView)
 local StreetLife = require(script.Parent.Controllers.StreetLife)
 local Hud = require(script.Parent.UI.Hud)
+local DayLight = require(script.Parent.Controllers.DayLight)
 
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
@@ -25,6 +26,7 @@ CameraController.init()
 StateClient.waitView()
 CameraController.start()
 PixelRenderer.start()
+DayLight.start()
 UIKit.init()
 WorldView.init()
 WorldView.start()

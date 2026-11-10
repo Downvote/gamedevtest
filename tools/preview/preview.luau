@@ -293,6 +293,26 @@ function SCEN.water()
 	return p
 end
 
+-- The day and night (GAME_DESIGN 8): the village at dusk (dusk), at night with its lamps, torches and fire lit
+-- (night), and at dawn (dawn): UI/DayLight held at that time of day.
+local function timeScenario(frac, name)
+	return function()
+		seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+		local p = join(2, "Villager")
+		settle(p)
+		local DL = modOr(p, "Controllers.DayLight")
+		if DL then
+			H.inClient(p, DL.debugSet, frac)
+		end
+		E.run(1.5)
+		capture(p, name)
+		return p
+	end
+end
+SCEN.dusk = timeScenario(0.7, "dusk")
+SCEN.night = timeScenario(0.88, "night")
+SCEN.dawn = timeScenario(0.02, "dawn")
+
 local function islandScenario(tier, label)
 	return function()
 		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, folk = if tier == 3 then 12 else 6, pals = PALS, islets = tier + 1, shells = 60000, wood = 5000 })
@@ -434,6 +454,16 @@ local function expScenario(spec)
 			end
 			H.inClient(p, EUI.debugAct, "fight")
 			E.run(1.5)
+		elseif what == "fight" and s.exp and s.exp.battle then
+			-- a round frame by frame (exp_<n>_fight_000 ..: make_gif.py makes a GIF): Fight tapped, the wind-ups,
+			-- dashes, strikes, hit-stops and knock-backs of both sides
+			settle(p, 10, 0.5)
+			H.clickNamed(p, "Act_fight", { wait = 0 })
+			for k = 0, 39 do
+				capture(p, string.format("exp_%s_%03d", spec, k))
+				E.run(0.07)
+			end
+			return p
 		elseif s.exp and s.exp.battle then
 			-- a round played: the numbers, the bars
 			H.inClient(p, EUI.debugAct, "fight")

@@ -45,7 +45,11 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
   respecting the pixel grid").
 - **Villagers** are little chibis (their own looks) walking the island and working at their buildings (hoeing,
-  chopping, selling); **driftlings** are small 3D creatures of our own design hopping about and helping.
+  chopping, selling): shorts over bare shins, shoes on light soles, a shirt with a collar, buttons and a belt with a
+  buckle, sleeves over bare forearms and fists, ears, brows, a mouth and a glint in each eye; knees and elbows bend,
+  and the face changes (fierce, shouting, hurt, happy, out cold). **Driftlings** are small 3D creatures of our own
+  design hopping about and helping, each with its own details (moss and stubby arms on the pebble, bubbles on the
+  crab, whiskers and a sprout on the bun, wing bones on the bat...) and limbs that move (§7).
 - **Interface:** pixel-art plates with stepped corners, the pixel font, no borders; every driftling has a 16x16
   portrait and the island's things 11x11 icons, drawn by the rules below.
 - **The founder:** you walk your island and the boardwalk as a chibi founder (§9).
@@ -202,8 +206,9 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 
   Sail home (or a won or lost expedition's end) closes the ink blinds over the islet on "<name>'s Isle" (or "Home
   again!"); behind them the island comes back, the blinds open on the boat sailing in from the sea with the party on
-  deck, the view following it to the pier; your founder hops onto the pier, the party cheers, the HUD comes back and
-  the loot is shown. Back to island (the expedition waits) closes and opens the blinds the same way, without the
+  deck, the view following it to the pier; your founder hops onto the middle of the pier (well clear of its rails,
+  free to walk off: the bug of the request below, a founder put against the pier's wall and stuck there, is fixed),
+  the party cheers, the HUD comes back and the loot is shown. Back to island (the expedition waits) closes and opens the blinds the same way, without the
   boat.
 - **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
   strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
@@ -224,10 +229,32 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   villagers as their chibis, driftlings as their models) and the wild ones dropping in on the right. Along the top:
   the island's name and level, the loot so far, the path of stops (the ones ahead hidden but
   the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
-  the party's cards with their health bars and levels, and the buttons (Go on and Sail home between stops; Fight,
-  Guard, Treat and Flee in battle; Space or 1-4 on a keyboard). A round plays back: lunges, flashes, damage numbers,
-  skills' names, heals, shells, a treat's hearts, knock-outs; a win shows its xp, shells and level-ups, a new friend
-  its portrait with confetti, a guardian's fall the island charted.
+  the party's cards with their health bars and levels, and the buttons (Sail home between stops; Fight, Guard,
+  Treat and Flee in battle; Space or 1-4 on a keyboard). A win shows its xp, shells and level-ups, a new friend its
+  portrait with confetti, a guardian's fall the island charted.
+
+> The request (2026-11-10): "after returning home, the player gets stuck at the bay. also, make animations much more
+> expressive and detailed, such as attack animations. make character and creature models much more detailed as
+> wellmake it such that there is no need to click on "go on", it automatically goes on. also, make an actual day
+> night cycle, causing things to go dark and then bright as time goes on"
+
+- **It goes on by itself:** between stops there is no Go on to tap: a bar fills (`AUTO_GO`, 1.8 s) and the party
+  walks on to the next stop (Space, or a tap on the bar, goes at once); a won battle's card goes by itself after
+  `AUTO_CARD` (3 s, its bar running down). The guardian's fall and a defeat still wait for Sail home; battles still
+  wait for your move.
+- **Battles move:** a round plays back blow by blow. An attacker winds up (crouching back, squashed, the founder and
+  villagers drawing a fist back with a fierce face), dashes right up to its target (stretched, kicking up dust),
+  strikes (a lunge and a swing with a shout, a bite or a ram leaning in), and hops back home. The blow freezes the
+  action for a few frames, shakes the picture, flashes the one hit and bursts into sparks; the one hit is knocked
+  back leaning away (a flinch, a cry, eyes shut), or, when it is down, sent flying with a spin to lie flat (dust and
+  stars). Skills have their own moves: a bash leaps high and slams down (a bigger shake, dust and debris), quick
+  strikes three times in a blur of afterimages, a zap charges up in sparks where it stands and throws a bolt, a heal
+  spins up with green bits and the healed one bounces, Shell Guard has everyone hunker down behind a glint, Rally
+  sets them jumping. Guard crouches the party behind crossed arms; a treat is thrown in an arc and the wild one hops
+  for joy with hearts, or shakes its head; fleeing turns everyone round to sprint off, or trip over their feet; a win
+  has the party jumping and spinning in turn. Every driftling's limbs move with it: wings flap, claws and pincers
+  snap open on the strike, tails wag, ears twitch (and droop when hurt), eyes blink and shut when hurt, mouths open to
+  bite, cry or cheer.
 
 ## 8. The islands and the sea (`Data/Street`, `Models/StreetModels`, `Models/DecorModels`)
 
@@ -245,6 +272,13 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond, the fountain and the islets' seas and pools move the same way.
+- **Day and night** (the request in §7: "make an actual day night cycle, causing things to go dark and then bright
+  as time goes on"): the island's day clock grades the whole picture (`Controllers/DayLight`): a rosy dawn as the day
+  begins, plain daylight, a golden dusk (from 0.6 of the day), a violet twilight and a deep blue night (from 0.81)
+  that brightens into the next dawn. At night the lamps, torches, the campfire, lanterns and lit windows keep their
+  colour and pool warm light round them in three stepped rings on the pixel grid. The change steps (a few steps
+  between keys, never a smear). An islet's screen keeps its daylight; with the pixel filter off Roblox's own clock
+  follows the day instead.
 - **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
   each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with your
   moored boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own
@@ -318,6 +352,9 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   cross both ways, gulls cross now and then, clouds' shadows slide over the islands; each island's campfire flickers and smokes.
 - **Coming home:** blinds close over the islet and open on the boat sailing home to the pier, the founder hopping
   off and the party cheering (§7).
+- **Battles** play blow by blow (§7): wind-ups, dashes, strikes with hit-stop and shake, knock-backs, knock-outs,
+  each skill its own move, the driftlings' limbs alive; the islands' driftlings blink, wag and step too.
+- **Night falls** and the lamps light up (§8).
 - **The islet's screen:** ink blinds open from the middle on the island's name; after the cutscene the boat brings
   the party ashore (back from the island they drop in from above in puffs of dust), the wild ones drop in; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
