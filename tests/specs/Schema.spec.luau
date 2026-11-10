@@ -6,6 +6,7 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Plot = require("../../build/luautest/shared/Logic/Plot")
 local Island = require("../../build/luautest/shared/Logic/Island")
 local Util = require("../../build/luautest/shared/Logic/Util")
+local Traits = require("../../build/luautest/shared/Data/Traits")
 
 -- a JSON-like round trip (what a DataStore keeps): numbers, strings, booleans and tables only
 local function roundTrip(v: any): any
@@ -44,7 +45,7 @@ local function played(): any
 	local rng = Util.newRng(3)
 	Island.turn(p, rng)
 	Island.newDay(p)
-	table.insert(p.pals, { id = p.nextId, sp = "pebblit", lvl = 3, xp = 5, work = p.plot.placed[4].uid })
+	table.insert(p.pals, { id = p.nextId, sp = "pebblit", lvl = 3, xp = 5, work = p.plot.placed[4].uid, muts = { "sturdy2", "lazy" } })
 	p.nextId += 1
 	p.seen.pebblit = 2
 	p.seen.clawdle = 1
@@ -145,6 +146,26 @@ return function()
 		T.eq(q.sea, 77)
 		T.eq(q.boat, #Tuning.BoatRadius, "a boat past the top: the top")
 		T.deepEq(q.chart, { 3, 7 }, "only islands of the chart, each once")
+	end)
+	T.it("a version 6 save: each driftling rolls its mutations once, the same every load; a later save keeps its own", function()
+		local raw = function(): any
+			return { v = 6, sea = 5, pals = { { id = 9, sp = "pebblit", lvl = 2, xp = 0, work = 0 }, { id = 10, sp = "solwyrm", lvl = 30, xp = 0, work = 0 } } }
+		end
+		local a = Schema.reconcile(raw(), 2000, 9) :: any
+		local b = Schema.reconcile(raw(), 2000, 9) :: any
+		T.eq(#a.pals, 2)
+		for i, x in a.pals do
+			T.truthy(type(x.muts) == "table" and #x.muts <= Traits.MAX, "a list of mutations")
+			T.deepEq(x.muts, b.pals[i].muts, "the same roll every load")
+			for _, id in x.muts do
+				T.truthy(Traits.byId[id] ~= nil, id)
+			end
+		end
+		-- a version 7 save's own list: kept, cleaned (unknown ids, a family twice, past MAX)
+		local c = Schema.reconcile({ v = 7, pals = { { id = 4, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = { "fierce2", "nope", "fierce4", 7, "swift1", "bright3", "busy1", "sturdy1" } } } }, 2000, 9) :: any
+		T.deepEq(c.pals[1].muts, { "fierce2", "swift1", "bright3", "busy1" })
+		local d = Schema.reconcile({ v = 7, pals = { { id = 4, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = "x" } } }, 2000, 9) :: any
+		T.deepEq(d.pals[1].muts, {}, "garbage: none")
 	end)
 	T.it("a version 1 save loads too", function()
 		local p = Schema.reconcile({ v = 1, money = 5, staff = {} }, 2000, 9)

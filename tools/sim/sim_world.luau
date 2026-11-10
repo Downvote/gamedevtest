@@ -129,7 +129,7 @@ for k, p in { a, b } do
 		table.insert(prof.folk, { id = prof.nextId, name = "Folk" .. j, look = { skin = j, hair = j, style = j, shirt = j }, work = if j == 1 then prof.plot.placed[1].uid else 0, lvl = 1, xp = 0, seed = j, day = 1 })
 		prof.nextId += 1
 	end
-	table.insert(prof.pals, { id = prof.nextId, sp = "mossbun", lvl = 2, xp = 0, work = prof.plot.placed[1].uid })
+	table.insert(prof.pals, { id = prof.nextId, sp = "mossbun", lvl = 2, xp = 0, work = prof.plot.placed[1].uid, muts = {} })
 	prof.nextId += 1
 	prof.seen.mossbun = 2
 	H.push(p, 0.2)

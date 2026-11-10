@@ -369,6 +369,7 @@ function H.checkProfile(p, label)
 	local Buildings = H.sharedServer("Data.Buildings")
 	local Creatures = H.sharedServer("Data.Creatures")
 	local Office = H.sharedServer("Data.Office")
+	local Traits = H.sharedServer("Data.Traits")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
 	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "nextId", "tut" } do
@@ -413,6 +414,8 @@ function H.checkProfile(p, label)
 		H.expect(d ~= nil, "profile", label .. ": an unknown species", tostring(x.sp))
 		H.expect(x.lvl >= 1 and x.lvl <= Tuning.LevelMax and finite(x.xp) and x.xp >= 0, "profile", label .. ": a driftling's level", tostring(x.lvl))
 		H.expect((prof.seen[x.sp] or 0) == 2, "profile", label .. ": a driftling not marked befriended", tostring(x.sp))
+		local clean = Traits.clean(x.muts)
+		H.expect(type(x.muts) == "table" and #clean == #x.muts, "profile", label .. ": a driftling's mutations not a clean list (known, a family once, at most four)", tostring(x.muts and #x.muts))
 		if x.work ~= 0 then
 			local q = uids[x.work]
 			local b = q and Buildings.byId[q.id]

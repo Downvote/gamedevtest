@@ -57,7 +57,7 @@ E.runUntil(function()
 	return #prof.folk >= 1
 end, Tuning.TurnSeconds + 3, 0.1)
 H.expect(#prof.folk == 1, "save", "a villager moved in", tostring(#prof.folk))
-table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", lvl = 3, xp = 4, work = 0 })
+table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", lvl = 3, xp = 4, work = 0, muts = { "angler2", "lazy" } }) -- (its mutations kept through the save)
 prof.nextId += 1
 prof.seen.gullfin = 2
 prof.founder.shirt = 5

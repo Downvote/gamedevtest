@@ -206,6 +206,18 @@ pup, mole, jelly, fox, wyrm, seal, bat, sprite, yeti, and the new snail, turtle,
   shops: "Snappy Pincers: +10% attack, +15% at fishing", "Fertile Trail: +30% at farms"). In battle the shares scale
   its stats (`Battle.applyFx`; a wild one has its passive too); at work a helper adds `PalBoost` x (1 + its share at
   that building's knack) (`Island.palWork`), so a woodsy driftling at the lumber camp is worth more than any other there.
+- **Mutations** (`Data/Traits`, `Pal.muts`): every wild driftling is born with up to three (about one in three none),
+  rolled when it appears (`Traits.roll`; a guardian rolls as one rarity rarer) and kept when it is befriended, so
+  the player picks whom to befriend: the fighter cards show them as pips in their tier's colour (best first), and
+  aiming a snack names the pick's ("Magmole: Savage, Nimble"). Ten families of four tiers, each tier rarer and
+  stronger: Sturdy / Hardy / Ironhide / Titanic (health +8 / 15 / 25 / 40%), Feisty .. Ferocious (attack), Thickskin
+  .. Fortress (defence), Nimble .. Lightning (speed +6 .. 32%), Curious .. Genius (learning +10 .. 60%: more xp from
+  every win), Busy .. Workaholic (work anywhere), and Green Thumb .. Bountiful, Angler .. Sea Sage, Chopper .. Forest
+  Heart, Chatty .. Tycoon (+12 .. 65% at farms, fishing, lumber, shops). Tier weights 46 / 25 / 10 / 3 (and 16 for a
+  **flaw**: Frail, Timid, Clumsy, Sluggish, Lazy, a little worse, never beside its own family's strength); a rarer
+  kind rolls fewer flaws and more of the top tiers. A driftling carries four at most (a Hatchery child can gain one,
+  §6.1). Each counts in battle and at work like the passive, and their names show in tier colours (with stars) on
+  the Driftlings panel; a new friend's alert says what it was born with ("Born Savage, Nimble").
 
 A befriended driftling needs a free nest slot (`PalsMax` at most) and starts helping where its knack is needed. The
 Driftlings panel shows each (portrait, its name in its rarity's colour, level, skill, its passive, its mutations, where
@@ -499,8 +511,9 @@ stall, the tent and the nest of the tips cost 280.
 
 ## 10. Saves and the economy, checked
 
-The save is version 6 (`Logic/Schema`): a version 5 save keeps everything, its tips moved to the new steps, and gets
-its sea seed, a level 1 boat and an empty chart; an older save (the game studio's) keeps the founder's look, the
+The save is version 7 (`Logic/Schema`): a version 6 save keeps everything and each of its driftlings rolls its
+mutations once (from its kind and id: the same every load); a version 5 save keeps everything, its tips moved to the
+new steps, and gets its sea seed, a level 1 boat and an empty chart; an older save (the game studio's) keeps the founder's look, the
 settings and its start date and begins a fresh island with the tips. `tests/Career.luau` plays a sensible player through the same
 rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 

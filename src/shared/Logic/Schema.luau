@@ -7,6 +7,7 @@ local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Looks = require(script.Parent.Parent.Data.Looks)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Traits = require(script.Parent.Parent.Data.Traits)
 local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
@@ -18,7 +19,7 @@ local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone)
-Schema.VERSION = 6
+Schema.VERSION = 7
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -98,6 +99,8 @@ end
 --           nest and sail" tip (3) goes to it (5), one on the last tip (4) to the new last (6). The sea chart comes in:
 --           reconcile gives the save its own sea (from the player's seed), the first boat and no island charted yet
 --           (the islands charted before stay counted).
+--   6 -> 7: driftlings carry mutations (Data/Traits): each friend from before rolls its own once, from its id and kind
+--           (the same save always rolls the same), as a wild one of its rarity would.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -120,6 +123,18 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 			raw.tut = 6
 		end
 		v = 6
+	end
+	if v < 7 then
+		if type(raw.pals) == "table" then
+			for _, x in raw.pals do
+				if type(x) == "table" and type(x.sp) == "string" and x.muts == nil then
+					local cd = Creatures.byId[x.sp]
+					local rng = Util.newRng(Util.hash32(x.sp .. ":" .. tostring(x.id)))
+					x.muts = Traits.roll(rng, if cd then cd.rarity else 1)
+				end
+			end
+		end
+		v = 7
 	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
@@ -212,7 +227,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					if work ~= 0 then
 						helpTaken[work] = true
 					end
-					table.insert(pals, { id = id, sp = x.sp, lvl = lv.lvl, xp = lv.xp, work = work })
+					table.insert(pals, { id = id, sp = x.sp, lvl = lv.lvl, xp = lv.xp, work = work, muts = Traits.clean(x.muts) })
 				end
 			end
 		end

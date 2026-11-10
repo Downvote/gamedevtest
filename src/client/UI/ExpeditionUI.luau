@@ -1062,6 +1062,49 @@ local function updateTimers()
 	end
 end
 
+-- A driftling's mutations as pips (5x5: a 1 px ink outline, its tier's colour, a lit corner), right-aligned to `right`
+-- at `y`, the best tier first; how wide they are (0 for none).
+local function mutPips(parent: Instance, muts: { string }?, right: number, y: number, z: number): number
+	local list = table.clone(muts or {})
+	table.sort(list, function(a, b)
+		local ma, mb = Traits.byId[a], Traits.byId[b]
+		return (if ma then ma.tier else -1) > (if mb then mb.tier else -1)
+	end)
+	local n = 0
+	for _, id in list do
+		local m = Traits.byId[id]
+		if m and n < Traits.MAX then
+			local x = right - (n + 1) * 6 + 1
+			local pip = UIKit.rect(parent, UDim2.fromOffset(5, 5), UDim2.fromOffset(x, y), UIKit.color("ink"), z)
+			pip.Name = "Mut_" .. id
+			local col = UIKit.color(Traits.TIER_COLOR[m.tier] or "text")
+			UIKit.rect(pip, UDim2.fromOffset(3, 3), UDim2.fromOffset(1, 1), col, z + 1)
+			UIKit.rect(pip, UDim2.fromOffset(1, 1), UDim2.fromOffset(1, 1), col:Lerp(Color3.new(1, 1, 1), 0.5), z + 2)
+			n += 1
+		end
+	end
+	return if n > 0 then n * 6 else 0
+end
+
+-- A list of mutations in words ("Savage, Swift, Lazy"), the best tier first, and the best tier's colour.
+local function mutWords(muts: { string }?): (string, Color3)
+	local list = table.clone(muts or {})
+	table.sort(list, function(a, b)
+		local ma, mb = Traits.byId[a], Traits.byId[b]
+		return (if ma then ma.tier else -1) > (if mb then mb.tier else -1)
+	end)
+	local names: { string } = {}
+	local best = -1
+	for _, id in list do
+		local m = Traits.byId[id]
+		if m then
+			table.insert(names, m.name)
+			best = math.max(best, m.tier)
+		end
+	end
+	return table.concat(names, ", "), UIKit.color(Traits.TIER_COLOR[math.max(best, 0)] or "text")
+end
+
 -- A fighter's card: its portrait or icon, name and level, its health bar (a tap picks it while aiming).
 local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: number, w: number, foe: boolean): Frame
 	local selected = aim ~= nil and (aim :: Aim).target == f.key
@@ -1077,7 +1120,9 @@ local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: num
 	-- (a rare wild one's name in its rarity's colour: Data/Traits)
 	local cd = if f.sp then Creatures.byId[f.sp :: string] else nil
 	local nameCol = if cd and cd.rarity >= 3 then UIKit.color((Traits.RARITY[cd.rarity] or Traits.RARITY[1]).color) else UIKit.color("text")
-	UIKit.text(card, f.name, UDim2.fromOffset(w - 20, 9), UDim2.fromOffset(19, 0), { color = if selected then UIKit.color("ink") else nameCol, kind = if selected then "plain" else nil, z = 11, name = "Name" })
+	-- its mutations as pips in the top corner, the best tier first (a flaw red): which wild one is worth a snack
+	local pipsW = mutPips(card, f.muts, w - 2, 1, 11)
+	UIKit.text(card, f.name, UDim2.fromOffset(w - 20 - pipsW, 9), UDim2.fromOffset(19, 0), { color = if selected then UIKit.color("ink") else nameCol, kind = if selected then "plain" else nil, z = 11, name = "Name" })
 	-- the level beside the health bar (a long name keeps the whole top line)
 	local lv = "Lv" .. f.lvl
 	local lvW = UIKit.textWidth(lv)
@@ -1884,6 +1929,10 @@ playRound = function(data: { [string]: any })
 			local d = Creatures.byId[data.friend.sp]
 			icon = "icon_" .. data.friend.sp
 			table.insert(lines, 1, { text = (if d then d.name else "A driftling") .. " joined your island!", color = UIKit.color("pink") })
+			local words, col = mutWords(data.friend.muts)
+			if words ~= "" then
+				table.insert(lines, 2, { text = "Born " .. words, color = col })
+			end
 		end
 		if data.reward then
 			table.insert(lines, 1, { text = string.format("The guardian is beaten! +%s shells", Numbers.int(tonumber(data.reward) or 0)), color = UIKit.color("accent") })
@@ -1915,7 +1964,8 @@ playRound = function(data: { [string]: any })
 	elseif type(data.friend) == "table" and type(data.friend.sp) == "string" then
 		-- befriended mid-battle (others still fighting)
 		local d = Creatures.byId[data.friend.sp]
-		UIKit.notice((if d then d.name else "A driftling") .. " joined your island!", UIKit.color("pink"), 3)
+		local words = mutWords(data.friend.muts)
+		UIKit.notice((if d then d.name else "A driftling") .. " joined your island!" .. (if words ~= "" then " (" .. words .. ")" else ""), UIKit.color("pink"), 3)
 	end
 end
 
@@ -2185,12 +2235,26 @@ refresh = function()
 		local hint = string.format("pick %s, tap again to %s", who2, if a.kind == "snack" then "throw" else "use")
 		-- what is aimed and how, on a small plate over the middle of the footer (the cards keep their room on a phone)
 		local line1 = string.format("%s: %s", what, whoName)
-		local tw = math.min(w - 8, math.max(UIKit.textWidth(line1), UIKit.textWidth(hint)) + 14)
-		local tip = UIKit.plate(r, UDim2.fromOffset(tw, 25), UDim2.fromOffset(math.floor((w - tw) / 2), h - FOOT_H - 29), UIKit.color("plate"), 0.08, 2)
+		-- a snack's pick: what it was born with (its mutations), so the player can choose whom to befriend
+		local line3, col3 = "", UIKit.color("text_dim")
+		if a.kind == "snack" and a.target then
+			for _, f in b.foes do
+				if f.key == a.target then
+					local words, col = mutWords(f.muts)
+					line3, col3 = if words ~= "" then f.name .. ": " .. words else f.name .. ": no mutations", if words ~= "" then col else UIKit.color("text_dim")
+				end
+			end
+		end
+		local tw = math.min(w - 8, math.max(UIKit.textWidth(line1), UIKit.textWidth(hint), UIKit.textWidth(line3)) + 14)
+		local th = if line3 ~= "" then 34 else 25
+		local tip = UIKit.plate(r, UDim2.fromOffset(tw, th), UDim2.fromOffset(math.floor((w - tw) / 2), h - FOOT_H - th - 4), UIKit.color("plate"), 0.08, 2)
 		tip.Name = "AimTip"
 		tip.ZIndex = 10
 		UIKit.text(tip, line1, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 2), { x = "center", color = UIKit.color("accent"), z = 11, name = "AimWhat" })
-		UIKit.text(tip, hint, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 13), { x = "center", color = UIKit.color("text_dim"), z = 11, name = "AimHint" })
+		if line3 ~= "" then
+			UIKit.text(tip, line3, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 11), { x = "center", color = col3, z = 11, name = "AimMuts" })
+		end
+		UIKit.text(tip, hint, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, th - 12), { x = "center", color = UIKit.color("text_dim"), z = 11, name = "AimHint" })
 		button(foot, if a.kind == "snack" then "Throw!" else "Use!", bx, 4, 100, UIKit.color("button_ok"), a.target ~= nil, function()
 			task.spawn(useAim)
 		end, "Aim_use")

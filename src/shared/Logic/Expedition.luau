@@ -382,15 +382,22 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 		local lvl = Expedition.levelAt(isle, e.node)
 		local boost = Expedition.boostAt(e.node)
 		local foes: { Fighter } = {}
+		-- each born with its mutations (Data/Traits: a guardian rolls as one rarity rarer)
+		local function born(sp: string, up: number): { string }
+			local cd = Creatures.byId[sp]
+			return Traits.roll(rng, (if cd then cd.rarity else 1) + up)
+		end
 		if kind == "boss" then
-			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost))
+			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost, born(isle.boss, 1)))
 			if isle.lvl >= 4 or Expedition.guardianAt(e.node) > 1 then
-				table.insert(foes, Battle.wild(Expedition.pickWild(isle, rng), lvl, 2, false, nil, boost))
+				local sp = Expedition.pickWild(isle, rng)
+				table.insert(foes, Battle.wild(sp, lvl, 2, false, nil, boost, born(sp, 0)))
 			end
 		else
 			local n = rng:int(1, if isle.lvl >= 3 then 3 else 2)
 			for i = 1, n do
-				table.insert(foes, Battle.wild(Expedition.pickWild(isle, rng), lvl + rng:int(0, 1), i, false, nil, boost))
+				local sp = Expedition.pickWild(isle, rng)
+				table.insert(foes, Battle.wild(sp, lvl + rng:int(0, 1), i, false, nil, boost, born(sp, 0)))
 			end
 		end
 		for _, f in foes do
@@ -403,10 +410,11 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 	return true, out
 end
 
--- A new driftling friend from the wild one (at its level), helping where its knack is needed.
+-- A new driftling friend from the wild one (at its level, with the mutations it was born with), helping where its
+-- knack is needed.
 local function befriend(p: Profile, e: Expedition, foe: Fighter): Types.Pal
 	local sp = foe.sp :: string
-	local x: Types.Pal = { id = p.nextId, sp = sp, lvl = foe.lvl, xp = 0, work = 0 }
+	local x: Types.Pal = { id = p.nextId, sp = sp, lvl = foe.lvl, xp = 0, work = 0, muts = Traits.clean(foe.muts) }
 	p.nextId += 1
 	local d = Creatures.byId[sp]
 	if d then
@@ -424,12 +432,14 @@ function Expedition.room(p: Profile): boolean
 	return #p.pals < math.min(Tuning.PalsMax, Island.nests(p))
 end
 
--- The party's xp after a win, onto the profile's captain, villagers and driftlings (their fighters grow with them).
+-- The party's xp after a win, onto the profile's captain, villagers and driftlings (their fighters grow with them; a
+-- driftling's learning share, its passive's and mutations', grows its own: Data/Traits `xp`).
 local function share(p: Profile, e: Expedition, xp: number): { [string]: number }
 	local ups: { [string]: number } = {}
 	local each = math.floor(xp / math.max(1, #e.party) + 0.5)
 	for i, f in e.party do
 		local who: { lvl: number, xp: number }? = nil
+		local gain = each
 		if f.key == "f" then
 			who = p.cap
 		else
@@ -438,11 +448,15 @@ local function share(p: Profile, e: Expedition, xp: number): { [string]: number 
 			if kind == "v" then
 				who = villager(p, n)
 			elseif kind == "p" then
-				who = pal(p, n)
+				local x = pal(p, n)
+				who = x
+				if x then
+					gain = math.floor(each * math.max(0.5, 1 + (Battle.fxOf(x.sp, x.muts).xp or 0)) + 0.5)
+				end
 			end
 		end
 		if who then
-			local up = Island.gain(who, each)
+			local up = Island.gain(who, gain)
 			if up > 0 then
 				ups[f.key] = up
 				local fresh = Expedition.fighter(p, f.key)

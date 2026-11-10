@@ -112,6 +112,7 @@ function Battle.pal(pal: Types.Pal, extra: Traits.Fx?): Fighter
 	local d = Creatures.byId[pal.sp]
 	local f = make("p" .. pal.id, if d then d.name else pal.sp, "pal", Battle.speciesBase(pal.sp), pal.lvl)
 	f.sp = pal.sp
+	f.muts = pal.muts
 	local fx = Battle.fxOf(pal.sp, pal.muts)
 	if extra then
 		for key, v in extra do
@@ -122,11 +123,16 @@ function Battle.pal(pal: Types.Pal, extra: Traits.Fx?): Fighter
 	return f
 end
 
-function Battle.wild(sp: string, lvl: number, i: number, boss: boolean, name: string?, boost: number?): Fighter
+-- A wild one: its species' stats at the level (a guardian's and a later stage's boosted), its passive and the
+-- mutations it was born with (`muts`: Traits.roll, kept if it is befriended).
+function Battle.wild(sp: string, lvl: number, i: number, boss: boolean, name: string?, boost: number?, muts: { string }?): Fighter
 	local d = Creatures.byId[sp]
 	local f = make("w" .. i, name or (if d then d.name else sp), "wild", Battle.speciesBase(sp), lvl, (if boss then Tuning.BossBoost else 1) * (boost or 1))
-	Battle.applyFx(f, Battle.fxOf(sp, nil))
+	Battle.applyFx(f, Battle.fxOf(sp, muts))
 	f.sp = sp
+	if muts and #muts > 0 then
+		f.muts = muts
+	end
 	return f
 end
 

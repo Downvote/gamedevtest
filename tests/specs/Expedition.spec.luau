@@ -8,6 +8,7 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Islets = require("../../build/luautest/shared/Data/Islets")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
 local Util = require("../../build/luautest/shared/Logic/Util")
+local Traits = require("../../build/luautest/shared/Data/Traits")
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
@@ -163,12 +164,15 @@ return function()
 		local food = p.food
 		local joined = nil
 		local thrown = 0
+		local born: { [string]: { string } } = {}
 		while e.battle and e.snacks > 0 do
 			local target = nil
 			for _, f in e.battle.foes do
 				if f.hp > 0 then
 					f.hp = 1 -- (worn out: the snack likelier caught)
 					target = f.key
+					f.muts = { "fierce3", "lazy" } -- (born with these: they come along)
+					born[f.key] = f.muts :: { string }
 				end
 			end
 			local ok, data = Expedition.snack(p, e, target, rng)
@@ -186,6 +190,9 @@ return function()
 			T.eq(p.seen[joined.sp], 2)
 			T.eq(p.stats.befriended, #p.pals)
 			T.eq(e.befriended[#e.befriended], joined.sp)
+			T.deepEq(p.pals[#p.pals].muts, { "fierce3", "lazy" }, "its mutations come with it")
+			local f = Expedition.fighter(p, "p" .. p.pals[#p.pals].id)
+			T.truthy(f ~= nil and f.muts ~= nil, "and its fighter carries them")
 		end
 		-- none left: refused
 		e.snacks = 0
@@ -260,6 +267,52 @@ return function()
 		T.truthy((byRarity[1] or 0) > (byRarity[2] or 0) and (byRarity[2] or 0) > (byRarity[3] or 0), "commons, then uncommons, then rares")
 		T.truthy((byRarity[3] or 0) > (byRarity[4] or 0) and (byRarity[4] or 0) > (byRarity[5] or 0), "rares, then epics, then legends")
 		T.truthy((byRarity[5] or 0) > 0, "a legend does turn up")
+	end)
+	T.it("wild ones are born with mutations (a guardian a rarity up); a driftling's learning share grows its xp", function()
+		local p = fresh()
+		p.cap.lvl = 30
+		local isle = Expedition.chart(20, 77)
+		local _, e = Expedition.start(p, isle, {})
+		local rng = Util.newRng(21)
+		local seen, with = 0, 0
+		for _ = 1, 60 do
+			while e.battle == nil do
+				Expedition.next(p, e, rng)
+			end
+			for _, f in e.battle.foes do
+				seen += 1
+				if f.muts then
+					with += 1
+					T.deepEq(Traits.clean(f.muts), f.muts, "a clean list")
+				end
+			end
+			e.battle = nil
+		end
+		T.truthy(with > seen * 0.4 and with < seen, "most, not all, carry some")
+		-- the learning share: a Genius driftling gains more from the same win
+		local function xpAfter(muts: { string }): number
+			local q = fresh()
+			q.cap.lvl = 30
+			table.insert(q.plot.placed, { uid = 900, id = "nest", x = 0, z = 0, rot = 0 })
+			table.insert(q.pals, { id = 50, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = muts })
+			local _, ex = Expedition.start(q, Expedition.chart(1, 3), { "p50" })
+			local r = Util.newRng(5)
+			while ex.battle == nil do
+				Expedition.next(q, ex, r)
+			end
+			for _, f in ex.battle.foes do
+				f.hp = 0
+			end
+			ex.battle.paused = false
+			for _ = 1, 400 do
+				local _, out = Expedition.tick(q, ex, 0.25, r)
+				if out and out.result then
+					break
+				end
+			end
+			return q.pals[1].lvl * 1000 + q.pals[1].xp
+		end
+		T.truthy(xpAfter({ "bright4" }) > xpAfter({}), "Genius learns faster")
 	end)
 	T.it("the tips: setting sail moves them to fighting, the first battle's end to catching, a friend to the last", function()
 		local p = fresh()

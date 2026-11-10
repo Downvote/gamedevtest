@@ -167,7 +167,7 @@ end
 local palsKeep = prof.pals
 prof.pals = {}
 for k = 1, 6 do
-	table.insert(prof.pals, { id = prof.nextId, sp = "pebblit", lvl = 1, xp = 0, work = 0 })
+	table.insert(prof.pals, { id = prof.nextId, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = {} })
 	prof.nextId += 1
 end
 prof.seen.pebblit = 2

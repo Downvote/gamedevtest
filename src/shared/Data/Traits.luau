@@ -32,25 +32,26 @@ Traits.TIER_COLOR = { [0] = "bad", [1] = "text", [2] = "good", [3] = "button", [
 Traits.TIER_STARS = { [0] = "", [1] = "*", [2] = "**", [3] = "***", [4] = "****" } :: { [number]: string }
 
 -- The families: what each tier is called and gives (rarer tiers give much more).
-local FAMILIES: { { family: string, key: string, names: { string }, values: { number }, blurb: string } } = {
-	{ family = "sturdy", key = "hp", names = { "Sturdy", "Hardy", "Ironhide", "Titanic" }, values = { 0.08, 0.15, 0.25, 0.4 }, blurb = "more health" },
-	{ family = "fierce", key = "atk", names = { "Feisty", "Fierce", "Savage", "Ferocious" }, values = { 0.08, 0.15, 0.25, 0.4 }, blurb = "hits harder" },
-	{ family = "armor", key = "def", names = { "Thickskin", "Armored", "Bulwark", "Fortress" }, values = { 0.08, 0.15, 0.25, 0.4 }, blurb = "takes less harm" },
-	{ family = "swift", key = "spd", names = { "Nimble", "Swift", "Quicksilver", "Lightning" }, values = { 0.06, 0.12, 0.2, 0.32 }, blurb = "acts sooner" },
-	{ family = "bright", key = "xp", names = { "Curious", "Bright", "Clever", "Genius" }, values = { 0.1, 0.2, 0.35, 0.6 }, blurb = "learns faster" },
-	{ family = "busy", key = "work", names = { "Busy", "Diligent", "Tireless", "Workaholic" }, values = { 0.08, 0.15, 0.25, 0.4 }, blurb = "works harder" },
-	{ family = "grower", key = "farm", names = { "Green Thumb", "Grower", "Harvester", "Bountiful" }, values = { 0.12, 0.24, 0.4, 0.65 }, blurb = "at farms" },
-	{ family = "angler", key = "fish", names = { "Angler", "Netcaster", "Tidecaller", "Sea Sage" }, values = { 0.12, 0.24, 0.4, 0.65 }, blurb = "at fishing" },
-	{ family = "chopper", key = "wood", names = { "Chopper", "Woodsy", "Timberwise", "Forest Heart" }, values = { 0.12, 0.24, 0.4, 0.65 }, blurb = "at wood" },
-	{ family = "trader", key = "shop", names = { "Chatty", "Charming", "Haggler", "Tycoon" }, values = { 0.12, 0.24, 0.4, 0.65 }, blurb = "at shops" },
+local FAMILIES: { { family: string, key: string, names: { string }, values: { number } } } = {
+	{ family = "sturdy", key = "hp", names = { "Sturdy", "Hardy", "Ironhide", "Titanic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
+	{ family = "fierce", key = "atk", names = { "Feisty", "Fierce", "Savage", "Ferocious" }, values = { 0.08, 0.15, 0.25, 0.4 } },
+	{ family = "armor", key = "def", names = { "Thickskin", "Armored", "Bulwark", "Fortress" }, values = { 0.08, 0.15, 0.25, 0.4 } },
+	{ family = "swift", key = "spd", names = { "Nimble", "Swift", "Quicksilver", "Lightning" }, values = { 0.06, 0.12, 0.2, 0.32 } },
+	{ family = "bright", key = "xp", names = { "Curious", "Bright", "Clever", "Genius" }, values = { 0.1, 0.2, 0.35, 0.6 } },
+	{ family = "busy", key = "work", names = { "Busy", "Diligent", "Tireless", "Workaholic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
+	{ family = "grower", key = "farm", names = { "Green Thumb", "Grower", "Harvester", "Bountiful" }, values = { 0.12, 0.24, 0.4, 0.65 } },
+	{ family = "angler", key = "fish", names = { "Angler", "Netcaster", "Tidecaller", "Sea Sage" }, values = { 0.12, 0.24, 0.4, 0.65 } },
+	{ family = "chopper", key = "wood", names = { "Chopper", "Woodsy", "Timberwise", "Forest Heart" }, values = { 0.12, 0.24, 0.4, 0.65 } },
+	{ family = "trader", key = "shop", names = { "Chatty", "Charming", "Haggler", "Tycoon" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 }
--- The flaws (tier 0): a driftling can be born a little worse at something.
-local FLAWS: { { id: string, name: string, key: string, value: number, blurb: string } } = {
-	{ id = "frail", name = "Frail", key = "hp", value = -0.1, blurb = "less health" },
-	{ id = "timid", name = "Timid", key = "atk", value = -0.1, blurb = "hits softer" },
-	{ id = "clumsy", name = "Clumsy", key = "def", value = -0.1, blurb = "takes more harm" },
-	{ id = "sluggish", name = "Sluggish", key = "spd", value = -0.08, blurb = "acts later" },
-	{ id = "lazy", name = "Lazy", key = "work", value = -0.15, blurb = "works less" },
+-- The flaws (tier 0): a driftling can be born a little worse at something. A flaw belongs to the family of the same
+-- effect (a driftling is Lazy or Diligent, never both; a Hatchery tier-up turns a flaw into its family's first tier).
+local FLAWS: { { id: string, family: string, name: string, key: string, value: number } } = {
+	{ id = "frail", family = "sturdy", name = "Frail", key = "hp", value = -0.1 },
+	{ id = "timid", family = "fierce", name = "Timid", key = "atk", value = -0.1 },
+	{ id = "clumsy", family = "armor", name = "Clumsy", key = "def", value = -0.1 },
+	{ id = "sluggish", family = "swift", name = "Sluggish", key = "spd", value = -0.08 },
+	{ id = "lazy", family = "busy", name = "Lazy", key = "work", value = -0.15 },
 }
 
 local LIST: { Mutation } = {}
@@ -62,7 +63,7 @@ for _, f in FAMILIES do
 			family = f.family,
 			tier = tier,
 			name = f.names[tier],
-			blurb = string.format("+%d%% %s", math.floor(f.values[tier] * 100 + 0.5), f.blurb),
+			blurb = "", -- (its effect's words: below)
 			fx = { [f.key] = f.values[tier] },
 		}
 		table.insert(LIST, m)
@@ -70,7 +71,7 @@ for _, f in FAMILIES do
 	end
 end
 for _, f in FLAWS do
-	local m: Mutation = { id = f.id, family = f.id, tier = 0, name = f.name, blurb = string.format("%d%% %s", math.floor(f.value * 100 - 0.5), f.blurb), fx = { [f.key] = f.value } }
+	local m: Mutation = { id = f.id, family = f.family, tier = 0, name = f.name, blurb = "", fx = { [f.key] = f.value } }
 	table.insert(LIST, m)
 	BY_ID[m.id] = m
 end
@@ -190,10 +191,13 @@ function Traits.describe(fx: Fx): string
 	for _, k in Traits.KEYS do
 		local v = fx[k]
 		if v and math.abs(v) > 1e-6 then
-			table.insert(parts, string.format("%s%d%% %s", if v > 0 then "+" else "", math.floor(v * 100 + (if v > 0 then 0.5 else -0.5)), WORDS[k]))
+			table.insert(parts, string.format("%s%d%% %s", if v > 0 then "+" else "", math.round(v * 100), WORDS[k]))
 		end
 	end
 	return table.concat(parts, ", ")
+end
+for _, m in LIST do
+	m.blurb = Traits.describe(m.fx)
 end
 
 return table.freeze(Traits)

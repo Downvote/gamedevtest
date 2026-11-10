@@ -419,7 +419,7 @@ H.checkMirror(p, "explore")
 E.phase = "pals"
 if #prof.pals == 0 then
 	-- (the treats above may have missed: a friend is made on the server for the panels)
-	table.insert(prof.pals, { id = prof.nextId, sp = "clawdle", lvl = 2, xp = 0, work = 0 })
+	table.insert(prof.pals, { id = prof.nextId, sp = "clawdle", lvl = 2, xp = 0, work = 0, muts = { "fierce2", "busy1" } })
 	prof.nextId += 1
 	prof.seen.clawdle = 2
 	H.push(p, 0.4)
@@ -428,6 +428,18 @@ local pal = prof.pals[1]
 H.clickNamed(p, "Menu_pals", { wait = 0.4 })
 H.expect(H.currentPanel(p) == "pals", "pals", "the Driftlings panel opens")
 H.expect(H.buttonNamed(p, "Help_" .. pal.id) ~= nil and H.buttonNamed(p, "Release_" .. pal.id) ~= nil, "pals", "Help and Release on its row")
+-- its mutations on its row, each by name (Data/Traits), or "No mutations"
+do
+	local pg = p:FindFirstChild("PlayerGui")
+	local shown = 0
+	for _, id in pal.muts or {} do
+		if pg and pg:FindFirstChild("Mut_" .. id, true) then
+			shown += 1
+		end
+	end
+	local none = pg and pg:FindFirstChild("Muts", true)
+	H.expect(if #(pal.muts or {}) > 0 then shown == #(pal.muts or {}) else none ~= nil, "pals", "its mutations on its row", string.format("%d of %d", shown, #(pal.muts or {})))
+end
 H.clickNamed(p, "Help_" .. pal.id, { wait = 0.4 })
 H.expect(H.buttonNamed(p, "Go_0", true) ~= nil, "pals", "the help picker opens (Rest at least)")
 H.closePanel(p)

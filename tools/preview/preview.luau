@@ -218,7 +218,9 @@ local function seedProfile(userId, tier, opts)
 	for k, sp in opts.pals or {} do
 		local Creatures = H.sharedServer("Data.Creatures")
 		local d = Creatures.byId[sp]
-		local x = { id = prof.nextId, sp = sp, lvl = 2 + (k * 2) % 6, xp = 0, work = 0 }
+		-- (a set of mutations each, so the panels show them: Data/Traits)
+		local MUTS = { { "fierce3", "swift1" }, { "angler2" }, {}, { "sturdy4", "bright2", "lazy" } }
+		local x = { id = prof.nextId, sp = sp, lvl = 2 + (k * 2) % 6, xp = 0, work = 0, muts = MUTS[(k - 1) % #MUTS + 1] }
 		prof.nextId += 1
 		if d then
 			x.work = Island.freeJob(prof, d.knack)

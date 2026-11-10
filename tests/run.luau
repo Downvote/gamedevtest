@@ -3,7 +3,7 @@
 local TestKit = require("./TestKit")
 local SPECS = {
 	"Util", "Validate", "Numbers", -- helpers
-	"DataIntegrity", -- the content tables
+	"DataIntegrity", "Traits", -- the content tables
 	"Island", "Battle", "Expedition", "Chart", "Economy", "Plot", -- the rules
 	"Schema", -- the save
 	"Shading", "Raster", "Rim", -- the pixel filter (from Random Bakery)

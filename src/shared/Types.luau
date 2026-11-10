@@ -72,6 +72,7 @@ export type Fighter = {
 	skill: string,
 	charge: number,
 	gauge: number,
+	muts: { string }?, -- a driftling's mutations (Data/Traits: a wild one's rolled when it appears, kept when befriended)
 }
 
 -- A battle in progress (GAME_DESIGN 7: timed): the wild ones, the actions so far, whether it is the islet's guardian,
