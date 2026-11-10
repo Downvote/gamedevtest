@@ -69,6 +69,12 @@ local Tuning = {
 	IsleChestLvl2 = 2,
 	IsleRewardBase = 100, -- the guardian's reward: base + per level x the level squared
 	IsleRewardLvl2 = 19,
+	-- an island never ends (GAME_DESIGN 7): stops in blocks, the last of each a guardian; harder every stage
+	BossEvery = 7, -- a guardian every this many stages (six stops, then the guardian)
+	StageLvl = 0.5, -- the wild ones' level: this much more every stage (a level every other stage) ...
+	StageBoost = 0.02, -- ... and their health and attack this share more every stage (harder every stage)
+	StageLoot = 0.12, -- a stage's loot and chests: the island's times (1 + this x the stages before it)
+	BossRewardGrow = 0.6, -- the n-th guardian's reward: the island's times (1 + this x (n - 1))
 	-- the sea chart (Logic/Chart): every player's islands round their home, in leagues; the level grows with distance
 	ChartIslands = 40,
 	ChartNear = 3, -- this many within the first boat's range

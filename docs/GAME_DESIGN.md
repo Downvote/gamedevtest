@@ -192,16 +192,34 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
     **volcanoes** from 10, **snowfields** from 16, **reefs** from 23;
   - **its name**, two words of its kind ("Gull Key", "Willow Thicket", "Scorch Peak", "Frost Drift", "Brine
     Hollow");
-  - **its driftlings**: two of its kind's own and one more that strayed in from any kind open at the level, at about
-    its level (a level under it at the landing, one more every four stops); its **guardian** is one of its own,
-    titled ("Grumpy Clawdle", "Elder Floe"), two levels up with a friend from level 4;
-  - **its path**: the landing, six to nine stops (battles, loot, chests, one rest late on; at least three battles),
-    the guardian; one more stop from level 10;
+  - **its driftlings**: two of its kind's own and one more that strayed in from any kind open at the level; its
+    **guardian** is one of its own, titled ("Grumpy Clawdle", "Elder Floe"), two levels up with a friend from level 4
+    (and always from the second guardian on);
   - **what it holds**, growing with the level: a loot stop's food and wood, a chest's shells, the guardian's reward
     (`Isle*`).
-  Beating the guardian the first time pays its whole reward and **charts** the island (a flag on the map; the panel
-  counts the islands charted; each is charm up to `ChartCharmMax`). An island sailed to again is the same island
-  (its kind, driftlings and path), and its guardian pays half.
+
+> The request (2026-11-10): "make all islands infinite, with monsters scaling in difficulty every level and bosses
+> every few stages. make an autobattle function as well that clicks fight every turn. make an option to stop when
+> party is low in health and likely to lose in the next fight as well"
+
+  - **It never ends:** after the landing the island's stages come in blocks of `BossEvery` (7): six stops (battles,
+    loot, chests, maybe a rest late on; at least three battles) and then a guardian, block after block, each from the
+    island's seed (the same island every time, however far anyone goes). The header shows the stage and the path a
+    few stops ahead (the next guardian's crown); the HUD's card the stage.
+  - **Harder every stage:** the wild ones start a level under the island's and grow `StageLvl` (half a level) and
+    `StageBoost` (2% health and attack) every stage, past the captain's own levels; loot and chests grow too
+    (`StageLoot`).
+  - **A guardian every few stages:** the first charts the island the first time (its whole reward; half on later
+    trips); each later one pays more (`BossRewardGrow`: the n-th 1 + 0.6 x (n - 1) times the island's reward). A
+    guardian's fall is an alert (charted, or "Guardian 2 beaten!") and the party walks on: Sail home whenever you like
+    (between stops); a fall ends the trip with half the loot.
+  - **Auto battle** (`AutoBattle`, on the islet's screen): Fight every round by itself, the party walking on between
+    stops. **Stop if losing** (`AutoSafe`, on by default; Never stop the other way): before each round and before
+    walking into the next fight it weighs the party's health and blows against the foes' (the fight under way, or the
+    next stop's likely foes); when the party would most likely go down first, the auto battle stops and the party
+    waits ("The party is hurt: the next fight looks lost"), for you to fight on, guard, flee, sail home or go on anyway.
+  Charting counts each island once (a flag on the map; the panel counts the islands charted; each is charm up to
+  `ChartCharmMax`).
 - **The cutscene** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
   aside; your founder walks from where they stand down the path, across the boardwalk and along the pier (or starts
   on the jetty when far away) and hops into the expedition boat, where the rest of the party waits on deck and
@@ -342,7 +360,8 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 
 - a villager within 3 minutes, a driftling friend within 15;
 - a guardian beaten within 15 minutes; one of a level-5 island (meadows) within 45, level 10 (volcanoes) within 90,
-  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails to
+  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails home
+  after an island's first guardian, and sails to
   the strongest uncharted island in its boat's range that its party looks strong enough for (asking for more after
   each defeat; a charted one when none is left), and buys the next boat when it can pay and nothing new it can take
   is left in range but the next range holds some;

@@ -248,11 +248,12 @@ H.expect(st.arrived, "explore", "the boat brought them ashore", tostring(st.arri
 H.expect(H.buttonNamed(p, "GoOn") == nil and (s.exp == nil or s.exp.battle ~= nil or H.buttonNamed(p, "SailHome") ~= nil), "explore", "no Go on button (Sail home between stops)")
 H.expect((s.exp ~= nil and s.exp.battle ~= nil and H.buttonNamed(p, "Act_fight") ~= nil) or H.buttons(p, "^AutoGo$", true)[1] ~= nil, "explore", "the next stop's bar (or a battle's moves)")
 H.expect(s.exp ~= nil and s.exp.node > nodeAtLanding, "explore", "the expedition went on by itself", string.format("%d -> %s", nodeAtLanding, tostring(s.exp and s.exp.node)))
--- walk the islet: every stop, every battle fought (a treat when a wild one is hurt), until the guardian or a fall
+-- walk the islet: every stop, every battle fought (a treat when a wild one is hurt), until its first guardian falls (the
+-- island never ends) or the party does
 local Expedition = H.sharedServer("Logic.Expedition")
 local battles, treats, guard = 0, 0, 0
 local steps = 0
-while s.exp and not s.exp.over and steps < 80 do
+while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 80 do
 	steps += 1
 	local e = s.exp
 	if e.battle then
@@ -272,31 +273,31 @@ while s.exp and not s.exp.over and steps < 80 do
 		else
 			H.inClient(p, EUI.debugAct, "fight")
 		end
-		-- a result card: Onward
+		-- (a won battle is a small alert: nothing to tap)
 		E.run(0.2)
-		if H.buttonNamed(p, "ResultOk") and s.exp and not s.exp.over then
-			H.clickNamed(p, "ResultOk", { wait = 0.2 })
-		end
-	elseif e.node < #e.nodes then
-		H.inClient(p, EUI.debugGo)
+		H.expect(H.buttonNamed(p, "ResultOk") == nil or (s.exp and s.exp.over ~= nil), "explore", "no Onward card to tap after a win")
 	else
-		break
+		H.inClient(p, EUI.debugGo)
 	end
 	E.run(0.2)
 end
 H.expect(battles >= 3, "explore", "battles fought through the UI", tostring(battles))
-H.expect(s.exp ~= nil and s.exp.over ~= nil, "explore", "the islet ends: the guardian beaten or the party fallen", tostring(s.exp and s.exp.over))
-local over = s.exp and s.exp.over
+H.expect(s.exp ~= nil and (s.exp.over == "lost" or (s.exp.beaten or 0) >= 1), "explore", "the first guardian beaten (the path goes on) or the party fallen", tostring(s.exp and s.exp.over))
+local over = if s.exp and (s.exp.beaten or 0) >= 1 then "won" else s.exp and s.exp.over
 local loot = s.exp and E.deepCopy(s.exp.loot)
 local wild = s.exp and E.deepCopy(s.exp.isle.wild) or {}
 H.expect(prof.stats.battles >= 1, "explore", "battles won counted", tostring(prof.stats.battles))
 local sh1 = prof.shells
-H.clickNamed(p, "ResultOk", { wait = 0.2 })
-E.run(0.3)
-if H.buttonNamed(p, "SailHome") then
-	H.clickNamed(p, "SailHome", { wait = 1 })
+-- home: after a fall the card's Sail home; after the guardian the party could go on: sail home from the screen
+if over == "lost" then
+	H.clickNamed(p, "ResultOk", { wait = 0.2 })
+else
+	E.runUntil(function()
+		return not H.inClient(p, EUI.debugState).busy
+	end, 20, 0.1)
+	H.inClient(p, EUI.debugHome)
 end
-E.run(0.5)
+E.run(0.8)
 H.expect(s.exp == nil and next(s.away) == nil, "explore", "home: the expedition over, everyone back")
 H.expect(not H.inClient(p, EUI.isOpen), "explore", "the islet's screen closed behind its curtain")
 -- the voyage home: the blinds open on the sea, the boat sails in and moors, the founder hops onto the pier

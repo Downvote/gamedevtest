@@ -60,18 +60,21 @@ local function strong(lvl)
 		x.lvl = lvl
 	end
 end
--- the server's way through an islet: on, fight every battle; returns how it ended
-local function walk(maxSteps)
+-- the server's way through an islet: on, fight every battle, until `guardians` guardians are beaten (1 by default:
+-- the islands never end) or the party falls; returns "won" (that many beaten) or how it ended
+local function walk(maxSteps, guardians)
 	local steps = 0
-	while s.exp and not s.exp.over and steps < (maxSteps or 200) do
+	local want = guardians or 1
+	while s.exp and not s.exp.over and (s.exp.beaten or 0) < want and steps < (maxSteps or 200) do
 		steps += 1
 		if s.exp.battle then
 			H.req(p, "exp.act", { act = "fight", target = "" })
-		elseif s.exp.node < #s.exp.nodes then
-			H.req(p, "exp.next", {})
 		else
-			break
+			H.req(p, "exp.next", {})
 		end
+	end
+	if s.exp and not s.exp.over and (s.exp.beaten or 0) >= want then
+		return "won"
 	end
 	return s.exp and s.exp.over
 end
@@ -222,6 +225,36 @@ if s.exp and s.exp.battle then
 end
 H.expect(hp1 < hp0 or (s.exp and s.exp.battle == nil), "screen", "a round fought from the screen", string.format("%d -> %d", hp0, hp1))
 H.expect(#E.errors == errs0, "screen", "its playback ran without errors", tostring(#E.errors - errs0))
+-- the auto battle: on, it fights every round by itself
+H.expect(H.buttonNamed(p, "AutoBattle") ~= nil and H.buttonNamed(p, "AutoSafe") ~= nil, "screen", "the auto battle's toggles")
+if s.exp and s.exp.battle then
+	local r0 = s.exp.battle.round
+	for _, f in s.exp.party do
+		f.hp, f.maxHp = 400, 400
+	end
+	H.clickNamed(p, "AutoBattle", { wait = 0.2 })
+	H.expect(H.inClient(p, EUI.debugState).auto == true, "screen", "Auto on")
+	E.runUntil(function()
+		return s.exp == nil or s.exp.battle == nil or s.exp.battle.round >= r0 + 2
+	end, 30, 0.1)
+	H.expect(s.exp ~= nil and (s.exp.battle == nil or s.exp.battle.round >= r0 + 2), "screen", "rounds fought with no taps", tostring(s.exp and s.exp.battle and s.exp.battle.round))
+	-- the safety stop: worn out against the guardian, the auto battle stops and waits for the player
+	E.runUntil(function()
+		return not H.inClient(p, EUI.debugState).busy
+	end, 20, 0.1)
+	if s.exp and s.exp.battle then
+		for _, f in s.exp.party do
+			f.hp = 1
+		end
+		local r1 = s.exp.battle.round
+		E.run(3)
+		local st2 = H.inClient(p, EUI.debugState)
+		H.expect(st2.auto == false and s.exp.battle ~= nil and s.exp.battle.round == r1, "screen", "likely to lose: the auto battle stops before the next round", string.format("%s %s %s", tostring(st2.auto), tostring(r1), tostring(s.exp.battle and s.exp.battle.round)))
+		for _, f in s.exp.party do
+			f.hp = f.maxHp
+		end
+	end
+end
 H.clickNamed(p, "BackToIsland", { wait = 0.5 })
 H.expect(not H.inClient(p, EUI.isOpen) and s.exp ~= nil, "screen", "Back to island: the screen closes, the expedition waits")
 H.expect(H.buttonNamed(p, "Menu_build") ~= nil, "screen", "the HUD is back")
@@ -261,9 +294,9 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 		break
 	end
 	local isle = s.exp.isle
-	-- a party far stronger than the island (the rules are what is checked here, not the fight)
+	-- a party far stronger than the island and its stages (the rules are what is checked here, not the fight)
 	for _, f in s.exp.party do
-		f.atk, f.def, f.maxHp = f.atk * 3, f.def * 2, f.maxHp * 3
+		f.atk, f.def, f.maxHp = f.atk * 5, f.def * 3, f.maxHp * 6
 		f.hp = f.maxHp
 	end
 	local kind = Islets.list[isle.kind]
@@ -273,20 +306,18 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 	local before = prof.islets
 	local foesOk = true
 	local steps = 0
-	while s.exp and not s.exp.over and steps < 200 do
+	while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 200 do
 		steps += 1
 		if s.exp.battle then
 			for _, f in s.exp.battle.foes do
 				foesOk = foesOk and (table.find(isle.wild, f.sp) ~= nil or f.sp == isle.boss)
 			end
 			H.req(p, "exp.act", { act = "fight", target = "" })
-		elseif s.exp.node < #s.exp.nodes then
-			H.req(p, "exp.next", {})
 		else
-			break
+			H.req(p, "exp.next", {})
 		end
 	end
-	over = s.exp and s.exp.over
+	over = if s.exp and (s.exp.beaten or 0) >= 1 then "won" else s.exp and s.exp.over
 	H.expect(over == "won", "islands", isle.name .. ": charted", tostring(over))
 	H.expect(foesOk, "islands", isle.name .. ": only its own driftlings")
 	H.expect(prof.islets == before + 1 and table.find(prof.chart, id) ~= nil, "islands", isle.name .. ": on the chart", tostring(prof.islets))
@@ -308,6 +339,38 @@ over = walk()
 local again = s.exp and s.exp.loot.shells or 0
 H.expect(over == "won" and prof.islets == charted0, "islands", "an island charted again counts once", tostring(prof.islets))
 H.expect(again >= math.floor(Chart.isle(prof.sea, 2).reward / 2) and again < Chart.isle(prof.sea, 2).reward + 500, "islands", "half the reward the second time", tostring(again))
+H.req(p, "exp.home", {})
+-- the island goes on: past the guardian, harder stages and a second guardian paying more
+strong(30)
+prof.food = 1000
+res = H.req(p, "exp.start", { isle = 2, party = party(3) })
+H.expect(res.ok, "endless", "off again", tostring(res.err))
+if s.exp then
+	for _, f in s.exp.party do
+		f.atk, f.hp, f.maxHp = 2000, 99999, 99999
+	end
+end
+local rewards = {}
+local lvls = {}
+local guard2 = 0
+while s.exp and not s.exp.over and (s.exp.beaten or 0) < 2 and guard2 < 300 do
+	guard2 += 1
+	if s.exp.battle then
+		table.insert(lvls, s.exp.battle.foes[1].lvl)
+		local r = H.req(p, "exp.act", { act = "fight", target = "" })
+		if r.ok and r.data and r.data.reward then
+			table.insert(rewards, r.data.reward)
+		end
+	else
+		local r = H.req(p, "exp.next", {})
+		H.expect(r.ok, "endless", "the path never runs out", tostring(r.err))
+	end
+end
+H.expect(s.exp ~= nil and s.exp.beaten == 2 and s.exp.node == 1 + Tuning.BossEvery * 2, "endless", "a second guardian at the second block's end", tostring(s.exp and s.exp.node))
+H.expect(#rewards == 2 and rewards[2] > rewards[1], "endless", "it pays more", table.concat(rewards, " "))
+H.expect(#lvls >= 2 and lvls[#lvls] > lvls[1], "endless", "the wild ones grow", string.format("%s -> %s", tostring(lvls[1]), tostring(lvls[#lvls])))
+res = H.req(p, "exp.next", {})
+H.expect(res.ok, "endless", "and the path goes on", tostring(res.err))
 H.req(p, "exp.home", {})
 H.checkProfile(p, "islands")
 H.checkMirror(p, "islands")

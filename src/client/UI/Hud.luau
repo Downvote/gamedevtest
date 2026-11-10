@@ -304,7 +304,7 @@ local function updateExp(v: Types.ClientView)
 	f.Name = "ExpCard"
 	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 2), 4)
 	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 3), { color = UIKit.color("accent"), z = 4, name = "Islet" })
-	local state = if e.battle then "In a battle!" else string.format("Stop %d of %d", e.node, #e.nodes)
+	local state = if e.battle then "In a battle!" else string.format("Stage %d", math.max(0, e.node - 1))
 	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = if e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
 	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 24), function()
 		ExpeditionUI.open()

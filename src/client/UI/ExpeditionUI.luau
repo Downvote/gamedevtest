@@ -19,6 +19,7 @@ local UserInputService = game:GetService("UserInputService")
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
+local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
@@ -112,6 +113,15 @@ local AUTO_CARD = 3
 local idleSince: number? = nil
 local autoFill: Frame? = nil
 local autoW = 0
+-- the auto battle (GAME_DESIGN 7: "an autobattle function as well that clicks fight every turn. make an option to stop
+-- when party is low in health and likely to lose in the next fight"): Fight every round by itself (AUTO_FIGHT seconds
+-- after the last round's playback); with `autoSafe` it stops before a fight the party is likely to lose
+-- (Expedition.risk: the fight under way or the next stop's), and the party waits for the player. Kept for the session.
+local autoBattle = false
+local autoSafe = true
+local AUTO_FIGHT = 0.5
+local fightIdle: number? = nil
+local PATH_AHEAD = 7 -- the header shows the path from a stop back to this many ahead (it never ends)
 
 local refresh: () -> () = function() end
 local closeNow: () -> () = function() end
@@ -1171,7 +1181,11 @@ playRound = function(data: { [string]: any })
 				end
 			end
 			Audio.play("rare_fanfare")
-			resultCard(if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!", UIKit.color("accent"), lines, icon, "Sail home", goHome)
+			-- the path goes on: an alert, the party walks on (Sail home whenever the player likes)
+			local n = tonumber(data.guardian) or 1
+			local title = if data.first then (if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!") else string.format("Guardian %d beaten!", n)
+			alert(title, UIKit.color("accent"), lines, icon)
+			refresh()
 		else
 			alert("Victory!", UIKit.color("good"), lines, icon)
 			refresh()
@@ -1307,9 +1321,16 @@ refresh = function()
 	UIKit.rect(head, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, HEAD_H - 1), UIKit.color(if def then def.color else "accent"), 9)
 	UIKit.text(head, string.format("%s  Lv %d", e.isle.name, e.isle.lvl), UDim2.fromOffset(106, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("accent"), z = 11, name = "Islet" })
 	lootLine(head, e, 4, 10)
-	local px = math.max(110, math.floor(w / 2) - #e.nodes * 7)
-	for i, kind in e.nodes do
-		local done = e.done[i]
+	-- the endless path: a window from a stop back to PATH_AHEAD ahead (the guardians' crowns shown), the stage number
+	local i0 = math.max(1, e.node - 1)
+	local i1 = e.node + PATH_AHEAD
+	local path = Expedition.nodesTo(e.isle, i1)
+	local stage = Expedition.stageOf(e.node)
+	UIKit.text(head, string.format("Stage %d", stage), UDim2.fromOffset(44, 10), UDim2.fromOffset(110, 6), { color = UIKit.color("text"), z = 11, name = "Stage" })
+	local px = math.max(156, math.floor(w / 2) - (i1 - i0 + 1) * 7)
+	for i = i0, i1 do
+		local kind = path[i]
+		local done = e.done[i] == true
 		local here = i == e.node
 		local name = "mini_" .. kind
 		if i > 1 then
@@ -1357,6 +1378,19 @@ refresh = function()
 	end
 	-- the buttons
 	local bx = w - 104
+	if not e.over then
+		local ax = bx - 74
+		button(foot, if autoBattle then "Auto: on" else "Auto: off", ax, 4, 70, if autoBattle then UIKit.color("good") else UIKit.color("plate_light"), true, function()
+			autoBattle = not autoBattle
+			Audio.play(if autoBattle then "ding" else "click")
+			refresh()
+		end, "AutoBattle")
+		button(foot, if autoSafe then "Stop if losing" else "Never stop", ax, 22, 70, if autoSafe then UIKit.color("accent") else UIKit.color("plate_light"), true, function()
+			autoSafe = not autoSafe
+			Audio.play("click")
+			refresh()
+		end, "AutoSafe")
+	end
 	if e.over then
 		button(foot, "Sail home", bx, 13, 100, UIKit.color("button_ok"), true, goHome, "SailHome")
 	elseif b then
@@ -1376,11 +1410,10 @@ refresh = function()
 		if treatOk then
 			local tname = if target and bars[target] then bars[target].name else "the most hurt one"
 			local hx = 4 + 2 * (cw + 3)
-			UIKit.text(foot, string.format("Treat (%d food): %s", Tuning.TreatFood, tname), UDim2.fromOffset(math.max(10, bx - hx - 2), 9), UDim2.fromOffset(hx, 32), { color = UIKit.color("text_dim"), z = 11, name = "TreatHint" })
+			UIKit.text(foot, string.format("Treat (%d food): %s", Tuning.TreatFood, tname), UDim2.fromOffset(math.max(10, bx - 76 - hx - 2), 9), UDim2.fromOffset(hx, 32), { color = UIKit.color("text_dim"), z = 11, name = "TreatHint" })
 		end
 	else
 		-- between stops the party walks on by itself: a bar fills toward the next stop (Space or a tap on it: at once)
-		local last = e.node >= #e.nodes
 		local plate = Instance.new("TextButton")
 		plate.Name = "AutoGo"
 		plate.Text = ""
@@ -1395,8 +1428,9 @@ refresh = function()
 		local fill = UIKit.rect(plate, UDim2.fromOffset(0, 2), UDim2.fromOffset(2, 11), UIKit.color("good"), 12)
 		fill.Name = "Fill"
 		autoFill = fill
-		UIKit.text(plate, if last then "All explored" elseif busy then "Walking on..." else "Next stop...", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
+		UIKit.text(plate, if busy then "Walking on..." elseif idleSince == math.huge then "Go on anyway" else "Next stop...", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
 		plate.Activated:Connect(function()
+			idleSince = nil
 			task.spawn(goOn)
 		end)
 		button(foot, "Sail home", bx, 22, 100, UIKit.color("button_warn"), true, goHome, "SailHome")
@@ -1521,7 +1555,7 @@ function ExpeditionUI.open()
 		poseAll(now - opened, math.min(dt, 0.1))
 		-- going on by itself: at a stop with nothing to answer (no battle, no card, the party ashore)
 		local cur = exp()
-		local waiting = lifted and not busy and not closing and cur ~= nil and cur.battle == nil and cur.over == nil and cur.node < #cur.nodes
+		local waiting = lifted and not busy and not closing and cur ~= nil and cur.battle == nil and cur.over == nil
 		if waiting and root and (root :: Frame):FindFirstChild("Result") then
 			waiting = false
 		end
@@ -1542,10 +1576,39 @@ function ExpeditionUI.open()
 			end
 			if k >= 1 then
 				idleSince = nil
-				task.spawn(goOn)
+				local risk = if autoSafe and cur then Expedition.risk(cur) else nil
+				if risk and risk.danger then
+					-- the safety stop: the party is likely to lose the next fight; it waits for the player
+					autoBattle = false
+					idleSince = math.huge
+					say("The party is hurt: the next fight looks lost. Sail home, or tap to go on.", UIKit.color("bad"), 4)
+					Audio.play("deny")
+					refresh()
+				else
+					task.spawn(goOn)
+				end
 			end
 		else
 			idleSince = nil
+		end
+		-- the auto battle: Fight every round, unless the fight looks lost (the safety stop)
+		local fighting = autoBattle and lifted and not busy and not closing and cur ~= nil and cur.battle ~= nil and cur.over == nil
+		if fighting then
+			fightIdle = fightIdle or now
+			if now - (fightIdle :: number) >= AUTO_FIGHT then
+				fightIdle = nil
+				local risk = if autoSafe and cur then Expedition.risk(cur) else nil
+				if risk and risk.danger then
+					autoBattle = false
+					say("Auto battle stopped: the party is likely to lose this fight.", UIKit.color("bad"), 4)
+					Audio.play("deny")
+					refresh()
+				else
+					task.spawn(doAct, "fight")
+				end
+			end
+		else
+			fightIdle = nil
 		end
 	end)
 	keys = UserInputService.InputBegan:Connect(function(input, processed)
@@ -1690,7 +1753,7 @@ function ExpeditionUI.debugState(): { [string]: any }
 			aboard += 1
 		end
 	end
-	return { open = isOpen, lifted = lifted, actors = n, busy = busy, node = lastNode, foes = foeKey, ship = ship ~= nil, arrived = ship ~= nil and aboard == 0 }
+	return { open = isOpen, lifted = lifted, actors = n, busy = busy, node = lastNode, foes = foeKey, ship = ship ~= nil, arrived = ship ~= nil and aboard == 0, auto = autoBattle, safe = autoSafe }
 end
 function ExpeditionUI.debugWait(seconds: number?)
 	stageWait = seconds

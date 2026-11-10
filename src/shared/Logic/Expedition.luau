@@ -101,10 +101,14 @@ function Expedition.speciesAt(lvl: number): { string }
 	return out
 end
 
--- An island's path: the landing, six to nine stops (battles, loot, chests, one rest late on), the guardian.
-local function path(rng: Rng, lvl: number): { string }
-	local n = 6 + rng:int(0, 2) + (if lvl >= 10 then 1 else 0)
-	local restAt = math.max(3, math.floor(n * 0.7 + 0.5) - rng:int(0, 1))
+-- An island never ends (GAME_DESIGN 7: "make all islands infinite, with monsters scaling in difficulty every level and
+-- bosses every few stages"): after the landing its stages come in blocks of Tuning.BossEvery, the last of each a
+-- guardian; a block's stops (battles, loot, chests, maybe a rest late on; at least three battles) come from the island's
+-- seed and the block's number, so the same island is the same island every time, as far as anyone goes.
+local function block(seed: number, b: number): { string }
+	local rng = Util.newRng(Util.hash32(seed + b * 7919) + 17)
+	local n = Tuning.BossEvery - 1
+	local restAt = if b > 0 or rng:next() < 0.6 then n - rng:int(0, 1) else 0
 	local mid: { string } = {}
 	for i = 1, n do
 		if i == restAt then
@@ -131,12 +135,8 @@ local function path(rng: Rng, lvl: number): { string }
 			mid[i] = "wild"
 		end
 	end
-	local out = { "start" }
-	for _, k in mid do
-		table.insert(out, k)
-	end
-	table.insert(out, "boss")
-	return out
+	table.insert(mid, "boss")
+	return mid
 end
 
 -- The island for a level and a seed: its kind (one of those open at the level), a name of its kind's words, two of
@@ -183,14 +183,74 @@ function Expedition.chart(lvl: number, seed: number): Isle
 	}
 end
 
--- The island's path of nodes (from its seed).
-function Expedition.nodesOf(isle: Isle): { string }
-	return path(Util.newRng(Util.hash32(isle.seed) + 17), isle.lvl)
+-- The island's path as far as `count` nodes (at least the landing and its first block): node 1 the landing, node
+-- 1 + k x BossEvery the k-th guardian.
+function Expedition.nodesTo(isle: Isle, count: number?): { string }
+	local out = { "start" }
+	local b = 0
+	repeat
+		for _, k in block(isle.seed, b) do
+			table.insert(out, k)
+		end
+		b += 1
+	until #out >= (count or 0)
+	return out
 end
 
--- The wild driftlings' level at a node: a level under the island's at the landing, one more every four stops.
+-- The first block (the landing to the first guardian); an expedition's path grows a block at a time.
+function Expedition.nodesOf(isle: Isle): { string }
+	return Expedition.nodesTo(isle, 0)
+end
+
+-- The stage of a node (the landing is stage 0) and the guardian a node holds (1 the first, 0 none).
+function Expedition.stageOf(node: number): number
+	return math.max(0, node - 1)
+end
+function Expedition.guardianAt(node: number): number
+	local st = Expedition.stageOf(node)
+	return if st > 0 and st % Tuning.BossEvery == 0 then st // Tuning.BossEvery else 0
+end
+
+-- The wild driftlings' level at a node: a level under the island's at the first stage, StageLvl more every stage
+-- after it (without end: past the captain's own levels); and their strength's boost there (StageBoost a stage).
 function Expedition.levelAt(isle: Isle, node: number): number
-	return math.max(1, isle.lvl - 1 + (node - 1) // 4)
+	return math.max(1, isle.lvl - 1 + math.floor(math.max(0, Expedition.stageOf(node) - 1) * Tuning.StageLvl))
+end
+function Expedition.boostAt(node: number): number
+	return 1 + Tuning.StageBoost * math.max(0, Expedition.stageOf(node) - 1)
+end
+
+-- The party's outlook for the fight under way, or else for the next stop when it is a fight (its likely foes: two of
+-- the island's wild ones at that stage, or its guardian and a friend); nil when no fight is next.
+function Expedition.risk(e: Expedition): Battle.Forecast?
+	if e.battle then
+		return Battle.forecast(e.party, e.battle.foes)
+	end
+	local isle = e.isle
+	local nodes = if e.node + 1 <= #e.nodes then e.nodes else Expedition.nodesTo(isle, e.node + 1)
+	local kind = nodes[e.node + 1]
+	if kind ~= "wild" and kind ~= "boss" then
+		return nil
+	end
+	local node = e.node + 1
+	local lvl, boost = Expedition.levelAt(isle, node), Expedition.boostAt(node)
+	local foes: { Fighter } = {}
+	if kind == "boss" then
+		table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost))
+		if isle.lvl >= 4 or Expedition.guardianAt(node) > 1 then
+			table.insert(foes, Battle.wild(isle.wild[1], lvl, 2, false, nil, boost))
+		end
+	else
+		for i = 1, if isle.lvl >= 3 then 2 else 1 do
+			table.insert(foes, Battle.wild(isle.wild[i], lvl, i, false, nil, boost))
+		end
+	end
+	return Battle.forecast(e.party, foes)
+end
+
+-- The n-th guardian's reward (the first's is the island's: halved when the island was charted before).
+function Expedition.rewardOf(isle: Isle, n: number): number
+	return math.floor(isle.reward * (1 + Tuning.BossRewardGrow * math.max(0, n - 1)) + 0.5)
 end
 
 -- Set out for an island (Logic/Chart.sail checks it is on the chart and in the boat's range).
@@ -248,21 +308,28 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 	if e.battle then
 		return false, "in_battle" :: ErrCode
 	end
-	if e.node >= #e.nodes then
-		return false, "max" :: ErrCode
-	end
 	local isle = e.isle
+	if e.node >= #e.nodes then
+		-- the path goes on: its next block
+		local more = Expedition.nodesTo(isle, #e.nodes + 1)
+		for i = #e.nodes + 1, #more do
+			e.nodes[i] = more[i]
+			e.done[i] = false
+		end
+	end
 	e.node += 1
 	e.done[e.node] = true
 	local kind = e.nodes[e.node]
 	local out: { [string]: any } = { kind = kind, node = e.node }
+	-- loot and chests grow with the stage
+	local grow = 1 + Tuning.StageLoot * math.max(0, Expedition.stageOf(e.node) - 1)
 	if kind == "loot" then
-		local food, wood = vary(rng, isle.loot.food), vary(rng, isle.loot.wood)
+		local food, wood = vary(rng, isle.loot.food * grow), vary(rng, isle.loot.wood * grow)
 		e.loot.food += food
 		e.loot.wood += wood
 		out.food, out.wood = food, wood
 	elseif kind == "chest" then
-		local shells = vary(rng, isle.loot.shells)
+		local shells = vary(rng, isle.loot.shells * grow)
 		e.loot.shells += shells
 		out.shells = shells
 	elseif kind == "rest" then
@@ -271,16 +338,17 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 		end
 	elseif kind == "wild" or kind == "boss" then
 		local lvl = Expedition.levelAt(isle, e.node)
+		local boost = Expedition.boostAt(e.node)
 		local foes: { Fighter } = {}
 		if kind == "boss" then
-			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName))
-			if isle.lvl >= 4 then
-				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl, 2, false))
+			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost))
+			if isle.lvl >= 4 or Expedition.guardianAt(e.node) > 1 then
+				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl, 2, false, nil, boost))
 			end
 		else
 			local n = rng:int(1, if isle.lvl >= 3 then 3 else 2)
 			for i = 1, n do
-				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl + rng:int(0, 1), i, false))
+				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl + rng:int(0, 1), i, false, nil, boost))
 			end
 		end
 		for _, f in foes do
@@ -397,13 +465,19 @@ function Expedition.act(p: Profile, e: Expedition, act: string, target: string?,
 		p.stats.battles += 1
 		e.battle = nil
 		if b.boss then
-			-- the first time the island is charted: its whole reward; later trips half of it
+			-- a guardian beaten: the first charts the island (its whole reward the first time, half on later trips),
+			-- each later one pays more; the path goes on (the party sails home when it likes)
+			local n = math.max(1, Expedition.guardianAt(e.node))
 			local id = e.isle.id
-			local first = id == nil or table.find(p.chart, id) == nil
-			local reward = if first then e.isle.reward else math.floor(e.isle.reward / 2)
+			local first = n == 1 and (id == nil or table.find(p.chart, id) == nil)
+			local reward = Expedition.rewardOf(e.isle, n)
+			if n == 1 and not first then
+				reward = math.floor(reward / 2)
+			end
 			e.loot.shells += reward
 			out.reward = reward
 			out.first = first
+			out.guardian = n
 			if first then
 				if id then
 					table.insert(p.chart, id)
@@ -412,7 +486,7 @@ function Expedition.act(p: Profile, e: Expedition, act: string, target: string?,
 			end
 			out.charted = p.islets
 			p.stats.cleared += 1
-			e.over = "won"
+			e.beaten = math.max(e.beaten or 0, n)
 		end
 	elseif result == "lose" then
 		e.battle = nil

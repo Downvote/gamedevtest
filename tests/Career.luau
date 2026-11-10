@@ -312,9 +312,11 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 				if data and data.friend then
 					mark("driftling", t)
 				end
+				-- (islands never end: this player sails home after a guardian)
+				if data and data.reward then
+					e.over = "won"
+				end
 				busyUntil = t + ROUND_SEC
-			elseif e.node >= #e.nodes then
-				e.over = e.over or "home"
 			else
 				-- heading home early when hurt
 				local hp, max = 0, 0

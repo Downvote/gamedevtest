@@ -84,11 +84,43 @@ function Battle.pal(pal: Types.Pal): Fighter
 	return f
 end
 
-function Battle.wild(sp: string, lvl: number, i: number, boss: boolean, name: string?): Fighter
+function Battle.wild(sp: string, lvl: number, i: number, boss: boolean, name: string?, boost: number?): Fighter
 	local d = Creatures.byId[sp]
-	local f = make("w" .. i, name or (if d then d.name else sp), "wild", Battle.speciesBase(sp), lvl, if boss then Tuning.BossBoost else 1)
+	local f = make("w" .. i, name or (if d then d.name else sp), "wild", Battle.speciesBase(sp), lvl, (if boss then Tuning.BossBoost else 1) * (boost or 1))
 	f.sp = sp
 	return f
+end
+
+-- A fight's outlook (the auto battle's safety stop): the rounds the party needs to beat the foes and the rounds the
+-- foes need to beat the party, each side hitting with its average blow (atk - def / 2 of the other side, at least 1)
+-- every round. `danger`: the party would most likely go down first.
+export type Forecast = { win: number, lose: number, danger: boolean }
+function Battle.forecast(party: { Fighter }, foes: { Fighter }): Forecast
+	local function side(list: { Fighter }): (number, number, number, number)
+		local hp, atk, def, n = 0, 0, 0, 0
+		for _, f in list do
+			if f.hp > 0 and not (f :: any).friend then
+				hp += f.hp
+				atk += f.atk
+				def += f.def
+				n += 1
+			end
+		end
+		return hp, atk, def, n
+	end
+	local php, patk, pdef, pn = side(party)
+	local fhp, fatk, fdef, fn = side(foes)
+	if fn == 0 then
+		return { win = 0, lose = math.huge, danger = false }
+	end
+	if pn == 0 then
+		return { win = math.huge, lose = 0, danger = true }
+	end
+	local pblow = math.max(pn, patk - fdef / fn * 0.5 * pn)
+	local fblow = math.max(fn, fatk - pdef / pn * 0.5 * fn)
+	local win = fhp / pblow
+	local lose = php / fblow
+	return { win = win, lose = lose, danger = lose < win * 1.15 }
 end
 
 function Battle.new(foes: { Fighter }, boss: boolean): Battle

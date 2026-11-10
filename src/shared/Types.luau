@@ -102,7 +102,8 @@ export type Expedition = {
 	loot: { shells: number, food: number, wood: number },
 	battle: Battle?,
 	befriended: { string }, -- species that joined on this trip
-	over: string?, -- "home" | "won" | "lost" (set when it ends)
+	beaten: number?, -- the guardians beaten on this trip (the path never ends: a guardian every Tuning.BossEvery stages)
+	over: string?, -- "home" | "won" | "lost" (set when it ends: "won" only by a player that sails home after a guardian)
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
