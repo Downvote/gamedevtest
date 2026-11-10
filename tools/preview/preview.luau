@@ -387,7 +387,8 @@ end
 
 -- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 5 reef) at the level it first turns up
 -- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window),
--- aim (aiming frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered))
+-- aim (aiming frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered), throw (a
+-- snack befriending the last wild one, frame by frame))
 -- (+1), on its 3D stage. what: "battle" (default: the first battle), "boss" (the guardian), "win" (a battle won: the
 -- results card), "loot" (a stop's narration). The island's seed is the first that charts the kind (a set seed, so
 -- the same layout every run); the expedition is set on the session directly (exp.start makes up its own seed).
@@ -482,6 +483,30 @@ local function expScenario(spec)
 				capture(p, string.format("exp_%s_%03d", spec, k))
 				E.run(0.07)
 			end
+			return p
+		elseif what == "throw" and s.exp and s.exp.battle then
+			-- a snack that befriends the last wild one, frame by frame: the throw, the arc, the hearts and the poof,
+			-- the wild one on the stage till its playback is done
+			local Battle = H.sharedServer("Logic.Battle")
+			local chance = Battle.treatChance
+			Battle.treatChance = function()
+				return 1
+			end
+			local foes = s.exp.battle.foes
+			while #foes > 1 do
+				table.remove(foes)
+			end
+			foes[1].hp = math.max(1, math.floor(foes[1].maxHp * 0.3))
+			H.push(p, 0.3)
+			settle(p, 10, 0.5)
+			H.inClient(p, EUI.debugAim, "snack")
+			E.run(0.4)
+			H.inClient(p, EUI.debugSnack, foes[1].key)
+			for k = 0, 39 do
+				capture(p, string.format("exp_%s_%03d", spec, k))
+				E.run(0.06)
+			end
+			Battle.treatChance = chance
 			return p
 		elseif what == "aim" and s.exp and s.exp.battle then
 			E.run(2)

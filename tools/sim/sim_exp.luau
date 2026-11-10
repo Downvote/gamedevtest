@@ -513,6 +513,54 @@ local f0, w0 = prof.food, prof.wood
 res = H.req(p, "exp.home", {})
 H.expect(res.ok and lost ~= nil and math.abs(prof.food - (f0 + math.floor(lost.food / 2))) < 1 and math.abs(prof.wood - (w0 + math.floor(lost.wood / 2))) < 1, "defeat", "half the loot home", lost and string.format("%s food gathered", lost.food) or "")
 H.expect(s.exp == nil and next(s.away) == nil, "defeat", "everyone home")
+
+------------------------------------------------------------------ 5. a friend made on the screen
+-- a snack that befriends the last wild one ends the battle on the server at once: the screen still plays the throw,
+-- the arc, the hearts and the poof with the wild one on the stage, and only then lays out what comes next
+E.phase = "friend"
+strong(5)
+prof.food = 1000
+prof.pals = {}
+local BattleS = H.sharedServer("Logic.Battle")
+local chance0 = BattleS.treatChance
+BattleS.treatChance = function()
+	return 1
+end
+res = H.req(p, "exp.start", { isle = 1, party = "" })
+H.expect(res.ok, "friend", "the captain alone to island 1", tostring(res.err))
+nextBattle()
+if s.exp and s.exp.battle then
+	local foes = s.exp.battle.foes
+	while #foes > 1 do
+		table.remove(foes)
+	end
+	foes[1].hp, foes[1].maxHp = 4000, 4000
+	s.exp.party[1].hp, s.exp.party[1].maxHp = 5000, 5000
+	H.push(p, 0.3)
+	H.clickNamed(p, "ExpContinue", { wait = 0.5 })
+	E.run(Tuning.StageWait + 3)
+	local key = foes[1].key
+	H.expect(string.find(H.inClient(p, EUI.debugState).shown, key, 1, true) ~= nil, "friend", "the wild one on the stage", key)
+	H.inClient(p, EUI.debugSnack, key)
+	H.expect(s.exp and s.exp.battle == nil and #prof.pals == 1, "friend", "befriended: the battle is over on the server")
+	-- (the first moment it is off the stage: a next battle's wild one may take the same key later)
+	local goneAt: number? = nil
+	for k = 1, 60 do
+		local st2 = H.inClient(p, EUI.debugState)
+		if goneAt == nil and string.find(st2.shown, key, 1, true) == nil then
+			goneAt = k * 0.05
+		end
+		E.run(0.05)
+	end
+	H.expect(goneAt == nil or goneAt >= 0.9, "friend", "it stays on the stage through the throw, the arc and the hearts", tostring(goneAt))
+	H.expect(goneAt ~= nil and goneAt <= 2.5, "friend", "then goes in its poof", tostring(goneAt))
+	H.clickNamed(p, "BackToIsland", { wait = 0.5 })
+	E.run(0.5)
+end
+BattleS.treatChance = chance0
+if s.exp then
+	H.req(p, "exp.home", {})
+end
 H.checkProfile(p, "end")
 H.checkMirror(p, "end")
 

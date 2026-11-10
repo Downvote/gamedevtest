@@ -30,7 +30,7 @@
 -- once when the stage closes (baked again only if a part under Workspace.Plots came or went in between). A dynamic
 -- model with a "PixelShadow" attribute (a radius in studs) casts a blob shadow on the static picture under it (on
 -- the ground at its "PixelGroundY", default 0): the pixels there are shaded as in the sun's shadow, so it lands on the
--- palette's own shadow tones, smaller the higher the model is.
+-- palette's own shadow tones, smaller the higher the model is (none when it is hidden or below its ground).
 -- Water: a part with a "PixelWater" attribute (1 the sea, 2 the shallows, 3 the foam) marks its pixels in the bake
 -- with that class and a wave phase from the hit point's world position (sWClass, sWave: they scroll with the
 -- picture). WATER_HZ times a second (not on the low tier) the water pixels not under an ink line are shaded again
@@ -982,6 +982,11 @@ local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
 	local ground = if type(g) == "number" then g else 0
 	local pp = model.PrimaryPart or first
 	local p = pp.Position
+	-- a model out of sight casts none: hidden (see-through) or parked below its ground (a stage's thing put away,
+	-- a befriended wild one gone in its poof), which would else leave a blob on the floor where nothing stands
+	if pp.Transparency >= 0.95 or p.Y < ground - 1 then
+		return nil
+	end
 	local h = math.max(0, p.Y - ground)
 	local r = radius * math.clamp(1 - h / 26, 0.45, 1)
 	local cam = s.cam

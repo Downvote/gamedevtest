@@ -395,7 +395,8 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   down (`press`: up to 0.45 of it for white at night), so pale colours (shells, sand, sails) don't glow.
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
-  never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects. The
+  never an ink line or the sky), smaller the higher it is; none while its PrimaryPart is see-through or below its
+  ground (a stage's thing put away under the floor); drawn before the models, restored with their rects. The
   shadowed tone of each static pixel is worked out once and cached (`sShadowC`) until the static layer changes (a
   bake, a pan, a re-cast), so a cloud's big shadow stays cheap.
 
@@ -560,8 +561,11 @@ blinds close over the stage in 0.4 s, then the stage goes and `after()` runs, or
 (the expedition waits) and the end of one (`exp.home`: `after` plays `Voyage.home` with the party, then the loot's
 notice and sound; it stays busy till then)), `isOpen()`, `active()`, `Changed: Signal<boolean>`, `init()` (the view's changes lay it out
 again; an expedition gone closes it; the battle's Fx "exp" act messages play back in turn (`playQueue`), act and
-timers messages set the timers), and for the sims and previews `debugState() -> { open, lifted, actors, busy, node,
-foes, ship, arrived, safe, timers, paused, sp, snacks, aim, aimWho, aimTarget, marked, arrow (its dashes shown),
+timers messages set the timers; while they play the wild ones on the stage stay as they are (`buildFoes` waits:
+a snack befriending the last wild one, or a battle's last blow, ends the battle on the server before its playback,
+which still shows the throw, the hearts and the poof or the knock-out, then lays the screen out again)), and for the sims and previews `debugState() -> { open, lifted, actors, busy, node,
+foes, ship, arrived, safe, timers, paused, sp, snacks, aim, aimWho, aimTarget, marked, shown (the keys of those on
+the stage, not gone in a poof), arrow (its dashes shown),
 arrowGap (its end from the pick), menu, queue, gauge }`, `debugGo()`, `debugSnack(target?)`, `debugSkill(who, id,
 target?)`, `debugFlee()`, `debugAim(kind)`, `debugPoint(key, tap) -> boolean` (the pointer over someone: a hover or a
 tap), `debugScreenOf(key) -> (i, j)`, `debugHome()`, `debugWait(seconds?)` (a longer wait for

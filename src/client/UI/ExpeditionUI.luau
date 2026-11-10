@@ -285,6 +285,12 @@ local function buildFoes(e: Types.Expedition)
 	if key == foeKey then
 		return
 	end
+	-- an action still playing (a snack's throw at a wild one the server has already befriended, the last blow of a
+	-- battle already won) keeps the wild ones it shows: the view's new line-up (the battle over, the next one) waits
+	-- till the playback is done, which lays the screen out again (`enqueue`)
+	if pumping and foeKey ~= "" then
+		return
+	end
 	foeKey = key
 	for k, a in actors do
 		if a.foe then
@@ -2584,6 +2590,17 @@ function ExpeditionUI.debugState(): { [string]: any }
 		aimWho = if aim then (aim :: Aim).who else nil,
 		aimTarget = if aim then (aim :: Aim).target else nil,
 		marked = aimMark ~= nil,
+		shown = (function(): string
+			-- who stands on the stage now (not gone in a poof), their keys
+			local keys: { string } = {}
+			for key, ac in actors do
+				if not ac.gone then
+					table.insert(keys, key)
+				end
+			end
+			table.sort(keys)
+			return table.concat(keys, ",")
+		end)(),
 		arrow = (function(): number
 			-- the arrow's dashes on the floor now (0: none; its length in dashes)
 			local n2 = 0
