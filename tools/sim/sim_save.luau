@@ -95,7 +95,7 @@ H.checkMirror(p2, "rejoin")
 E.phase = "leave-exp"
 local pp = H.profile(p2)
 pp.food = 100
-local res = H.req(p2, "exp.start", { islet = 1, party = "" })
+local res = H.req(p2, "exp.start", { lvl = 1, party = "" })
 H.expect(res.ok, "save", "an expedition sets sail", tostring(res.err))
 H.req(p2, "exp.next", {})
 local s2 = H.session(p2)
@@ -165,7 +165,7 @@ if cp then
 	H.expect(cp.shells == Tuning.StartShells and cp.food == 0 and cp.tier == 3, "save", "into a valid profile", string.format("%s %s %d", tostring(cp.shells), tostring(cp.food), cp.tier))
 	local q = cp.plot.placed[1]
 	H.expect(#cp.plot.placed == 1 and q.id == "patch" and H.sharedServer("Logic.Plot").fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone", string.format("%d pieces", #cp.plot.placed))
-	H.expect(#cp.folk == 1 and cp.folk[1].work == 0 and #cp.pals == 1 and cp.pals[1].id == 8 and cp.islets == 5, "save", "only what makes sense kept", string.format("%d folk, %d pals, %d islets", #cp.folk, #cp.pals, cp.islets))
+	H.expect(#cp.folk == 1 and cp.folk[1].work == 0 and #cp.pals == 1 and cp.pals[1].id == 8 and cp.islets == 42, "save", "only what makes sense kept", string.format("%d folk, %d pals, %d islands", #cp.folk, #cp.pals, cp.islets))
 	H.checkProfile(c, "corrupt")
 	H.checkMirror(c, "corrupt")
 end

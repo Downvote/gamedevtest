@@ -2,8 +2,8 @@
 -- own rules (Logic/Island, Plot, Expedition: what the server runs) and logs it every ten minutes. Every few seconds
 -- they build what the island lacks most (a bed when the village is full, food when it runs short, a nest for a new
 -- friend, wood, a shop for every three villagers, decor with spare shells), expand the island when they can, and
--- every couple of minutes sail on an expedition with the captain and the three strongest: the next islet when the
--- party looks strong enough, else the last one again to train. In battle they treat a hurt wild one while a nest is
+-- every couple of minutes sail on an expedition with the captain and the three strongest to an island at the
+-- captain's level, or lower while the party looks too weak for its guardian or after defeats (the slider). In battle they treat a hurt wild one while a nest is
 -- free, flee when the party is nearly beaten, and fight otherwise; a node takes NodeSec and a round RoundSec.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
@@ -11,7 +11,6 @@ local Island = require("../build/luautest/shared/Logic/Island")
 local Plot = require("../build/luautest/shared/Logic/Plot")
 local Expedition = require("../build/luautest/shared/Logic/Expedition")
 local Buildings = require("../build/luautest/shared/Data/Buildings")
-local Islets = require("../build/luautest/shared/Data/Islets")
 local Street = require("../build/luautest/shared/Data/Street")
 local Util = require("../build/luautest/shared/Logic/Util")
 
@@ -77,8 +76,8 @@ local function plan(p: any, away: { [string]: boolean })
 		Island.expand(p)
 		return
 	end
-	-- saving up for the next tier once the village is going
-	local saving = ex ~= nil and #p.folk >= 4 * p.tier and p.shells < ex.shells
+	-- saving up for the next tier once the village is going (its shells and its wood)
+	local saving = ex ~= nil and #p.folk >= 4 * p.tier and (p.shells < ex.shells or p.wood < ex.wood)
 	local wants: { string } = {}
 	if Island.beds(p) <= #p.folk and #p.folk < Tuning.FolkMax then
 		table.insert(wants, "home")
@@ -120,7 +119,7 @@ local function plan(p: any, away: { [string]: boolean })
 			for i, q in p.plot.placed do
 				local d = Buildings.byId[q.id]
 				local cost = Plot.upgradeCost(q)
-				if d and d.kind == kind and cost and p.shells >= cost.shells and p.wood >= cost.wood and not (saving and p.shells - cost.shells < (ex :: any).shells) then
+				if d and d.kind == kind and cost and p.shells >= cost.shells and p.wood >= cost.wood and not (saving and (p.shells - cost.shells < (ex :: any).shells or p.wood - cost.wood < (ex :: any).wood)) then
 					Plot.upgrade(p, i)
 					return
 				end
@@ -171,11 +170,19 @@ local function power(p: any, keys: { string }): number
 	return s
 end
 
--- What a party of four at an islet's guardian level would need (a rough match of its foes).
-local function needed(islet: number): number
-	local def = Islets.list[islet]
-	local lvl = def.lvl + (#def.nodes - 1) // 3 + 2
-	return (30 * 0.25 + 8 + 2.5) * (1 + Tuning.LevelGrow * (lvl - 1)) * 2.6
+-- What a party of four at an island's guardian would need (a rough match of its foes).
+local function needed(lvl: number): number
+	return (30 * 0.25 + 8 + 2.5) * (1 + Tuning.LevelGrow * (lvl + 1)) * 2.6
+end
+
+-- The level to sail at: the captain's, lower while the party looks too weak for its guardian, lower again after
+-- defeats (the Explore panel's slider).
+local function pickLevel(p: any, keys: { string }, fails: number): number
+	local lvl = Expedition.maxLevel(p)
+	while lvl > 1 and power(p, keys) < needed(lvl) do
+		lvl -= 1
+	end
+	return math.max(1, lvl - 2 * fails)
 end
 
 function Career.play(seed: number, seconds: number, opts: Opts?)
@@ -224,14 +231,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		-- the expedition
 		if exp == nil and t >= nextTrip then
 			local keys = party(p)
-			local target = math.min(#Islets.list, p.islets + 1)
-			if target > p.islets and power(p, keys) < needed(target) and p.islets > 0 then
-				target = p.islets -- train on the last one
-			end
-			if fails >= 2 and p.islets > 0 then
-				target = p.islets
-			end
-			local ok, e = Expedition.start(p, target, keys)
+			local ok, e = Expedition.start(p, pickLevel(p, keys, fails), keys, rng:int(1, 2147483646))
 			if ok then
 				exp = e
 				busyUntil = t + NODE_SEC
@@ -242,7 +242,11 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 			if e.over then
 				Expedition.home(p, e)
 				if e.over == "won" then
-					mark("islet" .. e.islet, t)
+					for _, l in { 1, 5, 10, 16, 23 } do
+						if e.isle.lvl >= l then
+							mark("guardian" .. l, t)
+						end
+					end
 					fails = 0
 				elseif e.over == "lost" then
 					fails += 1

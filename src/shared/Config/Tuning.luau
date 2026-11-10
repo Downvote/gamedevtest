@@ -45,7 +45,7 @@ local Tuning = {
 	LevelMax = 60,
 	XpBase = 12, -- the xp to the next level: XpBase x level ^ XpPow
 	XpPow = 1.35,
-	XpPerFoe = 8, -- xp a beaten wild one gives (times its level), shared by the party
+	XpPerFoe = 6, -- xp a beaten wild one gives (times its level), shared by the party
 	TrainXp = 2, -- xp a day for each villager or driftling resting at a Training Yard
 	PartyMax = 3, -- members beside the captain
 	Supplies = 4, -- food each member takes on an expedition
@@ -56,7 +56,18 @@ local Tuning = {
 	FleeBase = 0.55,
 	BossBoost = 1.7, -- a guardian's stats times this
 	RestHeal = 0.5,
-	StageWait = 6, -- seconds the expedition's curtain waits at most for the islet's picture
+	StageWait = 6, -- seconds the expedition's curtain waits at most for the island's picture
+	-- the islands found at sea (GAME_DESIGN 7; Logic/Expedition.chart), by the level the captain picks (1 .. theirs)
+	IsleFoodBase = 5, -- a loot node's food: base + per level x the level ...
+	IsleFoodLvl = 3.3,
+	IsleWoodBase = 2, -- ... its wood ...
+	IsleWoodLvl = 3.8,
+	IsleChestBase = 25, -- ... a chest's shells: base + per level x the level squared
+	IsleChestLvl2 = 2,
+	IsleRewardBase = 100, -- the guardian's reward: base + per level x the level squared
+	IsleRewardLvl2 = 19,
+	ChartCharm = 3, -- charm for each island charted (its guardian beaten) ...
+	ChartCharmMax = 15, -- ... up to this
 
 	-- server
 	StepHz = 10,

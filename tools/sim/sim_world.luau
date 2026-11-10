@@ -53,7 +53,7 @@ local seaFolder = plots and plots:FindFirstChild("Street")
 local stretches, ends = 0, 0
 if seaFolder then
 	for _, c in seaFolder:GetChildren() do
-		if c.Name == "Road" then
+		if string.match(c.Name, "^Road_%d+$") then
 			stretches += 1
 		elseif c.Name == "StreetEnds" then
 			ends += 1

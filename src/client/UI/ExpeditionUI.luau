@@ -1,13 +1,15 @@
 --!strict
--- An expedition on screen (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.8): the islet's 3D stage (UI/MicroStage, drawn
--- full screen by the pixel filter) with the party on the left (the founder, villagers as their own chibis,
--- driftlings as their 3D models) and, in a battle, the wild driftlings on the right. Along the top the islet's path
+-- An expedition on screen (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.9): the island's 3D stage (UI/MicroStage: its
+-- kind's set laid out by its seed, drawn full screen by the pixel filter) with the party on the left (the founder,
+-- villagers as their own chibis, driftlings as their 3D models) and, in a battle, the wild driftlings on the right.
+-- Right after the sailing cutscene (UI/Voyage, `sail`) the expedition boat glides in to the shore and the party hops
+-- off it; reopened later, they drop in from above. Along the top the island's path
 -- of stops (the landing, loot, chests, battles, a rest, the guardian) and the loot gathered; along the bottom the
 -- party's cards with their health and the buttons: Go on (exp.next) and Sail home (exp.home) between stops; Fight,
 -- Guard, Treat (a wild one picked by tapping its card) and Flee in a battle (exp.act). A round's events (Logic/Battle)
 -- play back one by one: lunges, flashes, numbers, skills' names, heals, shields, a treat's hearts, knock-outs. A win
--- shows the experience, shells and level-ups; a new friend joins with confetti; the guardian's fall opens the next
--- islet. The screen can be closed (Back to island) while the expedition waits: the HUD's card brings it back. A
+-- shows the experience, shells and level-ups; a new friend joins with confetti; the guardian's fall charts the
+-- island. The screen can be closed (Back to island) while the expedition waits: the HUD's card brings it back. A
 -- curtain covers the screen while the stage's picture bakes.
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +29,7 @@ local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local MicroStage = require(script.Parent.MicroStage)
 local Words = require(script.Parent.Words)
+local Voyage = require(script.Parent.Voyage)
 
 local ExpeditionUI = {}
 ExpeditionUI.Changed = Util.Signal() :: Types.Signal<boolean>
@@ -55,6 +58,7 @@ type Actor = {
 	enterAt: number,
 	ph: number,
 	big: boolean,
+	deck: number, -- the party's place on the arriving boat's deck (0: none: dropped in)
 }
 
 -- The shown health (the events move it; the view's numbers settle it after a round).
@@ -71,7 +75,18 @@ local beat: RBXScriptConnection? = nil
 local keys: RBXScriptConnection? = nil
 local opened = 0
 local lifted = false
-local islet = 0
+local liftDelay = 0 -- seconds from opening to the curtain lifting
+local stageWait: number? = nil -- the previews' longer wait for the picture (debugWait; the fake engine bakes slowly)
+local isle: Types.Isle? = nil
+-- the boat's arrival at the shore after the cutscene: the ship and when it set off (the party hops off after)
+local arriving = false
+local ship: MicroModels.Thing? = nil
+local SHIP_U, SHIP_V, SHIP_FROM = -21, 11, -34 -- in the shallows off the floor's front-left edge
+local SHIP_IN = 1.0 -- seconds it glides in
+local HOP_T, LAND, RUN = 0.4, 3.5, 12 -- a hop off (seconds, studs onto the shore), then a run to the place (studs/s)
+local WATER = -0.45 -- the sea's surface on the stage (from the floor's top)
+-- where the party stands on deck (along the bow: u; across: v), the founder first (UI/Voyage's deck)
+local DECK_SPOTS = { { -0.1, 0, 0 }, { 0.9, -0.75, 0 }, { 0.9, 0.75, 0 }, { 1.75, 0, 0.5 } }
 local lastNode = 0
 local foeKey = "" -- the battle's foes shown (rebuilt when they change)
 local pendingOpen = 0 -- os.clock until which the screen opens as soon as the view has the expedition (just started)
@@ -139,6 +154,7 @@ local function newActor(key: string, foe: boolean, spot: { number }): Actor
 		enterAt = os.clock(),
 		ph = math.random() * 4,
 		big = false,
+		deck = 0,
 	}
 end
 
@@ -165,7 +181,10 @@ local function buildParty(e: Types.Expedition)
 			a.rival = st.rival(f.look :: Types.Look, delay)
 		elseif f.kind == "pal" and f.sp then
 			a.thing = driftling(st, f.sp :: string, false)
-			a.dy = 8
+			a.dy = if arriving then 0 else 8
+		end
+		if arriving then
+			a.deck = i
 		end
 		actors[f.key] = a
 	end
@@ -219,7 +238,57 @@ local function poseAll(t: number, dt: number)
 		return
 	end
 	local now = os.clock()
+	-- the boat gliding in to the shore once the curtain is up
+	local since = if lifted then now - opened - liftDelay else -1
+	local sh = ship
+	local shipU = SHIP_U
+	if sh then
+		local e = math.clamp(since / SHIP_IN, 0, 1)
+		local ease = 1 - (1 - e) * (1 - e)
+		shipU = SHIP_FROM + (SHIP_U - SHIP_FROM) * ease
+		local bob = if e >= 1 and math.floor(t * 1.5) % 2 == 0 then 0.125 else 0
+		st.place(sh :: MicroModels.Thing, math.floor(shipU * 4 + 0.5) / 4, SHIP_V, WATER + bob, MicroStage.FACE_RIGHT)
+	end
 	for _, a in actors do
+		-- the party hops off the arriving boat onto the shore one after another and runs to its places
+		if a.deck > 0 then
+			local spot = DECK_SPOTS[a.deck] or DECK_SPOTS[#DECK_SPOTS]
+			local du, dv, dh = shipU + spot[1], SHIP_V + spot[2], WATER + 0.625 + spot[3]
+			local k = since - (SHIP_IN + 0.1 + (a.deck - 1) * 0.35)
+			local hu, hv = a.u, a.v
+			local dx, dz = hu - du, hv - dv
+			local dist = math.max(4, math.sqrt(dx * dx + dz * dz))
+			local lu, lv = du + dx / dist * LAND, dv + dz / dist * LAND
+			local u, v, y, action, speed = du, dv, dh, if since > 0 then "cheer" else "stand", 0
+			if k >= HOP_T then
+				local frac = math.min(1, (k - HOP_T) * RUN / (dist - LAND))
+				u, v, y, action, speed = lu + (hu - lu) * frac, lv + (hv - lv) * frac, 0, "stand", RUN
+				if frac >= 1 then
+					a.deck = 0
+					st.puff(st.at(hu, hv, 0.2), "dust", 4)
+				end
+			elseif k >= 0 then
+				local e = k / HOP_T
+				u, v = du + (lu - du) * e, dv + (lv - dv) * e
+				y, action = dh * (1 - e) + math.sin(e * math.pi) * 1.8, "jump"
+				if a.founder and k < dt then
+					Audio.play("pop", { pitch = 0.75 })
+				end
+			end
+			if a.deck > 0 then
+				local dir = MicroStage.U_DIR * dx + MicroStage.V_DIR * dz
+				local yaw = if k >= 0 then math.atan2(dir.X, dir.Z) else MicroStage.FACE_RIGHT
+				if a.founder then
+					st.pose(u, v, y, yaw, t, speed, action, 1)
+				elseif a.rival then
+					(a.rival :: MicroStage.Rival).pose(u, v, y, yaw, t, speed, action, 1)
+				elseif a.thing then
+					local hop = if speed > 0 and math.floor(t * 8 + a.ph) % 2 == 0 then 0.25 else 0
+					st.place(a.thing :: MicroModels.Thing, u, v, y + hop, yaw)
+				end
+				continue
+			end
+		end
 		-- drops land, lunges ease back
 		if a.dy > 0 and lifted and now >= a.enterAt then
 			a.dy = math.max(0, a.dy - dt * 30)
@@ -665,11 +734,9 @@ playRound = function(data: { [string]: any })
 			table.insert(lines, 1, { text = (if d then d.name else "A driftling") .. " joined your island!", color = UIKit.color("pink") })
 		end
 		if data.reward then
-			local def = Islets.list[islet]
 			table.insert(lines, 1, { text = string.format("The guardian is beaten! +%s shells", Numbers.int(tonumber(data.reward) or 0)), color = UIKit.color("accent") })
-			local nxt = Islets.list[islet + 1]
-			if data.first and nxt then
-				table.insert(lines, { text = nxt.name .. " is open: set sail there next!", color = UIKit.color("good") })
+			if type(data.charted) == "number" then
+				table.insert(lines, { text = string.format("Islands charted: %d", data.charted), color = UIKit.color("good") })
 			end
 			if st then
 				for _ = 1, 3 do
@@ -677,7 +744,7 @@ playRound = function(data: { [string]: any })
 				end
 			end
 			Audio.play("rare_fanfare")
-			resultCard(if def then def.name .. " cleared!" else "Cleared!", UIKit.color("accent"), lines, icon, "Sail home", goHome)
+			resultCard(if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!", UIKit.color("accent"), lines, icon, "Sail home", goHome)
 		else
 			resultCard("Victory!", UIKit.color("good"), lines, icon, "Onward", function()
 				refresh()
@@ -733,8 +800,7 @@ playNode = function(data: { [string]: any })
 	elseif kind == "wild" then
 		say("Wild driftlings!", UIKit.color("orange"))
 	elseif kind == "boss" then
-		local def = Islets.list[islet]
-		say((if def then def.bossName else "The guardian") .. " blocks the way!", UIKit.color("bad"), 2.4)
+		say((if isle then (isle :: Types.Isle).bossName else "The guardian") .. " blocks the way!", UIKit.color("bad"), 2.4)
 	end
 	target = nil
 end
@@ -787,8 +853,8 @@ refresh = function()
 	end
 	table.clear(bars)
 	local w, h = canvasSize()
-	local def = Islets.list[e.islet]
-	-- the header: the islet, the path, the loot, Back (below Roblox's top bar: its strip is the header's backdrop)
+	local def = Islets.list[e.isle.kind]
+	-- the header: the island, the path, the loot, Back (below Roblox's top bar: its strip is the header's backdrop)
 	local top = topInset()
 	local back = UIKit.rect(r, UDim2.fromOffset(w, top), UDim2.fromOffset(0, 0), UIKit.color("ink"), 9)
 	back.Name = "TopBar"
@@ -797,7 +863,7 @@ refresh = function()
 	head.Name = "Header"
 	head.BackgroundTransparency = 0.2
 	UIKit.rect(head, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, HEAD_H - 1), UIKit.color(if def then def.color else "accent"), 9)
-	UIKit.text(head, if def then def.name else "?", UDim2.fromOffset(100, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("accent"), z = 11, name = "Islet" })
+	UIKit.text(head, string.format("%s  Lv %d", e.isle.name, e.isle.lvl), UDim2.fromOffset(106, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("accent"), z = 11, name = "Islet" })
 	lootLine(head, e, 4, 10)
 	local px = math.max(110, math.floor(w / 2) - #e.nodes * 7)
 	for i, kind in e.nodes do
@@ -903,8 +969,8 @@ function ExpeditionUI.open()
 	isOpen = true
 	UIKit.closePanel()
 	hideWorldUI(true)
-	islet = e.islet
-	local def = Islets.list[e.islet]
+	isle = e.isle
+	local def = Islets.list[e.isle.kind]
 	local canvas = UIKit.canvas("Stage")
 	local w, h = canvasSize()
 	local r = Instance.new("Frame")
@@ -914,15 +980,27 @@ function ExpeditionUI.open()
 	r.Size = UDim2.fromOffset(w, h)
 	r.Parent = canvas
 	root = r
-	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 })
+	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 }, e.isle.seed)
 	actors = {}
 	foeKey = ""
 	target = nil
 	lifted = false
+	liftDelay = 0
 	opened = os.clock()
+	ship = nil
+	if arriving and stage then
+		-- the boat brings the party in: the drop from above happens behind the curtain, unseen
+		local st = stage :: MicroStage.Stage
+		st.lift()
+		ship = st.spawn("ship")
+		st.place(ship :: MicroModels.Thing, SHIP_FROM, SHIP_V, WATER, MicroStage.FACE_RIGHT)
+	end
 	-- the founder stands with the party (MicroStage's own avatar)
 	actors.f = newActor("f", false, PARTY_SPOTS[1])
-	-- the curtain: ink blinds with the islet's name while the stage's picture is baked
+	if arriving then
+		actors.f.deck = 1
+	end
+	-- the curtain: ink blinds with the island's name while the stage's picture is baked
 	local curtain = Instance.new("Frame")
 	curtain.Name = "Curtain"
 	curtain.BackgroundTransparency = 1
@@ -938,16 +1016,19 @@ function ExpeditionUI.open()
 		table.insert(blinds, band)
 	end
 	PixelSprites.image(curtain, "mini_boat", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
-	UIKit.text(curtain, if def then def.name else "Expedition", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsletName" })
-	UIKit.text(curtain, if def then def.blurb else "", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
-	Audio.play("trumpet")
+	UIKit.text(curtain, e.isle.name, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsletName" })
+	UIKit.text(curtain, if def then string.format("A %s, level %d", string.lower(def.name), e.isle.lvl) else "", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
+	if not arriving then
+		Audio.play("trumpet")
+	end
 	refresh()
 	beat = RunService.Heartbeat:Connect(function(dt: number)
 		local now = os.clock()
 		if not lifted then
 			local st = stage
-			if st and ((st.ready() and now - opened >= 1.2) or now - opened > Tuning.StageWait) then
+			if st and ((st.ready() and now - opened >= 1.2) or now - opened > (stageWait or Tuning.StageWait)) then
 				lifted = true
+				liftDelay = now - opened
 				st.lift()
 				local mid = #blinds / 2
 				for i, band in blinds do
@@ -992,6 +1073,7 @@ function ExpeditionUI.open()
 			task.spawn(goOn)
 		end
 	end)
+	arriving = false
 	ExpeditionUI.Changed:Fire(true)
 end
 
@@ -1025,7 +1107,17 @@ function ExpeditionUI.close()
 	ExpeditionUI.Changed:Fire(false)
 end
 
+-- Set sail (Explore): the sailing cutscene, then the screen with the boat arriving (`keys`: the members picked).
+function ExpeditionUI.sail(keys: { string }, isleNow: Types.Isle?)
+	Voyage.play(keys, isleNow, function()
+		-- (if the view with the expedition is still on its way, it opens, arriving, when it comes)
+		arriving = true
+		ExpeditionUI.open()
+	end)
+end
+
 function ExpeditionUI.init()
+	Voyage.init()
 	-- the view changed (the round's numbers settled, the expedition ended elsewhere): lay out again
 	StateClient.Changed:Connect(function(v: Types.ClientView)
 		if not isOpen then
@@ -1047,10 +1139,17 @@ end
 -- Sims and previews: what is on screen, and the actions as a player would tap them (they yield).
 function ExpeditionUI.debugState(): { [string]: any }
 	local n = 0
-	for _ in actors do
+	local aboard = 0
+	for _, a in actors do
 		n += 1
+		if a.deck > 0 then
+			aboard += 1
+		end
 	end
-	return { open = isOpen, lifted = lifted, actors = n, busy = busy, node = lastNode, foes = foeKey }
+	return { open = isOpen, lifted = lifted, actors = n, busy = busy, node = lastNode, foes = foeKey, ship = ship ~= nil, arrived = ship ~= nil and aboard == 0 }
+end
+function ExpeditionUI.debugWait(seconds: number?)
+	stageWait = seconds
 end
 function ExpeditionUI.debugGo()
 	goOn()

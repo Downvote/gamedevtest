@@ -1,21 +1,26 @@
 --!strict
 -- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 6): the captain and up to Tuning.PartyMax villagers or
--- driftlings sail from the island's dock to an open islet (Data/Islets), walk its path a node at a time, battle its
--- driftlings (Logic/Battle), befriend some with treats, and sail home with what they gathered. Pure; the server keeps
--- the expedition in the session (it ends, the loot kept, when the player leaves). Those away neither work nor eat.
---   start(p, islet, members) -> Expedition    (members: "v<id>" / "p<id>"; each of the party takes Tuning.Supplies food)
---   next(p, e, rng)                           (the next node: loot, a chest, a rest, or a battle)
---   act(p, e, act, target, rng)               (a battle round; a win shares xp, a beaten guardian opens the next islet)
---   home(p, e)                                (back on the island: the loot is added, half of it after a defeat)
+-- driftlings sail from the island's pier to an island found at sea, made up as they set sail (`chart`: its kind from
+-- Data/Islets, its name, driftlings, path and loot from a seed and the level the captain picked, 1 up to their own),
+-- walk its path a node at a time, battle its driftlings (Logic/Battle), befriend some with treats, and sail home
+-- with what they gathered. Pure; the server keeps the expedition in the session (it ends, the loot kept, when the
+-- player leaves). Those away neither work nor eat.
+--   chart(lvl, seed) -> Isle                   (the island: the same seed and level make the same island)
+--   start(p, lvl, members, seed) -> Expedition (members: "v<id>" / "p<id>"; each of the party takes Tuning.Supplies food)
+--   next(p, e, rng)                            (the next node: loot, a chest, a rest, or a battle)
+--   act(p, e, act, target, rng)                (a battle round; a win shares xp, a beaten guardian charts the island)
+--   home(p, e)                                 (back on the island: the loot is added, half of it after a defeat)
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Islets = require(script.Parent.Parent.Data.Islets)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
 local Battle = require(script.Parent.Battle)
 local Island = require(script.Parent.Island)
+local Util = require(script.Parent.Util)
 
 type Profile = Types.Profile
 type Expedition = Types.Expedition
+type Isle = Types.Isle
 type Fighter = Types.Fighter
 type Rng = Types.Rng
 type ErrCode = Types.ErrCode
@@ -72,18 +77,131 @@ function Expedition.supplies(n: number): number
 	return Tuning.Supplies * n
 end
 
--- The wild driftlings' level at a node.
-function Expedition.levelAt(islet: number, node: number): number
-	local def = Islets.list[islet]
-	return (if def then def.lvl else 1) + (node - 1) // 3
+------------------------------------------------------------------ the islands at sea
+-- The level the captain may pick: 1 up to their own.
+function Expedition.maxLevel(p: Profile): number
+	return math.max(1, p.cap.lvl)
 end
 
-function Expedition.start(p: Profile, islet: number, members: { string }): (boolean, any)
-	local def = Islets.list[islet]
-	if def == nil then
+-- The kinds of island (Data/Islets ids) that can turn up at a level.
+function Expedition.kindsAt(lvl: number): { number }
+	local out: { number } = {}
+	for _, d in Islets.list do
+		if d.lvl <= lvl then
+			table.insert(out, d.id)
+		end
+	end
+	return out
+end
+
+-- The species that can live on an island of a level (every kind open at it).
+function Expedition.speciesAt(lvl: number): { string }
+	local out: { string } = {}
+	for _, k in Expedition.kindsAt(lvl) do
+		for _, sp in Islets.list[k].wild do
+			table.insert(out, sp)
+		end
+	end
+	return out
+end
+
+-- An island's path: the landing, six to nine stops (battles, loot, chests, one rest late on), the guardian.
+local function path(rng: Rng, lvl: number): { string }
+	local n = 6 + rng:int(0, 2) + (if lvl >= 10 then 1 else 0)
+	local restAt = math.max(3, math.floor(n * 0.7 + 0.5) - rng:int(0, 1))
+	local mid: { string } = {}
+	for i = 1, n do
+		if i == restAt then
+			mid[i] = "rest"
+		else
+			local r = rng:next()
+			mid[i] = if r < 0.55 then "wild" elseif r < 0.8 then "loot" else "chest"
+		end
+	end
+	local function wilds(): number
+		local c = 0
+		for _, k in mid do
+			if k == "wild" then
+				c += 1
+			end
+		end
+		return c
+	end
+	local guard = 0
+	while wilds() < 3 and guard < 50 do
+		guard += 1
+		local i = rng:int(1, n)
+		if mid[i] ~= "rest" then
+			mid[i] = "wild"
+		end
+	end
+	local out = { "start" }
+	for _, k in mid do
+		table.insert(out, k)
+	end
+	table.insert(out, "boss")
+	return out
+end
+
+-- The island for a level and a seed: its kind (one of those open at the level), a name of its kind's words, two of
+-- its kind's driftlings and one that strayed in from any open kind, a guardian (one of its own, titled), what its
+-- loot and chests hold and the guardian's reward (Tuning.Isle*). Its path comes from the same seed (`nodesOf`).
+function Expedition.chart(lvl: number, seed: number): Isle
+	lvl = math.clamp(math.floor(lvl), 1, Tuning.LevelMax)
+	local rng = Util.newRng(seed)
+	local kinds = Expedition.kindsAt(lvl)
+	local kind = kinds[rng:int(1, #kinds)]
+	local def = Islets.list[kind]
+	local first = def.first[rng:int(1, #def.first)]
+	local last = def.last[rng:int(1, #def.last)]
+	if string.lower(first) == string.lower(last) then
+		last = def.last[(table.find(def.last, last) or 1) % #def.last + 1]
+	end
+	local own = table.clone(def.wild)
+	Util.shuffle(rng, own)
+	local wild = { own[1], own[2] }
+	local strays: { string } = {}
+	for _, sp in Expedition.speciesAt(lvl) do
+		if sp ~= own[1] and sp ~= own[2] then
+			table.insert(strays, sp)
+		end
+	end
+	table.insert(wild, strays[rng:int(1, #strays)])
+	local boss = own[rng:int(1, 2)]
+	local bd = Creatures.byId[boss]
+	local title = Islets.titles[rng:int(1, #Islets.titles)]
+	return {
+		seed = seed,
+		lvl = lvl,
+		kind = kind,
+		name = first .. " " .. last,
+		wild = wild,
+		boss = boss,
+		bossName = title .. " " .. (if bd then bd.name else boss),
+		loot = {
+			food = math.floor(Tuning.IsleFoodBase + Tuning.IsleFoodLvl * lvl + 0.5),
+			wood = math.floor(Tuning.IsleWoodBase + Tuning.IsleWoodLvl * lvl + 0.5),
+			shells = math.floor(Tuning.IsleChestBase + Tuning.IsleChestLvl2 * lvl * lvl + 0.5),
+		},
+		reward = math.floor(Tuning.IsleRewardBase + Tuning.IsleRewardLvl2 * lvl * lvl + 0.5),
+	}
+end
+
+-- The island's path of nodes (from its seed).
+function Expedition.nodesOf(isle: Isle): { string }
+	return path(Util.newRng(Util.hash32(isle.seed) + 17), isle.lvl)
+end
+
+-- The wild driftlings' level at a node: a level under the island's at the landing, one more every four stops.
+function Expedition.levelAt(isle: Isle, node: number): number
+	return math.max(1, isle.lvl - 1 + (node - 1) // 4)
+end
+
+function Expedition.start(p: Profile, lvl: number, members: { string }, seed: number): (boolean, any)
+	if lvl ~= lvl or lvl < 1 or lvl ~= math.floor(lvl) then
 		return false, "bad_payload" :: ErrCode
 	end
-	if islet > p.islets + 1 then
+	if lvl > Expedition.maxLevel(p) then
 		return false, "locked" :: ErrCode
 	end
 	if #members > Tuning.PartyMax then
@@ -107,12 +225,14 @@ function Expedition.start(p: Profile, islet: number, members: { string }): (bool
 		return false, "food" :: ErrCode
 	end
 	p.food -= need
-	local done = table.create(#def.nodes, false)
+	local isle = Expedition.chart(lvl, seed)
+	local nodes = Expedition.nodesOf(isle)
+	local done = table.create(#nodes, false)
 	done[1] = true
 	local e: Expedition = {
-		islet = islet,
+		isle = isle,
 		node = 1,
-		nodes = table.clone(def.nodes),
+		nodes = nodes,
 		done = done,
 		party = party,
 		loot = { shells = 0, food = 0, wood = 0 },
@@ -141,18 +261,18 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 	if e.node >= #e.nodes then
 		return false, "max" :: ErrCode
 	end
-	local def = Islets.list[e.islet]
+	local isle = e.isle
 	e.node += 1
 	e.done[e.node] = true
 	local kind = e.nodes[e.node]
 	local out: { [string]: any } = { kind = kind, node = e.node }
 	if kind == "loot" then
-		local food, wood = vary(rng, def.loot.food), vary(rng, def.loot.wood)
+		local food, wood = vary(rng, isle.loot.food), vary(rng, isle.loot.wood)
 		e.loot.food += food
 		e.loot.wood += wood
 		out.food, out.wood = food, wood
 	elseif kind == "chest" then
-		local shells = vary(rng, def.loot.shells)
+		local shells = vary(rng, isle.loot.shells)
 		e.loot.shells += shells
 		out.shells = shells
 	elseif kind == "rest" then
@@ -160,17 +280,17 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 			f.hp = math.min(f.maxHp, f.hp + math.ceil(f.maxHp * Tuning.RestHeal))
 		end
 	elseif kind == "wild" or kind == "boss" then
-		local lvl = Expedition.levelAt(e.islet, e.node)
+		local lvl = Expedition.levelAt(isle, e.node)
 		local foes: { Fighter } = {}
 		if kind == "boss" then
-			table.insert(foes, Battle.wild(def.boss, lvl + 2, 1, true, def.bossName))
-			if e.islet >= 2 then
-				table.insert(foes, Battle.wild(def.wild[rng:int(1, #def.wild)], lvl, 2, false))
+			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName))
+			if isle.lvl >= 4 then
+				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl, 2, false))
 			end
 		else
-			local n = rng:int(1, math.min(3, 1 + e.islet))
+			local n = rng:int(1, if isle.lvl >= 3 then 3 else 2)
 			for i = 1, n do
-				table.insert(foes, Battle.wild(def.wild[rng:int(1, #def.wild)], lvl + rng:int(0, 1), i, false))
+				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl + rng:int(0, 1), i, false))
 			end
 		end
 		for _, f in foes do
@@ -287,15 +407,11 @@ function Expedition.act(p: Profile, e: Expedition, act: string, target: string?,
 		p.stats.battles += 1
 		e.battle = nil
 		if b.boss then
-			local def = Islets.list[e.islet]
-			local first = e.islet > p.islets
-			local reward = if first then def.reward else math.floor(def.reward / 2)
+			local reward = e.isle.reward
 			e.loot.shells += reward
 			out.reward = reward
-			out.first = first
-			if first then
-				p.islets = e.islet
-			end
+			p.islets += 1
+			out.charted = p.islets
 			p.stats.cleared += 1
 			e.over = "won"
 		end

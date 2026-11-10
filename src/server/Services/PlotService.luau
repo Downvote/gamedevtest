@@ -122,7 +122,7 @@ function PlotService.init()
 	local street = Instance.new("Folder")
 	street.Name = "Street"
 	for i = 1, Street.MAX do
-		StreetModels.road(street, originOf(i))
+		StreetModels.road(street, originOf(i)).Name = "Road_" .. i
 	end
 	StreetModels.ends(street)
 	street.Parent = root

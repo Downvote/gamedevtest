@@ -19,7 +19,7 @@ local function roundTrip(v: any): any
 	return out
 end
 
--- a played island: buildings, villagers working, a driftling helping, an islet open
+-- a played island: buildings, villagers working, a driftling helping, an island charted
 local Street = require("../../build/luautest/shared/Data/Street")
 local function place(p: any, id: string)
 	local r = Street.plot(p.tier)
@@ -70,14 +70,14 @@ return function()
 		T.deepEq(back, p)
 	end)
 	T.it("reconcile turns garbage into a valid profile", function()
-		for _, raw in { nil, 5, "x", {}, { v = 5, shells = 0 / 0, food = -5, tier = 99, folk = "no", pals = { { sp = "dragon" }, 7 }, plot = { placed = { { uid = 1, id = "castle", x = 0, z = 0, rot = 0 }, 3 } }, seen = { pebblit = 9, x = 1 }, islets = 99 } } :: { any } do
+		for _, raw in { nil, 5, "x", {}, { v = 5, shells = 0 / 0, food = -5, tier = 99, folk = "no", pals = { { sp = "dragon" }, 7 }, plot = { placed = { { uid = 1, id = "castle", x = 0, z = 0, rot = 0 }, 3 } }, seen = { pebblit = 9, x = 1 }, islets = -3 } } :: { any } do
 			local p = Schema.reconcile(raw, 1000, 3)
 			T.truthy(p.shells == p.shells and p.shells >= 0, "shells")
 			T.truthy(p.food >= 0)
 			T.truthy(p.tier >= 1 and p.tier <= 3)
 			T.eq(#p.plot.placed, 0)
 			T.eq(#p.pals, 0)
-			T.truthy(p.islets <= 5)
+			T.truthy(p.islets >= 0 and p.islets == math.floor(p.islets))
 			T.truthy(p.seen.x == nil)
 		end
 	end)

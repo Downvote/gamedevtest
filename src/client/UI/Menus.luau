@@ -1,9 +1,11 @@
 --!strict
 -- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Villagers (who lives here, their jobs, dismissing),
--- Driftlings (the befriended ones, where they help, releasing), Explore (the islets and the party: Set sail), Index
+-- Driftlings (the befriended ones, where they help, releasing), Explore (an island's level on a slider, the party:
+-- Set sail), Index
 -- (every driftling met or befriended) and Looks (the founder's look). Every action is a request; the panel rebuilds
 -- from the next view. A job or help picker is the same panel with an argument ({ folk = id } / { pal = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
@@ -14,6 +16,7 @@ local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
@@ -275,9 +278,13 @@ local function buildPals(body: Frame, arg: any?)
 	end
 end
 
------------------------------------------------------------------- Explore: the islets and the party
-local chosenIslet = 0
+------------------------------------------------------------------ Explore: an island at a level, and the party
+-- The level slider (GAME_DESIGN 7): 1 up to the captain's level, the captain's by default; at the top it follows the
+-- captain up as they level.
+local chosenLvl = 0
+local atTop = true
 local party: { string } = {} -- member keys in the order picked ("v3", "p7")
+local sliderSet: ((lvl: number) -> ())? = nil
 
 local function memberOk(v: Types.ClientView, key: string): boolean
 	local kind, id = string.match(key, "^([vp])(%d+)$")
@@ -301,64 +308,118 @@ local function buildExplore(body: Frame, _arg: any?)
 			table.remove(party, i)
 		end
 	end
-	if chosenIslet < 1 or chosenIslet > math.min(#Islets.list, v.islets + 1) then
-		chosenIslet = math.min(#Islets.list, v.islets + 1)
+	local top = math.max(1, v.cap.lvl)
+	if chosenLvl < 1 or atTop or chosenLvl > top then
+		chosenLvl = top
 	end
-	-- the islets down the left
+	-- the course on the left: the captain's level, the slider, what an island of that level holds
 	local LW = math.min(150, math.floor(W * 0.46))
-	local isl = UIKit.scroll(body, UDim2.fromOffset(LW, H), UDim2.fromOffset(0, 0))
-	UIKit.vlist(isl, 2)
+	UIKit.text(body, string.format("Captain Lv %d", top), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("accent"), name = "Captain" })
+	UIKit.text(body, string.format("%d islands charted", v.islets), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 10), { color = UIKit.color("text_dim"), name = "Charted" })
+	UIKit.text(body, "Island level", UDim2.fromOffset(LW - 30, 10), UDim2.fromOffset(0, 22), { color = UIKit.color("text"), name = "LvLabel" })
+	local lvText = UIKit.text(body, "", UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, 22), { color = UIKit.color("accent"), x = "right", name = "LvValue" })
+	local TY = 34
+	local TX0, TW = 15, LW - 30
+	-- the track: an ink frame round a groove, filled up to the knob
+	UIKit.rect(body, UDim2.fromOffset(TW, 5), UDim2.fromOffset(TX0, TY + 3), UIKit.color("ink"), 3)
+	UIKit.rect(body, UDim2.fromOffset(TW - 2, 3), UDim2.fromOffset(TX0 + 1, TY + 4), UIKit.color("plate"), 4)
+	local fill = UIKit.rect(body, UDim2.fromOffset(0, 3), UDim2.fromOffset(TX0 + 1, TY + 4), UIKit.color("accent"), 5)
+	local knob = Instance.new("Frame")
+	knob.Name = "LvKnob"
+	knob.BackgroundTransparency = 1
+	knob.Size = UDim2.fromOffset(7, 11)
+	knob.ZIndex = 6
+	knob.Parent = body
+	UIKit.rect(knob, UDim2.fromOffset(5, 11), UDim2.fromOffset(1, 0), UIKit.color("ink"), 6)
+	UIKit.rect(knob, UDim2.fromOffset(7, 9), UDim2.fromOffset(0, 1), UIKit.color("ink"), 6)
+	UIKit.rect(knob, UDim2.fromOffset(5, 9), UDim2.fromOffset(1, 1), UIKit.color("button_ok"), 7)
+	UIKit.rect(knob, UDim2.fromOffset(1, 7), UDim2.fromOffset(1, 2), UIKit.color("paper"), 8)
+	local info = UIKit.text(body, "", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, TY + 13), { color = UIKit.color("text_dim"), name = "LvInfo" })
+	local rewardText = UIKit.text(body, "", UDim2.fromOffset(LW - 12, 10), UDim2.fromOffset(12, TY + 23), { color = UIKit.color("accent"), name = "Reward" })
+	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(0, TY + 22), 4)
+	-- the kinds of island and the level each turns up from
+	local kinds: { TextLabel } = {}
+	UIKit.text(body, "You may find:", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, TY + 35), { color = UIKit.color("text_dim") })
 	for i, d in Islets.list do
-		local open = i <= v.islets + 1
-		local cleared = i <= v.islets
-		local f = Instance.new("TextButton")
-		f.Name = "Islet_" .. i
-		f.Text = ""
-		f.AutoButtonColor = open
-		f.BackgroundTransparency = 1
-		f.Size = UDim2.new(1, -6, 0, 26)
-		f.LayoutOrder = i
-		f.ZIndex = 3
-		local plate = UIKit.plate(f, UDim2.fromScale(1, 1), nil, if i == chosenIslet then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
-		plate.ZIndex = 3
-		UIKit.rect(f, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(1, 2), if open then UIKit.color("accent") else UIKit.color("plate"), 4)
-		PixelSprites.image(f, if cleared then "mini_star" elseif open then "mini_boat" else "mini_boss_sil", UDim2.fromOffset(5, 7), 4)
-		UIKit.text(f, if open then d.name else "???", UDim2.new(1, -22, 0, 10), UDim2.fromOffset(19, 2), { color = if open then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
-		UIKit.text(f, if cleared then string.format("Lv %d+  Cleared", d.lvl) elseif open then string.format("Lv %d+  Open", d.lvl) else "Beat the last guardian", UDim2.new(1, -22, 0, 10), UDim2.fromOffset(19, 13), { color = if cleared then UIKit.color("good") elseif open then UIKit.color("accent") else UIKit.color("text_dim"), z = 4 })
-		f.Activated:Connect(function()
-			if not open then
-				Audio.play("deny")
-				return
-			end
-			chosenIslet = i
-			Audio.play("flip")
-			UIKit.refreshPanel()
-		end)
-		f.Parent = isl
+		kinds[i] = UIKit.text(body, "", UDim2.fromOffset(LW, 10), UDim2.fromOffset(4, TY + 35 + i * 10), { name = "Kind_" .. i })
 	end
-	-- the chosen islet and the party on the right
-	local d = Islets.list[chosenIslet]
+	local function show(lvl: number)
+		local x = math.floor((TW - 7) * (if top > 1 then (lvl - 1) / (top - 1) else 1) + 0.5)
+		knob.Position = UDim2.fromOffset(TX0 + x, TY)
+		fill.Size = UDim2.fromOffset(math.max(0, x + 2), 3)
+		lvText.Text = "Lv " .. lvl
+		local probe = Expedition.chart(lvl, 1)
+		info.Text = string.format("Wild Lv %d-%d", Expedition.levelAt(probe, 1), Expedition.levelAt(probe, 11) + 1)
+		rewardText.Text = Numbers.coins(probe.reward) .. " for its guardian"
+		for i, d in Islets.list do
+			local can = d.lvl <= lvl
+			kinds[i].Text = if can then d.plural else string.format("%s (Lv %d+)", d.plural, d.lvl)
+			kinds[i].TextColor3 = if can then UIKit.color("good") else UIKit.color("text_dim")
+		end
+	end
+	local function set(lvl: number)
+		local n = math.clamp(math.floor(lvl + 0.5), 1, top)
+		if n ~= chosenLvl then
+			Audio.play("flip")
+		end
+		chosenLvl = n
+		atTop = n == top
+		show(n)
+	end
+	sliderSet = set
+	UIKit.button(body, "-", UDim2.fromOffset(12, 11), UDim2.fromOffset(0, TY), function()
+		set(chosenLvl - 1)
+	end, { name = "LvDown", enabled = top > 1 })
+	UIKit.button(body, "+", UDim2.fromOffset(12, 11), UDim2.fromOffset(LW - 12, TY), function()
+		set(chosenLvl + 1)
+	end, { name = "LvUp", enabled = top > 1 })
+	-- dragging along the track (mouse or touch)
+	local hit = Instance.new("TextButton")
+	hit.Name = "LvSlider"
+	hit.Text = ""
+	hit.BackgroundTransparency = 1
+	hit.AutoButtonColor = false
+	hit.Size = UDim2.fromOffset(TW, 15)
+	hit.Position = UDim2.fromOffset(TX0, TY - 2)
+	hit.ZIndex = 9
+	hit.Parent = body
+	local dragging = false
+	local function at(px: number)
+		local x0 = hit.AbsolutePosition.X
+		local w = math.max(1, hit.AbsoluteSize.X)
+		set(1 + (px - x0) / w * (top - 1))
+	end
+	hit.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			at(input.Position.X)
+		end
+	end)
+	local moved = UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			at(input.Position.X)
+		end
+	end)
+	local ended = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+	hit.Destroying:Connect(function()
+		moved:Disconnect()
+		ended:Disconnect()
+		if sliderSet == set then
+			sliderSet = nil
+		end
+	end)
+	show(chosenLvl)
+	-- the party on the right
 	local x0 = LW + 4
 	local RW = W - x0
-	UIKit.text(body, d.name, UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 0), { color = UIKit.color("accent"), name = "IsletName" })
-	UIKit.text(body, d.blurb, UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 10), { color = UIKit.color("text_dim"), name = "Blurb" })
-	-- who lives there: their portraits (dark until met)
-	local ix = x0
-	for _, sp in d.wild do
-		local seen = (v.seen[sp] or 0) > 0
-		PixelSprites.image(body, if seen then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(ix, 21), 4)
-		ix += 18
-	end
-	-- the guardian (named once beaten) and its reward in shells, right-aligned
-	local reward = if chosenIslet <= v.islets then math.floor(d.reward / 2) else d.reward
-	local rt = Numbers.coins(reward)
-	local rw = UIKit.textWidth(rt)
-	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(W - rw - 14, 24), 4)
-	UIKit.text(body, rt, UDim2.fromOffset(rw + 2, 10), UDim2.fromOffset(W - rw - 2, 25), { color = UIKit.color("accent"), name = "Reward" })
-	UIKit.text(body, if chosenIslet <= v.islets then d.bossName else "Guardian: ???", UDim2.fromOffset(math.max(10, W - rw - 16 - ix - 2), 10), UDim2.fromOffset(ix + 2, 25), { color = UIKit.color("text"), name = "Guardian" })
+	local y0 = -40
 	-- the party: the captain, then up to PartyMax picks
-	UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
-	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 52 - 30), UDim2.fromOffset(x0, 51))
+	UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, y0 + 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
+	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 52 - 30 - y0), UDim2.fromOffset(x0, y0 + 51))
 	UIKit.vlist(pl, 2)
 	local function member(order: number, key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look?)
 		local picked = key == "f" or table.find(party, key) ~= nil
@@ -430,11 +491,11 @@ local function buildExplore(body: Frame, _arg: any?)
 			ExpeditionUI.open()
 			return
 		end
-		local res = ask("exp.start", { islet = chosenIslet, party = table.concat(party, ",") })
+		local keys = table.clone(party) -- (closing the panel clears the picks)
+		local res = ask("exp.start", { lvl = chosenLvl, party = table.concat(keys, ",") })
 		if res.ok then
-			Audio.play("trumpet")
 			UIKit.closePanel()
-			ExpeditionUI.open()
+			ExpeditionUI.sail(keys, if type(res.data) == "table" then res.data.isle else nil)
 		end
 	end, { name = "SetSail", color = UIKit.color("button_ok"), enabled = busy or enough })
 end
@@ -472,7 +533,7 @@ local function buildIndex(body: Frame, _arg: any?)
 		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)
 		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 1), { color = if n >= 1 then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
 		local isl = Islets.list[d.islet]
-		UIKit.text(f, if n >= 1 and isl then isl.name else "", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, if n >= 1 and isl then isl.plural else "", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color("text_dim"), z = 4 })
 		if n >= 2 then
 			PixelSprites.image(f, "mini_charm", UDim2.new(1, -13, 0, 2), 4)
 		end
@@ -541,6 +602,17 @@ end
 -- Sims and previews: the party picked in Explore.
 function Menus.party(): { string }
 	return table.clone(party)
+end
+
+-- Sims and previews: the Explore slider's level, and setting it (as a drag would, while the panel is open).
+function Menus.level(): number
+	return chosenLvl
+end
+
+function Menus.setLevel(lvl: number)
+	if sliderSet then
+		(sliderSet :: (number) -> ())(lvl)
+	end
 end
 
 return Menus

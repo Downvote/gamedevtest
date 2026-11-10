@@ -368,7 +368,6 @@ function H.checkProfile(p, label)
 	local Tuning = H.sharedServer("Config.Tuning")
 	local Buildings = H.sharedServer("Data.Buildings")
 	local Creatures = H.sharedServer("Data.Creatures")
-	local Islets = H.sharedServer("Data.Islets")
 	local Office = H.sharedServer("Data.Office")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
@@ -377,7 +376,7 @@ function H.checkProfile(p, label)
 	end
 	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
-	H.expect(prof.islets >= 0 and prof.islets <= #Islets.list, "profile", label .. ": islets out of range", tostring(prof.islets))
+	H.expect(prof.islets >= 0 and prof.islets == math.floor(prof.islets), "profile", label .. ": islands charted out of range", tostring(prof.islets))
 	H.expect(prof.tut >= 0 and prof.tut <= 4, "profile", label .. ": tips out of range", tostring(prof.tut))
 	-- the pieces
 	local placed = prof.plot.placed

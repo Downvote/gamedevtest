@@ -1,9 +1,10 @@
 #!/bin/sh
 # Every scenario of Driftling Isle's simulator: regenerate the sources once, then run them in parallel and print each
 # SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors, 0 issues everywhere.
-#   sim.luau        the main run: a new island (the hut, the HUD, the tips), building food, a tent, a nest and a camp,
+#   sim.luau        the main run: a new island (the campfire, the HUD, the tips), building food, a tent, a nest and a camp,
 #                   the days turning (a villager moves in and works), an expedition from the Explore panel played
-#                   through the islet's screen (battles, treats, home with the loot), the Villagers and Driftlings
+#                   (the level slider, the sailing cutscene, the boat bringing the party ashore) through the islet's
+#                   screen (battles, treats, home with the loot, the boat moored again), the Villagers and Driftlings
 #                   panels, looks, settings, expanding, a malicious client (its deliberate NaN / infinity payloads are
 #                   listed apart), a second player
 #   sim_save.luau   saves: leave and rejoin to the same profile, leaving mid-expedition (the loot comes home), another
@@ -16,6 +17,6 @@
 #                   refusal), Build mode's UI, malicious plot payloads, a leaving player, a full sea
 #   sim_exp.luau    expeditions: the server's rules (supplies, the party, busy members, battles, treats, flights, the
 #                   guardian), a treat befriending, the islet's screen (closed and reopened, its buttons, a round
-#                   played back), every islet cleared in turn, half the reward again, a defeat
+#                   played back), islands at every level charted (kinds by level, a new island each time), a defeat
 SIM=$(cd "$(dirname "$0")" && pwd)
 sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_exp.luau:out_exp.log"

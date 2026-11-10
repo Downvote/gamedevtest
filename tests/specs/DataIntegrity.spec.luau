@@ -57,24 +57,26 @@ return function()
 			T.eq(perIslet[i], 3, "three driftlings on islet " .. i)
 		end
 	end)
-	T.it("islets: a path from the landing to the guardian, its own driftlings, growing levels and rewards", function()
+	T.it("kinds of island: their own driftlings, opening at growing levels from 1, words for names, a stage, a colour", function()
 		for i, d in Islets.list do
 			T.eq(d.id, i)
-			T.eq(d.nodes[1], "start")
-			T.eq(d.nodes[#d.nodes], "boss")
-			for k, n in d.nodes do
-				T.truthy(n == "start" or n == "loot" or n == "chest" or n == "wild" or n == "rest" or n == "boss", d.name .. " node " .. k)
-			end
+			T.eq(#d.wild, 3)
 			for _, sp in d.wild do
 				T.truthy(Creatures.byId[sp] ~= nil and Creatures.byId[sp].islet == i, d.name .. " " .. sp)
 			end
-			T.truthy(Creatures.byId[d.boss] ~= nil and Creatures.byId[d.boss].islet == i, d.name .. " guardian")
+			T.truthy(#d.first >= 6 and #d.last >= 6, d.name .. " words")
+			for _, w in { table.unpack(d.first), table.unpack(d.last) } do
+				T.truthy(string.match(w, "^%u%l+$") ~= nil, d.name .. " word " .. w)
+			end
 			T.truthy(color(d.color), d.name .. " colour")
-			if i > 1 then
-				local q = Islets.list[i - 1]
-				T.truthy(d.lvl > q.lvl and d.reward > q.reward and d.loot.shells > q.loot.shells, d.name .. " harder and richer")
+			T.truthy(#d.stage > 0 and #d.plural > 0, d.name .. " stage")
+			if i == 1 then
+				T.eq(d.lvl, 1, "beaches from the start")
+			else
+				T.truthy(d.lvl > Islets.list[i - 1].lvl, d.name .. " opens later")
 			end
 		end
+		T.truthy(#Islets.titles >= 6)
 	end)
 	T.it("island tiers: a name per tier, as many as the expansions and the piece limits", function()
 		T.truthy(#Office.plans >= 1)

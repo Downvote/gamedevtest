@@ -51,7 +51,7 @@ local function goHome(s: Session.S): { [string]: any }
 	local got = Expedition.home(s.profile, e)
 	Session.setExp(s, nil)
 	Session.markDirty(s)
-	return { got = got, over = e.over, befriended = e.befriended, islet = e.islet }
+	return { got = got, over = e.over, befriended = e.befriended, isle = e.isle.name }
 end
 
 function IslandService.init()
@@ -125,12 +125,13 @@ function IslandService.init()
 		for part in string.gmatch(a.party, "[^,]+") do
 			table.insert(members, part)
 		end
-		local ok, e = Expedition.start(s.profile, a.islet, members)
+		-- the island is made up here, from a seed of the server's own
+		local ok, e = Expedition.start(s.profile, a.lvl, members, s.rng:int(1, 2147483646))
 		if not ok then
 			return false, e
 		end
 		Session.setExp(s, e)
-		return true, { islet = a.islet }
+		return true, { isle = e.isle }
 	end)
 	Router.on("exp.next", function(s, _a)
 		local e = s.exp

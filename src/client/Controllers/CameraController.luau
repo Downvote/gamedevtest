@@ -61,6 +61,7 @@ local plot, tier = 1, 1
 local panX, panY = 0, 0 -- the pan now (whole art px)
 local free = false -- Build mode: the view stays where it is dragged
 local freeX, freeY = 0, 0
+local focus: Vector3? = nil -- a cutscene's point to follow instead of the founder (setFocus)
 local stage: Stage? = nil
 
 local function screenSize(): Vector2
@@ -284,12 +285,18 @@ local function target(v: View): (number, number)
 	if free then
 		return freeX, freeY
 	end
-	local root = founderRoot(v)
-	if root == nil then
-		return v.grid.px, v.grid.py
+	local p: Vector3
+	if focus then
+		p = focus :: Vector3
+	else
+		local root = founderRoot(v)
+		if root == nil then
+			return v.grid.px, v.grid.py
+		end
+		p = root.Position
 	end
-	-- the founder in the middle of the screen between the HUD's strips (the ground under them: their feet)
-	local p = root.Position
+	-- the founder (or a cutscene's focus) in the middle of the screen between the HUD's strips (the ground under
+	-- them: their feet)
 	local gx, gy = Raster.gridPoint(ROT12, v.grid, p.X, Street.LAWN_Y + 1.5, p.Z)
 	local W, H = v.fullX / v.K, v.fullY / v.K
 	local top, bottom = hudStrips(v)
@@ -336,6 +343,12 @@ end
 
 -- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts where the
 -- view is (the founder in the middle), lowered by `down` art px (Build mode's tray covers the bottom of the screen).
+-- A cutscene's point to keep in the middle instead of the founder (nil: the founder again); the view glides to it
+-- like a walk (UI/Voyage: the founder boarding, the boat sailing off).
+function CameraController.setFocus(p: Vector3?)
+	focus = p
+end
+
 function CameraController.setFree(on: boolean, down: number?)
 	free = on
 	freeX, freeY = panX, panY

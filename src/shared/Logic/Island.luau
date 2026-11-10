@@ -57,7 +57,7 @@ end
 
 -- The charm: every piece's, a little for each driftling (visitors like them) and for each islet opened.
 function Island.charm(p: Profile): number
-	return count(p, "charm") + #p.pals + 3 * p.islets
+	return count(p, "charm") + #p.pals + math.min(Tuning.ChartCharm * p.islets, Tuning.ChartCharmMax)
 end
 
 function Island.visitors(p: Profile): number

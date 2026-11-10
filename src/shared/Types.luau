@@ -25,8 +25,8 @@ export type Captain = { lvl: number, xp: number }
 
 export type Settings = { pixel: string }
 
--- days: island days lived; earned: shells made in all; befriended: driftlings that joined; cleared: islets'
--- guardians beaten (counting repeats); battles won.
+-- days: island days lived; earned: shells made in all; befriended: driftlings that joined; cleared: islands'
+-- guardians beaten; battles won.
 export type Stats = { days: number, built: number, earned: number, befriended: number, battles: number, cleared: number, movedIn: number }
 
 export type Profile = {
@@ -41,7 +41,7 @@ export type Profile = {
 	folk: { Villager },
 	pals: { Pal },
 	plot: PlotSave,
-	islets: number, -- islets whose guardian has been beaten (the next one is open)
+	islets: number, -- islands charted: guardians beaten (each a charm, up to Tuning.ChartCharmMax)
 	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
 	nextId: number, -- the next villager, driftling or piece id
 	tut: number, -- the tips' step (0 = done)
@@ -71,10 +71,26 @@ export type Fighter = {
 -- A battle in progress: the wild ones, the round, whether it is the islet's guardian.
 export type Battle = { foes: { Fighter }, round: number, boss: boolean, shield: number, foeShield: number }
 
--- An expedition (GAME_DESIGN 7): the islet, the node the party stands on (1 = the landing), the islet's path of
--- nodes (Data/Islets kinds), what each node held once visited, the party, what it has gathered, a battle.
+-- An island found at sea (GAME_DESIGN 7; Logic/Expedition.chart): made from its seed and the level the captain
+-- picked; its kind (Data/Islets), name, the driftlings living there, its guardian, what its loot and chests hold and
+-- the guardian's reward.
+export type Isle = {
+	seed: number,
+	lvl: number,
+	kind: number,
+	name: string,
+	wild: { string },
+	boss: string,
+	bossName: string,
+	loot: { food: number, wood: number, shells: number },
+	reward: number,
+}
+
+-- An expedition (GAME_DESIGN 7): the island, the node the party stands on (1 = the landing), its path of nodes
+-- ("start" "loot" "chest" "wild" "rest" "boss"), what each node held once visited, the party, what it has gathered,
+-- a battle.
 export type Expedition = {
-	islet: number,
+	isle: Isle,
 	node: number,
 	nodes: { string },
 	done: { boolean },

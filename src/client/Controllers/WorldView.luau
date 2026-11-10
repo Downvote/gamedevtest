@@ -448,7 +448,7 @@ function WorldView.signCard(i: number)
 		end
 		return c
 	end
-	UIKit.notice(string.format("%s: day %s, %d villagers, %d driftlings, charm %s, %d islets explored", name, Numbers.int(n("Day")), count("Folk"), count("Pals"), Numbers.int(n("Charm")), n("Islets")), UIKit.color("accent"), 5)
+	UIKit.notice(string.format("%s: day %s, %d villagers, %d driftlings, charm %s, %d islands charted", name, Numbers.int(n("Day")), count("Folk"), count("Pals"), Numbers.int(n("Charm")), n("Islets")), UIKit.color("accent"), 5)
 end
 
 -- A tap (not a drag, not on the interface, not in Build mode) on an island sign shows its card.

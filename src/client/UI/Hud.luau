@@ -11,7 +11,6 @@ local RunService = game:GetService("RunService")
 local Types = require(ReplicatedStorage.Shared.Types)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
-local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
@@ -286,7 +285,7 @@ end
 -- Under the island card while an expedition is under way (the player closed its screen): where, how far, Continue.
 local function updateExp(v: Types.ClientView)
 	local e = v.exp
-	local key = if e then string.format("%d:%d:%s:%s", e.islet, e.node, tostring(e.battle ~= nil), tostring(e.over)) else ""
+	local key = if e then string.format("%d:%d:%s:%s", e.isle.seed, e.node, tostring(e.battle ~= nil), tostring(e.over)) else ""
 	if expCard and expCard:GetAttribute("Key") == key then
 		return
 	end
@@ -297,14 +296,13 @@ local function updateExp(v: Types.ClientView)
 	if e == nil then
 		return
 	end
-	local def = Islets.list[e.islet]
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 40), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
 	f.Name = "ExpCard"
 	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 2), 4)
-	UIKit.text(f, if def then def.name else "Expedition", UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 3), { color = UIKit.color("accent"), z = 4, name = "Islet" })
+	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 3), { color = UIKit.color("accent"), z = 4, name = "Islet" })
 	local state = if e.battle then "In a battle!" else string.format("Stop %d of %d", e.node, #e.nodes)
 	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = if e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
 	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 24), function()
@@ -338,7 +336,7 @@ end
 local TIPS: { [number]: string } = {
 	[1] = "Food first: tap Build and place a Veggie Patch.",
 	[2] = "Now a Tent: a castaway may move in at dawn and work for you.",
-	[3] = "Build a Driftling Nest, then tap Explore and sail to Pebble Beach!",
+	[3] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
 	[4] = "In battle, Treat a hurt wild driftling with food to befriend it.",
 }
 

@@ -1,7 +1,8 @@
--- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 7.4, 10.8): all five islets cleared in turn by a strong party
--- (each opening the next, the guardian's reward in full the first time and half after), the server's rules (supplies,
--- a party of the captain and three, one expedition at a time, members away can't be dismissed or released, no
--- stepping on or sailing home mid-battle, no treat or flight from a guardian, a treat's food and a free nest), a
+-- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 7.4, 10.8): islands made up at the level picked (up to the
+-- captain's), charted at every level by a strong party (each kind of island once its level comes, the guardian's
+-- reward, its own driftlings, a new island every time), the server's rules (supplies, a party of the captain and
+-- three, one expedition at a time, no island above the captain's level, members away can't be dismissed or released,
+-- no stepping on or sailing home mid-battle, no treat or flight from a guardian, a treat's food and a free nest), a
 -- driftling befriended with a treat, a flight, a defeat (half the loot home), and the islet's screen: closed and
 -- reopened from the HUD's card, its buttons in and out of battle, a round played back.
 local E = require("./loader")
@@ -78,15 +79,16 @@ end
 ------------------------------------------------------------------ 1. the server's rules
 E.phase = "rules"
 prof.food = 2
-local res = H.req(p, "exp.start", { islet = 1, party = party(3) })
+local res = H.req(p, "exp.start", { lvl = 1, party = party(3) })
 H.expect(not res.ok and res.err == "food", "rules", "supplies: four members need food", tostring(res.err))
 prof.food = 1000
-res = H.req(p, "exp.start", { islet = 2, party = "" })
-H.expect(not res.ok and res.err == "locked", "rules", "Mossgrove waits for Pebble Beach", tostring(res.err))
-res = H.req(p, "exp.start", { islet = 1, party = party(3) })
+res = H.req(p, "exp.start", { lvl = prof.cap.lvl + 1, party = "" })
+H.expect(not res.ok and res.err == "locked", "rules", "no island above the captain's level", tostring(res.err))
+res = H.req(p, "exp.start", { lvl = 1, party = party(3) })
 H.expect(res.ok and #s.exp.party == 4 and s.exp.party[1].key == "f", "rules", "the captain and three set sail", tostring(res.err))
 H.expect(math.abs(prof.food - (1000 - Tuning.Supplies * 4)) < 1, "rules", "their supplies taken", tostring(prof.food))
-res = H.req(p, "exp.start", { islet = 1, party = "" })
+H.expect(res.ok and res.data and res.data.isle and res.data.isle.name == s.exp.isle.name, "rules", "the answer names the island", res.data and res.data.isle and res.data.isle.name)
+res = H.req(p, "exp.start", { lvl = 1, party = "" })
 H.expect(not res.ok and res.err == "busy", "rules", "one expedition at a time", tostring(res.err))
 res = H.req(p, "folk.dismiss", { id = prof.folk[1].id })
 H.expect(not res.ok and res.err == "busy", "rules", "a member away can't be dismissed", tostring(res.err))
@@ -222,54 +224,78 @@ for _, f in s.exp.party do
 	f.atk, f.hp, f.maxHp = 300, 500, 500
 end
 local over = walk()
-H.expect(over == "won" and prof.islets == 1, "screen", "Pebble Beach's guardian beaten: Mossgrove opens", tostring(over))
+H.expect(over == "won" and prof.islets == 1, "screen", "the guardian beaten: the island charted", tostring(over))
 local sh0 = prof.shells
 local loot = s.exp and s.exp.loot.shells or 0
 res = H.req(p, "exp.home", {})
 H.expect(res.ok and s.exp == nil and math.abs(prof.shells - (sh0 + loot)) < 1, "screen", "home with all the loot", string.format("%s + %s -> %s", sh0, loot, prof.shells))
 H.checkProfile(p, "screen")
 
------------------------------------------------------------------- 3. every islet in turn
-E.phase = "islets"
-for i = 2, #Islets.list do
-	strong(10 + i * 8)
+------------------------------------------------------------------ 3. islands at every level
+E.phase = "islands"
+local Expedition = H.sharedServer("Logic.Expedition")
+local kindsSeen: { [number]: boolean } = {}
+local names: { [string]: boolean } = {}
+for _, lvl in { 1, 5, 10, 16, 23, 30, 30, 30, 30 } do
+	strong(lvl + 8)
 	prof.food = 1000
-	res = H.req(p, "exp.start", { islet = i, party = party(3) })
-	H.expect(res.ok, "islets", Islets.list[i].name .. ": set sail", tostring(res.err))
+	res = H.req(p, "exp.start", { lvl = lvl, party = party(3) })
+	H.expect(res.ok, "islands", "set sail at level " .. lvl, tostring(res.err))
 	if not res.ok then
 		break
 	end
+	local isle = s.exp.isle
+	local kind = Islets.list[isle.kind]
+	kindsSeen[isle.kind] = true
+	names[isle.name] = true
+	H.expect(isle.lvl == lvl and kind ~= nil and kind.lvl <= lvl, "islands", string.format("a %s at level %d", kind and kind.name or "?", lvl))
+	H.expect(isle.name == Expedition.chart(lvl, isle.seed).name, "islands", "the island is its seed's: " .. isle.name)
 	local before = prof.islets
-	over = walk()
-	H.expect(over == "won", "islets", Islets.list[i].name .. ": cleared", tostring(over))
-	H.expect(prof.islets == i and before == i - 1, "islets", Islets.list[i].name .. ": the next opens", tostring(prof.islets))
-	local loot2 = s.exp and s.exp.loot.shells or 0
-	H.expect(loot2 >= Islets.list[i].reward, "islets", Islets.list[i].name .. ": the guardian's reward in full", tostring(loot2))
-	local seenAll = true
-	for _, sp in Islets.list[i].wild do
-		seenAll = seenAll and (prof.seen[sp] or 0) >= 1 or false
+	local foesOk = true
+	local steps = 0
+	while s.exp and not s.exp.over and steps < 200 do
+		steps += 1
+		if s.exp.battle then
+			for _, f in s.exp.battle.foes do
+				foesOk = foesOk and (table.find(isle.wild, f.sp) ~= nil or f.sp == isle.boss)
+			end
+			H.req(p, "exp.act", { act = "fight", target = "" })
+		elseif s.exp.node < #s.exp.nodes then
+			H.req(p, "exp.next", {})
+		else
+			break
+		end
 	end
+	over = s.exp and s.exp.over
+	H.expect(over == "won", "islands", isle.name .. ": charted", tostring(over))
+	H.expect(foesOk, "islands", isle.name .. ": only its own driftlings")
+	H.expect(prof.islets == before + 1, "islands", isle.name .. ": one more island charted", tostring(prof.islets))
+	local loot2 = s.exp and s.exp.loot.shells or 0
+	H.expect(loot2 >= isle.reward, "islands", isle.name .. ": the guardian's reward", tostring(loot2))
 	H.req(p, "exp.home", {})
-	local _ = seenAll
 end
-H.expect(prof.islets == #Islets.list and prof.stats.cleared >= #Islets.list, "islets", "every islet cleared", tostring(prof.islets))
--- a second trip: half the reward
-prof.food = 1000
-res = H.req(p, "exp.start", { islet = 1, party = "" })
-over = walk()
-H.expect(over == "won" and prof.islets == #Islets.list, "islets", "Pebble Beach again", tostring(over))
-local lootAgain = s.exp and s.exp.loot.shells or 0
-H.expect(lootAgain >= math.floor(Islets.list[1].reward / 2) and lootAgain < Islets.list[1].reward + 2000, "islets", "half the reward the second time", tostring(lootAgain))
-H.req(p, "exp.home", {})
-H.checkProfile(p, "islets")
-H.checkMirror(p, "islets")
+local nk, nn = 0, 0
+for _ in kindsSeen do
+	nk += 1
+end
+for _ in names do
+	nn += 1
+end
+H.expect(kindsSeen[1] and nk >= 3, "islands", "different kinds of island turn up", tostring(nk))
+H.expect(nn >= 7, "islands", "a new island every time", tostring(nn))
+H.checkProfile(p, "islands")
+H.checkMirror(p, "islands")
 
 ------------------------------------------------------------------ 4. a defeat
 E.phase = "defeat"
-strong(1)
+strong(30)
 prof.food = 1000
-res = H.req(p, "exp.start", { islet = 5, party = "" })
-H.expect(res.ok, "defeat", "the captain alone to Coral Deep", tostring(res.err))
+res = H.req(p, "exp.start", { lvl = 30, party = "" })
+H.expect(res.ok, "defeat", "the captain alone to a level-30 island", tostring(res.err))
+if s.exp then
+	local f = s.exp.party[1]
+	f.atk, f.hp, f.maxHp, f.def = 1, 6, 6, 0
+end
 over = walk()
 H.expect(over == "lost", "defeat", "the party falls", tostring(over))
 local lost = s.exp and E.deepCopy(s.exp.loot)

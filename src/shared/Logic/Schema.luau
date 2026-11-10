@@ -7,7 +7,6 @@ local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Looks = require(script.Parent.Parent.Data.Looks)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
-local Islets = require(script.Parent.Parent.Data.Islets)
 local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
@@ -231,7 +230,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		folk = folk,
 		pals = pals,
 		plot = { placed = placed },
-		islets = int(r.islets, 0, 0, #Islets.list),
+		islets = int(r.islets, 0, 0, 1e6),
 		seen = seen,
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
 		tut = int(r.tut, 1, 0, 4),

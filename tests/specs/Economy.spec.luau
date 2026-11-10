@@ -21,14 +21,14 @@ return function()
 			T.truthy(r.first.driftling and r.first.driftling <= 900, "seed " .. seed .. ": driftling at " .. tostring(r.first.driftling))
 		end
 	end)
-	T.it("the islets: the guardians of the first within 15 minutes, the second 45, the third 90, the fourth 150", function()
-		local by = { 900, 2700, 5400, 9000 }
+	T.it("the islands: a guardian within 15 minutes; one of level 5 within 45, 10 within 90, 16 within 150", function()
+		local by = { [1] = 900, [5] = 2700, [10] = 5400, [16] = 9000 }
 		for seed, r in runs do
-			for i, limit in by do
-				local at1 = r.first["islet" .. i]
-				T.truthy(at1 and at1 <= limit, string.format("seed %d: islet %d at %s", seed, i, tostring(at1)))
+			for lvl, limit in by do
+				local at1 = r.first["guardian" .. lvl]
+				T.truthy(at1 and at1 <= limit, string.format("seed %d: a level %d guardian at %s", seed, lvl, tostring(at1)))
 			end
-			T.truthy(r.first.islet5 == nil or r.first.islet5 > 7200, "seed " .. seed .. ": the last islet is a long-term goal")
+			T.truthy(r.first.guardian23 == nil or r.first.guardian23 > 7200, "seed " .. seed .. ": the reefs are a long-term goal")
 		end
 	end)
 	T.it("the island grows: tier 2 within 45 minutes, tier 3 within 90; a village of villagers and friends", function()

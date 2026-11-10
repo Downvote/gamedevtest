@@ -1,5 +1,5 @@
 --!strict
--- The microgames' things in 3D (GAME_DESIGN 5; docs/ARCHITECTURE.md 6, 10.8). Roblox module (client: UI/MicroStage
+-- The microgames' things in 3D (GAME_DESIGN 5; docs/ARCHITECTURE.md 6, 10.9). Roblox module (client: UI/MicroStage
 -- builds them on a stage; the pixel filter draws them with the world's toon bands, palette and 1 px ink outline).
 -- Every thing is a few plain parts (Models/Blocks: palette colours, 0.25-stud grid, no meshes), built round its own
 -- origin: the middle of its footprint on the ground, facing +Z. `place(thing, cf)` puts its parts at cf times their
@@ -524,6 +524,28 @@ BUILD.sailboat = function(o)
 	add(t, "Mast", "Block", Vector3.new(0.25, 4.0, 0.25), Vector3.new(0, 2.8, 0.25), "wood_dark")
 	add(t, "Sail", "Wedge", Vector3.new(0.1, 3.25, 2.25), Vector3.new(0, 2.7, -0.95), "white", CFrame.Angles(0, math.pi, 0))
 	add(t, "Pennant", "Block", Vector3.new(0.1, 0.25, 0.75), Vector3.new(0, 4.7, -0.1), c)
+	return t
+end
+
+-- The expedition's boat (the one moored at every island's pier, Models/StreetModels' boat): its origin on the
+-- waterline, facing +Z: a planked hull with a red band, a bow, a cabin with a porthole, a mast, a sail and a flag.
+BUILD.ship = function(_o)
+	local t = new("ship", 5.6, 2.6)
+	add(t, "Hull", "Block", Vector3.new(3, 1, 5), Vector3.new(0, -0.15, 0), "wood_dark")
+	add(t, "Band", "Block", Vector3.new(3.1, 0.25, 5.1), Vector3.new(0, 0.15, 0), "berry_red")
+	add(t, "Rim", "Block", Vector3.new(3.25, 0.25, 5.25), Vector3.new(0, 0.45, 0), "wood")
+	add(t, "Bow", "Wedge", Vector3.new(3, 1.25, 1.5), Vector3.new(0, 0, 3.25), "wood_dark")
+	add(t, "Deck", "Block", Vector3.new(2.5, 0.25, 4.25), Vector3.new(0, 0.5, 0), "wood")
+	for i, z in { -1.75, -1, -0.25, 0.5, 1.25 } do
+		add(t, "Seam" .. i, "Block", Vector3.new(2.5, 0.05, 0.1), Vector3.new(0, 0.63, z), "wood_dark")
+	end
+	add(t, "Cabin", "Block", Vector3.new(1.75, 1.25, 1.5), Vector3.new(0, 1.2, -1.25), "cream")
+	add(t, "Roof", "Block", Vector3.new(2, 0.25, 1.75), Vector3.new(0, 1.9, -1.25), "berry_red")
+	add(t, "Porthole", "Block", Vector3.new(0.1, 0.5, 0.75), Vector3.new(0.88, 1.35, -1.25), "window")
+	add(t, "Mast", "Block", Vector3.new(0.25, 5, 0.25), Vector3.new(0, 3.2, 0.5), "wood_dark")
+	add(t, "Sail", "Wedge", Vector3.new(0.1, 3.5, 2.25), Vector3.new(0.15, 3.5, 1.65), "white")
+	add(t, "Flag", "Block", Vector3.new(0.1, 0.5, 0.75), Vector3.new(0, 5.7, 0.75), "berry_red")
+	add(t, "Crate", "Block", Vector3.new(0.75, 0.5, 0.75), Vector3.new(0, 0.75, 1.75), "wood")
 	return t
 end
 

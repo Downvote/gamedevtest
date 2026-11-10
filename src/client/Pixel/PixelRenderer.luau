@@ -71,7 +71,7 @@ local PICK_LEN = 2000
 local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
 local WATER_HZ = 6 -- the water's frames a second
 local WATER_SPEED = 2 -- phase units a frame (a crest every 64 units: about 10 studs)
-local WATER_WHITE = 0xFFFFFF
+local WATER_CREST = 0xC8F0FA -- a crest's light blue (0xRRGGBB)
 local WATER_DEEP = 0x1E5C7A
 local WATER_SHALLOW = 0x6CCFD2
 
@@ -823,6 +823,14 @@ local function waterTone(cls: number, ph: number, k: number): number
 	return 0
 end
 
+-- `over` (0xRRGGBB) laid over a shaded pixel (packed as Shading.pack: red in the low byte, alpha on top) at `a`.
+local function mixShaded(over: number, under: number, a: number): number
+	local r = bit32.rshift(over, 16) * a + bit32.band(under, 0xFF) * (1 - a)
+	local g = bit32.band(bit32.rshift(over, 8), 0xFF) * a + bit32.band(bit32.rshift(under, 8), 0xFF) * (1 - a)
+	local b = bit32.band(over, 0xFF) * a + bit32.band(bit32.rshift(under, 16), 0xFF) * (1 - a)
+	return Shading.pack(math.floor(r + 0.5), math.floor(g + 0.5), math.floor(b + 0.5))
+end
+
 local function waterColor(base: number, cls: number, tone: number): number
 	if tone == 0 then
 		return base
@@ -831,11 +839,11 @@ local function waterColor(base: number, cls: number, tone: number): number
 	local c = waterTones[key]
 	if c == nil then
 		if tone == 1 then
-			c = mixRgb(WATER_WHITE, base, if cls == 2 then 0.32 else 0.24)
+			c = mixShaded(WATER_CREST, base, if cls == 2 then 0.4 else 0.34)
 		elseif tone == 2 then
-			c = mixRgb(WATER_DEEP, base, 0.18)
+			c = mixShaded(WATER_DEEP, base, 0.18)
 		else
-			c = mixRgb(WATER_SHALLOW, base, 0.55)
+			c = mixShaded(WATER_SHALLOW, base, 0.55)
 		end
 		waterTones[key] = c
 	end

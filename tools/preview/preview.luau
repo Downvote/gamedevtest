@@ -1,7 +1,7 @@
 -- Driftling Isle's preview driver: boots the real server and client scripts in the fake engine (with the real
 -- raycast and a pixel-storing EditableImage), drives a scenario and dumps frames for topng.py.
 -- Usage: luau preview.luau -a <workdir> <scenario> <device> [tier] [inset]
---   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "exp=<islet>[_<what>]"
+--   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "exp=<kind>[_<what>]"
 --   or "all";
 --   device: a DEVICES key; tier: auto | low | medium | high | off
 -- A scenario is a function in SCEN: it joins players (join / joinWith), drives them through H.req or the UI
@@ -341,14 +341,28 @@ local function panelScenario(name)
 	return p
 end
 
--- exp=<islet>[_<what>]: an expedition to that islet on its 3D stage. what: "battle" (default: the first battle),
--- "boss" (the guardian), "win" (a battle won: the results card), "loot" (a stop's narration).
+-- An island of a kind (Data/Islets 1-5) at a level: the first seed that charts that kind there.
+local function seedOfKind(kind, lvl)
+	local Expedition = H.sharedServer("Logic.Expedition")
+	for seed = 1, 2000 do
+		if Expedition.chart(lvl, seed * 101).kind == kind then
+			return seed * 101
+		end
+	end
+	return 1
+end
+
+-- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 5 reef) at the level it first turns up
+-- (+1), on its 3D stage. what: "battle" (default: the first battle), "boss" (the guardian), "win" (a battle won: the
+-- results card), "loot" (a stop's narration). The island's seed is the first that charts the kind (a set seed, so
+-- the same layout every run); the expedition is set on the session directly (exp.start makes up its own seed).
 local function expScenario(spec)
-	local islet, what = string.match(spec, "^(%d)_?(%a*)$")
-	local n = tonumber(islet) or 1
+	local kindS, what = string.match(spec, "^(%d)_?(%a*)$")
+	local n = tonumber(kindS) or 1
 	what = if what == nil or what == "" then "battle" else what
-	-- a party a little above the islet's level (a fair fight to watch; strong for "win")
-	local lvl = H.sharedServer("Data.Islets").list[n].lvl + (if what == "win" then 8 else 2)
+	local isleLvl = H.sharedServer("Data.Islets").list[n].lvl + 1
+	-- a party a little above the island's level (a fair fight to watch; strong for "win")
+	local lvl = isleLvl + (if what == "win" then 8 else 1)
 	seedProfile(40, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "emberpup" }, islets = n - 1, food = 400, cap = lvl })
 	local p = join(40, "Captain")
 	settle(p)
@@ -359,11 +373,16 @@ local function expScenario(spec)
 	for _, x in prof.pals do
 		x.lvl = lvl
 	end
-	local res = H.req(p, "exp.start", { islet = n, party = string.format("v%d,p%d,v%d", prof.folk[1].id, prof.pals[1].id, prof.folk[2].id) })
-	if not res.ok then
-		log("exp.start: %s", tostring(res.err))
-	end
 	local s = H.session(p)
+	local Expedition = H.sharedServer("Logic.Expedition")
+	local ok, e = Expedition.start(prof, isleLvl, { "v" .. prof.folk[1].id, "p" .. prof.pals[1].id, "v" .. prof.folk[2].id }, seedOfKind(n, isleLvl))
+	if ok then
+		H.smod("Session").setExp(s, e)
+		log("island: %s (%s), level %d", e.isle.name, H.sharedServer("Data.Islets").list[e.isle.kind].name, e.isle.lvl)
+	else
+		log("exp start: %s", tostring(e))
+	end
+	H.push(p, 0.3)
 	local EUI = modOr(p, "UI.ExpeditionUI")
 	E.run(0.5)
 	-- (a raw request skips the Explore panel's Set sail, which opens the islet's screen)
@@ -423,6 +442,70 @@ local function expScenario(spec)
 	end
 	settle(p, 10, 0.5)
 	capture(p, "exp_" .. spec)
+	return p
+end
+
+-- The sailing cutscene (GAME_DESIGN 7): the Explore panel (the level slider), Set sail, then a frame every fifth
+-- of a second through the founder's walk down the jetty, the hop aboard, the boat sailing off, the blinds and the
+-- islet's screen with the boat bringing the party ashore (voyage_000 ..; make_gif.py makes them a GIF), and stills
+-- of the panel (voyage_panel) and the moments (voyage_walk, voyage_board, voyage_sail, voyage_arrive).
+function SCEN.voyage()
+	seedProfile(45, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "gullfin" }, islets = 3, food = 400, cap = 7 })
+	local p = join(45, "Sailor")
+	local prof = H.profile(p)
+	for _, v in prof.folk do
+		v.lvl = 8
+	end
+	for _, x in prof.pals do
+		x.lvl = 8
+	end
+	H.push(p, 0.3)
+	settle(p)
+	H.clickNamed(p, "Menu_explore", { wait = 0.5 })
+	local Menus = modOr(p, "UI.Menus")
+	if Menus then
+		H.inClient(p, Menus.setLevel, 5)
+	end
+	H.clickNamed(p, "Member_v" .. prof.folk[1].id, { wait = 0.2 })
+	H.clickNamed(p, "Member_p" .. prof.pals[1].id, { wait = 0.2 })
+	E.run(0.5)
+	capture(p, "voyage_panel")
+	local Voyage = modOr(p, "UI.Voyage")
+	local EUI = modOr(p, "UI.ExpeditionUI")
+	-- (the fake engine bakes the islet's picture slower than Tuning.StageWait: the curtain waits for it here)
+	if EUI then
+		H.inClient(p, EUI.debugWait, 30)
+	end
+	H.clickNamed(p, "SetSail", { wait = 0.1 })
+	local shot: { [string]: boolean } = {}
+	local k = 0
+	local onStage = 0
+	for _ = 1, 110 do
+		E.run(0.2)
+		local ph = if Voyage then H.inClient(p, Voyage.debugState).phase else ""
+		capture(p, string.format("voyage_%03d", k))
+		k += 1
+		local st = EUI and H.inClient(p, EUI.debugState)
+		if ph == "walk" and not shot.walk then
+			shot.walk = true
+			capture(p, "voyage_walk")
+		elseif ph == "sail" and not shot.board then
+			shot.board = true
+			capture(p, "voyage_board")
+		elseif ph == "close" and not shot.sail then
+			shot.sail = true
+		end
+		if st and st.lifted then
+			onStage += 1
+			if onStage == 7 then
+				capture(p, "voyage_arrive")
+			end
+			if onStage >= 14 then
+				break
+			end
+		end
+	end
+	log("voyage: %d frames", k)
 	return p
 end
 

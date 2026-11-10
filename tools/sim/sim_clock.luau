@@ -221,7 +221,7 @@ end
 H.expect(worker ~= nil, "away", "someone is working")
 if worker then
 	local before = Island.rates(prof, s.away)
-	local res = H.req(p, "exp.start", { islet = 1, party = "v" .. worker.id })
+	local res = H.req(p, "exp.start", { lvl = 1, party = "v" .. worker.id })
 	H.expect(res.ok, "away", "they set sail", tostring(res.err))
 	local during = Island.rates(prof, s.away)
 	H.expect(during.food > before.food - 0.001 + Tuning.EatFolk - 0.001 or during.wood < before.wood or during.shells < before.shells or during.food < before.food, "away", "the island makes and eats without them", string.format("%.1f/%.1f -> %.1f/%.1f", before.food, before.wood, during.food, during.wood))

@@ -27,6 +27,8 @@ type Rec = {
 }
 
 local recs: { [Player]: Rec } = {}
+-- A cutscene's hold on the own founder (UI/Voyage): it poses the rig instead of the character
+local override: ((rig: CharacterModels.Rig, t: number, dt: number) -> ())? = nil
 local groundParams = RaycastParams.new()
 groundParams.FilterType = Enum.RaycastFilterType.Exclude
 
@@ -127,6 +129,11 @@ local function step(dt: number)
 			rec.char = char
 			hide(char)
 		end
+		if pl == me and override then
+			(override :: (CharacterModels.Rig, number, number) -> ())(rec.rig, t, dt)
+			rec.last = nil
+			continue
+		end
 		local pos = root.Position
 		if rec.last and dt > 0 then
 			local d = pos - (rec.last :: Vector3)
@@ -167,6 +174,11 @@ function AvatarView.founderPos(): Vector3?
 	local r = recs[Players.LocalPlayer]
 	local torso = if r then r.rig.parts.Torso else nil
 	return if torso then torso.Position else nil
+end
+
+-- A cutscene poses the own founder (nil: back to following the character).
+function AvatarView.setOverride(fn: ((rig: CharacterModels.Rig, t: number, dt: number) -> ())?)
+	override = fn
 end
 
 -- CLI checks only: the founders drawn now.

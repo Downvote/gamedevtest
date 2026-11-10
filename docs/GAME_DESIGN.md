@@ -12,9 +12,10 @@ requests (§11). The game studio of the earlier versions is gone (§10: an old s
 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
 on its sand. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
-villagers take jobs. You sail out to the islets nearby with a party of villagers, befriend the wild **driftlings**
-there with treats in turn-based battles, and bring them home to help at the buildings of their knack. Beating each
-islet's guardian opens the next. The islands of everyone on the server sit side by side along one boardwalk on a
+villagers take jobs. You sail out with a party of villagers to islands nobody has seen before (each one made up as
+you set sail, at a level you pick up to your captain's), befriend the wild **driftlings** there with treats in
+turn-based battles, and bring them home to help at the buildings of their knack. Beating an island's guardian charts
+it. The islands of everyone on the server sit side by side along one boardwalk on a
 shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
 decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
@@ -24,8 +25,8 @@ decides everything, pure Data/Logic modules with specs, and the fake-engine simu
 Build a Veggie Patch so the island has food, a Tent so a castaway can move in at dawn, a Lumber Camp for wood and a
 Snack Stall to sell food to the visitors for shells. Every day (Tuning.DaySeconds while you play) the island makes and
 eats; a visitor moves into a free bed when the charm is high enough and takes a free job. Build a Driftling Nest,
-then Explore: pick a party (you, the captain, and up to three villagers or driftlings), pay the supplies in food and
-sail to an islet. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
+then Explore: pick a party (you, the captain, and up to three villagers or driftlings), pick the island's level on the slider, pay the supplies in food and
+set sail: your founder boards the boat at the pier and it sails off to a new island. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
 end); in battle choose Fight, Guard, Treat (food: a hurt wild one may join you) or Flee. Sail home with the loot.
 Spend shells and wood on more buildings, upgrades (a making building's Lv 2 and 3) and decor (charm), and expand the
 island twice for bigger buildings. Nothing happens while you are away (no offline progress).
@@ -78,7 +79,8 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   (`UpgradeMult`). Villagers eat `EatFolk` food a day, driftlings `EatPal`.
 - **Shops** sell food to the visitors: their rate times visitors / `ShopVisitors` (at most double), eating food the
   same way. **Visitors** a day: 1 + charm / `VisitorCharm`, at most `VisitorsMax`.
-- **Charm:** every piece's charm, one for each driftling, three for each islet opened.
+- **Charm:** every piece's charm, one for each driftling, `ChartCharm` (3) for each island charted, up to
+  `ChartCharmMax` (15).
 - **Hunger:** when the food runs out everything makes half and the shops shut until there is food again; the food
   chip blinks red.
 - The stores reach the client every second; a new day brings a banner (who moved in, who trained).
@@ -114,21 +116,47 @@ with levels (xp from battles and the yard).
 
 ## 6. Driftlings (`Data/Creatures`, the Driftlings panel, the Index)
 
-Fifteen driftlings of our own, three on each islet: Pebblit, Clawdle, Gullfin (Pebble Beach); Mossbun, Frondle,
-Twiggle (Mossgrove); Emberpup, Magmole, Scorchwing (Cinder Rock); Snowpuff, Floe, Frostling (Frostcap); Lumajelly,
-Novafox, Tidewyrm (Coral Deep). Each has battle stats, a skill (Big Bonk, Double Dash, Splash Wave, Soothe, Shell
+Fifteen driftlings of our own, three living on each kind of island: Pebblit, Clawdle, Gullfin (beaches); Mossbun,
+Frondle, Twiggle (meadows); Emberpup, Magmole, Scorchwing (volcanoes); Snowpuff, Floe, Frostling (snowfields);
+Lumajelly, Novafox, Tidewyrm (reefs). Each has battle stats, a skill (Big Bonk, Double Dash, Splash Wave, Soothe, Shell
 Guard), a **knack** (farms, fishing piers, lumber camps or shops: where it helps), a trust (how readily a treat
 befriends it), a 3D model and a portrait. A befriended driftling needs a free nest slot (`PalsMax` at most) and starts
 helping where its knack is needed. The Driftlings panel shows each (portrait, level, skill, where it helps, stats)
 with **Help** (a picker of the buildings of its knack, or Rest) and **Release** (two taps). The **Index** lists all
 fifteen: dark until met, named once met, its blurb and a heart once befriended.
 
-## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the islet's screen)
+## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the sailing cutscene, the islet's screen)
 
-- **Five islets** open one after another: Pebble Beach (Lv 1+), Mossgrove (5+), Cinder Rock (10+), Frostcap (16+),
-  Coral Deep (23+). Each has a path of 8 to 11 stops: the landing, loot (food and wood), chests (shells), wild
-  battles, a rest (the party heals half), and the guardian (a bigger driftling with a friend). Beating the guardian
-  pays its reward (half on later trips) and opens the next islet.
+> The request (2026-11-10): "can the green lines of the sea be more of a light blue instead? also, make exploration
+> procedurally generated instead. make a cutscene where the player gets into the boat, then sails to a random island
+> with random monsters. the level and monsters of the islands you discover is determined by your (captain) level,
+> and you can choose to scale it down to whatever is under your level through a slider"
+
+- **Islands made up as you sail:** every expedition goes to a new island, made from a seed and the **level** you
+  pick (`Logic/Expedition.chart`): the Explore panel's slider runs from 1 to your captain's level and starts at it
+  (it follows the captain up while it sits at the top); drag it, or tap - and +, to sail somewhere easier. The level
+  decides the island:
+  - **its kind**, one of those open at the level, picked at random: **beaches** from the start, **meadows** from 5,
+    **volcanoes** from 10, **snowfields** from 16, **reefs** from 23 (the panel lists them, the ones out of reach
+    greyed with the level they need);
+  - **its name**, two words of its kind ("Gull Key", "Willow Thicket", "Scorch Peak", "Frost Drift", "Brine
+    Hollow");
+  - **its driftlings**: two of its kind's own and one more that strayed in from any kind open at the level, at about
+    its level (a level under it at the landing, one more every four stops); its **guardian** is one of its own,
+    titled ("Grumpy Clawdle", "Elder Floe"), two levels up with a friend from level 4;
+  - **its path**: the landing, six to nine stops (battles, loot, chests, one rest late on; at least three battles),
+    the guardian; one more stop from level 10;
+  - **what it holds**, growing with the level: a loot stop's food and wood, a chest's shells, the guardian's reward
+    (`Isle*`; the panel shows the reward and the wild ones' levels for the level picked).
+  Beating the guardian pays its reward and **charts** the island (the panel counts the islands charted; each is charm
+  up to `ChartCharmMax`). A lower level is safer and pays less.
+- **The cutscene** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
+  aside; your founder walks from where they stand down the path, across the boardwalk and along the pier (or starts
+  on the jetty when far away) and hops into the expedition boat, where the rest of the party waits on deck and
+  cheers; the boat casts off and sails out to sea, the view following it; ink blinds close on the island's name and
+  kind. The islet's screen opens behind them and the boat glides in to the island's shore; the party hops off and
+  runs to its places. The boat stays away from the pier while the expedition does and is moored there again once
+  the party is home.
 - **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
   strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
   dismissed or released. One expedition at a time; leaving the game brings it home with its loot.
@@ -139,18 +167,19 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   level); **Flee** may get away. A guardian can't be befriended or fled from. A win gives xp to the party (levels) and
   shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and half
   the loot comes home.
-- **The islet's screen** (3D, full screen): the islet's own stage (an islet of its own, its shore stepping down
-  into the moving sea: a beach with leaning palms, a treasure chest, tide pools and a rowboat; a mossy meadow with
-  ferns, mushrooms and a fallen log; Cinder Rock's dark sand by a volcano with lava running down it; a snowfield by a
-  snowy peak with pines, ice crystals and a frozen pond; the sea floor's corals, kelp, anemones, clams and a sunken
-  anchor), drawn by the pixel filter, with
-  the party on the left (your founder, villagers as their chibis, driftlings as their models) and the wild ones
-  dropping in on the right. Along the top: the islet, the loot so far, the path of stops (the ones ahead hidden but
+- **The islet's screen** (3D, full screen): the island's own stage, its kind's set laid out by its seed (an island
+  of its own, its shore stepping down into the moving sea: a beach with palms leaning out, a treasure chest, tide
+  pools, maybe a rowboat, starfish and shells; a mossy meadow with trees, ferns, mushrooms, a winding stepping-stone
+  path and maybe a fallen log; dark volcanic sand by a volcano with lava running down it, a rocky mound, obsidian and
+  vents; a snowfield by a snowy peak with pines, ice crystals, maybe a frozen pond; the sea floor's corals, kelp,
+  anemones, clams and maybe a sunken anchor), drawn by the pixel filter, with the party on the left (your founder,
+  villagers as their chibis, driftlings as their models) and the wild ones dropping in on the right. Along the top:
+  the island's name and level, the loot so far, the path of stops (the ones ahead hidden but
   the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
   the party's cards with their health bars and levels, and the buttons (Go on and Sail home between stops; Fight,
   Guard, Treat and Flee in battle; Space or 1-4 on a keyboard). A round plays back: lunges, flashes, damage numbers,
   skills' names, heals, shells, a treat's hearts, knock-outs; a win shows its xp, shells and level-ups, a new friend
-  its portrait with confetti, a guardian's fall the next islet.
+  its portrait with confetti, a guardian's fall the island charted.
 
 ## 8. The islands and the sea (`Data/Street`, `Models/StreetModels`, `Models/DecorModels`)
 
@@ -178,13 +207,13 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 - Up to `MaxPlots` (6) islands sit in a row along the boardwalk; an unclaimed lot is open water with a sandbar and a
   sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. You can walk onto anyone's island
   (the shore's edge holds you back from the sea); Home sends you back to your own. A tap on a sign shows that island's
-  day, villagers, driftlings, charm and islets.
+  day, villagers, driftlings, charm and islands charted.
 
 ## 9. Your founder, settings and the tips
 
 The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). Settings: the pixel filter's
-quality. **The tips** (the banner over the menu bar): 1 build food, 2 build a home, 3 build a nest and sail to
-Pebble Beach, 4 treat a hurt wild one (OK ends them).
+quality. **The tips** (the banner over the menu bar): 1 build food, 2 build a home, 3 build a nest and set sail to a
+new island, 4 treat a hurt wild one (OK ends them).
 
 ## 10. Saves and the economy, checked
 
@@ -193,8 +222,9 @@ its start date and begins a fresh island with the tips. `tests/Career.luau` play
 rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 
 - a villager within 3 minutes, a driftling friend within 15;
-- the guardians of the first islet within 15 minutes, the second 45, the third 90, the fourth 150; the last islet is
-  a long-term goal (past two hours);
+- a guardian beaten within 15 minutes; one of a level-5 island (meadows) within 45, level 10 (volcanoes) within 90,
+  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails at
+  the captain's level, lower while the party looks too weak for its guardian and after a defeat (the slider);
 - the island's second tier within 45 minutes, the third within 90; at an hour, at least 8 villagers and 8 driftlings;
 - nobody starves for long, and the stores stay finite.
 
@@ -211,10 +241,10 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   and bits when someone moved in).
 - **The island lives:** villagers walk to their work and back and do it (hoe, chop, sell), wander when resting;
   driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
-- **The sea lives:** the water rolls and the foam laps the shore (§8), sailboats rock on the swell as they cross both
+- **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked in §7), sailboats rock on the swell as they cross both
   ways, gulls cross now and then, clouds' shadows slide over the islands; each island's campfire flickers and smokes.
-- **The islet's screen:** ink blinds open from the middle on the islet's name; the party and the wild ones drop in
-  from above in puffs of dust; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
+- **The islet's screen:** ink blinds open from the middle on the island's name; after the cutscene the boat brings
+  the party ashore (back from the island they drop in from above in puffs of dust), the wild ones drop in; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
   numbers float up, skills shout their names, heals and shells twinkle, a treat bursts into hearts, a friend leaves in
   confetti, a win cheers and throws confetti.
