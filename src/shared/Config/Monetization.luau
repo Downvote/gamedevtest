@@ -36,6 +36,25 @@ local Monetization = {
 		Trumpet = 1840270052,
 		SadTrombone = 1840224982,
 		Squish = 9117848644,
+		-- the battles, the islands and the sea (Creator Store, free: Roblox's licensed ProSoundEffects library)
+		Whoosh = 9119741493, -- Swoosh Pack High End Multiple Variations 8
+		WhooshHeavy = 9120728815, -- Whoosh Heavy Punches 1
+		Hit = 9117969687, -- Punch Kit Beefy Hit 2
+		HitHeavy = 9117970193, -- Punch Kit Beefy Hit 7
+		BodyFall = 9113480917, -- Body Fall Thud 1
+		Zap = 9114277757, -- Electric Zaps 12
+		Heal = 9116394545, -- Magic Glows Soft Clusters Of Chiming Hits 1
+		Shield = 9119072660, -- Shield Clang As Hit Metal Sword Hubcap 1
+		Poof = 9116406610, -- Magic Poofs Thumpy Wheezy Exhale 1
+		Bite = 9119055432, -- Shark Bite Smaller Teeth Snaps 6
+		ChestOpen = 9120873789, -- Wooden Chest Open Close Cedar Box 9
+		Splash = 9125703162, -- Mud Puddle Splash Shallow Water Impacts Hits
+		Hammer = 9114756004, -- Hammer Nail Into Wood 7
+		BoatHorn = 9113467357, -- Boat Horn Short Long Blasts 1
+		Gull = 9118858259, -- Seagull Squawks 3
+		Birds = 9119383479, -- Sonoma Morning Birds California Chirping 1
+		Waves = 9126010643, -- Surf Bubbles Wave Bubbles On Sand Ocean Foam (a loop)
+		Crickets = 9112764546, -- Crickets Night 1 (a loop)
 	} :: { [string]: number },
 }
 

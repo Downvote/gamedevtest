@@ -222,7 +222,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	local say = if def then def.blurb else ""
 	if def and def.rate > 0 then
 		local lvl = if q then q.lvl else 1
-		say = string.format("%s %s a day with a %s.", say, Numbers.perDay(def.rate * (Tuning.UpgradeMult[lvl] or 1)):gsub("/day", ""), string.lower(def.job))
+		say = string.format("%s %s a minute with a %s.", say, (Numbers.perMin(def.rate * (Tuning.UpgradeMult[lvl] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")), string.lower(def.job))
 	end
 	if def and def.charm > 0 then
 		say ..= string.format(" Charm +%d.", def.charm)
@@ -454,6 +454,7 @@ function BuildUI.confirm()
 		res = ask("plot.place", { id = p.id, x = p.x, z = p.z, rot = p.rot })
 	end
 	if res.ok then
+		Audio.play("hammer")
 		if p.move then
 			pick = nil
 			clearGhost()

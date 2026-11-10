@@ -55,7 +55,7 @@ prof.shells, prof.wood = 5000, 500
 placeAll(p, { "patch", "tent", "nest", "lumber", "stall", "flowers" })
 E.runUntil(function()
 	return #prof.folk >= 1
-end, Tuning.DaySeconds + 3, 0.1)
+end, Tuning.TurnSeconds + 3, 0.1)
 H.expect(#prof.folk == 1, "save", "a villager moved in", tostring(#prof.folk))
 table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", lvl = 3, xp = 4, work = 0 })
 prof.nextId += 1

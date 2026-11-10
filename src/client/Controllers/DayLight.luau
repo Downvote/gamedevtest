@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local StateClient = require(script.Parent.StateClient)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local Audio = require(script.Parent.Audio)
 
 type Grade = PixelRenderer.Grade
 type Key = { f: number, mr: number, mg: number, mb: number, lift: number, sat: number, lamps: number }
@@ -90,8 +91,17 @@ function DayLight.start()
 	end
 	StateClient.Tick:Connect(took)
 	StateClient.Changed:Connect(took)
+	local dawnSung = -1
 	RunService.Heartbeat:Connect(function()
 		local f = now()
+		-- the sound of the hour: the surf always, crickets through the night, birds at dawn
+		Audio.ambience("waves", 0.14)
+		Audio.ambience("crickets", if f >= 0.77 and f < 0.98 then 0.12 else 0)
+		local day = math.floor(frac0 + (os.clock() - at0) / Tuning.DaySeconds)
+		if f < 0.05 and dawnSung ~= day then
+			dawnSung = day
+			Audio.play("birds")
+		end
 		if PixelRenderer.tier() == "off" then
 			PixelRenderer.setGrade(nil)
 			pcall(function()

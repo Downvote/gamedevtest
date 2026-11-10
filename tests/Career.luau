@@ -244,9 +244,9 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		local away = Expedition.away(exp)
 		Island.step(p, 1, away)
 		dayClock += 1
-		if dayClock >= Tuning.DaySeconds then
-			dayClock -= Tuning.DaySeconds
-			local news = Island.newDay(p, rng, away)
+		if dayClock >= Tuning.TurnSeconds then
+			dayClock -= Tuning.TurnSeconds
+			local news = Island.turn(p, rng, away)
 			if news.movedIn then
 				mark("villager", t)
 			end

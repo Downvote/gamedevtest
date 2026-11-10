@@ -105,21 +105,21 @@ H.expect(decor ~= nil and #decor:GetChildren() == 5, "build", "the server built 
 H.checkProfile(p, "build")
 H.checkMirror(p, "build")
 
------------------------------------------------------------------- 3. the days
+------------------------------------------------------------------ 3. turns and days
 E.phase = "days"
 local day0 = prof.day
-local dayFx = 0
+local turnFx = 0
 local f0 = #fx
 E.runUntil(function()
-	return prof.day > day0
-end, Tuning.DaySeconds + 2, 0.1)
+	return #prof.folk >= 1
+end, Tuning.TurnSeconds + 2, 0.1)
 E.run(0.3)
 for i = f0 + 1, #fx do
-	if fx[i].kind == "day" then
-		dayFx += 1
+	if fx[i].kind == "turn" then
+		turnFx += 1
 	end
 end
-H.expect(prof.day == day0 + 1 and dayFx == 1, "days", "a day turns every DaySeconds (Fx day)", string.format("day %d, %d fx", prof.day, dayFx))
+H.expect(turnFx == 1 and prof.day == day0, "days", "a turn ends every TurnSeconds (Fx turn), not a day", string.format("%d fx, day %d", turnFx, prof.day))
 H.expect(#prof.folk == 1, "days", "a castaway moved into the tent", tostring(#prof.folk))
 local mika = prof.folk[1]
 H.expect(mika ~= nil and mika.work ~= 0, "days", "and took a job straight away", tostring(mika and mika.work))
@@ -129,7 +129,24 @@ for i = f0 + 1, #fx do
 		ticks += 1
 	end
 end
-H.expect(ticks >= Tuning.DaySeconds - 3, "days", "the stores reach the client every second (Fx tick)", tostring(ticks))
+H.expect(ticks >= Tuning.TurnSeconds - 3, "days", "the stores reach the client every second (Fx tick)", tostring(ticks))
+-- a calendar day is hours of the sea's clock: jumped to a day's end, the island counts one (Fx day)
+do
+	local WC = H.smod("WorldClock")
+	local d1 = prof.day
+	local f1 = #fx
+	WC.shift(Tuning.DaySeconds - (WC.now() % Tuning.DaySeconds) - 0.5)
+	E.run(1.2)
+	local days = 0
+	for i = f1 + 1, #fx do
+		if fx[i].kind == "day" then
+			days += 1
+		end
+	end
+	H.expect(prof.day == d1 + 1 and days == 1, "days", "the sea's clock passing a day's end counts a day (Fx day)", string.format("day %d -> %d, %d fx", d1, prof.day, days))
+	local v1 = H.view(p)
+	H.expect(v1 ~= nil and v1.dayFrac < 0.01, "days", "the view's clock at the new day's dawn", tostring(v1 and v1.dayFrac))
+end
 E.run(0.6)
 local WV = H.cmod(p, "Controllers.WorldView")
 H.expect(WV.ownRigCount() == 1, "days", "the villager walks the island", tostring(WV.ownRigCount()))

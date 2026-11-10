@@ -448,7 +448,7 @@ function H.checkMirror(p, label)
 		H.expect(v[k] == prof[k], "mirror", string.format("%s: view.%s differs", label, k), string.format("view %s, server %s", tostring(v[k]), tostring(prof[k])))
 	end
 	local r = H.sharedServer("Logic.Island").rates(prof, H.session(p) and H.session(p).away)
-	local tick = H.sharedServer("Config.Tuning").DaySeconds
+	local tick = H.sharedServer("Config.Tuning").TurnSeconds
 	for _, k in { "shells", "food", "wood" } do
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
 		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))

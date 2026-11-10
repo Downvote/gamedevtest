@@ -111,7 +111,7 @@ export type ClientView = {
 	food: number,
 	wood: number,
 	day: number,
-	dayFrac: number, -- how far into the day (0..1)
+	dayFrac: number, -- how far into the sea's calendar day (0 dawn .. 1; a day is Tuning.DaySeconds: hours)
 	tier: number,
 	founder: Look,
 	cap: Captain,

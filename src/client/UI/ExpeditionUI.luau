@@ -487,6 +487,9 @@ local function poseAll(t: number, dt: number)
 				y, action = dh * (1 - e) + math.sin(e * math.pi) * 1.8, "jump"
 				if a.founder and k < dt then
 					Audio.play("pop", { pitch = 0.75 })
+					task.delay(HOP_T, function()
+						Audio.play("splash")
+					end)
 				end
 			end
 			if a.deck > 0 then
@@ -818,7 +821,11 @@ local function playEvent(ev: { [string]: any })
 		local impacts = IMPACTS[kind]
 		if by then
 			startMove(by, kind, to)
-			Audio.play("flip", { pitch = if kind == "bash" then 0.7 else 1.2 })
+			task.delay(if kind == "quick" then 0.08 elseif kind == "bash" then 0.3 elseif kind == "zap" then 0 else 0.2, function()
+				if kind ~= "zap" then
+					Audio.play(if kind == "bash" then "whoosh_heavy" else "whoosh")
+				end
+			end)
 		else
 			impacts = { 0.05 }
 		end
@@ -852,7 +859,7 @@ local function playEvent(ev: { [string]: any })
 				end
 			end
 			at(0.45)
-			Audio.play("sparkle", { pitch = 1.3 })
+			Audio.play("zap")
 			if to then
 				local p0, p1 = actorAt(by) + Vector3.new(0, 1.2, 0), actorAt(to) + Vector3.new(0, 1.2, 0)
 				for j = 0, 6 do
@@ -878,7 +885,11 @@ local function playEvent(ev: { [string]: any })
 				freeze(if kind == "quick" then 0.035 else 0.07)
 				t0 += if kind == "quick" then 0.035 else 0.07
 			end
-			Audio.play("squish", { pitch = if skill then 0.85 else 1 })
+			local heavy = kind == "bash" or (ev.ko and i == #impacts)
+			Audio.play(if heavy then "hit_heavy" else "hit")
+			if by and by.thing and kind == "attack" then
+				Audio.play("bite")
+			end
 		end
 		local b = bars[ev.to]
 		if b then
@@ -890,6 +901,7 @@ local function playEvent(ev: { [string]: any })
 			Audio.play("pop", { pitch = 0.7 })
 			task.delay(0.55, function()
 				if isOpen and stage then
+					Audio.play("body_fall")
 					st.puff(actorAt(to), "dust", 10)
 					st.puff(actorAt(to) + Vector3.new(0, 1.2, 0), "twinkle", 4)
 				end
@@ -915,7 +927,7 @@ local function playEvent(ev: { [string]: any })
 			setBar(ev.to, b.hp + (tonumber(ev.amt) or 0))
 		end
 		floatOver(ev.to, "+" .. tostring(ev.amt), UIKit.color("good"))
-		Audio.play("sparkle")
+		Audio.play("heal")
 	elseif t == "shield" then
 		local by = actors[ev.by]
 		floatOver(ev.by, "Shell Guard!", UIKit.color("accent"))
@@ -931,7 +943,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(a) + Vector3.new(if a.foe then -1 else 1, 1.2, 0), "twinkle", 4)
 			end
 		end
-		Audio.play("ding")
+		Audio.play("shield")
 	elseif t == "rally" then
 		local by = actors[ev.by]
 		if by then
@@ -943,6 +955,7 @@ local function playEvent(ev: { [string]: any })
 				startMove(a, "happy")
 			end
 		end
+		Audio.play("poof")
 		Audio.play("cheer")
 	elseif t == "guard" then
 		for _, a in actors do
@@ -952,7 +965,7 @@ local function playEvent(ev: { [string]: any })
 			end
 		end
 		say("The party guards!", UIKit.color("accent"), 1)
-		Audio.play("ding")
+		Audio.play("shield", { pitch = 0.9 })
 	elseif t == "treat" then
 		local to = actors[ev.to]
 		local f = actors.f
@@ -960,7 +973,7 @@ local function playEvent(ev: { [string]: any })
 			startMove(f, "throw")
 		end
 		floatOver("f", "Here, a treat!", UIKit.color("text"))
-		Audio.play("flip")
+		Audio.play("whoosh", { pitch = 1.3 })
 		task.wait(0.3)
 		if f and to then
 			-- the treat's arc: a trail of sparkles from the founder's hand to the wild one
@@ -999,6 +1012,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(a) + Vector3.new(0, 0.2, 0), "dust", 4)
 			end
 		end
+		Audio.play("whoosh", { pitch = 0.8 })
 		if ev.ok then
 			say("Got away!", UIKit.color("good"), 1.4)
 			Audio.play("pop")
@@ -1193,7 +1207,10 @@ playNode = function(data: { [string]: any })
 		end
 		st.puff(st.at(-2, -1, 0.5), "debris", 8)
 	elseif kind == "chest" then
-		Audio.play("coins")
+		Audio.play("chest")
+		task.delay(0.3, function()
+			Audio.play("coins")
+		end)
 		say(string.format("A chest: %s shells!", Numbers.int(tonumber(data.shells) or 0)), UIKit.color("accent"))
 		st.puff(st.at(-2, -1, 1), "spark", 12)
 		for _, a in actors do

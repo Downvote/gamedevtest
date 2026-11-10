@@ -1,4 +1,4 @@
--- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a day every Tuning.DaySeconds while the player is
+-- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
 -- here, open menus and Build mode holding nothing; what a day makes and eats matching Island.rates (to a tick); the
 -- stores reaching the client every second (Fx tick); the food running out (everything at half, the shops shut, the
 -- chip red) and coming back; a villager moving in only into a free bed with the charm high enough; the training
@@ -54,21 +54,27 @@ for _, id in { "patch", "patch", "lumber", "tent", "hut", "nest", "stall", "flow
 	local r = place(id)
 	H.expect(r.ok, "clock", "place " .. id, tostring(r.err))
 end
+-- the next turn's end (its Fx turn)
+local function nextTurn(limit: number?)
+	local i0 = #fx
+	E.runUntil(function()
+		return count("turn", i0) >= 1
+	end, limit or Tuning.TurnSeconds + 2, 0.05)
+end
 local d0 = prof.day
-E.runUntil(function()
-	return prof.day > d0
-end, Tuning.DaySeconds + 2, 0.05)
+nextTurn()
 
 local t0 = E.SIM.now
-E.run(0.3) -- (the first day's Fx on its way)
+E.run(0.3) -- (the first turn's Fx on its way)
 local f0 = #fx
 E.runUntil(function()
-	return prof.day >= d0 + 3
-end, Tuning.DaySeconds * 3 + 3, 0.05)
+	return count("turn", f0) >= 2
+end, Tuning.TurnSeconds * 3 + 3, 0.05)
 local took = E.SIM.now - t0
-H.expect(math.abs(took - Tuning.DaySeconds * 2) < 0.6, "clock", "a day every DaySeconds", string.format("two days in %.2fs", took))
+H.expect(math.abs(took - Tuning.TurnSeconds * 2) < 0.6, "clock", "a turn every TurnSeconds", string.format("two turns in %.2fs", took))
 E.run(0.3)
-H.expect(count("day", f0) == 2, "clock", "an Fx day each", tostring(count("day", f0)))
+H.expect(count("turn", f0) == 2, "clock", "an Fx turn each", tostring(count("turn", f0)))
+H.expect(prof.day == d0, "clock", "turns are not days (a day is hours of the sea's clock)", string.format("%d -> %d", d0, prof.day))
 H.expect(math.abs(count("tick", f0) - took) <= 2, "clock", "an Fx tick every second", string.format("%d in %.1fs", count("tick", f0), took))
 H.expect(#prof.folk >= 2, "clock", "villagers moved into the beds", tostring(#prof.folk))
 
@@ -80,7 +86,7 @@ local r = Island.rates(prof, s.away)
 local food0, wood0, sh0 = prof.food, prof.wood, prof.shells
 local folk0 = #prof.folk
 E.run(10)
-local k = 10 / Tuning.DaySeconds
+local k = 10 / Tuning.TurnSeconds
 H.expect(#prof.folk == folk0, "rates", "(nobody new moved in meanwhile)")
 H.expect(math.abs((prof.food - food0) - r.food * k) <= math.abs(r.food) * 0.02 + 0.5, "rates", "food to the day's rate", string.format("%.2f vs %.2f", prof.food - food0, r.food * k))
 H.expect(math.abs((prof.wood - wood0) - r.wood * k) <= r.wood * 0.02 + 0.5, "rates", "wood to the day's rate", string.format("%.2f vs %.2f", prof.wood - wood0, r.wood * k))
@@ -88,7 +94,7 @@ H.expect(math.abs((prof.shells - sh0) - r.shells * k) <= r.shells * 0.02 + 0.5, 
 H.expect(r.shells > 0, "rates", "the stall makes shells", tostring(r.shells))
 local v = H.view(p)
 H.expect(v ~= nil and math.abs(v.rates.food - r.food) < 1e-6 and math.abs(v.rates.shells - r.shells) < 1e-6, "rates", "the view says the rates")
-H.expect(v ~= nil and math.abs(v.food - prof.food) <= math.abs(r.food) / Tuning.DaySeconds * 1.5 + 1, "rates", "the view's food follows the ticks", string.format("%s vs %s", v and v.food, prof.food))
+H.expect(v ~= nil and math.abs(v.food - prof.food) <= math.abs(r.food) / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's food follows the ticks", string.format("%s vs %s", v and v.food, prof.food))
 H.checkMirror(p, "rates")
 
 ------------------------------------------------------------------ open menus and Build mode hold nothing
@@ -148,10 +154,7 @@ while #prof.folk < beds do
 end
 H.push(p, 0.2)
 local n0 = #prof.folk
-local dd = prof.day
-E.runUntil(function()
-	return prof.day > dd
-end, Tuning.DaySeconds + 2, 0.1)
+nextTurn()
 H.expect(#prof.folk == n0, "move-in", "no free bed: nobody moves in", tostring(#prof.folk))
 -- a free bed but not charm enough (MoveInCharm a villager)
 local r1 = place("cottage")
@@ -159,10 +162,7 @@ local r2 = place("hut")
 H.expect(r1.ok or r2.ok, "move-in", "a new home", tostring(r2.err))
 local charm = Island.charm(prof)
 H.expect(charm < Tuning.MoveInCharm * #prof.folk, "move-in", "(the charm is too low for this many)", string.format("%d < %d", charm, Tuning.MoveInCharm * #prof.folk))
-dd = prof.day
-E.runUntil(function()
-	return prof.day > dd
-end, Tuning.DaySeconds + 2, 0.1)
+nextTurn()
 H.expect(#prof.folk == n0, "move-in", "not charming enough: nobody moves in", tostring(#prof.folk))
 -- decor raises the charm (the island expanded for the grand pieces: the buildings where the coast changed make room)
 prof.shells, prof.wood = 1e6, 1e5
@@ -182,10 +182,7 @@ while Island.charm(prof) < Tuning.MoveInCharm * #prof.folk and guard < 10 do
 	end
 end
 H.expect(Island.charm(prof) >= Tuning.MoveInCharm * #prof.folk, "move-in", "decor raises the charm", tostring(Island.charm(prof)))
-dd = prof.day
-E.runUntil(function()
-	return prof.day > dd
-end, Tuning.DaySeconds + 2, 0.1)
+nextTurn()
 H.expect(#prof.folk == n0 + 1, "move-in", "charming enough: a visitor moves in", tostring(#prof.folk))
 H.checkProfile(p, "move-in")
 
@@ -204,11 +201,8 @@ if idle == nil then
 	idle.work = 0
 end
 local xp0, lvl0 = idle.xp, idle.lvl
-dd = prof.day
-E.runUntil(function()
-	return prof.day > dd
-end, Tuning.DaySeconds + 2, 0.1)
-H.expect(idle.lvl > lvl0 or idle.xp >= xp0 + Tuning.TrainXp, "yard", "a resting villager trains at dawn", string.format("lv %d xp %d -> lv %d xp %d", lvl0, xp0, idle.lvl, idle.xp))
+nextTurn()
+H.expect(idle.lvl > lvl0 or idle.xp >= xp0 + Tuning.TrainXp, "yard", "a resting villager trains at a turn's end", string.format("lv %d xp %d -> lv %d xp %d", lvl0, xp0, idle.lvl, idle.xp))
 
 ------------------------------------------------------------------ away on an expedition
 E.phase = "away"
@@ -241,13 +235,22 @@ local q = H.addPlayer({ userId = 9302, name = "Tock" })
 E.run(2)
 local sq = H.session(q)
 local pq = H.profile(q)
-local dq, dp = pq.day, prof.day
-E.run(Tuning.DaySeconds + 1)
-H.expect(pq.day == dq + 1 and prof.day == dp + 1, "two", "both islands' days turn", string.format("%d->%d, %d->%d", dq, pq.day, dp, prof.day))
-H.expect(sq.dayClock >= 0 and sq.dayClock < Tuning.DaySeconds and s.dayClock >= 0 and s.dayClock < Tuning.DaySeconds, "two", "each on its own clock")
+local fq = H.watchFx(q)
+local fp0 = #fx
+E.run(Tuning.TurnSeconds + 1)
+local qt = 0
+for _, m in fq do
+	if m.kind == "turn" then
+		qt += 1
+	end
+end
+H.expect(qt >= 1 and count("turn", fp0) >= 1, "two", "both islands' turns end", string.format("%d, %d", qt, count("turn", fp0)))
+H.expect(sq.turnClock >= 0 and sq.turnClock < Tuning.TurnSeconds and s.turnClock >= 0 and s.turnClock < Tuning.TurnSeconds, "two", "each on its own turn clock", string.format("%.2f %.2f", sq.turnClock, s.turnClock))
+local vq, vp = H.view(q), H.view(p)
+H.expect(vq ~= nil and vp ~= nil and math.abs(vq.dayFrac - vp.dayFrac) < 0.001, "two", "one sea, one time of day", string.format("%s %s", vq and vq.dayFrac, vp and vp.dayFrac))
 ------------------------------------------------------------------ day and night
 E.phase = "daynight"
--- the day and night (GAME_DESIGN 8): the island's clock grades the picture: plain by day, dark blue at night with the
+-- the day and night (GAME_DESIGN 8): the sea's clock grades the picture: plain by day, dark blue at night with the
 -- lamps lit, bright again at dawn (UI/DayLight; with the filter off, as in this engine, Roblox's own clock follows)
 do
 	local PR = H.cmod(p, "Pixel.PixelRenderer")
@@ -256,12 +259,12 @@ do
 	H.expect(DL.at(0.35) == nil and nightGrade ~= nil and nightGrade.mr < 0.6 and nightGrade.lamps > 0.9, "daynight", "the grade: none at noon, dark with the lamps lit at night")
 	local dusk = DL.at(0.68)
 	H.expect(dusk ~= nil and dusk.mr > dusk.mb, "daynight", "a warm dusk")
+	-- (a day is hours: the sea's clock jumps to the time of day, then runs on a moment)
+	local WC = H.smod("WorldClock")
 	local function at(lo, hi)
-		E.runUntil(function()
-			local v = H.view(p)
-			return v ~= nil and v.dayFrac >= lo and v.dayFrac <= hi
-		end, Tuning.DaySeconds + 2, 0.05)
-		E.run(0.3)
+		local want = (lo + hi) / 2
+		WC.shift(((want - WC.dayFrac()) % 1) * Tuning.DaySeconds)
+		E.run(1.3)
 		local off = H.inClient(p, PR.tier) == "off"
 		local st = H.inClient(p, DL.debugState)
 		return st.grade, off, st.clock

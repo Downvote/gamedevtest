@@ -2,8 +2,9 @@
 -- The island on the server (docs/ARCHITECTURE.md 7.4): every player action and the island's clock, as thin wrappers
 -- round the shared rules (Logic/Island, Plot, Expedition) that mark the session dirty and tell the client what
 -- happened. The island makes and eats every step (Island.step, those away on an expedition left out); its stores go
--- to the client every second (Fx "tick", so the whole view is not sent every second); a day turns every
--- Tuning.DaySeconds (Island.newDay: a visitor may move in, the yard trains; Fx "day"). Expeditions live in the
+-- to the client every second (Fx "tick", so the whole view is not sent every second); a turn ends every
+-- Tuning.TurnSeconds (Island.turn: a visitor may move in, the yard trains; Fx "turn"), and the sea's clock
+-- (WorldClock: hours a day) counts the calendar days (Island.newDay; Fx "day"). Expeditions live in the
 -- session: start, the next node, battle rounds, home (Fx "exp" carries each step's events for the client to play).
 -- Everything runs while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +16,7 @@ local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
 local Session = require(script.Parent.Session)
+local WorldClock = require(script.Parent.WorldClock)
 local Router = require(script.Parent.Router)
 local PlotService = require(script.Parent.PlotService)
 
@@ -205,8 +207,12 @@ function IslandService.leaving(s: Session.S)
 	end
 end
 
--- The clock (Main's fixed step): every ready session's island makes and eats, a day turns now and then.
+-- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes and eats, a turn ends
+-- every TurnSeconds (a visitor may move in, the yard trains: Fx "turn"), and a calendar day's end on the sea's clock
+-- counts a day (Fx "day").
 function IslandService.step(dt: number)
+	WorldClock.advance(dt)
+	local today = WorldClock.dayIndex()
 	for _, s in Session.all() do
 		if not s.ready then
 			continue
@@ -217,17 +223,23 @@ function IslandService.step(dt: number)
 		if (p.food <= 0) ~= hungry then
 			Session.markDirty(s)
 		end
-		s.dayClock += dt
-		if s.dayClock >= Tuning.DaySeconds then
-			s.dayClock -= Tuning.DaySeconds
-			local news = Island.newDay(p, s.rng, s.away)
+		s.turnClock += dt
+		if s.turnClock >= Tuning.TurnSeconds then
+			s.turnClock -= Tuning.TurnSeconds
+			local news = Island.turn(p, s.rng, s.away)
 			Session.markDirty(s)
-			Session.fx(s, { kind = "day", day = p.day, movedIn = news.movedIn, trained = news.trained })
+			Session.fx(s, { kind = "turn", movedIn = news.movedIn, trained = news.trained })
+		end
+		if today > s.dayIndex then
+			s.dayIndex = today
+			Island.newDay(p)
+			Session.markDirty(s)
+			Session.fx(s, { kind = "day", day = p.day })
 		end
 		s.tickClock += dt
 		if s.tickClock >= 1 then
 			s.tickClock -= 1
-			Session.fx(s, { kind = "tick", shells = p.shells, food = p.food, wood = p.wood, dayFrac = s.dayClock / Tuning.DaySeconds })
+			Session.fx(s, { kind = "tick", shells = p.shells, food = p.food, wood = p.wood, dayFrac = WorldClock.dayFrac() })
 		end
 	end
 end

@@ -538,7 +538,7 @@ function WorldView.start()
 		own(v)
 	end
 	StateClient.Fx:Connect(function(msg)
-		if msg.kind == "day" and type(msg.movedIn) == "table" then
+		if msg.kind == "turn" and type(msg.movedIn) == "table" then
 			welcome(msg.movedIn)
 		end
 	end)

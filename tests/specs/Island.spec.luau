@@ -77,32 +77,40 @@ return function()
 		end
 		T.eq(Island.visitors(p), Tuning.VisitorsMax)
 	end)
-	T.it("a day: what it made, the food never below none", function()
+	T.it("a turn: what it made, the food never below none", function()
 		local p = fresh()
 		villager(p, put(p, "patch"))
 		local food = p.food
-		Island.step(p, Tuning.DaySeconds)
+		Island.step(p, Tuning.TurnSeconds)
 		T.near(p.food, food + Buildings.byId.patch.rate - Tuning.EatFolk, 1e-9)
 		p.folk = {}
 		for _ = 1, 50 do
 			villager(p, 0)
 		end
-		Island.step(p, Tuning.DaySeconds * 10)
+		Island.step(p, Tuning.TurnSeconds * 10)
 		T.eq(p.food, 0)
 	end)
-	T.it("a new day: a visitor moves into a free bed and takes a free job; the yard trains the resting", function()
+	T.it("a new calendar day counts the days; a day lasts hours, many turns", function()
+		local p = fresh()
+		Island.newDay(p)
+		T.eq(p.day, 2)
+		T.eq(p.stats.days, 1)
+		T.truthy(Tuning.DaySeconds >= 3 * 3600, "a few hours at least")
+		T.truthy(Tuning.DaySeconds >= Tuning.TurnSeconds * 100)
+	end)
+	T.it("a turn: a visitor moves into a free bed and takes a free job; the yard trains the resting", function()
 		local p = fresh()
 		local rng = Util.newRng(5)
-		local news = Island.newDay(p, rng)
+		local news = Island.turn(p, rng)
 		T.eq(news.movedIn, nil, "no bed")
-		T.eq(p.day, 2)
+		T.eq(p.day, 1, "a turn is not a day")
 		put(p, "tent")
 		local job = put(p, "patch")
-		news = Island.newDay(p, rng)
+		news = Island.turn(p, rng)
 		T.truthy(news.movedIn ~= nil and #p.folk == 1, "moved in")
 		T.eq(p.folk[1].work, job)
 		T.eq(p.stats.movedIn, 1)
-		news = Island.newDay(p, rng)
+		news = Island.turn(p, rng)
 		T.eq(#p.folk, 1, "the tent is full")
 		-- they come while the charm keeps up with the village
 		for _ = 1, 10 do
@@ -110,7 +118,7 @@ return function()
 		end
 		put(p, "totem")
 		for _ = 1, 20 do
-			Island.newDay(p, rng)
+			Island.turn(p, rng)
 		end
 		local most = math.floor(Island.charm(p) / Tuning.MoveInCharm) + 1
 		T.eq(#p.folk, most, "as many as the charm brings")
@@ -118,7 +126,7 @@ return function()
 		put(p, "yard")
 		p.folk[1].work = 0
 		local xp = p.folk[1].xp
-		news = Island.newDay(p, rng)
+		news = Island.turn(p, rng)
 		T.truthy(news.trained >= 1 and (p.folk[1].xp > xp or p.folk[1].lvl > 1))
 	end)
 	T.it("levels: xp to the next grows; a big gain goes up several", function()

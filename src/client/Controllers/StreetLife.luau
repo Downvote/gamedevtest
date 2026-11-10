@@ -11,6 +11,8 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local CameraController = require(script.Parent.CameraController)
+local Audio = require(script.Parent.Audio)
 
 local StreetLife = {}
 
@@ -104,6 +106,14 @@ function StreetLife.start()
 			for i, bd in birds do
 				bd.x = b.x0 - 20 - i * 4
 				bd.z = z + (i - 2) * 3
+			end
+		end
+		-- a squawk as the flock passes over the view
+		local lead = birds[1]
+		if lead then
+			local c = CameraController.centerWorld()
+			if math.abs(lead.x - c.X) < 24 and math.abs(lead.z - c.Z) < 30 then
+				Audio.play("gull")
 			end
 		end
 		for _, bd in birds do

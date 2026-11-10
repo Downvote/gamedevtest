@@ -5,6 +5,7 @@
 -- couple of voices so overlapping plays do not cut each other off. Client only; never yields.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
 
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 
@@ -43,7 +44,27 @@ local EVENTS: { [string]: EventDef } = {
 	flip = { id = "CardFlip", vol = 0.35, pitch = { 0.95, 1.08 }, cd = 0.04, voices = 3 },
 	pop = { id = "Pop", vol = 0.6, pitch = { 0.95, 1.12 }, cd = 0.04, voices = 3 },
 	squish = { id = "Squish", vol = 0.34, pitch = { 0.9, 1.1 }, cd = 0.04, voices = 3 },
+	-- the battles
+	whoosh = { id = "Whoosh", vol = 0.4, pitch = { 0.92, 1.1 }, cd = 0.05, voices = 3 },
+	whoosh_heavy = { id = "WhooshHeavy", vol = 0.45, pitch = { 0.9, 1 }, cd = 0.1 },
+	hit = { id = "Hit", vol = 0.5, pitch = { 0.9, 1.12 }, cd = 0.03, voices = 4 },
+	hit_heavy = { id = "HitHeavy", vol = 0.6, pitch = { 0.85, 0.95 }, cd = 0.08 },
+	body_fall = { id = "BodyFall", vol = 0.5, pitch = { 0.9, 1.05 }, cd = 0.1 },
+	zap = { id = "Zap", vol = 0.35, pitch = { 0.95, 1.1 }, cd = 0.1 },
+	heal = { id = "Heal", vol = 0.45, pitch = { 1, 1.1 }, cd = 0.15 },
+	shield = { id = "Shield", vol = 0.35, pitch = { 1, 1.15 }, cd = 0.1 },
+	poof = { id = "Poof", vol = 0.45, pitch = { 0.95, 1.1 }, cd = 0.1 },
+	bite = { id = "Bite", vol = 0.35, pitch = { 1, 1.2 }, cd = 0.05, voices = 3 },
+	-- the islands and the sea
+	chest = { id = "ChestOpen", vol = 0.5, cd = 0.3 },
+	splash = { id = "Splash", vol = 0.4, pitch = { 0.9, 1.1 }, cd = 0.08, voices = 3 },
+	hammer = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.05 }, cd = 0.2 },
+	horn = { id = "BoatHorn", vol = 0.3, cd = 2 },
+	gull = { id = "Gull", vol = 0.12, pitch = { 0.95, 1.1 }, cd = 4 },
+	birds = { id = "Birds", vol = 0.2, cd = 20 },
 }
+-- the ambience: looped sounds faded toward a volume (Audio.ambience)
+local LOOPS: { [string]: string } = { waves = "Waves", crickets = "Crickets" }
 -- stylua: ignore end
 Audio.EVENTS = EVENTS
 
@@ -72,6 +93,49 @@ function Audio.has(name: string): boolean
 	end
 	local id = (Monetization.Sounds :: { [string]: number })[ev.id]
 	return type(id) == "number" and id > 0
+end
+
+-- An ambience (`waves`, `crickets`) faded toward `volume` (0: silent) over a second or so; it loops for as long as
+-- it is heard. Never yields.
+local loops: { [string]: { s: Sound, target: number } } = {}
+local fading = false
+function Audio.ambience(name: string, volume: number)
+	local key = LOOPS[name]
+	local id = if key then (Monetization.Sounds :: { [string]: number })[key] else nil
+	if type(id) ~= "number" or id <= 0 then
+		return
+	end
+	local l = loops[name]
+	if l == nil then
+		if volume <= 0 then
+			return
+		end
+		local s = Instance.new("Sound")
+		s.Name = "Ambience_" .. name
+		s.SoundId = "rbxassetid://" .. tostring(id)
+		s.Looped = true
+		s.Volume = 0
+		s.Parent = holder()
+		l = { s = s, target = volume }
+		loops[name] = l
+		pcall(function()
+			s:Play()
+		end)
+	end
+	l.target = volume
+	if not fading then
+		fading = true
+		RunService.Heartbeat:Connect(function(dt: number)
+			for _, lp in loops do
+				local v = lp.s.Volume
+				local t = lp.target
+				if v ~= t then
+					local step = dt * 0.6
+					lp.s.Volume = if math.abs(t - v) <= step then t elseif t > v then v + step else v - step
+				end
+			end
+		end)
+	end
 end
 
 -- Play a one-shot event. True when it played.

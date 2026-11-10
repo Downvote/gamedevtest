@@ -42,7 +42,8 @@ local function played(): any
 	place(p, "lumber")
 	Plot.upgrade(p, 2)
 	local rng = Util.newRng(3)
-	Island.newDay(p, rng)
+	Island.turn(p, rng)
+	Island.newDay(p)
 	table.insert(p.pals, { id = p.nextId, sp = "pebblit", lvl = 3, xp = 5, work = p.plot.placed[4].uid })
 	p.nextId += 1
 	p.seen.pebblit = 2

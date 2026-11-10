@@ -75,7 +75,7 @@ every field.
 ## 4. Config
 
 - `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the island (`StartShells`,
-  `StartFood`, `StartWood`, `DaySeconds`, `EatFolk`, `EatPal`, `Hungry`, `IdleOutput`, `PalBoost`, `VisitorCharm`,
+  `StartFood`, `StartWood`, `TurnSeconds` (the island's pace), `DaySeconds` (the sea's day: hours), `EatFolk`, `EatPal`, `Hungry`, `IdleOutput`, `PalBoost`, `VisitorCharm`,
   `VisitorsMax`, `ShopVisitors`, `MoveInCharm`, `FolkMax`, `PalsMax`, `Refund`, `UpgradeMult`, `UpgradeCost`,
   `TierCost`), levels and battles (`LevelGrow`, `LevelMax`, `XpBase`, `XpPow`, `XpPerFoe`, `TrainXp`, `PartyMax`,
   `Supplies`, `TreatFood`, `SkillEvery`, `GuardTake`, `ShieldTake`, `FleeBase`, `BossBoost`, `RestHeal`,
@@ -88,7 +88,8 @@ range a level in leagues, `BoatCost` `{ shells, wood }` a level), the server's s
   `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`, `CamGlide`, `CamBuildPan`,
   `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`, `PixelStageBakeMs`).
 - `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0) and `Sounds` (the Creator Store
-  library ids `Controllers/Audio` plays: Random Bakery's).
+  library ids `Controllers/Audio` plays: Random Bakery's, and Roblox's free ProSoundEffects clips for the battles,
+  the islands and the sea, each named in a comment).
 
 ## 5. Data (pure content tables)
 
@@ -113,14 +114,14 @@ ErrCode)` and changes the profile only on success:
 | Module | API |
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
-| `Island` | the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm`, `visitors`, `works(id)`, `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a day), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `newDay(p, rng, away?) -> { movedIn?, trained? }`, `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
+| `Island` | the turn and the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm`, `visitors`, `works(id)`, `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a turn), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `turn(p, rng, away?) -> { movedIn?, trained? }` (a turn's end), `newDay(p)` (a calendar day: the count), `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
 | `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `place` (locked, full, money, wood, blocked; a building that takes workers gets an idle villager), `move`, `upgradeCost(q)`, `upgrade` (max, money, wood), `store` (no_room; `Refund` back), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads) |
 | `Battle` | battles (GAME_DESIGN 7): `FOUNDER`, `villagerBase(seed)`, `speciesBase(sp)`, `grow(v, lvl)`, `founder(p)`, `villager(v)`, `pal(x)`, `wild(sp, lvl, i, boss, name?)`, `new(foes, boss)`, `alive`, `treatChance(foe, party, boss)`, `fleeChance`, `round(party, b, act, target?, rng) -> (events, result?)` (events `hit heal shield rally guard treat flee`; result `win lose fled`) |
 | `Chart` | the sea chart (GAME_DESIGN 7): `levelAt(dist)`, `islands(sea) -> { ChartIsle }` (`{ id, x, y, dist, lvl, seed }` in leagues from home, nearest first, cached per seed: `ChartNear` within the first boat's range, the rest out to `ChartMaxDist`, `ChartSpacing` apart), `isle(sea, id) -> Isle?` (`Expedition.chart(lvl, seed)` with its `id`), `radius(boat)`, `reachable(p, id)`, `charted(p, id)`, `boatCost(boat)` (the next level's `{ shells, wood }`, nil at the top), `sail(p, id, members)` (bad_payload (no such island), far (out of range), then `Expedition.start`), `upgradeBoat(p)` (max, money, wood; data `{ boat, radius }`) |
 | `Expedition` | expeditions: `fighter(p, key)`, `away(e)`, `supplies(n)`, `kindsAt(lvl)`, `speciesAt(lvl)`, `chart(lvl, seed) -> Isle` (the same level and seed make the same island: its kind one of those open at the level, a name of its kind's words, two of its kind's driftlings and a stray from any open kind, a titled guardian of its own, loot and reward from `Tuning.Isle*`), `nodesOf(isle)` (its path from its seed: the landing, six to nine stops with one rest and at least three battles, one more from level 10, the guardian), `levelAt(isle, node)` (a level under the island's at the landing, one more every four stops), `start(p, isle, members)` (full, not_found, food; the island from `Chart.sail`), `next(p, e, rng)` (`{ kind, node, food?, wood?, shells?, foes? }`; in_battle, max), `room(p)`, `act(p, e, act, target?, rng)` (`{ events, result, friend?, xp?, shells?, ups?, reward?, charted? }`: the guardian beaten pays the island's reward and charts it (`first`: its id not yet in `chart`: the whole reward, the id added, `islets` + 1; sailed to again: half); a treat: blocked on a guardian, food, no_room), `home(p, e)` (half after a defeat) |
 | `Schema` | `VERSION` (6: the sea chart), `default(now, seed)` (a random `sea`, `boat` 1, an empty `chart`), `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept; 5 -> 6: the tips' steps moved (3 -> 5, 4 -> 6)), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist with unique uids and valid turns, then `Plot.refit` (one off the grass moves onto it), villagers and driftlings with unique ids working only where they may, the Index's species, `nextId` past every id, `sea` a whole number in range, `boat` 1 .. 6, `chart` unique ids of the chart) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
-| `Numbers` | `int`, `short`, `coins`, `rate`, `perDay` ("+12/day"), `oneIn` |
+| `Numbers` | `int`, `short`, `coins`, `rate`, `perMin` ("+57/min"), `oneIn` |
 
 Models (`src/shared/Models`, Roblox modules):
 
@@ -177,12 +178,12 @@ Models (`src/shared/Models`, Roblox modules):
 ### 7.1 Remotes (`Net`)
 `ReplicatedStorage.Remotes`: `Request` (RemoteFunction, C->S `(action, payload) -> Response`), `Signal` (RemoteEvent,
 C->S `(kind, payload)`; no handlers in this version), `State` (RemoteEvent, S->C the whole `ClientView` when it
-changed), `Fx` (RemoteEvent, S->C `{ kind = "tick", shells, food, wood, dayFrac }` every second, `{ kind = "day", day,
-movedIn? (the Villager), trained? }` at dawn, `{ kind = "exp", step = "node" | "round" | "home", data }` for each
+changed), `Fx` (RemoteEvent, S->C `{ kind = "tick", shells, food, wood, dayFrac }` every second, `{ kind = "turn",
+movedIn? (the Villager), trained? }` at each turn's end, `{ kind = "day", day }` at each of the sea's days, `{ kind = "exp", step = "node" | "round" | "home", data }` for each
 expedition step). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
 
 ### 7.2 `Session`
-`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, dayClock, tickClock, dirty, saveAt,
+`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, turnClock, dayIndex, tickClock, dirty, saveAt,
 reqTimes, exp?, away }`: `exp` the expedition under way, `away` its party's keys), `get`, `remove`, `all`, `view(s) ->
 ClientView`, `setExp(s, e?)`, `markDirty`, `flush` (sends State when dirty), `fx(s, msg)`, `allow(s, now)` (the rate
 limit).
@@ -213,8 +214,11 @@ handler under pcall; success marks the session dirty).
 
 ### 7.4 `IslandService`
 Registers the actions above. `step(dt)` (Main's fixed 10 Hz step), for every ready session: `Island.step` (those away
-left out), the view sent when the food runs out or comes back, a day every `DaySeconds` (`Island.newDay`, Fx "day"),
-the stores every second (Fx "tick": the whole view is not sent for them). `leaving(s)`: an expedition under way comes
+left out), the view sent when the food runs out or comes back, a turn every `TurnSeconds` (`Island.turn`, Fx "turn"),
+a day each time the sea's clock passes a day's end (`WorldClock.dayIndex` past the session's `dayIndex`:
+`Island.newDay`, Fx "day"), the stores every second (Fx "tick" with `WorldClock.dayFrac`: the whole view is not sent
+for them). `WorldClock` (server): the sea's clock, `os.time()` at start advanced by every step (`now`, `advance`,
+`shift(seconds)` for the sims and previews, `dayIndex`, `dayFrac`); a day is `Tuning.DaySeconds` (4 hours). `leaving(s)`: an expedition under way comes
 home with its loot (on leave and at shutdown). Nothing happens while the player is away.
 
 ### 7.5 `PlotService` (the sea)
@@ -265,8 +269,11 @@ frac, grade, clock }`.
 ### 8.3 `Audio`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's), `has(name)`, `EVENTS`: every sound by
 name (`click hover open close deny notice ding coin coins level_up reward fanfare rare_fanfare combo sparkle cheer
-applause trumpet sad drumroll tick key flip pop squish`), each one `Monetization.Sounds` id (0 = silent) with a volume,
-a pitch range, a cooldown (a repeat inside it is dropped) and a few voices (Sounds in `SoundService.UISounds`, reused).
+applause trumpet sad drumroll tick key flip pop squish`, the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap
+heal shield poof bite`, the world's `chest splash hammer horn gull birds`), each one `Monetization.Sounds` id (0 =
+silent) with a volume, a pitch range, a cooldown (a repeat inside it is dropped) and a few voices (Sounds in
+`SoundService.UISounds`, reused). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
+(DayLight: the surf always, crickets at night).
 
 ## 9. The pixel filter and the camera
 
@@ -425,7 +432,7 @@ sun that sets into a moon; then `Home`, a button shown while the founder is off 
 `char.home`), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_explore`, `Menu_index`, `Menu_looks`;
 while Build mode or the islet's screen is open the bar, the cards and the tips step aside), the `IslandCard` on the
 right (the island's name for its tier, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
-shells: `Numbers.perDay`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
+shells a minute: `Numbers.perMin`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
 battle!", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the tips banner (`Tips`: the steps of GAME_DESIGN 9 (`tut` 1 .. 6: food, wood, shells, a tent, a nest and sail,
 islands and treats); tip 6 has `TipsOk`, sending `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`) and the `DayBanner` (Fx
 "day": the day and who moved in or trained; over a panel, Build mode or an expedition a notice instead). Shells

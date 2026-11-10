@@ -503,6 +503,7 @@ local function stepOut(s: State, dt: number)
 			s.phase, s.t = "sail", 0
 			s.pos = to
 			Audio.play("cheer")
+			Audio.play("horn")
 			task.delay(0.5, function()
 				Audio.play("trumpet")
 			end)
@@ -562,6 +563,7 @@ local function stepHome(s: State, dt: number)
 			s.phase, s.t = "arrive", 0
 			openBlinds(s)
 			Audio.play("trumpet")
+			Audio.play("horn")
 		end
 	end
 	if s.phase == "arrive" then

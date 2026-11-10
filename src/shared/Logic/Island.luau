@@ -1,13 +1,13 @@
 --!strict
--- The island's rules (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 6): what it makes and eats a day, its charm and visitors,
+-- The island's rules (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 6): what it makes and eats a turn, its charm and visitors,
 -- villagers moving in, who works where, expanding the island. Pure: IslandService calls these with the session's
 -- profile and its Rng; the Economy spec plays whole sessions through the same functions. Actions return
 -- (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --
--- A day: each building of kind food, wood or shop makes its rate (Data/Buildings) times
+-- A turn (Tuning.TurnSeconds): each building of kind food, wood or shop makes its rate (Data/Buildings) times
 --   (a villager working there ? 1 : IdleOutput) x (a driftling of its knack helping ? 1 + PalBoost : 1)
 --   x (the food has run out ? Hungry : 1)
--- a shop also times its visitors (visitors a day / ShopVisitors, at most 2) and eats its `eats` food likewise;
+-- a shop also times its visitors (visitors a turn / ShopVisitors, at most 2) and eats its `eats` food likewise;
 -- villagers eat EatFolk, driftlings EatPal. Villagers and driftlings away on an expedition neither work nor eat.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
@@ -120,11 +120,11 @@ function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 	return out
 end
 
--- dt seconds of the island's day: what it made and ate (fractions; the food never goes below none). Returns the
+-- dt seconds of the island's turns: what it made and ate (fractions; the food never goes below none). Returns the
 -- shells made (the stats count them).
 function Island.step(p: Profile, dt: number, away: { [string]: boolean }?): Rates
 	local r = Island.rates(p, away)
-	local k = dt / Tuning.DaySeconds
+	local k = dt / Tuning.TurnSeconds
 	p.food = math.max(0, p.food + r.food * k)
 	p.wood += r.wood * k
 	p.shells += r.shells * k
@@ -164,11 +164,15 @@ function Island.freeJob(p: Profile, forPal: string?): number
 	return 0
 end
 
--- The day turns: a visitor may move into a free bed (the charm high enough), the training yard trains the resting.
--- Returns what happened: { movedIn = Villager?, trained = n }.
-function Island.newDay(p: Profile, rng: Rng, away: { [string]: boolean }?): { [string]: any }
+-- A new calendar day on the island (the sea's clock passed a day's end while the player was here): the day count.
+function Island.newDay(p: Profile)
 	p.day += 1
 	p.stats.days += 1
+end
+
+-- A turn's end: a visitor may move into a free bed (the charm high enough), the training yard trains the resting.
+-- Returns what happened: { movedIn = Villager?, trained = n }.
+function Island.turn(p: Profile, rng: Rng, away: { [string]: boolean }?): { [string]: any }
 	local news: { [string]: any } = {}
 	local gone = away or {}
 	if #p.folk < math.min(Tuning.FolkMax, Island.beds(p)) and Island.charm(p) >= Tuning.MoveInCharm * #p.folk then

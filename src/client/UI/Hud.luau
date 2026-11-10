@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
@@ -270,7 +271,7 @@ local function updateCard(v: Types.ClientView)
 	y += 3
 	local function rate(icon: string, n: number, label: string)
 		local c = if n < -0.05 then UIKit.color("bad") elseif n > 0.05 then UIKit.color("good") else UIKit.color("text_dim")
-		line(f, icon, label, y, w, nil, Numbers.perDay(n), c, "Rate_" .. icon)
+		line(f, icon, label, y, w, nil, Numbers.perMin(n * 60 / Tuning.TurnSeconds), c, "Rate_" .. icon)
 		y += LINE_H
 	end
 	rate("food", v.rates.food, if v.food <= 0 then "Hungry!" else "Food")
@@ -338,7 +339,7 @@ local TIPS: { [number]: string } = {
 	[1] = "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it.",
 	[2] = "Wood: place a Lumber Camp. It chops wood for bigger buildings.",
 	[3] = "Shells: place a Snack Stall. It sells food to visitors for shells.",
-	[4] = "Now a Tent: a castaway may move in at dawn and work for you.",
+	[4] = "Now a Tent: a castaway may move in soon and work for you.",
 	[5] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
 	[6] = "Islands give food, wood and shells. Treat a hurt driftling to befriend it.",
 }
@@ -411,7 +412,9 @@ end
 
 ------------------------------------------------------------------ a new day
 -- A banner drops in at the top: the day, who moved in, who trained. Under a panel or an expedition: a notice.
+-- A new calendar day ("Day 12": every few hours) or a turn's news (a newcomer, the yard's training).
 local function onDay(msg: { [string]: any })
+	local isDay = msg.kind == "day"
 	local day = tonumber(msg.day) or 0
 	local lines: { string } = {}
 	local who = msg.movedIn
@@ -422,10 +425,20 @@ local function onDay(msg: { [string]: any })
 	if trained > 0 then
 		table.insert(lines, string.format("%d trained at the yard", trained))
 	end
+	if not isDay and msg.movedIn == nil then
+		-- only the yard's training: a quiet word
+		if #lines > 0 then
+			UIKit.notice(lines[1], UIKit.color("good"), 3)
+		end
+		return
+	end
+	local title = if isDay then "Day " .. day else "A newcomer!"
 	Audio.play(if #lines > 0 then "fanfare" else "ding")
-	chipBump.day = os.clock()
+	if isDay then
+		chipBump.day = os.clock()
+	end
 	if UIKit.currentPanel() ~= nil or ExpeditionUI.isOpen() or BuildUI.isOpen() then
-		UIKit.notice("Day " .. day .. (if #lines > 0 then ": " .. table.concat(lines, ", ") else ""), UIKit.color("accent"), 4)
+		UIKit.notice(title .. (if #lines > 0 then ": " .. table.concat(lines, ", ") else ""), UIKit.color("accent"), 4)
 		return
 	end
 	if banner then
@@ -445,8 +458,8 @@ local function onDay(msg: { [string]: any })
 	f.Name = "DayBanner"
 	f.ZIndex = 8
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), UIKit.color("accent"), 9)
-	PixelSprites.image(f, "mini_sun", UDim2.fromOffset(6, 6), 9)
-	UIKit.text(f, "Day " .. day, UDim2.fromOffset(w - 24, 16), UDim2.fromOffset(20, 3), { face = "big", kind = "title", color = UIKit.color("accent"), z = 9, name = "Day" })
+	PixelSprites.image(f, if isDay then "mini_sun" else "mini_folk", UDim2.fromOffset(6, 6), 9)
+	UIKit.text(f, title, UDim2.fromOffset(w - 24, 16), UDim2.fromOffset(20, 3), { face = "big", kind = "title", color = UIKit.color("accent"), z = 9, name = "Day" })
 	for i, l in lines do
 		UIKit.text(f, l, UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 10 + i * 10), { color = UIKit.color("good"), z = 9, name = "Line" .. i })
 	end
@@ -534,7 +547,7 @@ function Hud.start()
 		end
 	end)
 	StateClient.Fx:Connect(function(msg)
-		if msg.kind == "day" then
+		if msg.kind == "day" or msg.kind == "turn" then
 			onDay(msg)
 		end
 	end)

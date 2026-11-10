@@ -19,19 +19,22 @@ local Tuning = {
 	LockTTL = 330, -- s: a session lock older than this is stale (a crashed server)
 	LoadRetries = 4,
 
-	-- the island (GAME_DESIGN 3-5): a day passes every DaySeconds while the player is here
+	-- the island (GAME_DESIGN 3-5): it makes and eats by the turn (TurnSeconds while the player is here: every rate is
+	-- a turn's), and at each turn's end a visitor may move in and the yard trains; the calendar day (the clock, day and
+	-- night, the day count) is DaySeconds of the sea's clock, the same for every island on the server
 	StartShells = 300, -- the tips' buildings (a patch, a camp, a stall, a tent, a nest: 280) and a little over
 	StartFood = 30,
 	StartWood = 24,
-	DaySeconds = 40,
-	EatFolk = 3, -- food a villager eats a day
-	EatPal = 2, -- food a driftling eats a day
+	TurnSeconds = 40,
+	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
+	EatFolk = 3, -- food a villager eats a turn
+	EatPal = 2, -- food a driftling eats a turn
 	Hungry = 0.5, -- everything makes this share while the food has run out
 	IdleOutput = 0.5, -- a building with nobody working there makes this share
 	PalBoost = 0.5, -- a driftling helping at a building of its knack adds this share
-	VisitorCharm = 15, -- visitors a day: 1 + charm / this ...
+	VisitorCharm = 15, -- visitors a turn: 1 + charm / this ...
 	VisitorsMax = 14, -- ... at most
-	ShopVisitors = 4, -- a shop sells its rate with this many visitors a day (more sell more, up to x2)
+	ShopVisitors = 4, -- a shop sells its rate with this many visitors a turn (more sell more, up to x2)
 	MoveInCharm = 6, -- a visitor moves into a free bed when the charm is at least this x the villagers + 1
 	FolkMax = 24,
 	PalsMax = 30,

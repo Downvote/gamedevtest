@@ -22,8 +22,8 @@ decides everything, pure Data/Logic modules with specs, and the fake-engine simu
 
 ## 1. The loop in one paragraph
 
-Build a Veggie Patch so the island has food, a Tent so a castaway can move in at dawn, a Lumber Camp for wood and a
-Snack Stall to sell food to the visitors for shells. Every day (Tuning.DaySeconds while you play) the island makes and
+Build a Veggie Patch so the island has food, a Tent so a castaway can move in, a Lumber Camp for wood and a
+Snack Stall to sell food to the visitors for shells. Every turn (Tuning.TurnSeconds while you play) the island makes and
 eats; a visitor moves into a free bed when the charm is high enough and takes a free job. Build a Driftling Nest,
 then Explore: the sea chart shows the islands round yours; tap one in your boat's range, pick a party (you, the
 captain, and up to three villagers or driftlings), pay the supplies in food and set sail: your founder boards the boat
@@ -94,26 +94,34 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 - **One source:** `scripts/gen_art.py` holds every sprite as a text mask and makes `UI/ArtData` (and a contact sheet
   with `--png`); the client draws each sprite once into an EditableImage shown pixelated (or from 1 px rects).
 
-## 3. The island's day (`Logic/Island`)
+## 3. The island's turns and the sea's days (`Logic/Island`, `WorldClock`)
 
-- A day is `DaySeconds` (40 s) while you are on the server; the HUD shows the day and its clock (a sun, a moon for
-  the evening). Each building that makes something makes its rate a day: full with a villager working there, half
-  with nobody (`IdleOutput`), more with a driftling of its knack helping (`PalBoost`), more again at Lv 2 and 3
-  (`UpgradeMult`). Villagers eat `EatFolk` food a day, driftlings `EatPal`.
+> The requests (2026-11-10): "days go by too fast, it should take a few hours at least for a day to pass. also,
+> lighting seems to not follow along with the camera as the camera moves"
+
+- **A turn** is `TurnSeconds` (40 s) while you are on the server: the island's pace. Each building that makes
+  something makes its rate a turn (the island card shows it a minute: "+57/min"): full with a villager working there,
+  half with nobody (`IdleOutput`), more with a driftling of its knack helping (`PalBoost`), more again at Lv 2 and 3
+  (`UpgradeMult`). Villagers eat `EatFolk` food a turn, driftlings `EatPal`. At each turn's end a visitor may move in
+  and the yard trains.
+- **A day** is `DaySeconds` (4 hours) of the sea's clock (`WorldClock`: one time of day for every island on the
+  server, carried on across visits: it follows the real clock): the HUD shows the day count and its clock (a sun, a
+  moon for the evening); day and night follow it (§8); each day's end while you play counts a day (a banner).
 - **Shops** sell food to the visitors: their rate times visitors / `ShopVisitors` (at most double), eating food the
-  same way. **Visitors** a day: 1 + charm / `VisitorCharm`, at most `VisitorsMax`.
+  same way. **Visitors** a turn: 1 + charm / `VisitorCharm`, at most `VisitorsMax`.
 - **Charm:** every piece's charm, one for each driftling, `ChartCharm` (3) for each island charted, up to
   `ChartCharmMax` (15).
 - **Hunger:** when the food runs out everything makes half and the shops shut until there is food again; the food
   chip blinks red.
-- The stores reach the client every second; a new day brings a banner (who moved in, who trained).
+- The stores reach the client every second; a newcomer brings a banner (who moved in), the yard's training a word, a
+  new day its own banner ("Day 12").
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
 27 pieces in seven kinds: **food** (Veggie Patch, Fishing Pier, Fruit Orchard, Greenhouse), **wood** (Lumber Camp,
 Sawmill), **shops** (Snack Stall, Beach Cafe, Seaside Inn), **homes** (Tent, Grass Hut, Cottage: beds), **nests**
 (Driftling Nest, Cozy Burrow: room for driftlings), the **Training Yard** (resting villagers and driftlings gain xp
-each dawn) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
+each turn) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
 placed, on whole studs of the island's grass (a stud or more in from the sand), turned a quarter at a time, off the
 campfire's plaza and the path to the jetty, and off every other piece, up to the island's piece limit (`PlotPieces`). The bigger buildings wait for a
 bigger island (tier 2 or 3).
@@ -130,7 +138,7 @@ bigger island (tier 2 or 3).
 
 ## 5. Villagers (`Logic/Island`, the Villagers panel)
 
-A visitor moves in at dawn when there is a free bed (`FolkMax` at most) and the charm is at least `MoveInCharm` times
+A visitor moves in at a turn's end when there is a free bed (`FolkMax` at most) and the charm is at least `MoveInCharm` times
 the villagers already living there. A newcomer takes a free job straight away (food first, then wood, then shops).
 The Villagers panel lists each one (portrait, level, job, battle stats) with **Job** (a picker of the buildings that
 take workers: Go, Swap with whoever is there, or Rest) and **Dismiss** (two taps: they sail off, freeing the bed).
@@ -321,7 +329,7 @@ quality. **The tips** (the banner over the menu bar), each saying where the stor
 
 1 "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it."; 2 "Wood: place a Lumber Camp. It chops
 wood for bigger buildings."; 3 "Shells: place a Snack Stall. It sells food to visitors for shells."; 4 "Now a Tent: a
-castaway may move in at dawn and work for you."; 5 "Build a Driftling Nest, then tap Explore and set sail to a new
+castaway may move in soon and work for you."; 5 "Build a Driftling Nest, then tap Explore and set sail to a new
 island!"; 6 "Islands give food, wood and shells. Treat a hurt driftling to befriend it." (OK ends them). A new island
 starts with `StartShells` (300) shells: the patch, the camp, the stall, the tent and the nest of the tips cost 280.
 
@@ -350,8 +358,8 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   cards fade and rise in; notices slide down.
 - **The HUD:** the stores count up and their chip flashes when they change, shells coming in rise from their chip
   ("+12"); the day chip's clock bar creeps along and its sun sets into a moon; the food chip blinks red while hungry;
-  the expedition card's Continue pulses and gleams; a new tip bounces in; a new day's banner drops in (with a fanfare
-  and bits when someone moved in).
+  the expedition card's Continue pulses and gleams; a new tip bounces in; a newcomer's banner drops in with a fanfare
+  and bits, and a new day's (every few hours) with a ding.
 - **The island lives:** villagers walk to their work and back and do it (hoe, chop, sell), wander when resting;
   driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
 - **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked in §7), leaves
@@ -367,8 +375,18 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
   numbers float up, skills shout their names, heals and shells twinkle, a treat bursts into hearts, a friend leaves in
   confetti, a win cheers and throws confetti.
-- **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses), its
-  pitch varied a little, repeats inside a short cooldown dropped.
+- **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses, and
+  more from Roblox's free licensed ProSoundEffects library), its pitch varied a little, repeats inside a short
+  cooldown dropped.
+
+  > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"
+
+  Battles: a swoosh on every dash (a heavier whoosh for a bash), a beefy punch on each blow (a heavier one for a bash
+  or a knock-out), a snap of teeth when a driftling strikes, a thud when someone falls, an electric zap, a soft magic
+  chime for a heal, a shield's clang for Shell Guard and Guard, a magic poof for Rally, a swoosh as a treat is thrown
+  or the party flees. The islands and the sea: a wooden chest creaking open, a splash as the party hops off the boat
+  into the shallows, a boat horn as the boat casts off and comes home, a hammer on wood when a building goes up,
+  gulls squawking as a flock passes over, the surf on the sand always, crickets through the night and birds at dawn.
 
 ## 12. Out of scope for this version
 

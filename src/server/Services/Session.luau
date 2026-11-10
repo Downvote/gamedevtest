@@ -11,6 +11,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
+local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
 	player: Player,
@@ -18,7 +19,8 @@ export type S = {
 	plot: number,
 	rng: Types.Rng,
 	ready: boolean,
-	dayClock: number, -- seconds into the island's day
+	turnClock: number, -- seconds into the island's turn
+	dayIndex: number, -- the sea's calendar day when this island last counted one (WorldClock.dayIndex)
 	tickClock: number, -- seconds toward the next stores message
 	dirty: boolean,
 	saveAt: number,
@@ -38,7 +40,8 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		plot = plot,
 		rng = Util.newRng(Util.hash32(tostring(player.UserId) .. ":" .. tostring(os.time()))),
 		ready = false,
-		dayClock = 0,
+		turnClock = 0,
+		dayIndex = WorldClock.dayIndex(),
 		tickClock = 0,
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
@@ -71,7 +74,7 @@ function Session.view(s: S): Types.ClientView
 		food = p.food,
 		wood = p.wood,
 		day = p.day,
-		dayFrac = s.dayClock / Tuning.DaySeconds,
+		dayFrac = WorldClock.dayFrac(),
 		tier = p.tier,
 		founder = p.founder,
 		cap = p.cap,

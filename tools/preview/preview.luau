@@ -338,13 +338,14 @@ end
 SCEN.island2 = islandScenario(2, "island2")
 SCEN.island3 = islandScenario(3, "island3")
 
--- A new day's banner: a visitor moves in.
+-- A new day's banner: the sea's clock jumped to just before a day's end (a day is hours long).
 function SCEN.day()
 	seedProfile(3, 1, { pieces = VILLAGE, folk = 2, pals = { "gullfin" } })
 	local p = join(3, "Dawn")
 	settle(p)
-	local s = H.session(p)
-	s.dayClock = H.sharedServer("Config.Tuning").DaySeconds - 0.3
+	local WC = H.smod("WorldClock")
+	local DS = H.sharedServer("Config.Tuning").DaySeconds
+	WC.shift(DS - (WC.now() % DS) - 0.3)
 	E.run(1.2)
 	capture(p, "day")
 	return p
