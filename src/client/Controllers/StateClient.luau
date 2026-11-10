@@ -1,6 +1,7 @@
 --!strict
 -- The client's mirror of the server (docs/ARCHITECTURE.md 8.1): the latest ClientView (State messages), the server's
--- news (Fx messages: a new idea, an income payment) and requests. The client never trusts itself: every change is a Router request.
+-- news (Fx messages: the island's stores every second, a new day, an expedition's steps) and requests. The client
+-- never trusts itself: every change is a Router request.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -12,9 +13,9 @@ local StateClient = {}
 local current: Types.ClientView? = nil
 StateClient.Changed = Util.Signal() :: Types.Signal<Types.ClientView>
 StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
--- The coins after an income payment (Fx "coins"): the view's coins, rate and game on sale are patched in place, no
--- whole view is sent.
-StateClient.Coins = Util.Signal() :: Types.Signal<number>
+-- The island's stores every second (Fx "tick"): the view's shells, food, wood and time of day are patched in place,
+-- no whole view is sent.
+StateClient.Tick = Util.Signal() :: Types.Signal<Types.ClientView>
 
 function StateClient.init()
 	local r = Net.clientInit()
@@ -27,22 +28,14 @@ function StateClient.init()
 	r.Fx.OnClientEvent:Connect(function(msg: any)
 		if type(msg) == "table" then
 			local cur = current
-			if msg.kind == "coins" and type(msg.coins) == "number" and cur then
-				cur.coins = msg.coins
-				if type(msg.rate) == "number" then
-					cur.rate = msg.rate
-				end
-				-- the game on sale's players: its numbers, and the graph's newest sample when one was added
-				local b, l = msg.live, cur.live
-				if type(b) == "table" and l and b.id == l.id and type(b.n) == "number" then
-					l.age, l.players, l.earned, l.peak = b.age, b.players, b.earned, b.peak
-					if b.n == #l.samples + 1 then
-						table.insert(l.samples, b.last)
-					elseif b.n == #l.samples then
-						l.samples[#l.samples] = b.last
+			if msg.kind == "tick" and cur then
+				for _, k in { "shells", "food", "wood", "dayFrac" } do
+					local x = msg[k]
+					if type(x) == "number" and x == x then
+						(cur :: any)[k] = x
 					end
 				end
-				StateClient.Coins:Fire(msg.coins)
+				StateClient.Tick:Fire(cur)
 			end
 			StateClient.Fx:Fire(msg)
 		end

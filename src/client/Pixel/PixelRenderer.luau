@@ -908,7 +908,7 @@ local function partRect(part: BasePart): Rect?
 	local cf, size = part.CFrame, part.Size / 2
 	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
 	local sun = SUN_V
-	local ground = Street.LAWN_Y
+	local ground = Street.WATER_Y -- the lowest ground a shadow lands on (the sea), so the rect holds it wherever it falls
 	for _, sxk in { -1, 1 } do
 		for _, syk in { -1, 1 } do
 			for _, szk in { -1, 1 } do

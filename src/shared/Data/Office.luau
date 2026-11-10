@@ -1,10 +1,10 @@
 --!strict
--- The offices (GAME_DESIGN 7; docs/ARCHITECTURE.md 6): the room of each tier, its desks and furniture, and the
--- boxes the camera fits on screen. Pure. Coordinates are studs, plot-local (the plot's origin is Office.origin(i));
--- +Y is up. The camera looks from the south-east corner (+X, +Z) at 45°, so the two back walls stand on the north
--- (minZ) and west (minX) edges and the south and east edges are open, with a low rim.
--- Desks: the desk's centre; a developer sits on its north side facing south (+Z, toward the camera) with the
--- monitor at the desk's south-west corner turned toward them, so faces show above it.
+-- The lodge (GAME_DESIGN 4; docs/ARCHITECTURE.md 6): the island's one fixed building, the room of each island tier,
+-- its furniture, and the boxes the camera fits on screen (the room and a stretch of the island in front of it).
+-- Pure. (The module keeps its old name: it was the studio's office.) Coordinates are studs, plot-local (the plot's
+-- origin is Office.origin(i)); +Y is up. The camera looks from the south-east corner (+X, +Z) at 45 degrees, so the
+-- two back walls stand on the north (minZ) and west (minX) edges and the south and east edges are open, with a low
+-- rim. `desks` stays (empty) from the office.
 local Street = require(script.Parent.Street)
 
 export type Anchor = { x: number, z: number }
@@ -63,7 +63,7 @@ local function plan(
 	windows: { { wall: string, at: number, w: number } }
 ): Plan
 	local minX, maxX, minZ, maxZ = -w / 2, w / 2, -d / 2, d / 2
-	local wallH, lot = 8, 3
+	local wallH, lot = 8, 10
 	return {
 		tier = tier,
 		name = name,
@@ -81,59 +81,46 @@ local function plan(
 	}
 end
 
-local function A(x: number, z: number): Anchor
-	return { x = x, z = z }
-end
 local function P(kind: string, x: number, z: number, rot: number?, y: number?): Prop
 	return { kind = kind, x = x, z = z, rot = rot or 0, y = y }
 end
 
+-- The lodge by the island's tier (GAME_DESIGN 4): the castaway's hut, then a lodge, then a harbour hall. No desks: its
+-- props are a home's (a map on the wall, a chest of relics, a kettle, cushions).
 local PLANS: { Plan } = {
-	plan(1, "Garage", "garage", 20, 16, { A(-4, 0), A(1, 0), A(6, 0) }, {
-		P("garage_door", 2, -8, 0),
-		P("shelf", -8.6, -6.4, 90),
-		P("boxes", -5.6, -7, 0),
-		P("plant", 8.6, -6.8, 0),
-		P("lamp", -8.8, 2.6, 0),
-		P("beanbag", -6.6, 5, 0),
-		P("cooler", 8.8, 5.4, 0),
-		P("poster", -10, -1.5, 90, 4.5),
+	plan(1, "Castaway Hut", "garage", 16, 12, {}, {
+		P("shelf", -6.6, -4.4, 90),
+		P("boxes", -3.6, -5, 0),
+		P("plant", 6.6, -4.8, 0),
+		P("lamp", -6.8, 2.6, 0),
+		P("beanbag", -4.6, 3, 0),
+		P("barrel", 6.8, 3.4, 0),
+		P("poster", -8, -1.5, 90, 4.5),
 	}, {}),
-	plan(2, "Loft", "loft", 26, 20, { A(-8, -2.5), A(-2.5, -2.5), A(3, -2.5), A(-5.25, 4), A(0.25, 4) }, {
-		P("bookcase", -12.3, -7, 90),
-		P("whiteboard", -6, -10, 0, 4.2),
-		P("coffee", 11.6, -8.6, 0),
-		P("plant", 11.8, -4.6, 0),
-		P("plant", -12, 8.4, 0),
-		P("rug", 8.6, 5.4, 0),
-		P("sofa", 8.6, 7.4, 180),
-		P("lamp", 11.8, 2.4, 0),
-		P("poster", -13, 1, 90, 4.5),
-	}, { { wall = "north", at = 3, w = 4 }, { wall = "north", at = 8.5, w = 4 } }),
-	plan(3, "Studio Floor", "studio", 32, 24, {
-		A(-10, -4.5),
-		A(-4.5, -4.5),
-		A(1, -4.5),
-		A(6.5, -4.5),
-		A(-10, 3),
-		A(-4.5, 3),
-		A(1, 3),
-		A(6.5, 3),
-	}, {
-		P("server", -15.2, -10.4, 90),
-		P("trophies", -15.3, -6.4, 90),
-		P("tv", -16, 2.4, 90, 3.4),
-		P("arcade", 11.6, -11, 0),
-		P("arcade", 13.8, -11, 0),
-		P("coffee", 15, -2.6, 0),
-		P("cooler", 15, 0.4, 0),
-		P("rug", 12.4, 7, 0),
-		P("sofa", 12.4, 9.4, 180),
-		P("plant", 15.2, 4.4, 0),
-		P("plant", -15, 10.4, 0),
-		P("plant", 9.4, 10.6, 0),
-		P("poster", -16, 7.4, 90, 4.5),
-	}, { { wall = "north", at = -6, w = 4 }, { wall = "north", at = 0, w = 4 }, { wall = "north", at = 5.5, w = 3 } }),
+	plan(2, "Driftwood Lodge", "loft", 22, 16, {}, {
+		P("bookcase", -10.3, -5, 90),
+		P("chart", -4, -8, 0, 4.2),
+		P("seachest", 9.4, -6.6, 0),
+		P("plant", 9.8, -2.6, 0),
+		P("plant", -10, 6.4, 0),
+		P("rug", 4.6, 3.4, 0),
+		P("sofa", 4.6, 5.4, 180),
+		P("lamp", 9.8, 2.4, 0),
+		P("poster", -11, 1, 90, 4.5),
+	}, { { wall = "north", at = 3, w = 4 }, { wall = "north", at = 8, w = 3 } }),
+	plan(3, "Harbor Hall", "studio", 28, 20, {}, {
+		P("trophies", -13.3, -4.4, 90),
+		P("bookcase", -13.3, -8.4, 90),
+		P("chart", -6, -10, 0, 4.2),
+		P("seachest", 12.6, -0.6, 90),
+		P("barrel", 13, 2.4, 0),
+		P("rug", 8.4, 5, 0),
+		P("sofa", 8.4, 7.4, 180),
+		P("plant", 13.2, 6.4, 0),
+		P("plant", -13, 8.4, 0),
+		P("plant", 6.4, -8.6, 0),
+		P("poster", -14, 3.4, 90, 4.5),
+	}, { { wall = "north", at = -1, w = 4 }, { wall = "north", at = 5, w = 4 } }),
 }
 Office.plans = PLANS
 

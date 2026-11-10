@@ -1,24 +1,22 @@
-# Byte-Size Studio
+# Driftling Isle
 
-An RNG game about making games, for Roblox. Your idea team of three sits in a garage thinking up ideas: a genre or a
-theme with a modifier, each with its rarity ("Glitched Ninjas, 1 in 9,600"). Ideas collect on the idea board; pick
-three and make a game. Each idea brings its own short microgame (24 of them on twelve engines: dodge the blocks, stop
-the cursor on the green, whack the zombies, copy the tune...), harder the rarer the idea, played differently under its
-modifier (Turbo, Tiny, Shaky, Glitched, Haunted, Cosmic). Each one won adds a third to the game's sales; retry as
-often as you like, then launch it, and it earns coins every second for good. Coins make the idea team faster and
-luckier, and buy decor.
+An island-village game for Roblox. You wash up on a little island with a castaway's hut: build a veggie patch, a
+lumber camp and a snack stall, put up tents and huts, and visitors drawn by your island's charm move in and take jobs.
+Sail to the islets nearby with a party of villagers, meet the wild driftlings in turn-based battles (Fight, Guard,
+Treat, Flee), befriend them with a treat and bring them home to help at the farms, piers, camps and shops. Beat each
+islet's guardian to open the next: Pebble Beach, Mossgrove, Cinder Rock, Frostcap and Coral Deep. Upgrade buildings,
+decorate for charm and expand the island twice.
 
-Every studio on a server stands on its own plot along one street. You walk out of your office as a little chibi
-founder (your look set in the Looks panel), the camera following, to visit the other studios and watch their idea
-teams at work, and you decorate your plot in Build mode: trees, benches, lamps, a fountain, an arcade kiosk, a
-billboard, a food truck.
+Every island on a server sits along one boardwalk on a shared sea. You walk your island as a little chibi founder
+(your look set in the Looks panel), the camera following, and can stroll over to see the other islands' villagers and
+driftlings at work.
 
-The microgames are in the spirit of the WarioWare kind of game (a one-word order, a few seconds, win or lose); the
-ideas, the microgames, the numbers and the art are this game's own. The look, the build system and the formats are
-Random Bakery's (`Downvote/test`): a cut-away isometric diorama seen through the pixel filter (an orthographic camera
-at 45° and 30°, so every floor edge steps exactly two pixels across for one down, toon-shaded on a palette with 1 px
-ink outlines), the same pixel font, Rojo with strict Luau, a server that decides everything, pure Data and Logic
-modules with specs, and the fake-engine simulator and preview tools.
+The game is in the island-building and creature-taming genre; its driftlings, islets, buildings, numbers and art are
+its own. The look, the build system and the formats are Random Bakery's (`Downvote/test`): a cut-away isometric
+diorama seen through the pixel filter (an orthographic camera at 45° and 30°, so every floor edge steps exactly two
+pixels across for one down, toon-shaded on a palette with 1 px ink outlines), the same pixel font, Rojo with strict
+Luau, a server that decides everything, pure Data and Logic modules with specs, and the fake-engine simulator and
+preview tools.
 
 The whole game is built from code with [Rojo](https://rojo.space): no meshes, decals or uploaded images. Every model
 is put together from parts at runtime.
@@ -38,7 +36,7 @@ Balance numbers live in `src/shared/Config/Tuning.luau`; every Roblox id in `src
 
 ```
 default.project.json     Rojo project (Shared -> ReplicatedStorage, Server -> ServerScriptService,
-                         Client -> StarterPlayer.StarterPlayerScripts; no avatars)
+                         Client -> StarterPlayer.StarterPlayerScripts; characters on)
 src/shared/              Types, Net, Config, Data (content), Logic (pure rules), Render (pixel maths), Models, Locale
 src/server/              Main.server.luau, Services/*
 src/client/              Main.client.luau, Controllers/*, Pixel/* (the pixel filter), UI/*
@@ -80,7 +78,7 @@ check has built `build/luautest`).
 1. Game Settings -> Security: turn on **Studio Access to API Services** (DataStores; without it saves live in memory
    only and a warning says so) and **Allow Mesh / Image APIs** (the pixel filter and the pixel font draw with
    `EditableImage`; without it the game runs in the classic 3D look with Press Start 2P text).
-2. Places -> Server size: 6 is plenty (each player has their own office on a plot of their own).
+2. Places -> Server size: 6 is plenty (each player has their own island on a plot of their own).
 3. `Config/Monetization.luau` is empty: this version sells nothing. Badges and sounds stay off while their ids are 0.
 4. Give the game a thumbnail and an icon.
 

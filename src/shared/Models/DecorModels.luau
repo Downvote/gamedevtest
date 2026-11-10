@@ -1,9 +1,17 @@
 --!strict
--- The plot's decor from parts (GAME_DESIGN 13; Data/Decor). Roblox module (server: PlotService builds the placed
--- pieces; client: Build mode's ghost and the decor box's pictures). `build(id, at)`: a model standing on `at` (the
--- footprint's centre on the lawn, already turned by the piece's rot), facing +Z before the turn, its footprint
--- Data/Decor's w x d. Pieces do not collide (the founder walks through them, never stuck behind one).
+-- The island's buildings and decor from parts (GAME_DESIGN 4; Data/Buildings). Roblox module (server: PlotService
+-- builds the placed pieces; client: Build mode's ghost). `build(id, at, lvl?)`: a model standing on `at` (the
+-- footprint's centre on the grass, already turned by the piece's rot), facing +Z before the turn, its footprint
+-- Data/Buildings' w x d; an upgraded building (lvl 2, 3) flies a pennant (a gold one at 3). Pieces do not collide
+-- (the founder walks through them, never stuck behind one).
 local Blocks = require(script.Parent.Blocks)
+local Buildings = require(script.Parent.Parent.Data.Buildings)
+
+-- footprints by id (the pennant's corner)
+local FOOT: { [string]: { number } } = {}
+for _, d in Buildings.list do
+	FOOT[d.id] = { d.w, d.d }
+end
 
 local DecorModels = {}
 
@@ -24,20 +32,19 @@ local function cyl(m: Instance, f: CFrame, x: number, y: number, z: number, dia:
 	return p
 end
 
--- A wheel standing up, its axle along the frame's X (a Roblox cylinder runs along X).
-local function wheel(m: Instance, f: CFrame, x: number, y: number, z: number, dia: number, w: number): BasePart
-	return Blocks.part(m, { size = Vector3.new(w, dia, dia), cf = f * CFrame.new(x, y, z), color = "black", shape = "Cylinder", name = "Wheel", collide = false })
+-- A wedge (its sloped face toward -Z, full height at +Z before `turn`).
+local function wedge(m: Instance, f: CFrame, x: number, y: number, z: number, w: number, h: number, d: number, color: string, turn: number?, name: string?): BasePart
+	return Blocks.part(m, { size = Vector3.new(w, h, d), cf = f * CFrame.new(x, y, z) * CFrame.Angles(0, turn or 0, 0), color = color, shape = "Wedge", name = name, collide = false })
+end
+
+-- A gable roof along X over a w x d box whose top is at y: two wedges meeting at the ridge.
+local function roof(m: Instance, f: CFrame, y: number, w: number, d: number, h: number, color: string)
+	wedge(m, f, 0, y + h / 2, -d / 4, w, h, d / 2, color, 0, "Roof")
+	wedge(m, f, 0, y + h / 2, d / 4, w, h, d / 2, color, math.pi, "Roof")
 end
 
 local B: { [string]: Builder } = {}
 
-B.gnome = function(m, f)
-	box(m, f, 0, 0.35, 0, 0.75, 0.7, 0.6, "blue", "Body")
-	ball(m, f, 0, 0.95, 0, 0.6, "skin1", "Head")
-	box(m, f, 0, 0.95, 0.25, 0.5, 0.25, 0.25, "white", "Beard")
-	box(m, f, 0, 1.35, 0, 0.5, 0.5, 0.5, "berry_red", "Hat")
-	box(m, f, 0, 1.65, 0, 0.25, 0.25, 0.25, "berry_red", "Tip")
-end
 
 B.flowers = function(m, f)
 	box(m, f, 0, 0.2, 0, 2, 0.4, 2, "wood_dark", "Bed")
@@ -65,47 +72,10 @@ B.bench = function(m, f)
 	end
 end
 
-B.lamp = function(m, f)
-	box(m, f, 0, 0.125, 0, 0.75, 0.25, 0.75, "steel_dark", "Foot")
-	box(m, f, 0, 2.2, 0, 0.25, 4.2, 0.25, "steel_dark", "Pole")
-	box(m, f, 0, 4.5, 0, 0.75, 0.5, 0.75, "steel_dark", "Cap")
-	box(m, f, 0, 4.1, 0, 0.5, 0.5, 0.5, "yellow", "Lantern", true)
-end
 
-local function trunk(m: Model, f: CFrame, h: number)
-	box(m, f, 0, h / 2, 0, 0.75, h, 0.75, "wood_dark", "Trunk")
-end
 
-B.oak = function(m, f)
-	trunk(m, f, 3)
-	ball(m, f, 0, 4, 0, 3, "leaf", "Crown")
-	ball(m, f, -0.8, 3.5, 0.6, 2, "leaf_dark", "Crown")
-	ball(m, f, 0.8, 3.7, -0.4, 2, "leaf", "Crown")
-	ball(m, f, 0.1, 5.1, 0.1, 1.5, "leaf_dark", "Crown")
-end
 
-B.pine = function(m, f)
-	trunk(m, f, 1.5)
-	for k = 0, 3 do
-		local s = 3 - k * 0.6
-		box(m, f, 0, 1.6 + k * 1.1, 0, s, 1, s, if k % 2 == 0 then "leaf_dark" else "leaf", "Tier")
-	end
-	box(m, f, 0, 6.1, 0, 0.5, 0.5, 0.5, "leaf_dark", "Top")
-end
 
-B.bikes = function(m, f)
-	box(m, f, 0, 0.1, 0, 3, 0.25, 0.75, "steel_dark", "Base")
-	for k, x in { -1, 0, 1 } do
-		box(m, f, x, 0.6, -0.4, 0.25, 1, 0.25, "steel", "Loop")
-		if k ~= 2 then
-			-- a bike parked across the rack: two wheels front and back, a frame between
-			wheel(m, f, x + 0.25, 0.45, -0.45, 0.9, 0.25)
-			wheel(m, f, x + 0.25, 0.45, 0.45, 0.9, 0.25)
-			box(m, f, x + 0.25, 0.85, 0, 0.25, 0.25, 1, if k == 1 then "berry_red" else "blue", "Frame")
-			box(m, f, x + 0.25, 1.05, -0.35, 0.25, 0.25, 0.25, "black", "Saddle")
-		end
-	end
-end
 
 B.picnic = function(m, f)
 	box(m, f, 0, 1.05, 0, 4, 0.25, 1.5, "wood", "Top")
@@ -119,15 +89,6 @@ B.picnic = function(m, f)
 	cyl(m, f, 0.9, 1.4, 0.1, 0.5, 0.5, "orange", "Cup")
 end
 
-B.kiosk = function(m, f)
-	box(m, f, 0, 1.4, 0, 1.75, 2.8, 1.5, "purple", "Cabinet")
-	box(m, f, 0, 2.2, 0.7, 1.5, 0.9, 0.25, "black", "Bezel")
-	box(m, f, 0, 2.2, 0.8, 1.25, 0.65, 0.25, "screen_code", "Screen", true)
-	box(m, f, 0, 1.45, 0.9, 1.75, 0.25, 0.75, "black", "Panel")
-	ball(m, f, -0.4, 1.65, 1.0, 0.4, "berry_red")
-	ball(m, f, 0.4, 1.65, 1.0, 0.4, "yellow")
-	box(m, f, 0, 3.05, 0, 1.75, 0.5, 1.5, "pink", "Marquee", true)
-end
 
 B.fountain = function(m, f)
 	cyl(m, f, 0, 0.35, 0, 5, 0.7, "steel", "Basin")
@@ -141,59 +102,279 @@ end
 B.statue = function(m, f)
 	box(m, f, 0, 0.6, 0, 2.5, 1.2, 2.5, "steel", "Plinth")
 	box(m, f, 0, 1.3, 0, 2.75, 0.25, 2.75, "steel_dark", "Cap")
-	-- a little pixel hero holding a controller up
+	-- the guardian of the islets holding up a pearl
 	box(m, f, -0.3, 1.9, 0, 0.5, 1, 0.5, "gold", "Leg")
 	box(m, f, 0.3, 1.9, 0, 0.5, 1, 0.5, "gold", "Leg")
 	box(m, f, 0, 2.9, 0, 1.25, 1.1, 0.75, "gold", "Body")
 	box(m, f, 0, 3.95, 0, 1.25, 1, 1, "gold", "Head")
 	box(m, f, 0.8, 3.6, 0, 0.4, 1.4, 0.4, "gold", "Arm")
-	box(m, f, 0.8, 4.4, 0, 0.9, 0.4, 0.4, "gold", "Controller")
+	ball(m, f, 0.8, 4.55, 0, 0.8, "pink", "Pearl")
 end
 
-B.dish = function(m, f)
-	box(m, f, 0, 0.25, 0, 2.5, 0.5, 2.5, "steel_dark", "Base")
-	box(m, f, 0, 1.2, 0, 0.5, 1.5, 0.5, "steel", "Mast")
-	-- the bowl faces up and toward the south-east (the camera), so it reads as a dish: a rim and a deeper centre
-	local tilt = f * CFrame.new(0, 2.7, 0) * CFrame.Angles(0, math.rad(45), 0) * CFrame.Angles(math.rad(40), 0, 0)
-	cyl(m, tilt, 0, 0, 0, 3, 0.5, "white", "Dish")
-	cyl(m, tilt, 0, -0.35, 0, 1.75, 0.5, "plastic_dark", "Back")
-	box(m, tilt, 0, 0.9, 0, 0.25, 1.5, 0.25, "steel", "Arm")
-	box(m, tilt, 0, 1.75, 0, 0.5, 0.5, 0.5, "berry_red", "Feed", true)
-end
 
-B.billboard = function(m, f)
-	for _, x in { -2.2, 2.2 } do
-		box(m, f, x, 1.6, -0.3, 0.4, 3.2, 0.4, "steel_dark", "Leg")
-	end
-	box(m, f, 0, 4.4, 0, 6, 2.75, 0.5, "black", "Frame")
-	box(m, f, 0, 4.4, 0.2, 5.5, 2.25, 0.25, "screen_on", "Board", true)
-	box(m, f, -1.6, 4.1, 0.35, 1.5, 1.2, 0.25, "yellow", "Hero")
-	box(m, f, 1.1, 4.8, 0.35, 2.5, 0.6, 0.25, "berry_red", "Logo")
-	box(m, f, 1.1, 4.0, 0.35, 2, 0.4, 0.25, "white", "Tag")
-end
 
-B.truck = function(m, f)
-	box(m, f, 0, 1.4, 0, 6, 2.2, 2.75, "white", "Body")
-	box(m, f, -2.4, 1.2, 0, 1.2, 1.8, 2.75, "berry_red", "Cab")
-	box(m, f, -2.7, 1.7, 0, 0.5, 0.8, 2.5, "window", "Windshield")
-	box(m, f, 0.6, 1.6, 1.4, 3.5, 1, 0.25, "black", "Hatch")
-	box(m, f, 0.6, 2.25, 1.6, 3.75, 0.25, 0.75, "orange", "Awning")
-	box(m, f, 0.6, 2.75, 0, 2.5, 0.75, 0.5, "yellow", "Sign", true)
-	-- wheels, axles along Z (a Roblox cylinder runs along X: turned a quarter about Y)
-	for _, x in { -2.2, 1.8 } do
-		for _, z in { -1.3, 1.3 } do
-			wheel(m, f * CFrame.new(x, 0.45, z) * CFrame.Angles(0, math.rad(90), 0), 0, 0, 0, 0.9, 0.3)
+
+-- The piece's model at `at` (the footprint's centre on the lawn, turned). Unknown ids build nothing.
+
+------------------------------------------------------------------ food
+B.patch = function(m, f)
+	box(m, f, 0, 0.15, 0, 3, 0.3, 3, "wood_dark", "Bed")
+	box(m, f, 0, 0.32, 0, 2.6, 0.1, 2.6, "pot", "Soil")
+	for r = -1, 1 do
+		for c = -1, 1 do
+			box(m, f, c * 0.85, 0.5, r * 0.85, 0.25, 0.35, 0.25, "leaf", "Sprout")
+			box(m, f, c * 0.85 + 0.15, 0.62, r * 0.85, 0.25, 0.25, 0.25, if (r + c) % 2 == 0 then "orange" else "leaf_dark", "Leaf")
 		end
 	end
 end
 
--- The piece's model at `at` (the footprint's centre on the lawn, turned). Unknown ids build nothing.
-function DecorModels.build(id: string, at: CFrame): Model
+B.pier = function(m, f)
+	for _, x in { -1.25, 1.25 } do
+		for _, z in { -1.25, 1.25 } do
+			box(m, f, x, 0.25, z, 0.25, 0.5, 0.25, "wood_dark", "Post")
+		end
+	end
+	box(m, f, 0, 0.55, 0, 3, 0.25, 3, "wood", "Deck")
+	box(m, f, -0.6, 1.25, -0.6, 1.5, 1.2, 1.5, "wood", "Shack")
+	roof(m, f * CFrame.new(-0.6, 0, -0.6), 1.85, 1.75, 1.75, 0.6, "berry_red")
+	box(m, f, 0.9, 1.4, 0.9, 0.25, 1.75, 0.25, "wood_dark", "Rod")
+	box(m, f, 1.1, 2.25, 1.1, 0.25, 0.25, 0.75, "wood_dark", "Rod")
+	cyl(m, f, 0.6, 0.9, -0.9, 0.6, 0.5, "steel", "Bucket")
+	box(m, f, 0.6, 1.2, -0.9, 0.25, 0.25, 0.5, "blue", "Fish")
+end
+
+local function fruitTree(m: Model, f: CFrame, x: number, z: number, fruit: string)
+	box(m, f, x, 0.6, z, 0.5, 1.2, 0.5, "wood_dark", "Trunk")
+	ball(m, f, x, 1.7, z, 1.6, "leaf", "Crown")
+	ball(m, f, x + 0.5, 1.4, z + 0.5, 0.4, fruit, "Fruit")
+	ball(m, f, x - 0.5, 1.9, z + 0.3, 0.4, fruit, "Fruit")
+end
+
+B.orchard = function(m, f)
+	box(m, f, 0, 0.1, 0, 4, 0.2, 4, "grass_dark", "Ground")
+	fruitTree(m, f, -1, -1, "berry_red")
+	fruitTree(m, f, 1, -1, "orange")
+	fruitTree(m, f, -1, 1, "yellow")
+	fruitTree(m, f, 1, 1, "berry_red")
+end
+
+B.greenhouse = function(m, f)
+	box(m, f, 0, 0.2, 0, 4, 0.4, 3, "steel_dark", "Base")
+	box(m, f, 0, 1.3, -1.35, 4, 1.8, 0.25, "window", "Glass")
+	box(m, f, -1.85, 1.3, 0, 0.25, 1.8, 3, "window", "Glass")
+	box(m, f, 1.85, 1.3, 0, 0.25, 1.8, 3, "window", "Glass")
+	roof(m, f, 2.2, 4, 3, 1, "window")
+	for _, x in { -1.1, 0, 1.1 } do
+		box(m, f, x, 0.7, 0.3, 0.6, 0.6, 0.6, "pot", "Pot")
+		ball(m, f, x, 1.2, 0.3, 0.8, "leaf", "Plant")
+	end
+end
+
+------------------------------------------------------------------ wood
+B.lumber = function(m, f)
+	for k, z in { -0.55, 0.55 } do
+		Blocks.part(m, { size = Vector3.new(3, 0.9, 0.9), cf = f * CFrame.new(-0.4, 0.45, z), color = "wood", shape = "Cylinder", name = "Log", collide = false })
+		if k == 1 then
+			Blocks.part(m, { size = Vector3.new(3, 0.9, 0.9), cf = f * CFrame.new(-0.4, 1.2, 0), color = "wood_dark", shape = "Cylinder", name = "Log", collide = false })
+		end
+	end
+	cyl(m, f, 1.5, 0.35, 0.6, 1, 0.7, "wood_dark", "Stump")
+	box(m, f, 1.5, 0.9, 0.6, 0.25, 0.6, 0.25, "wood", "Handle")
+	box(m, f, 1.5, 1.25, 0.45, 0.25, 0.3, 0.5, "steel", "Axe")
+	box(m, f, 1.3, 0.05, -0.8, 1, 0.1, 0.8, "sand", "Chips")
+end
+
+B.sawmill = function(m, f)
+	box(m, f, 0, 0.15, 0, 4, 0.3, 4, "wood_dark", "Floor")
+	box(m, f, -1.2, 1.4, -1, 1.5, 2.2, 2, "wood", "Shed")
+	roof(m, f * CFrame.new(-1.2, 0, -1), 2.5, 1.75, 2.25, 0.8, "wood_dark")
+	box(m, f, 0.8, 0.9, 0.8, 2.2, 0.25, 1.2, "wood", "Bench")
+	Blocks.part(m, { size = Vector3.new(0.25, 1.4, 1.4), cf = f * CFrame.new(0.8, 1.3, 0.8), color = "steel", shape = "Cylinder", name = "Blade", collide = false })
+	Blocks.part(m, { size = Vector3.new(3, 0.75, 0.75), cf = f * CFrame.new(0.4, 0.75, 1.6), color = "wood", shape = "Cylinder", name = "Log", collide = false })
+end
+
+------------------------------------------------------------------ shops
+local function awning(m: Model, f: CFrame, y: number, w: number, z: number)
+	local n = math.max(2, math.floor(w / 0.5))
+	for i = 0, n - 1 do
+		box(m, f, -w / 2 + (i + 0.5) * w / n, y, z, w / n, 0.25, 1, if i % 2 == 0 then "berry_red" else "white", "Awning")
+	end
+end
+
+B.stall = function(m, f)
+	box(m, f, 0, 0.55, 0.25, 2.75, 1.1, 1, "wood", "Counter")
+	box(m, f, 0, 1.15, 0.25, 2.9, 0.15, 1.15, "wood_dark", "Top")
+	for _, x in { -1.3, 1.3 } do
+		box(m, f, x, 1.3, -0.65, 0.25, 2.6, 0.25, "wood_dark", "Post")
+	end
+	awning(m, f, 2.6, 3, -0.2)
+	ball(m, f, -0.7, 1.4, 0.3, 0.4, "orange", "Fruit")
+	ball(m, f, -0.2, 1.4, 0.4, 0.4, "berry_red", "Fruit")
+	box(m, f, 0.6, 1.35, 0.3, 0.6, 0.25, 0.4, "blue", "Fish")
+end
+
+B.cafe = function(m, f)
+	box(m, f, 0, 1.25, -0.6, 4, 2.5, 1.8, "cream", "Walls")
+	roof(m, f * CFrame.new(0, 0, -0.6), 2.5, 4.25, 2.1, 0.9, "orange")
+	box(m, f, -1, 1.4, 0.32, 1, 0.8, 0.1, "window", "Window")
+	box(m, f, 0.9, 0.85, 0.32, 0.9, 1.7, 0.1, "wood_dark", "Door")
+	awning(m, f, 2.25, 4, 0.7)
+	cyl(m, f, -0.9, 0.6, 1.1, 0.9, 0.15, "white", "Table")
+	box(m, f, -0.9, 0.3, 1.1, 0.25, 0.6, 0.25, "steel_dark", "Leg")
+end
+
+B.inn = function(m, f)
+	box(m, f, 0, 1.6, -0.4, 5, 3.2, 3, "wall", "Walls")
+	box(m, f, 0, 3.25, -0.4, 5.25, 0.25, 3.25, "wood_dark", "Floor2")
+	box(m, f, 0, 4.1, -0.6, 4.4, 1.5, 2.4, "wall", "Upper")
+	roof(m, f * CFrame.new(0, 0, -0.6), 4.85, 4.75, 2.75, 1.1, "berry_red")
+	for _, x in { -1.6, 0, 1.6 } do
+		box(m, f, x, 4.1, 0.62, 0.8, 0.7, 0.1, "window", "Window")
+	end
+	box(m, f, -1.5, 1.8, 1.12, 1, 0.8, 0.1, "window", "Window")
+	box(m, f, 1, 1, 1.12, 1, 2, 0.1, "wood_dark", "Door")
+	box(m, f, 1, 2.6, 1.4, 1.6, 0.6, 0.15, "wood", "Sign")
+	box(m, f, 1, 2.6, 1.5, 1.2, 0.3, 0.1, "gold", "Letters")
+end
+
+------------------------------------------------------------------ homes and nests
+B.tent = function(m, f)
+	wedge(m, f, 0, 0.75, -0.45, 1.8, 1.5, 0.9, "orange", 0, "Canvas")
+	wedge(m, f, 0, 0.75, 0.45, 1.8, 1.5, 0.9, "orange", math.pi, "Canvas")
+	box(m, f, 0, 0.45, 0.93, 0.6, 0.9, 0.05, "wood_dark", "Opening")
+	box(m, f, 0, 1.6, 0, 0.25, 0.25, 0.25, "wood_dark", "Pole")
+end
+
+B.hut = function(m, f)
+	box(m, f, 0, 0.9, 0, 2.6, 1.8, 2.6, "wood", "Walls")
+	roof(m, f, 1.8, 3, 3, 1.4, "sand_dark")
+	box(m, f, 0, 0.7, 1.32, 0.8, 1.4, 0.1, "wood_dark", "Door")
+	box(m, f, -0.9, 1.1, 1.32, 0.5, 0.5, 0.1, "window", "Window")
+end
+
+B.cottage = function(m, f)
+	box(m, f, 0, 1.1, 0, 3.6, 2.2, 2.6, "wall", "Walls")
+	roof(m, f, 2.2, 4, 3, 1.4, "berry_red")
+	box(m, f, 1.1, 3.1, -0.5, 0.5, 1.2, 0.5, "steel_dark", "Chimney")
+	box(m, f, 0.6, 0.8, 1.32, 0.8, 1.6, 0.1, "wood_dark", "Door")
+	box(m, f, -0.9, 1.3, 1.32, 0.8, 0.7, 0.1, "window", "Window")
+	box(m, f, -1.85, 1.3, 0, 0.1, 0.7, 0.8, "window", "Window")
+	box(m, f, -0.9, 0.85, 1.4, 0.9, 0.2, 0.25, "pink", "Flowers")
+end
+
+B.nest = function(m, f)
+	for i = 0, 7 do
+		local a = i / 8 * math.pi * 2
+		box(m, f, math.cos(a) * 0.7, 0.2, math.sin(a) * 0.7, 0.6, 0.4, 0.6, if i % 2 == 0 then "sand_dark" else "wood", "Straw")
+	end
+	box(m, f, 0, 0.1, 0, 1.2, 0.2, 1.2, "sand", "Bed")
+	ball(m, f, 0, 0.45, 0, 0.6, "cream", "Egg")
+	box(m, f, 0.1, 0.55, 0.25, 0.15, 0.15, 0.1, "blue", "Spot")
+end
+
+B.burrow = function(m, f)
+	ball(m, f, 0, 0.3, -0.2, 2.6, "grass_dark", "Mound")
+	box(m, f, 0, 0.5, 1.0, 1.1, 0.8, 0.2, "black", "Hole")
+	box(m, f, 0, 1.0, 1.05, 1.3, 0.25, 0.3, "wood", "Lintel")
+	for _, x in { -1.3, 1.3 } do
+		box(m, f, x, 0.45, 1.2, 0.25, 0.9, 0.25, "wood_dark", "Post")
+	end
+	ball(m, f, 0.9, 1.4, -0.5, 0.6, "leaf", "Bush")
+end
+
+B.yard = function(m, f)
+	box(m, f, 0, 0.08, 0, 4, 0.16, 4, "sand", "Ground")
+	for _, s in { -1.8, 1.8 } do
+		box(m, f, s, 0.45, 0, 0.25, 0.25, 3.6, "wood", "Rail")
+		box(m, f, 0, 0.45, s, 3.6, 0.25, 0.25, "wood", "Rail")
+	end
+	box(m, f, 0, 0.9, 0, 0.25, 1.8, 0.25, "wood_dark", "Post")
+	box(m, f, 0, 1.4, 0, 0.8, 0.8, 0.5, "sand_dark", "Dummy")
+	box(m, f, 0, 2.0, 0, 0.5, 0.5, 0.5, "sand_dark", "Head")
+	box(m, f, 0.65, 1.5, 0, 0.5, 0.25, 0.25, "sand_dark", "Arm")
+end
+
+------------------------------------------------------------------ decor
+B.torch = function(m, f)
+	box(m, f, 0, 0.9, 0, 0.25, 1.8, 0.25, "wood_dark", "Pole")
+	box(m, f, 0, 1.9, 0, 0.5, 0.3, 0.5, "wood", "Cup")
+	box(m, f, 0, 2.2, 0, 0.4, 0.4, 0.4, "orange", "Flame", true)
+	box(m, f, 0, 2.45, 0, 0.25, 0.25, 0.25, "yellow", "Tip", true)
+end
+
+B.shellpile = function(m, f)
+	ball(m, f, -0.4, 0.25, -0.2, 0.6, "pink", "Shell")
+	ball(m, f, 0.3, 0.25, 0.1, 0.6, "cream", "Shell")
+	ball(m, f, 0, 0.55, -0.05, 0.5, "sand", "Shell")
+	ball(m, f, -0.1, 0.2, 0.55, 0.45, "orange", "Shell")
+	box(m, f, 0.6, 0.12, -0.6, 0.4, 0.25, 0.4, "white", "Shell")
+end
+
+B.palm = function(m, f)
+	for i = 0, 3 do
+		box(m, f, i * 0.2, 0.6 + i * 1.1, 0, 0.75, 1.2, 0.75, if i % 2 == 0 then "wood" else "wood_dark", "Trunk")
+	end
+	local top = 4.8
+	for k, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+		box(m, f, 0.8 + d[1] * 1.3, top - 0.2, d[2] * 1.3, if d[1] ~= 0 then 2.4 else 1, 0.4, if d[2] ~= 0 then 2.4 else 1, if k % 2 == 0 then "leaf" else "leaf_dark", "Frond")
+	end
+	ball(m, f, 0.8, top - 0.6, 0.3, 0.6, "wood_dark", "Coconut")
+end
+
+B.hammock = function(m, f)
+	for _, x in { -1.8, 1.8 } do
+		box(m, f, x, 1, 0, 0.3, 2, 0.3, "wood_dark", "Post")
+	end
+	box(m, f, -1.1, 1.0, 0, 1.2, 0.2, 1, "sand", "Cloth")
+	box(m, f, 1.1, 1.0, 0, 1.2, 0.2, 1, "sand", "Cloth")
+	box(m, f, 0, 0.75, 0, 1.2, 0.2, 1, "berry_red", "Cloth")
+	box(m, f, -0.2, 0.95, 0, 0.6, 0.3, 0.6, "white", "Pillow")
+end
+
+B.totem = function(m, f)
+	local cols = { "berry_red", "yellow", "blue", "green" }
+	for i = 0, 3 do
+		box(m, f, 0, 0.5 + i, 0, 1.4, 1, 1.4, cols[i + 1], "Block")
+		box(m, f, -0.3, 0.6 + i, 0.72, 0.25, 0.25, 0.05, "black", "Eye")
+		box(m, f, 0.3, 0.6 + i, 0.72, 0.25, 0.25, 0.05, "black", "Eye")
+		box(m, f, 0, 0.3 + i, 0.72, 0.6, 0.15, 0.05, "white", "Mouth")
+	end
+	box(m, f, 0, 4.15, 0, 2, 0.3, 0.5, "orange", "Wings")
+end
+
+B.lighthouse = function(m, f)
+	box(m, f, 0, 0.3, 0, 4, 0.6, 4, "steel", "Base")
+	for i = 0, 4 do
+		box(m, f, 0, 1.1 + i * 1.2, 0, 2.6 - i * 0.2, 1.2, 2.6 - i * 0.2, if i % 2 == 0 then "white" else "berry_red", "Tower")
+	end
+	box(m, f, 0, 7.2, 0, 1.6, 1, 1.6, "yellow", "Lamp", true)
+	box(m, f, 0, 7.9, 0, 2, 0.4, 2, "berry_red", "Cap")
+	box(m, f, 0, 0.9, 1.31, 0.8, 1.2, 0.05, "wood_dark", "Door")
+end
+
+-- An upgraded building's pennant: a pole at its back-left corner, the flag red at level 2, gold at 3.
+local function pennant(m: Model, f: CFrame, lvl: number, w: number, d: number)
+	local x, z = -w / 2 + 0.3, -d / 2 + 0.3
+	box(m, f, x, 1.6, z, 0.2, 3.2, 0.2, "wood_dark", "Pennant")
+	box(m, f, x + 0.45, 2.9, z, 0.7, 0.45, 0.1, if lvl >= 3 then "gold" else "berry_red", "Flag")
+	if lvl >= 3 then
+		box(m, f, x + 0.35, 2.3, z, 0.5, 0.35, 0.1, "gold", "Flag")
+	end
+end
+
+function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	local m = Blocks.model(nil, "Decor_" .. id)
 	m:SetAttribute("Decor", id)
 	local fn = B[id]
 	if fn then
 		fn(m, at)
+	end
+	local l = lvl or 1
+	if l >= 2 then
+		local size = FOOT[id]
+		if size then
+			pennant(m, at, l, size[1], size[2])
+		end
 	end
 	return m
 end

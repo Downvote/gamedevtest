@@ -16,18 +16,18 @@ local DataService = require(Services.DataService)
 local Session = require(Services.Session)
 local Router = require(Services.Router)
 local PlotService = require(Services.PlotService)
-local StudioService = require(Services.StudioService)
+local IslandService = require(Services.IslandService)
 
 DataService.init()
 PlotService.init()
 Router.init()
-StudioService.init()
+IslandService.init()
 
 local function join(player: Player)
 	PlotService.watchCharacters(player)
 	local plot = PlotService.claim(player)
 	if plot == 0 then
-		player:Kick("This street is full. Please join another server.")
+		player:Kick("Every island on this sea is taken. Please join another server.")
 		return
 	end
 	local raw, ok = DataService.load(player.UserId)
@@ -37,7 +37,7 @@ local function join(player: Player)
 	end
 	if not ok then
 		PlotService.release(plot)
-		player:Kick("We couldn't open your studio's save. Please rejoin in a moment.")
+		player:Kick("We couldn't open your island's save. Please rejoin in a moment.")
 		return
 	end
 	local seed = Util.hash32(tostring(player.UserId) .. ":start")
@@ -55,6 +55,7 @@ local function leave(player: Player)
 	if s == nil then
 		return
 	end
+	IslandService.leaving(s)
 	Session.remove(player)
 	s.ready = false
 	DataService.save(player.UserId, s.profile, true)
@@ -76,7 +77,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	acc += math.min(dt, 1)
 	while acc >= STEP do
 		acc -= STEP
-		StudioService.step(STEP)
+		IslandService.step(STEP)
 	end
 	local now = os.clock()
 	for player, s in Session.all() do
@@ -94,6 +95,8 @@ end)
 game:BindToClose(function()
 	local threads = {}
 	for player, s in Session.all() do
+		-- an expedition under way comes home first (its loot kept), like a player leaving
+		IslandService.leaving(s)
 		table.insert(threads, task.spawn(DataService.save, player.UserId, s.profile, true))
 	end
 	task.wait(2)

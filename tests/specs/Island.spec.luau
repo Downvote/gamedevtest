@@ -1,0 +1,202 @@
+-- The island's rules (Logic/Island; GAME_DESIGN 3-6): what it makes and eats, charm and visitors, villagers moving
+-- in, jobs and helpers, levels, expanding.
+local T = require("../TestKit")
+local Tuning = require("../../build/luautest/shared/Config/Tuning")
+local Island = require("../../build/luautest/shared/Logic/Island")
+local Schema = require("../../build/luautest/shared/Logic/Schema")
+local Buildings = require("../../build/luautest/shared/Data/Buildings")
+local Util = require("../../build/luautest/shared/Logic/Util")
+
+local function fresh(): any
+	local p = Schema.default(0, 1)
+	p.shells, p.wood, p.food = 1e6, 1e6, 100
+	return p
+end
+
+local function put(p: any, id: string): number
+	local uid = p.nextId
+	p.nextId += 1
+	table.insert(p.plot.placed, { uid = uid, id = id, x = 0, z = 0, rot = 0 })
+	return uid
+end
+
+local function villager(p: any, work: number): any
+	local v = { id = p.nextId, name = "V", look = p.founder, work = work, lvl = 1, xp = 0, seed = p.nextId, day = 1 }
+	p.nextId += 1
+	table.insert(p.folk, v)
+	return v
+end
+
+return function()
+	T.it("a new island: its stores, nothing standing, nobody to feed", function()
+		local p = Schema.default(0, 1)
+		T.eq(p.shells, Tuning.StartShells)
+		T.eq(p.food, Tuning.StartFood)
+		T.eq(p.wood, Tuning.StartWood)
+		T.eq(#p.plot.placed, 0)
+		local r = Island.rates(p)
+		T.eq(r.food, 0)
+		T.eq(r.shells, 0)
+		T.eq(Island.beds(p), 0)
+	end)
+	T.it("a building makes half with nobody there, all with a villager, more with a driftling of its knack", function()
+		local p = fresh()
+		local uid = put(p, "patch")
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate * Tuning.IdleOutput, 1e-9)
+		local v = villager(p, uid)
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate - Tuning.EatFolk, 1e-9, "a villager eats")
+		table.insert(p.pals, { id = 99, sp = "mossbun", lvl = 1, xp = 0, work = uid })
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate * (1 + Tuning.PalBoost) - Tuning.EatFolk - Tuning.EatPal, 1e-9)
+		-- away on an expedition: neither works nor eats
+		T.near(Island.rates(p, { ["v" .. v.id] = true, p99 = true }).food, Buildings.byId.patch.rate * Tuning.IdleOutput, 1e-9)
+		-- hungry: everything at half
+		p.food = 0
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate * (1 + Tuning.PalBoost) * Tuning.Hungry - Tuning.EatFolk - Tuning.EatPal, 1e-9)
+	end)
+	T.it("wood and shops: a shop sells to visitors, eating food", function()
+		local p = fresh()
+		villager(p, put(p, "lumber"))
+		T.near(Island.rates(p).wood, Buildings.byId.lumber.rate, 1e-9)
+		local s = put(p, "stall")
+		villager(p, s)
+		local r = Island.rates(p)
+		local k = math.min(2, Island.visitors(p) / Tuning.ShopVisitors)
+		T.near(r.shells, Buildings.byId.stall.rate * k, 1e-9)
+		T.near(r.food, -Buildings.byId.stall.eats * k - 2 * Tuning.EatFolk, 1e-9)
+		p.food = 0
+		T.eq(Island.rates(p).shells, 0, "nothing to sell")
+	end)
+	T.it("charm and visitors", function()
+		local p = fresh()
+		local base = Island.charm(p)
+		put(p, "fountain")
+		T.eq(Island.charm(p), base + Buildings.byId.fountain.charm)
+		T.near(Island.visitors(p), math.min(Tuning.VisitorsMax, 1 + Island.charm(p) / Tuning.VisitorCharm), 1e-9)
+		for _ = 1, 30 do
+			put(p, "statue")
+		end
+		T.eq(Island.visitors(p), Tuning.VisitorsMax)
+	end)
+	T.it("a day: what it made, the food never below none", function()
+		local p = fresh()
+		villager(p, put(p, "patch"))
+		local food = p.food
+		Island.step(p, Tuning.DaySeconds)
+		T.near(p.food, food + Buildings.byId.patch.rate - Tuning.EatFolk, 1e-9)
+		p.folk = {}
+		for _ = 1, 50 do
+			villager(p, 0)
+		end
+		Island.step(p, Tuning.DaySeconds * 10)
+		T.eq(p.food, 0)
+	end)
+	T.it("a new day: a visitor moves into a free bed and takes a free job; the yard trains the resting", function()
+		local p = fresh()
+		local rng = Util.newRng(5)
+		local news = Island.newDay(p, rng)
+		T.eq(news.movedIn, nil, "no bed")
+		T.eq(p.day, 2)
+		put(p, "tent")
+		local job = put(p, "patch")
+		news = Island.newDay(p, rng)
+		T.truthy(news.movedIn ~= nil and #p.folk == 1, "moved in")
+		T.eq(p.folk[1].work, job)
+		T.eq(p.stats.movedIn, 1)
+		news = Island.newDay(p, rng)
+		T.eq(#p.folk, 1, "the tent is full")
+		-- they come while the charm keeps up with the village
+		for _ = 1, 10 do
+			put(p, "tent")
+		end
+		put(p, "totem")
+		for _ = 1, 20 do
+			Island.newDay(p, rng)
+		end
+		local most = math.floor(Island.charm(p) / Tuning.MoveInCharm) + 1
+		T.eq(#p.folk, most, "as many as the charm brings")
+		-- training
+		put(p, "yard")
+		p.folk[1].work = 0
+		local xp = p.folk[1].xp
+		news = Island.newDay(p, rng)
+		T.truthy(news.trained >= 1 and (p.folk[1].xp > xp or p.folk[1].lvl > 1))
+	end)
+	T.it("levels: xp to the next grows; a big gain goes up several", function()
+		T.truthy(Island.xpTo(2) > Island.xpTo(1))
+		local who = { lvl = 1, xp = 0 }
+		T.eq(Island.gain(who, Island.xpTo(1) - 1), 0)
+		T.eq(Island.gain(who, 1), 1)
+		T.eq(who.lvl, 2)
+		T.eq(who.xp, 0)
+		T.truthy(Island.gain(who, 10000) > 3)
+		local top = { lvl = Tuning.LevelMax, xp = 0 }
+		T.eq(Island.gain(top, 1e9), 0)
+		T.eq(top.xp, 0)
+	end)
+	T.it("jobs: one villager a building that makes something, swapping; driftlings only at their knack", function()
+		local p = fresh()
+		local a, b = villager(p, 0), villager(p, 0)
+		local patch = put(p, "patch")
+		local tent = put(p, "tent")
+		T.truthy(Island.setWork(p, a.id, patch))
+		T.truthy(Island.setWork(p, b.id, patch))
+		T.eq(a.work, 0, "swapped out")
+		T.eq(b.work, patch)
+		T.eq(select(2, Island.setWork(p, a.id, tent)), "bad_payload", "nobody works at a tent")
+		T.eq(select(2, Island.setWork(p, 999, patch)), "not_found")
+		table.insert(p.pals, { id = 70, sp = "mossbun", lvl = 1, xp = 0, work = 0 })
+		local lumber = put(p, "lumber")
+		T.eq(select(2, Island.setHelp(p, 70, lumber)), "bad_payload", "a farm driftling at the lumber camp")
+		T.truthy(Island.setHelp(p, 70, patch))
+		T.truthy(Island.release(p, 70))
+		T.eq(#p.pals, 0)
+		T.truthy(Island.dismiss(p, a.id))
+		T.eq(#p.folk, 1)
+		T.eq(Island.freeJob(p), lumber, "the lumber camp has nobody")
+	end)
+	T.it("expanding: its price, then the next, then no more", function()
+		local p = fresh()
+		T.truthy(Island.expand(p))
+		T.eq(p.tier, 2)
+		T.eq(p.shells, 1e6 - Tuning.TierCost[2].shells)
+		p.wood = 0
+		T.eq(select(2, Island.expand(p)), "wood")
+		p.wood = 1e9
+		T.truthy(Island.expand(p))
+		T.eq(select(2, Island.expand(p)), "max")
+	end)
+	T.it("expanding: buildings the bigger lodge would cover move to the nearest free spot, nothing lost", function()
+		local Plot = require("../../build/luautest/shared/Logic/Plot")
+		local Office = require("../../build/luautest/shared/Data/Office")
+		local p = fresh()
+		-- pieces hugging the hut's walls, where the lodge of the next tier will stand
+		local plan = Office.plan(1)
+		local spots = { { "patch", math.floor(plan.maxX) + 2, -2 }, { "tent", -4, math.floor(plan.minZ) - 4 }, { "flowers", math.floor(plan.minX) - 4, 0 } }
+		for _, sp in spots do
+			local ok, err = Plot.place(p, sp[1], sp[2], sp[3], 0)
+			T.truthy(ok, sp[1] .. " placed: " .. tostring(err))
+		end
+		local worker = villager(p, p.plot.placed[1].uid)
+		local before = #p.plot.placed
+		local shells = p.shells
+		local ok, data = Island.expand(p)
+		T.truthy(ok)
+		T.truthy(data.moved >= 1, "some had to move: " .. tostring(data.moved))
+		T.eq(#p.plot.placed, before, "none lost")
+		T.eq(data.cleared, 0)
+		T.eq(p.shells, shells - Tuning.TierCost[2].shells, "nothing refunded")
+		local rest = {}
+		for _, q in p.plot.placed do
+			T.truthy(Plot.fits(p.tier, rest, q.id, q.x, q.z, q.rot), q.id .. " fits the bigger island")
+			table.insert(rest, q)
+		end
+		T.eq(worker.work, p.plot.placed[1].uid, "the worker keeps their job (the uid stays)")
+		-- the third tier too
+		T.truthy(Island.expand(p))
+		rest = {}
+		for _, q in p.plot.placed do
+			T.truthy(Plot.fits(p.tier, rest, q.id, q.x, q.z, q.rot), q.id .. " fits the biggest island")
+			table.insert(rest, q)
+		end
+	end)
+end

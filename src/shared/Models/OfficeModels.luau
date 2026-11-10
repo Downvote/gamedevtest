@@ -189,6 +189,37 @@ PROPS.cooler = function(m, f)
 	box(m, f, 0, 3.85, 0, 0.5, 0.25, 0.5, "blue", "Cap")
 end
 
+-- A rain barrel: staves, two iron hoops, a lid with a ladle.
+PROPS.barrel = function(m, f)
+	cylY(m, f, 0, 1.25, 0, 1.75, 2.5, "wood")
+	cylY(m, f, 0, 0.5, 0, 1.875, 0.25, "steel_dark")
+	cylY(m, f, 0, 2.0, 0, 1.875, 0.25, "steel_dark")
+	cylY(m, f, 0, 2.6, 0, 1.5, 0.25, "wood_dark")
+	box(m, f, 0.35, 2.95, 0, 0.25, 0.5, 0.25, "steel", "Ladle")
+end
+
+-- A sea chest: a wooden box, a gold band and lock, a coil of rope on its lid.
+PROPS.seachest = function(m, f)
+	box(m, f, 0, 0.75, 0, 2.5, 1.5, 1.5, "wood_dark", "Chest")
+	box(m, f, 0, 1.6, 0, 2.6, 0.25, 1.6, "wood", "Lid")
+	box(m, f, 0, 0.9, 0.76, 2.6, 0.25, 0.1, "gold", "Band")
+	box(m, f, 0, 1.1, 0.8, 0.5, 0.5, 0.15, "gold", "Lock")
+	cylY(m, f, -0.6, 1.85, 0, 1.0, 0.25, "sand_dark")
+end
+
+-- A sea chart pinned to a wall (f: the wall's inner face): the paper, three islands, a dotted route, a red mark.
+PROPS.chart = function(m, f)
+	box(m, f, 0, 0, 0.06, 4.25, 2.75, 0.25, "wood_dark", "Frame")
+	box(m, f, 0, 0, 0.16, 4.0, 2.5, 0.25, "cream", "Paper")
+	box(m, f, -1.2, 0.5, 0.26, 1.0, 0.75, 0.25, "leaf", "Isle")
+	box(m, f, 0.9, -0.4, 0.26, 0.75, 0.5, 0.25, "leaf", "Isle")
+	box(m, f, 1.4, 0.7, 0.26, 0.5, 0.5, 0.25, "sand_dark", "Isle")
+	for k = 0, 3 do
+		box(m, f, -0.6 + k * 0.4, 0.1 - k * 0.12, 0.26, 0.25, 0.25, 0.25, "ink", "Route")
+	end
+	box(m, f, 0.9, -0.4, 0.36, 0.25, 0.25, 0.25, "berry_red", "Mark")
+end
+
 PROPS.poster = function(m, f)
 	-- a framed game poster on a wall (f: the wall's inner face at the prop's height)
 	box(m, f, 0, 0, 0.06, 2.5, 3.25, 0.25, "ink", "Frame")
@@ -289,7 +320,7 @@ end
 local function propFrame(c: Ctx, plan: Office.Plan, p: Office.Prop): CFrame
 	local x, z = p.x, p.z
 	local y = p.y or 0
-	if p.kind == "garage_door" or p.kind == "whiteboard" or (p.kind == "tv" and p.rot == 0) or (p.kind == "poster" and p.rot == 0) then
+	if p.kind == "garage_door" or p.kind == "whiteboard" or p.kind == "chart" or (p.kind == "tv" and p.rot == 0) or (p.kind == "poster" and p.rot == 0) then
 		z = plan.minZ
 	elseif p.kind == "poster" or p.kind == "tv" then
 		x = plan.minX

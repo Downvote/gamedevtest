@@ -392,8 +392,8 @@ function CameraController.init() end
 
 function CameraController.start()
 	local function fromView(cv: Types.ClientView)
-		if cv.plot ~= plot or cv.office ~= tier then
-			plot, tier = cv.plot, cv.office
+		if cv.plot ~= plot or cv.tier ~= tier then
+			plot, tier = cv.plot, cv.tier
 			CameraController.refit()
 		end
 	end

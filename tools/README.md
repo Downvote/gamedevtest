@@ -1,6 +1,6 @@
 # Tools
 
-Command-line tools for building and testing Byte-Size Studio without Roblox Studio. `docs/WORKFLOW.md` says when to
+Command-line tools for building and testing Driftling Isle without Roblox Studio. `docs/WORKFLOW.md` says when to
 use which. They come from Random Bakery (`Downvote/test`): the fake engine is game-agnostic and copied as is; the
 harness, the scenarios and the preview driver are this game's own.
 
@@ -42,7 +42,7 @@ gives scenarios their helpers and `report.luau` prints the result:
   footpath, AvatarView draws it); `noCharacter = true` joins without one, `charDelay` sets another delay,
   `client = false` joins with no client at all (a server-side player: a neighbour, a full street). The fake engine
   does not read project properties, so the harness decides;
-- modules: `H.smod(name)` (a server service), `H.sharedServer("Logic.Studio")`, `H.cmod(p, "UI.UIKit")` (the client's
+- modules: `H.smod(name)` (a server service), `H.sharedServer("Logic.Island")`, `H.cmod(p, "UI.UIKit")` (the client's
   copy), `H.session(p)`, `H.profile(p)`, `H.view(p)` (the client's ClientView), `H.push(p)` (after a test changed the
   server profile: mark it dirty and let the view arrive);
 - requests: `H.req(p, action, payload)` (StateClient.request, exactly what the UI does), `H.raw` / `H.rawArgs` (the
@@ -51,12 +51,12 @@ gives scenarios their helpers and `report.luau` prints the result:
   `H.buttonNamed(p, name)` / `H.clickNamed(p, name)` (by the button's Instance name: `Menu_build`, `Place`, `Store`,
   `BuildDone`, `Home`..., where words repeat), `H.openPanel` / `H.closePanel` / `H.currentPanel` (UIKit's registered
   panels), `H.dumpButtons`;
-- invariants: `H.checkProfile(p, label)` (finite coins, valid cards on the board and in the Index, the team within
-  the room's desks on unique desks, game records with three ideas, a rate, a peak and coins, the game on sale one of
-  the listed games with finite numbers and at most `LiveSamples` samples, a project's results -1 / 0 / 1) and
-  `H.checkMirror(p, label)` (the client's view equals the server's office, tips step, board, team, project, games and
-  upgrades; its income within a tick's change and its coins within an income tick; the game on sale on both or
-  neither); `H.expect` /
+- invariants: `H.checkProfile(p, label)` (finite, non-negative stores; the tier, islets and tips in range; pieces
+  that exist and fit the island with unique uids and levels 1..3; villagers and driftlings with unique ids, within
+  their limits, levels in range, working only where they may, one a building; driftlings marked befriended; the
+  Index's species; an expedition's party all from the island with sane health) and `H.checkMirror(p, label)` (the
+  client's view equals the server's tier, tips, day and islets; its stores within a tick's change; the same villagers,
+  driftlings and pieces; the expedition on both or neither, at the same stop); `H.expect` /
   `H.finding`, `H.diff` (a deep compare).
 
 ```sh
@@ -72,11 +72,11 @@ are git-ignored.
 
 | Scenario | What it covers | Baseline |
 |---|---|---|
-| `sim.luau` | a new studio (an idea team of three, no coins, the garage built under `Workspace.Plots.Plot_1.Static`, a rig per member in `Workspace.PixelDynamic`, the founder); the first ideas on the clock (the `idea` Fx, the board, the Index); a game made through the UI (`MakeGame`, `Pick_1..3`, `Make`, the making card); its three party rounds through `PlayAll` played by `MicroUI.debugAuto`; `Launch` (the game's peak the ideas' worth times the wins' boost, on sale with players, the tips, the launch card, `Nice`); its sales every second along its curve (the `coins` Fx with its players, the samples for the graph, the view patched); the upgrades through their panel (prices, faster ideas, luck; no coins refused); the looks (`Next_skin`, `SaveLook`, the `Founder` attribute); every panel; settings; the tips banner; a malicious client (unknown and old actions, NaN, infinity, huge strings, extra fields, string payloads, a launch or a microgame with no game, a finish with no microgame, a board index past the board, a bad look or upgrade, unknown decor, a flood against the rate limit: each refused with its ErrCode, nothing changed); a second player on plot 2 | 0 findings, 0 errors, 0 issues (the 2 deliberate non-finite payloads are listed apart) |
-| `sim_save.luau` | play (a game launched and on sale, then a second in the works, which took the first off sale keeping what it made), leave (saved, lock released, plot freed), rejoin to the very same profile (plus only what was earned since); a save never overwrites another server's live lock; a join waits out another server's lock and then takes over; a corrupt record loads into a valid profile; a version 2 save (the old studio) loads into the idea loop with its room, crew, founder and decor | 0 findings, 0 errors, 0 issues |
-| `sim_world.luau` | the street at start (a road stretch per plot, the street's ends, an empty lot with Owner 0 on all six plots); two studios on plots 1 and 2 (Static.Office / Static.Land, StudioName, Tier, Working, Crew matching the idea team, Games and Rate, the players' Founder and Plot attributes, each founder on their footpath); each client drawing its own team, the neighbour's and both founders, the plot signs' labels; a founder walked onto the neighbour's lot (the camera pans, Home shows), char.home back and its cooldown; decor: buy with coins (once, not enough coins), place ("blocked" on a piece, the office, the footpath, off the plot; "locked" not owned; a quarter turn), Static.Decor's models named id:x:z:rot with only the changed ones rebuilt, move, store, the piece limit; Build mode through the HUD (the view free, a ghost on a cyan frame where tapped, Place, red on the office, Cancel, picking a placed piece up, Store, Done); malicious plot payloads; a player leaving; a version 2 save in its Loft loading and its Loft built; a full street kicking the seventh player | 0 findings, 0 errors, 0 issues (its deliberate NaN payload is listed apart) |
-| `sim_clock.luau` | an idea every `Tuning.RollBase` s, faster at speed level 10 (and the view says so); ideas keep coming with a panel open and the old pause signal holds nothing; a full board for 30 rolls replayed from the `idea` Fx (only a rarer idea takes the commonest's place, the rest dropped, every one counted in the Index); ten seconds of a game's sales along its curve (replayed second by second), every payment carrying its players, its last seconds (it leaves the shops: `offsale` Fx, its record's coins and peak, no more coins); a microgame left open dropped after `MicroMaxSec`, its late finish refused; a second studio on its own clock | 0 findings, 0 errors, 0 issues |
-| `sim_micro.luau` | each of the 24 ideas' party rounds (full screen on its 3D stage, after the stage's bake, three rivals on the scoreboard, the touch pads) through the making card (`Play_1`) won by `MicroUI.debugAuto` (the rivals' brain at full skill), on its own engine at the difficulty its rarity gives; each of the 11 engines lost doing nothing; a lost `Retry_1` keeping a win; each modifier on Action (a harder game for a rarer card, Turbo's speed and shorter fuse, Icy, Crowded's five rivals, Frenzy, Shrinking); `PlayAll` playing the three in turn and `Launch` only then (on sale); the server's rules (a new start replaces the one in play, the replaced or a wrong token refused, a win sooner than `MicroMinSec` a loss, a fair win counts, no second finish, junk payloads); a player leaving mid-game | 0 findings, 0 errors, 0 issues |
+| `sim.luau` | a new island (its stores, the hut under `Workspace.Plots.Plot_1.Static`, "Pixel's Isle", the founder, the menu bar, the first tips without OK); building food, a tent, a nest and a camp (prices in shells and wood, the tips moving on, "locked" for a bigger island's building, not enough shells or wood refused; the view's pieces, beds and nests; a model a piece); the first day (an Fx day, a castaway moving into the tent and taking a job at once, an Fx tick every second, the villager walking the island, food and wood coming in); a job through the Villagers panel (`Job_<id>`, `Go_<uid>`); an expedition through the Explore panel (`Member_v<id>`, `SetSail`: supplies, the tips, the villager away), the islet's screen (the curtain lifting on the party, `GoOn` / `SailHome`), its stops and battles played through `ExpeditionUI.debugGo` / `debugAct` (treats on hurt wild ones, a guard, `ResultOk`), home with the loot (half after a fall), Pebble Beach cleared; the Driftlings panel (`Help_<id>`, the picker, Release asking Sure? first); the looks; every panel; settings; the last tip's OK; Expand from the build tray (the lodge rebuilt); a malicious client (unknown and old actions, NaN, infinity, huge strings, extra fields, string payloads, bad parties, a villager not there, a locked islet, steps and battles with no expedition, an unknown battle move, a bad look, a flood against the rate limit: each refused with its ErrCode, nothing changed); a second player on island 2 | 0 findings, 0 errors, 0 issues (the 2 deliberate non-finite payloads are listed apart); about 474 checks (a few more or fewer as the auto-played battles go) |
+| `sim_save.luau` | play (buildings, a villager moved in, a driftling, an upgrade), leave (saved, lock released, the island back to open water), rejoin to the very same profile; leaving mid-expedition (the loot gathered comes home, no expedition after the rejoin); a save never overwrites another server's live lock; a join waits out another server's lock and then takes over; a corrupt record (bad stores, an unknown tier, junk villagers, an unknown species, pieces off the island) loads into a valid profile keeping only what makes sense; a version 4 save (the game studio) starts a fresh island keeping the founder, settings and start | 0 findings, 0 errors, 0 issues; 218 checks |
+| `sim_world.luau` | the sea at start (a boardwalk stretch per plot, the sea's ends, open water with Owner 0 on all six plots); two islands on plots 1 and 2 (Static.Office / Static.Land, the island's name, Tier, Day, Sailing, the players' Founder and Plot attributes, each founder on their path); villagers and driftlings on both drawn by each client (own and the neighbour's, both founders; the Folk and Pals attributes), the signs' labels; a founder walked onto the neighbour's island (the camera pans, Home shows), char.home back and its cooldown; building: place (shells and wood paid; "blocked" on a piece, the hut, the path, off the island; "locked" a bigger island's building), Static.Decor's models named uid:id:x:z:rot:lvl, move turned, upgrade to Lv 2 and 3 (its price; no Lv 4; a home has none), clear away (half back; the only home with villagers stays), the piece limit; Build mode through the HUD (the Food and Decor tabs, a locked card, a ghost on a cyan frame where tapped, Place, red on the hut, Cancel, picking decor up (Clear away, no Upgrade) and a building (Upgrade), Done); malicious plot payloads; a player leaving (their islanders gone from the other client); a newcomer on the freed island; a full sea kicking the seventh player | 0 findings, 0 errors, 0 issues (its deliberate NaN payload is listed apart); 226 checks |
+| `sim_clock.luau` | a day every `DaySeconds` (an Fx day each, an Fx tick every second), villagers moving into the beds; ten seconds of making and eating matching `Island.rates` (food, wood, the stall's shells), the view's rates and food following; a panel and Build mode holding nothing; hunger (the food at none, the shops shut, the view saying so) and fed again; moving in (no free bed, not charming enough, then decor raising the charm), the island expanded twice round its buildings; the training yard training a resting villager; a working villager away on an expedition (the island making without them, the Folk attribute marking them away, back at work at home); two islands on their own clocks | 0 findings, 0 errors, 0 issues; 306 checks |
+| `sim_exp.luau` | the server's rules (supplies for four, Mossgrove locked, the captain and three set sail, one expedition at a time, a member away can't be dismissed, no fight before a battle, no stepping on or sailing home mid-battle, a treat's food and free nest), treats until a wild one is befriended (in the Index), a flight, the guardian (no treat, no flight); the islet's screen (the HUD's card `ExpContinue`, Fight and Guard but no Treat or Flee against the guardian, the party and the guardian on the stage, a round fought and played back without errors, Back to island leaving the expedition waiting); the guardian beaten (the next islet opens, all the loot home); every islet cleared in turn by a strong party (each guardian's reward in full); Pebble Beach again (half the reward); a defeat (half the loot home, everyone back) | 0 findings, 0 errors, 0 issues; 335 checks |
 
 `boot.luau` is a smoke test with no checks: it boots one player and prints what is there.
 
@@ -101,34 +101,34 @@ PREVIEW_KEEP=1 sh tools/preview/render.sh <scenario> <outdir> "desktop phone" [t
 
 | Scenario | Frames | What happens |
 |---|---|---|
-| `office` | `office` | a brand-new studio: the garage and its idea team, a first idea popping out of a head |
-| `reveal` | `reveal` | a studio with a board and games, a Mythic idea's reveal dropping in |
-| `office2`, `office3` | `office2`, `office3` | a studio from before the redesign in the Loft / on the Studio Floor, with a board and twelve games |
-| `make`, `launch` | `make`; `launch`, `launch_cheer` | three ideas picked on the board and Make: the making card; a game with all three played, Launch!, the launch card, then the team cheering |
-| `panel=<name>` | `panel_<name>` | the panel `UIKit.openPanel(name)` opened (`ideas` with three picked, `index`, `upgrades`, `games`, `looks`) for a studio with a board and nine games |
-| `street` | `street`, `street_fresh` | the founder walked onto the road between their garage and a neighbour's Loft (a server-side player with a game in the works), the camera following; then the same pan baked from scratch (`PixelRenderer.rebake`) to compare a scrolled picture with a fresh one (the settle log line says how many scrolls and re-bakes the walk took) |
-| `visit` | `visit`, `visit_fresh` | the founder inside the neighbour's garage while their crew types; the same pan baked fresh |
-| `build` | `build`, `build_red` | a studio with nine pieces bought and ten placed through `plot.place`, Build mode opened from the HUD, the oak picked and its ghost tapped onto a lawn cell where it fits (green), then onto the office (red, Place off) |
-| `plot3` | `plot3` | a Studio Floor studio with fourteen pieces of decor on its plot (seeded: owned and placed where Logic/Plot says they fit), the home view |
-| `micro=<idea>[_<modifier>]` | `micro_<spec>`, `micro_<spec>_card` | a game being made with that idea first: its party round full screen on its 3D stage, 3 s into the round after the countdown (the auto player every frame), then the making card back over the street (e.g. `micro=space_shrinking`) |
-| `late` | `late_inset`, `late_turn` | the screen's size settling after the HUD is built, the two ways Roblox does it: the top bar's inset arriving with no ViewportSize event (the roots shrink on their own), then the screen turning with ViewportSize fired before the roots are laid out again (`E.guiViewport`); the log line `late <case>: menu bar at y .. on a WxH screen: ON SCREEN / HIDDEN` says whether the HUD's menu bar is still wholly on screen at the bottom (it was HIDDEN before UIKit fired `Resized` on a root's own size change) |
-| `all` | | `office`, `reveal`, `make`, `launch`, `street`, `build` |
+| `island` | `island` | a brand-new island: the castaway's hut, the founder, the HUD with the first tip |
+| `village` | `village` | a tier-1 village a dozen days in (nineteen pieces, four villagers at work, three driftlings helping and hopping), the island card |
+| `island2`, `island3` | `island2`, `island3` | a Driftwood Lodge island with the village's pieces / a Harbor Hall island with every kind of building (upgraded makers, the lighthouse, the statue, the fountain), villagers and eight driftlings |
+| `day` | `day` | a new day's banner (a visitor moving in) |
+| `panel=<name>` | `panel_<name>` | the panel `UIKit.openPanel(name)` opened (`folk`, `pals`, `explore` with a villager and a driftling picked, `index`, `looks`) for a village with two islets cleared |
+| `exp=<islet>[_<what>]` | `exp_<spec>` | an expedition to islet 1-5 on its 3D stage with a party of four: `battle` (default: the first battle, a round played), `boss` (the guardian), `win` (a won battle's results card), `loot` (a stop's narration); e.g. `exp=4_boss` |
+| `sea` | `sea`, `sea_fresh` | the founder walked onto the boardwalk between their island and a neighbour's village (a server-side player), the camera following; then the same pan baked from scratch (`PixelRenderer.rebake`) to compare a scrolled picture with a fresh one |
+| `visit` | `visit` | the founder on the neighbour's island while their villagers work |
+| `build` | `build_tray`, `build`, `build_red` | Build mode opened from the HUD (the tray's Food tab), a lumber camp picked and its ghost tapped onto a cell where it fits (cyan), then onto the hut (red, Place off) |
+| `late` | `late_inset`, `late_turn` | the screen's size settling after the HUD is built, the two ways Roblox does it: the top bar's inset arriving with no ViewportSize event (the roots shrink on their own), then the screen turning with ViewportSize fired before the roots are laid out again (`E.guiViewport`); the log line `late <case>: menu bar at y .. on a WxH screen: ON SCREEN / HIDDEN` says whether the HUD's menu bar is still wholly on screen at the bottom |
+| `all` | | `island`, `village`, `island3`, `sea`, `build`, `day` |
 
 Devices: `desktop` 1920x1080 mouse, `phone` 844x390 touch, also `laptop`, `tablet`, `portrait`, `android`, `iphone8`,
 `desktop1440`. Tier: `auto` (the game's default, high), `low`, `medium`, `high`, `off`. `REPO=<dir>` renders another
 tree, `PREVIEW_JOBS` sets the parallel runs (4), `PREVIEW_FLAGS="--ui --boxes --no-core"` adds the GUI alone, every
 GuiObject outlined with its name, or hides the approximate Roblox core UI. `PREVIEW_KEEP=1` keeps each run's log in
 `<outdir>/_logs`: the `settled` line (tier, layer size, K, bake rays) and the `camera` line (art px per stud, pan, the
-office's box on screen) are there. Put renders outside the repository (`tools/preview/work/` and `out*/` are
+lodge's box on screen) are there. Put renders outside the repository (`tools/preview/work/` and `out*/` are
 git-ignored).
 
 A new scenario is a function in `preview.luau`'s `SCEN` table: `join(userId, name, opts)` (opts as `H.addPlayer`'s:
-`client = false` for a neighbour), or `seedProfile(userId, tier, staff, working, decor)` first for a saved studio,
+`client = false` for a neighbour), or `seedProfile(userId, tier, opts)` first for a saved island (pieces, villagers,
+driftlings, islets, stores),
 drive it with `H.req` / `H.click` / `H.clickNamed` / `H.openPanel` / `walkTo(p, x, z)` (the founder put at a world
 point, the view left to follow), `settle(p)` until the picture is baked and quiet (its pan caught up with the
 camera's, no re-cast waiting), `capture(p, label)`; add its name to `render.sh`'s
 list. To compare a scrolled picture with a fresh bake, capture, call `PixelRenderer.rebake()` in the client, settle
-and capture again, then diff the two PNGs (only the animated rigs should differ).
+and capture again, then diff the two PNGs (only the animated islanders should differ).
 `make_gif.py` turns consecutive frames into an animated GIF, `stitch.py` stitches frames, `label_cells.py` labels
 contact-sheet cells.
 

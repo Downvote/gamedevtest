@@ -1,4 +1,4 @@
-# Byte-Size Studio: notes for Claude
+# Driftling Isle: notes for Claude
 
 ## How work is done
 
@@ -12,11 +12,14 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` 393, `sim_save.luau` 162, `sim_clock.luau` 122, `sim_world.luau` 247, `sim_micro.luau` 284 to 286: a couple of its checks depend on how the auto-played rounds go). Previews:
-`sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `office reveal
-office2 office3 make launch street visit build plot3 late`, `panel=<ideas|index|upgrades|games|looks>` or
-`micro=<idea>[_<modifier>]` (e.g. `micro=space_shrinking`). The place file is `ByteSizeStudio-<short hash>.rbxl` (binary,
-the format the user asked for) in the repository root (git-ignored).
+`sim.luau` about 474 (a few more or fewer as its auto-played battles go), `sim_save.luau` 218, `sim_clock.luau` 306,
+`sim_world.luau` 226, `sim_exp.luau` 335). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
+"desktop phone"` with a scenario of `island village island2 island3 day sea visit build late`,
+`panel=<folk|pals|explore|index|looks>` or `exp=<islet 1-5>[_battle|_boss|_win|_loot]` (e.g. `exp=4_boss`). The place
+file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
+
+The game is our own (the user's request named another studio's game; the user chose an original game in its genre):
+never copy another game's names, creatures, islands, story or art. Driftlings, islets and buildings are this game's.
 
 The repository `Downvote/test` (Random Bakery) is the reference this game was built from: read it, never change it.
 
@@ -25,12 +28,13 @@ The repository `Downvote/test` (Random Bakery) is the reference this game was bu
 The user's standing rule: "for pixel art, always dont use mixels. use pixel art techniques such as anti-aliasing,
 avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pixel art grid." So every sprite, icon,
 scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or bigger thing is its own sprite: the
-11x11 `mini_` icons, the 7x7 `_t` arrows), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
+11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 16x16), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
 anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py` (run it; `--png <file>`
-for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The minigames are 3D (the user's request: "make the
-minigames full screen, have depth and are 3d, using the player's avatar"): stages and things built from parts
-(`UI/MicroStage`, `Models/MicroModels`), world-aligned on the iso grid, drawn by the pixel filter like the office,
-with the player's founder as the hero against rival founders in party rounds (`UI/MicroArena`, `UI/MicroGames`).
+for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The islets' expeditions are 3D
+and full screen (as the earlier request for the minigames: "make the minigames full screen, have depth and are 3d,
+using the player's avatar"): stages and things built from parts (`UI/MicroStage`, `Models/MicroModels`: the
+driftlings too), world-aligned on the iso grid, drawn by the pixel filter like the islands, with the player's founder
+leading the party (`UI/ExpeditionUI`).
 
 ## Language
 

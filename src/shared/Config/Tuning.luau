@@ -18,71 +18,54 @@ local Tuning = {
 	AutosaveSec = 120,
 	LockTTL = 330, -- s: a session lock older than this is stale (a crashed server)
 	LoadRetries = 4,
-	GamesKept = 50, -- the profile lists the newest launched games (only the newest one sells: Profile.live)
 
-	-- the idea team (GAME_DESIGN 3, 4)
-	StartCoins = 0,
-	TeamSize = 3, -- the idea team (the garage's desks)
-	BoardSize = 12, -- ideas the board holds; when full, a rarer idea takes the commonest one's place
-	RollBase = 8, -- seconds between two ideas at speed level 0
-	RollStep = 0.92, -- each speed level multiplies it by this ...
-	RollMin = 1, -- ... down to this
-	LuckStep = 0.2, -- each luck level adds this to the luck (x1 at level 0)
-	RareOdds = 60, -- ideas and modifiers this rare or rarer roll at luck / odds; rarer than Uncommon: 1 / odds
-	CommonOdds = 13, -- ideas commoner than this (their odds below it) are the Commons, sharing what the others leave
-	CommonFloor = 0.1, -- the commons always keep at least this share of the rolls, however lucky
-	-- the rarity tiers by an idea's combined 1 in N (Common below the first, Mythic from the last)
-	TierOneIn = { 20, 250, 3000, 40000, 500000 },
-	TierNames = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" },
-	TierColors = { "text_dim", "good", "button", "purple", "accent", "fun" },
-	RevealTier = 3, -- ideas of this tier and up get the big reveal
+	-- the island (GAME_DESIGN 3-5): a day passes every DaySeconds while the player is here
+	StartShells = 160,
+	StartFood = 30,
+	StartWood = 24,
+	DaySeconds = 40,
+	EatFolk = 3, -- food a villager eats a day
+	EatPal = 2, -- food a driftling eats a day
+	Hungry = 0.5, -- everything makes this share while the food has run out
+	IdleOutput = 0.5, -- a building with nobody working there makes this share
+	PalBoost = 0.5, -- a driftling helping at a building of its knack adds this share
+	VisitorCharm = 15, -- visitors a day: 1 + charm / this ...
+	VisitorsMax = 14, -- ... at most
+	ShopVisitors = 4, -- a shop sells its rate with this many visitors a day (more sell more, up to x2)
+	MoveInCharm = 6, -- a visitor moves into a free bed when the charm is at least this x the villagers + 1
+	FolkMax = 24,
+	PalsMax = 30,
+	Refund = 0.5, -- clearing a piece away gives back this share of its price
+	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level ...
+	UpgradeCost = { 0, 3, 8 }, -- ... and the price of each level (times its own price)
+	TierCost = { { shells = 0, wood = 0 }, { shells = 1800, wood = 220 }, { shells = 14000, wood = 1600 } },
 
-	-- upgrades (GAME_DESIGN 7): price = base x growth ^ level
-	SpeedCost = 40,
-	SpeedGrowth = 1.8,
-	LuckCost = 60,
-	LuckGrowth = 1.8,
-
-	-- launched games (GAME_DESIGN 6): at its peak a game earns the sum of its ideas' worth, IdeaValue x odds ^
-	-- IdeaValuePow x its modifier's mult each, a second
-	IdeaValue = 1.5,
-	IdeaValuePow = 0.7,
-	WinBoost = 1 / 3, -- each won minigame adds this to the game's sales (all three: x2)
-	IncomeTickSec = 1, -- the server pays the game on sale's coins this often
-	-- the game on sale (Logic/Live): its players' curve over its life
-	CoinPerPlayer = 0.05, -- coins a player earns a second
-	LiveLife = 300, -- seconds on sale (a whole number of LiveSampleSec)
-	LivePeakAt = 0.2, -- the players peak this share of the way through ...
-	LiveStart = 0.15, -- ... from this share of the peak at the launch ...
-	LiveFall = 1.6, -- ... and fall away to none by the end (higher: the fall starts faster)
-	LiveWobble = 0.16, -- the slow drift up and down (share of the curve)
-	LiveJitter = 0.08, -- the second-to-second jitter
-	LiveBuzzes = 2, -- bumps of buzz on the way down (a streamer finds it) ...
-	LiveBuzz = 0.35, -- ... lifting the players by up to this share
-	LiveFloor = 0.3, -- the wobble never takes the players below this share of the curve
-	LiveSampleSec = 3, -- the graph's step
-	LiveSamples = 120, -- samples kept at most (LiveLife / LiveSampleSec + 2 fits)
-
-	-- microgames (GAME_DESIGN 5)
-	MicroSeconds = 30, -- a minigame round's clock (an engine's `clock` scales it; last one standing ends it sooner)
-	MicroIntro = 0.9, -- the instruction word shows this long on the curtain at least
-	MicroCountdown = 3, -- then 3, 2, 1, GO! on the stage before the clock starts
-	MicroStageWait = 6, -- seconds the curtain waits at most for a microgame stage's picture
-	MicroMinSec = 1, -- a win sooner than this after the start counts as a loss
-	MicroMaxSec = 150, -- a result later than this counts as a loss
-	DiffMax = 8,
-	TurboSpeed = 1.35, -- the Turbo modifier: everything this much faster ...
-	TurboClock = 0.8, -- ... on a clock this much shorter
-	FrenzyMore = 1.6, -- the Frenzy modifier: hazards and pickups this many times as often
+	-- driftlings, villagers, the captain and battles (GAME_DESIGN 6, 7; Logic/Battle)
+	LevelGrow = 0.12, -- stats grow by this share of their level-1 values a level
+	LevelMax = 60,
+	XpBase = 12, -- the xp to the next level: XpBase x level ^ XpPow
+	XpPow = 1.35,
+	XpPerFoe = 8, -- xp a beaten wild one gives (times its level), shared by the party
+	TrainXp = 2, -- xp a day for each villager or driftling resting at a Training Yard
+	PartyMax = 3, -- members beside the captain
+	Supplies = 4, -- food each member takes on an expedition
+	TreatFood = 3, -- food a treat costs in battle
+	SkillEvery = 3, -- a fighter's skill fires every this many actions
+	GuardTake = 0.5, -- damage taken while guarding
+	ShieldTake = 0.6, -- damage taken under a Shell Guard skill
+	FleeBase = 0.55,
+	BossBoost = 1.7, -- a guardian's stats times this
+	RestHeal = 0.5,
+	StageWait = 6, -- seconds the expedition's curtain waits at most for the islet's picture
 
 	-- server
 	StepHz = 10,
 	RateLimitPerSec = 12, -- requests per player per second (more are refused with "rate")
 
-	-- the street and the plot (GAME_DESIGN 8, 9; Data/Street)
-	MaxPlots = 6, -- plots along the road (the server's size)
-	PlotSpacing = 80, -- studs between plot origins along X
-	PlotPieces = { 20, 32, 48 }, -- decor pieces standing on a plot, by office tier
+	-- the sea and the islands (GAME_DESIGN 8; Data/Street)
+	MaxPlots = 6, -- islands along the boardwalk (the server's size)
+	PlotSpacing = 80, -- studs between island origins along X
+	PlotPieces = { 24, 40, 60 }, -- buildings and decor standing on an island, by its tier
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
 
@@ -91,7 +74,7 @@ local Tuning = {
 	CamPitch = 30, -- 2:1 dimetric (pixel-art "isometric"): ground edges at an exact 2:1 slope, verticals vertical
 	CamFov = 1, -- Roblox camera FieldOfView while the pixel filter is on (far away, visually orthographic)
 	CamOffFov = 8, -- the classic "off" style
-	CamPad = 4, -- art px kept free between the office's outline and the screen edges or a HUD block
+	CamPad = 4, -- art px kept free between the lodge's outline and the screen edges or a HUD block
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	CamGlide = 0.18, -- share of the way to its target the view moves a frame (in whole art px)
@@ -103,12 +86,12 @@ local Tuning = {
 	PixelScaleSides = { 820, 1250, 1700, 2100 },
 	PixelSnapshotMsPerFrame = 2,
 	PixelBakeMsPerFrame = 6,
-	PixelStageBakeMs = 14, -- more ms a frame for a microgame stage's bake (the play overlay's curtain covers it)
+	PixelStageBakeMs = 14, -- more ms a frame for an islet stage's bake (the expedition's curtain covers it)
 	PixelMaxRayDist = 1400,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	PixelDisplayOrder = -100,
-	PixelMaxDyn = 64, -- dynamic models drawn a tick at most (a microgame stage has a few dozen)
+	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's villagers and driftlings, an islet's party)
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }
 

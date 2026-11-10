@@ -1,10 +1,9 @@
 --!strict
--- The street's ambient life (GAME_DESIGN 8, 12; docs/ARCHITECTURE.md 10.2): cars driving both ways along the road
--- (they wait for a founder standing in their lane), a flock of birds crossing now and then, and clouds whose
--- shadows drift over the lawns and the offices (invisible models with a blob shadow: PixelRenderer's PixelShadow).
--- Client only, all in Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the
--- server's business; the microgames' stage (far away) never shows it.
-local Players = game:GetService("Players")
+-- The sea's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): sailboats crossing both ways beyond the
+-- boardwalk, rocking on the swell, a flock of gulls crossing now and then, and clouds whose shadows drift over the
+-- islands (invisible models with a blob shadow: PixelRenderer's PixelShadow). Client only, all in
+-- Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the server's business; the
+-- expedition's stage (far away) never shows it. (The module keeps its old name: the street it once was.)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -15,13 +14,12 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 
 local StreetLife = {}
 
-local ROAD_Y = -0.45 -- the road's top (Models/StreetModels)
-local CAR_SPEED = 11 -- studs a second
-local CAR_COLORS = { "berry_red", "blue", "yellow", "green", "white", "orange" }
+local BOAT_SPEED = 4 -- studs a second
+local BOAT_COLORS = { "berry_red", "blue", "yellow", "green" }
 local CLOUD_Y = 24
 local started = false
 
-type Car = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number }
+type Boat = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number, ph: number }
 type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number }
 type Cloud = { m: Model, x: number, z: number, speed: number }
 
@@ -39,26 +37,10 @@ end
 local function adopt(t: MicroModels.Thing, shadow: number?, groundY: number?)
 	if shadow then
 		t.model:SetAttribute("PixelShadow", shadow)
-		t.model:SetAttribute("PixelGroundY", groundY or ROAD_Y)
+		t.model:SetAttribute("PixelGroundY", groundY or Street.WATER_Y)
 	end
 	t.model.Parent = dyn()
 	PixelRenderer.registerDynamic(t.model)
-end
-
--- A founder standing in a car's lane just ahead of it.
-local function blocked(car: Car): boolean
-	for _, pl in Players:GetPlayers() do
-		local char = pl.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if root and root:IsA("BasePart") then
-			local p = root.Position
-			local ahead = (p.X - car.x) * car.dir
-			if math.abs(p.Z - car.z) < 2.6 and ahead > 0 and ahead < 7 then
-				return true
-			end
-		end
-	end
-	return false
 end
 
 function StreetLife.start()
@@ -67,14 +49,15 @@ function StreetLife.start()
 	end
 	started = true
 	local b = Street.bounds()
-	local laneE = Street.ROAD.z0 + 2.75 -- eastbound (+X), the north lane
-	local laneW = Street.ROAD.z1 - 2.75 -- westbound
-	local cars: { Car } = {}
+	-- two lanes out on the open sea, clear of the piers (Street.PIER_Z + the boat moored there)
+	local laneE = Street.SEA.z0 + 12 -- eastbound (+X), the near lane
+	local laneW = Street.SEA.z0 + 18 -- westbound
+	local boats: { Boat } = {}
 	for i = 1, 4 do
-		local t = MicroModels.build("car", { color = CAR_COLORS[(i - 1) % #CAR_COLORS + 1] })
+		local t = MicroModels.build("sailboat", { color = BOAT_COLORS[(i - 1) % #BOAT_COLORS + 1] })
 		local east = i % 2 == 1
-		adopt(t, 2.2)
-		table.insert(cars, { t = t, x = b.x0 + (b.x1 - b.x0) * (i - 1) / 4, z = if east then laneE else laneW, dir = if east then 1 else -1, speed = CAR_SPEED * (0.85 + 0.1 * i) })
+		adopt(t, 2.4)
+		table.insert(boats, { t = t, x = b.x0 + (b.x1 - b.x0) * (i - 1) / 4, z = if east then laneE else laneW, dir = if east then 1 else -1, speed = BOAT_SPEED * (0.8 + 0.12 * i), ph = i * 1.3 })
 	end
 	local birds: { Bird } = {}
 	for i = 1, 3 do
@@ -100,23 +83,23 @@ function StreetLife.start()
 		local now = os.clock()
 		local dt = math.min(0.1, now - last)
 		last = now
-		-- cars: wrap round the street's ends, wait for founders in their way, bob a little
-		for _, c in cars do
-			if not blocked(c) then
-				c.x += c.dir * c.speed * dt
+		-- boats: wrap round the sea's ends, rise and roll on the swell (in whole steps: a quarter stud, a few degrees)
+		for _, c in boats do
+			c.x += c.dir * c.speed * dt
+			if c.dir > 0 and c.x > b.x1 + 12 then
+				c.x = b.x0 - 12
+			elseif c.dir < 0 and c.x < b.x0 - 12 then
+				c.x = b.x1 + 12
 			end
-			if c.dir > 0 and c.x > b.x1 + 10 then
-				c.x = b.x0 - 10
-			elseif c.dir < 0 and c.x < b.x0 - 10 then
-				c.x = b.x1 + 10
-			end
-			local bob = if math.floor(now * 6 + c.x) % 2 == 0 then 0.05 else 0
-			MicroModels.place(c.t, CFrame.new(c.x, ROAD_Y + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0))
+			local swell = math.sin(now * 1.6 + c.ph)
+			local bob = if swell > 0.3 then 0.25 elseif swell < -0.3 then 0 else 0.125
+			local roll = math.rad(if swell > 0.5 then 4 elseif swell < -0.5 then -4 else 0)
+			MicroModels.place(c.t, CFrame.new(c.x, Street.WATER_Y - 0.25 + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0) * CFrame.Angles(0, 0, roll))
 		end
 		-- a flock crosses now and then
 		if now >= flockAt then
 			flockAt = now + 14 + math.random() * 10
-			local z = Street.LOT.z0 + math.random() * (Street.VERGE.z1 - Street.LOT.z0)
+			local z = Street.LOT.z0 + math.random() * (Street.SEA.z1 - Street.LOT.z0)
 			for i, bd in birds do
 				bd.x = b.x0 - 20 - i * 4
 				bd.z = z + (i - 2) * 3
@@ -148,7 +131,7 @@ function StreetLife.start()
 	end)
 end
 
--- CLI checks only: the cars, birds and clouds there are.
+-- CLI checks only: the boats, gulls and clouds there are.
 function StreetLife.count(): number
 	return if started then 9 else 0
 end

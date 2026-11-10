@@ -1,27 +1,29 @@
 --!strict
--- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 4-9): Ideas (the idea board: pick three, make a game),
--- Index (every idea and modifier the team has thought of), Upgrades (roll speed and luck), Games (the launched games
--- and their income) and Looks (the founder's look). Every action is a request; the panel rebuilds from the next view.
+-- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Villagers (who lives here, their jobs, dismissing),
+-- Driftlings (the befriended ones, where they help, releasing), Explore (the islets and the party: Set sail), Index
+-- (every driftling met or befriended) and Looks (the founder's look). Every action is a request; the panel rebuilds
+-- from the next view. A job or help picker is the same panel with an argument ({ folk = id } / { pal = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
-local IdeasData = require(ReplicatedStorage.Shared.Data.Ideas)
-local Modifiers = require(ReplicatedStorage.Shared.Data.Modifiers)
+local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
+local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
+local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
-local Ideas = require(ReplicatedStorage.Shared.Logic.Ideas)
-local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
-local Live = require(ReplicatedStorage.Shared.Logic.Live)
+local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
+local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
-local MicroUI = require(script.Parent.MicroUI)
+local ExpeditionUI = require(script.Parent.ExpeditionUI)
 local Words = require(script.Parent.Words)
-local SalesGraph = require(script.Parent.SalesGraph)
 
 local Menus = {}
+
+local KNACKS: { [string]: string } = { farm = "farms", fish = "fishing piers", wood = "lumber camps", shop = "shops" }
 
 -- Ask the server; tell the player when it says no.
 local function ask(action: string, payload: { [string]: any }?, ok: string?): Types.Response
@@ -44,285 +46,437 @@ local function row(list: Instance, order: number, h: number): Frame
 	return f
 end
 
--- An idea's 16 px icon; its dark silhouette (the same outline) when `known` is false.
-local function icon(parent: Instance, id: string, pos: UDim2, known: boolean?): GuiObject?
-	local name = "icon_" .. id
-	if not PixelSprites.has(name) then
-		return nil
+local function away(v: Types.ClientView, key: string): boolean
+	local e = v.exp
+	if e == nil then
+		return false
 	end
-	return PixelSprites.image(parent, if known == false then name .. "_sil" else name, pos, 4)
-end
-
------------------------------------------------------------------- Ideas: the board
-local picked: { number } = {} -- board indices, in the order picked
-local pickedKeys: { string } = {}
-
-local function validPicks(v: Types.ClientView)
-	for i = #picked, 1, -1 do
-		local c = v.ideas[picked[i]]
-		if c == nil or Ideas.key(c) ~= pickedKeys[i] then
-			table.remove(picked, i)
-			table.remove(pickedKeys, i)
+	for _, f in e.party do
+		if f.key == key then
+			return true
 		end
 	end
+	return false
 end
 
-local function buildIdeas(body: Frame, _arg: any?)
+local function pieceOf(v: Types.ClientView, uid: number): Types.Piece?
+	for _, q in v.pieces do
+		if q.uid == uid then
+			return q
+		end
+	end
+	return nil
+end
+
+local function buildingName(v: Types.ClientView, uid: number): string?
+	local q = pieceOf(v, uid)
+	local d = if q then Buildings.byId[q.id] else nil
+	return if d then d.name else nil
+end
+
+-- A two-tap button (Dismiss, Release): the first tap asks "Sure?", a second within 3 s does it.
+local function confirmButton(parent: Instance, text: string, size: UDim2, pos: UDim2, go: () -> (), name: string)
+	local armed = 0
+	local b: TextButton
+	b = UIKit.button(parent, text, size, pos, function()
+		if os.clock() - armed < 3 then
+			go()
+		else
+			armed = os.clock()
+			UIKit.setButtonText(b, "Sure?")
+			Audio.play("notice")
+			task.delay(3, function()
+				if b.Parent and os.clock() - armed >= 3 then
+					UIKit.setButtonText(b, text)
+				end
+			end)
+		end
+	end, { name = name, color = UIKit.color("button_warn") })
+	b.ZIndex = 4
+end
+
+-- The stats line of a fighter: "HP 30 ATK 8 DEF 5 SPD 6".
+local function statLine(f: Types.Fighter): string
+	return string.format("HP %d  ATK %d  DEF %d  SPD %d", f.maxHp, f.atk, f.def, f.spd)
+end
+
+------------------------------------------------------------------ the job / help picker
+-- The buildings a villager (pal == nil) or a driftling (its knack) can work at, the one there now, and Rest.
+local function buildPicker(body: Frame, v: Types.ClientView, folkId: number?, palId: number?)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local knack: string? = nil
+	local name = "?"
+	local current = 0
+	if palId then
+		for _, x in v.pals do
+			if x.id == palId then
+				local d = Creatures.byId[x.sp]
+				knack = if d then d.knack else nil
+				name = if d then d.name else x.sp
+				current = x.work
+			end
+		end
+	else
+		for _, x in v.folk do
+			if x.id == folkId then
+				name = x.name
+				current = x.work
+			end
+		end
+	end
+	UIKit.text(body, if palId then string.format("Where should %s help? (%s)", name, KNACKS[knack or ""] or "") else string.format("Where should %s work?", name), UDim2.fromOffset(W - 50, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
+	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
+		UIKit.openPanel(if palId then "pals" else "folk")
+	end, { name = "Back", color = UIKit.color("plate_light") })
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	UIKit.vlist(list, 2)
+	local who: { [number]: string } = {}
+	if palId then
+		for _, x in v.pals do
+			if x.work ~= 0 then
+				local d = Creatures.byId[x.sp]
+				who[x.work] = if d then d.name else x.sp
+			end
+		end
+	else
+		for _, x in v.folk do
+			if x.work ~= 0 then
+				who[x.work] = x.name
+			end
+		end
+	end
+	local order = 0
+	local function choose(uid: number)
+		local res = if palId then ask("pal.work", { id = palId, uid = uid }) else ask("folk.work", { id = folkId, uid = uid })
+		if res.ok then
+			Audio.play("ding")
+			UIKit.openPanel(if palId then "pals" else "folk")
+		end
+	end
+	for _, q in v.pieces do
+		local d = Buildings.byId[q.id]
+		if d and Island.works(q.id) and (knack == nil or d.knack == knack) then
+			order += 1
+			local f = row(list, order, 22)
+			f.Name = "Spot_" .. q.uid
+			PixelSprites.image(f, "mini_" .. (if d.kind == "shop" then "shell" else d.kind), UDim2.fromOffset(4, 5), 4)
+			UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
+			local there = who[q.uid]
+			UIKit.text(f, if there then (if q.uid == current then "Here now" else there .. " is here") else "Nobody yet", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 11), { color = if there then UIKit.color("text_dim") else UIKit.color("good"), z = 4 })
+			local b = UIKit.button(f, if q.uid == current then "Here" elseif there then "Swap" else "Go", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
+				choose(q.uid)
+			end, { name = "Go_" .. q.uid, color = UIKit.color("button_ok"), enabled = q.uid ~= current })
+			b.ZIndex = 4
+		end
+	end
+	if order == 0 then
+		local f = row(list, 1, 22)
+		UIKit.text(f, if knack then "No " .. (KNACKS[knack] or "spots") .. " on the island yet: build one." else "Nothing to work at yet: build a patch or a camp.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+	end
+	local f = row(list, order + 1, 22)
+	f.Name = "Rest"
+	UIKit.text(f, if palId then "Rest at the nest (trains at a yard)" else "Rest (trains at a yard)", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(6, 6), { color = UIKit.color("text"), z = 4 })
+	UIKit.button(f, "Rest", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
+		choose(0)
+	end, { name = "Go_0", enabled = current ~= 0 }).ZIndex = 4
+end
+
+------------------------------------------------------------------ Villagers
+local function buildFolk(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
-	validPicks(v)
+	if type(arg) == "table" and type(arg.folk) == "number" then
+		buildPicker(body, v, arg.folk, nil)
+		return
+	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local proj = v.project
-	if proj then
-		UIKit.text(body, "You're making " .. proj.title .. ". Finish it to make the next one.", UDim2.fromOffset(W - 70, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Making" })
-		UIKit.button(body, "Continue", UDim2.fromOffset(64, 12), UDim2.fromOffset(W - 64, 0), function()
-			UIKit.closePanel()
-			MicroUI.open()
-		end, { name = "Continue", color = UIKit.color("button_ok") })
-	elseif v.live and not Live.over(v.live) then
-		-- one game sells at a time: a new one takes the one on sale off
-		local l = v.live :: Types.Live
-		UIKit.text(body, string.format("Making a game takes %s off sale (%s players now)", l.title, Numbers.int(l.players)), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("orange"), name = "Hint" })
-	else
-		UIKit.text(body, string.format("Pick three ideas to make a game. Board %d/%d", #v.ideas, Tuning.BoardSize), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
+	UIKit.text(body, string.format("%d villagers, %d beds. A visitor moves into a free bed at dawn when the charm is high enough.", #v.folk, v.beds), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	UIKit.vlist(list, 2)
+	if #v.folk == 0 then
+		local f = row(list, 1, 24)
+		UIKit.text(f, "Nobody lives here yet. Build a Tent: a castaway may move in at dawn.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 46), UDim2.fromOffset(0, 14))
-	local cols = if W >= 290 then 3 else 2
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 30)
-	grid.CellPadding = UDim2.fromOffset(3, 3)
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = list
-	if #v.ideas == 0 then
-		UIKit.text(list, "No ideas yet: your team is thinking.", UDim2.fromOffset(W - 8, 12), nil, { color = UIKit.color("text_dim") })
-	end
-	for i, c in v.ideas do
-		local tier = Ideas.tier(c)
-		local mod = Modifiers.byId[c.mod]
-		local def = IdeasData.byId[c.id]
-		local order = table.find(picked, i)
-		local b = Instance.new("TextButton")
-		b.Name = "Pick_" .. i
-		b.Text = ""
-		b.AutoButtonColor = proj == nil
-		b.BackgroundTransparency = 1
-		b.LayoutOrder = i
-		b.ZIndex = 3
-		local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, if order then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
-		plate.ZIndex = 3
-		UIKit.rect(b, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(1, 2), UIKit.color(Ideas.tierColor(tier)), 4)
-		icon(b, c.id, UDim2.fromOffset(5, 7))
-		UIKit.text(b, if def then def.name else "?", UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 1), { color = UIKit.color("text"), z = 4 })
-		UIKit.text(b, if mod then mod.name else "", UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 10), { color = UIKit.color(if mod then mod.color else "text_dim"), z = 4 })
-		UIKit.text(b, Numbers.oneIn(Ideas.oneIn(c)), UDim2.new(1, -26, 0, 10), UDim2.fromOffset(24, 19), { color = UIKit.color(Ideas.tierColor(tier)), z = 4 })
-		if order then
-			UIKit.plate(b, UDim2.fromOffset(11, 11), UDim2.new(1, -13, 0, 2), UIKit.color("accent"), 0, 1).ZIndex = 5
-			UIKit.text(b, tostring(order), UDim2.fromOffset(11, 11), UDim2.new(1, -13, 0, 2), { x = "center", color = UIKit.color("ink"), kind = "plain", z = 6 })
+	for i, x in v.folk do
+		local f = row(list, i, 34)
+		f.Name = "Folk_" .. x.id
+		UIKit.portrait(f, x.look, 30, UDim2.fromOffset(2, 2))
+		local gone = away(v, "v" .. x.id)
+		UIKit.text(f, x.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(36, 1), { color = UIKit.color("accent"), z = 4, name = "Name" })
+		UIKit.text(f, string.format("Lv %d", x.lvl), UDim2.fromOffset(34, 10), UDim2.fromOffset(36 + UIKit.textWidth(x.name) + 6, 1), { color = UIKit.color("text"), z = 4 })
+		local job = if gone then "Away on an expedition" elseif x.work ~= 0 then (function(): string
+			local q = pieceOf(v, x.work)
+			local d = if q then Buildings.byId[q.id] else nil
+			return if d then d.job .. " at the " .. d.name else "Working"
+		end)() else "Resting"
+		UIKit.text(f, job, UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 11), { color = if gone then UIKit.color("orange") elseif x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Job" })
+		UIKit.text(f, statLine(Battle.villager(x)), UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 21), { color = UIKit.color("text_dim"), z = 4 })
+		local jb = UIKit.button(f, "Job", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 10), function()
+			UIKit.openPanel("folk", { folk = x.id })
+		end, { name = "Job_" .. x.id, color = UIKit.color("button_ok"), enabled = not gone })
+		jb.ZIndex = 4
+		if not gone then
+			confirmButton(f, "Dismiss", UDim2.fromOffset(52, 13), UDim2.new(1, -55, 0, 10), function()
+				local res = ask("folk.dismiss", { id = x.id }, x.name .. " sailed off. Bye!")
+				if res.ok then
+					Audio.play("close")
+				end
+			end, "Dismiss_" .. x.id)
 		end
-		b.Activated:Connect(function()
-			if proj then
+	end
+end
+
+------------------------------------------------------------------ Driftlings
+local function buildPals(body: Frame, arg: any?)
+	local v = StateClient.view()
+	if v == nil then
+		return
+	end
+	if type(arg) == "table" and type(arg.pal) == "number" then
+		buildPicker(body, v, nil, arg.pal)
+		return
+	end
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	UIKit.text(body, string.format("%d driftlings, nests for %d. Befriend more on expeditions with a Treat.", #v.pals, v.nests), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	UIKit.vlist(list, 2)
+	if #v.pals == 0 then
+		local f = row(list, 1, 24)
+		UIKit.text(f, "No driftlings yet. Build a nest, then Explore: a Treat in battle may befriend one.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+	end
+	for i, x in v.pals do
+		local d = Creatures.byId[x.sp]
+		if d == nil then
+			continue
+		end
+		local f = row(list, i, 34)
+		f.Name = "Pal_" .. x.id
+		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 9), 4)
+		local gone = away(v, "p" .. x.id)
+		UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(24, 1), { color = UIKit.color("accent"), z = 4, name = "Name" })
+		UIKit.text(f, string.format("Lv %d  %s", x.lvl, Creatures.skills[d.skill] or d.skill), UDim2.new(1, -140, 0, 10), UDim2.fromOffset(24 + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4 })
+		local where = if gone then "Away on an expedition" elseif x.work ~= 0 then "Helping at the " .. (buildingName(v, x.work) or "?") else "Resting (helps at " .. (KNACKS[d.knack] or d.knack) .. ")"
+		UIKit.text(f, where, UDim2.new(1, -140, 0, 10), UDim2.fromOffset(24, 11), { color = if gone then UIKit.color("orange") elseif x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Where" })
+		UIKit.text(f, statLine(Battle.pal(x)), UDim2.new(1, -140, 0, 10), UDim2.fromOffset(24, 21), { color = UIKit.color("text_dim"), z = 4 })
+		local hb = UIKit.button(f, "Help", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 10), function()
+			UIKit.openPanel("pals", { pal = x.id })
+		end, { name = "Help_" .. x.id, color = UIKit.color("button_ok"), enabled = not gone })
+		hb.ZIndex = 4
+		if not gone then
+			confirmButton(f, "Release", UDim2.fromOffset(52, 13), UDim2.new(1, -55, 0, 10), function()
+				local res = ask("pal.release", { id = x.id }, d.name .. " went home to the wild.")
+				if res.ok then
+					Audio.play("close")
+				end
+			end, "Release_" .. x.id)
+		end
+	end
+end
+
+------------------------------------------------------------------ Explore: the islets and the party
+local chosenIslet = 0
+local party: { string } = {} -- member keys in the order picked ("v3", "p7")
+
+local function memberOk(v: Types.ClientView, key: string): boolean
+	local kind, id = string.match(key, "^([vp])(%d+)$")
+	local n = tonumber(id) or 0
+	for _, x in (if kind == "v" then v.folk else v.pals) :: { any } do
+		if x.id == n then
+			return true
+		end
+	end
+	return false
+end
+
+local function buildExplore(body: Frame, _arg: any?)
+	local v = StateClient.view()
+	if v == nil then
+		return
+	end
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	for i = #party, 1, -1 do
+		if not memberOk(v, party[i]) then
+			table.remove(party, i)
+		end
+	end
+	if chosenIslet < 1 or chosenIslet > math.min(#Islets.list, v.islets + 1) then
+		chosenIslet = math.min(#Islets.list, v.islets + 1)
+	end
+	-- the islets down the left
+	local LW = math.min(150, math.floor(W * 0.46))
+	local isl = UIKit.scroll(body, UDim2.fromOffset(LW, H), UDim2.fromOffset(0, 0))
+	UIKit.vlist(isl, 2)
+	for i, d in Islets.list do
+		local open = i <= v.islets + 1
+		local cleared = i <= v.islets
+		local f = Instance.new("TextButton")
+		f.Name = "Islet_" .. i
+		f.Text = ""
+		f.AutoButtonColor = open
+		f.BackgroundTransparency = 1
+		f.Size = UDim2.new(1, -6, 0, 26)
+		f.LayoutOrder = i
+		f.ZIndex = 3
+		local plate = UIKit.plate(f, UDim2.fromScale(1, 1), nil, if i == chosenIslet then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
+		plate.ZIndex = 3
+		UIKit.rect(f, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(1, 2), if open then UIKit.color("accent") else UIKit.color("plate"), 4)
+		PixelSprites.image(f, if cleared then "mini_star" elseif open then "mini_boat" else "mini_boss_sil", UDim2.fromOffset(5, 7), 4)
+		UIKit.text(f, if open then d.name else "???", UDim2.new(1, -22, 0, 10), UDim2.fromOffset(19, 2), { color = if open then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, if cleared then string.format("Lv %d+  Cleared", d.lvl) elseif open then string.format("Lv %d+  Open", d.lvl) else "Beat the last guardian", UDim2.new(1, -22, 0, 10), UDim2.fromOffset(19, 13), { color = if cleared then UIKit.color("good") elseif open then UIKit.color("accent") else UIKit.color("text_dim"), z = 4 })
+		f.Activated:Connect(function()
+			if not open then
+				Audio.play("deny")
 				return
 			end
-			local k = table.find(picked, i)
+			chosenIslet = i
+			Audio.play("flip")
+			UIKit.refreshPanel()
+		end)
+		f.Parent = isl
+	end
+	-- the chosen islet and the party on the right
+	local d = Islets.list[chosenIslet]
+	local x0 = LW + 4
+	local RW = W - x0
+	UIKit.text(body, d.name, UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 0), { color = UIKit.color("accent"), name = "IsletName" })
+	UIKit.text(body, d.blurb, UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 10), { color = UIKit.color("text_dim"), name = "Blurb" })
+	-- who lives there: their portraits (dark until met)
+	local ix = x0
+	for _, sp in d.wild do
+		local seen = (v.seen[sp] or 0) > 0
+		PixelSprites.image(body, if seen then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(ix, 21), 4)
+		ix += 18
+	end
+	-- the guardian (named once beaten) and its reward in shells, right-aligned
+	local reward = if chosenIslet <= v.islets then math.floor(d.reward / 2) else d.reward
+	local rt = Numbers.coins(reward)
+	local rw = UIKit.textWidth(rt)
+	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(W - rw - 14, 24), 4)
+	UIKit.text(body, rt, UDim2.fromOffset(rw + 2, 10), UDim2.fromOffset(W - rw - 2, 25), { color = UIKit.color("accent"), name = "Reward" })
+	UIKit.text(body, if chosenIslet <= v.islets then d.bossName else "Guardian: ???", UDim2.fromOffset(math.max(10, W - rw - 16 - ix - 2), 10), UDim2.fromOffset(ix + 2, 25), { color = UIKit.color("text"), name = "Guardian" })
+	-- the party: the captain, then up to PartyMax picks
+	UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
+	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 52 - 30), UDim2.fromOffset(x0, 51))
+	UIKit.vlist(pl, 2)
+	local function member(order: number, key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look?)
+		local picked = key == "f" or table.find(party, key) ~= nil
+		local gone = key ~= "f" and v.exp ~= nil
+		local b = Instance.new("TextButton")
+		b.Name = "Member_" .. key
+		b.Text = ""
+		b.AutoButtonColor = key ~= "f"
+		b.BackgroundTransparency = 1
+		b.Size = UDim2.new(1, -6, 0, 20)
+		b.LayoutOrder = order
+		b.ZIndex = 3
+		UIKit.plate(b, UDim2.fromScale(1, 1), nil, if picked then UIKit.color("button_ok") else UIKit.color("plate_light"), 0, 2).ZIndex = 3
+		if icon then
+			PixelSprites.image(b, icon, UDim2.fromOffset(2, 2), 4)
+		elseif look then
+			UIKit.portrait(b, look, 16, UDim2.fromOffset(2, 2)).ZIndex = 4
+		end
+		UIKit.text(b, string.format("%s  Lv %d", name, lvl), UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 0), { color = UIKit.color("text"), z = 4 })
+		UIKit.text(b, string.format("HP %d  ATK %d  DEF %d", f.maxHp, f.atk, f.def), UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 9), { color = UIKit.color("text_dim"), z = 4 })
+		b.Activated:Connect(function()
+			if key == "f" or gone then
+				return
+			end
+			local k = table.find(party, key)
 			if k then
-				table.remove(picked, k)
-				table.remove(pickedKeys, k)
-			elseif #picked < 3 then
-				table.insert(picked, i)
-				table.insert(pickedKeys, Ideas.key(c))
-				UIKit.burstOn(b, { Ideas.tierColor(tier), "white" }, 8, 35)
+				table.remove(party, k)
+			elseif #party < Tuning.PartyMax then
+				table.insert(party, key)
+				UIKit.burstOn(b, { "good", "white" }, 8, 30)
 			else
 				Audio.play("deny")
+				UIKit.notice(string.format("A party is the captain and %d more.", Tuning.PartyMax), UIKit.color("bad"))
 				return
 			end
 			Audio.play("flip")
 			UIKit.refreshPanel()
 		end)
-		b.Parent = list
+		b.Parent = pl
 	end
-	-- the game these three would make
-	local ready = proj == nil and #picked == 3
-	local cards: { Types.Card } = {}
-	for _, k in picked do
-		table.insert(cards, v.ideas[k])
+	local cap = Battle.founder({ cap = v.cap, founder = v.founder } :: any)
+	member(0, "f", "You (captain)", v.cap.lvl, cap, nil, v.founder)
+	-- the strongest first
+	local cands: { { key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look? } } = {}
+	for _, x in v.folk do
+		table.insert(cands, { key = "v" .. x.id, name = x.name, lvl = x.lvl, f = Battle.villager(x), look = x.look })
 	end
-	local preview = if #cards > 0 then string.format("%d/3 picked: peaks at about %s, up to %s with three wins", #cards, Numbers.rate(Ideas.rate(cards, 0)), Numbers.rate(Ideas.rate(cards, 3))) else "Each idea brings a minigame. Rarer ideas sell more and play harder."
-	UIKit.text(body, preview, UDim2.fromOffset(W, 12), UDim2.fromOffset(0, H - 30), { color = if ready then UIKit.color("good") else UIKit.color("text_dim"), name = "Preview" })
-	UIKit.button(body, if ready then "Make this game!" else "Pick three ideas", UDim2.fromOffset(W, 14), UDim2.fromOffset(0, H - 16), function()
-		local a, b, c = picked[1], picked[2], picked[3]
-		local res = ask("game.make", { a = a, b = b, c = c })
-		if res.ok then
-			local mk = body:FindFirstChild("Make")
-			if mk and mk:IsA("GuiObject") then
-				UIKit.burstOn(mk, { "good", "accent", "white", "fun", "ideas" }, 22, 60)
-			end
-			table.clear(picked)
-			table.clear(pickedKeys)
-			UIKit.closePanel()
-			Audio.play("level_up")
-			MicroUI.open()
+	for _, x in v.pals do
+		local cd = Creatures.byId[x.sp]
+		table.insert(cands, { key = "p" .. x.id, name = if cd then cd.name else x.sp, lvl = x.lvl, f = Battle.pal(x), icon = "icon_" .. x.sp })
+	end
+	table.sort(cands, function(a, b)
+		if a.lvl ~= b.lvl then
+			return a.lvl > b.lvl
 		end
-	end, { name = "Make", color = UIKit.color("button_ok"), enabled = ready })
+		return a.f.maxHp > b.f.maxHp
+	end)
+	for i, c in cands do
+		member(i, c.key, c.name, c.lvl, c.f, c.icon, c.look)
+	end
+	-- supplies and Set sail
+	local need = Tuning.Supplies * (1 + #party)
+	local enough = v.food >= need
+	UIKit.text(body, string.format("Supplies: %d food (you have %s)", need, Numbers.coins(v.food)), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, H - 28), { color = if enough then UIKit.color("text_dim") else UIKit.color("bad"), name = "Supplies" })
+	local busy = v.exp ~= nil
+	UIKit.button(body, if busy then "Continue the expedition" else "Set sail!", UDim2.fromOffset(RW, 15), UDim2.fromOffset(x0, H - 16), function()
+		if busy then
+			UIKit.closePanel()
+			ExpeditionUI.open()
+			return
+		end
+		local res = ask("exp.start", { islet = chosenIslet, party = table.concat(party, ",") })
+		if res.ok then
+			Audio.play("trumpet")
+			UIKit.closePanel()
+			ExpeditionUI.open()
+		end
+	end, { name = "SetSail", color = UIKit.color("button_ok"), enabled = busy or enough })
 end
 
------------------------------------------------------------------- Index: the discoveries
+------------------------------------------------------------------ Index: the driftlings
 local function buildIndex(body: Frame, _arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local total = #IdeasData.list * #Modifiers.list
-	local found = 0
-	for _, n in v.found do
-		if n > 0 then
-			found += 1
+	local seen, friends = 0, 0
+	for _, d in Creatures.list do
+		local n = v.seen[d.id] or 0
+		if n >= 1 then
+			seen += 1
+		end
+		if n >= 2 then
+			friends += 1
 		end
 	end
-	UIKit.text(body, string.format("Found %d of %d   Rarest: %s", found, total, if v.stats.best > 0 then Numbers.oneIn(v.stats.best) else "-"), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Found" })
+	UIKit.text(body, string.format("Met %d of %d   Befriended %d", seen, #Creatures.list, friends), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Found" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
-	local cols = if W >= 300 then 4 elseif W >= 220 then 3 else 2
+	local cols = if W >= 300 then 3 else 2
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 32)
+	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 42)
 	grid.CellPadding = UDim2.fromOffset(3, 3)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = list
-	for i, d in IdeasData.list do
-		local known = false
-		for _, m in Modifiers.list do
-			if (v.found[d.id .. "|" .. m.id] or 0) > 0 then
-				known = true
-			end
-		end
-		local f = UIKit.plate(list, UDim2.fromOffset(60, 32), nil, UIKit.color("plate_light"), 0, 2)
+	for i, d in Creatures.list do
+		local n = v.seen[d.id] or 0
+		local f = UIKit.plate(list, UDim2.fromOffset(60, 42), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
-		icon(f, d.id, UDim2.fromOffset(4, 4), known)
-		UIKit.text(f, if known then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(22, 1), { color = if known then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
-		UIKit.text(f, Numbers.oneIn(d.odds), UDim2.new(1, -24, 0, 10), UDim2.fromOffset(22, 10), { color = UIKit.color(Ideas.tierColor(Ideas.tierOf(d.odds))), z = 4 })
-		-- a dot a modifier: lit in its colour once found with this idea
-		for k, m in Modifiers.list do
-			local on = (v.found[d.id .. "|" .. m.id] or 0) > 0
-			UIKit.rect(f, UDim2.fromOffset(3, 3), UDim2.fromOffset(22 + (k - 1) * 5, 24), if on then UIKit.color(m.color) else UIKit.color("plate"), 4)
+		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)
+		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 1), { color = if n >= 1 then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
+		local isl = Islets.list[d.islet]
+		UIKit.text(f, if n >= 1 and isl then isl.name else "", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color("text_dim"), z = 4 })
+		if n >= 2 then
+			PixelSprites.image(f, "mini_charm", UDim2.new(1, -13, 0, 2), 4)
 		end
-	end
-	-- the modifiers' key
-	local key = UIKit.plate(list, UDim2.fromOffset(60, 32), nil, UIKit.color("plate"), 0, 2)
-	key.Name = "Key"
-	key.LayoutOrder = #IdeasData.list + 1
-	UIKit.text(key, "Dots:", UDim2.new(1, -4, 0, 10), UDim2.fromOffset(3, 1), { color = UIKit.color("text_dim"), z = 4 })
-	for k, m in Modifiers.list do
-		UIKit.rect(key, UDim2.fromOffset(3, 3), UDim2.fromOffset(4 + (k - 1) * 8, 14), UIKit.color(m.color), 4)
-	end
-	UIKit.text(key, "Plain..Cosmic", UDim2.new(1, -4, 0, 10), UDim2.fromOffset(3, 20), { color = UIKit.color("text_dim"), z = 4 })
-end
-
------------------------------------------------------------------- Upgrades: the idea team
-local upgradeButtons: { [string]: TextButton } = {}
-
-local function costOf(v: Types.ClientView, k: string): number?
-	if k == "speed" and Studio.rollEvery({ upgrades = v.upgrades } :: any) <= Tuning.RollMin then
-		return nil
-	end
-	return Studio.upgradeCost(k, if k == "speed" then v.upgrades.speed else v.upgrades.luck)
-end
-
-local function buildUpgrades(body: Frame, _arg: any?)
-	local v = StateClient.view()
-	if v == nil then
-		return
-	end
-	local W = UIKit.bodyWidth(body)
-	table.clear(upgradeButtons)
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, UIKit.bodyHeight(body)), nil)
-	UIKit.vlist(list, 3)
-	local items = {
-		{
-			k = "speed",
-			title = "Faster ideas",
-			level = v.upgrades.speed,
-			now = string.format("An idea every %.1fs", v.rollEvery),
-			next = string.format("then every %.1fs", math.max(Tuning.RollMin, v.rollEvery * Tuning.RollStep)),
-		},
-		{
-			k = "luck",
-			title = "Lucky ideas",
-			level = v.upgrades.luck,
-			now = string.format("Luck x%.1f: rare ideas come more often", v.luck),
-			next = string.format("then x%.1f", v.luck + Tuning.LuckStep),
-		},
-	}
-	for i, it in items do
-		local f = row(list, i, 40)
-		UIKit.text(f, it.title, UDim2.new(1, -90, 0, 10), UDim2.fromOffset(5, 3), { color = UIKit.color("accent"), z = 4 })
-		UIKit.text(f, "Lv " .. it.level, UDim2.fromOffset(40, 10), UDim2.new(1, -130, 0, 3), { x = "right", color = UIKit.color("text_dim"), z = 4 })
-		UIKit.text(f, it.now, UDim2.new(1, -90, 0, 10), UDim2.fromOffset(5, 14), { color = UIKit.color("text"), z = 4 })
-		local cost = costOf(v, it.k)
-		UIKit.text(f, if cost then it.next else "maxed out", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(5, 25), { color = UIKit.color("text_dim"), z = 4 })
-		local b = UIKit.button(f, if cost then Numbers.coins(cost) .. " coins" else "Max", UDim2.fromOffset(80, 16), UDim2.new(1, -84, 0, 12), function()
-			local res = ask("upgrade.buy", { k = it.k })
-			if res.ok then
-				Audio.play("level_up")
-				local bb = upgradeButtons[it.k]
-				if bb then
-					UIKit.burstOn(bb, { "good", "accent", "white" }, 18, 50)
-					UIKit.popText(bb.Parent or body, bb.Position.X.Offset + 40, 0, "Level up!", UIKit.color("good"))
-				end
-			end
-		end, { name = "Buy_" .. it.k, color = UIKit.color("button_ok"), enabled = cost ~= nil and v.coins >= cost })
-		b.ZIndex = 4
-		upgradeButtons[it.k] = b
-	end
-	local f = row(list, 3, 24)
-	UIKit.text(f, "Rarer ideas earn more coins and play harder minigames. Coins also buy decor in Build.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
-end
-
------------------------------------------------------------------- Games: the launched games
-local function buildGames(body: Frame, _arg: any?)
-	local v = StateClient.view()
-	if v == nil then
-		return
-	end
-	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	UIKit.text(body, string.format("%d games made, %s coins earned", v.stats.games, Numbers.coins(v.stats.earned)), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Total" })
-	-- the game on sale: its players' graph, Game Dev Tycoon style, and its numbers
-	local top = 14
-	local l = v.live
-	if l then
-		local over = Live.over(l)
-		UIKit.text(body, (if over then "Off sale: " else "On sale: ") .. l.title, UDim2.fromOffset(W, 10), UDim2.fromOffset(0, top), { color = UIKit.color(if over then "text_dim" else "accent"), name = "LiveTitle" })
-		local gh = 44
-		local graph = SalesGraph.new(body, W, gh, 4)
-		graph.frame.Position = UDim2.fromOffset(0, top + 11)
-		graph.set(l)
-		local left = math.max(0, l.life - l.age)
-		local stats = if over
-			then string.format("Made %s coins. Peak: %s players", Numbers.coins(l.earned), Numbers.int(l.peak))
-			else string.format("%s players  %s  Peak %s  Made %s  %d:%02d left", Numbers.int(l.players), Numbers.rate(v.rate), Numbers.int(l.peak), Numbers.coins(l.earned), math.floor(left / 60), math.floor(left % 60))
-		UIKit.text(body, stats, UDim2.fromOffset(W, 10), UDim2.fromOffset(0, top + 12 + gh), { color = UIKit.color("good"), name = "LiveStats" })
-		top += 24 + gh
-	end
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
-	UIKit.vlist(list, 2)
-	if #v.games == 0 then
-		UIKit.text(list, "No games yet: make one from the idea board.", UDim2.fromOffset(W - 8, 12), nil, { color = UIKit.color("text_dim") })
-	end
-	for i = #v.games, 1, -1 do
-		local g = v.games[i]
-		local f = row(list, #v.games - i, 24)
-		local onSale = l ~= nil and l.id == g.id
-		local peak = if onSale and l then l.peak else g.peak
-		local made = if onSale and l then l.earned else g.earned
-		UIKit.text(f, g.title, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(5, 2), { color = UIKit.color(if onSale then "accent" else "text"), z = 4 })
-		UIKit.text(f, string.format("%s coins", Numbers.coins(made)), UDim2.fromOffset(100, 10), UDim2.new(1, -104, 0, 2), { x = "right", color = UIKit.color("good"), z = 4 })
-		local names = {}
-		for _, c in g.ideas do
-			table.insert(names, Ideas.name(c))
-		end
-		UIKit.text(f, table.concat(names, " + "), UDim2.new(1, -110, 0, 10), UDim2.fromOffset(5, 12), { color = UIKit.color("text_dim"), z = 4 })
-		UIKit.text(f, string.format("peak %s  %s", Numbers.short(peak), string.rep("*", g.wins) .. string.rep("-", 3 - g.wins)), UDim2.fromOffset(100, 10), UDim2.new(1, -104, 0, 12), { x = "right", color = UIKit.color("accent"), z = 4 })
+		UIKit.text(f, if n >= 2 then d.blurb elseif n >= 1 then "Met: befriend one with a Treat." else "Not met yet.", UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 	end
 end
 
@@ -369,33 +523,24 @@ local function buildLooks(body: Frame, _arg: any?)
 end
 
 function Menus.init()
-	UIKit.registerPanel("ideas", { title = "Idea board", w = 320, h = 186, build = buildIdeas })
+	UIKit.registerPanel("folk", { title = "Villagers", w = 320, h = 186, build = buildFolk })
+	UIKit.registerPanel("pals", { title = "Driftlings", w = 320, h = 186, build = buildPals })
+	UIKit.registerPanel("explore", { title = "Explore", w = 340, h = 196, build = buildExplore })
 	UIKit.registerPanel("index", { title = "Index", w = 320, h = 186, build = buildIndex })
-	UIKit.registerPanel("upgrades", { title = "Upgrades", w = 300, h = 140, build = buildUpgrades })
-	UIKit.registerPanel("games", { title = "Games", w = 320, h = 170, build = buildGames })
 	UIKit.registerPanel("looks", { title = "Looks", w = 200, h = 106, build = buildLooks })
 	UIKit.PanelChanged:Connect(function(name: string?)
 		if name ~= "looks" then
 			draft = nil
 		end
-		if name ~= "ideas" then
-			table.clear(picked)
-			table.clear(pickedKeys)
+		if name ~= "explore" then
+			table.clear(party)
 		end
 	end)
-	-- the income ticks: the upgrade buttons follow the coins without rebuilding the panel
-	StateClient.Coins:Connect(function(coins: number)
-		local v = StateClient.view()
-		if v == nil or UIKit.currentPanel() ~= "upgrades" then
-			return
-		end
-		for k, b in upgradeButtons do
-			if b.Parent then
-				local cost = costOf(v, k)
-				UIKit.setEnabled(b, cost ~= nil and coins >= cost)
-			end
-		end
-	end)
+end
+
+-- Sims and previews: the party picked in Explore.
+function Menus.party(): { string }
+	return table.clone(party)
 end
 
 return Menus

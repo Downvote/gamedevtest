@@ -1,4 +1,4 @@
--- Harness helpers for Byte-Size Studio's previews (a copy of tools/sim/harness.luau run over the preview's engine copies): module access, client requests,
+-- Harness helpers for Driftling Isle's previews (a copy of tools/sim/harness.luau run over the preview's engine copies): module access, client requests,
 -- UI driving, this game's invariants (profile and client mirror), findings. The fake engine (loader, engine, inst,
 -- classes, services) is game-agnostic.
 local E = require("./loader")
@@ -357,75 +357,110 @@ local function finite(v)
 end
 H.finite = finite
 
--- The profile is valid: finite numbers, staff within the office's desks on unique desks, energy 0..100, every
--- release's reviews 1..10 summing to its total, the project's weeks and phase consistent.
+-- The profile is valid: finite non-negative stores, pieces that fit the island with unique uids, villagers and
+-- driftlings with unique ids working only where they may (one a building), within the beds and nests' limits, the
+-- islets and the tips in range.
 function H.checkProfile(p, label)
 	local prof = H.profile(p)
 	if not H.expect(prof ~= nil, "profile", label .. ": no profile") then
 		return
 	end
 	local Tuning = H.sharedServer("Config.Tuning")
-	local Ideas = H.sharedServer("Logic.Ideas")
+	local Buildings = H.sharedServer("Data.Buildings")
+	local Creatures = H.sharedServer("Data.Creatures")
+	local Islets = H.sharedServer("Data.Islets")
 	local Office = H.sharedServer("Data.Office")
-	for _, k in { "coins", "rate", "office", "nextGame", "tut" } do
+	local Plot = H.sharedServer("Logic.Plot")
+	local Island = H.sharedServer("Logic.Island")
+	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "nextId", "tut" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
-	H.expect(prof.coins >= 0 and prof.rate >= 0, "profile", label .. ": negative coins or rate", string.format("%s/%s", prof.coins, prof.rate))
-	H.expect(#prof.ideas <= Tuning.BoardSize, "profile", label .. ": board over BoardSize", tostring(#prof.ideas))
-	for _, c in prof.ideas do
-		H.expect(Ideas.valid(c), "profile", label .. ": an invalid card on the board", tostring(c.id) .. "|" .. tostring(c.mod))
+	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))
+	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
+	H.expect(prof.islets >= 0 and prof.islets <= #Islets.list, "profile", label .. ": islets out of range", tostring(prof.islets))
+	H.expect(prof.tut >= 0 and prof.tut <= 4, "profile", label .. ": tips out of range", tostring(prof.tut))
+	-- the pieces
+	local placed = prof.plot.placed
+	H.expect(#placed <= Plot.limit(prof.tier), "profile", label .. ": more pieces than the island holds", tostring(#placed))
+	local uids = {}
+	local rest = {}
+	for i, q in placed do
+		H.expect(Buildings.byId[q.id] ~= nil, "profile", label .. ": an unknown piece", tostring(q.id))
+		H.expect(q.uid > 0 and q.uid < prof.nextId and not uids[q.uid], "profile", label .. ": a bad or shared uid", tostring(q.uid))
+		uids[q.uid] = q
+		H.expect(q.lvl >= 1 and q.lvl <= #Tuning.UpgradeMult, "profile", label .. ": a bad level", tostring(q.lvl))
+		local ok = Plot.fits(prof.tier, rest, q.id, q.x, q.z, q.rot)
+		H.expect(ok, "profile", label .. ": piece " .. i .. " does not fit", string.format("%s at %d,%d", q.id, q.x, q.z))
+		table.insert(rest, q)
 	end
-	for k, n in prof.found do
-		local id, mod = string.match(k, "^(%w+)|(%w+)$")
-		H.expect(id ~= nil and Ideas.valid({ id = id, mod = mod }) and finite(n) and n >= 1, "profile", label .. ": a bad Index entry", k)
-	end
-	local plan = Office.plans[prof.office]
-	if H.expect(plan ~= nil, "profile", label .. ": office tier out of range", tostring(prof.office)) then
-		H.expect(#prof.team >= 1 and #prof.team <= #plan.desks, "profile", label .. ": team outside 1..desks", tostring(#prof.team))
-		local desks = {}
-		for _, m in prof.team do
-			H.expect(m.desk >= 1 and m.desk <= #plan.desks and not desks[m.desk], "profile", label .. ": desk out of range or shared", tostring(m.desk))
-			desks[m.desk] = true
+	-- villagers and driftlings
+	local ids = {}
+	local jobs, helps = {}, {}
+	H.expect(#prof.folk <= Tuning.FolkMax, "profile", label .. ": too many villagers", tostring(#prof.folk))
+	for _, v in prof.folk do
+		H.expect(v.id > 0 and v.id < prof.nextId and not ids[v.id] and not uids[v.id], "profile", label .. ": a bad or shared villager id", tostring(v.id))
+		ids[v.id] = true
+		H.expect(v.lvl >= 1 and v.lvl <= Tuning.LevelMax and finite(v.xp) and v.xp >= 0, "profile", label .. ": a villager's level", tostring(v.lvl))
+		if v.work ~= 0 then
+			local q = uids[v.work]
+			H.expect(q ~= nil and Island.works(q.id) and not jobs[v.work], "profile", label .. ": a villager at a bad or taken job", tostring(v.work))
+			jobs[v.work] = true
 		end
 	end
-	local sum = 0
-	for _, g in prof.games do
-		H.expect(#g.ideas == 3 and finite(g.rate) and g.rate > 0 and g.wins >= 0 and g.wins <= 3, "profile", label .. ": a bad game record", tostring(g.title))
-		H.expect(g.id < prof.nextGame, "profile", label .. ": game id >= nextGame", tostring(g.id))
-		sum += g.rate
-	end
-	H.expect(prof.rate >= sum - 1e-6, "profile", label .. ": rate below the listed games' sum", string.format("%s < %s", prof.rate, sum))
-	H.expect(#prof.games <= Tuning.GamesKept, "profile", label .. ": too many games kept", tostring(#prof.games))
-	local proj = prof.project
-	if proj then
-		H.expect(#proj.ideas == 3 and #proj.won == 3, "profile", label .. ": project shape")
-		for _, w in proj.won do
-			H.expect(w == -1 or w == 0 or w == 1, "profile", label .. ": a bad minigame result", tostring(w))
+	for _, x in prof.pals do
+		H.expect(x.id > 0 and x.id < prof.nextId and not ids[x.id] and not uids[x.id], "profile", label .. ": a bad or shared driftling id", tostring(x.id))
+		ids[x.id] = true
+		local d = Creatures.byId[x.sp]
+		H.expect(d ~= nil, "profile", label .. ": an unknown species", tostring(x.sp))
+		H.expect(x.lvl >= 1 and x.lvl <= Tuning.LevelMax and finite(x.xp) and x.xp >= 0, "profile", label .. ": a driftling's level", tostring(x.lvl))
+		H.expect((prof.seen[x.sp] or 0) == 2, "profile", label .. ": a driftling not marked befriended", tostring(x.sp))
+		if x.work ~= 0 then
+			local q = uids[x.work]
+			local b = q and Buildings.byId[q.id]
+			H.expect(b ~= nil and d ~= nil and b.knack == d.knack and not helps[x.work], "profile", label .. ": a driftling at a bad or taken spot", tostring(x.work))
+			helps[x.work] = true
 		end
 	end
-	H.expect(prof.upgrades.speed >= 0 and prof.upgrades.luck >= 0, "profile", label .. ": negative upgrade levels")
+	H.expect(#prof.pals <= Tuning.PalsMax, "profile", label .. ": too many driftlings", tostring(#prof.pals))
+	for k, n in prof.seen do
+		H.expect(Creatures.byId[k] ~= nil and (n == 1 or n == 2), "profile", label .. ": a bad Index entry", tostring(k))
+	end
+	H.expect(finite(prof.cap.lvl) and prof.cap.lvl >= 1 and finite(prof.cap.xp), "profile", label .. ": the captain's level", tostring(prof.cap.lvl))
+	-- an expedition under way: its party are the profile's own
+	local s = H.session(p)
+	local e = s and s.exp
+	if e then
+		for _, f in e.party do
+			local kind, id = string.match(f.key, "^([fvp])(%d*)$")
+			H.expect(kind ~= nil and (kind == "f" or ids[tonumber(id)]), "profile", label .. ": a party member not on the island", tostring(f.key))
+			H.expect(finite(f.hp) and f.hp >= 0 and f.hp <= f.maxHp, "profile", label .. ": a party member's health", tostring(f.hp))
+		end
+	end
 end
 
--- The client's view mirrors the server's profile (the coins may trail by one income tick).
+-- The client's view mirrors the server's profile (the stores may trail by a tick).
 function H.checkMirror(p, label)
 	local prof = H.profile(p)
 	local v = H.view(p)
 	if not H.expect(prof ~= nil and v ~= nil, "mirror", label .. ": no profile or no view") then
 		return
 	end
-	for _, k in { "office", "tut" } do
+	for _, k in { "tier", "tut", "day", "islets" } do
 		H.expect(v[k] == prof[k], "mirror", string.format("%s: view.%s differs", label, k), string.format("view %s, server %s", tostring(v[k]), tostring(prof[k])))
 	end
-	H.expect(math.abs(v.rate - prof.rate) < 1e-6, "mirror", label .. ": view rate differs", string.format("%s vs %s", v.rate, prof.rate))
-	H.expect(math.abs(v.coins - prof.coins) <= math.max(2, prof.rate * 1.5 + 1), "mirror", label .. ": view coins differ by more than a tick", string.format("%s vs %s", v.coins, prof.coins))
-	H.expect(#v.ideas == #prof.ideas, "mirror", label .. ": board size differs", string.format("%d vs %d", #v.ideas, #prof.ideas))
-	H.expect(#v.team == #prof.team, "mirror", label .. ": team size differs")
-	H.expect((v.project == nil) == (prof.project == nil), "mirror", label .. ": project presence differs")
-	if v.project and prof.project then
-		H.expect(v.project.title == prof.project.title, "mirror", label .. ": project differs")
+	local r = H.sharedServer("Logic.Island").rates(prof, H.session(p) and H.session(p).away)
+	local tick = H.sharedServer("Config.Tuning").DaySeconds
+	for _, k in { "shells", "food", "wood" } do
+		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
+		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))
 	end
-	H.expect(#v.games == #prof.games, "mirror", label .. ": games differ", string.format("%d vs %d", #v.games, #prof.games))
-	H.expect(v.upgrades.speed == prof.upgrades.speed and v.upgrades.luck == prof.upgrades.luck, "mirror", label .. ": upgrades differ")
+	H.expect(#v.folk == #prof.folk and #v.pals == #prof.pals, "mirror", label .. ": villagers or driftlings differ", string.format("%d/%d vs %d/%d", #v.folk, #v.pals, #prof.folk, #prof.pals))
+	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
+	local s = H.session(p)
+	H.expect((v.exp == nil) == (s == nil or s.exp == nil), "mirror", label .. ": the expedition's presence differs")
+	if v.exp and s and s.exp then
+		H.expect(v.exp.node == s.exp.node and v.exp.islet == s.exp.islet, "mirror", label .. ": the expedition differs")
+	end
 end
 
 function H.errorsSince(i0)

@@ -1,6 +1,7 @@
 --!strict
--- A microgame's 3D stage (GAME_DESIGN 5; docs/ARCHITECTURE.md 10.8): a little diorama room, themed by the idea (a
--- kitchen, a dungeon, a beach, a graveyard...), built from parts far from the street (Z = 9000) and shown full screen
+-- An islet's 3D stage (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.8): a little diorama, themed by the islet (a beach,
+-- a meadow, a volcano's sands, a snowfield, the sea floor; the older themed rooms are kept), built from parts far
+-- from the islands (Z = 9000) and shown full screen
 -- by the pixel filter like the office: the same orthographic 2:1 camera, toon bands, palette, sun shadows and 1 px ink
 -- outline. The player's own founder (their look) stands in it and plays; the things that move are dynamic models the
 -- renderer draws every tick, with blob shadows on the floor.
@@ -40,7 +41,7 @@ export type Avatar = {
 	hat: Thing?,
 }
 
--- A rival founder in a party round (UI/MicroArena): their own look, posed like the player's.
+-- Another chibi on the stage (a villager in the party): their own look, posed like the player's.
 export type Rival = {
 	rig: CharacterModels.Rig,
 	pose: (u: number, v: number, y: number, yaw: number, t: number, speed: number, action: string, k: number?) -> (),
@@ -486,6 +487,31 @@ SETS.fish = function(b) -- Ocean: the sea floor
 	b.box(-HALF + 2, FLOOR, HALF - 4, -HALF + 4, FLOOR + 1, HALF - 2, "pink")
 end
 
+SETS.frost = function(b) -- Frostcap: a snowfield with snowy pines, an ice pond and a peak behind
+	room(b, { ground = "window", a = "white", b = "window", tile = 6 })
+	-- the far snowbanks and a peak
+	b.box(-HALF - 3, 0, -HALF - 3, HALF + 3, 0.75, -HALF, "white")
+	b.box(-HALF - 3, 0, -HALF, -HALF, 0.75, HALF + 3, "white")
+	b.box(-32, 0, -32, -16, 7, -16, "steel")
+	b.box(-29, 7, -29, -19, 11, -19, "steel")
+	b.box(-29.25, 9, -29.25, -18.75, 11.25, -18.75, "white")
+	b.box(-26, 11, -26, -22, 13, -22, "white")
+	-- snowy pines: a trunk, three tiers of needles, snow on each
+	for _, t in { { -16, -15, 1.1 }, { -17, 4, 0.9 }, { 5, -17, 1 }, { 15, -19, 0.8 } } do
+		local x, z, k = t[1], t[2], t[3]
+		b.box(x - 0.5 * k, 0, z - 0.5 * k, x + 0.5 * k, 2 * k, z + 0.5 * k, "wood_dark")
+		for i = 0, 2 do
+			local r = (2.25 - i * 0.6) * k
+			local y = (1.75 + i * 1.5) * k
+			b.box(x - r, y, z - r, x + r, y + 1.25 * k, z + r, "leaf_dark")
+			b.box(x - r + 0.25, y + 1.25 * k, z - r + 0.25, x + r - 0.25, y + 1.5 * k, z + r - 0.25, "white")
+		end
+	end
+	-- a frozen pond at the front left
+	b.box(-HALF + 2, FLOOR, HALF - 7, -HALF + 7, FLOOR + 0.125, HALF - 2, "screen_on")
+	b.box(-HALF + 3, FLOOR + 0.125, HALF - 6, -HALF + 4, FLOOR + 0.2, HALF - 5, "white")
+end
+
 SETS.leap = function(b) -- Adventure: a path over the meadow
 	room(b, { ground = "grass_dark", a = "grass", b = "grass_dark", tile = 4 })
 	tree(b, -16, -16, 1.2)
@@ -592,6 +618,9 @@ local PUFFS: { [string]: PuffSpec } = {
 	ember = { n = 1, colors = { "orange", "yellow" }, out = { 0, 0.4 }, up = { 1.5, 3 }, grav = -0.5, life = { 0.5, 0.9 }, size = { 0.25, 0.25 }, neon = true, sway = 0.5 },
 	twinkle = { n = 1, colors = { "yellow", "white", "purple" }, out = { 0, 0.3 }, up = { 0.3, 0.8 }, grav = 0, life = { 0.8, 1.2 }, size = { 0.25, 0.35 }, neon = true, sway = 0.4 },
 	splash = { n = 8, colors = { "water", "window", "white" }, out = { 2, 4 }, up = { 4, 7 }, grav = 26, life = { 0.4, 0.6 }, size = { 0.25, 0.4 }, bounce = true },
+	snow = { n = 1, colors = { "white", "white", "window" }, out = { 0.2, 0.6 }, up = { -1.8, -1.2 }, grav = 0, life = { 4.5, 5.5 }, size = { 0.25, 0.25 }, sway = 1.0 },
+	heal = { n = 6, colors = { "green", "white", "leaf" }, out = { 0.5, 1.5 }, up = { 2, 4 }, grav = -1, life = { 0.6, 0.9 }, size = { 0.25, 0.35 }, neon = true, sway = 0.6 },
+	heart = { n = 8, colors = { "pink", "berry_red", "white" }, out = { 1, 3 }, up = { 3, 6 }, grav = 4, life = { 0.7, 1.1 }, size = { 0.25, 0.4 }, neon = true, sway = 0.8 },
 }
 local POOL = 56
 
@@ -600,11 +629,6 @@ local function rnd(r: { number }): number
 end
 
 type Bit = { p: BasePart, pos: Vector3, vel: Vector3, life: number, age: number, size: number, grav: number, bounce: boolean, grow: boolean, sway: number, ph: number }
-
--- yaws for things flying along a stage-space direction
-local function yawOf(du: number, dv: number): number
-	return math.atan2(du * U_DIR.X + dv * V_DIR.X, du * U_DIR.Z + dv * V_DIR.Z)
-end
 
 -- room space (world-aligned x, z from the floor's middle; y over the floor's top)
 local function atXZ(x: number, z: number, y: number): Vector3
@@ -899,6 +923,15 @@ AMBIENT.fish = function(st)
 	end
 end
 
+AMBIENT.frost = function(st)
+	return all({
+		emitter(st, "snow", function()
+			return st.at(-16 + math.random() * 32, -14 + math.random() * 22, 11)
+		end, 0.12),
+		circler(st, "bird", "white", -6, -6, 15, 12, 10, 0.3),
+	})
+end
+
 AMBIENT.leap = function(st)
 	return all({ wanderer(st, "yellow", -5, -6, 0), wanderer(st, "blue", 6, 6, 1.5), circler(st, "bird", "white", -4, -4, 16, 12, 9, 0.6) })
 end
@@ -952,7 +985,8 @@ end
 
 local current: Stage? = nil
 
-function MicroStage.open(variant: string): Stage
+-- `margins`: art px kept clear at the top and bottom of the screen for the overlay (default 22 and 20).
+function MicroStage.open(variant: string, margins: { top: number, bottom: number }?): Stage
 	if current then
 		(current :: Stage).close()
 	end
@@ -1230,7 +1264,7 @@ function MicroStage.open(variant: string): Stage
 		table.insert(pts, ORIGIN.Z + c[3])
 	end
 	current = st
-	CameraController.setStage({ name = variant, origin = ORIGIN, pts = pts, top = 22, bottom = 20 })
+	CameraController.setStage({ name = variant, origin = ORIGIN, pts = pts, top = if margins then margins.top else 22, bottom = if margins then margins.bottom else 20 })
 	return st
 end
 

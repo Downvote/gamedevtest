@@ -1,11 +1,11 @@
 #!/bin/sh
-# Byte-Size Studio preview: boots the real server + client scripts of a Rojo tree in the fake engine, runs a scenario
+# Driftling Isle preview: boots the real server + client scripts of a Rojo tree in the fake engine, runs a scenario
 # and writes PNGs at the device resolution (pixel layer + GUI).
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
-#   scenario: office | reveal | office2 | office3 | make | launch | panel=<ideas|index|upgrades|games|looks> |
-#             micro=<idea>[_<modifier>] | street | visit | build | plot3 | late | all
-#             (preview.luau's SCEN; all = office dev review street build)
+#   scenario: island | village | island2 | island3 | day | panel=<folk|pals|explore|index|looks> |
+#             exp=<islet 1-5>[_battle|_boss|_win|_loot] | sea | visit | build | late | all
+#             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off
 # Environment:
@@ -17,15 +17,15 @@
 PREVIEW=$(cd "$(dirname "$0")" && pwd)
 T=${TOOLS:-$HOME/.local/rbx-tools}
 REPO=${REPO:-$(cd "$(dirname "$0")/../.." && pwd)}
-scen=${1:?usage: render.sh <office|reveal|office2|office3|make|launch|panel=name|micro=idea|street|visit|build|plot3|late|all> <outdir> [devices] [tier]}
+scen=${1:?usage: render.sh <island|village|island2|island3|day|panel=name|exp=islet|sea|visit|build|late|all> <outdir> [devices] [tier]}
 out=${2:?usage: render.sh <scenario> <outdir> [devices] [tier]}
 devices=${3:-desktop phone}
 tier=${4:-auto}
 jobs=${PREVIEW_JOBS:-4}
 
 case $scen in
-	all) scens="office reveal make launch street build" ;;
-	office|reveal|office2|office3|make|launch|panel=*|micro=*|street|visit|build|plot3|late) scens=$scen ;;
+	all) scens="island village island3 sea build day" ;;
+	island|village|island2|island3|day|panel=*|exp=*|sea|visit|build|late) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

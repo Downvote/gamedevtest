@@ -4,17 +4,21 @@
 local Words = {}
 
 local ERRORS: { [string]: string } = {
-	money = "Not enough coins.",
-	busy = "Finish the game you're making first.",
-	no_project = "Make a game first.",
-	not_built = "Play all three minigames first.",
-	full = "The plot is full.",
-	max = "That's maxed out.",
-	locked = "You don't own that yet.",
+	money = "Not enough shells.",
+	wood = "Not enough wood.",
+	food = "Not enough food.",
+	busy = "They're away on an expedition.",
+	full = "There's no room for more.",
+	max = "That's as far as it goes.",
+	locked = "Not open yet.",
 	cooldown = "Not yet: try again in a moment.",
-	blocked = "It doesn't fit there.",
+	blocked = "That can't be done here.",
+	no_room = "Build more homes or nests first.",
+	no_exp = "There's no expedition under way.",
+	in_battle = "Finish the battle first.",
+	not_found = "They're not here any more.",
 	rate = "Slow down a little.",
-	not_ready = "One moment: your studio is still opening.",
+	not_ready = "One moment: your island is still waking up.",
 }
 
 function Words.errText(err: string?): string

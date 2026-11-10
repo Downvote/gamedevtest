@@ -1,13 +1,14 @@
 --!strict
--- Plots and the street (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 12, 13). At start the whole street is built: every
--- plot's stretch of road (Workspace.Plots.Street) and an empty lot on every plot. A player who joins takes the lowest
--- free plot: Workspace.Plots.Plot_<i>.Static gets their office (Static.Office), their land (Static.Land: the lawn,
--- the footpath, the sign, the mailbox) and their decor (Static.Decor, one model a piece); the office and land are
--- rebuilt only when the office's tier changes, the decor by difference (a new piece adds one model, a stored one
--- removes one), so a client's renderer re-casts as little as possible. A new part goes up before an old one comes
--- down. A player who leaves leaves an empty lot. Plot_<i>'s attributes tell every client who is there and what their
--- crew looks like (WorldView draws other studios from them): Owner, OwnerName, StudioName, Tier, Games, Best, Crew,
--- Working. The founder (the player's character) appears on their own footpath.
+-- The islands on the sea (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 8). At start the whole sea is built: every island
+-- plot's stretch of boardwalk and water (Workspace.Plots.Street) and an empty sandbar on every plot. A player who
+-- joins takes the lowest free plot: Workspace.Plots.Plot_<i>.Static gets their lodge (Static.Office), their island
+-- (Static.Land: sand, grass, the path to the dock, the sign, the mailbox) and their buildings and decor (Static.Decor,
+-- one model a piece, named by its uid, kind, place and level); the lodge and island are rebuilt only when the
+-- island's tier changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
+-- goes up before an old one comes down. A player who leaves leaves an empty sandbar. Plot_<i>'s attributes tell every
+-- client who is there and who lives there (WorldView draws every island's villagers and driftlings from them):
+-- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Islets, Folk, Pals. The founder (the player's
+-- character) appears on their own path.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -15,7 +16,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
-local Live = require(ReplicatedStorage.Shared.Logic.Live)
+local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local OfficeModels = require(ReplicatedStorage.Shared.Models.OfficeModels)
 local StreetModels = require(ReplicatedStorage.Shared.Models.StreetModels)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
@@ -94,7 +95,7 @@ end
 -- An empty lot on plot i, with no attributes left of its last owner.
 local function emptyLot(i: number)
 	local m = plotModel(i)
-	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Games", "Best", "Crew", "Working" } do
+	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Islets", "Folk", "Pals", "Sailing" } do
 		m:SetAttribute(k, nil)
 	end
 	m:SetAttribute("Owner", 0)
@@ -145,8 +146,8 @@ function PlotService.release(i: number)
 end
 
 ------------------------------------------------------------------ building a studio's plot
-local function pieceKey(q: { id: string, x: number, z: number, rot: number }): string
-	return string.format("%s:%d:%d:%d", q.id, q.x, q.z, q.rot)
+local function pieceKey(q: { uid: number, id: string, x: number, z: number, rot: number, lvl: number }): string
+	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, q.lvl or 1)
 end
 
 -- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones.
@@ -168,7 +169,7 @@ function PlotService.buildDecor(s: S)
 		if d:FindFirstChild(key) == nil then
 			local w, dd = Plot.footprint(q.id, q.rot)
 			local at = CFrame.new(o + Vector3.new(q.x + w / 2, Street.LAWN_Y, q.z + dd / 2)) * CFrame.Angles(0, math.rad(q.rot), 0)
-			local m = DecorModels.build(q.id, at)
+			local m = DecorModels.build(q.id, at, q.lvl or 1)
 			m.Name = key
 			m.Parent = d
 		end
@@ -185,9 +186,9 @@ function PlotService.build(s: S)
 	local m = plotModel(s.plot)
 	m:SetAttribute("Owner", s.player.UserId)
 	m:SetAttribute("OwnerName", s.player.DisplayName)
-	m:SetAttribute("StudioName", s.player.DisplayName .. "'s Studio")
+	m:SetAttribute("StudioName", s.player.DisplayName .. "'s Isle")
 	local static = staticOf(s.plot)
-	local tier = s.profile.office
+	local tier = s.profile.tier
 	if static:GetAttribute("Built") ~= tier then
 		local o = originOf(s.plot)
 		replace(static, "Land", function(f)
@@ -206,22 +207,30 @@ end
 function PlotService.sync(s: S)
 	local m = plotModel(s.plot)
 	local p = s.profile
-	local crew = {}
-	for _, st in p.team do
-		local l = st.look
-		table.insert(crew, string.format("%d.%d.%d.%d.%d.%d", st.desk, l.skin, l.hair, l.style, l.shirt, 0))
+	-- who lives there: a villager "id.skin.hair.style.shirt.work.away", a driftling "id.species.work.away" (work: the
+	-- uid of the building they work or help at, 0 idle; away: 1 while on an expedition)
+	local away = s.away or {}
+	local folk = {}
+	for _, v in p.folk do
+		local l = v.look
+		table.insert(folk, string.format("%d.%d.%d.%d.%d.%d.%d", v.id, l.skin, l.hair, l.style, l.shirt, v.work, if away["v" .. v.id] then 1 else 0))
+	end
+	local pals = {}
+	for _, x in p.pals do
+		table.insert(pals, string.format("%d.%s.%d.%d", x.id, x.sp, x.work, if away["p" .. x.id] then 1 else 0))
 	end
 	local function set(k: string, v: any)
 		if m:GetAttribute(k) ~= v then
 			m:SetAttribute(k, v)
 		end
 	end
-	set("Tier", p.office)
-	set("Games", p.stats.games)
-	set("Best", p.stats.best)
-	set("Rate", math.floor(Live.earning(p.live)))
-	set("Crew", table.concat(crew, ";"))
-	set("Working", true)
+	set("Tier", p.tier)
+	set("Day", p.day)
+	set("Charm", Island.charm(p))
+	set("Islets", p.islets)
+	set("Folk", table.concat(folk, ";"))
+	set("Pals", table.concat(pals, ";"))
+	set("Sailing", s.exp ~= nil)
 	local f = p.founder
 	local look = string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt)
 	if s.player:GetAttribute("Founder") ~= look then
@@ -233,7 +242,7 @@ end
 ------------------------------------------------------------------ the founder
 -- Where a session's founder appears (world CFrame, facing the road).
 function PlotService.spawnCFrame(s: S): CFrame
-	local plan = Office.plan(s.profile.office)
+	local plan = Office.plan(s.profile.tier)
 	local x, z = Street.spawn(plan.maxX, plan.maxZ)
 	local o = originOf(s.plot)
 	return CFrame.new(o + Vector3.new(x, 3, z))

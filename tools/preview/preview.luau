@@ -1,7 +1,7 @@
--- Byte-Size Studio's preview driver: boots the real server and client scripts in the fake engine (with the real
+-- Driftling Isle's preview driver: boots the real server and client scripts in the fake engine (with the real
 -- raycast and a pixel-storing EditableImage), drives a scenario and dumps frames for topng.py.
 -- Usage: luau preview.luau -a <workdir> <scenario> <device> [tier] [inset]
---   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "micro=<idea>[_<mod>]"
+--   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "exp=<islet>[_<what>]"
 --   or "all";
 --   device: a DEVICES key; tier: auto | low | medium | high | off
 -- A scenario is a function in SCEN: it joins players (join / joinWith), drives them through H.req or the UI
@@ -169,153 +169,153 @@ local function join(userId, name, opts)
 	return p
 end
 
--- A saved profile for `userId` (put in the fake cloud before they join): office `tier`; opts: board (a list of
--- "idea:mod" cards), games (how many launched games of three commons), project ({ "idea:mod" x3 } and won), coins,
--- found (every board and project card counted), decor ({ id, x, z, rot } wanted spots: owned, and placed where
--- Logic/Plot says they fit, else at the nearest cell that does), tut.
-local function cardOf(spec)
-	local id, mod = string.match(spec, "^(%w+):?(%w*)$")
-	return { id = id, mod = if mod == nil or mod == "" then "plain" else mod }
-end
-
+-- A saved profile for `userId` (put in the fake cloud before they join): an island of `tier`; opts: pieces ({ id, x,
+-- z, rot? } wanted spots, placed where Logic/Plot says they fit, else at the nearest cell that does; upgraded to lvl
+-- when given), folk (how many villagers: jobs where free), pals (species: helping where their knack is needed),
+-- islets, shells, food, wood, day, tut, cap (the captain's level).
 local function seedProfile(userId, tier, opts)
 	opts = opts or {}
 	local Tuning = H.sharedServer("Config.Tuning")
 	local Schema = H.sharedServer("Logic.Schema")
-	local Studio = H.sharedServer("Logic.Studio")
-	local Ideas = H.sharedServer("Logic.Ideas")
+	local Island = H.sharedServer("Logic.Island")
+	local Plot = H.sharedServer("Logic.Plot")
+	local Names = H.sharedServer("Data.Names")
+	local Util = H.sharedServer("Logic.Util")
 	local now = math.floor(E.now())
 	local prof = Schema.default(now, userId)
-	prof.office = tier
-	prof.coins = opts.coins or 25000
+	prof.tier = tier
+	prof.shells = opts.shells or 4800
+	prof.food = opts.food or 160
+	prof.wood = opts.wood or 420
+	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
-	local Office = H.sharedServer("Data.Office")
-	local desks = #Office.plan(tier).desks
-	local rng = H.sharedServer("Logic.Util").newRng(userId)
-	while #prof.team < math.min(desks, 3) do
-		table.insert(prof.team, Studio.newTeam(rng, 1)[1])
-		prof.team[#prof.team].id = #prof.team
-		prof.team[#prof.team].desk = #prof.team
-	end
-	for _, spec in opts.board or {} do
-		local c = cardOf(spec)
-		table.insert(prof.ideas, c)
-		prof.found[Ideas.key(c)] = (prof.found[Ideas.key(c)] or 0) + 1
-		prof.stats.best = math.max(prof.stats.best, Ideas.oneIn(c))
-	end
-	for g = 1, opts.games or 0 do
-		local cards = { cardOf("action"), cardOf("puzzle:turbo"), cardOf("space") }
-		if g % 3 == 0 then
-			cards[2] = cardOf("rpg:crowded")
-		end
-		local wins = g % 4
-		local game = { id = g, title = Ideas.title(cards, g * 13), ideas = cards, rate = Ideas.rate(cards, math.min(3, wins)), wins = math.min(3, wins), at = now, peak = 0, earned = 0 }
-		-- the older ones sold their run out
-		game.peak = math.floor(game.rate / H.sharedServer("Config.Tuning").CoinPerPlayer)
-		game.earned = math.floor(H.sharedServer("Logic.Live").lifetime(game.rate))
-		table.insert(prof.games, game)
-		prof.nextGame = g + 1
-		prof.stats.games = g
-		for _, c in cards do
-			prof.found[Ideas.key(c)] = (prof.found[Ideas.key(c)] or 0) + 1
-		end
-	end
-	-- the newest game on sale, a way into its run (none while the next is being made: making it took it off)
-	if #prof.games > 0 and opts.project == nil then
-		local Live = H.sharedServer("Logic.Live")
-		local l = Live.new(prof.games[#prof.games], 99)
-		for _ = 1, opts.liveAge or 96 do
-			Live.step(l, 1)
-		end
-		prof.live = l
-	end
-	if opts.project then
-		local cards = {}
-		for _, spec in opts.project do
-			table.insert(cards, cardOf(spec))
-		end
-		prof.project = { title = Ideas.title(cards, 7), ideas = cards, won = opts.won or { -1, -1, -1 }, seed = 7 }
-	end
-	prof.upgrades = opts.upgrades or { speed = 3, luck = 2 }
-	if opts.decor then
-		local Plot = H.sharedServer("Logic.Plot")
-		for _, d in opts.decor do
-			prof.plot.owned[d.id] = true
-			local done = false
-			for r = 0, 6 do
-				for dz = -r, r do
-					for dx = -r, r do
-						if not done and (math.abs(dx) == r or math.abs(dz) == r) and Plot.fits(tier, prof.plot.placed, d.id, d.x + dx, d.z + dz, d.rot or 0) then
-							table.insert(prof.plot.placed, { id = d.id, x = d.x + dx, z = d.z + dz, rot = d.rot or 0 })
-							done = true
-						end
+	prof.islets = opts.islets or 0
+	prof.cap = { lvl = opts.cap or 6, xp = 0 }
+	for _, d in opts.pieces or {} do
+		local done = false
+		for r = 0, 8 do
+			for dz = -r, r do
+				for dx = -r, r do
+					if not done and (math.abs(dx) == r or math.abs(dz) == r) and Plot.fits(tier, prof.plot.placed, d[1], d[2] + dx, d[3] + dz, d[4] or 0) then
+						table.insert(prof.plot.placed, { uid = prof.nextId, id = d[1], x = d[2] + dx, z = d[3] + dz, rot = d[4] or 0, lvl = d[5] or 1 })
+						prof.nextId += 1
+						done = true
 					end
 				end
 			end
-			if not done then
-				log("seed: %s does not fit near %d,%d", d.id, d.x, d.z)
-			end
+		end
+		if not done then
+			log("seed: %s does not fit near %d,%d", d[1], d[2], d[3])
 		end
 	end
+	local rng = Util.newRng(userId * 7 + 1)
+	for k = 1, math.min(opts.folk or 0, Island.beds(prof)) do
+		local v = { id = prof.nextId, name = Util.pick(rng, Names.first), look = Island.randomLook(rng), work = 0, lvl = 2 + (k * 3) % 7, xp = 0, seed = rng:int(1, 99999), day = 1 }
+		prof.nextId += 1
+		v.work = Island.freeJob(prof)
+		table.insert(prof.folk, v)
+	end
+	for k, sp in opts.pals or {} do
+		local Creatures = H.sharedServer("Data.Creatures")
+		local d = Creatures.byId[sp]
+		local x = { id = prof.nextId, sp = sp, lvl = 2 + (k * 2) % 6, xp = 0, work = 0 }
+		prof.nextId += 1
+		if d then
+			x.work = Island.freeJob(prof, d.knack)
+		end
+		table.insert(prof.pals, x)
+		prof.seen[sp] = 2
+	end
+	for _, sp in opts.seen or {} do
+		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
+	end
+	prof.stats.days = prof.day - 1
+	prof.stats.movedIn = #prof.folk
+	prof.stats.befriended = #prof.pals
+	prof.stats.built = #prof.plot.placed
 	local key = Tuning.DataStoreName .. "/global"
 	E.cloud.stores[key] = E.cloud.stores[key] or {}
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
 end
 
-local BOARD = { "action", "puzzle:turbo", "animals", "space:icy", "pirates", "rpg:crowded", "cooking", "ocean:frenzy", "horror", "school" }
+-- A tier-1 village: food, wood, a stall, homes, nests and some decor round the hut (plot-local NW corners).
+local VILLAGE = {
+	{ "patch", 12, 8 }, { "patch", 16, 8 }, { "lumber", 12, 13 }, { "pier", 18, 24 }, { "stall", 8, 21 },
+	{ "tent", -12, 8 }, { "hut", -12, 12 }, { "hut", -8, 16 }, { "nest", -5, 9 }, { "nest", -14, 22 },
+	{ "flowers", -3, 18 }, { "palm", -14, 1 }, { "torch", 1, 9 }, { "torch", 6, 9 }, { "bench", -8, 24 },
+	{ "shellpile", 14, 26 }, { "bush", 18, 1 }, { "palm", 19, 15 }, { "hammock", 0, 22 },
+}
+-- A tier-3 harbour island: every kind of building, upgraded makers, the grand decor.
+local HARBOR = {
+	{ "greenhouse", 18, 8, 0, 3 }, { "orchard", 26, 8, 0, 2 }, { "orchard", 26, 14, 0, 2 }, { "sawmill", 18, 14, 0, 2 }, { "lumber", 31, 2 },
+	{ "inn", 16, 20, 0, 2 }, { "cafe", 22, 25, 0, 2 }, { "stall", 28, 26 }, { "pier", 31, 20 },
+	{ "cottage", -21, 12 }, { "cottage", -21, 17 }, { "hut", -16, 21 }, { "burrow", -22, 2 }, { "burrow", -18, -14 }, { "yard", -6, 14 },
+	{ "fountain", 0, 20 }, { "lighthouse", 30, -12 }, { "statue", -10, 24 }, { "totem", 20, -6 }, { "picnic", -18, 25 },
+	{ "palm", -22, -6 }, { "palm", 24, -12 }, { "flowers", -2, 13 }, { "flowers", 7, 26 }, { "torch", 12, 12 }, { "torch", 12, 18 },
+	{ "hammock", -13, 27 }, { "bench", 2, 27 }, { "shellpile", 33, 26 },
+}
+local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff" }
 
 ------------------------------------------------------------------ scenarios
 local SCEN = {}
 
--- A brand-new studio: the garage with its idea team, a first idea or two popping out of their heads, the HUD.
-function SCEN.office()
+-- A brand-new island: the castaway's hut, the founder, the HUD with the first tip.
+function SCEN.island()
 	local p = join(1, "Pixel")
 	settle(p)
-	E.run(9)
-	E.run(0.4)
-	capture(p, "office")
+	E.run(1)
+	capture(p, "island")
 	return p
 end
 
--- A studio at work: a board of ideas, games earning, and a Mythic idea's reveal dropping in.
-function SCEN.reveal()
-	seedProfile(2, 1, { board = BOARD, games = 6 })
-	local p = join(2, "Lucky")
+-- A tier-1 village a dozen days in: villagers at work, driftlings helping and hopping, the island card.
+function SCEN.village()
+	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+	local p = join(2, "Villager")
 	settle(p)
-	local s = H.session(p)
-	E.call(E.serverCtx, 5, function()
-		H.smod("Session").fx(s, { kind = "idea", card = { id = "music", mod = "shrinking" }, slot = 0, oneIn = 1500000, tier = 6, first = true })
-	end)
-	E.run(0.6)
-	capture(p, "reveal")
+	E.run(2.5)
+	capture(p, "village")
 	return p
 end
 
-local function officeScenario(tier, label)
+local function islandScenario(tier, label)
 	return function()
-		seedProfile(10 + tier, tier, { board = BOARD, games = 12 })
-		local p = join(10 + tier, "Studio" .. tier)
+		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, folk = if tier == 3 then 12 else 6, pals = PALS, islets = tier + 1, shells = 60000, wood = 5000 })
+		local p = join(10 + tier, "Isle" .. tier)
 		settle(p)
-		E.run(1.5)
+		E.run(2.5)
 		capture(p, label)
 		return p
 	end
 end
-SCEN.office2 = officeScenario(2, "office2")
-SCEN.office3 = officeScenario(3, "office3")
+SCEN.island2 = islandScenario(2, "island2")
+SCEN.island3 = islandScenario(3, "island3")
 
--- A UI panel by name (UIKit.openPanel); the idea board with three ideas picked.
+-- A new day's banner: a visitor moves in.
+function SCEN.day()
+	seedProfile(3, 1, { pieces = VILLAGE, folk = 2, pals = { "gullfin" } })
+	local p = join(3, "Dawn")
+	settle(p)
+	local s = H.session(p)
+	s.dayClock = H.sharedServer("Config.Tuning").DaySeconds - 0.3
+	E.run(1.2)
+	capture(p, "day")
+	return p
+end
+
+-- A UI panel by name (UIKit.openPanel): folk, pals, explore (a party picked), index, looks.
 local function panelScenario(name)
-	seedProfile(20, 1, { board = BOARD, games = 9, upgrades = { speed = 6, luck = 4 } })
+	seedProfile(20, 2, { pieces = VILLAGE, folk = 5, pals = { "clawdle", "gullfin", "mossbun", "emberpup" }, islets = 2, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
 	local p = join(20, "Menus")
 	settle(p)
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
 		H.openPanel(p, name)
 		E.run(0.8)
-		if name == "ideas" then
-			for _, i in { 2, 6, 8 } do
-				H.clickNamed(p, "Pick_" .. i, { wait = 0.2 })
+		if name == "explore" then
+			local prof = H.profile(p)
+			for _, key in { "v" .. prof.folk[1].id, "p" .. prof.pals[1].id } do
+				H.clickNamed(p, "Member_" .. key, { wait = 0.2 })
 			end
 		end
 		log("panel open: %s", tostring(UIKit.currentPanel and UIKit.currentPanel()))
@@ -326,90 +326,92 @@ local function panelScenario(name)
 	return p
 end
 
--- Making a game: three ideas picked on the board, Make, the making card.
-function SCEN.make()
-	seedProfile(30, 1, { board = BOARD, games = 2 })
-	local p = join(30, "Maker")
+-- exp=<islet>[_<what>]: an expedition to that islet on its 3D stage. what: "battle" (default: the first battle),
+-- "boss" (the guardian), "win" (a battle won: the results card), "loot" (a stop's narration).
+local function expScenario(spec)
+	local islet, what = string.match(spec, "^(%d)_?(%a*)$")
+	local n = tonumber(islet) or 1
+	what = if what == nil or what == "" then "battle" else what
+	-- a party a little above the islet's level (a fair fight to watch; strong for "win")
+	local lvl = H.sharedServer("Data.Islets").list[n].lvl + (if what == "win" then 8 else 2)
+	seedProfile(40, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "emberpup" }, islets = n - 1, food = 400, cap = lvl })
+	local p = join(40, "Captain")
 	settle(p)
-	H.clickNamed(p, "MakeGame", { wait = 0.6 })
-	for _, i in { 1, 6, 9 } do
-		H.clickNamed(p, "Pick_" .. i, { wait = 0.2 })
+	local prof = H.profile(p)
+	for _, v in prof.folk do
+		v.lvl = lvl
 	end
-	H.clickNamed(p, "Make", { wait = 1 })
-	capture(p, "make")
-	return p
-end
-
--- The launch: a game with all three minigames played (two won), Launch! on its card, then the crew cheering.
-function SCEN.launch()
-	seedProfile(31, 1, { board = BOARD, games = 3, project = { "pirates:turbo", "rpg", "space" }, won = { 1, 0, 1 } })
-	local p = join(31, "Shipper")
-	settle(p)
-	H.clickNamed(p, "CardLaunch", { wait = 0.6 })
-	H.clickNamed(p, "Launch", { wait = 1.2 })
-	capture(p, "launch")
-	H.clickNamed(p, "Nice", { wait = 0.35 })
-	capture(p, "launch_cheer")
-	return p
-end
-
--- micro=<idea>[_<mod>]: a game being made with that idea first; its microgame on its 3D stage a moment in (after the
--- stage's bake; MicroUI.debugAuto playing: a good player, not a perfect one), then the card back over the street.
-local function microScenario(spec)
-	local id, mod = string.match(spec, "^(%w+)_?(%w*)$")
-	mod = if mod == nil or mod == "" then "plain" else mod
-	seedProfile(40, 1, { board = { "action", "puzzle" }, games = 2, project = { id .. ":" .. mod, "space", "school" } })
-	local p = join(40, "Player")
-	settle(p)
-	H.clickNamed(p, "CardPlay", { wait = 0.5 })
-	H.clickNamed(p, "Play_1", { wait = 0.1 })
-	local MUI = modOr(p, "UI.MicroUI")
-	-- the timing games get a right move every frame (they are lost otherwise), the rest one now and then
-	local k = 0
-	local function autoStep()
-		k += 1
-		local kind = MUI and H.inClient(p, MUI.playing)
-		local every = 1
-		local _ = kind
-		if MUI and k % every == 0 then
-			H.inClient(p, MUI.debugAuto)
-		end
+	for _, x in prof.pals do
+		x.lvl = lvl
 	end
-	-- the stage's picture bakes behind the curtain; the moves start as it lifts
+	local res = H.req(p, "exp.start", { islet = n, party = string.format("v%d,p%d,v%d", prof.folk[1].id, prof.pals[1].id, prof.folk[2].id) })
+	if not res.ok then
+		log("exp.start: %s", tostring(res.err))
+	end
+	local s = H.session(p)
+	local EUI = modOr(p, "UI.ExpeditionUI")
+	E.run(0.5)
+	-- (a raw request skips the Explore panel's Set sail, which opens the islet's screen)
+	if EUI then
+		H.inClient(p, EUI.open)
+	end
 	local function curtainUp(): boolean
-		local pg = p:FindFirstChild("PlayerGui")
-		local c = pg and pg:FindFirstChild("Curtain", true)
-		return c == nil or c:GetAttribute("Lifted") == true
+		local st = EUI and H.inClient(p, EUI.debugState)
+		return st ~= nil and st.lifted
 	end
 	local waited = 0
-	while waited < 60 and not curtainUp() do
-		E.run(0.05)
-		waited += 0.05
-		autoStep()
+	while waited < 40 and not curtainUp() do
+		E.run(0.1)
+		waited += 0.1
 	end
-	local PR = modOr(p, "Pixel.PixelRenderer")
-	local st = PR and select(2, pcall(PR.debugStatic))
-	log("curtain up after %.1fs; playing: %s; the stage's bake %s (%s bakes, %s rays)", waited, tostring(MUI and H.inClient(p, MUI.playing)),
-		if type(st) == "table" and st.baking then "still under way" else "done", tostring(type(st) == "table" and st.bakes), tostring(type(st) == "table" and st.rays))
-	-- 3, 2, 1, GO! and a few seconds of the round
-	local stop = E.SIM.now + H.sharedServer("Config.Tuning").MicroCountdown + 3.2
-	while E.SIM.now < stop do
-		E.run(0.05)
-		autoStep()
-	end
-	capture(p, "micro_" .. spec)
-	E.runUntil(function()
-		if MUI then
-			H.inClient(p, MUI.debugAuto)
+	settle(p, 30, 1)
+	log("curtain up after %.1fs", waited)
+	if what == "loot" then
+		local guard = 0
+		while s.exp and s.exp.nodes[s.exp.node + 1] ~= "loot" and s.exp.nodes[s.exp.node + 1] ~= "chest" and guard < 12 do
+			guard += 1
+			if s.exp.battle then
+				for _, f in s.exp.battle.foes do
+					f.hp = 0
+				end
+				s.exp.battle = nil
+			end
+			s.exp.node += 1
 		end
-		return H.buttonNamed(p, "Retry_1") ~= nil
-	end, 70, 0.05)
-	E.run(0.5)
-	capture(p, "micro_" .. spec .. "_card")
+		H.inClient(p, EUI.debugGo)
+		E.run(1.2)
+	elseif what == "boss" then
+		if s.exp then
+			s.exp.node = #s.exp.nodes - 1
+		end
+		H.inClient(p, EUI.debugGo)
+		E.run(2.5)
+	else
+		local guard = 0
+		while s.exp and not s.exp.battle and guard < 12 do
+			guard += 1
+			H.inClient(p, EUI.debugGo)
+			E.run(0.3)
+		end
+		E.run(2)
+		if what == "win" and s.exp and s.exp.battle then
+			for _, f in s.exp.battle.foes do
+				f.hp = 1
+			end
+			H.inClient(p, EUI.debugAct, "fight")
+			E.run(1.5)
+		elseif s.exp and s.exp.battle then
+			-- a round played: the numbers, the bars
+			H.inClient(p, EUI.debugAct, "fight")
+			E.run(0.3)
+		end
+	end
+	settle(p, 10, 0.5)
+	capture(p, "exp_" .. spec)
 	return p
 end
 
------------------------------------------------------------------- the street and the plot (GAME_DESIGN 8, 9)
+------------------------------------------------------------------ the sea and the islands (GAME_DESIGN 4, 8)
 local function rootOf(p)
 	return p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 end
@@ -426,93 +428,47 @@ local function walkTo(p, x, z)
 	settle(p, 30, 1)
 end
 
--- The founder walked onto the road between two studios (the neighbour in the Loft, at work); then the same pan
--- baked from scratch, to compare a scrolled picture with a fresh one.
-function SCEN.street()
+-- The founder on the boardwalk between two islands (the neighbour's village at work, boats out at sea); then the
+-- same pan baked from scratch, to compare a scrolled picture with a fresh one.
+function SCEN.sea()
 	local p = join(50, "Walker")
-	seedProfile(51, 2, { board = BOARD, games = 8 })
+	seedProfile(51, 2, { pieces = VILLAGE, folk = 6, pals = PALS, islets = 3 })
 	join(51, "Neighbour", { client = false })
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
 	local x1 = Street.origin(1)
 	local x2 = Street.origin(2)
-	walkTo(p, (x1 + x2) / 2 + 6, (Street.ROAD.z0 + Street.ROAD.z1) / 2)
+	walkTo(p, (x1 + x2) / 2 + 6, (Street.BOARD.z0 + Street.BOARD.z1) / 2)
 	E.run(0.5)
 	settle(p, 10, 0.5)
-	capture(p, "street")
+	capture(p, "sea")
 	local PR = modOr(p, "Pixel.PixelRenderer")
 	if PR and PR.isActive() then
 		H.inClient(p, function()
 			PR.rebake()
 		end)
 		settle(p, 40, 1)
-		capture(p, "street_fresh")
+		capture(p, "sea_fresh")
 	end
 	return p
 end
 
--- The founder inside the neighbour's office while their crew works.
+-- The founder on the neighbour's island while their villagers work.
 function SCEN.visit()
 	local p = join(52, "Visitor")
-	seedProfile(53, 1, { board = BOARD, games = 4 })
+	seedProfile(53, 1, { pieces = VILLAGE, folk = 4, pals = { "frondle", "gullfin" } })
 	join(53, "Host", { client = false })
 	settle(p)
 	local x2, z2 = H.sharedServer("Data.Street").origin(2)
-	walkTo(p, x2 - 7, z2 + 7)
+	walkTo(p, x2 + 10, z2 + 18)
 	capture(p, "visit")
-	-- the scrolled picture against a fresh bake at the same pan (only the crew's typing should differ)
-	local PR = modOr(p, "Pixel.PixelRenderer")
-	if PR and PR.isActive() then
-		H.inClient(p, function()
-			PR.rebake()
-		end)
-		settle(p, 40, 1)
-		capture(p, "visit_fresh")
-	end
 	return p
 end
 
--- Build mode: pieces bought and placed, then one picked and its ghost on a cell where it fits (green), then on the
--- office (red).
+-- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the hut (red).
 function SCEN.build()
+	seedProfile(54, 1, { pieces = { { "patch", 12, 8 }, { "tent", -12, 8 }, { "nest", -5, 9 }, { "flowers", -3, 18 } }, folk = 1, shells = 3000, wood = 300 })
 	local p = join(54, "Builder")
-	local prof = H.profile(p)
-	prof.coins = 1000000
-	prof.tut = 0
-	H.push(p, 0.5)
-	for _, id in { "gnome", "flowers", "bush", "bench", "lamp", "oak", "pine", "bikes", "picnic" } do
-		local res = H.req(p, "plot.buy", { id = id })
-		if not (res and res.ok) then
-			log("plot.buy %s: %s", id, tostring(res and res.err))
-		end
-		E.run(0.12)
-	end
-	local Plot = H.sharedServer("Logic.Plot")
-	local wanted = {
-		{ "oak", 14, -6, 0 },
-		{ "pine", 19, 1, 0 },
-		{ "bench", 13, 14, 0 },
-		{ "flowers", -8, 13, 0 },
-		{ "picnic", 14, 21, 0 },
-		{ "lamp", 9, 12, 0 },
-		{ "bush", -14, 22, 0 },
-		{ "gnome", 1, 13, 0 },
-		{ "bikes", -7, 22, 90 },
-		{ "flowers", -2, 22, 0 },
-	}
-	for _, w in wanted do
-		local id, x, z, rot = w[1], w[2], w[3], w[4]
-		local okFit = Plot.fits(1, prof.plot.placed, id, x, z, rot)
-		if okFit then
-			local res = H.req(p, "plot.place", { id = id, x = x, z = z, rot = rot })
-			if not (res and res.ok) then
-				log("plot.place %s %d,%d: %s", id, x, z, tostring(res and res.err))
-			end
-		else
-			log("plot.place %s %d,%d: does not fit (skipped)", id, x, z)
-		end
-		E.run(0.12)
-	end
 	settle(p, 30, 1)
 	if not H.clickNamed(p, "Menu_build", { optional = true }) then
 		log("no Build button")
@@ -521,6 +477,8 @@ function SCEN.build()
 	local BuildUI = modOr(p, "UI.BuildUI")
 	local PR = modOr(p, "Pixel.PixelRenderer")
 	local Street = H.sharedServer("Data.Street")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
 	local ox, oz = Street.origin(1)
 	local function tapWorld(world)
 		H.inClient(p, function()
@@ -528,18 +486,19 @@ function SCEN.build()
 			BuildUI.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
 		end)
 	end
+	settle(p, 10, 0.5)
+	capture(p, "build_tray")
 	if BuildUI and PR then
 		H.inClient(p, function()
-			BuildUI.pick("oak", 0)
+			BuildUI.pick("lumber", 0)
 		end)
-		-- a fitting cell in the east yard for the oak (3 x 3)
-		local cx, cz = 18, 8
+		local cx, cz = 14, 14
 		for r = 0, 6 do
 			local found = false
 			for dz = -r, r do
 				for dx = -r, r do
-					if not found and Plot.fits(1, prof.plot.placed, "oak", 18 + dx, 8 + dz, 0) then
-						cx, cz, found = 18 + dx, 8 + dz, true
+					if not found and Plot.fits(1, prof.plot.placed, "lumber", 14 + dx, 14 + dz, 0) then
+						cx, cz, found = 14 + dx, 14 + dz, true
 					end
 				end
 			end
@@ -547,7 +506,7 @@ function SCEN.build()
 				break
 			end
 		end
-		tapWorld(E.v3(ox + cx + 1.5, Street.LAWN_Y, oz + cz + 1.5))
+		tapWorld(E.v3(ox + cx + 2, Street.LAWN_Y, oz + cz + 1.5))
 		settle(p, 10, 0.5)
 		capture(p, "build")
 		tapWorld(E.v3(ox + 2, 0, oz + 1))
@@ -557,7 +516,6 @@ function SCEN.build()
 	return p
 end
 
--- A Studio Floor studio with a dozen pieces of decor on its plot, the home view.
 -- "late": the screen's size settles after the HUD is built, the two ways Roblox does it: (1) the top bar's inset
 -- arrives with no ViewportSize event (the roots shrink by it on their own), (2) a phone turns and the camera's
 -- ViewportSize event comes before the roots are laid out again. The menu bar must stay wholly on screen, at the
@@ -604,32 +562,8 @@ function SCEN.late()
 	return p
 end
 
-function SCEN.plot3()
-	seedProfile(55, 3, { board = BOARD, games = 20, decor = {
-		{ id = "fountain", x = 22, z = 16 },
-		{ id = "statue", x = 29, z = 4 },
-		{ id = "truck", x = 22, z = 24 },
-		{ id = "billboard", x = 19, z = -14 },
-		{ id = "dish", x = 30, z = -9 },
-		{ id = "kiosk", x = 19, z = 4 },
-		{ id = "oak", x = -22, z = 17 },
-		{ id = "pine", x = -21, z = 24 },
-		{ id = "bench", x = -9, z = 16 },
-		{ id = "picnic", x = -3, z = 21 },
-		{ id = "flowers", x = 1, z = 16 },
-		{ id = "lamp", x = 15, z = 15 },
-		{ id = "bush", x = -16, z = 25 },
-		{ id = "bikes", x = 4, z = 24 },
-	} })
-	local p = join(55, "Mogul")
-	settle(p)
-	E.run(1.5)
-	capture(p, "plot3")
-	return p
-end
-
 ------------------------------------------------------------------ run
-local list = if scenario == "all" then { "office", "reveal", "make", "launch", "street", "build" } else { scenario }
+local list = if scenario == "all" then { "island", "village", "island3", "sea", "build", "day" } else { scenario }
 for _, name in list do
 	local fn = SCEN[name]
 	local panel = string.match(name, "^panel=(%w+)$")
@@ -638,10 +572,10 @@ for _, name in list do
 			return panelScenario(panel)
 		end
 	end
-	local micro = string.match(name, "^micro=([%w_]+)$")
-	if micro then
+	local exp = string.match(name, "^exp=([%w_]+)$")
+	if exp then
 		fn = function()
-			return microScenario(micro)
+			return expScenario(exp)
 		end
 	end
 	if fn == nil then

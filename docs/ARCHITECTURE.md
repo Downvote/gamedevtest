@@ -1,4 +1,4 @@
-# Byte-Size Studio: Architecture and Implementation Contract
+# Driftling Isle: Architecture and Implementation Contract
 
 The contract for the code in this repository (GitHub `Downvote/gamedevtest`). `docs/GAME_DESIGN.md` says what the game
 does and why; this file says how the code is laid out, what each module offers and which data goes where. Where the
@@ -7,26 +7,23 @@ two disagree on an API, a type or a name, this file wins; on a number, `src/shar
 The build system, the conventions and much of the rendering code come from Random Bakery (`Downvote/test`, used
 read-only as the reference: nothing there was changed). What was copied, and how it was changed, is listed in §12.
 
-> The request (2026-11-06): "use its pixel art style and filters and isometric style, along with its build system
-> and formats. reference game dev story from kariosoft and make a simplified version of it in gamedevtest"
->
-> The redesign (2026-11-09, GAME_DESIGN quotes it whole): "scrap the whole system. ... rng system, where an idea team
-> thinks of random ideas ... the player can combine 3 ideas into one game, in which the player has to play 3 minigames
-> ... coins can be used to boost the idea team ..."
+> The request (2026-11-10, GAME_DESIGN quotes it with the choices made): "scrap this idea. could you make replicate
+> beasty bay from kariosoft instead? still use the test repo as a reference" (an original island-village game in the
+> genre: island building and farming, creature taming, expeditions and battles, villagers moving in, a shared sea)
 
 ## 1. Layout and tooling
 
 ```
 default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScriptService, Client -> StarterPlayerScripts;
-                       characters on (the founder walks the street; jump power 0)
+                       characters on (the founder walks the islands; jump power 0)
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
                        maths, copied), Models (procedural models), Locale (Lang: English only)
-src/server/            Main.server.luau, Services/* (DataService, Session, Router, StudioService, PlotService)
-src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView, StreetLife),
-                       Audio, Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
-                       Menus, MicroUI, MicroGames, MicroArena, MicroStage, SalesGraph, PixelSprites, ArtData
-                       (generated), BuildUI, Words)
-tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), specs/*.spec.luau
+src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
+src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView, StreetLife,
+                       Audio), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
+                       Menus, BuildUI, ExpeditionUI, MicroStage, PixelSprites, ArtData (generated), Words)
+tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), career.luau (prints
+                       its runs), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
 scripts/gen_pixelfont.py  the pixel font's glyph tables (copied; README "Fonts and licences")
 scripts/gen_art.py     every interface sprite as a text mask -> UI/ArtData.luau (outline, anti-aliasing, shading;
@@ -37,7 +34,8 @@ tools/                 setup.sh (installs rojo, luau, luau-lsp), defs/ (Roblox A
 
 Rojo 7.4.4 (`rokit.toml`), luau-lsp 1.70.1 with `tools/defs/globalTypes.d.luau`, the plain Luau CLI for the specs.
 Every file is `--!strict` (`.luaurc`). `X.server.luau` is a Script, `X.client.luau` a LocalScript, everything else a
-ModuleScript; there are no `init.luau` files.
+ModuleScript; there are no `init.luau` files. (The Rojo project keeps its old name `byte-size-studio`; the place file
+is `DriftlingIsle-<short hash>.rbxl`.)
 
 ## 2. Rules for the code
 
@@ -50,36 +48,38 @@ ModuleScript; there are no `init.luau` files.
   `Logic/Validate`, answered `{ ok = true, data }` or `{ ok = false, err = ErrCode }`.
 - Every number is in `Config/Tuning.luau`; every Roblox id is in `Config/Monetization.luau` (0 = not made yet).
 - One function stays under 200 locals and upvalues (luau-compile checks it).
-- Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 11).
+- Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
+- Some modules keep the names of the games before this one (the plots along a "street", the lodge an "office"):
+  `Data/Street` is the sea and the boardwalk, `Data/Office` the lodge, `Models/OfficeModels` builds it,
+  `Models/DecorModels` builds every building, `Models/StreetModels` the sea, `UI/MicroStage` the islets' stages,
+  `Models/MicroModels` the driftlings and the stages' things.
 
 ## 3. Types (`src/shared/Types.luau`)
 
-`Look`, `Member` (an idea team member: `{ id, name, look, desk }`), `Card` (an idea on the board: `{ id, mod }`, a
-Data/Ideas id and a Data/Modifiers id), `Making` (the game being made: `{ title, ideas: { Card } x3, won: { -1 | 0 |
-1 } x3, seed }`), `Game` (a launched game: `{ id, title, ideas, rate (coins a second at its peak), wins, at, peak
-(players), earned (coins while on sale) }`), `Live` (the game on sale: `{ id, title, top (the curve's peak players),
-life, age, players, earned, peak, seed, samples (players every LiveSampleSec) }`), `Upgrades` (`{ speed, luck }`),
-`Piece`, `PlotSave`, `Settings`, `Stats` (`{ games, rolls, best, earned }`), `Profile` (the save, version 4: `coins`,
-`ideas` (the board), `found` ("idea|mod" -> count: the Index), `project`, `games`, `live?` (the newest game while it
-sells, kept over when it has left the shops until the next is made), `nextGame`, `upgrades`, `team`, `office`, `tut`,
-`stats`, `settings`, `createdAt`, `founder`, `plot`), `ClientView` (the profile's fields plus `rate` (what the game on
-sale earns a second now), `live`, `plot` (the plot index), `rollEvery`, `luck`, `decor`), `ErrCode`,
+`Look`, `Piece` (`{ uid, id, x, z, rot, lvl }`: a building standing on the island; `uid` stays while it stands),
+`PlotSave` (`{ placed }`), `Villager` (`{ id, name, look, work (a Piece uid, 0 idle), lvl, xp, seed, day }`), `Pal` (a
+befriended driftling: `{ id, sp, lvl, xp, work }`), `Captain` (`{ lvl, xp }`), `Settings`, `Stats` (`{ days, built,
+earned, befriended, battles, cleared, movedIn }`), `Profile` (the save, version 5: `shells`, `food`, `wood`, `day`,
+`tier`, `founder`, `cap`, `folk`, `pals`, `plot`, `islets` (guardians beaten), `seen` (species -> 1 met, 2 befriended),
+`nextId` (villagers, driftlings and pieces share it), `tut`, `stats`, `settings`, `createdAt`), `Fighter` (`{ key ("f",
+"v<id>", "p<id>", "w<i>"), name, kind, sp?, look?, lvl, hp, maxHp, atk, def, spd, skill, charge }`), `Battle` (`{ foes,
+round, boss, shield, foeShield }`), `Expedition` (`{ islet, node, nodes, done, party, loot { shells food wood },
+battle?, befriended, over? ("home" | "won" | "lost") }`), `ClientView` (the profile's fields plus `dayFrac`, `plot`
+(the plot index), `pieces`, `rates` (a day, after eating), `charm`, `beds`, `nests`, `visitors`, `exp?`), `ErrCode`,
 `Response`, and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The file is the reference for
 every field.
 
 ## 4. Config
 
-- `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed; `GamesKept`), the idea team
-  (`StartCoins`, `TeamSize`, `BoardSize`, `RollBase`, `RollStep`, `RollMin`, `LuckStep`, `RareOdds`, `CommonOdds`,
-  `CommonFloor`, `TierOneIn` / `TierNames` / `TierColors`, `RevealTier`), the upgrades (`SpeedCost`, `SpeedGrowth`,
-  `LuckCost`, `LuckGrowth`), the income (`IdeaValue`, `IdeaValuePow`, `WinBoost`, `IncomeTickSec`), the game on sale
-  (`CoinPerPlayer`, `LiveLife`, `LivePeakAt`, `LiveStart`, `LiveFall`, `LiveWobble`, `LiveJitter`, `LiveBuzzes`,
-  `LiveBuzz`, `LiveFloor`, `LiveSampleSec`, `LiveSamples`), the minigames (`MicroSeconds`, `MicroIntro`,
-  `MicroCountdown`, `MicroStageWait`, `MicroMinSec`, `MicroMaxSec`, `DiffMax`, `TurboSpeed`, `TurboClock`,
-  `FrenzyMore`), the server's step and rate limit, the street (`MaxPlots`, `PlotSpacing`, `PlotPieces`,
-  `HomeCooldown`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45, `CamPitch` 30, `PixelTiers`,
-  `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`, `CamGlide`,
-  `CamBuildPan`, `PixelPanRays`, `PixelInvalidateRaysFrame`).
+- `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the island (`StartShells`,
+  `StartFood`, `StartWood`, `DaySeconds`, `EatFolk`, `EatPal`, `Hungry`, `IdleOutput`, `PalBoost`, `VisitorCharm`,
+  `VisitorsMax`, `ShopVisitors`, `MoveInCharm`, `FolkMax`, `PalsMax`, `Refund`, `UpgradeMult`, `UpgradeCost`,
+  `TierCost`), levels and battles (`LevelGrow`, `LevelMax`, `XpBase`, `XpPow`, `XpPerFoe`, `TrainXp`, `PartyMax`,
+  `Supplies`, `TreatFood`, `SkillEvery`, `GuardTake`, `ShieldTake`, `FleeBase`, `BossBoost`, `RestHeal`,
+  `StageWait`), the server's step and rate limit, the sea (`MaxPlots`, `PlotSpacing`, `PlotPieces`, `HomeCooldown`),
+  and the camera and pixel filter values (Random Bakery's `CamYaw` 45, `CamPitch` 30, `PixelTiers`, `PixelScaleMin` /
+  `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`, `CamGlide`, `CamBuildPan`,
+  `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`, `PixelStageBakeMs`).
 - `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0) and `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Random Bakery's).
 
@@ -87,144 +87,134 @@ every field.
 
 | Module | Holds |
 |---|---|
-| `Data/Palette` | the LUT colours (`order`, `colors`), the office tiers' floor and wall themes (`themes`), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
-| `Data/Ideas` | the 24 ideas `{ id, name, kind (Genre / Theme), odds, micro (its engine), variant, word (its order), reuse, color, words }`; `list`, `byId` |
-| `Data/Modifiers` | the 7 modifiers `{ id, name, odds, mult, effects (speed ice rival more shrink), color, blurb }`, Plain first; `renamed` (the modifiers that went, by the one with their odds: tiny -> icy, shaky -> crowded, glitched -> frenzy, haunted -> shrinking) |
-| `Data/Names`, `Data/Looks` | the team's names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
-| `Data/Office` | the three rooms (`plans[tier]`: bounds, wall height, lot, desk anchors, props, windows, `OUTLINE` boxes), `origin(plot)` (Data/Street's), `seat(anchor)`, `outlinePts(tier, ox, oz)` and the desk and seat sizes |
-| `Data/Street` | the street (§12 of GAME_DESIGN): `MAX`, `SPACING`, `LAWN_Y` (-0.5), `ROAD` / `PAVE_N` / `PAVE_S` / `VERGE` (plot-local z bands), `FAR` / `END_FAR` (ground past the invisible walls: no sky at the world's edges), `LOT`, `plot(tier)` (the plot's rect), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `TREES` |
-| `Data/Decor` | the plot's decor `{ id, name, price (coins), w, d }` (footprint in whole studs facing south) |
+| `Data/Palette` | the LUT colours (`order`, `colors`), the lodge tiers' floor and wall themes (`themes`), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
+| `Data/Buildings` | the 27 pieces `{ id, name, kind (food wood shop home nest train decor), shells, wood, w, d, rate, eats, job, knack, beds, slots, charm, tier, blurb }`; `list`, `byId` |
+| `Data/Creatures` | the 15 driftlings `{ id, name, islet, hp, atk, def, spd, skill, knack, trust, shape, body, accent, blurb }`; `list`, `byId`, `skills` (their names) |
+| `Data/Islets` | the 5 islets `{ id, name, stage (its MicroStage set), lvl, wild, boss, bossName, nodes, loot, reward, color, blurb }`; `list` |
+| `Data/Names`, `Data/Looks` | the villagers' names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
+| `Data/Office` | the lodge's three rooms (`plans[tier]`: name, bounds, wall height, lot, props, windows, `OUTLINE` boxes; `desks` empty), `origin(plot)` (Data/Street's), `seat(anchor)`, `outlinePts(tier, ox, oz)` |
+| `Data/Street` | the sea (GAME_DESIGN 8): `MAX`, `SPACING`, `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WATER_Y`, `BEACH`, `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT`, `plot(tier)` (the island's grass), `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `door` / `footpath` / `spawn` / `sign` / `mailbox` (from the room's `maxX`, `maxZ`), `LAMPS`, `PIER_X` / `PIER_Z` / `PIER_W`, `pier()` |
 
 Coordinates in `Data/Office` are studs, plot-local, +Y up. The camera looks from the south-east, so the back walls are
-the north (`minZ`) and west (`minX`) ones; a developer sits on a desk's north side facing south (toward the camera),
-the monitor at the desk's south-west corner with its back to the camera. A prop's `rot` turns its model (built facing
-+Z): 0 faces south (north-wall pieces), 90 faces east (west-wall pieces).
+the north (`minZ`) and west (`minX`) ones. A prop's `rot` turns its model (built facing +Z): 0 faces south (north-wall
+pieces), 90 faces east (west-wall pieces).
 
 ## 6. Logic and models
 
-Pure rules (`src/shared/Logic`), all specced in `tests/specs`:
+Pure rules (`src/shared/Logic`), all specced in `tests/specs`; every action returns `(true, data?)` or `(false,
+ErrCode)` and changes the profile only on success:
 
 | Module | API |
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
-| `Ideas` | the rolls (GAME_DESIGN 4): `ideaChances(luck)`, `modChances(luck)` (Rare and rarer at luck / odds, Uncommon at 1 / odds, the commonest share the rest, at least `CommonFloor`), `roll(rng, luck) -> Card`, `oneIn(card)` (the idea's odds times the modifier's), `tierOf(n)`, `tier`, `tierName`, `tierColor`, `name` ("Frenzy Ninjas"), `value(card)` (coins a second at a game's peak), `difficulty(card)` (tier + reuse, 1..`DiffMax`), `title(cards, seed)`, `rate(cards, wins)` (a game's peak coins a second), `rollEvery(speed)`, `luck(level)`, `place(board, card) -> (slot, replaced?)` (room first; full: a rarer idea takes the commonest's place, else dropped), `key`, `valid` |
-| `Studio` | the rules over a profile, every action returning `(true, data?)` or `(false, ErrCode)` and changing the profile only on success: `rollIdea(profile, rng) -> Rolled` (`{ card, slot, replaced?, oneIn, tier, first }`: counted in the Index and the stats, placed on the board), `make(profile, a, b, c, seed)` (busy, bad_payload; takes the game on sale off: `retire`), `result(profile, slot, won)` (the best result counts; no_project), `wins(making)`, `launch(profile, now, seed?) -> Game` (no_project, not_built; the game goes on sale: `Live.new`), `retire(profile)` (the game on sale leaves the shops, its record keeping its peak and coins), `sell(profile, dt) -> (coins, endedNow)` (the game on sale ages dt seconds: `Live.step`), `earn(profile, coins)`, `upgradeCost(k, level)`, `speedMaxed`, `buyUpgrade(profile, k)` (money, max, bad_payload), `rollEvery(profile)`, `luck(profile)`, `randomLook(rng)`, `newTeam(rng, n)`, `setFounder(profile, skin, hair, style, shirt)` |
-| `Live` | the game on sale (GAME_DESIGN 6): `shape(x)` (LiveStart up to 1 at LivePeakAt, eased; then down to 0 at the end, `LiveFall`), `wobble(seed, age, life)` (1 + a smooth drift + jitter + LiveBuzzes seeded bumps, at least LiveFloor), `playersAt(live, age)`, `new(game, seed)` (top = rate / CoinPerPlayer), `over`, `earning(live?)` (coins a second now), `phase` (rising, peak, falling, off), `step(live, dt) -> (coins, endedNow)` (the players' average over the step; a sample every LiveSampleSec; a last 0), `brief(live)` (what Fx "coins" carries), `lifetime(rate)` (a whole life's coins without the wobble) |
-| `Plot` | the plot's rules: `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the office with a stud round it, the footpath, the sign, the mailbox), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" / "blocked" / "overlap" / "unknown")`, and the actions `buy` (once, with coins), `place` (an owned piece, up to the limit), `move`, `store` |
-| `Schema` | `VERSION` (4: one game on sale), `default(now, seed)`, `migrate(raw)` (1 -> 2: a founder and a plot; 2 -> 3: the old studio's fields dropped, its staff kept as the idea team, the tips start over; 3 -> 4: the summed rate dropped, the newest game goes on sale afresh), `reconcile(raw, now, seed)` (any table -> a valid Profile: cards that exist (an old modifier by its new name, `Modifiers.renamed`; Index counts merged), the board at most `BoardSize`, a project only with three valid ideas, games' rates worked out again from their ideas, the game on sale only when its game is listed (its curve rebuilt from the game's rate, its age, coins and samples kept), the team one to a desk inside the room, owned decor that exists and placed pieces that fit) |
+| `Island` | the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm`, `visitors`, `works(id)`, `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a day), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `newDay(p, rng, away?) -> { movedIn?, trained? }`, `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
+| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the lodge with a stud round it, the path, the sign, the mailbox), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" / "blocked" / "overlap" / "unknown")`, `place` (locked, full, money, wood, blocked; a building that takes workers gets an idle villager), `move`, `upgradeCost(q)`, `upgrade` (max, money, wood), `store` (no_room; `Refund` back), `refit(p) -> (moved, cleared)` (after the island grew: pieces the bigger lodge covers move to the nearest free spot) |
+| `Battle` | battles (GAME_DESIGN 7): `FOUNDER`, `villagerBase(seed)`, `speciesBase(sp)`, `grow(v, lvl)`, `founder(p)`, `villager(v)`, `pal(x)`, `wild(sp, lvl, i, boss, name?)`, `new(foes, boss)`, `alive`, `treatChance(foe, party, boss)`, `fleeChance`, `round(party, b, act, target?, rng) -> (events, result?)` (events `hit heal shield rally guard treat flee`; result `win lose fled`) |
+| `Expedition` | expeditions: `fighter(p, key)`, `away(e)`, `supplies(n)`, `levelAt(islet, node)`, `start(p, islet, members)` (bad_payload, locked, full, not_found, food), `next(p, e, rng)` (`{ kind, node, food?, wood?, shells?, foes? }`; in_battle, max), `room(p)`, `act(p, e, act, target?, rng)` (`{ events, result, friend?, xp?, shells?, ups?, reward?, first? }`; a treat: blocked on a guardian, food, no_room), `home(p, e)` (half after a defeat) |
+| `Schema` | `VERSION` (5: the island), `default(now, seed)`, `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist and fit with unique uids, villagers and driftlings with unique ids working only where they may, the Index's species, `nextId` past every id) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
+| `Numbers` | `int`, `short`, `coins`, `rate`, `perDay` ("+12/day"), `oneIn` |
 
 Models (`src/shared/Models`, Roblox modules):
 
 - `Blocks` (copied): `part(parent, spec)` (anchored, SmoothPlastic or Neon, sizes on the 0.25-stud grid, palette
   colours), `cylY`, `model`, `color`, `snap`.
-- `OfficeModels.build(parent, tier, origin) -> Model`: the lot (lawn and a path), the floor slab and its tiles in the
-  tier's theme, the two back walls with skirting and crown, the north wall's windows, the low rim on the open sides,
-  the desks (`Desk_<i>`: top, side panels, monitor with its power light, keyboard, mouse, mug, chair) and the props
-  (`garage_door shelf boxes plant lamp beanbag cooler poster bookcase whiteboard coffee rug sofa server trophies tv
-  arcade`). `paint(model, theme)` gives the floor and wall parts their theme's colours.
-- `CharacterModels.build(look, name, seed) -> Rig` (`{ model, parts, rest, seed }`): a seated chibi developer facing
-  +Z, origin on the seat's top centre; parts are not queryable or collidable. `pose(rig, base, t, state)` with state
-  `type idle tired cheer`; `HEAD_TOP` is where popups start. `buildStanding(look, name, seed)`: a founder (the same
-  head on a standing body, origin between the feet); `poseStanding(rig, base, t, speed)` (a walk cycle by speed,
-  breathing and looking round when still); `STAND_TOP` (the name label).
-- `StreetModels`: `road(parent, origin)` (a plot's stretch: pavements with kerbs, the road and its dashed line, the
-  verge, lamp posts, trees), `land(parent, origin, tier)` (meadow, the plot's lawn, the stepping-stone footpath, the
-  plot sign with its `SignBoard`, the mailbox), `emptyLot(parent, origin)`, `ends(parent)` (the street's ends and the
-  invisible, unqueryable walls round the world). Tops: lawn -0.5, meadow -0.55, road -0.45, pavements -0.3.
-- `DecorModels.build(id, at) -> Model` (`at`: the footprint's centre on the lawn, turned; parts don't collide), `has`.
-- `MicroModels` (the microgames' 3D things, GAME_DESIGN 5): `build(kind, opts?) -> Thing` (`{ model, parts, rest,
-  sizes, baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin on the ground, facing +Z;
-  kinds `crate cone coin bomb fish jelly alien rocket sprout flower zombie kid fruit half rock cactus cat slime ghost
-  ball pancake pan basket soldier suspect gem orb star flag pad shape kart goal pedestal dashes specks lane hat sword
-  hammer can blaster arrow shuriken meteor ring pillar`; `opts { color, alt }`), `slab(size, color, band?, neon?)` (a
-  plain box), `grid(n, step, size, h, color)` (a floor of n x n tiles `T1..`, one thing), `hoop(radius, n, a, b,
-  neon?)` (a ring of bars), `place(t, cf)`,
-  `scale(t, k)` (squash and stretch from the built shape), `recolor(t, color?)` (all but the `Keep` parts; nil: back),
-  `show(t, on)`, `has`, `SHAPES` (Match's). Ambient kinds (MicroStage, StreetLife): `bird butterfly ufo light flame
-  yarn plane book drone crab spot car` (birds, bats, butterflies and drones have `WingL` / `WingR` to beat).
-- `CharacterModels.poseAction(rig, base, t, speed, action, k?)`: a founder's poseStanding plus the arms (and legs) of
-  `cheer hurt swing reach pet cast jump sneak dance` (k: a swing's progress).
-- `OfficeModels` no longer builds a lawn (the street does); its low rim doesn't collide; a doorstep fills the gap.
+- `OfficeModels.build(parent, tier, origin) -> Model`: the lodge: the floor slab and its planks or tiles in the tier's
+  theme, the two back walls with skirting and crown, the north wall's windows, the low rim on the open sides with a
+  doorstep, and the props (`shelf boxes plant lamp beanbag barrel seachest chart poster bookcase rug sofa trophies`, and
+  the older `garage_door cooler whiteboard coffee server tv arcade`). `paint(model, theme)`.
+- `CharacterModels.build(look, name, seed) -> Rig` (a seated chibi, the portraits'), `buildStanding(look, name, seed)`
+  (a standing chibi: the founder and the villagers), `poseStanding(rig, base, t, speed)`, `poseAction(rig, base, t,
+  speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`), `STAND_TOP`.
+- `StreetModels`: `road(parent, origin)` (a plot's stretch of boardwalk, the sea before it, its pier and moored
+  boat), `land(parent, origin, tier)` (the island's grass and beach, the path, the sign with its `SignBoard`, the
+  mailbox), `emptyLot(parent, origin)` (open water), `ends(parent)` (the sea past the ends, the boardwalk's last
+  lantern, and the invisible, unqueryable walls round the world: 8 studs, higher than a jump and low enough that the
+  pixel filter's rays seldom pass more than one).
+- `DecorModels.build(id, at, lvl?) -> Model` (every building and piece of decor; `at`: the footprint's centre on the
+  grass, turned; a pennant from Lv 2; parts don't collide), `has`.
+- `MicroModels` (the driftlings and the stages' things): `build(kind, opts?) -> Thing` (`{ model, parts, rest, sizes,
+  baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin, facing +Z), `driftling(shape, body,
+  accent)` (the 14 shapes `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm`), `sailboat`,
+  ambient kinds (`bird butterfly light flame crab ...`), `slab`, `grid`, `hoop`, `place(t, cf)`, `scale(t, k)`,
+  `recolor(t, color?)`, `show(t, on)`, `has`.
 
 ## 7. Server
 
 ### 7.1 Remotes (`Net`)
 `ReplicatedStorage.Remotes`: `Request` (RemoteFunction, C->S `(action, payload) -> Response`), `Signal` (RemoteEvent,
 C->S `(kind, payload)`; no handlers in this version), `State` (RemoteEvent, S->C the whole `ClientView` when it
-changed), `Fx` (RemoteEvent, S->C `{ kind = "idea", card, slot, replaced?, oneIn, tier, first }` for each new idea,
-`{ kind = "coins", coins, paid, rate, live? }` every income tick while a game sells (`live`: `Live.brief`, the players
-and the newest sample) and `{ kind = "offsale", title, earned, peak }` when it leaves the shops). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
+changed), `Fx` (RemoteEvent, S->C `{ kind = "tick", shells, food, wood, dayFrac }` every second, `{ kind = "day", day,
+movedIn? (the Villager), trained? }` at dawn, `{ kind = "exp", step = "node" | "round" | "home", data }` for each
+expedition step). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
 
 ### 7.2 `Session`
-`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, rollClock, payClock, coinFrac, dirty,
-saveAt, reqTimes, micro? }`; `micro: Micro = { slot, token, at, seed }` is the microgame in play), `get`, `remove`,
-`all`, `view(s) -> ClientView` (with `rate` = `Live.earning`, `live`, `rollEvery` and `luck`), `markDirty`, `flush` (sends State when dirty),
-`fx(s, msg)`, `allow(s, now)` (the rate limit).
+`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, dayClock, tickClock, dirty, saveAt,
+reqTimes, exp?, away }`: `exp` the expedition under way, `away` its party's keys), `get`, `remove`, `all`, `view(s) ->
+ClientView`, `setExp(s, e?)`, `markDirty`, `flush` (sends State when dirty), `fx(s, msg)`, `allow(s, now)` (the rate
+limit).
 
 ### 7.3 `Router` and the action catalogue
 `Router.on(action, fn(s, payload) -> (ok, data|err))`, `Router.onSignal(kind, fn)`, `Router.handle(player, action,
 payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -> `rate`; `Validate.request`; the
 handler under pcall; success marks the session dirty).
 
-| Action | Payload | Rule (`Logic/Studio`) | Errors |
+| Action | Payload | Rule | Errors |
 |---|---|---|---|
-| `game.make` | `a b c` (board indices 1..16) | `make` (data: the Making; the game on sale leaves the shops) | busy, bad_payload |
-| `micro.start` | `slot` (1..3) | the session keeps `micro` (a new start replaces one in play: a retry at any time) (data: `{ slot, token, seed, diff, card }`) | no_project, bad_payload |
-| `micro.finish` | `token won` (`won` 0 or 1) | `result` with the result, a loss when a win comes sooner than `MicroMinSec` or any result later than `MicroMaxSec` after the start; lets go of `micro` (data: `{ slot, won }`) | busy (no microgame or a wrong token) |
-| `game.launch` | - | `launch` with a seed from the session's Rng (data: the Game; it goes on sale) | no_project, not_built |
-| `upgrade.buy` | `k` ("speed" / "luck") | `buyUpgrade` (data: `{ level, cost }`) | money, max |
-| `founder.set` | `skin hair style shirt` | `setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
+| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place`, the buildings rebuilt by difference, the tips | locked, full, money, wood, blocked |
+| `plot.move` | `i x z rot` | `Plot.move` | blocked, bad_payload |
+| `plot.upgrade` | `i` | `Plot.upgrade` (data `{ lvl }`) | max, money, wood, bad_payload |
+| `plot.store` | `i` | `Plot.store` (clear away) | no_room, bad_payload |
+| `island.expand` | - | `Island.expand`, the lodge and island rebuilt (data `{ tier, moved, cleared }`) | max, money, wood |
+| `folk.work` / `pal.work` | `id uid` (0: rest) | `Island.setWork` / `setHelp` | not_found, bad_payload |
+| `folk.dismiss` / `pal.release` | `id` | `Island.dismiss` / `release` | busy (away), not_found |
+| `exp.start` | `islet party` ("v3,p7": up to three, "" the captain alone) | `Expedition.start`, the session keeps it (data `{ islet }`) | busy, locked, full, not_found, food, bad_payload |
+| `exp.next` | - | `Expedition.next` (Fx exp node) | no_exp, in_battle, max |
+| `exp.act` | `act target` (fight guard treat flee; "w<i>" or "") | `Expedition.act` (Fx exp round) | no_exp, blocked, food, no_room |
+| `exp.home` | - | `Expedition.home`, the session lets go (Fx exp home; data `{ got, over, befriended, islet }`) | no_exp, in_battle |
+| `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `settings.set` | `k` ("pixel"), `v` | the pixel tier: high, medium, low, off | bad_payload |
-| `tut.next` | - | the tips banner goes away for good | - |
-| `plot.buy` | `id` | `Plot.buy` | max, money, bad_payload |
-| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place`, then PlotService rebuilds the decor by difference (data: `{ i }`) | locked, full, blocked |
-| `plot.move` | `i x z rot` | `Plot.move`, the decor rebuilt | blocked, bad_payload |
-| `plot.store` | `i` | `Plot.store`, the decor rebuilt | bad_payload |
-| `char.home` | - | PlotService puts the founder on their footpath | cooldown (`Tuning.HomeCooldown`), not_ready |
+| `tut.next` | - | the tips go away for good | - |
+| `char.home` | - | PlotService puts the founder on their path | cooldown (`Tuning.HomeCooldown`), not_ready |
 
-### 7.4 `StudioService`
-Registers the actions above. `step(dt)` (Main's fixed 10 Hz step), for every ready session: the idea team's clock
-(`roll(s)` every `Studio.rollEvery`: `Studio.rollIdea`, then `Fx "idea"`), the game on sale (`Studio.sell(p, dt)`
-accumulated, the whole coins paid every `Tuning.IncomeTickSec` with `Fx "coins"` carrying its players; the whole view
-is not sent for it; when it leaves the shops the view is sent and `Fx "offsale"`), and a microgame left open past
-`Tuning.MicroMaxSec` dropped. Nothing holds the clocks; nothing sells while the player is away.
+### 7.4 `IslandService`
+Registers the actions above. `step(dt)` (Main's fixed 10 Hz step), for every ready session: `Island.step` (those away
+left out), the view sent when the food runs out or comes back, a day every `DaySeconds` (`Island.newDay`, Fx "day"),
+the stores every second (Fx "tick": the whole view is not sent for them). `leaving(s)`: an expedition under way comes
+home with its loot (on leave and at shutdown). Nothing happens while the player is away.
 
-### 7.5 `PlotService` (the street)
-`init()` builds the whole street: `Workspace.Plots.Street` (every plot's road stretch and the street's ends) and an
-empty lot on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
-free index, 0 when the street is full: Main kicks), `release(i)` (back to an empty lot, attributes cleared).
-`build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName`; its `Static` gets `Office` and `Land` for the session's
-tier (rebuilt only when `Static`'s `Built` attribute differs: a new folder goes up before the old comes down) and
-`Decor` by difference (`buildDecor(s)`: one model a piece, named `id:x:z:rot`; models whose piece is still there stay,
-gone ones are destroyed, new ones built), then `sync(s)`: the attributes `Tier`, `Games`, `Best` (the rarest idea's
-1 in N), `Rate` (the whole coins a second the game on sale earns), `Crew` (a team member a `;`-separated entry `desk.skin.hair.style.shirt.0`)
-and `Working` (always true: the team is always thinking), and the player's `Founder`
-(`skin.hair.style.shirt`) and `Plot` attributes (Main syncs every dirty session before sending its view; only changed
-values replicate). The founder: `watchCharacters(player)` (a new character goes to its footpath once it has a root),
+### 7.5 `PlotService` (the sea)
+`init()` builds the whole sea: `Workspace.Plots.Street` (every plot's boardwalk stretch and the sea's ends) and open
+water on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
+free index, 0 when the sea is full: Main kicks), `release(i)` (back to open water, every attribute cleared).
+`build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets `Office` (the lodge)
+and `Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs) and `Decor` by difference
+(`buildDecor(s)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay), then `sync(s)`:
+the attributes `Tier`, `Day`, `Charm`, `Islets`, `Folk` (a villager a `;`-separated `id.skin.hair.style.shirt.work.away`),
+`Pals` (`id.species.work.away`), `Sailing`, and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs
+every dirty session before sending its view; only changed values replicate). The founder: `watchCharacters(player)`,
 `placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`).
 
 ### 7.6 Persistence (`DataService`, `Logic/Schema`)
 One key per player (`u_<userId>`) in `Tuning.DataStoreName`, a record `{ data = Profile, lock = { job, t }? }`.
 `load(userId) -> (raw?, ok)` takes the lock: while another server holds a lock younger than `Tuning.LockTTL` it
-waits and retries, and on the last of `Tuning.LoadRetries` attempts (about 10 s) takes it over (a server saving a
-player on leave is done by then; a crashed one never lets go). `save(userId, profile, release?)` never overwrites a
-record whose lock another server holds, so a late save from the old server is dropped instead of rolling back. Main: join -> claim a plot, load (kick on failure), `Schema.reconcile`, build the office, ready, send the view;
-leave -> save with the lock released, free the plot; autosave every `Tuning.AutosaveSec`; BindToClose saves everyone.
-Without DataStores (Studio without API access) saves live in memory and a warning says so. A new save shape needs a
-`Schema.VERSION` step in `migrate` and a spec that an older profile still loads.
+waits and retries, and on the last of `Tuning.LoadRetries` attempts (about 10 s) takes it over. `save(userId, profile,
+release?)` never overwrites a record whose lock another server holds. Main: join -> claim a plot, load (kick on
+failure), `Schema.reconcile`, build the island, ready, send the view; leave -> `IslandService.leaving`, save with the
+lock released, free the plot; autosave every `Tuning.AutosaveSec`; BindToClose brings expeditions home and saves
+everyone. Without DataStores (Studio without API access) saves live in memory and a warning says so. A new save shape
+needs a `Schema.VERSION` step in `migrate` and a spec that an older profile still loads.
 
 ## 8. Client bootstrap and the mirror
 
 `Main.client`: `StateClient.init` (remotes), `PixelRenderer.init` (lighting), `CameraController.init`, wait for the
 first view, `CameraController.start`, `PixelRenderer.start`, `UIKit.init`, `WorldView.start`, `AvatarView.start`,
-`StreetLife.start`, `Hud.start`.
+`StreetLife.start`, `Hud.start` (which starts `Menus` and `ExpeditionUI`).
 
 ### 8.1 `StateClient`
-`init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Coins: Signal<number>`
-(an income payment: the view's `coins`, `rate` and `live` (its players, peak, coins, and the graph's newest sample) are
-patched in place, no whole view comes), `request(action, payload) ->
-Response` (never errors), `signal(kind, payload)`.
+`init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Tick:
+Signal<ClientView>` (Fx "tick": the view's `shells`, `food`, `wood` and `dayFrac` are patched in place, no whole view
+comes), `request(action, payload) -> Response` (never errors), `signal(kind, payload)`.
 
 ### 8.2 `Audio`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's), `has(name)`, `EVENTS`: every sound by
@@ -242,14 +232,14 @@ ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`), time-sliced (
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
 pixels when they show the same part and normal (their own shadow ray otherwise), shaded with `Render/Shading`'s three
 toon bands and the palette LUT (the indoor tint inside the room), then the ink outline (`Shading.outline`) and the
-contact shade at the foot of upright faces. The **dynamic layer** is the idea teams and the founders: every tick (the tier's Hz) their parts
+contact shade at the foot of upright faces. The **dynamic layer** is the islanders (villagers and driftlings) and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
 layer and outlined; only the old and new dirty rects are restored and uploaded. Without EditableImages (or with
 Classic picked) the layer hides and the Roblox camera shows the 3D world.
 
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
-Orthographic yaw 45° pitch 30°: floor edges step 2:1. The office's outline (`Office.outlinePts`) is fitted on screen
+Orthographic yaw 45° pitch 30°: floor edges step 2:1. The lodge's outline (`Office.outlinePts`) is fitted on screen
 clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`, `Raster.gridPhase`)
 whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`). The grid's ray plane
 `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the key (`plot|tier|a|phase|l|screen|K`) only
@@ -336,153 +326,116 @@ and `Activated` plays `click` (or `deny` when disabled); a panel's shade fades i
 place; a notice slides down into the stack and fades out.
 
 ### 10.2 `WorldView`
-A rig per idea team member at their desk (rebuilt when their look, desk, office or plot changes), registered with the
-renderer and posed every frame: typing away, cheering for a moment. The own team comes from the view (keys
-`own:<member id>`): each new idea (`Fx "idea"`) pops out of the next member's head in its tier's colour (Rare and up
-bigger, and they cheer); every other studio's team from its plot's `Crew` attributes (keys `<plot>:<desk>`). Only
-rigs on plots within 90 studs of the view's centre are posed. Each plot sign gets a World-root label (the studio's
-name, the own in gold, or "Empty lot"); a tap on a sign (a press let go within 8 px, not on the interface, not in
-Build mode) shows `signCard(i)` (games, the rarest idea, the income). `rigCount()` / `ownRigCount()` for the sims.
-A typing member sends a bit of code ("</>", "{ }", "01" ...) up from their screen every few seconds; `cheer(words,
-color)` makes the own team cheer with the words over their heads in turn (a launch), confetti bits over each; a new
-idea's head throws sparkles in its tier's colour (`UIKit.bitsAt`).
-`StreetLife` (client, started after AvatarView): four cars (`MicroModels` "car", blob shadows) driving both lanes of
-the road, wrapping round the street's ends and waiting while a founder stands in their lane ahead; a flock of three
-birds crossing every 14-24 s; two clouds: invisible models high up with a `PixelShadow` (their shadows drift east over
-the street). `count()` for the CLI.
+The islanders: a walker per villager (`CharacterModels.buildStanding` in their look) and per driftling
+(`MicroModels.driftling` in its species' shape and colours), parsed from each owned plot's `Folk` and `Pals`
+attributes (those away left out) and placed among the buildings read from its `Static.Decor` models' names
+(`uid:id:x:z:rot:lvl`). Villagers walk to their building and work there (hoeing at a patch, chopping at a camp,
+selling at a shop: `poseAction`), wander when resting; driftlings hop beside the building they help at or round the
+nests. Only islands within 100 studs of the view's centre are drawn (synced every half second). Each island's sign gets
+a World-root label (its name, the own in gold, or "Unclaimed isle"); a tap on a sign (a press let go within 8 px, not
+on the interface, not in Build mode) shows `signCard(i)` (the day, villagers, driftlings, charm, islets). A newcomer
+(Fx "day" `movedIn`) gets a welcome word and confetti; `cheer(words, color)` makes the own islanders cheer.
+`rigCount()` / `ownRigCount()` for the sims.
+`StreetLife` (client, started after AvatarView): four sailboats (`MicroModels` "sailboat", blob shadows) crossing
+both ways on two lanes out at sea, rocking on the swell in whole steps, wrapping round the sea's ends; a flock of three
+gulls crossing every 14-24 s; two clouds: invisible models high up with a `PixelShadow` (their shadows drift east over
+the islands). `count()` for the CLI.
 
 ### 10.3 `Hud`
-Chips (`Chip_coins`, easing to the coins and flashing when they change; `Chip_rate`, "+12.4/s"; `Chip_idea`, "Idea in
-3.2s" with a bar along its edge, restarted by each `Fx "idea"`; `Chip_board`, "Board 7/12"; then `Home`, a button shown
-while the founder is off their own lot, sending `char.home`), the menu bar (`Menu_ideas`, `Menu_index`,
-`Menu_upgrades`, `Menu_games`, `Menu_looks`, `Menu_build`; while Build mode is open the bar, the card and the tips step
-aside), the card on the right: `BoardCard` (the newest four ideas in their tiers' colours and `MakeGame`, on with three
-ideas, opening the idea board) or, while a game is being made, `ProjectCard` (its title, its three ideas with WIN /
-lose / -, the sales boost, and `CardPlay` / `CardLaunch` opening the making card); the main button pulses. Under it
-`SalesCard` (on a phone at the top left, clear of Roblox's jump button) while a game is on sale: "On sale", its phase (Rising, At its peak!, Falling, Off sale), its title, its
-players' graph (`SalesGraph`), its players and coins a second (off sale: what it made), redrawn with every payment;
-`Fx "offsale"` brings a notice. The tips
-banner (`Tips`, "OK" sends `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`), and the reveal
-(`Reveal`: a Rare idea or better drops in at the top with its icon, tier, name, 1 in N and "New!", a sound by tier,
-confetti from Epic; over an open panel or the making card it is a notice in the status line instead). It reports its
-blocks to the camera (on PC the top strip, the menu bar and the card's place; on a phone Roblox's top bar and the menu
-bar). On `MicroUI.Launched` the team cheers (`WorldView.cheer`) with the new game's peak income.
-`SalesGraph.new(parent, w, h, z) -> { frame, set(live?) }`: a column a UI px over the whole life (`LiveLife /
-LiveSampleSec + 1` samples), each the most players among its samples, scaled to the larger of the peak and the
-curve's top; the newest column white, a lighter top pixel, the peak marked in accent, the days to come a dotted floor,
-grey once off sale.
+Chips (`Chip_shells`, `Chip_food`, `Chip_wood`, each an 11 px icon and the store easing to its value, flashing when
+it changes (the food's red and blinking while hungry); `Chip_day`, "Day 3" with the day's clock along its edge and a
+sun that sets into a moon; then `Home`, a button shown while the founder is off their own island, sending
+`char.home`), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_explore`, `Menu_index`, `Menu_looks`;
+while Build mode or the islet's screen is open the bar, the cards and the tips step aside), the `IslandCard` on the
+right (the lodge's name, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
+shells: `Numbers.perDay`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
+battle!", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the tips banner (`Tips`; tip 4 has
+`TipsOk`, sending `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`) and the `DayBanner` (Fx
+"day": the day and who moved in or trained; over a panel, Build mode or an expedition a notice instead). Shells
+coming in rise from their chip ("+12", at most every 2 s, from `StateClient.Tick`). It reports its blocks to the
+camera (on PC the top strip, the menu bar and the card's place; on a phone Roblox's top bar and the menu bar).
 
 ### 10.4 Menus
-`Menus` registers the panels: "ideas" (the board: a card per idea `Pick_<i>` with its icon, tier strip, modifier and
-1 in N; three picks numbered in order; the preview of the peak income; while a game sells, a warning that making
-one takes it off sale; `Make` sends `game.make` and opens the making card; with a game in the works, `Continue`), "index" (`Entry_<id>` for every idea: its icon or its dark silhouette (`icon_<id>_sil`) and "???", its odds, a dot
-per modifier lit once found; "Found n of 168"), "upgrades" (`Buy_speed`, `Buy_luck` with their prices, following the
-coins as they come), "games" (the game on sale's big graph (`SalesGraph`) with its players, coins a second, peak, coins made and time
-left; then the launched games, newest first, their ideas, coins made, peak players and wins) and "looks" (the founder's
-portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt, `SaveLook` sends `founder.set`). `Words.errText(err)`
-words every ErrCode.
+`Menus` registers the panels: "folk" (a row a villager `Folk_<id>`: portrait, name, level, job or "Resting" or "Away
+on an expedition", battle stats; `Job_<id>` opens the picker (the same panel with `{ folk = id }`: a row
+`Spot_<uid>` a building that takes workers, `Go_<uid>` Go / Swap / Here, `Go_0` Rest, `Back`), `Dismiss_<id>` (two
+taps: "Sure?")), "pals" (`Pal_<id>`: portrait, name, level, skill, where it helps, stats; `Help_<id>` the picker of
+the buildings of its knack, `Release_<id>` two taps), "explore" (the islets down the left, `Islet_<i>`: cleared, open
+or locked; the chosen one's name, blurb, its driftlings' portraits (dark until met), its guardian and reward; the
+party: `Member_f` the captain always, `Member_v<id>` / `Member_p<id>` picked up to `PartyMax`, the strongest first;
+the supplies; `SetSail` sends `exp.start` and opens the islet's screen, or continues one under way), "index"
+(`Entry_<species>`: portrait or silhouette, name or "???", islet, a heart once befriended, its blurb; "Met n of 15")
+and "looks" (the founder's portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt, `SaveLook` sends
+`founder.set`). `Menus.party()` for the sims. `Words.errText(err)` words every ErrCode.
 
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
 UserId), registered with the renderer and posed every frame at their character: feet on the ground under the
 HumanoidRootPart (a raycast down past characters and rigs), facing the root's look direction, walking at the speed
 the root moves. The Roblox avatar is hidden on every client (`LocalTransparencyModifier` 1 on its parts and decals).
-Other players' names float over their heads (World root). `founderPos()`, `count()`.
+Other players' names float over their heads (World root). `founderPos()`, `count()`, `lookOf(player)`.
 
 ### 10.7 `BuildUI` (Build mode)
-`open()` (the HUD's Build button): closes any panel, `CameraController.setFree(true)`, the tray `BuildTray` along the bottom (a card a piece: `Buy_<id>` buys it or, when owned, picks it; the line
-"Pieces n/limit"; `BuildDone`). With a piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in
-`Workspace.PixelDynamic`: the piece and its `Footprint`, a raised neon frame of four edges from the lawn to just above
-the office floor, cyan (`screen_on`) where `Plot.fits` says it fits, red (`berry_red`) where not: a flat green one was
-lost in the lawn's ramp and hidden under the office floor)
-stands on the cell under the pointer (mouse) or the last tap; the bar shows `Rotate`, `Place` / `Move here`, `Store`
-(when moving) and `Cancel`. A tap on a placed piece of the own plot (a ray into its `Static.Decor`) picks it up to
-move. A press dragged more than 8 px pans the view (`CameraController.panBy`). `confirm()` sends `plot.place` (the
-piece stays picked for another copy) or `plot.move`; `close()`; `isOpen()`; `Changed: Signal<boolean>`;
-`tapScreen(pos, mouse?)` (the sims' and previews' tap).
+`open()` (the HUD's Build button): closes any panel, `CameraController.setFree(true)`, the tray `BuildTray` along the
+bottom: the tabs `Tab_food Tab_wood Tab_shop Tab_home Tab_nest Tab_decor` (their icons alone on a narrow screen), the
+pieces count, `Expand` (`island.expand`, its price under it) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
+its price in shells and wood with their icons, red when short; a locked one says the island tier it needs). With a
+piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.PixelDynamic`: the piece and its `Footprint`, a
+raised neon frame of four edges from the grass to just above the lodge's floor, cyan (`screen_on`) where `Plot.fits`
+says it fits, red (`berry_red`) where not) stands on the cell under the pointer (mouse) or the last tap; the bar shows
+`Rotate`, `Place` / `Move here`, `Upgrade` and `Store` ("Clear away") when moving a building, `Cancel`, and the
+`Info` plate (what it is and makes, its charm, its price or the next level's). A tap on a placed piece of the own
+island (a ray into its `Static.Decor`) picks it up. A press dragged more than 8 px pans the view
+(`CameraController.panBy`). `confirm()` sends `plot.place` (the piece stays picked for another copy) or `plot.move`;
+`close()`; `isOpen()`; `Changed: Signal<boolean>`; `tapScreen(pos, mouse?)` (the sims' and previews' tap). The tray
+is laid out again when what can be afforded changes (`StateClient.Tick`).
 
-### 10.8 Making a game (`MicroUI`, `MicroStage`, `MicroGames`)
-`MicroUI`: `open()` (the making card `MicroCard`: the game's title, a row a slot with its icon, name, order word,
-modifier, difficulty, WIN / LOSE and `Play_<i>` / `Retry_<i>`; the sales boost; `PlayAll`, `Launch` (on once all three
-are played: `game.launch`, then the launch card with the income, confetti and `Nice`), `CloseMicro`; opened right
-after `game.make`, it waits for the view with the project), `refresh()` (the card follows the view), `isOpen()`,
-`Launched: Signal<Game>`, `play(slot, chain?)`, and for the sims and previews `playing() -> engine?`, `debugAuto()`
-(the auto player steers the founder this frame, once the round is live) and `debugCtx()` (the last minigame's diff,
-speed, seconds, effects, micro, area, ice, more, shrink, rivals). A minigame plays full screen: `micro.start`, the card hidden with the `Hud` and `World` roots,
-`MicroStage.open(variant)` (the camera's stage mode), the overlay `MicroPlay` on the `Stage` root (UIKit; its canvas is
-the world's art grid): `Area` (the engine's overlay, the whole screen), the `Header` strip (icon, `IdeaName`, the
-difficulty, `ModTag`), the `Footer` strip (`FuseBomb`, the `Fuse` rope, the `Spark` animation, `Hint`), the `Curtain`
-with `WordIcon`, `Word`, the round's `Rule` and `GetReady` until the stage is `ready()` and `MicroIntro` + 1 s has
-passed (at most `MicroStageWait`; the engine is posed meanwhile, keys and pads do nothing), then the curtain lifts,
-everyone drops in, the `Countdown` (3, 2, 1, GO!: `MicroCountdown`), then the engine runs for `MicroSeconds` (times
-Turbo's `TurboClock`); the modifier's effects (ctx): `speed` (`TurboSpeed`), `ice` (everyone slides), `rival` (5
-rivals, sharper), `more` (`FrenzyMore` times the hazards and pickups), `shrink` (the arena closes in); the round ends
-when the engine calls `win` / `lose` (decided early: the player out, the last one standing, the first to the door) or
-the clock runs out (`finish()` says who won); a WIN / LOSE stamp with the `Placing` line ("1st place: 12 coins",
-"Last one standing!", "Out in 3rd") while the engine's `after(t, won)` keeps everyone cheering or stumbling, then
-`micro.finish` (no sooner than `MicroMinSec` after the start), the stage closed (the street's picture back), the HUD
-back. A hit's jolt moves the stage's picture and the overlay a pixel (`PixelRenderer.setOffset`). The curtain is ink blinds (`Blind`) opening from the
-middle (`stage.lift()` drops the founder in); the burning end of the fuse spits bits; the last three seconds tick; a
-win plays combo and cheer with 3D confetti and sparks from the founder, a loss the sad trombone and a puff of dust; Play all goes on to the
-next unplayed slot. The runner owns the effects: `Pop` words, `Bit` bursts (1 px, their own Rng from the seed + 101),
-floats, the `Flash`. Its keys are bound through ContextActionService above the founder's walking keys (arrows, WASD,
-Space, Return, F, J, 1-6; UserInputService when that is not available); their presses and releases set `ctx.held`
-(the arena moves with the held arrows) and a press of the action key calls the engine's `key("go")`.
-`MicroStage` (client): `open(variant) -> Stage`, `current()`, `has(variant)`, the yaws `FACE_VIEWER FACE_RIGHT
-FACE_LEFT FACE_AWAY`, the ground's `U_DIR` (screen right) and `V_DIR` (toward the viewer), the set's fixed pieces
-`HOLE_U HOLE_V` (twelve whack holes), `BOARD` (the robot's 7 x 5 pads), `TOWER` (the site's base), `GOAL_V`. A stage
-is a folder `MicroStage` at Z = 9000 (far from the street: no ray of either view reaches the other): a 24 x 24 room
-(the ground all round, a floor of one colour or a checker, two back walls with trims, or a fence) and its props,
-then the founder (`CharacterModels.buildStanding` in the player's look, `AvatarView.lookOf`), registered dynamic with
-a blob shadow. `Stage { variant, floor, half, avatar, rival(look, delay) -> Rival (a rival founder: `{ rig, pose(...),
-hide() }`, dropping in `delay` after the founder), at(u, v, y) -> Vector3, spawn(kind, opts?, shadow?) -> Thing,
-adopt(thing, shadow?), place(thing, u, v, y, yaw?, tilt?), remove, flash(thing, seconds?), glow(thing, on), refresh,
-screen(pos) -> (x, y, on) (UI px on the Stage canvas), hold(kind?) (in the founder's right hand), hat(kind?) (on their
-head), pose(u, v, y, yaw, t, speed, action, k?) (until `lift()` the founder hangs 8 studs up; then drops in 0.32 s and
-lands in dust), puff(pos, kind, n?, color?) (3D bits from a pool of 56 parts in one dynamic model `MicroPuffs`; kinds
-`dust spark debris confetti steam smoke bubble petal ember twinkle splash`: speeds, gravity, life, size, glow, bounce,
-grow, sway), lift(), step(t, dt) (every frame from the runner: the bits and the stage's ambient life), ready(),
-close() }`. Each variant's ambient life (`AMBIENT`): circling birds and bats with beating wings, wandering
-butterflies, blinking lights, flickering flames with embers, emitters of steam, smoke, bubbles, petals and twinkles,
-a yarn ball, a UFO, a bouncing ball, a paper plane, waving flags, a book, a drone, sweeping floor lights, a crab. Stage space: u to the screen's right, v toward
+### 10.8 The islet's screen (`ExpeditionUI`, `MicroStage`)
+`ExpeditionUI`: `open()` (from Set sail or the HUD's card; right after `exp.start` it waits for the view with the
+expedition), `close()` (Back to island: the expedition waits), `isOpen()`, `active()`, `Changed: Signal<boolean>`,
+`init()` (the view's changes lay it out again; an expedition gone closes it), and for the sims and previews
+`debugState() -> { open, lifted, actors, busy, node, foes }`, `debugGo()`, `debugAct(kind)`, `debugHome()`. It hides
+the `Hud` and `World` roots and the touch controls, opens `MicroStage.open(islet.stage, { top, bottom })` (the camera's
+stage mode, the overlay's strips kept clear) and draws on the `Stage` root (full screen: Roblox's top bar's height,
+`TopBar`, is kept clear): the `Header` (the islet, `Loot_<kind>`, the path's `Node<i>` icons (the ones ahead hidden
+but the guardian's), `Here`, `BackToIsland`), the `Footer` (the party's cards `Card_<key>`: portrait or icon, name,
+`Lv`, the health bar `HpFill`; the buttons `GoOn` and `SailHome` between stops, `Act_fight Act_guard Act_treat
+Act_flee` in battle (Treat and Flee off against a guardian), `TreatHint`), the foes' cards down the right (tap one:
+the treat's target), the `Say` narration, the `Result` card (`ResultOk`: Onward, or Sail home after the guardian or a
+fall) and the `Curtain` (ink blinds with the islet's name and blurb until the stage is `ready()` and 1.2 s passed, at
+most `StageWait`). The actors: the founder (the stage's own), villagers (`stage.rival(look)`), driftlings and wild
+ones (`MicroModels.driftling`, the guardian 1.6 times as big), posed every frame (drops, idle hops, lunges, KO);
+a round's events play back one by one (`STEP` s each); keys: Space / Return go on or fight, 1-4 the battle's moves.
+`MicroStage` (client): `open(variant, margins?) -> Stage`, `current()`, `has(variant)`, the yaws `FACE_VIEWER
+FACE_RIGHT FACE_LEFT FACE_AWAY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer). A stage is a folder
+`MicroStage` at Z = 9000 (far from the islands: no ray of either view reaches the other): a 24 x 24 set and its props
+(the islets' `loot` beach, `leap` meadow, `dino` volcano sands, `frost` snowfield, `fish` sea floor; the older themed
+rooms are kept), the founder registered dynamic with a blob shadow, and `Stage { variant, floor, half, avatar,
+rival(look, delay) -> Rival, at(u, v, y), spawn(kind, opts?, shadow?), adopt(thing, shadow?), place(thing, u, v, y,
+yaw?, tilt?), remove, flash(thing, seconds?), glow, refresh, screen(pos) -> (x, y, on), hold, hat, pose(u, v, y, yaw,
+t, speed, action, k?), puff(pos, kind, n?, color?) (3D bits from a pool of 56 parts: `dust spark debris confetti steam
+smoke bubble petal ember twinkle splash snow heal heart`), lift(), step(t, dt) (the bits and the set's ambient life:
+gulls, butterflies, smoke, snow, bubbles, a crab), ready(), close() }`. Stage space: u to the screen's right, v toward
 the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
-`MicroArena` (the party round): `new(ctx, mode, opts?) -> Arena` with mode `survive` (out on a hit; the last one
-standing wins, and anyone still standing at the end), `score` (the most points at the end; a tie for first wins) or
-`race` (the first to the finish), `opts { label, act (the action pad's word), tags (scores over the heads), starts,
-walls }`. The players `P` (1: the founder, then `ctx.rivals` rivals with random looks, shirts in their colours, names
-from Data/Names, skill `0.3 + 0.07 x diff (+ sharp)` give or take, a pace from it) move in room space (x, z along the
-world's axes; the keys along the screen) with a grip (Icy: little), jump (`JUMP_V`, `GRAV`), bump each other apart
-(the engine's `onBump`), and are knocked out flying (`knock`), posed every frame (the founder through `stage.pose`,
-the rivals through `Rival.pose`, `lift` raising them onto tiles or karts). The `Scoreboard` (a `Row_<i>` a player,
-sorted by standing), the `Tag`s over the heads ("YOU", scores), the touch pads (`Pad_up` `Pad_down` `Pad_left`
-`Pad_right` held, `Pad_go`), Shrinking's walls (four glowing bars closing to 4.5 studs over the round). The brains'
-helpers: `steer`, `react` (a rival's reaction time), `sees` (a danger seen after its reaction time), `safest(p, cost,
-spots?)` (the cheapest spot near and far by the engine's cost of being there, the way there checked a stud at a
-time), `dangerCost(p, dangers)`; `auto()` gives the founder the rivals' brain at full skill for the frame.
-`MicroGames`: the eleven engines `bombs collect tiles quiz sweep sumo zone barrage horde sneak paint`, each
-`(ctx) -> Micro` with `ctx { area, w, h, stage, rng (the server's seed), diff, speed, seconds, ice, more, shrink,
-rivals, sharp, held, variant (the idea's theme), pop(x, y, text, color), burst(x, y, colors, n?), float(gui, vx, vy,
-life, gravity?), flash(color), shake, win, lose, press }` and `Micro { update(t, dt) (dt 0: posed before GO), key(k),
-finish() -> (won, line), after(t, won), auto(), rule }`; every thing is a 3D `MicroModels` thing on the stage; the
-quiz's answers are labels `Opt_<i>` kept over their pads.
 
 ### 10.9 Sprites (`PixelSprites`, `ArtData`)
 `ArtData` (generated by `scripts/gen_art.py`; do not edit): `{ [name]: { w, h, px, pal, alpha } }`, one character a
 pixel (`.` clear, else an index into `pal` 0xRRGGBB with its `alpha`: 1, or 0.35 for the outline's anti-aliasing).
-The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not found yet); an
-animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the idea icons
-`icon_<id>` (16x16) and `mini_<id>` (11x11), the arrows `arrow_<dir>` (13x13) and `arrow_<dir>_t` (7x7), and the
-microgames' overlay: `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`: `has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) ->
-GuiObject` (an ImageLabel `Sprite_<name>` showing the sprite's EditableImage, made once and shared, `ResampleMode`
-Pixelated, at the sprite's own size: no scale; without EditableImages a Frame of 1 px run rects), `anim(parent, names,
-pos?, z?) -> Anim { f, w, h, set(i), flash(seconds?), moveTo(x, y) }` (frames stacked in `Anim_<first>`; `flash`
-shows the frame's `_flash`; `moveTo` rounds to whole UI px).
+The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not met yet); an
+animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the driftlings' portraits
+`icon_<species>` (16x16: a mask a body shape in the species' two ramps), the small icons `mini_<name>` (11x11: `shell
+food wood sun moon charm folk pal visitor home nest train decor start loot chest wild rest boss star boat`), the arrows
+`arrow_<dir>` (13x13) and `arrow_<dir>_t` (7x7), `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`:
+`has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) -> GuiObject` (an ImageLabel `Sprite_<name>`
+showing the sprite's EditableImage, made once and shared, `ResampleMode` Pixelated, at the sprite's own size: no
+scale; without EditableImages a Frame of 1 px run rects), `anim(parent, names, pos?, z?) -> Anim { f, w, h, set(i),
+flash(seconds?), moveTo(x, y) }`.
 
 ## 11. Verification
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
-  lists them: Util, Validate, Numbers, DataIntegrity, Ideas, Live, Studio, Economy, Plot, Schema, Shading, Raster, Rim,
-  PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
+  lists them: Util, Validate, Numbers, DataIntegrity, Island, Battle, Expedition, Economy, Plot, Schema, Shading,
+  Raster, Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.
 - `tools/preview`: PNGs of the real renderer and UI at device sizes (`tools/README.md`).
@@ -495,9 +448,9 @@ Copied unchanged or nearly: `Render/Raster`, `Render/Picture`, `Render/PixelFont
 `PixelFont`, `Util`, `tests/TestKit.luau`, `scripts/gen_pixelfont.py`, `tools/setup.sh`, `tools/defs`, the sim and
 preview engines, `docs/WORKFLOW.md`. Adapted: `Render/Shading` (its LUT colours are the palette and the office
 themes; the bakery's wallpapers and land tiles are gone) and its spec, `scripts/check.sh` (no locale or server-codes
-steps; builds `ByteSizeStudio.rbxlx`), `Net`. Written new for this game: everything else, including a much smaller
+steps; builds `build/ByteSizeStudio.rbxlx` as its check), `Net`. Written new for this game: everything else, including a much smaller
 `PixelRenderer` (one fitted scale with pans and rect re-casts, no Actors, no Hold, no per-plot indoor light) and
-`CameraController` (the fitted home view, following the founder, Build mode's free pan), and the street itself
-(`Data/Street`, `StreetModels`, PlotService's plots and empty lots, AvatarView's founders), modelled on Random
-Bakery's street of bakeries and its plot (ROUND3.md 6.6, 9) but smaller: decor on a whole-stud grid, no drawn paths,
-water or fences.
+`CameraController` (the fitted home view, following the founder, Build mode's free pan), and the sea of islands
+(`Data/Street`, `StreetModels`, PlotService's plots and open water, AvatarView's founders), modelled on Random Bakery's
+street of bakeries and its plot (ROUND3.md 6.6, 9) but smaller: buildings on a whole-stud grid, no drawn paths or
+fences.

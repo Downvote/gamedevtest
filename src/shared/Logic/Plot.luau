@@ -1,14 +1,15 @@
 --!strict
--- The plot's rules (GAME_DESIGN 13; docs/ARCHITECTURE.md 6): where decor may stand, buying, placing, moving and
--- storing it. Pure. Positions are plot-local whole studs: a piece's (x, z) is its footprint's north-west corner, its
--- rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the footprint's width and depth).
--- A piece stands wholly on the plot (Data/Street PLOT of the office's tier) a stud in from its edges, off the office
--- (its room, walls and a stud round them), the footpath, the plot sign and the mailbox, and off every other piece.
+-- The island's building rules (GAME_DESIGN 4; docs/ARCHITECTURE.md 6): where buildings and decor may stand, placing
+-- (paid in shells and wood), moving and clearing them away. Pure. Positions are plot-local whole studs: a piece's
+-- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
+-- footprint's width and depth). A piece stands wholly on the island (Data/Street PLOT of its tier) a stud in from its
+-- edges, off the lodge (its room, walls and a stud round them), the path to the dock, the island's sign and the
+-- mailbox, and off every other piece.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Office = require(script.Parent.Parent.Data.Office)
 local Street = require(script.Parent.Parent.Data.Street)
-local Decor = require(script.Parent.Parent.Data.Decor)
+local Buildings = require(script.Parent.Parent.Data.Buildings)
 
 type Profile = Types.Profile
 type Piece = Types.Piece
@@ -25,7 +26,7 @@ end
 
 -- The footprint (w along x, d along z) of a piece turned by rot.
 function Plot.footprint(id: string, rot: number): (number, number)
-	local def = Decor.byId[id]
+	local def = Buildings.byId[id]
 	if def == nil then
 		return 1, 1
 	end
@@ -66,7 +67,7 @@ local ROT_OK: { [number]: boolean } = { [0] = true, [90] = true, [180] = true, [
 -- moved). Returns true, or false and why: "outside" (off the plot or not on the grid), "blocked" (the office, the
 -- footpath, the sign or the mailbox), "overlap" (another piece), "unknown" (no such piece).
 function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number, skip: number?): (boolean, string?)
-	if Decor.byId[id] == nil then
+	if Buildings.byId[id] == nil then
 		return false, "unknown"
 	end
 	if x ~= math.floor(x) or z ~= math.floor(z) or not ROT_OK[rot] then
@@ -91,35 +92,44 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 end
 
 ------------------------------------------------------------------ actions (change the profile only on success)
-function Plot.buy(p: Profile, id: string): (boolean, any)
-	local def = Decor.byId[id]
+-- Place a new piece: its tier reached, room under the island's limit, its price in shells and wood. A building that
+-- takes a worker gets an idle villager if there is one.
+function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
+	local def = Buildings.byId[id]
 	if def == nil then
 		return false, "bad_payload" :: ErrCode
 	end
-	if p.plot.owned[id] then
-		return false, "max" :: ErrCode
-	end
-	if p.coins < def.price then
-		return false, "money" :: ErrCode
-	end
-	p.coins -= def.price
-	p.plot.owned[id] = true
-	return true, nil
-end
-
-function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
-	if not p.plot.owned[id] then
+	if def.tier > p.tier then
 		return false, "locked" :: ErrCode
 	end
-	if #p.plot.placed >= Plot.limit(p.office) then
+	if #p.plot.placed >= Plot.limit(p.tier) then
 		return false, "full" :: ErrCode
 	end
-	local ok = Plot.fits(p.office, p.plot.placed, id, x, z, rot)
+	if p.shells < def.shells then
+		return false, "money" :: ErrCode
+	end
+	if p.wood < def.wood then
+		return false, "wood" :: ErrCode
+	end
+	local ok = Plot.fits(p.tier, p.plot.placed, id, x, z, rot)
 	if not ok then
 		return false, "blocked" :: ErrCode
 	end
-	table.insert(p.plot.placed, { id = id, x = x, z = z, rot = rot })
-	return true, { i = #p.plot.placed }
+	p.shells -= def.shells
+	p.wood -= def.wood
+	local uid = p.nextId
+	p.nextId += 1
+	table.insert(p.plot.placed, { uid = uid, id = id, x = x, z = z, rot = rot, lvl = 1 })
+	p.stats.built += 1
+	if def.kind == "food" or def.kind == "wood" or def.kind == "shop" then
+		for _, v in p.folk do
+			if v.work == 0 then
+				v.work = uid
+				break
+			end
+		end
+	end
+	return true, { i = #p.plot.placed, uid = uid }
 end
 
 function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (boolean, any)
@@ -127,7 +137,7 @@ function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (b
 	if q == nil then
 		return false, "bad_payload" :: ErrCode
 	end
-	local ok = Plot.fits(p.office, p.plot.placed, q.id, x, z, rot, i)
+	local ok = Plot.fits(p.tier, p.plot.placed, q.id, x, z, rot, i)
 	if not ok then
 		return false, "blocked" :: ErrCode
 	end
@@ -135,9 +145,136 @@ function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (b
 	return true, nil
 end
 
-function Plot.store(p: Profile, i: number): (boolean, any)
-	if p.plot.placed[i] == nil then
+-- The price of a building's next level (nil: it has none).
+function Plot.upgradeCost(q: Piece): { shells: number, wood: number }?
+	local def = Buildings.byId[q.id]
+	local k = Tuning.UpgradeCost[(q.lvl or 1) + 1]
+	if def == nil or k == nil or not (def.kind == "food" or def.kind == "wood" or def.kind == "shop") then
+		return nil
+	end
+	return { shells = def.shells * k, wood = def.wood * k }
+end
+
+-- Upgrade a building that makes something (it makes Tuning.UpgradeMult times as much).
+function Plot.upgrade(p: Profile, i: number): (boolean, any)
+	local q = p.plot.placed[i]
+	if q == nil then
 		return false, "bad_payload" :: ErrCode
+	end
+	local cost = Plot.upgradeCost(q)
+	if cost == nil then
+		return false, "max" :: ErrCode
+	end
+	if p.shells < cost.shells then
+		return false, "money" :: ErrCode
+	end
+	if p.wood < cost.wood then
+		return false, "wood" :: ErrCode
+	end
+	p.shells -= cost.shells
+	p.wood -= cost.wood
+	q.lvl = (q.lvl or 1) + 1
+	return true, { lvl = q.lvl }
+end
+
+-- After the island grew (its lodge bigger, its path and sign moved): every piece that no longer fits moves to the free
+-- spot nearest its old one (turned a quarter if that fits closer); one with no spot left is cleared away with its whole
+-- price back and its workers idle. Returns how many moved and how many were cleared.
+function Plot.refit(p: Profile): (number, number)
+	local kept: { Piece } = {}
+	local homeless: { Piece } = {}
+	for _, q in p.plot.placed do
+		if Plot.fits(p.tier, kept, q.id, q.x, q.z, q.rot) then
+			table.insert(kept, q)
+		else
+			table.insert(homeless, q)
+		end
+	end
+	if #homeless == 0 then
+		return 0, 0
+	end
+	local pr = Street.plot(p.tier)
+	local moved, cleared = 0, 0
+	local gone: { [Piece]: boolean } = {}
+	for _, q in homeless do
+		local best, bx, bz, brot = math.huge, 0, 0, q.rot
+		for _, rot in { q.rot, (q.rot + 90) % 360 } do
+			for z = math.floor(pr.z0) + 1, math.floor(pr.z1) - 1 do
+				for x = math.floor(pr.x0) + 1, math.floor(pr.x1) - 1 do
+					local d = (x - q.x) ^ 2 + (z - q.z) ^ 2 + (if rot == q.rot then 0 else 0.5)
+					if d < best and Plot.fits(p.tier, kept, q.id, x, z, rot) then
+						best, bx, bz, brot = d, x, z, rot
+					end
+				end
+			end
+		end
+		if best < math.huge then
+			q.x, q.z, q.rot = bx, bz, brot
+			table.insert(kept, q)
+			moved += 1
+		else
+			local def = Buildings.byId[q.id]
+			if def then
+				p.shells += def.shells
+				p.wood += def.wood
+			end
+			for _, v in p.folk do
+				if v.work == q.uid then
+					v.work = 0
+				end
+			end
+			for _, x in p.pals do
+				if x.work == q.uid then
+					x.work = 0
+				end
+			end
+			gone[q] = true
+			cleared += 1
+		end
+	end
+	if cleared > 0 then
+		local keep: { Piece } = {}
+		for _, q in p.plot.placed do
+			if not gone[q] then
+				table.insert(keep, q)
+			end
+		end
+		p.plot.placed = keep
+	end
+	return moved, cleared
+end
+
+-- Clear a piece away: a share of its price back; its workers go idle. Not a home or a nest whose beds are needed.
+function Plot.store(p: Profile, i: number): (boolean, any)
+	local q = p.plot.placed[i]
+	if q == nil then
+		return false, "bad_payload" :: ErrCode
+	end
+	local def = Buildings.byId[q.id]
+	if def then
+		local beds, slots = 0, 0
+		for j, o in p.plot.placed do
+			local od = Buildings.byId[o.id]
+			if od and j ~= i then
+				beds += od.beds
+				slots += od.slots
+			end
+		end
+		if (def.beds > 0 and beds < #p.folk) or (def.slots > 0 and slots < #p.pals) then
+			return false, "no_room" :: ErrCode
+		end
+		p.shells += math.floor(def.shells * Tuning.Refund)
+		p.wood += math.floor(def.wood * Tuning.Refund)
+	end
+	for _, v in p.folk do
+		if v.work == q.uid then
+			v.work = 0
+		end
+	end
+	for _, pal in p.pals do
+		if pal.work == q.uid then
+			pal.work = 0
+		end
 	end
 	table.remove(p.plot.placed, i)
 	return true, nil

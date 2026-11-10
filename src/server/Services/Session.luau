@@ -1,16 +1,16 @@
 --!strict
--- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the idea team's and
--- the income's clocks, the microgame in play, and what the client is sent. The client mirrors the profile through
--- State messages (the whole ClientView, sent when something changed: Session.dirty) and shows Fx messages (a new
--- idea, the coins the game on sale just paid and its players).
+-- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the island's day clock,
+-- the expedition under way, and what the client is sent. The client mirrors the profile through State messages (the
+-- whole ClientView, sent when something changed: Session.dirty) and shows Fx messages (the stores every second, a new
+-- day and who moved in, an expedition's events).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
-local Studio = require(ReplicatedStorage.Shared.Logic.Studio)
-local Live = require(ReplicatedStorage.Shared.Logic.Live)
+local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 
 export type S = {
 	player: Player,
@@ -18,17 +18,14 @@ export type S = {
 	plot: number,
 	rng: Types.Rng,
 	ready: boolean,
-	rollClock: number, -- seconds toward the idea team's next idea
-	payClock: number, -- seconds toward the next income payment
-	coinFrac: number, -- income earned but not yet a whole coin
+	dayClock: number, -- seconds into the island's day
+	tickClock: number, -- seconds toward the next stores message
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
-	micro: Micro?, -- the microgame in play (GAME_DESIGN 5)
+	exp: Types.Expedition?, -- the expedition under way (GAME_DESIGN 7)
+	away: { [string]: boolean }, -- its party's keys
 }
-
--- A started microgame: its slot (1..3), the token its finish must carry, when it started (os.clock), its seed.
-export type Micro = { slot: number, token: number, at: number, seed: number }
 
 local Session = {}
 
@@ -41,12 +38,13 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		plot = plot,
 		rng = Util.newRng(Util.hash32(tostring(player.UserId) .. ":" .. tostring(os.time()))),
 		ready = false,
-		rollClock = 0,
-		payClock = 0,
-		coinFrac = 0,
+		dayClock = 0,
+		tickClock = 0,
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
+		exp = nil,
+		away = {},
 	}
 	sessions[player] = s
 	return s
@@ -64,29 +62,41 @@ function Session.all(): { [Player]: S }
 	return sessions
 end
 
--- What the client sees: the profile plus derived fields.
+-- What the client sees: the profile plus what the rules derive from it.
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
+	local r = Island.rates(p, s.away)
 	return {
-		coins = p.coins,
-		rate = Live.earning(p.live),
-		live = p.live,
-		ideas = p.ideas,
-		found = p.found,
-		project = p.project,
-		games = p.games,
-		upgrades = p.upgrades,
-		team = p.team,
-		office = p.office,
+		shells = p.shells,
+		food = p.food,
+		wood = p.wood,
+		day = p.day,
+		dayFrac = s.dayClock / Tuning.DaySeconds,
+		tier = p.tier,
+		founder = p.founder,
+		cap = p.cap,
+		folk = p.folk,
+		pals = p.pals,
+		plot = s.plot,
+		pieces = p.plot.placed,
+		islets = p.islets,
+		seen = p.seen,
 		tut = p.tut,
 		stats = p.stats,
 		settings = p.settings,
-		plot = s.plot,
-		rollEvery = Studio.rollEvery(p),
-		luck = Studio.luck(p),
-		founder = p.founder,
-		decor = p.plot,
+		rates = { food = r.food, wood = r.wood, shells = r.shells },
+		charm = Island.charm(p),
+		beds = Island.beds(p),
+		nests = Island.nests(p),
+		visitors = Island.visitors(p),
+		exp = s.exp,
 	}
+end
+
+-- The expedition's party now (Island.rates leaves them out).
+function Session.setExp(s: S, e: Types.Expedition?)
+	s.exp = e
+	s.away = Expedition.away(e)
 end
 
 function Session.markDirty(s: S)

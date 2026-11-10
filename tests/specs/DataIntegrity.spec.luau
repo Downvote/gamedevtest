@@ -1,68 +1,85 @@
 -- The content tables agree with each other and with Tuning (GAME_DESIGN 4, 5, 9).
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
-local IdeasData = require("../../build/luautest/shared/Data/Ideas")
-local Modifiers = require("../../build/luautest/shared/Data/Modifiers")
+local Buildings = require("../../build/luautest/shared/Data/Buildings")
+local Creatures = require("../../build/luautest/shared/Data/Creatures")
+local Islets = require("../../build/luautest/shared/Data/Islets")
 local Office = require("../../build/luautest/shared/Data/Office")
 local Palette = require("../../build/luautest/shared/Data/Palette")
 local Looks = require("../../build/luautest/shared/Data/Looks")
 local Street = require("../../build/luautest/shared/Data/Street")
-local Decor = require("../../build/luautest/shared/Data/Decor")
 return function()
-	T.it("ideas: unique ids, names, kinds, odds, engines, words, colours", function()
+	local function color(k: string): boolean
+		return Palette.ui[k] ~= nil or Palette.colors[k] ~= nil or Palette.axis[k] ~= nil
+	end
+	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local engines = { bombs = 1, collect = 1, tiles = 1, quiz = 1, sweep = 1, sumo = 1, zone = 1, barrage = 1, horde = 1, sneak = 1, paint = 1 }
-		local used: { [string]: number } = {}
-		for _, d in IdeasData.list do
+		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, decor = true }
+		for _, d in Buildings.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
-			T.truthy(#d.name > 0 and (d.kind == "Genre" or d.kind == "Theme"), d.id .. " name and kind")
-			T.truthy(d.odds >= 2 and d.odds == math.floor(d.odds), d.id .. " odds")
-			T.truthy(engines[d.micro] ~= nil and #d.variant > 0 and #d.word > 0, d.id .. " microgame")
-			T.truthy(d.reuse >= 0 and d.reuse <= 2, d.id .. " reuse")
-			T.truthy(#d.words >= 2, d.id .. " title words")
-			T.truthy(Palette.ui[d.color] or Palette.colors[d.color] or Palette.axis[d.color], d.id .. " colour")
-			used[d.micro] = (used[d.micro] or 0) + 1
+			T.truthy(kinds[d.kind], d.id .. " kind")
+			T.truthy(d.shells > 0 and d.wood >= 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id .. " price and footprint")
+			T.truthy(d.tier >= 1 and d.tier <= #Office.plans, d.id .. " tier")
+			local makes = d.kind == "food" or d.kind == "wood" or d.kind == "shop"
+			T.truthy(makes == (d.rate > 0), d.id .. " rate")
+			T.truthy(makes == (d.job ~= "" and d.knack ~= ""), d.id .. " job and knack")
+			T.truthy((d.kind == "shop") == (d.eats > 0), d.id .. " a shop eats food")
+			T.truthy((d.kind == "home") == (d.beds > 0) and (d.kind == "nest") == (d.slots > 0), d.id .. " beds and nests")
+			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
 		end
-		T.eq(#IdeasData.list, 24)
-		for e in engines do
-			T.truthy((used[e] or 0) >= 1, "engine " .. e .. " used")
-		end
-		-- an idea that shares its engine with a commoner one plays it harder (GAME_DESIGN 5)
-		local first: { [string]: number } = {}
-		for _, d in IdeasData.list do
-			if first[d.micro] then
-				T.truthy(d.reuse >= 1, d.id .. " reuses " .. d.micro .. " a step harder")
-			else
-				first[d.micro] = d.odds
-			end
+		T.truthy(seen.patch and seen.tent and seen.nest and seen.lumber and seen.stall, "the first buildings")
+		for _, id in { "patch", "tent", "nest", "lumber", "stall" } do
+			T.eq(Buildings.byId[id].tier, 1, id .. " from the start")
 		end
 	end)
-	T.it("modifiers: Plain first, rarer ones pay more, known effects", function()
-		local effects = { speed = true, ice = true, rival = true, more = true, shrink = true }
-		T.eq(Modifiers.list[1].id, "plain")
-		T.eq(Modifiers.list[1].odds, 1)
-		for i, m in Modifiers.list do
+	T.it("driftlings: unique ids, an islet each, stats, skills, knacks a building has, colours", function()
+		local seen = {}
+		local knacks: { [string]: boolean } = {}
+		for _, b in Buildings.list do
+			if b.knack ~= "" then
+				knacks[b.knack] = true
+			end
+		end
+		local perIslet: { [number]: number } = {}
+		for _, d in Creatures.list do
+			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
+			seen[d.id] = true
+			T.truthy(Islets.list[d.islet] ~= nil, d.id .. " islet")
+			perIslet[d.islet] = (perIslet[d.islet] or 0) + 1
+			T.truthy(d.hp > 0 and d.atk > 0 and d.def > 0 and d.spd > 0, d.id .. " stats")
+			T.truthy(Creatures.skills[d.skill] ~= nil and d.skill ~= "rally", d.id .. " skill")
+			T.truthy(knacks[d.knack], d.id .. " knack " .. d.knack)
+			T.truthy(d.trust > 0 and d.trust < 1, d.id .. " trust")
+			T.truthy(color(d.body) and color(d.accent), d.id .. " colours")
+		end
+		for i in Islets.list do
+			T.eq(perIslet[i], 3, "three driftlings on islet " .. i)
+		end
+	end)
+	T.it("islets: a path from the landing to the guardian, its own driftlings, growing levels and rewards", function()
+		for i, d in Islets.list do
+			T.eq(d.id, i)
+			T.eq(d.nodes[1], "start")
+			T.eq(d.nodes[#d.nodes], "boss")
+			for k, n in d.nodes do
+				T.truthy(n == "start" or n == "loot" or n == "chest" or n == "wild" or n == "rest" or n == "boss", d.name .. " node " .. k)
+			end
+			for _, sp in d.wild do
+				T.truthy(Creatures.byId[sp] ~= nil and Creatures.byId[sp].islet == i, d.name .. " " .. sp)
+			end
+			T.truthy(Creatures.byId[d.boss] ~= nil and Creatures.byId[d.boss].islet == i, d.name .. " guardian")
+			T.truthy(color(d.color), d.name .. " colour")
 			if i > 1 then
-				T.truthy(m.odds > Modifiers.list[i - 1].odds and m.mult > Modifiers.list[i - 1].mult, m.id .. " rarer pays more")
-				T.truthy(#m.effects >= 1, m.id .. " changes play")
+				local q = Islets.list[i - 1]
+				T.truthy(d.lvl > q.lvl and d.reward > q.reward and d.loot.shells > q.loot.shells, d.name .. " harder and richer")
 			end
-			for _, e in m.effects do
-				T.truthy(effects[e], m.id .. " effect " .. e)
-			end
-			T.truthy(Palette.ui[m.color] or Palette.colors[m.color] or Palette.axis[m.color], m.id .. " colour")
 		end
 	end)
-	T.it("tiers: names and colours for every tier", function()
-		T.eq(#Tuning.TierNames, #Tuning.TierOneIn + 1)
-		T.eq(#Tuning.TierColors, #Tuning.TierNames)
-		for i = 2, #Tuning.TierOneIn do
-			T.truthy(Tuning.TierOneIn[i] > Tuning.TierOneIn[i - 1])
-		end
-	end)
-	T.it("offices: a plan per tier, desks for the idea team, everything inside the room", function()
+	T.it("lodges: a plan per tier, everything inside the room", function()
 		T.truthy(#Office.plans >= 1)
-		T.truthy(#Office.plans[1].desks >= Tuning.TeamSize, "the garage seats the idea team")
+		T.eq(#Office.plans, #Tuning.TierCost)
+		T.eq(#Office.plans, #Tuning.PlotPieces)
 		for i, plan in Office.plans do
 			T.eq(plan.tier, i)
 			T.truthy(Palette.themes[plan.theme] ~= nil, plan.name .. " theme")
@@ -88,30 +105,31 @@ return function()
 				T.truthy(Palette.colors[k] ~= nil, k)
 			end
 		end
-		for _, a in { "fun", "ideas", "graphics", "sound" } do
-			T.truthy(Palette.axis[a] ~= nil, a)
-		end
 	end)
-	T.it("the street: plots inside their lots, the office on its plot, the door's path to the road", function()
+	T.it("the sea: islands inside their lots, the lodge on its island, the door's path to the boardwalk", function()
 		T.eq(Street.MAX, Tuning.MaxPlots)
 		local lot = Street.LOT
 		for tier = 1, #Office.plans do
 			local p = Street.plot(tier)
 			local plan = Office.plan(tier)
 			T.truthy(p.x0 >= lot.x0 and p.x1 <= lot.x1 and p.z0 >= lot.z0 and p.z1 <= lot.z1, "plot " .. tier .. " inside the lot")
-			T.truthy(p.z1 == Street.PAVE_N.z0, "plot " .. tier .. " runs down to the pavement")
+			T.truthy(p.z1 == Street.BOARD.z0, "island " .. tier .. " runs down to the boardwalk")
 			T.truthy(plan.minX - Office.WALL_T > p.x0 and plan.maxX < p.x1 and plan.minZ - Office.WALL_T > p.z0 and plan.maxZ < p.z1, "office " .. tier .. " on its plot")
 			if tier > 1 then
 				local q = Street.plot(tier - 1)
 				T.truthy(p.x0 <= q.x0 and p.x1 >= q.x1 and p.z0 <= q.z0, "plot " .. tier .. " grows")
 			end
 			local fp = Street.footpath(plan.maxX, plan.maxZ)
-			T.truthy(fp.z0 == plan.maxZ and fp.z1 == Street.PAVE_N.z0 and fp.x0 > plan.minX and fp.x1 < plan.maxX, "path " .. tier)
+			T.truthy(fp.z0 == plan.maxZ and fp.z1 == Street.BOARD.z0 and fp.x0 > plan.minX and fp.x1 < plan.maxX, "path " .. tier)
 			local sx = Street.sign(plan.maxX, plan.maxZ)
 			local mx = Street.mailbox(plan.maxX, plan.maxZ)
 			T.truthy(sx - 1.5 > p.x0 and mx + 0.75 < p.x1, "sign and mailbox on plot " .. tier)
 		end
-		T.truthy(Street.ROAD.z0 == Street.PAVE_N.z1 and Street.ROAD.z1 == Street.PAVE_S.z0 and Street.VERGE.z0 == Street.PAVE_S.z1)
+		-- the boardwalk meets the sea; the pier runs from the boardwalk out over it; the water lies under the grass
+		T.truthy(Street.BOARD.z1 == Street.SEA.z0 and Street.LOT.z1 == Street.BOARD.z0)
+		local pier = Street.pier()
+		T.truthy(pier.z0 == Street.BOARD.z1 and pier.z1 < Street.SEA.z1)
+		T.truthy(Street.WATER_Y < Street.SAND_Y and Street.SAND_Y < Street.LAWN_Y)
 		-- neighbouring lots meet edge to edge, plot origins in a row centred on x = 0
 		local a = Street.origin(1)
 		local b = Street.origin(2)
@@ -123,13 +141,5 @@ return function()
 			T.eq(Street.plotAt(ox + 1, oz + 1), i)
 		end
 		T.eq(Street.plotAt(0, 200), 0)
-	end)
-	T.it("decor: unique ids, prices, footprints", function()
-		local seen = {}
-		for _, d in Decor.list do
-			T.truthy(not seen[d.id], d.id)
-			seen[d.id] = true
-			T.truthy(d.price > 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id)
-		end
 	end)
 end

@@ -1,21 +1,24 @@
 --!strict
--- Build mode (GAME_DESIGN 9; docs/ARCHITECTURE.md 10.7): decorating the plot. The HUD's Build button opens it: the
--- view stops following the founder and shows the own plot (a drag on the world pans it, CameraController.setFree /
--- panBy), and a tray along the bottom lists every piece of decor: the ones not bought yet with their price in coins (a
--- tap buys it: plot.buy), the owned ones ready to place. With a piece picked,
--- a ghost of it stands where the pointer is (mouse) or was tapped (touch), on a footprint that is green where it fits
--- (Logic/Plot.fits, the server's own rule) and red where it does not; Place (or a second click on the same spot) asks
--- the server (plot.place), Rotate turns it a quarter. Tapping a piece standing on the plot picks it up to move
--- (plot.move) or Store (plot.store). Done closes it.
+-- Build mode (GAME_DESIGN 4; docs/ARCHITECTURE.md 10.7): building the island. The HUD's Build button opens it: the
+-- view stops following the founder and shows the own island (a drag on the world pans it, CameraController.setFree /
+-- panBy), and a tray along the bottom lists what can be built, a tab a kind (Food, Wood, Shops, Homes, Nests, Decor),
+-- each with its price in shells and wood (locked until the island is big enough: Expand, in the tray's header). With
+-- a piece picked, a ghost of it stands where the pointer is (mouse) or was tapped (touch), on a footprint that is
+-- cyan where it fits (Logic/Plot.fits, the server's own rule) and red where it does not; Place (or a second click on
+-- the same spot) asks the server (plot.place: paid then), Rotate turns it a quarter. Tapping a piece standing on the
+-- island picks it up to move (plot.move), Upgrade it (plot.upgrade: a building that makes something) or Clear it
+-- away (plot.store: half its price back). Done closes it.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
-local Decor = require(ReplicatedStorage.Shared.Data.Decor)
+local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
+local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
@@ -23,12 +26,24 @@ local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
+local PixelSprites = require(script.Parent.PixelSprites)
+local Audio = require(script.Parent.Parent.Controllers.Audio)
 local Words = require(script.Parent.Words)
 
 local BuildUI = {}
 BuildUI.Changed = Util.Signal() :: Types.Signal<boolean>
 
-local TRAY_H = 46
+local TRAY_H = 60
+-- the tray's tabs: a kind (or two) of Data/Buildings each, with its small icon
+local TABS: { { key: string, text: string, kinds: { string }, icon: string } } = {
+	{ key = "food", text = "Food", kinds = { "food" }, icon = "food" },
+	{ key = "wood", text = "Wood", kinds = { "wood" }, icon = "wood" },
+	{ key = "shop", text = "Shops", kinds = { "shop" }, icon = "shell" },
+	{ key = "home", text = "Homes", kinds = { "home" }, icon = "home" },
+	{ key = "nest", text = "Nests", kinds = { "nest", "train" }, icon = "nest" },
+	{ key = "decor", text = "Decor", kinds = { "decor" }, icon = "decor" },
+}
+local tab = "food"
 
 type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean }
 
@@ -36,7 +51,6 @@ local open = false
 local tray: Frame? = nil
 local pick: Pick? = nil
 local ghost: Model? = nil
-local ghostKey = ""
 local marker: BasePart? = nil
 local conns: { { Disconnect: (any) -> () } } = {}
 
@@ -46,7 +60,7 @@ end
 
 local function placed(): { Types.Piece }
 	local v = view()
-	return if v then v.decor.placed else {}
+	return if v then v.pieces else {}
 end
 
 local function origin(): (number, number)
@@ -73,7 +87,6 @@ local function clearGhost()
 		ghost:Destroy()
 		ghost = nil
 	end
-	ghostKey = ""
 	if marker then
 		marker:Destroy()
 		marker = nil
@@ -85,7 +98,7 @@ local function fits(p: Pick): boolean
 	if v == nil then
 		return false
 	end
-	return (Plot.fits(v.office, placed(), p.id, p.x, p.z, p.rot, p.move))
+	return (Plot.fits(v.tier, placed(), p.id, p.x, p.z, p.rot, p.move))
 end
 
 -- Draw the ghost and its footprint (green where it fits, red where not) where the pick stands: a fresh model each
@@ -99,15 +112,20 @@ local function showGhost()
 	local ox, oz = origin()
 	local w, d = Plot.footprint(p.id, p.rot)
 	local cx, cz = ox + p.x + w / 2, oz + p.z + d / 2
-	local m = DecorModels.build(p.id, CFrame.new(cx, Street.LAWN_Y, cz) * CFrame.Angles(0, math.rad(p.rot), 0))
+	local lvl = 1
+	if p.move then
+		local q = placed()[p.move]
+		lvl = if q then q.lvl else 1
+	end
+	local m = DecorModels.build(p.id, CFrame.new(cx, Street.LAWN_Y, cz) * CFrame.Angles(0, math.rad(p.rot), 0), lvl)
 	for _, part in m:GetDescendants() do
 		if part:IsA("BasePart") then
 			part.CanQuery = false
 			part.CanCollide = false
 		end
 	end
-	-- the footprint: a raised neon frame round it (cyan where it fits, red where not), from the lawn to just above the
-	-- office floor, so it shows on the lawn and on a floor alike
+	-- the footprint: a raised neon frame round it (cyan where it fits, red where not), from the grass to just above the
+	-- lodge's floor, so it shows on the grass and on a floor alike
 	local ok = fits(p)
 	local color = if ok then "screen_on" else "berry_red"
 	local y0, y1 = Street.LAWN_Y, 0.375
@@ -120,22 +138,35 @@ local function showGhost()
 	m.Name = "Ghost"
 	m.Parent = workspace:FindFirstChild("PixelDynamic") or workspace
 	ghost = m
-	ghostKey = p.id
 	PixelRenderer.registerDynamic(m)
 end
 
 ------------------------------------------------------------------ the tray
 local rebuild: () -> () = function() end
 
-local function actionBar(f: Frame, p: Pick)
-	local def = Decor.byId[p.id]
+-- A price: its shells and wood with their small icons from x (red when there is not enough); returns the end x.
+local function price(parent: Instance, x: number, y: number, shells: number, wood: number, v: Types.ClientView, z: number?): number
+	PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
+	local t = Numbers.coins(shells)
+	UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
+	x += 13 + UIKit.textWidth(t) + 2
+	if wood > 0 then
+		PixelSprites.image(parent, "mini_wood", UDim2.fromOffset(x, y), z or 4)
+		local tw = Numbers.coins(wood)
+		UIKit.text(parent, tw, UDim2.fromOffset(UIKit.textWidth(tw) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.wood >= wood then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Wood" })
+		x += 13 + UIKit.textWidth(tw) + 2
+	end
+	return x
+end
+
+local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
+	local def = Buildings.byId[p.id]
 	local x = 4
 	local function btn(text: string, color: Color3?, enabled: boolean, click: () -> (), name: string)
 		local w = UIKit.buttonWidth(text, 5)
 		UIKit.button(f, text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), click, { color = color, enabled = enabled, name = name })
 		x += w + 3
 	end
-	UIKit.text(f, (if p.move then "Moving: " else "Placing: ") .. (if def then def.name else p.id), UDim2.fromOffset(150, 13), UDim2.new(1, -200, 0, 2), { x = "right", color = UIKit.color("accent") })
 	btn("Rotate", nil, true, function()
 		local q = pick
 		if q then
@@ -147,14 +178,34 @@ local function actionBar(f: Frame, p: Pick)
 	btn(if p.move then "Move here" else "Place", UIKit.color("button_ok"), p.set and fits(p), function()
 		BuildUI.confirm()
 	end, "Place")
-	if p.move then
-		btn("Store", UIKit.color("button_warn"), true, function()
-			local q = pick
-			if q and q.move then
-				ask("plot.store", { i = q.move }, "Back in the box.")
-				pick = nil
-				clearGhost()
-				task.defer(rebuild)
+	local q = if p.move then placed()[p.move] else nil
+	if q then
+		local up = Plot.upgradeCost(q)
+		if up then
+			btn("Upgrade", UIKit.color("accent"), v.shells >= up.shells and v.wood >= up.wood, function()
+				local cur = pick
+				if cur and cur.move then
+					local res = ask("plot.upgrade", { i = cur.move })
+					if res.ok then
+						Audio.play("level_up")
+						UIKit.notice(string.format("%s is now Lv %d!", if def then def.name else "It", (res.data and res.data.lvl) or 2), UIKit.color("good"))
+						pick = nil
+						clearGhost()
+						task.defer(rebuild)
+					end
+				end
+			end, "Upgrade")
+		end
+		btn("Clear away", UIKit.color("button_warn"), true, function()
+			local cur = pick
+			if cur and cur.move then
+				local res = ask("plot.store", { i = cur.move })
+				if res.ok then
+					Audio.play("close")
+					pick = nil
+					clearGhost()
+					task.defer(rebuild)
+				end
 			end
 		end, "Store")
 	end
@@ -163,31 +214,70 @@ local function actionBar(f: Frame, p: Pick)
 		clearGhost()
 		rebuild()
 	end, "Cancel")
+	-- what it is and costs (or its level and the next level's price)
+	local info = UIKit.plate(f, UDim2.new(1, -8, 0, 28), UDim2.fromOffset(4, 17), UIKit.color("plate_light"), 0, 2)
+	info.Name = "Info"
+	local name = (if def then def.name else p.id) .. (if q and q.lvl > 1 then " Lv" .. q.lvl else "")
+	UIKit.text(info, (if p.move then "Moving: " else "Placing: ") .. name, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), z = 4, name = "What" })
+	local say = if def then def.blurb else ""
+	if def and def.rate > 0 then
+		local lvl = if q then q.lvl else 1
+		say = string.format("%s %s a day with a %s.", say, Numbers.perDay(def.rate * (Tuning.UpgradeMult[lvl] or 1)):gsub("/day", ""), string.lower(def.job))
+	end
+	if def and def.charm > 0 then
+		say ..= string.format(" Charm +%d.", def.charm)
+	end
+	UIKit.text(info, say, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 14), { color = UIKit.color("text_dim"), z = 4, name = "Blurb" })
+	if q then
+		local up = Plot.upgradeCost(q)
+		if up then
+			UIKit.text(info, "Next level:", UDim2.fromOffset(60, 10), UDim2.new(1, -150, 0, 2), { x = "right", color = UIKit.color("text_dim"), z = 4 })
+			price(info, math.max(4, f.Size.X.Offset - 92), 1, up.shells, up.wood, v)
+		end
+	elseif def then
+		price(info, math.max(4, f.Size.X.Offset - 92), 1, def.shells, def.wood, v)
+	end
 end
 
 local function cards(list: ScrollingFrame, v: Types.ClientView)
 	UIKit.hlist(list, 3)
-	for k, def in Decor.list do
-		local owned = v.decor.owned[def.id] == true
-		local text = if owned then "Place" else Numbers.coins(def.price)
-		local card = UIKit.plate(list, UDim2.fromOffset(62, 27), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2)
+	local cur = TABS[1]
+	for _, t in TABS do
+		if t.key == tab then
+			cur = t
+		end
+	end
+	local k = 0
+	for _, def in Buildings.list do
+		if not table.find(cur.kinds, def.kind) then
+			continue
+		end
+		k += 1
+		local locked = def.tier > v.tier
+		local afford = v.shells >= def.shells and v.wood >= def.wood
+		local card = UIKit.plate(list, UDim2.fromOffset(72, 28), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2)
 		card.Name = "Card_" .. def.id
-		card.LayoutOrder = k
-		UIKit.text(card, def.name, UDim2.fromOffset(60, 10), UDim2.fromOffset(2, 1), { color = UIKit.color("text") })
-		UIKit.button(card, text, UDim2.fromOffset(58, 13), UDim2.fromOffset(2, 12), function()
-			if owned then
-				pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false }
-				clearGhost()
-				UIKit.notice("Tap the lawn where it should go.", UIKit.color("text_dim"), 2.5)
-				rebuild()
-			else
-				ask("plot.buy", { id = def.id }, def.name .. " bought!")
+		card.LayoutOrder = (if locked then 100 else 0) + k
+		UIKit.text(card, def.name, UDim2.fromOffset(70, 10), UDim2.fromOffset(2, 1), { color = if locked then UIKit.color("text_dim") else UIKit.color("text"), z = 4 })
+		local b = UIKit.button(card, "", UDim2.fromOffset(68, 14), UDim2.fromOffset(2, 12), function()
+			if locked then
+				UIKit.notice("Expand your island to build this.", UIKit.color("bad"))
+				Audio.play("deny")
+				return
 			end
+			pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false }
+			clearGhost()
+			UIKit.notice("Tap the grass where it should go.", UIKit.color("text_dim"), 2.5)
+			rebuild()
 		end, {
 			name = "Buy_" .. def.id,
-			color = if owned then UIKit.color("button_ok") else nil,
-			enabled = owned or v.coins >= def.price,
+			color = if locked then UIKit.color("button_off") elseif afford then UIKit.color("button_ok") else nil,
 		})
+		if locked then
+			UIKit.text(b, string.format("Island Lv%d", def.tier), UDim2.fromScale(1, 1), nil, { x = "center", color = UIKit.color("text_dim"), z = 6 })
+		else
+			price(b, 3, 2, def.shells, def.wood, v, 6)
+		end
 	end
 end
 
@@ -210,17 +300,60 @@ rebuild = function()
 	f.Name = "BuildTray"
 	local p = pick
 	if p then
-		actionBar(f, p)
+		actionBar(f, p, v)
 	else
-		UIKit.text(f, string.format("Build: pick a piece, then tap the lawn. Pieces %d/%d", #v.decor.placed, Plot.limit(v.office)), UDim2.new(1, -60, 0, 13), UDim2.fromOffset(5, 2), { color = UIKit.color("text") })
+		-- the tabs (their icons alone on a narrow screen), the pieces count and Expand
+		local x = 4
+		local wide = 0
+		for _, t in TABS do
+			wide += UIKit.buttonWidth(t.text, 5) + 13
+		end
+		local short = wide > s.X - 8 - 152
+		for _, t in TABS do
+			local w = if short then 16 else UIKit.buttonWidth(t.text, 5) + 11
+			local b = UIKit.button(f, if short then "" else t.text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), function()
+				tab = t.key
+				Audio.play("flip")
+				rebuild()
+			end, { name = "Tab_" .. t.key, color = if tab == t.key then UIKit.color("accent") else UIKit.color("plate_light") })
+			PixelSprites.image(b, "mini_" .. t.icon, UDim2.fromOffset(2, 1), 6)
+			local l = b:FindFirstChildWhichIsA("TextLabel", true)
+			if l and not short then
+				l.Position = UDim2.fromOffset(6, 0)
+			end
+			x += w + 2
+		end
+		local cost = Island.expandCost(v.tier)
+		local ex = UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(54, 13), UDim2.new(1, -102, 0, 2), function()
+			local res = ask("island.expand", {})
+			if res.ok then
+				Audio.play("fanfare")
+				local moved = if type(res.data) == "table" then tonumber(res.data.moved) or 0 else 0
+				UIKit.notice(if moved > 0 then string.format("Your island grew! %d building%s moved over for the bigger lodge.", moved, if moved == 1 then "" else "s") else "Your island grew! New buildings to build.", UIKit.color("good"), 4)
+			end
+		end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells and v.wood >= cost.wood })
+		local _ = ex
+		local count = string.format("%d/%d", #v.pieces, Plot.limit(v.tier))
+		UIKit.text(f, count, UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if #v.pieces >= Plot.limit(v.tier) then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
+		if cost then
+			local pf = Instance.new("Frame")
+			pf.Name = "ExpandCost"
+			pf.BackgroundTransparency = 1
+			pf.Size = UDim2.fromOffset(100, 11)
+			pf.Position = UDim2.new(1, -102, 0, 47)
+			pf.Parent = f
+			price(pf, 0, 0, cost.shells, cost.wood, v)
+		end
 	end
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
 		BuildUI.close()
 	end, { color = UIKit.color("accent"), name = "BuildDone" })
-	local list = UIKit.scroll(f, UDim2.new(1, -8, 0, 30), UDim2.fromOffset(4, 16))
-	list.ScrollingDirection = Enum.ScrollingDirection.X
-	list.AutomaticCanvasSize = Enum.AutomaticSize.X
-	cards(list, v)
+	if p == nil then
+		local list = UIKit.scroll(f, UDim2.new(1, -8, 0, 30), UDim2.fromOffset(4, 16))
+		list.ScrollingDirection = Enum.ScrollingDirection.X
+		list.AutomaticCanvasSize = Enum.AutomaticSize.X
+		cards(list, v)
+	end
 	tray = f
 end
 
@@ -265,9 +398,9 @@ local function pieceAt(pos: Vector2): number?
 	if m == nil then
 		return nil
 	end
-	local id, x, z, rot = string.match(m.Name, "^(%w+):(%-?%d+):(%-?%d+):(%d+)$")
+	local uid = tonumber(string.match(m.Name, "^(%d+):"))
 	for i, q in placed() do
-		if q.id == id and q.x == tonumber(x) and q.z == tonumber(z) and q.rot == tonumber(rot) then
+		if q.uid == uid then
 			return i
 		end
 	end
@@ -387,18 +520,20 @@ function BuildUI.open()
 			rebuild()
 		end
 	end))
-	-- the income ticks: the Buy buttons follow the coins without rebuilding the tray
-	table.insert(conns, StateClient.Coins:Connect(function(coins: number)
-		local t = tray
-		if not open or t == nil then
+	-- the stores every second: the tray follows what can be afforded (rebuilt when that changes)
+	local affordKey = ""
+	table.insert(conns, StateClient.Tick:Connect(function(v: Types.ClientView)
+		if not open then
 			return
 		end
-		local v = view()
-		for _, def in Decor.list do
-			local b = t:FindFirstChild("Buy_" .. def.id, true)
-			if b and b:IsA("TextButton") and v and not v.decor.owned[def.id] then
-				UIKit.setEnabled(b, coins >= def.price)
-			end
+		local key = {}
+		for _, def in Buildings.list do
+			table.insert(key, if v.shells >= def.shells and v.wood >= def.wood then "1" else "0")
+		end
+		local k = table.concat(key)
+		if k ~= affordKey then
+			affordKey = k
+			rebuild()
 		end
 	end))
 	table.insert(conns, UIKit.Resized:Connect(function()

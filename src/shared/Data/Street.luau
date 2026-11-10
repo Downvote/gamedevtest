@@ -1,18 +1,18 @@
 --!strict
--- The street (GAME_DESIGN 12; docs/ARCHITECTURE.md 5): every studio on the server stands on a plot in one row along
--- X, all facing one road on their south side (the side the camera sees). Pure. Coordinates are studs; plot-local ones
--- are from the plot's origin (`Street.origin(i)`), where the office's room is centred (Data/Office).
+-- The sea (GAME_DESIGN 8; docs/ARCHITECTURE.md 5): every island on the server stands on a plot in one row along X,
+-- all joined by one long boardwalk on their south side (the side the camera sees), the open sea beyond. Pure.
+-- Coordinates are studs; plot-local ones are from the plot's origin (`Street.origin(i)`), where the lodge's room is
+-- centred (Data/Office). (The module keeps its old name: the street it once was.)
 --
---   north (-Z)   . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
---                |  lot (meadow)   [ plot (lawn): the office, its yard, decor ]    |
---   z = 30       |==================== pavement ======================================|
---   z = 32..42   |                     the road (asphalt, a dashed line)               |
---   z = 42..44   |==================== pavement ======================================|
---   z = 44..58   |  verge: grass, trees, lamp posts                                     |
+--   north (-Z)   ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+--                |  lot (water)   [ plot (grass, a sand beach round it): the lodge, buildings ]   |
+--   z = 30..35   |================ the boardwalk (planks on posts) ===========================|
+--                |                 a pier from the boardwalk, a boat at its end               |
+--   z = 35..58   ~ ~ ~ ~ ~ ~ ~ ~ ~ the open sea ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 --   south (+Z)
 --
--- A plot grows with the office tier (PLOT[tier]): out to the east and west and back behind the office, always down
--- to the pavement. The lot is the land between two neighbours (LOT): what is not the plot is meadow, a shade darker.
+-- An island grows with its tier (PLOT[tier]): out to the east and west and back behind the lodge, always down to
+-- the boardwalk. What is not island on a lot is water.
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 export type Rect = { x0: number, z0: number, x1: number, z1: number }
@@ -21,22 +21,23 @@ local Street = {}
 
 Street.MAX = Tuning.MaxPlots
 Street.SPACING = Tuning.PlotSpacing
-Street.LAWN_Y = -0.5 -- the top of the lawn (decor stands here; the office floor's top is 0)
+Street.LAWN_Y = -0.5 -- the top of the island's grass (pieces stand here; the lodge floor's top is 0)
+Street.SAND_Y = -0.6 -- the beach round an island
+Street.WATER_Y = -1.1 -- the sea's surface
+Street.BEACH = 2 -- studs of beach round an island's grass (west, north and east)
 
--- The road and its pavements, plot-local z (the same for every plot: one straight road).
-Street.ROAD = { z0 = 32, z1 = 42 }
-Street.PAVE_N = { z0 = 30, z1 = 32 }
-Street.PAVE_S = { z0 = 42, z1 = 44 }
-Street.VERGE = { z0 = 44, z1 = 58 }
--- Ground past the invisible walls (studs): the meadow north of the lots, the verge south of the road and both ends,
--- so no sky shows past the world's edges wherever the view goes.
-Street.FAR = 40
-Street.END_FAR = 60
+-- The boardwalk and the sea, plot-local z (the same for every plot).
+Street.BOARD = { z0 = 30, z1 = 35 }
+Street.SEA = { z0 = 35, z1 = 58 }
+-- Water past the invisible walls (studs): north of the lots, south of the sea and both ends, so no sky shows past the
+-- world's edges wherever the view goes.
+Street.FAR = 120
+Street.END_FAR = 160
 
--- The lot: the land between two neighbours (plot-local).
+-- The lot: the water between two neighbours (plot-local).
 Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -24, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
 
--- The plot of each office tier (plot-local): the player's land, lawn instead of meadow, where decor stands.
+-- The island of each tier (plot-local): its grass, where buildings and decor stand.
 local PLOTS: { Rect } = {
 	{ x0 = -16, z0 = -12, x1 = 24, z1 = 30 },
 	{ x0 = -20, z0 = -14, x1 = 30, z1 = 30 },
@@ -66,23 +67,23 @@ function Street.plotAt(x: number, z: number): number
 	return 0
 end
 
--- The world's playable box (world studs): every lot, the road and the verge, and a stretch past each end.
+-- The world's box (world studs): every lot, the boardwalk and the sea, and a stretch past each end.
 function Street.bounds(): Rect
 	local x0 = Street.origin(1) + Street.LOT.x0 - 24
 	local x1 = Street.origin(Street.MAX) + Street.LOT.x1 + 24
-	return { x0 = x0, z0 = Street.LOT.z0, x1 = x1, z1 = Street.VERGE.z1 }
+	return { x0 = x0, z0 = Street.LOT.z0, x1 = x1, z1 = Street.SEA.z1 }
 end
 
--- The office's doorway: the gap in the room's south rim (Models/OfficeModels), by the room's east edge.
+-- The lodge's doorway: the gap in the room's south rim (Models/OfficeModels), by the room's east edge.
 -- `maxX` / `maxZ` are the room's (Data/Office plan).
 function Street.door(maxX: number, maxZ: number): (number, number)
 	return maxX - 4.5, maxZ
 end
 
--- The footpath from the doorway down to the pavement (plot-local).
+-- The sandy path from the doorway down to the boardwalk (plot-local).
 function Street.footpath(maxX: number, maxZ: number): Rect
 	local dx, dz = Street.door(maxX, maxZ)
-	return { x0 = dx - 1.5, z0 = dz, x1 = dx + 1.5, z1 = Street.PAVE_N.z0 }
+	return { x0 = dx - 1.5, z0 = dz, x1 = dx + 1.5, z1 = Street.BOARD.z0 }
 end
 
 -- Where a founder appears: on the footpath just outside the doorway (plot-local x, z).
@@ -91,7 +92,7 @@ function Street.spawn(maxX: number, maxZ: number): (number, number)
 	return dx, dz + 3
 end
 
--- The plot sign and the mailbox by the pavement, west and east of the footpath (plot-local centres).
+-- The island's sign and the mailbox by the boardwalk, west and east of the path (plot-local centres).
 function Street.sign(maxX: number, maxZ: number): (number, number)
 	local dx = Street.door(maxX, maxZ)
 	return dx - 6, 28.5
@@ -101,8 +102,16 @@ function Street.mailbox(maxX: number, maxZ: number): (number, number)
 	return dx + 3.5, 28.5
 end
 
--- The street's furniture along each plot's stretch (plot-local): lamp posts on the south pavement, trees on the verge.
+-- Along each plot's stretch (plot-local): lanterns on the boardwalk's posts, and the pier (its x, from the boardwalk
+-- out to PIER_Z) where the expedition boat is moored.
 Street.LAMPS = { -28, 12 } :: { number }
-Street.TREES = { { -32, 51 }, { -6, 54 }, { 22, 50 } } :: { { number } }
+Street.PIER_X = 0
+Street.PIER_Z = 44
+Street.PIER_W = 4
+
+-- The pier of plot-local x (where the boat waits).
+function Street.pier(): Rect
+	return { x0 = Street.PIER_X - Street.PIER_W / 2, z0 = Street.BOARD.z1, x1 = Street.PIER_X + Street.PIER_W / 2, z1 = Street.PIER_Z }
+end
 
 return Street

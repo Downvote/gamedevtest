@@ -1,68 +1,49 @@
-# Byte-Size Studio: Game Design
+# Driftling Isle: Game Design
 
-> The first request (2026-11-06): "Read docs/WORKFLOW.md and tools/README.md, then let's design a new game using its
-> style and rules as a base. use its pixel art style and filters and isometric style, along with its build system and
-> formats. reference game dev story from kariosoft and make a simplified version of it in gamedevtest. dont touch the
-> "test" repo at all, only use it for reference"
+> The request (2026-11-10): "scrap this idea. could you make replicate beasty bay from kariosoft instead? still use the
+> test repo as a reference"
 
-> The redesign (2026-11-09): "scrap the whole system. can  i make the gameplay loop as such: rng system, where an idea
-> team thinks of random ideas to do, allowing players to discover genres and ideas with different modifiers that they
-> can get randomly that boost certain aspects of it.  (1 in x, etc.) the player can then choose to make a game based on
-> the ideas gotten which are listed in an idea board. the player can combine 3 ideas into one game, in which the player
-> has to play 3 minigames based on the ideas they are using. there should a vast variety of minigames themed around the
-> idea, just like warioware, and some can be reused but have a higher difficulty. modifiers also change the minigames
-> to be played differently. the higher the rarity, the harder the minigames will be. succeeding in all 3 minigames
-> will boost sales up to double, each one adding a 33% boost if won. the player can retry at any point or after they
-> finish as well. Once the minigames are done, the game is launched, which generates income passively. coins can be
-> used to boost the idea team, with an upgrade for increasing the roll speed of ideas and  another upgrade for chance
-> of getting rarer ideas. there is no need for other details or upgrades of any kind, but customizing player and
-> spending money to decorate your plot is still ok."
+We do not copy another studio's game (its name, creatures, islands, story or art). Asked which way to go, the answers
+were: **an original game in the same genre** ("Yes, original game"); its loop **"Island building + farming, Creature
+taming, Expeditions + battles, Villagers moving in"**; its world **"Shared sea of islands"**. Earlier requests still
+hold where they apply: the first ("reference game dev story from kariosoft and make a simplified version of it in
+gamedevtest. dont touch the "test" repo at all, only use it for reference"), the pixel art rules (§2) and the polish
+requests (§11). The game studio of the earlier versions is gone (§10: an old save starts a fresh island).
 
-> The party-round request (2026-11-09): "the minigames should be longer and more interesting. use pummel party
-> minigames as a reference. also, the last game you made should have a live graph that shows its player count,
-> earnings, etc. just like game dev tycoon, this fluctuates, increasing then decreasing until it stops earning. also,
-> making a new game will overwrite and stop the progress of the last game you made. try to remove modifiers that make
-> the game annoying rather than hard like shaky or tiny and make more interesting ones"
-
-Byte-Size Studio is a small game-studio game for Roblox: an RNG game about ideas. Your idea team thinks up random
-ideas, each one a genre or a theme with a modifier and a rarity ("1 in 3,200"); you make games out of three of them
-by playing a themed party round against three rival founders for each; a launched game goes on sale, its players
-climbing and fading like a Game Dev Tycoon game's sales, until it leaves the shops or you make the next one; coins
-make the idea team faster and luckier. The old studio (crew, research, reviews, platforms, offices) is gone. The look, the build system and the
-file formats come from our own Random Bakery (`Downvote/test`): the 2:1 pixel-art isometric diorama seen through the
-pixel filter, the pixel font, Rojo with strict Luau, a server that decides everything, pure Data/Logic modules with
-specs, and the fake-engine simulator and preview tools. The minigames are half-minute party rounds of the kind party
-games are made of (everyone in one arena: last one standing, most points, first to the finish) with our own rules
-and content.
-
-Numbers below are the starting balance. `src/shared/Config/Tuning.luau` holds every number the game uses and wins
-when this document disagrees.
+Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a castaway's
+hut. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
+villagers take jobs. You sail out to the islets nearby with a party of villagers, befriend the wild **driftlings**
+there with treats in turn-based battles, and bring them home to help at the buildings of their knack. Beating each
+islet's guardian opens the next. The islands of everyone on the server sit side by side along one boardwalk on a
+shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
+2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
+decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
 ## 1. The loop in one paragraph
 
-The idea team (three chibis at their desks) thinks up an idea every few seconds: an idea (Puzzle, Pirates, Dinosaurs...)
-with a modifier (Plain, Turbo, Icy, Crowded, Frenzy, Shrinking, Cosmic), rolled by its odds. Ideas collect on the idea
-board (12 places). Pick three and make a game: each idea brings its own party round against three rival founders,
-harder the rarer the idea, played differently under its modifier. Each round won adds a third to the game's sales
-(all three: double); retry any of them as often as you like, then launch. The game goes on sale: its players climb
-to a peak and fade away over five minutes, wobbling on the way (a live graph shows them), and each player pays coins
-every second; its peak is set by how rare its ideas are and how many rounds were won. Making the next game takes it
-off sale, so you choose when. Spend the coins on the idea team (faster ideas, luckier ideas) and on decor for your
-plot.
+Build a Veggie Patch so the island has food, a Tent so a castaway can move in at dawn, a Lumber Camp for wood and a
+Snack Stall to sell food to the visitors for shells. Every day (Tuning.DaySeconds while you play) the island makes and
+eats; a visitor moves into a free bed when the charm is high enough and takes a free job. Build a Driftling Nest,
+then Explore: pick a party (you, the captain, and up to three villagers or driftlings), pay the supplies in food and
+sail to an islet. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
+end); in battle choose Fight, Guard, Treat (food: a hurt wild one may join you) or Flee. Sail home with the loot.
+Spend shells and wood on more buildings, upgrades (a making building's Lv 2 and 3) and decor (charm), and expand the
+island twice for bigger buildings. Nothing happens while you are away (no offline progress).
 
 ## 2. Look and feel
 
-- **World:** one office per player, a cut-away diorama (floor, two back walls, furniture, desks with monitors) on a
-  plot along a shared street, seen from the Random Bakery camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art
-  "isometric" grid. Everything is built from parts in code (no meshes, decals or uploaded images).
+- **World:** one island per player along a shared boardwalk on the open sea, the lodge a cut-away diorama (floor, two
+  back walls, furniture) in the middle of the island's grass and its sand beach, seen from the Random Bakery camera:
+  orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid. Everything is built from parts in code (no
+  meshes, decals or uploaded images).
 - **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
-  from one sun, sun shadows, a 48-colour palette LUT, a 1 px ink outline, and the characters drawn analytically every
-  tick on top with the same projection. One pixel size K for the world, the UI and the text.
-- **The idea team:** little chibis typing away at their desks, bits of code ("</>", "{ }", "01") floating up from
-  their screens. A new idea pops out of a head in its tier's colour; a rare one makes them cheer.
-- **Interface:** pixel-art plates with stepped corners, the pixel font from Random Bakery, no borders; each idea has
-  a 16x16 icon (and an 11x11 one for the HUD's lists), drawn by the rules below.
-- **The founder:** you walk the street as a chibi founder in the team's style (§8, §9).
+  from one sun, sun shadows, a palette LUT, a 1 px ink outline, and the characters drawn analytically every tick on
+  top with the same projection. One pixel size K for the world, the UI and the text.
+- **Villagers** are little chibis (their own looks) walking the island and working at their buildings (hoeing,
+  chopping, selling); **driftlings** are small 3D creatures of our own design hopping about and helping.
+- **Interface:** pixel-art plates with stepped corners, the pixel font, no borders; every driftling has a 16x16
+  portrait and the island's things 11x11 icons, drawn by the rules below.
+- **The founder:** you walk your island and the boardwalk as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
 
@@ -71,9 +52,9 @@ plot.
 > much much more"
 
 - **No mixels.** One art pixel is one UI px is one K-sized block on the screen: nothing is ever drawn scaled up
-  (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: an icon is 16x16, its
-  small version 11x11. The minigames are 3D (§5) and drawn by the pixel filter like the office, so they keep the
-  same grid, palette and outline.
+  (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: a driftling's portrait is
+  16x16, a small icon 11x11. The islets' stages are 3D (§7) and drawn by the pixel filter like the islands, so they keep
+  the same grid, palette and outline.
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
 - **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
@@ -86,267 +67,136 @@ plot.
 - **One source:** `scripts/gen_art.py` holds every sprite as a text mask and makes `UI/ArtData` (and a contact sheet
   with `--png`); the client draws each sprite once into an EditableImage shown pixelated (or from 1 px rects).
 
-## 3. The idea team and time
+## 3. The island's day (`Logic/Island`)
 
-- The team thinks up an idea every `Studio.rollEvery` seconds: `Tuning.RollBase` (8 s) at the start, x0.92 for each
-  level of the speed upgrade, down to `Tuning.RollMin` (1 s). The HUD's chip counts down to the next one.
-- The clocks run while you are in the game, whatever you are doing (menus, cards, minigames, Build mode hold
-  nothing). Nothing happens while you are away: no ideas, no income.
-- The team is three (`Tuning.TeamSize`, the garage's desks). It never grows: the two upgrades make it better.
+- A day is `DaySeconds` (40 s) while you are on the server; the HUD shows the day and its clock (a sun, a moon for
+  the evening). Each building that makes something makes its rate a day: full with a villager working there, half
+  with nobody (`IdleOutput`), more with a driftling of its knack helping (`PalBoost`), more again at Lv 2 and 3
+  (`UpgradeMult`). Villagers eat `EatFolk` food a day, driftlings `EatPal`.
+- **Shops** sell food to the visitors: their rate times visitors / `ShopVisitors` (at most double), eating food the
+  same way. **Visitors** a day: 1 + charm / `VisitorCharm`, at most `VisitorsMax`.
+- **Charm:** every piece's charm, one for each driftling, three for each islet opened.
+- **Hunger:** when the food runs out everything makes half and the shops shut until there is food again; the food
+  chip blinks red.
+- The stores reach the client every second; a new day brings a banner (who moved in, who trained).
 
-## 4. Ideas, modifiers and rarity
+## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
-**Ideas** (`Data/Ideas`, 24): ten genres and fourteen themes, each with its own odds (its "1 in N") and its minigame
-(§5).
+27 pieces in seven kinds: **food** (Veggie Patch, Fishing Pier, Fruit Orchard, Greenhouse), **wood** (Lumber Camp,
+Sawmill), **shops** (Snack Stall, Beach Cafe, Seaside Inn), **homes** (Tent, Grass Hut, Cottage: beds), **nests**
+(Driftling Nest, Cozy Burrow: room for driftlings), the **Training Yard** (resting villagers and driftlings gain xp
+each dawn) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
+placed, on whole studs, turned a quarter at a time, off the lodge, the path to the boardwalk, the sign and the
+mailbox, and off every other piece, up to the island's piece limit (`PlotPieces`). The bigger buildings wait for a
+bigger island (tier 2 or 3).
 
-| Commons (1 in 7-12) | Uncommon (1 in 15-40) | Rare (1 in 60-150) | Epic (1 in 400-1,000) | Legendary (1 in 3,000+) |
-|---|---|---|---|---|
-| Action, Puzzle, Animals, Space, Cooking, School | Adventure, Racing, Sports, Pirates, Farming, Ocean | RPG, Fantasy, Rhythm, Robots, Ninjas, Zombies | Strategy, Horror, Dinosaurs, Detectives | Simulation (1 in 3,000), Music (1 in 6,000) |
+- **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Food, Wood, Shops, Homes,
+  Nests, Decor) lists every piece with its price (red when you are short, locked ones greyed with the tier they
+  need). A picked piece is a ghost on a cyan footprint where it fits, red where not; Place (or a second click on the
+  same spot) builds it. Tapping a standing piece picks it up to move, **Upgrade** it (a building that makes
+  something: Lv 2 and 3 for `UpgradeCost` times its price, making `UpgradeMult` times as much) or **Clear it away**
+  (half its price back; not a home or nest whose beds are needed).
+- **Expand** (in the tray's header): the island grows twice (`TierCost`), the lodge with it (Castaway Hut, Driftwood
+  Lodge, Harbor Hall). Buildings the bigger lodge would stand on move to the nearest free spot (none is lost; one with
+  no spot left would be cleared with its whole price back).
 
-**Modifiers** (`Data/Modifiers`, rolled on their own after the idea): each multiplies the idea's income and changes
-how its round plays. They make it harder in a way you can play round, never one that only gets in the way: the
-annoying ones (Tiny, Shaky, Glitched, Haunted) went, and a saved idea with one of them now has the new modifier with
-the same odds (Tiny became Icy, Shaky Crowded, Glitched Frenzy, Haunted Shrinking; the Index's counts follow).
+## 5. Villagers (`Logic/Island`, the Villagers panel)
 
-| Modifier | Odds | Income | Its round |
-|---|---|---|---|
-| Plain | the rest (about 2 in 3) | x1 | as it is |
-| Turbo | 1 in 5 | x1.2 | everything 1.35x faster, on a clock 0.8x as long |
-| Icy | 1 in 12 | x1.4 | a slippery floor: everyone slides, stops late and bounces off each other harder |
-| Crowded | 1 in 30 | x1.7 | five rivals instead of three, and sharper ones |
-| Frenzy | 1 in 80 | x2.2 | more of everything: 1.6x the hazards, the coins and the bombs, an extra beam, more zombies |
-| Shrinking | 1 in 250 | x3 | the arena closes in: glowing walls (or the karts' ring) shrink to half over the round |
-| Cosmic | 1 in 1,000 | x5 | Turbo, Frenzy and Shrinking at once |
+A visitor moves in at dawn when there is a free bed (`FolkMax` at most) and the charm is at least `MoveInCharm` times
+the villagers already living there. A newcomer takes a free job straight away (food first, then wood, then shops).
+The Villagers panel lists each one (portrait, level, job, battle stats) with **Job** (a picker of the buildings that
+take workers: Go, Swap with whoever is there, or Rest) and **Dismiss** (two taps: they sail off, freeing the bed).
+Each villager has their own fighting stats (from their seed) and a skill (Big Bonk, Soothe or Shell Guard), and grows
+with levels (xp from battles and the yard).
 
-- **The odds** (`Logic/Ideas`, Random Bakery's rule): ideas and modifiers rarer than 1 in 60 (`Tuning.RareOdds`) roll
-  at luck / odds; the Uncommon ones (and Turbo, Icy, Crowded) at 1 / odds; the commonest (the Commons; Plain) share what
-  is left, never less than a tenth (`Tuning.CommonFloor`; past that the lucky ones are scaled down to fit). So at
-  luck x1 a "1 in 3,000" idea really comes once in 3,000 ideas, and luck x3 makes it three times as likely.
-- **An idea's rarity** is its idea's odds times its modifier's: Frenzy Ninjas is 1 in 120 x 80 = 1 in 9,600. Its
-  **tier** follows: Common (under 1 in 20), Uncommon (from 1 in 20), Rare (250), Epic (3,000), Legendary (40,000),
-  Mythic (500,000), each with its colour.
-- **The board** holds 12 (`Tuning.BoardSize`). When it is full a new idea takes the place of the board's commonest one
-  if it is rarer; otherwise it is dropped. So an idle team keeps the board's best.
-- **The Index** (the Index panel) counts every idea the team ever thought of, dropped ones too: each idea's icon (a
-  dark "???" until found), its odds, and a dot per modifier lit once found with it. "Found 13 of 168".
-- **Reveals:** a Rare idea or better drops a banner in at the top ("EPIC IDEA! New!" the first time, its name, its
-  1 in N) with a sound to match and confetti from Epic; over an open panel it is a line in the panel's status bar.
+## 6. Driftlings (`Data/Creatures`, the Driftlings panel, the Index)
 
-## 5. Making a game: three ideas, three party rounds
+Fifteen driftlings of our own, three on each islet: Pebblit, Clawdle, Gullfin (Pebble Beach); Mossbun, Frondle,
+Twiggle (Mossgrove); Emberpup, Magmole, Scorchwing (Cinder Rock); Snowpuff, Floe, Frostling (Frostcap); Lumajelly,
+Novafox, Tidewyrm (Coral Deep). Each has battle stats, a skill (Big Bonk, Double Dash, Splash Wave, Soothe, Shell
+Guard), a **knack** (farms, fishing piers, lumber camps or shops: where it helps), a trust (how readily a treat
+befriends it), a 3D model and a portrait. A befriended driftling needs a free nest slot (`PalsMax` at most) and starts
+helping where its knack is needed. The Driftlings panel shows each (portrait, level, skill, where it helps, stats)
+with **Help** (a picker of the buildings of its knack, or Rest) and **Release** (two taps). The **Index** lists all
+fifteen: dark until met, named once met, its blurb and a heart once befriended.
 
-- **Pick three** ideas on the idea board (Make a game!). The panel shows what the game would earn at its peak (with
-  no wins, and with three). Make: the three leave the board, and the game gets a title from a word of each ("Treasure
-  Galaxy Saga"). One game at a time; while one is on sale the panel warns that making the next takes it off sale.
-- **The making card** lists the three ideas, each with its round's order word, its modifier and its difficulty,
-  and Play (or Retry) for each; Play all plays the unplayed ones in turn. Each one won adds a third to the game's sales
-  (`Tuning.WinBoost`): all three double them. A retry, at any time (in the middle of one, or after all three), keeps a
-  win: the best result counts. Launch! once all three have been played.
-- **A minigame is a party round** (`UI/MicroArena`, `UI/MicroGames`), full screen, in 3D, with your own founder and
-  three rival founders (five when Crowded), half a minute long (`Tuning.MicroSeconds`):
+## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the islet's screen)
 
-  > The request (2026-11-09): "make the minigames full screen, have depth and are 3d, using the player's avatar"
+- **Five islets** open one after another: Pebble Beach (Lv 1+), Mossgrove (5+), Cinder Rock (10+), Frostcap (16+),
+  Coral Deep (23+). Each has a path of 8 to 11 stops: the landing, loot (food and wood), chests (shells), wild
+  battles, a rest (the party heals half), and the guardian (a bigger driftling with a friend). Beating the guardian
+  pays its reward (half on later trips) and opens the next islet.
+- **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
+  strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
+  dismissed or released. One expedition at a time; leaving the game brings it home with its loot.
+- **Battles**, round by round: you pick what the party does; then everyone acts in speed order. A fighter attacks
+  (the party the weakest foe, a wild one a random member) or, every `SkillEvery` actions, uses its skill. **Guard**
+  takes half the damage and mends a little; **Treat** (`TreatFood` food, a free nest) offers a treat to a wild one
+  (tap its card; the most hurt by default): it may join you (its trust, more the more hurt, less the higher its
+  level); **Flee** may get away. A guardian can't be befriended or fled from. A win gives xp to the party (levels) and
+  shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and half
+  the loot comes home.
+- **The islet's screen** (3D, full screen): the islet's own stage (a beach with a palm and a chest, a mossy meadow,
+  a volcano's sands, a snowfield with snowy pines and a frozen pond, the sea floor), drawn by the pixel filter, with
+  the party on the left (your founder, villagers as their chibis, driftlings as their models) and the wild ones
+  dropping in on the right. Along the top: the islet, the loot so far, the path of stops (the ones ahead hidden but
+  the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
+  the party's cards with their health bars and levels, and the buttons (Go on and Sail home between stops; Fight,
+  Guard, Treat and Flee in battle; Space or 1-4 on a keyboard). A round plays back: lunges, flashes, damage numbers,
+  skills' names, heals, shells, a treat's hearts, knock-outs; a win shows its xp, shells and level-ups, a new friend
+  its portrait with confetti, a guardian's fall the next islet.
 
-  > The request (2026-11-09): "the minigames should be longer and more interesting. use pummel party minigames as a
-  > reference."
+## 8. The sea (`Data/Street`, `Models/StreetModels`)
 
-  A curtain with the idea's icon, its order word ("Dodge!") and the round's rule ("Last one standing wins!") covers
-  the screen while the idea's stage is drawn, then lifts on it: a little diorama room built from parts like the office
-  (a floor, two back walls cut away, props), drawn full screen by the same pixel filter (the 2:1 camera, toon bands,
-  palette, sun shadows, 1 px ink outline). Everyone drops in, 3, 2, 1, GO! Then you run free round the room (hold the
-  arrow keys or WASD, or the on-screen cross on a phone) and press Space (or the action pad) to jump, dash or shove.
-  The rivals are other founders with their own looks, names and shirt colours; a scoreboard at the top right keeps
-  them in order, "YOU" floats over your head (with your score in the points rounds). A round ends as soon as it is
-  decided (you are out, the last one standing, the first to the door) or when the rope fuse along the bottom burns
-  down. WIN or LOSE stamps it with your placing ("1st place: 12 coins", "Last one standing!", "Out in 3rd") while the
-  winners cheer, then the making card comes back over the street.
-- **Three kinds of round:** *survive* (one hit and you are out, flying off in a puff; the last one standing wins, and
-  so does anyone still standing when the fuse runs out), *points* (the most at the end wins; a tie for first counts)
-  and *race* (the first to the finish).
-- **Each idea has its own stage** (UI/MicroStage): a rooftop in a night city, a road with red and white kerbs, a
-  kitchen with a stove and a shelf of jars, a pitch with a crowd and a goal, a torch-lit dungeon, a living room, a
-  deck among the stars with craters, a field of soil rows, a graveyard under the moon, a playroom, a classroom with a
-  chalkboard, a war table's map, a detective's office, a wizard's tower, a lab with a board of pads, a stage with
-  curtains, a beach with a palm and a chest, the sea floor, a meadow path, a desert with a volcano, a disco floor, a
-  dojo, a haunted hall with a door, a building site with a crane. Everything that moves is 3D and casts a blob shadow.
-- **The difficulty** (1 to 8) is the idea's tier, plus a step when its idea reuses an engine another (commoner) idea
-  already has, so a reused round always comes back harder. Harder means sharper, quicker rivals (they react sooner,
-  run faster, make fewer mistakes) and thicker, faster hazards.
-- **Eleven engines, 24 themed rounds** (UI/MicroGames; the reused ones a step or two harder):
+Up to `MaxPlots` (6) islands sit in a row along one boardwalk (planks on posts, lanterns) on the open sea; an
+unclaimed lot is open water with a sign. Each island has its grass, a sand beach, a path from the lodge's door to the
+boardwalk, its sign ("Name's Isle") and a mailbox, and a pier with a moored boat. Sailboats cross the sea, gulls fly
+over and cloud shadows drift across. You can walk onto anyone's island; Home sends you back to your own path. A
+tap on a sign shows that island's day, villagers, driftlings, charm and islets.
 
-| Engine | Ideas (order) | The round |
-|---|---|---|
-| bombs | Action (Dodge!), Space (Take cover!), Dinosaurs (Run!) | survive: crates, the aliens' bombs or meteors fall on red marks (aimed at the players more and more, a ring of them round someone now and then); one hit and you are out |
-| collect | Animals (Fetch!), Pirates (Loot!), Ocean (Catch!) | points: treats, coins or fish drop all over (a shiny one is worth three); grab the most; crabs, bombs or jellies roll about from difficulty 2: touch one and you are dazed and drop two |
-| tiles | Puzzle (Match!), Cooking (Hop!), Rhythm (Dance!) | survive: a floor of tiles. A colour is called and the others drop; hot plates glow, then burn; the disco floor lights up in patterns to the beat and zaps |
-| quiz | School (Answer!), Detectives (Spot it!) | points: a sum on the board (or four suspects, one in an odd coat) and four pads; run onto the right one before the time is up (a point, two for the first there); a wrong pad bucks you off |
-| sweep | Adventure (Jump!), Fantasy (Jump!), Robots (Jump!) | survive: a log, a magic beam or a laser sweeps round the room from a post in the middle, faster and faster, two from difficulty 4 (turning back from difficulty 6): jump it |
-| sumo | Racing (Bump!) | survive: bumper karts in a ring of kerbs; Dash! rams; out of the ring and you are out |
-| zone | Sports (Hold the ring!), Music (Spotlight!) | points: a glowing ring moves round the floor (the next spot shows first; it drifts from difficulty 5); the one nearest its middle scores; Shove! (the arm winds up first: a sharp eye steps aside) knocks the others out of the way and dazes them |
-| barrage | RPG (Dodge!), Ninjas (Dodge!) | survive: arrows or throwing stars fly in from the walls, aimed at someone or in walls with a gap, a red line showing each one's path first; step aside or jump them |
-| horde | Zombies (Survive!) | survive: zombies climb out of the ground, slower than you but more and more of them; jump one to get past it; a bite turns you |
-| sneak | Horror (Sneak!) | race: creep to the door while the ghost looks away; it shudders, then turns: anyone still moving goes back to the start |
-| paint | Farming (Water!), Strategy (Claim!), Simulation (Build!) | points: every tile you step on turns your colour until someone else's; a star paints all round you; the most tiles wins |
+## 9. Your founder, settings and the tips
 
-- **Every round can be lost by doing nothing** (the hazards aim at you, the rivals score, the zombies and the rams come
-  for whoever stands still) and won by playing well (the simulator's auto player, the rivals' own brain at full skill,
-  wins every one of the 24).
-- **Fair play:** the server starts each round (a token, a seed for its content and its rivals, its difficulty) and
-  records its result. A win sooner than 1 s after the start (`Tuning.MicroMinSec`) or a result later than two and a
-  half minutes (`Tuning.MicroMaxSec`) counts as a loss; a round left open is dropped then. The result itself is the
-  client's word, as in any minigame.
+The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). Settings: the pixel filter's
+quality. **The tips** (the banner over the menu bar): 1 build food, 2 build a home, 3 build a nest and sail to
+Pebble Beach, 4 treat a hurt wild one (OK ends them).
 
-## 6. Launch and sales
+## 10. Saves and the economy, checked
 
-> The request (2026-11-09): "the last game you made should have a live graph that shows its player count, earnings,
-> etc. just like game dev tycoon, this fluctuates, increasing then decreasing until it stops earning. also, making a
-> new game will overwrite and stop the progress of the last game you made."
+The save is version 5 (`Logic/Schema`): an older save (the game studio's) keeps the founder's look, the settings and
+its start date and begins a fresh island with the tips. `tests/Career.luau` plays a sensible player through the same
+rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 
-- **A launched game goes on sale** (`Logic/Live`), and only the newest one sells. Its players climb from 15% of its
-  peak at the launch to the peak a fifth of the way through its life (`Tuning.LivePeakAt`), then fall away to none at
-  the end of its five minutes on sale (`Tuning.LiveLife`), wobbling all the way: a slow drift and a little jitter (up
-  to 16% and 8%), and two bumps of buzz on the way down (a streamer finds it: up to a third more players for a while).
-  The same game always draws the same curve (its seed). Each player pays `Tuning.CoinPerPlayer` (0.05) coins a
-  second, paid every second (`Tuning.IncomeTickSec`).
-- **Its peak** is the sum of its ideas' values times its boost: an idea is worth `1.5 x odds ^ 0.7 x its modifier's
-  income` coins a second (Action: 5.9/s; Pirates: 14.3/s; Music: 662/s), and the boost is `1 + wins / 3`. A first
-  game of three Commons peaks at about 19/s (390 players), 39/s with three wins. Over its life a game makes about 135
-  times its peak.
-- **The graph** (Game Dev Tycoon style): the HUD's sales card under the idea board shows the game on sale (Rising, At
-  its peak!, Falling, Off sale), its players' graph filling in as it sells (the days to come a dotted floor, its peak
-  marked), its players now and its coins a second. The Games panel shows the same graph big, with its peak, the coins
-  it made and the time left, then every game made with the coins it made and its peak players.
-- **It leaves the shops** at the end of its life (a notice: what it made, its peak; the graph stays, grey, until the
-  next game) or as soon as you make the next game: making a game overwrites the one on sale and stops it where it is
-  (its record keeps what it made). So the choice is yours: ride a hit to its end, or cut it short for a better board.
-  While you make the next game nothing sells.
-- Like every clock, it only runs while you are in the game: away, it waits where it was on its curve.
-- The launch card shows the game's peak ("up to +34/s") and the team cheers with it over their heads.
+- a villager within 3 minutes, a driftling friend within 15;
+- the guardians of the first islet within 15 minutes, the second 45, the third 90, the fourth 150; the last islet is
+  a long-term goal (past two hours);
+- the island's second tier within 45 minutes, the third within 90; at an hour, at least 8 villagers and 8 driftlings;
+- nobody starves for long, and the stores stay finite.
 
-## 7. Upgrades (the idea team)
+## 11. Polish and animation
 
-Two upgrades, nothing else (Upgrades panel):
+> The requests (2026-11-06, 2026-11-09): "make the it more polished and animated as well"; "Polish everything to the
+> max. Add animations and details to everything, including the minigames"
 
-- **Faster ideas:** an idea every 8 s x 0.92 per level, down to 1 s (about 25 levels). Price 40 x 1.8 ^ level.
-- **Lucky ideas:** luck +0.2 per level (x1 at level 0): Rare and rarer ideas and modifiers come that much more often.
-  Price 60 x 1.8 ^ level.
+- **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled; panels and
+  cards fade and rise in; notices slide down.
+- **The HUD:** the stores count up and their chip flashes when they change, shells coming in rise from their chip
+  ("+12"); the day chip's clock bar creeps along and its sun sets into a moon; the food chip blinks red while hungry;
+  the expedition card's Continue pulses and gleams; a new tip bounces in; a new day's banner drops in (with a fanfare
+  and bits when someone moved in).
+- **The island lives:** villagers walk to their work and back and do it (hoe, chop, sell), wander when resting;
+  driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
+- **The sea lives:** sailboats rock on the swell as they cross both ways, gulls cross now and then, clouds' shadows
+  slide over the islands.
+- **The islet's screen:** ink blinds open from the middle on the islet's name; the party and the wild ones drop in
+  from above in puffs of dust; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
+  in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
+  numbers float up, skills shout their names, heals and shells twinkle, a treat bursts into hearts, a friend leaves in
+  confetti, a win cheers and throws confetti.
+- **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses), its
+  pitch varied a little, repeats inside a short cooldown dropped.
 
-Coins also buy decor (§9).
+## 12. Out of scope for this version
 
-## 8. The street
-
-> The request (2026-11-06): "could you also make an overworld and plot, just like the baking game?" Asked how far the
-> plot's decorating should go, the user chose "Street + build mode": the street, walking and visiting, plus a Build
-> mode for outdoor decor; no path, water or fence drawing yet.
-
-Like Random Bakery's street of bakeries, every studio on a server stands on its own plot in one row along a road
-(`Data/Street`): six plots (`Tuning.MaxPlots`, the server's size), 80 studs apart, centred on the road's middle. An
-empty plot is an empty lot: meadow, a low white fence along the front and an "Empty lot" sign. A player who joins
-takes the lowest free plot; one who leaves leaves an empty lot (their save keeps everything).
-
-- **The road** runs the street's whole length on the plots' south side (the side the camera sees): a pavement, the
-  road with its dashed line, a second pavement, a grass verge with trees and lamp posts; a hedge and a lamp at both
-  ends, and invisible walls round the world so nobody walks off its edge.
-- **A studio's plot** (§9) is lawn round the office, a shade lighter than the meadow; a footpath of stepping stones
-  runs from the office's doorway down to the pavement, the plot sign (the studio's name floats over it) and a mailbox
-  stand by the pavement.
-- **The founder:** each player walks as a little chibi in the team's style (their look is kept in the save and set in
-  the Looks panel, §9), on their Roblox character (jumping is off; the avatar itself is hidden). They appear on their
-  own footpath. Their name floats over them for the others.
-- **The camera** keeps the office-sized view: on a lot it frames that lot like your home view; on the road it follows
-  you, keeping you clear of the screen's edges and the HUD. The pixel filter scrolls its picture with the view and
-  casts only what comes into sight. A **Home** button shows while you are away and puts you back on your footpath.
-- **Visiting:** you can walk into any studio and watch its idea team at work. Tapping a plot sign shows a card: "Bo's
-  Studio: 12 games, rarest idea 1 in 9,600, earning +340/s". Every action only ever changes your own profile.
-
-## 9. The plot, Build mode and your looks
-
-- **The plot** (`Data/Street` PLOT) is the garage's: 40 x 42 studs, down to the pavement and mostly in front of and
-  east of the office. (A studio from before the redesign keeps the room it had, the Loft or the Studio Floor, and its
-  bigger plot.)
-- **Decor** (`Data/Decor`, 15 pieces, all on sale from the start): Garden Gnome, Flower Bed, Round Bush, Park Bench,
-  Street Lamp, Oak Tree, Pine Tree, Bike Rack, Picnic Table, Arcade Kiosk, Fountain, Hero Statue, Satellite Dish,
-  Billboard, Food Truck. A piece is **bought once** (1,000 to 200,000 coins); you then place as many copies of it as
-  you like, up to the plot's piece limit (20 in the garage).
-- **Where a piece stands** (`Logic/Plot`): on whole studs at a quarter turn, wholly on the plot a stud in from its
-  edges, off the office, the footpath, the sign and the mailbox, and off every other piece.
-- **Build mode** (the HUD's Build button): the view stops following the founder and shows your plot (a drag pans it);
-  a tray lists every piece: buy one with a tap, or pick an owned one and tap the lawn: its ghost stands there on a
-  footprint, cyan where it fits and red where it doesn't. Place puts it there and keeps it picked for another copy;
-  Rotate turns it. Tapping a piece on the plot picks it up: Move here, Rotate, Store or Cancel. Done closes it.
-- **Looks** (the Looks panel): the founder's skin, hair colour, hair style and shirt, each stepped with < and >, a
-  portrait to preview; Save look. Free.
-
-## 10. The economy, checked
-
-`tests/specs/Economy.spec.luau` plays four three-hour sessions with a sensible player (`tests/Career.luau`: makes a
-game of the board's three most valuable ideas once there are three and the game on sale has faded (off sale, or
-falling under a third of its peak), plays its three half-minute rounds, winning each with a chance falling with its
-difficulty, retries a loss once, spends every coin on the cheaper upgrade) through the server's own rules and holds
-the pacing to these bounds: a game launched and an upgrade bought within 4 minutes; a Rare idea within 10 minutes,
-an Epic within 30, no Mythic in the first hour; twelve to eighteen levels of each upgrade in the first hour and a few
-more by the third (at most 22); by hour three the next upgrade takes 5 to 60 minutes of income and the income (the
-last twenty minutes' average) grows less than x6 from hour one to hour three (no runaway); a player who wins every
-round earns 1.4 to 2.8 times as much as one who loses them all; every game rises to a peak and leaves the shops with
-its coins. A typical session: the first game at about 3 minutes (three rounds to play), a Rare in the first few
-minutes, an Epic within about 10, a Legendary in the first half hour or so; hour one ends at speed and luck level
-14-15 earning about 300-450 a second on average (more at a game's peak, nothing while making the next), hour three
-at levels 16-17 earning about the same: from there a better game comes from rarer ideas, slowly. Print one with
-`luau tests/career.luau -a <seed> [minutes] [skill]` after the check has built `build/luautest`.
-
-## 11. Out of scope for this version
-
-Trading or selling ideas, more upgrades of any kind (the request: "no need for other details or upgrades"), offline
-income, purchases (no game passes or products: `Config/Monetization.luau` holds only the sound ids), music, other
-languages (English only; every string goes through `Locale/Lang.t`), drawing paths, water and fences on the plot.
-
-## 12. Polish and animation
-
-> The request (2026-11-06): "make the it more polished and animated as well".
-
-> The request (2026-11-09): "Polish everything to the max. Add animations and details to everything, including the
-> minigames"
-
-- **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled.
-- **Panels and cards** fade their shade in and rise into place; **notices** slide down into the stack and fade away.
-- **The HUD:** the coins count up and their chip flashes when they change; the idea chip counts down to the next idea
-  with a bar along its edge; the card's main button (Make a game!, Play!, Launch!) pulses when it is the thing to do.
-- **The party rounds** (3D, §5): the idea's icon, order word and rule on the curtain; everyone drops in from above
-  and lands in a puff of dust; 3, 2, 1, GO! ticks in; a rope fuse (twisted, ink-edged) burns toward its bomb with an
-  animated spark, the last three seconds ticking. The founders walk, run, jump (knees up), shove and cheer; a
-  knocked-out one flies off tumbling and vanishes in a puff of smoke ("Rex out!"); the scoreboard reorders as the
-  points come in and "+1"s pop over the heads. Crates, bombs and meteors fall on blinking red marks and smash into
-  debris, sparks or embers with a jolt; coins, fish and treats drop in and bob; the tiles blink before they drop, hot
-  plates glow and burn with embers, the disco floor pulses to the beat; the quiz's right pad flashes and bursts into
-  confetti, the wrong ones buck you off; the beam sweeps round its post (the laser and the magic beam spark); the karts
-  spark when they collide; the ring spins and twinkles; arrows and throwing stars (spinning) streak along their red
-  lines; zombies rise out of the ground in a spray of dirt; the ghost shudders before it turns; painted tiles puff in
-  their colour and a star splashes paint all round. WIN flashes and brings confetti; the launch card brings confetti
-  and a fanfare and the team cheers with the new game's peak over their heads.
-- **The minigames' stages live** (§5): every stage has its own ambient life while you play: birds and blinking
-  antenna lights over the rooftop, steam off the pan, flags waving over the stands, flickering torches throwing
-  embers, a yarn ball rolling round the living room, a UFO hovering past twinkling stars, butterflies over the field,
-  bats circling the graveyard in the mist, a ball bouncing in the playroom, a paper plane looping round the classroom,
-  flags on the war map, steam from the detective's coffee, sparkles and a floating book in the wizard's tower, server
-  lights and a drone in the lab, stage lights sweeping the music stage, a gull and a glinting chest on the beach,
-  bubbles and a crab on the sea floor, a pterodactyl and volcano smoke in the desert, the disco floor lighting up,
-  cherry petals falling in the dojo, candles and dust motes in the haunted hall, a bird over the building site.
-- **3D bits:** dust, sparks, debris, confetti, splashes, steam and smoke fly out as little cubes on the stage (and
-  bounce on the floor): crates splinter, coins spark, a right answer bursts into confetti, landings kick up dust, a
-  win throws confetti from your founder, a loss a puff of dust.
-- **The curtain** is a set of ink blinds that open from the middle; your founder and the rivals drop in from above and
-  land in puffs of dust; the order word drops in with a bounce; the burning fuse spits sparks and the last three
-  seconds tick; the stamp bounces in with the placing under it; a loss plays the sad trombone, a win cheers.
-- **The street lives:** cars drive both ways along the road (and wait for a founder standing in their lane), a flock of
-  birds crosses now and then, clouds drift over and their shadows slide across the lawns and the offices; walking
-  founders kick up dust.
-- **The office:** bits of code float up from the screens; a new idea pops out of a head in its tier's colour with a
-  burst of sparkles (more the rarer); the team cheering throws confetti; rare reveals drop in with a fanfare and
-  confetti, their icon bouncing in with sparkles and a glint running along the tier's band.
-- **The interface's juice:** money coming in rises from the coin chip ("+12"); a new idea slides into the HUD's card
-  under a white flash while the idea and board chips flash; the card's main button gleams now and then; picking an
-  idea on the board, making a game and buying an upgrade ("Level up!") burst into bits; the making card's rows slide in
-  one after another, a new WIN or LOSE stamps in with a burst and the Launch button gleams; the launch card's title
-  bounces in, the three ideas pop up one by one and the peak counts up to what the game earns at its best; the sales
-  card's graph grows a column with each sample, the newest lit white.
-- **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses,
-  `Config/Monetization.Sounds`), its pitch varied a little, repeats inside a short cooldown dropped.
+Trading between players, visiting with gifts, offline progress, purchases (no game passes or products:
+`Config/Monetization.luau` holds only the sound ids), music, other languages (English only; every string goes through
+`Locale/Lang.t`).

@@ -1,91 +1,115 @@
 --!strict
 -- Shared types (docs/ARCHITECTURE.md 3). Pure: no requires, no Roblox APIs.
 
--- A developer's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour).
+-- A person's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour).
 export type Look = { skin: number, hair: number, style: number, shirt: number }
 
--- A member of the idea team: they sit at a desk and think up ideas (GAME_DESIGN 3).
-export type Member = { id: number, name: string, look: Look, desk: number }
+-- A building or a piece of decor standing on the island (Logic/Plot): `uid` stays the same while it stands (the
+-- villagers and driftlings working there point at it), `id` is a Data/Buildings id, (x, z) its footprint's
+-- north-west corner in plot-local whole studs, `rot` a quarter turn, `lvl` its upgrade level (1..3: a building that
+-- makes something makes Tuning.UpgradeMult times as much).
+export type Piece = { uid: number, id: string, x: number, z: number, rot: number, lvl: number }
+-- The island's pieces (GAME_DESIGN 4).
+export type PlotSave = { placed: { Piece } }
 
--- An idea on the board: one of Data/Ideas with one of Data/Modifiers (GAME_DESIGN 4).
-export type Card = { id: string, mod: string }
+-- A villager (GAME_DESIGN 5): moved in on `day`; works at the building `work` (a Piece uid, 0: idle); their fighting
+-- stats come from `seed` and their level (Logic/Battle).
+export type Villager = { id: number, name: string, look: Look, work: number, lvl: number, xp: number, seed: number, day: number }
 
--- The game being made (GAME_DESIGN 5): three ideas and each one's minigame result (-1 not played yet, 0 lost, 1 won).
-export type Making = { title: string, ideas: { Card }, won: { number }, seed: number }
+-- A befriended driftling (GAME_DESIGN 6): its species (Data/Creatures), its level, the building it helps at (a Piece
+-- uid, 0: resting at its nest).
+export type Pal = { id: number, sp: string, lvl: number, xp: number, work: number }
 
--- A launched game (GAME_DESIGN 6): `rate` is what it earns a second at its peak; `peak` the most players it had and
--- `earned` the coins it made while on sale (both grow while it is the live game).
-export type Game = { id: number, title: string, ideas: { Card }, rate: number, wins: number, at: number, peak: number, earned: number }
-
--- The game on sale (GAME_DESIGN 6, Logic/Live): only the newest launched game sells. Its players climb to a peak and
--- fall away until it leaves the shops `life` seconds after the launch, fluctuating on the way (from `seed`); each
--- player earns Tuning.CoinPerPlayer a second. `age` counts only the seconds its player was here. `samples` holds the
--- player count every Tuning.LiveSampleSec (the graph), the first at the launch.
-export type Live = {
-	id: number,
-	title: string,
-	top: number, -- the players at the curve's peak (before the fluctuation)
-	life: number,
-	age: number,
-	players: number,
-	earned: number,
-	peak: number, -- the most players it had so far
-	seed: number,
-	samples: { number },
-}
-
-export type Upgrades = { speed: number, luck: number }
-
--- A piece of decor standing on the plot (Logic/Plot): plot-local north-west corner and a quarter turn.
-export type Piece = { id: string, x: number, z: number, rot: number }
--- The plot (GAME_DESIGN 9): the decor bought (once each) and where copies stand.
-export type PlotSave = { owned: { [string]: boolean }, placed: { Piece } }
+-- The founder as the expeditions' captain (GAME_DESIGN 7).
+export type Captain = { lvl: number, xp: number }
 
 export type Settings = { pixel: string }
 
--- rolls: ideas the team thought of; best: the rarest idea's 1 in N; earned: every coin the games made.
-export type Stats = { games: number, rolls: number, best: number, earned: number }
+-- days: island days lived; earned: shells made in all; befriended: driftlings that joined; cleared: islets'
+-- guardians beaten (counting repeats); battles won.
+export type Stats = { days: number, built: number, earned: number, befriended: number, battles: number, cleared: number, movedIn: number }
 
 export type Profile = {
 	v: number,
-	coins: number,
-	ideas: { Card }, -- the idea board (at most Tuning.BoardSize)
-	found: { [string]: number }, -- "idea|mod" -> how many times the team thought of it (the Index)
-	project: Making?,
-	games: { Game }, -- the newest launched games, at most Tuning.GamesKept
-	live: Live?, -- the game on sale (the newest one, until it leaves the shops or the next game is made)
-	nextGame: number,
-	upgrades: Upgrades,
-	team: { Member },
-	office: number, -- Data/Office tier (the room the team sits in)
-	tut: number, -- tips banner step (0 = done)
+	shells: number, -- the money
+	food: number,
+	wood: number,
+	day: number, -- the island's day (1 at the start)
+	tier: number, -- the island's size and its lodge (Data/Office tier)
+	founder: Look, -- the player's chibi (AvatarView)
+	cap: Captain,
+	folk: { Villager },
+	pals: { Pal },
+	plot: PlotSave,
+	islets: number, -- islets whose guardian has been beaten (the next one is open)
+	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
+	nextId: number, -- the next villager, driftling or piece id
+	tut: number, -- the tips' step (0 = done)
 	stats: Stats,
 	settings: Settings,
 	createdAt: number,
-	founder: Look, -- the player's chibi on the street (AvatarView)
-	plot: PlotSave,
 }
 
--- What the client sees (Session.view): the profile plus derived fields.
+-- Someone in a battle (Logic/Battle): the founder ("f"), a villager ("v<id>"), a driftling ("p<id>") or a wild one
+-- ("w<i>"). `charge` counts the actions to its skill.
+export type Fighter = {
+	key: string,
+	name: string,
+	kind: string, -- "founder" | "villager" | "pal" | "wild"
+	sp: string?, -- a driftling's species
+	look: Look?, -- a person's look
+	lvl: number,
+	hp: number,
+	maxHp: number,
+	atk: number,
+	def: number,
+	spd: number,
+	skill: string,
+	charge: number,
+}
+
+-- A battle in progress: the wild ones, the round, whether it is the islet's guardian.
+export type Battle = { foes: { Fighter }, round: number, boss: boolean, shield: number, foeShield: number }
+
+-- An expedition (GAME_DESIGN 7): the islet, the node the party stands on (1 = the landing), the islet's path of
+-- nodes (Data/Islets kinds), what each node held once visited, the party, what it has gathered, a battle.
+export type Expedition = {
+	islet: number,
+	node: number,
+	nodes: { string },
+	done: { boolean },
+	party: { Fighter },
+	loot: { shells: number, food: number, wood: number },
+	battle: Battle?,
+	befriended: { string }, -- species that joined on this trip
+	over: string?, -- "home" | "won" | "lost" (set when it ends)
+}
+
+-- What the client sees (Session.view): the profile plus what the rules derive from it.
 export type ClientView = {
-	coins: number,
-	rate: number, -- coins a second the game on sale earns right now
-	live: Live?,
-	ideas: { Card },
-	found: { [string]: number },
-	project: Making?,
-	games: { Game },
-	upgrades: Upgrades,
-	team: { Member },
-	office: number,
+	shells: number,
+	food: number,
+	wood: number,
+	day: number,
+	dayFrac: number, -- how far into the day (0..1)
+	tier: number,
+	founder: Look,
+	cap: Captain,
+	folk: { Villager },
+	pals: { Pal },
+	plot: number, -- the plot index on the sea
+	pieces: { Piece },
+	islets: number,
+	seen: { [string]: number },
 	tut: number,
 	stats: Stats,
 	settings: Settings,
-	plot: number,
-	rollEvery: number, -- seconds between two ideas
-	luck: number,
-	founder: Look,
-	decor: PlotSave,
+	rates: { food: number, wood: number, shells: number }, -- a day, after eating
+	charm: number,
+	beds: number,
+	nests: number,
+	visitors: number, -- a day
+	exp: Expedition?,
 }
 
 export type ErrCode =
@@ -94,14 +118,18 @@ export type ErrCode =
 	| "rate"
 	| "not_ready"
 	| "busy"
-	| "no_project"
-	| "not_built"
 	| "money"
+	| "wood"
+	| "food"
 	| "locked"
 	| "full"
 	| "cooldown"
 	| "max"
 	| "blocked"
+	| "no_room"
+	| "no_exp"
+	| "in_battle"
+	| "not_found"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }
 

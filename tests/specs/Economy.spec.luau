@@ -1,10 +1,10 @@
--- Whole sessions through Logic/Studio (the server's own rules) by a sensible player (tests/Career.luau): the pacing
--- stays inside the bounds GAME_DESIGN 10 promises. Print a session with: luau tests/career.luau -a <seed> [minutes]
--- [skill] (after the check has built build/luautest).
+-- Whole sessions through the island's own rules by a sensible player (tests/Career.luau): the pacing stays inside the
+-- bounds GAME_DESIGN 10 promises. Print a session with: luau tests/career.luau -a <seed> [minutes] (after the check
+-- has built build/luautest).
 local T = require("../TestKit")
 local Career = require("../Career")
 
-local SEEDS = { 1, 2, 3, 4 }
+local SEEDS = { 1, 2, 3 }
 local MINUTES = 180
 
 return function()
@@ -15,47 +15,37 @@ return function()
 	local function at(r: any, minute: number): any
 		return r.timeline[minute // 10]
 	end
-	T.it("the first minutes: a game launched and an upgrade bought within 4 minutes", function()
+	T.it("the first minutes: a villager within 3 minutes, a driftling friend within 15", function()
 		for seed, r in runs do
-			T.truthy(r.firstGame and r.firstGame <= 240, "seed " .. seed .. ": first game at " .. tostring(r.firstGame))
-			T.truthy(r.firstUpgrade and r.firstUpgrade <= 240, "seed " .. seed .. ": first upgrade at " .. tostring(r.firstUpgrade))
+			T.truthy(r.first.villager and r.first.villager <= 180, "seed " .. seed .. ": villager at " .. tostring(r.first.villager))
+			T.truthy(r.first.driftling and r.first.driftling <= 900, "seed " .. seed .. ": driftling at " .. tostring(r.first.driftling))
 		end
 	end)
-	T.it("finds: a Rare within 10 minutes, an Epic within 30, no Mythic in the first hour", function()
+	T.it("the islets: the guardians of the first within 15 minutes, the second 45, the third 90, the fourth 150", function()
+		local by = { 900, 2700, 5400, 9000 }
 		for seed, r in runs do
-			T.truthy(r.firstTier[3] and r.firstTier[3] <= 600, "seed " .. seed .. ": Rare at " .. tostring(r.firstTier[3]))
-			T.truthy(r.firstTier[4] and r.firstTier[4] <= 1800, "seed " .. seed .. ": Epic at " .. tostring(r.firstTier[4]))
-			T.truthy(r.firstTier[6] == nil or r.firstTier[6] > 3600, "seed " .. seed .. ": Mythic at " .. tostring(r.firstTier[6]))
+			for i, limit in by do
+				local at1 = r.first["islet" .. i]
+				T.truthy(at1 and at1 <= limit, string.format("seed %d: islet %d at %s", seed, i, tostring(at1)))
+			end
+			T.truthy(r.first.islet5 == nil or r.first.islet5 > 7200, "seed " .. seed .. ": the last islet is a long-term goal")
 		end
 	end)
-	T.it("upgrades: twelve to eighteen levels each in the first hour, a few more by the third", function()
+	T.it("the island grows: tier 2 within 45 minutes, tier 3 within 90; a village of villagers and friends", function()
 		for seed, r in runs do
-			local h1, h3 = at(r, 60), at(r, 180)
-			T.truthy(h1.speed >= 12 and h1.speed <= 18 and h1.luck >= 12 and h1.luck <= 18, string.format("seed %d: hour 1 speed %d luck %d", seed, h1.speed, h1.luck))
-			T.truthy(h3.speed > h1.speed and h3.luck > h1.luck, "seed " .. seed .. ": still climbing")
-			T.truthy(h3.speed <= 22 and h3.luck <= 22, string.format("seed %d: hour 3 speed %d luck %d", seed, h3.speed, h3.luck))
+			T.truthy(r.first.tier2 and r.first.tier2 <= 2700, "seed " .. seed .. ": tier 2 at " .. tostring(r.first.tier2))
+			T.truthy(r.first.tier3 and r.first.tier3 <= 5400, "seed " .. seed .. ": tier 3 at " .. tostring(r.first.tier3))
+			local h1 = at(r, 60)
+			T.truthy(h1.folk >= 8 and h1.pals >= 8, string.format("seed %d: hour 1 %d villagers %d driftlings", seed, h1.folk, h1.pals))
 		end
 	end)
-	T.it("no runaway: the next upgrade takes 5 to 60 minutes of income by hour 3, the income grows slower than x6", function()
+	T.it("nobody starves for long; the stores stay finite", function()
 		for seed, r in runs do
-			local h1, h3 = at(r, 60), at(r, 180)
-			T.truthy(h3.wait >= 300 and h3.wait <= 3600, string.format("seed %d: wait %.0f s", seed, h3.wait))
-			T.truthy(h3.rate < h1.rate * 6, string.format("seed %d: %.0f -> %.0f a second", seed, h1.rate, h3.rate))
-			T.truthy(r.profile.coins == r.profile.coins and r.profile.coins < 1e12, "seed " .. seed .. ": finite")
-		end
-	end)
-	T.it("the minigames pay: winning them all earns about twice as much as losing them all", function()
-		local good = Career.play(1, 30 * 60, { skill = 1, retries = 0 })
-		local bad = Career.play(1, 30 * 60, { skill = 0, retries = 0 })
-		local ratio = good.profile.stats.earned / bad.profile.stats.earned
-		T.truthy(ratio >= 1.4 and ratio <= 2.8, string.format("x%.2f", ratio))
-	end)
-	T.it("one game sells at a time: each one rises, peaks and leaves the shops", function()
-		for seed, r in runs do
-			local g = r.profile.games
-			T.truthy(#g >= 20, "seed " .. seed .. ": " .. #g .. " games")
-			local old = g[#g - 1]
-			T.truthy(old.peak > 0 and old.earned > 0, string.format("seed %d: an old game's peak %d, coins %d", seed, old.peak, old.earned))
+			for _, row in r.timeline do
+				T.truthy(row.foodRate > -40 or row.food > 50, string.format("seed %d at %dmin: food %d, %+.0f a day", seed, row.t // 60, row.food, row.foodRate))
+			end
+			local p = r.profile
+			T.truthy(p.shells == p.shells and p.shells < 1e12 and p.wood < 1e12, "finite")
 		end
 	end)
 end

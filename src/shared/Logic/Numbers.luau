@@ -50,6 +50,12 @@ function Numbers.rate(n: number): string
 	return "+" .. Numbers.short(n) .. "/s"
 end
 
+-- A day's change: "+12/day", "-3/day" (short past ten thousand).
+function Numbers.perDay(n: number): string
+	local r = math.floor(math.abs(n) + 0.5)
+	return (if n < -0.5 then "-" else "+") .. Numbers.short(r) .. "/day"
+end
+
 -- A rarity: "1 in 1,250" (short past a million: "1 in 4.5M").
 function Numbers.oneIn(n: number): string
 	if n >= 1e6 then

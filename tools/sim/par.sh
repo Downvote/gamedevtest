@@ -1,18 +1,21 @@
 #!/bin/sh
-# Every scenario of Byte-Size Studio's simulator: regenerate the sources once, then run them four at a time (more in
-# parallel makes the timing checks flaky) and print each SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors,
-# 0 issues everywhere.
-#   sim.luau        the main run: a new studio's first ideas, making a game through the board, its three microgames
-#                   (MicroUI.debugAuto), the launch, the income, the upgrades, the founder's looks, the panels, settings,
-#                   tips, a malicious client (its deliberate NaN / infinity payloads are listed apart), a 2nd player
-#   sim_save.luau   saves: leave and rejoin to the same profile, another server's lock, a takeover, a corrupt record,
-#                   a version 2 save (the old studio) loading into the idea loop
-#   sim_clock.luau  the clocks: the idea pace and the speed upgrade, nothing holding them, the full board's rule, the
-#                   income pace, a microgame left open, two studios
-#   sim_world.luau  the street and the plot: the street built at start, two studios, teams and founders on every
-#                   client, walking (the camera follows, Home), decor (buy with coins, place, move, store, every
-#                   refusal), Build mode's UI, malicious plot payloads, a leaving player, an old save, a full street
-#   sim_micro.luau  the microgames: all 24 won by the auto player, each engine lost doing nothing, retries, the
-#                   modifiers' effects, Play all and Launch, the server's rules, a player leaving mid-game
+# Every scenario of Driftling Isle's simulator: regenerate the sources once, then run them in parallel and print each
+# SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors, 0 issues everywhere.
+#   sim.luau        the main run: a new island (the hut, the HUD, the tips), building food, a tent, a nest and a camp,
+#                   the days turning (a villager moves in and works), an expedition from the Explore panel played
+#                   through the islet's screen (battles, treats, home with the loot), the Villagers and Driftlings
+#                   panels, looks, settings, expanding, a malicious client (its deliberate NaN / infinity payloads are
+#                   listed apart), a second player
+#   sim_save.luau   saves: leave and rejoin to the same profile, leaving mid-expedition (the loot comes home), another
+#                   server's lock, a takeover, a corrupt record, a version 4 save (the game studio) starting an island
+#   sim_clock.luau  the island's clock: the day's pace and its Fx, making and eating to the rates, open menus holding
+#                   nothing, hunger, moving in (beds and charm), expanding round the buildings, the training yard, a
+#                   party away, two islands
+#   sim_world.luau  the sea and the islands: the sea built at start, two islands, their villagers and driftlings on
+#                   every client, walking (the camera follows, Home), building (place, move, upgrade, clear away, every
+#                   refusal), Build mode's UI, malicious plot payloads, a leaving player, a full sea
+#   sim_exp.luau    expeditions: the server's rules (supplies, the party, busy members, battles, treats, flights, the
+#                   guardian), a treat befriending, the islet's screen (closed and reopened, its buttons, a round
+#                   played back), every islet cleared in turn, half the reward again, a defeat
 SIM=$(cd "$(dirname "$0")" && pwd)
-sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_micro.luau:out_micro.log"
+sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_exp.luau:out_exp.log"
