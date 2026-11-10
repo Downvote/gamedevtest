@@ -83,7 +83,7 @@ function Schema.default(now: number, seed: number): Profile
 		nextId = 1,
 		tut = 1,
 		stats = { days = 0, built = 0, earned = 0, befriended = 0, battles = 0, cleared = 0, movedIn = 0 },
-		settings = { pixel = "high" },
+		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
 end
@@ -272,6 +272,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		},
 		settings = {
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",
+			music = if settings.music == "off" then "off" else "on",
 		},
 		createdAt = num(r.createdAt, now),
 	}

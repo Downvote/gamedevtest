@@ -565,11 +565,11 @@ local function buildLooks(body: Frame, _arg: any?)
 end
 
 function Menus.init()
-	UIKit.registerPanel("folk", { title = "Villagers", w = 320, h = 186, build = buildFolk })
-	UIKit.registerPanel("pals", { title = "Driftlings", w = 320, h = 186, build = buildPals })
-	UIKit.registerPanel("explore", { title = "Sea chart", w = 620, h = 350, build = buildExplore })
-	UIKit.registerPanel("index", { title = "Index", w = 320, h = 186, build = buildIndex })
-	UIKit.registerPanel("looks", { title = "Looks", w = 200, h = 106, build = buildLooks })
+	UIKit.registerPanel("folk", { title = "Villagers", icon = "folk", w = 320, h = 186, build = buildFolk })
+	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
+	UIKit.registerPanel("explore", { title = "Sea chart", icon = "boat", w = 620, h = 350, build = buildExplore })
+	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
+	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 200, h = 106, build = buildLooks })
 	UIKit.PanelChanged:Connect(function(name: string?)
 		if name ~= "looks" then
 			draft = nil

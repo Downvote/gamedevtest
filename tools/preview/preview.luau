@@ -628,7 +628,8 @@ function SCEN.visit()
 	return p
 end
 
--- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the hut (red).
+-- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the hut (red),
+-- then a tip under way (the tray on its tab, its building pulsing, the tip over the tray).
 function SCEN.build()
 	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "tent", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, folk = 1, shells = 3000, wood = 300 })
 	local p = join(54, "Builder")
@@ -675,6 +676,14 @@ function SCEN.build()
 		tapWorld(E.v3(ox + 0.5, Street.LAWN_Y, oz + 6.5))
 		settle(p, 10, 0.5)
 		capture(p, "build_red")
+		-- the tips in Build mode: the second tip (wood) turns the tray to the Wood tab, the lumber camp pulsing
+		H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
+		H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
+		prof.tut = 2
+		H.push(p, 0.4)
+		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+		settle(p, 10, 0.5)
+		capture(p, "build_tip")
 	end
 	return p
 end

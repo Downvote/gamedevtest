@@ -30,10 +30,13 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local Words = require(script.Parent.Words)
 
+local RunService = game:GetService("RunService")
+
 local BuildUI = {}
 BuildUI.Changed = Util.Signal() :: Types.Signal<boolean>
 
 local TRAY_H = 60
+BuildUI.TRAY_H = TRAY_H
 -- the tray's tabs: a kind (or two) of Data/Buildings each, with its small icon
 local TABS: { { key: string, text: string, kinds: { string }, icon: string } } = {
 	{ key = "food", text = "Food", kinds = { "food" }, icon = "food" },
@@ -45,6 +48,20 @@ local TABS: { { key: string, text: string, kinds: { string }, icon: string } } =
 }
 local tab = "food"
 
+-- The tips in Build mode (GAME_DESIGN 9: "make the tutorial show while in the build menu as well, and auto switches
+-- the player to the tab where the required buildings are in"): the tip's banner stays above the tray (UI/Hud), and
+-- opening Build mode, or a tip moving on while it is open, turns the tray to the tab of the building the tip asks
+-- for; that building's card (and its tab, while another is shown) pulses until it stands on the island.
+local TUT: { [number]: { tab: string, id: string } } = {
+	[1] = { tab = "food", id = "patch" },
+	[2] = { tab = "wood", id = "lumber" },
+	[3] = { tab = "shop", id = "stall" },
+	[4] = { tab = "home", id = "tent" },
+	[5] = { tab = "nest", id = "nest" },
+}
+local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
+local goalCard: Frame? = nil
+local goalTab: GuiButton? = nil
 type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean }
 
 local open = false
@@ -61,6 +78,40 @@ end
 local function placed(): { Types.Piece }
 	local v = view()
 	return if v then v.pieces else {}
+end
+
+-- What the current tip asks to build, while it is not built yet (the nest's tip waits for a sail as well).
+local function tutGoal(v: Types.ClientView?): { tab: string, id: string }?
+	if v == nil then
+		return nil
+	end
+	local g = TUT[v.tut]
+	if g == nil then
+		return nil
+	end
+	for _, q in v.pieces do
+		if q.id == g.id then
+			return nil
+		end
+	end
+	return g
+end
+
+-- Turn the tray to the tip's tab when the tip is new to it (it waits while a piece is picked); true when it turned.
+local function followTut(v: Types.ClientView?): boolean
+	if v == nil or v.tut == tutSeen then
+		return false
+	end
+	local g = tutGoal(v)
+	if g and pick ~= nil then
+		return false
+	end
+	tutSeen = v.tut
+	if g and tab ~= g.tab then
+		tab = g.tab
+		return true
+	end
+	return false
 end
 
 local function origin(): (number, number)
@@ -257,6 +308,11 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		local afford = v.shells >= def.shells and v.wood >= def.wood
 		local card = UIKit.plate(list, UDim2.fromOffset(72, 28), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2)
 		card.Name = "Card_" .. def.id
+		local goal = tutGoal(v)
+		if goal and goal.id == def.id and not locked then
+			card:SetAttribute("TutGoal", true)
+			goalCard = card
+		end
 		card.LayoutOrder = (if locked then 100 else 0) + k
 		UIKit.text(card, def.name, UDim2.fromOffset(70, 10), UDim2.fromOffset(2, 1), { color = if locked then UIKit.color("text_dim") else UIKit.color("text"), z = 4 })
 		local b = UIKit.button(card, "", UDim2.fromOffset(68, 14), UDim2.fromOffset(2, 12), function()
@@ -282,6 +338,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 end
 
 rebuild = function()
+	goalCard, goalTab = nil, nil
 	if tray then
 		tray:Destroy()
 		tray = nil
@@ -293,9 +350,12 @@ rebuild = function()
 	if v == nil then
 		return
 	end
+	if followTut(v) and tutSeen ~= nil then
+		Audio.play("flip")
+	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 8, TRAY_H), UDim2.new(0, 4, 1, -2), UIKit.color("plate"), 0.05, 3)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 8, TRAY_H), UDim2.new(0, 4, 1, -2), UIKit.color("plate"), 0.05, 3, { shadow = true })
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "BuildTray"
 	local p = pick
@@ -317,6 +377,10 @@ rebuild = function()
 				rebuild()
 			end, { name = "Tab_" .. t.key, color = if tab == t.key then UIKit.color("accent") else UIKit.color("plate_light") })
 			PixelSprites.image(b, "mini_" .. t.icon, UDim2.fromOffset(2, 1), 6)
+			local goal = tutGoal(v)
+			if goal and goal.tab == t.key and tab ~= t.key then
+				goalTab = b
+			end
 			local l = b:FindFirstChildWhichIsA("TextLabel", true)
 			if l and not short then
 				l.Position = UDim2.fromOffset(6, 0)
@@ -448,6 +512,7 @@ function BuildUI.confirm()
 		return
 	end
 	local res
+	local goal = tutGoal(view())
 	if p.move then
 		res = ask("plot.move", { i = p.move, x = p.x, z = p.z, rot = p.rot })
 	else
@@ -455,7 +520,8 @@ function BuildUI.confirm()
 	end
 	if res.ok then
 		Audio.play("hammer")
-		if p.move then
+		-- (the tip's building placed: the tray goes on to the next tip's tab rather than offering another copy)
+		if p.move or (goal and goal.id == p.id) then
 			pick = nil
 			clearGhost()
 		end
@@ -521,6 +587,30 @@ function BuildUI.open()
 			rebuild()
 		end
 	end))
+	-- the tip's building pulses (its card, and its tab while another is shown) and shines now and then
+	local nextShine = 0
+	table.insert(conns, RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		local k = (math.sin(now * 5) + 1) / 2
+		local shine = now >= nextShine
+		if shine then
+			nextShine = now + 2
+		end
+		local c = goalCard
+		if c and c.Parent then
+			UIKit.setPlate(c, UIKit.color("plate_light"):Lerp(UIKit.color("accent"), k))
+			if shine then
+				local b = c:FindFirstChildWhichIsA("GuiButton")
+				if b then
+					UIKit.shine(b)
+				end
+			end
+		end
+		local tb = goalTab
+		if tb and tb.Parent then
+			UIKit.setButtonColor(tb, UIKit.color("plate_light"):Lerp(UIKit.color("accent"), k))
+		end
+	end))
 	-- the stores every second: the tray follows what can be afforded (rebuilt when that changes)
 	local affordKey = ""
 	table.insert(conns, StateClient.Tick:Connect(function(v: Types.ClientView)
@@ -542,6 +632,8 @@ function BuildUI.open()
 			rebuild()
 		end
 	end))
+	tutSeen = nil
+	followTut(view())
 	rebuild()
 	BuildUI.Changed:Fire(true)
 end
@@ -563,6 +655,12 @@ function BuildUI.close()
 	end
 	CameraController.setFree(false)
 	BuildUI.Changed:Fire(false)
+end
+
+-- Sims and previews: the tray's tab and the tip's building (nil when none).
+function BuildUI.debugState(): { tab: string, goal: string? }
+	local g = tutGoal(view())
+	return { tab = tab, goal = if g then g.id else nil }
 end
 
 -- Sims and previews: tap a world point as a player would (the screen point the pixel layer shows it at).

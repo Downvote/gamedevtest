@@ -98,6 +98,7 @@ local Tuning = {
 	PlotPieces = { 24, 40, 60 }, -- buildings and decor standing on an island, by its tier
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
+	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode, on an islet's screen, sailing)
 
 	-- camera and pixel filter (Random Bakery's values; ARCHITECTURE 9)
 	CamYaw = 45,

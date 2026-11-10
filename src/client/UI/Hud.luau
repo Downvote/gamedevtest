@@ -17,12 +17,14 @@ local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
+local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local Menus = require(script.Parent.Menus)
 local BuildUI = require(script.Parent.BuildUI)
 local ExpeditionUI = require(script.Parent.ExpeditionUI)
+local Voyage = require(script.Parent.Voyage)
 
 local Hud = {}
 
@@ -42,6 +44,8 @@ local expCard: Frame? = nil
 local tips: Frame? = nil
 local homeButton: TextButton? = nil
 local dayBar: Frame? = nil
+local musicButton: GuiButton? = nil
+local musicPref: string? = nil -- the music switch as last tapped (before the server's answer comes back)
 local banner: Frame? = nil
 local lastKey = ""
 
@@ -128,6 +132,20 @@ local function buildTop()
 	end, { name = "Home", color = UIKit.color("button_warn") })
 	hb.Visible = false
 	homeButton = hb
+	-- the music switch: a note in the top right corner (settings.music, kept with the profile)
+	local s = UIKit.size("Hud")
+	local mb = UIKit.button(UIKit.canvas("Hud"), "", UDim2.fromOffset(15, TOP_H), UDim2.fromOffset(s.X - 18, 2), function()
+		local v = StateClient.view()
+		local cur = musicPref or (if v and v.settings.music == "off" then "off" else "on")
+		local want = if cur == "off" then "on" else "off"
+		musicPref = want
+		Audio.play("click")
+		task.spawn(function()
+			StateClient.request("settings.set", { k = "music", v = want })
+		end)
+	end, { name = "MusicToggle", color = UIKit.color("plate") })
+	PixelSprites.image(mb, "mini_note", UDim2.fromOffset(2, 1), 6).Name = "Note"
+	musicButton = mb
 end
 
 -- Whether the founder stands on their own island.
@@ -176,14 +194,15 @@ local function updateTop(v: Types.ClientView)
 end
 
 ------------------------------------------------------------------ the menu bar
-local MENUS: { { text: string, panel: string } } = {
-	{ text = "Build", panel = "build" },
-	{ text = "Villagers", panel = "folk" },
-	{ text = "Driftlings", panel = "pals" },
-	{ text = "Explore", panel = "explore" },
-	{ text = "Index", panel = "index" },
-	{ text = "Looks", panel = "looks" },
+local MENUS: { { text: string, panel: string, icon: string } } = {
+	{ text = "Build", panel = "build", icon = "home" },
+	{ text = "Villagers", panel = "folk", icon = "folk" },
+	{ text = "Driftlings", panel = "pals", icon = "pal" },
+	{ text = "Explore", panel = "explore", icon = "boat" },
+	{ text = "Index", panel = "index", icon = "star" },
+	{ text = "Looks", panel = "looks", icon = "visitor" },
 }
+local MENU_ICON = 12 -- a menu button's icon (11 px and a gap) before its words
 
 local function buildBar()
 	local canvas = UIKit.canvas("Hud")
@@ -193,7 +212,7 @@ local function buildBar()
 	end
 	local total = 0
 	for _, m in MENUS do
-		total += UIKit.buttonWidth(m.text, 5) + 3
+		total += UIKit.buttonWidth(m.text, 5) + MENU_ICON + 3
 	end
 	total -= 3
 	barW = total
@@ -207,7 +226,7 @@ local function buildBar()
 	f.Parent = canvas
 	local x = 0
 	for _, m in MENUS do
-		local w = UIKit.buttonWidth(m.text, 5)
+		local w = UIKit.buttonWidth(m.text, 5) + MENU_ICON
 		local b = UIKit.button(f, m.text, UDim2.fromOffset(w, BAR_H), UDim2.fromOffset(x, 0), function()
 			if m.panel == "build" then
 				BuildUI.open()
@@ -221,6 +240,12 @@ local function buildBar()
 			color = if m.panel == "build" then UIKit.color("button_warn") elseif m.panel == "explore" then UIKit.color("button_ok") else nil,
 		})
 		b.ZIndex = 2
+		PixelSprites.image(b, "mini_" .. m.icon, UDim2.fromOffset(3, 2), 6)
+		local words = b:FindFirstChild("Words")
+		if words and words:IsA("GuiObject") then
+			words.Position = UDim2.fromOffset(2 + MENU_ICON - 2, 0)
+			words.Size = UDim2.new(1, -(4 + MENU_ICON - 2), 1, 0)
+		end
 		x += w + 3
 	end
 	bar = f
@@ -253,7 +278,7 @@ local function updateCard(v: Types.ClientView)
 	local s = UIKit.size("Hud")
 	local w = CARD_W
 	local h = 2 + 11 + 4 * LINE_H + 3 + 3 * LINE_H + 3
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3, { shadow = true })
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
 	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), z = 4, name = "Title" })
@@ -300,7 +325,7 @@ local function updateExp(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 40), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 40), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3, { shadow = true })
 	f.Name = "ExpCard"
 	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 2), 4)
 	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 3), { color = UIKit.color("accent"), z = 4, name = "Islet" })
@@ -343,9 +368,19 @@ local TIPS: { [number]: string } = {
 	[5] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
 	[6] = "Islands give food, wood and shells. Treat a hurt driftling to befriend it.",
 }
+-- in Build mode (the tray already on the right tab, the building pulsing)
+local TIPS_BUILD: { [number]: string } = {
+	[1] = "Food: place a Veggie Patch. It grows food; everyone eats it.",
+	[5] = "Place a Driftling Nest, then tap Done and Explore to set sail!",
+}
+
+-- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
+local function tipsLift(): number
+	return if BuildUI.isOpen() then BuildUI.TRAY_H + 6 else BAR_H + 5
+end
 
 local function updateTips(v: Types.ClientView)
-	local text = TIPS[v.tut]
+	local text = (if BuildUI.isOpen() then TIPS_BUILD[v.tut] else nil) or TIPS[v.tut]
 	if tips then
 		local words = tips:FindFirstChild("Words")
 		if text and words and words:IsA("TextLabel") and words:GetAttribute("Source") == text then
@@ -361,7 +396,7 @@ local function updateTips(v: Types.ClientView)
 	local s = UIKit.size("Hud")
 	local ok = v.tut == 6
 	local w = math.min(UIKit.textWidth(text) + (if ok then 40 else 12), s.X - 20)
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 14), UDim2.new(0, math.floor((s.X - w) / 2), 1, -(BAR_H + 5)), UIKit.color("paper"), 0, 2)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 14), UDim2.new(0, math.floor((s.X - w) / 2), 1, -tipsLift()), UIKit.color("paper"), 0, 2, { shadow = true })
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "Tips"
 	local l = UIKit.text(f, text, UDim2.new(1, if ok then -36 else -8, 1, 0), UDim2.fromOffset(5, 0), { color = UIKit.color("text_ink"), kind = "plain", name = "Words" })
@@ -371,11 +406,11 @@ local function updateTips(v: Types.ClientView)
 			StateClient.request("tut.next", {})
 		end, { name = "TipsOk" })
 	end
-	f.Visible = not BuildUI.isOpen()
+	f.Visible = not ExpeditionUI.isOpen()
 	tips = f
 	-- a new tip bounces in
-	f.Position = UDim2.new(0, math.floor((s.X - w) / 2), 1, -(BAR_H + 1))
-	UIKit.tween(f, 0.18, { Position = UDim2.new(0, math.floor((s.X - w) / 2), 1, -(BAR_H + 5)) })
+	f.Position = UDim2.new(0, math.floor((s.X - w) / 2), 1, -(tipsLift() - 4))
+	UIKit.tween(f, 0.18, { Position = UDim2.new(0, math.floor((s.X - w) / 2), 1, -tipsLift()) })
 end
 
 ------------------------------------------------------------------ the loading curtain
@@ -454,7 +489,7 @@ local function onDay(msg: { [string]: any })
 	w = math.min(w, s.X - 16)
 	local h = 22 + #lines * 10
 	local x = math.floor((s.X - w) / 2)
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, -h - 6), UIKit.color("plate"), 0, 3)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, -h - 6), UIKit.color("plate"), 0, 3, { shadow = true })
 	f.Name = "DayBanner"
 	f.ZIndex = 8
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), UIKit.color("accent"), 9)
@@ -506,12 +541,12 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, expCard, tips, homeButton } :: { Instance? } do
+	for _, f in { card, expCard, tips, homeButton, musicButton } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
-	card, expCard, tips, homeButton, dayBar = nil, nil, nil, nil, nil
+	card, expCard, tips, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 108 else 124
 	buildTop()
 	buildBar()
@@ -554,13 +589,21 @@ function Hud.start()
 	UIKit.Resized:Connect(function()
 		rebuild()
 	end)
-	-- Build mode has its own tray, an expedition the whole screen: the menu bar, the cards and the tips step aside
+	-- Build mode has its own tray, an expedition the whole screen: the menu bar and the cards step aside; the tips
+	-- stay in Build mode (lifted over the tray) and step aside for an expedition
 	local function aside()
-		local on = BuildUI.isOpen() or ExpeditionUI.isOpen()
-		for _, f in { bar, tips } :: { GuiObject? } do
-			if f then
-				f.Visible = not on
-			end
+		local b = bar
+		if b then
+			b.Visible = not (BuildUI.isOpen() or ExpeditionUI.isOpen())
+		end
+		local v = StateClient.view()
+		if v then
+			updateTips(v)
+		end
+		local t = tips
+		if t then
+			t.Visible = not ExpeditionUI.isOpen()
+			t.Position = UDim2.new(t.Position.X.Scale, t.Position.X.Offset, 1, -tipsLift())
 		end
 		stack()
 	end
@@ -624,6 +667,33 @@ function Hud.start()
 						UIKit.shine(b)
 					end
 				end
+			end
+		end
+		-- the background music: easygoing island tunes by day, softer ones from the twilight, an adventure at sea
+		-- (an islet's screen, a voyage); the note in the corner switches it off and on
+		local f = DayLight.frac()
+		Audio.music(if ExpeditionUI.isOpen() or Voyage.isPlaying() then "sea" elseif f >= 0.74 or f < 0.02 then "night" else "day")
+		local vw = StateClient.view()
+		local on = (musicPref or (if vw and vw.settings.music == "off" then "off" else "on")) ~= "off"
+		Audio.setMusicOn(on)
+		local mb = musicButton
+		if mb then
+			local note = mb:FindFirstChild("Note")
+			if note and note:IsA("ImageLabel") then
+				local c = if on then Color3.new(1, 1, 1) else Color3.fromRGB(120, 110, 130)
+				if note.ImageColor3 ~= c then
+					note.ImageColor3 = c
+				end
+			end
+		end
+		-- jumping on the island: held while the build tray, an islet's screen or a voyage is up (the phone's jump
+		-- button hides with it, clear of the tray and the battle's buttons)
+		local char = Players.LocalPlayer.Character
+		local hum = if char then char:FindFirstChildOfClass("Humanoid") else nil
+		if hum then
+			local want = if BuildUI.isOpen() or ExpeditionUI.isOpen() or Voyage.isPlaying() then 0 else Tuning.JumpHeight
+			if hum.JumpHeight ~= want then
+				hum.JumpHeight = want
 			end
 		end
 		local hb = homeButton

@@ -48,6 +48,12 @@ for _, n in { "Menu_build", "Menu_folk", "Menu_pals", "Menu_explore", "Menu_inde
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
 H.expect(#H.buttons(p, "^Food first", true) == 0, "join", "(tips are text, not buttons)")
+-- the background music: the island's tunes by the clock; the note in the corner switches it off and on (kept)
+local AudioM = H.cmod(p, "Controllers.Audio")
+local ms = H.inClient(p, AudioM.musicState)
+H.expect((ms.mood == "day" or ms.mood == "night") and ms.on and ms.tracks >= 1, "join", "the island's music plays", string.format("%s %s %d", tostring(ms.mood), tostring(ms.on), ms.tracks))
+H.expect(H.clickNamed(p, "MusicToggle", { wait = 0.5 }) and prof.settings.music == "off" and not H.inClient(p, AudioM.musicState).on, "join", "the note switches the music off, kept with the profile", tostring(prof.settings.music))
+H.expect(H.clickNamed(p, "MusicToggle", { wait = 0.5 }) and prof.settings.music == "on" and H.inClient(p, AudioM.musicState).on, "join", "and on again", tostring(prof.settings.music))
 local tipsOk = H.buttonNamed(p, "TipsOk")
 H.expect(tipsOk == nil, "join", "the first tips have no OK (they move on by building)")
 H.checkProfile(p, "join")
@@ -71,8 +77,31 @@ local function place(id)
 	local x, z = spot(id, 0)
 	return H.req(p, "plot.place", { id = id, x = x or 0, z = z or 0, rot = 0 })
 end
+-- the tips in Build mode: the tray opens on the tip's tab, its building pulsing, the tip's banner over the tray
+local BuildUI = H.cmod(p, "UI.BuildUI")
+local function tipShown()
+	local pg = p:FindFirstChild("PlayerGui")
+	for _, x in pg:GetDescendants() do
+		if x.Name == "Tips" and H.guiVisible(x) then
+			return true
+		end
+	end
+	return false
+end
+H.expect(H.clickNamed(p, "Menu_build", { wait = 0.4 }) and BuildUI.isOpen(), "build", "Build mode opens")
+local bst = H.inClient(p, BuildUI.debugState)
+H.expect(bst.tab == "food" and bst.goal == "patch", "build", "the first tip: the Food tab, the veggie patch to build", string.format("%s %s", tostring(bst.tab), tostring(bst.goal)))
+H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
+H.clickNamed(p, "Tab_decor", { wait = 0.3 })
+H.expect(H.inClient(p, BuildUI.debugState).tab == "decor", "build", "the player can still look round the other tabs")
 local sh0 = prof.shells
 local res = place("patch")
+E.run(0.5)
+bst = H.inClient(p, BuildUI.debugState)
+H.expect(bst.tab == "wood" and bst.goal == "lumber" and H.buttonNamed(p, "Buy_lumber") ~= nil, "build", "the patch built: the tray turns to the Wood tab and the lumber camp", string.format("%s %s", tostring(bst.tab), tostring(bst.goal)))
+H.expect(tipShown(), "build", "the next tip's banner over the tray")
+H.clickNamed(p, "BuildDone", { wait = 0.3 })
+H.expect(not BuildUI.isOpen() and tipShown(), "build", "Done: the tray goes, the tip stays")
 H.expect(res.ok and #prof.plot.placed == 1 and prof.plot.placed[1].id == "patch", "build", "a veggie patch", tostring(res.err))
 H.expect(math.abs(prof.shells - (sh0 - Buildings.byId.patch.shells)) < 1, "build", "paid for in shells", string.format("%s -> %s", sh0, prof.shells))
 H.expect(prof.tut == 2, "build", "the tips move on to wood (food built)", tostring(prof.tut))
@@ -110,6 +139,7 @@ E.phase = "days"
 local day0 = prof.day
 local turnFx = 0
 local f0 = #fx
+local t0 = E.now()
 E.runUntil(function()
 	return #prof.folk >= 1
 end, Tuning.TurnSeconds + 2, 0.1)
@@ -129,7 +159,7 @@ for i = f0 + 1, #fx do
 		ticks += 1
 	end
 end
-H.expect(ticks >= Tuning.TurnSeconds - 3, "days", "the stores reach the client every second (Fx tick)", tostring(ticks))
+H.expect(ticks >= math.floor(E.now() - t0) - 3, "days", "the stores reach the client every second (Fx tick)", string.format("%d ticks in %.1f s", ticks, E.now() - t0))
 -- a calendar day is hours of the sea's clock: jumped to a day's end, the island counts one (Fx day)
 do
 	local WC = H.smod("WorldClock")

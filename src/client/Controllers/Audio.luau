@@ -16,34 +16,29 @@ local Audio = {}
 
 -- stylua: ignore start
 local EVENTS: { [string]: EventDef } = {
-	-- the interface
-	click = { id = "Click", vol = 0.38, pitch = { 0.97, 1.05 }, cd = 0.04, voices = 3 },
-	hover = { id = "Hover", vol = 0.5, pitch = { 0.98, 1.04 }, cd = 0.07 },
-	open = { id = "Open", vol = 0.28, pitch = { 0.98, 1.03 }, cd = 0.12 },
-	close = { id = "Close", vol = 0.24, pitch = { 0.98, 1.02 }, cd = 0.12 },
-	deny = { id = "Deny", vol = 0.37, pitch = { 0.98, 1.02 }, cd = 0.25 },
-	notice = { id = "Notice", vol = 0.19, pitch = { 0.98, 1.04 }, cd = 0.3 },
-	ding = { id = "Ding", vol = 0.27, pitch = { 1, 1.04 }, cd = 0.2 },
-	-- money and celebrations
-	coin = { id = "Coin", vol = 0.3, pitch = { 1, 1.04 }, cd = 0.08, voices = 3 },
-	coins = { id = "CoinsMany", vol = 0.34, pitch = { 0.94, 0.98 }, cd = 0.3 },
-	level_up = { id = "LevelUp", vol = 0.24, cd = 1 },
+	-- the interface: wood and bamboo
+	click = { id = "Click", vol = 0.4, pitch = { 1.02, 1.12 }, cd = 0.04, voices = 3 },
+	open = { id = "Open", vol = 0.22, pitch = { 1.05, 1.15 }, cd = 0.12 },
+	close = { id = "Close", vol = 0.18, pitch = { 0.85, 0.95 }, cd = 0.12 },
+	deny = { id = "Deny", vol = 0.45, pitch = { 0.6, 0.66 }, cd = 0.25 },
+	notice = { id = "Notice", vol = 0.16, pitch = { 0.98, 1.04 }, cd = 0.3 },
+	ding = { id = "Ding", vol = 0.2, pitch = { 1, 1.04 }, cd = 0.2 },
+	-- the shells and the celebrations: pebbles, a shaker, the conch, island stingers
+	coin = { id = "Coin", vol = 0.35, pitch = { 1.05, 1.2 }, cd = 0.08, voices = 3 },
+	coins = { id = "CoinsMany", vol = 0.35, pitch = { 0.95, 1.05 }, cd = 0.3 },
+	level_up = { id = "LevelUp", vol = 0.3, cd = 1 },
 	reward = { id = "Reward", vol = 0.32, cd = 0.4 },
-	fanfare = { id = "Fanfare", vol = 0.33, cd = 0.5 },
-	rare_fanfare = { id = "RareFanfare", vol = 0.38, cd = 1 },
-	combo = { id = "Combo", vol = 0.3, pitch = { 1, 1.06 }, cd = 0.2 },
-	sparkle = { id = "Sparkle", vol = 0.9, pitch = { 0.96, 1.08 }, cd = 0.15 },
-	cheer = { id = "Cheer", vol = 0.3, pitch = { 0.95, 1.06 }, cd = 0.6 },
-	applause = { id = "Applause", vol = 0.22, pitch = { 0.96, 1.05 }, cd = 0.8 },
-	trumpet = { id = "Trumpet", vol = 0.21, cd = 1 },
-	sad = { id = "SadTrombone", vol = 0.5, cd = 1 },
-	drumroll = { id = "Drumroll", vol = 0.26, cd = 1 },
-	-- the minigames
-	tick = { id = "Tick", vol = 0.42, pitch = { 0.95, 1.08 }, cd = 0.03, voices = 3 },
-	key = { id = "TypeKey", vol = 0.5, pitch = { 0.94, 1.08 }, cd = 0.02, voices = 4 },
+	fanfare = { id = "Fanfare", vol = 0.32, cd = 0.5 },
+	rare_fanfare = { id = "RareFanfare", vol = 0.36, cd = 1 },
+	combo = { id = "Combo", vol = 0.4, pitch = { 1, 1.1 }, cd = 0.2 },
+	sparkle = { id = "Sparkle", vol = 0.45, pitch = { 0.96, 1.08 }, cd = 0.15 },
+	cheer = { id = "Cheer", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.6 },
+	trumpet = { id = "Trumpet", vol = 0.22, pitch = { 0.98, 1.02 }, cd = 1 },
+	sad = { id = "SadTrombone", vol = 0.35, cd = 1 },
+	drumroll = { id = "Drumroll", vol = 0.3, cd = 1 },
+	tick = { id = "Tick", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.03, voices = 3 },
 	flip = { id = "CardFlip", vol = 0.35, pitch = { 0.95, 1.08 }, cd = 0.04, voices = 3 },
-	pop = { id = "Pop", vol = 0.6, pitch = { 0.95, 1.12 }, cd = 0.04, voices = 3 },
-	squish = { id = "Squish", vol = 0.34, pitch = { 0.9, 1.1 }, cd = 0.04, voices = 3 },
+	pop = { id = "Pop", vol = 0.5, pitch = { 0.95, 1.15 }, cd = 0.04, voices = 3 },
 	-- the battles
 	whoosh = { id = "Whoosh", vol = 0.4, pitch = { 0.92, 1.1 }, cd = 0.05, voices = 3 },
 	whoosh_heavy = { id = "WhooshHeavy", vol = 0.45, pitch = { 0.9, 1 }, cd = 0.1 },
@@ -136,6 +131,116 @@ function Audio.ambience(name: string, volume: number)
 			end
 		end)
 	end
+end
+
+-- Background music (GAME_DESIGN 15: "find cozy background music"): a mood's playlist from
+-- Config/Monetization.Music ("day", "night", "sea"; nil: quiet), shuffled and played track after track; a change of
+-- mood, and each track's last seconds, crossfade over MUSIC_FADE seconds. Audio.setMusicOn(false) fades it away (the
+-- settings' Music switch). Never yields.
+local MUSIC_VOL = 0.3
+local MUSIC_FADE = 3
+type Track = { s: Sound, mood: string, target: number, handed: boolean }
+local mood: string? = nil
+local musicOn = true
+local tracks: { Track } = {}
+local order: { [string]: { number } } = {}
+local nextIdx: { [string]: number } = {}
+local musicFader = false
+
+local function nextTrack(m: string)
+	local list = ((Monetization :: any).Music or {})[m] :: { number }?
+	if list == nil or #list == 0 then
+		return
+	end
+	local o = order[m]
+	if o == nil then
+		-- a shuffle per mood, played round
+		o = table.clone(list)
+		for i = #o, 2, -1 do
+			local j = math.random(1, i)
+			o[i], o[j] = o[j], o[i]
+		end
+		order[m] = o
+		nextIdx[m] = 1
+	end
+	local i = nextIdx[m] or 1
+	nextIdx[m] = i % #o + 1
+	local snd = Instance.new("Sound")
+	snd.Name = "Music_" .. m
+	snd.SoundId = "rbxassetid://" .. tostring(o[i])
+	snd.Looped = #o == 1
+	snd.Volume = 0
+	snd.Parent = holder()
+	local t: Track = { s = snd, mood = m, target = 0, handed = false }
+	table.insert(tracks, t)
+	snd.Ended:Connect(function()
+		-- (a track that ran out before its crossfade: the next one starts now)
+		if not t.handed then
+			t.handed = true
+			if t.mood == mood then
+				nextTrack(t.mood)
+			end
+		end
+	end)
+	pcall(function()
+		snd:Play()
+	end)
+end
+
+local function startFader()
+	if musicFader then
+		return
+	end
+	musicFader = true
+	RunService.Heartbeat:Connect(function(dt: number)
+		local step = dt * MUSIC_VOL / MUSIC_FADE
+		for i = #tracks, 1, -1 do
+			local t = tracks[i]
+			local s = t.s
+			-- near its end the next track of the mood fades in over it
+			if not t.handed and t.mood == mood and not s.Looped and s.TimeLength > MUSIC_FADE * 2 and s.TimePosition >= s.TimeLength - MUSIC_FADE then
+				t.handed = true
+				t.target = 0
+				nextTrack(t.mood)
+			end
+			local v = s.Volume
+			local want = if t.mood == mood and musicOn and not t.handed then MUSIC_VOL else 0
+			t.target = want
+			if v ~= want then
+				s.Volume = if math.abs(want - v) <= step then want elseif want > v then v + step else v - step
+			end
+			-- gone quiet for good (another mood, or handed on to the next track): away with it
+			if want <= 0 and s.Volume <= 0 and (t.mood ~= mood or t.handed) then
+				s:Destroy()
+				table.remove(tracks, i)
+			end
+		end
+	end)
+end
+
+function Audio.music(m: string?)
+	if m == mood then
+		return
+	end
+	mood = m
+	startFader()
+	if m then
+		-- back to a mood still fading out: it fades in again, else its next track starts
+		for _, t in tracks do
+			if t.mood == m and not t.handed then
+				return
+			end
+		end
+		nextTrack(m)
+	end
+end
+
+function Audio.setMusicOn(on: boolean)
+	musicOn = on
+end
+
+function Audio.musicState(): { mood: string?, on: boolean, tracks: number }
+	return { mood = mood, on = musicOn, tracks = #tracks }
 end
 
 -- Play a one-shot event. True when it played.

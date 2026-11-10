@@ -23,7 +23,7 @@ export type Pal = { id: number, sp: string, lvl: number, xp: number, work: numbe
 -- The founder as the expeditions' captain (GAME_DESIGN 7).
 export type Captain = { lvl: number, xp: number }
 
-export type Settings = { pixel: string }
+export type Settings = { pixel: string, music: string? } -- music: "on" (default) | "off"
 
 -- days: island days lived; earned: shells made in all; befriended: driftlings that joined; cleared: islands'
 -- guardians beaten; battles won.

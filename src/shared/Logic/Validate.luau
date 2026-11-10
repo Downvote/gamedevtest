@@ -8,7 +8,7 @@
 --   "party"  up to three members "v<id>" / "p<id>" joined by commas ("" for the captain alone)
 --   "act"    a battle move: "fight", "guard", "treat" or "flee"
 --   "target" a wild driftling in the battle ("w1".."w9") or "" (none)
---   "key"    a settings key ("pixel")
+--   "key"    a settings key ("pixel", "music")
 --   "coord"  a whole number in [-64, 64] (a plot-local stud)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
 --   "index"  a whole number in [1, 64] (a placed piece)
@@ -40,7 +40,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 Validate.ACTIONS = ACTIONS
 
 local ACTS = { fight = true, guard = true, treat = true, flee = true }
-local SETTINGS = { pixel = true }
+local SETTINGS = { pixel = true, music = true }
 
 local function isInt(v: any, lo: number, hi: number): boolean
 	return type(v) == "number" and v == v and v == math.floor(v) and v >= lo and v <= hi

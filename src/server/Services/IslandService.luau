@@ -188,6 +188,10 @@ function IslandService.init()
 		if a.k == "pixel" and type(a.v) == "string" and PIXEL_TIERS[a.v] then
 			s.profile.settings.pixel = a.v
 			return true, nil
+		elseif a.k == "music" and (a.v == "on" or a.v == "off") then
+			-- the background music (the HUD's note): on or off, kept with the profile
+			s.profile.settings.music = a.v
+			return true, nil
 		end
 		return false, "bad_payload"
 	end)

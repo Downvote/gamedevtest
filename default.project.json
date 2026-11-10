@@ -25,8 +25,8 @@
     "StarterPlayer": {
       "$properties": {
         "EnableMouseLockOption": false,
-        "CharacterJumpPower": 0,
-        "CharacterUseJumpPower": true,
+        "CharacterJumpHeight": 7.2,
+        "CharacterUseJumpPower": false,
         "CharacterWalkSpeed": 16
       },
       "StarterPlayerScripts": {

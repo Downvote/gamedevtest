@@ -50,8 +50,12 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   and the face changes (fierce, shouting, hurt, happy, out cold). **Driftlings** are small 3D creatures of our own
   design hopping about and helping, each with its own details (moss and stubby arms on the pebble, bubbles on the
   crab, whiskers and a sprout on the bun, wing bones on the bat...) and limbs that move (§7).
-- **Interface:** pixel-art plates with stepped corners, the pixel font, no borders; every driftling has a 16x16
-  portrait and the island's things 11x11 icons, drawn by the rules below.
+- **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
+  panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
+  shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
+  icon. Every driftling has a 16x16 portrait and the island's things 11x11 icons, drawn by the rules below.
+
+  > The request (2026-11-10): "also, polish the UI much more"
 - **The founder:** you walk your island and the boardwalk as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
@@ -132,6 +136,12 @@ bigger island (tier 2 or 3).
   same spot) builds it. Tapping a standing piece picks it up to move, **Upgrade** it (a building that makes
   something: Lv 2 and 3 for `UpgradeCost` times its price, making `UpgradeMult` times as much) or **Clear it away**
   (half its price back; not a home or nest whose beds are needed).
+- **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
+  is open) turns the tray to the tab of the building the tip asks for, and that building's card (and its tab, while
+  another tab is shown) pulses until it stands on the island; placing it goes straight on to the next tip's tab.
+
+  > The request (2026-11-10): "make the tutorial show while in the build menu as well, and auto switches the player to
+  > the tab where the required buildings are in"
 - **Expand** (in the tray's header): the island grows twice (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, its coast
   reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot (none is
   lost; one with no spot left would be cleared with its whole price back).
@@ -309,9 +319,14 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   begins, plain daylight, a golden dusk (from 0.6 of the day), a violet twilight and a deep blue night (from 0.81)
   that brightens into the next dawn. At night the lamps, torches, the campfire, lanterns and lit windows keep their
   colour and pool warm light round them in three stepped rings on the pixel grid (the pools move with the picture as
-  the view follows you). The change steps (a few steps between keys, never a smear). The islands you battle on
+  the view follows you), only as strong as the dark is deep (no orange rings in the late afternoon), never all the
+  way back to the day. As it gets dark pale things lose more of their light than dark ones (their brightness over a
+  knee is pressed down), so white and pink shells, the sand and the sails stay in the night instead of glowing blue.
+  The change steps (a few steps between keys, never a smear). The islands you battle on
   follow the same clock: a night battle is fought in the dark by the volcano's lava and the party's own light; with
   the pixel filter off Roblox's own clock follows the day instead.
+
+  > The bug report (2026-11-10): "lighting also seems buggy, especially with shells"
 - **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
   each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with your
   moored boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own
@@ -319,13 +334,15 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks and a mouth.
 - **Boats** (`Models/BoatSpec`: one plan for the boat at the pier, the one that sails you out and home, the one at
   an island's shore and the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
-  seams, a painted band (gold trim from level 4), a rim, a bow, a stern with its rudder and tiller and a planked deck;
+  seams, a painted band (gold trim from level 4), a rim, a bow (tall against the hull, flush with the rim, its keel
+  sloping up to the stem's point), a stern with its rudder and tiller and a planked deck;
   a rowboat's oars at level 1; a cabin with a door, windows and a life ring from 2; a bowsprit and jib from 3; a
   foremast, a crow's nest and a figurehead from 4; a chimney and a stern lantern from 5; a mizzen and blue sails at
   6; striped sails, a flag and pennants, a lantern, fenders, a crate and barrels.
 
   > The request (2026-11-10): "polish everything even further, such as more detailed boat models, flags rippling in
-  > the wind, and swaying leaves."
+  > the wind, and swaying leaves."; the bug report: "it seems like the boats are buggy, the triangle part here is
+  > supposed to be reversed" (the bow's wedge stood tall at its tip: turned over)
 
 - **The wind:** leaves sway and flags ripple (the pixel filter, a few times a second like the water: palms, trees,
   bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
@@ -339,8 +356,15 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 
 ## 9. Your founder, settings and the tips
 
-The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). Settings: the pixel filter's
-quality. **The tips** (the banner over the menu bar), each saying where the stores come from:
+The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). The founder walks and jumps
+(`JumpHeight`) on the islands; jumping is held in Build mode, on an islet's screen and while sailing (the phone's jump
+button hides with it).
+
+> The request (2026-11-10): "allow the player to jump in their own island as well"
+
+Settings: the pixel filter's quality, and the music (the note in the HUD's top right corner, on or off, kept with the
+profile). **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4), each saying where
+the stores come from:
 
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
 > to buy all the facilities required."
@@ -394,9 +418,17 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
   numbers float up, skills shout their names, heals and shells twinkle, a treat bursts into hearts, a friend leaves in
   confetti, a win cheers and throws confetti.
-- **Sounds** (`Controllers/Audio`): every event plays a Creator Store library sound (the ones Random Bakery uses, and
-  more from Roblox's free licensed ProSoundEffects library), its pitch varied a little, repeats inside a short
-  cooldown dropped.
+- **Sounds** (`Controllers/Audio`): every event plays a free Creator Store sound from Roblox's licensed libraries
+  (ProSoundEffects, and APM Music's stingers), none of Random Bakery's, its pitch varied a little, repeats inside a
+  short cooldown dropped.
+
+  > The request (2026-11-10): "dont use sounds from the old versions, find and use new ones that fit the island theme"
+
+  The interface is wood and bamboo: a temple-block tap for a click, a bamboo swish as a panel opens and closes, a low
+  wooden knock for "no", wind chimes for a notice; shells coming in clack like pebbles (a handful for many); a bubble
+  pops; pages turn; a shaker for a cheer or a skill; the conch's call for the boat and a rally; island stingers (APM)
+  for a level up, a reward, a win and a guardian charted, a chase sting as a guardian steps up, a sad sting for a
+  defeat.
 
   > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"
 
@@ -406,9 +438,14 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   or the party flees. The islands and the sea: a wooden chest creaking open, a splash as the party hops off the boat
   into the shallows, a boat horn as the boat casts off and comes home, a hammer on wood when a building goes up,
   gulls squawking as a flock passes over, the surf on the sand always, crickets through the night and birds at dawn.
+- **Music** (`Audio.music`): APM Music's library on the Creator Store, shuffled, one track after another, crossfaded:
+  easygoing island tunes by day (marimba, ukulele), softer ones from the twilight (a steel drum, a calypso ballad), a
+  light sea adventure on an islet and while sailing. The note in the HUD's corner switches it off and on.
+
+  > The request (2026-11-10): "also, find cozy background music"
 
 ## 12. Out of scope for this version
 
 Trading between players, visiting with gifts, offline progress, purchases (no game passes or products:
-`Config/Monetization.luau` holds only the sound ids), music, other languages (English only; every string goes through
+`Config/Monetization.luau` holds only the sound and music ids), other languages (English only; every string goes through
 `Locale/Lang.t`).

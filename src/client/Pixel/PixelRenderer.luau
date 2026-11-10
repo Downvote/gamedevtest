@@ -482,13 +482,21 @@ local function gradeOf(c: number, lvl: number): number
 	local a = c - c % 16777216
 	local l = 0.3 * r + 0.59 * gg + 0.11 * b
 	local sat = g.sat
-	local nr, ng, nb = (l + (r - l) * sat) * g.mr + g.lift * 0.2, (l + (gg - l) * sat) * g.mg + g.lift * 0.35, (l + (b - l) * sat) * g.mb + g.lift
-	if lvl > 0 and g.lamps > 0 then
-		-- a lamp's pool: back toward the colour by day, warmed
-		local k = lvl / 3 * g.lamps
-		nr += (r * 1.04 - nr) * k
-		ng += (gg * 0.93 - ng) * k
-		nb += (b * 0.74 - nb) * k
+	-- how dark the hour is (0 by day and in the golden dusk's warmth, 1 at night): from the light's colour
+	local dark = math.clamp((1 - (g.mr + g.mg + g.mb) / 3) / 0.5, 0, 1)
+	-- pale things lose more of their light than dark ones as it gets dark (the shells, the sand, a sail must not
+	-- glow blue in the night): the luminance over a knee is pressed down
+	local press = 1 - dark * 0.45 * math.max(0, (l - 90) / 165)
+	local nr = (l + (r - l) * sat) * g.mr * press + g.lift * 0.2
+	local ng = (l + (gg - l) * sat) * g.mg * press + g.lift * 0.35
+	local nb = (l + (b - l) * sat) * g.mb * press + g.lift
+	if lvl > 0 and g.lamps > 0 and dark > 0 then
+		-- a lamp's pool: back toward the colour by day, warmed; only as strong as the dark is deep (no orange rings
+		-- in the late afternoon's light), never all the way back to the day
+		local k = lvl / 3 * g.lamps * dark * 0.85
+		nr += (math.max(nr, r * 1.02) - nr) * k
+		ng += (math.max(ng, gg * 0.9) - ng) * k
+		nb += (math.max(nb, b * 0.72) - nb) * k
 	end
 	return clampByte(nr) + clampByte(ng) * 256 + clampByte(nb) * 65536 + a
 end

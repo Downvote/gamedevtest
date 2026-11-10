@@ -11,31 +11,29 @@ local Monetization = {
 	} :: { [string]: number },
 	-- Creator Store library sounds (the same Roblox, ProSoundEffects and APM ids Random Bakery uses)
 	Sounds = {
-		Click = 15675059323,
-		Hover = 17208339919,
-		Open = 15675055424,
-		Close = 15675081158,
-		Deny = 17208353912,
-		Notice = 17208361335,
-		Ding = 9125485591,
-		Coin = 127645268874265,
-		CoinsMany = 9113849731,
-		LevelUp = 1848271884,
-		Reward = 9044781938,
-		Fanfare = 9040482556,
-		RareFanfare = 9048764753,
-		Combo = 1841173364,
-		Tick = 9120917813,
-		Drumroll = 9120365917,
-		Applause = 9113137529,
-		Cheer = 9120974507,
-		CardFlip = 15675037413,
-		TypeKey = 9120299893,
-		Pop = 9112751731,
-		Sparkle = 9116394876,
-		Trumpet = 1840270052,
-		SadTrombone = 1840224982,
-		Squish = 9117848644,
+		-- the interface, the shells and the celebrations: all from the Creator Store, free (Roblox's licensed
+		-- ProSoundEffects library, and APM Music's stingers), chosen for the island: wood, bamboo, pebbles, water
+		Click = 9120917438, -- Wood Impacts Soft Impacts On Temple Blocks 1
+		Open = 9125495923, -- Dowel Swish Bamboo Thick Midrange
+		Close = 9125496394, -- Dowel Swish Bamboo Thick Midrange (another)
+		Deny = 9120917861, -- Wood Impacts Soft Impacts On Temple Blocks 7 (played low)
+		Notice = 9120752412, -- Wind Chimes Random Metal Ceramic Clinks 6
+		Ding = 9126073001, -- Synth Sparkle Tone High Pitch Bell Tone Ding
+		Coin = 9117268552, -- Pebbles Movement 3 (a shell or two)
+		CoinsMany = 9117270219, -- Pebbles Movement 5 (a handful)
+		LevelUp = 1837716769, -- APM: Ukulele Fun (sting)
+		Reward = 1841485188, -- APM: Desert Island Delight Sting c
+		Fanfare = 1837924652, -- APM: Island Fun Sting
+		RareFanfare = 1841485135, -- APM: Desert Island Delight Sting a
+		Combo = 9119034605, -- Shaker Pod South American Instrument 6
+		Tick = 9120917794, -- Wood Impacts Soft Impacts On Temple Blocks 5
+		Drumroll = 1842083006, -- APM: Island Chase (sting) (a guardian steps up)
+		Cheer = 9119034593, -- Shaker Pod South American Instrument 5
+		CardFlip = 9118835802, -- Scrapbook Open And Turn Pages 7
+		Pop = 9112872239, -- Small Bubbles Water Surface Float Up Pop 5
+		Sparkle = 9116395089, -- Magic Glows Soft Clusters Of Chiming Hits 4
+		Trumpet = 9113887600, -- Conch Shell Distant Strained Blows Airy 11 (the conch's call)
+		SadTrombone = 9042992801, -- APM: Are You Sad? (sting)
 		-- the battles, the islands and the sea (Creator Store, free: Roblox's licensed ProSoundEffects library)
 		Whoosh = 9119741493, -- Swoosh Pack High End Multiple Variations 8
 		WhooshHeavy = 9120728815, -- Whoosh Heavy Punches 1
@@ -56,6 +54,28 @@ local Monetization = {
 		Waves = 9126010643, -- Surf Bubbles Wave Bubbles On Sand Ocean Foam (a loop)
 		Crickets = 9112764546, -- Crickets Night 1 (a loop)
 	} :: { [string]: number },
+	-- Background music (Audio.music): APM Music's library on the Creator Store (free), played one after another,
+	-- crossfaded: easygoing island tunes by day, softer ones at night, a light adventure on the islets at sea.
+	Music = {
+		day = {
+			1837879082, -- Paradise Falls
+			1837465295, -- Marimba Paradise (alternate no woodwind)
+			9038622067, -- Lakefront Days (Ukulele Version)
+			1837157487, -- Pineapples & Coconuts
+			1839638511, -- Island Beach
+		},
+		night = {
+			9047138975, -- Kona Sunset D
+			9047791135, -- Calypso Ballad (No Rhythmic)
+			1845934054, -- Steel Drum Atmosphere E
+			1846655891, -- Peaceful Creatures B
+		},
+		sea = {
+			1846751054, -- High Sea Adventure (A)
+			132571655932359, -- Explore The Rainforest
+			1835893953, -- Explorer
+		},
+	} :: { [string]: { number } },
 }
 
 return table.freeze(Monetization)

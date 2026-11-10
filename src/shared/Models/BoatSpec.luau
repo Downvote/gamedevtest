@@ -82,8 +82,10 @@ function BoatSpec.parts(level: number): { Part }
 	end
 	box("Band", W + 0.1, 0.25, L + 0.1, 0, -0.125, 0, trim)
 	box("Rim", W + 0.25, 0.25, L + 0.25, 0, 0.125, 0, "wood_dark")
+	-- the bow: a wedge turned over (Roblox's wedge stands tall at its back, +Z): tall against the hull's front, flush
+	-- with the rim on top, its keel sloping up to the stem's point
 	local bowLen = 1.25 + lv * 0.1
-	table.insert(out, { name = "Bow", shape = "Wedge", size = Vector3.new(W, H + 0.25, bowLen), cf = CFrame.new(0, -H / 2 + 0.125, L / 2 + bowLen / 2), color = "wood" })
+	table.insert(out, { name = "Bow", shape = "Wedge", size = Vector3.new(W, H + 0.25, bowLen), cf = CFrame.new(0, -H / 2 + 0.125, L / 2 + bowLen / 2) * CFrame.Angles(math.pi, 0, 0), color = "wood" })
 	box("Stern", W, 0.25, 0.12, 0, 0.1, -L / 2 - 0.06, trim)
 	box("Rudder", 0.15, H, 0.5, 0, -H / 2, -L / 2 - 0.3, "wood_dark")
 	box("Tiller", 0.12, 0.12, 0.8, 0, 0.35, -L / 2 + 0.3, "wood_dark")

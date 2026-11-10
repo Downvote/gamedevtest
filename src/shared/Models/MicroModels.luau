@@ -528,7 +528,7 @@ BUILD.sailboat = function(o)
 	local c = o.color or "berry_red"
 	add(t, "Hull", "Block", Vector3.new(2.5, 0.75, 4.5), Vector3.new(0, 0.375, 0), "wood")
 	add(t, "Band", "Block", Vector3.new(2.6, 0.25, 4.6), Vector3.new(0, 0.6, 0), c)
-	add(t, "Bow", "Wedge", Vector3.new(2.5, 0.75, 1.25), Vector3.new(0, 0.375, 2.875), "wood")
+	add(t, "Bow", "Wedge", Vector3.new(2.5, 0.75, 1.25), Vector3.new(0, 0.375, 2.875), "wood", CFrame.Angles(math.pi, 0, 0)) -- tall at the hull, pointed at the front
 	add(t, "Deck", "Block", Vector3.new(2.0, 0.1, 4.0), Vector3.new(0, 0.8, 0), "wood_dark")
 	add(t, "Mast", "Block", Vector3.new(0.25, 4.0, 0.25), Vector3.new(0, 2.8, 0.25), "wood_dark")
 	add(t, "Sail", "Wedge", Vector3.new(0.1, 3.25, 2.25), Vector3.new(0, 2.7, -0.95), "white", CFrame.Angles(0, math.pi, 0))
@@ -548,7 +548,7 @@ BUILD.ship = function(o)
 		if sp.shape == "CylY" then
 			add(t, sp.name, "Cylinder", Vector3.new(sp.size.Y, sp.size.X, sp.size.Z), at, sp.color, CFrame.Angles(0, 0, math.pi / 2))
 		else
-			add(t, sp.name, sp.shape, sp.size, at, sp.color, nil, sp.neon)
+			add(t, sp.name, sp.shape, sp.size, at, sp.color, sp.cf - sp.cf.Position, sp.neon)
 		end
 	end
 	return t

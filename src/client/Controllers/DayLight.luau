@@ -4,7 +4,7 @@
 -- dawn, the plain day, a golden dusk, a violet twilight and a blue night with the lamps, torches and fires lit in
 -- pools of warm light, then the dawn again. The grade steps (a few steps a change, never a smear); the islands at
 -- sea (an islet's screen) follow the same clock. With the filter off, Roblox's own clock follows instead.
---   start(), at(frac) -> Grade? (nil: daylight), debugSet(frac?) (previews: a fixed time), debugState()
+--   start(), at(frac) -> Grade? (nil: daylight), frac(), debugSet(frac?) (previews: a fixed time), debugState()
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -112,6 +112,11 @@ function DayLight.start()
 		-- the islands at sea share the clock: a battle at night is fought in the dark, by its fires and glows
 		PixelRenderer.setGrade(DayLight.at(f))
 	end)
+end
+
+-- The time of day now (0 a new day at dawn .. 1; the HUD's music follows it).
+function DayLight.frac(): number
+	return now()
 end
 
 -- Previews: hold the clock at a time of day (nil: the island's own again).

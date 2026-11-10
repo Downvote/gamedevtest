@@ -22,6 +22,7 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local PixelText = require(script.Parent.Parent.Pixel.PixelText)
 local Snapshot = require(script.Parent.Parent.Pixel.Snapshot)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
+local PixelSprites = require(script.Parent.PixelSprites)
 
 local UIKit = {}
 UIKit.Resized = Util.Signal() :: Types.Signal<Vector2>
@@ -260,9 +261,14 @@ function UIKit.setTextColor(l: TextLabel, c: Color3)
 end
 
 ------------------------------------------------------------------ plates
--- A flat surface with stepped pixel corners (Random Bakery's UIKit.plate): rectangles named "Fill", no overlaps, so
--- a translucent plate stays even. Content goes in it at ZIndex >= 1.
-function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, alpha: number?, corner: number?): Frame
+-- A surface with stepped pixel corners and a 1 px ink outline that follows them (GAME_DESIGN 2: "use a 1 pixel
+-- outline"): rectangles named "Fill" inside rectangles named "Edge", none overlapping, so a translucent plate stays
+-- even. `style.edge = false` leaves the outline off (a flat swatch); `style.shadow` casts a 2 px drop shadow down
+-- and to the right (panels, cards, the tray). Content goes in it at ZIndex >= 1.
+export type PlateStyle = { edge: boolean?, shadow: boolean?, edgeColor: Color3? }
+local CORNER_INSETS: { [number]: { number } } = { [0] = {}, [1] = { 1 }, [2] = { 2, 1 }, [3] = { 3, 1, 1 } }
+
+function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, alpha: number?, corner: number?, style: PlateStyle?): Frame
 	local f = Instance.new("Frame")
 	f.Name = "Plate"
 	f.Size = size
@@ -272,25 +278,94 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 	local k = math.clamp(math.floor(corner or 2), 0, 3)
 	local col = c or UIKit.color("plate")
 	local a = alpha or 0
-	local function rect(x: UDim, y: UDim, w: UDim, h: UDim)
-		local r = Instance.new("Frame")
-		r.Name = "Fill"
-		r.BorderSizePixel = 0
-		r.BackgroundColor3 = col
-		r.BackgroundTransparency = a
-		r.Position = UDim2.new(x, y)
-		r.Size = UDim2.new(w, h)
-		r.ZIndex = 0
-		r.Parent = f
+	local st: PlateStyle = style or {}
+	local edged = st.edge ~= false
+	local ink = st.edgeColor or UIKit.color("ink")
+	-- a rectangle from `l` px in on the left to `r` px in on the right, `y` px down (from the top or, bottom, up)
+	local function rect(name: string, color: Color3, l: number, r: number, y: number, h: UDim, bottom: boolean?)
+		local q = Instance.new("Frame")
+		q.Name = name
+		q.BorderSizePixel = 0
+		q.BackgroundColor3 = color
+		q.BackgroundTransparency = a
+		q.Position = UDim2.new(UDim.new(0, l), if bottom then UDim.new(1, -y - 1) else UDim.new(0, y))
+		q.Size = UDim2.new(UDim.new(1, -(l + r)), h)
+		q.ZIndex = 0
+		q.Parent = f
 	end
-	local insets: { number } = if k == 1 then { 1 } elseif k == 2 then { 2, 1 } elseif k == 3 then { 3, 1, 1 } else {}
+	local insets = CORNER_INSETS[k]
 	local rows = #insets
-	for i, inset in insets do
-		local y = i - 1
-		rect(UDim.new(0, inset), UDim.new(0, y), UDim.new(1, -2 * inset), UDim.new(0, 1))
-		rect(UDim.new(0, inset), UDim.new(1, -y - 1), UDim.new(1, -2 * inset), UDim.new(0, 1))
+	local one = UDim.new(0, 1)
+	if not edged then
+		for i, inset in insets do
+			rect("Fill", col, inset, inset, i - 1, one)
+			rect("Fill", col, inset, inset, i - 1, one, true)
+		end
+		rect("Fill", col, 0, 0, rows, UDim.new(1, -2 * rows))
+	else
+		-- the outline is the shape less the shape shrunk by a pixel: row by row through the corners, then the sides
+		local function outer(y: number): number
+			if y < 0 then
+				return math.huge
+			end
+			return if y < rows then insets[y + 1] else 0
+		end
+		-- a pixel-high run `w` px wide from `x` px in on the left (or, `right`, from x px in on the right)
+		local function run(name: string, color: Color3, x: number, w: number, y: number, bottom: boolean, right: boolean)
+			local q = Instance.new("Frame")
+			q.Name = name
+			q.BorderSizePixel = 0
+			q.BackgroundColor3 = color
+			q.BackgroundTransparency = a
+			q.Position = UDim2.new(if right then UDim.new(1, -x - w) else UDim.new(0, x), if bottom then UDim.new(1, -y - 1) else UDim.new(0, y))
+			q.Size = UDim2.fromOffset(w, 1)
+			q.ZIndex = 0
+			q.Parent = f
+		end
+		for y = 0, rows do
+			local l = outer(y)
+			local li = math.max(l + 1, outer(y - 1), outer(y + 1))
+			for _, bottom in { false, true } do
+				if li == math.huge then
+					rect("Edge", ink, l, l, y, one, bottom)
+				else
+					run("Edge", ink, l, li - l, y, bottom, false)
+					run("Edge", ink, l, li - l, y, bottom, true)
+					rect("Fill", col, li, li, y, one, bottom)
+				end
+			end
+		end
+		-- the sides: an edge pixel each side of the fill
+		local mid = UDim.new(1, -2 * (rows + 1))
+		for _, right in { false, true } do
+			local q = Instance.new("Frame")
+			q.Name = "Edge"
+			q.BorderSizePixel = 0
+			q.BackgroundColor3 = ink
+			q.BackgroundTransparency = a
+			q.Position = UDim2.new(if right then 1 else 0, if right then -1 else 0, 0, rows + 1)
+			q.Size = UDim2.new(UDim.new(0, 1), mid)
+			q.ZIndex = 0
+			q.Parent = f
+		end
+		rect("Fill", col, 1, 1, rows + 1, mid)
 	end
-	rect(UDim.new(0, 0), UDim.new(0, rows), UDim.new(1, 0), UDim.new(1, -2 * rows))
+	if st.shadow then
+		-- a drop shadow: two strips outside the plate, right and below (its bottom-right corner stepped)
+		local function shade(px: UDim, py: UDim, sx: UDim, sy: UDim)
+			local q = Instance.new("Frame")
+			q.Name = "Shadow"
+			q.BorderSizePixel = 0
+			q.BackgroundColor3 = UIKit.color("ink")
+			q.BackgroundTransparency = 0.55 + a * 0.45
+			q.Position = UDim2.new(px, py)
+			q.Size = UDim2.new(sx, sy)
+			q.ZIndex = 0
+			q.Parent = f
+		end
+		shade(UDim.new(1, 0), UDim.new(0, k + 2), UDim.new(0, 2), UDim.new(1, -(k + 2)))
+		shade(UDim.new(0, k + 2), UDim.new(1, 0), UDim.new(1, -(k + 1)), UDim.new(0, 2))
+	end
 	f.Parent = parent
 	return f
 end
@@ -338,6 +413,15 @@ local function paintButton(b: GuiButton)
 		c = c:Lerp(Color3.new(1, 1, 1), 0.18)
 	end
 	UIKit.setPlate(plate, c)
+	-- the bevel: a lit top row, a shaded lip along the bottom
+	local shine = plate:FindFirstChild("Shine")
+	if shine and shine:IsA("Frame") then
+		shine.BackgroundColor3 = c:Lerp(Color3.new(1, 1, 1), 0.3)
+	end
+	local lip = plate:FindFirstChild("Lip")
+	if lip and lip:IsA("Frame") then
+		lip.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.25)
+	end
 end
 
 -- Pressed: the plate and its words sink one UI px (and come back up on release).
@@ -370,6 +454,11 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 	buttonColor[b] = col
 	local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, col, 0, 2)
 	plate.ZIndex = 1
+	-- a bevel inside the outline: a lit top row and a darker lip along the bottom (pressed, the button sinks a pixel)
+	local shine = UIKit.rect(plate, UDim2.new(1, -4, 0, 1), UDim2.fromOffset(2, 1), col:Lerp(Color3.new(1, 1, 1), 0.3), 1)
+	shine.Name = "Shine"
+	local lip = UIKit.rect(plate, UDim2.new(1, -4, 0, 1), UDim2.new(0, 2, 1, -2), col:Lerp(Color3.new(0, 0, 0), 0.25), 1)
+	lip.Name = "Lip"
 	local l = UIKit.text(b, text, UDim2.new(1, -4, 1, 0), UDim2.fromOffset(2, 0), {
 		x = "center",
 		color = o.textColor or UIKit.color("text"),
@@ -526,7 +615,7 @@ function UIKit.clearNotices()
 end
 
 -- Registered panels (Hud's menus): build(body, arg) fills the panel's body; UIKit.openPanel shows one at a time.
-type PanelDef = { title: string, build: (body: Frame, arg: any?) -> (), pause: boolean?, w: number?, h: number? }
+type PanelDef = { title: string, build: (body: Frame, arg: any?) -> (), pause: boolean?, w: number?, h: number?, icon: string? }
 local panels: { [string]: PanelDef } = {}
 local openName: string? = nil
 local openFrame: Frame? = nil
@@ -580,12 +669,25 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Size = UDim2.fromScale(1, 1)
 	shade.ZIndex = 1
 	local fx, fy = math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)
-	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), UIKit.color("plate"), 0, 3)
+	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), UIKit.color("plate"), 0, 3, { shadow = true })
 	frame.Name = "Frame"
 	frame.ZIndex = 2
-	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(6, 2), { color = UIKit.color("accent"), name = "Title" })
+	-- the title band: a lighter strip inside the outline (its corners stepped with the plate's), a rule under it
+	local band = UIKit.color("plate"):Lerp(UIKit.color("plate_light"), 0.45)
+	for _, r in { { 3, 1, 1 }, { 2, 2, 1 }, { 1, 3, 13 } } do
+		local q = UIKit.rect(frame, UDim2.new(1, -2 * r[1], 0, r[3]), UDim2.fromOffset(r[1], r[2]), band, 1)
+		q.Name = "TitleBand"
+	end
+	local rule = UIKit.rect(frame, UDim2.new(1, -2, 0, 1), UDim2.fromOffset(1, 16), UIKit.color("ink"), 1)
+	rule.Name = "TitleRule"
+	local tx = 6
+	if def.icon then
+		PixelSprites.image(frame, "mini_" .. def.icon, UDim2.fromOffset(5, 3), 3)
+		tx = 18
+	end
+	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(tx, 2), { color = UIKit.color("accent"), name = "Title", z = 3 })
 	-- the status line: notices while the panel is open land here instead of covering it
-	local titleW = UIKit.textWidth(def.title) + 14
+	local titleW = UIKit.textWidth(def.title) + tx + 8
 	UIKit.text(frame, "", UDim2.new(1, -(titleW + UIKit.buttonWidth("Close", 4) + 8), 0, 14), UDim2.fromOffset(titleW, 2), { color = UIKit.color("text"), name = "Status", x = "right" })
 	UIKit.button(frame, "Close", UDim2.fromOffset(UIKit.buttonWidth("Close", 4), 12), UDim2.new(1, -UIKit.buttonWidth("Close", 4) - 3, 0, 3), function()
 		Audio.play("close")
@@ -682,7 +784,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	local w = math.min(UIKit.textWidth(text) + 14, s.X - 16)
 	local lines = if UIKit.textWidth(text) + 14 > w then 2 else 1
 	local h = 6 + 10 * lines
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), UIKit.color("plate"), 0.08, 2)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), UIKit.color("plate"), 0.08, 2, { shadow = true })
 	f.Name = "Notice"
 	UIKit.rect(f, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(2, 2), color or UIKit.color("accent"), 1)
 	local words = UIKit.text(f, text, UDim2.new(1, -12, 1, -2), UDim2.fromOffset(7, 1), { wrap = true, name = "Words" })

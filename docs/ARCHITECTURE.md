@@ -15,7 +15,7 @@ read-only as the reference: nothing there was changed). What was copied, and how
 
 ```
 default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScriptService, Client -> StarterPlayerScripts;
-                       characters on (the founder walks the islands; jump power 0)
+                       characters on (the founder walks and jumps on the islands: JumpHeight 7.2)
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
                        maths, copied), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
@@ -58,7 +58,7 @@ is `DriftlingIsle-<short hash>.rbxl`.)
 
 `Look`, `Piece` (`{ uid, id, x, z, rot, lvl }`: a building standing on the island; `uid` stays while it stands),
 `PlotSave` (`{ placed }`), `Villager` (`{ id, name, look, work (a Piece uid, 0 idle), lvl, xp, seed, day }`), `Pal` (a
-befriended driftling: `{ id, sp, lvl, xp, work }`), `Captain` (`{ lvl, xp }`), `Settings`, `Stats` (`{ days, built,
+befriended driftling: `{ id, sp, lvl, xp, work }`), `Captain` (`{ lvl, xp }`), `Settings` (`{ pixel, music? }`: music "on" | "off"), `Stats` (`{ days, built,
 earned, befriended, battles, cleared, movedIn }`), `Profile` (the save, version 6: `shells`, `food`, `wood`, `day`,
 `tier`, `founder`, `cap`, `folk`, `pals`, `plot`, `islets` (islands charted: guardians beaten), `sea` (the sea
 chart's seed), `boat` (1 .. 6), `chart` (the ids of the chart's islands charted), `seen` (species -> 1 met, 2 befriended),
@@ -89,9 +89,9 @@ range a level in leagues, `BoatCost` `{ shells, wood }` a level), the server's s
   and the camera and pixel filter values (Random Bakery's `CamYaw` 45, `CamPitch` 30, `PixelTiers`, `PixelScaleMin` /
   `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`, `CamGlide`, `CamBuildPan`,
   `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`, `PixelStageBakeMs`).
-- `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0) and `Sounds` (the Creator Store
-  library ids `Controllers/Audio` plays: Random Bakery's, and Roblox's free ProSoundEffects clips for the battles,
-  the islands and the sea, each named in a comment).
+- `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0), `Sounds` (the Creator Store
+  library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
+  Random Bakery's, each named in a comment) and `Music` (`{ day, night, sea }`: APM Music tracks, each named).
 
 ## 5. Data (pure content tables)
 
@@ -144,8 +144,9 @@ Models (`src/shared/Models`, Roblox modules):
 - `BoatSpec` (the boat's plan, one for every boat: GAME_DESIGN 8): `MAX` (6), `dims(level) -> { L, W, H }`,
   `deck(level)` (the four places on deck, founder first: deck-top coordinates, +Z the bow), `moor(level)` (its x, z
   by the pier), `deckOverWater(level)`, `parts(level) -> { { name, shape ("Block" "Wedge" "CylY"), size, cf (from the
-  deck top's centre), color, neon?, wind? } }` (the hull and every detail of GAME_DESIGN 8 by level; flags named
-  `Flag...`).
+  deck top's centre; the `Bow` wedge turned over: tall at the hull, its keel sloping up to the point), color, neon?,
+  wind? } }` (the hull and every detail of GAME_DESIGN 8 by level; flags named `Flag...`). Every user applies `cf`'s
+  rotation (MicroModels.ship, StreetModels.boat).
 - `StreetModels`: `road(parent, origin)` (a plot's stretch of the sea, `PixelWater` 1; the plank boardwalk on beams
   and posts with its rope rail and lanterns; its pier and moored boat), `boat(parent, origin, level) -> Model` (a
   `BoatSpec` boat, attribute `Level`, its flags `PixelWind` 2), `land(parent, origin, tier)` (the island: its
@@ -210,7 +211,7 @@ handler under pcall; success marks the session dirty).
 | `exp.act` | `act target` (fight guard treat flee; "w<i>" or "") | `Expedition.act` (Fx exp round) | no_exp, blocked, food, no_room |
 | `exp.home` | - | `Expedition.home`, the session lets go (Fx exp home; data `{ got, over, befriended, isle (its name) }`) | no_exp, in_battle |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
-| `settings.set` | `k` ("pixel"), `v` | the pixel tier: high, medium, low, off | bad_payload |
+| `settings.set` | `k` ("pixel" or "music"), `v` | the pixel tier (high, medium, low, off) or the music (on, off) | bad_payload |
 | `tut.next` | - | the tips go away for good | - |
 | `char.home` | - | PlotService puts the founder on their path | cooldown (`Tuning.HomeCooldown`), not_ready |
 
@@ -265,17 +266,23 @@ comes), `request(action, payload) -> Response` (never errors), `signal(kind, pay
 `PixelRenderer.setGrade(at(frac))` every frame, on the islands and on an islet's stage alike (with the filter off,
 `Lighting.ClockTime` instead: 6 at dawn, 18 at dusk). `at(frac) -> Grade?`: the day's keys (`KEYS`: dawn 0, morning
 0.07, afternoon 0.6, dusk 0.68, twilight 0.75, night 0.81 to 0.95, dawn again at 1), the step between two keys in
-`STEPS` (6) steps; nil when it is plain daylight. `debugSet(frac?)` (previews: a fixed time), `debugState() -> {
-frac, grade, clock }`.
+`STEPS` (6) steps; nil when it is plain daylight. `frac()` (the time of day now: the HUD's music), `debugSet(frac?)`
+(previews: a fixed time), `debugState() -> { frac, grade, clock }`.
 
 ### 8.3 `Audio`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's), `has(name)`, `EVENTS`: every sound by
-name (`click hover open close deny notice ding coin coins level_up reward fanfare rare_fanfare combo sparkle cheer
-applause trumpet sad drumroll tick key flip pop squish`, the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap
-heal shield poof bite`, the world's `chest splash hammer horn gull birds`), each one `Monetization.Sounds` id (0 =
+name (`click open close deny notice ding coin coins level_up reward fanfare rare_fanfare combo sparkle cheer trumpet
+sad drumroll tick flip pop`, the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap heal shield poof bite`,
+the world's `chest splash hammer horn gull birds`), each one `Monetization.Sounds` id (0 =
 silent) with a volume, a pitch range, a cooldown (a repeat inside it is dropped) and a few voices (Sounds in
 `SoundService.UISounds`, reused). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
-(DayLight: the surf always, crickets at night).
+(DayLight: the surf always, crickets at night). `music(mood?)`: the background music, a mood's playlist of
+`Monetization.Music` ("day", "night", "sea"; nil: quiet) shuffled once and played round, track after track
+(`Music_<mood>` Sounds at `MUSIC_VOL`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
+that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades
+it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mood every frame (sea while the islet's
+screen is open or a voyage plays, night from 0.74 of the day to the dawn, else day) and `on` from
+`settings.music`.
 
 ## 9. The pixel filter and the camera
 
@@ -368,7 +375,9 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second
   for the moving lights; a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
   warm light in three stepped rings (`RING`, twice as wide as tall: the ground at 2:1),
-  `lamps` of the way back to the colour by day, warmed.
+  `lamps` of the way back to the colour by day, warmed, times how dark the hour is (`dark`: from the light's colour,
+  0 by day and in the golden dusk, 1 at night) and 0.85 at most. As it gets dark the luminance over a knee is pressed
+  down (`press`: up to 0.45 of it for white at night), so pale colours (shells, sand, sails) don't glow.
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; drawn before the models, restored with their rects. The
@@ -387,11 +396,15 @@ it.
 Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
 with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `hex`, `P`, `size(root)`, `phone`,
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound), `setText`, `setTextColor`, `textWidth`,
-`lineHeight`, `plate` (stepped corners, Random Bakery's), `setPlate`, `rect`, `button` (a TextButton with a child
-"Words" label; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
+`lineHeight`, `plate(parent, size, pos?, color?, alpha?, corner?, style?)` (stepped corners with a 1 px ink outline
+following them: "Fill" rects inside "Edge" rects, none overlapping; `style { edge = false }` a flat swatch, `{ shadow
+= true }` a 2 px drop shadow right and below, "Shadow"), `setPlate` (the fill), `rect`, `button` (a TextButton with
+a child "Words" label over a plate with a bevel, "Shine" and "Lip", recoloured with it; disabled = `AutoButtonColor`
+false; fires on `Activated`), `setEnabled`, `setButtonText`,
 `setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
-(`registerPanel(name, { title, w, h, build })`, `openPanel(name, arg)`, `closePanel`, `currentPanel`,
+(`registerPanel(name, { title, icon?, w, h, build })`: a framed plate with a drop shadow, a `TitleBand` with the
+`mini_<icon>` and the title, a `TitleRule` under it; `openPanel(name, arg)`, `closePanel`, `currentPanel`,
 `refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
@@ -431,14 +444,19 @@ the islands). `count()` for the CLI.
 Chips (`Chip_shells`, `Chip_food`, `Chip_wood`, each an 11 px icon and the store easing to its value, flashing when
 it changes (the food's red and blinking while hungry); `Chip_day`, "Day 3" with the day's clock along its edge and a
 sun that sets into a moon; then `Home`, a button shown while the founder is off their own island, sending
-`char.home`), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_explore`, `Menu_index`, `Menu_looks`;
-while Build mode or the islet's screen is open the bar, the cards and the tips step aside), the `IslandCard` on the
+`char.home`; `MusicToggle` in the top right corner, the `mini_note`, sending `settings.set` music on / off, the note
+greyed while off), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_explore`, `Menu_index`, `Menu_looks`,
+each with its icon; while Build mode or the islet's screen is open the bar and the cards step aside, the tips only
+for the islet's screen: in Build mode the banner rises over the tray with a Build mode wording (`TIPS_BUILD`)), the
+`IslandCard` on the
 right (the island's name for its tier, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
 shells a minute: `Numbers.perMin`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
 battle!", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the tips banner (`Tips`: the steps of GAME_DESIGN 9 (`tut` 1 .. 6: food, wood, shells, a tent, a nest and sail,
 islands and treats); tip 6 has `TipsOk`, sending `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`) and the `DayBanner` (Fx
 "day": the day and who moved in or trained; over a panel, Build mode or an expedition a notice instead). Shells
-coming in rise from their chip ("+12", at most every 2 s, from `StateClient.Tick`). It reports its blocks to the
+coming in rise from their chip ("+12", at most every 2 s, from `StateClient.Tick`). Every frame it holds the
+founder's `JumpHeight` at 0 while Build mode, the islet's screen or a voyage is up, else `Tuning.JumpHeight` (the
+phone's jump button hides with it), and sets the music's mood (`Audio.music`). It reports its blocks to the
 camera (on PC the top strip, the menu bar and the card's place; on a phone Roblox's top bar and the menu bar).
 
 ### 10.4 Menus
@@ -486,7 +504,11 @@ says it fits, red (`berry_red`) where not) stands on the cell under the pointer 
 island (a ray into its `Static.Decor`) picks it up. A press dragged more than 8 px pans the view
 (`CameraController.panBy`). `confirm()` sends `plot.place` (the piece stays picked for another copy) or `plot.move`;
 `close()`; `isOpen()`; `Changed: Signal<boolean>`; `tapScreen(pos, mouse?)` (the sims' and previews' tap). The tray
-is laid out again when what can be afforded changes (`StateClient.Tick`).
+is laid out again when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 food / patch, 2
+wood / lumber, 3 shop / stall, 4 home / tent, 5 nest / nest): opening, and each new tip while open (`followTut`, from
+the rebuild; it waits while a piece is picked), turns the tray to the tip's tab; the tip's card (`TutGoal`) and its
+tab, while another is shown, pulse to the accent and shine; placing the tip's building drops the pick so the tray goes
+on to the next tab. `TRAY_H` (the HUD lifts the tip's banner over it), `debugState() -> { tab, goal? }`.
 
 ### 10.8 The sailing cutscene (`Voyage`)
 `Voyage` (client; `init()` from `ExpeditionUI.init`): `play(keys, isle?, onDone)` after Set sail (keys: the members

@@ -1058,7 +1058,7 @@ local function alert(title: string, color: Color3, lines: { { text: string, colo
 		ch = math.max(ch, 22)
 	end
 	local x, y = math.floor((w - cw) / 2), topInset() + HEAD_H + 18
-	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, y - 6), UIKit.color("plate"), 0.05, 2)
+	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, y - 6), UIKit.color("plate"), 0.05, 2, { shadow = true })
 	f.Name = "Alert"
 	f.ZIndex = 20
 	UIKit.rect(f, UDim2.fromOffset(cw - 4, 1), UDim2.fromOffset(2, 1), color, 21)
@@ -1099,7 +1099,7 @@ local function resultCard(title: string, color: Color3, lines: { { text: string,
 	cw = math.min(cw, w - 16)
 	local ch = 22 + #lines * 10 + 22 + (if icon then 18 else 0)
 	local x, y = math.floor((w - cw) / 2), math.floor((h - ch) / 2)
-	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, -ch - 4), UIKit.color("plate"), 0, 3)
+	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, -ch - 4), UIKit.color("plate"), 0, 3, { shadow = true })
 	f.Name = "Result"
 	f.ZIndex = 20
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), color, 21)
