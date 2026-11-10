@@ -113,6 +113,7 @@ PREVIEW_KEEP=1 sh tools/preview/render.sh <scenario> <outdir> "desktop phone" [t
 | `sea` | `sea`, `sea_fresh` | the founder walked onto the boardwalk between their island and a neighbour's village (a server-side player), the camera following; then the same pan baked from scratch (`PixelRenderer.rebake`) to compare a scrolled picture with a fresh one |
 | `visit` | `visit` | the founder on the neighbour's island while their villagers work |
 | `build` | `build_tray`, `build`, `build_red` | Build mode opened from the HUD (the tray's Food tab), a lumber camp picked and its ghost tapped onto a cell where it fits (cyan), then onto the campfire's plaza (red, Place off) |
+| `water` | `water_000` .. `water_011` | the village, then a frame every sixth of a second for two seconds: the sea, the shallows and the foam moving (`python3 tools/preview/make_gif.py <outdir> water desktop 6 0.6666667` makes a 1280x720 GIF, two screen px an art px) |
 | `late` | `late_inset`, `late_turn` | the screen's size settling after the HUD is built, the two ways Roblox does it: the top bar's inset arriving with no ViewportSize event (the roots shrink on their own), then the screen turning with ViewportSize fired before the roots are laid out again (`E.guiViewport`); the log line `late <case>: menu bar at y .. on a WxH screen: ON SCREEN / HIDDEN` says whether the HUD's menu bar is still wholly on screen at the bottom |
 | `all` | | `island`, `village`, `island3`, `sea`, `build`, `day` |
 

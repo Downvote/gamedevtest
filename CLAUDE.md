@@ -14,7 +14,7 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
 `sim.luau` about 475 (a few more or fewer as its auto-played battles go), `sim_save.luau` 223, `sim_clock.luau` 306,
 `sim_world.luau` 234, `sim_exp.luau` 335). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
-"desktop phone"` with a scenario of `island village island2 island3 day sea visit build late`,
+"desktop phone"` with a scenario of `island village island2 island3 day sea visit build water late`,
 `panel=<folk|pals|explore|index|looks>` or `exp=<islet 1-5>[_battle|_boss|_win|_loot]` (e.g. `exp=4_boss`). The place
 file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 

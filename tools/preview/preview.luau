@@ -279,6 +279,20 @@ function SCEN.village()
 	return p
 end
 
+-- The water moving (GAME_DESIGN 8): the village, then a frame every sixth of a second for two seconds (water_000 ..
+-- water_011; `python3 tools/preview/make_gif.py <outdir> water <device>` makes them a GIF).
+function SCEN.water()
+	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+	local p = join(2, "Villager")
+	settle(p)
+	E.run(1)
+	for k = 0, 11 do
+		capture(p, string.format("water_%03d", k))
+		E.run(1 / 6)
+	end
+	return p
+end
+
 local function islandScenario(tier, label)
 	return function()
 		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, folk = if tier == 3 then 12 else 6, pals = PALS, islets = tier + 1, shells = 60000, wood = 5000 })
