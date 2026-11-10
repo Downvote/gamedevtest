@@ -1089,9 +1089,13 @@ BUILD.ring = function(o)
 	return t
 end
 
--- The aim on the floor (GAME_DESIGN 7: a snack or a skill being aimed): a glowing ring round the one acting and an
--- arrow on its edge pointing +Z (the stage turns it toward the target), all Neon (opts.color): it keeps its colour
--- while the picture is greyed.
+-- The aim on the floor (GAME_DESIGN 7: a snack or a skill being aimed), all Neon (opts.color): it keeps its colour
+-- while the picture is greyed. "aim": the glowing ring round the one acting. "aimpath": the arrow from that ring all
+-- the way to the pick, `AIM_DASHES` dashes ("D1" ..) and a head ("HeadL", "HeadR") along +Z that the battle screen
+-- lays out every frame (its length, the dashes marching on; a dash past the end hidden). "aimring": the smaller ring
+-- under the pick (its bars "R1" .. laid out by the screen too: it pops and turns).
+MicroModels.AIM_DASHES = 40
+MicroModels.AIM_RING = 10
 BUILD.aim = function(o)
 	local t = new("aim", 0.2, 2.2)
 	local c = o.color or "yellow"
@@ -1099,9 +1103,27 @@ BUILD.aim = function(o)
 		local a = (i - 0.5) / 12 * math.pi * 2
 		add(t, "R" .. i, "Block", Vector3.new(0.75, 0.125, 0.25), Vector3.new(math.cos(a) * 1.75, 0.07, math.sin(a) * 1.75), c, CFrame.Angles(0, -a + math.pi / 2, 0), true)
 	end
-	add(t, "Shaft", "Block", Vector3.new(0.25, 0.125, 1.0), Vector3.new(0, 0.07, 2.35), c, nil, true)
-	add(t, "HeadL", "Block", Vector3.new(0.25, 0.125, 0.875), Vector3.new(-0.28, 0.07, 2.95), c, CFrame.Angles(0, math.rad(40), 0), true)
-	add(t, "HeadR", "Block", Vector3.new(0.25, 0.125, 0.875), Vector3.new(0.28, 0.07, 2.95), c, CFrame.Angles(0, math.rad(-40), 0), true)
+	return t
+end
+
+BUILD.aimpath = function(o)
+	local t = new("aimpath", 0.2, 1)
+	local c = o.color or "yellow"
+	for i = 1, MicroModels.AIM_DASHES do
+		add(t, "D" .. i, "Block", Vector3.new(0.25, 0.125, 0.5), Vector3.new(0, 0.07, 0), c, nil, true)
+	end
+	add(t, "HeadL", "Block", Vector3.new(0.25, 0.125, 0.875), Vector3.new(-0.28, 0.07, 0), c, CFrame.Angles(0, math.rad(40), 0), true)
+	add(t, "HeadR", "Block", Vector3.new(0.25, 0.125, 0.875), Vector3.new(0.28, 0.07, 0), c, CFrame.Angles(0, math.rad(-40), 0), true)
+	return t
+end
+
+BUILD.aimring = function(o)
+	local t = new("aimring", 0.2, 1.5)
+	local c = o.color or "yellow"
+	for i = 1, MicroModels.AIM_RING do
+		local a = (i - 0.5) / MicroModels.AIM_RING * math.pi * 2
+		add(t, "R" .. i, "Block", Vector3.new(0.5, 0.125, 0.25), Vector3.new(math.cos(a) * 1.3, 0.07, math.sin(a) * 1.3), c, CFrame.Angles(0, -a + math.pi / 2, 0), true)
+	end
 	return t
 end
 

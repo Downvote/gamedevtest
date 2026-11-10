@@ -510,7 +510,7 @@ local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any 
 		e.battle = nil
 	else
 		local gs = Battle.gauges(e.party, b)
-		out.g, out.lock, out.paused, out.sp = gs.g, gs.lock, gs.paused, gs.sp
+		out.g, out.lock, out.paused, out.sp, out.crowd = gs.g, gs.lock, gs.paused, gs.sp, gs.crowd
 	end
 	return out
 end

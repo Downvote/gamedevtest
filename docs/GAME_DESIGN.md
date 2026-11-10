@@ -263,11 +263,22 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   `AtbTime` seconds at an average speed (quicker for the quick, `AtbMin` .. `AtbMax`). Full, the fighter acts: an
   attack (the party the weakest foe, a wild one a random member) or, every `SkillEvery` actions, its own skill; then
   its timer starts again. One action plays at a time (`ActLock`: as long as it takes on screen; the timers fill on
-  meanwhile, flashing when full and waiting). The server runs the battle; a new one waits until its wild ones have
-  landed, and a battle waits while the screen is closed.
+  meanwhile, flashing when full and waiting). So that the fighters act as their timers fill rather than wait in line,
+  a crowded fight fills every timer a little slower (`Battle.crowd`: the actions the timers ask for take about
+  `AtbShare` of the time; both sides alike, so the odds stay the same): with a full party a full timer waits about a
+  tenth of the time. The server runs the battle; a new one waits until its wild ones have landed, and a battle waits
+  while the screen is closed.
   - **Snacks** (`Snack x5`; S or 1): the picture greys and the battle pauses; your leader stands in a glowing ring on
-    the floor with an arrow pointing at the wild one picked (the most hurt first; tap a card, or arrows to switch, a
-    pointer over its head). Throw!: the leader's timer starts again and the snack flies; the wild one catches it, and
+    the floor with a dashed arrow running all the way to the wild one picked, which stands in a ring of its own, a
+    pointer over its head (the most hurt first).
+
+    > The request (2026-11-10): "make the arrows extend all the way to the targeted character and have a better
+    > transition. also, make it a hover or tap thing, tapping on the selected enemy will use it on it"
+
+    The arrow's dashes march toward the pick; when the aim opens the arrow grows out of the leader's ring, and on a new
+    pick its end glides over (the arrow swinging and stretching with it) while the pick's ring pops in. Pick by
+    pointing at a wild one (a mouse: hovering picks it), tapping it, tapping its card, or the arrow keys; a tap or
+    click on the one picked throws (as does Throw!). Throw!: the leader's timer starts again and the snack flies; the wild one catches it, and
     joins you, as often as its trust says (more the more hurt it is, less the higher its level); else it shakes its
     head. A snack needs a free nest. `SnackBase` (5) snacks a trip with the first pouch; a **bigger pouch** (the Explore
     panel, `PouchCost` in shells and wood) holds 5 more a level, up to 30.
@@ -287,8 +298,8 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   to `SpMax` (10), from nothing at each battle's start. **Skills** opens the skill window any time in a battle: it
   greys and pauses the battle like a snack; each member standing lists the skills they have learnt, with their cost
   (greyed when the points don't cover it yet, or there is nobody to aim at). Picking one aiming at nobody uses it at
-  once; one aiming at a member, a fallen member or a wild one opens the aim like a snack's (that member's ring and
-  arrow on the floor). The one using it acts at once and their timer starts again. Who learns what, by level
+  once; one aiming at a member, a fallen member or a wild one opens the aim like a snack's (the user's ring, the
+  arrow to the pick and the pick's ring on the floor; hover or tap to pick, tap the pick to use it). The one using it acts at once and their timer starts again. Who learns what, by level
   (`Data/Skills`): the leader Rally Cry (Lv1, 3: the team hits harder), First Aid (Lv3, 3: mends one member), Group
   Hug (Lv6, 5: mends the team) and Charge! (Lv10, 7: every ally acts at once); everyone else the family of their own
   battle skill: bash (Power Bonk, Spin Swipe on every wild one, Mega Bonk), quick (Flurry of three hits, Zoom Zoom

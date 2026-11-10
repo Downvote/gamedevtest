@@ -1808,6 +1808,20 @@ function PixelRenderer.project(world: Vector3): (Vector2, boolean)
 	return Vector2.new(p.X, p.Y), on
 end
 
+-- The art pixel under a screen point (pos = InputObject.Position, below the top bar), as `projectPixel` gives
+-- them: the stage's screens compare a pointer with what stands there.
+function PixelRenderer.pixelAt(pos: Vector2): (number, number)
+	local inset = GuiService:GetGuiInset()
+	local x, y = pos.X + inset.X, pos.Y + inset.Y
+	local s = surf
+	if s and tier ~= "off" then
+		local cam = s.cam
+		return math.floor((x + cam.offX) / cam.K), math.floor((y + cam.offY) / cam.K)
+	end
+	local k = PixelRenderer.pixelScale()
+	return math.floor(x / k), math.floor(y / k)
+end
+
 -- The pick ray through a screen point (pos = InputObject.Position, below the top bar): origin and direction * length,
 -- through what the layer shows (its own camera, the pan it shows) when the filter is on, the Roblox camera's otherwise.
 function PixelRenderer.screenRay(pos: Vector2): (Vector3, Vector3)

@@ -208,6 +208,23 @@ function Battle.playTime(events: { Event }, from: number?): number
 	return t * Tuning.ActLock
 end
 
+-- How much slower every timer fills in this fight (at least 1): the actions the timers ask for a second (each
+-- standing fighter's 1 / fillTime) times a plain attack's play time, over the share of the time actions may take
+-- (Tuning.AtbShare). One action plays at a time, so a crowded fight would otherwise keep full timers waiting in line;
+-- this way the fighters act as their timers fill. Both sides slow alike: the odds stay the same.
+function Battle.crowd(party: { Fighter }, foes: { Fighter }): number
+	local demand = 0
+	for _, list in { party, foes } :: { { Fighter } } do
+		for _, f in list do
+			if f.hp > 0 then
+				demand += 1 / Battle.fillTime(f)
+			end
+		end
+	end
+	local busy = (0.15 + Battle.EVENT_SECS.attack) * Tuning.ActLock
+	return math.max(1, demand * busy / Tuning.AtbShare)
+end
+
 -- The chance a treat befriends this wild one.
 function Battle.treatChance(foe: Fighter, party: { Fighter }, boss: boolean): number
 	if boss or foe.sp == nil then
@@ -353,12 +370,14 @@ function Battle.step(party: { Fighter }, b: Battle, dt: number, rng: Rng): ({ Ev
 		b.shield = math.max(0, b.shield - h)
 		b.foeShield = math.max(0, b.foeShield - h)
 		b.sp = math.min(Tuning.SpMax, b.sp + h * Tuning.SpRate)
-		-- every timer fills (an action playing too: the next is ready when it ends), one full one acts when none plays
+		-- every timer fills (an action playing too: the next is ready when it ends; slower in a crowd), one full one
+		-- acts when none plays
 		local ready: Fighter? = nil
+		local crowd = Battle.crowd(party, b.foes)
 		for _, list in { party, b.foes } :: { { Fighter } } do
 			for _, f in list do
 				if f.hp > 0 then
-					f.gauge = math.min(1, f.gauge + h / Battle.fillTime(f))
+					f.gauge = math.min(1, f.gauge + h / (Battle.fillTime(f) * crowd))
 					if f.gauge >= 1 and ready == nil then
 						ready = f
 					end
@@ -555,14 +574,14 @@ end
 
 -- The timers as they stand (the client runs them on between syncs): { [key] = gauge }, the hold, the pause and the
 -- skill points.
-function Battle.gauges(party: { Fighter }, b: Battle): { g: { [string]: number }, lock: number, paused: boolean, sp: number }
+function Battle.gauges(party: { Fighter }, b: Battle): { g: { [string]: number }, lock: number, paused: boolean, sp: number, crowd: number }
 	local g: { [string]: number } = {}
 	for _, list in { party, b.foes } :: { { Fighter } } do
 		for _, f in list do
 			g[f.key] = math.floor(f.gauge * 1000 + 0.5) / 1000
 		end
 	end
-	return { g = g, lock = b.lock, paused = b.paused, sp = math.floor(b.sp * 100 + 0.5) / 100 }
+	return { g = g, lock = b.lock, paused = b.paused, sp = math.floor(b.sp * 100 + 0.5) / 100, crowd = math.floor(Battle.crowd(party, b.foes) * 1000 + 0.5) / 1000 }
 end
 
 return Battle

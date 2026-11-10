@@ -125,6 +125,7 @@ local PATH_AHEAD = 7 -- the header shows the path from a stop back to this many 
 local gaugeG: { [string]: number } = {}
 local gaugeAt = 0
 local gaugeLock = 0
+local gaugeCrowd = 1 -- how much slower the timers fill in this crowd (the server's Battle.crowd)
 local gaugePaused = true
 local spNow = 0
 local snacksLeft = 0
@@ -140,8 +141,16 @@ local runAt: number? = nil -- when to let the battle run (its wild ones landed, 
 type Aim = { kind: string, who: string, skill: string?, side: string, target: string? }
 local aim: Aim? = nil
 local skillMenu = false
-local aimMark: MicroModels.Thing? = nil -- the ring and arrow on the floor round the one acting
+local aimMark: MicroModels.Thing? = nil -- the ring on the floor round the one acting
+local aimPath: MicroModels.Thing? = nil -- the arrow from that ring all the way to the pick
+local aimRing: MicroModels.Thing? = nil -- the ring under the pick
 local aimPointer: GuiObject? = nil -- the little arrow over the target's head
+local aimEndU: number? = nil -- where the arrow's end is now (stage u, v): it glides to the pick
+local aimEndV = 0
+local aimRingR = 0 -- the pick's ring's radius now (it pops on a new pick)
+local aimRingFor: string? = nil
+local aimClock = 0
+local pointerConns: { RBXScriptConnection } = {}
 local GREY: PixelRenderer.Grade = { mr = 0.72, mg = 0.72, mb = 0.76, lift = 4, sat = 0.1, lamps = 0 }
 
 local refresh: () -> () = function() end
@@ -177,6 +186,17 @@ local function actorAt(a: Actor): Vector3
 		return Vector3.zero
 	end
 	return st.at(a.u + a.du, a.v + a.dv, a.dy)
+end
+
+-- How tall someone stands (studs over its feet): people about 4.75 (the hair's top), a driftling its model's height
+-- at its size; the timers, the pointer and the floating words go just over it.
+local PERSON_H = 4.75
+local function headOf(a: Actor): number
+	local t = a.thing
+	if t then
+		return (t :: MicroModels.Thing).h * a.scale0
+	end
+	return PERSON_H
 end
 
 local function removeActor(key: string)
@@ -653,7 +673,7 @@ local function floatOver(key: string, text: string, color: Color3)
 	if a == nil or st == nil or r == nil then
 		return
 	end
-	local x, y, on = st.screen(actorAt(a) + Vector3.new(0, if a.big then 4.5 else 3.2, 0))
+	local x, y, on = st.screen(actorAt(a) + Vector3.new(0, headOf(a) + 1.2, 0))
 	if on then
 		UIKit.popText(r, x, y, text, color)
 	end
@@ -739,7 +759,7 @@ local function gaugeOf(key: string): number
 		return g0
 	end
 	local t = os.clock() - gaugeAt
-	return math.min(1, g0 + t / Battle.fillTime(f :: Types.Fighter))
+	return math.min(1, g0 + t / (Battle.fillTime(f :: Types.Fighter) * gaugeCrowd))
 end
 
 -- The party's skill points now.
@@ -763,6 +783,9 @@ local function takeGauges(d: any)
 		end
 	end
 	gaugeLock = tonumber(d.lock) or 0
+	if type(d.crowd) == "number" and d.crowd >= 1 and d.crowd < 100 then
+		gaugeCrowd = d.crowd
+	end
 	if type(d.paused) == "boolean" then
 		gaugePaused = d.paused
 	end
@@ -846,51 +869,127 @@ local function firstPick(side: string): string?
 	return if best then best.key else nil
 end
 
--- The ring and arrow round the one acting, turned toward the pick; the pointer over the pick (every frame).
+-- The aim on the floor (every frame): the ring round the one acting, a dashed arrow from it all the way to the pick
+-- (the dashes marching toward it), a ring under the pick, and the pointer over its head. The arrow's end glides to a
+-- new pick (so the arrow swings and stretches over), grows out of the ring when the aim opens, and the pick's ring
+-- pops in.
+local AIM_DASH, AIM_GAP = 0.5, 0.75 -- a dash's length and the dashes' spacing (studs)
+local function dropAim(st: MicroStage.Stage?)
+	for _, t in { aimMark, aimPath, aimRing } do
+		if t and st then
+			st.remove(t)
+		end
+	end
+	aimMark, aimPath, aimRing, aimEndU, aimRingFor = nil, nil, nil, nil, nil
+	if aimPointer then
+		(aimPointer :: GuiObject):Destroy()
+		aimPointer = nil
+	end
+end
+
+-- Show or hide every part of a floor thing (the renderer skips a see-through part).
+local function showThing(t: MicroModels.Thing, on: boolean)
+	for _, p in t.parts do
+		p.Transparency = if on then 0 else 1
+	end
+end
+
 local function updateAim()
 	local st, a, r = stage, aim, root
 	if st == nil or r == nil or a == nil then
-		if aimMark and st then
-			st.remove(aimMark :: MicroModels.Thing)
-		end
-		aimMark = nil
-		if aimPointer then
-			(aimPointer :: GuiObject):Destroy()
-			aimPointer = nil
-		end
+		dropAim(st)
 		return
 	end
 	local user = actors[a.who]
 	if user == nil then
 		return
 	end
+	local now = os.clock()
+	local dt = math.clamp(now - aimClock, 0, 0.1)
+	aimClock = now
 	if aimMark == nil then
-		aimMark = st.spawn("aim", { color = if a.kind == "snack" then "pink" else "screen_on" })
+		local color = if a.kind == "snack" then "pink" else "screen_on"
+		aimMark = st.spawn("aim", { color = color })
+		aimPath = st.spawn("aimpath", { color = color })
+		aimRing = st.spawn("aimring", { color = color })
+		aimEndU, aimRingFor = nil, nil
 	end
-	local yaw = if user.foe then MicroStage.FACE_LEFT else MicroStage.FACE_RIGHT
+	local mark, path, ring = aimMark :: MicroModels.Thing, aimPath :: MicroModels.Thing, aimRing :: MicroModels.Thing
+	local u0, v0 = user.u + user.du, user.v + user.dv
+	-- the leader's ring turns slowly
+	st.place(mark, u0, v0, 0.05, now * 0.5)
+	-- (the pick may be the user itself, a mend on the leader: its ring sits inside the user's, no arrow)
 	local tgt = if a.target then actors[a.target :: string] else nil
-	local p0 = actorAt(user)
-	if tgt and tgt ~= user then
-		local p1 = actorAt(tgt)
-		yaw = math.atan2(p1.X - p0.X, p1.Z - p0.Z)
-	end
-	st.place(aimMark :: MicroModels.Thing, user.u + user.du, user.v + user.dv, 0.05, yaw)
-	-- the pointer: a small arrow bobbing over the pick's head
-	if tgt then
-		if aimPointer == nil then
-			local img = PixelSprites.image(r, "arrow_down_t", UDim2.fromOffset(0, 0), 24)
-			img.Name = "AimPointer"
-			aimPointer = img
+	if tgt == nil then
+		showThing(path, false)
+		showThing(ring, false)
+		aimEndU = nil
+		if aimPointer then
+			(aimPointer :: GuiObject):Destroy()
+			aimPointer = nil
 		end
-		local x, y, on = st.screen(actorAt(tgt) + Vector3.new(0, if tgt.big then 5.2 else 3.9, 0))
-		local bob = math.floor(math.sin(os.clock() * 6) * 1.5 + 0.5)
-		local ap = aimPointer :: GuiObject
-		ap.Visible = on
-		ap.Position = UDim2.fromOffset(math.floor(x) - 3, math.floor(y) - 9 + bob)
-	elseif aimPointer then
-		(aimPointer :: GuiObject):Destroy()
-		aimPointer = nil
+		return
 	end
+	local pick = tgt :: Actor
+	-- the end glides to the pick (out of the leader's ring when the aim opens)
+	local u1, v1 = pick.u + pick.du, pick.v + pick.dv
+	if aimEndU == nil then
+		aimEndU, aimEndV, aimRingR = u0, v0, 0
+	end
+	local k = 1 - math.exp(-dt * 12)
+	local eu = (aimEndU :: number) + (u1 - (aimEndU :: number)) * k
+	local ev = aimEndV + (v1 - aimEndV) * k
+	aimEndU, aimEndV = eu, ev
+	if aimRingFor ~= a.target then
+		aimRingFor = a.target
+		aimRingR *= 0.4
+	end
+	local want = if pick.big then 2.1 else 1.3
+	aimRingR += (want - aimRingR) * (1 - math.exp(-dt * 14))
+	-- the arrow: from the leader's ring's edge to the pick's ring's edge
+	local p0, p1 = st.at(u0, v0, 0), st.at(eu, ev, 0)
+	local dx, dz = p1.X - p0.X, p1.Z - p0.Z
+	local dist = math.sqrt(dx * dx + dz * dz)
+	local s0, s1 = 2.1, dist - aimRingR - 0.3
+	local on = s1 > s0 + 0.5
+	local phase = (now * 1.5) % AIM_GAP
+	for i = 1, MicroModels.AIM_DASHES do
+		local name = "D" .. i
+		local z = s0 + phase + (i - 1) * AIM_GAP
+		local shown = on and z - AIM_DASH / 2 >= s0 - 0.01 and z + AIM_DASH / 2 <= s1 - 0.5
+		local part = path.parts[name]
+		if part then
+			part.Transparency = if shown then 0 else 1
+		end
+		path.rest[name] = CFrame.new(0, 0.07, if shown then z else 0)
+	end
+	for _, side in { -1, 1 } do
+		local name = if side < 0 then "HeadL" else "HeadR"
+		local part = path.parts[name]
+		if part then
+			part.Transparency = if on then 0 else 1
+		end
+		path.rest[name] = CFrame.new(0.28 * side, 0.07, s1 - 0.34) * CFrame.Angles(0, math.rad(-40 * side), 0)
+	end
+	st.place(path, u0, v0, 0.05, math.atan2(dx, dz))
+	-- the pick's ring, turning the other way
+	showThing(ring, true)
+	for i = 1, MicroModels.AIM_RING do
+		local ang = (i - 0.5) / MicroModels.AIM_RING * math.pi * 2 - now * 0.8
+		ring.rest["R" .. i] = CFrame.new(math.cos(ang) * aimRingR, 0.07, math.sin(ang) * aimRingR) * CFrame.Angles(0, -ang + math.pi / 2, 0)
+	end
+	st.place(ring, eu, ev, 0.05, 0)
+	-- the pointer: a small arrow bobbing over the pick's head (gliding with the arrow's end)
+	if aimPointer == nil then
+		local img = PixelSprites.image(r, "arrow_down_t", UDim2.fromOffset(0, 0), 24)
+		img.Name = "AimPointer"
+		aimPointer = img
+	end
+	local x, y, vis = st.screen(st.at(eu, ev, pick.dy) + Vector3.new(0, headOf(pick) + 1.3, 0))
+	local bob = math.floor(math.sin(now * 6) * 1.5 + 0.5)
+	local ap = aimPointer :: GuiObject
+	ap.Visible = vis
+	ap.Position = UDim2.fromOffset(math.floor(x) - 3, math.floor(y) - 9 + bob)
 end
 
 -- The timers over everyone's heads (every frame in a battle): a small bar each, gold for the party, orange for the
@@ -927,7 +1026,7 @@ local function updateTimers()
 			timerBars[key] = tb
 		end
 		local bar = tb :: { frame: Frame, fill: Frame, w: number }
-		local x, y, on = (st :: MicroStage.Stage).screen(actorAt(a) + Vector3.new(0, if a.big then 4.9 else 3.6, 0))
+		local x, y, on = (st :: MicroStage.Stage).screen(actorAt(a) + Vector3.new(0, headOf(a) + 0.6, 0))
 		bar.frame.Visible = on
 		bar.frame.Position = UDim2.fromOffset(math.floor(x) - math.floor(bar.w / 2), math.floor(y) - 2)
 		local g = gaugeOf(key)
@@ -1143,6 +1242,58 @@ pickTarget = function(key: string?)
 	a.target = list[i % #list + 1].key
 	Audio.play("tick")
 	refresh()
+end
+
+-- Who on the stage is under a point (art px, as `stage.screen` gives them), among those the aim can pick: the
+-- nearest whose figure (feet to head, a little wider than half as tall) holds it.
+local function pickAt(i: number, j: number): string?
+	local st, a = stage, aim
+	if st == nil or a == nil then
+		return nil
+	end
+	local best: string? = nil
+	local bestD = math.huge
+	for _, f in candidates((a :: Aim).side) do
+		local ac = actors[f.key]
+		if ac == nil or ac.gone or ac.deck > 0 then
+			continue
+		end
+		local base = actorAt(ac)
+		local fx, fy, on = (st :: MicroStage.Stage).screen(base)
+		local _, hy = (st :: MicroStage.Stage).screen(base + Vector3.new(0, headOf(ac), 0))
+		if not on then
+			continue
+		end
+		local half = math.max(6, (fy - hy) * 0.35)
+		if i >= fx - half and i <= fx + half and j >= hy - 4 and j <= fy + 4 then
+			local d = math.abs(i - fx) + math.abs(j - (fy + hy) / 2) * 0.5
+			if d < bestD then
+				best, bestD = f.key, d
+			end
+		end
+	end
+	return best
+end
+
+-- The pointer over the stage while aiming: hovering (a mouse) picks whoever it is over; a tap or click on someone
+-- picks them, and on the pick already chosen throws or uses it. Whether it was over someone.
+local function pointAt(i: number, j: number, tap: boolean): boolean
+	local a = aim
+	if a == nil or busy or (a :: Aim).side == "none" then
+		return false
+	end
+	local key = pickAt(i, j)
+	if key == nil then
+		return false
+	end
+	if tap then
+		pickTarget(key)
+	elseif key ~= (a :: Aim).target then
+		(a :: Aim).target = key
+		Audio.play("tick")
+		refresh()
+	end
+	return true
 end
 
 -- Throw the snack or use the skill at the pick: the server does it, its events come as the battle's next message.
@@ -1889,9 +2040,16 @@ refresh = function()
 		local d = if a.skill then Skills.byId[a.skill :: string] else nil
 		local what = if d then d.name else "Snack"
 		local whoName = if bars[a.who] then bars[a.who].name else "You"
-		local hint = if a.side == "foe" then "tap a wild one" elseif a.side == "down" then "tap one who is down" else "tap a member"
-		UIKit.text(foot, string.format("%s: %s", what, whoName), UDim2.fromOffset(160, 10), UDim2.fromOffset(ax - 90, 5), { color = UIKit.color("accent"), z = 11, name = "AimWhat" })
-		UIKit.text(foot, hint .. " (arrows to switch)", UDim2.fromOffset(160, 10), UDim2.fromOffset(ax - 90, 24), { color = UIKit.color("text_dim"), z = 11, name = "AimHint" })
+		local who2 = if a.side == "foe" then "a wild one" elseif a.side == "down" then "one who is down" else "a member"
+		local hint = string.format("pick %s, tap again to %s", who2, if a.kind == "snack" then "throw" else "use")
+		-- what is aimed and how, on a small plate over the middle of the footer (the cards keep their room on a phone)
+		local line1 = string.format("%s: %s", what, whoName)
+		local tw = math.min(w - 8, math.max(UIKit.textWidth(line1), UIKit.textWidth(hint)) + 14)
+		local tip = UIKit.plate(r, UDim2.fromOffset(tw, 25), UDim2.fromOffset(math.floor((w - tw) / 2), h - FOOT_H - 29), UIKit.color("plate"), 0.08, 2)
+		tip.Name = "AimTip"
+		tip.ZIndex = 10
+		UIKit.text(tip, line1, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 2), { x = "center", color = UIKit.color("accent"), z = 11, name = "AimWhat" })
+		UIKit.text(tip, hint, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 13), { x = "center", color = UIKit.color("text_dim"), z = 11, name = "AimHint" })
 		button(foot, if a.kind == "snack" then "Throw!" else "Use!", bx, 4, 100, UIKit.color("button_ok"), a.target ~= nil, function()
 			task.spawn(useAim)
 		end, "Aim_use")
@@ -2171,6 +2329,34 @@ function ExpeditionUI.open()
 			end
 		end
 	end)
+	-- the pointer on the stage while aiming: hover to pick (a mouse), tap or click someone to pick them, the pick
+	-- again to go
+	local downAt: Vector2? = nil
+	local function isPress(input: InputObject): boolean
+		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+	end
+	table.insert(pointerConns, UserInputService.InputChanged:Connect(function(input, processed)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and not processed and aim and lifted then
+			local i, j = PixelRenderer.pixelAt(Vector2.new(input.Position.X, input.Position.Y))
+			pointAt(i, j, false)
+		end
+	end))
+	table.insert(pointerConns, UserInputService.InputBegan:Connect(function(input, processed)
+		if isPress(input) then
+			downAt = if processed or aim == nil then nil else Vector2.new(input.Position.X, input.Position.Y)
+		end
+	end))
+	table.insert(pointerConns, UserInputService.InputEnded:Connect(function(input, _processed)
+		if isPress(input) then
+			local d = downAt
+			downAt = nil
+			local pos = Vector2.new(input.Position.X, input.Position.Y)
+			if d and (pos - d).Magnitude < 16 and aim and lifted then
+				local i, j = PixelRenderer.pixelAt(pos)
+				pointAt(i, j, true)
+			end
+		end
+	end))
 	keys = UserInputService.InputBegan:Connect(function(input, processed)
 		if processed or not lifted or busy then
 			return
@@ -2266,7 +2452,11 @@ closeNow = function()
 	end
 	isOpen = false
 	idleSince, autoFill = nil, nil
-	aim, skillMenu, aimMark, aimPointer, runAt = nil, false, nil, nil, nil
+	aim, skillMenu, aimMark, aimPath, aimRing, aimPointer, aimEndU, runAt = nil, false, nil, nil, nil, nil, nil, nil
+	for _, c in pointerConns do
+		c:Disconnect()
+	end
+	table.clear(pointerConns)
 	DayLight.hold(nil)
 	table.clear(timerBars)
 	table.clear(playQueue)
@@ -2394,6 +2584,29 @@ function ExpeditionUI.debugState(): { [string]: any }
 		aimWho = if aim then (aim :: Aim).who else nil,
 		aimTarget = if aim then (aim :: Aim).target else nil,
 		marked = aimMark ~= nil,
+		arrow = (function(): number
+			-- the arrow's dashes on the floor now (0: none; its length in dashes)
+			local n2 = 0
+			local t = aimPath
+			if t then
+				for name, part in (t :: MicroModels.Thing).parts do
+					if string.sub(name, 1, 1) == "D" and part.Transparency < 0.95 then
+						n2 += 1
+					end
+				end
+			end
+			return n2
+		end)(),
+		arrowGap = (function(): number?
+			-- how far the arrow's end is from the pick (stage studs; nil: no arrow)
+			local am = aim
+			local tg = if am and (am :: Aim).target then actors[(am :: Aim).target :: string] else nil
+			local eu = aimEndU
+			if tg == nil or eu == nil then
+				return nil
+			end
+			return math.sqrt((tg.u + tg.du - eu) ^ 2 + (tg.v + tg.dv - aimEndV) ^ 2)
+		end)(),
 		menu = skillMenu,
 		queue = #playQueue,
 		gauge = gaugeOf("f"),
@@ -2437,6 +2650,27 @@ function ExpeditionUI.debugAim(kind: string)
 	else
 		endAim(true)
 	end
+end
+-- (the pointer over someone on the stage, as a mouse or a finger would be: `tap` false hovers, true taps; whether
+-- it was over someone the aim can pick)
+function ExpeditionUI.debugPoint(key: string, tap: boolean): boolean
+	local st, a = stage, actors[key]
+	if st == nil or a == nil then
+		return false
+	end
+	local base = actorAt(a)
+	local x, fy = (st :: MicroStage.Stage).screen(base)
+	local _, hy = (st :: MicroStage.Stage).screen(base + Vector3.new(0, headOf(a), 0))
+	return pointAt(x, math.floor((fy + hy) / 2), tap)
+end
+-- (where someone stands on the screen: art px)
+function ExpeditionUI.debugScreenOf(key: string): (number, number)
+	local st, a = stage, actors[key]
+	if st == nil or a == nil then
+		return -1, -1
+	end
+	local x, y = (st :: MicroStage.Stage).screen(actorAt(a))
+	return x, y
 end
 function ExpeditionUI.debugHome()
 	goHome()

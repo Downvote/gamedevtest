@@ -325,10 +325,41 @@ if s.exp and s.exp.battle then
 	st = H.inClient(p, EUI.debugState)
 	H.expect(st.aim == "skill" and st.aimWho == "f" and st.aimTarget ~= nil and st.marked, "screen", "First Aid: the leader's ring and arrow on the floor toward a member", string.format("%s %s %s", tostring(st.aim), tostring(st.aimTarget), tostring(st.marked)))
 	H.expect(s.exp.battle.paused, "screen", "aiming: paused")
-	local sp0 = s.exp.battle.sp
-	H.clickNamed(p, "Aim_use", { wait = 0.6 })
+	E.run(0.6)
 	st = H.inClient(p, EUI.debugState)
-	H.expect(st.aim == nil and not st.marked and s.exp.battle and not s.exp.battle.paused and s.exp.battle.sp < sp0, "screen", "Use!: paid in points, the battle runs on", string.format("%s %.1f", tostring(st.aim), s.exp.battle and s.exp.battle.sp or -1))
+	H.expect(st.arrowGap ~= nil and st.arrowGap < 0.3, "screen", "the arrow reaches all the way to the pick", tostring(st.arrowGap))
+	-- the pointer: hovering another member picks them (the arrow glides over), a wild one is no pick for a mend, and
+	-- a tap on the pick uses the skill
+	local first = st.aimTarget
+	local other: string? = nil
+	for _, f in s.exp.party do
+		if f.key ~= first and f.hp > 0 then
+			other = f.key
+			break
+		end
+	end
+	H.expect(other ~= nil and H.inClient(p, EUI.debugPoint, other, false) == true, "screen", "the pointer over another member", tostring(other))
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.aim == "skill" and st.aimTarget == other and st.arrowGap ~= nil and st.arrowGap > 0.5, "screen", "hovering picks them (not used yet), the arrow on its way over", string.format("%s %s", tostring(st.aimTarget), tostring(st.arrowGap)))
+	E.run(0.6)
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.arrowGap ~= nil and st.arrowGap < 0.3 and st.arrow >= 0, "screen", "the arrow glides over to the new pick", tostring(st.arrowGap))
+	H.expect(H.inClient(p, EUI.debugPoint, s.exp.battle.foes[1].key, true) == false and H.inClient(p, EUI.debugState).aimTarget == other, "screen", "a tap on a wild one: no pick for a mend")
+	local sp0 = s.exp.battle.sp
+	H.expect(H.inClient(p, EUI.debugPoint, other :: string, true) == true, "screen", "a tap on the pick")
+	E.run(0.6)
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.aim == nil and not st.marked and s.exp.battle and not s.exp.battle.paused and s.exp.battle.sp < sp0, "screen", "the tap on the pick uses it: paid in points, the battle runs on", string.format("%s %.1f", tostring(st.aim), s.exp.battle and s.exp.battle.sp or -1))
+	-- Use! does the same
+	if s.exp and s.exp.battle then
+		s.exp.battle.sp = 10
+		H.clickNamed(p, "Act_skills", { wait = 0.4 })
+		H.clickNamed(p, "Skill_f_aid", { wait = 0.4 })
+		local sp1 = s.exp.battle.sp
+		H.clickNamed(p, "Aim_use", { wait = 0.6 })
+		st = H.inClient(p, EUI.debugState)
+		H.expect(st.aim == nil and s.exp.battle and not s.exp.battle.paused and s.exp.battle.sp < sp1, "screen", "Use!: paid in points, the battle runs on", string.format("%s %.1f", tostring(st.aim), s.exp.battle and s.exp.battle.sp or -1))
+	end
 	E.run(2)
 end
 H.clickNamed(p, "BackToIsland", { wait = 0.5 })

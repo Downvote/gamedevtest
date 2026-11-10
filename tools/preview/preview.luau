@@ -386,7 +386,8 @@ local function seedOfKind(kind, lvl)
 end
 
 -- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 5 reef) at the level it first turns up
--- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window))
+-- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window),
+-- aim (aiming frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered))
 -- (+1), on its 3D stage. what: "battle" (default: the first battle), "boss" (the guardian), "win" (a battle won: the
 -- results card), "loot" (a stop's narration). The island's seed is the first that charts the kind (a set seed, so
 -- the same layout every run); the expedition is set on the session directly (exp.start makes up its own seed).
@@ -480,6 +481,27 @@ local function expScenario(spec)
 			for k = 0, 39 do
 				capture(p, string.format("exp_%s_%03d", spec, k))
 				E.run(0.07)
+			end
+			return p
+		elseif what == "aim" and s.exp and s.exp.battle then
+			E.run(2)
+			if s.exp.battle then
+				for _, f in s.exp.battle.foes do
+					f.hp = math.max(1, math.floor(f.maxHp * 0.4))
+				end
+				s.exp.battle.foes[1].hp = math.max(1, math.floor(s.exp.battle.foes[1].maxHp * 0.2))
+			end
+			H.push(p, 0.3)
+			settle(p, 10, 0.5)
+			H.inClient(p, EUI.debugAim, "snack")
+			for k = 0, 39 do
+				if k == 14 and s.exp.battle then
+					-- the pointer moves over the last wild one: the arrow swings over to it
+					local foes = s.exp.battle.foes
+					H.inClient(p, EUI.debugPoint, foes[#foes].key, false)
+				end
+				capture(p, string.format("exp_%s_%03d", spec, k))
+				E.run(0.06)
 			end
 			return p
 		elseif (what == "snack" or what == "skills") and s.exp and s.exp.battle then

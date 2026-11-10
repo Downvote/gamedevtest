@@ -56,13 +56,15 @@ local Tuning = {
 	ShieldTake = 0.6, -- damage taken under a Shell Guard skill ...
 	ShieldSecs = 6, -- ... for this many seconds
 	-- timed battles (GAME_DESIGN 7; Logic/Battle): a fighter's timer fills in AtbTime x 2 x AtbRef / (AtbRef + speed)
-	-- seconds (AtbTime at speed AtbRef), within AtbMin .. AtbMax; an action holds every timer ActLock seconds (times
-	-- its kind's: Battle.LOCK) while it plays
+	-- seconds (AtbTime at speed AtbRef), within AtbMin .. AtbMax; one action plays at a time, for its events' seconds
+	-- (Battle.EVENT_SECS) times ActLock. In a crowded fight every timer fills slower (Battle.crowd), so that the
+	-- actions the timers ask for take about AtbShare of the time and a full timer seldom waits for another's action
 	AtbTime = 2.8,
 	AtbRef = 10,
 	AtbMin = 1.2,
 	AtbMax = 6,
 	ActLock = 0.85,
+	AtbShare = 0.9,
 	-- the party's skill points in a battle (Data/Skills): this many a second while it runs, up to SpMax
 	SpRate = 0.5,
 	SpMax = 10,
