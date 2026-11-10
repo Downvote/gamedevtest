@@ -1,15 +1,19 @@
 --!strict
--- The sailing cutscene (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.8): after Set sail the founder walks down the path
--- and the jetty to the pier's end and hops into the expedition boat, where the rest of the party waits on deck
--- (cheering); the boat casts off and sails out to sea with the camera following it, and ink blinds close over the
--- island the party is heading for (its name and kind). Then the islet's screen opens (ExpeditionUI, its curtain
--- already closed: the cut is seamless) and the boat arrives at the island's shore there.
--- The boat is the one moored at the plot's pier (Models/StreetModels' Boat, part of the static street): it leaves the
--- street (the pixel filter re-casts the water where it lay) and is drawn as a dynamic model while it sails; it stays
--- away while the expedition does and is moored again once the party is home (`dock`).
--- While it plays the HUD hides, the character can't walk, AvatarView lets this module pose the own founder, and
--- CameraController follows the cutscene's focus instead of the character. Skip (or Space / Return / a tap on Skip)
--- jumps to the blinds. The whole takes about six seconds.
+-- The sailing cutscenes (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.8).
+--   Setting out (`play`): the founder walks down the path and the jetty to the pier and hops into the expedition boat,
+--   where the rest of the party waits on deck (cheering); the boat casts off and sails out to sea with the camera
+--   following it, and ink blinds close over the island the party is heading for (its name, kind and level). Then the
+--   islet's screen opens (ExpeditionUI, its curtain already closed: the cut is seamless) and the boat arrives at the
+--   island's shore there.
+--   Coming home (`home`): the islet's screen closes behind blinds; they open on the sea off the pier with the boat
+--   sailing in, the party on deck; it moors, the founder hops onto the pier (the character is put there) and the
+--   party is home. `reveal` is the plain blinds opening on the island (Back to island).
+-- The boat is the one moored at the plot's pier (Models/StreetModels' Boat at the boat's level, part of the static
+-- street): it leaves the street (the pixel filter re-casts the water where it lay) and is drawn as a dynamic model
+-- while it sails, its flags fluttering; it stays away while the expedition does and is moored again when the party
+-- is home (`dock`, also on its own once no expedition is under way).
+-- While one plays the HUD hides, the character can't walk, AvatarView lets this module pose the own founder, and
+-- CameraController follows the cutscene's focus instead of the character. Skip (or Space / Return) jumps to its end.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,6 +26,7 @@ local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
+local BoatSpec = require(ReplicatedStorage.Shared.Models.BoatSpec)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
@@ -33,18 +38,22 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local Voyage = {}
 
 local WALK = 13 -- studs a second
-local HOP = 0.45 -- seconds a hop into the boat takes
-local SAIL = 3.2 -- seconds the boat sails before the blinds close
+local HOP = 0.45 -- seconds a hop into (or out of) the boat takes
+local SAIL = 3.2 -- seconds the boat sails out before the blinds close
+local ARRIVE = 3 -- seconds it sails in, coming home
 local SAIL_Z = 30 -- studs it sails out (south)
-local CLOSE = 0.4 -- seconds the blinds take to close
+local CLOSE = 0.4 -- seconds the blinds take to close (or open)
 local MAX_WALK = 46 -- a longer walk starts the founder on the jetty instead (behind the blinds)
--- where the party stands on deck (boat space: x across, z toward the bow), the founder first
-local DECK = { Vector3.new(0, 0, -0.1), Vector3.new(-0.75, 0, 0.9), Vector3.new(0.75, 0, 0.9), Vector3.new(0, 0.5, 1.75) }
+local OPEN_WAIT = 4 -- seconds the blinds wait at most for the island's picture before opening
+
+-- Someone of the party on deck: a villager's look or a driftling's species.
+export type Member = { look: Types.Look?, seed: number?, sp: string? }
 
 type Puppet = { rig: CharacterModels.Rig?, thing: MicroModels.Thing?, off: Vector3, ph: number }
 
 type State = {
-	phase: string, -- "open" (blinds opening), "walk", "hop", "sail", "close", "done"
+	dir: string, -- "out" (setting sail) | "home" (coming home) | "reveal"
+	phase: string, -- out: "open" "walk" "hop" "sail" "close" "done"; home: "wait" "arrive" "hop" "land" "done"
 	t: number, -- seconds in the phase
 	total: number,
 	route: { Vector3 }, -- the founder's walk (world, feet on the ground)
@@ -53,8 +62,11 @@ type State = {
 	yaw: number,
 	boat: Model?,
 	rel: { [BasePart]: CFrame }, -- each of the boat's parts relative to its moored base
-	base0: CFrame, -- the boat moored (its origin on the deck's level, bow south)
+	flags: { [BasePart]: Vector3 }, -- the boat's flags and their built sizes (they flutter)
+	base0: CFrame, -- the boat moored (its origin on the deck's top, bow south)
 	base: CFrame,
+	deck: { Vector3 },
+	pier: Vector3, -- where the founder steps off the pier into the boat (or onto it, coming home)
 	puppets: { Puppet },
 	isle: Types.Isle?,
 	onDone: () -> (),
@@ -124,7 +136,7 @@ local function hideWorldUI(on: boolean)
 	end)
 end
 
-local function overlay(s: State)
+local function overlay(s: State, caption: string?, closed: boolean)
 	local canvas = UIKit.canvas("Stage")
 	local size = UIKit.size("Stage")
 	local w, h = size.X, size.Y
@@ -136,38 +148,57 @@ local function overlay(s: State)
 	r.ZIndex = 30
 	r.Parent = canvas
 	s.gui = r
-	-- the letterbox: an ink bar at the top and the bottom
-	local BAR = 16
-	local topBar = UIKit.rect(r, UDim2.fromOffset(w, BAR), UDim2.fromOffset(0, -BAR), UIKit.color("ink"), 30)
-	topBar.Name = "BarTop"
-	local botBar = UIKit.rect(r, UDim2.fromOffset(w, BAR), UDim2.fromOffset(0, h), UIKit.color("ink"), 30)
-	botBar.Name = "BarBottom"
-	UIKit.tween(topBar, 0.3, { Position = UDim2.fromOffset(0, 0) })
-	UIKit.tween(botBar, 0.3, { Position = UDim2.fromOffset(0, h - BAR) })
-	UIKit.text(botBar, "Setting sail...", UDim2.fromOffset(w - 60, 10), UDim2.fromOffset(6, 3), { color = UIKit.color("accent"), z = 31, name = "Caption" })
-	UIKit.button(botBar, "Skip", UDim2.fromOffset(40, 12), UDim2.fromOffset(w - 44, 2), function()
-		Voyage.skip()
-	end, { name = "VoyageSkip" })
-	-- the blinds (closed at the end: the islet's screen opens behind them with its own, closed, curtain)
+	if caption then
+		-- the letterbox: an ink bar at the top and the bottom
+		local BAR = 16
+		local topBar = UIKit.rect(r, UDim2.fromOffset(w, BAR), UDim2.fromOffset(0, -BAR), UIKit.color("ink"), 30)
+		topBar.Name = "BarTop"
+		local botBar = UIKit.rect(r, UDim2.fromOffset(w, BAR), UDim2.fromOffset(0, h), UIKit.color("ink"), 30)
+		botBar.Name = "BarBottom"
+		UIKit.tween(topBar, 0.3, { Position = UDim2.fromOffset(0, 0) })
+		UIKit.tween(botBar, 0.3, { Position = UDim2.fromOffset(0, h - BAR) })
+		UIKit.text(botBar, caption, UDim2.fromOffset(w - 60, 10), UDim2.fromOffset(6, 3), { color = UIKit.color("accent"), z = 31, name = "Caption" })
+		UIKit.button(botBar, "Skip", UDim2.fromOffset(40, 12), UDim2.fromOffset(w - 44, 2), function()
+			Voyage.skip()
+		end, { name = "VoyageSkip" })
+	end
+	-- the blinds: open (closing at the end of setting out) or closed (opening on the island coming home)
 	local BLIND = 12
 	for y = 0, h - 1, BLIND do
-		local band = UIKit.rect(r, UDim2.fromOffset(w, 0), UDim2.fromOffset(0, y + math.floor(math.min(BLIND, h - y) / 2)), UIKit.color("ink"), 35)
+		local bh = math.min(BLIND, h - y)
+		local band = UIKit.rect(r, if closed then UDim2.fromOffset(w, bh) else UDim2.fromOffset(w, 0), if closed then UDim2.fromOffset(0, y) else UDim2.fromOffset(0, y + math.floor(bh / 2)), UIKit.color("ink"), 35)
 		band.Name = "Blind"
-		band.Visible = false
+		band.Visible = closed
 		band:SetAttribute("Y", y)
-		band:SetAttribute("H", math.min(BLIND, h - y))
+		band:SetAttribute("H", bh)
 		UIKit.rect(band, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -1), UIKit.hex(0x3B3048), 35)
 		table.insert(s.blinds, band)
 	end
 end
 
--- The blinds shut (instantly or over CLOSE s) with the island's name, kind and the boat sprite.
+local function title(s: State, name: string, line: string, visible: boolean)
+	local r = s.gui :: Frame
+	local w, h = r.Size.X.Offset, r.Size.Y.Offset
+	local t = Instance.new("Frame")
+	t.Name = "Title"
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.fromScale(1, 1)
+	t.ZIndex = 40
+	t.Visible = visible
+	t.Parent = r
+	PixelSprites.image(t, "mini_boat", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
+	UIKit.text(t, name, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsleName" })
+	UIKit.text(t, line, UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
+	s.title = t
+end
+
+-- The blinds shut (instantly or over CLOSE s) with the island's name, kind and level.
 local function closeBlinds(s: State, now: boolean)
 	local r = s.gui
 	if r == nil then
 		return
 	end
-	local w, h = r.Size.X.Offset, r.Size.Y.Offset
+	local w = r.Size.X.Offset
 	local mid = #s.blinds / 2
 	for i, band in s.blinds do
 		local y, bh = band:GetAttribute("Y") :: number, band:GetAttribute("H") :: number
@@ -186,18 +217,9 @@ local function closeBlinds(s: State, now: boolean)
 	end
 	local isle = s.isle
 	local kind = if isle then Islets.list[isle.kind] else nil
-	local t = Instance.new("Frame")
-	t.Name = "Title"
-	t.BackgroundTransparency = 1
-	t.Size = UDim2.fromScale(1, 1)
-	t.ZIndex = 40
-	t.Visible = now
-	t.Parent = r
-	PixelSprites.image(t, "mini_boat", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
-	UIKit.text(t, if isle then isle.name else "Out to sea", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsleName" })
-	UIKit.text(t, if kind and isle then string.format("A %s, level %d", string.lower(kind.name), isle.lvl) else "", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
-	s.title = t
+	title(s, if isle then isle.name else "Out to sea", if kind and isle then string.format("A %s, level %d", string.lower(kind.name), isle.lvl) else "", now)
 	if not now then
+		local t = s.title :: Frame
 		task.delay(CLOSE * 0.6, function()
 			if t.Parent then
 				t.Visible = true
@@ -206,7 +228,65 @@ local function closeBlinds(s: State, now: boolean)
 	end
 end
 
------------------------------------------------------------------- the puppets
+-- The blinds open from the middle (the picture behind them ready).
+local function openBlinds(s: State)
+	local r = s.gui
+	if r == nil then
+		return
+	end
+	local w = r.Size.X.Offset
+	local mid = #s.blinds / 2
+	if s.title then
+		(s.title :: Frame).Visible = false
+	end
+	for i, band in s.blinds do
+		local y, bh = band:GetAttribute("Y") :: number, band:GetAttribute("H") :: number
+		local d = math.abs(i - 0.5 - mid) * 0.018
+		task.delay(d, function()
+			if band.Parent then
+				UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, 0), Position = UDim2.fromOffset(0, y + math.floor(bh / 2)) })
+			end
+		end)
+		task.delay(d + 0.2, function()
+			band.Visible = false
+		end)
+	end
+end
+
+------------------------------------------------------------------ the boat and the puppets
+local function boatSetup(s: State, boat: Model, base0: CFrame)
+	s.boat = boat
+	s.base0, s.base = base0, base0
+	for _, d in boat:GetDescendants() do
+		if d:IsA("BasePart") then
+			s.rel[d] = base0:Inverse() * d.CFrame
+			if string.sub(d.Name, 1, 4) == "Flag" and d.Name ~= "FlagPole" then
+				s.flags[d] = d.Size
+			end
+		end
+	end
+end
+
+-- The boat at a base (its flags fluttering: a ripple of whole quarter studs).
+local function moveBoat(s: State, base: CFrame)
+	s.base = base
+	local k = math.floor(s.total * 8) % 4
+	local dz = ({ 0, -0.125, -0.25, -0.125 })[k + 1]
+	local dy = ({ 0, 0.125, 0, -0.125 })[k + 1]
+	for part, rel in s.rel do
+		local size = s.flags[part]
+		if size then
+			local sz = Vector3.new(size.X, size.Y, math.max(0.25, size.Z + dz * 2))
+			if part.Size ~= sz then
+				part.Size = sz
+			end
+			part.CFrame = base * rel * CFrame.new(0, dy, dz)
+		else
+			part.CFrame = base * rel
+		end
+	end
+end
+
 local function posePuppets(s: State, now: number, cheer: boolean)
 	for i, p in s.puppets do
 		local cf = s.base * CFrame.new(p.off) * CFrame.Angles(0, if i % 2 == 0 then math.rad(-30) else math.rad(30), 0)
@@ -219,39 +299,91 @@ local function posePuppets(s: State, now: number, cheer: boolean)
 	end
 end
 
-local function buildPuppets(s: State, keys: { string }, v: Types.ClientView)
-	for i, key in keys do
-		local kind, id = string.match(key, "^([vp])(%d+)$")
-		local n = tonumber(id) or 0
-		local off = DECK[i + 1] or DECK[#DECK]
-		if kind == "v" then
-			for _, x in v.folk do
-				if x.id == n then
-					local rig = CharacterModels.buildStanding(x.look, "VoyageCrew", x.seed % 97)
-					rig.model.Parent = dynFolder()
-					PixelRenderer.registerDynamic(rig.model)
-					table.insert(s.puppets, { rig = rig, thing = nil, off = off, ph = i * 0.7 })
-				end
-			end
-		elseif kind == "p" then
-			for _, x in v.pals do
-				if x.id == n then
-					local d = Creatures.byId[x.sp]
-					local t = MicroModels.driftling(if d then d.shape else "blob", if d then d.body else "steel", if d then d.accent else "steel_dark")
-					MicroModels.scale(t, Vector3.one * 0.8)
-					t.model.Parent = dynFolder()
-					PixelRenderer.registerDynamic(t.model)
-					table.insert(s.puppets, { rig = nil, thing = t, off = off, ph = i * 0.7 })
-				end
-			end
+local function buildPuppets(s: State, members: { Member })
+	for i, m in members do
+		local off = s.deck[i + 1] or s.deck[#s.deck]
+		if m.look then
+			local rig = CharacterModels.buildStanding(m.look :: Types.Look, "VoyageCrew", (m.seed or i) % 97)
+			rig.model.Parent = dynFolder()
+			PixelRenderer.registerDynamic(rig.model)
+			table.insert(s.puppets, { rig = rig, thing = nil, off = off, ph = i * 0.7 })
+		elseif m.sp then
+			local d = Creatures.byId[m.sp :: string]
+			local t = MicroModels.driftling(if d then d.shape else "blob", if d then d.body else "steel", if d then d.accent else "steel_dark")
+			MicroModels.scale(t, Vector3.one * 0.8)
+			t.model.Parent = dynFolder()
+			PixelRenderer.registerDynamic(t.model)
+			table.insert(s.puppets, { rig = nil, thing = t, off = off, ph = i * 0.7 })
 		end
 	end
 end
 
-local function moveBoat(s: State, base: CFrame)
-	s.base = base
-	for part, rel in s.rel do
-		part.CFrame = base * rel
+-- The party's members from the picks ("v<id>" / "p<id>") and the view.
+local function membersOf(keys: { string }, v: Types.ClientView): { Member }
+	local out: { Member } = {}
+	for _, key in keys do
+		local kind, id = string.match(key, "^([vp])(%d+)$")
+		local n = tonumber(id) or 0
+		for _, x in (if kind == "v" then v.folk else v.pals) :: { any } do
+			if x.id == n then
+				table.insert(out, if kind == "v" then { look = x.look, seed = x.seed } else { sp = x.sp })
+			end
+		end
+	end
+	return out
+end
+
+-- The moored base and deck of the plot's boat (its level from the model).
+local function moorOf(plot: number, boat: Model): (CFrame, { Vector3 }, Vector3)
+	local level = tonumber(boat:GetAttribute("Level")) or 1
+	local ox, oz = Street.origin(plot)
+	local mx, mz = BoatSpec.moor(level)
+	local base0 = CFrame.new(ox + mx, Street.WATER_Y + BoatSpec.deckOverWater(level), oz + mz)
+	local deck = BoatSpec.deck(level)
+	local pr = Street.pier()
+	local dz = base0.Position.Z + deck[1].Z
+	local pier = Vector3.new(ox + pr.x1 - 0.7, Street.LAWN_Y, math.clamp(dz, oz + pr.z0 + 1, oz + pr.z1 - 0.6))
+	return base0, deck, pier
+end
+
+local function newState(dir: string, onDone: () -> ()): State
+	return {
+		dir = dir,
+		phase = "",
+		t = 0,
+		total = 0,
+		route = {},
+		leg = 1,
+		pos = Vector3.zero,
+		yaw = math.pi,
+		boat = nil,
+		rel = {},
+		flags = {},
+		base0 = CFrame.identity,
+		base = CFrame.identity,
+		deck = BoatSpec.deck(1),
+		pier = Vector3.zero,
+		puppets = {},
+		isle = nil,
+		onDone = onDone,
+		gui = nil,
+		blinds = {},
+		title = nil,
+		conns = {},
+		walkSpeed = nil,
+		jump = nil,
+	}
+end
+
+local function holdCharacter(s: State)
+	local hum = myHumanoid()
+	if hum then
+		pcall(function()
+			s.walkSpeed = hum.WalkSpeed
+			s.jump = hum.JumpHeight
+			hum.WalkSpeed = 0
+			hum.JumpHeight = 0
+		end)
 	end
 end
 
@@ -264,18 +396,6 @@ local function finish(s: State)
 	for _, c in s.conns do
 		c:Disconnect()
 	end
-	-- the islet's screen opens behind the closed blinds (its own curtain closed), then the blinds go
-	local ok, err = pcall(function()
-		s.onDone()
-	end)
-	if not ok then
-		warn("Voyage: " .. tostring(err))
-	end
-	task.delay(0.1, function()
-		if s.gui then
-			(s.gui :: Frame):Destroy()
-		end
-	end)
 	for _, p in s.puppets do
 		local m = if p.rig then (p.rig :: CharacterModels.Rig).model elseif p.thing then (p.thing :: MicroModels.Thing).model else nil
 		if m then
@@ -283,16 +403,49 @@ local function finish(s: State)
 			m:Destroy()
 		end
 	end
-	-- the boat stays away with the party
 	local b = s.boat
-	if b then
-		PixelRenderer.unregisterDynamic(b)
-		b.Parent = nil
+	if s.dir == "out" then
+		-- the islet's screen opens behind the closed blinds (its own curtain closed), then the blinds go
+		if b then
+			PixelRenderer.unregisterDynamic(b)
+			b.Parent = nil
+		end
+	elseif s.dir == "home" then
+		-- moored again (its flags back to their built sizes); the founder stands on the pier (the character is put there)
+		for part, size in s.flags do
+			part.Size = size
+		end
+		if state == s then
+			state = nil
+		end
+		Voyage.dock()
+		local char = Players.LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if char and root and root:IsA("BasePart") then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			local hip = if hum then hum.HipHeight else 2
+			char:PivotTo(CFrame.new(s.pier + Vector3.new(0, hip + root.Size.Y / 2 + 0.2, 0)) * CFrame.Angles(0, math.pi, 0))
+		end
 	end
+	if s.dir ~= "out" then
+		hideWorldUI(false)
+	end
+	local ok, err = pcall(function()
+		s.onDone()
+	end)
+	if not ok then
+		warn("Voyage: " .. tostring(err))
+	end
+	local g = s.gui
+	task.delay(if s.dir == "out" then 0.1 else 0.45, function()
+		if g then
+			g:Destroy()
+		end
+	end)
 	AvatarView.setOverride(nil)
 	CameraController.setFocus(nil)
 	local hum = myHumanoid()
-	if hum then
+	if hum and s.walkSpeed then
 		pcall(function()
 			hum.WalkSpeed = s.walkSpeed or 16
 			hum.JumpHeight = s.jump or 7.2
@@ -303,12 +456,7 @@ local function finish(s: State)
 	end
 end
 
-local function step(s: State, dt: number)
-	if s.phase == "done" then
-		return
-	end
-	s.t += dt
-	s.total += dt
+local function stepOut(s: State, dt: number)
 	local now = os.clock()
 	if s.phase == "open" then
 		CameraController.setFocus(s.pos)
@@ -340,11 +488,10 @@ local function step(s: State, dt: number)
 			Audio.play("pop", { pitch = 1.2 })
 		end
 	end
-	local deck = s.base * CFrame.new(DECK[1])
 	if s.phase == "hop" then
 		local e = math.clamp(s.t / HOP, 0, 1)
 		local from = s.pos
-		local to = deck.Position
+		local to = (s.base * CFrame.new(s.deck[1])).Position
 		local p = from:Lerp(to, e) + Vector3.new(0, math.sin(e * math.pi) * 2.2, 0)
 		s.yaw = math.atan2(to.X - from.X, to.Z - from.Z)
 		CameraController.setFocus(from:Lerp(to, e))
@@ -356,8 +503,9 @@ local function step(s: State, dt: number)
 				Audio.play("trumpet")
 			end)
 		else
+			local yaw = s.yaw
 			AvatarView.setOverride(function(rig, t, _dt)
-				CharacterModels.poseAction(rig, CFrame.new(p) * CFrame.Angles(0, s.yaw, 0), t, 0, "jump")
+				CharacterModels.poseAction(rig, CFrame.new(p) * CFrame.Angles(0, yaw, 0), t, 0, "jump")
 			end)
 		end
 	end
@@ -371,6 +519,8 @@ local function step(s: State, dt: number)
 			s.phase, s.t = "close", 0
 			closeBlinds(s, false)
 		end
+	elseif s.phase == "open" or s.phase == "walk" or s.phase == "hop" then
+		moveBoat(s, s.base0)
 	end
 	if s.phase == "close" then
 		local u = math.clamp(s.t / SAIL, 0, 1)
@@ -388,16 +538,102 @@ local function step(s: State, dt: number)
 			CharacterModels.poseStanding(rig, CFrame.new(pos) * CFrame.Angles(0, yaw, 0), t, speed)
 		end)
 	elseif s.phase == "sail" or s.phase == "close" then
-		local cf = s.base * CFrame.new(DECK[1])
+		local cf = s.base * CFrame.new(s.deck[1])
+		local cheer = s.phase == "sail" and s.t < 1.2
 		AvatarView.setOverride(function(rig, t, _dt)
-			CharacterModels.poseAction(rig, cf, t, 0, if s.phase == "sail" and s.t < 1.2 then "cheer" else "stand")
+			CharacterModels.poseAction(rig, cf, t, 0, if cheer then "cheer" else "stand")
 		end)
 	end
 	posePuppets(s, now, s.phase == "hop" or (s.phase == "sail" and s.t < 1.2))
 end
 
--- Play the cutscene for the party just set sail (`keys`: the members picked, "v<id>" / "p<id>"; `isle`: the island
--- from exp.start's answer), then `onDone` (the islet's screen). Without the plot's boat it goes straight on.
+local function stepHome(s: State, dt: number)
+	local now = os.clock()
+	local _ = dt
+	if s.phase == "wait" then
+		-- behind the closed blinds: the view comes back to the sea off the pier, the picture bakes
+		moveBoat(s, s.base0 * CFrame.new(1.5, 0, SAIL_Z))
+		CameraController.setFocus(s.base.Position + Vector3.new(0, 0, 3))
+		if (s.t >= 0.5 and PixelRenderer.ready() and CameraController.stage() == nil) or s.t >= OPEN_WAIT then
+			s.phase, s.t = "arrive", 0
+			openBlinds(s)
+			Audio.play("trumpet")
+		end
+	end
+	if s.phase == "arrive" then
+		local u = math.clamp(s.t / ARRIVE, 0, 1)
+		local ease = 1 - (1 - u) * (1 - u)
+		local bob = if u < 1 and math.floor(s.total * 3) % 2 == 0 then 0.125 else 0
+		moveBoat(s, s.base0 * CFrame.new(1.5 * (1 - ease), bob, SAIL_Z * (1 - ease)))
+		CameraController.setFocus(s.base.Position + Vector3.new(0, 0, 2))
+		if u >= 1 then
+			s.phase, s.t = "hop", 0
+			Audio.play("pop", { pitch = 1.2 })
+		end
+	end
+	local deckPos = (s.base * CFrame.new(s.deck[1])).Position
+	if s.phase == "hop" then
+		moveBoat(s, s.base0)
+		local e = math.clamp(s.t / HOP, 0, 1)
+		local to = Vector3.new(s.pier.X, groundY(s.pier.X, s.pier.Z, s.pier.Y), s.pier.Z)
+		local p = deckPos:Lerp(to, e) + Vector3.new(0, math.sin(e * math.pi) * 2, 0)
+		local yaw = math.atan2(to.X - deckPos.X, to.Z - deckPos.Z)
+		CameraController.setFocus(deckPos:Lerp(to, e))
+		AvatarView.setOverride(function(rig, t, _dt)
+			CharacterModels.poseAction(rig, CFrame.new(p) * CFrame.Angles(0, yaw, 0), t, 0, "jump")
+		end)
+		if e >= 1 then
+			s.phase, s.t = "land", 0
+			s.pos = to
+			Audio.play("cheer")
+		end
+	elseif s.phase == "land" then
+		moveBoat(s, s.base0)
+		local pos = s.pos
+		AvatarView.setOverride(function(rig, t, _dt)
+			CharacterModels.poseAction(rig, CFrame.new(pos) * CFrame.Angles(0, math.pi, 0), t, 0, "cheer")
+		end)
+		if s.t >= 0.8 then
+			finish(s)
+			return
+		end
+	else
+		local cf = s.base * CFrame.new(s.deck[1])
+		AvatarView.setOverride(function(rig, t, _dt)
+			CharacterModels.poseAction(rig, cf, t, 0, "stand")
+		end)
+	end
+	posePuppets(s, now, s.phase == "land" or s.phase == "hop")
+end
+
+local function run(s: State)
+	table.insert(s.conns, RunService.Heartbeat:Connect(function(dt: number)
+		if s.phase == "done" then
+			return
+		end
+		local d = math.min(dt, 0.1)
+		s.t += d
+		s.total += d
+		if s.dir == "out" then
+			stepOut(s, d)
+		elseif s.dir == "home" then
+			stepHome(s, d)
+		elseif s.phase == "wait" and ((s.t >= 0.3 and PixelRenderer.ready() and CameraController.stage() == nil) or s.t >= OPEN_WAIT) then
+			s.phase, s.t = "open", 0
+			openBlinds(s)
+		elseif s.phase == "open" and s.t >= CLOSE + 0.1 then
+			finish(s)
+		end
+	end))
+	table.insert(s.conns, UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and (input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.Return) then
+			Voyage.skip()
+		end
+	end))
+end
+
+-- Setting out: the cutscene for the party just set sail (`keys`: the members picked, "v<id>" / "p<id>"; `isle`: the
+-- island from exp.start's answer), then `onDone` (the islet's screen). Without the plot's boat it goes straight on.
 function Voyage.play(keys: { string }, isle: Types.Isle?, onDone: () -> ())
 	if state then
 		return
@@ -409,26 +645,27 @@ function Voyage.play(keys: { string }, isle: Types.Isle?, onDone: () -> ())
 		onDone()
 		return
 	end
-	local ox, oz = Street.origin(plot)
-	local pr = Street.pier()
-	local moored = Vector3.new(ox + pr.x1 + 2.25, Street.WATER_Y + 0.6 + 0.025, oz + pr.z1 - 2.5)
-	local base0 = CFrame.new(moored)
-	local rel: { [BasePart]: CFrame } = {}
+	local s = newState("out", onDone)
+	s.phase = "open"
+	s.isle = isle
+	local base0, deck, pier = moorOf(plot, boat)
+	s.deck, s.pier = deck, pier
 	local cfs: { [BasePart]: CFrame } = {}
 	for _, d in boat:GetDescendants() do
 		if d:IsA("BasePart") then
-			rel[d] = base0:Inverse() * d.CFrame
 			cfs[d] = d.CFrame
 		end
 	end
+	boatSetup(s, boat, base0)
 	-- the founder's walk: from where they stand (on their own island) down the path and the jetty, along the pier
+	local ox, oz = Street.origin(plot)
 	local fp = AvatarView.founderPos()
-	local route: { Vector3 } = {}
 	local function at(lx: number, lz: number): Vector3
 		return Vector3.new(ox + lx, Street.LAWN_Y, oz + lz)
 	end
 	local start = at(0, Street.BOARD.z0 - 3)
 	local far = true
+	local route: { Vector3 } = {}
 	if fp then
 		local lx, lz = fp.X - ox, fp.Z - oz
 		if math.abs(lx) <= Street.SPACING / 2 and lz <= Street.PIER_Z then
@@ -440,7 +677,7 @@ function Voyage.play(keys: { string }, isle: Types.Isle?, onDone: () -> ())
 		end
 	end
 	table.insert(route, at(0, Street.BOARD.z0 + 2.5))
-	table.insert(route, at(Street.PIER_X + 1, Street.PIER_Z - 2.5))
+	table.insert(route, pier)
 	local len, prev = 0, start
 	for _, p in route do
 		len += (p - prev).Magnitude
@@ -449,72 +686,94 @@ function Voyage.play(keys: { string }, isle: Types.Isle?, onDone: () -> ())
 	if len > MAX_WALK then
 		far = true
 		start = at(0, Street.BOARD.z0 - 3)
-		route = { at(0, Street.BOARD.z0 + 2.5), at(Street.PIER_X + 1, Street.PIER_Z - 2.5) }
+		route = { at(0, Street.BOARD.z0 + 2.5), pier }
 	end
-	local s: State = {
-		phase = "open",
-		t = 0,
-		total = 0,
-		route = route,
-		leg = 1,
-		pos = Vector3.new(start.X, groundY(start.X, start.Z, Street.LAWN_Y), start.Z),
-		yaw = math.pi,
-		boat = boat,
-		rel = rel,
-		base0 = base0,
-		base = base0,
-		puppets = {},
-		isle = isle,
-		onDone = onDone,
-		gui = nil,
-		blinds = {},
-		title = nil,
-		conns = {},
-		walkSpeed = nil,
-		jump = nil,
-	}
+	s.route = route
+	s.pos = Vector3.new(start.X, groundY(start.X, start.Z, Street.LAWN_Y), start.Z)
 	state = s
 	UIKit.closePanel()
 	hideWorldUI(true)
-	overlay(s)
-	-- the character stays put while the cutscene plays
-	local hum = myHumanoid()
-	if hum then
-		pcall(function()
-			s.walkSpeed = hum.WalkSpeed
-			s.jump = hum.JumpHeight
-			hum.WalkSpeed = 0
-			hum.JumpHeight = 0
-		end)
-	end
+	overlay(s, "Setting sail...", false)
+	holdCharacter(s)
 	-- the boat leaves the street's picture and is drawn as it moves
 	away = { boat = boat, parent = boat.Parent :: Instance, cfs = cfs }
 	boat.Parent = dynFolder()
 	PixelRenderer.registerDynamic(boat)
-	buildPuppets(s, keys, v)
+	buildPuppets(s, membersOf(keys, v))
 	if far then
 		-- a long way round: the founder starts on the jetty (the view jumps there)
 		CameraController.setFocus(s.pos)
 	end
-	table.insert(s.conns, RunService.Heartbeat:Connect(function(dt: number)
-		step(s, math.min(dt, 0.1))
-	end))
-	table.insert(s.conns, UserInputService.InputBegan:Connect(function(input, processed)
-		if not processed and (input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.Return) then
-			Voyage.skip()
-		end
-	end))
+	run(s)
 	Audio.play("flip")
 end
 
--- Straight to the closed blinds and the islet's screen.
-function Voyage.skip()
-	local s = state
-	if s == nil or s.phase == "done" or s.phase == "close" then
+-- Coming home: the blinds (closed) open on the sea off the pier, the boat sails in with the party (`members`, the
+-- founder aside) and moors, the founder hops onto the pier; then `onDone`. Without the boat away, `reveal` instead.
+function Voyage.home(members: { Member }, onDone: () -> ())
+	local v = StateClient.view()
+	local a = away
+	if state or v == nil or a == nil then
+		Voyage.reveal(onDone)
 		return
 	end
-	s.phase, s.t = "close", CLOSE
-	closeBlinds(s, true)
+	local plot = v.plot
+	local s = newState("home", onDone)
+	s.phase = "wait"
+	local base0, deck, pier = moorOf(plot, a.boat)
+	s.deck, s.pier = deck, pier
+	-- (its parts back where it was moored first: the cutscene moves them from there)
+	for part, cf in a.cfs do
+		part.CFrame = cf
+	end
+	boatSetup(s, a.boat, base0)
+	a.boat.Parent = dynFolder()
+	PixelRenderer.registerDynamic(a.boat)
+	state = s
+	hideWorldUI(true)
+	overlay(s, "Sailing home...", true)
+	local ownName = Players.LocalPlayer.DisplayName .. "'s Isle"
+	title(s, ownName, "Home again!", true)
+	holdCharacter(s)
+	buildPuppets(s, members)
+	moveBoat(s, base0 * CFrame.new(1.5, 0, SAIL_Z))
+	CameraController.setFocus(s.base.Position)
+	run(s)
+end
+
+-- A plain transition back to the island: closed blinds that open once its picture is there; then `onDone`.
+function Voyage.reveal(onDone: (() -> ())?)
+	if state then
+		if onDone then
+			onDone()
+		end
+		return
+	end
+	local s = newState("reveal", onDone or function() end)
+	s.phase = "wait"
+	state = s
+	overlay(s, nil, true)
+	run(s)
+end
+
+-- Straight to the end: the closed blinds and the islet's screen (setting out), or moored with the founder on the pier
+-- (coming home).
+function Voyage.skip()
+	local s = state
+	if s == nil or s.phase == "done" then
+		return
+	end
+	if s.dir == "out" then
+		if s.phase == "close" then
+			return
+		end
+		s.phase, s.t = "close", CLOSE
+		closeBlinds(s, true)
+	elseif s.dir == "home" then
+		if s.phase == "wait" then
+			openBlinds(s)
+		end
+	end
 	finish(s)
 end
 
@@ -522,13 +781,13 @@ function Voyage.isPlaying(): boolean
 	return state ~= nil
 end
 
--- Sims and previews: the cutscene's phase now ("" when none plays) and whether the boat is away.
+-- Sims and previews: the cutscene's way and phase now ("" when none plays), whether the boat is away, where it is.
 function Voyage.debugState(): { [string]: any }
 	local s = state
-	return { phase = if s then s.phase else "", away = away ~= nil, boat = if s and s.boat then s.base.Position else nil }
+	return { dir = if s then s.dir else "", phase = if s then s.phase else "", away = away ~= nil, boat = if s and s.boat then s.base.Position else nil }
 end
 
--- The boat moored again once the party is home (no expedition, no islet on screen).
+-- The boat moored again (its parts back, under its road) once the party is home.
 function Voyage.dock()
 	local a = away
 	if a == nil or state ~= nil then

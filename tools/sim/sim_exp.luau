@@ -1,7 +1,7 @@
--- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 7.4, 10.8): islands made up at the level picked (up to the
--- captain's), charted at every level by a strong party (each kind of island once its level comes, the guardian's
--- reward, its own driftlings, a new island every time), the server's rules (supplies, a party of the captain and
--- three, one expedition at a time, no island above the captain's level, members away can't be dismissed or released,
+-- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 7.4, 10.9): the sea chart's islands, near and far (the boat
+-- upgraded to the last, each island of its distance's level, its own driftlings, charted with the guardian's whole
+-- reward, half on a second trip), the server's rules (supplies, a party of the captain and three, one expedition at a
+-- time, no island past the boat's range, no boat upgrade while it is away, members away can't be dismissed or released,
 -- no stepping on or sailing home mid-battle, no treat or flight from a guardian, a treat's food and a free nest), a
 -- driftling befriended with a treat, a flight, a defeat (half the loot home), and the islet's screen: closed and
 -- reopened from the HUD's card, its buttons in and out of battle, a round played back.
@@ -79,17 +79,19 @@ end
 ------------------------------------------------------------------ 1. the server's rules
 E.phase = "rules"
 prof.food = 2
-local res = H.req(p, "exp.start", { lvl = 1, party = party(3) })
+local res = H.req(p, "exp.start", { isle = 1, party = party(3) })
 H.expect(not res.ok and res.err == "food", "rules", "supplies: four members need food", tostring(res.err))
 prof.food = 1000
-res = H.req(p, "exp.start", { lvl = prof.cap.lvl + 1, party = "" })
-H.expect(not res.ok and res.err == "locked", "rules", "no island above the captain's level", tostring(res.err))
-res = H.req(p, "exp.start", { lvl = 1, party = party(3) })
+res = H.req(p, "exp.start", { isle = Tuning.ChartIslands, party = "" })
+H.expect(not res.ok and res.err == "far", "rules", "no island past the boat's range", tostring(res.err))
+res = H.req(p, "exp.start", { isle = 1, party = party(3) })
 H.expect(res.ok and #s.exp.party == 4 and s.exp.party[1].key == "f", "rules", "the captain and three set sail", tostring(res.err))
 H.expect(math.abs(prof.food - (1000 - Tuning.Supplies * 4)) < 1, "rules", "their supplies taken", tostring(prof.food))
 H.expect(res.ok and res.data and res.data.isle and res.data.isle.name == s.exp.isle.name, "rules", "the answer names the island", res.data and res.data.isle and res.data.isle.name)
-res = H.req(p, "exp.start", { lvl = 1, party = "" })
+res = H.req(p, "exp.start", { isle = 1, party = "" })
 H.expect(not res.ok and res.err == "busy", "rules", "one expedition at a time", tostring(res.err))
+res = H.req(p, "boat.upgrade", {})
+H.expect(not res.ok and res.err == "busy", "rules", "no boat upgrade while it is away", tostring(res.err))
 res = H.req(p, "folk.dismiss", { id = prof.folk[1].id })
 H.expect(not res.ok and res.err == "busy", "rules", "a member away can't be dismissed", tostring(res.err))
 res = H.req(p, "exp.act", { act = "fight", target = "" })
@@ -231,25 +233,38 @@ res = H.req(p, "exp.home", {})
 H.expect(res.ok and s.exp == nil and math.abs(prof.shells - (sh0 + loot)) < 1, "screen", "home with all the loot", string.format("%s + %s -> %s", sh0, loot, prof.shells))
 H.checkProfile(p, "screen")
 
------------------------------------------------------------------- 3. islands at every level
+------------------------------------------------------------------ 3. the chart's islands, near and far
 E.phase = "islands"
-local Expedition = H.sharedServer("Logic.Expedition")
+local Chart = H.sharedServer("Logic.Chart")
+prof.shells, prof.wood = 1e7, 1e6
+for _ = 2, #Tuning.BoatRadius do
+	res = H.req(p, "boat.upgrade", {})
+	H.expect(res.ok, "islands", "a bigger boat", tostring(res.err))
+end
+res = H.req(p, "boat.upgrade", {})
+H.expect(not res.ok and res.err == "max", "islands", "the finest boat is the last", tostring(res.err))
 local kindsSeen: { [number]: boolean } = {}
 local names: { [string]: boolean } = {}
-for _, lvl in { 1, 5, 10, 16, 23, 30, 30, 30, 30 } do
-	strong(lvl + 8)
+local N = Tuning.ChartIslands
+for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
+	local c = Chart.islands(prof.sea)[id]
+	strong(c.lvl + 8)
 	prof.food = 1000
-	res = H.req(p, "exp.start", { lvl = lvl, party = party(3) })
-	H.expect(res.ok, "islands", "set sail at level " .. lvl, tostring(res.err))
+	res = H.req(p, "exp.start", { isle = id, party = party(3) })
+	H.expect(res.ok, "islands", "set sail for island " .. id, tostring(res.err))
 	if not res.ok then
 		break
 	end
 	local isle = s.exp.isle
+	-- a party far stronger than the island (the rules are what is checked here, not the fight)
+	for _, f in s.exp.party do
+		f.atk, f.def, f.maxHp = f.atk * 3, f.def * 2, f.maxHp * 3
+		f.hp = f.maxHp
+	end
 	local kind = Islets.list[isle.kind]
 	kindsSeen[isle.kind] = true
 	names[isle.name] = true
-	H.expect(isle.lvl == lvl and kind ~= nil and kind.lvl <= lvl, "islands", string.format("a %s at level %d", kind and kind.name or "?", lvl))
-	H.expect(isle.name == Expedition.chart(lvl, isle.seed).name, "islands", "the island is its seed's: " .. isle.name)
+	H.expect(isle.id == id and isle.lvl == c.lvl and kind ~= nil and kind.lvl <= c.lvl, "islands", string.format("%s: a %s of level %d, %.1f leagues out", isle.name, kind and kind.name or "?", c.lvl, c.dist))
 	local before = prof.islets
 	local foesOk = true
 	local steps = 0
@@ -269,20 +284,26 @@ for _, lvl in { 1, 5, 10, 16, 23, 30, 30, 30, 30 } do
 	over = s.exp and s.exp.over
 	H.expect(over == "won", "islands", isle.name .. ": charted", tostring(over))
 	H.expect(foesOk, "islands", isle.name .. ": only its own driftlings")
-	H.expect(prof.islets == before + 1, "islands", isle.name .. ": one more island charted", tostring(prof.islets))
+	H.expect(prof.islets == before + 1 and table.find(prof.chart, id) ~= nil, "islands", isle.name .. ": on the chart", tostring(prof.islets))
 	local loot2 = s.exp and s.exp.loot.shells or 0
-	H.expect(loot2 >= isle.reward, "islands", isle.name .. ": the guardian's reward", tostring(loot2))
+	H.expect(loot2 >= isle.reward, "islands", isle.name .. ": the guardian's whole reward", tostring(loot2))
 	H.req(p, "exp.home", {})
 end
-local nk, nn = 0, 0
+local nk = 0
 for _ in kindsSeen do
 	nk += 1
 end
-for _ in names do
-	nn += 1
-end
-H.expect(kindsSeen[1] and nk >= 3, "islands", "different kinds of island turn up", tostring(nk))
-H.expect(nn >= 7, "islands", "a new island every time", tostring(nn))
+H.expect(nk >= 3, "islands", "different kinds of island further out", tostring(nk))
+-- the first island again: half the reward, not charted twice
+strong(30)
+prof.food = 1000
+local charted0 = prof.islets
+res = H.req(p, "exp.start", { isle = 2, party = party(3) })
+over = walk()
+local again = s.exp and s.exp.loot.shells or 0
+H.expect(over == "won" and prof.islets == charted0, "islands", "an island charted again counts once", tostring(prof.islets))
+H.expect(again >= math.floor(Chart.isle(prof.sea, 2).reward / 2) and again < Chart.isle(prof.sea, 2).reward + 500, "islands", "half the reward the second time", tostring(again))
+H.req(p, "exp.home", {})
 H.checkProfile(p, "islands")
 H.checkMirror(p, "islands")
 
@@ -290,8 +311,8 @@ H.checkMirror(p, "islands")
 E.phase = "defeat"
 strong(30)
 prof.food = 1000
-res = H.req(p, "exp.start", { lvl = 30, party = "" })
-H.expect(res.ok, "defeat", "the captain alone to a level-30 island", tostring(res.err))
+res = H.req(p, "exp.start", { isle = Tuning.ChartIslands, party = "" })
+H.expect(res.ok, "defeat", "the captain alone to the farthest island", tostring(res.err))
 if s.exp then
 	local f = s.exp.party[1]
 	f.atk, f.hp, f.maxHp, f.def = 1, 6, 6, 0

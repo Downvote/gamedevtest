@@ -18,7 +18,7 @@ local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone)
-Schema.VERSION = 5
+Schema.VERSION = 6
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -60,7 +60,7 @@ local function level(v: any): { lvl: number, xp: number }
 end
 
 ------------------------------------------------------------------ default
--- A new island: Tuning.StartShells, StartFood and StartWood, the castaway's hut, nobody else yet.
+-- A new island: Tuning.StartShells, StartFood and StartWood (enough for the tips' buildings), nobody else yet.
 function Schema.default(now: number, seed: number): Profile
 	local rng = Util.newRng(seed)
 	return {
@@ -76,6 +76,9 @@ function Schema.default(now: number, seed: number): Profile
 		pals = {},
 		plot = { placed = {} },
 		islets = 0,
+		sea = rng:int(1, 2147483646),
+		boat = 1,
+		chart = {},
 		seen = {},
 		nextId = 1,
 		tut = 1,
@@ -90,6 +93,10 @@ end
 --   1 -> 2: a founder's look (reconcile fills it in).
 --   2..4 -> 5: the island. The studios (the old one, the idea loop) are gone with their money, ideas, games, upgrades,
 --           team, office and decor; the founder's look and the settings stay, and the island starts afresh.
+--   5 -> 6: the tips grew from four to six (food, wood, shells, a home, sailing, treats): a save on the old "build a
+--           nest and sail" tip (3) goes to it (5), one on the last tip (4) to the new last (6). The sea chart comes in:
+--           reconcile gives the save its own sea (from the player's seed), the first boat and no island charted yet
+--           (the islands charted before stay counted).
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -104,6 +111,14 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		raw.tut = 1
 		v = 5
+	end
+	if v < 6 then
+		if raw.tut == 3 then
+			raw.tut = 5
+		elseif raw.tut == 4 then
+			raw.tut = 6
+		end
+		v = 6
 	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
@@ -218,6 +233,15 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	local st = if type(r.stats) == "table" then r.stats else {}
 	local settings = if type(r.settings) == "table" then r.settings else {}
 	local pixel = settings.pixel
+	-- the chart's islands charted: ids on the chart, each once
+	local charted: { number } = {}
+	if type(r.chart) == "table" then
+		for _, id in r.chart do
+			if type(id) == "number" and id == math.floor(id) and id >= 1 and id <= Tuning.ChartIslands and not table.find(charted, id) then
+				table.insert(charted, id)
+			end
+		end
+	end
 	local out: Profile = {
 		v = Schema.VERSION,
 		shells = num(r.shells, d.shells, 0, 1e12),
@@ -231,9 +255,12 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		pals = pals,
 		plot = { placed = placed },
 		islets = int(r.islets, 0, 0, 1e6),
+		sea = int(r.sea, d.sea, 1, 2147483646),
+		boat = int(r.boat, 1, 1, #Tuning.BoatRadius),
+		chart = charted,
 		seen = seen,
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
-		tut = int(r.tut, 1, 0, 4),
+		tut = int(r.tut, 1, 0, 6),
 		stats = {
 			days = int(st.days, 0, 0),
 			built = int(st.built, #placed, 0),

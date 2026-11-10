@@ -20,7 +20,7 @@ local Tuning = {
 	LoadRetries = 4,
 
 	-- the island (GAME_DESIGN 3-5): a day passes every DaySeconds while the player is here
-	StartShells = 160,
+	StartShells = 300, -- the tips' buildings (a patch, a camp, a stall, a tent, a nest: 280) and a little over
 	StartFood = 30,
 	StartWood = 24,
 	DaySeconds = 40,
@@ -66,6 +66,16 @@ local Tuning = {
 	IsleChestLvl2 = 2,
 	IsleRewardBase = 100, -- the guardian's reward: base + per level x the level squared
 	IsleRewardLvl2 = 19,
+	-- the sea chart (Logic/Chart): every player's islands round their home, in leagues; the level grows with distance
+	ChartIslands = 40,
+	ChartNear = 3, -- this many within the first boat's range
+	ChartMinDist = 1.6,
+	ChartMaxDist = 16,
+	ChartSpacing = 2.1, -- islands at least this far apart
+	ChartLvlPerLeague = 2, -- an island's level: 1 at ChartMinDist, this much more a league further out
+	-- the boat (the chart's range): its range by level and the price of each level (shells and wood)
+	BoatRadius = { 3.6, 5.8, 8.4, 11.3, 13.8, 16.2 },
+	BoatCost = { { shells = 0, wood = 0 }, { shells = 500, wood = 60 }, { shells = 1800, wood = 200 }, { shells = 7000, wood = 800 }, { shells = 18000, wood = 1800 }, { shells = 40000, wood = 4000 } },
 	ChartCharm = 3, -- charm for each island charted (its guardian beaten) ...
 	ChartCharmMax = 15, -- ... up to this
 

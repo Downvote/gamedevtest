@@ -130,6 +130,18 @@ return function()
 		T.eq(p.coins, nil)
 		T.eq(p.games, nil)
 	end)
+	T.it("a version 5 save: its tip moves to the same tip of the six", function()
+		for old, new in { [0] = 0, [1] = 1, [2] = 2, [3] = 5, [4] = 6 } do
+			local p = Schema.reconcile({ v = 5, shells = 10, tier = 1, tut = old }, 2000, 9) :: any
+			T.eq(p.v, Schema.VERSION)
+			T.eq(p.tut, new, "tip " .. old)
+			T.truthy(p.sea >= 1 and p.boat == 1 and #p.chart == 0, "the sea chart: its own sea, the first boat")
+		end
+		local q = Schema.reconcile({ v = 6, sea = 77, boat = 99, chart = { 3, 3, 0, 500, "x", 7, 1.5 } }, 2000, 9) :: any
+		T.eq(q.sea, 77)
+		T.eq(q.boat, #Tuning.BoatRadius, "a boat past the top: the top")
+		T.deepEq(q.chart, { 3, 7 }, "only islands of the chart, each once")
+	end)
 	T.it("a version 1 save loads too", function()
 		local p = Schema.reconcile({ v = 1, money = 5, staff = {} }, 2000, 9)
 		T.eq(p.v, Schema.VERSION)

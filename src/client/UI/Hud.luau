@@ -317,7 +317,8 @@ end
 local function stack()
 	local s = UIKit.size("Hud")
 	local c, e = card, expCard
-	local hide = BuildUI.isOpen() or ExpeditionUI.isOpen()
+	-- (the sea chart's wide panel covers the cards but a sliver: they step aside for it too)
+	local hide = BuildUI.isOpen() or ExpeditionUI.isOpen() or UIKit.currentPanel() == "explore"
 	if c then
 		c.Visible = not hide
 	end
@@ -334,10 +335,12 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Food first: tap Build and place a Veggie Patch.",
-	[2] = "Now a Tent: a castaway may move in at dawn and work for you.",
-	[3] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
-	[4] = "In battle, Treat a hurt wild driftling with food to befriend it.",
+	[1] = "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it.",
+	[2] = "Wood: place a Lumber Camp. It chops wood for bigger buildings.",
+	[3] = "Shells: place a Snack Stall. It sells food to visitors for shells.",
+	[4] = "Now a Tent: a castaway may move in at dawn and work for you.",
+	[5] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
+	[6] = "Islands give food, wood and shells. Treat a hurt driftling to befriend it.",
 }
 
 local function updateTips(v: Types.ClientView)
@@ -355,7 +358,7 @@ local function updateTips(v: Types.ClientView)
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local ok = v.tut == 4
+	local ok = v.tut == 6
 	local w = math.min(UIKit.textWidth(text) + (if ok then 40 else 12), s.X - 20)
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 14), UDim2.new(0, math.floor((s.X - w) / 2), 1, -(BAR_H + 5)), UIKit.color("paper"), 0, 2)
 	f.AnchorPoint = Vector2.new(0, 1)
@@ -550,6 +553,9 @@ function Hud.start()
 	end
 	BuildUI.Changed:Connect(aside)
 	ExpeditionUI.Changed:Connect(aside)
+	UIKit.PanelChanged:Connect(function()
+		stack()
+	end)
 	local lastBeat = os.clock()
 	local nextShine = 0
 	RunService.Heartbeat:Connect(function()

@@ -17,6 +17,7 @@ local ERRORS: { [string]: string } = {
 	no_exp = "There's no expedition under way.",
 	in_battle = "Finish the battle first.",
 	not_found = "They're not here any more.",
+	far = "Too far for your boat: upgrade it to sail further.",
 	rate = "Slow down a little.",
 	not_ready = "One moment: your island is still waking up.",
 }

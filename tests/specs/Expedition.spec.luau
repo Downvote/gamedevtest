@@ -1,6 +1,6 @@
--- Expeditions (Logic/Expedition; GAME_DESIGN 7): islands made up from a level and a seed, setting out at a level up
--- to the captain's, walking the island's path, battles' ends, befriending, the guardian charting the island, sailing
--- home.
+-- Expeditions (Logic/Expedition; GAME_DESIGN 7): islands made up from a level and a seed, setting out for one,
+-- walking the island's path, battles' ends, befriending, the guardian charting the island (its whole reward the first
+-- time, half after), sailing home. (Logic/Chart: Chart.spec.)
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Expedition = require("../../build/luautest/shared/Logic/Expedition")
@@ -75,37 +75,33 @@ return function()
 		T.truthy(Expedition.levelAt(hi, 1) == 19 and Expedition.levelAt(hi, 9) == 21, "the wild grow along the path")
 		T.eq(Expedition.levelAt(lo, 1), 1)
 	end)
-	T.it("setting out: a level up to the captain's, members who exist, supplies for each", function()
+	T.it("setting out: members who exist, supplies for each", function()
 		local p = fresh()
-		p.cap.lvl = 4
-		T.eq(select(2, Expedition.start(p, 5, {}, 1)), "locked")
-		T.eq(select(2, Expedition.start(p, 0, {}, 1)), "bad_payload")
-		T.eq(select(2, Expedition.start(p, 1.5, {}, 1)), "bad_payload")
-		T.eq(select(2, Expedition.start(p, 1, { "v7" }, 1)), "not_found")
+		local isle = Expedition.chart(4, 99)
+		T.eq(select(2, Expedition.start(p, isle, { "v7" })), "not_found")
 		table.insert(p.folk, { id = 7, name = "Ana", look = p.founder, work = 0, lvl = 2, xp = 0, seed = 3, day = 1 })
 		table.insert(p.pals, { id = 8, sp = "pebblit", lvl = 1, xp = 0, work = 0 })
-		T.eq(select(2, Expedition.start(p, 1, { "v7", "v7" }, 1)), "bad_payload")
-		T.eq(select(2, Expedition.start(p, 1, { "v7", "p8", "v7", "p8" }, 1)), "full")
+		T.eq(select(2, Expedition.start(p, isle, { "v7", "v7" })), "bad_payload")
+		T.eq(select(2, Expedition.start(p, isle, { "v7", "p8", "v7", "p8" })), "full")
 		p.food = 3
-		T.eq(select(2, Expedition.start(p, 1, { "v7" }, 1)), "food")
+		T.eq(select(2, Expedition.start(p, isle, { "v7" })), "food")
 		p.food = 100
-		local ok, e = Expedition.start(p, 4, { "v7", "p8" }, 99)
+		local ok, e = Expedition.start(p, isle, { "v7", "p8" })
 		T.truthy(ok)
 		T.eq(p.food, 100 - Tuning.Supplies * 3)
 		T.eq(#e.party, 3)
 		T.eq(e.party[1].key, "f")
 		T.eq(e.party[2].name, "Ana")
 		T.eq(e.node, 1)
-		T.deepEq(e.isle, Expedition.chart(4, 99))
-		T.deepEq(e.nodes, Expedition.nodesOf(e.isle))
+		T.deepEq(e.isle, isle)
+		T.deepEq(e.nodes, Expedition.nodesOf(isle))
 		local away = Expedition.away(e)
 		T.truthy(away.v7 and away.p8 and away.f)
-		T.truthy(Expedition.start(p, 2, {}, 5), "a level under the captain's")
 	end)
 	T.it("the path: loot, battles in the way, a rest, the guardian charting the island", function()
 		local p = fresh()
 		p.cap.lvl = 12
-		local _, e = Expedition.start(p, 1, {}, 77)
+		local _, e = Expedition.start(p, Expedition.chart(1, 77), {})
 		local rng = Util.newRng(11)
 		local kinds = {}
 		while e.node < #e.nodes and not e.over do
@@ -125,6 +121,7 @@ return function()
 		T.eq(e.over, "won", "the guardian beaten")
 		T.eq(p.islets, 1, "the island charted")
 		T.eq(p.stats.cleared, 1)
+		T.eq(e.loot.shells >= e.isle.reward, true, "its whole reward")
 		T.truthy(e.loot.food > 0 and e.loot.wood > 0 and e.loot.shells >= e.isle.reward)
 		T.truthy(p.cap.xp > 0 or p.cap.lvl > 12, "the captain learned")
 		T.eq(select(2, Expedition.next(p, e, rng)), "no_exp")
@@ -136,7 +133,7 @@ return function()
 	T.it("befriending: a treat costs food and needs a nest; the friend joins the island", function()
 		local p = fresh()
 		p.cap.lvl = 6
-		local _, e = Expedition.start(p, 1, {}, 3)
+		local _, e = Expedition.start(p, Expedition.chart(1, 3), {})
 		local rng = Util.newRng(4)
 		while e.battle == nil do
 			Expedition.next(p, e, rng)
@@ -171,7 +168,7 @@ return function()
 	end)
 	T.it("losing: the expedition ends, half the loot comes home", function()
 		local p = fresh()
-		local _, e = Expedition.start(p, 1, {}, 8)
+		local _, e = Expedition.start(p, Expedition.chart(1, 8), {})
 		e.loot.shells, e.loot.food = 100, 40
 		e.party[1].hp, e.party[1].atk = 1, 1
 		local rng = Util.newRng(2)
@@ -190,7 +187,7 @@ return function()
 	T.it("no fleeing a guardian, no treats for it", function()
 		local p = fresh()
 		p.cap.lvl = 30
-		local _, e = Expedition.start(p, 1, {}, 21)
+		local _, e = Expedition.start(p, Expedition.chart(1, 21), {})
 		local rng = Util.newRng(5)
 		while e.node < #e.nodes - 1 do
 			Expedition.next(p, e, rng)

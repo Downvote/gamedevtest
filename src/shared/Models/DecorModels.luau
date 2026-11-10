@@ -797,7 +797,7 @@ end
 -- An upgraded building's pennant: a pole at its back-left corner, the flag red at level 2, gold at 3.
 local function pennant(m: Model, f: CFrame, lvl: number, w: number, d: number)
 	local x, z = -w / 2 + 0.3, -d / 2 + 0.3
-	box(m, f, x, 1.6, z, 0.15, 3.2, 0.15, "wood_dark", "Pennant")
+	box(m, f, x, 1.6, z, 0.15, 3.2, 0.15, "wood_dark", "PennantPole")
 	ball(m, f, x, 3.25, z, 0.25, "gold", "Knob")
 	wedge(m, f, x + 0.45, 2.85, z, 0.75, 0.5, 0.08, if lvl >= 3 then "gold" else "berry_red", math.pi / 2, "Flag")
 	if lvl >= 3 then
@@ -821,6 +821,7 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 			pennant(m, at, l, size[1], size[2])
 		end
 	end
+	Blocks.windy(m) -- leaves sway, pennants ripple
 	return m
 end
 

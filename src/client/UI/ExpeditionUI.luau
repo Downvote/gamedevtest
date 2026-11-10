@@ -30,6 +30,7 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local MicroStage = require(script.Parent.MicroStage)
 local Words = require(script.Parent.Words)
 local Voyage = require(script.Parent.Voyage)
+local BoatSpec = require(ReplicatedStorage.Shared.Models.BoatSpec)
 
 local ExpeditionUI = {}
 ExpeditionUI.Changed = Util.Signal() :: Types.Signal<boolean>
@@ -81,17 +82,21 @@ local isle: Types.Isle? = nil
 -- the boat's arrival at the shore after the cutscene: the ship and when it set off (the party hops off after)
 local arriving = false
 local ship: MicroModels.Thing? = nil
-local SHIP_U, SHIP_V, SHIP_FROM = -21, 11, -34 -- in the shallows off the floor's front-left edge
+local SHIP_U, SHIP_V, SHIP_FROM = -21, 11, -34 -- in the shallows off the floor's front-left edge (a level-2 boat)
 local SHIP_IN = 1.0 -- seconds it glides in
 local HOP_T, LAND, RUN = 0.4, 3.5, 12 -- a hop off (seconds, studs onto the shore), then a run to the place (studs/s)
 local WATER = -0.45 -- the sea's surface on the stage (from the floor's top)
 -- where the party stands on deck (along the bow: u; across: v), the founder first (UI/Voyage's deck)
 local DECK_SPOTS = { { -0.1, 0, 0 }, { 0.9, -0.75, 0 }, { 0.9, 0.75, 0 }, { 1.75, 0, 0.5 } }
+local shipU0 = SHIP_U -- the arriving boat's mooring (a longer boat a little further out)
+local deckH = 0.625 -- its deck over the sea
+local closing = false
 local lastNode = 0
 local foeKey = "" -- the battle's foes shown (rebuilt when they change)
 local pendingOpen = 0 -- os.clock until which the screen opens as soon as the view has the expedition (just started)
 
 local refresh: () -> () = function() end
+local closeNow: () -> () = function() end
 
 local function view(): Types.ClientView?
 	return StateClient.view()
@@ -241,19 +246,20 @@ local function poseAll(t: number, dt: number)
 	-- the boat gliding in to the shore once the curtain is up
 	local since = if lifted then now - opened - liftDelay else -1
 	local sh = ship
-	local shipU = SHIP_U
+	local shipU = shipU0
 	if sh then
 		local e = math.clamp(since / SHIP_IN, 0, 1)
 		local ease = 1 - (1 - e) * (1 - e)
-		shipU = SHIP_FROM + (SHIP_U - SHIP_FROM) * ease
+		shipU = SHIP_FROM + (shipU0 - SHIP_FROM) * ease
 		local bob = if e >= 1 and math.floor(t * 1.5) % 2 == 0 then 0.125 else 0
+		MicroModels.flutter(sh :: MicroModels.Thing, t)
 		st.place(sh :: MicroModels.Thing, math.floor(shipU * 4 + 0.5) / 4, SHIP_V, WATER + bob, MicroStage.FACE_RIGHT)
 	end
 	for _, a in actors do
 		-- the party hops off the arriving boat onto the shore one after another and runs to its places
 		if a.deck > 0 then
 			local spot = DECK_SPOTS[a.deck] or DECK_SPOTS[#DECK_SPOTS]
-			local du, dv, dh = shipU + spot[1], SHIP_V + spot[2], WATER + 0.625 + spot[3]
+			local du, dv, dh = shipU + spot[1], SHIP_V + spot[2], WATER + deckH + spot[3]
 			local k = since - (SHIP_IN + 0.1 + (a.deck - 1) * 0.35)
 			local hu, hv = a.u, a.v
 			local dx, dz = hu - du, hv - dv
@@ -811,17 +817,30 @@ goHome = function()
 		ExpeditionUI.close()
 		return
 	end
+	-- the party on deck for the voyage home (the founder aside)
+	local members: { Voyage.Member } = {}
+	for _, f in e.party do
+		if f.kind == "villager" and f.look then
+			table.insert(members, { look = f.look })
+		elseif f.kind == "pal" and f.sp then
+			table.insert(members, { sp = f.sp })
+		end
+	end
 	busy = true
 	local res = ask("exp.home", {})
-	busy = false
 	if res.ok then
 		local got = if type(res.data) == "table" then res.data.got else nil
-		ExpeditionUI.close()
-		if type(got) == "table" then
-			UIKit.notice(string.format("Home again: +%s shells, +%s food, +%s wood", Numbers.int(tonumber(got.shells) or 0), Numbers.int(tonumber(got.food) or 0), Numbers.int(tonumber(got.wood) or 0)), UIKit.color("good"), 4)
-		end
-		Audio.play("reward")
+		ExpeditionUI.close(function()
+			busy = false
+			Voyage.home(members, function()
+				if type(got) == "table" then
+					UIKit.notice(string.format("Home again: +%s shells, +%s food, +%s wood", Numbers.int(tonumber(got.shells) or 0), Numbers.int(tonumber(got.food) or 0), Numbers.int(tonumber(got.wood) or 0)), UIKit.color("good"), 4)
+				end
+				Audio.play("reward")
+			end)
+		end)
 	else
+		busy = false
 		refresh()
 	end
 end
@@ -992,7 +1011,17 @@ function ExpeditionUI.open()
 		-- the boat brings the party in: the drop from above happens behind the curtain, unseen
 		local st = stage :: MicroStage.Stage
 		st.lift()
-		ship = st.spawn("ship")
+		-- the boat at the player's boat level: its deck's places (along the bow: u; across: v)
+		local v = view()
+		local level = if v then v.boat else 1
+		local d = BoatSpec.dims(level)
+		shipU0 = SHIP_U - (d.L - 5) / 2
+		deckH = BoatSpec.deckOverWater(level)
+		DECK_SPOTS = {}
+		for _, p in BoatSpec.deck(level) do
+			table.insert(DECK_SPOTS, { p.Z, p.X, p.Y })
+		end
+		ship = st.spawn("ship", { level = level })
 		st.place(ship :: MicroModels.Thing, SHIP_FROM, SHIP_V, WATER, MicroStage.FACE_RIGHT)
 	end
 	-- the founder stands with the party (MicroStage's own avatar)
@@ -1077,7 +1106,50 @@ function ExpeditionUI.open()
 	ExpeditionUI.Changed:Fire(true)
 end
 
-function ExpeditionUI.close()
+-- Leave the screen: ink blinds close over the stage, then it goes and `after` runs (by default the blinds open on
+-- the island: Voyage.reveal; Sail home: the voyage home).
+function ExpeditionUI.close(after: (() -> ())?)
+	if not isOpen or closing then
+		return
+	end
+	local r = root
+	if r == nil then
+		closeNow()
+		return
+	end
+	closing = true
+	local w, h = canvasSize()
+	local curtain = Instance.new("Frame")
+	curtain.Name = "LeaveCurtain"
+	curtain.BackgroundTransparency = 1
+	curtain.Size = UDim2.fromScale(1, 1)
+	curtain.ZIndex = 45
+	curtain.Parent = r
+	local BLIND = 12
+	local n = 0
+	for y = 0, h - 1, BLIND do
+		local bh = math.min(BLIND, h - y)
+		local band = UIKit.rect(curtain, UDim2.fromOffset(w, 0), UDim2.fromOffset(0, y + math.floor(bh / 2)), UIKit.color("ink"), 45)
+		UIKit.rect(band, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -1), UIKit.hex(0x3B3048), 45)
+		n += 1
+		task.delay(n * 0.01, function()
+			if band.Parent then
+				UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, bh), Position = UDim2.fromOffset(0, y) })
+			end
+		end)
+	end
+	task.delay(0.4, function()
+		closing = false
+		closeNow()
+		if after then
+			after()
+		else
+			Voyage.reveal()
+		end
+	end)
+end
+
+closeNow = function()
 	if not isOpen then
 		return
 	end
@@ -1127,7 +1199,9 @@ function ExpeditionUI.init()
 			return
 		end
 		if v.exp == nil then
-			ExpeditionUI.close()
+			if not busy then
+				ExpeditionUI.close()
+			end
 			return
 		end
 		if not busy then

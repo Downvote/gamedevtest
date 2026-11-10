@@ -101,6 +101,22 @@ function Blocks.cylY(parent: Instance, diameter: number, height: number, cf: CFr
 	})
 end
 
+-- The wind (the pixel filter's: GAME_DESIGN 11): every part under `root` in a leaf colour sways (PixelWind 1), every
+-- flag or pennant (named "Flag..." or "Pennant...", not a pole) ripples (PixelWind 2).
+function Blocks.windy(root: Instance)
+	local leaf, leafDark = Blocks.color("leaf"), Blocks.color("leaf_dark")
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") and d:GetAttribute("PixelWater") == nil then
+			local n = d.Name
+			if (string.sub(n, 1, 4) == "Flag" or string.sub(n, 1, 7) == "Pennant") and not string.find(n, "Pole") then
+				d:SetAttribute("PixelWind", 2)
+			elseif d.Color == leaf or d.Color == leafDark then
+				d:SetAttribute("PixelWind", 1)
+			end
+		end
+	end
+end
+
 -- New Model; sets the "Interact" attribute when given. Parented only when a parent is passed (builders usually
 -- fill the model first and parent it last).
 function Blocks.model(parent: Instance?, name: string, interact: string?): Model

@@ -375,7 +375,7 @@ local function expScenario(spec)
 	end
 	local s = H.session(p)
 	local Expedition = H.sharedServer("Logic.Expedition")
-	local ok, e = Expedition.start(prof, isleLvl, { "v" .. prof.folk[1].id, "p" .. prof.pals[1].id, "v" .. prof.folk[2].id }, seedOfKind(n, isleLvl))
+	local ok, e = Expedition.start(prof, Expedition.chart(isleLvl, seedOfKind(n, isleLvl)), { "v" .. prof.folk[1].id, "p" .. prof.pals[1].id, "v" .. prof.folk[2].id })
 	if ok then
 		H.smod("Session").setExp(s, e)
 		log("island: %s (%s), level %d", e.isle.name, H.sharedServer("Data.Islets").list[e.isle.kind].name, e.isle.lvl)
@@ -462,10 +462,7 @@ function SCEN.voyage()
 	H.push(p, 0.3)
 	settle(p)
 	H.clickNamed(p, "Menu_explore", { wait = 0.5 })
-	local Menus = modOr(p, "UI.Menus")
-	if Menus then
-		H.inClient(p, Menus.setLevel, 5)
-	end
+	H.clickNamed(p, "Isle_2", { wait = 0.3, optional = true })
 	H.clickNamed(p, "Member_v" .. prof.folk[1].id, { wait = 0.2 })
 	H.clickNamed(p, "Member_p" .. prof.pals[1].id, { wait = 0.2 })
 	E.run(0.5)
@@ -501,6 +498,31 @@ function SCEN.voyage()
 				capture(p, "voyage_arrive")
 			end
 			if onStage >= 14 then
+				break
+			end
+		end
+	end
+	-- the way home: the curtain, the blinds opening on the sea, the boat sailing in, the founder hopping ashore
+	if EUI then
+		local s = H.session(p)
+		if s.exp then
+			s.exp.over = "won"
+			s.exp.battle = nil
+		end
+		H.push(p, 0.2)
+		H.inClient(p, EUI.debugHome)
+		local homeShot = false
+		for _ = 1, 70 do
+			E.run(0.2)
+			capture(p, string.format("voyage_%03d", k))
+			k += 1
+			local d = Voyage and H.inClient(p, Voyage.debugState)
+			if d and d.phase == "arrive" and not homeShot and d.dir == "home" then
+				homeShot = true
+				E.run(0.8)
+				capture(p, "voyage_home")
+			end
+			if d and d.phase == "" and homeShot then
 				break
 			end
 		end

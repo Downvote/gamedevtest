@@ -1,12 +1,13 @@
 --!strict
 -- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 6): the captain and up to Tuning.PartyMax villagers or
--- driftlings sail from the island's pier to an island found at sea, made up as they set sail (`chart`: its kind from
--- Data/Islets, its name, driftlings, path and loot from a seed and the level the captain picked, 1 up to their own),
+-- driftlings sail from the island's pier to an island of the sea chart (Logic/Chart: its place sets its level, its
+-- seed what it holds; `chart` makes it up: its kind from Data/Islets, its name, driftlings, path and loot),
 -- walk its path a node at a time, battle its driftlings (Logic/Battle), befriend some with treats, and sail home
 -- with what they gathered. Pure; the server keeps the expedition in the session (it ends, the loot kept, when the
 -- player leaves). Those away neither work nor eat.
 --   chart(lvl, seed) -> Isle                   (the island: the same seed and level make the same island)
---   start(p, lvl, members, seed) -> Expedition (members: "v<id>" / "p<id>"; each of the party takes Tuning.Supplies food)
+--   start(p, isle, members) -> Expedition      (the island from Logic/Chart; members: "v<id>" / "p<id>"; each of the
+--                                               party takes Tuning.Supplies food)
 --   next(p, e, rng)                            (the next node: loot, a chest, a rest, or a battle)
 --   act(p, e, act, target, rng)                (a battle round; a win shares xp, a beaten guardian charts the island)
 --   home(p, e)                                 (back on the island: the loot is added, half of it after a defeat)
@@ -78,11 +79,6 @@ function Expedition.supplies(n: number): number
 end
 
 ------------------------------------------------------------------ the islands at sea
--- The level the captain may pick: 1 up to their own.
-function Expedition.maxLevel(p: Profile): number
-	return math.max(1, p.cap.lvl)
-end
-
 -- The kinds of island (Data/Islets ids) that can turn up at a level.
 function Expedition.kindsAt(lvl: number): { number }
 	local out: { number } = {}
@@ -197,13 +193,8 @@ function Expedition.levelAt(isle: Isle, node: number): number
 	return math.max(1, isle.lvl - 1 + (node - 1) // 4)
 end
 
-function Expedition.start(p: Profile, lvl: number, members: { string }, seed: number): (boolean, any)
-	if lvl ~= lvl or lvl < 1 or lvl ~= math.floor(lvl) then
-		return false, "bad_payload" :: ErrCode
-	end
-	if lvl > Expedition.maxLevel(p) then
-		return false, "locked" :: ErrCode
-	end
+-- Set out for an island (Logic/Chart.sail checks it is on the chart and in the boat's range).
+function Expedition.start(p: Profile, isle: Isle, members: { string }): (boolean, any)
 	if #members > Tuning.PartyMax then
 		return false, "full" :: ErrCode
 	end
@@ -225,7 +216,6 @@ function Expedition.start(p: Profile, lvl: number, members: { string }, seed: nu
 		return false, "food" :: ErrCode
 	end
 	p.food -= need
-	local isle = Expedition.chart(lvl, seed)
 	local nodes = Expedition.nodesOf(isle)
 	local done = table.create(#nodes, false)
 	done[1] = true
@@ -240,8 +230,8 @@ function Expedition.start(p: Profile, lvl: number, members: { string }, seed: nu
 		befriended = {},
 		over = nil,
 	}
-	if p.tut == 3 then
-		p.tut = 4
+	if p.tut == 5 then
+		p.tut = 6
 	end
 	return true, e
 end
@@ -407,10 +397,19 @@ function Expedition.act(p: Profile, e: Expedition, act: string, target: string?,
 		p.stats.battles += 1
 		e.battle = nil
 		if b.boss then
-			local reward = e.isle.reward
+			-- the first time the island is charted: its whole reward; later trips half of it
+			local id = e.isle.id
+			local first = id == nil or table.find(p.chart, id) == nil
+			local reward = if first then e.isle.reward else math.floor(e.isle.reward / 2)
 			e.loot.shells += reward
 			out.reward = reward
-			p.islets += 1
+			out.first = first
+			if first then
+				if id then
+					table.insert(p.chart, id)
+				end
+				p.islets += 1
+			end
 			out.charted = p.islets
 			p.stats.cleared += 1
 			e.over = "won"

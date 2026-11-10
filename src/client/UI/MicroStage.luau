@@ -604,8 +604,8 @@ end
 -- Where the party and the wild ones stand (room space x, z): props keep off them and off the band between them that
 -- the battles' lunges cross.
 local ACTOR_SPOTS: { { number } } = {}
-for _, uv in { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 }, { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } } do
-	local p = U_DIR * uv[1] + V_DIR * uv[2]
+for _, spot in { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 }, { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } } do
+	local p = U_DIR * spot[1] + V_DIR * spot[2]
 	table.insert(ACTOR_SPOTS, { p.X, p.Z })
 end
 -- marks a set leaves for its ambient life (the beach's chest glints)
@@ -1476,6 +1476,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	table.clear(marks)
 	local fn = SETS[variant] or SETS.blocks
 	fn(b)
+	Blocks.windy(folder) -- the islet's palms, trees and ferns sway
 	folder.Parent = workspace
 	local things: { Thing } = {}
 	local dyn = dynFolder()

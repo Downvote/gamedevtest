@@ -95,7 +95,7 @@ H.checkMirror(p2, "rejoin")
 E.phase = "leave-exp"
 local pp = H.profile(p2)
 pp.food = 100
-local res = H.req(p2, "exp.start", { lvl = 1, party = "" })
+local res = H.req(p2, "exp.start", { isle = 1, party = "" })
 H.expect(res.ok, "save", "an expedition sets sail", tostring(res.err))
 H.req(p2, "exp.next", {})
 local s2 = H.session(p2)

@@ -12,8 +12,8 @@ requests (§11). The game studio of the earlier versions is gone (§10: an old s
 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
 on its sand. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
-villagers take jobs. You sail out with a party of villagers to islands nobody has seen before (each one made up as
-you set sail, at a level you pick up to your captain's), befriend the wild **driftlings** there with treats in
+villagers take jobs. You sail out with a party of villagers to the islands of your own sea chart (the further from
+home, the higher their level; a bigger boat sails further), befriend the wild **driftlings** there with treats in
 turn-based battles, and bring them home to help at the buildings of their knack. Beating an island's guardian charts
 it. The islands of everyone on the server sit side by side along one boardwalk on a
 shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
@@ -25,10 +25,11 @@ decides everything, pure Data/Logic modules with specs, and the fake-engine simu
 Build a Veggie Patch so the island has food, a Tent so a castaway can move in at dawn, a Lumber Camp for wood and a
 Snack Stall to sell food to the visitors for shells. Every day (Tuning.DaySeconds while you play) the island makes and
 eats; a visitor moves into a free bed when the charm is high enough and takes a free job. Build a Driftling Nest,
-then Explore: pick a party (you, the captain, and up to three villagers or driftlings), pick the island's level on the slider, pay the supplies in food and
-set sail: your founder boards the boat at the pier and it sails off to a new island. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
-end); in battle choose Fight, Guard, Treat (food: a hurt wild one may join you) or Flee. Sail home with the loot.
-Spend shells and wood on more buildings, upgrades (a making building's Lv 2 and 3) and decor (charm), and expand the
+then Explore: the sea chart shows the islands round yours; tap one in your boat's range, pick a party (you, the
+captain, and up to three villagers or driftlings), pay the supplies in food and set sail: your founder boards the boat
+at the pier and it sails off to that island. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
+end); in battle choose Fight, Guard, Treat (food: a hurt wild one may join you) or Flee. Sail home with the loot (the
+boat brings the party back to the pier). Spend shells and wood on more buildings, a bigger boat (further islands), upgrades (a making building's Lv 2 and 3) and decor (charm), and expand the
 island twice for bigger buildings. Nothing happens while you are away (no offline progress).
 
 ## 2. Look and feel
@@ -63,11 +64,22 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
 - **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
   and inner ink lines where shapes meet.
-- **Anti-aliasing, no jaggies.** Where the outline steps, the empty corner pixel gets a faint ink (35%); a colour
-  region's pixel that meets the outline only at a corner goes a tone darker; skies blend between bands with a 1 px
+- **Anti-aliasing, no jaggies.** A colour region's pixel that meets the outline only at a corner goes a tone darker; skies blend between bands with a 1 px
   dither row; lines are drawn at clean slopes (a slash is a 1:1 diagonal).
-- **Shading:** every colour region is a 4-tone ramp lit from the top left (light top-left edge, shadow bottom right,
-  a second shadow band on big shapes), from one shared palette.
+- **Shading:** every colour region is a 4-tone ramp from one shared palette, lit from the top left by the form of the
+  whole silhouette (a dome over the shape, never a band hugging each edge: no pillow shading), with the ink shading
+  the pixels under an overhang.
+- **Hue shifting:** a ramp's darker tones lean cool (towards blue and purple), its lighter ones warm (towards yellow),
+  never only darker or lighter of the same hue.
+- **Texture:** a material shows what it is made of on sprites big enough to carry it (13x10 and up): wood grain in
+  strands, stone in speckles and clusters, leaves in clumps, sand in grains, cloth in weave strands, at a tone's
+  step, never noise on every pixel.
+- **The outline is not anti-aliased on its outside:** the ink edge stands against the background as it is; the
+  softening is inside (a colour pixel that meets the outline only at a corner goes a tone darker).
+> The request (2026-11-10): "alot of the sprites seem to be pillow shaded without regard to texture. can you do some
+> respriting? also, no need to anti alias the outside of the outline. also, make sure to use hueshifting when deciding
+> to use darker or lighter shades of colors"
+
 - **One source:** `scripts/gen_art.py` holds every sprite as a text mask and makes `UI/ArtData` (and a contact sheet
   with `--png`); the client draws each sprite once into an EditableImage shown pixelated (or from 1 px rects).
 
@@ -132,13 +144,33 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 > with random monsters. the level and monsters of the islands you discover is determined by your (captain) level,
 > and you can choose to scale it down to whatever is under your level through a slider"
 
-- **Islands made up as you sail:** every expedition goes to a new island, made from a seed and the **level** you
-  pick (`Logic/Expedition.chart`): the Explore panel's slider runs from 1 to your captain's level and starts at it
-  (it follows the captain up while it sits at the top); drag it, or tap - and +, to sail somewhere easier. The level
-  decides the island:
-  - **its kind**, one of those open at the level, picked at random: **beaches** from the start, **meadows** from 5,
-    **volcanoes** from 10, **snowfields** from 16, **reefs** from 23 (the panel lists them, the ones out of reach
-    greyed with the level they need);
+> The requests (2026-11-10): "make exploration more like a map: there are different islands, and opening the map
+> shows available islands in a radius around your main island. clicking on an island lets you travel to there. as you
+> can also upgrade your boat with shells and lumber, which lets you travel in a bigger radius. the bigger the radius,
+> the more higher level the islands become."; "make the map actual islands like these. players can then click on any
+> island to travel to them" (with a picture of a world map of big irregular islands of their own biomes: a style to
+> follow, not a map to copy; the islands are drawn by our own shapes). The slider of the request above is gone: the
+> level is now where an island lies.
+
+- **The sea chart** (`Logic/Chart`, the Explore panel): every player has a sea of their own (a seed in the save) of
+  `ChartIslands` (40) islands round their home island, the same every time. The first `ChartNear` lie within the first
+  boat's range; the rest spread out to `ChartMaxDist` leagues, never closer than `ChartSpacing` to each other. **An
+  island's level is its distance:** 1 near home, `ChartLvlPerLeague` (2) more each league further out (level 30 at
+  the chart's edge). The panel draws the chart as a map: real islands of their own shapes (a wobbly coast, a smaller
+  islet or two beside the bigger ones) in the colours of their kind (a beach's sand and palms, a meadow's grass,
+  woods and ponds, a volcano's rock, crater and lava, a snowfield's ice and frozen lake, a reef's coral ring round its
+  lagoon), each lit from the top left with its beach, surf and shallows, on a sea of swells; your home island in the
+  middle with its plaza; a flag on every island charted. Islands out of the boat's range lie under a fog, the dotted
+  ring of the range round them and a fainter ring of the next boat's; each island in range shows its level (green
+  up to the captain's level, yellow up to three over it, red above that). **Tap an island** to pick it (outlined in white): the
+  side shows its name, kind, level, its driftlings, its reward and whether it is charted; tap Set sail to go. An
+  island out of range says "Too far for your boat: upgrade it to sail further."
+- **The boat** (levels 1 to 6, `BoatRadius`, `BoatCost`): Upgrade, under the chart, pays shells and wood (500 and 60,
+  then 1,800 and 200, 7,000 and 800, 18,000 and 1,800, 40,000 and 4,000) for the next level and a wider range; the
+  boat at the pier, the one that sails you out and the one at the islands' shores is the new one (§8).
+- **What an island holds** (`Logic/Expedition.chart`, from its level and its own seed):
+  - **its kind**, one of those open at the level, picked by its seed: **beaches** from the start, **meadows** from 5,
+    **volcanoes** from 10, **snowfields** from 16, **reefs** from 23;
   - **its name**, two words of its kind ("Gull Key", "Willow Thicket", "Scorch Peak", "Frost Drift", "Brine
     Hollow");
   - **its driftlings**: two of its kind's own and one more that strayed in from any kind open at the level, at about
@@ -147,16 +179,25 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   - **its path**: the landing, six to nine stops (battles, loot, chests, one rest late on; at least three battles),
     the guardian; one more stop from level 10;
   - **what it holds**, growing with the level: a loot stop's food and wood, a chest's shells, the guardian's reward
-    (`Isle*`; the panel shows the reward and the wild ones' levels for the level picked).
-  Beating the guardian pays its reward and **charts** the island (the panel counts the islands charted; each is charm
-  up to `ChartCharmMax`). A lower level is safer and pays less.
+    (`Isle*`).
+  Beating the guardian the first time pays its whole reward and **charts** the island (a flag on the map; the panel
+  counts the islands charted; each is charm up to `ChartCharmMax`). An island sailed to again is the same island
+  (its kind, driftlings and path), and its guardian pays half.
 - **The cutscene** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
   aside; your founder walks from where they stand down the path, across the boardwalk and along the pier (or starts
   on the jetty when far away) and hops into the expedition boat, where the rest of the party waits on deck and
   cheers; the boat casts off and sails out to sea, the view following it; ink blinds close on the island's name and
   kind. The islet's screen opens behind them and the boat glides in to the island's shore; the party hops off and
-  runs to its places. The boat stays away from the pier while the expedition does and is moored there again once
-  the party is home.
+  runs to its places. The boat stays away from the pier while the expedition does.
+- **Home again** (`UI/Voyage.home`):
+
+  > The request (2026-11-10): "make a transition instead of an instant cut back to the island after an exploration."
+
+  Sail home (or a won or lost expedition's end) closes the ink blinds over the islet on "<name>'s Isle" (or "Home
+  again!"); behind them the island comes back, the blinds open on the boat sailing in from the sea with the party on
+  deck, the view following it to the pier; your founder hops onto the pier, the party cheers, the HUD comes back and
+  the loot is shown. Back to island (the expedition waits) closes and opens the blinds the same way, without the
+  boat.
 - **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
   strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
   dismissed or released. One expedition at a time; leaving the game brings it home with its loot.
@@ -198,10 +239,23 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond, the fountain and the islets' seas and pools move the same way.
 - **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
-  each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with a moored
-  boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own
+  each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with your
+  moored boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own
   touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts, the stall's awning, the
   lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks and a mouth.
+- **Boats** (`Models/BoatSpec`: one plan for the boat at the pier, the one that sails you out and home, the one at
+  an island's shore and the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
+  seams, a painted band (gold trim from level 4), a rim, a bow, a stern with its rudder and tiller and a planked deck;
+  a rowboat's oars at level 1; a cabin with a door, windows and a life ring from 2; a bowsprit and jib from 3; a
+  foremast, a crow's nest and a figurehead from 4; a chimney and a stern lantern from 5; a mizzen and blue sails at
+  6; striped sails, a flag and pennants, a lantern, fenders, a crate and barrels.
+
+  > The request (2026-11-10): "polish everything even further, such as more detailed boat models, flags rippling in
+  > the wind, and swaying leaves."
+
+- **The wind:** leaves sway and flags ripple (the pixel filter, a few times a second like the water: palms, trees,
+  bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
+  ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
   zoom on every tier; Build mode frees it to pan.
 - Up to `MaxPlots` (6) islands sit in a row along the boardwalk; an unclaimed lot is open water with a sandbar and a
@@ -212,19 +266,30 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 ## 9. Your founder, settings and the tips
 
 The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). Settings: the pixel filter's
-quality. **The tips** (the banner over the menu bar): 1 build food, 2 build a home, 3 build a nest and set sail to a
-new island, 4 treat a hurt wild one (OK ends them).
+quality. **The tips** (the banner over the menu bar), each saying where the stores come from:
+
+> The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
+> to buy all the facilities required."
+
+1 "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it."; 2 "Wood: place a Lumber Camp. It chops
+wood for bigger buildings."; 3 "Shells: place a Snack Stall. It sells food to visitors for shells."; 4 "Now a Tent: a
+castaway may move in at dawn and work for you."; 5 "Build a Driftling Nest, then tap Explore and set sail to a new
+island!"; 6 "Islands give food, wood and shells. Treat a hurt driftling to befriend it." (OK ends them). A new island
+starts with `StartShells` (300) shells: the patch, the camp, the stall, the tent and the nest of the tips cost 280.
 
 ## 10. Saves and the economy, checked
 
-The save is version 5 (`Logic/Schema`): an older save (the game studio's) keeps the founder's look, the settings and
-its start date and begins a fresh island with the tips. `tests/Career.luau` plays a sensible player through the same
+The save is version 6 (`Logic/Schema`): a version 5 save keeps everything, its tips moved to the new steps, and gets
+its sea seed, a level 1 boat and an empty chart; an older save (the game studio's) keeps the founder's look, the
+settings and its start date and begins a fresh island with the tips. `tests/Career.luau` plays a sensible player through the same
 rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 
 - a villager within 3 minutes, a driftling friend within 15;
 - a guardian beaten within 15 minutes; one of a level-5 island (meadows) within 45, level 10 (volcanoes) within 90,
-  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails at
-  the captain's level, lower while the party looks too weak for its guardian and after a defeat (the slider);
+  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails to
+  the strongest uncharted island in its boat's range that its party looks strong enough for (asking for more after
+  each defeat; a charted one when none is left), and buys the next boat when it can pay and nothing new it can take
+  is left in range but the next range holds some;
 - the island's second tier within 45 minutes, the third within 90; at an hour, at least 8 villagers and 8 driftlings;
 - nobody starves for long, and the stores stay finite.
 
@@ -241,8 +306,11 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   and bits when someone moved in).
 - **The island lives:** villagers walk to their work and back and do it (hoe, chop, sell), wander when resting;
   driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
-- **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked in §7), sailboats rock on the swell as they cross both
-  ways, gulls cross now and then, clouds' shadows slide over the islands; each island's campfire flickers and smokes.
+- **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked in §7), leaves
+  sway and flags ripple in the wind, sailboats (the boats of §8, their flags fluttering) rock on the swell as they
+  cross both ways, gulls cross now and then, clouds' shadows slide over the islands; each island's campfire flickers and smokes.
+- **Coming home:** blinds close over the islet and open on the boat sailing home to the pier, the founder hopping
+  off and the party cheering (§7).
 - **The islet's screen:** ink blinds open from the middle on the island's name; after the cutscene the boat brings
   the party ashore (back from the island they drop in from above in puffs of dust), the wild ones drop in; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,

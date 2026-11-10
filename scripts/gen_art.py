@@ -23,17 +23,18 @@ import argparse, os, sys
 
 PAL = {
     "ink": 0x2B1E2E,
-    "red0": 0x6E1F33, "red1": 0xB0304A, "red2": 0xE8465B, "red3": 0xFF8A8F,
-    "org0": 0x8A3E1C, "org1": 0xD06A2E, "org2": 0xFFA553, "org3": 0xFFD39A,
-    "yel0": 0x8F6410, "yel1": 0xD9A21E, "yel2": 0xFFCB30, "yel3": 0xFFF0A0,
-    "grn0": 0x24563A, "grn1": 0x3F8F4F, "grn2": 0x6CC06A, "grn3": 0xB4EA9E,
-    "cyn0": 0x1A5A73, "cyn1": 0x2F92B5, "cyn2": 0x6FD3F2, "cyn3": 0xC9F2FF,
-    "blu0": 0x24346E, "blu1": 0x3E5CB8, "blu2": 0x70A9EA, "blu3": 0xC0DCFF,
-    "pur0": 0x3E2A66, "pur1": 0x6A4BA8, "pur2": 0xA77DD7, "pur3": 0xDCC6F7,
-    "pnk0": 0x8C3A63, "pnk1": 0xC9608F, "pnk2": 0xFFA7CA, "pnk3": 0xFFDCEB,
-    "brn0": 0x4A2E1E, "brn1": 0x8B5B3D, "brn2": 0xC88D5C, "brn3": 0xEDC293,
-    "gry0": 0x3E4554, "gry1": 0x6E7888, "gry2": 0xAEB8C5, "gry3": 0xE4E9EF,
-    "skn0": 0x8A5A3C, "skn1": 0xCB9063, "skn2": 0xF1C39B, "skn3": 0xFFE4CC,
+    # every ramp shifts its hue: its shadows cool (toward blue and purple), its lights warm (toward yellow)
+    "red0": 0x5A1A4A, "red1": 0xA82B4E, "red2": 0xE8465B, "red3": 0xFF9273,
+    "org0": 0x7A2B33, "org1": 0xC25530, "org2": 0xF59342, "org3": 0xFFD780,
+    "yel0": 0x7D4A2A, "yel1": 0xD08E2A, "yel2": 0xFFCB30, "yel3": 0xFFF7A6,
+    "grn0": 0x1E4A55, "grn1": 0x2E7D57, "grn2": 0x6CC06A, "grn3": 0xC9EE8A,
+    "cyn0": 0x253F7A, "cyn1": 0x2F80B5, "cyn2": 0x6FD3F2, "cyn3": 0xD6FFEA,
+    "blu0": 0x2B2160, "blu1": 0x3B55B0, "blu2": 0x70A9EA, "blu3": 0xC4F2FF,
+    "pur0": 0x2C1C55, "pur1": 0x5E3C9E, "pur2": 0xA77DD7, "pur3": 0xF2C8EE,
+    "pnk0": 0x5E2457, "pnk1": 0xA84B86, "pnk2": 0xFF94C2, "pnk3": 0xFFE2D6,
+    "brn0": 0x3A2036, "brn1": 0x7A4532, "brn2": 0xC88D5C, "brn3": 0xF5D49A,
+    "gry0": 0x323650, "gry1": 0x5F6B88, "gry2": 0xA6B4C6, "gry3": 0xEBF1E8,
+    "skn0": 0x7E4150, "skn1": 0xC47A5E, "skn2": 0xF1C39B, "skn3": 0xFFF0D2,
     "wht": 0xFFFFFF, "crm": 0xFFF3D9, "blk": 0x3B3442, "plt": 0x463B5C,
 }
 RAMPS = {
@@ -47,7 +48,6 @@ FLAT = {
     "k": "ink", "w": "wht", "r": "red2", "o": "org2", "y": "yel2", "g": "grn2", "c": "cyn2", "b": "blu2", "p": "pnk2",
     "n": "brn1", "s": "gry2", "e": "yel3", "q": "red3", "u": "pur2", "x": "blk", "z": "cyn3", "h": "gry3", "m": "crm",
 }
-AA_ALPHA = 0.35
 
 SPRITES = {}  # name -> dict(rows, flat, shade, outline, recolor)
 
@@ -373,6 +373,84 @@ SMALL = {
 for k, rows in SMALL.items():
     S("mini_" + k, rows, pad=True)
 
+# ---------------------------------------------------------------- the sea chart's islands (GAME_DESIGN 7), 13 x 10
+CHART = {
+    "home": [
+        ".......R.....",
+        ".......RR....",
+        ".......N.....",
+        "...FFFFNFF...",
+        "..FFFGGGGFF..",
+        ".FFGGGGGGGFF.",
+        ".FFGGGOGGGFF.",
+        "..FFGGGGGFF..",
+        "...FFFFFFF...",
+        ".............",
+    ],
+    "beach": [
+        ".............",
+        "......GG.....",
+        ".....GGGG....",
+        "......N......",
+        "...FFFNFFF...",
+        "..FFFFFFFFF..",
+        ".FFFFFFFFFFF.",
+        "..FFFFFFFFF..",
+        "....FFFFF....",
+        ".............",
+    ],
+    "meadow": [
+        ".............",
+        ".....GG......",
+        "....GGGGG....",
+        "...GGGGGGG...",
+        "..FGGGGGGGF..",
+        ".FFGGGGGGGFF.",
+        "..FFGGGGGFF..",
+        "...FFFFFFF...",
+        ".............",
+        ".............",
+    ],
+    "volcano": [
+        ".............",
+        "......OO.....",
+        ".....DOOD....",
+        "....DDDDDD...",
+        "...DDDDDDDD..",
+        "..SSDDDDDDSS.",
+        ".SSSSSSSSSSS.",
+        "..SSSSSSSSS..",
+        ".............",
+        ".............",
+    ],
+    "snow": [
+        ".............",
+        "......W......",
+        ".....WWW.....",
+        "....WWWWW....",
+        "...WWWWWWW...",
+        "..CWWWWWWWC..",
+        ".CCCCCCCCCCC.",
+        "..CCCCCCCCC..",
+        ".............",
+        ".............",
+    ],
+    "reef": [
+        ".............",
+        "...KK..KKK...",
+        "..KKKKKKKKK..",
+        ".KKcccccccKK.",
+        ".KKcccccccKK.",
+        "..KKKKKKKKK..",
+        "...KKK.KK....",
+        ".............",
+        ".............",
+        ".............",
+    ],
+}
+for k, rows in CHART.items():
+    S("chart_" + k, rows)
+
 # ---------------------------------------------------------------- the microgames' overlay: a note, the fuse's spark and bomb, a heart
 # (the microgames themselves are 3D now: Models/MicroModels on a stage the pixel filter draws)
 S("note", [
@@ -427,22 +505,74 @@ for nm, rows in (("arrow", ARROW), ("arrow_t", ARROW_T)):
 
 
 # ---------------------------------------------------------------- the passes
-def tone_of(grid, x, y, letter, w, h):
-    def out(dx, dy):
-        nx, ny = x + dx, y + dy
-        return not (0 <= nx < w and 0 <= ny < h) or grid[ny][nx] != letter
-    tl = out(-1, 0) or out(0, -1)
-    br = out(1, 0) or out(0, 1)
-    if tl and br:
-        return 2
-    if tl:
-        return 3
-    if br:
-        return 0 if (out(1, 0) and out(0, 1)) else 1
-    # a second shadow band two pixels in from the bottom right on big regions
-    if out(2, 0) or out(0, 2):
-        return 1 if (out(2, 0) and out(0, 2)) or out(1, 1) else 2
-    return 2
+def form_light(grid, w, h):
+    """How much each solid pixel of the whole silhouette faces the light (top left): a height from the distance to
+    the silhouette's edge (a gentle dome over the whole shape, not each colour region), lit along its slope."""
+    solid = [[grid[y][x] != "." for x in range(w)] for y in range(h)]
+    INF = 99
+    dist = [[0 if not solid[y][x] else INF for x in range(w)] for y in range(h)]
+    for _ in range(2):
+        for y in range(h):
+            for x in range(w):
+                if dist[y][x]:
+                    for dx, dy in ((-1, 0), (0, -1), (-1, -1), (1, -1)):
+                        nx, ny = x + dx, y + dy
+                        d = dist[ny][nx] if 0 <= nx < w and 0 <= ny < h else 0
+                        dist[y][x] = min(dist[y][x], d + 1)
+        for y in range(h - 1, -1, -1):
+            for x in range(w - 1, -1, -1):
+                if dist[y][x]:
+                    for dx, dy in ((1, 0), (0, 1), (1, 1), (-1, 1)):
+                        nx, ny = x + dx, y + dy
+                        d = dist[ny][nx] if 0 <= nx < w and 0 <= ny < h else 0
+                        dist[y][x] = min(dist[y][x], d + 1)
+    R = max(2, max(max(r) for r in dist) * 0.8)
+    def height(x, y):
+        if not (0 <= x < w and 0 <= y < h):
+            return 0.0
+        d = min(dist[y][x], R) / R
+        return (1 - (1 - d) ** 2) if d > 0 else 0.0
+    light = [[None] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if solid[y][x]:
+                gx = height(x + 1, y) - height(x - 1, y)
+                gy = height(x, y + 1) - height(x, y - 1)
+                # the light comes from the top left: a slope rising toward the bottom right faces it
+                light[y][x] = (gx + gy) * 0.5
+    return light
+
+
+def texture(letter, x, y, salt):
+    """A material's grain at a pixel: -1 a tone down, +1 a tone up, 0 none (wood grain, leaf clusters, stone
+    speckles, fur strands; smooth materials none)."""
+    hsh = ((x * 73856093) ^ (y * 19349663) ^ (salt * 83492791)) & 0xFFFF
+    r = hsh / 65535.0
+    if letter == "N":  # wood and bark: short dark grain lines along the width
+        return -1 if (y * 3 + x // 3 + salt) % 5 == 0 and x % 3 != 2 else 0
+    if letter == "G":  # leaves and moss: little lit clusters and dark gaps
+        if r < 0.12:
+            return 1
+        if r > 0.9:
+            return -1
+        return 0
+    if letter in ("S", "D"):  # stone: speckles
+        return -1 if r < 0.14 else 0
+    if letter in ("W", "C"):  # fur and snow: soft strands
+        return -1 if (x * 2 + y) % 7 == 0 and r < 0.5 else 0
+    return 0
+
+
+def tone_of(light, grid, x, y, letter, w, h, salt, textured):
+    v = light[y][x]
+    t = 3 if v > 0.18 else 2 if v > -0.08 else 1 if v > -0.3 else 0
+    # a shade under a region that overhangs this one (the light comes from above)
+    above = grid[y - 1][x] if y > 0 else "."
+    if above not in (".", letter) and t > 1:
+        t -= 1
+    if textured and t in (1, 2):
+        t = max(0, min(3, t + texture(letter, x, y, salt)))
+    return t
 
 
 def build(name, spec, recolor=None):
@@ -459,6 +589,9 @@ def build(name, spec, recolor=None):
                 flat[k] = v
     px = [[None] * w for _ in range(h)]  # (hex, alpha)
     solid = [[grid[y][x] != "." for x in range(w)] for y in range(h)]
+    light = form_light(grid, w, h)
+    salt = sum(ord(c) for c in name)
+    textured = w >= 13 and h >= 10  # grain reads on the portraits and the chart's islands, not on 11 px icons
     for y in range(h):
         for x in range(w):
             c = grid[y][x]
@@ -470,7 +603,7 @@ def build(name, spec, recolor=None):
                 ramp = RAMPS.get(c)
                 if ramp is None:
                     sys.exit("%s: no ramp for %r" % (name, c))
-                t = tone_of(grid, x, y, c, w, h) if spec["shade"] else 2
+                t = tone_of(light, grid, x, y, c, w, h, salt, textured) if spec["shade"] else 2
                 px[y][x] = (PAL[ramp[t]], 1.0)
             else:
                 key = flat.get(c)
@@ -508,15 +641,7 @@ def build(name, spec, recolor=None):
             for x in range(w):
                 if outl[y][x]:
                     px[y][x] = (PAL["ink"], 1.0)
-        # outer anti-aliasing: an empty pixel with outline on one side and one end (a step) gets a faint ink
-        for y in range(h):
-            for x in range(w):
-                if px[y][x] is not None:
-                    continue
-                hor = any(0 <= x + dx < w and outl[y][x + dx] for dx in (-1, 1))
-                ver = any(0 <= y + dy < h and outl[y + dy][x] for dy in (-1, 1))
-                if hor and ver:
-                    px[y][x] = (PAL["ink"], AA_ALPHA)
+        # (no anti-aliasing outside the outline: the silhouette stays crisp)
     return px
 
 
@@ -548,10 +673,10 @@ def all_sprites():
             continue
         # a white flash (the fuse's bomb blinking) for the overlay's sprites, a dark silhouette (not found yet) for the
         # icons: the same outline
-        if not (name.startswith("icon_") or name.startswith("mini_")):
+        if not (name.startswith(("icon_", "mini_", "chart_"))):
             flash = [[None if p is None else ((PAL["wht"], 1.0) if p[1] == 1.0 and p[0] != PAL["ink"] else p) for p in r] for r in out[name]]
             out[name + "_flash"] = flash
-        if name.startswith("icon_") or name.startswith("mini_"):
+        if name.startswith(("icon_", "mini_", "chart_")):
             sil = [[None if p is None else ((PAL["ink"], 0.55) if p[1] == 1.0 and p[0] != PAL["ink"] else p) for p in r] for r in out[name]]
             out[name + "_sil"] = sil
     return out

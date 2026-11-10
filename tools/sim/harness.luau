@@ -377,7 +377,7 @@ function H.checkProfile(p, label)
 	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
 	H.expect(prof.islets >= 0 and prof.islets == math.floor(prof.islets), "profile", label .. ": islands charted out of range", tostring(prof.islets))
-	H.expect(prof.tut >= 0 and prof.tut <= 4, "profile", label .. ": tips out of range", tostring(prof.tut))
+	H.expect(prof.tut >= 0 and prof.tut <= 6, "profile", label .. ": tips out of range", tostring(prof.tut))
 	-- the pieces
 	local placed = prof.plot.placed
 	H.expect(#placed <= Plot.limit(prof.tier), "profile", label .. ": more pieces than the island holds", tostring(#placed))

@@ -15,7 +15,6 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local StreetLife = {}
 
 local BOAT_SPEED = 4 -- studs a second
-local BOAT_COLORS = { "berry_red", "blue", "yellow", "green" }
 local CLOUD_Y = 24
 local started = false
 
@@ -54,7 +53,8 @@ function StreetLife.start()
 	local laneW = Street.SEA.z0 + 18 -- westbound
 	local boats: { Boat } = {}
 	for i = 1, 4 do
-		local t = MicroModels.build("sailboat", { color = BOAT_COLORS[(i - 1) % #BOAT_COLORS + 1] })
+		-- the detailed boats of Models/BoatSpec, of a few sizes, their flags fluttering
+		local t = MicroModels.build("ship", { level = ({ 1, 2, 1, 3 })[i] })
 		local east = i % 2 == 1
 		adopt(t, 2.4)
 		table.insert(boats, { t = t, x = b.x0 + (b.x1 - b.x0) * (i - 1) / 4, z = if east then laneE else laneW, dir = if east then 1 else -1, speed = BOAT_SPEED * (0.8 + 0.12 * i), ph = i * 1.3 })
@@ -94,7 +94,8 @@ function StreetLife.start()
 			local swell = math.sin(now * 1.6 + c.ph)
 			local bob = if swell > 0.3 then 0.25 elseif swell < -0.3 then 0 else 0.125
 			local roll = math.rad(if swell > 0.5 then 4 elseif swell < -0.5 then -4 else 0)
-			MicroModels.place(c.t, CFrame.new(c.x, Street.WATER_Y - 0.25 + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0) * CFrame.Angles(0, 0, roll))
+			MicroModels.flutter(c.t, now + c.ph)
+			MicroModels.place(c.t, CFrame.new(c.x, Street.WATER_Y - 0.1 + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0) * CFrame.Angles(0, 0, roll))
 		end
 		-- a flock crosses now and then
 		if now >= flockAt then

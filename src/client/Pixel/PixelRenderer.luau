@@ -201,7 +201,34 @@ local function staticIdOf(part: BasePart): number
 	albedos[nid] = rgb
 	local wk = part:GetAttribute("PixelWater")
 	waters[nid] = if type(wk) == "number" then wk else 0
+	-- the wind: leaves sway (class 4), flags ripple (class 5)
+	local wind = part:GetAttribute("PixelWind")
+	if waters[nid] == 0 and (wind == 1 or wind == 2) then
+		waters[nid] = 3 + (wind :: number)
+	end
 	return nid
+end
+
+-- the wind's paint on the static layer (the wind section): undone before a scroll, a stash or a bake
+local windSaved: { [number]: number } = {} -- pixel -> its colour before the wind
+local windWrote: { [number]: number } = {} -- pixel -> the colour the wind painted
+local windOn: Surf? = nil -- the layer they belong to (another layer's are dropped, never painted elsewhere)
+
+local function windRestore(s: Surf): boolean
+	local color = s.sColor
+	local any = false
+	if windOn == s then
+		for i, c in windSaved do
+			if buffer.readu32(color, i * 4) == windWrote[i] then
+				buffer.writeu32(color, i * 4, c)
+				any = true
+			end
+		end
+	end
+	windOn = nil
+	table.clear(windSaved)
+	table.clear(windWrote)
+	return any
 end
 
 local function mixRgb(over: number, under: number, a: number): number
@@ -347,8 +374,16 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	local wph = 0
 	if wcls ~= 0 then
 		local wx, wz = ox + cam.lx * depth, oz + cam.lz * depth
-		local v = wx * 0.6 + wz * 0.35 + 1.6 * math.sin(wz * 0.23 + wx * 0.05) + 1.1 * math.sin(wx * 0.17)
-		wph = math.floor(v * 9.14) % 256
+		if wcls == 4 then
+			-- leaves: gusts sweeping slowly across the islands (a canopy moves as one)
+			wph = math.floor((wx * 0.22 + wz * 0.16) * 4) % 256
+		elseif wcls == 5 then
+			-- flags: a quick wave along their length
+			wph = math.floor((wx * 1.6 + wz * 1.1) * 4) % 256
+		else
+			local v = wx * 0.6 + wz * 0.35 + 1.6 * math.sin(wz * 0.23 + wx * 0.05) + 1.1 * math.sin(wx * 0.17)
+			wph = math.floor(v * 9.14) % 256
+		end
 	end
 	buffer.writeu8(s.sWClass, idx, wcls)
 	buffer.writeu8(s.sWave, idx, wph)
@@ -588,6 +623,9 @@ local function startBake()
 	if s == nil then
 		return
 	end
+	table.clear(windSaved)
+	table.clear(windWrote)
+	windOn = nil
 	table.clear(staticIds)
 	table.clear(albedos)
 	table.clear(waters)
@@ -622,6 +660,9 @@ end
 local function buildSurf(v: CameraController.View)
 	refreshExclude()
 	local old = surf
+	if old then
+		windRestore(old) -- (the wind's paint off the layer going away: a kept street picture comes back clean)
+	end
 	if old and not baking and not old.view.stage and v.stage then
 		-- a stage takes the view: keep the street's finished picture
 		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), nextId = nextId, dirty = false }
@@ -775,7 +816,7 @@ local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
 				local idx = y * W + x
 				local id = buffer.readu16(f.id, idx * 2)
 				-- the static picture only, never its ink lines or the sky
-				if id ~= 0 and id < DYN_ID0 and (buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) or buffer.readu8(s.sWClass, idx) ~= 0) then
+				if id ~= 0 and id < DYN_ID0 and (buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) or (buffer.readu8(s.sWClass, idx) ~= 0 and buffer.readu8(s.sWClass, idx) <= 3)) then
 					buffer.writeu32(f.color, idx * 4, shadeShadowed(s, idx, x, y))
 					any = true
 				end
@@ -859,7 +900,7 @@ local function animateWater(s: Surf): boolean
 	local changed = false
 	for i = 0, n - 1 do
 		local c = buffer.readu8(cls, i)
-		if c ~= 0 then
+		if c ~= 0 and c <= 3 then
 			local base = buffer.readu32(shade, i * 4)
 			local cur = buffer.readu32(color, i * 4)
 			local ph = buffer.readu8(wave, i)
@@ -873,6 +914,74 @@ local function animateWater(s: Surf): boolean
 		end
 	end
 	return changed
+end
+
+------------------------------------------------------------------ the wind
+-- Leaves sway and flags ripple without a ray: a canopy leans a pixel one way, rests, leans back, rests (about 2.7 s a
+-- sway, the phase drifting slowly across the island): its edges (the outline and the leaf next to it) move a pixel
+-- that way, the leading one out over what lies behind it (never over something nearer), the trailing one in, what
+-- lay behind it showing a pixel further; a flag's columns hang a pixel lower in
+-- the wave's crests and lift a pixel in its troughs (the lifted ones a fold darker). What the wind paints is undone
+-- before the next frame, a scroll or a bake (`windRestore`).
+
+local function animateWind(s: Surf, k: number): boolean
+	local any = windRestore(s)
+	local W, H = s.W, s.H
+	local cls, wave, depth, color = s.sWClass, s.sWave, s.sDepth, s.sColor
+	local function orig(i: number): number
+		return windSaved[i] or buffer.readu32(color, i * 4)
+	end
+	local function put(i: number, c: number)
+		windOn = s
+		if windSaved[i] == nil then
+			windSaved[i] = buffer.readu32(color, i * 4)
+		end
+		buffer.writeu32(color, i * 4, c)
+		windWrote[i] = c
+		any = true
+	end
+	for y = 1, H - 2 do
+		local row = y * W
+		for x = 1, W - 2 do
+			local i = row + x
+			local c = buffer.readu8(cls, i)
+			if c == 4 then
+				local g = (buffer.readu8(wave, i) + k * 3) % 48
+				local dx = if g < 12 then 1 elseif g >= 24 and g < 36 then -1 else 0
+				if dx ~= 0 then
+					local t, b = i + dx, i - dx
+					local d = buffer.readf32(depth, i * 4) + 0.5
+					if buffer.readu8(cls, t) ~= 4 and buffer.readf32(depth, t * 4) > d then
+						-- the leading edge: the outline moves out over what lies behind
+						put(t, orig(i))
+						if buffer.readu8(cls, b) == 4 then
+							put(i, orig(b))
+						end
+					elseif buffer.readu8(cls, b) ~= 4 and buffer.readf32(depth, b * 4) > d and buffer.readu8(cls, t) == 4 then
+						-- the trailing edge: what lies behind shows a pixel further in, the outline follows
+						put(i, orig(b))
+						put(t, orig(i))
+					end
+				end
+			elseif c == 5 then
+				local g = (buffer.readu8(wave, i) + k * 5) % 32
+				local dy = if g < 12 then 1 elseif g >= 16 and g < 28 then -1 else 0
+				if dy ~= 0 then
+					local t = i + dy * W
+					if buffer.readu8(cls, t) ~= 5 and buffer.readf32(depth, t * 4) > buffer.readf32(depth, i * 4) + 0.5 then
+						put(t, orig(i))
+						if buffer.readu8(cls, i - dy * W) == 5 then
+							put(i, orig(i - dy * W))
+						end
+					elseif dy < 0 and buffer.readu8(cls, t) == 5 then
+						-- a lifted column's fold, a shade darker
+						put(i, mixShaded(0x2B1E2E, orig(i), 0.16))
+					end
+				end
+			end
+		end
+	end
+	return any
 end
 
 local function compose()
@@ -1035,6 +1144,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	if dx == 0 and dy == 0 then
 		return
 	end
+	windRestore(s)
 	local W, H = s.W, s.H
 	local v = s.view
 	if math.abs(dx) >= W // 2 or math.abs(dy) >= H // 2 then
@@ -1248,6 +1358,9 @@ local function onHeartbeat(dt: number)
 			waterClock = 0
 			waterFrame += 1
 			if animateWater(s) then
+				needFull = true
+			end
+			if animateWind(s, waterFrame) then
 				needFull = true
 			end
 		end

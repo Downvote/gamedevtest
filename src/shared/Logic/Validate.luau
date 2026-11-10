@@ -4,7 +4,7 @@
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
 --   "int"    a whole number in [0, 1e6] (a villager, driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 16] (a look index)
---   "level"  a whole number in [1, Tuning.LevelMax] (an island's level)
+--   "isle"   a whole number in [1, 64] (an island of the sea chart)
 --   "party"  up to three members "v<id>" / "p<id>" joined by commas ("" for the captain alone)
 --   "act"    a battle move: "fight", "guard", "treat" or "flee"
 --   "target" a wild driftling in the battle ("w1".."w9") or "" (none)
@@ -14,8 +14,6 @@
 --   "index"  a whole number in [1, 64] (a placed piece)
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
-
-local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 local Validate = {}
 
@@ -29,7 +27,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["folk.dismiss"] = { id = "int" },
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.release"] = { id = "int" },
-	["exp.start"] = { lvl = "level", party = "party" },
+	["exp.start"] = { isle = "isle", party = "party" },
+	["boat.upgrade"] = {},
 	["exp.next"] = {},
 	["exp.act"] = { act = "act", target = "target" },
 	["exp.home"] = {},
@@ -54,8 +53,8 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 0, 1e6)
 	elseif kind == "small" then
 		return isInt(v, 1, 16)
-	elseif kind == "level" then
-		return isInt(v, 1, Tuning.LevelMax)
+	elseif kind == "isle" then
+		return isInt(v, 1, 64)
 	elseif kind == "party" then
 		if type(v) ~= "string" or #v > 40 then
 			return false

@@ -21,6 +21,7 @@ local Street = require(script.Parent.Parent.Data.Street)
 local Util = require(script.Parent.Parent.Logic.Util)
 local Types = require(script.Parent.Parent.Types)
 local Blocks = require(script.Parent.Blocks)
+local BoatSpec = require(script.Parent.BoatSpec)
 
 local StreetModels = {}
 
@@ -196,25 +197,28 @@ local function tuft(parent: Instance, at: CFrame, flower: string?)
 	end
 end
 
--- The boat at the pier's end (its bow to the south): a planked hull with a band, a bow, a cabin, a mast and sail.
-local function boat(parent: Instance, at: CFrame)
+-- The expedition boat moored beside the pier (Models/BoatSpec at the boat's level; its bow to the south): rebuilt
+-- by PlotService when the boat is upgraded. Its flags carry PixelWind 2 (they ripple in the pixel filter's wind).
+function StreetModels.boat(parent: Instance, origin: Vector3, level: number): Model
 	local m = Blocks.model(nil, "Boat")
-	box(m, at, 0, -0.75, 0, 3, 1, 5, "wood_dark", "Hull")
-	box(m, at, 0, -0.45, 0, 3.1, 0.25, 5.1, "berry_red", "Band")
-	box(m, at, 0, -0.15, 0, 3.25, 0.25, 5.25, "wood", "Rim")
-	Blocks.part(m, { size = Vector3.new(3, 1.25, 1.5), cf = at * CFrame.new(0, -0.6, 3.25), color = "wood_dark", name = "Bow", shape = "Wedge" })
-	box(m, at, 0, -0.1, 0, 2.5, 0.25, 4.25, "wood", "Deck")
-	for z = -1.75, 1.75, 0.75 do
-		box(m, at, 0, 0.03, z, 2.5, 0.05, 0.1, "wood_dark", "Seam")
+	m:SetAttribute("Level", level)
+	local mx, mz = BoatSpec.moor(level)
+	local at = CFrame.new(origin) * CFrame.new(mx, Street.WATER_Y + BoatSpec.deckOverWater(level), mz)
+	for _, sp in BoatSpec.parts(level) do
+		local cf = at * sp.cf
+		local p: BasePart
+		if sp.shape == "CylY" then
+			p = Blocks.cylY(m, sp.size.X, sp.size.Y, cf, sp.color)
+		else
+			p = Blocks.part(m, { size = sp.size, cf = cf, color = sp.color, name = sp.name, shape = if sp.shape == "Wedge" then "Wedge" else nil, neon = sp.neon })
+		end
+		p.Name = sp.name
+		if sp.wind then
+			p:SetAttribute("PixelWind", sp.wind)
+		end
 	end
-	box(m, at, 0, 0.6, -1.25, 1.75, 1.25, 1.5, "cream", "Cabin")
-	box(m, at, 0, 1.3, -1.25, 2, 0.25, 1.75, "berry_red", "Roof")
-	box(m, at, 0.88, 0.75, -1.25, 0.1, 0.5, 0.75, "window", "Porthole")
-	box(m, at, 0, 2.6, 0.5, 0.25, 5, 0.25, "wood_dark", "Mast")
-	Blocks.part(m, { size = Vector3.new(0.1, 3.5, 2.25), cf = at * CFrame.new(0.15, 2.9, 1.65), color = "white", name = "Sail", shape = "Wedge" })
-	box(m, at, 0, 5.1, 0.75, 0.1, 0.5, 0.75, "berry_red", "Flag")
-	box(m, at, 0, 0.15, 1.75, 0.75, 0.5, 0.75, "wood", "Crate")
 	m.Parent = parent
+	return m
 end
 
 local function crate(parent: Instance, at: CFrame, s: number)
@@ -291,7 +295,7 @@ function StreetModels.road(parent: Instance, origin: Vector3): Model
 	crate(m, o * CFrame.new(pr.x0 + 0.65, BOARD_Y + 1, pr.z0 + 3.1), 0.7)
 	barrel(m, o * CFrame.new(pr.x1 - 0.75, BOARD_Y, pr.z0 + 5))
 	Blocks.cylY(m, 0.9, 0.2, o * CFrame.new(pr.x1 - 0.7, BOARD_Y + 0.1, pr.z1 - 2.5), "sand_dark") -- a coil of rope
-	boat(m, o * CFrame.new(pr.x1 + 2.25, Street.WATER_Y + 0.6, pr.z1 - 2.5))
+	StreetModels.boat(m, origin, 1)
 	-- walls: the boardwalk's sea side (but the pier), the pier's sides and end
 	wall(m, o, x0, B1, pr.x0, B1 + 0.5)
 	wall(m, o, pr.x1, B1, x1, B1 + 0.5)
@@ -594,6 +598,7 @@ function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Mod
 	coastWalls(m, o, { x0 = cb.x0 - 1, z0 = cb.z0 - 1, x1 = cb.x1 + 1, z1 = Street.BOARD.z0 - 1 }, walk)
 	wall(m, o, lot.x0, Street.BOARD.z0 - 0.5, math.min(cb.x0 - 1, jt.x0), Street.BOARD.z0)
 	wall(m, o, math.max(cb.x1 + 2, jt.x1), Street.BOARD.z0 - 0.5, lot.x1, Street.BOARD.z0)
+	Blocks.windy(m) -- palms and tufts sway, the plaza's pennant ripples
 	m.Parent = parent
 	return m
 end

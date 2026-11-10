@@ -10,6 +10,7 @@ local Schema = require("../build/luautest/shared/Logic/Schema")
 local Island = require("../build/luautest/shared/Logic/Island")
 local Plot = require("../build/luautest/shared/Logic/Plot")
 local Expedition = require("../build/luautest/shared/Logic/Expedition")
+local Chart = require("../build/luautest/shared/Logic/Chart")
 local Buildings = require("../build/luautest/shared/Data/Buildings")
 local Street = require("../build/luautest/shared/Data/Street")
 local Util = require("../build/luautest/shared/Logic/Util")
@@ -175,14 +176,45 @@ local function needed(lvl: number): number
 	return (30 * 0.25 + 8 + 2.5) * (1 + Tuning.LevelGrow * (lvl + 1)) * 2.6
 end
 
--- The level to sail at: the captain's, lower while the party looks too weak for its guardian, lower again after
--- defeats (the Explore panel's slider).
-local function pickLevel(p: any, keys: { string }, fails: number): number
-	local lvl = Expedition.maxLevel(p)
-	while lvl > 1 and power(p, keys) < needed(lvl) do
-		lvl -= 1
+-- The island to sail to (the sea chart): the highest-level one in the boat's range the party looks strong enough for
+-- (less after defeats), one not charted yet first (its whole reward), else a charted one again (half); the nearest
+-- when none looks safe.
+local function pickIsle(p: any, keys: { string }, fails: number): number
+	local can = power(p, keys)
+	local best, bestCharted = nil, nil
+	for _, c in Chart.islands(p.sea) do
+		if Chart.reachable(p, c.id) and needed(c.lvl + 2 * fails) <= can then
+			if not Chart.charted(p, c.id) then
+				if best == nil or c.lvl > best.lvl then
+					best = c
+				end
+			elseif bestCharted == nil or c.lvl > bestCharted.lvl then
+				bestCharted = c
+			end
+		end
 	end
-	return math.max(1, lvl - 2 * fails)
+	local pick = best or bestCharted
+	return if pick then pick.id else 1
+end
+
+-- Whether a bigger boat would help: nothing new the party can take on is left in reach, and the next range holds
+-- islands it could.
+local function wantsBoat(p: any, keys: { string }): boolean
+	if Chart.boatCost(p.boat) == nil then
+		return false
+	end
+	local can = power(p, keys)
+	local farther = false
+	for _, c in Chart.islands(p.sea) do
+		local ok = needed(c.lvl) <= can
+		if ok and Chart.reachable(p, c.id) and not Chart.charted(p, c.id) then
+			return false
+		end
+		if ok and c.dist <= Chart.radius(p.boat + 1) and c.dist > Chart.radius(p.boat) then
+			farther = true
+		end
+	end
+	return farther
 end
 
 function Career.play(seed: number, seconds: number, opts: Opts?)
@@ -221,6 +253,12 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		end
 		if t % 5 == 0 then
 			plan(p, away)
+			-- a bigger boat when nothing new is left in reach (not while it is away)
+			local bc = Chart.boatCost(p.boat)
+			if exp == nil and bc and p.shells >= bc.shells and p.wood >= bc.wood and wantsBoat(p, party(p)) then
+				Chart.upgradeBoat(p)
+				mark("boat" .. p.boat, t)
+			end
 		end
 		if p.tier >= 2 then
 			mark("tier2", t)
@@ -231,7 +269,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		-- the expedition
 		if exp == nil and t >= nextTrip then
 			local keys = party(p)
-			local ok, e = Expedition.start(p, pickLevel(p, keys, fails), keys, rng:int(1, 2147483646))
+			local ok, e = Chart.sail(p, pickIsle(p, keys, fails), keys)
 			if ok then
 				exp = e
 				busyUntil = t + NODE_SEC
@@ -294,9 +332,9 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		end
 		if t % 600 == 0 then
 			local r = Island.rates(p, Expedition.away(exp))
-			local row = { t = t, shells = p.shells, food = p.food, wood = p.wood, folk = #p.folk, pals = #p.pals, tier = p.tier, islets = p.islets, cap = p.cap.lvl, pieces = #p.plot.placed, charm = Island.charm(p), shellRate = r.shells, foodRate = r.food, woodRate = r.wood }
+			local row = { t = t, shells = p.shells, food = p.food, wood = p.wood, folk = #p.folk, pals = #p.pals, tier = p.tier, islets = p.islets, boat = p.boat, cap = p.cap.lvl, pieces = #p.plot.placed, charm = Island.charm(p), shellRate = r.shells, foodRate = r.food, woodRate = r.wood }
 			table.insert(timeline, row)
-			say(string.format("%3dmin shells %d (+%.0f/d) food %d (%+.0f/d) wood %d (+%.0f/d) tier %d pieces %d folk %d pals %d islets %d cap %d charm %d", t // 60, math.floor(p.shells), r.shells, math.floor(p.food), r.food, math.floor(p.wood), r.wood, p.tier, #p.plot.placed, #p.folk, #p.pals, p.islets, p.cap.lvl, Island.charm(p)))
+			say(string.format("%3dmin shells %d (+%.0f/d) food %d (%+.0f/d) wood %d (+%.0f/d) tier %d pieces %d folk %d pals %d islets %d boat %d cap %d charm %d", t // 60, math.floor(p.shells), r.shells, math.floor(p.food), r.food, math.floor(p.wood), r.wood, p.tier, #p.plot.placed, #p.folk, #p.pals, p.islets, p.boat, p.cap.lvl, Island.charm(p)))
 		end
 	end
 	return { profile = p, timeline = timeline, first = first }

@@ -42,6 +42,9 @@ export type Profile = {
 	pals: { Pal },
 	plot: PlotSave,
 	islets: number, -- islands charted: guardians beaten (each a charm, up to Tuning.ChartCharmMax)
+	sea: number, -- the seed of the player's own sea chart (Logic/Chart)
+	boat: number, -- the boat's level (its range on the chart)
+	chart: { number }, -- the chart's islands charted (ids)
 	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
 	nextId: number, -- the next villager, driftling or piece id
 	tut: number, -- the tips' step (0 = done)
@@ -75,6 +78,7 @@ export type Battle = { foes: { Fighter }, round: number, boss: boolean, shield: 
 -- picked; its kind (Data/Islets), name, the driftlings living there, its guardian, what its loot and chests hold and
 -- the guardian's reward.
 export type Isle = {
+	id: number?, -- its place on the sea chart (Logic/Chart)
 	seed: number,
 	lvl: number,
 	kind: number,
@@ -116,6 +120,9 @@ export type ClientView = {
 	plot: number, -- the plot index on the sea
 	pieces: { Piece },
 	islets: number,
+	sea: number,
+	boat: number,
+	chart: { number },
 	seen: { [string]: number },
 	tut: number,
 	stats: Stats,
@@ -146,6 +153,7 @@ export type ErrCode =
 	| "no_exp"
 	| "in_battle"
 	| "not_found"
+	| "far"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }
 

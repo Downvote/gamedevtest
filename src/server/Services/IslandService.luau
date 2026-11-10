@@ -13,6 +13,7 @@ local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
+local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
 local Session = require(script.Parent.Session)
 local Router = require(script.Parent.Router)
 local PlotService = require(script.Parent.PlotService)
@@ -21,10 +22,11 @@ local IslandService = {}
 
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
--- The tips (GAME_DESIGN 9): 1 build food, 2 build a home, 3 build a nest and sail, 4 the last tip (OK ends them).
+-- The tips (GAME_DESIGN 9): 1 food (a farm), 2 wood (a lumber camp), 3 shells (a shop), 4 a home, 5 a nest and
+-- set sail (Logic/Expedition moves it on), 6 the last tip (OK ends them). Each moves on once what it asks is built.
 local function tips(s: Session.S)
 	local p = s.profile
-	if p.tut < 1 or p.tut > 3 then
+	if p.tut < 1 or p.tut > 4 then
 		return
 	end
 	local has: { [string]: boolean } = {}
@@ -34,11 +36,10 @@ local function tips(s: Session.S)
 			has[d.kind] = true
 		end
 	end
-	if p.tut == 1 and has.food then
-		p.tut = 2
-	end
-	if p.tut == 2 and has.home then
-		p.tut = 3
+	for step, kind in { "food", "wood", "shop", "home" } do
+		if p.tut == step and has[kind] then
+			p.tut = step + 1
+		end
 	end
 end
 
@@ -116,6 +117,17 @@ function IslandService.init()
 		end
 		return Island.release(s.profile, a.id)
 	end)
+	-- the boat (GAME_DESIGN 7): a bigger one sails further on the chart; not while it is away
+	Router.on("boat.upgrade", function(s, _a)
+		if s.exp then
+			return false, "busy"
+		end
+		local ok, data = Chart.upgradeBoat(s.profile)
+		if ok then
+			PlotService.setBoat(s)
+		end
+		return ok, data
+	end)
 	-- expeditions (GAME_DESIGN 7)
 	Router.on("exp.start", function(s, a)
 		if s.exp then
@@ -125,8 +137,7 @@ function IslandService.init()
 		for part in string.gmatch(a.party, "[^,]+") do
 			table.insert(members, part)
 		end
-		-- the island is made up here, from a seed of the server's own
-		local ok, e = Expedition.start(s.profile, a.lvl, members, s.rng:int(1, 2147483646))
+		local ok, e = Chart.sail(s.profile, a.isle, members)
 		if not ok then
 			return false, e
 		end

@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local _ = ReplicatedStorage
 
 local Blocks = require(script.Parent.Blocks)
+local BoatSpec = require(script.Parent.BoatSpec)
 
 local MicroModels = {}
 
@@ -27,7 +28,7 @@ export type Thing = {
 	kind: string,
 }
 
-export type Opts = { color: string?, alt: string?, flag: boolean? }
+export type Opts = { color: string?, alt: string?, flag: boolean?, level: number? }
 
 local function new(kind: string, h: number, r: number): Thing
 	local m = Blocks.model(nil, "Micro_" .. kind)
@@ -527,25 +528,21 @@ BUILD.sailboat = function(o)
 	return t
 end
 
--- The expedition's boat (the one moored at every island's pier, Models/StreetModels' boat): its origin on the
--- waterline, facing +Z: a planked hull with a red band, a bow, a cabin with a porthole, a mast, a sail and a flag.
-BUILD.ship = function(_o)
-	local t = new("ship", 5.6, 2.6)
-	add(t, "Hull", "Block", Vector3.new(3, 1, 5), Vector3.new(0, -0.15, 0), "wood_dark")
-	add(t, "Band", "Block", Vector3.new(3.1, 0.25, 5.1), Vector3.new(0, 0.15, 0), "berry_red")
-	add(t, "Rim", "Block", Vector3.new(3.25, 0.25, 5.25), Vector3.new(0, 0.45, 0), "wood")
-	add(t, "Bow", "Wedge", Vector3.new(3, 1.25, 1.5), Vector3.new(0, 0, 3.25), "wood_dark")
-	add(t, "Deck", "Block", Vector3.new(2.5, 0.25, 4.25), Vector3.new(0, 0.5, 0), "wood")
-	for i, z in { -1.75, -1, -0.25, 0.5, 1.25 } do
-		add(t, "Seam" .. i, "Block", Vector3.new(2.5, 0.05, 0.1), Vector3.new(0, 0.63, z), "wood_dark")
+-- The expedition's boat (Models/BoatSpec at opts.level, 1 by default: the one moored at the pier): its origin on the
+-- waterline, facing +Z. Its flags flutter with `flutter`.
+BUILD.ship = function(o)
+	local lv = math.clamp(math.floor(tonumber(o.level) or 1), 1, BoatSpec.MAX)
+	local d = BoatSpec.dims(lv)
+	local t = new("ship", 4 + lv * 0.8, d.L / 2 + 1)
+	local up = BoatSpec.deckOverWater(lv)
+	for _, sp in BoatSpec.parts(lv) do
+		local at = sp.cf.Position + Vector3.new(0, up, 0)
+		if sp.shape == "CylY" then
+			add(t, sp.name, "Cylinder", Vector3.new(sp.size.Y, sp.size.X, sp.size.Z), at, sp.color, CFrame.Angles(0, 0, math.pi / 2))
+		else
+			add(t, sp.name, sp.shape, sp.size, at, sp.color, nil, sp.neon)
+		end
 	end
-	add(t, "Cabin", "Block", Vector3.new(1.75, 1.25, 1.5), Vector3.new(0, 1.2, -1.25), "cream")
-	add(t, "Roof", "Block", Vector3.new(2, 0.25, 1.75), Vector3.new(0, 1.9, -1.25), "berry_red")
-	add(t, "Porthole", "Block", Vector3.new(0.1, 0.5, 0.75), Vector3.new(0.88, 1.35, -1.25), "window")
-	add(t, "Mast", "Block", Vector3.new(0.25, 5, 0.25), Vector3.new(0, 3.2, 0.5), "wood_dark")
-	add(t, "Sail", "Wedge", Vector3.new(0.1, 3.5, 2.25), Vector3.new(0.15, 3.5, 1.65), "white")
-	add(t, "Flag", "Block", Vector3.new(0.1, 0.5, 0.75), Vector3.new(0, 5.7, 0.75), "berry_red")
-	add(t, "Crate", "Block", Vector3.new(0.75, 0.5, 0.75), Vector3.new(0, 0.75, 1.75), "wood")
 	return t
 end
 
@@ -987,6 +984,24 @@ end
 function MicroModels.place(t: Thing, cf: CFrame)
 	for name, p in t.parts do
 		p.CFrame = cf * t.rest[name]
+	end
+end
+
+-- Flags and pennants (parts named "Flag...") flutter: a ripple of whole quarter studs along them, time t (seconds).
+function MicroModels.flutter(th: Thing, t: number)
+	for name, p in th.parts do
+		if string.sub(name, 1, 4) == "Flag" and name ~= "FlagPole" then
+			local r = th.baseRest[name]
+			local s = th.baseSize[name]
+			local k = math.floor(t * 8 + #name) % 4
+			local dz = ({ 0, -0.125, -0.25, -0.125 })[k + 1]
+			local dy = ({ 0, 0.125, 0, -0.125 })[k + 1]
+			local sz = Vector3.new(s.X, s.Y, math.max(0.25, s.Z + dz * 2))
+			if p.Size ~= sz then
+				p.Size = sz
+			end
+			th.rest[name] = r * CFrame.new(0, dy, dz)
+		end
 	end
 end
 
