@@ -30,6 +30,11 @@ local Hud = {}
 
 local TOP_H = 13
 local BAR_H = 15
+-- the island's looks (GAME_DESIGN 2): the chips sit in thin frames of planks, the cards in thick ones, the menu bar on
+-- a wooden dock; these are the room they take
+local CHIP_Y = 5 -- a chip's top (its frame 3 px above)
+local CARD_Y = TOP_H + 15 -- the cards' top (their frames 4 px above)
+local DOCK = 6 -- the dock round the menu bar (3 px of board, 3 of frame)
 local CARD_W = 124 -- the card's width (108 on phones)
 local CARD_MAX_H = 120
 local LINE_H = 11
@@ -89,32 +94,32 @@ local function hudRects()
 		-- a phone (Random Bakery's rule): only Roblox's top bar and the menu bar are kept clear
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y },
-			r(math.floor(s.X / 2) - half, s.Y - BAR_H - 3, math.floor(s.X / 2) + half, s.Y),
+			r(math.floor(s.X / 2) - half - DOCK, s.Y - BAR_H - 2 * DOCK - 2, math.floor(s.X / 2) + half + DOCK, s.Y),
 		}
 	else
 		list = {
-			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (TOP_H + 3) * K },
-			r(0, s.Y - BAR_H - 3, s.X, s.Y),
-			r(s.X - CARD_W - 3, TOP_H + 2, s.X, TOP_H + 4 + CARD_MAX_H),
+			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (CHIP_Y + TOP_H + 4) * K },
+			r(0, s.Y - BAR_H - 2 * DOCK - 2, s.X, s.Y),
+			r(s.X - CARD_W - 9, CARD_Y - 5, s.X, CARD_Y + CARD_MAX_H + 6),
 		}
 	end
 	CameraController.setHudRects(list)
 end
 
 ------------------------------------------------------------------ chips
--- A chip: its 11 px icon, its value; `color` the thin band under the value.
+-- A chip: its 11 px icon, its value, on a carved board in a thin frame of planks.
 local function chip(name: string, x: number, w: number, icon: string): number
 	local canvas = UIKit.canvas("Hud")
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, TOP_H), UDim2.fromOffset(x, 2), UIKit.color("plate"), 0.08, 2)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, TOP_H), UDim2.fromOffset(x, CHIP_Y), UIKit.color("plate"), 0.04, 2, { bevel = true, wood = 2 })
 	f.Name = "Chip_" .. name
 	chipIcons[name] = PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(1, 1), 3)
 	chips[name] = UIKit.text(f, "", UDim2.new(1, -15, 1, 0), UDim2.fromOffset(13, 0), { name = "Value" })
 	chipFrames[name] = f
-	return x + w + 3
+	return x + w + 9
 end
 
 local function buildTop()
-	local x = 3
+	local x = 6
 	x = chip("shells", x, 56, "shell")
 	x = chip("food", x, 52, "food")
 	x = chip("wood", x, 50, "wood")
@@ -124,7 +129,7 @@ local function buildTop()
 	db.Name = "DayBar"
 	dayBar = db
 	-- Home: shown while the founder is off their own island (char.home sends them back to their path)
-	local hb = UIKit.button(UIKit.canvas("Hud"), "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(x, 2), function()
+	local hb = UIKit.button(UIKit.canvas("Hud"), "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(x - 3, CHIP_Y), function()
 		local res = StateClient.request("char.home", {})
 		if not res.ok and res.err ~= "cooldown" then
 			UIKit.notice("You can't go home right now.", UIKit.color("bad"))
@@ -134,7 +139,7 @@ local function buildTop()
 	homeButton = hb
 	-- the music switch: a note in the top right corner (settings.music, kept with the profile)
 	local s = UIKit.size("Hud")
-	local mb = UIKit.button(UIKit.canvas("Hud"), "", UDim2.fromOffset(15, TOP_H), UDim2.fromOffset(s.X - 18, 2), function()
+	local mb = UIKit.button(UIKit.canvas("Hud"), "", UDim2.fromOffset(15, TOP_H), UDim2.fromOffset(s.X - 19, CHIP_Y), function()
 		local v = StateClient.view()
 		local cur = musicPref or (if v and v.settings.music == "off" then "off" else "on")
 		local want = if cur == "off" then "on" else "off"
@@ -143,7 +148,7 @@ local function buildTop()
 		task.spawn(function()
 			StateClient.request("settings.set", { k = "music", v = want })
 		end)
-	end, { name = "MusicToggle", color = UIKit.color("plate") })
+	end, { name = "MusicToggle", color = UIKit.color("frame") })
 	PixelSprites.image(mb, "mini_note", UDim2.fromOffset(2, 1), 6).Name = "Note"
 	musicButton = mb
 end
@@ -222,8 +227,12 @@ local function buildBar()
 	f.Size = UDim2.fromOffset(total, BAR_H)
 	-- pinned to the canvas's bottom edge (not a measured y: it stays on screen while the canvas settles)
 	f.AnchorPoint = Vector2.new(0, 1)
-	f.Position = UDim2.new(0, math.floor((s.X - total) / 2), 1, -2)
+	f.Position = UDim2.new(0, math.floor((s.X - total) / 2), 1, -(DOCK + 2))
 	f.Parent = canvas
+	-- the dock the buttons stand on: a dark board in a frame of planks, showing between them
+	local dock = UIKit.plate(f, UDim2.fromOffset(total + 6, BAR_H + 6), UDim2.fromOffset(-3, -3), UIKit.color("frame_dark"), 0, 2, { bevel = true, wood = 2 })
+	dock.Name = "Dock"
+	dock.ZIndex = 1
 	local x = 0
 	for _, m in MENUS do
 		local w = UIKit.buttonWidth(m.text, 5) + MENU_ICON
@@ -277,12 +286,14 @@ local function updateCard(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local h = 2 + 11 + 4 * LINE_H + 3 + 3 * LINE_H + 3
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3, { shadow = true })
+	local h = 3 + 12 + 4 * LINE_H + 4 + 3 * LINE_H + 3
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
-	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), z = 4, name = "Title" })
-	local y = 13
+	-- the island's name on a plank across the top
+	UIKit.plank(f, 11, 3)
+	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
+	local y = 15
 	local full = #v.folk >= v.beds
 	line(f, "folk", "Villagers", y, w, nil, string.format("%d/%d", #v.folk, v.beds), if full then UIKit.color("orange") else nil, "Folk")
 	y += LINE_H
@@ -292,8 +303,10 @@ local function updateCard(v: Types.ClientView)
 	y += LINE_H
 	line(f, "charm", "Charm", y, w, nil, tostring(v.charm), UIKit.color("pink"), "Charm")
 	y += LINE_H
-	UIKit.rect(f, UDim2.fromOffset(w - 8, 1), UDim2.fromOffset(4, y + 1), UIKit.color("plate_light"), 4)
-	y += 3
+	-- a carved groove between the island and what it makes
+	UIKit.rect(f, UDim2.fromOffset(w - 8, 1), UDim2.fromOffset(4, y + 1), UIKit.color("ink"), 4)
+	UIKit.rect(f, UDim2.fromOffset(w - 8, 1), UDim2.fromOffset(4, y + 2), UIKit.color("plate_light"), 4)
+	y += 4
 	local function rate(icon: string, n: number, label: string)
 		local c = if n < -0.05 then UIKit.color("bad") elseif n > 0.05 then UIKit.color("good") else UIKit.color("text_dim")
 		line(f, icon, label, y, w, nil, Numbers.perMin(n * 60 / Tuning.TurnSeconds), c, "Rate_" .. icon)
@@ -325,13 +338,14 @@ local function updateExp(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 40), UDim2.fromOffset(s.X - w - 3, TOP_H + 4), UIKit.color("plate"), 0.06, 3, { shadow = true })
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 43), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
 	f.Name = "ExpCard"
-	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 2), 4)
-	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 3), { color = UIKit.color("accent"), z = 4, name = "Islet" })
+	UIKit.plank(f, 11, 3)
+	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 1), 4)
+	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Islet" })
 	local state = if e.battle then "In a battle!" else string.format("Stage %d", math.max(0, e.node - 1))
-	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = if e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
-	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 24), function()
+	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 14), { color = if e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
+	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 26), function()
 		ExpeditionUI.open()
 	end, { name = "ExpContinue", color = UIKit.color("button_ok") })
 	b:SetAttribute("Pulse", true)
@@ -351,10 +365,10 @@ local function stack()
 	if e then
 		e.Visible = not hide
 		if UIKit.phone() then
-			e.Position = UDim2.fromOffset(3, TOP_H + 4)
+			e.Position = UDim2.fromOffset(7, CARD_Y)
 		else
-			local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + 3 else TOP_H + 4
-			e.Position = UDim2.fromOffset(s.X - CARD_W - 3, y)
+			local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + 11 else CARD_Y
+			e.Position = UDim2.fromOffset(s.X - CARD_W - 7, y)
 		end
 	end
 end
@@ -376,7 +390,7 @@ local TIPS_BUILD: { [number]: string } = {
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
 local function tipsLift(): number
-	return if BuildUI.isOpen() then BuildUI.TRAY_H + 6 else BAR_H + 5
+	return if BuildUI.isOpen() then BuildUI.TRAY_H + 12 else BAR_H + 2 * DOCK + 8
 end
 
 local function updateTips(v: Types.ClientView)
@@ -395,11 +409,18 @@ local function updateTips(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local ok = v.tut == 6
-	local w = math.min(UIKit.textWidth(text) + (if ok then 40 else 12), s.X - 20)
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 14), UDim2.new(0, math.floor((s.X - w) / 2), 1, -tipsLift()), UIKit.color("paper"), 0, 2, { shadow = true })
+	-- a parchment note in a thin frame of planks; on a phone it keeps to the room left of the island card (two lines
+	-- if it must), so it never covers the card
+	local room = if UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
+	local want = UIKit.textWidth(text) + (if ok then 40 else 12)
+	local w = math.min(want, room)
+	local lines = if want > w then 2 else 1
+	local h = 4 + 10 * lines
+	local left = if UIKit.phone() then math.floor((s.X - CARD_W - 12 - w) / 2) else math.floor((s.X - w) / 2)
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.new(0, left, 1, -tipsLift()), UIKit.color("paper"), 0, 2, { shadow = true, wood = 2 })
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "Tips"
-	local l = UIKit.text(f, text, UDim2.new(1, if ok then -36 else -8, 1, 0), UDim2.fromOffset(5, 0), { color = UIKit.color("text_ink"), kind = "plain", name = "Words" })
+	local l = UIKit.text(f, text, UDim2.new(1, if ok then -36 else -8, 1, 0), UDim2.fromOffset(5, 0), { color = UIKit.color("text_ink"), kind = "plain", name = "Words", wrap = lines > 1 })
 	l:SetAttribute("Source", text)
 	if ok then
 		UIKit.button(f, "OK", UDim2.fromOffset(24, 10), UDim2.new(1, -27, 0, 2), function()
@@ -409,8 +430,8 @@ local function updateTips(v: Types.ClientView)
 	f.Visible = not ExpeditionUI.isOpen()
 	tips = f
 	-- a new tip bounces in
-	f.Position = UDim2.new(0, math.floor((s.X - w) / 2), 1, -(tipsLift() - 4))
-	UIKit.tween(f, 0.18, { Position = UDim2.new(0, math.floor((s.X - w) / 2), 1, -tipsLift()) })
+	f.Position = UDim2.new(0, left, 1, -(tipsLift() - 4))
+	UIKit.tween(f, 0.18, { Position = UDim2.new(0, left, 1, -tipsLift()) })
 end
 
 ------------------------------------------------------------------ the loading curtain
@@ -419,16 +440,28 @@ local function buildCurtain()
 	local s = UIKit.size("Popup")
 	local f = Instance.new("Frame")
 	f.Name = "Curtain"
-	f.BackgroundColor3 = UIKit.color("plate")
+	-- the open sea at night (GAME_DESIGN 2: the island's looks): deep blue, a few wave crests, the title, and the
+	-- loading bar in a thin frame of planks
+	f.BackgroundColor3 = UIKit.color("sea_shade")
 	f.BorderSizePixel = 0
 	f.Size = UDim2.new(1, 0, 1, 40)
 	f.Position = UDim2.fromOffset(0, -40)
 	f.ZIndex = 20
 	f.Parent = canvas
+	local crest = UIKit.color("sea_shade"):Lerp(UIKit.color("button"), 0.28)
+	local rng = Random.new(7)
+	for _ = 1, 26 do
+		local cx, cy = rng:NextInteger(4, math.max(5, s.X - 16)), rng:NextInteger(44, math.max(45, s.Y + 30))
+		local cw = rng:NextInteger(5, 12)
+		UIKit.rect(f, UDim2.fromOffset(cw, 1), UDim2.fromOffset(cx, cy), crest, 20).Name = "Crest"
+		UIKit.rect(f, UDim2.fromOffset(math.max(2, cw - 4), 1), UDim2.fromOffset(cx + 2, cy - 1), crest, 20).Name = "Crest"
+	end
 	local title = UIKit.text(f, "Driftling Isle", UDim2.fromOffset(s.X, 18), UDim2.new(0, 0, 0.5, 4), { x = "center", face = "big", color = UIKit.color("accent"), kind = "title", z = 21 })
 	title.AnchorPoint = Vector2.new(0, 1)
 	UIKit.text(f, "Waking up your island...", UDim2.fromOffset(s.X, 10), UDim2.new(0, 0, 0.5, 26), { x = "center", color = UIKit.color("text_dim"), z = 21 })
-	local _, set = UIKit.bar(f, UDim2.fromOffset(120, 3), UDim2.new(0.5, -60, 0.5, 42), UIKit.color("accent"), UIKit.color("plate_light"))
+	local holder = UIKit.plate(f, UDim2.fromOffset(124, 7), UDim2.new(0.5, -62, 0.5, 40), UIKit.color("plate"), 0, 1, { wood = 2 })
+	holder.ZIndex = 21
+	local _, set = UIKit.bar(holder, UDim2.fromOffset(120, 3), UDim2.fromOffset(2, 2), UIKit.color("accent"), UIKit.color("plate_light"))
 	task.spawn(function()
 		local t0 = os.clock()
 		while true do
@@ -489,7 +522,7 @@ local function onDay(msg: { [string]: any })
 	w = math.min(w, s.X - 16)
 	local h = 22 + #lines * 10
 	local x = math.floor((s.X - w) / 2)
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, -h - 6), UIKit.color("plate"), 0, 3, { shadow = true })
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, -h - 10), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
 	f.Name = "DayBanner"
 	f.ZIndex = 8
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), UIKit.color("accent"), 9)
@@ -499,7 +532,7 @@ local function onDay(msg: { [string]: any })
 		UIKit.text(f, l, UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 10 + i * 10), { color = UIKit.color("good"), z = 9, name = "Line" .. i })
 	end
 	banner = f
-	UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(x, 22) })
+	UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(x, 30) })
 	if #lines > 0 then
 		task.delay(0.3, function()
 			if f.Parent then
@@ -509,7 +542,7 @@ local function onDay(msg: { [string]: any })
 	end
 	task.delay(2.6 + #lines * 0.5, function()
 		if f.Parent then
-			UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(x, -h - 6) })
+			UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(x, -h - 10) })
 			task.wait(0.3)
 			f:Destroy()
 		end
@@ -577,7 +610,7 @@ function Hud.start()
 		local cf = chipFrames.shells
 		if gained >= 1 and now - popAt >= 2 and cf and cf.Parent and not ExpeditionUI.isOpen() then
 			popAt = now
-			UIKit.popText(UIKit.canvas("Hud"), cf.Position.X.Offset + cf.Size.X.Offset / 2, TOP_H + 4, "+" .. Numbers.coins(gained), UIKit.color("accent"))
+			UIKit.popText(UIKit.canvas("Hud"), cf.Position.X.Offset + cf.Size.X.Offset / 2, CHIP_Y + TOP_H + 4, "+" .. Numbers.coins(gained), UIKit.color("accent"))
 			gained = 0
 		end
 	end)

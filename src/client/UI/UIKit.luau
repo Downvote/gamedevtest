@@ -264,8 +264,82 @@ end
 -- A surface with stepped pixel corners and a 1 px ink outline that follows them (GAME_DESIGN 2: "use a 1 pixel
 -- outline"): rectangles named "Fill" inside rectangles named "Edge", none overlapping, so a translucent plate stays
 -- even. `style.edge = false` leaves the outline off (a flat swatch); `style.shadow` casts a 2 px drop shadow down
--- and to the right (panels, cards, the tray). Content goes in it at ZIndex >= 1.
-export type PlateStyle = { edge: boolean?, shadow: boolean?, edgeColor: Color3? }
+-- and to the right (panels, cards, the tray). The island's looks (GAME_DESIGN 2): `style.wood` (2 or 3) frames it in
+-- planks of driftwood that many px wide outside its outline (and another ink outline round them: the plate takes
+-- that much more room on every side), lit along the top and left, shaded along the bottom and right, seams between
+-- the planks and a nail head in each corner; `style.bevel` lights the plate's top row and shades its bottom one (a
+-- carved board: chips, rows). Content goes in it at ZIndex >= 1.
+export type PlateStyle = { edge: boolean?, shadow: boolean?, edgeColor: Color3?, wood: number?, bevel: boolean? }
+
+-- The wooden frame round a plate (style.wood = t px of planks): a child behind the plate's own rectangles, `t + 1`
+-- px out on every side. Its seams fall every PLANK px along the top and bottom (staggered) and down the sides.
+local PLANK = 44
+local function woodFrame(f: Frame, size: UDim2, k: number, t: number)
+	local o = t + 1
+	local back = Instance.new("Frame")
+	back.Name = "Wood"
+	back.BackgroundTransparency = 1
+	back.BorderSizePixel = 0
+	back.Position = UDim2.fromOffset(-o, -o)
+	back.Size = UDim2.new(size.X.Scale, size.X.Offset + 2 * o, size.Y.Scale, size.Y.Offset + 2 * o)
+	back.ZIndex = -1
+	back.Parent = f
+	-- the planks: an outlined board as big as the frame (the plate covers its middle), corners a step rounder
+	local board = UIKit.plate(back, UDim2.fromScale(1, 1), nil, UIKit.color("frame"), 0, math.min(3, k + 1))
+	board.Name = "Board"
+	board.ZIndex = -2
+	local c0 = math.min(3, k + 1) + 1 -- the bevel lines start clear of the board's rounded corners
+	local function line(name: string, color: Color3, pos: UDim2, sz: UDim2)
+		local q = Instance.new("Frame")
+		q.Name = name
+		q.BorderSizePixel = 0
+		q.BackgroundColor3 = color
+		q.Position = pos
+		q.Size = sz
+		q.ZIndex = -1
+		q.Parent = back
+	end
+	local hi, lo, dark = UIKit.color("frame_hi"), UIKit.color("frame_lo"), UIKit.color("frame_dark")
+	-- the outer row: lit along the top and left, shaded along the bottom and right
+	line("Hi", hi, UDim2.fromOffset(c0, 1), UDim2.new(1, -2 * c0, 0, 1))
+	line("Hi", hi, UDim2.fromOffset(1, c0), UDim2.new(0, 1, 1, -2 * c0))
+	line("Lo", lo, UDim2.new(0, c0, 1, -2), UDim2.new(1, -2 * c0, 0, 1))
+	line("Lo", lo, UDim2.new(1, -2, 0, c0), UDim2.new(0, 1, 1, -2 * c0))
+	if t >= 3 then
+		-- the inner row: the plate sits a little deeper (shaded along its top and left edge, lit along its bottom)
+		line("Lo", lo, UDim2.fromOffset(t, t), UDim2.new(1, -2 * t, 0, 1))
+		line("Lo", lo, UDim2.fromOffset(t, t), UDim2.new(0, 1, 1, -2 * t))
+		line("Hi", hi, UDim2.new(0, t, 1, -t - 1), UDim2.new(1, -2 * t, 0, 1))
+		line("Hi", hi, UDim2.new(1, -t - 1, 0, t), UDim2.new(0, 1, 1, -2 * t))
+	end
+	-- the seams between planks (only where the size is known in px)
+	local w, h = size.X.Offset + 2 * o, size.Y.Offset + 2 * o
+	if size.X.Scale == 0 then
+		local x = 18
+		while x < w - 14 do
+			line("Seam", dark, UDim2.fromOffset(x, 1), UDim2.fromOffset(1, t))
+			line("Seam", dark, UDim2.fromOffset(math.min(w - 12, x + math.floor(PLANK / 2)), h - 1 - t), UDim2.fromOffset(1, t))
+			x += PLANK
+		end
+	end
+	if size.Y.Scale == 0 then
+		local y = 24
+		while y < h - 18 do
+			line("Seam", dark, UDim2.fromOffset(1, y), UDim2.fromOffset(t, 1))
+			line("Seam", dark, UDim2.fromOffset(w - 1 - t, y + 12), UDim2.fromOffset(t, 1))
+			y += PLANK
+		end
+	end
+	-- a nail head in each corner of the frame: a lit pixel over a shaded one
+	local nh, nl = UIKit.color("nail_hi"), UIKit.color("nail_lo")
+	local n = math.floor((t + 1) / 2)
+	for _, c in { { false, false }, { true, false }, { false, true }, { true, true } } do
+		local px = if c[1] then UDim.new(1, -n - 2) else UDim.new(0, n)
+		local py = if c[2] then UDim.new(1, -n - 2) else UDim.new(0, n)
+		line("Nail", nh, UDim2.new(px, py), UDim2.fromOffset(1, 1))
+		line("Nail", nl, UDim2.new(px + UDim.new(0, 1), py + UDim.new(0, 1)), UDim2.fromOffset(1, 1))
+	end
+end
 local CORNER_INSETS: { [number]: { number } } = { [0] = {}, [1] = { 1 }, [2] = { 2, 1 }, [3] = { 3, 1, 1 } }
 
 function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, alpha: number?, corner: number?, style: PlateStyle?): Frame
@@ -350,8 +424,32 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 		end
 		rect("Fill", col, 1, 1, rows + 1, mid)
 	end
+	if st.bevel and edged then
+		-- a carved board: its top row lit, its bottom row shaded (clear of the corners)
+		local inset = k + 1
+		local lit = Instance.new("Frame")
+		lit.Name = "BevelHi"
+		lit.BorderSizePixel = 0
+		lit.BackgroundColor3 = col:Lerp(Color3.new(1, 1, 1), 0.16)
+		lit.BackgroundTransparency = a
+		lit.Position = UDim2.fromOffset(inset, 1)
+		lit.Size = UDim2.new(1, -2 * inset, 0, 1)
+		lit.ZIndex = 0
+		lit.Parent = f
+		local dim = lit:Clone()
+		dim.Name = "BevelLo"
+		dim.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.22)
+		dim.Position = UDim2.new(0, inset, 1, -2)
+		dim.Parent = f
+	end
+	local o = 0
+	if st.wood and st.wood > 0 then
+		local t = math.clamp(math.floor(st.wood), 1, 4)
+		woodFrame(f, size, k, t)
+		o = t + 1
+	end
 	if st.shadow then
-		-- a drop shadow: two strips outside the plate, right and below (its bottom-right corner stepped)
+		-- a drop shadow: two strips outside the plate (or its frame), right and below (its bottom-right corner stepped)
 		local function shade(px: UDim, py: UDim, sx: UDim, sy: UDim)
 			local q = Instance.new("Frame")
 			q.Name = "Shadow"
@@ -360,14 +458,38 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 			q.BackgroundTransparency = 0.55 + a * 0.45
 			q.Position = UDim2.new(px, py)
 			q.Size = UDim2.new(sx, sy)
-			q.ZIndex = 0
+			q.ZIndex = -2
 			q.Parent = f
 		end
-		shade(UDim.new(1, 0), UDim.new(0, k + 2), UDim.new(0, 2), UDim.new(1, -(k + 2)))
-		shade(UDim.new(0, k + 2), UDim.new(1, 0), UDim.new(1, -(k + 1)), UDim.new(0, 2))
+		shade(UDim.new(1, o), UDim.new(0, k + 2 - o), UDim.new(0, 2), UDim.new(1, -(k + 2) + 2 * o))
+		shade(UDim.new(0, k + 2 - o), UDim.new(1, o), UDim.new(1, -(k + 1) + 2 * o), UDim.new(0, 2))
 	end
 	f.Parent = parent
 	return f
+end
+
+-- A title plank across a plate's top (GAME_DESIGN 2: the island's looks): a board of the frame's wood from row 1 to
+-- row `h` inside the outline (its ends stepped with the plate's corner `k`), lit along its top, shaded along its
+-- bottom, a little grain where the plate's width is known, and an ink rule under it (row h + 1).
+function UIKit.plank(frame: Frame, h: number, k: number?)
+	local kk = math.clamp(math.floor(k or 3), 1, 3)
+	local band = UIKit.color("frame")
+	for y = 1, kk - 1 do
+		local inset = 1 + kk - y
+		UIKit.rect(frame, UDim2.new(1, -2 * inset, 0, 1), UDim2.fromOffset(inset, y), band, 1).Name = "TitleBand"
+	end
+	UIKit.rect(frame, UDim2.new(1, -2, 0, h - kk + 1), UDim2.fromOffset(1, kk), band, 1).Name = "TitleBand"
+	UIKit.rect(frame, UDim2.new(1, -2 * (kk + 1), 0, 1), UDim2.fromOffset(kk + 1, 1), UIKit.color("frame_hi"), 1).Name = "TitleBand"
+	UIKit.rect(frame, UDim2.new(1, -2, 0, 1), UDim2.fromOffset(1, h), UIKit.color("frame_lo"), 1).Name = "TitleBand"
+	local w = frame.Size.X.Offset
+	if frame.Size.X.Scale == 0 and w > 40 then
+		local grain = band:Lerp(UIKit.color("frame_lo"), 0.45)
+		for _, g in { { 0.3, 0.09 }, { 0.62, 0.12 } } do
+			local y = if g[1] < 0.5 then math.floor(h / 2) - 1 else math.floor(h / 2) + 2
+			UIKit.rect(frame, UDim2.fromOffset(math.max(4, math.floor(w * g[2])), 1), UDim2.fromOffset(math.floor(w * g[1]), y), grain, 1).Name = "Grain"
+		end
+	end
+	UIKit.rect(frame, UDim2.new(1, -2, 0, 1), UDim2.fromOffset(1, h + 1), UIKit.color("ink"), 1).Name = "TitleRule"
 end
 
 function UIKit.setPlate(plate: Instance, c: Color3?, alpha: number?)
@@ -644,8 +766,8 @@ end
 -- The panel's size for the screen: as big as its def asks, never past the canvas less a margin.
 local function panelSize(def: PanelDef): Vector2
 	local s = UIKit.size("Modal")
-	local w = math.min(def.w or 300, s.X - 8)
-	local h = math.min(def.h or 170, s.Y - 6)
+	local w = math.min(def.w or 300, s.X - 16)
+	local h = math.min(def.h or 170, s.Y - 14)
 	return Vector2.new(w, h)
 end
 
@@ -663,36 +785,31 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Name = "Panel_" .. name
 	shade.Text = ""
 	shade.AutoButtonColor = false
-	shade.BackgroundColor3 = UIKit.color("ink")
+	shade.BackgroundColor3 = UIKit.color("sea_shade")
 	shade.BackgroundTransparency = 1
 	shade.BorderSizePixel = 0
 	shade.Size = UDim2.fromScale(1, 1)
 	shade.ZIndex = 1
 	local fx, fy = math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)
-	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), UIKit.color("plate"), 0, 3, { shadow = true })
+	-- a board of driftwood in a frame of planks (GAME_DESIGN 2: the island's looks)
+	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
 	frame.Name = "Frame"
 	frame.ZIndex = 2
-	-- the title band: a lighter strip inside the outline (its corners stepped with the plate's), a rule under it
-	local band = UIKit.color("plate"):Lerp(UIKit.color("plate_light"), 0.45)
-	for _, r in { { 3, 1, 1 }, { 2, 2, 1 }, { 1, 3, 13 } } do
-		local q = UIKit.rect(frame, UDim2.new(1, -2 * r[1], 0, r[3]), UDim2.fromOffset(r[1], r[2]), band, 1)
-		q.Name = "TitleBand"
-	end
-	local rule = UIKit.rect(frame, UDim2.new(1, -2, 0, 1), UDim2.fromOffset(1, 16), UIKit.color("ink"), 1)
-	rule.Name = "TitleRule"
+	-- the title: a plank across the top, a rule under it
+	UIKit.plank(frame, 15, 3)
 	local tx = 6
 	if def.icon then
 		PixelSprites.image(frame, "mini_" .. def.icon, UDim2.fromOffset(5, 3), 3)
 		tx = 18
 	end
-	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(tx, 2), { color = UIKit.color("accent"), name = "Title", z = 3 })
+	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(tx, 2), { color = UIKit.color("paper"), kind = "shadow", under = UIKit.color("ink"), name = "Title", z = 3 })
 	-- the status line: notices while the panel is open land here instead of covering it
 	local titleW = UIKit.textWidth(def.title) + tx + 8
 	UIKit.text(frame, "", UDim2.new(1, -(titleW + UIKit.buttonWidth("Close", 4) + 8), 0, 14), UDim2.fromOffset(titleW, 2), { color = UIKit.color("text"), name = "Status", x = "right" })
 	UIKit.button(frame, "Close", UDim2.fromOffset(UIKit.buttonWidth("Close", 4), 12), UDim2.new(1, -UIKit.buttonWidth("Close", 4) - 3, 0, 3), function()
 		Audio.play("close")
 		UIKit.closePanel()
-	end, { color = UIKit.color("plate_light"), name = "Close" })
+	end, { color = UIKit.color("button_close"), name = "Close" })
 	local body = Instance.new("Frame")
 	body.Name = "Body"
 	body.BackgroundTransparency = 1
@@ -705,7 +822,7 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Parent = canvas
 	openFrame = shade :: any
 	openName = name
-	UIKit.tween(shade, 0.15, { BackgroundTransparency = 0.45 })
+	UIKit.tween(shade, 0.15, { BackgroundTransparency = 0.5 })
 	UIKit.tween(frame, 0.15, { Position = UDim2.fromOffset(fx, fy) })
 	Audio.play("open")
 	local ok, err = pcall(function()
@@ -784,7 +901,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	local w = math.min(UIKit.textWidth(text) + 14, s.X - 16)
 	local lines = if UIKit.textWidth(text) + 14 > w then 2 else 1
 	local h = 6 + 10 * lines
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), UIKit.color("plate"), 0.08, 2, { shadow = true })
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), UIKit.color("plate"), 0.08, 2, { shadow = true, wood = 2 })
 	f.Name = "Notice"
 	UIKit.rect(f, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(2, 2), color or UIKit.color("accent"), 1)
 	local words = UIKit.text(f, text, UDim2.new(1, -12, 1, -2), UDim2.fromOffset(7, 1), { wrap = true, name = "Words" })
@@ -804,7 +921,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 		else
 			n.Position = UDim2.fromOffset(n.Position.X.Offset, y)
 		end
-		y += n.Size.Y.Offset + 2
+		y += n.Size.Y.Offset + 8
 	end
 	task.delay(seconds or 3.5, function()
 		if f.Parent == nil then

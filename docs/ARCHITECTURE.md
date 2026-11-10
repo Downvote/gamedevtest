@@ -414,12 +414,17 @@ with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound), `setText`, `setTextColor`, `textWidth`,
 `lineHeight`, `plate(parent, size, pos?, color?, alpha?, corner?, style?)` (stepped corners with a 1 px ink outline
 following them: "Fill" rects inside "Edge" rects, none overlapping; `style { edge = false }` a flat swatch, `{ shadow
-= true }` a 2 px drop shadow right and below, "Shadow"), `setPlate` (the fill), `rect`, `button` (a TextButton with
+= true }` a 2 px drop shadow right and below, "Shadow"; the island's looks (GAME_DESIGN 2): `{ wood = t }` a frame of
+planks t px wide outside the outline and an ink outline round it ("Wood": a "Board" behind, "Hi" / "Lo" bevel rows,
+"Seam"s every `PLANK` px, a "Nail" in each corner; the plate then takes t + 1 px more on every side, the shadow moved
+out with it), `{ bevel = true }` a lit top row and a shaded bottom one, "BevelHi" / "BevelLo"), `plank(frame, h, k?)`
+(a title plank across a plate's top, rows 1 .. h: "TitleBand" rects lit along the top and shaded along the bottom,
+"Grain", an ink "TitleRule" at row h + 1), `setPlate` (the fill), `rect`, `button` (a TextButton with
 a child "Words" label over a plate with a bevel, "Shine" and "Lip", recoloured with it; disabled = `AutoButtonColor`
 false; fires on `Activated`), `setEnabled`, `setButtonText`,
 `setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
-(`registerPanel(name, { title, icon?, w, h, build })`: a framed plate with a drop shadow, a `TitleBand` with the
+(`registerPanel(name, { title, icon?, w, h, build })`: a plate in a frame of planks (`wood = 3`) with a drop shadow over a `sea_shade` veil, as big as asked within the screen less 16 x 14 px, a `plank` title (the title in `paper`), a coral `Close` (`button_close`), a `TitleBand` with the
 `mini_<icon>` and the title, a `TitleRule` under it; `openPanel(name, arg)`, `closePanel`, `currentPanel`,
 `refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
@@ -456,6 +461,9 @@ both ways on two lanes out at sea, rocking on the swell in whole steps, wrapping
 gulls crossing every 14-24 s (no clouds' shadows: the player asked for them gone). `count()` for the CLI.
 
 ### 10.3 `Hud`
+The island's looks (GAME_DESIGN 2): the chips are carved boards in thin frames of planks (`CHIP_Y` 5), the cards in
+thick ones with their names on planks (`CARD_Y` = `TOP_H` + 15, 7 px in from the right), the menu bar stands on a
+`Dock` (a dark board in a thin frame, `DOCK` 6 px round the buttons); the camera's strips are kept clear of all of it.
 Chips (`Chip_shells`, `Chip_food`, `Chip_wood`, each an 11 px icon and the store easing to its value, flashing when
 it changes (the food's red and blinking while hungry); `Chip_day`, "Day 3" with the day's clock along its edge and a
 sun that sets into a moon; then `Home`, a button shown while the founder is off their own island, sending
@@ -467,7 +475,7 @@ for the islet's screen: in Build mode the banner rises over the tray with a Buil
 right (the island's name for its tier, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
 shells a minute: `Numbers.perMin`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
 battle!", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the tips banner (`Tips`: the steps of GAME_DESIGN 9 (`tut` 1 .. 6: food, wood, shells, a tent, a nest and sail,
-islands and treats); tip 6 has `TipsOk`, sending `tut.next`), the loading curtain (until `PixelRenderer.firstPicture`) and the `DayBanner` (Fx
+islands and treats); tip 6 has `TipsOk`, sending `tut.next`; a parchment note in a thin frame; on a phone it keeps to the room left of the island card, wrapping to two lines), the loading curtain (until `PixelRenderer.firstPicture`: the open sea at night, a few wave crests, the title, the bar in a thin frame) and the `DayBanner` (Fx
 "day": the day and who moved in or trained; over a panel, Build mode or an expedition a notice instead). Shells
 coming in rise from their chip ("+12", at most every 2 s, from `StateClient.Tick`). Every frame it holds the
 founder's `JumpHeight` at 0 while Build mode, the islet's screen, a voyage or a panel is up, else `Tuning.JumpHeight` (the
@@ -511,7 +519,7 @@ Other players' names float over their heads (World root). `founderPos()`, `count
 
 ### 10.7 `BuildUI` (Build mode)
 `open()` (the HUD's Build button): closes any panel, `CameraController.setFree(true)`, the tray `BuildTray` along the
-bottom: the tabs `Tab_food Tab_wood Tab_shop Tab_home Tab_nest Tab_decor` (their icons alone on a narrow screen), the
+bottom (a workbench in a frame of planks, `wood = 3`, its tabs on a `plank`; the cards carved boards): the tabs `Tab_food Tab_wood Tab_shop Tab_home Tab_nest Tab_decor` (their icons alone on a narrow screen), the
 pieces count, `Expand` (`island.expand`, its price under it) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
 its price in shells and wood with their icons, red when short; a locked one says the island tier it needs). With a
 piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.PixelDynamic`: the piece and its `Footprint`, a
@@ -571,7 +579,10 @@ target?)`, `debugFlee()`, `debugAim(kind)`, `debugPoint(key, tap) -> boolean` (t
 tap), `debugScreenOf(key) -> (i, j)`, `debugHome()`, `debugWait(seconds?)` (a longer wait for
 the picture: the fake engine bakes slowly). It hides the `Hud` and `World` roots and the touch controls, opens
 `MicroStage.open(kind.stage, { top, bottom }, isle.seed)` (the camera's stage mode, the overlay's strips kept clear)
-and draws on the `Stage` root (full screen: Roblox's top bar's height, `TopBar`, is kept clear): the `Header` (the
+and draws on the `Stage` root (full screen: Roblox's top bar's height, `TopBar`, is kept clear; GAME_DESIGN 2's
+island looks: the header and footer are dark boards, `HEAD_H` 25 and `FOOT_H` 45, each with a 3 px plank `Trim` on the
+side facing the island, the footer's contents in `Footer` under its trim on the `FooterBoard`; the skill window, the
+alert and the results card in frames of planks): the `Header` (the
 island's name and level, `Loot_<kind>`, the path's `Node<i>` icons (the ones ahead hidden
 but the guardian's), `Here`, `BackToIsland`), the `Footer` (the party's cards `Card_<key>`: portrait or icon, name,
 `Lv`, the health bar `HpFill`; between stops `AutoGo` (a bar filling over `AUTO_GO` s, then the next stop by itself:

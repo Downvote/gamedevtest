@@ -43,7 +43,7 @@ local function ask(action: string, payload: { [string]: any }?, ok: string?): Ty
 end
 
 local function row(list: Instance, order: number, h: number): Frame
-	local f = UIKit.plate(list, UDim2.new(1, -6, 0, h), nil, UIKit.color("plate_light"), 0, 2)
+	local f = UIKit.plate(list, UDim2.new(1, -6, 0, h), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
 	f.Name = "Row"
 	f.LayoutOrder = order
 	return f
@@ -413,7 +413,7 @@ local function buildExplore(body: Frame, _arg: any?)
 		b.Size = UDim2.new(1, -6, 0, 20)
 		b.LayoutOrder = order
 		b.ZIndex = 3
-		UIKit.plate(b, UDim2.fromScale(1, 1), nil, if picked then UIKit.color("button_ok") else UIKit.color("plate_light"), 0, 2).ZIndex = 3
+		UIKit.plate(b, UDim2.fromScale(1, 1), nil, if picked then UIKit.color("button_ok") else UIKit.color("plate_light"), 0, 2, { bevel = true }).ZIndex = 3
 		if icon then
 			PixelSprites.image(b, icon, UDim2.fromOffset(2, 2), 4)
 		elseif look then
@@ -533,7 +533,7 @@ local function buildIndex(body: Frame, _arg: any?)
 	grid.Parent = list
 	for i, d in Creatures.list do
 		local n = v.seen[d.id] or 0
-		local f = UIKit.plate(list, UDim2.fromOffset(60, 42), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2)
+		local f = UIKit.plate(list, UDim2.fromOffset(60, 42), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2, { bevel = true })
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
 		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)

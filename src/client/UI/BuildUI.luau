@@ -266,7 +266,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 		rebuild()
 	end, "Cancel")
 	-- what it is and costs (or its level and the next level's price)
-	local info = UIKit.plate(f, UDim2.new(1, -8, 0, 28), UDim2.fromOffset(4, 17), UIKit.color("plate_light"), 0, 2)
+	local info = UIKit.plate(f, UDim2.new(1, -8, 0, 28), UDim2.fromOffset(4, 18), UIKit.color("plate_light"), 0, 2, { bevel = true })
 	info.Name = "Info"
 	local name = (if def then def.name else p.id) .. (if q and q.lvl > 1 then " Lv" .. q.lvl else "")
 	UIKit.text(info, (if p.move then "Moving: " else "Placing: ") .. name, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), z = 4, name = "What" })
@@ -306,7 +306,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		k += 1
 		local locked = def.tier > v.tier
 		local afford = v.shells >= def.shells and v.wood >= def.wood
-		local card = UIKit.plate(list, UDim2.fromOffset(72, 28), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2)
+		local card = UIKit.plate(list, UDim2.fromOffset(72, 28), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2, { bevel = true })
 		card.Name = "Card_" .. def.id
 		local goal = tutGoal(v)
 		if goal and goal.id == def.id and not locked then
@@ -355,9 +355,11 @@ rebuild = function()
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 8, TRAY_H), UDim2.new(0, 4, 1, -2), UIKit.color("plate"), 0.05, 3, { shadow = true })
+	-- a workbench of driftwood in a frame of planks (GAME_DESIGN 2: the island's looks), its tabs on a plank
+	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 16, TRAY_H), UDim2.new(0, 8, 1, -6), UIKit.color("plate"), 0.03, 3, { shadow = true, wood = 3 })
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "BuildTray"
+	UIKit.plank(f, 15, 3)
 	local p = pick
 	if p then
 		actionBar(f, p, v)
@@ -413,7 +415,7 @@ rebuild = function()
 		BuildUI.close()
 	end, { color = UIKit.color("accent"), name = "BuildDone" })
 	if p == nil then
-		local list = UIKit.scroll(f, UDim2.new(1, -8, 0, 30), UDim2.fromOffset(4, 16))
+		local list = UIKit.scroll(f, UDim2.new(1, -8, 0, 30), UDim2.fromOffset(4, 18))
 		list.ScrollingDirection = Enum.ScrollingDirection.X
 		list.AutomaticCanvasSize = Enum.AutomaticSize.X
 		cards(list, v)
@@ -543,7 +545,7 @@ function BuildUI.open()
 	end
 	open = true
 	UIKit.closePanel()
-	CameraController.setFree(true, TRAY_H)
+	CameraController.setFree(true, TRAY_H + 8)
 	local downAt: Vector2? = nil
 	local last: Vector2? = nil
 	local dragged = false

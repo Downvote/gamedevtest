@@ -190,23 +190,33 @@ local MATCH: { [string]: number } = {
 	poor = 0xE8465B,
 }
 
--- The interface's own colours (UIKit): plates, ink, text, accents.
+-- The interface's own colours (UIKit), an island's (GAME_DESIGN 2: "more in theme with the island theme"): dark
+-- driftwood plates in frames of planks (frame_*), nail heads, sand-coloured quiet text, buttons painted lagoon blue,
+-- palm green, mango and coral, a sea-dark backdrop behind a panel.
 local UI: { [string]: number } = {
-	ink = 0x2B1E2E,
-	plate = 0x2F2740,
-	plate_light = 0x463B5C,
-	paper = 0xFFF6E6,
-	paper_dark = 0xEAD9BF,
+	ink = 0x2A1C1A,
+	plate = 0x3D2A22,
+	plate_light = 0x5A3E30,
+	paper = 0xFFF3DC,
+	paper_dark = 0xEAD3AE,
 	text = 0xFFFFFF,
-	text_dim = 0xC9BEDB,
-	text_ink = 0x2B1E2E,
+	text_dim = 0xDCC6A2,
+	text_ink = 0x2A1C1A,
 	accent = 0xFFCB30,
 	good = 0x7DD87A,
-	bad = 0xFF6F7F,
-	button = 0x5FB8F2,
+	bad = 0xFF6F6A,
+	button = 0x4DB8D6,
 	button_ok = 0x7DD87A,
 	button_warn = 0xFFA553,
-	button_off = 0x7A7088,
+	button_off = 0x85735F,
+	button_close = 0xE8705A,
+	frame_hi = 0xE8B97F,
+	frame = 0xBB8350,
+	frame_lo = 0x825637,
+	frame_dark = 0x603E27,
+	nail_hi = 0xF6EEDF,
+	nail_lo = 0x6E5E53,
+	sea_shade = 0x0C2531,
 }
 
 local Palette: {

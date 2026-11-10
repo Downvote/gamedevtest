@@ -56,6 +56,18 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   icon. Every driftling has a 16x16 portrait and the island's things 11x11 icons, drawn by the rules below.
 
   > The request (2026-11-10): "also, polish the UI much more"
+
+  > The request (2026-11-10): "make alot more polish to the UI and more in theme with the island theme"
+
+  The island's looks: the plates are dark driftwood (`Palette.ui`: warm browns, sand-coloured quiet text, buttons
+  painted lagoon blue, palm green, mango and coral; disabled ones driftwood grey), and everything that stands on its
+  own sits in a frame of planks: lit along its top and left, shaded along its bottom and right, seams between the
+  planks and a nail head in each corner. A panel has a thick frame and its title on a carved plank across the top (a
+  coral Close), over the island seen through a sea-dark veil; the island card and the expedition card the same, their
+  names on planks; the chips, the notices and the tip (a parchment note) thin frames; the chips and the rows in the
+  panels are carved boards (a lit top row, a shaded bottom one); the menu bar stands on a wooden dock; the build tray is
+  a workbench with its tabs on a plank; the islet's screen has dark boards top and bottom with plank trims facing the
+  island, and its skill window, alerts and results card are framed. The loading curtain is the open sea at night.
 - **The founder:** you walk your island and the boardwalk as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):

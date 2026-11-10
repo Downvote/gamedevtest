@@ -40,8 +40,8 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local ExpeditionUI = {}
 ExpeditionUI.Changed = Util.Signal() :: Types.Signal<boolean>
 
-local HEAD_H = 22
-local FOOT_H = 42
+local HEAD_H = 25 -- the header: its words, then a trim of planks along its bottom (3 px)
+local FOOT_H = 45 -- the footer: a trim of planks along its top (3 px), then the party and the buttons
 local CARD_W = 80
 local STEP = 0.5 -- seconds an event plays
 
@@ -1045,7 +1045,7 @@ end
 -- A fighter's card: its portrait or icon, name and level, its health bar (a tap picks it while aiming).
 local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: number, w: number, foe: boolean): Frame
 	local selected = aim ~= nil and (aim :: Aim).target == f.key
-	local card = UIKit.plate(parent, UDim2.fromOffset(w, 18), UDim2.fromOffset(x, y), if selected then UIKit.color("accent") else UIKit.color("plate"), 0.05, 2)
+	local card = UIKit.plate(parent, UDim2.fromOffset(w, 18), UDim2.fromOffset(x, y), if selected then UIKit.color("accent") else UIKit.color("plate_light"), 0.03, 2, { bevel = true })
 	card.Name = "Card_" .. f.key
 	card.ZIndex = 10
 	if f.sp then
@@ -1358,15 +1358,16 @@ local function skillWindow(r: Frame, e: Types.Expedition)
 	end
 	local ww = math.min(w - 16, 340)
 	local wh = 34 + #rows * 22
-	local win = UIKit.plate(r, UDim2.fromOffset(ww, wh), UDim2.fromOffset(math.floor((w - ww) / 2), math.max(topInset() + HEAD_H + 4, math.floor((h - FOOT_H - wh) / 2))), UIKit.color("plate"), 0, 3, { shadow = true })
+	local win = UIKit.plate(r, UDim2.fromOffset(ww, wh), UDim2.fromOffset(math.floor((w - ww) / 2), math.max(topInset() + HEAD_H + 8, math.floor((h - FOOT_H - wh) / 2))), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
 	win.Name = "SkillWindow"
 	win.ZIndex = 26
-	UIKit.text(win, "Skills", UDim2.fromOffset(80, 12), UDim2.fromOffset(6, 3), { color = UIKit.color("accent"), z = 28, name = "Title" })
+	UIKit.plank(win, 15, 3)
+	UIKit.text(win, "Skills", UDim2.fromOffset(80, 12), UDim2.fromOffset(6, 3), { color = UIKit.color("paper"), z = 28, name = "Title" })
 	local sp = spOf()
 	UIKit.text(win, string.format("Skill points %d/%d", math.floor(sp), Tuning.SpMax), UDim2.fromOffset(120, 12), UDim2.fromOffset(ww - 168, 3), { x = "right", color = UIKit.color("screen_on"), z = 28, name = "SpText" })
 	local close = UIKit.button(win, "Back", UDim2.fromOffset(40, 12), UDim2.fromOffset(ww - 44, 3), function()
 		endAim(true)
-	end, { name = "Skills_close", color = UIKit.color("plate_light") })
+	end, { name = "Skills_close", color = UIKit.color("button_close") })
 	close.ZIndex = 28
 	for i, row in rows do
 		local y = 18 + (i - 1) * 22
@@ -1695,7 +1696,7 @@ local function alert(title: string, color: Color3, lines: { { text: string, colo
 		ch = math.max(ch, 22)
 	end
 	local x, y = math.floor((w - cw) / 2), topInset() + HEAD_H + 18
-	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, y - 6), UIKit.color("plate"), 0.05, 2, { shadow = true })
+	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, y - 6), UIKit.color("plate"), 0.03, 2, { shadow = true, wood = 2 })
 	f.Name = "Alert"
 	f.ZIndex = 20
 	UIKit.rect(f, UDim2.fromOffset(cw - 4, 1), UDim2.fromOffset(2, 1), color, 21)
@@ -1736,7 +1737,7 @@ local function resultCard(title: string, color: Color3, lines: { { text: string,
 	cw = math.min(cw, w - 16)
 	local ch = 22 + #lines * 10 + 22 + (if icon then 18 else 0)
 	local x, y = math.floor((w - cw) / 2), math.floor((h - ch) / 2)
-	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, -ch - 4), UIKit.color("plate"), 0, 3, { shadow = true })
+	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, -ch - 8), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
 	f.Name = "Result"
 	f.ZIndex = 20
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), color, 21)
@@ -1956,6 +1957,22 @@ local function button(parent: Instance, text: string, x: number, y: number, w: n
 	b.ZIndex = 11
 end
 
+-- A trim of planks across a bar (the header's bottom, the footer's top), 3 px from row `y`: an ink rule on the side
+-- that faces the stage, a lit row and a plank row, seams between the planks.
+local function trim(bar: Frame, w: number, y: number, top: boolean)
+	local ink, hi, mid, lo = UIKit.color("ink"), UIKit.color("frame_hi"), UIKit.color("frame"), UIKit.color("frame_lo")
+	local rows: { Color3 } = if top then { ink, hi, mid } else { hi, mid, ink }
+	for i, c in ipairs(rows) do
+		UIKit.rect(bar, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, y + i - 1), c, 10).Name = "Trim"
+	end
+	local x = if top then 30 else 8
+	while x < w do
+		UIKit.rect(bar, UDim2.fromOffset(1, 2), UDim2.fromOffset(x, y + (if top then 1 else 0)), lo, 10).Name = "Trim"
+		x += 52
+	end
+	UIKit.rect(bar, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, y + (if top then 3 else -1)), lo, 10).Name = "Trim"
+end
+
 refresh = function()
 	local r = root
 	local e = exp()
@@ -1986,10 +2003,12 @@ refresh = function()
 	local back = UIKit.rect(r, UDim2.fromOffset(w, top), UDim2.fromOffset(0, 0), UIKit.color("ink"), 9)
 	back.Name = "TopBar"
 	back.BackgroundTransparency = 0.2
-	local head = UIKit.rect(r, UDim2.fromOffset(w, HEAD_H), UDim2.fromOffset(0, top), UIKit.color("ink"), 9)
+	-- the header: a board of dark driftwood, a trim of planks along its bottom (GAME_DESIGN 2: the island's looks)
+	local head = UIKit.rect(r, UDim2.fromOffset(w, HEAD_H), UDim2.fromOffset(0, top), UIKit.color("plate"), 9)
 	head.Name = "Header"
-	head.BackgroundTransparency = 0.2
-	UIKit.rect(head, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, HEAD_H - 1), UIKit.color(if def then def.color else "accent"), 9)
+	head.BackgroundTransparency = 0.04
+	trim(head, w, HEAD_H - 3, false)
+	UIKit.rect(head, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, HEAD_H - 4), UIKit.color(if def then def.color else "accent"), 10)
 	UIKit.text(head, string.format("%s  Lv %d", e.isle.name, e.isle.lvl), UDim2.fromOffset(106, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("accent"), z = 11, name = "Islet" })
 	lootLine(head, e, 4, 10)
 	-- the endless path: a window from a stop back to PATH_AHEAD ahead (the guardians' crowns shown), the stage number
@@ -2018,9 +2037,19 @@ refresh = function()
 		ExpeditionUI.close()
 	end, "BackToIsland")
 	-- the party along the bottom
-	local foot = UIKit.rect(r, UDim2.fromOffset(w, FOOT_H), UDim2.fromOffset(0, h - FOOT_H), UIKit.color("ink"), 9)
+	-- the footer: the same board, its trim along the top; what it holds sits under the trim
+	local footBoard = UIKit.rect(r, UDim2.fromOffset(w, FOOT_H), UDim2.fromOffset(0, h - FOOT_H), UIKit.color("plate"), 9)
+	footBoard.Name = "FooterBoard"
+	footBoard.BackgroundTransparency = 0.04
+	trim(footBoard, w, 0, true)
+	local foot = Instance.new("Frame")
 	foot.Name = "Footer"
-	foot.BackgroundTransparency = 0.2
+	foot.BackgroundTransparency = 1
+	foot.BorderSizePixel = 0
+	foot.Size = UDim2.fromOffset(w, FOOT_H - 3)
+	foot.Position = UDim2.fromOffset(0, h - FOOT_H + 3)
+	foot.ZIndex = 9
+	foot.Parent = r
 	local cw = math.min(CARD_W, math.floor((w - 112) / 2) - 3)
 	for i, f in e.party do
 		local col, rowI = (i - 1) % 2, (i - 1) // 2
