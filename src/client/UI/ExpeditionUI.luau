@@ -115,7 +115,6 @@ local AUTO_CARD = 3
 local idleSince: number? = nil
 local autoFill: Frame? = nil
 local autoW = 0
-local autoSafe = true
 local PATH_AHEAD = 7 -- the header shows the path from a stop back to this many ahead (it never ends)
 -- the timed battle (GAME_DESIGN 7: "the characters have a timer above their heads that is shown as a bar, and will
 -- attack or use its skill once a timer is done"): the server runs it; here the timers as it last told (`gaugeG` at
@@ -914,7 +913,7 @@ local function updateAim()
 	local dt = math.clamp(now - aimClock, 0, 0.1)
 	aimClock = now
 	if aimMark == nil then
-		local color = if a.kind == "snack" then "pink" else "screen_on"
+		local color = if a.kind == "snack" then "pink" else "yellow"
 		aimMark = st.spawn("aim", { color = color })
 		aimPath = st.spawn("aimpath", { color = color })
 		aimRing = st.spawn("aimring", { color = color })
@@ -1356,42 +1355,77 @@ local function skillWindow(r: Frame, e: Types.Expedition)
 			end
 		end
 	end
+	-- the layout first: each member's skills flow along their row from the name column, onto further lines when they
+	-- run out of room (none is ever dropped)
 	local ww = math.min(w - 16, 340)
-	local wh = 34 + #rows * 22
-	local win = UIKit.plate(r, UDim2.fromOffset(ww, wh), UDim2.fromOffset(math.floor((w - ww) / 2), math.max(topInset() + HEAD_H + 8, math.floor((h - FOOT_H - wh) / 2))), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
+	local LINE = 17
+	local placed: { { f: Types.Fighter, y: number, items: { { d: Skills.Skill, x: number, y: number, bw: number, label: string } } } } = {}
+	local cy = 2
+	for _, row in rows do
+		local items = {}
+		local x, y = 70, cy
+		for _, d in row.list do
+			local label = string.format("%s %d", d.name, d.cost)
+			local bw = math.min(UIKit.buttonWidth(label, 4), ww - 78)
+			if x + bw > ww - 8 and x > 70 then
+				x, y = 70, y + LINE
+			end
+			table.insert(items, { d = d, x = x, y = y, bw = bw, label = label })
+			x += bw + 3
+		end
+		table.insert(placed, { f = row.f, y = cy, items = items })
+		cy = y + LINE + 5
+	end
+	local contentH = cy
+	-- the window fits between the header and the footer (its frame too): it scrolls when the party's skills don't
+	local top0 = topInset() + HEAD_H + 6
+	local room = math.max(40, (h - FOOT_H - 6) - top0 - 8)
+	local wh = math.min(20 + contentH, room)
+	local wy = top0 + 4 + math.max(0, math.floor((room - wh) / 2))
+	local win = UIKit.plate(r, UDim2.fromOffset(ww, wh), UDim2.fromOffset(math.floor((w - ww) / 2), wy), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
 	win.Name = "SkillWindow"
 	win.ZIndex = 26
 	UIKit.plank(win, 15, 3)
 	UIKit.text(win, "Skills", UDim2.fromOffset(80, 12), UDim2.fromOffset(6, 3), { color = UIKit.color("paper"), z = 28, name = "Title" })
 	local sp = spOf()
-	UIKit.text(win, string.format("Skill points %d/%d", math.floor(sp), Tuning.SpMax), UDim2.fromOffset(120, 12), UDim2.fromOffset(ww - 168, 3), { x = "right", color = UIKit.color("screen_on"), z = 28, name = "SpText" })
+	UIKit.text(win, string.format("Skill points %d/%d", math.floor(sp), Tuning.SpMax), UDim2.fromOffset(120, 12), UDim2.fromOffset(ww - 168, 3), { x = "right", color = UIKit.color("accent"), z = 28, name = "SpText" })
 	local close = UIKit.button(win, "Back", UDim2.fromOffset(40, 12), UDim2.fromOffset(ww - 44, 3), function()
 		endAim(true)
 	end, { name = "Skills_close", color = UIKit.color("button_close") })
 	close.ZIndex = 28
-	for i, row in rows do
-		local y = 18 + (i - 1) * 22
-		local f = row.f
+	local holder: GuiObject
+	if 20 + contentH > room then
+		local sc = UIKit.scroll(win, UDim2.fromOffset(ww - 4, wh - 19), UDim2.fromOffset(2, 17))
+		sc.AutomaticCanvasSize = Enum.AutomaticSize.None
+		sc.CanvasSize = UDim2.fromOffset(0, contentH)
+		sc.ZIndex = 27
+		holder = sc
+	else
+		local fr = Instance.new("Frame")
+		fr.BackgroundTransparency = 1
+		fr.BorderSizePixel = 0
+		fr.Size = UDim2.fromOffset(ww - 4, contentH)
+		fr.Position = UDim2.fromOffset(2, 17)
+		fr.ZIndex = 27
+		fr.Parent = win
+		holder = fr
+	end
+	holder.Name = "SkillRows"
+	for _, row in placed do
+		local f, y = row.f, row.y
 		if f.sp then
-			PixelSprites.image(win, "icon_" .. (f.sp :: string), UDim2.fromOffset(5, y + 2), 28)
+			PixelSprites.image(holder, "icon_" .. (f.sp :: string), UDim2.fromOffset(3, y + 1), 28)
 		elseif f.look then
-			UIKit.portrait(win, f.look :: Types.Look, 16, UDim2.fromOffset(5, y + 2)).ZIndex = 28
+			UIKit.portrait(holder, f.look :: Types.Look, 16, UDim2.fromOffset(3, y + 1)).ZIndex = 28
 		end
-		UIKit.text(win, f.name, UDim2.fromOffset(46, 10), UDim2.fromOffset(23, y + 5), { color = UIKit.color("text"), z = 28, name = "Who_" .. f.key })
-		local x = 70
-		for _, d in row.list do
-			local label = string.format("%s %d", d.name, d.cost)
-			local bw = UIKit.buttonWidth(label, 4)
-			if x + bw > ww - 4 then
-				-- (no room left on the row: the rest wait for a wider screen)
-				break
-			end
+		UIKit.text(holder, f.name, UDim2.fromOffset(46, 10), UDim2.fromOffset(21, y + 4), { color = UIKit.color("text"), z = 28, name = "Who_" .. f.key })
+		for _, it in row.items do
+			local d = it.d
 			local ok = sp + 1e-6 >= d.cost and (d.target == "none" or #candidates(d.target) > 0)
-			local b = UIKit.button(win, label, UDim2.fromOffset(bw, 15), UDim2.fromOffset(x, y + 2), function()
+			local b = UIKit.button(holder, it.label, UDim2.fromOffset(it.bw, 15), UDim2.fromOffset(it.x - 2, it.y), function()
 				chooseSkill(f.key, d.id)
-			end, { name = "Skill_" .. f.key .. "_" .. d.id, color = if ok then UIKit.color("screen_on") else nil, enabled = ok })
+			end, { name = "Skill_" .. f.key .. "_" .. d.id, color = if ok then UIKit.color("accent") else nil, enabled = ok })
 			b.ZIndex = 28
-			x += bw + 3
 		end
 	end
 end
@@ -1575,7 +1609,7 @@ local function playEvent(ev: { [string]: any })
 		-- a learnt skill: its name over the one using it, a flourish
 		local by = actors[ev.by]
 		local d = Skills.byId[ev.id]
-		floatOver(ev.by, (if d then d.name else "Skill") .. "!", UIKit.color("screen_on"))
+		floatOver(ev.by, (if d then d.name else "Skill") .. "!", UIKit.color("accent"))
 		if by then
 			startMove(by, "cast")
 			st.puff(actorAt(by) + Vector3.new(0, 1.4, 0), "spark", 6)
@@ -1603,7 +1637,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(a) + Vector3.new(0, 0.3, 0), "dust", 5)
 			end
 		end
-		say("The party springs into action!", UIKit.color("screen_on"), 1.2)
+		say("The party springs into action!", UIKit.color("accent"), 1.2)
 		Audio.play("whoosh", { pitch = 1.3 })
 	elseif t == "dizzy" then
 		for _, a in actors do
@@ -1612,7 +1646,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(a) + Vector3.new(0, 2, 0), "twinkle", 4)
 			end
 		end
-		say("The wild ones are dizzy!", UIKit.color("screen_on"), 1.2)
+		say("The wild ones are dizzy!", UIKit.color("accent"), 1.2)
 		Audio.play("poof")
 	elseif t == "treat" then
 		local to = actors[ev.to]
@@ -1814,7 +1848,7 @@ playRound = function(data: { [string]: any })
 				local f = fighterOf(key)
 				if f and type(n) == "number" then
 					for _, d in Skills.learnt(Skills.lineOf(f.kind, f.skill), f.lvl, f.lvl + n) do
-						table.insert(lines, { text = string.format("%s learnt %s!", nameOf(key), d.name), color = UIKit.color("screen_on") })
+						table.insert(lines, { text = string.format("%s learnt %s!", nameOf(key), d.name), color = UIKit.color("accent") })
 					end
 				end
 			end
@@ -1848,7 +1882,7 @@ playRound = function(data: { [string]: any })
 		Audio.play("sad")
 		resultCard("The party fell...", UIKit.color("bad"), {
 			{ text = "Everyone is back on their feet at home." },
-			{ text = "Half of the loot comes home.", color = UIKit.color("text_dim") },
+			{ text = "All the loot comes home with you.", color = UIKit.color("text_dim") },
 		}, nil, "Sail home", goHome)
 	elseif result == "fled" then
 		refresh()
@@ -2098,23 +2132,18 @@ refresh = function()
 		button(foot, "Flee", ax, 22, 70, UIKit.color("button_warn"), not b.boss, function()
 			task.spawn(flee)
 		end, "Act_flee")
-		button(foot, "Skills", bx, 4, 100, UIKit.color("screen_on"), true, openSkills, "Act_skills")
+		button(foot, "Skills", bx, 4, 100, UIKit.color("accent"), true, openSkills, "Act_skills")
 		-- the skill points charging (the frame loop fills it)
 		local spf = UIKit.plate(foot, UDim2.fromOffset(100, 15), UDim2.fromOffset(bx, 22), UIKit.color("plate_light"), 0, 2)
 		spf.Name = "SpBar"
 		spf.ZIndex = 11
-		local fill = UIKit.rect(spf, UDim2.fromOffset(0, 3), UDim2.fromOffset(2, 10), UIKit.color("screen_on"), 12)
+		local fill = UIKit.rect(spf, UDim2.fromOffset(0, 3), UDim2.fromOffset(2, 10), UIKit.color("accent"), 12)
 		fill.Name = "Fill"
 		UIKit.text(spf, "", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 13, name = "Label" })
 		if skillMenu then
 			skillWindow(r, e)
 		end
 	else
-		button(foot, if autoSafe then "Stop if losing" else "Never stop", ax, 22, 70, if autoSafe then UIKit.color("accent") else UIKit.color("plate_light"), true, function()
-			autoSafe = not autoSafe
-			Audio.play("click")
-			refresh()
-		end, "AutoSafe")
 		-- between stops the party walks on by itself: a bar fills toward the next stop (Space or a tap on it: at once)
 		local plate = Instance.new("TextButton")
 		plate.Name = "AutoGo"
@@ -2304,16 +2333,7 @@ function ExpeditionUI.open()
 			end
 			if k >= 1 then
 				idleSince = nil
-				local risk = if autoSafe and cur then Expedition.risk(cur) else nil
-				if risk and risk.danger then
-					-- the safety stop: the party is likely to lose the next fight; it waits for the player
-					idleSince = math.huge
-					say("The party is hurt: the next fight looks lost. Sail home, or tap to go on.", UIKit.color("bad"), 4)
-					Audio.play("deny")
-					refresh()
-				else
-					task.spawn(goOn)
-				end
+				task.spawn(goOn)
 			end
 		else
 			idleSince = nil
@@ -2610,7 +2630,6 @@ function ExpeditionUI.debugState(): { [string]: any }
 		foes = foeKey,
 		ship = ship ~= nil,
 		arrived = ship ~= nil and aboard == 0,
-		safe = autoSafe,
 		timers = nt,
 		paused = gaugePaused,
 		sp = spOf(),

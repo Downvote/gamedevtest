@@ -48,19 +48,6 @@ return function()
 		local boss = Battle.wild("pebblit", 3, 1, true)
 		T.truthy(boss.maxHp > w.maxHp and boss.atk > w.atk, "a guardian is stronger")
 	end)
-	T.it("the forecast: a strong party is safe, a worn-out one against strong foes is in danger", function()
-		local p = Schema.default(0, 1)
-		local strong = { Battle.founder(p) }
-		strong[1].atk, strong[1].hp = 60, 200
-		local weak = { Battle.wild("pebblit", 2, 1, false) }
-		local f = Battle.forecast(strong, weak)
-		T.truthy(not f.danger and f.win < f.lose, "safe")
-		local worn = { Battle.founder(p) }
-		worn[1].hp = 2
-		local fierce = { Battle.wild("magmole", 20, 1, true), Battle.wild("emberpup", 18, 2, false) }
-		T.truthy(Battle.forecast(worn, fierce).danger, "in danger")
-		T.truthy(not Battle.forecast(worn, {}).danger, "no foes: no danger")
-	end)
 	T.it("a timer's pace: the quicker fill sooner, within the bounds", function()
 		local slow = Battle.wild("magmole", 1, 1, false)
 		local quick = Battle.wild("scorchwing", 1, 1, false)

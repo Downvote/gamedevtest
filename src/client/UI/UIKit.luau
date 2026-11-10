@@ -766,8 +766,9 @@ end
 -- The panel's size for the screen: as big as its def asks, never past the canvas less a margin.
 local function panelSize(def: PanelDef): Vector2
 	local s = UIKit.size("Modal")
-	local w = math.min(def.w or 300, s.X - 16)
-	local h = math.min(def.h or 170, s.Y - 14)
+	-- (its frame of planks takes 4 px more on every side: it still fits the screen)
+	local w = math.min(def.w or 300, s.X - 10)
+	local h = math.min(def.h or 170, s.Y - 10)
 	return Vector2.new(w, h)
 end
 

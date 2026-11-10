@@ -13,7 +13,7 @@
 --                                               shares xp, a beaten guardian charts the island)
 --   snack(p, e, target, rng) / skill(p, e, who, id, target, rng) / flee(p, e, rng)
 --                                              (the player's moves in a battle) / pause(e, on)
---   home(p, e)                                 (back on the island: the loot is added, half of it after a defeat)
+--   home(p, e)                                 (back on the island: the loot is added, all of it, a defeat too)
 --   snacksFor(p), upgradePouch(p)              (snacks an expedition by the pouch's level; a bigger pouch)
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
@@ -222,34 +222,6 @@ function Expedition.levelAt(isle: Isle, node: number): number
 end
 function Expedition.boostAt(node: number): number
 	return 1 + Tuning.StageBoost * math.max(0, Expedition.stageOf(node) - 1)
-end
-
--- The party's outlook for the fight under way, or else for the next stop when it is a fight (its likely foes: two of
--- the island's wild ones at that stage, or its guardian and a friend); nil when no fight is next.
-function Expedition.risk(e: Expedition): Battle.Forecast?
-	if e.battle then
-		return Battle.forecast(e.party, e.battle.foes)
-	end
-	local isle = e.isle
-	local nodes = if e.node + 1 <= #e.nodes then e.nodes else Expedition.nodesTo(isle, e.node + 1)
-	local kind = nodes[e.node + 1]
-	if kind ~= "wild" and kind ~= "boss" then
-		return nil
-	end
-	local node = e.node + 1
-	local lvl, boost = Expedition.levelAt(isle, node), Expedition.boostAt(node)
-	local foes: { Fighter } = {}
-	if kind == "boss" then
-		table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost))
-		if isle.lvl >= 4 or Expedition.guardianAt(node) > 1 then
-			table.insert(foes, Battle.wild(isle.wild[1], lvl, 2, false, nil, boost))
-		end
-	else
-		for i = 1, if isle.lvl >= 3 then 2 else 1 do
-			table.insert(foes, Battle.wild(isle.wild[i], lvl, i, false, nil, boost))
-		end
-	end
-	return Battle.forecast(e.party, foes)
 end
 
 -- The n-th guardian's reward (the first's is the island's: halved when the island was charted before).
@@ -587,10 +559,10 @@ function Expedition.pause(e: Expedition, on: boolean): (boolean, any)
 	return true, Battle.gauges(e.party, b)
 end
 
--- Back on the island: the loot added (half after a defeat). Returns what came home.
+-- Back on the island: the loot added, all of it, after a defeat too (GAME_DESIGN 7: "remove the penalty that happens if
+-- you lose"). Returns what came home.
 function Expedition.home(p: Profile, e: Expedition): { shells: number, food: number, wood: number }
-	local k = if e.over == "lost" then 0.5 else 1
-	local got = { shells = math.floor(e.loot.shells * k), food = math.floor(e.loot.food * k), wood = math.floor(e.loot.wood * k) }
+	local got = { shells = math.floor(e.loot.shells), food = math.floor(e.loot.food), wood = math.floor(e.loot.wood) }
 	p.shells += got.shells
 	p.food += got.food
 	p.wood += got.wood

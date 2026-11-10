@@ -42,6 +42,14 @@ local function ask(action: string, payload: { [string]: any }?, ok: string?): Ty
 	return res
 end
 
+-- A panel's hint over its list: one line, or two when it is too long for the panel (it never runs off the edge).
+-- Returns where the list under it starts.
+local function hint(body: Instance, text: string, w: number): number
+	local two = UIKit.textWidth(text) > w
+	UIKit.text(body, text, UDim2.fromOffset(w, if two then 22 else 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint", wrap = two })
+	return if two then 24 else 14
+end
+
 local function row(list: Instance, order: number, h: number): Frame
 	local f = UIKit.plate(list, UDim2.new(1, -6, 0, h), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
 	f.Name = "Row"
@@ -127,11 +135,11 @@ local function buildPicker(body: Frame, v: Types.ClientView, folkId: number?, pa
 			end
 		end
 	end
-	UIKit.text(body, if palId then string.format("Where should %s help? (%s)", name, KNACKS[knack or ""] or "") else string.format("Where should %s work?", name), UDim2.fromOffset(W - 50, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
+	local top = hint(body, if palId then string.format("Where should %s help? (%s)", name, KNACKS[knack or ""] or "") else string.format("Where should %s work?", name), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
 		UIKit.openPanel(if palId then "pals" else "folk")
 	end, { name = "Back", color = UIKit.color("plate_light") })
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local who: { [number]: string } = {}
 	if palId then
@@ -195,8 +203,8 @@ local function buildFolk(body: Frame, arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	UIKit.text(body, string.format("%d villagers, %d beds. A visitor moves into a free bed at dawn when the charm is high enough.", #v.folk, v.beds), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	local top = hint(body, string.format("%d villagers, %d beds. A visitor moves into a free bed at dawn when the charm is high enough.", #v.folk, v.beds), W)
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	if #v.folk == 0 then
 		local f = row(list, 1, 24)
@@ -242,12 +250,12 @@ local function buildPals(body: Frame, arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	UIKit.text(body, string.format("%d driftlings, nests for %d. Befriend more on expeditions with a Treat.", #v.pals, v.nests), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint" })
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
+	local top = hint(body, string.format("%d driftlings, nests for %d. Befriend more on expeditions with a snack.", #v.pals, v.nests), W)
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "No driftlings yet. Build a nest, then Explore: a Treat in battle may befriend one.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "No driftlings yet. Build a nest, then Explore: a snack in battle may befriend one.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	for i, x in v.pals do
 		local d = Creatures.byId[x.sp]
@@ -340,7 +348,6 @@ local function buildExplore(body: Frame, _arg: any?)
 		end,
 	})
 	-- the boat under the chart: its level and the next one's price
-	PixelSprites.image(body, "mini_boat", UDim2.fromOffset(0, S + 3), 4)
 	local lvText = string.format("Lv %d", v.boat)
 	local bc = Chart.boatCost(v.boat)
 	local px = 0
@@ -348,11 +355,19 @@ local function buildExplore(body: Frame, _arg: any?)
 		local bw = UIKit.buttonWidth("Upgrade", 6)
 		local st, wt = Numbers.coins(bc.shells), Numbers.coins(bc.wood)
 		px = S - bw - 3 - UIKit.textWidth(wt) - 12 - UIKit.textWidth(st) - 13
-		if px < 12 + UIKit.textWidth(lvText) + 3 then
-			lvText = tostring(v.boat) -- (a narrow chart: the boat's icon and its level alone)
-		end
 	end
-	UIKit.text(body, lvText, UDim2.fromOffset(UIKit.textWidth(lvText) + 2, 10), UDim2.fromOffset(12, S + 4), { color = UIKit.color("accent"), name = "BoatLv" })
+	if px < 12 + UIKit.textWidth(lvText) + 3 then
+		-- a narrow chart (a phone): the boat's level sits on a small board in the chart's corner, so the price and
+		-- Upgrade keep the row under it
+		local tag = UIKit.plate(body, UDim2.fromOffset(UIKit.textWidth(lvText) + 18, 13), UDim2.fromOffset(2, 2), UIKit.color("plate"), 0.1, 2, { bevel = true })
+		tag.ZIndex = 5
+		PixelSprites.image(tag, "mini_boat", UDim2.fromOffset(2, 1), 6)
+		UIKit.text(tag, lvText, UDim2.fromOffset(UIKit.textWidth(lvText) + 2, 10), UDim2.fromOffset(14, 1), { color = UIKit.color("accent"), name = "BoatLv", z = 6 })
+		px = math.max(0, px)
+	else
+		PixelSprites.image(body, "mini_boat", UDim2.fromOffset(0, S + 3), 4)
+		UIKit.text(body, lvText, UDim2.fromOffset(UIKit.textWidth(lvText) + 2, 10), UDim2.fromOffset(12, S + 4), { color = UIKit.color("accent"), name = "BoatLv" })
+	end
 	if bc then
 		local short = v.shells < bc.shells or v.wood < bc.wood
 		local bw = UIKit.buttonWidth("Upgrade", 6)
@@ -399,8 +414,15 @@ local function buildExplore(body: Frame, _arg: any?)
 	UIKit.text(body, if done then "Charted" else "Not charted", UDim2.fromOffset(math.max(10, W - rw - 16 - ix - 2), 10), UDim2.fromOffset(ix + 2, 25), { color = if done then UIKit.color("good") else UIKit.color("text_dim"), name = "Charted" })
 	local y0 = -2
 	-- the party: the captain, then up to PartyMax picks
-	UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, y0 + 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
-	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 52 - 46 - y0), UDim2.fromOffset(x0, y0 + 51))
+	-- (on a phone the count sits at the end of the island's kind line: the list gets the room)
+	local listY = y0 + 51
+	if UIKit.phone() then
+		UIKit.text(body, string.format("Party %d/%d", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 10), { color = UIKit.color("text_dim"), name = "PartyHint", x = "right" })
+		listY = y0 + 39
+	else
+		UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, y0 + 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
+	end
+	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 46 - listY - 1), UDim2.fromOffset(x0, listY))
 	UIKit.vlist(pl, 2)
 	local function member(order: number, key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look?)
 		local picked = key == "f" or table.find(party, key) ~= nil
@@ -543,7 +565,7 @@ local function buildIndex(body: Frame, _arg: any?)
 		if n >= 2 then
 			PixelSprites.image(f, "mini_charm", UDim2.new(1, -13, 0, 2), 4)
 		end
-		UIKit.text(f, if n >= 2 then d.blurb elseif n >= 1 then "Met: befriend one with a Treat." else "Not met yet.", UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
+		UIKit.text(f, if n >= 2 then d.blurb elseif n >= 1 then "Met: befriend one with a snack." else "Not met yet.", UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 	end
 end
 

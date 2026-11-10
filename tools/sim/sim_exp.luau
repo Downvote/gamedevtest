@@ -5,7 +5,7 @@
 -- no stepping on or sailing home mid-battle, no snack or flight from a guardian, a snack's free nest and the trip's
 -- few), the timed battle (it waits paused till let run, its actions and timers reach the client, paused again all
 -- stops), a driftling befriended with a snack (the leader's timer starts again), a skill paid in skill points, a
--- flight, a defeat (half the loot home), and the islet's screen: closed and reopened from the HUD's card, a timer over
+-- flight, a defeat (all the loot home: no penalty), and the islet's screen: closed and reopened from the HUD's card, a timer over
 -- every head, the battle fighting itself, the skill window pausing it, a skill aimed with the leader's ring and arrow.
 local E = require("./loader")
 local H = require("./harness")
@@ -511,7 +511,7 @@ H.expect(over == "lost", "defeat", "the party falls", tostring(over))
 local lost = s.exp and E.deepCopy(s.exp.loot)
 local f0, w0 = prof.food, prof.wood
 res = H.req(p, "exp.home", {})
-H.expect(res.ok and lost ~= nil and math.abs(prof.food - (f0 + math.floor(lost.food / 2))) < 1 and math.abs(prof.wood - (w0 + math.floor(lost.wood / 2))) < 1, "defeat", "half the loot home", lost and string.format("%s food gathered", lost.food) or "")
+H.expect(res.ok and lost ~= nil and math.abs(prof.food - (f0 + math.floor(lost.food))) < 1 and math.abs(prof.wood - (w0 + math.floor(lost.wood))) < 1, "defeat", "all the loot home: no penalty for losing", lost and string.format("%s food gathered", lost.food) or "")
 H.expect(s.exp == nil and next(s.away) == nil, "defeat", "everyone home")
 
 ------------------------------------------------------------------ 5. a friend made on the screen

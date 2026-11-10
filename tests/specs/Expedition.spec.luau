@@ -1,6 +1,6 @@
 -- Expeditions (Logic/Expedition; GAME_DESIGN 7): islands made up from a level and a seed, setting out for one,
 -- walking the island's path, battles' ends, befriending, the guardian charting the island (its whole reward the first
--- time, half after), sailing home. (Logic/Chart: Chart.spec.)
+-- time, half after), sailing home (all the loot, a defeat too). (Logic/Chart: Chart.spec.)
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Expedition = require("../../build/luautest/shared/Logic/Expedition")
@@ -240,7 +240,7 @@ return function()
 		end
 		T.eq(select(2, Expedition.pause({ over = "home" } :: any, true)), "no_exp")
 	end)
-	T.it("losing: the expedition ends, half the loot comes home", function()
+	T.it("losing: the expedition ends, all the loot comes home (no penalty)", function()
 		local p = fresh()
 		local _, e = Expedition.start(p, Expedition.chart(1, 8), {})
 		e.loot.shells, e.loot.food = 100, 40
@@ -254,9 +254,13 @@ return function()
 		T.eq(e.over, "lost")
 		T.eq(p.islets, 0, "not charted")
 		local shells = p.shells
+		local loot = table.clone(e.loot)
 		local got = Expedition.home(p, e)
-		T.eq(got.shells, 50)
-		T.eq(p.shells, shells + 50)
+		T.truthy(loot.shells >= 100, "the shells found before the fall")
+		T.eq(got.shells, math.floor(loot.shells), "every shell home")
+		T.eq(p.shells, shells + math.floor(loot.shells))
+		T.eq(got.food, math.floor(loot.food), "all the food too")
+		T.eq(got.wood, math.floor(loot.wood))
 	end)
 	T.it("on past the guardian: the next block, harder wild ones, a second guardian paying more", function()
 		local p = fresh()
@@ -287,30 +291,6 @@ return function()
 		T.eq(e.over, nil, "and the path goes on")
 		local ok = Expedition.next(p, e, rng)
 		T.truthy(ok, "a third block")
-	end)
-	T.it("the risk: the fight under way, else the next stop's likely foes; none when no fight is next", function()
-		local p = fresh()
-		p.cap.lvl = 5
-		local _, e = Expedition.start(p, Expedition.chart(8, 44), {})
-		local rng = Util.newRng(6)
-		-- walk to the stop before a fight
-		local guard = 0
-		while guard < 30 do
-			guard += 1
-			local nxt = Expedition.nodesTo(e.isle, e.node + 1)[e.node + 1]
-			if nxt == "wild" or nxt == "boss" then
-				break
-			end
-			Expedition.next(p, e, rng)
-		end
-		local r = Expedition.risk(e)
-		T.truthy(r ~= nil, "a fight next")
-		e.party[1].hp = 1
-		T.truthy((Expedition.risk(e) :: any).danger, "worn out: likely to lose")
-		e.party[1].hp, e.party[1].atk = 99999, 9999
-		T.truthy(not (Expedition.risk(e) :: any).danger, "strong: safe")
-		Expedition.next(p, e, rng)
-		T.truthy(e.battle ~= nil and Expedition.risk(e) ~= nil, "the fight under way")
 	end)
 	T.it("no fleeing a guardian, no snacks for it", function()
 		local p = fresh()

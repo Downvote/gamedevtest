@@ -380,7 +380,7 @@ local TIPS: { [number]: string } = {
 	[3] = "Shells: place a Snack Stall. It sells food to visitors for shells.",
 	[4] = "Now a Tent: a castaway may move in soon and work for you.",
 	[5] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
-	[6] = "Islands give food, wood and shells. Treat a hurt driftling to befriend it.",
+	[6] = "Islands give food, wood and shells. Throw a snack at a hurt driftling to befriend it.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {

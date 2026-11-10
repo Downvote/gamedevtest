@@ -234,11 +234,18 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   - **A guardian every few stages:** the first charts the island the first time (its whole reward; half on later
     trips); each later one pays more (`BossRewardGrow`: the n-th 1 + 0.6 x (n - 1) times the island's reward). A
     guardian's fall is an alert (charted, or "Guardian 2 beaten!") and the party walks on: Sail home whenever you like
-    (between stops); a fall ends the trip with half the loot.
-  - **Battles fight themselves** (the timed battles below; the earlier auto battle is what every battle does now).
-    **Stop if losing** (`AutoSafe`, on by default; Never stop the other way): before walking into the next fight the
-    party's health and blows are weighed against the next stop's likely foes'; when the party would most likely go
-    down first, it waits ("The party is hurt: the next fight looks lost"), for you to sail home or go on anyway.
+    (between stops); a fall ends the trip, and all the loot still comes home.
+  - **Battles fight themselves** (the timed battles below; the earlier auto battle is what every battle does now), and
+    the party walks on between stops by itself.
+
+    > The request (2026-11-10): "no need to add the option that autopauses if the next fight will be losing. remove
+    > the penalty that happens if you lose. also, make the skill options yellow instead of blue. also, some items in
+    > uis clip out such as the skill menu"
+
+    So there is no Stop if losing (the party never waits for a fight it may lose) and no penalty for a fall: the
+    party comes home with everything it found. The skills are yellow (the Skills button, the skill points and each
+    skill in the window); the skill window fits the screen between the header and the footer (a member's skills wrap
+    onto further lines, and the window scrolls when they still don't fit), and no panel's words run off its edge.
   Charting counts each island once (a flag on the map; the panel counts the islands charted; each is charm up to
   `ChartCharmMax`).
 - **The cutscene** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
@@ -297,7 +304,7 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   - **Skills** (K or 2): see below. **Flee** (F or 3): a chance by speed; a miss starts the leader's timer again.
   A guardian takes no snack and is not fled from. A win gives xp to the party (levels; new skills learnt are named)
   and shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and
-  half the loot comes home.
+  all the loot comes home (no penalty).
 - **Skills:**
 
   > The request (2026-11-10): "also, make skills: you can select a menu in battle anytime that opens a skill window.
@@ -450,7 +457,9 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 - a villager within 3 minutes, a driftling friend within 15;
 - a guardian beaten within 15 minutes; one of a level-5 island (meadows) within 45, level 10 (volcanoes) within 90,
   level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails home
-  after an island's first guardian, and sails to
+  after an island's first guardian, befriends kinds of driftling it has not befriended yet (or any while it has fewer
+  than six friends: a friend gives no experience; befriending every hurt wild one kept its captain from levelling
+  once a defeat no longer cost half the loot), and sails to
   the strongest uncharted island in its boat's range that its party looks strong enough for (asking for more after
   each defeat; a charted one when none is left), and buys the next boat when it can pay and nothing new it can take
   is left in range but the next range holds some;

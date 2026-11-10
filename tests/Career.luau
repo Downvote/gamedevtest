@@ -4,7 +4,8 @@
 -- friend, wood, a shop for every three villagers, decor with spare shells), expand the island when they can, and
 -- every couple of minutes sail on an expedition with the captain and the three strongest to an island at the
 -- captain's level, or lower while the party looks too weak for its guardian or after defeats (the slider). Battles run
--- in time (Expedition.tick, a second at a time); in one they throw a snack at a hurt wild one while a nest is free,
+-- in time (Expedition.tick, a second at a time); in one they throw a snack at a hurt wild one while a nest is free
+-- (one of a kind not yet befriended, or any while they have fewer than six friends: a friend gives no experience),
 -- use a skill when the points cover one (a mend for the most hurt member, else the first that strikes), and flee when
 -- the party is nearly beaten; a node takes NodeSec.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
@@ -307,7 +308,8 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 					data = d
 				elseif not b.boss and Expedition.room(p) and e.snacks > 0 and rng:chance(0.3) then
 					for _, f in b.foes do
-						if f.hp > 0 and f.hp < f.maxHp * 0.5 then
+						local wanted = #p.pals < 6 or (f.sp ~= nil and (p.seen[f.sp] or 0) < 2)
+						if f.hp > 0 and f.hp < f.maxHp * 0.5 and wanted then
 							local _, d = Expedition.snack(p, e, f.key, rng)
 							data = d
 							break
