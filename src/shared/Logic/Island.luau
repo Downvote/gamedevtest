@@ -5,7 +5,8 @@
 -- (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --
 -- A turn (Tuning.TurnSeconds): each building of kind food, wood or shop makes its rate (Data/Buildings) times
---   (a villager working there ? 1 : IdleOutput) x (a driftling of its knack helping ? 1 + PalBoost : 1)
+--   (a villager working there ? 1 : IdleOutput) x (a driftling of its knack helping ? 1 + PalBoost x (1 + its work
+--   share) : 1), its work share its passive's and mutations' (Data/Traits: work and the building's knack)
 --   x (the food has run out ? Hungry : 1)
 -- a shop also times its visitors (visitors a turn / ShopVisitors, at most 2) and eats its `eats` food likewise;
 -- villagers eat EatFolk, driftlings EatPal. Villagers and driftlings away on an expedition neither work nor eat.
@@ -13,6 +14,7 @@ local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Traits = require(script.Parent.Parent.Data.Traits)
 local Looks = require(script.Parent.Parent.Data.Looks)
 local Names = require(script.Parent.Parent.Data.Names)
 local Util = require(script.Parent.Util)
@@ -70,6 +72,16 @@ function Island.works(id: string): boolean
 	return d ~= nil and (d.kind == "food" or d.kind == "wood" or d.kind == "shop")
 end
 
+-- A driftling's work share where it helps (Data/Traits.workAt: its passive's and mutations' work and the building's
+-- knack; 0 when it helps nowhere).
+function Island.palWork(p: Profile, pal: Types.Pal): number
+	local d = Creatures.byId[pal.sp]
+	local q = if pal.work ~= 0 then Island.piece(p, pal.work) else nil
+	local bd = if q then Buildings.byId[q.id] else nil
+	local fx = Traits.sum(if d then d.passive.fx else nil, pal.muts)
+	return Traits.workAt(fx, if bd then bd.knack else (if d then d.knack else ""))
+end
+
 -- What a day makes and eats now (`away`: the keys "v<id>" / "p<id>" of those on an expedition).
 function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 	local out = { food = 0, wood = 0, shells = 0, made = 0, eaten = 0 }
@@ -80,10 +92,11 @@ function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 			worker[v.work] = true
 		end
 	end
-	local helper: { [number]: boolean } = {}
+	-- a helping driftling's boost: PalBoost times (1 + its work share at that building's knack)
+	local helper: { [number]: number } = {}
 	for _, pal in p.pals do
 		if pal.work ~= 0 and not gone["p" .. pal.id] then
-			helper[pal.work] = true
+			helper[pal.work] = Island.palWork(p, pal)
 		end
 	end
 	local hungry = p.food <= 0
@@ -91,7 +104,8 @@ function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 then
-			local k = (if worker[q.uid] then 1 else Tuning.IdleOutput) * (if helper[q.uid] then 1 + Tuning.PalBoost else 1) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1)
+			local help = helper[q.uid]
+			local k = (if worker[q.uid] then 1 else Tuning.IdleOutput) * (if help then 1 + Tuning.PalBoost * (1 + help) else 1) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1)
 			if d.kind == "food" then
 				out.food += d.rate * k
 				out.made += d.rate * k

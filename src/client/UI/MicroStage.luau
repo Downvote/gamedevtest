@@ -1008,6 +1008,192 @@ SETS.dino = function(b)
 	end
 end
 
+-- The kinds added with the rarer driftlings (GAME_DESIGN 7: "more islands as well"): a mangrove, a crystal grotto,
+-- windy bluffs and old ruins, each an islet of its own like the rest.
+
+-- Mangroves: dark mud and moss, brown water channels, mangrove trees on stilt roots along the shore, reeds, lily pads.
+SETS.swamp = function(b)
+	room(b, { ground = "water", a = "leaf_dark", b = "wood_dark", tile = 4 })
+	shore(b, "leaf_dark", "wood_dark", b.rng:range(0, 6.28))
+	-- mangrove trees: a crown on a trunk standing on arched roots
+	for _ = 1, b.rng:int(3, 5) do
+		local x, z = shoreSpot(b, 2, true)
+		if x and z then
+			local k = b.rng:range(0.8, 1.1)
+			for _, r in { { -0.8, 0 }, { 0.8, 0 }, { 0, -0.8 }, { 0, 0.8 } } do
+				b.box(x + r[1] - 0.15, FLOOR, z + r[2] - 0.15, x + r[1] + 0.15, FLOOR + 1.2 * k, z + r[2] + 0.15, "wood_dark")
+			end
+			b.box(x - 0.3, FLOOR + 1.0 * k, z - 0.3, x + 0.3, FLOOR + 3.6 * k, z + 0.3, "wood_dark")
+			b.box(x - 1.6 * k, FLOOR + 3.4 * k, z - 1.6 * k, x + 1.6 * k, FLOOR + 4.6 * k, z + 1.6 * k, "leaf_dark")
+			b.box(x - 1.1 * k, FLOOR + 4.6 * k, z - 1.1 * k, x + 1.1 * k, FLOOR + 5.3 * k, z + 1.1 * k, "leaf")
+		end
+	end
+	-- a winding channel of brown water across the floor, lily pads on it
+	local ph = b.rng:range(0, 6.28)
+	for k = 0, 11 do
+		local x = -HALF + 1 + k * 2
+		local z = snap(math.sin(k * 0.6 + ph) * 3 - 3)
+		b.box(x - 1.1, FLOOR - 0.06, z - 1.1, x + 1.1, FLOOR + 0.02, z + 1.1, "water")
+		if k % 3 == 1 then
+			b.box(x - 0.4, FLOOR + 0.03, z - 0.3, x + 0.4, FLOOR + 0.08, z + 0.3, "leaf")
+		end
+	end
+	-- reed clumps and mossy logs
+	for _ = 1, b.rng:int(3, 5) do
+		local x, z = floorSpot(b, 0.8)
+		if x and z then
+			for i = 0, 3 do
+				local ox, oz = (i % 2) * 0.35 - 0.15, math.floor(i / 2) * 0.35 - 0.15
+				b.box(x + ox - 0.07, FLOOR, z + oz - 0.07, x + ox + 0.07, FLOOR + 1.1 + (i % 3) * 0.25, z + oz + 0.07, if i % 2 == 0 then "leaf" else "sand_dark")
+			end
+			b.box(x - 0.1, FLOOR + 1.3, z - 0.1, x + 0.1, FLOOR + 1.6, z + 0.1, "wood_dark")
+		end
+	end
+	local lx, lz = floorSpot(b, 2.4)
+	if lx and lz then
+		b.box(lx - 2.2, FLOOR, lz - 0.45, lx + 2.2, FLOOR + 0.9, lz + 0.45, "wood_dark")
+		b.box(lx - 1.6, FLOOR + 0.9, lz - 0.35, lx + 0.8, FLOOR + 1.05, lz + 0.35, "leaf")
+	end
+end
+
+-- Grottoes: purple stone round a cave mouth on the left shore, crystal clusters glowing in pink and blue, stalagmites,
+-- a still pool.
+SETS.grotto = function(b)
+	room(b, { ground = "water", a = "rock_dark", b = "rock", tile = 4 })
+	shore(b, "rock_dark", "sand_dark", b.rng:range(0, 6.28))
+	-- the cave: a dark arch in a mound of rock at the landmark spot
+	local vx, vz = VOLCANO.x + 2, VOLCANO.z
+	b.box(vx - 3, FLOOR - 0.5, vz - 3, vx + 3, FLOOR + 4, vz + 3, "rock_dark")
+	b.box(vx - 2.2, FLOOR + 4, vz - 2.2, vx + 2.2, FLOOR + 6, vz + 2.2, "rock")
+	b.box(vx - 1, FLOOR, vz + 2.9, vx + 1, FLOOR + 2.4, vz + 3.05, "night")
+	b.box(vx - 0.4, FLOOR + 4.5, vz - 0.4, vx + 0.4, FLOOR + 7.2, vz + 0.4, "purple", true)
+	table.insert(b.used, { vx, vz, 4 })
+	-- crystal clusters: tall neon shards
+	for _ = 1, b.rng:int(4, 6) do
+		local x, z = floorSpot(b, 1)
+		if x and z then
+			local c = pick(b, { "purple", "pink", "screen_on" })
+			b.box(x - 0.3, FLOOR, z - 0.3, x + 0.3, FLOOR + b.rng:range(1.4, 2.4), z + 0.3, c, true)
+			b.box(x + 0.25, FLOOR, z - 0.2, x + 0.6, FLOOR + b.rng:range(0.7, 1.3), z + 0.15, c, true)
+			b.box(x - 0.6, FLOOR, z + 0.05, x - 0.25, FLOOR + b.rng:range(0.6, 1.1), z + 0.4, c, true)
+		end
+	end
+	-- stalagmites and a still pool
+	for _ = 1, b.rng:int(2, 4) do
+		local x, z = shoreSpot(b, 1, false)
+		if x and z then
+			local h = b.rng:range(1.2, 2.6)
+			b.box(x - 0.45, FLOOR, z - 0.45, x + 0.45, FLOOR + h * 0.5, z + 0.45, "rock")
+			b.box(x - 0.25, FLOOR + h * 0.5, z - 0.25, x + 0.25, FLOOR + h, z + 0.25, "rock")
+		end
+	end
+	local px, pz = floorSpot(b, 2)
+	if px and pz then
+		b.box(px - 1.6, FLOOR - 0.05, pz - 1.1, px + 1.6, FLOOR + 0.02, pz + 1.1, "night")
+		b.box(px - 0.3, FLOOR + 0.03, pz - 0.2, px + 0.3, FLOOR + 0.06, pz + 0.2, "screen_on", true)
+	end
+end
+
+-- Bluffs: a high green clifftop above the sea (the floor), a rocky cliff edge with steps of tan stone, wind-bent
+-- trees, boulders, tall grass, a lone signal cairn.
+SETS.bluffs = function(b)
+	room(b, { ground = "water", a = "grass", b = "grass_dark", tile = 4 })
+	shore(b, "sand_dark", "rock", b.rng:range(0, 6.28))
+	-- the cliff's tan stone ledges round the edge
+	for _ = 1, b.rng:int(5, 8) do
+		local x, z = shoreSpot(b, 1.6, false)
+		if x and z then
+			local h = b.rng:range(0.8, 1.8)
+			b.box(x - 1.2, FLOOR - 1, z - 1.2, x + 1.2, FLOOR + h, z + 1.2, "sand_dark")
+			b.box(x - 0.9, FLOOR + h, z - 0.9, x + 0.9, FLOOR + h + 0.2, z + 0.9, "grass")
+		end
+	end
+	-- wind-bent trees: a leaning trunk, a crown pushed one way
+	for _ = 1, b.rng:int(2, 4) do
+		local x, z = shoreSpot(b, 1.8, true)
+		if x and z then
+			b.box(x - 0.25, FLOOR, z - 0.25, x + 0.25, FLOOR + 2.4, z + 0.25, "wood_dark")
+			b.box(x + 0.1, FLOOR + 2.2, z - 0.2, x + 0.6, FLOOR + 2.8, z + 0.3, "wood_dark")
+			b.box(x - 0.6, FLOOR + 2.6, z - 1.3, x + 2.2, FLOOR + 3.6, z + 1.3, "leaf")
+			b.box(x + 0.2, FLOOR + 3.6, z - 0.8, x + 1.8, FLOOR + 4.1, z + 0.8, "leaf_dark")
+		end
+	end
+	-- the cairn: stacked stones with a little flag, at the landmark spot
+	local cx, cz = VOLCANO.x + 2, VOLCANO.z
+	for k = 0, 3 do
+		local r = 1.2 - k * 0.25
+		b.box(cx - r, FLOOR + k * 0.7, cz - r, cx + r, FLOOR + (k + 1) * 0.7, cz + r, if k % 2 == 0 then "rock" else "rock_dark")
+	end
+	b.box(cx - 0.06, FLOOR + 2.8, cz - 0.06, cx + 0.06, FLOOR + 4.4, cz + 0.06, "wood")
+	b.box(cx + 0.06, FLOOR + 3.8, cz - 0.03, cx + 0.9, FLOOR + 4.3, cz + 0.03, "berry_red")
+	table.insert(b.used, { cx, cz, 2 })
+	-- tall grass and boulders
+	for _ = 1, b.rng:int(3, 6) do
+		local x, z = floorSpot(b, 0.6)
+		if x and z then
+			for i = 0, 2 do
+				b.box(x + i * 0.25 - 0.3, FLOOR, z - 0.05, x + i * 0.25 - 0.15, FLOOR + 0.7 + i * 0.15, z + 0.05, "leaf")
+			end
+		end
+	end
+	for _ = 1, b.rng:int(1, 3) do
+		local x, z = floorSpot(b, 1.4)
+		if x and z then
+			stageRocks(b, x, z, b.rng:range(0.7, 1.1))
+		end
+	end
+end
+
+-- Ruins: sand over old flagstones, broken columns, a fallen arch, a stair to nowhere, a stone head half sunk, gold
+-- glinting in the cracks.
+SETS.ruins = function(b)
+	room(b, { ground = "water", a = "sand", b = "pavement", tile = 3 })
+	shore(b, "sand", "sand", b.rng:range(0, 6.28))
+	-- columns, whole and broken
+	for _ = 1, b.rng:int(4, 6) do
+		local x, z = floorSpot(b, 0.9)
+		if x and z then
+			local h = if b.rng:chance(0.4) then b.rng:range(3.2, 4.2) else b.rng:range(0.8, 2.2)
+			b.box(x - 0.65, FLOOR, z - 0.65, x + 0.65, FLOOR + 0.35, z + 0.65, "rock")
+			b.box(x - 0.45, FLOOR + 0.35, z - 0.45, x + 0.45, FLOOR + h, z + 0.45, "chalk")
+			if h > 3 then
+				b.box(x - 0.65, FLOOR + h, z - 0.65, x + 0.65, FLOOR + h + 0.35, z + 0.65, "rock")
+			end
+		end
+	end
+	-- a fallen arch: two posts and a lintel at the landmark spot, a column lying in the sand
+	local ax, az = VOLCANO.x + 2, VOLCANO.z
+	b.box(ax - 2.2, FLOOR, az - 0.6, ax - 1.2, FLOOR + 4, az + 0.6, "chalk")
+	b.box(ax + 1.2, FLOOR, az - 0.6, ax + 2.2, FLOOR + 4, az + 0.6, "chalk")
+	b.box(ax - 2.6, FLOOR + 4, az - 0.7, ax + 2.6, FLOOR + 4.8, az + 0.7, "rock")
+	b.box(ax - 0.6, FLOOR + 4.1, az + 0.7, ax + 0.6, FLOOR + 4.6, az + 0.75, "gold")
+	table.insert(b.used, { ax, az, 3 })
+	local lx, lz = floorSpot(b, 2.2)
+	if lx and lz then
+		b.box(lx - 2, FLOOR, lz - 0.45, lx + 2, FLOOR + 0.9, lz + 0.45, "chalk")
+	end
+	-- a stair of three steps, and a big stone head half sunk in the sand
+	local sx, sz = floorSpot(b, 1.8)
+	if sx and sz then
+		for k = 0, 2 do
+			b.box(sx - 1.4 + k * 0.2, FLOOR + k * 0.4, sz - 1 + k * 0.6, sx + 1.4 - k * 0.2, FLOOR + (k + 1) * 0.4, sz + 1, "rock")
+		end
+	end
+	local hx, hz = shoreSpot(b, 1.6, true)
+	if hx and hz then
+		b.box(hx - 1, FLOOR - 0.3, hz - 1, hx + 1, FLOOR + 1.8, hz + 1, "rock")
+		b.box(hx - 0.7, FLOOR + 1.0, hz + 0.95, hx - 0.3, FLOOR + 1.3, hz + 1.05, "night")
+		b.box(hx + 0.3, FLOOR + 1.0, hz + 0.95, hx + 0.7, FLOOR + 1.3, hz + 1.05, "night")
+		b.box(hx - 1.1, FLOOR + 1.8, hz - 1.1, hx + 1.1, FLOOR + 2.1, hz + 1.1, "gold")
+	end
+	for _ = 1, b.rng:int(3, 5) do
+		local x, z = floorSpot(b, 0.4)
+		if x and z then
+			b.box(x - 0.15, FLOOR, z - 0.15, x + 0.15, FLOOR + 0.12, z + 0.15, "gold")
+		end
+	end
+end
+
 SETS.beat = function(b) -- Rhythm: a disco floor
 	room(b, { ground = "black", a = "purple", b = "pink", tile = 4, wall = "black", wallH = 7, trim = "purple" })
 	for i = 0, 5 do
@@ -1422,6 +1608,25 @@ AMBIENT.dino = function(st)
 			return ORIGIN + Vector3.new(VOLCANO.x + math.random() * 2 - 1, 10.5, VOLCANO.z + math.random() * 2 - 1)
 		end, 0.3),
 	})
+end
+
+-- the new islets' life: fireflies over the mangrove, glints in the grotto, gulls riding the bluffs' wind, dust over the
+-- ruins
+AMBIENT.swamp = function(st)
+	return all({ wanderer(st, "yellow", -5, -4, 0), wanderer(st, "yellow", 4, 3, 1.1), wanderer(st, "leaf", 6, -6, 2.3) })
+end
+AMBIENT.grotto = function(st)
+	return all({
+		blinker(st, ORIGIN + Vector3.new(VOLCANO.x + 2, 7.6, VOLCANO.z), "purple", 1.6, 0),
+		wanderer(st, "screen_on", -4, 4, 0.5),
+		wanderer(st, "pink", 5, -3, 1.7),
+	})
+end
+AMBIENT.bluffs = function(st)
+	return all({ circler(st, "bird", "white", 0, 0, 14, 11, 8, 0), circler(st, "bird", "white", -6, -2, 9, 13, 6, 2.1) })
+end
+AMBIENT.ruins = function(st)
+	return all({ circler(st, "bird", "hair_brown", VOLCANO.x + 2, VOLCANO.z, 6, 9, 7, 0.4), wanderer(st, "sand", 3, 5, 0.8) })
 end
 
 AMBIENT.beat = function(st)

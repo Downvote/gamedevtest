@@ -18,6 +18,7 @@
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Traits = require(script.Parent.Parent.Data.Traits)
 local Skills = require(script.Parent.Parent.Data.Skills)
 local Util = require(script.Parent.Util)
 
@@ -76,6 +77,23 @@ local function make(key: string, name: string, kind: string, base: Base, lvl: nu
 	}
 end
 
+-- What a driftling's passive and mutations (Data/Traits) do to its stats: health, attack and defence times
+-- (1 + share), its timer's speed too (`extra`: more shares, e.g. a better home's: Logic/Island.comfort).
+function Battle.fxOf(sp: string, muts: { string }?): Traits.Fx
+	local d = Creatures.byId[sp]
+	return Traits.sum(if d then d.passive.fx else nil, muts)
+end
+function Battle.applyFx(f: Fighter, fx: Traits.Fx)
+	local function k(key: string): number
+		return math.max(0.3, 1 + (fx[key] or 0))
+	end
+	f.maxHp = math.max(1, math.floor(f.maxHp * k("hp") + 0.5))
+	f.hp = f.maxHp
+	f.atk = math.max(1, math.floor(f.atk * k("atk") + 0.5))
+	f.def = math.max(0, math.floor(f.def * k("def") + 0.5))
+	f.spd = math.max(0, math.floor(f.spd * k("spd") + 0.5))
+end
+
 function Battle.founder(p: Types.Profile): Fighter
 	local f = make("f", "You", "founder", Battle.FOUNDER, p.cap.lvl)
 	f.look = p.founder
@@ -88,16 +106,26 @@ function Battle.villager(v: Types.Villager): Fighter
 	return f
 end
 
-function Battle.pal(pal: Types.Pal): Fighter
+-- A befriended driftling: its species' stats at its level, then its passive and mutations (`extra`: more shares on
+-- top, e.g. its nest's comfort).
+function Battle.pal(pal: Types.Pal, extra: Traits.Fx?): Fighter
 	local d = Creatures.byId[pal.sp]
 	local f = make("p" .. pal.id, if d then d.name else pal.sp, "pal", Battle.speciesBase(pal.sp), pal.lvl)
 	f.sp = pal.sp
+	local fx = Battle.fxOf(pal.sp, pal.muts)
+	if extra then
+		for key, v in extra do
+			fx[key] = (fx[key] or 0) + v
+		end
+	end
+	Battle.applyFx(f, fx)
 	return f
 end
 
 function Battle.wild(sp: string, lvl: number, i: number, boss: boolean, name: string?, boost: number?): Fighter
 	local d = Creatures.byId[sp]
 	local f = make("w" .. i, name or (if d then d.name else sp), "wild", Battle.speciesBase(sp), lvl, (if boss then Tuning.BossBoost else 1) * (boost or 1))
+	Battle.applyFx(f, Battle.fxOf(sp, nil))
 	f.sp = sp
 	return f
 end

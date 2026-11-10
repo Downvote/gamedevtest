@@ -167,16 +167,51 @@ take workers: Go, Swap with whoever is there, or Rest) and **Dismiss** (two taps
 Each villager has their own fighting stats (from their seed) and a skill (Big Bonk, Soothe or Shell Guard), and grows
 with levels (xp from battles and the yard).
 
-## 6. Driftlings (`Data/Creatures`, the Driftlings panel, the Index)
+## 6. Driftlings (`Data/Creatures`, `Data/Traits`, the Driftlings panel, the Index)
 
-Fifteen driftlings of our own, three living on each kind of island: Pebblit, Clawdle, Gullfin (beaches); Mossbun,
-Frondle, Twiggle (meadows); Emberpup, Magmole, Scorchwing (volcanoes); Snowpuff, Floe, Frostling (snowfields);
-Lumajelly, Novafox, Tidewyrm (reefs). Each has battle stats, a skill (Big Bonk, Double Dash, Splash Wave, Soothe, Shell
-Guard), a **knack** (farms, fishing piers, lumber camps or shops: where it helps), a trust (how readily a treat
-befriends it), a 3D model and a portrait. A befriended driftling needs a free nest slot (`PalsMax` at most) and starts
-helping where its knack is needed. The Driftlings panel shows each (portrait, level, skill, where it helps, stats)
-with **Help** (a picker of the buildings of its knack, or Rest) and **Release** (two taps). The **Index** lists all
-fifteen: dark until met, named once met, its blurb and a heart once befriended.
+> The requests (2026-11-10): "make each creature have a different passive ability. some can have different mutations
+> which allow them to do different things better, such as better health, attack speed, etc. mutations also have
+> tiers, so a rarer mutation gives better benefits. mimic the system in palworld. some creatures also have passives
+> that make them better workers in logging, shells, etc. and mutations also helping in that."; "make much more
+> creatures, some rarer than others, and more islands as well". The system is the genre's (a passive of each kind,
+> rolled traits in tiers, workers better at some jobs); every name, number and creature is our own.
+
+Fifty-five driftlings of our own, five to seven living on each of the nine kinds of island (§7):
+
+| Kind | Its driftlings (common .. legendary) |
+|---|---|
+| Beaches | Pebblit, Clawdle, Gullfin, Conchy, Shellback, Sunsprite |
+| Meadows | Mossbun, Frondle, Twiggle, Hopsprout, Bloomoth, Elderbark |
+| Mangroves | Murkle, Reedle, Bogsnail, Mudmole, Wispwing, Mirewyrm |
+| Volcanoes | Emberpup, Magmole, Scorchwing, Cindertoad, Basaltor, Pyredrake, Pyrelord |
+| Grottoes | Gemsnail, Glowbat, Quartzle, Crystowl, Prismoth |
+| Snowfields | Snowpuff, Floe, Frostling, Icetoad, Glacior, Frostdrake, Frostcrown |
+| Bluffs | Cloudbun, Breezle, Skyfox, Stormowl, Thunderdrake, Aurorawing |
+| Reefs | Coralcrab, Lumajelly, Pearlback, Novafox, Tidewyrm, Abyssmaw |
+| Ruins | Relicrab, Rubblet, Glyphowl, Sentinel, Runemoth, Solwyrm |
+
+Each has battle stats, a skill, a **knack** (farms, fishing piers, lumber camps or shops: where it helps), a trust (how
+readily a snack befriends it), a 3D model built from parts (twenty body plans: blob, crab, bird, bun, lizard, owl,
+pup, mole, jelly, fox, wyrm, seal, bat, sprite, yeti, and the new snail, turtle, frog, moth, golem and drake) and a
+16x16 portrait.
+
+- **Rarity** (`Traits.RARITY`): Common, Uncommon, Rare, Epic, Legendary (name colours: grey, green, blue, purple,
+  gold). A wild one turns up by weight (100, 45, 16, 5, 1.2: `Expedition.pickWild`), so the commons are met at every
+  stop and a legend once in a long while; the rarer are stronger (their stats) and slower to trust. The guardians are
+  the rares and epics of their kind (never a legend); when a wild epic or legend turns up the screen says so ("An
+  epic Wispwing appears!", "A legendary Solwyrm appears!", in its rarity's colour, with a fanfare).
+  Its **power** (`Creatures.power`: its stats weighted, +12% a rarity step) ranks the kinds.
+- **A passive of its own** (`passive`: a name and its effects, every kind's different): shares added to health,
+  attack, defence, speed (its timer fills faster), learning, or work (at any building, or at farms, fishing, lumber or
+  shops: "Snappy Pincers: +10% attack, +15% at fishing", "Fertile Trail: +30% at farms"). In battle the shares scale
+  its stats (`Battle.applyFx`; a wild one has its passive too); at work a helper adds `PalBoost` x (1 + its share at
+  that building's knack) (`Island.palWork`), so a woodsy driftling at the lumber camp is worth more than any other there.
+
+A befriended driftling needs a free nest slot (`PalsMax` at most) and starts helping where its knack is needed. The
+Driftlings panel shows each (portrait, its name in its rarity's colour, level, skill, its passive, its mutations, where
+it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest) and **Release** (two taps). The
+**Index** lists all fifty-five: a dark shape and its rarity until met, named once met, its passive once befriended
+(and a heart).
 
 ## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the sailing cutscene, the islet's screen)
 
@@ -211,12 +246,16 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   boat at the pier, the one that sails you out and the one at the islands' shores is the new one (§8).
 - **What an island holds** (`Logic/Expedition.chart`, from its level and its own seed):
   - **its kind**, one of those open at the level, picked by its seed: **beaches** from the start, **meadows** from 5,
-    **volcanoes** from 10, **snowfields** from 16, **reefs** from 23;
+    **mangroves** from 7, **volcanoes** from 10, **grottoes** from 13, **snowfields** from 16, **bluffs** from 20,
+    **reefs** from 23, **ruins** from 28 (each its own 3D stage: a murky bog of mangroves on stilted roots and a
+    water channel; a dark cave floor of glowing crystals; grassy clifftops of stacked rock and a cairn; sandstone
+    flags of broken columns and arches);
   - **its name**, two words of its kind ("Gull Key", "Willow Thicket", "Scorch Peak", "Frost Drift", "Brine
     Hollow");
-  - **its driftlings**: two of its kind's own and one more that strayed in from any kind open at the level; its
-    **guardian** is one of its own, titled ("Grumpy Clawdle", "Elder Floe"), two levels up with a friend from level 4
-    (and always from the second guardian on);
+  - **its driftlings**: every one of its kind (the rarer met less often, by weight) and a common or uncommon one
+    that strayed in from any kind open at the level; its **guardian** is one of its own rares or epics, titled
+    ("Grumpy Shellback", "Elder Glacior"), two levels up with a friend from level 4 (and always from the second
+    guardian on);
   - **what it holds**, growing with the level: a loot stop's food and wood, a chest's shells, the guardian's reward
     (`Isle*`).
 

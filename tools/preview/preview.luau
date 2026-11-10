@@ -369,7 +369,7 @@ local function panelScenario(name)
 	return p
 end
 
--- An island of a kind (Data/Islets 1-5) at a level: the first seed that charts that kind there.
+-- An island of a kind (Data/Islets 1-9) at a level: the first seed that charts that kind there.
 local function seedOfKind(kind, lvl)
 	local Expedition = H.sharedServer("Logic.Expedition")
 	for seed = 1, 2000 do
@@ -380,7 +380,7 @@ local function seedOfKind(kind, lvl)
 	return 1
 end
 
--- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 5 reef) at the level it first turns up
+-- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 9 ruins) at the level it first turns up
 -- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window),
 -- aim (aiming frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered), throw (a
 -- snack befriending the last wild one, frame by frame), tut (a battle in the tips' catching step: its note))

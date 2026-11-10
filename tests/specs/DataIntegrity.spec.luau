@@ -3,6 +3,7 @@ local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
+local Traits = require("../../build/luautest/shared/Data/Traits")
 local Islets = require("../../build/luautest/shared/Data/Islets")
 local Office = require("../../build/luautest/shared/Data/Office")
 local Palette = require("../../build/luautest/shared/Data/Palette")
@@ -52,15 +53,36 @@ return function()
 			T.truthy(knacks[d.knack], d.id .. " knack " .. d.knack)
 			T.truthy(d.trust > 0 and d.trust < 1, d.id .. " trust")
 			T.truthy(color(d.body) and color(d.accent), d.id .. " colours")
+			-- its rarity, its passive (named, effects Data/Traits knows) and its breeding rank
+			T.truthy(d.rarity >= 1 and d.rarity <= 5, d.id .. " rarity")
+			T.truthy(#d.passive.name > 0 and next(d.passive.fx) ~= nil, d.id .. " passive")
+			for k, v in d.passive.fx do
+				T.truthy(table.find(Traits.KEYS, k) ~= nil and v > 0 and v < 1, d.id .. " passive effect " .. k)
+			end
+			T.truthy(d.power > 0, d.id .. " power")
 		end
+		-- each kind: at least five, a common one and a rarer one
 		for i in Islets.list do
-			T.eq(perIslet[i], 3, "three driftlings on islet " .. i)
+			T.truthy((perIslet[i] or 0) >= 5, "five or more driftlings on islet " .. i .. ": " .. tostring(perIslet[i]))
+			local lo, hi = 9, 0
+			for _, d in Creatures.list do
+				if d.islet == i then
+					lo, hi = math.min(lo, d.rarity), math.max(hi, d.rarity)
+				end
+			end
+			T.truthy(lo == 1 and hi >= 3, "islet " .. i .. ": commons and rarer ones")
+		end
+		-- every passive is its own
+		local names: { [string]: boolean } = {}
+		for _, d in Creatures.list do
+			T.truthy(not names[d.passive.name], "a passive of its own: " .. d.passive.name)
+			names[d.passive.name] = true
 		end
 	end)
 	T.it("kinds of island: their own driftlings, opening at growing levels from 1, words for names, a stage, a colour", function()
 		for i, d in Islets.list do
 			T.eq(d.id, i)
-			T.eq(#d.wild, 3)
+			T.truthy(#d.wild >= 5, d.name .. " roster")
 			for _, sp in d.wild do
 				T.truthy(Creatures.byId[sp] ~= nil and Creatures.byId[sp].islet == i, d.name .. " " .. sp)
 			end
@@ -73,7 +95,10 @@ return function()
 			if i == 1 then
 				T.eq(d.lvl, 1, "beaches from the start")
 			else
-				T.truthy(d.lvl > Islets.list[i - 1].lvl, d.name .. " opens later")
+				T.truthy(d.lvl > 1, d.name .. " opens later")
+				for j = 1, i - 1 do
+					T.truthy(Islets.list[j].lvl ~= d.lvl, d.name .. " opens at a level of its own")
+				end
 			end
 		end
 		T.truthy(#Islets.titles >= 6)

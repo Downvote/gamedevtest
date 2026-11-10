@@ -46,12 +46,20 @@ return function()
 		local v = villager(p, uid)
 		T.near(Island.rates(p).food, Buildings.byId.patch.rate - Tuning.EatFolk, 1e-9, "a villager eats")
 		table.insert(p.pals, { id = 99, sp = "mossbun", lvl = 1, xp = 0, work = uid })
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * (1 + Tuning.PalBoost) - Tuning.EatFolk - Tuning.EatPal, 1e-9)
+		-- (the helper's boost grows with its work share: the mossbun's passive is at farms)
+		local share = Island.palWork(p, p.pals[1])
+		T.truthy(share > 0, "a farm passive helps at a farm")
+		local boost = 1 + Tuning.PalBoost * (1 + share)
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate * boost - Tuning.EatFolk - Tuning.EatPal, 1e-9)
 		-- away on an expedition: neither works nor eats
 		T.near(Island.rates(p, { ["v" .. v.id] = true, p99 = true }).food, Buildings.byId.patch.rate * Tuning.IdleOutput, 1e-9)
 		-- hungry: everything at half
 		p.food = 0
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * (1 + Tuning.PalBoost) * Tuning.Hungry - Tuning.EatFolk - Tuning.EatPal, 1e-9)
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate * boost * Tuning.Hungry - Tuning.EatFolk - Tuning.EatPal, 1e-9)
+		-- a mutation for work makes it a better helper still
+		p.food = 100
+		p.pals[1].muts = { "grower3" }
+		T.truthy(Island.palWork(p, p.pals[1]) > share, "a farming mutation adds to it")
 	end)
 	T.it("wood and shops: a shop sells to visitors, eating food", function()
 		local p = fresh()

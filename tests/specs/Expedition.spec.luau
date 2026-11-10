@@ -47,11 +47,18 @@ return function()
 				names[isle.name] = true
 				local first, last = string.match(isle.name, "^(%S+) (%S+)$")
 				T.truthy(first and table.find(def.first, first) and table.find(def.last, last), isle.name)
-				T.eq(#isle.wild, 3)
-				T.truthy(isle.wild[1] ~= isle.wild[2] and isle.wild[1] ~= isle.wild[3] and isle.wild[2] ~= isle.wild[3], "three species")
-				T.truthy(table.find(def.wild, isle.wild[1]) and table.find(def.wild, isle.wild[2]), "two of its own")
-				T.truthy(table.find(Expedition.speciesAt(lvl), isle.wild[3]), "a stray from an open kind")
+				-- every one of its kind, and maybe a common stray from another open kind
+				for _, sp in def.wild do
+					T.truthy(table.find(isle.wild, sp) ~= nil, "its own " .. sp)
+				end
+				T.truthy(#isle.wild == #def.wild or #isle.wild == #def.wild + 1, "its own and a stray")
+				if #isle.wild > #def.wild then
+					local stray = isle.wild[#isle.wild]
+					T.truthy(table.find(Expedition.speciesAt(lvl), stray) and Creatures.byId[stray].rarity <= 2, "a common stray from an open kind")
+				end
+				-- its guardian: one of its own rare or epic ones
 				T.truthy(table.find(def.wild, isle.boss) and string.find(isle.bossName, Creatures.byId[isle.boss].name, 1, true), "its guardian")
+				T.truthy(Creatures.byId[isle.boss].rarity >= 3 and Creatures.byId[isle.boss].rarity <= 4, "a rare or epic guardian")
 				-- the path never ends: blocks of BossEvery stages, a guardian at the end of each
 				local nodes = Expedition.nodesTo(isle, 1 + Tuning.BossEvery * 4)
 				T.eq(nodes[1], "start")
@@ -239,6 +246,20 @@ return function()
 			end
 		end
 		T.eq(select(2, Expedition.pause({ over = "home" } :: any, true)), "no_exp")
+	end)
+	T.it("wild ones by rarity: the commons most often, a legend now and then", function()
+		local isle = Expedition.chart(12, 4242)
+		isle.kind = 3
+		isle.wild = table.clone(Islets.list[3].wild)
+		local rng = Util.newRng(9)
+		local byRarity: { [number]: number } = {}
+		for _ = 1, 6000 do
+			local cd = Creatures.byId[Expedition.pickWild(isle, rng)]
+			byRarity[cd.rarity] = (byRarity[cd.rarity] or 0) + 1
+		end
+		T.truthy((byRarity[1] or 0) > (byRarity[2] or 0) and (byRarity[2] or 0) > (byRarity[3] or 0), "commons, then uncommons, then rares")
+		T.truthy((byRarity[3] or 0) > (byRarity[4] or 0) and (byRarity[4] or 0) > (byRarity[5] or 0), "rares, then epics, then legends")
+		T.truthy((byRarity[5] or 0) > 0, "a legend does turn up")
 	end)
 	T.it("the tips: setting sail moves them to fighting, the first battle's end to catching, a friend to the last", function()
 		local p = fresh()

@@ -11,6 +11,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
+local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
@@ -48,6 +49,27 @@ local function hint(body: Instance, text: string, w: number): number
 	local two = UIKit.textWidth(text) > w
 	UIKit.text(body, text, UDim2.fromOffset(w, if two then 22 else 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint", wrap = two })
 	return if two then 24 else 14
+end
+
+-- A driftling's mutations in a line (Data/Traits): each name in its tier's colour with its stars; "No mutations".
+local function mutLine(parent: Instance, muts: { string }, x: number, y: number, w: number)
+	if #muts == 0 then
+		UIKit.text(parent, "No mutations", UDim2.fromOffset(w, 10), UDim2.fromOffset(x, y), { color = UIKit.color("text_dim"), z = 4, name = "Muts" })
+		return
+	end
+	local cx = x
+	for i, id in muts do
+		local m = Traits.byId[id]
+		if m then
+			local label = m.name .. Traits.TIER_STARS[m.tier] .. (if i < #muts then "," else "")
+			local lw = UIKit.textWidth(label)
+			if cx + lw > x + w then
+				break
+			end
+			UIKit.text(parent, label, UDim2.fromOffset(lw + 2, 10), UDim2.fromOffset(cx, y), { color = UIKit.color(Traits.TIER_COLOR[m.tier] or "text"), z = 4, name = "Mut_" .. id })
+			cx += lw + 5
+		end
+	end
 end
 
 local function row(list: Instance, order: number, h: number): Frame
@@ -262,21 +284,26 @@ local function buildPals(body: Frame, arg: any?)
 		if d == nil then
 			continue
 		end
-		local f = row(list, i, 34)
+		local f = row(list, i, 54)
 		f.Name = "Pal_" .. x.id
-		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 9), 4)
+		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 4), 4)
 		local gone = away(v, "p" .. x.id)
-		UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(24, 1), { color = UIKit.color("accent"), z = 4, name = "Name" })
-		UIKit.text(f, string.format("Lv %d  %s", x.lvl, Creatures.skills[d.skill] or d.skill), UDim2.new(1, -140, 0, 10), UDim2.fromOffset(24 + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4 })
+		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		local tw = W - 130
+		-- its name in its rarity's colour, its level and skill; its passive; its mutations; where it is; its stats
+		UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(24, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, string.format("Lv %d  %s", x.lvl, Creatures.skills[d.skill] or d.skill), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(24 + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4 })
+		UIKit.text(f, d.passive.name .. ": " .. Traits.describe(d.passive.fx), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 11), { color = UIKit.color("accent"), z = 4, name = "Passive" })
+		mutLine(f, x.muts or {}, 24, 21, tw)
 		local where = if gone then "Away on an expedition" elseif x.work ~= 0 then "Helping at the " .. (buildingName(v, x.work) or "?") else "Resting (helps at " .. (KNACKS[d.knack] or d.knack) .. ")"
-		UIKit.text(f, where, UDim2.new(1, -140, 0, 10), UDim2.fromOffset(24, 11), { color = if gone then UIKit.color("orange") elseif x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Where" })
-		UIKit.text(f, statLine(Battle.pal(x)), UDim2.new(1, -140, 0, 10), UDim2.fromOffset(24, 21), { color = UIKit.color("text_dim"), z = 4 })
-		local hb = UIKit.button(f, "Help", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 10), function()
+		UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 31), { color = if gone then UIKit.color("orange") elseif x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Where" })
+		UIKit.text(f, statLine(Battle.pal(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 41), { color = UIKit.color("text_dim"), z = 4 })
+		local hb = UIKit.button(f, "Help", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 20), function()
 			UIKit.openPanel("pals", { pal = x.id })
 		end, { name = "Help_" .. x.id, color = UIKit.color("button_ok"), enabled = not gone })
 		hb.ZIndex = 4
 		if not gone then
-			confirmButton(f, "Release", UDim2.fromOffset(52, 13), UDim2.new(1, -55, 0, 10), function()
+			confirmButton(f, "Release", UDim2.fromOffset(52, 13), UDim2.new(1, -55, 0, 20), function()
 				local res = ask("pal.release", { id = x.id }, d.name .. " went home to the wild.")
 				if res.ok then
 					Audio.play("close")
@@ -440,15 +467,22 @@ local function buildExplore(body: Frame, _arg: any?)
 	local lvCol = if c.lvl <= cap then UIKit.color("good") elseif c.lvl <= cap + 3 then UIKit.color("accent") else UIKit.color("bad")
 	UIKit.text(body, string.format("%s, level %d", kind.name, c.lvl), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 10), { color = lvCol, name = "IsleKind" })
 	local ix = x0
-	for _, sp in isle.wild do
-		local seen = (v.seen[sp] or 0) > 0
-		PixelSprites.image(body, if seen then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(ix, 21), 4)
-		ix += 18
-	end
 	local done = charted(chosenIsle)
 	local reward = if done then math.floor(isle.reward / 2) else isle.reward
 	local rt = Numbers.coins(reward)
 	local rw = UIKit.textWidth(rt)
+	-- its driftlings, the commonest first, as many as fit before its charted state and reward (then "+n")
+	local fit = math.max(1, math.floor((W - rw - 16 - UIKit.textWidth("Not charted") - 18 - x0) / 18))
+	for i, sp in isle.wild do
+		if i > fit then
+			UIKit.text(body, "+" .. (#isle.wild - fit), UDim2.fromOffset(16, 10), UDim2.fromOffset(ix, 25), { color = UIKit.color("text_dim"), name = "MoreWild" })
+			ix += 16
+			break
+		end
+		local seen = (v.seen[sp] or 0) > 0
+		PixelSprites.image(body, if seen then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(ix, 21), 4)
+		ix += 18
+	end
 	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(W - rw - 14, 24), 4)
 	UIKit.text(body, rt, UDim2.fromOffset(rw + 2, 10), UDim2.fromOffset(W - rw - 2, 25), { color = UIKit.color("accent"), name = "Reward" })
 	UIKit.text(body, if done then "Charted" else "Not charted", UDim2.fromOffset(math.max(10, W - rw - 16 - ix - 2), 10), UDim2.fromOffset(ix + 2, 25), { color = if done then UIKit.color("good") else UIKit.color("text_dim"), name = "Charted" })
@@ -575,23 +609,29 @@ local function buildIndex(body: Frame, _arg: any?)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
 	local cols = if W >= 300 then 3 else 2
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 42)
+	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 52)
 	grid.CellPadding = UDim2.fromOffset(3, 3)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = list
 	for i, d in Creatures.list do
 		local n = v.seen[d.id] or 0
-		local f = UIKit.plate(list, UDim2.fromOffset(60, 42), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2, { bevel = true })
+		local f = UIKit.plate(list, UDim2.fromOffset(60, 52), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2, { bevel = true })
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
+		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)
-		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 1), { color = if n >= 1 then UIKit.color("text") else UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 1), { color = if n >= 1 then UIKit.color(rar.color) else UIKit.color("text_dim"), z = 4, name = "Name" })
+		-- its rarity (always: a rare one is worth looking for) and where it lives once met
 		local isl = Islets.list[d.islet]
-		UIKit.text(f, if n >= 1 and isl then isl.plural else "", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, if n >= 1 and isl then rar.name .. ", " .. string.lower(isl.plural) else rar.name, UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
 		if n >= 2 then
 			PixelSprites.image(f, "mini_charm", UDim2.new(1, -13, 0, 2), 4)
+			-- befriended: its passive
+			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 21), { color = UIKit.color("accent"), z = 4, name = "Passive" })
+			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 31), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
+		else
+			UIKit.text(f, if n >= 1 then "Met: befriend one with a snack to learn its passive." else "Not met yet.", UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 		end
-		UIKit.text(f, if n >= 2 then d.blurb elseif n >= 1 then "Met: befriend one with a snack." else "Not met yet.", UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 	end
 end
 

@@ -851,6 +851,128 @@ end
 -- on the pup, whiskers, a tooth and glowing stripes on the mole, wing bones, a second fang and a tuft on the bat,
 -- palms, shoulder fur, a belly and teeth on the yeti, brow spots and tail flukes on the seal, shards and sparkles on
 -- the sprite, more tendrils and freckles on the jelly, teeth, fins and a tail fin on the wyrm.
+-- the shapes added with the rarities (GAME_DESIGN 6: "make much more creatures"): a snail, a turtle, a frog, a moth, a
+-- golem and a drake, in their species' colours like the rest
+
+-- a snail: a long low foot, eye stalks, a big spiral shell on its back
+BUILD.drift_snail = function(o)
+	local t = new("drift", 1.9, 1.1)
+	local b, a = o.color or "pink", o.alt or "cream"
+	add(t, "Body", "Block", Vector3.new(0.9, 0.55, 2.1), Vector3.new(0, 0.3, 0.1), b)
+	add(t, "Head", "Ball", Vector3.new(0.8, 0.8, 0.8), Vector3.new(0, 0.7, 0.95), b)
+	add(t, "Shell", "Ball", Vector3.new(1.4, 1.5, 1.4), Vector3.new(0, 1.25, -0.25), a)
+	add(t, "Spiral", "Ball", Vector3.new(0.7, 0.75, 0.25), Vector3.new(0.68, 1.3, -0.25), b)
+	add(t, "SpiralIn", "Ball", Vector3.new(0.3, 0.3, 0.15), Vector3.new(0.78, 1.32, -0.25), a)
+	add(t, "StalkL", "Block", Vector3.new(0.12, 0.6, 0.12), Vector3.new(-0.2, 1.3, 1.05), b)
+	add(t, "StalkR", "Block", Vector3.new(0.12, 0.6, 0.12), Vector3.new(0.2, 1.3, 1.05), b)
+	eyes(t, 1.65, 1.08, 0.4, 0.22)
+	face(t, 0.68, 1.33, 0.3)
+	return t
+end
+
+-- a turtle: a domed shell with a pattern, a round head out front, four stubby legs, a little tail
+BUILD.drift_turtle = function(o)
+	local t = new("drift", 1.6, 1.2)
+	local b, a = o.color or "green", o.alt or "sand"
+	add(t, "Shell", "Ball", Vector3.new(1.9, 1.2, 2.1), Vector3.new(0, 0.95, -0.05), a)
+	add(t, "Rim", "Block", Vector3.new(2.0, 0.2, 2.2), Vector3.new(0, 0.5, -0.05), b)
+	add(t, "Plate", "Block", Vector3.new(0.6, 0.15, 0.6), Vector3.new(0, 1.55, -0.05), b)
+	add(t, "PlateF", "Block", Vector3.new(0.45, 0.12, 0.4), Vector3.new(0, 1.35, 0.6), b)
+	add(t, "Body", "Block", Vector3.new(1.3, 0.4, 1.6), Vector3.new(0, 0.35, 0), b)
+	add(t, "Head", "Ball", Vector3.new(0.8, 0.75, 0.8), Vector3.new(0, 0.75, 1.2), b)
+	for i, p in { { -0.75, 0.65 }, { 0.75, 0.65 }, { -0.75, -0.7 }, { 0.75, -0.7 } } do
+		add(t, "Leg" .. i, "Block", Vector3.new(0.4, 0.4, 0.45), Vector3.new(p[1], 0.2, p[2]), b)
+	end
+	add(t, "Tail", "Block", Vector3.new(0.2, 0.2, 0.4), Vector3.new(0, 0.35, -1.2), b)
+	eyes(t, 0.85, 1.56, 0.4, 0.2)
+	face(t, 0.66, 1.58, 0.3)
+	return t
+end
+
+-- a frog: a wide squat body, eyes bulging on top, a broad mouth, folded legs and big feet
+BUILD.drift_frog = function(o)
+	local t = new("drift", 1.5, 1.1)
+	local b, a = o.color or "leaf", o.alt or "pink"
+	add(t, "Body", "Ball", Vector3.new(1.8, 1.1, 1.6), Vector3.new(0, 0.6, 0), b)
+	add(t, "Belly", "Ball", Vector3.new(1.2, 0.7, 0.4), Vector3.new(0, 0.5, 0.65), "cream")
+	add(t, "BumpL", "Ball", Vector3.new(0.6, 0.6, 0.6), Vector3.new(-0.5, 1.15, 0.35), b)
+	add(t, "BumpR", "Ball", Vector3.new(0.6, 0.6, 0.6), Vector3.new(0.5, 1.15, 0.35), b)
+	add(t, "SpotA", "Block", Vector3.new(0.3, 0.12, 0.3), Vector3.new(-0.35, 1.08, -0.3), a)
+	add(t, "SpotB", "Block", Vector3.new(0.25, 0.12, 0.25), Vector3.new(0.4, 1.0, -0.45), a)
+	add(t, "Lip", "Block", Vector3.new(1.0, 0.08, 0.1), Vector3.new(0, 0.62, 0.84), "black")
+	add(t, "LegL", "Block", Vector3.new(0.5, 0.35, 0.8), Vector3.new(-0.85, 0.2, -0.1), b)
+	add(t, "LegR", "Block", Vector3.new(0.5, 0.35, 0.8), Vector3.new(0.85, 0.2, -0.1), b)
+	add(t, "FootL", "Block", Vector3.new(0.55, 0.12, 0.5), Vector3.new(-0.7, 0.06, 0.6), a)
+	add(t, "FootR", "Block", Vector3.new(0.55, 0.12, 0.5), Vector3.new(0.7, 0.06, 0.6), a)
+	eyes(t, 1.25, 0.62, 1.0, 0.3)
+	return t
+end
+
+-- a moth: a fuzzy round body, feathery antennae, two pairs of patterned wings held wide
+BUILD.drift_moth = function(o)
+	local t = new("drift", 2.0, 1.4)
+	local b, a = o.color or "pink", o.alt or "yellow"
+	add(t, "Body", "Ball", Vector3.new(0.9, 1.3, 0.9), Vector3.new(0, 1.0, 0), b)
+	add(t, "Head", "Ball", Vector3.new(0.8, 0.75, 0.75), Vector3.new(0, 1.75, 0.2), b)
+	add(t, "Ruff", "Ball", Vector3.new(1.0, 0.4, 0.9), Vector3.new(0, 1.42, 0.05), "white")
+	add(t, "WingL", "Block", Vector3.new(1.3, 1.1, 0.12), Vector3.new(-0.95, 1.35, -0.15), a)
+	add(t, "WingR", "Block", Vector3.new(1.3, 1.1, 0.12), Vector3.new(0.95, 1.35, -0.15), a)
+	add(t, "WingL2", "Block", Vector3.new(0.9, 0.75, 0.12), Vector3.new(-0.8, 0.6, -0.15), a)
+	add(t, "WingR2", "Block", Vector3.new(0.9, 0.75, 0.12), Vector3.new(0.8, 0.6, -0.15), a)
+	add(t, "EyeSpotL", "Ball", Vector3.new(0.35, 0.35, 0.1), Vector3.new(-1.0, 1.45, -0.05), b)
+	add(t, "EyeSpotR", "Ball", Vector3.new(0.35, 0.35, 0.1), Vector3.new(1.0, 1.45, -0.05), b)
+	add(t, "AntL", "Block", Vector3.new(0.1, 0.6, 0.1), Vector3.new(-0.22, 2.3, 0.3), "black")
+	add(t, "AntR", "Block", Vector3.new(0.1, 0.6, 0.1), Vector3.new(0.22, 2.3, 0.3), "black")
+	add(t, "FeatherL", "Block", Vector3.new(0.3, 0.15, 0.1), Vector3.new(-0.3, 2.55, 0.3), a)
+	add(t, "FeatherR", "Block", Vector3.new(0.3, 0.15, 0.1), Vector3.new(0.3, 2.55, 0.3), a)
+	eyes(t, 1.8, 0.56, 0.4, 0.22)
+	feet(t, b, 0.5, 0.1)
+	return t
+end
+
+-- a golem: a square head, a broad chest with a glowing gem, heavy arms and fists, stumpy legs
+BUILD.drift_golem = function(o)
+	local t = new("drift", 2.4, 1.2)
+	local b, a = o.color or "rock", o.alt or "gold"
+	add(t, "Body", "Block", Vector3.new(1.5, 1.3, 1.1), Vector3.new(0, 1.15, 0), b)
+	add(t, "Head", "Block", Vector3.new(1.0, 0.8, 0.9), Vector3.new(0, 2.15, 0.05), b)
+	add(t, "Brow", "Block", Vector3.new(1.05, 0.15, 0.2), Vector3.new(0, 2.38, 0.45), a)
+	add(t, "Gem", "Block", Vector3.new(0.45, 0.45, 0.12), Vector3.new(0, 1.3, 0.56), a, nil, true)
+	add(t, "ShoulderL", "Block", Vector3.new(0.5, 0.35, 0.7), Vector3.new(-0.95, 1.7, 0), a)
+	add(t, "ShoulderR", "Block", Vector3.new(0.5, 0.35, 0.7), Vector3.new(0.95, 1.7, 0), a)
+	add(t, "ArmL", "Block", Vector3.new(0.45, 1.0, 0.5), Vector3.new(-0.98, 1.05, 0), b)
+	add(t, "ArmR", "Block", Vector3.new(0.45, 1.0, 0.5), Vector3.new(0.98, 1.05, 0), b)
+	add(t, "HandL", "Block", Vector3.new(0.55, 0.45, 0.6), Vector3.new(-1.0, 0.35, 0.05), a)
+	add(t, "HandR", "Block", Vector3.new(0.55, 0.45, 0.6), Vector3.new(1.0, 0.35, 0.05), a)
+	add(t, "LegL", "Block", Vector3.new(0.45, 0.5, 0.5), Vector3.new(-0.4, 0.25, 0), b)
+	add(t, "LegR", "Block", Vector3.new(0.45, 0.5, 0.5), Vector3.new(0.4, 0.25, 0), b)
+	add(t, "Moss", "Block", Vector3.new(0.6, 0.12, 0.5), Vector3.new(0.2, 2.6, -0.1), "leaf")
+	eyes(t, 2.15, 0.52, 0.45, 0.2)
+	return t
+end
+
+-- a drake: a horned head on a long neck, a body on four legs, wings raised, a long tail with a fin
+BUILD.drift_drake = function(o)
+	local t = new("drift", 2.6, 1.4)
+	local b, a = o.color or "berry_red", o.alt or "orange"
+	add(t, "Body", "Block", Vector3.new(1.1, 0.95, 1.7), Vector3.new(0, 0.85, -0.1), b)
+	add(t, "Belly", "Block", Vector3.new(0.8, 0.5, 1.3), Vector3.new(0, 0.6, 0), a)
+	add(t, "Neck", "Block", Vector3.new(0.55, 0.9, 0.55), Vector3.new(0, 1.5, 0.75), b)
+	add(t, "Head", "Block", Vector3.new(0.85, 0.7, 1.0), Vector3.new(0, 2.05, 1.05), b)
+	add(t, "Snout", "Block", Vector3.new(0.6, 0.4, 0.4), Vector3.new(0, 1.9, 1.65), b)
+	add(t, "HornL", "Block", Vector3.new(0.15, 0.45, 0.15), Vector3.new(-0.28, 2.55, 0.85), a)
+	add(t, "HornR", "Block", Vector3.new(0.15, 0.45, 0.15), Vector3.new(0.28, 2.55, 0.85), a)
+	add(t, "WingL", "Block", Vector3.new(1.3, 0.12, 1.0), Vector3.new(-0.95, 1.55, -0.3), a)
+	add(t, "WingR", "Block", Vector3.new(1.3, 0.12, 1.0), Vector3.new(0.95, 1.55, -0.3), a)
+	add(t, "Tail", "Block", Vector3.new(0.4, 0.35, 1.2), Vector3.new(0, 0.75, -1.4), b)
+	add(t, "TailTip", "Block", Vector3.new(0.6, 0.12, 0.4), Vector3.new(0, 0.75, -2.0), a)
+	for i, p in { { -0.42, 0.5 }, { 0.42, 0.5 }, { -0.42, -0.6 }, { 0.42, -0.6 } } do
+		add(t, "Leg" .. i, "Block", Vector3.new(0.3, 0.45, 0.35), Vector3.new(p[1], 0.22, p[2]), b)
+	end
+	eyes(t, 2.15, 1.56, 0.5, 0.2)
+	return t
+end
+
 local DETAIL: { [string]: (t: Thing, b: string, a: string) -> () } = {
 	blob = function(t, b, a)
 		add(t, "Moss", "Block", Vector3.new(0.75, 0.125, 0.5), Vector3.new(0.3, 1.78, -0.1), "leaf")

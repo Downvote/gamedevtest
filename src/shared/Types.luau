@@ -18,7 +18,8 @@ export type Villager = { id: number, name: string, look: Look, work: number, lvl
 
 -- A befriended driftling (GAME_DESIGN 6): its species (Data/Creatures), its level, the building it helps at (a Piece
 -- uid, 0: resting at its nest).
-export type Pal = { id: number, sp: string, lvl: number, xp: number, work: number }
+-- muts: its mutations (Data/Traits ids, at most Traits.MAX), rolled when it was befriended or hatched.
+export type Pal = { id: number, sp: string, lvl: number, xp: number, work: number, muts: { string }? }
 
 -- The founder as the expeditions' captain (GAME_DESIGN 7).
 export type Captain = { lvl: number, xp: number }

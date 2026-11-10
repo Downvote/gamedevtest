@@ -19,6 +19,7 @@ local UserInputService = game:GetService("UserInputService")
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
+local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Skills = require(ReplicatedStorage.Shared.Data.Skills)
@@ -273,6 +274,9 @@ local function buildParty(e: Types.Expedition)
 end
 
 -- The battle's wild ones drop in from above (rebuilt when the battle's foes change).
+-- (the narration, for code above its definition)
+local sayFwd: (text: string, color: Color3?, seconds: number?) -> () = function(_t: string, _c: Color3?, _s: number?) end
+
 local function buildFoes(e: Types.Expedition)
 	local b = e.battle
 	local key = ""
@@ -313,6 +317,22 @@ local function buildFoes(e: Types.Expedition)
 		actors[f.key] = a
 	end
 	Audio.play(if b.boss then "drumroll" else "pop")
+	-- a rare sight: an epic or legendary wild one lands with its own words
+	if not b.boss then
+		for _, f in b.foes do
+			local cd = if f.sp then Creatures.byId[f.sp :: string] else nil
+			if cd and cd.rarity >= 4 then
+				local rar = Traits.RARITY[cd.rarity]
+				task.delay(0.6, function()
+					if isOpen then
+						sayFwd(string.format(if cd.rarity >= 5 then "A legendary %s appears!" else "An epic %s appears!", cd.name), UIKit.color(rar.color), 2.2)
+						Audio.play("fanfare")
+					end
+				end)
+				break
+			end
+		end
+	end
 end
 
 local function act(a: Actor, action: string, seconds: number)
@@ -708,6 +728,7 @@ local function say(text: string, color: Color3?, seconds: number?)
 		end
 	end)
 end
+sayFwd = say
 
 local function setBar(key: string, hp: number)
 	local b = bars[key]
@@ -1053,7 +1074,10 @@ local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: num
 	elseif f.look then
 		UIKit.portrait(card, f.look :: Types.Look, 16, UDim2.fromOffset(1, 1)).ZIndex = 11
 	end
-	UIKit.text(card, f.name, UDim2.fromOffset(w - 20, 9), UDim2.fromOffset(19, 0), { color = if selected then UIKit.color("ink") else UIKit.color("text"), kind = if selected then "plain" else nil, z = 11, name = "Name" })
+	-- (a rare wild one's name in its rarity's colour: Data/Traits)
+	local cd = if f.sp then Creatures.byId[f.sp :: string] else nil
+	local nameCol = if cd and cd.rarity >= 3 then UIKit.color((Traits.RARITY[cd.rarity] or Traits.RARITY[1]).color) else UIKit.color("text")
+	UIKit.text(card, f.name, UDim2.fromOffset(w - 20, 9), UDim2.fromOffset(19, 0), { color = if selected then UIKit.color("ink") else nameCol, kind = if selected then "plain" else nil, z = 11, name = "Name" })
 	-- the level beside the health bar (a long name keeps the whole top line)
 	local lv = "Lv" .. f.lvl
 	local lvW = UIKit.textWidth(lv)

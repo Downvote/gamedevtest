@@ -19,6 +19,7 @@ local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Islets = require(script.Parent.Parent.Data.Islets)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Traits = require(script.Parent.Parent.Data.Traits)
 local Battle = require(script.Parent.Battle)
 local Island = require(script.Parent.Island)
 local Util = require(script.Parent.Util)
@@ -157,17 +158,37 @@ function Expedition.chart(lvl: number, seed: number): Isle
 	if string.lower(first) == string.lower(last) then
 		last = def.last[(table.find(def.last, last) or 1) % #def.last + 1]
 	end
-	local own = table.clone(def.wild)
-	Util.shuffle(rng, own)
-	local wild = { own[1], own[2] }
+	-- its driftlings: every one of its kind (the rarer seen less often: Expedition.pickWild) and a stray from another
+	-- kind open at its level (a common or uncommon one)
+	local wild = table.clone(def.wild)
 	local strays: { string } = {}
 	for _, sp in Expedition.speciesAt(lvl) do
-		if sp ~= own[1] and sp ~= own[2] then
+		local cd = Creatures.byId[sp]
+		if not table.find(wild, sp) and cd and cd.rarity <= 2 then
 			table.insert(strays, sp)
 		end
 	end
-	table.insert(wild, strays[rng:int(1, #strays)])
-	local boss = own[rng:int(1, 2)]
+	if #strays > 0 then
+		table.insert(wild, strays[rng:int(1, #strays)])
+	end
+	-- its guardian: one of its kind's rare or epic ones (else its rarest short of a legend)
+	local pool: { string } = {}
+	for _, sp in def.wild do
+		local cd = Creatures.byId[sp]
+		if cd and cd.rarity >= 3 and cd.rarity <= 4 then
+			table.insert(pool, sp)
+		end
+	end
+	if #pool == 0 then
+		local best = def.wild[1]
+		for _, sp in def.wild do
+			if Creatures.byId[sp].rarity < 5 and Creatures.byId[sp].rarity > Creatures.byId[best].rarity then
+				best = sp
+			end
+		end
+		table.insert(pool, best)
+	end
+	local boss = pool[rng:int(1, #pool)]
 	local bd = Creatures.byId[boss]
 	local title = Islets.titles[rng:int(1, #Islets.titles)]
 	return {
@@ -185,6 +206,25 @@ function Expedition.chart(lvl: number, seed: number): Isle
 		},
 		reward = math.floor(Tuning.IsleRewardBase + Tuning.IsleRewardLvl2 * lvl * lvl + 0.5),
 	}
+end
+
+-- A wild one of the island for a battle: by its rarity's weight (Data/Traits.RARITY: the rare ones seldom, a legend
+-- once in a long while).
+function Expedition.pickWild(isle: Isle, rng: Rng): string
+	local total = 0
+	for _, sp in isle.wild do
+		local cd = Creatures.byId[sp]
+		total += Traits.RARITY[if cd then cd.rarity else 1].weight
+	end
+	local x = rng:next() * total
+	for _, sp in isle.wild do
+		local cd = Creatures.byId[sp]
+		x -= Traits.RARITY[if cd then cd.rarity else 1].weight
+		if x <= 0 then
+			return sp
+		end
+	end
+	return isle.wild[#isle.wild]
 end
 
 -- The island's path as far as `count` nodes (at least the landing and its first block): node 1 the landing, node
@@ -345,12 +385,12 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 		if kind == "boss" then
 			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost))
 			if isle.lvl >= 4 or Expedition.guardianAt(e.node) > 1 then
-				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl, 2, false, nil, boost))
+				table.insert(foes, Battle.wild(Expedition.pickWild(isle, rng), lvl, 2, false, nil, boost))
 			end
 		else
 			local n = rng:int(1, if isle.lvl >= 3 then 3 else 2)
 			for i = 1, n do
-				table.insert(foes, Battle.wild(isle.wild[rng:int(1, #isle.wild)], lvl + rng:int(0, 1), i, false, nil, boost))
+				table.insert(foes, Battle.wild(Expedition.pickWild(isle, rng), lvl + rng:int(0, 1), i, false, nil, boost))
 			end
 		end
 		for _, f in foes do

@@ -40,6 +40,9 @@ local LAVA = { 0x9C2A3A, 0xE2562A, 0xFFB040, 0xFFE38A }
 local SNOW = { 0x5E74A8, 0x9DB6DD, 0xDDEBF7, 0xFFFFFF }
 local CORAL = { 0x7E2F6A, 0xC85E98, 0xF29EC4, 0xFFD9E2 }
 local LAGOON = { 0x2F9CB0, 0x5CC8C9, 0x8FE3D6, 0xD2FFF0 }
+local CRYSTAL = { 0x3A2160, 0x6A3FA0, 0xA875D8, 0xE6C6FF }
+local CLIFF = { 0x6B4B3E, 0x9A7258, 0xC9A27A, 0xEBD2A8 }
+local STONE = { 0x5E5650, 0x8A8076, 0xB4AA9C, 0xE2DACB }
 local FOG = 0x15284A
 local RING = 0xFFCB30
 local RING2 = 0x8DBBDD
@@ -185,6 +188,35 @@ local function landColor(isle: Isle, x: number, y: number, d: number, lit: numbe
 			return SNOW[1]
 		end
 		return SNOW[math.clamp(shade + (if m > 0.7 then 1 else 0), 1, 4)]
+	end
+	if kind == 6 then
+		-- a mangrove: dark green thickets cut by winding brown channels
+		if math.abs(math.sin((x - isle.cx) * 0.55 + (y - isle.cy) * 0.35 + isle.seed % 5)) < 0.16 and depth > 0.15 then
+			return LAGOON[1]
+		end
+		return GRASS[math.clamp(shade - 1 + (if m > 0.7 then 1 else 0), 1, 4)]
+	elseif kind == 7 then
+		-- a crystal grotto: purple rock, crystals glinting, a dark cave mouth in the middle
+		if depth > 0.85 then
+			return ROCK[1]
+		end
+		if n > 0.7 then
+			return CRYSTAL[math.clamp(shade + 1, 1, 4)]
+		end
+		return CRYSTAL[math.clamp(shade - 1 + (if m > 0.75 then 1 else 0), 1, 4)]
+	elseif kind == 8 then
+		-- bluffs: tall tan cliffs, a grassy top
+		if depth > 0.35 then
+			return GRASS[math.clamp(shade + (if m > 0.7 then 1 else 0), 1, 4)]
+		end
+		return CLIFF[math.clamp(shade + (if m > 0.75 then 1 elseif m < 0.2 then -1 else 0), 1, 4)]
+	elseif kind == 9 then
+		-- ruins: sand and old stone, a grid of fallen walls
+		local gx, gy = math.floor(x - isle.cx) % 4, math.floor(y - isle.cy) % 4
+		if (gx == 0 or gy == 0) and depth > 0.2 and n > 0.35 then
+			return STONE[math.clamp(shade, 1, 4)]
+		end
+		return SAND[math.clamp(shade + (if m > 0.8 then 1 else 0), 1, 4)]
 	end
 	-- a reef: a coral ring round a lagoon
 	if depth > 0.5 then
@@ -359,7 +391,7 @@ function SeaMap.draw(parent: Instance, size: number, pos: UDim2, o: Opts): Frame
 	if not shown then
 		-- no EditableImages: a sea plate and the islands' chart sprites
 		UIKit.rect(f, UDim2.fromOffset(M, M), UDim2.fromOffset(0, 0), UIKit.hex(SEA[2]), 3)
-		local names = { [0] = "home", "beach", "meadow", "volcano", "snow", "reef" }
+		local names = { [0] = "home", "beach", "meadow", "volcano", "snow", "reef", "meadow", "volcano", "meadow", "beach" }
 		for _, isle in isles do
 			PixelSprites.image(f, "chart_" .. (names[isle.kind] or "beach") .. (if isle.far then "_sil" else ""), UDim2.fromOffset(math.floor(isle.cx) - 6, math.floor(isle.cy) - 5), 4)
 		end
