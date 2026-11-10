@@ -262,7 +262,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		chart = charted,
 		seen = seen,
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
-		tut = int(r.tut, 1, 0, 6),
+		tut = int(r.tut, 1, 0, 8),
 		stats = {
 			days = int(st.days, 0, 0),
 			built = int(st.built, #placed, 0),

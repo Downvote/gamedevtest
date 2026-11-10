@@ -110,8 +110,17 @@ res = place("lumber")
 H.expect(res.ok and prof.tut == 3, "build", "a lumber camp: the tips move on to shells", tostring(res.err))
 res = place("stall")
 H.expect(res.ok and prof.tut == 4, "build", "a snack stall: the tips move on to a home", tostring(res.err))
+local fxTent = #fx
 res = place("tent")
 H.expect(res.ok and prof.tut == 5, "build", "a tent: the tips move on to sailing", tostring(res.err))
+H.expect(#prof.folk == 1 and prof.folk[1].work ~= 0, "build", "a castaway moves into the tent at once (no wait for a turn) and takes a job", tostring(#prof.folk))
+local welcomed = false
+for i = fxTent + 1, #fx do
+	if fx[i].kind == "turn" and type(fx[i].movedIn) == "table" then
+		welcomed = true
+	end
+end
+H.expect(welcomed, "build", "the newcomer is announced (Fx turn with who moved in)")
 res = place("nest")
 H.expect(res.ok and prof.wood < Tuning.StartWood, "build", "a nest (shells and wood)", tostring(res.err))
 H.expect(#prof.plot.placed == 5 and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for", string.format("%d pieces, %s shells left", #prof.plot.placed, prof.shells))
@@ -141,7 +150,12 @@ local turnFx = 0
 local f0 = #fx
 local t0 = E.now()
 E.runUntil(function()
-	return #prof.folk >= 1
+	for i = f0 + 1, #fx do
+		if fx[i].kind == "turn" then
+			return true
+		end
+	end
+	return false
 end, Tuning.TurnSeconds + 2, 0.1)
 E.run(0.3)
 for i = f0 + 1, #fx do
@@ -150,7 +164,7 @@ for i = f0 + 1, #fx do
 	end
 end
 H.expect(turnFx == 1 and prof.day == day0, "days", "a turn ends every TurnSeconds (Fx turn), not a day", string.format("%d fx, day %d", turnFx, prof.day))
-H.expect(#prof.folk == 1, "days", "a castaway moved into the tent", tostring(#prof.folk))
+H.expect(#prof.folk == 1, "days", "the castaway lives in the tent (one bed: nobody else yet)", tostring(#prof.folk))
 local mika = prof.folk[1]
 H.expect(mika ~= nil and mika.work ~= 0, "days", "and took a job straight away", tostring(mika and mika.work))
 local ticks = 0
@@ -241,7 +255,7 @@ H.push(p, 0.3)
 H.clickNamed(p, "Isle_1", { wait = 0.3 })
 H.expect(H.inClient(p, Menus.chosen) == 1, "explore", "the nearest island picked on the chart")
 H.expect(H.buttonNamed(p, "Member_v" .. mika.id) ~= nil, "explore", "the villager can join the party")
-H.clickNamed(p, "Member_v" .. mika.id, { wait = 0.3 })
+H.expect(table.find(H.inClient(p, Menus.party), "v" .. mika.id) ~= nil, "explore", "the party's slots filled by themselves with the strongest (the villager)", table.concat(H.inClient(p, Menus.party), ","))
 local food0 = prof.food
 local Voyage = H.cmod(p, "UI.Voyage")
 H.expect(road ~= nil and road:FindFirstChild("Boat") ~= nil, "explore", "the expedition boat moored at the pier")
@@ -249,7 +263,7 @@ H.clickNamed(p, "SetSail", { wait = 0.5 })
 H.expect(s.exp ~= nil and s.exp.isle.id == 1 and #s.exp.party == 2, "explore", "the expedition set sail to the chart's first island with the captain and the villager", tostring(s.exp and #s.exp.party))
 H.expect(s.exp ~= nil and s.exp.isle.lvl == Chart.islands(prof.sea)[1].lvl and s.exp.isle.kind == 1 and #s.exp.isle.name > 3, "explore", "a beach near home, of its distance's level, with a name", s.exp and s.exp.isle.name)
 H.expect(math.abs(prof.food - (food0 - Tuning.Supplies * 2)) < 1.5, "explore", "supplies taken", string.format("%s -> %s", food0, prof.food))
-H.expect(prof.tut == 6, "explore", "the tips move on to the last", tostring(prof.tut))
+H.expect(prof.tut == 6, "explore", "the tips move on to the first fight", tostring(prof.tut))
 H.expect(s.away["v" .. mika.id] == true, "explore", "the villager is away (not working)")
 -- the cutscene: the founder walks to the pier and boards, the boat sails off, the blinds close on the island
 local vs = H.inClient(p, Voyage.debugState)
@@ -281,8 +295,13 @@ H.expect(s.exp ~= nil and s.exp.node > nodeAtLanding, "explore", "the expedition
 -- walk the islet: every stop, every battle running by itself on the screen (a snack at a hurt wild one, a skill when
 -- the points cover one), until its first guardian falls (the island never ends) or the party does
 local Expedition = H.sharedServer("Logic.Expedition")
+-- (the first snack befriends for certain: the tips' catching step is played through)
+local BattleS = H.sharedServer("Logic.Battle")
+local chance0 = BattleS.treatChance
+local tips0 = prof.tut
 local battles, treats, skillsUsed = 0, 0, 0
 local sawTimers, sawRun = false, false
+local sawTip: { [number]: boolean } = {}
 local lastBattle = nil
 local steps = 0
 while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 900 do
@@ -294,6 +313,9 @@ while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 900 do
 			battles += 1
 		end
 		local dst = H.inClient(p, EUI.debugState)
+		if dst.tip then
+			sawTip[prof.tut] = true
+		end
 		sawTimers = sawTimers or dst.timers >= 2
 		sawRun = sawRun or not e.battle.paused
 		local hurt = nil
@@ -304,9 +326,13 @@ while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 900 do
 		end
 		if dst.busy or dst.aim or dst.menu or e.battle.paused then
 			-- (an action under way, or still landing)
-		elseif hurt and not e.battle.boss and treats < 3 and Expedition.room(prof) and e.snacks > 0 then
+		elseif hurt and not e.battle.boss and treats < 3 and Expedition.room(prof) and e.snacks > 0 and (prof.tut ~= 6 or battles > 1) then
 			treats += 1
+			BattleS.treatChance = if treats == 1 then function()
+				return 1
+			end else chance0
 			H.inClient(p, EUI.debugSnack, hurt.key)
+			BattleS.treatChance = chance0
 		elseif e.battle.sp >= 3 and skillsUsed < 2 then
 			skillsUsed += 1
 			H.inClient(p, EUI.debugSkill, "f", "cry")
@@ -320,6 +346,10 @@ while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 900 do
 		E.run(0.2)
 	end
 end
+BattleS.treatChance = chance0
+H.expect(tips0 == 6 and sawTip[6] == true, "explore", "the tips' fighting step on the islet's screen in the first battle")
+H.expect(sawTip[7] == true or sawTip[8] == true, "explore", "the catching step after it", string.format("%s %s", tostring(sawTip[7]), tostring(sawTip[8])))
+H.expect(treats == 0 or prof.tut == 8, "explore", "a driftling caught with a snack: on to the last tip", string.format("tut %d, %d snacks", prof.tut, treats))
 H.expect(sawTimers, "explore", "a timer over the fighters' heads")
 H.expect(sawRun, "explore", "the battles run by themselves")
 H.expect(skillsUsed >= 1, "explore", "a skill used from the screen (Rally Cry)", tostring(skillsUsed))
@@ -332,6 +362,10 @@ H.expect(prof.stats.battles >= 1, "explore", "battles won counted", tostring(pro
 local sh1 = prof.shells
 -- home: after a fall the card's Sail home; after the guardian the party could go on: sail home from the screen
 if over == "lost" then
+	-- (the card comes once the fall has played out on the screen)
+	E.runUntil(function()
+		return H.buttonNamed(p, "ResultOk") ~= nil
+	end, 15, 0.1)
 	H.clickNamed(p, "ResultOk", { wait = 0.2 })
 else
 	E.runUntil(function()

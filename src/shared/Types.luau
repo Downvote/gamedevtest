@@ -48,7 +48,7 @@ export type Profile = {
 	chart: { number }, -- the chart's islands charted (ids)
 	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
 	nextId: number, -- the next villager, driftling or piece id
-	tut: number, -- the tips' step (0 = done)
+	tut: number, -- the tips' step (1 .. 8; 0 = done)
 	stats: Stats,
 	settings: Settings,
 	createdAt: number,

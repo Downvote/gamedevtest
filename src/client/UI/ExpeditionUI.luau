@@ -1101,6 +1101,8 @@ local function ask(action: string, payload: { [string]: any }?): Types.Response
 	return res
 end
 
+local tutorialTip: (r: Frame, e: Types.Expedition, w: number, h: number) -> ()
+local nextTutShine = 0 -- the tips' catching step: when the Snack button shines next
 local playRound: (data: { [string]: any }) -> ()
 local playNode: (data: { [string]: any }) -> ()
 local goHome: () -> ()
@@ -2007,6 +2009,52 @@ local function trim(bar: Frame, w: number, y: number, top: boolean)
 	UIKit.rect(bar, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, y + (if top then 3 else -1)), lo, 10).Name = "Trim"
 end
 
+-- The tips' fighting and catching steps (GAME_DESIGN 9: "make the tutorial also cover fighting, and catching
+-- creatures"): a parchment note over the footer (not while aiming or choosing a skill: those have their own words),
+-- worded for what is on the screen; the last step has its OK (`TutOk`, sending `tut.next`).
+local TUT_TEXT: { [number]: { battle: string, boss: string?, calm: string } } = {
+	[6] = {
+		battle = "Battles fight themselves: each acts when the bar over its head fills. Tap Skills to help!",
+		calm = "Your first island! The party walks on by itself; a battle is coming.",
+	},
+	[7] = {
+		battle = "Catch one: when a wild one is hurt, tap Snack, pick it and throw!",
+		boss = "A guardian won't take a snack: catch a wild one in the next fight.",
+		calm = "Next fight, catch a driftling: tap Snack and throw one at a hurt wild one.",
+	},
+	[8] = {
+		battle = "A new friend! It waits in a nest at home. Sail home whenever you like.",
+		calm = "A new friend! It waits in a nest at home. Sail home whenever you like.",
+	},
+}
+tutorialTip = function(r: Frame, e: Types.Expedition, w: number, h: number)
+	local v = StateClient.view()
+	local step = if v then TUT_TEXT[v.tut] else nil
+	if step == nil or aim ~= nil or skillMenu or e.over then
+		return
+	end
+	local b = e.battle
+	local text = if b and b.boss and step.boss then step.boss :: string elseif b then step.battle else step.calm
+	local ok = v ~= nil and v.tut == 8
+	local room = w - 16
+	local want = UIKit.textWidth(text) + (if ok then 42 else 14)
+	local tw = math.min(want, room)
+	local lines = if want > tw then 2 else 1
+	local th = 4 + 10 * lines
+	local f = UIKit.plate(r, UDim2.fromOffset(tw, th), UDim2.fromOffset(math.floor((w - tw) / 2), h - FOOT_H - th - 7), UIKit.color("paper"), 0, 2, { shadow = true, wood = 2 })
+	f.Name = "TutTip"
+	f.ZIndex = 12
+	UIKit.text(f, text, UDim2.new(1, if ok then -38 else -10, 1, 0), UDim2.fromOffset(5, 0), { color = UIKit.color("text_ink"), kind = "plain", name = "Words", wrap = lines > 1, z = 13 })
+	if ok then
+		local bt = UIKit.button(f, "OK", UDim2.fromOffset(26, 10), UDim2.new(1, -29, 0, math.floor((th - 10) / 2)), function()
+			task.spawn(function()
+				StateClient.request("tut.next", {})
+			end)
+		end, { name = "TutOk" })
+		bt.ZIndex = 13
+	end
+end
+
 refresh = function()
 	local r = root
 	local e = exp()
@@ -2159,13 +2207,14 @@ refresh = function()
 		local fill = UIKit.rect(plate, UDim2.fromOffset(0, 2), UDim2.fromOffset(2, 11), UIKit.color("good"), 12)
 		fill.Name = "Fill"
 		autoFill = fill
-		UIKit.text(plate, if busy then "Walking on..." elseif idleSince == math.huge then "Go on anyway" else "Next stop...", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
+		UIKit.text(plate, if busy then "Walking on..." else "Next stop...", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
 		plate.Activated:Connect(function()
 			idleSince = nil
 			task.spawn(goOn)
 		end)
 		button(foot, "Sail home", bx, 22, 100, UIKit.color("button_warn"), true, goHome, "SailHome")
 	end
+	tutorialTip(r, e, w, h)
 	-- the wild ones' names stay on the cards; the stage's spots follow the fighters
 	lastNode = e.node
 end
@@ -2342,6 +2391,20 @@ function ExpeditionUI.open()
 		-- set running once its wild ones have landed
 		updateTimers()
 		updateAim()
+		-- the tips' catching step (GAME_DESIGN 9): the Snack button shines while a wild one is hurt
+		local tv = StateClient.view()
+		if tv and tv.tut == 7 and now >= nextTutShine and root then
+			nextTutShine = now + 2
+			local sb = (root :: Frame):FindFirstChild("Act_snack", true)
+			if sb and sb:IsA("TextButton") and sb.AutoButtonColor then
+				for _, f in foesLeft() do
+					if hpOf(f) < f.maxHp * 0.5 then
+						UIKit.shine(sb)
+						break
+					end
+				end
+			end
+		end
 		local spf = if root then (root :: Frame):FindFirstChild("SpBar", true) else nil
 		if spf then
 			local sp = spOf()
@@ -2638,6 +2701,7 @@ function ExpeditionUI.debugState(): { [string]: any }
 		aimWho = if aim then (aim :: Aim).who else nil,
 		aimTarget = if aim then (aim :: Aim).target else nil,
 		marked = aimMark ~= nil,
+		tip = root ~= nil and (root :: Frame):FindFirstChild("TutTip") ~= nil,
 		shown = (function(): string
 			-- who stands on the stage now (not gone in a poof), their keys
 			local keys: { string } = {}

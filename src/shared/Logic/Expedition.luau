@@ -431,6 +431,13 @@ local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any 
 			out.friend = befriend(p, e, f)
 		end
 	end
+	-- the tips (GAME_DESIGN 9): the first battle's end moves them from fighting on to catching, a friend made on to
+	-- the last tip
+	if out.friend and (p.tut == 6 or p.tut == 7) then
+		p.tut = 8
+	elseif result and p.tut == 6 then
+		p.tut = 7
+	end
 	if result == "win" then
 		local xp, shells = 0, 0
 		for _, f in b.foes do

@@ -441,11 +441,22 @@ the stores come from:
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
 > to buy all the facilities required."
 
+> The request (2026-11-10): "make the tutorial also cover fighting, and catching creatures. the player should be able
+> to go to the first island with a party member that instantly moves in after a tent is built. also, party slots
+> should auto equip with the strongest party members"
+
 1 "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it."; 2 "Wood: place a Lumber Camp. It chops
 wood for bigger buildings."; 3 "Shells: place a Snack Stall. It sells food to visitors for shells."; 4 "Now a Tent: a
-castaway may move in soon and work for you."; 5 "Build a Driftling Nest, then tap Explore and set sail to a new
-island!"; 6 "Islands give food, wood and shells. Treat a hurt driftling to befriend it." (OK ends them). A new island
-starts with `StartShells` (300) shells: the patch, the camp, the stall, the tent and the nest of the tips cost 280.
+castaway moves in at once, to work and to sail with you." (the first home on an island nobody lives on yet: a castaway
+moves in the moment it is built, not at a turn's end, so the first trip has a party member); 5 "Build a Driftling
+Nest, then tap Explore: your villager sails with you!"; 6 the first fight (set sail: on the islet's screen a note over
+the footer: "Battles fight themselves: each acts when the bar over its head fills. Tap Skills to help!"); 7 catching
+(after the first battle: "Catch one: when a wild one is hurt, tap Snack, pick it and throw!", the Snack button
+shining while one is hurt; against a guardian it says to catch one in the next fight); 8 "A new friend!" (once a
+driftling is befriended; OK ends the tips). On the island the same steps have their own words (and "tap Continue"
+while an expedition waits). The sea chart's party slots fill themselves with the strongest (level, then health) each
+time it opens; a tap still swaps one out. A new island starts with `StartShells` (300) shells: the patch, the camp, the
+stall, the tent and the nest of the tips cost 280.
 
 ## 10. Saves and the economy, checked
 

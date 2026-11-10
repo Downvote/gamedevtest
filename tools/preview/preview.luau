@@ -360,12 +360,7 @@ local function panelScenario(name)
 	if UIKit and UIKit.openPanel then
 		H.openPanel(p, name)
 		E.run(0.8)
-		if name == "explore" then
-			local prof = H.profile(p)
-			for _, key in { "v" .. prof.folk[1].id, "p" .. prof.pals[1].id } do
-				H.clickNamed(p, "Member_" .. key, { wait = 0.2 })
-			end
-		end
+		-- (the sea chart's party fills itself with the strongest)
 		log("panel open: %s", tostring(UIKit.currentPanel and UIKit.currentPanel()))
 	else
 		log("no UIKit.openPanel: capturing the HUD")
@@ -388,7 +383,7 @@ end
 -- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 5 reef) at the level it first turns up
 -- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window),
 -- aim (aiming frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered), throw (a
--- snack befriending the last wild one, frame by frame))
+-- snack befriending the last wild one, frame by frame), tut (a battle in the tips' catching step: its note))
 -- (+1), on its 3D stage. what: "battle" (default: the first battle), "boss" (the guardian), "win" (a battle won: the
 -- results card), "loot" (a stop's narration). The island's seed is the first that charts the kind (a set seed, so
 -- the same layout every run); the expedition is set on the session directly (exp.start makes up its own seed).
@@ -399,7 +394,7 @@ local function expScenario(spec)
 	local isleLvl = H.sharedServer("Data.Islets").list[n].lvl + 1
 	-- a party a little above the island's level (a fair fight to watch; strong for "win")
 	local lvl = isleLvl + (if what == "win" then 8 else 1)
-	seedProfile(40, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "emberpup" }, islets = n - 1, food = 400, cap = lvl })
+	seedProfile(40, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "emberpup" }, islets = n - 1, food = 400, cap = lvl, tut = if what == "tut" then 7 else nil })
 	local p = join(40, "Captain")
 	settle(p)
 	local prof = H.profile(p)
@@ -569,8 +564,7 @@ function SCEN.voyage()
 	settle(p)
 	H.clickNamed(p, "Menu_explore", { wait = 0.5 })
 	H.clickNamed(p, "Isle_2", { wait = 0.3, optional = true })
-	H.clickNamed(p, "Member_v" .. prof.folk[1].id, { wait = 0.2 })
-	H.clickNamed(p, "Member_p" .. prof.pals[1].id, { wait = 0.2 })
+	-- (the party's slots fill themselves with the strongest)
 	E.run(0.5)
 	capture(p, "voyage_panel")
 	local Voyage = modOr(p, "UI.Voyage")

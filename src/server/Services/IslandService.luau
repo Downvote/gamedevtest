@@ -25,10 +25,17 @@ local IslandService = {}
 
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
--- The tips (GAME_DESIGN 9): 1 food (a farm), 2 wood (a lumber camp), 3 shells (a shop), 4 a home, 5 a nest and
--- set sail (Logic/Expedition moves it on), 6 the last tip (OK ends them). Each moves on once what it asks is built.
+-- The tips (GAME_DESIGN 9): 1 food (a farm), 2 wood (a lumber camp), 3 shells (a shop), 4 a home (the first
+-- castaway moves in at once: Island.welcome), 5 a nest and set sail, 6 the first fight, 7 catching a driftling with a
+-- snack (Logic/Expedition moves 5 .. 7 on), 8 the last tip (OK ends them). Each moves on once what it asks is done.
 local function tips(s: Session.S)
 	local p = s.profile
+	-- the first home on an island nobody lives on yet: a castaway moves in now, not at a turn's end
+	local v = Island.welcome(p, s.rng)
+	if v then
+		Session.markDirty(s)
+		Session.fx(s, { kind = "turn", movedIn = v, trained = 0 })
+	end
 	if p.tut < 1 or p.tut > 4 then
 		return
 	end

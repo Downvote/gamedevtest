@@ -378,9 +378,16 @@ local TIPS: { [number]: string } = {
 	[1] = "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it.",
 	[2] = "Wood: place a Lumber Camp. It chops wood for bigger buildings.",
 	[3] = "Shells: place a Snack Stall. It sells food to visitors for shells.",
-	[4] = "Now a Tent: a castaway may move in soon and work for you.",
-	[5] = "Build a Driftling Nest, then tap Explore and set sail to a new island!",
-	[6] = "Islands give food, wood and shells. Throw a snack at a hurt driftling to befriend it.",
+	[4] = "Now a Tent: a castaway moves in at once, to work and to sail with you.",
+	[5] = "Build a Driftling Nest, then tap Explore: your villager sails with you!",
+	[6] = "Set sail from Explore: on the islands your party fights by itself.",
+	[7] = "Catch a driftling: in a battle, tap Snack and throw one at a hurt wild one.",
+	[8] = "A new friend! Islands give food, wood, shells and friends: sail often.",
+}
+-- (on an expedition under way, with its screen closed)
+local TIPS_AWAY: { [number]: string } = {
+	[6] = "Your party is on its first island: tap Continue to watch it fight.",
+	[7] = "Tap Continue: in a battle, throw a snack at a hurt wild one to catch it.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
@@ -394,7 +401,7 @@ local function tipsLift(): number
 end
 
 local function updateTips(v: Types.ClientView)
-	local text = (if BuildUI.isOpen() then TIPS_BUILD[v.tut] else nil) or TIPS[v.tut]
+	local text = (if BuildUI.isOpen() then TIPS_BUILD[v.tut] else nil) or (if v.exp then TIPS_AWAY[v.tut] else nil) or TIPS[v.tut]
 	if tips then
 		local words = tips:FindFirstChild("Words")
 		if text and words and words:IsA("TextLabel") and words:GetAttribute("Source") == text then
@@ -408,7 +415,7 @@ local function updateTips(v: Types.ClientView)
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local ok = v.tut == 6
+	local ok = v.tut == 8
 	-- a parchment note in a thin frame of planks; on a phone it keeps to the room left of the island card (two lines
 	-- if it must), so it never covers the card
 	local room = if UIKit.phone() then s.X - CARD_W - 24 else s.X - 20

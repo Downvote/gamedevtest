@@ -170,27 +170,42 @@ function Island.newDay(p: Profile)
 	p.stats.days += 1
 end
 
+-- A castaway moves into a free bed and takes a free job (no checks: the callers make them).
+function Island.moveIn(p: Profile, rng: Rng): Types.Villager
+	local v: Types.Villager = {
+		id = p.nextId,
+		name = Util.pick(rng, Names.first),
+		look = Island.randomLook(rng),
+		work = 0,
+		lvl = 1,
+		xp = 0,
+		seed = rng:int(1, 999999),
+		day = p.day,
+	}
+	p.nextId += 1
+	v.work = Island.freeJob(p)
+	table.insert(p.folk, v)
+	p.stats.movedIn += 1
+	return v
+end
+
+-- The first home on an island with nobody living there yet: a castaway moves in at once (GAME_DESIGN 9: "a party
+-- member that instantly moves in after a tent is built"), so the first expedition has someone to take along. Returns
+-- them, or nil when the island already has villagers or no free bed.
+function Island.welcome(p: Profile, rng: Rng): Types.Villager?
+	if #p.folk > 0 or Island.beds(p) < 1 or Tuning.FolkMax < 1 then
+		return nil
+	end
+	return Island.moveIn(p, rng)
+end
+
 -- A turn's end: a visitor may move into a free bed (the charm high enough), the training yard trains the resting.
 -- Returns what happened: { movedIn = Villager?, trained = n }.
 function Island.turn(p: Profile, rng: Rng, away: { [string]: boolean }?): { [string]: any }
 	local news: { [string]: any } = {}
 	local gone = away or {}
 	if #p.folk < math.min(Tuning.FolkMax, Island.beds(p)) and Island.charm(p) >= Tuning.MoveInCharm * #p.folk then
-		local v: Types.Villager = {
-			id = p.nextId,
-			name = Util.pick(rng, Names.first),
-			look = Island.randomLook(rng),
-			work = 0,
-			lvl = 1,
-			xp = 0,
-			seed = rng:int(1, 999999),
-			day = p.day,
-		}
-		p.nextId += 1
-		v.work = Island.freeJob(p)
-		table.insert(p.folk, v)
-		p.stats.movedIn += 1
-		news.movedIn = v
+		news.movedIn = Island.moveIn(p, rng)
 	end
 	local yards = 0
 	for _, q in p.plot.placed do

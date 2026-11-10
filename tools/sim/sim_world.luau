@@ -123,7 +123,9 @@ for k, p in { a, b } do
 		placed += if done then 1 else 0
 	end
 	H.expect(placed == 4, "islands", p.Name .. ": four buildings", tostring(placed))
-	for j = 1, 2 do
+	-- (the first home welcomed a castaway at once: GAME_DESIGN 9; one more joins them here)
+	H.expect(#prof.folk == 1, "islands", p.Name .. ": the hut's first castaway moved in at once", tostring(#prof.folk))
+	for j = 2, 2 do
 		table.insert(prof.folk, { id = prof.nextId, name = "Folk" .. j, look = { skin = j, hair = j, style = j, shirt = j }, work = if j == 1 then prof.plot.placed[1].uid else 0, lvl = 1, xp = 0, seed = j, day = 1 })
 		prof.nextId += 1
 	end
@@ -144,7 +146,7 @@ for _, pair in { { a, b }, { b, a } } do
 	H.expect(AV.count() == 2, "islands", me.Name .. ": both founders", tostring(AV.count()))
 end
 local folkAttr = plotModel(1):GetAttribute("Folk")
-H.expect(type(folkAttr) == "string" and #string.split(folkAttr, ";") == 2, "islands", "the Folk attribute lists the villagers", tostring(folkAttr))
+H.expect(type(folkAttr) == "string" and #string.split(folkAttr, ";") == #H.profile(a).folk and #H.profile(a).folk == 2, "islands", "the Folk attribute lists the villagers", tostring(folkAttr))
 local palsAttr = plotModel(1):GetAttribute("Pals")
 H.expect(type(palsAttr) == "string" and string.find(palsAttr, "mossbun") ~= nil, "islands", "the Pals attribute lists the driftlings", tostring(palsAttr))
 -- the island signs' labels

@@ -303,6 +303,32 @@ local function memberOk(v: Types.ClientView, key: string): boolean
 	return false
 end
 
+-- Who could join the party, the strongest first (level, then health): the list's order and the party's first picks.
+type Cand = { key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look? }
+local function rankMembers(v: Types.ClientView): { Cand }
+	local cands: { Cand } = {}
+	for _, x in v.folk do
+		table.insert(cands, { key = "v" .. x.id, name = x.name, lvl = x.lvl, f = Battle.villager(x), look = x.look })
+	end
+	for _, x in v.pals do
+		local cd = Creatures.byId[x.sp]
+		table.insert(cands, { key = "p" .. x.id, name = if cd then cd.name else x.sp, lvl = x.lvl, f = Battle.pal(x), icon = "icon_" .. x.sp })
+	end
+	table.sort(cands, function(a, b)
+		if a.lvl ~= b.lvl then
+			return a.lvl > b.lvl
+		end
+		if a.f.maxHp ~= b.f.maxHp then
+			return a.f.maxHp > b.f.maxHp
+		end
+		return a.key < b.key
+	end)
+	return cands
+end
+
+-- (the party's slots fill themselves with the strongest when the chart opens; the player can change them after)
+local partyFilled = false
+
 local function buildExplore(body: Frame, _arg: any?)
 	local v = StateClient.view()
 	if v == nil then
@@ -312,6 +338,20 @@ local function buildExplore(body: Frame, _arg: any?)
 	for i = #party, 1, -1 do
 		if not memberOk(v, party[i]) then
 			table.remove(party, i)
+		end
+	end
+	-- the party's slots: the strongest go in by themselves when the chart opens (GAME_DESIGN 7: "party slots should
+	-- auto equip with the strongest party members"); the player can swap them after
+	if not partyFilled then
+		partyFilled = true
+		if v.exp == nil then
+			table.clear(party)
+			for _, c in rankMembers(v) do
+				if #party >= Tuning.PartyMax then
+					break
+				end
+				table.insert(party, c.key)
+			end
 		end
 	end
 	local isles = Chart.islands(v.sea)
@@ -466,21 +506,7 @@ local function buildExplore(body: Frame, _arg: any?)
 	local captain = Battle.founder({ cap = v.cap, founder = v.founder } :: any)
 	member(0, "f", "You (captain)", v.cap.lvl, captain, nil, v.founder)
 	-- the strongest first
-	local cands: { { key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look? } } = {}
-	for _, x in v.folk do
-		table.insert(cands, { key = "v" .. x.id, name = x.name, lvl = x.lvl, f = Battle.villager(x), look = x.look })
-	end
-	for _, x in v.pals do
-		local cd = Creatures.byId[x.sp]
-		table.insert(cands, { key = "p" .. x.id, name = if cd then cd.name else x.sp, lvl = x.lvl, f = Battle.pal(x), icon = "icon_" .. x.sp })
-	end
-	table.sort(cands, function(a, b)
-		if a.lvl ~= b.lvl then
-			return a.lvl > b.lvl
-		end
-		return a.f.maxHp > b.f.maxHp
-	end)
-	for i, cand in cands do
+	for i, cand in rankMembers(v) do
 		member(i, cand.key, cand.name, cand.lvl, cand.f, cand.icon, cand.look)
 	end
 	-- the snack pouch (GAME_DESIGN 7: snacks a trip, 5 up to 30): a bigger one for shells and wood
@@ -623,6 +649,7 @@ function Menus.init()
 		end
 		if name ~= "explore" then
 			table.clear(party)
+			partyFilled = false
 		end
 	end)
 end

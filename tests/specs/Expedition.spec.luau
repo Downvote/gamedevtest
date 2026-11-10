@@ -240,6 +240,45 @@ return function()
 		end
 		T.eq(select(2, Expedition.pause({ over = "home" } :: any, true)), "no_exp")
 	end)
+	T.it("the tips: setting sail moves them to fighting, the first battle's end to catching, a friend to the last", function()
+		local p = fresh()
+		p.tut = 5
+		local _, e = Expedition.start(p, Expedition.chart(1, 8), {})
+		T.eq(p.tut, 6, "set sail: the first fight")
+		local rng = Util.newRng(3)
+		e.party[1].hp, e.party[1].maxHp, e.party[1].atk = 9999, 9999, 999
+		while e.battle == nil do
+			Expedition.next(p, e, rng)
+		end
+		fightOut(p, e, rng)
+		T.eq(p.tut, 7, "the first battle over: catching")
+		-- a friend made (a free nest, snacks to spare, a worn-out wild one)
+		table.insert(p.plot.placed, { uid = p.nextId, id = "nest", x = 0, z = 0, rot = 0 })
+		p.nextId += 1
+		e.snacks = 99
+		while e.battle == nil do
+			Expedition.next(p, e, rng)
+		end
+		for _, f in e.battle.foes do
+			f.lvl, f.hp = 1, 1
+		end
+		for _ = 1, 40 do
+			local foe = nil
+			for _, f in e.battle.foes do
+				if f.hp > 0 then
+					foe = f
+				end
+			end
+			if e.battle == nil or foe == nil then
+				break
+			end
+			Expedition.snack(p, e, foe.key, rng)
+			if p.tut == 8 then
+				break
+			end
+		end
+		T.eq(p.tut, 8, "a driftling befriended: the last tip")
+	end)
 	T.it("losing: the expedition ends, all the loot comes home (no penalty)", function()
 		local p = fresh()
 		local _, e = Expedition.start(p, Expedition.chart(1, 8), {})
