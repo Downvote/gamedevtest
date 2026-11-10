@@ -213,6 +213,7 @@ function StreetModels.boat(parent: Instance, origin: Vector3, level: number): Mo
 			p = Blocks.part(m, { size = sp.size, cf = cf, color = sp.color, name = sp.name, shape = if sp.shape == "Wedge" then "Wedge" else nil, neon = sp.neon })
 		end
 		p.Name = sp.name
+		p.CanCollide = false -- (scenery beside the pier: nothing to snag on)
 		if sp.wind then
 			p:SetAttribute("PixelWind", sp.wind)
 		end
@@ -287,14 +288,23 @@ function StreetModels.road(parent: Instance, origin: Vector3): Model
 		box(m, o, pr.x0 + 0.25, (BOARD_Y + Street.WATER_Y) / 2 - 0.4, zz, 0.5, BOARD_Y - Street.WATER_Y + 0.7, 0.5, "wood_dark", "Post")
 		box(m, o, pr.x1 - 0.25, (BOARD_Y + Street.WATER_Y) / 2 - 0.4, zz, 0.5, BOARD_Y - Street.WATER_Y + 0.7, 0.5, "wood_dark", "Post")
 	end
+	-- the pier's things (bollards, crates, a barrel, a coil of rope) and its boat are scenery: nothing to snag on
+	local props = Instance.new("Folder")
+	props.Name = "PierProps"
 	for _, bx in { pr.x0 + 0.5, pr.x1 - 0.5 } do
-		Blocks.cylY(m, 0.5, 0.8, o * CFrame.new(bx, BOARD_Y + 0.4, pr.z1 - 0.5), "steel_dark")
-		Blocks.cylY(m, 0.7, 0.15, o * CFrame.new(bx, BOARD_Y + 0.85, pr.z1 - 0.5), "steel_dark")
+		Blocks.cylY(props, 0.5, 0.8, o * CFrame.new(bx, BOARD_Y + 0.4, pr.z1 - 0.5), "steel_dark")
+		Blocks.cylY(props, 0.7, 0.15, o * CFrame.new(bx, BOARD_Y + 0.85, pr.z1 - 0.5), "steel_dark")
 	end
-	crate(m, o * CFrame.new(pr.x0 + 0.75, BOARD_Y, pr.z0 + 3), 1)
-	crate(m, o * CFrame.new(pr.x0 + 0.65, BOARD_Y + 1, pr.z0 + 3.1), 0.7)
-	barrel(m, o * CFrame.new(pr.x1 - 0.75, BOARD_Y, pr.z0 + 5))
-	Blocks.cylY(m, 0.9, 0.2, o * CFrame.new(pr.x1 - 0.7, BOARD_Y + 0.1, pr.z1 - 2.5), "sand_dark") -- a coil of rope
+	crate(props, o * CFrame.new(pr.x0 + 0.75, BOARD_Y, pr.z0 + 3), 1)
+	crate(props, o * CFrame.new(pr.x0 + 0.65, BOARD_Y + 1, pr.z0 + 3.1), 0.7)
+	barrel(props, o * CFrame.new(pr.x1 - 0.75, BOARD_Y, pr.z0 + 5))
+	Blocks.cylY(props, 0.9, 0.2, o * CFrame.new(pr.x1 - 0.7, BOARD_Y + 0.1, pr.z1 - 2.5), "sand_dark") -- a coil of rope
+	for _, d in props:GetChildren() do
+		if d:IsA("BasePart") then
+			d.CanCollide = false
+		end
+	end
+	props.Parent = m
 	StreetModels.boat(m, origin, 1)
 	-- walls: the boardwalk's sea side (but the pier), the pier's sides and end
 	wall(m, o, x0, B1, pr.x0, B1 + 0.5)
@@ -645,8 +655,9 @@ function StreetModels.ends(parent: Instance): Model
 		local x0 = if west then e[1] - Street.END_FAR else e[1]
 		local x1 = if west then e[2] else e[2] + Street.END_FAR
 		water(slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.SEA.z1 + Street.FAR, Street.WATER_Y, 1, "water", "Water"), 1)
-		-- the boardwalk runs on to a last post and lantern
-		local bx0 = if west then b.x0 else first
+		-- the boardwalk runs on to a last post and lantern (this end's stretch only: past the first plot on the west,
+		-- past the last on the east; the east's once ran from the first plot, its walls across every pier and jetty)
+		local bx0 = if west then b.x0 else last
 		local bx1 = if west then first else b.x1
 		slab(m, o, bx0, Street.BOARD.z0, bx1, Street.BOARD.z1, BOARD_Y, 0.5, "wood", "Boardwalk")
 		local hx = if west then b.x0 + 1 else b.x1 - 1

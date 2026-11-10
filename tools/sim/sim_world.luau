@@ -148,6 +148,30 @@ H.expect(s3 ~= nil and s3.Text == "Unclaimed isle", "islands", "open water's sig
 
 ------------------------------------------------------------------ 3. walking the boardwalk
 E.phase = "walk"
+-- the way from an island's jetty across the boardwalk to its pier's end is open: nothing collidable stands in its
+-- middle (the bug: the street's east end once ran its invisible walls along the whole boardwalk, across every pier
+-- and jetty, and a founder put on the pier after the voyage home could not leave it)
+do
+	local pr = Street.pier()
+	local blockers = {}
+	-- plot 1 an island (from its jetty), the last plot open water (from the boardwalk: an empty lot has no jetty)
+	for _, i in { 1, Street.MAX } do
+		local ox, oz = Street.origin(i)
+		local from = if i == 1 then Street.BOARD.z0 - 3 else Street.BOARD.z0 + 0.1
+		for _, d in plots:GetDescendants() do
+			if d:IsA("BasePart") and d.CanCollide then
+				local c, sz = d.Position, d.Size
+				local x0, x1 = c.X - sz.X / 2 - ox, c.X + sz.X / 2 - ox
+				local z0, z1 = c.Z - sz.Z / 2 - oz, c.Z + sz.Z / 2 - oz
+				local y0, y1 = c.Y - sz.Y / 2, c.Y + sz.Y / 2
+				if x1 > Street.PIER_X - 1 and x0 < Street.PIER_X + 1 and z1 > from and z0 < pr.z1 - 0.5 and y1 > -0.25 and y0 < 4 then
+					table.insert(blockers, string.format("%s (%s) on plot %d", d.Name, d.Parent and d.Parent.Name or "?", i))
+				end
+			end
+		end
+	end
+	H.expect(#blockers == 0, "sea", "the way from the jetty across the boardwalk to the pier's end is open", table.concat(blockers, ", "))
+end
 local CCa = H.cmod(a, "Controllers.CameraController")
 local PRa = H.cmod(a, "Pixel.PixelRenderer")
 -- the founder in the middle of the screen (the camera always centres on them): their feet's screen point

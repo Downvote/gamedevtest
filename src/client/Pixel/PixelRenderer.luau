@@ -1349,6 +1349,25 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	shift(s.sShare, W, H, 1, sx, sy)
 	shift(s.sWClass, W, H, 1, sx, sy)
 	shift(s.sWave, W, H, 1, sx, sy)
+	-- the lamps' pools move with the picture (the strips coming in are dark until the next rebuild adds their lamps)
+	local lm = lightMap
+	if lm and buffer.len(lm) == W * H then
+		shift(lm, W, H, 1, sx, sy)
+		if sx > 0 then
+			for y = 0, H - 1 do
+				buffer.fill(lm, y * W + W - sx, 0, sx)
+			end
+		elseif sx < 0 then
+			for y = 0, H - 1 do
+				buffer.fill(lm, y * W, 0, -sx)
+			end
+		end
+		if sy > 0 then
+			buffer.fill(lm, (H - sy) * W, 0, sy * W)
+		elseif sy < 0 then
+			buffer.fill(lm, 0, 0, -sy * W)
+		end
+	end
 	s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(cam.gx + sx, cam.gy + sy), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
 	local rays = 0
 	local strips: { Rect } = {}

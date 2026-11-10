@@ -151,7 +151,9 @@ Models (`src/shared/Models`, Roblox modules):
   flame, seats, a flag, torches), the stepping-stone path and the jetty (`JettyPlank`s on beams and posts, a rope),
   the sign with its `SignBoard`, the mailbox, and palms, rocks, shells, starfish, driftwood, seaweed and tufts strewn
   by the plot's own seed; `Blocks.windy`), `emptyLot(parent, origin)` (open water and a sandbar), `ends(parent)` (the sea past the
-  ends, sandbars, the boardwalk's last lantern, and the invisible walls round the world, 8 studs high). Every wall is
+  ends, sandbars, the boardwalk's last lantern, the invisible walls along each end's own stretch of boardwalk, and
+  the walls round the world, 8 studs high; the pier's things, `PierProps`: bollards, crates, a barrel, rope, and the
+  moored `Boat` don't collide). Every wall is
   in the collision group `Bounds`, which the pixel filter's rays (group `PixelRays`) pass through.
 - `DecorModels.build(id, at, lvl?) -> Model` (every building and piece of decor; `at`: the footprint's centre on the
   grass, turned; each with its doors, windows, ridged roofs with eaves and its own props (crates, barrels, sacks, pots,
@@ -254,7 +256,7 @@ comes), `request(action, payload) -> Response` (never errors), `signal(kind, pay
 
 ### 8.2 `DayLight` (the day and night)
 `start()`: the view's `dayFrac` (each tick and view; run on smoothly by `Tuning.DaySeconds` between them) sets
-`PixelRenderer.setGrade(at(frac))` every frame (nil on an islet's stage: daylight there; with the filter off,
+`PixelRenderer.setGrade(at(frac))` every frame, on the islands and on an islet's stage alike (with the filter off,
 `Lighting.ClockTime` instead: 6 at dawn, 18 at dusk). `at(frac) -> Grade?`: the day's keys (`KEYS`: dawn 0, morning
 0.07, afternoon 0.6, dusk 0.68, twilight 0.75, night 0.81 to 0.95, dawn again at 1), the step between two keys in
 `STEPS` (6) steps; nil when it is plain daylight. `debugSet(frac?)` (previews: a fixed time), `debugState() -> {
@@ -355,7 +357,8 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `sat`, times `mr mg mb`, plus a blue `lift` in the shadows. `Grade { mr, mg, mb, lift, sat, lamps }`. Neon parts
   (`EMISSIVE` statics, `dynGlow` dynamics) keep their colour; round them `lightMap` (u8 a pixel, 0..3, rebuilt by
   `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second
-  for the moving lights) pools warm light in three stepped rings (`RING`, twice as wide as tall: the ground at 2:1),
+  for the moving lights; a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
+  warm light in three stepped rings (`RING`, twice as wide as tall: the ground at 2:1),
   `lamps` of the way back to the colour by day, warmed.
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
@@ -517,8 +520,9 @@ island's name and level, `Loot_<kind>`, the path's `Node<i>` icons (the ones ahe
 but the guardian's), `Here`, `BackToIsland`), the `Footer` (the party's cards `Card_<key>`: portrait or icon, name,
 `Lv`, the health bar `HpFill`; between stops `AutoGo` (a bar filling over `AUTO_GO` s, then the next stop by itself:
 `goOn`; a tap or Space at once) and `SailHome`; `Act_fight Act_guard Act_treat Act_flee` in battle (Treat and Flee off against a guardian), `TreatHint`), the foes' cards down the right (tap one:
-the treat's target), the `Say` narration, the `Result` card (`ResultOk`: Onward, going by itself after `AUTO_CARD` s
-(its `AutoBar` running down), or Sail home after the guardian or a fall) and the `Curtain` (ink blinds with the island's name, kind and level until the stage is `ready()` and 1.2 s
+the treat's target), the `Say` narration, a won battle's `Alert` (a small plate under the header: Victory!, its
+lines, a new friend's portrait; gone by itself after `AUTO_CARD` s, no button), the `Result` card (`ResultOk`: Sail
+home after the guardian or a fall) and the `Curtain` (ink blinds with the island's name, kind and level until the stage is `ready()` and 1.2 s
 passed, at most `StageWait`). The actors: the founder (the stage's own), villagers (`stage.rival(look)`), driftlings
 and wild ones (`MicroModels.driftling`, the guardian 1.6 times as big), posed every frame (drops, idle hops, lunges,
 KO). Arriving after the cutscene the stage's drop happens behind the curtain (`lift()` at once) and the expedition

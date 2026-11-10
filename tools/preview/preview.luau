@@ -306,6 +306,18 @@ local function timeScenario(frac, name)
 		end
 		E.run(1.5)
 		capture(p, name)
+		if name == "night" then
+			-- the founder walks on: the camera pans and the lamps' pools go with the picture (night_pan_1 ..)
+			local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				local x0, z0 = root.Position.X, root.Position.Z
+				for k = 1, 6 do
+					p.Character:PivotTo(E.cf.new(x0 - k * 0.9, 3, z0 + k * 0.6))
+					E.run(0.25)
+					capture(p, "night_pan_" .. k)
+				end
+			end
+		end
 		return p
 	end
 end

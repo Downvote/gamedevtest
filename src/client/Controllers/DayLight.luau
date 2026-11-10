@@ -2,8 +2,8 @@
 -- The day and night (GAME_DESIGN 8; docs/ARCHITECTURE.md 9.3): the island's clock (the view's dayFrac, ticked every
 -- second and run on smoothly between ticks) sets the pixel filter's colour grade (PixelRenderer.setGrade): a rosy
 -- dawn, the plain day, a golden dusk, a violet twilight and a blue night with the lamps, torches and fires lit in
--- pools of warm light, then the dawn again. The grade steps (a few steps a change, never a smear), and a stage
--- (an islet's screen) keeps its daylight. With the filter off, Roblox's own clock follows instead.
+-- pools of warm light, then the dawn again. The grade steps (a few steps a change, never a smear); the islands at
+-- sea (an islet's screen) follow the same clock. With the filter off, Roblox's own clock follows instead.
 --   start(), at(frac) -> Grade? (nil: daylight), debugSet(frac?) (previews: a fixed time), debugState()
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
@@ -11,7 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local StateClient = require(script.Parent.StateClient)
-local CameraController = require(script.Parent.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 
 type Grade = PixelRenderer.Grade
@@ -100,11 +99,8 @@ function DayLight.start()
 			end)
 			return
 		end
-		if CameraController.view().stage then
-			PixelRenderer.setGrade(nil) -- an islet's screen keeps its daylight
-		else
-			PixelRenderer.setGrade(DayLight.at(f))
-		end
+		-- the islands at sea share the clock: a battle at night is fought in the dark, by its fires and glows
+		PixelRenderer.setGrade(DayLight.at(f))
 	end)
 end
 

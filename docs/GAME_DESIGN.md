@@ -206,8 +206,10 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 
   Sail home (or a won or lost expedition's end) closes the ink blinds over the islet on "<name>'s Isle" (or "Home
   again!"); behind them the island comes back, the blinds open on the boat sailing in from the sea with the party on
-  deck, the view following it to the pier; your founder hops onto the middle of the pier (well clear of its rails,
-  free to walk off: the bug of the request below, a founder put against the pier's wall and stuck there, is fixed),
+  deck, the view following it to the pier; your founder hops onto the middle of the pier and walks off it freely.
+  (The bug behind "the player gets stuck at the bay": the sea's east end ran its two invisible walls along the whole
+  boardwalk, across every pier and jetty; they now stand only along that end's own stretch. The pier's crates, barrel,
+  rope, bollards and the moored boat are scenery and don't collide.)
   the party cheers, the HUD comes back and the loot is shown. Back to island (the expedition waits) closes and opens the blinds the same way, without the
   boat.
 - **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
@@ -239,9 +241,13 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
 > night cycle, causing things to go dark and then bright as time goes on"
 
 - **It goes on by itself:** between stops there is no Go on to tap: a bar fills (`AUTO_GO`, 1.8 s) and the party
-  walks on to the next stop (Space, or a tap on the bar, goes at once); a won battle's card goes by itself after
-  `AUTO_CARD` (3 s, its bar running down). The guardian's fall and a defeat still wait for Sail home; battles still
-  wait for your move.
+  walks on to the next stop (Space, or a tap on the bar, goes at once). A won battle is a small alert under the
+  header (Victory!, the xp and shells, level-ups, a new friend's portrait) that goes by itself after `AUTO_CARD`
+  (3 s), with no button. The guardian's fall and a defeat still wait for Sail home; battles still wait for your move.
+
+> The requests (2026-11-10): "the player is still stuck here. can you remove the invisible wall?"; "day night cycles
+> should also affect islands the player is battling on. also, the onward popup should just be a small alert with no
+> need for the player to press a button to continue"
 - **Battles move:** a round plays back blow by blow. An attacker winds up (crouching back, squashed, the founder and
   villagers drawing a fist back with a fierce face), dashes right up to its target (stretched, kicking up dust),
   strikes (a lunge and a swing with a shout, a bite or a ram leaning in), and hops back home. The blow freezes the
@@ -276,9 +282,10 @@ fifteen: dark until met, named once met, its blurb and a heart once befriended.
   as time goes on"): the island's day clock grades the whole picture (`Controllers/DayLight`): a rosy dawn as the day
   begins, plain daylight, a golden dusk (from 0.6 of the day), a violet twilight and a deep blue night (from 0.81)
   that brightens into the next dawn. At night the lamps, torches, the campfire, lanterns and lit windows keep their
-  colour and pool warm light round them in three stepped rings on the pixel grid. The change steps (a few steps
-  between keys, never a smear). An islet's screen keeps its daylight; with the pixel filter off Roblox's own clock
-  follows the day instead.
+  colour and pool warm light round them in three stepped rings on the pixel grid (the pools move with the picture as
+  the view follows you). The change steps (a few steps between keys, never a smear). The islands you battle on
+  follow the same clock: a night battle is fought in the dark by the volcano's lava and the party's own light; with
+  the pixel filter off Roblox's own clock follows the day instead.
 - **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
   each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with your
   moored boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own

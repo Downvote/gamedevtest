@@ -1010,8 +1010,59 @@ local function playEvent(ev: { [string]: any })
 	task.wait(if t == "hit" then 0.15 else STEP)
 end
 
+-- A won battle's small alert (GAME_DESIGN 7: "the onward popup should just be a small alert"): a plate under the
+-- header with the title, its lines and maybe a new friend's portrait; it slides down, stays AUTO_CARD seconds and
+-- goes by itself (no button: the party walks on meanwhile).
+local alertFrame: Frame? = nil
+local function alert(title: string, color: Color3, lines: { { text: string, color: Color3? } }, icon: string?)
+	local r = root
+	if r == nil then
+		return
+	end
+	if alertFrame then
+		alertFrame:Destroy()
+	end
+	local w, _ = canvasSize()
+	local tw = UIKit.textWidth(title) + 8
+	for _, l in lines do
+		tw = math.max(tw, UIKit.textWidth(l.text) + 8)
+	end
+	local ix = if icon then 20 else 0
+	local cw = math.min(w - 16, tw + ix + 8)
+	local ch = 4 + 10 + #lines * 9 + 3
+	if icon then
+		ch = math.max(ch, 22)
+	end
+	local x, y = math.floor((w - cw) / 2), topInset() + HEAD_H + 18
+	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(x, y - 6), UIKit.color("plate"), 0.05, 2)
+	f.Name = "Alert"
+	f.ZIndex = 20
+	UIKit.rect(f, UDim2.fromOffset(cw - 4, 1), UDim2.fromOffset(2, 1), color, 21)
+	if icon then
+		PixelSprites.image(f, icon, UDim2.fromOffset(4, math.floor((ch - 16) / 2)), 21)
+	end
+	UIKit.text(f, title, UDim2.fromOffset(cw - ix - 8, 10), UDim2.fromOffset(4 + ix, 3), { color = color, z = 21, name = "Title" })
+	for i, l in lines do
+		UIKit.text(f, l.text, UDim2.fromOffset(cw - ix - 8, 9), UDim2.fromOffset(4 + ix, 3 + 10 + (i - 1) * 9), { color = l.color or UIKit.color("text"), z = 21, name = "Line" .. i })
+	end
+	alertFrame = f
+	UIKit.tween(f, 0.15, { Position = UDim2.fromOffset(x, y) })
+	task.delay(AUTO_CARD, function()
+		if f.Parent then
+			UIKit.tween(f, 0.15, { Position = UDim2.fromOffset(x, y - 6) })
+			task.wait(0.16)
+			if f.Parent then
+				f:Destroy()
+			end
+			if alertFrame == f then
+				alertFrame = nil
+			end
+		end
+	end)
+end
+
 -- A results card in the middle: lines, then a button.
-local function resultCard(title: string, color: Color3, lines: { { text: string, color: Color3? } }, icon: string?, button: string, onClick: () -> (), auto: number?)
+local function resultCard(title: string, color: Color3, lines: { { text: string, color: Color3? } }, icon: string?, button: string, onClick: () -> ())
 	local r = root
 	if r == nil then
 		return
@@ -1048,24 +1099,6 @@ local function resultCard(title: string, color: Color3, lines: { { text: string,
 	end
 	local b = UIKit.button(f, button, UDim2.fromOffset(cw - 40, 14), UDim2.new(0, 20, 1, -18), go, { name = "ResultOk", color = UIKit.color("button_ok") })
 	b.ZIndex = 22
-	if auto then
-		-- it goes by itself: a bar under the button runs down
-		local bw = cw - 40
-		local bar = UIKit.rect(f, UDim2.fromOffset(bw, 1), UDim2.new(0, 20, 1, -3), UIKit.color("good"), 22)
-		bar.Name = "AutoBar"
-		local t0 = os.clock()
-		task.spawn(function()
-			while not done and f.Parent do
-				local k = math.clamp((os.clock() - t0) / auto, 0, 1)
-				bar.Size = UDim2.fromOffset(math.floor(bw * (1 - k)), 1)
-				if k >= 1 then
-					go()
-					break
-				end
-				task.wait(0.05)
-			end
-		end)
-	end
 	UIKit.tween(f, 0.22, { Position = UDim2.fromOffset(x, y) })
 	task.delay(0.25, function()
 		if f.Parent then
@@ -1126,9 +1159,8 @@ playRound = function(data: { [string]: any })
 			Audio.play("rare_fanfare")
 			resultCard(if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!", UIKit.color("accent"), lines, icon, "Sail home", goHome)
 		else
-			resultCard("Victory!", UIKit.color("good"), lines, icon, "Onward", function()
-				refresh()
-			end, AUTO_CARD)
+			alert("Victory!", UIKit.color("good"), lines, icon)
+			refresh()
 		end
 	elseif result == "lose" then
 		Audio.play("sad")
@@ -1233,7 +1265,7 @@ refresh = function()
 	end
 	-- everything but the curtain, a results card and the narration is laid out again
 	for _, c in r:GetChildren() do
-		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and not c:IsA("TextLabel") then
+		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and not c:IsA("TextLabel") then
 			c:Destroy()
 		end
 	end
