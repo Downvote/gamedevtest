@@ -3,7 +3,8 @@
 -- for driftlings, the training yard, and decor for charm. Pure. Each piece is paid for when it is placed (shells and
 -- wood), may be placed as often as the island's piece limit allows (Logic/Plot), and is built by
 -- Models/DecorModels. w x d: its footprint in whole studs facing south (a quarter turn swaps them).
---   kind:  "food" | "wood" | "shop" (makes shells by selling food to visitors) | "home" | "nest" | "train" | "decor"
+--   kind:  "food" | "wood" | "shop" (makes shells by selling food to visitors) | "home" | "nest" | "train" | "breed"
+--          (the Hatchery: two driftlings make an egg, Logic/Breed) | "decor"
 --   rate:  what it makes a day with a villager working there (food, wood or shells); a shop eats `eats` food a day
 --   job:   the worker's title; knack: the driftlings that help there (Data/Creatures)
 --   beds / slots: villagers it houses, driftlings it nests
@@ -70,6 +71,8 @@ local LIST: { BuildingDef } = {
 	-- nests
 	B({ id = "nest", name = "Driftling Nest", kind = "nest", shells = 50, wood = 5, w = 2, d = 2, slots = 2, blurb = "Room for two driftlings." }),
 	B({ id = "burrow", name = "Cozy Burrow", kind = "nest", shells = 380, wood = 40, w = 3, d = 3, slots = 4, charm = 1, tier = 2, blurb = "Room for four." }),
+	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
+	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3600, wood = 320, w = 4, d = 4, charm = 3, tier = 3, blurb = "Two driftlings and a feast make an egg." }),
 	-- training
 	B({ id = "yard", name = "Training Yard", kind = "train", shells = 450, wood = 50, w = 4, d = 4, charm = 1, tier = 2, blurb = "Resting villagers and driftlings train." }),
 	-- decor

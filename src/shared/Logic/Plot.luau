@@ -255,6 +255,13 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 		if (def.beds > 0 and beds < #p.folk) or (def.slots > 0 and slots < #p.pals) then
 			return false, "no_room" :: ErrCode
 		end
+		-- a Hatchery keeps its egg: not cleared away till it hatches (Logic/Breed)
+		local eggs: { Types.Egg } = p.eggs or {}
+		for _, egg in eggs do
+			if egg.uid == q.uid then
+				return false, "egg" :: ErrCode
+			end
+		end
 		p.shells += math.floor(def.shells * Tuning.Refund)
 		p.wood += math.floor(def.wood * Tuning.Refund)
 	end

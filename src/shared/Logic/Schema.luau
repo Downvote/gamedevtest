@@ -82,9 +82,10 @@ function Schema.default(now: number, seed: number): Profile
 		pouch = 1,
 		chart = {},
 		seen = {},
+		eggs = {},
 		nextId = 1,
 		tut = 1,
-		stats = { days = 0, built = 0, earned = 0, befriended = 0, battles = 0, cleared = 0, movedIn = 0 },
+		stats = { days = 0, built = 0, earned = 0, befriended = 0, battles = 0, cleared = 0, movedIn = 0, hatched = 0 },
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
@@ -276,6 +277,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		pouch = int(r.pouch, 1, 1, #Tuning.PouchCost),
 		chart = charted,
 		seen = seen,
+		eggs = {},
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
 		tut = int(r.tut, 1, 0, 8),
 		stats = {
@@ -286,6 +288,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			battles = int(st.battles, 0, 0),
 			cleared = int(st.cleared, 0, 0),
 			movedIn = int(st.movedIn, #folk, 0),
+			hatched = int(st.hatched, 0, 0),
 		},
 		settings = {
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",
@@ -295,6 +298,29 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	}
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
+	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
+	local hatcheries: { [number]: boolean } = {}
+	for _, q in out.plot.placed do
+		local b = Buildings.byId[q.id]
+		if b and b.kind == "breed" then
+			hatcheries[q.uid] = true
+		end
+	end
+	if type(r.eggs) == "table" then
+		local maxTurns = 0
+		for _, t in Tuning.BreedTurns do
+			maxTurns = math.max(maxTurns, t)
+		end
+		for _, x in r.eggs do
+			if type(x) == "table" and type(x.sp) == "string" and Creatures.byId[x.sp] then
+				local uid = int(x.uid, 0, 0)
+				if hatcheries[uid] then
+					hatcheries[uid] = nil
+					table.insert(out.eggs, { uid = uid, a = int(x.a, 0, 0), b = int(x.b, 0, 0), sp = x.sp, muts = Traits.clean(x.muts), left = int(x.left, 0, 0, maxTurns) })
+				end
+			end
+		end
+	end
 	return out
 end
 

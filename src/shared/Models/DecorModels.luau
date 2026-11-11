@@ -546,6 +546,49 @@ B.burrow = function(m, f)
 	box(m, f, 0.9, 0.75, 1.25, 0.2, 0.25, 0.2, "yellow", "Lamp", true)
 end
 
+-- Hatchery (4 x 4): a warm nursery at the back (plaster walls, a thatched roof, a round window aglow, a chimney's
+-- wisp), a big nest of straw in front holding three speckled eggs of the rarities' colours, a heat lamp over them, a
+-- sack of feed and a low fence round the nest.
+B.hatchery = function(m, f)
+	footing(m, f, 4, 4, "sand_dark", 0.1)
+	-- the nursery
+	box(m, f, 0, 1.15, -0.9, 3.2, 1.9, 1.8, "cream", "Walls")
+	for _, x in { -1.55, 1.55 } do
+		box(m, f, x, 1.15, -0.9, 0.15, 1.95, 1.85, "wood_dark", "Corner")
+	end
+	box(m, f, 0, 0.25, -0.9, 3.3, 0.3, 1.9, "rock", "Sill")
+	roof(m, f * CFrame.new(0, 0, -0.9), 2.1, 3.2, 1.8, 1.2, "sand_dark", "wood_dark", 0.35)
+	for k = 0, 6 do
+		box(m, f, -1.5 + k * 0.5, 1.98, 0.1, 0.3, 0.22, 0.1, "sand", "Fringe")
+	end
+	door(m, f * CFrame.new(-0.8, 0.4, 0), 0, 0.02, 0.6, 1.05, "wood_dark")
+	-- a round window aglow (a warm room for the eggs)
+	cyl(m, f, 0.75, 1.3, 0.01, 0.7, 0.08, "wood_dark", "WindowRim").CFrame = f * CFrame.new(0.75, 1.3, 0.01) * CFrame.Angles(math.pi / 2, 0, 0)
+	cyl(m, f, 0.75, 1.3, 0.05, 0.5, 0.06, "yellow", "WindowGlow").CFrame = f * CFrame.new(0.75, 1.3, 0.05) * CFrame.Angles(math.pi / 2, 0, 0)
+	box(m, f, 1.1, 2.75, -1.3, 0.4, 0.8, 0.4, "rock_dark", "Chimney")
+	box(m, f, 1.1, 3.2, -1.3, 0.5, 0.12, 0.5, "rock", "ChimneyCap")
+	-- the nest of straw and its eggs
+	for i = 0, 11 do
+		local a = i / 12 * math.pi * 2
+		Blocks.part(m, { size = Vector3.new(0.6, 0.28, 0.32), cf = f * CFrame.new(0.4 + math.cos(a) * 0.8, 0.28, 1.05 + math.sin(a) * 0.6) * CFrame.Angles(0, -a, math.rad(15)), color = if i % 2 == 0 then "sand_dark" else "wood", name = "Straw", collide = false })
+	end
+	box(m, f, 0.4, 0.2, 1.05, 1.2, 0.15, 0.9, "sand", "Bed")
+	ball(m, f, 0.05, 0.5, 1.0, 0.55, "cream", "Egg")
+	box(m, f, 0.12, 0.62, 1.27, 0.1, 0.1, 0.04, "green", "Speckle")
+	ball(m, f, 0.55, 0.52, 0.9, 0.6, "window", "Egg")
+	box(m, f, 0.62, 0.66, 1.2, 0.1, 0.1, 0.04, "purple", "Speckle")
+	ball(m, f, 0.75, 0.46, 1.35, 0.45, "yellow", "Egg")
+	box(m, f, 0.82, 0.52, 1.57, 0.08, 0.08, 0.04, "orange", "Speckle")
+	-- the heat lamp leaning over the nest
+	box(m, f, 1.6, 0.9, 1.6, 0.12, 1.8, 0.12, "steel_dark", "LampPole")
+	box(m, f, 1.2, 1.78, 1.35, 0.9, 0.1, 0.1, "steel_dark", "LampArm")
+	box(m, f, 0.8, 1.62, 1.2, 0.4, 0.25, 0.4, "steel", "LampHood")
+	box(m, f, 0.8, 1.45, 1.2, 0.25, 0.1, 0.25, "orange", "LampGlow", true)
+	-- a sack of feed and the fence
+	sack(m, f, -1.45, 0, 1.45, "sand")
+	fence(m, f, -0.65, 1.85, 1.92, "wood")
+end
+
 -- Training Yard (4 x 4): a sandy ring in a fence, a dummy on a post, a rack of wooden swords, a target, a bench.
 B.yard = function(m, f)
 	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "sand", "Ground")

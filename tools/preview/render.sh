@@ -3,7 +3,7 @@
 # and writes PNGs at the device resolution (pixel layer + GUI).
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
-#   scenario: island | village | island2 | island3 | day | dusk | night | dawn | panel=<folk|pals|explore|index|looks> |
+#   scenario: island | village | island2 | island3 | day | dusk | night | dawn | panel=<folk|pals|hatch|explore|index|looks> |
 #             exp=<kind 1-9>[_battle|_boss|_win|_loot|_fight|_snack|_skills|_aim|_throw|_tut] | sea | visit | build | water | voyage | late | all
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)

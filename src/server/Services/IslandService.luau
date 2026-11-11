@@ -16,6 +16,7 @@ local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
+local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
 local Router = require(script.Parent.Router)
@@ -126,6 +127,13 @@ function IslandService.init()
 			return false, "busy"
 		end
 		return Island.release(s.profile, a.id)
+	end)
+	-- the Hatchery (GAME_DESIGN 6.1): two driftlings at home and a feast make an egg
+	Router.on("breed.start", function(s, a)
+		if s.away["p" .. a.a] or s.away["p" .. a.b] then
+			return false, "busy"
+		end
+		return Breed.start(s.profile, a.uid, a.a, a.b, s.rng)
 	end)
 	-- the boat (GAME_DESIGN 7): a bigger one sails further on the chart; not while it is away
 	Router.on("boat.upgrade", function(s, _a)
@@ -284,8 +292,10 @@ function IslandService.step(dt: number)
 		if s.turnClock >= Tuning.TurnSeconds then
 			s.turnClock -= Tuning.TurnSeconds
 			local news = Island.turn(p, s.rng, s.away)
+			-- the eggs a turn nearer; the ready ones hatch into free nests
+			local hatched = Breed.turn(p)
 			Session.markDirty(s)
-			Session.fx(s, { kind = "turn", movedIn = news.movedIn, trained = news.trained })
+			Session.fx(s, { kind = "turn", movedIn = news.movedIn, trained = news.trained, hatched = if #hatched > 0 then hatched else nil })
 		end
 		if today > s.dayIndex then
 			s.dayIndex = today

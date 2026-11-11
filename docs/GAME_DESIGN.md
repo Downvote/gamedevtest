@@ -134,10 +134,10 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
-27 pieces in seven kinds: **food** (Veggie Patch, Fishing Pier, Fruit Orchard, Greenhouse), **wood** (Lumber Camp,
+28 pieces in eight kinds: **food** (Veggie Patch, Fishing Pier, Fruit Orchard, Greenhouse), **wood** (Lumber Camp,
 Sawmill), **shops** (Snack Stall, Beach Cafe, Seaside Inn), **homes** (Tent, Grass Hut, Cottage: beds), **nests**
 (Driftling Nest, Cozy Burrow: room for driftlings), the **Training Yard** (resting villagers and driftlings gain xp
-each turn) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
+each turn), the **Hatchery** (§6.1) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
 placed, on whole studs of the island's grass (a stud or more in from the sand), turned a quarter at a time, off the
 campfire's plaza and the path to the jetty, and off every other piece, up to the island's piece limit (`PlotPieces`). The bigger buildings wait for a
 bigger island (tier 2 or 3).
@@ -224,6 +224,29 @@ Driftlings panel shows each (portrait, its name in its rarity's colour, level, s
 it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest) and **Release** (two taps). The
 **Index** lists all fifty-five: a dark shape and its rarity until met, named once met, its passive once befriended
 (and a heart).
+
+### 6.1 The Hatchery (`Logic/Breed`, the Hatchery panel)
+
+> The request (2026-11-10): "make a breeding system that also works like in palworld that unlocks after a certain
+> island level". The genre's system (two parents, a feast, an egg, the child's kind from the parents' strength, their
+> traits passed on) in our own buildings, numbers and words.
+
+- **The Hatchery** (Nests tab, Island Lv3: a warm nursery with a nest of speckled eggs and a heat lamp): one egg at a
+  time each; several may stand. The Driftlings panel's **Hatchery** button opens its panel.
+- **Laying an egg**: tap each slot, pick a parent from the driftlings at home (not the other one, not one away); the
+  panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
+  feast and the turns it takes; **Breed** pays the feast (`BreedFood` 40 / 70 / 120 / 200 / 400 food by the child's
+  rarity) and lays the egg (`BreedTurns` 3 / 4 / 6 / 9 / 14 island turns). The parents carry on as before.
+- **What hatches** (`Breed.child`): a pair of one kind hatches its kind; any other pair the kind whose power is nearest
+  their average (so two strong ones can make a kind the player never met); a legend only from two legends.
+- **What it inherits** (`Breed.inherit`): a mutation both parents carry always passes on, the better tier, and with
+  `BreedTierUp` (30%) a tier better still (a shared flaw becomes its family's first tier); one only a parent carries
+  passes on half the time (`BreedKeep`); with `BreedNew` (15%) it gains one of its own (tier 1 or 2); the best four.
+  Breeding two that share a mutation, again and again, climbs it to the top tier.
+- **Hatching**: at each turn's end the eggs count down; a ready one hatches into a free nest (level 1, helping where
+  its knack is needed, in the Index; "An egg hatched!" with its name), else waits ("Ready! It needs a free nest.").
+  The panel shows each egg: its rarity's egg, "Hatches in 3 turns" over a bar, its parents. A Hatchery holding an egg
+  is not cleared away ("An egg is still warming in that Hatchery.").
 
 ## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the sailing cutscene, the islet's screen)
 

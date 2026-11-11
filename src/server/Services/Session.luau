@@ -90,6 +90,7 @@ function Session.view(s: S): Types.ClientView
 		pouch = p.pouch,
 		chart = p.chart,
 		seen = p.seen,
+		eggs = p.eggs,
 		tut = p.tut,
 		stats = p.stats,
 		settings = p.settings,

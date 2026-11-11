@@ -29,6 +29,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["folk.dismiss"] = { id = "int" },
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.release"] = { id = "int" },
+	["breed.start"] = { uid = "int", a = "int", b = "int" },
 	["exp.start"] = { isle = "isle", party = "party" },
 	["boat.upgrade"] = {},
 	["exp.next"] = {},

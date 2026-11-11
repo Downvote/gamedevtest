@@ -229,6 +229,92 @@ if worker then
 	H.expect(next(s.away) == nil, "away", "home: back at work")
 end
 
+------------------------------------------------------------------ the Hatchery: two parents, an egg, its turns, a hatching
+E.phase = "hatchery"
+do
+	prof.shells, prof.wood, prof.food = 1e7, 1e6, 2000
+	while prof.tier < 3 do
+		local r = H.req(p, "island.expand", {})
+		if not H.expect(r.ok, "hatchery", "expanding to the third tier", tostring(r.err)) then
+			break
+		end
+		E.run(0.5)
+	end
+	local rh = place("hatchery")
+	H.expect(rh.ok, "hatchery", "a Hatchery at the third tier", tostring(rh.err))
+	place("burrow") -- (nests for the hatchling)
+	local uid = 0
+	for _, q in prof.plot.placed do
+		if q.id == "hatchery" then
+			uid = q.uid
+		end
+	end
+	-- two parents of one kind (the egg is theirs), carrying a shared mutation
+	local ids = {}
+	for k = 1, 2 do
+		table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", lvl = 6, xp = 0, work = 0, muts = { "swift2", if k == 1 then "angler1" else "lazy" } })
+		table.insert(ids, prof.nextId)
+		prof.nextId += 1
+	end
+	prof.seen.gullfin = 2
+	H.push(p, 0.4)
+	-- through the panels as a player: the Driftlings panel's Hatchery button, a parent in each slot, Breed
+	H.openPanel(p, "pals")
+	H.clickNamed(p, "OpenHatch", { wait = 0.4 })
+	H.expect(H.currentPanel(p) == "hatch", "hatchery", "the Driftlings panel opens the Hatchery")
+	H.clickNamed(p, "Slot_a_" .. uid, { wait = 0.4 })
+	H.clickNamed(p, "PickParent_" .. ids[1], { wait = 0.4 })
+	H.clickNamed(p, "Slot_b_" .. uid, { wait = 0.4 })
+	H.expect(H.buttonNamed(p, "PickParent_" .. ids[1]) == nil, "hatchery", "the first parent is not offered again")
+	H.clickNamed(p, "PickParent_" .. ids[2], { wait = 0.4 })
+	local food0 = prof.food
+	H.clickNamed(p, "Breed_" .. uid, { wait = 0.6 })
+	local egg = prof.eggs[1]
+	H.expect(egg ~= nil and egg.uid == uid and egg.sp == "gullfin", "hatchery", "an egg of their kind is laid", tostring(egg and egg.sp))
+	H.expect(prof.food < food0, "hatchery", "the feast is eaten", string.format("%d -> %d", food0, prof.food))
+	local swift = false
+	for _, id in egg and egg.muts or {} do
+		if id == "swift2" or id == "swift3" then
+			swift = true
+		end
+	end
+	H.expect(swift, "hatchery", "the shared mutation passes on")
+	-- refusals
+	H.expect(H.req(p, "breed.start", { uid = uid, a = ids[1], b = ids[2] }).err == "egg", "hatchery", "one egg a Hatchery")
+	H.expect(H.req(p, "breed.start", { uid = 99999, a = ids[1], b = ids[2] }).err == "not_found", "hatchery", "no Hatchery there")
+	H.expect(H.req(p, "breed.start", { uid = uid, a = ids[1], b = ids[1] }).err ~= nil, "hatchery", "the same one twice")
+	H.expect(H.req(p, "breed.start", { uid = uid, a = -1, b = 0.5 }).err == "bad_payload", "hatchery", "a bad payload")
+	local idx = 0
+	for i, q in prof.plot.placed do
+		if q.uid == uid then
+			idx = i
+		end
+	end
+	H.expect(H.req(p, "plot.store", { i = idx }).err == "egg", "hatchery", "not cleared away with an egg in it")
+	-- the turns: the egg on the panel counts down, then it hatches (announced)
+	H.openPanel(p, "hatch")
+	local pals0 = #prof.pals
+	local i0 = #fx
+	local turns = egg and egg.left or 0
+	for _ = 1, turns do
+		nextTurn()
+	end
+	E.run(0.5)
+	local news = nil
+	for i = i0 + 1, #fx do
+		if fx[i].kind == "turn" and type(fx[i].hatched) == "table" then
+			news = fx[i].hatched
+		end
+	end
+	H.expect(news ~= nil and #news == 1 and news[1].sp == "gullfin", "hatchery", "the egg hatched after its turns (the turn's news)", tostring(news and #news))
+	H.expect(#prof.pals == pals0 + 1 and #prof.eggs == 0 and prof.stats.hatched == 1, "hatchery", "a new driftling in a nest", string.format("%d -> %d", pals0, #prof.pals))
+	local born = prof.pals[#prof.pals]
+	H.expect(born.lvl == 1 and born.sp == "gullfin", "hatchery", "level 1, its parents' kind")
+	H.closePanel(p)
+	H.expect(H.req(p, "plot.store", { i = idx }).ok, "hatchery", "the Hatchery cleared away once empty")
+	H.checkProfile(p, "hatchery")
+end
+
 ------------------------------------------------------------------ two islands, two clocks
 E.phase = "two"
 local q = H.addPlayer({ userId = 9302, name = "Tock" })

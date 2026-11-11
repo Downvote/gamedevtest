@@ -43,6 +43,13 @@ local Tuning = {
 	UpgradeCost = { 0, 3, 8 }, -- ... and the price of each level (times its own price)
 	TierCost = { { shells = 0, wood = 0 }, { shells = 1800, wood = 220 }, { shells = 14000, wood = 1600 } },
 
+	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings and a feast of food make an egg; by the child's rarity
+	BreedFood = { 40, 70, 120, 200, 400 }, -- food the feast takes
+	BreedTurns = { 3, 4, 6, 9, 14 }, -- island turns the egg takes to hatch
+	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does)
+	BreedTierUp = 0.3, -- one both carry comes out a tier better with this chance (a flaw: its family's first tier)
+	BreedNew = 0.15, -- the chance of a new mutation of its own (tier 1 or 2)
+
 	-- driftlings, villagers, the captain and battles (GAME_DESIGN 6, 7; Logic/Battle)
 	LevelGrow = 0.12, -- stats grow by this share of their level-1 values a level
 	LevelMax = 60,

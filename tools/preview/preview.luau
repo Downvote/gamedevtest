@@ -235,6 +235,14 @@ local function seedProfile(userId, tier, opts)
 	prof.stats.movedIn = #prof.folk
 	prof.stats.befriended = #prof.pals
 	prof.stats.built = #prof.plot.placed
+	-- an egg warming in the first Hatchery (opts.egg: { sp, left, muts })
+	if opts.egg then
+		for _, q in prof.plot.placed do
+			if q.id == "hatchery" and #prof.eggs == 0 and #prof.pals >= 2 then
+				table.insert(prof.eggs, { uid = q.uid, a = prof.pals[1].id, b = prof.pals[2].id, sp = opts.egg[1], left = opts.egg[2], muts = opts.egg[3] or {} })
+			end
+		end
+	end
 	local key = Tuning.DataStoreName .. "/global"
 	E.cloud.stores[key] = E.cloud.stores[key] or {}
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
@@ -255,7 +263,7 @@ local HARBOR = {
 	{ "cottage", -14, -7 }, { "cottage", -14, -2 }, { "hut", -9, 4 }, { "burrow", -19, -7 }, { "burrow", -19, -2 }, { "yard", -8, -12 },
 	{ "fountain", -13, 6 }, { "lighthouse", 21, -13 }, { "statue", -22, 4 }, { "totem", 6, -12 }, { "picnic", -20, -12 },
 	{ "palm", -25, 0 }, { "palm", 15, -14 }, { "flowers", 6, 3 }, { "flowers", -7, 12 }, { "torch", 5, 6 }, { "torch", -6, 6 },
-	{ "hammock", 8, -16 }, { "bench", -4, -7 }, { "shellpile", 10, 14 },
+	{ "hammock", 8, -16 }, { "bench", -4, -7 }, { "shellpile", 10, 14 }, { "hatchery", -1, -14 },
 }
 local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff" }
 
@@ -353,15 +361,37 @@ function SCEN.day()
 	return p
 end
 
--- A UI panel by name (UIKit.openPanel): folk, pals, explore (a party picked), index, looks.
+-- A UI panel by name (UIKit.openPanel): folk, pals, explore (a party picked), index, looks, hatch (the Hatchery: a
+-- harbour island with two, one warming a rare egg, the other with two parents picked through the panel).
 local function panelScenario(name)
-	seedProfile(20, 2, { pieces = VILLAGE, folk = 5, pals = { "clawdle", "gullfin", "mossbun", "emberpup" }, islets = 2, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
+	if name == "hatch" then
+		local pieces = table.clone(HARBOR)
+		table.insert(pieces, { "hatchery", 4, -18 })
+		seedProfile(20, 3, { pieces = pieces, folk = 6, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, islets = 4, egg = { "glacior", 4, { "swift2" } }, food = 600, seen = { "glacior" } })
+	else
+		seedProfile(20, 2, { pieces = VILLAGE, folk = 5, pals = { "clawdle", "gullfin", "mossbun", "emberpup" }, islets = 2, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
+	end
 	local p = join(20, "Menus")
 	settle(p)
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
 		H.openPanel(p, name)
 		E.run(0.8)
+		if name == "hatch" then
+			-- the second Hatchery: two parents picked as a player would
+			local prof = H.profile(p)
+			local free = 0
+			for _, q in prof.plot.placed do
+				if q.id == "hatchery" and q.uid ~= (prof.eggs[1] and prof.eggs[1].uid or -1) then
+					free = q.uid
+				end
+			end
+			H.clickNamed(p, "Slot_a_" .. free, { wait = 0.4 })
+			H.clickNamed(p, "PickParent_" .. prof.pals[3].id, { wait = 0.4 })
+			H.clickNamed(p, "Slot_b_" .. free, { wait = 0.4 })
+			H.clickNamed(p, "PickParent_" .. prof.pals[4].id, { wait = 0.4 })
+			E.run(0.5)
+		end
 		-- (the sea chart's party fills itself with the strongest)
 		log("panel open: %s", tostring(UIKit.currentPanel and UIKit.currentPanel()))
 	else

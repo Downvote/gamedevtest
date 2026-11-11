@@ -12,6 +12,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
+local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
@@ -496,18 +497,29 @@ local function onDay(msg: { [string]: any })
 	if type(who) == "table" and type(who.name) == "string" then
 		table.insert(lines, who.name .. " moved in!")
 	end
+	-- an egg hatched at the Hatchery (Logic/Breed): its kind (and what it was born with)
+	local hatched = 0
+	if type(msg.hatched) == "table" then
+		for _, x in msg.hatched do
+			local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
+			if d then
+				hatched += 1
+				table.insert(lines, d.name .. " hatched!")
+			end
+		end
+	end
 	local trained = if type(msg.trained) == "number" then msg.trained else 0
 	if trained > 0 then
 		table.insert(lines, string.format("%d trained at the yard", trained))
 	end
-	if not isDay and msg.movedIn == nil then
+	if not isDay and msg.movedIn == nil and hatched == 0 then
 		-- only the yard's training: a quiet word
 		if #lines > 0 then
 			UIKit.notice(lines[1], UIKit.color("good"), 3)
 		end
 		return
 	end
-	local title = if isDay then "Day " .. day else "A newcomer!"
+	local title = if isDay then "Day " .. day elseif msg.movedIn == nil then "An egg hatched!" else "A newcomer!"
 	Audio.play(if #lines > 0 then "fanfare" else "ding")
 	if isDay then
 		chipBump.day = os.clock()

@@ -43,7 +43,7 @@ local TABS: { { key: string, text: string, kinds: { string }, icon: string } } =
 	{ key = "wood", text = "Wood", kinds = { "wood" }, icon = "wood" },
 	{ key = "shop", text = "Shops", kinds = { "shop" }, icon = "shell" },
 	{ key = "home", text = "Homes", kinds = { "home" }, icon = "home" },
-	{ key = "nest", text = "Nests", kinds = { "nest", "train" }, icon = "nest" },
+	{ key = "nest", text = "Nests", kinds = { "nest", "train", "breed" }, icon = "nest" },
 	{ key = "decor", text = "Decor", kinds = { "decor" }, icon = "decor" },
 }
 local tab = "food"

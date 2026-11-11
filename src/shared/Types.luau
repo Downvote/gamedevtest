@@ -28,7 +28,11 @@ export type Settings = { pixel: string, music: string? } -- music: "on" (default
 
 -- days: island days lived; earned: shells made in all; befriended: driftlings that joined; cleared: islands'
 -- guardians beaten; battles won.
-export type Stats = { days: number, built: number, earned: number, befriended: number, battles: number, cleared: number, movedIn: number }
+export type Stats = { days: number, built: number, earned: number, befriended: number, battles: number, cleared: number, movedIn: number, hatched: number }
+
+-- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
+-- the kind and its mutations) and the island turns left (0: ready, waiting for a free nest).
+export type Egg = { uid: number, a: number, b: number, sp: string, muts: { string }, left: number }
 
 export type Profile = {
 	v: number,
@@ -48,6 +52,7 @@ export type Profile = {
 	pouch: number, -- the snack pouch's level (1 .. #Tuning.PouchCost): Tuning.SnackBase snacks an expedition a level
 	chart: { number }, -- the chart's islands charted (ids)
 	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
+	eggs: { Egg }, -- the Hatcheries' eggs (one a hatchery)
 	nextId: number, -- the next villager, driftling or piece id
 	tut: number, -- the tips' step (1 .. 8; 0 = done)
 	stats: Stats,
@@ -133,6 +138,7 @@ export type ClientView = {
 	pouch: number, -- the snack pouch's level (snacks an expedition: Tuning.SnackBase x it)
 	chart: { number },
 	seen: { [string]: number },
+	eggs: { Egg },
 	tut: number,
 	stats: Stats,
 	settings: Settings,
@@ -155,6 +161,7 @@ export type ErrCode =
 	| "food"
 	| "locked"
 	| "full"
+	| "egg"
 	| "cooldown"
 	| "max"
 	| "blocked"

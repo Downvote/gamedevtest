@@ -659,6 +659,27 @@ S("bombfuse", [
     "...DDDD...",
     "..........",
 ])
+# The Hatchery's eggs (GAME_DESIGN 6.1), one a rarity: a pale shell lit from the top left, speckled in the rarity's
+# colour (a legend's shell gold).
+EGG = [
+    "....AAAA....",
+    "...AAAAAA...",
+    "..AAAAxAAA..",
+    "..AAAAAAAA..",
+    ".AAxxAAAAAA.",
+    ".AAAxAAAAAA.",
+    "AAAAAAAAxxAA",
+    "AAAAAAAAAxAA",
+    "AAAAAAAAAAAA",
+    "AAxAAAAAAAAA",
+    "AAxxAAAxAAAA",
+    ".AAAAAAxxAA.",
+    ".AAAAAAAAAA.",
+    "..AAAAAAAA..",
+    "....AAAA....",
+]
+for _r, (_body, _spot) in enumerate([("W", "s"), ("W", "l"), ("W", "b"), ("W", "u"), ("Y", "t")], start=1):
+    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in EGG])
 S("heart", [".........", ".KK...KK.", "KKKK.KKKK", "KwKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K....", "........."])
 
 ARROW = [

@@ -15,7 +15,7 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, decor = true }
+		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, breed = true, decor = true }
 		for _, d in Buildings.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true

@@ -1,6 +1,6 @@
 --!strict
 -- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Villagers (who lives here, their jobs, dismissing),
--- Driftlings (the befriended ones, where they help, releasing), Explore (the sea chart: an island to sail to, the
+-- Driftlings (the befriended ones, where they help, releasing), the Hatchery (two parents, an egg), Explore (the sea chart: an island to sail to, the
 -- boat's upgrade, the party: Set sail), Index
 -- (every driftling met or befriended) and Looks (the founder's look). Every action is a request; the panel rebuilds
 -- from the next view. A job or help picker is the same panel with an argument ({ folk = id } / { pal = id }).
@@ -17,6 +17,7 @@ local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
+local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
@@ -26,6 +27,8 @@ local ExpeditionUI = require(script.Parent.ExpeditionUI)
 local Words = require(script.Parent.Words)
 
 local Menus = {}
+
+local hatcheries: (v: Types.ClientView) -> { Types.Piece } -- (the Hatchery's, below)
 
 local KNACKS: { [string]: string } = { farm = "farms", fish = "fishing piers", wood = "lumber camps", shop = "shops" }
 
@@ -261,6 +264,173 @@ local function buildFolk(body: Frame, arg: any?)
 	end
 end
 
+------------------------------------------------------------------ the Hatchery
+-- (GAME_DESIGN 6.1; Logic/Breed) Each Hatchery standing: its egg (the rarity's egg, the turns left, its parents), or
+-- two parents to pick (a picker of the driftlings at home), what they would likely hatch (its kind if met, else its
+-- shape, and its rarity), the feast and the turns it takes, and Breed.
+type Pick = { a: number?, b: number? }
+local breedPick: { [number]: Pick } = {}
+
+hatcheries = function(v: Types.ClientView): { Types.Piece }
+	local out: { Types.Piece } = {}
+	for _, q in v.pieces do
+		local b = Buildings.byId[q.id]
+		if b and b.kind == "breed" then
+			table.insert(out, q)
+		end
+	end
+	return out
+end
+
+local function palById(v: Types.ClientView, id: number?): Types.Pal?
+	for _, x in v.pals do
+		if x.id == id then
+			return x
+		end
+	end
+	return nil
+end
+
+-- The parent picker: the driftlings at home (not the other parent), each with its passive and mutations.
+local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, slot: string)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local top = hint(body, "Pick a parent: its kind and mutations pass on to the egg.", W)
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
+	UIKit.vlist(list, 2)
+	local pick: Pick = breedPick[uid] or {}
+	local other = if slot == "a" then pick.b else pick.a
+	local n = 0
+	for _, x in v.pals do
+		local d = Creatures.byId[x.sp]
+		if d == nil or x.id == other or away(v, "p" .. x.id) then
+			continue
+		end
+		n += 1
+		local f = row(list, n, 34)
+		f.Name = "Parent_" .. x.id
+		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 4), 4)
+		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		UIKit.text(f, string.format("%s  Lv %d", d.name, x.lvl), UDim2.fromOffset(W - 90, 10), UDim2.fromOffset(24, 1), { color = UIKit.color(rar.color), z = 4 })
+		UIKit.text(f, d.passive.name, UDim2.fromOffset(W - 90, 10), UDim2.fromOffset(24, 11), { color = UIKit.color("accent"), z = 4 })
+		mutLine(f, x.muts or {}, 24, 21, W - 90)
+		UIKit.button(f, "Pick", UDim2.fromOffset(46, 13), UDim2.new(1, -50, 0, 10), function()
+			local cur: Pick = breedPick[uid] or {}
+			if slot == "a" then
+				cur.a = x.id
+			else
+				cur.b = x.id
+			end
+			breedPick[uid] = cur
+			Audio.play("pop")
+			UIKit.openPanel("hatch")
+		end, { name = "PickParent_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
+	end
+	if n == 0 then
+		local f = row(list, 1, 24)
+		UIKit.text(f, "No driftling at home to pick.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4 })
+	end
+end
+
+local function buildHatch(body: Frame, arg: any?)
+	local v = StateClient.view()
+	if v == nil then
+		return
+	end
+	if type(arg) == "table" and type(arg.hatch) == "number" and (arg.slot == "a" or arg.slot == "b") then
+		buildParentPicker(body, v, arg.hatch, arg.slot)
+		return
+	end
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local top = hint(body, "Two driftlings and a feast of food make an egg. It hatches in a few turns into a free nest.", W)
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
+	UIKit.vlist(list, 2)
+	local hs = hatcheries(v)
+	if #hs == 0 then
+		local f = row(list, 1, 24)
+		UIKit.text(f, "Build a Hatchery (the Nests tab, Island Lv3) to breed driftlings.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		return
+	end
+	for i, q in hs do
+		local egg: Types.Egg? = nil
+		local eggs: { Types.Egg } = v.eggs or {}
+		for _, e in eggs do
+			if e.uid == q.uid then
+				egg = e
+			end
+		end
+		local f = row(list, i, 48)
+		f.Name = "Hatch_" .. q.uid
+		if egg then
+			-- an egg: its rarity's egg, the turns left (a bar), its parents
+			local d = Creatures.byId[egg.sp]
+			local r = if d then d.rarity else 1
+			local rar = Traits.RARITY[r] or Traits.RARITY[1]
+			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
+			UIKit.text(f, string.format("%s %s egg", if r == 4 then "An" else "A", rar.name), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
+			local _, total = Breed.cost(egg.sp)
+			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Ready! It needs a free nest."
+			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
+			local bw = math.min(140, W - 40)
+			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("ink"), 4)
+			back.Name = "EggBar"
+			local done = math.clamp(1 - egg.left / math.max(1, total), 0, 1)
+			UIKit.rect(back, UDim2.fromOffset(math.floor((bw - 2) * done), 2), UDim2.fromOffset(1, 1), UIKit.color("pink"), 5)
+			local pa, pb = palById(v, egg.a), palById(v, egg.b)
+			local function nm(x: Types.Pal?): string
+				local cd = if x then Creatures.byId[x.sp] else nil
+				return if cd then cd.name else "a friend"
+			end
+			UIKit.text(f, "From " .. nm(pa) .. " and " .. nm(pb), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 32), { color = UIKit.color("text_dim"), z = 4 })
+		else
+			-- two parents to pick, what they would hatch, Breed
+			local pick: Pick = breedPick[q.uid] or {}
+			local pa, pb = palById(v, pick.a), palById(v, pick.b)
+			if pa and away(v, "p" .. pa.id) then
+				pa = nil
+			end
+			if pb and away(v, "p" .. pb.id) then
+				pb = nil
+			end
+			local function slot(x: Types.Pal?, key: string, sx: number)
+				local b = UIKit.button(f, "", UDim2.fromOffset(84, 18), UDim2.fromOffset(sx, 3), function()
+					UIKit.openPanel("hatch", { hatch = q.uid, slot = key })
+				end, { name = "Slot_" .. key .. "_" .. q.uid, color = UIKit.color("plate") })
+				b.ZIndex = 4
+				if x then
+					PixelSprites.image(b, "icon_" .. x.sp, UDim2.fromOffset(2, 3), 5)
+					local cd = Creatures.byId[x.sp]
+					UIKit.text(b, if cd then cd.name else x.sp, UDim2.fromOffset(66, 10), UDim2.fromOffset(16, 4), { color = UIKit.color("text"), z = 6 })
+				else
+					UIKit.text(b, "Pick a parent", UDim2.fromScale(1, 1), nil, { x = "center", color = UIKit.color("text_dim"), z = 6 })
+				end
+			end
+			slot(pa, "a", 4)
+			UIKit.text(f, "+", UDim2.fromOffset(8, 10), UDim2.fromOffset(91, 7), { color = UIKit.color("text"), z = 4 })
+			slot(pb, "b", 100)
+			if pa and pb then
+				local sp = Breed.child(pa.sp, pb.sp)
+				local d = Creatures.byId[sp]
+				local food, turns = Breed.cost(sp)
+				local met = (v.seen[sp] or 0) >= 1
+				local rar = Traits.RARITY[if d then d.rarity else 1] or Traits.RARITY[1]
+				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(190, 4), 4)
+				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 214, 10), UDim2.fromOffset(208, 2), { color = UIKit.color(rar.color), z = 4, name = "Child" })
+				UIKit.text(f, rar.name, UDim2.fromOffset(W - 214, 10), UDim2.fromOffset(208, 11), { color = UIKit.color(rar.color), z = 4 })
+				UIKit.text(f, string.format("A feast of %d food, %d turns. Shared mutations always pass on.", food, turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 24), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
+				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 33), function()
+					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "An egg! It is warm in the Hatchery.")
+					if res.ok then
+						breedPick[q.uid] = nil
+						Audio.play("fanfare")
+					end
+				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.food >= food }).ZIndex = 4
+			else
+				UIKit.text(f, "Pick two driftlings at home.", UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 24), { color = UIKit.color("text_dim"), z = 4 })
+			end
+		end
+	end
+end
+
 ------------------------------------------------------------------ Driftlings
 local function buildPals(body: Frame, arg: any?)
 	local v = StateClient.view()
@@ -272,7 +442,15 @@ local function buildPals(body: Frame, arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, string.format("%d driftlings, nests for %d. Befriend more on expeditions with a snack.", #v.pals, v.nests), W)
+	-- a Hatchery standing: its button beside the hint (GAME_DESIGN 6.1)
+	local hasHatch = #hatcheries(v) > 0
+	local top = hint(body, string.format("%d driftlings, nests for %d. Befriend more on expeditions with a snack.", #v.pals, v.nests), if hasHatch then W - 64 else W)
+	if hasHatch then
+		UIKit.button(body, "Hatchery", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
+			UIKit.openPanel("hatch")
+		end, { name = "OpenHatch", color = UIKit.color("pink") })
+		top = math.max(top, 16)
+	end
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
@@ -680,6 +858,7 @@ end
 function Menus.init()
 	UIKit.registerPanel("folk", { title = "Villagers", icon = "folk", w = 320, h = 186, build = buildFolk })
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
+	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
 	UIKit.registerPanel("explore", { title = "Sea chart", icon = "boat", w = 620, h = 350, build = buildExplore })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
 	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 200, h = 106, build = buildLooks })
