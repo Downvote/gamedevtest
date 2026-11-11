@@ -160,6 +160,78 @@ return function()
 		T.eq(most, Plot.limit(1))
 		T.eq(select(2, Plot.place(p, "dirtpath", 30, 30, 0)), "full")
 	end)
+	T.it("drawing paths: a line or a box of tiles in one go, passing over cells that don't fit, while room and shells last", function()
+		local p = fresh()
+		-- the even cells a path tile fits on, scanning the island
+		local free = {}
+		local r = Street.plot(p.tier)
+		for z = r.z0 - r.z0 % 2, r.z1, 2 do
+			for x = r.x0 - r.x0 % 2, r.x1, 2 do
+				if Plot.fits(p.tier, p.plot.placed, "dirtpath", x, z, 0) then
+					table.insert(free, { x, z })
+				end
+			end
+		end
+		T.truthy(#free >= 12, "room for a dozen tiles")
+		-- a line of six cells, one of them over the plaza (passed over)
+		local line = { free[1], free[2], free[3], free[4], free[5], { Street.PLAZA.x0, Street.PLAZA.z0 } }
+		local shells0 = p.shells
+		local ok, out = Plot.paint(p, "dirtpath", line)
+		T.truthy(ok, "a line goes down")
+		T.eq(out.placed + out.skipped, 6, "every cell placed or passed over")
+		T.eq(p.shells, shells0 - out.placed * Buildings.byId.dirtpath.shells, "paid a tile at a time")
+		local n0 = #p.plot.placed
+		-- the same line again: every cell taken now
+		T.eq(select(2, Plot.paint(p, "dirtpath", line)), "blocked")
+		T.eq(#p.plot.placed, n0, "nothing laid twice")
+		-- a box, paid until the shells run out
+		p.shells = Buildings.byId.dirtpath.shells * 3
+		local box = { free[6], free[7], free[8], free[9], free[10] }
+		local ok2, out2 = Plot.paint(p, "dirtpath", box)
+		T.truthy(ok2)
+		T.eq(out2.placed, 3, "three tiles' worth of shells, three tiles")
+		T.eq(select(2, Plot.paint(p, "dirtpath", { free[11] })), "money")
+		-- not a path, too many cells, a locked path
+		T.eq(select(2, Plot.paint(p, "patch", line)), "bad_payload")
+		local many = {}
+		for k = 1, Plot.PAINT_MAX + 1 do
+			table.insert(many, { 0, 0 })
+		end
+		T.eq(select(2, Plot.paint(p, "dirtpath", many)), "bad_payload")
+		p.shells = 1e6
+		T.eq(select(2, Plot.paint(p, "marblewalk", line)), "locked")
+		-- the cells round trip through their request string
+		local back = Plot.cells(Plot.cellString(box))
+		T.eq(#back, #box)
+		T.eq(back[3][1], box[3][1])
+		T.eq(back[3][2], box[3][2])
+	end)
+	T.it("erasing paths: every tile under the cells comes up with half its price back; other pieces stay", function()
+		local p = fresh()
+		local x, z = spot(p, "patch")
+		Plot.place(p, "patch", x, z, 0)
+		local cells = {}
+		local r = Street.plot(p.tier)
+		for z = r.z0 - r.z0 % 2, r.z1, 2 do
+			for xx = r.x0 - r.x0 % 2, r.x1, 2 do
+				if #cells < 4 and Plot.fits(p.tier, p.plot.placed, "dirtpath", xx, z, 0) then
+					table.insert(cells, { xx, z })
+				end
+			end
+		end
+		local _, out = Plot.paint(p, "dirtpath", cells)
+		T.eq(out.placed, 4)
+		local before = #p.plot.placed
+		local shells0 = p.shells
+		local ok, res = Plot.unpaint(p, cells)
+		T.truthy(ok)
+		T.eq(res.removed, out.placed, "every tile laid comes up")
+		T.eq(#p.plot.placed, before - out.placed)
+		T.eq(p.shells, shells0 + out.placed * math.floor(Buildings.byId.dirtpath.shells * Tuning.Refund), "half back each")
+		T.eq(p.plot.placed[1].id, "patch", "the patch stays")
+		T.eq(select(2, Plot.unpaint(p, cells)), "not_found")
+		T.eq(select(2, Plot.unpaint(p, { { x, z } })), "not_found", "a building is never erased")
+	end)
 	T.it("move, clear away (a refund, the workers idle), not a home or a nest still needed, the limit", function()
 		local p = fresh()
 		T.truthy(Plot.place(p, "torch", 8, 4, 0))

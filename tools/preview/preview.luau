@@ -977,6 +977,56 @@ function SCEN.build()
 	return p
 end
 
+-- "paths": drawing paths in Build mode (GAME_DESIGN 4): a box being dragged (its markers: cyan where a tile goes,
+-- red where one can't), then the tiles laid (paths_box).
+function SCEN.paths()
+	seedProfile(58, 2, { pieces = VILLAGE, folk = 2, shells = 1e6, wood = 1e5 })
+	local p = join(58, "Paver")
+	settle(p, 30, 1)
+	local BuildUI = modOr(p, "UI.BuildUI")
+	local Plot = H.sharedServer("Logic.Plot")
+	local Street = H.sharedServer("Data.Street")
+	local prof = H.profile(p)
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	H.clickNamed(p, "Tab_path", { optional = true, wait = 0.3 })
+	H.clickNamed(p, "Buy_stonepath", { optional = true, wait = 0.3 })
+	-- a box of open grass (the first 4 x 3 tiles where every tile fits), one row of it running past its edge
+	local c0, c1 = { 0, 0 }, { 0, 0 }
+	local r = Street.plot(prof.tier)
+	local found = false
+	for z = r.z0 - r.z0 % 2, r.z1, 2 do
+		for x = r.x0 - r.x0 % 2, r.x1, 2 do
+			if not found then
+				local ok = true
+				for dz = 0, 4, 2 do
+					for dx = 0, 6, 2 do
+						ok = ok and Plot.fits(prof.tier, prof.plot.placed, "stonepath", x + dx, z + dz, 0)
+					end
+				end
+				if ok then
+					c0, c1, found = { x, z }, { x + 6, z + 6 }, true
+				end
+			end
+		end
+	end
+	log("paths: box %d,%d to %d,%d", c0[1], c0[2], c1[1], c1[2])
+	H.inClient(p, BuildUI.debugDraw, { c0, c1 }, "box", true)
+	settle(p, 10, 0.5)
+	capture(p, "paths_draw")
+	H.inClient(p, BuildUI.debugDraw, { c0, c1 }, "box")
+	E.run(0.6)
+	settle(p, 10, 0.5)
+	capture(p, "paths_box")
+	local n = 0
+	for _, q in prof.plot.placed do
+		if Plot.isPath(q.id) then
+			n += 1
+		end
+	end
+	log("paths: %d tiles down", n)
+	return p
+end
+
 -- "zoo": every driftling (Data/Creatures, Models/DriftModels) on a meadow islet's stage in batches of 20 (five a row,
 -- four rows, turned three-quarters toward the viewer), each batch idle (zoo_<n>_idle) and mid-attack (zoo_<n>_attack:
 -- the jaw open, the head and arms forward); the log lists each batch's species in order (left to right, back to front).

@@ -162,6 +162,20 @@ Each is paid in shells and wood when placed, on whole studs of the island's gras
 turned a quarter at a time, off the campfire's plaza and the path to the jetty, and off every other piece, up to the
 island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, `PathPieces`: 60 .. 500).
 
+> The request (2026-11-11): "paths should be able to be drawn or made in a box like the original interface in the
+> bakery game. also, fights should be shown in the same view as pokemon or beasty bay, in an angle like the image
+> shown, and the party will also walk forward in the view like the image shown. polish the battle experience and
+> interface much much more"
+
+Paths are drawn, the way the bakery's floors were. Picking a path on the Paths tab opens the draw bar instead of the
+usual placing: **Line** (drag and the tiles follow the finger, filling the gaps between cells), **Box** (drag a box
+and every free cell inside it is filled), **Erase** (drag over tiles to lift them, with the usual refund) and **Look
+around** (drag the view without drawing), and Cancel and Done. While dragging, each 2 x 2 cell shows as a glowing
+plate: blue where a tile goes down, orange where one comes up, red where it can't (off the grass, on a piece, past
+the limit); the bar says how many and what they cost. Letting go lays them in one go (`plot.paint`, up to
+`PAINT_MAX` (40) cells a request: a long stroke goes in a few) or lifts them (`plot.unpaint`). Cells that can't take a
+tile are skipped, never refused as a whole; running out of shells or wood stops where it runs out.
+
 ### 4.1 The town and the city
 
 > The request (2026-11-10): "make much much more progression, allowing the player to build much more decorations,
@@ -414,8 +428,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   aside; your founder walks from where they stand down the path, across the boardwalk and along the pier (or starts
   on the jetty when far away) and hops into the expedition boat, where the rest of the party waits on deck and
   cheers; the boat casts off and sails out to sea, the view following it; ink blinds close on the island's name and
-  kind. The islet's screen opens behind them and the boat glides in to the island's shore; the party hops off and
-  runs to its places. The boat stays away from the pier while the expedition does.
+  kind. The islet's screen opens behind them and the boat glides in to the island's shore behind the battle's
+  platforms; the party hops off and walks up to its places, the camera coming with them. The boat stays away from the pier while the expedition does.
 - **Home again** (`UI/Voyage.home`):
 
   > The request (2026-11-10): "make a transition instead of an instant cut back to the island after an exploration."
@@ -494,13 +508,15 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   pools, maybe a rowboat, starfish and shells; a mossy meadow with trees, ferns, mushrooms, a winding stepping-stone
   path and maybe a fallen log; dark volcanic sand by a volcano with lava running down it, a rocky mound, obsidian and
   vents; a snowfield by a snowy peak with pines, ice crystals, maybe a frozen pond; the sea floor's corals, kelp,
-  anemones, clams and maybe a sunken anchor), drawn by the pixel filter, with the party on the left (your founder,
-  villagers as their chibis, driftlings as their models) and the wild ones standing on the right. Along the top:
+  anemones, clams and maybe a sunken anchor), drawn by the pixel filter, with the party near the bottom left (your
+  founder, villagers as their chibis, driftlings as their models), their backs to you, and the wild ones far off at
+  the top right facing them (the battle view below). Along the top:
   the island's name and level, the loot so far, the path of stops (the ones ahead hidden but
   the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
-  the party's cards with their health bars and levels, and the buttons (Sail home between stops; Snack, Skills,
-  Flee and the skill points' bar in battle; while aiming Throw! / Use! and Back, arrows to switch, Space to go). A win shows its xp, shells and level-ups, a new friend its
-  portrait with confetti, a guardian's fall the island charted.
+  the commands at the left (Skills and the skill points' bar under it, Snack and Flee in battle; Next stop and Sail
+  home between stops; while aiming Throw! / Use! and Back, arrows to switch, Space to go) and the party's boxes at
+  the right (the battle's boxes below). A win shows its xp, shells and level-ups, a new friend its portrait with
+  confetti, a guardian's fall the island charted.
 
 > The request (2026-11-10): "after returning home, the player gets stuck at the bay. also, make animations much more
 > expressive and detailed, such as attack animations. make character and creature models much more detailed as
@@ -534,14 +550,43 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 > The request (2026-11-11): "also, instead of having creatures pop out of the island, make the party run to the right
 > in an endless island after clearing one area to reach the next encounter"
 
-- **The run on:** the island goes on to the right, one area after another (each laid out from the island's seed and
-  its own number, the land running from one into the next). When a stop is done the party runs right to the next
-  area, the founder in front and everyone a moment behind the one before, and the camera follows. The next stop is
+- **The run on:** the island goes on ahead, one area after another (each laid out from the island's seed and its own
+  number, the land running from one into the next as one long road). When a stop is done the party walks on up the
+  road to the next area (up and to the right on the screen, since the 2026-11-11 battle view below), everyone a
+  moment behind the one before, and the camera follows. The next stop is
   already there: the wild ones stand waiting in the new area, a chest sits in its sand, and the battle starts a
   moment after the party gets to their places (a guardian a moment longer). Nothing drops from the sky any more.
   The landmark (the volcano, the snowy peak, the big tree, the cave, the arch) stands only on the landing's shore,
-  so it falls behind as the party runs on. Nothing tall stands on the path or just in front of the fighters, and
-  Back to island works on the way too.
+  so it falls behind as the party runs on. Nothing tall stands on the road (props keep to its two sides), and Back
+  to island works on the way too.
+
+> The request (2026-11-11): "paths should be able to be drawn or made in a box like the original interface in the
+> bakery game. also, fights should be shown in the same view as pokemon or beasty bay, in an angle like the image
+> shown, and the party will also walk forward in the view like the image shown. polish the battle experience and
+> interface much much more"
+
+- **The battle view:** the fight is seen the way the monster-catching games show it, at the game's own 2:1 angle
+  (other angles would break the pixel grid). Each area of the road has two round platforms (flat discs, so their
+  edges draw as clean pixel ellipses, in the island's colours: sand on a darker rim on a beach, white on steel in the
+  snow, grass on dark leaf in a meadow). The party stands on the near one at the bottom left, their backs to you, in
+  a loose row across the screen so nobody hides anyone; the wild ones stand on the far one at the top right, facing
+  them, the guardian in the middle of its side. The camera sits close enough for the fighters to read big, and the
+  party walks forward up the road into the next area between stops. A platform's rim stays clear of the next
+  area's. On the way in, the boat comes up behind the party: the picture opens over it, it glides in with its bow
+  in the foam, the party hops off onto the beach and walks up to its platform, and the camera comes up with them to
+  the fight.
+- **The battle's boxes:** laid out the way those games lay theirs. The wild ones' boxes go down the top left (they
+  stand at the top right): portrait, name, mutation pips, level, and "HP" with the bar, plus a crown beside the
+  guardian's and a nest beside any kind you've already befriended. The party's boxes sit two by two at the bottom
+  right: the same, plus the health in numbers and the member's timer as a thin line under the bar (it blinks when
+  full). The commands sit two by two at the bottom left. A bar runs down when hit rather than jumping (about a second
+  for a whole bar), the part just lost stays pale a moment then follows, it turns yellow under half and red under a
+  fifth, and a party member's numbers count down with it and go red when low. A box jolts side to side when its
+  fighter is hit; a wild one's box slides back out once its bar is empty.
+- **The encounter:** a new fight flashes the stage white twice (three times for a guardian), the wild ones' boxes
+  slide in from the edge one after another, and a line names them ("A wild Mossbun appeared.", "Wild Mossbun,
+  Floe and Pebblit appeared."; a guardian "King Frostdrake is in the way.").
+
 
 > The requests (2026-11-11): "make the first snack throw in the tutorial always catch. also, the camera bugs out
 > whenever the player returns home, make it center to the ship and the player instead of the land. also, allow

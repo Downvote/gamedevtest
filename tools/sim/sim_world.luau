@@ -458,6 +458,84 @@ if H.expect(alt ~= nil and H.buttonNamed(a, "Replace", true) ~= nil, "build", "a
 	H.expect(decor:FindFirstChild(keyOf(q1)) ~= nil, "build", "the new model stands")
 end
 H.clickNamed(a, "Cancel", { optional = true })
+-- drawing paths (GAME_DESIGN 4: "drawn or made in a box like ... the bakery game"): the Paths tab's tile picked,
+-- the tools in its bar; a line, a box and an erase as a player drags them (BuildUI.debugDraw: the same stroke code)
+do
+	prof.shells, prof.wood = 1e6, 1e5
+	H.push(a, 0.3)
+	H.clickNamed(a, "Tab_path", { wait = 0.3 })
+	H.clickNamed(a, "Buy_dirtpath", { wait = 0.3 })
+	H.expect(H.buttonNamed(a, "DrawLine") ~= nil and H.buttonNamed(a, "DrawBox") ~= nil and H.buttonNamed(a, "DrawErase") ~= nil and H.buttonNamed(a, "DrawLook") ~= nil, "build", "a path picked: Line, Box, Erase and Look around")
+	local free = {}
+	local r = Street.plot(prof.tier)
+	for z = r.z0 - r.z0 % 2, r.z1, 2 do
+		for x = r.x0 - r.x0 % 2, r.x1, 2 do
+			if #free < 400 and Plot.fits(prof.tier, prof.plot.placed, "dirtpath", x, z, 0) then
+				table.insert(free, { x, z })
+			end
+		end
+	end
+	-- a line: from one free cell to one four cells along (the stroke fills the cells between)
+	local a0 = free[1]
+	local a1 = { a0[1] + 8, a0[2] }
+	local paths0 = 0
+	for _, q in prof.plot.placed do
+		if Plot.isPath(q.id) then
+			paths0 += 1
+		end
+	end
+	local plan = H.inClient(a, BuildUI.debugDraw, { a0, a1 }, "line")
+	E.run(0.4)
+	local lays = 0
+	for _, w in plan do
+		if w == "lay" then
+			lays += 1
+		end
+	end
+	local function paths()
+		local n = 0
+		for _, q in prof.plot.placed do
+			if Plot.isPath(q.id) then
+				n += 1
+			end
+		end
+		return n
+	end
+	H.expect(#plan == 5, "build", "a line's stroke fills the cells between its ends", tostring(#plan))
+	H.expect(lays >= 1 and paths() == paths0 + lays, "build", "the line's tiles go down where the plan said", string.format("%d planned, %d -> %d", lays, paths0, paths()))
+	-- a box: two corners, every cell between
+	local b0 = free[#free]
+	local b1 = { b0[1] - 4, b0[2] - 4 }
+	local p1 = paths()
+	local planB = H.inClient(a, BuildUI.debugDraw, { b0, b1 }, "box")
+	E.run(0.4)
+	local laysB = 0
+	for _, w in planB do
+		if w == "lay" then
+			laysB += 1
+		end
+	end
+	H.expect(#planB == 9, "build", "a box's stroke is every cell between its corners", tostring(#planB))
+	H.expect(paths() == p1 + laysB, "build", "the box's tiles go down", string.format("%d planned, %d -> %d", laysB, p1, paths()))
+	-- erase the line again: half the price back for each tile
+	local shells0 = prof.shells
+	local planE = H.inClient(a, BuildUI.debugDraw, { a0, a1 }, "erase")
+	E.run(0.4)
+	local lifts = 0
+	for _, w in planE do
+		if w == "lift" then
+			lifts += 1
+		end
+	end
+	H.expect(lifts == lays and paths() == p1 + laysB - lays, "build", "Erase takes the line's tiles up", string.format("%d lifted, %d paths", lifts, paths()))
+	H.expect(prof.shells > shells0, "build", "and gives part of their price back")
+	-- the server's side: a non-path id, junk cells
+	local ok, out = H.raw(a, "plot.paint", { id = "patch", cells = "0,0" })
+	H.expect(ok and type(out) == "table" and out.ok == false, "build", "paint refuses a building", tostring(type(out) == "table" and out.err))
+	ok, out = H.raw(a, "plot.paint", { id = "dirtpath", cells = "0,0;;1" })
+	H.expect(ok and type(out) == "table" and out.err == "bad_payload", "build", "junk cells refused")
+	H.clickNamed(a, "Cancel", { optional = true })
+end
 H.clickNamed(a, "BuildDone")
 E.run(0.4)
 H.expect(not BuildUI.isOpen() and not CCa.isFree(), "build", "Done: closed, the view follows again")

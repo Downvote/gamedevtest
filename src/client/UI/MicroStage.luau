@@ -74,10 +74,13 @@ export type Stage = {
 	close: () -> (),
 	-- an endless islet (`open`'s `endless`): the party heads for area k (the areas up to k + 2 are built, a few dozen
 	-- parts a frame, out of sight; the ambient life goes there), `trim(k)` drops the areas left behind (below k - 1),
-	-- `follow(units)` puts the camera `units` areas along (it glides there; fractions while running)
+	-- `follow(units)` puts the camera `units` areas along (it glides there, or is put there at once with `snap`;
+	-- fractions while running, below 0 behind the landing), `landing(x)` is where the landing area's beach meets the
+	-- foam behind the party at room-space x (z: a boat's bow there)
 	area: (k: number) -> (),
 	trim: (k: number) -> (),
-	follow: (units: number) -> (),
+	follow: (units: number, snap: boolean?) -> (),
+	landing: (x: number) -> number,
 }
 
 local ORIGIN = Vector3.new(0, 0, 9000)
@@ -99,13 +102,46 @@ MicroStage.FACE_LEFT = math.atan2(-U_DIR.X, -U_DIR.Z)
 MicroStage.FACE_AWAY = math.atan2(-V_DIR.X, -V_DIR.Z)
 MicroStage.U_DIR = U_DIR
 MicroStage.V_DIR = V_DIR
--- An endless islet (the expeditions: GAME_DESIGN 7, "the party runs to the right"): one area after another along the
--- screen's right, each a copy of the set from the island's seed and its own number, AREA_OFF (room space: whole
--- studs, so every box stays on the grid) apart, AREA_U studs along u. The sea under them is laid once, SEA_AREAS long.
-local AREA_OFF = Vector3.new(20, 0, -20)
+-- An endless islet (the expeditions: GAME_DESIGN 7, "the party will also walk forward in the view"): one area after
+-- another along world -Z (up and to the right on the screen, a clean 2:1 line), each a copy of the set from the
+-- island's seed and its own number, AREA_OFF apart (room space: whole studs, so every box stays on the grid; the
+-- floors meet edge to edge into one long road), AREA_U along u and AREA_V along v. The sea under them is laid once,
+-- SEA_AREAS long.
+local AREA_OFF = Vector3.new(0, 0, -2 * HALF)
 local AREA_U = AREA_OFF:Dot(U_DIR)
+local AREA_V = AREA_OFF:Dot(V_DIR)
 local SEA_AREAS = 200
 MicroStage.AREA_U = AREA_U
+MicroStage.AREA_V = AREA_V
+-- The battle's places in an area (room space x, z; GAME_DESIGN 7, "fights should be shown in the same view as
+-- pokemon"): the party on the near side (+z: the screen's lower left) facing the wild ones on the far side (-z: its
+-- upper right), each side on a round platform (PLATFORM_Z, PLATFORM_R). The leader stands nearest the wild ones.
+-- Each side stands in a loose row across the screen (along u), so no one hides another: the founder in front,
+-- the guardian (a boss's first) in the middle of its side.
+MicroStage.PARTY_XZ = { { 0, 5 }, { -1.5, 7.5 }, { 3, 4.25 }, { -2.75, 10.25 } }
+MicroStage.FOE_XZ = { { 0.25, -5.5 }, { -3, -3.75 }, { 2, -9.25 } }
+-- (a platform's rim stays clear of the next area's: 2 * PLATFORM_Z + 2 * (PLATFORM_R + 0.5) < 2 * HALF)
+local PLATFORM_Z, PLATFORM_R = 6.5, 5
+-- the platforms' colours by set (the top, its rim; else the floor's colour on rock)
+local PLATFORM: { [string]: { string } } = {
+	loot = { "sand", "sand_dark" },
+	fish = { "sand", "rock" },
+	frost = { "white", "steel" },
+	leap = { "grass", "leaf_dark" },
+	dino = { "rock", "rock_dark" },
+	swamp = { "grass_dark", "rock_dark" },
+	grotto = { "sand_dark", "wood_dark" },
+	bluffs = { "grass", "sand_dark" },
+	ruins = { "pavement", "rock" },
+}
+-- yaws: the party faces the far side (-z), the wild ones the near side (+z)
+MicroStage.FACE_FOES = math.atan2(0, -1)
+MicroStage.FACE_PARTY = math.atan2(0, 1)
+-- (u, v) of a room-space point (x, z)
+function MicroStage.uvOf(x: number, z: number): (number, number)
+	local p = Vector3.new(x, 0, z)
+	return p:Dot(U_DIR), p:Dot(V_DIR)
+end
 -- a later area's landmark (the volcano, the peak, the big tree) stands far out of sight: one is enough, and in the
 -- next area's place it would stand on this one's floor
 local FAR_LM = { x = -400, z = 400 }
@@ -127,14 +163,16 @@ type Builder = {
 	box: (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, color: string, neon: boolean?) -> BasePart,
 	prop: (kind: string, u: number, v: number, y: number?, yaw: number?, opts: MicroModels.Opts?) -> (),
 	ball: (x: number, y: number, z: number, d: number, color: string, neon: boolean?) -> (),
+	disc: (x: number, z: number, r: number, y0: number, y1: number, color: string) -> (),
 	h: number, -- the walls' height (0: none)
 	rng: Types.Rng, -- an islet's layout comes from the island's seed (`open`'s)
 	used: { { number } }, -- props placed so far: room x, z and radius (kept apart)
 	coast: ((x: number, z: number) -> number)?, -- an islet's coast: studs past it (below 0: its land)
 	off: Vector3, -- an endless islet's area: its room-space offset (AREA_OFF x its number) ...
-	du: number, -- ... and along u
 	lm: { x: number, z: number }, -- where its landmark stands (VOLCANO, or out of sight: FAR_LM)
 	endless: boolean, -- one of an endless islet's areas (the sea is laid apart; props keep off the neighbours' floors)
+	floorA: string?, -- the floor's colours (room's spec: the battle platforms take them)
+	floorB: string?,
 }
 
 -- Boxes in world-aligned room space (x, z from the floor's middle, y from the ground).
@@ -147,7 +185,6 @@ local function builder(folder: Folder): Builder
 		used = {},
 		coast = nil,
 		off = Vector3.zero,
-		du = 0,
 		lm = VOLCANO,
 		endless = false,
 		box = function(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, color: string, neon: boolean?): BasePart
@@ -165,7 +202,7 @@ local function builder(folder: Folder): Builder
 		end,
 		prop = function(kind: string, u: number, v: number, y: number?, yaw: number?, opts: MicroModels.Opts?)
 			local t = MicroModels.build(kind, opts)
-			MicroModels.place(t, CFrame.new(uv(u + b.du, v, y or 0)) * CFrame.Angles(0, yaw or 0, 0))
+			MicroModels.place(t, CFrame.new(uv(u, v, y or 0) + b.off) * CFrame.Angles(0, yaw or 0, 0))
 			for _, p in t.parts do
 				p.CanQuery = true
 				p.CastShadow = true
@@ -175,6 +212,11 @@ local function builder(folder: Folder): Builder
 		ball = function(x: number, y: number, z: number, d: number, color: string, neon: boolean?)
 			Blocks.part(folder, { size = Vector3.new(d, d, d), cf = CFrame.new(ORIGIN + b.off + Vector3.new(x, y, z)), color = color, shape = "Ball", neon = neon })
 		end,
+		-- a flat round (a cylinder standing up: the pixel filter draws its edge as a clean ellipse)
+		disc = function(x: number, z: number, r: number, y0: number, y1: number, color: string)
+			local cf = CFrame.new(ORIGIN + b.off + Vector3.new(x, (y0 + y1) / 2, z)) * CFrame.Angles(0, 0, math.pi / 2)
+			Blocks.part(folder, { size = Vector3.new(y1 - y0, 2 * r, 2 * r), cf = cf, color = color, shape = "Cylinder" })
+		end,
 	}
 	return b
 end
@@ -183,6 +225,7 @@ end
 -- screen's upper left, and z = -HALF, its upper right) with a trim along their foot.
 type RoomSpec = { ground: string, a: string, b: string?, tile: number?, wall: string?, wallH: number?, trim: string? }
 local function room(b: Builder, r: RoomSpec)
+	b.floorA, b.floorB = r.a, r.b
 	if not b.endless then
 		b.box(-110, -1, -110, 110, 0, 110, r.ground) -- (an endless islet's sea is laid once, under every area)
 	end
@@ -630,9 +673,11 @@ end
 -- Where the party and the wild ones stand (room space x, z): props keep off them and off the band between them that
 -- the battles' lunges cross.
 local ACTOR_SPOTS: { { number } } = {}
-for _, spot in { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 }, { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } } do
-	local p = U_DIR * spot[1] + V_DIR * spot[2]
-	table.insert(ACTOR_SPOTS, { p.X, p.Z })
+for _, spot in MicroStage.PARTY_XZ do
+	table.insert(ACTOR_SPOTS, { spot[1], spot[2] })
+end
+for _, spot in MicroStage.FOE_XZ do
+	table.insert(ACTOR_SPOTS, { spot[1], spot[2] })
 end
 -- marks a set leaves for its ambient life (the beach's chest glints)
 local marks: { [string]: { number } } = {}
@@ -658,7 +703,9 @@ local function floorSpot(b: Builder, r: number): (number?, number?)
 		local x = snap(b.rng:range(-HALF + 1 + r, HALF - 1 - r))
 		local z = snap(b.rng:range(-HALF + 1 + r, HALF - 1 - r))
 		local sum = x + z
-		local ok = (sum < -9 or sum > 7) and roomy(b, x, z, r)
+		-- off the battles' band: an endless islet's road runs along z (|x| small), the older rooms' band across
+		local band = if b.endless then math.abs(x) > 6.5 + r else (sum < -9 or sum > 7)
+		local ok = band and roomy(b, x, z, r)
 		if ok then
 			for _, a in ACTOR_SPOTS do
 				if (x - a[1]) ^ 2 + (z - a[2]) ^ 2 < (r + 2.5) ^ 2 then
@@ -685,31 +732,25 @@ local function shoreSpot(b: Builder, r: number, tall: boolean): (number?, number
 		local m = math.max(math.abs(x), math.abs(z))
 		local coast = b.coast
 		local ok = m >= HALF + 0.5 + r * 0.6 and (coast == nil or (coast :: (number, number) -> number)(x, z) <= 1) and roomy(b, x, z, r)
-		ok = ok and not (math.abs(x + 7) < 4 and z > 8)
-		if ok and tall then
-			ok = not (x < -5 and z < -5) and not (x - z > 16 and x + z < -4) and x + z <= 18 and (x - b.lm.x) ^ 2 + (z - b.lm.z) ^ 2 > 64
-		end
-		if ok and b.endless then
-			-- an endless islet's area: never on a neighbour's floor, and nothing tall where the screen keeps clear
-			-- while that neighbour is in view (under the wild ones' cards, under the header's left, in front)
-			-- nor in the band the party runs along from one area to the next (the floors' battle band, carried on), and
-			-- nothing tall just in front of where the fighters stand (it would hide them)
-			local sum = x + z
-			if sum > -9 - 1.5 * r and sum < 7 + 1.5 * r then
-				ok = false
-			end
-			local u0, v0 = (x - z) / math.sqrt(2), sum / math.sqrt(2)
-			if tall and v0 > 0 and v0 < 13 and math.abs(u0) < 17 then
-				ok = false
-			end
+		if b.endless then
+			-- an endless islet's area: the road runs on along z, so its land is the strip's two sides (never on a
+			-- neighbour's floor, never in the road's band, where the boat lands or the party walks)
 			for _, n in { -1, 1 } do
 				local X, Z = x - n * AREA_OFF.X, z - n * AREA_OFF.Z
-				local U, V = (X - Z) / math.sqrt(2), (X + Z) / math.sqrt(2)
 				if math.abs(X) < HALF + 0.5 + r and math.abs(Z) < HALF + 0.5 + r then
 					ok = false
-				elseif tall and ((U > 11 and U < 31 and V < -3) or (U < -11 and U > -31 and V < -7) or V > 12.7 or (V > 0 and V < 13 and math.abs(U) < 17)) then
-					ok = false
 				end
+			end
+			if math.abs(x) < 6.5 + r then
+				ok = false
+			end
+			if ok and tall then
+				ok = math.abs(x) >= HALF + 1 and (x - b.lm.x) ^ 2 + (z - b.lm.z) ^ 2 > 64
+			end
+		else
+			ok = ok and not (math.abs(x + 7) < 4 and z > 8)
+			if ok and tall then
+				ok = not (x < -5 and z < -5) and not (x - z > 16 and x + z < -4) and x + z <= 18 and (x - b.lm.x) ^ 2 + (z - b.lm.z) ^ 2 > 64
 			end
 		end
 		if ok then
@@ -718,6 +759,15 @@ local function shoreSpot(b: Builder, r: number, tall: boolean): (number?, number
 		end
 	end
 	return nil, nil
+end
+
+-- The battle's two platforms in an endless islet's area (GAME_DESIGN 7: "in the same view as pokemon"): a round on a
+-- darker rim, a hair over the floor, where each side stands.
+local function platforms(b: Builder, top: string, ring: string)
+	for _, cz in { PLATFORM_Z, -PLATFORM_Z } do
+		b.disc(0, cz, PLATFORM_R + 0.5, FLOOR - 0.2, FLOOR + 0.04, ring)
+		b.disc(0, cz, PLATFORM_R, FLOOR - 0.2, FLOOR + 0.08, top)
+	end
 end
 
 local function pick<T>(b: Builder, list: { T }): T
@@ -1346,7 +1396,7 @@ type Bit = { p: BasePart, pos: Vector3, vel: Vector3, life: number, age: number,
 -- The ambient life's area on an endless islet (the gulls, butterflies and crabs go with the party; a landmark's smoke
 -- and glow stay at the landing's): room space and u.
 local ambOff = Vector3.zero
-local ambU = 0
+local ambU, ambV = 0, 0
 
 -- room space (world-aligned x, z from the floor's middle; y over the floor's top), in the ambient life's area
 local function atXZ(x: number, z: number, y: number): Vector3
@@ -1645,7 +1695,7 @@ end
 AMBIENT.frost = function(st)
 	return all({
 		emitter(st, "snow", function()
-			return st.at(ambU - 16 + math.random() * 32, -14 + math.random() * 22, 11)
+			return st.at(ambU - 16 + math.random() * 32, ambV - 14 + math.random() * 22, 11)
 		end, 0.12),
 		circler(st, "bird", "white", -6, -6, 15, 12, 10, 0.3),
 	})
@@ -1733,10 +1783,11 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	local b = builder(folder)
 	b.rng = Util.newRng(seed or 1)
 	table.clear(marks)
-	ambOff, ambU = Vector3.zero, 0
+	ambOff, ambU, ambV = Vector3.zero, 0, 0
 	local fn = SETS[variant] or SETS.blocks
 	-- an endless islet's areas: each its own folder, built from the seed and its number
 	local areas: { [number]: Folder } = {}
+	local coast0: ((number, number) -> number)? = nil -- the landing area's shore (`landing`)
 	local queued: { [number]: boolean } = {}
 	local pending: { number } = {}
 	local building = false
@@ -1747,11 +1798,12 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 		local ab = builder(f)
 		ab.endless = true
 		ab.off = AREA_OFF * k
-		ab.du = AREA_U * k
 		ab.lm = if k == 0 then VOLCANO else FAR_LM
 		ab.rng = Util.newRng((seed or 1) + k * 7919)
 		local keep = if k > 0 then table.clone(marks) else nil
 		fn(ab)
+		local pc = PLATFORM[variant]
+		platforms(ab, if pc then pc[1] else ab.floorA or "sand", if pc then pc[2] else "rock")
 		if keep then
 			table.clear(marks)
 			for key, m in keep do
@@ -1760,6 +1812,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 		end
 		if k == 0 then
 			b.h = ab.h
+			coast0 = ab.coast
 		end
 		Blocks.windy(f)
 		return f
@@ -2055,7 +2108,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 				end
 			end
 			pump()
-			ambOff, ambU = AREA_OFF * k, AREA_U * k
+			ambOff, ambU, ambV = AREA_OFF * k, AREA_U * k, AREA_V * k
 		end,
 		trim = function(k: number)
 			for j, f in areas do
@@ -2065,8 +2118,20 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 				end
 			end
 		end,
-		follow = function(units: number)
-			CameraController.setStageShift(AREA_OFF * units)
+		follow = function(units: number, snap: boolean?)
+			CameraController.setStageShift(AREA_OFF * units, snap)
+		end,
+		landing = function(x: number): number
+			local coast = coast0
+			if coast == nil then
+				return HALF + 4 -- (no beach: the floor's edge and a little sea)
+			end
+			-- out from the floor's back edge till the wet sand gives way to the foam
+			local z = HALF
+			while z < HALF + 30 and (coast :: (number, number) -> number)(x, z) <= 4 do
+				z += 0.25
+			end
+			return z
 		end,
 		close = function()
 			closed = true
@@ -2103,12 +2168,32 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	local pts: { number } = {}
 	local tight: { number } = {}
 	local wallTop = math.max(b.h, 3) + FLOOR
-	for _, c in { { -HALF - 1, 0, -HALF - 1 }, { HALF + 1, 0, -HALF - 1 }, { -HALF - 1, 0, HALF + 1 }, { HALF + 1, 0, HALF + 1 }, { -HALF - 1, wallTop, -HALF - 1 }, { HALF + 1, wallTop, -HALF - 1 }, { -HALF - 1, wallTop, HALF + 1 } } do
+	local frame = { { -HALF - 1, 0, -HALF - 1 }, { HALF + 1, 0, -HALF - 1 }, { -HALF - 1, 0, HALF + 1 }, { HALF + 1, 0, HALF + 1 }, { -HALF - 1, wallTop, -HALF - 1 }, { HALF + 1, wallTop, -HALF - 1 }, { -HALF - 1, wallTop, HALF + 1 } }
+	local band = { { -12.5, 0, -5.5 }, { 9.5, 0, -5.5 }, { -12.5, 0, 3 }, { 9.5, 0, 3 }, { -12.5, 5, -5.5 }, { 9.5, 5, -5.5 }, { -12.5, 5, 3 } }
+	if endless then
+		-- the battle up close (GAME_DESIGN 7): the party's feet and heads (the timers over them), the wild ones' and
+		-- the guardian's, a little room round them (PARTY_XZ, FOE_XZ)
+		frame = {
+			{ -3.5, 0, 11.25 },
+			{ 4, 0, 4.5 },
+			{ 0, 6.5, 5 },
+			{ -2.75, 6.5, 10.25 },
+			{ 2.75, 5, -10.25 },
+			{ 3, 0, -10.25 },
+			{ -3.75, 4.5, -3.75 },
+			{ 0.25, 6.5, -5.5 },
+			-- and the road's sides level with them (the screen's width: about 31 studs along u)
+			{ -11, 0, 11 },
+			{ 11, 0, -11 },
+		}
+		band = frame
+	end
+	for _, c in frame do
 		table.insert(pts, ORIGIN.X + c[1])
 		table.insert(pts, ORIGIN.Y + c[2])
 		table.insert(pts, ORIGIN.Z + c[3])
 	end
-	for _, c in { { -12.5, 0, -5.5 }, { 9.5, 0, -5.5 }, { -12.5, 0, 3 }, { 9.5, 0, 3 }, { -12.5, 5, -5.5 }, { 9.5, 5, -5.5 }, { -12.5, 5, 3 } } do
+	for _, c in band do
 		table.insert(tight, ORIGIN.X + c[1])
 		table.insert(tight, ORIGIN.Y + c[2])
 		table.insert(tight, ORIGIN.Z + c[3])

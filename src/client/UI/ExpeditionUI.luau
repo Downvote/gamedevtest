@@ -42,8 +42,13 @@ local ExpeditionUI = {}
 ExpeditionUI.Changed = Util.Signal() :: Types.Signal<boolean>
 
 local HEAD_H = 25 -- the header: its words, then a trim of planks along its bottom (3 px)
-local FOOT_H = 45 -- the footer: a trim of planks along its top (3 px), then the party and the buttons
-local CARD_W = 80
+local FOOT_H = 47 -- the footer: a trim of planks along its top (3 px), then the commands and the party
+-- The battle's boxes, the way the monster-catching games lay them out (GAME_DESIGN 7: "polish the battle experience
+-- and interface"): the wild ones' boxes down the stage's top left (they stand at its top right), the party's along the
+-- footer's right (they stand at its bottom left), the commands two by two at the footer's left.
+local FOE_W = 104
+local PARTY_W = 112
+local CMD_W = 72
 local STEP = 0.5 -- seconds an event plays
 
 -- Someone on the stage: the founder, a villager (a rival chibi), a driftling or a wild one (a 3D model).
@@ -80,14 +85,40 @@ type Move = { kind: string, t0: number, dur: number, gu: number, gv: number }
 -- What a move does to its actor at a moment.
 type MoveFrame = { du: number, dv: number, dy: number, tilt: CFrame, sq: Vector3, spin: number, action: string, k: number, mood: string, speed: number }
 
--- The shown health (the events move it; the view's numbers settle it after a round).
-type Bar = { hp: number, maxHp: number, name: string, lvl: number, card: Frame?, fill: Frame?, label: TextLabel?, w: number }
+-- The shown health (the events move it; the view's numbers settle it after a round): `hp` where it is going, `shown`
+-- where the bar has drained to (it runs down like a game's health bar), `lost` the pale part that lingers after a hit;
+-- a party member's card also shows its timer (`gauge`) and the numbers; `x`, `y` its place (a hit jolts it).
+type Bar = {
+	hp: number,
+	maxHp: number,
+	name: string,
+	lvl: number,
+	card: Frame?,
+	fill: Frame?,
+	label: TextLabel?,
+	w: number,
+	shown: number,
+	lost: number,
+	lostAt: number,
+	hitAt: number,
+	ghost: Frame?,
+	gauge: Frame?,
+	gw: number,
+	x: number,
+	y: number,
+	jolted: boolean,
+	text: string,
+	textAt: number, -- when the numbers were last redrawn (a new string is a new picture: a few a second)
+	foe: boolean,
+	out: boolean, -- a wild one's box gone (it slides out once its bar is empty)
+}
 
 local isOpen = false
 local stage: MicroStage.Stage? = nil
 local root: Frame? = nil
 local actors: { [string]: Actor } = {}
 local bars: { [string]: Bar } = {}
+local prevBars: { [string]: Bar } = {} -- the boxes before the last layout (a bar keeps draining across it)
 local busy = false
 local walking = false -- busy only running on to the next stop: leaving stays open (any time: GAME_DESIGN 7)
 local autoHeld = false -- (previews: the stops wait for a Go on instead of going on by themselves)
@@ -101,17 +132,23 @@ local isle: Types.Isle? = nil
 -- the boat's arrival at the shore after the cutscene: the ship and when it set off (the party hops off after)
 local arriving = false
 local ship: MicroModels.Thing? = nil
-local SHIP_U, SHIP_V, SHIP_FROM = -21, 11, -34 -- in the shallows off the floor's front-left edge (a level-2 boat)
+-- it comes in from behind the party (room space: +z, the screen's lower left) heading for the wild ones, and moors
+-- with its bow in the foam (the stage's `landing`); SHIP_BACK studs further out when it sets off
+local SHIP_X = -2.5
+local SHIP_BACK = 13
+local shipZ0 = 24 -- where it moors (a longer boat a little further out)
 local SHIP_IN = 1.0 -- seconds it glides in
-local HOP_T, LAND, RUN = 0.4, 3.5, 12 -- a hop off (seconds, studs onto the shore), then a run to the place (studs/s)
+local HOP_T, RUN = 0.4, 12 -- a hop off (seconds), then a run to the place (studs/s)
+local shipLand = 4.5 -- the hop's length: from the deck over the bow onto the beach
+local ARRIVE_CAM = 0.8 -- the arrival's camera: this many areas back (over the boat), then up with the party
 local WATER = -0.45 -- the sea's surface on the stage (from the floor's top)
--- where the party stands on deck (along the bow: u; across: v), the founder first (UI/Voyage's deck)
-local DECK_SPOTS = { { -0.1, 0, 0 }, { 0.9, -0.75, 0 }, { 0.9, 0.75, 0 }, { 1.75, 0, 0.5 } }
-local shipU0 = SHIP_U -- the arriving boat's mooring (a longer boat a little further out)
+-- where the party stands on deck (room space x, z off the boat's middle, y), the founder first (UI/Voyage's deck)
+local DECK_SPOTS = { { 0, 0.1, 0 }, { 0.75, -0.9, 0 }, { -0.75, -0.9, 0 }, { 0, -1.75, 0.5 } }
 local deckH = 0.625 -- its deck over the sea
 local closing = false
 local lastNode = 0
 local foeKey = "" -- the battle's foes shown (rebuilt when they change)
+local boxesFor = "" -- the line-up whose boxes have slid in (a new one's slide in again)
 local pendingOpen = 0 -- os.clock until which the screen opens as soon as the view has the expedition (just started)
 -- going on by itself (GAME_DESIGN 7: "no need to click on go on"): at a stop with nothing to answer, the party walks on
 -- to the next one after AUTO_GO seconds; a won battle's card goes after AUTO_CARD
@@ -183,17 +220,36 @@ local function hideWorldUI(on: boolean)
 end
 
 ------------------------------------------------------------------ the actors
-local PARTY_SPOTS = { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 } }
--- The endless islet (GAME_DESIGN 7: "make the party run to the right in an endless island after clearing one area to
--- reach the next encounter"): every stop is the next area along (MicroStage.AREA_U studs to the right); the party
--- runs there, the camera following, and the stop's wild ones already stand in it.
+-- The battle's places (GAME_DESIGN 7: "fights should be shown in the same view as pokemon"): the party on the near
+-- side, its back to the screen, the wild ones on the far side facing it (u, v from the area's middle; MicroStage's
+-- room-space places).
+local function spotsOf(list: { { number } }): { { number } }
+	local out = {}
+	for _, p in list do
+		local u, v = MicroStage.uvOf(p[1], p[2])
+		table.insert(out, { u, v })
+	end
+	return out
+end
+local PARTY_SPOTS = spotsOf(MicroStage.PARTY_XZ)
+local FOE_SPOTS = spotsOf(MicroStage.FOE_XZ)
+-- the party's way forward (u, v of one stud toward the wild ones); the wild ones face the other way
+local FWD_U, FWD_V = MicroStage.uvOf(0, -1)
+local function fwdOf(a: Actor): (number, number)
+	if a.foe then
+		return -FWD_U, -FWD_V
+	end
+	return FWD_U, FWD_V
+end
+-- The endless islet (GAME_DESIGN 7: "the party will also walk forward in the view"): every stop is the next area
+-- along the road (MicroStage.AREA_U, AREA_V on); the party walks there, the camera following, and the stop's wild
+-- ones already stand in it.
 local area = 0
-local baseU = 0 -- the area's middle along u
+local baseU, baseV = 0, 0 -- the area's middle (u, v)
 local runEnd = 0 -- os.clock() when the run on to the area ends
-local RUN_SPEED = 17 -- studs a second
+local RUN_SPEED = 15 -- studs a second
 local RUN_STAGGER = 0.07 -- each member a moment after the one before
 local HOLD_SECS = 0.45 -- a finger held this long on a fighter shows its details (UI: inspect)
-local FOE_SPOTS = { { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } }
 
 local function actorAt(a: Actor): Vector3
 	local st = stage
@@ -244,12 +300,12 @@ local function newActor(key: string, foe: boolean, spot: { number }): Actor
 		rival = nil,
 		thing = nil,
 		u = spot[1] + baseU,
-		v = spot[2],
+		v = spot[2] + baseV,
 		spot = spot,
 		run = nil,
 		du = 0,
 		dy = 0,
-		yaw = if foe then MicroStage.FACE_LEFT else MicroStage.FACE_RIGHT,
+		yaw = if foe then MicroStage.FACE_PARTY else MicroStage.FACE_FOES,
 		action = "stand",
 		until_ = 0,
 		ko = false,
@@ -420,7 +476,8 @@ local function startMove(a: Actor, kind: string, other: Actor?)
 		local d = math.sqrt(du * du + dv * dv)
 		if kind == "hurt" or kind == "ko" then
 			-- knocked away from the one who hit it
-			gu, gv = if d > 0 then -du / d else (if a.foe then 1 else -1), if d > 0 then -dv / d else 0
+			local fu, fv = fwdOf(a)
+			gu, gv = if d > 0 then -du / d else -fu, if d > 0 then -dv / d else -fv
 		elseif d > REACH then
 			gu, gv = du * (d - REACH) / d, dv * (d - REACH) / d
 		end
@@ -440,7 +497,7 @@ end
 local SQ1 = Vector3.one
 local shaking = false
 local function frameOf(a: Actor, mv: Move, e: number): MoveFrame
-	local dir = if a.foe then -1 else 1
+	local fu, fv = fwdOf(a)
 	local f: MoveFrame = { du = 0, dv = 0, dy = 0, tilt = CFrame.identity, sq = SQ1, spin = 0, action = "stand", k = 0, mood = "idle", speed = 0 }
 	local kind = mv.kind
 	local gu, gv = mv.gu, mv.gv
@@ -451,37 +508,37 @@ local function frameOf(a: Actor, mv: Move, e: number): MoveFrame
 		local r0 = if kind == "quick" then 0.6 else 0.62
 		if e < w1 then
 			local k = ease(phase(e, 0, w1))
-			f.du, f.sq, f.action, f.mood = -0.75 * dir * k, Vector3.new(1 + 0.18 * k, 1 - 0.18 * k, 1 + 0.18 * k), "windup", "attack"
+			f.du, f.dv, f.sq, f.action, f.mood = -0.75 * fu * k, -0.75 * fv * k, Vector3.new(1 + 0.18 * k, 1 - 0.18 * k, 1 + 0.18 * k), "windup", "attack"
 			f.tilt = CFrame.Angles(math.rad(-12) * k, 0, 0)
 		elseif e < d1 then
 			local k = easeIn(phase(e, w1, d1))
-			f.du, f.dv = -0.75 * dir + (gu + 0.75 * dir) * k, gv * k
+			f.du, f.dv = -0.75 * fu + (gu + 0.75 * fu) * k, -0.75 * fv + (gv + 0.75 * fv) * k
 			f.dy = math.sin(k * math.pi) * 0.6
 			f.sq, f.action, f.speed, f.mood, f.k = Vector3.new(0.85, 1.15, 0.85), "run", 30, "attack", 0.3
 			f.tilt = CFrame.Angles(math.rad(15), 0, 0)
 		elseif e < s1 then
 			local k = phase(e, d1, s1)
 			local jab = if kind == "quick" then math.abs(math.sin(k * math.pi * 3)) else math.sin(k * math.pi)
-			f.du, f.dv = gu + dir * 0.4 * jab, gv
+			f.du, f.dv = gu + fu * 0.4 * jab, gv + fv * 0.4 * jab
 			f.action, f.k, f.mood = "strike", if kind == "quick" then (k * 3) % 1 else k, "attack"
 			f.tilt = CFrame.Angles(math.rad(28) * jab, 0, 0)
 			f.sq = Vector3.new(1 + 0.2 * jab, 1 - 0.15 * jab, 1 + 0.2 * jab)
 		elseif e < r0 then
-			f.du, f.dv, f.action, f.mood, f.k = gu - dir * 0.3, gv, "strike", "attack", 1
+			f.du, f.dv, f.action, f.mood, f.k = gu - fu * 0.3, gv - fv * 0.3, "strike", "attack", 1
 		else
 			local k = ease(phase(e, r0, mv.dur))
-			f.du, f.dv = (gu - dir * 0.3) * (1 - k), gv * (1 - k)
+			f.du, f.dv = (gu - fu * 0.3) * (1 - k), (gv - fv * 0.3) * (1 - k)
 			f.dy = math.sin(k * math.pi) * 1.25
 			f.action = if k < 0.95 then "jump" else "stand"
 		end
 	elseif kind == "bash" then
 		if e < 0.3 then
 			local k = ease(phase(e, 0, 0.3))
-			f.du, f.sq, f.action, f.mood = -0.9 * dir * k, Vector3.new(1 + 0.3 * k, 1 - 0.3 * k, 1 + 0.3 * k), "windup", "attack"
+			f.du, f.dv, f.sq, f.action, f.mood = -0.9 * fu * k, -0.9 * fv * k, Vector3.new(1 + 0.3 * k, 1 - 0.3 * k, 1 + 0.3 * k), "windup", "attack"
 			f.tilt = CFrame.Angles(math.rad(-15) * k, 0, 0)
 		elseif e < 0.64 then
 			local k = phase(e, 0.3, 0.64)
-			f.du, f.dv = -0.9 * dir + (gu + 0.9 * dir) * k, gv * k
+			f.du, f.dv = -0.9 * fu + (gu + 0.9 * fu) * k, -0.9 * fv + (gv + 0.9 * fv) * k
 			f.dy = math.sin(k * math.pi) * 4.5 * (1 - k * 0.15)
 			f.sq, f.action, f.mood, f.k = Vector3.new(0.8, 1.25, 0.8), "jump", "attack", 0.5
 			f.tilt = CFrame.Angles(math.rad(30) * k, 0, 0)
@@ -506,7 +563,7 @@ local function frameOf(a: Actor, mv: Move, e: number): MoveFrame
 			f.action, f.mood, f.k = "cast", "attack", k * 0.5
 		elseif e < 0.62 then
 			local k = phase(e, 0.45, 0.62)
-			f.du = dir * 0.6 * math.sin(k * math.pi)
+			f.du, f.dv = fu * 0.6 * math.sin(k * math.pi), fv * 0.6 * math.sin(k * math.pi)
 			f.tilt = CFrame.Angles(math.rad(25) * math.sin(k * math.pi), 0, 0)
 			f.dy = 0.25
 			f.action, f.mood, f.k = "strike", "attack", k
@@ -553,12 +610,13 @@ local function frameOf(a: Actor, mv: Move, e: number): MoveFrame
 	elseif kind == "flee" or kind == "stumble" then
 		local k = phase(e, 0, 0.5)
 		f.spin = math.pi * ease(math.min(1, k * 3))
-		f.du = -dir * 5 * easeIn(k)
+		f.du, f.dv = -fu * 5 * easeIn(k), -fv * 5 * easeIn(k)
 		f.action, f.speed, f.mood = "run", 30, "walk"
 		if kind == "stumble" and e >= 0.35 then
 			-- trips over its feet and scrambles back
 			local b = phase(e, 0.35, mv.dur)
-			f.du = -dir * 5 * easeIn(phase(0.35, 0, 0.5)) * (1 - ease(b))
+			local back = 5 * easeIn(phase(0.35, 0, 0.5)) * (1 - ease(b))
+			f.du, f.dv = -fu * back, -fv * back
 			f.tilt = CFrame.Angles(math.rad(70) * math.sin(math.min(1, b * 2) * math.pi / 2) * (1 - b), 0, 0)
 			f.action, f.mood = if b < 0.5 then "hurt" else "run", "hurt"
 		end
@@ -584,14 +642,20 @@ local function poseAll(t: number, dt: number)
 	-- the boat gliding in to the shore once the curtain is up
 	local since = if lifted then now - opened - liftDelay else -1
 	local sh = ship
-	local shipU = shipU0
+	local shipZ = shipZ0
 	if sh then
 		local e = math.clamp(since / SHIP_IN, 0, 1)
 		local ease = 1 - (1 - e) * (1 - e)
-		shipU = SHIP_FROM + (shipU0 - SHIP_FROM) * ease
+		shipZ = math.floor((shipZ0 + SHIP_BACK * (1 - ease)) * 4 + 0.5) / 4
 		local bob = if e >= 1 and math.floor(t * 1.5) % 2 == 0 then 0.125 else 0
 		MicroModels.flutter(sh :: MicroModels.Thing, t)
-		st.place(sh :: MicroModels.Thing, math.floor(shipU * 4 + 0.5) / 4, SHIP_V, WATER + bob, MicroStage.FACE_RIGHT)
+		local su, sv = MicroStage.uvOf(SHIP_X, shipZ)
+		st.place(sh :: MicroModels.Thing, su, sv, WATER + bob, MicroStage.FACE_FOES)
+		if area == 0 then
+			-- the camera starts back over the boat and comes up with the party once it hops off
+			local k = math.clamp((since - SHIP_IN - 0.2) / 1.4, 0, 1)
+			st.follow(-ARRIVE_CAM * (1 - k * k * (3 - 2 * k)))
+		end
 	end
 	-- the camera follows the run on to the next area (fractions of an area while it runs)
 	if area > 0 then
@@ -624,7 +688,7 @@ local function poseAll(t: number, dt: number)
 				st.puff(st.at(r.u1, r.v1, 0.2), "dust", 3)
 			else
 				local u, v = r.u0 + (r.u1 - r.u0) * e, r.v0 + (r.v1 - r.v0) * e
-				local yaw = MicroStage.FACE_RIGHT
+				local yaw = MicroStage.FACE_FOES
 				local moving = e > 0
 				if a.founder then
 					st.pose(u, v, 0, yaw, t, if moving then RUN_SPEED else 0, "stand")
@@ -645,15 +709,17 @@ local function poseAll(t: number, dt: number)
 		-- the party hops off the arriving boat onto the shore one after another and runs to its places
 		if a.deck > 0 then
 			local spot = DECK_SPOTS[a.deck] or DECK_SPOTS[#DECK_SPOTS]
-			local du, dv, dh = shipU + spot[1], SHIP_V + spot[2], WATER + deckH + spot[3]
+			local du, dv = MicroStage.uvOf(SHIP_X + spot[1], shipZ + spot[2])
+			local dh = WATER + deckH + spot[3]
 			local k = since - (SHIP_IN + 0.1 + (a.deck - 1) * 0.35)
 			local hu, hv = a.u, a.v
 			local dx, dz = hu - du, hv - dv
 			local dist = math.max(4, math.sqrt(dx * dx + dz * dz))
-			local lu, lv = du + dx / dist * LAND, dv + dz / dist * LAND
+			local leap = math.min(shipLand, dist - 1)
+			local lu, lv = du + dx / dist * leap, dv + dz / dist * leap
 			local u, v, y, action, speed = du, dv, dh, if since > 0 then "cheer" else "stand", 0
 			if k >= HOP_T then
-				local frac = math.min(1, (k - HOP_T) * RUN / (dist - LAND))
+				local frac = math.min(1, (k - HOP_T) * RUN / math.max(0.5, dist - leap))
 				u, v, y, action, speed = lu + (hu - lu) * frac, lv + (hv - lv) * frac, 0, "stand", RUN
 				if frac >= 1 then
 					a.deck = 0
@@ -672,7 +738,7 @@ local function poseAll(t: number, dt: number)
 			end
 			if a.deck > 0 then
 				local dir = MicroStage.U_DIR * dx + MicroStage.V_DIR * dz
-				local yaw = if k >= 0 then math.atan2(dir.X, dir.Z) else MicroStage.FACE_RIGHT
+				local yaw = if k >= 0 then math.atan2(dir.X, dir.Z) else MicroStage.FACE_FOES
 				if a.founder then
 					st.pose(u, v, y, yaw, t, speed, action, 1)
 				elseif a.rival then
@@ -827,25 +893,141 @@ local function say(text: string, color: Color3?, seconds: number?)
 end
 sayFwd = say
 
-local function setBar(key: string, hp: number)
+-- A battle starting: the stage flashes white `n` times (hard blinks over the stage, between the header and the
+-- footer), the way a wild encounter opens in the monster-catching games.
+local function encounterFlash(n: number)
+	local r = root
+	if r == nil then
+		return
+	end
+	local w, h = canvasSize()
+	local y0 = topInset() + HEAD_H
+	local f = UIKit.rect(r, UDim2.fromOffset(w, h - y0 - FOOT_H), UDim2.fromOffset(0, y0), UIKit.color("text"), 8)
+	f.Name = "Flash"
+	f.BackgroundTransparency = 0.15
+	task.spawn(function()
+		for i = 1, n do
+			f.Visible = true
+			task.wait(0.06)
+			f.Visible = false
+			if i < n then
+				task.wait(0.06)
+			end
+		end
+		f:Destroy()
+	end)
+end
+
+-- A box's health bar as it stands: green over half, yellow over a fifth, red below; the pale part just lost behind it;
+-- a party member's numbers counting with it.
+local function drawBar(b: Bar)
+	local fill = b.fill
+	if fill == nil then
+		return
+	end
+	local span = b.w - 2
+	local k = b.shown / math.max(1, b.maxHp)
+	local px = math.floor(span * k + 0.5)
+	if b.shown > 0 then
+		px = math.max(px, 1)
+	end
+	fill.Size = UDim2.fromOffset(px, 2)
+	fill.BackgroundColor3 = if k > 0.5 then UIKit.color("good") elseif k > 0.2 then UIKit.color("accent") else UIKit.color("bad")
+	local g = b.ghost
+	if g then
+		local gpx = math.floor(span * b.lost / math.max(1, b.maxHp) + 0.5)
+		g.Visible = gpx > px
+		g.Size = UDim2.fromOffset(math.max(0, gpx - px), 2)
+		g.Position = UDim2.fromOffset(1 + px, 1)
+	end
+	local label = b.label
+	local now = os.clock()
+	if label and (b.shown == b.hp or now - b.textAt >= 0.12) then
+		local t = string.format("%d/%d", math.floor(b.shown + 0.5), b.maxHp)
+		if t ~= b.text then
+			b.text = t
+			b.textAt = now
+			UIKit.setText(label, t)
+			UIKit.setTextColor(label, if k > 0.2 then UIKit.color("text") else UIKit.color("bad"))
+		end
+	end
+end
+
+-- The health a box is going to (`instant`: there at once, a new box); a loss jolts the box and leaves its pale part.
+local function setBar(key: string, hp: number, instant: boolean?)
 	local b = bars[key]
 	if b == nil then
 		return
 	end
+	local before = b.hp
 	b.hp = math.clamp(hp, 0, b.maxHp)
 	shownHp[key] = b.hp
-	local fill, label = b.fill, b.label
-	if fill then
-		local k = b.hp / math.max(1, b.maxHp)
-		fill.Size = UDim2.fromOffset(math.floor((b.w - 2) * k + 0.5), 2)
-		fill.BackgroundColor3 = if k > 0.5 then UIKit.color("good") elseif k > 0.25 then UIKit.color("accent") else UIKit.color("bad")
+	if instant then
+		b.shown, b.lost = b.hp, b.hp
+	elseif b.hp < before then
+		b.lost = math.max(b.lost, b.shown)
+		b.lostAt = os.clock()
+		b.hitAt = os.clock()
 	end
-	if label then
-		UIKit.setText(label, string.format("%d/%d", math.floor(b.hp + 0.5), b.maxHp))
-	end
+	drawBar(b)
 end
 
 ------------------------------------------------------------------ the timed battle
+-- Every frame: the bars drain toward their health (the pale part follows a moment later), a box just hit jolts a
+-- pixel side to side, a party member's timer fills (it blinks when full). (Above `gaugeOf`: it is passed in.)
+local function updateBars(dt: number, gaugeAt: (key: string) -> number)
+	local now = os.clock()
+	for key, b in bars do
+		local card = b.card
+		if card == nil or card.Parent == nil then
+			continue
+		end
+		local step = math.max(b.maxHp * 1.1, 8) * dt
+		local moved = false
+		if b.shown ~= b.hp then
+			b.shown = if b.shown > b.hp then math.max(b.hp, b.shown - step) else math.min(b.hp, b.shown + step)
+			moved = true
+		end
+		if b.lost < b.shown then
+			b.lost = b.shown
+			moved = true
+		elseif b.lost > b.shown and now - b.lostAt > 0.4 then
+			b.lost = math.max(b.shown, b.lost - step)
+			moved = true
+		end
+		if moved then
+			drawBar(b)
+		end
+		-- a wild one down: its box slides back out of the stage's corner once the bar has run dry
+		if b.foe and not b.out and b.hp <= 0 and b.shown <= 0 and now - b.hitAt > 0.5 then
+			b.out = true
+			UIKit.tween(card, 0.2, { Position = UDim2.fromOffset(-FOE_W - 16, b.y) })
+			continue
+		end
+		if b.out then
+			continue
+		end
+		local since = now - b.hitAt
+		if since < 0.24 then
+			local jolt = if math.floor(since * 25) % 2 == 0 then 1 else -1
+			card.Position = UDim2.fromOffset(b.x + jolt, b.y)
+			b.jolted = true
+		elseif b.jolted then
+			b.jolted = false
+			card.Position = UDim2.fromOffset(b.x, b.y)
+		end
+		local gauge = b.gauge
+		if gauge then
+			local g = math.clamp(gaugeAt(key), 0, 1)
+			local gpx = if b.shown > 0 then math.floor(b.gw * g) else 0
+			if gauge.Size.X.Offset ~= gpx then
+				gauge.Size = UDim2.fromOffset(gpx, 1)
+			end
+			gauge.BackgroundColor3 = if g >= 1 and math.floor(now * 4) % 2 == 0 then UIKit.color("text") else UIKit.color("accent")
+		end
+	end
+end
+
 -- A fighter of the expedition (the view's: its speed sets its timer's pace), the party's or a wild one's.
 local function fighterOf(key: string): Types.Fighter?
 	local e = exp()
@@ -1203,37 +1385,89 @@ local function mutWords(muts: { string }?): (string, Color3)
 	return table.concat(names, ", "), UIKit.color(Traits.TIER_COLOR[math.max(best, 0)] or "text")
 end
 
--- A fighter's card: its portrait or icon, name and level, its health bar (a tap picks it while aiming).
-local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: number, w: number, foe: boolean): Frame
+-- A fighter's box: its portrait or icon, its name and level, its mutations as pips, "HP" and its health bar; a party
+-- member's also the numbers and its timer under the bar; a wild one's a mark beside it when it is the guardian or the
+-- player has befriended one of its kind (`badge`). A tap picks it while aiming.
+local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: number, w: number, foe: boolean, badge: string?): Frame
 	local selected = aim ~= nil and (aim :: Aim).target == f.key
-	local card = UIKit.plate(parent, UDim2.fromOffset(w, 18), UDim2.fromOffset(x, y), if selected then UIKit.color("accent") else UIKit.color("plate_light"), 0.03, 2, { bevel = true })
+	local h = if foe then 18 else 20
+	local card = UIKit.plate(parent, UDim2.fromOffset(w, h), UDim2.fromOffset(x, y), if selected then UIKit.color("accent") else UIKit.color("plate_light"), 0.03, 2, { bevel = true })
 	card.Name = "Card_" .. f.key
 	card.ZIndex = 10
+	local iy = math.floor((h - 16) / 2)
 	if f.sp then
-		local icon = PixelSprites.image(card, "icon_" .. (f.sp :: string), UDim2.fromOffset(1, 1), 11)
-		local _ = icon
+		PixelSprites.image(card, "icon_" .. (f.sp :: string), UDim2.fromOffset(1, iy), 11)
 	elseif f.look then
-		UIKit.portrait(card, f.look :: Types.Look, 16, UDim2.fromOffset(1, 1)).ZIndex = 11
+		UIKit.portrait(card, f.look :: Types.Look, 16, UDim2.fromOffset(1, iy)).ZIndex = 11
 	end
 	-- (a rare wild one's name in its rarity's colour: Data/Traits)
 	local cd = if f.sp then Creatures.byId[f.sp :: string] else nil
 	local nameCol = if cd and cd.rarity >= 3 then UIKit.color((Traits.RARITY[cd.rarity] or Traits.RARITY[1]).color) else UIKit.color("text")
-	-- its mutations as pips in the top corner, the best tier first (a flaw red): which wild one is worth a snack
-	local pipsW = mutPips(card, f.muts, w - 2, 1, 11)
-	UIKit.text(card, f.name, UDim2.fromOffset(w - 20 - pipsW, 9), UDim2.fromOffset(19, 0), { color = if selected then UIKit.color("ink") else nameCol, kind = if selected then "plain" else nil, z = 11, name = "Name" })
-	-- the level beside the health bar (a long name keeps the whole top line)
+	local ink = if selected then UIKit.color("ink") else nil
+	-- the top line: the name, its mutations as pips (the best tier first, a flaw red: which wild one is worth a snack),
+	-- the level at the right
 	local lv = "Lv" .. f.lvl
 	local lvW = UIKit.textWidth(lv)
-	UIKit.text(card, lv, UDim2.fromOffset(lvW + 2, 9), UDim2.fromOffset(w - lvW - 3, 8), { x = "right", color = if selected then UIKit.color("ink") else UIKit.color("text_dim"), kind = if selected then "plain" else nil, z = 11, name = "Lv" })
-	local bw = w - 21 - lvW - 3
-	local back = UIKit.rect(card, UDim2.fromOffset(bw, 4), UDim2.fromOffset(19, 10), UIKit.color("ink"), 11)
+	UIKit.text(card, lv, UDim2.fromOffset(lvW + 2, 9), UDim2.fromOffset(w - lvW - 4, 0), { x = "right", color = ink or UIKit.color("text_dim"), kind = if selected then "plain" else nil, z = 11, name = "Lv" })
+	local pipsW = mutPips(card, f.muts, w - lvW - 6, 2, 11)
+	UIKit.text(card, f.name, UDim2.fromOffset(w - 24 - lvW - pipsW, 9), UDim2.fromOffset(19, 0), { color = ink or nameCol, kind = if selected then "plain" else nil, z = 11, name = "Name" })
+	-- the second line: "HP", the bar (the pale part just lost behind the fill), a party member's numbers
+	local tagW = UIKit.textWidth("HP") + 2
+	UIKit.text(card, "HP", UDim2.fromOffset(tagW, 9), UDim2.fromOffset(19, 8), { color = ink or UIKit.color("orange"), kind = if selected then "plain" else nil, z = 11, name = "HpTag" })
+	local numW = if foe then 0 else UIKit.textWidth(string.format("%d/%d", f.maxHp, f.maxHp)) + 3
+	local bx = 19 + tagW + 1
+	local bw = w - bx - 3 - numW
+	local back = UIKit.rect(card, UDim2.fromOffset(bw, 4), UDim2.fromOffset(bx, 10), UIKit.color("ink"), 11)
 	back.Name = "HpBack"
-	local fill = UIKit.rect(back, UDim2.fromOffset(bw - 2, 2), UDim2.fromOffset(1, 1), UIKit.color("good"), 12)
+	local ghost = UIKit.rect(back, UDim2.fromOffset(0, 2), UDim2.fromOffset(1, 1), UIKit.color("text"), 12)
+	ghost.Name = "HpLost"
+	ghost.Visible = false
+	local fill = UIKit.rect(back, UDim2.fromOffset(bw - 2, 2), UDim2.fromOffset(1, 1), UIKit.color("good"), 13)
 	fill.Name = "HpFill"
-	local label = UIKit.text(card, "", UDim2.fromOffset(bw, 8), UDim2.fromOffset(19, 11), { x = "right", color = UIKit.color("text_dim"), z = 13, name = "Hp" })
-	label.Visible = false
-	bars[f.key] = { hp = hpOf(f), maxHp = f.maxHp, name = f.name, lvl = f.lvl, card = card, fill = fill, label = label, w = bw }
-	setBar(f.key, hpOf(f))
+	local label: TextLabel? = nil
+	if not foe then
+		label = UIKit.text(card, "", UDim2.fromOffset(numW, 9), UDim2.fromOffset(w - numW - 3, 8), { x = "right", color = ink or UIKit.color("text"), kind = if selected then "plain" else nil, z = 13, name = "Hp" })
+	end
+	-- a party member's timer, a thin line under the bar (it fills toward the member's next action)
+	local gauge: Frame? = nil
+	if not foe then
+		local gback = UIKit.rect(card, UDim2.fromOffset(bw, 3), UDim2.fromOffset(bx, 15), UIKit.color("ink"), 11)
+		gback.Name = "TimerBack"
+		local gf = UIKit.rect(gback, UDim2.fromOffset(0, 1), UDim2.fromOffset(1, 1), UIKit.color("accent"), 12)
+		gf.Name = "Timer"
+		gauge = gf
+	end
+	if badge then
+		PixelSprites.image(card, badge, UDim2.fromOffset(w + 1, math.floor((h - 11) / 2)), 11).Name = "Badge"
+	end
+	local hp = hpOf(f)
+	local old = bars[f.key] or prevBars[f.key]
+	bars[f.key] = {
+		hp = hp,
+		maxHp = f.maxHp,
+		name = f.name,
+		lvl = f.lvl,
+		card = card,
+		fill = fill,
+		label = label,
+		w = bw,
+		-- (a box laid out again keeps its bar where it had drained to)
+		shown = if old then old.shown else hp,
+		lost = if old then old.lost else hp,
+		lostAt = if old then old.lostAt else 0,
+		hitAt = if old then old.hitAt else 0,
+		ghost = ghost,
+		gauge = gauge,
+		gw = bw - 2,
+		x = x,
+		y = y,
+		jolted = false,
+		text = "",
+		textAt = 0,
+		foe = foe,
+		out = false,
+	}
+	setBar(f.key, hp, old == nil)
 	local _ = foe
 	local pick = Instance.new("TextButton")
 	pick.Name = "Pick"
@@ -1309,7 +1543,7 @@ local function runOn()
 		return
 	end
 	area += 1
-	baseU = area * MicroStage.AREA_U
+	baseU, baseV = area * MicroStage.AREA_U, area * MicroStage.AREA_V
 	st.area(area)
 	local now = os.clock()
 	local last = now
@@ -1322,13 +1556,13 @@ local function runOn()
 		a.move = nil
 		a.deck = 0
 		a.dy = 0
-		local u1, v1 = a.spot[1] + baseU, a.spot[2]
+		local u1, v1 = a.spot[1] + baseU, a.spot[2] + baseV
 		local dist = math.sqrt((u1 - a.u) ^ 2 + (v1 - a.v) ^ 2)
 		local t0 = now + i * RUN_STAGGER
 		local dur = math.max(0.4, dist / RUN_SPEED)
 		a.run = { u0 = a.u, v0 = a.v, u1 = u1, v1 = v1, t0 = t0, dur = dur }
 		a.u, a.v = u1, v1
-		a.yaw = MicroStage.FACE_RIGHT
+		a.yaw = MicroStage.FACE_FOES
 		last = math.max(last, t0 + dur)
 		i += 1
 	end
@@ -2277,7 +2511,7 @@ playRound = function(data: { [string]: any })
 			end
 			if st then
 				for _ = 1, 3 do
-					st.puff(st.at(baseU, 0, 2), "confetti")
+					st.puff(st.at(baseU, baseV, 2), "confetti")
 				end
 			end
 			-- the path goes on: an alert, the party walks on (Sail home whenever the player likes)
@@ -2341,14 +2575,14 @@ playNode = function(data: { [string]: any })
 				act(a, "reach", 0.6)
 			end
 		end
-		st.puff(st.at(baseU - 2, -1, 0.5), "debris", 8)
+		st.puff(st.at(baseU + FWD_U * -2, baseV + FWD_V * -2, 0.5), "debris", 8)
 	elseif kind == "chest" then
 		Audio.play("chest")
 		task.delay(0.3, function()
 			Audio.play("coins")
 		end)
 		say(string.format("A chest with %s shells in it.", Numbers.int(tonumber(data.shells) or 0)), UIKit.color("accent"))
-		st.puff(st.at(baseU - 2, -1, 1), "spark", 12)
+		st.puff(st.at(baseU + FWD_U * -2, baseV + FWD_V * -2, 1), "spark", 12)
 		for _, a in actors do
 			if not a.foe then
 				act(a, "cheer", 0.8)
@@ -2363,8 +2597,20 @@ playNode = function(data: { [string]: any })
 			end
 		end
 	elseif kind == "wild" then
-		say("Wild driftlings!", UIKit.color("orange"))
+		-- who it is, by name ("A wild Mossbun appeared.", "Wild Mossbun, Floe and Pebblit appeared.")
+		local names: { string } = {}
+		if type(data.foes) == "table" then
+			for _, f in data.foes do
+				if type(f) == "table" and type(f.name) == "string" then
+					table.insert(names, f.name)
+				end
+			end
+		end
+		local who = if #names <= 1 then "A wild " .. (names[1] or "driftling") else "Wild " .. table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
+		encounterFlash(2)
+		say(who .. " appeared.", UIKit.color("orange"), 2.2)
 	elseif kind == "boss" then
+		encounterFlash(3)
 		say((if isle then (isle :: Types.Isle).bossName else "The guardian") .. " is in the way.", UIKit.color("bad"), 2.4)
 	end
 	if kind == "wild" or kind == "boss" then
@@ -2560,7 +2806,7 @@ refresh = function()
 	end
 	-- everything but the curtain, a results card and the narration is laid out again
 	for _, c in r:GetChildren() do
-		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and c.Name ~= "Inspect" and c.Name ~= "LeaveCard" and not c:IsA("TextLabel") then
+		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Flash" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and c.Name ~= "Inspect" and c.Name ~= "LeaveCard" and not c:IsA("TextLabel") then
 			c:Destroy()
 		end
 	end
@@ -2574,7 +2820,8 @@ refresh = function()
 	if e.battle == nil then
 		snacksLeft = e.snacks or 0
 	end
-	table.clear(bars)
+	prevBars = bars
+	bars = {}
 	local w, h = canvasSize()
 	local def = Islets.list[e.isle.kind]
 	-- the header: the island, the path, the loot, Back (below Roblox's top bar: its strip is the header's backdrop)
@@ -2629,25 +2876,46 @@ refresh = function()
 	foot.Position = UDim2.fromOffset(0, h - FOOT_H + 3)
 	foot.ZIndex = 9
 	foot.Parent = r
-	local cw = math.min(CARD_W, math.floor((w - 112) / 2) - 3)
+	-- the party's boxes two by two along the footer's right (the commands keep its left)
+	local cmdW = 4 + 2 * CMD_W + 3
+	local cw = math.min(PARTY_W, math.floor((w - cmdW - 10) / 2) - 2)
+	local px0 = w - 4 - 2 * cw - 3
 	for i, f in e.party do
 		local col, rowI = (i - 1) % 2, (i - 1) // 2
-		fighterCard(foot, f, 4 + col * (cw + 3), 2 + rowI * 20, cw, false)
+		fighterCard(foot, f, px0 + col * (cw + 3), 1 + rowI * 22, cw, false)
 	end
-	-- the foes down the right, under the header (those still in the battle)
+	-- the wild ones' boxes down the stage's top left (those still in the battle); a new battle's slide in from the
+	-- edge one after another
 	local b = e.battle
 	if b then
+		local v = StateClient.view()
 		local n = 0
+		local fresh = foeKey ~= boxesFor
+		boxesFor = foeKey
 		for _, f in foesLeft() do
 			n += 1
-			fighterCard(r, f, w - 86, top + HEAD_H + 2 + (n - 1) * 20, 82, true)
+			local badge = if b.boss and n == 1 then "mini_boss" elseif v and f.sp and v.seen[f.sp :: string] == 2 then "mini_nest" else nil
+			local y = top + HEAD_H + 3 + (n - 1) * 20
+			local card = fighterCard(r, f, 4, y, FOE_W, true, badge)
+			if fresh then
+				card.Position = UDim2.fromOffset(-FOE_W - 16, y)
+				local delay = 0.25 + (n - 1) * 0.08
+				task.delay(delay, function()
+					if card.Parent then
+						UIKit.tween(card, 0.22, { Position = UDim2.fromOffset(4, y) })
+					end
+				end)
+			end
 		end
+	else
+		boxesFor = ""
 	end
-	-- the buttons
-	local bx = w - 104
-	local ax = bx - 74
+	-- the commands, two by two at the footer's left: Skills and the skill points under it, Snack and Flee
+	local ax = 4
+	local bx = ax + CMD_W + 3
+	local wide = 2 * CMD_W + 3
 	if e.over then
-		button(foot, "Sail home", bx, 13, 100, UIKit.color("button_ok"), true, goHome, "SailHome")
+		button(foot, "Sail home", ax, 14, wide, UIKit.color("button_ok"), true, goHome, "SailHome")
 	elseif b and aim then
 		-- aiming: whom at, then go (or back to the battle)
 		local a = aim :: Aim
@@ -2678,27 +2946,27 @@ refresh = function()
 			UIKit.text(tip, line3, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 11), { x = "center", color = col3, z = 11, name = "AimMuts" })
 		end
 		UIKit.text(tip, hint, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, th - 12), { x = "center", color = UIKit.color("text_dim"), z = 11, name = "AimHint" })
-		button(foot, if a.kind == "snack" then "Throw!" else "Use!", bx, 4, 100, UIKit.color("button_ok"), a.target ~= nil, function()
+		button(foot, if a.kind == "snack" then "Throw!" else "Use!", ax, 5, wide, UIKit.color("button_ok"), a.target ~= nil, function()
 			task.spawn(useAim)
 		end, "Aim_use")
-		button(foot, "Back", bx, 22, 100, UIKit.color("plate_light"), true, function()
+		button(foot, "Back", ax, 24, wide, UIKit.color("plate_light"), true, function()
 			endAim(true)
 		end, "Aim_back")
 	elseif b then
 		-- the battle runs by itself: a snack (a few a trip), the skill window, or run
 		local snackOk = not b.boss and snacksLeft > 0
-		button(foot, string.format("Snack x%d", snacksLeft), ax, 4, 70, UIKit.color("pink"), snackOk, startSnack, "Act_snack")
-		button(foot, "Flee", ax, 22, 70, UIKit.color("button_warn"), not b.boss, function()
+		button(foot, "Skills", ax, 5, CMD_W, UIKit.color("accent"), true, openSkills, "Act_skills")
+		button(foot, string.format("Snack x%d", snacksLeft), bx, 5, CMD_W, UIKit.color("pink"), snackOk, startSnack, "Act_snack")
+		button(foot, "Flee", bx, 24, CMD_W, UIKit.color("button_warn"), not b.boss, function()
 			task.spawn(flee)
 		end, "Act_flee")
-		button(foot, "Skills", bx, 4, 100, UIKit.color("accent"), true, openSkills, "Act_skills")
-		-- the skill points charging (the frame loop fills it)
-		local spf = UIKit.plate(foot, UDim2.fromOffset(100, 15), UDim2.fromOffset(bx, 22), UIKit.color("plate_light"), 0, 2)
+		-- the skill points charging under Skills (the frame loop fills it)
+		local spf = UIKit.plate(foot, UDim2.fromOffset(CMD_W, 15), UDim2.fromOffset(ax, 24), UIKit.color("plate_light"), 0, 2)
 		spf.Name = "SpBar"
 		spf.ZIndex = 11
 		local fill = UIKit.rect(spf, UDim2.fromOffset(0, 3), UDim2.fromOffset(2, 10), UIKit.color("accent"), 12)
 		fill.Name = "Fill"
-		UIKit.text(spf, "", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 13, name = "Label" })
+		UIKit.text(spf, "", UDim2.fromOffset(CMD_W, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 13, name = "Label" })
 		if skillMenu then
 			skillWindow(r, e)
 		end
@@ -2709,21 +2977,21 @@ refresh = function()
 		plate.Text = ""
 		plate.AutoButtonColor = false
 		plate.BackgroundTransparency = 1
-		plate.Size = UDim2.fromOffset(100, 15)
-		plate.Position = UDim2.fromOffset(bx, 4)
+		plate.Size = UDim2.fromOffset(wide, 15)
+		plate.Position = UDim2.fromOffset(ax, 5)
 		plate.ZIndex = 11
 		plate.Parent = foot
-		UIKit.plate(plate, UDim2.fromOffset(100, 15), UDim2.fromOffset(0, 0), UIKit.color("plate_light"), 0, 2).ZIndex = 11
-		autoW = 96
+		UIKit.plate(plate, UDim2.fromOffset(wide, 15), UDim2.fromOffset(0, 0), UIKit.color("plate_light"), 0, 2).ZIndex = 11
+		autoW = wide - 4
 		local fill = UIKit.rect(plate, UDim2.fromOffset(0, 2), UDim2.fromOffset(2, 11), UIKit.color("good"), 12)
 		fill.Name = "Fill"
 		autoFill = fill
-		UIKit.text(plate, if busy then "Walking on..." else "Next stop...", UDim2.fromOffset(100, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
+		UIKit.text(plate, if busy then "Walking on..." else "Next stop...", UDim2.fromOffset(wide, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
 		plate.Activated:Connect(function()
 			idleSince = nil
 			task.spawn(goOn)
 		end)
-		button(foot, "Sail home", bx, 22, 100, UIKit.color("button_warn"), true, goHome, "SailHome")
+		button(foot, "Sail home", ax, 24, wide, UIKit.color("button_warn"), true, goHome, "SailHome")
 	end
 	tutorialTip(r, e, w, h)
 	-- the wild ones' names stay on the cards; the stage's spots follow the fighters
@@ -2765,7 +3033,7 @@ function ExpeditionUI.open()
 	r.Size = UDim2.fromOffset(w, h)
 	r.Parent = canvas
 	root = r
-	area, baseU, runEnd = 0, 0, 0
+	area, baseU, baseV, runEnd = 0, 0, 0, 0
 	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 }, e.isle.seed, true)
 	actors = {}
 	foeKey = ""
@@ -2804,18 +3072,23 @@ function ExpeditionUI.open()
 		-- the boat brings the party in: the drop from above happens behind the curtain, unseen
 		local st = stage :: MicroStage.Stage
 		st.lift()
-		-- the boat at the player's boat level: its deck's places (along the bow: u; across: v)
+		-- the boat at the player's boat level, its bow in the foam behind the party: its deck's places (it faces the
+		-- wild ones, -z: its right, +x, is the room's -x and its bow, +z, the room's -z)
 		local v = view()
 		local level = if v then v.boat else 1
 		local d = BoatSpec.dims(level)
-		shipU0 = SHIP_U - (d.L - 5) / 2
+		shipZ0 = st.landing(SHIP_X) + d.L / 2 - 0.75
+		shipLand = d.L / 2 + 2
 		deckH = BoatSpec.deckOverWater(level)
 		DECK_SPOTS = {}
 		for _, p in BoatSpec.deck(level) do
-			table.insert(DECK_SPOTS, { p.Z, p.X, p.Y })
+			table.insert(DECK_SPOTS, { -p.X, -p.Z, p.Y })
 		end
 		ship = st.spawn("ship", { level = level })
-		st.place(ship :: MicroModels.Thing, SHIP_FROM, SHIP_V, WATER, MicroStage.FACE_RIGHT)
+		local su, sv = MicroStage.uvOf(SHIP_X, shipZ0 + SHIP_BACK)
+		st.place(ship :: MicroModels.Thing, su, sv, WATER, MicroStage.FACE_FOES)
+		-- the picture opens over the boat (the camera comes up with the party: poseAll)
+		st.follow(-ARRIVE_CAM, true)
 	end
 	-- the founder stands with the party (MicroStage's own avatar)
 	actors.f = newActor("f", false, PARTY_SPOTS[1])
@@ -2906,6 +3179,7 @@ function ExpeditionUI.open()
 		-- the timed battle: the timers over the heads, the aim on the floor, the skill points' bar, and a new battle
 		-- set running once its wild ones have landed
 		updateTimers()
+		updateBars(dt, gaugeOf)
 		updateAim()
 		-- the tips' catching step (GAME_DESIGN 9): the Snack button shines while a wild one is hurt
 		local tv = StateClient.view()
@@ -2926,7 +3200,7 @@ function ExpeditionUI.open()
 			local sp = spOf()
 			local fill = spf:FindFirstChild("Fill")
 			if fill and fill:IsA("Frame") then
-				fill.Size = UDim2.fromOffset(math.floor(96 * sp / Tuning.SpMax), 3)
+				fill.Size = UDim2.fromOffset(math.floor((CMD_W - 4) * sp / Tuning.SpMax), 3)
 			end
 			local label = spf:FindFirstChild("Label")
 			if label and label:IsA("TextLabel") then
@@ -3140,6 +3414,7 @@ closeNow = function()
 	end
 	actors = {}
 	table.clear(bars)
+	table.clear(prevBars)
 	local r = root
 	root = nil
 	if r then
@@ -3245,11 +3520,13 @@ function ExpeditionUI.debugState(): { [string]: any }
 		if a.foe and a.dy > 0 then
 			dropping += 1
 		end
-		if not a.foe and not a.gone and a.u < baseU - 20 then
+		-- (along the road: studs toward the wild ones from the area's middle)
+		local along = (a.u - baseU) * FWD_U + (a.v - baseV) * FWD_V
+		if not a.foe and not a.gone and along < -20 then
 			behind += 1
 		end
 		if a.foe and not a.gone then
-			foeU = math.min(foeU or math.huge, a.u - baseU)
+			foeU = math.min(foeU or math.huge, along)
 		end
 	end
 	return {
@@ -3260,7 +3537,7 @@ function ExpeditionUI.debugState(): { [string]: any }
 		area = area, -- the endless islet's area the party is in (or running to)
 		running = running, -- members still running there
 		behind = behind, -- members of the party left more than 20 studs behind the area's middle
-		foeU = foeU, -- the nearest wild one from the area's middle (u: they stand on its right)
+		foeU = foeU, -- the nearest wild one from the area's middle (along the road: they stand ahead of it)
 		dropping = dropping, -- wild ones still dropping in from above
 		node = lastNode,
 		foes = foeKey,

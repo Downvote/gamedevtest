@@ -73,6 +73,18 @@ local ghost: Model? = nil
 local marker: BasePart? = nil
 local conns: { { Disconnect: (any) -> () } } = {}
 
+-- Drawing paths (GAME_DESIGN 4: "paths should be able to be drawn or made in a box like the original interface in the
+-- bakery game"): with a path tile picked, a press on the island starts a stroke instead of a pan. Line: the drag lays
+-- tiles along the way (every 2-stud cell the pointer passes, no gaps when it jumps); Box: the drag fills the box
+-- between the press and the pointer; Erase: the same strokes take path tiles up (half their price back); Look around:
+-- a drag pans again. What the stroke would do shows on the island at once (a flat marker a cell: cyan where a tile
+-- goes, red where it can't, orange where one comes up), and on release it goes to the server (plot.paint /
+-- plot.unpaint, Plot.PAINT_MAX cells a request).
+type Draw = { box: boolean, erase: boolean, look: boolean, start: { number }?, last: { number }?, cells: { { number } }, seen: { [string]: boolean } }
+local draw: Draw = { box = false, erase = false, look = false, start = nil, last = nil, cells = {}, seen = {} }
+local drawGhost: Model? = nil
+local DRAW_MOST = 240 -- cells a stroke holds at most (a box is cut there)
+
 local function view(): Types.ClientView?
 	return StateClient.view()
 end
@@ -194,8 +206,208 @@ local function showGhost()
 	PixelRenderer.registerDynamic(m)
 end
 
------------------------------------------------------------------- the tray
+------------------------------------------------------------------ drawing paths
+local function drawing(): boolean
+	local p = pick
+	return p ~= nil and p.move == nil and Plot.isPath(p.id)
+end
+
+local function clearDrawGhost()
+	if drawGhost then
+		PixelRenderer.unregisterDynamic(drawGhost)
+		drawGhost:Destroy()
+		drawGhost = nil
+	end
+end
+
+-- The path tiles standing on a cell (their indices).
+local function pathsOn(c: { number }): { number }
+	local out = {}
+	for i, q in placed() do
+		if Plot.isPath(q.id) then
+			local r = Plot.rect(q.id, q.x, q.z, q.rot)
+			if c[1] < r.x1 and c[1] + Plot.PATH_STEP > r.x0 and c[2] < r.z1 and c[2] + Plot.PATH_STEP > r.z0 then
+				table.insert(out, i)
+			end
+		end
+	end
+	return out
+end
+
+-- What the stroke would do, cell by cell: "lay" (a tile goes down), "no" (it can't: taken, off the grass, no room or
+-- not enough shells) or "lift" (Erase: a tile comes up); and how many tiles and their price.
+local function strokePlan(cells: { { number } }): ({ string }, number, number)
+	local v = view()
+	local p = pick
+	local out: { string } = {}
+	if v == nil or p == nil then
+		return out, 0, 0
+	end
+	local def = Buildings.byId[p.id]
+	local used, most = 0, 0
+	for _, q in v.pieces do
+		if Plot.isPath(q.id) then
+			used += 1
+		end
+	end
+	most = Plot.pathLimit(v.tier)
+	local shells, wood = v.shells, v.wood
+	local n, cost = 0, 0
+	for _, c in cells do
+		if draw.erase then
+			if #pathsOn(c) > 0 then
+				table.insert(out, "lift")
+				n += 1
+			else
+				table.insert(out, "no")
+			end
+		else
+			local ok = def ~= nil and used < most and shells >= def.shells and wood >= def.wood and Plot.fits(v.tier, placed(), p.id, c[1], c[2], 0)
+			if ok and def then
+				used += 1
+				shells -= def.shells
+				wood -= def.wood
+				cost += def.shells
+				n += 1
+			end
+			table.insert(out, if ok then "lay" else "no")
+		end
+	end
+	return out, n, cost
+end
+
+-- The stroke's markers: one flat plate a cell, just over the grass.
+local function showDrawGhost(cells: { { number } })
+	clearDrawGhost()
+	local label = if tray then (tray :: Frame):FindFirstChild("Stroke", true) else nil
+	if #cells == 0 then
+		if label and label:IsA("TextLabel") then
+			UIKit.setText(label, "")
+		end
+		return
+	end
+	local plan, n, cost = strokePlan(cells)
+	if label and label:IsA("TextLabel") and #cells > 1 then
+		UIKit.setText(label, if draw.erase then string.format("%d to take up", n) else string.format("%d tile%s, %s shells", n, if n == 1 then "" else "s", Numbers.coins(cost)))
+	end
+	local ox, oz = origin()
+	local m = Blocks.model(nil, "PathGhost")
+	for k, c in cells do
+		local what = plan[k]
+		local color = if what == "lay" then "screen_on" elseif what == "lift" then "orange" else "berry_red"
+		Blocks.part(m, {
+			size = Vector3.new(1.75, 0.125, 1.75),
+			cf = CFrame.new(ox + c[1] + 1, Street.LAWN_Y + 0.2, oz + c[2] + 1),
+			color = color,
+			neon = true,
+			collide = false,
+			query = false,
+			name = "Cell",
+		})
+	end
+	m.Parent = workspace:FindFirstChild("PixelDynamic") or workspace
+	drawGhost = m
+	PixelRenderer.registerDynamic(m)
+end
+
+-- The 2-stud cell under a screen point (plot-local), or nil off the lawn plane.
+local function drawCellAt(pos: Vector2): { number }?
+	local o, dir = PixelRenderer.screenRay(pos)
+	if math.abs(dir.Y) < 1e-6 then
+		return nil
+	end
+	local t = (Street.LAWN_Y - o.Y) / dir.Y
+	if t < 0 then
+		return nil
+	end
+	local hit = o + dir * t
+	local ox, oz = origin()
+	local step = Plot.PATH_STEP
+	return { math.floor((hit.X - ox) / step) * step, math.floor((hit.Z - oz) / step) * step }
+end
+
+local function addCell(c: { number })
+	local key = c[1] .. "," .. c[2]
+	if draw.seen[key] or #draw.cells >= DRAW_MOST then
+		return
+	end
+	draw.seen[key] = true
+	table.insert(draw.cells, c)
+end
+
+-- The stroke reaches cell c: a line joins every cell on the way from the last one; a box is the cells between its
+-- first corner and c.
+local function strokeTo(c: { number })
+	local step = Plot.PATH_STEP
+	if draw.box then
+		local a = draw.start or c
+		draw.cells, draw.seen = {}, {}
+		local x0, x1 = math.min(a[1], c[1]), math.max(a[1], c[1])
+		local z0, z1 = math.min(a[2], c[2]), math.max(a[2], c[2])
+		for z = z0, z1, step do
+			for x = x0, x1, step do
+				addCell({ x, z })
+			end
+		end
+	else
+		local l = draw.last or c
+		local nx, nz = math.abs(c[1] - l[1]) / step, math.abs(c[2] - l[2]) / step
+		local n = math.max(nx, nz)
+		for k = 0, n do
+			local f = if n == 0 then 1 else k / n
+			local x = math.floor((l[1] + (c[1] - l[1]) * f) / step + 0.5) * step
+			local z = math.floor((l[2] + (c[2] - l[2]) * f) / step + 0.5) * step
+			addCell({ x, z })
+		end
+	end
+	draw.last = c
+	showDrawGhost(draw.cells)
+end
+
 local rebuild: () -> () = function() end
+
+-- The stroke let go: its cells go to the server (in parts), and the island's markers go.
+local function finishStroke()
+	local cells = draw.cells
+	local p = pick
+	draw.start, draw.last, draw.cells, draw.seen = nil, nil, {}, {}
+	clearDrawGhost()
+	if p == nil or #cells == 0 then
+		return
+	end
+	local plan = strokePlan(cells)
+	local send: { { number } } = {}
+	for k, c in cells do
+		if plan[k] ~= "no" then
+			table.insert(send, c)
+		end
+	end
+	if #send == 0 then
+		Audio.play("deny")
+		UIKit.notice(if draw.erase then "No path there to take up." else "No tile fits there.", UIKit.color("bad"), 2)
+		return
+	end
+	local laid, lifted = 0, 0
+	for i = 1, #send, Plot.PAINT_MAX do
+		local part = table.move(send, i, math.min(#send, i + Plot.PAINT_MAX - 1), 1, {})
+		local res = if draw.erase then StateClient.request("plot.unpaint", { cells = Plot.cellString(part) }) else StateClient.request("plot.paint", { id = p.id, cells = Plot.cellString(part) })
+		if res.ok and type(res.data) == "table" then
+			laid += tonumber(res.data.placed) or 0
+			lifted += tonumber(res.data.removed) or 0
+		elseif not res.ok then
+			UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+			break
+		end
+	end
+	if laid > 0 then
+		Audio.play("hammer")
+	elseif lifted > 0 then
+		Audio.play("close")
+	end
+	task.defer(rebuild)
+end
+
+------------------------------------------------------------------ the tray
 
 -- A price: its shells and wood with their small icons from x (red when there is not enough); returns the end x.
 local function price(parent: Instance, x: number, y: number, shells: number, wood: number, v: Types.ClientView, z: number?): number
@@ -258,7 +470,63 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 	end
 end
 
+-- Drawing paths: the tools, what the stroke does and its price.
+local function drawBar(f: Frame, p: Pick, v: Types.ClientView)
+	local def = Buildings.byId[p.id]
+	local x = 4
+	local function tool(text: string, on: boolean, click: () -> (), name: string)
+		local w = UIKit.buttonWidth(text, 5)
+		UIKit.button(f, text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), function()
+			Audio.play("flip")
+			click()
+			rebuild()
+		end, { color = if on then UIKit.color("accent") else UIKit.color("plate_light"), name = name })
+		x += w + 3
+	end
+	local line = not draw.box and not draw.erase and not draw.look
+	tool("Line", line, function()
+		draw.box, draw.erase, draw.look = false, false, false
+	end, "DrawLine")
+	tool("Box", draw.box and not draw.look, function()
+		draw.box, draw.look = true, false
+	end, "DrawBox")
+	tool("Erase", draw.erase and not draw.look, function()
+		draw.erase, draw.look = not draw.erase, false
+	end, "DrawErase")
+	tool("Look around", draw.look, function()
+		draw.look = not draw.look
+	end, "DrawLook")
+	UIKit.button(f, "Cancel", UDim2.fromOffset(UIKit.buttonWidth("Cancel", 5), 13), UDim2.fromOffset(x, 2), function()
+		pick = nil
+		clearDrawGhost()
+		rebuild()
+	end, { color = UIKit.color("plate_light"), name = "Cancel" })
+	local info = UIKit.plate(f, UDim2.new(1, -8, 0, 28), UDim2.fromOffset(4, 18), UIKit.color("plate_light"), 0, 2, { bevel = true })
+	info.Name = "Info"
+	UIKit.text(info, (if draw.erase then "Taking up paths" else "Drawing: " .. (if def then def.name else p.id)), UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), z = 4, name = "What" })
+	local say
+	if draw.look then
+		say = "Drag to look around. Tap Look around again to draw."
+	elseif draw.erase then
+		say = if draw.box then "Drag a box over the paths to take them up. Half their price comes back." else "Drag along the paths to take them up. Half their price comes back."
+	elseif draw.box then
+		say = "Drag a box across the grass to fill it with tiles."
+	else
+		say = "Drag across the grass to lay a line of tiles."
+	end
+	UIKit.text(info, say, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 14), { color = UIKit.color("text_dim"), z = 4, name = "Blurb" })
+	if def and not draw.erase then
+		price(info, math.max(4, f.Size.X.Offset - 92), 1, def.shells, def.wood, v)
+	end
+	-- the stroke under way: how many tiles and what they cost (set as it changes: showDrawGhost)
+	UIKit.text(info, "", UDim2.fromOffset(150, 10), UDim2.new(1, -154, 0, 14), { x = "right", color = UIKit.color("accent"), z = 4, name = "Stroke" })
+end
+
 local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
+	if drawing() then
+		drawBar(f, p, v)
+		return
+	end
 	local def = Buildings.byId[p.id]
 	local placedQ = if p.move then placed()[p.move] else nil
 	if p.replace and placedQ then
@@ -391,7 +659,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			end
 			pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false }
 			clearGhost()
-			UIKit.notice("Tap the grass where it should go.", UIKit.color("text_dim"), 2.5)
+			clearDrawGhost()
+			UIKit.notice(if def.kind == "path" then "Drag across the grass to lay tiles." else "Tap the grass where it should go.", UIKit.color("text_dim"), 2.5)
 			rebuild()
 		end, {
 			name = "Buy_" .. def.id,
@@ -635,6 +904,7 @@ function BuildUI.open()
 	local downAt: Vector2? = nil
 	local last: Vector2? = nil
 	local dragged = false
+	local stroking = false -- a path stroke under way (drawing: the press doesn't pan)
 	table.insert(conns, UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then
 			return
@@ -643,13 +913,33 @@ function BuildUI.open()
 			downAt = Vector2.new(input.Position.X, input.Position.Y)
 			last = downAt
 			dragged = false
+			if drawing() and not draw.look then
+				local c = drawCellAt(downAt :: Vector2)
+				if c then
+					stroking = true
+					draw.start, draw.last, draw.cells, draw.seen = c, nil, {}, {}
+					strokeTo(c)
+				end
+			end
 		end
 	end))
 	table.insert(conns, UserInputService.InputChanged:Connect(function(input, processed)
 		local pos = Vector2.new(input.Position.X, input.Position.Y)
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			local d, l = downAt, last
-			if d and l then
+			if stroking then
+				local c = drawCellAt(pos)
+				if c and (draw.last == nil or c[1] ~= (draw.last :: { number })[1] or c[2] ~= (draw.last :: { number })[2]) then
+					strokeTo(c)
+				end
+				last = pos
+			elseif drawing() and d == nil and input.UserInputType == Enum.UserInputType.MouseMovement and not processed and not draw.look then
+				-- a mouse over the grass: the cell a press would start on
+				local c = drawCellAt(pos)
+				if c then
+					showDrawGhost({ c })
+				end
+			elseif d and l then
 				if dragged or (pos - d).Magnitude > 8 then
 					dragged = true
 					CameraController.panBy(pos.X - l.X, pos.Y - l.Y)
@@ -664,7 +954,12 @@ function BuildUI.open()
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			local d = downAt
 			downAt, last = nil, nil
-			if d and not dragged and not processed then
+			if stroking then
+				stroking = false
+				finishStroke()
+				return
+			end
+			if d and not dragged and not processed and not drawing() then
 				onTap(Vector2.new(input.Position.X, input.Position.Y), input.UserInputType == Enum.UserInputType.MouseButton1)
 			end
 		end
@@ -737,6 +1032,8 @@ function BuildUI.close()
 	conns = {}
 	pick = nil
 	clearGhost()
+	clearDrawGhost()
+	draw.start, draw.last, draw.cells, draw.seen = nil, nil, {}, {}
 	if tray then
 		tray:Destroy()
 		tray = nil
@@ -759,6 +1056,23 @@ function BuildUI.pick(id: string, rot: number?)
 end
 function BuildUI.tapScreen(pos: Vector2, mouse: boolean?)
 	onTap(pos, mouse == true)
+end
+-- Sims and previews: a path stroke as a player draws it, through plot-local cells (mode "line", "box" or "erase";
+-- `keep` leaves the markers up without sending, for a preview's frame). Returns what the plan says a cell at a time.
+function BuildUI.debugDraw(cells: { { number } }, mode: string, keep: boolean?): { string }
+	draw.box = mode == "box"
+	draw.erase = mode == "erase"
+	draw.look = false
+	draw.start, draw.last, draw.cells, draw.seen = cells[1], nil, {}, {}
+	for _, c in cells do
+		strokeTo(c)
+	end
+	local plan = strokePlan(draw.cells)
+	if not keep then
+		finishStroke()
+	end
+	rebuild()
+	return plan
 end
 
 return BuildUI

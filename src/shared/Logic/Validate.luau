@@ -14,6 +14,7 @@
 --   "coord"  a whole number in [-64, 64] (a plot-local stud)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
 --   "index"  a whole number in [1, 1024] (a placed piece: pieces and path tiles)
+--   "cells"  1 to 40 cells "x,z" joined by ";", each a coord (path tiles drawn or erased: Logic/Plot.paint)
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
 
@@ -23,6 +24,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.place"] = { id = "id", x = "coord", z = "coord", rot = "rot" },
 	["plot.move"] = { i = "index", x = "coord", z = "coord", rot = "rot" },
 	["plot.store"] = { i = "index" },
+	["plot.paint"] = { id = "id", cells = "cells" },
+	["plot.unpaint"] = { cells = "cells" },
 	["plot.upgrade"] = { i = "index" },
 	["plot.replace"] = { i = "index", id = "id" },
 	["island.expand"] = {},
@@ -87,6 +90,19 @@ local function check(kind: string, v: any): boolean
 		return type(v) == "boolean"
 	elseif kind == "coord" then
 		return isInt(v, -64, 64)
+	elseif kind == "cells" then
+		if type(v) ~= "string" or #v < 3 or #v > 40 * 10 then
+			return false
+		end
+		local n = 0
+		for part in string.gmatch(v, "[^;]+") do
+			n += 1
+			local x, z = string.match(part, "^(%-?%d%d?),(%-?%d%d?)$")
+			if x == nil or not isInt(tonumber(x), -64, 64) or not isInt(tonumber(z), -64, 64) then
+				return false
+			end
+		end
+		return n >= 1 and n <= 40 and string.match(v, ";;") == nil and string.sub(v, 1, 1) ~= ";" and string.sub(v, -1) ~= ";"
 	elseif kind == "rot" then
 		return v == 0 or v == 90 or v == 180 or v == 270
 	elseif kind == "index" then

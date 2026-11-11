@@ -403,9 +403,18 @@ function CameraController.setStage(s: Stage?)
 end
 
 -- An endless islet's camera: the stage's framing moved by `shift` (world studs); the view glides there a frame at a
--- time (the renderer scrolls; MicroStage.follow).
-function CameraController.setStageShift(shift: Vector3)
+-- time (the renderer scrolls; MicroStage.follow), or is put there at once (`snap`: behind the curtain, before the
+-- first picture).
+function CameraController.setStageShift(shift: Vector3, snap: boolean?)
 	stageShift = shift
+	local v = current
+	if snap and v and v.stage then
+		local tx, ty = target(v)
+		if tx ~= panX or ty ~= panY then
+			panX, panY = tx, ty
+			pose(v)
+		end
+	end
 end
 
 function CameraController.stage(): Stage?

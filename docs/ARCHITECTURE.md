@@ -128,7 +128,7 @@ ErrCode)` and changes the profile only on success:
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
 | `Island` | the turn and the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm`, `visitors`, `works(id)`, `homes(p) -> { [key]: { uid, comfort } }` (GAME_DESIGN 4.1: the homes, best comfort (theirs plus `ComfortLvl` by level) first, then the first built, filled with the villagers in the order they came; the nests with the driftlings), `boosts(p) -> { farm fish wood shop all }` (each kind of boost building once), `boostAt(b, knack)` (its own and "all", `BoostMax` at most), `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a turn; a worker's output 1 + its comfort, a helper's share plus its nest's comfort, every building times 1 + `boostAt`), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `palWork(p, pal) -> number` (a helper's work share at its building's knack: its passive and mutations, `Traits.workAt`; a helper adds `PalBoost` x (1 + that) to the building), `moveIn(p, rng) -> Villager` (a castaway into a free bed and job), `welcome(p, rng) -> Villager?` (the first home on an island nobody lives on: someone moves in at once; IslandService calls it after every building change), `turn(p, rng, away?) -> { movedIn?, trained? }` (a turn's end), `newDay(p)` (a calendar day: the count), `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
-| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `pathLimit(tier)` (`PathPieces`), `isPath(id)`, `used(p, id) -> (n, limit)` (the pieces of its count: paths, or the rest), `place` (locked, full (by its count), money, wood, blocked; a building that takes workers gets an idle villager), `move`, `upgradeCost(q)` (makers, homes and nests: levels 2 and 3), `upgrade` (max, money, wood), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier), `replace(p, i, id)` (bad_payload (another kind, the same piece), locked, money, wood, blocked (the new footprint where the old stands), no_room (fewer beds or nests than needed); the uid kept, the level 1, helpers of another knack back to rest), `store` (no_room, egg; `Refund` back), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads) |
+| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `pathLimit(tier)` (`PathPieces`), `isPath(id)`, `used(p, id) -> (n, limit)` (the pieces of its count: paths, or the rest), `place` (locked, full (by its count), money, wood, blocked; a building that takes workers gets an idle villager), `move`, `upgradeCost(q)` (makers, homes and nests: levels 2 and 3), `upgrade` (max, money, wood), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier), `replace(p, i, id)` (bad_payload (another kind, the same piece), locked, money, wood, blocked (the new footprint where the old stands), no_room (fewer beds or nests than needed); the uid kept, the level 1, helpers of another knack back to rest), `store` (no_room, egg; `Refund` back), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads); drawn paths (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a path tile's cell, even studs), `PAINT_MAX` (40 cells a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z"), `paint(p, id, cells) -> (ok, { placed, skipped })` (a path piece only; each free cell gets a tile at rotation 0, a cell that doesn't fit is skipped; locked, full, money, wood, blocked (none laid)), `unpaint(p, cells) -> (ok, { removed })` (every path tile covering a cell comes up with `Refund` back; not_found) |
 | `Battle` | timed battles (GAME_DESIGN 7): `FOUNDER`, `villagerBase(seed)`, `speciesBase(sp)`, `grow(v, lvl)`, `founder(p)`, `villager(v, extra?)` (`extra`: its home's comfort, from `Expedition.fighter`), `fxOf(sp, muts?) -> Fx` (its passive and mutations), `applyFx(f, fx)` (hp atk def spd times 1 + the share, at least 0.3), `pal(x, extra?)` (its species' base grown to its level, then its `fxOf` and the extra effects), `wild(sp, lvl, i, boss, name?, boost?, muts?)` (its passive and the mutations it was born with, kept on the fighter), `new(foes, boss, party?, rng?)` (paused; the timers a little way in), `alive`, `fillTime(f)` (`AtbTime x 2 x AtbRef / (AtbRef + spd)` within `AtbMin .. AtbMax`), `EVENT_SECS`, `moveOf(skill?)`, `playTime(events, from?)` (how long they play on screen, times `ActLock`), `crowd(party, foes)` (at least 1: how much slower every timer fills in this fight, the actions the timers ask for a second times a plain attack's play time over `AtbShare`), `step(party, b, dt, rng) -> (events, result?)` (in slices of 0.05 s: the timers fill (also while an action plays; each in `fillTime` x `crowd`), the skill points charge `SpRate`, the shields wear off; one full timer acts (the party first on a tie) when no action plays: an attack, or every `SkillEvery` its skill; its timer starts again and `lock` = the action's `playTime`; `undo` holds the state from before it until `lock` runs out), `treatChance(foe, party, boss)`, `fleeChance`, `snack(party, b, target, rng, sure?)` (an action still playing (`undo`) is cancelled first: its hp, attack, charge, timers and shields put back and a `cancel` event `{ by, hp }`; then the leader's timer again, a treat event, the wild one a friend as its chance says, always with `sure`; blocked on a guardian or with the leader down, not_found), `flee(party, b, rng)` (blocked on a guardian; a miss starts the leader's timer again), `useSkill(party, b, who, id, target?, rng)` (Data/Skills: not_found, locked (not learnt at their level), sp (not enough points); its events `skill` first, then `hit` (with the skill's id) `heal shield revive rally haste dizzy`; the user's timer again), `gauges(party, b) -> { g, lock, paused, sp, crowd }`; events `hit heal shield rally treat flee skill revive haste dizzy cancel`, results `win lose fled` |
 | `Breed` | the Hatchery (GAME_DESIGN 6.1): `child(a, b) -> sp` (a pair of one kind its kind, else the kind (no legend unless both are) of power nearest their average; the commoner, then the first id, on a tie), `cost(sp) -> (food, turns)` (`BreedFood`, `BreedTurns` by its rarity), `inherit(ma, mb, rng) -> muts` (shared: always, the better tier, `BreedTierUp` one better; one parent's: `BreedKeep`; `BreedNew` a tier 1 or 2 of a new family; the best four), `eggAt(p, uid)`, `start(p, uid, a, b, rng)` (not_found, egg, bad_payload, food; the feast paid, `p.eggs` + 1), `turn(p) -> { Pal }` (each egg a turn nearer; a ready one hatches into a free nest at level 1: `seen` 2, `stats.hatched`; else waits) |
 | `Chart` | the sea chart (GAME_DESIGN 7): `levelAt(dist)`, `islands(sea) -> { ChartIsle }` (`{ id, x, y, dist, lvl, seed }` in leagues from home, nearest first, cached per seed: `ChartNear` within the first boat's range, the rest out to `ChartMaxDist`, `ChartSpacing` apart), `isle(sea, id) -> Isle?` (`Expedition.chart(lvl, seed)` with its `id`), `radius(boat)`, `reachable(p, id)`, `charted(p, id)`, `boatCost(boat)` (the next level's `{ shells, wood }`, nil at the top), `sail(p, id, members)` (bad_payload (no such island), far (out of range), then `Expedition.start`), `upgradeBoat(p)` (max, money, wood; data `{ boat, radius }`) |
@@ -230,6 +230,8 @@ handler under pcall; success marks the session dirty).
 |---|---|---|---|
 | `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place`, the buildings rebuilt by difference, the tips | locked, full, money, wood, blocked |
 | `plot.move` | `i x z rot` | `Plot.move` | blocked, bad_payload |
+| `plot.paint` | `id cells` ("x,z;x,z": 1 .. 40 cells, whole studs in [-64, 64]) | `Plot.paint` (data `{ placed, skipped }`), the buildings rebuilt | locked, full, money, wood, blocked |
+| `plot.unpaint` | `cells` | `Plot.unpaint` (data `{ removed }`), the buildings rebuilt | not_found |
 | `plot.upgrade` | `i` | `Plot.upgrade` (data `{ lvl }`) | max, money, wood, bad_payload |
 | `plot.replace` | `i`, `id` | `Plot.replace` (data `{ i, uid, id }`; the island's pieces rebuilt) | bad_payload, locked, money, wood, blocked, no_room |
 | `plot.store` | `i` | `Plot.store` (clear away) | no_room, egg (a Hatchery holding an egg), bad_payload |
@@ -372,9 +374,10 @@ pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic 
 stage's points (`tight` instead on a screen under 600 px tall: a phone held sideways, the action's band drawn at a
 bigger scale) full screen clear of the play overlay's top and bottom strips (art px), the ray plane at the stage's origin,
 the key `stage:<name>|...`, no indoor room; the view holds still (`view().stage` true); `setStage(nil)` goes back
-to the street; `stage()`. `setStageShift(shift)`: an endless islet's camera, the stage's framing moved by `shift`
-studs (the target is the home pan plus the shift's grid px); on a stage the view always glides (no snap), so the
-renderer scrolls to the next area and never re-bakes (reset by `setStage`).
+to the street; `stage()`. `setStageShift(shift, snap?)`: an endless islet's camera, the stage's framing moved by
+`shift` studs (the target is the home pan plus the shift's grid px); on a stage the view glides, so the renderer
+scrolls to the next area and never re-bakes (reset by `setStage`); `snap` puts it there at once (behind the curtain,
+before the first picture: the arrival opens over the boat).
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
@@ -586,6 +589,14 @@ wood / lumber, 3 shop / stall, 4 home / tent, 5 nest / nest): opening, and each 
 the rebuild; it waits while a piece is picked), turns the tray to the tip's tab; the tip's card (`TutGoal`) and its
 tab, while another is shown, pulse to the accent and shine; placing the tip's building drops the pick so the tray goes
 on to the next tab. `TRAY_H` (the HUD lifts the tip's banner over it), `debugState() -> { tab, goal? }`.
+**Drawing paths** (GAME_DESIGN 4): picking a path piece opens the draw bar (`Draw`: `DrawLine`, `DrawBox`,
+`DrawErase`, `DrawLook`, `Cancel`, `BuildDone`, the `Stroke` label with the count and price) instead of the ghost.
+A press starts a stroke (not in `DrawLook`, which pans), a drag adds cells (`strokeTo`: Line fills the gaps between
+the cells it passes, Box every cell of the rectangle from the press; `DRAW_MOST` 240 a stroke), the mouse alone
+previews one cell, the release sends it (`finishStroke`: `plot.paint` or `plot.unpaint` in batches of `PAINT_MAX`,
+the refusals in words). `strokePlan(cells) -> (plan "lay" | "lift" | "no", n, cost)`; `showDrawGhost` lays a flat neon
+plate a cell (`DrawGhost` in `Workspace.PixelDynamic`): cyan to lay, orange to lift, red where it can't.
+`debugDraw(cells, mode, keep?) -> plan` (the sims' and previews' stroke).
 
 ### 10.8 The sailing cutscene (`Voyage`)
 `Voyage` (client; `init()` from `ExpeditionUI.init`): `play(keys, isle?, onDone)` after Set sail (keys: the members
@@ -634,16 +645,28 @@ tap), `debugScreenOf(key) -> (i, j)`, `debugHome()`, `debugWait(seconds?)` (a lo
 the picture: the fake engine bakes slowly). It hides the `Hud` and `World` roots and the touch controls, opens
 `MicroStage.open(kind.stage, { top, bottom }, isle.seed)` (the camera's stage mode, the overlay's strips kept clear)
 and draws on the `Stage` root (full screen: Roblox's top bar's height, `TopBar`, is kept clear; GAME_DESIGN 2's
-island looks: the header and footer are dark boards, `HEAD_H` 25 and `FOOT_H` 45, each with a 3 px plank `Trim` on the
+island looks: the header and footer are dark boards, `HEAD_H` 25 and `FOOT_H` 47, each with a 3 px plank `Trim` on the
 side facing the island, the footer's contents in `Footer` under its trim on the `FooterBoard`; the skill window, the
 alert and the results card in frames of planks): the `Header` (the
 island's name and level, `Loot_<kind>`, the path's `Node<i>` icons (the ones ahead hidden
-but the guardian's), `Here`, `BackToIsland`), the `Footer` (the party's cards `Card_<key>`: portrait or icon, name,
-`Lv`, the health bar `HpFill`; between stops `AutoGo` (a bar filling over `AUTO_GO` s, then the next stop by itself:
-`goOn`; a tap or Space at once) and `SailHome`; in battle `Act_snack` ("Snack x<n>": the trip's snacks
-left), `Act_flee` (both off against a guardian), `Act_skills` and `SpBar` (the skill points); aiming `AimWhat`,
-`AimHint`, `Aim_use` (Throw! / Use!) and `Aim_back`), the foes' cards down the right (those still in the battle; a
-tap on any card picks it while aiming), the `SkillWindow` (`Skill_<who>_<id>`, yellow: each standing member's skills learnt, flowing from the name column
+but the guardian's), `Here`, `BackToIsland`), the `Footer` (GAME_DESIGN 7 "the battle's boxes": the commands two by
+two at its left, `CMD_W` 72 each: between stops `AutoGo` (a bar filling over `AUTO_GO` s, then the next stop by
+itself: `goOn`; a tap or Space at once) and `SailHome`; in battle `Act_skills` with `SpBar` (the skill points) under
+it, `Act_snack` ("Snack x<n>": the trip's snacks left) and `Act_flee` (both off against a guardian); aiming
+`AimWhat`, `AimHint`, `Aim_use` (Throw! / Use!) and `Aim_back`; the party's boxes two by two at its right, `PARTY_W`
+112), the wild ones' boxes down the stage's top left (`FOE_W` 104, those still in the battle; a new line-up's slide
+in from the edge one after another, `boxesFor`; a tap on any box picks it while aiming). A box (`fighterCard(parent,
+f, x, y, w, foe, badge?)`, `Card_<key>`): portrait or icon, `Name`, mutation pips, `Lv`, `HpTag` ("HP"), the bar
+`HpBack` with `HpFill` and the pale `HpLost`; a party member's also `Hp` (the numbers) and `TimerBack` / `Timer`
+(its timer, a line under the bar); a wild one's `Badge` beside it (`mini_boss` the guardian, `mini_nest` a kind
+befriended: `view.seen` 2). `Bar { hp, maxHp, shown, lost, lostAt, hitAt, ghost, gauge, x, y, foe, out, ... }`:
+`setBar(key, hp, instant?)` sets where it is going (a loss jolts the box and leaves the pale part), `updateBars(dt,
+gaugeOf)` every frame drains `shown` toward `hp` (`maxHp` x 1.1 a second), the pale part after it 0.4 s later, jolts a
+box hit in the last 0.24 s by a pixel side to side, fills the timers, and slides a wild one's empty box out;
+`drawBar` colours the fill (green over half, yellow over a fifth, red under) and redraws the numbers a few times a
+second (each new string is a new text picture), red when low; a laid-out-again box keeps its drain (`prevBars`).
+A new fight's stop flashes the stage white (`encounterFlash(n)`, `Flash`: twice, three times for a guardian) and
+`Say` names the wild ones ("A wild Mossbun appeared."). The `SkillWindow` (`Skill_<who>_<id>`, yellow: each standing member's skills learnt, flowing from the name column
 onto further lines when a row runs out of room, greyed when the points don't cover them or there is nobody to aim at;
 `Skills_close`; it fits between the header and the footer, its rows in `SkillRows`, a ScrollingFrame when they don't), the timers' layer `Timers`
 (`Timer_<key>` over every standing fighter's head every frame: gold, orange for the wild ones, flashing when full), the `Say` narration, a won battle's `Alert` (a small plate under the header: Victory!, its
@@ -652,9 +675,12 @@ home after the guardian or a fall) and the `Curtain` (ink blinds with the island
 passed, at most `StageWait`). The actors: the founder (the stage's own), villagers (`stage.rival(look)`), driftlings
 and wild ones (`MicroModels.driftling`, the guardian 1.6 times as big), posed every frame (drops, idle hops, lunges,
 KO). Arriving after the cutscene the stage's drop happens behind the curtain (`lift()` at once) and the expedition
-boat (`MicroModels` "ship" at the profile's boat level, its flags fluttering) glides in to the shallows off the floor's front-left edge (`SHIP_U`, `SHIP_V`, over
-`SHIP_IN` s from the curtain's lift); the party stands on its deck (`DECK_SPOTS`), then one after another hops off
-onto the shore (`HOP_T`, `LAND`) and runs to its places (`RUN` studs/s; the deck places from `BoatSpec.deck`);
+boat (`MicroModels` "ship" at the profile's boat level, its flags fluttering) comes up behind the party heading for
+the wild ones (`FACE_FOES`) and glides `SHIP_BACK` studs in to moor with its bow in the foam (`SHIP_X`, `shipZ0` from
+`Stage.landing(SHIP_X)` and the boat's length, over `SHIP_IN` s from the curtain's lift); the picture opens over it
+(`Stage.follow(-ARRIVE_CAM, true)`) and the camera comes up with the party once it hops off; the party stands on its
+deck (`DECK_SPOTS`, room space: the boat's right is the room's -x, its bow -z), then one after another hops off onto
+the beach (`HOP_T`, `shipLand`) and walks to its places (`RUN` studs/s; the deck places from `BoatSpec.deck`);
 a round's events play back one by one as moves (GAME_DESIGN 7: `startMove(actor, kind, other?)`, `MOVES` their lengths,
 `frameOf` what each does at a moment: `{ du, dv, dy, tilt, sq, spin, action, k, mood, speed }`; `attack quick bash
 zap` (the attacker's run up to `REACH` short of its target and back, `IMPACTS` the blows' moments), `hurt ko` (a
@@ -692,18 +718,22 @@ already playing freezes mid-swing and goes on after. `bwait(seconds)` waits on i
 was cut: a snack that cancels an action on the server (its Fx comes while the old act plays) sets `cutPlay`, the
 playing act stops where it is, and the next act starts with its `cancel` event (the attacker hops back to its place,
 the health shown goes back to `hp`), then the throw.
-**The run on** (GAME_DESIGN 7): every stop is the next area of the endless islet (`area`, `baseU` its middle along u;
+**The battle view** (GAME_DESIGN 7): the places are MicroStage's (`PARTY_SPOTS`, `FOE_SPOTS`: `PARTY_XZ`, `FOE_XZ`
+in u, v by `uvOf`), the party facing `FACE_FOES` and the wild ones `FACE_PARTY`; a move's offsets run along the
+fighter's way forward (`fwdOf(a)`: one stud toward the other side in u, v, `FWD_U`, `FWD_V`), so a windup draws back,
+a lunge goes in and a knock-back goes away along the battle's line.
+**The run on** (GAME_DESIGN 7): every stop is the next area of the endless islet (`area`, `baseU`, `baseV` its middle;
 0 when the screen opens). `goOn` (only between stops: never in a battle or once the trip is over) calls `runOn`:
-`area` + 1, `Stage.area`, and each standing member of the party gets a `run` (from where it is to its `spot` + `baseU`,
-`RUN_SPEED` 17 studs/s, `RUN_STAGGER` 0.07 s apart; `runEnd` when the last gets there); then it asks `exp.next` and
+`area` + 1, `Stage.area`, and each standing member of the party gets a `run` (from where it is to its `spot` + the
+base, `RUN_SPEED` 15 studs/s, `RUN_STAGGER` 0.07 s apart; `runEnd` when the last gets there); then it asks `exp.next` and
 waits for the run before the stop plays (`playNode`; a battle runs 0.5 s after, a guardian's 1.2 s). `poseAll` runs
 them (the legs going, a driftling bounding, dust) and the camera with them (`Stage.follow(area - 1 + eased
 progress)`), and trims the areas behind at the end. `actorAt` follows the run; the timers wait for it. The next
 battle's wild ones stand in the new area from the moment the view brings them (`buildFoes`: no drop from above while
 a run is on; the line-up's key carries the stop's number, since two battles can bring the same one). While running,
 `busy` and `walking`: Back to island stays open (`leaveChoice`), and leaving cuts the run short (`goHome`, `close`).
-`debugState` adds `area`, `running`, `behind` (members more than 20 studs behind the area's middle), `foeU` (the
-nearest wild one from it) and `dropping`; `debugAuto(on)` holds the auto Go on (previews).
+`debugState` adds `area`, `running`, `behind` (members more than 20 studs behind the area's middle along the road),
+`foeU` (the nearest wild one from it, along the road: ahead of it) and `dropping`; `debugAuto(on)` holds the auto Go on (previews).
 **A closer look** (`inspect(key?)`): a mouse over a fighter on the stage (`fighterAt(i, j)`: the figure under the
 point by the stage's `screen()` projection) or its card, or a finger held on either for `HOLD_SECS` (0.45 s), shows
 `Inspect` (a plate over the figure's head, kept there every frame by `placeInspect`): name and level, rarity and
@@ -715,7 +745,9 @@ is over) and `LeaveStay` (the battle goes on).
 **The end of a fall**: the `Result` card titled "Expedition Complete!" (its width fits the big title) lists the loot
 (`out.loot`), the party's xp and each member's levels (`out.gained`), then Sail home.
 `MicroStage` (client): `open(variant, margins?, seed?, endless?) -> Stage` (an islet set laid out by the island's seed), `current()`, `has(variant)`, the yaws `FACE_VIEWER
-FACE_RIGHT FACE_LEFT FACE_AWAY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer). A stage is a folder
+FACE_RIGHT FACE_LEFT FACE_AWAY FACE_FOES FACE_PARTY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer), `uvOf(x, z)`
+(u, v of a room-space point), the battle's places `PARTY_XZ` (four, the founder first) and `FOE_XZ` (three, the
+guardian first) in room space, `AREA_U`, `AREA_V`. A stage is a folder
 `MicroStage` at Z = 9000 (far from the islands: no ray of either view reaches the other): a 24 x 24 set and its props
 (the kinds' `loot` beach, `leap` meadow, `dino` volcano sands, `frost` snowfield, `fish` sea floor; each but the sea
 floor an islet of its own: `shore` rings the floor with land, beach, wet sand, foam and shallows on a wobbly outline
@@ -732,17 +764,23 @@ t, speed, action, k?), puff(pos, kind, n?, color?) (3D bits from a pool of 56 pa
 smoke bubble petal ember twinkle splash snow heal heart`), lift(), step(t, dt) (the bits and the set's ambient life:
 gulls, butterflies, smoke, snow, bubbles, a crab), ready(), close() }`. Stage space: u to the screen's right, v toward
 the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
-**The endless islet** (`endless`, the expeditions: GAME_DESIGN 7 "the run on"): the set is built area by area, area
-k a folder `Area<k>` at `AREA_OFF` x k in room space ((20, 0, -20): whole studs, so every box stays on the grid) and
-`AREA_U` x k (28.3 studs) along u; each from the seed + 7919 k (the builder's `off`, `du`, `endless`), its landmark
+**The endless islet** (`endless`, the expeditions: GAME_DESIGN 7 "the run on", "the battle view"): the set is built
+area by area, area k a folder `Area<k>` at `AREA_OFF` x k in room space ((0, 0, -24): one floor on, so the floors meet
+edge to edge into one road running up and to the right on the screen; whole studs, so every box stays on the grid),
+`AREA_U` and `AREA_V` x k along u and v; each from the seed + 7919 k (the builder's `off`, `endless`), its landmark
 only in area 0 (`lm`: later areas put it out of sight at `FAR_LM`: in the next area's place it would stand on this
-one's floor). A shore prop of an area keeps off the neighbours' floors and off the band the party runs along, and a
-tall one off the screen's clear spots in the neighbours' views and from just in front of the fighters
-(`shoreSpot`). The sea is laid once (`SEA_AREAS`, 200 areas long: a part across the whole screen would re-bake it).
+one's floor). Each area has the battle's two platforms (`platforms`: `Builder.disc`, a standing cylinder, so the
+edge draws as a clean pixel ellipse: a rim `PLATFORM_R` + 0.5 and a top `PLATFORM_R` (5) at z = +-`PLATFORM_Z`
+(6.5), the colours by set, `PLATFORM`; a rim stays clear of the next area's). A floor prop keeps off the road's middle
+(|x| over 6.5), a shore prop off the neighbours' floors and the road's band, a tall one to the land beside the floor
+(`shoreSpot`). The camera frames the battle up close (the party's feet and heads, the wild ones', the road's sides
+level with them). `Stage.landing(x) -> z`: where area 0's beach meets the foam behind the party at room-space x (the
+arriving boat's bow). The sea is laid once (`SEA_AREAS`, 200 areas long: a part across the whole screen would re-bake it).
 Areas 0 and 1 are built with the stage (before its first picture), the rest by `Stage.area(k)` (the areas up to
 k + 2, one at a time on a background thread, `Blocks.pace` 40 parts a frame, out of sight; the ambient life moves to
-area k: `ambOff`, `ambU`); `Stage.trim(k)` drops the areas below k - 1 (out of sight too); `Stage.follow(units)` sets
-the camera's shift (`CameraController.setStageShift(AREA_OFF x units)`). The renderer re-casts the rects of the
+area k: `ambOff`, `ambU`, `ambV`); `Stage.trim(k)` drops the areas below k - 1 (out of sight too);
+`Stage.follow(units, snap?)` sets the camera's shift (`CameraController.setStageShift(AREA_OFF x units, snap)`: below
+0 behind the landing). The renderer re-casts the rects of the
 stage's parts that come or go (`PixelRenderer.watchStage`).
 
 ### 10.10 Sprites (`PixelSprites`, `ArtData`)

@@ -96,6 +96,19 @@ function IslandService.init()
 			return Plot.store(s.profile, a.i)
 		end)
 	)
+	-- paths drawn in a line or a box, or erased (GAME_DESIGN 4)
+	Router.on(
+		"plot.paint",
+		rebuilt(function(s, a)
+			return Plot.paint(s.profile, a.id, Plot.cells(a.cells))
+		end)
+	)
+	Router.on(
+		"plot.unpaint",
+		rebuilt(function(s, a)
+			return Plot.unpaint(s.profile, Plot.cells(a.cells))
+		end)
+	)
 	Router.on(
 		"plot.upgrade",
 		rebuilt(function(s, a)

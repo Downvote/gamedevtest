@@ -147,6 +147,110 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	return true, { i = #p.plot.placed, uid = uid }
 end
 
+------------------------------------------------------------------ drawing paths (GAME_DESIGN 4: a line or a box)
+-- Path tiles are 2 x 2 and drawn on the even studs (a cell is a tile's north-west corner); a request carries at most
+-- PAINT_MAX cells, written "x,z;x,z;..." (Validate's "cells").
+Plot.PAINT_MAX = 40
+Plot.PATH_STEP = 2
+
+function Plot.cells(s: string): { { number } }
+	local out: { { number } } = {}
+	for x, z in string.gmatch(s, "(%-?%d+),(%-?%d+)") do
+		table.insert(out, { tonumber(x) :: number, tonumber(z) :: number })
+	end
+	return out
+end
+
+function Plot.cellString(cells: { { number } }): string
+	local parts = {}
+	for _, c in cells do
+		table.insert(parts, c[1] .. "," .. c[2])
+	end
+	return table.concat(parts, ";")
+end
+
+-- Lay path tiles of `id` on the cells in order, while the island's path room and the stores last; a cell where a tile
+-- doesn't fit is passed over. True with { placed, skipped } when at least one went down, else why none could.
+function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, any)
+	local def = Buildings.byId[id]
+	if def == nil or def.kind ~= "path" or #cells == 0 or #cells > Plot.PAINT_MAX then
+		return false, "bad_payload" :: ErrCode
+	end
+	if def.tier > p.tier then
+		return false, "locked" :: ErrCode
+	end
+	local laid, skipped = 0, 0
+	local why: ErrCode = "blocked"
+	for _, c in cells do
+		local used, most = Plot.used(p, id)
+		if used >= most then
+			why = "full"
+			break
+		end
+		if p.shells < def.shells then
+			why = "money"
+			break
+		end
+		if p.wood < def.wood then
+			why = "wood"
+			break
+		end
+		if Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0) then
+			p.shells -= def.shells
+			p.wood -= def.wood
+			local uid = p.nextId
+			p.nextId += 1
+			table.insert(p.plot.placed, { uid = uid, id = id, x = c[1], z = c[2], rot = 0, lvl = 1 })
+			p.stats.built += 1
+			laid += 1
+		else
+			skipped += 1
+		end
+	end
+	if laid == 0 then
+		return false, why
+	end
+	return true, { placed = laid, skipped = skipped }
+end
+
+-- Take up every path tile that covers one of the cells' studs (Erase), half its price back each.
+function Plot.unpaint(p: Profile, cells: { { number } }): (boolean, any)
+	if #cells == 0 or #cells > Plot.PAINT_MAX then
+		return false, "bad_payload" :: ErrCode
+	end
+	local hit: { [number]: boolean } = {}
+	for i, q in p.plot.placed do
+		if Plot.isPath(q.id) then
+			local r = Plot.rect(q.id, q.x, q.z, q.rot)
+			for _, c in cells do
+				if c[1] < r.x1 and c[1] + Plot.PATH_STEP > r.x0 and c[2] < r.z1 and c[2] + Plot.PATH_STEP > r.z0 then
+					hit[i] = true
+					break
+				end
+			end
+		end
+	end
+	local keep: { Piece } = {}
+	local removed = 0
+	for i, q in p.plot.placed do
+		if hit[i] then
+			local def = Buildings.byId[q.id]
+			if def then
+				p.shells += math.floor(def.shells * Tuning.Refund)
+				p.wood += math.floor(def.wood * Tuning.Refund)
+			end
+			removed += 1
+		else
+			table.insert(keep, q)
+		end
+	end
+	if removed == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	p.plot.placed = keep
+	return true, { removed = removed }
+end
+
 function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (boolean, any)
 	local q = p.plot.placed[i]
 	if q == nil then
