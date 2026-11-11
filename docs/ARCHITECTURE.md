@@ -186,11 +186,25 @@ Models (`src/shared/Models`, Roblox modules):
   arrow to the pick: `AIM_DASHES` dashes `D1` .. and `HeadL` / `HeadR`, laid out by the screen every frame), `aimring`
   (the ring under the pick: `AIM_RING` bars, laid out by the screen) (all Neon), `place(t, cf)`, `scale(t, k)`,
   `recolor(t, color?)`, `show(t, on)`, `has`. Parts keep their sizes to the eighth of a stud (about an art px), not
-  Blocks' quarter. Each driftling shape gets its finer details (`DETAIL`, GAME_DESIGN 2), and `animate(t, time, mood,
-  k?)` moves its limbs from their built pose (times the squash of `scale`), by name: `Wing*`/`Rib*` flap, `Claw*` and
-  `Pincer*` snap open on a strike, `Tail*` wag, `Ear*` twitch and droop, `Arm*`/`Hand*` swing up, `Leg*`/`Foot*`/
-  `Paw*`/`Toe*` step, `Tendril*` and side `Fin*` wave, `Eye*` blink (shut when hurt or down), `Mouth` opens; moods
-  `idle walk attack hurt cheer ko`. WorldView, Voyage and the islet's screen call it every frame.
+  Blocks' quarter. `driftling(shape, body, accent)` is `DriftModels.build` (below); `animate(t, time, mood, k?)` hands
+  a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale`, and moves the other things' limbs by name
+  (`Wing*` flap, `Tail*` wag, `Eye*` blink...: the stages' gulls and butterflies). WorldView, Voyage and the islet's
+  screen call it every frame.
+- `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
+  body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
+  golem drake`), each 25 to 50 parts in its species' body and accent colours (eighth-stud sizes, wedges for beaks and
+  tails), built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of
+  (part -> joint), gait ("quad" | "biped" | "hop" | "scuttle" | "slither" | "fly"), world }`. Joint kinds: `body` (the
+  root), `head`, `neck`, `jaw`, `ear`, `arm`, `leg`, `tail` (segments in a chain, `phase` their order), `wing` (an
+  outer segment as a child), `fin`, `stalk` (eye stalks), `pincer`, `tendril` (two segments), `antenna`, `shell`.
+  `build(shape, body, accent) -> Thing` (with `rig`), `has(shape)`, `animate(t, time, mood, k?, squash)`: every joint's
+  turn and shift about its pivot for the moment and the mood, composed down the chain (`world[j] = world[parent] *
+  pivot * turn * pivot^-1`), then each part's rest pose (times the squash). Idle: breathing, a look about every 6 s,
+  a yawn every 9 s, ear twitches, a slow tail sway and wing flutter, a blink every 3.4 s; walk by gait (legs in
+  diagonal pairs, both hind legs and a hop, a sideways scuttle, a slither's sway, flight's flapping); attack (a
+  wind-up at k 0, then the body and head lunging, the jaw open, arms and pincers up, the tail raised), hurt (a recoil,
+  ears down, eyes shut), cheer (head up, arms up, ears wiggling, quick wags) and ko (limp). Later segments of a tail
+  or wing swing less (the tip doesn't whip round). `Eye*` shut by size (their shines tucked behind), `Mouth` opens.
 
 ## 7. Server
 

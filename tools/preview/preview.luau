@@ -977,6 +977,63 @@ function SCEN.build()
 	return p
 end
 
+-- "zoo": every driftling (Data/Creatures, Models/DriftModels) on a meadow islet's stage in batches of 20 (five a row,
+-- four rows, turned three-quarters toward the viewer), each batch idle (zoo_<n>_idle) and mid-attack (zoo_<n>_attack:
+-- the jaw open, the head and arms forward); the log lists each batch's species in order (left to right, back to front).
+function SCEN.zoo()
+	seedProfile(57, 1, {})
+	local p = join(57, "Keeper")
+	settle(p, 30, 1)
+	local ctx = E.clientCtx(p)
+	local MS = modOr(p, "UI.MicroStage")
+	local MM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.MicroModels"))
+	local Creatures = H.sharedServer("Data.Creatures")
+	-- (the HUD off: the creatures alone on the stage)
+	for _, g in p.PlayerGui:GetChildren() do
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			g.Enabled = false
+		end
+	end
+	local st = H.inClient(p, MS.open, "leap", { top = 4, bottom = 4 }, 3)
+	local things = {}
+	local list = Creatures.list
+	local batch = 0
+	for i0 = 1, #list, 20 do
+		batch += 1
+		H.inClient(p, function()
+			for _, x in things do
+				st.remove(x.t)
+			end
+		end)
+		things = {}
+		local names = {}
+		for n = 0, 19 do
+			local d = list[i0 + n]
+			if d == nil then
+				break
+			end
+			table.insert(names, d.id)
+			local t = H.inClient(p, function()
+				local th = MM.driftling(d.shape, d.body, d.accent)
+				return st.adopt(th, 1)
+			end)
+			table.insert(things, { t = t, u = -9 + (n % 5) * 4.5, v = -6 + math.floor(n / 5) * 4 })
+		end
+		log("zoo %d: %s", batch, table.concat(names, ", "))
+		for _, mood in { "idle", "attack" } do
+			H.inClient(p, function()
+				for j, x in things do
+					MM.animate(x.t, 0.6 + j * 0.37, mood, if mood == "attack" then 0.5 else 0)
+					st.place(x.t, x.u, x.v, 0, MS.FACE_VIEWER + math.rad(40))
+				end
+			end)
+			settle(p, 30, 0.5)
+			capture(p, string.format("zoo_%d_%s", batch, mood))
+		end
+	end
+	return p
+end
+
 -- "expand": the island grows from the build tray. The server swaps in the island it built ahead; the filter re-bakes
 -- it (rushed); the cheer waits for the new picture. Frames expand_before and expand_after; the log says whether the
 -- next island was ready, and how many frames and bakes passed before the cheer.

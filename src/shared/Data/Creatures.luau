@@ -7,7 +7,7 @@
 --   skill: "bash" (a big hit) | "quick" (two hits) | "zap" (hits every foe) | "heal" (mends the most hurt ally) |
 --          "shell" (the side takes less damage for two rounds)
 --   knack: "farm" | "fish" | "wood" | "shop" (Data/Buildings' knack)
---   shape: its 3D model (Models/MicroModels "drift_<shape>"), body / accent: its palette colours
+--   shape: its 3D model (Models/DriftModels: one of its body plans), body / accent: its palette colours
 --   power: its breeding rank (Logic/Breed: a child is the species nearest its parents' average; higher is stronger)
 export type Passive = { name: string, fx: { [string]: number } }
 export type CreatureDef = {

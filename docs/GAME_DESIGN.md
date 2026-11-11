@@ -229,6 +229,30 @@ with levels (xp from battles and the yard).
 > creatures, some rarer than others, and more islands as well". The system is the genre's (a passive of each kind,
 > rolled traits in tiers, workers better at some jobs); every name, number and creature is our own.
 
+> The requests (2026-11-11): "alot of the creatures are just simple shapes meshed together. can they be more
+> detailed and look more like the animals /creatures that they are referencing?" (with a picture of a green turtle
+> that read as a blob); "you should also add more expressive idle and other animations to the creatures, the whole
+> mesh seems to move as one throughout all their animations. you can make different moving parts for creatures to
+> allow for more expressiveness"
+
+**Their bodies** (`Models/DriftModels`): each of the twenty body plans is rebuilt to read as its animal from the
+battle's side-on view. The turtle has a domed shell with a ring of plates and a rim, a head on a neck with a beak, and
+flippered legs. The fox pup has a snout and nose, tall ears with dark tips, a fluffy chest and a bushy tail with a white
+tip. The crab has eyes on stalks, big claws with a hinged pincer and three legs a side. The gull has a beak in two
+halves, wings with a white bar and webbed feet. The rest follow the same way: the rabbit's long ears and big feet, the
+gecko's crest and banded tail, the owl's facial discs and ear tufts, the mole's star nose and digging claws, the bat's
+two-part wings with finger bones, the yeti's face and horns, the seal's flippers and flukes, the snail's spiral shell
+and eye stalks, the frog's bulging eyes and wide jaw, the moth's feathery antennae and spotted wings, the golem's gem
+core and slit eyes, the drake's horns, two-part wings and spaded tail, and the sea serpent's coils and toothed jaw.
+
+**Their moving parts:** every driftling stands on a small skeleton (body, head, jaw, ears, arms, legs, wings, fins,
+tail segments, eye stalks, pincers, tendrils, antennae), and each joint moves on its own. Idle, a driftling breathes,
+looks about now and then, yawns, twitches its ears, sways its tail and blinks. Walking, its legs step in pairs (a
+rabbit or frog hops on both hind legs, a crab scuttles, a seal or snail sways, a bat or moth flaps). On an attack it
+winds up, then lunges head first with its jaw open, arms and pincers up and its tail raised. Hit, it recoils with its
+ears down and eyes shut; cheering, it looks up with its arms up and wags fast; knocked out, it goes limp. The battle
+screen's own lean, squash and hops still play on top.
+
 Fifty-five driftlings of our own, five to seven living on each of the nine kinds of island (§7):
 
 | Kind | Its driftlings (common .. legendary) |
