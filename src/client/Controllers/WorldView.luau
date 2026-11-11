@@ -525,6 +525,20 @@ local function welcome(v: { [string]: any })
 	end)
 end
 
+-- A hatchling (Logic/Breed): it cheers where it appears, its kind's name floating up with pink and gold bits.
+local function hatched(x: { [string]: any })
+	task.delay(0.8, function()
+		local w = walkers[myPlot .. ":p" .. tostring(x.id)]
+		local d = if type(x.sp) == "string" then Creatures.byId[x.sp] else nil
+		if w then
+			w.cheerUntil = os.clock() + 2
+			local at = headOf(w)
+			UIKit.floatText(at, (if d then d.name else "A driftling") .. " hatched!", UIKit.color("pink"), true)
+			UIKit.bitsAt(at, { "pink", "accent", "white", "good" }, 18, 50, 90)
+		end
+	end)
+end
+
 ------------------------------------------------------------------ lifecycle
 function WorldView.init() end
 
@@ -540,6 +554,13 @@ function WorldView.start()
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "turn" and type(msg.movedIn) == "table" then
 			welcome(msg.movedIn)
+		end
+		if msg.kind == "turn" and type(msg.hatched) == "table" then
+			for _, x in msg.hatched do
+				if type(x) == "table" then
+					hatched(x)
+				end
+			end
 		end
 	end)
 	-- taps on the world (a press let go within 8 px of where it began)

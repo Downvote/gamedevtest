@@ -73,9 +73,8 @@ function Street.isle(tier: number): Isle
 	return ISLES[math.clamp(math.floor(tier), 1, #ISLES)]
 end
 
--- The signed distance (studs, along the ray from the island's centre) from the grass's edge: negative on the grass.
-function Street.coast(tier: number, x: number, z: number): number
-	local s = Street.isle(tier)
+-- One tier's own shape: the signed distance (studs, along the ray from its centre) from its grass's edge.
+local function ownCoast(s: Isle, x: number, z: number): number
 	local dx, dz = x - s.cx, z - s.cz
 	local a = math.atan2(dz, dx)
 	local c, sn = math.cos(a), math.sin(a)
@@ -85,6 +84,17 @@ function Street.coast(tier: number, x: number, z: number): number
 		w += AMP[k] * math.sin(FREQ[k] * a + s.ph[k])
 	end
 	return math.sqrt(dx * dx + dz * dz) - er * w
+end
+
+-- The signed distance from the grass's edge (negative on the grass): the tier's own shape and every smaller tier's
+-- together, so an island only ever gains land as it grows (nothing built near an old shore has to move).
+function Street.coast(tier: number, x: number, z: number): number
+	local t = math.clamp(math.floor(tier), 1, #ISLES)
+	local d = ownCoast(ISLES[t], x, z)
+	for k = 1, t - 1 do
+		d = math.min(d, ownCoast(ISLES[k], x, z))
+	end
+	return d
 end
 
 -- The layer of a coast distance.
@@ -117,12 +127,15 @@ local function cellsOf(tier: number): Cells
 	if c then
 		return c
 	end
-	local s = ISLES[t]
 	local reach = Street.BANDS.shallow + 1
-	local x0 = math.floor(s.cx - s.rx * 1.3 - reach)
-	local x1 = math.ceil(s.cx + s.rx * 1.3 + reach)
-	local z0 = math.floor(s.cz - s.rz * 1.3 - reach)
-	local z1 = math.ceil(s.cz + s.rz * 1.3 + reach)
+	local x0, x1, z0, z1 = math.huge, -math.huge, math.huge, -math.huge
+	for k = 1, t do
+		local s = ISLES[k]
+		x0 = math.min(x0, math.floor(s.cx - s.rx * 1.3 - reach))
+		x1 = math.max(x1, math.ceil(s.cx + s.rx * 1.3 + reach))
+		z0 = math.min(z0, math.floor(s.cz - s.rz * 1.3 - reach))
+		z1 = math.max(z1, math.ceil(s.cz + s.rz * 1.3 + reach))
+	end
 	local layer, dist = {}, {}
 	local lx0, lz0, lx1, lz1 = math.huge, math.huge, -math.huge, -math.huge
 	for z = z0, z1 do

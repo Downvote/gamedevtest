@@ -406,6 +406,43 @@ local function cityPieces()
 	return out
 end
 
+-- Every piece of the town and the city on a capital, in rows by kind (the tier they open at), for a close look at
+-- each model: captured from four spots (gallery_1 .. gallery_4).
+function SCEN.gallery()
+	local Buildings = H.sharedServer("Data.Buildings")
+	local ids = {}
+	for _, d in Buildings.list do
+		if d.tier >= 3 or d.kind == "gen" or d.kind == "path" or d.id == "fence" or d.id == "sandcastle" or d.id == "rockgarden" or d.id == "hedge" or d.id == "lamppost" or d.id == "flowerarch" then
+			table.insert(ids, d.id)
+		end
+	end
+	local pieces = {}
+	local x, z = -30, -48
+	for _, id in ids do
+		local d = Buildings.byId[id]
+		table.insert(pieces, { id, x, z })
+		x += d.w + 3
+		if x > 26 then
+			x = -30
+			z += 8
+		end
+	end
+	seedProfile(17, 6, { pieces = pieces, folk = 0, shells = 900000, wood = 60000, food = 5000 })
+	local p = join(17, "Gallery")
+	settle(p)
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	for k, spot in { { -14, -42 }, { 14, -42 }, { -14, -26 }, { 14, -26 }, { -14, -10 }, { 14, -10 } } do
+		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			p.Character:PivotTo(E.cf.new(ox + spot[1], 3, spot[2]))
+			E.run(2)
+			settle(p, 30, 1)
+		end
+		capture(p, "gallery_" .. k)
+	end
+	return p
+end
+
 function SCEN.city()
 	local CITY_PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
 	seedProfile(16, 6, { pieces = cityPieces(), folk = 40, pals = CITY_PALS, islets = 30, shells = 900000, wood = 60000, food = 5000, cap = 40 })

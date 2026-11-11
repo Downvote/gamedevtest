@@ -28,7 +28,8 @@ local StateClient = require(script.Parent.StateClient)
 export type Room = { x0: number, x1: number, z0: number, z1: number, y1: number }
 -- A microgame's stage: its origin on the ground (the ray plane's anchor), the points its picture must show (x, y, z
 -- triples), the overlay's strips (art px) and a name for the view's key.
-export type Stage = { name: string, origin: Vector3, pts: { number }, top: number, bottom: number }
+-- (`tight`: a smaller frame for a short screen, a phone held sideways: the band the action is in, drawn bigger)
+export type Stage = { name: string, origin: Vector3, pts: { number }, tight: { number }?, top: number, bottom: number }
 export type View = {
 	rot12: { number },
 	center: Vector3, -- the home view's centre on the ground
@@ -113,7 +114,7 @@ local function build(): View
 	local st = stage
 	if st then
 		ox, oz = st.origin.X, st.origin.Z
-		pts = st.pts
+		pts = if st.tight and fy < 600 then st.tight :: { number } else st.pts
 		bl = {
 			{ x0 = 0, y0 = 0, x1 = fx, y1 = st.top * K },
 			{ x0 = 0, y0 = fy - st.bottom * K, x1 = fx, y1 = fy },

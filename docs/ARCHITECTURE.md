@@ -110,7 +110,8 @@ range a level in leagues, `BoatCost` `{ shells, wood }` a level), the server's s
 | `Data/Islets` | the 9 kinds of island found at sea (GAME_DESIGN 7) `{ id, name ("Beach"), plural, stage (its MicroStage set: loot leap dino frost fish swamp grotto bluffs ruins), lvl (the level it turns up from: 1, 5, 10, 16, 23, 7, 13, 20, 28), wild (every driftling of its kind, from Data/Creatures, by rarity then id), first / last (its names' words), color, blurb }`; `list`, `titles` (a guardian's) |
 | `Data/Names`, `Data/Looks` | the villagers' names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
 | `Data/Office` | the island's six tiers (`plans[tier]`: `{ tier, name }`, Castaway Cay, Palm Isle, Grand Isle, Harbor Town, Coral City, Sunspire Capital: the island card's title), `plan(tier)`, `origin(plot)` (Data/Street's). The island has no house (GAME_DESIGN 8) |
-| `Data/Street` | the islands and the sea (GAME_DESIGN 8): `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT` (a plot's lot: x +-40, z -64 .. 30, room north for the city tiers), `CENTER`, `PLAZA` (the campfire's plaza), `PATH` (the path to the jetty); the coast: `isle(tier)` (its oval: centre, radii, wobble phases), `coast(tier, x, z)` (studs from the coast, below 0 inland: the oval's radius times a wobble of four sines), `layerAt(d)`, and per whole-stud cell (cached per tier; `cellKey`) `layer`, `cellDist`, `cellBounds(tier)`, `buildable(tier, x, z)` (grass a stud or more inside the coast), `walkable` (grass, sand, wet sand), `plot(tier)` (the grass's bounding box); `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `footpath()`, `jetty(tier)` (planks from the island's sand to the boardwalk), `spawn()` (on the path below the plaza), `sign()` / `mailbox()` (either side of the jetty's foot), `LAMPS`, `PIER_X` / `PIER_Z` / `PIER_W`, `pier()` |
+| `Data/Street` | the islands and the sea (GAME_DESIGN 8): `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT` (a plot's lot: x +-40, z -64 .. 30, room north for the city tiers), `CENTER`, `PLAZA` (the campfire's plaza), `PATH` (the path to the jetty); the coast: `isle(tier)` (its oval: centre, radii, wobble phases), `coast(tier, x, z)` (studs from the coast, below 0 inland: the oval's radius times a wobble of four sines, joined
+to every smaller tier's shape (the least distance) so an island only gains land as it grows), `layerAt(d)`, and per whole-stud cell (cached per tier; `cellKey`) `layer`, `cellDist`, `cellBounds(tier)`, `buildable(tier, x, z)` (grass a stud or more inside the coast), `walkable` (grass, sand, wet sand), `plot(tier)` (the grass's bounding box); `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `footpath()`, `jetty(tier)` (planks from the island's sand to the boardwalk), `spawn()` (on the path below the plaza), `sign()` / `mailbox()` (either side of the jetty's foot), `LAMPS`, `PIER_X` / `PIER_Z` / `PIER_W`, `pier()` |
 
 Coordinates in `Data/Street` are studs, plot-local, +Y up. The camera looks from the south-east (+X, +Z), so an
 island's back is its north-west. A piece's `rot` turns its model (built facing +Z: south, toward the viewer).
@@ -340,8 +341,9 @@ founder back.
 `gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
 `ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
 pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
-**Stage mode** (a microgame): `setStage(Stage?)` with `Stage = { name, origin, pts, top, bottom }` fits the stage's
-points full screen clear of the play overlay's top and bottom strips (art px), the ray plane at the stage's origin,
+**Stage mode** (a microgame): `setStage(Stage?)` with `Stage = { name, origin, pts, tight?, top, bottom }` fits the
+stage's points (`tight` instead on a screen under 600 px tall: a phone held sideways, the action's band drawn at a
+bigger scale) full screen clear of the play overlay's top and bottom strips (art px), the ray plane at the stage's origin,
 the key `stage:<name>|...`, no indoor room; the view holds still (`view().stage` true); `setStage(nil)` goes back
 to the street; `stage()`.
 
@@ -458,7 +460,8 @@ nests. Only islands within 100 studs of the view's centre are drawn (synced ever
 near owned island's campfire gets a flickering flame and rising smoke (`fireOn`, dynamic models). Each island's sign gets
 a World-root label (its name, the own in gold, or "Unclaimed isle"); a tap on a sign (a press let go within 8 px, not
 on the interface, not in Build mode) shows `signCard(i)` (the day, villagers, driftlings, charm, islets). A newcomer
-(Fx "day" `movedIn`) gets a welcome word and confetti; `cheer(words, color)` makes the own islanders cheer.
+(Fx "day" `movedIn`) gets a welcome word and confetti, a hatchling (Fx "turn" `hatched`) a cheer, its name and pink
+bits; `cheer(words, color)` makes the own islanders cheer.
 `rigCount()` / `ownRigCount()` for the sims.
 `StreetLife` (client, started after AvatarView): four sailboats (`MicroModels` "sailboat", blob shadows) crossing
 both ways on two lanes out at sea, rocking on the swell in whole steps, wrapping round the sea's ends; a flock of three

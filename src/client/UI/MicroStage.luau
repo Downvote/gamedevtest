@@ -1942,16 +1942,24 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	local build = AMBIENT[variant]
 	ambient = if build then build(st) else nil
 
-	-- the camera frames the room: its floor, the walls' tops, a little over the floor's front
+	-- the camera frames the room: its floor, the walls' tops, a little over the floor's front; on a short screen (a
+	-- phone held sideways: CameraController picks) the band the fighters stand in, their heads and timers, so they are
+	-- not drawn tiny
 	local pts: { number } = {}
+	local tight: { number } = {}
 	local wallTop = math.max(b.h, 3) + FLOOR
 	for _, c in { { -HALF - 1, 0, -HALF - 1 }, { HALF + 1, 0, -HALF - 1 }, { -HALF - 1, 0, HALF + 1 }, { HALF + 1, 0, HALF + 1 }, { -HALF - 1, wallTop, -HALF - 1 }, { HALF + 1, wallTop, -HALF - 1 }, { -HALF - 1, wallTop, HALF + 1 } } do
 		table.insert(pts, ORIGIN.X + c[1])
 		table.insert(pts, ORIGIN.Y + c[2])
 		table.insert(pts, ORIGIN.Z + c[3])
 	end
+	for _, c in { { -12.5, 0, -5.5 }, { 9.5, 0, -5.5 }, { -12.5, 0, 3 }, { 9.5, 0, 3 }, { -12.5, 5, -5.5 }, { 9.5, 5, -5.5 }, { -12.5, 5, 3 } } do
+		table.insert(tight, ORIGIN.X + c[1])
+		table.insert(tight, ORIGIN.Y + c[2])
+		table.insert(tight, ORIGIN.Z + c[3])
+	end
 	current = st
-	CameraController.setStage({ name = variant, origin = ORIGIN, pts = pts, top = if margins then margins.top else 22, bottom = if margins then margins.bottom else 20 })
+	CameraController.setStage({ name = variant, origin = ORIGIN, pts = pts, tight = tight, top = if margins then margins.top else 22, bottom = if margins then margins.bottom else 20 })
 	return st
 end
 

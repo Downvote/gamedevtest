@@ -162,7 +162,8 @@ island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, 
 
 - **Six tiers** (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, then **Harbor Town** (60,000 shells and 5,500
   wood), **Coral City** (180,000 / 15,000) and **Sunspire Capital** (480,000 / 40,000). The island grows north each
-  time (the boardwalk stays where it is), to twice tier 3's grass at the capital; more villagers (`FolkMax` 40) and
+  time (the boardwalk stays where it is), to twice tier 3's grass at the capital, and only ever gains land (each
+  tier's shape joined to the smaller ones': nothing built near an old shore has to move); more villagers (`FolkMax` 40) and
   driftlings (`PalsMax` 40) live there.
 - **Comfort** (homes and nests): the best homes are filled first, each villager in the order they came (the same for
   driftlings in the nests). A resident's comfort (its home's, plus 4% / 8% at the home's level 2 / 3) makes them work
@@ -287,7 +288,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 - **Hatching**: at each turn's end the eggs count down; a ready one hatches into a free nest (level 1, helping where
   its knack is needed, in the Index; "An egg hatched!" with its name), else waits ("Ready! It needs a free nest.").
   The panel shows each egg: its rarity's egg, "Hatches in 3 turns" over a bar, its parents. A Hatchery holding an egg
-  is not cleared away ("An egg is still warming in that Hatchery.").
+  is not cleared away ("An egg is still warming in that Hatchery."). On the island the hatchling cheers where it
+  appears, its name floating up in pink.
 
 ## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the sailing cutscene, the islet's screen)
 
@@ -599,6 +601,13 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 
 > The requests (2026-11-06, 2026-11-09): "make the it more polished and animated as well"; "Polish everything to the
 > max. Add animations and details to everything, including the minigames"
+
+> The request (2026-11-10): "lastly, polish the whole game as much as possible, and fix any bugs you encounter." In
+> this pass: on a phone held sideways the battle frames the band the fighters stand in and draws it a scale bigger;
+> the island only gains land as it grows; charm (paths add fractions) shows whole; a hatchling cheers on the island;
+> the new buildings looked over in the `gallery` preview (the Crystal Fountain's water over its gold rim, stepped
+> roofs on the Clock Tower and the Water Tower, a lighter brick road); a flaw's words ("-10% health", not "-11%")
+> and a flaw never beside its own family's strength.
 
 - **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled; panels and
   cards fade and rise in; notices slide down.

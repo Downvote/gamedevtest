@@ -123,6 +123,20 @@ return function()
 			end
 		end
 	end)
+	T.it("an island only gains land as it grows: every cell buildable at a tier is buildable at the next", function()
+		for tier = 1, #Office.plans - 1 do
+			local r = Street.plot(tier)
+			local lost = 0
+			for z = r.z0, r.z1 do
+				for x = r.x0, r.x1 do
+					if Street.buildable(tier, x, z) and not Street.buildable(tier + 1, x, z) then
+						lost += 1
+					end
+				end
+			end
+			T.eq(lost, 0, "cells lost going to tier " .. (tier + 1))
+		end
+	end)
 	T.it("the sea: islands inside their lots, growing by tier, the plaza and the path on the grass, the jetty to the boardwalk", function()
 		T.eq(Street.MAX, Tuning.MaxPlots)
 		local lot = Street.LOT

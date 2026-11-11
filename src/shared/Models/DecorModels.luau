@@ -1144,7 +1144,7 @@ B.villa = function(m, f)
 		window(m, f, x, 1.0, 0.31, 0.5, 0.8)
 	end
 	cyl(m, f, -0.2, 0.3, 1.2, 1.2, 0.3, "white", "Basin")
-	cyl(m, f, -0.2, 0.42, 1.2, 1.0, 0.06, "water", "Water"):SetAttribute("PixelWater", 2)
+	cyl(m, f, -0.2, 0.47, 1.2, 1.0, 0.06, "water", "Water"):SetAttribute("PixelWater", 2)
 	for _, x in { -2.1, 1.6 } do
 		box(m, f, x, 0.35, 1.5, 0.5, 0.4, 0.5, "pot", "Pot")
 		box(m, f, x, 1.1, 1.5, 0.12, 1.2, 0.12, "wood", "Trunk")
@@ -1351,8 +1351,11 @@ B.watertower = function(m, f)
 	for _, y in { 3.4, 4.4 } do
 		cyl(m, f, 0, y, 0, 2.7, 0.1, "steel_dark", "Hoop")
 	end
-	Blocks.part(m, { size = Vector3.new(2.7, 0.7, 2.7), cf = f * CFrame.new(0, 5.05, 0), color = "blue", shape = "Wedge", name = "Lid", collide = false })
-	box(m, f, 0, 5.45, 0, 2.0, 0.1, 0.12, "steel_dark", "Ridge")
+	-- a stepped cone of a lid and a vent cap
+	cyl(m, f, 0, 4.8, 0, 2.8, 0.2, "steel_dark", "Lid")
+	cyl(m, f, 0, 5.0, 0, 2.0, 0.25, "blue", "Lid")
+	cyl(m, f, 0, 5.22, 0, 1.2, 0.22, "blue", "Lid")
+	cyl(m, f, 0, 5.42, 0, 0.4, 0.2, "steel", "Vent")
 	for k = 0, 6 do
 		box(m, f, 1.2, 0.4 + k * 0.45, 0.4, 0.3, 0.05, 0.05, "steel", "Rung")
 	end
@@ -1541,8 +1544,10 @@ B.clocktower = function(m, f)
 	end
 	window(m, f, 0, 2.2, 1.0, 0.4, 0.8)
 	door(m, f * CFrame.new(0, 0.15, 0), 0, 1.0, 0.7, 1.2, "wood_dark")
-	Blocks.part(m, { size = Vector3.new(2.4, 1.6, 2.4), cf = f * CFrame.new(0, 6.0, 0), color = "blue", shape = "Wedge", name = "Roof", collide = false })
-	Blocks.part(m, { size = Vector3.new(2.4, 1.6, 2.4), cf = f * CFrame.new(0, 6.0, 0) * CFrame.Angles(0, math.pi, 0), color = "blue", shape = "Wedge", name = "Roof", collide = false })
+	-- a stepped blue spire roof
+	for k, w in { 2.4, 1.8, 1.2, 0.6 } do
+		box(m, f, 0, 5.4 + k * 0.32, 0, w, 0.32, w, if k % 2 == 1 then "blue" else "window", "Roof")
+	end
 	box(m, f, 0, 7.0, 0, 0.1, 0.6, 0.1, "gold", "Spire")
 end
 B.canal = function(m, f)
@@ -1598,7 +1603,8 @@ B.crystalfountain = function(m, f)
 	box(m, f, 0, 0.05, 0, 5, 0.1, 5, "white", "Paving")
 	cyl(m, f, 0, 0.35, 0, 4.6, 0.6, "white", "Basin")
 	cyl(m, f, 0, 0.68, 0, 4.8, 0.1, "gold", "Rim")
-	cyl(m, f, 0, 0.6, 0, 4.0, 0.12, "shallow", "Water"):SetAttribute("PixelWater", 2)
+	-- (the water a little above the rim's top, so the gold shows as a ring round it)
+	cyl(m, f, 0, 0.75, 0, 4.0, 0.06, "shallow", "Water"):SetAttribute("PixelWater", 2)
 	for k = 0, 5 do
 		local a = k * math.pi / 3
 		local h = 1.2 + (k % 2) * 0.8

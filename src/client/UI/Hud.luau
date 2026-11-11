@@ -271,7 +271,7 @@ local function line(parent: Instance, icon: string, text: string, y: number, w: 
 end
 
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, #v.folk, v.beds, #v.pals, v.nests, v.visitors, v.charm, math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
+	return string.format("%d|%d/%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, #v.folk, v.beds, #v.pals, v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
 		.. (if v.food <= 0 then "|hungry" else "")
 end
 
@@ -302,7 +302,7 @@ local function updateCard(v: Types.ClientView)
 	y += LINE_H
 	line(f, "visitor", "Visitors", y, w, nil, string.format("%.1f", v.visitors), nil, "Visitors")
 	y += LINE_H
-	line(f, "charm", "Charm", y, w, nil, tostring(v.charm), UIKit.color("pink"), "Charm")
+	line(f, "charm", "Charm", y, w, nil, Numbers.int(math.floor(v.charm)), UIKit.color("pink"), "Charm")
 	y += LINE_H
 	-- a carved groove between the island and what it makes
 	UIKit.rect(f, UDim2.fromOffset(w - 8, 1), UDim2.fromOffset(4, y + 1), UIKit.color("ink"), 4)
