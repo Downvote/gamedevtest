@@ -247,6 +247,40 @@ function Audio.musicState(): { mood: string?, on: boolean, tracks: number }
 end
 
 -- Play a one-shot event. True when it played.
+-- Every voice of these events made and loaded now, so the first plays are on time (UI/ExpeditionUI: the battle's
+-- swings and blows). Never yields: the loading runs on its own thread.
+function Audio.preload(names: { string })
+	local list: { Instance } = {}
+	for _, name in names do
+		local ev = EVENTS[name]
+		if ev == nil or not Audio.has(name) then
+			continue
+		end
+		local pool = pools[name]
+		if pool == nil then
+			pool = {}
+			pools[name] = pool
+		end
+		for i = 1, ev.voices or 2 do
+			local snd = pool[i]
+			if not snd or snd.Parent == nil then
+				local ns = Instance.new("Sound")
+				ns.Name = name
+				ns.SoundId = "rbxassetid://" .. tostring((Monetization.Sounds :: { [string]: number })[ev.id])
+				ns.Parent = holder()
+				pool[i] = ns
+				snd = ns
+			end
+			table.insert(list, snd)
+		end
+	end
+	task.spawn(function()
+		pcall(function()
+			game:GetService("ContentProvider"):PreloadAsync(list)
+		end)
+	end)
+end
+
 function Audio.play(name: string, opts: PlayOpts?): boolean
 	local ev = EVENTS[name]
 	if ev == nil or not Audio.has(name) then
@@ -275,6 +309,15 @@ function Audio.play(name: string, opts: PlayOpts?): boolean
 		s = ns
 	end
 	local snd = s :: Sound
+	if not snd.IsLoaded then
+		-- (a voice not loaded yet starts late, behind what it goes with: it is asked to load now so the next play is on
+		-- time; Audio.preload loads the battle's sounds ahead so this is rare)
+		task.spawn(function()
+			pcall(function()
+				game:GetService("ContentProvider"):PreloadAsync({ snd })
+			end)
+		end)
+	end
 	local o: PlayOpts = opts or {}
 	local lo, hi = 1, 1
 	if ev.pitch then

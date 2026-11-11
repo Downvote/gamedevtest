@@ -75,13 +75,18 @@ type Actor = {
 	move: Move?, -- what it is doing in a battle (an attack, a knock-back, a cheer...)
 	scale0: number, -- its built size (the guardian 1.6)
 	sqKey: string, -- the squash it is drawn at now
+	style: Style?, -- its own attack (styleFor)
 	spot: { number }, -- its place in an area (u, v from the area's middle)
-	run: { u0: number, v0: number, u1: number, v1: number, t0: number, dur: number }?, -- running on to the next area
+	run: { u0: number, v0: number, u1: number, v1: number, t0: number, dur: number }?, -- running to its place (coming down the trail)
 }
 
 -- A battle move (GAME_DESIGN 7's expressive battles): its kind, when it began, how long it lasts and the gap it
 -- closes or the way it is knocked (studs along and across the stage).
 type Move = { kind: string, t0: number, dur: number, gu: number, gv: number }
+-- A fighter's own attack (GAME_DESIGN 7: "make each character have a short unique attack animation ... they now attack
+-- in place"): its style (by a driftling's body shape, or the person), its length, its blows (shares of the length),
+-- how high it goes, which way it turns, and what flies to the target at the blow ("sparks", "twinkle", "pebble").
+type Style = { kind: string, dur: number, hits: { number }, lift: number, turn: number, ranged: string? }
 -- What a move does to its actor at a moment.
 type MoveFrame = { du: number, dv: number, dy: number, tilt: CFrame, sq: Vector3, spin: number, action: string, k: number, mood: string, speed: number }
 
@@ -152,11 +157,11 @@ local boxesFor = "" -- the line-up whose boxes have slid in (a new one's slide i
 local pendingOpen = 0 -- os.clock until which the screen opens as soon as the view has the expedition (just started)
 -- going on by itself (GAME_DESIGN 7: "no need to click on go on"): at a stop with nothing to answer, the party walks on
 -- to the next one after AUTO_GO seconds; a won battle's card goes after AUTO_CARD
-local AUTO_GO = 1.8
+local AUTO_GO = 0.2 -- (a breath between stops: GAME_DESIGN 7, "just go on to the next immediately")
 local AUTO_CARD = 3
 local idleSince: number? = nil
-local autoFill: Frame? = nil
-local autoW = 0
+local dimNow = 0 -- the battle's spotlight on the background (0 .. 1: PixelRenderer.setDim)
+local DIM_SECS = 0.45 -- the background darkens (or lightens again) over this long
 local PATH_AHEAD = 7 -- the header shows the path from a stop back to this many ahead (it never ends)
 -- the timed battle (GAME_DESIGN 7: "the characters have a timer above their heads that is shown as a bar, and will
 -- attack or use its skill once a timer is done"): the server runs it; here the timers as it last told (`gaugeG` at
@@ -241,15 +246,89 @@ local function fwdOf(a: Actor): (number, number)
 	end
 	return FWD_U, FWD_V
 end
--- The endless islet (GAME_DESIGN 7: "the party will also walk forward in the view"): every stop is the next area
--- along the road (MicroStage.AREA_U, AREA_V on); the party walks there, the camera following, and the stop's wild
--- ones already stand in it.
-local area = 0
+-- Every stop plays out in the landing's area (GAME_DESIGN 7: "no need to make the party walk anymore, the creatures
+-- will appear in a single area"): the party stays on the trail and each battle's wild ones come down it to them.
 local baseU, baseV = 0, 0 -- the area's middle (u, v)
-local runEnd = 0 -- os.clock() when the run on to the area ends
-local RUN_SPEED = 15 -- studs a second
-local RUN_STAGGER = 0.07 -- each member a moment after the one before
+local runEnd = 0 -- os.clock() when the last of a battle's wild ones gets to its place
+local ENTER_DIST = 16 -- a battle's wild ones come this far down the trail to their places (from out of sight)
+local ENTER_SPEED = 12 -- studs a second
 local HOLD_SECS = 0.45 -- a finger held this long on a fighter shows its details (UI: inspect)
+
+-- the styles (lengths at an even tempo, blows as shares of them), by a driftling's shape; people by who they are
+local STYLE_BASE: { [string]: { dur: number, hits: { number }, ranged: string? } } = {
+	bounce = { dur = 0.55, hits = { 0.55 } },
+	pounce = { dur = 0.6, hits = { 0.5 } },
+	pinch = { dur = 0.6, hits = { 0.35, 0.62 } },
+	roar = { dur = 0.65, hits = { 0.48 }, ranged = "sparks" },
+	stomp = { dur = 0.65, hits = { 0.5 } },
+	flare = { dur = 0.6, hits = { 0.5 }, ranged = "twinkle" },
+	tailwhip = { dur = 0.6, hits = { 0.45 } },
+	headbutt = { dur = 0.5, hits = { 0.45 } },
+	peck = { dur = 0.55, hits = { 0.3, 0.5, 0.7 } },
+	spin = { dur = 0.6, hits = { 0.55 }, ranged = "twinkle" },
+	shellspin = { dur = 0.65, hits = { 0.6 } },
+	dive = { dur = 0.65, hits = { 0.55 } },
+	punch = { dur = 0.5, hits = { 0.45 } },
+	kick = { dur = 0.55, hits = { 0.5 } },
+	swing = { dur = 0.6, hits = { 0.5 } },
+	sling = { dur = 0.6, hits = { 0.62 }, ranged = "pebble" },
+	hop = { dur = 0.6, hits = { 0.55 } },
+}
+local SHAPE_STYLE: { [string]: string } = {
+	blob = "bounce",
+	seal = "bounce",
+	bun = "pounce",
+	frog = "pounce",
+	crab = "pinch",
+	drake = "roar",
+	golem = "stomp",
+	yeti = "stomp",
+	jelly = "flare",
+	moth = "flare",
+	lizard = "tailwhip",
+	wyrm = "tailwhip",
+	mole = "headbutt",
+	pup = "headbutt",
+	owl = "peck",
+	bird = "peck",
+	sprite = "spin",
+	snail = "shellspin",
+	turtle = "shellspin",
+	bat = "dive",
+}
+local PERSON_STYLES = { "kick", "swing", "sling", "hop" }
+local function hashOf(text: string): number
+	local h = 7
+	for i = 1, #text do
+		h = (h * 31 + string.byte(text, i)) % 1000003
+	end
+	return h
+end
+-- A fighter's attack: the founder punches; a villager kicks, swings, slings a pebble or hops, by name; a driftling
+-- moves the way its body does, each kind at its own tempo and height and turning its own way.
+local function styleFor(kind: string, sp: string?, who: string): Style
+	local name, seed = "bounce", who
+	if kind == "founder" then
+		name, seed = "punch", "founder"
+	elseif sp then
+		local d = Creatures.byId[sp]
+		name = SHAPE_STYLE[if d then d.shape else "blob"] or "bounce"
+		seed = sp
+	else
+		name = PERSON_STYLES[hashOf(who) % #PERSON_STYLES + 1]
+	end
+	local h = hashOf(seed)
+	local base = STYLE_BASE[name]
+	local tempo = 0.88 + (h % 7) * 0.04
+	return {
+		kind = name,
+		dur = base.dur / tempo,
+		hits = base.hits,
+		lift = 0.8 + (math.floor(h / 7) % 5) * 0.1,
+		turn = if math.floor(h / 35) % 2 == 0 then 1 else -1,
+		ranged = base.ranged,
+	}
+end
 
 local function actorAt(a: Actor): Vector3
 	local st = stage
@@ -259,7 +338,7 @@ local function actorAt(a: Actor): Vector3
 	end
 	local r = a.run
 	if r then
-		-- running on to the next area: where it is on the way
+		-- running to its place: where it is on the way
 		local e = math.clamp((os.clock() - r.t0) / r.dur, 0, 1)
 		return st.at(r.u0 + (r.u1 - r.u0) * e, r.v0 + (r.v1 - r.v0) * e, 0)
 	end
@@ -318,6 +397,7 @@ local function newActor(key: string, foe: boolean, spot: { number }): Actor
 		move = nil,
 		scale0 = 1,
 		sqKey = "",
+		style = nil,
 	}
 end
 
@@ -339,6 +419,7 @@ local function buildParty(e: Types.Expedition)
 			continue
 		end
 		local a = newActor(f.key, false, PARTY_SPOTS[i] or PARTY_SPOTS[#PARTY_SPOTS])
+		a.style = styleFor(f.kind, f.sp, f.name)
 		if f.kind == "villager" and f.look then
 			delay += 0.12
 			a.rival = st.rival(f.look :: Types.Look, delay)
@@ -394,9 +475,17 @@ local function buildFoes(e: Types.Expedition)
 		a.big = b.boss and i == 1
 		a.scale0 = if a.big then 1.6 else 1
 		a.thing = driftling(st, f.sp or "pebblit", a.big)
-		-- on the way to the next area: they stand there already (out of sight till the camera gets there); else
-		-- (the screen opened on a battle) they drop in behind the curtain
-		a.dy = if os.clock() < runEnd then 0 else 10
+		a.style = styleFor("wild", f.sp or "pebblit", f.name)
+		a.dy = 0
+		if lifted then
+			-- they come running down the trail from out of sight, one a moment after another, to their places (the
+			-- screen opened on a battle: they stand there already behind the curtain)
+			local fu, fv = fwdOf(a)
+			local t0 = os.clock() + (i - 1) * 0.22
+			local dur = ENTER_DIST / ENTER_SPEED
+			a.run = { u0 = a.u - fu * ENTER_DIST, v0 = a.v - fv * ENTER_DIST, u1 = a.u, v1 = a.v, t0 = t0, dur = dur }
+			runEnd = math.max(runEnd, t0 + dur + 0.1)
+		end
 		a.enterAt = os.clock() + (i - 1) * 0.15
 		actors[f.key] = a
 	end
@@ -430,9 +519,9 @@ end
 -- (hit-stop) and shakes the picture; the one hit is knocked back leaning away (or sent flying, spinning, when it is
 -- down). Skills have their own: a bash leaps high and slams down, quick strikes three times in a blur, a zap charges
 -- up where it stands and throws a bolt. Times in seconds; IMPACTS are the moments the blows land.
-local MOVES: { [string]: number } = { attack = 0.92, bash = 1.15, quick = 0.85, zap = 0.8, hurt = 0.45, ko = 0.75, guard = 0.6, cast = 0.7, throw = 0.5, refuse = 0.7, happy = 1.0, flee = 0.7, stumble = 0.9, victory = 1.6 }
-local IMPACTS: { [string]: { number } } = { attack = { 0.44 }, bash = { 0.64 }, quick = { 0.24, 0.38, 0.52 }, zap = { 0.52 } }
-local REACH = 2.25 -- an attacker stops this far short of its target (studs)
+local MOVES: { [string]: number } = { attack = 0.55, bash = 0.8, quick = 0.55, zap = 0.8, hurt = 0.45, ko = 0.75, guard = 0.6, cast = 0.7, throw = 0.5, refuse = 0.7, happy = 1.0, flee = 0.7, stumble = 0.9, victory = 1.6 }
+-- the blows' moments (seconds); a plain attack's come from the fighter's own style
+local IMPACTS: { [string]: { number } } = { attack = { 0.25 }, bash = { 0.48 }, quick = { 0.12, 0.24, 0.36 }, zap = { 0.52 } }
 local freezeUntil = 0
 local shakeUntil, shakeAmp = 0, 0
 
@@ -475,14 +564,14 @@ local function startMove(a: Actor, kind: string, other: Actor?)
 		local du, dv = other.u - a.u, other.v - a.v
 		local d = math.sqrt(du * du + dv * dv)
 		if kind == "hurt" or kind == "ko" then
-			-- knocked away from the one who hit it
+			-- knocked away from the one who hit it (an attacker stays where it stands: no run up to the target)
 			local fu, fv = fwdOf(a)
 			gu, gv = if d > 0 then -du / d else -fu, if d > 0 then -dv / d else -fv
-		elseif d > REACH then
-			gu, gv = du * (d - REACH) / d, dv * (d - REACH) / d
 		end
 	end
-	a.move = { kind = kind, t0 = bclock, dur = MOVES[kind] or 0.5, gu = gu, gv = gv }
+	local st = a.style
+	local dur = if kind == "attack" and st then st.dur else MOVES[kind] or 0.5
+	a.move = { kind = kind, t0 = bclock, dur = dur, gu = gu, gv = gv }
 end
 
 -- The stage shakes by whole art px for a moment; the action freezes (a hit's weight).
@@ -501,57 +590,215 @@ local function frameOf(a: Actor, mv: Move, e: number): MoveFrame
 	local f: MoveFrame = { du = 0, dv = 0, dy = 0, tilt = CFrame.identity, sq = SQ1, spin = 0, action = "stand", k = 0, mood = "idle", speed = 0 }
 	local kind = mv.kind
 	local gu, gv = mv.gu, mv.gv
-	if kind == "attack" or kind == "quick" then
-		local w1 = if kind == "quick" then 0.08 else 0.2
-		local d1 = if kind == "quick" then 0.18 else 0.36
-		local s1 = if kind == "quick" then 0.6 else 0.5
-		local r0 = if kind == "quick" then 0.6 else 0.62
-		if e < w1 then
-			local k = ease(phase(e, 0, w1))
-			f.du, f.dv, f.sq, f.action, f.mood = -0.75 * fu * k, -0.75 * fv * k, Vector3.new(1 + 0.18 * k, 1 - 0.18 * k, 1 + 0.18 * k), "windup", "attack"
-			f.tilt = CFrame.Angles(math.rad(-12) * k, 0, 0)
-		elseif e < d1 then
-			local k = easeIn(phase(e, w1, d1))
-			f.du, f.dv = -0.75 * fu + (gu + 0.75 * fu) * k, -0.75 * fv + (gv + 0.75 * fv) * k
-			f.dy = math.sin(k * math.pi) * 0.6
-			f.sq, f.action, f.speed, f.mood, f.k = Vector3.new(0.85, 1.15, 0.85), "run", 30, "attack", 0.3
-			f.tilt = CFrame.Angles(math.rad(15), 0, 0)
-		elseif e < s1 then
-			local k = phase(e, d1, s1)
-			local jab = if kind == "quick" then math.abs(math.sin(k * math.pi * 3)) else math.sin(k * math.pi)
-			f.du, f.dv = gu + fu * 0.4 * jab, gv + fv * 0.4 * jab
-			f.action, f.k, f.mood = "strike", if kind == "quick" then (k * 3) % 1 else k, "attack"
-			f.tilt = CFrame.Angles(math.rad(28) * jab, 0, 0)
-			f.sq = Vector3.new(1 + 0.2 * jab, 1 - 0.15 * jab, 1 + 0.2 * jab)
-		elseif e < r0 then
-			f.du, f.dv, f.action, f.mood, f.k = gu - fu * 0.3, gv - fv * 0.3, "strike", "attack", 1
-		else
-			local k = ease(phase(e, r0, mv.dur))
-			f.du, f.dv = (gu - fu * 0.3) * (1 - k), (gv - fv * 0.3) * (1 - k)
-			f.dy = math.sin(k * math.pi) * 1.25
-			f.action = if k < 0.95 then "jump" else "stand"
+	local function lean(d: number)
+		f.du, f.dv = fu * d, fv * d
+	end
+	local function pitch(deg: number)
+		f.tilt = CFrame.Angles(math.rad(deg), 0, 0)
+	end
+	local function squash(x: number, y: number)
+		f.sq = Vector3.new(x, y, x)
+	end
+	local stl = a.style
+	if kind == "attack" and stl then
+		-- its own move, where it stands (no run up to the target): the blow at the style's first hit
+		local k = math.clamp(e / stl.dur, 0, 1)
+		local h = stl.hits[1]
+		local lift, turn = stl.lift, stl.turn
+		f.mood = "attack"
+		local name = stl.kind
+		if name == "bounce" then
+			if k < 0.3 then
+				local q = ease(k / 0.3)
+				squash(1 + 0.2 * q, 1 - 0.2 * q)
+				f.action = "windup"
+			elseif k < h then
+				local q = (k - 0.3) / (h - 0.3)
+				f.dy = math.sin(q * math.pi) * 0.9 * lift
+				lean(0.3 * q)
+				squash(0.9, 1.12)
+				f.action = "jump"
+			else
+				local q = phase(k, h, 1)
+				squash(1.2 - 0.2 * q, 0.8 + 0.2 * q)
+				lean(0.3 * (1 - ease(q)))
+				f.action, f.k = "strike", 1 - q
+			end
+		elseif name == "pounce" then
+			if k < 0.3 then
+				local q = ease(k / 0.3)
+				lean(-0.3 * q)
+				squash(1 + 0.18 * q, 1 - 0.18 * q)
+				pitch(-12 * q)
+				f.action = "windup"
+			elseif k < h then
+				local q = (k - 0.3) / (h - 0.3)
+				lean(-0.3 + 1.0 * q)
+				f.dy = math.sin(q * math.pi) * 0.8 * lift
+				pitch(-12 + 32 * q)
+				squash(0.88, 1.14)
+				f.action = "jump"
+			else
+				local q = phase(k, h, 1)
+				lean(0.7 * (1 - ease(q)))
+				pitch(20 * (1 - q))
+				f.action, f.k = "strike", 1 - q
+			end
+		elseif name == "pinch" or name == "peck" then
+			-- quick snaps at each blow: a lean in, the claws or the beak shut
+			local jab = 0
+			for _, hk in stl.hits do
+				jab = math.max(jab, 1 - math.abs(k - hk) / 0.11)
+			end
+			lean((if name == "peck" then 0.4 else 0.2) * jab + 0.1 * math.sin(k * math.pi))
+			pitch((if name == "peck" then 30 else 12) * jab)
+			squash(1 + 0.1 * jab, 1 - 0.08 * jab)
+			f.action, f.k = "strike", jab
+		elseif name == "roar" or name == "headbutt" then
+			local back = if name == "roar" then 0.38 else 0.3
+			if k < back then
+				local q = ease(k / back)
+				lean(-0.3 * q)
+				pitch(-22 * q)
+				squash(0.95, 1 + 0.08 * q)
+				f.action = "windup"
+			elseif k < h then
+				local q = easeIn((k - back) / (h - back))
+				lean(-0.3 + (if name == "roar" then 0.65 else 0.85) * q)
+				pitch(-22 + 50 * q)
+				f.action, f.k = "strike", q
+			else
+				local q = phase(k, h, 1)
+				lean((if name == "roar" then 0.35 else 0.55) * (1 - ease(q)))
+				pitch(28 * (1 - q))
+				squash(1 + 0.1 * (1 - q), 1 - 0.08 * (1 - q))
+				f.action, f.k = "strike", 1 - q
+			end
+		elseif name == "stomp" or name == "hop" then
+			local up = if name == "stomp" then 0.7 else 0.9
+			if k < h then
+				local q = k / h
+				f.dy = (if q < 0.7 then ease(q / 0.7) else 1 - easeIn((q - 0.7) / 0.3)) * up * lift
+				squash(0.9, 1.14)
+				f.action = "jump"
+			else
+				local q = phase(k, h, 1)
+				squash(1.3 - 0.3 * q, 0.7 + 0.3 * q)
+				f.action, f.k = "strike", 1 - q
+			end
+		elseif name == "flare" then
+			if k < h then
+				local q = k / h
+				local s2 = 1 + 0.25 * ease(q)
+				f.sq = Vector3.new(s2, s2, s2)
+				f.dy = 0.4 * q
+				f.action, f.k = "cast", q
+			else
+				local q = phase(k, h, 1)
+				local s2 = if q < 0.25 then 1.25 - 1.6 * q else 0.85 + 0.15 * phase(q, 0.25, 1)
+				f.sq = Vector3.new(s2, s2, s2)
+				f.dy = 0.4 * (1 - q)
+				f.action, f.k = "strike", 1 - q
+			end
+		elseif name == "tailwhip" then
+			-- a turn on the spot: the tail swings round at the blow, then back to face them
+			f.spin = turn * (if k < h then math.pi * ease(k / h) else math.pi + math.pi * ease(phase(k, h, 1)))
+			f.dy = math.sin(k * math.pi) * 0.25 * lift
+			pitch(10 * math.sin(k * math.pi))
+			f.action, f.k = "strike", math.max(0, 1 - math.abs(k - h) / 0.2)
+		elseif name == "spin" or name == "shellspin" then
+			f.spin = turn * (if name == "spin" then 4 else 3) * math.pi * (k * k * (3 - 2 * k))
+			if name == "spin" then
+				f.dy = math.sin(k * math.pi) * 0.5 * lift
+			else
+				local w = math.min(1, math.min(k, 1 - k) * 6)
+				squash(1 + 0.15 * w, 1 - 0.25 * w)
+			end
+			lean(0.2 * math.max(0, 1 - math.abs(k - h) / 0.15))
+			f.action, f.k = "strike", math.max(0, 1 - math.abs(k - h) / 0.2)
+		elseif name == "dive" then
+			if k < 0.4 then
+				local q = ease(k / 0.4)
+				f.dy = q * lift
+				lean(-0.2 * q)
+				f.action = "jump"
+			elseif k < h then
+				local q = easeIn((k - 0.4) / (h - 0.4))
+				f.dy = lift * (1 - q)
+				lean(-0.2 + 0.8 * q)
+				pitch(35 * q)
+				f.action, f.k = "strike", q
+			else
+				local q = phase(k, h, 1)
+				lean(0.6 * (1 - ease(q)))
+				pitch(35 * (1 - q))
+				f.action, f.k = "strike", 1 - q
+			end
+		elseif name == "punch" then
+			if k < 0.3 then
+				local q = ease(k / 0.3)
+				lean(-0.15 * q)
+				f.action, f.k = "windup", q
+			elseif k < h then
+				local q = (k - 0.3) / (h - 0.3)
+				lean(-0.15 + 0.45 * q)
+				f.action, f.k = "strike", q
+			else
+				local q = phase(k, h, 1)
+				lean(0.3 * (1 - ease(q)))
+				f.action, f.k = if q < 0.6 then "strike" else "stand", 1
+			end
+		elseif name == "kick" or name == "swing" then
+			local amt = if name == "kick" then 0.7 else 1.1
+			if k < h then
+				local q = ease(k / h)
+				f.spin = -turn * amt * 0.5 * math.sin(q * math.pi * 0.5) + turn * amt * easeIn(q) * 1.2
+				f.dy = if name == "kick" then math.sin(q * math.pi) * 0.35 else 0
+				f.action, f.k = if q < 0.5 then "windup" else "strike", q
+			else
+				local q = phase(k, h, 1)
+				f.spin = turn * amt * (0.7 - 0.7 * ease(q))
+				f.action, f.k = "strike", 1 - q
+			end
+			lean(0.2 * math.sin(k * math.pi))
+		elseif name == "sling" then
+			lean(-0.1 * math.sin(k * math.pi))
+			f.action, f.k = "throw", math.min(1, k / h)
 		end
+	elseif kind == "quick" then
+		-- three quick jabs where it stands, a blur of afterimages
+		local jab = 0
+		for _, hk in IMPACTS.quick do
+			jab = math.max(jab, 1 - math.abs(e - hk) / 0.06)
+		end
+		lean(0.45 * jab)
+		pitch(25 * jab)
+		squash(1 + 0.15 * jab, 1 - 0.1 * jab)
+		f.action, f.k, f.mood, f.speed = "strike", jab, "attack", 0
 	elseif kind == "bash" then
-		if e < 0.3 then
-			local k = ease(phase(e, 0, 0.3))
-			f.du, f.dv, f.sq, f.action, f.mood = -0.9 * fu * k, -0.9 * fv * k, Vector3.new(1 + 0.3 * k, 1 - 0.3 * k, 1 + 0.3 * k), "windup", "attack"
-			f.tilt = CFrame.Angles(math.rad(-15) * k, 0, 0)
-		elseif e < 0.64 then
-			local k = phase(e, 0.3, 0.64)
-			f.du, f.dv = -0.9 * fu + (gu + 0.9 * fu) * k, -0.9 * fv + (gv + 0.9 * fv) * k
-			f.dy = math.sin(k * math.pi) * 4.5 * (1 - k * 0.15)
-			f.sq, f.action, f.mood, f.k = Vector3.new(0.8, 1.25, 0.8), "jump", "attack", 0.5
-			f.tilt = CFrame.Angles(math.rad(30) * k, 0, 0)
-		elseif e < 0.8 then
-			local k = phase(e, 0.64, 0.8)
-			f.du, f.dv = gu, gv
-			f.sq = Vector3.new(1.3 - 0.3 * k, 0.7 + 0.3 * k, 1.3 - 0.3 * k)
+		-- a leap straight up and a slam where it stood
+		local hit = IMPACTS.bash[1]
+		if e < 0.18 then
+			local k = ease(e / 0.18)
+			squash(1 + 0.3 * k, 1 - 0.3 * k)
+			pitch(-15 * k)
+			f.action, f.mood = "windup", "attack"
+		elseif e < hit then
+			local k = phase(e, 0.18, hit)
+			f.dy = math.sin(k * math.pi) * 1.8
+			lean(0.3 * k)
+			pitch(30 * k)
+			squash(0.82, 1.22)
+			f.action, f.mood, f.k = "jump", "attack", 0.5
+		elseif e < hit + 0.14 then
+			local k = phase(e, hit, hit + 0.14)
+			lean(0.3)
+			squash(1.3 - 0.3 * k, 0.7 + 0.3 * k)
 			f.action, f.mood, f.k = "strike", "attack", 1
 		else
-			local k = ease(phase(e, 0.8, mv.dur))
-			f.du, f.dv = gu * (1 - k), gv * (1 - k)
-			f.dy = math.sin(k * math.pi) * 1.5
-			f.action = if k < 0.95 then "jump" else "stand"
+			local k = ease(phase(e, hit + 0.14, mv.dur))
+			lean(0.3 * (1 - k))
+			f.action = if k < 0.95 then "strike" else "stand"
 		end
 	elseif kind == "zap" then
 		if e < 0.45 then
@@ -651,35 +898,15 @@ local function poseAll(t: number, dt: number)
 		MicroModels.flutter(sh :: MicroModels.Thing, t)
 		local su, sv = MicroStage.uvOf(SHIP_X, shipZ)
 		st.place(sh :: MicroModels.Thing, su, sv, WATER + bob, MicroStage.FACE_FOES)
-		if area == 0 then
+		do
 			-- the camera starts back over the boat and comes up with the party once it hops off
 			local k = math.clamp((since - SHIP_IN - 0.2) / 1.4, 0, 1)
 			st.follow(-ARRIVE_CAM * (1 - k * k * (3 - 2 * k)))
 		end
 	end
-	-- the camera follows the run on to the next area (fractions of an area while it runs)
-	if area > 0 then
-		local k = 1
-		if now < runEnd then
-			local f = 0
-			local n = 0
-			for _, a in actors do
-				local r = a.run
-				if r then
-					f += math.clamp((now - r.t0) / r.dur, 0, 1)
-					n += 1
-				end
-			end
-			k = if n > 0 then f / n else 1
-		end
-		st.follow(area - 1 + ease(k))
-		if now >= runEnd and runEnd > 0 then
-			runEnd = 0
-			st.trim(area)
-		end
-	end
 	for _, a in actors do
-		-- running on to the next area: the legs going, a driftling bounding, dust now and then
+		-- running to its place (a battle's wild ones coming down the trail): the legs going, a driftling bounding,
+		-- dust now and then
 		local r = a.run
 		if r then
 			local e = math.clamp((now - r.t0) / r.dur, 0, 1)
@@ -688,12 +915,12 @@ local function poseAll(t: number, dt: number)
 				st.puff(st.at(r.u1, r.v1, 0.2), "dust", 3)
 			else
 				local u, v = r.u0 + (r.u1 - r.u0) * e, r.v0 + (r.v1 - r.v0) * e
-				local yaw = MicroStage.FACE_FOES
+				local yaw = if a.foe then MicroStage.FACE_PARTY else MicroStage.FACE_FOES
 				local moving = e > 0
 				if a.founder then
-					st.pose(u, v, 0, yaw, t, if moving then RUN_SPEED else 0, "stand")
+					st.pose(u, v, 0, yaw, t, if moving then ENTER_SPEED else 0, "stand")
 				elseif a.rival then
-					(a.rival :: MicroStage.Rival).pose(u, v, 0, yaw, t, if moving then RUN_SPEED else 0, "stand")
+					(a.rival :: MicroStage.Rival).pose(u, v, 0, yaw, t, if moving then ENTER_SPEED else 0, "stand")
 				elseif a.thing then
 					local th = a.thing :: MicroModels.Thing
 					MicroModels.animate(th, t + a.ph, "cheer", 0)
@@ -1535,39 +1762,24 @@ local nextTutShine = 0 -- the tips' catching step: when the Snack button shines 
 local playRound: (data: { [string]: any }) -> ()
 local playNode: (data: { [string]: any }) -> ()
 
--- On to the next area: everyone of the party standing runs from where they are to their place there, one a moment
--- after another; the stage builds the areas ahead and the camera follows the run (poseAll).
-local function runOn()
-	local st = stage
-	if st == nil then
-		return
-	end
-	area += 1
-	baseU, baseV = area * MicroStage.AREA_U, area * MicroStage.AREA_V
-	st.area(area)
-	local now = os.clock()
-	local last = now
-	local i = 0
+-- Between stops (GAME_DESIGN 7: "no need to make the party walk anymore, the creatures will appear in a single area"):
+-- the party stays where it is; anyone knocked down gets back up in their place.
+local function regroup()
 	for _, a in actors do
 		if a.foe or a.gone then
 			continue
 		end
-		a.ko = false
+		if a.ko then
+			a.ko = false
+			act(a, "cheer", 0.5)
+		end
 		a.move = nil
 		a.deck = 0
 		a.dy = 0
-		local u1, v1 = a.spot[1] + baseU, a.spot[2] + baseV
-		local dist = math.sqrt((u1 - a.u) ^ 2 + (v1 - a.v) ^ 2)
-		local t0 = now + i * RUN_STAGGER
-		local dur = math.max(0.4, dist / RUN_SPEED)
-		a.run = { u0 = a.u, v0 = a.v, u1 = u1, v1 = v1, t0 = t0, dur = dur }
-		a.u, a.v = u1, v1
+		a.run = nil
+		a.u, a.v = a.spot[1] + baseU, a.spot[2] + baseV
 		a.yaw = MicroStage.FACE_FOES
-		last = math.max(last, t0 + dur)
-		i += 1
 	end
-	runEnd = last + 0.1
-	Audio.play("whoosh", { volume = 0.5 })
 end
 local goHome: () -> ()
 
@@ -1579,16 +1791,12 @@ local function goOn()
 	busy = true
 	walking = true
 	refresh()
-	-- the party runs on to the next area (the camera following); the next stop comes up meanwhile and plays out once
-	-- they are there
-	runOn()
+	-- the next stop plays out where the party stands (a battle's wild ones come down the trail: buildFoes)
+	regroup()
 	Audio.play("tick")
 	local res = ask("exp.next", {})
-	while isOpen and walking and os.clock() < runEnd do
-		task.wait()
-	end
 	if not walking then
-		return -- left on the way (Sail home now, or the screen closed): that took over
+		return -- left meanwhile (Sail home now, or the screen closed): that took over
 	end
 	walking = false
 	if res.ok and type(res.data) == "table" and isOpen then
@@ -2053,13 +2261,26 @@ local function playEvent(ev: { [string]: any })
 		end
 		local t0 = bclock
 		local impacts = IMPACTS[kind]
+		local moveDur = MOVES[kind] or 0.5
+		local stl = if by and kind == "attack" then by.style else nil
+		if stl then
+			-- its own move: the blows at its style's moments
+			impacts = {}
+			for _, hk in stl.hits do
+				table.insert(impacts, hk * stl.dur)
+			end
+			moveDur = stl.dur
+		end
 		if by then
 			startMove(by, kind, to)
-			task.delay(if kind == "quick" then 0.08 elseif kind == "bash" then 0.3 elseif kind == "zap" then 0 else 0.2, function()
-				if kind ~= "zap" then
-					Audio.play(if kind == "bash" then "whoosh_heavy" else "whoosh")
-				end
-			end)
+			-- the swing is heard as it starts (in place: no run up first), a bash's as it leaps
+			if kind == "bash" then
+				task.delay(0.12, function()
+					Audio.play("whoosh_heavy")
+				end)
+			elseif kind ~= "zap" then
+				Audio.play("whoosh")
+			end
 		else
 			impacts = { 0.05 }
 		end
@@ -2067,12 +2288,12 @@ local function playEvent(ev: { [string]: any })
 		local function at(seconds: number): boolean
 			return bwait(t0 + seconds - bclock)
 		end
-		-- the run-up's dust and the skills' own effects
+		-- a puff of dust where it pushes off, and the skills' own effects
 		if by and kind ~= "zap" then
-			if at(if kind == "quick" then 0.08 else 0.2) then
+			if at(0.04) then
 				return
 			end
-			st.puff(actorAt(by) + Vector3.new(0, 0.2, 0), "dust", if kind == "bash" then 10 else 5)
+			st.puff(actorAt(by) + Vector3.new(0, 0.2, 0), "dust", if kind == "bash" then 10 else 4)
 			if kind == "quick" then
 				-- afterimages along the dash
 				for j = 1, 3 do
@@ -2110,6 +2331,16 @@ local function playEvent(ev: { [string]: any })
 			if at(when) then
 				return
 			end
+			-- a ranged style's flourish flies across at the blow: sparks from a roar, twinkles, a slung pebble
+			local ranged = if stl then stl.ranged else nil
+			if ranged and by and to and i == 1 then
+				local p0, p1 = actorAt(by) + Vector3.new(0, 1.2, 0), actorAt(to) + Vector3.new(0, 1.2, 0)
+				for j = 1, 5 do
+					local q = j / 6
+					local arc = if ranged == "pebble" then math.sin(q * math.pi) * 1.2 else 0
+					st.puff(p0:Lerp(p1, q) + Vector3.new(0, arc, 0), if ranged == "sparks" then "spark" elseif ranged == "pebble" then "debris" else "twinkle", 1)
+				end
+			end
 			if to then
 				local last = i == #impacts
 				flashActor(to)
@@ -2121,7 +2352,8 @@ local function playEvent(ev: { [string]: any })
 				if last then
 					startMove(to, if ev.ko then "ko" else "hurt", by)
 				end
-				shake(if kind == "bash" or ev.ko then 2 else 1, if kind == "bash" then 0.25 else 0.14)
+				local heavyStyle = stl ~= nil and (stl.kind == "stomp" or stl.kind == "hop")
+				shake(if kind == "bash" or ev.ko or heavyStyle then 2 else 1, if kind == "bash" or heavyStyle then 0.25 else 0.14)
 				freeze(if kind == "quick" then 0.035 else 0.07)
 				t0 += if kind == "quick" then 0.035 else 0.07
 			end
@@ -2147,7 +2379,7 @@ local function playEvent(ev: { [string]: any })
 				end
 			end)
 		end
-		if at(MOVES[kind] - 0.15) then
+		if at(moveDur - 0.1) then
 			return
 		end
 	elseif t == "heal" then
@@ -2627,8 +2859,8 @@ playNode = function(data: { [string]: any })
 		spNow = 0
 		gaugePaused = true
 		gaugeAt = os.clock()
-		-- (they stood there already as the party ran up: a beat to take them in, longer for a guardian)
-		runAt = os.clock() + (if kind == "boss" then 1.2 else 0.5)
+		-- (once they have come down the trail: a beat to take them in, longer for a guardian)
+		runAt = math.max(os.clock(), runEnd) + (if kind == "boss" then 1.2 else 0.5)
 	end
 end
 
@@ -2971,27 +3203,8 @@ refresh = function()
 			skillWindow(r, e)
 		end
 	else
-		-- between stops the party walks on by itself: a bar fills toward the next stop (Space or a tap on it: at once)
-		local plate = Instance.new("TextButton")
-		plate.Name = "AutoGo"
-		plate.Text = ""
-		plate.AutoButtonColor = false
-		plate.BackgroundTransparency = 1
-		plate.Size = UDim2.fromOffset(wide, 15)
-		plate.Position = UDim2.fromOffset(ax, 5)
-		plate.ZIndex = 11
-		plate.Parent = foot
-		UIKit.plate(plate, UDim2.fromOffset(wide, 15), UDim2.fromOffset(0, 0), UIKit.color("plate_light"), 0, 2).ZIndex = 11
-		autoW = wide - 4
-		local fill = UIKit.rect(plate, UDim2.fromOffset(0, 2), UDim2.fromOffset(2, 11), UIKit.color("good"), 12)
-		fill.Name = "Fill"
-		autoFill = fill
-		UIKit.text(plate, if busy then "Walking on..." else "Next stop...", UDim2.fromOffset(wide, 10), UDim2.fromOffset(0, 1), { x = "center", color = UIKit.color("text"), z = 12, name = "Label" })
-		plate.Activated:Connect(function()
-			idleSince = nil
-			task.spawn(goOn)
-		end)
-		button(foot, "Sail home", ax, 24, wide, UIKit.color("button_warn"), true, goHome, "SailHome")
+		-- between stops the next comes up at once (no bar to wait on): only Sail home
+		button(foot, "Sail home", ax, 14, wide, UIKit.color("button_warn"), true, goHome, "SailHome")
 	end
 	tutorialTip(r, e, w, h)
 	-- the wild ones' names stay on the cards; the stage's spots follow the fighters
@@ -3033,7 +3246,7 @@ function ExpeditionUI.open()
 	r.Size = UDim2.fromOffset(w, h)
 	r.Parent = canvas
 	root = r
-	area, baseU, baseV, runEnd = 0, 0, 0, 0
+	runEnd = 0
 	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 }, e.isle.seed, true)
 	actors = {}
 	foeKey = ""
@@ -3092,6 +3305,7 @@ function ExpeditionUI.open()
 	end
 	-- the founder stands with the party (MicroStage's own avatar)
 	actors.f = newActor("f", false, PARTY_SPOTS[1])
+	actors.f.style = styleFor("founder", nil, "f")
 	if arriving then
 		actors.f.deck = 1
 	end
@@ -3164,18 +3378,17 @@ function ExpeditionUI.open()
 		end
 		if waiting then
 			idleSince = idleSince or now
-			local k = math.clamp((now - (idleSince :: number)) / AUTO_GO, 0, 1)
-			local fill = autoFill
-			if fill and fill.Parent then
-				fill.Size = UDim2.fromOffset(math.floor(autoW * k), 2)
-			end
-			if k >= 1 then
+			if now - (idleSince :: number) >= AUTO_GO then
 				idleSince = nil
 				task.spawn(goOn)
 			end
 		else
 			idleSince = nil
 		end
+		-- a battle's spotlight: the background darkens round the fighters while it is on, and lightens after
+		local wantDim = if lifted and cur ~= nil and cur.battle ~= nil and cur.over == nil and not closing then 1 else 0
+		dimNow += math.clamp(wantDim - dimNow, -dt / DIM_SECS, dt / DIM_SECS)
+		PixelRenderer.setDim(dimNow)
 		-- the timed battle: the timers over the heads, the aim on the floor, the skill points' bar, and a new battle
 		-- set running once its wild ones have landed
 		updateTimers()
@@ -3212,7 +3425,7 @@ function ExpeditionUI.open()
 			end
 		end
 		local ra = runAt
-		if ra and now >= ra and lifted and not closing and aim == nil and not skillMenu then
+		if ra and now >= ra and now >= runEnd and lifted and not closing and aim == nil and not skillMenu then
 			runAt = nil
 			if cur and cur.battle and not cur.over then
 				setPaused(false)
@@ -3390,7 +3603,9 @@ closeNow = function()
 		return
 	end
 	isOpen = false
-	idleSince, autoFill = nil, nil
+	idleSince = nil
+	dimNow = 0
+	PixelRenderer.setDim(0)
 	aim, skillMenu, aimMark, aimPath, aimRing, aimPointer, aimEndU, runAt = nil, false, nil, nil, nil, nil, nil, nil
 	for _, c in pointerConns do
 		c:Disconnect()
@@ -3459,6 +3674,8 @@ end
 
 function ExpeditionUI.init()
 	Voyage.init()
+	-- the battle's sounds loaded ahead: a swing or a blow is heard as it happens, never a moment after
+	Audio.preload({ "whoosh", "whoosh_heavy", "hit", "hit_heavy", "bite", "zap", "body_fall", "pop", "heal", "shield", "poof", "combo", "sparkle" })
 	StateClient.Fx:Connect(function(msg: any)
 		if type(msg) ~= "table" or msg.kind ~= "exp" or not isOpen then
 			return
@@ -3534,8 +3751,8 @@ function ExpeditionUI.debugState(): { [string]: any }
 		lifted = lifted,
 		actors = n,
 		busy = busy,
-		area = area, -- the endless islet's area the party is in (or running to)
-		running = running, -- members still running there
+		area = 0, -- (every stop plays out in the landing's area)
+		running = running, -- fighters still running to their places (a battle's wild ones coming down the trail)
 		behind = behind, -- members of the party left more than 20 studs behind the area's middle
 		foeU = foeU, -- the nearest wild one from the area's middle (along the road: they stand ahead of it)
 		dropping = dropping, -- wild ones still dropping in from above

@@ -46,6 +46,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
 	["tut.next"] = {},
+	["quest.claim"] = {},
 	["char.home"] = {},
 }
 Validate.ACTIONS = ACTIONS

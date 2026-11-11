@@ -372,7 +372,7 @@ function H.checkProfile(p, label)
 	local Traits = H.sharedServer("Data.Traits")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
-	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "nextId", "tut" } do
+	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "nextId", "tut", "quest" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
 	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))

@@ -8,6 +8,7 @@ local Looks = require(script.Parent.Parent.Data.Looks)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
 local Traits = require(script.Parent.Parent.Data.Traits)
+local Quests = require(script.Parent.Parent.Data.Quests)
 local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
@@ -19,7 +20,7 @@ local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone)
-Schema.VERSION = 7
+Schema.VERSION = 8
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -85,7 +86,8 @@ function Schema.default(now: number, seed: number): Profile
 		eggs = {},
 		nextId = 1,
 		tut = 1,
-		stats = { days = 0, built = 0, earned = 0, befriended = 0, battles = 0, cleared = 0, movedIn = 0, hatched = 0 },
+		quest = 1,
+		stats = { days = 0, built = 0, earned = 0, befriended = 0, battles = 0, cleared = 0, movedIn = 0, hatched = 0, skills = 0 },
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
@@ -102,6 +104,8 @@ end
 --           (the islands charted before stay counted).
 --   6 -> 7: driftlings carry mutations (Data/Traits): each friend from before rolls its own once, from its id and kind
 --           (the same save always rolls the same), as a wild one of its rarity would.
+--   7 -> 8: the questline (Data/Quests): reconcile starts it at the first quest (any already met can be claimed at
+--           once) and the skills used at none.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -136,6 +140,9 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 			end
 		end
 		v = 7
+	end
+	if v < 8 then
+		v = 8 -- (reconcile gives the questline and the skills count their starts)
 	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
@@ -290,6 +297,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		eggs = {},
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
 		tut = int(r.tut, 1, 0, 8),
+		quest = int(r.quest, 1, 1, #Quests.list + 1),
 		stats = {
 			days = int(st.days, 0, 0),
 			built = int(st.built, #placed, 0),
@@ -299,6 +307,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			cleared = int(st.cleared, 0, 0),
 			movedIn = int(st.movedIn, #folk, 0),
 			hatched = int(st.hatched, 0, 0),
+			skills = int(st.skills, 0, 0),
 		},
 		settings = {
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",

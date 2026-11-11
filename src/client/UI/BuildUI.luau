@@ -894,8 +894,13 @@ function BuildUI.isOpen(): boolean
 	return open
 end
 
-function BuildUI.open()
+-- `onTab`: the tray opens on that tab (the quests' Go: GAME_DESIGN 9); a tip's tab still wins.
+function BuildUI.open(onTab: string?)
 	if open then
+		if onTab then
+			tab = onTab
+			rebuild()
+		end
 		return
 	end
 	open = true
@@ -1015,6 +1020,9 @@ function BuildUI.open()
 			rebuild()
 		end
 	end))
+	if onTab then
+		tab = onTab
+	end
 	tutSeen = nil
 	followTut(view())
 	rebuild()

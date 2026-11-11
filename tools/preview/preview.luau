@@ -590,9 +590,8 @@ local function expScenario(spec)
 	settle(p, 30, 1)
 	log("curtain up after %.1fs", waited)
 	if what == "run" then
-		-- the endless islet: the party runs on to the next area (the camera following) where the next stop's wild ones
-		-- already stand, frame by frame (exp_<n>_run_000 ..: make_gif.py makes a GIF), then the encounter
-		-- (the auto Go on is held: the run starts here)
+		-- one area: the next stop's wild ones come running down the trail to the party, frame by frame
+		-- (exp_<n>_run_000 ..: make_gif.py makes a GIF), then the encounter (the auto Go on is held: it starts here)
 		if s.exp then
 			for i = s.exp.node + 1, math.min(#s.exp.nodes, s.exp.node + 3) do
 				s.exp.nodes[i] = "wild"
@@ -607,7 +606,7 @@ local function expScenario(spec)
 			E.run(0.12)
 		end
 		local st = H.inClient(p, EUI.debugState)
-		log("run: area %s, running %s, behind %s, nearest wild one %s studs right of the area's middle, dropping %s", tostring(st.area), tostring(st.running), tostring(st.behind), tostring(st.foeU), tostring(st.dropping))
+		log("run: area %s, running %s, behind %s, nearest wild one %s studs up the trail from the area's middle, dropping %s", tostring(st.area), tostring(st.running), tostring(st.behind), tostring(st.foeU), tostring(st.dropping))
 		H.inClient(p, EUI.debugAuto, true)
 		settle(p, 10, 0.5)
 		capture(p, "exp_" .. spec)

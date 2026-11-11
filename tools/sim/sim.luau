@@ -287,10 +287,10 @@ E.run(Tuning.StageWait + 3)
 local st = H.inClient(p, EUI.debugState)
 H.expect(st.lifted and st.actors >= 2, "explore", "the curtain lifts on the party", string.format("%s %d", tostring(st.lifted), st.actors))
 H.expect(st.arrived, "explore", "the boat brought them ashore", tostring(st.arrived))
--- no Go on to click: between stops a bar fills and the party walks on by itself (by now it may already be in a
+-- no Go on to click and no bar to wait on: between stops the next comes up at once (by now it may already be in a
 -- battle: then its moves are up instead)
 H.expect(H.buttonNamed(p, "GoOn") == nil and (s.exp == nil or s.exp.battle ~= nil or H.buttonNamed(p, "SailHome") ~= nil), "explore", "no Go on button (Sail home between stops)")
-H.expect((s.exp ~= nil and s.exp.battle ~= nil and H.buttonNamed(p, "Act_skills") ~= nil) or H.buttons(p, "^AutoGo$", true)[1] ~= nil, "explore", "the next stop's bar (or a battle's moves)")
+H.expect((s.exp ~= nil and s.exp.battle ~= nil and H.buttonNamed(p, "Act_skills") ~= nil) or H.buttons(p, "^AutoGo$", true)[1] == nil, "explore", "no bar to wait on between stops (or a battle's moves)")
 H.expect(s.exp ~= nil and s.exp.node > nodeAtLanding, "explore", "the expedition went on by itself", string.format("%d -> %s", nodeAtLanding, tostring(s.exp and s.exp.node)))
 -- walk the islet: every stop, every battle running by itself on the screen (a snack at a hurt wild one, a skill when
 -- the points cover one), until its first guardian falls (the island never ends) or the party does
@@ -531,6 +531,83 @@ H.expect((PS.debugNext(1)) == 3, "panels", "the island after that is planned", t
 H.clickNamed(p, "BuildDone", { wait = 0.4 })
 H.checkProfile(p, "panels")
 H.checkMirror(p, "panels")
+
+------------------------------------------------------------------ the questline (GAME_DESIGN 9)
+-- once the tips are over a card down the left names the quest on the go: Go opens the place it needs, and when its
+-- goal is met Claim pays its reward and the next quest comes up; claims too early or during the tips are refused
+E.phase = "quests"
+local Quests = H.sharedServer("Data.Quests")
+local function questAt(id)
+	for i, q in Quests.list do
+		if q.id == id then
+			return i
+		end
+	end
+	return 1
+end
+prof.quest = 1
+for _, x in prof.pals do
+	x.work = 0
+end
+H.push(p, 0.5)
+H.expect(H.buttonNamed(p, "QuestGo") ~= nil and H.buttonNamed(p, "QuestClaim") == nil, "quests", "the first quest's card: put a driftling to work, Go")
+H.clickNamed(p, "QuestGo", { wait = 0.4 })
+H.expect(H.currentPanel(p) == "pals", "quests", "Go opens the Driftlings panel", tostring(H.currentPanel(p)))
+H.expect(H.buttonNamed(p, "QuestGo") == nil, "quests", "the card steps aside for the panel")
+H.closePanel(p)
+E.run(0.3)
+local res = H.req(p, "quest.claim", {})
+H.expect(not res.ok and res.err == "not_done", "quests", "a claim before the goal is met is refused", tostring(res.err))
+-- (a driftling sent to help at a building of its knack, the way the Driftlings panel's Help does)
+local CreaturesQ = H.sharedServer("Data.Creatures")
+local BuildingsQ = H.sharedServer("Data.Buildings")
+local sent = false
+for _, x in prof.pals do
+	local d = CreaturesQ.byId[x.sp]
+	for _, q in prof.plot.placed do
+		local b = BuildingsQ.byId[q.id]
+		if not sent and d and b and b.knack == d.knack then
+			sent = H.req(p, "pal.work", { id = x.id, uid = q.uid }).ok
+		end
+	end
+end
+H.expect(sent, "quests", "a driftling sent to help at a building of its knack")
+H.push(p, 0.5)
+H.expect(H.buttonNamed(p, "QuestClaim") ~= nil, "quests", "a driftling at work: Claim shows")
+local shells0 = prof.shells
+H.clickNamed(p, "QuestClaim", { wait = 0.5 })
+H.expect(prof.quest == 2 and prof.shells >= shells0 + (Quests.list[1].reward.shells or 0), "quests", "Claim pays the reward and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
+prof.quest = questAt("paths")
+H.push(p, 0.5)
+local paths = 0
+for _, q in prof.plot.placed do
+	if q.id == "dirtpath" or q.id == "stonepath" or q.id == "brickroad" or q.id == "marblewalk" then
+		paths += 1
+	end
+end
+if paths < 8 then
+	H.clickNamed(p, "QuestGo", { wait = 0.5 })
+	local BuildUIq = H.cmod(p, "UI.BuildUI")
+	H.expect(H.inClient(p, BuildUIq.isOpen) and H.inClient(p, BuildUIq.debugState).tab == "path", "quests", "Go opens Build mode on the Paths tab")
+	H.clickNamed(p, "BuildDone", { wait = 0.4 })
+end
+prof.quest = questAt("charts")
+local islets0 = prof.islets
+prof.islets = 0
+res = H.req(p, "quest.claim", {})
+H.expect(not res.ok and res.err == "not_done", "quests", "no islands charted: not done", tostring(res.err))
+prof.islets = islets0
+prof.tut = 5
+res = H.req(p, "quest.claim", {})
+H.expect(not res.ok and res.err == "not_found", "quests", "no quests while the tips are on", tostring(res.err))
+prof.tut = 0
+prof.quest = #Quests.list + 1
+H.push(p, 0.4)
+H.expect(H.buttonNamed(p, "QuestGo") == nil and H.buttonNamed(p, "QuestClaim") == nil, "quests", "every quest done: no card")
+prof.quest = 2
+H.push(p, 0.3)
+H.checkProfile(p, "quests")
+H.checkMirror(p, "quests")
 
 ------------------------------------------------------------------ 9. a malicious client
 E.phase = "malicious"

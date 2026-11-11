@@ -2572,9 +2572,10 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 			{ 3, 0, -10.25 },
 			{ -3.75, 4.5, -3.75 },
 			{ 0.25, 6.5, -5.5 },
-			-- and the road's sides level with them (the screen's width: about 31 studs along u)
-			{ -11, 0, 11 },
-			{ 11, 0, -11 },
+			-- and the island's sides level with them (the screen's width: about 40 studs along u, the battle a little
+			-- smaller in the island round it: GAME_DESIGN 7, "zoom out a bit during battle")
+			{ -14, 0, 14 },
+			{ 14, 0, -14 },
 		}
 		band = frame
 	end

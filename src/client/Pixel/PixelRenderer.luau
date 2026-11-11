@@ -483,6 +483,11 @@ export type Grade = {
 local grade: Grade? = nil
 local gradeKey = ""
 local gradeMap: { [number]: number } = {}
+-- A battle's spotlight (GAME_DESIGN 7: "when in battle, transition and darken everything in the background except
+-- the combatants"): the static picture darkened by `dim` (0 .. 1, in tenths: each step re-uploads the picture), the
+-- dynamic things (the fighters, their effects) and glowing parts left as they are.
+local dim = 0
+local dimMap: { [number]: number } = {}
 local lightMap: buffer? = nil
 local lightStale = true
 local lightAt = 0
@@ -603,23 +608,48 @@ local function buildLight(s: Surf)
 	lightAt = os.clock()
 end
 
--- n pixels of the frame from pixel i0, graded into out from pixel o0.
+-- A static pixel in a battle's spotlight: darker, a little greyer and cooler (the fighters stand out against it).
+local function dimOf(c: number): number
+	local r, gg, b = c % 256, (c // 256) % 256, (c // 65536) % 256
+	local a = c - c % 16777216
+	local l = 0.3 * r + 0.59 * gg + 0.11 * b
+	local mix, keep = 0.35 * dim, 1 - 0.5 * dim
+	local nr = (r + (l - r) * mix) * keep + 8 * dim
+	local ng = (gg + (l - gg) * mix) * keep + 6 * dim
+	local nb = (b + (l - b) * mix) * keep + 18 * dim
+	return clampByte(nr) + clampByte(ng) * 256 + clampByte(nb) * 65536 + a
+end
+
+-- n pixels of the frame from pixel i0, graded (the time of day) and dimmed (a battle's spotlight) into out from
+-- pixel o0.
 local function gradeSpan(s: Surf, i0: number, n: number, out: buffer, o0: number)
 	local src, fid = s.frame.color, s.frame.id
-	local lm = if (grade :: Grade).lamps > 0 then lightMap else nil
+	local g = grade
+	local lm = if g and g.lamps > 0 then lightMap else nil
 	local map = gradeMap
+	local dmap = dimMap
 	for k = 0, n - 1 do
 		local i = i0 + k
 		local c = buffer.readu32(src, i * 4)
 		local id = buffer.readu16(fid, i * 2)
 		local o = c
 		if not isGlow(id) then
-			local lvl = if lm then buffer.readu8(lm, i) else 0
-			local key = c + lvl * 4294967296
-			o = map[key]
-			if o == nil then
-				o = gradeOf(c, lvl)
-				map[key] = o
+			if g then
+				local lvl = if lm then buffer.readu8(lm, i) else 0
+				local key = c + lvl * 4294967296
+				o = map[key]
+				if o == nil then
+					o = gradeOf(c, lvl)
+					map[key] = o
+				end
+			end
+			if dim > 0 and id < DYN_ID0 then
+				local d = dmap[o]
+				if d == nil then
+					d = dimOf(o)
+					dmap[o] = d
+				end
+				o = d
 			end
 		end
 		buffer.writeu32(out, (o0 + k) * 4, o)
@@ -636,10 +666,10 @@ local function uploadAll(s: Surf)
 	end
 	local f = s.frame
 	local src = f.color
-	if grade then
+	if grade or dim > 0 then
 		local n = s.W * s.H
 		local now = os.clock()
-		if (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= n or ((lightStale or now - lightAt >= 1) and now - lightAt >= LIGHT_EVERY)) then
+		if grade and (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= n or ((lightStale or now - lightAt >= 1) and now - lightAt >= LIGHT_EVERY)) then
 			buildLight(s)
 		end
 		local b = gradeBuf
@@ -668,8 +698,8 @@ local function uploadRect(s: Surf, r: Rect)
 	local w, h = x1 - x0 + 1, y1 - y0 + 1
 	local b = buffer.create(w * h * 4)
 	local src = s.frame.color
-	if grade then
-		if (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= s.W * s.H) then
+	if grade or dim > 0 then
+		if grade and (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= s.W * s.H) then
 			buildLight(s)
 		end
 		for y = y0, y1 do
@@ -2008,6 +2038,23 @@ function PixelRenderer.setGrade(g: Grade?)
 	grade = g
 	table.clear(gradeMap)
 	needFull = true
+end
+
+-- A battle's spotlight (UI/ExpeditionUI): the static picture darkened by k (0 .. 1, taken in tenths; each step
+-- re-uploads the picture), the dynamic things as they are.
+function PixelRenderer.setDim(k: number)
+	local q = math.floor(math.clamp(k, 0, 1) * 10 + 0.5) / 10
+	if q == dim then
+		return
+	end
+	dim = q
+	table.clear(dimMap)
+	needFull = true
+end
+
+-- Sims and previews: the spotlight's dimming now.
+function PixelRenderer.debugDim(): number
+	return dim
 end
 
 -- Sims and previews: the grade now ("" by day).

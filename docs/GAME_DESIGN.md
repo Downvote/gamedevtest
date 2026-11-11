@@ -523,8 +523,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 > wellmake it such that there is no need to click on "go on", it automatically goes on. also, make an actual day
 > night cycle, causing things to go dark and then bright as time goes on"
 
-- **It goes on by itself:** between stops there is no Go on to tap: a bar fills (`AUTO_GO`, 1.8 s) and the party
-  walks on to the next stop (Space, or a tap on the bar, goes at once). A won battle is a small alert under the
+- **It goes on by itself:** between stops there is no Go on to tap: the next stop comes up at once (since the
+  2026-11-11 request below there is no bar to wait on either). A won battle is a small alert under the
   header (Victory!, the xp and shells, level-ups, a new friend's portrait) that goes by itself after `AUTO_CARD`
   (3 s), with no button. A fall shows the Expedition Complete! card (below), which waits for Sail home.
 
@@ -550,7 +550,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 > The request (2026-11-11): "also, instead of having creatures pop out of the island, make the party run to the right
 > in an endless island after clearing one area to reach the next encounter"
 
-- **The run on:** the island goes on ahead, one area after another (each laid out from the island's seed and its own
+- **The run on** (replaced on 2026-11-11 by one area, below): the island goes on ahead, one area after another (each laid out from the island's seed and its own
   number, the land running from one into the next as one long road). When a stop is done the party walks on up the
   road to the next area (up and to the right on the screen, since the 2026-11-11 battle view below), everyone a
   moment behind the one before, and the camera follows. The next stop is
@@ -600,6 +600,32 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 - **The encounter:** a new fight flashes the stage white twice (three times for a guardian), the wild ones' boxes
   slide in from the edge one after another, and a line names them ("A wild Mossbun appeared.", "Wild Mossbun,
   Floe and Pebblit appeared."; a guardian "King Frostdrake is in the way.").
+
+> The requests (2026-11-11): "no need to make the party walk anymore, the creatures will appear in a single area.
+> also, zoom out a bit during battle"; "make each character have a short unique attack animation, no need for them
+> to charge towards who they are attacking, they now attack in place. also, the attack sounds seem delayed. also, no
+> need for the "next stop" pause between every part, just go on to the next immediately in the expeditions"; "when in
+> battle, transition and darken everything in the background except the combatants"
+
+- **One area:** every stop plays out where the party landed. The party stays on the trail (anyone knocked down gets
+  back up in their place), and each battle's wild ones come running down the trail from out of sight to their
+  places, one a moment after another, the dust flying; the fight starts once they're there (a guardian a moment
+  later). The camera holds still, and sits a little further back than before, so the battle is a bit smaller with
+  more of the island round it.
+- **No waiting between stops:** the "Next stop" bar is gone. When a stop is done the next one comes up straight
+  away; between stops the footer only has Sail home.
+- **Each fighter attacks its own way, where it stands:** nobody runs up to the target any more. A driftling moves the
+  way its body does: a blob bounces, a bunny or frog pounces, a crab snaps twice, a drake rears and roars sparks
+  across, a golem or yeti stomps, a jelly or moth puffs up and lets go a burst of twinkles, a lizard or wyrm whips
+  round with its tail, a mole or pup headbutts, an owl or bird pecks three times, a sprite spins up, a snail or turtle
+  spins in its shell, a bat dives. Each kind has its own tempo, height and turn, so no two look the same. The founder
+  punches; a villager kicks, swings, slings a pebble or hops and stomps, by who they are. The skills' moves (a
+  bash's leap and slam, quick's three jabs, a zap's bolt) are played in place too. The blow lands at the target the
+  moment it's struck.
+- **Sounds on time:** a swing is heard as it starts and the hit at the blow. The battle's sounds are loaded when the
+  game starts, so the first ones aren't late either.
+- **The spotlight:** while a fight is on, the background fades darker and a little cooler over about half a second,
+  and the fighters, their effects and anything glowing stay at full colour. It fades back when the fight ends.
 
 
 > The requests (2026-11-11): "make the first snack throw in the tutorial always catch. also, the camera bugs out
@@ -723,6 +749,22 @@ stall, the tent and the nest of the tips cost 280.
 > The request (2026-11-11): "also, please rewrite all text and dialogue to be less ai-like. research what are the
 > telltale signs of ai writing and avoid them. note this from further on as well"
 
+> The request (2026-11-11): "make a questline such that players are guided throughout the features of the game, such
+> as assigning creatures to different work areas"
+
+**The questline** (`Data/Quests`, `Logic/Quest`): once the tips are over, one quest at a time in a card down the left
+under the chips (under the trip's card on a phone; it steps aside for an expedition and for a panel). The card has
+the quest's icon and title, which of the twenty it is, what to do and where, and its progress with **Go**, which opens
+the place it needs (the Driftlings or Villagers panel, Build mode on the right tab, the sea chart, the Index, the
+Hatchery). When the goal is met, Go turns into **Claim** (shining) next to the reward; Claim pays it, says so, and
+the next quest slides in. Each goal counts what the island has now, so one already met can be claimed at once. In
+order: put a driftling to work; make room for a newcomer (2 villagers); give everyone a job (2 at work); upgrade a
+building; lay a path (8 tiles); decorate (2 pieces); befriend three driftlings; use a skill; win ten fights; carry
+more snacks (a bigger pouch); beat a guardian; grow your island (tier 2); build a boost; build the Training Yard;
+upgrade your boat; meet twelve kinds; grow the island again (tier 3); build a Hatchery; hatch an egg; chart three
+islands. The rewards are small (60 to 2,000 shells, some food and wood) next to what each step costs; the career's
+player (§10) doesn't claim them, so the economy's bounds are measured without them.
+
 **How the game talks** (every tip, notice, card and blurb; CLAUDE.md "Writing" keeps it as a standing rule). The
 researched tells of machine-written text, and what replaced them here: an exclamation mark on nearly every line
 (now only where something earns it, like an egg hatching); colons and semicolons gluing two thoughts into one line
@@ -737,7 +779,8 @@ menu's "Explore" and the Sun Beacon are names). Stat lines keep their "label: va
 
 ## 10. Saves and the economy, checked
 
-The save is version 7 (`Logic/Schema`): a version 6 save keeps everything and each of its driftlings rolls its
+The save is version 8 (`Logic/Schema`): a version 7 save keeps everything and starts the questline at its first quest
+(any already met can be claimed straight away) with no skills counted yet; a version 6 save keeps everything and each of its driftlings rolls its
 mutations once (from its kind and id: the same every load); a version 5 save keeps everything, its tips moved to the
 new steps, and gets its sea seed, a level 1 boat and an empty chart; an older save (the game studio's) keeps the founder's look, the
 settings and its start date and begins a fresh island with the tips. `tests/Career.luau` plays a sensible player through the same

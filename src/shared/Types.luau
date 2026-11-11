@@ -27,8 +27,8 @@ export type Captain = { lvl: number, xp: number }
 export type Settings = { pixel: string, music: string? } -- music: "on" (default) | "off"
 
 -- days: island days lived; earned: shells made in all; befriended: driftlings that joined; cleared: islands'
--- guardians beaten; battles won.
-export type Stats = { days: number, built: number, earned: number, befriended: number, battles: number, cleared: number, movedIn: number, hatched: number }
+-- guardians beaten; battles won; skills used in battle (the questline counts them).
+export type Stats = { days: number, built: number, earned: number, befriended: number, battles: number, cleared: number, movedIn: number, hatched: number, skills: number }
 
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
 -- the kind and its mutations) and the island turns left (0: ready, waiting for a free nest).
@@ -55,6 +55,7 @@ export type Profile = {
 	eggs: { Egg }, -- the Hatcheries' eggs (one a hatchery)
 	nextId: number, -- the next villager, driftling or piece id
 	tut: number, -- the tips' step (1 .. 8; 0 = done)
+	quest: number, -- the questline's quest on the go (Data/Quests; one past the last: all done)
 	stats: Stats,
 	settings: Settings,
 	createdAt: number,
@@ -143,6 +144,7 @@ export type ClientView = {
 	seen: { [string]: number },
 	eggs: { Egg },
 	tut: number,
+	quest: number,
 	stats: Stats,
 	settings: Settings,
 	rates: { food: number, wood: number, shells: number }, -- a day, after eating
@@ -174,6 +176,7 @@ export type ErrCode =
 	| "not_found"
 	| "far"
 	| "no_snacks"
+	| "not_done"
 	| "sp"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }

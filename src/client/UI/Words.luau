@@ -20,6 +20,7 @@ local ERRORS: { [string]: string } = {
 	egg = "An egg is still warming in that Hatchery.",
 	far = "Too far for your boat. A bigger one could make it.",
 	no_snacks = "Out of snacks for this trip. A bigger pouch holds more.",
+	not_done = "That quest isn't done yet.",
 	sp = "Not enough skill points yet. They build up as the fight goes on.",
 	rate = "Slow down a little.",
 	not_ready = "One moment, your island is still waking up.",

@@ -17,6 +17,7 @@ local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
+local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
 local Router = require(script.Parent.Router)
@@ -279,6 +280,14 @@ function IslandService.init()
 	Router.on("tut.next", function(s, _a)
 		s.profile.tut = 0
 		return true, nil
+	end)
+	-- the questline (GAME_DESIGN 9): the quest on the go claimed once its goal is met, its reward paid
+	Router.on("quest.claim", function(s, _a)
+		local ok, data = Quest.claim(s.profile)
+		if ok then
+			Session.fx(s, { kind = "quest", data = data })
+		end
+		return ok, data
 	end)
 end
 

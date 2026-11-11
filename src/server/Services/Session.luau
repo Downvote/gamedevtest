@@ -92,6 +92,7 @@ function Session.view(s: S): Types.ClientView
 		seen = p.seen,
 		eggs = p.eggs,
 		tut = p.tut,
+		quest = p.quest,
 		stats = p.stats,
 		settings = p.settings,
 		rates = { food = r.food, wood = r.wood, shells = r.shells },

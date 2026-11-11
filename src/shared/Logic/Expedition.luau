@@ -613,6 +613,7 @@ function Expedition.skill(p: Profile, e: Expedition, who: string, id: string, ta
 	if not ok then
 		return false, events
 	end
+	p.stats.skills = (p.stats.skills or 0) + 1
 	return true, settle(p, e, b, events, result)
 end
 

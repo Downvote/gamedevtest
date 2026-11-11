@@ -14,6 +14,8 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
+local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
+local Quests = require(ReplicatedStorage.Shared.Data.Quests)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -22,6 +24,7 @@ local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
+local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
 local BuildUI = require(script.Parent.BuildUI)
 local ExpeditionUI = require(script.Parent.ExpeditionUI)
@@ -48,6 +51,8 @@ local barW = 0
 local card: Frame? = nil
 local expCard: Frame? = nil
 local tips: Frame? = nil
+local quest: Frame? = nil -- the questline's card (GAME_DESIGN 9)
+local QUEST_W = 150
 local homeButton: TextButton? = nil
 local dayBar: Frame? = nil
 local musicButton: GuiButton? = nil
@@ -372,6 +377,131 @@ local function stack()
 			e.Position = UDim2.fromOffset(s.X - CARD_W - 7, y)
 		end
 	end
+	-- the quest's card down the left under the chips (under the trip's card on a phone); it steps aside for an
+	-- expedition and for a panel
+	local qf = quest
+	if qf then
+		qf.Visible = not (ExpeditionUI.isOpen() or UIKit.currentPanel() ~= nil)
+		local y = CARD_Y
+		if UIKit.phone() and e and e.Visible then
+			y = e.Position.Y.Offset + e.Size.Y.Offset + 11
+		end
+		qf.Position = UDim2.fromOffset(7, y)
+	end
+end
+
+------------------------------------------------------------------ the questline
+-- Where a quest's Go takes the player (Data/Quests' `go`): a panel, the sea chart (or the trip under way), or Build
+-- mode on a tab.
+local function goTo(where: string)
+	if where == "explore" then
+		if ExpeditionUI.active() then
+			ExpeditionUI.open()
+		else
+			UIKit.openPanel("explore")
+		end
+	elseif string.sub(where, 1, 5) == "build" then
+		BuildUI.open(string.match(where, "^build:(%a+)$"))
+	else
+		UIKit.openPanel(where)
+	end
+end
+
+local function claimQuest()
+	task.spawn(function()
+		local res = StateClient.request("quest.claim", {})
+		if res.ok and type(res.data) == "table" then
+			local d = res.data :: { [string]: any }
+			local parts: { string } = {}
+			for _, it in { { "shells", "shells" }, { "food", "food" }, { "wood", "wood" } } do
+				local n = tonumber(d[it[1]]) or 0
+				if n > 0 then
+					table.insert(parts, string.format("+%s %s", Numbers.coins(n), it[2]))
+				end
+			end
+			Audio.play("reward")
+			UIKit.notice("Quest done. " .. table.concat(parts, ", "), UIKit.color("good"), 3)
+		else
+			Audio.play("deny")
+			UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+		end
+	end)
+end
+
+-- The questline's card (GAME_DESIGN 9): the quest on the go once the tips are over, its icon and title and which of
+-- them it is, what to do and where, then its progress and Go (to the place it needs), or once done its reward and
+-- Claim (shining).
+local function updateQuest(v: Types.ClientView)
+	local q, i = Quest.current(v.tut, v.quest or 1)
+	local have, need = 0, 0
+	if q then
+		local facts: Quest.Facts = { folk = v.folk, pals = v.pals, pieces = v.pieces, tier = v.tier, boat = v.boat, pouch = v.pouch, islets = v.islets, seen = v.seen, stats = v.stats }
+		have, need = Quest.progress(facts, q)
+	end
+	local key = if q then string.format("%s:%d:%d", q.id, have, need) else ""
+	if quest and quest:GetAttribute("Key") == key then
+		return
+	end
+	if quest then
+		quest:Destroy()
+		quest = nil
+	end
+	if q == nil then
+		return
+	end
+	local done = have >= need
+	local canvas = UIKit.canvas("Hud")
+	local w = QUEST_W
+	local textW = w - 10
+	local lines = math.clamp(math.ceil(UIKit.textWidth(q.text) / textW), 1, 3)
+	local h = 16 + lines * 10 + 16
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(7, CARD_Y), UIKit.color("plate"), 0.05, 2, { bevel = true, wood = 2 })
+	f.Name = "Quest"
+	f:SetAttribute("Key", key)
+	PixelSprites.image(f, "mini_" .. q.icon, UDim2.fromOffset(3, 2), 3)
+	UIKit.text(f, q.title, UDim2.fromOffset(w - 44, 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3 })
+	local which = string.format("%d/%d", i, #Quests.list)
+	UIKit.text(f, which, UDim2.fromOffset(26, 10), UDim2.fromOffset(w - 30, 2), { x = "right", color = UIKit.color("text_dim"), name = "Which", z = 3 })
+	UIKit.text(f, q.text, UDim2.fromOffset(textW, lines * 10), UDim2.fromOffset(5, 14), { color = UIKit.color("text"), wrap = lines > 1, name = "Words", z = 3 })
+	local y = 15 + lines * 10 + 1
+	if done then
+		-- its reward, and Claim
+		local x = 5
+		for _, it in { { "shells", "shell" }, { "food", "food" }, { "wood", "wood" } } do
+			local n = (q.reward :: { [string]: number? })[it[1]] or 0
+			if n > 0 then
+				PixelSprites.image(f, "mini_" .. it[2], UDim2.fromOffset(x, y), 3)
+				local t = Numbers.coins(n)
+				UIKit.text(f, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 12, y + 1), { color = UIKit.color("text"), name = "Reward_" .. it[1], z = 3 })
+				x += 16 + UIKit.textWidth(t)
+			end
+		end
+		local b = UIKit.button(f, "Claim", UDim2.fromOffset(40, 12), UDim2.fromOffset(w - 44, y), claimQuest, { name = "QuestClaim", color = UIKit.color("button_ok") })
+		b.ZIndex = 4
+		task.delay(0.3, function()
+			if b.Parent then
+				UIKit.shine(b)
+			end
+		end)
+	else
+		-- how far, and Go
+		local bw = w - 10 - 44 - 32
+		local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(5, y + 4), UIKit.color("ink"), 3)
+		back.Name = "Bar"
+		UIKit.rect(back, UDim2.fromOffset(math.floor((bw - 2) * have / math.max(1, need)), 2), UDim2.fromOffset(1, 1), UIKit.color("good"), 4).Name = "Fill"
+		UIKit.text(f, string.format("%d/%d", have, need), UDim2.fromOffset(30, 10), UDim2.fromOffset(5 + bw + 3, y + 1), { color = UIKit.color("text_dim"), name = "Progress", z = 3 })
+		local b = UIKit.button(f, "Go", UDim2.fromOffset(40, 12), UDim2.fromOffset(w - 44, y), function()
+			goTo(q.go)
+		end, { name = "QuestGo" })
+		b.ZIndex = 4
+	end
+	quest = f
+	-- a new quest slides in from the left
+	f.Position = UDim2.fromOffset(-w - 8, CARD_Y)
+	stack()
+	local to = f.Position
+	f.Position = UDim2.fromOffset(-w - 8, to.Y.Offset)
+	UIKit.tween(f, 0.22, { Position = to })
 end
 
 ------------------------------------------------------------------ tips
@@ -575,6 +705,7 @@ local function refresh(v: Types.ClientView)
 	updateExp(v)
 	stack()
 	updateTips(v)
+	updateQuest(v)
 	local key = string.format("%d", v.tier)
 	if key ~= lastKey then
 		lastKey = key
@@ -593,12 +724,12 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, expCard, tips, homeButton, musicButton } :: { Instance? } do
+	for _, f in { card, expCard, tips, quest, homeButton, musicButton } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
-	card, expCard, tips, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil
+	card, expCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 108 else 124
 	buildTop()
 	buildBar()
