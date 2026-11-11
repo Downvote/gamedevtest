@@ -55,6 +55,16 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
   icon. Every driftling has a 16x16 portrait and the island's things 11x11 icons, drawn by the rules below.
 
+  > The request (2026-11-11): "also, the sprites you made for the creatures dont follow a specific style and look
+  > strange at times. reference pokemon sprites, with their angles and detailing" (with a sheet of another studio's
+  > monster sprites: their angle and finish are the reference, never their creatures)
+
+  The portraits were a mix of front-on heads, side views and top-down bodies. Now every one follows one template:
+  the whole creature in a three-quarter view turned to the left, a big head (about half its height) over a small
+  body, its feet on the bottom rows; two eyes, the far one narrower and the near one 2 px wide with a white
+  highlight; a shaded cream ramp for muzzles, bellies and jaws, pink blush, the species' body colour with its
+  markings in the accent. The same 1 px ink outline and lit-from-the-top-left shading as every sprite.
+
   > The request (2026-11-10): "also, polish the UI much more"
 
   > The request (2026-11-10): "make alot more polish to the UI and more in theme with the island theme"

@@ -750,9 +750,11 @@ stage's parts that come or go (`PixelRenderer.watchStage`).
 pixel (`.` clear, else an index into `pal` 0xRRGGBB with its `alpha`). How `gen_art.py` shades (GAME_DESIGN 2):
 `cel_tones` over the whole silhouette (the base; a 1 px shadow along the bottom and right edges, two under a
 portrait's belly; a short light on the upper half of the top-left edges of masses 3 px thick), close hue-shifted
-ramps (`RAMPS`, `M` the magmole's warm basalt), no grain, curves inside the outline softened a step toward the
+ramps (`RAMPS`, `M` the magmole's warm basalt, `E` cream), no grain, curves inside the outline softened a step toward the
 shadow; the outline is never anti-aliased on its outside. Each portrait is its body shape (`SHAPES`; the novafox's
-is a `fox` of its own, its 3D model still the pup).
+is a `fox` of its own, its 3D model still the pup), all on one template (GAME_DESIGN 2): a three-quarter view turned
+left, a big head, a narrow far eye and a 2 px near eye with a highlight (`k`, `w`), cream (`E`) muzzles and bellies,
+blush (`p`); `A` the species' body ramp, `Z` its accent (`CREATURE_ICONS`), inside 14 x 14 so every icon is 16 x 16.
 The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not met yet); an
 animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the driftlings' portraits
 `icon_<species>` (16x16: a mask a body shape in the species' two ramps), the small icons `mini_<name>` (11x11: `shell
