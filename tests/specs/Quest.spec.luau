@@ -20,11 +20,10 @@ local KINDS = {
 	charted = true,
 	tier = true,
 	pouch = true,
-	boat = true,
 	seen = true,
 	hatched = true,
 }
-local PANELS = { pals = true, folk = true, index = true, hatch = true, explore = true }
+local PANELS = { pals = true, folk = true, index = true, hatch = true, site = true }
 local TABS = { food = true, wood = true, shop = true, home = true, nest = true, gen = true, path = true, decor = true }
 
 local function fresh(): any

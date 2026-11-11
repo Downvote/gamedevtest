@@ -27,6 +27,8 @@ local StateClient = require(script.Parent.StateClient)
 local CameraController = require(script.Parent.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
+local PixelSprites = require(script.Parent.Parent.UI.PixelSprites)
+local SiteData = require(ReplicatedStorage.Shared.Data.Sites)
 
 local WorldView = {}
 
@@ -588,6 +590,105 @@ local function updateSigns()
 	end
 end
 
+------------------------------------------------------------------ the wild places' labels (GAME_DESIGN 7)
+-- Over each wild place on the own island, its name and level (orange while wild, green once cleared); over the one
+-- the tips point at (steps 5 and 6: the lowest wild one, the Tide Pool on a new island) an arrow bobs.
+type SiteLabel = { label: TextLabel, top: Vector3, key: string }
+local siteLabels: { [Instance]: SiteLabel } = {}
+local tutArrow: ImageLabel? = nil
+
+local function siteTop(m: Model): Vector3
+	local cf, size = m:GetBoundingBox()
+	return cf.Position + Vector3.new(0, size.Y / 2 + 0.9, 0)
+end
+
+local function updateSiteLabels()
+	local seen: { [Instance]: boolean } = {}
+	local m = plotModel(myPlot)
+	local decor = if m then m:FindFirstChild("Decor", true) else nil
+	local v = StateClient.view()
+	local tutUid = 0
+	if v and (v.tut == 5 or v.tut == 6) and v.exp == nil then
+		local lo = math.huge
+		for _, q in v.pieces do
+			local sd, wild = SiteData.of(q.id)
+			if sd and wild and q.lvl < lo then
+				lo, tutUid = q.lvl, q.uid
+			end
+		end
+	end
+	local arrowAt: Vector3? = nil
+	if decor and not CameraController.isFree() then
+		for _, c in decor:GetChildren() do
+			-- (a cleared place is a piece like any other: no label; a tap still opens its card)
+			local key = c:GetAttribute("Site")
+			if c:IsA("Model") and type(key) == "string" and c:GetAttribute("Wild") == true then
+				seen[c] = true
+				local uid, id, lvl = string.match(c.Name, "^(%d+):([%w_]+):%-?%d+:%-?%d+:%d+:(%d+)$")
+				local sd, wild = SiteData.of(id or "")
+				local text = if sd then string.format("%s Lv %s", sd.name, lvl or "?") else ""
+				local color = if wild then UIKit.color("orange") else UIKit.color("good")
+				local e = siteLabels[c]
+				if e == nil or e.key ~= c.Name then
+					if e then
+						e.label:Destroy()
+					end
+					local l = UIKit.text(UIKit.canvas("World"), text, UDim2.fromOffset(UIKit.textWidth(text) + 4, 10), nil, { x = "center", kind = "outline", color = color, name = "Site_" .. tostring(uid) })
+					e = { label = l, top = siteTop(c), key = c.Name }
+					siteLabels[c] = e
+				end
+				local entry = e :: SiteLabel
+				local x, y, on = PixelRenderer.projectPixel(entry.top)
+				entry.label.Visible = on
+				if on then
+					entry.label.Position = UDim2.fromOffset(x - math.floor(entry.label.Size.X.Offset / 2), y - 10)
+				end
+				if tonumber(uid) == tutUid then
+					arrowAt = entry.top
+				end
+			end
+		end
+	end
+	for c, e in siteLabels do
+		if not seen[c] then
+			e.label:Destroy()
+			siteLabels[c] = nil
+		end
+	end
+	-- the tips' arrow over the place to tap
+	if arrowAt then
+		local a = tutArrow
+		if a == nil then
+			a = PixelSprites.image(UIKit.canvas("World"), "arrow_down_t", UDim2.fromOffset(0, 0), 5) :: any
+			tutArrow = a
+		end
+		local x, y, on = PixelRenderer.projectPixel(arrowAt :: Vector3)
+		local bob = if math.floor(os.clock() * 3) % 2 == 0 then 0 else 2
+		local arrow = a :: ImageLabel
+		arrow.Visible = on
+		arrow.Position = UDim2.fromOffset(x - 3, y - 22 + bob)
+	elseif tutArrow then
+		tutArrow:Destroy()
+		tutArrow = nil
+	end
+end
+
+-- The wild place on the own island under a world hit, its piece uid (or nil).
+local function siteUidOf(inst: Instance): number?
+	local m: Instance? = inst
+	while m and m ~= workspace do
+		if m:IsA("Model") and type(m:GetAttribute("Site")) == "string" then
+			local pm = m:FindFirstAncestor("Plot_" .. myPlot)
+			if pm == nil then
+				return nil
+			end
+			return tonumber(string.match(m.Name, "^(%d+):"))
+		end
+		m = m.Parent
+	end
+	return nil
+end
+
 -- A card about the island whose sign was tapped.
 function WorldView.signCard(i: number)
 	local m = plotModel(i)
@@ -613,7 +714,7 @@ function WorldView.signCard(i: number)
 		end
 		return c
 	end
-	UIKit.notice(string.format("%s: day %s, %d villagers, %d driftlings, charm %s, %d islands charted", name, Numbers.int(n("Day")), count("Folk"), count("Pals"), Numbers.int(n("Charm")), n("Islets")), UIKit.color("accent"), 5)
+	UIKit.notice(string.format("%s: day %s, %d villagers, %d driftlings, charm %s, %d wild places cleared", name, Numbers.int(n("Day")), count("Folk"), count("Pals"), Numbers.int(n("Charm")), n("Islets")), UIKit.color("accent"), 5)
 end
 
 -- A tap (not a drag, not on the interface, not in Build mode) on an island sign shows its card.
@@ -633,6 +734,12 @@ local function onTap(pos: Vector2)
 	params.FilterDescendantsInstances = list
 	local hit = workspace:Raycast(origin, dir, params)
 	if hit == nil then
+		return
+	end
+	-- a wild place on the own island: its card (GAME_DESIGN 7: "You can tap on them to enter an expedition")
+	local uid = siteUidOf(hit.Instance)
+	if uid then
+		UIKit.openPanel("site", uid)
 		return
 	end
 	local sign = hit.Instance:FindFirstAncestor("PlotSign")
@@ -775,7 +882,14 @@ function WorldView.start()
 		end
 		stepBits(dt)
 		updateSigns()
+		updateSiteLabels()
 	end)
+end
+
+-- Sims: a tap on the screen at `pos` (screen px, as an InputObject's), as a player's tap is handled (a wild place on
+-- the own island opens its card, a sign its card).
+function WorldView.tapScreen(pos: Vector2)
+	onTap(pos)
 end
 
 -- CLI checks only: the islanders drawn now (all islands', and the own island's).

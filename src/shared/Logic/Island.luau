@@ -19,6 +19,7 @@ local Looks = require(script.Parent.Parent.Data.Looks)
 local Names = require(script.Parent.Parent.Data.Names)
 local Util = require(script.Parent.Util)
 local Plot = require(script.Parent.Plot)
+local Sites = require(script.Parent.Sites)
 
 type Profile = Types.Profile
 type Piece = Types.Piece
@@ -57,9 +58,9 @@ function Island.nests(p: Profile): number
 	return count(p, "slots")
 end
 
--- The charm: every piece's, a little for each driftling (visitors like them) and for each islet opened.
+-- The charm: every piece's, a little for each driftling (visitors like them) and for each wild place cleared.
 function Island.charm(p: Profile): number
-	return count(p, "charm") + #p.pals + math.min(Tuning.ChartCharm * p.islets, Tuning.ChartCharmMax)
+	return count(p, "charm") + #p.pals + math.min(Tuning.ClearCharm * p.islets, Tuning.ClearCharmMax)
 end
 
 function Island.visitors(p: Profile): number
@@ -434,7 +435,9 @@ function Island.expand(p: Profile): (boolean, any)
 	p.tier += 1
 	-- the bigger lodge may stand where buildings were: they make room (Plot.refit)
 	local moved, cleared = Plot.refit(p)
-	return true, { tier = p.tier, moved = moved, cleared = cleared }
+	-- new wild places come up on the land gained, higher in level (GAME_DESIGN 7; Logic/Sites)
+	local sites = Sites.spawn(p)
+	return true, { tier = p.tier, moved = moved, cleared = cleared, sites = #sites }
 end
 
 -- The founder's look (free).

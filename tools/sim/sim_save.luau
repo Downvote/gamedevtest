@@ -95,8 +95,8 @@ H.checkMirror(p2, "rejoin")
 E.phase = "leave-exp"
 local pp = H.profile(p2)
 pp.food = 100
-local res = H.req(p2, "exp.start", { isle = 1, party = "" })
-H.expect(res.ok, "save", "an expedition sets sail", tostring(res.err))
+local res = H.req(p2, "exp.start", { site = H.firstSite(H.profile(p2)), party = "" })
+H.expect(res.ok, "save", "an expedition into a wild place", tostring(res.err))
 H.req(p2, "exp.next", {})
 local s2 = H.session(p2)
 local gathered = s2.exp and E.deepCopy(s2.exp.loot)
@@ -163,8 +163,17 @@ local cp = H.profile(c)
 H.expect(cp ~= nil, "save", "a corrupt record still loads")
 if cp then
 	H.expect(cp.shells == Tuning.StartShells and cp.food == 0 and cp.tier == #Tuning.TierCost, "save", "into a valid profile (the tier at the top)", string.format("%s %s %d", tostring(cp.shells), tostring(cp.food), cp.tier))
-	local q = cp.plot.placed[1]
-	H.expect(#cp.plot.placed == 1 and q.id == "patch" and H.sharedServer("Logic.Plot").fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone", string.format("%d pieces", #cp.plot.placed))
+	-- (the pieces built, apart from the wild places that came up for its tiers)
+	local PlotM = H.sharedServer("Logic.Plot")
+	local built = {}
+	for _, x in cp.plot.placed do
+		if not PlotM.isSite(x.id) then
+			table.insert(built, x)
+		end
+	end
+	local q = built[1]
+	H.expect(#built == 1 and q.id == "patch" and PlotM.fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone", string.format("%d pieces", #built))
+	H.expect(#cp.plot.placed > 1 and cp.wilds == cp.tier, "save", "and every tier's wild places came up", string.format("%d of them", #cp.plot.placed - #built))
 	H.expect(#cp.folk == 1 and cp.folk[1].work == 0 and #cp.pals == 1 and cp.pals[1].id == 8 and cp.islets == 42, "save", "only what makes sense kept", string.format("%d folk, %d pals, %d islands", #cp.folk, #cp.pals, cp.islets))
 	H.checkProfile(c, "corrupt")
 	H.checkMirror(c, "corrupt")
@@ -189,7 +198,13 @@ local op = H.profile(o)
 H.expect(op ~= nil and op.v == Schema.VERSION, "save", "a version 4 save loads as an island", tostring(op and op.v))
 if op then
 	H.expect(op.founder.shirt == 6 and op.settings.pixel == "low" and op.createdAt == 1234, "save", "the founder's look, the settings and the start kept")
-	H.expect(op.coins == nil and op.team == nil and op.games == nil and #op.plot.placed == 0 and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips")
+	local wildOnly = true
+	for _, x in op.plot.placed do
+		if not H.sharedServer("Logic.Plot").isSite(x.id) then
+			wildOnly = false
+		end
+	end
+	H.expect(op.coins == nil and op.team == nil and op.games == nil and wildOnly and #op.plot.placed == 2 and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips (and its first wild places)")
 	H.expect(op.shells == Tuning.StartShells, "save", "the starting shells", tostring(op.shells))
 	H.checkProfile(o, "old-save")
 	H.checkMirror(o, "old-save")

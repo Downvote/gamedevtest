@@ -13,6 +13,7 @@ local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
+local Sites = require(script.Parent.Sites)
 
 type Profile = Types.Profile
 
@@ -20,7 +21,7 @@ local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone)
-Schema.VERSION = 8
+Schema.VERSION = 9
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -62,10 +63,11 @@ local function level(v: any): { lvl: number, xp: number }
 end
 
 ------------------------------------------------------------------ default
--- A new island: Tuning.StartShells, StartFood and StartWood (enough for the tips' buildings), nobody else yet.
+-- A new island: Tuning.StartShells, StartFood and StartWood (enough for the tips' buildings), nobody else yet, and
+-- its first wild places (Logic/Sites: a tide pool and some tall grass).
 function Schema.default(now: number, seed: number): Profile
 	local rng = Util.newRng(seed)
-	return {
+	local p: Profile = {
 		v = Schema.VERSION,
 		shells = Tuning.StartShells,
 		food = Tuning.StartFood,
@@ -79,9 +81,8 @@ function Schema.default(now: number, seed: number): Profile
 		plot = { placed = {} },
 		islets = 0,
 		sea = rng:int(1, 2147483646),
-		boat = 1,
+		wilds = 0,
 		pouch = 1,
-		chart = {},
 		seen = {},
 		eggs = {},
 		nextId = 1,
@@ -91,6 +92,8 @@ function Schema.default(now: number, seed: number): Profile
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
+	Sites.spawn(p)
+	return p
 end
 
 ------------------------------------------------------------------ migrate
@@ -106,6 +109,9 @@ end
 --           (the same save always rolls the same), as a wild one of its rarity would.
 --   7 -> 8: the questline (Data/Quests): reconcile starts it at the first quest (any already met can be claimed at
 --           once) and the skills used at none.
+--   8 -> 9: the sea chart and the boat are gone (GAME_DESIGN 7: the wild places on the island instead): the boat's
+--           level and the islands charted go; the count of islands charted stays as places cleared (its charm kept);
+--           reconcile brings up the wild places of every tier the island has reached (Logic/Sites).
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -144,6 +150,12 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	if v < 8 then
 		v = 8 -- (reconcile gives the questline and the skills count their starts)
 	end
+	if v < 9 then
+		raw.boat = nil
+		raw.chart = nil
+		raw.wilds = 0
+		v = 9
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -161,19 +173,20 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 	for _, q in v do
 		local def = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
 		local path = def ~= nil and def.kind == "path"
-		if def and (if path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
+		local site = def ~= nil and def.kind == "site"
+		if def and (site or (if path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier))) then
 			local uid = int(q.uid, 0, 0)
 			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
 			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
 				used[uid] = true
 				if path then
 					paths += 1
-				else
+				elseif not site then
 					pieces += 1
 				end
-				-- a level: the makers', homes' and nests' (from before upgrades were taken out: kept)
+				-- a level: the makers', homes' and nests' (from before upgrades were taken out: kept); a wild place's
 				local leveled = Island.works(q.id) or def.kind == "home" or def.kind == "nest"
-				local lvl = if leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
+				local lvl = if site then int(q.lvl, 1, 1, Tuning.LevelMax) elseif leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
 				table.insert(out, { uid = uid, id = q.id, x = x, z = z, rot = rot, lvl = lvl })
 			end
 		end
@@ -267,15 +280,6 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	local st = if type(r.stats) == "table" then r.stats else {}
 	local settings = if type(r.settings) == "table" then r.settings else {}
 	local pixel = settings.pixel
-	-- the chart's islands charted: ids on the chart, each once
-	local charted: { number } = {}
-	if type(r.chart) == "table" then
-		for _, id in r.chart do
-			if type(id) == "number" and id == math.floor(id) and id >= 1 and id <= Tuning.ChartIslands and not table.find(charted, id) then
-				table.insert(charted, id)
-			end
-		end
-	end
 	local out: Profile = {
 		v = Schema.VERSION,
 		shells = num(r.shells, d.shells, 0, 1e12),
@@ -290,9 +294,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		plot = { placed = placed },
 		islets = int(r.islets, 0, 0, 1e6),
 		sea = int(r.sea, d.sea, 1, 2147483646),
-		boat = int(r.boat, 1, 1, #Tuning.BoatRadius),
+		wilds = int(r.wilds, 0, 0, tier),
 		pouch = int(r.pouch, 1, 1, #Tuning.PouchCost),
-		chart = charted,
 		seen = seen,
 		eggs = {},
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
@@ -317,6 +320,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	}
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
+	-- the wild places of every tier reached that haven't come up yet (an older save: all of them)
+	Sites.spawn(out)
 	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
 	local hatcheries: { [number]: boolean } = {}
 	for _, q in out.plot.placed do

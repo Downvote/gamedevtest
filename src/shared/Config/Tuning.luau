@@ -94,33 +94,25 @@ local Tuning = {
 	BossBoost = 1.7, -- a guardian's stats times this
 	RestHeal = 0.5,
 	StageWait = 6, -- seconds the expedition's curtain waits at most for the island's picture
-	-- the islands found at sea (GAME_DESIGN 7; Logic/Expedition.chart), by the level the captain picks (1 .. theirs)
+	-- the wild places on the island (GAME_DESIGN 7; Data/Sites, Logic/Expedition.isleOf): what one holds by its level
 	IsleFoodBase = 5, -- a loot node's food: base + per level x the level ...
 	IsleFoodLvl = 3.3,
 	IsleWoodBase = 2, -- ... its wood ...
 	IsleWoodLvl = 3.8,
 	IsleChestBase = 25, -- ... a chest's shells: base + per level x the level squared
 	IsleChestLvl2 = 2,
-	IsleRewardBase = 100, -- the guardian's reward: base + per level x the level squared
+	IsleRewardBase = 100, -- the guardian's reward: base + per level x the level squared ...
 	IsleRewardLvl2 = 19,
-	-- an island never ends (GAME_DESIGN 7): stops in blocks, the last of each a guardian; harder every stage
-	BossEvery = 7, -- a guardian every this many stages (six stops, then the guardian)
+	FirstClear = 3, -- ... times this the first time a place is cleared ...
+	ReplayReward = 0.4, -- ... times this on a later trip to a place already cleared
+	-- a place's path: six stops, then its guardian (and it ends there: cleared); harder every stage
+	BossEvery = 7, -- the guardian's stage
 	StageLvl = 0.5, -- the wild ones' level: this much more every stage (a level every other stage) ...
 	StageBoost = 0.02, -- ... and their health and attack this share more every stage (harder every stage)
-	StageLoot = 0.12, -- a stage's loot and chests: the island's times (1 + this x the stages before it)
-	BossRewardGrow = 0.6, -- the n-th guardian's reward: the island's times (1 + this x (n - 1))
-	-- the sea chart (Logic/Chart): every player's islands round their home, in leagues; the level grows with distance
-	ChartIslands = 40,
-	ChartNear = 3, -- this many within the first boat's range
-	ChartMinDist = 1.6,
-	ChartMaxDist = 16,
-	ChartSpacing = 2.1, -- islands at least this far apart
-	ChartLvlPerLeague = 2, -- an island's level: 1 at ChartMinDist, this much more a league further out
-	-- the boat (the chart's range): its range by level and the price of each level (shells and wood)
-	BoatRadius = { 3.6, 5.8, 8.4, 11.3, 13.8, 16.2 },
-	BoatCost = { { shells = 0, wood = 0 }, { shells = 500, wood = 60 }, { shells = 1800, wood = 200 }, { shells = 7000, wood = 800 }, { shells = 18000, wood = 1800 }, { shells = 40000, wood = 4000 } },
-	ChartCharm = 3, -- charm for each island charted (its guardian beaten) ...
-	ChartCharmMax = 15, -- ... up to this
+	StageLoot = 0.12, -- a stage's loot and chests: the place's times (1 + this x the stages before it)
+	SiteRadius = 2, -- nothing may be built within this many studs of a wild place's footprint (till it is cleared)
+	ClearCharm = 3, -- charm for each place cleared for the first time ...
+	ClearCharmMax = 15, -- ... up to this
 
 	-- server
 	StepHz = 10,

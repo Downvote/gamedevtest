@@ -9,6 +9,7 @@ local Office = require("../../build/luautest/shared/Data/Office")
 local Palette = require("../../build/luautest/shared/Data/Palette")
 local Looks = require("../../build/luautest/shared/Data/Looks")
 local Street = require("../../build/luautest/shared/Data/Street")
+local SiteData = require("../../build/luautest/shared/Data/Sites")
 return function()
 	local function color(k: string): boolean
 		return Palette.ui[k] ~= nil or Palette.colors[k] ~= nil or Palette.axis[k] ~= nil
@@ -17,6 +18,14 @@ return function()
 		local seen = {}
 		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, breed = true, gen = true, path = true, decor = true }
 		for _, d in Buildings.list do
+			if d.kind == "site" then
+				-- a wild place (Data/Sites): never bought, never on a tab; its pieces wild and cleared
+				T.truthy(not seen[d.id], d.id)
+				seen[d.id] = true
+				local sd = SiteData.of(d.id)
+				T.truthy(sd ~= nil and d.shells == 0 and d.wood == 0 and d.tier > #Office.plans and d.w == sd.w and d.d == sd.d, d.id .. " a wild place")
+				continue
+			end
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
 			T.truthy(kinds[d.kind], d.id .. " kind")

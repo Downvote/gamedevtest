@@ -4,10 +4,10 @@
 -- each names something to do, says where to do it, and pays a small reward when the player claims it (Logic/Quest).
 --   goal: what it counts (Logic/Quest.count) and how many; `of` a building kind for "built".
 --     "helpers" driftlings at work, "folk" villagers, "workers" villagers at work, "paths" path tiles, "decor" decorations, "built" pieces of a kind, "befriended" driftlings befriended,
---     "battles" battles won, "skills" skills used, "charted" islands charted, "tier" the island's tier, "pouch" the
---     snack pouch's level, "boat" the boat's level, "seen" kinds in the Index, "hatched" eggs hatched
---   go: where its Go button takes the player: a panel ("pals" "folk" "index" "hatch" "explore") or Build mode
---     ("build", or "build:<tab>" on a tab of the tray)
+--     "battles" battles won, "skills" skills used, "charted" wild places cleared, "tier" the island's tier, "pouch"
+--     the snack pouch's level, "seen" kinds in the Index, "hatched" eggs hatched
+--   go: where its Go button takes the player: a panel ("pals" "folk" "index" "hatch"), "site" (the nearest wild place
+--     to explore, its card open: the trip under way if there is one) or Build mode ("build", or "build:<tab>")
 export type Goal = { kind: string, n: number, of: string? }
 export type Reward = { shells: number?, food: number?, wood: number? }
 export type Quest = { id: string, title: string, text: string, goal: Goal, reward: Reward, go: string, icon: string }
@@ -72,10 +72,10 @@ local list: { Quest } = {
 	{
 		id = "friends",
 		title = "Befriend three driftlings",
-		text = "On an expedition, throw snacks at hurt wild ones. Friends can work at home.",
+		text = "Explore a wild place and throw snacks at hurt wild ones. Friends can work at home.",
 		goal = { kind = "befriended", n = 3 },
 		reward = { shells = 150, food = 40 },
-		go = "explore",
+		go = "site",
 		icon = "pal",
 	},
 	{
@@ -84,40 +84,40 @@ local list: { Quest } = {
 		text = "In a fight, tap Skills and pick one. Skill points fill up as the fight goes on.",
 		goal = { kind = "skills", n = 1 },
 		reward = { shells = 80 },
-		go = "explore",
+		go = "site",
 		icon = "star",
 	},
 	{
 		id = "battles",
 		title = "Win ten fights",
-		text = "Every island has wild ones to fight. Win ten fights.",
+		text = "Each wild place on the island has driftlings to fight. Win ten fights.",
 		goal = { kind = "battles", n = 10 },
 		reward = { shells = 150 },
-		go = "explore",
+		go = "site",
 		icon = "wild",
 	},
 	{
 		id = "pouch",
 		title = "Carry more snacks",
-		text = "Open Explore and tap Bigger pouch.",
+		text = "Tap a wild place and get a bigger pouch there.",
 		goal = { kind = "pouch", n = 2 },
 		reward = { shells = 120, wood = 20 },
-		go = "explore",
+		go = "site",
 		icon = "food",
 	},
 	{
 		id = "guardian",
-		title = "Beat a guardian",
-		text = "Keep going on an island until its guardian turns up. Beating it charts the island.",
+		title = "Clear a wild place",
+		text = "Every wild place has a guardian at the end. Beat it and the place is yours to build round.",
 		goal = { kind = "charted", n = 1 },
 		reward = { shells = 300 },
-		go = "explore",
+		go = "site",
 		icon = "boss",
 	},
 	{
 		id = "expand",
 		title = "Grow your island",
-		text = "In Build mode tap Expand. A bigger island fits more and opens new buildings.",
+		text = "In Build mode tap Expand. A bigger island fits more, and new wild places turn up.",
 		goal = { kind = "tier", n = 2 },
 		reward = { shells = 400, wood = 50 },
 		go = "build",
@@ -142,18 +142,18 @@ local list: { Quest } = {
 		icon = "train",
 	},
 	{
-		id = "boat",
-		title = "Upgrade your boat",
-		text = "Open Explore and upgrade the boat. It reaches islands further out.",
-		goal = { kind = "boat", n = 2 },
+		id = "clear2",
+		title = "Clear two wild places",
+		text = "The new ones are tougher. Bring your strongest.",
+		goal = { kind = "charted", n = 2 },
 		reward = { shells = 600 },
-		go = "explore",
-		icon = "boat",
+		go = "site",
+		icon = "boss",
 	},
 	{
 		id = "index",
 		title = "Meet twelve kinds",
-		text = "The Index lists every kind you've met. Islands further out have new ones.",
+		text = "The Index lists every kind you've met. Each kind of wild place has its own.",
 		goal = { kind = "seen", n = 12 },
 		reward = { shells = 500 },
 		go = "index",
@@ -188,11 +188,11 @@ local list: { Quest } = {
 	},
 	{
 		id = "charts",
-		title = "Chart three islands",
-		text = "Beat the guardians of three islands.",
-		goal = { kind = "charted", n = 3 },
+		title = "Clear five wild places",
+		text = "Beat the guardians of five wild places.",
+		goal = { kind = "charted", n = 5 },
 		reward = { shells = 2000 },
-		go = "explore",
+		go = "site",
 		icon = "boss",
 	},
 }

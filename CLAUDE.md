@@ -12,10 +12,10 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 689 (a few more or fewer as its battles go), `sim_save.luau` about 231, `sim_clock.luau` 450,
-`sim_world.luau` 257, `sim_exp.luau` about 512 (its Index checks vary with the battles)). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
+`sim.luau` about 827 (a few more or fewer as its battles go), `sim_save.luau` about 359, `sim_clock.luau` 601,
+`sim_world.luau` 329, `sim_exp.luau` about 775 (its Index checks vary with the battles)). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
 "desktop phone"` with a scenario of `island village island2 island3 city gallery day dusk night dawn sea visit build expand zoo
-paths water work voyage late`, `panel=<folk|pals|hatch|explore|index|looks>` or `exp=<kind 1-9>[_battle|_boss|_snack|_skills|_aim|_throw|_tut|_win|_lose|_inspect|_run|_loot|_fight]` (e.g. `exp=4_boss`). The place
+paths water work voyage late`, `panel=<folk|pals|hatch|site|index|looks>` or `exp=<kind 1-9>[_battle|_boss|_clear|_snack|_skills|_aim|_throw|_tut|_win|_lose|_inspect|_run|_loot|_fight]` (e.g. `exp=4_boss`). The place
 file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):
@@ -30,7 +30,7 @@ avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pi
 scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or bigger thing is its own sprite: the
 11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 16x16), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
 anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py` (run it; `--png <file>`
-for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The islets' expeditions are 3D
+for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The wild places' expeditions are 3D
 and full screen (as the earlier request for the minigames: "make the minigames full screen, have depth and are 3d,
 using the player's avatar"): stages and things built from parts (`UI/MicroStage`, `Models/MicroModels`: the
 driftlings too), world-aligned on the iso grid, drawn by the pixel filter like the islands, with the player's founder

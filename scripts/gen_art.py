@@ -560,84 +560,6 @@ SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():
     S("mini_" + k, rows, flat=SMALL_FLAT.get(k), pad=True)
 
-# ---------------------------------------------------------------- the sea chart's islands (GAME_DESIGN 7), 13 x 10
-CHART = {
-    "home": [
-        ".......R.....",
-        ".......RR....",
-        ".......N.....",
-        "...FFFFNFF...",
-        "..FFFGGGGFF..",
-        ".FFGGGGGGGFF.",
-        ".FFGGGOGGGFF.",
-        "..FFGGGGGFF..",
-        "...FFFFFFF...",
-        ".............",
-    ],
-    "beach": [
-        ".............",
-        "......GG.....",
-        ".....GGGG....",
-        "......N......",
-        "...FFFNFFF...",
-        "..FFFFFFFFF..",
-        ".FFFFFFFFFFF.",
-        "..FFFFFFFFF..",
-        "....FFFFF....",
-        ".............",
-    ],
-    "meadow": [
-        ".............",
-        ".....GG......",
-        "....GGGGG....",
-        "...GGGGGGG...",
-        "..FGGGGGGGF..",
-        ".FFGGGGGGGFF.",
-        "..FFGGGGGFF..",
-        "...FFFFFFF...",
-        ".............",
-        ".............",
-    ],
-    "volcano": [
-        ".............",
-        "......OO.....",
-        ".....DOOD....",
-        "....DDDDDD...",
-        "...DDDDDDDD..",
-        "..SSDDDDDDSS.",
-        ".SSSSSSSSSSS.",
-        "..SSSSSSSSS..",
-        ".............",
-        ".............",
-    ],
-    "snow": [
-        ".............",
-        "......W......",
-        ".....WWW.....",
-        "....WWWWW....",
-        "...WWWWWWW...",
-        "..CWWWWWWWC..",
-        ".CCCCCCCCCCC.",
-        "..CCCCCCCCC..",
-        ".............",
-        ".............",
-    ],
-    "reef": [
-        ".............",
-        "...KK..KKK...",
-        "..KKKKKKKKK..",
-        ".KKcccccccKK.",
-        ".KKcccccccKK.",
-        "..KKKKKKKKK..",
-        "...KKK.KK....",
-        ".............",
-        ".............",
-        ".............",
-    ],
-}
-for k, rows in CHART.items():
-    S("chart_" + k, rows)
-
 # ---------------------------------------------------------------- the microgames' overlay: a note, the fuse's spark and bomb, a heart
 # (the microgames themselves are 3D now: Models/MicroModels on a stage the pixel filter draws)
 S("note", [
@@ -865,10 +787,10 @@ def all_sprites():
             continue
         # a white flash (the fuse's bomb blinking) for the overlay's sprites, a dark silhouette (not found yet) for the
         # icons: the same outline
-        if not (name.startswith(("icon_", "mini_", "chart_"))):
+        if not (name.startswith(("icon_", "mini_"))):
             flash = [[None if p is None else ((PAL["wht"], 1.0) if p[1] == 1.0 and p[0] != PAL["ink"] else p) for p in r] for r in out[name]]
             out[name + "_flash"] = flash
-        if name.startswith(("icon_", "mini_", "chart_")):
+        if name.startswith(("icon_", "mini_")):
             sil = [[None if p is None else ((PAL["ink"], 0.55) if p[1] == 1.0 and p[0] != PAL["ink"] else p) for p in r] for r in out[name]]
             out[name + "_sil"] = sil
     return out

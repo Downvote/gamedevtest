@@ -14,6 +14,8 @@
 --   boost / boostBy: a boost building's knack ("farm" "fish" "wood" "shop", or "all") and its share (each kind of boost
 --          building counts once however many stand: Logic/Island.boosts)
 --   tier:  the island tier it needs
+--   "site": a wild place on the island (Data/Sites), never built from the tray: "wild_<id>" while wild, "done_<id>" once
+--          cleared (a little charm then: a landmark)
 export type BuildingDef = {
 	id: string,
 	name: string,
@@ -147,6 +149,13 @@ local LIST: { BuildingDef } = {
 	B({ id = "monument", name = "Founder Monument", kind = "decor", shells = 150000, wood = 10000, w = 4, d = 4, charm = 420, tier = 6 }),
 }
 -- stylua: ignore end
+
+-- the wild places (Data/Sites): spawned on the island, never bought (tier 99 keeps them off every tab)
+local Sites = require(script.Parent.Sites)
+for _, sd in Sites.list do
+	table.insert(LIST, B({ id = Sites.wildId(sd.id), name = sd.name, kind = "site", w = sd.w, d = sd.d, tier = 99, blurb = sd.blurb }))
+	table.insert(LIST, B({ id = Sites.doneId(sd.id), name = sd.name, kind = "site", w = sd.w, d = sd.d, charm = 3, tier = 99, blurb = sd.blurb }))
+end
 
 local BY_ID: { [string]: BuildingDef } = {}
 for _, d in LIST do

@@ -12,10 +12,10 @@ requests (§11). The game studio of the earlier versions is gone (§10: an old s
 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
 on its sand. You build food, wood and shops round it, visitors come for its charm and move into the homes you build, and your
-villagers take jobs. You sail out with a party of villagers to the islands of your own sea chart (the further from
-home, the higher their level; a bigger boat sails further), befriend the wild **driftlings** there with snacks in
-timed battles, and bring them home to help at the buildings of their knack. Beating an island's guardian charts
-it. The islands of everyone on the server sit side by side along one boardwalk on a
+villagers take jobs. Wild places stand on the island itself (a tide pool and some tall grass at first; a volcano, a
+cave, a frozen peak and more as the island grows): tap one and take a party of villagers in, befriend the wild
+**driftlings** there with snacks in timed battles, and bring them home to help at the buildings of their knack.
+Beating a place's guardian clears it, and the ground round it opens up for building. The islands of everyone on the server sit side by side along one boardwalk on a
 shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
 decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
@@ -25,12 +25,14 @@ decides everything, pure Data/Logic modules with specs, and the fake-engine simu
 Build a Veggie Patch so the island has food, a Tent so a castaway can move in, a Lumber Camp for wood and a
 Snack Stall to sell food to the visitors for shells. Every turn (Tuning.TurnSeconds while you play) the island makes and
 eats; a visitor moves into a free bed when the charm is high enough and takes a free job. Build a Driftling Nest,
-then Explore: the sea chart shows the islands round yours; tap one in your boat's range, pick a party (you, the
-captain, and up to three villagers or driftlings), pay the supplies in food and set sail: your founder boards the boat
-at the pier and it sails off to that island. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
-end); battles fight themselves on timers: throw a snack (a hurt wild one may join you), use a skill, or flee. Sail home with the loot (the
-boat brings the party back to the pier). Spend shells and wood on more buildings, a bigger boat (further islands), upgrades (a making building's Lv 2 and 3) and decor (charm), and expand the
-island twice for bigger buildings. Nothing happens while you are away (no offline progress).
+then tap the Tide Pool on your island: its card shows what lives there; pick a party (you, the captain, and up to
+three villagers or driftlings), pay the supplies in food and tap Explore: your founder walks up to it and the blinds
+close on its name. Walk its path of stops (loot, chests, a rest, battles with wild driftlings, the guardian at the
+end); battles fight themselves on timers: throw a snack (a hurt wild one may join you), use a skill, or flee. Beat the
+guardian and the place is cleared: the first clear pays three times its reward and frees the ground round it. Head
+home with the loot. Spend shells and wood on more buildings and decor (charm), and expand the island for bigger
+buildings; every expansion brings new wild places, higher in level. Nothing happens while you are away (no offline
+progress).
 
 ## 2. Look and feel
 
@@ -136,8 +138,8 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
   moon for the evening); day and night follow it (§8); each day's end while you play counts a day (a banner).
 - **Shops** sell food to the visitors: their rate times visitors / `ShopVisitors` (at most double), eating food the
   same way. **Visitors** a turn: 1 + charm / `VisitorCharm`, at most `VisitorsMax`.
-- **Charm:** every piece's charm, one for each driftling, `ChartCharm` (3) for each island charted, up to
-  `ChartCharmMax` (15).
+- **Charm:** every piece's charm (a cleared place's included), one for each driftling, `ClearCharm` (3) for each wild
+  place cleared, up to `ClearCharmMax` (15).
 - **Hunger:** when the food runs out everything makes half and the shops shut until there is food again; the food
   chip blinks red.
 - The stores reach the client every second; a newcomer brings a banner (who moved in), the yard's training a word, a
@@ -162,6 +164,12 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 Each is paid in shells and wood when placed, on whole studs of the island's grass (a stud or more in from the sand),
 turned a quarter at a time, off the campfire's plaza and the path to the jetty, and off every other piece, up to the
 island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, `PathPieces`: 60 .. 500).
+
+**Wild places** (§7) stand on the grass too, and nothing new goes down within `SiteRadius` (2) studs of one while it
+is wild: Build mode outlines each ring in orange, and a piece or path held over one says "Too close to the Tide
+Pool". A wild place can't be moved, cleared away or replaced. Once its guardian is beaten it is an ordinary piece:
+it keeps its look (a flag planted on it), adds charm, can be moved, or cleared away for nothing back. Wild places
+don't count toward the piece limit.
 
 > The request (2026-11-11): "paths should be able to be drawn or made in a box like the original interface in the
 > bakery game. also, fights should be shown in the same view as pokemon or beasty bay, in an angle like the image
@@ -350,7 +358,61 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   is not cleared away ("An egg is still warming in that Hatchery."). On the island the hatchling cheers where it
   appears, its name floating up in pink.
 
-## 7. Expeditions and battles (`Data/Islets`, `Logic/Expedition`, `Logic/Battle`, the sailing cutscene, the islet's screen)
+## 7. Expeditions and battles (`Data/Sites`, `Data/Islets`, `Logic/Sites`, `Logic/Expedition`, `Logic/Battle`, the walk in, the place's screen)
+
+> The request (2026-11-11): "Remove the exploration system. Instead, caves and tall grass and volcanoes and other
+> areas will spawn on the island when it is first created, with an area for each island we are removing. These caves
+> and other structures will take up space around them, preventing you from building in a radius around them. You can
+> tap on them to enter an expedition just like an island before. Clearing one of them will remove this restriction, nd
+> allow you to destroy or move them around as a building block. Expanding your island will cause more of these caves
+> to spawn, with higher level per expansion. Also, caves are no longer infinite, they are cleared once the boss is
+> defeated, and give bigger first time clear rewards."
+
+- **Wild places** (`Data/Sites`, `Logic/Sites`): one kind of place for each kind of island the sea chart had, each
+  with that kind's driftlings and 3D stage: the **Tide Pool** (beach), **Tall Grass** (meadow), **Bog** (mangrove),
+  **Volcano**, **Cave** (grotto), **Frost Peak** (snowfield), **Windy Bluff**, **Coral Pool** (reef) and **Old
+  Ruins**. A new island has two (a level 1 Tide Pool and a level 3 Tall Grass); each expansion brings three more,
+  every one higher in level than any before it:
+
+  | Tier | Places (level) |
+  |---|---|
+  | 1 (a new island) | Tide Pool 1, Tall Grass 3 |
+  | 2 | Bog 6, Tide Pool 8, Volcano 10 |
+  | 3 | Cave 13, Tall Grass 15, Frost Peak 17 |
+  | 4 | Windy Bluff 20, Coral Pool 23, Volcano 26 |
+  | 5 | Old Ruins 29, Cave 32, Frost Peak 35 |
+  | 6 | Coral Pool 38, Windy Bluff 41, Old Ruins 45 |
+
+  A place comes up where its footprint fits on the grass with its ring clear of the other wild places' rings. It
+  prefers a ring with nothing built in it, the land the expansion just added and the island's edge (the middle is
+  where the village grows); where depends only on the island's seed. Pieces already standing are never moved for
+  one; a place with no room anywhere is passed over. An old save gets every place of the tiers it has reached when it
+  loads.
+- **On the island:** each wild place is a small diorama of its kind, with two eyes glowing out of it (a rock pool with
+  crabs' claws; a round clump of grass taller than you; brown water under mangrove roots; a stepped cone with a lava
+  crater; a boulder with a dark mouth and crystals; a frozen heap of rock; a windswept crag; a blue pool on coral; a
+  broken arch of old stones). Its name and level float over it (orange). Cleared, the eyes go, the place calms down
+  (the lava cools, a plank bridge crosses the bog, the grass is cut back with a path trodden through) and a flag is
+  planted on it; it loses its label.
+- **Tap a place** (yours, on your own island) to open its card: its name ("Seashell Tide Pool"), kind and level
+  (green up to the captain's level, yellow up to three over, red above), what it is like, whether it is wild ("Wild.
+  Nothing can be built close to it.") or cleared, what its guardian pays (First clear, or Clear it again), who lives
+  there and its guardian, how many stops in, the snack pouch, and the party. Explore sets off. The tips' arrow bobs
+  over the island's lowest wild place while they point at it.
+- **The walk in** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in, the HUD steps aside,
+  your founder walks up to the place (the view following), and ink blinds close on its name and kind. The place's
+  screen opens behind them with the party already there.
+- **Home again:** the blinds close over the place's screen, the island comes back behind them with your founder
+  standing in front of the place, the blinds open, the founder cheers, and the HUD and the loot come back.
+- **A place has an end:** the landing, then `BossEvery` (7) stages: six stops (battles, loot, chests, maybe a rest;
+  at least three battles) and the guardian at the seventh. The header shows the whole path. The guardian's fall clears
+  the place and ends the trip: the **Cleared** card ("Seashell Tide Pool cleared") lists the reward, what comes home
+  and the party's xp and levels; Head home takes everyone back. The first clear pays `FirstClear` (3) times the
+  place's reward and frees its ring; a cleared place can be explored again for `ReplayReward` (0.4) of it (its
+  driftlings are still there to befriend). The party can head home at any point, as before, with everything found.
+
+The sea chart, the boat and its upgrades are gone. What follows is the history of the expedition rules; where it
+still speaks of islands, the chart or sailing, read wild places and walking in.
 
 > The request (2026-11-10): "can the green lines of the sea be more of a light blue instead? also, make exploration
 > procedurally generated instead. make a cutscene where the player gets into the boat, then sails to a random island
@@ -422,15 +484,14 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
     party comes home with everything it found. The skills are yellow (the Skills button, the skill points and each
     skill in the window); the skill window fits the screen between the header and the footer (a member's skills wrap
     onto further lines, and the window scrolls when they still don't fit), and no panel's words run off its edge.
-  Charting counts each island once (a flag on the map; the panel counts the islands charted; each is charm up to
-  `ChartCharmMax`).
-- **The cutscene** (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
+  Clearing counts each place once (`islets` in the save; each is charm up to `ClearCharmMax`).
+- **The sailing cutscene** (gone: the walk in above replaced it) (`UI/Voyage`, skippable with Skip, Space or Return): letterbox bars slide in and the HUD steps
   aside; your founder walks from where they stand down the path, across the boardwalk and along the pier (or starts
   on the jetty when far away) and hops into the expedition boat, where the rest of the party waits on deck and
   cheers; the boat casts off and sails out to sea, the view following it; ink blinds close on the island's name and
   kind. The islet's screen opens behind them and the boat glides in to the island's shore where the trail starts;
   the party hops off and walks up it to its places, the camera coming with them. The boat stays away from the pier while the expedition does.
-- **Home again** (`UI/Voyage.home`):
+- **Home again by boat** (gone: the walk home above replaced it) (`UI/Voyage.home`):
 
   > The request (2026-11-10): "make a transition instead of an instant cut back to the island after an exploration."
 
@@ -444,7 +505,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   boat. The view starts on the boat: behind the closed blinds it jumps straight to the boat (no swing over from the
   island's middle) and the blinds open only once it has settled there; then it follows the boat in, and the founder
   as they hop off.
-- **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
+- **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked on the place's card (the
   strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
   dismissed or released. One expedition at a time; leaving the game brings it home with its loot.
 - **Battles, timed:**
@@ -723,6 +784,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   a rowboat's oars at level 1; a cabin with a door, windows and a life ring from 2; a bowsprit and jib from 3; a
   foremast, a crow's nest and a figurehead from 4; a chimney and a stern lantern from 5; a mizzen and blue sails at
   6; striped sails, a flag and pennants, a lantern, fenders, a crate and barrels.
+  With the sea chart gone (§7) the boat at the pier is scenery: the first boat, moored there for good; the
+  sailboats crossing the sea still come in every size.
 
   > The request (2026-11-10): "polish everything even further, such as more detailed boat models, flags rippling in
   > the wind, and swaying leaves."; the bug report: "it seems like the boats are buggy, the triangle part here is
@@ -736,12 +799,12 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 - Up to `MaxPlots` (6) islands sit in a row along the boardwalk; an unclaimed lot is open water with a sandbar and a
   sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. You can walk onto anyone's island
   (the shore's edge holds you back from the sea); Home sends you back to your own. A tap on a sign shows that island's
-  day, villagers, driftlings, charm and islands charted.
+  day, villagers, driftlings, charm and wild places cleared.
 
 ## 9. Your founder, settings and the tips
 
 The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). The founder walks and jumps
-(`JumpHeight`) on the islands; jumping is held in Build mode, on an islet's screen and while sailing (the phone's jump
+(`JumpHeight`) on the islands; jumping is held in Build mode, on a place's screen and during the walk in and home (the phone's jump
 button hides with it).
 
 > The request (2026-11-10): "allow the player to jump in their own island as well"; the bug report: "jumping seems
@@ -764,12 +827,13 @@ the stores come from:
 Lumber Camp."; 3 "Shells come from visitors. Place a Snack Stall and they'll buy food."; 4 "Now put up a Tent. A
 castaway moves in straight away to work and sail with you." (the first home on an island nobody lives on yet: a castaway
 moves in the moment it is built, not at a turn's end, so the first trip has a party member); 5 "Build a Driftling
-Nest, then tap Explore. Your villager comes along."; 6 the first fight (set sail: on the islet's screen a note over
+Nest, then tap the Tide Pool. Your villager comes along." (an arrow bobs over the island's lowest wild place); 6
+"Tap the Tide Pool and tap Explore. In there your party fights on its own.", then the first fight (on the place's screen a note over
 the footer: "Fights run on their own. Each fighter acts when the bar over its head fills. Tap Skills to step in."); 7
 catching (after the first battle: "Want one? Wait till a wild one is hurt, then tap Snack, pick it and throw.", the
 Snack button shining while one is hurt; against a guardian it says to try the next fight); 8 "You made a friend."
 (once a driftling is befriended; OK ends the tips). On the island the same steps have their own words (and "tap Continue"
-while an expedition waits). The sea chart's party slots fill themselves with the strongest (level, then health) each
+while an expedition waits). A place's card fills the party's slots with the strongest (level, then health) each
 time it opens; a tap still swaps one out. A new island starts with `StartShells` (300) shells: the patch, the camp, the
 stall, the tent and the nest of the tips cost 280.
 
@@ -782,14 +846,14 @@ stall, the tent and the nest of the tips cost 280.
 **The questline** (`Data/Quests`, `Logic/Quest`): once the tips are over, one quest at a time in a card down the left
 under the chips (under the trip's card on a phone; it steps aside for an expedition and for a panel). The card has
 the quest's icon and title, which of the twenty it is, what to do and where, and its progress with **Go**, which opens
-the place it needs (the Driftlings or Villagers panel, Build mode on the right tab, the sea chart, the Index, the
-Hatchery). When the goal is met, Go turns into **Claim** (shining) next to the reward; Claim pays it, says so, and
+the place it needs (the Driftlings or Villagers panel, Build mode on the right tab, the island's lowest wild place's card, the Index,
+the Hatchery). When the goal is met, Go turns into **Claim** (shining) next to the reward; Claim pays it, says so, and
 the next quest slides in. Each goal counts what the island has now, so one already met can be claimed at once. In
 order: put a driftling to work; make room for a newcomer (2 villagers); give everyone a job (2 at work); grow more
 food (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); befriend three driftlings; use a skill; win ten fights; carry
-more snacks (a bigger pouch); beat a guardian; grow your island (tier 2); build a boost; build the Training Yard;
-upgrade your boat; meet twelve kinds; grow the island again (tier 3); build a Hatchery; hatch an egg; chart three
-islands. The rewards are small (60 to 2,000 shells, some food and wood) next to what each step costs; the career's
+more snacks (a bigger pouch); clear a wild place; grow your island (tier 2); build a boost; build the Training
+Yard; clear two wild places; meet twelve kinds; grow the island again (tier 3); build a Hatchery; hatch an egg; clear
+five wild places. The rewards are small (60 to 2,000 shells, some food and wood) next to what each step costs; the career's
 player (§10) doesn't claim them, so the economy's bounds are measured without them.
 
 **How the game talks** (every tip, notice, card and blurb; CLAUDE.md "Writing" keeps it as a standing rule). The
@@ -806,7 +870,9 @@ menu's "Explore" and the Sun Beacon are names). Stat lines keep their "label: va
 
 ## 10. Saves and the economy, checked
 
-The save is version 8 (`Logic/Schema`): a version 7 save keeps everything and starts the questline at its first quest
+The save is version 9 (`Logic/Schema`): a version 8 save drops its boat and its sea chart (the islands it charted
+stay counted as places cleared, their charm kept) and gets the wild places of every tier its island has reached; a
+version 7 save keeps everything and starts the questline at its first quest
 (any already met can be claimed straight away) with no skills counted yet; a version 6 save keeps everything and each of its driftlings rolls its
 mutations once (from its kind and id: the same every load); a version 5 save keeps everything, its tips moved to the
 new steps, and gets its sea seed, a level 1 boat and an empty chart; an older save (the game studio's) keeps the founder's look, the
@@ -814,16 +880,12 @@ settings and its start date and begins a fresh island with the tips. `tests/Care
 rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 
 - a villager within 3 minutes, a driftling friend within 15;
-- a guardian beaten within 15 minutes; one of a level-5 island (meadows) within 45, level 10 (volcanoes) within 90,
-  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past 100 minutes: the town's homes and nests
-  of tier 3 bring more villagers and friends than before); Harbor Town (tier 4) never before 100 minutes and no city
-  (tier 5) within three hours. The career's player sails home
-  after an island's first guardian, befriends kinds of driftling it has not befriended yet (or any while it has fewer
-  than six friends: a friend gives no experience; befriending every hurt wild one kept its captain from levelling
-  once a defeat no longer cost half the loot), and sails to
-  the strongest uncharted island in its boat's range that its party looks strong enough for (asking for more after
-  each defeat; a charted one when none is left), and buys the next boat when it can pay and nothing new it can take
-  is left in range but the next range holds some;
+- the first wild place cleared within 15 minutes (the Tide Pool, about 6); the level 6 Bog within 60 (about 25 to
+  55), the level 13 Cave within 100 (about 55 to 85); the town's places (level 20 and up) a long-term goal, past 100
+  minutes (about 110 to 145); Harbor Town (tier 4) never before 100 minutes and no city (tier 5) within three hours.
+  The career's player befriends kinds of driftling it has not befriended yet (or any while it has fewer than six
+  friends: a friend gives no experience), and goes into the highest wild place its party looks strong enough for
+  (asking for more after each defeat), else the highest cleared one it can take, else the lowest;
 - the island's second tier within 45 minutes, the third within 90; at an hour, at least 8 villagers and 8 driftlings;
 - nobody starves for long, and the stores stay finite.
 

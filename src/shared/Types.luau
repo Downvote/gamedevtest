@@ -6,8 +6,8 @@ export type Look = { skin: number, hair: number, style: number, shirt: number }
 
 -- A building or a piece of decor standing on the island (Logic/Plot): `uid` stays the same while it stands (the
 -- villagers and driftlings working there point at it), `id` is a Data/Buildings id, (x, z) its footprint's
--- north-west corner in plot-local whole studs, `rot` a quarter turn, `lvl` its upgrade level (1..3: a building that
--- makes something makes Tuning.UpgradeMult times as much).
+-- north-west corner in plot-local whole studs, `rot` a quarter turn, `lvl` its level (1..3 from an older save's
+-- upgrades: a building that makes something makes Tuning.UpgradeMult times as much; a wild place's: its level, Data/Sites).
 export type Piece = { uid: number, id: string, x: number, z: number, rot: number, lvl: number }
 -- The island's pieces (GAME_DESIGN 4).
 export type PlotSave = { placed: { Piece } }
@@ -46,11 +46,10 @@ export type Profile = {
 	folk: { Villager },
 	pals: { Pal },
 	plot: PlotSave,
-	islets: number, -- islands charted: guardians beaten (each a charm, up to Tuning.ChartCharmMax)
-	sea: number, -- the seed of the player's own sea chart (Logic/Chart)
-	boat: number, -- the boat's level (its range on the chart)
+	islets: number, -- wild places cleared the first time (each a charm, up to Tuning.ClearCharmMax)
+	sea: number, -- the island's own seed: where its wild places come up, what each holds (Logic/Sites)
+	wilds: number, -- the tiers whose wild places have come up (Logic/Sites.spawn: 0 .. the island's tier)
 	pouch: number, -- the snack pouch's level (1 .. #Tuning.PouchCost): Tuning.SnackBase snacks an expedition a level
-	chart: { number }, -- the chart's islands charted (ids)
 	seen: { [string]: number }, -- species id -> 1 met, 2 befriended (the Index)
 	eggs: { Egg }, -- the Hatcheries' eggs (one a hatchery)
 	nextId: number, -- the next villager, driftling or piece id
@@ -88,11 +87,11 @@ export type Fighter = {
 export type Battle = { foes: { Fighter }, acts: number, boss: boolean, shield: number, foeShield: number, lock: number, paused: boolean, clock: number, sp: number, undo: Undo? }
 export type Undo = { by: string, charge: number, shield: number, foeShield: number, hp: { [string]: number }, atk: { [string]: number } }
 
--- An island found at sea (GAME_DESIGN 7; Logic/Expedition.chart): made from its seed and the level the captain
--- picked; its kind (Data/Islets), name, the driftlings living there, its guardian, what its loot and chests hold and
--- the guardian's reward.
+-- What a wild place holds (GAME_DESIGN 7; Logic/Expedition.chart): made from its seed, level and kind; its kind
+-- (Data/Islets: its stage), name, the driftlings living there, its guardian, what its loot and chests hold and the
+-- guardian's reward.
 export type Isle = {
-	id: number?, -- its place on the sea chart (Logic/Chart)
+	id: number?, -- the wild place's piece uid on the island (Data/Sites)
 	seed: number,
 	lvl: number,
 	kind: number,
@@ -118,9 +117,10 @@ export type Expedition = {
 	befriended: { string }, -- species that joined on this trip
 	gained: { xp: number, ups: { [string]: number } }, -- the trip's xp for the party and each member's levels gained
 	snacks: number, -- snacks left to throw on this trip (Tuning.SnackBase a pouch level: 5 .. 30)
-	beaten: number?, -- the guardians beaten on this trip (the path never ends: a guardian every Tuning.BossEvery stages)
+	site: number?, -- the wild place explored (its piece uid on the island)
+	beaten: number?, -- the guardian beaten (1: the place is cleared, the trip over)
 	sp: number?, -- the party's skill points between battles (they carry on from one battle to the next)
-	over: string?, -- "home" | "won" | "lost" (set when it ends: "won" only by a player that sails home after a guardian)
+	over: string?, -- "home" | "won" (the guardian beaten: cleared) | "lost" (set when it ends)
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -139,9 +139,7 @@ export type ClientView = {
 	pieces: { Piece },
 	islets: number,
 	sea: number,
-	boat: number,
 	pouch: number, -- the snack pouch's level (snacks an expedition: Tuning.SnackBase x it)
-	chart: { number },
 	seen: { [string]: number },
 	eggs: { Egg },
 	tut: number,
@@ -175,7 +173,7 @@ export type ErrCode =
 	| "no_exp"
 	| "in_battle"
 	| "not_found"
-	| "far"
+	| "wild"
 	| "no_snacks"
 	| "not_done"
 	| "sp"

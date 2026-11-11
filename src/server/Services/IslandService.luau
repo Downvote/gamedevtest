@@ -15,7 +15,6 @@ local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
-local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Session = require(script.Parent.Session)
@@ -64,7 +63,7 @@ local function goHome(s: Session.S): { [string]: any }
 	local got = Expedition.home(s.profile, e)
 	Session.setExp(s, nil)
 	Session.markDirty(s)
-	return { got = got, over = e.over, befriended = e.befriended, isle = e.isle.name }
+	return { got = got, over = e.over, befriended = e.befriended, isle = e.isle.name, site = e.site }
 end
 
 function IslandService.init()
@@ -94,6 +93,11 @@ function IslandService.init()
 	Router.on(
 		"plot.store",
 		rebuilt(function(s, a)
+			-- (not the wild place the party is in right now)
+			local q = s.profile.plot.placed[a.i]
+			if q and s.exp and s.exp.site == q.uid then
+				return false, "busy"
+			end
 			return Plot.store(s.profile, a.i)
 		end)
 	)
@@ -117,6 +121,10 @@ function IslandService.init()
 		end)
 	)
 	Router.on("island.expand", function(s, _a)
+		-- (the wild places that come up need the party at home: never mid-trip)
+		if s.exp then
+			return false, "busy"
+		end
 		local ok, data = Island.expand(s.profile)
 		if ok then
 			PlotService.build(s)
@@ -149,18 +157,7 @@ function IslandService.init()
 		end
 		return Breed.start(s.profile, a.uid, a.a, a.b, s.rng)
 	end)
-	-- the boat (GAME_DESIGN 7): a bigger one sails further on the chart; not while it is away
-	Router.on("boat.upgrade", function(s, _a)
-		if s.exp then
-			return false, "busy"
-		end
-		local ok, data = Chart.upgradeBoat(s.profile)
-		if ok then
-			PlotService.setBoat(s)
-		end
-		return ok, data
-	end)
-	-- expeditions (GAME_DESIGN 7)
+	-- expeditions (GAME_DESIGN 7): into one of the island's wild places (its piece uid)
 	Router.on("exp.start", function(s, a)
 		if s.exp then
 			return false, "busy"
@@ -169,12 +166,12 @@ function IslandService.init()
 		for part in string.gmatch(a.party, "[^,]+") do
 			table.insert(members, part)
 		end
-		local ok, e = Chart.sail(s.profile, a.isle, members)
+		local ok, e = Expedition.enter(s.profile, a.site, members)
 		if not ok then
 			return false, e
 		end
 		Session.setExp(s, e)
-		return true, { isle = e.isle }
+		return true, { isle = e.isle, site = a.site }
 	end)
 	Router.on("exp.next", function(s, _a)
 		local e = s.exp
@@ -191,6 +188,10 @@ function IslandService.init()
 	local function battleDone(s: Session.S, data: any)
 		if type(data) == "table" and data.result then
 			Session.markDirty(s)
+			if data.cleared then
+				-- a wild place cleared: its piece is a cleared one now (the model, the ring gone)
+				PlotService.buildDecor(s)
+			end
 		end
 	end
 	Router.on("exp.snack", function(s, a)
@@ -331,6 +332,9 @@ function IslandService.step(dt: number)
 			if out then
 				if out.result then
 					Session.markDirty(s)
+					if out.cleared then
+						PlotService.buildDecor(s)
+					end
 				end
 				Session.fx(s, { kind = "exp", step = "act", data = out })
 				s.gaugeClock = 0

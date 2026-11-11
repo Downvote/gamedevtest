@@ -1,7 +1,7 @@
 --!strict
 -- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Villagers (who lives here, their jobs, dismissing),
--- Driftlings (the befriended ones, where they help, releasing), the Hatchery (two parents, an egg), Explore (the sea chart: an island to sail to, the
--- boat's upgrade, the party: Set sail), Index
+-- Driftlings (the befriended ones, where they help, releasing), the Hatchery (two parents, an egg), a wild place's
+-- card (what lives there, the party, the snack pouch: Explore), Index
 -- (every driftling met or befriended) and Looks (the founder's look). Every action is a request; the panel rebuilds
 -- from the next view. A job or help picker is the same panel with an argument ({ folk = id } / { pal = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,13 +16,13 @@ local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Chart = require(ReplicatedStorage.Shared.Logic.Chart)
+local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
+local SiteData = require(ReplicatedStorage.Shared.Data.Sites)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
-local SeaMap = require(script.Parent.SeaMap)
 local ExpeditionUI = require(script.Parent.ExpeditionUI)
 local Words = require(script.Parent.Words)
 
@@ -524,10 +524,12 @@ local function buildPals(body: Frame, arg: any?)
 	end
 end
 
------------------------------------------------------------------- Explore: the sea chart, an island, the party
--- The chart (GAME_DESIGN 7; Logic/Chart): the player's own islands round home, the boat's range a dotted ring (the
--- next boat's a dim one), islands past it dark; a tap picks one (its kind, level, driftlings, guardian), Set sail.
-local chosenIsle = 0
+------------------------------------------------------------------ a wild place: what lives there, the party
+-- A wild place's card (GAME_DESIGN 7: "You can tap on them to enter an expedition just like an island before"): a tap
+-- on one on the island opens it (`arg`: its piece uid; none: the lowest wild one). Its name, kind and level, wild or
+-- cleared, what clearing it pays, who lives there and its guardian; the snack pouch; the party (the strongest go in
+-- by themselves); Explore.
+local chosenSite = 0
 local party: { string } = {} -- member keys in the order picked ("v3", "p7")
 
 local function memberOk(v: Types.ClientView, key: string): boolean
@@ -567,18 +569,55 @@ end
 -- (the party's slots fill themselves with the strongest when the chart opens; the player can change them after)
 local partyFilled = false
 
-local function buildExplore(body: Frame, _arg: any?)
+-- The place a card opens on when none was tapped (a quest's Go): the lowest wild one, else the lowest cleared one.
+local function defaultSite(v: Types.ClientView): number
+	local best, bestLvl, bestWild = 0, math.huge, false
+	for _, q in v.pieces do
+		local sd, wild = SiteData.of(q.id)
+		if sd and ((wild and not bestWild) or (wild == bestWild and q.lvl < bestLvl)) then
+			best, bestLvl, bestWild = q.uid, q.lvl, wild
+		end
+	end
+	return best
+end
+Menus.defaultSite = defaultSite
+
+local function buildSite(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	if type(arg) == "number" then
+		chosenSite = arg
+	end
+	local q: Types.Piece? = nil
+	for _, x in v.pieces do
+		if x.uid == chosenSite then
+			q = x
+		end
+	end
+	if q == nil or SiteData.of(q.id) == nil then
+		chosenSite = defaultSite(v)
+		for _, x in v.pieces do
+			if x.uid == chosenSite then
+				q = x
+			end
+		end
+	end
+	if q == nil then
+		UIKit.text(body, "No wild places on the island right now.", UDim2.fromOffset(W, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "NoSites" })
+		return
+	end
+	local piece = q :: Types.Piece
+	local sd, wild = SiteData.of(piece.id)
+	local site = sd :: SiteData.SiteDef
 	for i = #party, 1, -1 do
 		if not memberOk(v, party[i]) then
 			table.remove(party, i)
 		end
 	end
-	-- the party's slots: the strongest go in by themselves when the chart opens (GAME_DESIGN 7: "party slots should
+	-- the party's slots: the strongest go in by themselves when the card opens (GAME_DESIGN 7: "party slots should
 	-- auto equip with the strongest party members"); the player can swap them after
 	if not partyFilled then
 		partyFilled = true
@@ -592,122 +631,72 @@ local function buildExplore(body: Frame, _arg: any?)
 			end
 		end
 	end
-	local isles = Chart.islands(v.sea)
-	local range = Chart.radius(v.boat)
-	local function charted(id: number): boolean
-		return table.find(v.chart, id) ~= nil
-	end
-	-- the island picked: kept while it is in range, else the strongest one not charted yet in range, else the nearest
-	if not (isles[chosenIsle] and isles[chosenIsle].dist <= range) then
-		chosenIsle = 1
-		for _, c in isles do
-			if c.dist <= range and not charted(c.id) and c.lvl <= math.max(1, v.cap.lvl) + 1 and c.lvl >= isles[chosenIsle].lvl then
-				chosenIsle = c.id
-			end
-		end
-	end
-	-- the chart on the left: the islands drawn as a map (UI/SeaMap); a tap picks one
-	local S = math.min(H - 16, math.floor(W * 0.58))
-	local cap = math.max(1, v.cap.lvl)
-	SeaMap.draw(body, S, UDim2.fromOffset(0, 0), {
-		sea = v.sea,
-		boat = v.boat,
-		chart = v.chart,
-		cap = cap,
-		chosen = chosenIsle,
-		onPick = function(id: number)
-			chosenIsle = id
-			Audio.play("flip")
-			UIKit.refreshPanel()
-		end,
-		onFar = function(_id: number)
-			Audio.play("deny")
-			UIKit.notice(Words.errText("far"), UIKit.color("bad"))
-		end,
-	})
-	-- the boat under the chart: its level and the next one's price
-	local lvText = string.format("Lv %d", v.boat)
-	local bc = Chart.boatCost(v.boat)
-	local px = 0
-	if bc then
-		local bw = UIKit.buttonWidth("Upgrade", 6)
-		local st, wt = Numbers.coins(bc.shells), Numbers.coins(bc.wood)
-		px = S - bw - 3 - UIKit.textWidth(wt) - 12 - UIKit.textWidth(st) - 13
-	end
-	if px < 12 + UIKit.textWidth(lvText) + 3 then
-		-- a narrow chart (a phone): the boat's level sits on a small board in the chart's corner, so the price and
-		-- Upgrade keep the row under it
-		local tag = UIKit.plate(body, UDim2.fromOffset(UIKit.textWidth(lvText) + 18, 13), UDim2.fromOffset(2, 2), UIKit.color("plate"), 0.1, 2, { bevel = true })
-		tag.ZIndex = 5
-		PixelSprites.image(tag, "mini_boat", UDim2.fromOffset(2, 1), 6)
-		UIKit.text(tag, lvText, UDim2.fromOffset(UIKit.textWidth(lvText) + 2, 10), UDim2.fromOffset(14, 1), { color = UIKit.color("accent"), name = "BoatLv", z = 6 })
-		px = math.max(0, px)
-	else
-		PixelSprites.image(body, "mini_boat", UDim2.fromOffset(0, S + 3), 4)
-		UIKit.text(body, lvText, UDim2.fromOffset(UIKit.textWidth(lvText) + 2, 10), UDim2.fromOffset(12, S + 4), { color = UIKit.color("accent"), name = "BoatLv" })
-	end
-	if bc then
-		local short = v.shells < bc.shells or v.wood < bc.wood
-		local bw = UIKit.buttonWidth("Upgrade", 6)
-		local bx = S - bw
-		-- the price: shells and wood, red where short
-		local st, wt = Numbers.coins(bc.shells), Numbers.coins(bc.wood)
-		PixelSprites.image(body, "mini_shell", UDim2.fromOffset(px, S + 3), 4)
-		UIKit.text(body, st, UDim2.fromOffset(UIKit.textWidth(st) + 2, 10), UDim2.fromOffset(px + 11, S + 4), { color = if v.shells < bc.shells then UIKit.color("bad") else UIKit.color("text"), name = "BoatShells" })
-		local wx = px + 13 + UIKit.textWidth(st)
-		PixelSprites.image(body, "mini_wood", UDim2.fromOffset(wx, S + 3), 4)
-		UIKit.text(body, wt, UDim2.fromOffset(UIKit.textWidth(wt) + 2, 10), UDim2.fromOffset(wx + 11, S + 4), { color = if v.wood < bc.wood then UIKit.color("bad") else UIKit.color("text"), name = "BoatWood" })
-		UIKit.button(body, "Upgrade", UDim2.fromOffset(bw, 13), UDim2.fromOffset(bx, S + 2), function()
-			local res = ask("boat.upgrade", {})
-			if res.ok then
-				Audio.play("level_up")
-				UIKit.notice("New boat. It can sail further out.", UIKit.color("good"), 3)
-				UIKit.refreshPanel()
-			end
-		end, { name = "BoatUp", color = if short then UIKit.color("button_off") else UIKit.color("button_ok"), enabled = v.exp == nil })
-	else
-		UIKit.text(body, "This is the biggest boat", UDim2.fromOffset(S - 60, 10), UDim2.fromOffset(60, S + 4), { color = UIKit.color("good"), x = "right", name = "BoatMax" })
-	end
-	-- the island picked, on the right
-	local x0 = S + 5
-	local RW = W - x0
-	local c = isles[chosenIsle]
-	local isle = Chart.isle(v.sea, chosenIsle) :: Types.Isle
+	local isle = Expedition.isleOf(v :: any, piece)
 	local kind = Islets.list[isle.kind]
-	UIKit.text(body, isle.name, UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 0), { color = UIKit.color("accent"), name = "IsleName" })
-	local lvCol = if c.lvl <= cap then UIKit.color("good") elseif c.lvl <= cap + 3 then UIKit.color("accent") else UIKit.color("bad")
-	UIKit.text(body, string.format("%s, level %d", kind.name, c.lvl), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 10), { color = lvCol, name = "IsleKind" })
-	local ix = x0
-	local done = charted(chosenIsle)
-	local reward = if done then math.floor(isle.reward / 2) else isle.reward
+	local cap = math.max(1, v.cap.lvl)
+	-- the place on the left
+	local LW = math.floor(W * 0.46)
+	UIKit.text(body, isle.name, UDim2.fromOffset(LW, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("accent"), face = "big", name = "SiteName" })
+	local lvCol = if piece.lvl <= cap then UIKit.color("good") elseif piece.lvl <= cap + 3 then UIKit.color("accent") else UIKit.color("bad")
+	-- (and how far in it goes: the same every time, the guardian at the last stop)
+	UIKit.text(body, string.format("%s, level %d, %d stops", site.name, piece.lvl, Tuning.BossEvery), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 15), { color = lvCol, name = "SiteKind" })
+	UIKit.text(body, site.blurb, UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 26), { color = UIKit.color("text_dim"), name = "SiteBlurb" })
+	UIKit.text(body, if wild then "Wild. Nothing can be built close to it." else "Cleared. You can move it or clear it away in Build mode.", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 38), { color = if wild then UIKit.color("orange") else UIKit.color("good"), name = "SiteState" })
+	-- what beating its guardian pays
+	local reward = Expedition.rewardOf(isle, wild)
 	local rt = Numbers.coins(reward)
-	local rw = UIKit.textWidth(rt)
-	-- its driftlings, the commonest first, as many as fit before its charted state and reward (then "+n")
-	local fit = math.max(1, math.floor((W - rw - 16 - UIKit.textWidth("Not charted") - 18 - x0) / 18))
+	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(0, 50), 4)
+	UIKit.text(body, string.format("%s %s", if wild then "First clear:" else "Clear it again:", rt), UDim2.fromOffset(LW - 12, 10), UDim2.fromOffset(12, 51), { color = UIKit.color("accent"), name = "Reward" })
+	-- who lives there, the commonest first (seen ones in colour), and its guardian
+	UIKit.text(body, "Lives here", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 64), { color = UIKit.color("text_dim"), name = "LivesHere" })
+	local ix, iy = 0, 75
+	local perRow = math.max(1, math.floor(LW / 18))
 	for i, sp in isle.wild do
-		if i > fit then
-			UIKit.text(body, "+" .. (#isle.wild - fit), UDim2.fromOffset(16, 10), UDim2.fromOffset(ix, 25), { color = UIKit.color("text_dim"), name = "MoreWild" })
-			ix += 16
+		if i > perRow * 2 then
 			break
 		end
 		local seen = (v.seen[sp] or 0) > 0
-		PixelSprites.image(body, if seen then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(ix, 21), 4)
+		PixelSprites.image(body, if seen then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(ix, iy), 4)
 		ix += 18
+		if i % perRow == 0 then
+			ix, iy = 0, iy + 18
+		end
 	end
-	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(W - rw - 14, 24), 4)
-	UIKit.text(body, rt, UDim2.fromOffset(rw + 2, 10), UDim2.fromOffset(W - rw - 2, 25), { color = UIKit.color("accent"), name = "Reward" })
-	UIKit.text(body, if done then "Charted" else "Not charted", UDim2.fromOffset(math.max(10, W - rw - 16 - ix - 2), 10), UDim2.fromOffset(ix + 2, 25), { color = if done then UIKit.color("good") else UIKit.color("text_dim"), name = "Charted" })
-	local y0 = -2
-	-- the party: the captain, then up to PartyMax picks
-	-- (on a phone the count sits at the end of the island's kind line: the list gets the room)
-	local listY = y0 + 51
-	if UIKit.phone() then
-		UIKit.text(body, string.format("Party %d/%d", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 10), { color = UIKit.color("text_dim"), name = "PartyHint", x = "right" })
-		listY = y0 + 39
+	local gy = iy + (if ix > 0 then 19 else 1)
+	local bossSeen = (v.seen[isle.boss] or 0) > 0
+	PixelSprites.image(body, if bossSeen then "icon_" .. isle.boss else "icon_" .. isle.boss .. "_sil", UDim2.fromOffset(0, gy), 4)
+	UIKit.text(body, "Guardian: " .. isle.bossName, UDim2.fromOffset(LW - 20, 10), UDim2.fromOffset(19, gy + 4), { color = UIKit.color("bad"), name = "Guardian" })
+	local _ = kind
+	-- the snack pouch (GAME_DESIGN 7: snacks a trip, 5 up to 30): a bigger one for shells and wood
+	local pouch = v.pouch or 1
+	UIKit.text(body, string.format("Snacks: %d a trip", Tuning.SnackBase * pouch), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, H - 30), { color = UIKit.color("pink"), name = "Snacks" })
+	local pc = Tuning.PouchCost[pouch + 1]
+	if pc then
+		local bw = UIKit.buttonWidth("Bigger pouch", 5)
+		local short = v.shells < pc.shells or v.wood < pc.wood
+		local st, wt = Numbers.coins(pc.shells), Numbers.coins(pc.wood)
+		PixelSprites.image(body, "mini_shell", UDim2.fromOffset(0, H - 15), 4)
+		UIKit.text(body, st, UDim2.fromOffset(UIKit.textWidth(st) + 2, 10), UDim2.fromOffset(11, H - 14), { color = if v.shells < pc.shells then UIKit.color("bad") else UIKit.color("text"), name = "PouchShells" })
+		local wx = 13 + UIKit.textWidth(st)
+		PixelSprites.image(body, "mini_wood", UDim2.fromOffset(wx, H - 15), 4)
+		UIKit.text(body, wt, UDim2.fromOffset(UIKit.textWidth(wt) + 2, 10), UDim2.fromOffset(wx + 11, H - 14), { color = if v.wood < pc.wood then UIKit.color("bad") else UIKit.color("text"), name = "PouchWood" })
+		UIKit.button(body, "Bigger pouch", UDim2.fromOffset(bw, 13), UDim2.fromOffset(LW - bw, H - 16), function()
+			local res = ask("pouch.upgrade", {})
+			if res.ok then
+				Audio.play("level_up")
+				UIKit.notice(string.format("Bigger pouch. %d snacks a trip now.", Tuning.SnackBase * (pouch + 1)), UIKit.color("good"), 3)
+				UIKit.refreshPanel()
+			end
+		end, { name = "PouchUp", color = if short then UIKit.color("button_off") else UIKit.color("button_ok"), enabled = v.exp == nil })
 	else
-		UIKit.text(body, string.format("Party %d/%d (the captain always goes)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, y0 + 40), { color = UIKit.color("text_dim"), name = "PartyHint" })
+		UIKit.text(body, "The biggest pouch", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, H - 14), { color = UIKit.color("good"), name = "PouchMax" })
 	end
-	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 46 - listY - 1), UDim2.fromOffset(x0, listY))
+	-- the party on the right: the captain, then up to PartyMax picks
+	local x0 = LW + 8
+	local RW = W - x0
+	UIKit.text(body, string.format("Party %d/%d (you always go)", 1 + #party, 1 + Tuning.PartyMax), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, 0), { color = UIKit.color("text_dim"), name = "PartyHint" })
+	local listY = 12
+	local pl = UIKit.scroll(body, UDim2.fromOffset(RW, H - 32 - listY), UDim2.fromOffset(x0, listY))
 	UIKit.vlist(pl, 2)
 	local function member(order: number, key: string, name: string, lvl: number, f: Types.Fighter, icon: string?, look: Types.Look?)
 		local picked = key == "f" or table.find(party, key) ~= nil
@@ -740,7 +729,7 @@ local function buildExplore(body: Frame, _arg: any?)
 				UIKit.burstOn(b, { "good", "white" }, 8, 30)
 			else
 				Audio.play("deny")
-				UIKit.notice(string.format("A party is the captain and %d more.", Tuning.PartyMax), UIKit.color("bad"))
+				UIKit.notice(string.format("A party is you and %d more.", Tuning.PartyMax), UIKit.color("bad"))
 				return
 			end
 			Audio.play("flip")
@@ -749,54 +738,28 @@ local function buildExplore(body: Frame, _arg: any?)
 		b.Parent = pl
 	end
 	local captain = Battle.founder({ cap = v.cap, founder = v.founder } :: any)
-	member(0, "f", "You (captain)", v.cap.lvl, captain, nil, v.founder)
-	-- the strongest first
+	member(0, "f", "You (leader)", v.cap.lvl, captain, nil, v.founder)
 	for i, cand in rankMembers(v) do
 		member(i, cand.key, cand.name, cand.lvl, cand.f, cand.icon, cand.look)
 	end
-	-- the snack pouch (GAME_DESIGN 7: snacks a trip, 5 up to 30): a bigger one for shells and wood
-	local pouch = v.pouch or 1
-	UIKit.text(body, string.format("Snacks: %d a trip", Tuning.SnackBase * pouch), UDim2.fromOffset(90, 10), UDim2.fromOffset(x0, H - 43), { color = UIKit.color("pink"), name = "Snacks" })
-	local pc = Tuning.PouchCost[pouch + 1]
-	if pc then
-		local bw = UIKit.buttonWidth("Bigger pouch", 5)
-		local short = v.shells < pc.shells or v.wood < pc.wood
-		local st, wt = Numbers.coins(pc.shells), Numbers.coins(pc.wood)
-		local px = W - bw - 3 - UIKit.textWidth(wt) - 12 - UIKit.textWidth(st) - 13
-		PixelSprites.image(body, "mini_shell", UDim2.fromOffset(px, H - 44), 4)
-		UIKit.text(body, st, UDim2.fromOffset(UIKit.textWidth(st) + 2, 10), UDim2.fromOffset(px + 11, H - 43), { color = if v.shells < pc.shells then UIKit.color("bad") else UIKit.color("text"), name = "PouchShells" })
-		local wx = px + 13 + UIKit.textWidth(st)
-		PixelSprites.image(body, "mini_wood", UDim2.fromOffset(wx, H - 44), 4)
-		UIKit.text(body, wt, UDim2.fromOffset(UIKit.textWidth(wt) + 2, 10), UDim2.fromOffset(wx + 11, H - 43), { color = if v.wood < pc.wood then UIKit.color("bad") else UIKit.color("text"), name = "PouchWood" })
-		UIKit.button(body, "Bigger pouch", UDim2.fromOffset(bw, 13), UDim2.fromOffset(W - bw, H - 45), function()
-			local res = ask("pouch.upgrade", {})
-			if res.ok then
-				Audio.play("level_up")
-				UIKit.notice(string.format("Bigger pouch. %d snacks a trip now.", Tuning.SnackBase * (pouch + 1)), UIKit.color("good"), 3)
-				UIKit.refreshPanel()
-			end
-		end, { name = "PouchUp", color = if short then UIKit.color("button_off") else UIKit.color("button_ok"), enabled = v.exp == nil })
-	else
-		UIKit.text(body, "The biggest pouch", UDim2.fromOffset(100, 10), UDim2.fromOffset(W - 100, H - 43), { color = UIKit.color("good"), x = "right", name = "PouchMax" })
-	end
-	-- supplies and Set sail
+	-- supplies and Explore (an expedition under way elsewhere: back to it)
 	local need = Tuning.Supplies * (1 + #party)
 	local enough = v.food >= need
-	UIKit.text(body, string.format("Supplies: %d food (you have %s)", need, Numbers.coins(v.food)), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, H - 28), { color = if enough then UIKit.color("text_dim") else UIKit.color("bad"), name = "Supplies" })
+	UIKit.text(body, string.format("Supplies: %d food (you have %s)", need, Numbers.coins(v.food)), UDim2.fromOffset(RW, 10), UDim2.fromOffset(x0, H - 30), { color = if enough then UIKit.color("text_dim") else UIKit.color("bad"), name = "Supplies" })
 	local busy = v.exp ~= nil
-	UIKit.button(body, if busy then "Continue the expedition" else "Set sail!", UDim2.fromOffset(RW, 15), UDim2.fromOffset(x0, H - 16), function()
+	UIKit.button(body, if busy then "Back to the expedition" else "Explore", UDim2.fromOffset(RW, 15), UDim2.fromOffset(x0, H - 16), function()
 		if busy then
 			UIKit.closePanel()
 			ExpeditionUI.open()
 			return
 		end
 		local keys = table.clone(party) -- (closing the panel clears the picks)
-		local res = ask("exp.start", { isle = chosenIsle, party = table.concat(keys, ",") })
+		local res = ask("exp.start", { site = piece.uid, party = table.concat(keys, ",") })
 		if res.ok then
 			UIKit.closePanel()
-			ExpeditionUI.sail(keys, if type(res.data) == "table" then res.data.isle else nil)
+			ExpeditionUI.enter(piece.uid, keys, if type(res.data) == "table" then res.data.isle else nil)
 		end
-	end, { name = "SetSail", color = UIKit.color("button_ok"), enabled = busy or enough })
+	end, { name = "Explore", color = UIKit.color("button_ok"), enabled = busy or enough })
 end
 
 ------------------------------------------------------------------ Index: the driftlings
@@ -892,28 +855,28 @@ function Menus.init()
 	UIKit.registerPanel("folk", { title = "Villagers", icon = "folk", w = 320, h = 186, build = buildFolk })
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
-	UIKit.registerPanel("explore", { title = "Sea chart", icon = "boat", w = 620, h = 350, build = buildExplore })
+	UIKit.registerPanel("site", { title = "Wild place", icon = "boss", w = 460, h = 250, build = buildSite })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
 	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 200, h = 106, build = buildLooks })
 	UIKit.PanelChanged:Connect(function(name: string?)
 		if name ~= "looks" then
 			draft = nil
 		end
-		if name ~= "explore" then
+		if name ~= "site" then
 			table.clear(party)
 			partyFilled = false
 		end
 	end)
 end
 
--- Sims and previews: the party picked in Explore.
+-- Sims and previews: the party picked on a wild place's card.
 function Menus.party(): { string }
 	return table.clone(party)
 end
 
--- Sims and previews: the chart's island picked in Explore.
+-- Sims and previews: the wild place whose card is open (its piece uid).
 function Menus.chosen(): number
-	return chosenIsle
+	return chosenSite
 end
 
 return Menus

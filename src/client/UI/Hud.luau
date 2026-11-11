@@ -1,6 +1,6 @@
 --!strict
 -- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (shells, food, wood, the day and its
--- clock), the menu bar along the bottom (Build, Villagers, Driftlings, Explore, Index, Looks), the island card on the
+-- clock), the menu bar along the bottom (Build, Villagers, Driftlings, Index, Looks), the island card on the
 -- right (the lodge, villagers and beds, driftlings and nests, visitors, charm, what a day makes) with the expedition
 -- card under it while one is under way, the tips banner, the loading curtain and the new day's banner. The camera fits
 -- the island clear of the HUD's blocks (CameraController.setHudRects).
@@ -209,7 +209,6 @@ local MENUS: { { text: string, panel: string, icon: string } } = {
 	{ text = "Build", panel = "build", icon = "home" },
 	{ text = "Villagers", panel = "folk", icon = "folk" },
 	{ text = "Driftlings", panel = "pals", icon = "pal" },
-	{ text = "Explore", panel = "explore", icon = "boat" },
 	{ text = "Index", panel = "index", icon = "star" },
 	{ text = "Looks", panel = "looks", icon = "visitor" },
 }
@@ -245,14 +244,12 @@ local function buildBar()
 		local b = UIKit.button(f, m.text, UDim2.fromOffset(w, BAR_H), UDim2.fromOffset(x, 0), function()
 			if m.panel == "build" then
 				BuildUI.open()
-			elseif m.panel == "explore" and ExpeditionUI.active() then
-				ExpeditionUI.open()
 			else
 				UIKit.openPanel(m.panel)
 			end
 		end, {
 			name = "Menu_" .. m.panel,
-			color = if m.panel == "build" then UIKit.color("button_warn") elseif m.panel == "explore" then UIKit.color("button_ok") else nil,
+			color = if m.panel == "build" then UIKit.color("button_warn") else nil,
 		})
 		b.ZIndex = 2
 		PixelSprites.image(b, "mini_" .. m.icon, UDim2.fromOffset(3, 2), 6)
@@ -347,10 +344,10 @@ local function updateExp(v: Types.ClientView)
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 43), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
 	f.Name = "ExpCard"
 	UIKit.plank(f, 11, 3)
-	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 1), 4)
+	PixelSprites.image(f, "mini_wild", UDim2.fromOffset(3, 1), 4)
 	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Islet" })
-	local state = if e.battle then "In a fight" else string.format("Stage %d", math.max(0, e.node - 1))
-	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 14), { color = if e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
+	local state = if e.over == "won" then "Cleared" elseif e.battle then "In a fight" else string.format("Stage %d of %d", math.max(0, e.node - 1), math.max(1, #e.nodes - 1))
+	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 14), { color = if e.over == "won" then UIKit.color("good") elseif e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
 	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 26), function()
 		ExpeditionUI.open()
 	end, { name = "ExpContinue", color = UIKit.color("button_ok") })
@@ -364,7 +361,7 @@ local function stack()
 	local s = UIKit.size("Hud")
 	local c, e = card, expCard
 	-- (the sea chart's wide panel covers the cards but a sliver: they step aside for it too)
-	local hide = BuildUI.isOpen() or ExpeditionUI.isOpen() or UIKit.currentPanel() == "explore"
+	local hide = BuildUI.isOpen() or ExpeditionUI.isOpen() or UIKit.currentPanel() == "site"
 	if c then
 		c.Visible = not hide
 	end
@@ -391,14 +388,14 @@ local function stack()
 end
 
 ------------------------------------------------------------------ the questline
--- Where a quest's Go takes the player (Data/Quests' `go`): a panel, the sea chart (or the trip under way), or Build
--- mode on a tab.
+-- Where a quest's Go takes the player (Data/Quests' `go`): a panel, the nearest wild place's card (or the trip under
+-- way), or Build mode on a tab.
 local function goTo(where: string)
-	if where == "explore" then
+	if where == "site" then
 		if ExpeditionUI.active() then
 			ExpeditionUI.open()
 		else
-			UIKit.openPanel("explore")
+			UIKit.openPanel("site")
 		end
 	elseif string.sub(where, 1, 5) == "build" then
 		BuildUI.open(string.match(where, "^build:(%a+)$"))
@@ -435,7 +432,7 @@ local function updateQuest(v: Types.ClientView)
 	local q, i = Quest.current(v.tut, v.quest or 1)
 	local have, need = 0, 0
 	if q then
-		local facts: Quest.Facts = { folk = v.folk, pals = v.pals, pieces = v.pieces, tier = v.tier, boat = v.boat, pouch = v.pouch, islets = v.islets, seen = v.seen, stats = v.stats }
+		local facts: Quest.Facts = { folk = v.folk, pals = v.pals, pieces = v.pieces, tier = v.tier, pouch = v.pouch, islets = v.islets, seen = v.seen, stats = v.stats }
 		have, need = Quest.progress(facts, q)
 	end
 	local key = if q then string.format("%s:%d:%d", q.id, have, need) else ""
@@ -510,20 +507,20 @@ local TIPS: { [number]: string } = {
 	[2] = "Bigger buildings need wood. Place a Lumber Camp.",
 	[3] = "Shells come from visitors. Place a Snack Stall and they'll buy food.",
 	[4] = "Now put up a Tent. A castaway moves in straight away to work and sail with you.",
-	[5] = "Build a Driftling Nest, then tap Explore. Your villager comes along.",
-	[6] = "Tap Explore and set sail. Out there your party fights on its own.",
+	[5] = "Build a Driftling Nest, then tap the Tide Pool. Your villager comes along.",
+	[6] = "Tap the Tide Pool and tap Explore. In there your party fights on its own.",
 	[7] = "To catch a driftling, tap Snack in a fight and throw one at a hurt wild one.",
 	[8] = "Your first driftling. Trips bring back food, wood and shells as well.",
 }
 -- (on an expedition under way, with its screen closed)
 local TIPS_AWAY: { [number]: string } = {
-	[6] = "Your party has landed. Tap Continue to watch the fight.",
+	[6] = "Your party is in the Tide Pool. Tap Continue to watch the fight.",
 	[7] = "Tap Continue, then throw a snack at a hurt wild one to catch it.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
 	[1] = "Place a Veggie Patch. It grows the food everyone eats.",
-	[5] = "Place a Driftling Nest, then tap Done and Explore to set sail.",
+	[5] = "Place a Driftling Nest, then tap Done and tap the Tide Pool.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).

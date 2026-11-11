@@ -4,7 +4,6 @@
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
 --   "int"    a whole number in [0, 1e6] (a villager, driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 16] (a look index)
---   "isle"   a whole number in [1, 64] (an island of the sea chart)
 --   "party"  up to three members "v<id>" / "p<id>" joined by commas ("" for the captain alone)
 --   "target" a wild driftling in the battle ("w1".."w9")
 --   "member" one of the party: the captain "f", a villager "v<id>", a driftling "p<id>"
@@ -33,8 +32,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.release"] = { id = "int" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
-	["exp.start"] = { isle = "isle", party = "party" },
-	["boat.upgrade"] = {},
+	["exp.start"] = { site = "int", party = "party" },
 	["exp.next"] = {},
 	["exp.snack"] = { target = "target" },
 	["exp.flee"] = {},
@@ -63,8 +61,6 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 0, 1e6)
 	elseif kind == "small" then
 		return isInt(v, 1, 16)
-	elseif kind == "isle" then
-		return isInt(v, 1, 64)
 	elseif kind == "party" then
 		if type(v) ~= "string" or #v > 40 then
 			return false

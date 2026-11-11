@@ -4,7 +4,9 @@
 -- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
 -- footprint's width and depth). A piece stands wholly on the island's buildable cells (Data/Street: the grass a stud
 -- in from its edge, the island's shape by its tier), off the plaza round the campfire and the path to the jetty, and
--- off every other piece.
+-- off every other piece. A wild place (Data/Sites: a piece of kind "site" still wild) keeps a ring of Tuning.SiteRadius
+-- studs round it clear of anything new, can't be moved or cleared away, and isn't counted in the piece limit (no
+-- place is); once cleared it is a piece like any other.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Street = require(script.Parent.Parent.Data.Street)
@@ -33,12 +35,23 @@ function Plot.isPath(id: string): boolean
 	return d ~= nil and d.kind == "path"
 end
 
--- How many pieces of the same count as `id` stand (paths, or the rest), and that count's limit.
+-- Whether a piece is a wild place (Data/Sites), or any place, wild or cleared.
+function Plot.isWild(id: string): boolean
+	local d = Buildings.byId[id]
+	return d ~= nil and d.kind == "site" and string.sub(id, 1, 5) == "wild_"
+end
+function Plot.isSite(id: string): boolean
+	local d = Buildings.byId[id]
+	return d ~= nil and d.kind == "site"
+end
+
+-- How many pieces of the same count as `id` stand (paths, or the rest: the wild places never count), and that
+-- count's limit.
 function Plot.used(p: Profile, id: string): (number, number)
 	local path = Plot.isPath(id)
 	local n = 0
 	for _, q in p.plot.placed do
-		if Plot.isPath(q.id) == path then
+		if Plot.isPath(q.id) == path and not Plot.isSite(q.id) then
 			n += 1
 		end
 	end
@@ -66,6 +79,13 @@ local function overlaps(a: Rect, b: Rect): boolean
 	return a.x0 < b.x1 and b.x0 < a.x1 and a.z0 < b.z1 and b.z0 < a.z1
 end
 
+-- The ring a wild place keeps clear: its footprint and Tuning.SiteRadius studs round it.
+function Plot.zone(q: Piece): Rect
+	local r = Plot.rect(q.id, q.x, q.z, q.rot)
+	local k = Tuning.SiteRadius
+	return { x0 = r.x0 - k, z0 = r.z0 - k, x1 = r.x1 + k, z1 = r.z1 + k }
+end
+
 -- The fixed things on an island no piece may cover (plot-local): the plaza round the campfire and the path to the
 -- jetty (the same on every tier).
 function Plot.blockers(_tier: number): { Rect }
@@ -76,8 +96,9 @@ local ROT_OK: { [number]: boolean } = { [0] = true, [90] = true, [180] = true, [
 
 -- Whether piece `id` fits at (x, z, rot) on an island of `tier` with these pieces (skip = the index of the piece
 -- being moved). Returns true, or false and why: "outside" (off the buildable grass or not on the grid), "blocked"
--- (the plaza or the path), "overlap" (another piece), "unknown" (no such piece).
-function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number, skip: number?): (boolean, string?)
+-- (the plaza or the path), "overlap" (another piece), "wild" (inside a wild place's ring), "unknown" (no such
+-- piece). `loose`: the rings are not checked (pieces already standing, a place itself coming up: Logic/Sites).
+function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number, skip: number?, loose: boolean?): (boolean, string?)
 	if Buildings.byId[id] == nil then
 		return false, "unknown"
 	end
@@ -102,7 +123,19 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 			return false, "overlap"
 		end
 	end
+	if not loose then
+		for i, q in placed do
+			if i ~= skip and Plot.isWild(q.id) and overlaps(r, Plot.zone(q)) then
+				return false, "wild"
+			end
+		end
+	end
 	return true, nil
+end
+
+-- The refusal for a spot that doesn't fit: "wild" inside a wild place's ring, else "blocked".
+local function misfit(why: string?): ErrCode
+	return if why == "wild" then "wild" else "blocked"
 end
 
 ------------------------------------------------------------------ actions (change the profile only on success)
@@ -110,7 +143,7 @@ end
 -- takes a worker gets an idle villager if there is one.
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
-	if def == nil then
+	if def == nil or def.kind == "site" then
 		return false, "bad_payload" :: ErrCode
 	end
 	if def.tier > p.tier then
@@ -126,9 +159,9 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	if p.wood < def.wood then
 		return false, "wood" :: ErrCode
 	end
-	local ok = Plot.fits(p.tier, p.plot.placed, id, x, z, rot)
+	local ok, why = Plot.fits(p.tier, p.plot.placed, id, x, z, rot)
 	if not ok then
-		return false, "blocked" :: ErrCode
+		return false, misfit(why)
 	end
 	p.shells -= def.shells
 	p.wood -= def.wood
@@ -195,7 +228,11 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 			why = "wood"
 			break
 		end
-		if Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0) then
+		local fit, whyNot = Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0)
+		if not fit and whyNot == "wild" then
+			why = "wild"
+		end
+		if fit then
 			p.shells -= def.shells
 			p.wood -= def.wood
 			local uid = p.nextId
@@ -256,9 +293,12 @@ function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (b
 	if q == nil then
 		return false, "bad_payload" :: ErrCode
 	end
-	local ok = Plot.fits(p.tier, p.plot.placed, q.id, x, z, rot, i)
+	if Plot.isWild(q.id) then
+		return false, "wild" :: ErrCode
+	end
+	local ok, why = Plot.fits(p.tier, p.plot.placed, q.id, x, z, rot, i)
 	if not ok then
-		return false, "blocked" :: ErrCode
+		return false, misfit(why)
 	end
 	q.x, q.z, q.rot = x, z, rot
 	return true, nil
@@ -281,7 +321,7 @@ end
 function Plot.replacements(q: Piece, tier: number): { string }
 	local old = Buildings.byId[q.id]
 	local out: { string } = {}
-	if old == nil then
+	if old == nil or old.kind == "site" then
 		return out
 	end
 	for _, d in Buildings.list do
@@ -299,7 +339,7 @@ end
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	local q = p.plot.placed[i]
 	local old, new = if q then Buildings.byId[q.id] else nil, Buildings.byId[id]
-	if q == nil or old == nil or new == nil or new.kind ~= old.kind or new.id == old.id then
+	if q == nil or old == nil or new == nil or new.kind ~= old.kind or new.id == old.id or old.kind == "site" then
 		return false, "bad_payload" :: ErrCode
 	end
 	if new.tier > p.tier then
@@ -312,7 +352,7 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if p.wood < cost.wood then
 		return false, "wood" :: ErrCode
 	end
-	if not Plot.fits(p.tier, p.plot.placed, id, q.x, q.z, q.rot, i) then
+	if not Plot.fits(p.tier, p.plot.placed, id, q.x, q.z, q.rot, i, true) then
 		return false, "blocked" :: ErrCode
 	end
 	local beds, slots = 0, 0
@@ -346,8 +386,9 @@ end
 function Plot.refit(p: Profile): (number, number)
 	local kept: { Piece } = {}
 	local homeless: { Piece } = {}
+	-- (the wild places' rings don't move what already stands: `loose`)
 	for _, q in p.plot.placed do
-		if Plot.fits(p.tier, kept, q.id, q.x, q.z, q.rot) then
+		if Plot.fits(p.tier, kept, q.id, q.x, q.z, q.rot, nil, true) then
 			table.insert(kept, q)
 		else
 			table.insert(homeless, q)
@@ -365,7 +406,7 @@ function Plot.refit(p: Profile): (number, number)
 			for z = math.floor(pr.z0) + 1, math.floor(pr.z1) - 1 do
 				for x = math.floor(pr.x0) + 1, math.floor(pr.x1) - 1 do
 					local d = (x - q.x) ^ 2 + (z - q.z) ^ 2 + (if rot == q.rot then 0 else 0.5)
-					if d < best and Plot.fits(p.tier, kept, q.id, x, z, rot) then
+					if d < best and Plot.fits(p.tier, kept, q.id, x, z, rot, nil, true) then
 						best, bx, bz, brot = d, x, z, rot
 					end
 				end
@@ -412,6 +453,9 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 	local q = p.plot.placed[i]
 	if q == nil then
 		return false, "bad_payload" :: ErrCode
+	end
+	if Plot.isWild(q.id) then
+		return false, "wild" :: ErrCode
 	end
 	local def = Buildings.byId[q.id]
 	if def then

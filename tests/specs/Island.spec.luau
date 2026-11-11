@@ -7,9 +7,11 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 local Util = require("../../build/luautest/shared/Logic/Util")
 
+-- (an island with no wild places on it: the rules of building and living, apart from them: Sites.spec)
 local function fresh(): any
 	local p = Schema.default(0, 1)
 	p.shells, p.wood, p.food = 1e6, 1e6, 100
+	p.plot.placed = {}
 	return p
 end
 
@@ -28,12 +30,15 @@ local function villager(p: any, work: number): any
 end
 
 return function()
-	T.it("a new island: its stores, nothing standing, nobody to feed", function()
+	T.it("a new island: its stores, nothing built (its first wild places only), nobody to feed", function()
 		local p = Schema.default(0, 1)
 		T.eq(p.shells, Tuning.StartShells)
 		T.eq(p.food, Tuning.StartFood)
 		T.eq(p.wood, Tuning.StartWood)
-		T.eq(#p.plot.placed, 0)
+		for _, q in p.plot.placed do
+			T.eq(Buildings.byId[q.id].kind, "site", "only wild places: " .. q.id)
+		end
+		T.eq(#p.plot.placed, 2, "a tide pool and some tall grass")
 		local r = Island.rates(p)
 		T.eq(r.food, 0)
 		T.eq(r.shells, 0)
@@ -264,7 +269,8 @@ return function()
 		local shells = p.shells
 		local ok, data = Island.expand(p)
 		T.truthy(ok)
-		T.eq(#p.plot.placed, before, "none lost")
+		T.eq(#p.plot.placed, before + data.sites, "none lost (and the new wild places)")
+		T.truthy(data.sites >= 1, "new wild places came up")
 		T.eq(data.cleared, 0)
 		T.eq(p.shells, shells - Tuning.TierCost[2].shells, "nothing refunded")
 		local rest = {}

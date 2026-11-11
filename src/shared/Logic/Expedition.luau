@@ -1,16 +1,19 @@
 --!strict
 -- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 6): the captain and up to Tuning.PartyMax villagers or
--- driftlings sail from the island's pier to an island of the sea chart (Logic/Chart: its place sets its level, its
--- seed what it holds; `chart` makes it up: its kind from Data/Islets, its name, driftlings, path and loot),
--- walk its path a node at a time, battle its driftlings (Logic/Battle), befriend some with treats, and sail home
--- with what they gathered. Pure; the server keeps the expedition in the session (it ends, the loot kept, when the
--- player leaves). Those away neither work nor eat.
---   chart(lvl, seed) -> Isle                   (the island: the same seed and level make the same island)
---   start(p, isle, members) -> Expedition      (the island from Logic/Chart; members: "v<id>" / "p<id>"; each of the
---                                               party takes Tuning.Supplies food)
+-- driftlings go into one of the island's wild places (Data/Sites, Logic/Sites: a tide pool, tall grass, a volcano, a
+-- cave...; `isleOf` makes up what it holds from its kind, level and the island's seed: its driftlings, path and
+-- loot), walk its path a node at a time, battle its driftlings (Logic/Battle), befriend some with treats, and come
+-- home with what they gathered. The path ends at its guardian: beaten, the place is cleared (the first time it pays
+-- Tuning.FirstClear times the reward and stops being wild: Data/Sites' "done_" piece) and the trip is over. Pure; the
+-- server keeps the expedition in the session (it ends, the loot kept, when the player leaves). Those away neither
+-- work nor eat.
+--   chart(lvl, seed, kind?) -> Isle            (what a place holds: the same seed, level and kind make the same one)
+--   isleOf(p, q) -> Isle                       (a wild place's piece: its kind, level, the island's seed)
+--   enter(p, uid, members) -> Expedition       (into the place with that piece uid; members: "v<id>" / "p<id>";
+--                                               each of the party takes Tuning.Supplies food)
 --   next(p, e, rng)                            (the next node: loot, a chest, a rest, or a battle: timed, paused)
 --   tick(p, e, dt, rng) -> out?                (the battle runs on dt seconds; what happened, if anything: a win
---                                               shares xp, a beaten guardian charts the island)
+--                                               shares xp, the guardian beaten clears the place)
 --   snack(p, e, target, rng) / skill(p, e, who, id, target, rng) / flee(p, e, rng)
 --                                              (the player's moves in a battle) / pause(e, on)
 --   home(p, e)                                 (back on the island: the loot is added, all of it, a defeat too)
@@ -20,8 +23,11 @@ local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Islets = require(script.Parent.Parent.Data.Islets)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
 local Traits = require(script.Parent.Parent.Data.Traits)
+local SiteData = require(script.Parent.Parent.Data.Sites)
 local Battle = require(script.Parent.Battle)
 local Island = require(script.Parent.Island)
+local Plot = require(script.Parent.Plot)
+local Sites = require(script.Parent.Sites)
 local Util = require(script.Parent.Util)
 
 type Profile = Types.Profile
@@ -87,8 +93,8 @@ function Expedition.supplies(n: number): number
 	return Tuning.Supplies * n
 end
 
------------------------------------------------------------------- the islands at sea
--- The kinds of island (Data/Islets ids) that can turn up at a level.
+------------------------------------------------------------------ what a wild place holds
+-- The kinds of island (Data/Islets ids) that can turn up at a level (a place's strays come from any of them).
 function Expedition.kindsAt(lvl: number): { number }
 	local out: { number } = {}
 	for _, d in Islets.list do
@@ -110,10 +116,9 @@ function Expedition.speciesAt(lvl: number): { string }
 	return out
 end
 
--- An island never ends (GAME_DESIGN 7: "make all islands infinite, with monsters scaling in difficulty every level and
--- bosses every few stages"): after the landing its stages come in blocks of Tuning.BossEvery, the last of each a
--- guardian; a block's stops (battles, loot, chests, maybe a rest late on; at least three battles) come from the island's
--- seed and the block's number, so the same island is the same island every time, as far as anyone goes.
+-- A place's path (GAME_DESIGN 7: "caves are no longer infinite, they are cleared once the boss is defeated"): after
+-- the landing, Tuning.BossEvery stages, the last its guardian; its stops (battles, loot, chests, maybe a rest late on;
+-- at least three battles) come from the place's seed, so the same place is the same path every time.
 local function block(seed: number, b: number): { string }
 	local rng = Util.newRng(Util.hash32(seed + b * 7919) + 17)
 	local n = Tuning.BossEvery - 1
@@ -148,19 +153,30 @@ local function block(seed: number, b: number): { string }
 	return mid
 end
 
--- The island for a level and a seed: its kind (one of those open at the level), a name of its kind's words, two of
--- its kind's driftlings and one that strayed in from any open kind, a guardian (one of its own, titled), what its
--- loot and chests hold and the guardian's reward (Tuning.Isle*). Its path comes from the same seed (`nodesOf`).
-function Expedition.chart(lvl: number, seed: number): Isle
+-- What a place holds for a level and a seed: its kind (`kind`, a Data/Islets id; else one of those open at the
+-- level), a name (a word of its kind's and the place's own: "Echo Cave"; "First Last" without a place), every one of
+-- its kind's driftlings and one that strayed in from any open kind, a guardian (one of its own, titled), what its loot
+-- and chests hold and the guardian's reward (Tuning.Isle*). Its path comes from the same seed (`nodesOf`).
+function Expedition.chart(lvl: number, seed: number, kindId: number?): Isle
 	lvl = math.clamp(math.floor(lvl), 1, Tuning.LevelMax)
 	local rng = Util.newRng(seed)
 	local kinds = Expedition.kindsAt(lvl)
-	local kind = kinds[rng:int(1, #kinds)]
+	local kind = if kindId and Islets.list[kindId] then kindId else kinds[rng:int(1, #kinds)]
 	local def = Islets.list[kind]
 	local first = def.first[rng:int(1, #def.first)]
 	local last = def.last[rng:int(1, #def.last)]
 	if string.lower(first) == string.lower(last) then
 		last = def.last[(table.find(def.last, last) or 1) % #def.last + 1]
+	end
+	local sd = if kindId then SiteData.byIslet[kind] else nil
+	if sd then
+		-- the place's own name after a word of its kind's (never the same word twice: "Coral Coral Pool")
+		local tries = 0
+		while string.find(string.lower(sd.name), string.lower(first), 1, true) and tries < #def.first do
+			tries += 1
+			first = def.first[(table.find(def.first, first) or 1) % #def.first + 1]
+		end
+		last = sd.name
 	end
 	-- its driftlings: every one of its kind (the rarer seen less often: Expedition.pickWild) and a stray from another
 	-- kind open at its level (a common or uncommon one)
@@ -231,23 +247,28 @@ function Expedition.pickWild(isle: Isle, rng: Rng): string
 	return isle.wild[#isle.wild]
 end
 
--- The island's path as far as `count` nodes (at least the landing and its first block): node 1 the landing, node
--- 1 + k x BossEvery the k-th guardian.
-function Expedition.nodesTo(isle: Isle, count: number?): { string }
+-- What a wild place's piece holds (Data/Sites: its kind's islet, its level; the island's seed and the piece's uid
+-- make its seed, so a place is the same place every visit).
+function Expedition.isleOf(p: Profile, q: Types.Piece): Isle
+	local sd = SiteData.of(q.id)
+	local seed = Util.hash32(tostring(p.sea) .. ":" .. tostring(q.uid)) % 2147483646 + 1
+	local isle = Expedition.chart(q.lvl, seed, if sd then sd.islet else nil)
+	isle.id = q.uid
+	return isle
+end
+
+-- A place's path: node 1 the landing, node 1 + BossEvery the guardian (the last). `count` is no longer used: the
+-- path never grows.
+function Expedition.nodesTo(isle: Isle, _count: number?): { string }
 	local out = { "start" }
-	local b = 0
-	repeat
-		for _, k in block(isle.seed, b) do
-			table.insert(out, k)
-		end
-		b += 1
-	until #out >= (count or 0)
+	for _, k in block(isle.seed, 0) do
+		table.insert(out, k)
+	end
 	return out
 end
 
--- The first block (the landing to the first guardian); an expedition's path grows a block at a time.
 function Expedition.nodesOf(isle: Isle): { string }
-	return Expedition.nodesTo(isle, 0)
+	return Expedition.nodesTo(isle)
 end
 
 -- The stage of a node (the landing is stage 0) and the guardian a node holds (1 the first, 0 none).
@@ -268,9 +289,10 @@ function Expedition.boostAt(node: number): number
 	return 1 + Tuning.StageBoost * math.max(0, Expedition.stageOf(node) - 1)
 end
 
--- The n-th guardian's reward (the first's is the island's: halved when the island was charted before).
-function Expedition.rewardOf(isle: Isle, n: number): number
-	return math.floor(isle.reward * (1 + Tuning.BossRewardGrow * math.max(0, n - 1)) + 0.5)
+-- The guardian's reward: Tuning.FirstClear times the place's the first time it is cleared, Tuning.ReplayReward times
+-- it on a later trip.
+function Expedition.rewardOf(isle: Isle, first: boolean): number
+	return math.floor(isle.reward * (if first then Tuning.FirstClear else Tuning.ReplayReward) + 0.5)
 end
 
 -- Snacks an expedition takes (GAME_DESIGN 7: "only allowed to use snacks 5 times an expedition, which can be
@@ -298,7 +320,7 @@ function Expedition.upgradePouch(p: Profile): (boolean, any)
 	return true, { pouch = p.pouch, snacks = Expedition.snacksFor(p) }
 end
 
--- Set out for an island (Logic/Chart.sail checks it is on the chart and in the boat's range).
+-- Set out (`enter` finds the place first).
 function Expedition.start(p: Profile, isle: Isle, members: { string }): (boolean, any)
 	if #members > Tuning.PartyMax then
 		return false, "full" :: ErrCode
@@ -343,6 +365,19 @@ function Expedition.start(p: Profile, isle: Isle, members: { string }): (boolean
 	return true, e
 end
 
+-- Into the wild place with piece uid `uid` (wild or cleared): not_found (no such place), then start's own refusals.
+function Expedition.enter(p: Profile, uid: number, members: { string }): (boolean, any)
+	local q = Sites.pieceOf(p, uid)
+	if q == nil then
+		return false, "not_found" :: ErrCode
+	end
+	local ok, e = Expedition.start(p, Expedition.isleOf(p, q), members)
+	if ok then
+		(e :: Expedition).site = uid
+	end
+	return ok, e
+end
+
 local function vary(rng: Rng, n: number): number
 	return math.max(1, math.floor(n * (0.75 + 0.5 * rng:next()) + 0.5))
 end
@@ -357,12 +392,8 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 	end
 	local isle = e.isle
 	if e.node >= #e.nodes then
-		-- the path goes on: its next block
-		local more = Expedition.nodesTo(isle, #e.nodes + 1)
-		for i = #e.nodes + 1, #more do
-			e.nodes[i] = more[i]
-			e.done[i] = false
-		end
+		-- (the guardian was the last stop: nothing after it)
+		return false, "no_exp" :: ErrCode
 	end
 	e.node += 1
 	e.done[e.node] = true
@@ -394,7 +425,7 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 		end
 		if kind == "boss" then
 			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost, born(isle.boss, 1)))
-			if isle.lvl >= 4 or Expedition.guardianAt(e.node) > 1 then
+			if isle.lvl >= 4 then
 				local sp = Expedition.pickWild(isle, rng)
 				table.insert(foes, Battle.wild(sp, lvl, 2, false, nil, boost, born(sp, 0)))
 			end
@@ -481,9 +512,10 @@ local function share(p: Profile, e: Expedition, xp: number): { [string]: number 
 	return ups
 end
 
--- What a battle's events came to: a befriended wild one joins the island; a win shares the xp and shells (a beaten
--- guardian charts the island: its whole reward the first time, half on later trips; each later one pays more), the
--- beaten getting up with a quarter of their health; a defeat ends the expedition. `out` gets the events, the result
+-- What a battle's events came to: a befriended wild one joins the island; a win shares the xp and shells (the
+-- guardian beaten clears the place: its reward Tuning.FirstClear times over the first time, when the place stops
+-- being wild, and the trip is over), the beaten getting up with a quarter of their health; a defeat ends the
+-- expedition. `out` gets the events, the result
 -- and what came of them, the snacks left, and the timers as they stand while it goes on (Battle.gauges).
 local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any }, result: string?): { [string]: any }
 	local out: { [string]: any } = { events = events, result = result, snacks = e.snacks }
@@ -535,28 +567,30 @@ local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any 
 		p.stats.battles += 1
 		e.battle = nil
 		if b.boss then
-			-- a guardian beaten: the first charts the island (its whole reward the first time, half on later trips),
-			-- each later one pays more; the path goes on (the party sails home when it likes)
-			local n = math.max(1, Expedition.guardianAt(e.node))
-			local id = e.isle.id
-			local first = n == 1 and (id == nil or table.find(p.chart, id) == nil)
-			local reward = Expedition.rewardOf(e.isle, n)
-			if n == 1 and not first then
-				reward = math.floor(reward / 2)
-			end
+			-- the guardian beaten: the place is cleared and the trip is over; the first time it pays the most and the
+			-- place stops being wild (its piece "done_": moved or cleared away like any other)
+			local q = if e.site then Sites.pieceOf(p, e.site :: number) else nil
+			local first = q ~= nil and Plot.isWild(q.id)
+			local reward = Expedition.rewardOf(e.isle, first)
 			e.loot.shells += reward
 			out.reward = reward
 			out.first = first
-			out.guardian = n
-			if first then
-				if id then
-					table.insert(p.chart, id)
+			out.guardian = 1
+			if first and q then
+				local sd = SiteData.of(q.id)
+				if sd then
+					q.id = SiteData.doneId(sd.id)
 				end
 				p.islets += 1
+				out.cleared = q.uid
 			end
 			out.charted = p.islets
 			p.stats.cleared += 1
-			e.beaten = math.max(e.beaten or 0, n)
+			e.beaten = 1
+			e.over = "won"
+			-- what the trip brought (the Cleared card): its loot, xp and levels
+			out.loot = { shells = math.floor(e.loot.shells), food = math.floor(e.loot.food), wood = math.floor(e.loot.wood) }
+			out.gained = e.gained
 		end
 	elseif result == "lose" then
 		e.battle = nil

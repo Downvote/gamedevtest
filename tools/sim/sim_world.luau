@@ -74,6 +74,23 @@ local b = H.addPlayer({ userId = 9402, name = "Bo" })
 E.run(3)
 local sa, sb = H.session(a), H.session(b)
 H.expect(sa and sa.plot == 1 and sb and sb.plot == 2, "islands", "plots 1 and 2", string.format("%s %s", tostring(sa and sa.plot), tostring(sb and sb.plot)))
+-- both new islands have their first wild places (a tide pool and some tall grass); the building checks below are
+-- about building, so they go (the wild places' own checks come at the end, on another newcomer's island)
+local PlotRules = H.sharedServer("Logic.Plot")
+for _, p in { a, b } do
+	local prof = H.profile(p)
+	local keep, wilds = {}, 0
+	for _, q in prof.plot.placed do
+		if PlotRules.isSite(q.id) then
+			wilds += 1
+		else
+			table.insert(keep, q)
+		end
+	end
+	H.expect(wilds == 2, "islands", p.Name .. ": a new island's two wild places", tostring(wilds))
+	prof.plot.placed = keep
+	H.push(p, 0.2)
+end
 for k, p in { a, b } do
 	local m = plotModel(k)
 	local prof = H.profile(p)
@@ -590,5 +607,77 @@ for _, k in E.kicks or {} do
 	end
 end
 H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is told the sea is full")
+
+------------------------------------------------------------------ 9. the wild places (GAME_DESIGN 7)
+E.phase = "wild"
+-- Cy's island (a newcomer's): its tide pool and tall grass stand there as models, labelled on Cy's screen; nothing
+-- may be built in their rings; a wild one can't be moved or cleared away; Build mode outlines the rings; a cleared
+-- one moves and clears away like any piece
+local cp = H.profile(c)
+local wildQs = {}
+for i, q in cp.plot.placed do
+	if PlotRules.isWild(q.id) then
+		table.insert(wildQs, { q = q, i = i })
+	end
+end
+H.expect(#wildQs == 2, "wild", "a tide pool and some tall grass on the newcomer's island", tostring(#wildQs))
+local cdecor = decorOf(H.session(c).plot)
+local siteModels = 0
+for _, m in cdecor:GetChildren() do
+	if m:GetAttribute("Site") then
+		siteModels += 1
+	end
+end
+H.expect(siteModels == 2, "wild", "their models on the island (Site attribute)", tostring(siteModels))
+E.run(1)
+local labels = 0
+for _, w in wildQs do
+	local found = H.inClient(c, function()
+		local UIKitC = H.cmod(c, "UI.UIKit")
+		return UIKitC.canvas("World"):FindFirstChild("Site_" .. w.q.uid) ~= nil
+	end)
+	labels += if found then 1 else 0
+end
+H.expect(labels == 2, "wild", "a label over each (name and level)", tostring(labels))
+local wq = wildQs[1].q
+local zr = PlotRules.zone(wq)
+local inRing = nil
+for z = zr.z0, zr.z1 - 1 do
+	for x = zr.x0, zr.x1 - 1 do
+		if inRing == nil and select(2, PlotRules.fits(cp.tier, cp.plot.placed, "torch", x, z, 0)) == "wild" then
+			inRing = { x, z }
+		end
+	end
+end
+cp.shells, cp.wood = 50000, 5000
+H.expect(inRing ~= nil and H.req(c, "plot.place", { id = "torch", x = inRing[1], z = inRing[2], rot = 0 }).err == "wild", "wild", "nothing new in a wild place's ring")
+H.expect(H.req(c, "plot.move", { i = wildQs[1].i, x = wq.x + 1, z = wq.z, rot = 0 }).err == "wild", "wild", "a wild place stays put")
+H.expect(H.req(c, "plot.store", { i = wildQs[1].i }).err == "wild", "wild", "and isn't cleared away")
+H.expect(H.req(c, "plot.place", { id = wq.id, x = 0, z = 0, rot = 0 }).err == "bad_payload", "wild", "never bought")
+-- Build mode: the rings outlined; a wild place tapped isn't picked up
+local BuildC = H.cmod(c, "UI.BuildUI")
+H.inClient(c, BuildC.open)
+E.run(0.5)
+local rings = E.workspace:FindFirstChild("PixelDynamic") and E.workspace.PixelDynamic:FindFirstChild("WildZones")
+H.expect(rings ~= nil, "wild", "Build mode outlines the wild places' rings")
+H.inClient(c, BuildC.close)
+E.run(0.3)
+-- cleared (as the guardian's fall would): the ring is gone, it moves and is cleared away for nothing
+local key = string.match(wq.id, "^wild_(%a+)$")
+wq.id = "done_" .. key
+H.push(c, 0.2)
+local okPlace = H.req(c, "plot.place", { id = "torch", x = inRing[1], z = inRing[2], rot = 0 })
+H.expect(okPlace.ok, "wild", "once cleared, its ring is gone", tostring(okPlace.err))
+local sh = cp.shells
+local wi = nil
+for i, q in cp.plot.placed do
+	if q == wq then
+		wi = i
+	end
+end
+H.expect(wi ~= nil and H.req(c, "plot.store", { i = wi }).ok and cp.shells == sh, "wild", "a cleared place clears away (for nothing back)")
+E.run(0.3)
+H.checkProfile(c, "wild")
+H.checkMirror(c, "wild")
 
 report(E, H)

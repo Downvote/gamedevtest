@@ -16,7 +16,6 @@ export type Facts = {
 	pals: { Types.Pal },
 	pieces: { Types.Piece },
 	tier: number,
-	boat: number,
 	pouch: number,
 	islets: number,
 	seen: { [string]: number },
@@ -31,7 +30,6 @@ function Quest.facts(p: Profile): Facts
 		pals = p.pals,
 		pieces = p.plot.placed,
 		tier = p.tier,
-		boat = p.boat,
 		pouch = p.pouch,
 		islets = p.islets,
 		seen = p.seen,
@@ -87,8 +85,6 @@ function Quest.count(f: Facts, g: Quests.Goal): number
 		n = f.tier
 	elseif k == "pouch" then
 		n = f.pouch
-	elseif k == "boat" then
-		n = f.boat
 	elseif k == "seen" then
 		for _ in f.seen do
 			n += 1

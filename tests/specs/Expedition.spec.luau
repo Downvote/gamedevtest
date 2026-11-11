@@ -1,6 +1,7 @@
--- Expeditions (Logic/Expedition; GAME_DESIGN 7): islands made up from a level and a seed, setting out for one,
--- walking the island's path, battles' ends, befriending, the guardian charting the island (its whole reward the first
--- time, half after), sailing home (all the loot, a defeat too). (Logic/Chart: Chart.spec.)
+-- Expeditions (Logic/Expedition; GAME_DESIGN 7): what a wild place holds, made up from a level, a seed and its kind;
+-- going into one of the island's places, walking its path, battles' ends, befriending, the guardian clearing the
+-- place (a big reward the first time, a small one after; the trip over), heading home (all the loot, a defeat too).
+-- (Logic/Sites, the places coming up: Sites.spec.)
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Expedition = require("../../build/luautest/shared/Logic/Expedition")
@@ -8,6 +9,8 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Islets = require("../../build/luautest/shared/Data/Islets")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
 local Util = require("../../build/luautest/shared/Logic/Util")
+local Sites = require("../../build/luautest/shared/Logic/Sites")
+local SiteData = require("../../build/luautest/shared/Data/Sites")
 local Traits = require("../../build/luautest/shared/Data/Traits")
 
 local function fresh(): any
@@ -60,22 +63,19 @@ return function()
 				-- its guardian: one of its own rare or epic ones
 				T.truthy(table.find(def.wild, isle.boss) and string.find(isle.bossName, Creatures.byId[isle.boss].name, 1, true), "its guardian")
 				T.truthy(Creatures.byId[isle.boss].rarity >= 3 and Creatures.byId[isle.boss].rarity <= 4, "a rare or epic guardian")
-				-- the path never ends: blocks of BossEvery stages, a guardian at the end of each
-				local nodes = Expedition.nodesTo(isle, 1 + Tuning.BossEvery * 4)
+				-- the path ends at its guardian (GAME_DESIGN 7: "caves are no longer infinite")
+				local nodes = Expedition.nodesOf(isle)
 				T.eq(nodes[1], "start")
-				T.eq(#nodes, 1 + Tuning.BossEvery * 4)
-				for k = 1, 4 do
-					local g = 1 + Tuning.BossEvery * k
-					T.eq(nodes[g], "boss", "a guardian every BossEvery stages")
-					T.eq(Expedition.guardianAt(g), k)
-					local wild = 0
-					for i = g - Tuning.BossEvery + 1, g - 1 do
-						T.truthy(nodes[i] == "wild" or nodes[i] == "loot" or nodes[i] == "chest" or nodes[i] == "rest", nodes[i])
-						wild += if nodes[i] == "wild" then 1 else 0
-					end
-					T.truthy(wild >= 3, "battles on the way")
+				T.eq(#nodes, 1 + Tuning.BossEvery, "the landing and BossEvery stages")
+				T.eq(nodes[#nodes], "boss", "the guardian last")
+				T.eq(Expedition.guardianAt(#nodes), 1)
+				local wild = 0
+				for i = 2, #nodes - 1 do
+					T.truthy(nodes[i] == "wild" or nodes[i] == "loot" or nodes[i] == "chest" or nodes[i] == "rest", nodes[i])
+					wild += if nodes[i] == "wild" then 1 else 0
 				end
-				T.deepEq(Expedition.nodesOf(isle), { table.unpack(nodes, 1, 1 + Tuning.BossEvery) }, "the first block")
+				T.truthy(wild >= 3, "battles on the way")
+				T.deepEq(Expedition.nodesTo(isle, 40), nodes, "never longer")
 			end
 		end
 		T.truthy(kinds[1] and kinds[2] and kinds[3] and kinds[4] and kinds[5], "every kind turns up")
@@ -89,9 +89,17 @@ return function()
 		T.truthy(hi.loot.food > lo.loot.food and hi.loot.wood > lo.loot.wood and hi.loot.shells > lo.loot.shells and hi.reward > lo.reward, "a higher level holds more")
 		T.truthy(Expedition.levelAt(hi, 2) == 19 and Expedition.levelAt(hi, 10) == 19 + math.floor(8 * Tuning.StageLvl), "the wild grow along the path")
 		T.truthy(Expedition.boostAt(3) > Expedition.boostAt(2) and Expedition.boostAt(2) > Expedition.boostAt(1) - 1e-9, "and grow stronger every stage")
-		T.truthy(Expedition.levelAt(hi, 200) > Tuning.LevelMax, "without end")
 		T.eq(Expedition.levelAt(lo, 1), 1)
-		T.truthy(Expedition.rewardOf(hi, 3) > Expedition.rewardOf(hi, 2) and Expedition.rewardOf(hi, 2) > Expedition.rewardOf(hi, 1), "later guardians pay more")
+		T.eq(Expedition.rewardOf(hi, true), math.floor(hi.reward * Tuning.FirstClear + 0.5), "the first clear pays the most")
+		T.truthy(Expedition.rewardOf(hi, false) < Expedition.rewardOf(hi, true), "a later clear pays less")
+		-- a wild place's own: its kind's, named after it
+		for _, sd in SiteData.list do
+			local isle = Expedition.chart(9, 77, sd.islet)
+			T.eq(isle.kind, sd.islet, sd.id .. ": its kind")
+			T.truthy(string.find(isle.name, sd.name, 1, true) ~= nil, sd.id .. ": named " .. isle.name)
+			local w1 = string.match(isle.name, "^(%a+)")
+			T.truthy(w1 ~= nil and not string.find(string.lower(sd.name), string.lower(w1 :: string), 1, true), sd.id .. ": no word twice: " .. isle.name)
+		end
 	end)
 	T.it("setting out: members who exist, supplies for each", function()
 		local p = fresh()
@@ -116,10 +124,25 @@ return function()
 		local away = Expedition.away(e)
 		T.truthy(away.v7 and away.p8 and away.f)
 	end)
-	T.it("the path: loot, battles in the way, a rest, the guardian charting the island, and on", function()
+	T.it("a wild place: its card's isle, going in by its piece, the path, the guardian clearing it, the trip over", function()
 		local p = fresh()
 		p.cap.lvl = 12
-		local _, e = Expedition.start(p, Expedition.chart(1, 77), {})
+		local pool: any = nil
+		for _, q in p.plot.placed do
+			if q.id == SiteData.wildId("tidepool") then
+				pool = q
+			end
+		end
+		T.truthy(pool ~= nil, "a new island has its tide pool")
+		local isle = Expedition.isleOf(p, pool)
+		T.eq(isle.kind, SiteData.byId.tidepool.islet)
+		T.eq(isle.lvl, pool.lvl)
+		T.eq(isle.id, pool.uid)
+		T.deepEq(Expedition.isleOf(p, pool), isle, "the same place every visit")
+		T.eq(select(2, Expedition.enter(p, 99999, {})), "not_found")
+		local okE, e = Expedition.enter(p, pool.uid, {})
+		T.truthy(okE)
+		T.eq(e.site, pool.uid)
 		local rng = Util.newRng(11)
 		local kinds = {}
 		local first = #e.nodes
@@ -137,18 +160,37 @@ return function()
 			end
 		end
 		T.deepEq(kinds, { table.unpack(e.nodes, 2, first) })
-		T.eq(e.over, nil, "the guardian beaten, the path goes on")
+		T.eq(e.over, "won", "the guardian beaten: the trip is over")
 		T.eq(e.beaten, 1)
-		T.eq(p.islets, 1, "the island charted")
+		T.eq(p.islets, 1, "the place cleared")
 		T.eq(p.stats.cleared, 1)
-		T.eq(e.loot.shells >= e.isle.reward, true, "its whole reward")
-		T.truthy(e.loot.food > 0 and e.loot.wood > 0 and e.loot.shells >= e.isle.reward)
+		T.eq(pool.id, SiteData.doneId("tidepool"), "no longer wild")
+		T.truthy(e.loot.shells >= Expedition.rewardOf(e.isle, true), "the first clear's reward")
+		T.truthy(e.loot.food > 0 and e.loot.wood > 0)
 		T.truthy(p.cap.xp > 0 or p.cap.lvl > 12, "the captain learned")
-		T.truthy((Expedition.next(p, e, rng)), "the path goes on past the guardian")
+		T.eq(select(2, Expedition.next(p, e, rng)), "no_exp", "nothing after the guardian")
 		local shells = p.shells
 		local got = Expedition.home(p, e)
 		T.eq(p.shells, shells + got.shells)
 		T.eq(got.shells, e.loot.shells)
+		-- the same place again: it is cleared already, so it pays less and counts once
+		local _, e2 = Expedition.enter(p, pool.uid, {})
+		e2.party[1].atk, e2.party[1].hp, e2.party[1].maxHp = 5000, 99999, 99999
+		while not e2.over do
+			Expedition.next(p, e2, rng)
+			if e2.battle then
+				local before = e2.loot.shells
+				local guardian = e2.battle.boss
+				fightOut(p, e2, rng)
+				if guardian then
+					T.truthy(e2.loot.shells - before >= Expedition.rewardOf(e2.isle, false), "a later clear's reward")
+					T.truthy(e2.loot.shells - before < Expedition.rewardOf(e2.isle, true), "less than the first")
+				end
+			end
+		end
+		T.eq(e2.over, "won")
+		T.eq(p.islets, 1, "cleared once")
+		T.eq(p.stats.cleared, 2)
 	end)
 	T.it("befriending: a snack is one of the trip's few and needs a nest; the friend joins the island", function()
 		local p = fresh()
@@ -156,7 +198,7 @@ return function()
 		local _, e = Expedition.start(p, Expedition.chart(1, 3), {})
 		T.eq(e.snacks, Tuning.SnackBase, "five snacks a trip with the first pouch")
 		local rng = Util.newRng(4)
-		while e.battle == nil do
+		while e.battle == nil and e.node < #e.nodes and not e.over do
 			Expedition.next(p, e, rng)
 		end
 		T.eq(select(2, Expedition.snack(p, e, "w1", rng)), "no_room")
@@ -196,7 +238,7 @@ return function()
 		end
 		-- none left: refused
 		e.snacks = 0
-		while e.battle == nil do
+		while e.battle == nil and e.node < #e.nodes and not e.over do
 			Expedition.next(p, e, rng)
 		end
 		if not e.battle.boss then
@@ -227,7 +269,7 @@ return function()
 		p.cap.lvl = 6
 		local _, e = Expedition.start(p, Expedition.chart(1, 5), {})
 		local rng = Util.newRng(6)
-		while e.battle == nil do
+		while e.battle == nil and e.node < #e.nodes and not e.over do
 			Expedition.next(p, e, rng)
 		end
 		T.truthy(e.battle.paused)
@@ -275,9 +317,16 @@ return function()
 		local _, e = Expedition.start(p, isle, {})
 		local rng = Util.newRng(21)
 		local seen, with = 0, 0
-		for _ = 1, 60 do
-			while e.battle == nil do
+		for k = 1, 60 do
+			while e.battle == nil and e.node < #e.nodes and not e.over do
 				Expedition.next(p, e, rng)
+			end
+			if e.battle == nil then
+				-- (the path ran out: a new trip to another place of the level)
+				_, e = Expedition.start(p, Expedition.chart(20, 77 + k), {})
+				while e.battle == nil and e.node < #e.nodes do
+					Expedition.next(p, e, rng)
+				end
 			end
 			for _, f in e.battle.foes do
 				seen += 1
@@ -297,7 +346,7 @@ return function()
 			table.insert(q.pals, { id = 50, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = muts })
 			local _, ex = Expedition.start(q, Expedition.chart(1, 3), { "p50" })
 			local r = Util.newRng(5)
-			while ex.battle == nil do
+			while ex.battle == nil and ex.node < #ex.nodes and not ex.over do
 				Expedition.next(q, ex, r)
 			end
 			for _, f in ex.battle.foes do
@@ -321,7 +370,7 @@ return function()
 		T.eq(p.tut, 6, "set sail: the first fight")
 		local rng = Util.newRng(3)
 		e.party[1].hp, e.party[1].maxHp, e.party[1].atk = 9999, 9999, 999
-		while e.battle == nil do
+		while e.battle == nil and e.node < #e.nodes and not e.over do
 			Expedition.next(p, e, rng)
 		end
 		fightOut(p, e, rng)
@@ -330,7 +379,7 @@ return function()
 		table.insert(p.plot.placed, { uid = p.nextId, id = "nest", x = 0, z = 0, rot = 0 })
 		p.nextId += 1
 		e.snacks = 99
-		while e.battle == nil do
+		while e.battle == nil and e.node < #e.nodes and not e.over do
 			Expedition.next(p, e, rng)
 		end
 		-- the tips' first snack always befriends, even a wild one at full health and far above the party
@@ -347,7 +396,7 @@ return function()
 			table.insert(q.plot.placed, { uid = q.nextId, id = "nest", x = 0, z = 0, rot = 0 })
 			q.nextId += 1
 			local _, ex = Expedition.start(q, Expedition.chart(1, 8), {})
-			while ex.battle == nil do
+			while ex.battle == nil and ex.node < #ex.nodes and not ex.over do
 				Expedition.next(q, ex, rng)
 			end
 			local w = ex.battle.foes[1]
@@ -365,7 +414,7 @@ return function()
 		e.loot.shells, e.loot.food = 100, 40
 		e.party[1].hp, e.party[1].atk = 1, 1
 		local rng = Util.newRng(2)
-		while e.battle == nil do
+		while e.battle == nil and e.node < #e.nodes and not e.over do
 			Expedition.next(p, e, rng)
 		end
 		local result = fightOut(p, e, rng)
@@ -381,35 +430,37 @@ return function()
 		T.eq(got.food, math.floor(loot.food), "all the food too")
 		T.eq(got.wood, math.floor(loot.wood))
 	end)
-	T.it("on past the guardian: the next block, harder wild ones, a second guardian paying more", function()
+	T.it("the wild ones grow harder along the path; a place cleared away meanwhile pays as a later clear", function()
 		local p = fresh()
 		p.cap.lvl = 60
-		local _, e = Expedition.start(p, Expedition.chart(1, 31), {})
-		e.party[1].atk, e.party[1].hp, e.party[1].maxHp = 5000, 99999, 99999
-		local rng = Util.newRng(9)
-		local rewards = {}
-		local lvls = {}
-		while (e.beaten or 0) < 2 and e.node < 40 do
-			local ok, data = Expedition.next(p, e, rng)
-			T.truthy(ok, tostring(data))
-			if e.battle then
-				table.insert(lvls, e.battle.foes[1].lvl)
-				local guardian = e.battle.boss
-				local before = e.loot.shells
-				fightOut(p, e, rng)
-				if guardian then
-					table.insert(rewards, e.loot.shells - before)
-				end
+		local cave: any = nil
+		for _, q in p.plot.placed do
+			if q.id == SiteData.wildId("tallgrass") then
+				cave = q
 			end
 		end
-		T.eq(e.beaten, 2, "two guardians beaten")
-		T.eq(e.node, 1 + Tuning.BossEvery * 2, "the second at the second block's end")
-		T.eq(p.islets, 1, "charted once")
-		T.truthy(rewards[2] > rewards[1], "the second guardian pays more")
+		local _, e = Expedition.enter(p, cave.uid, {})
+		e.party[1].atk, e.party[1].hp, e.party[1].maxHp = 5000, 99999, 99999
+		-- (the place gone from the island while the party is in it: nothing to clear)
+		for i, q in p.plot.placed do
+			if q == cave then
+				table.remove(p.plot.placed, i)
+				break
+			end
+		end
+		local rng = Util.newRng(9)
+		local lvls = {}
+		while not e.over do
+			Expedition.next(p, e, rng)
+			if e.battle then
+				table.insert(lvls, e.battle.foes[1].lvl)
+				fightOut(p, e, rng)
+			end
+		end
 		T.truthy(lvls[#lvls] > lvls[1], "the wild ones grow")
-		T.eq(e.over, nil, "and the path goes on")
-		local ok = Expedition.next(p, e, rng)
-		T.truthy(ok, "a third block")
+		T.eq(e.over, "won")
+		T.eq(p.islets, 0, "nothing cleared: the place was gone")
+		T.eq(#Sites.spawn(p), 0, "and nothing comes back up")
 	end)
 	T.it("no fleeing a guardian, no snacks for it", function()
 		local p = fresh()

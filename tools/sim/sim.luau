@@ -1,9 +1,9 @@
 -- The main simulation: a new island end to end through the real client and its UI (the campfire, the HUD, the
 -- tips), building what the tips ask (food, a camp, a stall, a tent, a nest: the starting shells cover them), the days
--- turning (a villager moves in and takes a job, the stores grow), an expedition from the Explore panel (the level
--- slider, the party picked, Set sail, the sailing cutscene and the boat leaving the pier, the islet's screen with the
--- boat bringing the party ashore, its stops and timed battles on the screen (timers, a snack, a skill), home with the loot and
--- the return voyage to the pier), the Villagers, Driftlings and Index panels, the founder's looks, settings, then a
+-- turning (a villager moves in and takes a job, the stores grow), an expedition into the island's tide pool (a tap on
+-- it opens its card: the party picked by itself, Explore; the founder walks to it and the blinds close, the place's
+-- screen with the party dropping in, its stops and timed battles on the screen (timers, a snack, a skill), its
+-- guardian clearing it, home with the loot and the founder in front of it), the Villagers, Driftlings and Index panels, the founder's looks, settings, then a
 -- malicious client, then a second player. Every check is an H.expect; the SIM REPORT must show 0 findings and 0
 -- errors.
 local E = require("./loader")
@@ -34,7 +34,7 @@ local s = H.session(p)
 H.expect(s ~= nil and s.ready, "join", "the session is ready")
 local prof = H.profile(p)
 H.expect(prof.shells == Tuning.StartShells and prof.food == Tuning.StartFood and prof.wood == Tuning.StartWood, "join", "the starting stores", string.format("%s %s %s", prof.shells, prof.food, prof.wood))
-H.expect(prof.tier == 1 and prof.tut == 1 and #prof.folk == 0 and #prof.pals == 0 and #prof.plot.placed == 0, "join", "a new island, tips at step 1, nobody else yet")
+H.expect(prof.tier == 1 and prof.tut == 1 and #prof.folk == 0 and #prof.pals == 0 and #prof.plot.placed == 2, "join", "a new island, tips at step 1, nobody else yet (its two wild places)")
 H.expect(s.plot == 1, "join", "the first player gets island 1", tostring(s.plot))
 local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_1")
 local static = plot1 and plot1:FindFirstChild("Static")
@@ -44,7 +44,7 @@ H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) ~= nil and lan
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
 H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")
-for _, n in { "Menu_build", "Menu_folk", "Menu_pals", "Menu_explore", "Menu_index", "Menu_looks" } do
+for _, n in { "Menu_build", "Menu_folk", "Menu_pals", "Menu_index", "Menu_looks" } do
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
 H.expect(#H.buttons(p, "^Food first", true) == 0, "join", "(tips are text, not buttons)")
@@ -102,7 +102,7 @@ H.expect(bst.tab == "wood" and bst.goal == "lumber" and H.buttonNamed(p, "Buy_lu
 H.expect(tipShown(), "build", "the next tip's banner over the tray")
 H.clickNamed(p, "BuildDone", { wait = 0.3 })
 H.expect(not BuildUI.isOpen() and tipShown(), "build", "Done: the tray goes, the tip stays")
-H.expect(res.ok and #prof.plot.placed == 1 and prof.plot.placed[1].id == "patch", "build", "a veggie patch", tostring(res.err))
+H.expect(res.ok and #prof.plot.placed == 3 and prof.plot.placed[3].id == "patch", "build", "a veggie patch", tostring(res.err))
 H.expect(math.abs(prof.shells - (sh0 - Buildings.byId.patch.shells)) < 1, "build", "paid for in shells", string.format("%s -> %s", sh0, prof.shells))
 H.expect(prof.tut == 2, "build", "the tips move on to wood (food built)", tostring(prof.tut))
 H.expect(H.buttonNamed(p, "TipsOk") == nil, "build", "no OK on the early tips")
@@ -123,7 +123,7 @@ end
 H.expect(welcomed, "build", "the newcomer is announced (Fx turn with who moved in)")
 res = place("nest")
 H.expect(res.ok and prof.wood < Tuning.StartWood, "build", "a nest (shells and wood)", tostring(res.err))
-H.expect(#prof.plot.placed == 5 and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for", string.format("%d pieces, %s shells left", #prof.plot.placed, prof.shells))
+H.expect(#prof.plot.placed == 7 and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for (beside the two wild places)", string.format("%d pieces, %s shells left", #prof.plot.placed, prof.shells))
 res = place("orchard")
 H.expect(not res.ok and res.err == "locked", "build", "an orchard waits for a bigger island", tostring(res.err))
 prof.shells = 5
@@ -137,9 +137,9 @@ H.expect(not res.ok and res.err == "wood", "build", "not enough wood", tostring(
 prof.wood = wood0
 H.push(p, 0.4)
 local v = H.view(p)
-H.expect(v ~= nil and #v.pieces == 5 and v.beds == 1 and v.nests == 2, "build", "the view: five pieces, a bed, two nest slots", v and string.format("%d %d %d", #v.pieces, v.beds, v.nests))
+H.expect(v ~= nil and #v.pieces == 7 and v.beds == 1 and v.nests == 2, "build", "the view: five pieces and two wild places, a bed, two nest slots", v and string.format("%d %d %d", #v.pieces, v.beds, v.nests))
 local decor = static and static:FindFirstChild("Decor")
-H.expect(decor ~= nil and #decor:GetChildren() == 5, "build", "the server built a model a piece", tostring(decor and #decor:GetChildren()))
+H.expect(decor ~= nil and #decor:GetChildren() == 7, "build", "the server built a model a piece", tostring(decor and #decor:GetChildren()))
 H.checkProfile(p, "build")
 H.checkMirror(p, "build")
 
@@ -223,54 +223,52 @@ H.closePanel(p)
 E.phase = "explore"
 prof.food = 200
 H.push(p, 0.4)
-H.clickNamed(p, "Menu_explore", { wait = 0.5 })
-H.expect(H.currentPanel(p) == "explore", "explore", "the Explore panel opens")
--- the sea chart: an island in the first boat's range picked; a far one refused; the boat upgraded
+-- the island's wild places (GAME_DESIGN 7): its tide pool tapped on the screen opens its card
+H.expect(H.buttonNamed(p, "Menu_explore", true) == nil, "explore", "no Explore button: the wild places are on the island")
 local Menus = H.cmod(p, "UI.Menus")
-local Chart = H.sharedServer("Logic.Chart")
-H.expect(prof.boat == 1 and prof.sea >= 1, "explore", "the first boat and the player's own sea")
-local chosen = H.inClient(p, Menus.chosen)
-H.expect(chosen >= 1 and Chart.reachable(prof, chosen), "explore", "an island in the boat's range picked at first", tostring(chosen))
-H.expect(H.buttonNamed(p, "Isle_1") ~= nil and H.buttonNamed(p, "BoatUp") ~= nil, "explore", "the chart's islands to tap, the boat's upgrade")
-local farId = nil
-for _, c in Chart.islands(prof.sea) do
-	if farId == nil and not Chart.reachable(prof, c.id) and H.buttonNamed(p, "Isle_" .. c.id) then
-		farId = c.id
+local WorldViewC = H.cmod(p, "Controllers.WorldView")
+local PRc = H.cmod(p, "Pixel.PixelRenderer")
+local poolQ = nil
+for _, q in prof.plot.placed do
+	if q.id == "wild_tidepool" then
+		poolQ = q
 	end
 end
-if farId then
-	H.clickNamed(p, "Isle_" .. farId, { wait = 0.2 })
-	H.expect(H.inClient(p, Menus.chosen) == chosen, "explore", "an island past the boat's range can't be picked")
+H.expect(poolQ ~= nil and poolQ.lvl == 1, "explore", "a level 1 tide pool on the new island")
+local ox0, oz0 = H.sharedServer("Data.Street").origin(s.plot)
+local poolW, poolD = H.sharedServer("Logic.Plot").footprint(poolQ.id, poolQ.rot)
+local poolAt = E.v3(ox0 + poolQ.x + poolW / 2, H.sharedServer("Data.Street").LAWN_Y + 0.6, oz0 + poolQ.z + poolD / 2)
+H.expect(H.inClient(p, function()
+	return H.cmod(p, "UI.UIKit").canvas("World"):FindFirstChild("Site_" .. poolQ.uid) ~= nil
+end), "explore", "its name and level over it")
+E.raycastParts = true
+H.inClient(p, function()
+	local pos = PRc.project(poolAt)
+	WorldViewC.tapScreen(E.v2(pos.X, pos.Y - E.inset))
+end)
+E.raycastParts = nil
+E.run(0.5)
+H.expect(H.currentPanel(p) == "site" and H.inClient(p, Menus.chosen) == poolQ.uid, "explore", "a tap on it opens its card", tostring(H.currentPanel(p)))
+if H.currentPanel(p) ~= "site" then
+	H.inClient(p, H.cmod(p, "UI.UIKit").openPanel, "site", poolQ.uid)
+	E.run(0.4)
 end
-local cost = Chart.boatCost(1)
-local shKeep, woKeep = prof.shells, prof.wood
-prof.shells, prof.wood = cost.shells + 10, cost.wood + 10
-H.push(p, 0.3)
-H.clickNamed(p, "BoatUp", { wait = 0.5 })
-local road = E.workspace.Plots.Street:FindFirstChild("Road_1")
-H.expect(prof.boat == 2 and prof.shells < 60 and prof.wood < 60, "explore", "the boat upgraded for shells and wood", string.format("%d %s %s", prof.boat, prof.shells, prof.wood))
-H.expect(road ~= nil and road:FindFirstChild("Boat") ~= nil and road.Boat:GetAttribute("Level") == 2, "explore", "a bigger boat at the pier")
-prof.shells, prof.wood = shKeep, woKeep
-H.push(p, 0.3)
-H.clickNamed(p, "Isle_1", { wait = 0.3 })
-H.expect(H.inClient(p, Menus.chosen) == 1, "explore", "the nearest island picked on the chart")
+H.expect(H.buttonNamed(p, "Explore") ~= nil and H.buttonNamed(p, "PouchUp", true) ~= nil, "explore", "the card: Explore and the snack pouch")
 H.expect(H.buttonNamed(p, "Member_v" .. mika.id) ~= nil, "explore", "the villager can join the party")
 H.expect(table.find(H.inClient(p, Menus.party), "v" .. mika.id) ~= nil, "explore", "the party's slots filled by themselves with the strongest (the villager)", table.concat(H.inClient(p, Menus.party), ","))
 local food0 = prof.food
 local Voyage = H.cmod(p, "UI.Voyage")
-H.expect(road ~= nil and road:FindFirstChild("Boat") ~= nil, "explore", "the expedition boat moored at the pier")
-H.clickNamed(p, "SetSail", { wait = 0.5 })
-H.expect(s.exp ~= nil and s.exp.isle.id == 1 and #s.exp.party == 2, "explore", "the expedition set sail to the chart's first island with the captain and the villager", tostring(s.exp and #s.exp.party))
-H.expect(s.exp ~= nil and s.exp.isle.lvl == Chart.islands(prof.sea)[1].lvl and s.exp.isle.kind == 1 and #s.exp.isle.name > 3, "explore", "a beach near home, of its distance's level, with a name", s.exp and s.exp.isle.name)
+H.clickNamed(p, "Explore", { wait = 0.5 })
+H.expect(s.exp ~= nil and s.exp.site == poolQ.uid and #s.exp.party == 2, "explore", "into the tide pool with the captain and the villager", tostring(s.exp and #s.exp.party))
+H.expect(s.exp ~= nil and s.exp.isle.lvl == 1 and s.exp.isle.kind == 1 and string.find(s.exp.isle.name, "Tide Pool", 1, true) ~= nil, "explore", "a beach place of level 1, named for it", s.exp and s.exp.isle.name)
 H.expect(math.abs(prof.food - (food0 - Tuning.Supplies * 2)) < 1.5, "explore", "supplies taken", string.format("%s -> %s", food0, prof.food))
 H.expect(prof.tut == 6, "explore", "the tips move on to the first fight", tostring(prof.tut))
 H.expect(s.away["v" .. mika.id] == true, "explore", "the villager is away (not working)")
--- the cutscene: the founder walks to the pier and boards, the boat sails off, the blinds close on the island
+-- the walk in: the founder walks to the place, the blinds close on its name
 local vs = H.inClient(p, Voyage.debugState)
-H.expect(vs.phase ~= "" and vs.away, "explore", "the sailing cutscene plays", tostring(vs.phase))
-H.expect(road ~= nil and road:FindFirstChild("Boat") == nil, "explore", "the boat leaves the pier")
+H.expect(vs.phase ~= "" and vs.dir == "out", "explore", "the walk to the place plays", tostring(vs.phase))
 local EUI = H.cmod(p, "UI.ExpeditionUI")
-H.expect(not H.inClient(p, EUI.isOpen), "explore", "the islet's screen waits for the cutscene")
+H.expect(not H.inClient(p, EUI.isOpen), "explore", "the place's screen waits for it")
 local phases: { [string]: boolean } = {}
 for _ = 1, 160 do
 	E.run(0.1)
@@ -280,13 +278,23 @@ for _ = 1, 160 do
 		break
 	end
 end
-H.expect(phases.walk and phases.hop and phases.sail, "explore", "walk, hop aboard, sail", string.format("%s %s %s", tostring(phases.walk), tostring(phases.hop), tostring(phases.sail)))
-H.expect(H.inClient(p, EUI.isOpen) == true, "explore", "the islet's screen opens after it")
+H.expect(phases.walk and phases.close, "explore", "a walk, then the blinds", string.format("%s %s", tostring(phases.walk), tostring(phases.close)))
+H.expect(H.inClient(p, EUI.isOpen) == true, "explore", "the place's screen opens after it")
 local nodeAtLanding = s.exp and s.exp.node or 0
-E.run(Tuning.StageWait + 3)
+-- (the fights are quick: the first may be under way, or over, before the curtain's wait is: the tips' note is
+-- watched for from the start)
+local tips0 = prof.tut
+local sawTip: { [number]: boolean } = {}
+for _ = 1, math.floor((Tuning.StageWait + 3) / 0.2) do
+	E.run(0.2)
+	local d0 = H.inClient(p, EUI.debugState)
+	if d0.tip then
+		sawTip[prof.tut] = true
+	end
+end
 local st = H.inClient(p, EUI.debugState)
 H.expect(st.lifted and st.actors >= 2, "explore", "the curtain lifts on the party", string.format("%s %d", tostring(st.lifted), st.actors))
-H.expect(st.arrived, "explore", "the boat brought them ashore", tostring(st.arrived))
+H.expect(not st.ship, "explore", "no boat: the party dropped in")
 -- no Go on to click and no bar to wait on: between stops the next comes up at once (by now it may already be in a
 -- battle: then its moves are up instead)
 H.expect(H.buttonNamed(p, "GoOn") == nil and (s.exp == nil or s.exp.battle ~= nil or H.buttonNamed(p, "SailHome") ~= nil), "explore", "no Go on button (Sail home between stops)")
@@ -298,10 +306,8 @@ local Expedition = H.sharedServer("Logic.Expedition")
 -- (the first snack befriends for certain: the tips' catching step is played through)
 local BattleS = H.sharedServer("Logic.Battle")
 local chance0 = BattleS.treatChance
-local tips0 = prof.tut
 local battles, treats, skillsUsed = 0, 0, 0
 local sawTimers, sawRun = false, false
-local sawTip: { [number]: boolean } = {}
 local lastBattle = nil
 local steps = 0
 while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 900 do
@@ -354,18 +360,22 @@ H.expect(sawTimers, "explore", "a timer over the fighters' heads")
 H.expect(sawRun, "explore", "the battles run by themselves")
 H.expect(skillsUsed >= 1, "explore", "a skill used from the screen (Rally Cry)", tostring(skillsUsed))
 H.expect(battles >= 3, "explore", "battles fought through the UI", tostring(battles))
-H.expect(s.exp ~= nil and (s.exp.over == "lost" or (s.exp.beaten or 0) >= 1), "explore", "the first guardian beaten (the path goes on) or the party fallen", tostring(s.exp and s.exp.over))
+H.expect(s.exp ~= nil and (s.exp.over == "lost" or s.exp.over == "won"), "explore", "the guardian beaten (the place cleared, the trip over) or the party fallen", tostring(s.exp and s.exp.over))
 local over = if s.exp and (s.exp.beaten or 0) >= 1 then "won" else s.exp and s.exp.over
 local loot = s.exp and E.deepCopy(s.exp.loot)
 local wild = s.exp and E.deepCopy(s.exp.isle.wild) or {}
 H.expect(prof.stats.battles >= 1, "explore", "battles won counted", tostring(prof.stats.battles))
 local sh1 = prof.shells
--- home: after a fall the card's Sail home; after the guardian the party could go on: sail home from the screen
-if over == "lost" then
-	-- (the card comes once the fall has played out on the screen)
+-- home: after a fall the card's Head home; after the guardian the Cleared card's Head home
+if over == "lost" or over == "won" then
+	-- (the card comes once the last fight has played out on the screen)
 	E.runUntil(function()
 		return H.buttonNamed(p, "ResultOk") ~= nil
 	end, 15, 0.1)
+	if over == "won" then
+		H.expect(H.buttonNamed(p, "ResultOk") ~= nil and prof.islets == 1, "explore", "the Cleared card (the place no longer wild)", tostring(prof.islets))
+		H.expect(string.sub(poolQ.id, 1, 5) == "done_", "explore", "the tide pool cleared", poolQ.id)
+	end
 	H.clickNamed(p, "ResultOk", { wait = 0.2 })
 else
 	E.runUntil(function()
@@ -376,7 +386,7 @@ end
 E.run(0.8)
 H.expect(s.exp == nil and next(s.away) == nil, "explore", "home: the expedition over, everyone back")
 H.expect(not H.inClient(p, EUI.isOpen), "explore", "the islet's screen closed behind its curtain")
--- the voyage home: the blinds open on the sea, the boat sails in and moors, the founder hops onto the pier
+-- home: the blinds open on the island with the founder in front of the place
 local homePhases: { [string]: boolean } = {}
 local dirHome = false
 for _ = 1, 160 do
@@ -388,15 +398,11 @@ for _ = 1, 160 do
 	end
 	E.run(0.1)
 end
-H.expect(dirHome and homePhases.arrive and homePhases.hop and homePhases.land, "explore", "the voyage home: the boat sails in, the founder hops ashore", string.format("%s %s %s", tostring(homePhases.arrive), tostring(homePhases.hop), tostring(homePhases.land)))
-H.expect(road ~= nil and road:FindFirstChild("Boat") ~= nil and not H.inClient(p, Voyage.debugState).away, "explore", "the boat is back at the pier")
+H.expect(dirHome and homePhases.land, "explore", "home: the blinds open on the island, the founder cheers", tostring(homePhases.land))
 local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-local ox1, oz1 = H.sharedServer("Data.Street").origin(1)
-H.expect(root ~= nil and root.Position.Z - oz1 > H.sharedServer("Data.Street").BOARD.z1, "explore", "the founder stands on the pier", root and tostring(root.Position))
--- free to walk off: clear of the pier's walls (a character put inside one is stuck) and able to move again
-local pr = H.sharedServer("Data.Street").pier()
+local front = E.v3(ox0 + poolQ.x + poolW / 2, 0, oz0 + poolQ.z + poolD + 1.5)
+H.expect(root ~= nil and math.abs(root.Position.X - front.X) < 1 and math.abs(root.Position.Z - front.Z) < 1, "explore", "the founder stands in front of the place", root and tostring(root.Position))
 local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
-H.expect(root ~= nil and root.Position.X - ox1 > pr.x0 + 1.2 and root.Position.X - ox1 < pr.x1 - 1.2 and root.Position.Z - oz1 < pr.z1 - 1.2, "explore", "home: the founder clear of the pier's walls", root and tostring(root.Position))
 H.expect(hum ~= nil and hum.WalkSpeed > 0 and hum.JumpHeight > 0, "explore", "home: the founder can walk again", hum and string.format("%s %s", hum.WalkSpeed, hum.JumpHeight))
 H.expect(H.buttonNamed(p, "Menu_build") ~= nil, "explore", "the HUD is back")
 if loot then
@@ -465,7 +471,7 @@ H.closePanel(p)
 ------------------------------------------------------------------ 8. the other panels, settings, tips
 E.phase = "panels"
 local errs0 = #E.errors
-for _, name in { "folk", "pals", "explore", "index", "looks" } do
+for _, name in { "folk", "pals", "site", "index", "looks" } do
 	H.openPanel(p, name)
 	E.run(0.3)
 	H.expect(H.currentPanel(p) == name, "panels", name .. " opens")
@@ -632,7 +638,7 @@ ok, out = H.raw(p, "game.make", { a = 1, b = 2, c = 3 })
 expectRefused("the old studio's actions", ok, out, "unknown_action")
 ok, out = H.raw(p, "folk.work", { id = 0 / 0, uid = 1 })
 expectRefused("NaN", ok, out, "bad_payload")
-ok, out = H.raw(p, "exp.start", { isle = math.huge, party = "" })
+ok, out = H.raw(p, "exp.start", { site = math.huge, party = "" })
 expectRefused("infinity", ok, out, "bad_payload")
 ok, out = H.raw(p, "plot.place", { id = string.rep("a", 100000), x = 0, z = 0, rot = 0 })
 expectRefused("a huge string", ok, out, "bad_payload")
@@ -640,16 +646,18 @@ ok, out = H.raw(p, "island.expand", { x = 1 })
 expectRefused("an extra field", ok, out, "bad_payload")
 ok, out = H.rawArgs(p, "island.expand", "x")
 expectRefused("a string payload", ok, out, "bad_payload")
-ok, out = H.raw(p, "exp.start", { isle = 1, party = "v1,v1,v1,v1" })
+ok, out = H.raw(p, "exp.start", { site = 1, party = "v1,v1,v1,v1" })
 expectRefused("a party of four", ok, out, "bad_payload")
-ok, out = H.raw(p, "exp.start", { isle = 1, party = "x9" })
+ok, out = H.raw(p, "exp.start", { site = 1, party = "x9" })
 expectRefused("a party member that is not one", ok, out, "bad_payload")
-ok, out = H.raw(p, "exp.start", { isle = 1, party = "v424242" })
+ok, out = H.raw(p, "exp.start", { site = H.firstSite(prof), party = "v424242" })
 expectRefused("a villager not on the island", ok, out, "not_found")
-ok, out = H.raw(p, "exp.start", { isle = H.sharedServer("Config.Tuning").ChartIslands, party = "" })
-expectRefused("an island past the boat's range", ok, out, "far")
+ok, out = H.raw(p, "exp.start", { site = 424242, party = "" })
+expectRefused("a wild place that isn't there", ok, out, "not_found")
+ok, out = H.raw(p, "boat.upgrade", {})
+expectRefused("the boat (gone)", ok, out, "unknown_action")
 ok, out = H.raw(p, "exp.start", { isle = 99, party = "" })
-expectRefused("an island off the chart", ok, out, "bad_payload")
+expectRefused("the sea chart's island (gone)", ok, out, "bad_payload")
 ok, out = H.raw(p, "exp.start", { lvl = 1, party = "" })
 expectRefused("the old slider's level", ok, out, "bad_payload")
 ok, out = H.raw(p, "exp.start", { islet = 1, party = "" })

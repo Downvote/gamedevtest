@@ -1,16 +1,15 @@
 --!strict
--- An expedition on screen (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.9): the island's 3D stage (UI/MicroStage: its
+-- An expedition on screen (GAME_DESIGN 7; docs/ARCHITECTURE.md 10.9): a wild place's 3D stage (UI/MicroStage: its
 -- kind's set laid out by its seed, drawn full screen by the pixel filter) with the party on the left (the founder,
 -- villagers as their own chibis, driftlings as their 3D models) and, in a battle, the wild driftlings on the right.
--- Right after the sailing cutscene (UI/Voyage, `sail`) the expedition boat glides in to the shore and the party hops
--- off it; reopened later, they drop in from above. Along the top the island's path
--- of stops (the landing, loot, chests, battles, a rest, the guardian) and the loot gathered; along the bottom the
--- party's cards with their health and the buttons: Go on (exp.next) and Sail home (exp.home) between stops; Fight,
--- Guard, Treat (a wild one picked by tapping its card) and Flee in a battle (exp.act). A round's events (Logic/Battle)
--- play back one by one: lunges, flashes, numbers, skills' names, heals, shields, a treat's hearts, knock-outs. A win
--- shows the experience, shells and level-ups; a new friend joins with confetti; the guardian's fall charts the
--- island. The screen can be closed (Back to island) while the expedition waits: the HUD's card brings it back. A
--- curtain covers the screen while the stage's picture bakes.
+-- After the walk in (UI/Voyage, `enter`) the party drops in from above in puffs of dust (and again when the screen
+-- is reopened). Along the top the place's path of stops (the landing, loot, chests, battles, a rest, the guardian)
+-- and the loot gathered; along the bottom the party's cards with their health and the buttons: Head home (exp.home)
+-- between stops; Skills, Snack and Flee in a battle. A round's events (Logic/Battle) play back one by one: lunges,
+-- flashes, numbers, skills' names, heals, shields, a treat's hearts, knock-outs. A win shows the experience, shells
+-- and level-ups; a new friend joins with confetti; the guardian's fall clears the place and ends the trip (the
+-- Cleared card). The screen can be closed (Back to island) while the expedition waits: the HUD's card brings it
+-- back. A curtain covers the screen while the stage's picture bakes.
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -24,6 +23,7 @@ local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
 local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
 local Skills = require(ReplicatedStorage.Shared.Data.Skills)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
+local SiteData = require(ReplicatedStorage.Shared.Data.Sites)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
@@ -162,7 +162,6 @@ local AUTO_CARD = 3
 local idleSince: number? = nil
 local dimNow = 0 -- the battle's spotlight on the background (0 .. 1: PixelRenderer.setDim)
 local DIM_SECS = 0.45 -- the background darkens (or lightens again) over this long
-local PATH_AHEAD = 7 -- the header shows the path from a stop back to this many ahead (it never ends)
 -- the timed battle (GAME_DESIGN 7: "the characters have a timer above their heads that is shown as a bar, and will
 -- attack or use its skill once a timer is done"): the server runs it; here the timers as it last told (`gaugeG` at
 -- `gaugeAt`, the action holding them then `gaugeLock`, paused or not) run on between its messages, as do the party's
@@ -201,7 +200,7 @@ local GREY: PixelRenderer.Grade = { mr = 0.72, mg = 0.72, mb = 0.76, lift = 4, s
 
 local refresh: () -> () = function() end
 local inspect: (key: string?) -> () = function(_key: string?) end -- (a fighter's details plate: below)
-local leaveChoice: () -> () = function() end -- (the header's Back to island: sail home or leave it waiting, below)
+local leaveChoice: () -> () = function() end -- (the header's Back to island: head home or leave it waiting, below)
 local leaveFrame: Frame? = nil -- (its card, while it is up)
 local pickTarget: (key: string?) -> () = function(_key: string?) end
 local closeNow: () -> () = function() end
@@ -1773,7 +1772,7 @@ local function goOn()
 	Audio.play("tick")
 	local res = ask("exp.next", {})
 	if not walking then
-		return -- left meanwhile (Sail home now, or the screen closed): that took over
+		return -- left meanwhile (Head home now, or the screen closed): that took over
 	end
 	walking = false
 	if res.ok and type(res.data) == "table" and isOpen then
@@ -2853,20 +2852,22 @@ playRound = function(data: { [string]: any })
 			end
 		end
 		if data.reward then
-			table.insert(lines, 1, { text = string.format("Guardian beaten. +%s shells", Numbers.int(tonumber(data.reward) or 0)), color = UIKit.color("accent") })
-			if type(data.charted) == "number" then
-				table.insert(lines, { text = string.format("Islands charted: %d", data.charted), color = UIKit.color("good") })
+			-- the guardian beaten: the place is cleared and the trip is over (GAME_DESIGN 7: "caves are no longer
+			-- infinite, they are cleared once the boss is defeated, and give bigger first time clear rewards")
+			table.insert(lines, 1, { text = string.format("%s +%s shells", if data.first then "First clear!" else "Cleared again.", Numbers.int(tonumber(data.reward) or 0)), color = UIKit.color("accent") })
+			local loot = if type(data.loot) == "table" then data.loot else {}
+			table.insert(lines, 2, { text = string.format("Brought home: shells %s, food %s, wood %s", Numbers.int(tonumber(loot.shells) or 0), Numbers.int(tonumber(loot.food) or 0), Numbers.int(tonumber(loot.wood) or 0)), color = UIKit.color("good") })
+			if data.first then
+				table.insert(lines, { text = "You can build round it now, move it or clear it away.", color = UIKit.color("text_dim") })
 			end
 			if st then
 				for _ = 1, 3 do
 					st.puff(st.at(baseU, baseV, 2), "confetti")
 				end
 			end
-			-- the path goes on: an alert, the party walks on (Sail home whenever the player likes)
-			local n = tonumber(data.guardian) or 1
-			local title = if data.first then (if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!") else string.format("Guardian %d is down.", n)
-			alert(title, UIKit.color("accent"), lines, icon)
-			refresh()
+			Audio.play("fanfare")
+			local name = if isle then (isle :: Types.Isle).name else "The place"
+			resultCard(name .. " cleared", UIKit.color("accent"), lines, icon, "Head home", goHome)
 		else
 			alert("Victory!", UIKit.color("good"), lines, icon)
 			refresh()
@@ -2898,7 +2899,7 @@ playRound = function(data: { [string]: any })
 		if #keys == 0 then
 			table.insert(lines, { text = "No new levels this time.", color = UIKit.color("text_dim") })
 		end
-		resultCard("Expedition Complete!", UIKit.color("accent"), lines, nil, "Sail home", goHome)
+		resultCard("Expedition Complete!", UIKit.color("accent"), lines, nil, "Head home", goHome)
 	elseif result == "fled" then
 		refresh()
 	elseif type(data.friend) == "table" and type(data.friend.sp) == "string" then
@@ -3024,7 +3025,7 @@ leaveChoice = function()
 		b.ZIndex = 41
 		y += 18
 	end
-	choice("Sail home now", UIKit.color("button_ok"), "LeaveHome", function()
+	choice("Head home now", UIKit.color("button_ok"), "LeaveHome", function()
 		shut(false)
 		DayLight.hold(nil)
 		task.spawn(goHome)
@@ -3047,15 +3048,8 @@ goHome = function()
 		ExpeditionUI.close()
 		return
 	end
-	-- the party on deck for the voyage home (the founder aside)
-	local members: { Voyage.Member } = {}
-	for _, f in e.party do
-		if f.kind == "villager" and f.look then
-			table.insert(members, { look = f.look })
-		elseif f.kind == "pal" and f.sp then
-			table.insert(members, { sp = f.sp })
-		end
-	end
+	-- (back out in front of the place the party went into)
+	local site = e.site
 	walking = false -- (a run on to the next stop is cut short: the trip ends here)
 	busy = true
 	local res = ask("exp.home", {})
@@ -3063,7 +3057,7 @@ goHome = function()
 		local got = if type(res.data) == "table" then res.data.got else nil
 		ExpeditionUI.close(function()
 			busy = false
-			Voyage.home(members, function()
+			Voyage.home(site, function()
 				if type(got) == "table" then
 					UIKit.notice(string.format("Back home with %s shells, %s food and %s wood.", Numbers.int(tonumber(got.shells) or 0), Numbers.int(tonumber(got.food) or 0), Numbers.int(tonumber(got.wood) or 0)), UIKit.color("good"), 4)
 				end
@@ -3105,7 +3099,7 @@ end
 local TUT_TEXT: { [number]: { battle: string, boss: string?, calm: string } } = {
 	[6] = {
 		battle = "Fights run on their own. Each fighter acts when the bar over its head fills. Tap Skills to step in.",
-		calm = "Your first island. The party walks on by itself, and there's a fight up ahead.",
+		calm = "Your first wild place. The party goes on by itself, and there's a fight up ahead.",
 	},
 	[7] = {
 		battle = "Want one? Wait till a wild one is hurt, then tap Snack, pick it and throw.",
@@ -3113,8 +3107,8 @@ local TUT_TEXT: { [number]: { battle: string, boss: string?, calm: string } } = 
 		calm = "In the next fight, tap Snack and throw one at a hurt wild one.",
 	},
 	[8] = {
-		battle = "You made a friend. It will wait in a nest at home. Sail back whenever you want.",
-		calm = "You made a friend. It will wait in a nest at home. Sail back whenever you want.",
+		battle = "You made a friend. It will wait in a nest at home. Head home whenever you want.",
+		calm = "You made a friend. It will wait in a nest at home. Head home whenever you want.",
 	},
 }
 tutorialTip = function(r: Frame, e: Types.Expedition, w: number, h: number)
@@ -3184,12 +3178,11 @@ refresh = function()
 	UIKit.rect(head, UDim2.fromOffset(w, 1), UDim2.fromOffset(0, HEAD_H - 4), UIKit.color(if def then def.color else "accent"), 10)
 	UIKit.text(head, string.format("%s  Lv %d", e.isle.name, e.isle.lvl), UDim2.fromOffset(106, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("accent"), z = 11, name = "Islet" })
 	lootLine(head, e, 4, 10)
-	-- the endless path: a window from a stop back to PATH_AHEAD ahead (the guardians' crowns shown), the stage number
-	local i0 = math.max(1, e.node - 1)
-	local i1 = e.node + PATH_AHEAD
-	local path = Expedition.nodesTo(e.isle, i1)
+	-- the place's whole path (it ends at its guardian, the crown), the stage number of how many
+	local path = Expedition.nodesOf(e.isle)
+	local i0, i1 = 1, #path
 	local stage = Expedition.stageOf(e.node)
-	UIKit.text(head, string.format("Stage %d", stage), UDim2.fromOffset(44, 10), UDim2.fromOffset(110, 6), { color = UIKit.color("text"), z = 11, name = "Stage" })
+	UIKit.text(head, string.format("Stage %d of %d", stage, #path - 1), UDim2.fromOffset(60, 10), UDim2.fromOffset(110, 6), { color = UIKit.color("text"), z = 11, name = "Stage" })
 	local px = math.max(156, math.floor(w / 2) - (i1 - i0 + 1) * 7)
 	for i = i0, i1 do
 		local kind = path[i]
@@ -3262,7 +3255,7 @@ refresh = function()
 	local bx = ax + CMD_W + 3
 	local wide = 2 * CMD_W + 3
 	if e.over then
-		button(foot, "Sail home", ax, 14, wide, UIKit.color("button_ok"), true, goHome, "SailHome")
+		button(foot, "Head home", ax, 14, wide, UIKit.color("button_ok"), true, goHome, "SailHome")
 	elseif b and aim then
 		-- aiming: whom at, then go (or back to the battle)
 		local a = aim :: Aim
@@ -3318,8 +3311,8 @@ refresh = function()
 			skillWindow(r, e)
 		end
 	else
-		-- between stops the next comes up at once (no bar to wait on): only Sail home
-		button(foot, "Sail home", ax, 14, wide, UIKit.color("button_warn"), true, goHome, "SailHome")
+		-- between stops the next comes up at once (no bar to wait on): only Head home
+		button(foot, "Head home", ax, 14, wide, UIKit.color("button_warn"), true, goHome, "SailHome")
 	end
 	tutorialTip(r, e, w, h)
 	-- the wild ones' names stay on the cards; the stage's spots follow the fighters
@@ -3402,8 +3395,7 @@ function ExpeditionUI.open()
 		st.lift()
 		-- the boat at the player's boat level, its bow in the foam behind the party: its deck's places (it faces the
 		-- wild ones, -z: its right, +x, is the room's -x and its bow, +z, the room's -z)
-		local v = view()
-		local level = if v then v.boat else 1
+		local level = 1
 		local d = BoatSpec.dims(level)
 		shipZ0 = st.landing(SHIP_X) + d.L / 2 - 0.75
 		shipLand = d.L / 2 + 2
@@ -3439,9 +3431,10 @@ function ExpeditionUI.open()
 		UIKit.rect(band, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -1), UIKit.hex(0x3B3048), 35)
 		table.insert(blinds, band)
 	end
-	PixelSprites.image(curtain, "mini_boat", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
+	PixelSprites.image(curtain, "mini_wild", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
 	UIKit.text(curtain, e.isle.name, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsletName" })
-	UIKit.text(curtain, if def then string.format("A %s, level %d", string.lower(def.name), e.isle.lvl) else "", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
+	local sdef = SiteData.byIslet[e.isle.kind]
+	UIKit.text(curtain, if sdef then string.format("%s, level %d", sdef.name, e.isle.lvl) elseif def then string.format("%s, level %d", def.name, e.isle.lvl) else "", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
 	if not arriving then
 		Audio.play("trumpet")
 	end
@@ -3760,11 +3753,12 @@ closeNow = function()
 	ExpeditionUI.Changed:Fire(false)
 end
 
--- Set sail (Explore): the sailing cutscene, then the screen with the boat arriving (`keys`: the members picked).
-function ExpeditionUI.sail(keys: { string }, isleNow: Types.Isle?)
-	Voyage.play(keys, isleNow, function()
-		-- (if the view with the expedition is still on its way, it opens, arriving, when it comes)
-		arriving = true
+-- Into a wild place (its card's Explore): the walk there, then the screen with the party dropping in (`site`: the
+-- place's piece uid; `keys`: the members picked).
+function ExpeditionUI.enter(site: number, _keys: { string }, isleNow: Types.Isle?)
+	Voyage.play(site, isleNow, function()
+		-- (if the view with the expedition is still on its way, it opens when it comes)
+		arriving = false
 		ExpeditionUI.open()
 	end)
 end

@@ -295,6 +295,20 @@ function H.dismissCards(p, max)
 	end
 	return n
 end
+-- A player's wild place to explore (exp.start's `site`): the lowest wild one (else the lowest cleared one), its uid.
+function H.firstSite(prof)
+	local best, lo, wild = 0, math.huge, false
+	for _, q in prof.plot.placed do
+		local pre = string.sub(q.id, 1, 5)
+		if pre == "wild_" or pre == "done_" then
+			local w = pre == "wild_"
+			if (w and not wild) or (w == wild and q.lvl < lo) then
+				best, lo, wild = q.uid, q.lvl, w
+			end
+		end
+	end
+	return best
+end
 -- The visible button named `name` (its Instance name: Menu_build, Place, BuildDone...), or nil.
 function H.buttonNamed(p, name, includeDisabled)
 	for _, x in H.buttons(p, nil, includeDisabled) do
@@ -372,30 +386,35 @@ function H.checkProfile(p, label)
 	local Traits = H.sharedServer("Data.Traits")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
-	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "nextId", "tut", "quest" } do
+	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "wilds", "nextId", "tut", "quest" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
 	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
-	H.expect(prof.islets >= 0 and prof.islets == math.floor(prof.islets), "profile", label .. ": islands charted out of range", tostring(prof.islets))
+	H.expect(prof.islets >= 0 and prof.islets == math.floor(prof.islets), "profile", label .. ": wild places cleared out of range", tostring(prof.islets))
+	H.expect(prof.wilds == prof.tier, "profile", label .. ": every tier's wild places up", string.format("%s of %s", tostring(prof.wilds), tostring(prof.tier)))
+	H.expect(prof.boat == nil and prof.chart == nil, "profile", label .. ": no boat or sea chart left in the save")
 	H.expect(prof.tut >= 0 and prof.tut <= 8, "profile", label .. ": tips out of range", tostring(prof.tut))
 	-- the pieces
 	local placed = prof.plot.placed
-	local nPaths = 0
+	local nPaths, nSites = 0, 0
 	for _, q in placed do
 		if Plot.isPath(q.id) then
 			nPaths += 1
+		elseif Plot.isSite(q.id) then
+			nSites += 1
 		end
 	end
-	H.expect(#placed - nPaths <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths, nPaths))
+	H.expect(#placed - nPaths - nSites <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths - nSites, nPaths))
 	local uids = {}
 	local rest = {}
 	for i, q in placed do
 		H.expect(Buildings.byId[q.id] ~= nil, "profile", label .. ": an unknown piece", tostring(q.id))
 		H.expect(q.uid > 0 and q.uid < prof.nextId and not uids[q.uid], "profile", label .. ": a bad or shared uid", tostring(q.uid))
 		uids[q.uid] = q
-		H.expect(q.lvl >= 1 and q.lvl <= #Tuning.UpgradeMult, "profile", label .. ": a bad level", tostring(q.lvl))
-		local ok = Plot.fits(prof.tier, rest, q.id, q.x, q.z, q.rot)
+		H.expect(q.lvl >= 1 and q.lvl <= (if Plot.isSite(q.id) then Tuning.LevelMax else #Tuning.UpgradeMult), "profile", label .. ": a bad level", tostring(q.lvl))
+		-- (a piece may stand in a wild place's ring if it stood there first: `loose`)
+		local ok = Plot.fits(prof.tier, rest, q.id, q.x, q.z, q.rot, nil, true)
 		H.expect(ok, "profile", label .. ": piece " .. i .. " does not fit", string.format("%s at %d,%d", q.id, q.x, q.z))
 		table.insert(rest, q)
 	end

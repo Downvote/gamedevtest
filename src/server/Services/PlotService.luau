@@ -149,7 +149,7 @@ end
 -- An empty lot on plot i, with no attributes left of its last owner.
 local function emptyLot(i: number)
 	local m = plotModel(i)
-	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Islets", "Folk", "Pals", "Sailing", "Boat" } do
+	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Islets", "Folk", "Pals", "Sailing" } do
 		m:SetAttribute(k, nil)
 	end
 	m:SetAttribute("Owner", 0)
@@ -205,29 +205,6 @@ function PlotService.claim(player: Player): number
 	return 0
 end
 
--- The expedition boat at plot i's pier at a boat level (Models/BoatSpec); rebuilt only when the level changed.
-local function boatAt(i: number, level: number)
-	local street = folder():FindFirstChild("Street")
-	local road = street and street:FindFirstChild("Road_" .. i)
-	if road == nil then
-		return
-	end
-	local old = road:FindFirstChild("Boat")
-	if old and old:GetAttribute("Level") == level then
-		return
-	end
-	if old then
-		old:Destroy()
-	end
-	StreetModels.boat(road, originOf(i), level)
-end
-
--- The session's boat at its pier (on joining, and after boat.upgrade).
-function PlotService.setBoat(s: S)
-	boatAt(s.plot, s.profile.boat)
-	plotModel(s.plot):SetAttribute("Boat", s.profile.boat)
-end
-
 function PlotService.release(i: number)
 	if i < 1 then
 		return
@@ -235,7 +212,6 @@ function PlotService.release(i: number)
 	taken[i] = nil
 	planNext(i, nil)
 	emptyLot(i)
-	boatAt(i, 1)
 end
 
 ------------------------------------------------------------------ building a studio's plot
@@ -307,7 +283,6 @@ function PlotService.build(s: S)
 		planNext(s.plot, tier)
 	end
 	PlotService.buildDecor(s)
-	PlotService.setBoat(s)
 	PlotService.sync(s)
 end
 

@@ -1,8 +1,8 @@
--- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 7.4, 10.9): the sea chart's islands, near and far (the boat
--- upgraded to the last, each island of its distance's level, its own driftlings, charted with the guardian's whole
--- reward, half on a second trip), the server's rules (supplies, a party of the captain and three, one expedition at a
--- time, no island past the boat's range, no boat upgrade while it is away, members away can't be dismissed or released,
--- no stepping on or sailing home mid-battle, no snack or flight from a guardian, a snack's free nest and the trip's
+-- Expeditions (GAME_DESIGN 7; docs/ARCHITECTURE.md 7.4, 10.9): the island's wild places at every tier (each of its
+-- kind and level, its own driftlings, cleared by its guardian with the first clear's big reward, a smaller one on a
+-- second trip; the path ending there), the server's rules (supplies, a party of the captain and three, one expedition
+-- at a time, only the island's own wild places, no expanding or pouch while away, members away can't be dismissed or
+-- released, no stepping on mid-battle, no snack or flight from a guardian, a snack's free nest and the trip's
 -- few), the timed battle (it waits paused till let run, its actions and timers reach the client, paused again all
 -- stops), a driftling befriended with a snack (the leader's timer starts again), a skill paid in skill points, a
 -- flight, a defeat (all the loot home: no penalty), and the islet's screen: closed and reopened from the HUD's card, a timer over
@@ -24,6 +24,8 @@ local Tuning = H.sharedServer("Config.Tuning")
 local Islets = H.sharedServer("Data.Islets")
 local Street = H.sharedServer("Data.Street")
 local Plot = H.sharedServer("Logic.Plot")
+local Expedition = H.sharedServer("Logic.Expedition")
+local SiteData = H.sharedServer("Data.Sites")
 
 local p = H.addPlayer({ userId = 9501, name = "Sailor" })
 E.run(2)
@@ -101,20 +103,32 @@ end
 ------------------------------------------------------------------ 1. the server's rules
 E.phase = "rules"
 prof.food = 2
-local res = H.req(p, "exp.start", { isle = 1, party = party(3) })
+local site1 = H.firstSite(prof)
+local res = H.req(p, "exp.start", { site = site1, party = party(3) })
 H.expect(not res.ok and res.err == "food", "rules", "supplies: four members need food", tostring(res.err))
 prof.food = 1000
-res = H.req(p, "exp.start", { isle = Tuning.ChartIslands, party = "" })
-H.expect(not res.ok and res.err == "far", "rules", "no island past the boat's range", tostring(res.err))
-res = H.req(p, "exp.start", { isle = 1, party = party(3) })
-H.expect(res.ok and #s.exp.party == 4 and s.exp.party[1].key == "f", "rules", "the captain and three set sail", tostring(res.err))
+res = H.req(p, "exp.start", { site = prof.plot.placed[#prof.plot.placed].uid, party = "" })
+H.expect(not res.ok and res.err == "not_found", "rules", "only a wild place: not a nest", tostring(res.err))
+res = H.req(p, "exp.start", { site = 999999, party = "" })
+H.expect(not res.ok and res.err == "not_found", "rules", "nor a place that isn't there", tostring(res.err))
+res = H.req(p, "exp.start", { site = site1, party = party(3) })
+H.expect(res.ok and #s.exp.party == 4 and s.exp.party[1].key == "f", "rules", "the captain and three go in", tostring(res.err))
+H.expect(s.exp and s.exp.site == site1 and #s.exp.nodes == 1 + Tuning.BossEvery and s.exp.nodes[#s.exp.nodes] == "boss", "rules", "its path: six stops, then its guardian, and no further", tostring(s.exp and #s.exp.nodes))
 H.expect(math.abs(prof.food - (1000 - Tuning.Supplies * 4)) < 1, "rules", "their supplies taken", tostring(prof.food))
-H.expect(res.ok and res.data and res.data.isle and res.data.isle.name == s.exp.isle.name, "rules", "the answer names the island", res.data and res.data.isle and res.data.isle.name)
+H.expect(res.ok and res.data and res.data.isle and res.data.isle.name == s.exp.isle.name and res.data.site == site1, "rules", "the answer names the place", res.data and res.data.isle and res.data.isle.name)
 H.expect(s.exp.snacks == Tuning.SnackBase, "rules", "five snacks for the trip (the first pouch)", tostring(s.exp.snacks))
-res = H.req(p, "exp.start", { isle = 1, party = "" })
+res = H.req(p, "exp.start", { site = site1, party = "" })
 H.expect(not res.ok and res.err == "busy", "rules", "one expedition at a time", tostring(res.err))
-res = H.req(p, "boat.upgrade", {})
-H.expect(not res.ok and res.err == "busy", "rules", "no boat upgrade while it is away", tostring(res.err))
+res = H.req(p, "island.expand", {})
+H.expect(not res.ok and res.err == "busy", "rules", "no expanding while the party is away (the new wild places need it home)", tostring(res.err))
+local siteIndex = 0
+for i, q in prof.plot.placed do
+	if q.uid == site1 then
+		siteIndex = i
+	end
+end
+res = H.req(p, "plot.store", { i = siteIndex })
+H.expect(not res.ok and (res.err == "busy" or res.err == "wild"), "rules", "the place the party is in can't be cleared away", tostring(res.err))
 res = H.req(p, "pouch.upgrade", {})
 H.expect(not res.ok and res.err == "busy", "rules", "no pouch upgrade while away", tostring(res.err))
 res = H.req(p, "folk.dismiss", { id = prof.folk[1].id })
@@ -412,7 +426,24 @@ if s.exp.battle then
 	end
 end
 local over = walk()
-H.expect(over == "won" and prof.islets == 1, "screen", "the guardian beaten: the island charted", tostring(over))
+H.expect(over == "won" and prof.islets == 1, "screen", "the guardian beaten: the place cleared", tostring(over))
+local clearedQ = nil
+for _, q in prof.plot.placed do
+	if q.uid == site1 then
+		clearedQ = q
+	end
+end
+H.expect(clearedQ ~= nil and string.sub(clearedQ.id, 1, 5) == "done_", "screen", "its piece no longer wild", tostring(clearedQ and clearedQ.id))
+E.run(0.5)
+local cleanModel = false
+for _, m in E.workspace.Plots:FindFirstChild("Plot_" .. s.plot):FindFirstChild("Decor", true):GetChildren() do
+	if string.match(m.Name, "^" .. tostring(site1) .. ":done_") then
+		cleanModel = m:GetAttribute("Wild") == false
+	end
+end
+H.expect(cleanModel, "screen", "its model rebuilt as a cleared one")
+res = H.req(p, "exp.next", {})
+H.expect(not res.ok, "screen", "nothing past the guardian: the trip is over", tostring(res.err))
 local sh0 = prof.shells
 local loot = s.exp and s.exp.loot.shells or 0
 res = H.req(p, "exp.home", {})
@@ -423,30 +454,56 @@ res = H.req(p, "pouch.upgrade", {})
 H.expect(res.ok and prof.pouch == 2 and res.data.snacks == Tuning.SnackBase * 2, "screen", "the pouch upgraded: ten snacks a trip", tostring(res.err))
 H.checkProfile(p, "screen")
 
------------------------------------------------------------------- 3. the chart's islands, near and far
+------------------------------------------------------------------ 3. the wild places at every tier
 E.phase = "islands"
-local Chart = H.sharedServer("Logic.Chart")
-prof.shells, prof.wood = 1e7, 1e6
-for _ = 2, #Tuning.BoatRadius do
-	res = H.req(p, "boat.upgrade", {})
-	H.expect(res.ok, "islands", "a bigger boat", tostring(res.err))
+-- the island grown to the top: each expansion brings its wild places, higher in level; one of each tier's cleared
+prof.shells, prof.wood = 1e8, 1e7
+for t = 2, #Tuning.TierCost do
+	local before = 0
+	for _, q in prof.plot.placed do
+		if Plot.isSite(q.id) then
+			before += 1
+		end
+	end
+	res = H.req(p, "island.expand", {})
+	local after = 0
+	for _, q in prof.plot.placed do
+		if Plot.isSite(q.id) then
+			after += 1
+		end
+	end
+	H.expect(res.ok and prof.tier == t and after == before + #SiteData.spawnAt(t), "islands", "tier " .. t .. ": its wild places come up", string.format("%s %d -> %d", tostring(res.err), before, after))
+	E.run(0.5)
 end
-res = H.req(p, "boat.upgrade", {})
-H.expect(not res.ok and res.err == "max", "islands", "the finest boat is the last", tostring(res.err))
+H.checkProfile(p, "grown")
 local kindsSeen: { [number]: boolean } = {}
 local names: { [string]: boolean } = {}
-local N = Tuning.ChartIslands
-for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
-	local c = Chart.islands(prof.sea)[id]
-	strong(c.lvl + 8)
+local picks = {}
+for t = 1, #Tuning.TierCost do
+	-- the highest wild place of each tier
+	local best = nil
+	for _, e in SiteData.spawnAt(t) do
+		for _, q in prof.plot.placed do
+			if q.id == SiteData.wildId(e.id) and q.lvl == e.lvl and (best == nil or q.lvl > best.lvl) then
+				best = q
+			end
+		end
+	end
+	if best then
+		table.insert(picks, best)
+	end
+end
+H.expect(#picks >= 5, "islands", "a wild place from (nearly) every tier", tostring(#picks))
+for _, q in picks do
+	strong(math.min(Tuning.LevelMax, q.lvl + 8))
 	prof.food = 1000
-	res = H.req(p, "exp.start", { isle = id, party = party(3) })
-	H.expect(res.ok, "islands", "set sail for island " .. id, tostring(res.err))
+	res = H.req(p, "exp.start", { site = q.uid, party = party(3) })
+	H.expect(res.ok, "islands", "into the " .. q.id .. " of level " .. q.lvl, tostring(res.err))
 	if not res.ok then
 		break
 	end
 	local isle = s.exp.isle
-	-- a party far stronger than the island and its stages (the rules are what is checked here, not the fight); one
+	-- a party far stronger than the place and its stages (the rules are what is checked here, not the fight); one
 	-- who levels up on the way is a fresh fighter from the save, made as strong again
 	local boosted = {}
 	local function boost(full)
@@ -460,14 +517,14 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 		end
 	end
 	boost(true)
-	local kind = Islets.list[isle.kind]
+	local sd = SiteData.of(q.id)
 	kindsSeen[isle.kind] = true
 	names[isle.name] = true
-	H.expect(isle.id == id and isle.lvl == c.lvl and kind ~= nil and kind.lvl <= c.lvl, "islands", string.format("%s: a %s of level %d, %.1f leagues out", isle.name, kind and kind.name or "?", c.lvl, c.dist))
+	H.expect(sd ~= nil and isle.kind == sd.islet and isle.lvl == q.lvl and string.find(isle.name, sd.name, 1, true) ~= nil, "islands", string.format("%s: its kind and level (%d)", isle.name, q.lvl))
 	local before = prof.islets
 	local foesOk = true
 	local steps = 0
-	while s.exp and not s.exp.over and (s.exp.beaten or 0) < 1 and steps < 200 do
+	while s.exp and not s.exp.over and steps < 200 do
 		steps += 1
 		if s.exp.battle then
 			for _, f in s.exp.battle.foes do
@@ -479,64 +536,30 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 			H.req(p, "exp.next", {})
 		end
 	end
-	over = if s.exp and (s.exp.beaten or 0) >= 1 then "won" else s.exp and s.exp.over
-	H.expect(over == "won", "islands", isle.name .. ": charted", tostring(over))
+	over = s.exp and s.exp.over
+	H.expect(over == "won", "islands", isle.name .. ": cleared", tostring(over))
 	H.expect(foesOk, "islands", isle.name .. ": only its own driftlings")
-	H.expect(prof.islets == before + 1 and table.find(prof.chart, id) ~= nil, "islands", isle.name .. ": on the chart", tostring(prof.islets))
+	H.expect(prof.islets == before + 1 and string.sub(q.id, 1, 5) == "done_", "islands", isle.name .. ": no longer wild", tostring(prof.islets))
 	local loot2 = s.exp and s.exp.loot.shells or 0
-	H.expect(loot2 >= isle.reward, "islands", isle.name .. ": the guardian's whole reward", tostring(loot2))
+	H.expect(loot2 >= Expedition.rewardOf(isle, true), "islands", isle.name .. ": the first clear's big reward", tostring(loot2))
 	H.req(p, "exp.home", {})
 end
 local nk = 0
 for _ in kindsSeen do
 	nk += 1
 end
-H.expect(nk >= 3, "islands", "different kinds of island further out", tostring(nk))
--- the first island again: half the reward, not charted twice
+H.expect(nk >= 4, "islands", "different kinds of place", tostring(nk))
+-- the first place again: it is cleared already, so a smaller reward and counted once
 strong(30)
 prof.food = 1000
-local charted0 = prof.islets
-res = H.req(p, "exp.start", { isle = 2, party = party(3) })
+local cleared0 = prof.islets
+res = H.req(p, "exp.start", { site = site1, party = party(3) })
+H.expect(res.ok, "islands", "a cleared place can be explored again", tostring(res.err))
+local isleAgain = s.exp and s.exp.isle
 over = walk()
 local again = s.exp and s.exp.loot.shells or 0
-H.expect(over == "won" and prof.islets == charted0, "islands", "an island charted again counts once", tostring(prof.islets))
-H.expect(again >= math.floor(Chart.isle(prof.sea, 2).reward / 2) and again < Chart.isle(prof.sea, 2).reward + 500, "islands", "half the reward the second time", tostring(again))
-H.req(p, "exp.home", {})
--- the island goes on: past the guardian, harder stages and a second guardian paying more
-strong(30)
-prof.food = 1000
-res = H.req(p, "exp.start", { isle = 2, party = party(3) })
-H.expect(res.ok, "endless", "off again", tostring(res.err))
-if s.exp then
-	for _, f in s.exp.party do
-		f.atk, f.hp, f.maxHp = 2000, 99999, 99999
-	end
-end
-local rewardFx = H.watchFx(p)
-local lvls = {}
-local guard2 = 0
-while s.exp and not s.exp.over and (s.exp.beaten or 0) < 2 and guard2 < 300 do
-	guard2 += 1
-	if s.exp.battle then
-		table.insert(lvls, s.exp.battle.foes[1].lvl)
-		fight()
-	else
-		local r = H.req(p, "exp.next", {})
-		H.expect(r.ok, "endless", "the path never runs out", tostring(r.err))
-	end
-end
-E.run(0.5)
-local rewards = {}
-for _, m in rewardFx do
-	if m.kind == "exp" and m.step == "act" and type(m.data) == "table" and m.data.reward then
-		table.insert(rewards, m.data.reward)
-	end
-end
-H.expect(s.exp ~= nil and s.exp.beaten == 2 and s.exp.node == 1 + Tuning.BossEvery * 2, "endless", "a second guardian at the second block's end", tostring(s.exp and s.exp.node))
-H.expect(#rewards == 2 and rewards[2] > rewards[1], "endless", "it pays more", table.concat(rewards, " "))
-H.expect(#lvls >= 2 and lvls[#lvls] > lvls[1], "endless", "the wild ones grow", string.format("%s -> %s", tostring(lvls[1]), tostring(lvls[#lvls])))
-res = H.req(p, "exp.next", {})
-H.expect(res.ok, "endless", "and the path goes on", tostring(res.err))
+H.expect(over == "won" and prof.islets == cleared0, "islands", "a place cleared again counts once", tostring(prof.islets))
+H.expect(isleAgain ~= nil and again >= Expedition.rewardOf(isleAgain, false) and again < Expedition.rewardOf(isleAgain, true) + 500, "islands", "the smaller reward the second time", tostring(again))
 H.req(p, "exp.home", {})
 H.checkProfile(p, "islands")
 H.checkMirror(p, "islands")
@@ -545,8 +568,14 @@ H.checkMirror(p, "islands")
 E.phase = "defeat"
 strong(30)
 prof.food = 1000
-res = H.req(p, "exp.start", { isle = Tuning.ChartIslands, party = "" })
-H.expect(res.ok, "defeat", "the captain alone to the farthest island", tostring(res.err))
+local hardest = nil
+for _, q in prof.plot.placed do
+	if Plot.isSite(q.id) and (hardest == nil or q.lvl > hardest.lvl) then
+		hardest = q
+	end
+end
+res = H.req(p, "exp.start", { site = hardest.uid, party = "" })
+H.expect(res.ok, "defeat", "the captain alone into the toughest place", tostring(res.err))
 if s.exp then
 	local f = s.exp.party[1]
 	f.atk, f.hp, f.maxHp, f.def = 1, 6, 6, 0
@@ -572,8 +601,8 @@ local chance0 = BattleS.treatChance
 BattleS.treatChance = function()
 	return 1
 end
-res = H.req(p, "exp.start", { isle = 1, party = "" })
-H.expect(res.ok, "friend", "the captain alone to island 1", tostring(res.err))
+res = H.req(p, "exp.start", { site = site1, party = "" })
+H.expect(res.ok, "friend", "the captain alone into the first place", tostring(res.err))
 nextBattle()
 if s.exp and s.exp.battle then
 	local foes = s.exp.battle.foes
@@ -617,7 +646,7 @@ if s.exp then
 end
 prof.food = 1000
 strong(8)
-res = H.req(p, "exp.start", { isle = 1, party = "" })
+res = H.req(p, "exp.start", { site = site1, party = "" })
 H.expect(res.ok, "run", "the captain sets out", tostring(res.err))
 H.push(p, 0.3)
 -- (the stops go on by themselves, at once: held here so the phase drives them; with no wait between stops a lone
@@ -704,7 +733,7 @@ if s.exp then
 	E.run(1)
 end
 prof.food = 1000
-res = H.req(p, "exp.start", { isle = 1, party = "" })
+res = H.req(p, "exp.start", { site = site1, party = "" })
 H.expect(res.ok, "midbattle", "the captain sets out again", tostring(res.err))
 nextBattle()
 if s.exp and s.exp.battle then
