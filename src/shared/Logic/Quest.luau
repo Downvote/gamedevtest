@@ -62,12 +62,6 @@ function Quest.count(f: Facts, g: Quests.Goal): number
 				n += 1
 			end
 		end
-	elseif k == "upgraded" then
-		for _, q in f.pieces do
-			if (q.lvl or 1) >= 2 then
-				n += 1
-			end
-		end
 	elseif k == "paths" or k == "decor" then
 		local kind = if k == "paths" then "path" else "decor"
 		for _, q in f.pieces do

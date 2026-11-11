@@ -339,6 +339,10 @@ if s.exp and s.exp.battle then
 	H.expect(st.held and st.clock == c0, "screen", "choosing: the playback stands still, mid-attack too", string.format("%.2f -> %.2f", c0, st.clock))
 	H.expect(H.inClient(p, DayLightX.debugState).grade ~= "" or true, "screen", "(the picture greys: DayLight.hold)")
 	H.expect(H.buttonNamed(p, "Skill_f_cry") ~= nil and H.buttonNamed(p, "Skill_f_aid") ~= nil, "screen", "the leader's skills learnt by level (Rally Cry, First Aid)")
+	-- the pointer resting on a skill: what it does (GAME_DESIGN 7: "show what skills do while hovering or pressing")
+	local tipShown, tipLines = H.inClient(p, EUI.debugSkillTip, "f_aid")
+	local tipText = table.concat(tipLines or {}, " | ")
+	H.expect(tipShown and string.find(tipText, "First Aid", 1, true) ~= nil and string.find(tipText, "Mends", 1, true) ~= nil and string.find(tipText, "Pick a member", 1, true) ~= nil, "screen", "a skill's tip: its name, what it does, how it aims", tipText)
 	H.clickNamed(p, "Skills_close", { wait = 0.4 })
 	st = H.inClient(p, EUI.debugState)
 	H.expect(not st.menu and not s.exp.battle.paused, "screen", "Back: the battle runs on")
@@ -442,11 +446,20 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 		break
 	end
 	local isle = s.exp.isle
-	-- a party far stronger than the island and its stages (the rules are what is checked here, not the fight)
-	for _, f in s.exp.party do
-		f.atk, f.def, f.maxHp = f.atk * 5, f.def * 3, f.maxHp * 6
-		f.hp = f.maxHp
+	-- a party far stronger than the island and its stages (the rules are what is checked here, not the fight); one
+	-- who levels up on the way is a fresh fighter from the save, made as strong again
+	local boosted = {}
+	local function boost(full)
+		for _, f in s.exp.party do
+			if not boosted[f] then
+				boosted[f] = true
+				local k = if full then 1 else f.hp / math.max(1, f.maxHp)
+				f.atk, f.def, f.maxHp = f.atk * 5, f.def * 3, f.maxHp * 6
+				f.hp = math.max(1, math.floor(f.maxHp * k))
+			end
+		end
 	end
+	boost(true)
 	local kind = Islets.list[isle.kind]
 	kindsSeen[isle.kind] = true
 	names[isle.name] = true
@@ -461,6 +474,7 @@ for _, id in { 2, 8, 16, 24, 32, N - 2, N - 1, N } do
 				foesOk = foesOk and (table.find(isle.wild, f.sp) ~= nil or f.sp == isle.boss)
 			end
 			fight()
+			boost(false)
 		else
 			H.req(p, "exp.next", {})
 		end

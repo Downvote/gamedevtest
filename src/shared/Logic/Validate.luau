@@ -26,7 +26,6 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.store"] = { i = "index" },
 	["plot.paint"] = { id = "id", cells = "cells" },
 	["plot.unpaint"] = { cells = "cells" },
-	["plot.upgrade"] = { i = "index" },
 	["plot.replace"] = { i = "index", id = "id" },
 	["island.expand"] = {},
 	["folk.work"] = { id = "int", uid = "int" },

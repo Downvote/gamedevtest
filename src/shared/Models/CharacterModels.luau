@@ -380,6 +380,137 @@ function CharacterModels.poseStanding(rig: Rig, base: CFrame, t: number, speed: 
 	CharacterModels.posePose(rig, base, walkPose(rig, t, speed))
 end
 
+-- Work at a building on the island (GAME_DESIGN 5; WorldView): each a loop, `k` the beat's phase (0 .. 1, round and
+-- round), `t` the clock for the small moves. WORK_HIT says where in the beat a blow lands (WorldView puts the chips,
+-- the dirt or the splash there).
+local function rad(d: number): number
+	return math.rad(d)
+end
+local function smooth(x: number): number
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+-- the tool's height through a beat: up slowly, down fast at `hit`, a moment at the bottom
+local function strokeOf(k: number, hit: number): number
+	if k < hit - 0.12 then
+		return smooth(k / (hit - 0.12))
+	elseif k < hit then
+		return 1 - (k - (hit - 0.12)) / 0.12
+	end
+	return 0
+end
+local WORK: { [string]: (P: any, t: number, k: number) -> () } = {
+	-- a hoe at a field: up over the head, down into the soil
+	dig = function(P, _t, k)
+		local up = strokeOf(k, 0.62)
+		P.lean = rad(12 + 16 * (1 - up))
+		P.crouch = 0.08 + 0.14 * (1 - up)
+		P.hipL, P.kneeL = rad(-25), rad(15)
+		P.hipR, P.kneeR = rad(20), rad(20)
+		local a = rad(-35 - 135 * up)
+		P.armR, P.armL = CFrame.Angles(a, 0, rad(-6)), CFrame.Angles(a, 0, rad(6))
+		P.elbowL, P.elbowR = rad(15), rad(15)
+	end,
+	-- picking fruit: one hand up into the branches, then the other, up on the toes
+	pick = function(P, t, k)
+		local left = k < 0.5
+		local reach = math.sin((k % 0.5) / 0.5 * math.pi)
+		local hi, lo = CFrame.Angles(rad(-150 - 20 * reach), 0, rad(8)), CFrame.Angles(rad(-40), 0, 0)
+		P.armL, P.armR = if left then hi else lo, if left then lo else hi
+		P.elbowL, P.elbowR = if left then rad(10) else rad(60), if left then rad(60) else rad(10)
+		P.lift = 0.12 * reach
+		P.head = CFrame.Angles(rad(-25), rad(6 * math.sin(t * 2)), 0)
+		P.mood = "happy"
+	end,
+	-- a line in the water: the rod held out, bobbing, and a tug at the end of the beat
+	fish = function(P, t, k)
+		local tug = if k > 0.82 then math.sin((k - 0.82) / 0.18 * math.pi) else 0
+		local a = rad(-100 + 4 * math.sin(t * 3) - 55 * tug)
+		P.armR, P.armL = CFrame.Angles(a, 0, rad(-10)), CFrame.Angles(a + rad(15), 0, rad(10))
+		P.elbowL, P.elbowR = rad(25), rad(25)
+		P.lean = rad(4 - 14 * tug)
+		P.hipL, P.hipR = rad(-12), rad(12)
+	end,
+	-- an axe at a log: back over the shoulder, then a hard chop
+	chop = function(P, _t, k)
+		local up = strokeOf(k, 0.7)
+		P.lean = rad(6 + 16 * (1 - up))
+		P.crouch = 0.1 + 0.1 * (1 - up)
+		P.hipL, P.kneeL = rad(-30), rad(10)
+		P.hipR, P.kneeR = rad(28), rad(22)
+		P.armR = CFrame.Angles(rad(-15 - 160 * up), 0, rad(-8))
+		P.armL = CFrame.Angles(rad(-25 - 140 * up), 0, rad(8))
+		P.elbowL, P.elbowR = rad(20), rad(10)
+		P.twist = rad(-18 * up + 8 * (1 - up))
+		P.mood = if up < 0.2 then "shout" else nil
+	end,
+	-- a saw through a plank: both hands on it, to and fro
+	saw = function(P, _t, k)
+		local s = math.sin(k * math.pi * 4)
+		P.lean = rad(14 + 6 * s)
+		P.crouch = 0.12
+		P.hipL, P.hipR = rad(-25), rad(18)
+		P.armR, P.armL = CFrame.Angles(rad(-70 - 18 * s), 0, 0), CFrame.Angles(rad(-60 - 18 * s), 0, rad(10))
+		P.elbowL, P.elbowR = rad(40 + 25 * s), rad(40 + 25 * s)
+	end,
+	-- behind a counter: handing something over, then a wave to the next one
+	sell = function(P, t, k)
+		if k < 0.55 then
+			local out = math.sin(k / 0.55 * math.pi)
+			P.armR = CFrame.Angles(rad(-45 - 45 * out), 0, 0)
+			P.elbowR = rad(50 * (1 - out))
+			P.lean = rad(8 * out)
+		else
+			P.armL = CFrame.Angles(0, 0, rad(-140 + 20 * math.sin(t * 14)))
+			P.elbowL = rad(25)
+		end
+		P.mood = "happy"
+	end,
+	-- carrying a tray round: held up on one hand, a turn this way and that, a small bow
+	serve = function(P, t, k)
+		P.armR = CFrame.Angles(rad(-95), 0, rad(-10))
+		P.elbowR = rad(80)
+		P.armL = CFrame.Angles(rad(-20), 0, rad(-10))
+		P.twist = rad(14 * math.sin(k * math.pi * 2))
+		local bow = if k > 0.8 then math.sin((k - 0.8) / 0.2 * math.pi) else 0
+		P.lean = rad(22 * bow)
+		P.head = CFrame.Angles(rad(4 * math.sin(t * 3)), 0, 0)
+		P.mood = "happy"
+	end,
+	-- a hammer on a nail: short quick taps, crouched
+	hammer = function(P, _t, k)
+		local up = strokeOf((k * 2) % 1, 0.7)
+		P.crouch = 0.3
+		P.lean = rad(20)
+		P.armR = CFrame.Angles(rad(-40 - 80 * up), 0, 0)
+		P.elbowR = rad(30 + 40 * up)
+		P.armL = CFrame.Angles(rad(-50), 0, rad(15))
+		P.elbowL = rad(40)
+	end,
+	-- training: a punch with each hand, bouncing on the feet
+	train = function(P, _t, k)
+		local left = k < 0.5
+		local out = math.sin((k % 0.5) / 0.5 * math.pi)
+		local punch, guard = CFrame.Angles(rad(-90), 0, 0), CFrame.Angles(rad(-70), rad(20), 0)
+		P.armL, P.armR = if left then punch else guard, if left then guard else punch
+		P.elbowL, P.elbowR = if left then rad(90 * (1 - out)) else rad(95), if left then rad(95) else rad(90 * (1 - out))
+		P.twist = rad(if left then 14 * out else -14 * out)
+		P.lift = 0.08 * math.abs(math.sin(k * math.pi * 4))
+		P.hipL, P.hipR = rad(-15), rad(15)
+		P.mood = "fierce"
+	end,
+	-- tending something low (eggs, a still, the beacon's fire): crouched, patting it now and then
+	tend = function(P, t, k)
+		local pat = if k < 0.4 then math.abs(math.sin(k / 0.4 * math.pi * 2)) else 0
+		P.crouch = 0.35
+		P.lean = rad(18)
+		P.armL, P.armR = CFrame.Angles(rad(-55 - 20 * pat), 0, 0), CFrame.Angles(rad(-55 - 20 * pat), 0, 0)
+		P.elbowL, P.elbowR = rad(35), rad(35)
+		P.head = CFrame.Angles(rad(15), rad(8 * math.sin(t * 0.8)), 0)
+	end,
+}
+CharacterModels.WORK_HIT = { dig = { 0.62 }, chop = { 0.7 }, hammer = { 0.35, 0.85 }, fish = { 0.9 }, sell = { 0.27 }, train = { 0.25, 0.75 } } :: { [string]: { number } }
+
 -- A founder doing something (the islands, the battles, the cutscenes): the walk or stand of poseStanding, then the
 -- action, k 0..1 its progress where it has one:
 --   "cheer" both arms up waving, happy; "hurt" flinching back, arms flung out; "swing" the right arm from high up (k 0)
@@ -484,6 +615,8 @@ function CharacterModels.poseAction(rig: Rig, base: CFrame, t: number, speed: nu
 		P.mood = "happy"
 	elseif action == "run" then
 		P.lean = math.rad(18)
+	elseif WORK[action] then
+		WORK[action](P, t, kk)
 	end
 	CharacterModels.posePose(rig, base, P)
 end

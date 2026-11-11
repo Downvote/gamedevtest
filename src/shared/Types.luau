@@ -119,6 +119,7 @@ export type Expedition = {
 	gained: { xp: number, ups: { [string]: number } }, -- the trip's xp for the party and each member's levels gained
 	snacks: number, -- snacks left to throw on this trip (Tuning.SnackBase a pouch level: 5 .. 30)
 	beaten: number?, -- the guardians beaten on this trip (the path never ends: a guardian every Tuning.BossEvery stages)
+	sp: number?, -- the party's skill points between battles (they carry on from one battle to the next)
 	over: string?, -- "home" | "won" | "lost" (set when it ends: "won" only by a player that sails home after a guardian)
 }
 

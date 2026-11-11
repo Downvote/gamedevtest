@@ -409,7 +409,11 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 			local sp = f.sp :: string
 			p.seen[sp] = math.max(p.seen[sp] or 0, 1)
 		end
-		e.battle = Battle.new(foes, kind == "boss", e.party, rng)
+		local nb = Battle.new(foes, kind == "boss", e.party, rng)
+		-- (the skill points carry on from the last battle: GAME_DESIGN 7)
+		nb.sp = math.clamp(e.sp or 0, 0, Tuning.SpMax)
+		e.battle = nb
+		out.sp = nb.sp
 		out.foes = foes
 	end
 	return true, out
@@ -483,6 +487,11 @@ end
 -- and what came of them, the snacks left, and the timers as they stand while it goes on (Battle.gauges).
 local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any }, result: string?): { [string]: any }
 	local out: { [string]: any } = { events = events, result = result, snacks = e.snacks }
+	if result then
+		-- the battle is over: its skill points go on to the next one
+		e.sp = b.sp
+		out.sp = math.floor(b.sp * 100 + 0.5) / 100
+	end
 	for _, f in b.foes do
 		local fa: any = f
 		if fa.friend and not fa.joined then

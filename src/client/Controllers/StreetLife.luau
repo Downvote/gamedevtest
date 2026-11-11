@@ -19,7 +19,7 @@ local BOAT_SPEED = 4 -- studs a second
 local started = false
 
 type Boat = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number, ph: number }
-type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number }
+type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number, lag: number }
 
 local function dyn(): Instance
 	local f = workspace:FindFirstChild("PixelDynamic")
@@ -62,9 +62,11 @@ function StreetLife.start()
 	for i = 1, 3 do
 		local t = MicroModels.build("bird", { color = "white" })
 		adopt(t)
-		table.insert(birds, { t = t, x = b.x0 - 30 - i * 3, z = 0, y = 16 + i, ph = i * 0.7 })
+		table.insert(birds, { t = t, x = b.x0 - 30 - i * 3, z = 0, y = 16 + i, ph = i * 0.7, lag = 0 })
 	end
 	local flockAt = 4
+	-- the flock's way across this time: east or west, a slant, a height, a weave
+	local fdir, fslant, fweave, fwph = 1, 0, 1, 0
 	local last = os.clock()
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
@@ -87,10 +89,19 @@ function StreetLife.start()
 		-- a flock crosses now and then
 		if now >= flockAt then
 			flockAt = now + 14 + math.random() * 10
+			-- (a different crossing each time: from either end, slanting, higher or lower, weaving more or less)
+			fdir = if math.random() < 0.5 then 1 else -1
+			fslant = (math.random() - 0.5) * 0.5
+			fweave = 0.5 + math.random() * 2
+			fwph = math.random() * 6
 			local z = Street.LOT.z0 + math.random() * (Street.SEA.z1 - Street.LOT.z0)
+			local y = 13 + math.random() * 6
 			for i, bd in birds do
-				bd.x = b.x0 - 20 - i * 4
-				bd.z = z + (i - 2) * 3
+				local back = 20 + i * 4 + math.random() * 2
+				bd.x = if fdir > 0 then b.x0 - back else b.x1 + back
+				bd.z = z + (i - 2) * (2.5 + math.random())
+				bd.y = y + i * 0.6 + math.random() * 0.8
+				bd.lag = math.random() * 0.6
 			end
 		end
 		-- a squawk as the flock passes over the view
@@ -102,10 +113,15 @@ function StreetLife.start()
 			end
 		end
 		for _, bd in birds do
-			bd.x += 9 * dt
-			local cf = CFrame.new(bd.x, bd.y + math.sin(now * 2 + bd.ph) * 0.5, bd.z) * CFrame.Angles(0, math.pi / 2, 0)
+			-- heading along the crossing, weaving side to side; the head (+Z of the model) turned the way it flies
+			local sway = math.sin((now - bd.lag) * 0.7 + fwph) * fweave
+			local vx, vz = fdir * 9, (fslant + sway * 0.25) * 9
+			bd.x += vx * dt
+			bd.z += vz * dt
+			local cf = CFrame.new(bd.x, bd.y + math.sin(now * 2 + bd.ph) * 0.5, bd.z) * CFrame.Angles(0, math.atan2(vx, vz), 0)
 			MicroModels.place(bd.t, cf)
-			local up = if (now * 3 + bd.ph) % 1 < 0.5 then 0.3 else -0.15
+			local glide = math.sin(now * 0.5 + bd.ph * 3) > 0.4
+			local up = if glide then 0.1 elseif (now * 3 + bd.ph) % 1 < 0.5 then 0.3 else -0.15
 			for _, n in { "WingL", "WingR" } do
 				local w = bd.t.parts[n]
 				if w then

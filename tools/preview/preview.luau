@@ -289,6 +289,22 @@ function SCEN.village()
 	return p
 end
 
+-- At work (GAME_DESIGN 5, 6): the village a while on, its villagers at their buildings (a hoe in the fields, an axe at
+-- the lumber camp, a line off the pier, the stall) and its driftlings with them (pecking, pushing, napping at a
+-- nest), then a frame every eighth of a second for two seconds (work_000 .. work_015; make_gif.py makes them a GIF).
+function SCEN.work()
+	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+	local p = join(2, "Villager")
+	settle(p)
+	E.run(14)
+	capture(p, "work")
+	for k = 0, 15 do
+		capture(p, string.format("work_%03d", k))
+		E.run(1 / 8)
+	end
+	return p
+end
+
 -- The water moving (GAME_DESIGN 8): the village, then a frame every sixth of a second for two seconds (water_000 ..
 -- water_011; `python3 tools/preview/make_gif.py <outdir> water <device>` makes them a GIF).
 function SCEN.water()
@@ -536,7 +552,7 @@ local function seedOfKind(kind, lvl)
 end
 
 -- exp=<kind>[_<what>]: an expedition to an island of that kind (1 beach .. 9 ruins) at the level it first turns up
--- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window),
+-- (what: battle (default), boss, win, loot, fight (frame by frame), snack (aiming one), skills (the skill window, the pointer resting on Rally Cry: its tip),
 -- aim (aiming frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered), throw (a
 -- snack befriending the last wild one, frame by frame), tut (a battle in the tips' catching step: its note))
 -- (+1), on its 3D stage. what: "battle" (default: the first battle), "boss" (the guardian), "win" (a battle won: the
@@ -757,6 +773,12 @@ local function expScenario(spec)
 			H.push(p, 0.3)
 			H.inClient(p, EUI.debugAim, what)
 			E.run(0.6)
+			if what == "skills" then
+				-- the pointer resting on the leader's first skill: what it does
+				local shown = H.inClient(p, EUI.debugSkillTip, "f_cry")
+				log("skill tip: %s", tostring(shown))
+				E.run(0.2)
+			end
 		elseif what == "inspect" and s.exp and s.exp.battle then
 			-- a closer look: the first wild one given three mutations, the plate over its head (as a hover shows it)
 			local foe = s.exp.battle.foes[1]

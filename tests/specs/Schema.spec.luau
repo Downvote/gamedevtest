@@ -41,7 +41,7 @@ local function played(): any
 	place(p, "patch")
 	place(p, "nest")
 	place(p, "lumber")
-	Plot.upgrade(p, 2)
+	p.plot.placed[2].lvl = 2 -- (a level from before upgrades were taken out: kept)
 	local rng = Util.newRng(3)
 	Island.turn(p, rng)
 	Island.newDay(p)

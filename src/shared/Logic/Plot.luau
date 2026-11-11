@@ -264,18 +264,6 @@ function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (b
 	return true, nil
 end
 
--- The price of a building's next level (nil: it has none).
--- The next level's price: a building that makes something (it makes more: UpgradeMult) or a home or nest (more
--- comfort: ComfortLvl), up to level 3.
-function Plot.upgradeCost(q: Piece): { shells: number, wood: number }?
-	local def = Buildings.byId[q.id]
-	local k = Tuning.UpgradeCost[(q.lvl or 1) + 1]
-	if def == nil or k == nil or not (def.kind == "food" or def.kind == "wood" or def.kind == "shop" or def.kind == "home" or def.kind == "nest") then
-		return nil
-	end
-	return { shells = def.shells * k, wood = def.wood * k }
-end
-
 -- What replacing piece `q` with `id` costs: the new one's price less what clearing the old away gives back (never
 -- below nothing).
 function Plot.replaceCost(q: Piece, id: string): { shells: number, wood: number }?
@@ -350,28 +338,6 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	end
 	p.stats.built += 1
 	return true, { i = i, uid = q.uid, id = id }
-end
-
--- Upgrade a building that makes something (it makes Tuning.UpgradeMult times as much).
-function Plot.upgrade(p: Profile, i: number): (boolean, any)
-	local q = p.plot.placed[i]
-	if q == nil then
-		return false, "bad_payload" :: ErrCode
-	end
-	local cost = Plot.upgradeCost(q)
-	if cost == nil then
-		return false, "max" :: ErrCode
-	end
-	if p.shells < cost.shells then
-		return false, "money" :: ErrCode
-	end
-	if p.wood < cost.wood then
-		return false, "wood" :: ErrCode
-	end
-	p.shells -= cost.shells
-	p.wood -= cost.wood
-	q.lvl = (q.lvl or 1) + 1
-	return true, { lvl = q.lvl }
 end
 
 -- After the island grew (its lodge bigger, its path and sign moved): every piece that no longer fits moves to the free

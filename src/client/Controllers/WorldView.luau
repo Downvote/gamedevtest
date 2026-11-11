@@ -22,6 +22,7 @@ local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local MicroModels = require(ReplicatedStorage.Shared.Models.MicroModels)
+local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local StateClient = require(script.Parent.StateClient)
 local CameraController = require(script.Parent.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
@@ -48,6 +49,9 @@ type Walker = {
 	untilT: number,
 	nextWork: boolean,
 	action: string,
+	mood: string, -- a driftling's work (DriftModels: "peck" "push" "dip" "wave" "nap" "hop")
+	beat: number, -- the work's beats so far, last frame (a blow's chips as a beat passes its moment)
+	ph: number, -- where in its beat it started
 	cheerUntil: number,
 	rng: Types.Rng,
 }
@@ -62,18 +66,78 @@ local NEAR = 100 -- studs from the view's centre an island is peopled within
 local WALK = 5 -- studs a second
 local HOP = 4
 
--- what a villager does at each kind of building (CharacterModels.poseAction)
+-- What a villager does at each building (CharacterModels.poseAction's work, a loop: "there are also no proper
+-- animations for creatures and villagers that are working on something in the island", 2026-11-11): a hoe in the
+-- fields, picking fruit, a line off the pier, an axe or a saw at the wood, selling or serving at the shops, a hammer,
+-- training, tending. Unlisted: tending.
 local WORK_ACTION: { [string]: string } = {
-	patch = "reach",
-	orchard = "reach",
-	greenhouse = "reach",
-	pier = "cast",
-	lumber = "swing",
-	sawmill = "swing",
-	stall = "pet",
-	cafe = "pet",
-	inn = "cheer",
+	patch = "dig",
+	paddy = "dig",
+	greenhouse = "tend",
+	orchard = "pick",
+	skygarden = "pick",
+	pier = "fish",
+	kelpfarm = "fish",
+	lumber = "chop",
+	timber = "chop",
+	bamboo = "chop",
+	sawmill = "saw",
+	grandmill = "saw",
+	stall = "sell",
+	bakery = "sell",
+	bazaar = "sell",
+	market = "sell",
+	townhall = "sell",
+	cafe = "serve",
+	inn = "serve",
+	hotel = "serve",
+	toolshed = "hammer",
+	watertower = "hammer",
+	yard = "train",
+	hatchery = "tend",
+	windmill = "tend",
+	smokehouse = "tend",
+	beacon = "tend",
 }
+-- the beats a second of each
+local WORK_RATE: { [string]: number } = { dig = 0.9, pick = 0.5, fish = 0.25, chop = 0.8, saw = 0.6, sell = 0.4, serve = 0.3, hammer = 0.7, train = 0.9, tend = 0.5 }
+-- what flies off at a blow: its colours, how many, how hard up and out, glowing
+type Chips = { colors: { string }, n: number, up: number, out: number, glow: boolean?, ahead: number, y: number }
+local WORK_CHIPS: { [string]: Chips } = {
+	dig = { colors = { "hair_brown", "sand_dark" }, n = 3, up = 5, out = 2, ahead = 1.3, y = 0.2 },
+	chop = { colors = { "wood", "wood_dark", "sand" }, n = 3, up = 6, out = 3, ahead = 1.2, y = 0.8 },
+	hammer = { colors = { "yellow", "white" }, n = 2, up = 4, out = 2.5, glow = true, ahead = 1, y = 0.5 },
+	fish = { colors = { "water", "white", "window" }, n = 4, up = 7, out = 1.5, ahead = 2.6, y = -0.4 },
+	sell = { colors = { "gold" }, n = 1, up = 3, out = 0, glow = true, ahead = 0.9, y = 1.6 },
+	train = { colors = { "white", "plastic" }, n = 2, up = 1.5, out = 2, ahead = 0, y = 0.1 },
+}
+-- what a driftling does where it helps (DriftModels' work moods): by the building's kind
+local function palMoodOf(id: string): string
+	if id == "pier" or id == "kelpfarm" then
+		return "dip"
+	end
+	local d = Buildings.byId[id]
+	local kind = if d then d.kind else ""
+	if kind == "food" then
+		return "peck"
+	elseif kind == "shop" then
+		return "wave"
+	elseif kind == "nest" or kind == "breed" then
+		return "nap"
+	elseif kind == "train" then
+		return "hop"
+	end
+	return "push"
+end
+
+------------------------------------------------------------------ the chips a blow sends flying (one pooled model)
+type Bit = { p: BasePart, pos: Vector3, vel: Vector3, life: number, age: number, grav: number }
+local BITS = 40
+local bits: { Bit } = {}
+local bitModel: Model? = nil
+local bitCursor = 0
+local bitsDirty = false
+local BIT_HIDE = CFrame.new(0, -500, 0)
 
 local function dyn(): Folder
 	local found = workspace:FindFirstChild("PixelDynamic")
@@ -84,6 +148,73 @@ local function dyn(): Folder
 	nf.Name = "PixelDynamic"
 	nf.Parent = workspace
 	return nf
+end
+
+local function ensureBits()
+	if bitModel then
+		return
+	end
+	local m = Instance.new("Model")
+	m.Name = "WorkBits"
+	for i = 1, BITS do
+		local p = Instance.new("Part")
+		p.Name = "Bit" .. i
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Size = Vector3.one * 0.35
+		p.CFrame = BIT_HIDE
+		p.Transparency = 1
+		p.Parent = m
+		bits[i] = { p = p, pos = BIT_HIDE.Position, vel = Vector3.zero, life = 0, age = 1, grav = 0 }
+	end
+	m.Parent = dyn()
+	PixelRenderer.registerDynamic(m)
+	bitModel = m
+end
+
+local function chipsAt(pos: Vector3, c: Chips)
+	ensureBits()
+	for i = 1, c.n do
+		bitCursor = bitCursor % BITS + 1
+		local b = bits[bitCursor]
+		local a = math.random() * math.pi * 2
+		local out = c.out * (0.5 + 0.5 * math.random())
+		b.pos = pos
+		b.vel = Vector3.new(math.cos(a) * out, c.up * (0.7 + 0.5 * math.random()), math.sin(a) * out)
+		b.age, b.life = 0, 0.45 + 0.25 * math.random()
+		b.grav = if c.glow then 2 else 22
+		b.p.Color = Blocks.color(c.colors[(i - 1) % #c.colors + 1])
+		b.p.Material = if c.glow then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		b.p.Transparency = 0
+	end
+	bitsDirty = true
+end
+
+local function stepBits(dt: number)
+	for _, b in bits do
+		if b.age < b.life then
+			b.age += dt
+			if b.age >= b.life then
+				b.p.Transparency = 1
+				b.p.CFrame = BIT_HIDE
+			else
+				b.vel += Vector3.new(0, -b.grav * dt, 0)
+				b.pos += b.vel * dt
+				local floor = Street.WATER_Y
+				if b.pos.Y < floor then
+					b.age = b.life
+				end
+				b.p.CFrame = CFrame.new(b.pos)
+			end
+		end
+	end
+	if bitsDirty and bitModel then
+		bitsDirty = false
+		PixelRenderer.refreshDynamic(bitModel :: Model)
+	end
 end
 
 local function plotModel(i: number): Model?
@@ -221,6 +352,9 @@ local function newWalker(key: string, kind: string, id: number, plot: number, si
 		untilT = os.clock() + rng:next() * 2,
 		nextWork = true,
 		action = "stand",
+		mood = "idle",
+		beat = 0,
+		ph = rng:next(),
 		cheerUntil = 0,
 		rng = rng,
 	}
@@ -326,16 +460,20 @@ local function decide(w: Walker, t: number)
 	end
 	local isPal = w.kind == "p"
 	if s and (w.nextWork or isPal) then
-		local side = if isPal then (w.rng:next() - 0.5) * s.w else 0
+		-- (along the building's front: a driftling anywhere, a villager in one of three places, so two at one
+		-- building don't stand in one spot)
+		local side = if isPal then (w.rng:next() - 0.5) * s.w else ((w.id % 3) - 1) * math.min(1.2, s.w / 3)
 		w.tx, w.tz = s.cx + side, s.cz + s.d / 2 + (if isPal then 0.6 + w.rng:next() else 0.9)
 		w.state = "walk"
 		w.nextWork = false
-		w.action = WORK_ACTION[s.id] or "reach"
+		w.action = WORK_ACTION[s.id] or "tend"
+		w.mood = if w.work == 0 then "nap" else palMoodOf(s.id)
 	else
 		w.tx, w.tz = strollPoint(w.plot, w.rng)
 		w.state = "walk"
 		w.nextWork = true
 		w.action = "stand"
+		w.mood = "idle"
 	end
 	w.untilT = t + 20
 end
@@ -349,8 +487,11 @@ local function stepWalker(w: Walker, t: number, dt: number)
 			-- arrived: work a while at a building, or idle a moment after a stroll
 			if w.action ~= "stand" then
 				w.state = "work"
-				w.untilT = t + 8 + w.rng:next() * 6
-				w.yaw = math.pi -- facing the building (north)
+				-- (a nap lasts longer)
+				w.untilT = t + 8 + w.rng:next() * 6 + (if w.kind == "p" and w.mood == "nap" then 12 else 0)
+				-- (turned three-quarters to the view, so the work reads: east along the front, or south)
+				w.yaw = if w.kind == "v" then (if (w.id % 2) == 0 then math.pi / 2 else 0) else (if w.rng:next() < 0.5 then 0 else math.pi / 2)
+				w.beat = t * (WORK_RATE[w.action] or 0.5) + w.ph
 			else
 				w.state = "idle"
 				w.untilT = t + 1.5 + w.rng:next() * 3
@@ -368,13 +509,35 @@ local function stepWalker(w: Walker, t: number, dt: number)
 	local y = groundY()
 	if w.rig then
 		local action = if t < w.cheerUntil then "cheer" elseif w.state == "work" then w.action else "stand"
-		local k = if action == "swing" then (t * 1.2) % 1 else 0
+		local k = 0
+		if action == w.action and w.state == "work" then
+			-- the work's beat, round and round; at each blow, what flies off (near the view only)
+			local beats = t * (WORK_RATE[action] or 0.5) + w.ph
+			k = beats % 1
+			local hits = CharacterModels.WORK_HIT[action]
+			local chips = WORK_CHIPS[action]
+			if hits and chips and beats > w.beat then
+				for _, hk in hits do
+					-- (a blow lands when the beat passes its moment: hk, 1 + hk, 2 + hk ...)
+					if math.floor(beats - hk) > math.floor(w.beat - hk) then
+						local c = CameraController.centerWorld()
+						if math.abs(w.x - c.X) < 40 and math.abs(w.z - c.Z) < 40 then
+							local fx, fz = math.sin(w.yaw), math.cos(w.yaw)
+							chipsAt(Vector3.new(w.x + fx * chips.ahead, y + chips.y, w.z + fz * chips.ahead), chips)
+						end
+					end
+				end
+			end
+			w.beat = beats
+		end
 		CharacterModels.poseAction(w.rig, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0), t, speed, action, k)
 	elseif w.thing then
-		local hop = if speed > 0 then math.abs(math.sin(t * 9 + w.id)) * 0.5 else math.abs(math.sin(t * 2 + w.id)) * 0.12
+		local working = w.state == "work" and speed == 0 and t >= w.cheerUntil
+		local hop = if speed > 0 then math.abs(math.sin(t * 9 + w.id)) * 0.5 elseif working then 0 else math.abs(math.sin(t * 2 + w.id)) * 0.12
 		local bob = if t < w.cheerUntil then math.abs(math.sin(t * 12)) * 1.2 else hop
-		-- its limbs alive: blinks, a wagging tail, stepping legs, a cheer
-		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then "cheer" elseif speed > 0 then "walk" else "idle", 0)
+		-- its limbs alive: blinks, a wagging tail, stepping legs, a cheer, and its work where it helps (or a nap at
+		-- the nest)
+		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then "cheer" elseif speed > 0 then "walk" elseif working then w.mood else "idle", 0)
 		MicroModels.place(w.thing, CFrame.new(w.x, y + bob, w.z) * CFrame.Angles(0, w.yaw, 0))
 	end
 end
@@ -610,6 +773,7 @@ function WorldView.start()
 		for _, f in fires do
 			stepFire(f, t)
 		end
+		stepBits(dt)
 		updateSigns()
 	end)
 end

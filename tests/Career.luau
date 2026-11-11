@@ -116,20 +116,7 @@ local function plan(p: any, away: { [string]: boolean })
 	if p.tier >= 2 and countKind(p, "train") == 0 then
 		build(p, "yard")
 	end
-	-- the island full (or the shells piling up): upgrade a building, food first when it runs short
-	if #p.plot.placed >= Plot.limit(p.tier) or p.shells > 4000 * p.tier then
-		local order = if r.food < 5 then { "food", "shop", "wood" } else { "shop", "food", "wood" }
-		for _, kind in order do
-			for i, q in p.plot.placed do
-				local d = Buildings.byId[q.id]
-				local cost = Plot.upgradeCost(q)
-				if d and d.kind == kind and cost and p.shells >= cost.shells and p.wood >= cost.wood and not (saving and (p.shells - cost.shells < (ex :: any).shells or p.wood - cost.wood < (ex :: any).wood)) then
-					Plot.upgrade(p, i)
-					return
-				end
-			end
-		end
-	end
+	-- (no upgrades: buildings have no levels to buy since 2026-11-11)
 	-- spare shells go on decor (the dearest the island can have and easily afford)
 	if not saving then
 		local pick: any = nil

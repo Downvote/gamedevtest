@@ -39,8 +39,8 @@ local Tuning = {
 	FolkMax = 40,
 	PalsMax = 40,
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
-	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level ...
-	UpgradeCost = { 0, 3, 8 }, -- ... and the price of each level (times its own price)
+	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
+	-- were taken out on 2026-11-11 are kept; no new ones are bought)
 	TierCost = {
 		{ shells = 0, wood = 0 },
 		{ shells = 1800, wood = 220 },
@@ -66,7 +66,7 @@ local Tuning = {
 	LevelMax = 60,
 	XpBase = 12, -- the xp to the next level: XpBase x level ^ XpPow
 	XpPow = 1.35,
-	XpPerFoe = 6, -- xp a beaten wild one gives (times its level), shared by the party
+	XpPerFoe = 4.5, -- xp a beaten wild one gives (times its level), shared by the party (lower since the fights got quicker)
 	TrainXp = 2, -- xp a day for each villager or driftling resting at a Training Yard
 	PartyMax = 3, -- members beside the captain
 	Supplies = 4, -- food each member takes on an expedition
@@ -76,13 +76,14 @@ local Tuning = {
 	-- timed battles (GAME_DESIGN 7; Logic/Battle): a fighter's timer fills in AtbTime x 2 x AtbRef / (AtbRef + speed)
 	-- seconds (AtbTime at speed AtbRef), within AtbMin .. AtbMax; one action plays at a time, for its events' seconds
 	-- (Battle.EVENT_SECS) times ActLock. In a crowded fight every timer fills slower (Battle.crowd), so that the
-	-- actions the timers ask for take about AtbShare of the time and a full timer seldom waits for another's action
-	AtbTime = 2.8,
+	-- actions the timers ask for take about AtbShare of the time and a full timer seldom waits for another's action.
+	-- Quick since 2026-11-11 ("make attacking cooldowns much faster across all creatures"): about half the old wait
+	AtbTime = 1.3,
 	AtbRef = 10,
-	AtbMin = 1.2,
-	AtbMax = 6,
+	AtbMin = 0.6,
+	AtbMax = 2.8,
 	ActLock = 0.85,
-	AtbShare = 0.9,
+	AtbShare = 0.95,
 	-- the party's skill points in a battle (Data/Skills): this many a second while it runs, up to SpMax
 	SpRate = 0.5,
 	SpMax = 10,

@@ -210,6 +210,7 @@ local function view(): Types.ClientView?
 	return StateClient.view()
 end
 
+local fightToFight: (e: Types.Expedition) -> boolean -- (below: between two fights)
 local function exp(): Types.Expedition?
 	local v = view()
 	return if v then v.exp else nil
@@ -254,25 +255,26 @@ local ENTER_DIST = 16 -- a battle's wild ones come this far down the trail to th
 local ENTER_SPEED = 12 -- studs a second
 local HOLD_SECS = 0.45 -- a finger held this long on a fighter shows its details (UI: inspect)
 
--- the styles (lengths at an even tempo, blows as shares of them), by a driftling's shape; people by who they are
+-- the styles (lengths at an even tempo, blows as shares of them), by a driftling's shape; people by who they are.
+-- Short and snappy: the timers are quick (Tuning.AtbTime), so a blow is over in about half a second
 local STYLE_BASE: { [string]: { dur: number, hits: { number }, ranged: string? } } = {
-	bounce = { dur = 0.55, hits = { 0.55 } },
-	pounce = { dur = 0.6, hits = { 0.5 } },
-	pinch = { dur = 0.6, hits = { 0.35, 0.62 } },
-	roar = { dur = 0.65, hits = { 0.48 }, ranged = "sparks" },
-	stomp = { dur = 0.65, hits = { 0.5 } },
-	flare = { dur = 0.6, hits = { 0.5 }, ranged = "twinkle" },
-	tailwhip = { dur = 0.6, hits = { 0.45 } },
-	headbutt = { dur = 0.5, hits = { 0.45 } },
-	peck = { dur = 0.55, hits = { 0.3, 0.5, 0.7 } },
-	spin = { dur = 0.6, hits = { 0.55 }, ranged = "twinkle" },
-	shellspin = { dur = 0.65, hits = { 0.6 } },
-	dive = { dur = 0.65, hits = { 0.55 } },
-	punch = { dur = 0.5, hits = { 0.45 } },
-	kick = { dur = 0.55, hits = { 0.5 } },
-	swing = { dur = 0.6, hits = { 0.5 } },
-	sling = { dur = 0.6, hits = { 0.62 }, ranged = "pebble" },
-	hop = { dur = 0.6, hits = { 0.55 } },
+	bounce = { dur = 0.44, hits = { 0.55 } },
+	pounce = { dur = 0.48, hits = { 0.5 } },
+	pinch = { dur = 0.48, hits = { 0.35, 0.62 } },
+	roar = { dur = 0.52, hits = { 0.48 }, ranged = "sparks" },
+	stomp = { dur = 0.52, hits = { 0.5 } },
+	flare = { dur = 0.48, hits = { 0.5 }, ranged = "twinkle" },
+	tailwhip = { dur = 0.48, hits = { 0.45 } },
+	headbutt = { dur = 0.4, hits = { 0.45 } },
+	peck = { dur = 0.44, hits = { 0.3, 0.5, 0.7 } },
+	spin = { dur = 0.48, hits = { 0.55 }, ranged = "twinkle" },
+	shellspin = { dur = 0.52, hits = { 0.6 } },
+	dive = { dur = 0.52, hits = { 0.55 } },
+	punch = { dur = 0.4, hits = { 0.45 } },
+	kick = { dur = 0.44, hits = { 0.5 } },
+	swing = { dur = 0.48, hits = { 0.5 } },
+	sling = { dur = 0.48, hits = { 0.62 }, ranged = "pebble" },
+	hop = { dur = 0.48, hits = { 0.55 } },
 }
 local SHAPE_STYLE: { [string]: string } = {
 	blob = "bounce",
@@ -519,9 +521,9 @@ end
 -- (hit-stop) and shakes the picture; the one hit is knocked back leaning away (or sent flying, spinning, when it is
 -- down). Skills have their own: a bash leaps high and slams down, quick strikes three times in a blur, a zap charges
 -- up where it stands and throws a bolt. Times in seconds; IMPACTS are the moments the blows land.
-local MOVES: { [string]: number } = { attack = 0.55, bash = 0.8, quick = 0.55, zap = 0.8, hurt = 0.45, ko = 0.75, guard = 0.6, cast = 0.7, throw = 0.5, refuse = 0.7, happy = 1.0, flee = 0.7, stumble = 0.9, victory = 1.6 }
+local MOVES: { [string]: number } = { attack = 0.45, bash = 0.66, quick = 0.46, zap = 0.6, hurt = 0.45, ko = 0.75, guard = 0.6, cast = 0.7, throw = 0.5, refuse = 0.7, happy = 1.0, flee = 0.7, stumble = 0.9, victory = 1.6 }
 -- the blows' moments (seconds); a plain attack's come from the fighter's own style
-local IMPACTS: { [string]: { number } } = { attack = { 0.25 }, bash = { 0.48 }, quick = { 0.12, 0.24, 0.36 }, zap = { 0.52 } }
+local IMPACTS: { [string]: { number } } = { attack = { 0.2 }, bash = { 0.38 }, quick = { 0.1, 0.19, 0.28 }, zap = { 0.38 } }
 local freezeUntil = 0
 local shakeUntil, shakeAmp = 0, 0
 
@@ -1119,31 +1121,6 @@ local function say(text: string, color: Color3?, seconds: number?)
 	end)
 end
 sayFwd = say
-
--- A battle starting: the stage flashes white `n` times (hard blinks over the stage, between the header and the
--- footer), the way a wild encounter opens in the monster-catching games.
-local function encounterFlash(n: number)
-	local r = root
-	if r == nil then
-		return
-	end
-	local w, h = canvasSize()
-	local y0 = topInset() + HEAD_H
-	local f = UIKit.rect(r, UDim2.fromOffset(w, h - y0 - FOOT_H), UDim2.fromOffset(0, y0), UIKit.color("text"), 8)
-	f.Name = "Flash"
-	f.BackgroundTransparency = 0.15
-	task.spawn(function()
-		for i = 1, n do
-			f.Visible = true
-			task.wait(0.06)
-			f.Visible = false
-			if i < n then
-				task.wait(0.06)
-			end
-		end
-		f:Destroy()
-	end)
-end
 
 -- A box's health bar as it stands: green over half, yellow over a fifth, red below; the pale part just lost behind it;
 -- a party member's numbers counting with it.
@@ -2144,6 +2121,42 @@ end
 
 -- The skill window: each standing member's skills learnt (their level), the cost in skill points; a skill the
 -- points don't cover yet, or with nobody to aim at, greyed.
+-- What a skill's numbers do, in a line (Data/Skills' effects).
+local function skillWhat(d: Skills.Skill): string
+	local on = if d.all then "every wild one" else "one wild one"
+	if d.dmg then
+		if (d.hits or 1) > 1 then
+			return string.format("%d hits, each %d%% of an attack, on %s.", d.hits :: number, math.floor((d.dmg :: number) * 100 + 0.5), on)
+		end
+		return string.format("%d%% of an attack on %s.", math.floor((d.dmg :: number) * 100 + 0.5), on)
+	elseif d.revive then
+		return string.format("Back up with %d%% health.", math.floor((d.revive :: number) * 100 + 0.5))
+	elseif d.shield then
+		local s = string.format("The team takes less harm for %d s.", d.shield :: number)
+		if d.heal then
+			s ..= string.format(" Mends %d%%.", math.floor((d.heal :: number) * 100 + 0.5))
+		end
+		return s
+	elseif d.heal then
+		return string.format("Mends %d%% of %s health.", math.floor((d.heal :: number) * 100 + 0.5), if d.all then "everyone's" else "their")
+	elseif d.rally then
+		return string.format("The team's attacks do %d%% more damage.", math.floor(((d.rally :: number) - 1) * 100 + 0.5))
+	elseif d.haste then
+		return if (d.haste :: number) >= 1 then "Every ally's timer fills right up." else string.format("Every ally's timer jumps %d%% of the way.", math.floor((d.haste :: number) * 100 + 0.5))
+	elseif d.dizzy then
+		return "Every wild one's timer goes back to empty."
+	end
+	return d.blurb
+end
+-- how a skill is aimed, said in the tip
+local tipDebug: ((id: string) -> (boolean, { string }))? = nil -- (the open skill window's tip, as a hover shows it: debugSkillTip)
+local AIM_SAYS: { [string]: string } = {
+	none = "No aiming.",
+	foe = "Pick a wild one.",
+	ally = "Pick a member.",
+	down = "Pick one who is down.",
+}
+
 local function skillWindow(r: Frame, e: Types.Expedition)
 	local w, h = canvasSize()
 	local rows: { { f: Types.Fighter, list: { Skills.Skill } } } = {}
@@ -2211,6 +2224,76 @@ local function skillWindow(r: Frame, e: Types.Expedition)
 		holder = fr
 	end
 	holder.Name = "SkillRows"
+	-- what a skill does, while the pointer is over it or a finger is on it ("show what skills do while hovering or
+	-- pressing onto it", 2026-11-11): a small plate under the button (over it near the bottom). A finger held on it
+	-- past HOLD_SECS only reads it: lifting it then doesn't use the skill.
+	local tip: Frame? = nil
+	local tipId: string? = nil
+	local function hideTip(id: string?)
+		if tip and (id == nil or tipId == id) then
+			tip:Destroy()
+			tip, tipId = nil, nil
+		end
+	end
+	local function showTip(b: GuiObject, f: Types.Fighter, d: Skills.Skill, id: string)
+		if tipId == id and tip and tip.Parent then
+			return
+		end
+		hideTip()
+		local lines: { { text: string, color: Color3 } } = {
+			{ text = d.blurb, color = UIKit.color("text") },
+			{ text = skillWhat(d), color = UIKit.color("text_dim") },
+			{ text = "Used by " .. f.name .. ". " .. AIM_SAYS[d.target], color = UIKit.color("text_dim") },
+		}
+		local cost = string.format("%d SP", d.cost)
+		local pw = UIKit.textWidth(d.name) + UIKit.textWidth(cost) + 18
+		for _, l in lines do
+			pw = math.max(pw, UIKit.textWidth(l.text) + 10)
+		end
+		local cw, ch = canvasSize()
+		pw = math.min(pw, cw - 8)
+		local ph = 4 + 10 + #lines * 9 + 3
+		local k = math.max(1, UIKit.P())
+		local ro = r.AbsolutePosition
+		local bx = math.floor((b.AbsolutePosition.X - ro.X) / k + 0.5)
+		local by = math.floor((b.AbsolutePosition.Y - ro.Y) / k + 0.5)
+		local bh = math.floor(b.AbsoluteSize.Y / k + 0.5)
+		local py = by + bh + 2
+		if py + ph > ch - 4 then
+			py = by - ph - 2
+		end
+		local fr = UIKit.plate(r, UDim2.fromOffset(pw, ph), UDim2.fromOffset(math.clamp(bx, 4, cw - pw - 4), math.max(2, py)), UIKit.color("plate"), 0.03, 2, { shadow = true, wood = 1 })
+		fr.Name = "SkillTip"
+		fr.ZIndex = 40
+		UIKit.text(fr, d.name, UDim2.fromOffset(pw - 10, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("accent"), z = 41, name = "TipName" })
+		UIKit.text(fr, cost, UDim2.fromOffset(UIKit.textWidth(cost) + 2, 10), UDim2.new(1, -UIKit.textWidth(cost) - 6, 0, 2), { x = "right", color = UIKit.color("text_dim"), z = 41, name = "TipCost" })
+		for i, l in lines do
+			UIKit.text(fr, l.text, UDim2.fromOffset(pw - 8, 10), UDim2.fromOffset(4, 3 + i * 9), { color = l.color, z = 41, name = "TipLine" .. i })
+		end
+		tip, tipId = fr, id
+	end
+	-- (it goes with the window)
+	win.Destroying:Connect(function()
+		hideTip()
+		tipDebug = nil
+	end)
+	local tipButtons: { [string]: { b: GuiObject, f: Types.Fighter, d: Skills.Skill } } = {}
+	tipDebug = function(id: string): (boolean, { string })
+		local tb = tipButtons[id]
+		if tb == nil then
+			return false, {}
+		end
+		showTip(tb.b, tb.f, tb.d, id)
+		local texts: { string } = {}
+		if tip then
+			for _, c in (tip :: Frame):GetChildren() do
+				if c:IsA("TextLabel") then
+					table.insert(texts, c.Text)
+				end
+			end
+		end
+		return tip ~= nil, texts
+	end
 	for _, row in placed do
 		local f, y = row.f, row.y
 		if f.sp then
@@ -2222,10 +2305,42 @@ local function skillWindow(r: Frame, e: Types.Expedition)
 		for _, it in row.items do
 			local d = it.d
 			local ok = sp + 1e-6 >= d.cost and (d.target == "none" or #candidates(d.target) > 0)
+			local id = f.key .. "_" .. d.id
+			local readOnly = false -- (held long enough to read: this press doesn't use it)
 			local b = UIKit.button(holder, it.label, UDim2.fromOffset(it.bw, 15), UDim2.fromOffset(it.x - 2, it.y), function()
+				if readOnly then
+					readOnly = false
+					return
+				end
+				hideTip()
 				chooseSkill(f.key, d.id)
-			end, { name = "Skill_" .. f.key .. "_" .. d.id, color = if ok then UIKit.color("accent") else nil, enabled = ok })
+			end, { name = "Skill_" .. id, color = if ok then UIKit.color("accent") else nil, enabled = ok })
 			b.ZIndex = 28
+			tipButtons[id] = { b = b, f = f, d = d }
+			b.MouseEnter:Connect(function()
+				showTip(b, f, d, id)
+			end)
+			b.MouseLeave:Connect(function()
+				hideTip(id)
+			end)
+			b.InputBegan:Connect(function(input: InputObject)
+				if input.UserInputType ~= Enum.UserInputType.Touch then
+					return
+				end
+				readOnly = false
+				showTip(b, f, d, id)
+				local t0 = os.clock()
+				task.delay(HOLD_SECS, function()
+					if tipId == id and input.UserInputState ~= Enum.UserInputState.End and os.clock() - t0 >= HOLD_SECS - 0.01 then
+						readOnly = true
+					end
+				end)
+			end)
+			b.InputEnded:Connect(function(input: InputObject)
+				if input.UserInputType == Enum.UserInputType.Touch then
+					hideTip(id)
+				end
+			end)
 		end
 	end
 end
@@ -2275,7 +2390,7 @@ local function playEvent(ev: { [string]: any })
 			startMove(by, kind, to)
 			-- the swing is heard as it starts (in place: no run up first), a bash's as it leaps
 			if kind == "bash" then
-				task.delay(0.12, function()
+				task.delay(0.1, function()
 					Audio.play("whoosh_heavy")
 				end)
 			elseif kind ~= "zap" then
@@ -2307,7 +2422,7 @@ local function playEvent(ev: { [string]: any })
 		elseif by and kind == "zap" then
 			-- charging up: sparks gather round it, then a bolt runs to the target
 			for j = 1, 3 do
-				if at(0.1 * j) then
+				if at(0.08 * j) then
 					return
 				end
 				st.puff(actorAt(by) + Vector3.new(0, 1.2, 0), "spark", 4)
@@ -2315,7 +2430,7 @@ local function playEvent(ev: { [string]: any })
 					st.flash(by.thing :: MicroModels.Thing, 0.05)
 				end
 			end
-			if at(0.45) then
+			if at(0.32) then
 				return
 			end
 			Audio.play("zap")
@@ -2354,8 +2469,8 @@ local function playEvent(ev: { [string]: any })
 				end
 				local heavyStyle = stl ~= nil and (stl.kind == "stomp" or stl.kind == "hop")
 				shake(if kind == "bash" or ev.ko or heavyStyle then 2 else 1, if kind == "bash" or heavyStyle then 0.25 else 0.14)
-				freeze(if kind == "quick" then 0.035 else 0.07)
-				t0 += if kind == "quick" then 0.035 else 0.07
+				freeze(if kind == "quick" then 0.03 else 0.05)
+				t0 += if kind == "quick" then 0.03 else 0.05
 			end
 			local heavy = kind == "bash" or (ev.ko and i == #impacts)
 			Audio.play(if heavy then "hit_heavy" else "hit")
@@ -2379,7 +2494,8 @@ local function playEvent(ev: { [string]: any })
 				end
 			end)
 		end
-		if at(moveDur - 0.1) then
+		-- (the next action starts as this one's blow settles: the swing back home and the flinch play on under it)
+		if at(math.max(impacts[#impacts] or 0, moveDur - 0.14) + 0.04) then
 			return
 		end
 	elseif t == "heal" then
@@ -2839,10 +2955,8 @@ playNode = function(data: { [string]: any })
 			end
 		end
 		local who = if #names <= 1 then "A wild " .. (names[1] or "driftling") else "Wild " .. table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
-		encounterFlash(2)
 		say(who .. " appeared.", UIKit.color("orange"), 2.2)
 	elseif kind == "boss" then
-		encounterFlash(3)
 		say((if isle then (isle :: Types.Isle).bossName else "The guardian") .. " is in the way.", UIKit.color("bad"), 2.4)
 	end
 	if kind == "wild" or kind == "boss" then
@@ -2856,7 +2970,8 @@ playNode = function(data: { [string]: any })
 				end
 			end
 		end
-		spNow = 0
+		-- (the skill points carry on from the last battle)
+		spNow = tonumber(data.sp) or spNow
 		gaugePaused = true
 		gaugeAt = os.clock()
 		-- (once they have come down the trail: a beat to take them in, longer for a guardian)
@@ -3038,7 +3153,7 @@ refresh = function()
 	end
 	-- everything but the curtain, a results card and the narration is laid out again
 	for _, c in r:GetChildren() do
-		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Flash" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and c.Name ~= "Inspect" and c.Name ~= "LeaveCard" and not c:IsA("TextLabel") then
+		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and c.Name ~= "Inspect" and c.Name ~= "LeaveCard" and not c:IsA("TextLabel") then
 			c:Destroy()
 		end
 	end
@@ -3358,7 +3473,9 @@ function ExpeditionUI.open()
 			end
 		end
 		if not playHeld() then
-			bclock += math.min(dt, 0.25)
+			-- (actions waiting their turn: the playback goes a little quicker till it has caught up with the battle)
+			local rate = 1 + 0.3 * math.min(#playQueue, 2)
+			bclock += math.min(dt, 0.25) * rate
 		end
 		poseAll(now - opened, math.min(dt, 0.1))
 		placeInspect()
@@ -3385,8 +3502,11 @@ function ExpeditionUI.open()
 		else
 			idleSince = nil
 		end
-		-- a battle's spotlight: the background darkens round the fighters while it is on, and lightens after
-		local wantDim = if lifted and cur ~= nil and cur.battle ~= nil and cur.over == nil and not closing then 1 else 0
+		-- a battle's spotlight: the background darkens round the fighters while it is on, and lightens after. It stays
+		-- dark from a won fight to the next one, so going from fight to fight doesn't blink ("remove the flashing that
+		-- happens after and before battles", 2026-11-11)
+		local fighting = cur ~= nil and cur.over == nil and (cur.battle ~= nil or fightToFight(cur))
+		local wantDim = if lifted and fighting and not closing then 1 else 0
 		dimNow += math.clamp(wantDim - dimNow, -dt / DIM_SECS, dt / DIM_SECS)
 		PixelRenderer.setDim(dimNow)
 		-- the timed battle: the timers over the heads, the aim on the floor, the skill points' bar, and a new battle
@@ -3649,6 +3769,23 @@ function ExpeditionUI.sail(keys: { string }, isleNow: Types.Isle?)
 	end)
 end
 
+-- Between two fights: the stop the party is at was a fight, now won, and the next one is a fight too.
+local nextKey, nextFight = "", false
+fightToFight = function(e: Types.Expedition): boolean
+	local here = e.nodes[e.node]
+	if (here ~= "wild" and here ~= "boss") or e.done[e.node] ~= true then
+		return false
+	end
+	local key = tostring(e.isle.seed) .. ":" .. tostring(e.node)
+	if key ~= nextKey then
+		nextKey = key
+		local i = e.node + 1
+		local k = e.nodes[i] or Expedition.nodesTo(e.isle, i)[i]
+		nextFight = k == "wild" or k == "boss"
+	end
+	return nextFight
+end
+
 -- The battle's messages (the server runs it): its actions play back one after another, the timers sync.
 local function enqueue(data: { [string]: any })
 	table.insert(playQueue, data)
@@ -3854,6 +3991,15 @@ function ExpeditionUI.debugAim(kind: string)
 	else
 		endAim(true)
 	end
+end
+-- (the pointer resting on a skill in the open skill window, "<who>_<skill>" (e.g. "f_cry"): its tip shown; whether
+-- it was there, and the tip's lines)
+function ExpeditionUI.debugSkillTip(id: string): (boolean, { string })
+	local fn = tipDebug
+	if fn == nil then
+		return false, {}
+	end
+	return fn(id)
 end
 -- (the pointer over someone on the stage, as a mouse or a finger would be: `tap` false hovers, true taps; whether
 -- it was over someone the aim can pick)

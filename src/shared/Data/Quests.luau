@@ -3,8 +3,7 @@
 -- such as assigning creatures to different work areas"). Pure data. After the tips, one quest at a time, in order:
 -- each names something to do, says where to do it, and pays a small reward when the player claims it (Logic/Quest).
 --   goal: what it counts (Logic/Quest.count) and how many; `of` a building kind for "built".
---     "helpers" driftlings at work, "folk" villagers, "workers" villagers at work, "upgraded" pieces at level 2 or
---     more, "paths" path tiles, "decor" decorations, "built" pieces of a kind, "befriended" driftlings befriended,
+--     "helpers" driftlings at work, "folk" villagers, "workers" villagers at work, "paths" path tiles, "decor" decorations, "built" pieces of a kind, "befriended" driftlings befriended,
 --     "battles" battles won, "skills" skills used, "charted" islands charted, "tier" the island's tier, "pouch" the
 --     snack pouch's level, "boat" the boat's level, "seen" kinds in the Index, "hatched" eggs hatched
 --   go: where its Go button takes the player: a panel ("pals" "folk" "index" "hatch" "explore") or Build mode
@@ -44,13 +43,13 @@ local list: { Quest } = {
 		icon = "folk",
 	},
 	{
-		id = "upgrade",
-		title = "Upgrade a building",
-		text = "In Build mode tap one of your buildings, then Upgrade. Level 2 makes more.",
-		goal = { kind = "upgraded", n = 1 },
+		id = "food",
+		title = "Grow more food",
+		text = "Build a second farm or a fishing pier. More villagers means more mouths.",
+		goal = { kind = "built", n = 2, of = "food" },
 		reward = { shells = 120, wood = 20 },
-		go = "build",
-		icon = "boost",
+		go = "build:food",
+		icon = "food",
 	},
 	{
 		id = "paths",

@@ -111,12 +111,6 @@ function IslandService.init()
 		end)
 	)
 	Router.on(
-		"plot.upgrade",
-		rebuilt(function(s, a)
-			return Plot.upgrade(s.profile, a.i)
-		end)
-	)
-	Router.on(
 		"plot.replace",
 		rebuilt(function(s, a)
 			return Plot.replace(s.profile, a.i, a.id)

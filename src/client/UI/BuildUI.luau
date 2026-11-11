@@ -6,7 +6,7 @@
 -- a piece picked, a ghost of it stands where the pointer is (mouse) or was tapped (touch), on a footprint that is
 -- cyan where it fits (Logic/Plot.fits, the server's own rule) and red where it does not; Place (or a second click on
 -- the same spot) asks the server (plot.place: paid then), Rotate turns it a quarter. Tapping a piece standing on the
--- island picks it up to move (plot.move), Upgrade it (plot.upgrade: a building that makes something) or Clear it
+-- island picks it up to move (plot.move) or Clear it
 -- away (plot.store: half its price back). Done closes it.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -552,22 +552,6 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	end, "Place")
 	local q = if p.move then placed()[p.move] else nil
 	if q then
-		local up = Plot.upgradeCost(q)
-		if up then
-			btn("Upgrade", UIKit.color("accent"), v.shells >= up.shells and v.wood >= up.wood, function()
-				local cur = pick
-				if cur and cur.move then
-					local res = ask("plot.upgrade", { i = cur.move })
-					if res.ok then
-						Audio.play("level_up")
-						UIKit.notice(string.format("%s is Lv %d now.", if def then def.name else "It", (res.data and res.data.lvl) or 2), UIKit.color("good"))
-						pick = nil
-						clearGhost()
-						task.defer(rebuild)
-					end
-				end
-			end, "Upgrade")
-		end
 		if #Plot.replacements(q, v.tier) > 0 then
 			btn("Replace", UIKit.color("pink"), true, function()
 				local cur = pick
@@ -616,11 +600,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	end
 	UIKit.text(info, say, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 14), { color = UIKit.color("text_dim"), z = 4, name = "Blurb" })
 	if q then
-		local up = Plot.upgradeCost(q)
-		if up then
-			UIKit.text(info, "Next level:", UDim2.fromOffset(60, 10), UDim2.new(1, -150, 0, 2), { x = "right", color = UIKit.color("text_dim"), z = 4 })
-			price(info, math.max(4, f.Size.X.Offset - 92), 1, up.shells, up.wood, v)
-		end
+		-- (a piece picked up to move: nothing to buy; buildings have no levels to buy since 2026-11-11)
 	elseif def then
 		price(info, math.max(4, f.Size.X.Offset - 92), 1, def.shells, def.wood, v)
 	end

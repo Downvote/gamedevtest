@@ -169,7 +169,7 @@ end
 
 -- How long each event plays on screen (seconds; a strike by its move): an action holds the battle that long
 -- (`playTime`, times Tuning.ActLock) so the screen keeps up.
-Battle.EVENT_SECS = { attack = 0.95, bash = 1.2, quick = 0.9, zap = 0.85, heal = 0.8, shield = 0.8, rally = 0.8, treat = 1.6, flee = 0.8, skill = 0.5, revive = 1.0, haste = 0.8, dizzy = 0.8, cancel = 0.3 } :: { [string]: number }
+Battle.EVENT_SECS = { attack = 0.5, bash = 0.72, quick = 0.52, zap = 0.66, heal = 0.7, shield = 0.7, rally = 0.7, treat = 1.6, flee = 0.8, skill = 0.45, revive = 0.9, haste = 0.7, dizzy = 0.7, cancel = 0.3 } :: { [string]: number }
 
 -- How a strike plays: an auto skill's own move (bash, quick, zap), a learnt skill's (Data/Skills), else an attack.
 function Battle.moveOf(skill: string?): string
@@ -186,9 +186,12 @@ function Battle.moveOf(skill: string?): string
 	return "attack"
 end
 
+-- The short gap after each action (seconds).
+Battle.GAP = 0.08
+
 -- Seconds a list of events plays for, a small gap after each action.
 function Battle.playTime(events: { Event }, from: number?): number
-	local t = 0.15
+	local t = Battle.GAP
 	for i = from or 1, #events do
 		local ev = events[i]
 		local k = if ev.t == "hit" then Battle.moveOf(ev.skill) else ev.t
@@ -210,7 +213,7 @@ function Battle.crowd(party: { Fighter }, foes: { Fighter }): number
 			end
 		end
 	end
-	local busy = (0.15 + Battle.EVENT_SECS.attack) * Tuning.ActLock
+	local busy = (Battle.GAP + Battle.EVENT_SECS.attack) * Tuning.ActLock
 	return math.max(1, demand * busy / Tuning.AtbShare)
 end
 

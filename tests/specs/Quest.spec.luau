@@ -11,7 +11,6 @@ local KINDS = {
 	helpers = true,
 	folk = true,
 	workers = true,
-	upgraded = true,
 	paths = true,
 	decor = true,
 	built = true,
@@ -89,7 +88,7 @@ return function()
 		T.eq(data.next, 2)
 	end)
 
-	T.it("the counts: villagers at work, upgraded pieces, paths, a kind built, the Index, skills used", function()
+	T.it("the counts: villagers at work, paths, a kind built, the Index, skills used", function()
 		local p = fresh()
 		local f = Quest.facts(p)
 		table.insert(p.folk, { id = 1, name = "Mia", look = {}, work = 3, lvl = 1, xp = 0, seed = 1, day = 1 })
@@ -99,7 +98,7 @@ return function()
 		table.insert(p.plot.placed, { uid = 1, id = "patch", x = 0, z = 0, rot = 0, lvl = 2 })
 		table.insert(p.plot.placed, { uid = 2, id = "dirtpath", x = 2, z = 0, rot = 0, lvl = 1 })
 		table.insert(p.plot.placed, { uid = 3, id = "yard", x = 6, z = 0, rot = 0, lvl = 1 })
-		T.eq(Quest.count(f, { kind = "upgraded", n = 1 }), 1)
+		T.eq(Quest.count(f, { kind = "built", n = 2, of = "food" }), 1, "one farm")
 		T.eq(Quest.count(f, { kind = "paths", n = 8 }), if Buildings.byId.dirtpath then 1 else 0)
 		T.eq(Quest.count(f, { kind = "built", n = 1, of = "train" }), 1)
 		p.seen.pebblit, p.seen.mossbun = 1, 2

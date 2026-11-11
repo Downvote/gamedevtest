@@ -842,6 +842,18 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 	local hurt = mood == "hurt"
 	local ko = mood == "ko"
 	local excited = fight or cheer
+	-- at work on the island (WorldView): pecking at a field, pushing a log, dipping for fish, waving at customers,
+	-- napping at a nest, hopping at the Training Yard
+	local peck = mood == "peck"
+	local push = mood == "push"
+	local dip = mood == "dip"
+	local waving = mood == "wave"
+	local nap = mood == "nap"
+	local hopping = mood == "hop"
+	local pk = if peck and (time % 3.2) < 1.9 then math.max(0, math.sin(time * 7)) ^ 2 else 0
+	local dp = if dip then 0.5 + 0.5 * math.sin(time * 1.4) else 0
+	local snap = dip and (time % 4) < 0.3
+	local hopUp = if hopping then math.max(0, math.sin(time * 7)) else 0
 	local gait = rig.gait
 	local fly = gait == "fly"
 	local step = time * 9 -- the walk's beat
@@ -886,6 +898,24 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 			elseif cheer then
 				rx = R(-8)
 				ry = R(10) * wave(time * 10)
+			elseif peck then
+				rx = R(14) * pk
+				ty -= 0.04 * pk
+			elseif push then
+				rx = R(12)
+				ty += 0.04 * math.abs(wave(time * 4))
+			elseif dip then
+				rx = R(6) + R(10) * dp + (if snap then R(8) else 0)
+			elseif waving then
+				ty += 0.06 * math.max(0, wave(time * 6))
+				ry = R(10) * wave(time * 1.5)
+			elseif nap then
+				ty = -0.12 + 0.03 * wave(time * 1.5)
+				rx = R(4)
+				rz = 0
+			elseif hopping then
+				ty += 0.35 * hopUp
+				rx = R(-8) * hopUp
 			end
 		elseif kind == "head" or kind == "neck" then
 			local amp = if kind == "neck" then 0.5 else 1
@@ -910,6 +940,23 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 				rx = R(30) * amp
 				rz = R(15) * amp
 				ry = 0
+			elseif peck then
+				rx = R(38) * pk * amp
+				ry = 0
+			elseif dip then
+				rx = (R(14) + R(20) * dp + (if snap then R(16) else 0)) * amp
+				ry = 0
+			elseif push then
+				rx = R(10) * amp
+				ry = 0
+			elseif nap then
+				rx = R(22) * amp
+				ry = R(6) * amp
+			elseif waving then
+				rz = R(8) * wave(time * 3) * amp
+			elseif hopping then
+				rx = R(-10) * amp
+				ry = 0
 			end
 		elseif kind == "jaw" then
 			local open = 0
@@ -921,6 +968,14 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 				open = R(30)
 			elseif ko then
 				open = R(10)
+			elseif peck then
+				open = R(16) * pk
+			elseif waving then
+				open = R(14) * math.max(0, wave(time * 9))
+			elseif snap then
+				open = R(24)
+			elseif nap then
+				open = 0
 			else
 				-- a yawn now and then
 				local yp = time % 9
@@ -956,6 +1011,16 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 				rz = -side * R(25)
 			elseif ko then
 				rx = R(-20)
+			elseif waving then
+				rx = if side > 0 then R(-140) + R(25) * wave(time * 10) else R(-20)
+			elseif push then
+				rx = R(-70)
+			elseif peck then
+				rx = R(-15) * pk
+			elseif nap then
+				rx = R(-30)
+			elseif hopping then
+				rx = R(-60) * hopUp
 			end
 		elseif kind == "leg" then
 			if walk then
@@ -974,6 +1039,15 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 				rx = R(10) * wave(time * 3 + side)
 			elseif cheer then
 				ty = 0.1 * math.max(0, wave(time * 16 + ph * math.pi * 2))
+			elseif push then
+				-- (pacing on the spot, heaving)
+				local s2 = wave(time * 4 + ph * math.pi * 2)
+				rx = R(22) * s2
+				ty = 0.05 * math.max(0, s2)
+			elseif hopping then
+				rx = R(-30) * hopUp
+			elseif nap then
+				rx = R(25)
 			elseif fight then
 				rx = R(-10) * lunge
 			elseif ko then
@@ -984,8 +1058,10 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 			if walk then
 				amp, f = R(20), 9
 			end
-			if excited then
+			if excited or waving or hopping then
 				amp, f = R(30), 16
+			elseif nap then
+				amp, f = R(5), 1.2
 			end
 			-- (each segment adds to the one before: the later ones swing less, so the tip doesn't whip round)
 			local seg = if ph >= 2 then 0.5 else 1
@@ -1012,8 +1088,10 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 			end
 			if hurt then
 				flap = R(35)
-			elseif ko then
+			elseif ko or nap then
 				flap = R(-20)
+			elseif waving then
+				flap = R(25) * wseg * wave(time * 9 - ph * 0.6)
 			end
 			rz = side * flap
 		elseif kind == "fin" then
@@ -1061,8 +1139,8 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 		local pv = j.pivot
 		world[name] = base * CFrame.new(pv.X + tx, pv.Y + ty, pv.Z + tz) * CFrame.fromEulerAnglesXYZ(rx, ry, rz) * CFrame.new(-pv)
 	end
-	local shut = blink or hurt or ko
-	local open = fight or hurt or cheer
+	local shut = blink or hurt or ko or nap
+	local open = fight or hurt or cheer or waving or snap
 	for name, p in t.parts do
 		local r0 = t.baseRest[name]
 		if shut and string.sub(name, 1, 5) == "Shine" then

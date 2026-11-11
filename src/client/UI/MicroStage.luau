@@ -116,8 +116,9 @@ MicroStage.AREA_V = AREA_V
 -- The battle's places in an area (room space x, z; GAME_DESIGN 7, "fights should be shown in the same view as
 -- pokemon"): the party on the near side (+z: the screen's lower left) facing the wild ones on the far side (-z: its
 -- upper right), both on the trail. Each side stands in a loose row across the screen (along u), so no one hides
--- another: the founder in front, the guardian (a boss's first) in the middle of its side.
-MicroStage.PARTY_XZ = { { 0, 5 }, { -1.5, 7.5 }, { 3, 4.25 }, { -2.75, 10.25 } }
+-- another: the founder in front, the guardian (a boss's first) in the middle of its side. The party stands well apart,
+-- about 4 studs between neighbours ("make the party members stand further apart in battles", 2026-11-11).
+MicroStage.PARTY_XZ = { { 0.25, 4.75 }, { -2.25, 8 }, { 4.25, 3.75 }, { -3.75, 11.5 } }
 MicroStage.FOE_XZ = { { 0.25, -5.5 }, { -3, -3.75 }, { 2, -9.25 } }
 -- The trail up an endless islet (GAME_DESIGN 7: "make them look more like a path with actual terrain and details"):
 -- a path a little lower than the land (TRAIL_DIP: the fighters stand on it), its worn verge, the land beside it in
@@ -158,12 +159,12 @@ local function trailAt(style: TrailStyle, zw: number): (number, number)
 	end
 	local c = 1.4 * math.sin(zw * 0.11 + trailPh) + 0.6 * math.sin(zw * 0.29 + trailPh * 2.3)
 	local hw = 3.4 + 0.45 * math.sin(zw * 0.23 + trailPh * 1.7)
-	-- a trampled clearing where each side of a battle stands (about 6.75 studs either side of an area's middle): wider
-	-- and straighter there
+	-- a trampled clearing where each side of a battle stands (about 7 studs either side of an area's middle): wider
+	-- and straighter there, room for the party spread out
 	local zl = ((zw + HALF) % (2 * HALF)) - HALF
-	local k = (math.abs(zl) - 6.75) / 4.5
+	local k = (math.abs(zl) - 7) / 5.5
 	local bump = math.max(0, 1 - k * k)
-	return c * (1 - 0.65 * bump), hw + 1.2 * bump
+	return c * (1 - 0.8 * bump), hw + 2.4 * bump
 end
 -- yaws: the party faces the far side (-z), the wild ones the near side (+z)
 MicroStage.FACE_FOES = math.atan2(0, -1)
@@ -1790,10 +1791,10 @@ local function atXZ(x: number, z: number, y: number): Vector3
 	return ORIGIN + ambOff + Vector3.new(x, FLOOR + y, z)
 end
 
--- A bird's, bat's or butterfly's wings beat: up a moment, then down.
-local function flap(t: Thing, cf: CFrame, phase: number)
+-- A bird's, bat's or butterfly's wings beat: up a moment, then down (held out level in a glide).
+local function flap(t: Thing, cf: CFrame, phase: number, glide: boolean?)
 	MicroModels.place(t, cf)
-	local up = if phase % 1 < 0.5 then 0.3 else -0.15
+	local up = if glide then 0.1 elseif phase % 1 < 0.5 then 0.3 else -0.15
 	for _, n in { "WingL", "WingR" } do
 		local w = t.parts[n]
 		if w then
@@ -1814,14 +1815,33 @@ end
 type Ambient = (st: Stage) -> (t: number, dt: number) -> ()
 local AMBIENT: { [string]: Ambient } = {}
 
--- A bird (or bat) flying a loop over the stage: centre (room x, z), radius, height, period, colour.
+-- A bird (or bat) on the wing over the stage round (room x, z): a radius, a height, a period, a colour. It faces
+-- where it flies and never flies the same loop twice ("background birds fly backwards and only in one loop",
+-- 2026-11-11): the round drifts and swells, a smaller loop rides on it, it rises and dips, and now and then it glides.
 local function circler(st: Stage, kind: string, color: string, x: number, z: number, r: number, h: number, period: number, ph: number): (t: number) -> ()
 	local b = st.spawn(kind, { color = color, alt = if color == "black" then "black" else "orange" })
+	-- (some go round one way, some the other)
+	local dir = if math.floor(ph * 10 + x + z) % 2 == 0 then 1 else -1
+	local function pos(t: number): (number, number)
+		local a = dir * (t / period + ph) * math.pi * 2
+		local a2 = dir * (t / (period * 0.43) + ph * 1.7) * math.pi * 2
+		local rr = r * (0.85 + 0.15 * math.sin(t * 0.21 + ph * 5))
+		local cx = x + math.sin(t * 0.07 + ph * 3) * r * 0.4
+		local cz = z + math.cos(t * 0.05 + ph * 2) * r * 0.3
+		return cx + math.cos(a) * rr + math.cos(a2) * r * 0.12, cz + math.sin(a) * rr + math.sin(a2) * r * 0.12
+	end
 	return function(t: number)
-		local a = (t / period + ph) * math.pi * 2
-		local px, pz = x + math.cos(a) * r, z + math.sin(a) * r
-		local cf = CFrame.lookAt(atXZ(px, pz, h + math.sin(t * 2 + ph) * 0.4), atXZ(x + math.cos(a + 0.2) * r, z + math.sin(a + 0.2) * r, h))
-		flap(b, cf, t * (if kind == "butterfly" then 5 else 3) + ph)
+		local px, pz = pos(t)
+		local nx, nz = pos(t + 0.08)
+		local y = h + math.sin(t * 0.6 + ph * 4) * 1.2 + math.sin(t * 2 + ph) * 0.3
+		local here, ahead = atXZ(px, pz, y), atXZ(nx, nz, y)
+		if (ahead - here).Magnitude < 1e-3 then
+			ahead = here + Vector3.new(0, 0, 1)
+		end
+		-- (lookAt turns -Z to where it is going; the models' heads are at +Z)
+		local cf = CFrame.lookAt(here, ahead) * CFrame.Angles(0, math.pi, 0)
+		local glide = kind == "bird" and math.sin(t * 0.45 + ph * 6) > 0.35
+		flap(b, cf, t * (if kind == "butterfly" then 5 else 3) + ph, glide)
 	end
 end
 
@@ -2172,8 +2192,20 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	table.clear(marks)
 	ambOff, ambU, ambV = Vector3.zero, 0, 0
 	trailPh = ((seed or 1) % 997) * 0.0631
-	-- (on an endless islet everyone stands on the trail, a little under the land: TRAIL_DIP)
-	local stand = if endless then -TRAIL_DIP else 0
+	-- (on an endless islet the trail is a little under the land, TRAIL_DIP: who stands on it stands that much lower,
+	-- who stands beside it on the land)
+	local trailStyle = if endless then TRAIL[variant] else nil
+	local function standAt(u: number, v: number): number
+		if not endless then
+			return 0
+		end
+		if trailStyle == nil then
+			return -TRAIL_DIP
+		end
+		local p = U_DIR * u + V_DIR * v
+		local c, hw = trailAt(trailStyle :: TrailStyle, p.Z)
+		return if math.abs(p.X - c) <= hw + 0.25 then -TRAIL_DIP else 0
+	end
 	local fn = SETS[variant] or SETS.blocks
 	-- an endless islet's areas: each its own folder, built from the seed and its number
 	local areas: { [number]: Folder } = {}
@@ -2258,7 +2290,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	PixelRenderer.watchStage(folder)
 	local things: { Thing } = {}
 	local dyn = dynFolder()
-	local groundY = ORIGIN.Y + FLOOR + stand
+	local groundY = ORIGIN.Y + FLOOR + (if endless then -TRAIL_DIP else 0) -- (the shadows fall on the trail)
 
 	-- the player's founder
 	local look = AvatarView.lookOf(Players.LocalPlayer)
@@ -2319,7 +2351,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 			PixelRenderer.refreshDynamic(t.model)
 		end,
 		place = function(t: Thing, u: number, v: number, y: number, yaw: number?, tilt: CFrame?)
-			MicroModels.place(t, CFrame.new(uv(u, v, y + stand)) * CFrame.Angles(0, yaw or 0, 0) * (tilt or CFrame.identity))
+			MicroModels.place(t, CFrame.new(uv(u, v, y + standAt(u, v))) * CFrame.Angles(0, yaw or 0, 0) * (tilt or CFrame.identity))
 		end,
 		remove = function(t: Thing)
 			PixelRenderer.unregisterDynamic(t.model)
@@ -2384,7 +2416,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 				end
 			end
 			local act = if entry > 0.05 then "jump" else action
-			CharacterModels.poseAction(rig, CFrame.new(uv(u, v, y + entry + stand)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
+			CharacterModels.poseAction(rig, CFrame.new(uv(u, v, y + entry + standAt(u, v))) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
 			local hand = rig.parts.HandR
 			if avatar.held and hand then
 				MicroModels.place(avatar.held :: Thing, hand.CFrame * CFrame.new(0, -0.1, 0))
@@ -2439,7 +2471,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 						end
 					end
 					local act = if entry > 0.05 then "jump" else action
-					CharacterModels.poseAction(rr, CFrame.new(uv(u, v, y + entry + stand)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
+					CharacterModels.poseAction(rr, CFrame.new(uv(u, v, y + entry + standAt(u, v))) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
 				end,
 				hide = function()
 					CharacterModels.poseAction(rr, CFrame.new(uv(0, 0, -60)), 0, 0, "stand")
@@ -2564,18 +2596,19 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 		-- the battle up close (GAME_DESIGN 7): the party's feet and heads (the timers over them), the wild ones' and
 		-- the guardian's, a little room round them (PARTY_XZ, FOE_XZ)
 		frame = {
-			{ -3.5, 0, 11.25 },
-			{ 4, 0, 4.5 },
-			{ 0, 6.5, 5 },
-			{ -2.75, 6.5, 10.25 },
+			{ -4.5, 0, 12.5 },
+			{ 5.25, 0, 3.75 },
+			{ 0.25, 6.5, 4.75 },
+			{ -3.75, 6.5, 11.5 },
 			{ 2.75, 5, -10.25 },
 			{ 3, 0, -10.25 },
 			{ -3.75, 4.5, -3.75 },
 			{ 0.25, 6.5, -5.5 },
-			-- and the island's sides level with them (the screen's width: about 40 studs along u, the battle a little
-			-- smaller in the island round it: GAME_DESIGN 7, "zoom out a bit during battle")
-			{ -14, 0, 14 },
-			{ 14, 0, -14 },
+			-- and the island's sides level with them (the screen's width: about 54 studs along u, the battle small in
+			-- the island and the sea round it: GAME_DESIGN 7, "zoom out a bit during battle", then "zoom out more in the
+			-- expeditions even more")
+			{ -19, 0, 19 },
+			{ 19, 0, -19 },
 		}
 		band = frame
 	end

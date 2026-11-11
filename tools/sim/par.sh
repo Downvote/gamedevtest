@@ -13,7 +13,7 @@
 #                   nothing, hunger, moving in (beds and charm), expanding round the buildings, the training yard, a
 #                   party away, two islands
 #   sim_world.luau  the sea and the islands: the sea built at start, two islands, their villagers and driftlings on
-#                   every client, walking (the camera follows, Home), building (place, move, upgrade, clear away, every
+#                   every client, walking (the camera follows, Home), building (place, move, no upgrades, clear away, every
 #                   refusal), Build mode's UI, malicious plot payloads, a leaving player, a full sea
 #   sim_exp.luau    expeditions: the server's rules (supplies, the party, busy members, battles, treats, flights, the
 #                   guardian), a treat befriending, the islet's screen (closed and reopened, its buttons, a round

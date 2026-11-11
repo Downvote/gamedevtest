@@ -128,7 +128,8 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 - **A turn** is `TurnSeconds` (40 s) while you are on the server: the island's pace. Each building that makes
   something makes its rate a turn (the island card shows it a minute: "+57/min"): full with a villager working there,
   half with nobody (`IdleOutput`), more with a driftling of its knack helping (`PalBoost`), more again at Lv 2 and 3
-  (`UpgradeMult`). Villagers eat `EatFolk` food a turn, driftlings `EatPal`. At each turn's end a visitor may move in
+  (`UpgradeMult`: only a building upgraded in an older save is above Lv 1, since upgrades were taken out, §4).
+  Villagers eat `EatFolk` food a turn, driftlings `EatPal`. At each turn's end a visitor may move in
   and the yard trains.
 - **A day** is `DaySeconds` (4 hours) of the sea's clock (`WorldClock`: one time of day for every island on the
   server, carried on across visits: it follows the real clock): the HUD shows the day count and its clock (a sun, a
@@ -190,7 +191,8 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
   tier's shape joined to the smaller ones': nothing built near an old shore has to move); more villagers (`FolkMax` 40) and
   driftlings (`PalsMax` 40) live there.
 - **Comfort** (homes and nests): the best homes are filled first, each villager in the order they came (the same for
-  driftlings in the nests). A resident's comfort (its home's, plus 4% / 8% at the home's level 2 / 3) makes them work
+  driftlings in the nests). A resident's comfort (its home's, plus 4% / 8% at a level 2 / 3 home kept from an older
+  save) makes them work
   that much more (`Island.rates`: a worker's output times 1 + its comfort; a helper's boost grows by it too) and fight
   stronger (health, attack and defence times 1 + it). The Villagers panel shows each one's home and comfort ("Home:
   Villa, comfort +18%"), the Driftlings panel its nest.
@@ -198,8 +200,8 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
   once however many stand, the "all" ones count at every knack, and the boosts at one knack stop at `BoostMax` (60%).
 - **Paths** in four materials, laid tile after tile (the piece stays picked), apart from the piece limit: roads
   through a town (a Brick Road brings a little charm, a Marble Walk more).
-- **Upgrade** a home or nest too (Lv 2 and 3, `UpgradeCost` times its price: more comfort), as well as a building that
-  makes something.
+- **No upgrades** (taken out 2026-11-11: "remove the ability to upgrade buildings"). A better building is a
+  **Replace** away, and a level from an older save is kept and still counts.
 - **Replace**: a standing piece picked up shows **Replace**: the tray lists the others of its kind open at the tier
   (beds or room for homes and nests), each for its price less half the old one's (`Plot.replaceCost`); a tap swaps it
   where it stands (the new footprint must fit there; a home or nest must still house everyone): its workers stay, its
@@ -210,9 +212,7 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
 - **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Food, Wood, Shops, Homes,
   Nests, Boosts, Paths, Decor: icons alone on a phone) lists every piece with its price (red when you are short, locked ones greyed with the tier they
   need). A picked piece is a ghost on a cyan footprint where it fits, red where not; Place (or a second click on the
-  same spot) builds it. Tapping a standing piece picks it up to move, **Upgrade** it (a building that makes
-  something: Lv 2 and 3 for `UpgradeCost` times its price, making `UpgradeMult` times as much; a home or nest: more
-  comfort), **Replace** it (§4.1) or **Clear it away** (half its price back; not a home or nest whose beds are
+  same spot) builds it. Tapping a standing piece picks it up to move, **Replace** it (§4.1) or **Clear it away** (half its price back; not a home or nest whose beds are
   needed, not a Hatchery warming an egg). The header counts the pieces (the path tiles on the Paths tab).
 - **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
   is open) turns the tray to the tab of the building the tip asks for, and that building's card (and its tab, while
@@ -492,7 +492,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   > more skill points"
 
   The party shares **skill points** (the SP bar under Skills): they charge `SpRate` a second while a battle runs, up
-  to `SpMax` (10), from nothing at each battle's start. **Skills** opens the skill window any time in a battle: it
+  to `SpMax` (10). They carry on from one battle to the next on a trip (a new trip starts at none). **Skills** opens the skill window any time in a battle: it
   greys and pauses the battle like a snack; each member standing lists the skills they have learnt, with their cost
   (greyed when the points don't cover it yet, or there is nobody to aim at). Picking one aiming at nobody uses it at
   once; one aiming at a member, a fallen member or a wild one opens the aim like a snack's (the user's ring, the
@@ -597,8 +597,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   for a whole bar), the part just lost stays pale a moment then follows, it turns yellow under half and red under a
   fifth, and a party member's numbers count down with it and go red when low. A box jolts side to side when its
   fighter is hit; a wild one's box slides back out once its bar is empty.
-- **The encounter:** a new fight flashes the stage white twice (three times for a guardian), the wild ones' boxes
-  slide in from the edge one after another, and a line names them ("A wild Mossbun appeared.", "Wild Mossbun,
+- **The encounter:** the wild ones' boxes slide in from the edge one after another (no white flash: taken out
+  2026-11-11), and a line names them ("A wild Mossbun appeared.", "Wild Mossbun,
   Floe and Pebblit appeared."; a guardian "King Frostdrake is in the way.").
 
 > The requests (2026-11-11): "no need to make the party walk anymore, the creatures will appear in a single area.
@@ -625,7 +625,34 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 - **Sounds on time:** a swing is heard as it starts and the hit at the blow. The battle's sounds are loaded when the
   game starts, so the first ones aren't late either.
 - **The spotlight:** while a fight is on, the background fades darker and a little cooler over about half a second,
-  and the fighters, their effects and anything glowing stay at full colour. It fades back when the fight ends.
+  and the fighters, their effects and anything glowing stay at full colour. It fades back when the fight ends, unless
+  the next stop is another fight: then it stays dark through to it, so going from fight to fight doesn't blink.
+
+> The requests (2026-11-11): "make skill points cary on across stages. also, make a less loud sound for attacking.
+> make attacking cooldowns much faster across all creatures. also, remove the ability to upgrade buildings"; "also,
+> show what skills do while hovering or pressing onto it"; "remove the flashing that happens after and before battles
+> as well"; "zoom out more in the expeditions even more"; "also, make the party members stand further apart in
+> battles"
+
+- **Skill points carry on:** what the party has left at the end of a fight is what it starts the next one with, all
+  through a trip (up to `SpMax`).
+- **Quicker fights:** every timer fills in about half the time it did (`AtbTime` 1.3 s at an average speed, from
+  `AtbMin` 0.6 to `AtbMax` 2.8), for every fighter alike. The moves are snappier to match: an attack plays in about
+  half a second (`Battle.EVENT_SECS`), the next action starts as a blow settles, and if actions queue up the playback
+  runs a little faster until it has caught up. Wild ones give a little less xp (`XpPerFoe` 4.5, from 6) so that more
+  fights a minute don't rush the island's growth past GAME_DESIGN 10's bounds.
+- **Softer blows:** the swings, hits, bites and zaps play at about half their old volume.
+- **What a skill does:** rest the pointer on a skill in the skill window, or put a finger on it, and a small plate
+  shows its name and cost, its line ("Mends one member."), what its numbers do ("Mends 40% of their health.", "3
+  hits, each 80% of an attack, on one wild one."), who uses it and how it aims ("Pick a member.", "No aiming."). A
+  quick tap still uses the skill; a finger held on it for about half a second only reads it, and lifting it then
+  does nothing.
+- **No flashing:** the white flash when a fight starts is gone, and the spotlight no longer lightens and darkens
+  again between two fights in a row.
+- **Further out:** the camera sits further back again, about 54 studs across the screen, so the fight is small in
+  the middle of the island with the sea round it.
+- **Spread out:** the party stands about 4 studs apart instead of about 2.7, and the trail's clearing is wider to
+  hold them (anyone standing on the grass beside the path stands on the grass, not sunk to the path's level).
 
 
 > The requests (2026-11-11): "make the first snack throw in the tutorial always catch. also, the camera bugs out
@@ -758,8 +785,8 @@ the quest's icon and title, which of the twenty it is, what to do and where, and
 the place it needs (the Driftlings or Villagers panel, Build mode on the right tab, the sea chart, the Index, the
 Hatchery). When the goal is met, Go turns into **Claim** (shining) next to the reward; Claim pays it, says so, and
 the next quest slides in. Each goal counts what the island has now, so one already met can be claimed at once. In
-order: put a driftling to work; make room for a newcomer (2 villagers); give everyone a job (2 at work); upgrade a
-building; lay a path (8 tiles); decorate (2 pieces); befriend three driftlings; use a skill; win ten fights; carry
+order: put a driftling to work; make room for a newcomer (2 villagers); give everyone a job (2 at work); grow more
+food (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); befriend three driftlings; use a skill; win ten fights; carry
 more snacks (a bigger pouch); beat a guardian; grow your island (tier 2); build a boost; build the Training Yard;
 upgrade your boat; meet twelve kinds; grow the island again (tier 3); build a Hatchery; hatch an egg; chart three
 islands. The rewards are small (60 to 2,000 shells, some food and wood) next to what each step costs; the career's
@@ -818,11 +845,26 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   ("+12"); the day chip's clock bar creeps along and its sun sets into a moon; the food chip blinks red while hungry;
   the expedition card's Continue pulses and gleams; a new tip bounces in; a newcomer's banner drops in with a fanfare
   and bits, and a new day's (every few hours) with a ding.
-- **The island lives:** villagers walk to their work and back and do it (hoe, chop, sell), wander when resting;
-  driftlings hop beside their buildings or round the nests; a newcomer is welcomed with a word and confetti.
+- **The island lives:** villagers walk to their work and back and do it, wander when resting; driftlings hop beside
+  their buildings or round the nests; a newcomer is welcomed with a word and confetti.
+
+  > The request (2026-11-11): "there are also no proper animations for creatures and villagers that are working on
+  > something in the island"
+
+  Work is a loop of real moves now (`CharacterModels` WORK, `DriftModels`' work moods), each building its own. A
+  villager swings a hoe up and down into a field (a puff of soil at each stroke), picks fruit one hand then the
+  other up on their toes in an orchard, holds a line out off a pier with a tug now and then (a splash), chops at the
+  lumber camp with the axe back over the shoulder (wood chips fly), saws to and fro at a sawmill, hands things over
+  the counter and waves at a stall or bakery (a glint of a coin), carries a tray and bows at a cafe, inn or hotel,
+  taps with a hammer at a toolshed or water tower (sparks), throws punches at the Training Yard, and crouches to tend
+  at a greenhouse, a hatchery, a windmill, a smokehouse or the beacon. A driftling pecks at the ground in the fields,
+  dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, hops at the
+  Training Yard, and naps at a nest (eyes shut, low and breathing slowly, for longer). Workers stand along the
+  building's front, apart, turned three-quarters to the view so the work reads.
 - **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked in §7), leaves
   sway and flags ripple in the wind, sailboats (the boats of §8, their flags fluttering) rock on the swell as they
-  cross both ways, gulls cross now and then; each island's campfire flickers and smokes. (No clouds' shadows: the
+  cross both ways, gulls cross now and then (from either side, at their own height, weaving and gliding, a
+  different crossing each time); each island's campfire flickers and smokes. (No clouds' shadows: the
   player asked for the "random shadow that appears sometimes" gone.)
 - **Coming home:** blinds close over the islet and open on the boat sailing home to the pier, the founder hopping
   off and the party cheering (§7).
@@ -831,7 +873,9 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 - **Night falls** and the lamps light up (§8).
 - **The islet's screen:** ink blinds open from the middle on the island's name; after the cutscene the boat brings
   the party ashore (back from the island they drop in from above in puffs of dust), the wild ones stand waiting in the next area as the party runs up (§7, the run on); each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
-  in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
+  in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor; a bird faces the way it flies and
+  never flies the same loop twice: its round drifts and swells, it rises and dips, glides now and then, and some go
+  one way round and some the other, as asked on 2026-11-11: "background birds fly backwards and only in one loop"); hits lunge, flash and spark,
   numbers float up, skills shout their names, heals and shells twinkle, a treat bursts into hearts, a friend leaves in
   confetti, a win cheers and throws confetti.
 - **Sounds** (`Controllers/Audio`): every event plays a free Creator Store sound from Roblox's licensed libraries

@@ -171,7 +171,7 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 				else
 					pieces += 1
 				end
-				-- a level: the makers', homes' and nests' (Plot.upgradeCost)
+				-- a level: the makers', homes' and nests' (from before upgrades were taken out: kept)
 				local leveled = Island.works(q.id) or def.kind == "home" or def.kind == "nest"
 				local lvl = if leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
 				table.insert(out, { uid = uid, id = q.id, x = x, z = z, rot = rot, lvl = lvl })

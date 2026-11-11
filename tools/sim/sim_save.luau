@@ -62,8 +62,8 @@ prof.nextId += 1
 prof.seen.gullfin = 2
 prof.founder.shirt = 5
 prof.islets = 1
-local r0 = H.req(p, "plot.upgrade", { i = 1 })
-H.expect(r0.ok and prof.plot.placed[1].lvl == 2, "save", "the patch upgraded", tostring(r0.err))
+-- (a level from before upgrades were taken out: kept through the save)
+prof.plot.placed[1].lvl = 2
 -- the stores never stop: food stops (nobody eats nothing made) so the snapshot is stable
 for _, v in prof.folk do
 	v.work = 0

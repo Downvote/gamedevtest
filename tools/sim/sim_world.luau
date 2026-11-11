@@ -229,7 +229,7 @@ H.expect(H.buttonNamed(a, "Home") == nil, "walk", "the Home button stays away on
 a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
 E.run(2.5)
 
------------------------------------------------------------------- 4. building: place, move, upgrade, clear away
+------------------------------------------------------------------ 4. building: place, move, clear away (no upgrades)
 E.phase = "build"
 local prof = H.profile(a)
 for _, x in prof.folk do
@@ -294,34 +294,15 @@ res = H.req(a, "plot.move", { i = #prof.plot.placed, x = mx, z = mz, rot = 90 })
 H.expect(res.ok and stall.x == mx and stall.z == mz and stall.rot == 90, "build", "move it, turned", tostring(res.err))
 E.run(0.3)
 H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil and decor:FindFirstChild(string.format("%d:stall:%d:%d:0:1", stall.uid, gx, gz)) == nil, "build", "its model moved with it")
--- upgrade it twice, then no more
+-- no upgrades (taken out: "remove the ability to upgrade buildings", 2026-11-11): the action is gone, nothing changes
 s0, w0 = prof.shells, prof.wood
 res = H.req(a, "plot.upgrade", { i = #prof.plot.placed })
-H.expect(res.ok and stall.lvl == 2, "build", "upgraded to Lv 2", tostring(res.err))
-H.expect(math.abs(prof.shells - (s0 - Buildings.byId.stall.shells * Tuning.UpgradeCost[2])) < 1, "build", "its price", string.format("%s -> %s", s0, prof.shells))
-res = H.req(a, "plot.upgrade", { i = #prof.plot.placed })
-H.expect(res.ok and stall.lvl == 3, "build", "Lv 3", tostring(res.err))
-res = H.req(a, "plot.upgrade", { i = #prof.plot.placed })
-H.expect(not res.ok and res.err == "max", "build", "no Lv 4", tostring(res.err))
+H.expect(not res.ok and res.err == "unknown_action" and stall.lvl == 1 and prof.shells >= s0 - 0.5 and prof.wood >= w0 - 0.5, "build", "no upgrades: the action is refused, nothing paid", string.format("%s lvl %s shells %s -> %s", tostring(res.err), tostring(stall.lvl), tostring(s0), tostring(prof.shells)))
 local fi = nil
 for i, q in prof.plot.placed do
 	if q.id == "hut" then
 		fi = i
 	end
-end
--- a home upgrades too (more comfort for those who live there); decor does not
-local hut = prof.plot.placed[fi]
-res = H.req(a, "plot.upgrade", { i = fi })
-H.expect(res.ok and hut.lvl == 2, "build", "a home upgrades (comfort)", tostring(res.err))
-local di = nil
-for i, q in prof.plot.placed do
-	if Buildings.byId[q.id].kind == "decor" then
-		di = i
-	end
-end
-if di then
-	res = H.req(a, "plot.upgrade", { i = di })
-	H.expect(not res.ok and res.err == "max", "build", "decor has no upgrades", tostring(res.err))
 end
 -- replacing: only with another of its kind, a real index
 H.expect(H.req(a, "plot.replace", { i = fi, id = "patch" }).err == "bad_payload", "build", "a home replaced by a farm: refused")
@@ -329,7 +310,7 @@ H.expect(H.req(a, "plot.replace", { i = 2000, id = "hut" }).err == "bad_payload"
 H.expect(H.req(a, "plot.replace", { i = fi, id = "nope" }).err == "bad_payload", "build", "an unknown piece: refused")
 H.expect(H.req(a, "plot.replace", { i = fi, id = "manor" }).err == "locked", "build", "a capital's home on a small island: locked")
 E.run(0.3)
-H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil, "build", "the upgraded model is built (its key carries the level)")
+H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil, "build", "the moved model is still built (its key carries the level)")
 -- clear it away: half back
 s0 = prof.shells
 local n1 = #prof.plot.placed
@@ -422,18 +403,18 @@ local placeBtn = H.buttonNamed(a, "Place", true)
 H.expect(placeBtn ~= nil and getD(placeBtn).props.AutoButtonColor == false, "build", "Place is off where it does not fit")
 H.clickNamed(a, "Cancel")
 H.expect(ghostFootprint() == nil, "build", "Cancel takes the ghost away")
--- tap the placed flowers: picked up (Clear away, no Upgrade for decor)
+-- tap the placed flowers: picked up (Clear away; nothing to upgrade)
 E.raycastParts = true
 H.inClient(a, function()
 	BuildUI.tapScreen(screenOf(E.v3(ox1 + ux + 1, Street.LAWN_Y + 0.4, oz1 + uz + 1)), false)
 end)
 E.raycastParts = nil
 E.run(0.3)
-H.expect(H.buttonNamed(a, "Store") ~= nil and H.buttonNamed(a, "Upgrade", true) == nil, "build", "tapping a piece picks it up (Clear away, no Upgrade for decor)")
+H.expect(H.buttonNamed(a, "Store") ~= nil and H.buttonNamed(a, "Upgrade", true) == nil, "build", "tapping a piece picks it up (Clear away, no Upgrade)")
 H.clickNamed(a, "Store")
 E.run(0.3)
 H.expect(#prof.plot.placed == placedBefore, "build", "cleared through the UI", tostring(#prof.plot.placed))
--- a building that makes something: Upgrade in its bar
+-- a building that makes something: no Upgrade in its bar either
 E.raycastParts = true
 local q1 = prof.plot.placed[1]
 local w1, d1 = Plot.footprint(q1.id, q1.rot)
@@ -442,7 +423,7 @@ H.inClient(a, function()
 end)
 E.raycastParts = nil
 E.run(0.3)
-H.expect(H.buttonNamed(a, "Upgrade", true) ~= nil, "build", "a " .. q1.id .. " picked up shows Upgrade")
+H.expect(H.buttonNamed(a, "Upgrade", true) == nil, "build", "a " .. q1.id .. " picked up shows no Upgrade")
 -- Replace: the others of its kind, each with its price after the refund; a tap swaps it where it stands
 local alt = Plot.replacements(q1, prof.tier)[1]
 if H.expect(alt ~= nil and H.buttonNamed(a, "Replace", true) ~= nil, "build", "a " .. q1.id .. " picked up shows Replace") then
@@ -564,7 +545,7 @@ refused("NaN", "bad_payload", "plot.place", { id = "torch", x = 0 / 0, z = 20, r
 refused("index 0", "bad_payload", "plot.move", { i = 0, x = 20, z = 20, rot = 0 })
 refused("index 999", "bad_payload", "plot.store", { i = 999 })
 refused("a piece not there", "bad_payload", "plot.store", { i = 60 })
-refused("upgrading a piece not there", "bad_payload", "plot.upgrade", { i = 61 })
+refused("an upgrade (there are none now)", "unknown_action", "plot.upgrade", { i = 1 })
 refused("an extra field", "bad_payload", "plot.place", { id = "torch", x = 20, z = 20, rot = 0, price = 0 })
 refused("a home with a payload", "bad_payload", "char.home", { x = 1 })
 refused("an unknown piece", "bad_payload", "plot.place", { id = "castle", x = 20, z = 20, rot = 0 })
