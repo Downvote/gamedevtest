@@ -56,26 +56,29 @@ is `DriftlingIsle-<short hash>.rbxl`.)
 
 ## 3. Types (`src/shared/Types.luau`)
 
-`Look`, `Piece` (`{ uid, id, x, z, rot, lvl }`: a building standing on the island; `uid` stays while it stands),
+`Look`, `Piece` (`{ uid, id, x, z, rot, lvl }`: a building standing on the island; `uid` stays while it stands; a
+wild place's `lvl` is its level, Data/Sites),
 `PlotSave` (`{ placed }`), `Villager` (`{ id, name, look, work (a Piece uid, 0 idle), lvl, xp, seed, day }`), `Pal` (a
 befriended driftling: `{ id, sp, lvl, xp, work, muts? }`: `muts` its mutations, Data/Traits ids), `Captain` (`{ lvl, xp }`), `Settings` (`{ pixel, music? }`: music "on" | "off"), `Stats` (`{ days, built,
-earned, befriended, battles, cleared, movedIn, hatched, skills }`: `skills` the skills used in battle), `Profile` (the save, version 8: `quest` the questline's quest on the go (Data/Quests; one past the last: all done; the view carries it too), `shells`, `food`, `wood`, `day`,
-`tier`, `founder`, `cap`, `folk`, `pals`, `plot`, `islets` (islands charted: guardians beaten), `sea` (the sea
-chart's seed), `boat` (1 .. 6), `pouch` (the snack pouch: 1 .. 6), `chart` (the ids of the chart's islands charted), `seen` (species -> 1 met, 2 befriended), `eggs` (`Egg`: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
+earned, befriended, battles, cleared, movedIn, hatched, skills }`: `skills` the skills used in battle), `Profile` (the save, version 9: `quest` the questline's quest on the go (Data/Quests; one past the last: all done; the view carries it too), `shells`, `food`, `wood`, `day`,
+`tier`, `founder`, `cap`, `folk`, `pals`, `plot`, `islets` (wild places cleared the first time), `sea` (the
+island's own seed: where its wild places come up and what each holds), `wilds` (the tiers whose wild places have come
+up: 0 .. `tier`, Logic/Sites), `pouch` (the snack pouch: 1 .. 6), `seen` (species -> 1 met, 2 befriended), `eggs` (`Egg`: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
 `nextId` (villagers, driftlings and pieces share it), `tut`, `stats`, `settings`, `createdAt`), `Fighter` (`{ key ("f",
 "v<id>", "p<id>", "w<i>"), name, kind, sp?, look?, lvl, hp, maxHp, atk, def, spd, skill, charge, gauge (its timer, 0 ..
 1) }`), `Battle` (`{ foes, acts, boss, shield, foeShield (the shields' seconds), lock (an action playing: seconds),
 paused, clock, sp (the party's skill points), undo? }`: `undo` (`Undo`) is how the battle stood before the action now
 playing, kept while `lock` > 0 so a snack can cancel it: `{ by (the actor's key), charge, shield, foeShield, hp
-(key -> hp), atk (key -> atk) }`), `Isle` (an island at sea: `{ id? (its sea chart id), seed, lvl, kind (Data/Islets), name, wild
-(three species), boss, bossName, loot { food wood shells }, reward }`), `Expedition` (`{ isle, node, nodes (the path
-so far: it grows a block at a time), done, party, loot { shells food wood }, battle?, befriended, snacks (left on this
-trip), beaten? (guardians
-beaten on this trip), sp? (the party's skill points between battles: a new battle starts with them, `Battle.sp`, and
-a battle's end keeps what is left; `next`'s wild or boss `out.sp` says how many), over? ("home" | "lost"; "won" only from a player that sails home after a guardian), gained
-(`{ xp, ups (key -> levels) }`: what the party gained on this trip, for the Expedition Complete! card) }`), `ClientView` (the profile's fields plus `dayFrac`, `plot`
-(the plot index), `pieces`, `rates` (a day, after eating), `charm`, `beds`, `nests`, `visitors`, `sea`, `boat`, `chart`, `eggs`, `exp?`), `ErrCode` (with `far`: out of the boat's
-range),
+(key -> hp), atk (key -> atk) }`), `Isle` (what a wild place holds: `{ id? (the place's piece uid), seed, lvl, kind (Data/Islets),
+name, wild (its kind's species and a stray), boss, bossName, loot { food wood shells }, reward }`), `Expedition` (`{
+isle, node, nodes (the place's whole path: the landing, six stops, the guardian last), done, party, loot { shells
+food wood }, battle?, befriended, snacks (left on this trip), site? (the wild place explored: its piece uid), beaten?
+(1: the guardian beaten), sp? (the party's skill points between battles: a new battle starts with them, `Battle.sp`, and
+a battle's end keeps what is left; `next`'s wild or boss `out.sp` says how many), over? ("home" | "won" (the
+guardian beaten: the place cleared) | "lost"), gained
+(`{ xp, ups (key -> levels) }`: what the party gained on this trip, for the Cleared and Expedition Complete! cards) }`), `ClientView` (the profile's fields plus `dayFrac`, `plot`
+(the plot index), `pieces`, `rates` (a day, after eating), `charm`, `beds`, `nests`, `visitors`, `sea`, `eggs`, `exp?`; no `wilds`), `ErrCode` (with `wild`: inside a
+wild place's ring, or a wild place moved or cleared away),
 `Response`, and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The file is the reference for
 every field.
 
@@ -88,12 +91,12 @@ every field.
   `Supplies`, `SkillEvery`, `ShieldTake`, `ShieldSecs`, `FleeBase`, `BossBoost`, `RestHeal`, `StageWait`; the
   timed battles: `AtbTime`, `AtbRef`, `AtbMin`, `AtbMax` (a timer's seconds by speed), `AtbShare` (a crowd's
   timers slow so the actions take about this share of the time), `ActLock` (an action's play
-  time), `SpRate`, `SpMax` (the skill points), `SnackBase`, `PouchCost` (the snack pouch: `{ shells, wood }` a level)), the islands at sea (`IsleFoodBase` / `IsleFoodLvl`, `IsleWoodBase` / `IsleWoodLvl`, `IsleChestBase` /
+  time), `SpRate`, `SpMax` (the skill points), `SnackBase`, `PouchCost` (the snack pouch: `{ shells, wood }` a level)), the wild places (GAME_DESIGN 7: `IsleFoodBase` / `IsleFoodLvl`, `IsleWoodBase` / `IsleWoodLvl`, `IsleChestBase` /
   `IsleChestLvl2`, `IsleRewardBase` / `IsleRewardLvl2`: a loot stop's food and wood, a chest's shells and the
-  guardian's reward by the island's level; `ChartCharm`, `ChartCharmMax`), the sea chart (`ChartIslands`, `ChartNear`,
-`ChartMinDist`, `ChartMaxDist`, `ChartSpacing`, `ChartLvlPerLeague`: GAME_DESIGN 7), the endless islands
-(`BossEvery`, `StageLvl`, `StageBoost`, `StageLoot`, `BossRewardGrow`) and the boat (`BoatRadius`, its
-range a level in leagues, `BoatCost` `{ shells, wood }` a level), the server's step and rate limit, the sea (`MaxPlots`, `PlotSpacing`, `PlotPieces`, `HomeCooldown`),
+  guardian's reward by the place's level; `FirstClear` (the reward times this the first time a place is cleared),
+  `ReplayReward` (times this on a later trip), `SiteRadius` (studs round a wild place's footprint that nothing new may
+  cover), `ClearCharm`, `ClearCharmMax` (charm a place cleared, up to the most)), a place's path (`BossEvery` (the
+  guardian's stage: six stops, then the guardian, the last), `StageLvl`, `StageBoost`, `StageLoot`), the server's step and rate limit, the sea (`MaxPlots`, `PlotSpacing`, `PlotPieces`, `HomeCooldown`),
   and the camera and pixel filter values (Random Bakery's `CamYaw` 45, `CamPitch` 30, `PixelTiers`, `PixelScaleMin` /
   `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`, `CamGlide`, `CamBuildPan`,
   `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`, `PixelStageBakeMs`).
@@ -107,12 +110,13 @@ range a level in leagues, `BoatCost` `{ shells, wood }` a level), the server's s
 | Module | Holds |
 |---|---|
 | `Data/Palette` | the LUT colours (`order`, `colors`), the shore's `shallow`, `foam`, `rock` and `rock_dark`, the older rooms' floor and wall themes (`themes`, still in the LUT), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
-| `Data/Buildings` | the 73 pieces (GAME_DESIGN 4) `{ id, name, kind (food wood shop home nest train breed gen path decor), shells, wood, w, d, rate, eats, job, knack, beds, slots, charm (a path's may be a fraction), comfort (a home's or nest's share), boost ("farm" "fish" "wood" "shop" "all": a "gen" piece's knack), boostBy, tier (1 .. 6), blurb }`; `list`, `byId` |
+| `Data/Buildings` | the 73 pieces (GAME_DESIGN 4) `{ id, name, kind (food wood shop home nest train breed gen path decor), shells, wood, w, d, rate, eats, job, knack, beds, slots, charm (a path's may be a fraction), comfort (a home's or nest's share), boost ("farm" "fish" "wood" "shop" "all": a "gen" piece's knack), boostBy, tier (1 .. 6), blurb }`, then two of kind "site" for each wild place of Data/Sites (`wild_<id>` and `done_<id>`: its name, footprint and blurb, no price, tier 99 so no tab of the tray shows them; a cleared one charm 3); `list`, `byId` |
+| `Data/Sites` | the wild places on the island (GAME_DESIGN 7) `{ id, islet (its Data/Islets kind: its driftlings and stage), name, plural, w, d (its footprint, whole studs), blurb }`: `tidepool tallgrass bog volcano cave frostpeak bluff coralpool ruins`, one a kind of islet; `list`, `byId`, `byIslet`, `SPAWN` (what comes up at each tier, `{ id, lvl }`: tier 1 a tide pool Lv 1 and tall grass Lv 3, then three more each tier up to Lv 45 at tier 6, every kind by tier 5), `wildId(id)` / `doneId(id)` (the piece ids, `wild_<id>` / `done_<id>`), `of(pieceId) -> (SiteDef?, wild)`, `spawnAt(tier) -> { { id, lvl } }` (none past the last) |
 | `Data/Skills` | the skills the party learns (GAME_DESIGN 7) `{ id, name, cost (skill points), target ("none" "ally" "down" "foe"), move (how it plays: attack bash quick zap cast), blurb, dmg?, hits?, all?, heal?, revive?, rally?, shield?, haste?, dizzy? }`; `LINES` (who learns what at which level: `lead` the founder's, and one per battle skill `bash quick zap heal shell`); `list`, `byId`, `lineOf(kind, skill)`, `known(line, lvl)`, `knows(line, lvl, id)`, `learnt(line, from, to)` |
 | `Data/Creatures` | the 55 driftlings (GAME_DESIGN 6) `{ id, name, islet (the kind of island it lives on), rarity (1 common .. 5 legendary), hp, atk, def, spd, skill, knack, trust, shape (its MicroModels body plan), body, accent, blurb, passive ({ name, fx }: its own, Data/Traits effects), power (its stats weighted, +12% a rarity step: the breeding rank) }`; `list`, `byId`, `skills` (their names) |
 | `Data/Traits` | what makes one driftling unlike another (GAME_DESIGN 6): `MAX` (4 mutations), `KEYS` (the effects: hp atk def spd xp work farm fish wood shop; 0.1 = +10%), `RARITY` (`{ name, color, weight }` x 5: the wild weights 100 45 16 5 1.2), `TIER_COLOR`, `TIER_STARS`, `list`, `byId` (mutations `{ id ("sturdy3"), family, tier (1 .. 4; 0 a flaw), name, blurb, fx }`: ten families x four tiers and five flaws), `families`, `at(family, tier)`, `roll(rng, rarity) -> { id }` (0 .. 3, no family twice, a rarer species rolls fewer flaws and higher tiers), `sum(passive?, muts?) -> Fx`, `workAt(fx, knack)` (work + the knack's share, at least -0.5), `clean(muts)` (known ids, a family once, at most MAX), `describe(fx)` ("+15% health, +24% at farms") |
-| `Data/Quests` | the questline (GAME_DESIGN 9) `{ id, title, text (what to do and where), goal { kind, n, of? }, reward { shells?, food?, wood? }, go (its Go: a panel "pals" "folk" "index" "hatch" "explore", or "build" / "build:<tab>"), icon (a `mini_` sprite) }`, twenty in order; `list`, `byId`. Goal kinds: helpers folk workers paths decor built (of a building kind) befriended battles skills charted tier pouch boat seen hatched |
-| `Data/Islets` | the 9 kinds of island found at sea (GAME_DESIGN 7) `{ id, name ("Beach"), plural, stage (its MicroStage set: loot leap dino frost fish swamp grotto bluffs ruins), lvl (the level it turns up from: 1, 5, 10, 16, 23, 7, 13, 20, 28), wild (every driftling of its kind, from Data/Creatures, by rarity then id), first / last (its names' words), color, blurb }`; `list`, `titles` (a guardian's) |
+| `Data/Quests` | the questline (GAME_DESIGN 9) `{ id, title, text (what to do and where), goal { kind, n, of? }, reward { shells?, food?, wood? }, go (its Go: a panel "pals" "folk" "index" "hatch", "site" (a wild place's card: the trip under way if there is one), or "build" / "build:<tab>"), icon (a `mini_` sprite) }`, twenty in order; `list`, `byId`. Goal kinds: helpers folk workers paths decor built (of a building kind) befriended battles skills charted (wild places cleared) tier pouch seen hatched |
+| `Data/Islets` | the 9 kinds of ground behind the wild places (GAME_DESIGN 7; each Data/Sites kind names one as its `islet`) `{ id, name ("Beach"), plural, stage (its MicroStage set: loot leap dino frost fish swamp grotto bluffs ruins), lvl (the level it turns up from: 1, 5, 10, 16, 23, 7, 13, 20, 28; a place's strays come from the kinds open at its level), wild (every driftling of its kind, from Data/Creatures, by rarity then id), first / last (its names' words), color, blurb }`; `list`, `titles` (a guardian's) |
 | `Data/Names`, `Data/Looks` | the villagers' names; skin, hair, hair style and shirt lists (`Types.Look` indexes them) |
 | `Data/Office` | the island's six tiers (`plans[tier]`: `{ tier, name }`, Castaway Cay, Palm Isle, Grand Isle, Harbor Town, Coral City, Sunspire Capital: the island card's title), `plan(tier)`, `origin(plot)` (Data/Street's). The island has no house (GAME_DESIGN 8) |
 | `Data/Street` | the islands and the sea (GAME_DESIGN 8): `warm(tier)` (works a tier's cells out now: tens of ms at the top tiers, so never at an expansion), `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT` (a plot's lot: x +-40, z -64 .. 30, room north for the city tiers), `CENTER`, `PLAZA` (the campfire's plaza), `PATH` (the path to the jetty); the coast: `isle(tier)` (its oval: centre, radii, wobble phases), `coast(tier, x, z)` (studs from the coast, below 0 inland: the oval's radius times a wobble of four sines, joined
@@ -129,14 +133,14 @@ ErrCode)` and changes the profile only on success:
 | Module | API |
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
-| `Island` | the turn and the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm`, `visitors`, `works(id)`, `homes(p) -> { [key]: { uid, comfort } }` (GAME_DESIGN 4.1: the homes, best comfort (theirs plus `ComfortLvl` by level) first, then the first built, filled with the villagers in the order they came; the nests with the driftlings), `boosts(p) -> { farm fish wood shop all }` (each kind of boost building once), `boostAt(b, knack)` (its own and "all", `BoostMax` at most), `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a turn; a worker's output 1 + its comfort, a helper's share plus its nest's comfort, every building times 1 + `boostAt`), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `palWork(p, pal) -> number` (a helper's work share at its building's knack: its passive and mutations, `Traits.workAt`; a helper adds `PalBoost` x (1 + that) to the building), `moveIn(p, rng) -> Villager` (a castaway into a free bed and job), `welcome(p, rng) -> Villager?` (the first home on an island nobody lives on: someone moves in at once; IslandService calls it after every building change), `turn(p, rng, away?) -> { movedIn?, trained? }` (a turn's end), `newDay(p)` (a calendar day: the count), `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
-| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `pathLimit(tier)` (`PathPieces`), `isPath(id)`, `used(p, id) -> (n, limit)` (the pieces of its count: paths, or the rest), `place` (locked, full (by its count), money, wood, blocked; a building that takes workers gets an idle villager), `move` (no upgrades: taken out 2026-11-11; a level from an older save stays and counts), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier), `replace(p, i, id)` (bad_payload (another kind, the same piece), locked, money, wood, blocked (the new footprint where the old stands), no_room (fewer beds or nests than needed); the uid kept, the level 1, helpers of another knack back to rest), `store` (no_room, egg; `Refund` back), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads); drawn paths (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a path tile's cell, even studs), `PAINT_MAX` (40 cells a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z"), `paint(p, id, cells) -> (ok, { placed, skipped })` (a path piece only; each free cell gets a tile at rotation 0, a cell that doesn't fit is skipped; locked, full, money, wood, blocked (none laid)), `unpaint(p, cells) -> (ok, { removed })` (every path tile covering a cell comes up with `Refund` back; not_found) |
+| `Island` | the turn and the day (GAME_DESIGN 3, 5): `piece(p, uid)`, `beds`, `nests`, `charm` (every piece's, one a driftling, `ClearCharm` a place cleared up to `ClearCharmMax`), `visitors`, `works(id)`, `homes(p) -> { [key]: { uid, comfort } }` (GAME_DESIGN 4.1: the homes, best comfort (theirs plus `ComfortLvl` by level) first, then the first built, filled with the villagers in the order they came; the nests with the driftlings), `boosts(p) -> { farm fish wood shop all }` (each kind of boost building once), `boostAt(b, knack)` (its own and "all", `BoostMax` at most), `rates(p, away?) -> Rates` (`{ food, wood, shells, made, eaten }` a turn; a worker's output 1 + its comfort, a helper's share plus its nest's comfort, every building times 1 + `boostAt`), `step(p, dt, away?)` (the stores, the food never below none), `randomLook(rng)`, `freeJob(p, knack?)`, `palWork(p, pal) -> number` (a helper's work share at its building's knack: its passive and mutations, `Traits.workAt`; a helper adds `PalBoost` x (1 + that) to the building), `moveIn(p, rng) -> Villager` (a castaway into a free bed and job), `welcome(p, rng) -> Villager?` (the first home on an island nobody lives on: someone moves in at once; IslandService calls it after every building change), `turn(p, rng, away?) -> { movedIn?, trained? }` (a turn's end), `newDay(p)` (a calendar day: the count), `xpTo(lvl)`, `gain(who, xp) -> levels`, `setWork`, `setHelp` (one a building, swapping; driftlings at their knack), `dismiss`, `release`, `expandCost(tier)`, `expand(p)` (data `{ tier, moved, cleared, sites }`: `Plot.refit`, then `Sites.spawn` brings up the new tier's wild places, `sites` how many), `setFounder` |
+| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `isWild(id)` (a wild place, `wild_<id>`), `isSite(id)` (any place, wild or cleared), `zone(q) -> Rect` (a wild place's ring: its footprint and `SiteRadius` studs round it), `fits(tier, placed, id, x, z, rot, skip?, loose?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "wild" (inside a wild place's ring, unless `loose`: pieces already standing, a place coming up) / "unknown")`, `pathLimit(tier)` (`PathPieces`), `isPath(id)`, `used(p, id) -> (n, limit)` (the pieces of its count: paths, or the rest; the places never count), `place` (bad_payload (a place's id), locked, full (by its count), money, wood, wild, blocked; a building that takes workers gets an idle villager), `move` (wild (a wild place stays put), wild or blocked for the spot; no upgrades: taken out 2026-11-11; a level from an older save stays and counts), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier; none for a place), `replace(p, i, id)` (bad_payload (another kind, the same piece, a place), locked, money, wood, blocked (the new footprint where the old stands; the rings `loose`), no_room (fewer beds or nests than needed); the uid kept, the level 1, helpers of another knack back to rest), `store` (wild (a wild place can't be cleared away), no_room, egg; `Refund` back, nothing for a cleared place), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads; the rings `loose`); drawn paths (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a path tile's cell, even studs), `PAINT_MAX` (40 cells a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z"), `paint(p, id, cells) -> (ok, { placed, skipped })` (a path piece only; each free cell gets a tile at rotation 0, a cell that doesn't fit is skipped; locked, full, money, wood, wild or blocked (none laid)), `unpaint(p, cells) -> (ok, { removed })` (every path tile covering a cell comes up with `Refund` back; not_found) |
 | `Battle` | timed battles (GAME_DESIGN 7): `FOUNDER`, `villagerBase(seed)`, `speciesBase(sp)`, `grow(v, lvl)`, `founder(p)`, `villager(v, extra?)` (`extra`: its home's comfort, from `Expedition.fighter`), `fxOf(sp, muts?) -> Fx` (its passive and mutations), `applyFx(f, fx)` (hp atk def spd times 1 + the share, at least 0.3), `pal(x, extra?)` (its species' base grown to its level, then its `fxOf` and the extra effects), `wild(sp, lvl, i, boss, name?, boost?, muts?)` (its passive and the mutations it was born with, kept on the fighter), `new(foes, boss, party?, rng?)` (paused; the timers a little way in), `alive`, `fillTime(f)` (`AtbTime x 2 x AtbRef / (AtbRef + spd)` within `AtbMin .. AtbMax`), `EVENT_SECS`, `moveOf(skill?)`, `playTime(events, from?)` (how long they play on screen, times `ActLock`), `crowd(party, foes)` (at least 1: how much slower every timer fills in this fight, the actions the timers ask for a second times a plain attack's play time over `AtbShare`), `step(party, b, dt, rng) -> (events, result?)` (in slices of 0.05 s: the timers fill (also while an action plays; each in `fillTime` x `crowd`), the skill points charge `SpRate`, the shields wear off; one full timer acts (the party first on a tie) when no action plays: an attack, or every `SkillEvery` its skill; its timer starts again and `lock` = the action's `playTime`; `undo` holds the state from before it until `lock` runs out), `treatChance(foe, party, boss)`, `fleeChance`, `snack(party, b, target, rng, sure?)` (an action still playing (`undo`) is cancelled first: its hp, attack, charge, timers and shields put back and a `cancel` event `{ by, hp }`; then the leader's timer again, a treat event, the wild one a friend as its chance says, always with `sure`; blocked on a guardian or with the leader down, not_found), `flee(party, b, rng)` (blocked on a guardian; a miss starts the leader's timer again), `useSkill(party, b, who, id, target?, rng)` (Data/Skills: not_found, locked (not learnt at their level), sp (not enough points); its events `skill` first, then `hit` (with the skill's id) `heal shield revive rally haste dizzy`; the user's timer again), `gauges(party, b) -> { g, lock, paused, sp, crowd }`; events `hit heal shield rally treat flee skill revive haste dizzy cancel`, results `win lose fled` |
 | `Breed` | the Hatchery (GAME_DESIGN 6.1): `child(a, b) -> sp` (a pair of one kind its kind, else the kind (no legend unless both are) of power nearest their average; the commoner, then the first id, on a tie), `cost(sp) -> (food, turns)` (`BreedFood`, `BreedTurns` by its rarity), `inherit(ma, mb, rng) -> muts` (shared: always, the better tier, `BreedTierUp` one better; one parent's: `BreedKeep`; `BreedNew` a tier 1 or 2 of a new family; the best four), `eggAt(p, uid)`, `start(p, uid, a, b, rng)` (not_found, egg, bad_payload, food; the feast paid, `p.eggs` + 1), `turn(p) -> { Pal }` (each egg a turn nearer; a ready one hatches into a free nest at level 1: `seen` 2, `stats.hatched`; else waits) |
-| `Quest` | the questline's rules (GAME_DESIGN 9): `Facts` (`{ folk, pals, pieces, tier, boat, pouch, islets, seen, stats }`: a profile's, `facts(p)`, or the client view's, same names), `count(facts, goal)` (how far: driftlings or villagers at work, pieces at level 2+, path tiles, decor, pieces of a kind, the stats' counts, islands charted, the tier, pouch and boat levels, kinds in the Index), `current(tut, i) -> (Quest?, i)` (none while the tips are on, or past the last), `progress(facts, q) -> (have, need)`, `done(facts, q)`, `claim(p)` (not_found, not_done; the reward paid, `p.quest` + 1; data `{ id, shells, food, wood, next }`) |
-| `Chart` | the sea chart (GAME_DESIGN 7): `levelAt(dist)`, `islands(sea) -> { ChartIsle }` (`{ id, x, y, dist, lvl, seed }` in leagues from home, nearest first, cached per seed: `ChartNear` within the first boat's range, the rest out to `ChartMaxDist`, `ChartSpacing` apart), `isle(sea, id) -> Isle?` (`Expedition.chart(lvl, seed)` with its `id`), `radius(boat)`, `reachable(p, id)`, `charted(p, id)`, `boatCost(boat)` (the next level's `{ shells, wood }`, nil at the top), `sail(p, id, members)` (bad_payload (no such island), far (out of range), then `Expedition.start`), `upgradeBoat(p)` (max, money, wood; data `{ boat, radius }`) |
-| `Expedition` | expeditions: `fighter(p, key)` (a villager or driftling with its home's comfort on health, attack and defence), `away(e)`, `supplies(n)`, `kindsAt(lvl)`, `speciesAt(lvl)`, `chart(lvl, seed) -> Isle` (the same level and seed make the same island: its kind one of those open at the level, a name of its kind's words, every driftling of its kind and a common or uncommon stray from any open kind, a titled guardian from its kind's rares and epics, loot and reward from `Tuning.Isle*`), `nodesTo(isle, count?)` (the endless path as far as `count`: the landing, then blocks of `BossEvery` stages from the seed and the block's number, six stops with at least three battles and maybe a rest, then a guardian), `pickWild(isle, rng) -> sp` (a wild one by its rarity's weight), `nodesOf(isle)` (the first block), `stageOf(node)`, `guardianAt(node)` (1 the first, 0 none), `levelAt(isle, node)` (a level under the island's at the first stage, `StageLvl` more every stage, without end), `boostAt(node)` (`StageBoost` a stage), `rewardOf(isle, n)` (the n-th guardian's), `start(p, isle, members)` (full, not_found, food; the island from `Chart.sail`), `next(p, e, rng)` (`{ kind, node, food?, wood?, shells?, foes? }`, the path extended a block when it runs out; the loot times 1 + `StageLoot` a stage, the wild ones at `levelAt` and `boostAt`, each born with `Traits.roll` (a guardian a rarity up); in_battle), `room(p)`, `tick(p, e, dt, rng) -> out?` (the battle runs on; nil when nothing happened), `snack(p, e, target, rng)` (blocked on a guardian, no_snacks, no_room; one of `e.snacks`; sure on the tips' fight and catch steps, `tut` 6 or 7; a friend keeps its mutations, `Traits.clean`) (the tips: setting sail moves `tut` 5 to 6, a battle's end 6 to 7, a friend made 6 or 7 to 8), `skill(p, e, who, id, target?, rng)` (`stats.skills` + 1), `flee(p, e, rng)`, `pause(e, on) -> (ok, gauges)` (each with what came of it, `out` = `{ events, result, snacks, friend?, xp?, shells?, ups?, reward?, guardian?, first?, charted?, g?, lock?, paused?, sp? }`: a guardian beaten pays `rewardOf` (`guardian` = n; the first charts the island, `first`: its id not yet in `chart`: the whole reward, the id added, `islets` + 1; on a later trip half), `beaten` = n, and the path goes on; the timers while it goes on), `snacksFor(p)` (`SnackBase` x the pouch's level), `upgradePouch(p)` (`PouchCost`: money, wood, max), `home(p, e)` (any time, a battle included (it is dropped); all the loot, after a defeat too: no penalty). A win adds its xp and level-ups to `e.gained`; a defeat's `out` also carries `loot` and `gained` (the Expedition Complete! card) |
-| `Schema` | `VERSION` (8: the questline; 7 -> 8 starts it at quest 1 with no skills counted), `default(now, seed)` (a random `sea`, `boat` 1, an empty `chart`), `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept; 5 -> 6: the tips' steps moved (3 -> 5, 4 -> 6); 6 -> 7: each driftling rolls its mutations once, seeded by its kind and id), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist with unique uids and valid turns, then `Plot.refit` (one off the grass moves onto it), villagers and driftlings with unique ids working only where they may (a driftling's `muts` through `Traits.clean`), the Index's species, `nextId` past every id, `sea` a whole number in range, `boat` 1 .. 6, `chart` unique ids of the chart) |
+| `Quest` | the questline's rules (GAME_DESIGN 9): `Facts` (`{ folk, pals, pieces, tier, pouch, islets, seen, stats }`: a profile's, `facts(p)`, or the client view's, same names), `count(facts, goal)` (how far: driftlings or villagers at work, pieces at level 2+, path tiles, decor, pieces of a kind, the stats' counts, wild places cleared (`islets`), the tier, the pouch's level, kinds in the Index), `current(tut, i) -> (Quest?, i)` (none while the tips are on, or past the last), `progress(facts, q) -> (have, need)`, `done(facts, q)`, `claim(p)` (not_found, not_done; the reward paid, `p.quest` + 1; data `{ id, shells, food, wood, next }`) |
+| `Sites` | the wild places coming up on the island (GAME_DESIGN 7; Data/Sites): `spawn(p) -> { Piece }` (the places of every tier reached and not yet done, `p.wilds` counting the tiers done (then set to `p.tier`): each a `wild_<id>` piece at rotation 0 with its `SPAWN` level as `lvl`, on the grass where its footprint fits (`Plot.fits` with `loose`) and its ring is clear of the other places' rings; the best spot by a score: nothing standing in its ring first, then the land that tier gained, then far from the island's middle, with a little of the seed's chance (`sea`, the tier, its order); a place with no room left is passed over), `pieceOf(p, uid) -> (Piece?, index)` (a place, wild or cleared, by its uid) |
+| `Expedition` | expeditions into the wild places: `fighter(p, key)` (a villager or driftling with its home's comfort on health, attack and defence), `away(e)`, `supplies(n)`, `kindsAt(lvl)`, `speciesAt(lvl)`, `chart(lvl, seed, kindId?) -> Isle` (what a place holds; the same level, seed and kind make the same one: its kind `kindId` (a Data/Islets id), else one of those open at the level, a name (a word of its kind's and the place's own name, "Echo Cave"; two of its kind's words without a place), every driftling of its kind and a common or uncommon stray from any open kind, a titled guardian from its kind's rares and epics, loot and reward from `Tuning.Isle*`), `isleOf(p, q) -> Isle` (a place's piece: `chart` at its `lvl` and its islet, the seed from `sea` and its uid, `id` its uid), `nodesTo(isle, count?)` (the place's path, `count` unused: the landing, then `BossEvery - 1` stops from the seed with at least three battles and maybe a rest, then the guardian, the last), `pickWild(isle, rng) -> sp` (a wild one by its rarity's weight), `nodesOf(isle)` (the same path), `stageOf(node)`, `guardianAt(node)` (1 the guardian's node, 0 none), `levelAt(isle, node)` (a level under the place's at the first stage, `StageLvl` more every stage), `boostAt(node)` (`StageBoost` a stage), `rewardOf(isle, first)` (the guardian's: the place's reward times `FirstClear` the first time, `ReplayReward` on a later trip), `start(p, isle, members)` (full, not_found, food), `enter(p, uid, members)` (not_found (no place with that uid), then `start` with `isleOf`; `e.site` = uid), `next(p, e, rng)` (`{ kind, node, food?, wood?, shells?, foes? }`; the loot times 1 + `StageLoot` a stage, the wild ones at `levelAt` and `boostAt`, each born with `Traits.roll` (a guardian a rarity up); in_battle, no_exp once over or past the guardian), `room(p)`, `tick(p, e, dt, rng) -> out?` (the battle runs on; nil when nothing happened), `snack(p, e, target, rng)` (blocked on a guardian, no_snacks, no_room; one of `e.snacks`; sure on the tips' fight and catch steps, `tut` 6 or 7; a friend keeps its mutations, `Traits.clean`) (the tips: setting out moves `tut` 5 to 6, a battle's end 6 to 7, a friend made 6 or 7 to 8), `skill(p, e, who, id, target?, rng)` (`stats.skills` + 1), `flee(p, e, rng)`, `pause(e, on) -> (ok, gauges)` (each with what came of it, `out` = `{ events, result, snacks, friend?, xp?, shells?, ups?, reward?, guardian?, first?, cleared?, charted?, loot?, gained?, g?, lock?, paused?, sp?, crowd? }`: the guardian beaten clears the place and ends the trip: `rewardOf` added to the loot (`reward`, `guardian` = 1, `first`: the place was still wild), on a first clear the piece turns `done_<id>`, `islets` + 1 and `cleared` = its uid; `charted` = `islets`, `stats.cleared` + 1, `beaten` = 1, `over` = "won", and `out` carries `loot` and `gained` (the Cleared card); the timers while it goes on), `snacksFor(p)` (`SnackBase` x the pouch's level), `upgradePouch(p)` (`PouchCost`: money, wood, max), `home(p, e)` (any time, a battle included (it is dropped); all the loot, after a defeat too: no penalty; `over` kept, else "home"). A win adds its xp and level-ups to `e.gained`; a defeat's `out` also carries `loot` and `gained` (the Expedition Complete! card) |
+| `Schema` | `VERSION` (9: the wild places; 8 -> 9 drops the boat and the chart), `default(now, seed)` (a random `sea`, `wilds` 0, then `Sites.spawn`: the first tier's places, a tide pool and tall grass), `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept; 5 -> 6: the tips' steps moved (3 -> 5, 4 -> 6); 6 -> 7: each driftling rolls its mutations once, seeded by its kind and id; 7 -> 8: the questline (reconcile starts it at quest 1 with no skills counted); 8 -> 9: `boat` and `chart` gone, `wilds` 0, the count of islands charted kept as `islets`), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist with unique uids and valid turns (the places outside the piece limits, their `lvl` 1 .. `LevelMax`), then `Plot.refit` (one off the grass moves onto it) and `Sites.spawn` (an older save gets every tier's places), villagers and driftlings with unique ids working only where they may (a driftling's `muts` through `Traits.clean`), the Index's species, `nextId` past every id, `sea` a whole number in range, `wilds` 0 .. the tier) |
 | `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
 | `Numbers` | `int`, `short`, `coins`, `rate`, `perMin` ("+57/min"), `oneIn` |
 
@@ -160,14 +164,15 @@ Models (`src/shared/Models`, Roblox modules):
 - `Blocks.windy(root)`: the wind's tags for the pixel filter (§9.3): every part named `Flag...` or `Pennant...` (not
   a `...Pole`) gets `PixelWind` 2, every part in `leaf` or `leaf_dark` `PixelWind` 1 (water parts left alone). Called
   by `StreetModels.land`, `DecorModels.build` and `MicroStage` on their models.
-- `BoatSpec` (the boat's plan, one for every boat: GAME_DESIGN 8): `MAX` (6), `dims(level) -> { L, W, H }`,
+- `BoatSpec` (the boat's plan, one for every boat: GAME_DESIGN 8; the pier's boat is always level 1 scenery since the
+  boat upgrades went, the ambient boats are levels 1 to 3): `MAX` (6), `dims(level) -> { L, W, H }`,
   `deck(level)` (the four places on deck, founder first: deck-top coordinates, +Z the bow), `moor(level)` (its x, z
   by the pier), `deckOverWater(level)`, `parts(level) -> { { name, shape ("Block" "Wedge" "CylY"), size, cf (from the
   deck top's centre; the `Bow` wedge turned over: tall at the hull, its keel sloping up to the point), color, neon?,
   wind? } }` (the hull and every detail of GAME_DESIGN 8 by level; flags named `Flag...`). Every user applies `cf`'s
   rotation (MicroModels.ship, StreetModels.boat).
 - `StreetModels`: `road(parent, origin)` (a plot's stretch of the sea, `PixelWater` 1; the plank boardwalk on beams
-  and posts with its rope rail and lanterns; its pier and moored boat), `boat(parent, origin, level) -> Model` (a
+  and posts with its rope rail and lanterns; its pier and moored boat, `boat` at level 1), `boat(parent, origin, level) -> Model` (a
   `BoatSpec` boat, attribute `Level`, its flags `PixelWind` 2), `land(parent, origin, tier)` (the island: its
   cells meshed into rectangles layer by layer (the shallows `PixelWater` 2, the foam 3, wet sand, the beach, the grass
   in two tones), the invisible coast walls round the walkable cells, the campfire's plaza (`FireStone`s, logs, a
@@ -181,11 +186,15 @@ Models (`src/shared/Models`, Roblox modules):
 - `DecorModels.build(id, at, lvl?) -> Model` (every building and piece of decor; `at`: the footprint's centre on the
   grass, turned; each with its doors, windows, ridged roofs with eaves and its own props (crates, barrels, sacks, pots,
   fences, lamps); a lamp and a pennant (`PennantPole`) at Lv 3; the pier's pond and the fountain's water `PixelWater` 2; parts don't
-  collide; `Blocks.windy`), `has`.
+  collide; `Blocks.windy`), `has`. The wild places (`SITE`, a builder a Data/Sites kind, `(m, f, wild)`): a tide pool,
+  tall grass, a bog, a volcano, a cave, a frost peak, a windy bluff, a coral pool and old ruins, each a small landscape
+  in its footprint (their pools `PixelWater` 2); a wild one has a pair of glowing eyes in its dark heart, a cleared one
+  no eyes, a tamer look and a planted `Flag` on a `FlagPole`; `build` gives a place's model the attributes `Site` (its
+  Data/Sites id) and `Wild` (true while wild), no pennant (its `lvl` is the place's level).
 - `MicroModels` (the driftlings and the stages' things): `build(kind, opts?) -> Thing` (`{ model, parts, rest, sizes,
   baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin, facing +Z), `driftling(shape, body,
   accent)` (the 14 shapes `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm`), `sailboat`,
-  `ship` (the expedition boat from `BoatSpec` at `opts.level`: its origin on the waterline), `flutter(thing, t)` (a
+  `ship` (a boat from `BoatSpec` at `opts.level`: its origin on the waterline; StreetLife's boats), `flutter(thing, t)` (a
   thing's `Flag...` parts ripple: their depth and height step through four frames), ambient kinds (`bird
   butterfly light flame crab ...`), `slab`, `grid`, `hoop`, `aim` (the battle's ring round the one acting), `aimpath` (the
   arrow to the pick: `AIM_DASHES` dashes `D1` .. and `HeadL` / `HeadR`, laid out by the screen every frame), `aimring`
@@ -195,8 +204,8 @@ Models (`src/shared/Models`, Roblox modules):
   a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale`, and moves the other things' limbs by name
   (`Wing*` flap, `Tail*` wag, `Eye*` blink...: the stages' gulls and butterflies; MicroStage's `circler` turns a
   bird the way it flies, on a drifting, swelling loop with a smaller one riding on it, rising and dipping, some round
-  one way and some the other, gliding now and then, `flap(t, cf, phase, glide?)`). WorldView, Voyage and the islet's
-  screen call it every frame.
+  one way and some the other, gliding now and then, `flap(t, cf, phase, glide?)`). WorldView and the islet's screen
+  call it every frame.
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
   body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
   golem drake`), each 25 to 50 parts in its species' body and accent colours (eighth-stud sizes, wedges for beaks and
@@ -239,25 +248,24 @@ handler under pcall; success marks the session dirty).
 
 | Action | Payload | Rule | Errors |
 |---|---|---|---|
-| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place`, the buildings rebuilt by difference, the tips | locked, full, money, wood, blocked |
-| `plot.move` | `i x z rot` | `Plot.move` | blocked, bad_payload |
-| `plot.paint` | `id cells` ("x,z;x,z": 1 .. 40 cells, whole studs in [-64, 64]) | `Plot.paint` (data `{ placed, skipped }`), the buildings rebuilt | locked, full, money, wood, blocked |
+| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place`, the buildings rebuilt by difference, the tips | locked, full, money, wood, wild (in a wild place's ring), blocked, bad_payload (a place's id) |
+| `plot.move` | `i x z rot` | `Plot.move` | wild (a wild place, or a spot in a ring), blocked, bad_payload |
+| `plot.paint` | `id cells` ("x,z;x,z": 1 .. 40 cells, whole studs in [-64, 64]) | `Plot.paint` (data `{ placed, skipped }`), the buildings rebuilt | locked, full, money, wood, wild, blocked |
 | `plot.unpaint` | `cells` | `Plot.unpaint` (data `{ removed }`), the buildings rebuilt | not_found |
 | `plot.replace` | `i`, `id` | `Plot.replace` (data `{ i, uid, id }`; the island's pieces rebuilt) | bad_payload, locked, money, wood, blocked, no_room |
-| `plot.store` | `i` | `Plot.store` (clear away) | no_room, egg (a Hatchery holding an egg), bad_payload |
+| `plot.store` | `i` | `Plot.store` (clear away) | busy (the place the party is in), wild (a wild place), no_room, egg (a Hatchery holding an egg), bad_payload |
 | `breed.start` | `uid`, `a`, `b` | `Breed.start` (an egg at the Hatchery `uid` from driftlings `a` and `b`) | busy (a parent away), not_found, egg, food, bad_payload |
-| `island.expand` | - | `Island.expand`, the island rebuilt (data `{ tier, moved, cleared }`) | max, money, wood |
+| `island.expand` | - | `Island.expand`, the island rebuilt with the new wild places (data `{ tier, moved, cleared, sites }`) | busy (an expedition under way), max, money, wood |
 | `folk.work` / `pal.work` | `id uid` (0: rest) | `Island.setWork` / `setHelp` | not_found, bad_payload |
 | `folk.dismiss` / `pal.release` | `id` | `Island.dismiss` / `release` | busy (away), not_found |
-| `exp.start` | `isle party` (a sea chart island's id, 1 .. 64; "v3,p7": up to three, "" the captain alone) | `Chart.sail`, the session keeps it (data `{ isle }`) | busy, far (out of the boat's range), full, not_found, food, bad_payload (no such island) |
-| `boat.upgrade` | - | `Chart.upgradeBoat`, the pier's boat rebuilt (`PlotService.setBoat`; data `{ boat, radius }`) | busy (an expedition under way), max, money, wood |
-| `exp.next` | - | `Expedition.next` (Fx exp node) | no_exp, in_battle, max |
+| `exp.start` | `site party` (a wild place's piece uid, wild or cleared; "v3,p7": up to three, "" the captain alone) | `Expedition.enter`, the session keeps it (data `{ isle, site }`) | busy, not_found (no such place, or a member), full, food, bad_payload (a member twice) |
+| `exp.next` | - | `Expedition.next` (Fx exp node) | no_exp (none, the trip over, or past the guardian), in_battle |
 | `exp.snack` | `target` ("w<i>") | `Expedition.snack` (Fx exp act) | no_exp, blocked, no_snacks, no_room, not_found |
 | `exp.skill` | `who` ("f", "v<id>", "p<id>") `skill` (an id) `target` (a fighter's key or "") | `Expedition.skill` (Fx exp act) | no_exp, not_found, locked, sp |
 | `exp.flee` | - | `Expedition.flee` (Fx exp act) | no_exp, blocked |
 | `exp.pause` | `on` (true / false) | `Expedition.pause` (data: the timers) | no_exp |
 | `pouch.upgrade` | - | `Expedition.upgradePouch` (data `{ pouch, snacks }`) | busy (away), money, wood, max |
-| `exp.home` | - | `Expedition.home`, the session lets go (Fx exp home; data `{ got, over, befriended, isle (its name) }`); any time, mid-battle too | no_exp |
+| `exp.home` | - | `Expedition.home`, the session lets go (Fx exp home; data `{ got, over, befriended, isle (its name), site }`); any time, mid-battle too | no_exp |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `settings.set` | `k` ("pixel" or "music"), `v` | the pixel tier (high, medium, low, off) or the music (on, off) | bad_payload |
 | `tut.next` | - | the tips go away for good | - |
@@ -271,22 +279,22 @@ a day each time the sea's clock passes a day's end (`WorldClock.dayIndex` past t
 `Island.newDay`, Fx "day"), the stores every second (Fx "tick" with `WorldClock.dayFrac`: the whole view is not sent
 for them). `WorldClock` (server): the sea's clock, `os.time()` at start advanced by every step (`now`, `advance`,
 `shift(seconds)` for the sims and previews, `dayIndex`, `dayFrac`); a day is `Tuning.DaySeconds` (4 hours). `leaving(s)`: an expedition under way comes
-home with its loot (on leave and at shutdown). Nothing happens while the player is away.
+home with its loot (on leave and at shutdown). Nothing happens while the player is away. A battle's `out` with
+`cleared` (a wild place cleared, from a move or from `step`'s `tick`) rebuilds the island's pieces
+(`PlotService.buildDecor`: the place's model is its cleared one, its ring gone).
 
 ### 7.5 `PlotService` (the sea)
 `init()` registers the collision groups `Bounds` (the invisible walls) and `PixelRays` (the pixel filter's rays),
 not colliding with each other, and builds the whole sea: `Workspace.Plots.Street` (every plot's boardwalk stretch,
-`Road_<i>` with its pier's expedition `Boat` (attribute `Level`), and the sea's ends) and open
+`Road_<i>` with its pier's `Boat`, always level 1 scenery since the boat upgrades went, and the sea's ends) and open
 water on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
-free index, 0 when the sea is full: Main kicks), `release(i)` (back to open water, every attribute cleared, the pier's
-boat back to level 1). `setBoat(s)`: the pier's boat rebuilt at the profile's level when it differs, and the plot's
-`Boat` attribute (called by `build` and `boat.upgrade`).
+free index, 0 when the sea is full: Main kicks), `release(i)` (back to open water, every attribute cleared).
 `build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets
 `Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs: the island for that tier built
 ahead is swapped in when it is ready, else it is built there and then) and `Decor` by difference
 (`buildDecor(s)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay), then `sync(s)`:
 the attributes `Tier`, `Day`, `Charm`, `Islets`, `Folk` (a villager a `;`-separated `id.skin.hair.style.shirt.work.away`),
-`Pals` (`id.species.work.away`), `Sailing`, and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs
+`Pals` (`id.species.work.away`), `Sailing` (an expedition under way: the old name kept), and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs
 every dirty session before sending its view; only changed values replicate). The founder: `watchCharacters(player)`,
 `placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`).
 **The next island, built ahead** (GAME_DESIGN 4: the lag before an expansion): after each `build` a plot that can
@@ -341,7 +349,7 @@ of the clip (`from`, `len`: the hammer's first two taps; the voice stops when it
 (`Music_<mood>` Sounds at `MUSIC_VOL` (0.2) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
 that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades
 it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mood every frame (sea while the islet's
-screen is open or a voyage plays, night from 0.74 of the day to the dawn, else day) and `on` from
+screen is open or the walk in or home plays (`Voyage.isPlaying`), night from 0.74 of the day to the dawn, else day) and `on` from
 `settings.music`.
 
 ## 9. The pixel filter and the camera
@@ -391,7 +399,7 @@ the key `stage:<name>|...`, no indoor room; the view holds still (`view().stage`
 to the street; `stage()`. `setStageShift(shift, snap?)`: an endless islet's camera, the stage's framing moved by
 `shift` studs (the target is the home pan plus the shift's grid px); on a stage the view glides, so the renderer
 scrolls to the next area and never re-bakes (reset by `setStage`); `snap` puts it there at once (behind the curtain,
-before the first picture: the arrival opens over the boat).
+before the first picture: only the boat arrival, unused now, asked for it).
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
@@ -523,11 +531,16 @@ the hatchery, for longer: `DriftModels.animate`'s work moods). Workers stand alo
 in one of three places by id), turned three-quarters to the view (east or south). Only islands within 100 studs of the view's centre are drawn (synced every half second); each
 near owned island's campfire gets a flickering flame and rising smoke (`fireOn`, dynamic models). Each island's sign gets
 a World-root label (its name, the own in gold, or "Unclaimed isle"); a tap on a sign (a press let go within 8 px, not
-on the interface, not in Build mode) shows `signCard(i)` (the day, villagers, driftlings, charm, islets). A newcomer
+on the interface, not in Build mode) shows `signCard(i)` (the day, villagers, driftlings, charm, wild places cleared).
+**The wild places** (GAME_DESIGN 7): over each wild one on the own island (a `Static.Decor` model with the `Site`
+attribute and `Wild` true; none in Build mode) a World-root label `Site_<uid>` ("Tide Pool Lv 1", orange) above its
+model; while the tips are on steps 5 and 6 (no trip under way) the `arrow_down_t` sprite bobs over the lowest wild one
+(the Tide Pool on a new island). A tap on a place of the own island, wild or cleared, opens its card
+(`UIKit.openPanel("site", uid)`, the uid from the model's name) before the signs are looked at. A newcomer
 (Fx "day" `movedIn`) gets a welcome word and confetti, a hatchling (Fx "turn" `hatched`) a cheer, its name and pink
 bits; `cheer(words, color)` makes the own islanders cheer.
-`rigCount()` / `ownRigCount()` for the sims.
-`StreetLife` (client, started after AvatarView): four sailboats (`MicroModels` "sailboat", blob shadows) crossing
+`rigCount()` / `ownRigCount()` and `tapScreen(pos)` (a tap at screen px, handled as a player's) for the sims.
+`StreetLife` (client, started after AvatarView): four boats (`MicroModels` "ship" at BoatSpec levels 1, 2, 1, 3, blob shadows) crossing
 both ways on two lanes out at sea, rocking on the swell in whole steps, wrapping round the sea's ends; a flock of three
 gulls crossing every 14-24 s, each crossing its own (east or west, a slant, a height, a weave, each gull a little
 behind the next), every gull turned the way it flies (the model's head is +Z) and gliding now and then (no clouds'
@@ -541,23 +554,25 @@ Chips (`Chip_shells`, `Chip_food`, `Chip_wood`, each an 11 px icon and the store
 it changes (the food's red and blinking while hungry); `Chip_day`, "Day 3" with the day's clock along its edge and a
 sun that sets into a moon; then `Home`, a button shown while the founder is off their own island, sending
 `char.home`; `MusicToggle` in the top right corner, the `mini_note`, sending `settings.set` music on / off, the note
-greyed while off), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_explore`, `Menu_index`, `Menu_looks`,
-each with its icon; while Build mode or the islet's screen is open the bar and the cards step aside, the tips only
+greyed while off), the menu bar (`Menu_build`, `Menu_folk`, `Menu_pals`, `Menu_index`, `Menu_looks`,
+each with its icon; no Explore button: the player taps a wild place on the island; while Build mode or the islet's screen
+is open the bar and the cards step aside (the cards also while a wild place's card is open), the tips only
 for the islet's screen: in Build mode the banner rises over the tray with a Build mode wording (`TIPS_BUILD`)), the
 `IslandCard` on the
 right (the island's name for its tier, villagers / beds, driftlings / nests, visitors, charm, and what a day makes of food, wood and
-shells a minute: `Numbers.perMin`), the `ExpCard` under it while an expedition is under way (the islet, the stop or "In a
-battle!", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the questline's card `Quest`
+shells a minute: `Numbers.perMin`), the `ExpCard` under it while an expedition is under way (`mini_wild`, the place's
+name, `State`: "Stage n of m", "In a fight" or "Cleared", `ExpContinue` pulsing: `ExpeditionUI.open`; on a phone at the top left), the questline's card `Quest`
 (GAME_DESIGN 9: down the left at `CARD_Y`, `QUEST_W` 150, under the `ExpCard` on a phone; hidden while the tips are on,
 for an expedition and for a panel; `updateQuest(v)` from the view through `Quest.current` / `Quest.progress`, laid out
 again when the quest or its count changes, sliding in: the quest's `mini_` icon, `Title`, `Which` ("3/20"), `Words`,
-then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a panel, the sea chart or the trip under way, or
+then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a panel, "site" a wild place's card (`openPanel("site")`
+with no uid: the place last shown, else `Menus.defaultSite`) or the trip under way, or
 `BuildUI.open(tab)`), or once done the reward (`Reward_<store>`) and `QuestClaim` (shining; `quest.claim`, then a
-notice of what it paid)), the tips banner (`Tips`: the steps of GAME_DESIGN 9 (`tut` 1 .. 8: food, wood, shells, a tent, a nest and sail,
-the first fight, catching, the last; `TIPS_AWAY` while an expedition waits); tip 8 has `TipsOk`, sending `tut.next`; a parchment note in a thin frame; on a phone it keeps to the room left of the island card, wrapping to two lines), the loading curtain (until `PixelRenderer.firstPicture`: the open sea at night, a few wave crests, the title, the bar in a thin frame) and the `DayBanner` (Fx
+notice of what it paid)), the tips banner (`Tips`: the steps of GAME_DESIGN 9 (`tut` 1 .. 8: food, wood, shells, a tent, a nest and the Tide Pool,
+exploring it and the first fight, catching, the last; `TIPS_AWAY` while an expedition waits); tip 8 has `TipsOk`, sending `tut.next`; a parchment note in a thin frame; on a phone it keeps to the room left of the island card, wrapping to two lines), the loading curtain (until `PixelRenderer.firstPicture`: the open sea at night, a few wave crests, the title, the bar in a thin frame) and the `DayBanner` (Fx
 "day": the day and who moved in or trained; over a panel, Build mode or an expedition a notice instead). Shells
 coming in rise from their chip ("+12", at most every 2 s, from `StateClient.Tick`). Every frame it holds the
-founder's `JumpHeight` at 0 while Build mode, the islet's screen, a voyage or a panel is up, else `Tuning.JumpHeight` (the
+founder's `JumpHeight` at 0 while Build mode, the islet's screen, the walk in or home (`Voyage`) or a panel is up, else `Tuning.JumpHeight` (the
 phone's jump button hides with it), and sets the music's mood (`Audio.music`). It reports its blocks to the
 camera (on PC the top strip, the menu bar and the card's place; on a phone Roblox's top bar and the menu bar).
 
@@ -570,25 +585,24 @@ taps: "Sure?")), "pals" (`Pal_<id>`: portrait, name in its rarity's colour, leve
 `Release_<id>` two taps; `OpenHatch` when a Hatchery stands), "hatch" (a row a Hatchery `Hatch_<uid>`: its egg
 (`egg_<rarity>`, `EggName`, `EggLeft`, `EggBar`, its parents) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
 picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`), the likely child
-(`Child`: its portrait if met, else its shape and ???, its rarity), `Cost`, `Breed_<uid>`), "explore" (the sea chart, a wide panel: on the left the map
-(`SeaMap.draw`, as big as the panel's height allows) and under it the boat (`BoatLv`, the next level's price
-`BoatShells` / `BoatWood` (red when short) and `BoatUp` sending `boat.upgrade`, off while an expedition is under way;
-`BoatMax` at the top) and the snack pouch (snacks a trip, `PouchUp` with its price sending `pouch.upgrade`, off while
-away; "The biggest pouch" at the top); on the right the island picked (`IsleName`, `IsleKind` (its kind and level, coloured against
-the captain's), its wild ones' portraits, `Reward` (half once charted), `Charted`), the party (its slots fill themselves with the strongest, `rankMembers`: level, then health, each time the chart opens; `PartyHint`: on a phone just "Party n/m" at the end of the kind's line, so the list has the room; the boat's level then on a small board in the chart's corner,
-`Member_f` the captain always, `Member_v<id>` / `Member_p<id>` picked up to `PartyMax`, the strongest first), the
-supplies and `SetSail` (sends `exp.start { isle, party }` and plays the sailing cutscene: `ExpeditionUI.sail`; or
-continues one under way). The island picked at first: the strongest uncharted one in range at most a level over the
-captain's, else the nearest. `SeaMap` (client): `draw(parent, size, pos, { sea, boat, chart, cap, chosen, onPick,
-onFar }) -> Frame` (`Chart`: the `MapImage`, a size x size EditableImage (`ImageMemory`, reused) drawn pixel by pixel
-(GAME_DESIGN 7: each island a signed distance to its wobbly outline and its islets', its kind's land by
-`landColor`, lit by the slope from the top left, textured by a value noise, hue-shifted ramps; the shallows, surf,
-the sea's swells; the fog past the range, the dotted rings, the flags, the outline of the one picked); without
-EditableImages the `chart_<kind>` sprites; a `Lv<n>` label under each island in range (over it, or none, where it would touch another's) and a hit button `Isle_<id>`
-over every island (`onPick(id)`, or `onFar(id)` out of range)), "index" (`Entry_<species>`:
+(`Child`: its portrait if met, else its shape and ???, its rarity), `Cost`, `Breed_<uid>`), "site" (a wild place's
+card, "Wild place", GAME_DESIGN 7; `arg` the place's piece uid from a tap on the island (WorldView), none for the
+place last shown, else `defaultSite(v)`: the lowest wild one, else the lowest cleared one; `NoSites` when the island
+has none). On the left the place, `Expedition.isleOf` on the view: `SiteName`, `SiteKind` (its Data/Sites name and
+level, coloured against the captain's), `SiteBlurb`, `SiteState` ("Wild. Nothing can be built close to it." or
+"Cleared. You can move it or clear it away in Build mode."), `Reward` ("First clear:" or "Clear it again:" and
+`Expedition.rewardOf(isle, wild)`), `LivesHere` and its wild ones' portraits (two rows at most; silhouettes for those
+not met), `Guardian` (its portrait and name), `PathLength` (the stops to the guardian), and at the bottom the snack
+pouch (`Snacks`, `PouchShells` / `PouchWood` (red when short) and `PouchUp` sending `pouch.upgrade`, off while away;
+`PouchMax` "The biggest pouch" at the top). On the right the party (`PartyHint` "Party n/m (you always go)"; its slots
+fill themselves with the strongest, `rankMembers`: level, then health, each time the card opens; `Member_f` the leader
+always, `Member_v<id>` / `Member_p<id>` picked up to `PartyMax`, the strongest first), `Supplies` and `Explore`
+(sends `exp.start { site, party }`, then `ExpeditionUI.enter(uid, keys, isle)`: the walk in; "Back to the expedition"
+while one is under way: `ExpeditionUI.open`), "index" (`Entry_<species>`:
 portrait or silhouette, name or "???", the kind of island it lives on, a heart once befriended, its blurb; "Met n of 15")
 and "looks" (the founder's portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt, `SaveLook` sends
-`founder.set`). `Menus.party()`, `Menus.chosen()` (the island picked) for the sims. `Words.errText(err)` words every ErrCode.
+`founder.set`). `Menus.party()`, `Menus.chosen()` (the uid of the place whose card is open), `Menus.defaultSite(v)`
+for the sims. `Words.errText(err)` words every ErrCode (`wild`: "Too close to a wild place. Clear it first.").
 
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
@@ -613,7 +627,12 @@ when moving a building, `Cancel`, and the `Info` plate (what it is and makes, it
 charm, its price or the next level's). `Replace` turns the bar to `ReplaceBack`, `ReplaceWhat` and a card a
 replacement (`Swap_<id>`: its name with its beds or room, `SwapTo_<id>` with `Plot.replaceCost`), a tap sends
 `plot.replace`. A tap on a placed piece of the own
-island (a ray into its `Static.Decor`) picks it up. A press dragged more than 8 px pans the view
+island (a ray into its `Static.Decor`) picks it up; a wild place stays put (the `deny` sound and a notice that it must
+be cleared first), a cleared one is picked up like any piece. The wild places' rings (GAME_DESIGN 7): while Build mode
+is open `showZones` keeps a `WildZones` model in `Workspace.PixelDynamic` (four orange neon `Ring` edges just above the
+grass round each wild place's `Plot.zone`, rebuilt when the wild pieces change); a pick that doesn't fit for a ring
+(`wildNear(p)`: the place's name) has its `Info` line say "Too close to the <name>. Clear it first, or build further
+away.". A press dragged more than 8 px pans the view
 (`CameraController.panBy`). `confirm()` sends `plot.place` (the piece stays picked for another copy) or `plot.move`;
 `close()`; `isOpen()`; `Changed: Signal<boolean>`; `tapScreen(pos, mouse?)` (the sims' and previews' tap). The tray
 is laid out again when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 food / patch, 2
@@ -630,60 +649,58 @@ the refusals in words). `strokePlan(cells) -> (plan "lay" | "lift" | "no", n, co
 plate a cell (`DrawGhost` in `Workspace.PixelDynamic`): cyan to lay, orange to lift, red where it can't.
 `debugDraw(cells, mode, keep?) -> plan` (the sims' and previews' stroke).
 
-### 10.8 The sailing cutscene (`Voyage`)
-`Voyage` (client; `init()` from `ExpeditionUI.init`): `play(keys, isle?, onDone)` after Set sail (keys: the members
-picked, `isle`: exp.start's answer): the HUD and the touch controls hide, the character's WalkSpeed and JumpHeight go
-to 0, a `Voyage` frame on the `Stage` root slides in letterbox bars (`BarTop`, `BarBottom` with "Setting sail..."
-and `VoyageSkip`). The plot's moored `Boat` (in `Street.Road_<i>`; its plan, deck places and mooring from
-`BoatSpec` at its `Level`) leaves the street (the renderer re-casts the water there) and becomes a dynamic model, its
-flags fluttering while it moves; the party's villagers (`CharacterModels.buildStanding`) and driftlings
-(`MicroModels.driftling`, 0.8 as big) stand on its deck. Phases: "open" (0.3 s), "walk" (the own founder, posed
-through `AvatarView.setOverride`, walks at 13 studs/s from where they stand on their island down to the path, the
-boardwalk and the pier's end, feet on the ground by a raycast in the `PixelRays` group; a walk over 46 studs starts
-on the jetty), "hop" (0.45 s arc onto the deck; the party cheers), "sail" (3.2 s: the boat eases out 30 studs south,
-bobbing in whole eighth studs; `CameraController.setFocus` follows the founder, then the boat), "close" (the
-`Blind`s shut over 0.4 s with the island's `IsleName`, its kind and level), then `onDone` (ExpeditionUI opens behind
-the closed blinds with its own closed curtain) and the overlay goes. `skip()` (Skip, Space, Return) closes the blinds
-at once and finishes. The boat stays away (`away`) until no expedition is under way and no stage is on screen, then
-`dock()` moors it again (its parts back, under its road; not while a cutscene plays).
-`home(members, onDone)` (the expedition over: `members` `{ look?, seed?, sp? }`, the party but the founder): the
-overlay starts with the blinds closed on "<Name>'s Isle" / "Home again!" ("Sailing home..."); the boat, back at its
-mooring's parts and moved `SAIL_Z` out to sea with the party on deck, waits ("wait") until the renderer is `ready()`
-on the island with no stage and the camera, snapped onto the boat (`setFocus(boat, true)`), is `settled()` (at most
-`OPEN_WAIT` s), the blinds open, "arrive" (`ARRIVE` s, easing in to the pier;
-the view follows it), "hop" (the founder onto the pier; the view between the boat and the founder), "land" (0.8 s, the party cheers; the
-view eases onto the founder), then the boat is docked,
-the founder's character stands on the pier (its middle, two studs and more from its walls: a character put inside a
-wall is stuck; WalkSpeed and JumpHeight back, never to 0), the HUD comes back and `onDone` (the loot's notice). Without the boat
-away it does `reveal(onDone)`: closed blinds that open once the island's picture is there. `skip()` lands at once.
-`isPlaying()`, `debugState() -> { dir ("out" | "home" | "reveal" | ""), phase, away, boat }`.
+### 10.8 The walk in and home (`Voyage`)
+`Voyage` (client; the module keeps its old name from the voyages by boat; `init()`, empty now, from
+`ExpeditionUI.init`): `play(site, isle?, onDone)` after Explore on a wild place's card (`site`: its piece uid,
+`isle`: exp.start's answer). The walk ends at the spot in front of the place (`frontOf(v, uid)`: 1.5 studs off the
+middle of its footprint's south side, on the grass); with another cutscene playing or no such place in the view, `onDone` runs at once. Else the
+panel closes, the `Hud` and `World` roots and the touch controls hide, the character's WalkSpeed and JumpHeight go to
+0, and a `Voyage` frame on the `Stage` root slides in letterbox bars (`BarTop`, `BarBottom` with `Caption` "Into the
+wild..." and `VoyageSkip`). Phases: "open" (0.3 s), "walk" (the own founder, posed through `AvatarView.setOverride`
+(`poseStanding`), walks at `WALK` (13) studs/s from where they stand to the spot, or from 6 studs south of it when
+they stand more than `MAX_WALK` (40) studs away; feet on the ground by a raycast in the `PixelRays` group;
+`CameraController.setFocus` follows them), "close" (facing the place, `whoosh_heavy`; the `Blind`s shut over `CLOSE`
+(0.4) s with the `mini_wild` icon, the place's `IsleName`, its Data/Sites name and level), then `onDone`
+(ExpeditionUI opens behind the closed blinds with its own closed curtain) and the overlay goes 0.1 s later.
+`home(site?, onDone)` (the trip over: `site` the place's piece uid, `e.site`): the overlay starts with the blinds
+closed on "<DisplayName>'s Isle" / "Home again." (`Caption` "Heading home..."); the character is put on the spot in
+front of the place and the camera snapped there (`setFocus(spot, true)`); "wait" until 0.5 s have passed and the
+renderer is `ready()` with no stage and the camera `settled()` (at most `OPEN_WAIT` (4) s), then the blinds open
+from the middle and "land" (1 s: the founder cheers, `cheer`); then the character stands on the spot (WalkSpeed and
+JumpHeight back, never to 0: 16 and 7.2 when they were held at 0), the HUD comes back and `onDone` (the loot's
+notice). With no such place in the view (cleared away meanwhile) it does `reveal(onDone)`: closed blinds ("wait",
+at least 0.3 s, until the picture is `ready()` with no stage, at most `OPEN_WAIT`) that open ("open") on the island
+(while another cutscene plays, `reveal` only runs `onDone`). `skip()` (Skip, Space, Return): going in, the blinds shut at once and it finishes; coming
+home, the blinds open and it lands at once. `isPlaying()`, `debugState() -> { dir ("out" | "home" | "reveal" | ""),
+phase, pos (the founder's feet), spot }`.
 
 ### 10.9 The islet's screen (`ExpeditionUI`, `MicroStage`)
-`ExpeditionUI`: `sail(keys, isle?)` (Set sail: `Voyage.play`, then `open` with the boat arriving), `open()` (the
+`ExpeditionUI`: `enter(site, keys, isle?)` (a wild place's Explore: `Voyage.play(site, isle)`, then `open`, the party
+dropping in from above; `keys` unused), `open()` (the
 HUD's card; right after `exp.start` it waits for the view with the expedition), `close(after?)` (the `LeaveCurtain`
 blinds close over the stage in 0.4 s, then the stage goes and `after()` runs, or `Voyage.reveal()`: Back to island
-(the expedition waits) and the end of one (`exp.home`: `after` plays `Voyage.home` with the party, then the loot's
+(the expedition waits) and the end of one (`exp.home`: `after` plays `Voyage.home(e.site)`, then the loot's
 notice and sound; it stays busy till then)), `isOpen()`, `active()`, `Changed: Signal<boolean>`, `init()` (the view's changes lay it out
 again; an expedition gone closes it; the battle's Fx "exp" act messages play back in turn (`playQueue`), act and
 timers messages set the timers; while they play the wild ones on the stage stay as they are (`buildFoes` waits:
 a snack befriending the last wild one, or a battle's last blow, ends the battle on the server before its playback,
 which still shows the throw, the hearts and the poof or the knock-out, then lays the screen out again)), and for the sims and previews `debugState() -> { open, lifted, actors, busy, node,
-foes, ship, arrived, timers, paused, sp, snacks, aim, aimWho, aimTarget, marked, shown (the keys of those on
+foes, ship, arrived (both false now: the boat arrival is unused), timers, paused, sp, snacks, aim, aimWho, aimTarget, marked, shown (the keys of those on
 the stage, not gone in a poof), arrow (its dashes shown),
 arrowGap (its end from the pick), menu, queue, gauge, clock (the battle clock), held (it stands still), inspect (the
 key shown), leave (the leave card is up) }`, `debugInspect(key?)` (the plate on or off), `debugGo()`, `debugSnack(target?)`, `debugSkill(who, id,
 target?)`, `debugFlee()`, `debugAim(kind)`, `debugPoint(key, tap) -> boolean` (the pointer over someone: a hover or a
 tap), `debugScreenOf(key) -> (i, j)`, `debugHome()`, `debugWait(seconds?)` (a longer wait for
 the picture: the fake engine bakes slowly). It hides the `Hud` and `World` roots and the touch controls, opens
-`MicroStage.open(kind.stage, { top, bottom }, isle.seed)` (the camera's stage mode, the overlay's strips kept clear)
+`MicroStage.open(kind.stage, { top, bottom }, isle.seed, true)` (the camera's stage mode, the overlay's strips kept clear)
 and draws on the `Stage` root (full screen: Roblox's top bar's height, `TopBar`, is kept clear; GAME_DESIGN 2's
 island looks: the header and footer are dark boards, `HEAD_H` 25 and `FOOT_H` 47, each with a 3 px plank `Trim` on the
 side facing the island, the footer's contents in `Footer` under its trim on the `FooterBoard`; the skill window, the
 alert and the results card in frames of planks): the `Header` (the
-island's name and level, `Loot_<kind>`, the path's `Node<i>` icons (the ones ahead hidden
-but the guardian's), `Here`, `BackToIsland`), the `Footer` (GAME_DESIGN 7 "the battle's boxes": the commands two by
-two at its left, `CMD_W` 72 each: between stops only `SailHome` (the next stop comes up by itself `AUTO_GO` (0.2) s
-after the last is done: `goOn`; Space at once); in battle `Act_skills` with `SpBar` (the skill points) under
+place's name and level, `Loot_<kind>`, `Stage` ("Stage n of m"), the whole path's `Node<i>` icons (the ones ahead
+hidden but the guardian's), `Here`, `BackToIsland`), the `Footer` (GAME_DESIGN 7 "the battle's boxes": the commands two by
+two at its left, `CMD_W` 72 each: between stops only `SailHome` ("Head home"; the next stop comes up by itself `AUTO_GO` (0.2) s
+after the last is done: `goOn`; Space at once), once the trip is over `SailHome` alone; in battle `Act_skills` with `SpBar` (the skill points) under
 it, `Act_snack` ("Snack x<n>": the trip's snacks left) and `Act_flee` (both off against a guardian); aiming
 `AimWhat`, `AimHint`, `Aim_use` (Throw! / Use!) and `Aim_back`; the party's boxes two by two at its right, `PARTY_W`
 112), the wild ones' boxes down the stage's top left (`FOE_W` 104, those still in the battle; a new line-up's slide
@@ -707,17 +724,16 @@ button, over it near the bottom) shows while the mouse is over a skill (`MouseEn
 on it (`InputBegan` / `InputEnded`, touch); held `HOLD_SECS` it only reads (the release doesn't use it);
 `debugSkillTip("<who>_<id>") -> (shown, lines)` shows it as a hover would), the timers' layer `Timers`
 (`Timer_<key>` over every standing fighter's head every frame: gold, orange for the wild ones, flashing when full), the `Say` narration, a won battle's `Alert` (a small plate under the header: Victory!, its
-lines, a new friend's portrait; gone by itself after `AUTO_CARD` s, no button), the `Result` card (`ResultOk`: Sail
-home after the guardian or a fall) and the `Curtain` (ink blinds with the island's name, kind and level until the stage is `ready()` and 1.2 s
-passed, at most `StageWait`). The actors: the founder (the stage's own), villagers (`stage.rival(look)`), driftlings
+lines, a new friend's portrait; gone by itself after `AUTO_CARD` s, no button), the `Result` card (`ResultOk`: Head
+home, after the guardian or a fall) and the `Curtain` (ink blinds with `mini_wild`, the place's name, its Data/Sites
+name and level until the stage is `ready()` and 1.2 s passed, at most `StageWait`). The actors: the founder (the stage's own), villagers (`stage.rival(look)`), driftlings
 and wild ones (`MicroModels.driftling`, the guardian 1.6 times as big), posed every frame (drops, idle hops, lunges,
-KO). Arriving after the cutscene the stage's drop happens behind the curtain (`lift()` at once) and the expedition
-boat (`MicroModels` "ship" at the profile's boat level, its flags fluttering) comes up behind the party heading for
-the wild ones (`FACE_FOES`) and glides `SHIP_BACK` studs in to moor with its bow in the foam (`SHIP_X`, `shipZ0` from
-`Stage.landing(SHIP_X)` and the boat's length, over `SHIP_IN` s from the curtain's lift); the picture opens over it
-(`Stage.follow(-ARRIVE_CAM, true)`) and the camera comes up with the party once it hops off; the party stands on its
-deck (`DECK_SPOTS`, room space: the boat's right is the room's -x, its bow -z), then one after another hops off onto
-the beach (`HOP_T`, `shipLand`) and walks to its places (`RUN` studs/s; the deck places from `BoatSpec.deck`);
+KO). The party drops in from above after the walk in as on a reopening (`enter` leaves `arriving` false). The boat
+arrival that followed the old sailing cutscene is still in the code but never runs: with `arriving` the drop
+happened behind the curtain and the expedition boat (`MicroModels` "ship", level 1 now) glided `SHIP_BACK` studs in
+to moor with its bow in the foam (`SHIP_X`, `shipZ0` from `Stage.landing(SHIP_X)`, over `SHIP_IN` s; the picture
+opening over it, `Stage.follow(-ARRIVE_CAM, true)`), the party on its deck (`DECK_SPOTS` from `BoatSpec.deck`)
+hopping off one after another (`HOP_T`, `shipLand`) and walking to its places (`RUN` studs/s);
 a round's events play back one by one as moves (GAME_DESIGN 7: `startMove(actor, kind, other?)`, `MOVES` their lengths,
 `frameOf` what each does at a moment: `{ du, dv, dy, tilt, sq, spin, action, k, mood, speed }`; `attack quick bash
 zap` in place (no run up to the target: "they now attack in place"): a plain attack is the fighter's own `Style`
@@ -733,8 +749,11 @@ victory`); a blow `freeze`s the moves (hit-stop: their clocks held) and `shake`s
 move's tilt and move their limbs (`MicroModels.animate` with the move's mood); the founder and villagers take the
 move's action (`CharacterModels.poseAction`); keys: Space / Return go on; in battle 1 / S a snack, 2 / K the skills,
 3 / F flee; aiming arrows or Tab switch the pick, Space / Return go, Escape / Backspace back. The header shows `Stage`
-and a window of the endless path (`Expedition.nodesTo`: a stop back to `PATH_AHEAD` ahead); a guardian's fall is an
-`Alert` and the party walks on (it never waits before a fight). The tips' fighting and catching steps (`tut` 6 .. 8) show as a parchment note
+("Stage n of m") and the place's whole path (`Expedition.nodesOf`: the guardian's crown at its end). **Cleared**: the
+guardian's fall clears the place and ends the trip (the server's `out.reward`): confetti, the fanfare and the `Result`
+card "<name> cleared" ("First clear! +n shells" or "Cleared again. +n shells", "Brought home: ..." from `out.loot`,
+the xp and level lines, a new friend's portrait, and on a first clear "You can build round it now, move it or clear
+it away.") with `ResultOk` "Head home" (`goHome`). The party never waits before a fight. The tips' fighting and catching steps (`tut` 6 .. 8) show as a parchment note
 over the footer (`TutTip`, worded for a battle, a guardian or the walk; `TutOk` on the last, sending `tut.next`; not
 while aiming or in the skill window), and in the catching step the `Act_snack` button shines while a wild one is hurt.
 The timed battle (GAME_DESIGN 7): the server runs it; the client keeps the timers as last told (`gaugeG` at
@@ -790,7 +809,7 @@ or the finger lifts; never while aiming.
 "Head back?": `LeaveHome` (`goHome`: `exp.home`, mid-battle too), `LeaveWait` (`close()`, the trip waits; not when it
 is over) and `LeaveStay` (the battle goes on).
 **The end of a fall**: the `Result` card titled "Expedition Complete!" (its width fits the big title) lists the loot
-(`out.loot`), the party's xp and each member's levels (`out.gained`), then Sail home.
+(`out.loot`), the party's xp and each member's levels (`out.gained`), then Head home.
 `MicroStage` (client): `open(variant, margins?, seed?, endless?) -> Stage` (an islet set laid out by the island's seed), `current()`, `has(variant)`, the yaws `FACE_VIEWER
 FACE_RIGHT FACE_LEFT FACE_AWAY FACE_FOES FACE_PARTY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer), `uvOf(x, z)`
 (u, v of a room-space point), the battle's places `PARTY_XZ` (four, the founder first, about 4 studs apart along u) and `FOE_XZ` (three, the
@@ -811,7 +830,8 @@ t, speed, action, k?), puff(pos, kind, n?, color?) (3D bits from a pool of 56 pa
 smoke bubble petal ember twinkle splash snow heal heart`), lift(), step(t, dt) (the bits and the set's ambient life:
 gulls, butterflies, smoke, snow, bubbles, a crab), ready(), close() }`. Stage space: u to the screen's right, v toward
 the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
-**The endless islet** (`endless`, the expeditions: GAME_DESIGN 7 "the run on", "the battle view"): the set is built
+**The endless islet** (`endless`, the expeditions: GAME_DESIGN 7 "the run on", "the battle view"; the name is
+older than the wild places, whose paths end at their guardians): the set is built
 area by area, area k a folder `Area<k>` at `AREA_OFF` x k in room space ((0, 0, -24): one floor on, so the floors meet
 edge to edge into one road running up and to the right on the screen; whole studs, so every box stays on the grid),
 `AREA_U` and `AREA_V` x k along u and v; each from the seed + 7919 k (the builder's `off`, `endless`), its landmark
@@ -834,7 +854,7 @@ floor (the meadow's stepping stones, the snowbank, the kelp's back row, a lava c
 mangrove's channel runs along the left side. A floor prop keeps off the road's middle (|x| over 6.5), a shore prop
 off the neighbours' floors and the road's band, a tall one to the land beside the floor (`shoreSpot`). The camera frames the battle well back (the party's feet and heads, the wild ones', the island's sides 19 studs out
 level with them: about 54 studs across the screen; "zoom out more in the expeditions even more", 2026-11-11). `Stage.landing(x) -> z`: where area 0's beach meets the foam behind the party at room-space x (the
-arriving boat's bow). The sea is laid once (`SEA_AREAS`, 200 areas long: a part across the whole screen would re-bake it).
+arriving boat's bow: only the unused boat arrival asks). The sea is laid once (`SEA_AREAS`, 200 areas long: a part across the whole screen would re-bake it).
 Areas 0 and 1 are built with the stage (before its first picture), the rest by `Stage.area(k)` (the areas up to
 k + 2, one at a time on a background thread, `Blocks.pace` 40 parts a frame, out of sight; the ambient life moves to
 area k: `ambOff`, `ambU`, `ambV`); `Stage.trim(k)` drops the areas below k - 1 (out of sight too);
@@ -855,9 +875,8 @@ blush (`p`); `A` the species' body ramp, `Z` its accent (`CREATURE_ICONS`), insi
 The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not met yet); an
 animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the driftlings' portraits
 `icon_<species>` (16x16: a mask a body shape in the species' two ramps), the small icons `mini_<name>` (11x11: `shell
-food wood sun moon charm folk pal visitor home nest train decor start loot chest wild rest boss star boat`), the sea
-chart's islands `chart_<home beach meadow volcano snow reef>` (13x10, with `_sil`: SeaMap's fallback), the arrows
-`arrow_<dir>` (13x13) and `arrow_<dir>_t` (7x7), `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`:
+food wood sun moon charm folk pal visitor home nest train decor start loot chest wild rest boss star boat`; `boat`
+unused since the Explore button went), the arrows `arrow_<dir>` (13x13) and `arrow_<dir>_t` (7x7), `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`:
 `has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) -> GuiObject` (an ImageLabel `Sprite_<name>`
 showing the sprite's EditableImage, made once and shared, `ResampleMode` Pixelated, at the sprite's own size: no
 scale; without EditableImages a Frame of 1 px run rects), `anim(parent, names, pos?, z?) -> Anim { f, w, h, set(i),
@@ -866,8 +885,8 @@ flash(seconds?), moveTo(x, y) }`.
 ## 11. Verification
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
-  lists them: Util, Validate, Numbers, DataIntegrity, Island, Battle, Expedition, Chart, Economy, Plot, Schema, Shading,
-  Raster, Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
+  lists them: Util, Validate, Numbers, DataIntegrity, Traits, Island, Battle, Expedition, Breed, Sites, Economy, Plot,
+  Quest, Schema, Shading, Raster, Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.
 - `tools/preview`: PNGs of the real renderer and UI at device sizes (`tools/README.md`).

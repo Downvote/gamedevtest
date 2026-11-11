@@ -1,14 +1,14 @@
 --!strict
--- The expedition boat by its level (GAME_DESIGN 7; docs/ARCHITECTURE.md 6): one description of every part, so the
--- boat moored at the pier (Models/StreetModels, static), the one on an islet's stage and the ones crossing the sea
--- (Models/MicroModels "ship", dynamic) and the cutscene's (UI/Voyage) are the same boat. Pure data from a level:
+-- The boat by its level (GAME_DESIGN 8; docs/ARCHITECTURE.md 6): one description of every part, so the boat moored
+-- at the pier (Models/StreetModels, static: always level 1, scenery since the sea chart went) and the ones crossing
+-- the sea (Models/MicroModels "ship", dynamic) are the same boat. Pure data from a level:
 --   parts(level) -> { Part }   (boat space: x across, y up from the deck's top, z toward the bow; all world-aligned)
 --   dims(level) -> Dims         (length, width, the hull's depth under the deck)
 --   deck(level) -> { Vector3 }  (where the party stands: the founder first, then three)
 --   moor(level) -> (x, z)       (its centre beside the pier, plot-local; Data/Street's pier)
 -- Level 1 is a rowing sloop; 2 brings a cabin, a striped sail, a lantern, fenders and a life ring; 3 a bigger hull, a
 -- bowsprit and jib, barrels; 4 a foremast, a crow's nest, a figurehead and gold trim; 5 a chimney and a stern
--- lantern; 6 a mizzen mast and blue sails. Flags and pennants are named "Flag..." (they flutter: UI/Voyage,
+-- lantern; 6 a mizzen mast and blue sails. Flags and pennants are named "Flag..." (they flutter:
 -- MicroModels.flutter; the moored boat's ripple in the pixel filter's wind, PixelWind 2).
 local Street = require(script.Parent.Parent.Data.Street)
 

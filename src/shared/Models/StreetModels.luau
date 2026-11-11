@@ -197,8 +197,8 @@ local function tuft(parent: Instance, at: CFrame, flower: string?)
 	end
 end
 
--- The expedition boat moored beside the pier (Models/BoatSpec at the boat's level; its bow to the south): rebuilt
--- by PlotService when the boat is upgraded. Its flags carry PixelWind 2 (they ripple in the pixel filter's wind).
+-- The boat moored beside the pier (Models/BoatSpec at `level`, 1 from `road`: scenery; its bow to the south). Its
+-- flags carry PixelWind 2 (they ripple in the pixel filter's wind).
 function StreetModels.boat(parent: Instance, origin: Vector3, level: number): Model
 	local m = Blocks.model(nil, "Boat")
 	m:SetAttribute("Level", level)

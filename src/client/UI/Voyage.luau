@@ -433,6 +433,8 @@ end
 -- answer), then `onDone` (the place's screen). Without the place in the view it goes straight on.
 function Voyage.play(site: number, isle: Types.Isle?, onDone: () -> ())
 	if state then
+		-- (another cutscene is playing: straight on to the place's screen, as reveal does)
+		onDone()
 		return
 	end
 	local v = StateClient.view()

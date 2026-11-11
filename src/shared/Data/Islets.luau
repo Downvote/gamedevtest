@@ -1,9 +1,10 @@
 --!strict
--- The kinds of island the party can find at sea (GAME_DESIGN 7). Pure. Every expedition sails to an island of its
--- own, made up when it sets sail (Logic/Expedition.chart: its kind, name, driftlings, path and loot from a seed and
--- the level the captain picked). A kind can turn up once the level reaches its `lvl`: beaches from the start,
--- meadows from 5, mangroves from 7, volcanoes from 10, grottoes from 13, snowfields from 16, bluffs from 20, reefs from
--- 23, ruins from 28 (GAME_DESIGN 7: "make much more creatures, some rarer than others, and more islands as well").
+-- The kinds of ground behind the wild places (GAME_DESIGN 7; Data/Sites names the place of each kind: the Tide Pool
+-- is a beach, the Cave a grotto). Pure. A place is made up from its kind, its level and a seed (Logic/Expedition.chart:
+-- its name, driftlings, path and loot). `lvl` is the level a kind's driftlings first turn up at (the stray from
+-- another kind is picked from those open at the place's level): beaches from the start, meadows from 5, mangroves
+-- from 7, volcanoes from 10, grottoes from 13, snowfields from 16, bluffs from 20, reefs from 23, ruins from 28
+-- (GAME_DESIGN 7: "make much more creatures, some rarer than others, and more islands as well").
 --   stage: its 3D set (UI/MicroStage, laid out by the island's seed); wild: the driftlings that live there (Data/
 --   Creatures' islet: every one of the kind, the rarer seen less often; another kind's may stray in); first / last: the
 --   words its islands' names are made of; titles: what a guardian is called.
@@ -11,7 +12,7 @@ local Creatures = require(script.Parent.Creatures)
 export type IsletDef = {
 	id: number,
 	name: string, -- the kind ("Beach")
-	plural: string, -- ("Beaches": the Explore panel, the Index)
+	plural: string, -- ("Beaches")
 	stage: string,
 	lvl: number,
 	wild: { string },

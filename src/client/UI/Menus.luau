@@ -795,8 +795,8 @@ local function buildIndex(body: Frame, _arg: any?)
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)
 		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 1), { color = if n >= 1 then UIKit.color(rar.color) else UIKit.color("text_dim"), z = 4, name = "Name" })
-		-- its rarity (always: a rare one is worth looking for) and where it lives once met
-		local isl = Islets.list[d.islet]
+		-- its rarity (always: a rare one is worth looking for) and where it lives once met (the kind of wild place)
+		local isl = SiteData.byIslet[d.islet]
 		UIKit.text(f, if n >= 1 and isl then rar.name .. ", " .. string.lower(isl.plural) else rar.name, UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
 		if n >= 2 then
 			PixelSprites.image(f, "mini_charm", UDim2.new(1, -13, 0, 2), 4)

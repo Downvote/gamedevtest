@@ -3335,7 +3335,7 @@ function ExpeditionUI.open()
 		return
 	end
 	if e == nil then
-		-- just set sail: the view with the expedition is on its way
+		-- just set out: the view with the expedition is on its way
 		pendingOpen = os.clock() + 3
 		return
 	end
