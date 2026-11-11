@@ -461,9 +461,20 @@ rebuild = function()
 		local ex = UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(54, 13), UDim2.new(1, -102, 0, 2), function()
 			local res = ask("island.expand", {})
 			if res.ok then
-				Audio.play("fanfare")
+				-- cheer when the bigger island is on screen (the server swaps in the island it built ahead; the
+				-- filter re-bakes it in a few frames), at most a moment later
 				local moved = if type(res.data) == "table" then tonumber(res.data.moved) or 0 else 0
-				UIKit.notice(if moved > 0 then string.format("Your island grew! %d building%s moved over for the bigger lodge.", moved, if moved == 1 then "" else "s") else "Your island grew! New buildings to build.", UIKit.color("good"), 4)
+				local cheered = false
+				local function cheer()
+					if cheered then
+						return
+					end
+					cheered = true
+					Audio.play("fanfare")
+					UIKit.notice(if moved > 0 then string.format("Your island grew! %d building%s moved over for the bigger lodge.", moved, if moved == 1 then "" else "s") else "Your island grew! New buildings to build.", UIKit.color("good"), 4)
+				end
+				PixelRenderer.afterBake(cheer)
+				task.delay(1.5, cheer)
 			end
 		end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells and v.wood >= cost.wood })
 		local _ = ex

@@ -157,6 +157,12 @@ local function cellsOf(tier: number): Cells
 	return made
 end
 
+-- Works a tier's cells out now (a few ms to tens of ms at the top tiers), so the moment that needs them (an
+-- expansion) doesn't: the server warms every tier at start, the client the next one.
+function Street.warm(tier: number)
+	cellsOf(tier)
+end
+
 -- The layer of the whole-stud cell x .. x + 1, z .. z + 1 (plot-local).
 function Street.layer(tier: number, x: number, z: number): number
 	return cellsOf(tier).layer[key(x, z)] or Street.SEA_CELL

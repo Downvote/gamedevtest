@@ -556,10 +556,11 @@ local function stepHome(s: State, dt: number)
 	local now = os.clock()
 	local _ = dt
 	if s.phase == "wait" then
-		-- behind the closed blinds: the view comes back to the sea off the pier, the picture bakes
+		-- behind the closed blinds: the view is put on the boat off the pier (never on the land first), the picture
+		-- bakes; the blinds open once the view is there
 		moveBoat(s, s.base0 * CFrame.new(1.5, 0, SAIL_Z))
-		CameraController.setFocus(s.base.Position + Vector3.new(0, 0, 3))
-		if (s.t >= 0.5 and PixelRenderer.ready() and CameraController.stage() == nil) or s.t >= OPEN_WAIT then
+		CameraController.setFocus(s.base.Position + Vector3.new(0, 0, 3), true)
+		if (s.t >= 0.5 and PixelRenderer.ready() and CameraController.stage() == nil and CameraController.settled()) or s.t >= OPEN_WAIT then
 			s.phase, s.t = "arrive", 0
 			openBlinds(s)
 			Audio.play("trumpet")
@@ -584,7 +585,8 @@ local function stepHome(s: State, dt: number)
 		local to = Vector3.new(s.pier.X, groundY(s.pier.X, s.pier.Z, s.pier.Y), s.pier.Z)
 		local p = deckPos:Lerp(to, e) + Vector3.new(0, math.sin(e * math.pi) * 2, 0)
 		local yaw = math.atan2(to.X - deckPos.X, to.Z - deckPos.Z)
-		CameraController.setFocus(deckPos:Lerp(to, e))
+		-- the ship and the founder hopping off it both in the middle of the view
+		CameraController.setFocus(s.base.Position:Lerp(deckPos:Lerp(to, e), 0.5 + 0.25 * e))
 		AvatarView.setOverride(function(rig, t, _dt)
 			CharacterModels.poseAction(rig, CFrame.new(p) * CFrame.Angles(0, yaw, 0), t, 0, "jump")
 		end)
@@ -596,6 +598,8 @@ local function stepHome(s: State, dt: number)
 	elseif s.phase == "land" then
 		moveBoat(s, s.base0)
 		local pos = s.pos
+		-- the view settles on the founder on the pier (the moored ship beside them), where it follows them next
+		CameraController.setFocus(s.base.Position:Lerp(pos, 0.75 + 0.25 * math.clamp(s.t / 0.6, 0, 1)))
 		AvatarView.setOverride(function(rig, t, _dt)
 			CharacterModels.poseAction(rig, CFrame.new(pos) * CFrame.Angles(0, math.pi, 0), t, 0, "cheer")
 		end)
@@ -743,7 +747,7 @@ function Voyage.home(members: { Member }, onDone: () -> ())
 	holdCharacter(s)
 	buildPuppets(s, members)
 	moveBoat(s, base0 * CFrame.new(1.5, 0, SAIL_Z))
-	CameraController.setFocus(s.base.Position)
+	CameraController.setFocus(s.base.Position + Vector3.new(0, 0, 3), true)
 	run(s)
 end
 

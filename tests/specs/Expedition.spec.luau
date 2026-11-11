@@ -333,25 +333,31 @@ return function()
 		while e.battle == nil do
 			Expedition.next(p, e, rng)
 		end
-		for _, f in e.battle.foes do
-			f.lvl, f.hp = 1, 1
-		end
-		for _ = 1, 40 do
-			local foe = nil
-			for _, f in e.battle.foes do
-				if f.hp > 0 then
-					foe = f
-				end
-			end
-			if e.battle == nil or foe == nil then
-				break
-			end
-			Expedition.snack(p, e, foe.key, rng)
-			if p.tut == 8 then
-				break
-			end
-		end
+		-- the tips' first snack always befriends, even a wild one at full health and far above the party
+		local foe = e.battle.foes[1]
+		foe.lvl, foe.hp = 60, foe.maxHp
+		local ok, out = Expedition.snack(p, e, foe.key, rng)
+		T.truthy(ok and out.friend ~= nil, "the first snack: a friend for sure")
 		T.eq(p.tut, 8, "a driftling befriended: the last tip")
+		-- after the tips: the chance again (a healthy wild one far above the party rarely takes one)
+		local misses = 0
+		for _ = 1, 20 do
+			local q = fresh()
+			q.tut = 0
+			table.insert(q.plot.placed, { uid = q.nextId, id = "nest", x = 0, z = 0, rot = 0 })
+			q.nextId += 1
+			local _, ex = Expedition.start(q, Expedition.chart(1, 8), {})
+			while ex.battle == nil do
+				Expedition.next(q, ex, rng)
+			end
+			local w = ex.battle.foes[1]
+			w.lvl, w.hp = 60, w.maxHp
+			local okq, o = Expedition.snack(q, ex, w.key, rng)
+			if okq and o.friend == nil then
+				misses += 1
+			end
+		end
+		T.truthy(misses > 0, "outside the tips a snack can miss")
 	end)
 	T.it("losing: the expedition ends, all the loot comes home (no penalty)", function()
 		local p = fresh()

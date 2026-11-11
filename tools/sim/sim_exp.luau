@@ -131,8 +131,6 @@ H.expect(s.exp and s.exp.battle ~= nil, "rules", "a battle on the path")
 H.expect(s.exp.battle.paused == true, "rules", "a new battle waits, paused (its wild ones land first)")
 res = H.req(p, "exp.next", {})
 H.expect(not res.ok and res.err == "in_battle", "rules", "no stepping on mid-battle", tostring(res.err))
-res = H.req(p, "exp.home", {})
-H.expect(not res.ok and res.err == "in_battle", "rules", "no sailing home mid-battle", tostring(res.err))
 local fx = H.watchFx(p)
 local acts0 = s.exp.battle.acts
 E.run(3)
@@ -308,17 +306,43 @@ if s.exp and s.exp.battle then
 end
 H.expect(hp1 < hp0 or (s.exp and s.exp.battle == nil), "screen", "blows land by themselves", string.format("%d -> %d", hp0, hp1))
 H.expect(#E.errors == errs0, "screen", "its playback ran without errors", tostring(#E.errors - errs0))
+-- a fighter's details: the mouse over a wild one shows its name, what it is, its stats, passive and mutations
+if s.exp and s.exp.battle then
+	local CreaturesS = H.sharedServer("Data.Creatures")
+	local foe = s.exp.battle.foes[1]
+	local shownKey, lines = H.inClient(p, EUI.debugInspect, foe.key)
+	local cd = CreaturesS.byId[foe.sp]
+	local hasPassive, hasMuts = false, false
+	for _, l in lines do
+		if cd and string.find(l, cd.passive.name, 1, true) then
+			hasPassive = true
+		end
+		if l == "No mutations" or string.find(l, "*", 1, true) then
+			hasMuts = true
+		end
+	end
+	H.expect(shownKey == foe.key and lines[1] == foe.name and string.find(lines[2] or "", "driftling", 1, true) ~= nil, "screen", "the mouse over a wild one: its details plate (name, what it is)", table.concat(lines, " | "))
+	H.expect(hasPassive and hasMuts and string.find(lines[3] or "", "HP", 1, true) ~= nil, "screen", "its stats, passive and mutations", table.concat(lines, " | "))
+	local gone = H.inClient(p, EUI.debugInspect, nil)
+	H.expect(gone == nil and not H.inClient(p, EUI.debugState).inspect, "screen", "the mouse off it: the plate goes")
+end
 -- the skill window: it pauses and greys the battle; a skill with a member to aim at shows the leader's ring and arrow
 if s.exp and s.exp.battle then
 	s.exp.battle.sp = 10
 	H.clickNamed(p, "Act_skills", { wait = 0.4 })
 	st = H.inClient(p, EUI.debugState)
 	H.expect(st.menu and s.exp.battle.paused, "screen", "Skills: the window opens, the battle pauses")
+	-- an action playing freezes where it is (the battle's own clock stands still), and runs on after
+	local c0 = st.clock
+	E.run(0.6)
+	st = H.inClient(p, EUI.debugState)
+	H.expect(st.held and st.clock == c0, "screen", "choosing: the playback stands still, mid-attack too", string.format("%.2f -> %.2f", c0, st.clock))
 	H.expect(H.inClient(p, DayLightX.debugState).grade ~= "" or true, "screen", "(the picture greys: DayLight.hold)")
 	H.expect(H.buttonNamed(p, "Skill_f_cry") ~= nil and H.buttonNamed(p, "Skill_f_aid") ~= nil, "screen", "the leader's skills learnt by level (Rally Cry, First Aid)")
 	H.clickNamed(p, "Skills_close", { wait = 0.4 })
 	st = H.inClient(p, EUI.debugState)
 	H.expect(not st.menu and not s.exp.battle.paused, "screen", "Back: the battle runs on")
+	H.expect(not st.held and st.clock > c0, "screen", "and its playback with it", string.format("%.2f -> %.2f", c0, st.clock))
 	H.clickNamed(p, "Act_skills", { wait = 0.4 })
 	s.exp.party[2].hp = 100
 	H.clickNamed(p, "Skill_f_aid", { wait = 0.4 })
@@ -362,8 +386,15 @@ if s.exp and s.exp.battle then
 	end
 	E.run(2)
 end
-H.clickNamed(p, "BackToIsland", { wait = 0.5 })
-H.expect(not H.inClient(p, EUI.isOpen) and s.exp ~= nil, "screen", "Back to island: the screen closes, the expedition waits")
+-- Back to island: a card (the battle paused): Sail home now, Leave it here, Stay
+H.clickNamed(p, "BackToIsland", { wait = 0.4 })
+H.expect(H.inClient(p, EUI.debugState).leave and H.buttonNamed(p, "LeaveHome") ~= nil and H.buttonNamed(p, "LeaveWait") ~= nil and H.buttonNamed(p, "LeaveStay") ~= nil, "screen", "Back to island: the leave card (sail home, leave it here, stay)")
+H.expect(s.exp.battle == nil or s.exp.battle.paused, "screen", "the battle paused while it is up")
+H.clickNamed(p, "LeaveStay", { wait = 0.4 })
+H.expect(not H.inClient(p, EUI.debugState).leave and (s.exp.battle == nil or not s.exp.battle.paused), "screen", "Stay: the card goes, the battle runs on")
+H.clickNamed(p, "BackToIsland", { wait = 0.4 })
+H.clickNamed(p, "LeaveWait", { wait = 0.6 })
+H.expect(not H.inClient(p, EUI.isOpen) and s.exp ~= nil, "screen", "Leave it here: the screen closes, the expedition waits")
 H.expect(s.exp.battle == nil or s.exp.battle.paused, "screen", "and its battle waits, paused")
 H.expect(H.buttonNamed(p, "Menu_build") ~= nil, "screen", "the HUD is back")
 -- the guardian falls (the party made strong)
@@ -508,6 +539,7 @@ if s.exp then
 end
 over = walk()
 H.expect(over == "lost", "defeat", "the party falls", tostring(over))
+H.expect(s.exp ~= nil and type(s.exp.gained) == "table" and type(s.exp.gained.xp) == "number" and type(s.exp.gained.ups) == "table", "defeat", "the trip's tally kept for the Expedition Complete card (xp, levels)")
 local lost = s.exp and E.deepCopy(s.exp.loot)
 local f0, w0 = prof.food, prof.wood
 res = H.req(p, "exp.home", {})
@@ -554,10 +586,81 @@ if s.exp and s.exp.battle then
 	end
 	H.expect(goneAt == nil or goneAt >= 0.9, "friend", "it stays on the stage through the throw, the arc and the hearts", tostring(goneAt))
 	H.expect(goneAt ~= nil and goneAt <= 2.5, "friend", "then goes in its poof", tostring(goneAt))
-	H.clickNamed(p, "BackToIsland", { wait = 0.5 })
+	H.clickNamed(p, "BackToIsland", { wait = 0.4 })
+	H.clickNamed(p, "LeaveWait", { wait = 0.5 })
 	E.run(0.5)
 end
 BattleS.treatChance = chance0
+
+------------------------------------------------------------------ a snack mid-attack; sailing home mid-battle
+E.phase = "midbattle"
+if s.exp then
+	H.req(p, "exp.home", {})
+	E.run(1)
+end
+prof.food = 1000
+res = H.req(p, "exp.start", { isle = 1, party = "" })
+H.expect(res.ok, "midbattle", "the captain sets out again", tostring(res.err))
+nextBattle()
+if s.exp and s.exp.battle then
+	local b = s.exp.battle
+	for _, f in b.foes do
+		f.hp, f.maxHp = 3000, 3000
+	end
+	s.exp.party[1].hp, s.exp.party[1].maxHp = 5000, 5000
+	-- the server's side: a snack thrown while an attack plays cancels it (the health back as it was)
+	H.req(p, "exp.pause", { on = false })
+	local rng = H.sharedServer("Logic.Util").newRng(1)
+	local hit = nil
+	for _ = 1, 200 do
+		E.run(0.05)
+		if b.lock > 0 and b.undo ~= nil then
+			hit = b.undo
+			break
+		end
+	end
+	if H.expect(hit ~= nil, "midbattle", "an attack under way") then
+		H.req(p, "exp.pause", { on = true })
+		local target = nil
+		for _, f in b.foes do
+			if f.hp > 0 then
+				target = f.key
+			end
+		end
+		local chance1 = BattleS.treatChance
+		BattleS.treatChance = function()
+			return 0
+		end
+		local r2 = H.req(p, "exp.snack", { target = target })
+		BattleS.treatChance = chance1
+		local ev = r2.ok and r2.data and r2.data.events
+		H.expect(ev and ev[1] and ev[1].t == "cancel" and ev[2] and ev[2].t == "treat", "midbattle", "a snack thrown mid-attack: the attack cancelled first", tostring(ev and ev[1] and ev[1].t))
+		local same = true
+		for _, f in b.foes do
+			if hit.hp[f.key] ~= f.hp then
+				same = false
+			end
+		end
+		if hit.hp.f ~= s.exp.party[1].hp then
+			same = false
+		end
+		H.expect(same, "midbattle", "everyone's health as it was before the attack")
+		local _ = rng
+	end
+	-- the screen: Back to island, Sail home now, in the middle of the battle
+	H.push(p, 0.3)
+	H.clickNamed(p, "ExpContinue", { wait = 0.5 })
+	E.run(Tuning.StageWait + 3)
+	local shells0 = prof.shells
+	s.exp.loot.shells += 77
+	H.clickNamed(p, "BackToIsland", { wait = 0.4 })
+	H.clickNamed(p, "LeaveHome", { wait = 1.5 })
+	H.expect(s.exp == nil and prof.shells >= shells0 + 77, "midbattle", "Sail home now, mid-battle: the trip ends, the loot comes home", string.format("%s %d", tostring(s.exp), prof.shells - shells0))
+	-- (this trip set out without its cutscene: home is the plain blinds; a real one sails the boat back)
+	local VoyageS = H.cmod(p, "UI.Voyage")
+	E.run(3)
+	H.expect(not H.inClient(p, EUI.isOpen) and H.inClient(p, VoyageS.debugState).phase == "" and H.buttonNamed(p, "Menu_build") ~= nil, "midbattle", "the screen gives way to the island again (the HUD back)")
+end
 if s.exp then
 	H.req(p, "exp.home", {})
 end

@@ -104,6 +104,7 @@ type Surf = {
 	sWave: buffer, -- u8 the water's wave phase (from the world position)
 	static: Raster.Frame,
 	frame: Raster.Frame,
+	ready: boolean?, -- a finished bake is in its buffers (a re-bake then works behind it: `back`)
 }
 
 type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number }
@@ -135,6 +136,14 @@ local bakeRX0, bakeRY0, bakeRX1, bakeRY1 = 0, 0, -1, -1
 local bakeOX, bakeOY = 0, 0
 local bakeRays = 0
 local rebakeAt = -1 -- os.clock() when a pending re-bake starts (debounce)
+local rush = false -- a big change's re-bake: more ms a frame (the player is waiting to see it)
+-- A re-bake while a finished picture is on screen writes into these (fresh buffers and id tables) instead, so the
+-- picture keeps living meanwhile (the crew, villagers, water and wind go on drawing over it at its camera); the
+-- finished bake swaps in whole. Without it the screen stood still for the whole bake: the lag before an expansion.
+type BackTabs = { ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, nextId: number }
+local back: Surf? = nil
+local backTabs: BackTabs? = nil
+local afterBake: { () -> () } = {} -- called once when the next bake is on screen (PixelRenderer.afterBake)
 
 local staticIds: { [Instance]: number } = {}
 local albedos: { [number]: number } = {}
@@ -302,6 +311,14 @@ local function deactivate(why: string?)
 		image.Visible = false
 	end
 	prevRects = {}
+	rush = false
+	back, backTabs = nil, nil
+	-- no bake is coming: whoever waits for one goes on now
+	local fns = afterBake
+	afterBake = {}
+	for _, fn in fns do
+		task.spawn(fn)
+	end
 end
 
 ------------------------------------------------------------------ static shading
@@ -735,8 +752,21 @@ local function refineShadows(s: Surf, x0: number, y0: number, x1: number, y1: nu
 	return rays
 end
 
-local function finishBake(s: Surf)
+local function finishBake(s: Surf, b: Surf)
 	baking = false
+	if b ~= s then
+		-- the bake behind the picture is done: its buffers become the layer's (the old picture's wind paint goes
+		-- with its buffers)
+		s.sColor, s.sShade, s.sShadowC, s.sAlbedo = b.sColor, b.sShade, b.sShadowC, b.sAlbedo
+		s.sNormal, s.sLit, s.sDepth, s.sId = b.sNormal, b.sLit, b.sDepth, b.sId
+		s.sShare, s.sWClass, s.sWave, s.static = b.sShare, b.sWClass, b.sWave, b.static
+		windOn = nil
+		table.clear(windSaved)
+		table.clear(windWrote)
+		lightStale = true
+		back, backTabs = nil, nil
+	end
+	s.ready = true
 	buffer.fill(s.sShadowC, 0, 0)
 	if tierSpec(tier).shadows then
 		refineShadows(s, 0, 0, s.W - 1, s.H - 1)
@@ -750,6 +780,14 @@ local function finishBake(s: Surf)
 	prevRects = {}
 	uploadAll(s)
 	stats.bakes += 1
+	rush = false
+	if #afterBake > 0 then
+		local fns = afterBake
+		afterBake = {}
+		for _, fn in fns do
+			task.spawn(fn)
+		end
+	end
 	local im = image
 	if im then
 		im.Visible = true
@@ -768,12 +806,8 @@ local function finishBake(s: Surf)
 	end
 end
 
--- Bake samples until the deadline; true when the bake is done.
-local function bakeSome(deadline: number): boolean
-	local s = surf
-	if s == nil or not baking then
-		return true
-	end
+-- Bake samples into b (the layer s itself, or the buffers behind it) until the deadline; true when the bake is done.
+local function bakeRun(s: Surf, b: Surf, deadline: number): boolean
 	local shadows = tierSpec(tier).shadows
 	local steps = BakeCast.STEPS
 	while bakePass <= 3 do
@@ -788,11 +822,11 @@ local function bakeSome(deadline: number): boolean
 				local x, y = math.max(bx, bakeRX0), math.max(by, bakeRY0)
 				if x == bx and y == by then
 					if not BakeCast.skip(bakePass, x, y) then
-						castSample(s, x, y, bx + st - 1, by + st - 1, false, shadows)
+						castSample(b, x, y, bx + st - 1, by + st - 1, false, shadows)
 					end
 				elseif bakePass < 3 then
 					-- a block starting off the layer: a stand-in at its first pixel on it (later passes replace it)
-					castSample(s, x, y, bx + st - 1, by + st - 1, true, shadows)
+					castSample(b, x, y, bx + st - 1, by + st - 1, true, shadows)
 				end
 			end
 			bakeGX = bakeOX
@@ -801,8 +835,29 @@ local function bakeSome(deadline: number): boolean
 		bakePass += 1
 		bakeGX, bakeGY = bakeOX, bakeOY
 	end
-	finishBake(s)
+	finishBake(s, b)
 	return true
+end
+
+-- Bake until the deadline; true when the bake is done. A bake behind the picture casts with its own id tables
+-- (swapped in for the call), so the picture's stay whole for the water, wind and lamps drawn over it meanwhile.
+local function bakeSome(deadline: number): boolean
+	local s = surf
+	if s == nil or not baking then
+		return true
+	end
+	local b, t = back, backTabs
+	if b == nil or t == nil then
+		return bakeRun(s, s, deadline)
+	end
+	local fIds, fAlb, fWat, fNext = staticIds, albedos, waters, nextId
+	staticIds, albedos, waters, nextId = t.ids, t.albedos, t.waters, t.nextId
+	local done = bakeRun(s, b, deadline)
+	if not done then
+		t.nextId = nextId
+		staticIds, albedos, waters, nextId = fIds, fAlb, fWat, fNext
+	end
+	return done
 end
 
 local function startBake()
@@ -810,14 +865,44 @@ local function startBake()
 	if s == nil then
 		return
 	end
-	lightStale = true
-	table.clear(windSaved)
-	table.clear(windWrote)
-	windOn = nil
-	table.clear(staticIds)
-	table.clear(albedos)
-	table.clear(waters)
-	nextId = 1
+	if s.ready and shown then
+		-- a finished picture is on screen: bake behind it, into fresh buffers and id tables
+		local n = s.W * s.H
+		local sColor, sDepth, sId = buffer.create(n * 4), buffer.create(n * 4), buffer.create(n * 2)
+		back = {
+			W = s.W,
+			H = s.H,
+			K = s.K,
+			cam = s.cam,
+			look = s.look,
+			view = s.view,
+			skyRef = s.skyRef,
+			sColor = sColor,
+			sShade = buffer.create(n * 4),
+			sShadowC = buffer.create(n * 4),
+			sAlbedo = buffer.create(n * 4),
+			sNormal = buffer.create(n),
+			sLit = buffer.create(n),
+			sDepth = sDepth,
+			sId = sId,
+			sShare = buffer.create(n),
+			sWClass = buffer.create(n),
+			sWave = buffer.create(n),
+			static = { W = s.W, H = s.H, color = sColor, depth = sDepth, id = sId },
+			frame = s.frame,
+		}
+		backTabs = { ids = {}, albedos = {}, waters = {}, nextId = 1 }
+	else
+		back, backTabs = nil, nil
+		lightStale = true
+		table.clear(windSaved)
+		table.clear(windWrote)
+		windOn = nil
+		table.clear(staticIds)
+		table.clear(albedos)
+		table.clear(waters)
+		nextId = 1
+	end
 	local cam = s.cam
 	bakeRX0, bakeRY0 = cam.gx, cam.gy
 	bakeRX1, bakeRY1 = cam.gx + s.W - 1, cam.gy + s.H - 1
@@ -863,6 +948,7 @@ local function buildSurf(v: CameraController.View)
 			surf = st.surf
 			staticIds, albedos, waters, nextId = st.ids, st.albedos, st.waters, st.nextId
 			baking = false
+			back, backTabs = nil, nil
 			invQueue = {}
 			invCur = nil
 			prevRects = {}
@@ -1344,6 +1430,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	if math.abs(dx) >= W // 2 or math.abs(dy) >= H // 2 then
 		-- a jump (the view sent home from the far end of the street): bake again at the new pan
 		s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(tx, ty), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
+		s.ready = false -- (the picture on screen is of another place: no point keeping it alive)
 		startBake()
 		return
 	end
@@ -1453,8 +1540,10 @@ local function queueRect(r: Rect)
 		area += (math.min(q.x1, gx0 + s.W - 1) - math.max(q.x0, gx0) + 1) * (math.min(q.y1, gy0 + s.H - 1) - math.max(q.y0, gy0) + 1)
 	end
 	if area > s.W * s.H * REBAKE_SHARE then
-		-- a big change (a new office): bake again, behind the old picture
-		rebakeAt = os.clock() + 0.5
+		-- a big change (the island grew): bake again, behind the old picture, soon (the parts of one rebuild land
+		-- together) and with a bigger budget a frame
+		rebakeAt = os.clock() + 0.15
+		rush = true
 		invQueue = {}
 		invCur = nil
 	end
@@ -1553,12 +1642,14 @@ local function onHeartbeat(dt: number)
 	refreshExclude()
 	if baking then
 		-- a stage bakes behind the play overlay's curtain: faster
-		local budget = Tuning.PixelBakeMsPerFrame + (if shown then 0 else 8) + (if surf and surf.view.stage then Tuning.PixelStageBakeMs else 0)
+		local budget = Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8) + (if surf and surf.view.stage then Tuning.PixelStageBakeMs else 0)
 		bakeSome(os.clock() + budget / 1000)
-		return
+		if baking and back == nil then
+			return -- nothing on screen to keep alive (the first bake, a jump)
+		end
 	end
 	local s = surf
-	if s then
+	if s and not baking then
 		local tx, ty = CameraController.pan()
 		scrollToward(s, tx, ty)
 		if baking then
@@ -1606,6 +1697,9 @@ local function watchStatic()
 				st.dirty = true
 			end
 			return
+		end
+		if rebakeAt >= 0 then
+			return -- a whole re-bake is coming: no rect to work out (a rebuilt island is ~2,500 of these at once)
 		end
 		local r = partRect(d)
 		if r then
@@ -1784,6 +1878,16 @@ function PixelRenderer.setOffset(dx: number, dy: number)
 		local K = if surf then (surf :: Surf).K else CameraController.pixelK()
 		im.Position = UDim2.fromOffset(offX * K, offY * K)
 	end
+end
+
+-- fn runs once the picture shows what is in the world now: after the pending or running bake, or at once when none
+-- is coming (or the filter is off). Build mode's expansion cheers when the bigger island is on screen.
+function PixelRenderer.afterBake(fn: () -> ())
+	if surf == nil or tier == "off" or not started or (not baking and rebakeAt < 0) then
+		task.spawn(fn)
+		return
+	end
+	table.insert(afterBake, fn)
 end
 
 function PixelRenderer.rebake()

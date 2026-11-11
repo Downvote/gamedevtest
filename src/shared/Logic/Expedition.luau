@@ -333,6 +333,7 @@ function Expedition.start(p: Profile, isle: Isle, members: { string }): (boolean
 		loot = { shells = 0, food = 0, wood = 0 },
 		battle = nil,
 		befriended = {},
+		gained = { xp = 0, ups = {} },
 		snacks = Expedition.snacksFor(p),
 		over = nil,
 	}
@@ -508,6 +509,14 @@ local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any 
 		out.xp = xp
 		out.shells = shells
 		out.ups = share(p, e, xp)
+		-- the trip's tally (the Expedition Complete card)
+		local g = e.gained
+		if g then
+			g.xp += xp
+			for key, n in out.ups do
+				g.ups[key] = (g.ups[key] or 0) + n
+			end
+		end
 		-- the beaten get up again with a quarter of their health
 		for _, f in e.party do
 			if f.hp <= 0 then
@@ -543,6 +552,9 @@ local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any 
 	elseif result == "lose" then
 		e.battle = nil
 		e.over = "lost"
+		-- what the trip brought (the Expedition Complete card): its loot, xp and levels
+		out.loot = { shells = math.floor(e.loot.shells), food = math.floor(e.loot.food), wood = math.floor(e.loot.wood) }
+		out.gained = e.gained
 	elseif result == "fled" then
 		e.battle = nil
 	else
@@ -580,7 +592,10 @@ function Expedition.snack(p: Profile, e: Expedition, target: string?, rng: Rng):
 	if not Expedition.room(p) then
 		return false, "no_room" :: ErrCode
 	end
-	local ok, events, result = Battle.snack(e.party, b, target, rng)
+	-- the tips' fighting and catching steps (GAME_DESIGN 9): the first snack thrown always befriends (the tips move on
+	-- to the last one as soon as a friend is made)
+	local sure = p.tut == 6 or p.tut == 7
+	local ok, events, result = Battle.snack(e.party, b, target, rng, sure)
 	if not ok then
 		return false, events
 	end
@@ -626,7 +641,9 @@ end
 
 -- Back on the island: the loot added, all of it, after a defeat too (GAME_DESIGN 7: "remove the penalty that happens if
 -- you lose"). Returns what came home.
+-- Home (any time, in the middle of a battle too: it is left behind): all the loot comes home.
 function Expedition.home(p: Profile, e: Expedition): { shells: number, food: number, wood: number }
+	e.battle = nil
 	local got = { shells = math.floor(e.loot.shells), food = math.floor(e.loot.food), wood = math.floor(e.loot.wood) }
 	p.shells += got.shells
 	p.food += got.food

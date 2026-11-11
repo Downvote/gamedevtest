@@ -56,6 +56,19 @@ function Blocks.color(key: string): Color3
 	return c
 end
 
+-- A build that should not stall a frame (the server's next island, built ahead of an expansion): `Blocks.pace(fn, n)`
+-- from the building thread calls fn (a task.wait) after every n parts that thread makes; any other thread building
+-- at the same time is never paced. `Blocks.pace(nil)` ends it.
+local paceThread: thread? = nil
+local paceFn: (() -> ())? = nil
+local paceEvery, paceCount = 0, 0
+function Blocks.pace(fn: (() -> ())?, every: number?)
+	paceThread = if fn then coroutine.running() else nil
+	paceFn = fn
+	paceEvery = every or 60
+	paceCount = 0
+end
+
 -- Creates one anchored part from a spec and parents it last (cheap property writes while unparented).
 -- Defaults: Block shape, CanCollide true, CanQuery true, opaque, SmoothPlastic, CastShadow true, CanTouch false.
 function Blocks.part(parent: Instance, spec: PartSpec): BasePart
@@ -88,6 +101,14 @@ function Blocks.part(parent: Instance, spec: PartSpec): BasePart
 	p.Size = Vector3.new(snapLen(spec.size.X), snapLen(spec.size.Y), snapLen(spec.size.Z))
 	p.CFrame = spec.cf
 	p.Parent = parent
+	local fn = paceFn
+	if fn and coroutine.running() == paceThread then
+		paceCount += 1
+		if paceCount >= paceEvery then
+			paceCount = 0
+			fn()
+		end
+	end
 	return p
 end
 

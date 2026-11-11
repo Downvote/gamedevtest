@@ -4,7 +4,7 @@
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
 #   scenario: island | village | island2 | island3 | city | gallery | day | dusk | night | dawn | panel=<folk|pals|hatch|explore|index|looks> |
-#             exp=<kind 1-9>[_battle|_boss|_win|_loot|_fight|_snack|_skills|_aim|_throw|_tut] | sea | visit | build | water | voyage | late | all
+#             exp=<kind 1-9>[_battle|_boss|_win|_lose|_loot|_fight|_snack|_skills|_aim|_throw|_tut] | sea | visit | build | water | voyage | late | all
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off
@@ -25,7 +25,7 @@ jobs=${PREVIEW_JOBS:-4}
 
 case $scen in
 	all) scens="island village island3 sea build day" ;;
-	island|village|island2|island3|city|gallery|day|dusk|night|dawn|panel=*|exp=*|sea|visit|build|water|voyage|late) scens=$scen ;;
+	island|village|island2|island3|city|gallery|day|dusk|night|dawn|panel=*|exp=*|sea|visit|build|expand|water|voyage|late) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

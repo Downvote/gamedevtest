@@ -154,6 +154,9 @@ local pointerConns: { RBXScriptConnection } = {}
 local GREY: PixelRenderer.Grade = { mr = 0.72, mg = 0.72, mb = 0.76, lift = 4, sat = 0.1, lamps = 0 }
 
 local refresh: () -> () = function() end
+local inspect: (key: string?) -> () = function(_key: string?) end -- (a fighter's details plate: below)
+local leaveChoice: () -> () = function() end -- (the header's Back to island: sail home or leave it waiting, below)
+local leaveFrame: Frame? = nil -- (its card, while it is up)
 local pickTarget: (key: string?) -> () = function(_key: string?) end
 local closeNow: () -> () = function() end
 
@@ -177,6 +180,7 @@ end
 
 ------------------------------------------------------------------ the actors
 local PARTY_SPOTS = { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 } }
+local HOLD_SECS = 0.45 -- a finger held this long on a fighter shows its details (UI: inspect)
 local FOE_SPOTS = { { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } }
 
 local function actorAt(a: Actor): Vector3
@@ -364,6 +368,27 @@ local function phase(e: number, a: number, b: number): number
 	return math.clamp((e - a) / (b - a), 0, 1)
 end
 
+-- The battle's own clock (GAME_DESIGN 7: "attacks are paused when you are selecting a skill or throwing a snack, even
+-- if they are mid attack"): it stands still while the player chooses (the skill window, aiming, the leave card), so
+-- the moves and the playback of an action freeze where they are; `cutPlay`: a snack cancelled the action playing (its
+-- "cancel" event), which stops there. The playback waits by it (bwait).
+local bclock = 0
+local cutPlay = false
+local function playHeld(): boolean
+	return aim ~= nil or skillMenu or leaveFrame ~= nil
+end
+-- Wait `seconds` of the battle's time; true when the action playing was cut (or the screen closed) meanwhile.
+local function bwait(seconds: number): boolean
+	local untilT = bclock + seconds
+	while bclock < untilT do
+		if cutPlay or not isOpen then
+			return true
+		end
+		task.wait()
+	end
+	return cutPlay or not isOpen
+end
+
 local function startMove(a: Actor, kind: string, other: Actor?)
 	local gu, gv = 0, 0
 	if other then
@@ -376,7 +401,7 @@ local function startMove(a: Actor, kind: string, other: Actor?)
 			gu, gv = du * (d - REACH) / d, dv * (d - REACH) / d
 		end
 	end
-	a.move = { kind = kind, t0 = os.clock(), dur = MOVES[kind] or 0.5, gu = gu, gv = gv }
+	a.move = { kind = kind, t0 = bclock, dur = MOVES[kind] or 0.5, gu = gu, gv = gv }
 end
 
 -- The stage shakes by whole art px for a moment; the action freezes (a hit's weight).
@@ -607,10 +632,10 @@ local function poseAll(t: number, dt: number)
 		local fr: MoveFrame? = nil
 		local mv = a.move
 		if mv then
-			if frozen then
+			if frozen and not playHeld() then
 				mv.t0 += dt
 			end
-			local e = now - mv.t0
+			local e = bclock - mv.t0
 			if e >= mv.dur then
 				a.move = nil
 				if mv.kind == "ko" then
@@ -1144,7 +1169,35 @@ local function fighterCard(parent: Instance, f: Types.Fighter, x: number, y: num
 	pick.Size = UDim2.fromScale(1, 1)
 	pick.ZIndex = 14
 	pick.Parent = card
+	-- its details: the mouse over the card, or a finger held on it (a hold is not a tap: no pick on its release)
+	local held = false
+	pick.MouseEnter:Connect(function()
+		inspect(f.key)
+	end)
+	pick.MouseLeave:Connect(function()
+		inspect(nil)
+	end)
+	pick.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			held = false
+			task.delay(HOLD_SECS, function()
+				if pick.Parent and input.UserInputState == Enum.UserInputState.Begin then
+					held = true
+					inspect(f.key)
+				end
+			end)
+		end
+	end)
+	pick.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch and held then
+			inspect(nil)
+		end
+	end)
 	pick.Activated:Connect(function()
+		if held then
+			held = false
+			return
+		end
 		pickTarget(f.key)
 	end)
 	return card
@@ -1372,6 +1425,126 @@ local function pointAt(i: number, j: number, tap: boolean): boolean
 	return true
 end
 
+------------------------------------------------------------------ a fighter's details
+-- (GAME_DESIGN 7: "allow players to see mutations and details of a creature in battle by hovering over it or holding
+-- onto it on mobile") The mouse over a fighter (on the stage or its card), or a finger held on one for HOLD_SECS: a
+-- plate over its head with its name (a driftling's in its rarity's colour) and level, what it is, its health and
+-- stats, a driftling's passive and each of its mutations (its tier's colour and stars, what it gives).
+local inspectKey: string? = nil
+local inspectFrame: Frame? = nil
+
+-- Whoever stands under a stage pixel (any side, standing or down), nearest the middle of their figure.
+local function fighterAt(i: number, j: number): string?
+	local st = stage
+	if st == nil then
+		return nil
+	end
+	local best: string? = nil
+	local bestD = math.huge
+	for key, ac in actors do
+		if ac.gone or ac.deck > 0 or fighterOf(key) == nil then
+			continue
+		end
+		local base = actorAt(ac)
+		local fx, fy, on = (st :: MicroStage.Stage).screen(base)
+		local _, hy = (st :: MicroStage.Stage).screen(base + Vector3.new(0, headOf(ac), 0))
+		if not on then
+			continue
+		end
+		local half = math.max(6, (fy - hy) * 0.35)
+		if i >= fx - half and i <= fx + half and j >= hy - 4 and j <= fy + 4 then
+			local d = math.abs(i - fx) + math.abs(j - (fy + hy) / 2) * 0.5
+			if d < bestD then
+				best, bestD = key, d
+			end
+		end
+	end
+	return best
+end
+
+-- Put the plate over its fighter's head (kept inside the screen, under the header); every frame while it shows.
+local function placeInspect()
+	local fr, key, st = inspectFrame, inspectKey, stage
+	if fr == nil or key == nil or st == nil then
+		return
+	end
+	local ac = actors[key]
+	if ac == nil or ac.gone or fr.Parent == nil then
+		inspect(nil)
+		return
+	end
+	local w, h = canvasSize()
+	local x, y = (st :: MicroStage.Stage).screen(actorAt(ac) + Vector3.new(0, headOf(ac) + 1.6, 0))
+	local pw, ph = fr.Size.X.Offset, fr.Size.Y.Offset
+	local px = math.clamp(math.floor(x - pw / 2), 4, w - pw - 4)
+	local py = math.clamp(math.floor(y - ph), topInset() + HEAD_H + 2, h - FOOT_H - ph - 2)
+	fr.Position = UDim2.fromOffset(px, py)
+end
+
+inspect = function(key: string?)
+	if key == inspectKey and (key == nil or (inspectFrame and inspectFrame.Parent)) then
+		return
+	end
+	inspectKey = key
+	if inspectFrame then
+		inspectFrame:Destroy()
+		inspectFrame = nil
+	end
+	local r = root
+	local f = if key then fighterOf(key) else nil
+	if key == nil or f == nil or r == nil then
+		inspectKey = nil
+		return
+	end
+	local fi = f :: Types.Fighter
+	local cd = if fi.sp then Creatures.byId[fi.sp :: string] else nil
+	type Line = { text: string, color: Color3 }
+	local lines: { Line } = {}
+	local rar = if cd then Traits.RARITY[cd.rarity] or Traits.RARITY[1] else nil
+	local what = if cd and rar then string.format("%s driftling%s", rar.name, if fi.kind == "wild" then " (wild)" else "") elseif fi.kind == "founder" then "The captain" else "A villager"
+	table.insert(lines, { text = what, color = if rar then UIKit.color(rar.color) else UIKit.color("text_dim") })
+	table.insert(lines, { text = string.format("HP %d/%d  ATK %d  DEF %d  SPD %d", math.max(0, math.floor(hpOf(fi) + 0.5)), fi.maxHp, fi.atk, fi.def, fi.spd), color = UIKit.color("text") })
+	if cd then
+		table.insert(lines, { text = cd.passive.name .. ": " .. Traits.describe(cd.passive.fx), color = UIKit.color("accent") })
+		local muts = table.clone(fi.muts or {})
+		table.sort(muts, function(a: string, b: string): boolean
+			local ma, mb = Traits.byId[a], Traits.byId[b]
+			return (if ma then ma.tier else -1) > (if mb then mb.tier else -1)
+		end)
+		if #muts == 0 then
+			table.insert(lines, { text = "No mutations", color = UIKit.color("text_dim") })
+		end
+		for _, id in muts do
+			local m = Traits.byId[id]
+			if m then
+				table.insert(lines, { text = string.format("%s%s %s", m.name, Traits.TIER_STARS[m.tier] or "", m.blurb), color = UIKit.color(Traits.TIER_COLOR[m.tier] or "text") })
+			end
+		end
+	else
+		local sk = Skills.byId[fi.skill]
+		table.insert(lines, { text = "Skill: " .. (if sk then sk.name else (Creatures.skills[fi.skill] or fi.skill)), color = UIKit.color("accent") })
+	end
+	local title = fi.name
+	local lv = "Lv" .. fi.lvl
+	local pw = UIKit.textWidth(title) + UIKit.textWidth(lv) + 18
+	for _, l in lines do
+		pw = math.max(pw, UIKit.textWidth(l.text) + 10)
+	end
+	local w, _ = canvasSize()
+	pw = math.min(pw, w - 8)
+	local ph = 4 + 10 + #lines * 9 + 3
+	local fr = UIKit.plate(r, UDim2.fromOffset(pw, ph), UDim2.fromOffset(0, 0), UIKit.color("plate"), 0.03, 2, { shadow = true, wood = 1 })
+	fr.Name = "Inspect"
+	fr.ZIndex = 30
+	UIKit.text(fr, title, UDim2.fromOffset(pw - 10, 10), UDim2.fromOffset(4, 2), { color = if rar then UIKit.color(rar.color) else UIKit.color("accent"), z = 31, name = "InspectName" })
+	UIKit.text(fr, lv, UDim2.fromOffset(UIKit.textWidth(lv) + 2, 10), UDim2.new(1, -UIKit.textWidth(lv) - 6, 0, 2), { x = "right", color = UIKit.color("text_dim"), z = 31 })
+	for k, l in lines do
+		UIKit.text(fr, l.text, UDim2.fromOffset(pw - 8, 10), UDim2.fromOffset(4, 3 + k * 9), { color = l.color, z = 31, name = "InspectLine" .. k })
+	end
+	inspectFrame = fr
+	placeInspect()
+end
+
 -- Throw the snack or use the skill at the pick: the server does it, its events come as the battle's next message.
 useAim = function()
 	local a = aim
@@ -1530,7 +1703,7 @@ local function playEvent(ev: { [string]: any })
 			floatOver(ev.by, (Creatures.skills[skill] or skill) .. "!", UIKit.color("accent"))
 			Audio.play("combo")
 		end
-		local t0 = os.clock()
+		local t0 = bclock
 		local impacts = IMPACTS[kind]
 		if by then
 			startMove(by, kind, to)
@@ -1542,15 +1715,15 @@ local function playEvent(ev: { [string]: any })
 		else
 			impacts = { 0.05 }
 		end
-		local function at(seconds: number)
-			local w = t0 + seconds - os.clock()
-			if w > 0 then
-				task.wait(w)
-			end
+		-- (on the battle's clock: frozen while the player chooses; true when the action was cut meanwhile)
+		local function at(seconds: number): boolean
+			return bwait(t0 + seconds - bclock)
 		end
 		-- the run-up's dust and the skills' own effects
 		if by and kind ~= "zap" then
-			at(if kind == "quick" then 0.08 else 0.2)
+			if at(if kind == "quick" then 0.08 else 0.2) then
+				return
+			end
 			st.puff(actorAt(by) + Vector3.new(0, 0.2, 0), "dust", if kind == "bash" then 10 else 5)
 			if kind == "quick" then
 				-- afterimages along the dash
@@ -1565,13 +1738,17 @@ local function playEvent(ev: { [string]: any })
 		elseif by and kind == "zap" then
 			-- charging up: sparks gather round it, then a bolt runs to the target
 			for j = 1, 3 do
-				at(0.1 * j)
+				if at(0.1 * j) then
+					return
+				end
 				st.puff(actorAt(by) + Vector3.new(0, 1.2, 0), "spark", 4)
 				if by.thing then
 					st.flash(by.thing :: MicroModels.Thing, 0.05)
 				end
 			end
-			at(0.45)
+			if at(0.45) then
+				return
+			end
 			Audio.play("zap")
 			if to then
 				local p0, p1 = actorAt(by) + Vector3.new(0, 1.2, 0), actorAt(to) + Vector3.new(0, 1.2, 0)
@@ -1582,7 +1759,9 @@ local function playEvent(ev: { [string]: any })
 		end
 		local dmg = tonumber(ev.dmg) or 0
 		for i, when in impacts do
-			at(when)
+			if at(when) then
+				return
+			end
 			if to then
 				local last = i == #impacts
 				flashActor(to)
@@ -1620,7 +1799,9 @@ local function playEvent(ev: { [string]: any })
 				end
 			end)
 		end
-		at(MOVES[kind] - 0.15)
+		if at(MOVES[kind] - 0.15) then
+			return
+		end
 	elseif t == "heal" then
 		local by, to = actors[ev.by], actors[ev.to]
 		if not playingSkill then
@@ -1630,7 +1811,9 @@ local function playEvent(ev: { [string]: any })
 			startMove(by, "cast")
 			st.puff(actorAt(by) + Vector3.new(0, 1.2, 0), "twinkle", 4)
 		end
-		task.wait(0.3)
+		if bwait(0.3) then
+			return
+		end
 		if to then
 			st.puff(actorAt(to) + Vector3.new(0, 1, 0), "heal", 10)
 			if to ~= by then
@@ -1651,7 +1834,9 @@ local function playEvent(ev: { [string]: any })
 		if by then
 			startMove(by, "cast")
 		end
-		task.wait(0.25)
+		if bwait(0.25) then
+			return
+		end
 		for _, a in actors do
 			if by and a.foe == by.foe and not a.ko then
 				if a ~= by then
@@ -1691,7 +1876,9 @@ local function playEvent(ev: { [string]: any })
 		if by then
 			startMove(by, "cast")
 		end
-		task.wait(0.3)
+		if bwait(0.3) then
+			return
+		end
 		if to then
 			to.ko = false
 			startMove(to, "happy")
@@ -1719,6 +1906,30 @@ local function playEvent(ev: { [string]: any })
 		end
 		say("The wild ones are dizzy!", UIKit.color("accent"), 1.2)
 		Audio.play("poof")
+	elseif t == "cancel" then
+		-- the action cut short: everyone back in place, the health as the server says it is again (a knock-out
+		-- undone), the one interrupted saying so
+		for _, a in actors do
+			a.move = nil
+		end
+		if type(ev.hp) == "table" then
+			for key, hp in ev.hp do
+				if type(key) == "string" and type(hp) == "number" then
+					setBar(key, hp)
+					local a = actors[key]
+					if a and hp > 0 then
+						a.ko = false
+						a.action = "stand"
+					end
+				end
+			end
+		end
+		local by = actors[ev.by]
+		if by then
+			floatOver(ev.by, if by.foe then "Distracted!" else "Holds back", UIKit.color("text_dim"))
+			startMove(by, "stumble")
+		end
+		Audio.play("pop", { pitch = 0.9 })
 	elseif t == "treat" then
 		local to = actors[ev.to]
 		local f = actors.f
@@ -1727,14 +1938,18 @@ local function playEvent(ev: { [string]: any })
 		end
 		floatOver("f", "Here, a snack!", UIKit.color("text"))
 		Audio.play("whoosh", { pitch = 1.3 })
-		task.wait(0.3)
+		if bwait(0.3) then
+			return
+		end
 		if f and to then
 			-- the treat's arc: a trail of sparkles from the founder's hand to the wild one
 			local p0, p1 = actorAt(f) + Vector3.new(0, 2.5, 0), actorAt(to) + Vector3.new(0, 1.5, 0)
 			for j = 1, 5 do
 				local q = j / 5
 				st.puff(p0:Lerp(p1, q) + Vector3.new(0, math.sin(q * math.pi) * 2.5, 0), "twinkle", 1)
-				task.wait(0.04)
+				if bwait(0.04) then
+					return
+				end
 			end
 		end
 		if to then
@@ -1744,7 +1959,9 @@ local function playEvent(ev: { [string]: any })
 				floatOver(ev.to, "<3", UIKit.color("pink"))
 				Audio.play("fanfare")
 				say(nameOf(ev.to) .. " wants to be friends!", UIKit.color("pink"), 2)
-				task.wait(0.7)
+				if bwait(0.7) then
+					return
+				end
 				to.gone = true
 				st.puff(actorAt(to), "confetti")
 				local b = bars[ev.to]
@@ -1774,7 +1991,7 @@ local function playEvent(ev: { [string]: any })
 			Audio.play("deny")
 		end
 	end
-	task.wait(if t == "hit" then 0.15 else STEP)
+	bwait(if t == "hit" then 0.15 else STEP)
 end
 
 -- A won battle's small alert (GAME_DESIGN 7: "the onward popup should just be a small alert"): a plate under the
@@ -1835,7 +2052,7 @@ local function resultCard(title: string, color: Color3, lines: { { text: string,
 		return
 	end
 	local w, h = canvasSize()
-	local cw = 180
+	local cw = math.max(180, UIKit.textWidth(title, "big") + 24)
 	for _, l in lines do
 		cw = math.max(cw, UIKit.textWidth(l.text) + 20)
 	end
@@ -1878,6 +2095,11 @@ playRound = function(data: { [string]: any })
 	local events = if type(data.events) == "table" then data.events else {}
 	playingSkill = type(events[1]) == "table" and events[1].t == "skill"
 	for _, ev in events do
+		if cutPlay then
+			-- a snack cancelled this action while it played: it stops here (the next message says how things stand)
+			playingSkill = false
+			return
+		end
 		if type(ev) == "table" and isOpen then
 			playEvent(ev)
 		end
@@ -1954,11 +2176,33 @@ playRound = function(data: { [string]: any })
 			refresh()
 		end
 	elseif result == "lose" then
-		Audio.play("sad")
-		resultCard("The party fell...", UIKit.color("bad"), {
-			{ text = "Everyone is back on their feet at home." },
-			{ text = "All the loot comes home with you.", color = UIKit.color("text_dim") },
-		}, nil, "Sail home", goHome)
+		-- (GAME_DESIGN 7: "instead of the screen that says your party fell, say Expedition Complete! along with the
+		-- resources you collected, and the xp and lvls gained from the expedition")
+		Audio.play("reward")
+		local loot = if type(data.loot) == "table" then data.loot else {}
+		local gained = if type(data.gained) == "table" then data.gained else {}
+		local lines: { { text: string, color: Color3? } } = {
+			{ text = string.format("Shells +%s   Food +%s   Wood +%s", Numbers.int(tonumber(loot.shells) or 0), Numbers.int(tonumber(loot.food) or 0), Numbers.int(tonumber(loot.wood) or 0)), color = UIKit.color("good") },
+			{ text = string.format("Party xp +%s", Numbers.int(tonumber(gained.xp) or 0)), color = UIKit.color("text") },
+		}
+		local ups = if type(gained.ups) == "table" then gained.ups else {}
+		local keys: { string } = {}
+		for key, n in ups do
+			if type(key) == "string" and type(n) == "number" and n > 0 then
+				table.insert(keys, key)
+			end
+		end
+		table.sort(keys)
+		for _, key in keys do
+			local f = fighterOf(key)
+			local n = ups[key] :: number
+			local lv = if f then f.lvl else nil
+			table.insert(lines, { text = if lv then string.format("%s: Lv %d to Lv %d", nameOf(key), lv - n, lv) else string.format("%s: +%d levels", nameOf(key), n), color = UIKit.color("accent") })
+		end
+		if #keys == 0 then
+			table.insert(lines, { text = "No new levels this time.", color = UIKit.color("text_dim") })
+		end
+		resultCard("Expedition Complete!", UIKit.color("accent"), lines, nil, "Sail home", goHome)
 	elseif result == "fled" then
 		refresh()
 	elseif type(data.friend) == "table" and type(data.friend.sp) == "string" then
@@ -2025,6 +2269,68 @@ playNode = function(data: { [string]: any })
 		gaugeAt = os.clock()
 		runAt = os.clock() + (if kind == "boss" then 2.2 else 1.4)
 	end
+end
+
+-- Back to island (the header's button, any time: GAME_DESIGN 7 "allow players to exit and return to the island at any
+-- point"): a card over the screen, the battle paused and grey while it is up: Sail home (the trip ends here, a battle
+-- left behind: everyone and all the loot come home), Leave it here (back to the island, the trip waits: the HUD's
+-- card brings it back; not once the trip is over) or Stay.
+leaveChoice = function()
+	local r, e = root, exp()
+	if e == nil then
+		ExpeditionUI.close()
+		return
+	end
+	if r == nil or leaveFrame or busy or closing then
+		return
+	end
+	local battle = e.battle ~= nil and not e.over
+	if aim or skillMenu then
+		aim, skillMenu = nil, false
+		updateAim()
+		refresh()
+	elseif battle then
+		holdBattle(true)
+	end
+	local w, h = canvasSize()
+	local cw = math.min(w - 16, 190)
+	local over = e.over ~= nil
+	local ch = if over then 52 else 70
+	local f = UIKit.plate(r, UDim2.fromOffset(cw, ch), UDim2.fromOffset(math.floor((w - cw) / 2), math.floor((h - ch) / 2)), UIKit.color("plate"), 0.03, 2, { shadow = true, wood = 2 })
+	f.Name = "LeaveCard"
+	f.ZIndex = 40
+	leaveFrame = f
+	UIKit.text(f, if battle then "Leave the battle?" else "Head back?", UDim2.fromOffset(cw - 8, 10), UDim2.fromOffset(4, 3), { x = "center", color = UIKit.color("accent"), z = 41 })
+	local function shut(resume: boolean)
+		if leaveFrame == f then
+			leaveFrame = nil
+		end
+		f:Destroy()
+		if resume and battle then
+			holdBattle(false)
+		end
+	end
+	local y = 16
+	local function choice(label: string, color: Color3, name: string, go: () -> ())
+		local b = UIKit.button(f, label, UDim2.fromOffset(cw - 16, 14), UDim2.fromOffset(8, y), go, { name = name, color = color })
+		b.ZIndex = 41
+		y += 18
+	end
+	choice("Sail home now", UIKit.color("button_ok"), "LeaveHome", function()
+		shut(false)
+		DayLight.hold(nil)
+		task.spawn(goHome)
+	end)
+	if not over then
+		choice("Leave it here for now", UIKit.color("plate_light"), "LeaveWait", function()
+			shut(false)
+			ExpeditionUI.close()
+		end)
+	end
+	choice("Stay", UIKit.color("plate_light"), "LeaveStay", function()
+		shut(true)
+	end)
+	Audio.play("open")
 end
 
 goHome = function()
@@ -2137,7 +2443,7 @@ refresh = function()
 	end
 	-- everything but the curtain, a results card and the narration is laid out again
 	for _, c in r:GetChildren() do
-		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and not c:IsA("TextLabel") then
+		if c.Name ~= "Curtain" and c.Name ~= "Result" and c.Name ~= "Say" and c.Name ~= "Alert" and c.Name ~= "Timers" and c.Name ~= "AimPointer" and c.Name ~= "Inspect" and c.Name ~= "LeaveCard" and not c:IsA("TextLabel") then
 			c:Destroy()
 		end
 	end
@@ -2190,7 +2496,7 @@ refresh = function()
 		px += 13
 	end
 	button(head, "Back to island", w - 72, 3, 68, UIKit.color("plate_light"), true, function()
-		ExpeditionUI.close()
+		leaveChoice()
 	end, "BackToIsland")
 	-- the party along the bottom
 	-- the footer: the same board, its trim along the top; what it holds sits under the trim
@@ -2446,7 +2752,11 @@ function ExpeditionUI.open()
 				end)
 			end
 		end
+		if not playHeld() then
+			bclock += math.min(dt, 0.25)
+		end
 		poseAll(now - opened, math.min(dt, 0.1))
+		placeInspect()
 		-- going on by itself: at a stop with nothing to answer (no battle, no card, the party ashore)
 		local cur = exp()
 		local waiting = lifted and not busy and not closing and cur ~= nil and cur.battle == nil and cur.over == nil
@@ -2541,15 +2851,35 @@ function ExpeditionUI.open()
 	local function isPress(input: InputObject): boolean
 		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
 	end
+	local holdShown = false -- a finger held on a fighter showed its details: its release is not a tap
 	table.insert(pointerConns, UserInputService.InputChanged:Connect(function(input, processed)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and not processed and aim and lifted then
+		if input.UserInputType == Enum.UserInputType.MouseMovement and not processed and lifted then
 			local i, j = PixelRenderer.pixelAt(Vector2.new(input.Position.X, input.Position.Y))
-			pointAt(i, j, false)
+			if aim then
+				pointAt(i, j, false)
+			end
+			-- the mouse over a fighter: its details
+			inspect(fighterAt(i, j))
 		end
 	end))
 	table.insert(pointerConns, UserInputService.InputBegan:Connect(function(input, processed)
 		if isPress(input) then
 			downAt = if processed or aim == nil then nil else Vector2.new(input.Position.X, input.Position.Y)
+		end
+		if input.UserInputType == Enum.UserInputType.Touch and not processed and lifted then
+			holdShown = false
+			local at = Vector2.new(input.Position.X, input.Position.Y)
+			task.delay(HOLD_SECS, function()
+				local now = Vector2.new(input.Position.X, input.Position.Y)
+				if isOpen and input.UserInputState == Enum.UserInputState.Begin and (now - at).Magnitude < 16 then
+					local i, j = PixelRenderer.pixelAt(now)
+					local key = fighterAt(i, j)
+					if key then
+						holdShown = true
+						inspect(key)
+					end
+				end
+			end)
 		end
 	end))
 	table.insert(pointerConns, UserInputService.InputEnded:Connect(function(input, _processed)
@@ -2557,6 +2887,12 @@ function ExpeditionUI.open()
 			local d = downAt
 			downAt = nil
 			local pos = Vector2.new(input.Position.X, input.Position.Y)
+			if holdShown then
+				-- the details go with the finger; the hold was not a tap
+				holdShown = false
+				inspect(nil)
+				return
+			end
 			if d and (pos - d).Magnitude < 16 and aim and lifted then
 				local i, j = PixelRenderer.pixelAt(pos)
 				pointAt(i, j, true)
@@ -2710,6 +3046,8 @@ local function enqueue(data: { [string]: any })
 	task.spawn(function()
 		while #playQueue > 0 do
 			local d = table.remove(playQueue, 1)
+			-- (the cut is for the action that was playing; the next message plays whole)
+			cutPlay = false
 			if isOpen and d then
 				playRound(d)
 			end
@@ -2732,6 +3070,10 @@ function ExpeditionUI.init()
 			return
 		end
 		if msg.step == "act" then
+			-- a snack thrown mid-action cancelled it (Battle.snack's "cancel"): what is playing stops at once
+			if pumping and type(data.events) == "table" and type(data.events[1]) == "table" and data.events[1].t == "cancel" then
+				cutPlay = true
+			end
 			takeGauges(data)
 			enqueue(data)
 		elseif msg.step == "timers" then
@@ -2789,6 +3131,10 @@ function ExpeditionUI.debugState(): { [string]: any }
 		aimWho = if aim then (aim :: Aim).who else nil,
 		aimTarget = if aim then (aim :: Aim).target else nil,
 		marked = aimMark ~= nil,
+		clock = bclock, -- the battle's own clock (stands still while the player chooses)
+		held = playHeld(),
+		inspect = inspectKey,
+		leave = leaveFrame ~= nil,
 		tip = root ~= nil and (root :: Frame):FindFirstChild("TutTip") ~= nil,
 		shown = (function(): string
 			-- who stands on the stage now (not gone in a poof), their keys
@@ -2879,6 +3225,34 @@ function ExpeditionUI.debugPoint(key: string, tap: boolean): boolean
 	local x, fy = (st :: MicroStage.Stage).screen(base)
 	local _, hy = (st :: MicroStage.Stage).screen(base + Vector3.new(0, headOf(a), 0))
 	return pointAt(x, math.floor((fy + hy) / 2), tap)
+end
+-- (the details of whoever stands over that pixel, as the mouse over them shows them: the key shown, or nil; and the
+-- plate's lines)
+function ExpeditionUI.debugInspect(key: string?): (string?, { string })
+	local st, a = stage, if key then actors[key] else nil
+	if key == nil or st == nil or a == nil then
+		inspect(nil)
+	else
+		local base = actorAt(a)
+		local x, fy = (st :: MicroStage.Stage).screen(base)
+		local _, hy = (st :: MicroStage.Stage).screen(base + Vector3.new(0, headOf(a), 0))
+		inspect(fighterAt(x, math.floor((fy + hy) / 2)))
+	end
+	local lines: { string } = {}
+	local fr = inspectFrame
+	if fr then
+		local name = fr:FindFirstChild("InspectName")
+		if name and name:IsA("TextLabel") then
+			table.insert(lines, name.Text)
+		end
+		for k = 1, 12 do
+			local l = fr:FindFirstChild("InspectLine" .. k)
+			if l and l:IsA("TextLabel") then
+				table.insert(lines, l.Text)
+			end
+		end
+	end
+	return inspectKey, lines
 end
 -- (where someone stands on the screen: art px)
 function ExpeditionUI.debugScreenOf(key: string): (number, number)

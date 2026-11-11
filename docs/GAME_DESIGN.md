@@ -200,6 +200,17 @@ island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, 
   round the same campfire. A piece that no longer fits moves to the nearest free spot (none is
   lost; one with no spot left would be cleared with its whole price back).
 
+  > The request (2026-11-11): "also, expanding the island causes the game to lag abit before the actual expansion"
+
+  The pause came from three places. The server built the whole bigger island (about 1,200 parts at the top sizes)
+  in the frame of the tap. The pixel filter then waited half a second and re-baked the picture, and the screen
+  stood still the whole time it baked. And the fanfare played at the tap, before anything had changed. Now the
+  server builds each island's next size in the background, a few dozen parts a frame, and Expand only swaps it in.
+  The filter re-bakes sooner, with more time a frame, behind the old picture, and the island keeps moving
+  meanwhile (villagers, the founder, water and wind). The fanfare and "Your island grew!" wait until the bigger
+  island is on screen. Every size's coast cells are worked out when the server starts, and the next size's on
+  the client a few seconds after each change, so the tap never waits for them either.
+
 ## 5. Villagers (`Logic/Island`, the Villagers panel)
 
 A visitor moves in at a turn's end when there is a free bed (`FolkMax` at most) and the charm is at least `MoveInCharm` times
@@ -350,8 +361,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
     (`StageLoot`).
   - **A guardian every few stages:** the first charts the island the first time (its whole reward; half on later
     trips); each later one pays more (`BossRewardGrow`: the n-th 1 + 0.6 x (n - 1) times the island's reward). A
-    guardian's fall is an alert (charted, or "Guardian 2 beaten!") and the party walks on: Sail home whenever you like
-    (between stops); a fall ends the trip, and all the loot still comes home.
+    guardian's fall is an alert (charted, or "Guardian 2 beaten!") and the party walks on: sail home whenever you like
+    (any time, a battle included: below); a fall ends the trip, and all the loot still comes home.
   - **Battles fight themselves** (the timed battles below; the earlier auto battle is what every battle does now), and
     the party walks on between stops by itself.
 
@@ -382,7 +393,9 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   boardwalk, across every pier and jetty; they now stand only along that end's own stretch. The pier's crates, barrel,
   rope, bollards and the moored boat are scenery and don't collide.)
   the party cheers, the HUD comes back and the loot is shown. Back to island (the expedition waits) closes and opens the blinds the same way, without the
-  boat.
+  boat. The view starts on the boat: behind the closed blinds it jumps straight to the boat (no swing over from the
+  island's middle) and the blinds open only once it has settled there; then it follows the boat in, and the founder
+  as they hop off.
 - **The party:** the captain (you) and up to `PartyMax` villagers or driftlings, picked in the Explore panel (the
   strongest listed first). Supplies: `Supplies` food each. While away they neither work nor eat; they can't be
   dismissed or released. One expedition at a time; leaving the game brings it home with its loot.
@@ -421,7 +434,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   - **Skills** (K or 2): see below. **Flee** (F or 3): a chance by speed; a miss starts the leader's timer again.
   A guardian takes no snack and is not fled from. A win gives xp to the party (levels; new skills learnt are named)
   and shells; the knocked-out get up with a quarter of their health. If the party falls, the expedition is over and
-  all the loot comes home (no penalty).
+  all the loot comes home (no penalty; the Expedition Complete! card below).
 - **Skills:**
 
   > The request (2026-11-10): "also, make skills: you can select a menu in battle anytime that opens a skill window.
@@ -463,7 +476,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 - **It goes on by itself:** between stops there is no Go on to tap: a bar fills (`AUTO_GO`, 1.8 s) and the party
   walks on to the next stop (Space, or a tap on the bar, goes at once). A won battle is a small alert under the
   header (Victory!, the xp and shells, level-ups, a new friend's portrait) that goes by itself after `AUTO_CARD`
-  (3 s), with no button. A defeat still waits for Sail home.
+  (3 s), with no button. A fall shows the Expedition Complete! card (below), which waits for Sail home.
 
 > The requests (2026-11-10): "the player is still stuck here. can you remove the invisible wall?"; "day night cycles
 > should also affect islands the player is battling on. also, the onward popup should just be a small alert with no
@@ -483,6 +496,33 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   has the party jumping and spinning in turn. Every driftling's limbs move with it: wings flap, claws and pincers
   snap open on the strike, tails wag, ears twitch (and droop when hurt), eyes blink and shut when hurt, mouths open to
   bite, cry or cheer.
+
+> The requests (2026-11-11): "make the first snack throw in the tutorial always catch. also, the camera bugs out
+> whenever the player returns home, make it center to the ship and the player instead of the land. also, allow
+> players to see mutations and details of a creature in battle by hovering over it or holding onto it on mobile.
+> also, allow players to exit and return to the island at any point. also, make it such that attacks are paused when
+> you are selecting a skill or throwing a snack, even if they are mid attack. if a snack is thrown, the attack is
+> cancelled if it is mid attack"; "instead of the screen that says your party fell, say "Expedition Complete!" along
+> with the resources you collected, and the xp and lvls gained from the expidition"
+
+- **The tutorial's catch:** on the tips' fight and catch steps (6 and 7) a thrown snack always lands, so the first
+  catch can't miss. After the tips the odds are the usual ones.
+- **A closer look:** point at a fighter (or its card) with the mouse, or hold a finger on it for about half a second,
+  and a plate shows over its head: name and level, rarity (and whether it is wild), health, attack, defence and
+  speed, its passive, and each mutation with its tier stars in the tier's colour. The plate follows the fighter and
+  goes when the pointer moves off or the finger lifts.
+- **Leave any time:** Back to island also works mid-battle. The battle holds while a card asks "Leave the battle?"
+  ("Head back?" between stops): Sail home now (the trip ends there and the loot comes home), Leave it here for now
+  (the screen closes and the trip waits, as before; not offered once the trip is over) or Stay (the battle picks up
+  where it stopped).
+- **A pause stops everything:** the skill window, aiming a snack or a skill, and the leave card stop the battle's
+  clock on both sides. That covers the timers and any attack already playing: it freezes mid-swing and finishes
+  after. A snack thrown while a wild one is mid-attack cancels the attack. Its damage is undone (the server keeps what
+  the attack changed until it has played out), the attacker hops back to its place, its timer starts over, and then
+  the snack flies.
+- **Expedition Complete!:** a fallen party no longer gets "The party fell". The card says "Expedition Complete!" and
+  lists what the trip brought home: shells, food and wood, the party's xp, and each member's levels ("Mossbun: Lv 3
+  to Lv 5"), or "No new levels this time." Sail home takes everyone home as usual.
 
 ## 8. The islands and the sea (`Data/Street`, `Models/StreetModels`, `Models/DecorModels`)
 

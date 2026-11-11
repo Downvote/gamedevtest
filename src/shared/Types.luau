@@ -83,7 +83,9 @@ export type Fighter = {
 -- A battle in progress (GAME_DESIGN 7: timed): the wild ones, the actions so far, whether it is the islet's guardian,
 -- the shields' seconds left, the action playing (`lock`: seconds every timer waits), paused (landing, aiming a snack,
 -- off the screen), its clock, the party's skill points (they charge while it runs: Data/Skills).
-export type Battle = { foes: { Fighter }, acts: number, boss: boolean, shield: number, foeShield: number, lock: number, paused: boolean, clock: number, sp: number }
+-- `undo`: while an automatic action plays (lock > 0), how things stood before it (a snack thrown then cancels it).
+export type Battle = { foes: { Fighter }, acts: number, boss: boolean, shield: number, foeShield: number, lock: number, paused: boolean, clock: number, sp: number, undo: Undo? }
+export type Undo = { by: string, charge: number, shield: number, foeShield: number, hp: { [string]: number }, atk: { [string]: number } }
 
 -- An island found at sea (GAME_DESIGN 7; Logic/Expedition.chart): made from its seed and the level the captain
 -- picked; its kind (Data/Islets), name, the driftlings living there, its guardian, what its loot and chests hold and
@@ -113,6 +115,7 @@ export type Expedition = {
 	loot: { shells: number, food: number, wood: number },
 	battle: Battle?,
 	befriended: { string }, -- species that joined on this trip
+	gained: { xp: number, ups: { [string]: number } }, -- the trip's xp for the party and each member's levels gained
 	snacks: number, -- snacks left to throw on this trip (Tuning.SnackBase a pouch level: 5 .. 30)
 	beaten: number?, -- the guardians beaten on this trip (the path never ends: a guardian every Tuning.BossEvery stages)
 	over: string?, -- "home" | "won" | "lost" (set when it ends: "won" only by a player that sails home after a guardian)

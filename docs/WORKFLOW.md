@@ -35,6 +35,8 @@ file and `tools/README.md` at the start of a session.
   migration, and check a profile from before still loads.
 - Never commit an asset whose licence is not confirmed (fonts the user uploaded stay out).
 - A game shipped in several languages translates every player-visible string in the same commit (`CLAUDE.md` says how).
+- Text a player reads (tips, dialogue, notices, names) and the docs read like a person wrote them, not a chatbot:
+  plain, short and specific, no em dashes, no stock AI words or hype (`CLAUDE.md`, "Writing", has the list).
 - Report honestly: never claim a check that was not run, show the output when something fails, say what was skipped.
 - In long tasks, post a short note of what is being done every so often.
 - Keep temporary work (scratch scripts, renders, logs) out of the repository; keep reusable tools in `tools/`.

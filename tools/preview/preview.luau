@@ -625,6 +625,33 @@ local function expScenario(spec)
 				f.hp = 1
 			end
 			E.run(3)
+		elseif what == "lose" and s.exp and s.exp.battle then
+			-- the party falls: the Expedition Complete card (the trip's loot, xp and levels: some set here)
+			s.exp.loot.shells, s.exp.loot.food, s.exp.loot.wood = 264, 38, 21
+			local ups = {}
+			for k, f in s.exp.party do
+				if k <= 2 then
+					ups[f.key] = k
+				end
+			end
+			s.exp.gained = { xp = 412, ups = ups }
+			for _, f in s.exp.party do
+				f.hp, f.def = 1, 0
+			end
+			for _, f in s.exp.battle.foes do
+				f.atk, f.hp, f.maxHp = 999, 99999, 99999
+			end
+			-- (till the card is up: the playback catches up with the battle the server has ended)
+			local EUIx = modOr(p, "UI.ExpeditionUI")
+			for _ = 1, 60 do
+				E.run(0.5)
+				local pg = p:FindFirstChild("PlayerGui")
+				if pg and pg:FindFirstChild("Result", true) then
+					break
+				end
+			end
+			E.run(1)
+			local _ = EUIx
 		elseif what == "fight" and s.exp and s.exp.battle then
 			-- the battle frame by frame (exp_<n>_fight_000 ..: make_gif.py makes a GIF): the timers filling over the
 			-- heads, the wind-ups, dashes, strikes, hit-stops and knock-backs of both sides
@@ -691,6 +718,15 @@ local function expScenario(spec)
 			H.push(p, 0.3)
 			H.inClient(p, EUI.debugAim, what)
 			E.run(0.6)
+		elseif what == "inspect" and s.exp and s.exp.battle then
+			-- a closer look: the first wild one given three mutations, the plate over its head (as a hover shows it)
+			local foe = s.exp.battle.foes[1]
+			foe.muts = { "fierce3", "swift2", "lazy" }
+			H.push(p, 0.3)
+			E.run(1)
+			local key, lines = H.inClient(p, EUI.debugInspect, foe.key)
+			log("inspect %s: %s", tostring(key), table.concat(lines, " | "))
+			E.run(0.2)
 		elseif s.exp and s.exp.battle then
 			-- a battle under way: the timers, the numbers, the bars
 			E.run(2.5)
@@ -911,6 +947,50 @@ function SCEN.build()
 		settle(p, 10, 0.5)
 		capture(p, "build_replace")
 	end
+	return p
+end
+
+-- "expand": the island grows from the build tray. The server swaps in the island it built ahead; the filter re-bakes
+-- it (rushed); the cheer waits for the new picture. Frames expand_before and expand_after; the log says whether the
+-- next island was ready, and how many frames and bakes passed before the cheer.
+function SCEN.expand()
+	seedProfile(56, 1, { pieces = VILLAGE, folk = 3, shells = 1e6, wood = 1e5 })
+	local p = join(56, "Grower")
+	settle(p, 30, 1)
+	local PS = H.smod("PlotService")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local guard = 0
+	while not select(2, PS.debugNext(1)) and guard < 200 do
+		guard += 1
+		E.step(E.dt)
+	end
+	local nt, ready = PS.debugNext(1)
+	log("expand: next island for tier %s ready %s after %d frames", tostring(nt), tostring(ready), guard)
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 10, 0.5)
+	capture(p, "expand_before")
+	local bakes0, ticks0 = PR.debugStatic().bakes, PR.debugStatic().ticks
+	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+	local n, cheered = 0, false
+	while n < 600 and not cheered do
+		E.step(E.dt)
+		n += 1
+		for _, d in p.PlayerGui:GetDescendants() do
+			if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
+				cheered = true
+			end
+		end
+	end
+	local _, _, swaps = PS.debugNext(1)
+	log("expand: tier %d, swaps %d, cheer after %d frames (%s), bakes %d -> %d, baking %s, queued %s", H.profile(p).tier, swaps, n, tostring(cheered), bakes0, PR.debugStatic().bakes, tostring(PR.debugStatic().baking), tostring(PR.debugStatic().queued))
+	local m = 0
+	while m < 2000 and PR.debugStatic().bakes == bakes0 do
+		E.step(E.dt)
+		m += 1
+	end
+	log("expand: the re-bake finished %d frames after that (E.dt %.3f); the picture composed %d times meanwhile (it kept living)", m, E.dt, PR.debugStatic().ticks - ticks0)
+	settle(p, 10, 0.3)
+	capture(p, "expand_after")
 	return p
 end
 

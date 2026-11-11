@@ -19,6 +19,7 @@ local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local StreetModels = require(ReplicatedStorage.Shared.Models.StreetModels)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
+local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local Session = require(script.Parent.Session)
 
 local PlotService = {}
@@ -26,6 +27,13 @@ local PlotService = {}
 type S = Session.S
 
 local taken: { [number]: Player } = {}
+-- Each occupied plot's island for the next tier, built ahead in the background (a few dozen parts a frame) so an
+-- expansion swaps it in at once instead of making ~1,200 parts in one frame.
+local nextLand: { [number]: { tier: number, model: Model?, gen: number } } = {}
+local prebuildGen = 0
+local prebuildQueue: { { plot: number, tier: number, gen: number } } = {}
+local prebuilding = false
+local swaps = 0 -- expansions that swapped in an island built ahead (the sim checks it)
 local plotsFolder: Folder? = nil
 local homeAt: { [Player]: number } = {}
 
@@ -91,6 +99,53 @@ local function replace(parent: Instance, name: string, make: (f: Folder) -> ())
 	end
 end
 
+-- Builds the queued next islands one at a time, paced (Blocks.pace) so the server never stalls a frame on them.
+local function prebuildLoop()
+	if prebuilding then
+		return
+	end
+	prebuilding = true
+	while #prebuildQueue > 0 do
+		local job = table.remove(prebuildQueue, 1) :: { plot: number, tier: number, gen: number }
+		local slot = nextLand[job.plot]
+		if slot and slot.gen == job.gen then
+			local holder = Instance.new("Folder")
+			Blocks.pace(function()
+				task.wait()
+			end, 60)
+			local ok, m = pcall(StreetModels.land, holder, originOf(job.plot), job.tier)
+			Blocks.pace(nil)
+			local still = nextLand[job.plot]
+			if ok and still and still.gen == job.gen then
+				m.Parent = nil
+				still.model = m
+			else
+				if not ok then
+					warn("next island build failed: " .. tostring(m))
+				end
+			end
+			holder:Destroy()
+		end
+	end
+	prebuilding = false
+end
+
+-- Forget plot i's next island (a new one is queued when `tier` is given and the island can still grow).
+local function planNext(i: number, tier: number?)
+	local old = nextLand[i]
+	if old and old.model then
+		old.model:Destroy()
+	end
+	nextLand[i] = nil
+	if tier == nil or Island.expandCost(tier) == nil then
+		return
+	end
+	prebuildGen += 1
+	nextLand[i] = { tier = tier + 1, model = nil, gen = prebuildGen }
+	table.insert(prebuildQueue, { plot = i, tier = tier + 1, gen = prebuildGen })
+	task.defer(prebuildLoop)
+end
+
 -- An empty lot on plot i, with no attributes left of its last owner.
 local function emptyLot(i: number)
 	local m = plotModel(i)
@@ -112,6 +167,14 @@ local function emptyLot(i: number)
 end
 
 function PlotService.init()
+	-- every tier's cells now, before anyone joins (the top tiers take tens of ms each: never at an expansion)
+	local most = 1
+	while Island.expandCost(most) ~= nil do
+		most += 1
+	end
+	for t = 1, most do
+		Street.warm(t)
+	end
 	-- the invisible walls ("Bounds") keep founders in but are never in the pixel filter's rays ("PixelRays")
 	pcall(function()
 		PhysicsService:RegisterCollisionGroup("Bounds")
@@ -170,6 +233,7 @@ function PlotService.release(i: number)
 		return
 	end
 	taken[i] = nil
+	planNext(i, nil)
 	emptyLot(i)
 	boatAt(i, 1)
 end
@@ -220,14 +284,38 @@ function PlotService.build(s: S)
 	local tier = s.profile.tier
 	if static:GetAttribute("Built") ~= tier then
 		local o = originOf(s.plot)
-		replace(static, "Land", function(f)
-			StreetModels.land(f, o, tier)
-		end)
+		-- built ahead in the background: swap it in (the slot forgets it, so planNext doesn't destroy it)
+		local ready = nextLand[s.plot]
+		local made: Model? = nil
+		if ready and ready.tier == tier then
+			made = ready.model
+			ready.model = nil
+		end
+		if made then
+			swaps += 1
+			replace(static, "Land", function(f)
+				made.Parent = f
+			end)
+		else
+			replace(static, "Land", function(f)
+				StreetModels.land(f, o, tier)
+			end)
+		end
 		static:SetAttribute("Built", tier)
+		planNext(s.plot, tier)
+	elseif nextLand[s.plot] == nil then
+		planNext(s.plot, tier)
 	end
 	PlotService.buildDecor(s)
 	PlotService.setBoat(s)
 	PlotService.sync(s)
+end
+
+-- Plot i's island built ahead: the tier it is for (nil: none planned), whether it is finished, and how many
+-- expansions so far swapped one in (the sim's check).
+function PlotService.debugNext(i: number): (number?, boolean, number)
+	local n = nextLand[i]
+	return if n then n.tier else nil, n ~= nil and n.model ~= nil, swaps
 end
 
 -- The plot's attributes from the session (cheap: only changed values replicate).

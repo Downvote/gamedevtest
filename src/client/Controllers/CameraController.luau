@@ -198,13 +198,18 @@ local function pose(v: View)
 	cam.CFrame = CFrame.lookAt(c - v.look * dist, c)
 end
 
+local targetOf: (v: View) -> (number, number) -- (where the view should be: below)
+
 function CameraController.refit()
 	local v = build()
 	local old = current
 	current = v
 	if old == nil or old.key ~= v.key or old.plot ~= v.plot then
+		-- a new view starts where it should look (a cutscene's focus, the founder), never on the island's middle first
+		-- and gliding over: the stage closing on the way home must not swing the view across the land to the boat
 		panX, panY = v.grid.px, v.grid.py
 		freeX, freeY = panX, panY
+		panX, panY = targetOf(v)
 		CameraController.ViewChanged:Fire(v)
 	end
 	pose(v)
@@ -306,6 +311,8 @@ local function target(v: View): (number, number)
 	return math.floor(tx + 0.5), math.floor(ty + 0.5)
 end
 
+targetOf = target
+
 -- The most the view moves a frame: what the renderer can scroll in one (its strips within Tuning.PixelPanRays rays,
 -- about 1.5 rays a pixel with the sun's), so its picture never falls behind into a re-bake.
 local function panCaps(v: View): (number, number)
@@ -345,9 +352,28 @@ end
 -- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts where the
 -- view is (the founder in the middle), lowered by `down` art px (Build mode's tray covers the bottom of the screen).
 -- A cutscene's point to keep in the middle instead of the founder (nil: the founder again); the view glides to it
--- like a walk (UI/Voyage: the founder boarding, the boat sailing off).
-function CameraController.setFocus(p: Vector3?)
+-- like a walk (UI/Voyage: the founder boarding, the boat sailing off), or is put there at once (`snap`: behind closed
+-- blinds, so the picture they open on is already the right one).
+function CameraController.setFocus(p: Vector3?, snap: boolean?)
 	focus = p
+	local v = current
+	if snap and v and not v.stage then
+		local tx, ty = target(v)
+		if tx ~= panX or ty ~= panY then
+			panX, panY = tx, ty
+			pose(v)
+		end
+	end
+end
+
+-- Whether the view is where it should be (a cutscene waits for it before opening its blinds).
+function CameraController.settled(): boolean
+	local v = current
+	if v == nil then
+		return true
+	end
+	local tx, ty = target(v)
+	return tx == panX and ty == panY
 end
 
 function CameraController.setFree(on: boolean, down: number?)
@@ -400,6 +426,11 @@ function CameraController.start()
 		if cv.plot ~= plot or cv.tier ~= tier then
 			plot, tier = cv.plot, cv.tier
 			CameraController.refit()
+			-- the next tier's cells, worked out at a quiet moment (not the frame the island grows)
+			local t = cv.tier
+			task.delay(3, function()
+				Street.warm(t + 1)
+			end)
 		end
 	end
 	StateClient.Changed:Connect(fromView)

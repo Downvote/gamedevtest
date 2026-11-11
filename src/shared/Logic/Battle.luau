@@ -169,7 +169,7 @@ end
 
 -- How long each event plays on screen (seconds; a strike by its move): an action holds the battle that long
 -- (`playTime`, times Tuning.ActLock) so the screen keeps up.
-Battle.EVENT_SECS = { attack = 0.95, bash = 1.2, quick = 0.9, zap = 0.85, heal = 0.8, shield = 0.8, rally = 0.8, treat = 1.6, flee = 0.8, skill = 0.5, revive = 1.0, haste = 0.8, dizzy = 0.8 } :: { [string]: number }
+Battle.EVENT_SECS = { attack = 0.95, bash = 1.2, quick = 0.9, zap = 0.85, heal = 0.8, shield = 0.8, rally = 0.8, treat = 1.6, flee = 0.8, skill = 0.5, revive = 1.0, haste = 0.8, dizzy = 0.8, cancel = 0.3 } :: { [string]: number }
 
 -- How a strike plays: an auto skill's own move (bash, quick, zap), a learnt skill's (Data/Skills), else an attack.
 function Battle.moveOf(skill: string?): string
@@ -375,6 +375,9 @@ function Battle.step(party: { Fighter }, b: Battle, dt: number, rng: Rng): ({ Ev
 		end
 		if b.lock > 0 then
 			b.lock = math.max(0, b.lock - h)
+			if b.lock <= 0 then
+				b.undo = nil -- (played out: no longer cancelled by a snack)
+			end
 			continue
 		end
 		if ready then
@@ -382,8 +385,17 @@ function Battle.step(party: { Fighter }, b: Battle, dt: number, rng: Rng): ({ Ev
 			f.gauge = 0
 			b.acts += 1
 			local first = #ev + 1
+			-- how things stand before it, while it plays (a snack thrown meanwhile cancels it: Battle.snack)
+			local undo: Types.Undo = { by = f.key, charge = f.charge, shield = b.shield, foeShield = b.foeShield, hp = {}, atk = {} }
+			for _, list in { party, b.foes } :: { { Fighter } } do
+				for _, x in list do
+					undo.hp[x.key] = x.hp
+					undo.atk[x.key] = x.atk
+				end
+			end
 			actOne(f, party, b, rng, ev)
 			b.lock = Battle.playTime(ev, first)
+			b.undo = if b.lock > 0 then undo else nil
 			local r = outcome(party, b)
 			if r then
 				return ev, r
@@ -406,33 +418,73 @@ end
 -- A snack for a wild one: the leader's timer starts again and it throws; the wild one catches it (and leaves the
 -- battle a friend, `friend = true`) as often as its trust says. The battle runs again. Returns (true, events, result)
 -- or (false, an ErrCode).
-function Battle.snack(party: { Fighter }, b: Battle, target: string?, rng: Rng): (boolean, any, string?)
+-- A snack at the wild one `target` (GAME_DESIGN 7). Thrown while an automatic action is still playing, it cancels it
+-- first ("if a snack is thrown, the attack is cancelled if it is mid attack"): everyone's health and attack, the
+-- shields and the actor's count to its skill back as they stood before it (a "cancel" event with the health as it is
+-- again); a wild one's cancelled attack is lost (its timer starts over: it turned to look at the snack), a party
+-- member's comes back at once (its timer full). (`sure`: it befriends whatever the chance: the tips' first snack.)
+function Battle.snack(party: { Fighter }, b: Battle, target: string?, rng: Rng, sure: boolean?): (boolean, any, string?)
 	if b.boss then
 		return false, "blocked"
 	end
-	local lead = leader(party)
+	local undo = if b.lock > 0 then b.undo else nil
+	local function hpNow(f: Fighter): number
+		return if undo and undo.hp[f.key] ~= nil then undo.hp[f.key] else f.hp
+	end
+	local lead: Fighter? = nil
+	for _, f in party do
+		if f.key == "f" and hpNow(f) > 0 then
+			lead = f
+		end
+	end
 	if lead == nil then
 		return false, "blocked"
 	end
 	local foe: Fighter? = nil
-	for _, f in Battle.alive(b.foes) do
-		if f.key == target then
+	for _, f in b.foes do
+		if f.key == target and hpNow(f) > 0 and not (f :: any).friend then
 			foe = f
 		end
 	end
 	if foe == nil then
 		return false, "not_found"
 	end
+	local ev: { Event } = {}
+	if undo then
+		local back: { [string]: number } = {}
+		for _, list in { party, b.foes } :: { { Fighter } } do
+			for _, x in list do
+				local hp, atk = undo.hp[x.key], undo.atk[x.key]
+				if hp ~= nil and hp ~= x.hp then
+					x.hp = hp
+					back[x.key] = hp
+				end
+				if atk ~= nil then
+					x.atk = atk
+				end
+				if x.key == undo.by then
+					x.charge = undo.charge
+					x.gauge = if x.kind == "wild" then 0 else 1
+				end
+			end
+		end
+		b.shield, b.foeShield = undo.shield, undo.foeShield
+		b.undo = nil
+		b.lock = 0
+		table.insert(ev, { t = "cancel", by = undo.by, hp = back })
+	end
 	local fo = foe :: Fighter
-	lead.gauge = 0
-	local ok = rng:chance(Battle.treatChance(fo, party, b.boss))
-	local ev: { Event } = { { t = "treat", by = lead.key, to = fo.key, ok = ok } }
+	local ld = lead :: Fighter
+	ld.gauge = 0
+	local ok = sure == true or rng:chance(Battle.treatChance(fo, party, b.boss))
+	table.insert(ev, { t = "treat", by = ld.key, to = fo.key, ok = ok })
 	if ok then
 		fo.hp = 0
 		local fa: any = fo
 		fa.friend = true
 	end
 	b.lock = Battle.playTime(ev)
+	b.undo = nil
 	b.paused = false
 	return true, ev, outcome(party, b)
 end
@@ -453,6 +505,7 @@ function Battle.flee(party: { Fighter }, b: Battle, rng: Rng): (boolean, any, st
 		lead.gauge = 0
 	end
 	b.lock = Battle.playTime(ev)
+	b.undo = nil
 	b.paused = false
 	return true, ev, nil
 end
@@ -557,6 +610,7 @@ function Battle.useSkill(party: { Fighter }, b: Battle, who: string, id: string,
 		table.insert(ev, { t = "dizzy", by = u.key })
 	end
 	b.lock = Battle.playTime(ev)
+	b.undo = nil
 	b.paused = false
 	return true, ev, outcome(party, b)
 end

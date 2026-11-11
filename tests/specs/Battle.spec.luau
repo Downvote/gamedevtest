@@ -156,6 +156,67 @@ return function()
 		local gb = Battle.new({ Battle.wild("pebblit", 1, 1, true) }, true, party)
 		T.eq(select(2, Battle.snack(party, gb, "w1", Util.newRng(1))), "blocked")
 	end)
+	T.it("a snack thrown while an attack plays cancels it: health back, a wild one's turn lost, a member's back", function()
+		local p = Schema.default(0, 1)
+		for _, who in { "wild", "party" } do
+			local party = { tough(Battle.founder(p)) }
+			local foe = Battle.wild("clawdle", 5, 1, false)
+			foe.hp, foe.maxHp = 500, 500
+			local b = Battle.new({ foe }, false, party)
+			b.paused = false
+			local rng = Util.newRng(3)
+			-- run till the side wanted starts an attack (the battle holds while it plays)
+			local hit = nil
+			for _ = 1, 400 do
+				local ev = Battle.step(party, b, 0.05, rng)
+				for _, e in ev do
+					if e.t == "hit" and ((who == "wild") == (e.by == "w1")) then
+						hit = e
+					end
+				end
+				if hit then
+					break
+				end
+			end
+			T.truthy(hit ~= nil and b.lock > 0 and b.undo ~= nil, who .. ": an attack playing, its undo kept")
+			local to = if hit.to == "f" then party[1] else foe
+			local before = to.hp + hit.dmg
+			-- aiming pauses it (Expedition.pause); the throw comes while it still plays
+			b.paused = true
+			local ok, ev = Battle.snack(party, b, "w1", rng)
+			T.truthy(ok)
+			T.eq(ev[1].t, "cancel", "the attack cancelled first")
+			T.eq(ev[1].by, hit.by)
+			T.eq(ev[2].t, "treat")
+			if not ev[2].ok then
+				T.eq(to.hp, before, "its blow undone")
+				T.eq(ev[1].hp[to.key], before, "the cancel says the health as it is again")
+			end
+			if who == "wild" then
+				T.eq(foe.gauge, 0, "a wild one's attack is lost: its timer starts over")
+			else
+				T.eq(party[1].gauge, 0, "the leader threw the snack: its timer starts again")
+			end
+			T.eq(b.undo, nil)
+			T.near(b.lock, Battle.playTime(ev), 1e-9, "the battle holds for the throw")
+		end
+		-- played out: nothing to cancel
+		local party = { tough(Battle.founder(p)) }
+		local foe = Battle.wild("clawdle", 5, 1, false)
+		foe.hp, foe.maxHp = 500, 500
+		local b = Battle.new({ foe }, false, party)
+		b.paused = false
+		local rng = Util.newRng(4)
+		for _ = 1, 400 do
+			Battle.step(party, b, 0.05, rng)
+			if b.acts > 0 and b.lock <= 0 then
+				break
+			end
+		end
+		T.eq(b.undo, nil, "an action played out leaves no undo")
+		local _, ev = Battle.snack(party, b, "w1", rng)
+		T.eq(ev[1].t, "treat", "no cancel then")
+	end)
 	T.it("fleeing: by speed, never from a guardian; a miss starts the leader's timer again", function()
 		local p = Schema.default(0, 1)
 		local party = { Battle.founder(p) }

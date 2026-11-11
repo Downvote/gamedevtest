@@ -481,15 +481,53 @@ E.run(0.4)
 H.expect(H.buttonNamed(p, "TipsOk") ~= nil, "panels", "the last tip has an OK")
 H.clickNamed(p, "TipsOk", { wait = 0.5 })
 H.expect(prof.tut == 0 and H.buttonNamed(p, "TipsOk") == nil, "panels", "OK puts the tips away for good")
--- expanding the island from the build tray
+-- expanding the island from the build tray: the next island was built ahead in the background, so the expansion
+-- swaps it in (no ~1,200 parts made in the frame of the click), and the cheer waits for the bigger island's picture
 prof.shells, prof.wood = 1e6, 1e5
 H.push(p, 0.4)
+local PS = H.smod("PlotService")
+local guardNext = 0
+while not select(2, PS.debugNext(1)) and guardNext < 40 do
+	guardNext += 1
+	E.run(0.25)
+end
+local nt, nready, swaps0 = PS.debugNext(1)
+H.expect(nt == 2 and nready, "panels", "the next island is built ahead in the background", string.format("%s %s", tostring(nt), tostring(nready)))
+local function statusSays(pattern)
+	for _, d in p.PlayerGui:GetDescendants() do
+		if d:IsA("TextLabel") and string.find(d.Text, pattern, 1, true) then
+			return true
+		end
+	end
+	return false
+end
 H.clickNamed(p, "Menu_build", { wait = 0.5 })
-H.clickNamed(p, "Expand", { wait = 0.8 })
+H.clickNamed(p, "Expand", { wait = 0 })
 H.expect(prof.tier == 2, "panels", "Expand: the island grows", tostring(prof.tier))
+local _, _, swaps1 = PS.debugNext(1)
+H.expect(swaps1 == swaps0 + 1, "panels", "the expansion swaps in the island built ahead", string.format("%d -> %d", swaps0, swaps1))
+local cheerAt = -1
+for k = 1, 30 do
+	E.run(0.05)
+	if statusSays("Your island grew") then
+		cheerAt = k * 0.05
+		break
+	end
+end
+H.expect(cheerAt > 0 and cheerAt <= 1.5, "panels", "the cheer comes with the bigger island's picture", string.format("%.2f s", cheerAt))
+local PRx = H.cmod(p, "Pixel.PixelRenderer")
+H.log("expansion: the next island was ready, swapped in; the cheer came %.2f s after the click (filter %s, bakes %d)", cheerAt, tostring(PRx.tier()), PRx.debugStatic().bakes)
 E.run(0.5)
 local st2 = E.workspace.Plots.Plot_1:FindFirstChild("Static")
 H.expect(st2 ~= nil and st2:GetAttribute("Built") == 2, "panels", "the island is rebuilt bigger", tostring(st2 and st2:GetAttribute("Built")))
+local lands = 0
+for _, c in st2:GetChildren() do
+	if c.Name == "Land" then
+		lands += 1
+	end
+end
+H.expect(lands == 1, "panels", "one island model after the swap", tostring(lands))
+H.expect((PS.debugNext(1)) == 3, "panels", "the island after that is planned", tostring((PS.debugNext(1))))
 H.clickNamed(p, "BuildDone", { wait = 0.4 })
 H.checkProfile(p, "panels")
 H.checkMirror(p, "panels")

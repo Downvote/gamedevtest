@@ -240,9 +240,7 @@ function IslandService.init()
 		if e == nil then
 			return false, "no_exp"
 		end
-		if e.battle and not e.over then
-			return false, "in_battle"
-		end
+		-- any time, a battle too (GAME_DESIGN 7: the wild ones are left behind, nothing is lost)
 		local data = goHome(s)
 		Session.fx(s, { kind = "exp", step = "home", data = data })
 		return true, data

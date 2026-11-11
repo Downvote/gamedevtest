@@ -13,9 +13,9 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
 `sim.luau` about 640 (a few more or fewer as its battles go), `sim_save.luau` about 227, `sim_clock.luau` 445,
-`sim_world.luau` 248, `sim_exp.luau` about 476 (its Index checks vary with the battles)). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
-"desktop phone"` with a scenario of `island village island2 island3 city gallery day dusk night dawn sea visit build water voyage
-late`, `panel=<folk|pals|hatch|explore|index|looks>` or `exp=<kind 1-9>[_battle|_boss|_snack|_skills|_aim|_throw|_tut|_win|_loot|_fight]` (e.g. `exp=4_boss`). The place
+`sim_world.luau` 248, `sim_exp.luau` about 487 (its Index checks vary with the battles)). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
+"desktop phone"` with a scenario of `island village island2 island3 city gallery day dusk night dawn sea visit build expand water
+voyage late`, `panel=<folk|pals|hatch|explore|index|looks>` or `exp=<kind 1-9>[_battle|_boss|_snack|_skills|_aim|_throw|_tut|_win|_lose|_inspect|_loot|_fight]` (e.g. `exp=4_boss`). The place
 file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):
@@ -35,6 +35,16 @@ and full screen (as the earlier request for the minigames: "make the minigames f
 using the player's avatar"): stages and things built from parts (`UI/MicroStage`, `Models/MicroModels`: the
 driftlings too), world-aligned on the iso grid, drawn by the pixel filter like the islands, with the player's founder
 leading the party (`UI/ExpeditionUI`).
+
+## Writing (always)
+
+The user's standing rule (2026-11-11): "please rewrite all text and dialogue to be less ai-like. research what are
+the telltale signs of ai writing and avoid them. note this from further on as well". Every player-visible string,
+tip, line of dialogue and notice, and the docs too, reads like a person wrote it: plain words; no em or en dashes;
+none of the stock AI words ("delve", "embark", "unleash", "vibrant", "bustling", "journey", "realm", "tapestry",
+"seamless", "elevate"); no "it's not X, it's Y"; no reflexive groups of three; no exclamation on every line; no
+hype ("epic adventure awaits!"); no stated morals. Short and specific, the way a game's own characters would say
+it. Read new text aloud once before it goes in.
 
 ## Language
 
