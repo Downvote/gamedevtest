@@ -13,7 +13,7 @@
 --   "key"    a settings key ("pixel", "music")
 --   "coord"  a whole number in [-64, 64] (a plot-local stud)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
---   "index"  a whole number in [1, 64] (a placed piece)
+--   "index"  a whole number in [1, 1024] (a placed piece: pieces and path tiles)
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
 
@@ -24,6 +24,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.move"] = { i = "index", x = "coord", z = "coord", rot = "rot" },
 	["plot.store"] = { i = "index" },
 	["plot.upgrade"] = { i = "index" },
+	["plot.replace"] = { i = "index", id = "id" },
 	["island.expand"] = {},
 	["folk.work"] = { id = "int", uid = "int" },
 	["folk.dismiss"] = { id = "int" },
@@ -89,7 +90,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "rot" then
 		return v == 0 or v == 90 or v == 180 or v == 270
 	elseif kind == "index" then
-		return isInt(v, 1, 64)
+		return isInt(v, 1, 1024)
 	elseif kind == "key" then
 		return type(v) == "string" and SETTINGS[v] == true
 	elseif kind == "any" then

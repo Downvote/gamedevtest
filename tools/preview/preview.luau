@@ -193,7 +193,7 @@ local function seedProfile(userId, tier, opts)
 	prof.cap = { lvl = opts.cap or 6, xp = 0 }
 	for _, d in opts.pieces or {} do
 		local done = false
-		for r = 0, 8 do
+		for r = 0, if d[6] then 0 else 8 do
 			for dz = -r, r do
 				for dx = -r, r do
 					if not done and (math.abs(dx) == r or math.abs(dz) == r) and Plot.fits(tier, prof.plot.placed, d[1], d[2] + dx, d[3] + dz, d[4] or 0) then
@@ -204,7 +204,7 @@ local function seedProfile(userId, tier, opts)
 				end
 			end
 		end
-		if not done then
+		if not done and not d[6] then
 			log("seed: %s does not fit near %d,%d", d[1], d[2], d[3])
 		end
 	end
@@ -347,6 +347,92 @@ local function islandScenario(tier, label)
 end
 SCEN.island2 = islandScenario(2, "island2")
 SCEN.island3 = islandScenario(3, "island3")
+
+-- A tier-6 capital (GAME_DESIGN 4.1: "a big island that is well decorated should look like a well developed city"):
+-- brick roads in a grid (marble round the plaza, stone lanes between), the blocks filled with the town and city
+-- buildings, lamps and trees along the roads. Roads go exactly where they fit (else nowhere); buildings nearest.
+local function cityPieces()
+	local out = {}
+	local function road(id, x, z)
+		table.insert(out, { id, x, z, 0, 1, true })
+	end
+	for _, z in { -44, -32, -20, -8 } do
+		for x = -32, 32, 2 do
+			road("brickroad", x, z)
+		end
+	end
+	for _, x in { -28, -16, 14, 26 } do
+		for z = -50, 14, 2 do
+			road("brickroad", x, z)
+		end
+	end
+	for x = -14, 12, 2 do
+		road("marblewalk", x, 12)
+		road("marblewalk", x, 0)
+	end
+	for _, x in { -8, 6 } do
+		for z = 2, 10, 2 do
+			road("marblewalk", x, z)
+		end
+	end
+	-- the blocks: the city's buildings, then trees, lamps and hedges in what is left
+	local BIG = {
+		"townhall", "hotel", "bazaar", "manor", "skygarden", "palace", "observatory", "crystalfountain", "villa", "kelpfarm",
+		"bakery", "grandmill", "townhouse", "grotto", "clocktower", "monument", "paddy", "inn", "roost", "bandstand",
+		"sunspire", "greenhouse", "villa", "townhouse", "beacon", "watertower", "market", "hatchery", "gazebo", "longhouse",
+		"bamboo", "timber", "den", "windmill", "cafe", "townhouse", "manor", "grandarch", "canal", "smokehouse",
+		"orchard", "cottage", "villa", "toolshed", "lighthouse", "statue", "fountain", "hotel", "bazaar", "yard",
+	}
+	local k = 0
+	for _, z in { -49, -40, -28, -16, -4, 4 } do
+		for _, x in { -34, -25, -12, -4, 4, 18, 30 } do
+			k += 1
+			table.insert(out, { BIG[(k - 1) % #BIG + 1], x, z })
+		end
+	end
+	for _, x in { -30, -18, 12, 24 } do
+		for _, z in { -46, -34, -22, -10 } do
+			table.insert(out, { "streetlamp", x, z })
+		end
+	end
+	local SMALL = { "topiary", "palm", "lamppost", "flowers", "hedge", "bench", "flowerarch", "topiary", "fence", "palm" }
+	k = 0
+	for z = -50, 10, 5 do
+		for x = -34, 34, 7 do
+			k += 1
+			table.insert(out, { SMALL[(k - 1) % #SMALL + 1], x, z })
+		end
+	end
+	return out
+end
+
+function SCEN.city()
+	local CITY_PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
+	seedProfile(16, 6, { pieces = cityPieces(), folk = 40, pals = CITY_PALS, islets = 30, shells = 900000, wood = 60000, food = 5000, cap = 40 })
+	local p = join(16, "Capital")
+	settle(p)
+	E.run(2.5)
+	local prof = H.profile(p)
+	local paths = 0
+	for _, q in prof.plot.placed do
+		if H.sharedServer("Logic.Plot").isPath(q.id) then
+			paths += 1
+		end
+	end
+	log("city: %d pieces, %d path tiles, %d villagers, %d driftlings", #prof.plot.placed - paths, paths, #prof.folk, #prof.pals)
+	capture(p, "city")
+	-- the heart of the city, further north
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+		p.Character:PivotTo(E.cf.new(ox - 2, 3, -14))
+		E.run(2)
+		settle(p, 30, 1)
+	end
+	E.run(1.5)
+	capture(p, "city_north")
+	return p
+end
 
 -- A new day's banner: the sea's clock jumped to just before a day's end (a day is hours long).
 function SCEN.day()
@@ -773,6 +859,20 @@ function SCEN.build()
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
 		capture(p, "build_tip")
+		-- replacing a placed piece: the tent tapped, Replace, the homes of its kind with their prices
+		prof.tut = 0
+		prof.tier = 2
+		H.push(p, 0.4)
+		for _, q in prof.plot.placed do
+			if q.id == "tent" then
+				local w, d = Plot.footprint(q.id, q.rot)
+				tapWorld(E.v3(ox + q.x + w / 2, Street.LAWN_Y + 0.3, oz + q.z + d / 2))
+			end
+		end
+		E.run(0.4)
+		H.clickNamed(p, "Replace", { optional = true, wait = 0.4 })
+		settle(p, 10, 0.5)
+		capture(p, "build_replace")
 	end
 	return p
 end
@@ -824,7 +924,7 @@ function SCEN.late()
 end
 
 ------------------------------------------------------------------ run
-local list = if scenario == "all" then { "island", "village", "island3", "sea", "build", "day" } else { scenario }
+local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do
 	local fn = SCEN[name]
 	local panel = string.match(name, "^panel=(%w+)$")

@@ -19,8 +19,30 @@ local Plot = {}
 
 Plot.ROTS = { 0, 90, 180, 270 }
 
+-- The island's piece limit by its tier (buildings and decor), and its path tiles' (apart: Tuning.PathPieces).
 function Plot.limit(tier: number): number
 	return Tuning.PlotPieces[math.clamp(math.floor(tier), 1, #Tuning.PlotPieces)]
+end
+function Plot.pathLimit(tier: number): number
+	return Tuning.PathPieces[math.clamp(math.floor(tier), 1, #Tuning.PathPieces)]
+end
+
+-- Whether a piece is a path tile (counted apart).
+function Plot.isPath(id: string): boolean
+	local d = Buildings.byId[id]
+	return d ~= nil and d.kind == "path"
+end
+
+-- How many pieces of the same count as `id` stand (paths, or the rest), and that count's limit.
+function Plot.used(p: Profile, id: string): (number, number)
+	local path = Plot.isPath(id)
+	local n = 0
+	for _, q in p.plot.placed do
+		if Plot.isPath(q.id) == path then
+			n += 1
+		end
+	end
+	return n, if path then Plot.pathLimit(p.tier) else Plot.limit(p.tier)
 end
 
 -- The footprint (w along x, d along z) of a piece turned by rot.
@@ -94,7 +116,8 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	if def.tier > p.tier then
 		return false, "locked" :: ErrCode
 	end
-	if #p.plot.placed >= Plot.limit(p.tier) then
+	local used, most = Plot.used(p, id)
+	if used >= most then
 		return false, "full" :: ErrCode
 	end
 	if p.shells < def.shells then
@@ -138,13 +161,91 @@ function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (b
 end
 
 -- The price of a building's next level (nil: it has none).
+-- The next level's price: a building that makes something (it makes more: UpgradeMult) or a home or nest (more
+-- comfort: ComfortLvl), up to level 3.
 function Plot.upgradeCost(q: Piece): { shells: number, wood: number }?
 	local def = Buildings.byId[q.id]
 	local k = Tuning.UpgradeCost[(q.lvl or 1) + 1]
-	if def == nil or k == nil or not (def.kind == "food" or def.kind == "wood" or def.kind == "shop") then
+	if def == nil or k == nil or not (def.kind == "food" or def.kind == "wood" or def.kind == "shop" or def.kind == "home" or def.kind == "nest") then
 		return nil
 	end
 	return { shells = def.shells * k, wood = def.wood * k }
+end
+
+-- What replacing piece `q` with `id` costs: the new one's price less what clearing the old away gives back (never
+-- below nothing).
+function Plot.replaceCost(q: Piece, id: string): { shells: number, wood: number }?
+	local old, new = Buildings.byId[q.id], Buildings.byId[id]
+	if old == nil or new == nil then
+		return nil
+	end
+	return {
+		shells = math.max(0, new.shells - math.floor(old.shells * Tuning.Refund)),
+		wood = math.max(0, new.wood - math.floor(old.wood * Tuning.Refund)),
+	}
+end
+
+-- The pieces piece `q` may be replaced with: the others of its kind open at the tier (the island's own list order).
+function Plot.replacements(q: Piece, tier: number): { string }
+	local old = Buildings.byId[q.id]
+	local out: { string } = {}
+	if old == nil then
+		return out
+	end
+	for _, d in Buildings.list do
+		if d.kind == old.kind and d.id ~= old.id and d.tier <= tier then
+			table.insert(out, d.id)
+		end
+	end
+	return out
+end
+
+-- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a tent for a cottage, a nest for a
+-- den, a patch for an orchard): its uid stays (its workers and helpers stay where the knack still fits), its level
+-- starts again at 1. bad_payload (another kind, the same piece), locked (a bigger island's), money / wood, blocked
+-- (the new footprint does not fit there), no_room (fewer beds or nests than the island needs), egg (a Hatchery's).
+function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
+	local q = p.plot.placed[i]
+	local old, new = if q then Buildings.byId[q.id] else nil, Buildings.byId[id]
+	if q == nil or old == nil or new == nil or new.kind ~= old.kind or new.id == old.id then
+		return false, "bad_payload" :: ErrCode
+	end
+	if new.tier > p.tier then
+		return false, "locked" :: ErrCode
+	end
+	local cost = Plot.replaceCost(q, id) :: { shells: number, wood: number }
+	if p.shells < cost.shells then
+		return false, "money" :: ErrCode
+	end
+	if p.wood < cost.wood then
+		return false, "wood" :: ErrCode
+	end
+	if not Plot.fits(p.tier, p.plot.placed, id, q.x, q.z, q.rot, i) then
+		return false, "blocked" :: ErrCode
+	end
+	local beds, slots = 0, 0
+	for j, o in p.plot.placed do
+		local od = if j == i then new else Buildings.byId[o.id]
+		if od then
+			beds += od.beds
+			slots += od.slots
+		end
+	end
+	if beds < #p.folk or slots < #p.pals then
+		return false, "no_room" :: ErrCode
+	end
+	p.shells -= cost.shells
+	p.wood -= cost.wood
+	q.id = id
+	q.lvl = 1
+	-- helpers whose knack the new one does not take go back to rest
+	for _, x in p.pals do
+		if x.work == q.uid and new.knack ~= old.knack then
+			x.work = 0
+		end
+	end
+	p.stats.built += 1
+	return true, { i = i, uid = q.uid, id = id }
 end
 
 -- Upgrade a building that makes something (it makes Tuning.UpgradeMult times as much).

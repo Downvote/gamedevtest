@@ -536,6 +536,8 @@ SMALL = {
     "home": ["....R....", "...RRR...", "..RRRRR..", ".RRRRRRR.", "RRRRRRRRR", ".mmmmmmm.", ".mnnmmcm.", ".mnnmmmm.", ".mnnmmmm."],
     "nest": [".........", "...WWW...", "..WWWWW..", "..WWWWW..", "NNNWWWNNN", "NNNNNNNNN", ".NdNNNdN.", "..NNNNN..", "........."],
     "train": [".........", ".S.....S.", "SSS...SSS", "SSSxxxSSS", "SSS...SSS", ".S.....S.", ".........", ".........", "........."],
+    "boost": ["....G....", "...GGG...", "..GGGGG..", ".GGGGGGG.", "...GGG...", "...GGG...", "...GGG...", "...GGG...", "........."],
+    "path": [".........", "SSS......", "SSS.SSS..", "....SSS..", ".SSS.....", ".SSS.SSS.", ".....SSS.", "..SSS....", "..SSS...."],
     "decor": ["..KK.KK..", ".KKKKKKK.", "..KKyKK..", ".KKKKKKK.", "..KK.KK..", "....G....", ".GG.G....", "..GGG.GG.", "....GGG.."],
     # the expedition's path
     "start": ["..R......", "..RRR....", "..RRRRR..", "..RRR....", "..N......", "..N......", "..N......", ".NNN.....", "........."],

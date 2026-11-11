@@ -381,7 +381,13 @@ function H.checkProfile(p, label)
 	H.expect(prof.tut >= 0 and prof.tut <= 8, "profile", label .. ": tips out of range", tostring(prof.tut))
 	-- the pieces
 	local placed = prof.plot.placed
-	H.expect(#placed <= Plot.limit(prof.tier), "profile", label .. ": more pieces than the island holds", tostring(#placed))
+	local nPaths = 0
+	for _, q in placed do
+		if Plot.isPath(q.id) then
+			nPaths += 1
+		end
+	end
+	H.expect(#placed - nPaths <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths, nPaths))
 	local uids = {}
 	local rest = {}
 	for i, q in placed do

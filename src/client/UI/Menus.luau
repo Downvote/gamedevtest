@@ -75,6 +75,29 @@ local function mutLine(parent: Instance, muts: { string }, x: number, y: number,
 	end
 end
 
+-- Who lives where and their comfort (Logic/Island.homes over the view's pieces, villagers and driftlings).
+local function homesOf(v: Types.ClientView): { [string]: Island.Home }
+	return Island.homes({ plot = { placed = v.pieces }, folk = v.folk, pals = v.pals } :: any)
+end
+
+-- "the Villa, comfort +18%" for a resident; "" when it has no bed.
+local function homeLine(v: Types.ClientView, h: Island.Home?): string
+	if h == nil then
+		return ""
+	end
+	local q = nil
+	for _, x in v.pieces do
+		if x.uid == h.uid then
+			q = x
+		end
+	end
+	local d = if q then Buildings.byId[q.id] else nil
+	if d == nil then
+		return ""
+	end
+	return if h.comfort > 0 then string.format("%s, comfort +%d%%", d.name, math.round(h.comfort * 100)) else d.name
+end
+
 local function row(list: Instance, order: number, h: number): Frame
 	local f = UIKit.plate(list, UDim2.new(1, -6, 0, h), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
 	f.Name = "Row"
@@ -235,8 +258,9 @@ local function buildFolk(body: Frame, arg: any?)
 		local f = row(list, 1, 24)
 		UIKit.text(f, "Nobody lives here yet. Build a Tent: a castaway may move in at dawn.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
+	local homes = homesOf(v)
 	for i, x in v.folk do
-		local f = row(list, i, 34)
+		local f = row(list, i, 44)
 		f.Name = "Folk_" .. x.id
 		UIKit.portrait(f, x.look, 30, UDim2.fromOffset(2, 2))
 		local gone = away(v, "v" .. x.id)
@@ -248,7 +272,12 @@ local function buildFolk(body: Frame, arg: any?)
 			return if d then d.job .. " at the " .. d.name else "Working"
 		end)() else "Resting"
 		UIKit.text(f, job, UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 11), { color = if gone then UIKit.color("orange") elseif x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Job" })
-		UIKit.text(f, statLine(Battle.villager(x)), UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 21), { color = UIKit.color("text_dim"), z = 4 })
+		-- its home (the best beds go first) and the comfort it gives: more work, stronger in battle
+		local h = homes["v" .. x.id]
+		local c = if h then h.comfort else 0
+		UIKit.text(f, statLine(Battle.villager(x, if c > 0 then { hp = c, atk = c, def = c } else nil)), UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 21), { color = UIKit.color("text_dim"), z = 4 })
+		local hl = homeLine(v, h)
+		UIKit.text(f, if hl ~= "" then "Home: " .. hl else "No bed", UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 31), { color = if c > 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Home" })
 		local jb = UIKit.button(f, "Job", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 10), function()
 			UIKit.openPanel("folk", { folk = x.id })
 		end, { name = "Job_" .. x.id, color = UIKit.color("button_ok"), enabled = not gone })
@@ -457,6 +486,7 @@ local function buildPals(body: Frame, arg: any?)
 		local f = row(list, 1, 24)
 		UIKit.text(f, "No driftlings yet. Build a nest, then Explore: a snack in battle may befriend one.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
+	local homes = homesOf(v)
 	for i, x in v.pals do
 		local d = Creatures.byId[x.sp]
 		if d == nil then
@@ -475,7 +505,10 @@ local function buildPals(body: Frame, arg: any?)
 		mutLine(f, x.muts or {}, 24, 21, tw)
 		local where = if gone then "Away on an expedition" elseif x.work ~= 0 then "Helping at the " .. (buildingName(v, x.work) or "?") else "Resting (helps at " .. (KNACKS[d.knack] or d.knack) .. ")"
 		UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 31), { color = if gone then UIKit.color("orange") elseif x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Where" })
-		UIKit.text(f, statLine(Battle.pal(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 41), { color = UIKit.color("text_dim"), z = 4 })
+		local h = homes["p" .. x.id]
+		local c = if h then h.comfort else 0
+		local nest = homeLine(v, h)
+		UIKit.text(f, statLine(Battle.pal(x, if c > 0 then { hp = c, atk = c, def = c } else nil)) .. (if nest ~= "" then "  " .. nest else ""), UDim2.fromOffset(W - 30, 10), UDim2.fromOffset(24, 41), { color = UIKit.color("text_dim"), z = 4, name = "Stats" })
 		local hb = UIKit.button(f, "Help", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 20), function()
 			UIKit.openPanel("pals", { pal = x.id })
 		end, { name = "Help_" .. x.id, color = UIKit.color("button_ok"), enabled = not gone })

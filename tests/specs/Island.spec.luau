@@ -192,8 +192,55 @@ return function()
 		p.wood = 0
 		T.eq(select(2, Island.expand(p)), "wood")
 		p.wood = 1e9
-		T.truthy(Island.expand(p))
+		p.shells = 1e9
+		while p.tier < #Tuning.TierCost do
+			T.truthy(Island.expand(p))
+		end
+		T.eq(p.tier, 6, "six tiers: a castaway's cay to a capital")
 		T.eq(select(2, Island.expand(p)), "max")
+	end)
+	T.it("homes: the best first, filled in the order the villagers came; comfort makes workers make more", function()
+		local p = fresh()
+		p.tier = 6
+		local tent = put(p, "tent")
+		local villa = put(p, "villa")
+		local farm = put(p, "patch")
+		local a = villager(p, farm)
+		local homes = Island.homes(p)
+		T.eq(homes["v" .. a.id].uid, villa, "the villa first")
+		T.near(homes["v" .. a.id].comfort, Buildings.byId.villa.comfort, 1e-9)
+		T.near(Island.rates(p).food, Buildings.byId.patch.rate * (1 + Buildings.byId.villa.comfort) - Tuning.EatFolk, 1e-9)
+		-- a home's level adds comfort
+		p.plot.placed[2].lvl = 3
+		T.near(Island.homes(p)["v" .. a.id].comfort, Buildings.byId.villa.comfort + Tuning.ComfortLvl[3], 1e-9)
+		-- the villa full: the tent next
+		for _ = 1, Buildings.byId.villa.beds do
+			villager(p, 0)
+		end
+		local last = p.folk[#p.folk]
+		T.eq(Island.homes(p)["v" .. last.id].uid, tent)
+		-- and in battle: a comfortable villager is stronger
+		local Expedition = require("../../build/luautest/shared/Logic/Expedition")
+		local Battle = require("../../build/luautest/shared/Logic/Battle")
+		local f = Expedition.fighter(p, "v" .. a.id) :: any
+		T.truthy(f.maxHp > Battle.villager(a).maxHp, "more health")
+	end)
+	T.it("boosts: every building of a knack makes more; each kind counts once; never past BoostMax", function()
+		local p = fresh()
+		p.tier = 6
+		local farm = put(p, "patch")
+		villager(p, farm)
+		local base = Island.rates(p).food
+		put(p, "windmill")
+		T.near(Island.boosts(p).farm, 0.1, 1e-9)
+		T.near(Island.rates(p).food, (base + Tuning.EatFolk) * 1.1 - Tuning.EatFolk, 1e-9)
+		put(p, "windmill")
+		T.near(Island.boosts(p).farm, 0.1, 1e-9, "a second windmill adds nothing")
+		put(p, "watertower")
+		put(p, "townhall")
+		put(p, "beacon")
+		T.near(Island.boostAt(Island.boosts(p), "farm"), math.min(Tuning.BoostMax, 0.1 + 0.06 + 0.1 + 0.15), 1e-9)
+		T.near(Island.boostAt(Island.boosts(p), "wood"), 0.31, 1e-9, "the all-boosts at every knack")
 	end)
 	T.it("expanding: every building stays on the bigger island (moved over where the coast changed), nothing lost", function()
 		local Plot = require("../../build/luautest/shared/Logic/Plot")

@@ -28,7 +28,7 @@ return function()
 				local at1 = r.first["guardian" .. lvl]
 				T.truthy(at1 and at1 <= limit, string.format("seed %d: a level %d guardian at %s", seed, lvl, tostring(at1)))
 			end
-			T.truthy(r.first.guardian23 == nil or r.first.guardian23 > 7200, "seed " .. seed .. ": the reefs are a long-term goal")
+			T.truthy(r.first.guardian23 == nil or r.first.guardian23 > 6000, "seed " .. seed .. ": the reefs are a long-term goal (past 100 minutes)")
 		end
 	end)
 	T.it("the island grows: tier 2 within 45 minutes, tier 3 within 90; a village of villagers and friends", function()
@@ -37,6 +37,12 @@ return function()
 			T.truthy(r.first.tier3 and r.first.tier3 <= 5400, "seed " .. seed .. ": tier 3 at " .. tostring(r.first.tier3))
 			local h1 = at(r, 60)
 			T.truthy(h1.folk >= 8 and h1.pals >= 8, string.format("seed %d: hour 1 %d villagers %d driftlings", seed, h1.folk, h1.pals))
+		end
+	end)
+	T.it("the town (tier 4) and beyond are long-term goals: never before 100 minutes", function()
+		for seed, r in runs do
+			T.truthy(r.first.tier4 == nil or r.first.tier4 > 6000, "seed " .. seed .. ": tier 4 at " .. tostring(r.first.tier4))
+			T.truthy(r.first.tier5 == nil, "seed " .. seed .. ": no city in three hours")
 		end
 	end)
 	T.it("nobody starves for long; the stores stay finite", function()

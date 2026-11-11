@@ -58,12 +58,16 @@ function Expedition.fighter(p: Profile, key: string): Fighter?
 	end
 	local kind, id = string.match(key, "^([vp])(%d+)$")
 	local n = tonumber(id)
+	-- a comfortable home makes a stronger fighter (GAME_DESIGN 4.1): its comfort on health, attack and defence
+	local h = if kind then Island.homes(p)[key] else nil
+	local c = if h then h.comfort else 0
+	local extra: { [string]: number }? = if c > 0 then { hp = c, atk = c, def = c } else nil
 	if kind == "v" and n then
 		local v = villager(p, n)
-		return if v then Battle.villager(v) else nil
+		return if v then Battle.villager(v, extra) else nil
 	elseif kind == "p" and n then
 		local x = pal(p, n)
-		return if x then Battle.pal(x) else nil
+		return if x then Battle.pal(x, extra) else nil
 	end
 	return nil
 end

@@ -36,12 +36,23 @@ local Tuning = {
 	VisitorsMax = 14, -- ... at most
 	ShopVisitors = 4, -- a shop sells its rate with this many visitors a turn (more sell more, up to x2)
 	MoveInCharm = 6, -- a visitor moves into a free bed when the charm is at least this x the villagers + 1
-	FolkMax = 24,
-	PalsMax = 30,
+	FolkMax = 40,
+	PalsMax = 40,
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level ...
 	UpgradeCost = { 0, 3, 8 }, -- ... and the price of each level (times its own price)
-	TierCost = { { shells = 0, wood = 0 }, { shells = 1800, wood = 220 }, { shells = 14000, wood = 1600 } },
+	TierCost = {
+		{ shells = 0, wood = 0 },
+		{ shells = 1800, wood = 220 },
+		{ shells = 14000, wood = 1600 },
+		{ shells = 60000, wood = 5500 },
+		{ shells = 180000, wood = 15000 },
+		{ shells = 480000, wood = 40000 },
+	},
+	-- homes and nests (GAME_DESIGN 4.1): a resident's comfort (its home's, plus this by the home's level) adds to its
+	-- work and its battle stats (health, attack, defence)
+	ComfortLvl = { 0, 0.04, 0.08 },
+	BoostMax = 0.6, -- the boost buildings' shares at one knack together, at most
 
 	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings and a feast of food make an egg; by the child's rarity
 	BreedFood = { 40, 70, 120, 200, 400 }, -- food the feast takes
@@ -117,7 +128,8 @@ local Tuning = {
 	-- the sea and the islands (GAME_DESIGN 8; Data/Street)
 	MaxPlots = 6, -- islands along the boardwalk (the server's size)
 	PlotSpacing = 80, -- studs between island origins along X
-	PlotPieces = { 24, 40, 60 }, -- buildings and decor standing on an island, by its tier
+	PlotPieces = { 24, 40, 60, 85, 115, 150 }, -- buildings and decor standing on an island, by its tier
+	PathPieces = { 60, 120, 200, 300, 400, 500 }, -- path tiles, apart from the pieces
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
 	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode, on an islet's screen, sailing)

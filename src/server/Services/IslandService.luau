@@ -102,6 +102,12 @@ function IslandService.init()
 			return Plot.upgrade(s.profile, a.i)
 		end)
 	)
+	Router.on(
+		"plot.replace",
+		rebuilt(function(s, a)
+			return Plot.replace(s.profile, a.i, a.id)
+		end)
+	)
 	Router.on("island.expand", function(s, _a)
 		local ok, data = Island.expand(s.profile)
 		if ok then

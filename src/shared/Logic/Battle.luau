@@ -100,9 +100,13 @@ function Battle.founder(p: Types.Profile): Fighter
 	return f
 end
 
-function Battle.villager(v: Types.Villager): Fighter
+-- A villager at its level (`extra`: shares on top, e.g. its home's comfort: Logic/Island.homes).
+function Battle.villager(v: Types.Villager, extra: Traits.Fx?): Fighter
 	local f = make("v" .. v.id, v.name, "villager", Battle.villagerBase(v.seed), v.lvl)
 	f.look = v.look
+	if extra then
+		Battle.applyFx(f, extra)
+	end
 	return f
 end
 

@@ -837,6 +837,812 @@ B.statue = function(m, f)
 	ball(m, f, 0.65, 4.55, 0.25, 0.2, "white", "Shine")
 end
 
+------------------------------------------------------------------ the town and the city (GAME_DESIGN 4.1)
+-- A storey's box: walls of `color` w x h x d centred at (x, y0 + h / 2, z), a darker band at its foot.
+local function storey(m: Instance, f: CFrame, x: number, y0: number, z: number, w: number, h: number, d: number, color: string, band: string?)
+	box(m, f, x, y0 + h / 2, z, w, h, d, color, "Walls")
+	box(m, f, x, y0 + 0.12, z, w + 0.06, 0.24, d + 0.06, band or "rock", "Band")
+end
+
+-- A flat roof with a parapet over a w x d box whose top is at y.
+local function flatRoof(m: Instance, f: CFrame, x: number, y: number, z: number, w: number, d: number, color: string, rim: string?)
+	box(m, f, x, y + 0.06, z, w + 0.2, 0.12, d + 0.2, color, "Roof")
+	box(m, f, x, y + 0.3, z - d / 2 - 0.05, w + 0.2, 0.36, 0.12, rim or "wall_trim", "Parapet")
+	box(m, f, x, y + 0.3, z + d / 2 + 0.05, w + 0.2, 0.36, 0.12, rim or "wall_trim", "Parapet")
+	box(m, f, x - w / 2 - 0.05, y + 0.3, z, 0.12, 0.36, d + 0.2, rim or "wall_trim", "Parapet")
+	box(m, f, x + w / 2 + 0.05, y + 0.3, z, 0.12, 0.36, d + 0.2, rim or "wall_trim", "Parapet")
+end
+
+-- A street lamp: an iron post with a lit lantern (or two arms).
+local function streetLamp(m: Instance, f: CFrame, x: number, z: number, double: boolean?)
+	box(m, f, x, 0.1, z, 0.35, 0.2, 0.35, "steel_dark", "LampBase")
+	box(m, f, x, 1.3, z, 0.14, 2.4, 0.14, "steel_dark", "LampPost")
+	if double then
+		box(m, f, x, 2.45, z, 0.9, 0.08, 0.08, "steel_dark", "LampArm")
+		for _, dx in { -0.42, 0.42 } do
+			box(m, f, x + dx, 2.25, z, 0.26, 0.32, 0.26, "yellow", "LampLight", true)
+			box(m, f, x + dx, 2.47, z, 0.34, 0.08, 0.34, "steel_dark", "LampCap")
+		end
+	else
+		box(m, f, x, 2.6, z, 0.32, 0.38, 0.32, "yellow", "LampLight", true)
+		box(m, f, x, 2.86, z, 0.42, 0.1, 0.42, "steel_dark", "LampCap")
+	end
+end
+
+-- A row of rice or kelp: thin blades in a line along X.
+local function blades(m: Instance, f: CFrame, x0: number, x1: number, y: number, z: number, h: number, a: string, b: string)
+	local x = x0
+	local k = 0
+	while x <= x1 + 0.01 do
+		box(m, f, x, y + h / 2, z, 0.1, h, 0.1, if k % 2 == 0 then a else b, "Blade")
+		x += 0.3
+		k += 1
+	end
+end
+
+-- Rice Terrace (4 x 4): two stepped paddies of still water edged in earth, rows of rice, a hut with a straw hat.
+B.paddy = function(m, f)
+	footing(m, f, 4, 4, "wood_dark", 0.1)
+	for k, z in { -0.95, 0.95 } do
+		local y = if k == 1 then 0.55 else 0.2
+		box(m, f, 0, y / 2, z, 3.9, y, 1.85, "wood_dark", "Terrace")
+		box(m, f, 0, y + 0.02, z, 3.6, 0.06, 1.6, "water", "Paddy"):SetAttribute("PixelWater", 2)
+		for r = 0, 2 do
+			blades(m, f, -1.6, 1.6, y, z - 0.55 + r * 0.55, 0.45, "leaf", "green")
+		end
+	end
+	box(m, f, 1.55, 0.95, -1.5, 0.12, 1.2, 0.12, "wood_dark", "Post")
+	box(m, f, 1.55, 1.6, -1.5, 0.8, 0.12, 0.8, "sand_dark", "HatBrim")
+	box(m, f, 1.55, 1.75, -1.5, 0.4, 0.2, 0.4, "sand", "Hat")
+	sack(m, f, -1.6, 0.2, 1.65, "cream")
+end
+
+-- Kelp Farm (4 x 4): a sea pen of blue water in a timber frame, kelp swaying in rows, floats, a diver's boat.
+B.kelpfarm = function(m, f)
+	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "sand_dark", "Bank")
+	box(m, f, 0, 0.12, 0, 3.6, 0.1, 3.6, "water", "Pen"):SetAttribute("PixelWater", 2)
+	for _, z in { -1.85, 1.85 } do
+		box(m, f, 0, 0.3, z, 4, 0.2, 0.2, "wood", "Boardwalk")
+	end
+	for _, x in { -1.85, 1.85 } do
+		box(m, f, x, 0.3, 0, 0.2, 0.2, 4, "wood", "Boardwalk")
+	end
+	for r = 0, 3 do
+		local x = -1.2 + r * 0.8
+		for k = 0, 3 do
+			local z = -1.2 + k * 0.8
+			box(m, f, x, 0.45, z, 0.12, 0.7 + (r + k) % 2 * 0.25, 0.12, if (r + k) % 2 == 0 then "leaf_dark" else "green", "Kelp")
+		end
+		ball(m, f, x, 0.22, -1.6, 0.25, "orange", "Float")
+	end
+	box(m, f, 1.2, 0.3, 1.3, 1.2, 0.25, 0.6, "berry_red", "Boat")
+	box(m, f, 1.2, 0.45, 1.3, 1.0, 0.08, 0.45, "wood", "BoatSeat")
+	barrel(m, f, -1.6, 0.4, 1.6, 0.6)
+end
+
+-- Sky Garden (5 x 4): a glass tower of three floors, each a terrace of planters spilling green, a water tank on top.
+B.skygarden = function(m, f)
+	footing(m, f, 5, 4, "pavement", 0.15)
+	for i = 0, 2 do
+		local w, d = 4.4 - i * 0.8, 3.4 - i * 0.6
+		local y0 = 0.15 + i * 1.6
+		box(m, f, 0, y0 + 0.75, -0.2, w - 0.6, 1.5, d - 0.6, "window", "Glass")
+		for _, x in { -(w - 0.6) / 2, (w - 0.6) / 2 } do
+			box(m, f, x, y0 + 0.75, -0.2, 0.12, 1.5, d - 0.5, "steel", "Mullion")
+		end
+		box(m, f, 0, y0 + 1.55, -0.2, w, 0.12, d, "steel", "Slab")
+		box(m, f, 0, y0 + 1.75, -0.2 + d / 2 - 0.2, w, 0.3, 0.35, "pot", "Planter")
+		for k = 0, math.floor(w / 0.5) - 1 do
+			ball(m, f, -w / 2 + 0.25 + k * 0.5, y0 + 1.95, -0.2 + d / 2 - 0.2, 0.42, if k % 3 == 0 then "leaf" elseif k % 3 == 1 then "green" else "leaf_dark", "Leaves")
+		end
+	end
+	cyl(m, f, 0, 5.3, -0.4, 0.9, 0.7, "steel", "Tank")
+	cyl(m, f, 0, 5.7, -0.4, 1.0, 0.1, "steel_dark", "TankLid")
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 1.3, 0.8, 1.2, "steel")
+end
+
+-- Timber Works (4 x 4): an open shed of stacked planks, a crane arm lifting a log, a cart.
+B.timber = function(m, f)
+	footing(m, f, 4, 4, "sand_dark", 0.08)
+	for _, x in { -1.8, 0.2 } do
+		for _, z in { -1.7, -0.1 } do
+			box(m, f, x, 1.2, z, 0.18, 2.4, 0.18, "wood_dark", "Post")
+		end
+	end
+	wedge(m, f, -0.8, 2.6, -0.9, 2.5, 0.5, 2.0, "berry_red", math.pi, "ShedRoof")
+	for k = 0, 3 do
+		box(m, f, -0.8, 0.25 + k * 0.22, -0.9, 1.8, 0.18, 1.2, if k % 2 == 0 then "wood" else "sand_dark", "Planks")
+	end
+	-- the crane: a mast, a jib, a rope and a log
+	box(m, f, 1.4, 1.5, -1.2, 0.25, 3.0, 0.25, "wood_dark", "Mast")
+	box(m, f, 1.0, 2.9, -0.4, 0.15, 0.15, 1.8, "wood_dark", "Jib")
+	box(m, f, 1.0, 2.2, 0.4, 0.05, 1.3, 0.05, "sand", "Rope")
+	log(m, f, 1.0, 1.4, 0.4, 1.4, 0.4, "wood")
+	-- a cart of logs
+	box(m, f, -0.6, 0.45, 1.3, 1.4, 0.3, 0.8, "wood_dark", "Cart")
+	for _, x in { -1.1, -0.1 } do
+		cyl(m, f, x, 0.3, 1.75, 0.5, 0.1, "wood_dark", "Wheel").CFrame = f * CFrame.new(x, 0.3, 1.75) * CFrame.Angles(math.pi / 2, 0, 0)
+	end
+	log(m, f, -0.6, 0.75, 1.2, 1.3, 0.3, "wood")
+	log(m, f, -0.6, 0.75, 1.45, 1.3, 0.3, "wood")
+end
+
+-- Bamboo Grove (4 x 3): tall green canes in clumps, a little shrine of cut bamboo, bundles ready to carry.
+B.bamboo = function(m, f)
+	footing(m, f, 4, 3, "grass_dark", 0.06)
+	local spots = { { -1.5, -1.0 }, { -1.1, -0.6 }, { -0.4, -1.1 }, { 0.2, -0.7 }, { 0.9, -1.1 }, { 1.5, -0.6 }, { -1.6, 0.2 }, { 1.4, 0.3 } }
+	for i, sp in spots do
+		local h = 2.2 + (i % 3) * 0.6
+		box(m, f, sp[1], h / 2, sp[2], 0.16, h, 0.16, if i % 2 == 0 then "leaf" else "green", "Cane")
+		box(m, f, sp[1], h * 0.4, sp[2], 0.2, 0.06, 0.2, "leaf_dark", "Node")
+		box(m, f, sp[1] + 0.25, h - 0.2, sp[2], 0.5, 0.08, 0.2, "leaf_dark", "Leaf")
+		box(m, f, sp[1] - 0.2, h - 0.5, sp[2] + 0.1, 0.4, 0.08, 0.2, "leaf", "Leaf")
+	end
+	for k = 0, 2 do
+		log(m, f, -0.3, 0.12 + k * 0.16, 0.9 + (k % 2) * 0.12, 1.6, 0.14, "green")
+	end
+	box(m, f, -0.3, 0.3, 0.95, 0.12, 0.5, 0.5, "sand_dark", "Tie")
+	box(m, f, 0.9, 0.5, 1.0, 0.7, 1.0, 0.6, "sand", "Shrine")
+	wedge(m, f, 0.9, 1.15, 1.0, 0.9, 0.3, 0.8, "green", math.pi / 2, "ShrineRoof")
+end
+
+-- Grand Mill (5 x 4): a stone mill house, a big waterwheel turning in a race, a stack of sawn boards.
+B.grandmill = function(m, f)
+	footing(m, f, 5, 4, "rock", 0.15)
+	storey(m, f, -0.6, 0.15, -0.6, 3.2, 2.4, 2.4, "rock")
+	window(m, f, -1.3, 1.5, 0.6, 0.6, 0.6)
+	door(m, f * CFrame.new(0, 0.15, 0), -0.1, 0.6, 0.8, 1.4, "wood_dark")
+	roof(m, f * CFrame.new(-0.6, 0, -0.6), 2.55, 3.2, 2.4, 1.2, "wood_dark", "wood", 0.3)
+	-- the race and the wheel on the east side
+	box(m, f, 1.75, 0.15, 0, 1.2, 0.2, 3.8, "rock_dark", "Race")
+	box(m, f, 1.75, 0.3, 0, 0.9, 0.08, 3.6, "water", "Water"):SetAttribute("PixelWater", 2)
+	cyl(m, f, 1.6, 1.5, -0.6, 2.6, 0.4, "wood", "Wheel").CFrame = f * CFrame.new(1.6, 1.5, -0.6) * CFrame.Angles(0, 0, math.pi / 2)
+	cyl(m, f, 1.6, 1.5, -0.6, 2.0, 0.45, "wood_dark", "WheelInner").CFrame = f * CFrame.new(1.6, 1.5, -0.6) * CFrame.Angles(0, 0, math.pi / 2)
+	for k = 0, 5 do
+		local a = k * math.pi / 3
+		Blocks.part(m, { size = Vector3.new(0.5, 0.12, 0.6), cf = f * CFrame.new(1.6, 1.5 + math.sin(a) * 1.2, -0.6 + math.cos(a) * 1.2) * CFrame.Angles(a, 0, 0), color = "wood_dark", name = "Paddle", collide = false })
+	end
+	for k = 0, 3 do
+		box(m, f, -1.6, 0.25 + k * 0.18, 1.5, 1.6, 0.15, 0.7, if k % 2 == 0 then "wood" else "sand_dark", "Boards")
+	end
+end
+
+-- Bakery (4 x 3): a warm brick shop with an arched window of loaves, a striped awning, a chimney, a bench.
+B.bakery = function(m, f)
+	footing(m, f, 4, 3, "rock", 0.15)
+	storey(m, f, 0, 0.15, -0.3, 3.6, 2.4, 2.2, "berry_red", "rock_dark")
+	for k = 0, 4 do
+		box(m, f, 0, 0.6 + k * 0.45, 0.82, 3.62, 0.04, 0.02, "orange", "Mortar")
+	end
+	door(m, f * CFrame.new(0, 0.15, 0), 1.0, 0.8, 0.75, 1.5, "wood_dark")
+	box(m, f, -0.7, 1.4, 0.83, 1.6, 1.0, 0.1, "wood_dark", "ShopFrame")
+	box(m, f, -0.7, 1.4, 0.87, 1.4, 0.8, 0.05, "window", "ShopWindow")
+	for k = 0, 2 do
+		box(m, f, -1.2 + k * 0.5, 1.1, 0.92, 0.35, 0.18, 0.12, "sand_dark", "Loaf")
+	end
+	awning(m, f, 2.1, 3.6, 0.85, "white", "berry_red")
+	flatRoof(m, f, 0, 2.55, -0.3, 3.6, 2.2, "rock_dark", "berry_red")
+	box(m, f, 1.2, 3.2, -0.9, 0.45, 1.1, 0.45, "rock", "Chimney")
+	box(m, f, 0, 2.3, 0.9, 1.2, 0.3, 0.06, "cream", "Sign")
+	box(m, f, 0, 2.3, 0.94, 0.9, 0.12, 0.03, "wood_dark", "Letters")
+	barrel(m, f, -1.65, 0.15, 1.2, 0.5)
+end
+
+-- Grand Bazaar (5 x 4): three stalls under striped awnings round a tiled court, rugs, jars, lanterns on a line.
+B.bazaar = function(m, f)
+	box(m, f, 0, 0.05, 0, 5, 0.1, 4, "floor_b", "Court")
+	local stripes = { { "orange", "yellow" }, { "purple", "white" }, { "blue", "white" } }
+	for i, x in { -1.6, 0, 1.6 } do
+		box(m, f, x, 0.45, -0.9, 1.4, 0.7, 0.9, "wood", "Counter")
+		box(m, f, x, 0.85, -0.9, 1.4, 0.1, 0.9, "wood_dark", "Top")
+		for _, dx in { -0.65, 0.65 } do
+			box(m, f, x + dx, 1.1, -1.35, 0.1, 2.2, 0.1, "wood_dark", "Pole")
+		end
+		awning(m, f * CFrame.new(x, 0, -1.6), 2.2, 1.6, 0.7, stripes[i][1], stripes[i][2])
+		box(m, f, x - 0.3, 1.0, -0.9, 0.3, 0.3, 0.3, if i == 1 then "orange" elseif i == 2 then "purple" else "blue", "Goods")
+		ball(m, f, x + 0.3, 1.05, -0.9, 0.35, if i == 1 then "yellow" elseif i == 2 then "pink" else "window", "Goods")
+	end
+	box(m, f, -0.8, 0.12, 1.0, 1.4, 0.04, 1.0, "rug", "Rug")
+	box(m, f, 1.0, 0.12, 1.1, 1.2, 0.04, 0.9, "berry_red", "Rug")
+	for _, x in { -2.2, 2.2 } do
+		cyl(m, f, x, 0.35, 1.4, 0.45, 0.6, "pot", "Jar")
+	end
+	box(m, f, 0, 2.3, 0.4, 4.6, 0.04, 0.04, "wood_dark", "Line")
+	for k = 0, 4 do
+		box(m, f, -1.8 + k * 0.9, 2.15, 0.4, 0.2, 0.25, 0.2, if k % 2 == 0 then "yellow" else "orange", "Lantern", true)
+	end
+end
+
+-- Grand Hotel (5 x 5): four floors of cream stone with balconies and rows of windows, a gold-trimmed entrance with an
+-- awning and a doorman's lamps, a flag on the roof.
+B.hotel = function(m, f)
+	footing(m, f, 5, 5, "pavement", 0.15)
+	for i = 0, 3 do
+		local y0 = 0.15 + i * 1.6
+		storey(m, f, 0, y0, -0.5, 4.4, 1.6, 3.6, "cream", if i == 0 then "rock_dark" else "wall_trim")
+		if i > 0 then
+			for _, x in { -1.5, -0.5, 0.5, 1.5 } do
+				window(m, f, x, y0 + 0.85, 1.3, 0.5, 0.65)
+			end
+			box(m, f, 0, y0 + 0.1, 1.55, 4.0, 0.1, 0.4, "wall_trim", "Balcony")
+			box(m, f, 0, y0 + 0.4, 1.73, 4.0, 0.06, 0.06, "gold", "Railing")
+		end
+		sideWindow(m, f, 2.2, y0 + 0.85, -0.5, 0.6, 0.6)
+	end
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 1.35, 1.0, 1.3, "gold")
+	awning(m, f, 1.6, 2.0, 1.6, "berry_red", "berry_red")
+	for _, x in { -1.6, 1.6 } do
+		window(m, f * CFrame.new(0, 0.15, 0), x, 0.9, 1.3, 0.7, 0.6)
+	end
+	flatRoof(m, f, 0, 6.55, -0.5, 4.4, 3.6, "rock_dark", "gold")
+	box(m, f, 1.6, 7.6, -1.6, 0.1, 2.0, 0.1, "steel_dark", "FlagPole")
+	wedge(m, f, 2.0, 8.3, -1.6, 0.8, 0.5, 0.06, "berry_red", math.pi / 2, "Flag")
+	box(m, f, 0, 6.2, 1.36, 1.6, 0.4, 0.06, "gold", "Sign")
+	for _, x in { -1.0, 1.0 } do
+		box(m, f, x, 1.1, 2.1, 0.25, 0.4, 0.25, "yellow", "Lamp", true)
+		box(m, f, x, 0.45, 2.1, 0.12, 0.9, 0.12, "steel_dark", "LampPost")
+	end
+	pot(m, f, -2.0, 0.15, 2.1, "pink")
+	pot(m, f, 2.0, 0.15, 2.1, "yellow")
+end
+
+-- Longhouse (5 x 3): a long timber hall on a stone sill, a steep thatched roof, carved gable ends, a woodpile.
+B.longhouse = function(m, f)
+	footing(m, f, 5, 3, "rock", 0.15)
+	storey(m, f, 0, 0.15, -0.2, 4.6, 1.8, 2.2, "wood", "rock")
+	for k = 0, 8 do
+		box(m, f, -2.2 + k * 0.55, 1.05, 0.92, 0.08, 1.8, 0.04, "wood_dark", "Plank")
+	end
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 0.9, 0.8, 1.4, "wood_dark")
+	window(m, f * CFrame.new(0, 0.15, 0), -1.4, 1.2, 0.9, 0.55, 0.5)
+	window(m, f * CFrame.new(0, 0.15, 0), 1.4, 1.2, 0.9, 0.55, 0.5)
+	roof(m, f * CFrame.new(0, 0, -0.2), 1.95, 4.6, 2.2, 1.6, "sand_dark", "wood_dark", 0.35)
+	for _, x in { -2.45, 2.45 } do
+		box(m, f, x, 3.7, -0.2, 0.12, 0.6, 0.12, "wood_dark", "Horn")
+	end
+	for k = 0, 2 do
+		log(m, f, 1.7, 0.2 + k * 0.25, 1.3, 1.1, 0.25, "wood")
+	end
+end
+
+-- Townhouse (4 x 4): two floors in pastel plaster, a balcony with flower pots, a pitched roof with a dormer.
+B.townhouse = function(m, f)
+	footing(m, f, 4, 4, "rock", 0.15)
+	storey(m, f, 0, 0.15, -0.4, 3.4, 1.8, 2.8, "wall", "rock_dark")
+	storey(m, f, 0, 1.95, -0.4, 3.4, 1.6, 2.8, "pink", "wall_trim")
+	door(m, f * CFrame.new(0, 0.15, 0), -0.8, 1.0, 0.75, 1.4, "blue")
+	window(m, f * CFrame.new(0, 0.15, 0), 0.7, 1.1, 1.0, 0.8, 0.7)
+	for _, x in { -0.8, 0.7 } do
+		window(m, f, x, 2.8, 1.0, 0.6, 0.7)
+	end
+	box(m, f, 0, 2.0, 1.35, 3.0, 0.1, 0.6, "wall_trim", "Balcony")
+	for k = 0, 6 do
+		box(m, f, -1.4 + k * 0.47, 2.25, 1.6, 0.06, 0.4, 0.06, "steel_dark", "Baluster")
+	end
+	box(m, f, 0, 2.48, 1.6, 3.0, 0.06, 0.06, "steel_dark", "Railing")
+	pot(m, f, -1.2, 2.05, 1.4, "pink")
+	pot(m, f, 1.2, 2.05, 1.4, "yellow")
+	roof(m, f * CFrame.new(0, 0, -0.4), 3.55, 3.4, 2.8, 1.3, "blue", "white", 0.3)
+	box(m, f, 0.8, 3.85, 0.4, 0.7, 0.6, 0.6, "pink", "Dormer")
+	box(m, f, 0.8, 3.85, 0.71, 0.4, 0.35, 0.04, "window", "Glass")
+	box(m, f, -1.0, 4.4, -0.8, 0.4, 1.0, 0.4, "rock", "Chimney")
+end
+
+-- Villa (5 x 4): a white villa round a courtyard: tiled orange roofs, arches, a fountain basin, palms in pots.
+B.villa = function(m, f)
+	footing(m, f, 5, 4, "pavement", 0.15)
+	storey(m, f, -0.6, 0.15, -0.8, 3.6, 2.2, 2.2, "white", "sand_dark")
+	storey(m, f, 1.8, 0.15, -0.3, 1.2, 1.6, 3.2, "white", "sand_dark")
+	roof(m, f * CFrame.new(-0.6, 0, -0.8), 2.35, 3.6, 2.2, 1.0, "orange", "berry_red", 0.3)
+	box(m, f, 1.8, 1.85, -0.3, 1.4, 0.15, 3.4, "orange", "Tiles")
+	for k = 0, 2 do
+		local x = -1.7 + k * 1.1
+		box(m, f, x, 0.85, 0.32, 0.25, 1.4, 0.2, "white", "Column")
+		box(m, f, x + 0.55, 1.6, 0.32, 0.9, 0.2, 0.2, "white", "Arch")
+	end
+	for _, x in { -1.15, 0.0 } do
+		window(m, f, x, 1.0, 0.31, 0.5, 0.8)
+	end
+	cyl(m, f, -0.2, 0.3, 1.2, 1.2, 0.3, "white", "Basin")
+	cyl(m, f, -0.2, 0.42, 1.2, 1.0, 0.06, "water", "Water"):SetAttribute("PixelWater", 2)
+	for _, x in { -2.1, 1.6 } do
+		box(m, f, x, 0.35, 1.5, 0.5, 0.4, 0.5, "pot", "Pot")
+		box(m, f, x, 1.1, 1.5, 0.12, 1.2, 0.12, "wood", "Trunk")
+		ball(m, f, x, 1.8, 1.5, 0.9, "leaf", "Fronds")
+	end
+	sideWindow(m, f, 2.4, 1.0, 0.3, 0.6, 0.6)
+end
+
+-- Manor (5 x 5): a grand house of three floors, two corner towers with cone roofs, a gabled porch, a hedge garden.
+B.manor = function(m, f)
+	footing(m, f, 5, 5, "rock", 0.15)
+	for i = 0, 2 do
+		storey(m, f, 0, 0.15 + i * 1.5, -0.6, 3.0, 1.5, 3.0, "cream", if i == 0 then "rock_dark" else "wall_trim")
+		for _, x in { -0.8, 0.8 } do
+			window(m, f, x, 0.15 + i * 1.5 + 0.8, 0.9, 0.5, 0.7)
+		end
+	end
+	roof(m, f * CFrame.new(0, 0, -0.6), 4.65, 3.0, 3.0, 1.4, "blue", "white", 0.3)
+	for _, x in { -1.9, 1.9 } do
+		cyl(m, f, x, 2.4, -0.6, 1.2, 4.5, "cream", "Tower")
+		cyl(m, f, x, 0.3, -0.6, 1.3, 0.3, "rock_dark", "TowerBase")
+		Blocks.part(m, { size = Vector3.new(1.4, 1.4, 1.4), cf = f * CFrame.new(x, 5.2, -0.6), color = "blue", shape = "Ball", name = "Dome", collide = false })
+		box(m, f, x, 6.0, -0.6, 0.12, 0.6, 0.12, "gold", "Finial")
+		window(m, f, x, 3.4, -0.02, 0.35, 0.6)
+	end
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 0.95, 0.9, 1.4, "wood_dark")
+	box(m, f, 0, 1.8, 1.25, 1.4, 0.12, 0.7, "white", "PorchRoof")
+	for _, x in { -0.6, 0.6 } do
+		box(m, f, x, 0.95, 1.5, 0.15, 1.6, 0.15, "white", "PorchColumn")
+	end
+	for _, x in { -1.9, 1.9 } do
+		box(m, f, x, 0.4, 2.0, 1.0, 0.6, 0.6, "leaf_dark", "Hedge")
+	end
+	streetLamp(m, f, 1.1, 2.2)
+end
+
+-- Driftling Den (3 x 3): a mossy rock with a round entrance, soft beds of leaves inside, a sign, mushrooms.
+B.den = function(m, f)
+	ball(m, f, 0, 0.6, -0.3, 2.8, "rock", "Rock")
+	ball(m, f, -0.5, 1.4, -0.5, 1.4, "rock_dark", "Rock")
+	ball(m, f, 0.2, 1.7, -0.4, 1.6, "grass_dark", "Moss")
+	box(m, f, 0, 0.02, 0, 3, 0.04, 3, "grass_dark", "Lawn")
+	cyl(m, f, 0, 0.55, 1.0, 1.1, 0.2, "black", "Hole").CFrame = f * CFrame.new(0, 0.55, 1.02) * CFrame.Angles(math.pi / 2, 0, 0)
+	box(m, f, 0, 0.1, 1.2, 1.2, 0.12, 0.4, "leaf", "Bed")
+	for k, x in { -1.1, 1.1 } do
+		box(m, f, x, 0.18, 1.1, 0.1, 0.36, 0.1, "cream", "Stalk")
+		box(m, f, x, 0.4, 1.1, 0.35, 0.15, 0.35, if k == 1 then "pink" else "purple", "Cap")
+	end
+	box(m, f, 1.2, 0.4, 0.4, 0.08, 0.8, 0.08, "wood_dark", "SignPost")
+	box(m, f, 1.2, 0.75, 0.43, 0.45, 0.3, 0.06, "wood", "Sign")
+end
+
+-- Treetop Roost (4 x 4): a great tree whose boughs hold round nests and a ladder, lanterns hung in the leaves.
+B.roost = function(m, f)
+	box(m, f, 0, 0.02, 0, 4, 0.04, 4, "grass_dark", "Lawn")
+	cyl(m, f, 0, 2.0, 0, 1.0, 4.0, "wood_dark", "Trunk")
+	for _, r in { { 1.0, 0.4 }, { -0.9, -0.5 }, { 0.4, -1.0 } } do
+		box(m, f, r[1] / 2, 0.15, r[2] / 2, math.abs(r[1]) + 0.3, 0.3, 0.3, "wood_dark", "Root")
+	end
+	ball(m, f, 0, 4.6, 0, 3.4, "leaf_dark", "Crown")
+	ball(m, f, -0.9, 4.2, 0.7, 2.0, "leaf", "Crown")
+	ball(m, f, 0.9, 4.9, -0.5, 2.0, "leaf", "Crown")
+	for _, n in { { 1.3, 2.6, 0.6 }, { -1.3, 3.0, 0.2 }, { 0.2, 3.4, 1.4 } } do
+		cyl(m, f, n[1], n[2], n[3], 0.9, 0.3, "sand_dark", "Nest")
+		ball(m, f, n[1], n[2] + 0.2, n[3], 0.35, "cream", "Egg")
+		box(m, f, n[1] * 0.5, n[2] - 0.2, n[3] * 0.5, math.abs(n[1]) + 0.2, 0.15, 0.15, "wood_dark", "Bough")
+	end
+	for k = 0, 5 do
+		box(m, f, 0.55, 0.3 + k * 0.4, 0.55, 0.4, 0.06, 0.06, "wood", "Rung")
+	end
+	box(m, f, -1.0, 3.2, 1.2, 0.2, 0.25, 0.2, "yellow", "Lantern", true)
+	box(m, f, 1.4, 3.5, -0.9, 0.2, 0.25, 0.2, "yellow", "Lantern", true)
+end
+
+-- Spring Grotto (4 x 4): a rock arch over a steaming warm pool, smooth stones round it, little waterfalls.
+B.grotto = function(m, f)
+	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "rock", "Floor")
+	cyl(m, f, 0.2, 0.15, 0.6, 2.6, 0.2, "rock_dark", "PoolRim")
+	cyl(m, f, 0.2, 0.22, 0.6, 2.2, 0.1, "shallow", "Pool"):SetAttribute("PixelWater", 2)
+	ball(m, f, -1.3, 1.2, -1.0, 2.0, "rock", "Rock")
+	ball(m, f, 1.4, 1.1, -1.1, 1.8, "rock", "Rock")
+	box(m, f, 0, 2.2, -1.2, 3.0, 0.6, 0.9, "rock", "Arch")
+	box(m, f, 0, 2.55, -1.2, 2.6, 0.2, 0.7, "grass_dark", "Moss")
+	box(m, f, 0, 1.2, -0.95, 0.5, 1.8, 0.08, "window", "Falls")
+	for k = 0, 4 do
+		local a = k * 1.25
+		ball(m, f, 0.2 + math.cos(a) * 1.4, 0.25, 0.6 + math.sin(a) * 1.4, 0.35, if k % 2 == 0 then "rock_dark" else "rock", "Stone")
+	end
+	for _, s in { { -0.2, 0.8 }, { 0.6, 0.4 } } do
+		ball(m, f, s[1], 0.6, s[2], 0.3, "white", "Steam")
+		ball(m, f, s[1] + 0.1, 0.95, s[2], 0.22, "white", "Steam")
+	end
+	box(m, f, -1.6, 0.4, 1.4, 0.4, 0.5, 0.4, "yellow", "Lamp", true)
+end
+
+-- Driftling Palace (5 x 5): a little palace of pastel domes for driftlings: round doors at every size, a gold crown on
+-- the main dome, a moat of shallow water, banners.
+B.palace = function(m, f)
+	footing(m, f, 5, 5, "white", 0.15)
+	box(m, f, 0, 0.2, 2.15, 5, 0.1, 0.6, "shallow", "Moat"):SetAttribute("PixelWater", 2)
+	storey(m, f, 0, 0.15, -0.5, 3.0, 2.0, 2.8, "pink", "white")
+	Blocks.part(m, { size = Vector3.new(2.6, 2.6, 2.6), cf = f * CFrame.new(0, 2.6, -0.5), color = "purple", shape = "Ball", name = "Dome", collide = false })
+	box(m, f, 0, 3.95, -0.5, 0.6, 0.3, 0.6, "gold", "Crown")
+	for k = 0, 3 do
+		local a = k * math.pi / 2
+		box(m, f, math.cos(a) * 0.3, 4.2, -0.5 + math.sin(a) * 0.3, 0.12, 0.3, 0.12, "gold", "Point")
+	end
+	for _, x in { -2.0, 2.0 } do
+		cyl(m, f, x, 1.1, -0.5, 1.0, 2.2, "white", "Tower")
+		Blocks.part(m, { size = Vector3.new(1.1, 1.1, 1.1), cf = f * CFrame.new(x, 2.3, -0.5), color = "window", shape = "Ball", name = "Dome", collide = false })
+		box(m, f, x, 2.9, -0.5, 0.08, 0.6, 0.08, "gold", "Pole")
+		wedge(m, f, x + 0.25, 3.05, -0.5, 0.45, 0.3, 0.05, "berry_red", math.pi / 2, "Banner")
+	end
+	for i, s in { 0.9, 0.6, 0.4 } do
+		local x = -0.9 + (i - 1) * 0.9
+		cyl(m, f, x, 0.15 + s / 2, 0.92, s, 0.1, "wood_dark", "Door").CFrame = f * CFrame.new(x, 0.15 + s / 2, 0.92) * CFrame.Angles(math.pi / 2, 0, 0)
+	end
+	box(m, f, 0, 0.25, 1.75, 1.0, 0.12, 0.6, "wood", "Bridge")
+end
+
+------------------------------------------------------------------ boosts
+-- Tool Shed (2 x 2): a lean-to of planks, axes and saws on the wall, a whetstone.
+B.toolshed = function(m, f)
+	footing(m, f, 2, 2, "wood_dark", 0.08)
+	box(m, f, 0, 0.8, -0.3, 1.8, 1.5, 1.2, "wood", "Shed")
+	wedge(m, f, 0, 1.8, -0.3, 2.0, 0.5, 1.4, "steel", math.pi, "Roof")
+	door(m, f * CFrame.new(0, 0.08, 0), -0.4, 0.3, 0.6, 1.1, "wood_dark")
+	box(m, f, 0.45, 1.1, 0.33, 0.08, 0.6, 0.04, "wood_dark", "Handle")
+	box(m, f, 0.45, 1.35, 0.35, 0.3, 0.2, 0.04, "steel", "AxeHead")
+	box(m, f, 0.75, 0.9, 0.33, 0.06, 0.5, 0.04, "steel", "Saw")
+	cyl(m, f, 0.6, 0.3, 0.75, 0.5, 0.15, "rock", "Whetstone").CFrame = f * CFrame.new(0.6, 0.3, 0.75) * CFrame.Angles(math.pi / 2, 0, 0)
+end
+
+-- Windmill (3 x 3): a round white tower, a cap, four sails, sacks of flour.
+B.windmill = function(m, f)
+	footing(m, f, 3, 3, "rock", 0.12)
+	cyl(m, f, 0, 1.9, -0.2, 1.8, 3.6, "white", "Tower")
+	cyl(m, f, 0, 0.35, -0.2, 2.0, 0.5, "rock", "TowerBase")
+	Blocks.part(m, { size = Vector3.new(1.9, 1.9, 1.9), cf = f * CFrame.new(0, 3.8, -0.2), color = "berry_red", shape = "Ball", name = "Cap", collide = false })
+	door(m, f * CFrame.new(0, 0.12, 0), 0, 0.68, 0.55, 1.0, "wood_dark")
+	window(m, f, 0, 2.6, 0.68, 0.35, 0.35)
+	box(m, f, 0, 3.4, 0.75, 0.25, 0.25, 0.3, "wood_dark", "Hub")
+	for k = 0, 3 do
+		local a = k * math.pi / 2 + math.pi / 4
+		Blocks.part(m, { size = Vector3.new(0.12, 1.9, 0.06), cf = f * CFrame.new(math.cos(a) * 0.95, 3.4 + math.sin(a) * 0.95, 0.9) * CFrame.Angles(0, 0, a - math.pi / 2), color = "wood_dark", name = "SailArm", collide = false })
+		Blocks.part(m, { size = Vector3.new(0.45, 1.5, 0.04), cf = f * CFrame.new(math.cos(a) * 1.05, 3.4 + math.sin(a) * 1.05, 0.93) * CFrame.Angles(0, 0, a - math.pi / 2), color = "cream", name = "Sail", collide = false })
+	end
+	sack(m, f, 1.05, 0.12, 0.9, "cream")
+	sack(m, f, -1.05, 0.12, 0.95, "white")
+end
+
+-- Smokehouse (3 x 3): a dark timber house with a smoking vent, fish hanging under the eaves, a stack of firewood.
+B.smokehouse = function(m, f)
+	footing(m, f, 3, 3, "rock", 0.12)
+	storey(m, f, 0, 0.12, -0.3, 2.4, 1.6, 2.0, "wood_dark", "rock_dark")
+	door(m, f * CFrame.new(0, 0.12, 0), 0, 0.7, 0.6, 1.2, "wood")
+	roof(m, f * CFrame.new(0, 0, -0.3), 1.72, 2.4, 2.0, 0.9, "rock_dark", "wood_dark", 0.3)
+	box(m, f, 0, 2.85, -0.3, 0.5, 0.3, 0.5, "rock", "Vent")
+	ball(m, f, 0.1, 3.25, -0.3, 0.45, "white", "Smoke")
+	ball(m, f, 0.3, 3.6, -0.4, 0.35, "chalk", "Smoke")
+	box(m, f, 0, 1.6, 1.0, 2.2, 0.06, 0.06, "wood_dark", "Rack")
+	for k = 0, 3 do
+		box(m, f, -0.75 + k * 0.5, 1.35, 1.0, 0.18, 0.4, 0.06, if k % 2 == 0 then "orange" else "sand_dark", "Fish")
+	end
+	for k = 0, 2 do
+		log(m, f, -1.1, 0.25 + k * 0.22, 1.1, 0.7, 0.22, "wood")
+	end
+end
+
+-- Market Hall (4 x 3): an open hall on stone columns under a long roof, crates of goods, a bell over the door.
+B.market = function(m, f)
+	footing(m, f, 4, 3, "pavement", 0.12)
+	for _, x in { -1.7, -0.6, 0.6, 1.7 } do
+		for _, z in { -1.1, 1.0 } do
+			box(m, f, x, 1.1, z, 0.25, 2.0, 0.25, "rock", "Column")
+		end
+	end
+	box(m, f, 0, 2.2, -0.05, 3.9, 0.2, 2.6, "wood_dark", "Beam")
+	roof(m, f * CFrame.new(0, 0, -0.05), 2.3, 3.8, 2.5, 1.0, "green", "wood_dark", 0.3)
+	crate(m, f, -1.1, 0.12, -0.3, 0.6)
+	crate(m, f, -0.5, 0.12, -0.5, 0.5)
+	barrel(m, f, 0.6, 0.12, -0.4, 0.6)
+	box(m, f, 1.2, 0.5, 0.2, 1.0, 0.5, 0.6, "wood", "Table")
+	box(m, f, 1.0, 0.85, 0.2, 0.3, 0.2, 0.3, "orange", "Goods")
+	box(m, f, 1.4, 0.85, 0.2, 0.3, 0.2, 0.3, "leaf", "Goods")
+	box(m, f, 0, 2.65, 1.3, 0.1, 0.5, 0.1, "wood_dark", "BellPost")
+	ball(m, f, 0, 2.95, 1.35, 0.35, "gold", "Bell")
+end
+
+-- Water Tower (3 x 3): a round tank on four legs with cross braces, a ladder, a pipe down to a trough.
+B.watertower = function(m, f)
+	for _, x in { -1.0, 1.0 } do
+		for _, z in { -1.0, 1.0 } do
+			box(m, f, x, 1.6, z, 0.2, 3.2, 0.2, "wood_dark", "Leg")
+		end
+	end
+	for _, y in { 1.0, 2.2 } do
+		box(m, f, 0, y, -1.0, 2.0, 0.1, 0.1, "wood", "Brace")
+		box(m, f, 0, y, 1.0, 2.0, 0.1, 0.1, "wood", "Brace")
+		box(m, f, -1.0, y, 0, 0.1, 0.1, 2.0, "wood", "Brace")
+		box(m, f, 1.0, y, 0, 0.1, 0.1, 2.0, "wood", "Brace")
+	end
+	cyl(m, f, 0, 3.9, 0, 2.6, 1.6, "blue", "Tank")
+	for _, y in { 3.4, 4.4 } do
+		cyl(m, f, 0, y, 0, 2.7, 0.1, "steel_dark", "Hoop")
+	end
+	Blocks.part(m, { size = Vector3.new(2.7, 0.7, 2.7), cf = f * CFrame.new(0, 5.05, 0), color = "blue", shape = "Wedge", name = "Lid", collide = false })
+	box(m, f, 0, 5.45, 0, 2.0, 0.1, 0.12, "steel_dark", "Ridge")
+	for k = 0, 6 do
+		box(m, f, 1.2, 0.4 + k * 0.45, 0.4, 0.3, 0.05, 0.05, "steel", "Rung")
+	end
+	box(m, f, -0.5, 1.6, 0.6, 0.12, 3.0, 0.12, "steel", "Pipe")
+	box(m, f, -0.5, 0.2, 1.1, 0.8, 0.4, 0.5, "wood", "Trough")
+	box(m, f, -0.5, 0.38, 1.1, 0.6, 0.06, 0.3, "water", "Water"):SetAttribute("PixelWater", 2)
+end
+
+-- Town Hall (5 x 4): a stately hall of pale stone, columns across the front, steps, a clock in the pediment and a
+-- domed bell tower with a flag.
+B.townhall = function(m, f)
+	footing(m, f, 5, 4, "pavement", 0.15)
+	box(m, f, 0, 0.3, 1.4, 3.4, 0.3, 0.8, "rock", "Steps")
+	storey(m, f, 0, 0.15, -0.5, 4.6, 2.6, 2.6, "cream", "rock")
+	for k = 0, 5 do
+		box(m, f, -1.9 + k * 0.76, 1.45, 0.95, 0.3, 2.3, 0.3, "white", "Column")
+	end
+	box(m, f, 0, 2.75, 0.95, 4.4, 0.25, 0.4, "white", "Entablature")
+	wedge(m, f, 0, 3.25, 0.95, 4.4, 0.75, 0.4, "white", 0, "Pediment")
+	cyl(m, f, 0, 3.25, 1.18, 0.6, 0.05, "gold", "Clock").CFrame = f * CFrame.new(0, 3.25, 1.18) * CFrame.Angles(math.pi / 2, 0, 0)
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 0.82, 0.9, 1.6, "wood_dark")
+	for _, x in { -1.6, 1.6 } do
+		window(m, f, x, 1.55, 0.82, 0.5, 0.9)
+	end
+	flatRoof(m, f, 0, 2.75, -0.5, 4.6, 2.6, "rock_dark", "white")
+	box(m, f, 0, 3.6, -0.7, 1.2, 1.4, 1.2, "cream", "BellTower")
+	window(m, f, 0, 3.7, -0.08, 0.4, 0.6)
+	Blocks.part(m, { size = Vector3.new(1.3, 1.3, 1.3), cf = f * CFrame.new(0, 4.4, -0.7), color = "green", shape = "Ball", name = "Dome", collide = false })
+	box(m, f, 0, 5.3, -0.7, 0.08, 1.0, 0.08, "steel_dark", "FlagPole")
+	wedge(m, f, 0.3, 5.6, -0.7, 0.55, 0.35, 0.05, "blue", math.pi / 2, "Flag")
+	streetLamp(m, f, -2.1, 1.6)
+	streetLamp(m, f, 2.1, 1.6)
+end
+
+-- Sun Beacon (3 x 3): a tall pale obelisk on a stepped base holding a glowing sun disc, gold rays round it.
+B.beacon = function(m, f)
+	box(m, f, 0, 0.2, 0, 3, 0.4, 3, "white", "Step")
+	box(m, f, 0, 0.55, 0, 2.2, 0.3, 2.2, "cream", "Step")
+	box(m, f, 0, 2.6, 0, 0.9, 3.8, 0.9, "white", "Obelisk")
+	for _, y in { 1.2, 2.4, 3.6 } do
+		box(m, f, 0, y, 0, 0.98, 0.12, 0.98, "gold", "Ring")
+	end
+	cyl(m, f, 0, 5.3, 0, 1.5, 0.2, "gold", "Disc").CFrame = f * CFrame.new(0, 5.3, 0) * CFrame.Angles(math.pi / 2, 0, 0)
+	ball(m, f, 0, 5.3, 0.05, 0.9, "yellow", "Sun").Material = Enum.Material.Neon
+	for k = 0, 7 do
+		local a = k * math.pi / 4
+		Blocks.part(m, { size = Vector3.new(0.12, 0.6, 0.08), cf = f * CFrame.new(math.cos(a) * 1.05, 5.3 + math.sin(a) * 1.05, 0) * CFrame.Angles(0, 0, a - math.pi / 2), color = "gold", name = "Ray", collide = false })
+	end
+	for _, x in { -1.2, 1.2 } do
+		box(m, f, x, 0.9, 1.2, 0.25, 0.4, 0.25, "yellow", "Lamp", true)
+	end
+end
+
+------------------------------------------------------------------ paths (2 x 2 tiles, flush with the grass)
+B.dirtpath = function(m, f)
+	box(m, f, 0, 0.02, 0, 2, 0.04, 2, "sand_dark", "Path")
+	box(m, f, -0.5, 0.05, 0.4, 0.15, 0.04, 0.12, "rock", "Pebble")
+	box(m, f, 0.6, 0.05, -0.5, 0.12, 0.04, 0.12, "rock_dark", "Pebble")
+end
+B.stonepath = function(m, f)
+	box(m, f, 0, 0.02, 0, 2, 0.04, 2, "sand", "Path")
+	for _, s in { { -0.5, -0.5 }, { 0.5, -0.5 }, { -0.5, 0.5 }, { 0.5, 0.5 } } do
+		box(m, f, s[1], 0.05, s[2], 0.85, 0.06, 0.85, if (s[1] + s[2]) == 0 then "rock_dark" else "rock", "Stone")
+	end
+end
+B.brickroad = function(m, f)
+	-- red bricks in a running bond: a slab, two mortar courses, the joints staggered course to course
+	box(m, f, 0, 0.03, 0, 2, 0.06, 2, "berry_red", "Road")
+	for _, z in { -0.34, 0.33 } do
+		box(m, f, 0, 0.065, z, 2, 0.01, 0.06, "rock_dark", "Mortar")
+	end
+	for _, j in { { -0.5, -0.67 }, { 0.5, -0.67 }, { 0, 0 }, { -0.5, 0.67 }, { 0.5, 0.67 } } do
+		box(m, f, j[1], 0.065, j[2], 0.06, 0.01, 0.6, "rock_dark", "Joint")
+	end
+end
+B.marblewalk = function(m, f)
+	box(m, f, 0, 0.03, 0, 2, 0.06, 2, "white", "Marble")
+	box(m, f, 0, 0.07, 0, 1.9, 0.02, 0.08, "gold", "Inlay")
+	box(m, f, 0, 0.07, 0, 0.08, 0.02, 1.9, "gold", "Inlay")
+	box(m, f, 0, 0.08, 0, 0.3, 0.02, 0.3, "chalk", "Star")
+end
+
+------------------------------------------------------------------ town decor
+B.fence = function(m, f)
+	for k = 0, 4 do
+		box(m, f, -0.8 + k * 0.4, 0.35, 0, 0.12, 0.7, 0.08, "white", "Picket")
+		wedge(m, f, -0.8 + k * 0.4, 0.76, 0, 0.12, 0.12, 0.08, "white", 0, "Point")
+	end
+	box(m, f, 0, 0.5, 0, 1.9, 0.08, 0.06, "white", "Rail")
+	box(m, f, 0, 0.22, 0, 1.9, 0.08, 0.06, "white", "Rail")
+end
+B.sandcastle = function(m, f)
+	box(m, f, 0, 0.25, 0, 1.4, 0.5, 1.4, "sand", "Keep")
+	for _, c in { { -0.6, -0.6 }, { 0.6, -0.6 }, { -0.6, 0.6 }, { 0.6, 0.6 } } do
+		cyl(m, f, c[1], 0.45, c[2], 0.45, 0.9, "sand_dark", "Tower")
+	end
+	box(m, f, 0, 0.7, 0, 0.6, 0.4, 0.6, "sand", "Top")
+	box(m, f, 0, 1.1, 0, 0.05, 0.5, 0.05, "wood_dark", "Stick")
+	wedge(m, f, 0.15, 1.25, 0, 0.3, 0.2, 0.04, "berry_red", math.pi / 2, "Flag")
+	box(m, f, 0, 0.2, 0.71, 0.3, 0.35, 0.04, "sand_dark", "Gate")
+	box(m, f, 0.8, 0.12, 0.8, 0.3, 0.25, 0.3, "berry_red", "Bucket")
+end
+B.rockgarden = function(m, f)
+	box(m, f, 0, 0.03, 0, 2, 0.06, 2, "sand", "Gravel")
+	for k = 0, 3 do
+		box(m, f, 0, 0.07, -0.7 + k * 0.45, 1.8, 0.02, 0.06, "sand_dark", "Rake")
+	end
+	ball(m, f, -0.4, 0.3, -0.3, 0.7, "rock", "Rock")
+	ball(m, f, 0.5, 0.22, 0.4, 0.5, "rock_dark", "Rock")
+	ball(m, f, 0.55, 0.38, 0.35, 0.3, "leaf_dark", "Moss")
+end
+B.hedge = function(m, f)
+	box(m, f, 0, 0.45, 0, 2.9, 0.9, 0.8, "leaf_dark", "Hedge")
+	box(m, f, 0, 0.92, 0, 2.7, 0.12, 0.6, "leaf", "Top")
+	for _, x in { -1.0, 0.2, 1.1 } do
+		box(m, f, x, 0.6, 0.41, 0.12, 0.12, 0.04, "pink", "Flower")
+	end
+end
+B.lamppost = function(m, f)
+	streetLamp(m, f, 0, 0, false)
+end
+B.streetlamp = function(m, f)
+	streetLamp(m, f, 0, 0, true)
+	box(m, f, 0, 1.4, 0.1, 0.4, 0.25, 0.04, "blue", "Sign")
+end
+B.flowerarch = function(m, f)
+	for _, x in { -1.25, 1.25 } do
+		box(m, f, x, 0.9, 0, 0.15, 1.8, 0.15, "white", "Post")
+	end
+	for k = 0, 6 do
+		local a = math.pi * k / 6
+		box(m, f, -math.cos(a) * 1.25, 1.8 + math.sin(a) * 0.45, 0, 0.4, 0.15, 0.2, "white", "Arch")
+		ball(m, f, -math.cos(a) * 1.25, 1.85 + math.sin(a) * 0.45, 0.12, 0.3, if k % 2 == 0 then "pink" else "leaf", "Bloom")
+	end
+	for _, x in { -1.25, 1.25 } do
+		ball(m, f, x, 0.9, 0.15, 0.3, "leaf", "Vine")
+		ball(m, f, x, 1.4, 0.15, 0.25, "purple", "Bloom")
+	end
+end
+B.gazebo = function(m, f)
+	box(m, f, 0, 0.15, 0, 3.6, 0.3, 3.6, "wood", "Deck")
+	for k = 0, 5 do
+		local a = k * math.pi / 3
+		box(m, f, math.cos(a) * 1.5, 1.2, math.sin(a) * 1.5, 0.15, 1.9, 0.15, "white", "Post")
+		box(m, f, math.cos(a) * 1.5, 0.55, math.sin(a) * 1.5, 0.6, 0.06, 0.06, "white", "Rail")
+	end
+	cyl(m, f, 0, 2.2, 0, 3.6, 0.15, "white", "Eave")
+	Blocks.part(m, { size = Vector3.new(3.0, 1.4, 3.0), cf = f * CFrame.new(0, 2.95, 0), color = "green", shape = "Ball", name = "Roof", collide = false })
+	box(m, f, 0, 3.75, 0, 0.12, 0.5, 0.12, "gold", "Finial")
+	box(m, f, 0, 0.55, 0, 0.8, 0.5, 0.8, "wood_dark", "Table")
+	box(m, f, 0, 0.88, 0, 0.3, 0.2, 0.3, "pink", "Vase")
+end
+B.topiary = function(m, f)
+	box(m, f, 0, 0.25, 0, 0.8, 0.5, 0.8, "pot", "Planter")
+	box(m, f, 0, 0.7, 0, 0.12, 0.5, 0.12, "wood_dark", "Stem")
+	ball(m, f, 0, 1.1, 0, 0.9, "leaf_dark", "Ball")
+	ball(m, f, 0, 1.75, 0, 0.6, "leaf", "Ball")
+	ball(m, f, 0, 2.15, 0, 0.3, "leaf_dark", "Ball")
+end
+B.bandstand = function(m, f)
+	cyl(m, f, 0, 0.3, 0, 3.6, 0.6, "white", "Stage")
+	cyl(m, f, 0, 0.62, 0, 3.4, 0.06, "wood", "Floor")
+	for k = 0, 7 do
+		local a = k * math.pi / 4
+		box(m, f, math.cos(a) * 1.55, 1.6, math.sin(a) * 1.55, 0.12, 2.0, 0.12, "white", "Post")
+	end
+	cyl(m, f, 0, 2.65, 0, 3.8, 0.15, "berry_red", "Eave")
+	Blocks.part(m, { size = Vector3.new(3.2, 1.2, 3.2), cf = f * CFrame.new(0, 3.2, 0), color = "berry_red", shape = "Ball", name = "Roof", collide = false })
+	box(m, f, 0, 3.9, 0, 0.1, 0.5, 0.1, "gold", "Finial")
+	box(m, f, -0.5, 0.95, 0, 0.6, 0.6, 0.4, "black", "Piano")
+	cyl(m, f, 0.6, 0.85, 0.3, 0.5, 0.4, "berry_red", "Drum")
+	box(m, f, 0, 0.3, 1.85, 1.0, 0.1, 0.5, "white", "Step")
+end
+B.clocktower = function(m, f)
+	footing(m, f, 3, 3, "rock", 0.15)
+	box(m, f, 0, 2.6, 0, 2.0, 5.0, 2.0, "cream", "Tower")
+	for _, y in { 0.4, 5.1 } do
+		box(m, f, 0, y, 0, 2.2, 0.3, 2.2, "rock", "Band")
+	end
+	for _, side in { { 0, 1.02, 0 }, { 1.02, 0, math.pi / 2 } } do
+		local cf = f * CFrame.new(side[1], 4.3, side[2]) * CFrame.Angles(0, side[3], 0)
+		Blocks.part(m, { size = Vector3.new(1.3, 1.3, 0.1), cf = cf, color = "white", name = "ClockFace", collide = false })
+		Blocks.part(m, { size = Vector3.new(0.08, 0.5, 0.04), cf = cf * CFrame.new(0, 0.2, 0.07), color = "black", name = "Hand", collide = false })
+		Blocks.part(m, { size = Vector3.new(0.35, 0.08, 0.04), cf = cf * CFrame.new(0.15, 0, 0.07), color = "black", name = "Hand", collide = false })
+		Blocks.part(m, { size = Vector3.new(1.45, 1.45, 0.06), cf = cf * CFrame.new(0, 0, -0.03), color = "gold", name = "ClockRim", collide = false })
+	end
+	window(m, f, 0, 2.2, 1.0, 0.4, 0.8)
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 1.0, 0.7, 1.2, "wood_dark")
+	Blocks.part(m, { size = Vector3.new(2.4, 1.6, 2.4), cf = f * CFrame.new(0, 6.0, 0), color = "blue", shape = "Wedge", name = "Roof", collide = false })
+	Blocks.part(m, { size = Vector3.new(2.4, 1.6, 2.4), cf = f * CFrame.new(0, 6.0, 0) * CFrame.Angles(0, math.pi, 0), color = "blue", shape = "Wedge", name = "Roof", collide = false })
+	box(m, f, 0, 7.0, 0, 0.1, 0.6, 0.1, "gold", "Spire")
+end
+B.canal = function(m, f)
+	box(m, f, 0, 0.05, 0, 4, 0.1, 3, "rock", "Bank")
+	box(m, f, 0, 0.1, 0, 4, 0.1, 1.8, "water", "Canal"):SetAttribute("PixelWater", 2)
+	for _, z in { -1.0, 1.0 } do
+		box(m, f, 0, 0.2, z, 4, 0.2, 0.25, "rock_dark", "Edge")
+	end
+	-- an arched footbridge across it
+	for k = 0, 6 do
+		local t = (k - 3) / 3
+		box(m, f, 0, 0.55 - math.abs(t) * 0.35, t * 1.2, 1.2, 0.12, 0.42, "wood", "Plank")
+	end
+	for _, x in { -0.6, 0.6 } do
+		for k = 0, 4 do
+			local t = (k - 2) / 2
+			box(m, f, x, 0.85 - math.abs(t) * 0.3, t * 1.2, 0.08, 0.5, 0.08, "wood_dark", "Baluster")
+		end
+	end
+	box(m, f, 1.5, 0.15, 0.3, 0.9, 0.15, 0.5, "berry_red", "Boat")
+	cyl(m, f, -1.4, 0.16, -0.3, 0.4, 0.04, "leaf", "LilyPad")
+end
+B.grandarch = function(m, f)
+	for _, x in { -2.1, 2.1 } do
+		box(m, f, x, 1.8, 0, 0.8, 3.6, 1.2, "white", "Pier")
+		box(m, f, x, 0.2, 0, 1.0, 0.4, 1.4, "rock", "Plinth")
+	end
+	for k = 0, 8 do
+		local a = math.pi * k / 8
+		box(m, f, -math.cos(a) * 1.7, 3.6 + math.sin(a) * 1.0, 0, 0.7, 0.5, 1.2, "white", "Arch")
+	end
+	box(m, f, 0, 4.9, 0, 5.0, 0.6, 1.3, "cream", "Attic")
+	box(m, f, 0, 4.9, 0.66, 2.0, 0.35, 0.05, "gold", "Plaque")
+	box(m, f, 0, 5.35, 0, 1.0, 0.3, 0.6, "gold", "Crest")
+	for _, x in { -2.1, 2.1 } do
+		box(m, f, x, 2.5, 0.62, 0.4, 0.6, 0.04, "gold", "Medallion")
+	end
+end
+B.observatory = function(m, f)
+	footing(m, f, 4, 4, "rock", 0.15)
+	cyl(m, f, 0, 1.3, -0.2, 3.2, 2.3, "cream", "Drum")
+	cyl(m, f, 0, 2.5, -0.2, 3.4, 0.2, "rock", "Cornice")
+	Blocks.part(m, { size = Vector3.new(3.2, 3.2, 3.2), cf = f * CFrame.new(0, 2.6, -0.2), color = "steel", shape = "Ball", name = "Dome", collide = false })
+	box(m, f, 0, 3.9, 0.4, 0.5, 1.4, 0.4, "night", "Slit")
+	Blocks.part(m, { size = Vector3.new(0.35, 0.35, 1.8), cf = f * CFrame.new(0, 4.2, 0.6) * CFrame.Angles(math.rad(-35), 0, 0), color = "gold", name = "Telescope", collide = false })
+	door(m, f * CFrame.new(0, 0.15, 0), 0, 1.4, 0.7, 1.2, "blue")
+	for _, a in { -0.7, 0.7 } do
+		window(m, f, math.sin(a) * 1.6, 1.4, math.cos(a) * 1.6 - 0.2, 0.35, 0.5)
+	end
+	streetLamp(m, f, 1.6, 1.6)
+end
+B.crystalfountain = function(m, f)
+	box(m, f, 0, 0.05, 0, 5, 0.1, 5, "white", "Paving")
+	cyl(m, f, 0, 0.35, 0, 4.6, 0.6, "white", "Basin")
+	cyl(m, f, 0, 0.68, 0, 4.8, 0.1, "gold", "Rim")
+	cyl(m, f, 0, 0.6, 0, 4.0, 0.12, "shallow", "Water"):SetAttribute("PixelWater", 2)
+	for k = 0, 5 do
+		local a = k * math.pi / 3
+		local h = 1.2 + (k % 2) * 0.8
+		Blocks.part(m, { size = Vector3.new(0.35, h, 0.35), cf = f * CFrame.new(math.cos(a) * 0.9, 0.6 + h / 2, math.sin(a) * 0.9) * CFrame.Angles(math.rad(12) * math.cos(a), 0, math.rad(12) * math.sin(a)), color = if k % 2 == 0 then "purple" else "window", name = "Crystal", collide = false })
+	end
+	Blocks.part(m, { size = Vector3.new(0.6, 2.8, 0.6), cf = f * CFrame.new(0, 2.0, 0), color = "pink", name = "Crystal", neon = true, collide = false })
+	ball(m, f, 0, 3.6, 0, 0.5, "white", "Spray")
+	for _, p in { { 1.5, 1.0 }, { -1.3, 1.2 }, { 1.0, -1.5 } } do
+		box(m, f, p[1], 0.7, p[2], 0.15, 0.04, 0.15, "gold", "Coin")
+	end
+end
+B.sunspire = function(m, f)
+	box(m, f, 0, 0.25, 0, 3, 0.5, 3, "cream", "Base")
+	for i = 0, 4 do
+		local w = 1.8 - i * 0.3
+		box(m, f, 0, 0.5 + i * 1.3 + 0.65, 0, w, 1.3, w, if i % 2 == 0 then "white" else "cream", "Spire")
+		box(m, f, 0, 0.5 + (i + 1) * 1.3, 0, w + 0.12, 0.12, w + 0.12, "gold", "Band")
+	end
+	Blocks.part(m, { size = Vector3.new(0.5, 1.4, 0.5), cf = f * CFrame.new(0, 7.7, 0), color = "gold", shape = "Wedge", name = "Tip", collide = false })
+	ball(m, f, 0, 7.3, 0, 0.7, "yellow", "Sun").Material = Enum.Material.Neon
+	for _, x in { -1.2, 1.2 } do
+		box(m, f, x, 0.75, 1.2, 0.25, 0.3, 0.25, "yellow", "Lamp", true)
+	end
+end
+B.monument = function(m, f)
+	box(m, f, 0, 0.15, 0, 4, 0.3, 4, "rock", "Plinth")
+	box(m, f, 0, 0.5, 0, 3.2, 0.4, 3.2, "white", "Step")
+	box(m, f, 0, 1.3, 0, 2.0, 1.2, 2.0, "cream", "Pedestal")
+	box(m, f, 0, 1.3, 1.02, 1.4, 0.5, 0.04, "gold", "Plaque")
+	-- the founder in bronze: boots, coat, a raised arm holding a spyglass, a captain's hat
+	box(m, f, -0.25, 2.2, 0, 0.35, 0.6, 0.4, "gold", "Leg")
+	box(m, f, 0.25, 2.2, 0, 0.35, 0.6, 0.4, "gold", "Leg")
+	box(m, f, 0, 3.0, 0, 1.0, 1.1, 0.6, "gold", "Coat")
+	box(m, f, 0, 3.9, 0, 0.8, 0.8, 0.7, "gold", "Head")
+	box(m, f, 0, 4.4, 0, 1.0, 0.15, 0.8, "gold", "HatBrim")
+	box(m, f, 0, 4.6, 0, 0.6, 0.3, 0.5, "gold", "Hat")
+	box(m, f, 0.65, 3.6, 0, 0.3, 1.0, 0.3, "gold", "Arm")
+	box(m, f, 0.65, 4.2, 0.3, 0.15, 0.15, 0.7, "gold", "Spyglass")
+	box(m, f, -0.65, 2.9, 0, 0.3, 0.9, 0.3, "gold", "Arm")
+	for _, c in { { -1.7, -1.7 }, { 1.7, -1.7 }, { -1.7, 1.7 }, { 1.7, 1.7 } } do
+		box(m, f, c[1], 0.55, c[2], 0.35, 0.5, 0.35, "yellow", "Lamp", true)
+	end
+end
+
 -- An upgraded building's pennant: a pole at its back-left corner, the flag red at level 2, gold at 3.
 local function pennant(m: Model, f: CFrame, lvl: number, w: number, d: number)
 	local x, z = -w / 2 + 0.3, -d / 2 + 0.3

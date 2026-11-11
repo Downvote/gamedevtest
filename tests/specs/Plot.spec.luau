@@ -87,19 +87,78 @@ return function()
 		T.eq(select(2, Plot.place(p, "hut", hx, hz, 0)), "wood")
 		T.eq(select(2, Plot.place(p, "castle", hx, hz, 0)), "bad_payload")
 	end)
-	T.it("upgrades: a building that makes something, two levels, paid by its price", function()
+	T.it("upgrades: a building that makes something, a home or a nest, two levels, paid by its price; decor none", function()
 		local p = fresh()
 		local x, z = spot(p, "patch")
 		Plot.place(p, "patch", x, z, 0)
 		x, z = spot(p, "tent")
 		Plot.place(p, "tent", x, z, 0)
+		x, z = spot(p, "torch")
+		Plot.place(p, "torch", x, z, 0)
 		local before = p.shells
 		T.truthy(Plot.upgrade(p, 1))
 		T.eq(p.plot.placed[1].lvl, 2)
 		T.eq(p.shells, before - Buildings.byId.patch.shells * Tuning.UpgradeCost[2])
 		T.truthy(Plot.upgrade(p, 1))
 		T.eq(select(2, Plot.upgrade(p, 1)), "max")
-		T.eq(select(2, Plot.upgrade(p, 2)), "max", "a tent has no levels")
+		T.truthy(Plot.upgrade(p, 2), "a tent: more comfort")
+		T.eq(p.plot.placed[2].lvl, 2)
+		T.eq(select(2, Plot.upgrade(p, 3)), "max", "a torch has no levels")
+	end)
+	T.it("replacing: another of its kind where it stands, paying the difference less the old one's refund; its uid kept", function()
+		local p = fresh()
+		p.tier = 2
+		local x, z = spot(p, "tent")
+		Plot.place(p, "tent", x, z, 0)
+		local uid = p.plot.placed[1].uid
+		local v = { id = 500, name = "V", look = p.founder, work = 0, lvl = 1, xp = 0, seed = 1, day = 1 }
+		table.insert(p.folk, v)
+		T.deepEq(Plot.replacements(p.plot.placed[1], 1), { "hut" }, "tier 1: the hut")
+		T.truthy(table.find(Plot.replacements(p.plot.placed[1], 2), "cottage"))
+		T.eq(select(2, Plot.replace(p, 1, "patch")), "bad_payload", "another kind")
+		T.eq(select(2, Plot.replace(p, 1, "tent")), "bad_payload", "the same piece")
+		T.eq(select(2, Plot.replace(p, 1, "villa")), "locked")
+		local before = p.shells
+		local ok = Plot.replace(p, 1, "hut")
+		T.truthy(ok, "a hut where the tent stood")
+		T.eq(p.plot.placed[1].id, "hut")
+		T.eq(p.plot.placed[1].uid, uid, "its uid stays")
+		T.eq(p.shells, before - (Buildings.byId.hut.shells - math.floor(Buildings.byId.tent.shells * Tuning.Refund)))
+		-- a bigger footprint that runs into another piece: blocked
+		local q = p.plot.placed[1]
+		Plot.place(p, "torch", q.x + 3, q.z, 0)
+		T.eq(select(2, Plot.replace(p, 1, "cottage")), "blocked")
+		-- fewer beds than the villagers need: no_room
+		local i = #p.plot.placed
+		Plot.store(p, i)
+		table.insert(p.folk, { id = 501, name = "W", look = p.founder, work = 0, lvl = 1, xp = 0, seed = 2, day = 1 })
+		T.truthy(Plot.replace(p, 1, "cottage"))
+		T.eq(select(2, Plot.replace(p, 1, "tent")), "no_room", "a tent for two villagers")
+		-- a farm for an orchard keeps its worker
+		local fx, fz = spot(p, "patch")
+		Plot.place(p, "patch", fx, fz, 0)
+		local farm = p.plot.placed[#p.plot.placed]
+		v.work = farm.uid
+		T.truthy(Plot.replace(p, #p.plot.placed, "orchard"), "an orchard where the patch stood")
+		T.eq(p.plot.placed[#p.plot.placed].id, "orchard")
+		T.eq(v.work, farm.uid, "its farmer works on in the orchard")
+	end)
+	T.it("paths: tiles apart from the piece limit, with a limit of their own", function()
+		local p = fresh()
+		T.truthy(Plot.isPath("dirtpath") and not Plot.isPath("patch"))
+		local n = 0
+		for z = -6, 20, 2 do
+			for x = -16, 16, 2 do
+				if Plot.place(p, "dirtpath", x, z, 0) then
+					n += 1
+				end
+			end
+		end
+		T.eq(n, Plot.pathLimit(1), "as many paths as the limit")
+		local used, most = Plot.used(p, "patch")
+		T.eq(used, 0, "no piece used up")
+		T.eq(most, Plot.limit(1))
+		T.eq(select(2, Plot.place(p, "dirtpath", 30, 30, 0)), "full")
 	end)
 	T.it("move, clear away (a refund, the workers idle), not a home or a nest still needed, the limit", function()
 		local p = fresh()

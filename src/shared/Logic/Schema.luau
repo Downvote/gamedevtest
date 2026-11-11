@@ -150,13 +150,23 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 	if type(v) ~= "table" then
 		return out
 	end
+	local pieces, paths = 0, 0
 	for _, q in v do
-		if type(q) == "table" and type(q.id) == "string" and Buildings.byId[q.id] and #out < Plot.limit(tier) then
+		local def = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
+		local path = def ~= nil and def.kind == "path"
+		if def and (if path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
 			local uid = int(q.uid, 0, 0)
 			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
 			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
 				used[uid] = true
-				local lvl = if Island.works(q.id) then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
+				if path then
+					paths += 1
+				else
+					pieces += 1
+				end
+				-- a level: the makers', homes' and nests' (Plot.upgradeCost)
+				local leveled = Island.works(q.id) or def.kind == "home" or def.kind == "nest"
+				local lvl = if leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
 				table.insert(out, { uid = uid, id = q.id, x = x, z = z, rot = rot, lvl = lvl })
 			end
 		end

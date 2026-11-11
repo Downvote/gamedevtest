@@ -15,7 +15,7 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, breed = true, decor = true }
+		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, breed = true, gen = true, path = true, decor = true }
 		for _, d in Buildings.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
@@ -28,6 +28,10 @@ return function()
 			T.truthy((d.kind == "shop") == (d.eats > 0), d.id .. " a shop eats food")
 			T.truthy((d.kind == "home") == (d.beds > 0) and (d.kind == "nest") == (d.slots > 0), d.id .. " beds and nests")
 			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
+			T.truthy((d.kind == "gen") == (d.boost ~= "" and d.boostBy > 0), d.id .. " a boost building boosts")
+			T.truthy(d.boost == "" or d.boost == "farm" or d.boost == "fish" or d.boost == "wood" or d.boost == "shop" or d.boost == "all", d.id .. " boost knack")
+			T.truthy(d.comfort == 0 or d.kind == "home" or d.kind == "nest", d.id .. " comfort is a home's or nest's")
+			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
 		T.truthy(seen.patch and seen.tent and seen.nest and seen.lumber and seen.stall, "the first buildings")
 		for _, id in { "patch", "tent", "nest", "lumber", "stall" } do

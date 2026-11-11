@@ -44,6 +44,8 @@ local TABS: { { key: string, text: string, kinds: { string }, icon: string } } =
 	{ key = "shop", text = "Shops", kinds = { "shop" }, icon = "shell" },
 	{ key = "home", text = "Homes", kinds = { "home" }, icon = "home" },
 	{ key = "nest", text = "Nests", kinds = { "nest", "train", "breed" }, icon = "nest" },
+	{ key = "gen", text = "Boosts", kinds = { "gen" }, icon = "boost" },
+	{ key = "path", text = "Paths", kinds = { "path" }, icon = "path" },
 	{ key = "decor", text = "Decor", kinds = { "decor" }, icon = "decor" },
 }
 local tab = "food"
@@ -62,7 +64,7 @@ local TUT: { [number]: { tab: string, id: string } } = {
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
 local goalCard: Frame? = nil
 local goalTab: GuiButton? = nil
-type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean }
+type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean, replace: boolean? }
 
 local open = false
 local tray: Frame? = nil
@@ -210,8 +212,59 @@ local function price(parent: Instance, x: number, y: number, shells: number, woo
 	return x
 end
 
+-- Replacing a placed piece (GAME_DESIGN 4.1): the others of its kind open at the tier, each with what it adds and
+-- what it costs after the old one's refund; a tap replaces it where it stands.
+local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece)
+	local old = Buildings.byId[q.id]
+	UIKit.button(f, "Back", UDim2.fromOffset(40, 13), UDim2.fromOffset(4, 2), function()
+		local cur = pick
+		if cur then
+			cur.replace = nil
+			rebuild()
+		end
+	end, { name = "ReplaceBack", color = UIKit.color("plate_light") })
+	UIKit.text(f, "Replace the " .. (if old then old.name else q.id) .. " with:", UDim2.fromOffset(220, 13), UDim2.fromOffset(48, 2), { color = UIKit.color("accent"), name = "ReplaceWhat" })
+	local list = UIKit.scroll(f, UDim2.new(1, -8, 0, 30), UDim2.fromOffset(4, 18))
+	list.ScrollingDirection = Enum.ScrollingDirection.X
+	list.AutomaticCanvasSize = Enum.AutomaticSize.X
+	UIKit.hlist(list, 3)
+	for k, id in Plot.replacements(q, v.tier) do
+		local d = Buildings.byId[id]
+		local cost = Plot.replaceCost(q, id)
+		if d == nil or cost == nil then
+			continue
+		end
+		local afford = v.shells >= cost.shells and v.wood >= cost.wood
+		local card = UIKit.plate(list, UDim2.fromOffset(84, 28), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
+		card.Name = "Swap_" .. id
+		card.LayoutOrder = k
+		local what = if d.beds > 0 then string.format("%s: %d beds", d.name, d.beds) elseif d.slots > 0 then string.format("%s: room %d", d.name, d.slots) else d.name
+		UIKit.text(card, what, UDim2.fromOffset(82, 10), UDim2.fromOffset(2, 1), { color = UIKit.color("text"), z = 4 })
+		local b = UIKit.button(card, "", UDim2.fromOffset(80, 14), UDim2.fromOffset(2, 12), function()
+			local cur = pick
+			if cur == nil or cur.move == nil then
+				return
+			end
+			local res = ask("plot.replace", { i = cur.move, id = id })
+			if res.ok then
+				Audio.play("level_up")
+				UIKit.notice(string.format("The %s is now a %s!", if old then old.name else "piece", d.name), UIKit.color("good"))
+				pick = nil
+				clearGhost()
+				task.defer(rebuild)
+			end
+		end, { name = "SwapTo_" .. id, color = if afford then UIKit.color("button_ok") else nil })
+		price(b, 3, 2, cost.shells, cost.wood, v, 6)
+	end
+end
+
 local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	local def = Buildings.byId[p.id]
+	local placedQ = if p.move then placed()[p.move] else nil
+	if p.replace and placedQ then
+		replaceBar(f, p, v, placedQ)
+		return
+	end
 	local x = 4
 	local function btn(text: string, color: Color3?, enabled: boolean, click: () -> (), name: string)
 		local w = UIKit.buttonWidth(text, 5)
@@ -247,6 +300,16 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 				end
 			end, "Upgrade")
 		end
+		if #Plot.replacements(q, v.tier) > 0 then
+			btn("Replace", UIKit.color("pink"), true, function()
+				local cur = pick
+				if cur and cur.move then
+					cur.replace = true
+					Audio.play("flip")
+					rebuild()
+				end
+			end, "Replace")
+		end
 		btn("Clear away", UIKit.color("button_warn"), true, function()
 			local cur = pick
 			if cur and cur.move then
@@ -275,8 +338,13 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 		local lvl = if q then q.lvl else 1
 		say = string.format("%s %s a minute with a %s.", say, (Numbers.perMin(def.rate * (Tuning.UpgradeMult[lvl] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")), string.lower(def.job))
 	end
-	if def and def.charm > 0 then
-		say ..= string.format(" Charm +%d.", def.charm)
+	if def and (def.beds > 0 or def.slots > 0) then
+		local lvl = if q then q.lvl else 1
+		local c = def.comfort + (Tuning.ComfortLvl[lvl] or 0)
+		say = string.format("%s %s %d.%s", say, if def.beds > 0 then "Beds" else "Room for", def.beds + def.slots, if c > 0 then string.format(" Comfort +%d%%.", math.round(c * 100)) else "")
+	end
+	if def and def.charm >= 1 then
+		say ..= string.format(" Charm +%d.", math.floor(def.charm))
 	end
 	UIKit.text(info, say, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 14), { color = UIKit.color("text_dim"), z = 4, name = "Blurb" })
 	if q then
@@ -399,8 +467,15 @@ rebuild = function()
 			end
 		end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells and v.wood >= cost.wood })
 		local _ = ex
-		local count = string.format("%d/%d", #v.pieces, Plot.limit(v.tier))
-		UIKit.text(f, count, UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if #v.pieces >= Plot.limit(v.tier) then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
+		-- the pieces standing (or the path tiles, on the Paths tab) and the island's limit
+		local paths = 0
+		for _, q in v.pieces do
+			if Plot.isPath(q.id) then
+				paths += 1
+			end
+		end
+		local used, most = if tab == "path" then paths else #v.pieces - paths, if tab == "path" then Plot.pathLimit(v.tier) else Plot.limit(v.tier)
+		UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
 		if cost then
 			local pf = Instance.new("Frame")
 			pf.Name = "ExpandCost"

@@ -263,11 +263,8 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 				mark("boat" .. p.boat, t)
 			end
 		end
-		if p.tier >= 2 then
-			mark("tier2", t)
-		end
-		if p.tier >= 3 then
-			mark("tier3", t)
+		for k = 2, p.tier do
+			mark("tier" .. k, t)
 		end
 		-- the expedition
 		if exp == nil and t >= nextTrip then

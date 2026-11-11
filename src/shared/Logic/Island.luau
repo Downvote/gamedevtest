@@ -66,6 +66,67 @@ function Island.visitors(p: Profile): number
 	return math.min(Tuning.VisitorsMax, 1 + Island.charm(p) / Tuning.VisitorCharm)
 end
 
+-- Who lives where (GAME_DESIGN 4.1): the homes, best first (their comfort and their level's, then the first built),
+-- filled with the villagers in the order they came, a bed each; the nests the same with the driftlings. Each
+-- resident's home (its piece's uid) and comfort, keyed "v<id>" / "p<id>" (nobody left out while beds last).
+export type Home = { uid: number, comfort: number }
+function Island.homes(p: Profile): { [string]: Home }
+	local out: { [string]: Home } = {}
+	local function fill(kind: string, who: { any }, prefix: string)
+		type Slot = { uid: number, n: number, comfort: number }
+		local list: { Slot } = {}
+		for _, q in p.plot.placed do
+			local d = Buildings.byId[q.id]
+			if d and d.kind == kind then
+				local n = if kind == "home" then d.beds else d.slots
+				table.insert(list, { uid = q.uid, n = n, comfort = d.comfort + (Tuning.ComfortLvl[q.lvl or 1] or 0) })
+			end
+		end
+		table.sort(list, function(a: Slot, b: Slot): boolean
+			if math.abs(a.comfort - b.comfort) > 1e-9 then
+				return a.comfort > b.comfort
+			end
+			return a.uid < b.uid
+		end)
+		local i = 1
+		local left = if list[1] then list[1].n else 0
+		for _, x in who do
+			while list[i] and left <= 0 do
+				i += 1
+				left = if list[i] then list[i].n else 0
+			end
+			local h = list[i]
+			if h == nil then
+				break
+			end
+			out[prefix .. x.id] = { uid = h.uid, comfort = h.comfort }
+			left -= 1
+		end
+	end
+	fill("home", p.folk, "v")
+	fill("nest", p.pals, "p")
+	return out
+end
+
+-- The boost buildings' shares (GAME_DESIGN 4.1), by knack and "all": each kind of boost building counts once.
+function Island.boosts(p: Profile): { [string]: number }
+	local out: { [string]: number } = { farm = 0, fish = 0, wood = 0, shop = 0, all = 0 }
+	local seen: { [string]: boolean } = {}
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "gen" and d.boost ~= "" and not seen[d.id] then
+			seen[d.id] = true
+			out[d.boost] = (out[d.boost] or 0) + d.boostBy
+		end
+	end
+	return out
+end
+
+-- The boost at a building of a knack: its own and every building's, `BoostMax` at most.
+function Island.boostAt(b: { [string]: number }, knack: string): number
+	return math.min(Tuning.BoostMax, (b[knack] or 0) + (b.all or 0))
+end
+
 -- Whether a building takes workers (it makes something).
 function Island.works(id: string): boolean
 	local d = Buildings.byId[id]
@@ -86,17 +147,22 @@ end
 function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 	local out = { food = 0, wood = 0, shells = 0, made = 0, eaten = 0 }
 	local gone = away or {}
-	local worker: { [number]: boolean } = {}
+	local homes = Island.homes(p)
+	local boosts = Island.boosts(p)
+	-- a worker's output: 1 + its home's comfort
+	local worker: { [number]: number } = {}
 	for _, v in p.folk do
 		if v.work ~= 0 and not gone["v" .. v.id] then
-			worker[v.work] = true
+			local h = homes["v" .. v.id]
+			worker[v.work] = 1 + (if h then h.comfort else 0)
 		end
 	end
-	-- a helping driftling's boost: PalBoost times (1 + its work share at that building's knack)
+	-- a helping driftling's boost: PalBoost times (1 + its work share at that building's knack + its nest's comfort)
 	local helper: { [number]: number } = {}
 	for _, pal in p.pals do
 		if pal.work ~= 0 and not gone["p" .. pal.id] then
-			helper[pal.work] = Island.palWork(p, pal)
+			local h = homes["p" .. pal.id]
+			helper[pal.work] = Island.palWork(p, pal) + (if h then h.comfort else 0)
 		end
 	end
 	local hungry = p.food <= 0
@@ -105,7 +171,7 @@ function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 then
 			local help = helper[q.uid]
-			local k = (if worker[q.uid] then 1 else Tuning.IdleOutput) * (if help then 1 + Tuning.PalBoost * (1 + help) else 1) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1)
+			local k = (worker[q.uid] or Tuning.IdleOutput) * (if help then 1 + Tuning.PalBoost * (1 + help) else 1) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
 			if d.kind == "food" then
 				out.food += d.rate * k
 				out.made += d.rate * k

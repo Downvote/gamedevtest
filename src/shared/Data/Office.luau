@@ -12,6 +12,9 @@ local PLANS: { Plan } = {
 	{ tier = 1, name = "Castaway Cay" },
 	{ tier = 2, name = "Palm Isle" },
 	{ tier = 3, name = "Grand Isle" },
+	{ tier = 4, name = "Harbor Town" },
+	{ tier = 5, name = "Coral City" },
+	{ tier = 6, name = "Sunspire Capital" },
 }
 Office.plans = PLANS
 

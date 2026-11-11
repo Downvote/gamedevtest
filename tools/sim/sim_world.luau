@@ -309,8 +309,25 @@ for i, q in prof.plot.placed do
 		fi = i
 	end
 end
+-- a home upgrades too (more comfort for those who live there); decor does not
+local hut = prof.plot.placed[fi]
 res = H.req(a, "plot.upgrade", { i = fi })
-H.expect(not res.ok and res.err == "max", "build", "a home has no upgrades", tostring(res.err))
+H.expect(res.ok and hut.lvl == 2, "build", "a home upgrades (comfort)", tostring(res.err))
+local di = nil
+for i, q in prof.plot.placed do
+	if Buildings.byId[q.id].kind == "decor" then
+		di = i
+	end
+end
+if di then
+	res = H.req(a, "plot.upgrade", { i = di })
+	H.expect(not res.ok and res.err == "max", "build", "decor has no upgrades", tostring(res.err))
+end
+-- replacing: only with another of its kind, a real index
+H.expect(H.req(a, "plot.replace", { i = fi, id = "patch" }).err == "bad_payload", "build", "a home replaced by a farm: refused")
+H.expect(H.req(a, "plot.replace", { i = 2000, id = "hut" }).err == "bad_payload", "build", "a replace past the pieces: refused")
+H.expect(H.req(a, "plot.replace", { i = fi, id = "nope" }).err == "bad_payload", "build", "an unknown piece: refused")
+H.expect(H.req(a, "plot.replace", { i = fi, id = "manor" }).err == "locked", "build", "a capital's home on a small island: locked")
 E.run(0.3)
 H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil, "build", "the upgraded model is built (its key carries the level)")
 -- clear it away: half back
@@ -426,7 +443,21 @@ end)
 E.raycastParts = nil
 E.run(0.3)
 H.expect(H.buttonNamed(a, "Upgrade", true) ~= nil, "build", "a " .. q1.id .. " picked up shows Upgrade")
-H.clickNamed(a, "Cancel")
+-- Replace: the others of its kind, each with its price after the refund; a tap swaps it where it stands
+local alt = Plot.replacements(q1, prof.tier)[1]
+if H.expect(alt ~= nil and H.buttonNamed(a, "Replace", true) ~= nil, "build", "a " .. q1.id .. " picked up shows Replace") then
+	prof.shells += 5000
+	prof.wood += 500
+	H.push(a, 0.3)
+	H.clickNamed(a, "Replace", { wait = 0.3 })
+	H.expect(H.buttonNamed(a, "SwapTo_" .. alt, true) ~= nil, "build", "Replace lists the others of its kind")
+	local uid0 = q1.uid
+	H.clickNamed(a, "SwapTo_" .. alt, { wait = 0.6 })
+	H.expect(q1.id == alt and q1.uid == uid0 and q1.lvl == 1, "build", "replaced through the UI where it stood, its uid kept", string.format("%s uid %d", q1.id, q1.uid))
+	E.run(0.3)
+	H.expect(decor:FindFirstChild(keyOf(q1)) ~= nil, "build", "the new model stands")
+end
+H.clickNamed(a, "Cancel", { optional = true })
 H.clickNamed(a, "BuildDone")
 E.run(0.4)
 H.expect(not BuildUI.isOpen() and not CCa.isFree(), "build", "Done: closed, the view follows again")

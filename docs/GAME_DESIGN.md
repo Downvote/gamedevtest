@@ -134,28 +134,69 @@ island twice for bigger buildings. Nothing happens while you are away (no offlin
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
-28 pieces in eight kinds: **food** (Veggie Patch, Fishing Pier, Fruit Orchard, Greenhouse), **wood** (Lumber Camp,
-Sawmill), **shops** (Snack Stall, Beach Cafe, Seaside Inn), **homes** (Tent, Grass Hut, Cottage: beds), **nests**
-(Driftling Nest, Cozy Burrow: room for driftlings), the **Training Yard** (resting villagers and driftlings gain xp
-each turn), the **Hatchery** (§6.1) and **decor** (flowers to a lighthouse and a guardian statue: charm). Each is paid in shells and wood when
-placed, on whole studs of the island's grass (a stud or more in from the sand), turned a quarter at a time, off the
-campfire's plaza and the path to the jetty, and off every other piece, up to the island's piece limit (`PlotPieces`). The bigger buildings wait for a
-bigger island (tier 2 or 3).
+73 pieces in ten kinds, opening as the island grows (tier 1 .. 6, the build tray's "Island Lv"):
+
+| Kind | Pieces (the tier they open at) |
+|---|---|
+| **food** | Veggie Patch, Fishing Pier (1), Fruit Orchard (2), Greenhouse (3), Rice Terrace (4), Kelp Farm (5), Sky Garden (6) |
+| **wood** | Lumber Camp (1), Sawmill (2), Timber Works (3), Bamboo Grove (4), Grand Mill (5) |
+| **shops** | Snack Stall (1), Beach Cafe (2), Seaside Inn (3), Bakery (4), Grand Bazaar (5), Grand Hotel (6) |
+| **homes** (beds, comfort) | Tent 1, Grass Hut 2 +3% (1), Cottage 4 +6% (2), Longhouse 5 +8% (3), Townhouse 6 +12% (4), Villa 6 +18% (5), Manor 10 +25% (6) |
+| **nests** (room, comfort) | Driftling Nest 2, Cozy Burrow 4 +5% (2), Driftling Den 5 +8% (3), Treetop Roost 6 +12% (4), Spring Grotto 8 +18% (5), Driftling Palace 12 +25% (6) |
+| **boosts** | Tool Shed (wood +10%), Windmill (farms +10%), Smokehouse (fishing +10%) (2), Market Hall (shops +12%) (3), Water Tower (all +6%) (4), Town Hall (all +10%) (5), Sun Beacon (all +15%) (6) |
+| **paths** (2 x 2 tiles) | Dirt Path (1), Stone Path (2), Brick Road (4), Marble Walk (5) |
+| the **Training Yard** (2), the **Hatchery** (3, §6.1) | |
+| **decor** (charm) | Flower Bed, Round Bush, Picket Fence, Tiki Torch, Sandcastle, Rock Garden, Shell Pile, Palm Tree, Bench, Hammock (1); Hedge, Lamp Post, Picnic Table, Flower Arch, Totem Pole, Fountain (2); Gazebo, Lighthouse, Guardian Statue (3); Street Lamp, Topiary, Bandstand, Clock Tower (4); Canal Bridge, Grand Arch, Observatory (5); Crystal Fountain, Sun Spire, Founder Monument (6) |
+
+Each is paid in shells and wood when placed, on whole studs of the island's grass (a stud or more in from the sand),
+turned a quarter at a time, off the campfire's plaza and the path to the jetty, and off every other piece, up to the
+island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, `PathPieces`: 60 .. 500).
+
+### 4.1 The town and the city
+
+> The request (2026-11-10): "make much much more progression, allowing the player to build much more decorations,
+> generators/work areas, better houses for villagers and creatures which improve their stats and work productivity,
+> paths and other details, that unlock more as the island is expanded. increase the progression to the point where a
+> big island that is well decorated should look like a well developed city. give players the ability to
+> replace/upgrade buildings as well, including homes of creatures and villagers"
+
+- **Six tiers** (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, then **Harbor Town** (60,000 shells and 5,500
+  wood), **Coral City** (180,000 / 15,000) and **Sunspire Capital** (480,000 / 40,000). The island grows north each
+  time (the boardwalk stays where it is), to twice tier 3's grass at the capital; more villagers (`FolkMax` 40) and
+  driftlings (`PalsMax` 40) live there.
+- **Comfort** (homes and nests): the best homes are filled first, each villager in the order they came (the same for
+  driftlings in the nests). A resident's comfort (its home's, plus 4% / 8% at the home's level 2 / 3) makes them work
+  that much more (`Island.rates`: a worker's output times 1 + its comfort; a helper's boost grows by it too) and fight
+  stronger (health, attack and defence times 1 + it). The Villagers panel shows each one's home and comfort ("Home:
+  Villa, comfort +18%"), the Driftlings panel its nest.
+- **Boost buildings**: every building of a knack makes more (`Island.boosts`); each kind of boost building counts
+  once however many stand, the "all" ones count at every knack, and the boosts at one knack stop at `BoostMax` (60%).
+- **Paths** in four materials, laid tile after tile (the piece stays picked), apart from the piece limit: roads
+  through a town (a Brick Road brings a little charm, a Marble Walk more).
+- **Upgrade** a home or nest too (Lv 2 and 3, `UpgradeCost` times its price: more comfort), as well as a building that
+  makes something.
+- **Replace**: a standing piece picked up shows **Replace**: the tray lists the others of its kind open at the tier
+  (beds or room for homes and nests), each for its price less half the old one's (`Plot.replaceCost`); a tap swaps it
+  where it stands (the new footprint must fit there; a home or nest must still house everyone): its workers stay, its
+  level starts again. A tent becomes a cottage, a patch an orchard, a nest a palace.
+- A big island well built reads as a city: roads in a grid with street lamps, townhouses and villas, a town hall and a
+  clock tower, markets and a grand hotel, parks with hedges, topiaries and fountains (the `city` preview).
 
 - **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Food, Wood, Shops, Homes,
-  Nests, Decor) lists every piece with its price (red when you are short, locked ones greyed with the tier they
+  Nests, Boosts, Paths, Decor: icons alone on a phone) lists every piece with its price (red when you are short, locked ones greyed with the tier they
   need). A picked piece is a ghost on a cyan footprint where it fits, red where not; Place (or a second click on the
   same spot) builds it. Tapping a standing piece picks it up to move, **Upgrade** it (a building that makes
-  something: Lv 2 and 3 for `UpgradeCost` times its price, making `UpgradeMult` times as much) or **Clear it away**
-  (half its price back; not a home or nest whose beds are needed).
+  something: Lv 2 and 3 for `UpgradeCost` times its price, making `UpgradeMult` times as much; a home or nest: more
+  comfort), **Replace** it (§4.1) or **Clear it away** (half its price back; not a home or nest whose beds are
+  needed, not a Hatchery warming an egg). The header counts the pieces (the path tiles on the Paths tab).
 - **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
   is open) turns the tray to the tab of the building the tip asks for, and that building's card (and its tab, while
   another tab is shown) pulses until it stands on the island; placing it goes straight on to the next tip's tab.
 
   > The request (2026-11-10): "make the tutorial show while in the build menu as well, and auto switches the player to
   > the tab where the required buildings are in"
-- **Expand** (in the tray's header): the island grows twice (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, its coast
-  reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot (none is
+- **Expand** (in the tray's header): the island grows five times (`TierCost`, §4.1), its coast reaching further out
+  round the same campfire. A piece that no longer fits moves to the nearest free spot (none is
   lost; one with no spot left would be cleared with its whole price back).
 
 ## 5. Villagers (`Logic/Island`, the Villagers panel)
@@ -542,7 +583,9 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 
 - a villager within 3 minutes, a driftling friend within 15;
 - a guardian beaten within 15 minutes; one of a level-5 island (meadows) within 45, level 10 (volcanoes) within 90,
-  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past two hours). The career's player sails home
+  level 16 (snowfields) within 150; level 23 (reefs) a long-term goal (past 100 minutes: the town's homes and nests
+  of tier 3 bring more villagers and friends than before); Harbor Town (tier 4) never before 100 minutes and no city
+  (tier 5) within three hours. The career's player sails home
   after an island's first guardian, befriends kinds of driftling it has not befriended yet (or any while it has fewer
   than six friends: a friend gives no experience; befriending every hurt wild one kept its captain from levelling
   once a defeat no longer cost half the loot), and sails to
