@@ -433,7 +433,7 @@ function WorldView.signCard(i: number)
 	end
 	local name = m:GetAttribute("StudioName")
 	if type(name) ~= "string" then
-		UIKit.notice("An unclaimed isle: a new castaway could settle here.", UIKit.color("text_dim"))
+		UIKit.notice("Nobody has claimed this one yet.", UIKit.color("text_dim"))
 		return
 	end
 	local function n(k: string): number

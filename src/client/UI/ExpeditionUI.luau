@@ -353,7 +353,7 @@ local function buildFoes(e: Types.Expedition)
 				local rar = Traits.RARITY[cd.rarity]
 				task.delay(0.6, function()
 					if isOpen then
-						sayFwd(string.format(if cd.rarity >= 5 then "A legendary %s appears!" else "An epic %s appears!", cd.name), UIKit.color(rar.color), 2.2)
+						sayFwd(string.format(if cd.rarity >= 5 then "That's a legendary %s." else "That's an epic %s.", cd.name), UIKit.color(rar.color), 2.2)
 						Audio.play("fanfare")
 					end
 				end)
@@ -1404,7 +1404,7 @@ local function startSnack()
 	end
 	local lead = actors.f
 	if lead == nil or lead.ko then
-		UIKit.notice("The leader is down: no snacks till they're up.", UIKit.color("bad"))
+		UIKit.notice("The leader is down. No snacks until they're back up.", UIKit.color("bad"))
 		Audio.play("deny")
 		return
 	end
@@ -2009,7 +2009,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(a) + Vector3.new(0, 0.3, 0), "dust", 5)
 			end
 		end
-		say("The party springs into action!", UIKit.color("accent"), 1.2)
+		say("Everyone goes at once.", UIKit.color("accent"), 1.2)
 		Audio.play("whoosh", { pitch = 1.3 })
 	elseif t == "dizzy" then
 		for _, a in actors do
@@ -2018,7 +2018,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(a) + Vector3.new(0, 2, 0), "twinkle", 4)
 			end
 		end
-		say("The wild ones are dizzy!", UIKit.color("accent"), 1.2)
+		say("The wild ones are seeing stars.", UIKit.color("accent"), 1.2)
 		Audio.play("poof")
 	elseif t == "cancel" then
 		-- the action cut short: everyone back in place, the health as the server says it is again (a knock-out
@@ -2050,7 +2050,7 @@ local function playEvent(ev: { [string]: any })
 		if f then
 			startMove(f, "throw")
 		end
-		floatOver("f", "Here, a snack!", UIKit.color("text"))
+		floatOver("f", "Here, have a snack.", UIKit.color("text"))
 		Audio.play("whoosh", { pitch = 1.3 })
 		if bwait(0.3) then
 			return
@@ -2072,7 +2072,7 @@ local function playEvent(ev: { [string]: any })
 				startMove(to, "happy")
 				floatOver(ev.to, "<3", UIKit.color("pink"))
 				Audio.play("fanfare")
-				say(nameOf(ev.to) .. " wants to be friends!", UIKit.color("pink"), 2)
+				say(nameOf(ev.to) .. " wants to come home with you.", UIKit.color("pink"), 2)
 				if bwait(0.7) then
 					return
 				end
@@ -2101,7 +2101,7 @@ local function playEvent(ev: { [string]: any })
 			say("Got away!", UIKit.color("good"), 1.4)
 			Audio.play("pop")
 		else
-			say("Couldn't get away!", UIKit.color("bad"), 1.4)
+			say("Couldn't get away.", UIKit.color("bad"), 1.4)
 			Audio.play("deny")
 		end
 	end
@@ -2250,12 +2250,12 @@ playRound = function(data: { [string]: any })
 		table.insert(lines, { text = string.format("+%s xp for the party   +%s shells", Numbers.int(tonumber(data.xp) or 0), Numbers.int(tonumber(data.shells) or 0)), color = UIKit.color("good") })
 		if type(data.ups) == "table" then
 			for key, n in data.ups do
-				table.insert(lines, { text = string.format("%s grew %d level%s!", nameOf(key), n, if n == 1 then "" else "s"), color = UIKit.color("accent") })
+				table.insert(lines, { text = string.format("%s is up %d level%s.", nameOf(key), n, if n == 1 then "" else "s"), color = UIKit.color("accent") })
 				-- a skill learnt on the way up (Data/Skills)
 				local f = fighterOf(key)
 				if f and type(n) == "number" then
 					for _, d in Skills.learnt(Skills.lineOf(f.kind, f.skill), f.lvl, f.lvl + n) do
-						table.insert(lines, { text = string.format("%s learnt %s!", nameOf(key), d.name), color = UIKit.color("accent") })
+						table.insert(lines, { text = string.format("%s learnt %s.", nameOf(key), d.name), color = UIKit.color("accent") })
 					end
 				end
 			end
@@ -2264,14 +2264,14 @@ playRound = function(data: { [string]: any })
 		if type(data.friend) == "table" and type(data.friend.sp) == "string" then
 			local d = Creatures.byId[data.friend.sp]
 			icon = "icon_" .. data.friend.sp
-			table.insert(lines, 1, { text = (if d then d.name else "A driftling") .. " joined your island!", color = UIKit.color("pink") })
+			table.insert(lines, 1, { text = (if d then d.name else "A driftling") .. " is coming home with you.", color = UIKit.color("pink") })
 			local words, col = mutWords(data.friend.muts)
 			if words ~= "" then
 				table.insert(lines, 2, { text = "Born " .. words, color = col })
 			end
 		end
 		if data.reward then
-			table.insert(lines, 1, { text = string.format("The guardian is beaten! +%s shells", Numbers.int(tonumber(data.reward) or 0)), color = UIKit.color("accent") })
+			table.insert(lines, 1, { text = string.format("Guardian beaten. +%s shells", Numbers.int(tonumber(data.reward) or 0)), color = UIKit.color("accent") })
 			if type(data.charted) == "number" then
 				table.insert(lines, { text = string.format("Islands charted: %d", data.charted), color = UIKit.color("good") })
 			end
@@ -2282,7 +2282,7 @@ playRound = function(data: { [string]: any })
 			end
 			-- the path goes on: an alert, the party walks on (Sail home whenever the player likes)
 			local n = tonumber(data.guardian) or 1
-			local title = if data.first then (if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!") else string.format("Guardian %d beaten!", n)
+			local title = if data.first then (if isle then (isle :: Types.Isle).name .. " charted!" else "Charted!") else string.format("Guardian %d is down.", n)
 			alert(title, UIKit.color("accent"), lines, icon)
 			refresh()
 		else
@@ -2323,7 +2323,7 @@ playRound = function(data: { [string]: any })
 		-- befriended mid-battle (others still fighting)
 		local d = Creatures.byId[data.friend.sp]
 		local words = mutWords(data.friend.muts)
-		UIKit.notice((if d then d.name else "A driftling") .. " joined your island!" .. (if words ~= "" then " (" .. words .. ")" else ""), UIKit.color("pink"), 3)
+		UIKit.notice((if d then d.name else "A driftling") .. " is coming home with you." .. (if words ~= "" then " (" .. words .. ")" else ""), UIKit.color("pink"), 3)
 	end
 end
 
@@ -2335,7 +2335,7 @@ playNode = function(data: { [string]: any })
 	local kind = data.kind
 	if kind == "loot" then
 		Audio.play("coin")
-		say(string.format("Found %d food and %d wood!", tonumber(data.food) or 0, tonumber(data.wood) or 0), UIKit.color("good"))
+		say(string.format("Found %d food and %d wood.", tonumber(data.food) or 0, tonumber(data.wood) or 0), UIKit.color("good"))
 		for _, a in actors do
 			if not a.foe then
 				act(a, "reach", 0.6)
@@ -2347,7 +2347,7 @@ playNode = function(data: { [string]: any })
 		task.delay(0.3, function()
 			Audio.play("coins")
 		end)
-		say(string.format("A chest: %s shells!", Numbers.int(tonumber(data.shells) or 0)), UIKit.color("accent"))
+		say(string.format("A chest with %s shells in it.", Numbers.int(tonumber(data.shells) or 0)), UIKit.color("accent"))
 		st.puff(st.at(baseU - 2, -1, 1), "spark", 12)
 		for _, a in actors do
 			if not a.foe then
@@ -2356,7 +2356,7 @@ playNode = function(data: { [string]: any })
 		end
 	elseif kind == "rest" then
 		Audio.play("sparkle")
-		say("A quiet spot: the party rests.", UIKit.color("good"))
+		say("A quiet spot. The party gets its breath back.", UIKit.color("good"))
 		for _, a in actors do
 			if not a.foe then
 				st.puff(actorAt(a) + Vector3.new(0, 1, 0), "heal", 6)
@@ -2365,7 +2365,7 @@ playNode = function(data: { [string]: any })
 	elseif kind == "wild" then
 		say("Wild driftlings!", UIKit.color("orange"))
 	elseif kind == "boss" then
-		say((if isle then (isle :: Types.Isle).bossName else "The guardian") .. " blocks the way!", UIKit.color("bad"), 2.4)
+		say((if isle then (isle :: Types.Isle).bossName else "The guardian") .. " is in the way.", UIKit.color("bad"), 2.4)
 	end
 	if kind == "wild" or kind == "boss" then
 		-- a battle: paused till its wild ones have landed, then it runs (the timers start where the server put them)
@@ -2472,7 +2472,7 @@ goHome = function()
 			busy = false
 			Voyage.home(members, function()
 				if type(got) == "table" then
-					UIKit.notice(string.format("Home again: +%s shells, +%s food, +%s wood", Numbers.int(tonumber(got.shells) or 0), Numbers.int(tonumber(got.food) or 0), Numbers.int(tonumber(got.wood) or 0)), UIKit.color("good"), 4)
+					UIKit.notice(string.format("Back home with %s shells, %s food and %s wood.", Numbers.int(tonumber(got.shells) or 0), Numbers.int(tonumber(got.food) or 0), Numbers.int(tonumber(got.wood) or 0)), UIKit.color("good"), 4)
 				end
 				Audio.play("reward")
 			end)
@@ -2511,17 +2511,17 @@ end
 -- worded for what is on the screen; the last step has its OK (`TutOk`, sending `tut.next`).
 local TUT_TEXT: { [number]: { battle: string, boss: string?, calm: string } } = {
 	[6] = {
-		battle = "Battles fight themselves: each acts when the bar over its head fills. Tap Skills to help!",
-		calm = "Your first island! The party walks on by itself; a battle is coming.",
+		battle = "Fights run on their own. Each fighter acts when the bar over its head fills. Tap Skills to step in.",
+		calm = "Your first island. The party walks on by itself, and there's a fight up ahead.",
 	},
 	[7] = {
-		battle = "Catch one: when a wild one is hurt, tap Snack, pick it and throw!",
-		boss = "A guardian won't take a snack: catch a wild one in the next fight.",
-		calm = "Next fight, catch a driftling: tap Snack and throw one at a hurt wild one.",
+		battle = "Want one? Wait till a wild one is hurt, then tap Snack, pick it and throw.",
+		boss = "Guardians don't take snacks. Try again in the next fight.",
+		calm = "In the next fight, tap Snack and throw one at a hurt wild one.",
 	},
 	[8] = {
-		battle = "A new friend! It waits in a nest at home. Sail home whenever you like.",
-		calm = "A new friend! It waits in a nest at home. Sail home whenever you like.",
+		battle = "You made a friend. It will wait in a nest at home. Sail back whenever you want.",
+		calm = "You made a friend. It will wait in a nest at home. Sail back whenever you want.",
 	},
 }
 tutorialTip = function(r: Frame, e: Types.Expedition, w: number, h: number)

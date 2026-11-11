@@ -58,7 +58,7 @@ local LIST: { IsletDef } = {
 	{ id = 9, name = "Ruins", plural = "Ruins", stage = "ruins", lvl = 28, wild = {}, color = "sand_dark",
 		first = { "Lost", "Sun", "Old", "Fallen", "Golden", "Silent", "Ancient", "Forgotten" },
 		last = { "Ruins", "Temple", "Isle", "Steps", "Court", "Columns", "Citadel" },
-		blurb = "Old stones of a city the sea forgot." },
+		blurb = "The broken stones of an old city." },
 }
 -- Each kind's driftlings: every species of its islet, the commonest first.
 for _, d in LIST do

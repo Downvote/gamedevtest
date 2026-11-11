@@ -78,7 +78,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "grandmill", name = "Grand Mill", kind = "wood", shells = 24000, wood = 900, w = 5, d = 4, rate = 110, job = "Millwright", knack = "wood", charm = 6, tier = 5, blurb = "A waterwheel turns its saws." }),
 	-- shells: shops sell food to the visitors
 	B({ id = "stall", name = "Snack Stall", kind = "shop", shells = 90, wood = 10, w = 3, d = 2, rate = 36, eats = 9, job = "Vendor", knack = "shop", charm = 2, blurb = "Sells snacks to visitors." }),
-	B({ id = "cafe", name = "Beach Cafe", kind = "shop", shells = 900, wood = 90, w = 4, d = 3, rate = 120, eats = 24, job = "Cook", knack = "shop", charm = 5, tier = 2, blurb = "Visitors love it." }),
+	B({ id = "cafe", name = "Beach Cafe", kind = "shop", shells = 900, wood = 90, w = 4, d = 3, rate = 120, eats = 24, job = "Cook", knack = "shop", charm = 5, tier = 2, blurb = "Visitors stop here to eat." }),
 	B({ id = "inn", name = "Seaside Inn", kind = "shop", shells = 5200, wood = 520, w = 5, d = 4, rate = 340, eats = 55, job = "Innkeeper", knack = "shop", charm = 10, tier = 3, blurb = "Visitors stay the night." }),
 	B({ id = "bakery", name = "Bakery", kind = "shop", shells = 14000, wood = 1400, w = 4, d = 3, rate = 700, eats = 90, job = "Baker", knack = "shop", charm = 12, tier = 4, blurb = "Warm bread for the whole town." }),
 	B({ id = "bazaar", name = "Grand Bazaar", kind = "shop", shells = 40000, wood = 3600, w = 5, d = 4, rate = 1500, eats = 160, job = "Trader", knack = "shop", charm = 20, tier = 5, blurb = "Stalls under striped awnings." }),
@@ -97,7 +97,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "den", name = "Driftling Den", kind = "nest", shells = 2000, wood = 200, w = 3, d = 3, slots = 5, charm = 3, comfort = 0.08, tier = 3, blurb = "A mossy den with soft beds." }),
 	B({ id = "roost", name = "Treetop Roost", kind = "nest", shells = 6500, wood = 600, w = 4, d = 4, slots = 6, charm = 5, comfort = 0.12, tier = 4, blurb = "Nests in a great tree." }),
 	B({ id = "grotto", name = "Spring Grotto", kind = "nest", shells = 18000, wood = 1600, w = 4, d = 4, slots = 8, charm = 8, comfort = 0.18, tier = 5, blurb = "A warm spring under a rock." }),
-	B({ id = "palace", name = "Driftling Palace", kind = "nest", shells = 55000, wood = 4500, w = 5, d = 5, slots = 12, charm = 14, comfort = 0.25, tier = 6, blurb = "Every driftling's dream." }),
+	B({ id = "palace", name = "Driftling Palace", kind = "nest", shells = 55000, wood = 4500, w = 5, d = 5, slots = 12, charm = 14, comfort = 0.25, tier = 6, blurb = "The comfiest nest there is." }),
 	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
 	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3600, wood = 320, w = 4, d = 4, charm = 3, tier = 3, blurb = "Two driftlings and a feast make an egg." }),
 	-- training

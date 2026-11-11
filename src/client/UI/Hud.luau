@@ -344,7 +344,7 @@ local function updateExp(v: Types.ClientView)
 	UIKit.plank(f, 11, 3)
 	PixelSprites.image(f, "mini_boat", UDim2.fromOffset(3, 1), 4)
 	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Islet" })
-	local state = if e.battle then "In a battle!" else string.format("Stage %d", math.max(0, e.node - 1))
+	local state = if e.battle then "In a fight" else string.format("Stage %d", math.max(0, e.node - 1))
 	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 14), { color = if e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
 	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 26), function()
 		ExpeditionUI.open()
@@ -376,24 +376,24 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it.",
-	[2] = "Wood: place a Lumber Camp. It chops wood for bigger buildings.",
-	[3] = "Shells: place a Snack Stall. It sells food to visitors for shells.",
-	[4] = "Now a Tent: a castaway moves in at once, to work and to sail with you.",
-	[5] = "Build a Driftling Nest, then tap Explore: your villager sails with you!",
-	[6] = "Set sail from Explore: on the islands your party fights by itself.",
-	[7] = "Catch a driftling: in a battle, tap Snack and throw one at a hurt wild one.",
-	[8] = "A new friend! Islands give food, wood, shells and friends: sail often.",
+	[1] = "Everyone here eats. Tap Build and place a Veggie Patch to grow food.",
+	[2] = "Bigger buildings need wood. Place a Lumber Camp.",
+	[3] = "Shells come from visitors. Place a Snack Stall and they'll buy food.",
+	[4] = "Now put up a Tent. A castaway moves in straight away to work and sail with you.",
+	[5] = "Build a Driftling Nest, then tap Explore. Your villager comes along.",
+	[6] = "Tap Explore and set sail. Out there your party fights on its own.",
+	[7] = "To catch a driftling, tap Snack in a fight and throw one at a hurt wild one.",
+	[8] = "Your first driftling. Trips bring back food, wood and shells as well.",
 }
 -- (on an expedition under way, with its screen closed)
 local TIPS_AWAY: { [number]: string } = {
-	[6] = "Your party is on its first island: tap Continue to watch it fight.",
-	[7] = "Tap Continue: in a battle, throw a snack at a hurt wild one to catch it.",
+	[6] = "Your party has landed. Tap Continue to watch the fight.",
+	[7] = "Tap Continue, then throw a snack at a hurt wild one to catch it.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
-	[1] = "Food: place a Veggie Patch. It grows food; everyone eats it.",
-	[5] = "Place a Driftling Nest, then tap Done and Explore to set sail!",
+	[1] = "Place a Veggie Patch. It grows the food everyone eats.",
+	[5] = "Place a Driftling Nest, then tap Done and Explore to set sail.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).

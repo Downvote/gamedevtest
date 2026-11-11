@@ -217,7 +217,7 @@ island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, 
   stood still the whole time it baked. And the fanfare played at the tap, before anything had changed. Now the
   server builds each island's next size in the background, a few dozen parts a frame, and Expand only swaps it in.
   The filter re-bakes sooner, with more time a frame, behind the old picture, and the island keeps moving
-  meanwhile (villagers, the founder, water and wind). The fanfare and "Your island grew!" wait until the bigger
+  meanwhile (villagers, the founder, water and wind). The fanfare and "Your island grew." wait until the bigger
   island is on screen. Every size's coast cells are worked out when the server starts, and the next size's on
   the client a few seconds after each change, so the tap never waits for them either.
 
@@ -363,7 +363,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   ring of the range round them and a fainter ring of the next boat's; each island in range shows its level (green
   up to the captain's level, yellow up to three over it, red above that). **Tap an island** to pick it (outlined in white): the
   side shows its name, kind, level, its driftlings, its reward and whether it is charted; tap Set sail to go. An
-  island out of range says "Too far for your boat: upgrade it to sail further."
+  island out of range says "Too far for your boat. A bigger one could make it."
 - **The boat** (levels 1 to 6, `BoatRadius`, `BoatCost`): Upgrade, under the chart, pays shells and wood (500 and 60,
   then 1,800 and 200, 7,000 and 800, 18,000 and 1,800, 40,000 and 4,000) for the next level and a wider range; the
   boat at the pier, the one that sails you out and the one at the islands' shores is the new one (§8).
@@ -648,18 +648,33 @@ the stores come from:
 > to go to the first island with a party member that instantly moves in after a tent is built. also, party slots
 > should auto equip with the strongest party members"
 
-1 "Food: tap Build, place a Veggie Patch. It grows food; everyone eats it."; 2 "Wood: place a Lumber Camp. It chops
-wood for bigger buildings."; 3 "Shells: place a Snack Stall. It sells food to visitors for shells."; 4 "Now a Tent: a
-castaway moves in at once, to work and to sail with you." (the first home on an island nobody lives on yet: a castaway
+1 "Everyone here eats. Tap Build and place a Veggie Patch to grow food."; 2 "Bigger buildings need wood. Place a
+Lumber Camp."; 3 "Shells come from visitors. Place a Snack Stall and they'll buy food."; 4 "Now put up a Tent. A
+castaway moves in straight away to work and sail with you." (the first home on an island nobody lives on yet: a castaway
 moves in the moment it is built, not at a turn's end, so the first trip has a party member); 5 "Build a Driftling
-Nest, then tap Explore: your villager sails with you!"; 6 the first fight (set sail: on the islet's screen a note over
-the footer: "Battles fight themselves: each acts when the bar over its head fills. Tap Skills to help!"); 7 catching
-(after the first battle: "Catch one: when a wild one is hurt, tap Snack, pick it and throw!", the Snack button
-shining while one is hurt; against a guardian it says to catch one in the next fight); 8 "A new friend!" (once a
-driftling is befriended; OK ends the tips). On the island the same steps have their own words (and "tap Continue"
+Nest, then tap Explore. Your villager comes along."; 6 the first fight (set sail: on the islet's screen a note over
+the footer: "Fights run on their own. Each fighter acts when the bar over its head fills. Tap Skills to step in."); 7
+catching (after the first battle: "Want one? Wait till a wild one is hurt, then tap Snack, pick it and throw.", the
+Snack button shining while one is hurt; against a guardian it says to try the next fight); 8 "You made a friend."
+(once a driftling is befriended; OK ends the tips). On the island the same steps have their own words (and "tap Continue"
 while an expedition waits). The sea chart's party slots fill themselves with the strongest (level, then health) each
 time it opens; a tap still swaps one out. A new island starts with `StartShells` (300) shells: the patch, the camp, the
 stall, the tent and the nest of the tips cost 280.
+
+> The request (2026-11-11): "also, please rewrite all text and dialogue to be less ai-like. research what are the
+> telltale signs of ai writing and avoid them. note this from further on as well"
+
+**How the game talks** (every tip, notice, card and blurb; CLAUDE.md "Writing" keeps it as a standing rule). The
+researched tells of machine-written text, and what replaced them here: an exclamation mark on nearly every line
+(now only where something earns it, like an egg hatching); colons and semicolons gluing two thoughts into one line
+("Food: tap Build...", "It grows food; everyone eats it") now plain sentences ("Everyone here eats. Tap Build and
+place a Veggie Patch to grow food."); stock game phrases ("springs into action", "blocks the way", "appears!") now
+said plainly ("Everyone goes at once.", "is in the way.", "That's a legendary Pyrelord."); tidy quips built on a
+pattern, a mirrored pair or a list of three ("Snaps first, makes friends later.", "Half gull, half fish, all
+appetite.") now one plain observation ("Pinches anyone who gets close. It means well.", "Part gull, part fish.
+Always hungry."); empty praise ("Every driftling's dream.", "Visitors love it.") now what the thing is or does; a
+tip that ended on a moral ("sail often") now just stops. None of the stock AI words were in the game's text (the
+menu's "Explore" and the Sun Beacon are names). Stat lines keep their "label: value" form.
 
 ## 10. Saves and the economy, checked
 

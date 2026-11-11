@@ -568,7 +568,7 @@ Other players' names float over their heads (World root). `founderPos()`, `count
 ### 10.7 `BuildUI` (Build mode)
 `open()` (the HUD's Build button): closes any panel, `CameraController.setFree(true)`, the tray `BuildTray` along the
 bottom (a workbench in a frame of planks, `wood = 3`, its tabs on a `plank`; the cards carved boards): the tabs `Tab_food Tab_wood Tab_shop Tab_home Tab_nest Tab_gen Tab_path Tab_decor` (their icons alone on a narrow
-screen), the count (`Count`: the pieces, or the path tiles on the Paths tab, against their limit), `Expand` (`island.expand`, its price under it; the fanfare and "Your island grew!" wait for `PixelRenderer.afterBake`, 1.5 s at most) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
+screen), the count (`Count`: the pieces, or the path tiles on the Paths tab, against their limit), `Expand` (`island.expand`, its price under it; the fanfare and "Your island grew." wait for `PixelRenderer.afterBake`, 1.5 s at most) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
 its price in shells and wood with their icons, red when short; a locked one says the island tier it needs). With a
 piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.PixelDynamic`: the piece and its `Footprint`, a
 raised neon frame of four edges just above the grass, cyan (`screen_on`) where `Plot.fits`

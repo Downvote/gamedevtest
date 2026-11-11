@@ -230,7 +230,7 @@ local function buildPicker(body: Frame, v: Types.ClientView, folkId: number?, pa
 	end
 	if order == 0 then
 		local f = row(list, 1, 22)
-		UIKit.text(f, if knack then "No " .. (KNACKS[knack] or "spots") .. " on the island yet: build one." else "Nothing to work at yet: build a patch or a camp.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if knack then "No " .. (KNACKS[knack] or "spots") .. " on the island yet. Build one first." else "Nothing to work at yet. Build a patch or a camp first.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local f = row(list, order + 1, 22)
 	f.Name = "Rest"
@@ -256,7 +256,7 @@ local function buildFolk(body: Frame, arg: any?)
 	UIKit.vlist(list, 2)
 	if #v.folk == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "Nobody lives here yet. Build a Tent: a castaway may move in at dawn.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "Nobody lives here yet. Build a Tent and a castaway may turn up at dawn.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local homes = homesOf(v)
 	for i, x in v.folk do
@@ -284,7 +284,7 @@ local function buildFolk(body: Frame, arg: any?)
 		jb.ZIndex = 4
 		if not gone then
 			confirmButton(f, "Dismiss", UDim2.fromOffset(52, 13), UDim2.new(1, -55, 0, 10), function()
-				local res = ask("folk.dismiss", { id = x.id }, x.name .. " sailed off. Bye!")
+				local res = ask("folk.dismiss", { id = x.id }, x.name .. " sailed off.")
 				if res.ok then
 					Audio.play("close")
 				end
@@ -323,7 +323,7 @@ end
 -- The parent picker: the driftlings at home (not the other parent), each with its passive and mutations.
 local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, slot: string)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Pick a parent: its kind and mutations pass on to the egg.", W)
+	local top = hint(body, "Pick a parent. Its kind and mutations can pass to the egg.", W)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local pick: Pick = breedPick[uid] or {}
@@ -397,7 +397,7 @@ local function buildHatch(body: Frame, arg: any?)
 			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
 			UIKit.text(f, string.format("%s %s egg", if r == 4 then "An" else "A", rar.name), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
 			local _, total = Breed.cost(egg.sp)
-			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Ready! It needs a free nest."
+			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Ready to hatch. It needs a free nest."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
 			local bw = math.min(140, W - 40)
 			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("ink"), 4)
@@ -447,7 +447,7 @@ local function buildHatch(body: Frame, arg: any?)
 				UIKit.text(f, rar.name, UDim2.fromOffset(W - 214, 10), UDim2.fromOffset(208, 11), { color = UIKit.color(rar.color), z = 4 })
 				UIKit.text(f, string.format("A feast of %d food, %d turns. Shared mutations always pass on.", food, turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 24), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
 				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 33), function()
-					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "An egg! It is warm in the Hatchery.")
+					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
 					if res.ok then
 						breedPick[q.uid] = nil
 						Audio.play("fanfare")
@@ -484,7 +484,7 @@ local function buildPals(body: Frame, arg: any?)
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "No driftlings yet. Build a nest, then Explore: a snack in battle may befriend one.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "No driftlings yet. Build a nest, go exploring and throw snacks at hurt wild ones.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local homes = homesOf(v)
 	for i, x in v.pals do
@@ -661,12 +661,12 @@ local function buildExplore(body: Frame, _arg: any?)
 			local res = ask("boat.upgrade", {})
 			if res.ok then
 				Audio.play("level_up")
-				UIKit.notice("A bigger boat: it sails further now!", UIKit.color("good"), 3)
+				UIKit.notice("New boat. It can sail further out.", UIKit.color("good"), 3)
 				UIKit.refreshPanel()
 			end
 		end, { name = "BoatUp", color = if short then UIKit.color("button_off") else UIKit.color("button_ok"), enabled = v.exp == nil })
 	else
-		UIKit.text(body, "The finest boat afloat", UDim2.fromOffset(S - 60, 10), UDim2.fromOffset(60, S + 4), { color = UIKit.color("good"), x = "right", name = "BoatMax" })
+		UIKit.text(body, "This is the biggest boat", UDim2.fromOffset(S - 60, 10), UDim2.fromOffset(60, S + 4), { color = UIKit.color("good"), x = "right", name = "BoatMax" })
 	end
 	-- the island picked, on the right
 	local x0 = S + 5
@@ -772,7 +772,7 @@ local function buildExplore(body: Frame, _arg: any?)
 			local res = ask("pouch.upgrade", {})
 			if res.ok then
 				Audio.play("level_up")
-				UIKit.notice(string.format("A bigger pouch: %d snacks a trip!", Tuning.SnackBase * (pouch + 1)), UIKit.color("good"), 3)
+				UIKit.notice(string.format("Bigger pouch. %d snacks a trip now.", Tuning.SnackBase * (pouch + 1)), UIKit.color("good"), 3)
 				UIKit.refreshPanel()
 			end
 		end, { name = "PouchUp", color = if short then UIKit.color("button_off") else UIKit.color("button_ok"), enabled = v.exp == nil })
@@ -841,7 +841,7 @@ local function buildIndex(body: Frame, _arg: any?)
 			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 21), { color = UIKit.color("accent"), z = 4, name = "Passive" })
 			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 31), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
 		else
-			UIKit.text(f, if n >= 1 then "Met: befriend one with a snack to learn its passive." else "Not met yet.", UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
+			UIKit.text(f, if n >= 1 then "Seen but not caught. Befriend one to learn its passive." else "Not met yet.", UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 		end
 	end
 end

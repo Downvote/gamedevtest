@@ -248,7 +248,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 			local res = ask("plot.replace", { i = cur.move, id = id })
 			if res.ok then
 				Audio.play("level_up")
-				UIKit.notice(string.format("The %s is now a %s!", if old then old.name else "piece", d.name), UIKit.color("good"))
+				UIKit.notice(string.format("The %s is a %s now.", if old then old.name else "piece", d.name), UIKit.color("good"))
 				pick = nil
 				clearGhost()
 				task.defer(rebuild)
@@ -292,7 +292,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 					local res = ask("plot.upgrade", { i = cur.move })
 					if res.ok then
 						Audio.play("level_up")
-						UIKit.notice(string.format("%s is now Lv %d!", if def then def.name else "It", (res.data and res.data.lvl) or 2), UIKit.color("good"))
+						UIKit.notice(string.format("%s is Lv %d now.", if def then def.name else "It", (res.data and res.data.lvl) or 2), UIKit.color("good"))
 						pick = nil
 						clearGhost()
 						task.defer(rebuild)
@@ -471,7 +471,7 @@ rebuild = function()
 					end
 					cheered = true
 					Audio.play("fanfare")
-					UIKit.notice(if moved > 0 then string.format("Your island grew! %d building%s moved over for the bigger lodge.", moved, if moved == 1 then "" else "s") else "Your island grew! New buildings to build.", UIKit.color("good"), 4)
+					UIKit.notice(if moved > 0 then string.format("Your island grew. %d building%s had to move for the new lodge.", moved, if moved == 1 then "" else "s") else "Your island grew, and there's more you can build now.", UIKit.color("good"), 4)
 				end
 				PixelRenderer.afterBake(cheer)
 				task.delay(1.5, cheer)
