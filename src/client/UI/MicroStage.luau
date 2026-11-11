@@ -115,25 +115,56 @@ MicroStage.AREA_U = AREA_U
 MicroStage.AREA_V = AREA_V
 -- The battle's places in an area (room space x, z; GAME_DESIGN 7, "fights should be shown in the same view as
 -- pokemon"): the party on the near side (+z: the screen's lower left) facing the wild ones on the far side (-z: its
--- upper right), each side on a round platform (PLATFORM_Z, PLATFORM_R). The leader stands nearest the wild ones.
--- Each side stands in a loose row across the screen (along u), so no one hides another: the founder in front,
--- the guardian (a boss's first) in the middle of its side.
+-- upper right), both on the trail. Each side stands in a loose row across the screen (along u), so no one hides
+-- another: the founder in front, the guardian (a boss's first) in the middle of its side.
 MicroStage.PARTY_XZ = { { 0, 5 }, { -1.5, 7.5 }, { 3, 4.25 }, { -2.75, 10.25 } }
 MicroStage.FOE_XZ = { { 0.25, -5.5 }, { -3, -3.75 }, { 2, -9.25 } }
--- (a platform's rim stays clear of the next area's: 2 * PLATFORM_Z + 2 * (PLATFORM_R + 0.5) < 2 * HALF)
-local PLATFORM_Z, PLATFORM_R = 6.5, 5
--- the platforms' colours by set (the top, its rim; else the floor's colour on rock)
-local PLATFORM: { [string]: { string } } = {
-	loot = { "sand", "sand_dark" },
-	fish = { "sand", "rock" },
-	frost = { "white", "steel" },
-	leap = { "grass", "leaf_dark" },
-	dino = { "rock", "rock_dark" },
-	swamp = { "grass_dark", "rock_dark" },
-	grotto = { "sand_dark", "wood_dark" },
-	bluffs = { "grass", "sand_dark" },
-	ruins = { "pavement", "rock" },
+-- The trail up an endless islet (GAME_DESIGN 7: "make them look more like a path with actual terrain and details"):
+-- a path a little lower than the land (TRAIL_DIP: the fighters stand on it), its worn verge, the land beside it in
+-- two tones, and the island's own bits. `kind`: "planks" a boardwalk over mud, "flags" old flagstones on a straight
+-- road, else trodden earth (with wheel ruts when `rut`).
+local TRAIL_DIP = 0.125
+type TrailStyle = {
+	ground: string,
+	patch: string,
+	path: string,
+	verge: string,
+	rut: string?,
+	alt: string?, -- a flagstone's or a plank's second tone
+	kind: string?,
+	pebbles: { string },
+	stones: { string },
+	tufts: { string },
+	flowers: { string }?,
+	extra: string?, -- "shells" "embers" "snow" "coral" "reeds" "crystals" "rubble" "mushrooms"
+	prints: string?, -- footprints up the path, this colour
 }
+local TRAIL: { [string]: TrailStyle } = {
+	loot = { ground = "sand", patch = "desk", path = "sand_dark", verge = "desk", pebbles = { "rock", "pavement" }, stones = { "rock", "rock_dark" }, tufts = { "leaf", "grass_dark" }, extra = "shells", prints = "floor_b" },
+	leap = { ground = "grass", patch = "grass_dark", path = "wood", verge = "wood_dark", rut = "wood_dark", pebbles = { "rock", "pavement" }, stones = { "rock", "rock_dark" }, tufts = { "leaf", "leaf_dark", "grass_dark" }, flowers = { "pink", "yellow", "white", "purple" }, extra = "mushrooms" },
+	dino = { ground = "sand_dark", patch = "desk", path = "rock_dark", verge = "rock", rut = "black", pebbles = { "black", "rock" }, stones = { "black", "rock_dark" }, tufts = { "wood", "sand" }, extra = "embers" },
+	frost = { ground = "white", patch = "window", path = "steel", verge = "window", rut = "steel_dark", pebbles = { "steel_dark", "rock" }, stones = { "steel_dark", "rock" }, tufts = { "leaf_dark" }, extra = "snow", prints = "steel_dark" },
+	fish = { ground = "sand", patch = "sand_dark", path = "cream", verge = "desk", pebbles = { "pink", "pavement", "rock" }, stones = { "rock", "rock_dark" }, tufts = { "leaf", "leaf_dark" }, extra = "coral" },
+	swamp = { ground = "leaf_dark", patch = "grass_dark", path = "wood", alt = "desk", verge = "hair_brown", kind = "planks", pebbles = {}, stones = { "rock_dark" }, tufts = { "leaf", "grass_dark" }, flowers = { "yellow" }, extra = "reeds" },
+	grotto = { ground = "rock_dark", patch = "road", path = "sand_dark", verge = "rock", pebbles = { "rock", "pavement" }, stones = { "rock", "black" }, tufts = { "leaf_dark" }, extra = "crystals" },
+	bluffs = { ground = "grass", patch = "grass_dark", path = "sand_dark", verge = "wood", rut = "wood", pebbles = { "rock", "pavement" }, stones = { "rock", "rock_dark" }, tufts = { "leaf", "grass_dark" }, flowers = { "white", "yellow" } },
+	ruins = { ground = "sand", patch = "sand_dark", path = "pavement", alt = "floor_b", verge = "sand_dark", kind = "flags", pebbles = { "pavement", "rock" }, stones = { "pavement", "rock" }, tufts = { "grass", "leaf" }, flowers = { "yellow" }, extra = "rubble" },
+}
+local trailPh = 0 -- the island's own bends (from its seed: `open`)
+-- The path's middle and half its width at a world z (studs along the road; the same on both sides of an area's edge)
+local function trailAt(style: TrailStyle, zw: number): (number, number)
+	if style.kind == "flags" then
+		return 0, 3.75
+	end
+	local c = 1.4 * math.sin(zw * 0.11 + trailPh) + 0.6 * math.sin(zw * 0.29 + trailPh * 2.3)
+	local hw = 3.4 + 0.45 * math.sin(zw * 0.23 + trailPh * 1.7)
+	-- a trampled clearing where each side of a battle stands (about 6.75 studs either side of an area's middle): wider
+	-- and straighter there
+	local zl = ((zw + HALF) % (2 * HALF)) - HALF
+	local k = (math.abs(zl) - 6.75) / 4.5
+	local bump = math.max(0, 1 - k * k)
+	return c * (1 - 0.65 * bump), hw + 1.2 * bump
+end
 -- yaws: the party faces the far side (-z), the wild ones the near side (+z)
 MicroStage.FACE_FOES = math.atan2(0, -1)
 MicroStage.FACE_PARTY = math.atan2(0, 1)
@@ -171,8 +202,9 @@ type Builder = {
 	off: Vector3, -- an endless islet's area: its room-space offset (AREA_OFF x its number) ...
 	lm: { x: number, z: number }, -- where its landmark stands (VOLCANO, or out of sight: FAR_LM)
 	endless: boolean, -- one of an endless islet's areas (the sea is laid apart; props keep off the neighbours' floors)
-	floorA: string?, -- the floor's colours (room's spec: the battle platforms take them)
+	floorA: string?, -- the floor's colours (room's spec)
 	floorB: string?,
+	variant: string?, -- an endless islet's area: its set (the trail's style)
 }
 
 -- Boxes in world-aligned room space (x, z from the floor's middle, y from the ground).
@@ -230,6 +262,9 @@ local function room(b: Builder, r: RoomSpec)
 		b.box(-110, -1, -110, 110, 0, 110, r.ground) -- (an endless islet's sea is laid once, under every area)
 	end
 	local tile = r.tile or 4
+	if b.endless then
+		return -- (an endless islet's area: the trail lays its ground after the set: `trail`)
+	end
 	if r.b then
 		local n = math.floor(2 * HALF / tile)
 		for i = 0, n - 1 do
@@ -597,6 +632,23 @@ local function blobRects(test: (x: number, z: number) -> boolean, x0: number, x1
 	return out
 end
 
+-- Whether the trail lays the ground of the stud cell x .. x + 1, z .. z + 1 of an endless islet's area: its floor's
+-- square, and on the landing's area the path on out to the beach (the shore's land leaves it: the path sits lower).
+local function trailCovers(b: Builder, x: number, z: number): boolean
+	if x >= -HALF and x < HALF and z >= -HALF and z < HALF then
+		return true
+	end
+	if b.off.Z ~= 0 or z < HALF or z >= HALF + 8 then
+		return false
+	end
+	local style = TRAIL[b.variant or ""]
+	if style == nil then
+		return false
+	end
+	local c, hw = trailAt(style, z + 0.5)
+	return math.abs(x + 0.5 - c) <= hw + 1.2
+end
+
 -- An islet round the stage's floor on the open sea: its land, a beach, wet sand, foam and the shallows, each a
 -- little lower than the one inside it (the sea animates: Data/Street's layers, the pixel filter's water).
 local function shore(b: Builder, land: string, beach: string, wob: number)
@@ -617,8 +669,9 @@ local function shore(b: Builder, land: string, beach: string, wob: number)
 		{ d = 0, top = FLOOR - 0.06, color = land },
 	}
 	for _, l in layers do
+		local endlessLand = b.endless and l.d == 0
 		for _, r in blobRects(function(x, z)
-			return dist(x, z) <= l.d
+			return dist(x, z) <= l.d and not (endlessLand and trailCovers(b, x, z))
 		end, -34, 33, -34, 33) do
 			b.box(r[1], 0, r[2], r[3], l.top, r[4], l.color)
 		end
@@ -761,18 +814,345 @@ local function shoreSpot(b: Builder, r: number, tall: boolean): (number?, number
 	return nil, nil
 end
 
--- The battle's two platforms in an endless islet's area (GAME_DESIGN 7: "in the same view as pokemon"): a round on a
--- darker rim, a hair over the floor, where each side stands.
-local function platforms(b: Builder, top: string, ring: string)
-	for _, cz in { PLATFORM_Z, -PLATFORM_Z } do
-		b.disc(0, cz, PLATFORM_R + 0.5, FLOOR - 0.2, FLOOR + 0.04, ring)
-		b.disc(0, cz, PLATFORM_R, FLOOR - 0.2, FLOOR + 0.08, top)
-	end
-end
-
 local function pick<T>(b: Builder, list: { T }): T
 	return list[b.rng:int(1, #list)]
 end
+
+-- The trail through an endless islet's area (GAME_DESIGN 7: "make them look more like a path with actual terrain and
+-- details"), laid after the set's props: the land in two tones (stud cells, the floor's square and inland beyond it),
+-- the path (half-stud cells, TRAIL_DIP under the land) and its ragged verge between, then the bits: ruts, pebbles,
+-- stones along the verge, tufts, flowers and the island's own (shells, embers, footprints in the snow, coral,
+-- reeds and puddles, crystals, rubble, mushrooms). A boardwalk of planks over mud, or old flagstones, by style.
+local function trail(b: Builder, style: TrailStyle)
+	local zOff = b.off.Z
+	local rng = b.rng
+	local coast = b.coast
+	local planks = style.kind == "planks"
+	local flags = style.kind == "flags"
+	local top = FLOOR - TRAIL_DIP
+	local function q8(v: number): number
+		return math.floor(v * 8 + 0.5) / 8
+	end
+	local function bend(z: number): (number, number)
+		return trailAt(style, z + zOff)
+	end
+	-- a point: 2 on the path, 1 on its verge (ragged: half a stud here, nearly a stud there), 0 the land
+	local function cellAt(x: number, z: number): number
+		local c, hw = bend(z)
+		local d = math.abs(x - c)
+		if d <= hw then
+			return 2
+		end
+		if d <= hw + 0.45 + 0.3 * math.sin(z * 1.9 + x * 0.7 + trailPh) then
+			return 1
+		end
+		return 0
+	end
+	-- a stud cell all land (no part of it on the path or its verge)
+	local function landCell(x: number, z: number): boolean
+		return cellAt(x + 0.25, z + 0.25) == 0 and cellAt(x + 0.75, z + 0.25) == 0 and cellAt(x + 0.25, z + 0.75) == 0 and cellAt(x + 0.75, z + 0.75) == 0
+	end
+	-- the land the trail lays: the floor's square, and inland beyond it on an islet with a shore (a wobbly edge)
+	local function inLand(x: number, z: number): boolean
+		if z < -HALF or z >= HALF then
+			return false
+		end
+		if x >= -HALF and x < HALF then
+			return true
+		end
+		return coast ~= nil and (coast :: (number, number) -> number)(x, z) <= -1.5 - 0.6 * math.sin(x * 0.8 + z * 0.5 + trailPh)
+	end
+	local function patchy(x: number, z: number): boolean
+		local zw = z + zOff
+		return math.sin(x * 0.9 + zw * 0.35 + trailPh) + 0.8 * math.sin(zw * 0.6 - x * 0.45 + trailPh * 1.3) + 0.35 * math.sin((x + zw) * 1.7) > 0.75
+	end
+	for _, pass in { { col = style.ground, patch = false }, { col = style.patch, patch = true } } do
+		for _, q in blobRects(function(x, z)
+			return inLand(x + 0.5, z + 0.5) and landCell(x, z) and patchy(x + 0.5, z + 0.5) == pass.patch
+		end, -HALF - 9, HALF + 8, -HALF, HALF - 1) do
+			b.box(q[1], 0, q[2], q[3], FLOOR, q[4], pass.col)
+		end
+	end
+	-- the half-stud cells the trail covers that the land doesn't: the path, and the verge round it
+	local ext = if zOff == 0 and coast ~= nil then 16 else 0
+	local function covered(x: number, z: number): boolean
+		local px, pz = math.floor(x), math.floor(z)
+		if not trailCovers(b, px, pz) then
+			return false
+		end
+		if z >= HALF then
+			return (coast :: (number, number) -> number)(x, z) <= 0.5
+		end
+		return not landCell(px, pz)
+	end
+	local function halfRects(test: (x: number, z: number) -> boolean): { { number } }
+		local out = {}
+		for _, q in blobRects(function(i, j)
+			return test(i * 0.5 + 0.25, j * 0.5 + 0.25)
+		end, -2 * HALF, 2 * HALF - 1, -2 * HALF, 2 * HALF - 1 + ext) do
+			table.insert(out, { q[1] * 0.5, q[2] * 0.5, q[3] * 0.5, q[4] * 0.5 })
+		end
+		return out
+	end
+	for _, q in halfRects(function(x, z)
+		return covered(x, z) and (planks or cellAt(x, z) ~= 2)
+	end) do
+		b.box(q[1], 0, q[2], q[3], if planks then FLOOR - 0.3 else FLOOR - 0.06, q[4], style.verge)
+	end
+	if not planks then
+		for _, q in halfRects(function(x, z)
+			return covered(x, z) and cellAt(x, z) == 2
+		end) do
+			b.box(q[1], 0, q[2], q[3], if flags then FLOOR - 0.2 else top, q[4], if flags then "rock_dark" else style.path)
+		end
+	end
+	local z1 = HALF + ext / 2
+	-- a boardwalk: planks across, a gap between each, ragged ends, a post now and then
+	if planks then
+		local n = 0
+		local zp = -HALF
+		while zp < z1 do
+			local zm = zp + 0.5
+			local c, hw = bend(zm)
+			if zp < HALF or (coast and (coast :: (number, number) -> number)(c, zm) <= 0.5) then
+				local l, r = q8(c - hw - rng:range(-0.2, 0.3)), q8(c + hw + rng:range(-0.2, 0.3))
+				b.box(l, FLOOR - 0.3, zp + 0.125, r, top, zp + 0.875, if rng:chance(0.2) then style.alt or style.path else style.path)
+				if n % 3 == 0 then
+					for _, px in { l + 0.1, r - 0.35 } do
+						b.box(px, FLOOR - 0.3, zp + 0.3, px + 0.25, FLOOR + 0.2, zp + 0.55, "wood_dark")
+					end
+				end
+			end
+			n += 1
+			zp += 1
+		end
+	end
+	-- old flagstones, a straight road: a stone a stud and a half, a few gone, a few a hair higher
+	if flags then
+		local zp = -HALF
+		while zp < z1 - 0.01 do
+			for k = 0, 4 do
+				local x0 = -3.75 + k * 1.5
+				local zm = zp + 0.75
+				if zp >= HALF and coast and (coast :: (number, number) -> number)(x0 + 0.75, zm) > 0.5 then
+					continue
+				end
+				if rng:chance(0.08) then
+					b.box(x0 + 0.1, FLOOR - 0.2, zp + 0.1, x0 + 1.4, FLOOR - 0.17, zp + 1.4, style.verge)
+				else
+					local lift = if rng:chance(0.15) then 0.04 else 0
+					b.box(x0 + 0.0625, FLOOR - 0.2, zp + 0.0625, x0 + 1.4375, top + lift, zp + 1.4375, if rng:chance(0.3) then style.alt or style.path else style.path)
+				end
+			end
+			zp += 1.5
+		end
+	end
+	local function clear(x: number, z: number, r: number): boolean
+		for _, a in ACTOR_SPOTS do
+			if (x - a[1]) ^ 2 + (z - a[2]) ^ 2 < (r + 0.9) ^ 2 then
+				return false
+			end
+		end
+		return true
+	end
+	-- a spot beside the path, `d0` .. `d1` studs past its edge, on the floor
+	local function beside(d0: number, d1: number): (number, number)
+		local z = q8(rng:range(-HALF + 0.4, HALF - 0.4))
+		local c, hw = bend(z)
+		local side = if rng:chance(0.5) then -1 else 1
+		local x = q8(math.clamp(c + side * (hw + rng:range(d0, d1)), -HALF + 0.4, HALF - 0.4))
+		return x, z
+	end
+	-- wheel ruts down a trodden path (worn away here and there)
+	local rut = style.rut
+	if rut and not planks and not flags then
+		for _, off in { -1.05, 1.05 } do
+			local runX: number? = nil
+			local runZ = 0
+			local zp = -HALF
+			local function emit(zEnd: number)
+				if runX then
+					b.box(runX :: number, top, runZ, (runX :: number) + 0.25, top + 0.015, zEnd, rut)
+				end
+				runX = nil
+			end
+			while zp < HALF do
+				local c = bend(zp + 0.25)
+				local x = math.floor((c + off) * 4 + 0.5) / 4 - 0.125
+				if rng:chance(0.12) then
+					emit(zp)
+				elseif runX ~= x then
+					emit(zp)
+					runX, runZ = x, zp
+				end
+				zp += 0.5
+			end
+			emit(HALF)
+		end
+	end
+	-- pebbles on the path
+	if not planks then
+		for _ = 1, rng:int(10, 16) do
+			local z = q8(rng:range(-HALF + 0.3, HALF - 0.3))
+			local c, hw = bend(z)
+			local x = q8(c + rng:range(-hw + 0.3, hw - 0.3))
+			local sz = if rng:chance(0.5) then 0.25 else 0.375
+			local h = rng:range(0.06, 0.14)
+			b.box(x - sz / 2, top, z - sz / 2, x + sz / 2, top + h, z + sz / 2, pick(b, style.pebbles))
+		end
+	end
+	-- stones along the verge, some in twos
+	for _ = 1, rng:int(5, 9) do
+		local x, z = beside(0.1, 0.8)
+		if clear(x, z, 0.4) then
+			local sx, sz, h = q8(rng:range(0.5, 0.9)), q8(rng:range(0.4, 0.8)), rng:range(0.25, 0.5)
+			local col = pick(b, style.stones)
+			b.box(x - sx / 2, FLOOR - 0.2, z - sz / 2, x + sx / 2, FLOOR - 0.1 + h, z + sz / 2, col)
+			if rng:chance(0.5) then
+				b.box(x + sx / 2, FLOOR - 0.2, z - 0.125, x + sx / 2 + 0.3, FLOOR - 0.1 + h * 0.6, z + 0.25, col)
+			end
+		end
+	end
+	-- tufts of grass (blades a pixel or two wide), thickest near the path
+	for i = 1, rng:int(20, 30) do
+		local x, z = beside(0.4, if i % 3 == 0 then 7 else 2.5)
+		if clear(x, z, 0.2) then
+			for k = 0, 2 do
+				local bx, bz = x + (k - 1) * 0.19, z + (k % 2) * 0.15 - 0.07
+				local h = rng:range(0.3, 0.6)
+				b.box(bx - 0.0625, FLOOR - 0.06, bz - 0.0625, bx + 0.0625, FLOOR + h, bz + 0.0625, pick(b, style.tufts))
+			end
+		end
+	end
+	-- flowers: a stem and a head, in twos and threes
+	local flowers = style.flowers
+	if flowers then
+		for _ = 1, rng:int(6, 10) do
+			local x, z = beside(1, 7)
+			local col = pick(b, flowers)
+			for k = 0, rng:int(0, 2) do
+				local fx, fz = x + k * 0.375 - 0.25, z + (k % 2) * 0.3
+				if clear(fx, fz, 0.2) then
+					local h = rng:range(0.2, 0.35)
+					b.box(fx - 0.05, FLOOR, fz - 0.05, fx + 0.05, FLOOR + h, fz + 0.05, "leaf_dark")
+					b.box(fx - 0.125, FLOOR + h, fz - 0.125, fx + 0.125, FLOOR + h + 0.15, fz + 0.125, col)
+				end
+			end
+		end
+	end
+	-- footprints up the path, left and right (in the snow, on the sand)
+	local prints = style.prints
+	if prints then
+		local zp = -HALF + 0.4
+		local side = 1
+		while zp < HALF - 0.3 do
+			local c = bend(zp)
+			local x = q8(c + side * 0.3 + 0.4)
+			b.box(x - 0.1, top, zp - 0.15, x + 0.1, top + 0.012, zp + 0.15, prints)
+			side = -side
+			zp += 0.6
+		end
+	end
+	-- the island's own
+	local extra = style.extra
+	if extra == "shells" then
+		for _ = 1, rng:int(6, 10) do
+			local x, z = beside(-2.5, 4)
+			b.box(x - 0.15, FLOOR - 0.12, z - 0.1, x + 0.15, FLOOR + 0.05, z + 0.1, pick(b, { "pink", "cream", "white", "orange" }))
+		end
+		for _ = 1, rng:int(1, 3) do
+			local x, z = beside(1.5, 6)
+			b.box(x - 0.75, FLOOR, z - 0.125, x + 0.75, FLOOR + 0.2, z + 0.125, "wood_dark") -- a bit of driftwood
+		end
+	elseif extra == "embers" then
+		for _ = 1, rng:int(5, 8) do
+			local x, z = beside(-0.2, 0.6)
+			b.box(x - 0.0625, FLOOR - 0.06, z - 0.0625, x + 0.0625, FLOOR + 0.0625, z + 0.0625, "orange", true)
+		end
+		for _ = 1, rng:int(2, 3) do
+			local x, z = beside(2, 6)
+			local along = rng:chance(0.5)
+			local len = rng:range(1, 2.2)
+			if along then
+				b.box(x - 0.08, FLOOR - 0.02, z - len / 2, x + 0.08, FLOOR + 0.02, z + len / 2, "orange", true)
+			else
+				b.box(x - len / 2, FLOOR - 0.02, z - 0.08, x + len / 2, FLOOR + 0.02, z + 0.08, "orange", true)
+			end
+		end
+	elseif extra == "snow" then
+		for _ = 1, rng:int(4, 6) do
+			local x, z = beside(1.5, 7)
+			if clear(x, z, 0.5) then
+				b.box(x - 0.4, FLOOR, z - 0.3, x + 0.4, FLOOR + 0.3, z + 0.3, "white")
+				b.box(x - 0.2, FLOOR + 0.3, z - 0.15, x + 0.15, FLOOR + 0.5, z + 0.15, "white")
+			end
+		end
+	elseif extra == "coral" then
+		for _ = 1, rng:int(4, 7) do
+			local x, z = beside(1, 7)
+			if clear(x, z, 0.4) then
+				local col = pick(b, { "pink", "purple", "orange" })
+				for k = 0, 2 do
+					local h = rng:range(0.35, 0.8)
+					local bx = x + (k - 1) * 0.25
+					b.box(bx - 0.09, FLOOR, z - 0.09 + (k % 2) * 0.1, bx + 0.09, FLOOR + h, z + 0.09 + (k % 2) * 0.1, col)
+				end
+			end
+		end
+	elseif extra == "reeds" then
+		for _ = 1, rng:int(8, 12) do
+			local x, z = beside(0, 3)
+			if clear(x, z, 0.3) then
+				for k = 0, 3 do
+					local bx, bz = x + (k % 2) * 0.2 - 0.1, z + math.floor(k / 2) * 0.2 - 0.1
+					local h = rng:range(0.6, 1.1)
+					b.box(bx - 0.05, FLOOR - 0.3, bz - 0.05, bx + 0.05, FLOOR + h, bz + 0.05, pick(b, style.tufts))
+					if k == 1 then
+						b.box(bx - 0.08, FLOOR + h - 0.3, bz - 0.08, bx + 0.08, FLOOR + h - 0.05, bz + 0.08, "hair_brown")
+					end
+				end
+			end
+		end
+		for _ = 1, rng:int(2, 3) do
+			local x, z = beside(2, 7)
+			if clear(x, z, 1) then
+				local r = rng:range(0.6, 1.1)
+				b.disc(x, z, r, FLOOR - 0.2, FLOOR + 0.02, "water")
+				b.box(x - 0.25, FLOOR + 0.02, z - 0.2, x + 0.2, FLOOR + 0.05, z + 0.2, "leaf")
+			end
+		end
+	elseif extra == "crystals" then
+		for _ = 1, rng:int(4, 6) do
+			local x, z = beside(0.6, 5)
+			if clear(x, z, 0.4) then
+				local col = pick(b, { "purple", "screen_on", "pink" })
+				for k = 0, 2 do
+					local h = rng:range(0.35, 0.9) * (if k == 1 then 1.3 else 1)
+					local bx = x + (k - 1) * 0.22
+					b.box(bx - 0.08, FLOOR, z - 0.08, bx + 0.08, FLOOR + h, z + 0.08, col, true)
+				end
+			end
+		end
+	elseif extra == "rubble" then
+		for _ = 1, rng:int(5, 8) do
+			local x, z = beside(0, 6)
+			if clear(x, z, 0.5) then
+				local sx, sz, h = q8(rng:range(0.4, 0.8)), q8(rng:range(0.4, 0.7)), rng:range(0.2, 0.5)
+				b.box(x - sx / 2, FLOOR - 0.1, z - sz / 2, x + sx / 2, FLOOR - 0.1 + h, z + sz / 2, pick(b, style.stones))
+			end
+		end
+	elseif extra == "mushrooms" then
+		for _ = 1, rng:int(3, 5) do
+			local x, z = beside(1, 6)
+			if clear(x, z, 0.3) then
+				b.box(x - 0.06, FLOOR, z - 0.06, x + 0.06, FLOOR + 0.22, z + 0.06, "cream")
+				b.box(x - 0.18, FLOOR + 0.22, z - 0.18, x + 0.18, FLOOR + 0.34, z + 0.18, "berry_red")
+				b.box(x - 0.05, FLOOR + 0.34, z - 0.05, x + 0.05, FLOOR + 0.36, z + 0.05, "white")
+			end
+		end
+	end
+end
+
 
 -- Beaches: a sandy islet: palms leaning out, a treasure chest with spilled coins, tide pools ringed with pebbles,
 -- rocks, maybe an upturned rowboat, starfish, shells and driftwood, each where the island's seed puts it.
@@ -867,7 +1247,8 @@ SETS.fish = function(b)
 		for k = 0, tall do
 			b.box(-HALF + 0.4 + (k % 2) * 0.25, FLOOR + k * 0.8, sx, -HALF + 0.9 + (k % 2) * 0.25, FLOOR + (k + 1) * 0.8, sx + 0.5, if k % 2 == 0 then "leaf" else "leaf_dark")
 		end
-		for k = 0, b.rng:int(1, 3) do
+		-- (the back row along z = -HALF crosses an endless islet's road: the kelp keeps to its side there)
+		for k = 0, if b.endless then -1 else b.rng:int(1, 3) do
 			b.box(sx + (k % 2) * 0.25, FLOOR + k * 0.8, -HALF + 0.4, sx + 0.5 + (k % 2) * 0.25, FLOOR + (k + 1) * 0.8, -HALF + 0.9, if k % 2 == 0 then "leaf_dark" else "leaf")
 		end
 	end
@@ -915,7 +1296,9 @@ end
 SETS.frost = function(b)
 	room(b, { ground = "water", a = "white", b = "window", tile = 6 })
 	shore(b, "white", "window", b.rng:range(0, 6.28))
-	b.box(-HALF - 3, 0, -HALF - 3, HALF + 3, 0.75, -HALF, "white")
+	if not b.endless then
+		b.box(-HALF - 3, 0, -HALF - 3, HALF + 3, 0.75, -HALF, "white") -- (it would cross an endless islet's road)
+	end
 	b.box(-HALF - 3, 0, -HALF, -HALF, 0.75, HALF + 3, "white")
 	-- the snowy peak on the islet's left shore (in view beside the floor)
 	local px, pz = b.lm.x, b.lm.z
@@ -991,7 +1374,7 @@ SETS.leap = function(b)
 		end
 	end
 	local ph = b.rng:range(0, 6.28)
-	for k = 0, 7 do
+	for k = 0, if b.endless then -1 else 7 do -- (an endless islet has its trail instead)
 		local x = -HALF + 1.5 + k * 3
 		local z = snap(math.sin(k * 0.9 + ph) * 1.25)
 		b.box(x - 0.6, FLOOR, z - 0.6, x + 0.6, FLOOR + 0.1, z + 0.6, "pavement")
@@ -1075,7 +1458,7 @@ SETS.dino = function(b)
 	-- lava cracks at the floor's back edges
 	for k = 0, 3 do
 		local x = -HALF + 1 + k * 6
-		if b.rng:chance(0.7) then
+		if b.rng:chance(0.7) and not b.endless then
 			b.box(x, FLOOR - 0.02, -HALF + 0.3, x + 2.5, FLOOR + 0.04, -HALF + 0.6, "orange", true)
 		end
 		if b.rng:chance(0.7) then
@@ -1132,6 +1515,10 @@ SETS.swamp = function(b)
 	for k = 0, 11 do
 		local x = -HALF + 1 + k * 2
 		local z = snap(math.sin(k * 0.6 + ph) * 3 - 3)
+		if b.endless then
+			-- (an endless islet's channel runs along its left side, beside the boardwalk)
+			x, z = snap(math.sin(k * 0.6 + ph) * 1.2 - 9.5), -HALF + 1 + k * 2
+		end
 		b.box(x - 1.1, FLOOR - 0.06, z - 1.1, x + 1.1, FLOOR + 0.02, z + 1.1, "water")
 		if k % 3 == 1 then
 			b.box(x - 0.4, FLOOR + 0.03, z - 0.3, x + 0.4, FLOOR + 0.08, z + 0.3, "leaf")
@@ -1784,6 +2171,9 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	b.rng = Util.newRng(seed or 1)
 	table.clear(marks)
 	ambOff, ambU, ambV = Vector3.zero, 0, 0
+	trailPh = ((seed or 1) % 997) * 0.0631
+	-- (on an endless islet everyone stands on the trail, a little under the land: TRAIL_DIP)
+	local stand = if endless then -TRAIL_DIP else 0
 	local fn = SETS[variant] or SETS.blocks
 	-- an endless islet's areas: each its own folder, built from the seed and its number
 	local areas: { [number]: Folder } = {}
@@ -1800,10 +2190,10 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 		ab.off = AREA_OFF * k
 		ab.lm = if k == 0 then VOLCANO else FAR_LM
 		ab.rng = Util.newRng((seed or 1) + k * 7919)
+		ab.variant = variant
 		local keep = if k > 0 then table.clone(marks) else nil
 		fn(ab)
-		local pc = PLATFORM[variant]
-		platforms(ab, if pc then pc[1] else ab.floorA or "sand", if pc then pc[2] else "rock")
+		trail(ab, TRAIL[variant] or { ground = ab.floorA or "sand", patch = ab.floorB or ab.floorA or "sand_dark", path = "sand_dark", verge = "rock", pebbles = { "rock" }, stones = { "rock" }, tufts = { "leaf" } })
 		if keep then
 			table.clear(marks)
 			for key, m in keep do
@@ -1868,7 +2258,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	PixelRenderer.watchStage(folder)
 	local things: { Thing } = {}
 	local dyn = dynFolder()
-	local groundY = ORIGIN.Y + FLOOR
+	local groundY = ORIGIN.Y + FLOOR + stand
 
 	-- the player's founder
 	local look = AvatarView.lookOf(Players.LocalPlayer)
@@ -1929,7 +2319,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 			PixelRenderer.refreshDynamic(t.model)
 		end,
 		place = function(t: Thing, u: number, v: number, y: number, yaw: number?, tilt: CFrame?)
-			MicroModels.place(t, CFrame.new(uv(u, v, y)) * CFrame.Angles(0, yaw or 0, 0) * (tilt or CFrame.identity))
+			MicroModels.place(t, CFrame.new(uv(u, v, y + stand)) * CFrame.Angles(0, yaw or 0, 0) * (tilt or CFrame.identity))
 		end,
 		remove = function(t: Thing)
 			PixelRenderer.unregisterDynamic(t.model)
@@ -1994,7 +2384,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 				end
 			end
 			local act = if entry > 0.05 then "jump" else action
-			CharacterModels.poseAction(rig, CFrame.new(uv(u, v, y + entry)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
+			CharacterModels.poseAction(rig, CFrame.new(uv(u, v, y + entry + stand)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
 			local hand = rig.parts.HandR
 			if avatar.held and hand then
 				MicroModels.place(avatar.held :: Thing, hand.CFrame * CFrame.new(0, -0.1, 0))
@@ -2049,7 +2439,7 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 						end
 					end
 					local act = if entry > 0.05 then "jump" else action
-					CharacterModels.poseAction(rr, CFrame.new(uv(u, v, y + entry)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
+					CharacterModels.poseAction(rr, CFrame.new(uv(u, v, y + entry + stand)) * CFrame.Angles(0, yaw, 0), t, speed, act, k)
 				end,
 				hide = function()
 					CharacterModels.poseAction(rr, CFrame.new(uv(0, 0, -60)), 0, 0, "stand")

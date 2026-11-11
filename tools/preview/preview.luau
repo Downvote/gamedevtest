@@ -641,6 +641,19 @@ local function expScenario(spec)
 			E.run(0.3)
 		end
 		E.run(2)
+		-- (the endless islet: the party's area and the areas built round it)
+		local built = {}
+		local stf = E.workspace:FindFirstChild("MicroStage")
+		if stf then
+			for _, c in stf:GetChildren() do
+				local k = string.match(c.Name, "^Area(%d+)$")
+				if k then
+					table.insert(built, k)
+				end
+			end
+		end
+		table.sort(built)
+		log("battle: area %s, areas built %s", tostring(EUI and H.inClient(p, EUI.debugState).area), table.concat(built, ","))
 		-- (the battle runs by itself once its wild ones land: the party made sturdy so a frame shows it under way)
 		if s.exp then
 			for _, f in s.exp.party do

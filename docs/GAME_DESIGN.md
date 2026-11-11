@@ -428,8 +428,8 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   aside; your founder walks from where they stand down the path, across the boardwalk and along the pier (or starts
   on the jetty when far away) and hops into the expedition boat, where the rest of the party waits on deck and
   cheers; the boat casts off and sails out to sea, the view following it; ink blinds close on the island's name and
-  kind. The islet's screen opens behind them and the boat glides in to the island's shore behind the battle's
-  platforms; the party hops off and walks up to its places, the camera coming with them. The boat stays away from the pier while the expedition does.
+  kind. The islet's screen opens behind them and the boat glides in to the island's shore where the trail starts;
+  the party hops off and walks up it to its places, the camera coming with them. The boat stays away from the pier while the expedition does.
 - **Home again** (`UI/Voyage.home`):
 
   > The request (2026-11-10): "make a transition instead of an instant cut back to the island after an exploration."
@@ -566,15 +566,29 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
 > interface much much more"
 
 - **The battle view:** the fight is seen the way the monster-catching games show it, at the game's own 2:1 angle
-  (other angles would break the pixel grid). Each area of the road has two round platforms (flat discs, so their
-  edges draw as clean pixel ellipses, in the island's colours: sand on a darker rim on a beach, white on steel in the
-  snow, grass on dark leaf in a meadow). The party stands on the near one at the bottom left, their backs to you, in
-  a loose row across the screen so nobody hides anyone; the wild ones stand on the far one at the top right, facing
+  (other angles would break the pixel grid). The party stands on the trail at the bottom left, their backs to you, in
+  a loose row across the screen so nobody hides anyone; the wild ones stand further up it at the top right, facing
   them, the guardian in the middle of its side. The camera sits close enough for the fighters to read big, and the
-  party walks forward up the road into the next area between stops. A platform's rim stays clear of the next
-  area's. On the way in, the boat comes up behind the party: the picture opens over it, it glides in with its bow
-  in the foam, the party hops off onto the beach and walks up to its platform, and the camera comes up with them to
-  the fight.
+  party walks forward up the trail into the next area between stops. On the way in, the boat comes up behind the
+  party: the picture opens over it, it glides in with its bow in the foam, the party hops off onto the beach and
+  walks up the trail to its places, and the camera comes up with them to the fight. (The round platforms each side
+  first stood on are gone: below.)
+
+> The request (2026-11-11): "remove the circles in the islands. also, detail them more, and make them look more like
+> a path with actual terrain and detsils"
+
+- **The trail:** each island is a trail through real ground now, not a tiled floor. The path winds up the island a
+  little lower than the land beside it, with a ragged, worn verge, wheel ruts where carts would go, pebbles and
+  footprints, and it opens into a trampled clearing where each side of a fight stands. The land beside it comes in
+  two tones in patches, with tufts of grass, stones along the verge and flowers, and runs on past the old floor's
+  edge to a wobbly rim above the beach. Each kind has its own: a sandy track with footprints, shells and driftwood on
+  a beach; a dirt road through grass with mushrooms in a meadow; a road of ash with glowing embers and lava cracks by
+  a volcano; trodden snow with footprints and sled ruts and snow lumps on a snowfield; pale sand with coral and
+  seaweed on a reef; a plank boardwalk with posts over the mud, reeds and lily puddles in a mangrove (its channel
+  runs alongside); gravel through dark rock with glowing crystals in a grotto; a dirt track over grass on the bluffs;
+  and a straight road of old flagstones, a few missing, with rubble in the ruins. On the landing the trail runs on
+  out to the beach where the boat comes in. Things from the old floors that crossed the road (a row of stepping
+  stones, a snowbank, a kelp hedge, a lava crack) keep to its sides.
 - **The battle's boxes:** laid out the way those games lay theirs. The wild ones' boxes go down the top left (they
   stand at the top right): portrait, name, mutation pips, level, and "HP" with the bar, plus a crown beside the
   guardian's and a nest beside any kind you've already befriended. The party's boxes sit two by two at the bottom

@@ -382,7 +382,9 @@ before the first picture: the arrival opens over the boat).
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
 progress)`, `registerDynamic(model)`, `unregisterDynamic`, `refreshDynamic`, `rebake`, `setPaused`,
-`watchStage(root)` (a stage's static parts that come or go while it is in view re-cast their rects),
+`watchStage(root)` (a stage's static parts that come or go while it is in view re-cast their rects; a rect over one
+already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
+hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
 `afterBake(fn)` (fn runs once the picture shows the world as it is now: after the pending or running bake, at once
 when none is coming or the filter is off; Build mode's expansion cheers then), `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
@@ -769,11 +771,22 @@ area by area, area k a folder `Area<k>` at `AREA_OFF` x k in room space ((0, 0, 
 edge to edge into one road running up and to the right on the screen; whole studs, so every box stays on the grid),
 `AREA_U` and `AREA_V` x k along u and v; each from the seed + 7919 k (the builder's `off`, `endless`), its landmark
 only in area 0 (`lm`: later areas put it out of sight at `FAR_LM`: in the next area's place it would stand on this
-one's floor). Each area has the battle's two platforms (`platforms`: `Builder.disc`, a standing cylinder, so the
-edge draws as a clean pixel ellipse: a rim `PLATFORM_R` + 0.5 and a top `PLATFORM_R` (5) at z = +-`PLATFORM_Z`
-(6.5), the colours by set, `PLATFORM`; a rim stays clear of the next area's). A floor prop keeps off the road's middle
-(|x| over 6.5), a shore prop off the neighbours' floors and the road's band, a tall one to the land beside the floor
-(`shoreSpot`). The camera frames the battle up close (the party's feet and heads, the wild ones', the road's sides
+one's floor). `room` lays no floor on an endless islet: after the set's props each area gets its **trail**
+(GAME_DESIGN 7 "the trail": `trail(b, TRAIL[variant])`, the builder's `variant`): `TrailStyle { ground, patch, path,
+verge, rut?, alt?, kind? ("planks" a boardwalk over mud, "flags" flagstones on a straight road), pebbles, stones,
+tufts, flowers?, extra? ("shells" "embers" "snow" "coral" "reeds" "crystals" "rubble" "mushrooms"), prints? }`.
+`trailAt(style, zw) -> (middle x, half width)` at a world z (the same either side of an area's edge; the island's own
+bends from `trailPh`, set from the seed; a trampled clearing, wider and straighter, about 6.75 studs either side of
+an area's middle where the battle's sides stand). The land in two tones (`patchy`) as stud cells over the floor's
+square and inland beyond it (the coast's distance under -1.5, wobbled), top `FLOOR`; the path's half-stud cells
+`TRAIL_DIP` (0.125) under it and the ragged verge between at -0.06 (`cellAt`); then ruts, pebbles, verge stones,
+tufts, flowers, footprints and the style's extra; `Builder.disc` (a standing cylinder: a clean pixel ellipse) makes
+the mangrove's puddles. `trailCovers(b, x, z)`: the cells the trail lays (the square, and on area 0 the path on out
+to the beach), which `shore` leaves out of its land layer so the path can sit lower. Everyone on an endless stage
+stands `TRAIL_DIP` lower (`place`, `pose`, the rivals and the shadows' ground). Set features that crossed the old
+floor (the meadow's stepping stones, the snowbank, the kelp's back row, a lava crack) are left out there, and the
+mangrove's channel runs along the left side. A floor prop keeps off the road's middle (|x| over 6.5), a shore prop
+off the neighbours' floors and the road's band, a tall one to the land beside the floor (`shoreSpot`). The camera frames the battle up close (the party's feet and heads, the wild ones', the road's sides
 level with them). `Stage.landing(x) -> z`: where area 0's beach meets the foam behind the party at room-space x (the
 arriving boat's bow). The sea is laid once (`SEA_AREAS`, 200 areas long: a part across the whole screen would re-bake it).
 Areas 0 and 1 are built with the stage (before its first picture), the rest by `Stage.area(k)` (the areas up to

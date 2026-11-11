@@ -1534,6 +1534,25 @@ local function queueRect(r: Rect)
 	if r.x1 < gx0 or r.y1 < gy0 or r.x0 > gx0 + s.W - 1 or r.y0 > gy0 + s.H - 1 then
 		return
 	end
+	-- a rect over (or mostly over) one already queued joins it while their box is no bigger than the two apart: the
+	-- parts that land together (an endless islet's area: hundreds of boxes, long ones lying across the screen) are
+	-- re-cast as their union once, and the share below counts what is really cast
+	local function rectArea(q: Rect): number
+		return (q.x1 - q.x0 + 1) * (q.y1 - q.y0 + 1)
+	end
+	local merged = true
+	while merged do
+		merged = false
+		for i, q in invQueue do
+			local u = { x0 = math.min(q.x0, r.x0), y0 = math.min(q.y0, r.y0), x1 = math.max(q.x1, r.x1), y1 = math.max(q.y1, r.y1) }
+			if rectArea(u) <= rectArea(q) + rectArea(r) then
+				table.remove(invQueue, i)
+				r = u
+				merged = true
+				break
+			end
+		end
+	end
 	table.insert(invQueue, r)
 	local area = 0
 	for _, q in invQueue do
