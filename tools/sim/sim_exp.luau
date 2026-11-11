@@ -592,6 +592,97 @@ if s.exp and s.exp.battle then
 end
 BattleS.treatChance = chance0
 
+------------------------------------------------------------------ the endless islet: the party runs on to each stop
+-- (GAME_DESIGN 7: "make the party run to the right in an endless island after clearing one area to reach the next
+-- encounter"): Go on runs the party to the next area, the camera following, Back to island open on the way; the
+-- stop's wild ones already stand there (no drop from above); the areas ahead are built and the ones behind dropped
+E.phase = "run"
+if s.exp then
+	H.req(p, "exp.home", {})
+	E.run(1)
+end
+prof.food = 1000
+strong(8)
+res = H.req(p, "exp.start", { isle = 1, party = "" })
+H.expect(res.ok, "run", "the captain sets out", tostring(res.err))
+H.push(p, 0.3)
+H.clickNamed(p, "ExpContinue", { wait = 0.5 })
+E.run(Tuning.StageWait + 3)
+local CamX = H.cmod(p, "Controllers.CameraController")
+local runSt = H.inClient(p, EUI.debugState)
+H.expect(runSt.open and runSt.area ~= nil, "run", "the screen opens on the endless islet", tostring(runSt.area))
+local function areasBuilt(): { [number]: boolean }
+	local out = {}
+	local f = E.workspace:FindFirstChild("MicroStage")
+	if f then
+		for _, c in f:GetChildren() do
+			local k = tonumber(string.match(c.Name, "^Area(%d+)$"))
+			if k then
+				out[k] = true
+			end
+		end
+	end
+	return out
+end
+local built0 = areasBuilt()
+H.expect(built0[runSt.area] and built0[runSt.area + 1], "run", "the party's area and the next are built", tostring(runSt.area))
+local battleSeen = false
+-- (the stops go on by themselves: a battle already under way is won first)
+for _ = 1, 40 do
+	if not (s.exp and s.exp.battle) then
+		break
+	end
+	for _, f in s.exp.battle.foes do
+		f.hp = 1
+	end
+	E.run(0.5)
+end
+for _ = 1, 6 do
+	local a0 = H.inClient(p, EUI.debugState).area
+	local panX0 = H.inClient(p, CamX.pan)
+	-- Go on (or the auto Go on, whichever comes first)
+	H.inClient(p, function()
+		E.task.spawn(EUI.debugGo)
+	end)
+	local mid = H.inClient(p, EUI.debugState)
+	for _ = 1, 120 do
+		if mid.area > a0 and mid.running > 0 then
+			break
+		end
+		E.run(0.1)
+		mid = H.inClient(p, EUI.debugState)
+	end
+	H.expect(mid.area == a0 + 1 and mid.running > 0, "run", "Go on: the party runs on to the next area", string.format("%s -> %s, running %s", tostring(a0), tostring(mid.area), tostring(mid.running)))
+	H.expect(H.buttonNamed(p, "BackToIsland") ~= nil, "run", "Back to island stays open on the way")
+	E.run(0.3)
+	if s.exp and s.exp.battle then
+		-- (wild ones that last until they are looked at)
+		for _, f in s.exp.battle.foes do
+			f.hp, f.maxHp = 3000, 3000
+		end
+		H.push(p, 0.1)
+	end
+	E.run(2.0)
+	local after = H.inClient(p, EUI.debugState)
+	local panX1 = H.inClient(p, CamX.pan)
+	H.expect(after.running == 0 and after.behind == 0, "run", "everyone made it to their places", string.format("running %s behind %s", tostring(after.running), tostring(after.behind)))
+	H.expect(panX1 > panX0, "run", "the camera followed them to the right", string.format("%s -> %s", tostring(panX0), tostring(panX1)))
+	local built = areasBuilt()
+	H.expect(built[after.area + 2] == true, "run", "the areas ahead are built", tostring(after.area + 2))
+	H.expect(after.area < 2 or built[after.area - 2] == nil, "run", "the ones left behind are dropped", tostring(after.area - 2))
+	if s.exp and s.exp.battle then
+		battleSeen = true
+		H.expect(after.foeU ~= nil and after.foeU > 0, "run", "the stop's wild ones stand in the area, on its right", tostring(after.foeU))
+		H.expect(after.dropping == 0, "run", "they were there already: none drops in", tostring(after.dropping))
+		E.run(1.5)
+		H.expect(s.exp and s.exp.battle and not s.exp.battle.paused, "run", "the battle starts once the party is there")
+		break
+	end
+end
+H.expect(battleSeen, "run", "a battle came up on the way")
+H.req(p, "exp.home", {})
+E.run(3)
+
 ------------------------------------------------------------------ a snack mid-attack; sailing home mid-battle
 E.phase = "midbattle"
 if s.exp then

@@ -573,6 +573,9 @@ local function expScenario(spec)
 	E.run(0.5)
 	-- (a raw request skips the Explore panel's Set sail, which opens the islet's screen)
 	if EUI then
+		if what == "run" then
+			H.inClient(p, EUI.debugAuto, false)
+		end
 		H.inClient(p, EUI.open)
 	end
 	local function curtainUp(): boolean
@@ -586,6 +589,30 @@ local function expScenario(spec)
 	end
 	settle(p, 30, 1)
 	log("curtain up after %.1fs", waited)
+	if what == "run" then
+		-- the endless islet: the party runs on to the next area (the camera following) where the next stop's wild ones
+		-- already stand, frame by frame (exp_<n>_run_000 ..: make_gif.py makes a GIF), then the encounter
+		-- (the auto Go on is held: the run starts here)
+		if s.exp then
+			for i = s.exp.node + 1, math.min(#s.exp.nodes, s.exp.node + 3) do
+				s.exp.nodes[i] = "wild"
+			end
+			log("run: from node %d of %s", s.exp.node, table.concat(s.exp.nodes, ","))
+		end
+		H.inClient(p, function()
+			E.task.spawn(EUI.debugGo)
+		end)
+		for k = 0, 23 do
+			capture(p, string.format("exp_%s_%03d", spec, k))
+			E.run(0.12)
+		end
+		local st = H.inClient(p, EUI.debugState)
+		log("run: area %s, running %s, behind %s, nearest wild one %s studs right of the area's middle, dropping %s", tostring(st.area), tostring(st.running), tostring(st.behind), tostring(st.foeU), tostring(st.dropping))
+		H.inClient(p, EUI.debugAuto, true)
+		settle(p, 10, 0.5)
+		capture(p, "exp_" .. spec)
+		return p
+	end
 	if what == "loot" then
 		local guard = 0
 		while s.exp and s.exp.nodes[s.exp.node + 1] ~= "loot" and s.exp.nodes[s.exp.node + 1] ~= "chest" and guard < 12 do

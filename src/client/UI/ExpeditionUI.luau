@@ -70,6 +70,8 @@ type Actor = {
 	move: Move?, -- what it is doing in a battle (an attack, a knock-back, a cheer...)
 	scale0: number, -- its built size (the guardian 1.6)
 	sqKey: string, -- the squash it is drawn at now
+	spot: { number }, -- its place in an area (u, v from the area's middle)
+	run: { u0: number, v0: number, u1: number, v1: number, t0: number, dur: number }?, -- running on to the next area
 }
 
 -- A battle move (GAME_DESIGN 7's expressive battles): its kind, when it began, how long it lasts and the gap it
@@ -87,6 +89,8 @@ local root: Frame? = nil
 local actors: { [string]: Actor } = {}
 local bars: { [string]: Bar } = {}
 local busy = false
+local walking = false -- busy only running on to the next stop: leaving stays open (any time: GAME_DESIGN 7)
+local autoHeld = false -- (previews: the stops wait for a Go on instead of going on by themselves)
 local beat: RBXScriptConnection? = nil
 local keys: RBXScriptConnection? = nil
 local opened = 0
@@ -180,6 +184,14 @@ end
 
 ------------------------------------------------------------------ the actors
 local PARTY_SPOTS = { { -6, -1 }, { -9, -4.5 }, { -9, 2.5 }, { -12, -1 } }
+-- The endless islet (GAME_DESIGN 7: "make the party run to the right in an endless island after clearing one area to
+-- reach the next encounter"): every stop is the next area along (MicroStage.AREA_U studs to the right); the party
+-- runs there, the camera following, and the stop's wild ones already stand in it.
+local area = 0
+local baseU = 0 -- the area's middle along u
+local runEnd = 0 -- os.clock() when the run on to the area ends
+local RUN_SPEED = 17 -- studs a second
+local RUN_STAGGER = 0.07 -- each member a moment after the one before
 local HOLD_SECS = 0.45 -- a finger held this long on a fighter shows its details (UI: inspect)
 local FOE_SPOTS = { { 6, -1 }, { 9, -4.5 }, { 9, 2.5 } }
 
@@ -188,6 +200,12 @@ local function actorAt(a: Actor): Vector3
 	if st == nil then
 		-- (the screen closed while an action was still playing: it finishes on nothing)
 		return Vector3.zero
+	end
+	local r = a.run
+	if r then
+		-- running on to the next area: where it is on the way
+		local e = math.clamp((os.clock() - r.t0) / r.dur, 0, 1)
+		return st.at(r.u0 + (r.u1 - r.u0) * e, r.v0 + (r.v1 - r.v0) * e, 0)
 	end
 	return st.at(a.u + a.du, a.v + a.dv, a.dy)
 end
@@ -225,8 +243,10 @@ local function newActor(key: string, foe: boolean, spot: { number }): Actor
 		founder = key == "f",
 		rival = nil,
 		thing = nil,
-		u = spot[1],
+		u = spot[1] + baseU,
 		v = spot[2],
+		spot = spot,
+		run = nil,
 		du = 0,
 		dy = 0,
 		yaw = if foe then MicroStage.FACE_LEFT else MicroStage.FACE_RIGHT,
@@ -285,6 +305,8 @@ local function buildFoes(e: Types.Expedition)
 	local b = e.battle
 	local key = ""
 	if b then
+		-- (the stop's number too: the next battle's line-up can match the last one's exactly, and it stands elsewhere)
+		key = tostring(e.node) .. "|"
 		for _, f in b.foes do
 			key ..= f.key .. (f.sp or "") .. ","
 		end
@@ -316,7 +338,9 @@ local function buildFoes(e: Types.Expedition)
 		a.big = b.boss and i == 1
 		a.scale0 = if a.big then 1.6 else 1
 		a.thing = driftling(st, f.sp or "pebblit", a.big)
-		a.dy = 10
+		-- on the way to the next area: they stand there already (out of sight till the camera gets there); else
+		-- (the screen opened on a battle) they drop in behind the curtain
+		a.dy = if os.clock() < runEnd then 0 else 10
 		a.enterAt = os.clock() + (i - 1) * 0.15
 		actors[f.key] = a
 	end
@@ -569,7 +593,55 @@ local function poseAll(t: number, dt: number)
 		MicroModels.flutter(sh :: MicroModels.Thing, t)
 		st.place(sh :: MicroModels.Thing, math.floor(shipU * 4 + 0.5) / 4, SHIP_V, WATER + bob, MicroStage.FACE_RIGHT)
 	end
+	-- the camera follows the run on to the next area (fractions of an area while it runs)
+	if area > 0 then
+		local k = 1
+		if now < runEnd then
+			local f = 0
+			local n = 0
+			for _, a in actors do
+				local r = a.run
+				if r then
+					f += math.clamp((now - r.t0) / r.dur, 0, 1)
+					n += 1
+				end
+			end
+			k = if n > 0 then f / n else 1
+		end
+		st.follow(area - 1 + ease(k))
+		if now >= runEnd and runEnd > 0 then
+			runEnd = 0
+			st.trim(area)
+		end
+	end
 	for _, a in actors do
+		-- running on to the next area: the legs going, a driftling bounding, dust now and then
+		local r = a.run
+		if r then
+			local e = math.clamp((now - r.t0) / r.dur, 0, 1)
+			if e >= 1 then
+				a.run = nil
+				st.puff(st.at(r.u1, r.v1, 0.2), "dust", 3)
+			else
+				local u, v = r.u0 + (r.u1 - r.u0) * e, r.v0 + (r.v1 - r.v0) * e
+				local yaw = MicroStage.FACE_RIGHT
+				local moving = e > 0
+				if a.founder then
+					st.pose(u, v, 0, yaw, t, if moving then RUN_SPEED else 0, "stand")
+				elseif a.rival then
+					(a.rival :: MicroStage.Rival).pose(u, v, 0, yaw, t, if moving then RUN_SPEED else 0, "stand")
+				elseif a.thing then
+					local th = a.thing :: MicroModels.Thing
+					MicroModels.animate(th, t + a.ph, "cheer", 0)
+					local hop = if moving and math.floor(t * 10 + a.ph) % 2 == 0 then 0.375 else 0
+					st.place(th, u, v, hop, yaw)
+				end
+				if moving and math.random() < dt * 6 then
+					st.puff(st.at(u, v, 0.1), "dust", 1)
+				end
+				continue
+			end
+		end
 		-- the party hops off the arriving boat onto the shore one after another and runs to its places
 		if a.deck > 0 then
 			local spot = DECK_SPOTS[a.deck] or DECK_SPOTS[#DECK_SPOTS]
@@ -1049,7 +1121,8 @@ local function updateTimers()
 	local r, st = root, stage
 	local e = exp()
 	local folder = if r then r:FindFirstChild("Timers") else nil
-	local show = e ~= nil and e.battle ~= nil and lifted and st ~= nil and folder ~= nil
+	-- (none while the party is still running up to the battle)
+	local show = e ~= nil and e.battle ~= nil and lifted and st ~= nil and folder ~= nil and os.clock() >= runEnd
 	for key, tb in timerBars do
 		local a = actors[key]
 		local f = fighterOf(key)
@@ -1227,23 +1300,64 @@ local tutorialTip: (r: Frame, e: Types.Expedition, w: number, h: number) -> ()
 local nextTutShine = 0 -- the tips' catching step: when the Snack button shines next
 local playRound: (data: { [string]: any }) -> ()
 local playNode: (data: { [string]: any }) -> ()
+
+-- On to the next area: everyone of the party standing runs from where they are to their place there, one a moment
+-- after another; the stage builds the areas ahead and the camera follows the run (poseAll).
+local function runOn()
+	local st = stage
+	if st == nil then
+		return
+	end
+	area += 1
+	baseU = area * MicroStage.AREA_U
+	st.area(area)
+	local now = os.clock()
+	local last = now
+	local i = 0
+	for _, a in actors do
+		if a.foe or a.gone then
+			continue
+		end
+		a.ko = false
+		a.move = nil
+		a.deck = 0
+		a.dy = 0
+		local u1, v1 = a.spot[1] + baseU, a.spot[2]
+		local dist = math.sqrt((u1 - a.u) ^ 2 + (v1 - a.v) ^ 2)
+		local t0 = now + i * RUN_STAGGER
+		local dur = math.max(0.4, dist / RUN_SPEED)
+		a.run = { u0 = a.u, v0 = a.v, u1 = u1, v1 = v1, t0 = t0, dur = dur }
+		a.u, a.v = u1, v1
+		a.yaw = MicroStage.FACE_RIGHT
+		last = math.max(last, t0 + dur)
+		i += 1
+	end
+	runEnd = last + 0.1
+	Audio.play("whoosh", { volume = 0.5 })
+end
 local goHome: () -> ()
 
 local function goOn()
-	if busy then
-		return
+	local cur = exp()
+	if busy or cur == nil or cur.battle ~= nil or cur.over ~= nil then
+		return -- (never off to the next stop in the middle of a battle, or once the trip is over)
 	end
 	busy = true
+	walking = true
 	refresh()
-	-- the party walks on: a few steps in place while the next stop comes up
-	for _, a in actors do
-		if not a.foe and not a.ko then
-			act(a, "stand", 0.6)
-		end
-	end
+	-- the party runs on to the next area (the camera following); the next stop comes up meanwhile and plays out once
+	-- they are there
+	runOn()
 	Audio.play("tick")
 	local res = ask("exp.next", {})
-	if res.ok and type(res.data) == "table" then
+	while isOpen and walking and os.clock() < runEnd do
+		task.wait()
+	end
+	if not walking then
+		return -- left on the way (Sail home now, or the screen closed): that took over
+	end
+	walking = false
+	if res.ok and type(res.data) == "table" and isOpen then
 		playNode(res.data :: { [string]: any })
 	end
 	busy = false
@@ -2163,7 +2277,7 @@ playRound = function(data: { [string]: any })
 			end
 			if st then
 				for _ = 1, 3 do
-					st.puff(st.at(0, 0, 2), "confetti")
+					st.puff(st.at(baseU, 0, 2), "confetti")
 				end
 			end
 			-- the path goes on: an alert, the party walks on (Sail home whenever the player likes)
@@ -2227,14 +2341,14 @@ playNode = function(data: { [string]: any })
 				act(a, "reach", 0.6)
 			end
 		end
-		st.puff(st.at(-2, -1, 0.5), "debris", 8)
+		st.puff(st.at(baseU - 2, -1, 0.5), "debris", 8)
 	elseif kind == "chest" then
 		Audio.play("chest")
 		task.delay(0.3, function()
 			Audio.play("coins")
 		end)
 		say(string.format("A chest: %s shells!", Numbers.int(tonumber(data.shells) or 0)), UIKit.color("accent"))
-		st.puff(st.at(-2, -1, 1), "spark", 12)
+		st.puff(st.at(baseU - 2, -1, 1), "spark", 12)
 		for _, a in actors do
 			if not a.foe then
 				act(a, "cheer", 0.8)
@@ -2267,7 +2381,8 @@ playNode = function(data: { [string]: any })
 		spNow = 0
 		gaugePaused = true
 		gaugeAt = os.clock()
-		runAt = os.clock() + (if kind == "boss" then 2.2 else 1.4)
+		-- (they stood there already as the party ran up: a beat to take them in, longer for a guardian)
+		runAt = os.clock() + (if kind == "boss" then 1.2 else 0.5)
 	end
 end
 
@@ -2281,7 +2396,7 @@ leaveChoice = function()
 		ExpeditionUI.close()
 		return
 	end
-	if r == nil or leaveFrame or busy or closing then
+	if r == nil or leaveFrame or (busy and not walking) or closing then
 		return
 	end
 	local battle = e.battle ~= nil and not e.over
@@ -2348,6 +2463,7 @@ goHome = function()
 			table.insert(members, { sp = f.sp })
 		end
 	end
+	walking = false -- (a run on to the next stop is cut short: the trip ends here)
 	busy = true
 	local res = ask("exp.home", {})
 	if res.ok then
@@ -2369,7 +2485,8 @@ end
 
 ------------------------------------------------------------------ the overlay's layout
 local function button(parent: Instance, text: string, x: number, y: number, w: number, color: Color3?, enabled: boolean, click: () -> (), name: string)
-	local b = UIKit.button(parent, text, UDim2.fromOffset(w, 15), UDim2.fromOffset(x, y), click, { name = name, color = color, enabled = enabled and not busy })
+	local free = not busy or (walking and name == "BackToIsland")
+	local b = UIKit.button(parent, text, UDim2.fromOffset(w, 15), UDim2.fromOffset(x, y), click, { name = name, color = color, enabled = enabled and free })
 	b.ZIndex = 11
 end
 
@@ -2648,7 +2765,8 @@ function ExpeditionUI.open()
 	r.Size = UDim2.fromOffset(w, h)
 	r.Parent = canvas
 	root = r
-	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 }, e.isle.seed)
+	area, baseU, runEnd = 0, 0, 0
+	stage = MicroStage.open(if def then def.stage else "loot", { top = topInset() + HEAD_H + 2, bottom = FOOT_H + 2 }, e.isle.seed, true)
 	actors = {}
 	foeKey = ""
 	-- the timers over the heads have their own layer (the layout's rebuilds leave it)
@@ -2759,7 +2877,7 @@ function ExpeditionUI.open()
 		placeInspect()
 		-- going on by itself: at a stop with nothing to answer (no battle, no card, the party ashore)
 		local cur = exp()
-		local waiting = lifted and not busy and not closing and cur ~= nil and cur.battle == nil and cur.over == nil
+		local waiting = lifted and not busy and not closing and not autoHeld and cur ~= nil and cur.battle == nil and cur.over == nil
 		if waiting and root and (root :: Frame):FindFirstChild("Result") then
 			waiting = false
 		end
@@ -2940,6 +3058,11 @@ end
 -- Leave the screen: ink blinds close over the stage, then it goes and `after` runs (by default the blinds open on
 -- the island: Voyage.reveal; Sail home: the voyage home).
 function ExpeditionUI.close(after: (() -> ())?)
+	if walking then
+		-- left on the way to the next stop: the run is over (goOn lets go)
+		walking = false
+		busy = false
+	end
 	if not isOpen or closing then
 		return
 	end
@@ -3114,11 +3237,31 @@ function ExpeditionUI.debugState(): { [string]: any }
 	for _ in timerBars do
 		nt += 1
 	end
+	local running, behind, foeU, dropping = 0, 0, nil, 0
+	for _, a in actors do
+		if a.run then
+			running += 1
+		end
+		if a.foe and a.dy > 0 then
+			dropping += 1
+		end
+		if not a.foe and not a.gone and a.u < baseU - 20 then
+			behind += 1
+		end
+		if a.foe and not a.gone then
+			foeU = math.min(foeU or math.huge, a.u - baseU)
+		end
+	end
 	return {
 		open = isOpen,
 		lifted = lifted,
 		actors = n,
 		busy = busy,
+		area = area, -- the endless islet's area the party is in (or running to)
+		running = running, -- members still running there
+		behind = behind, -- members of the party left more than 20 studs behind the area's middle
+		foeU = foeU, -- the nearest wild one from the area's middle (u: they stand on its right)
+		dropping = dropping, -- wild ones still dropping in from above
 		node = lastNode,
 		foes = foeKey,
 		ship = ship ~= nil,
@@ -3183,6 +3326,10 @@ function ExpeditionUI.debugWait(seconds: number?)
 end
 function ExpeditionUI.debugGo()
 	goOn()
+end
+-- (previews: hold the auto Go on, so a run to the next stop starts when they say)
+function ExpeditionUI.debugAuto(on: boolean)
+	autoHeld = not on
 end
 -- (the battle's moves as a player makes them: a snack at a wild one, a skill, run; aiming without going)
 function ExpeditionUI.debugSnack(targetKey: string?)

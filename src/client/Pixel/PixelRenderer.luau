@@ -1890,6 +1890,26 @@ function PixelRenderer.afterBake(fn: () -> ())
 	table.insert(afterBake, fn)
 end
 
+-- A stage's folder of static parts (an endless islet's areas come and go as the party runs on): a part added or
+-- removed while the stage is in view re-casts the rect it covers, like the islands' (a whole re-bake is never needed:
+-- the areas are built and dropped out of sight).
+function PixelRenderer.watchStage(root: Instance)
+	local function poke(d: Instance)
+		if not d:IsA("BasePart") or surf == nil or rebakeAt >= 0 or not CameraController.view().stage then
+			return
+		end
+		local r = partRect(d)
+		if r then
+			queueRect(r)
+		end
+	end
+	root.DescendantAdded:Connect(poke)
+	root.DescendantRemoving:Connect(function(d: Instance)
+		poke(d)
+		staticIds[d] = nil
+	end)
+end
+
 function PixelRenderer.rebake()
 	if surf then
 		startBake()

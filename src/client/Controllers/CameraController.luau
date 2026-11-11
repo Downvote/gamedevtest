@@ -64,6 +64,7 @@ local free = false -- Build mode: the view stays where it is dragged
 local freeX, freeY = 0, 0
 local focus: Vector3? = nil -- a cutscene's point to follow instead of the founder (setFocus)
 local stage: Stage? = nil
+local stageShift = Vector3.zero -- an endless islet's camera: how far along the stage looks (setStageShift)
 
 local function screenSize(): Vector2
 	local cam = Workspace.CurrentCamera
@@ -286,7 +287,16 @@ end
 -- Where the view should be this frame.
 local function target(v: View): (number, number)
 	if v.stage then
-		return v.grid.px, v.grid.py
+		local st = stage
+		if st == nil or stageShift == Vector3.zero then
+			return v.grid.px, v.grid.py
+		end
+		-- along the stage: the same framing that much further on (the renderer scrolls there, never re-bakes)
+		local o = st.origin
+		local gx0, gy0 = Raster.gridPoint(ROT12, v.grid, o.X, o.Y, o.Z)
+		local p = o + stageShift
+		local gx1, gy1 = Raster.gridPoint(ROT12, v.grid, p.X, p.Y, p.Z)
+		return v.grid.px + math.floor(gx1 - gx0 + 0.5), v.grid.py + math.floor(gy1 - gy0 + 0.5)
 	end
 	if free then
 		return freeX, freeY
@@ -326,9 +336,10 @@ local function step()
 		return
 	end
 	local tx, ty = target(v)
-	-- a far jump (home from the other end of the street) snaps: the renderer bakes once at the new pan
+	-- a far jump (home from the other end of the street) snaps: the renderer bakes once at the new pan (on a stage the
+	-- view always glides: an endless islet's next area is a scroll away)
 	local W, H = v.fullX / v.K, v.fullY / v.K
-	if math.abs(tx - panX) > W * 0.75 or math.abs(ty - panY) > H * 0.75 then
+	if not v.stage and (math.abs(tx - panX) > W * 0.75 or math.abs(ty - panY) > H * 0.75) then
 		panX, panY = tx, ty
 		pose(v)
 		return
@@ -387,7 +398,14 @@ end
 -- A microgame's stage takes the view (nil: back to the street; the renderer keeps the street's picture meanwhile).
 function CameraController.setStage(s: Stage?)
 	stage = s
+	stageShift = Vector3.zero
 	CameraController.refit()
+end
+
+-- An endless islet's camera: the stage's framing moved by `shift` (world studs); the view glides there a frame at a
+-- time (the renderer scrolls; MicroStage.follow).
+function CameraController.setStageShift(shift: Vector3)
+	stageShift = shift
 end
 
 function CameraController.stage(): Stage?

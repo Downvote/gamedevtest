@@ -72,6 +72,12 @@ export type Stage = {
 	step: (t: number, dt: number) -> (), -- every frame: the bits and the stage's ambient life
 	ready: () -> boolean,
 	close: () -> (),
+	-- an endless islet (`open`'s `endless`): the party heads for area k (the areas up to k + 2 are built, a few dozen
+	-- parts a frame, out of sight; the ambient life goes there), `trim(k)` drops the areas left behind (below k - 1),
+	-- `follow(units)` puts the camera `units` areas along (it glides there; fractions while running)
+	area: (k: number) -> (),
+	trim: (k: number) -> (),
+	follow: (units: number) -> (),
 }
 
 local ORIGIN = Vector3.new(0, 0, 9000)
@@ -93,6 +99,16 @@ MicroStage.FACE_LEFT = math.atan2(-U_DIR.X, -U_DIR.Z)
 MicroStage.FACE_AWAY = math.atan2(-V_DIR.X, -V_DIR.Z)
 MicroStage.U_DIR = U_DIR
 MicroStage.V_DIR = V_DIR
+-- An endless islet (the expeditions: GAME_DESIGN 7, "the party runs to the right"): one area after another along the
+-- screen's right, each a copy of the set from the island's seed and its own number, AREA_OFF (room space: whole
+-- studs, so every box stays on the grid) apart, AREA_U studs along u. The sea under them is laid once, SEA_AREAS long.
+local AREA_OFF = Vector3.new(20, 0, -20)
+local AREA_U = AREA_OFF:Dot(U_DIR)
+local SEA_AREAS = 200
+MicroStage.AREA_U = AREA_U
+-- a later area's landmark (the volcano, the peak, the big tree) stands far out of sight: one is enough, and in the
+-- next area's place it would stand on this one's floor
+local FAR_LM = { x = -400, z = 400 }
 -- the whack holes (every whack set digs all twelve; an easier game uses the first columns and the front rows)
 MicroStage.HOLE_U = { -9, -4.5, 0, 4.5 }
 MicroStage.HOLE_V = { -3.5, 0.5, 4.5 }
@@ -115,6 +131,10 @@ type Builder = {
 	rng: Types.Rng, -- an islet's layout comes from the island's seed (`open`'s)
 	used: { { number } }, -- props placed so far: room x, z and radius (kept apart)
 	coast: ((x: number, z: number) -> number)?, -- an islet's coast: studs past it (below 0: its land)
+	off: Vector3, -- an endless islet's area: its room-space offset (AREA_OFF x its number) ...
+	du: number, -- ... and along u
+	lm: { x: number, z: number }, -- where its landmark stands (VOLCANO, or out of sight: FAR_LM)
+	endless: boolean, -- one of an endless islet's areas (the sea is laid apart; props keep off the neighbours' floors)
 }
 
 -- Boxes in world-aligned room space (x, z from the floor's middle, y from the ground).
@@ -126,9 +146,13 @@ local function builder(folder: Folder): Builder
 		rng = Util.newRng(1),
 		used = {},
 		coast = nil,
+		off = Vector3.zero,
+		du = 0,
+		lm = VOLCANO,
+		endless = false,
 		box = function(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, color: string, neon: boolean?): BasePart
 			local cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
-			local p = Blocks.part(folder, { size = Vector3.new(math.abs(x1 - x0), math.abs(y1 - y0), math.abs(z1 - z0)), cf = CFrame.new(ORIGIN + Vector3.new(cx, cy, cz)), color = color, neon = neon })
+			local p = Blocks.part(folder, { size = Vector3.new(math.abs(x1 - x0), math.abs(y1 - y0), math.abs(z1 - z0)), cf = CFrame.new(ORIGIN + b.off + Vector3.new(cx, cy, cz)), color = color, neon = neon })
 			-- the sea round an islet's set moves like the islands' (the pixel filter's water)
 			if color == "water" then
 				p:SetAttribute("PixelWater", 1)
@@ -141,7 +165,7 @@ local function builder(folder: Folder): Builder
 		end,
 		prop = function(kind: string, u: number, v: number, y: number?, yaw: number?, opts: MicroModels.Opts?)
 			local t = MicroModels.build(kind, opts)
-			MicroModels.place(t, CFrame.new(uv(u, v, y or 0)) * CFrame.Angles(0, yaw or 0, 0))
+			MicroModels.place(t, CFrame.new(uv(u + b.du, v, y or 0)) * CFrame.Angles(0, yaw or 0, 0))
 			for _, p in t.parts do
 				p.CanQuery = true
 				p.CastShadow = true
@@ -149,7 +173,7 @@ local function builder(folder: Folder): Builder
 			t.model.Parent = folder
 		end,
 		ball = function(x: number, y: number, z: number, d: number, color: string, neon: boolean?)
-			Blocks.part(folder, { size = Vector3.new(d, d, d), cf = CFrame.new(ORIGIN + Vector3.new(x, y, z)), color = color, shape = "Ball", neon = neon })
+			Blocks.part(folder, { size = Vector3.new(d, d, d), cf = CFrame.new(ORIGIN + b.off + Vector3.new(x, y, z)), color = color, shape = "Ball", neon = neon })
 		end,
 	}
 	return b
@@ -159,7 +183,9 @@ end
 -- screen's upper left, and z = -HALF, its upper right) with a trim along their foot.
 type RoomSpec = { ground: string, a: string, b: string?, tile: number?, wall: string?, wallH: number?, trim: string? }
 local function room(b: Builder, r: RoomSpec)
-	b.box(-110, -1, -110, 110, 0, 110, r.ground)
+	if not b.endless then
+		b.box(-110, -1, -110, 110, 0, 110, r.ground) -- (an endless islet's sea is laid once, under every area)
+	end
 	local tile = r.tile or 4
 	if r.b then
 		local n = math.floor(2 * HALF / tile)
@@ -661,7 +687,30 @@ local function shoreSpot(b: Builder, r: number, tall: boolean): (number?, number
 		local ok = m >= HALF + 0.5 + r * 0.6 and (coast == nil or (coast :: (number, number) -> number)(x, z) <= 1) and roomy(b, x, z, r)
 		ok = ok and not (math.abs(x + 7) < 4 and z > 8)
 		if ok and tall then
-			ok = not (x < -5 and z < -5) and not (x - z > 16 and x + z < -4) and x + z <= 18 and (x - VOLCANO.x) ^ 2 + (z - VOLCANO.z) ^ 2 > 64
+			ok = not (x < -5 and z < -5) and not (x - z > 16 and x + z < -4) and x + z <= 18 and (x - b.lm.x) ^ 2 + (z - b.lm.z) ^ 2 > 64
+		end
+		if ok and b.endless then
+			-- an endless islet's area: never on a neighbour's floor, and nothing tall where the screen keeps clear
+			-- while that neighbour is in view (under the wild ones' cards, under the header's left, in front)
+			-- nor in the band the party runs along from one area to the next (the floors' battle band, carried on), and
+			-- nothing tall just in front of where the fighters stand (it would hide them)
+			local sum = x + z
+			if sum > -9 - 1.5 * r and sum < 7 + 1.5 * r then
+				ok = false
+			end
+			local u0, v0 = (x - z) / math.sqrt(2), sum / math.sqrt(2)
+			if tall and v0 > 0 and v0 < 13 and math.abs(u0) < 17 then
+				ok = false
+			end
+			for _, n in { -1, 1 } do
+				local X, Z = x - n * AREA_OFF.X, z - n * AREA_OFF.Z
+				local U, V = (X - Z) / math.sqrt(2), (X + Z) / math.sqrt(2)
+				if math.abs(X) < HALF + 0.5 + r and math.abs(Z) < HALF + 0.5 + r then
+					ok = false
+				elseif tall and ((U > 11 and U < 31 and V < -3) or (U < -11 and U > -31 and V < -7) or V > 12.7 or (V > 0 and V < 13 and math.abs(U) < 17)) then
+					ok = false
+				end
+			end
 		end
 		if ok then
 			table.insert(b.used, { x, z, r })
@@ -819,7 +868,7 @@ SETS.frost = function(b)
 	b.box(-HALF - 3, 0, -HALF - 3, HALF + 3, 0.75, -HALF, "white")
 	b.box(-HALF - 3, 0, -HALF, -HALF, 0.75, HALF + 3, "white")
 	-- the snowy peak on the islet's left shore (in view beside the floor)
-	local px, pz = VOLCANO.x, VOLCANO.z
+	local px, pz = b.lm.x, b.lm.z
 	table.insert(b.used, { px, pz, 5 })
 	b.box(px - 4, 0, pz - 4, px + 4, 3, pz + 4, "steel")
 	b.box(px - 3, 3, pz - 3, px + 3, 5, pz + 3, "steel")
@@ -883,8 +932,8 @@ end
 SETS.leap = function(b)
 	room(b, { ground = "water", a = "grass", b = "grass_dark", tile = 4 })
 	shore(b, "grass_dark", "sand", b.rng:range(0, 6.28))
-	tree(b, VOLCANO.x + 2, VOLCANO.z, 1.2)
-	table.insert(b.used, { VOLCANO.x + 2, VOLCANO.z, 3 })
+	tree(b, b.lm.x + 2, b.lm.z, 1.2)
+	table.insert(b.used, { b.lm.x + 2, b.lm.z, 3 })
 	for _ = 1, b.rng:int(3, 5) do
 		local x, z = shoreSpot(b, 2.2, true)
 		if x and z then
@@ -951,7 +1000,7 @@ SETS.dino = function(b)
 	shore(b, "rock_dark", "black", b.rng:range(0, 6.28))
 	-- the volcano on the islet's left shore (in view beside the floor): two stepped cones, a black rim round a
 	-- glowing crater, lava running down the two faces toward the viewer
-	local vx, vz = VOLCANO.x, VOLCANO.z
+	local vx, vz = b.lm.x, b.lm.z
 	table.insert(b.used, { vx, vz, 5 })
 	b.box(vx - 4, 0, vz - 4, vx + 4, 3, vz + 4, "rock_dark")
 	b.box(vx - 3, 3, vz - 3, vx + 3, 5, vz + 3, "rock_dark")
@@ -1062,7 +1111,7 @@ SETS.grotto = function(b)
 	room(b, { ground = "water", a = "rock_dark", b = "rock", tile = 4 })
 	shore(b, "rock_dark", "sand_dark", b.rng:range(0, 6.28))
 	-- the cave: a dark arch in a mound of rock at the landmark spot
-	local vx, vz = VOLCANO.x + 2, VOLCANO.z
+	local vx, vz = b.lm.x + 2, b.lm.z
 	b.box(vx - 3, FLOOR - 0.5, vz - 3, vx + 3, FLOOR + 4, vz + 3, "rock_dark")
 	b.box(vx - 2.2, FLOOR + 4, vz - 2.2, vx + 2.2, FLOOR + 6, vz + 2.2, "rock")
 	b.box(vx - 1, FLOOR, vz + 2.9, vx + 1, FLOOR + 2.4, vz + 3.05, "night")
@@ -1119,7 +1168,7 @@ SETS.bluffs = function(b)
 		end
 	end
 	-- the cairn: stacked stones with a little flag, at the landmark spot
-	local cx, cz = VOLCANO.x + 2, VOLCANO.z
+	local cx, cz = b.lm.x + 2, b.lm.z
 	for k = 0, 3 do
 		local r = 1.2 - k * 0.25
 		b.box(cx - r, FLOOR + k * 0.7, cz - r, cx + r, FLOOR + (k + 1) * 0.7, cz + r, if k % 2 == 0 then "rock" else "rock_dark")
@@ -1162,7 +1211,7 @@ SETS.ruins = function(b)
 		end
 	end
 	-- a fallen arch: two posts and a lintel at the landmark spot, a column lying in the sand
-	local ax, az = VOLCANO.x + 2, VOLCANO.z
+	local ax, az = b.lm.x + 2, b.lm.z
 	b.box(ax - 2.2, FLOOR, az - 0.6, ax - 1.2, FLOOR + 4, az + 0.6, "chalk")
 	b.box(ax + 1.2, FLOOR, az - 0.6, ax + 2.2, FLOOR + 4, az + 0.6, "chalk")
 	b.box(ax - 2.6, FLOOR + 4, az - 0.7, ax + 2.6, FLOOR + 4.8, az + 0.7, "rock")
@@ -1294,9 +1343,14 @@ end
 
 type Bit = { p: BasePart, pos: Vector3, vel: Vector3, life: number, age: number, size: number, grav: number, bounce: boolean, grow: boolean, sway: number, ph: number }
 
--- room space (world-aligned x, z from the floor's middle; y over the floor's top)
+-- The ambient life's area on an endless islet (the gulls, butterflies and crabs go with the party; a landmark's smoke
+-- and glow stay at the landing's): room space and u.
+local ambOff = Vector3.zero
+local ambU = 0
+
+-- room space (world-aligned x, z from the floor's middle; y over the floor's top), in the ambient life's area
 local function atXZ(x: number, z: number, y: number): Vector3
-	return ORIGIN + Vector3.new(x, FLOOR + y, z)
+	return ORIGIN + ambOff + Vector3.new(x, FLOOR + y, z)
 end
 
 -- A bird's, bat's or butterfly's wings beat: up a moment, then down.
@@ -1591,7 +1645,7 @@ end
 AMBIENT.frost = function(st)
 	return all({
 		emitter(st, "snow", function()
-			return st.at(-16 + math.random() * 32, -14 + math.random() * 22, 11)
+			return st.at(ambU - 16 + math.random() * 32, -14 + math.random() * 22, 11)
 		end, 0.12),
 		circler(st, "bird", "white", -6, -6, 15, 12, 10, 0.3),
 	})
@@ -1670,7 +1724,7 @@ end
 local current: Stage? = nil
 
 -- `margins`: art px kept clear at the top and bottom of the screen for the overlay (default 22 and 20).
-function MicroStage.open(variant: string, margins: { top: number, bottom: number }?, seed: number?): Stage
+function MicroStage.open(variant: string, margins: { top: number, bottom: number }?, seed: number?, endless: boolean?): Stage
 	if current then
 		(current :: Stage).close()
 	end
@@ -1679,10 +1733,86 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 	local b = builder(folder)
 	b.rng = Util.newRng(seed or 1)
 	table.clear(marks)
+	ambOff, ambU = Vector3.zero, 0
 	local fn = SETS[variant] or SETS.blocks
-	fn(b)
-	Blocks.windy(folder) -- the islet's palms, trees and ferns sway
+	-- an endless islet's areas: each its own folder, built from the seed and its number
+	local areas: { [number]: Folder } = {}
+	local queued: { [number]: boolean } = {}
+	local pending: { number } = {}
+	local building = false
+	local closed = false
+	local function buildArea(k: number): Folder
+		local f = Instance.new("Folder")
+		f.Name = "Area" .. k
+		local ab = builder(f)
+		ab.endless = true
+		ab.off = AREA_OFF * k
+		ab.du = AREA_U * k
+		ab.lm = if k == 0 then VOLCANO else FAR_LM
+		ab.rng = Util.newRng((seed or 1) + k * 7919)
+		local keep = if k > 0 then table.clone(marks) else nil
+		fn(ab)
+		if keep then
+			table.clear(marks)
+			for key, m in keep do
+				marks[key] = m
+			end
+		end
+		if k == 0 then
+			b.h = ab.h
+		end
+		Blocks.windy(f)
+		return f
+	end
+	local function pump()
+		if building then
+			return
+		end
+		building = true
+		task.spawn(function()
+			while #pending > 0 and not closed do
+				local k = table.remove(pending, 1) :: number
+				if not areas[k] then
+					Blocks.pace(function()
+						task.wait()
+					end, 40)
+					local ok, f = pcall(buildArea, k)
+					Blocks.pace(nil)
+					if ok and not closed then
+						f.Parent = folder
+						areas[k] = f
+					elseif ok then
+						f:Destroy()
+					else
+						warn("stage area " .. k .. ": " .. tostring(f))
+					end
+				end
+			end
+			building = false
+		end)
+	end
+	if endless then
+		-- the sea under every area (laid once: a part that comes or goes across the whole screen re-bakes it)
+		local sea = builder(folder)
+		for j = 0, SEA_AREAS, 5 do
+			sea.off = AREA_OFF * j
+			sea.box(-110, -1, -110, 110, 0, 110, "water")
+		end
+		-- the landing's area and the next, before the first picture; the one after in the background
+		for k = 0, 1 do
+			local f = buildArea(k)
+			f.Parent = folder
+			areas[k] = f
+			queued[k] = true
+		end
+		queued[2] = true
+		table.insert(pending, 2)
+	else
+		fn(b)
+		Blocks.windy(folder) -- the islet's palms, trees and ferns sway
+	end
 	folder.Parent = workspace
+	PixelRenderer.watchStage(folder)
 	local things: { Thing } = {}
 	local dyn = dynFolder()
 	local groundY = ORIGIN.Y + FLOOR
@@ -1914,7 +2044,32 @@ function MicroStage.open(variant: string, margins: { top: number, bottom: number
 		ready = function(): boolean
 			return CameraController.view().stage and PixelRenderer.ready()
 		end,
+		area = function(k: number)
+			if not endless then
+				return
+			end
+			for j = k, k + 2 do
+				if not queued[j] then
+					queued[j] = true
+					table.insert(pending, j)
+				end
+			end
+			pump()
+			ambOff, ambU = AREA_OFF * k, AREA_U * k
+		end,
+		trim = function(k: number)
+			for j, f in areas do
+				if j < k - 1 then
+					f:Destroy()
+					areas[j] = nil
+				end
+			end
+		end,
+		follow = function(units: number)
+			CameraController.setStageShift(AREA_OFF * units)
+		end,
 		close = function()
+			closed = true
 			for i = #things, 1, -1 do
 				local t = things[i]
 				PixelRenderer.unregisterDynamic(t.model)

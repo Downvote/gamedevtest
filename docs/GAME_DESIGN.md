@@ -461,7 +461,7 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   path and maybe a fallen log; dark volcanic sand by a volcano with lava running down it, a rocky mound, obsidian and
   vents; a snowfield by a snowy peak with pines, ice crystals, maybe a frozen pond; the sea floor's corals, kelp,
   anemones, clams and maybe a sunken anchor), drawn by the pixel filter, with the party on the left (your founder,
-  villagers as their chibis, driftlings as their models) and the wild ones dropping in on the right. Along the top:
+  villagers as their chibis, driftlings as their models) and the wild ones standing on the right. Along the top:
   the island's name and level, the loot so far, the path of stops (the ones ahead hidden but
   the guardian's crown) and Back to island (the expedition waits; the HUD's card brings you back). Along the bottom:
   the party's cards with their health bars and levels, and the buttons (Sail home between stops; Snack, Skills,
@@ -496,6 +496,18 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   has the party jumping and spinning in turn. Every driftling's limbs move with it: wings flap, claws and pincers
   snap open on the strike, tails wag, ears twitch (and droop when hurt), eyes blink and shut when hurt, mouths open to
   bite, cry or cheer.
+
+> The request (2026-11-11): "also, instead of having creatures pop out of the island, make the party run to the right
+> in an endless island after clearing one area to reach the next encounter"
+
+- **The run on:** the island goes on to the right, one area after another (each laid out from the island's seed and
+  its own number, the land running from one into the next). When a stop is done the party runs right to the next
+  area, the founder in front and everyone a moment behind the one before, and the camera follows. The next stop is
+  already there: the wild ones stand waiting in the new area, a chest sits in its sand, and the battle starts a
+  moment after the party gets to their places (a guardian a moment longer). Nothing drops from the sky any more.
+  The landmark (the volcano, the snowy peak, the big tree, the cave, the arch) stands only on the landing's shore,
+  so it falls behind as the party runs on. Nothing tall stands on the path or just in front of the fighters, and
+  Back to island works on the way too.
 
 > The requests (2026-11-11): "make the first snack throw in the tutorial always catch. also, the camera bugs out
 > whenever the player returns home, make it center to the ship and the player instead of the land. also, allow
@@ -667,7 +679,7 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
   each skill its own move, the driftlings' limbs alive; the islands' driftlings blink, wag and step too.
 - **Night falls** and the lamps light up (§8).
 - **The islet's screen:** ink blinds open from the middle on the island's name; after the cutscene the boat brings
-  the party ashore (back from the island they drop in from above in puffs of dust), the wild ones drop in; each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
+  the party ashore (back from the island they drop in from above in puffs of dust), the wild ones stand waiting in the next area as the party runs up (§7, the run on); each stage has its ambient life (gulls and a glinting chest on the beach, butterflies
   in the meadow, volcano smoke, falling snow, bubbles and a crab on the sea floor); hits lunge, flash and spark,
   numbers float up, skills shout their names, heals and shells twinkle, a treat bursts into hearts, a friend leaves in
   confetti, a win cheers and throws confetti.

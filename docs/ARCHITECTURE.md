@@ -358,11 +358,14 @@ pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic 
 stage's points (`tight` instead on a screen under 600 px tall: a phone held sideways, the action's band drawn at a
 bigger scale) full screen clear of the play overlay's top and bottom strips (art px), the ray plane at the stage's origin,
 the key `stage:<name>|...`, no indoor room; the view holds still (`view().stage` true); `setStage(nil)` goes back
-to the street; `stage()`.
+to the street; `stage()`. `setStageShift(shift)`: an endless islet's camera, the stage's framing moved by `shift`
+studs (the target is the home pan plus the shift's grid px); on a stage the view always glides (no snap), so the
+renderer scrolls to the next area and never re-bakes (reset by `setStage`).
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
 progress)`, `registerDynamic(model)`, `unregisterDynamic`, `refreshDynamic`, `rebake`, `setPaused`,
+`watchStage(root)` (a stage's static parts that come or go while it is in view re-cast their rects),
 `afterBake(fn)` (fn runs once the picture shows the world as it is now: after the pending or running bake, at once
 when none is coming or the filter is off; Build mode's expansion cheers then), `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
@@ -675,6 +678,18 @@ already playing freezes mid-swing and goes on after. `bwait(seconds)` waits on i
 was cut: a snack that cancels an action on the server (its Fx comes while the old act plays) sets `cutPlay`, the
 playing act stops where it is, and the next act starts with its `cancel` event (the attacker hops back to its place,
 the health shown goes back to `hp`), then the throw.
+**The run on** (GAME_DESIGN 7): every stop is the next area of the endless islet (`area`, `baseU` its middle along u;
+0 when the screen opens). `goOn` (only between stops: never in a battle or once the trip is over) calls `runOn`:
+`area` + 1, `Stage.area`, and each standing member of the party gets a `run` (from where it is to its `spot` + `baseU`,
+`RUN_SPEED` 17 studs/s, `RUN_STAGGER` 0.07 s apart; `runEnd` when the last gets there); then it asks `exp.next` and
+waits for the run before the stop plays (`playNode`; a battle runs 0.5 s after, a guardian's 1.2 s). `poseAll` runs
+them (the legs going, a driftling bounding, dust) and the camera with them (`Stage.follow(area - 1 + eased
+progress)`), and trims the areas behind at the end. `actorAt` follows the run; the timers wait for it. The next
+battle's wild ones stand in the new area from the moment the view brings them (`buildFoes`: no drop from above while
+a run is on; the line-up's key carries the stop's number, since two battles can bring the same one). While running,
+`busy` and `walking`: Back to island stays open (`leaveChoice`), and leaving cuts the run short (`goHome`, `close`).
+`debugState` adds `area`, `running`, `behind` (members more than 20 studs behind the area's middle), `foeU` (the
+nearest wild one from it) and `dropping`; `debugAuto(on)` holds the auto Go on (previews).
 **A closer look** (`inspect(key?)`): a mouse over a fighter on the stage (`fighterAt(i, j)`: the figure under the
 point by the stage's `screen()` projection) or its card, or a finger held on either for `HOLD_SECS` (0.45 s), shows
 `Inspect` (a plate over the figure's head, kept there every frame by `placeInspect`): name and level, rarity and
@@ -685,7 +700,7 @@ or the finger lifts; never while aiming.
 is over) and `LeaveStay` (the battle goes on).
 **The end of a fall**: the `Result` card titled "Expedition Complete!" (its width fits the big title) lists the loot
 (`out.loot`), the party's xp and each member's levels (`out.gained`), then Sail home.
-`MicroStage` (client): `open(variant, margins?, seed?) -> Stage` (an islet set laid out by the island's seed), `current()`, `has(variant)`, the yaws `FACE_VIEWER
+`MicroStage` (client): `open(variant, margins?, seed?, endless?) -> Stage` (an islet set laid out by the island's seed), `current()`, `has(variant)`, the yaws `FACE_VIEWER
 FACE_RIGHT FACE_LEFT FACE_AWAY`, `U_DIR` (screen right) and `V_DIR` (toward the viewer). A stage is a folder
 `MicroStage` at Z = 9000 (far from the islands: no ray of either view reaches the other): a 24 x 24 set and its props
 (the kinds' `loot` beach, `leap` meadow, `dino` volcano sands, `frost` snowfield, `fish` sea floor; each but the sea
@@ -703,6 +718,18 @@ t, speed, action, k?), puff(pos, kind, n?, color?) (3D bits from a pool of 56 pa
 smoke bubble petal ember twinkle splash snow heal heart`), lift(), step(t, dt) (the bits and the set's ambient life:
 gulls, butterflies, smoke, snow, bubbles, a crab), ready(), close() }`. Stage space: u to the screen's right, v toward
 the viewer, y up from the floor's top; everything is world-aligned on the iso grid.
+**The endless islet** (`endless`, the expeditions: GAME_DESIGN 7 "the run on"): the set is built area by area, area
+k a folder `Area<k>` at `AREA_OFF` x k in room space ((20, 0, -20): whole studs, so every box stays on the grid) and
+`AREA_U` x k (28.3 studs) along u; each from the seed + 7919 k (the builder's `off`, `du`, `endless`), its landmark
+only in area 0 (`lm`: later areas put it out of sight at `FAR_LM`: in the next area's place it would stand on this
+one's floor). A shore prop of an area keeps off the neighbours' floors and off the band the party runs along, and a
+tall one off the screen's clear spots in the neighbours' views and from just in front of the fighters
+(`shoreSpot`). The sea is laid once (`SEA_AREAS`, 200 areas long: a part across the whole screen would re-bake it).
+Areas 0 and 1 are built with the stage (before its first picture), the rest by `Stage.area(k)` (the areas up to
+k + 2, one at a time on a background thread, `Blocks.pace` 40 parts a frame, out of sight; the ambient life moves to
+area k: `ambOff`, `ambU`); `Stage.trim(k)` drops the areas below k - 1 (out of sight too); `Stage.follow(units)` sets
+the camera's shift (`CameraController.setStageShift(AREA_OFF x units)`). The renderer re-casts the rects of the
+stage's parts that come or go (`PixelRenderer.watchStage`).
 
 ### 10.10 Sprites (`PixelSprites`, `ArtData`)
 `ArtData` (generated by `scripts/gen_art.py`; do not edit): `{ [name]: { w, h, px, pal, alpha } }`, one character a
