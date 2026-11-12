@@ -94,21 +94,29 @@ on the tree, and expand the island for bigger buildings. Nothing happens while y
 - **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
   panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
-  icon. Every driftling has a 24x24 portrait and the island's things 11x11 icons, drawn by the rules below.
+  icon. Every driftling has a 32x32 portrait and the island's things 11x11 icons, drawn by the rules below.
 
   > The request (2026-11-12): "instead of character sprites for the creatures, can you take their pixellated models
   > in a 3/4 angle, and polish them to follow pixel art rules if required?"
 
+  > And after the first try: "most of those sprites look unreadable. try to tweak them so they look more readable"
+
   So a portrait is the driftling itself: its 3D model drawn by the game's own picture path (the palette, the toon
-  bands, the shadows and the ink outline the island draws it with), standing at rest with its eyes open, turned 20
-  degrees past the world's view so its face turns toward us and its side shows (picked from -20, 0, 20 and 40), fitted
-  to 24 x 24 (the island draws a driftling about that big, so the panels show it as you see it). Then it is tidied
-  to the rules below: no half see-through pixels, the outline made again 1 px wide on the four sides only (cut
-  corners, no doubled pixels at a turn), lone pixels sticking out and one-pixel notches gone, the bands' dither
-  settled where one pixel stands alone in another tone (no grain at this size), the creases inside thinned to 1 px,
-  the curves softened a step inside the outline. A long body (a wyrm, a drake with its wings out) is fitted by its
-  widest side, so it sits smaller in the square. The rows, cards and slots that show one grew to fit it. The
-  hand-drawn 16x16 portraits of the request below are gone.
+  bands, the shadows and the ink outline the island draws it with), standing at rest with its eyes open, turned 30
+  degrees past the world's view so its face turns toward us and its side still shows, fitted to 32 x 32. The first
+  try, the model as the island shows it at 24 x 24, came out as small muddy shapes: a face was two or three pixels,
+  black crease lines ran all through each creature, dark bodies sank into the outline and the eyes' shines came out
+  as grey squares. So a portrait has its own proportions, the way portrait art exaggerates: the head and everything
+  on it 1.45 times bigger about the neck, the eyes 1.6 times bigger again with a small glint that glows white, and
+  the camera at 15 degrees instead of the world's 30, so the face shows more and the top of the head less. Then it is
+  tidied to the rules below: no half see-through pixels, the outline made again 1 px wide on the four sides only
+  (cut corners, no doubled pixels at a turn), lone pixels sticking out and one-pixel notches gone, the bands' dither
+  settled where one pixel stands alone in another tone, the creases inside 1 px and a step darker than the colour
+  beside them instead of black (selective outlining), a body too dark to read against the outline lifted (never the
+  eyes), a little more colour so it doesn't go grey on the brown panels, tones closer than a step made one, the
+  curves softened a step inside the outline. A long body (a wyrm, a drake with its wings out) is fitted by its widest
+  side, so it sits smaller in the square. The rows, cards and slots that show one grew to fit it. The hand-drawn
+  16x16 portraits of the request below are gone.
 
   > The request (2026-11-11): "also, the sprites you made for the creatures dont follow a specific style and look
   > strange at times. reference pokemon sprites, with their angles and detailing" (with a sheet of another studio's
@@ -142,7 +150,7 @@ on the tree, and expand the island for bigger buildings. Nothing happens while y
 
 - **No mixels.** One art pixel is one UI px is one K-sized block on the screen: nothing is ever drawn scaled up
   (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: a driftling's portrait is
-  24x24 (drawn from its model at that size, never shrunk or blown up), a small icon 11x11. The world and the driftlings are 3D and drawn by the pixel filter, so they keep the same
+  32x32 (drawn from its model at that size, never shrunk or blown up), a small icon 11x11. The world and the driftlings are 3D and drawn by the pixel filter, so they keep the same
   grid, palette and outline.
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
@@ -416,7 +424,7 @@ kind's driftlings once the island reaches that kind's tier, above):
 
 Each has a **knack** (farms, fishing piers, lumber camps or shops: where it helps), a 3D model built from parts
 (twenty body plans: blob, crab, bird, bun, lizard, owl, pup, mole, jelly, fox, wyrm, seal, bat, sprite, yeti, snail,
-turtle, frog, moth, golem and drake) and a 24x24 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
+turtle, frog, moth, golem and drake) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
 the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 
 - **Rarity** (`Traits.RARITY`): Common, Uncommon, Rare, Epic, Legendary (name colours: grey, green, blue, purple,

@@ -14,12 +14,17 @@
 #   * jaggies: a lone pixel sticking out of the silhouette (one neighbour) goes, a one-pixel notch is filled;
 #   * the toon bands' dither at band edges (a checkerboard of two tones) settled to the nearer tone where a pixel stands
 #     alone against four neighbours of one other tone: no grain at this size (the eyes' glints and the glow stay);
-#   * the creases inside (the renderer's ink where one part meets another) thinned to 1 px where they come out 2;
+#   * the creases inside (the renderer's ink where one part meets another) thinned to 1 px where they come out 2, then
+#     drawn a step darker than the colour beside them instead of in ink (selective outlining: at 24 px a web of black
+#     lines hides the creature); a body too dark to read against the outline lifted (the eyes stay dark); tones
+#     closer than a step made one (the request: "most of those sprites look unreadable. try to tweak them so they look
+#     more readable");
 #   * the curves softened inside the outline: a pixel that meets the outline only at a corner goes a step toward the
 #     ink (anti-aliasing on the inside, never outside the outline).
 import argparse, os, sys
 
-INK = (0x2B, 0x1E, 0x2E)
+INK = (0x2B, 0x1E, 0x2E)  # the renderer's outline and creases, drawn flat (Data/Palette "ink")
+BLACK = (0x3B, 0x34, 0x42)  # the models' eyes and mouths (Data/Palette "black"), shaded by the toon bands
 
 
 def parse(path):
@@ -51,8 +56,16 @@ def lum(c):
     return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]
 
 
-def is_ink(c):
-    return c is not None and lum(c) < 60 and dist(c, INK) < 60 * 60
+def is_ink(c):  # exactly the renderer's ink (an eye's darkest band is a few steps from it)
+    return c is not None and dist(c, INK) < 3 * 3
+
+
+def is_eye(c):  # an eye's or a mouth's dark, any of its bands (never lifted, never merged away)
+    return c is not None and not is_ink(c) and lum(c) < 64 and max(c) - min(c) < 30
+
+
+def shade(c, k):  # a step darker, a little cooler (the ramps' own way: GAME_DESIGN 2)
+    return (int(c[0] * k), int(c[1] * k), min(255, int(c[2] * k + 8)))
 
 
 def tidy(px):
@@ -107,6 +120,55 @@ def tidy(px):
                     if a is not None and not is_ink(a) and b1 is not None and is_ink(b1) and nb[y + dy][x + dx] == b1 and b2 is not None and not is_ink(b2):
                         nb[y + dy][x + dx] = b2
         body = nb
+    # 3c. readability at 24 px: the creases inside become a step darker than the colour beside them (selective
+    # outlining: the parts stay apart without a web of black lines), a body too dark to read against the outline is
+    # lifted, and tones closer than a step are one tone
+    nb = [[body[y][x] for x in range(w)] for y in range(h)]
+    for y in range(h):
+        for x in range(w):
+            c = body[y][x]
+            if c is None or not is_ink(c):
+                continue
+            n8 = [gb(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))]
+            near = [d for d in n8 if d is not None and not is_ink(d) and not is_eye(d)]
+            if near:
+                base = max(near, key=lambda d: (sum(1 for e in near if e == d), -lum(d)))
+                nb[y][x] = shade(base, 0.62)
+    body = nb
+    for y in range(h):
+        for x in range(w):
+            c = body[y][x]
+            if c is None or is_eye(c) or is_ink(c):
+                continue
+            L = lum(c)
+            if L < 78:
+                k = min(2.2, 78 / max(1.0, L))
+                body[y][x] = tuple(min(255, int(c[i] * k + 6)) for i in range(3))
+    # (a little more colour: on the panels' brown plates a muted body goes grey)
+    for y in range(h):
+        for x in range(w):
+            c = body[y][x]
+            if c is None or is_eye(c) or is_ink(c):
+                continue
+            m = sum(c) / 3
+            body[y][x] = tuple(max(0, min(255, int(m + (c[i] - m) * 1.18))) for i in range(3))
+    counts = {}
+    for r in body:
+        for c in r:
+            if c is not None:
+                counts[c] = counts.get(c, 0) + 1
+    order = sorted(counts, key=lambda c: -counts[c])
+    keep = []
+    remap = {}
+    for c in order:
+        to = next((k for k in keep if dist(k, c) < 14 * 14 and not is_eye(c) and not is_eye(k)), None)
+        if to is None:
+            keep.append(c)
+            remap[c] = c
+        else:
+            remap[c] = to
+    body = [[None if c is None else remap[c] for c in r] for r in body]
+    gb = lambda x, y: body[y][x] if 0 <= x < w and 0 <= y < h else None
     # 4. the outline again: 1 px of ink on the 4 sides of the silhouette (convex corners cut)
     out = [[body[y][x] for x in range(w)] for y in range(h)]
     for y in range(h):

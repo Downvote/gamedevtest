@@ -963,7 +963,7 @@ function SCEN.pportraits()
 	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr })
 end
 function SCEN.pportraits_try()
-	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, species = { "pebblit", "mossbun", "clawdle", "gullfin", "pyredrake", "crystowl" }, yaws = { -20, 0, 20, 40 } })
+	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, species = { "pebblit", "mossbun", "clawdle", "gullfin", "pyredrake", "crystowl", "magmole", "glowbat", "tidewyrm", "conchy", "shellback", "sunsprite" }, yaws = { 30 } })
 end
 
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the

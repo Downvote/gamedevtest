@@ -85,11 +85,12 @@ def flipx(rows):
     return [r[::-1] for r in rows]
 
 
-# ---------------------------------------------------------------- the driftlings' portraits, 24 x 24
+# ---------------------------------------------------------------- the driftlings' portraits, 32 x 32
 # The request (2026-11-12): "instead of character sprites for the creatures, can you take their pixellated models in a
 # 3/4 angle, and polish them to follow pixel art rules if required?" So a portrait is the driftling's own 3D model
 # drawn by the game's picture path (the preview scenario "pportraits": Pixel/Snapshot, the world's palette, toon bands,
-# shadows and outline), three quarters turned left, fitted to 24 x 24, then tidied to the pixel art rules
+# shadows and outline), three quarters turned left, its head and eyes bigger so it reads small ("most of those sprites
+# look unreadable. try to tweak them so they look more readable"), fitted to 32 x 32, then tidied to the pixel art rules
 # (tools/preview/gen_portraits.py: no half see-through pixels, a 1 px outline with cut corners made again, lone spikes
 # and notches gone, the bands' dither settled, creases 1 px, curves softened inside the outline). They come from
 # scripts/portraits.txt (sh tools/preview/portraits.sh makes it); the hand-drawn 16 x 16 masks they replace are in

@@ -2,7 +2,9 @@
 -- pixellated models in a 3/4 angle, and polish them to follow pixel art rules if required?"), drawn ahead of time for
 -- the preview scenario "pportraits" (tools/README.md) through the game's own picture path (Pixel/Snapshot: the
 -- world's palette, toon bands, sun shadows and the 1 px ink outline): each driftling's model (Models/DriftModels via
--- MicroModels.driftling) standing at rest, eyes open, turned three quarters to the left, fitted to SIZE x SIZE art px.
+-- MicroModels.driftling) standing at rest, eyes open, turned three quarters to the left, fitted to SIZE x SIZE art px,
+-- in a portrait's own proportions (a bigger head and eyes, a lower camera: "most of those sprites look unreadable. try
+-- to tweak them so they look more readable").
 -- tools/preview/gen_portraits.py tidies them to the pixel art rules and writes scripts/portraits.txt, which
 -- scripts/gen_art.py turns into the "icon_<species>" sprites (sh tools/preview/portraits.sh does all three).
 -- Output (the scenario's log): per driftling `@@PORT <species> <w> <h> <RGBA hex>`. With `env.yaws` (a list of
@@ -10,7 +12,7 @@
 return function(env)
 	local E, H, log, capture = env.E, env.H, env.log, env.capture
 	local Instance, Enum, UDim2, Color3 = E.Instance, E.Enum, E.types.UDim2, E.types.Color3
-	local Vector2, CFrame = E.types.Vector2, E.types.CFrame
+	local Vector2, Vector3, CFrame = E.types.Vector2, E.types.Vector3, E.types.CFrame
 	local p = env.join(7302, "Painter")
 	env.settle(p, 30, 1)
 	local Snapshot = env.modOr(p, "Pixel.Snapshot")
@@ -20,11 +22,55 @@ return function(env)
 		log("pportraits: this tree has no Pixel/Snapshot")
 		return p
 	end
-	local SIZE = env.size or 24
-	-- (turned 20 degrees from the world's own view, its face toward +Z: three quarters, turned left, the face toward us
-	-- and the body's side showing; chosen from -20, 0, 20 and 40 with the scenario "pportraits_try")
-	local YAW = env.yaw or 20
+	local SIZE = env.size or 32
+	-- (turned 30 degrees from the world's own view, its face toward +Z: three quarters, turned left, the face toward us
+	-- and the body's side still showing)
+	local YAW = env.yaw or 30
 	local REST = 2.3 -- (seconds into the idle loop: eyes open, the body at the middle of its breath)
+	-- (a portrait's own proportions, so it reads at 32 px: the head and everything on it bigger about the neck, the eyes
+	-- bigger again, and the camera lower than the world's, so the face shows more and the top of the head less)
+	local HEAD = env.head or 1.45
+	local EYES = env.eyes or 1.6
+	local PITCH = env.pitch or 15
+	local function portraitPose(t)
+		local rig = t.rig
+		if rig == nil then
+			return
+		end
+		local inHead = {}
+		for _, name in rig.order do
+			local j = rig.joints[name]
+			if name == "head" or (j.parent and inHead[j.parent]) then
+				inHead[name] = true
+			end
+		end
+		local hj = rig.joints.head
+		local hw = rig.world.head
+		if hj and hw then
+			local pivot = hw * hj.pivot
+			for name, p in t.parts do
+				if inHead[rig.of[name] or "body"] then
+					local r = t.rest[name]
+					t.rest[name] = CFrame.new(pivot + (r.Position - pivot) * HEAD) * r.Rotation
+					p.Size = p.Size * HEAD
+				end
+			end
+		end
+		for _, side in { "L", "R" } do
+			local e = t.parts["Eye" .. side]
+			if e then
+				local c = t.rest["Eye" .. side].Position
+				e.Size = Vector3.new(e.Size.X * EYES, e.Size.Y * EYES, e.Size.Z)
+				-- (its shine stays small, moved out with the eye's edge, and glows white: a sharp glint, never a grey patch)
+				local sh = t.parts["Shine" .. side]
+				if sh then
+					local r = t.rest["Shine" .. side]
+					t.rest["Shine" .. side] = CFrame.new(c + (r.Position - c) * EYES) * r.Rotation
+					sh.Material = Enum.Material.Neon
+				end
+			end
+		end
+	end
 	local list = env.species or Creatures.list
 	local jobs = {}
 	H.inClient(p, function()
@@ -35,9 +81,10 @@ return function(env)
 				local snap = Snapshot.get("portrait:" .. name, function()
 					local t = MM.driftling(def.shape, def.body, def.accent)
 					MM.animate(t, REST, "idle", 0)
+					portraitPose(t)
 					MM.place(t, CFrame.new())
 					return t.model
-				end, { size = SIZE, yaw = yaw, pad = 1, outline = "outer", shadows = true, keep = true })
+				end, { size = SIZE, yaw = yaw, pitch = PITCH, pad = 1, outline = "outer", shadows = true, keep = true })
 				table.insert(jobs, { name = name, snap = snap })
 			end
 		end
