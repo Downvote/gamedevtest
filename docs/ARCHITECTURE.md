@@ -704,8 +704,10 @@ portrait's belly; a short light on the upper half of the top-left edges of masse
 ramps (`RAMPS`, `M` the magmole's warm basalt, `E` cream), no grain, curves inside the outline softened a step toward the
 shadow; the outline is never anti-aliased on its outside. The driftlings' portraits are not masks: `PORTRAITS`, read
 from `scripts/portraits.txt` (GAME_DESIGN 2: each driftling's 3D model drawn by `Pixel/Snapshot` at 32 x 32, turned
-30 degrees, pitch 15, in the preview scenario `pportraits`, its head 1.45 and its eyes 1.6 times bigger with a Neon
-glint (`portraitPose`), then tidied by `tools/preview/gen_portraits.py`: binary alpha, the outline made again 1 px on
+30 degrees, pitch 15, in the preview scenario `pportraits`, its head 1.45 times bigger and its eyes 1.1 again, in its
+body plan's style (`portraitPose` with `EYE_STYLE`: a size, an iris in the species' accent unless it is in `DULL` or
+too near the body, then the plan's own colour, a black `Pupil<L|R>` part as a dot, slit or bar, a Neon glint or none,
+a Neon glow for a sprite; a golem keeps its slits), then tidied by `tools/preview/gen_portraits.py`: binary alpha, the outline made again 1 px on
 the four sides, lone spikes and notches, the bands' dither settled, creases 1 px and a shade of the colour beside
 them, dark bodies lifted (not the eyes), a little more saturation, near tones merged, curves softened inside; `sh tools/preview/portraits.sh` runs the three and remakes `ArtData`).
 The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not met yet); an

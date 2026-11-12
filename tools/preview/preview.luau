@@ -957,13 +957,13 @@ function SCEN.ploadingart()
 end
 
 -- "pportraits": the driftlings' portraits drawn from their models (tools/preview/portraits.luau; gen_portraits.py tidies
--- them into scripts/portraits.txt for scripts/gen_art.py: sh tools/preview/portraits.sh). "pportraits_try": three
--- driftlings at a few angles, to choose one.
+-- them into scripts/portraits.txt for scripts/gen_art.py: sh tools/preview/portraits.sh). "pportraits_try": one
+-- driftling of each body plan, to try a change before baking them all.
 function SCEN.pportraits()
 	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr })
 end
 function SCEN.pportraits_try()
-	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, species = { "pebblit", "mossbun", "clawdle", "gullfin", "pyredrake", "crystowl", "magmole", "glowbat", "tidewyrm", "conchy", "shellback", "sunsprite" }, yaws = { 30 } })
+	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, species = { "pebblit", "clawdle", "gullfin", "mossbun", "frondle", "crystowl", "emberpup", "magmole", "glowbat", "snowpuff", "floe", "sunsprite", "lumajelly", "tidewyrm", "conchy", "shellback", "hopsprout", "bloomoth", "elderbark", "pyredrake" }, yaws = { 30 } })
 end
 
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the

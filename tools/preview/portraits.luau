@@ -18,6 +18,7 @@ return function(env)
 	local Snapshot = env.modOr(p, "Pixel.Snapshot")
 	local MM = env.cshared(p, "Models.MicroModels")
 	local Creatures = env.cshared(p, "Data.Creatures")
+	local Blocks = env.cshared(p, "Models.Blocks")
 	if Snapshot == nil then
 		log("pportraits: this tree has no Pixel/Snapshot")
 		return p
@@ -30,9 +31,41 @@ return function(env)
 	-- (a portrait's own proportions, so it reads at 32 px: the head and everything on it bigger about the neck, the eyes
 	-- bigger again, and the camera lower than the world's, so the face shows more and the top of the head less)
 	local HEAD = env.head or 1.45
-	local EYES = env.eyes or 1.6
+	local EYES = env.eyes or 1.1 -- (about the model's own: "the eyes are too big in the sprites")
 	local PITCH = env.pitch or 15
-	local function portraitPose(t)
+	-- each body plan's eyes (the golem keeps its glowing slits): sx, sy their size; iris a colour (none: the model's
+	-- dark eye) taken from the species' accent when useAccent and it shows; pupil "dot", "slit" or "bar"; shine false
+	-- for none; glow for a lit eye
+	local EYE_STYLE = {
+		blob = { sx = 0.85, sy = 0.5, shine = false }, -- a stone's squint
+		crab = { sx = 0.85, sy = 0.85 }, -- beads on stalks
+		snail = { sx = 0.85, sy = 0.85 },
+		bird = { sx = 0.85, sy = 0.85 }, -- bright beads
+		bun = { sx = 0.95, sy = 1.1 },
+		pup = { sx = 0.95, sy = 1.05 },
+		seal = { sx = 0.9, sy = 0.9 }, -- round and glossy
+		jelly = { sx = 0.9, sy = 0.9 },
+		turtle = { sx = 0.85, sy = 0.7 }, -- small and wise
+		mole = { sx = 0.85, sy = 0.45, shine = false }, -- squinting at the light
+		-- (an iris with a pupil needs room to show both: these eyes are a little bigger than the plain dark ones)
+		lizard = { iris = "yellow", alt = "orange", pupil = "slit", useAccent = true, sx = 1.3, sy = 1.15, shine = false },
+		wyrm = { iris = "yellow", alt = "orange", pupil = "slit", useAccent = true, sx = 1.35, sy = 1.05, shine = false },
+		drake = { iris = "yellow", alt = "orange", pupil = "slit", useAccent = true, sx = 1.3, sy = 1.0, shine = false },
+		owl = { iris = "orange", alt = "yellow", pupil = "dot", useAccent = true, sx = 1.35, sy = 1.2 },
+		yeti = { iris = "blue", alt = "screen_on", pupil = "dot", useAccent = true, sx = 0.95, sy = 0.95, shine = false },
+		frog = { iris = "yellow", alt = "orange", pupil = "bar", useAccent = true, sx = 1.05, sy = 1.0 },
+		bat = { iris = "berry_red", alt = "orange", useAccent = true, sx = 1.0, sy = 1.0 }, -- red
+		moth = { iris = "berry_red", alt = "purple", useAccent = true, sx = 1.15, sy = 1.2 }, -- one colour, no pupil
+		sprite = { iris = "screen_on", alt = "white", useAccent = true, glow = true, sx = 0.9 },
+	}
+	-- accents too dull or pale to read as an eye's colour
+	local DULL = { white = true, cream = true, sand = true, sand_dark = true, wood = true, wood_dark = true, leaf_dark = true, steel = true, steel_dark = true, rock = true, rock_dark = true, black = true, night = true, chalk = true, window = true, shallow = true, green = true }
+	local function far(a: string, b: string): boolean
+		local ca, cb = Blocks.color(a), Blocks.color(b)
+		local dr, dg, db = (ca.R - cb.R) * 255, (ca.G - cb.G) * 255, (ca.B - cb.B) * 255
+		return dr * dr + dg * dg + db * db > 120 * 120
+	end
+	local function portraitPose(t, shape, body, accent)
 		local rig = t.rig
 		if rig == nil then
 			return
@@ -56,17 +89,53 @@ return function(env)
 				end
 			end
 		end
+		-- the eyes in their body plan's style ("the eyes all look the same"): their size and shape, an iris in the
+		-- species' accent (or the plan's own colour when the accent is too dull or too near the body) with a dot, slit
+		-- or bar pupil, a glow, a glint or none
+		local st = EYE_STYLE[shape] or {}
+		local iris: string? = st.iris
+		if iris and st.useAccent and not DULL[accent] and far(accent, body) then
+			iris = accent
+		end
+		if iris and not far(iris, body) then
+			iris = st.alt or "white"
+		end
 		for _, side in { "L", "R" } do
 			local e = t.parts["Eye" .. side]
-			if e then
-				local c = t.rest["Eye" .. side].Position
-				e.Size = Vector3.new(e.Size.X * EYES, e.Size.Y * EYES, e.Size.Z)
-				-- (its shine stays small, moved out with the eye's edge, and glows white: a sharp glint, never a grey patch)
+			if e and shape ~= "golem" then
+				local rest = t.rest["Eye" .. side]
+				local c = rest.Position
+				local sx, sy = (st.sx or 1) * EYES, (st.sy or 1) * EYES
+				e.Size = Vector3.new(e.Size.X * sx, e.Size.Y * sy, e.Size.Z)
+				if iris then
+					e.Color = Blocks.color(iris)
+					if st.glow then
+						e.Material = Enum.Material.Neon
+					end
+					if st.pupil then
+						local pw, ph = 0.45, 0.45
+						if st.pupil == "slit" then
+							pw, ph = 0.3, 0.9
+						elseif st.pupil == "bar" then
+							pw, ph = 0.8, 0.3
+						end
+						local pupil = Blocks.part(t.model, { size = Vector3.new(math.max(0.06, e.Size.X * pw), math.max(0.06, e.Size.Y * ph), 0.08), cf = CFrame.new(), color = "black", name = "Pupil" .. side, collide = false, query = false })
+						t.parts["Pupil" .. side] = pupil
+						t.rest["Pupil" .. side] = rest * CFrame.new(0, -e.Size.Y * 0.05, 0.05)
+					end
+				end
+				-- (the glint stays small and glows white, moved with the eye's edge; none on a squint or a glow)
 				local sh = t.parts["Shine" .. side]
 				if sh then
-					local r = t.rest["Shine" .. side]
-					t.rest["Shine" .. side] = CFrame.new(c + (r.Position - c) * EYES) * r.Rotation
-					sh.Material = Enum.Material.Neon
+					if st.shine == false or st.glow then
+						sh:Destroy()
+						t.parts["Shine" .. side] = nil
+					else
+						local r = t.rest["Shine" .. side]
+						local off = r.Position - c
+						t.rest["Shine" .. side] = CFrame.new(c + Vector3.new(off.X * sx, off.Y * sy, off.Z)) * r.Rotation
+						sh.Material = Enum.Material.Neon
+					end
 				end
 			end
 		end
@@ -81,7 +150,7 @@ return function(env)
 				local snap = Snapshot.get("portrait:" .. name, function()
 					local t = MM.driftling(def.shape, def.body, def.accent)
 					MM.animate(t, REST, "idle", 0)
-					portraitPose(t)
+					portraitPose(t, def.shape, def.body, def.accent)
 					MM.place(t, CFrame.new())
 					return t.model
 				end, { size = SIZE, yaw = yaw, pitch = PITCH, pad = 1, outline = "outer", shadows = true, keep = true })

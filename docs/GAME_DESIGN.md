@@ -101,14 +101,22 @@ on the tree, and expand the island for bigger buildings. Nothing happens while y
 
   > And after the first try: "most of those sprites look unreadable. try to tweak them so they look more readable"
 
+  > Then: "the eyes are too big in the sprites and the eyes all look the same"
+
   So a portrait is the driftling itself: its 3D model drawn by the game's own picture path (the palette, the toon
   bands, the shadows and the ink outline the island draws it with), standing at rest with its eyes open, turned 30
   degrees past the world's view so its face turns toward us and its side still shows, fitted to 32 x 32. The first
   try, the model as the island shows it at 24 x 24, came out as small muddy shapes: a face was two or three pixels,
   black crease lines ran all through each creature, dark bodies sank into the outline and the eyes' shines came out
   as grey squares. So a portrait has its own proportions, the way portrait art exaggerates: the head and everything
-  on it 1.45 times bigger about the neck, the eyes 1.6 times bigger again with a small glint that glows white, and
-  the camera at 15 degrees instead of the world's 30, so the face shows more and the top of the head less. Then it is
+  on it 1.45 times bigger about the neck, and the camera at 15 degrees instead of the world's 30, so the face shows
+  more and the top of the head less. The eyes grow with the head and only a little more (1.1), and each body plan has
+  its own: a stone and a mole squint (flat, no glint), crabs, snails, birds and turtles have small beads, buns and
+  pups taller round ones, seals and jellies round ones, each with a small glint that glows white. Lizards, wyrms and
+  drakes have a coloured eye with a slit pupil, owls a big coloured one with a round pupil, frogs a bar pupil, yetis
+  a pale icy one, bats and moths a red or coloured eye with no pupil, and a sprite's eyes glow. The colour is the
+  species' own accent when it shows against the body (a dull or pale accent, or one too near the body's colour, falls
+  back to the plan's own), so two drakes don't share a stare. Then it is
   tidied to the rules below: no half see-through pixels, the outline made again 1 px wide on the four sides only
   (cut corners, no doubled pixels at a turn), lone pixels sticking out and one-pixel notches gone, the bands' dither
   settled where one pixel stands alone in another tone, the creases inside 1 px and a step darker than the colour
