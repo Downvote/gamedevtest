@@ -3416,7 +3416,9 @@ function ExpeditionUI.open()
 	if arriving then
 		actors.f.deck = 1
 	end
-	-- the curtain: ink blinds with the island's name while the stage's picture is baked
+	-- the curtain: ink blinds with the island's name while the stage's picture is baked (laid out against the
+	-- canvas's edges, and its blinds three screens deep: the pixel size changes under it as the stage comes up, and a
+	-- curtain of the old size in UI px covered only part of the screen)
 	local curtain = Instance.new("Frame")
 	curtain.Name = "Curtain"
 	curtain.BackgroundTransparency = 1
@@ -3425,16 +3427,16 @@ function ExpeditionUI.open()
 	curtain.Parent = r
 	local BLIND = 12
 	local blinds: { Frame } = {}
-	for y = 0, h - 1, BLIND do
-		local band = UIKit.rect(curtain, UDim2.fromOffset(w, math.min(BLIND, h - y)), UDim2.fromOffset(0, y), UIKit.color("ink"), 35)
+	for y = 0, 3 * h - 1, BLIND do
+		local band = UIKit.rect(curtain, UDim2.new(1, 0, 0, BLIND), UDim2.fromOffset(0, y), UIKit.color("ink"), 35)
 		band.Name = "Blind"
 		UIKit.rect(band, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -1), UIKit.hex(0x3B3048), 35)
 		table.insert(blinds, band)
 	end
-	PixelSprites.image(curtain, "mini_wild", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
-	UIKit.text(curtain, e.isle.name, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsletName" })
+	PixelSprites.image(curtain, "mini_wild", UDim2.new(0.5, -5, 0.5, -26), 40)
+	UIKit.text(curtain, e.isle.name, UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0.5, -12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsletName" })
 	local sdef = SiteData.byIslet[e.isle.kind]
-	UIKit.text(curtain, if sdef then string.format("%s, level %d", sdef.name, e.isle.lvl) elseif def then string.format("%s, level %d", def.name, e.isle.lvl) else "", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
+	UIKit.text(curtain, if sdef then string.format("%s, level %d", sdef.name, e.isle.lvl) elseif def then string.format("%s, level %d", def.name, e.isle.lvl) else "", UDim2.new(1, -16, 0, 10), UDim2.new(0, 8, 0.5, 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
 	if not arriving then
 		Audio.play("trumpet")
 	end
@@ -3447,14 +3449,15 @@ function ExpeditionUI.open()
 				lifted = true
 				liftDelay = now - opened
 				st.lift()
-				local mid = #blinds / 2
+				local _, hNow = canvasSize()
+				local mid = math.ceil(hNow / BLIND) / 2
 				for i, band in blinds do
-					local d = math.abs(i - 0.5 - mid) * 0.018
+					local d = math.min(math.abs(i - 0.5 - mid), mid + 1) * 0.018
 					local y0 = band.Position.Y.Offset
 					local bh = band.Size.Y.Offset
 					task.delay(d, function()
 						if band.Parent then
-							UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, 0), Position = UDim2.fromOffset(0, y0 + math.floor(bh / 2)) })
+							UIKit.tween(band, 0.16, { Size = UDim2.new(1, 0, 0, 0), Position = UDim2.fromOffset(0, y0 + math.floor(bh / 2)) })
 						end
 					end)
 				end
@@ -3689,14 +3692,15 @@ function ExpeditionUI.close(after: (() -> ())?)
 	curtain.Parent = r
 	local BLIND = 12
 	local n = 0
-	for y = 0, h - 1, BLIND do
-		local bh = math.min(BLIND, h - y)
-		local band = UIKit.rect(curtain, UDim2.fromOffset(w, 0), UDim2.fromOffset(0, y + math.floor(bh / 2)), UIKit.color("ink"), 45)
+	-- (three screens deep, full width at any pixel size: see the curtain at open)
+	for y = 0, 3 * h - 1, BLIND do
+		local bh = BLIND
+		local band = UIKit.rect(curtain, UDim2.new(1, 0, 0, 0), UDim2.fromOffset(0, y + math.floor(bh / 2)), UIKit.color("ink"), 45)
 		UIKit.rect(band, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -1), UIKit.hex(0x3B3048), 45)
 		n += 1
-		task.delay(n * 0.01, function()
+		task.delay(math.min(n, math.ceil(h / BLIND)) * 0.01, function()
 			if band.Parent then
-				UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, bh), Position = UDim2.fromOffset(0, y) })
+				UIKit.tween(band, 0.16, { Size = UDim2.new(1, 0, 0, bh), Position = UDim2.fromOffset(0, y) })
 			end
 		end)
 	end

@@ -462,6 +462,53 @@ return function()
 		T.eq(p.islets, 0, "nothing cleared: the place was gone")
 		T.eq(#Sites.spawn(p), 0, "and nothing comes back up")
 	end)
+	T.it("a low place is gentle: the new island's level 1 place is cleared by the founder and the first villager every time", function()
+		-- ("the lvl 1 cave should be easy enough to be beaten by starting 2 members of the party all the time",
+		-- 2026-11-12) both level 1, the battles left to run by themselves: no snacks, no skills, no fleeing
+		local Island = require("../../build/luautest/shared/Logic/Island")
+		local wins, worst, N = 0, math.huge, 400
+		for seed = 1, N do
+			local p = Schema.default(0, seed)
+			p.food = 500
+			local rng = Util.newRng(seed * 31 + 7)
+			local v = Island.moveIn(p, rng)
+			local uid = 0
+			for _, q in p.plot.placed do
+				if q.id == SiteData.wildId("tidepool") and q.lvl == 1 then
+					uid = q.uid
+				end
+			end
+			local ok, e = Expedition.enter(p, uid, { "v" .. v.id })
+			T.truthy(ok, "seed " .. seed .. ": in")
+			local guard = 0
+			while e.over == nil and guard < 5000 do
+				guard += 1
+				if e.battle then
+					e.battle.paused = false
+					Expedition.tick(p, e, 0.5, rng)
+				elseif not Expedition.next(p, e, rng) then
+					break
+				end
+			end
+			if e.over == "won" then
+				wins += 1
+				local h, m = 0, 0
+				for _, f in e.party do
+					h += math.max(0, f.hp)
+					m += f.maxHp
+				end
+				worst = math.min(worst, h / m)
+			end
+		end
+		T.eq(wins, N, "cleared every time")
+		T.truthy(worst > 0.3, string.format("with health to spare (the worst run ends at %.2f)", worst))
+		-- the climb: a low place climbs only its share, a place from ClimbFull up all of it
+		local low, full = Expedition.chart(1, 5, 1), Expedition.chart(Tuning.ClimbFull, 5, 1)
+		T.near(Expedition.climbOf(low), 1 / Tuning.ClimbFull, 1e-9)
+		T.eq(Expedition.climbOf(full), 1)
+		T.truthy(Expedition.levelAt(low, 8) < Expedition.levelAt(Expedition.chart(1, 5), 8) + math.floor(7 * Tuning.StageLvl) and Expedition.levelAt(low, 8) <= 2, "the level 1 place's guardian stage barely climbs")
+		T.truthy(Expedition.guardianBoost(low) < 1 and Expedition.guardianBoost(full) == 1, "a low place's guardian keeps only its share of the extra strength")
+	end)
 	T.it("no fleeing a guardian, no snacks for it", function()
 		local p = fresh()
 		p.cap.lvl = 30

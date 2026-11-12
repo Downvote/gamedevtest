@@ -1298,6 +1298,58 @@ function SCEN.late()
 	return p
 end
 
+------------------------------------------------------------------ the loading card's art
+-- A client's module of ReplicatedStorage.Shared (the client's own copy, as the game requires it there).
+local function cshared(p, path)
+	local ctx = E.clientCtx(p)
+	local inst = E.find("ReplicatedStorage.Shared." .. path)
+	local e = ctx.modules[inst]
+	if e then
+		return e.value
+	end
+	return E.moduleIn(ctx, inst)
+end
+-- "ploadingart": the loading card's scene art, drawn through the game's own picture path (tools/preview/loading_art.luau;
+-- tools/preview/gen_loading_art.py turns its log into src/first/LoadingArt.luau: sh tools/preview/loading_art.sh)
+function SCEN.ploadingart()
+	return require("./loading_art")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr })
+end
+
+-- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
+-- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
+-- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, its actors, whether it painted).
+function SCEN.loading()
+	local p = H.addPlayer({ userId = 7400, name = "Loader" })
+	setTier(p)
+	local function card()
+		local ctx = E.clientCtx(p)
+		local inst = E.find("ReplicatedFirst.Loading.LoadingCard")
+		local e = ctx and inst and ctx.modules[inst]
+		return if e then e.value else nil
+	end
+	local k, shot = 0, false
+	for i = 1, 60 do
+		E.run(0.1)
+		local c = card()
+		local st = c and H.inClient(p, c.state)
+		if st and st.up and not st.fading then
+			if i >= 10 and not shot then
+				shot = true
+				capture(p, "loading")
+				log("loading: phase %s, bar %.2f, actors %d, painted %s, fallback %s, K %d, size %dx%d", st.phase, st.bar, st.actors, tostring(st.painted), tostring(st.fallback), st.K, st.size.X, st.size.Y)
+			end
+			if i >= 4 and i % 2 == 0 and k < 16 then
+				capture(p, string.format("loading_%03d", k))
+				k += 1
+			end
+		elseif st and i > 4 then
+			log("loading: the card is %s at %.1f s", if st.fading then "fading" else "down", i * 0.1)
+			break
+		end
+	end
+	return p
+end
+
 ------------------------------------------------------------------ run
 local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do

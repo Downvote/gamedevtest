@@ -79,7 +79,7 @@ progress).
   names on planks; the chips, the notices and the tip (a parchment note) thin frames; the chips and the rows in the
   panels are carved boards (a lit top row, a shaded bottom one); the menu bar stands on a wooden dock; the build tray is
   a workbench with its tabs on a plank; the islet's screen has dark boards top and bottom with plank trims facing the
-  island, and its skill window, alerts and results card are framed. The loading curtain is the open sea at night.
+  island, and its skill window, alerts and results card are framed. The loading card is the island at dusk (§11).
 - **The founder:** you walk your island and the boardwalk as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
@@ -410,6 +410,20 @@ it helps, stats) with **Help** (a picker of the buildings of its knack, or Rest)
   and the party's xp and levels; Head home takes everyone back. The first clear pays `FirstClear` (3) times the
   place's reward and frees its ring; a cleared place can be explored again for `ReplayReward` (0.4) of it (its
   driftlings are still there to befriend). The party can head home at any point, as before, with everything found.
+
+  > The request (2026-11-12): "the lvl 1 cave should be easy enough to be beaten by starting 2 members of the party all
+  > the time"
+
+- **The first places are gentle:** a place under `ClimbFull` (6) climbs only its level over that of the way (the level
+  1 Tide Pool a sixth, the level 3 Tall Grass a half): its wild ones' levels and their strength grow that much less
+  along the path, its guardian is not a level up and keeps only that share of a guardian's extra strength. In such a
+  place the wild ones are never a level over the place, their mutations never past a family's first tier, and a rare
+  or rarer one comes alone; and after every won fight the party catches its breath (`CatchBreath` (0.5) of their
+  health times the share of the climb the place lacks: about 0.42 in the level 1 place). From level 6 up nothing
+  changes. Measured with the founder and the first villager, both level 1, the fights left to run by themselves (no
+  snacks, skills or fleeing): before, they cleared the level 1 Tide Pool 2 times in 300; now every time in 5,000 runs,
+  ending with three quarters of their health or more (`tests/specs/Expedition.spec.luau` holds it to every time in
+  400).
 
 The sea chart, the boat and its upgrades are gone. What follows is the history of the expedition rules; where it
 still speaks of islands, the chart or sailing, read wild places and walking in.
@@ -890,6 +904,31 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 - nobody starves for long, and the stores stay finite.
 
 ## 11. Polish and animation
+
+> The request (2026-11-12): "the loading screen isnt centered. also, the transition that happens when entering a cave
+> also seems to only affect a smaller part of the screen sometimes. can you also make the loading screen more
+> detailed, like the bakery game, with baked in models and animations?"
+
+- **The loading card** (`src/first/LoadingCard`, put up by ReplicatedFirst's Boot before the rest of the game has
+  arrived, Random Bakery's way): Driftling Isle at dusk. A sky in dithered bands from night blue to a warm orange, stars
+  in the dark of it, the sun going down on the horizon with far islands either side, a banded sea with the sun's path
+  on it and small waves; in the middle the island (its shallows, a ring of foam, wet sand, the sand with its cliff in
+  front, the grass, a jetty). On it the game's own models, drawn ahead of time through the game's picture path (the
+  preview scenario `ploadingart` bakes them frame by frame into `src/first/LoadingArt`): three palms, a Grass Hut, a
+  Tent, Tiki Torches, Flower Beds and Round Bushes, the wild Tide Pool blinking, the campfire flickering and throwing
+  embers, a villager cheering by it, two villagers strolling up and down the island with a Mossbun and a Clawdle at
+  their heels, a Gullfin hopping along the front; the expedition boat rocking past out at sea, gulls crossing the
+  sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Driftling Isle" in the
+  pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
+  "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
+  ink plate, a new one every few seconds. Everything is laid out from the screen's size each time it changes (the old
+  curtain took its size once, so on a window still settling its words sat left of the middle). Roblox's touch
+  buttons are hidden while it is up. When the first picture is on screen the bar fills and the card fades into it.
+  Without EditableImages it is a plain card (sky, sea, island, title, bar).
+- **Blinds that cover the screen:** the walk-in's blinds, the place's own curtain (its name while its 3D stage is
+  drawn) and the curtain on leaving it are laid out against the screen's edges and run three screens deep. Before,
+  they were sized in UI px when made, and the pixel size changes under them as the place's screen opens, so they
+  sometimes covered only part of the screen.
 
 > The requests (2026-11-06, 2026-11-09): "make the it more polished and animated as well"; "Polish everything to the
 > max. Add animations and details to everything, including the minigames"

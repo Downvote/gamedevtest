@@ -2,6 +2,13 @@
   "name": "byte-size-studio",
   "tree": {
     "$className": "DataModel",
+    "ReplicatedFirst": {
+      "Loading": {
+        "$path": "src/first",
+        "PixelFont": { "$path": "src/shared/Render/PixelFont.luau" },
+        "PixelFontData": { "$path": "src/shared/Render/PixelFontData.luau" }
+      }
+    },
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"

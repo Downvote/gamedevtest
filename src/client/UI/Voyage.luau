@@ -35,6 +35,7 @@ local WALK = 13 -- studs a second
 local CLOSE = 0.4 -- seconds the blinds take to close (or open)
 local MAX_WALK = 40 -- a longer walk starts the founder closer to the place (behind the letterbox's first moment)
 local OPEN_WAIT = 4 -- seconds the blinds wait at most for the island's picture before opening
+local BLIND = 12 -- UI px a band of the blinds
 
 type State = {
 	dir: string, -- "out" (going in) | "home" (coming home) | "reveal"
@@ -120,37 +121,39 @@ local function hideWorldUI(on: boolean)
 	end)
 end
 
+-- (Everything here is laid out against the canvas's edges, never at a size taken when it is made: the pixel size can
+-- change under the overlay, the place's screen opening behind the blinds or the island coming back, and an overlay
+-- of the old size in UI px then covered only part of the screen. The blinds run three screens deep for the same
+-- reason: a smaller pixel makes the canvas taller in UI px.)
 local function overlay(s: State, caption: string?, closed: boolean)
 	local canvas = UIKit.canvas("Stage")
-	local size = UIKit.size("Stage")
-	local w, h = size.X, size.Y
+	local h = UIKit.size("Stage").Y
 	local r = Instance.new("Frame")
 	r.Name = "Voyage"
 	r.BackgroundTransparency = 1
 	r.BorderSizePixel = 0
-	r.Size = UDim2.fromOffset(w, h)
+	r.Size = UDim2.fromScale(1, 1)
 	r.ZIndex = 30
 	r.Parent = canvas
 	s.gui = r
 	if caption then
 		-- the letterbox: an ink bar at the top and the bottom
 		local BAR = 16
-		local topBar = UIKit.rect(r, UDim2.fromOffset(w, BAR), UDim2.fromOffset(0, -BAR), UIKit.color("ink"), 30)
+		local topBar = UIKit.rect(r, UDim2.new(1, 0, 0, BAR), UDim2.fromOffset(0, -BAR), UIKit.color("ink"), 30)
 		topBar.Name = "BarTop"
-		local botBar = UIKit.rect(r, UDim2.fromOffset(w, BAR), UDim2.fromOffset(0, h), UIKit.color("ink"), 30)
+		local botBar = UIKit.rect(r, UDim2.new(1, 0, 0, BAR), UDim2.fromScale(0, 1), UIKit.color("ink"), 30)
 		botBar.Name = "BarBottom"
 		UIKit.tween(topBar, 0.3, { Position = UDim2.fromOffset(0, 0) })
-		UIKit.tween(botBar, 0.3, { Position = UDim2.fromOffset(0, h - BAR) })
-		UIKit.text(botBar, caption, UDim2.fromOffset(w - 60, 10), UDim2.fromOffset(6, 3), { color = UIKit.color("accent"), z = 31, name = "Caption" })
-		UIKit.button(botBar, "Skip", UDim2.fromOffset(40, 12), UDim2.fromOffset(w - 44, 2), function()
+		UIKit.tween(botBar, 0.3, { Position = UDim2.new(0, 0, 1, -BAR) })
+		UIKit.text(botBar, caption, UDim2.new(1, -60, 0, 10), UDim2.fromOffset(6, 3), { color = UIKit.color("accent"), z = 31, name = "Caption" })
+		UIKit.button(botBar, "Skip", UDim2.fromOffset(40, 12), UDim2.new(1, -44, 0, 2), function()
 			Voyage.skip()
 		end, { name = "VoyageSkip" })
 	end
 	-- the blinds: open (closing at the end of going in) or closed (opening on the island coming home)
-	local BLIND = 12
-	for y = 0, h - 1, BLIND do
-		local bh = math.min(BLIND, h - y)
-		local band = UIKit.rect(r, if closed then UDim2.fromOffset(w, bh) else UDim2.fromOffset(w, 0), if closed then UDim2.fromOffset(0, y) else UDim2.fromOffset(0, y + math.floor(bh / 2)), UIKit.color("ink"), 35)
+	for y = 0, 3 * h - 1, BLIND do
+		local bh = BLIND
+		local band = UIKit.rect(r, if closed then UDim2.new(1, 0, 0, bh) else UDim2.new(1, 0, 0, 0), if closed then UDim2.fromOffset(0, y) else UDim2.fromOffset(0, y + math.floor(bh / 2)), UIKit.color("ink"), 35)
 		band.Name = "Blind"
 		band.Visible = closed
 		band:SetAttribute("Y", y)
@@ -162,7 +165,6 @@ end
 
 local function title(s: State, name: string, line: string, visible: boolean)
 	local r = s.gui :: Frame
-	local w, h = r.Size.X.Offset, r.Size.Y.Offset
 	local t = Instance.new("Frame")
 	t.Name = "Title"
 	t.BackgroundTransparency = 1
@@ -170,9 +172,9 @@ local function title(s: State, name: string, line: string, visible: boolean)
 	t.ZIndex = 40
 	t.Visible = visible
 	t.Parent = r
-	PixelSprites.image(t, "mini_wild", UDim2.fromOffset(math.floor(w / 2) - 5, math.floor(h / 2) - 26), 40)
-	UIKit.text(t, name, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, math.floor(h / 2) - 12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsleName" })
-	UIKit.text(t, line, UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(8, math.floor(h / 2) + 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
+	PixelSprites.image(t, "mini_wild", UDim2.new(0.5, -5, 0.5, -26), 40)
+	UIKit.text(t, name, UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0.5, -12), { x = "center", face = "big", kind = "title", color = UIKit.color("accent"), z = 40, name = "IsleName" })
+	UIKit.text(t, line, UDim2.new(1, -16, 0, 10), UDim2.new(0, 8, 0.5, 8), { x = "center", color = UIKit.color("text"), z = 40, name = "Blurb" })
 	s.title = t
 end
 
@@ -182,19 +184,19 @@ local function closeBlinds(s: State, now: boolean)
 	if r == nil then
 		return
 	end
-	local w = r.Size.X.Offset
-	local mid = #s.blinds / 2
+	-- (the bands on the screen now close from the edges to the middle; the ones past its foot with the last)
+	local mid = math.ceil(UIKit.size("Stage").Y / BLIND) / 2
 	for i, band in s.blinds do
 		local y, bh = band:GetAttribute("Y") :: number, band:GetAttribute("H") :: number
 		band.Visible = true
 		if now then
-			band.Size = UDim2.fromOffset(w, bh)
+			band.Size = UDim2.new(1, 0, 0, bh)
 			band.Position = UDim2.fromOffset(0, y)
 		else
-			local d = (mid - math.abs(i - 0.5 - mid)) * 0.012
+			local d = math.max(0, mid - math.abs(i - 0.5 - mid)) * 0.012
 			task.delay(d, function()
 				if band.Parent then
-					UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, bh), Position = UDim2.fromOffset(0, y) })
+					UIKit.tween(band, 0.16, { Size = UDim2.new(1, 0, 0, bh), Position = UDim2.fromOffset(0, y) })
 				end
 			end)
 		end
@@ -220,17 +222,16 @@ local function openBlinds(s: State)
 	if r == nil then
 		return
 	end
-	local w = r.Size.X.Offset
-	local mid = #s.blinds / 2
+	local mid = math.ceil(UIKit.size("Stage").Y / BLIND) / 2
 	if s.title then
 		(s.title :: Frame).Visible = false
 	end
 	for i, band in s.blinds do
 		local y, bh = band:GetAttribute("Y") :: number, band:GetAttribute("H") :: number
-		local d = math.abs(i - 0.5 - mid) * 0.018
+		local d = math.min(math.abs(i - 0.5 - mid), mid + 1) * 0.018
 		task.delay(d, function()
 			if band.Parent then
-				UIKit.tween(band, 0.16, { Size = UDim2.fromOffset(w, 0), Position = UDim2.fromOffset(0, y + math.floor(bh / 2)) })
+				UIKit.tween(band, 0.16, { Size = UDim2.new(1, 0, 0, 0), Position = UDim2.fromOffset(0, y + math.floor(bh / 2)) })
 			end
 		end)
 		task.delay(d + 0.2, function()

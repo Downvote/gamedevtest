@@ -48,6 +48,19 @@ for _, n in { "Menu_build", "Menu_folk", "Menu_pals", "Menu_index", "Menu_looks"
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
 H.expect(#H.buttons(p, "^Food first", true) == 0, "join", "(tips are text, not buttons)")
+-- the loading card (src/first/LoadingCard: ReplicatedFirst's Boot put it up before the rest arrived): it went up, its
+-- title centred on the canvas, and it is gone once the first picture is on screen
+do
+	local ctx = E.clientCtx(p)
+	local inst = E.find("ReplicatedFirst.Loading.LoadingCard")
+	local entry = ctx and inst and ctx.modules[inst]
+	local st = entry and H.inClient(p, entry.value.state)
+	H.expect(st ~= nil and st.finished and not st.up, "join", "the loading card went up and is gone now the island shows", st and string.format("finished %s up %s", tostring(st.finished), tostring(st.up)))
+	local mid = st and st.title and (st.title.x0 + st.title.x1) / 2
+	H.expect(mid ~= nil and math.abs(mid - st.size.X / 2) <= 1, "join", "its title centred on the screen", if st and st.title then string.format("%s of %d", tostring(mid), st.size.X) else "no title")
+	local pg = p:FindFirstChildOfClass("PlayerGui")
+	H.expect(pg ~= nil and pg:FindFirstChild("LoadingCard") == nil, "join", "and nothing of it left on the screen")
+end
 -- the background music: the island's tunes by the clock; the note in the corner switches it off and on (kept)
 local AudioM = H.cmod(p, "Controllers.Audio")
 local ms = H.inClient(p, AudioM.musicState)
@@ -597,6 +610,30 @@ H.expect(not res.ok and res.err == "not_done", "quests", "a claim before the goa
 -- (a driftling sent to help at a building of its knack, the way the Driftlings panel's Help does)
 local CreaturesQ = H.sharedServer("Data.Creatures")
 local BuildingsQ = H.sharedServer("Data.Buildings")
+-- (whichever wild one the first trip befriended: when nothing on the island suits its knack yet, a building that does
+-- goes up first, as a player would build one)
+do
+	local suits = false
+	for _, x in prof.pals do
+		local d = CreaturesQ.byId[x.sp]
+		for _, q in prof.plot.placed do
+			local b = BuildingsQ.byId[q.id]
+			if d and b and b.knack == d.knack then
+				suits = true
+			end
+		end
+	end
+	local first = prof.pals[1]
+	local d = first and CreaturesQ.byId[first.sp]
+	if not suits and d then
+		for _, b in BuildingsQ.list do
+			if not suits and b.knack == d.knack and b.tier <= prof.tier and b.kind ~= "site" then
+				prof.shells, prof.wood = prof.shells + 5000, prof.wood + 500
+				suits = place(b.id).ok
+			end
+		end
+	end
+end
 local sent = false
 for _, x in prof.pals do
 	local d = CreaturesQ.byId[x.sp]

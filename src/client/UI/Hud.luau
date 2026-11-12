@@ -2,7 +2,7 @@
 -- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (shells, food, wood, the day and its
 -- clock), the menu bar along the bottom (Build, Villagers, Driftlings, Index, Looks), the island card on the
 -- right (the lodge, villagers and beds, driftlings and nests, visitors, charm, what a day makes) with the expedition
--- card under it while one is under way, the tips banner, the loading curtain and the new day's banner. The camera fits
+-- card under it while one is under way, the tips banner and the new day's banner (the loading card is src/first's). The camera fits
 -- the island clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -569,50 +569,6 @@ local function updateTips(v: Types.ClientView)
 	UIKit.tween(f, 0.18, { Position = UDim2.new(0, left, 1, -tipsLift()) })
 end
 
------------------------------------------------------------------- the loading curtain
-local function buildCurtain()
-	local canvas = UIKit.canvas("Popup")
-	local s = UIKit.size("Popup")
-	local f = Instance.new("Frame")
-	f.Name = "Curtain"
-	-- the open sea at night (GAME_DESIGN 2: the island's looks): deep blue, a few wave crests, the title, and the
-	-- loading bar in a thin frame of planks
-	f.BackgroundColor3 = UIKit.color("sea_shade")
-	f.BorderSizePixel = 0
-	f.Size = UDim2.new(1, 0, 1, 40)
-	f.Position = UDim2.fromOffset(0, -40)
-	f.ZIndex = 20
-	f.Parent = canvas
-	local crest = UIKit.color("sea_shade"):Lerp(UIKit.color("button"), 0.28)
-	local rng = Random.new(7)
-	for _ = 1, 26 do
-		local cx, cy = rng:NextInteger(4, math.max(5, s.X - 16)), rng:NextInteger(44, math.max(45, s.Y + 30))
-		local cw = rng:NextInteger(5, 12)
-		UIKit.rect(f, UDim2.fromOffset(cw, 1), UDim2.fromOffset(cx, cy), crest, 20).Name = "Crest"
-		UIKit.rect(f, UDim2.fromOffset(math.max(2, cw - 4), 1), UDim2.fromOffset(cx + 2, cy - 1), crest, 20).Name = "Crest"
-	end
-	local title = UIKit.text(f, "Driftling Isle", UDim2.fromOffset(s.X, 18), UDim2.new(0, 0, 0.5, 4), { x = "center", face = "big", color = UIKit.color("accent"), kind = "title", z = 21 })
-	title.AnchorPoint = Vector2.new(0, 1)
-	UIKit.text(f, "Waking up your island...", UDim2.fromOffset(s.X, 10), UDim2.new(0, 0, 0.5, 26), { x = "center", color = UIKit.color("text_dim"), z = 21 })
-	local holder = UIKit.plate(f, UDim2.fromOffset(124, 7), UDim2.new(0.5, -62, 0.5, 40), UIKit.color("plate"), 0, 1, { wood = 2 })
-	holder.ZIndex = 21
-	local _, set = UIKit.bar(holder, UDim2.fromOffset(120, 3), UDim2.fromOffset(2, 2), UIKit.color("accent"), UIKit.color("plate_light"))
-	task.spawn(function()
-		local t0 = os.clock()
-		while true do
-			local done, progress = PixelRenderer.firstPicture()
-			set(progress)
-			if done or os.clock() - t0 > 30 then
-				break
-			end
-			task.wait(0.05)
-		end
-		UIKit.tween(f, 0.3, { BackgroundTransparency = 1 })
-		task.wait(0.3)
-		f:Destroy()
-	end)
-end
-
 ------------------------------------------------------------------ a new day
 -- A banner drops in at the top: the day, who moved in, who trained. Under a panel or an expedition: a notice.
 -- A new calendar day ("Day 12": every few hours) or a turn's news (a newcomer, the yard's training).
@@ -740,7 +696,6 @@ local function rebuild()
 end
 
 function Hud.start()
-	buildCurtain()
 	Menus.init()
 	ExpeditionUI.init()
 	rebuild()

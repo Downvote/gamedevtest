@@ -280,13 +280,26 @@ function Expedition.guardianAt(node: number): number
 	return if st > 0 and st % Tuning.BossEvery == 0 then st // Tuning.BossEvery else 0
 end
 
--- The wild driftlings' level at a node: a level under the island's at the first stage, StageLvl more every stage
--- after it (without end: past the captain's own levels); and their strength's boost there (StageBoost a stage).
-function Expedition.levelAt(isle: Isle, node: number): number
-	return math.max(1, isle.lvl - 1 + math.floor(math.max(0, Expedition.stageOf(node) - 1) * Tuning.StageLvl))
+-- How much of the climb along its path a place has: one under Tuning.ClimbFull only its level over that of the way
+-- (the first places are learnt on), from there all of it. Without a place (the old calls), all of it.
+function Expedition.climbOf(isle: Isle?): number
+	return if isle then math.clamp(isle.lvl / Tuning.ClimbFull, 0, 1) else 1
 end
-function Expedition.boostAt(node: number): number
-	return 1 + Tuning.StageBoost * math.max(0, Expedition.stageOf(node) - 1)
+
+-- The wild driftlings' level at a node: a level under the island's at the first stage, StageLvl more every stage
+-- after it (times the place's climb); and their strength's boost there (StageBoost a stage, times the climb).
+function Expedition.levelAt(isle: Isle, node: number): number
+	return math.max(1, isle.lvl - 1 + math.floor(math.max(0, Expedition.stageOf(node) - 1) * Tuning.StageLvl * Expedition.climbOf(isle)))
+end
+function Expedition.boostAt(node: number, isle: Isle?): number
+	return 1 + Tuning.StageBoost * math.max(0, Expedition.stageOf(node) - 1) * Expedition.climbOf(isle)
+end
+
+-- A guardian's boost over its stage's (Battle.wild gives every guardian Tuning.BossBoost): a low place's guardian
+-- keeps only its climb's share of the extra.
+function Expedition.guardianBoost(isle: Isle): number
+	local c = Expedition.climbOf(isle)
+	return (1 + (Tuning.BossBoost - 1) * c) / Tuning.BossBoost
 end
 
 -- The guardian's reward: Tuning.FirstClear times the place's the first time it is cleared, Tuning.ReplayReward times
@@ -416,24 +429,53 @@ function Expedition.next(p: Profile, e: Expedition, rng: Rng): (boolean, any)
 		end
 	elseif kind == "wild" or kind == "boss" then
 		local lvl = Expedition.levelAt(isle, e.node)
-		local boost = Expedition.boostAt(e.node)
+		local boost = Expedition.boostAt(e.node, isle)
 		local foes: { Fighter } = {}
-		-- each born with its mutations (Data/Traits: a guardian rolls as one rarity rarer)
+		-- each born with its mutations (Data/Traits: a guardian rolls as one rarity rarer; in a low place none above a
+		-- family's first tier)
+		local low = Expedition.climbOf(isle) < 1
 		local function born(sp: string, up: number): { string }
 			local cd = Creatures.byId[sp]
-			return Traits.roll(rng, (if cd then cd.rarity else 1) + up)
+			local muts = Traits.roll(rng, (if cd then cd.rarity else 1) + up)
+			if low then
+				for i, id in muts do
+					local fam, tier = string.match(id, "^(%a+)(%d)$")
+					if fam and tonumber(tier) and (tonumber(tier) :: number) > 1 then
+						muts[i] = Traits.at(fam, 1)
+					end
+				end
+			end
+			return muts
 		end
 		if kind == "boss" then
-			table.insert(foes, Battle.wild(isle.boss, lvl + 1, 1, true, isle.bossName, boost, born(isle.boss, 1)))
+			-- (a place's guardian a level up, its mutations a rarity rarer; a low place's neither, and only its climb's
+			-- share of a guardian's extra strength)
+			local full = Expedition.climbOf(isle) >= 1
+			table.insert(foes, Battle.wild(isle.boss, lvl + (if full then 1 else 0), 1, true, isle.bossName, boost * Expedition.guardianBoost(isle), born(isle.boss, if full then 1 else 0)))
 			if isle.lvl >= 4 then
 				local sp = Expedition.pickWild(isle, rng)
 				table.insert(foes, Battle.wild(sp, lvl, 2, false, nil, boost, born(sp, 0)))
 			end
 		else
+			-- (one, two, or from level 3 three; any of them a level up, but in a low place none, and there a rare or
+			-- rarer one comes alone)
 			local n = rng:int(1, if isle.lvl >= 3 then 3 else 2)
-			for i = 1, n do
-				local sp = Expedition.pickWild(isle, rng)
-				table.insert(foes, Battle.wild(sp, lvl + rng:int(0, 1), i, false, nil, boost, born(sp, 0)))
+			local up = if low then 0 else 1
+			local picks: { string } = {}
+			for _ = 1, n do
+				table.insert(picks, Expedition.pickWild(isle, rng))
+			end
+			if low then
+				for _, sp in picks do
+					local cd = Creatures.byId[sp]
+					if cd and cd.rarity >= 3 then
+						picks = { sp }
+						break
+					end
+				end
+			end
+			for i, sp in picks do
+				table.insert(foes, Battle.wild(sp, lvl + rng:int(0, up), i, false, nil, boost, born(sp, 0)))
 			end
 		end
 		for _, f in foes do
@@ -558,10 +600,15 @@ local function settle(p: Profile, e: Expedition, b: Types.Battle, events: { any 
 				g.ups[key] = (g.ups[key] or 0) + n
 			end
 		end
-		-- the beaten get up again with a quarter of their health
+		-- the beaten get up again with a quarter of their health; in a low place everyone catches their breath too
+		-- (Tuning.CatchBreath: the first places are learnt on)
+		local breath = Tuning.CatchBreath * (1 - Expedition.climbOf(e.isle))
 		for _, f in e.party do
 			if f.hp <= 0 then
 				f.hp = math.max(1, math.floor(f.maxHp * 0.25))
+			end
+			if breath > 0 then
+				f.hp = math.min(f.maxHp, f.hp + math.ceil(f.maxHp * breath))
 			end
 		end
 		p.stats.battles += 1

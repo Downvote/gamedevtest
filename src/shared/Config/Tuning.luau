@@ -107,6 +107,11 @@ local Tuning = {
 	ReplayReward = 0.4, -- ... times this on a later trip to a place already cleared
 	-- a place's path: six stops, then its guardian (and it ends there: cleared); harder every stage
 	BossEvery = 7, -- the guardian's stage
+	ClimbFull = 6, -- a place under this level climbs (its wild ones' levels, their boost, its guardian's) only its level
+	-- over this of the way: the first places are learnt on ("the lvl 1 cave should be easy enough to be beaten by
+	-- starting 2 members of the party all the time", 2026-11-12)
+	CatchBreath = 0.5, -- after a won fight in a low place the party gets back this share of its health, times the share
+	-- of the climb the place lacks (the level 1 place: about 0.42; none from ClimbFull up)
 	StageLvl = 0.5, -- the wild ones' level: this much more every stage (a level every other stage) ...
 	StageBoost = 0.02, -- ... and their health and attack this share more every stage (harder every stage)
 	StageLoot = 0.12, -- a stage's loot and chests: the place's times (1 + this x the stages before it)
