@@ -58,34 +58,19 @@ local Tuning = {
 	TreeLuck = 0.12,
 	-- and a mutation roll as one rarity better every TreeMutLuck levels past the first
 	TreeMutLuck = 3,
-	-- the upgrades' prices, the level bought (index 1: the level every island starts at)
-	TreeSpeedCost = {
-		{ shells = 0, wood = 0 },
-		{ shells = 120, wood = 10 },
-		{ shells = 320, wood = 30 },
-		{ shells = 800, wood = 70 },
-		{ shells = 2000, wood = 180 },
-		{ shells = 5000, wood = 450 },
-		{ shells = 12000, wood = 1000 },
-		{ shells = 28000, wood = 2400 },
-		{ shells = 65000, wood = 5500 },
-		{ shells = 150000, wood = 12000 },
-	},
-	TreeLuckCost = {
-		{ shells = 0, wood = 0 },
-		{ shells = 160, wood = 15 },
-		{ shells = 420, wood = 40 },
-		{ shells = 1000, wood = 90 },
-		{ shells = 2500, wood = 220 },
-		{ shells = 6000, wood = 520 },
-		{ shells = 14000, wood = 1200 },
-		{ shells = 32000, wood = 2800 },
-		{ shells = 75000, wood = 6500 },
-		{ shells = 170000, wood = 14000 },
-	},
-	-- past this many waiting in the pen the tree sells the least useful one as each new one grows (never one the
-	-- player keeps there), so a save and the view stay small however long the tree grows
-	PenKeep = 500,
+	-- the upgrades' prices in shells (no wood), by the level bought (index 1: the level every island starts at). The
+	-- first ones are cheap: "the first few levels are too expensive, the tutorial phase stalls for too long before
+	-- the player can afford the first level" (the tips' buildings leave 50 of the starting shells: Speed 2 is 40)
+	TreeSpeedCost = { 0, 40, 120, 380, 1200, 3600, 9500, 24000, 58000, 140000 },
+	TreeLuckCost = { 0, 50, 150, 450, 1400, 4200, 11000, 28000, 66000, 155000 },
+	-- the pen has no room limit and sells nothing by itself ("remove the pen cap"). The one limit left is the save's:
+	-- Roblox keeps at most 4 MB a player (about 37,000 driftlings at their longest), so at this many waiting the tree
+	-- rests, ready, till some are sold or sent on. Nothing is lost.
+	PenSafe = 30000,
+	PenShown = 60, -- the pen's best sent to the client with the view (its panel lists 40); the rest go as a count
+	-- the Luck levels the Tree of Life grows bigger at ("make the tree look grander and bigger after certain level
+	-- milestones for luck"; Logic/Tree.stage): the same levels its mutation rolls step up at (TreeMutLuck)
+	TreeStages = { 1, 4, 7, 10 },
 	HutTree = 0.5, -- the huts' driftlings' Tree mutations together make it grow this much faster at most ...
 	HutLuck = 0.5, -- ... and their Lucky mutations add this much luck at most
 	-- selling a driftling: shells by its rarity, times 1 + SellTier x its mutations' tiers, times its sell share

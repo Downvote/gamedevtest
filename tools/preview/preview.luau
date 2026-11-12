@@ -567,6 +567,33 @@ function SCEN.tree()
 	prof.tree.t = 11.9
 	E.run(0.6)
 	capture(p, "tree_grow")
+	-- its Luck milestones ("make the tree look grander and bigger after certain level milestones for luck"): each
+	-- bought through the action, the model built again at its new stage; the founder further off to see it whole
+	local TreeL = H.sharedServer("Logic.Tree")
+	local Tun = H.sharedServer("Config.Tuning")
+	local CC = H.cmod(p, "Controllers.CameraController")
+	if tq and p.Character then
+		local ox, oz = Street.origin(H.session(p).plot)
+		local w, d = Plot.footprint(tq.id, tq.rot)
+		p.Character:PivotTo(E.cf.new(ox + tq.x + w + 2, 3, oz + tq.z + d + 2))
+		-- (the view held as a cutscene holds it, the same framing for every stage: on the ground 12 studs behind the
+		-- tree, so its foot sits low on the screen and the tallest crown fits above it)
+		H.inClient(p, function()
+			CC.setFocus(E.v3(ox + tq.x + w / 2, Street.LAWN_Y, oz + tq.z + d / 2 - 12), true)
+		end)
+		E.run(1.5)
+		settle(p, 30, 1)
+		capture(p, "tree_stage1")
+	end
+	for st = 2, #Tun.TreeStages do
+		prof.tree.luck = Tun.TreeStages[st] - 1
+		prof.shells = math.max(prof.shells, 1e7)
+		local res = H.req(p, "tree.upgrade", { what = "luck" })
+		E.run(0.5)
+		settle(p, 30, 1)
+		log("tree: Luck %d, stage %d (%s)", prof.tree.luck, TreeL.stage(prof), tostring(res.ok))
+		capture(p, "tree_stage" .. st)
+	end
 	return p
 end
 

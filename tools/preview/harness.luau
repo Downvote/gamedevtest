@@ -444,7 +444,7 @@ function H.checkProfile(p, label)
 		local hd = q and Buildings.byId[q.id]
 		H.expect(hd ~= nil and n <= hd.slots, "profile", label .. ": a hut over its room", string.format("%d in %s", n, tostring(q and q.id)))
 	end
-	H.expect(inPen <= Tuning.PenKeep, "profile", label .. ": the pen past PenKeep", tostring(inPen))
+	H.expect(inPen <= Tuning.PenSafe + 50, "profile", label .. ": the pen past the save's limit (the tree rests there)", tostring(inPen))
 	for k, n in prof.seen do
 		H.expect(Creatures.byId[k] ~= nil and (n == 1 or n == 2), "profile", label .. ": a bad Index entry", tostring(k))
 	end
@@ -466,7 +466,17 @@ function H.checkMirror(p, label)
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
 		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))
 	end
-	H.expect(#v.pals == #prof.pals and v.folk == nil, "mirror", label .. ": driftlings differ", string.format("%d vs %d", #v.pals, #prof.pals))
+	-- (the view holds every driftling in a hut and the pen's best Tuning.PenShown, with the pen's count)
+	local Tuning = H.sharedServer("Config.Tuning")
+	local housed, penN = 0, 0
+	for _, x in prof.pals do
+		if x.home ~= 0 then
+			housed += 1
+		else
+			penN += 1
+		end
+	end
+	H.expect(#v.pals == housed + math.min(penN, Tuning.PenShown) and v.penN == penN and v.folk == nil, "mirror", label .. ": driftlings differ", string.format("%d (pen %s) vs %d in huts, %d in the pen", #v.pals, tostring(v.penN), housed, penN))
 	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
 	H.expect(v.tree ~= nil and v.tree.luck == prof.tree.luck and v.tree.speed == prof.tree.speed, "mirror", label .. ": the tree's levels differ")
 	local homes = {}

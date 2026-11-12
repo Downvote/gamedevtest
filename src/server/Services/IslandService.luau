@@ -132,9 +132,15 @@ function IslandService.init()
 		return Tree.sellPen(s.profile, a.r)
 	end)
 	Router.on("tree.upgrade", function(s, a)
+		local stage = Tree.stage(s.profile)
 		local ok, data = Tree.upgrade(s.profile, a.what)
 		if ok then
 			tips(s)
+			-- a Luck milestone: the tree grows bigger (its model built again at the new stage)
+			if Tree.stage(s.profile) ~= stage then
+				PlotService.buildDecor(s)
+				Session.fx(s, { kind = "treegrew", stage = Tree.stage(s.profile) })
+			end
 		end
 		return ok, data
 	end)
@@ -190,8 +196,8 @@ function IslandService.step(dt: number)
 		if (p.food <= 0) ~= hungry then
 			Session.markDirty(s)
 		end
-		-- the Tree of Life: what grew into the pen, and the best of it sent on to the huts (the pen's overflow past
-		-- PenKeep sold: its shells come with the next tick)
+		-- the Tree of Life: what grew into the pen, and the best of it sent on to the huts (the pen has no room limit;
+		-- at the save's limit the tree rests)
 		local grown, sent = Tree.step(p, dt, s.rng)
 		moved(s, grown, sent)
 		s.turnClock += dt

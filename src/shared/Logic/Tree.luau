@@ -3,17 +3,20 @@
 -- a tree of life: it creates a creature every few seconds to be put into a pen. the pen will automatically send the
 -- best creatures into huts if there is space, and the player can also select which creatures are sent to which hut.
 -- players can upgrade the incubator's luck and speed." And later: "pens should be infinite, and no need to render the
--- pen, just a ui should be enough". Pure: IslandService calls these with the session's profile and Rng. Actions
+-- pen, just a ui should be enough", then "remove the pen cap. also, make the tree look grander and bigger after
+-- certain level milestones for luck". Pure: IslandService calls these with the session's profile and Rng. Actions
 -- return (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --   The tree grows a driftling every `secs(p)` seconds while the player is here (Tuning.TreeSecs by its speed level,
---   faster with the huts' Leafy driftlings) into the pen, which has no room limit (past Tuning.PenKeep waiting there
---   the least useful is sold as each new one grows: `overflow`). What grows: a rarity by Data/Traits.RARITY's weights, each rarity step's weight times the tree's
+--   faster with the huts' Leafy driftlings) into the pen, which has no room limit and sells nothing by itself (the one
+--   limit is the save's: at Tuning.PenSafe waiting the tree rests till some go, `resting`). What grows: a rarity by Data/Traits.RARITY's weights, each rarity step's weight times the tree's
 --   luck (`luck(p)`), then one of that rarity's driftlings among the kinds open at the island's tier (Data/Islets
 --   `tier`; a rarity none of them has falls to the next commoner one), born with mutations (Traits.roll, as a rarer
 --   one every Tuning.TreeMutLuck luck levels).
 --   The pen sends its best driftlings (`worth`: how much they add at work) into the huts with room, the comfiest hut
 --   first, each one with a free place at a building of its knack, which it takes. A driftling the player put in the pen (`held`)
---   stays there.
+--   stays there. The pen can hold tens of thousands, so nothing here sorts it whole: `worth` is kept per driftling
+--   (its kind and mutations never change), `settle` and `penView` pick the few best in one pass.
+--   The tree's stage (`stage`, 1 .. 4) is how many of Tuning.TreeStages its Luck has reached: it grows bigger at each.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -110,14 +113,89 @@ function Tree.inPen(p: Profile): number
 	return n
 end
 
+-- The save's limit reached: the tree rests (it grows nothing) while Tuning.PenSafe or more wait in the pen.
+function Tree.resting(p: Profile): boolean
+	return Tree.inPen(p) >= Tuning.PenSafe
+end
+
 -- How much a driftling adds at work, the pen's ranking: its rarity's speed times 1 + its work share at its knack.
+-- (Kept per driftling table: its kind and mutations never change once it is born; a changed one is worked out again.)
+type Kept = { sp: string, muts: { string }?, w: number }
+local kept: { [Pal]: Kept } = setmetatable({}, { __mode = "k" }) :: any
 function Tree.worth(x: Pal): number
+	local k = kept[x]
+	if k and k.sp == x.sp and k.muts == x.muts then
+		return k.w
+	end
 	local d = Creatures.byId[x.sp]
 	if d == nil then
 		return 0
 	end
 	local fx = Traits.sum(d.passive.fx, x.muts)
-	return (Tuning.RarityWork[d.rarity] or 1) * (1 + Traits.workAt(fx, d.knack))
+	local w = (Tuning.RarityWork[d.rarity] or 1) * (1 + Traits.workAt(fx, d.knack))
+	kept[x] = { sp = x.sp, muts = x.muts, w = w }
+	return w
+end
+
+-- a before b in the pen's order: the better worker first, then the older
+local function better(a: Pal, b: Pal): boolean
+	local wa, wb = Tree.worth(a), Tree.worth(b)
+	if math.abs(wa - wb) > 1e-9 then
+		return wa > wb
+	end
+	return a.id < b.id
+end
+
+-- `x` into `top`, a list kept in the pen's order and no longer than n (one pass over a big pen picks its best few).
+local function keepBest(top: { Pal }, x: Pal, n: number)
+	if n <= 0 then
+		return
+	end
+	if #top >= n and not better(x, top[#top]) then
+		return
+	end
+	local i = #top + 1
+	while i > 1 and better(x, top[i - 1]) do
+		i -= 1
+	end
+	table.insert(top, i, x)
+	if #top > n then
+		table.remove(top)
+	end
+end
+
+-- The pen as the client sees it (Session.view): its best n in order, how many wait there, how many are commons.
+function Tree.penView(p: Profile, n: number): ({ Pal }, number, number)
+	local top: { Pal } = {}
+	local count, commons = 0, 0
+	for _, x in p.pals do
+		if x.home == 0 then
+			count += 1
+			local d = Creatures.byId[x.sp]
+			if d and d.rarity == 1 then
+				commons += 1
+			end
+			keepBest(top, x, n)
+		end
+	end
+	return top, count, commons
+end
+
+-- The tree's stage, 1 .. #Tuning.TreeStages: how many of the Luck milestones it has reached (it grows bigger at each).
+function Tree.stage(p: Profile, luckLevel: number?): number
+	local lv = luckLevel or p.tree.luck
+	local s = 1
+	for i, at in Tuning.TreeStages do
+		if lv >= at then
+			s = i
+		end
+	end
+	return s
+end
+
+-- The next Luck level the tree grows bigger at, or nil once it is at its biggest.
+function Tree.nextStage(p: Profile): number?
+	return Tuning.TreeStages[Tree.stage(p) + 1]
 end
 
 -- What a driftling sells for: its rarity's price, times 1 + SellTier x its mutations' tiers, times its sell share.
@@ -197,19 +275,43 @@ function Tree.settle(p: Profile): { number }
 	if free == 0 then
 		return moved
 	end
-	local list: { Pal } = {}
+	-- the free places at each knack's buildings: only the best that many of each knack can go (one pass over the pen
+	-- keeps them, however big it is), then the best of those in the pen's order fill the huts
+	local places: { [string]: number } = {}
+	local helpers: { [number]: number } = {}
+	for _, x in p.pals do
+		if x.work ~= 0 then
+			helpers[x.work] = (helpers[x.work] or 0) + 1
+		end
+	end
+	for _, q in p.plot.placed do
+		local b = Buildings.byId[q.id]
+		if b and b.knack and Island.works(q.id) then
+			places[b.knack] = (places[b.knack] or 0) + math.max(0, Tuning.HelpMax - (helpers[q.uid] or 0))
+		end
+	end
+	local best: { [string]: { Pal } } = {}
 	for _, x in p.pals do
 		if x.home == 0 and x.held == nil then
+			local d = Creatures.byId[x.sp]
+			local n = if d then math.min(places[d.knack] or 0, free) else 0
+			if d and n > 0 then
+				local top = best[d.knack]
+				if top == nil then
+					top = {}
+					best[d.knack] = top
+				end
+				keepBest(top, x, n)
+			end
+		end
+	end
+	local list: { Pal } = {}
+	for _, top in best do
+		for _, x in top do
 			table.insert(list, x)
 		end
 	end
-	table.sort(list, function(a: Pal, b: Pal): boolean
-		local wa, wb = Tree.worth(a), Tree.worth(b)
-		if math.abs(wa - wb) > 1e-9 then
-			return wa > wb
-		end
-		return a.id < b.id
-	end)
+	table.sort(list, better)
 	-- (a knack with no free place left is passed over at once: no free place appears while the pen moves in)
 	local full: { [string]: boolean } = {}
 	for _, x in list do
@@ -294,75 +396,30 @@ function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 	return x
 end
 
--- dt seconds of the tree: it grows toward its next driftling and drops it into the pen, which never fills. Past
--- Tuning.PenKeep waiting there, the least useful one the player didn't keep there is sold as each new one grows (the
--- save and the view stay small). Returns the driftlings that grew, the ids the pen sent to the huts and the shells
--- the overflow sold for.
-function Tree.step(p: Profile, dt: number, rng: Rng): ({ Pal }, { number }, number)
+-- dt seconds of the tree: it grows toward its next driftling and drops it into the pen, which has no room limit and
+-- sells nothing. Only at the save's limit (Tuning.PenSafe waiting) does it rest, ready, till some go. Returns the
+-- driftlings that grew and the ids the pen sent to the huts.
+function Tree.step(p: Profile, dt: number, rng: Rng): ({ Pal }, { number })
 	local grown: { Pal } = {}
 	local secs = Tree.secs(p)
-	local sold = 0
 	p.tree.t += dt
 	while p.tree.t >= secs do
+		if Tree.resting(p) then
+			p.tree.t = secs
+			break
+		end
 		p.tree.t -= secs
 		local sp, muts = Tree.roll(p, rng)
 		table.insert(grown, Tree.add(p, sp, muts))
 		p.stats.grown += 1
 	end
 	local moved = if #grown > 0 then Tree.settle(p) else {}
-	if #grown > 0 then
-		sold = Tree.overflow(p)
-	end
-	return grown, moved, sold
-end
-
--- The pen past Tuning.PenKeep: the least useful (worth, then price, then the newest) of those the player didn't keep
--- there sold until it is back to PenKeep. Returns the shells.
-function Tree.overflow(p: Profile): number
-	local n = Tree.inPen(p)
-	if n <= Tuning.PenKeep then
-		return 0
-	end
-	local list: { Pal } = {}
-	for _, x in p.pals do
-		if x.home == 0 and x.held == nil then
-			table.insert(list, x)
-		end
-	end
-	table.sort(list, function(a: Pal, b: Pal): boolean
-		local wa, wb = Tree.worth(a), Tree.worth(b)
-		if math.abs(wa - wb) > 1e-9 then
-			return wa < wb
-		end
-		local pa, pb = Tree.price(a), Tree.price(b)
-		if pa ~= pb then
-			return pa < pb
-		end
-		return a.id > b.id
-	end)
-	local drop: { [Pal]: boolean } = {}
-	local total = 0
-	for _, x in list do
-		if n <= Tuning.PenKeep then
-			break
-		end
-		drop[x] = true
-		n -= 1
-	end
-	local i = 1
-	while i <= #p.pals do
-		if drop[p.pals[i]] then
-			total += sellOne(p, i)
-		else
-			i += 1
-		end
-	end
-	return total
+	return grown, moved
 end
 
 ------------------------------------------------------------------ the player's actions
 -- What the next level of an upgrade ("luck" or "speed") costs, or nil at the top.
-function Tree.upgradeCost(p: Profile, what: string): { shells: number, wood: number }?
+function Tree.upgradeCost(p: Profile, what: string): number?
 	local list = if what == "luck" then Tuning.TreeLuckCost else Tuning.TreeSpeedCost
 	local lv = if what == "luck" then p.tree.luck else p.tree.speed
 	return list[lv + 1]
@@ -377,14 +434,10 @@ function Tree.upgrade(p: Profile, what: string): (boolean, any)
 	if cost == nil then
 		return false, "max" :: ErrCode
 	end
-	if p.shells < cost.shells then
+	if p.shells < cost then
 		return false, "money" :: ErrCode
 	end
-	if p.wood < cost.wood then
-		return false, "wood" :: ErrCode
-	end
-	p.shells -= cost.shells
-	p.wood -= cost.wood
+	p.shells -= cost
 	if what == "luck" then
 		p.tree.luck += 1
 	else

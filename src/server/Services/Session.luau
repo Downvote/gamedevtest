@@ -10,6 +10,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -60,10 +61,22 @@ function Session.all(): { [Player]: S }
 	return sessions
 end
 
--- What the client sees: the profile plus what the rules derive from it.
+-- What the client sees: the profile plus what the rules derive from it. The driftlings: every one in a hut, and of
+-- the pen (no room limit: it can hold tens of thousands) only its best Tuning.PenShown, how many wait there and how
+-- many are commons, so the view stays small however big the pen grows.
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
 	local r = Island.rates(p)
+	local penTop, penN, penCommons = Tree.penView(p, Tuning.PenShown)
+	local pals: { Types.Pal } = {}
+	for _, x in p.pals do
+		if x.home ~= 0 then
+			table.insert(pals, x)
+		end
+	end
+	for _, x in penTop do
+		table.insert(pals, x)
+	end
 	return {
 		shells = p.shells,
 		food = p.food,
@@ -72,7 +85,9 @@ function Session.view(s: S): Types.ClientView
 		dayFrac = WorldClock.dayFrac(),
 		tier = p.tier,
 		founder = p.founder,
-		pals = p.pals,
+		pals = pals,
+		penN = penN,
+		penCommons = penCommons,
 		tree = p.tree,
 		plot = s.plot,
 		pieces = p.plot.placed,

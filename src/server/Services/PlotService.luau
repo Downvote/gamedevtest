@@ -17,6 +17,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local StreetModels = require(ReplicatedStorage.Shared.Models.StreetModels)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
@@ -219,7 +220,9 @@ local function pieceKey(q: { uid: number, id: string, x: number, z: number, rot:
 	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, q.lvl or 1)
 end
 
--- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones.
+-- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones. The
+-- Tree of Life's model goes by its stage (Tree.stage: it grows bigger at Luck milestones) in place of a level, so a
+-- new stage builds it again.
 function PlotService.buildDecor(s: S)
 	local static = staticOf(s.plot)
 	local decor = static:FindFirstChild("Decor")
@@ -232,13 +235,15 @@ function PlotService.buildDecor(s: S)
 	local d = decor :: Instance
 	local want: { [string]: boolean } = {}
 	local o = originOf(s.plot)
+	local stage = Tree.stage(s.profile)
 	for _, q in s.profile.plot.placed do
-		local key = pieceKey(q)
+		local lvl = if q.id == Tree.ID then stage else q.lvl or 1
+		local key = pieceKey({ uid = q.uid, id = q.id, x = q.x, z = q.z, rot = q.rot, lvl = lvl })
 		want[key] = true
 		if d:FindFirstChild(key) == nil then
 			local w, dd = Plot.footprint(q.id, q.rot)
 			local at = CFrame.new(o + Vector3.new(q.x + w / 2, Street.LAWN_Y, q.z + dd / 2)) * CFrame.Angles(0, math.rad(q.rot), 0)
-			local m = DecorModels.build(q.id, at, q.lvl or 1)
+			local m = DecorModels.build(q.id, at, lvl)
 			m.Name = key
 			m.Parent = d
 		end

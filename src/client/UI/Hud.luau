@@ -271,8 +271,19 @@ local function line(parent: Instance, icon: string, text: string, y: number, w: 
 	end
 end
 
+-- how many driftlings live in huts (the view holds every one of them, and only the pen's best)
+local function housedOf(v: Types.ClientView): number
+	local n = 0
+	for _, x in v.pals do
+		if x.home ~= 0 then
+			n += 1
+		end
+	end
+	return n
+end
+
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, #v.pals - Tree.inPen(v :: any), v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
+	return string.format("%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, housedOf(v), v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
 		.. (if v.food <= 0 then "|hungry" else "")
 end
 
@@ -296,7 +307,7 @@ local function updateCard(v: Types.ClientView)
 	UIKit.plank(f, 11, 3)
 	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
 	local y = 15
-	local housed = #v.pals - Tree.inPen(v :: any)
+	local housed = housedOf(v)
 	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
 	y += LINE_H
 	line(f, "visitor", "Visitors", y, w, nil, string.format("%.1f", v.visitors), nil, "Visitors")
@@ -322,9 +333,10 @@ end
 
 ------------------------------------------------------------------ the Tree of Life's card
 -- Under the island card (GAME_DESIGN 6): its name, a bar filling toward the next driftling (Heartbeat runs it on from
--- StateClient.treeFrac), how many wait in the pen ("Pen 12": it has no room limit), and Open (its panel).
+-- StateClient.treeFrac), how many wait in the pen ("Pen 12": it has no room limit; orange at the save's limit, where
+-- the tree rests), and Open (its panel).
 local function updateTree(v: Types.ClientView)
-	local inPen = Tree.inPen(v :: any)
+	local inPen = v.penN
 	local key = string.format("%d|%d|%d", inPen, v.tree.luck, v.tree.speed)
 	if treeCard and treeCard:GetAttribute("Key") == key then
 		return
@@ -344,7 +356,7 @@ local function updateTree(v: Types.ClientView)
 	local back = UIKit.rect(f, UDim2.fromOffset(w - 8, 5), UDim2.fromOffset(4, 14), UIKit.color("ink"), 4)
 	back.Name = "GrowBar"
 	UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 5).Name = "Fill"
-	UIKit.text(f, string.format("Pen %d", inPen), UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(4, 26), { color = UIKit.color("text"), z = 4, name = "Pen" })
+	UIKit.text(f, "Pen " .. Numbers.int(inPen), UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(4, 26), { color = if inPen >= Tuning.PenSafe then UIKit.color("orange") else UIKit.color("text"), z = 4, name = "Pen" })
 	UIKit.button(f, "Open", UDim2.fromOffset(44, 13), UDim2.fromOffset(w - 48, 25), function()
 		UIKit.openPanel("tree")
 	end, { name = "TreeOpen", color = UIKit.color("button_ok") })
@@ -642,6 +654,17 @@ local function onTree(msg: { [string]: any })
 	end
 end
 
+-- Fx "treegrew": a Luck milestone made the tree bigger (its model is built again on the island).
+local function onTreeGrew(msg: { [string]: any })
+	local last = tonumber(msg.stage) == #Tuning.TreeStages
+	UIKit.notice(if last then "The Tree of Life is fully grown." else "The Tree of Life grew bigger.", UIKit.color("accent"), 5)
+	Audio.play("grow")
+	local tc = treeCard
+	if tc and tc.Parent and tc.Visible then
+		UIKit.burstOn(tc, { "accent", "good", "white" }, 18, 40)
+	end
+end
+
 local function refresh(v: Types.ClientView)
 	updateTop(v)
 	updateCard(v)
@@ -710,6 +733,8 @@ function Hud.start()
 			onDay(msg)
 		elseif msg.kind == "tree" then
 			onTree(msg)
+		elseif msg.kind == "treegrew" then
+			onTreeGrew(msg)
 		end
 	end)
 	UIKit.Resized:Connect(function()

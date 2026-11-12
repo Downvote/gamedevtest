@@ -1,5 +1,5 @@
 -- The Tree of Life and its pen (Logic/Tree; GAME_DESIGN 6): every island has a tree; it grows a driftling every few
--- seconds into the pen, which never fills (past PenKeep the least useful is sold); luck makes the rarer ones
+-- seconds into the pen, which has no cap and sells nothing (only at the save's limit does the tree rest); luck makes the rarer ones
 -- likelier, speed makes it quicker; the pen sends its best driftlings into the huts with room (the comfiest first) and
 -- they take a job of their knack; the player moves them between huts and the pen (a full hut only in a swap), sells
 -- them, and upgrades the tree.
@@ -66,7 +66,7 @@ return function()
 		end
 	end)
 
-	T.it("it grows a driftling every TreeSecs into the pen, which never fills; past PenKeep the least useful is sold", function()
+	T.it("it grows a driftling every TreeSecs into the pen, which has no cap and sells nothing", function()
 		local p = fresh()
 		local rng = Util.newRng(3)
 		local secs = Tree.secs(p)
@@ -80,27 +80,60 @@ return function()
 		T.eq(x.work, 0)
 		T.eq(p.seen[x.sp], 2, "in the Index")
 		T.eq(p.stats.grown, 1)
-		-- it never stops
-		for _ = 1, 100 do
+		-- it never stops, and the pen never sells one by itself ("remove the pen cap")
+		for _ = 1, 700 do
 			Tree.step(p, secs, rng)
 		end
-		T.eq(Tree.inPen(p), 101, "no room limit")
-		T.truthy(p.tree.t < secs)
-		-- past PenKeep: the least useful the player didn't keep there go, sold
-		local kept = p.pals[1]
-		kept.held = 1
-		local legend = { id = p.nextId, sp = "solwyrm", home = 0, work = 0, muts = {} }
-		p.nextId += 1
-		table.insert(p.pals, legend)
-		while Tree.inPen(p) < Tuning.PenKeep do
-			Tree.step(p, secs, rng)
+		T.eq(Tree.inPen(p), 701, "no room limit")
+		T.eq(p.stats.sold, 0, "nothing sold")
+		T.truthy(p.tree.t < secs and not Tree.resting(p))
+	end)
+
+	T.it("at the save's limit (PenSafe waiting) the tree rests, ready, and grows again once some go", function()
+		local p = fresh()
+		local rng = Util.newRng(5)
+		local secs = Tree.secs(p)
+		while #p.pals < Tuning.PenSafe do
+			Tree.add(p, "pebblit", {})
 		end
-		local shells, sold = p.shells, p.stats.sold
-		local _, _, got = Tree.step(p, secs * 3, rng)
-		T.eq(Tree.inPen(p), Tuning.PenKeep, "back to PenKeep")
-		T.truthy(got > 0 and p.shells == shells + got and p.stats.sold == sold + 3, "three sold for shells")
-		T.truthy(table.find(p.pals, kept) ~= nil, "the kept one stays")
-		T.truthy(table.find(p.pals, legend) ~= nil, "the best stays")
+		T.truthy(Tree.resting(p))
+		local shells, n = p.shells, #p.pals
+		local grown = Tree.step(p, secs * 5, rng)
+		T.eq(#grown, 0, "resting")
+		T.eq(#p.pals, n, "nothing lost or sold")
+		T.eq(p.shells, shells)
+		T.eq(p.tree.t, secs, "ready to grow")
+		T.truthy(Tree.sell(p, p.pals[1].id))
+		grown = Tree.step(p, 0.01, rng)
+		T.eq(#grown, 1, "one sold: it grows again at once")
+	end)
+
+	T.it("a big pen stays cheap: the view carries its best few in order and a count; settle picks from it in one pass", function()
+		local p = fresh()
+		for _ = 1, 20000 do
+			Tree.add(p, "pebblit", {})
+		end
+		local legend = Tree.add(p, "solwyrm", {})
+		local mossy = Tree.add(p, "mossbun", {})
+		local top, n, commons = Tree.penView(p, Tuning.PenShown)
+		T.eq(n, 20002)
+		T.eq(commons, 20001, "the commons counted (Sell commons)")
+		T.eq(#top, Tuning.PenShown)
+		T.eq(top[1], legend, "the best first")
+		for i = 2, #top do
+			T.truthy(Tree.worth(top[i - 1]) >= Tree.worth(top[i]) - 1e-9, "in the pen's order")
+		end
+		-- huts with room and a farm: only a farm driftling has a place to go, found among 20,000 without sorting them
+		build(p, "patch")
+		build(p, "nest")
+		local t0 = os.clock()
+		local moved = Tree.settle(p)
+		local took = os.clock() - t0
+		T.truthy(#moved >= 1 and mossy.home ~= 0 and mossy.work ~= 0, "the mossbun went to the hut and works at the patch")
+		for _, x in p.pals do
+			T.truthy(x.home == 0 or x.work ~= 0, "only those with a place went")
+		end
+		T.truthy(took < 0.5, string.format("settle over 20,000 in %.3f s", took))
 	end)
 
 	T.it("what grows: the kinds open at the island's tier, rarer ones less often, and luck makes them likelier", function()
@@ -334,7 +367,7 @@ return function()
 		T.eq(b.home, nest, "moved in")
 	end)
 
-	T.it("upgrades: luck and speed a level each, priced; max at the top", function()
+	T.it("upgrades: luck and speed a level each, priced in shells only; max at the top", function()
 		local p = fresh()
 		for what, list in { luck = Tuning.TreeLuckCost, speed = Tuning.TreeSpeedCost } do
 			for lv = 2, #list do
@@ -342,8 +375,8 @@ return function()
 				local ok, data = Tree.upgrade(p, what)
 				T.truthy(ok, what .. " " .. lv)
 				T.eq(data.level, lv)
-				T.eq(p.shells, shells - list[lv].shells)
-				T.eq(p.wood, wood - list[lv].wood)
+				T.eq(p.shells, shells - list[lv])
+				T.eq(p.wood, wood, "no wood")
 			end
 			T.eq(select(2, Tree.upgrade(p, what)), "max")
 			T.eq(Tree.upgradeCost(p, what), nil)
@@ -353,7 +386,13 @@ return function()
 		T.eq(select(2, Tree.upgrade(q, "luck")), "money")
 		q.shells = 1e6
 		q.wood = 0
-		T.eq(select(2, Tree.upgrade(q, "speed")), "wood")
+		T.truthy(Tree.upgrade(q, "speed"), "no wood needed")
+		-- the first level is in reach once the tips' buildings stand (GAME_DESIGN 9: the tips ask for one)
+		local tips = 0
+		for _, id in { "patch", "lumber", "stall", "nest" } do
+			tips += Buildings.byId[id].shells
+		end
+		T.truthy(Tuning.StartShells - tips >= math.min(Tuning.TreeSpeedCost[2], Tuning.TreeLuckCost[2]), "Speed 2 or Luck 2 affordable after the tips' buildings")
 		T.eq(select(2, Tree.upgrade(q, "size")), "bad_payload")
 		-- more luck: mutations roll as a rarer one
 		T.truthy(Tuning.TreeMutLuck >= 1)

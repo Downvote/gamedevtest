@@ -172,7 +172,7 @@ local function plan(p: any)
 	-- the tree: its next speed or luck when it costs a third of the shells or less
 	for _, what in { "speed", "luck" } do
 		local c = Tree.upgradeCost(p, what)
-		if c and c.shells * 3 <= p.shells and c.wood * 3 <= p.wood then
+		if c and c * 3 <= p.shells then
 			Tree.upgrade(p, what)
 			return
 		end
@@ -224,8 +224,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 	end
 	for t = 1, seconds do
 		Island.step(p, 1)
-		local grown, _, auto = Tree.step(p, 1, rng)
-		sold += auto
+		local grown = Tree.step(p, 1, rng)
 		for _, x in grown do
 			local r = Creatures.byId[x.sp].rarity
 			for k = 2, r do

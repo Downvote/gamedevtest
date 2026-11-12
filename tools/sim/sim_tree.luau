@@ -1,7 +1,8 @@
 -- The Tree of Life and its pen (GAME_DESIGN 6; Logic/Tree): the tree growing a driftling every few seconds while the
--- player is here, the pen never full ("pens should be infinite") and never drawn on the island; past Tuning.PenKeep
--- waiting, the least useful sold as each new one grows; its Speed and Luck bought to the top (and every refusal); the
--- odds the panel shows; a rare one announced; the pen sending its best on to the huts with room, but only those a
+-- player is here, the pen never full ("pens should be infinite", "remove the pen cap") and never drawn on the island;
+-- 1,200 more in it and nothing sold, the view carrying its count and best few, the panel its best forty and how many
+-- more; its Speed and Luck bought to the top (and every refusal), the tree built again bigger at each Luck milestone
+-- and announced; the odds the panel shows; a rare one announced; the pen sending its best on to the huts with room, but only those a
 -- building of their knack has a place for; a sold hut driftling's place filled from the pen, a hut cleared away sending
 -- its driftlings back; the Driftlings panel's hut picker moving one in a swap; expanding the island giving the tree new
 -- kinds; the tree moved; a second player's client drawing the first island's hut driftlings (not its pen).
@@ -147,53 +148,45 @@ place("nest")
 H.checkProfile(p, "huts")
 H.checkMirror(p, "huts")
 
------------------------------------------------------------------- past PenKeep: the least useful sold as each new one grows
-E.phase = "keep"
+------------------------------------------------------------------ no cap: the pen keeps every one; the view and the panel stay small
+E.phase = "nocap"
 do
 	prof.tree.t = 0
-	local kept = Tree.add(prof, "pebblit", {})
-	kept.held = 1 -- (one the player put there: never sold for room)
 	local extra = {}
-	while Tree.inPen(prof) < Tuning.PenKeep do
+	for _ = 1, 1200 do
 		table.insert(extra, Tree.add(prof, "pebblit", {}))
 	end
 	H.push(p, 0.3)
-	local sold0, sh0, n1 = prof.stats.sold, prof.shells, Tree.inPen(prof)
+	local sold0, n1 = prof.stats.sold, Tree.inPen(prof)
 	local i1 = #fx
 	E.runUntil(function()
 		return grownSince(i1) >= 2
 	end, Tree.secs(prof) * 3, 0.1)
 	E.run(0.3)
-	H.expect(n1 == Tuning.PenKeep and Tree.inPen(prof) == Tuning.PenKeep, "keep", "the pen stays at PenKeep as new ones grow", string.format("%d -> %d", n1, Tree.inPen(prof)))
-	H.expect(prof.stats.sold == sold0 + grownSince(i1) and prof.shells > sh0, "keep", "one sold for each that grew, for its price", string.format("%d sold, %+.0f shells", prof.stats.sold - sold0, prof.shells - sh0))
-	H.expect(table.find(prof.pals, kept) ~= nil, "keep", "the one the player kept there is never sold for room")
-	local better = 0
-	for _, x in prof.pals do
-		if x.home == 0 and x.held == nil and Tree.worth(x) > Tree.worth(extra[1]) then
-			better += 1
-		end
-	end
-	H.expect(better >= 1, "keep", "the commonest go first: the better ones stay")
-	-- the panel lists the best of it and says how many more
+	H.expect(prof.stats.sold == sold0 and Tree.inPen(prof) >= n1 + grownSince(i1) - 2, "nocap", "1,200 more in the pen and the tree goes on: nothing sold ('remove the pen cap')", string.format("%d -> %d, %d sold", n1, Tree.inPen(prof), prof.stats.sold - sold0))
+	local v = H.view(p)
+	H.expect(v ~= nil and v.penN == Tree.inPen(prof) and #v.pals <= 300, "nocap", "the view: the pen's count and its best few, not all of it", v and string.format("%d in the view, pen %d", #v.pals, v.penN))
+	-- the HUD's card counts them all; the panel lists the best forty and says how many more
+	local pg = p:FindFirstChild("PlayerGui")
+	local penLabel = pg and pg:FindFirstChild("Pen", true)
+	H.expect(penLabel ~= nil and penLabel:IsA("TextLabel") and string.find(penLabel.Text, "1,2", 1, true) ~= nil, "nocap", "the tree's card: the whole pen counted", penLabel and penLabel:IsA("TextLabel") and penLabel.Text or "none")
 	H.openPanel(p, "tree")
 	E.run(0.4)
-	local pg = p:FindFirstChild("PlayerGui")
 	local rows = 0
 	for _, d in pg:GetDescendants() do
 		if string.sub(d.Name, 1, 8) == "PenSell_" and H.guiVisible(d) then
 			rows += 1
 		end
 	end
-	H.expect(rows > 0 and rows <= 40 and pg ~= nil and pg:FindFirstChild("PenMore", true) ~= nil, "keep", "the tree's panel: the best forty or so, then how many more", tostring(rows))
+	H.expect(rows == 40 and pg:FindFirstChild("PenMore", true) ~= nil, "nocap", "the tree's panel: the best forty, then how many more", tostring(rows))
 	H.closePanel(p)
-	H.checkProfile(p, "keep")
-	H.checkMirror(p, "keep")
+	H.checkProfile(p, "nocap")
+	H.checkMirror(p, "nocap")
 	-- (back to a small pen for the rest)
 	local gone = {}
 	for _, x in extra do
 		gone[x] = true
 	end
-	gone[kept] = true
 	local keep = {}
 	for _, x in prof.pals do
 		if not gone[x] then
@@ -216,10 +209,40 @@ local function oddsShown(r)
 end
 H.expect(oddsShown(1) and oddsShown(5), "upgrades", "the odds of every rarity")
 local odds0 = Tree.odds(prof)
+-- (the tree grows bigger at the Luck milestones: its model built again at each new stage, announced)
+local function treeKey(): string
+	local st = E.workspace.Plots:FindFirstChild("Plot_" .. H.session(p).plot)
+	local decor = st and st:FindFirstChild("Decor", true)
+	for _, c in (decor and decor:GetChildren() or {}) do
+		if c:GetAttribute("Decor") == "tree" then
+			return c.Name
+		end
+	end
+	return ""
+end
+local key1 = treeKey()
+H.expect(string.sub(key1, -2) == ":1", "upgrades", "the tree's model at its first stage", key1)
+local grewFx = #fx
 for lv = 2, #Tuning.TreeLuckCost do
 	H.clickNamed(p, "Upgrade_luck", { wait = 0.3 })
 	H.expect(prof.tree.luck == lv, "upgrades", "Luck level " .. lv, tostring(prof.tree.luck))
+	local want = Tree.stage(prof)
+	H.expect(string.sub(treeKey(), -2) == ":" .. want, "upgrades", "Luck " .. lv .. ": the tree at stage " .. want, treeKey())
 end
+local grew = 0
+for i = grewFx + 1, #fx do
+	if fx[i].kind == "treegrew" then
+		grew += 1
+	end
+end
+H.expect(grew == #Tuning.TreeStages - 1 and Tree.stage(prof) == #Tuning.TreeStages, "upgrades", "it grew bigger at each milestone (Luck " .. table.concat(Tuning.TreeStages, ", ", 2) .. "), announced", tostring(grew))
+local stageModel = nil
+for _, c in (E.workspace.Plots:FindFirstChild("Plot_" .. H.session(p).plot):FindFirstChild("Decor", true) or {}):GetChildren() do
+	if c:GetAttribute("Decor") == "tree" then
+		stageModel = c
+	end
+end
+H.expect(stageModel ~= nil and stageModel:FindFirstChild("Halo", true) ~= nil and stageModel:FindFirstChild("Lantern", true) ~= nil, "upgrades", "fully grown: lanterns in its limbs, a ring of light over its crown")
 H.expect(H.buttonNamed(p, "Upgrade_luck", true) == nil, "upgrades", "at the top: no more Luck to buy")
 local odds1 = Tree.odds(prof)
 H.expect(odds1[3] + odds1[4] > (odds0[3] + odds0[4]) * 2, "upgrades", "luck makes the rare and epic ones far likelier", string.format("%.3f -> %.3f", odds0[3] + odds0[4], odds1[3] + odds1[4]))
@@ -237,7 +260,7 @@ local pq = H.profile(q2)
 pq.shells = 0
 H.expect(H.req(q2, "tree.upgrade", { what = "luck" }).err == "money", "upgrades", "not enough shells: money")
 pq.shells, pq.wood = 1e6, 0
-H.expect(H.req(q2, "tree.upgrade", { what = "speed" }).err == "wood", "upgrades", "not enough wood: wood")
+H.expect(H.req(q2, "tree.upgrade", { what = "speed" }).ok, "upgrades", "no wood needed: the tree's levels take shells only")
 H.checkProfile(q2, "lean")
 -- a rare one or better announced (Fx tree, the HUD's notice)
 local UIKitP = H.cmod(p, "UI.UIKit")

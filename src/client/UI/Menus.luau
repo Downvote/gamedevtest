@@ -218,10 +218,11 @@ local function palById(v: Types.ClientView, id: number?): Types.Pal?
 	return nil
 end
 
--- The parent picker: every driftling (not the other parent), each with its passive and mutations.
+-- The parent picker: the driftlings the view holds (every one in a hut, the pen's best; not the other parent), each
+-- with its passive and mutations.
 local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, slot: string)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Pick a parent. Its kind and mutations can pass to the egg.", W)
+	local top = hint(body, "Pick a parent from the huts or the best in the pen. Its kind and mutations can pass to the egg.", W)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local pick: Pick = breedPick[uid] or {}
@@ -492,7 +493,7 @@ local function buildPals(body: Frame, arg: any?)
 	-- the Tree of Life's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
 	local hasHatch = #hatcheries(v) > 0
 	local buttons = if hasHatch then 124 else 64
-	local top = hint(body, string.format("%d in huts (room for %d), %d in the pen. The pen sends its best to huts with room and work.", housed, v.nests, #v.pals - housed), W - buttons)
+	local top = hint(body, string.format("%d in huts (room for %d), %s in the pen. The pen sends its best to huts with room and work.", housed, v.nests, Numbers.int(v.penN)), W - buttons)
 	UIKit.button(body, "Tree", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
 		UIKit.openPanel("tree")
 	end, { name = "OpenTree", color = UIKit.color("button_ok") })
@@ -506,7 +507,7 @@ local function buildPals(body: Frame, arg: any?)
 	UIKit.vlist(list, 2)
 	if housed == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, if #v.pals == 0 then "No driftlings yet. The Tree of Life grows one every few seconds into its pen." else "None in a hut yet. Build a hut, and a building that suits the ones in the pen.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if v.penN == 0 then "No driftlings yet. The Tree of Life grows one every few seconds into its pen." else "None in a hut yet. Build a hut, and a building that suits the ones in the pen.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local order: { Types.Pal } = {}
 	for _, x in v.pals do
@@ -542,16 +543,24 @@ local function upgradeRow(body: Instance, v: Types.ClientView, what: string, y: 
 	end)()))
 	UIKit.text(body, next, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, y + 13), { color = UIKit.color("text_dim"), name = label .. "Next" })
 	if cost then
-		local text = Numbers.coins(cost.shells) .. (if cost.wood > 0 then " + " .. Numbers.coins(cost.wood) .. "w" else "")
-		local can = v.shells >= cost.shells and v.wood >= cost.wood
-		local bw = math.min(w - 50, math.max(64, UIKit.textWidth(text) + 10))
-		UIKit.button(body, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw, y), function()
+		-- the price: the shells it takes and the shell icon after them (no wood: the tree's levels take shells only)
+		local text = Numbers.coins(cost)
+		local can = v.shells >= cost
+		local bw = math.min(w - 50, math.max(48, UIKit.textWidth(text) + 22))
+		local b = UIKit.button(body, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw, y), function()
 			local res = ask("tree.upgrade", { what = what })
 			if res.ok then
 				Audio.play("reward")
 				UIKit.notice(string.format("The tree's %s is level %d now.", string.lower(label), lv + 1), UIKit.color("good"))
 			end
 		end, { name = "Upgrade_" .. what, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
+		-- (the words keep the room left of the icon)
+		local words = b:FindFirstChild("Words")
+		if words and words:IsA("GuiObject") then
+			words.Position = UDim2.fromOffset(2, 0)
+			words.Size = UDim2.new(1, -16, 1, 0)
+		end
+		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
 	end
 end
 
@@ -568,7 +577,9 @@ local function buildTree(body: Frame, _arg: any?)
 	local RW = W - RX
 	-- how fast, and the bar to the next one (run on by the client between the server's ticks)
 	local secs = Tree.secs(p)
-	UIKit.text(body, string.format("Grows one every %.1fs", secs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
+	-- (at the save's limit the tree rests till some are sold or sent on: nothing is lost)
+	local resting = v.penN >= Tuning.PenSafe
+	UIKit.text(body, if resting then "Resting. Sell some to grow more." else string.format("Grows one every %.1fs", secs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = if resting then UIKit.color("orange") else UIKit.color("text"), name = "Pace" })
 	local back = UIKit.rect(body, UDim2.fromOffset(LW, 5), UDim2.fromOffset(0, 12), UIKit.color("ink"), 3)
 	back.Name = "GrowBar"
 	local fill = UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 4)
@@ -598,29 +609,24 @@ local function buildTree(body: Frame, _arg: any?)
 		UIKit.text(body, txt, UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, y), { x = "right", color = if odds[r] > 0 then UIKit.color("text") else UIKit.color("text_dim") })
 		y += 10
 	end
+	-- the Luck the tree grows bigger at next (Tree.stage)
+	if y + 12 <= H then
+		local nextAt = Tree.nextStage(p)
+		UIKit.text(body, if nextAt then string.format("It grows bigger at Luck %d.", nextAt) else "It's fully grown.", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), name = "Stage" })
+		y += 11
+	end
 	if v.tier < 6 and y + 12 <= H then
 		UIKit.text(body, "A bigger island grows new kinds.", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, y + 2), { color = UIKit.color("text_dim") })
 	end
-	-- the pen
+	-- the pen: the view carries its best few, in order, and how many wait there in all
 	local inPen: { Types.Pal } = {}
-	local commons = 0
 	for _, x in v.pals do
 		if x.home == 0 then
 			table.insert(inPen, x)
-			local d = Creatures.byId[x.sp]
-			if d and d.rarity == 1 then
-				commons += 1
-			end
 		end
 	end
-	table.sort(inPen, function(a: Types.Pal, b: Types.Pal): boolean
-		local wa, wb = Tree.worth(a), Tree.worth(b)
-		if math.abs(wa - wb) > 1e-9 then
-			return wa > wb
-		end
-		return a.id < b.id
-	end)
-	UIKit.text(body, string.format("Pen %d", #inPen), UDim2.fromOffset(RW - 90, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "PenCount" })
+	local commons = v.penCommons
+	UIKit.text(body, "Pen " .. Numbers.int(v.penN), UDim2.fromOffset(RW - 90, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "PenCount" })
 	UIKit.button(body, "Sell commons", UDim2.fromOffset(84, 13), UDim2.fromOffset(W - 84, 0), function()
 		local res = ask("pen.sell", { r = 1 })
 		if res.ok then
@@ -632,15 +638,19 @@ local function buildTree(body: Frame, _arg: any?)
 	end, { name = "SellCommons", color = UIKit.color("button_warn"), enabled = commons > 0 })
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 16), UDim2.fromOffset(RX, 16))
 	UIKit.vlist(list, 2)
-	if #inPen == 0 then
+	if v.penN == 0 then
 		local f = row(list, 1, 24)
 		UIKit.text(f, "Empty. New driftlings wait here till a hut has room and there's work for them.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
+	local shown = math.min(#inPen, PEN_ROWS)
+	if v.penN > shown then
+		-- the rest only as a count (the view carries the pen's best few: it can hold tens of thousands)
+		local f = row(list, shown + 1, 14)
+		f.Name = "PenMore"
+		UIKit.text(f, string.format("%s more, the best listed first", Numbers.int(v.penN - shown)), UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4 })
+	end
 	for i, x in inPen do
 		if i > PEN_ROWS then
-			local f = row(list, i, 14)
-			f.Name = "PenMore"
-			UIKit.text(f, string.format("%d more, the best listed first", #inPen - PEN_ROWS), UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4 })
 			break
 		end
 		local d = Creatures.byId[x.sp]

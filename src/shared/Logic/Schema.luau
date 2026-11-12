@@ -24,9 +24,9 @@ local Schema = {}
 -- 11: no villagers (the driftlings do all the work)
 Schema.VERSION = 11
 
--- driftlings a save may hold at most before the pen's overflow (Logic/Tree.overflow) brings the pen down to
--- Tuning.PenKeep: a bound on garbage, far past any island's huts
-local MAX_PALS = 4000
+-- driftlings a save may hold at most: a bound on garbage, past the pen's save limit (Tuning.PenSafe, where the tree
+-- rests) and every hut's room on the biggest island
+local MAX_PALS = Tuning.PenSafe + 5000
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -401,10 +401,9 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	}
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
-	-- the Tree of Life (an older save gets one), the pen's best into any hut with room, and a pen past PenKeep sold down
+	-- the Tree of Life (an older save gets one), and the pen's best into any hut with room
 	Tree.plant(out)
 	Tree.settle(out)
-	Tree.overflow(out)
 	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
 	local hatcheries: { [number]: boolean } = {}
 	for _, q in out.plot.placed do

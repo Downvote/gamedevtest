@@ -1,5 +1,19 @@
 # Driftling Isle: Game Design
 
+> The requests (2026-11-12, the evening): "remove the pen cap. also, make the tree look grander and bigger after
+> certain level milestones for luck", and then "also, the first few levels are too expensive, the tutorial phase
+> stalls for too long before the player can afford the first level. also, no need to add the +10w, just the number of
+> shells required and then the shells icon is good enough"
+
+The pen sells nothing by itself now, however many wait there (§6). The one limit left is Roblox's own: a player's
+save holds at most 4 MB, about 37,000 driftlings at their longest. So at `PenSafe` (30,000) waiting, the tree rests,
+ready, until some are sold or sent to a hut. Nothing is lost, and it takes about 25 hours of growing at full Speed
+without selling one to get there. Lifting even that would mean splitting a save across several records. The client
+only gets the pen's best 60 and its count, so a big pen costs the network nothing. The Tree of Life grows bigger at
+Luck 4, 7 and 10 (§6). Its upgrades take shells only, with the first levels cheap: Speed 2 is 40 shells, and the
+tips' buildings leave 50 of the 300 a new island starts with (§9). The price button shows the shells and the shell
+icon.
+
 > The request (2026-11-12, later that day): "remove villagers, only creatures should be enough. also, make the tree
 > of life more like a tree of life, reference references for it, make it look bigger and more grand", and with it
 > "also, pens should be infinite, and no need to render the pen, just a ui should be enough"
@@ -9,9 +23,9 @@ gets each one's whole price back, §10). A building with nobody at it still work
 rate) so a new island gets going; each driftling at it adds more. The pen has no room limit and is not drawn on the
 island any more: it is the list in the Tree of Life's panel. It sends a driftling on to a hut only when a building of
 its knack has a free place for it, so the huts never fill with driftlings who have nothing to do. The tree never stops
-growing. To keep a save and the network small, past `PenKeep` (500) driftlings waiting in the pen the least useful one
-is sold as each new one grows (never one the player put there). The Tree of Life itself was rebuilt bigger (6 x 6
-cells, 13 studs tall) after the old pictures of the tree of life (§6).
+growing. (At first, past 500 waiting, the least useful one was sold as each new one grew; the next request took that
+out.) The Tree of Life itself was rebuilt bigger (6 x 6 cells, 13 studs tall) after the old pictures of the tree of
+life (§6).
 
 > The request (2026-11-12): "scrap the entire cave, fighting, level, skill and expedition system. instead, players
 > start with a tree of life: it creates a creature every few seconds to be put into a pen. the pen will automatically
@@ -55,7 +69,7 @@ the while the Tree of Life grows a driftling every 12 seconds into its pen (fast
 with Luck), each born with its own mutations. Build a Driftling Hut and the pen sends its best driftlings there, each
 one a building of its knack has room for: it takes a place at that farm, pier, lumber camp or shop and adds to what it
 makes, a legendary seven times what a common one adds. The pen has no room limit and the tree never stops, so sell the
-commons for a few shells (past 500 waiting the least useful goes by itself), or move a better one into a hut
+commons for a few shells, or move a better one into a hut
 yourself. Spend shells and wood on more buildings, huts and decor (charm) and
 on the tree, and expand the island for bigger buildings. Nothing happens while you are away (no offline progress).
 
@@ -290,10 +304,20 @@ and a crown of seven leaf clouds on forked limbs, each with a dark underside, bl
 under it; a ring of gold light on the ground, motes in the air, mushrooms and flowers at its foot. The pen is not
 drawn (the later request: "no need to render the pen, just a ui should be enough").
 
+**It grows with its Luck** (`Tree.stage`, `TreeStages`: Luck 1, 4, 7 and 10, the levels its mutation rolls step up
+at too): four stages on the same 6 x 6 of ground. Each stage the trunk thickens, the crown spreads wider (half as wide
+again at the last) and climbs (the top cloud from 12 studs to 19), the leaf clouds grow, and more of it glows: more
+runes up the bark, more of the standing stones lit (every third, every other, then all), more blossom, longer vines.
+From the second stage lanterns of light hang in its lower limbs; from the third the ring of clouds is eight with an
+upper ring of four, and every cloud carries three gold fruit; at the last the crown is in full blossom, a ring of gold
+light floats over it, the stones wear gold caps and a second ring of light glows on the ground. Buying a milestone's
+Luck builds it again on the island with "The Tree of Life grew bigger." (the last: "fully grown") and the bell-tree
+run; the Tree panel says the Luck it grows at next.
+
 - **It grows** a driftling every `TreeSecs[Speed]` seconds (12 at Speed 1 down to 4 at Speed 10), faster with the
   huts' Leafy driftlings (`HutTree`: 50% at most), while you are on the server; it never stops. One the pen sends on
   to a hut pops out of the hollow with a cheer and walks off to its work. A card under the HUD's chips shows the
-  tree's bar filling and "Pen 3"; a tap opens the Tree panel, as does a tap on the tree itself.
+  tree's bar filling and the pen's count ("Pen 1,204"); a tap opens the Tree panel, as does a tap on the tree itself.
 - **What grows** (`Tree.roll`): a rarity first, each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5, 1.2)
   times the tree's luck to the power of the steps; luck is 1 at Luck 1, +0.12 a level (`TreeLuck`) and + the huts'
   Lucky driftlings (`HutLuck`: 0.5 at most). Then one of that rarity's kinds among those open at the island's tier
@@ -301,10 +325,12 @@ drawn (the later request: "no need to render the pen, just a ui should be enough
   reefs at 4, bluffs at 5, ruins at 6); a rarity none of them has falls to the next commoner one. It is born with
   mutations (below), rolled as one rarity rarer every `TreeMutLuck` (3) Luck levels past the first. A rare or better
   one gets a notice in its rarity's colour ("A rare Floe grew on the tree."), an epic or a legend a burst of sparkles.
-- **The pen** has no room limit and is not on the island: it is the list in the Tree panel (the best `PEN_ROWS`, 40,
-  shown, then how many more). Driftlings in the pen eat nothing and do nothing. Past `PenKeep` (500) waiting there,
-  each new one that grows sells the least useful (`Tree.overflow`: the lowest worth, then the cheapest, then the
-  newest; never one the player put there), so a save and the view stay small.
+- **The pen** has no room limit, sells nothing by itself and is not on the island: it is the list in the Tree panel
+  (its best `PEN_ROWS`, 40, shown, then how many more). Driftlings in the pen eat nothing and do nothing. The only
+  limit is the save's: at `PenSafe` (30,000) waiting the tree rests (the panel: "Resting. Sell some to grow more.",
+  the card's count in orange) until some go. The client gets the pen's best `PenShown` (60) and its count, and the
+  rules never sort the whole pen (`worth` is kept per driftling; the pen's best are picked in one pass), so a pen of
+  tens of thousands stays cheap.
 - **The huts** (the Huts tab in Build mode; the old nests: Driftling Hut 2 places, Cozy Burrow 4, Driftling Den 5,
   Treetop Roost 6, Spring Grotto 8, Driftling Palace 12; the home once called Grass Hut is now the Grass Shack so the
   names don't clash). Whenever a hut has room the pen sends on its best driftling that a building of its knack has a
@@ -319,8 +345,9 @@ drawn (the later request: "no need to render the pen, just a ui should be enough
   mutation tier (`SellTier`), times 1 + its sell share (Shiny and its family). It is a help, not the island's living:
   the career (§10) earns well under two thirds of its shells this way.
 - **The upgrades** (the Tree panel: two rows with the level, what the next one does and its price; the odds of each
-  rarity at the tree's luck below them): **Speed** and **Luck**, ten levels each, paid in shells and wood (Speed 2
-  costs 120 shells and 10 wood, Speed 10 150,000 and 12,000; Luck 2 160 and 15, Luck 10 170,000 and 14,000).
+  rarity at the tree's luck below them): **Speed** and **Luck**, ten levels each, paid in shells only, the price on
+  its button with the shell icon (Speed 2 costs 40, 3 120, 4 380 ... 10 140,000; Luck 2 50, 3 150, 4 450 ... 10
+  155,000). The first ones are cheap so the tips never stall on them.
 
 **How much a driftling works:** each one at a building puts in `PalWork` (0.6) times `RarityWork` by rarity (1, 1.6,
 2.5, 4, 7: the request's "creatures work faster based on their rarity") times 1 plus its work share at that building
@@ -514,7 +541,7 @@ driftling every few seconds. Build a Driftling Hut so they can work." (in Build 
 sends its best driftlings there."); 5 "Tap the Tree of Life and buy a level of Speed or Luck." (a label and an arrow
 bob over the tree); 6 "The pen sends driftlings to huts when a building needs them. Sell the ones you don't need." (OK
 ends the tips). A new island starts with `StartShells` (300) shells: the patch, the camp, the stall and the hut of the
-tips cost 250. (The tips that taught fighting and befriending went with them, 2026-11-12, and the Tent's tip went with
+tips cost 250, and the 50 left buy tip 5's level at once (Speed 2 is 40, Luck 2 is 50). (The tips that taught fighting and befriending went with them, 2026-11-12, and the Tent's tip went with
 the villagers the same day: an old save on a later tip moves back one.)
 
 > The request (2026-11-11): "also, please rewrite all text and dialogue to be less ai-like. research what are the
@@ -554,8 +581,7 @@ Sun Beacon is a name). Stat lines keep their "label: value" form.
 The save is version 11 (`Logic/Schema`). A version 10 save loses its villagers: every home comes down with its whole
 price back (Tent 30 shells, Grass Shack 140 and 20 wood, Cottage 700 and 80, Longhouse 2,400 and 260, Townhouse
 7,000 and 700, Villa 20,000 and 2,000, Manor 60,000 and 5,000), its tips on a step past the Tent's move back one, and
-`movedIn` leaves the stats; its driftlings, huts, buildings and stores are kept. A pen past `PenKeep` is brought back
-to it as the tree would (the least useful sold). A version 9 save loses its wild places, the captain, the snack pouch and
+`movedIn` leaves the stats; its driftlings, huts, buildings and stores are kept. A version 9 save loses its wild places, the captain, the snack pouch and
 every level and skill; a Training Yard comes down with its whole price back (450 shells, 50 wood); the Tree of Life is
 planted (the free spot nearest the one behind the campfire; on an island built full the pieces nearest it make room,
 paths first, then decor, then anything that houses nobody, each with its whole price back), each driftling moves into a hut the way the nests were filled before (the comfiest first, in the
@@ -575,11 +601,11 @@ grew an epic first).
 `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 
 - a driftling at work within 3 minutes (about 20 seconds), a rare one within 20 (about 1 to 3 minutes);
-- the tree's Speed and Luck both at 3 or more by 40 minutes (Speed 4, Luck 3);
-- selling helps but the island earns: under two thirds of the shells over three hours come from selling (about 10%,
-  now that the driftlings do all the work);
-- the island's second tier within 45 minutes (about 30), the third within 90 (about 71 to 76); at an hour, at least
-  12 driftlings in huts (about 40); Harbor Town (tier 4) never before 100 minutes (about 150 to 156) and no city
+- the tree's Speed and Luck both at 3 or more by 40 minutes (Speed 4 or 5, Luck 4; Speed 2 and Luck 2 within 10);
+- selling helps but the island earns: under two thirds of the shells over three hours come from selling (about 5%,
+  now that the driftlings do all the work and the pen sells nothing by itself);
+- the island's second tier within 45 minutes (about 30), the third within 90 (about 81 to 86); at an hour, at least
+  12 driftlings in huts (about 40); Harbor Town (tier 4) never before 100 minutes (about 149 to 166) and no city
   (tier 5) within three hours;
 - nobody starves for long, and the stores stay finite.
 

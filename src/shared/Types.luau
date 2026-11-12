@@ -62,7 +62,9 @@ export type ClientView = {
 	dayFrac: number, -- how far into the sea's calendar day (0 dawn .. 1; a day is Tuning.DaySeconds: hours)
 	tier: number,
 	founder: Look,
-	pals: { Pal },
+	pals: { Pal }, -- every driftling in a hut, then the pen's best Tuning.PenShown in its order (Logic/Tree.penView)
+	penN: number, -- how many wait in the pen (it has no room limit)
+	penCommons: number, -- how many of them are commons (Sell commons)
 	tree: Tree,
 	plot: number, -- the plot index on the sea
 	pieces: { Piece },
