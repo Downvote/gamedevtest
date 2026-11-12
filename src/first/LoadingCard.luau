@@ -77,17 +77,32 @@ local C = {
 -- the sky from its top to the horizon, the sea from the horizon down
 local SKY = { 0x1C1934, 0x24203F, 0x2E2749, 0x3B2F5C, 0x4D3766, 0x66406C, 0x87496E, 0xAD576A, 0xD06C62, 0xE98B5E, 0xF4AD68 }
 local SEA = { 0x9A7F9E, 0x6E73A2, 0x50689C, 0x405D93, 0x35528A, 0x2C477D, 0x253D70, 0x1F3462 }
+-- the warm tones the sun's glow lifts the sea to, ahead of its bands
+local SEA_WARM = { 0xD9967C, 0xB88993 }
+local SEA_LIT = table.clone(SEA_WARM)
+for _, c in SEA do
+	table.insert(SEA_LIT, c)
+end
 local SUN, SUN_RIM, SUN_HALO = 0xFFF1C4, 0xFFD27A, 0xF7B470
-local FAR, FAR_TOP = 0x40325C, 0x584672
-local HORIZON = 0xF0B079
+local CLOUD_LIT, CLOUD_RIM = 0xE8946A, 0xC86A78
+local FAR, FAR_TOP = 0x40325C, 0x8F5A72
+local HORIZON, HORIZON_HI = 0xF0B079, 0xFFDDA6
 local DASH = 0x7A90C4
-local PATH, PATH_HI = 0xF4BE6E, 0xFFE2A6
-local SHALLOW, SHALLOW_OUT = 0x3C8DA4, 0x3A6F9A
-local FOAM, FOAM_DIM = 0xE8F7F4, 0xB4DCE4
-local WET, SAND, SAND_HI = 0xC79C66, 0xF0D292, 0xFBE6B6
+-- the sun's path on the water, from the horizon toward us (each line's core, its ends a tone down), and its glow
+local PATH = { 0xFFF1C4, 0xFFD27A, 0xF4A660, 0xD9786A }
+local SHALLOW, SHALLOW_LIGHT, SHALLOW_OUT = 0x3C8DA4, 0x58B0BE, 0x3A6F9A
+local FOAM, FOAM_DIM = 0xEFFAF7, 0xB4DCE4
+local WET, WET_HI = 0xC79C66, 0xD8B27C
+local SAND, SAND_HI, SAND_GRAIN = 0xF0D292, 0xFBE6B6, 0xDDBB7C
+local SHELL, SHELL_PINK = 0xFFF8EE, 0xF6B4C0
 local CLIFF, CLIFF_DARK = 0xBC8B57, 0x86593A
 local GRASS, GRASS_HI, GRASS_LIP, GRASS_TUFT = 0x77C062, 0x9AD47A, 0x4E9446, 0x5EA650
+local GRASS_DARK, GRASS_LIGHT = 0x67B157, 0x88CB6C
+local FLOWER_A, FLOWER_B = 0xFFE17A, 0xF6A6C8
+local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x8E8A99, 0xC9C4D2, 0x6E6A7C, 0x4A4556
 local PLAZA, PLAZA_RIM = 0xE2C48C, 0xC9A26A
+local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xB89474, 0xDCC4A4, 0x8C6A50, 0x50392A
+local PATH_DIRT, PATH_DIRT_EDGE = 0xDDB97E, 0xC29C64
 local JETTY, JETTY_LO, JETTY_EDGE = 0xBB8350, 0x9C6A40, 0x603E27
 local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 
@@ -140,6 +155,7 @@ type Layout = {
 	barY: number,
 	barW: number,
 	tipY: number,
+	pathEnd: number, -- the last row of the sun's path on the water
 }
 
 local S = {
@@ -255,22 +271,42 @@ local function rect(parent: Instance, x: number, y: number, w: number, h: number
 	return f
 end
 
--- An ordered dither (4 x 4 Bayer): whether pixel (x, y) takes the next tone at share f (0..1).
-local BAYER = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 }
-local function dith(x: number, y: number, f: number): boolean
-	return f * 16 > BAYER[(y % 4) * 4 + (x % 4) + 1] + 0.5
+-- Pixel-art dither steps, the clean patterns a hand would use: a quarter (single dots, staggered row to row), a half
+-- (a checkerboard), three quarters (the quarter's gaps). Whether pixel (x, y) takes the next tone at step s (0 none,
+-- 1 a quarter, 2 a half, 3 three quarters, 4 all).
+local function quarter(x: number, y: number): boolean
+	return (x + 2 * (y % 2)) % 4 == 0
+end
+local function stepOn(x: number, y: number, s: number): boolean
+	if s <= 0 then
+		return false
+	elseif s == 1 then
+		return quarter(x, y)
+	elseif s == 2 then
+		return (x + y) % 2 == 0
+	elseif s == 3 then
+		return not quarter(x + 2, y)
+	end
+	return true
 end
 
--- A banded gradient: the band at t (0..1) of `list`, flat through most of each band and dithered into the next over
--- its last quarter.
-local function band(list: { number }, t: number, x: number, y: number): number
-	local u = math.clamp(t, 0, 0.9999) * (#list - 1)
-	local i = math.floor(u)
-	local f = u - i
-	if f > 0.7 and dith(x, y, (f - 0.7) / 0.3) then
-		return list[i + 2]
+-- A banded gradient over `list` at index u (0 the first tone, #list - 1 the last): flat through the first part of each
+-- band, then into the next in three even steps (a quarter, a half, three quarters) over its last `zone` (default 0.45).
+local function bandAt(list: { number }, u: number, x: number, y: number, zone: number?): number
+	local z = zone or 0.45
+	local uu = math.clamp(u, 0, #list - 1.0001)
+	local i = math.floor(uu)
+	local f = uu - i
+	if f < 1 - z then
+		return list[i + 1]
 	end
-	return list[i + 1]
+	local s = math.min(3, math.floor((f - (1 - z)) / z * 3) + 1)
+	return if stepOn(x, y, s) then list[i + 2] else list[i + 1]
+end
+
+-- The same at t (0..1) along the whole list.
+local function band(list: { number }, t: number, x: number, y: number, zone: number?): number
+	return bandAt(list, t * (#list - 1), x, y, zone)
 end
 
 ------------------------------------------------------------------ the layout
@@ -297,6 +333,7 @@ local function layoutFor(W: number, H: number): Layout
 		barY = titleY + 35,
 		barW = math.clamp(math.floor(W * 0.34), 100, 180),
 		tipY = tipY,
+		pathEnd = math.max(cy - ry - 8, horizon + 14),
 	}
 end
 
@@ -306,6 +343,36 @@ local function isl(L: Layout, u: number, v: number): (number, number)
 end
 
 ------------------------------------------------------------------ the painting
+-- The island's coast, Data/Street's way: an oval pushed in and out by four sines (an island of the first tier's
+-- phases). The island is seen from the world camera's height, so a ground point (X across, Z toward us, in px) is the
+-- screen point (cx + X, cy + Z * PITCH).
+local AMP = { 0.09, 0.06, 0.045, 0.025 }
+local FREQ = { 2, 3, 5, 7 }
+local PH = { 0.6, 2.1, 0.3, 4.0 }
+local PITCH = 0.5
+local ANGLES = 720
+
+-- How far out the shoreline is (ground px) at angle a.
+local function shoreR(L: Layout, a: number): number
+	local c, sn = math.cos(a), math.sin(a)
+	local rz = L.ry / PITCH
+	local w = 1
+	for k = 1, #AMP do
+		w += AMP[k] * math.sin(FREQ[k] * a + PH[k])
+	end
+	return w / math.sqrt((c / L.rx) ^ 2 + (sn / rz) ^ 2)
+end
+
+-- Rocks at the waterline: an ink outline, lit from the top left, the shadow side a tone down.
+local ROCKS: { { string } } = {
+	{ "..kkk..", ".kLggk.", "kLgggdk", "kgggddk", ".kkkkk." },
+	{ ".kkk.", "kLgdk", "kggdk", ".kkk." },
+	{ ".kk.", "kLdk", ".kk." },
+}
+
+-- A driftwood log: bleached, lit at its left end.
+local LOG: { string } = { ".kkkkkk.", "kLLwwwdk", ".kkkkkk." }
+
 -- The still scene, painted into a buffer of W x H pixels.
 local function paint(L: Layout): buffer
 	local W, H = L.W, L.H
@@ -324,17 +391,10 @@ local function paint(L: Layout): buffer
 			buffer.writeu32(buf, (y * W + x) * 4, v)
 		end
 	end
-	-- an ellipse's half width at row y (nil off it)
-	local function half(rx: number, ry: number, dy: number): number?
-		local q = dy / ry
-		if q < -1 or q > 1 then
-			return nil
-		end
-		return math.floor(rx * math.sqrt(1 - q * q) + 0.5)
-	end
 	local rng = Random.new(1709)
 	local hz = L.horizon
-	-- the sky
+	local r = L.sunR
+	---------------------------------------------------------------- the sky
 	for y = 0, hz - 1 do
 		local t = y / math.max(1, hz - 1)
 		for x = 0, W - 1 do
@@ -346,139 +406,371 @@ local function paint(L: Layout): buffer
 		local x, y = rng:NextInteger(0, W - 1), rng:NextInteger(0, math.floor(hz * 0.5))
 		put(x, y, if rng:NextNumber() < 0.25 then STAR else STAR_DIM)
 	end
-	-- the sun going down: a halo, the rim and the disc, cut off by the horizon
-	local r = L.sunR
-	for y = hz - r - 4, hz - 1 do
-		for x = L.sunX - r - 4, L.sunX + r + 4 do
+	-- the sun going down: its disc and rim cut by the horizon, a halo round it in two steps (a half, a quarter)
+	for y = hz - r - 5, hz - 1 do
+		for x = L.sunX - r - 5, L.sunX + r + 5 do
 			local d = math.sqrt((x - L.sunX) ^ 2 + (y - hz) ^ 2)
 			if d <= r - 2 then
 				put(x, y, SUN)
 			elseif d <= r then
 				put(x, y, SUN_RIM)
-			elseif d <= r + 3 and dith(x, y, 0.5) then
+			elseif d <= r + 2 and stepOn(x, y, 2) then
+				put(x, y, SUN_HALO)
+			elseif d <= r + 4 and stepOn(x, y, 1) then
 				put(x, y, SUN_HALO)
 			end
 		end
 	end
-	-- far islands either side, dark against the glow
-	for _, f in { { 0.13, 0.11, 7 }, { 0.87, 0.08, 5 }, { 0.22, 0.04, 3 } } do
-		local xc, hw, hmax = math.floor(W * f[1]), math.max(8, math.floor(W * f[2])), f[3]
-		for x = xc - hw, xc + hw do
-			local q = (x - xc) / hw
-			local h = math.floor(hmax * math.sqrt(math.max(0, 1 - q * q)) + 0.5)
-			for y = hz - h, hz - 1 do
-				put(x, y, if y == hz - h then FAR_TOP else FAR)
+	-- long low clouds: a few rounded lobes on a flat base, a tone or two darker than the sky round them, the base lit
+	-- by the sun (gold near it, pink further off), thin streaks trailing off either end in dither steps
+	for _, c in { { 0.24, 0.66, 0.2, 5 }, { 0.69, 0.77, 0.15, 4 }, { 0.9, 0.53, 0.08, 3 }, { 0.07, 0.86, 0.08, 3 } } do
+		local y0 = math.floor(hz * c[2])
+		local half = math.floor(W * c[3] / 2)
+		local mid = math.floor(W * c[1])
+		local body = SKY[math.max(1, math.floor(c[2] * (#SKY - 1)))]
+		-- (three lobes: the middle one tallest)
+		local lobes = { { -0.45, 0.5, 0.55 }, { 0.05, 0.6, 1 }, { 0.5, 0.45, 0.7 } }
+		local tail = math.floor(half * 0.6)
+		local tops: { [number]: number } = {}
+		for x = mid - half - tail - 1, mid + half + tail + 1 do
+			local top = 0
+			for _, lb in lobes do
+				local q = (x - (mid + lb[1] * half)) / (lb[2] * half)
+				if math.abs(q) < 1 then
+					top = math.max(top, c[4] * lb[3] * math.sqrt(1 - q * q))
+				end
+			end
+			tops[x] = math.floor(top + 0.5)
+		end
+		-- (no lone one pixel bump or notch on the top edge)
+		for x = mid - half - tail, mid + half + tail do
+			local l, r2 = tops[x - 1], tops[x + 1]
+			if (tops[x] > l and tops[x] > r2) or (tops[x] < l and tops[x] < r2) then
+				tops[x] = math.max(l, r2)
 			end
 		end
-	end
-	-- the sea
-	for y = hz, H - 1 do
-		local t = (y - hz) / math.max(1, H - 1 - hz)
-		for x = 0, W - 1 do
-			buffer.writeu32(buf, (y * W + x) * 4, px(band(SEA, t, x, y)))
-		end
-	end
-	row(hz, 0, W - 1, HORIZON)
-	-- small waves: short lighter dashes, more of them nearer
-	for _ = 1, math.floor(W * (H - hz) / 240) do
-		local y = hz + 2 + math.floor((H - hz - 3) * rng:NextNumber() ^ 0.8)
-		local x = rng:NextInteger(0, W - 1)
-		local len = 2 + math.floor((y - hz) / (H - hz) * 6) + rng:NextInteger(0, 2)
-		row(y, x, x + len, DASH)
-	end
-	-- the sun's path on the water: gold dashes narrowing toward the island
-	local stop = L.cy - L.ry - 8
-	for y = hz + 2, stop, 2 do
-		local k = 1 - (y - hz) / math.max(1, stop - hz)
-		local w = math.max(1, math.floor(r * 1.3 * k) + rng:NextInteger(-2, 2))
-		local x = L.sunX + rng:NextInteger(-2, 2)
-		row(y, x - w, x + w, if k > 0.6 then PATH_HI else PATH)
-	end
-	-- the island: its shallows (dithered out into the sea), the foam, the wet sand, the sand's cliff in front, the sand,
-	-- the grass
-	local cx, cy, rx, ry = L.cx, L.cy, L.rx, L.ry
-	for y = cy - ry - 10, cy + ry + 14 do
-		local h2 = half(rx + 20, ry + 10, y - cy - 2)
-		local h1 = half(rx + 15, ry + 7, y - cy - 2)
-		if h2 then
-			for x = cx - h2, cx + h2 do
-				local inner = h1 ~= nil and math.abs(x - cx) <= (h1 :: number)
-				if inner or dith(x, y, 0.5) then
-					put(x, y, if inner then SHALLOW else SHALLOW_OUT)
+		for x = mid - half - tail, mid + half + tail do
+			local th = tops[x]
+			local e = math.abs(x - L.sunX) / (W * 0.32)
+			local under = if e < 0.55 or (e < 1 and stepOn(x, y0, 2)) then CLOUD_LIT else CLOUD_RIM
+			if th >= 1 then
+				for y = y0 - th, y0 - 1 do
+					put(x, y, body)
+				end
+				put(x, y0, under)
+			else
+				-- (the streak: thinning toward its end)
+				local f = 1 - (math.abs(x - mid) - half * 0.75) / (half * 0.25 + tail)
+				if f > 0 and stepOn(x, y0, if f > 0.66 then 3 elseif f > 0.33 then 2 else 1) then
+					put(x, y0, under)
 				end
 			end
 		end
 	end
-	for y = cy - ry - 6, cy + ry + 8 do
-		local hf = half(rx + 7, ry + 4, y - cy - 1)
-		local hd = half(rx + 10, ry + 6, y - cy - 1)
-		if hd and (y + cx) % 2 == 0 then
-			put(cx - hd, y, FOAM_DIM)
-			put(cx + hd, y, FOAM_DIM)
+	-- far islands either side: a low hill or two, a palm or two, the edge facing the sun lit
+	for _, f in { { 0.13, 0.11, 7, 2 }, { 0.87, 0.08, 5, 1 }, { 0.24, 0.035, 3, 0 } } do
+		local xc, hw, hmax = math.floor(W * f[1]), math.max(8, math.floor(W * f[2])), f[3]
+		local tops: { [number]: number } = {}
+		for x = xc - hw, xc + hw do
+			local q = (x - xc) / hw
+			local hill = math.sqrt(math.max(0, 1 - q * q)) * (0.78 + 0.22 * math.sin(q * 4.2 + xc * 0.37))
+			local h = math.floor(hmax * hill + 0.5)
+			tops[x] = hz - h
+			for y = hz - h, hz - 1 do
+				put(x, y, FAR)
+			end
 		end
-		if hf then
-			row(y, cx - hf, cx + hf, FOAM)
+		for x = xc - hw, xc + hw do
+			local nb = if L.sunX > x then tops[x + 1] else tops[x - 1]
+			if tops[x] < hz and (nb == nil or nb >= tops[x]) then
+				put(x, tops[x], FAR_TOP)
+			end
 		end
-	end
-	for y = cy - ry - 3, cy + ry + 5 do
-		local h = half(rx + 4, ry + 2, y - cy - 1)
-		if h then
-			row(y, cx - h, cx + h, WET)
-		end
-	end
-	-- the cliff: each column of the sand's front edge carried 4 px down, its foot dark
-	local DEPTH = 4
-	for x = cx - rx, cx + rx do
-		local q = (x - cx) / rx
-		local yb = cy + math.floor(ry * math.sqrt(math.max(0, 1 - q * q)) + 0.5)
-		for k = 1, DEPTH do
-			put(x, yb + k, if k == DEPTH then CLIFF_DARK else CLIFF)
-		end
-	end
-	for y = cy - ry, cy + ry do
-		local h = half(rx, ry, y - cy)
-		if h then
-			row(y, cx - h, cx + h, SAND)
-			-- lit from the top left: the back edge a tone lighter
-			if y < cy - ry * 0.55 then
-				put(cx - h, y, SAND_HI)
-				put(cx - h + 1, y, SAND_HI)
+		-- palms: a trunk leaning one way, a crown of fronds drooping either side
+		for p = 1, f[4] do
+			local lean = if p == 1 then 1 else -1
+			local x = xc + math.floor(hw * (if p == 1 then -0.3 else 0.25))
+			local y = tops[x] or hz
+			for k = 1, 6 do
+				put(x + lean * math.floor(k / 4), y - k, FAR)
+			end
+			-- (two fronds arching out from the top and drooping at their tips)
+			local tx, ty = x + lean, y - 6
+			for _, d in { { 0, 0 }, { -1, -1 }, { -2, -1 }, { -3, 0 }, { -3, 1 }, { 1, -1 }, { 2, -1 }, { 3, 0 }, { 3, 1 } } do
+				put(tx + d[1], ty + d[2], FAR)
 			end
 		end
 	end
-	local gcx, gcy, grx, gry = cx - 2, cy - 2, rx - 15, ry - 8
-	for y = gcy - gry, gcy + gry do
-		local h = half(grx, gry, y - gcy)
-		if h then
-			row(y, gcx - h, gcx + h, GRASS)
-			if y < gcy - gry * 0.4 then
-				put(gcx - h, y, GRASS_HI)
-				put(gcx - h + 1, y, GRASS_HI)
+	---------------------------------------------------------------- the sea
+	-- the bands of the sea, lifted toward warm tones round the sun's path: most near the horizon, less and narrower
+	-- toward us
+	local stop = L.pathEnd
+	local span = math.max(1, H - 1 - hz)
+	local glowEnd = math.max(hz + 4, stop + 6)
+	for y = hz, H - 1 do
+		local u = #SEA_WARM + (y - hz) / span * (#SEA - 1)
+		local tt = math.min(1, (y - hz) / math.max(1, glowEnd - hz))
+		-- (a trumpet: wide along the horizon, closing quickly to the path's own width)
+		local gw = r * (1.15 + 1.5 * (1 - tt) ^ 2)
+		local lift = (#SEA_WARM + 0.6) * (1 - tt)
+		for x = 0, W - 1 do
+			local uu = u
+			if lift > 0 then
+				local dx = math.abs(x - L.sunX) / gw
+				if dx < 1 then
+					uu -= lift * (1 - dx * dx)
+				end
+			end
+			buffer.writeu32(buf, (y * W + x) * 4, px(bandAt(SEA_LIT, uu, x, y)))
+		end
+	end
+	-- the horizon: brightest under the sun, thinning out to either side
+	for x = 0, W - 1 do
+		local dx = math.abs(x - L.sunX) / math.max(1, W * 0.45)
+		if dx < 0.3 then
+			put(x, hz, HORIZON_HI)
+		elseif dx < 0.6 then
+			put(x, hz, HORIZON)
+		elseif stepOn(x, hz, if dx < 0.9 then 2 else 1) then
+			put(x, hz, HORIZON)
+		end
+	end
+	-- small waves: short lighter dashes, longer and more of them nearer, none in the sun's glow
+	for _ = 1, math.floor(W * (H - hz) / 240) do
+		local y = hz + 2 + math.floor((H - hz - 3) * rng:NextNumber() ^ 0.8)
+		local x = rng:NextInteger(0, W - 1)
+		local len = 2 + math.floor((y - hz) / (H - hz) * 6) + rng:NextInteger(0, 2)
+		if y > glowEnd or math.abs(x + len / 2 - L.sunX) > r * 2.6 then
+			row(y, x, x + len, DASH)
+		end
+	end
+	-- the sun's path: lines on the swell, close together near the horizon and further apart toward us, narrowing,
+	-- broken where the swell rolls; pale gold near the horizon, then gold, then coral, each line's ends a tone down
+	do
+		local y, k = hz + 2, 0
+		while y <= stop do
+			local t = (y - hz) / math.max(1, stop - hz)
+			local hw = r * (1.05 - 0.6 * t)
+			local shift = math.floor(math.sin(k * 2.3) * 1.6 + 0.5)
+			local x0, x1 = math.floor(L.sunX - hw) + shift, math.ceil(L.sunX + hw) + shift
+			local core = if t < 0.3 then PATH[1] elseif t < 0.65 then PATH[2] else PATH[3]
+			local edge = if t < 0.3 then PATH[2] elseif t < 0.65 then PATH[3] else PATH[4]
+			for x = x0, x1 do
+				-- (a break: where two slow waves along the line meet in a trough)
+				local trough = math.sin(x * 0.61 + k * 1.7) + math.sin(x * 0.27 - k * 0.9) < -1.0 - 0.5 * (1 - t)
+				if not trough then
+					put(x, y, if x - x0 < 2 or x1 - x < 2 then edge else core)
+				end
+			end
+			k += 1
+			y += 2 + math.floor(t * 2.2)
+		end
+	end
+	---------------------------------------------------------------- the island
+	-- Inland of the shoreline the wet sand, the beach (wider in front, narrower on a small screen) and the grass; out
+	-- from it the foam and the shallows, lighter near the shore, dithered into the sea.
+	local cx, cy, rx, rz = L.cx, L.cy, L.rx, L.ry / PITCH
+	local ks = math.clamp(rx / 160, 0.6, 1)
+	local shoreAt: { number } = table.create(ANGLES + 1, 0)
+	local beachAt: { number } = table.create(ANGLES + 1, 0)
+	for i = 0, ANGLES do
+		local a = (i / ANGLES) * math.pi * 2 - math.pi
+		shoreAt[i + 1] = shoreR(L, a)
+		beachAt[i + 1] = ks * (12 + 4 * math.sin(3 * a + 1.1) + 3 * math.sin(5 * a + 0.3) + 7 * math.max(0, math.sin(a)))
+	end
+	local function ground(x: number, y: number): (number, number, number, number)
+		local X, Z = x - cx, (y - cy) / PITCH
+		local a = math.atan2(Z, X)
+		local i = math.clamp(math.floor((a + math.pi) / (math.pi * 2) * ANGLES + 0.5), 0, ANGLES) + 1
+		return math.sqrt(X * X + Z * Z) - shoreAt[i], beachAt[i], a, Z
+	end
+	-- what each pixel of the island's box is: 0 sea, 1 the shallows' outer edge, 2 the shallows, 3 near the shore,
+	-- 4 foam, 5 wet sand, 6 the beach, 7 grass
+	local reach = 0
+	for i = 1, ANGLES + 1 do
+		reach = math.max(reach, shoreAt[i])
+	end
+	local bx0, bx1 = cx - math.ceil(reach) - 24, cx + math.ceil(reach) + 24
+	local by0, by1 = math.floor(cy - (reach + 24) * PITCH), math.ceil(cy + (reach + 24) * PITCH)
+	local bw = bx1 - bx0 + 1
+	local kind = buffer.create(bw * (by1 - by0 + 1))
+	local function kindAt(x: number, y: number): number
+		if x < bx0 or x > bx1 or y < by0 or y > by1 then
+			return 0
+		end
+		return buffer.readu8(kind, (y - by0) * bw + x - bx0)
+	end
+	for y = by0, by1 do
+		for x = bx0, bx1 do
+			local d, beach = ground(x, y)
+			local k = if d <= -beach then 7 elseif d <= -3 then 6 elseif d <= 0 then 5 elseif d <= 2.5 then 4 elseif d <= 6 then 3 elseif d <= 15 then 2 elseif d <= 22 then 1 else 0
+			buffer.writeu8(kind, (y - by0) * bw + x - bx0, k)
+		end
+	end
+	local grain = Random.new(23)
+	for y = by0, by1 do
+		for x = bx0, bx1 do
+			local k = kindAt(x, y)
+			if k == 0 then
+				continue
+			end
+			local d, beach, a, Z = ground(x, y)
+			if k == 1 then
+				-- the shallows' edge thinning into the sea: a half, then a quarter
+				if stepOn(x, y, if d <= 18.5 then 2 else 1) then
+					put(x, y, SHALLOW_OUT)
+				end
+			elseif k == 2 then
+				-- (a broken line of surf further out, in front and behind, where it lies along the rows)
+				local surf = d >= 9 and d < 10.5 and math.abs(math.sin(a)) > 0.55 and math.sin(a * 23 + 1) + math.sin(a * 9 - 0.4) > 0.5
+				put(x, y, if surf then SHALLOW_LIGHT else SHALLOW)
+			elseif k == 3 then
+				put(x, y, if stepOn(x, y, if d <= 4 then 4 else 2) then SHALLOW_LIGHT else SHALLOW)
+			elseif k == 4 then
+				-- foam: white where the waves break, broken here and there
+				put(x, y, if math.sin(a * 41 + 0.5) + math.sin(a * 17 - 1.2) > -1.1 then FOAM else FOAM_DIM)
+			elseif k == 5 then
+				-- wet sand; in front, under the dry beach, a little step down
+				if Z > 0 and (kindAt(x, y - 1) == 6 or kindAt(x, y - 2) == 6) then
+					put(x, y, if kindAt(x, y - 1) == 6 then CLIFF else CLIFF_DARK)
+				else
+					put(x, y, if grain:NextNumber() < 0.08 then WET_HI else WET)
+				end
+			elseif k == 6 then
+				local c = SAND
+				local n = grain:NextNumber()
+				if n < 0.05 then
+					c = SAND_GRAIN
+				elseif n < 0.058 then
+					c = if n < 0.054 then SHELL else SHELL_PINK
+				end
+				-- lit from the top left: the back of the beach a tone lighter along its edge with the grass
+				if Z < 0 and d <= -beach + 1.5 and a < -0.6 then
+					c = SAND_HI
+				end
+				put(x, y, c)
+			else
+				-- grass: patches darker and lighter in dither steps, its front edge a darker lip over the beach, its
+				-- back left edge lit
+				local X = x - cx
+				local n = math.sin(X * 0.13 + Z * 0.05) + math.sin(X * 0.06 - Z * 0.11 + 1.7) + 0.6 * math.sin(X * 0.21 + Z * 0.17 + 0.4)
+				local c = GRASS
+				if n > 1.35 then
+					c = GRASS_DARK
+				elseif n > 1.0 then
+					c = if stepOn(x, y, 2) then GRASS_DARK else GRASS
+				elseif n < -1.45 then
+					c = GRASS_LIGHT
+				elseif n < -1.15 then
+					c = if stepOn(x, y, 2) then GRASS_LIGHT else GRASS
+				end
+				if d > -beach - 1.6 then
+					c = if Z > 0 then GRASS_LIP elseif X < 0 then GRASS_HI else c
+				end
+				put(x, y, c)
 			end
 		end
 	end
-	-- the front lip of the grass: its lowest pixel in each column a shade darker over the sand
-	for x = gcx - grx, gcx + grx do
-		local q = (x - gcx) / grx
-		put(x, gcy + math.floor(gry * math.sqrt(math.max(0, 1 - q * q)) + 0.5), GRASS_LIP)
+	-- tufts and a few flowers on the grass
+	for _ = 1, math.floor(rx * rz / 70) do
+		local x, y = rng:NextInteger(bx0, bx1), rng:NextInteger(by0, by1)
+		if kindAt(x, y) == 7 and kindAt(x, y + 1) == 7 and kindAt(x + 1, y) == 7 then
+			if rng:NextNumber() < 0.15 then
+				put(x, y, if rng:NextNumber() < 0.5 then FLOWER_A else FLOWER_B)
+			else
+				put(x, y, GRASS_TUFT)
+				put(x, y - 1, GRASS_TUFT)
+				put(x + 1, y, GRASS_HI)
+			end
+		end
 	end
-	-- tufts on the grass
-	for _ = 1, math.floor(grx * gry / 40) do
-		local u, v = rng:NextNumber() * 2 - 1, rng:NextNumber() * 2 - 1
-		if u * u + v * v < 0.8 then
-			local x, y = gcx + math.floor(u * grx), gcy + math.floor(v * gry)
-			put(x, y, GRASS_TUFT)
-			put(x, y - 1, GRASS_TUFT)
-			put(x + 1, y, GRASS_HI)
+	-- rocks along the shore, at the waterline
+	for k, a in { -2.75, -2.6, -1.9, -0.35, 0.55, 0.68, 1.25, 2.2, 2.9 } do
+		local i = math.clamp(math.floor((a + math.pi) / (math.pi * 2) * ANGLES + 0.5), 0, ANGLES) + 1
+		local dist = shoreAt[i] + 1
+		local x, y = cx + math.floor(math.cos(a) * dist + 0.5), cy + math.floor(math.sin(a) * dist * PITCH + 0.5)
+		local pat = ROCKS[(k * 2) % #ROCKS + 1]
+		for ry2, line in ipairs(pat) do
+			for rx2 = 1, #line do
+				local ch = string.sub(line, rx2, rx2)
+				if ch ~= "." then
+					local c = if ch == "k" then ROCK_INK elseif ch == "L" then ROCK_LIT elseif ch == "d" then ROCK_D else ROCK_C
+					put(x + rx2 - math.ceil(#line / 2), y + ry2 - #pat + 1, c)
+				end
+			end
+		end
+	end
+	-- driftwood washed up on the beach, where the whole log lies on dry sand
+	for _, a in { 2.35, 1.05, -2.25 } do
+		local i = math.clamp(math.floor((a + math.pi) / (math.pi * 2) * ANGLES + 0.5), 0, ANGLES) + 1
+		local dist = shoreAt[i] - 3 - (beachAt[i] - 3) / 2
+		local x, y = cx + math.floor(math.cos(a) * dist + 0.5), cy + math.floor(math.sin(a) * dist * PITCH + 0.5)
+		local fits = true
+		for ry2, line in ipairs(LOG) do
+			for rx2 = 1, #line do
+				if string.sub(line, rx2, rx2) ~= "." and kindAt(x + rx2 - 4, y + ry2 - 2) ~= 6 then
+					fits = false
+				end
+			end
+		end
+		if fits then
+			for ry2, line in ipairs(LOG) do
+				for rx2 = 1, #line do
+					local ch = string.sub(line, rx2, rx2)
+					if ch ~= "." then
+						put(x + rx2 - 4, y + ry2 - 2, if ch == "k" then LOG_INK elseif ch == "L" then LOG_LIT elseif ch == "d" then LOG_D else LOG_C)
+					end
+				end
+			end
+		end
+	end
+	-- a trodden path from the campfire down to the jetty: a bend to the left on its way, dirt with a dithered edge,
+	-- only on the grass
+	local fx, fy = isl(L, 0.02, 0.1)
+	local jx = cx + math.floor(rx * 0.3)
+	local jy = fy
+	while jy < by1 and kindAt(jx, jy) ~= 5 and kindAt(jx, jy) ~= 4 do
+		jy += 1
+	end
+	do
+		local pts = {}
+		local n = math.max(12, math.floor(math.abs(jy - fy) + math.abs(jx - fx)))
+		for s = 0, n do
+			local t = s / n
+			table.insert(pts, Vector2.new(fx + (jx - fx) * t - math.sin(t * math.pi) * 6, fy + 3 + (jy - fy - 3) * t))
+		end
+		for y = math.min(fy, jy) - 3, math.max(fy, jy) + 3 do
+			for x = math.min(fx, jx) - 10, math.max(fx, jx) + 4 do
+				if kindAt(x, y) == 7 then
+					local best = math.huge
+					for _, p in pts do
+						-- (rows count double: the path is as wide on the ground across as along)
+						best = math.min(best, (p.X - x) ^ 2 + ((p.Y - y) * 2) ^ 2)
+					end
+					if best <= 1.6 ^ 2 then
+						put(x, y, PATH_DIRT)
+					elseif best <= 2.7 ^ 2 and stepOn(x, y, 2) then
+						put(x, y, PATH_DIRT_EDGE)
+					end
+				end
+			end
+		end
+	end
+	for y = fy - 5, fy + 5 do
+		local q = (y - fy) / 5
+		if q >= -1 and q <= 1 then
+			local h = math.floor(13 * math.sqrt(1 - q * q) * (1 + 0.08 * math.sin(y * 1.7)) + 0.5)
+			row(y, fx - h, fx + h, PLAZA)
+			if y == fy + 5 or (y > fy and math.floor(13 * math.sqrt(math.max(0, 1 - ((y + 1 - fy) / 5) ^ 2))) < h - 2) then
+				row(y, fx - h, fx + h, PLAZA_RIM)
+			end
 		end
 	end
 	-- a wooden jetty from the beach out over the shallows (planks across it in two tones, a dark edge each side, posts
 	-- under its end)
 	do
-		local jx = cx + math.floor(rx * 0.3)
-		local q = (jx - cx) / rx
-		local y0 = cy + math.floor(ry * math.sqrt(math.max(0, 1 - q * q))) - 2
-		local y1 = math.min(y0 + math.max(10, math.floor(ry * 0.4)), L.tipY - 6)
+		local y0 = jy - 2
+		local y1 = math.min(y0 + math.max(10, math.floor(L.ry * 0.45)), L.tipY - 6)
 		for y = y0, y1 do
 			local x0 = jx - 4 + math.floor((y - y0) / 2)
 			row(y, x0, x0 + 7, if (y - y0) % 3 == 0 then JETTY_LO else JETTY)
@@ -489,18 +781,6 @@ local function paint(L: Layout): buffer
 		for _, px0 in { xe + 1, xe + 6 } do
 			for y = y1 + 1, math.min(y1 + 3, L.H - 1) do
 				put(px0, y, JETTY_EDGE)
-			end
-		end
-	end
-	-- the sand round the campfire
-	local fx, fy = isl(L, 0.02, 0.1)
-	for y = fy - 5, fy + 5 do
-		local h = half(13, 5, y - fy)
-		if h then
-			row(y, fx - h, fx + h, PLAZA)
-			local hb = half(13, 5, y - fy + 1)
-			if hb == nil and y > fy then
-				row(y, fx - h, fx + h, PLAZA_RIM)
 			end
 		end
 	end
@@ -737,9 +1017,9 @@ local function placeScene(L: Layout)
 	still("palm_b", 0.84, 0.18)
 	still("hut", -0.5, -0.5)
 	still("tent", 0.46, -0.55)
-	still("palm", -0.12, -0.78)
-	still("flowers", -0.6, 0.55)
-	still("flowers", 0.3, 0.62)
+	still("palm", -0.12, -0.7)
+	still("flowers", -0.5, 0.42)
+	still("flowers", 0.3, 0.55)
 	still("bush", -0.72, 0.2)
 	still("bush", 0.7, -0.3)
 	still("bush", 0.08, -0.62)
@@ -783,9 +1063,9 @@ local function placeScene(L: Layout)
 			end
 		end
 	end
-	walker("walk_a", "walk_a_r", 0.32, -0.62, 0.42, 13, -1, "bun_r", "bun", 15)
+	walker("walk_a", "walk_a_r", 0.3, -0.55, 0.42, 13, -1, "bun_r", "bun", 15)
 	walker("walk_b", "walk_b_r", -0.3, -0.35, 0.36, 11, 1, "crab_r", "crab", 14)
-	walker("gullfin", "gullfin_r", 0.72, -0.32, 0.3, 9, 1)
+	walker("gullfin", "gullfin_r", 0.6, -0.16, 0.3, 9, 1)
 	-- the boat out at sea, rocking past
 	local boatY = L.horizon + math.max(6, math.floor((L.cy - L.ry - L.horizon) * 0.45))
 	local boat = newActor("boat", "boat", math.floor(L.W * 0.18), boatY, 12)
@@ -829,8 +1109,8 @@ local function openSea(L: Layout, x: number, y: number): boolean
 	if y < L.horizon + 3 or y > L.H - 18 then
 		return false
 	end
-	local q = ((x - L.cx) / (L.rx + 24)) ^ 2 + ((y - L.cy) / (L.ry + 14)) ^ 2
-	return q > 1
+	local X, Z = x - L.cx, (y - L.cy) / PITCH
+	return math.sqrt(X * X + Z * Z) > shoreR(L, math.atan2(Z, X)) + 26
 end
 
 local crestRng = Random.new(5)
@@ -915,10 +1195,13 @@ local function step(dt: number)
 							if k == "crest" then
 								x, y = crestRng:NextInteger(4, L.W - 8), crestRng:NextInteger(L.horizon + 4, L.H - 20)
 							else
-								y = crestRng:NextInteger(L.horizon + 3, math.max(L.horizon + 4, L.cy - L.ry - 10))
-								x = L.sunX + crestRng:NextInteger(-L.sunR, L.sunR)
+								-- (as narrow as the path's lines at that depth)
+								local stop = math.max(L.horizon + 4, L.pathEnd - 2)
+								y = crestRng:NextInteger(L.horizon + 3, stop)
+								local hw = math.max(2, math.floor(L.sunR * (1 - 0.6 * (y - L.horizon) / (stop - L.horizon))))
+								x = L.sunX + crestRng:NextInteger(-hw, hw)
 							end
-							if k == "glint" or openSea(L, x, y) then
+							if openSea(L, x, y) then
 								a.x, a.y = x, y
 								break
 							end

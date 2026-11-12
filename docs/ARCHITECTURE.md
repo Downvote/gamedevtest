@@ -338,16 +338,22 @@ entry the screen's short side exceeds); Roblox's touch buttons off while it is u
 (0.45) to clear, destroyed, touch buttons back; by itself after `SAFETY_SEC` (45)), `state() -> { up, phase, bar,
 finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island }`. Laid out from
 the canvas's size (`layoutFor`: the horizon at 0.46 of the height, the island's middle and radii, the sun, the title,
-status, bar and tip rows) and built again 0.15 s after the camera's ViewportSize changes: `paint(L)` writes the still
-scene into one EditableImage of the canvas's size (the sky's and the sea's dithered bands, stars, the sun cut by the
-horizon, far islands, wave dashes, the sun's path, the island's shallows, foam, wet sand, cliff, sand, grass, tufts,
-the jetty, the sand round the fire), `buildAtlas()` decodes `LoadingArt` into one atlas EditableImage (the run-length
+status, bar and tip rows, `pathEnd` the last row of the sun's path) and built again 0.15 s after the camera's
+ViewportSize changes: `paint(L)` writes the still scene into one EditableImage of the canvas's size. Its gradients go
+through `bandAt(list, u, x, y, zone?)` / `band(list, t, ...)` (flat, then three dither steps of `stepOn(x, y, s)`: a
+quarter, a half, three quarters). It paints the sky's bands, stars, the sun cut by the horizon with its halo, clouds,
+far islands with palms; the sea's bands with the sun's glow (`SEA_LIT`: the sea's tones after two warm ones, the index
+lifted round `sunX`), the horizon, wave dashes, the sun's path lines; the island from a class grid over its box (sea,
+shallows' edge, shallows, near shore, foam, wet sand, beach, grass) by its ground distance to the coast (`shoreR(L, a)`:
+the oval of radii `rx`, `ry / PITCH` times Street's four sines, `PITCH` 0.5), then tufts, flowers, rocks, driftwood,
+the path to the jetty, the sand round the fire and the jetty. `buildAtlas()` decodes `LoadingArt` into one atlas EditableImage (the run-length
 format of `gen_loading_art.py`), `placeScene(L)` lays the actors (ImageLabels on the atlas, `ImageRectOffset` per
 frame, whole UI px, ZIndex by their foot's row) and `step(dt)` moves them at most `SCENE_FPS` (24) times a second
 from the card's one Heartbeat: stills; the fire, the boat (drifting right, wrapping), the blinking pool, the cheering
 villager (a burst, a rest), walkers (up and down a lane, a pause at each end, `walk_*` left and `walk_*_r` right),
 followers (a driftling `gap` px behind its walker), gulls, stars, crests and glints (a run, hidden, a new spot: open
-sea away from the island, or the sun's path), embers. The words: `textImage` rasterises a line with `PixelFont.mask`
+sea at least 26 ground px past `shoreR`, or the sun's path as wide as its lines at that row), embers.
+The words: `textImage` rasterises a line with `PixelFont.mask`
 (the title in `BIG` with the "title" under layer and `PixelFont.smooth`'s anti-aliasing steps, the status and the tip
 in `SMALL` with a drop shadow) into an EditableImage, centred on the canvas; the status's dots and the bar are Frames.
 Without EditableImages (`fallback`): Frames and an Arcade TextLabel. `LoadingArt` (generated: `W`, `H`, `palette`,

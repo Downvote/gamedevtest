@@ -905,6 +905,29 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 
 ## 11. Polish and animation
 
+> The request (2026-11-12, later): "detail the island on the loading screen more, it should be uneven like the actual
+> island. the reflection of the sun on the water should be polished more, same with the dithered gradient of the
+> background, dither it better"
+
+- **The loading card's island** has the real island's coast: the oval pushed in and out by the same four sines as a
+  first tier island (Data/Street), seen from the world camera's height. Inland of the shore: wet sand, a beach that is
+  wider in front (lit along its back edge, a small dark step down to the wet sand in front, grains and a few shells),
+  then grass in darker and lighter patches with tufts and flowers, its front edge a darker lip. Out from the shore: a
+  broken line of foam, the shallows lighter near the shore with a broken line of surf further out, dithered into the
+  sea. Rocks with an ink outline sit at the waterline, driftwood lies on the beach, and a dirt path runs from the
+  campfire down to the jetty. The sprites on it were moved where the new coast came too close.
+- **The sun's path:** the sea round it is lifted into warm tones, wide along the horizon and closing to the path's
+  width toward us. On that glow lie lines of light, close together near the horizon and further apart nearer the
+  island, narrowing, broken where the swell dips, pale gold at the top, then gold, then coral, each line's ends a tone
+  down. Small waves and wave crests stay out of the glow, and glints only land on the lines. On a phone the path is
+  never shorter than 14 rows.
+- **The dither:** every gradient (sky, sea, the sun's glow, the sun's halo, the shallows' edge) goes from one tone to
+  the next in three even steps of clean patterns: single dots (a quarter), a checkerboard (a half), the dots' gaps
+  (three quarters). Each band is flat for its first part. The old 4 x 4 Bayer dither mixed its levels inside each row,
+  so the steps looked ragged. The sky has long low clouds (rounded lobes a tone or two darker than the sky round them,
+  their bases lit gold near the sun and pink further off, thin streaks trailing out), the horizon line is brightest
+  under the sun, and the far islands are low hills with palm silhouettes, lit on the side facing the sun.
+
 > The request (2026-11-12): "the loading screen isnt centered. also, the transition that happens when entering a cave
 > also seems to only affect a smaller part of the screen sometimes. can you also make the loading screen more
 > detailed, like the bakery game, with baked in models and animations?"
