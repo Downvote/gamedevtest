@@ -10,7 +10,7 @@
 --   comes out a tier better (a shared flaw turns into its family's first tier); one only a parent carries passes on
 --   with `BreedKeep`; with `BreedNew` it gains one of its own (tier 1 or 2 of a family neither carries). The best four.
 --   An egg is laid at a Hatchery with no egg (one each), for `BreedFood` food by the child's rarity, and takes
---   `BreedTurns` turns (Island.turn's, while the player is here); a ready egg waits for room in the pen.
+--   `BreedTurns` turns (Island.turn's, while the player is here); a ready egg hatches into the pen (it always has room).
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -175,15 +175,15 @@ function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (
 	return true, egg
 end
 
--- A turn's end: every egg a turn nearer; the ready ones hatch into the pen while it has room (in the Index; the pen
--- sends the best on to the huts), the rest wait. The hatched.
+-- A turn's end: every egg a turn nearer; the ready ones hatch into the pen (in the Index; the pen sends the best on
+-- to the huts). The hatched.
 function Breed.turn(p: Profile): { Types.Pal }
 	local born: { Types.Pal } = {}
 	local keep: { Egg } = {}
 	for _, egg in p.eggs do
 		egg.left = math.max(0, egg.left - 1)
 		local d = Creatures.byId[egg.sp]
-		if egg.left == 0 and d and Tree.inPen(p) < Tree.penRoom(p) and #p.pals < Tuning.PalsMax then
+		if egg.left == 0 and d then
 			table.insert(born, Tree.add(p, egg.sp, Traits.clean(egg.muts)))
 			p.stats.hatched += 1
 		else

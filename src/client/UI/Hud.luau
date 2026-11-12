@@ -1,8 +1,8 @@
 --!strict
 -- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (shells, food, wood, the day and its
--- clock), the menu bar along the bottom (Build, Villagers, Driftlings, Index, Looks), the island card on the
--- right (the island's name, villagers and beds, driftlings in huts and their room, visitors, charm, what it makes) with
--- the Tree of Life's card under it (the next driftling's bar, the pen), the questline's card, the tips banner, the new
+-- clock), the menu bar along the bottom (Build, Driftlings, Index, Looks), the island card on the right (the
+-- island's name, driftlings in huts and their room, visitors, charm, what it makes) with the Tree of Life's card under
+-- it (the next driftling's bar, how many wait in the pen), the questline's card, the tips banner, the new
 -- day's banner and the alerts for a rare driftling grown (the loading card is src/first's). The camera fits
 -- the island clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
@@ -207,7 +207,6 @@ end
 ------------------------------------------------------------------ the menu bar
 local MENUS: { { text: string, panel: string, icon: string } } = {
 	{ text = "Build", panel = "build", icon = "home" },
-	{ text = "Villagers", panel = "folk", icon = "folk" },
 	{ text = "Driftlings", panel = "pals", icon = "pal" },
 	{ text = "Index", panel = "index", icon = "star" },
 	{ text = "Looks", panel = "looks", icon = "visitor" },
@@ -273,7 +272,7 @@ local function line(parent: Instance, icon: string, text: string, y: number, w: 
 end
 
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, #v.folk, v.beds, #v.pals, v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
+	return string.format("%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, #v.pals - Tree.inPen(v :: any), v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
 		.. (if v.food <= 0 then "|hungry" else "")
 end
 
@@ -289,7 +288,7 @@ local function updateCard(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local h = 3 + 12 + 4 * LINE_H + 4 + 3 * LINE_H + 3
+	local h = 3 + 12 + 3 * LINE_H + 4 + 3 * LINE_H + 3
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
@@ -297,9 +296,6 @@ local function updateCard(v: Types.ClientView)
 	UIKit.plank(f, 11, 3)
 	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
 	local y = 15
-	local full = #v.folk >= v.beds
-	line(f, "folk", "Villagers", y, w, nil, string.format("%d/%d", #v.folk, v.beds), if full then UIKit.color("orange") else nil, "Folk")
-	y += LINE_H
 	local housed = #v.pals - Tree.inPen(v :: any)
 	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
 	y += LINE_H
@@ -326,10 +322,10 @@ end
 
 ------------------------------------------------------------------ the Tree of Life's card
 -- Under the island card (GAME_DESIGN 6): its name, a bar filling toward the next driftling (Heartbeat runs it on from
--- StateClient.treeFrac; orange and full while the pen is), the pen's count ("Pen full" in orange), and Open (its panel).
+-- StateClient.treeFrac), how many wait in the pen ("Pen 12": it has no room limit), and Open (its panel).
 local function updateTree(v: Types.ClientView)
 	local inPen = Tree.inPen(v :: any)
-	local key = string.format("%d/%d|%d|%d", inPen, v.pen, v.tree.luck, v.tree.speed)
+	local key = string.format("%d|%d|%d", inPen, v.tree.luck, v.tree.speed)
 	if treeCard and treeCard:GetAttribute("Key") == key then
 		return
 	end
@@ -348,12 +344,10 @@ local function updateTree(v: Types.ClientView)
 	local back = UIKit.rect(f, UDim2.fromOffset(w - 8, 5), UDim2.fromOffset(4, 14), UIKit.color("ink"), 4)
 	back.Name = "GrowBar"
 	UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 5).Name = "Fill"
-	local full = inPen >= v.pen
-	UIKit.text(f, if full then "Pen full" else string.format("Pen %d/%d", inPen, v.pen), UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(4, 26), { color = if full then UIKit.color("orange") else UIKit.color("text"), z = 4, name = "Pen" })
-	local b = UIKit.button(f, "Open", UDim2.fromOffset(44, 13), UDim2.fromOffset(w - 48, 25), function()
+	UIKit.text(f, string.format("Pen %d", inPen), UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(4, 26), { color = UIKit.color("text"), z = 4, name = "Pen" })
+	UIKit.button(f, "Open", UDim2.fromOffset(44, 13), UDim2.fromOffset(w - 48, 25), function()
 		UIKit.openPanel("tree")
 	end, { name = "TreeOpen", color = UIKit.color("button_ok") })
-	b:SetAttribute("Pulse", full)
 	f:SetAttribute("Key", key)
 	treeCard = f
 end
@@ -426,7 +420,7 @@ local function updateQuest(v: Types.ClientView)
 	local q, i = Quest.current(v.tut, v.quest or 1)
 	local have, need = 0, 0
 	if q then
-		local facts: Quest.Facts = { folk = v.folk, pals = v.pals, pieces = v.pieces, tier = v.tier, tree = v.tree, seen = v.seen, stats = v.stats }
+		local facts: Quest.Facts = { pals = v.pals, pieces = v.pieces, tier = v.tier, tree = v.tree, seen = v.seen, stats = v.stats }
 		have, need = Quest.progress(facts, q)
 	end
 	local key = if q then string.format("%s:%d:%d", q.id, have, need) else ""
@@ -497,18 +491,17 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Everyone here eats. Tap Build and place a Veggie Patch to grow food.",
+	[1] = "Driftlings eat. Tap Build and place a Veggie Patch to grow food.",
 	[2] = "Bigger buildings need wood. Place a Lumber Camp.",
 	[3] = "Shells come from visitors. Place a Snack Stall and they'll buy food.",
-	[4] = "Now put up a Tent. A castaway moves in straight away to work.",
-	[5] = "The Tree of Life grows a driftling every few seconds. Build a Driftling Hut so they can work.",
-	[6] = "Tap the Tree of Life and buy a level of Speed or Luck.",
-	[7] = "The pen sends its best driftlings to huts with room. Sell the ones you don't need.",
+	[4] = "The Tree of Life grows a driftling every few seconds. Build a Driftling Hut so they can work.",
+	[5] = "Tap the Tree of Life and buy a level of Speed or Luck.",
+	[6] = "The pen sends driftlings to huts when a building needs them. Sell the ones you don't need.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
-	[1] = "Place a Veggie Patch. It grows the food everyone eats.",
-	[5] = "Place a Driftling Hut. The pen sends its best driftlings there.",
+	[1] = "Place a Veggie Patch. It grows the food your driftlings eat.",
+	[4] = "Place a Driftling Hut. The pen sends its best driftlings there.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
@@ -531,7 +524,7 @@ local function updateTips(v: Types.ClientView)
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local ok = v.tut == 7
+	local ok = v.tut == 6
 	-- a parchment note in a thin frame of planks; on a phone it keeps to the room left of the island card (two lines
 	-- if it must), so it never covers the card
 	local room = if UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
@@ -557,16 +550,12 @@ local function updateTips(v: Types.ClientView)
 end
 
 ------------------------------------------------------------------ a new day
--- A banner drops in at the top: the day, who moved in, what hatched. Under a panel or in Build mode: a notice.
--- A new calendar day ("Day 12": every few hours) or a turn's news (a newcomer, an egg hatched).
+-- A banner drops in at the top: the day, or what hatched. Under a panel or in Build mode: a notice.
+-- A new calendar day ("Day 12": every few hours) or a turn's news (an egg hatched).
 local function onDay(msg: { [string]: any })
 	local isDay = msg.kind == "day"
 	local day = tonumber(msg.day) or 0
 	local lines: { string } = {}
-	local who = msg.movedIn
-	if type(who) == "table" and type(who.name) == "string" then
-		table.insert(lines, who.name .. " moved in!")
-	end
 	-- an egg hatched at the Hatchery (Logic/Breed): its kind (and what it was born with)
 	local hatched = 0
 	if type(msg.hatched) == "table" then
@@ -578,12 +567,12 @@ local function onDay(msg: { [string]: any })
 			end
 		end
 	end
-	if not isDay and msg.movedIn == nil and hatched == 0 then
+	if not isDay and hatched == 0 then
 		return
 	end
-	local title = if isDay then "Day " .. day elseif msg.movedIn == nil then "An egg hatched!" else "A newcomer!"
-	-- (a newcomer rings the door chime, a hatchling the friend's chimes, a plain new day a small ding)
-	Audio.play(if msg.movedIn ~= nil then "newcomer" elseif hatched > 0 then "friend" else "ding")
+	local title = if isDay then "Day " .. day else "An egg hatched!"
+	-- (a hatchling the friend's chimes, a plain new day a small ding)
+	Audio.play(if hatched > 0 then "friend" else "ding")
 	if isDay then
 		chipBump.day = os.clock()
 	end
@@ -608,7 +597,7 @@ local function onDay(msg: { [string]: any })
 	f.Name = "DayBanner"
 	f.ZIndex = 8
 	UIKit.rect(f, UDim2.new(1, -6, 0, 2), UDim2.fromOffset(3, 1), UIKit.color("accent"), 9)
-	PixelSprites.image(f, if isDay then "mini_sun" else "mini_folk", UDim2.fromOffset(6, 6), 9)
+	PixelSprites.image(f, if isDay then "mini_sun" else "mini_pal", UDim2.fromOffset(6, 6), 9)
 	UIKit.text(f, title, UDim2.fromOffset(w - 24, 16), UDim2.fromOffset(20, 3), { face = "big", kind = "title", color = UIKit.color("accent"), z = 9, name = "Day" })
 	for i, l in lines do
 		UIKit.text(f, l, UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 10 + i * 10), { color = UIKit.color("good"), z = 9, name = "Line" .. i })
@@ -747,7 +736,6 @@ function Hud.start()
 		stack()
 	end)
 	local lastBeat = os.clock()
-	local nextShine = 0
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		local dt = math.min(0.1, now - lastBeat)
@@ -786,7 +774,7 @@ function Hud.start()
 			local on = math.floor(now * 2) % 2 == 0
 			UIKit.setPlate(ff, if on then UIKit.color("plate"):Lerp(UIKit.color("bad"), 0.35) else UIKit.color("plate"))
 		end
-		-- the tree's card: its bar runs on toward the next driftling; Open pulses while the pen is full
+		-- the tree's card: its bar runs on toward the next driftling (the pen never fills, so it never waits)
 		local e = treeCard
 		if e then
 			local back = e:FindFirstChild("GrowBar")
@@ -796,23 +784,6 @@ function Hud.start()
 				local fw = math.floor((back.Size.X.Offset - 2) * k)
 				if fill.Size.X.Offset ~= fw then
 					fill.Size = UDim2.fromOffset(fw, 3)
-				end
-				local c = if k >= 1 then UIKit.color("orange") else UIKit.color("good")
-				if fill.BackgroundColor3 ~= c then
-					fill.BackgroundColor3 = c
-				end
-			end
-			local pulse = (math.sin(now * 5) + 1) / 2
-			local shineNow = now >= nextShine
-			if shineNow then
-				nextShine = now + 2.2
-			end
-			for _, b in e:GetChildren() do
-				if b:IsA("TextButton") and b:GetAttribute("Pulse") == true and b.AutoButtonColor then
-					UIKit.setButtonColor(b, UIKit.color("button_ok"):Lerp(UIKit.color("button_warn"), pulse * 0.7))
-					if shineNow then
-						UIKit.shine(b)
-					end
 				end
 			end
 		end

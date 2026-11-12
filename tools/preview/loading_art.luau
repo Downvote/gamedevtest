@@ -5,13 +5,12 @@
 -- outline), and tools/preview/gen_loading_art.py packs the frames into src/first/LoadingArt.luau.
 --
 -- What is drawn (art px; SCALE art px a stud, the world's own size on a 1080p screen):
---   * two villagers (CharacterModels, Island.randomLook) walking, one cycle of their gait each, facing left and (flipped)
---     right; a third cheering by the fire (poseAction "cheer");
---   * three driftlings of the beach and the meadow (MicroModels.driftling: Clawdle, Mossbun, Gullfin) on the move, as
---     the island shows them (MicroModels.animate "walk" and their hop), facing left and right;
+--   * five driftlings of the beach and the meadow (MicroModels.driftling: Frondle, Pebblit, Clawdle, Mossbun, Gullfin)
+--     on the move, as the island shows them (MicroModels.animate "walk" and their hop), facing left and right, and a
+--     Conchy cheering by the fire ("cheer": no villagers since 2026-11-12);
 --   * the campfire (a ring of stones, crossed logs and MicroModels' flame flickering in thirds, as WorldView's);
---   * the island's pieces (DecorModels): two palms, a Grass Shack, a Tent, a Tiki Torch, a Flower Bed and the Tree of
---     Life with its pen (its hollow and fruit glowing, then dimmer);
+--   * the island's pieces (DecorModels): two palms, a Driftling Hut, a Cozy Burrow, a Tiki Torch, a Flower Bed and the
+--     Tree of Life (its hollow, fruit and marks glowing, then dimmer);
 --   * the old boat (MicroModels "ship", BoatSpec level 2) rocking on the swell, a step smaller (it is out at sea);
 --   * hand-made 2D bits: a gull flapping, a star twinkling, a wave crest rising and falling, an ember, a glint of sun.
 -- Output (the scenario's log): per frame `@@LART <seq> <i> <w> <h> <RGBA hex>`, per sequence
@@ -24,14 +23,11 @@ return function(env)
 	local p = env.join(7301, "Lou")
 	env.settle(p, 30, 1)
 	local Snapshot = env.modOr(p, "Pixel.Snapshot")
-	local CM = env.cshared(p, "Models.CharacterModels")
 	local MM = env.cshared(p, "Models.MicroModels")
 	local DM = env.cshared(p, "Models.DecorModels")
 	local Blocks = env.cshared(p, "Models.Blocks")
 	local Raster = env.cshared(p, "Render.Raster")
 	local Creatures = env.cshared(p, "Data.Creatures")
-	local Island = env.cshared(p, "Logic.Island")
-	local Util = env.cshared(p, "Logic.Util")
 	local Tuning = env.cshared(p, "Config.Tuning")
 	if Snapshot == nil then
 		log("ploadingart: this tree has no Pixel/Snapshot")
@@ -40,7 +36,6 @@ return function(env)
 
 	local SCALE = 6 -- art px a stud (the world on a 1080p screen)
 	local FAR = 4 -- the boat's: out at sea
-	local WALK_N = 8 -- frames a walk cycle
 	local rot = Raster.rotation(Tuning.CamYaw, Tuning.CamPitch)
 	local RIGHT = Vector3.new(rot[4], rot[7], rot[10])
 	local UP = Vector3.new(rot[5], rot[8], rot[11])
@@ -99,46 +94,6 @@ return function(env)
 		return m
 	end
 
-	------------------------------------------------------------------ the villagers
-	local WALKER = { w = 40, h = 46, ax = 20, ay = 40 }
-	local function lookOf(seed)
-		return Island.randomLook(Util.newRng(seed))
-	end
-	local lookA, lookB, lookC = lookOf(41), lookOf(77), lookOf(123)
-	local function headPt(look, seed)
-		local rig
-		H.inClient(p, function()
-			rig = CM.buildStanding(look, "Head", seed)
-		end)
-		local x, y = project(CM.STAND_TOP)
-		rig.model:Destroy()
-		return { head = { x, y } }
-	end
-	-- one cycle of the gait (CharacterModels' walkPose: 13 radians a second at a brisk walk), played a little slower
-	local WALK_V = 12
-	local GAIT = 2 * math.pi / 13
-	local CYCLE = 0.64 -- a walk cycle on the card (seconds)
-	local function walkSeq(name, look, seed, mirror)
-		return seq(name, WALK_N, CYCLE / WALK_N, WALKER, function(i)
-			local rig = CM.buildStanding(look, name, seed)
-			CM.poseStanding(rig, CFrame.identity, 3 + (i - 1) * GAIT / WALK_N, WALK_V)
-			return rig.model
-		end, headPt(look, seed), { mirror = mirror })
-	end
-	walkSeq("walk_a", lookA, 41, false)
-	walkSeq("walk_a_r", lookA, 41, true)
-	walkSeq("walk_b", lookB, 77, false)
-	walkSeq("walk_b_r", lookB, 77, true)
-	-- a villager by the fire, cheering (arms up and waving: poseAction "cheer", one wave)
-	do
-		local n = 6
-		seq("cheer", n, 0.09, WALKER, function(i)
-			local rig = CM.buildStanding(lookC, "cheer", 123)
-			CM.poseAction(rig, CFrame.Angles(0, math.rad(30), 0), 5 + (i - 1) * (2 * math.pi / 12) / n, 0, "cheer")
-			return rig.model
-		end, headPt(lookC, 123), { mirror = true })
-	end
-
 	------------------------------------------------------------------ the driftlings
 	local CRITTER = { w = 52, h = 44, ax = 26, ay = 34 }
 	local function critterSeq(name, sp, mirror, hop)
@@ -153,12 +108,28 @@ return function(env)
 			return t.model
 		end, nil, { mirror = mirror })
 	end
+	critterSeq("frond", "frondle", false, true)
+	critterSeq("frond_r", "frondle", true, true)
+	critterSeq("pebble", "pebblit", false, false)
+	critterSeq("pebble_r", "pebblit", true, false)
 	critterSeq("crab", "clawdle", false, false)
 	critterSeq("crab_r", "clawdle", true, false)
 	critterSeq("bun", "mossbun", false, true)
 	critterSeq("bun_r", "mossbun", true, true)
 	critterSeq("gullfin", "gullfin", false, true)
 	critterSeq("gullfin_r", "gullfin", true, true)
+	-- a Conchy by the fire, facing it and cheering (feelers up, a little hop: MicroModels.animate "cheer")
+	do
+		local def = Creatures.byId.conchy
+		local n = 6
+		seq("cheer", n, 0.09, CRITTER, function(i)
+			local t = MM.driftling(def.shape, def.body, def.accent)
+			local time = 5 + (i - 1) * (2 * math.pi / 12) / n
+			MM.animate(t, time, "cheer", 0)
+			MM.place(t, CFrame.new(0, math.abs(math.sin(time * 12)) * 0.6, 0))
+			return t.model
+		end, { head = { 0, -26 } })
+	end
 
 	------------------------------------------------------------------ the campfire
 	do
@@ -195,16 +166,16 @@ return function(env)
 	end
 	piece("palm", "palm", { w = 64, h = 84, ax = 32, ay = 74 }, 0)
 	piece("palm_b", "palm", { w = 64, h = 84, ax = 32, ay = 74 }, 140)
-	piece("hut", "hut", { w = 72, h = 64, ax = 36, ay = 50 }, 0)
-	piece("tent", "tent", { w = 60, h = 50, ax = 30, ay = 38 }, 0)
+	piece("nest", "nest", { w = 44, h = 40, ax = 22, ay = 30 }, 0)
+	piece("burrow", "burrow", { w = 60, h = 52, ax = 30, ay = 40 }, 0)
 	piece("torch", "torch", { w = 20, h = 40, ax = 10, ay = 34 }, 0)
 	piece("flowers", "flowers", { w = 40, h = 30, ax = 20, ay = 20 }, 0)
 	piece("bush", "bush", { w = 32, h = 30, ax = 16, ay = 22 }, 0)
-	-- the Tree of Life with its pen: the glowing hollow and the fruit bright, then dim (a slow pulse)
-	piece("tree", "tree", { w = 112, h = 112, ax = 54, ay = 86 }, 0, 2, function(m, i)
+	-- the Tree of Life: the glowing hollow, fruit and marks bright, then dim (a slow pulse)
+	piece("tree", "tree", { w = 72, h = 90, ax = 34, ay = 79 }, 0, 2, function(m, i)
 		if i == 2 then
 			for _, d in m:GetDescendants() do
-				if d:IsA("BasePart") and (d.Name == "Pod" or d.Name == "Fruit") then
+				if d:IsA("BasePart") and (d.Name == "Pod" or d.Name == "Fruit" or d.Name == "Rune" or d.Name == "Ring" or d.Name == "Glyph" or d.Name == "Mote") then
 					d.Material = Enum.Material.SmoothPlastic
 				end
 			end

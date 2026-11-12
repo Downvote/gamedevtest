@@ -164,8 +164,8 @@ end
 -- Where the popups float from (rig space): just above the hair.
 CharacterModels.HEAD_TOP = Vector3.new(0, 3.4, 0)
 
------------------------------------------------------------------- standing (the founders, villagers and the party)
--- A founder or a villager: the same head, hair and face as a seated one, raised a stud, on a standing body with
+------------------------------------------------------------------ standing (the founders and visitors)
+-- A founder or a visitor: the same head, hair and face as a seated one, raised a stud, on a standing body with
 -- joints: shorts over bare shins, shoes on light soles, a shirt with a collar, two buttons and a belt with a buckle,
 -- sleeves over bare forearms and fists. The rig's origin is between the feet on the ground, facing +Z. Poses bend the
 -- knees and elbows, lean and twist the body and change the face (`Pose`: the work, the cheers and the cutscenes).

@@ -4,7 +4,7 @@
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
 #   scenario: island | village | island2 | island3 | city | gallery | day | dusk | night | dawn | tree |
-#             panel=<folk|pals|tree|hatch|index|looks> | sea | visit | build | water | late | all
+#             panel=<pals|tree|hatch|index|looks> | sea | visit | build | water | late | all
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off

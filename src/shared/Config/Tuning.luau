@@ -20,26 +20,22 @@ local Tuning = {
 	LoadRetries = 4,
 
 	-- the island (GAME_DESIGN 3-5): it makes and eats by the turn (TurnSeconds while the player is here: every rate is
-	-- a turn's), and at each turn's end a visitor may move in; the calendar day (the clock, day and night, the day
-	-- count) is DaySeconds of the sea's clock, the same for every island on the server
-	StartShells = 300, -- the tips' buildings (a patch, a camp, a stall, a tent, a hut: 280) and a little over
+	-- a turn's); the calendar day (the clock, day and night, the day count) is DaySeconds of the sea's clock, the same
+	-- for every island on the server. The driftlings do all the work (no villagers since 2026-11-12)
+	StartShells = 300, -- the tips' buildings (a patch, a camp, a stall, a hut: 250) and a little over
 	StartFood = 30,
 	StartWood = 24,
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
-	EatFolk = 3, -- food a villager eats a turn
 	EatPal = 2, -- food a driftling living in a hut eats a turn (one in the pen eats nothing)
 	Hungry = 0.5, -- everything makes this share while the food has run out
-	IdleOutput = 0.5, -- a building with nobody working there makes this share
-	PalBoost = 0.5, -- a common driftling helping at a building of its knack adds this share ...
+	IdleOutput = 0.3, -- a building with no driftling working there makes this share
+	PalWork = 0.6, -- a common driftling working at a building of its knack makes this share of its rate ...
 	RarityWork = { 1, 1.6, 2.5, 4, 7 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
-	HelpMax = 2, -- driftlings helping at one building at most
+	HelpMax = 2, -- driftlings working at one building at most
 	VisitorCharm = 15, -- visitors a turn: 1 + charm / this ...
 	VisitorsMax = 14, -- ... at most
 	ShopVisitors = 4, -- a shop sells its rate with this many visitors a turn (more sell more, up to x2)
-	MoveInCharm = 6, -- a visitor moves into a free bed when the charm is at least this x the villagers + 1
-	FolkMax = 40,
-	PalsMax = 200, -- driftlings in the huts and the pen together at most (a save's sanity bound)
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
@@ -51,12 +47,12 @@ local Tuning = {
 		{ shells = 180000, wood = 15000 },
 		{ shells = 480000, wood = 40000 },
 	},
-	-- homes and huts (GAME_DESIGN 4.1): a resident's comfort (its home's, plus this by the home's level) adds to its work
+	-- the huts (GAME_DESIGN 4.1): a resident's comfort (its hut's, plus this by the hut's level) adds to its work
 	ComfortLvl = { 0, 0.04, 0.08 },
 	BoostMax = 0.6, -- the boost buildings' shares at one knack together, at most
 
 	-- the Tree of Life (GAME_DESIGN 6; Logic/Tree): it grows a driftling every TreeSecs[speed level] seconds into the
-	-- pen (it waits while the pen is full); the pen sends its best into the huts while they have room
+	-- pen (no room limit: "pens should be infinite"); the pen sends its best into the huts while they have room and a building has a free place for them
 	TreeSecs = { 12, 11, 10, 9, 8, 7, 6, 5.2, 4.5, 4 }, -- the request: "it creates a creature every few seconds"
 	-- its luck: a rarity r's weight (Data/Traits.RARITY) times (1 + TreeLuck x (level - 1) + the huts' luck)^(r - 1)
 	TreeLuck = 0.12,
@@ -87,7 +83,9 @@ local Tuning = {
 		{ shells = 75000, wood = 6500 },
 		{ shells = 170000, wood = 14000 },
 	},
-	PenRoom = { 6, 8, 10, 12, 14, 16 }, -- driftlings the pen holds, by the island's tier
+	-- past this many waiting in the pen the tree sells the least useful one as each new one grows (never one the
+	-- player keeps there), so a save and the view stay small however long the tree grows
+	PenKeep = 500,
 	HutTree = 0.5, -- the huts' driftlings' Tree mutations together make it grow this much faster at most ...
 	HutLuck = 0.5, -- ... and their Lucky mutations add this much luck at most
 	-- selling a driftling: shells by its rarity, times 1 + SellTier x its mutations' tiers, times its sell share
@@ -135,7 +133,7 @@ local Tuning = {
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	PixelDisplayOrder = -100,
-	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's villagers and driftlings)
+	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's driftlings, visitors and founders)
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }
 

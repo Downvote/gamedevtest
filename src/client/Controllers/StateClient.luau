@@ -58,15 +58,14 @@ function StateClient.view(): Types.ClientView?
 	return current
 end
 
--- How far the Tree of Life is toward its next driftling now (0 .. 1: the server's last word run on by the clock; it
--- holds at 1 while the pen is full) and its seconds a driftling.
+-- How far the Tree of Life is toward its next driftling now (0 .. 1: the server's last word run on by the clock) and
+-- its seconds a driftling.
 function StateClient.treeFrac(): (number, number)
 	local v = current
 	if v == nil then
 		return 0, 1
 	end
-	local full = Tree.inPen(v :: any) >= v.pen
-	local t = if full then growSecs else grow + (os.clock() - growAt)
+	local t = grow + (os.clock() - growAt)
 	return math.clamp(t / math.max(0.1, growSecs), 0, 1), growSecs
 end
 

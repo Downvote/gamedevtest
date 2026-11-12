@@ -1,10 +1,11 @@
 -- The main simulation: a new island end to end through the real client and its UI (the campfire, the Tree of Life,
--- the HUD, the tips), building what the tips ask (food, a camp, a stall, a tent, a hut: the starting shells cover
--- them), the days turning (a villager moves in and takes a job, the stores grow), the Tree of Life growing driftlings
--- into its pen and the pen sending the best to the hut (the tree's card, its panel: a level of Speed, selling from the
--- pen, a tap on the tree in the world), the Driftlings panel (moving one to the pen and back in a swap, help, selling),
--- the Villagers and Index panels, the founder's looks, settings, expanding, the questline, then a malicious client,
--- then a second player. Every check is an H.expect; the SIM REPORT must show 0 findings and 0 errors.
+-- the HUD, the tips), building what the tips ask (food, a camp, a stall, a hut: the starting shells cover them), the
+-- days turning (the stores grow, every building working a little with nobody at it), the Tree of Life growing
+-- driftlings into its pen and the pen sending the best with work to do to the hut (the tree's card, its panel: a level
+-- of Speed, selling from the pen, a tap on the tree in the world; the pen never full and never drawn on the island),
+-- the Driftlings panel (moving one to the pen and back in a swap, help, selling), the Index panel, the founder's
+-- looks, settings, expanding, the questline, then a malicious client, then a second player. No villagers since
+-- 2026-11-12. Every check is an H.expect; the SIM REPORT must show 0 findings and 0 errors.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -33,7 +34,7 @@ local s = H.session(p)
 H.expect(s ~= nil and s.ready, "join", "the session is ready")
 local prof = H.profile(p)
 H.expect(prof.shells == Tuning.StartShells and prof.food == Tuning.StartFood and prof.wood == Tuning.StartWood, "join", "the starting stores", string.format("%s %s %s", prof.shells, prof.food, prof.wood))
-H.expect(prof.tier == 1 and prof.tut == 1 and #prof.folk == 0 and #prof.plot.placed == 1 and prof.plot.placed[1].id == "tree", "join", "a new island, tips at step 1, nobody else yet (its Tree of Life)")
+H.expect(prof.tier == 1 and prof.tut == 1 and prof.folk == nil and #prof.plot.placed == 1 and prof.plot.placed[1].id == "tree", "join", "a new island, tips at step 1, no villagers (its Tree of Life)")
 H.expect(s.plot == 1, "join", "the first player gets island 1", tostring(s.plot))
 local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_1")
 local static = plot1 and plot1:FindFirstChild("Static")
@@ -43,9 +44,10 @@ H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) ~= nil and lan
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
 H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")
-for _, n in { "Menu_build", "Menu_folk", "Menu_pals", "Menu_index", "Menu_looks" } do
+for _, n in { "Menu_build", "Menu_pals", "Menu_index", "Menu_looks" } do
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
+H.expect(H.buttonNamed(p, "Menu_folk") == nil, "join", "no Villagers button (the driftlings do all the work)")
 H.expect(#H.buttons(p, "^Food first", true) == 0, "join", "(tips are text, not buttons)")
 -- the loading card (src/first/LoadingCard: ReplicatedFirst's Boot put it up before the rest arrived): it went up, its
 -- title centred on the canvas, and it is gone once the first picture is on screen
@@ -151,37 +153,28 @@ H.expect(H.buttonNamed(p, "TipsOk") == nil, "build", "no OK on the early tips")
 res = place("lumber")
 H.expect(res.ok and prof.tut == 3, "build", "a lumber camp: the tips move on to shells", tostring(res.err))
 res = place("stall")
-H.expect(res.ok and prof.tut == 4, "build", "a snack stall: the tips move on to a home", tostring(res.err))
-local fxTent = #fx
-res = place("tent")
-H.expect(res.ok and prof.tut == 5, "build", "a tent: the tips move on to a hut", tostring(res.err))
-H.expect(#prof.folk == 1 and prof.folk[1].work ~= 0, "build", "a castaway moves into the tent at once (no wait for a turn) and takes a job", tostring(#prof.folk))
-local welcomed = false
-for i = fxTent + 1, #fx do
-	if fx[i].kind == "turn" and type(fx[i].movedIn) == "table" then
-		welcomed = true
-	end
-end
-H.expect(welcomed, "build", "the newcomer is announced (Fx turn with who moved in)")
+H.expect(res.ok and prof.tut == 4, "build", "a snack stall: the tips move on to a hut", tostring(res.err))
 res = place("nest")
-H.expect(res.ok and prof.wood < Tuning.StartWood and prof.tut == 6, "build", "a hut (shells and wood): the tips move on to the tree", string.format("%s tut %d", tostring(res.err), prof.tut))
-H.expect(#prof.plot.placed == 6 and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for (beside the tree)", string.format("%d pieces, %s shells left", #prof.plot.placed, prof.shells))
+H.expect(res.ok and prof.wood < Tuning.StartWood and prof.tut == 5, "build", "a hut (shells and wood): the tips move on to the tree", string.format("%s tut %d", tostring(res.err), prof.tut))
+H.expect(#prof.plot.placed == 5 and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for (beside the tree)", string.format("%d pieces, %s shells left", #prof.plot.placed, prof.shells))
 res = place("orchard")
 H.expect(not res.ok and res.err == "locked", "build", "an orchard waits for a bigger island", tostring(res.err))
+res = place("tent")
+H.expect(not res.ok and res.err == "bad_payload", "build", "no homes to build any more (the Tent is gone)", tostring(res.err))
 prof.shells = 5
-res = place("hut")
+res = place("nest")
 H.expect(not res.ok and res.err == "money", "build", "not enough shells", tostring(res.err))
 prof.shells = 1000
 local wood0 = prof.wood
 prof.wood = 0
-res = place("hut")
+res = place("nest")
 H.expect(not res.ok and res.err == "wood", "build", "not enough wood", tostring(res.err))
 prof.wood = wood0
 H.push(p, 0.4)
 local v = H.view(p)
-H.expect(v ~= nil and #v.pieces == 6 and v.beds == 1 and v.nests == 2 and v.pen == Tuning.PenRoom[1], "build", "the view: five pieces and the tree, a bed, a hut's room for two, the pen's room", v and string.format("%d %d %d %d", #v.pieces, v.beds, v.nests, v.pen))
+H.expect(v ~= nil and #v.pieces == 5 and v.nests == 2 and v.beds == nil and v.pen == nil and v.folk == nil, "build", "the view: four pieces and the tree, a hut's room for two (no beds, no pen room)", v and string.format("%d %d", #v.pieces, v.nests))
 local decor = static and static:FindFirstChild("Decor")
-H.expect(decor ~= nil and #decor:GetChildren() == 6, "build", "the server built a model a piece", tostring(decor and #decor:GetChildren()))
+H.expect(decor ~= nil and #decor:GetChildren() == 5, "build", "the server built a model a piece", tostring(decor and #decor:GetChildren()))
 H.checkProfile(p, "build")
 H.checkMirror(p, "build")
 
@@ -206,9 +199,6 @@ for i = f0 + 1, #fx do
 	end
 end
 H.expect(turnFx == 1 and prof.day == day0, "days", "a turn ends every TurnSeconds (Fx turn), not a day", string.format("%d fx, day %d", turnFx, prof.day))
-H.expect(#prof.folk == 1, "days", "the castaway lives in the tent (one bed: nobody else yet)", tostring(#prof.folk))
-local mika = prof.folk[1]
-H.expect(mika ~= nil and mika.work ~= 0, "days", "and took a job straight away", tostring(mika and mika.work))
 local ticks = 0
 for i = f0 + 1, #fx do
 	if fx[i].kind == "tick" then
@@ -235,31 +225,20 @@ do
 end
 E.run(0.6)
 local WV = H.cmod(p, "Controllers.WorldView")
-H.expect(H.inClient(p, WV.ownCount, "v") == 1, "days", "the villager walks the island", tostring(H.inClient(p, WV.ownCount, "v")))
+local function housedN(): number
+	local n = 0
+	for _, x in prof.pals do
+		if x.home ~= 0 then
+			n += 1
+		end
+	end
+	return n
+end
+H.expect(H.inClient(p, WV.ownCount) == housedN(), "days", "the hut's driftlings walk the island, none of the pen's (the pen is not drawn)", string.format("%d drawn, %d in huts", H.inClient(p, WV.ownCount), housedN()))
 local r = Island.rates(prof)
-H.expect(r.food > 0 and r.wood > 0, "days", "food and wood come in", string.format("%.1f %.1f", r.food, r.wood))
+H.expect(r.food > 0 and r.wood > 0, "days", "food and wood come in (a building works a little with nobody at it)", string.format("%.1f %.1f", r.food, r.wood))
 H.checkProfile(p, "days")
 H.checkMirror(p, "days")
-
------------------------------------------------------------------- 4. Villagers: a job through the panel
-E.phase = "folk"
-H.clickNamed(p, "Menu_folk", { wait = 0.4 })
-H.expect(H.currentPanel(p) == "folk", "folk", "the Villagers panel opens", tostring(H.currentPanel(p)))
-H.expect(H.buttonNamed(p, "Job_" .. mika.id) ~= nil, "folk", "a Job button on their row")
-H.clickNamed(p, "Job_" .. mika.id, { wait = 0.4 })
-local lumberUid = 0
-for _, q in prof.plot.placed do
-	if q.id == "lumber" then
-		lumberUid = q.uid
-	end
-end
-H.expect(H.buttonNamed(p, "Go_" .. lumberUid) ~= nil or mika.work == lumberUid, "folk", "the job picker lists the lumber camp")
-if mika.work ~= lumberUid then
-	H.clickNamed(p, "Go_" .. lumberUid, { wait = 0.5 })
-end
-H.expect(mika.work == lumberUid, "folk", "they work at the camp now", tostring(mika.work))
-H.expect(H.currentPanel(p) == "folk", "folk", "back on the list")
-H.closePanel(p)
 
 ------------------------------------------------------------------ 5. the Tree of Life (GAME_DESIGN 6)
 E.phase = "tree"
@@ -278,13 +257,18 @@ for _, c in decor:GetChildren() do
 		treeModel = c
 	end
 end
-H.expect(treeModel ~= nil and treeModel:FindFirstChild("Pod", true) ~= nil and treeModel:FindFirstChild("PenFloor", true) ~= nil and treeModel:FindFirstChild("Gate", true) ~= nil, "tree", "its model: the tree with its glowing hollow, and the fenced pen")
--- it grows a driftling every few seconds into the pen; the pen sends the best on to the hut, which take jobs
+H.expect(treeModel ~= nil and treeModel:FindFirstChild("Pod", true) ~= nil and treeModel:FindFirstChild("Stone", true) ~= nil and treeModel:FindFirstChild("Strand", true) ~= nil, "tree", "its model: the braided trunk with its glowing hollow, the ring of standing stones")
+H.expect(treeModel ~= nil and treeModel:FindFirstChild("PenFloor", true) == nil and treeModel:FindFirstChild("Gate", true) == nil, "tree", "no pen on the island (the pen is a list in the tree's panel)")
+-- a fishing pier, so every kind of the first island's driftlings has a building of its knack to work at
+prof.shells, prof.wood = math.max(prof.shells, 500), math.max(prof.wood, 60)
+res = place("pier")
+H.expect(res.ok, "tree", "a fishing pier", tostring(res.err))
+-- it grows a driftling every few seconds into the pen; the pen sends the best with work to do on to the hut
 local fTree = #fx
 local nBefore = #prof.pals
 E.runUntil(function()
-	return #prof.pals > nBefore and #prof.pals >= 3
-end, Tuning.TreeSecs[1] * 4 + 2, 0.2)
+	return #prof.pals > nBefore and #prof.pals >= 3 and housedN() == Buildings.byId.nest.slots
+end, Tuning.TreeSecs[1] * 5 + 2, 0.2)
 E.run(0.4)
 local grownFx = 0
 for i = fTree + 1, #fx do
@@ -303,16 +287,13 @@ for _, x in prof.pals do
 		end
 	end
 end
-H.expect(housed == Buildings.byId.nest.slots, "tree", "the pen sent its best two to the hut", tostring(housed))
+H.expect(housed == Buildings.byId.nest.slots and working == housed, "tree", "the pen sent two to the hut, each to a place at a building of its knack", string.format("%d housed, %d working", housed, working))
 H.checkProfile(p, "tree")
--- (a newborn walks from the hollow into the pen: a few seconds for every one to be in)
+-- (on the island only the hut's driftlings: one sent from the pen pops out of the hollow and walks off to work)
 E.runUntil(function()
-	local _, a, b = H.inClient(p, WV.ownCount, "p")
-	return a > 0 and a == b
-end, 6, 0.25)
-local npals, npen, inside = H.inClient(p, WV.ownCount, "p")
-H.expect(npals == #prof.pals and npen == TreeL.inPen(prof), "tree", "every driftling on the island, the pen's too", string.format("%d of %d, %d in the pen", npals, #prof.pals, npen))
-H.expect(inside == npen, "tree", "the pen's stand inside its fence", string.format("%d of %d", inside, npen))
+	return H.inClient(p, WV.ownCount) == housedN()
+end, 3, 0.25)
+H.expect(H.inClient(p, WV.ownCount) == housedN() and TreeL.inPen(prof) >= 1, "tree", "the hut's driftlings on the island, the pen's only in the panel", string.format("%d drawn, %d in huts, %d in the pen", H.inClient(p, WV.ownCount), housedN(), TreeL.inPen(prof)))
 -- the HUD's tree card: its bar and the pen; Open opens the tree's panel
 H.expect(H.buttonNamed(p, "TreeOpen") ~= nil, "tree", "the tree's card with Open")
 prof.shells = math.max(prof.shells, 1000)
@@ -322,17 +303,13 @@ H.clickNamed(p, "TreeOpen", { wait = 0.4 })
 H.expect(H.currentPanel(p) == "tree", "tree", "Open opens the Tree of Life's panel", tostring(H.currentPanel(p)))
 H.expect(H.buttonNamed(p, "Upgrade_speed") ~= nil and H.buttonNamed(p, "Upgrade_luck") ~= nil, "tree", "its Speed and Luck with their prices")
 H.clickNamed(p, "Upgrade_speed", { wait = 0.5 })
-H.expect(prof.tree.speed == 2 and prof.tut == 7, "tree", "Speed bought from the panel; the tips move on", string.format("speed %d tut %d", prof.tree.speed, prof.tut))
+H.expect(prof.tree.speed == 2 and prof.tut == 6, "tree", "Speed bought from the panel; the tips move on", string.format("speed %d tut %d", prof.tree.speed, prof.tut))
 H.expect(math.abs(TreeL.secs(prof) - Tuning.TreeSecs[2] / (1 + (TreeL.hutFx(prof)))) < 1e-6 and TreeL.secs(prof) < Tuning.TreeSecs[1], "tree", "it grows faster now (the huts' Leafy ones speed it too)", tostring(TreeL.secs(prof)))
 H.closePanel(p)
--- the pen fills; the tree waits, ready, until there is room
-E.runUntil(function()
-	return TreeL.waiting(prof)
-end, Tuning.TreeSecs[2] * (Tuning.PenRoom[1] + 3), 0.25)
-H.expect(TreeL.waiting(prof), "tree", "the pen fills", string.format("%d of %d", TreeL.inPen(prof), TreeL.penRoom(prof)))
-local nFull = #prof.pals
-E.run(Tuning.TreeSecs[2] * 2)
-H.expect(#prof.pals == nFull, "tree", "a full pen: the tree waits", string.format("%d -> %d", nFull, #prof.pals))
+-- the pen never fills: with the hut full the tree keeps growing into it
+local pen0, grown0 = TreeL.inPen(prof), prof.stats.grown
+E.run(TreeL.secs(prof) * 2.5)
+H.expect(prof.stats.grown >= grown0 + 2 and TreeL.inPen(prof) >= pen0 + 2, "tree", "the hut full, the tree goes on growing into the pen (no room limit)", string.format("pen %d -> %d", pen0, TreeL.inPen(prof)))
 -- selling from the pen: two taps on a row's Sell
 H.openPanel(p, "tree")
 local penOne = nil
@@ -344,9 +321,9 @@ end
 local price = penOne and TreeL.price(penOne) or 0
 local shBefore = prof.shells
 H.clickNamed(p, "PenSell_" .. (if penOne then penOne.id else 0), { wait = 0.3 })
-H.expect(#prof.pals == nFull, "tree", "one tap only asks Sure?")
+H.expect(penOne ~= nil and table.find(prof.pals, penOne) ~= nil, "tree", "one tap only asks Sure?")
 H.clickNamed(p, "PenSell_" .. (if penOne then penOne.id else 0), { wait = 0.5 })
-H.expect(prof.stats.sold == 1 and math.abs(prof.shells - (shBefore + price)) < 2 and penOne ~= nil and table.find(prof.pals, penOne) == nil, "tree", "the second sells it for its price (the waiting tree fills its place at once)", string.format("%d driftlings, %+.0f shells (price %d)", #prof.pals, prof.shells - shBefore, price))
+H.expect(prof.stats.sold == 1 and math.abs(prof.shells - (shBefore + price)) < 2 and penOne ~= nil and table.find(prof.pals, penOne) == nil, "tree", "the second sells it for its price", string.format("%d driftlings, %+.0f shells (price %d)", #prof.pals, prof.shells - shBefore, price))
 -- a common one or two in the pen: Sell commons sells them all at once
 local commons = 0
 for _, x in prof.pals do
@@ -368,8 +345,8 @@ do
 	local PRc = H.cmod(p, "Pixel.PixelRenderer")
 	local ox0, oz0 = Street.origin(s.plot)
 	local tw, td = Plot.footprint(treeQ.id, treeQ.rot)
-	-- (the footprint's middle: where the tree's lawn meets the pen's floor, both the tree's model)
-	local treeAt = E.v3(ox0 + treeQ.x + tw / 2 + 0.3, Street.LAWN_Y + 0.05, oz0 + treeQ.z + td / 2 + 0.3)
+	-- (the footprint's middle: the tree's trunk)
+	local treeAt = E.v3(ox0 + treeQ.x + tw / 2, Street.LAWN_Y + 1, oz0 + treeQ.z + td / 2)
 	E.raycastParts = true
 	H.inClient(p, function()
 		local pos = PRc.project(treeAt)
@@ -408,21 +385,20 @@ do
 end
 H.clickNamed(p, "Help_" .. pal.id, { wait = 0.4 })
 H.expect(H.buttonNamed(p, "Go_0", true) ~= nil, "pals", "the help picker opens (Rest at least)")
+-- (one waiting in the pen to take its place: the tree grows one soon enough)
+E.runUntil(function()
+	for _, x in prof.pals do
+		if x.home == 0 and x.held == nil then
+			return true
+		end
+	end
+	return false
+end, TreeL.secs(prof) * 3, 0.25)
 H.openPanel(p, "pals")
 -- Move: the hut picker; to the pen it goes (and stays: held), the hut's room filled from the pen
 local hutUid = pal.home
 H.clickNamed(p, "Move_" .. pal.id, { wait = 0.4 })
 H.expect(H.buttonNamed(p, "Move_0") ~= nil, "pals", "the hut picker lists the pen")
--- (the pen is full: make room first, as a player would by selling one)
-if TreeL.inPen(prof) >= TreeL.penRoom(prof) then
-	for _, x in prof.pals do
-		if x.home == 0 then
-			H.req(p, "pal.sell", { id = x.id })
-			break
-		end
-	end
-	H.openPanel(p, "pals", { move = pal.id })
-end
 H.clickNamed(p, "Move_0", { wait = 0.5 })
 H.expect(pal.home == 0 and pal.held == 1 and pal.work == 0, "pals", "moved to the pen: it stays there, not working", string.format("home %d held %s", pal.home, tostring(pal.held)))
 local refilled = 0
@@ -467,7 +443,7 @@ H.closePanel(p)
 ------------------------------------------------------------------ 8. the other panels, settings, tips
 E.phase = "panels"
 local errs0 = #E.errors
-for _, name in { "folk", "pals", "tree", "hatch", "index", "looks" } do
+for _, name in { "pals", "tree", "hatch", "index", "looks" } do
 	H.openPanel(p, name)
 	E.run(0.3)
 	H.expect(H.currentPanel(p) == name, "panels", name .. " opens")
@@ -651,28 +627,25 @@ H.checkMirror(p, "quests")
 E.phase = "malicious"
 local function snap()
 	local q = H.profile(p)
-	return { shells = math.floor(q.shells), placed = #q.plot.placed, folk = #q.folk, pals = #q.pals, tier = q.tier, skin = q.founder.skin, tut = q.tut, luck = q.tree.luck, speed = q.tree.speed, sold = q.stats.sold }
+	-- (driftlings: those the tree grows meanwhile aside)
+	return { placed = #q.plot.placed, pals = #q.pals - q.stats.grown, tier = q.tier, skin = q.founder.skin, tut = q.tut, luck = q.tree.luck, speed = q.tree.speed, sold = q.stats.sold }
 end
 local function expectRefused(label, ok, out, err)
 	H.expect(ok and type(out) == "table" and out.ok == false and out.err == err, "malicious", label .. " refused with " .. err, string.format("%s %s", tostring(ok), type(out) == "table" and tostring(out.err) or tostring(out)))
 end
-prof.food = 0 -- nothing grows while the snapshots are compared (no shops: the shells stand still)
-for _, x in prof.folk do
-	x.work = 0
-end
--- (the tree waits while the pen is full: no new driftling while they are compared)
-while not TreeL.waiting(prof) do
-	TreeL.add(prof, "pebblit", {}).held = 1
-end
+-- (the shells aside: every building works a little with nobody at it, so the stall goes on selling what the farms
+-- grow; they are checked apart, a jump being what a refusal let through)
+prof.food = 0
 H.push(p, 0.3)
 local before = snap()
+local shellsBefore = prof.shells
 local ok, out = H.raw(p, "shells.give", { n = 1e9 })
 expectRefused("an unknown action", ok, out, "unknown_action")
 ok, out = H.rawArgs(p, nil)
 expectRefused("no action", ok, out, "unknown_action")
 ok, out = H.raw(p, "game.make", { a = 1, b = 2, c = 3 })
 expectRefused("the old studio's actions", ok, out, "unknown_action")
-ok, out = H.raw(p, "folk.work", { id = 0 / 0, uid = 1 })
+ok, out = H.raw(p, "pal.work", { id = 0 / 0, uid = 1 })
 expectRefused("NaN", ok, out, "bad_payload")
 ok, out = H.raw(p, "pal.house", { id = math.huge, uid = 0, swap = 0 })
 expectRefused("infinity", ok, out, "bad_payload")
@@ -685,6 +658,10 @@ expectRefused("a string payload", ok, out, "bad_payload")
 for _, old in { "exp.start", "exp.next", "exp.snack", "exp.skill", "exp.flee", "exp.pause", "exp.home", "pouch.upgrade", "pal.release", "boat.upgrade" } do
 	ok, out = H.raw(p, old, {})
 	expectRefused("the expeditions' " .. old .. " (gone)", ok, out, "unknown_action")
+end
+for _, old in { "folk.work", "folk.dismiss" } do
+	ok, out = H.raw(p, old, { id = 1, uid = 0 })
+	expectRefused("the villagers' " .. old .. " (gone)", ok, out, "unknown_action")
 end
 ok, out = H.raw(p, "pal.house", { id = 424242, uid = 0, swap = 0 })
 expectRefused("a driftling not there", ok, out, "not_found")
@@ -711,12 +688,13 @@ end)() })
 expectRefused("clearing the tree away", ok, out, "fixed")
 ok, out = H.raw(p, "plot.place", { id = "tree", x = 0, z = 0, rot = 0 })
 expectRefused("buying a second tree", ok, out, "bad_payload")
-ok, out = H.raw(p, "folk.work", { id = 424242, uid = 0 })
-expectRefused("a villager not there", ok, out, "not_found")
+ok, out = H.raw(p, "plot.place", { id = "cottage", x = 0, z = 0, rot = 0 })
+expectRefused("a home (gone)", ok, out, "bad_payload")
 ok, out = H.raw(p, "founder.set", { skin = 9, hair = 1, style = 1, shirt = 1 })
 expectRefused("a skin that does not exist", ok, out, "bad_payload")
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
+H.expect(math.abs(prof.shells - shellsBefore) < 50, "malicious", "and moved no shells (the island's own earnings aside)", string.format("%+.1f", prof.shells - shellsBefore))
 -- a flood: 30 requests at once, the rate limit refuses most
 local results = {}
 H.inClient(p, function()
@@ -751,7 +729,7 @@ local sq = H.session(q)
 H.expect(sq ~= nil and sq.ready and sq.plot == 2, "second", "the second player gets island 2", tostring(sq and sq.plot))
 H.expect(E.workspace.Plots:FindFirstChild("Plot_2") ~= nil, "second", "their island is built")
 H.expect(H.cmod(q, "Controllers.CameraController").view().plot == 2, "second", "their camera frames their own island")
-H.expect(H.cmod(q, "Controllers.WorldView").rigCount() >= #prof.folk, "second", "the second client draws the first island's villagers", tostring(H.cmod(q, "Controllers.WorldView").rigCount()))
+H.expect(housedN() > 0 and H.inClient(q, H.cmod(q, "Controllers.WorldView").rigCount) >= housedN(), "second", "the second client draws the first island's hut driftlings", string.format("%d of %d", H.inClient(q, H.cmod(q, "Controllers.WorldView").rigCount), housedN()))
 H.checkProfile(q, "second")
 H.checkMirror(q, "second")
 H.checkProfile(p, "end")

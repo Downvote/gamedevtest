@@ -65,9 +65,8 @@ return function()
 			end
 		end
 	end)
-	T.it("place: paid in shells and wood, the tier reached, a uid each, an idle villager put to work", function()
+	T.it("place: paid in shells and wood, the tier reached, a uid each", function()
 		local p = fresh()
-		p.folk = { { id = 50, name = "A", look = p.founder, work = 0, lvl = 1, xp = 0, seed = 1, day = 1 } }
 		p.nextId = 51
 		local ok, data = Plot.place(p, "pier", 8, 4, 0)
 		T.truthy(ok)
@@ -75,19 +74,19 @@ return function()
 		T.eq(p.wood, 1e6 - Buildings.byId.pier.wood)
 		T.eq(data.uid, 51)
 		T.deepEq(p.plot.placed[1], { uid = 51, id = "pier", x = 8, z = 4, rot = 0, lvl = 1 })
-		T.eq(p.folk[1].work, 51, "the idle villager works there")
 		T.eq(p.stats.built, 1)
 		local ox, oz = spot(p, "orchard")
 		T.eq(select(2, Plot.place(p, "orchard", ox, oz, 0)), "locked", "a tier 2 building")
 		p.tier = 2
 		ox, oz = spot(p, "orchard")
 		T.truthy(Plot.place(p, "orchard", ox, oz, 0))
-		local hx, hz = spot(p, "hut")
+		local hx, hz = spot(p, "burrow")
 		p.shells = 10
-		T.eq(select(2, Plot.place(p, "hut", hx, hz, 0)), "money")
+		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "money")
 		p.shells, p.wood = 1e6, 0
-		T.eq(select(2, Plot.place(p, "hut", hx, hz, 0)), "wood")
+		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "wood")
 		T.eq(select(2, Plot.place(p, "castle", hx, hz, 0)), "bad_payload")
+		T.eq(select(2, Plot.place(p, "tent", hx, hz, 0)), "bad_payload", "no homes any more")
 	end)
 	T.it("no upgrades: the rules have none to buy (a level from an older save still counts)", function()
 		T.eq((Plot :: any).upgrade, nil, "no Plot.upgrade")
@@ -96,37 +95,31 @@ return function()
 	T.it("replacing: another of its kind where it stands, paying the difference less the old one's refund; its uid kept", function()
 		local p = fresh()
 		p.tier = 2
-		local x, z = spot(p, "tent")
-		Plot.place(p, "tent", x, z, 0)
+		local x, z = spot(p, "nest")
+		Plot.place(p, "nest", x, z, 0)
 		local uid = p.plot.placed[1].uid
-		local v = { id = 500, name = "V", look = p.founder, work = 0, lvl = 1, xp = 0, seed = 1, day = 1 }
-		table.insert(p.folk, v)
-		T.deepEq(Plot.replacements(p.plot.placed[1], 1), { "hut" }, "tier 1: the hut")
-		T.truthy(table.find(Plot.replacements(p.plot.placed[1], 2), "cottage"))
+		T.deepEq(Plot.replacements(p.plot.placed[1], 1), {}, "tier 1: no other hut")
+		T.truthy(table.find(Plot.replacements(p.plot.placed[1], 2), "burrow"))
 		T.eq(select(2, Plot.replace(p, 1, "patch")), "bad_payload", "another kind")
-		T.eq(select(2, Plot.replace(p, 1, "tent")), "bad_payload", "the same piece")
-		T.eq(select(2, Plot.replace(p, 1, "villa")), "locked")
-		local before = p.shells
-		local ok = Plot.replace(p, 1, "hut")
-		T.truthy(ok, "a hut where the tent stood")
-		T.eq(p.plot.placed[1].id, "hut")
-		T.eq(p.plot.placed[1].uid, uid, "its uid stays")
-		T.eq(p.shells, before - (Buildings.byId.hut.shells - math.floor(Buildings.byId.tent.shells * Tuning.Refund)))
+		T.eq(select(2, Plot.replace(p, 1, "nest")), "bad_payload", "the same piece")
+		T.eq(select(2, Plot.replace(p, 1, "den")), "locked")
 		-- a bigger footprint that runs into another piece: blocked
 		local q = p.plot.placed[1]
-		Plot.place(p, "torch", q.x + 3, q.z, 0)
-		T.eq(select(2, Plot.replace(p, 1, "cottage")), "blocked")
-		-- fewer beds than the villagers need: no_room
-		local i = #p.plot.placed
-		Plot.store(p, i)
-		table.insert(p.folk, { id = 501, name = "W", look = p.founder, work = 0, lvl = 1, xp = 0, seed = 2, day = 1 })
-		T.truthy(Plot.replace(p, 1, "cottage"))
-		T.eq(select(2, Plot.replace(p, 1, "tent")), "no_room", "a tent for two villagers")
-		-- a farm for an orchard keeps its worker
-		local fx, fz = spot(p, "patch")
+		Plot.place(p, "torch", q.x + 2, q.z, 0)
+		T.eq(select(2, Plot.replace(p, 1, "burrow")), "blocked")
+		Plot.store(p, #p.plot.placed)
+		local before = p.shells
+		local ok = Plot.replace(p, 1, "burrow")
+		T.truthy(ok, "a burrow where the hut stood")
+		T.eq(p.plot.placed[1].id, "burrow")
+		T.eq(p.plot.placed[1].uid, uid, "its uid stays")
+		T.eq(p.shells, before - (Buildings.byId.burrow.shells - math.floor(Buildings.byId.nest.shells * Tuning.Refund)))
+		-- a farm for an orchard keeps its driftling (the patch where an orchard would fit)
+		local fx, fz = spot(p, "orchard")
 		Plot.place(p, "patch", fx, fz, 0)
 		local farm = p.plot.placed[#p.plot.placed]
-		v.work = farm.uid
+		local v = { id = 500, sp = "mossbun", home = uid, work = farm.uid }
+		table.insert(p.pals, v)
 		T.truthy(Plot.replace(p, #p.plot.placed, "orchard"), "an orchard where the patch stood")
 		T.eq(p.plot.placed[#p.plot.placed].id, "orchard")
 		T.eq(v.work, farm.uid, "its farmer works on in the orchard")
@@ -234,16 +227,17 @@ return function()
 		T.eq(p.shells, before + math.floor(Buildings.byId.torch.shells * Tuning.Refund))
 		T.eq(#p.plot.placed, 1)
 		T.eq(select(2, Plot.store(p, 5)), "bad_payload")
-		-- a tent with its villager in it stays
-		local tx, tz = spot(p, "tent")
-		T.truthy(Plot.place(p, "tent", tx, tz, 0))
-		p.folk = { { id = 90, name = "A", look = p.founder, work = 0, lvl = 1, xp = 0, seed = 1, day = 1 } }
-		T.eq(select(2, Plot.store(p, 2)), "no_room")
+		-- a hut cleared away: its driftlings back to the pen; a workplace gone: they rest
+		local tx, tz = spot(p, "nest")
+		T.truthy(Plot.place(p, "nest", tx, tz, 0))
 		local px, pz = spot(p, "patch")
 		T.truthy(Plot.place(p, "patch", px, pz, 0))
-		p.folk[1].work = p.plot.placed[3].uid
+		local w = { id = 90, sp = "mossbun", home = p.plot.placed[2].uid, work = p.plot.placed[3].uid }
+		table.insert(p.pals, w)
 		T.truthy(Plot.store(p, 3))
-		T.eq(p.folk[1].work, 0, "their workplace gone: idle")
+		T.eq(w.work, 0, "its workplace gone: resting")
+		T.truthy(Plot.store(p, 2))
+		T.eq(w.home, 0, "its hut gone: back to the pen")
 		-- fill to the limit
 		local n = #p.plot.placed
 		local plot = Street.plot(1)

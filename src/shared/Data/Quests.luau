@@ -3,11 +3,10 @@
 -- such as assigning creatures to different work areas"). Pure data. After the tips, one quest at a time, in order:
 -- each names something to do, says where to do it, and pays a small reward when the player claims it (Logic/Quest).
 --   goal: what it counts (Logic/Quest.count) and how many; `of` a building kind for "built".
---     "helpers" driftlings at work, "housed" driftlings in huts, "folk" villagers, "workers" villagers at work, "paths"
---     path tiles, "decor" decorations, "built" pieces of a kind, "grown" driftlings the tree grew, "sold" driftlings
+--     "helpers" driftlings at work, "housed" driftlings in huts, "paths" path tiles, "decor" decorations, "built" pieces of a kind, "grown" driftlings the tree grew, "sold" driftlings
 --     sold, "best" the rarest driftling had (1 .. 5), "luck" / "speed" the Tree of Life's levels, "tier" the island's
 --     tier, "seen" kinds in the Index, "hatched" eggs hatched
---   go: where its Go button takes the player: a panel ("pals" "folk" "index" "hatch" "tree") or Build mode ("build",
+--   go: where its Go button takes the player: a panel ("pals" "index" "hatch" "tree") or Build mode ("build",
 --     or "build:<tab>")
 export type Goal = { kind: string, n: number, of: string? }
 export type Reward = { shells: number?, food: number?, wood: number? }
@@ -44,27 +43,27 @@ local list: { Quest } = {
 		icon = "tree",
 	},
 	{
-		id = "home",
-		title = "Make room for a newcomer",
-		text = "Build another home. Someone moves in when there's a free bed.",
-		goal = { kind = "folk", n = 2 },
+		id = "camp",
+		title = "More wood",
+		text = "Build a second Lumber Camp. Driftlings good with wood will go and work there.",
+		goal = { kind = "built", n = 2, of = "wood" },
 		reward = { shells = 80, wood = 15 },
-		go = "build:home",
-		icon = "home",
+		go = "build:wood",
+		icon = "wood",
 	},
 	{
-		id = "jobs",
-		title = "Give everyone a job",
-		text = "Open Villagers and tap Work to choose where each one works.",
-		goal = { kind = "workers", n = 2 },
+		id = "three",
+		title = "Three at work",
+		text = "Get three driftlings working. Each hut sends its driftlings to a building that suits them.",
+		goal = { kind = "helpers", n = 3 },
 		reward = { shells = 80 },
-		go = "folk",
-		icon = "folk",
+		go = "pals",
+		icon = "pal",
 	},
 	{
 		id = "huts",
 		title = "Build another hut",
-		text = "Huts are on the Huts tab. The pen sends its best driftlings to any hut with room.",
+		text = "Huts are on the Huts tab. The pen sends driftlings there when a building needs one.",
 		goal = { kind = "built", n = 2, of = "nest" },
 		reward = { shells = 100, wood = 15 },
 		go = "build:nest",
@@ -82,7 +81,7 @@ local list: { Quest } = {
 	{
 		id = "food",
 		title = "Grow more food",
-		text = "Build a second farm or a fishing pier. Villagers and driftlings both eat.",
+		text = "Build a second farm or a fishing pier. Every driftling in a hut eats.",
 		goal = { kind = "built", n = 2, of = "food" },
 		reward = { shells = 120, wood = 20 },
 		go = "build:food",

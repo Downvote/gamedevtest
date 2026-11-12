@@ -171,17 +171,13 @@ end
 
 -- A saved profile for `userId` (put in the fake cloud before they join): an island of `tier`; opts: pieces ({ id, x,
 -- z, rot? } wanted spots, placed where Logic/Plot says they fit, else at the nearest cell that does; upgraded to lvl
--- when given), folk (how many villagers: jobs where free), pals (species: in the pen, which sends the best to the huts,
--- where they help at their knack), pen (species kept in the pen), luck, speed (the tree's levels), shells, food, wood,
--- day, tut.
+-- when given), pals (species: in the pen, which sends the best to the huts with room and work, where they work at
+-- their knack), pen (species kept in the pen), luck, speed (the tree's levels), shells, food, wood, day, tut.
 local function seedProfile(userId, tier, opts)
 	opts = opts or {}
 	local Tuning = H.sharedServer("Config.Tuning")
 	local Schema = H.sharedServer("Logic.Schema")
-	local Island = H.sharedServer("Logic.Island")
 	local Plot = H.sharedServer("Logic.Plot")
-	local Names = H.sharedServer("Data.Names")
-	local Util = H.sharedServer("Logic.Util")
 	local now = math.floor(E.now())
 	local prof = Schema.default(now, userId)
 	prof.tier = tier
@@ -207,13 +203,6 @@ local function seedProfile(userId, tier, opts)
 		if not done and not d[6] then
 			log("seed: %s does not fit near %d,%d", d[1], d[2], d[3])
 		end
-	end
-	local rng = Util.newRng(userId * 7 + 1)
-	for k = 1, math.min(opts.folk or 0, Island.beds(prof)) do
-		local v = { id = prof.nextId, name = Util.pick(rng, Names.first), look = Island.randomLook(rng), work = 0, day = 1 }
-		prof.nextId += 1
-		v.work = Island.freeJob(prof)
-		table.insert(prof.folk, v)
 	end
 	for k, sp in opts.pals or {} do
 		local Creatures = H.sharedServer("Data.Creatures")
@@ -243,7 +232,6 @@ local function seedProfile(userId, tier, opts)
 		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
 	end
 	prof.stats.days = prof.day - 1
-	prof.stats.movedIn = #prof.folk
 	prof.stats.grown = #prof.pals
 	prof.stats.built = #prof.plot.placed
 	-- an egg warming in the first Hatchery (opts.egg: { sp, left, muts })
@@ -259,11 +247,11 @@ local function seedProfile(userId, tier, opts)
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
 end
 
--- A tier-1 village round the plaza: food and wood east, homes and nests west, a stall and a pier by the path, decor
--- (plot-local NW corners; the seeder moves each to the nearest spot that fits the coast).
+-- A tier-1 village round the plaza: food and wood east, the driftlings' huts west, a stall and a pier by the path,
+-- decor (plot-local NW corners; the seeder moves each to the nearest spot that fits the coast).
 local VILLAGE = {
 	{ "patch", 6, -1 }, { "patch", 10, -1 }, { "lumber", 6, 3 }, { "pier", 10, 3 }, { "stall", 5, 11 },
-	{ "tent", -8, 0 }, { "hut", -12, 2 }, { "hut", -8, 4 }, { "nest", -6, 12 }, { "nest", -10, 9 },
+	{ "nest", -8, 0 }, { "nest", -11, 3 }, { "nest", -8, 5 }, { "nest", -6, 12 }, { "nest", -10, 9 },
 	{ "flowers", 4, 13 }, { "palm", -12, 7 }, { "torch", 5, 1 }, { "bench", -5, -3 }, { "shellpile", 9, 8 },
 	{ "bush", -3, -4 }, { "hammock", 0, -4 }, { "flowers", -4, 14 }, { "torch", -5, 10 },
 }
@@ -271,7 +259,7 @@ local VILLAGE = {
 local HARBOR = {
 	{ "greenhouse", 14, -7, 0, 3 }, { "orchard", 19, -7, 0, 2 }, { "orchard", 19, -2, 0, 2 }, { "sawmill", 14, -2, 0, 2 }, { "lumber", 22, 3 },
 	{ "inn", 7, 9, 0, 2 }, { "cafe", 13, 9, 0, 2 }, { "stall", 18, 9 }, { "pier", 22, 8 },
-	{ "cottage", -14, -7 }, { "cottage", -14, -2 }, { "hut", -9, 4 }, { "burrow", -19, -7 }, { "burrow", -19, -2 },
+	{ "den", -14, -7 }, { "den", -14, -2 }, { "nest", -9, 4 }, { "burrow", -19, -7 }, { "burrow", -19, -2 },
 	{ "fountain", -13, 6 }, { "lighthouse", 21, -13 }, { "statue", -22, 4 }, { "totem", 6, -12 }, { "picnic", -20, -12 },
 	{ "palm", -25, 0 }, { "palm", 15, -14 }, { "flowers", 6, 3 }, { "flowers", -7, 12 }, { "torch", 5, 6 }, { "torch", -6, 6 },
 	{ "hammock", 8, -16 }, { "bench", -4, -7 }, { "shellpile", 10, 14 }, { "hatchery", -1, -14 },
@@ -281,7 +269,7 @@ local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup"
 ------------------------------------------------------------------ scenarios
 local SCEN = {}
 
--- A brand-new island: the castaway's hut, the founder, the HUD with the first tip.
+-- A brand-new island: its Tree of Life, the founder, the HUD with the first tip.
 function SCEN.island()
 	local p = join(1, "Pixel")
 	settle(p)
@@ -290,22 +278,22 @@ function SCEN.island()
 	return p
 end
 
--- A tier-1 village a dozen days in: villagers at work, driftlings helping and hopping, the island card.
+-- A tier-1 village a dozen days in: driftlings at work and hopping about, the island card.
 function SCEN.village()
-	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
-	local p = join(2, "Villager")
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" }})
+	local p = join(2, "Wren")
 	settle(p)
 	E.run(2.5)
 	capture(p, "village")
 	return p
 end
 
--- At work (GAME_DESIGN 5, 6): the village a while on, its villagers at their buildings (a hoe in the fields, an axe at
--- the lumber camp, a line off the pier, the stall) and its driftlings with them (pecking, pushing, napping at a
--- nest), then a frame every eighth of a second for two seconds (work_000 .. work_015; make_gif.py makes them a GIF).
+-- At work (GAME_DESIGN 5, 6): the village a while on, its driftlings at their buildings (pecking in the fields,
+-- pushing at the lumber camp, dipping off the pier, waving at the stall, napping at a hut, what they work at flying
+-- off), then a frame every eighth of a second for two seconds (work_000 .. work_015; make_gif.py makes them a GIF).
 function SCEN.work()
-	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
-	local p = join(2, "Villager")
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" }})
+	local p = join(2, "Wren")
 	settle(p)
 	E.run(14)
 	capture(p, "work")
@@ -319,8 +307,8 @@ end
 -- The water moving (GAME_DESIGN 8): the village, then a frame every sixth of a second for two seconds (water_000 ..
 -- water_011; `python3 tools/preview/make_gif.py <outdir> water <device>` makes them a GIF).
 function SCEN.water()
-	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
-	local p = join(2, "Villager")
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" }})
+	local p = join(2, "Wren")
 	settle(p)
 	E.run(1)
 	for k = 0, 11 do
@@ -334,8 +322,8 @@ end
 -- (night), and at dawn (dawn): UI/DayLight held at that time of day.
 local function timeScenario(frac, name)
 	return function()
-		seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
-		local p = join(2, "Villager")
+		seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" }})
+		local p = join(2, "Wren")
 		settle(p)
 		local DL = modOr(p, "Controllers.DayLight")
 		if DL then
@@ -364,7 +352,7 @@ SCEN.dawn = timeScenario(0.02, "dawn")
 
 local function islandScenario(tier, label)
 	return function()
-		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, folk = if tier == 3 then 12 else 6, pals = PALS, shells = 60000, wood = 5000 })
+		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, pals = PALS, shells = 60000, wood = 5000 })
 		local p = join(10 + tier, "Isle" .. tier)
 		settle(p)
 		E.run(2.5)
@@ -404,11 +392,11 @@ local function cityPieces()
 	end
 	-- the blocks: the city's buildings, then trees, lamps and hedges in what is left
 	local BIG = {
-		"townhall", "hotel", "bazaar", "manor", "skygarden", "palace", "observatory", "crystalfountain", "villa", "kelpfarm",
-		"bakery", "grandmill", "townhouse", "grotto", "clocktower", "monument", "paddy", "inn", "roost", "bandstand",
-		"sunspire", "greenhouse", "villa", "townhouse", "beacon", "watertower", "market", "hatchery", "gazebo", "longhouse",
-		"bamboo", "timber", "den", "windmill", "cafe", "townhouse", "manor", "grandarch", "canal", "smokehouse",
-		"orchard", "cottage", "villa", "toolshed", "lighthouse", "statue", "fountain", "hotel", "bazaar",
+		"townhall", "hotel", "bazaar", "palace", "skygarden", "roost", "observatory", "crystalfountain", "grotto", "kelpfarm",
+		"bakery", "grandmill", "den", "grotto", "clocktower", "monument", "paddy", "inn", "roost", "bandstand",
+		"sunspire", "greenhouse", "palace", "den", "beacon", "watertower", "market", "hatchery", "gazebo", "burrow",
+		"bamboo", "timber", "den", "windmill", "cafe", "roost", "palace", "grandarch", "canal", "smokehouse",
+		"orchard", "burrow", "grotto", "toolshed", "lighthouse", "statue", "fountain", "hotel", "bazaar",
 	}
 	local k = 0
 	for _, z in { -49, -40, -28, -16, -4, 4 } do
@@ -454,7 +442,7 @@ function SCEN.gallery()
 			z += 8
 		end
 	end
-	seedProfile(17, 6, { pieces = pieces, folk = 0, shells = 900000, wood = 60000, food = 5000 })
+	seedProfile(17, 6, { pieces = pieces, shells = 900000, wood = 60000, food = 5000 })
 	local p = join(17, "Gallery")
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -472,7 +460,7 @@ end
 
 function SCEN.city()
 	local CITY_PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
-	seedProfile(16, 6, { pieces = cityPieces(), folk = 40, pals = CITY_PALS, shells = 900000, wood = 60000, food = 5000})
+	seedProfile(16, 6, { pieces = cityPieces(), pals = CITY_PALS, shells = 900000, wood = 60000, food = 5000})
 	local p = join(16, "Capital")
 	settle(p)
 	E.run(2.5)
@@ -483,7 +471,7 @@ function SCEN.city()
 			paths += 1
 		end
 	end
-	log("city: %d pieces, %d path tiles, %d villagers, %d driftlings", #prof.plot.placed - paths, paths, #prof.folk, #prof.pals)
+	log("city: %d pieces, %d path tiles, %d driftlings", #prof.plot.placed - paths, paths, #prof.pals)
 	capture(p, "city")
 	-- the heart of the city, further north
 	local Street = H.sharedServer("Data.Street")
@@ -500,7 +488,7 @@ end
 
 -- A new day's banner: the sea's clock jumped to just before a day's end (a day is hours long).
 function SCEN.day()
-	seedProfile(3, 1, { pieces = VILLAGE, folk = 2, pals = { "gullfin" } })
+	seedProfile(3, 1, { pieces = VILLAGE, pals = { "gullfin" } })
 	local p = join(3, "Dawn")
 	settle(p)
 	local WC = H.smod("WorldClock")
@@ -511,16 +499,16 @@ function SCEN.day()
 	return p
 end
 
--- A UI panel by name (UIKit.openPanel): folk, pals, tree (the Tree of Life: its levels, the odds, a pen of driftlings),
+-- A UI panel by name (UIKit.openPanel): pals, tree (the Tree of Life: its levels, the odds, a pen of driftlings),
 -- index, looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents
 -- picked through the panel).
 local function panelScenario(name)
 	if name == "hatch" then
 		local pieces = table.clone(HARBOR)
 		table.insert(pieces, { "hatchery", 4, -18 })
-		seedProfile(20, 3, { pieces = pieces, folk = 6, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, food = 600, seen = { "glacior" } })
+		seedProfile(20, 3, { pieces = pieces, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, food = 600, seen = { "glacior" } })
 	else
-		seedProfile(20, 2, { pieces = VILLAGE, folk = 5, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, pen = { "pebblit", "frondle", "twiggle", "sunsprite" }, luck = 3, speed = 4, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
+		seedProfile(20, 2, { pieces = VILLAGE, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, pen = { "pebblit", "frondle", "twiggle", "sunsprite" }, luck = 3, speed = 4, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
 	end
 	local p = join(20, "Menus")
 	settle(p)
@@ -551,10 +539,10 @@ local function panelScenario(name)
 	return p
 end
 
--- The Tree of Life up close (GAME_DESIGN 6): a village's tree with its pen full of driftlings and two growing into it
--- (the hollow's glow, the newborns walking in), the founder standing by.
+-- The Tree of Life up close (GAME_DESIGN 6): a village's tree (tree), then two more grown into its pen (tree_grow: the
+-- sparkle at the hollow; the pen is only a list), the founder standing in front of it.
 function SCEN.tree()
-	seedProfile(21, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "gullfin", "frondle" }, pen = { "pebblit", "conchy", "twiggle" } })
+	seedProfile(21, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin", "frondle" }, pen = { "pebblit", "conchy", "twiggle" } })
 	local p = join(21, "Grove")
 	settle(p)
 	local prof = H.profile(p)
@@ -569,16 +557,16 @@ function SCEN.tree()
 	if tq and p.Character then
 		local ox, oz = Street.origin(H.session(p).plot)
 		local w, d = Plot.footprint(tq.id, tq.rot)
-		p.Character:PivotTo(E.cf.new(ox + tq.x + w / 2 + 1, 3, oz + tq.z + d + 2))
+		-- (to the tree's east, clear of it: the view centres on the founder, the whole tree beside them)
+		p.Character:PivotTo(E.cf.new(ox + tq.x + w + 3, 3, oz + tq.z + d / 2 - 1))
 		E.run(2)
 		settle(p, 30, 1)
 	end
-	-- (the tree ready: the next two grow and walk into the pen)
-	prof.tree.t = 11.5
-	E.run(4)
 	capture(p, "tree")
-	E.run(1)
-	capture(p, "tree_pen")
+	-- (the tree ready: the next grows now)
+	prof.tree.t = 11.9
+	E.run(0.6)
+	capture(p, "tree_grow")
 	return p
 end
 
@@ -602,7 +590,7 @@ end
 -- same pan baked from scratch, to compare a scrolled picture with a fresh one.
 function SCEN.sea()
 	local p = join(50, "Walker")
-	seedProfile(51, 2, { pieces = VILLAGE, folk = 6, pals = PALS})
+	seedProfile(51, 2, { pieces = VILLAGE, pals = PALS})
 	join(51, "Neighbour", { client = false })
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -623,10 +611,10 @@ function SCEN.sea()
 	return p
 end
 
--- The founder on the neighbour's island while their villagers work.
+-- The founder on the neighbour's island while their driftlings work.
 function SCEN.visit()
 	local p = join(52, "Visitor")
-	seedProfile(53, 1, { pieces = VILLAGE, folk = 4, pals = { "frondle", "gullfin" } })
+	seedProfile(53, 1, { pieces = VILLAGE, pals = { "frondle", "gullfin" } })
 	join(53, "Host", { client = false })
 	settle(p)
 	local x2, z2 = H.sharedServer("Data.Street").origin(2)
@@ -635,10 +623,11 @@ function SCEN.visit()
 	return p
 end
 
--- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the hut (red),
--- then a tip under way (the tray on its tab, its building pulsing, the tip over the tray).
+-- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the plaza
+-- (red), then a tip under way (the tray on its tab, its building pulsing, the tip over the tray), then a hut picked up
+-- and Replace (the bigger huts with their prices).
 function SCEN.build()
-	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "tent", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, folk = 1, shells = 3000, wood = 300 })
+	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "nest", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, pals = { "mossbun" }, shells = 3000, wood = 300 })
 	local p = join(54, "Builder")
 	settle(p, 30, 1)
 	if not H.clickNamed(p, "Menu_build", { optional = true }) then
@@ -691,12 +680,14 @@ function SCEN.build()
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
 		capture(p, "build_tip")
-		-- replacing a placed piece: the tent tapped, Replace, the homes of its kind with their prices
+		-- replacing a placed piece: a hut tapped, Replace, the huts of its kind with their prices
 		prof.tut = 0
 		prof.tier = 2
 		H.push(p, 0.4)
+		local tapped = false
 		for _, q in prof.plot.placed do
-			if q.id == "tent" then
+			if q.id == "nest" and not tapped then
+				tapped = true
 				local w, d = Plot.footprint(q.id, q.rot)
 				tapWorld(E.v3(ox + q.x + w / 2, Street.LAWN_Y + 0.3, oz + q.z + d / 2))
 			end
@@ -712,7 +703,7 @@ end
 -- "paths": drawing paths in Build mode (GAME_DESIGN 4): a box being dragged (its markers: cyan where a tile goes,
 -- red where one can't), then the tiles laid (paths_box).
 function SCEN.paths()
-	seedProfile(58, 2, { pieces = VILLAGE, folk = 2, shells = 1e6, wood = 1e5 })
+	seedProfile(58, 2, { pieces = VILLAGE, shells = 1e6, wood = 1e5 })
 	local p = join(58, "Paver")
 	settle(p, 30, 1)
 	local BuildUI = modOr(p, "UI.BuildUI")
@@ -835,7 +826,7 @@ end
 -- it (rushed); the cheer waits for the new picture. Frames expand_before and expand_after; the log says whether the
 -- next island was ready, and how many frames and bakes passed before the cheer.
 function SCEN.expand()
-	seedProfile(56, 1, { pieces = VILLAGE, folk = 3, shells = 1e6, wood = 1e5 })
+	seedProfile(56, 1, { pieces = VILLAGE, shells = 1e6, wood = 1e5 })
 	local p = join(56, "Grower")
 	settle(p, 30, 1)
 	local PS = H.smod("PlotService")

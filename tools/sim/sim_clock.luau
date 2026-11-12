@@ -1,9 +1,9 @@
 -- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
 -- here, open menus and Build mode holding nothing; what a day makes and eats matching Island.rates (to a tick); the
 -- stores reaching the client every second (Fx tick); the food running out (everything at half, the shops shut, the
--- chip red) and coming back; a villager moving in only into a free bed with the charm high enough; the Hatchery's egg
--- hatching into the Tree of Life's pen; two islands each on their own clock. (The tree waits with a full pen while the
--- rates are measured, so no new driftling changes them.)
+-- chip red) and coming back; the pen sending a driftling to a hut only when a building of its knack has a free place;
+-- the Hatchery's egg hatching into the Tree of Life's pen; two islands each on their own clock. (The huts are full
+-- while the rates are measured: what the tree grows waits in the pen, where it neither works nor eats.)
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -52,23 +52,30 @@ end
 ------------------------------------------------------------------ the day's pace
 E.phase = "pace"
 prof.shells, prof.wood = 20000, 2000
-for _, id in { "patch", "patch", "lumber", "tent", "hut", "nest", "stall", "flowers" } do
+for _, id in { "patch", "patch", "lumber", "nest", "nest", "stall", "flowers" } do
 	local r = place(id)
 	H.expect(r.ok, "clock", "place " .. id, tostring(r.err))
 end
--- the tree waits: every driftling in the pen kept there, the pen filled up with kept ones
-local function holdTree()
+-- the huts filled: four driftlings with places at the farms, the camp and the stall (whoever grew already kept in
+-- the pen), so what the tree grows from now on waits there
+local function hutsN(): number
+	local n = 0
 	for _, x in prof.pals do
-		if x.home == 0 then
-			x.held = 1
+		if x.home ~= 0 then
+			n += 1
 		end
 	end
-	while not TreeC.waiting(prof) do
-		TreeC.add(prof, "pebblit", {}).held = 1
-	end
-	H.push(p, 0.2)
+	return n
 end
-holdTree()
+for _, x in prof.pals do
+	x.home, x.work, x.held = 0, 0, 1
+end
+for _, sp in { "mossbun", "frondle", "pebblit", "conchy" } do
+	TreeC.add(prof, sp, {})
+end
+TreeC.settle(prof)
+H.push(p, 0.2)
+H.expect(hutsN() == 4, "clock", "the two huts full, all four at work", tostring(hutsN()))
 -- the next turn's end (its Fx turn)
 local function nextTurn(limit: number?)
 	local i0 = #fx
@@ -91,7 +98,7 @@ E.run(0.3)
 H.expect(count("turn", f0) == 2, "clock", "an Fx turn each", tostring(count("turn", f0)))
 H.expect(prof.day == d0, "clock", "turns are not days (a day is hours of the sea's clock)", string.format("%d -> %d", d0, prof.day))
 H.expect(math.abs(count("tick", f0) - took) <= 2, "clock", "an Fx tick every second", string.format("%d in %.1fs", count("tick", f0), took))
-H.expect(#prof.folk >= 2, "clock", "villagers moved into the beds", tostring(#prof.folk))
+H.expect(hutsN() == 4 and TreeC.inPen(prof) >= 1, "clock", "the huts full: what the tree grew waits in the pen", string.format("%d in huts, %d in the pen", hutsN(), TreeC.inPen(prof)))
 
 ------------------------------------------------------------------ making and eating to the rates
 E.phase = "rates"
@@ -99,10 +106,9 @@ prof.food = 500
 H.push(p, 0.2)
 local r = Island.rates(prof)
 local food0, wood0, sh0 = prof.food, prof.wood, prof.shells
-local folk0 = #prof.folk
 E.run(10)
 local k = 10 / Tuning.TurnSeconds
-H.expect(#prof.folk == folk0, "rates", "(nobody new moved in meanwhile)")
+H.expect(hutsN() == 4, "rates", "(nobody new at work meanwhile)")
 H.expect(math.abs((prof.food - food0) - r.food * k) <= math.abs(r.food) * 0.02 + 0.5, "rates", "food to the day's rate", string.format("%.2f vs %.2f", prof.food - food0, r.food * k))
 H.expect(math.abs((prof.wood - wood0) - r.wood * k) <= r.wood * 0.02 + 0.5, "rates", "wood to the day's rate", string.format("%.2f vs %.2f", prof.wood - wood0, r.wood * k))
 H.expect(math.abs((prof.shells - sh0) - r.shells * k) <= r.shells * 0.02 + 0.5, "rates", "shells to the day's rate (the stall sells to visitors)", string.format("%.2f vs %.2f", prof.shells - sh0, r.shells * k))
@@ -132,11 +138,6 @@ prof.food = 0.5
 for _, q in prof.plot.placed do
 	if q.id == "patch" then
 		q.id = "flowers" -- (no food made: the island runs dry; whoever worked there rests)
-		for _, x in prof.folk do
-			if x.work == q.uid then
-				x.work = 0
-			end
-		end
 		for _, x in prof.pals do
 			if x.work == q.uid then
 				x.work = 0
@@ -160,50 +161,46 @@ prof.food = 100
 H.push(p, 0.3)
 H.expect(Island.rates(prof).shells > 0, "hunger", "fed again: the shops open")
 
------------------------------------------------------------------- moving in: beds and charm
-E.phase = "move-in"
-local beds = Island.beds(prof)
-while #prof.folk < beds do
-	table.insert(prof.folk, { id = prof.nextId, name = "Extra", look = { skin = 1, hair = 1, style = 1, shirt = 1 }, work = 0, day = prof.day })
-	prof.nextId += 1
-end
--- (the driftlings in huts are charming too: they go to the pen, so the charm here is the pieces')
-for _, x in prof.pals do
-	x.home, x.work, x.held = 0, 0, 1
-end
-H.push(p, 0.2)
-local n0 = #prof.folk
-nextTurn()
-H.expect(#prof.folk == n0, "move-in", "no free bed: nobody moves in", tostring(#prof.folk))
--- a free bed but not charm enough (MoveInCharm a villager)
-local r1 = place("cottage")
-local r2 = place("hut")
-H.expect(r1.ok or r2.ok, "move-in", "a new home", tostring(r2.err))
-local charm = Island.charm(prof)
-H.expect(charm < Tuning.MoveInCharm * #prof.folk, "move-in", "(the charm is too low for this many)", string.format("%d < %d", charm, Tuning.MoveInCharm * #prof.folk))
-nextTurn()
-H.expect(#prof.folk == n0, "move-in", "not charming enough: nobody moves in", tostring(#prof.folk))
--- decor raises the charm (the island expanded for the grand pieces: the buildings where the coast changed make room)
-prof.shells, prof.wood = 1e6, 1e5
-for _ = 1, 2 do
-	local rx = H.req(p, "island.expand", {})
-	H.expect(rx.ok, "move-in", "the island expands", tostring(rx.err))
-end
-H.expect(prof.tier == 3, "move-in", "to its biggest", tostring(prof.tier))
-H.checkProfile(p, "expanded")
-H.push(p, 0.3)
-local guard = 0
-while Island.charm(prof) < Tuning.MoveInCharm * #prof.folk and guard < 10 do
-	guard += 1
-	local rr = place("statue")
-	if not rr.ok then
-		rr = place("lighthouse")
+------------------------------------------------------------------ to a hut only with work to do
+-- (GAME_DESIGN 6: the pen sends its best on to a hut with room, but only one that a building of its knack has a free
+-- place for: a driftling with nowhere to work stays in the pen till there is somewhere)
+E.phase = "work"
+do
+	prof.shells, prof.wood = 1e6, 1e5
+	for _, x in prof.pals do
+		if x.home == 0 then
+			x.held = 1 -- (whoever waits in the pen kept there)
+		end
 	end
+	local crab = TreeC.add(prof, "clawdle", {}) -- (good at fishing: nowhere on the island to fish yet)
+	prof.tree.t = 0 -- (nothing new grows meanwhile)
+	H.push(p, 0.2)
+	local rn = place("nest")
+	H.expect(rn.ok, "work", "a new hut with room", tostring(rn.err))
+	E.run(0.3)
+	H.expect(crab.home == 0 and crab.work == 0, "work", "no fishing place: the Clawdle stays in the pen though the hut has room", string.format("home %d", crab.home))
+	local rp = place("pier")
+	H.expect(rp.ok, "work", "a fishing pier", tostring(rp.err))
+	E.run(0.3)
+	local hutUid, pierUid = 0, 0
+	for _, q in prof.plot.placed do
+		if q.id == "nest" then
+			hutUid = math.max(hutUid, q.uid)
+		elseif q.id == "pier" then
+			pierUid = q.uid
+		end
+	end
+	H.expect(crab.home == hutUid and crab.work == pierUid, "work", "a place at the pier: the pen sends it to the new hut and it fishes there", string.format("home %d work %d", crab.home, crab.work))
+	H.checkProfile(p, "work")
+	H.checkMirror(p, "work")
+	-- the island expanded to its biggest (the buildings where the coast changed make room)
+	for _ = 1, 2 do
+		local rx = H.req(p, "island.expand", {})
+		H.expect(rx.ok, "work", "the island expands", tostring(rx.err))
+	end
+	H.expect(prof.tier == 3, "work", "to its biggest", tostring(prof.tier))
+	H.checkProfile(p, "expanded")
 end
-H.expect(Island.charm(prof) >= Tuning.MoveInCharm * #prof.folk, "move-in", "decor raises the charm", tostring(Island.charm(prof)))
-nextTurn()
-H.expect(#prof.folk == n0 + 1, "move-in", "charming enough: a visitor moves in", tostring(#prof.folk))
-H.checkProfile(p, "move-in")
 
 ------------------------------------------------------------------ the Hatchery: two parents, an egg, its turns, a hatching
 E.phase = "hatchery"
@@ -218,14 +215,7 @@ do
 	end
 	local rh = place("hatchery")
 	H.expect(rh.ok, "hatchery", "a Hatchery at the third tier", tostring(rh.err))
-	-- (the kept ones go: the pen has room again, and plenty of huts keep it emptying while the egg warms)
-	local keep = {}
-	for _, x in prof.pals do
-		if not (x.held == 1 and x.sp == "pebblit") then
-			table.insert(keep, x)
-		end
-	end
-	prof.pals = keep
+	-- (more huts, so the pen keeps sending driftlings on while the egg warms)
 	for _ = 1, 3 do
 		place("den")
 	end

@@ -15,7 +15,7 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, breed = true, gen = true, path = true, decor = true }
+		local kinds = { food = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, decor = true }
 		local trees = 0
 		for _, d in Buildings.list do
 			if d.kind == "tree" then
@@ -33,18 +33,19 @@ return function()
 			T.truthy(d.tier >= 1 and d.tier <= #Office.plans, d.id .. " tier")
 			local makes = d.kind == "food" or d.kind == "wood" or d.kind == "shop"
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
-			T.truthy(makes == (d.job ~= "" and d.knack ~= ""), d.id .. " job and knack")
+			T.truthy(makes == (d.knack ~= ""), d.id .. " knack")
 			T.truthy((d.kind == "shop") == (d.eats > 0), d.id .. " a shop eats food")
-			T.truthy((d.kind == "home") == (d.beds > 0) and (d.kind == "nest") == (d.slots > 0), d.id .. " beds and nests")
+			T.truthy((d.kind == "nest") == (d.slots > 0), d.id .. " huts have room")
 			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
 			T.truthy((d.kind == "gen") == (d.boost ~= "" and d.boostBy > 0), d.id .. " a boost building boosts")
 			T.truthy(d.boost == "" or d.boost == "farm" or d.boost == "fish" or d.boost == "wood" or d.boost == "shop" or d.boost == "all", d.id .. " boost knack")
-			T.truthy(d.comfort == 0 or d.kind == "home" or d.kind == "nest", d.id .. " comfort is a home's or nest's")
+			T.truthy(d.comfort == 0 or d.kind == "nest", d.id .. " comfort is a hut's")
 			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
 		T.eq(trees, 1, "one Tree of Life")
-		T.truthy(seen.patch and seen.tent and seen.nest and seen.lumber and seen.stall, "the first buildings")
-		for _, id in { "patch", "tent", "nest", "lumber", "stall" } do
+		T.truthy(seen.patch and seen.nest and seen.lumber and seen.stall, "the first buildings")
+		T.eq(Buildings.byId.tent, nil, "no homes: no villagers")
+		for _, id in { "patch", "nest", "lumber", "stall" } do
 			T.eq(Buildings.byId[id].tier, 1, id .. " from the start")
 		end
 	end)

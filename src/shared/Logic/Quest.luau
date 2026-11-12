@@ -12,7 +12,6 @@ type Profile = Types.Profile
 
 -- What a quest's goal is counted from (a profile's own fields, or the client view's: `pieces` is the island's pieces).
 export type Facts = {
-	folk: { Types.Villager },
 	pals: { Types.Pal },
 	pieces: { Types.Piece },
 	tier: number,
@@ -25,7 +24,6 @@ local Quest = {}
 
 function Quest.facts(p: Profile): Facts
 	return {
-		folk = p.folk,
 		pals = p.pals,
 		pieces = p.plot.placed,
 		tier = p.tier,
@@ -47,14 +45,6 @@ function Quest.count(f: Facts, g: Quests.Goal): number
 	if k == "helpers" then
 		for _, x in f.pals do
 			if x.work ~= 0 then
-				n += 1
-			end
-		end
-	elseif k == "folk" then
-		n = #f.folk
-	elseif k == "workers" then
-		for _, v in f.folk do
-			if v.work ~= 0 then
 				n += 1
 			end
 		end

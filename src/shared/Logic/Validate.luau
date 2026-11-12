@@ -2,7 +2,7 @@
 -- Payload checks for every client request (docs/ARCHITECTURE.md 7.3). Pure. Router refuses anything that does not
 -- pass with "bad_payload" before a service sees it. A schema maps field -> kind:
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
---   "int"    a whole number in [0, 1e6] (a villager, driftling or piece id; 0: none)
+--   "int"    a whole number in [0, 1e6] (a driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 16] (a look index)
 --   "rarity" a whole number in [1, 5] (a driftling's rarity)
 --   "grow"   a Tree of Life upgrade: "luck" or "speed"
@@ -24,8 +24,6 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.unpaint"] = { cells = "cells" },
 	["plot.replace"] = { i = "index", id = "id" },
 	["island.expand"] = {},
-	["folk.work"] = { id = "int", uid = "int" },
-	["folk.dismiss"] = { id = "int" },
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.house"] = { id = "int", uid = "int", swap = "int" },
 	["pal.sell"] = { id = "int" },

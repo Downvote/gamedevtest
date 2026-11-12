@@ -15,9 +15,8 @@ return function()
 	local function at(r: any, minute: number): any
 		return r.timeline[minute // 10]
 	end
-	T.it("the first minutes: a villager and a driftling at work within 3 minutes, a rare one within 20", function()
+	T.it("the first minutes: a driftling at work within 3 minutes, a rare one within 20", function()
 		for seed, r in runs do
-			T.truthy(r.first.villager and r.first.villager <= 180, "seed " .. seed .. ": villager at " .. tostring(r.first.villager))
 			T.truthy(r.first.helper and r.first.helper <= 180, "seed " .. seed .. ": a driftling at work at " .. tostring(r.first.helper))
 			T.truthy(r.first.rarity3 and r.first.rarity3 <= 1200, "seed " .. seed .. ": a rare one at " .. tostring(r.first.rarity3))
 		end
@@ -34,12 +33,12 @@ return function()
 			T.truthy(r.sold < p.stats.earned * 0.67, string.format("seed %d: sold %d of %d", seed, r.sold, p.stats.earned))
 		end
 	end)
-	T.it("the island grows: tier 2 within 45 minutes, tier 3 within 90; a village of villagers and driftlings at work", function()
+	T.it("the island grows: tier 2 within 45 minutes, tier 3 within 90; a dozen driftlings in huts at an hour", function()
 		for seed, r in runs do
 			T.truthy(r.first.tier2 and r.first.tier2 <= 2700, "seed " .. seed .. ": tier 2 at " .. tostring(r.first.tier2))
 			T.truthy(r.first.tier3 and r.first.tier3 <= 5400, "seed " .. seed .. ": tier 3 at " .. tostring(r.first.tier3))
 			local h1 = at(r, 60)
-			T.truthy(h1.folk >= 8 and h1.pals >= 8, string.format("seed %d: hour 1 %d villagers %d driftlings in huts", seed, h1.folk, h1.pals))
+			T.truthy(h1.pals >= 12, string.format("seed %d: hour 1 %d driftlings in huts", seed, h1.pals))
 		end
 	end)
 	T.it("the town (tier 4) and beyond are long-term goals: never before 100 minutes", function()

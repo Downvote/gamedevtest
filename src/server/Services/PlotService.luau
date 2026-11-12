@@ -6,8 +6,8 @@
 -- (Static.Decor, one model a piece, named by its uid, kind, place and level); the island is rebuilt only when its tier
 -- changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
 -- goes up before an old one comes down. A player who leaves leaves an empty sandbar. Plot_<i>'s attributes tell every
--- client who is there and who lives there (WorldView draws every island's villagers and driftlings from them):
--- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Folk, Pals. The founder (the player's
+-- client who is there and who lives there (WorldView draws every island's driftlings from them):
+-- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Pals (the driftlings in its huts). The founder (the player's
 -- character) appears on their own path.
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
@@ -149,7 +149,7 @@ end
 -- An empty lot on plot i, with no attributes left of its last owner.
 local function emptyLot(i: number)
 	local m = plotModel(i)
-	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Folk", "Pals" } do
+	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Pals" } do
 		m:SetAttribute(k, nil)
 	end
 	m:SetAttribute("Owner", 0)
@@ -297,16 +297,14 @@ end
 function PlotService.sync(s: S)
 	local m = plotModel(s.plot)
 	local p = s.profile
-	-- who lives there: a villager "id.skin.hair.style.shirt.work", a driftling "id.species.work.home" (work: the uid
-	-- of the building they work or help at, 0 idle; home: the hut a driftling lives in, 0 the Tree of Life's pen)
-	local folk = {}
-	for _, v in p.folk do
-		local l = v.look
-		table.insert(folk, string.format("%d.%d.%d.%d.%d.%d", v.id, l.skin, l.hair, l.style, l.shirt, v.work))
-	end
+	-- who lives there: each driftling in a hut "id.species.work.home" (work: the uid of the building it works at, 0
+	-- resting; home: its hut). The Tree of Life's pen is no place on the island ("no need to render the pen, just a
+	-- ui should be enough"): its driftlings are left out.
 	local pals = {}
 	for _, x in p.pals do
-		table.insert(pals, string.format("%d.%s.%d.%d", x.id, x.sp, x.work, x.home or 0))
+		if (x.home or 0) ~= 0 then
+			table.insert(pals, string.format("%d.%s.%d.%d", x.id, x.sp, x.work, x.home))
+		end
 	end
 	local function set(k: string, v: any)
 		if m:GetAttribute(k) ~= v then
@@ -316,7 +314,6 @@ function PlotService.sync(s: S)
 	set("Tier", p.tier)
 	set("Day", p.day)
 	set("Charm", Island.charm(p))
-	set("Folk", table.concat(folk, ";"))
 	set("Pals", table.concat(pals, ";"))
 	local f = p.founder
 	local look = string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt)

@@ -429,81 +429,6 @@ B.inn = function(m, f)
 	pot(m, f, 2.1, 0.12, 1.6, "yellow")
 end
 
------------------------------------------------------------------- homes and nests
--- Tent (2 x 2): a canvas ridge tent with a seam, its flap open, poles and pegs, a bedroll inside, a lantern.
-B.tent = function(m, f)
-	box(m, f, 0, 0.03, 0, 1.9, 0.06, 1.9, "sand_dark", "Groundsheet")
-	wedge(m, f, 0, 0.7, -0.45, 1.7, 1.4, 0.9, "orange", 0, "Canvas")
-	wedge(m, f, 0, 0.7, 0.45, 1.7, 1.4, 0.9, "orange", math.pi, "Canvas")
-	box(m, f, 0, 1.42, 0, 1.75, 0.08, 0.12, "berry_red", "Seam")
-	box(m, f, 0, 0.45, 0.9, 0.6, 0.85, 0.05, "black", "Opening")
-	Blocks.part(m, { size = Vector3.new(0.05, 0.9, 0.5), cf = f * CFrame.new(0.42, 0.45, 0.98) * CFrame.Angles(0, math.rad(-35), 0), color = "orange", name = "Flap", collide = false })
-	for _, x in { -0.9, 0.9 } do
-		box(m, f, x, 0.75, 0, 0.1, 1.5, 0.1, "wood_dark", "Pole")
-		box(m, f, x * 1.05, 0.08, 0.9, 0.1, 0.16, 0.1, "wood_dark", "Peg")
-		box(m, f, x * 1.05, 0.08, -0.9, 0.1, 0.16, 0.1, "wood_dark", "Peg")
-	end
-	box(m, f, 0, 0.15, 0.45, 0.5, 0.15, 0.6, "blue", "Bedroll")
-	box(m, f, 0.85, 0.2, 0.85, 0.2, 0.3, 0.2, "yellow", "Lantern", true)
-end
-
--- Grass Hut (3 x 3): plank walls on stilts, a thatched roof with fringes, a ladder, a round window, a pot plant.
-B.hut = function(m, f)
-	for _, x in { -1.2, 1.2 } do
-		for _, z in { -1.2, 1.2 } do
-			box(m, f, x, 0.3, z, 0.2, 0.6, 0.2, "wood_dark", "Stilt")
-		end
-	end
-	box(m, f, 0, 0.62, 0, 2.8, 0.15, 2.8, "wood", "Floor")
-	box(m, f, 0, 1.45, -0.15, 2.4, 1.5, 2.3, "wood", "Walls")
-	for k = 0, 2 do
-		box(m, f, 0, 0.9 + k * 0.5, 1.02, 2.4, 0.05, 0.05, "wood_dark", "Board")
-	end
-	door(m, f * CFrame.new(0, 0.7, 0), 0.4, 1.0, 0.6, 1.0, "wood_dark")
-	box(m, f, -0.6, 1.5, 1.03, 0.5, 0.5, 0.06, "wood_dark", "WindowFrame")
-	box(m, f, -0.6, 1.5, 1.07, 0.35, 0.35, 0.04, "window", "Glass")
-	roof(m, f * CFrame.new(0, 0, -0.15), 2.2, 2.4, 2.3, 1.3, "sand_dark", "wood_dark", 0.4)
-	for k = 0, 5 do
-		box(m, f, -1.4 + k * 0.56, 2.05, 1.4, 0.3, 0.25, 0.1, "sand", "Fringe")
-	end
-	-- the ladder up to the door
-	for _, x in { 0.1, 0.7 } do
-		Blocks.part(m, { size = Vector3.new(0.1, 0.9, 0.1), cf = f * CFrame.new(x, 0.35, 1.35) * CFrame.Angles(math.rad(25), 0, 0), color = "wood_dark", name = "Rail", collide = false })
-	end
-	box(m, f, 0.4, 0.3, 1.38, 0.6, 0.08, 0.08, "wood", "Rung")
-	pot(m, f, -1.2, 0.69, 1.15, "pink")
-end
-
--- Cottage (4 x 3): stone and plaster with a red roof, a chimney, a porch, windows with flower boxes, a picket fence.
-B.cottage = function(m, f)
-	footing(m, f, 4, 3, "rock", 0.15)
-	box(m, f, 0, 1.25, -0.3, 3.6, 2.2, 2.2, "wall", "Walls")
-	box(m, f, 0, 0.35, -0.3, 3.65, 0.4, 2.25, "rock", "Stones")
-	for _, x in { -1.8, 1.8 } do
-		box(m, f, x, 1.25, 0.8, 0.12, 2.2, 0.12, "wood_dark", "Corner")
-	end
-	door(m, f * CFrame.new(0, 0.15, 0), 0.7, 0.8, 0.75, 1.5, "blue")
-	window(m, f * CFrame.new(0, 0.15, 0), -0.9, 1.35, 0.8, 0.8, 0.7)
-	box(m, f, -0.9, 0.85, 0.95, 0.9, 0.18, 0.25, "wood", "FlowerBox")
-	for k = 0, 3 do
-		box(m, f, -1.25 + k * 0.24, 1.0, 0.95, 0.15, 0.15, 0.15, if k % 2 == 0 then "pink" else "purple", "Bloom")
-	end
-	sideWindow(m, f * CFrame.new(0, 0.15, 0), 1.8, 1.35, -0.3, 0.7, 0.6)
-	roof(m, f * CFrame.new(0, 0, -0.3), 2.35, 3.6, 2.2, 1.3, "berry_red", "wood_dark", 0.3)
-	box(m, f, 1.1, 3.35, -0.75, 0.45, 1.2, 0.45, "rock", "Chimney")
-	box(m, f, 1.1, 3.98, -0.75, 0.55, 0.1, 0.55, "rock_dark", "ChimneyCap")
-	-- the porch roof on two posts
-	box(m, f, 0.7, 1.95, 1.2, 1.3, 0.12, 0.7, "berry_red", "Porch")
-	for _, x in { 0.15, 1.25 } do
-		box(m, f, x, 1.0, 1.4, 0.12, 1.9, 0.12, "wood", "PorchPost")
-	end
-	-- a picket fence along the front, a gap at the path
-	for k = 0, 6 do
-		local x = -1.9 + k * 0.32
-		box(m, f, x, 0.3, 1.45, 0.12, 0.6, 0.08, "white", "Picket")
-	end
-	box(m, f, -0.95, 0.4, 1.45, 2.0, 0.08, 0.06, "white", "Rail")
-end
 
 -- Driftling Nest (2 x 2): a woven nest of straw on a ring of stones, two speckled eggs, a feather, a little sign.
 B.nest = function(m, f)
@@ -1056,100 +981,6 @@ B.hotel = function(m, f)
 	pot(m, f, 2.0, 0.15, 2.1, "yellow")
 end
 
--- Longhouse (5 x 3): a long timber hall on a stone sill, a steep thatched roof, carved gable ends, a woodpile.
-B.longhouse = function(m, f)
-	footing(m, f, 5, 3, "rock", 0.15)
-	storey(m, f, 0, 0.15, -0.2, 4.6, 1.8, 2.2, "wood", "rock")
-	for k = 0, 8 do
-		box(m, f, -2.2 + k * 0.55, 1.05, 0.92, 0.08, 1.8, 0.04, "wood_dark", "Plank")
-	end
-	door(m, f * CFrame.new(0, 0.15, 0), 0, 0.9, 0.8, 1.4, "wood_dark")
-	window(m, f * CFrame.new(0, 0.15, 0), -1.4, 1.2, 0.9, 0.55, 0.5)
-	window(m, f * CFrame.new(0, 0.15, 0), 1.4, 1.2, 0.9, 0.55, 0.5)
-	roof(m, f * CFrame.new(0, 0, -0.2), 1.95, 4.6, 2.2, 1.6, "sand_dark", "wood_dark", 0.35)
-	for _, x in { -2.45, 2.45 } do
-		box(m, f, x, 3.7, -0.2, 0.12, 0.6, 0.12, "wood_dark", "Horn")
-	end
-	for k = 0, 2 do
-		log(m, f, 1.7, 0.2 + k * 0.25, 1.3, 1.1, 0.25, "wood")
-	end
-end
-
--- Townhouse (4 x 4): two floors in pastel plaster, a balcony with flower pots, a pitched roof with a dormer.
-B.townhouse = function(m, f)
-	footing(m, f, 4, 4, "rock", 0.15)
-	storey(m, f, 0, 0.15, -0.4, 3.4, 1.8, 2.8, "wall", "rock_dark")
-	storey(m, f, 0, 1.95, -0.4, 3.4, 1.6, 2.8, "pink", "wall_trim")
-	door(m, f * CFrame.new(0, 0.15, 0), -0.8, 1.0, 0.75, 1.4, "blue")
-	window(m, f * CFrame.new(0, 0.15, 0), 0.7, 1.1, 1.0, 0.8, 0.7)
-	for _, x in { -0.8, 0.7 } do
-		window(m, f, x, 2.8, 1.0, 0.6, 0.7)
-	end
-	box(m, f, 0, 2.0, 1.35, 3.0, 0.1, 0.6, "wall_trim", "Balcony")
-	for k = 0, 6 do
-		box(m, f, -1.4 + k * 0.47, 2.25, 1.6, 0.06, 0.4, 0.06, "steel_dark", "Baluster")
-	end
-	box(m, f, 0, 2.48, 1.6, 3.0, 0.06, 0.06, "steel_dark", "Railing")
-	pot(m, f, -1.2, 2.05, 1.4, "pink")
-	pot(m, f, 1.2, 2.05, 1.4, "yellow")
-	roof(m, f * CFrame.new(0, 0, -0.4), 3.55, 3.4, 2.8, 1.3, "blue", "white", 0.3)
-	box(m, f, 0.8, 3.85, 0.4, 0.7, 0.6, 0.6, "pink", "Dormer")
-	box(m, f, 0.8, 3.85, 0.71, 0.4, 0.35, 0.04, "window", "Glass")
-	box(m, f, -1.0, 4.4, -0.8, 0.4, 1.0, 0.4, "rock", "Chimney")
-end
-
--- Villa (5 x 4): a white villa round a courtyard: tiled orange roofs, arches, a fountain basin, palms in pots.
-B.villa = function(m, f)
-	footing(m, f, 5, 4, "pavement", 0.15)
-	storey(m, f, -0.6, 0.15, -0.8, 3.6, 2.2, 2.2, "white", "sand_dark")
-	storey(m, f, 1.8, 0.15, -0.3, 1.2, 1.6, 3.2, "white", "sand_dark")
-	roof(m, f * CFrame.new(-0.6, 0, -0.8), 2.35, 3.6, 2.2, 1.0, "orange", "berry_red", 0.3)
-	box(m, f, 1.8, 1.85, -0.3, 1.4, 0.15, 3.4, "orange", "Tiles")
-	for k = 0, 2 do
-		local x = -1.7 + k * 1.1
-		box(m, f, x, 0.85, 0.32, 0.25, 1.4, 0.2, "white", "Column")
-		box(m, f, x + 0.55, 1.6, 0.32, 0.9, 0.2, 0.2, "white", "Arch")
-	end
-	for _, x in { -1.15, 0.0 } do
-		window(m, f, x, 1.0, 0.31, 0.5, 0.8)
-	end
-	cyl(m, f, -0.2, 0.3, 1.2, 1.2, 0.3, "white", "Basin")
-	cyl(m, f, -0.2, 0.47, 1.2, 1.0, 0.06, "water", "Water"):SetAttribute("PixelWater", 2)
-	for _, x in { -2.1, 1.6 } do
-		box(m, f, x, 0.35, 1.5, 0.5, 0.4, 0.5, "pot", "Pot")
-		box(m, f, x, 1.1, 1.5, 0.12, 1.2, 0.12, "wood", "Trunk")
-		ball(m, f, x, 1.8, 1.5, 0.9, "leaf", "Fronds")
-	end
-	sideWindow(m, f, 2.4, 1.0, 0.3, 0.6, 0.6)
-end
-
--- Manor (5 x 5): a grand house of three floors, two corner towers with cone roofs, a gabled porch, a hedge garden.
-B.manor = function(m, f)
-	footing(m, f, 5, 5, "rock", 0.15)
-	for i = 0, 2 do
-		storey(m, f, 0, 0.15 + i * 1.5, -0.6, 3.0, 1.5, 3.0, "cream", if i == 0 then "rock_dark" else "wall_trim")
-		for _, x in { -0.8, 0.8 } do
-			window(m, f, x, 0.15 + i * 1.5 + 0.8, 0.9, 0.5, 0.7)
-		end
-	end
-	roof(m, f * CFrame.new(0, 0, -0.6), 4.65, 3.0, 3.0, 1.4, "blue", "white", 0.3)
-	for _, x in { -1.9, 1.9 } do
-		cyl(m, f, x, 2.4, -0.6, 1.2, 4.5, "cream", "Tower")
-		cyl(m, f, x, 0.3, -0.6, 1.3, 0.3, "rock_dark", "TowerBase")
-		Blocks.part(m, { size = Vector3.new(1.4, 1.4, 1.4), cf = f * CFrame.new(x, 5.2, -0.6), color = "blue", shape = "Ball", name = "Dome", collide = false })
-		box(m, f, x, 6.0, -0.6, 0.12, 0.6, 0.12, "gold", "Finial")
-		window(m, f, x, 3.4, -0.02, 0.35, 0.6)
-	end
-	door(m, f * CFrame.new(0, 0.15, 0), 0, 0.95, 0.9, 1.4, "wood_dark")
-	box(m, f, 0, 1.8, 1.25, 1.4, 0.12, 0.7, "white", "PorchRoof")
-	for _, x in { -0.6, 0.6 } do
-		box(m, f, x, 0.95, 1.5, 0.15, 1.6, 0.15, "white", "PorchColumn")
-	end
-	for _, x in { -1.9, 1.9 } do
-		box(m, f, x, 0.4, 2.0, 1.0, 0.6, 0.6, "leaf_dark", "Hedge")
-	end
-	streetLamp(m, f, 1.1, 2.2)
-end
 
 -- Driftling Den (3 x 3): a mossy rock with a round entrance, soft beds of leaves inside, a sign, mushrooms.
 B.den = function(m, f)
@@ -1633,95 +1464,149 @@ end
 
 
 ------------------------------------------------------------------ the Tree of Life (GAME_DESIGN 6; Logic/Tree)
--- Tree of Life (6 x 4): on the left a great old tree, its roots gripping the grass, a glowing hollow at its foot where
--- the driftlings are born (`Pod`), a wide canopy in layers with blossoms and glowing fruit; on the right its pen (a
--- fenced yard of trodden earth, a gate at the front, a hay bale, a water trough, a feed bowl, a sign), where the
--- driftlings it grows wait (DecorModels.PEN: its floor, in the model's own frame, for WorldView).
-DecorModels.PEN = { x0 = 0.45, z0 = -1.35, x1 = 2.6, z1 = 1.45 }
+-- Tree of Life (6 x 6): the request (2026-11-12): "make the tree of life more like a tree of life, reference
+-- references for it, make it look bigger and more grand". After the old pictures of a world tree (our own design): a
+-- great trunk of three strands braided round each other, wide roots that spread over the ground the way the limbs
+-- spread overhead (as above, so below), a ring of standing stones round its foot (the circle of life), a glowing
+-- hollow at the front where the driftlings come out (`Pod`), glowing marks winding up the bark, long limbs holding
+-- out seven clouds of leaves with sky between them, aerial roots and blossom hanging from them, gold fruit glowing
+-- under them, a ring of light on the ground, and motes of light drifting round. Its pen is not drawn (a list in the
+-- Tree panel). DecorModels.HOLLOW: the hollow's foot in the model's own frame (WorldView brings the driftlings sent
+-- on from the pen out there).
+DecorModels.HOLLOW = Vector3.new(0, 0, 1.25)
 B.tree = function(m, f)
-	-- the ground: grass under the tree, earth in the pen
-	box(m, f, -1.5, 0.03, 0, 3, 0.06, 4, "grass_dark", "Lawn")
-	box(m, f, 1.5, 0.03, 0, 3, 0.06, 4, "sand_dark", "PenFloor")
-	-- roots spreading over the grass, and a thick old trunk in tapering drums
-	local tx, tz = -1.55, -0.25
-	for k = 0, 6 do
-		local a = k / 7 * math.pi * 2 + 0.3
-		Blocks.part(m, {
-			size = Vector3.new(1.6, 0.45, 0.5),
-			cf = f * CFrame.new(tx + math.cos(a) * 0.9, 0.2, tz + math.sin(a) * 0.9) * CFrame.Angles(0, -a, math.rad(-14)),
-			color = if k % 2 == 0 then "wood_dark" else "wood",
-			name = "Root",
-			collide = false,
-		})
+	local function part(size: Vector3, cf: CFrame, color: string, name: string, neon: boolean?)
+		return Blocks.part(m, { size = size, cf = f * cf, color = color, name = name, neon = neon, collide = false })
 	end
+	-- the ground: a round mossy lawn, a darker ring of moss round the trunk
+	cyl(m, f, 0, 0.03, 0, 5.9, 0.06, "grass_dark", "Lawn")
+	cyl(m, f, 0, 0.07, 0, 3.6, 0.06, "leaf_dark", "Moss")
+	-- the circle of standing stones round its foot (a gap at the front for the hollow)
+	for k = 0, 9 do
+		local a = (k + 0.5) / 10 * math.pi * 2
+		local h = if k % 3 == 0 then 0.95 else 0.7
+		local x, z = math.sin(a) * 2.6, math.cos(a) * 2.6
+		if z > 2.3 then
+			continue
+		end
+		part(Vector3.new(0.45, h, 0.32), CFrame.new(x, h / 2, z) * CFrame.Angles(0, a, 0), if k % 2 == 0 then "rock" else "rock_dark", "Stone")
+		part(Vector3.new(0.47, 0.1, 0.34), CFrame.new(x, h + 0.04, z) * CFrame.Angles(0, a, 0), "leaf_dark", "StoneMoss")
+		if k % 3 == 0 then
+			-- a glowing mark carved in the taller stones
+			part(Vector3.new(0.14, 0.3, 0.04), CFrame.new(x, h * 0.55, z) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 0.17), "screen_on", "Glyph", true)
+		end
+	end
+	-- wide roots spreading over the ground, as the limbs spread overhead: each in two lengths, sloping down
+	for k = 0, 7 do
+		local a = k / 8 * math.pi * 2 + 0.2
+		if math.abs(((a + math.pi) % (math.pi * 2)) - math.pi) < 0.3 then
+			continue -- (the front stays clear: the hollow)
+		end
+		local dx, dz = math.sin(a), math.cos(a)
+		part(Vector3.new(0.7, 0.55, 1.5), CFrame.new(dx * 1.1, 0.32, dz * 1.1) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(14), 0, 0), if k % 2 == 0 then "wood_dark" else "wood", "Root")
+		part(Vector3.new(0.45, 0.35, 1.2), CFrame.new(dx * 2.0, 0.16, dz * 2.0) * CFrame.Angles(0, a + 0.15, 0) * CFrame.Angles(math.rad(8), 0, 0), "wood_dark", "Root")
+	end
+	-- the trunk: a flared core, and three thick strands braided round it, twisting as they rise
+	cyl(m, f, 0, 0.6, 0, 2.4, 1.2, "wood_dark", "Trunk")
+	for i = 0, 6 do
+		cyl(m, f, 0, 1.0 + i * 0.85, 0, 1.9 - i * 0.08, 0.9, "wood_dark", "Trunk")
+	end
+	for s = 0, 2 do
+		for i = 0, 7 do
+			local a = s / 3 * math.pi * 2 + i * 0.45
+			local r = 0.7 - i * 0.03
+			cyl(m, f, math.sin(a) * r, 0.7 + i * 0.85, math.cos(a) * r, 1.15 - i * 0.04, 0.95, if (s + i) % 2 == 0 then "wood" else "wood_dark", "Strand")
+		end
+	end
+	-- glowing marks winding up the bark
 	for i = 0, 5 do
-		local dia = 1.7 - i * 0.12
-		cyl(m, f, tx + math.sin(i * 0.9) * 0.08, 0.45 + i * 0.75, tz, dia, 0.8, if i % 2 == 0 then "wood" else "wood_dark", "Trunk")
+		local a = i * 0.9 + 0.6
+		local r = 1.08 - i * 0.04
+		part(Vector3.new(0.12, 0.34, 0.08), CFrame.new(math.sin(a) * r, 1.8 + i * 0.8, math.cos(a) * r) * CFrame.Angles(0, a, 0), "screen_on", "Rune", true)
 	end
-	-- bark ridges up the front
-	for _, x in { -0.4, 0.05, 0.45 } do
-		box(m, f, tx + x, 2.2, tz + 0.78, 0.12, 2.6, 0.1, "wood_dark", "Bark")
+	-- the hollow at the front: an arched opening of dark wood, a warm light in it
+	part(Vector3.new(1.0, 1.25, 0.2), CFrame.new(0, 0.7, 1.18), "black", "Hollow")
+	part(Vector3.new(0.7, 0.95, 0.1), CFrame.new(0, 0.62, 1.26), "gold", "Pod", true)
+	part(Vector3.new(1.3, 0.22, 0.24), CFrame.new(0, 1.4, 1.2), "wood_dark", "Lintel")
+	part(Vector3.new(0.22, 1.3, 0.24), CFrame.new(-0.6, 0.65, 1.2), "wood", "Jamb")
+	part(Vector3.new(0.22, 1.3, 0.24), CFrame.new(0.6, 0.65, 1.2), "wood", "Jamb")
+	-- the crown: seven clouds of leaves held out on long limbs, one at the top and six round it at two heights, with
+	-- sky between them so the limbs show (each cloud wider than tall: a dark underside, a light top, side puffs)
+	local function limb(p0: Vector3, p1: Vector3, thick: number, color: string)
+		local mid = (p0 + p1) / 2
+		part(Vector3.new(thick, thick, (p1 - p0).Magnitude + thick * 0.5), CFrame.lookAt(mid, p1), color, "Branch")
 	end
-	-- the hollow at its foot: a glowing doorway into the tree, a soft light in it
-	box(m, f, tx, 0.75, tz + 0.8, 0.7, 1.0, 0.12, "black", "Hollow")
-	box(m, f, tx, 0.68, tz + 0.84, 0.48, 0.7, 0.08, "yellow", "Pod", true)
-	box(m, f, tx, 1.32, tz + 0.84, 0.86, 0.16, 0.16, "wood_dark", "Lintel")
-	-- three great limbs into the canopy
-	for _, b in { { -1, 0.5 }, { 1, -0.4 }, { 0.2, 1 } } do
-		Blocks.part(m, {
-			size = Vector3.new(2, 0.5, 0.5),
-			cf = f * CFrame.new(tx + b[1] * 0.75, 4.7, tz + b[2] * 0.5) * CFrame.Angles(0, math.atan2(-b[2], b[1]), math.rad(32)),
-			color = "wood_dark",
-			name = "Branch",
-			collide = false,
-		})
+	local clouds: { Vector3 } = { Vector3.new(0, 12.2, 0) }
+	for k = 0, 5 do
+		local a = k / 6 * math.pi * 2 + 0.3
+		local r = if k % 2 == 0 then 3.5 else 3.1
+		table.insert(clouds, Vector3.new(math.sin(a) * r, if k % 2 == 0 then 8.9 else 10.3, math.cos(a) * r))
 	end
-	-- the canopy: a wide crown of lobes, darker underneath, lighter on top, pink blossom clusters through it
-	ball(m, f, tx, 5.0, tz, 3.6, "leaf_dark", "LeavesUnder")
-	ball(m, f, tx, 6.1, tz, 4.0, "leaf", "Leaves")
-	for k, c in { { -1.45, 5.5, 0.55, 2.6 }, { 1.35, 5.6, 0.3, 2.5 }, { -0.5, 5.4, -1.25, 2.6 }, { 0.6, 7.0, -0.4, 2.4 }, { -0.9, 7.1, 0.6, 2.2 }, { 0.3, 5.3, 1.3, 2.0 }, { 0.1, 7.7, 0.1, 1.8 } } do
-		ball(m, f, tx + c[1], c[2], tz + c[3], c[4], if k % 3 == 0 then "leaf_dark" else "leaf", "Leaves")
+	local top = Vector3.new(0, 7.0, 0)
+	for k, c in clouds do
+		-- the limb out to it, forking once on the way
+		local bend = Vector3.new(c.X * 0.55, 7.6 + (c.Y - 7.6) * 0.35, c.Z * 0.55)
+		limb(top, bend, if k == 1 then 0.75 else 0.6, if k % 2 == 0 then "wood" else "wood_dark")
+		limb(bend, c - Vector3.new(0, 0.6, 0), 0.45, "wood_dark")
+		if k > 1 then
+			local side = Vector3.new(-c.Z, 0, c.X).Unit * 1.1
+			limb(bend, c + side * 0.8 - Vector3.new(0, 0.4, 0), 0.3, "wood_dark")
+		end
+		-- the cloud
+		local big = if k == 1 then 3.0 else 2.6
+		ball(m, f, c.X, c.Y - 0.55, c.Z, big * 0.85, "leaf_dark", "LeavesUnder")
+		ball(m, f, c.X, c.Y, c.Z, big, "leaf", "Leaves")
+		for j = 0, 3 do
+			local a = j / 4 * math.pi * 2 + k
+			ball(m, f, c.X + math.sin(a) * big * 0.42, c.Y - 0.15, c.Z + math.cos(a) * big * 0.42, big * 0.7, if j % 2 == 0 then "leaf" else "leaf_dark", "Leaves")
+		end
+		ball(m, f, c.X + 0.2, c.Y + big * 0.32, c.Z - 0.1, big * 0.6, "leaf", "Leaves")
 	end
-	for k, c in { { -1.9, 6.2, 1.1 }, { 1.8, 5.9, 1.0 }, { -0.3, 7.9, 0.7 }, { 1.1, 7.3, -0.8 }, { -1.6, 7.0, -0.8 }, { 0.4, 6.4, 2.0 }, { -1.0, 5.4, 1.6 }, { 1.6, 6.8, 0.2 }, { -0.4, 6.8, 1.8 } } do
-		ball(m, f, tx + c[1], c[2], tz + c[3], if k % 3 == 0 then 0.7 else 0.55, if k % 2 == 0 then "pink" else "white", "Blossom")
+	-- blossom through the clouds
+	for k = 0, 20 do
+		local c = clouds[k % #clouds + 1]
+		local a = k * 2.4
+		ball(m, f, c.X + math.sin(a) * 1.2, c.Y + 0.4 + (k % 3) * 0.25, c.Z + math.cos(a) * 1.2, if k % 3 == 0 then 0.6 else 0.45, if k % 2 == 0 then "pink" else "white", "Blossom")
 	end
-	-- glowing fruit hanging under the crown
-	for _, c in { { -1.3, 4.1, 1.0 }, { 1.15, 4.2, 0.7 }, { 0.15, 3.9, 1.35 }, { -0.6, 4.0, -1.1 }, { 1.5, 4.3, -0.5 } } do
-		box(m, f, tx + c[1], c[2] + 0.35, tz + c[3], 0.06, 0.5, 0.06, "wood_dark", "Stalk")
-		ball(m, f, tx + c[1], c[2], tz + c[3], 0.5, "gold", "Fruit").Material = Enum.Material.Neon
+	-- aerial roots hanging from the clouds (the roots again, overhead)
+	for k = 2, #clouds do
+		local c = clouds[k]
+		local len = 1.0 + (k % 3) * 0.6
+		local out = Vector3.new(c.X, 0, c.Z).Unit * 1.2
+		part(Vector3.new(0.12, len, 0.12), CFrame.new(c.X + out.X, c.Y - 1.1 - len / 2, c.Z + out.Z), "leaf_dark", "Vine")
+		part(Vector3.new(0.22, 0.18, 0.22), CFrame.new(c.X + out.X, c.Y - 1.1 - len, c.Z + out.Z), if k % 2 == 0 then "pink" else "leaf", "VineTip")
 	end
-	-- mushrooms and a few flowers among the roots
-	for k, c in { { -2.55, 1.2 }, { -0.55, 1.4 }, { -2.6, -1.4 } } do
-		box(m, f, c[1], 0.17, c[2], 0.1, 0.3, 0.1, "cream", "Stalk")
-		box(m, f, c[1], 0.36, c[2], 0.32, 0.12, 0.32, if k == 2 then "orange" else "berry_red", "Cap")
+	-- a ring of light on the ground round the stones (the circle of life), in short glowing dashes
+	for k = 0, 23 do
+		local a = (k + 0.5) / 24 * math.pi * 2
+		local x, z = math.sin(a) * 2.95, math.cos(a) * 2.95
+		if math.abs(x) < 0.7 and z > 0 then
+			continue
+		end
+		part(Vector3.new(0.4, 0.04, 0.12), CFrame.new(x, 0.08, z) * CFrame.Angles(0, a + math.pi / 2, 0), "gold", "Ring", true)
 	end
-	for _, c in { { -2.3, 1.65 }, { -0.85, 1.75 }, { -2.75, 0.2 } } do
-		box(m, f, c[1], 0.12, c[2], 0.22, 0.12, 0.22, "yellow", "Flower")
+	-- gold fruit glowing under the clouds
+	for k = 2, #clouds do
+		local c = clouds[k]
+		for j = 0, 1 do
+			local a = j * math.pi + k
+			local x, y, z = c.X + math.sin(a) * 0.9, c.Y - 1.55 - j * 0.2, c.Z + math.cos(a) * 0.9
+			part(Vector3.new(0.06, 0.45, 0.06), CFrame.new(x, y + 0.42, z), "wood_dark", "Stalk")
+			ball(m, f, x, y, z, 0.5, "gold", "Fruit").Material = Enum.Material.Neon
+		end
 	end
-	-- the pen: a fence round the earth with a gate at the front
-	fenceZ(m, f, -1.8, 1.8, 0.15)
-	fenceZ(m, f, -1.8, 1.8, 2.85)
-	fence(m, f, 0.15, 2.85, -1.8)
-	fence(m, f, 0.15, 1.05, 1.8)
-	fence(m, f, 2.05, 2.85, 1.8)
-	-- the gate, swung open
-	Blocks.part(m, {
-		size = Vector3.new(0.9, 0.5, 0.08),
-		cf = f * CFrame.new(2.05, 0.42, 1.8) * CFrame.Angles(0, math.rad(-70), 0) * CFrame.new(-0.45, 0, 0),
-		color = "wood",
-		name = "Gate",
-		collide = false,
-	})
-	-- a hay bale, a water trough and a feed bowl
-	box(m, f, 2.35, 0.3, -1.3, 0.7, 0.5, 0.6, "sand", "Hay")
-	box(m, f, 2.35, 0.56, -1.3, 0.72, 0.06, 0.62, "yellow", "Straw")
-	box(m, f, 0.75, 0.22, -1.35, 0.9, 0.35, 0.45, "wood_dark", "Trough")
-	box(m, f, 0.75, 0.37, -1.35, 0.72, 0.06, 0.3, "water", "TroughWater").Material = Enum.Material.Glass
-	cyl(m, f, 2.45, 0.1, 0.9, 0.5, 0.18, "rock", "Bowl")
-	box(m, f, 2.45, 0.2, 0.9, 0.34, 0.04, 0.34, "orange", "Feed")
-	-- the sign by the gate
-	box(m, f, 1.0, 0.55, 2.05, 0.08, 1.1, 0.08, "wood_dark", "SignPost")
-	box(m, f, 1.0, 1.0, 2.08, 0.7, 0.35, 0.06, "wood", "Sign")
+	-- motes of light drifting round it
+	for k, c in { { -2.4, 3.2, 1.6 }, { 2.2, 4.4, 1.2 }, { -1.6, 5.6, -2.0 }, { 2.6, 2.4, -1.0 }, { 0.6, 6.4, 2.4 }, { -2.8, 6.8, 0.2 } } do
+		part(Vector3.new(0.18, 0.18, 0.18), CFrame.new(c[1], c[2], c[3]), if k % 2 == 0 then "yellow" else "white", "Mote", true)
+	end
+	-- mushrooms and flowers among the roots
+	for k, c in { { -2.0, 1.4 }, { 1.7, 1.6 }, { -1.5, -2.0 }, { 2.1, -1.2 } } do
+		box(m, f, c[1], 0.19, c[2], 0.12, 0.34, 0.12, "cream", "Stalk")
+		box(m, f, c[1], 0.4, c[2], 0.36, 0.14, 0.36, if k % 2 == 0 then "berry_red" else "orange", "Cap")
+	end
+	for k, c in { { -1.2, 2.1 }, { 1.2, 2.1 }, { -2.3, -0.4 }, { 2.4, 0.4 }, { 0.3, -2.4 } } do
+		box(m, f, c[1], 0.13, c[2], 0.22, 0.12, 0.22, if k % 2 == 0 then "yellow" else "pink", "Flower")
+	end
 end
 
 -- The piece's model at `at` (the footprint's centre on the grass, turned). Unknown ids build nothing.

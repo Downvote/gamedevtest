@@ -1,9 +1,9 @@
 --!strict
--- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Villagers (who lives here, their jobs, dismissing),
--- Driftlings (every one: its hut or the pen, where it helps, moving and selling), the Tree of Life (its speed and luck,
--- the odds, its pen), the Hatchery (two parents, an egg), Index (every driftling grown) and Looks (the founder's look).
--- Every action is a request; the panel rebuilds from the next view. A job or help picker is the same panel with an
--- argument ({ folk = id } / { pal = id }), the hut picker too ({ move = id }).
+-- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Driftlings (the ones in huts: where each works,
+-- moving and selling; the pen's are on the tree's panel), the Tree of Life (its speed and luck, the odds, its pen), the
+-- Hatchery (two parents, an egg), Index (every driftling grown) and Looks (the founder's look). Every action is a
+-- request; the panel rebuilds from the next view. The work picker is the same panel with an argument ({ pal = id }),
+-- the hut picker too ({ move = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -73,29 +73,6 @@ local function mutLine(parent: Instance, muts: { string }, x: number, y: number,
 	end
 end
 
--- Who lives where and their comfort (Logic/Island.homes over the view's pieces, villagers and driftlings).
-local function homesOf(v: Types.ClientView): { [string]: Island.Home }
-	return Island.homes({ plot = { placed = v.pieces }, folk = v.folk, pals = v.pals } :: any)
-end
-
--- "the Villa, comfort +18%" for a resident; "" when it has no bed.
-local function homeLine(v: Types.ClientView, h: Island.Home?): string
-	if h == nil then
-		return ""
-	end
-	local q = nil
-	for _, x in v.pieces do
-		if x.uid == h.uid then
-			q = x
-		end
-	end
-	local d = if q then Buildings.byId[q.id] else nil
-	if d == nil then
-		return ""
-	end
-	return if h.comfort > 0 then string.format("%s, comfort +%d%%", d.name, math.round(h.comfort * 100)) else d.name
-end
-
 local function row(list: Instance, order: number, h: number): Frame
 	local f = UIKit.plate(list, UDim2.new(1, -6, 0, h), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
 	f.Name = "Row"
@@ -105,7 +82,7 @@ end
 
 -- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tree).
 local function asProfile(v: Types.ClientView): any
-	return { plot = { placed = v.pieces }, folk = v.folk, pals = v.pals, tree = v.tree, tier = v.tier, shells = v.shells, wood = v.wood }
+	return { plot = { placed = v.pieces }, pals = v.pals, tree = v.tree, tier = v.tier, shells = v.shells, wood = v.wood }
 end
 
 local function pieceOf(v: Types.ClientView, uid: number): Types.Piece?
@@ -123,7 +100,7 @@ local function buildingName(v: Types.ClientView, uid: number): string?
 	return if d then d.name else nil
 end
 
--- A two-tap button (Dismiss, Sell): the first tap asks "Sure?", a second within 3 s does it.
+-- A two-tap button (Sell): the first tap asks "Sure?", a second within 3 s does it.
 local function confirmButton(parent: Instance, text: string, size: UDim2, pos: UDim2, go: () -> (), name: string)
 	local armed = 0
 	local b: TextButton
@@ -149,81 +126,52 @@ local function workWord(x: Types.Pal): string
 	return string.format("Works x%.1f", Tree.worth(x))
 end
 
------------------------------------------------------------------- the job / help picker
--- The buildings a villager (pal == nil) or a driftling (its knack) can work at, the one there now, and Rest.
-local function buildPicker(body: Frame, v: Types.ClientView, folkId: number?, palId: number?)
+------------------------------------------------------------------ the work picker
+-- The buildings of a driftling's knack it can work at, the one there now, and Rest.
+local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	local knack: string? = nil
 	local name = "?"
 	local current = 0
-	if palId then
-		for _, x in v.pals do
-			if x.id == palId then
-				local d = Creatures.byId[x.sp]
-				knack = if d then d.knack else nil
-				name = if d then d.name else x.sp
-				current = x.work
-			end
-		end
-	else
-		for _, x in v.folk do
-			if x.id == folkId then
-				name = x.name
-				current = x.work
-			end
+	for _, x in v.pals do
+		if x.id == palId then
+			local d = Creatures.byId[x.sp]
+			knack = if d then d.knack else nil
+			name = if d then d.name else x.sp
+			current = x.work
 		end
 	end
-	local top = hint(body, if palId then string.format("Where should %s help? (%s)", name, KNACKS[knack or ""] or "") else string.format("Where should %s work?", name), W - 50)
+	local top = hint(body, string.format("Where should %s work? (%s)", name, KNACKS[knack or ""] or ""), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
-		UIKit.openPanel(if palId then "pals" else "folk")
+		UIKit.openPanel("pals")
 	end, { name = "Back", color = UIKit.color("plate_light") })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
-	local who: { [number]: string } = {}
-	if palId then
-		for _, x in v.pals do
-			if x.work ~= 0 then
-				local d = Creatures.byId[x.sp]
-				who[x.work] = if d then d.name else x.sp
-			end
-		end
-	else
-		for _, x in v.folk do
-			if x.work ~= 0 then
-				who[x.work] = x.name
-			end
-		end
-	end
 	local order = 0
 	local function choose(uid: number)
-		local res = if palId then ask("pal.work", { id = palId, uid = uid }) else ask("folk.work", { id = folkId, uid = uid })
+		local res = ask("pal.work", { id = palId, uid = uid })
 		if res.ok then
 			Audio.play("ding")
-			UIKit.openPanel(if palId then "pals" else "folk")
+			UIKit.openPanel("pals")
 		end
 	end
 	for _, q in v.pieces do
 		local d = Buildings.byId[q.id]
-		if d and Island.works(q.id) and (knack == nil or d.knack == knack) then
+		if d and Island.works(q.id) and d.knack == knack then
 			order += 1
 			local f = row(list, order, 22)
 			f.Name = "Spot_" .. q.uid
 			PixelSprites.image(f, "mini_" .. (if d.kind == "shop" then "shell" else d.kind), UDim2.fromOffset(4, 5), 4)
 			UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
-			local there: string? = who[q.uid]
-			local status = if there then (if q.uid == current then "Here now" else there .. " is here") else "Nobody yet"
-			local full = there ~= nil
-			if palId then
-				-- (driftlings: Tuning.HelpMax a building; one more sends the first there back to rest)
-				local n = 0
-				for _, x in v.pals do
-					if x.work == q.uid and x.id ~= palId then
-						n += 1
-					end
+			-- (Tuning.HelpMax a building; one more sends the first there back to rest)
+			local n = 0
+			for _, x in v.pals do
+				if x.work == q.uid and x.id ~= palId then
+					n += 1
 				end
-				full = n >= Tuning.HelpMax
-				status = if q.uid == current then "Here now" elseif full then "Full: the first there would rest" elseif n > 0 then string.format("%d of %d helping", n, Tuning.HelpMax) else "Nobody yet"
 			end
+			local full = n >= Tuning.HelpMax
+			local status = if q.uid == current then "Here now" elseif full then "Full: the first there would rest" elseif n > 0 then string.format("%d of %d working", n, Tuning.HelpMax) else "Nobody yet"
 			UIKit.text(f, status, UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 11), { color = if status == "Nobody yet" then UIKit.color("good") else UIKit.color("text_dim"), z = 4 })
 			local b = UIKit.button(f, if q.uid == current then "Here" elseif full then "Swap" else "Go", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
 				choose(q.uid)
@@ -233,62 +181,14 @@ local function buildPicker(body: Frame, v: Types.ClientView, folkId: number?, pa
 	end
 	if order == 0 then
 		local f = row(list, 1, 22)
-		UIKit.text(f, if knack then "No " .. (KNACKS[knack] or "spots") .. " on the island yet. Build one first." else "Nothing to work at yet. Build a patch or a camp first.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "No " .. (KNACKS[knack or ""] or "spots") .. " on the island yet. Build one first.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local f = row(list, order + 1, 22)
 	f.Name = "Rest"
-	UIKit.text(f, if palId then "Rest in its hut" else "Rest", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(6, 6), { color = UIKit.color("text"), z = 4 })
+	UIKit.text(f, "Rest in its hut", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(6, 6), { color = UIKit.color("text"), z = 4 })
 	UIKit.button(f, "Rest", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
 		choose(0)
 	end, { name = "Go_0", enabled = current ~= 0 }).ZIndex = 4
-end
-
------------------------------------------------------------------- Villagers
-local function buildFolk(body: Frame, arg: any?)
-	local v = StateClient.view()
-	if v == nil then
-		return
-	end
-	if type(arg) == "table" and type(arg.folk) == "number" then
-		buildPicker(body, v, arg.folk, nil)
-		return
-	end
-	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, string.format("%d villagers, %d beds. A visitor moves into a free bed at dawn when the charm is high enough.", #v.folk, v.beds), W)
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
-	UIKit.vlist(list, 2)
-	if #v.folk == 0 then
-		local f = row(list, 1, 24)
-		UIKit.text(f, "Nobody lives here yet. Build a Tent and a castaway may turn up at dawn.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
-	end
-	local homes = homesOf(v)
-	for i, x in v.folk do
-		local f = row(list, i, 34)
-		f.Name = "Folk_" .. x.id
-		UIKit.portrait(f, x.look, 30, UDim2.fromOffset(2, 2))
-		UIKit.text(f, x.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(36, 1), { color = UIKit.color("accent"), z = 4, name = "Name" })
-		local job = if x.work ~= 0 then (function(): string
-			local q = pieceOf(v, x.work)
-			local d = if q then Buildings.byId[q.id] else nil
-			return if d then d.job .. " at the " .. d.name else "Working"
-		end)() else "Resting"
-		UIKit.text(f, job, UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 11), { color = if x.work ~= 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Job" })
-		-- its home (the best beds go first) and the comfort it gives: more work
-		local h = homes["v" .. x.id]
-		local c = if h then h.comfort else 0
-		local hl = homeLine(v, h)
-		UIKit.text(f, if hl ~= "" then "Home: " .. hl else "No bed", UDim2.new(1, -150, 0, 10), UDim2.fromOffset(36, 21), { color = if c > 0 then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "Home" })
-		local jb = UIKit.button(f, "Job", UDim2.fromOffset(46, 13), UDim2.new(1, -104, 0, 10), function()
-			UIKit.openPanel("folk", { folk = x.id })
-		end, { name = "Job_" .. x.id, color = UIKit.color("button_ok") })
-		jb.ZIndex = 4
-		confirmButton(f, "Dismiss", UDim2.fromOffset(52, 13), UDim2.new(1, -55, 0, 10), function()
-			local res = ask("folk.dismiss", { id = x.id }, x.name .. " sailed off.")
-			if res.ok then
-				Audio.play("close")
-			end
-		end, "Dismiss_" .. x.id)
-	end
 end
 
 ------------------------------------------------------------------ the Hatchery
@@ -395,7 +295,7 @@ local function buildHatch(body: Frame, arg: any?)
 			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
 			UIKit.text(f, string.format("%s %s egg", if r == 4 then "An" else "A", rar.name), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
 			local _, total = Breed.cost(egg.sp)
-			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Ready to hatch. It needs room in the pen."
+			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Hatching now."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
 			local bw = math.min(140, W - 40)
 			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("ink"), 4)
@@ -484,7 +384,7 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		f.Name = "Hut_" .. uid
 		PixelSprites.image(f, if uid == 0 then "mini_tree" else "mini_nest", UDim2.fromOffset(4, 5), 4)
 		UIKit.text(f, title, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
-		local sub = string.format("%d/%d", n, room) .. (if comfort > 0 then string.format(", comfort +%d%%", math.round(comfort * 100)) else "")
+		local sub = (if uid == 0 then string.format("%d waiting", n) else string.format("%d/%d", n, room)) .. (if comfort > 0 then string.format(", comfort +%d%%", math.round(comfort * 100)) else "")
 		UIKit.text(f, sub, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(18, 11), { color = if n >= room then UIKit.color("orange") else UIKit.color("text_dim"), z = 4 })
 		local here = me.home == uid
 		UIKit.button(f, if here then "Here now" elseif n >= room then "Full" else "Move here", UDim2.fromOffset(70, 14), UDim2.new(1, -74, 0, 4), function()
@@ -517,13 +417,13 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		local f = row(list, order, 22)
 		UIKit.text(f, "No huts yet. Build one from the Huts tab.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	place(0, "The pen (they stay there)", Tree.inPen(p), v.pen, 0)
+	place(0, "The pen (they stay there)", Tree.inPen(p), math.huge, 0)
 end
 
 ------------------------------------------------------------------ Driftlings
--- Every driftling: those in huts first (the hardest workers first), then the pen's. Each: its name in its rarity's
--- colour, its rarity and how fast it works, its passive, its mutations, where it lives and helps; Move (the hut
--- picker), Help (where it works: only from a hut) and Sell (two taps).
+-- The driftlings in huts, the hardest workers first (the pen's are on the tree's panel: it can hold hundreds). Each:
+-- its name in its rarity's colour, its rarity and how fast it works, its passive, its mutations, where it lives and
+-- works; Move (the hut picker), Work (where it works) and Sell (two taps).
 local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: number, W: number, back: string)
 	local d = Creatures.byId[x.sp]
 	if d == nil then
@@ -546,7 +446,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	else
 		local hut = buildingName(v, x.home) or "a hut"
 		if x.work ~= 0 then
-			where = string.format("%s, helping at the %s", hut, buildingName(v, x.work) or "?")
+			where = string.format("%s, working at the %s", hut, buildingName(v, x.work) or "?")
 			color = UIKit.color("good")
 		else
 			where = string.format("%s, resting (no free %s)", hut, KNACKS[d.knack] or d.knack)
@@ -556,7 +456,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	UIKit.button(f, "Move", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 2), function()
 		UIKit.openPanel("pals", { move = x.id, back = back })
 	end, { name = "Move_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
-	UIKit.button(f, "Help", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 16), function()
+	UIKit.button(f, "Work", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 16), function()
 		UIKit.openPanel("pals", { pal = x.id })
 	end, { name = "Help_" .. x.id, enabled = x.home ~= 0 }).ZIndex = 4
 	confirmButton(f, "Sell " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 30), function()
@@ -575,7 +475,7 @@ local function buildPals(body: Frame, arg: any?)
 		return
 	end
 	if type(arg) == "table" and type(arg.pal) == "number" then
-		buildPicker(body, v, nil, arg.pal)
+		buildPicker(body, v, arg.pal)
 		return
 	end
 	if type(arg) == "table" and type(arg.move) == "number" then
@@ -592,7 +492,7 @@ local function buildPals(body: Frame, arg: any?)
 	-- the Tree of Life's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
 	local hasHatch = #hatcheries(v) > 0
 	local buttons = if hasHatch then 124 else 64
-	local top = hint(body, string.format("%d in huts (room for %d), %d in the pen. The pen sends its best to huts with room.", housed, v.nests, #v.pals - housed), W - buttons)
+	local top = hint(body, string.format("%d in huts (room for %d), %d in the pen. The pen sends its best to huts with room and work.", housed, v.nests, #v.pals - housed), W - buttons)
 	UIKit.button(body, "Tree", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
 		UIKit.openPanel("tree")
 	end, { name = "OpenTree", color = UIKit.color("button_ok") })
@@ -604,15 +504,17 @@ local function buildPals(body: Frame, arg: any?)
 	top = math.max(top, 16)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
-	if #v.pals == 0 then
+	if housed == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "No driftlings yet. The Tree of Life grows one every few seconds into its pen.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if #v.pals == 0 then "No driftlings yet. The Tree of Life grows one every few seconds into its pen." else "None in a hut yet. Build a hut, and a building that suits the ones in the pen.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	local order: { Types.Pal } = table.clone(v.pals)
-	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
-		if (a.home ~= 0) ~= (b.home ~= 0) then
-			return a.home ~= 0
+	local order: { Types.Pal } = {}
+	for _, x in v.pals do
+		if x.home ~= 0 then
+			table.insert(order, x)
 		end
+	end
+	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
 		local wa, wb = Tree.worth(a), Tree.worth(b)
 		if math.abs(wa - wb) > 1e-9 then
 			return wa > wb
@@ -625,9 +527,9 @@ local function buildPals(body: Frame, arg: any?)
 end
 
 ------------------------------------------------------------------ the Tree of Life
--- (GAME_DESIGN 6) On the left: how fast it grows (a bar to the next one, or "The pen is full"), its Speed and Luck
--- with their next level and price, and the odds of each rarity now. On the right: its pen, each driftling with To a
--- hut and Sell, and Sell commons.
+-- (GAME_DESIGN 6) On the left: how fast it grows (a bar to the next one), its Speed and Luck with their next level and
+-- price, and the odds of each rarity now. On the right: its pen (no room limit), the best PEN_ROWS of it each with To
+-- a hut and Sell, how many more wait, and Sell commons.
 local function upgradeRow(body: Instance, v: Types.ClientView, what: string, y: number, w: number)
 	local p = asProfile(v)
 	local lv = if what == "luck" then v.tree.luck else v.tree.speed
@@ -653,6 +555,7 @@ local function upgradeRow(body: Instance, v: Types.ClientView, what: string, y: 
 	end
 end
 
+local PEN_ROWS = 40 -- the pen's driftlings listed at most (it can hold hundreds)
 local function buildTree(body: Frame, _arg: any?)
 	local v = StateClient.view()
 	if v == nil then
@@ -665,8 +568,7 @@ local function buildTree(body: Frame, _arg: any?)
 	local RW = W - RX
 	-- how fast, and the bar to the next one (run on by the client between the server's ticks)
 	local secs = Tree.secs(p)
-	local full = Tree.inPen(p) >= v.pen
-	UIKit.text(body, if full then "The pen is full" else string.format("Grows one every %.1fs", secs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = if full then UIKit.color("orange") else UIKit.color("text"), name = "Pace" })
+	UIKit.text(body, string.format("Grows one every %.1fs", secs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
 	local back = UIKit.rect(body, UDim2.fromOffset(LW, 5), UDim2.fromOffset(0, 12), UIKit.color("ink"), 3)
 	back.Name = "GrowBar"
 	local fill = UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 4)
@@ -681,7 +583,6 @@ local function buildTree(body: Frame, _arg: any?)
 		end
 		local k = StateClient.treeFrac()
 		fill.Size = UDim2.fromOffset(math.floor((LW - 2) * k), 3)
-		fill.BackgroundColor3 = if k >= 1 then UIKit.color("orange") else UIKit.color("good")
 	end)
 	upgradeRow(body, v, "speed", 20, LW)
 	upgradeRow(body, v, "luck", 46, LW)
@@ -719,7 +620,7 @@ local function buildTree(body: Frame, _arg: any?)
 		end
 		return a.id < b.id
 	end)
-	UIKit.text(body, string.format("Pen %d/%d", #inPen, v.pen), UDim2.fromOffset(RW - 90, 12), UDim2.fromOffset(RX, 0), { color = if #inPen >= v.pen then UIKit.color("orange") else UIKit.color("accent"), name = "PenCount" })
+	UIKit.text(body, string.format("Pen %d", #inPen), UDim2.fromOffset(RW - 90, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "PenCount" })
 	UIKit.button(body, "Sell commons", UDim2.fromOffset(84, 13), UDim2.fromOffset(W - 84, 0), function()
 		local res = ask("pen.sell", { r = 1 })
 		if res.ok then
@@ -733,9 +634,15 @@ local function buildTree(body: Frame, _arg: any?)
 	UIKit.vlist(list, 2)
 	if #inPen == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "Empty. New driftlings wait here till a hut has room.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "Empty. New driftlings wait here till a hut has room and there's work for them.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	for i, x in inPen do
+		if i > PEN_ROWS then
+			local f = row(list, i, 14)
+			f.Name = "PenMore"
+			UIKit.text(f, string.format("%d more, the best listed first", #inPen - PEN_ROWS), UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4 })
+			break
+		end
 		local d = Creatures.byId[x.sp]
 		if d == nil then
 			continue
@@ -846,7 +753,6 @@ local function buildLooks(body: Frame, _arg: any?)
 end
 
 function Menus.init()
-	UIKit.registerPanel("folk", { title = "Villagers", icon = "folk", w = 320, h = 186, build = buildFolk })
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
 	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 196, build = buildTree })

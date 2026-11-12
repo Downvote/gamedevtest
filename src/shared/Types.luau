@@ -1,22 +1,19 @@
 --!strict
 -- Shared types (docs/ARCHITECTURE.md 3). Pure: no requires, no Roblox APIs.
 
--- A person's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour).
+-- The founder's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour).
 export type Look = { skin: number, hair: number, style: number, shirt: number }
 
 -- A building or a piece of decor standing on the island (Logic/Plot): `uid` stays the same while it stands (the
--- villagers and driftlings working there point at it), `id` is a Data/Buildings id, (x, z) its footprint's
+-- driftlings living or working there point at it), `id` is a Data/Buildings id, (x, z) its footprint's
 -- north-west corner in plot-local whole studs, `rot` a quarter turn, `lvl` its level (1..3 from an older save's
 -- upgrades: a building that makes something makes Tuning.UpgradeMult times as much).
 export type Piece = { uid: number, id: string, x: number, z: number, rot: number, lvl: number }
 -- The island's pieces (GAME_DESIGN 4).
 export type PlotSave = { placed: { Piece } }
 
--- A villager (GAME_DESIGN 5): moved in on `day`; works at the building `work` (a Piece uid, 0: idle).
-export type Villager = { id: number, name: string, look: Look, work: number, day: number }
-
 -- A driftling (GAME_DESIGN 6): its species (Data/Creatures), where it lives (`home`: a hut's Piece uid, 0: the Tree of
--- Life's pen), the building it helps at (a Piece uid, 0: resting; only a driftling in a hut works).
+-- Life's pen), the building it works at (a Piece uid, 0: resting; only a driftling in a hut works).
 -- muts: its mutations (Data/Traits ids, at most Traits.MAX), rolled when it grew on the tree or hatched.
 -- held: 1 when the player put it in the pen (the pen leaves it there instead of sending it to a hut).
 export type Pal = { id: number, sp: string, home: number, work: number, muts: { string }?, held: number? }
@@ -29,10 +26,10 @@ export type Settings = { pixel: string, music: string? } -- music: "on" (default
 
 -- days: island days lived; earned: shells made in all; grown: driftlings the tree grew; sold: driftlings sold; best:
 -- the rarest driftling grown or hatched (0 none yet, 1 .. 5) (the questline counts them).
-export type Stats = { days: number, built: number, earned: number, grown: number, sold: number, best: number, movedIn: number, hatched: number }
+export type Stats = { days: number, built: number, earned: number, grown: number, sold: number, best: number, hatched: number }
 
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
--- the kind and its mutations) and the island turns left (0: ready, waiting for room in the pen).
+-- the kind and its mutations) and the island turns left (it hatches into the pen at the turn it reaches 0).
 export type Egg = { uid: number, a: number, b: number, sp: string, muts: { string }, left: number }
 
 export type Profile = {
@@ -43,14 +40,13 @@ export type Profile = {
 	day: number, -- the island's day (1 at the start)
 	tier: number, -- the island's size (Data/Office tier)
 	founder: Look, -- the player's chibi (AvatarView)
-	folk: { Villager },
 	pals: { Pal },
 	tree: Tree,
 	plot: PlotSave,
 	seen: { [string]: number }, -- species id -> 2 had one (the Index)
 	eggs: { Egg }, -- the Hatcheries' eggs (one a hatchery)
-	nextId: number, -- the next villager, driftling or piece id
-	tut: number, -- the tips' step (1 .. 7; 0 = done)
+	nextId: number, -- the next driftling or piece id
+	tut: number, -- the tips' step (1 .. 6; 0 = done)
 	quest: number, -- the questline's quest on the go (Data/Quests; one past the last: all done)
 	stats: Stats,
 	settings: Settings,
@@ -66,7 +62,6 @@ export type ClientView = {
 	dayFrac: number, -- how far into the sea's calendar day (0 dawn .. 1; a day is Tuning.DaySeconds: hours)
 	tier: number,
 	founder: Look,
-	folk: { Villager },
 	pals: { Pal },
 	tree: Tree,
 	plot: number, -- the plot index on the sea
@@ -79,9 +74,7 @@ export type ClientView = {
 	settings: Settings,
 	rates: { food: number, wood: number, shells: number }, -- a turn, after eating
 	charm: number,
-	beds: number,
 	nests: number, -- the huts' room
-	pen: number, -- the pen's room (Logic/Tree.penRoom)
 	visitors: number, -- a turn
 }
 

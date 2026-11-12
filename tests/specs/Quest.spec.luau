@@ -9,8 +9,6 @@ local Buildings = require("../../build/luautest/shared/Data/Buildings")
 
 local KINDS = {
 	helpers = true,
-	folk = true,
-	workers = true,
 	paths = true,
 	decor = true,
 	built = true,
@@ -24,8 +22,8 @@ local KINDS = {
 	seen = true,
 	hatched = true,
 }
-local PANELS = { pals = true, folk = true, index = true, hatch = true, tree = true }
-local TABS = { food = true, wood = true, shop = true, home = true, nest = true, gen = true, path = true, decor = true }
+local PANELS = { pals = true, index = true, hatch = true, tree = true }
+local TABS = { food = true, wood = true, shop = true, nest = true, gen = true, path = true, decor = true }
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
@@ -88,13 +86,9 @@ return function()
 		T.eq(data.next, 2)
 	end)
 
-	T.it("the counts: villagers at work, paths, a kind built, the Index, the tree and its driftlings", function()
+	T.it("the counts: driftlings at work, paths, a kind built, the Index, the tree and its driftlings", function()
 		local p = fresh()
 		local f = Quest.facts(p)
-		table.insert(p.folk, { id = 1, name = "Mia", look = {}, work = 3, day = 1 })
-		table.insert(p.folk, { id = 2, name = "Ravi", look = {}, work = 0, day = 1 })
-		T.eq(Quest.count(f, { kind = "folk", n = 2 }), 2)
-		T.eq(Quest.count(f, { kind = "workers", n = 2 }), 1, "one of two at work")
 		table.insert(p.plot.placed, { uid = 1, id = "patch", x = 0, z = 0, rot = 0, lvl = 2 })
 		table.insert(p.plot.placed, { uid = 2, id = "dirtpath", x = 2, z = 0, rot = 0, lvl = 1 })
 		table.insert(p.plot.placed, { uid = 3, id = "nest", x = 6, z = 0, rot = 0, lvl = 1 })
@@ -106,6 +100,9 @@ return function()
 		table.insert(p.pals, { id = 7, sp = "pebblit", home = 3, work = 0 })
 		table.insert(p.pals, { id = 8, sp = "pebblit", home = 0, work = 0 })
 		T.eq(Quest.count(f, { kind = "housed", n = 1 }), 1, "one in a hut")
+		T.eq(Quest.count(f, { kind = "helpers", n = 1 }), 0, "resting")
+		p.pals[1].work = 1
+		T.eq(Quest.count(f, { kind = "helpers", n = 1 }), 1, "one at the farm")
 		p.stats.sold, p.stats.grown, p.stats.best = 4, 9, 3
 		T.eq(Quest.count(f, { kind = "sold", n = 1 }), 4)
 		T.eq(Quest.count(f, { kind = "grown", n = 1 }), 9)

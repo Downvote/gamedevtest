@@ -2,16 +2,17 @@
 -- The Tree of Life and its pen (GAME_DESIGN 6; docs/ARCHITECTURE.md 6). The request (2026-11-12): "players start with
 -- a tree of life: it creates a creature every few seconds to be put into a pen. the pen will automatically send the
 -- best creatures into huts if there is space, and the player can also select which creatures are sent to which hut.
--- players can upgrade the incubator's luck and speed." Pure: IslandService calls these with the session's profile and
--- Rng. Actions return (true, data?) or (false, ErrCode) and change the profile only when they succeed.
+-- players can upgrade the incubator's luck and speed." And later: "pens should be infinite, and no need to render the
+-- pen, just a ui should be enough". Pure: IslandService calls these with the session's profile and Rng. Actions
+-- return (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --   The tree grows a driftling every `secs(p)` seconds while the player is here (Tuning.TreeSecs by its speed level,
---   faster with the huts' Leafy driftlings) into the pen, and waits while the pen is full (Tuning.PenRoom by the
---   island's tier). What grows: a rarity by Data/Traits.RARITY's weights, each rarity step's weight times the tree's
+--   faster with the huts' Leafy driftlings) into the pen, which has no room limit (past Tuning.PenKeep waiting there
+--   the least useful is sold as each new one grows: `overflow`). What grows: a rarity by Data/Traits.RARITY's weights, each rarity step's weight times the tree's
 --   luck (`luck(p)`), then one of that rarity's driftlings among the kinds open at the island's tier (Data/Islets
 --   `tier`; a rarity none of them has falls to the next commoner one), born with mutations (Traits.roll, as a rarer
 --   one every Tuning.TreeMutLuck luck levels).
 --   The pen sends its best driftlings (`worth`: how much they add at work) into the huts with room, the comfiest hut
---   first, and each takes a free place at a building of its knack. A driftling the player put in the pen (`held`)
+--   first, each one with a free place at a building of its knack, which it takes. A driftling the player put in the pen (`held`)
 --   stays there.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
@@ -30,7 +31,7 @@ type ErrCode = Types.ErrCode
 local Tree = {}
 
 Tree.ID = "tree" -- its piece (Data/Buildings)
-Tree.SPOT = { x = -3, z = -3 } -- where a new island's tree goes (the nearest free spot: behind the campfire)
+Tree.SPOT = { x = -3, z = -4 } -- where a new island's tree goes (the nearest free spot: behind the campfire)
 
 ------------------------------------------------------------------ its numbers
 -- The huts' driftlings' tree and luck effects together (Data/Traits: Leafy, Lucky and their kin, passives too),
@@ -98,10 +99,7 @@ function Tree.odds(p: Profile, luckLevel: number?): { number }
 	return out
 end
 
--- The pen's room (by the island's tier) and how many are in it.
-function Tree.penRoom(p: Profile): number
-	return Tuning.PenRoom[math.clamp(p.tier, 1, #Tuning.PenRoom)]
-end
+-- How many wait in the pen (it has no room limit: "pens should be infinite").
 function Tree.inPen(p: Profile): number
 	local n = 0
 	for _, x in p.pals do
@@ -186,7 +184,9 @@ local function toWork(p: Profile, x: Pal)
 	end
 end
 
--- The pen sends its best driftlings (not the held ones) into the huts with room, comfiest first. Returns the ids moved.
+-- The pen sends its best driftlings (not the held ones) into the huts with room, comfiest first: the best by `worth`
+-- of those with a free place at a building of their knack (a driftling with nowhere to work stays in the pen till
+-- there is somewhere). Returns the ids moved.
 function Tree.settle(p: Profile): { number }
 	local moved: { number } = {}
 	local huts = Tree.huts(p)
@@ -210,6 +210,8 @@ function Tree.settle(p: Profile): { number }
 		end
 		return a.id < b.id
 	end)
+	-- (a knack with no free place left is passed over at once: no free place appears while the pen moves in)
+	local full: { [string]: boolean } = {}
 	for _, x in list do
 		local spot: Hut? = nil
 		for _, h in huts do
@@ -221,11 +223,18 @@ function Tree.settle(p: Profile): { number }
 		if spot == nil then
 			break
 		end
-		spot.n += 1
-		x.home = spot.uid
-		x.work = 0
-		toWork(p, x)
-		table.insert(moved, x.id)
+		local d = Creatures.byId[x.sp]
+		if d and not full[d.knack] then
+			local job = Island.freeJob(p, d.knack)
+			if job == 0 then
+				full[d.knack] = true
+			else
+				spot.n += 1
+				x.home = spot.uid
+				x.work = job
+				table.insert(moved, x.id)
+			end
+		end
 	end
 	return moved
 end
@@ -236,6 +245,17 @@ function Tree.fillJobs(p: Profile)
 	for _, x in p.pals do
 		toWork(p, x)
 	end
+end
+
+-- A driftling sold (from the pen or a hut): its price in shells; a hut's room fills again from the pen.
+local function sellOne(p: Profile, i: number): number
+	local x = p.pals[i]
+	local price = Tree.price(x)
+	table.remove(p.pals, i)
+	p.shells += price
+	p.stats.earned += price
+	p.stats.sold += 1
+	return price
 end
 
 ------------------------------------------------------------------ growing
@@ -274,30 +294,70 @@ function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 	return x
 end
 
--- dt seconds of the tree: it grows toward its next driftling while the pen has room (full, it waits ready). Returns the
--- driftlings that grew and the ids the pen sent to the huts.
-function Tree.step(p: Profile, dt: number, rng: Rng): ({ Pal }, { number })
+-- dt seconds of the tree: it grows toward its next driftling and drops it into the pen, which never fills. Past
+-- Tuning.PenKeep waiting there, the least useful one the player didn't keep there is sold as each new one grows (the
+-- save and the view stay small). Returns the driftlings that grew, the ids the pen sent to the huts and the shells
+-- the overflow sold for.
+function Tree.step(p: Profile, dt: number, rng: Rng): ({ Pal }, { number }, number)
 	local grown: { Pal } = {}
 	local secs = Tree.secs(p)
-	local room = Tree.penRoom(p)
+	local sold = 0
 	p.tree.t += dt
 	while p.tree.t >= secs do
-		if Tree.inPen(p) >= room or #p.pals >= Tuning.PalsMax then
-			p.tree.t = secs
-			break
-		end
 		p.tree.t -= secs
 		local sp, muts = Tree.roll(p, rng)
 		table.insert(grown, Tree.add(p, sp, muts))
 		p.stats.grown += 1
 	end
 	local moved = if #grown > 0 then Tree.settle(p) else {}
-	return grown, moved
+	if #grown > 0 then
+		sold = Tree.overflow(p)
+	end
+	return grown, moved, sold
 end
 
--- Whether the tree is waiting for room in the pen.
-function Tree.waiting(p: Profile): boolean
-	return Tree.inPen(p) >= Tree.penRoom(p)
+-- The pen past Tuning.PenKeep: the least useful (worth, then price, then the newest) of those the player didn't keep
+-- there sold until it is back to PenKeep. Returns the shells.
+function Tree.overflow(p: Profile): number
+	local n = Tree.inPen(p)
+	if n <= Tuning.PenKeep then
+		return 0
+	end
+	local list: { Pal } = {}
+	for _, x in p.pals do
+		if x.home == 0 and x.held == nil then
+			table.insert(list, x)
+		end
+	end
+	table.sort(list, function(a: Pal, b: Pal): boolean
+		local wa, wb = Tree.worth(a), Tree.worth(b)
+		if math.abs(wa - wb) > 1e-9 then
+			return wa < wb
+		end
+		local pa, pb = Tree.price(a), Tree.price(b)
+		if pa ~= pb then
+			return pa < pb
+		end
+		return a.id > b.id
+	end)
+	local drop: { [Pal]: boolean } = {}
+	local total = 0
+	for _, x in list do
+		if n <= Tuning.PenKeep then
+			break
+		end
+		drop[x] = true
+		n -= 1
+	end
+	local i = 1
+	while i <= #p.pals do
+		if drop[p.pals[i]] then
+			total += sellOne(p, i)
+		else
+			i += 1
+		end
+	end
+	return total
 end
 
 ------------------------------------------------------------------ the player's actions
@@ -331,17 +391,6 @@ function Tree.upgrade(p: Profile, what: string): (boolean, any)
 		p.tree.speed += 1
 	end
 	return true, { what = what, level = if what == "luck" then p.tree.luck else p.tree.speed }
-end
-
--- A driftling sold (from the pen or a hut): its price in shells; a hut's room fills again from the pen.
-local function sellOne(p: Profile, i: number): number
-	local x = p.pals[i]
-	local price = Tree.price(x)
-	table.remove(p.pals, i)
-	p.shells += price
-	p.stats.earned += price
-	p.stats.sold += 1
-	return price
 end
 
 function Tree.sell(p: Profile, id: number): (boolean, any)
@@ -379,8 +428,8 @@ function Tree.sellPen(p: Profile, r: number): (boolean, any)
 	return true, { shells = total, sold = n }
 end
 
--- A driftling to a hut (`uid`) or the pen (0), the player's pick. A full hut (or a full pen) takes it only in a swap:
--- `swap` (a driftling living there) goes to where this one was. A driftling put in the pen stays there (`held`) till
+-- A driftling to a hut (`uid`) or the pen (0), the player's pick. A full hut takes it only in a swap: `swap` (a
+-- driftling living there) goes to where this one was; the pen always has room. A driftling put in the pen stays there (`held`) till
 -- it is moved again. not_found, bad_payload (not a hut, a swap that doesn't live there), full.
 function Tree.house(p: Profile, id: number, uid: number, swap: number): (boolean, any)
 	local x = palOf(p, id)
@@ -397,16 +446,13 @@ function Tree.house(p: Profile, id: number, uid: number, swap: number): (boolean
 	if x.home == uid then
 		return true, { moved = 0 }
 	end
-	local room = Tree.penRoom(p)
-	local n = 0
+	local room, n = math.huge, 0
 	if uid ~= 0 then
 		for _, h in Tree.huts(p) do
 			if h.uid == uid then
 				room, n = h.room, h.n
 			end
 		end
-	else
-		n = Tree.inPen(p)
 	end
 	local other: Pal? = nil
 	if swap ~= 0 then
@@ -477,11 +523,6 @@ function Tree.plant(p: Profile): Types.Piece?
 		if d then
 			p.shells += d.shells
 			p.wood += d.wood
-		end
-		for _, v in p.folk do
-			if v.work == q.uid then
-				v.work = 0
-			end
 		end
 		for _, pal in p.pals do
 			if pal.work == q.uid then

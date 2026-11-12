@@ -12,10 +12,10 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 1214, `sim_save.luau` about 319, `sim_clock.luau` 978, `sim_world.luau` 489, `sim_tree.luau` about 795).
+`sim.luau` about 1111, `sim_save.luau` about 313, `sim_clock.luau` 1161, `sim_world.luau` 366, `sim_tree.luau` about 4606).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tree day dusk night dawn sea visit build expand zoo paths water work late loading`
-or `panel=<folk|pals|tree|hatch|index|looks>`. The loading card's art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place
+or `panel=<pals|tree|hatch|index|looks>`. The loading card's art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place
 file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):

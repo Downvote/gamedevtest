@@ -1,6 +1,7 @@
 -- The sea and the islands (GAME_DESIGN 4, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
 -- start (the boardwalk, open water on every lot); two islands on plots 1 and 2 with their lodges, lands, attributes
--- and founders; each client drawing its own villagers and driftlings, the neighbour's and both founders; a founder
+-- and founders; each client drawing its own island's hut driftlings (never the pen's), the neighbour's and both
+-- founders, no villagers; a founder
 -- walking onto the neighbour's island (the camera follows, Home shows) and going home (and its cooldown); placing,
 -- moving, upgrading and clearing buildings with every refusal, the server's Static.Decor following piece by piece;
 -- the same through Build mode's UI; malicious plot payloads; a leaving player's island back to open water; a full
@@ -75,13 +76,24 @@ E.run(3)
 local sa, sb = H.session(a), H.session(b)
 H.expect(sa and sa.plot == 1 and sb and sb.plot == 2, "islands", "plots 1 and 2", string.format("%s %s", tostring(sa and sa.plot), tostring(sb and sb.plot)))
 -- both new islands have their Tree of Life (the tree's own checks come at the end, on another newcomer's island);
--- the trees wait with full pens here so the islanders counted below hold still
+-- whoever grew already is kept in the pen, so the hut driftlings counted below are the ones put there
 local PlotRules = H.sharedServer("Logic.Plot")
-local TreeW = H.sharedServer("Logic.Tree")
 local function fillPen(prof)
-	while not TreeW.waiting(prof) do
-		TreeW.add(prof, "pebblit", {}).held = 1
+	for _, x in prof.pals do
+		if x.home == 0 then
+			x.held = 1
+		end
 	end
+	prof.tree.t = 0
+end
+local function housed(prof): number
+	local n = 0
+	for _, x in prof.pals do
+		if x.home ~= 0 then
+			n += 1
+		end
+	end
+	return n
 end
 for _, p in { a, b } do
 	local prof = H.profile(p)
@@ -125,13 +137,14 @@ for k, p in { a, b } do
 	H.checkProfile(p, "island " .. p.Name)
 	H.checkMirror(p, "island " .. p.Name)
 end
--- villagers and driftlings on both islands
+-- driftlings on both islands (the hut's; no villagers)
 for k, p in { a, b } do
 	local prof = H.profile(p)
 	prof.shells, prof.wood = 50000, 5000
 	H.push(p, 0.2)
 	local placed = 0
-	for _, id in { "patch", "lumber", "hut", "nest" } do
+	fillPen(prof)
+	for _, id in { "patch", "lumber", "flowers", "nest" } do
 		local pr = Street.plot(1)
 		local done = false
 		for z = pr.z1 - 2, pr.z0 + 1, -1 do
@@ -144,12 +157,7 @@ for k, p in { a, b } do
 		placed += if done then 1 else 0
 	end
 	H.expect(placed == 4, "islands", p.Name .. ": four buildings", tostring(placed))
-	-- (the first home welcomed a castaway at once: GAME_DESIGN 9; one more joins them here)
-	H.expect(#prof.folk == 1, "islands", p.Name .. ": the hut's first castaway moved in at once", tostring(#prof.folk))
-	for j = 2, 2 do
-		table.insert(prof.folk, { id = prof.nextId, name = "Folk" .. j, look = { skin = j, hair = j, style = j, shirt = j }, work = 0, day = 1 })
-		prof.nextId += 1
-	end
+	H.expect(prof.folk == nil, "islands", p.Name .. ": no villagers")
 	local patchUid, nestUid = 0, 0
 	for _, q in prof.plot.placed do
 		if q.id == "patch" then
@@ -169,15 +177,14 @@ for _, pair in { { a, b }, { b, a } } do
 	local me, other = pair[1], pair[2]
 	local WV = H.cmod(me, "Controllers.WorldView")
 	local AV = H.cmod(me, "Controllers.AvatarView")
-	local own = #H.profile(me).folk + #H.profile(me).pals
-	local oth = #H.profile(other).folk + #H.profile(other).pals
-	H.expect(WV.ownRigCount() == own and WV.rigCount() == own + oth, "islands", me.Name .. ": own islanders and the neighbour's", string.format("%d own of %d, %d all of %d", WV.ownRigCount(), own, WV.rigCount(), own + oth))
+	local own = housed(H.profile(me))
+	local oth = housed(H.profile(other))
+	H.expect(own >= 1 and WV.ownRigCount() == own and WV.rigCount() == own + oth, "islands", me.Name .. ": own hut driftlings and the neighbour's (not the pens')", string.format("%d own of %d, %d all of %d", WV.ownRigCount(), own, WV.rigCount(), own + oth))
 	H.expect(AV.count() == 2, "islands", me.Name .. ": both founders", tostring(AV.count()))
 end
-local folkAttr = plotModel(1):GetAttribute("Folk")
-H.expect(type(folkAttr) == "string" and #string.split(folkAttr, ";") == #H.profile(a).folk and #H.profile(a).folk == 2, "islands", "the Folk attribute lists the villagers", tostring(folkAttr))
+H.expect(plotModel(1):GetAttribute("Folk") == nil, "islands", "no Folk attribute (no villagers)", tostring(plotModel(1):GetAttribute("Folk")))
 local palsAttr = plotModel(1):GetAttribute("Pals")
-H.expect(type(palsAttr) == "string" and string.find(palsAttr, "mossbun") ~= nil, "islands", "the Pals attribute lists the driftlings", tostring(palsAttr))
+H.expect(type(palsAttr) == "string" and string.find(palsAttr, "mossbun") ~= nil and #string.split(palsAttr, ";") == housed(H.profile(a)), "islands", "the Pals attribute lists the hut driftlings (the pen's are left out)", tostring(palsAttr))
 -- the island signs' labels
 local canvasA = a.PlayerGui:FindFirstChild("World") and a.PlayerGui.World:FindFirstChild("Canvas")
 local s1 = canvasA and canvasA:FindFirstChild("Sign_1")
@@ -261,9 +268,6 @@ E.run(2.5)
 ------------------------------------------------------------------ 4. building: place, move, clear away (no upgrades)
 E.phase = "build"
 local prof = H.profile(a)
-for _, x in prof.folk do
-	x.work = 0 -- (nothing made while the stores are compared)
-end
 prof.food = 0
 prof.pals[1].work = 0
 H.push(a, 0.3)
@@ -329,15 +333,16 @@ res = H.req(a, "plot.upgrade", { i = #prof.plot.placed })
 H.expect(not res.ok and res.err == "unknown_action" and stall.lvl == 1 and prof.shells >= s0 - 0.5 and prof.wood >= w0 - 0.5, "build", "no upgrades: the action is refused, nothing paid", string.format("%s lvl %s shells %s -> %s", tostring(res.err), tostring(stall.lvl), tostring(s0), tostring(prof.shells)))
 local fi = nil
 for i, q in prof.plot.placed do
-	if q.id == "hut" then
+	if q.id == "nest" then
 		fi = i
 	end
 end
 -- replacing: only with another of its kind, a real index
-H.expect(H.req(a, "plot.replace", { i = fi, id = "patch" }).err == "bad_payload", "build", "a home replaced by a farm: refused")
-H.expect(H.req(a, "plot.replace", { i = 2000, id = "hut" }).err == "bad_payload", "build", "a replace past the pieces: refused")
+H.expect(H.req(a, "plot.replace", { i = fi, id = "patch" }).err == "bad_payload", "build", "a hut replaced by a farm: refused")
+H.expect(H.req(a, "plot.replace", { i = 2000, id = "nest" }).err == "bad_payload", "build", "a replace past the pieces: refused")
 H.expect(H.req(a, "plot.replace", { i = fi, id = "nope" }).err == "bad_payload", "build", "an unknown piece: refused")
-H.expect(H.req(a, "plot.replace", { i = fi, id = "manor" }).err == "locked", "build", "a capital's home on a small island: locked")
+H.expect(H.req(a, "plot.replace", { i = fi, id = "burrow" }).err == "locked", "build", "a bigger hut on a small island: locked")
+H.expect(H.req(a, "plot.replace", { i = fi, id = "cottage" }).err == "bad_payload", "build", "a home (gone): refused")
 E.run(0.3)
 H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil, "build", "the moved model is still built (its key carries the level)")
 -- clear it away: half back
@@ -346,9 +351,16 @@ local n1 = #prof.plot.placed
 res = H.req(a, "plot.store", { i = #prof.plot.placed })
 H.expect(res.ok and #prof.plot.placed == n1 - 1, "build", "clear the stall away", tostring(res.err))
 H.expect(math.abs(prof.shells - (s0 + math.floor(Buildings.byId.stall.shells * Tuning.Refund))) < 1, "build", "half its price back", string.format("%s -> %s", s0, prof.shells))
--- a home whose beds are needed stays
+-- a hut cleared away: its driftlings back to the pen (it has room for any number)
+local hutUid = prof.plot.placed[fi].uid
 res = H.req(a, "plot.store", { i = fi })
-H.expect(not res.ok and res.err == "no_room", "build", "the only home with villagers in it stays", tostring(res.err))
+local stillIn = 0
+for _, x in prof.pals do
+	if x.home == hutUid then
+		stillIn += 1
+	end
+end
+H.expect(res.ok and stillIn == 0, "build", "a hut with driftlings in it cleared away: they go back to the pen", tostring(res.err))
 E.run(0.3)
 H.expect(#decor:GetChildren() == #prof.plot.placed, "build", "a model a piece", string.format("%d vs %d", #decor:GetChildren(), #prof.plot.placed))
 -- the piece limit

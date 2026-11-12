@@ -1,9 +1,10 @@
 -- The Tree of Life and its pen (GAME_DESIGN 6; Logic/Tree): the tree growing a driftling every few seconds while the
--- player is here and waiting with a full pen; its Speed and Luck bought to the top (and every refusal); the odds the
--- panel shows; a rare one announced; the pen sending its best on to the huts with room, a sold hut driftling's place
--- filled from the pen, a hut cleared away sending its driftlings back; the Driftlings panel's hut picker moving one in a
--- swap; expanding the island giving the pen more room and the tree new kinds; the tree moved with its pen's driftlings
--- following it; a second player's client drawing the first island's pen.
+-- player is here, the pen never full ("pens should be infinite") and never drawn on the island; past Tuning.PenKeep
+-- waiting, the least useful sold as each new one grows; its Speed and Luck bought to the top (and every refusal); the
+-- odds the panel shows; a rare one announced; the pen sending its best on to the huts with room, but only those a
+-- building of their knack has a place for; a sold hut driftling's place filled from the pen, a hut cleared away sending
+-- its driftlings back; the Driftlings panel's hut picker moving one in a swap; expanding the island giving the tree new
+-- kinds; the tree moved; a second player's client drawing the first island's hut driftlings (not its pen).
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -53,40 +54,66 @@ local function grownSince(i0)
 	return n
 end
 
------------------------------------------------------------------- growing, and waiting
+------------------------------------------------------------------ growing, never waiting
 E.phase = "grow"
+local GROW = 4
 local i0 = #fx
 local t0 = E.now()
 E.runUntil(function()
-	return Tree.waiting(prof)
-end, Tuning.TreeSecs[1] * (Tuning.PenRoom[1] + 2), 0.2)
-E.run(0.4)
+	return grownSince(i0) >= GROW
+end, Tuning.TreeSecs[1] * (GROW + 2), 0.2)
 local took = E.now() - t0
-H.expect(Tree.inPen(prof) == Tuning.PenRoom[1] and grownSince(i0) == Tuning.PenRoom[1], "grow", "the pen fills a driftling at a time (Fx tree)", string.format("%d in the pen, %d grown", Tree.inPen(prof), grownSince(i0)))
-H.expect(math.abs(took - Tuning.TreeSecs[1] * Tuning.PenRoom[1]) <= Tuning.TreeSecs[1] + 1, "grow", "about TreeSecs each", string.format("%.1f s for %d", took, Tuning.PenRoom[1]))
+H.expect(Tree.inPen(prof) == #prof.pals and grownSince(i0) == GROW, "grow", "the tree grows a driftling at a time into the pen (Fx tree)", string.format("%d in the pen, %d grown", Tree.inPen(prof), grownSince(i0)))
+H.expect(math.abs(took - Tuning.TreeSecs[1] * GROW) <= Tuning.TreeSecs[1] + 1, "grow", "about TreeSecs each", string.format("%.1f s for %d", took, GROW))
 local n0 = #prof.pals
-E.run(Tuning.TreeSecs[1] * 2)
-H.expect(#prof.pals == n0, "grow", "a full pen: the tree waits")
+E.run(Tuning.TreeSecs[1] * 2 + 0.5)
+H.expect(#prof.pals >= n0 + 2, "grow", "no room limit: the tree never waits", string.format("%d -> %d", n0, #prof.pals))
 local v = H.view(p)
-H.expect(v ~= nil and v.pen == Tuning.PenRoom[1] and v.tree.t >= Tree.secs(prof) - 0.01, "grow", "the view: the pen's room, the tree ready and waiting")
+H.expect(v ~= nil and v.pen == nil and #v.pals == #prof.pals, "grow", "the view: every driftling, no pen room", v and string.format("%d of %d", #v.pals, #prof.pals))
 local SC = H.cmod(p, "Controllers.StateClient")
-local frac = H.inClient(p, SC.treeFrac)
-H.expect(frac >= 0.99, "grow", "the client's bar full while it waits", tostring(frac))
+local fa = H.inClient(p, SC.treeFrac)
+E.run(1)
+local fb = H.inClient(p, SC.treeFrac)
+H.expect(fb ~= fa and fb < 1, "grow", "the client's bar keeps filling toward the next one", string.format("%.2f -> %.2f", fa, fb))
+local WVp = H.cmod(p, "Controllers.WorldView")
+H.expect(H.inClient(p, WVp.ownCount) == 0, "grow", "the pen is not drawn on the island (it is a list in the tree's panel)", tostring(H.inClient(p, WVp.ownCount)))
 H.checkProfile(p, "grow")
 H.checkMirror(p, "grow")
 
------------------------------------------------------------------- huts: the pen sends its best; a sold one's place filled; a hut cleared away
+------------------------------------------------------------------ huts: the pen sends its best with work to do; a sold one's place filled; a hut cleared away
 E.phase = "huts"
+local function hutIndex(uid)
+	for i, q in prof.plot.placed do
+		if q.uid == uid then
+			return i
+		end
+	end
+	return 0
+end
+local function inHutOf(uid)
+	local out = {}
+	for _, x in prof.pals do
+		if x.home == uid then
+			table.insert(out, x)
+		end
+	end
+	return out
+end
+-- a hut but nowhere to work: the pen keeps them all
 local r = place("nest")
 H.expect(r.ok, "huts", "a hut", tostring(r.err))
 local hutUid = r.data and r.data.uid
-local inHut = {}
-for _, x in prof.pals do
-	if x.home == hutUid then
-		table.insert(inHut, x)
-	end
+H.expect(#inHutOf(hutUid) == 0, "huts", "nowhere to work yet: the pen sends nobody", tostring(#inHutOf(hutUid)))
+H.req(p, "plot.store", { i = hutIndex(hutUid) })
+-- a building of each of the first island's knacks, then the hut
+for _, id in { "patch", "lumber", "stall", "pier" } do
+	local rb = place(id)
+	H.expect(rb.ok, "huts", "a " .. id, tostring(rb.err))
 end
-H.expect(#inHut == Buildings.byId.nest.slots, "huts", "the pen sent two at once", tostring(#inHut))
+r = place("nest")
+hutUid = r.data and r.data.uid
+local inHut = inHutOf(hutUid)
+H.expect(#inHut == Buildings.byId.nest.slots and inHut[1].work ~= 0 and inHut[2].work ~= 0, "huts", "the pen sent two at once, each to work", tostring(#inHut))
 local best = 0
 for _, x in prof.pals do
 	if x.home == 0 and x.held == nil then
@@ -94,46 +121,88 @@ for _, x in prof.pals do
 	end
 end
 H.expect(Tree.worth(inHut[1]) >= best - 1e-9 and Tree.worth(inHut[2]) >= best - 1e-9, "huts", "the best of the pen", string.format("%.2f %.2f vs %.2f", Tree.worth(inHut[1]), Tree.worth(inHut[2]), best))
+local nA = #prof.pals
 E.run(Tuning.TreeSecs[1] + 1)
-H.expect(Tree.waiting(prof), "huts", "the room it left in the pen grew again")
+H.expect(#prof.pals > nA, "huts", "the tree goes on growing into the pen")
 -- a hut driftling sold: the pen's best moves into its place
 local sold = inHut[1]
-local before = {}
-for _, x in prof.pals do
-	before[x] = x.home
-end
 local res = H.req(p, "pal.sell", { id = sold.id })
 H.expect(res.ok and table.find(prof.pals, sold) == nil, "huts", "a hut driftling sold", tostring(res.err))
-local refilled = 0
-for _, x in prof.pals do
-	if x.home == hutUid then
-		refilled += 1
-	end
-end
-H.expect(refilled == Buildings.byId.nest.slots, "huts", "its place in the hut filled from the pen", tostring(refilled))
--- the hut cleared away: its driftlings back to the pen (over its room for now: the tree waits)
-local hi = 0
-for i, q in prof.plot.placed do
-	if q.uid == hutUid then
-		hi = i
-	end
-end
-res = H.req(p, "plot.store", { i = hi })
-local home0 = 0
+H.expect(#inHutOf(hutUid) == Buildings.byId.nest.slots, "huts", "its place in the hut filled from the pen", tostring(#inHutOf(hutUid)))
+-- the hut cleared away: its driftlings back to the pen, resting
+res = H.req(p, "plot.store", { i = hutIndex(hutUid) })
+local home0, resting = 0, 0
 for _, x in prof.pals do
 	if x.home == 0 then
 		home0 += 1
+		if x.work == 0 then
+			resting += 1
+		end
 	end
 end
-H.expect(res.ok and home0 == #prof.pals, "huts", "a hut cleared away: its driftlings back in the pen", string.format("%s, %d of %d in the pen", tostring(res.err), home0, #prof.pals))
-local n1 = #prof.pals
-E.run(Tuning.TreeSecs[1] + 1)
-H.expect(#prof.pals == n1, "huts", "the pen over its room: the tree waits")
+H.expect(res.ok and home0 == #prof.pals and resting == home0, "huts", "a hut cleared away: its driftlings back in the pen, not working", string.format("%s, %d of %d in the pen", tostring(res.err), home0, #prof.pals))
 -- two huts again for the rest
 place("nest")
 place("nest")
 H.checkProfile(p, "huts")
 H.checkMirror(p, "huts")
+
+------------------------------------------------------------------ past PenKeep: the least useful sold as each new one grows
+E.phase = "keep"
+do
+	prof.tree.t = 0
+	local kept = Tree.add(prof, "pebblit", {})
+	kept.held = 1 -- (one the player put there: never sold for room)
+	local extra = {}
+	while Tree.inPen(prof) < Tuning.PenKeep do
+		table.insert(extra, Tree.add(prof, "pebblit", {}))
+	end
+	H.push(p, 0.3)
+	local sold0, sh0, n1 = prof.stats.sold, prof.shells, Tree.inPen(prof)
+	local i1 = #fx
+	E.runUntil(function()
+		return grownSince(i1) >= 2
+	end, Tree.secs(prof) * 3, 0.1)
+	E.run(0.3)
+	H.expect(n1 == Tuning.PenKeep and Tree.inPen(prof) == Tuning.PenKeep, "keep", "the pen stays at PenKeep as new ones grow", string.format("%d -> %d", n1, Tree.inPen(prof)))
+	H.expect(prof.stats.sold == sold0 + grownSince(i1) and prof.shells > sh0, "keep", "one sold for each that grew, for its price", string.format("%d sold, %+.0f shells", prof.stats.sold - sold0, prof.shells - sh0))
+	H.expect(table.find(prof.pals, kept) ~= nil, "keep", "the one the player kept there is never sold for room")
+	local better = 0
+	for _, x in prof.pals do
+		if x.home == 0 and x.held == nil and Tree.worth(x) > Tree.worth(extra[1]) then
+			better += 1
+		end
+	end
+	H.expect(better >= 1, "keep", "the commonest go first: the better ones stay")
+	-- the panel lists the best of it and says how many more
+	H.openPanel(p, "tree")
+	E.run(0.4)
+	local pg = p:FindFirstChild("PlayerGui")
+	local rows = 0
+	for _, d in pg:GetDescendants() do
+		if string.sub(d.Name, 1, 8) == "PenSell_" and H.guiVisible(d) then
+			rows += 1
+		end
+	end
+	H.expect(rows > 0 and rows <= 40 and pg ~= nil and pg:FindFirstChild("PenMore", true) ~= nil, "keep", "the tree's panel: the best forty or so, then how many more", tostring(rows))
+	H.closePanel(p)
+	H.checkProfile(p, "keep")
+	H.checkMirror(p, "keep")
+	-- (back to a small pen for the rest)
+	local gone = {}
+	for _, x in extra do
+		gone[x] = true
+	end
+	gone[kept] = true
+	local keep = {}
+	for _, x in prof.pals do
+		if not gone[x] then
+			table.insert(keep, x)
+		end
+	end
+	prof.pals = keep
+	H.push(p, 0.3)
+end
 
 ------------------------------------------------------------------ the tree's upgrades and odds
 E.phase = "upgrades"
@@ -174,18 +243,6 @@ H.checkProfile(q2, "lean")
 local UIKitP = H.cmod(p, "UI.UIKit")
 local rareSeen = false
 for _ = 1, 40 do
-	-- (the pen kept with room: sell its commons whenever it fills)
-	if Tree.waiting(prof) then
-		H.req(p, "pen.sell", { r = 2 })
-		if Tree.waiting(prof) then
-			for _, x in prof.pals do
-				if x.home == 0 then
-					H.req(p, "pal.sell", { id = x.id })
-					break
-				end
-			end
-		end
-	end
 	local i1 = #fx
 	E.run(Tree.secs(prof) + 0.3)
 	for i = i1 + 1, #fx do
@@ -214,12 +271,10 @@ H.expect(noticed, "upgrades", "the HUD says so")
 H.checkProfile(p, "upgrades")
 H.checkMirror(p, "upgrades")
 
------------------------------------------------------------------- the island grows: a bigger pen, new kinds
+------------------------------------------------------------------ the island grows: new kinds
 E.phase = "expand"
-local room1 = Tree.penRoom(prof)
 res = H.req(p, "island.expand", {})
 H.expect(res.ok and prof.tier == 2, "expand", "the island grows", tostring(res.err))
-H.expect(Tree.penRoom(prof) > room1, "expand", "the pen holds more", string.format("%d -> %d", room1, Tree.penRoom(prof)))
 local newKinds = {}
 for _, k in Islets.list do
 	if k.tier == 2 then
@@ -230,9 +285,6 @@ for _, k in Islets.list do
 end
 local newOne = false
 for _ = 1, 60 do
-	if Tree.waiting(prof) then
-		H.req(p, "pen.sell", { r = 5 })
-	end
 	local i1 = #fx
 	E.run(Tree.secs(prof) + 0.3)
 	for i = i1 + 1, #fx do
@@ -253,11 +305,9 @@ H.checkProfile(p, "expand")
 
 ------------------------------------------------------------------ moving one in a swap through the panel
 E.phase = "swap"
--- (the tree waits with a full pen from here: nothing grows while the client's view is compared)
+-- (the tree just started on its next before the client's view is compared, so nothing grows meanwhile)
 local function holdTree()
-	while not Tree.waiting(prof) do
-		Tree.add(prof, "pebblit", {}).held = 1
-	end
+	prof.tree.t = 0
 	H.push(p, 0.3)
 end
 local hut, inside = nil, nil
@@ -287,7 +337,7 @@ holdTree()
 H.checkProfile(p, "swap")
 H.checkMirror(p, "swap")
 
------------------------------------------------------------------- the tree moved; another player's client sees the pen
+------------------------------------------------------------------ the tree moved; another player's client sees the hut driftlings
 E.phase = "moved"
 local ti, tq = 0, nil
 for i, q in prof.plot.placed do
@@ -303,17 +353,18 @@ for i, q in prof.plot.placed do
 end
 local mx, mz, mr = Plot.spot(prof.tier, others, "tree", tq.x + 8, tq.z - 6, 0)
 res = H.req(p, "plot.move", { i = ti, x = mx or tq.x, z = mz or tq.z, rot = mr or 0 })
-H.expect(res.ok, "moved", "the tree moves", tostring(res.err))
-local WVp = H.cmod(p, "Controllers.WorldView")
-E.runUntil(function()
-	local _, a, b = H.inClient(p, WVp.ownCount, "p")
-	return a > 0 and a == b
-end, 24, 0.25)
-local _, penN, inPen = H.inClient(p, WVp.ownCount, "p")
-H.expect(penN == Tree.inPen(prof) and inPen == penN, "moved", "the pen's driftlings walk over to it", string.format("%d of %d inside", inPen, penN))
-E.run(1)
+H.expect(res.ok and (tq.x ~= (mx or tq.x) or tq.z ~= (mz or tq.z) or mx ~= nil), "moved", "the tree moves", tostring(res.err))
+local housed = 0
+for _, x in prof.pals do
+	if x.home ~= 0 then
+		housed += 1
+	end
+end
+E.run(1.5)
+H.expect(housed > 0 and H.inClient(p, WVp.ownCount) == housed, "moved", "the hut driftlings still on the island, the pen's still not", string.format("%d drawn, %d in huts, %d in the pen", H.inClient(p, WVp.ownCount), housed, Tree.inPen(prof)))
 local WVq = H.cmod(q2, "Controllers.WorldView")
-H.expect(H.inClient(q2, WVq.rigCount) >= #prof.pals, "moved", "the neighbour's client draws the island's driftlings, the pen's too", tostring(H.inClient(q2, WVq.rigCount)))
+H.expect(H.inClient(q2, WVq.rigCount) >= housed and H.inClient(q2, WVq.rigCount) < #prof.pals, "moved", "the neighbour's client draws the island's hut driftlings, not its pen", string.format("%d drawn of %d", H.inClient(q2, WVq.rigCount), #prof.pals))
+holdTree()
 H.checkProfile(p, "end")
 H.checkMirror(p, "end")
 

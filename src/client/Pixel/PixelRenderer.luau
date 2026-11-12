@@ -138,7 +138,7 @@ local bakeRays = 0
 local rebakeAt = -1 -- os.clock() when a pending re-bake starts (debounce)
 local rush = false -- a big change's re-bake: more ms a frame (the player is waiting to see it)
 -- A re-bake while a finished picture is on screen writes into these (fresh buffers and id tables) instead, so the
--- picture keeps living meanwhile (the crew, villagers, water and wind go on drawing over it at its camera); the
+-- picture keeps living meanwhile (the crew, driftlings, water and wind go on drawing over it at its camera); the
 -- finished bake swaps in whole. Without it the screen stood still for the whole bake: the lag before an expansion.
 type BackTabs = { ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, nextId: number }
 local back: Surf? = nil

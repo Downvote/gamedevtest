@@ -1,5 +1,18 @@
 # Driftling Isle: Game Design
 
+> The request (2026-11-12, later that day): "remove villagers, only creatures should be enough. also, make the tree
+> of life more like a tree of life, reference references for it, make it look bigger and more grand", and with it
+> "also, pens should be infinite, and no need to render the pen, just a ui should be enough"
+
+So the villagers are gone and the driftlings do all the work. The homes went with them (Tent to Manor; an old save
+gets each one's whole price back, §10). A building with nobody at it still works a little (`IdleOutput`, 0.3 of its
+rate) so a new island gets going; each driftling at it adds more. The pen has no room limit and is not drawn on the
+island any more: it is the list in the Tree of Life's panel. It sends a driftling on to a hut only when a building of
+its knack has a free place for it, so the huts never fill with driftlings who have nothing to do. The tree never stops
+growing. To keep a save and the network small, past `PenKeep` (500) driftlings waiting in the pen the least useful one
+is sold as each new one grows (never one the player put there). The Tree of Life itself was rebuilt bigger (6 x 6
+cells, 13 studs tall) after the old pictures of the tree of life (§6).
+
 > The request (2026-11-12): "scrap the entire cave, fighting, level, skill and expedition system. instead, players
 > start with a tree of life: it creates a creature every few seconds to be put into a pen. the pen will automatically
 > send the best creatures into huts if there is space, and the player can also select which creatures are sent to
@@ -8,7 +21,7 @@
 
 Asked what the huts are, the answer was **"Nests become huts"**: the Nests tab's buildings are the huts, a driftling
 in a hut helps at a farm, pier, lumber camp or shop of its knack (faster the rarer it is), one left in the pen does
-nothing, and the villagers stay and keep their jobs. Asked about breeding: **"Keep it"**: the Hatchery stays, without
+nothing, and the villagers stayed and kept their jobs (until the request above). Asked about breeding: **"Keep it"**: the Hatchery stays, without
 levels, and a hatchling goes into the pen like the tree's. The "incubator" of the request is the Tree of Life itself:
 its upgrades are Speed and Luck (§6).
 
@@ -24,10 +37,10 @@ reference"), the pixel art rules (§2) and the polish requests (§11). The game 
 (§10: an old save starts a fresh island).
 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
-on its sand and an old tree behind it: the **Tree of Life**, which grows a **driftling** every few seconds into the
-pen at its foot. You build food, wood and shops round the campfire, visitors come for the island's charm and move into
-the homes you build, and your villagers take jobs. Build huts and the pen sends its best driftlings to live in them;
-each helps at a building of its knack, more the rarer it is. Spend shells on the tree's Speed and Luck, sell the
+on its sand and a great tree behind it: the **Tree of Life**, which grows a **driftling** every few seconds into its
+pen. You build food, wood and shops round the campfire, and visitors come for the island's charm and buy food. Build
+huts and the pen sends its best driftlings to live in them; each works at a building of its knack, more the rarer it
+is. The driftlings do all the work: there are no villagers. Spend shells on the tree's Speed and Luck, sell the
 driftlings you don't need, and grow the island for bigger buildings. The islands of everyone on the server sit side
 by side along one boardwalk on a shared sea. The look, the build system and the file formats come from our own Random
 Bakery (`Downvote/test`): the 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with
@@ -36,14 +49,14 @@ preview tools.
 
 ## 1. The loop in one paragraph
 
-Build a Veggie Patch so the island has food, a Lumber Camp for wood, a Snack Stall to sell food to the visitors for
-shells and a Tent so a castaway can move in. Every turn (Tuning.TurnSeconds while you play) the island makes and eats;
-a visitor moves into a free bed when the charm is high enough and takes a free job. All the while the Tree of Life
-grows a driftling every 12 seconds into its pen (faster with Speed; rarer ones more often with Luck), each born with
-its own mutations. Build a Driftling Hut and the pen sends its best driftlings there: each takes a place at a farm,
-pier, lumber camp or shop of its knack and adds to what it makes, a legendary seven times what a common one adds. The
-pen holds only so many (6 on a first tier island) and the tree waits while it is full, so sell the commons for a few
-shells, or move a better one into a hut yourself. Spend shells and wood on more buildings, huts and decor (charm) and
+Build a Veggie Patch so the island has food, a Lumber Camp for wood and a Snack Stall to sell food to the visitors for
+shells; each works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes and eats. All
+the while the Tree of Life grows a driftling every 12 seconds into its pen (faster with Speed; rarer ones more often
+with Luck), each born with its own mutations. Build a Driftling Hut and the pen sends its best driftlings there, each
+one a building of its knack has room for: it takes a place at that farm, pier, lumber camp or shop and adds to what it
+makes, a legendary seven times what a common one adds. The pen has no room limit and the tree never stops, so sell the
+commons for a few shells (past 500 waiting the least useful goes by itself), or move a better one into a hut
+yourself. Spend shells and wood on more buildings, huts and decor (charm) and
 on the tree, and expand the island for bigger buildings. Nothing happens while you are away (no offline progress).
 
 ## 2. Look and feel
@@ -58,12 +71,12 @@ on the tree, and expand the island for bigger buildings. Nothing happens while y
   ray is cast once for each 2x2 pixels, and every pixel on a shadow's edge then casts its own, so a shadow's edge
   steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
   respecting the pixel grid").
-- **Villagers** are little chibis (their own looks) walking the island and working at their buildings (hoeing,
-  chopping, selling): shorts over bare shins, shoes on light soles, a shirt with a collar, buttons and a belt with a
-  buckle, sleeves over bare forearms and fists, ears, brows, a mouth and a glint in each eye; knees and elbows bend,
-  and the face changes (fierce, shouting, hurt, happy, out cold). **Driftlings** are small 3D creatures of our own
-  design hopping about and helping, each with its own details (moss and stubby arms on the pebble, bubbles on the
-  crab, whiskers and a sprout on the bun, wing bones on the bat...) and limbs that move (§7).
+- **The founders** (yours and your neighbours') and the **visitors** are little chibis: shorts over bare shins, shoes
+  on light soles, a shirt with a collar, buttons and a belt with a buckle, sleeves over bare forearms and fists, ears,
+  brows, a mouth and a glint in each eye; knees and elbows bend, and the face changes. **Driftlings** are small 3D
+  creatures of our own design walking to their work and doing it, each with its own details (moss and stubby arms on
+  the pebble, bubbles on the crab, whiskers and a sprout on the bun, wing bones on the bat...) and limbs that move
+  (§7). Only the driftlings in huts are on the island; the pen's are a list in the tree's panel.
 - **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
   panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
@@ -139,33 +152,31 @@ on the tree, and expand the island for bigger buildings. Nothing happens while y
 > lighting seems to not follow along with the camera as the camera moves"
 
 - **A turn** is `TurnSeconds` (40 s) while you are on the server: the island's pace. Each building that makes
-  something makes its rate a turn (the island card shows it a minute: "+57/min"): full with a villager working there,
-  half with nobody (`IdleOutput`), more with a driftling of its knack helping (`PalBoost`), more again at Lv 2 and 3
-  (`UpgradeMult`: only a building upgraded in an older save is above Lv 1, since upgrades were taken out, §4).
-  Villagers eat `EatFolk` food a turn, driftlings in huts `EatPal` (less or more with their eating share; the pen's eat
-  nothing). At each turn's end a visitor may move in.
+  something makes its rate a turn times what its driftlings put in (the island card shows it a minute: "+57/min"):
+  `IdleOutput` (0.3) with nobody at it, else the sum of its driftlings' work (each `PalWork`, 0.6, times its rarity's
+  `RarityWork` and its shares: §6), more again at Lv 2 and 3 (`UpgradeMult`: only a building upgraded in an older
+  save is above Lv 1, since upgrades were taken out, §4). Driftlings in huts eat `EatPal` food a turn (less or more
+  with their eating share); the pen's eat nothing.
 - **A day** is `DaySeconds` (4 hours) of the sea's clock (`WorldClock`: one time of day for every island on the
   server, carried on across visits: it follows the real clock): the HUD shows the day count and its clock (a sun, a
   moon for the evening); day and night follow it (§8); each day's end while you play counts a day (a banner).
 - **Shops** sell food to the visitors: their rate times visitors / `ShopVisitors` (at most double), eating food the
   same way. **Visitors** a turn: 1 + charm / `VisitorCharm`, at most `VisitorsMax`.
 - **Charm:** every piece's charm, and one for each driftling living in a hut plus its charm share (Cute and its
-  family; `Island.charm`).
+  family; `Island.charm`). Charm brings visitors; nobody moves in any more.
 - **Hunger:** when the food runs out everything makes half and the shops shut until there is food again; the food
   chip blinks red.
-- The stores reach the client every second; a newcomer brings a banner (who moved in), a
-  new day its own banner ("Day 12").
+- The stores reach the client every second; a new day brings its banner ("Day 12").
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
-73 pieces in ten kinds (the Tree of Life one of them), opening as the island grows (tier 1 .. 6, the build tray's "Island Lv"):
+66 pieces in nine kinds (the Tree of Life one of them), opening as the island grows (tier 1 .. 6, the build tray's "Island Lv"):
 
 | Kind | Pieces (the tier they open at) |
 |---|---|
 | **food** | Veggie Patch, Fishing Pier (1), Fruit Orchard (2), Greenhouse (3), Rice Terrace (4), Kelp Farm (5), Sky Garden (6) |
 | **wood** | Lumber Camp (1), Sawmill (2), Timber Works (3), Bamboo Grove (4), Grand Mill (5) |
 | **shops** | Snack Stall (1), Beach Cafe (2), Seaside Inn (3), Bakery (4), Grand Bazaar (5), Grand Hotel (6) |
-| **homes** (beds, comfort) | Tent 1, Grass Shack 2 +3% (1), Cottage 4 +6% (2), Longhouse 5 +8% (3), Townhouse 6 +12% (4), Villa 6 +18% (5), Manor 10 +25% (6) |
 | **huts** (room, comfort: §6) | Driftling Hut 2, Cozy Burrow 4 +5% (2), Driftling Den 5 +8% (3), Treetop Roost 6 +12% (4), Spring Grotto 8 +18% (5), Driftling Palace 12 +25% (6) |
 | **boosts** | Tool Shed (wood +10%), Windmill (farms +10%), Smokehouse (fishing +10%) (2), Market Hall (shops +12%) (3), Water Tower (all +6%) (4), Town Hall (all +10%) (5), Sun Beacon (all +15%) (6) |
 | **paths** (2 x 2 tiles) | Dirt Path (1), Stone Path (2), Brick Road (4), Marble Walk (5) |
@@ -201,13 +212,11 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
 - **Six tiers** (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, then **Harbor Town** (60,000 shells and 5,500
   wood), **Coral City** (180,000 / 15,000) and **Sunspire Capital** (480,000 / 40,000). The island grows north each
   time (the boardwalk stays where it is), to twice tier 3's grass at the capital, and only ever gains land (each
-  tier's shape joined to the smaller ones': nothing built near an old shore has to move); more villagers (`FolkMax` 40) live there, and
-  more driftlings in bigger huts.
-- **Comfort** (homes and huts): the best homes are filled first, each villager in the order they came (the pen sends
-  its best driftlings to the comfiest huts first). A resident's comfort (its home's, plus 4% / 8% at a level 2 / 3 home kept from an older
-  save) makes them work
-  that much more (`Island.rates`: a worker's output times 1 + its comfort; a helper's boost grows by it too). The Villagers panel shows each one's home and comfort ("Home:
-  Villa, comfort +18%"), the Driftlings panel its hut.
+  tier's shape joined to the smaller ones': nothing built near an old shore has to move); more driftlings live there
+  in bigger huts. (The homes for villagers this request asked for went with the villagers on 2026-11-12.)
+- **Comfort** (huts): the pen sends its best driftlings to the comfiest huts first. A driftling's comfort (its hut's,
+  plus 4% / 8% at a level 2 / 3 hut kept from an older save) makes it work that much more (`Island.palBoost`: 1 plus
+  its share plus its comfort). The Driftlings panel shows each one's hut.
 - **Boost buildings**: every building of a knack makes more (`Island.boosts`); each kind of boost building counts
   once however many stand, the "all" ones count at every knack, and the boosts at one knack stop at `BoostMax` (60%).
 - **Paths** in four materials, laid tile after tile (the piece stays picked), apart from the piece limit: roads
@@ -215,17 +224,17 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
 - **No upgrades** (taken out 2026-11-11: "remove the ability to upgrade buildings"). A better building is a
   **Replace** away, and a level from an older save is kept and still counts.
 - **Replace**: a standing piece picked up shows **Replace**: the tray lists the others of its kind open at the tier
-  (beds or room for homes and huts), each for its price less half the old one's (`Plot.replaceCost`); a tap swaps it
-  where it stands (the new footprint must fit there; a home or hut must still house everyone): its workers stay, its
-  level starts again. A tent becomes a cottage, a patch an orchard, a hut a palace.
-- A big island well built reads as a city: roads in a grid with street lamps, townhouses and villas, a town hall and a
-  clock tower, markets and a grand hotel, parks with hedges, topiaries and fountains (the `city` preview).
+  (room for huts), each for its price less half the old one's (`Plot.replaceCost`); a tap swaps it where it stands
+  (the new footprint must fit there; a hut must still have room for its driftlings): its driftlings stay, its level
+  starts again. A patch becomes an orchard, a hut a palace.
+- A big island well built reads as a city: roads in a grid with street lamps, a town hall and a clock tower, markets
+  and a grand hotel, dens and roosts, parks with hedges, topiaries and fountains (the `city` preview).
 
-- **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Food, Wood, Shops, Homes,
-  Huts, Boosts, Paths, Decor: icons alone on a phone) lists every piece with its price (red when you are short, locked ones greyed with the tier they
+- **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Food, Wood, Shops, Huts,
+  Boosts, Paths, Decor: icons alone on a phone) lists every piece with its price (red when you are short, locked ones greyed with the tier they
   need). A picked piece is a ghost on a cyan footprint where it fits, red where not; Place (or a second click on the
-  same spot) builds it. Tapping a standing piece picks it up to move, **Replace** it (§4.1) or **Clear it away** (half its price back; not a home whose beds are
-  needed, not a Hatchery warming an egg, never the Tree of Life; a hut's driftlings go back to the pen). The header counts the pieces (the path tiles on the Paths tab).
+  same spot) builds it. Tapping a standing piece picks it up to move, **Replace** it (§4.1) or **Clear it away** (half its price back; not
+  a Hatchery warming an egg, never the Tree of Life; a hut's driftlings go back to the pen). The header counts the pieces (the path tiles on the Paths tab).
 - **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
   is open) turns the tray to the tab of the building the tip asks for, and that building's card (and its tab, while
   another tab is shown) pulses until it stands on the island; placing it goes straight on to the next tip's tab.
@@ -243,32 +252,48 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
   stood still the whole time it baked. And the fanfare played at the tap, before anything had changed. Now the
   server builds each island's next size in the background, a few dozen parts a frame, and Expand only swaps it in.
   The filter re-bakes sooner, with more time a frame, behind the old picture, and the island keeps moving
-  meanwhile (villagers, the founder, water and wind). The fanfare and "Your island grew." wait until the bigger
+  meanwhile (driftlings, the founder, water and wind). The fanfare and "Your island grew." wait until the bigger
   island is on screen. Every size's coast cells are worked out when the server starts, and the next size's on
   the client a few seconds after each change, so the tap never waits for them either.
 
-## 5. Villagers (`Logic/Island`, the Villagers panel)
+## 5. Villagers (gone)
 
-A visitor moves in at a turn's end when there is a free bed (`FolkMax` at most) and the charm is at least `MoveInCharm` times
-the villagers already living there. A newcomer takes a free job straight away (food first, then wood, then shops).
-The Villagers panel lists each one (portrait, job) with **Job** (a picker of the buildings that take workers: Go,
-Swap with whoever is there, or Rest) and **Dismiss** (two taps: they sail off, freeing the bed). Villagers no longer
-fight or level up (2026-11-12): they work.
+The request at the top of this file (2026-11-12) took them out: "remove villagers, only creatures should be enough".
+Gone with them: the homes and their beds, moving in (`MoveInCharm`), jobs and the Villagers panel (`folk.work`,
+`folk.dismiss`), `Data/Names`, the Folk attribute, the first tips' Tent and the castaway, and the menu's Villagers
+button. Visitors still come for the charm and buy food at the shops. A building's work is its driftlings' (§3, §6).
 
 ## 6. Driftlings and the Tree of Life (`Logic/Tree`, `Data/Creatures`, `Data/Traits`, the Tree panel, the Driftlings panel, the Index)
 
 The request at the top of this file replaced the wild places, the battles, the levels and the skills with the tree.
 
-**The Tree of Life** (`Logic/Tree`; its own piece in `Data/Buildings`: 6 x 4 studs, charm 4, never in the build
+**The Tree of Life** (`Logic/Tree`; its own piece in `Data/Buildings`: 6 x 6 studs, charm 6, never in the build
 tray). A new island has it behind the campfire (`Tree.SPOT`, the nearest free spot); Build mode can move it but not
-store it or clear it away (`fixed`). A broad old tree: roots over a patch of lawn, a thick trunk with bark ridges and a
-glowing hollow, three branches, a two-layer crown with blossoms and five gold fruit, mushrooms and flowers at its foot,
-and beside it a fenced pen with a gate, hay, a trough and a water bowl (`DecorModels.PEN`).
+store it or clear it away (`fixed`).
+
+What it looks like (`DecorModels` "tree", rebuilt for the later request at the top): we read about the tree of life in
+old art and kept what makes it read at a glance. The Celtic tree of life is drawn inside a circle, its roots spread as
+wide as its branches, "as above, so below"
+([The Irish Jewelry Company](https://www.theirishjewelrycompany.com/blog/post/discovering-the-magic-of-the-tree-of-life-in-nature-and-spirituality),
+[1000 Logos](https://1000logos.net/celtic-tree-of-life-meaning/amp/),
+[Celtic Art Studio](https://celticartstudio.com/about/treeoflife/123/)). The Norse world tree, Yggdrasil, is vast,
+its crown over everything, its roots reaching down into other worlds
+([New World Encyclopedia](https://newworldencyclopedia.org/entry/Yggdrasil),
+[Encyclopedia.com](https://encyclopedia.com/humanities/news-wires-white-papers-and-books/yggdrasill),
+[World Tree Project](https://worldtreeproject.org/exhibits/show/yggdrasill/modern_illustrations)). Games draw a
+sacred tree with a glow of its own and something hanging from it
+([a pixel tileset's glowing tree](https://winlu.itch.io/winlu-fantasy-tileset-exterior/devlog/528816/giant-glowing-tree)).
+So ours is 13 studs tall over a round lawn with moss: a ring of ten standing stones round it (pale blue marks glowing
+on every third, a gap at the front), roots spreading out in eight directions as far as the crown, a trunk of three
+braided strands round a core with pale blue runes glowing on it, the hollow in front with a gold glow in a frame of lintel and posts,
+and a crown of seven leaf clouds on forked limbs, each with a dark underside, blossoms, hanging vines and gold fruit
+under it; a ring of gold light on the ground, motes in the air, mushrooms and flowers at its foot. The pen is not
+drawn (the later request: "no need to render the pen, just a ui should be enough").
 
 - **It grows** a driftling every `TreeSecs[Speed]` seconds (12 at Speed 1 down to 4 at Speed 10), faster with the
-  huts' Leafy driftlings (`HutTree`: 50% at most), while you are on the server. The newcomer pops out of the hollow
-  with a cheer and walks into the pen. A card under the HUD's chips shows the tree's bar filling and "Pen 3/6" (or
-  "Pen full", the card pulsing); a tap opens the Tree panel, as does a tap on the tree itself.
+  huts' Leafy driftlings (`HutTree`: 50% at most), while you are on the server; it never stops. One the pen sends on
+  to a hut pops out of the hollow with a cheer and walks off to its work. A card under the HUD's chips shows the
+  tree's bar filling and "Pen 3"; a tap opens the Tree panel, as does a tap on the tree itself.
 - **What grows** (`Tree.roll`): a rarity first, each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5, 1.2)
   times the tree's luck to the power of the steps; luck is 1 at Luck 1, +0.12 a level (`TreeLuck`) and + the huts'
   Lucky driftlings (`HutLuck`: 0.5 at most). Then one of that rarity's kinds among those open at the island's tier
@@ -276,14 +301,16 @@ and beside it a fenced pen with a gate, hay, a trough and a water bowl (`DecorMo
   reefs at 4, bluffs at 5, ruins at 6); a rarity none of them has falls to the next commoner one. It is born with
   mutations (below), rolled as one rarity rarer every `TreeMutLuck` (3) Luck levels past the first. A rare or better
   one gets a notice in its rarity's colour ("A rare Floe grew on the tree."), an epic or a legend a burst of sparkles.
-- **The pen** holds `PenRoom` driftlings by the island's tier (6, 8, 10, 12, 14, 16). While it is full the tree
-  waits with its bar full. Driftlings in the pen eat nothing and do nothing.
+- **The pen** has no room limit and is not on the island: it is the list in the Tree panel (the best `PEN_ROWS`, 40,
+  shown, then how many more). Driftlings in the pen eat nothing and do nothing. Past `PenKeep` (500) waiting there,
+  each new one that grows sells the least useful (`Tree.overflow`: the lowest worth, then the cheapest, then the
+  newest; never one the player put there), so a save and the view stay small.
 - **The huts** (the Huts tab in Build mode; the old nests: Driftling Hut 2 places, Cozy Burrow 4, Driftling Den 5,
   Treetop Roost 6, Spring Grotto 8, Driftling Palace 12; the home once called Grass Hut is now the Grass Shack so the
-  names don't clash). Whenever a hut has room the pen sends its best driftling there (`Tree.settle`: the one worth most
-  at work, its rarity's `RarityWork` times 1 plus its share at its knack), the comfiest hut first. It takes a free
-  place at a building of its knack (`HelpMax`: 2 helpers a building) and helps there; with none free it rests in its
-  hut. A driftling in a hut eats `EatPal` food a turn and adds its charm.
+  names don't clash). Whenever a hut has room the pen sends on its best driftling that a building of its knack has a
+  free place for (`Tree.settle`: the one worth most at work, its rarity's `RarityWork` times 1 plus its share at its
+  knack), the comfiest hut first, and it takes that place (`HelpMax`: 2 driftlings a building). One with nowhere to
+  work stays in the pen until there is somewhere. A driftling in a hut eats `EatPal` food a turn and adds its charm.
 - **Your pick:** the Driftlings panel lists every driftling with **Move** (a picker: each hut with its room, and the
   pen; a full hut offers to swap with one of its driftlings), **Help** (which building of its knack, or rest) and
   **Sell**. One you put in the pen stays there (`held`) until you move it. The Tree panel lists the pen with **To a
@@ -295,10 +322,11 @@ and beside it a fenced pen with a gate, hay, a trough and a water bowl (`DecorMo
   rarity at the tree's luck below them): **Speed** and **Luck**, ten levels each, paid in shells and wood (Speed 2
   costs 120 shells and 10 wood, Speed 10 150,000 and 12,000; Luck 2 160 and 15, Luck 10 170,000 and 14,000).
 
-**How much a driftling helps:** a helper adds `PalBoost` (0.5) times `RarityWork` by rarity (1, 1.6, 2.5, 4, 7: the
-request's "creatures work faster based on their rarity") times 1 plus its work share at that building (its passive and
-mutations, `Island.palWork`) and its hut's comfort, so a legendary woodsy driftling at a lumber camp is worth
-many commons there.
+**How much a driftling works:** each one at a building puts in `PalWork` (0.6) times `RarityWork` by rarity (1, 1.6,
+2.5, 4, 7: the request's "creatures work faster based on their rarity") times 1 plus its work share at that building
+(its passive and mutations, `Island.palWork`) and its hut's comfort (`Island.palBoost`); the building makes its rate
+times the sum (`IdleOutput` with nobody), so a legendary woodsy driftling at a lumber camp is worth many commons
+there.
 
 > The requests (2026-11-10): "make each creature have a different passive ability. some can have different mutations
 > which allow them to do different things better, such as better health, attack speed, etc. mutations also have
@@ -390,8 +418,7 @@ its name, passive and knack.
   passes on half the time (`BreedKeep`); with `BreedNew` (15%) it gains one of its own (tier 1 or 2); the best four.
   Breeding two that share a mutation, again and again, climbs it to the top tier.
 - **Hatching**: at each turn's end the eggs count down; a ready one hatches into the pen (from where the pen sends it
-  on to a hut like the tree's; in the Index; "Floe hatched!" in the turn's banner), else waits while the pen is full
-  ("Ready to hatch. It needs room in the pen.").
+  on to a hut like the tree's; in the Index; "Floe hatched!" in the turn's banner). The pen always has room.
   The panel shows each egg: its rarity's egg, "Hatches in 3 turns" over a bar, its parents. A Hatchery holding an egg
   is not cleared away ("An egg is still warming in that Hatchery."). On the island the hatchling cheers where it
   appears, its name floating up in pink.
@@ -420,7 +447,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   the sea. Buildings stand on the grass a stud or more in from the sand.
 - **No house:** the island's heart is a plaza round a campfire (fire stones, logs, a flame with smoke, seats, a flag
   and torches); a path of stepping stones runs from it down to a wooden jetty that meets the boardwalk, your sign and
-  mailbox either side of its foot. Villagers stroll the grass round it when they rest.
+  mailbox either side of its foot. Visitors stroll the grass round it.
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond and the fountain move the same way.
@@ -462,7 +489,7 @@ text (the requests and how each was met) is in the history of this file, up to c
 - Up to `MaxPlots` (6) islands sit in a row along the boardwalk; an unclaimed lot is open water with a sandbar and a
   sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. You can walk onto anyone's island
   (the shore's edge holds you back from the sea); Home sends you back to your own. A tap on a sign shows that island's
-  day, villagers, driftlings and charm.
+  day, driftlings at home and charm.
 
 ## 9. Your founder, settings and the tips
 
@@ -481,15 +508,14 @@ the stores come from:
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
 > to buy all the facilities required."
 
-1 "Everyone here eats. Tap Build and place a Veggie Patch to grow food."; 2 "Bigger buildings need wood. Place a
-Lumber Camp."; 3 "Shells come from visitors. Place a Snack Stall and they'll buy food."; 4 "Now put up a Tent. A
-castaway moves in straight away to work." (the first home on an island nobody lives on yet: a castaway moves in the
-moment it is built, not at a turn's end); 5 "The Tree of Life grows a driftling every few seconds. Build a Driftling
-Hut so they can work." (in Build mode: "Place a Driftling Hut. The pen sends its best driftlings there."); 6 "Tap the
-Tree of Life and buy a level of Speed or Luck." (a label and an arrow bob over the tree); 7 "The pen sends its best
-driftlings to huts with room. Sell the ones you don't need." (OK ends the tips). A new island starts with
-`StartShells` (300) shells: the patch, the camp, the stall, the tent and the hut of the tips cost 280. (The tips that
-taught fighting and befriending went with them, 2026-11-12: an old save past them starts at tip 5.)
+1 "Driftlings eat. Tap Build and place a Veggie Patch to grow food."; 2 "Bigger buildings need wood. Place a Lumber
+Camp."; 3 "Shells come from visitors. Place a Snack Stall and they'll buy food."; 4 "The Tree of Life grows a
+driftling every few seconds. Build a Driftling Hut so they can work." (in Build mode: "Place a Driftling Hut. The pen
+sends its best driftlings there."); 5 "Tap the Tree of Life and buy a level of Speed or Luck." (a label and an arrow
+bob over the tree); 6 "The pen sends driftlings to huts when a building needs them. Sell the ones you don't need." (OK
+ends the tips). A new island starts with `StartShells` (300) shells: the patch, the camp, the stall and the hut of the
+tips cost 250. (The tips that taught fighting and befriending went with them, 2026-11-12, and the Tent's tip went with
+the villagers the same day: an old save on a later tip moves back one.)
 
 > The request (2026-11-11): "also, please rewrite all text and dialogue to be less ai-like. research what are the
 > telltale signs of ai writing and avoid them. note this from further on as well"
@@ -499,12 +525,12 @@ taught fighting and befriending went with them, 2026-11-12: an old save past the
 
 **The questline** (`Data/Quests`, `Logic/Quest`): once the tips are over, one quest at a time in a card down the left
 under the chips (it steps aside for a panel). The card has the quest's icon and title, which of the twenty it is, what
-to do and where, and its progress with **Go**, which opens the place it needs (the Driftlings or Villagers panel, the
+to do and where, and its progress with **Go**, which opens the place it needs (the Driftlings panel, the
 Tree panel, Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go turns into **Claim**
 (shining) next to the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island
-has now, so one already met can be claimed at once. Rewritten for the tree (2026-11-12), in order: put a driftling to
-work; sell a driftling; speed up the tree (Speed 2); make room for a newcomer (2 villagers); give everyone a job (2 at
-work); build another hut (2 huts); make the tree luckier (Luck 2); grow more food (a second farm or pier); lay a path
+has now, so one already met can be claimed at once. Rewritten for the tree and again without villagers (2026-11-12),
+in order: put a driftling to work; sell a driftling; speed up the tree (Speed 2); more wood (a second Lumber Camp);
+three at work; build another hut (2 huts); make the tree luckier (Luck 2); grow more food (a second farm or pier); lay a path
 (8 tiles); decorate (2 pieces); grow a rare one; grow your island (tier 2); build a boost; ten driftlings at work; meet
 twelve kinds; grow the island again (tier 3); build a Hatchery; hatch an egg; grow an epic one; a lucky tree (Luck 5).
 The rewards are small (40 to 3,000 shells, some food and wood) next to what each step costs; the career's player (§10)
@@ -514,8 +540,8 @@ first quest.
 **How the game talks** (every tip, notice, card and blurb; CLAUDE.md "Writing" keeps it as a standing rule). The
 researched tells of machine-written text, and what replaced them here: an exclamation mark on nearly every line
 (now only where something earns it, like an egg hatching); colons and semicolons gluing two thoughts into one line
-("Food: tap Build...", "It grows food; everyone eats it") now plain sentences ("Everyone here eats. Tap Build and
-place a Veggie Patch to grow food."); stock game phrases ("springs into action", "blocks the way", "appears!") now
+("Food: tap Build...", "It grows food; everyone eats it") now plain sentences ("Driftlings eat. Tap Build and place a
+Veggie Patch to grow food."); stock game phrases ("springs into action", "blocks the way", "appears!") now
 said plainly ("Everyone goes at once.", "is in the way.", "That's a legendary Pyrelord."); tidy quips built on a
 pattern, a mirrored pair or a list of three ("Snaps first, makes friends later.", "Half gull, half fish, all
 appetite.") now one plain observation ("Pinches anyone who gets close. It means well.", "Part gull, part fish.
@@ -525,28 +551,36 @@ Sun Beacon is a name). Stat lines keep their "label: value" form.
 
 ## 10. Saves and the economy, checked
 
-The save is version 10 (`Logic/Schema`). A version 9 save loses its wild places, the captain, the snack pouch and
+The save is version 11 (`Logic/Schema`). A version 10 save loses its villagers: every home comes down with its whole
+price back (Tent 30 shells, Grass Shack 140 and 20 wood, Cottage 700 and 80, Longhouse 2,400 and 260, Townhouse
+7,000 and 700, Villa 20,000 and 2,000, Manor 60,000 and 5,000), its tips on a step past the Tent's move back one, and
+`movedIn` leaves the stats; its driftlings, huts, buildings and stores are kept. A pen past `PenKeep` is brought back
+to it as the tree would (the least useful sold). A version 9 save loses its wild places, the captain, the snack pouch and
 every level and skill; a Training Yard comes down with its whole price back (450 shells, 50 wood); the Tree of Life is
 planted (the free spot nearest the one behind the campfire; on an island built full the pieces nearest it make room,
 paths first, then decor, then anything that houses nobody, each with its whole price back), each driftling moves into a hut the way the nests were filled before (the comfiest first, in the
 order they came) and the rest go into the pen; its tips on the old sailing steps go to the hut's step; the questline
-starts again at its first quest. Its driftlings and their mutations, its villagers, buildings, paths and stores are kept
+starts again at its first quest. Its driftlings and their mutations, its buildings, paths and stores are kept
 (a cleared wild place goes with the rest). A version 8 save also drops its boat and its sea chart; a version 7 save also starts the
 questline; a version 6 save's driftlings each roll their mutations once (from their kind and id: the same every load);
 a version 5 save's tips move to the new steps; an older save (the game studio's) keeps the founder's look, the settings
 and its start date and begins a fresh island with the tips.
 
 `tests/Career.luau` plays a sensible player through the same rules (`Logic/*`) for three seeds and three hours: it
-builds what the island lacks, a hut while fewer driftlings are housed than the buildings can take, buys the tree's
-cheaper upgrade when it can, sells the pen's commons when it fills and grows the island when it can.
+builds the tips' buildings first, then what the island lacks: a building of a knack the pen's driftlings have nowhere
+to work at, a hut while fewer driftlings are housed than the buildings can take, a shop for each tier. It buys the
+tree's cheaper upgrade when it can, sells the pen's commons now and then and grows the island when it can. Its random
+numbers are seeded through a hash, as the server seeds a session (a small seed's first draws are weak: every seed
+grew an epic first).
 `tests/specs/Economy.spec.luau` holds the economy to these bounds:
 
-- a villager and a driftling at work within 3 minutes (about 40 and 30 seconds), a rare one within 20;
-- the tree's Speed and Luck both at 3 or more by 40 minutes;
-- selling helps but the island earns: under two thirds of the shells over three hours come from selling (about 55%);
-- the island's second tier within 45 minutes (about 27 to 33), the third within 90 (about 71 to 80); at an hour, at
-  least 8 villagers and 8 driftlings in huts; Harbor Town (tier 4) never before 100 minutes and no city (tier 5)
-  within three hours;
+- a driftling at work within 3 minutes (about 20 seconds), a rare one within 20 (about 1 to 3 minutes);
+- the tree's Speed and Luck both at 3 or more by 40 minutes (Speed 4, Luck 3);
+- selling helps but the island earns: under two thirds of the shells over three hours come from selling (about 10%,
+  now that the driftlings do all the work);
+- the island's second tier within 45 minutes (about 30), the third within 90 (about 71 to 76); at an hour, at least
+  12 driftlings in huts (about 40); Harbor Town (tier 4) never before 100 minutes (about 150 to 156) and no city
+  (tier 5) within three hours;
 - nobody starves for long, and the stores stay finite.
 
 ## 11. Polish and animation
@@ -583,11 +617,12 @@ cheaper upgrade when it can, sells the pen's commons when it fills and grows the
   in the dark of it, the sun going down on the horizon with far islands either side, a banded sea with the sun's path
   on it and small waves; in the middle the island (its shallows, a ring of foam, wet sand, the sand with its cliff in
   front, the grass, a jetty). On it the game's own models, drawn ahead of time through the game's picture path (the
-  preview scenario `ploadingart` bakes them frame by frame into `src/first/LoadingArt`): three palms, a Grass Shack, a
-  Tent, Tiki Torches, Flower Beds and Round Bushes, the Tree of Life with its pen (its hollow and fruit glowing, then
-  dimmer: it took the Tide Pool's place on 2026-11-12), the campfire flickering and throwing
-  embers, a villager cheering by it, two villagers strolling up and down the island with a Mossbun and a Clawdle at
-  their heels, a Gullfin hopping along the front; the old boat rocking past out at sea, gulls crossing the
+  preview scenario `ploadingart` bakes them frame by frame into `src/first/LoadingArt`): the Tree of Life at the back
+  rising over the sea (its hollow, fruit and marks glowing, then dimmer; on a short screen, a phone held flat, it
+  stands at the back on the left so its crown stays clear of the bar), palms, a Driftling Hut, a Cozy Burrow, Tiki
+  Torches, Flower Beds and Round Bushes, the campfire flickering and throwing embers, a Conchy cheering by it, a
+  Frondle and a Pebblit wandering up and down the island with a Mossbun and a Clawdle at their heels, a Gullfin
+  hopping along the front (no villagers since 2026-11-12); the old boat rocking past out at sea, gulls crossing the
   sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Driftling Isle" in the
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
@@ -611,22 +646,17 @@ cheaper upgrade when it can, sells the pen's commons when it fills and grows the
   cards fade and rise in; notices slide down.
 - **The HUD:** the stores count up and their chip flashes when they change, shells coming in rise from their chip
   ("+12"); the day chip's clock bar creeps along and its sun sets into a moon; the food chip blinks red while hungry;
-  the tree's card fills its bar and pulses while the pen is full; a new tip bounces in; a newcomer's banner drops in with a fanfare
-  and bits, and a new day's (every few hours) with a ding.
-- **The island lives:** villagers walk to their work and back and do it, wander when resting; driftlings hop beside
-  their buildings or round the huts, and the pen's wander inside its fence (a new one pops out of the tree's hollow
-  with a cheer); a newcomer is welcomed with a word and confetti.
+  the tree's card fills its bar; a new tip bounces in; a new day's banner (every few hours) drops in with a ding.
+- **The island lives:** the hut driftlings walk to their buildings and back and work there, and nap at their huts with
+  nothing to do; one the pen sends on pops out of the tree's hollow with a cheer and walks off to work. (The pen is
+  not drawn: its driftlings are a list in the tree's panel.)
 
   > The request (2026-11-11): "there are also no proper animations for creatures and villagers that are working on
   > something in the island"
 
-  Work is a loop of real moves now (`CharacterModels` WORK, `DriftModels`' work moods), each building its own. A
-  villager swings a hoe up and down into a field (a puff of soil at each stroke), picks fruit one hand then the
-  other up on their toes in an orchard, holds a line out off a pier with a tug now and then (a splash), chops at the
-  lumber camp with the axe back over the shoulder (wood chips fly), saws to and fro at a sawmill, hands things over
-  the counter and waves at a stall or bakery (a glint of a coin), carries a tray and bows at a cafe, inn or hotel,
-  taps with a hammer at a toolshed or water tower (sparks), and crouches to tend
-  at a greenhouse, a hatchery, a windmill, a smokehouse or the beacon. A driftling pecks at the ground in the fields,
+  Work is a loop of real moves now (`DriftModels`' work moods), each building its own. (Until 2026-11-12 villagers
+  worked beside the driftlings with a hoe, an axe, a line and a tray; their poses are still in `CharacterModels`.)
+  A driftling pecks at the ground in the fields,
   dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stand along the
   building's front, apart, turned three-quarters to the view so the work reads.
 - **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked on 2026-11-10: "can the green lines of the sea be more of a light
@@ -654,8 +684,8 @@ cheaper upgrade when it can, sells the pen's commons when it fills and grows the
   > you or was default roblox sounds. use sounds from the free roblox library instead"
 
   The happy moments each have their own small, short sound from the library, measured for length and loudness before
-  going in (no more one music-box note pitched up or down to stand in for the others): a door bell's ding-dong for a
-  newcomer moving in; a bell-tree run as the island grows, or as an epic or legendary driftling grows on the tree; a
+  going in (no more one music-box note pitched up or down to stand in for the others): a door bell's ding-dong that
+  welcomed a newcomer (silent since the villagers went); a bell-tree run as the island grows, or as an epic or legendary driftling grows on the tree; a
   sparkling sweep for a rare one; a soft cluster of chimes when an egg hatches; a few bright sparkle tones when a
   piece is replaced by a better one; one triangle ting for a reward (a quest claimed); a music box winding up as an
   egg is laid. (The sounds of the places and the fights went with them, 2026-11-12.) Longer takes play only their first moment and fade out.

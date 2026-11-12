@@ -153,8 +153,8 @@ end
 Plot.toPen = toPen
 
 ------------------------------------------------------------------ actions (change the profile only on success)
--- Place a new piece: its tier reached, room under the island's limit, its price in shells and wood. A building that
--- takes a worker gets an idle villager if there is one.
+-- Place a new piece: its tier reached, room under the island's limit, its price in shells and wood (IslandService
+-- then sends resting driftlings of its knack to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
 	if def == nil or def.kind == "tree" then
@@ -182,14 +182,6 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	p.nextId += 1
 	table.insert(p.plot.placed, { uid = uid, id = id, x = x, z = z, rot = rot, lvl = 1 })
 	p.stats.built += 1
-	if def.kind == "food" or def.kind == "wood" or def.kind == "shop" then
-		for _, v in p.folk do
-			if v.work == 0 then
-				v.work = uid
-				break
-			end
-		end
-	end
 	return true, { i = #p.plot.placed, uid = uid }
 end
 
@@ -337,11 +329,10 @@ function Plot.replacements(q: Piece, tier: number): { string }
 	return out
 end
 
--- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a tent for a cottage, a nest for a
--- den, a patch for an orchard): its uid stays (its workers and helpers stay where the knack still fits), its level
--- starts again at 1. bad_payload (another kind, the same piece, the tree), locked (a bigger island's), money / wood,
--- blocked (the new footprint does not fit there), no_room (fewer beds than the villagers need). A smaller hut keeps
--- the driftlings it has room for; the rest go back to the pen.
+-- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a hut for a den, a patch for an
+-- orchard): its uid stays (its workers stay where the knack still fits), its level starts again at 1. bad_payload
+-- (another kind, the same piece, the tree), locked (a bigger island's), money / wood, blocked (the new footprint does
+-- not fit there). A smaller hut keeps the driftlings it has room for; the rest go back to the pen.
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	local q = p.plot.placed[i]
 	local old, new = if q then Buildings.byId[q.id] else nil, Buildings.byId[id]
@@ -360,16 +351,6 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	end
 	if not Plot.fits(p.tier, p.plot.placed, id, q.x, q.z, q.rot, i) then
 		return false, "blocked" :: ErrCode
-	end
-	local beds = 0
-	for j, o in p.plot.placed do
-		local od = if j == i then new else Buildings.byId[o.id]
-		if od then
-			beds += od.beds
-		end
-	end
-	if beds < #p.folk then
-		return false, "no_room" :: ErrCode
 	end
 	p.shells -= cost.shells
 	p.wood -= cost.wood
@@ -418,11 +399,6 @@ function Plot.refit(p: Profile): (number, number)
 				p.shells += def.shells
 				p.wood += def.wood
 			end
-			for _, v in p.folk do
-				if v.work == q.uid then
-					v.work = 0
-				end
-			end
 			for _, x in p.pals do
 				if x.work == q.uid then
 					x.work = 0
@@ -445,8 +421,8 @@ function Plot.refit(p: Profile): (number, number)
 	return moved, cleared
 end
 
--- Clear a piece away: a share of its price back; its workers go idle, a hut's driftlings back to the pen. Not the
--- tree (fixed), not a home whose beds are needed (no_room), not a Hatchery warming an egg (egg).
+-- Clear a piece away: a share of its price back; its workers go to rest, a hut's driftlings back to the pen. Not the
+-- tree (fixed), not a Hatchery warming an egg (egg).
 function Plot.store(p: Profile, i: number): (boolean, any)
 	local q = p.plot.placed[i]
 	if q == nil then
@@ -457,16 +433,6 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 	end
 	local def = Buildings.byId[q.id]
 	if def then
-		local beds = 0
-		for j, o in p.plot.placed do
-			local od = Buildings.byId[o.id]
-			if od and j ~= i then
-				beds += od.beds
-			end
-		end
-		if def.beds > 0 and beds < #p.folk then
-			return false, "no_room" :: ErrCode
-		end
 		-- a Hatchery keeps its egg: not cleared away till it hatches (Logic/Breed)
 		local eggs: { Types.Egg } = p.eggs or {}
 		for _, egg in eggs do
@@ -476,11 +442,6 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 		end
 		p.shells += math.floor(def.shells * Tuning.Refund)
 		p.wood += math.floor(def.wood * Tuning.Refund)
-	end
-	for _, v in p.folk do
-		if v.work == q.uid then
-			v.work = 0
-		end
 	end
 	for _, pal in p.pals do
 		if pal.work == q.uid then

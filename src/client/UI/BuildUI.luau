@@ -42,7 +42,6 @@ local TABS: { { key: string, text: string, kinds: { string }, icon: string } } =
 	{ key = "food", text = "Food", kinds = { "food" }, icon = "food" },
 	{ key = "wood", text = "Wood", kinds = { "wood" }, icon = "wood" },
 	{ key = "shop", text = "Shops", kinds = { "shop" }, icon = "shell" },
-	{ key = "home", text = "Homes", kinds = { "home" }, icon = "home" },
 	{ key = "nest", text = "Huts", kinds = { "nest", "breed" }, icon = "nest" },
 	{ key = "gen", text = "Boosts", kinds = { "gen" }, icon = "boost" },
 	{ key = "path", text = "Paths", kinds = { "path" }, icon = "path" },
@@ -58,8 +57,7 @@ local TUT: { [number]: { tab: string, id: string } } = {
 	[1] = { tab = "food", id = "patch" },
 	[2] = { tab = "wood", id = "lumber" },
 	[3] = { tab = "shop", id = "stall" },
-	[4] = { tab = "home", id = "tent" },
-	[5] = { tab = "nest", id = "nest" },
+	[4] = { tab = "nest", id = "nest" },
 }
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
 local goalCard: Frame? = nil
@@ -450,7 +448,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 		local card = UIKit.plate(list, UDim2.fromOffset(84, 28), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
 		card.Name = "Swap_" .. id
 		card.LayoutOrder = k
-		local what = if d.beds > 0 then string.format("%s: %d beds", d.name, d.beds) elseif d.slots > 0 then string.format("%s: room %d", d.name, d.slots) else d.name
+		local what = if d.slots > 0 then string.format("%s: room %d", d.name, d.slots) else d.name
 		UIKit.text(card, what, UDim2.fromOffset(82, 10), UDim2.fromOffset(2, 1), { color = UIKit.color("text"), z = 4 })
 		local b = UIKit.button(card, "", UDim2.fromOffset(80, 14), UDim2.fromOffset(2, 12), function()
 			local cur = pick
@@ -588,12 +586,12 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	local say = if def then def.blurb else ""
 	if def and def.rate > 0 then
 		local lvl = if q then q.lvl else 1
-		say = string.format("%s %s a minute with a %s.", say, (Numbers.perMin(def.rate * (Tuning.UpgradeMult[lvl] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")), string.lower(def.job))
+		say = string.format("%s %s a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
 	end
-	if def and (def.beds > 0 or def.slots > 0) then
+	if def and def.slots > 0 then
 		local lvl = if q then q.lvl else 1
 		local c = def.comfort + (Tuning.ComfortLvl[lvl] or 0)
-		say = string.format("%s %s %d.%s", say, if def.beds > 0 then "Beds" else "Room for", def.beds + def.slots, if c > 0 then string.format(" Comfort +%d%%.", math.round(c * 100)) else "")
+		say = string.format("%s Room for %d.%s", say, def.slots, if c > 0 then string.format(" Comfort +%d%%.", math.round(c * 100)) else "")
 	end
 	if def and def.charm >= 1 then
 		say ..= string.format(" Charm +%d.", math.floor(def.charm))

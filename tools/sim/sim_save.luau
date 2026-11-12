@@ -1,7 +1,8 @@
--- Saves (docs/ARCHITECTURE.md 7.6): a player builds, a villager moves in, the Tree of Life grows driftlings (one kept
--- in the pen), the tree's levels bought, then leaves (saved, lock released) and rejoins to the very same profile; a
--- version 9 save (the wild places, the fights and the levels) loads with its tree planted, its yard's price back and
--- its driftlings in huts and the pen; a save under another server's live lock is never overwritten; a join waits out
+-- Saves (docs/ARCHITECTURE.md 7.6): a player builds, the Tree of Life grows driftlings (one sent on to the hut, one
+-- kept in the pen), the tree's levels bought, then leaves (saved, lock released) and rejoins to the very same profile;
+-- a version 9 save (the wild places, the fights, the levels and a villager in a Tent) loads with its tree planted, its
+-- yard's and its Tent's prices back, no villagers and its driftlings in huts and the pen; a save under another
+-- server's live lock is never overwritten; a join waits out
 -- another server's lock and then takes over; a corrupt record still loads into a valid profile; a version 4 save (the
 -- game studio) starts a fresh island keeping the founder's look and the settings.
 local E = require("./loader")
@@ -53,11 +54,20 @@ E.run(2)
 H.expect(not H.smod("DataService").usingMemory(), "save", "the DataStore is used (not the memory fallback)")
 local prof = H.profile(p)
 prof.shells, prof.wood = 5000, 500
-placeAll(p, { "patch", "tent", "nest", "lumber", "stall", "flowers" })
+placeAll(p, { "patch", "pier", "nest", "lumber", "stall", "flowers" })
+local function housed(): number
+	local n = 0
+	for _, x in prof.pals do
+		if x.home ~= 0 then
+			n += 1
+		end
+	end
+	return n
+end
 E.runUntil(function()
-	return #prof.folk >= 1
-end, Tuning.TurnSeconds + 3, 0.1)
-H.expect(#prof.folk == 1, "save", "a villager moved in", tostring(#prof.folk))
+	return housed() >= 1
+end, Tuning.TreeSecs[1] * 4 + 3, 0.1)
+H.expect(housed() >= 1 and prof.folk == nil, "save", "a driftling grown and sent to the hut (no villagers)", tostring(housed()))
 -- (one kept in the pen by the player, its mutations kept through the save)
 table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", home = 0, work = 0, muts = { "angler2", "lazy" }, held = 1 })
 prof.nextId += 1
@@ -73,10 +83,7 @@ end
 prof.stats.best = math.max(prof.stats.best, 2)
 -- (the tree just started on its next: none grows across the rejoin)
 prof.tree.t = 0
--- the stores never stop: food stops (nobody eats nothing made) so the snapshot is stable
-for _, v in prof.folk do
-	v.work = 0
-end
+-- (the stores never stop: they are left out of the comparison)
 prof.food = 0
 H.push(p, 0.5)
 local before = E.deepCopy(H.profile(p))
@@ -154,7 +161,7 @@ if ov then
 		end
 	end
 	H.expect(trees == 1 and places == 0 and yards == 0, "save", "a Tree of Life planted; the wild places and the yard gone", string.format("%d %d %d", trees, places, yards))
-	H.expect(ov.shells >= 1000 + 450 and ov.wood >= 80 + 50, "save", "the yard's price back", string.format("%s %s", tostring(ov.shells), tostring(ov.wood)))
+	H.expect(ov.shells >= 1000 + 450 + 30 and ov.wood >= 80 + 50, "save", "the yard's and the Tent's prices back", string.format("%s %s", tostring(ov.shells), tostring(ov.wood)))
 	local inNest = 0
 	for _, x in ov.pals do
 		if x.home == 12 then
@@ -162,7 +169,7 @@ if ov then
 		end
 	end
 	H.expect(#ov.pals == 3 and inNest == 2, "save", "its driftlings: two in the hut, one in the pen", string.format("%d, %d in the hut", #ov.pals, inNest))
-	H.expect(ov.folk[1].lvl == nil and ov.tut == 5 and ov.quest == 1 and ov.stats.grown == 3, "save", "no levels; the tips on the hut's step; the questline afresh; befriended counted as grown")
+	H.expect(ov.folk == nil and ov.stats.movedIn == nil and ov.tut == 4 and ov.quest == 1 and ov.stats.grown == 3, "save", "no villagers or levels; the tips on the hut's step; the questline afresh; befriended counted as grown", string.format("tut %d", ov.tut))
 	H.checkProfile(old, "v9")
 	H.checkMirror(old, "v9")
 end
@@ -216,7 +223,8 @@ E.run(3)
 local cp = H.profile(c)
 H.expect(cp ~= nil, "save", "a corrupt record still loads")
 if cp then
-	H.expect(cp.shells == Tuning.StartShells and cp.food == 0 and cp.tier == #Tuning.TierCost, "save", "into a valid profile (the tier at the top)", string.format("%s %s %d", tostring(cp.shells), tostring(cp.food), cp.tier))
+	-- (its food clamped to none: the patch has made a little since, working with nobody at it)
+	H.expect(cp.shells == Tuning.StartShells and cp.food >= 0 and cp.food < 2 and cp.tier == #Tuning.TierCost, "save", "into a valid profile (the tier at the top)", string.format("%s %s %d", tostring(cp.shells), tostring(cp.food), cp.tier))
 	-- (the pieces built, apart from the tree it was given)
 	local PlotM = H.sharedServer("Logic.Plot")
 	local built = {}
@@ -228,7 +236,7 @@ if cp then
 	local q = built[1]
 	H.expect(#built == 1 and q.id == "patch" and PlotM.fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone", string.format("%d pieces", #built))
 	H.expect(#cp.plot.placed == 2, "save", "and a tree planted", string.format("%d pieces", #cp.plot.placed))
-	H.expect(#cp.folk == 1 and cp.folk[1].work == 0 and #cp.pals == 1 and cp.pals[1].id == 8 and cp.pals[1].home == 0, "save", "only what makes sense kept", string.format("%d folk, %d pals", #cp.folk, #cp.pals))
+	H.expect(cp.folk == nil and #cp.pals == 1 and cp.pals[1].id == 8 and cp.pals[1].home == 0, "save", "only what makes sense kept (no villagers)", string.format("%d pals", #cp.pals))
 	H.checkProfile(c, "corrupt")
 	H.checkMirror(c, "corrupt")
 end

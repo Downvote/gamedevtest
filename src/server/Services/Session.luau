@@ -1,8 +1,8 @@
 --!strict
 -- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the island's day clock,
 -- and what the client is sent. The client mirrors the profile through State messages (the whole ClientView, sent when
--- something changed: Session.dirty) and shows Fx messages (the stores and the tree every second, a new day and who
--- moved in, the driftlings the Tree of Life grew).
+-- something changed: Session.dirty) and shows Fx messages (the stores and the tree every second, a new day, an egg
+-- hatched, the driftlings the Tree of Life grew).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -10,7 +10,6 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -73,7 +72,6 @@ function Session.view(s: S): Types.ClientView
 		dayFrac = WorldClock.dayFrac(),
 		tier = p.tier,
 		founder = p.founder,
-		folk = p.folk,
 		pals = p.pals,
 		tree = p.tree,
 		plot = s.plot,
@@ -86,9 +84,7 @@ function Session.view(s: S): Types.ClientView
 		settings = p.settings,
 		rates = { food = r.food, wood = r.wood, shells = r.shells },
 		charm = Island.charm(p),
-		beds = Island.beds(p),
 		nests = Island.nests(p),
-		pen = Tree.penRoom(p),
 		visitors = Island.visitors(p),
 	}
 end

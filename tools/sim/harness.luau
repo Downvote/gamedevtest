@@ -366,7 +366,7 @@ local function finite(v)
 end
 H.finite = finite
 
--- The profile is valid: finite non-negative stores, pieces that fit the island with unique uids, villagers and
+-- The profile is valid: finite non-negative stores, pieces that fit the island with unique uids,
 -- driftlings with unique ids working only where they may (a driftling from a hut, Tuning.HelpMax a building), the huts
 -- within their room, one Tree of Life with its levels in range, no level left on anyone, the tips in range.
 function H.checkProfile(p, label)
@@ -390,7 +390,7 @@ function H.checkProfile(p, label)
 	for _, k in { "boat", "chart", "cap", "pouch", "islets", "sea", "wilds" } do
 		H.expect(prof[k] == nil, "profile", label .. ": " .. k .. " left in the save (gone with the expeditions)")
 	end
-	H.expect(prof.tut >= 0 and prof.tut <= 7, "profile", label .. ": tips out of range", tostring(prof.tut))
+	H.expect(prof.tut >= 0 and prof.tut <= 6, "profile", label .. ": tips out of range", tostring(prof.tut))
 	-- the Tree of Life: its levels, its growth
 	local tr = prof.tree
 	H.expect(type(tr) == "table" and tr.luck >= 1 and tr.luck <= #Tuning.TreeLuckCost and tr.speed >= 1 and tr.speed <= #Tuning.TreeSpeedCost and finite(tr.t) and tr.t >= 0, "profile", label .. ": the tree's levels or growth", if type(tr) == "table" then string.format("%s %s %s", tostring(tr.luck), tostring(tr.speed), tostring(tr.t)) else "none")
@@ -417,20 +417,10 @@ function H.checkProfile(p, label)
 		H.expect(ok, "profile", label .. ": piece " .. i .. " does not fit", string.format("%s at %d,%d", q.id, q.x, q.z))
 		table.insert(rest, q)
 	end
-	-- villagers and driftlings
+	-- driftlings (no villagers since 2026-11-12)
+	H.expect(prof.folk == nil, "profile", label .. ": villagers in the save (they're gone)")
 	local ids = {}
-	local jobs, helps = {}, {}
-	H.expect(#prof.folk <= Tuning.FolkMax, "profile", label .. ": too many villagers", tostring(#prof.folk))
-	for _, v in prof.folk do
-		H.expect(v.id > 0 and v.id < prof.nextId and not ids[v.id] and not uids[v.id], "profile", label .. ": a bad or shared villager id", tostring(v.id))
-		ids[v.id] = true
-		H.expect(v.lvl == nil and v.xp == nil, "profile", label .. ": a villager with a level (levels are gone)")
-		if v.work ~= 0 then
-			local q = uids[v.work]
-			H.expect(q ~= nil and Island.works(q.id) and not jobs[v.work], "profile", label .. ": a villager at a bad or taken job", tostring(v.work))
-			jobs[v.work] = true
-		end
-	end
+	local helps = {}
 	local inHut = {}
 	local inPen = 0
 	for _, x in prof.pals do
@@ -463,8 +453,7 @@ function H.checkProfile(p, label)
 		local hd = q and Buildings.byId[q.id]
 		H.expect(hd ~= nil and n <= hd.slots, "profile", label .. ": a hut over its room", string.format("%d in %s", n, tostring(q and q.id)))
 	end
-	H.expect(inPen <= math.max(Tree.penRoom(prof), inPen), "profile", label .. ": the pen")
-	H.expect(#prof.pals <= Tuning.PalsMax, "profile", label .. ": too many driftlings", tostring(#prof.pals))
+	H.expect(inPen <= Tuning.PenKeep, "profile", label .. ": the pen past PenKeep", tostring(inPen))
 	for k, n in prof.seen do
 		H.expect(Creatures.byId[k] ~= nil and (n == 1 or n == 2), "profile", label .. ": a bad Index entry", tostring(k))
 	end
@@ -486,7 +475,7 @@ function H.checkMirror(p, label)
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
 		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))
 	end
-	H.expect(#v.folk == #prof.folk and #v.pals == #prof.pals, "mirror", label .. ": villagers or driftlings differ", string.format("%d/%d vs %d/%d", #v.folk, #v.pals, #prof.folk, #prof.pals))
+	H.expect(#v.pals == #prof.pals and v.folk == nil, "mirror", label .. ": driftlings differ", string.format("%d vs %d", #v.pals, #prof.pals))
 	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
 	H.expect(v.tree ~= nil and v.tree.luck == prof.tree.luck and v.tree.speed == prof.tree.speed, "mirror", label .. ": the tree's levels differ")
 	local homes = {}

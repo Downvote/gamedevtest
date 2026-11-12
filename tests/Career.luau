@@ -1,9 +1,9 @@
 -- A sensible player for the Economy spec and the tuning runs: plays a session second by second through the island's
 -- own rules (Logic/Island, Plot, Tree: what the server runs) and logs it every ten minutes. Every few seconds they
--- build what the island lacks most (a bed when the village is full, food when it runs short, a hut while the pen has
--- driftlings and the huts are full, wood, a shop for every three villagers, decor with spare shells), expand the island
--- when they can, buy the tree's next speed or luck when it costs a third of their shells or less, and when the pen is
--- full sell its commons (then its worst one).
+-- build what the island lacks most (food when it runs short, a hut while the pen has driftlings, the huts are full and
+-- there is work for more, wood, a shop a tier, decor with spare shells), expand the island when they can, buy the
+-- tree's next speed or luck when it costs a third of their shells or less, and sell the pen's commons once a few wait
+-- there (its uncommons too once many do).
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Island = require("../build/luautest/shared/Logic/Island")
@@ -75,36 +75,86 @@ local function plan(p: any)
 		Tree.settle(p)
 		return
 	end
-	-- saving up for the next tier once the village is going (its shells and its wood)
-	local saving = ex ~= nil and #p.folk >= 4 * p.tier and (p.shells < ex.shells or p.wood < ex.wood)
-	local wants: { string } = {}
-	if Island.beds(p) <= #p.folk and #p.folk < Tuning.FolkMax then
-		table.insert(wants, "home")
+	-- the tips' buildings first (a patch, a camp, a stall, a hut), as a new player builds them
+	for _, first in { { "food", "patch" }, { "wood", "lumber" }, { "shop", "stall" }, { "nest", "nest" } } do
+		if countKind(p, first[1]) == 0 then
+			if build(p, first[2]) then
+				Tree.settle(p)
+				Tree.fillJobs(p)
+			end
+			return
+		end
 	end
-	if Island.nests(p) == 0 then
-		table.insert(wants, "nest")
-	end
-	if r.food < 3 or p.food < 20 then
-		table.insert(wants, "food")
-	end
-	-- a hut while the pen has driftlings and the huts are full (and there is work for more)
 	local housed = 0
 	for _, x in p.pals do
 		if x.home ~= 0 then
 			housed += 1
 		end
 	end
-	if Tree.inPen(p) > 0 and Island.nests(p) <= housed and housed < Tuning.HelpMax * (countKind(p, "food") + countKind(p, "wood") + countKind(p, "shop")) then
+	-- saving up for the next tier once the island is going (its shells and its wood)
+	local saving = ex ~= nil and housed >= 4 * p.tier and (p.shells < ex.shells or p.wood < ex.wood)
+	local wants: { string } = {}
+	if r.food < 3 or p.food < 20 then
+		table.insert(wants, "food")
+	end
+	-- the pen: a hut when one waiting has a free place at work but no hut has room; a building of a knack two or more
+	-- wait for with nowhere to work
+	local room = 0
+	for _, h in Tree.huts(p) do
+		room += h.room - h.n
+	end
+	local waiting: { [string]: number } = {}
+	local needHut = false
+	for _, x in p.pals do
+		if x.home == 0 and x.held == nil then
+			local knack = Creatures.byId[x.sp].knack
+			if Island.freeJob(p, knack) ~= 0 then
+				needHut = needHut or room <= 0
+			else
+				waiting[knack] = (waiting[knack] or 0) + 1
+			end
+		end
+	end
+	if needHut then
 		table.insert(wants, "nest")
 	end
 	if r.wood < 3 + 5 * p.tier or (ex and p.wood < ex.wood and r.wood < 10 * p.tier) then
 		table.insert(wants, "wood")
 	end
-	if countKind(p, "shop") < 1 + #p.folk // 3 then
+	if countKind(p, "shop") < p.tier then
 		table.insert(wants, "shop")
+	end
+	do
+		local most, pick = 1, nil
+		for knack, n in waiting do
+			if n > most then
+				most, pick = n, knack
+			end
+		end
+		if pick then
+			table.insert(wants, "knack:" .. pick)
+		end
 	end
 	for _, kind in wants do
 		local id = best(p, kind)
+		if string.sub(kind, 1, 6) == "knack:" then
+			-- a building of that knack (the best the island can have now that it can afford, else a cheaper one)
+			local knack = string.sub(kind, 7)
+			local pick: any = nil
+			for _, d in Buildings.list do
+				-- (while saving for the next tier, only one it can easily afford)
+				local k = if saving then 3 else 1
+				if d.knack == knack and d.tier <= p.tier and p.shells >= d.shells * k and p.wood >= d.wood * k and (pick == nil or d.tier > pick.tier) then
+					pick = d
+				end
+			end
+			if pick and build(p, pick.id) then
+				Tree.settle(p)
+				Tree.fillJobs(p)
+				return
+			end
+			continue
+		end
 		if id and build(p, id) then
 			Tree.settle(p)
 			Tree.fillJobs(p)
@@ -141,22 +191,14 @@ local function plan(p: any)
 	end
 end
 
--- A full pen: sell its commons, then its worst one.
+-- The pen (it never fills): its commons sold once a few wait there, its uncommons too once many do.
 local function tidy(p: any)
-	if not Tree.waiting(p) then
-		return
+	local n = Tree.inPen(p)
+	if n > 8 then
+		Tree.sellPen(p, 1)
 	end
-	Tree.sellPen(p, 1)
-	if Tree.waiting(p) then
-		local worst: any = nil
-		for _, x in p.pals do
-			if x.home == 0 and (worst == nil or Tree.worth(x) < Tree.worth(worst)) then
-				worst = x
-			end
-		end
-		if worst then
-			Tree.sell(p, worst.id)
-		end
+	if Tree.inPen(p) > 20 then
+		Tree.sellPen(p, 2)
 	end
 end
 
@@ -164,7 +206,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 	local o: Opts = opts or {}
 	local log = o.log
 	local p = Schema.default(0, seed)
-	local rng = Util.newRng(seed * 7 + 1)
+	local rng = Util.newRng(Util.hash32("career:" .. seed)) -- (hashed, as the server seeds a session: a small seed's first draws are weak)
 	local turnClock = 0
 	local sold = 0
 	local first: { [string]: number } = {}
@@ -182,7 +224,8 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 	end
 	for t = 1, seconds do
 		Island.step(p, 1)
-		local grown = Tree.step(p, 1, rng)
+		local grown, _, auto = Tree.step(p, 1, rng)
+		sold += auto
 		for _, x in grown do
 			local r = Creatures.byId[x.sp].rarity
 			for k = 2, r do
@@ -192,10 +235,6 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		turnClock += 1
 		if turnClock >= Tuning.TurnSeconds then
 			turnClock -= Tuning.TurnSeconds
-			local news = Island.turn(p, rng)
-			if news.movedIn then
-				mark("villager", t)
-			end
 			Breed.turn(p)
 		end
 		if t % 5 == 0 then
@@ -220,9 +259,9 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 					housed += 1
 				end
 			end
-			local row = { t = t, shells = p.shells, food = p.food, wood = p.wood, folk = #p.folk, pals = housed, pen = Tree.inPen(p), tier = p.tier, luck = p.tree.luck, speed = p.tree.speed, pieces = #p.plot.placed, charm = Island.charm(p), shellRate = r.shells, foodRate = r.food, woodRate = r.wood, sold = sold, earned = p.stats.earned }
+			local row = { t = t, shells = p.shells, food = p.food, wood = p.wood, pals = housed, pen = Tree.inPen(p), tier = p.tier, luck = p.tree.luck, speed = p.tree.speed, pieces = #p.plot.placed, charm = Island.charm(p), shellRate = r.shells, foodRate = r.food, woodRate = r.wood, sold = sold, earned = p.stats.earned }
 			table.insert(timeline, row)
-			say(string.format("%3dmin shells %d (+%.0f/t) food %d (%+.0f/t) wood %d (+%.0f/t) tier %d pieces %d folk %d huts %d pen %d luck %d speed %d charm %d sold %d of %d", t // 60, math.floor(p.shells), r.shells, math.floor(p.food), r.food, math.floor(p.wood), r.wood, p.tier, #p.plot.placed, #p.folk, housed, Tree.inPen(p), p.tree.luck, p.tree.speed, Island.charm(p), math.floor(sold), math.floor(p.stats.earned)))
+			say(string.format("%3dmin shells %d (+%.0f/t) food %d (%+.0f/t) wood %d (+%.0f/t) tier %d pieces %d huts %d pen %d luck %d speed %d charm %d sold %d of %d", t // 60, math.floor(p.shells), r.shells, math.floor(p.food), r.food, math.floor(p.wood), r.wood, p.tier, #p.plot.placed, housed, Tree.inPen(p), p.tree.luck, p.tree.speed, Island.charm(p), math.floor(sold), math.floor(p.stats.earned)))
 		end
 	end
 	return { profile = p, timeline = timeline, first = first, sold = sold }

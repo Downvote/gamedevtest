@@ -1,13 +1,15 @@
 -- The Tree of Life and its pen (Logic/Tree; GAME_DESIGN 6): every island has a tree; it grows a driftling every few
--- seconds into the pen and waits while the pen is full; luck makes the rarer ones likelier, speed makes it quicker;
--- the pen sends its best driftlings into the huts with room (the comfiest first) and they take a job of their knack;
--- the player moves them between huts and the pen (a full one only in a swap), sells them, and upgrades the tree.
+-- seconds into the pen, which never fills (past PenKeep the least useful is sold); luck makes the rarer ones
+-- likelier, speed makes it quicker; the pen sends its best driftlings into the huts with room (the comfiest first) and
+-- they take a job of their knack; the player moves them between huts and the pen (a full hut only in a swap), sells
+-- them, and upgrades the tree.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Tree = require("../../build/luautest/shared/Logic/Tree")
 local Island = require("../../build/luautest/shared/Logic/Island")
 local Plot = require("../../build/luautest/shared/Logic/Plot")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
+local Buildings = require("../../build/luautest/shared/Data/Buildings")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
 local Islets = require("../../build/luautest/shared/Data/Islets")
 local Traits = require("../../build/luautest/shared/Data/Traits")
@@ -43,7 +45,7 @@ return function()
 		end
 		T.eq(select(1, Plot.used(p, "flowers")), 0, "the tree doesn't count")
 		T.deepEq(p.tree, { luck = 1, speed = 1, t = 0 })
-		T.eq(Tree.penRoom(p), Tuning.PenRoom[1])
+		T.truthy(Buildings.byId.tree.w >= 6 and Buildings.byId.tree.d >= 6, "a grand tree")
 	end)
 
 	T.it("the tree is moved like a piece but never bought, cleared away or replaced", function()
@@ -64,7 +66,7 @@ return function()
 		end
 	end)
 
-	T.it("it grows a driftling every TreeSecs into the pen, and waits while the pen is full", function()
+	T.it("it grows a driftling every TreeSecs into the pen, which never fills; past PenKeep the least useful is sold", function()
 		local p = fresh()
 		local rng = Util.newRng(3)
 		local secs = Tree.secs(p)
@@ -78,20 +80,27 @@ return function()
 		T.eq(x.work, 0)
 		T.eq(p.seen[x.sp], 2, "in the Index")
 		T.eq(p.stats.grown, 1)
-		-- fill the pen: it stops
+		-- it never stops
 		for _ = 1, 100 do
 			Tree.step(p, secs, rng)
 		end
-		T.eq(Tree.inPen(p), Tree.penRoom(p), "full")
-		T.truthy(Tree.waiting(p))
-		T.eq(p.tree.t, secs, "ready, waiting")
-		local n = #p.pals
-		Tree.step(p, secs * 5, rng)
-		T.eq(#p.pals, n, "nothing more while full")
-		-- a sale makes room: the next grows at once
-		T.truthy(Tree.sell(p, p.pals[1].id))
-		grown = Tree.step(p, 0.05, rng)
-		T.eq(#grown, 1, "grows once there is room")
+		T.eq(Tree.inPen(p), 101, "no room limit")
+		T.truthy(p.tree.t < secs)
+		-- past PenKeep: the least useful the player didn't keep there go, sold
+		local kept = p.pals[1]
+		kept.held = 1
+		local legend = { id = p.nextId, sp = "solwyrm", home = 0, work = 0, muts = {} }
+		p.nextId += 1
+		table.insert(p.pals, legend)
+		while Tree.inPen(p) < Tuning.PenKeep do
+			Tree.step(p, secs, rng)
+		end
+		local shells, sold = p.shells, p.stats.sold
+		local _, _, got = Tree.step(p, secs * 3, rng)
+		T.eq(Tree.inPen(p), Tuning.PenKeep, "back to PenKeep")
+		T.truthy(got > 0 and p.shells == shells + got and p.stats.sold == sold + 3, "three sold for shells")
+		T.truthy(table.find(p.pals, kept) ~= nil, "the kept one stays")
+		T.truthy(table.find(p.pals, legend) ~= nil, "the best stays")
 	end)
 
 	T.it("what grows: the kinds open at the island's tier, rarer ones less often, and luck makes them likelier", function()
@@ -149,16 +158,17 @@ return function()
 		p.tree.speed = 4
 		T.eq(Tree.secs(p), Tuning.TreeSecs[4])
 		build(p, "nest")
+		build(p, "pier") -- (somewhere for a fishing driftling to work)
 		local x = pal(p, "breezle", { "swift4" }) -- Tailwind: tree +6%, Evergreen +22%
 		Tree.settle(p)
 		T.truthy(x.home ~= 0, "in the hut")
 		T.near(Tree.secs(p), Tuning.TreeSecs[4] / (1 + 0.06 + 0.22), 1e-9)
 		-- capped
 		for _ = 1, 10 do
-			build(p, "nest")
-			pal(p, "breezle", { "swift4" })
+			local hut = build(p, "nest")
+			local y = pal(p, "breezle", { "swift4" })
+			y.home = hut
 		end
-		Tree.settle(p)
 		T.near(Tree.secs(p), Tuning.TreeSecs[4] / (1 + Tuning.HutTree), 1e-9)
 	end)
 
@@ -168,6 +178,9 @@ return function()
 		local a = pal(p, "pebblit") -- common
 		local b = pal(p, "shellback") -- rare
 		local c = pal(p, "gullfin") -- uncommon
+		build(p, "lumber") -- (somewhere to work for each)
+		build(p, "pier")
+		build(p, "patch")
 		local nest = build(p, "nest") -- room 2
 		local moved = Tree.settle(p)
 		T.eq(#moved, 2)
@@ -203,13 +216,19 @@ return function()
 			end
 		end
 		T.eq(at, Tuning.HelpMax, "two at the patch")
-		local resting = 0
+		local waiting = 0
 		for _, x in list do
-			if x.home ~= 0 and x.work == 0 then
-				resting += 1
+			if x.home == 0 then
+				waiting += 1
 			end
 		end
-		T.eq(resting, 1, "the third rests in its hut")
+		T.eq(waiting, 1, "the third waits in the pen: nowhere to work")
+		-- a second patch: it moves in and works there
+		local patch2 = build(p, "patch")
+		Tree.settle(p)
+		for _, x in list do
+			T.truthy(x.home ~= 0 and (x.work == patch or x.work == patch2), "all three at work")
+		end
 		-- the pen's: no work, no food
 		local q = pal(p, "frondle")
 		q.held = 1
@@ -223,18 +242,23 @@ return function()
 	T.it("rarer ones work faster (RarityWork)", function()
 		local p = fresh()
 		build(p, "nest")
+		build(p, "lumber")
+		build(p, "patch")
 		local common = pal(p, "pebblit")
 		local legend = pal(p, "solwyrm")
 		Tree.settle(p)
 		local wc = Island.palBoost(p, common)
 		local wl = Island.palBoost(p, legend)
-		T.near(wc, Tuning.PalBoost * Tuning.RarityWork[1] * (1 + Island.palWork(p, common)), 1e-9)
-		T.near(wl, Tuning.PalBoost * Tuning.RarityWork[5] * (1 + Island.palWork(p, legend)), 1e-9)
+		T.near(wc, Tuning.PalWork * Tuning.RarityWork[1] * (1 + Island.palWork(p, common)), 1e-9)
+		T.near(wl, Tuning.PalWork * Tuning.RarityWork[5] * (1 + Island.palWork(p, legend)), 1e-9)
 		T.truthy(wl > wc * 3)
 	end)
 
-	T.it("moving: to a hut or the pen; a full one only in a swap; refusals", function()
+	T.it("moving: to a hut or the pen (always room there); a full hut only in a swap; refusals", function()
 		local p = fresh()
+		build(p, "lumber")
+		build(p, "pier")
+		build(p, "stall")
 		local nest = build(p, "nest")
 		local a = pal(p, "pebblit")
 		local b = pal(p, "clawdle")
@@ -263,12 +287,13 @@ return function()
 		local burrow = build(p, "nest")
 		T.truthy(Tree.house(p, c.id, burrow, 0))
 		T.eq(c.held, nil)
-		-- the pen full: only a swap
-		while Tree.inPen(p) < Tree.penRoom(p) do
+		-- a crowded pen still takes one
+		for _ = 1, 30 do
 			local x = pal(p, "pebblit")
 			x.held = 1
 		end
-		T.eq(select(2, Tree.house(p, c.id, 0, 0)), "full", "a full pen")
+		T.truthy(Tree.house(p, c.id, 0, 0), "the pen has room")
+		T.eq(c.home, 0)
 	end)
 
 	T.it("selling: shells by rarity and mutations; the pen's commons at once; a hut's place refilled", function()
@@ -296,6 +321,9 @@ return function()
 		T.truthy(z.home == 0 and table.find(p.pals, z) ~= nil, "not the legend")
 		T.eq(select(2, Tree.sellPen(p, 1)), "not_found", "none left")
 		-- a hut's driftling sold: the pen's best moves in
+		build(p, "pier")
+		build(p, "patch")
+		build(p, "stall")
 		local nest = build(p, "nest")
 		local a = pal(p, "gullfin")
 		Tree.settle(p)
@@ -335,6 +363,8 @@ return function()
 		local p = fresh()
 		p.tier = 2
 		local burrow = build(p, "burrow") -- room 4
+		build(p, "lumber")
+		build(p, "lumber")
 		local list = {}
 		for _ = 1, 4 do
 			table.insert(list, pal(p, "pebblit"))
