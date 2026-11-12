@@ -483,6 +483,13 @@ function SCEN.city()
 	end
 	E.run(1.5)
 	capture(p, "city_north")
+	-- the city at night: its windows, lamps and torches each lighting as far as its size
+	local DL = modOr(p, "Controllers.DayLight")
+	if DL then
+		H.inClient(p, DL.debugSet, 0.88)
+		E.run(1.5)
+		capture(p, "city_night")
+	end
 	return p
 end
 

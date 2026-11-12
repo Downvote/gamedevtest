@@ -516,7 +516,12 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   (`EMISSIVE` statics, `dynGlow` dynamics) keep their colour; round them `lightMap` (u8 a pixel, 0..3, rebuilt by
   `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second
   for the moving lights; a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
-  warm light in three stepped rings (`RING`, twice as wide as tall: the ground at 2:1),
+  warm light in three stepped rings (`RING`: 0.35, 0.65 and 1 of the radius, twice as wide as tall: the ground at
+  2:1), each pool as big as its light (`lightRadius(area)`: `LIGHT_K` 1.2 x area ^ `LIGHT_POW` 0.6, between
+  `LIGHT_MIN` 2 and `LIGHT_MAX` 22 art px): a static light is a patch of `EMISSIVE` pixels touching 8 ways (a flood
+  fill over the static layer; its pool at the patch's middle, 3 px lower), a dynamic one a model's Neon parts together
+  (their area the two biggest faces of each on the screen, art px per stud `cam.s / cam.K`; the pool at their
+  area-weighted middle, 3 px lower),
   `lamps` of the way back to the colour by day, warmed, times how dark the hour is (`dark`: from the light's colour,
   0 by day and in the golden dusk, 1 at night) and 0.85 at most. As it gets dark the luminance over a knee is pressed
   down (`press`: up to 0.45 of it for white at night), so pale colours (shells, sand, sails) don't glow.

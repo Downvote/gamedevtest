@@ -491,7 +491,19 @@ local lightMap: buffer? = nil
 local lightStale = true
 local lightAt = 0
 local LIGHT_EVERY = 0.4
-local RING = { 3.5, 6.5, 10 } -- a pool's rings (art px, vertical; twice as wide: the ground is seen at 2:1)
+-- A pool's rings as shares of its radius (art px, vertical; twice as wide: the ground is seen at 2:1). The radius
+-- follows the light's size ("lights seem off, the all have the same size even though the light source might be
+-- smaller or bigger"): LIGHT_K x how many pixels the light covers to the power LIGHT_POW (a glint on the tree 1, the
+-- tree's lanterns about 10, a pier lantern about 19, a torch about 40, the campfire over 120: radii about 2, 5, 7, 11
+-- and 21), between LIGHT_MIN and LIGHT_MAX.
+local RING = { 0.35, 0.65, 1 }
+local LIGHT_K = 1.2
+local LIGHT_POW = 0.6
+local LIGHT_MIN = 2
+local LIGHT_MAX = 22
+local function lightRadius(area: number): number
+	return math.clamp(LIGHT_K * area ^ LIGHT_POW, LIGHT_MIN, LIGHT_MAX)
+end
 
 local function clampByte(v: number): number
 	return if v < 0 then 0 elseif v > 255 then 255 else math.floor(v + 0.5)
@@ -531,8 +543,9 @@ local function isGlow(id: number): boolean
 	return dynGlow[id] == true
 end
 
-local function splat(lm: buffer, W: number, H: number, px: number, py: number)
-	local R = RING[3]
+-- One light's pool of radius R (art px) round (px, py), stepped on the pixel grid.
+local function splat(lm: buffer, W: number, H: number, px: number, py: number, R: number)
+	local r1, r2 = RING[1] * R, RING[2] * R
 	for dy = -math.floor(R), math.floor(R) do
 		local y = py + dy
 		if y < 0 or y >= H then
@@ -544,7 +557,7 @@ local function splat(lm: buffer, W: number, H: number, px: number, py: number)
 				continue
 			end
 			local e = math.sqrt((dx * 0.5) ^ 2 + dy * dy)
-			local lvl = if e < RING[1] then 3 elseif e < RING[2] then 2 elseif e < R then 1 else 0
+			local lvl = if e < r1 then 3 elseif e < r2 then 2 elseif e < R then 1 else 0
 			if lvl > 0 then
 				local i = y * W + x
 				if buffer.readu8(lm, i) < lvl then
@@ -555,7 +568,11 @@ local function splat(lm: buffer, W: number, H: number, px: number, py: number)
 	end
 end
 
--- The lamps' pools: every 4x4 block of the static layer with a lamp's pixel, and every lit dynamic part.
+-- The lamps' pools, each as big as its light: on the static layer a light is a patch of lamp pixels touching each
+-- other (8 ways), its pool round the patch's middle, a little lower; a dynamic model's lit parts together are
+-- one light (a fire's flames, a driftling's glowing eyes), their size the faces they show (art px per stud: cam.s / K).
+local lightSeen: buffer? = nil
+local lightStack: { number } = {}
 local function buildLight(s: Surf)
 	local W, H = s.W, s.H
 	local n = W * H
@@ -566,40 +583,92 @@ local function buildLight(s: Surf)
 	else
 		buffer.fill(lm, 0, 0)
 	end
+	local seen: buffer
+	local had = lightSeen
+	if had == nil or buffer.len(had) ~= n then
+		seen = buffer.create(n)
+		lightSeen = seen
+	else
+		seen = had
+		buffer.fill(seen, 0, 0)
+	end
 	local sid = s.sId
-	for cy = 0, H - 1, 4 do
-		for cx = 0, W - 1, 4 do
-			local hit = false
-			for y = cy, math.min(H - 1, cy + 3) do
-				for x = cx, math.min(W - 1, cx + 3) do
-					local id = buffer.readu16(sid, (y * W + x) * 2)
-					if id ~= 0 and id < DYN_ID0 and (albedos[id] or 0) >= EMISSIVE then
-						hit = true
-						break
+	local lamp: { [number]: boolean } = {}
+	local function isLamp(i: number): boolean
+		local id = buffer.readu16(sid, i * 2)
+		if id == 0 or id >= DYN_ID0 then
+			return false
+		end
+		local v = lamp[id]
+		if v == nil then
+			v = (albedos[id] or 0) >= EMISSIVE
+			lamp[id] = v
+		end
+		return v
+	end
+	local stack = lightStack
+	for i0 = 0, n - 1 do
+		if buffer.readu8(seen, i0) ~= 0 or not isLamp(i0) then
+			continue
+		end
+		-- the patch: how many pixels and their middle
+		buffer.writeu8(seen, i0, 1)
+		local top = 1
+		stack[1] = i0
+		local count, sumX, sumY = 0, 0, 0
+		while top > 0 do
+			local i = stack[top]
+			top -= 1
+			local x, y = i % W, i // W
+			count += 1
+			sumX += x
+			sumY += y
+			for dy = -1, 1 do
+				local yy = y + dy
+				if yy < 0 or yy >= H then
+					continue
+				end
+				for dx = -1, 1 do
+					local xx = x + dx
+					if xx >= 0 and xx < W then
+						local j = yy * W + xx
+						if buffer.readu8(seen, j) == 0 and isLamp(j) then
+							buffer.writeu8(seen, j, 1)
+							top += 1
+							stack[top] = j
+						end
 					end
 				end
-				if hit then
-					break
-				end
-			end
-			if hit then
-				splat(lm :: buffer, W, H, cx + 2, cy + 5)
 			end
 		end
+		-- (the pool a little under the light: on the ground round its foot)
+		splat(lm :: buffer, W, H, math.floor(sumX / count + 0.5), math.floor(sumY / count + 0.5) + 3, lightRadius(count))
 	end
 	local cam = s.cam
+	local ppu = cam.s / cam.K
 	for model, d in dyns do
 		if model.Parent == nil then
 			continue
 		end
+		local area, sx, sy, any = 0, 0, 0, false
 		for _, p in d.parts do
 			if p.glow and p.part.Parent ~= nil then
 				local pos = p.part.Position
 				local fx, fy = Raster.project(cam, pos.X, pos.Y, pos.Z)
-				local x, y = math.floor(fx), math.floor(fy)
-				if x >= -20 and x < W + 20 and y >= -10 and y < H + 10 then
-					splat(lm :: buffer, W, H, x, y + 3)
-				end
+				-- (the faces it shows: its two biggest sides, on the screen)
+				local sz = p.part.Size
+				local a, b, c = sz.X, sz.Y, sz.Z
+				local face = (a * b + b * c + a * c - math.min(a * b, b * c, a * c)) * 0.5 * ppu * ppu
+				area += face
+				sx += fx * face
+				sy += fy * face
+				any = true
+			end
+		end
+		if any and area > 0 then
+			local x, y = math.floor(sx / area + 0.5), math.floor(sy / area + 0.5)
+			if x >= -20 and x < W + 20 and y >= -10 and y < H + 10 then
+				splat(lm :: buffer, W, H, x, y + 3, lightRadius(area))
 			end
 		end
 	end

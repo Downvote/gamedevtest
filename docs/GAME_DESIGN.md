@@ -531,7 +531,16 @@ text (the requests and how each was met) is in the history of this file, up to c
   that brightens into the next dawn. At night the lamps, torches, the campfire, lanterns and lit windows keep their
   colour and pool warm light round them in three stepped rings on the pixel grid (the pools move with the picture as
   the view follows you), only as strong as the dark is deep (no orange rings in the late afternoon), never all the
-  way back to the day. As it gets dark pale things lose more of their light than dark ones (their brightness over a
+  way back to the day. Each pool is as big as its light:
+
+  > The request (2026-11-12): "also, lights seem off, the all have the same size even though the light source might
+  > be smaller or bigger"
+
+  Every light had the same pool, so a one-pixel glint on the Tree of Life lit as far as the campfire and the tree's
+  canopy came out in bright rings. Now a light is the patch of lit pixels it shows (or a moving model's lit parts
+  together, a fire's flames or a driftling's glowing eyes), and its pool's radius goes with that patch's size to the
+  power 0.6: a glint gets a two-pixel halo, the tree's lanterns about 5, a pier lantern 7, a torch 11 and the campfire
+  about 21 (the biggest 22). As it gets dark pale things lose more of their light than dark ones (their brightness over a
   knee is pressed down), so white and pink shells, the sand and the sails stay in the night instead of glowing blue.
   The change steps (a few steps between keys, never a smear). With the pixel filter off
   Roblox's own clock follows the day instead.
