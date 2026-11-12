@@ -21,9 +21,17 @@ local Monetization = {
 		Ding = 9126073001, -- Synth Sparkle Tone High Pitch Bell Tone Ding
 		Coin = 9117268552, -- Pebbles Movement 3 (a shell or two)
 		CoinsMany = 9117270219, -- Pebbles Movement 5 (a handful)
-		-- the happy moments: a small music-box chime, one note pitched per moment (Audio's events), never a loud sting
-		Chime = 9117043866, -- Music Box Swan Lake Single Notes 20 (a warm note, about 1.5 s of ring)
-		ChimeHigh = 9117042092, -- Music Box Swan Lake Single Notes 3 (a higher one)
+		-- the happy moments: each its own small, short library sound (never one note pitched up or down to stand in
+		-- for another, never a loud sting), measured for length and loudness before going in
+		DoorChime = 9125492239, -- Door Chimes Various Tone Sequences Door Bell (its first ding-dong: a newcomer)
+		BellTree = 9119448154, -- Sparkle Bell Tree Wind Chimes 2 (a place cleared)
+		BellTreeRun = 9119447936, -- Sparkle Bell Tree Wind Chimes 1 (the island grows)
+		ChimeCluster = 9116394876, -- Magic Glows Soft Clusters Of Chiming Hits 2 (a friend made, an egg hatched)
+		SparkleTones = 9126073318, -- Synth Sparkle Tone High Pitch Bell Tone Ding (the longer take: a level up)
+		Triangle = 9116224196, -- Large Metal Triangle Single Ringing Hits 9 (a reward)
+		DrumRoll = 9116512298, -- Metal 50 Gallon Drum Short Roll 1 (a guardian steps up)
+		MusicBoxWind = 9117044099, -- Music Box Winding Up 4 (an egg laid at the Hatchery)
+		SparklePass = 9125635426, -- Magical Exit Sparkling Pass Bys Clinking Chimes (a rare wild one turns up)
 		Combo = 9119034605, -- Shaker Pod South American Instrument 6
 		Tick = 9120917794, -- Wood Impacts Soft Impacts On Temple Blocks 5
 		Cheer = 9119034593, -- Shaker Pod South American Instrument 5
@@ -48,6 +56,16 @@ local Monetization = {
 		BoatHorn = 9113467357, -- Boat Horn Short Long Blasts 1
 		Gull = 9118858259, -- Seagull Squawks 3
 		Birds = 9119383479, -- Sonoma Morning Birds California Chirping 1
+		-- the founder's feet (Roblox's own footstep, jump and landing sounds are switched off: RbxCharacterSounds)
+		StepGrass1 = 9120062960, -- Tip Toe Of Object Onto Grass 8
+		StepGrass2 = 9120062559, -- Tip Toe Of Object Onto Grass 1
+		StepSand1 = 9118768256, -- Sand Impacts 4
+		StepSand2 = 9118768193, -- Sand Impacts 5
+		StepWood1 = 9114523345, -- Foot Stomp 3 (the boardwalk, the jetty, the pier)
+		StepWood2 = 9114523358, -- Foot Stomp 4
+		StepWood3 = 9114523629, -- Foot Stomp 7
+		Hop = 9113819689, -- Cloth Flap 12 (a jump)
+		LandSand = 9118768199, -- Sand Impacts 6 (landing)
 		Waves = 9126010643, -- Surf Bubbles Wave Bubbles On Sand Ocean Foam (a loop)
 		Crickets = 9112764546, -- Crickets Night 1 (a loop)
 	} :: { [string]: number },

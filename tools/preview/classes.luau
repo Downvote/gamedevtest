@@ -782,7 +782,8 @@ IMPL.ViewportFrame = {}
 IMPL.ImageLabel = { SetEnableContentImageSizeChangedEvents = function() end }
 
 ------------------------------------------------------------------ Humanoid
-DEFAULT.Humanoid = { WalkSpeed = 16, Health = 100, MaxHealth = 100, HipHeight = 2, JumpPower = 50, JumpHeight = 7.2, AutoRotate = true }
+-- (FloorMaterial: a humanoid standing on a part, as Roblox reports it; Air only in the air)
+DEFAULT.Humanoid = { WalkSpeed = 16, Health = 100, MaxHealth = 100, HipHeight = 2, JumpPower = 50, JumpHeight = 7.2, AutoRotate = true, FloorMaterial = Enum.Material.Plastic }
 GET.Humanoid = {
 	RootPart = function(self, d)
 		local m = d.props.Parent

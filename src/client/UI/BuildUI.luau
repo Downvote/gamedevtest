@@ -794,7 +794,7 @@ rebuild = function()
 						return
 					end
 					cheered = true
-					Audio.play("fanfare")
+					Audio.play("grow")
 					UIKit.notice(if moved > 0 then string.format("Your island grew. %d building%s had to move for the new lodge.", moved, if moved == 1 then "" else "s") else "Your island grew, and there's more you can build now.", UIKit.color("good"), 4)
 				end
 				PixelRenderer.afterBake(cheer)

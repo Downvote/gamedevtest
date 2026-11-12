@@ -647,7 +647,8 @@ local function onDay(msg: { [string]: any })
 		return
 	end
 	local title = if isDay then "Day " .. day elseif msg.movedIn == nil then "An egg hatched!" else "A newcomer!"
-	Audio.play(if #lines > 0 then "fanfare" else "ding")
+	-- (a newcomer rings the door chime, a hatchling the friend's chimes, a plain new day a small ding)
+	Audio.play(if msg.movedIn ~= nil then "newcomer" elseif hatched > 0 then "friend" else "ding")
 	if isDay then
 		chipBump.day = os.clock()
 	end

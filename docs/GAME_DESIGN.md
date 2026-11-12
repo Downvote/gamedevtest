@@ -948,14 +948,29 @@ rules (`Logic/*`) for three seeds and three hours; `tests/specs/Economy.spec.lua
 
   The interface is wood and bamboo: a temple-block tap for a click, a bamboo swish as a panel opens and closes, a low
   wooden knock for "no", wind chimes for a notice; shells coming in clack like pebbles (a handful for many); a bubble
-  pops; pages turn; a shaker for a cheer or a skill; the conch's call for the boat and a rally. The happy moments (a
-  newcomer moving in, a friend joining, expanding, a level up, home with the loot) ring one small music-box note each
-  (pitched per moment); a guardian stepping up and a defeat a lower one. A won fight makes no sound of its own (the
-  party's jump for joy and the small alert say it). Building is two quick hammer taps.
+  pops; pages turn; a shaker for a cheer or a skill; the conch's call for the boat and a rally. A won fight makes no
+  sound of its own (the party's jump for joy and the small alert say it). Building is two quick hammer taps.
 
   > The requests (2026-11-10): "remove the victory sound whenever a fight finishes"; "the victory sound and wherever
   > it plays in such as a villager coming is too noisy, find one with a small short chime instead"; "the building
   > sound is also too, long, make it short"
+
+  > The request (2026-11-12): "use different sounds for newcomer, victory and other sounds that use sounds made by
+  > you or was default roblox sounds. use sounds from the free roblox library instead"
+
+  The happy moments each have their own small, short sound from the library, measured for length and loudness before
+  going in (no more one music-box note pitched up or down to stand in for the others): a door bell's ding-dong for a
+  newcomer moving in; a bell tree's shimmer when a place is cleared; a lower bell-tree run as the island grows; a
+  soft cluster of chimes when a driftling joins (befriended, or hatched); a few bright sparkle tones for a level up;
+  one triangle ting for a reward (a quest claimed, home with the loot, the Expedition Complete card); a short drum
+  roll as a guardian steps up; a music box winding up as an egg is laid; a sparkling sweep when an epic or legendary
+  wild one turns up. Longer takes play only their first moment and fade out.
+
+  Your founder's feet are the game's own too: Roblox's built-in footstep, jump and landing sounds are switched off
+  (an empty `RbxCharacterSounds` script takes their place) and the founder steps softly on the lawn, crunches on the
+  sand and knocks on the boards of the boardwalk, the jetty and the pier, a step a stride (quicker when running,
+  several takes so no two steps in a row are the same), with a cloth flap for a jump and a soft thump on landing. The
+  walk up to a wild place has its steps too.
 
   > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"
 

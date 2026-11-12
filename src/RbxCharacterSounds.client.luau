@@ -1,0 +1,5 @@
+--!strict
+-- Roblox puts its own character sounds (footsteps, a jump, a landing, swimming) into StarterPlayerScripts under this
+-- name unless a script of the same name is already there. This one is that script, and it does nothing: the founder's
+-- feet play library sounds instead (Controllers/AvatarView with Controllers/Audio: "use sounds from the free roblox
+-- library instead", 2026-11-12).

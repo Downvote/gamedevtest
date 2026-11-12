@@ -1,17 +1,20 @@
 --!strict
 -- Every sound the game makes, by name (docs/ARCHITECTURE.md 8.2; GAME_DESIGN 15: "more polished and animated"): each
--- event plays one Config/Monetization.Sounds id (0 = silent) at its own volume and a pitch from its range. A repeat
--- inside the event's cooldown is dropped (a burst of popups makes a quick run, not a roar), and each event keeps a
--- couple of voices so overlapping plays do not cut each other off. Client only; never yields.
+-- event plays one Config/Monetization.Sounds id (0 = silent), or one of a few takes picked at random (`ids`), at its own
+-- volume and a pitch from its range. A repeat inside the event's cooldown is dropped (a burst of popups makes a quick
+-- run, not a roar), and each event keeps a couple of voices so overlapping plays do not cut each other off. Client
+-- only; never yields.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 
 export type PlayOpts = { volume: number?, pitch: number? }
--- from / len: play only that stretch of the clip (seconds into it, and for how long at normal speed)
-type EventDef = { id: string, vol: number, pitch: { number }?, cd: number?, voices: number?, from: number?, len: number? }
+-- from / len: play only that stretch of the clip (seconds into it, and for how long at normal speed), its last `fade`
+-- seconds faded out (else it stops dead); ids: takes picked at random (one voice each; `id` is the first)
+type EventDef = { id: string, ids: { string }?, vol: number, pitch: { number }?, cd: number?, voices: number?, from: number?, len: number?, fade: number? }
 
 local Audio = {}
 
@@ -27,16 +30,22 @@ local EVENTS: { [string]: EventDef } = {
 	-- the shells and the celebrations: pebbles, a shaker, the conch, island stingers
 	coin = { id = "Coin", vol = 0.35, pitch = { 1.05, 1.2 }, cd = 0.08, voices = 3 },
 	coins = { id = "CoinsMany", vol = 0.35, pitch = { 0.95, 1.05 }, cd = 0.3 },
-	-- the happy moments (a newcomer, a friend, a level up, home with the loot): one small music-box note each
-	fanfare = { id = "Chime", vol = 0.4, cd = 0.5 },
-	reward = { id = "Chime", vol = 0.38, pitch = { 1.26, 1.26 }, cd = 0.4 },
-	level_up = { id = "ChimeHigh", vol = 0.35, cd = 1 },
+	-- the happy moments, each its own small library sound ("use different sounds for newcomer, victory and other
+	-- sounds ... use sounds from the free roblox library instead", 2026-11-12; kept short and soft, as asked on
+	-- 2026-11-10: "find one with a small short chime instead")
+	newcomer = { id = "DoorChime", vol = 1.8, cd = 1, from = 0.3, len = 1.6, fade = 0.3 },
+	victory = { id = "BellTree", vol = 2.4, cd = 1, from = 0.7, len = 2.3, fade = 0.6 },
+	grow = { id = "BellTreeRun", vol = 2.6, cd = 1, from = 0.3, len = 2.3, fade = 0.6 },
+	friend = { id = "ChimeCluster", vol = 1.5, cd = 0.5 },
+	egg = { id = "MusicBoxWind", vol = 2.4, cd = 1 },
+	rare = { id = "SparklePass", vol = 0.38, cd = 1, from = 0.1, len = 2.2, fade = 0.5 },
+	reward = { id = "Triangle", vol = 0.9, pitch = { 0.98, 1.02 }, cd = 0.4, len = 1.4, fade = 0.4 },
+	level_up = { id = "SparkleTones", vol = 0.55, cd = 1 },
 	combo = { id = "Combo", vol = 0.4, pitch = { 1, 1.1 }, cd = 0.2 },
 	sparkle = { id = "Sparkle", vol = 0.45, pitch = { 0.96, 1.08 }, cd = 0.15 },
 	cheer = { id = "Cheer", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.6 },
 	trumpet = { id = "Trumpet", vol = 0.22, pitch = { 0.98, 1.02 }, cd = 1 },
-	sad = { id = "Chime", vol = 0.35, pitch = { 0.75, 0.75 }, cd = 1 },
-	drumroll = { id = "Chime", vol = 0.35, pitch = { 0.67, 0.67 }, cd = 1 },
+	drumroll = { id = "DrumRoll", vol = 0.4, cd = 1, from = 0.05, len = 1.6, fade = 0.4 },
 	tick = { id = "Tick", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.03, voices = 3 },
 	flip = { id = "CardFlip", vol = 0.35, pitch = { 0.95, 1.08 }, cd = 0.04, voices = 3 },
 	pop = { id = "Pop", vol = 0.5, pitch = { 0.95, 1.15 }, cd = 0.04, voices = 3 },
@@ -58,6 +67,12 @@ local EVENTS: { [string]: EventDef } = {
 	horn = { id = "BoatHorn", vol = 0.3, cd = 2 },
 	gull = { id = "Gull", vol = 0.12, pitch = { 0.95, 1.1 }, cd = 4 },
 	birds = { id = "Birds", vol = 0.2, cd = 20 },
+	-- the founder's feet (AvatarView): a step on the lawn, the sand or the boards, a hop, a landing
+	step_grass = { id = "StepGrass1", ids = { "StepGrass1", "StepGrass2" }, vol = 1.1, pitch = { 0.9, 1.1 }, cd = 0.12 },
+	step_sand = { id = "StepSand1", ids = { "StepSand1", "StepSand2" }, vol = 0.6, pitch = { 0.9, 1.1 }, cd = 0.12 },
+	step_wood = { id = "StepWood1", ids = { "StepWood1", "StepWood2", "StepWood3" }, vol = 0.25, pitch = { 0.95, 1.1 }, cd = 0.12 },
+	jump = { id = "Hop", vol = 0.16, pitch = { 1, 1.15 }, cd = 0.2 },
+	land = { id = "LandSand", vol = 0.19, pitch = { 0.95, 1.05 }, cd = 0.2 },
 }
 -- the ambience: looped sounds faded toward a volume (Audio.ambience)
 local LOOPS: { [string]: string } = { waves = "Waves", crickets = "Crickets" }
@@ -67,6 +82,8 @@ Audio.EVENTS = EVENTS
 local pools: { [string]: { Sound } } = {}
 local next_: { [string]: number } = {}
 local lastAt: { [string]: number } = {}
+local fades: { [Sound]: Tween } = {}
+local counts: { [string]: number } = {} -- plays an event made (Audio.playCount: the sims)
 local folder: Folder? = nil
 
 local function holder(): Instance
@@ -89,6 +106,31 @@ function Audio.has(name: string): boolean
 	end
 	local id = (Monetization.Sounds :: { [string]: number })[ev.id]
 	return type(id) == "number" and id > 0
+end
+
+-- How many voices an event keeps (one a take when it has several).
+local function voicesOf(ev: EventDef): number
+	return if ev.ids then #ev.ids else ev.voices or 2
+end
+
+-- An event's voice `i` (made the first time: a take's own sound when the event has several).
+local function voiceOf(name: string, ev: EventDef, i: number): Sound
+	local pool = pools[name]
+	if pool == nil then
+		pool = {}
+		pools[name] = pool
+	end
+	local s = pool[i]
+	if s and s.Parent then
+		return s
+	end
+	local key = if ev.ids then ev.ids[i] or ev.id else ev.id
+	local ns = Instance.new("Sound")
+	ns.Name = name
+	ns.SoundId = "rbxassetid://" .. tostring((Monetization.Sounds :: { [string]: number })[key])
+	ns.Parent = holder()
+	pool[i] = ns
+	return ns
 end
 
 -- An ambience (`waves`, `crickets`) faded toward `volume` (0: silent) over a second or so; it loops for as long as
@@ -256,22 +298,8 @@ function Audio.preload(names: { string })
 		if ev == nil or not Audio.has(name) then
 			continue
 		end
-		local pool = pools[name]
-		if pool == nil then
-			pool = {}
-			pools[name] = pool
-		end
-		for i = 1, ev.voices or 2 do
-			local snd = pool[i]
-			if not snd or snd.Parent == nil then
-				local ns = Instance.new("Sound")
-				ns.Name = name
-				ns.SoundId = "rbxassetid://" .. tostring((Monetization.Sounds :: { [string]: number })[ev.id])
-				ns.Parent = holder()
-				pool[i] = ns
-				snd = ns
-			end
-			table.insert(list, snd)
+		for i = 1, voicesOf(ev) do
+			table.insert(list, voiceOf(name, ev, i))
 		end
 	end
 	task.spawn(function()
@@ -291,24 +319,19 @@ function Audio.play(name: string, opts: PlayOpts?): boolean
 		return false
 	end
 	lastAt[name] = now
-	local pool = pools[name]
-	if pool == nil then
-		pool = {}
-		pools[name] = pool
+	-- the next voice in turn, or a take at random (never the same one twice running)
+	local voices = voicesOf(ev)
+	local i
+	if ev.ids and voices > 1 then
+		i = math.random(1, voices - 1)
+		if i >= (next_[name] or 0) then
+			i += 1
+		end
+	else
+		i = (next_[name] or 0) % voices + 1
 	end
-	local voices = ev.voices or 2
-	local i = (next_[name] or 0) % voices + 1
 	next_[name] = i
-	local s: Sound? = pool[i]
-	if not s or s.Parent == nil then
-		local ns = Instance.new("Sound")
-		ns.Name = name
-		ns.SoundId = "rbxassetid://" .. tostring((Monetization.Sounds :: { [string]: number })[ev.id])
-		ns.Parent = holder()
-		pool[i] = ns
-		s = ns
-	end
-	local snd = s :: Sound
+	local snd = voiceOf(name, ev, i)
 	if not snd.IsLoaded then
 		-- (a voice not loaded yet starts late, behind what it goes with: it is asked to load now so the next play is on
 		-- time; Audio.preload loads the battle's sounds ahead so this is rare)
@@ -323,6 +346,12 @@ function Audio.play(name: string, opts: PlayOpts?): boolean
 	if ev.pitch then
 		lo, hi = ev.pitch[1], ev.pitch[2]
 	end
+	-- (a fade still running from this voice's last play would carry on over this one)
+	local tw = fades[snd]
+	if tw then
+		tw:Cancel()
+		fades[snd] = nil
+	end
 	snd.Volume = ev.vol * (o.volume or 1)
 	local speed = (lo + (hi - lo) * math.random()) * (o.pitch or 1)
 	snd.PlaybackSpeed = speed
@@ -330,18 +359,36 @@ function Audio.play(name: string, opts: PlayOpts?): boolean
 		snd.TimePosition = ev.from or 0
 		snd:Play()
 	end)
+	counts[name] = (counts[name] or 0) + 1
 	local len = ev.len
 	if len then
-		-- only a stretch of the clip: it stops when the stretch is over (unless the voice was played again since)
+		-- only a stretch of the clip: it fades over its last `fade` seconds and stops when the stretch is over
+		-- (unless the voice was played again since)
 		local token = os.clock()
 		snd:SetAttribute("PlayedAt", token)
-		task.delay(len / math.max(0.05, speed), function()
+		local real = len / math.max(0.05, speed)
+		local fade = math.min(real, (ev.fade or 0) / math.max(0.05, speed))
+		if fade > 0 then
+			task.delay(real - fade, function()
+				if snd.Parent and snd:GetAttribute("PlayedAt") == token then
+					local t = TweenService:Create(snd, TweenInfo.new(fade, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Volume = 0 })
+					fades[snd] = t
+					t:Play()
+				end
+			end)
+		end
+		task.delay(real, function()
 			if snd.Parent and snd:GetAttribute("PlayedAt") == token then
 				snd:Stop()
 			end
 		end)
 	end
 	return true
+end
+
+-- How many times an event has played on this client (sims and checks: "the footsteps are heard").
+function Audio.playCount(name: string): number
+	return counts[name] or 0
 end
 
 return Audio

@@ -450,7 +450,7 @@ local function buildHatch(body: Frame, arg: any?)
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
 					if res.ok then
 						breedPick[q.uid] = nil
-						Audio.play("fanfare")
+						Audio.play("egg")
 					end
 				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.food >= food }).ZIndex = 4
 			else

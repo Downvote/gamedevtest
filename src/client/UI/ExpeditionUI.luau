@@ -500,7 +500,7 @@ local function buildFoes(e: Types.Expedition)
 				task.delay(0.6, function()
 					if isOpen then
 						sayFwd(string.format(if cd.rarity >= 5 then "That's a legendary %s." else "That's an epic %s.", cd.name), UIKit.color(rar.color), 2.2)
-						Audio.play("fanfare")
+						Audio.play("rare")
 					end
 				end)
 				break
@@ -2652,7 +2652,7 @@ local function playEvent(ev: { [string]: any })
 				st.puff(actorAt(to) + Vector3.new(0, 1.5, 0), "heart", 12)
 				startMove(to, "happy")
 				floatOver(ev.to, "<3", UIKit.color("pink"))
-				Audio.play("fanfare")
+				Audio.play("friend")
 				say(nameOf(ev.to) .. " wants to come home with you.", UIKit.color("pink"), 2)
 				if bwait(0.7) then
 					return
@@ -2865,7 +2865,7 @@ playRound = function(data: { [string]: any })
 					st.puff(st.at(baseU, baseV, 2), "confetti")
 				end
 			end
-			Audio.play("fanfare")
+			Audio.play("victory")
 			local name = if isle then (isle :: Types.Isle).name else "The place"
 			resultCard(name .. " cleared", UIKit.color("accent"), lines, icon, "Head home", goHome)
 		else

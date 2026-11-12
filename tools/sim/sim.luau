@@ -54,6 +54,36 @@ local ms = H.inClient(p, AudioM.musicState)
 H.expect((ms.mood == "day" or ms.mood == "night") and ms.on and ms.tracks >= 1, "join", "the island's music plays", string.format("%s %s %d", tostring(ms.mood), tostring(ms.on), ms.tracks))
 H.expect(H.clickNamed(p, "MusicToggle", { wait = 0.5 }) and prof.settings.music == "off" and not H.inClient(p, AudioM.musicState).on, "join", "the note switches the music off, kept with the profile", tostring(prof.settings.music))
 H.expect(H.clickNamed(p, "MusicToggle", { wait = 0.5 }) and prof.settings.music == "on" and H.inClient(p, AudioM.musicState).on, "join", "and on again", tostring(prof.settings.music))
+-- the sounds (GAME_DESIGN 11): every event has a library sound, each of its takes too; the founder's feet are heard
+-- (the game's own step sounds: Roblox's are switched off by the empty RbxCharacterSounds)
+local Mon = H.sharedServer("Config.Monetization")
+local noSound = {}
+for name, ev in AudioM.EVENTS do
+	local ok = H.inClient(p, AudioM.has, name)
+	for _, k in ev.ids or {} do
+		ok = ok and (Mon.Sounds[k] or 0) > 0
+	end
+	if not ok then
+		table.insert(noSound, name)
+	end
+end
+table.sort(noSound)
+H.expect(#noSound == 0, "join", "every sound has a library sound behind it (each take too)", table.concat(noSound, ","))
+local function stepSounds(): number
+	return H.inClient(p, AudioM.playCount, "step_grass") + H.inClient(p, AudioM.playCount, "step_sand") + H.inClient(p, AudioM.playCount, "step_wood")
+end
+local steps0 = stepSounds()
+local walkRoot = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+if walkRoot then
+	local at = walkRoot.Position
+	for k = 1, 16 do
+		p.Character:PivotTo(E.cf.new(at.X + k * 0.6, at.Y, at.Z))
+		E.run(0.05)
+	end
+	p.Character:PivotTo(E.cf.new(at.X, at.Y, at.Z))
+	E.run(0.3)
+end
+H.expect(stepSounds() > steps0, "join", "the founder's footsteps are heard as they walk", string.format("%d -> %d", steps0, stepSounds()))
 local tipsOk = H.buttonNamed(p, "TipsOk")
 H.expect(tipsOk == nil, "join", "the first tips have no OK (they move on by building)")
 H.checkProfile(p, "join")

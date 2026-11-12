@@ -22,6 +22,8 @@ src/server/            Main.server.luau, Services/* (DataService, Session, Route
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, AvatarView, StreetLife,
                        Audio), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
                        Menus, BuildUI, ExpeditionUI, Voyage, MicroStage, PixelSprites, ArtData (generated), Words)
+src/RbxCharacterSounds.client.luau  an empty LocalScript in StarterPlayerScripts under the name Roblox would give its own
+                       character sounds, so Roblox doesn't insert them (the founder's feet: Audio's step events)
 tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Economy spec's player), career.luau (prints
                        its runs), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
@@ -337,13 +339,19 @@ expedition's aiming greys the picture; nil lets go), `debugSet(frac?)`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's; a voice not loaded yet is asked to load
 so the next play is on time), `preload(names)` (every voice of those events made and loaded now, on its own thread:
 `ExpeditionUI.init` loads the battle's, so a swing or a blow is never heard late), `has(name)`, `EVENTS`: every sound by
-name (`click open close deny notice ding coin coins level_up reward fanfare combo sparkle cheer trumpet sad drumroll
-tick flip pop`: `fanfare reward level_up sad drumroll` a music-box note, `Chime` or `ChimeHigh`, at its own pitch), the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap heal shield poof bite` (the blows soft: about half
+name (`click open close deny notice ding coin coins combo sparkle cheer trumpet tick flip pop`; the happy moments,
+each its own library sound since 2026-11-12: `newcomer` (`DoorChime`), `victory` (a place cleared: `BellTree`), `grow`
+(`BellTreeRun`), `friend` (befriended or hatched: `ChimeCluster`), `level_up` (`SparkleTones`), `reward`
+(`Triangle`), `drumroll` (a guardian: `DrumRoll`), `egg` (`MusicBoxWind`), `rare` (an epic or legendary wild one:
+`SparklePass`); the founder's feet (AvatarView, Voyage's walk): `step_grass step_sand step_wood` (two or three takes
+each, `ids`), `jump`, `land`), the battles' `whoosh whoosh_heavy hit hit_heavy body_fall zap heal shield poof bite` (the blows soft: about half
 the old volume since 2026-11-11, "make a less loud sound for attacking"),
 the world's `chest splash hammer horn gull birds`), each one `Monetization.Sounds` id (0 =
-silent) with a volume, a pitch range, a cooldown (a repeat inside it is dropped), a few voices and maybe a stretch
-of the clip (`from`, `len`: the hammer's first two taps; the voice stops when it is over) (Sounds in
-`SoundService.UISounds`, reused). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
+silent), or a few takes (`ids`: one voice each, picked at random, never the same twice running), with a volume, a
+pitch range, a cooldown (a repeat inside it is dropped), a few voices and maybe a stretch of the clip (`from`, `len`:
+the hammer's first two taps, the door chime's first ding-dong; its last `fade` seconds tweened down, a fade still
+running cancelled when the voice plays again; the voice stops when it is over) (Sounds in `SoundService.UISounds`,
+reused). `playCount(name)`: how many times an event has played on this client (the sims: the footsteps). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
 (DayLight: the surf always, crickets at night). `music(mood?)`: the background music, a mood's playlist of
 `Monetization.Music` ("day", "night", "sea"; nil: quiet) shuffled once and played round, track after track
 (`Music_<mood>` Sounds at `MUSIC_VOL` (0.2) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
@@ -612,7 +620,10 @@ UserId), registered with the renderer and posed every frame at their character: 
 HumanoidRootPart (a raycast down past characters and rigs) while the Humanoid stands (its `FloorMaterial`), in the air
 (`FloorMaterial` Air) at the root's height less its rest offset (learnt while it stands), posed "jump"
 (`CharacterModels.poseAction`), with a puff of dust on landing; facing the root's look direction, walking at the speed
-the root moves. The Roblox avatar is hidden on every client (`LocalTransparencyModifier` 1 on its parts and decals).
+the root moves. The own founder's feet are heard (Roblox's own character sounds are off: `RbxCharacterSounds`): a
+step every `5.4 / speed` seconds (0.24 .. 0.5) while it moves faster than 4 studs a second, `step_wood` on a plank,
+beam, edge or pier part (the boardwalk, the jetty, the pier), `step_sand` on ground under the lawn's height (the beach),
+else `step_grass`; `jump` as it leaves the ground, `land` (on the boards a firmer `step_wood`) as it comes down. The Roblox avatar is hidden on every client (`LocalTransparencyModifier` 1 on its parts and decals).
 Other players' names float over their heads (World root). `founderPos()`, `count()`, `lookOf(player)`,
 `setOverride(fn?)` (a cutscene poses the own rig instead: `fn(rig, t, dt)` every frame; nil gives it back).
 
@@ -660,7 +671,8 @@ panel closes, the `Hud` and `World` roots and the touch controls hide, the chara
 0, and a `Voyage` frame on the `Stage` root slides in letterbox bars (`BarTop`, `BarBottom` with `Caption` "Into the
 wild..." and `VoyageSkip`). Phases: "open" (0.3 s), "walk" (the own founder, posed through `AvatarView.setOverride`
 (`poseStanding`), walks at `WALK` (13) studs/s from where they stand to the spot, or from 6 studs south of it when
-they stand more than `MAX_WALK` (40) studs away; feet on the ground by a raycast in the `PixelRays` group;
+they stand more than `MAX_WALK` (40) studs away; feet on the ground by a raycast in the `PixelRays` group; a footstep
+every `5.4 / WALK` s, its sound by the ground's height (over the lawn: wood, under it: sand, else grass);
 `CameraController.setFocus` follows them), "close" (facing the place, `whoosh_heavy`; the `Blind`s shut over `CLOSE`
 (0.4) s with the `mini_wild` icon, the place's `IsleName`, its Data/Sites name and level), then `onDone`
 (ExpeditionUI opens behind the closed blinds with its own closed curtain) and the overlay goes 0.1 s later.

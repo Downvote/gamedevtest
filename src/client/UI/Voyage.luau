@@ -55,6 +55,7 @@ type State = {
 	conns: { RBXScriptConnection },
 	walkSpeed: number?,
 	jump: number?,
+	stepT: number?, -- seconds since the walk's last footstep
 }
 
 local state: State? = nil
@@ -356,6 +357,13 @@ local function stepOut(s: State, dt: number)
 		end
 		s.pos = Vector3.new(s.pos.X, groundY(s.pos.X, s.pos.Z, s.pos.Y), s.pos.Z)
 		CameraController.setFocus(s.pos)
+		-- footsteps on the way (by the ground's height: the boards stand over the lawn, the beach under it)
+		s.stepT = (s.stepT or 0) + dt
+		if s.stepT >= 5.4 / WALK then
+			s.stepT = 0
+			local y = s.pos.Y
+			Audio.play(if y > Street.LAWN_Y + 0.1 then "step_wood" elseif y < Street.LAWN_Y - 0.05 then "step_sand" else "step_grass")
+		end
 		if s.leg > #s.route then
 			-- at the place: a look at it (facing north, into it), and the blinds close
 			s.phase, s.t = "close", 0
