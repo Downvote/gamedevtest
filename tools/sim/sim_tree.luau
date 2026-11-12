@@ -360,6 +360,51 @@ holdTree()
 H.checkProfile(p, "swap")
 H.checkMirror(p, "swap")
 
+------------------------------------------------------------------ Equip best: the best of all into the huts
+-- ("make an option to equip best creatures from the tree to huts"): a better one of the weakest worker's knack, held
+-- in the pen, goes in from the Tree panel's button; a second press moves nothing; every hold is let go
+E.phase = "equip"
+holdTree()
+local weakest = nil
+for _, x in prof.pals do
+	if x.home ~= 0 and x.work ~= 0 and (weakest == nil or Tree.worth(x) < Tree.worth(weakest)) then
+		weakest = x
+	end
+end
+H.expect(weakest ~= nil, "equip", "a driftling at work in a hut")
+local knack = Creatures.byId[weakest.sp].knack
+local star = nil
+for _, d in Creatures.list do
+	if d.knack == knack and (star == nil or d.rarity > star.rarity) then
+		star = d
+	end
+end
+local better = Tree.add(prof, star.id, {})
+better.held = 1
+holdTree()
+H.openPanel(p, "tree")
+E.run(0.3)
+H.expect(H.buttonNamed(p, "EquipBest") ~= nil, "equip", "the Tree panel has Equip best")
+H.clickNamed(p, "EquipBest", { wait = 0.5 })
+H.expect(better.home ~= 0 and better.work ~= 0, "equip", "the better one is in a hut at work", string.format("home %d work %d", better.home, better.work))
+local held = 0
+for _, x in prof.pals do
+	if x.held then
+		held += 1
+	end
+end
+H.expect(held == 0, "equip", "every hold let go", tostring(held))
+holdTree()
+res = H.req(p, "pen.best", {})
+H.expect(res.ok and res.data.moved == 0 and res.data.out == 0, "equip", "pressed again: the best are in, nothing moves", if res.ok then string.format("%d in, %d out", res.data.moved, res.data.out) else tostring(res.err))
+H.openPanel(p, "pals")
+E.run(0.3)
+H.expect(H.buttonNamed(p, "EquipBest") ~= nil, "equip", "the Driftlings panel has Equip best")
+H.closePanel(p)
+holdTree()
+H.checkProfile(p, "equip")
+H.checkMirror(p, "equip")
+
 ------------------------------------------------------------------ the tree moved; another player's client sees the hut driftlings
 E.phase = "moved"
 local ti, tq = 0, nil

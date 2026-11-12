@@ -329,6 +329,65 @@ return function()
 		T.eq(c.home, 0)
 	end)
 
+	T.it("equip best: the best of all into the huts, held ones too; the weakest out only when room is needed", function()
+		T.eq(select(2, Tree.equipBest(fresh())), "bad_payload", "no hut")
+		local p = fresh()
+		build(p, "lumber")
+		build(p, "pier")
+		build(p, "patch")
+		local nest = build(p, "nest") -- room 2
+		local a = pal(p, "pebblit") -- common, wood
+		local b = pal(p, "clawdle") -- common, fish
+		Tree.settle(p)
+		T.truthy(a.home == nest and b.home == nest, "the two commons in the hut")
+		local c = pal(p, "shellback") -- rare, wood
+		local d = pal(p, "gullfin") -- uncommon, fish
+		c.held, d.held = 1, 1
+		Tree.settle(p)
+		T.eq(c.home, 0, "held: the pen leaves them")
+		local ok, data = Tree.equipBest(p)
+		T.truthy(ok)
+		T.eq(data.moved, 2)
+		T.eq(data.out, 2)
+		T.eq(c.home, nest, "the rare in")
+		T.eq(d.home, nest, "the uncommon in")
+		T.truthy(c.work ~= 0 and d.work ~= 0, "each at work")
+		T.truthy(a.home == 0 and b.home == 0 and a.work == 0 and b.work == 0, "the commons back to the pen")
+		T.eq(c.held, nil, "holds let go")
+		ok, data = Tree.equipBest(p)
+		T.truthy(ok)
+		T.eq(data.moved + data.out, 0, "the best already in: nothing moves")
+		-- room to spare: a better one moves in and nobody goes out
+		local nest2 = build(p, "nest")
+		local e = pal(p, "sunsprite") -- epic, farm
+		e.held = 1
+		ok, data = Tree.equipBest(p)
+		T.eq(e.home, nest2, "into the room left")
+		T.eq(data.out, 0)
+		T.eq(c.home, nest, "the ones in stay where they are")
+	end)
+
+	T.it("equip best: a better one of a knack takes a place from a weaker one that stays in its hut", function()
+		local p = fresh()
+		local pier = build(p, "pier") -- HelpMax places for fishers
+		build(p, "nest")
+		build(p, "nest") -- room 4
+		local b1 = pal(p, "clawdle")
+		local b2 = pal(p, "clawdle")
+		Tree.settle(p)
+		T.truthy(b1.work == pier and b2.work == pier, "the pier full")
+		local g = pal(p, "gullfin") -- a better fisher
+		g.held = 1
+		local ok, data = Tree.equipBest(p)
+		T.truthy(ok)
+		T.eq(data.moved, 1)
+		T.eq(data.out, 0, "room to spare: nobody out")
+		T.eq(g.work, pier, "the better fisher at the pier")
+		T.eq(b1.work, pier, "the older common keeps its place")
+		T.eq(b2.work, 0, "the newer one rests")
+		T.truthy(b2.home ~= 0, "in its hut still")
+	end)
+
 	T.it("selling: shells by rarity and mutations; the pen's commons at once; a hut's place refilled", function()
 		local p = fresh()
 		local x = pal(p, "pebblit", {})

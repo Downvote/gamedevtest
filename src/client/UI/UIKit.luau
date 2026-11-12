@@ -213,6 +213,11 @@ function UIKit.textWidth(text: string, face: string?): number
 	return PixelFont.width(Lang.t(text), if face == "big" then PixelFont.BIG else PixelFont.SMALL)
 end
 
+-- How many lines `text` wraps to in w UI px (as a wrapped label breaks it: whole words, the small face unless "big").
+function UIKit.lines(text: string, w: number, face: string?): number
+	return #PixelFont.wrap(Lang.t(text), w, if face == "big" then PixelFont.BIG else PixelFont.SMALL)
+end
+
 function UIKit.lineHeight(face: string?): number
 	return if face == "big" then 18 else 10
 end

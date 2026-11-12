@@ -535,6 +535,125 @@ function Tree.house(p: Profile, id: number, uid: number, swap: number): (boolean
 	return true, { moved = if other then 2 else 1 }
 end
 
+-- Equip best ("make an option to equip best creatures from the tree to huts"): the best of all the driftlings, the
+-- huts' and the pen's (held ones too), by `worth`, as many as the huts have room for and each knack has places at its
+-- buildings (Tuning.HelpMax each), the same rule the pen follows. The ones that make it and already live in a hut stay
+-- where they are and keep their job; the rest of them move in from the pen, the best into the comfiest room left. A
+-- hut's driftling that didn't make it goes back to the pen only when its room is needed (the weakest first), and gives
+-- up its job only when a better one of its knack needs it. Every hold is let go: the pen sends its best on by itself
+-- again. Returns { moved = in from the pen, out = back to the pen, ids = the ids that moved }. bad_payload: no hut.
+function Tree.equipBest(p: Profile): (boolean, any)
+	local huts = Tree.huts(p)
+	local room = 0
+	for _, h in huts do
+		room += h.room
+	end
+	if room == 0 then
+		return false, "bad_payload" :: ErrCode
+	end
+	-- each knack's places, none taken; the best that many of each knack (one pass over the pen, however big)
+	local places: { [string]: number } = {}
+	for _, q in p.plot.placed do
+		local b = Buildings.byId[q.id]
+		if b and b.knack and Island.works(q.id) then
+			places[b.knack] = (places[b.knack] or 0) + Tuning.HelpMax
+		end
+	end
+	local best: { [string]: { Pal } } = {}
+	for _, x in p.pals do
+		x.held = nil
+		local d = Creatures.byId[x.sp]
+		local n = if d then math.min(places[d.knack] or 0, room) else 0
+		if d and n > 0 then
+			local top = best[d.knack]
+			if top == nil then
+				top = {}
+				best[d.knack] = top
+			end
+			keepBest(top, x, n)
+		end
+	end
+	local list: { Pal } = {}
+	for _, top in best do
+		for _, x in top do
+			table.insert(list, x)
+		end
+	end
+	table.sort(list, better)
+	local chosen: { [Pal]: boolean } = {}
+	local incoming: { Pal } = {}
+	for i, x in list do
+		if i > room then
+			break
+		end
+		chosen[x] = true
+		if x.home == 0 then
+			table.insert(incoming, x)
+		end
+	end
+	-- the huts' ones that didn't make it, the weakest first: as many go back to the pen as the newcomers need room
+	local stay: { Pal } = {}
+	local housed = 0
+	for _, x in p.pals do
+		if x.home ~= 0 then
+			housed += 1
+			if not chosen[x] then
+				table.insert(stay, x)
+			end
+		end
+	end
+	table.sort(stay, function(a: Pal, b: Pal): boolean
+		return better(b, a)
+	end)
+	local ids: { number } = {}
+	local out = 0
+	local byUid: { [number]: Hut } = {}
+	for _, h in huts do
+		byUid[h.uid] = h
+	end
+	for i = 1, math.max(0, #incoming - (room - housed)) do
+		local x = stay[i]
+		local h = byUid[x.home]
+		if h then
+			h.n -= 1
+		end
+		x.home, x.work = 0, 0
+		out += 1
+		table.insert(ids, x.id)
+	end
+	-- the newcomers, the best into the comfiest room left
+	for _, x in incoming do
+		for _, h in huts do
+			if h.n < h.room then
+				h.n += 1
+				x.home, x.work = h.uid, 0
+				table.insert(ids, x.id)
+				break
+			end
+		end
+	end
+	-- jobs: the chosen ones first, the best first; a place taken by a hut's driftling that didn't make it is given up
+	for _, x in list do
+		if chosen[x] and x.home ~= 0 and x.work == 0 then
+			local d = Creatures.byId[x.sp]
+			local job = if d then Island.freeJob(p, d.knack) else 0
+			if job == 0 and d then
+				for i = #stay, 1, -1 do
+					local y = stay[i]
+					local yd = Creatures.byId[y.sp]
+					if y.home ~= 0 and y.work ~= 0 and yd and yd.knack == d.knack then
+						job, y.work = y.work, 0
+						break
+					end
+				end
+			end
+			x.work = job
+		end
+	end
+	Tree.fillJobs(p)
+	return true, { moved = #incoming, out = out, ids = ids }
+end
+
 ------------------------------------------------------------------ the tree on the island
 -- The tree's piece, or nil.
 function Tree.piece(p: Profile): Types.Piece?

@@ -19,7 +19,8 @@
 #                   Tree of Life (moved, never cleared away)
 #   sim_tree.luau   the Tree of Life: growing and waiting with a full pen, the pen sending its best to the huts (a sold
 #                   one's place filled, a hut cleared away), Speed and Luck to the top with every refusal, a rare one
-#                   announced, expanding (a bigger pen, new kinds), a swap through the hut picker, the tree moved, a
-#                   neighbour's client drawing the pen
+#                   announced, expanding (a bigger pen, new kinds), a swap through the hut picker, Equip best (a held
+#                   better one in from the Tree panel, then nothing to move), the tree moved, a neighbour's client
+#                   drawing the pen
 SIM=$(cd "$(dirname "$0")" && pwd)
 sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log"

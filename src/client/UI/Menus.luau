@@ -44,12 +44,14 @@ local function ask(action: string, payload: { [string]: any }?, ok: string?): Ty
 	return res
 end
 
--- A panel's hint over its list: one line, or two when it is too long for the panel (it never runs off the edge).
+-- A panel's hint over its list: one line, or up to three when it is too long for the panel (it never runs off the edge).
 -- Returns where the list under it starts.
 local function hint(body: Instance, text: string, w: number): number
-	local two = UIKit.textWidth(text) > w
-	UIKit.text(body, text, UDim2.fromOffset(w, if two then 22 else 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint", wrap = two })
-	return if two then 24 else 14
+	-- (up to three lines, 10 px apart)
+	local n = math.clamp(UIKit.lines(text, w), 1, 3)
+	local h = 2 + 10 * n
+	UIKit.text(body, text, UDim2.fromOffset(w, h), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Hint", wrap = n > 1 })
+	return h + 2
 end
 
 -- A driftling's mutations in a line (Data/Traits): each name in its tier's colour with its stars; "No mutations".
@@ -474,6 +476,26 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	end, "Sell_" .. x.id)
 end
 
+-- Equip best (Tree.equipBest): the best of all the driftlings into the huts, in the Driftlings and Tree of Life panels.
+-- Its width: the words and a little room.
+local function equipBest(parent: Instance, v: Types.ClientView, x: number, y: number): number
+	local w = UIKit.textWidth("Equip best") + 12
+	UIKit.button(parent, "Equip best", UDim2.fromOffset(w, 13), UDim2.fromOffset(x - w, y), function()
+		local res = ask("pen.best", {})
+		if res.ok then
+			local data = if type(res.data) == "table" then res.data else {}
+			local n, out = tonumber(data.moved) or 0, tonumber(data.out) or 0
+			if n == 0 and out == 0 then
+				UIKit.notice("The best ones are already in the huts.", UIKit.color("text"))
+			else
+				Audio.play("pop")
+				UIKit.notice(if out > 0 then string.format("Moved %d into the huts and %d back to the pen.", n, out) else string.format("Moved %d into the huts.", n), UIKit.color("good"))
+			end
+		end
+	end, { name = "EquipBest", enabled = v.penN > 0 and v.nests > 0 })
+	return w
+end
+
 local function buildPals(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
@@ -495,8 +517,10 @@ local function buildPals(body: Frame, arg: any?)
 		end
 	end
 	-- the Tree of Life's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
+	-- (and Equip best beside them: the best of all into the huts)
 	local hasHatch = #hatcheries(v) > 0
-	local buttons = if hasHatch then 124 else 64
+	local bx = W - (if hasHatch then 124 else 62)
+	local buttons = W - bx + equipBest(body, v, bx, 0) + 4
 	local top = hint(body, string.format("%d in huts (room for %d), %s in the pen. The pen sends its best to huts with room and work.", housed, v.nests, Numbers.int(v.penN)), W - buttons)
 	UIKit.button(body, "Tree", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
 		UIKit.openPanel("tree")
@@ -630,7 +654,8 @@ local function buildTree(body: Frame, _arg: any?)
 		end
 	end
 	local commons = v.penCommons
-	UIKit.text(body, "Pen " .. Numbers.int(v.penN), UDim2.fromOffset(RW - 90, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "PenCount" })
+	local ew = equipBest(body, v, W - 86, 0)
+	UIKit.text(body, "Pen " .. Numbers.int(v.penN), UDim2.fromOffset(math.max(20, RW - 90 - ew), 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "PenCount" })
 	UIKit.button(body, "Sell commons", UDim2.fromOffset(84, 13), UDim2.fromOffset(W - 84, 0), function()
 		local res = ask("pen.sell", { r = 1 })
 		if res.ok then

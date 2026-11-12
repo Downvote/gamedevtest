@@ -41,8 +41,9 @@ local Tuning = {
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
 	TierCost = {
 		{ shells = 0, wood = 0 },
-		{ shells = 1800, wood = 220 },
-		{ shells = 14000, wood = 1600 },
+		-- (cheaper early on: "expanding island costs too much, make them cheaper early on")
+		{ shells = 800, wood = 100 },
+		{ shells = 6000, wood = 700 },
 		{ shells = 60000, wood = 5500 },
 		{ shells = 180000, wood = 15000 },
 		{ shells = 480000, wood = 40000 },

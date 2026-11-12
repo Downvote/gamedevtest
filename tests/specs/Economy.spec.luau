@@ -33,10 +33,10 @@ return function()
 			T.truthy(r.sold < p.stats.earned * 0.67, string.format("seed %d: sold %d of %d", seed, r.sold, p.stats.earned))
 		end
 	end)
-	T.it("the island grows: tier 2 within 45 minutes, tier 3 within 90; a dozen driftlings in huts at an hour", function()
+	T.it("the island grows: tier 2 within 25 minutes, tier 3 within 50; a dozen driftlings in huts at an hour", function()
 		for seed, r in runs do
-			T.truthy(r.first.tier2 and r.first.tier2 <= 2700, "seed " .. seed .. ": tier 2 at " .. tostring(r.first.tier2))
-			T.truthy(r.first.tier3 and r.first.tier3 <= 5400, "seed " .. seed .. ": tier 3 at " .. tostring(r.first.tier3))
+			T.truthy(r.first.tier2 and r.first.tier2 <= 1500, "seed " .. seed .. ": tier 2 at " .. tostring(r.first.tier2))
+			T.truthy(r.first.tier3 and r.first.tier3 <= 3000, "seed " .. seed .. ": tier 3 at " .. tostring(r.first.tier3))
 			local h1 = at(r, 60)
 			T.truthy(h1.pals >= 12, string.format("seed %d: hour 1 %d driftlings in huts", seed, h1.pals))
 		end

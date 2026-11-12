@@ -253,8 +253,11 @@ tile are skipped, never refused as a whole; running out of shells or wood stops 
 > big island that is well decorated should look like a well developed city. give players the ability to
 > replace/upgrade buildings as well, including homes of creatures and villagers"
 
-- **Six tiers** (`TierCost`): Castaway Cay, Palm Isle, Grand Isle, then **Harbor Town** (60,000 shells and 5,500
-  wood), **Coral City** (180,000 / 15,000) and **Sunspire Capital** (480,000 / 40,000). The island grows north each
+- **Six tiers** (`TierCost`): Castaway Cay, Palm Isle (800 shells and 100 wood), Grand Isle (6,000 / 700), then
+  **Harbor Town** (60,000 / 5,500), **Coral City** (180,000 / 15,000) and **Sunspire Capital** (480,000 / 40,000).
+  The first two were 1,800 / 220 and 14,000 / 1,600 till 2026-11-12: "expanding island costs too much, make them
+  cheaper early on". At those prices a full first island sat waiting ten minutes for Palm Isle and a full Palm Isle
+  forty for Grand Isle; now each comes about when the island before it is built up. The island grows north each
   time (the boardwalk stays where it is), to twice tier 3's grass at the capital, and only ever gains land (each
   tier's shape joined to the smaller ones': nothing built near an old shore has to move); more driftlings live there
   in bigger huts. (The homes for villagers this request asked for went with the villagers on 2026-11-12.)
@@ -371,6 +374,20 @@ run; the Tree panel says the Luck it grows at next.
   pen; a full hut offers to swap with one of its driftlings), **Help** (which building of its knack, or rest) and
   **Sell**. One you put in the pen stays there (`held`) until you move it. The Tree panel lists the pen with **To a
   hut** and **Sell** for each, and **Sell commons**.
+- **Equip best** (`Tree.equipBest`, `pen.best`; a button in the Tree panel by Sell commons and in the Driftlings
+  panel by Tree):
+
+  > The request (2026-11-12): "make an option to equip best creatures from the tree to huts"
+
+  It puts the best of all your driftlings in the huts: the huts' and the pen's, held ones too, ranked the way the pen
+  ranks them (`worth`), as many as the huts have room for and each knack has places at its buildings (the rule the
+  pen follows). The pen only fills a hut with room; this also swaps a weaker one out for a better one. Nothing moves
+  that doesn't have to: a chosen one already in a hut stays in its hut at its job, a newcomer takes the comfiest room
+  left (the best first), and a hut's driftling that didn't make it goes back to the pen only when its room is needed
+  (the weakest first). When a better one of its knack needs its job and there is no free one, it gives up the job
+  and rests in its hut. Every hold is let go, so the pen goes back to sending its best on by itself. A notice says
+  how many moved in and how many went back; "The best ones are already in the huts." when nothing changed. The
+  button is off with no hut or an empty pen.
 - **Selling** (`Tree.sell`, `Tree.sellPen`) pays `SellPrice` shells by rarity (2, 7, 25, 85, 320), times 1 + 0.25 a
   mutation tier (`SellTier`), times 1 + its sell share (Shiny and its family). It is a help, not the island's living:
   the career (§10) earns well under two thirds of its shells this way.
@@ -634,9 +651,9 @@ grew an epic first).
 - the tree's Speed and Luck both at 3 or more by 40 minutes (Speed 4 or 5, Luck 4; Speed 2 and Luck 2 within 10);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (about 5%,
   now that the driftlings do all the work and the pen sells nothing by itself);
-- the island's second tier within 45 minutes (about 30), the third within 90 (about 81 to 86); at an hour, at least
-  12 driftlings in huts (about 40); Harbor Town (tier 4) never before 100 minutes (about 149 to 166) and no city
-  (tier 5) within three hours;
+- the island's second tier within 25 minutes (about 19 to 20), the third within 50 (about 40 to 41); at an hour, at
+  least 12 driftlings in huts; Harbor Town (tier 4) never before 100 minutes (about 114 to 122) and no city (tier 5)
+  within three hours;
 - nobody starves for long, and the stores stay finite.
 
 ## 11. Polish and animation
