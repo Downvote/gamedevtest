@@ -956,6 +956,16 @@ function SCEN.ploadingart()
 	return require("./loading_art")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr })
 end
 
+-- "pportraits": the driftlings' portraits drawn from their models (tools/preview/portraits.luau; gen_portraits.py tidies
+-- them into scripts/portraits.txt for scripts/gen_art.py: sh tools/preview/portraits.sh). "pportraits_try": three
+-- driftlings at a few angles, to choose one.
+function SCEN.pportraits()
+	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr })
+end
+function SCEN.pportraits_try()
+	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, species = { "pebblit", "mossbun", "clawdle", "gullfin", "pyredrake", "crystowl" }, yaws = { -20, 0, 20, 40 } })
+end
+
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
 -- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
 -- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, its actors, whether it painted).

@@ -25,7 +25,7 @@ jobs=${PREVIEW_JOBS:-4}
 
 case $scen in
 	all) scens="island village island3 sea build day" ;;
-	island|village|island2|island3|city|gallery|day|dusk|night|dawn|tree|panel=*|sea|visit|build|expand|zoo|paths|water|work|late|loading|ploadingart) scens=$scen ;;
+	island|village|island2|island3|city|gallery|day|dusk|night|dawn|tree|panel=*|sea|visit|build|expand|zoo|paths|water|work|late|loading|ploadingart|pportraits|pportraits_try) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# scripts/gen_art.py: regenerates src/client/UI/ArtData.luau, every interface sprite (the driftlings' portraits, the
-# island's small icons, the arrows, a note, a heart, sparks), from the masks below. (The world and the driftlings are
+# scripts/gen_art.py: regenerates src/client/UI/ArtData.luau, every interface sprite (the island's small icons, the
+# arrows, a note, a heart, sparks) from the masks below, and the driftlings' portraits from scripts/portraits.txt (drawn
+# from their 3D models: tools/preview/portraits.sh). (The world and the driftlings are
 # 3D: Models/*, drawn by the pixel filter with the same outline and palette.)
 #
 #   python3 scripts/gen_art.py [--out src/client/UI/ArtData.luau] [--png sheet.png] [--zoom 6]
@@ -84,446 +85,35 @@ def flipx(rows):
     return [r[::-1] for r in rows]
 
 
-# ---------------------------------------------------------------- the driftlings' portraits, 16 x 16
-# The request (2026-11-11): "the sprites you made for the creatures dont follow a specific style and look strange
-# at times. reference pokemon sprites, with their angles and detailing" (a sheet of another studio's monster sprites:
-# their angle and finish to follow, never their designs). One template for every body shape: the whole creature in
-# a three-quarter view turned to the left, a big head (about half its height) over a small body, its feet on the
-# bottom rows; two eyes, the far one narrower, the near one 2 px wide with a white highlight in its top corner; a
-# cream muzzle, belly or jaw (E: its own shaded ramp), pink blush (p); the body in the species' ramp (A), its
-# markings in the accent ramp (Z); "#" a mouth or a fold. The mask stays inside 14 x 14 (the outline's margin): an
-# icon is 16 x 16 in every slot. Each species is its shape in its two ramps
-# (CREATURE_ICONS): "icon_<species>" in the Index and the panels.
-SHAPES = {
-    # a pup: tall ears with coloured tips, a cream muzzle and chest, four legs, a tail curled up behind
-    "pup": [
-        "................",
-        "...Z....Z.......",
-        "..ZZA..ZZA......",
-        "..ZAAAAAAA......",
-        "..AAAAAAAAA.....",
-        ".AAAAAAAwkA..Z..",
-        ".AkAAAAAkkA.ZZA.",
-        ".EkEAApAAAA.ZAA.",
-        ".kEEEAAAAAA..AA.",
-        "..EE#AAAAAAAAAA.",
-        "...EEEAAAAAAAA..",
-        "...EEEAAAAAAAA..",
-        "...AAAAAAAAAAA..",
-        "...AA.AA.AA.AA..",
-        "...EE.EE.EE.EE..",
-        "................",
-    ],
-    # a fox: bigger ears, a bushy tail up behind with a pale tip
-    "fox": [
-        "................",
-        "..Z......Z......",
-        "..ZZ....ZZ......",
-        "..ZAA..AAZ......",
-        "..AAAAAAAAA..Z..",
-        ".AAAAAAAwkA.ZAZ.",
-        ".AkAAAAAkkA.ZAA.",
-        ".EkEAApAAAA..AA.",
-        ".kEEEAAAAAA.AAA.",
-        "..EE#AAAAAAAAA..",
-        "...EEEAAAAAAAE..",
-        "...EEEAAAAAAEE..",
-        "...AAAAAAAAAA...",
-        "...AA.AA.AA.A...",
-        "...ZZ.ZZ.ZZ.Z...",
-        "................",
-    ],
-    # a pebble: a round rock with moss on top, a face on its near side, stubby feet
-    "blob": [
-        "................",
-        "................",
-        "......ll........",
-        "....AAglgA......",
-        "...AAAAAAAAA....",
-        "..AAAAAAAAAAA...",
-        "..AAAAAAAAAZAA..",
-        ".AAkAAwkAAAAAA..",
-        ".AAkAAkkAAAAAAA.",
-        ".AAAA#AAAAAAZAA.",
-        ".ApAAAAApAAAAAA.",
-        "..AAAAAAAAAAAA..",
-        "...AAAAAAAAAA...",
-        "...ZZZ...ZZZ....",
-        "................",
-        "................",
-    ],
-    # a crab: open pincers held up, eyes on stalks, a pale band under the shell, six legs
-    "crab": [
-        "................",
-        ".ZZ.........ZZ..",
-        ".Z.Z.......Z.Z..",
-        ".ZZZ.wk.wk.ZZZ..",
-        "..ZZ.kk.kk.ZZ...",
-        "...Z..Z..Z.Z....",
-        "...ZAAAAAAAZ....",
-        "..AAAAAAAAAAA...",
-        ".AAAAAAAAAAAAA..",
-        ".AAAA#pAAApAAA..",
-        ".AEEEEEEEEEEAA..",
-        "..AAAAAAAAAAA...",
-        ".Z.Z.Z...Z.Z.Z..",
-        ".Z.Z.Z...Z.Z.Z..",
-        "................",
-        "................",
-    ],
-    # a gull: a round body, an orange beak, a coloured tail and wingtip, a cream breast, orange feet
-    "bird": [
-        "................",
-        ".......ZZ.......",
-        "......ZAAZ......",
-        ".....AAAAAA.....",
-        "....AAAAAAAA....",
-        "....AkAAwkAA....",
-        "..OOAkAAkkAAA...",
-        ".OOOAAApAAAAAA..",
-        "..OOEEAAAAAAAZZ.",
-        "....EEEAAAZZZZZ.",
-        "....EEEEAAAZZZZ.",
-        ".....EEEEAAAAZZ.",
-        "......EEEEAAA...",
-        ".......O..O.....",
-        "......OO.OO.....",
-        "................",
-    ],
-    # a rabbit: long ears (pink inside), a cream muzzle, belly and feet, a white tail
-    "bun": [
-        "................",
-        "....ZA..ZA......",
-        "....AA..AA......",
-        "....AK..AK......",
-        "....AA..AA......",
-        "...AAAAAAAA.....",
-        "..AAAAAAAAAA....",
-        "..AkAAAwkAAA....",
-        ".AAkAAAkkAAAA...",
-        ".EEpAKAApAAAA...",
-        ".EEE#AAAAAAAA...",
-        "..EEEAAAAAAAAA..",
-        "..EEEEAAAAAAAWW.",
-        "...EEEAAAAAAAWW.",
-        "..EEEE...EEEE...",
-        "................",
-    ],
-    # a gecko: a long head with a cream jaw, a crest and banded tail in the accent, splayed feet
-    "lizard": [
-        "................",
-        "................",
-        "....AAAA........",
-        "...AAAAAAZ......",
-        "..AAAwkAAAZ.....",
-        "..AkAkkAAAAZ....",
-        ".EEEAAApAAAAZ...",
-        "..EEE#AAAAAAAZ..",
-        "...EEEAAAAAAAAZ.",
-        "....EEAAAAAAAAA.",
-        "....AAAAAAAAAAZ.",
-        "....AA..AA....Z.",
-        "...ZZ...ZZ......",
-        "................",
-        "................",
-        "................",
-    ],
-    # an owl: ear tufts, pale discs round big eyes, a beak, a chevroned belly, folded wings
-    "owl": [
-        "................",
-        "..Z.......Z.....",
-        "..ZZ.....ZZ.....",
-        "..AAAAAAAAA.....",
-        ".AAEEEAEEEAA....",
-        ".AEwkEAEwkEA....",
-        ".AEkkEAEkkEAA...",
-        ".AAEEEOEEEAAA...",
-        ".AAAAAOAAAAZA...",
-        ".AAEEEEEEAAZA...",
-        ".AAE#E#E#AAZA...",
-        "..AEEEEEEAZA....",
-        "...AAAAAAAA.....",
-        "....OO..OO......",
-        "................",
-        "................",
-    ],
-    # a mole: a pink star nose, small eyes, a cream face, white digging claws
-    "mole": [
-        "................",
-        "................",
-        "................",
-        ".....AAAAAAA....",
-        "....AAAAAAAAAZ..",
-        "...AAAAAAAAAAZA.",
-        "..AAkAAkAAAAAAA.",
-        ".KKAAAAAAAAAAAA.",
-        ".KKKEEAAAAAAAAA.",
-        ".KKEEEEAAAAAAAA.",
-        "..pEEEEEAAAAAA..",
-        ".wwEEEEEAAAAA...",
-        ".wwwEEEAAAAAA...",
-        "...KK.....KK....",
-        "................",
-        "................",
-    ],
-    # a bat: tall ears, fangs, wings spread in the accent, a cream belly
-    "bat": [
-        "................",
-        "....A....A......",
-        "....AZ..AZ......",
-        "....AAAAAA......",
-        "...AAAAAAAA.....",
-        "...AkAAwkAA.....",
-        ".Z.AkAAkkAA..ZZ.",
-        ".ZZAA#w#AAAZZZZ.",
-        ".ZZZAAAAAAZZZZ..",
-        ".ZZZEEEAAAZZZ...",
-        "..ZZEEEEAAZZ....",
-        "...Z.EEEA.Z.....",
-        "......A.A.......",
-        "................",
-        "................",
-        "................",
-    ],
-    # a yeti: a coloured face with a toothy grin, horns, a cream belly, big arms
-    "yeti": [
-        "................",
-        "....Z......Z....",
-        "....ZAAAAAAZ....",
-        "...AAAAAAAAAA...",
-        "...AZZZZZZZAA...",
-        "..AAZkZZwkZAAA..",
-        "..AAZkZZkkZAAA..",
-        "..AAZZ#ww#ZAAA..",
-        ".AAAAZZZZZZAAAA.",
-        ".AAAAAAAAAAAAAA.",
-        ".ZZAAEEEEEEAAZZ.",
-        ".ZZAAEEEEEEAAZZ.",
-        "...AAAAAAAAAA...",
-        "...ZZZZ..ZZZZ...",
-        "................",
-        "................",
-    ],
-    # a seal: a cream muzzle and belly, whiskers, flippers and tail flukes
-    "seal": [
-        "................",
-        "................",
-        "................",
-        "...AAAAA........",
-        "..AAAAAAA.......",
-        ".AAwkAAAAA......",
-        ".AAkkAAkAA......",
-        ".EEApAAkAAA.....",
-        ".kE#AAAAAAAA....",
-        ".EEEAAAAAAAAA...",
-        "..EEEEAAAAAAAA..",
-        "..ZEEEEAAAAAAAZ.",
-        ".ZZ.EEEEEAAAZZ..",
-        "...........Z....",
-        "................",
-        "................",
-    ],
-    # a sprite: a gem body with a crown, white wings, sparks
-    "sprite": [
-        "................",
-        ".......Z........",
-        "......ZZZ.......",
-        "....Z.ZZZ.Z.....",
-        ".....AAAAA......",
-        "....AAAAAAA.....",
-        ".W.AAkAAwkAA..W.",
-        ".WWAAkAAkkAAAWW.",
-        ".WWWAAAA#AAAWWW.",
-        "..WW.AAAAAAA.W..",
-        "...Z..AAAAA..Z..",
-        ".......AAA......",
-        "........A.......",
-        "................",
-        "................",
-        "................",
-    ],
-    # a jellyfish: a round bell with a shine, a frilled rim, tendrils
-    "jelly": [
-        "................",
-        ".....AAAAA......",
-        "...AAAAAAAAA....",
-        "..AAAAAAAwAAA...",
-        "..AAAAAAAAAAA...",
-        ".AAkAAAwkAAAAA..",
-        ".AAkAAAkkAAAAA..",
-        ".ApAAA#AApAAAA..",
-        ".ZZZZZZZZZZZZZ..",
-        "..Z.Z..Z..Z.Z...",
-        "..Z.Z..Z..Z.Z...",
-        "...Z.Z..Z.Z.Z...",
-        "...Z.Z..Z..Z....",
-        "....Z...Z.......",
-        "................",
-        "................",
-    ],
-    # a sea serpent: horns and a fin, a cream throat, coils in the accent
-    "wyrm": [
-        "................",
-        "..Z..Z..........",
-        "..ZZ.ZZ.........",
-        "..AAAAAZ........",
-        ".AAAAwkAZ.......",
-        ".AAAAkkAAZ......",
-        ".EE#AAAAAZ......",
-        "..EEEAAAA.......",
-        "....EAAAZ.......",
-        "....EAAAZ...ZZ..",
-        "...EAAAAAAAAAZ..",
-        "..EAAAAAAAAAAAZ.",
-        "..AAAAAZZAAAAAA.",
-        "...AAAA...AAA...",
-        "................",
-        "................",
-    ],
-    # a snail: eyes on stalks, a spiral shell in the accent
-    "snail": [
-        "................",
-        "................",
-        ".........ZZZZ...",
-        "..k.k...ZZAAZZ..",
-        "..A.A..ZZAZZAZZ.",
-        "..A.A..ZAZZAZAZ.",
-        "..AAA..ZAZAZZAZ.",
-        ".AwkAA.ZAZZZAZZ.",
-        ".AkkAA.ZZAAAAZ..",
-        ".AAAA#..ZZZZZ...",
-        "..AAAAAAAAAAAAA.",
-        "...AAAAAAAAAAAA.",
-        "................",
-        "................",
-        "................",
-        "................",
-    ],
-    # a turtle: a plated shell, a head out front, a cream belly band, stubby legs
-    "turtle": [
-        "................",
-        "................",
-        "................",
-        ".......ZZZZZ....",
-        "......ZZAZZAZZ..",
-        ".....ZAZZAZZAZZ.",
-        "..AA.ZZAZZAZZAZ.",
-        ".AwkA.ZZZZZZZZ..",
-        ".AkkAAAAAAAAAAA.",
-        ".AA#AEEEEEEEEEA.",
-        "..AAAAAAAAAAAA..",
-        "...AA..AA..AA...",
-        "...EE..EE..EE...",
-        "................",
-        "................",
-        "................",
-    ],
-    # a frog: eyes on top, a wide mouth, a cream belly, webbed feet
-    "frog": [
-        "................",
-        "................",
-        "...AA....AA.....",
-        "..AwkA..AwkA....",
-        "..AkkAAAAkkA....",
-        ".AAAAAAAAAAAA...",
-        ".AApAAAAAApAAA..",
-        ".A##########AA..",
-        ".AAEEEEEEEEAAAZ.",
-        "..AEEEEEEEEAAZA.",
-        "..AAEEEEEEAAAAA.",
-        ".ZZA.AAAA.AAZZ..",
-        ".ZZ..........ZZ.",
-        "................",
-        "................",
-        "................",
-    ],
-    # a moth: feathery antennae, a cream ruff, spotted wings
-    "moth": [
-        "................",
-        "...Z.....Z......",
-        "....Z...Z.......",
-        ".ZZ.AAAAA.ZZZZ..",
-        ".ZZZAAAAAAZZZZZ.",
-        ".AZZAkAwkAZZAZZ.",
-        ".ZZZAkAkkAZZZZZ.",
-        ".ZZZEEEEEEZZZZ..",
-        "..ZZEEEEEEZZZ...",
-        ".ZZZ.AAAA.ZZZ...",
-        ".ZZ..AZZA..ZZ...",
-        ".....AAAA.......",
-        "......AA........",
-        "................",
-        "................",
-        "................",
-    ],
-    # a golem: a stone head with a brow and glowing eyes, a gem core, heavy arms
-    "golem": [
-        "................",
-        ".....ZZZZZZ.....",
-        "....AAAAAAAA....",
-        "....AZZZZZZA....",
-        "....AAyAAyyA....",
-        "....AAAA##AA....",
-        "..ZZZAAAAAAZZZ..",
-        ".ZZAAAAAAAAAAZZ.",
-        ".ZZAAAZZZZAAAZZ.",
-        ".AAAAAZccZAAAAA.",
-        ".AA.AAZZZZAAAA..",
-        ".ZZ.AAAAAAAAAZ..",
-        "....AAA..AAA....",
-        "....ZZZ..ZZZ....",
-        "................",
-        "................",
-    ],
-    # a drake: horns, a cream jaw and belly, wings and tail in the accent
-    "drake": [
-        "................",
-        "..Z...Z.........",
-        "...Z.Z..........",
-        "..AAAAA.........",
-        ".AAAAwkA...Z....",
-        ".AAAAkkA..ZZZ...",
-        ".EE#AAAA.ZZZZZ..",
-        "..EEAAAA.ZZZZZZ.",
-        "...EAAAAAAZZZZ..",
-        "...EEAAAAAAAZ...",
-        "...EEAAAAAAAAA..",
-        "....AAAAAAA..AA.",
-        "....AA..AA....Z.",
-        "....EE..EE......",
-        "................",
-        "................",
-    ],
-}
+# ---------------------------------------------------------------- the driftlings' portraits, 24 x 24
+# The request (2026-11-12): "instead of character sprites for the creatures, can you take their pixellated models in a
+# 3/4 angle, and polish them to follow pixel art rules if required?" So a portrait is the driftling's own 3D model
+# drawn by the game's picture path (the preview scenario "pportraits": Pixel/Snapshot, the world's palette, toon bands,
+# shadows and outline), three quarters turned left, fitted to 24 x 24, then tidied to the pixel art rules
+# (tools/preview/gen_portraits.py: no half see-through pixels, a 1 px outline with cut corners made again, lone spikes
+# and notches gone, the bands' dither settled, creases 1 px, curves softened inside the outline). They come from
+# scripts/portraits.txt (sh tools/preview/portraits.sh makes it); the hand-drawn 16 x 16 masks they replace are in
+# this file's history, up to commit a4a7760.
+PORTRAITS = {}  # "icon_<species>" -> rows of (0xRRGGBB, 1.0) or None
 
 
-# species -> (shape, body ramp, accent ramp): Data/Creatures' shapes (the novafox has a portrait of its own: a fox),
-# ramps near their 3D colours (the magmole's black a warm basalt that reads on the panels)
-CREATURE_ICONS = {
-    "pebblit": ("blob", "S", "D"), "clawdle": ("crab", "R", "O"), "gullfin": ("bird", "W", "B"),
-    "mossbun": ("bun", "G", "K"), "frondle": ("lizard", "G", "Y"), "twiggle": ("owl", "N", "O"),
-    "emberpup": ("pup", "O", "Y"), "magmole": ("mole", "M", "O"), "scorchwing": ("bat", "P", "O"),
-    "snowpuff": ("yeti", "W", "C"), "floe": ("seal", "C", "W"), "frostling": ("sprite", "C", "Y"),
-    "lumajelly": ("jelly", "K", "P"), "novafox": ("fox", "Y", "P"), "tidewyrm": ("wyrm", "B", "C"),
-    # the rarities' new ones (Data/Creatures)
-    "conchy": ("snail", "K", "F"), "shellback": ("turtle", "G", "N"), "sunsprite": ("sprite", "Y", "O"),
-    "hopsprout": ("frog", "G", "K"), "bloomoth": ("moth", "K", "Y"), "elderbark": ("golem", "N", "G"),
-    "murkle": ("frog", "G", "N"), "reedle": ("lizard", "C", "N"), "bogsnail": ("snail", "M", "G"),
-    "mudmole": ("mole", "N", "F"), "wispwing": ("moth", "C", "G"), "mirewyrm": ("wyrm", "G", "Y"),
-    "cindertoad": ("frog", "M", "O"), "basaltor": ("golem", "M", "O"), "pyredrake": ("drake", "R", "O"),
-    "pyrelord": ("drake", "Y", "R"), "gemsnail": ("snail", "P", "C"), "glowbat": ("bat", "D", "C"),
-    "quartzle": ("blob", "W", "P"), "crystowl": ("owl", "C", "P"), "prismoth": ("moth", "K", "C"),
-    "icetoad": ("frog", "C", "W"), "glacior": ("golem", "C", "W"), "frostdrake": ("drake", "B", "W"),
-    "frostcrown": ("yeti", "Y", "W"), "cloudbun": ("bun", "W", "C"), "breezle": ("bird", "C", "B"),
-    "skyfox": ("fox", "B", "W"), "stormowl": ("owl", "D", "Y"), "thunderdrake": ("drake", "P", "Y"),
-    "aurorawing": ("bat", "C", "K"), "coralcrab": ("crab", "K", "O"), "pearlback": ("turtle", "W", "K"),
-    "abyssmaw": ("wyrm", "D", "P"), "relicrab": ("crab", "N", "Y"), "rubblet": ("blob", "S", "F"),
-    "glyphowl": ("owl", "F", "Y"), "sentinel": ("golem", "S", "Y"), "runemoth": ("moth", "Y", "P"),
-    "solwyrm": ("wyrm", "Y", "W"),
-}
-for sp, (shape, body, accent) in CREATURE_ICONS.items():
-    rows = [r.replace("A", body).replace("Z", accent) for r in SHAPES[shape]]
-    S("icon_" + sp, rows)
+def load_portraits(path):
+    if not os.path.exists(path):
+        sys.exit("no portraits at %s: run sh tools/preview/portraits.sh" % path)
+    cur = None
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("portrait "):
+                _, sp, w, h = line.split()
+                cur = PORTRAITS.setdefault("icon_" + sp, [])
+                continue
+            cur.append([None if t == "......" else (int(t, 16), 1.0) for t in line.split()])
+
+
+load_portraits(os.path.join(os.path.dirname(os.path.abspath(__file__)), "portraits.txt"))
 
 # ---------------------------------------------------------------- the small icons, 11 x 11 (chips, lists, the path)
 SMALL = {
@@ -769,6 +359,8 @@ def pad_to(px, W, H):  # a sprite on a bigger canvas, bottom centre (an animatio
 
 def all_sprites():
     out = {}
+    for name, rows in PORTRAITS.items():
+        out[name] = rows
     for name, spec in SPRITES.items():
         out[name] = build(name, spec)
         for vname, rec in spec["variants"].items():

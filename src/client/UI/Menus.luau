@@ -85,6 +85,10 @@ local function asProfile(v: Types.ClientView): any
 	return { plot = { placed = v.pieces }, pals = v.pals, tree = v.tree, tier = v.tier, shells = v.shells, wood = v.wood }
 end
 
+-- A driftling's portrait is 24 x 24 (drawn from its model: scripts/gen_art.py), at 4 px in a row: the row's words start
+-- right of it.
+local PX = 32
+
 local function pieceOf(v: Types.ClientView, uid: number): Types.Piece?
 	for _, q in v.pieces do
 		if q.uid == uid then
@@ -238,9 +242,9 @@ local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, 
 		f.Name = "Parent_" .. x.id
 		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 4), 4)
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-		UIKit.text(f, string.format("%s  %s", d.name, rar.name), UDim2.fromOffset(W - 90, 10), UDim2.fromOffset(24, 1), { color = UIKit.color(rar.color), z = 4 })
-		UIKit.text(f, d.passive.name, UDim2.fromOffset(W - 90, 10), UDim2.fromOffset(24, 11), { color = UIKit.color("accent"), z = 4 })
-		mutLine(f, x.muts or {}, 24, 21, W - 90)
+		UIKit.text(f, string.format("%s  %s", d.name, rar.name), UDim2.fromOffset(W - 98, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4 })
+		UIKit.text(f, d.passive.name, UDim2.fromOffset(W - 98, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("accent"), z = 4 })
+		mutLine(f, x.muts or {}, PX, 21, W - 98)
 		UIKit.button(f, "Pick", UDim2.fromOffset(46, 13), UDim2.new(1, -50, 0, 10), function()
 			local cur: Pick = breedPick[uid] or {}
 			if slot == "a" then
@@ -286,7 +290,7 @@ local function buildHatch(body: Frame, arg: any?)
 				egg = e
 			end
 		end
-		local f = row(list, i, 48)
+		local f = row(list, i, 58)
 		f.Name = "Hatch_" .. q.uid
 		if egg then
 			-- an egg: its rarity's egg, the turns left (a bar), its parents
@@ -314,32 +318,32 @@ local function buildHatch(body: Frame, arg: any?)
 			local pick: Pick = breedPick[q.uid] or {}
 			local pa, pb = palById(v, pick.a), palById(v, pick.b)
 			local function slot(x: Types.Pal?, key: string, sx: number)
-				local b = UIKit.button(f, "", UDim2.fromOffset(84, 18), UDim2.fromOffset(sx, 3), function()
+				local b = UIKit.button(f, "", UDim2.fromOffset(88, 28), UDim2.fromOffset(sx, 3), function()
 					UIKit.openPanel("hatch", { hatch = q.uid, slot = key })
 				end, { name = "Slot_" .. key .. "_" .. q.uid, color = UIKit.color("plate") })
 				b.ZIndex = 4
 				if x then
-					PixelSprites.image(b, "icon_" .. x.sp, UDim2.fromOffset(2, 3), 5)
+					PixelSprites.image(b, "icon_" .. x.sp, UDim2.fromOffset(2, 2), 5)
 					local cd = Creatures.byId[x.sp]
-					UIKit.text(b, if cd then cd.name else x.sp, UDim2.fromOffset(66, 10), UDim2.fromOffset(16, 4), { color = UIKit.color("text"), z = 6 })
+					UIKit.text(b, if cd then cd.name else x.sp, UDim2.fromOffset(58, 10), UDim2.fromOffset(28, 9), { color = UIKit.color("text"), z = 6 })
 				else
 					UIKit.text(b, "Pick a parent", UDim2.fromScale(1, 1), nil, { x = "center", color = UIKit.color("text_dim"), z = 6 })
 				end
 			end
 			slot(pa, "a", 4)
-			UIKit.text(f, "+", UDim2.fromOffset(8, 10), UDim2.fromOffset(91, 7), { color = UIKit.color("text"), z = 4 })
-			slot(pb, "b", 100)
+			UIKit.text(f, "+", UDim2.fromOffset(8, 10), UDim2.fromOffset(95, 12), { color = UIKit.color("text"), z = 4 })
+			slot(pb, "b", 104)
 			if pa and pb then
 				local sp = Breed.child(pa.sp, pb.sp)
 				local d = Creatures.byId[sp]
 				local food, turns = Breed.cost(sp)
 				local met = (v.seen[sp] or 0) >= 1
 				local rar = Traits.RARITY[if d then d.rarity else 1] or Traits.RARITY[1]
-				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(190, 4), 4)
-				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 214, 10), UDim2.fromOffset(208, 2), { color = UIKit.color(rar.color), z = 4, name = "Child" })
-				UIKit.text(f, rar.name, UDim2.fromOffset(W - 214, 10), UDim2.fromOffset(208, 11), { color = UIKit.color(rar.color), z = 4 })
-				UIKit.text(f, string.format("A feast of %d food, %d turns. Shared mutations always pass on.", food, turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 24), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
-				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 33), function()
+				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(198, 5), 4)
+				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 232, 10), UDim2.fromOffset(226, 7), { color = UIKit.color(rar.color), z = 4, name = "Child" })
+				UIKit.text(f, rar.name, UDim2.fromOffset(W - 232, 10), UDim2.fromOffset(226, 16), { color = UIKit.color(rar.color), z = 4 })
+				UIKit.text(f, string.format("A feast of %d food, %d turns. Shared mutations always pass on.", food, turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 34), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
+				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 43), function()
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
 					if res.ok then
 						breedPick[q.uid] = nil
@@ -347,7 +351,7 @@ local function buildHatch(body: Frame, arg: any?)
 					end
 				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.food >= food }).ZIndex = 4
 			else
-				UIKit.text(f, "Pick two driftlings.", UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 24), { color = UIKit.color("text_dim"), z = 4 })
+				UIKit.text(f, "Pick two driftlings.", UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 34), { color = UIKit.color("text_dim"), z = 4 })
 			end
 		end
 	end
@@ -397,12 +401,12 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 				local d = Creatures.byId[x.sp]
 				if x.home == uid and d then
 					order += 1
-					local r = row(list, order, 18)
+					local r = row(list, order, 28)
 					r.Name = "Swap_" .. x.id
-					PixelSprites.image(r, "icon_" .. x.sp, UDim2.fromOffset(14, 1), 4)
+					PixelSprites.image(r, "icon_" .. x.sp, UDim2.fromOffset(14, 2), 4)
 					local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-					UIKit.text(r, string.format("%s  %s", d.name, workWord(x)), UDim2.new(1, -110, 0, 10), UDim2.fromOffset(32, 4), { color = UIKit.color(rar.color), z = 4 })
-					UIKit.button(r, "Swap", UDim2.fromOffset(50, 12), UDim2.new(1, -54, 0, 3), function()
+					UIKit.text(r, string.format("%s  %s", d.name, workWord(x)), UDim2.new(1, -118, 0, 10), UDim2.fromOffset(42, 9), { color = UIKit.color(rar.color), z = 4 })
+					UIKit.button(r, "Swap", UDim2.fromOffset(50, 12), UDim2.new(1, -54, 0, 8), function()
 						move(uid, x.id)
 					end, { name = "SwapWith_" .. x.id, color = UIKit.color("plate") }).ZIndex = 4
 				end
@@ -434,11 +438,11 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	f.Name = "Pal_" .. x.id
 	PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 4), 4)
 	local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-	local tw = W - 92
-	UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(24, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-	UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(24 + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4, name = "Rarity" })
-	UIKit.text(f, d.passive.name .. ": " .. Traits.describe(d.passive.fx), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 11), { color = UIKit.color("accent"), z = 4, name = "Passive" })
-	mutLine(f, x.muts or {}, 24, 21, tw)
+	local tw = W - 100
+	UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+	UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(PX + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4, name = "Rarity" })
+	UIKit.text(f, d.passive.name .. ": " .. Traits.describe(d.passive.fx), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("accent"), z = 4, name = "Passive" })
+	mutLine(f, x.muts or {}, PX, 21, tw)
 	local where: string
 	local color = UIKit.color("text_dim")
 	if x.home == 0 then
@@ -453,7 +457,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 			where = string.format("%s, resting (no free %s)", hut, KNACKS[d.knack] or d.knack)
 		end
 	end
-	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 31), { color = color, z = 4, name = "Where" })
+	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 31), { color = color, z = 4, name = "Where" })
 	UIKit.button(f, "Move", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 2), function()
 		UIKit.openPanel("pals", { move = x.id, back = back })
 	end, { name = "Move_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
@@ -661,10 +665,10 @@ local function buildTree(body: Frame, _arg: any?)
 		f.Name = "Pen_" .. x.id
 		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 4), 4)
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-		local tw = RW - 90
-		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-		UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 11), { color = UIKit.color("text_dim"), z = 4 })
-		mutLine(f, x.muts or {}, 24, 21, tw)
+		local tw = RW - 98
+		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
+		mutLine(f, x.muts or {}, PX, 21, tw)
 		UIKit.button(f, "To a hut", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
 			UIKit.openPanel("pals", { move = x.id, back = "tree" })
 		end, { name = "ToHut_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
@@ -694,28 +698,31 @@ local function buildIndex(body: Frame, _arg: any?)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
 	local cols = if W >= 300 then 3 else 2
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 52)
+	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 62)
 	grid.CellPadding = UDim2.fromOffset(3, 3)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = list
 	for i, d in Creatures.list do
 		local n = v.seen[d.id] or 0
-		local f = UIKit.plate(list, UDim2.fromOffset(60, 52), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2, { bevel = true })
+		local f = UIKit.plate(list, UDim2.fromOffset(60, 62), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2, { bevel = true })
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)
-		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 1), { color = if n >= 1 then UIKit.color(rar.color) else UIKit.color("text_dim"), z = 4, name = "Name" })
-		-- its rarity (always: a rare one is worth hoping for) and its kind of land
+		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -32, 0, 10), UDim2.fromOffset(29, 2), { color = if n >= 1 then UIKit.color(rar.color) else UIKit.color("text_dim"), z = 4, name = "Name" })
+		-- its rarity (always: a rare one is worth hoping for) and its kind of land, each a line beside the portrait
 		local kind = Islets.list[d.islet]
-		UIKit.text(f, if kind then rar.name .. ", " .. string.lower(kind.plural) else rar.name, UDim2.new(1, -24, 0, 10), UDim2.fromOffset(21, 10), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
+		if kind then
+			UIKit.text(f, kind.plural, UDim2.new(1, -32, 0, 10), UDim2.fromOffset(29, 20), { color = UIKit.color("text_dim"), z = 4, name = "Land" })
+		end
+		UIKit.text(f, rar.name, UDim2.new(1, -32, 0, 10), UDim2.fromOffset(29, 11), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
 		if n >= 1 then
 			-- grown: its passive
-			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 21), { color = UIKit.color("accent"), z = 4, name = "Passive" })
-			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 31), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
+			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 31), { color = UIKit.color("accent"), z = 4, name = "Passive" })
+			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 41), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
 		else
 			local from = if kind and kind.tier > v.tier then string.format("The tree grows these from island Lv %d.", kind.tier) else "Not grown yet."
-			UIKit.text(f, from, UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 21), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
+			UIKit.text(f, from, UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 31), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 		end
 	end
 end

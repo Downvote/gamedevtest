@@ -28,7 +28,8 @@ The repository `Downvote/test` (Random Bakery) is the reference this game was bu
 The user's standing rule: "for pixel art, always dont use mixels. use pixel art techniques such as anti-aliasing,
 avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pixel art grid." So every sprite, icon,
 scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or bigger thing is its own sprite: the
-11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 16x16), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
+11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 24x24, drawn from its 3D model: after changing
+a driftling's model, run `sh tools/preview/portraits.sh`), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
 anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py` (run it; `--png <file>`
 for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The world is 3D: the islands, the
 buildings, the Tree of Life and the driftlings are built from parts (`Models/DecorModels`, `Models/MicroModels`,
