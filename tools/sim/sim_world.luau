@@ -639,6 +639,38 @@ for _, w in wildQs do
 	labels += if found then 1 else 0
 end
 H.expect(labels == 2, "wild", "a label over each (name and level)", tostring(labels))
+-- a tap on each on Cy's screen opens its card (the tap's ray has to pass the island's invisible coast walls: they
+-- collide, so Roblox hits them whatever their CanQuery says)
+local MenusC = H.cmod(c, "UI.Menus")
+local WorldViewC = H.cmod(c, "Controllers.WorldView")
+local PRc = H.cmod(c, "Pixel.PixelRenderer")
+local cox, coz = Street.origin(H.session(c).plot)
+local back = c.Character and c.Character:GetPivot()
+local tapped = 0
+for _, w in wildQs do
+	local fw, fd = PlotRules.footprint(w.q.id, w.q.rot)
+	local at = E.v3(cox + w.q.x + fw / 2, Street.LAWN_Y + 0.6, coz + w.q.z + fd / 2)
+	if c.Character then
+		c.Character:PivotTo(E.cf.new(at.X + 2, 3, at.Z + fd / 2 + 4))
+		E.run(2)
+	end
+	E.raycastParts = true
+	H.inClient(c, function()
+		local pos = PRc.project(at)
+		WorldViewC.tapScreen(E.v2(pos.X, pos.Y - E.inset))
+	end)
+	E.raycastParts = nil
+	E.run(0.5)
+	if H.currentPanel(c) == "site" and H.inClient(c, MenusC.chosen) == w.q.uid then
+		tapped += 1
+	end
+	H.closePanel(c)
+end
+if c.Character and back then
+	c.Character:PivotTo(back)
+	E.run(2)
+end
+H.expect(tapped == #wildQs, "wild", "a tap on each opens its card", tostring(tapped))
 local wq = wildQs[1].q
 local zr = PlotRules.zone(wq)
 local inRing = nil

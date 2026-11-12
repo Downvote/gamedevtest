@@ -13,7 +13,7 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
 `sim.luau` about 827 (a few more or fewer as its battles go), `sim_save.luau` about 359, `sim_clock.luau` 601,
-`sim_world.luau` 329, `sim_exp.luau` about 775 (its Index checks vary with the battles)). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
+`sim_world.luau` 330, `sim_exp.luau` about 775 (its Index checks vary with the battles)). Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo>
 "desktop phone"` with a scenario of `island village island2 island3 city gallery day dusk night dawn sea visit build expand zoo
 paths water work voyage late`, `panel=<folk|pals|hatch|site|index|looks>` or `exp=<kind 1-9>[_battle|_boss|_clear|_snack|_skills|_aim|_throw|_tut|_win|_lose|_inspect|_run|_loot|_fight]` (e.g. `exp=4_boss`). The place
 file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).

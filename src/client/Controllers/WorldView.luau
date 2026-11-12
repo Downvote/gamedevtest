@@ -725,6 +725,9 @@ local function onTap(pos: Vector2)
 	local origin, dir = PixelRenderer.screenRay(pos)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
+	-- (the pixel filter's group: the invisible coast walls stand far taller than anything on the island and, since
+	-- they collide, Roblox still hits them whatever their CanQuery says; only this group passes through them)
+	params.CollisionGroup = "PixelRays"
 	local list: { Instance } = { dyn() }
 	for _, p in Players:GetPlayers() do
 		if p.Character then

@@ -530,8 +530,10 @@ a pier or kelp farm, `push` at the wood and the boosts, `wave` at the shops, `ho
 the hatchery, for longer: `DriftModels.animate`'s work moods). Workers stand along the building's front (a villager
 in one of three places by id), turned three-quarters to the view (east or south). Only islands within 100 studs of the view's centre are drawn (synced every half second); each
 near owned island's campfire gets a flickering flame and rising smoke (`fireOn`, dynamic models). Each island's sign gets
-a World-root label (its name, the own in gold, or "Unclaimed isle"); a tap on a sign (a press let go within 8 px, not
-on the interface, not in Build mode) shows `signCard(i)` (the day, villagers, driftlings, charm, wild places cleared).
+a World-root label (its name, the own in gold, or "Unclaimed isle"); a tap (a press let go within 8 px, not on the
+interface, not in Build mode; its ray `PixelRenderer.screenRay` in the `PixelRays` collision group, as the
+picture's, so it passes the invisible coast walls, which Roblox hits whatever their CanQuery says because they collide)
+on a sign shows `signCard(i)` (the day, villagers, driftlings, charm, wild places cleared).
 **The wild places** (GAME_DESIGN 7): over each wild one on the own island (a `Static.Decor` model with the `Site`
 attribute and `Wild` true; none in Build mode) a World-root label `Site_<uid>` ("Tide Pool Lv 1", orange) above its
 model; while the tips are on steps 5 and 6 (no trip under way) the `arrow_down_t` sprite bobs over the lowest wild one
