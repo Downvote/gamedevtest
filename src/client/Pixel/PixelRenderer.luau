@@ -25,7 +25,7 @@
 -- their shadow cover (in global art px, so a pan does not move them), at most Tuning.PixelInvalidateRaysFrame rays a
 -- frame; a change over a third of the layer re-bakes it whole behind the old picture. Players' characters are never
 -- in the bake (AvatarView draws the founders). Nothing here moves or parents a part of the world.
--- A microgame's stage (CameraController.setStage) is a view of its own, baked with a bigger budget a frame while the
+-- A stage (CameraController.setStage; nothing opens one now) is a view of its own, baked with a bigger budget a frame while the
 -- play overlay's curtain covers the screen; the street's finished picture is kept aside meanwhile and comes back at
 -- once when the stage closes (baked again only if a part under Workspace.Plots came or went in between). A dynamic
 -- model with a "PixelShadow" attribute (a radius in studs) casts a blob shadow on the static picture under it (on
@@ -483,8 +483,7 @@ export type Grade = {
 local grade: Grade? = nil
 local gradeKey = ""
 local gradeMap: { [number]: number } = {}
--- A battle's spotlight (GAME_DESIGN 7: "when in battle, transition and darken everything in the background except
--- the combatants"): the static picture darkened by `dim` (0 .. 1, in tenths: each step re-uploads the picture), the
+-- A spotlight (from the old fights; nothing sets it now): the static picture darkened by `dim` (0 .. 1, in tenths: each step re-uploads the picture), the
 -- dynamic things (the fighters, their effects) and glowing parts left as they are.
 local dim = 0
 local dimMap: { [number]: number } = {}
@@ -608,7 +607,7 @@ local function buildLight(s: Surf)
 	lightAt = os.clock()
 end
 
--- A static pixel in a battle's spotlight: darker, a little greyer and cooler (the fighters stand out against it).
+-- A static pixel in the spotlight: darker, a little greyer and cooler (what moves stands out against it).
 local function dimOf(c: number): number
 	local r, gg, b = c % 256, (c // 256) % 256, (c // 65536) % 256
 	local a = c - c % 16777216
@@ -620,7 +619,7 @@ local function dimOf(c: number): number
 	return clampByte(nr) + clampByte(ng) * 256 + clampByte(nb) * 65536 + a
 end
 
--- n pixels of the frame from pixel i0, graded (the time of day) and dimmed (a battle's spotlight) into out from
+-- n pixels of the frame from pixel i0, graded (the time of day) and dimmed (the spotlight) into out from
 -- pixel o0.
 local function gradeSpan(s: Surf, i0: number, n: number, out: buffer, o0: number)
 	local src, fid = s.frame.color, s.frame.id
@@ -1098,8 +1097,8 @@ local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
 	local ground = if type(g) == "number" then g else 0
 	local pp = model.PrimaryPart or first
 	local p = pp.Position
-	-- a model out of sight casts none: hidden (see-through) or parked below its ground (a stage's thing put away,
-	-- a befriended wild one gone in its poof), which would else leave a blob on the floor where nothing stands
+	-- a model out of sight casts none: hidden (see-through) or parked below its ground (a thing put away),
+	-- which would else leave a blob on the floor where nothing stands
 	if pp.Transparency >= 0.95 or p.Y < ground - 1 then
 		return nil
 	end
@@ -1690,8 +1689,7 @@ local function onHeartbeat(dt: number)
 	end
 	refreshExclude()
 	if baking then
-		-- a stage bakes behind the play overlay's curtain: faster
-		local budget = Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8) + (if surf and surf.view.stage then Tuning.PixelStageBakeMs else 0)
+		local budget = Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8)
 		bakeSome(os.clock() + budget / 1000)
 		if baking and back == nil then
 			return -- nothing on screen to keep alive (the first bake, a jump)
@@ -2040,7 +2038,7 @@ function PixelRenderer.setGrade(g: Grade?)
 	needFull = true
 end
 
--- A battle's spotlight (UI/ExpeditionUI): the static picture darkened by k (0 .. 1, taken in tenths; each step
+-- The spotlight (nothing sets it now): the static picture darkened by k (0 .. 1, taken in tenths; each step
 -- re-uploads the picture), the dynamic things as they are.
 function PixelRenderer.setDim(k: number)
 	local q = math.floor(math.clamp(k, 0, 1) * 10 + 0.5) / 10

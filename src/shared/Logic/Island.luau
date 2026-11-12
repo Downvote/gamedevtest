@@ -5,11 +5,13 @@
 -- (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --
 -- A turn (Tuning.TurnSeconds): each building of kind food, wood or shop makes its rate (Data/Buildings) times
---   (a villager working there ? 1 : IdleOutput) x (a driftling of its knack helping ? 1 + PalBoost x (1 + its work
---   share) : 1), its work share its passive's and mutations' (Data/Traits: work and the building's knack)
---   x (the food has run out ? Hungry : 1)
+--   (a villager working there ? 1 + their home's comfort : IdleOutput)
+--   x (1 + the boost of each driftling of its knack helping there, up to Tuning.HelpMax: PalBoost x its rarity's
+--   RarityWork x (1 + its work share + its hut's comfort), its work share its passive's and mutations' (Data/Traits:
+--   work and the building's knack))
+--   x (the food has run out ? Hungry : 1) x (1 + the boost buildings' share at its knack)
 -- a shop also times its visitors (visitors a turn / ShopVisitors, at most 2) and eats its `eats` food likewise;
--- villagers eat EatFolk, driftlings EatPal. Villagers and driftlings away on an expedition neither work nor eat.
+-- villagers eat EatFolk, driftlings in huts EatPal (times their eat share); the pen's eat nothing and don't work.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -19,7 +21,6 @@ local Looks = require(script.Parent.Parent.Data.Looks)
 local Names = require(script.Parent.Parent.Data.Names)
 local Util = require(script.Parent.Util)
 local Plot = require(script.Parent.Plot)
-local Sites = require(script.Parent.Sites)
 
 type Profile = Types.Profile
 type Piece = Types.Piece
@@ -58,9 +59,21 @@ function Island.nests(p: Profile): number
 	return count(p, "slots")
 end
 
--- The charm: every piece's, a little for each driftling (visitors like them) and for each wild place cleared.
+-- A driftling's effects: its passive and its mutations together (Data/Traits).
+function Island.fxOf(pal: Types.Pal): Traits.Fx
+	local d = Creatures.byId[pal.sp]
+	return Traits.sum(if d then d.passive.fx else nil, pal.muts)
+end
+
+-- The charm: every piece's, and each driftling living in a hut (visitors like them: one each, and their charm share).
 function Island.charm(p: Profile): number
-	return count(p, "charm") + #p.pals + math.min(Tuning.ClearCharm * p.islets, Tuning.ClearCharmMax)
+	local n = count(p, "charm")
+	for _, x in p.pals do
+		if x.home ~= 0 then
+			n += 1 + (Island.fxOf(x).charm or 0)
+		end
+	end
+	return math.max(0, n)
 end
 
 function Island.visitors(p: Profile): number
@@ -68,19 +81,32 @@ function Island.visitors(p: Profile): number
 end
 
 -- Who lives where (GAME_DESIGN 4.1): the homes, best first (their comfort and their level's, then the first built),
--- filled with the villagers in the order they came, a bed each; the nests the same with the driftlings. Each
--- resident's home (its piece's uid) and comfort, keyed "v<id>" / "p<id>" (nobody left out while beds last).
+-- filled with the villagers in the order they came, a bed each. Each villager's home (its piece's uid) and comfort,
+-- keyed "v<id>" (nobody left out while beds last); and each driftling's hut, "p<id>" (Pal.home: the Tree of Life's
+-- pen sends them there, or the player does; Logic/Tree), none for the pen's.
 export type Home = { uid: number, comfort: number }
 function Island.homes(p: Profile): { [string]: Home }
 	local out: { [string]: Home } = {}
+	local hut: { [number]: number } = {}
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "nest" then
+			hut[q.uid] = d.comfort + (Tuning.ComfortLvl[q.lvl or 1] or 0)
+		end
+	end
+	for _, x in p.pals do
+		local c = hut[x.home]
+		if c then
+			out["p" .. x.id] = { uid = x.home, comfort = c }
+		end
+	end
 	local function fill(kind: string, who: { any }, prefix: string)
 		type Slot = { uid: number, n: number, comfort: number }
 		local list: { Slot } = {}
 		for _, q in p.plot.placed do
 			local d = Buildings.byId[q.id]
 			if d and d.kind == kind then
-				local n = if kind == "home" then d.beds else d.slots
-				table.insert(list, { uid = q.uid, n = n, comfort = d.comfort + (Tuning.ComfortLvl[q.lvl or 1] or 0) })
+				table.insert(list, { uid = q.uid, n = d.beds, comfort = d.comfort + (Tuning.ComfortLvl[q.lvl or 1] or 0) })
 			end
 		end
 		table.sort(list, function(a: Slot, b: Slot): boolean
@@ -105,7 +131,6 @@ function Island.homes(p: Profile): { [string]: Home }
 		end
 	end
 	fill("home", p.folk, "v")
-	fill("nest", p.pals, "p")
 	return out
 end
 
@@ -135,35 +160,41 @@ function Island.works(id: string): boolean
 end
 
 -- A driftling's work share where it helps (Data/Traits.workAt: its passive's and mutations' work and the building's
--- knack; 0 when it helps nowhere).
+-- knack; at its own knack when it helps nowhere).
 function Island.palWork(p: Profile, pal: Types.Pal): number
 	local d = Creatures.byId[pal.sp]
 	local q = if pal.work ~= 0 then Island.piece(p, pal.work) else nil
 	local bd = if q then Buildings.byId[q.id] else nil
-	local fx = Traits.sum(if d then d.passive.fx else nil, pal.muts)
-	return Traits.workAt(fx, if bd then bd.knack else (if d then d.knack else ""))
+	return Traits.workAt(Island.fxOf(pal), if bd then bd.knack else (if d then d.knack else ""))
 end
 
--- What a day makes and eats now (`away`: the keys "v<id>" / "p<id>" of those on an expedition).
-function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
+-- What a driftling adds to the building it helps at (its share of the building's output): PalBoost x its rarity's
+-- RarityWork x (1 + its work share + its hut's comfort). `comfort`: its hut's (Island.homes), 0 in the pen.
+function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?): number
+	local d = Creatures.byId[pal.sp]
+	local r = if d then d.rarity else 1
+	return Tuning.PalBoost * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0))
+end
+
+-- What a turn makes and eats now.
+function Island.rates(p: Profile): Rates
 	local out = { food = 0, wood = 0, shells = 0, made = 0, eaten = 0 }
-	local gone = away or {}
 	local homes = Island.homes(p)
 	local boosts = Island.boosts(p)
 	-- a worker's output: 1 + its home's comfort
 	local worker: { [number]: number } = {}
 	for _, v in p.folk do
-		if v.work ~= 0 and not gone["v" .. v.id] then
+		if v.work ~= 0 then
 			local h = homes["v" .. v.id]
 			worker[v.work] = 1 + (if h then h.comfort else 0)
 		end
 	end
-	-- a helping driftling's boost: PalBoost times (1 + its work share at that building's knack + its nest's comfort)
+	-- the helping driftlings' boosts (each in a hut: the pen's don't work), added up at each building
 	local helper: { [number]: number } = {}
 	for _, pal in p.pals do
-		if pal.work ~= 0 and not gone["p" .. pal.id] then
-			local h = homes["p" .. pal.id]
-			helper[pal.work] = Island.palWork(p, pal) + (if h then h.comfort else 0)
+		local h = homes["p" .. pal.id]
+		if pal.work ~= 0 and h then
+			helper[pal.work] = (helper[pal.work] or 0) + Island.palBoost(p, pal, h.comfort)
 		end
 	end
 	local hungry = p.food <= 0
@@ -172,7 +203,7 @@ function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 then
 			local help = helper[q.uid]
-			local k = (worker[q.uid] or Tuning.IdleOutput) * (if help then 1 + Tuning.PalBoost * (1 + help) else 1) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
+			local k = (worker[q.uid] or Tuning.IdleOutput) * (1 + (help or 0)) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
 			if d.kind == "food" then
 				out.food += d.rate * k
 				out.made += d.rate * k
@@ -185,15 +216,10 @@ function Island.rates(p: Profile, away: { [string]: boolean }?): Rates
 			end
 		end
 	end
-	local eat = 0
-	for _, v in p.folk do
-		if not gone["v" .. v.id] then
-			eat += Tuning.EatFolk
-		end
-	end
+	local eat = Tuning.EatFolk * #p.folk
 	for _, pal in p.pals do
-		if not gone["p" .. pal.id] then
-			eat += Tuning.EatPal
+		if pal.home ~= 0 then
+			eat += Tuning.EatPal * math.max(0.1, 1 + (Island.fxOf(pal).eat or 0))
 		end
 	end
 	out.food -= eat
@@ -203,8 +229,8 @@ end
 
 -- dt seconds of the island's turns: what it made and ate (fractions; the food never goes below none). Returns the
 -- shells made (the stats count them).
-function Island.step(p: Profile, dt: number, away: { [string]: boolean }?): Rates
-	local r = Island.rates(p, away)
+function Island.step(p: Profile, dt: number): Rates
+	local r = Island.rates(p)
 	local k = dt / Tuning.TurnSeconds
 	p.food = math.max(0, p.food + r.food * k)
 	p.wood += r.wood * k
@@ -218,26 +244,28 @@ function Island.randomLook(rng: Rng): Types.Look
 	return { skin = rng:int(1, #Looks.skin), hair = rng:int(1, #Looks.hair), style = rng:int(1, #Looks.styles), shirt = rng:int(1, #Looks.shirt) }
 end
 
--- A building that takes a worker and has none (food first, then wood, then shops), or 0.
+-- A building that takes a worker and has none (food first, then wood, then shops), or 0. `forPal`: a driftling's
+-- knack: a building of that knack with fewer than Tuning.HelpMax driftlings helping.
 function Island.freeJob(p: Profile, forPal: string?): number
-	local taken: { [number]: boolean } = {}
+	local taken: { [number]: number } = {}
 	if forPal then
 		for _, pal in p.pals do
 			if pal.work ~= 0 then
-				taken[pal.work] = true
+				taken[pal.work] = (taken[pal.work] or 0) + 1
 			end
 		end
 	else
 		for _, v in p.folk do
 			if v.work ~= 0 then
-				taken[v.work] = true
+				taken[v.work] = 1
 			end
 		end
 	end
+	local most = if forPal then Tuning.HelpMax else 1
 	for _, kind in { "food", "wood", "shop" } do
 		for _, q in p.plot.placed do
 			local d = Buildings.byId[q.id]
-			if d and d.kind == kind and not taken[q.uid] and (forPal == nil or d.knack == forPal) then
+			if d and d.kind == kind and (taken[q.uid] or 0) < most and (forPal == nil or d.knack == forPal) then
 				return q.uid
 			end
 		end
@@ -258,9 +286,6 @@ function Island.moveIn(p: Profile, rng: Rng): Types.Villager
 		name = Util.pick(rng, Names.first),
 		look = Island.randomLook(rng),
 		work = 0,
-		lvl = 1,
-		xp = 0,
-		seed = rng:int(1, 999999),
 		day = p.day,
 	}
 	p.nextId += 1
@@ -270,9 +295,8 @@ function Island.moveIn(p: Profile, rng: Rng): Types.Villager
 	return v
 end
 
--- The first home on an island with nobody living there yet: a castaway moves in at once (GAME_DESIGN 9: "a party
--- member that instantly moves in after a tent is built"), so the first expedition has someone to take along. Returns
--- them, or nil when the island already has villagers or no free bed.
+-- The first home on an island with nobody living there yet: a castaway moves in at once (GAME_DESIGN 9), so the
+-- first jobs have someone to take them. Returns them, or nil when the island already has villagers or no free bed.
 function Island.welcome(p: Profile, rng: Rng): Types.Villager?
 	if #p.folk > 0 or Island.beds(p) < 1 or Tuning.FolkMax < 1 then
 		return nil
@@ -280,61 +304,14 @@ function Island.welcome(p: Profile, rng: Rng): Types.Villager?
 	return Island.moveIn(p, rng)
 end
 
--- A turn's end: a visitor may move into a free bed (the charm high enough), the training yard trains the resting.
--- Returns what happened: { movedIn = Villager?, trained = n }.
-function Island.turn(p: Profile, rng: Rng, away: { [string]: boolean }?): { [string]: any }
+-- A turn's end: a visitor may move into a free bed (the charm high enough). Returns what happened:
+-- { movedIn = Villager? }.
+function Island.turn(p: Profile, rng: Rng): { [string]: any }
 	local news: { [string]: any } = {}
-	local gone = away or {}
 	if #p.folk < math.min(Tuning.FolkMax, Island.beds(p)) and Island.charm(p) >= Tuning.MoveInCharm * #p.folk then
 		news.movedIn = Island.moveIn(p, rng)
 	end
-	local yards = 0
-	for _, q in p.plot.placed do
-		if q.id == "yard" then
-			yards += 1
-		end
-	end
-	if yards > 0 then
-		local n = 0
-		local xp = Tuning.TrainXp * yards
-		for _, v in p.folk do
-			if v.work == 0 and not gone["v" .. v.id] then
-				Island.gain(v, xp)
-				n += 1
-			end
-		end
-		for _, pal in p.pals do
-			if pal.work == 0 and not gone["p" .. pal.id] then
-				Island.gain(pal, xp)
-				n += 1
-			end
-		end
-		news.trained = n
-	end
 	return news
-end
-
------------------------------------------------------------------- levels
-function Island.xpTo(lvl: number): number
-	return math.floor(Tuning.XpBase * lvl ^ Tuning.XpPow + 0.5)
-end
-
--- Experience for a villager, a driftling or the captain ({ lvl, xp }): the levels it went up.
-function Island.gain(who: { lvl: number, xp: number }, xp: number): number
-	if xp <= 0 then
-		return 0
-	end
-	who.xp += xp
-	local ups = 0
-	while who.lvl < Tuning.LevelMax and who.xp >= Island.xpTo(who.lvl) do
-		who.xp -= Island.xpTo(who.lvl)
-		who.lvl += 1
-		ups += 1
-	end
-	if who.lvl >= Tuning.LevelMax then
-		who.xp = 0
-	end
-	return ups
 end
 
 ------------------------------------------------------------------ jobs
@@ -364,7 +341,8 @@ function Island.setWork(p: Profile, id: number, uid: number): (boolean, any)
 	return true, nil
 end
 
--- A driftling to a building of its knack (uid) or resting (0): one driftling a building.
+-- A driftling living in a hut to a building of its knack (uid) or resting (0): Tuning.HelpMax a building (a full one
+-- sends the helper that came first back to rest). The pen's driftlings don't work (bad_payload).
 function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	local who: Types.Pal? = nil
 	for _, pal in p.pals do
@@ -379,13 +357,17 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 		local q = Island.piece(p, uid)
 		local def = Creatures.byId[who.sp]
 		local b = if q then Buildings.byId[q.id] else nil
-		if q == nil or b == nil or def == nil or b.knack ~= def.knack then
+		if q == nil or b == nil or def == nil or b.knack ~= def.knack or who.home == 0 then
 			return false, "bad_payload" :: ErrCode
 		end
+		local there: { Types.Pal } = {}
 		for _, pal in p.pals do
 			if pal ~= who and pal.work == uid then
-				pal.work = 0
+				table.insert(there, pal)
 			end
+		end
+		if #there >= Tuning.HelpMax then
+			there[1].work = 0
 		end
 	end
 	who.work = uid
@@ -397,17 +379,6 @@ function Island.dismiss(p: Profile, id: number): (boolean, any)
 	for i, v in p.folk do
 		if v.id == id then
 			table.remove(p.folk, i)
-			return true, nil
-		end
-	end
-	return false, "not_found" :: ErrCode
-end
-
--- A driftling goes back to the wild.
-function Island.release(p: Profile, id: number): (boolean, any)
-	for i, pal in p.pals do
-		if pal.id == id then
-			table.remove(p.pals, i)
 			return true, nil
 		end
 	end
@@ -433,11 +404,9 @@ function Island.expand(p: Profile): (boolean, any)
 	p.shells -= cost.shells
 	p.wood -= cost.wood
 	p.tier += 1
-	-- the bigger lodge may stand where buildings were: they make room (Plot.refit)
+	-- pieces that no longer fit the bigger island's shape make room (Plot.refit)
 	local moved, cleared = Plot.refit(p)
-	-- new wild places come up on the land gained, higher in level (GAME_DESIGN 7; Logic/Sites)
-	local sites = Sites.spawn(p)
-	return true, { tier = p.tier, moved = moved, cleared = cleared, sites = #sites }
+	return true, { tier = p.tier, moved = moved, cleared = cleared }
 end
 
 -- The founder's look (free).

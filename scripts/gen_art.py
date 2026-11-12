@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # scripts/gen_art.py: regenerates src/client/UI/ArtData.luau, every interface sprite (the driftlings' portraits, the
-# island's small icons, the arrows, a note, a heart, sparks), from the masks below. (The world, the driftlings and the
-# expeditions are 3D: Models/*, drawn by the pixel filter with the same outline and palette.)
+# island's small icons, the arrows, a note, a heart, sparks), from the masks below. (The world and the driftlings are
+# 3D: Models/*, drawn by the pixel filter with the same outline and palette.)
 #
 #   python3 scripts/gen_art.py [--out src/client/UI/ArtData.luau] [--png sheet.png] [--zoom 6]
 #
@@ -92,8 +92,8 @@ def flipx(rows):
 # bottom rows; two eyes, the far one narrower, the near one 2 px wide with a white highlight in its top corner; a
 # cream muzzle, belly or jaw (E: its own shaded ramp), pink blush (p); the body in the species' ramp (A), its
 # markings in the accent ramp (Z); "#" a mouth or a fold. The mask stays inside 14 x 14 (the outline's margin): an
-# icon is 16 x 16 in every slot (the battle's cards are 18 px tall). Each species is its shape in its two ramps
-# (CREATURE_ICONS): "icon_<species>" in the Index, the panels and the battle's cards.
+# icon is 16 x 16 in every slot. Each species is its shape in its two ramps
+# (CREATURE_ICONS): "icon_<species>" in the Index and the panels.
 SHAPES = {
     # a pup: tall ears with coloured tips, a cream muzzle and chest, four legs, a tail curled up behind
     "pup": [
@@ -540,11 +540,13 @@ SMALL = {
     # what can be built (the build tray's tabs)
     "home": ["....R....", "...RRR...", "..RRRRR..", ".RRRRRRR.", "RRRRRRRRR", ".mmmmmmm.", ".mnnmmcm.", ".mnnmmmm.", ".mnnmmmm."],
     "nest": [".........", "...WWW...", "..WWWWW..", "..WWWWW..", "NNNWWWNNN", "NNNNNNNNN", ".NdNNNdN.", "..NNNNN..", "........."],
+    # the Tree of Life: a round crown with glowing fruit on a short trunk, roots spreading
+    "tree": ["..GGGGG..", ".GGGGGGG.", "GGGyGGGGG", "GGGGGGyGG", ".GGGGGGG.", "...NNN...", "...NNN...", "..NNNNN..", ".NN...NN."],
     "train": [".........", ".S.....S.", "SSS...SSS", "SSSxxxSSS", "SSS...SSS", ".S.....S.", ".........", ".........", "........."],
     "boost": ["....G....", "...GGG...", "..GGGGG..", ".GGGGGGG.", "...GGG...", "...GGG...", "...GGG...", "...GGG...", "........."],
     "path": [".........", "SSS......", "SSS.SSS..", "....SSS..", ".SSS.....", ".SSS.SSS.", ".....SSS.", "..SSS....", "..SSS...."],
     "decor": ["..KK.KK..", ".KKKKKKK.", "..KKyKK..", ".KKKKKKK.", "..KK.KK..", "....G....", ".GG.G....", "..GGG.GG.", "....GGG.."],
-    # the expedition's path
+    # marks for a route (drawn since the expeditions; kept for the icon set)
     "start": ["..R......", "..RRR....", "..RRRRR..", "..RRR....", "..N......", "..N......", "..N......", ".NNN.....", "........."],
     "loot": ["..N...N..", "...NNN...", "...ooo...", "..NNNNN..", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "..NNNNN..", "........."],
     "chest": [".........", ".NNNNNNN.", "NNNNNNNNN", "YYYYYYYYY", "NNNNyNNNN", "NNNNNNNNN", "NNNNNNNNN", ".........", "........."],

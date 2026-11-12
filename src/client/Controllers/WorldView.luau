@@ -3,11 +3,12 @@
 -- (Models/CharacterModels) and every driftling its 3D model (Models/MicroModels), in Workspace.PixelDynamic,
 -- registered with the pixel renderer and moved every frame. A villager walks to the building they work at, works
 -- there a while (chopping, digging, fishing, selling), strolls round the island, and back; one with no job strolls.
--- A driftling potters round the building it helps at (or a nest), hopping as it goes. Who lives on each island comes
--- from its plot's attributes (PlotService: Folk, Pals, Tier), where the buildings stand from its Static.Decor models'
--- names (uid:id:x:z:rot:lvl), so a visit shows a neighbour's island alive too; those away on an expedition are not
--- there. Only islands near the view get models. Every island's sign gets its name (or "Unclaimed isle") floating over
--- it; tapping a sign shows a card about the island. A newcomer moving in arrives with a cheer.
+-- A driftling in a hut potters round the building it helps at (or naps at its hut), hopping as it goes; one in the
+-- Tree of Life's pen wanders inside the pen's fence, and a new one pops out of the tree's glowing hollow. Who lives on
+-- each island comes from its plot's attributes (PlotService: Folk, Pals, Tier), where the buildings stand from its
+-- Static.Decor models' names (uid:id:x:z:rot:lvl), so a visit shows a neighbour's island alive too. Only islands near
+-- the view get models. Every island's sign gets its name (or "Unclaimed isle") floating over it; tapping a sign shows a
+-- card about the island, tapping the own tree opens its panel. A newcomer moving in arrives with a cheer.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -28,7 +29,8 @@ local CameraController = require(script.Parent.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 local PixelSprites = require(script.Parent.Parent.UI.PixelSprites)
-local SiteData = require(ReplicatedStorage.Shared.Data.Sites)
+local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
+local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 
 local WorldView = {}
 
@@ -40,6 +42,7 @@ type Walker = {
 	plot: number,
 	sig: string,
 	work: number,
+	home: number, -- a driftling's hut (its uid), 0 the tree's pen
 	rig: CharacterModels.Rig?,
 	thing: MicroModels.Thing?,
 	x: number, -- world
@@ -95,7 +98,6 @@ local WORK_ACTION: { [string]: string } = {
 	hotel = "serve",
 	toolshed = "hammer",
 	watertower = "hammer",
-	yard = "train",
 	hatchery = "tend",
 	windmill = "tend",
 	smokehouse = "tend",
@@ -126,8 +128,6 @@ local function palMoodOf(id: string): string
 		return "wave"
 	elseif kind == "nest" or kind == "breed" then
 		return "nap"
-	elseif kind == "train" then
-		return "hop"
 	end
 	return "push"
 end
@@ -225,8 +225,8 @@ local function plotModel(i: number): Model?
 	return if m and m:IsA("Model") then m else nil
 end
 
--- The buildings standing on island i: uid -> { id, cx, cz (world centre), w, d (turned footprint) }.
-type Spot = { id: string, cx: number, cz: number, w: number, d: number }
+-- The buildings standing on island i: uid -> { id, cx, cz (world centre), w, d (turned footprint), rot }.
+type Spot = { id: string, cx: number, cz: number, w: number, d: number, rot: number }
 local function spotsOf(i: number): { [number]: Spot }
 	local out: { [number]: Spot } = {}
 	local m = plotModel(i)
@@ -240,7 +240,7 @@ local function spotsOf(i: number): { [number]: Spot }
 		local u, xx, zz, r = tonumber(uid), tonumber(x), tonumber(z), tonumber(rot)
 		if u and id and xx and zz and r then
 			local w, d = Plot.footprint(id, r)
-			out[u] = { id = id, cx = ox + xx + w / 2, cz = oz + zz + d / 2, w = w, d = d }
+			out[u] = { id = id, cx = ox + xx + w / 2, cz = oz + zz + d / 2, w = w, d = d, rot = r }
 		end
 	end
 	return out
@@ -333,9 +333,46 @@ local function groundY(): number
 	return Street.LAWN_Y
 end
 
-local function newWalker(key: string, kind: string, id: number, plot: number, sig: string, work: number, look: Types.Look?, sp: string?): Walker
+-- The Tree of Life's pen on island i (DecorModels.PEN turned with the tree): a point in it (a random one, or its
+-- middle), and the spot in front of the tree's hollow where a driftling is born. Nil without a tree.
+local function treeSpot(i: number): (Spot?, CFrame?)
+	for _, s in spotsOf(i) do
+		if s.id == "tree" then
+			return s, CFrame.new(s.cx, 0, s.cz) * CFrame.Angles(0, math.rad(s.rot), 0)
+		end
+	end
+	return nil, nil
+end
+local function penPoint(i: number, rng: Types.Rng?): (number?, number?)
+	local _, at = treeSpot(i)
+	if at == nil then
+		return nil, nil
+	end
+	local r = DecorModels.PEN
+	local kx, kz = if rng then rng:next() else 0.5, if rng then rng:next() else 0.5
+	local p = at * Vector3.new(r.x0 + (r.x1 - r.x0) * kx, 0, r.z0 + (r.z1 - r.z0) * kz)
+	return p.X, p.Z
+end
+local function hollowPoint(i: number): (number?, number?)
+	local _, at = treeSpot(i)
+	if at == nil then
+		return nil, nil
+	end
+	local p = at * Vector3.new(-1.55, 0, 0.75)
+	return p.X, p.Z
+end
+
+local function newWalker(key: string, kind: string, id: number, plot: number, sig: string, work: number, look: Types.Look?, sp: string?, home: number?, at: Vector2?): Walker
 	local rng = Util.newRng(Util.hash32(key))
 	local x, z = strollPoint(plot, rng)
+	if at then
+		x, z = at.X, at.Y
+	elseif kind == "p" and home == 0 then
+		local px, pz = penPoint(plot, rng)
+		if px and pz then
+			x, z = px, pz
+		end
+	end
 	local w: Walker = {
 		key = key,
 		kind = kind,
@@ -343,6 +380,7 @@ local function newWalker(key: string, kind: string, id: number, plot: number, si
 		plot = plot,
 		sig = sig,
 		work = work,
+		home = home or 0,
 		rig = nil,
 		thing = nil,
 		x = x,
@@ -379,7 +417,11 @@ local function newWalker(key: string, kind: string, id: number, plot: number, si
 	return w
 end
 
--- One island's islanders from its attributes (only when near the view; far ones are let go).
+-- One island's islanders from its attributes (only when near the view; far ones are let go). A driftling new in the pen
+-- of an island already peopled was just grown: it pops out of the tree's hollow.
+local peopled: { [number]: boolean } = {}
+local treeKeys: { [number]: string } = {} -- where each island's tree stood at the last sync
+local born: { [string]: number } = {} -- key -> when it popped out (the arrival's cheer)
 local function syncPlot(i: number, near: boolean)
 	local m = plotModel(i)
 	local want: { [string]: boolean } = {}
@@ -387,8 +429,8 @@ local function syncPlot(i: number, near: boolean)
 		local folk = m:GetAttribute("Folk")
 		if type(folk) == "string" then
 			for entry in string.gmatch(folk, "[^;]+") do
-				local id, skin, hair, style, shirt, work, away = string.match(entry, "^(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d)$")
-				if id and away == "0" then
+				local id, skin, hair, style, shirt, work = string.match(entry, "^(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+				if id then
 					local key = i .. ":v" .. id
 					local sig = table.concat({ skin, hair, style, shirt }, ".")
 					want[key] = true
@@ -409,8 +451,8 @@ local function syncPlot(i: number, near: boolean)
 		local pals = m:GetAttribute("Pals")
 		if type(pals) == "string" then
 			for entry in string.gmatch(pals, "[^;]+") do
-				local id, sp, work, away = string.match(entry, "^(%d+)%.([%w_]+)%.(%d+)%.(%d)$")
-				if id and sp and away == "0" then
+				local id, sp, work, home = string.match(entry, "^(%d+)%.([%w_]+)%.(%d+)%.(%d+)$")
+				if id and sp then
 					local key = i .. ":p" .. id
 					want[key] = true
 					local w: Walker? = walkers[key]
@@ -418,10 +460,32 @@ local function syncPlot(i: number, near: boolean)
 						drop(key)
 						w = nil
 					end
+					local hm = tonumber(home) or 0
 					if w == nil then
-						walkers[key] = newWalker(key, "p", tonumber(id) or 0, i, sp, tonumber(work) or 0, nil, sp)
+						-- (just grown: out of the hollow, then into the pen)
+						local at: Vector2? = nil
+						if peopled[i] and hm == 0 then
+							local hx, hz = hollowPoint(i)
+							if hx and hz then
+								at = Vector2.new(hx, hz)
+								born[key] = os.clock()
+							end
+						end
+						local nw = newWalker(key, "p", tonumber(id) or 0, i, sp, tonumber(work) or 0, nil, sp, hm, at)
+						if at then
+							nw.cheerUntil = os.clock() + 1.2
+							nw.untilT = os.clock() + 1.2
+						end
+						walkers[key] = nw
 					else
+						local moved = w.home ~= hm or w.work ~= (tonumber(work) or 0)
 						w.work = tonumber(work) or 0
+						w.home = hm
+						if moved then
+							-- (a new place: off it goes now)
+							w.untilT = 0
+							w.state = "idle"
+						end
 					end
 				end
 			end
@@ -432,6 +496,19 @@ local function syncPlot(i: number, near: boolean)
 			drop(key)
 		end
 	end
+	-- the tree moved (Build mode): the pen's driftlings set off for its new pen now
+	local ts = if m and near then treeSpot(i) else nil
+	local tkey = if ts then string.format("%.1f:%.1f:%d", ts.cx, ts.cz, ts.rot) else ""
+	if treeKeys[i] ~= nil and treeKeys[i] ~= tkey then
+		for _, w in walkers do
+			if w.plot == i and w.kind == "p" and w.home == 0 then
+				w.untilT = 0
+				w.state = "idle"
+			end
+		end
+	end
+	treeKeys[i] = tkey
+	peopled[i] = m ~= nil and near
 end
 
 ------------------------------------------------------------------ moving them
@@ -446,21 +523,27 @@ local function spotsNow(i: number): { [number]: Spot }
 	return (c :: any).spots
 end
 
--- Where a walker heads next: their building (in front of it), or a stroll.
+-- Where a walker heads next: their building (in front of it), or a stroll; a driftling in the pen somewhere inside its
+-- fence, one in a hut with no job to its hut for a nap.
 local function decide(w: Walker, t: number)
 	local spots = spotsNow(w.plot)
-	local s = if w.work ~= 0 then spots[w.work] else nil
-	if w.kind == "p" and s == nil then
-		-- resting at a nest
-		for _, sp in spots do
-			local d = Buildings.byId[sp.id]
-			if d and d.kind == "nest" then
-				s = sp
-				break
-			end
+	local isPal = w.kind == "p"
+	if isPal and w.home == 0 then
+		local px, pz = penPoint(w.plot, w.rng)
+		if px and pz then
+			w.tx, w.tz = px, pz
+			w.state = "walk"
+			w.action = "stand"
+			w.mood = "idle"
+			w.untilT = t + 6
+			return
 		end
 	end
-	local isPal = w.kind == "p"
+	local s = if w.work ~= 0 then spots[w.work] else nil
+	if isPal and s == nil then
+		-- resting at its hut
+		s = spots[w.home]
+	end
 	if s and (w.nextWork or isPal) then
 		-- (along the building's front: a driftling anywhere, a villager in one of three places, so two at one
 		-- building don't stand in one spot)
@@ -590,99 +673,63 @@ local function updateSigns()
 	end
 end
 
------------------------------------------------------------------- the wild places' labels (GAME_DESIGN 7)
--- Over each wild place on the own island, its name and level (orange while wild, green once cleared); over the one
--- the tips point at (steps 5 and 6: the lowest wild one, the Tide Pool on a new island) an arrow bobs.
-type SiteLabel = { label: TextLabel, top: Vector3, key: string }
-local siteLabels: { [Instance]: SiteLabel } = {}
+------------------------------------------------------------------ the tree's label (GAME_DESIGN 6, 9)
+-- While the tips ask for the Tree of Life (step 6: a level of its speed or luck), its name floats over the own tree
+-- with an arrow bobbing over it.
+local treeLabel: TextLabel? = nil
 local tutArrow: ImageLabel? = nil
 
-local function siteTop(m: Model): Vector3
-	local cf, size = m:GetBoundingBox()
-	return cf.Position + Vector3.new(0, size.Y / 2 + 0.9, 0)
-end
-
-local function updateSiteLabels()
-	local seen: { [Instance]: boolean } = {}
-	local m = plotModel(myPlot)
-	local decor = if m then m:FindFirstChild("Decor", true) else nil
+local function updateTreeLabel()
 	local v = StateClient.view()
-	local tutUid = 0
-	if v and (v.tut == 5 or v.tut == 6) and v.exp == nil then
-		local lo = math.huge
-		for _, q in v.pieces do
-			local sd, wild = SiteData.of(q.id)
-			if sd and wild and q.lvl < lo then
-				lo, tutUid = q.lvl, q.uid
-			end
-		end
-	end
-	local arrowAt: Vector3? = nil
-	if decor and not CameraController.isFree() then
-		for _, c in decor:GetChildren() do
-			-- (a cleared place is a piece like any other: no label; a tap still opens its card)
-			local key = c:GetAttribute("Site")
-			if c:IsA("Model") and type(key) == "string" and c:GetAttribute("Wild") == true then
-				seen[c] = true
-				local uid, id, lvl = string.match(c.Name, "^(%d+):([%w_]+):%-?%d+:%-?%d+:%d+:(%d+)$")
-				local sd, wild = SiteData.of(id or "")
-				local text = if sd then string.format("%s Lv %s", sd.name, lvl or "?") else ""
-				local color = if wild then UIKit.color("orange") else UIKit.color("good")
-				local e = siteLabels[c]
-				if e == nil or e.key ~= c.Name then
-					if e then
-						e.label:Destroy()
-					end
-					local l = UIKit.text(UIKit.canvas("World"), text, UDim2.fromOffset(UIKit.textWidth(text) + 4, 10), nil, { x = "center", kind = "outline", color = color, name = "Site_" .. tostring(uid) })
-					e = { label = l, top = siteTop(c), key = c.Name }
-					siteLabels[c] = e
-				end
-				local entry = e :: SiteLabel
-				local x, y, on = PixelRenderer.projectPixel(entry.top)
-				entry.label.Visible = on
-				if on then
-					entry.label.Position = UDim2.fromOffset(x - math.floor(entry.label.Size.X.Offset / 2), y - 10)
-				end
-				if tonumber(uid) == tutUid then
-					arrowAt = entry.top
+	local top: Vector3? = nil
+	if v and v.tut == 6 and not CameraController.isFree() then
+		local m = plotModel(myPlot)
+		local decor = if m then m:FindFirstChild("Decor", true) else nil
+		if decor then
+			for _, c in decor:GetChildren() do
+				if c:IsA("Model") and c:GetAttribute("Decor") == "tree" then
+					local cf, size = c:GetBoundingBox()
+					top = cf.Position + Vector3.new(0, size.Y / 2 + 0.9, 0)
 				end
 			end
 		end
 	end
-	for c, e in siteLabels do
-		if not seen[c] then
-			e.label:Destroy()
-			siteLabels[c] = nil
+	if top == nil then
+		for _, g in { treeLabel, tutArrow } :: { GuiObject? } do
+			if g then
+				g:Destroy()
+			end
 		end
+		treeLabel, tutArrow = nil, nil
+		return
 	end
-	-- the tips' arrow over the place to tap
-	if arrowAt then
-		local a = tutArrow
-		if a == nil then
-			a = PixelSprites.image(UIKit.canvas("World"), "arrow_down_t", UDim2.fromOffset(0, 0), 5) :: any
-			tutArrow = a
-		end
-		local x, y, on = PixelRenderer.projectPixel(arrowAt :: Vector3)
-		local bob = if math.floor(os.clock() * 3) % 2 == 0 then 0 else 2
-		local arrow = a :: ImageLabel
-		arrow.Visible = on
-		arrow.Position = UDim2.fromOffset(x - 3, y - 22 + bob)
-	elseif tutArrow then
-		tutArrow:Destroy()
-		tutArrow = nil
+	local l = treeLabel
+	if l == nil then
+		local text = "Tree of Life"
+		l = UIKit.text(UIKit.canvas("World"), text, UDim2.fromOffset(UIKit.textWidth(text) + 4, 10), nil, { x = "center", kind = "outline", color = UIKit.color("good"), name = "TreeLabel" })
+		treeLabel = l
 	end
+	local a = tutArrow
+	if a == nil then
+		a = PixelSprites.image(UIKit.canvas("World"), "arrow_down_t", UDim2.fromOffset(0, 0), 5) :: any
+		tutArrow = a
+	end
+	local x, y, on = PixelRenderer.projectPixel(top :: Vector3)
+	local label = l :: TextLabel
+	label.Visible = on
+	label.Position = UDim2.fromOffset(x - math.floor(label.Size.X.Offset / 2), y - 10)
+	local bob = if math.floor(os.clock() * 3) % 2 == 0 then 0 else 2
+	local arrow = a :: ImageLabel
+	arrow.Visible = on
+	arrow.Position = UDim2.fromOffset(x - 3, y - 24 + bob)
 end
 
--- The wild place on the own island under a world hit, its piece uid (or nil).
-local function siteUidOf(inst: Instance): number?
+-- The Tree of Life under a world hit: true for the own island's, false for a neighbour's, nil for anything else.
+local function treeOf(inst: Instance): boolean?
 	local m: Instance? = inst
 	while m and m ~= workspace do
-		if m:IsA("Model") and type(m:GetAttribute("Site")) == "string" then
-			local pm = m:FindFirstAncestor("Plot_" .. myPlot)
-			if pm == nil then
-				return nil
-			end
-			return tonumber(string.match(m.Name, "^(%d+):"))
+		if m:IsA("Model") and m:GetAttribute("Decor") == "tree" then
+			return m:FindFirstAncestor("Plot_" .. myPlot) ~= nil
 		end
 		m = m.Parent
 	end
@@ -714,10 +761,11 @@ function WorldView.signCard(i: number)
 		end
 		return c
 	end
-	UIKit.notice(string.format("%s: day %s, %d villagers, %d driftlings, charm %s, %d wild places cleared", name, Numbers.int(n("Day")), count("Folk"), count("Pals"), Numbers.int(n("Charm")), n("Islets")), UIKit.color("accent"), 5)
+	UIKit.notice(string.format("%s: day %s, %d villagers, %d driftlings, charm %s", name, Numbers.int(n("Day")), count("Folk"), count("Pals"), Numbers.int(n("Charm"))), UIKit.color("accent"), 5)
 end
 
--- A tap (not a drag, not on the interface, not in Build mode) on an island sign shows its card.
+-- A tap (not a drag, not on the interface, not in Build mode) on an island sign shows its card; on the own Tree of
+-- Life, its panel.
 local function onTap(pos: Vector2)
 	if CameraController.isFree() then
 		return
@@ -739,10 +787,13 @@ local function onTap(pos: Vector2)
 	if hit == nil then
 		return
 	end
-	-- a wild place on the own island: its card (GAME_DESIGN 7: "You can tap on them to enter an expedition")
-	local uid = siteUidOf(hit.Instance)
-	if uid then
-		UIKit.openPanel("site", uid)
+	-- the Tree of Life: the own one's panel (its upgrades and its pen)
+	local mine = treeOf(hit.Instance)
+	if mine == true then
+		UIKit.openPanel("tree")
+		return
+	elseif mine == false then
+		UIKit.notice("Someone else's Tree of Life. Yours is on your own island.", UIKit.color("text_dim"), 3)
 		return
 	end
 	local sign = hit.Instance:FindFirstAncestor("PlotSign")
@@ -798,6 +849,31 @@ local function welcome(v: { [string]: any })
 	end)
 end
 
+-- A driftling the own tree just grew (Fx "tree"): it cheers as it pops out of the hollow, bits of its rarity's colour
+-- round it; a rare one or better has its name float up too.
+local function grownOne(x: { [string]: any })
+	task.spawn(function()
+		-- (its model comes with the next attribute sync: wait for it a moment)
+		local w: Walker? = nil
+		for _ = 1, 12 do
+			task.wait(0.15)
+			w = walkers[myPlot .. ":p" .. tostring(x.id)]
+			if w then
+				break
+			end
+		end
+		local d = if type(x.sp) == "string" then Creatures.byId[x.sp] else nil
+		if w and d then
+			local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+			local at = headOf(w)
+			if d.rarity >= 3 then
+				UIKit.floatText(at, d.name .. "!", UIKit.color(rar.color), d.rarity >= 4)
+			end
+			UIKit.bitsAt(at, { rar.color, "good", "white" }, if d.rarity >= 3 then 18 else 8, 40, 70)
+		end
+	end)
+end
+
 -- A hatchling (Logic/Breed): it cheers where it appears, its kind's name floating up with pink and gold bits.
 local function hatched(x: { [string]: any })
 	task.delay(0.8, function()
@@ -832,6 +908,13 @@ function WorldView.start()
 			for _, x in msg.hatched do
 				if type(x) == "table" then
 					hatched(x)
+				end
+			end
+		end
+		if msg.kind == "tree" and type(msg.grown) == "table" then
+			for _, x in msg.grown do
+				if type(x) == "table" then
+					grownOne(x)
 				end
 			end
 		end
@@ -885,12 +968,12 @@ function WorldView.start()
 		end
 		stepBits(dt)
 		updateSigns()
-		updateSiteLabels()
+		updateTreeLabel()
 	end)
 end
 
--- Sims: a tap on the screen at `pos` (screen px, as an InputObject's), as a player's tap is handled (a wild place on
--- the own island opens its card, a sign its card).
+-- Sims: a tap on the screen at `pos` (screen px, as an InputObject's), as a player's tap is handled (the own Tree of
+-- Life opens its panel, a sign its card).
 function WorldView.tapScreen(pos: Vector2)
 	onTap(pos)
 end
@@ -912,6 +995,29 @@ function WorldView.ownRigCount(): number
 		end
 	end
 	return n
+end
+
+-- Sims: the own island's villagers ("v") or driftlings ("p") drawn, and of those driftlings how many are in the pen and
+-- how many of those stand inside its fence now.
+function WorldView.ownCount(kind: string): (number, number, number)
+	local n, pen, inside = 0, 0, 0
+	local s, at = treeSpot(myPlot)
+	for _, w in walkers do
+		if w.plot == myPlot and w.kind == kind then
+			n += 1
+			if kind == "p" and w.home == 0 then
+				pen += 1
+				if s and at then
+					local p = at:PointToObjectSpace(Vector3.new(w.x, 0, w.z))
+					local r = DecorModels.PEN
+					if p.X >= r.x0 - 0.3 and p.X <= r.x1 + 0.3 and p.Z >= r.z0 - 0.3 and p.Z <= r.z1 + 0.3 then
+						inside += 1
+					end
+				end
+			end
+		end
+	end
+	return n, pen, inside
 end
 
 return WorldView

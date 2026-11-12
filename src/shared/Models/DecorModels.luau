@@ -589,36 +589,6 @@ B.hatchery = function(m, f)
 	fence(m, f, -0.65, 1.85, 1.92, "wood")
 end
 
--- Training Yard (4 x 4): a sandy ring in a fence, a dummy on a post, a rack of wooden swords, a target, a bench.
-B.yard = function(m, f)
-	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "sand", "Ground")
-	box(m, f, 0, 0.07, 0, 2.2, 0.06, 2.2, "sand_dark", "Ring")
-	fence(m, f, -1.9, 1.9, -1.9)
-	fenceZ(m, f, -1.9, 1.9, -1.9)
-	fenceZ(m, f, -1.9, 1.9, 1.9)
-	-- the dummy
-	box(m, f, 0, 0.9, -0.2, 0.2, 1.8, 0.2, "wood_dark", "Post")
-	box(m, f, 0, 1.3, -0.2, 0.7, 0.8, 0.45, "sand_dark", "Dummy")
-	box(m, f, 0, 1.3, -0.2, 0.75, 0.12, 0.5, "wood_dark", "Belt")
-	box(m, f, 0, 1.95, -0.2, 0.45, 0.45, 0.45, "sand_dark", "Head")
-	box(m, f, 0, 1.55, -0.2, 1.4, 0.15, 0.15, "wood_dark", "Arms")
-	box(m, f, -0.1, 2.0, 0.03, 0.08, 0.08, 0.04, "black", "Eye")
-	box(m, f, 0.1, 2.0, 0.03, 0.08, 0.08, 0.04, "black", "Eye")
-	-- the weapon rack and the target
-	box(m, f, 1.3, 0.6, -1.3, 0.12, 1.2, 0.12, "wood_dark", "RackPost")
-	box(m, f, 0.7, 0.6, -1.3, 0.12, 1.2, 0.12, "wood_dark", "RackPost")
-	box(m, f, 1.0, 1.0, -1.3, 0.8, 0.1, 0.1, "wood_dark", "RackBar")
-	for k = 0, 2 do
-		box(m, f, 0.8 + k * 0.2, 0.7, -1.25, 0.08, 1.0, 0.15, "wood", "Sword")
-	end
-	cyl(m, f, -1.2, 1.0, -1.4, 1.0, 0.15, "white", "Target").CFrame = f * CFrame.new(-1.2, 1.0, -1.4) * CFrame.Angles(math.pi / 2, 0, 0)
-	cyl(m, f, -1.2, 1.0, -1.32, 0.6, 0.06, "berry_red", "Ring").CFrame = f * CFrame.new(-1.2, 1.0, -1.32) * CFrame.Angles(math.pi / 2, 0, 0)
-	box(m, f, -1.2, 0.5, -1.5, 0.12, 1.0, 0.12, "wood_dark", "Stand")
-	box(m, f, 1.1, 0.35, 1.3, 1.2, 0.12, 0.4, "wood", "Bench")
-	box(m, f, 1.1, 0.15, 1.3, 1.0, 0.3, 0.1, "wood_dark", "BenchLeg")
-	cyl(m, f, 0.65, 0.55, 1.3, 0.3, 0.3, "blue", "Flask")
-end
-
 ------------------------------------------------------------------ decor
 -- Flower Bed (2 x 2): a bordered bed, flowers of four colours at different heights, leaves.
 B.flowers = function(m, f)
@@ -1662,333 +1632,102 @@ local function pennant(m: Model, f: CFrame, lvl: number, w: number, d: number)
 end
 
 
------------------------------------------------------------------- the wild places (Data/Sites)
--- Each a small landscape in its footprint: a tide pool, tall grass, a bog, a volcano, a cave, a frost peak, a windy
--- bluff, a coral pool, old ruins. Wild ("wild_<id>"), a pair of eyes glows in its dark heart (something lives there);
--- cleared ("done_<id>"), the eyes are gone, it is a little tamer and a flag stands planted on it.
-local function jit(i: number, k: number): number
-	local v = math.sin(i * 12.9898 + k * 78.233) * 43758.5453
-	return v - math.floor(v)
+------------------------------------------------------------------ the Tree of Life (GAME_DESIGN 6; Logic/Tree)
+-- Tree of Life (6 x 4): on the left a great old tree, its roots gripping the grass, a glowing hollow at its foot where
+-- the driftlings are born (`Pod`), a wide canopy in layers with blossoms and glowing fruit; on the right its pen (a
+-- fenced yard of trodden earth, a gate at the front, a hay bale, a water trough, a feed bowl, a sign), where the
+-- driftlings it grows wait (DecorModels.PEN: its floor, in the model's own frame, for WorldView).
+DecorModels.PEN = { x0 = 0.45, z0 = -1.35, x1 = 2.6, z1 = 1.45 }
+B.tree = function(m, f)
+	-- the ground: grass under the tree, earth in the pen
+	box(m, f, -1.5, 0.03, 0, 3, 0.06, 4, "grass_dark", "Lawn")
+	box(m, f, 1.5, 0.03, 0, 3, 0.06, 4, "sand_dark", "PenFloor")
+	-- roots spreading over the grass, and a thick old trunk in tapering drums
+	local tx, tz = -1.55, -0.25
+	for k = 0, 6 do
+		local a = k / 7 * math.pi * 2 + 0.3
+		Blocks.part(m, {
+			size = Vector3.new(1.6, 0.45, 0.5),
+			cf = f * CFrame.new(tx + math.cos(a) * 0.9, 0.2, tz + math.sin(a) * 0.9) * CFrame.Angles(0, -a, math.rad(-14)),
+			color = if k % 2 == 0 then "wood_dark" else "wood",
+			name = "Root",
+			collide = false,
+		})
+	end
+	for i = 0, 5 do
+		local dia = 1.7 - i * 0.12
+		cyl(m, f, tx + math.sin(i * 0.9) * 0.08, 0.45 + i * 0.75, tz, dia, 0.8, if i % 2 == 0 then "wood" else "wood_dark", "Trunk")
+	end
+	-- bark ridges up the front
+	for _, x in { -0.4, 0.05, 0.45 } do
+		box(m, f, tx + x, 2.2, tz + 0.78, 0.12, 2.6, 0.1, "wood_dark", "Bark")
+	end
+	-- the hollow at its foot: a glowing doorway into the tree, a soft light in it
+	box(m, f, tx, 0.75, tz + 0.8, 0.7, 1.0, 0.12, "black", "Hollow")
+	box(m, f, tx, 0.68, tz + 0.84, 0.48, 0.7, 0.08, "yellow", "Pod", true)
+	box(m, f, tx, 1.32, tz + 0.84, 0.86, 0.16, 0.16, "wood_dark", "Lintel")
+	-- three great limbs into the canopy
+	for _, b in { { -1, 0.5 }, { 1, -0.4 }, { 0.2, 1 } } do
+		Blocks.part(m, {
+			size = Vector3.new(2, 0.5, 0.5),
+			cf = f * CFrame.new(tx + b[1] * 0.75, 4.7, tz + b[2] * 0.5) * CFrame.Angles(0, math.atan2(-b[2], b[1]), math.rad(32)),
+			color = "wood_dark",
+			name = "Branch",
+			collide = false,
+		})
+	end
+	-- the canopy: a wide crown of lobes, darker underneath, lighter on top, pink blossom clusters through it
+	ball(m, f, tx, 5.0, tz, 3.6, "leaf_dark", "LeavesUnder")
+	ball(m, f, tx, 6.1, tz, 4.0, "leaf", "Leaves")
+	for k, c in { { -1.45, 5.5, 0.55, 2.6 }, { 1.35, 5.6, 0.3, 2.5 }, { -0.5, 5.4, -1.25, 2.6 }, { 0.6, 7.0, -0.4, 2.4 }, { -0.9, 7.1, 0.6, 2.2 }, { 0.3, 5.3, 1.3, 2.0 }, { 0.1, 7.7, 0.1, 1.8 } } do
+		ball(m, f, tx + c[1], c[2], tz + c[3], c[4], if k % 3 == 0 then "leaf_dark" else "leaf", "Leaves")
+	end
+	for k, c in { { -1.9, 6.2, 1.1 }, { 1.8, 5.9, 1.0 }, { -0.3, 7.9, 0.7 }, { 1.1, 7.3, -0.8 }, { -1.6, 7.0, -0.8 }, { 0.4, 6.4, 2.0 }, { -1.0, 5.4, 1.6 }, { 1.6, 6.8, 0.2 }, { -0.4, 6.8, 1.8 } } do
+		ball(m, f, tx + c[1], c[2], tz + c[3], if k % 3 == 0 then 0.7 else 0.55, if k % 2 == 0 then "pink" else "white", "Blossom")
+	end
+	-- glowing fruit hanging under the crown
+	for _, c in { { -1.3, 4.1, 1.0 }, { 1.15, 4.2, 0.7 }, { 0.15, 3.9, 1.35 }, { -0.6, 4.0, -1.1 }, { 1.5, 4.3, -0.5 } } do
+		box(m, f, tx + c[1], c[2] + 0.35, tz + c[3], 0.06, 0.5, 0.06, "wood_dark", "Stalk")
+		ball(m, f, tx + c[1], c[2], tz + c[3], 0.5, "gold", "Fruit").Material = Enum.Material.Neon
+	end
+	-- mushrooms and a few flowers among the roots
+	for k, c in { { -2.55, 1.2 }, { -0.55, 1.4 }, { -2.6, -1.4 } } do
+		box(m, f, c[1], 0.17, c[2], 0.1, 0.3, 0.1, "cream", "Stalk")
+		box(m, f, c[1], 0.36, c[2], 0.32, 0.12, 0.32, if k == 2 then "orange" else "berry_red", "Cap")
+	end
+	for _, c in { { -2.3, 1.65 }, { -0.85, 1.75 }, { -2.75, 0.2 } } do
+		box(m, f, c[1], 0.12, c[2], 0.22, 0.12, 0.22, "yellow", "Flower")
+	end
+	-- the pen: a fence round the earth with a gate at the front
+	fenceZ(m, f, -1.8, 1.8, 0.15)
+	fenceZ(m, f, -1.8, 1.8, 2.85)
+	fence(m, f, 0.15, 2.85, -1.8)
+	fence(m, f, 0.15, 1.05, 1.8)
+	fence(m, f, 2.05, 2.85, 1.8)
+	-- the gate, swung open
+	Blocks.part(m, {
+		size = Vector3.new(0.9, 0.5, 0.08),
+		cf = f * CFrame.new(2.05, 0.42, 1.8) * CFrame.Angles(0, math.rad(-70), 0) * CFrame.new(-0.45, 0, 0),
+		color = "wood",
+		name = "Gate",
+		collide = false,
+	})
+	-- a hay bale, a water trough and a feed bowl
+	box(m, f, 2.35, 0.3, -1.3, 0.7, 0.5, 0.6, "sand", "Hay")
+	box(m, f, 2.35, 0.56, -1.3, 0.72, 0.06, 0.62, "yellow", "Straw")
+	box(m, f, 0.75, 0.22, -1.35, 0.9, 0.35, 0.45, "wood_dark", "Trough")
+	box(m, f, 0.75, 0.37, -1.35, 0.72, 0.06, 0.3, "water", "TroughWater").Material = Enum.Material.Glass
+	cyl(m, f, 2.45, 0.1, 0.9, 0.5, 0.18, "rock", "Bowl")
+	box(m, f, 2.45, 0.2, 0.9, 0.34, 0.04, 0.34, "orange", "Feed")
+	-- the sign by the gate
+	box(m, f, 1.0, 0.55, 2.05, 0.08, 1.1, 0.08, "wood_dark", "SignPost")
+	box(m, f, 1.0, 1.0, 2.08, 0.7, 0.35, 0.06, "wood", "Sign")
 end
 
--- Two glowing eyes (looking out toward the view, +Z), a hand apart.
-local function eyes(m: Model, f: CFrame, x: number, y: number, z: number, color: string?)
-	for _, dx in { -0.22, 0.22 } do
-		box(m, f, x + dx, y, z, 0.18, 0.18, 0.06, color or "yellow", "Eye", true)
-	end
-end
-
--- The flag of a place cleared: a pole and a pennant (it ripples in the wind).
-local function plantFlag(m: Model, f: CFrame, x: number, y: number, z: number)
-	box(m, f, x, y + 1.0, z, 0.12, 2.0, 0.12, "wood_dark", "FlagPole")
-	ball(m, f, x, y + 2.05, z, 0.2, "gold", "Knob")
-	wedge(m, f, x + 0.42, y + 1.7, z, 0.72, 0.5, 0.08, "berry_red", math.pi / 2, "Flag")
-	box(m, f, x + 0.2, y + 1.45, z, 0.3, 0.08, 0.06, "white", "FlagStripe")
-end
-
--- A ring of rocks round (cx, cz) of radius r: n stones, lit ones and shaded ones.
-local function rockRing(m: Model, f: CFrame, cx: number, cz: number, r: number, n: number, size: number, seed: number)
-	for i = 0, n - 1 do
-		local a = (i + jit(seed, i) * 0.4) / n * math.pi * 2
-		local s0 = size * (0.75 + 0.5 * jit(seed + 3, i))
-		ball(m, f, cx + math.cos(a) * r, s0 * 0.35, cz + math.sin(a) * r, s0, if i % 3 == 0 then "rock_dark" else "rock", "Rock")
-	end
-end
-
-local SITE: { [string]: (m: Model, f: CFrame, wild: boolean) -> () } = {}
-
--- Tide Pool (4 x 4): a ring of rocks round a clear pool on the sand, starfish and seaweed; a crab's eye stalks peek
--- out of the water while it is wild, a bucket and spade sit by it once cleared.
-SITE.tidepool = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "sand", "Sand")
-	box(m, f, 0.1, 0.11, 0.1, 2.9, 0.04, 2.6, "sand_dark", "WetSand")
-	cyl(m, f, 0.1, 0.14, 0.1, 2.5, 0.08, "water", "Pool"):SetAttribute("PixelWater", 2)
-	cyl(m, f, 0.1, 0.16, 0.1, 1.9, 0.06, "shallow", "Shallow"):SetAttribute("PixelWater", 2)
-	rockRing(m, f, 0.1, 0.1, 1.45, 9, 0.7, 1)
-	ball(m, f, -1.3, 0.55, -1.2, 1.2, "rock", "BigRock")
-	ball(m, f, -1.0, 0.75, -1.4, 0.7, "rock_dark", "BigRock")
-	local rows1709: { { any } } = { { 1.4, 1.3, "orange" }, { -1.5, 1.5, "pink" }, { 0.5, -1.5, "orange" } }
-	for k, st in rows1709 do
-		box(m, f, st[1], 0.14, st[2], 0.36, 0.06, 0.12, st[3], "Star")
-		box(m, f, st[1], 0.14, st[2], 0.12, 0.06, 0.36, st[3], "Star")
-		local _ = k
-	end
-	for _, w in { { 0.9, -0.6 }, { -0.5, 0.7 }, { 1.0, 0.8 } } do
-		box(m, f, w[1], 0.35, w[2], 0.1, 0.5, 0.1, "leaf_dark", "Weed")
-		box(m, f, w[1] + 0.12, 0.28, w[2] + 0.05, 0.1, 0.35, 0.1, "leaf", "Weed")
-	end
-	if wild then
-		-- a crab under the water: its eye stalks up, its claw breaking the surface
-		for _, dx in { -0.18, 0.18 } do
-			box(m, f, 0.2 + dx, 0.38, 0.3, 0.08, 0.4, 0.08, "berry_red", "Stalk")
-			ball(m, f, 0.2 + dx, 0.62, 0.3, 0.2, "white", "EyeBall")
-			box(m, f, 0.2 + dx, 0.64, 0.38, 0.08, 0.08, 0.06, "black", "Pupil")
-		end
-		box(m, f, -0.4, 0.3, 0.5, 0.35, 0.25, 0.25, "berry_red", "Claw")
-		box(m, f, -0.5, 0.42, 0.5, 0.15, 0.12, 0.2, "berry_red", "Claw")
-	else
-		cyl(m, f, 1.5, 0.3, -0.2, 0.45, 0.5, "blue", "Bucket")
-		box(m, f, 1.3, 0.4, 0.3, 0.08, 0.7, 0.08, "wood", "Spade")
-		plantFlag(m, f, -1.5, 0.1, 0.3)
-	end
-end
-
--- Tall Grass (4 x 4): a thick stand of grass taller than a person, in three greens, swaying; eyes peer out from
--- between the stalks while it is wild. Cleared, it is cut down to tufts with a trodden path through it.
-SITE.tallgrass = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "grass_dark", "Ground")
-	local i = 0
-	for gz = -1.75, 1.75, 0.35 do
-		for gx = -1.75, 1.75, 0.35 do
-			i += 1
-			local onPath = not wild and math.abs(gx - 0.2 * gz) < 0.45
-			-- a round clump with a ragged edge (wild: highest in the middle, falling off to the edge)
-			local r = math.sqrt(gx * gx + gz * gz)
-			local thin = r > 1.45 + 0.45 * jit(i, 6) and jit(i, 7) > 0.3
-			if not onPath and not (wild and thin) then
-				local dome = math.max(0.2, 1 - (r / 2.7) ^ 2)
-				local h = if wild then (0.5 + 2.1 * dome) * (0.75 + 0.5 * jit(i, 1)) else 0.35 + 0.35 * jit(i, 1)
-				-- (the taller blades in the middle darker, in each other's shade; the light green on the outside)
-				local col = if wild and r < 1.1 then ({ "leaf_dark", "grass_dark", "leaf_dark", "leaf" })[1 + math.floor(jit(i, 2) * 4)]
-					else ({ "leaf", "grass", "grass_dark", "leaf" })[1 + math.floor(jit(i, 2) * 4)]
-				local x, z = gx + (jit(i, 3) - 0.5) * 0.2, gz + (jit(i, 4) - 0.5) * 0.2
-				box(m, f, x, 0.1 + h / 2, z, 0.12, h, 0.12, col, "Blade")
-				if wild and jit(i, 5) > 0.7 then
-					-- a seed head
-					box(m, f, x, 0.1 + h + 0.12, z, 0.14, 0.24, 0.14, "sand_dark", "SeedHead")
-				end
-			end
-		end
-	end
-	if wild then
-		eyes(m, f, 0.1, 0.95, 1.3)
-	else
-		box(m, f, 0.1, 0.11, 0, 0.9, 0.03, 4, "sand_dark", "Trodden")
-		plantFlag(m, f, -1.4, 0.1, 1.3)
-	end
-end
-
--- Bog (4 x 4): a pool of brown water under arching mangrove roots, cattails and a lily pad; bubbles rise and eyes
--- glow in the water while it is wild. Cleared, a plank bridge crosses it.
-SITE.bog = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "hair_brown", "Mud")
-	cyl(m, f, 0, 0.12, 0.2, 3.0, 0.06, "chalk", "Water"):SetAttribute("PixelWater", 2)
-	-- roots arching out of the water
-	for k, r in { { -1.2, -1.1, 0.6 }, { 1.1, -1.0, -0.5 }, { -1.3, 1.0, 0.3 }, { 1.4, 1.1, -0.2 } } do
-		local x, z, lean = r[1], r[2], r[3]
-		box(m, f, x, 0.55, z, 0.2, 1.1, 0.2, "wood_dark", "Root")
-		Blocks.part(m, { size = Vector3.new(0.18, 0.9, 0.18), cf = f * CFrame.new(x + lean * 0.5, 0.95, z) * CFrame.Angles(0, 0, -lean), color = "wood_dark", name = "Root", collide = false })
-		box(m, f, x, 1.2, z, 0.5, 0.25, 0.5, if k % 2 == 0 then "leaf_dark" else "leaf", "Leaves")
-	end
-	box(m, f, -0.2, 1.6, -1.2, 2.6, 0.3, 0.9, "leaf_dark", "Canopy")
-	for _, c in { { 1.5, 0.2 }, { 1.6, 0.6 }, { -1.6, -0.1 } } do
-		box(m, f, c[1], 0.6, c[2], 0.08, 1.0, 0.08, "leaf_dark", "Reed")
-		box(m, f, c[1], 1.15, c[2], 0.14, 0.3, 0.14, "hair_brown", "Cattail")
-	end
-	cyl(m, f, 0.6, 0.17, 0.9, 0.6, 0.04, "leaf", "LilyPad")
-	box(m, f, 0.6, 0.2, 0.9, 0.12, 0.08, 0.12, "pink", "Lily")
-	if wild then
-		eyes(m, f, -0.3, 0.3, 0.6)
-		for _, b in { { 0.2, 0.2 }, { -0.7, -0.2 }, { 0.9, -0.4 } } do
-			ball(m, f, b[1], 0.25, b[2], 0.18, "foam", "Bubble")
-		end
-	else
-		for k = -2, 2 do
-			box(m, f, k * 0.45, 0.25, 0.2, 0.4, 0.1, 0.9, if k % 2 == 0 then "wood" else "desk", "Plank")
-		end
-		plantFlag(m, f, 1.6, 0.1, -1.5)
-	end
-end
-
--- Volcano (5 x 5): a cone of dark rock in stepped rings, a crater of lava, a glowing stream down its front and smoke;
--- wild, the lava burns bright and eyes look out of a crack at its foot. Cleared, the lava has cooled to a dull red.
-SITE.volcano = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 5, 0.1, 5, "rock_dark", "Ash")
-	local lava = if wild then "orange" else "berry_red"
-	local rings: { { any } } = { { 4.6, 0.7, "rock_dark" }, { 3.8, 0.7, "rock" }, { 3.0, 0.7, "rock_dark" }, { 2.3, 0.6, "rock" } }
-	local y = 0.1
-	for _, r in rings do
-		cyl(m, f, 0, y + r[2] / 2, 0, r[1], r[2], r[3], "Cone")
-		y += r[2]
-	end
-	cyl(m, f, 0, y - 0.05, 0, 1.4, 0.12, lava, "Crater").Material = if wild then Enum.Material.Neon else Enum.Material.SmoothPlastic
-	-- a stream of lava down the front, ring by ring
-	for k = 1, 4 do
-		local z = 0.55 + k * 0.42
-		box(m, f, 0.2 - k * 0.05, y - k * 0.68, z, 0.28, 0.12, 0.42, lava, "Lava", wild)
-	end
-	box(m, f, 0.0, 0.14, 2.35, 0.7, 0.06, 0.3, lava, "LavaPool", wild)
-	-- smoke
-	for k, sm in { { 0.1, 0.5, 0.7 }, { -0.25, 1.1, 0.55 }, { 0.3, 1.6, 0.4 } } do
-		ball(m, f, sm[1], y + sm[2], 0, sm[3], if k == 1 then "steel" else "steel_dark", "Smoke")
-	end
-	if wild then
-		box(m, f, -1.2, 0.5, 1.95, 0.9, 0.6, 0.1, "black", "Crack")
-		eyes(m, f, -1.2, 0.55, 2.02, "orange")
-	else
-		plantFlag(m, f, 1.6, 0.8, 1.2)
-	end
-end
-
--- Cave (5 x 4): a mound of rock with a dark mouth on its front, crystals growing round it; eyes glow in the dark while
--- it is wild. Cleared, timber props hold the mouth and a lantern hangs in it.
-SITE.cave = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 5, 0.1, 4, "rock_dark", "Floor")
-	ball(m, f, 0, 1.2, -0.4, 3.4, "rock", "Mound")
-	ball(m, f, -1.5, 0.9, -0.2, 2.0, "rock_dark", "Mound")
-	ball(m, f, 1.6, 0.85, -0.3, 1.9, "rock", "Mound")
-	box(m, f, 0, 1.0, -0.6, 3.6, 1.8, 2.4, "rock", "Core")
-	box(m, f, 0, 2.0, -0.6, 2.6, 0.5, 1.8, "grass_dark", "Moss")
-	-- the mouth: a dark arch on the front
-	box(m, f, 0, 0.7, 0.65, 1.3, 1.2, 0.1, "black", "Mouth")
-	box(m, f, 0, 1.38, 0.65, 0.9, 0.16, 0.1, "black", "Mouth")
-	local rows1837: { { any } } = { { -1.9, 1.3, 0.8, "purple" }, { -1.6, 1.6, 0.5, "window" }, { 1.9, 1.2, 0.7, "purple" }, { 1.6, 1.6, 0.45, "window" }, { 0.9, 1.5, 0.35, "purple" } }
-	for k, c in rows1837 do
-		local h = c[3]
-		Blocks.part(m, { size = Vector3.new(0.22, h, 0.22), cf = f * CFrame.new(c[1], 0.1 + h / 2, c[2]) * CFrame.Angles(0, 0, (if k % 2 == 0 then 0.25 else -0.2)), color = c[4] :: string, name = "Crystal", neon = wild, collide = false })
-	end
-	if wild then
-		eyes(m, f, 0, 0.75, 0.72)
-	else
-		for _, x in { -0.7, 0.7 } do
-			box(m, f, x, 0.75, 0.75, 0.16, 1.4, 0.16, "wood", "Prop")
-		end
-		box(m, f, 0, 1.5, 0.75, 1.6, 0.16, 0.16, "wood", "Lintel")
-		box(m, f, 0, 1.15, 0.75, 0.22, 0.28, 0.22, "yellow", "Lantern", true)
-		plantFlag(m, f, 1.2, 2.0, -0.6)
-	end
-end
-
--- Frost Peak (5 x 5): a heap of grey rock under thick snow, icicles hanging off its ledges, ice crystals at its foot;
--- a crevice in its face glows cold blue with eyes in it while it is wild.
-SITE.frostpeak = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 5, 0.1, 5, "white", "Snow")
-	local steps = { { 4.4, 4.2, 0.9 }, { 3.4, 3.2, 0.9 }, { 2.4, 2.2, 0.8 }, { 1.3, 1.2, 0.6 } }
-	local y = 0.1
-	for k, st in steps do
-		box(m, f, 0, y + st[3] / 2, -0.2, st[1], st[3], st[2], if k % 2 == 1 then "rock" else "rock_dark", "Rock")
-		box(m, f, 0, y + st[3] + 0.06, -0.2, st[1] - 0.3, 0.12, st[2] - 0.3, "white", "SnowCap")
-		-- icicles off the ledge's front
-		for i = 0, 3 do
-			local x = -st[1] / 2 + 0.4 + i * (st[1] - 0.8) / 3
-			box(m, f, x, y + st[3] - 0.2, -0.2 + st[2] / 2 + 0.03, 0.1, 0.35 + 0.2 * jit(k, i), 0.1, "window", "Icicle")
-		end
-		y += st[3]
-	end
-	for _, c in { { -2.0, 1.9 }, { 2.0, 1.8 }, { 1.7, -1.9 } } do
-		box(m, f, c[1], 0.45, c[2], 0.3, 0.7, 0.3, "window", "Ice")
-		box(m, f, c[1] + 0.25, 0.3, c[2], 0.2, 0.4, 0.2, "white", "Ice")
-	end
-	if wild then
-		box(m, f, 0.3, 0.55, 1.92, 0.8, 0.8, 0.08, "night", "Crevice")
-		eyes(m, f, 0.3, 0.6, 1.98, "window")
-	else
-		box(m, f, -1.6, 0.35, 2.0, 0.6, 0.5, 0.6, "white", "Snowman")
-		ball(m, f, -1.6, 0.85, 2.0, 0.45, "white", "Snowman")
-		box(m, f, -1.6, 0.85, 2.25, 0.08, 0.08, 0.15, "orange", "Nose")
-		plantFlag(m, f, 0.2, y, -0.2)
-	end
-end
-
--- Windy Bluff (5 x 4): a tall crag of stacked rock, grass on its top, a bent tree leaning in the wind; a big nest on
--- its top with eyes in it while it is wild. Cleared, the nest is empty and a flag flies over it.
-SITE.bluff = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 5, 0.1, 4, "grass_dark", "Ground")
-	local layers = { { 4.2, 3.4, 1.0, 0.0 }, { 3.4, 2.8, 1.0, 0.2 }, { 2.6, 2.2, 0.9, -0.1 }, { 2.0, 1.8, 0.8, 0.2 } }
-	local y = 0.1
-	for k, l in layers do
-		box(m, f, l[4], y + l[3] / 2, -0.2, l[1], l[3], l[2], if k % 2 == 1 then "rock" else "sand_dark", "Crag")
-		y += l[3]
-	end
-	box(m, f, 0.2, y + 0.08, -0.2, 2.1, 0.16, 1.9, "grass", "Turf")
-	-- a bent tree on the top
-	Blocks.part(m, { size = Vector3.new(0.25, 1.4, 0.25), cf = f * CFrame.new(-0.5, y + 0.7, -0.6) * CFrame.Angles(0, 0, 0.35), color = "wood_dark", name = "Trunk", collide = false })
-	box(m, f, -0.15, y + 1.45, -0.6, 1.3, 0.45, 0.9, "leaf_dark", "Leaves")
-	box(m, f, 0.1, y + 1.75, -0.6, 0.8, 0.3, 0.6, "leaf", "Leaves")
-	-- a big nest of sticks
-	cyl(m, f, 0.6, y + 0.3, 0.2, 1.1, 0.3, "wood", "Nest")
-	cyl(m, f, 0.6, y + 0.4, 0.2, 0.7, 0.12, "wood_dark", "NestHollow")
-	if wild then
-		eyes(m, f, 0.6, y + 0.62, 0.4)
-	else
-		ball(m, f, 0.5, y + 0.5, 0.2, 0.3, "cream", "Egg")
-		plantFlag(m, f, 1.3, y + 0.15, -0.6)
-	end
-end
-
--- Coral Pool (4 x 4): a deep blue pool in a rim of pale stone, coral branches growing up out of it; a big shell lies
--- open in it with eyes glowing in it while it is wild.
-SITE.coralpool = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 4, 0.1, 4, "pavement", "Rim")
-	box(m, f, 0, 0.12, 0, 3.2, 0.06, 3.2, "blue", "Deep"):SetAttribute("PixelWater", 2)
-	box(m, f, 0, 0.14, 0, 2.4, 0.04, 2.4, "water", "Pool"):SetAttribute("PixelWater", 2)
-	local rows1916: { { any } } = { { -1.0, -0.9, "pink" }, { 0.9, -1.0, "orange" }, { -1.1, 0.8, "orange" }, { 1.1, 0.7, "pink" }, { 0.1, -1.2, "purple" } }
-	for k, c in rows1916 do
-		local x, z, col = c[1], c[2], c[3]
-		box(m, f, x, 0.45, z, 0.16, 0.7, 0.16, col, "Coral")
-		box(m, f, x + 0.18, 0.62, z, 0.14, 0.35, 0.14, col, "Coral")
-		box(m, f, x - 0.15, 0.7, z + 0.05, 0.12, 0.3, 0.12, col, "Coral")
-		local _ = k
-	end
-	for _, r in { { -1.85, -1.85 }, { 1.85, 1.85 }, { 1.85, -1.85 }, { -1.85, 1.85 } } do
-		ball(m, f, r[1], 0.25, r[2], 0.55, "rock", "Stone")
-	end
-	if wild then
-		box(m, f, 0.1, 0.25, 0.3, 0.9, 0.12, 0.6, "white", "Shell")
-		wedge(m, f, 0.1, 0.45, 0.05, 0.9, 0.4, 0.15, "cream", 0, "ShellLid")
-		eyes(m, f, 0.1, 0.36, 0.45, "window")
-	else
-		box(m, f, 0.1, 0.2, 0.3, 0.3, 0.12, 0.3, "white", "Pearl")
-		plantFlag(m, f, -1.6, 0.1, 1.6)
-	end
-end
-
--- Old Ruins (5 x 5): steps up to a broken arch, columns of different heights (one fallen), moss on the stones; runes
--- glow on the stones and eyes look out of the dark doorway while it is wild.
-SITE.ruins = function(m, f, wild)
-	box(m, f, 0, 0.05, 0, 5, 0.1, 5, "sand", "Ground")
-	box(m, f, 0, 0.2, -0.3, 4.4, 0.3, 3.8, "pavement", "Step")
-	box(m, f, 0, 0.45, -0.5, 3.6, 0.25, 3.0, "floor_b", "Step")
-	-- the arch and its doorway
-	for _, x in { -0.9, 0.9 } do
-		box(m, f, x, 1.55, -1.3, 0.55, 2.0, 0.55, "pavement", "Pillar")
-	end
-	box(m, f, 0, 2.7, -1.3, 2.4, 0.4, 0.6, "pavement", "Lintel")
-	box(m, f, -0.6, 3.0, -1.3, 0.9, 0.2, 0.5, "pavement", "Broken")
-	box(m, f, 0, 1.3, -1.32, 1.25, 1.5, 0.08, "black", "Doorway")
-	-- columns standing and fallen
-	for k, c in { { -1.8, 0.9, 1.6 }, { 1.8, 0.8, 1.1 }, { 1.9, -1.6, 2.2 }, { -1.9, -1.5, 0.7 } } do
-		cyl(m, f, c[1], 0.55 + c[3] / 2, c[2], 0.55, c[3], if k % 2 == 0 then "pavement" else "floor_b", "Column")
-		box(m, f, c[1], 0.6 + c[3], c[2], 0.7, 0.12, 0.7, "pavement", "Capital")
-	end
-	log(m, f, 0.4, 0.75, 1.6, 1.8, 0.5, "floor_b", "Fallen")
-	for _, mo in { { -0.9, 2.6, -1.0 }, { 1.9, 1.35, 0.8 }, { -1.8, 2.25, 0.9 } } do
-		box(m, f, mo[1], mo[2], mo[3], 0.4, 0.1, 0.4, "leaf_dark", "Moss")
-	end
-	if wild then
-		for _, r in { { -0.9, 1.7, -1.0 }, { 0.9, 1.3, -1.0 }, { -1.8, 1.4, 1.2 } } do
-			box(m, f, r[1], r[2], r[3], 0.2, 0.3, 0.06, "purple", "Rune", true)
-		end
-		eyes(m, f, 0, 1.35, -1.25, "purple")
-	else
-		plantFlag(m, f, 0.4, 3.1, -1.3)
-	end
-end
-
--- The piece's model at `at` (the footprint's centre on the grass, turned). Unknown ids build nothing. A wild place
--- (Data/Sites) carries its level as `lvl`: no pennant for that.
+-- The piece's model at `at` (the footprint's centre on the grass, turned). Unknown ids build nothing.
 function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	local m = Blocks.model(nil, "Decor_" .. id)
 	m:SetAttribute("Decor", id)
-	local pre, key = string.match(id, "^(%a+)_(%a+)$")
-	local site = if (pre == "wild" or pre == "done") and key then SITE[key :: string] else nil
-	if site then
-		site(m, at, pre == "wild")
-		m:SetAttribute("Site", key)
-		m:SetAttribute("Wild", pre == "wild")
-		Blocks.windy(m)
-		return m
-	end
 	local fn = B[id]
 	if fn then
 		fn(m, at)
@@ -2005,10 +1744,6 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 end
 
 function DecorModels.has(id: string): boolean
-	local pre, key = string.match(id, "^(%a+)_(%a+)$")
-	if (pre == "wild" or pre == "done") and key and SITE[key :: string] then
-		return true
-	end
 	return B[id] ~= nil
 end
 

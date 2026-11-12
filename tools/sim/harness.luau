@@ -295,19 +295,14 @@ function H.dismissCards(p, max)
 	end
 	return n
 end
--- A player's wild place to explore (exp.start's `site`): the lowest wild one (else the lowest cleared one), its uid.
-function H.firstSite(prof)
-	local best, lo, wild = 0, math.huge, false
+-- A player's Tree of Life piece (its uid), or 0.
+function H.treeUid(prof)
 	for _, q in prof.plot.placed do
-		local pre = string.sub(q.id, 1, 5)
-		if pre == "wild_" or pre == "done_" then
-			local w = pre == "wild_"
-			if (w and not wild) or (w == wild and q.lvl < lo) then
-				best, lo, wild = q.uid, q.lvl, w
-			end
+		if q.id == "tree" then
+			return q.uid
 		end
 	end
-	return best
+	return 0
 end
 -- The visible button named `name` (its Instance name: Menu_build, Place, BuildDone...), or nil.
 function H.buttonNamed(p, name, includeDisabled)
@@ -372,8 +367,8 @@ end
 H.finite = finite
 
 -- The profile is valid: finite non-negative stores, pieces that fit the island with unique uids, villagers and
--- driftlings with unique ids working only where they may (one a building), within the beds and nests' limits, the
--- islets and the tips in range.
+-- driftlings with unique ids working only where they may (a driftling from a hut, Tuning.HelpMax a building), the huts
+-- within their room, one Tree of Life with its levels in range, no level left on anyone, the tips in range.
 function H.checkProfile(p, label)
 	local prof = H.profile(p)
 	if not H.expect(prof ~= nil, "profile", label .. ": no profile") then
@@ -386,35 +381,39 @@ function H.checkProfile(p, label)
 	local Traits = H.sharedServer("Data.Traits")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
-	for _, k in { "shells", "food", "wood", "day", "tier", "islets", "wilds", "nextId", "tut", "quest" } do
+	local Tree = H.sharedServer("Logic.Tree")
+	for _, k in { "shells", "food", "wood", "day", "tier", "nextId", "tut", "quest" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
 	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
-	H.expect(prof.islets >= 0 and prof.islets == math.floor(prof.islets), "profile", label .. ": wild places cleared out of range", tostring(prof.islets))
-	H.expect(prof.wilds == prof.tier, "profile", label .. ": every tier's wild places up", string.format("%s of %s", tostring(prof.wilds), tostring(prof.tier)))
-	H.expect(prof.boat == nil and prof.chart == nil, "profile", label .. ": no boat or sea chart left in the save")
-	H.expect(prof.tut >= 0 and prof.tut <= 8, "profile", label .. ": tips out of range", tostring(prof.tut))
-	-- the pieces
+	for _, k in { "boat", "chart", "cap", "pouch", "islets", "sea", "wilds" } do
+		H.expect(prof[k] == nil, "profile", label .. ": " .. k .. " left in the save (gone with the expeditions)")
+	end
+	H.expect(prof.tut >= 0 and prof.tut <= 7, "profile", label .. ": tips out of range", tostring(prof.tut))
+	-- the Tree of Life: its levels, its growth
+	local tr = prof.tree
+	H.expect(type(tr) == "table" and tr.luck >= 1 and tr.luck <= #Tuning.TreeLuckCost and tr.speed >= 1 and tr.speed <= #Tuning.TreeSpeedCost and finite(tr.t) and tr.t >= 0, "profile", label .. ": the tree's levels or growth", if type(tr) == "table" then string.format("%s %s %s", tostring(tr.luck), tostring(tr.speed), tostring(tr.t)) else "none")
+	-- the pieces: one tree, the rest within the island's limits
 	local placed = prof.plot.placed
-	local nPaths, nSites = 0, 0
+	local nPaths, nTrees = 0, 0
 	for _, q in placed do
 		if Plot.isPath(q.id) then
 			nPaths += 1
-		elseif Plot.isSite(q.id) then
-			nSites += 1
+		elseif Plot.isFixed(q.id) then
+			nTrees += 1
 		end
 	end
-	H.expect(#placed - nPaths - nSites <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths - nSites, nPaths))
+	H.expect(nTrees == 1, "profile", label .. ": one Tree of Life", tostring(nTrees))
+	H.expect(#placed - nPaths - nTrees <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths - nTrees, nPaths))
 	local uids = {}
 	local rest = {}
 	for i, q in placed do
 		H.expect(Buildings.byId[q.id] ~= nil, "profile", label .. ": an unknown piece", tostring(q.id))
 		H.expect(q.uid > 0 and q.uid < prof.nextId and not uids[q.uid], "profile", label .. ": a bad or shared uid", tostring(q.uid))
 		uids[q.uid] = q
-		H.expect(q.lvl >= 1 and q.lvl <= (if Plot.isSite(q.id) then Tuning.LevelMax else #Tuning.UpgradeMult), "profile", label .. ": a bad level", tostring(q.lvl))
-		-- (a piece may stand in a wild place's ring if it stood there first: `loose`)
-		local ok = Plot.fits(prof.tier, rest, q.id, q.x, q.z, q.rot, nil, true)
+		H.expect(q.lvl >= 1 and q.lvl <= #Tuning.UpgradeMult, "profile", label .. ": a bad level", tostring(q.lvl))
+		local ok = Plot.fits(prof.tier, rest, q.id, q.x, q.z, q.rot)
 		H.expect(ok, "profile", label .. ": piece " .. i .. " does not fit", string.format("%s at %d,%d", q.id, q.x, q.z))
 		table.insert(rest, q)
 	end
@@ -425,43 +424,49 @@ function H.checkProfile(p, label)
 	for _, v in prof.folk do
 		H.expect(v.id > 0 and v.id < prof.nextId and not ids[v.id] and not uids[v.id], "profile", label .. ": a bad or shared villager id", tostring(v.id))
 		ids[v.id] = true
-		H.expect(v.lvl >= 1 and v.lvl <= Tuning.LevelMax and finite(v.xp) and v.xp >= 0, "profile", label .. ": a villager's level", tostring(v.lvl))
+		H.expect(v.lvl == nil and v.xp == nil, "profile", label .. ": a villager with a level (levels are gone)")
 		if v.work ~= 0 then
 			local q = uids[v.work]
 			H.expect(q ~= nil and Island.works(q.id) and not jobs[v.work], "profile", label .. ": a villager at a bad or taken job", tostring(v.work))
 			jobs[v.work] = true
 		end
 	end
+	local inHut = {}
+	local inPen = 0
 	for _, x in prof.pals do
 		H.expect(x.id > 0 and x.id < prof.nextId and not ids[x.id] and not uids[x.id], "profile", label .. ": a bad or shared driftling id", tostring(x.id))
 		ids[x.id] = true
 		local d = Creatures.byId[x.sp]
 		H.expect(d ~= nil, "profile", label .. ": an unknown species", tostring(x.sp))
-		H.expect(x.lvl >= 1 and x.lvl <= Tuning.LevelMax and finite(x.xp) and x.xp >= 0, "profile", label .. ": a driftling's level", tostring(x.lvl))
-		H.expect((prof.seen[x.sp] or 0) == 2, "profile", label .. ": a driftling not marked befriended", tostring(x.sp))
+		H.expect(x.lvl == nil and x.xp == nil, "profile", label .. ": a driftling with a level (levels are gone)")
+		H.expect((prof.seen[x.sp] or 0) == 2, "profile", label .. ": a driftling not in the Index", tostring(x.sp))
 		local clean = Traits.clean(x.muts)
 		H.expect(type(x.muts) == "table" and #clean == #x.muts, "profile", label .. ": a driftling's mutations not a clean list (known, a family once, at most four)", tostring(x.muts and #x.muts))
+		if x.home == 0 then
+			inPen += 1
+			H.expect(x.work == 0, "profile", label .. ": a driftling in the pen at work", tostring(x.work))
+		else
+			local hq = uids[x.home]
+			local hd = hq and Buildings.byId[hq.id]
+			H.expect(hd ~= nil and hd.kind == "nest", "profile", label .. ": a driftling in a hut that isn't one", tostring(x.home))
+			inHut[x.home] = (inHut[x.home] or 0) + 1
+		end
 		if x.work ~= 0 then
 			local q = uids[x.work]
 			local b = q and Buildings.byId[q.id]
-			H.expect(b ~= nil and d ~= nil and b.knack == d.knack and not helps[x.work], "profile", label .. ": a driftling at a bad or taken spot", tostring(x.work))
-			helps[x.work] = true
+			H.expect(b ~= nil and d ~= nil and b.knack == d.knack and (helps[x.work] or 0) < Tuning.HelpMax, "profile", label .. ": a driftling at a bad or full spot", tostring(x.work))
+			helps[x.work] = (helps[x.work] or 0) + 1
 		end
 	end
+	for uid, n in inHut do
+		local q = uids[uid]
+		local hd = q and Buildings.byId[q.id]
+		H.expect(hd ~= nil and n <= hd.slots, "profile", label .. ": a hut over its room", string.format("%d in %s", n, tostring(q and q.id)))
+	end
+	H.expect(inPen <= math.max(Tree.penRoom(prof), inPen), "profile", label .. ": the pen")
 	H.expect(#prof.pals <= Tuning.PalsMax, "profile", label .. ": too many driftlings", tostring(#prof.pals))
 	for k, n in prof.seen do
 		H.expect(Creatures.byId[k] ~= nil and (n == 1 or n == 2), "profile", label .. ": a bad Index entry", tostring(k))
-	end
-	H.expect(finite(prof.cap.lvl) and prof.cap.lvl >= 1 and finite(prof.cap.xp), "profile", label .. ": the captain's level", tostring(prof.cap.lvl))
-	-- an expedition under way: its party are the profile's own
-	local s = H.session(p)
-	local e = s and s.exp
-	if e then
-		for _, f in e.party do
-			local kind, id = string.match(f.key, "^([fvp])(%d*)$")
-			H.expect(kind ~= nil and (kind == "f" or ids[tonumber(id)]), "profile", label .. ": a party member not on the island", tostring(f.key))
-			H.expect(finite(f.hp) and f.hp >= 0 and f.hp <= f.maxHp, "profile", label .. ": a party member's health", tostring(f.hp))
-		end
 	end
 end
 
@@ -472,10 +477,10 @@ function H.checkMirror(p, label)
 	if not H.expect(prof ~= nil and v ~= nil, "mirror", label .. ": no profile or no view") then
 		return
 	end
-	for _, k in { "tier", "tut", "day", "islets" } do
+	for _, k in { "tier", "tut", "day" } do
 		H.expect(v[k] == prof[k], "mirror", string.format("%s: view.%s differs", label, k), string.format("view %s, server %s", tostring(v[k]), tostring(prof[k])))
 	end
-	local r = H.sharedServer("Logic.Island").rates(prof, H.session(p) and H.session(p).away)
+	local r = H.sharedServer("Logic.Island").rates(prof)
 	local tick = H.sharedServer("Config.Tuning").TurnSeconds
 	for _, k in { "shells", "food", "wood" } do
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
@@ -483,10 +488,13 @@ function H.checkMirror(p, label)
 	end
 	H.expect(#v.folk == #prof.folk and #v.pals == #prof.pals, "mirror", label .. ": villagers or driftlings differ", string.format("%d/%d vs %d/%d", #v.folk, #v.pals, #prof.folk, #prof.pals))
 	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
-	local s = H.session(p)
-	H.expect((v.exp == nil) == (s == nil or s.exp == nil), "mirror", label .. ": the expedition's presence differs")
-	if v.exp and s and s.exp then
-		H.expect(v.exp.node == s.exp.node and v.exp.islet == s.exp.islet, "mirror", label .. ": the expedition differs")
+	H.expect(v.tree ~= nil and v.tree.luck == prof.tree.luck and v.tree.speed == prof.tree.speed, "mirror", label .. ": the tree's levels differ")
+	local homes = {}
+	for _, x in prof.pals do
+		homes[x.id] = x.home
+	end
+	for _, x in v.pals do
+		H.expect(homes[x.id] == x.home, "mirror", label .. ": a driftling's hut differs", tostring(x.id))
 	end
 end
 

@@ -1,7 +1,7 @@
 -- Driftling Isle's preview driver: boots the real server and client scripts in the fake engine (with the real
 -- raycast and a pixel-storing EditableImage), drives a scenario and dumps frames for topng.py.
 -- Usage: luau preview.luau -a <workdir> <scenario> <device> [tier] [inset]
---   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below), "panel=<name>", "exp=<kind>[_<what>]"
+--   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below) or "panel=<name>"
 --   or "all";
 --   device: a DEVICES key; tier: auto | low | medium | high | off
 -- A scenario is a function in SCEN: it joins players (join / joinWith), drives them through H.req or the UI
@@ -171,8 +171,9 @@ end
 
 -- A saved profile for `userId` (put in the fake cloud before they join): an island of `tier`; opts: pieces ({ id, x,
 -- z, rot? } wanted spots, placed where Logic/Plot says they fit, else at the nearest cell that does; upgraded to lvl
--- when given), folk (how many villagers: jobs where free), pals (species: helping where their knack is needed),
--- islets, shells, food, wood, day, tut, cap (the captain's level).
+-- when given), folk (how many villagers: jobs where free), pals (species: in the pen, which sends the best to the huts,
+-- where they help at their knack), pen (species kept in the pen), luck, speed (the tree's levels), shells, food, wood,
+-- day, tut.
 local function seedProfile(userId, tier, opts)
 	opts = opts or {}
 	local Tuning = H.sharedServer("Config.Tuning")
@@ -184,50 +185,12 @@ local function seedProfile(userId, tier, opts)
 	local now = math.floor(E.now())
 	local prof = Schema.default(now, userId)
 	prof.tier = tier
-	-- the wild places of every tier reached (GAME_DESIGN 7), the lowest `islets` of them cleared (a player who has
-	-- cleared that many); opts.site = { islet kind, level }: one more of that kind, wild (the exp scenarios go in)
-	local Sites = H.sharedServer("Logic.Sites")
-	local SiteData = H.sharedServer("Data.Sites")
-	local Street = H.sharedServer("Data.Street")
-	Sites.spawn(prof)
-	local ws = {}
-	for _, q in prof.plot.placed do
-		if Plot.isSite(q.id) then
-			table.insert(ws, q)
-		end
-	end
-	table.sort(ws, function(a, b)
-		return a.lvl < b.lvl
-	end)
-	for k = 1, math.min(opts.islets or 0, #ws) do
-		ws[k].id = SiteData.doneId(SiteData.of(ws[k].id).id)
-	end
-	if opts.site then
-		local sd = SiteData.byIslet[opts.site[1]]
-		local pid = SiteData.wildId(sd.id)
-		local land = Street.plot(tier)
-		local spot = nil
-		for z = math.floor(land.z0), math.floor(land.z1) do
-			for x = math.floor(land.x0), math.floor(land.x1) do
-				if spot == nil and Plot.fits(tier, prof.plot.placed, pid, x, z, 0, nil, true) then
-					spot = { x, z }
-				end
-			end
-		end
-		if spot then
-			table.insert(prof.plot.placed, { uid = prof.nextId, id = pid, x = spot[1], z = spot[2], rot = 0, lvl = opts.site[2] })
-			prof.nextId += 1
-		else
-			log("seed: no room for the %s", sd.name)
-		end
-	end
+	local Tree = H.sharedServer("Logic.Tree")
 	prof.shells = opts.shells or 4800
 	prof.food = opts.food or 160
 	prof.wood = opts.wood or 420
 	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
-	prof.islets = opts.islets or 0
-	prof.cap = { lvl = opts.cap or 6, xp = 0 }
 	for _, d in opts.pieces or {} do
 		local done = false
 		for r = 0, if d[6] then 0 else 8 do
@@ -247,7 +210,7 @@ local function seedProfile(userId, tier, opts)
 	end
 	local rng = Util.newRng(userId * 7 + 1)
 	for k = 1, math.min(opts.folk or 0, Island.beds(prof)) do
-		local v = { id = prof.nextId, name = Util.pick(rng, Names.first), look = Island.randomLook(rng), work = 0, lvl = 2 + (k * 3) % 7, xp = 0, seed = rng:int(1, 99999), day = 1 }
+		local v = { id = prof.nextId, name = Util.pick(rng, Names.first), look = Island.randomLook(rng), work = 0, day = 1 }
 		prof.nextId += 1
 		v.work = Island.freeJob(prof)
 		table.insert(prof.folk, v)
@@ -257,20 +220,31 @@ local function seedProfile(userId, tier, opts)
 		local d = Creatures.byId[sp]
 		-- (a set of mutations each, so the panels show them: Data/Traits)
 		local MUTS = { { "fierce3", "swift1" }, { "angler2" }, {}, { "sturdy4", "bright2", "lazy" } }
-		local x = { id = prof.nextId, sp = sp, lvl = 2 + (k * 2) % 6, xp = 0, work = 0, muts = MUTS[(k - 1) % #MUTS + 1] }
+		local x = { id = prof.nextId, sp = sp, home = 0, work = 0, muts = MUTS[(k - 1) % #MUTS + 1] }
 		prof.nextId += 1
-		if d then
-			x.work = Island.freeJob(prof, d.knack)
-		end
 		table.insert(prof.pals, x)
 		prof.seen[sp] = 2
+		local _ = d
+	end
+	-- the pen sends the best into the huts, which take jobs (Logic/Tree); opts.pen: more in the pen, kept there
+	Tree.settle(prof)
+	Tree.fillJobs(prof)
+	for k, sp in opts.pen or {} do
+		local MUTS = { { "fierce2" }, {}, { "busy1", "swift1" }, {} }
+		Tree.add(prof, sp, MUTS[(k - 1) % #MUTS + 1]).held = 1
+	end
+	if opts.luck then
+		prof.tree.luck = opts.luck
+	end
+	if opts.speed then
+		prof.tree.speed = opts.speed
 	end
 	for _, sp in opts.seen or {} do
 		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
 	end
 	prof.stats.days = prof.day - 1
 	prof.stats.movedIn = #prof.folk
-	prof.stats.befriended = #prof.pals
+	prof.stats.grown = #prof.pals
 	prof.stats.built = #prof.plot.placed
 	-- an egg warming in the first Hatchery (opts.egg: { sp, left, muts })
 	if opts.egg then
@@ -297,7 +271,7 @@ local VILLAGE = {
 local HARBOR = {
 	{ "greenhouse", 14, -7, 0, 3 }, { "orchard", 19, -7, 0, 2 }, { "orchard", 19, -2, 0, 2 }, { "sawmill", 14, -2, 0, 2 }, { "lumber", 22, 3 },
 	{ "inn", 7, 9, 0, 2 }, { "cafe", 13, 9, 0, 2 }, { "stall", 18, 9 }, { "pier", 22, 8 },
-	{ "cottage", -14, -7 }, { "cottage", -14, -2 }, { "hut", -9, 4 }, { "burrow", -19, -7 }, { "burrow", -19, -2 }, { "yard", -8, -12 },
+	{ "cottage", -14, -7 }, { "cottage", -14, -2 }, { "hut", -9, 4 }, { "burrow", -19, -7 }, { "burrow", -19, -2 },
 	{ "fountain", -13, 6 }, { "lighthouse", 21, -13 }, { "statue", -22, 4 }, { "totem", 6, -12 }, { "picnic", -20, -12 },
 	{ "palm", -25, 0 }, { "palm", 15, -14 }, { "flowers", 6, 3 }, { "flowers", -7, 12 }, { "torch", 5, 6 }, { "torch", -6, 6 },
 	{ "hammock", 8, -16 }, { "bench", -4, -7 }, { "shellpile", 10, 14 }, { "hatchery", -1, -14 },
@@ -318,7 +292,7 @@ end
 
 -- A tier-1 village a dozen days in: villagers at work, driftlings helping and hopping, the island card.
 function SCEN.village()
-	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
 	local p = join(2, "Villager")
 	settle(p)
 	E.run(2.5)
@@ -330,7 +304,7 @@ end
 -- the lumber camp, a line off the pier, the stall) and its driftlings with them (pecking, pushing, napping at a
 -- nest), then a frame every eighth of a second for two seconds (work_000 .. work_015; make_gif.py makes them a GIF).
 function SCEN.work()
-	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
 	local p = join(2, "Villager")
 	settle(p)
 	E.run(14)
@@ -345,7 +319,7 @@ end
 -- The water moving (GAME_DESIGN 8): the village, then a frame every sixth of a second for two seconds (water_000 ..
 -- water_011; `python3 tools/preview/make_gif.py <outdir> water <device>` makes them a GIF).
 function SCEN.water()
-	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+	seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
 	local p = join(2, "Villager")
 	settle(p)
 	E.run(1)
@@ -360,7 +334,7 @@ end
 -- (night), and at dawn (dawn): UI/DayLight held at that time of day.
 local function timeScenario(frac, name)
 	return function()
-		seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }, islets = 1 })
+		seedProfile(2, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "pebblit" }})
 		local p = join(2, "Villager")
 		settle(p)
 		local DL = modOr(p, "Controllers.DayLight")
@@ -390,7 +364,7 @@ SCEN.dawn = timeScenario(0.02, "dawn")
 
 local function islandScenario(tier, label)
 	return function()
-		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, folk = if tier == 3 then 12 else 6, pals = PALS, islets = tier + 1, shells = 60000, wood = 5000 })
+		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, folk = if tier == 3 then 12 else 6, pals = PALS, shells = 60000, wood = 5000 })
 		local p = join(10 + tier, "Isle" .. tier)
 		settle(p)
 		E.run(2.5)
@@ -434,7 +408,7 @@ local function cityPieces()
 		"bakery", "grandmill", "townhouse", "grotto", "clocktower", "monument", "paddy", "inn", "roost", "bandstand",
 		"sunspire", "greenhouse", "villa", "townhouse", "beacon", "watertower", "market", "hatchery", "gazebo", "longhouse",
 		"bamboo", "timber", "den", "windmill", "cafe", "townhouse", "manor", "grandarch", "canal", "smokehouse",
-		"orchard", "cottage", "villa", "toolshed", "lighthouse", "statue", "fountain", "hotel", "bazaar", "yard",
+		"orchard", "cottage", "villa", "toolshed", "lighthouse", "statue", "fountain", "hotel", "bazaar",
 	}
 	local k = 0
 	for _, z in { -49, -40, -28, -16, -4, 4 } do
@@ -480,8 +454,7 @@ function SCEN.gallery()
 			z += 8
 		end
 	end
-	-- (the island's wild places too: the lowest eight cleared, so both looks show)
-	seedProfile(17, 6, { pieces = pieces, folk = 0, islets = 8, shells = 900000, wood = 60000, food = 5000 })
+	seedProfile(17, 6, { pieces = pieces, folk = 0, shells = 900000, wood = 60000, food = 5000 })
 	local p = join(17, "Gallery")
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -499,7 +472,7 @@ end
 
 function SCEN.city()
 	local CITY_PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
-	seedProfile(16, 6, { pieces = cityPieces(), folk = 40, pals = CITY_PALS, islets = 30, shells = 900000, wood = 60000, food = 5000, cap = 40 })
+	seedProfile(16, 6, { pieces = cityPieces(), folk = 40, pals = CITY_PALS, shells = 900000, wood = 60000, food = 5000})
 	local p = join(16, "Capital")
 	settle(p)
 	E.run(2.5)
@@ -538,34 +511,22 @@ function SCEN.day()
 	return p
 end
 
--- The uid of the island's lowest wild place (0 with none).
-local function lowestWild(prof)
-	local Plot = H.sharedServer("Logic.Plot")
-	local best, uid = math.huge, 0
-	for _, q in prof.plot.placed do
-		if Plot.isWild(q.id) and q.lvl < best then
-			best, uid = q.lvl, q.uid
-		end
-	end
-	return uid
-end
-
--- A UI panel by name (UIKit.openPanel): folk, pals, site (the card of the island's lowest wild place: a party
--- picked), index, looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two
--- parents picked through the panel).
+-- A UI panel by name (UIKit.openPanel): folk, pals, tree (the Tree of Life: its levels, the odds, a pen of driftlings),
+-- index, looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents
+-- picked through the panel).
 local function panelScenario(name)
 	if name == "hatch" then
 		local pieces = table.clone(HARBOR)
 		table.insert(pieces, { "hatchery", 4, -18 })
-		seedProfile(20, 3, { pieces = pieces, folk = 6, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, islets = 4, egg = { "glacior", 4, { "swift2" } }, food = 600, seen = { "glacior" } })
+		seedProfile(20, 3, { pieces = pieces, folk = 6, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, food = 600, seen = { "glacior" } })
 	else
-		seedProfile(20, 2, { pieces = VILLAGE, folk = 5, pals = { "clawdle", "gullfin", "mossbun", "emberpup" }, islets = 2, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
+		seedProfile(20, 2, { pieces = VILLAGE, folk = 5, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, pen = { "pebblit", "frondle", "twiggle", "sunsprite" }, luck = 3, speed = 4, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
 	end
 	local p = join(20, "Menus")
 	settle(p)
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
-		H.openPanel(p, name, if name == "site" then lowestWild(H.profile(p)) else nil)
+		H.openPanel(p, name)
 		E.run(0.8)
 		if name == "hatch" then
 			-- the second Hatchery: two parents picked as a player would
@@ -582,7 +543,6 @@ local function panelScenario(name)
 			H.clickNamed(p, "PickParent_" .. prof.pals[4].id, { wait = 0.4 })
 			E.run(0.5)
 		end
-		-- (a wild place's party fills itself with the strongest)
 		log("panel open: %s", tostring(UIKit.currentPanel and UIKit.currentPanel()))
 	else
 		log("no UIKit.openPanel: capturing the HUD")
@@ -591,389 +551,37 @@ local function panelScenario(name)
 	return p
 end
 
--- exp=<kind>[_<what>]: an expedition into a wild place of that kind (Data/Islets 1 beach .. 9 ruins: the Tide Pool ..
--- the Old Ruins, Data/Sites) a level over the one its driftlings first turn up at, on its 3D stage. what: "battle"
--- (default: the first battle), "boss" (the guardian), "clear" (the guardian beaten: the Cleared card), "win" (a battle
--- won), "lose" (the party beaten: the Expedition Complete card), "loot" (a stop's narration), "fight" (frame by
--- frame), "snack" (aiming one), "skills" (the skill window, the pointer resting on Rally Cry: its tip), "aim" (aiming
--- frame by frame: the arrow growing out to the pick, then swinging to another wild one hovered), "throw" (a snack
--- befriending the last wild one, frame by frame), "tut" (a battle in the tips' catching step: its note), "inspect",
--- "run". The place is put on the island for the scenario (the island's seed and its uid make its layout: the same
--- every run); the expedition is set on the session directly (Expedition.enter, as exp.start does).
-local function expScenario(spec)
-	local kindS, what = string.match(spec, "^(%d)_?(%a*)$")
-	local n = tonumber(kindS) or 1
-	what = if what == nil or what == "" then "battle" else what
-	local isleLvl = H.sharedServer("Data.Islets").list[n].lvl + 1
-	-- a party a little above the island's level (a fair fight to watch; strong for "win")
-	local lvl = isleLvl + (if what == "win" then 8 else 1)
-	seedProfile(40, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "emberpup" }, islets = n - 1, food = 400, cap = lvl, tut = if what == "tut" then 7 else nil, site = { n, isleLvl } })
-	local p = join(40, "Captain")
+-- The Tree of Life up close (GAME_DESIGN 6): a village's tree with its pen full of driftlings and two growing into it
+-- (the hollow's glow, the newborns walking in), the founder standing by.
+function SCEN.tree()
+	seedProfile(21, 1, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "mossbun", "gullfin", "frondle" }, pen = { "pebblit", "conchy", "twiggle" } })
+	local p = join(21, "Grove")
 	settle(p)
 	local prof = H.profile(p)
-	for _, v in prof.folk do
-		v.lvl = lvl
-	end
-	for _, x in prof.pals do
-		x.lvl = lvl
-	end
-	local s = H.session(p)
-	local Expedition = H.sharedServer("Logic.Expedition")
-	local SiteData = H.sharedServer("Data.Sites")
-	local siteUid = 0
+	local Street = H.sharedServer("Data.Street")
+	local Plot = H.sharedServer("Logic.Plot")
+	local tq = nil
 	for _, q in prof.plot.placed do
-		if q.id == SiteData.wildId(SiteData.byIslet[n].id) and q.lvl == isleLvl then
-			siteUid = q.uid
+		if q.id == "tree" then
+			tq = q
 		end
 	end
-	local ok, e = Expedition.enter(prof, siteUid, { "v" .. prof.folk[1].id, "p" .. prof.pals[1].id, "v" .. prof.folk[2].id })
-	if ok then
-		H.smod("Session").setExp(s, e)
-		log("island: %s (%s), level %d", e.isle.name, H.sharedServer("Data.Islets").list[e.isle.kind].name, e.isle.lvl)
-	else
-		log("exp start: %s", tostring(e))
-	end
-	H.push(p, 0.3)
-	local EUI = modOr(p, "UI.ExpeditionUI")
-	E.run(0.5)
-	-- (a raw request skips the card's Explore and the walk in, which open the place's screen)
-	if EUI then
-		if what == "run" then
-			H.inClient(p, EUI.debugAuto, false)
-		end
-		H.inClient(p, EUI.open)
-	end
-	local function curtainUp(): boolean
-		local st = EUI and H.inClient(p, EUI.debugState)
-		return st ~= nil and st.lifted
-	end
-	local waited = 0
-	while waited < 40 and not curtainUp() do
-		E.run(0.1)
-		waited += 0.1
-	end
-	settle(p, 30, 1)
-	log("curtain up after %.1fs", waited)
-	if what == "run" then
-		-- one area: the next stop's wild ones come running down the trail to the party, frame by frame
-		-- (exp_<n>_run_000 ..: make_gif.py makes a GIF), then the encounter (the auto Go on is held: it starts here)
-		if s.exp then
-			for i = s.exp.node + 1, math.min(#s.exp.nodes, s.exp.node + 3) do
-				s.exp.nodes[i] = "wild"
-			end
-			log("run: from node %d of %s", s.exp.node, table.concat(s.exp.nodes, ","))
-		end
-		H.inClient(p, function()
-			E.task.spawn(EUI.debugGo)
-		end)
-		for k = 0, 23 do
-			capture(p, string.format("exp_%s_%03d", spec, k))
-			E.run(0.12)
-		end
-		local st = H.inClient(p, EUI.debugState)
-		log("run: area %s, running %s, behind %s, nearest wild one %s studs up the trail from the area's middle, dropping %s", tostring(st.area), tostring(st.running), tostring(st.behind), tostring(st.foeU), tostring(st.dropping))
-		H.inClient(p, EUI.debugAuto, true)
-		settle(p, 10, 0.5)
-		capture(p, "exp_" .. spec)
-		return p
-	end
-	if what == "loot" then
-		local guard = 0
-		while s.exp and s.exp.nodes[s.exp.node + 1] ~= "loot" and s.exp.nodes[s.exp.node + 1] ~= "chest" and guard < 12 do
-			guard += 1
-			if s.exp.battle then
-				for _, f in s.exp.battle.foes do
-					f.hp = 0
-				end
-				s.exp.battle = nil
-			end
-			s.exp.node += 1
-		end
-		H.inClient(p, EUI.debugGo)
-		E.run(1.2)
-	elseif what == "boss" or what == "clear" then
-		if s.exp then
-			s.exp.node = #s.exp.nodes - 1
-		end
-		H.inClient(p, EUI.debugGo)
-		E.run(2.5)
-		if what == "clear" then
-			-- the guardian falls (the party sturdy, the guardian worn down): the place is cleared, the Cleared card
-			-- (the first clear's reward, the trip's loot, xp and levels)
-			for _ = 1, 40 do
-				if s.exp == nil or s.exp.battle then
-					break
-				end
-				E.run(0.25)
-			end
-			if s.exp and s.exp.battle then
-				for _, f in s.exp.party do
-					f.hp, f.maxHp = math.max(f.maxHp, 400), math.max(f.maxHp, 400)
-				end
-				for _, f in s.exp.battle.foes do
-					f.hp = 1
-				end
-			end
-			for _ = 1, 60 do
-				E.run(0.5)
-				local pg = p:FindFirstChild("PlayerGui")
-				if pg and pg:FindFirstChild("Result", true) then
-					break
-				end
-			end
-			E.run(1)
-			local q = H.sharedServer("Logic.Sites").pieceOf(prof, siteUid)
-			log("clear: the place is now %s, cleared %d", tostring(q and q.id), prof.islets)
-		end
-	else
-		local guard = 0
-		while s.exp and not s.exp.battle and guard < 12 do
-			guard += 1
-			H.inClient(p, EUI.debugGo)
-			E.run(0.3)
-		end
-		E.run(2)
-		-- (the endless islet: the party's area and the areas built round it)
-		local built = {}
-		local stf = E.workspace:FindFirstChild("MicroStage")
-		if stf then
-			for _, c in stf:GetChildren() do
-				local k = string.match(c.Name, "^Area(%d+)$")
-				if k then
-					table.insert(built, k)
-				end
-			end
-		end
-		table.sort(built)
-		log("battle: area %s, areas built %s", tostring(EUI and H.inClient(p, EUI.debugState).area), table.concat(built, ","))
-		-- (the battle runs by itself once its wild ones land: the party made sturdy so a frame shows it under way)
-		if s.exp then
-			for _, f in s.exp.party do
-				f.hp, f.maxHp = math.max(f.maxHp, 200), math.max(f.maxHp, 200)
-			end
-		end
-		if what == "win" and s.exp and s.exp.battle then
-			for _, f in s.exp.battle.foes do
-				f.hp = 1
-			end
-			E.run(3)
-		elseif what == "lose" and s.exp and s.exp.battle then
-			-- the party falls: the Expedition Complete card (the trip's loot, xp and levels: some set here)
-			s.exp.loot.shells, s.exp.loot.food, s.exp.loot.wood = 264, 38, 21
-			local ups = {}
-			for k, f in s.exp.party do
-				if k <= 2 then
-					ups[f.key] = k
-				end
-			end
-			s.exp.gained = { xp = 412, ups = ups }
-			for _, f in s.exp.party do
-				f.hp, f.def = 1, 0
-			end
-			for _, f in s.exp.battle.foes do
-				f.atk, f.hp, f.maxHp = 999, 99999, 99999
-			end
-			-- (till the card is up: the playback catches up with the battle the server has ended)
-			local EUIx = modOr(p, "UI.ExpeditionUI")
-			for _ = 1, 60 do
-				E.run(0.5)
-				local pg = p:FindFirstChild("PlayerGui")
-				if pg and pg:FindFirstChild("Result", true) then
-					break
-				end
-			end
-			E.run(1)
-			local _ = EUIx
-		elseif what == "fight" and s.exp and s.exp.battle then
-			-- the battle frame by frame (exp_<n>_fight_000 ..: make_gif.py makes a GIF): the timers filling over the
-			-- heads, the wind-ups, dashes, strikes, hit-stops and knock-backs of both sides
-			settle(p, 10, 0.5)
-			for k = 0, 39 do
-				capture(p, string.format("exp_%s_%03d", spec, k))
-				E.run(0.07)
-			end
-			return p
-		elseif what == "throw" and s.exp and s.exp.battle then
-			-- a snack that befriends the last wild one, frame by frame: the throw, the arc, the hearts and the poof,
-			-- the wild one on the stage till its playback is done
-			local Battle = H.sharedServer("Logic.Battle")
-			local chance = Battle.treatChance
-			Battle.treatChance = function()
-				return 1
-			end
-			local foes = s.exp.battle.foes
-			while #foes > 1 do
-				table.remove(foes)
-			end
-			foes[1].hp = math.max(1, math.floor(foes[1].maxHp * 0.3))
-			H.push(p, 0.3)
-			settle(p, 10, 0.5)
-			H.inClient(p, EUI.debugAim, "snack")
-			E.run(0.4)
-			H.inClient(p, EUI.debugSnack, foes[1].key)
-			for k = 0, 39 do
-				capture(p, string.format("exp_%s_%03d", spec, k))
-				E.run(0.06)
-			end
-			Battle.treatChance = chance
-			return p
-		elseif what == "aim" and s.exp and s.exp.battle then
-			E.run(2)
-			if s.exp.battle then
-				for _, f in s.exp.battle.foes do
-					f.hp = math.max(1, math.floor(f.maxHp * 0.4))
-				end
-				s.exp.battle.foes[1].hp = math.max(1, math.floor(s.exp.battle.foes[1].maxHp * 0.2))
-			end
-			H.push(p, 0.3)
-			settle(p, 10, 0.5)
-			H.inClient(p, EUI.debugAim, "snack")
-			for k = 0, 39 do
-				if k == 14 and s.exp.battle then
-					-- the pointer moves over the last wild one: the arrow swings over to it
-					local foes = s.exp.battle.foes
-					H.inClient(p, EUI.debugPoint, foes[#foes].key, false)
-				end
-				capture(p, string.format("exp_%s_%03d", spec, k))
-				E.run(0.06)
-			end
-			return p
-		elseif (what == "snack" or what == "skills") and s.exp and s.exp.battle then
-			-- aiming a snack (greyed, paused, the leader's ring and arrow toward the pick) or the skill window
-			E.run(2)
-			if s.exp.battle then
-				s.exp.battle.sp = 8
-				for _, f in s.exp.battle.foes do
-					f.hp = math.max(1, math.floor(f.maxHp * 0.4))
-				end
-			end
-			H.push(p, 0.3)
-			H.inClient(p, EUI.debugAim, what)
-			E.run(0.6)
-			if what == "skills" then
-				-- the pointer resting on the leader's first skill: what it does
-				local shown = H.inClient(p, EUI.debugSkillTip, "f_cry")
-				log("skill tip: %s", tostring(shown))
-				E.run(0.2)
-			end
-		elseif what == "inspect" and s.exp and s.exp.battle then
-			-- a closer look: the first wild one given three mutations, the plate over its head (as a hover shows it)
-			local foe = s.exp.battle.foes[1]
-			foe.muts = { "fierce3", "swift2", "lazy" }
-			H.push(p, 0.3)
-			E.run(1)
-			local key, lines = H.inClient(p, EUI.debugInspect, foe.key)
-			log("inspect %s: %s", tostring(key), table.concat(lines, " | "))
-			E.run(0.2)
-		elseif s.exp and s.exp.battle then
-			-- a battle under way: the timers, the numbers, the bars
-			E.run(2.5)
-		end
-	end
-	settle(p, 10, 0.5)
-	capture(p, "exp_" .. spec)
-	return p
-end
-
--- Into a wild place (GAME_DESIGN 7): the island's lowest wild place tapped (its card: the party, the snack pouch,
--- Explore), Explore, then a frame every fifth of a second through the founder's walk to the place, the blinds closing
--- on its name and the place's screen with the party dropped in (voyage_000 ..; make_gif.py makes them a GIF); then
--- the way home (the blinds opening on the island, the founder in front of the place, cheering). Stills: the card
--- (voyage_panel), the walk (voyage_walk), the blinds (voyage_close), on the stage (voyage_arrive), home (voyage_home).
-function SCEN.voyage()
-	seedProfile(45, 2, { pieces = VILLAGE, folk = 4, pals = { "clawdle", "gullfin" }, islets = 3, food = 400, cap = 9 })
-	local p = join(45, "Sailor")
-	local prof = H.profile(p)
-	for _, v in prof.folk do
-		v.lvl = 9
-	end
-	for _, x in prof.pals do
-		x.lvl = 9
-	end
-	H.push(p, 0.3)
-	settle(p)
-	local uid = lowestWild(prof)
-	local q = H.sharedServer("Logic.Sites").pieceOf(prof, uid)
-	log("voyage: into %s (level %s)", tostring(q and q.id), tostring(q and q.lvl))
-	-- the founder a few steps from it, as if walked up to it
-	if q and p.Character then
-		local Street = H.sharedServer("Data.Street")
+	if tq and p.Character then
 		local ox, oz = Street.origin(H.session(p).plot)
-		local w, d = H.sharedServer("Logic.Plot").footprint(q.id, q.rot)
-		p.Character:PivotTo(E.cf.new(ox + q.x + w / 2 + 6, 3, oz + q.z + d + 10))
+		local w, d = Plot.footprint(tq.id, tq.rot)
+		p.Character:PivotTo(E.cf.new(ox + tq.x + w / 2 + 1, 3, oz + tq.z + d + 2))
 		E.run(2)
 		settle(p, 30, 1)
 	end
-	capture(p, "voyage_place")
-	H.openPanel(p, "site", uid)
-	-- (the party's slots fill themselves with the strongest)
-	E.run(0.5)
-	capture(p, "voyage_panel")
-	local Voyage = modOr(p, "UI.Voyage")
-	local EUI = modOr(p, "UI.ExpeditionUI")
-	-- (the fake engine bakes the place's picture slower than Tuning.StageWait: the curtain waits for it here)
-	if EUI then
-		H.inClient(p, EUI.debugWait, 30)
-	end
-	H.clickNamed(p, "Explore", { wait = 0.1 })
-	local shot: { [string]: boolean } = {}
-	local k = 0
-	local onStage = 0
-	for _ = 1, 110 do
-		E.run(0.2)
-		local ph = if Voyage then H.inClient(p, Voyage.debugState).phase else ""
-		capture(p, string.format("voyage_%03d", k))
-		k += 1
-		local st = EUI and H.inClient(p, EUI.debugState)
-		if ph == "walk" and not shot.walk then
-			shot.walk = true
-			E.run(0.3)
-			capture(p, "voyage_walk")
-		elseif ph == "close" and not shot.close then
-			shot.close = true
-			E.run(0.5)
-			capture(p, "voyage_close")
-		end
-		if st and st.lifted then
-			onStage += 1
-			if onStage == 7 then
-				capture(p, "voyage_arrive")
-			end
-			if onStage >= 14 then
-				break
-			end
-		end
-	end
-	-- the way home: the curtain, the blinds opening on the island, the founder in front of the place
-	if EUI then
-		local s = H.session(p)
-		if s.exp then
-			s.exp.over = "won"
-			s.exp.battle = nil
-		end
-		H.push(p, 0.2)
-		H.inClient(p, EUI.debugHome)
-		local homeShot = false
-		for _ = 1, 70 do
-			E.run(0.2)
-			capture(p, string.format("voyage_%03d", k))
-			k += 1
-			local d = Voyage and H.inClient(p, Voyage.debugState)
-			if d and d.phase == "land" and not homeShot and d.dir == "home" then
-				homeShot = true
-				E.run(0.5)
-				capture(p, "voyage_home")
-			end
-			if d and d.phase == "" and homeShot then
-				break
-			end
-		end
-	end
-	log("voyage: %d frames", k)
+	-- (the tree ready: the next two grow and walk into the pen)
+	prof.tree.t = 11.5
+	E.run(4)
+	capture(p, "tree")
+	E.run(1)
+	capture(p, "tree_pen")
 	return p
 end
 
------------------------------------------------------------------- the sea and the islands (GAME_DESIGN 4, 8)
 local function rootOf(p)
 	return p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 end
@@ -994,7 +602,7 @@ end
 -- same pan baked from scratch, to compare a scrolled picture with a fresh one.
 function SCEN.sea()
 	local p = join(50, "Walker")
-	seedProfile(51, 2, { pieces = VILLAGE, folk = 6, pals = PALS, islets = 3 })
+	seedProfile(51, 2, { pieces = VILLAGE, folk = 6, pals = PALS})
 	join(51, "Neighbour", { client = false })
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -1151,24 +759,33 @@ function SCEN.paths()
 	return p
 end
 
--- "zoo": every driftling (Data/Creatures, Models/DriftModels) on a meadow islet's stage in batches of 20 (five a row,
--- four rows, turned three-quarters toward the viewer), each batch idle (zoo_<n>_idle) and mid-attack (zoo_<n>_attack:
--- the jaw open, the head and arms forward); the log lists each batch's species in order (left to right, back to front).
+-- "zoo": every driftling (Data/Creatures, Models/DriftModels) on the home island's lawn in batches of 20 (five a row,
+-- four rows, turned three-quarters toward the viewer), each batch idle (zoo_<n>_idle) and cheering (zoo_<n>_cheer: the
+-- jaw open, the arms up); the log lists each batch's species in order (left to right, back to front).
 function SCEN.zoo()
 	seedProfile(57, 1, {})
 	local p = join(57, "Keeper")
 	settle(p, 30, 1)
+	local Street = H.sharedServer("Data.Street")
+	local ox, oz = Street.origin(H.session(p).plot)
+	-- (the founder on the open lawn behind the rows: the view follows them)
+	walkTo(p, ox + 1, oz + 6)
 	local ctx = E.clientCtx(p)
-	local MS = modOr(p, "UI.MicroStage")
 	local MM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.MicroModels"))
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
 	local Creatures = H.sharedServer("Data.Creatures")
-	-- (the HUD off: the creatures alone on the stage)
+	-- (the HUD off: the creatures alone on the lawn)
 	for _, g in p.PlayerGui:GetChildren() do
 		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
 			g.Enabled = false
 		end
 	end
-	local st = H.inClient(p, MS.open, "leap", { top = 4, bottom = 4 }, 3)
+	-- the ground's screen-right and toward-the-viewer directions (Tuning.CamYaw 45: Raster.rotation)
+	local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+	local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+	local faceViewer = math.atan2(vx, vz)
+	local root = rootOf(p)
+	local cx, cz = root.Position.X, root.Position.Z
 	local things = {}
 	local list = Creatures.list
 	local batch = 0
@@ -1176,7 +793,8 @@ function SCEN.zoo()
 		batch += 1
 		H.inClient(p, function()
 			for _, x in things do
-				st.remove(x.t)
+				PR.unregisterDynamic(x.t.model)
+				x.t.model:Destroy()
 			end
 		end)
 		things = {}
@@ -1189,16 +807,21 @@ function SCEN.zoo()
 			table.insert(names, d.id)
 			local t = H.inClient(p, function()
 				local th = MM.driftling(d.shape, d.body, d.accent)
-				return st.adopt(th, 1)
+				th.model:SetAttribute("PixelShadow", 1)
+				th.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
+				th.model.Parent = E.workspace
+				PR.registerDynamic(th.model)
+				return th
 			end)
-			table.insert(things, { t = t, u = -9 + (n % 5) * 4.5, v = -6 + math.floor(n / 5) * 4 })
+			local u, v = -8 + (n % 5) * 4, -5.25 + math.floor(n / 5) * 3.5
+			table.insert(things, { t = t, x = cx + ux * u + vx * v, z = cz + uz * u + vz * v })
 		end
 		log("zoo %d: %s", batch, table.concat(names, ", "))
-		for _, mood in { "idle", "attack" } do
+		for _, mood in { "idle", "cheer" } do
 			H.inClient(p, function()
 				for j, x in things do
-					MM.animate(x.t, 0.6 + j * 0.37, mood, if mood == "attack" then 0.5 else 0)
-					st.place(x.t, x.u, x.v, 0, MS.FACE_VIEWER + math.rad(40))
+					MM.animate(x.t, 0.6 + j * 0.37, mood, 0)
+					MM.place(x.t, E.cf.new(x.x, Street.LAWN_Y, x.z) * E.cf.Angles(0, faceViewer + math.rad(40), 0))
 				end
 			end)
 			settle(p, 30, 0.5)
@@ -1358,12 +981,6 @@ for _, name in list do
 	if panel then
 		fn = function()
 			return panelScenario(panel)
-		end
-	end
-	local exp = string.match(name, "^exp=([%w_]+)$")
-	if exp then
-		fn = function()
-			return expScenario(exp)
 		end
 	end
 	if fn == nil then

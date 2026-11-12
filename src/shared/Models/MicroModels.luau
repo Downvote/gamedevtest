@@ -1,6 +1,6 @@
 --!strict
--- The microgames' things in 3D (GAME_DESIGN 5; docs/ARCHITECTURE.md 6, 10.9). Roblox module (client: UI/MicroStage
--- builds them on a stage; the pixel filter draws them with the world's toon bands, palette and 1 px ink outline).
+-- The world's small moving things in 3D (docs/ARCHITECTURE.md 6). Roblox module (client: WorldView and StreetLife
+-- build them on the islands; the pixel filter draws them with the world's toon bands, palette and 1 px ink outline).
 -- Every thing is a few plain parts (Models/Blocks: palette colours, 0.25-stud grid, no meshes), built round its own
 -- origin: the middle of its footprint on the ground, facing +Z. `place(thing, cf)` puts its parts at cf times their
 -- rest offsets every frame; `size` is its rough height (a shadow's radius, a tap target's size).
@@ -524,7 +524,7 @@ BUILD.car = function(o)
 	return t
 end
 
--- A little sailboat facing +Z (opts.color: its hull's band): the sea's ambient traffic and the expedition's boat.
+-- A little sailboat facing +Z (opts.color: its hull's band): the sea's ambient traffic.
 BUILD.sailboat = function(o)
 	local t = new("sailboat", 5, 2.6)
 	local c = o.color or "berry_red"
@@ -538,7 +538,7 @@ BUILD.sailboat = function(o)
 	return t
 end
 
--- The expedition's boat (Models/BoatSpec at opts.level, 1 by default: the one moored at the pier): its origin on the
+-- The pier's boat (Models/BoatSpec at opts.level, 1 by default: the one moored at the pier): its origin on the
 -- waterline, facing +Z. Its flags flutter with `flutter`.
 BUILD.ship = function(o)
 	local lv = math.clamp(math.floor(tonumber(o.level) or 1), 1, BoatSpec.MAX)
@@ -689,7 +689,7 @@ BUILD.ring = function(o)
 	return t
 end
 
--- The aim on the floor (GAME_DESIGN 7: a snack or a skill being aimed), all Neon (opts.color): it keeps its colour
+-- The aim on the floor (from the old fights: nothing builds it now), all Neon (opts.color): it keeps its colour
 -- while the picture is greyed. "aim": the glowing ring round the one acting. "aimpath": the arrow from that ring all
 -- the way to the pick, `AIM_DASHES` dashes ("D1" ..) and a head ("HeadL", "HeadR") along +Z that the battle screen
 -- lays out every frame (its length, the dashes marching on; a dash past the end hidden). "aimring": the smaller ring

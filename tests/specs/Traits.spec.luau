@@ -12,7 +12,7 @@ return function()
 				local m = Traits.byId[f.family .. tier]
 				T.truthy(m ~= nil and m.tier == tier and m.fx[f.key] ~= nil, f.family .. tier)
 				if tier > 1 then
-					T.truthy(m.fx[f.key] > Traits.byId[f.family .. (tier - 1)].fx[f.key], "tier " .. tier .. " beats " .. (tier - 1))
+					T.truthy(math.abs(m.fx[f.key]) > math.abs(Traits.byId[f.family .. (tier - 1)].fx[f.key]), "tier " .. tier .. " beats " .. (tier - 1))
 				end
 			end
 		end
@@ -20,8 +20,9 @@ return function()
 		for _, m in Traits.list do
 			if m.tier == 0 then
 				flaws += 1
-				for _, v in m.fx do
-					T.truthy(v < 0, m.id .. " is a flaw")
+				for k, v in m.fx do
+					-- (eating more is the flaw; less of anything else)
+					T.truthy(if k == "eat" then v > 0 else v < 0, m.id .. " is a flaw")
 				end
 			end
 		end
@@ -71,21 +72,24 @@ return function()
 		T.truthy(flaws5 < flaws1, "and fewer flaws")
 	end)
 	T.it("sums: the passive and the mutations together; work at a knack", function()
-		local fx = Traits.sum({ hp = 0.1, farm = 0.15 }, { "sturdy2", "grower1", "lazy", "nope" })
-		T.near(fx.hp, 0.25, 1e-9)
+		local fx = Traits.sum({ eat = -0.1, farm = 0.15 }, { "sturdy2", "grower1", "lazy", "nope" })
+		T.near(fx.eat, -0.4, 1e-9)
 		T.near(fx.farm, 0.27, 1e-9)
 		T.near(fx.work, -0.15, 1e-9)
 		T.near(Traits.workAt(fx, "farm"), 0.12, 1e-9)
 		T.near(Traits.workAt(fx, "wood"), -0.15, 1e-9)
 		T.eq(Traits.workAt({ work = -3 }, "farm"), -0.5, "never below -50%")
-		T.eq(Traits.describe({ hp = 0.25, farm = 0.27 }), "+25% health, +27% at farms")
+		T.eq(Traits.describe({ eat = -0.3, farm = 0.27 }), "+27% at farms, eats 30% less")
 		T.eq(Traits.describe({ work = -0.15 }), "-15% work")
+		T.eq(Traits.describe({ charm = 2, sell = 0.7, tree = 0.08, luck = 0.1 }), "+70% sell price, +2 charm, +8% tree speed, +10% tree luck")
 		T.eq(Traits.describe({}), "")
 	end)
 	T.it("cleaning a save's list: known ids, a family once, at most four", function()
 		T.deepEq(Traits.clean({ "swift2", "swift4", "x", 5, "lazy", "busy1", "fierce1", "armor3", "bright1" }), { "swift2", "lazy", "fierce1", "armor3" }, "Lazy and Diligent: one family")
-		T.eq(Traits.byId.frail.blurb, "-10% health")
-		T.eq(Traits.byId.sturdy2.blurb, "+15% health")
+		T.eq(Traits.byId.frail.blurb, "eats 25% more")
+		T.eq(Traits.byId.sturdy2.blurb, "eats 30% less")
+		T.eq(Traits.byId.fierce3.name, "Golden")
+		T.eq(Traits.byId.bright1.blurb, "+5% tree luck")
 		T.deepEq(Traits.clean(nil), {})
 		T.deepEq(Traits.clean("sturdy1"), {})
 	end)

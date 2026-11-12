@@ -3,11 +3,12 @@
 -- such as assigning creatures to different work areas"). Pure data. After the tips, one quest at a time, in order:
 -- each names something to do, says where to do it, and pays a small reward when the player claims it (Logic/Quest).
 --   goal: what it counts (Logic/Quest.count) and how many; `of` a building kind for "built".
---     "helpers" driftlings at work, "folk" villagers, "workers" villagers at work, "paths" path tiles, "decor" decorations, "built" pieces of a kind, "befriended" driftlings befriended,
---     "battles" battles won, "skills" skills used, "charted" wild places cleared, "tier" the island's tier, "pouch"
---     the snack pouch's level, "seen" kinds in the Index, "hatched" eggs hatched
---   go: where its Go button takes the player: a panel ("pals" "folk" "index" "hatch"), "site" (the nearest wild place
---     to explore, its card open: the trip under way if there is one) or Build mode ("build", or "build:<tab>")
+--     "helpers" driftlings at work, "housed" driftlings in huts, "folk" villagers, "workers" villagers at work, "paths"
+--     path tiles, "decor" decorations, "built" pieces of a kind, "grown" driftlings the tree grew, "sold" driftlings
+--     sold, "best" the rarest driftling had (1 .. 5), "luck" / "speed" the Tree of Life's levels, "tier" the island's
+--     tier, "seen" kinds in the Index, "hatched" eggs hatched
+--   go: where its Go button takes the player: a panel ("pals" "folk" "index" "hatch" "tree") or Build mode ("build",
+--     or "build:<tab>")
 export type Goal = { kind: string, n: number, of: string? }
 export type Reward = { shells: number?, food: number?, wood: number? }
 export type Quest = { id: string, title: string, text: string, goal: Goal, reward: Reward, go: string, icon: string }
@@ -18,11 +19,29 @@ local list: { Quest } = {
 	{
 		id = "help",
 		title = "Put a driftling to work",
-		text = "Open Driftlings and tap Help. A driftling works at a building that suits it.",
+		text = "A driftling in a hut helps at a building that suits it. Open Driftlings to see where.",
 		goal = { kind = "helpers", n = 1 },
 		reward = { shells = 60, food = 20 },
 		go = "pals",
 		icon = "pal",
+	},
+	{
+		id = "sell",
+		title = "Sell a driftling",
+		text = "Tap the Tree of Life. Sell one from the pen you don't need. Rarer ones fetch more.",
+		goal = { kind = "sold", n = 1 },
+		reward = { shells = 40 },
+		go = "tree",
+		icon = "shell",
+	},
+	{
+		id = "speed",
+		title = "Speed up the tree",
+		text = "Tap the Tree of Life and buy a level of Speed. It grows driftlings faster.",
+		goal = { kind = "speed", n = 2 },
+		reward = { shells = 80, wood = 10 },
+		go = "tree",
+		icon = "tree",
 	},
 	{
 		id = "home",
@@ -43,9 +62,27 @@ local list: { Quest } = {
 		icon = "folk",
 	},
 	{
+		id = "huts",
+		title = "Build another hut",
+		text = "Huts are on the Huts tab. The pen sends its best driftlings to any hut with room.",
+		goal = { kind = "built", n = 2, of = "nest" },
+		reward = { shells = 100, wood = 15 },
+		go = "build:nest",
+		icon = "nest",
+	},
+	{
+		id = "luck",
+		title = "Make the tree luckier",
+		text = "Tap the Tree of Life and buy a level of Luck. Rare driftlings grow more often.",
+		goal = { kind = "luck", n = 2 },
+		reward = { shells = 100 },
+		go = "tree",
+		icon = "star",
+	},
+	{
 		id = "food",
 		title = "Grow more food",
-		text = "Build a second farm or a fishing pier. More villagers means more mouths.",
+		text = "Build a second farm or a fishing pier. Villagers and driftlings both eat.",
 		goal = { kind = "built", n = 2, of = "food" },
 		reward = { shells = 120, wood = 20 },
 		go = "build:food",
@@ -70,54 +107,18 @@ local list: { Quest } = {
 		icon = "decor",
 	},
 	{
-		id = "friends",
-		title = "Befriend three driftlings",
-		text = "Explore a wild place and throw snacks at hurt wild ones. Friends can work at home.",
-		goal = { kind = "befriended", n = 3 },
-		reward = { shells = 150, food = 40 },
-		go = "site",
-		icon = "pal",
-	},
-	{
-		id = "skill",
-		title = "Use a skill",
-		text = "In a fight, tap Skills and pick one. Skill points fill up as the fight goes on.",
-		goal = { kind = "skills", n = 1 },
-		reward = { shells = 80 },
-		go = "site",
+		id = "rare",
+		title = "Grow a rare one",
+		text = "Keep the tree growing. Luck makes rare ones turn up sooner.",
+		goal = { kind = "best", n = 3 },
+		reward = { shells = 200 },
+		go = "tree",
 		icon = "star",
-	},
-	{
-		id = "battles",
-		title = "Win ten fights",
-		text = "Each wild place on the island has driftlings to fight. Win ten fights.",
-		goal = { kind = "battles", n = 10 },
-		reward = { shells = 150 },
-		go = "site",
-		icon = "wild",
-	},
-	{
-		id = "pouch",
-		title = "Carry more snacks",
-		text = "Tap a wild place and get a bigger pouch there.",
-		goal = { kind = "pouch", n = 2 },
-		reward = { shells = 120, wood = 20 },
-		go = "site",
-		icon = "food",
-	},
-	{
-		id = "guardian",
-		title = "Clear a wild place",
-		text = "Every wild place has a guardian at the end. Beat it and the place is yours to build round.",
-		goal = { kind = "charted", n = 1 },
-		reward = { shells = 300 },
-		go = "site",
-		icon = "boss",
 	},
 	{
 		id = "expand",
 		title = "Grow your island",
-		text = "In Build mode tap Expand. A bigger island fits more, and new wild places turn up.",
+		text = "In Build mode tap Expand. A bigger island fits more, and the tree grows new kinds.",
 		goal = { kind = "tier", n = 2 },
 		reward = { shells = 400, wood = 50 },
 		go = "build",
@@ -133,27 +134,18 @@ local list: { Quest } = {
 		icon = "boost",
 	},
 	{
-		id = "yard",
-		title = "Build the Training Yard",
-		text = "Villagers and driftlings resting there get stronger. It's on the Nests tab.",
-		goal = { kind = "built", n = 1, of = "train" },
-		reward = { shells = 300 },
-		go = "build:nest",
-		icon = "train",
-	},
-	{
-		id = "clear2",
-		title = "Clear two wild places",
-		text = "The new ones are tougher. Bring your strongest.",
-		goal = { kind = "charted", n = 2 },
+		id = "housed",
+		title = "Ten driftlings at work",
+		text = "Build huts and buildings for them. Each building takes two helpers.",
+		goal = { kind = "helpers", n = 10 },
 		reward = { shells = 600 },
-		go = "site",
-		icon = "boss",
+		go = "pals",
+		icon = "pal",
 	},
 	{
 		id = "index",
 		title = "Meet twelve kinds",
-		text = "The Index lists every kind you've met. Each kind of wild place has its own.",
+		text = "The Index lists every kind the tree has grown. A bigger island grows more kinds.",
 		goal = { kind = "seen", n = 12 },
 		reward = { shells = 500 },
 		go = "index",
@@ -171,7 +163,7 @@ local list: { Quest } = {
 	{
 		id = "hatchery",
 		title = "Build a Hatchery",
-		text = "It's on the Nests tab. Two driftlings and a feast make an egg there.",
+		text = "It's on the Huts tab. Two driftlings and a feast make an egg there.",
 		goal = { kind = "built", n = 1, of = "breed" },
 		reward = { shells = 800 },
 		go = "build:nest",
@@ -180,20 +172,29 @@ local list: { Quest } = {
 	{
 		id = "egg",
 		title = "Hatch an egg",
-		text = "Open the Hatchery, pick two driftlings and give them a feast. It hatches in a few days.",
+		text = "Open the Hatchery, pick two driftlings and give them a feast. It hatches a few turns later.",
 		goal = { kind = "hatched", n = 1 },
 		reward = { shells = 1200 },
 		go = "hatch",
 		icon = "nest",
 	},
 	{
-		id = "charts",
-		title = "Clear five wild places",
-		text = "Beat the guardians of five wild places.",
-		goal = { kind = "charted", n = 5 },
+		id = "epic",
+		title = "Grow an epic one",
+		text = "Epic driftlings work more than three times as fast as common ones.",
+		goal = { kind = "best", n = 4 },
 		reward = { shells = 2000 },
-		go = "site",
-		icon = "boss",
+		go = "tree",
+		icon = "star",
+	},
+	{
+		id = "luck5",
+		title = "A lucky tree",
+		text = "Bring the tree's Luck up to level 5.",
+		goal = { kind = "luck", n = 5 },
+		reward = { shells = 3000 },
+		go = "tree",
+		icon = "tree",
 	},
 }
 

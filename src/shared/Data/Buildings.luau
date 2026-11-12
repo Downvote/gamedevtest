@@ -1,21 +1,20 @@
 --!strict
--- What can stand on an island (GAME_DESIGN 4): buildings that make food, wood or shells, homes for villagers, nests
--- for driftlings, the training yard, and decor for charm. Pure. Each piece is paid for when it is placed (shells and
--- wood), may be placed as often as the island's piece limit allows (Logic/Plot), and is built by
--- Models/DecorModels. w x d: its footprint in whole studs facing south (a quarter turn swaps them).
---   kind:  "food" | "wood" | "shop" (makes shells by selling food to visitors) | "home" | "nest" | "train" | "breed"
---          (the Hatchery: two driftlings make an egg, Logic/Breed) | "gen" (a boost building: every building of a knack
---          makes more) | "path" (a tile of path or road: apart from the piece limit, Tuning.PathPieces) | "decor"
---   rate:  what it makes a day with a villager working there (food, wood or shells); a shop eats `eats` food a day
+-- What can stand on an island (GAME_DESIGN 4): buildings that make food, wood or shells, homes for villagers, huts
+-- for driftlings, and decor for charm. Pure. Each piece is paid for when it is placed (shells and wood), may be placed
+-- as often as the island's piece limit allows (Logic/Plot), and is built by Models/DecorModels. w x d: its footprint
+-- in whole studs facing south (a quarter turn swaps them).
+--   kind:  "food" | "wood" | "shop" (makes shells by selling food to visitors) | "home" | "nest" (a driftlings' hut)
+--          | "breed" (the Hatchery: two driftlings make an egg, Logic/Breed) | "gen" (a boost building: every building
+--          of a knack makes more) | "path" (a tile of path or road: apart from the piece limit, Tuning.PathPieces)
+--          | "decor" | "tree" (the Tree of Life with its pen: every island's, never bought)
+--   rate:  what it makes a turn with a villager working there (food, wood or shells); a shop eats `eats` food a turn
 --   job:   the worker's title; knack: the driftlings that help there (Data/Creatures)
---   beds / slots: villagers it houses, driftlings it nests
+--   beds / slots: villagers it houses, driftlings it houses (a hut's room)
 --   charm: what it adds to the island's charm (visitors come for it)
---   comfort: a home's or nest's share added to its residents' work and battle stats (Logic/Island.comfort)
+--   comfort: a home's or hut's share added to its residents' work (Logic/Island.homes)
 --   boost / boostBy: a boost building's knack ("farm" "fish" "wood" "shop", or "all") and its share (each kind of boost
 --          building counts once however many stand: Logic/Island.boosts)
 --   tier:  the island tier it needs
---   "site": a wild place on the island (Data/Sites), never built from the tray: "wild_<id>" while wild, "done_<id>" once
---          cleared (a little charm then: a landmark)
 export type BuildingDef = {
 	id: string,
 	name: string,
@@ -87,23 +86,22 @@ local LIST: { BuildingDef } = {
 	B({ id = "hotel", name = "Grand Hotel", kind = "shop", shells = 110000, wood = 9000, w = 5, d = 5, rate = 3200, eats = 280, job = "Concierge", knack = "shop", charm = 35, tier = 6, blurb = "Visitors come from every sea." }),
 	-- homes: beds, and comfort for those who live there
 	B({ id = "tent", name = "Tent", kind = "home", shells = 30, w = 2, d = 2, beds = 1, blurb = "A bed for one villager." }),
-	B({ id = "hut", name = "Grass Hut", kind = "home", shells = 140, wood = 20, w = 3, d = 3, beds = 2, charm = 1, comfort = 0.03, blurb = "Beds for two." }),
+	B({ id = "hut", name = "Grass Shack", kind = "home", shells = 140, wood = 20, w = 3, d = 3, beds = 2, charm = 1, comfort = 0.03, blurb = "Beds for two." }),
 	B({ id = "cottage", name = "Cottage", kind = "home", shells = 700, wood = 80, w = 4, d = 3, beds = 4, charm = 3, comfort = 0.06, tier = 2, blurb = "Beds for four." }),
 	B({ id = "longhouse", name = "Longhouse", kind = "home", shells = 2400, wood = 260, w = 5, d = 3, beds = 5, charm = 4, comfort = 0.08, tier = 3, blurb = "A long timber hall for five." }),
 	B({ id = "townhouse", name = "Townhouse", kind = "home", shells = 7000, wood = 700, w = 4, d = 4, beds = 6, charm = 6, comfort = 0.12, tier = 4, blurb = "Two floors with a balcony." }),
 	B({ id = "villa", name = "Villa", kind = "home", shells = 20000, wood = 2000, w = 5, d = 4, beds = 6, charm = 10, comfort = 0.18, tier = 5, blurb = "Tiled roofs and a courtyard." }),
 	B({ id = "manor", name = "Manor", kind = "home", shells = 60000, wood = 5000, w = 5, d = 5, beds = 10, charm = 16, comfort = 0.25, tier = 6, blurb = "Three floors, towers and a garden." }),
 	-- nests: room for driftlings, and comfort
-	B({ id = "nest", name = "Driftling Nest", kind = "nest", shells = 50, wood = 5, w = 2, d = 2, slots = 2, blurb = "Room for two driftlings." }),
+	B({ id = "nest", name = "Driftling Hut", kind = "nest", shells = 50, wood = 5, w = 2, d = 2, slots = 2, blurb = "Room for two driftlings. They work from here." }),
 	B({ id = "burrow", name = "Cozy Burrow", kind = "nest", shells = 380, wood = 40, w = 3, d = 3, slots = 4, charm = 1, comfort = 0.05, tier = 2, blurb = "Room for four." }),
 	B({ id = "den", name = "Driftling Den", kind = "nest", shells = 2000, wood = 200, w = 3, d = 3, slots = 5, charm = 3, comfort = 0.08, tier = 3, blurb = "A mossy den with soft beds." }),
 	B({ id = "roost", name = "Treetop Roost", kind = "nest", shells = 6500, wood = 600, w = 4, d = 4, slots = 6, charm = 5, comfort = 0.12, tier = 4, blurb = "Nests in a great tree." }),
 	B({ id = "grotto", name = "Spring Grotto", kind = "nest", shells = 18000, wood = 1600, w = 4, d = 4, slots = 8, charm = 8, comfort = 0.18, tier = 5, blurb = "A warm spring under a rock." }),
-	B({ id = "palace", name = "Driftling Palace", kind = "nest", shells = 55000, wood = 4500, w = 5, d = 5, slots = 12, charm = 14, comfort = 0.25, tier = 6, blurb = "The comfiest nest there is." }),
+	B({ id = "palace", name = "Driftling Palace", kind = "nest", shells = 55000, wood = 4500, w = 5, d = 5, slots = 12, charm = 14, comfort = 0.25, tier = 6, blurb = "The comfiest hut there is." }),
 	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
 	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3600, wood = 320, w = 4, d = 4, charm = 3, tier = 3, blurb = "Two driftlings and a feast make an egg." }),
 	-- training
-	B({ id = "yard", name = "Training Yard", kind = "train", shells = 450, wood = 50, w = 4, d = 4, charm = 1, tier = 2, blurb = "Resting villagers and driftlings train." }),
 	-- boosts: every building of a knack makes more (each kind counts once)
 	B({ id = "toolshed", name = "Tool Shed", kind = "gen", shells = 1200, wood = 120, w = 2, d = 2, charm = 1, boost = "wood", boostBy = 0.1, tier = 2, blurb = "Sharp axes: wood +10%." }),
 	B({ id = "windmill", name = "Windmill", kind = "gen", shells = 1500, wood = 150, w = 3, d = 3, charm = 4, boost = "farm", boostBy = 0.1, tier = 2, blurb = "Grinds the harvest: farms +10%." }),
@@ -150,12 +148,9 @@ local LIST: { BuildingDef } = {
 }
 -- stylua: ignore end
 
--- the wild places (Data/Sites): spawned on the island, never bought (tier 99 keeps them off every tab)
-local Sites = require(script.Parent.Sites)
-for _, sd in Sites.list do
-	table.insert(LIST, B({ id = Sites.wildId(sd.id), name = sd.name, kind = "site", w = sd.w, d = sd.d, tier = 99, blurb = sd.blurb }))
-	table.insert(LIST, B({ id = Sites.doneId(sd.id), name = sd.name, kind = "site", w = sd.w, d = sd.d, charm = 3, tier = 99, blurb = sd.blurb }))
-end
+-- the Tree of Life and its pen (GAME_DESIGN 6; Logic/Tree): every island has one from the start; it is never bought or
+-- cleared away (tier 99 keeps it off every tab) and doesn't count toward the piece limit, but it can be moved
+table.insert(LIST, B({ id = "tree", name = "Tree of Life", kind = "tree", w = 6, d = 4, charm = 4, tier = 99, blurb = "Grows a driftling every few seconds into its pen." }))
 
 local BY_ID: { [string]: BuildingDef } = {}
 for _, d in LIST do

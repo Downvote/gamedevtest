@@ -36,7 +36,7 @@ local STEPS = 6 -- a change between two keys goes in this many steps
 
 local frac0, at0 = 0, os.clock() -- the last tick's dayFrac and when it came
 local forced: number? = nil
-local held: Grade? = nil -- a grade held over the clock's (a battle paused to aim: grey)
+local held: Grade? = nil -- a grade held over the clock's (DayLight.hold)
 
 -- The grade at a time of day (nil: plain daylight).
 function DayLight.at(frac: number): Grade?
@@ -111,8 +111,7 @@ function DayLight.start()
 			end)
 			return
 		end
-		-- the islands at sea share the clock: a battle at night is fought in the dark, by its fires and glows; a held
-		-- grade (aiming a snack or a skill: grey) over it
+		-- every island shares the clock; a held grade over it
 		PixelRenderer.setGrade(held or DayLight.at(f))
 	end)
 end
@@ -122,7 +121,7 @@ function DayLight.frac(): number
 	return now()
 end
 
--- Hold a grade over the day's (UI/ExpeditionUI: the picture greys while a snack or a skill is aimed); nil lets go.
+-- Hold a grade over the day's (nothing holds one since the fights went); nil lets go.
 function DayLight.hold(g: Grade?)
 	held = g
 end

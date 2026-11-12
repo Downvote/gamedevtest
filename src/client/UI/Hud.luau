@@ -1,8 +1,9 @@
 --!strict
 -- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (shells, food, wood, the day and its
 -- clock), the menu bar along the bottom (Build, Villagers, Driftlings, Index, Looks), the island card on the
--- right (the lodge, villagers and beds, driftlings and nests, visitors, charm, what a day makes) with the expedition
--- card under it while one is under way, the tips banner and the new day's banner (the loading card is src/first's). The camera fits
+-- right (the island's name, villagers and beds, driftlings in huts and their room, visitors, charm, what it makes) with
+-- the Tree of Life's card under it (the next driftling's bar, the pen), the questline's card, the tips banner, the new
+-- day's banner and the alerts for a rare driftling grown (the loading card is src/first's). The camera fits
 -- the island clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,19 +17,18 @@ local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Quests = require(ReplicatedStorage.Shared.Data.Quests)
+local Traits = require(ReplicatedStorage.Shared.Data.Traits)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local DayLight = require(script.Parent.Parent.Controllers.DayLight)
-local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
 local BuildUI = require(script.Parent.BuildUI)
-local ExpeditionUI = require(script.Parent.ExpeditionUI)
-local Voyage = require(script.Parent.Voyage)
 
 local Hud = {}
 
@@ -49,7 +49,7 @@ local chipIcons: { [string]: GuiObject } = {}
 local bar: Frame? = nil
 local barW = 0
 local card: Frame? = nil
-local expCard: Frame? = nil
+local treeCard: Frame? = nil -- the Tree of Life's card (GAME_DESIGN 6)
 local tips: Frame? = nil
 local quest: Frame? = nil -- the questline's card (GAME_DESIGN 9)
 local QUEST_W = 150
@@ -300,7 +300,8 @@ local function updateCard(v: Types.ClientView)
 	local full = #v.folk >= v.beds
 	line(f, "folk", "Villagers", y, w, nil, string.format("%d/%d", #v.folk, v.beds), if full then UIKit.color("orange") else nil, "Folk")
 	y += LINE_H
-	line(f, "pal", "Driftlings", y, w, nil, string.format("%d/%d", #v.pals, v.nests), if #v.pals >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
+	local housed = #v.pals - Tree.inPen(v :: any)
+	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
 	y += LINE_H
 	line(f, "visitor", "Visitors", y, w, nil, string.format("%.1f", v.visitors), nil, "Visitors")
 	y += LINE_H
@@ -319,49 +320,50 @@ local function updateCard(v: Types.ClientView)
 	rate("wood", v.rates.wood, "Wood")
 	rate("shell", v.rates.shells, "Shells")
 	f:SetAttribute("Key", key)
-	f.Visible = not BuildUI.isOpen() and not ExpeditionUI.isOpen()
+	f.Visible = not BuildUI.isOpen()
 	card = f
 end
 
------------------------------------------------------------------- the expedition card
--- Under the island card while an expedition is under way (the player closed its screen): where, how far, Continue.
-local function updateExp(v: Types.ClientView)
-	local e = v.exp
-	local key = if e then string.format("%d:%d:%s:%s", e.isle.seed, e.node, tostring(e.battle ~= nil), tostring(e.over)) else ""
-	if expCard and expCard:GetAttribute("Key") == key then
+------------------------------------------------------------------ the Tree of Life's card
+-- Under the island card (GAME_DESIGN 6): its name, a bar filling toward the next driftling (Heartbeat runs it on from
+-- StateClient.treeFrac; orange and full while the pen is), the pen's count ("Pen full" in orange), and Open (its panel).
+local function updateTree(v: Types.ClientView)
+	local inPen = Tree.inPen(v :: any)
+	local key = string.format("%d/%d|%d|%d", inPen, v.pen, v.tree.luck, v.tree.speed)
+	if treeCard and treeCard:GetAttribute("Key") == key then
 		return
 	end
-	if expCard then
-		expCard:Destroy()
-		expCard = nil
-	end
-	if e == nil then
-		return
+	if treeCard then
+		treeCard:Destroy()
+		treeCard = nil
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 43), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
-	f.Name = "ExpCard"
+	f.Name = "TreeCard"
 	UIKit.plank(f, 11, 3)
-	PixelSprites.image(f, "mini_wild", UDim2.fromOffset(3, 1), 4)
-	UIKit.text(f, e.isle.name, UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Islet" })
-	local state = if e.over == "won" then "Cleared" elseif e.battle then "In a fight" else string.format("Stage %d of %d", math.max(0, e.node - 1), math.max(1, #e.nodes - 1))
-	UIKit.text(f, state, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 14), { color = if e.over == "won" then UIKit.color("good") elseif e.battle then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, name = "State" })
-	local b = UIKit.button(f, "Continue", UDim2.fromOffset(w - 8, 13), UDim2.fromOffset(4, 26), function()
-		ExpeditionUI.open()
-	end, { name = "ExpContinue", color = UIKit.color("button_ok") })
-	b:SetAttribute("Pulse", true)
+	PixelSprites.image(f, "mini_tree", UDim2.fromOffset(3, 1), 4)
+	UIKit.text(f, "Tree of Life", UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
+	local back = UIKit.rect(f, UDim2.fromOffset(w - 8, 5), UDim2.fromOffset(4, 14), UIKit.color("ink"), 4)
+	back.Name = "GrowBar"
+	UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 5).Name = "Fill"
+	local full = inPen >= v.pen
+	UIKit.text(f, if full then "Pen full" else string.format("Pen %d/%d", inPen, v.pen), UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(4, 26), { color = if full then UIKit.color("orange") else UIKit.color("text"), z = 4, name = "Pen" })
+	local b = UIKit.button(f, "Open", UDim2.fromOffset(44, 13), UDim2.fromOffset(w - 48, 25), function()
+		UIKit.openPanel("tree")
+	end, { name = "TreeOpen", color = UIKit.color("button_ok") })
+	b:SetAttribute("Pulse", full)
 	f:SetAttribute("Key", key)
-	expCard = f
+	treeCard = f
 end
 
--- The cards stack down the right edge (on a phone the expedition card sits on the left, clear of the jump button).
+-- The cards stack down the right edge (on a phone the tree's card sits on the left, clear of the jump button).
 local function stack()
 	local s = UIKit.size("Hud")
-	local c, e = card, expCard
-	-- (the sea chart's wide panel covers the cards but a sliver: they step aside for it too)
-	local hide = BuildUI.isOpen() or ExpeditionUI.isOpen() or UIKit.currentPanel() == "site"
+	local c, e = card, treeCard
+	-- (the tree's wide panel covers the cards but a sliver: they step aside for it too)
+	local hide = BuildUI.isOpen() or UIKit.currentPanel() == "tree"
 	if c then
 		c.Visible = not hide
 	end
@@ -374,11 +376,10 @@ local function stack()
 			e.Position = UDim2.fromOffset(s.X - CARD_W - 7, y)
 		end
 	end
-	-- the quest's card down the left under the chips (under the trip's card on a phone); it steps aside for an
-	-- expedition and for a panel
+	-- the quest's card down the left under the chips (under the tree's card on a phone); it steps aside for a panel
 	local qf = quest
 	if qf then
-		qf.Visible = not (ExpeditionUI.isOpen() or UIKit.currentPanel() ~= nil)
+		qf.Visible = not (BuildUI.isOpen() or UIKit.currentPanel() ~= nil)
 		local y = CARD_Y
 		if UIKit.phone() and e and e.Visible then
 			y = e.Position.Y.Offset + e.Size.Y.Offset + 11
@@ -388,16 +389,9 @@ local function stack()
 end
 
 ------------------------------------------------------------------ the questline
--- Where a quest's Go takes the player (Data/Quests' `go`): a panel, the nearest wild place's card (or the trip under
--- way), or Build mode on a tab.
+-- Where a quest's Go takes the player (Data/Quests' `go`): a panel (the Tree of Life's too) or Build mode on a tab.
 local function goTo(where: string)
-	if where == "site" then
-		if ExpeditionUI.active() then
-			ExpeditionUI.open()
-		else
-			UIKit.openPanel("site")
-		end
-	elseif string.sub(where, 1, 5) == "build" then
+	if string.sub(where, 1, 5) == "build" then
 		BuildUI.open(string.match(where, "^build:(%a+)$"))
 	else
 		UIKit.openPanel(where)
@@ -432,7 +426,7 @@ local function updateQuest(v: Types.ClientView)
 	local q, i = Quest.current(v.tut, v.quest or 1)
 	local have, need = 0, 0
 	if q then
-		local facts: Quest.Facts = { folk = v.folk, pals = v.pals, pieces = v.pieces, tier = v.tier, pouch = v.pouch, islets = v.islets, seen = v.seen, stats = v.stats }
+		local facts: Quest.Facts = { folk = v.folk, pals = v.pals, pieces = v.pieces, tier = v.tier, tree = v.tree, seen = v.seen, stats = v.stats }
 		have, need = Quest.progress(facts, q)
 	end
 	local key = if q then string.format("%s:%d:%d", q.id, have, need) else ""
@@ -506,21 +500,15 @@ local TIPS: { [number]: string } = {
 	[1] = "Everyone here eats. Tap Build and place a Veggie Patch to grow food.",
 	[2] = "Bigger buildings need wood. Place a Lumber Camp.",
 	[3] = "Shells come from visitors. Place a Snack Stall and they'll buy food.",
-	[4] = "Now put up a Tent. A castaway moves in straight away to work and sail with you.",
-	[5] = "Build a Driftling Nest, then tap the Tide Pool. Your villager comes along.",
-	[6] = "Tap the Tide Pool and tap Explore. In there your party fights on its own.",
-	[7] = "To catch a driftling, tap Snack in a fight and throw one at a hurt wild one.",
-	[8] = "Your first driftling. Trips bring back food, wood and shells as well.",
-}
--- (on an expedition under way, with its screen closed)
-local TIPS_AWAY: { [number]: string } = {
-	[6] = "Your party is in the Tide Pool. Tap Continue to watch the fight.",
-	[7] = "Tap Continue, then throw a snack at a hurt wild one to catch it.",
+	[4] = "Now put up a Tent. A castaway moves in straight away to work.",
+	[5] = "The Tree of Life grows a driftling every few seconds. Build a Driftling Hut so they can work.",
+	[6] = "Tap the Tree of Life and buy a level of Speed or Luck.",
+	[7] = "The pen sends its best driftlings to huts with room. Sell the ones you don't need.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
 	[1] = "Place a Veggie Patch. It grows the food everyone eats.",
-	[5] = "Place a Driftling Nest, then tap Done and tap the Tide Pool.",
+	[5] = "Place a Driftling Hut. The pen sends its best driftlings there.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
@@ -529,7 +517,7 @@ local function tipsLift(): number
 end
 
 local function updateTips(v: Types.ClientView)
-	local text = (if BuildUI.isOpen() then TIPS_BUILD[v.tut] else nil) or (if v.exp then TIPS_AWAY[v.tut] else nil) or TIPS[v.tut]
+	local text = (if BuildUI.isOpen() then TIPS_BUILD[v.tut] else nil) or TIPS[v.tut]
 	if tips then
 		local words = tips:FindFirstChild("Words")
 		if text and words and words:IsA("TextLabel") and words:GetAttribute("Source") == text then
@@ -543,7 +531,7 @@ local function updateTips(v: Types.ClientView)
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local ok = v.tut == 8
+	local ok = v.tut == 7
 	-- a parchment note in a thin frame of planks; on a phone it keeps to the room left of the island card (two lines
 	-- if it must), so it never covers the card
 	local room = if UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
@@ -562,7 +550,6 @@ local function updateTips(v: Types.ClientView)
 			StateClient.request("tut.next", {})
 		end, { name = "TipsOk" })
 	end
-	f.Visible = not ExpeditionUI.isOpen()
 	tips = f
 	-- a new tip bounces in
 	f.Position = UDim2.new(0, left, 1, -(tipsLift() - 4))
@@ -570,8 +557,8 @@ local function updateTips(v: Types.ClientView)
 end
 
 ------------------------------------------------------------------ a new day
--- A banner drops in at the top: the day, who moved in, who trained. Under a panel or an expedition: a notice.
--- A new calendar day ("Day 12": every few hours) or a turn's news (a newcomer, the yard's training).
+-- A banner drops in at the top: the day, who moved in, what hatched. Under a panel or in Build mode: a notice.
+-- A new calendar day ("Day 12": every few hours) or a turn's news (a newcomer, an egg hatched).
 local function onDay(msg: { [string]: any })
 	local isDay = msg.kind == "day"
 	local day = tonumber(msg.day) or 0
@@ -591,15 +578,7 @@ local function onDay(msg: { [string]: any })
 			end
 		end
 	end
-	local trained = if type(msg.trained) == "number" then msg.trained else 0
-	if trained > 0 then
-		table.insert(lines, string.format("%d trained at the yard", trained))
-	end
 	if not isDay and msg.movedIn == nil and hatched == 0 then
-		-- only the yard's training: a quiet word
-		if #lines > 0 then
-			UIKit.notice(lines[1], UIKit.color("good"), 3)
-		end
 		return
 	end
 	local title = if isDay then "Day " .. day elseif msg.movedIn == nil then "An egg hatched!" else "A newcomer!"
@@ -608,7 +587,7 @@ local function onDay(msg: { [string]: any })
 	if isDay then
 		chipBump.day = os.clock()
 	end
-	if UIKit.currentPanel() ~= nil or ExpeditionUI.isOpen() or BuildUI.isOpen() then
+	if UIKit.currentPanel() ~= nil or BuildUI.isOpen() then
 		UIKit.notice(title .. (if #lines > 0 then ": " .. table.concat(lines, ", ") else ""), UIKit.color("accent"), 4)
 		return
 	end
@@ -653,10 +632,31 @@ local function onDay(msg: { [string]: any })
 end
 
 ------------------------------------------------------------------ lifecycle
+-- What the Tree of Life grew (Fx "tree"): a rare one or better is news (its rarity's colour, a chime; an epic or a
+-- legend gets a burst of sparkles too); the commoner ones just turn up in the pen (WorldView).
+local function onTree(msg: { [string]: any })
+	if type(msg.grown) ~= "table" then
+		return
+	end
+	for _, x in msg.grown do
+		local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
+		if d and d.rarity >= 3 then
+			local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+			local a = if d.rarity == 4 then "An" else "A"
+			UIKit.notice(string.format("%s %s %s grew on the tree.", a, string.lower(rar.name), d.name), UIKit.color(rar.color), 4)
+			Audio.play(if d.rarity >= 4 then "grow" else "rare")
+			local tc = treeCard
+			if d.rarity >= 4 and tc and tc.Parent and tc.Visible then
+				UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
+			end
+		end
+	end
+end
+
 local function refresh(v: Types.ClientView)
 	updateTop(v)
 	updateCard(v)
-	updateExp(v)
+	updateTree(v)
 	stack()
 	updateTips(v)
 	updateQuest(v)
@@ -678,12 +678,12 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, expCard, tips, quest, homeButton, musicButton } :: { Instance? } do
+	for _, f in { card, treeCard, tips, quest, homeButton, musicButton } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
-	card, expCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
+	card, treeCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 108 else 124
 	buildTop()
 	buildBar()
@@ -697,7 +697,6 @@ end
 
 function Hud.start()
 	Menus.init()
-	ExpeditionUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
 	-- the stores every second: the chips count, shells coming in rise from their chip ("+12") at most every 2 s
@@ -711,7 +710,7 @@ function Hud.start()
 		updateTop(v)
 		local now = os.clock()
 		local cf = chipFrames.shells
-		if gained >= 1 and now - popAt >= 2 and cf and cf.Parent and not ExpeditionUI.isOpen() then
+		if gained >= 1 and now - popAt >= 2 and cf and cf.Parent then
 			popAt = now
 			UIKit.popText(UIKit.canvas("Hud"), cf.Position.X.Offset + cf.Size.X.Offset / 2, CHIP_Y + TOP_H + 4, "+" .. Numbers.coins(gained), UIKit.color("accent"))
 			gained = 0
@@ -720,17 +719,18 @@ function Hud.start()
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "day" or msg.kind == "turn" then
 			onDay(msg)
+		elseif msg.kind == "tree" then
+			onTree(msg)
 		end
 	end)
 	UIKit.Resized:Connect(function()
 		rebuild()
 	end)
-	-- Build mode has its own tray, an expedition the whole screen: the menu bar and the cards step aside; the tips
-	-- stay in Build mode (lifted over the tray) and step aside for an expedition
+	-- Build mode has its own tray: the menu bar and the cards step aside; the tips stay (lifted over the tray)
 	local function aside()
 		local b = bar
 		if b then
-			b.Visible = not (BuildUI.isOpen() or ExpeditionUI.isOpen())
+			b.Visible = not BuildUI.isOpen()
 		end
 		local v = StateClient.view()
 		if v then
@@ -738,13 +738,11 @@ function Hud.start()
 		end
 		local t = tips
 		if t then
-			t.Visible = not ExpeditionUI.isOpen()
 			t.Position = UDim2.new(t.Position.X.Scale, t.Position.X.Offset, 1, -tipsLift())
 		end
 		stack()
 	end
 	BuildUI.Changed:Connect(aside)
-	ExpeditionUI.Changed:Connect(aside)
 	UIKit.PanelChanged:Connect(function()
 		stack()
 	end)
@@ -788,9 +786,22 @@ function Hud.start()
 			local on = math.floor(now * 2) % 2 == 0
 			UIKit.setPlate(ff, if on then UIKit.color("plate"):Lerp(UIKit.color("bad"), 0.35) else UIKit.color("plate"))
 		end
-		-- the expedition card's Continue pulses
-		local e = expCard
+		-- the tree's card: its bar runs on toward the next driftling; Open pulses while the pen is full
+		local e = treeCard
 		if e then
+			local back = e:FindFirstChild("GrowBar")
+			local fill = if back then back:FindFirstChild("Fill") else nil
+			if back and fill and back:IsA("Frame") and fill:IsA("Frame") then
+				local k = StateClient.treeFrac()
+				local fw = math.floor((back.Size.X.Offset - 2) * k)
+				if fill.Size.X.Offset ~= fw then
+					fill.Size = UDim2.fromOffset(fw, 3)
+				end
+				local c = if k >= 1 then UIKit.color("orange") else UIKit.color("good")
+				if fill.BackgroundColor3 ~= c then
+					fill.BackgroundColor3 = c
+				end
+			end
 			local pulse = (math.sin(now * 5) + 1) / 2
 			local shineNow = now >= nextShine
 			if shineNow then
@@ -805,10 +816,10 @@ function Hud.start()
 				end
 			end
 		end
-		-- the background music: easygoing island tunes by day, softer ones from the twilight, an adventure at sea
-		-- (an islet's screen, a voyage); the note in the corner switches it off and on
+		-- the background music: easygoing island tunes by day, softer ones from the twilight; the note in the corner
+		-- switches it off and on
 		local f = DayLight.frac()
-		Audio.music(if ExpeditionUI.isOpen() or Voyage.isPlaying() then "sea" elseif f >= 0.74 or f < 0.02 then "night" else "day")
+		Audio.music(if f >= 0.74 or f < 0.02 then "night" else "day")
 		local vw = StateClient.view()
 		local on = (musicPref or (if vw and vw.settings.music == "off" then "off" else "on")) ~= "off"
 		Audio.setMusicOn(on)
@@ -822,19 +833,19 @@ function Hud.start()
 				end
 			end
 		end
-		-- jumping on the island: held while the build tray, a panel, an islet's screen or a voyage is up (the phone's
-		-- jump button hides with it, clear of the tray, the panels' and the battle's buttons)
+		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
+		-- clear of the tray's and the panels' buttons)
 		local char = Players.LocalPlayer.Character
 		local hum = if char then char:FindFirstChildOfClass("Humanoid") else nil
 		if hum then
-			local want = if BuildUI.isOpen() or ExpeditionUI.isOpen() or Voyage.isPlaying() or UIKit.currentPanel() ~= nil then 0 else Tuning.JumpHeight
+			local want = if BuildUI.isOpen() or UIKit.currentPanel() ~= nil then 0 else Tuning.JumpHeight
 			if hum.JumpHeight ~= want then
 				hum.JumpHeight = want
 			end
 		end
 		local hb = homeButton
 		if hb then
-			local show = not atHome() and not BuildUI.isOpen() and not ExpeditionUI.isOpen()
+			local show = not atHome() and not BuildUI.isOpen()
 			if hb.Visible ~= show then
 				hb.Visible = show
 			end

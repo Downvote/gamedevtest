@@ -4,7 +4,7 @@
 -- walking onto the neighbour's island (the camera follows, Home shows) and going home (and its cooldown); placing,
 -- moving, upgrading and clearing buildings with every refusal, the server's Static.Decor following piece by piece;
 -- the same through Build mode's UI; malicious plot payloads; a leaving player's island back to open water; a full
--- sea kicking the seventh player.
+-- sea kicking the seventh player; a newcomer's Tree of Life (its model, a tap on it, moved but never cleared away).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -74,28 +74,32 @@ local b = H.addPlayer({ userId = 9402, name = "Bo" })
 E.run(3)
 local sa, sb = H.session(a), H.session(b)
 H.expect(sa and sa.plot == 1 and sb and sb.plot == 2, "islands", "plots 1 and 2", string.format("%s %s", tostring(sa and sa.plot), tostring(sb and sb.plot)))
--- both new islands have their first wild places (a tide pool and some tall grass); the building checks below are
--- about building, so they go (the wild places' own checks come at the end, on another newcomer's island)
+-- both new islands have their Tree of Life (the tree's own checks come at the end, on another newcomer's island);
+-- the trees wait with full pens here so the islanders counted below hold still
 local PlotRules = H.sharedServer("Logic.Plot")
+local TreeW = H.sharedServer("Logic.Tree")
+local function fillPen(prof)
+	while not TreeW.waiting(prof) do
+		TreeW.add(prof, "pebblit", {}).held = 1
+	end
+end
 for _, p in { a, b } do
 	local prof = H.profile(p)
-	local keep, wilds = {}, 0
+	local trees = 0
 	for _, q in prof.plot.placed do
-		if PlotRules.isSite(q.id) then
-			wilds += 1
-		else
-			table.insert(keep, q)
+		if PlotRules.isFixed(q.id) then
+			trees += 1
 		end
 	end
-	H.expect(wilds == 2, "islands", p.Name .. ": a new island's two wild places", tostring(wilds))
-	prof.plot.placed = keep
+	H.expect(trees == 1, "islands", p.Name .. ": a new island's Tree of Life", tostring(trees))
+	fillPen(prof)
 	H.push(p, 0.2)
 end
 for k, p in { a, b } do
 	local m = plotModel(k)
 	local prof = H.profile(p)
 	H.expect(m:GetAttribute("Owner") == p.UserId and m:GetAttribute("StudioName") == p.Name .. "'s Isle", "islands", p.Name .. ": owner and island name", tostring(m:GetAttribute("StudioName")))
-	H.expect(m:GetAttribute("Tier") == 1 and m:GetAttribute("Day") == prof.day and m:GetAttribute("Sailing") == false, "islands", p.Name .. ": tier 1, the day, not sailing")
+	H.expect(m:GetAttribute("Tier") == 1 and m:GetAttribute("Day") == prof.day and m:GetAttribute("Sailing") == nil, "islands", p.Name .. ": tier 1, the day (no sailing any more)")
 	H.expect(officeOf(k) == nil, "islands", p.Name .. ": no house any more")
 	local land = staticOf(k):FindFirstChild("Land")
 	H.expect(land ~= nil and m:FindFirstChild("EmptyLot", true) == nil, "islands", p.Name .. ": the island replaced the open water")
@@ -143,10 +147,18 @@ for k, p in { a, b } do
 	-- (the first home welcomed a castaway at once: GAME_DESIGN 9; one more joins them here)
 	H.expect(#prof.folk == 1, "islands", p.Name .. ": the hut's first castaway moved in at once", tostring(#prof.folk))
 	for j = 2, 2 do
-		table.insert(prof.folk, { id = prof.nextId, name = "Folk" .. j, look = { skin = j, hair = j, style = j, shirt = j }, work = if j == 1 then prof.plot.placed[1].uid else 0, lvl = 1, xp = 0, seed = j, day = 1 })
+		table.insert(prof.folk, { id = prof.nextId, name = "Folk" .. j, look = { skin = j, hair = j, style = j, shirt = j }, work = 0, day = 1 })
 		prof.nextId += 1
 	end
-	table.insert(prof.pals, { id = prof.nextId, sp = "mossbun", lvl = 2, xp = 0, work = prof.plot.placed[1].uid, muts = {} })
+	local patchUid, nestUid = 0, 0
+	for _, q in prof.plot.placed do
+		if q.id == "patch" then
+			patchUid = q.uid
+		elseif q.id == "nest" then
+			nestUid = q.uid
+		end
+	end
+	table.insert(prof.pals, { id = prof.nextId, sp = "mossbun", home = nestUid, work = patchUid, muts = {} })
 	prof.nextId += 1
 	prof.seen.mossbun = 2
 	H.push(p, 0.2)
@@ -342,7 +354,7 @@ H.expect(#decor:GetChildren() == #prof.plot.placed, "build", "a model a piece", 
 -- the piece limit
 local limit = Plot.limit(1)
 local guard = 0
-while #prof.plot.placed < limit and guard < 80 do
+while #prof.plot.placed < limit + 1 and guard < 80 do
 	guard += 1
 	local x, z = spot("torch", 0, prof.plot.placed)
 	if x == nil then
@@ -351,16 +363,16 @@ while #prof.plot.placed < limit and guard < 80 do
 	res = H.req(a, "plot.place", { id = "torch", x = x, z = z, rot = 0 })
 	E.run(0.1)
 end
-H.expect(#prof.plot.placed == limit, "build", "the island fills to its limit", tostring(#prof.plot.placed))
+H.expect(#prof.plot.placed == limit + 1, "build", "the island fills to its limit (the tree apart)", tostring(#prof.plot.placed))
 local lx, lz = spot("torch", 0, prof.plot.placed)
 res = H.req(a, "plot.place", { id = "torch", x = lx or 20, z = lz or 20, rot = 0 })
 H.expect(not res.ok and (res.err == "full" or res.err == "blocked"), "build", "the island's piece limit", tostring(res.err))
-while #prof.plot.placed > 4 do
+while #prof.plot.placed > 5 do
 	H.req(a, "plot.store", { i = #prof.plot.placed })
 	E.run(0.1)
 end
 E.run(0.5)
-H.expect(#decor:GetChildren() == 4, "build", "and back", tostring(#decor:GetChildren()))
+H.expect(#decor:GetChildren() == 5, "build", "and back (four and the tree)", tostring(#decor:GetChildren()))
 H.checkProfile(a, "build")
 H.checkMirror(a, "build")
 
@@ -434,6 +446,11 @@ H.expect(#prof.plot.placed == placedBefore, "build", "cleared through the UI", t
 -- a building that makes something: no Upgrade in its bar either
 E.raycastParts = true
 local q1 = prof.plot.placed[1]
+for _, q in prof.plot.placed do
+	if q1.id == "tree" and q.id ~= "tree" then
+		q1 = q
+	end
+end
 local w1, d1 = Plot.footprint(q1.id, q1.rot)
 H.inClient(a, function()
 	BuildUI.tapScreen(screenOf(E.v3(ox1 + q1.x + w1 / 2, Street.LAWN_Y + 0.3, oz1 + q1.z + d1 / 2)), false)
@@ -608,108 +625,82 @@ for _, k in E.kicks or {} do
 end
 H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is told the sea is full")
 
------------------------------------------------------------------- 9. the wild places (GAME_DESIGN 7)
-E.phase = "wild"
--- Cy's island (a newcomer's): its tide pool and tall grass stand there as models, labelled on Cy's screen; nothing
--- may be built in their rings; a wild one can't be moved or cleared away; Build mode outlines the rings; a cleared
--- one moves and clears away like any piece
+------------------------------------------------------------------ 9. the Tree of Life (GAME_DESIGN 6)
+E.phase = "tree"
+-- Cy's island (a newcomer's): its tree stands there as a model (the tree and its pen); a tap on it on Cy's screen
+-- opens its panel; it can be moved (its model follows), never cleared away, replaced or bought; in Build mode a tap
+-- picks it up with Clear away off
 local cp = H.profile(c)
-local wildQs = {}
+local ti, tq = nil, nil
 for i, q in cp.plot.placed do
-	if PlotRules.isWild(q.id) then
-		table.insert(wildQs, { q = q, i = i })
+	if q.id == "tree" then
+		ti, tq = i, q
 	end
 end
-H.expect(#wildQs == 2, "wild", "a tide pool and some tall grass on the newcomer's island", tostring(#wildQs))
+H.expect(tq ~= nil, "tree", "the newcomer's island has its Tree of Life")
 local cdecor = decorOf(H.session(c).plot)
-local siteModels = 0
+local treeModels = 0
 for _, m in cdecor:GetChildren() do
-	if m:GetAttribute("Site") then
-		siteModels += 1
+	if m:GetAttribute("Decor") == "tree" then
+		treeModels += 1
 	end
 end
-H.expect(siteModels == 2, "wild", "their models on the island (Site attribute)", tostring(siteModels))
-E.run(1)
-local labels = 0
-for _, w in wildQs do
-	local found = H.inClient(c, function()
-		local UIKitC = H.cmod(c, "UI.UIKit")
-		return UIKitC.canvas("World"):FindFirstChild("Site_" .. w.q.uid) ~= nil
-	end)
-	labels += if found then 1 else 0
-end
-H.expect(labels == 2, "wild", "a label over each (name and level)", tostring(labels))
--- a tap on each on Cy's screen opens its card (the tap's ray has to pass the island's invisible coast walls: they
--- collide, so Roblox hits them whatever their CanQuery says)
-local MenusC = H.cmod(c, "UI.Menus")
+H.expect(treeModels == 1, "tree", "its model on the island", tostring(treeModels))
+-- a tap on it on Cy's screen opens its panel (the tap's ray passes the island's invisible coast walls)
 local WorldViewC = H.cmod(c, "Controllers.WorldView")
 local PRc = H.cmod(c, "Pixel.PixelRenderer")
 local cox, coz = Street.origin(H.session(c).plot)
-local back = c.Character and c.Character:GetPivot()
-local tapped = 0
-for _, w in wildQs do
-	local fw, fd = PlotRules.footprint(w.q.id, w.q.rot)
-	local at = E.v3(cox + w.q.x + fw / 2, Street.LAWN_Y + 0.6, coz + w.q.z + fd / 2)
-	if c.Character then
-		c.Character:PivotTo(E.cf.new(at.X + 2, 3, at.Z + fd / 2 + 4))
-		E.run(2)
-	end
-	E.raycastParts = true
-	H.inClient(c, function()
-		local pos = PRc.project(at)
-		WorldViewC.tapScreen(E.v2(pos.X, pos.Y - E.inset))
-	end)
-	E.raycastParts = nil
-	E.run(0.5)
-	if H.currentPanel(c) == "site" and H.inClient(c, MenusC.chosen) == w.q.uid then
-		tapped += 1
-	end
-	H.closePanel(c)
-end
-if c.Character and back then
-	c.Character:PivotTo(back)
-	E.run(2)
-end
-H.expect(tapped == #wildQs, "wild", "a tap on each opens its card", tostring(tapped))
-local wq = wildQs[1].q
-local zr = PlotRules.zone(wq)
-local inRing = nil
-for z = zr.z0, zr.z1 - 1 do
-	for x = zr.x0, zr.x1 - 1 do
-		if inRing == nil and select(2, PlotRules.fits(cp.tier, cp.plot.placed, "torch", x, z, 0)) == "wild" then
-			inRing = { x, z }
+local tw, td = PlotRules.footprint(tq.id, tq.rot)
+local at = E.v3(cox + tq.x + tw / 2 + 0.3, Street.LAWN_Y + 0.05, coz + tq.z + td / 2 + 0.3)
+E.run(1)
+E.raycastParts = true
+H.inClient(c, function()
+	local pos = PRc.project(at)
+	WorldViewC.tapScreen(E.v2(pos.X, pos.Y - E.inset))
+end)
+E.raycastParts = nil
+E.run(0.5)
+H.expect(H.currentPanel(c) == "tree", "tree", "a tap on it opens its panel", tostring(H.currentPanel(c)))
+H.closePanel(c)
+cp.shells, cp.wood = 50000, 5000
+H.expect(H.req(c, "plot.store", { i = ti }).err == "fixed", "tree", "it isn't cleared away")
+H.expect(H.req(c, "plot.place", { id = "tree", x = 0, z = 0, rot = 0 }).err == "bad_payload", "tree", "or bought")
+H.expect(H.req(c, "plot.replace", { i = ti, id = "nest" }).err == "bad_payload", "tree", "or replaced")
+local mx, mz, mr = PlotRules.spot(cp.tier, (function()
+	local others = {}
+	for i, q in cp.plot.placed do
+		if i ~= ti then
+			table.insert(others, q)
 		end
 	end
+	return others
+end)(), "tree", tq.x + 6, tq.z + 4, 0)
+H.expect(mx ~= nil and H.req(c, "plot.move", { i = ti, x = mx, z = mz, rot = mr }).ok and tq.x == mx and tq.z == mz, "tree", "it moves like any piece", string.format("to %s,%s", tostring(mx), tostring(mz)))
+E.run(0.4)
+local moved = false
+for _, m in cdecor:GetChildren() do
+	if m:GetAttribute("Decor") == "tree" and string.find(m.Name, string.format(":tree:%d:%d:", tq.x, tq.z), 1, true) then
+		moved = true
+	end
 end
-cp.shells, cp.wood = 50000, 5000
-H.expect(inRing ~= nil and H.req(c, "plot.place", { id = "torch", x = inRing[1], z = inRing[2], rot = 0 }).err == "wild", "wild", "nothing new in a wild place's ring")
-H.expect(H.req(c, "plot.move", { i = wildQs[1].i, x = wq.x + 1, z = wq.z, rot = 0 }).err == "wild", "wild", "a wild place stays put")
-H.expect(H.req(c, "plot.store", { i = wildQs[1].i }).err == "wild", "wild", "and isn't cleared away")
-H.expect(H.req(c, "plot.place", { id = wq.id, x = 0, z = 0, rot = 0 }).err == "bad_payload", "wild", "never bought")
--- Build mode: the rings outlined; a wild place tapped isn't picked up
+H.expect(moved, "tree", "its model rebuilt where it stands now")
+tw, td = PlotRules.footprint(tq.id, tq.rot)
+-- Build mode: tapping the tree picks it up to move, Clear away off
 local BuildC = H.cmod(c, "UI.BuildUI")
 H.inClient(c, BuildC.open)
 E.run(0.5)
-local rings = E.workspace:FindFirstChild("PixelDynamic") and E.workspace.PixelDynamic:FindFirstChild("WildZones")
-H.expect(rings ~= nil, "wild", "Build mode outlines the wild places' rings")
+E.raycastParts = true
+H.inClient(c, function()
+	local pos = PRc.project(E.v3(cox + tq.x + tw / 2 + 0.3, Street.LAWN_Y + 0.05, coz + tq.z + td / 2 + 0.3))
+	BuildC.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
+end)
+E.raycastParts = nil
+E.run(0.4)
+local store = H.buttonNamed(c, "Store", true)
+H.expect(store ~= nil and H.buttonNamed(c, "Store") == nil, "tree", "Build mode: the tree picked up, Clear away greyed out")
 H.inClient(c, BuildC.close)
 E.run(0.3)
--- cleared (as the guardian's fall would): the ring is gone, it moves and is cleared away for nothing
-local key = string.match(wq.id, "^wild_(%a+)$")
-wq.id = "done_" .. key
-H.push(c, 0.2)
-local okPlace = H.req(c, "plot.place", { id = "torch", x = inRing[1], z = inRing[2], rot = 0 })
-H.expect(okPlace.ok, "wild", "once cleared, its ring is gone", tostring(okPlace.err))
-local sh = cp.shells
-local wi = nil
-for i, q in cp.plot.placed do
-	if q == wq then
-		wi = i
-	end
-end
-H.expect(wi ~= nil and H.req(c, "plot.store", { i = wi }).ok and cp.shells == sh, "wild", "a cleared place clears away (for nothing back)")
-E.run(0.3)
-H.checkProfile(c, "wild")
-H.checkMirror(c, "wild")
+H.checkProfile(c, "tree")
+H.checkMirror(c, "tree")
 
 report(E, H)

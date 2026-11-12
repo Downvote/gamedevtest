@@ -3,7 +3,7 @@
 -- every plot's stretch at start and each plot's island as players come and go).
 --   road(parent, origin)          a plot's stretch: the water of its lot and the open sea, the boardwalk of planks on
 --                                 its posts with a rope rail and lanterns, the pier with its bollards, crates and the
---                                 expedition boat moored at its end (every plot, occupied or not, so the boardwalk
+--                                 old boat moored at its end (every plot, occupied or not, so the boardwalk
 --                                 runs on unbroken)
 --   land(parent, origin, tier)    an occupied plot: the island (Data/Street's coast: grass in two tones, the sand
 --                                 beach, the wet sand at the waterline, a ring of foam, the light shallows), the plaza

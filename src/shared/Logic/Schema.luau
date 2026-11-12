@@ -13,15 +13,15 @@ local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
-local Sites = require(script.Parent.Sites)
+local Tree = require(script.Parent.Tree)
 
 type Profile = Types.Profile
 
 local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
--- 5: the island (GAME_DESIGN 1: the game studio is gone)
-Schema.VERSION = 9
+-- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone)
+Schema.VERSION = 10
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -57,14 +57,9 @@ local function look(v: any): Types.Look
 	}
 end
 
-local function level(v: any): { lvl: number, xp: number }
-	local t = if type(v) == "table" then v else {}
-	return { lvl = int(t.lvl, 1, 1, Tuning.LevelMax), xp = int(t.xp, 0, 0) }
-end
-
 ------------------------------------------------------------------ default
 -- A new island: Tuning.StartShells, StartFood and StartWood (enough for the tips' buildings), nobody else yet, and
--- its first wild places (Logic/Sites: a tide pool and some tall grass).
+-- its Tree of Life behind the campfire (Logic/Tree.plant).
 function Schema.default(now: number, seed: number): Profile
 	local rng = Util.newRng(seed)
 	local p: Profile = {
@@ -75,24 +70,20 @@ function Schema.default(now: number, seed: number): Profile
 		day = 1,
 		tier = 1,
 		founder = Island.randomLook(rng),
-		cap = { lvl = 1, xp = 0 },
 		folk = {},
 		pals = {},
+		tree = { luck = 1, speed = 1, t = 0 },
 		plot = { placed = {} },
-		islets = 0,
-		sea = rng:int(1, 2147483646),
-		wilds = 0,
-		pouch = 1,
 		seen = {},
 		eggs = {},
 		nextId = 1,
 		tut = 1,
 		quest = 1,
-		stats = { days = 0, built = 0, earned = 0, befriended = 0, battles = 0, cleared = 0, movedIn = 0, hatched = 0, skills = 0 },
+		stats = { days = 0, built = 0, earned = 0, grown = 0, sold = 0, best = 0, movedIn = 0, hatched = 0 },
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
-	Sites.spawn(p)
+	Tree.plant(p)
 	return p
 end
 
@@ -112,6 +103,11 @@ end
 --   8 -> 9: the sea chart and the boat are gone (GAME_DESIGN 7: the wild places on the island instead): the boat's
 --           level and the islands charted go; the count of islands charted stays as places cleared (its charm kept);
 --           reconcile brings up the wild places of every tier the island has reached (Logic/Sites).
+--   9 -> 10: the Tree of Life (GAME_DESIGN 6: "scrap the entire cave, fighting, level, skill and expedition system"):
+--           the wild places, the captain, the snack pouch and every level go; a Training Yard comes down with its
+--           whole price back; each driftling moves into a hut the way the nests were filled before (the comfiest
+--           first, in the order they came), the rest into the pen; the tips on the old sailing steps go to the hut's
+--           step; the questline starts again (its quests changed: any already met can be claimed at once).
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -156,6 +152,69 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		raw.wilds = 0
 		v = 9
 	end
+	if v < 10 then
+		for _, k in { "cap", "islets", "sea", "wilds", "pouch" } do
+			raw[k] = nil
+		end
+		-- the yard's price back, the places gone (Data/Buildings has neither now)
+		local placed = if type(raw.plot) == "table" and type(raw.plot.placed) == "table" then raw.plot.placed else {}
+		local keep: { any } = {}
+		local nests: { { uid: number, n: number, comfort: number } } = {}
+		for _, q in placed do
+			if type(q) == "table" and q.id == "yard" then
+				raw.shells = (if type(raw.shells) == "number" then raw.shells else 0) + 450
+				raw.wood = (if type(raw.wood) == "number" then raw.wood else 0) + 50
+			else
+				table.insert(keep, q)
+				local d = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
+				if d and d.kind == "nest" and type(q.uid) == "number" then
+					local lvl = if type(q.lvl) == "number" then q.lvl else 1
+					table.insert(nests, { uid = q.uid, n = d.slots, comfort = d.comfort + (Tuning.ComfortLvl[lvl] or 0) })
+				end
+			end
+		end
+		if type(raw.plot) == "table" then
+			raw.plot.placed = keep
+		end
+		-- the driftlings into the huts as the nests were filled (the comfiest first, then the first built)
+		table.sort(nests, function(a, b)
+			if math.abs(a.comfort - b.comfort) > 1e-9 then
+				return a.comfort > b.comfort
+			end
+			return a.uid < b.uid
+		end)
+		local best = 0
+		if type(raw.pals) == "table" then
+			local i, left = 1, if nests[1] then nests[1].n else 0
+			for _, x in raw.pals do
+				if type(x) == "table" then
+					while nests[i] and left <= 0 do
+						i += 1
+						left = if nests[i] then nests[i].n else 0
+					end
+					x.home = if nests[i] then nests[i].uid else 0
+					if x.home == 0 then
+						x.work = 0
+					end
+					left -= 1
+					local cd = if type(x.sp) == "string" then Creatures.byId[x.sp] else nil
+					if cd then
+						best = math.max(best, cd.rarity)
+					end
+				end
+			end
+		end
+		if type(raw.tut) == "number" and raw.tut >= 5 then
+			raw.tut = 5
+		end
+		raw.quest = 1
+		local st = if type(raw.stats) == "table" then raw.stats else {}
+		raw.stats = st
+		st.grown = if type(st.befriended) == "number" then st.befriended else 0
+		st.sold = 0
+		st.best = best
+		v = 10
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -169,24 +228,26 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 	if type(v) ~= "table" then
 		return out
 	end
-	local pieces, paths = 0, 0
+	local pieces, paths, trees = 0, 0, 0
 	for _, q in v do
 		local def = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
 		local path = def ~= nil and def.kind == "path"
-		local site = def ~= nil and def.kind == "site"
-		if def and (site or (if path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier))) then
+		local fixed = def ~= nil and def.kind == "tree"
+		if def and (if fixed then trees < 1 elseif path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
 			local uid = int(q.uid, 0, 0)
 			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
 			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
 				used[uid] = true
 				if path then
 					paths += 1
-				elseif not site then
+				elseif fixed then
+					trees += 1
+				else
 					pieces += 1
 				end
-				-- a level: the makers', homes' and nests' (from before upgrades were taken out: kept); a wild place's
+				-- a level: the makers', homes' and huts' (from before upgrades were taken out: kept)
 				local leveled = Island.works(q.id) or def.kind == "home" or def.kind == "nest"
-				local lvl = if site then int(q.lvl, 1, 1, Tuning.LevelMax) elseif leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
+				local lvl = if leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1
 				table.insert(out, { uid = uid, id = q.id, x = x, z = z, rot = rot, lvl = lvl })
 			end
 		end
@@ -224,7 +285,6 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 				if id > 0 and not ids[id] then
 					ids[id] = true
 					maxId = math.max(maxId, id)
-					local lv = level(v)
 					local work = int(v.work, 0, 0)
 					local q = byUid[work]
 					if q == nil or not Island.works(q.id) or jobTaken[work] then
@@ -233,14 +293,16 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					if work ~= 0 then
 						jobTaken[work] = true
 					end
-					table.insert(folk, { id = id, name = str(v.name, "Castaway", 30), look = look(v.look), work = work, lvl = lv.lvl, xp = lv.xp, seed = int(v.seed, id * 97, 0), day = int(v.day, 1, 1) })
+					table.insert(folk, { id = id, name = str(v.name, "Castaway", 30), look = look(v.look), work = work, day = int(v.day, 1, 1) })
 				end
 			end
 		end
 	end
-	-- driftlings: a species that exists, help only at a building of its knack (one a building)
+	-- driftlings: a species that exists, a hut that stands (else the pen) with room for it, help only from a hut at a
+	-- building of its knack (Tuning.HelpMax a building)
 	local pals: { Types.Pal } = {}
-	local helpTaken: { [number]: boolean } = {}
+	local helpers: { [number]: number } = {}
+	local inHut: { [number]: number } = {}
 	if type(r.pals) == "table" then
 		for _, x in r.pals do
 			if type(x) == "table" and type(x.sp) == "string" and Creatures.byId[x.sp] and #pals < Tuning.PalsMax then
@@ -248,17 +310,26 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 				if id > 0 and not ids[id] then
 					ids[id] = true
 					maxId = math.max(maxId, id)
-					local lv = level(x)
+					local home = int(x.home, 0, 0)
+					local hq = byUid[home]
+					local hd = if hq then Buildings.byId[hq.id] else nil
+					if hd == nil or hd.kind ~= "nest" or (inHut[home] or 0) >= hd.slots then
+						home = 0
+					end
+					if home ~= 0 then
+						inHut[home] = (inHut[home] or 0) + 1
+					end
 					local work = int(x.work, 0, 0)
 					local q = byUid[work]
 					local b = if q then Buildings.byId[q.id] else nil
-					if b == nil or b.knack ~= Creatures.byId[x.sp].knack or helpTaken[work] then
+					if home == 0 or b == nil or b.knack ~= Creatures.byId[x.sp].knack or (helpers[work] or 0) >= Tuning.HelpMax then
 						work = 0
 					end
 					if work ~= 0 then
-						helpTaken[work] = true
+						helpers[work] = (helpers[work] or 0) + 1
 					end
-					table.insert(pals, { id = id, sp = x.sp, lvl = lv.lvl, xp = lv.xp, work = work, muts = Traits.clean(x.muts) })
+					local held = if home == 0 and x.held == 1 then 1 else nil
+					table.insert(pals, { id = id, sp = x.sp, home = home, work = work, muts = Traits.clean(x.muts), held = held })
 				end
 			end
 		end
@@ -274,9 +345,12 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			end
 		end
 	end
+	local best = 0
 	for _, x in pals do
 		seen[x.sp] = 2
+		best = math.max(best, Creatures.byId[x.sp].rarity)
 	end
+	local tr = if type(r.tree) == "table" then r.tree else {}
 	local st = if type(r.stats) == "table" then r.stats else {}
 	local settings = if type(r.settings) == "table" then r.settings else {}
 	local pixel = settings.pixel
@@ -288,29 +362,28 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		day = int(r.day, 1, 1),
 		tier = tier,
 		founder = if type(r.founder) == "table" then look(r.founder) else d.founder,
-		cap = level(r.cap),
 		folk = folk,
 		pals = pals,
+		tree = {
+			luck = int(tr.luck, 1, 1, #Tuning.TreeLuckCost),
+			speed = int(tr.speed, 1, 1, #Tuning.TreeSpeedCost),
+			t = num(tr.t, 0, 0, Tuning.TreeSecs[1]),
+		},
 		plot = { placed = placed },
-		islets = int(r.islets, 0, 0, 1e6),
-		sea = int(r.sea, d.sea, 1, 2147483646),
-		wilds = int(r.wilds, 0, 0, tier),
-		pouch = int(r.pouch, 1, 1, #Tuning.PouchCost),
 		seen = seen,
 		eggs = {},
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
-		tut = int(r.tut, 1, 0, 8),
+		tut = int(r.tut, 1, 0, 7),
 		quest = int(r.quest, 1, 1, #Quests.list + 1),
 		stats = {
 			days = int(st.days, 0, 0),
 			built = int(st.built, #placed, 0),
 			earned = num(st.earned, 0, 0, 1e15),
-			befriended = int(st.befriended, #pals, 0),
-			battles = int(st.battles, 0, 0),
-			cleared = int(st.cleared, 0, 0),
+			grown = int(st.grown, 0, 0),
+			sold = int(st.sold, 0, 0),
+			best = math.max(best, int(st.best, 0, 0, 5)),
 			movedIn = int(st.movedIn, #folk, 0),
 			hatched = int(st.hatched, 0, 0),
-			skills = int(st.skills, 0, 0),
 		},
 		settings = {
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",
@@ -320,8 +393,9 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	}
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
-	-- the wild places of every tier reached that haven't come up yet (an older save: all of them)
-	Sites.spawn(out)
+	-- the Tree of Life (an older save gets one), and the pen's best into any hut with room
+	Tree.plant(out)
+	Tree.settle(out)
 	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
 	local hatcheries: { [number]: boolean } = {}
 	for _, q in out.plot.placed do

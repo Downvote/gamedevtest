@@ -43,7 +43,7 @@ local TABS: { { key: string, text: string, kinds: { string }, icon: string } } =
 	{ key = "wood", text = "Wood", kinds = { "wood" }, icon = "wood" },
 	{ key = "shop", text = "Shops", kinds = { "shop" }, icon = "shell" },
 	{ key = "home", text = "Homes", kinds = { "home" }, icon = "home" },
-	{ key = "nest", text = "Nests", kinds = { "nest", "train", "breed" }, icon = "nest" },
+	{ key = "nest", text = "Huts", kinds = { "nest", "breed" }, icon = "nest" },
 	{ key = "gen", text = "Boosts", kinds = { "gen" }, icon = "boost" },
 	{ key = "path", text = "Paths", kinds = { "path" }, icon = "path" },
 	{ key = "decor", text = "Decor", kinds = { "decor" }, icon = "decor" },
@@ -164,76 +164,6 @@ local function fits(p: Pick): boolean
 		return false
 	end
 	return (Plot.fits(v.tier, placed(), p.id, p.x, p.z, p.rot, p.move))
-end
-
--- Why the pick doesn't fit: the wild place whose ring it is in (its name), or nil.
-local function wildNear(p: Pick): string?
-	local v = view()
-	if v == nil then
-		return nil
-	end
-	local ok, why = Plot.fits(v.tier, placed(), p.id, p.x, p.z, p.rot, p.move)
-	if ok or why ~= "wild" then
-		return nil
-	end
-	local r = Plot.rect(p.id, p.x, p.z, p.rot)
-	for i, q in placed() do
-		if i ~= p.move and Plot.isWild(q.id) then
-			local zr = Plot.zone(q)
-			if r.x0 < zr.x1 and zr.x0 < r.x1 and r.z0 < zr.z1 and zr.z0 < r.z1 then
-				local def = Buildings.byId[q.id]
-				return if def then def.name else "wild place"
-			end
-		end
-	end
-	return "wild place"
-end
-
--- The wild places' rings (GAME_DESIGN 7: nothing is built close to a wild place till it is cleared): an orange frame
--- round each while Build mode is open, rebuilt when the pieces change.
-local zones: Model? = nil
-local zonesKey = ""
-local function showZones(on: boolean)
-	local v = view()
-	local key = ""
-	if on and v then
-		local parts = {}
-		for _, q in v.pieces do
-			if Plot.isWild(q.id) then
-				table.insert(parts, string.format("%d:%d:%d", q.uid, q.x, q.z))
-			end
-		end
-		key = table.concat(parts, ";")
-	end
-	if key == zonesKey and (zones ~= nil) == (key ~= "") then
-		return
-	end
-	zonesKey = key
-	if zones then
-		PixelRenderer.unregisterDynamic(zones)
-		zones:Destroy()
-		zones = nil
-	end
-	if key == "" or v == nil then
-		return
-	end
-	local ox, oz = origin()
-	local m = Blocks.model(nil, "WildZones")
-	for _, q in v.pieces do
-		if Plot.isWild(q.id) then
-			local zr = Plot.zone(q)
-			local x0, z0, x1, z1 = ox + zr.x0, oz + zr.z0, ox + zr.x1, oz + zr.z1
-			local w, d = x1 - x0, z1 - z0
-			local cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
-			local y = Street.LAWN_Y + 0.06
-			for _, e in { { 0, -d / 2, w, 0.25 }, { 0, d / 2, w, 0.25 }, { -w / 2, 0, 0.25, d }, { w / 2, 0, 0.25, d } } do
-				Blocks.part(m, { size = Vector3.new(e[3], 0.12, e[4]), cf = CFrame.new(cx + e[1], y, cz + e[2]), color = "orange", name = "Ring", neon = true, collide = false, query = false })
-			end
-		end
-	end
-	m.Parent = workspace:FindFirstChild("PixelDynamic") or workspace
-	zones = m
-	PixelRenderer.registerDynamic(m)
 end
 
 -- Draw the ghost and its footprint (green where it fits, red where not) where the pick stands: a fresh model each
@@ -632,7 +562,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 				end
 			end, "Replace")
 		end
-		btn("Clear away", UIKit.color("button_warn"), true, function()
+		btn("Clear away", UIKit.color("button_warn"), not Plot.isFixed(q.id), function()
 			local cur = pick
 			if cur and cur.move then
 				local res = ask("plot.store", { i = cur.move })
@@ -667,10 +597,6 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	end
 	if def and def.charm >= 1 then
 		say ..= string.format(" Charm +%d.", math.floor(def.charm))
-	end
-	local near = if p.set then wildNear(p) else nil
-	if near then
-		say = string.format("Too close to the %s. Clear it first, or build further away.", near)
 	end
 	UIKit.text(info, say, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 14), { color = UIKit.color("text_dim"), z = 4, name = "Blurb" })
 	if q then
@@ -729,7 +655,6 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 end
 
 rebuild = function()
-	showZones(open)
 	goalCard, goalTab = nil, nil
 	if tray then
 		tray:Destroy()
@@ -911,13 +836,6 @@ local function onTap(pos: Vector2, mouse: boolean)
 	local i = pieceAt(pos)
 	if i then
 		local q = placed()[i]
-		if Plot.isWild(q.id) then
-			-- a wild place stays where it is till it is cleared
-			local def = Buildings.byId[q.id]
-			Audio.play("deny")
-			UIKit.notice(string.format("The %s is wild. Clear it to move it or build near it.", if def then def.name else "place"), UIKit.color("orange"), 3)
-			return
-		end
 		pick = { id = q.id, rot = q.rot, move = i, x = q.x, z = q.z, set = true }
 		showGhost()
 		rebuild()
@@ -1103,7 +1021,6 @@ function BuildUI.close()
 	pick = nil
 	clearGhost()
 	clearDrawGhost()
-	showZones(false)
 	draw.start, draw.last, draw.cells, draw.seen = nil, nil, {}, {}
 	if tray then
 		tray:Destroy()

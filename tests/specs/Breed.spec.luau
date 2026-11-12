@@ -1,5 +1,6 @@
 -- The Hatchery (Logic/Breed; GAME_DESIGN 6.1): what a pair hatches, what it inherits, laying an egg (its rules and
--- refusals), the turns to a hatching, a ready egg waiting for a nest, and a Hatchery kept while it holds an egg.
+-- refusals), the turns to a hatching, a ready egg waiting for room in the pen, and a Hatchery kept while it holds an
+-- egg.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Breed = require("../../build/luautest/shared/Logic/Breed")
@@ -26,7 +27,7 @@ end
 local function friend(p: any, sp: string, muts: { string }?): number
 	local id = p.nextId
 	p.nextId += 1
-	table.insert(p.pals, { id = id, sp = sp, lvl = 10, xp = 0, work = 0, muts = muts or {} })
+	table.insert(p.pals, { id = id, sp = sp, home = 0, work = 0, muts = muts or {} })
 	return id
 end
 
@@ -134,27 +135,31 @@ return function()
 		local i = #p.plot.placed
 		T.eq(select(2, Plot.store(p, i)), "egg")
 	end)
-	T.it("hatching: the turns count down; it hatches into a free nest at level 1 (in the Index); without one it waits", function()
+	T.it("hatching: the turns count down; it hatches into the pen (in the Index); with the pen full it waits", function()
 		local p = fresh()
 		local rng = Util.newRng(4)
 		local a = friend(p, "mossbun")
 		local b = friend(p, "mossbun")
 		local h = put(p, "hatchery")
-		put(p, "nest") -- room for two: both taken
+		-- the pen full
+		local filler: { number } = {}
+		while #p.pals < Tuning.PenRoom[p.tier] do
+			table.insert(filler, friend(p, "pebblit"))
+		end
 		local _, egg = Breed.start(p, h, a, b, rng)
 		T.eq(egg.sp, "mossbun")
 		for _ = 1, egg.left - 1 do
 			T.eq(#Breed.turn(p), 0)
 		end
-		T.eq(#Breed.turn(p), 0, "ready, but no free nest")
+		T.eq(#Breed.turn(p), 0, "ready, but the pen is full")
 		T.eq(#p.eggs, 1)
 		T.eq(p.eggs[1].left, 0)
-		put(p, "nest")
+		table.remove(p.pals, #p.pals)
 		local born = Breed.turn(p)
-		T.eq(#born, 1, "a nest: it hatches")
+		T.eq(#born, 1, "room in the pen: it hatches")
 		T.eq(born[1].sp, "mossbun")
-		T.eq(born[1].lvl, 1)
-		T.eq(#p.pals, 3)
+		T.eq(born[1].home, 0, "into the pen")
+		T.eq(#p.pals, Tuning.PenRoom[p.tier])
 		T.eq(p.seen.mossbun, 2)
 		T.eq(p.stats.hatched, 1)
 		T.eq(#p.eggs, 0)

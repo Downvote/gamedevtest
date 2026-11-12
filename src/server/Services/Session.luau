@@ -1,8 +1,8 @@
 --!strict
 -- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the island's day clock,
--- the expedition under way, and what the client is sent. The client mirrors the profile through State messages (the
--- whole ClientView, sent when something changed: Session.dirty) and shows Fx messages (the stores every second, a new
--- day and who moved in, an expedition's events).
+-- and what the client is sent. The client mirrors the profile through State messages (the whole ClientView, sent when
+-- something changed: Session.dirty) and shows Fx messages (the stores and the tree every second, a new day and who
+-- moved in, the driftlings the Tree of Life grew).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -10,7 +10,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -22,12 +22,9 @@ export type S = {
 	turnClock: number, -- seconds into the island's turn
 	dayIndex: number, -- the sea's calendar day when this island last counted one (WorldClock.dayIndex)
 	tickClock: number, -- seconds toward the next stores message
-	gaugeClock: number, -- seconds since the battle's timers last went to the client
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
-	exp: Types.Expedition?, -- the expedition under way (GAME_DESIGN 7)
-	away: { [string]: boolean }, -- its party's keys
 }
 
 local Session = {}
@@ -44,12 +41,9 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		turnClock = 0,
 		dayIndex = WorldClock.dayIndex(),
 		tickClock = 0,
-		gaugeClock = 0,
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
-		exp = nil,
-		away = {},
 	}
 	sessions[player] = s
 	return s
@@ -70,7 +64,7 @@ end
 -- What the client sees: the profile plus what the rules derive from it.
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
-	local r = Island.rates(p, s.away)
+	local r = Island.rates(p)
 	return {
 		shells = p.shells,
 		food = p.food,
@@ -79,14 +73,11 @@ function Session.view(s: S): Types.ClientView
 		dayFrac = WorldClock.dayFrac(),
 		tier = p.tier,
 		founder = p.founder,
-		cap = p.cap,
 		folk = p.folk,
 		pals = p.pals,
+		tree = p.tree,
 		plot = s.plot,
 		pieces = p.plot.placed,
-		islets = p.islets,
-		sea = p.sea,
-		pouch = p.pouch,
 		seen = p.seen,
 		eggs = p.eggs,
 		tut = p.tut,
@@ -97,15 +88,9 @@ function Session.view(s: S): Types.ClientView
 		charm = Island.charm(p),
 		beds = Island.beds(p),
 		nests = Island.nests(p),
+		pen = Tree.penRoom(p),
 		visitors = Island.visitors(p),
-		exp = s.exp,
 	}
-end
-
--- The expedition's party now (Island.rates leaves them out).
-function Session.setExp(s: S, e: Types.Expedition?)
-	s.exp = e
-	s.away = Expedition.away(e)
 end
 
 function Session.markDirty(s: S)

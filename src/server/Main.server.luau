@@ -55,7 +55,6 @@ local function leave(player: Player)
 	if s == nil then
 		return
 	end
-	IslandService.leaving(s)
 	Session.remove(player)
 	s.ready = false
 	DataService.save(player.UserId, s.profile, true)
@@ -95,8 +94,6 @@ end)
 game:BindToClose(function()
 	local threads = {}
 	for player, s in Session.all() do
-		-- an expedition under way comes home first (its loot kept), like a player leaving
-		IslandService.leaving(s)
 		table.insert(threads, task.spawn(DataService.save, player.UserId, s.profile, true))
 	end
 	task.wait(2)

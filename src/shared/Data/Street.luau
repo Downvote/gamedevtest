@@ -249,7 +249,7 @@ function Street.mailbox(): (number, number)
 end
 
 -- Along each plot's stretch (plot-local): lanterns on the boardwalk's posts, and the pier (its x, from the boardwalk
--- out to PIER_Z) where the expedition boat is moored.
+-- out to PIER_Z) where the old boat is moored.
 Street.LAMPS = { -28, -8, 12, 28 } :: { number }
 Street.PIER_X = 0
 Street.PIER_Z = 44

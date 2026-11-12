@@ -889,7 +889,7 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 				end
 			end
 			if fight then
-				-- (the battle screen leans and squashes the whole thing too: the body adds only a little)
+				-- (a lunge: the body adds only a little)
 				rx = if windup then R(-8) else R(8) * lunge
 				tz = 0.15 * lunge
 			elseif hurt then

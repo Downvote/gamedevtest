@@ -2,8 +2,7 @@
 -- The sea's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): sailboats crossing both ways beyond the
 -- boardwalk, rocking on the swell, and a flock of gulls crossing now and then (no clouds' shadows: the player asked for
 -- them gone). Client only, all in
--- Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the server's business; the
--- expedition's stage (far away) never shows it. (The module keeps its old name: the street it once was.)
+-- Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the server's business. (The module keeps its old name: the street it once was.)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 

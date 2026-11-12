@@ -9,21 +9,21 @@ local Office = require("../../build/luautest/shared/Data/Office")
 local Palette = require("../../build/luautest/shared/Data/Palette")
 local Looks = require("../../build/luautest/shared/Data/Looks")
 local Street = require("../../build/luautest/shared/Data/Street")
-local SiteData = require("../../build/luautest/shared/Data/Sites")
 return function()
 	local function color(k: string): boolean
 		return Palette.ui[k] ~= nil or Palette.colors[k] ~= nil or Palette.axis[k] ~= nil
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, train = true, breed = true, gen = true, path = true, decor = true }
+		local kinds = { food = true, wood = true, shop = true, home = true, nest = true, breed = true, gen = true, path = true, decor = true }
+		local trees = 0
 		for _, d in Buildings.list do
-			if d.kind == "site" then
-				-- a wild place (Data/Sites): never bought, never on a tab; its pieces wild and cleared
+			if d.kind == "tree" then
+				-- the Tree of Life: every island's, never bought, never on a tab
+				trees += 1
 				T.truthy(not seen[d.id], d.id)
 				seen[d.id] = true
-				local sd = SiteData.of(d.id)
-				T.truthy(sd ~= nil and d.shells == 0 and d.wood == 0 and d.tier > #Office.plans and d.w == sd.w and d.d == sd.d, d.id .. " a wild place")
+				T.truthy(d.shells == 0 and d.wood == 0 and d.tier > #Office.plans and d.w >= 4 and d.d >= 4, d.id .. " the tree")
 				continue
 			end
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
@@ -42,12 +42,13 @@ return function()
 			T.truthy(d.comfort == 0 or d.kind == "home" or d.kind == "nest", d.id .. " comfort is a home's or nest's")
 			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
+		T.eq(trees, 1, "one Tree of Life")
 		T.truthy(seen.patch and seen.tent and seen.nest and seen.lumber and seen.stall, "the first buildings")
 		for _, id in { "patch", "tent", "nest", "lumber", "stall" } do
 			T.eq(Buildings.byId[id].tier, 1, id .. " from the start")
 		end
 	end)
-	T.it("driftlings: unique ids, an islet each, stats, skills, knacks a building has, colours", function()
+	T.it("driftlings: unique ids, a kind each, a make-up, knacks a building has, colours", function()
 		local seen = {}
 		local knacks: { [string]: boolean } = {}
 		for _, b in Buildings.list do
@@ -62,15 +63,15 @@ return function()
 			T.truthy(Islets.list[d.islet] ~= nil, d.id .. " islet")
 			perIslet[d.islet] = (perIslet[d.islet] or 0) + 1
 			T.truthy(d.hp > 0 and d.atk > 0 and d.def > 0 and d.spd > 0, d.id .. " stats")
-			T.truthy(Creatures.skills[d.skill] ~= nil and d.skill ~= "rally", d.id .. " skill")
 			T.truthy(knacks[d.knack], d.id .. " knack " .. d.knack)
-			T.truthy(d.trust > 0 and d.trust < 1, d.id .. " trust")
 			T.truthy(color(d.body) and color(d.accent), d.id .. " colours")
 			-- its rarity, its passive (named, effects Data/Traits knows) and its breeding rank
 			T.truthy(d.rarity >= 1 and d.rarity <= 5, d.id .. " rarity")
 			T.truthy(#d.passive.name > 0 and next(d.passive.fx) ~= nil, d.id .. " passive")
 			for k, v in d.passive.fx do
-				T.truthy(table.find(Traits.KEYS, k) ~= nil and v > 0 and v < 1, d.id .. " passive effect " .. k)
+				-- (eating less is the good way; charm in whole points)
+				local good = if k == "eat" then v < 0 and v > -1 elseif k == "charm" then v >= 1 and v == math.floor(v) else v > 0 and v < 1
+				T.truthy(table.find(Traits.KEYS, k) ~= nil and good, d.id .. " passive effect " .. k)
 			end
 			T.truthy(d.power > 0, d.id .. " power")
 		end
@@ -92,29 +93,23 @@ return function()
 			names[d.passive.name] = true
 		end
 	end)
-	T.it("kinds of island: their own driftlings, opening at growing levels from 1, words for names, a stage, a colour", function()
+	T.it("kinds of land: their own driftlings, the tree growing them from a tier of the island, a colour", function()
+		local opened: { [number]: number } = {}
 		for i, d in Islets.list do
 			T.eq(d.id, i)
 			T.truthy(#d.wild >= 5, d.name .. " roster")
 			for _, sp in d.wild do
 				T.truthy(Creatures.byId[sp] ~= nil and Creatures.byId[sp].islet == i, d.name .. " " .. sp)
 			end
-			T.truthy(#d.first >= 6 and #d.last >= 6, d.name .. " words")
-			for _, w in { table.unpack(d.first), table.unpack(d.last) } do
-				T.truthy(string.match(w, "^%u%l+$") ~= nil, d.name .. " word " .. w)
-			end
 			T.truthy(color(d.color), d.name .. " colour")
-			T.truthy(#d.stage > 0 and #d.plural > 0, d.name .. " stage")
-			if i == 1 then
-				T.eq(d.lvl, 1, "beaches from the start")
-			else
-				T.truthy(d.lvl > 1, d.name .. " opens later")
-				for j = 1, i - 1 do
-					T.truthy(Islets.list[j].lvl ~= d.lvl, d.name .. " opens at a level of its own")
-				end
-			end
+			T.truthy(#d.plural > 0 and #d.blurb > 0, d.name .. " words")
+			T.truthy(d.tier >= 1 and d.tier <= #Office.plans, d.name .. " tier")
+			opened[d.tier] = (opened[d.tier] or 0) + 1
 		end
-		T.truthy(#Islets.titles >= 6)
+		T.truthy((opened[1] or 0) >= 2, "two kinds from the start")
+		for t = 2, #Office.plans do
+			T.truthy((opened[t] or 0) >= 1, "each expansion brings a kind: tier " .. t)
+		end
 	end)
 	T.it("island tiers: a name per tier, as many as the expansions and the piece limits", function()
 		T.truthy(#Office.plans >= 1)

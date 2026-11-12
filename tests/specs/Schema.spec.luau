@@ -1,5 +1,6 @@
 -- The save (Logic/Schema; docs/ARCHITECTURE.md 7.6): a new island, a played profile surviving a round trip, garbage,
--- the old saves (versions 1 to 4: the studios) loading into the island with the founder kept.
+-- the old saves (versions 1 to 4: the studios) loading into the island with the founder kept, and a save from before
+-- the Tree of Life (version 9: the wild places and the fights) coming in with its driftlings in huts and the pen.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
@@ -9,20 +10,20 @@ local Util = require("../../build/luautest/shared/Logic/Util")
 local Traits = require("../../build/luautest/shared/Data/Traits")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 
--- the pieces built (not the wild places, which come up by themselves: Logic/Sites)
+-- the pieces built (not the Tree of Life, every island's: Logic/Tree)
 local function built(p: any): { any }
 	local out = {}
 	for _, q in p.plot.placed do
-		if Buildings.byId[q.id] and Buildings.byId[q.id].kind ~= "site" then
+		if Buildings.byId[q.id] and Buildings.byId[q.id].kind ~= "tree" then
 			table.insert(out, q)
 		end
 	end
 	return out
 end
-local function wildCount(p: any): number
+local function treeCount(p: any): number
 	local n = 0
 	for _, q in p.plot.placed do
-		if Buildings.byId[q.id] and Buildings.byId[q.id].kind == "site" then
+		if q.id == "tree" then
 			n += 1
 		end
 	end
@@ -66,12 +67,14 @@ local function played(): any
 	local rng = Util.newRng(3)
 	Island.turn(p, rng)
 	Island.newDay(p)
-	table.insert(p.pals, { id = p.nextId, sp = "pebblit", lvl = 3, xp = 5, work = built(p)[4].uid, muts = { "sturdy2", "lazy" } })
+	table.insert(p.pals, { id = p.nextId, sp = "pebblit", home = built(p)[3].uid, work = built(p)[4].uid, muts = { "sturdy2", "lazy" } })
+	p.nextId += 1
+	table.insert(p.pals, { id = p.nextId, sp = "clawdle", home = 0, work = 0, muts = {}, held = 1 })
 	p.nextId += 1
 	p.seen.pebblit = 2
-	p.seen.clawdle = 1
-	p.islets = 1
-	p.cap = { lvl = 4, xp = 10 }
+	p.seen.clawdle = 2
+	p.tree = { luck = 3, speed = 2, t = 4.5 }
+	p.stats.best = 1
 	return p
 end
 
@@ -85,27 +88,28 @@ return function()
 		T.eq(#p.folk, 0)
 		T.deepEq(Schema.default(1, 5).founder, Schema.default(1, 5).founder, "the same seed, the same founder")
 		T.eq(#built(p), 0, "nothing built")
-		T.eq(wildCount(p), 2, "its first wild places")
-		T.eq(p.wilds, 1)
-		T.deepEq(Schema.default(1, 5).plot.placed, Schema.default(1, 5).plot.placed, "the same seed, the same places")
+		T.eq(treeCount(p), 1, "its Tree of Life")
+		T.deepEq(p.tree, { luck = 1, speed = 1, t = 0 })
+		T.deepEq(Schema.default(1, 5).plot.placed, Schema.default(1, 5).plot.placed, "the same place every time")
 	end)
 	T.it("reconcile keeps a played profile as it is", function()
 		local p = played()
-		T.truthy(#built(p) == 4 and wildCount(p) == 2 and #p.folk == 1 and #p.pals == 1)
+		T.truthy(#built(p) == 4 and treeCount(p) == 1 and #p.folk == 1 and #p.pals == 2)
 		T.truthy(p.folk[1].work ~= 0, "the villager works")
 		local back = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(back, p)
 	end)
 	T.it("reconcile turns garbage into a valid profile", function()
-		for _, raw in { nil, 5, "x", {}, { v = 5, shells = 0 / 0, food = -5, tier = 99, folk = "no", pals = { { sp = "dragon" }, 7 }, plot = { placed = { { uid = 1, id = "castle", x = 0, z = 0, rot = 0 }, 3 } }, seen = { pebblit = 9, x = 1 }, islets = -3 } } :: { any } do
+		for _, raw in { nil, 5, "x", {}, { v = 5, shells = 0 / 0, food = -5, tier = 99, folk = "no", pals = { { sp = "dragon" }, 7 }, plot = { placed = { { uid = 1, id = "castle", x = 0, z = 0, rot = 0 }, 3 } }, seen = { pebblit = 9, x = 1 }, tree = { luck = 99, speed = -4, t = 0 / 0 } } } :: { any } do
 			local p = Schema.reconcile(raw, 1000, 3)
 			T.truthy(p.shells == p.shells and p.shells >= 0, "shells")
 			T.truthy(p.food >= 0)
 			T.truthy(p.tier >= 1 and p.tier <= #Tuning.TierCost)
 			T.eq(#built(p), 0)
-			T.eq(p.wilds, p.tier, "its wild places up")
+			T.eq(treeCount(p), 1, "its tree")
 			T.eq(#p.pals, 0)
-			T.truthy(p.islets >= 0 and p.islets == math.floor(p.islets))
+			T.truthy(p.tree.luck >= 1 and p.tree.luck <= #Tuning.TreeLuckCost and p.tree.speed >= 1 and p.tree.speed <= #Tuning.TreeSpeedCost)
+			T.truthy(p.tree.t == p.tree.t and p.tree.t >= 0)
 			T.truthy(p.seen.x == nil)
 		end
 	end)
@@ -114,12 +118,31 @@ return function()
 		local raw = roundTrip(p)
 		raw.folk[1].work = 424242
 		raw.pals[1].work = built(raw)[2].uid -- a wood driftling at the patch
+		raw.pals[2].work = built(raw)[3].uid -- the pen's don't work
 		table.insert(raw.folk, roundTrip(raw.folk[1])) -- the same id twice
 		raw.nextId = 1
 		local back = Schema.reconcile(raw, 1, 1)
 		T.eq(back.folk[1].work, 0)
 		T.eq(back.pals[1].work, 0)
+		T.eq(back.pals[2].work, 0)
 		T.eq(#back.folk, 1)
+		-- a hut that isn't there, or a hut over its room: the pen
+		local raw2 = roundTrip(played())
+		raw2.pals[1].home = 99999
+		local b2 = Schema.reconcile(raw2, 1, 1)
+		T.eq(b2.pals[1].home, built(b2)[3].uid, "a stray hut: the pen, then the pen sends it to the hut with room")
+		local raw3 = roundTrip(played())
+		for k = 1, 4 do
+			table.insert(raw3.pals, { id = 900 + k, sp = "pebblit", home = built(raw3)[3].uid, work = 0, muts = {} })
+		end
+		local b3 = Schema.reconcile(raw3, 1, 1)
+		local inHut = 0
+		for _, x in b3.pals do
+			if x.home ~= 0 then
+				inHut += 1
+			end
+		end
+		T.eq(inHut, Buildings.byId.nest.slots, "no more than the hut's room")
 		local top = 0
 		for _, q in back.plot.placed do
 			top = math.max(top, q.uid)
@@ -157,20 +180,19 @@ return function()
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { pixel = "low", music = "off" } }, 2000, 9) :: any).settings.music, "off", "music off kept")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { music = 7 } }, 2000, 9) :: any).settings.music, "on", "a bad value: on")
 		T.eq(#built(p), 0)
-		T.eq(wildCount(p), 2, "a new island's wild places")
+		T.eq(treeCount(p), 1, "a new island's tree")
 		T.eq(p.tut, 1, "the tips start over")
 		T.eq(p.coins, nil)
 		T.eq(p.games, nil)
 	end)
-	T.it("a version 5 save: its tip moves to the same tip of the six", function()
-		for old, new in { [0] = 0, [1] = 1, [2] = 2, [3] = 5, [4] = 6 } do
+	T.it("a version 5 save: its tip moves to the same tip (the old sailing tips: the hut's)", function()
+		for old, new in { [0] = 0, [1] = 1, [2] = 2, [3] = 5, [4] = 5 } do
 			local p = Schema.reconcile({ v = 5, shells = 10, tier = 1, tut = old }, 2000, 9) :: any
 			T.eq(p.v, Schema.VERSION)
 			T.eq(p.tut, new, "tip " .. old)
-			T.truthy(p.sea >= 1 and p.wilds == 1, "its own seed; its wild places up")
 		end
 	end)
-	T.it("a version 8 save: the boat and the chart go, its islands charted count as places cleared, its wild places come up", function()
+	T.it("a version 8 save: the boat and the chart go; what was built stays; a tree comes up", function()
 		local raw = roundTrip(played())
 		raw.v = 8
 		raw.tier = 2
@@ -178,11 +200,10 @@ return function()
 		raw.boat = 4
 		raw.chart = { 3, 7 }
 		raw.islets = 2
-		raw.wilds = nil
-		-- (an older save had no wild places)
+		raw.tree = nil
 		local keep = {}
 		for _, q in raw.plot.placed do
-			if not string.find(q.id, "^wild_") and not string.find(q.id, "^done_") then
+			if q.id ~= "tree" then
 				table.insert(keep, q)
 			end
 		end
@@ -191,11 +212,74 @@ return function()
 		T.eq(p.v, Schema.VERSION)
 		T.eq(p.boat, nil, "no boat")
 		T.eq(p.chart, nil, "no chart")
-		T.eq(p.islets, 2, "the islands charted kept (their charm)")
-		T.eq(p.sea, 77)
-		T.eq(p.wilds, 2, "both tiers' wild places")
-		T.eq(wildCount(p), 5, "two from the first tier, three from the second")
+		T.eq(p.islets, nil)
+		T.eq(p.sea, nil)
+		T.eq(treeCount(p), 1)
 		T.eq(#built(p), 4, "what was built stays")
+		local again = Schema.reconcile(roundTrip(p), 2000, 9)
+		T.deepEq(again, p, "and stays put on the next load")
+	end)
+	T.it("a version 9 save (the wild places and the fights): they go; the yard's price back; huts then the pen; the tips and quests", function()
+		local p0 = played()
+		local raw = roundTrip(p0)
+		raw.v = 9
+		raw.tree = nil
+		raw.cap = { lvl = 9, xp = 3 }
+		raw.pouch = 3
+		raw.islets = 2
+		raw.sea = 55
+		raw.wilds = 1
+		raw.tut = 6
+		raw.quest = 14
+		raw.stats.befriended = 7
+		raw.stats.battles = 40
+		raw.stats.skills = 3
+		raw.stats.grown = nil
+		raw.stats.sold = nil
+		raw.stats.best = nil
+		local keep = {}
+		for _, q in raw.plot.placed do
+			if q.id ~= "tree" then
+				table.insert(keep, q)
+			end
+		end
+		raw.plot.placed = keep
+		-- its wild places, a yard, villagers and driftlings with levels, the nest's (room 2) three driftlings
+		local nest = built(p0)[3].uid
+		table.insert(raw.plot.placed, { uid = 7001, id = "wild_tidepool", x = 6, z = 0, rot = 0, lvl = 1 })
+		table.insert(raw.plot.placed, { uid = 7002, id = "done_tallgrass", x = -8, z = 0, rot = 0, lvl = 3 })
+		table.insert(raw.plot.placed, { uid = 7003, id = "yard", x = 8, z = 6, rot = 0, lvl = 1 })
+		raw.folk[1].lvl, raw.folk[1].xp, raw.folk[1].seed = 7, 4, 12
+		raw.pals = {
+			{ id = 8001, sp = "pebblit", lvl = 9, xp = 1, work = built(p0)[4].uid, muts = { "sturdy2" } },
+			{ id = 8002, sp = "sunsprite", lvl = 3, xp = 0, work = 0, muts = {} },
+			{ id = 8003, sp = "mossbun", lvl = 2, xp = 0, work = 0, muts = {} },
+		}
+		local shells, wood = raw.shells, raw.wood
+		local p = Schema.reconcile(raw, 2000, 9) :: any
+		T.eq(p.v, Schema.VERSION)
+		for _, k in { "cap", "pouch", "islets", "sea", "wilds" } do
+			T.eq(p[k], nil, k .. " gone")
+		end
+		for _, q in p.plot.placed do
+			T.truthy(Buildings.byId[q.id] ~= nil, q.id .. " a known piece")
+			T.truthy(q.id ~= "yard", "no yard")
+		end
+		T.eq(treeCount(p), 1, "a tree")
+		T.truthy(p.shells >= shells + 450 and p.wood >= wood + 50, "the yard's price back")
+		T.eq(p.folk[1].lvl, nil, "no levels")
+		T.eq(p.folk[1].xp, nil)
+		T.eq(p.pals[1].home, nest, "the first two in the nest, as before")
+		T.eq(p.pals[2].home, nest)
+		T.eq(p.pals[3].home, 0, "the third in the pen")
+		T.eq(p.pals[1].work, built(p0)[4].uid, "a helper keeps its job")
+		T.eq(p.pals[1].lvl, nil)
+		T.eq(p.tut, 5, "the sailing tips: the hut's")
+		T.eq(p.quest, 1, "the questline starts again")
+		T.eq(p.stats.grown, 7, "befriended counts as grown")
+		T.eq(p.stats.best, 4, "the sunsprite: epic")
+		T.eq(p.stats.battles, nil)
+		T.deepEq(p.tree, { luck = 1, speed = 1, t = 0 })
 		local again = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(again, p, "and stays put on the next load")
 	end)

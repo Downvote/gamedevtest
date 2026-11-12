@@ -14,16 +14,17 @@ local KINDS = {
 	paths = true,
 	decor = true,
 	built = true,
-	befriended = true,
-	battles = true,
-	skills = true,
-	charted = true,
+	housed = true,
+	grown = true,
+	sold = true,
+	best = true,
+	luck = true,
+	speed = true,
 	tier = true,
-	pouch = true,
 	seen = true,
 	hatched = true,
 }
-local PANELS = { pals = true, folk = true, index = true, hatch = true, site = true }
+local PANELS = { pals = true, folk = true, index = true, hatch = true, tree = true }
 local TABS = { food = true, wood = true, shop = true, home = true, nest = true, gen = true, path = true, decor = true }
 
 local function fresh(): any
@@ -75,7 +76,7 @@ return function()
 		T.eq(select(1, Quest.progress(Quest.facts(p), q)), 0)
 		T.eq(select(2, Quest.claim(p)), "not_done", "no driftling at work yet")
 		T.eq(p.quest, 1)
-		table.insert(p.pals, { id = 1, sp = "pebblit", lvl = 1, xp = 0, work = 5, muts = {} })
+		table.insert(p.pals, { id = 1, sp = "pebblit", home = 4, work = 5, muts = {} })
 		T.truthy(Quest.done(Quest.facts(p), q), "one at work")
 		local shells, food = p.shells, p.food
 		local ok, data = Quest.claim(p)
@@ -87,37 +88,42 @@ return function()
 		T.eq(data.next, 2)
 	end)
 
-	T.it("the counts: villagers at work, paths, a kind built, the Index, skills used", function()
+	T.it("the counts: villagers at work, paths, a kind built, the Index, the tree and its driftlings", function()
 		local p = fresh()
 		local f = Quest.facts(p)
-		table.insert(p.folk, { id = 1, name = "Mia", look = {}, work = 3, lvl = 1, xp = 0, seed = 1, day = 1 })
-		table.insert(p.folk, { id = 2, name = "Ravi", look = {}, work = 0, lvl = 1, xp = 0, seed = 2, day = 1 })
+		table.insert(p.folk, { id = 1, name = "Mia", look = {}, work = 3, day = 1 })
+		table.insert(p.folk, { id = 2, name = "Ravi", look = {}, work = 0, day = 1 })
 		T.eq(Quest.count(f, { kind = "folk", n = 2 }), 2)
 		T.eq(Quest.count(f, { kind = "workers", n = 2 }), 1, "one of two at work")
 		table.insert(p.plot.placed, { uid = 1, id = "patch", x = 0, z = 0, rot = 0, lvl = 2 })
 		table.insert(p.plot.placed, { uid = 2, id = "dirtpath", x = 2, z = 0, rot = 0, lvl = 1 })
-		table.insert(p.plot.placed, { uid = 3, id = "yard", x = 6, z = 0, rot = 0, lvl = 1 })
+		table.insert(p.plot.placed, { uid = 3, id = "nest", x = 6, z = 0, rot = 0, lvl = 1 })
 		T.eq(Quest.count(f, { kind = "built", n = 2, of = "food" }), 1, "one farm")
 		T.eq(Quest.count(f, { kind = "paths", n = 8 }), if Buildings.byId.dirtpath then 1 else 0)
-		T.eq(Quest.count(f, { kind = "built", n = 1, of = "train" }), 1)
-		p.seen.pebblit, p.seen.mossbun = 1, 2
+		T.eq(Quest.count(f, { kind = "built", n = 1, of = "nest" }), 1)
+		p.seen.pebblit, p.seen.mossbun = 2, 2
 		T.eq(Quest.count(f, { kind = "seen", n = 12 }), 2)
-		p.stats.skills = 3
-		T.eq(Quest.count(f, { kind = "skills", n = 1 }), 3)
+		table.insert(p.pals, { id = 7, sp = "pebblit", home = 3, work = 0 })
+		table.insert(p.pals, { id = 8, sp = "pebblit", home = 0, work = 0 })
+		T.eq(Quest.count(f, { kind = "housed", n = 1 }), 1, "one in a hut")
+		p.stats.sold, p.stats.grown, p.stats.best = 4, 9, 3
+		T.eq(Quest.count(f, { kind = "sold", n = 1 }), 4)
+		T.eq(Quest.count(f, { kind = "grown", n = 1 }), 9)
+		T.eq(Quest.count(f, { kind = "best", n = 3 }), 3)
+		p.tree.luck, p.tree.speed = 4, 2
+		T.eq(Quest.count(f, { kind = "luck", n = 5 }), 4)
+		T.eq(Quest.count(f, { kind = "speed", n = 2 }), 2)
 	end)
 
 	T.it("the save: a new one starts at the first quest; an older one comes in there; a stray number is put right", function()
 		local d = Schema.default(0, 1)
 		T.eq(d.quest, 1)
-		T.eq(d.stats.skills, 0)
 		local old = Schema.default(0, 1) :: any
-		old.v = 7
-		old.quest = nil
-		old.stats.skills = nil
+		old.v = 9
+		old.quest = 12
 		local p = Schema.reconcile(Schema.migrate(old), 0, 1) :: any
 		T.eq(p.v, Schema.VERSION)
-		T.eq(p.quest, 1, "an older save starts at the first quest")
-		T.eq(p.stats.skills, 0)
+		T.eq(p.quest, 1, "a save from before the tree starts the new questline")
 		local far = Schema.default(0, 1) :: any
 		far.quest = 9999
 		T.eq((Schema.reconcile(far, 0, 1) :: any).quest, #Quests.list + 1, "past the last: all done")

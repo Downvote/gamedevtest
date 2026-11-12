@@ -1,8 +1,9 @@
--- Saves (docs/ARCHITECTURE.md 7.6): a player builds, a villager moves in, a driftling joins, then leaves (saved, lock
--- released) and rejoins to the very same profile; leaving mid-expedition brings the party home with the loot; a save
--- under another server's live lock is never overwritten; a join waits out another server's lock and then takes over;
--- a corrupt record still loads into a valid profile; a version 4 save (the game studio) starts a fresh island
--- keeping the founder's look and the settings.
+-- Saves (docs/ARCHITECTURE.md 7.6): a player builds, a villager moves in, the Tree of Life grows driftlings (one kept
+-- in the pen), the tree's levels bought, then leaves (saved, lock released) and rejoins to the very same profile; a
+-- version 9 save (the wild places, the fights and the levels) loads with its tree planted, its yard's price back and
+-- its driftlings in huts and the pen; a save under another server's live lock is never overwritten; a join waits out
+-- another server's lock and then takes over; a corrupt record still loads into a valid profile; a version 4 save (the
+-- game studio) starts a fresh island keeping the founder's look and the settings.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -57,13 +58,21 @@ E.runUntil(function()
 	return #prof.folk >= 1
 end, Tuning.TurnSeconds + 3, 0.1)
 H.expect(#prof.folk == 1, "save", "a villager moved in", tostring(#prof.folk))
-table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", lvl = 3, xp = 4, work = 0, muts = { "angler2", "lazy" } }) -- (its mutations kept through the save)
+-- (one kept in the pen by the player, its mutations kept through the save)
+table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", home = 0, work = 0, muts = { "angler2", "lazy" }, held = 1 })
 prof.nextId += 1
 prof.seen.gullfin = 2
 prof.founder.shirt = 5
-prof.islets = 1
+prof.tree.luck, prof.tree.speed = 3, 2
 -- (a level from before upgrades were taken out: kept through the save)
-prof.plot.placed[1].lvl = 2
+for _, q in prof.plot.placed do
+	if q.id == "patch" then
+		q.lvl = 2
+	end
+end
+prof.stats.best = math.max(prof.stats.best, 2)
+-- (the tree just started on its next: none grows across the rejoin)
+prof.tree.t = 0
 -- the stores never stop: food stops (nobody eats nothing made) so the snapshot is stable
 for _, v in prof.folk do
 	v.work = 0
@@ -85,32 +94,78 @@ E.run(2)
 local after = E.deepCopy(H.profile(p2))
 -- the clock ran a little since: the day's making and eating (nothing happens offline)
 after.shells, after.food, after.wood, after.stats.earned = before.shells, before.food, before.wood, before.stats.earned
+after.tree.t = before.tree.t
 local diff = H.diff(before, after)
 H.expect(diff == nil, "save", "the rejoined profile is the one saved", tostring(diff))
 H.expect(H.session(p2).plot == 1, "save", "island 1 again")
 H.checkProfile(p2, "rejoin")
 H.checkMirror(p2, "rejoin")
 
------------------------------------------------------------------- leaving mid-expedition
-E.phase = "leave-exp"
-local pp = H.profile(p2)
-pp.food = 100
-local res = H.req(p2, "exp.start", { site = H.firstSite(H.profile(p2)), party = "" })
-H.expect(res.ok, "save", "an expedition into a wild place", tostring(res.err))
-H.req(p2, "exp.next", {})
-local s2 = H.session(p2)
-local gathered = s2.exp and E.deepCopy(s2.exp.loot)
-local sh0, food0 = pp.shells, pp.food
-E.removePlayer(p2, "leave")
-E.run(2)
-rec = record(9201)
-local saved = rec and rec.value.data
-H.expect(saved ~= nil and gathered ~= nil and saved.food >= food0 + gathered.food - 1, "save", "the loot gathered came home when the player left", string.format("%s food saved, %s + %s", saved and saved.food, food0, gathered and gathered.food))
-H.expect(saved ~= nil and saved.shells >= sh0 + (gathered and gathered.shells or 0) - 1, "save", "and its shells", tostring(saved and saved.shells))
-local p3 = H.addPlayer({ userId = 9201, name = "Saver" })
-E.run(2)
-H.expect(H.session(p3) and H.session(p3).exp == nil, "save", "no expedition after a rejoin")
-H.checkProfile(p3, "leave-exp")
+------------------------------------------------------------------ a version 9 save (the wild places, the fights)
+E.phase = "v9"
+local p3 = p2
+seed(9206, { data = {
+	v = 9,
+	shells = 1000,
+	food = 50,
+	wood = 80,
+	tier = 1,
+	cap = { lvl = 7, xp = 3 },
+	pouch = 3,
+	islets = 2,
+	sea = 4242,
+	wilds = 1,
+	tut = 6,
+	quest = 12,
+	folk = { { id = 20, name = "Mira", look = { skin = 1, hair = 2, style = 1, shirt = 3 }, work = 11, lvl = 5, xp = 9, seed = 77, day = 1 } },
+	pals = {
+		{ id = 30, sp = "pebblit", lvl = 4, xp = 1, work = 0, muts = { "sturdy2" } },
+		{ id = 31, sp = "gullfin", lvl = 9, xp = 0, work = 0, muts = {} },
+		{ id = 32, sp = "mossbun", lvl = 2, xp = 0, work = 0, muts = { "lazy" } },
+	},
+	plot = { placed = {
+		{ uid = 10, id = "tent", x = 6, z = 2, rot = 0, lvl = 1 },
+		{ uid = 11, id = "patch", x = 8, z = 6, rot = 0, lvl = 1 },
+		{ uid = 12, id = "nest", x = -10, z = 4, rot = 0, lvl = 1 },
+		{ uid = 13, id = "wild_tidepool", x = 4, z = -2, rot = 0, lvl = 1 },
+		{ uid = 14, id = "done_tallgrass", x = -8, z = 8, rot = 0, lvl = 3 },
+		{ uid = 15, id = "yard", x = -4, z = 12, rot = 0, lvl = 1 },
+	} },
+	seen = { pebblit = 2, gullfin = 2, mossbun = 2, clawdle = 1 },
+	stats = { days = 4, built = 6, earned = 900, befriended = 3, battles = 12, cleared = 1, movedIn = 1, hatched = 0, skills = 2 },
+	nextId = 40,
+} })
+local old = H.addPlayer({ userId = 9206, name = "Oldtimer" })
+E.run(3)
+local ov = H.profile(old)
+H.expect(ov ~= nil and ov.v == Schema.VERSION, "save", "a version 9 save loads", tostring(ov and ov.v))
+if ov then
+	for _, k in { "cap", "pouch", "islets", "sea", "wilds" } do
+		H.expect(ov[k] == nil, "save", "its " .. k .. " gone")
+	end
+	local trees, places, yards = 0, 0, 0
+	for _, q in ov.plot.placed do
+		if q.id == "tree" then
+			trees += 1
+		elseif string.sub(q.id, 1, 5) == "wild_" or string.sub(q.id, 1, 5) == "done_" then
+			places += 1
+		elseif q.id == "yard" then
+			yards += 1
+		end
+	end
+	H.expect(trees == 1 and places == 0 and yards == 0, "save", "a Tree of Life planted; the wild places and the yard gone", string.format("%d %d %d", trees, places, yards))
+	H.expect(ov.shells >= 1000 + 450 and ov.wood >= 80 + 50, "save", "the yard's price back", string.format("%s %s", tostring(ov.shells), tostring(ov.wood)))
+	local inNest = 0
+	for _, x in ov.pals do
+		if x.home == 12 then
+			inNest += 1
+		end
+	end
+	H.expect(#ov.pals == 3 and inNest == 2, "save", "its driftlings: two in the hut, one in the pen", string.format("%d, %d in the hut", #ov.pals, inNest))
+	H.expect(ov.folk[1].lvl == nil and ov.tut == 5 and ov.quest == 1 and ov.stats.grown == 3, "save", "no levels; the tips on the hut's step; the questline afresh; befriended counted as grown")
+	H.checkProfile(old, "v9")
+	H.checkMirror(old, "v9")
+end
 
 ------------------------------------------------------------------ another server's live lock
 E.phase = "foreign-lock"
@@ -155,7 +210,6 @@ seed(9204, { data = {
 	pals = { { id = 7, sp = "dragon" }, { id = 8, sp = "clawdle", lvl = 1e9, work = 3 } },
 	plot = { placed = { { uid = 3, id = "patch", x = 999, z = 0, rot = 0 }, { uid = 4, id = "castle", x = 0, z = 0 } } },
 	seen = { clawdle = 9, nothing = 1 },
-	islets = 42,
 } })
 local c = H.addPlayer({ userId = 9204, name = "Glitch" })
 E.run(3)
@@ -163,18 +217,18 @@ local cp = H.profile(c)
 H.expect(cp ~= nil, "save", "a corrupt record still loads")
 if cp then
 	H.expect(cp.shells == Tuning.StartShells and cp.food == 0 and cp.tier == #Tuning.TierCost, "save", "into a valid profile (the tier at the top)", string.format("%s %s %d", tostring(cp.shells), tostring(cp.food), cp.tier))
-	-- (the pieces built, apart from the wild places that came up for its tiers)
+	-- (the pieces built, apart from the tree it was given)
 	local PlotM = H.sharedServer("Logic.Plot")
 	local built = {}
 	for _, x in cp.plot.placed do
-		if not PlotM.isSite(x.id) then
+		if not PlotM.isFixed(x.id) then
 			table.insert(built, x)
 		end
 	end
 	local q = built[1]
 	H.expect(#built == 1 and q.id == "patch" and PlotM.fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone", string.format("%d pieces", #built))
-	H.expect(#cp.plot.placed > 1 and cp.wilds == cp.tier, "save", "and every tier's wild places came up", string.format("%d of them", #cp.plot.placed - #built))
-	H.expect(#cp.folk == 1 and cp.folk[1].work == 0 and #cp.pals == 1 and cp.pals[1].id == 8 and cp.islets == 42, "save", "only what makes sense kept", string.format("%d folk, %d pals, %d islands", #cp.folk, #cp.pals, cp.islets))
+	H.expect(#cp.plot.placed == 2, "save", "and a tree planted", string.format("%d pieces", #cp.plot.placed))
+	H.expect(#cp.folk == 1 and cp.folk[1].work == 0 and #cp.pals == 1 and cp.pals[1].id == 8 and cp.pals[1].home == 0, "save", "only what makes sense kept", string.format("%d folk, %d pals", #cp.folk, #cp.pals))
 	H.checkProfile(c, "corrupt")
 	H.checkMirror(c, "corrupt")
 end
@@ -198,13 +252,7 @@ local op = H.profile(o)
 H.expect(op ~= nil and op.v == Schema.VERSION, "save", "a version 4 save loads as an island", tostring(op and op.v))
 if op then
 	H.expect(op.founder.shirt == 6 and op.settings.pixel == "low" and op.createdAt == 1234, "save", "the founder's look, the settings and the start kept")
-	local wildOnly = true
-	for _, x in op.plot.placed do
-		if not H.sharedServer("Logic.Plot").isSite(x.id) then
-			wildOnly = false
-		end
-	end
-	H.expect(op.coins == nil and op.team == nil and op.games == nil and wildOnly and #op.plot.placed == 2 and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips (and its first wild places)")
+	H.expect(op.coins == nil and op.team == nil and op.games == nil and #op.plot.placed == 1 and op.plot.placed[1].id == "tree" and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips (and its Tree of Life)")
 	H.expect(op.shells == Tuning.StartShells, "save", "the starting shells", tostring(op.shells))
 	H.checkProfile(o, "old-save")
 	H.checkMirror(o, "old-save")

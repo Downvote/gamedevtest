@@ -4,11 +4,8 @@
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
 --   "int"    a whole number in [0, 1e6] (a villager, driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 16] (a look index)
---   "party"  up to three members "v<id>" / "p<id>" joined by commas ("" for the captain alone)
---   "target" a wild driftling in the battle ("w1".."w9")
---   "member" one of the party: the captain "f", a villager "v<id>", a driftling "p<id>"
---   "aim"    whom a skill aims at: a member or a wild one, or "" (nobody: the team, every foe)
---   "bool"   true or false
+--   "rarity" a whole number in [1, 5] (a driftling's rarity)
+--   "grow"   a Tree of Life upgrade: "luck" or "speed"
 --   "key"    a settings key ("pixel", "music")
 --   "coord"  a whole number in [-64, 64] (a plot-local stud)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
@@ -30,16 +27,11 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["folk.work"] = { id = "int", uid = "int" },
 	["folk.dismiss"] = { id = "int" },
 	["pal.work"] = { id = "int", uid = "int" },
-	["pal.release"] = { id = "int" },
+	["pal.house"] = { id = "int", uid = "int", swap = "int" },
+	["pal.sell"] = { id = "int" },
+	["pen.sell"] = { r = "rarity" },
+	["tree.upgrade"] = { what = "grow" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
-	["exp.start"] = { site = "int", party = "party" },
-	["exp.next"] = {},
-	["exp.snack"] = { target = "target" },
-	["exp.flee"] = {},
-	["exp.skill"] = { who = "member", skill = "id", target = "aim" },
-	["exp.pause"] = { on = "bool" },
-	["pouch.upgrade"] = {},
-	["exp.home"] = {},
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
 	["tut.next"] = {},
@@ -61,29 +53,10 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 0, 1e6)
 	elseif kind == "small" then
 		return isInt(v, 1, 16)
-	elseif kind == "party" then
-		if type(v) ~= "string" or #v > 40 then
-			return false
-		end
-		if v == "" then
-			return true
-		end
-		local n = 0
-		for part in string.gmatch(v, "[^,]+") do
-			n += 1
-			if string.match(part, "^[vp]%d+$") == nil or #part > 8 then
-				return false
-			end
-		end
-		return n >= 1 and n <= 3 and string.match(v, ",,") == nil and string.sub(v, 1, 1) ~= "," and string.sub(v, -1) ~= ","
-	elseif kind == "target" then
-		return type(v) == "string" and string.match(v, "^w%d$") ~= nil
-	elseif kind == "member" then
-		return type(v) == "string" and (v == "f" or string.match(v, "^[vp]%d%d?%d?%d?%d?%d?%d?$") ~= nil)
-	elseif kind == "aim" then
-		return v == "" or (type(v) == "string" and (v == "f" or string.match(v, "^[vpw]%d%d?%d?%d?%d?%d?%d?$") ~= nil))
-	elseif kind == "bool" then
-		return type(v) == "boolean"
+	elseif kind == "rarity" then
+		return isInt(v, 1, 5)
+	elseif kind == "grow" then
+		return v == "luck" or v == "speed"
 	elseif kind == "coord" then
 		return isInt(v, -64, 64)
 	elseif kind == "cells" then

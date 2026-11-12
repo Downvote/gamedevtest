@@ -2,7 +2,7 @@
 -- The questline's rules (GAME_DESIGN 9; Data/Quests). Pure: the server claims, the client shows the same progress
 -- from its view (the view carries the same facts under the same names).
 --   `p.quest` is the quest on the go (1 .. #Quests.list; one past the last: all done). It counts only once the tips
---   are over (`tut` 0). A quest's goal is counted from what the island and the captain have now (Facts), so one
+--   are over (`tut` 0). A quest's goal is counted from what the island has now (Facts), so one
 --   already met is done the moment it comes up; claiming pays its reward and moves on to the next.
 local Types = require(script.Parent.Parent.Types)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -16,8 +16,7 @@ export type Facts = {
 	pals: { Types.Pal },
 	pieces: { Types.Piece },
 	tier: number,
-	pouch: number,
-	islets: number,
+	tree: Types.Tree,
 	seen: { [string]: number },
 	stats: Types.Stats,
 }
@@ -30,8 +29,7 @@ function Quest.facts(p: Profile): Facts
 		pals = p.pals,
 		pieces = p.plot.placed,
 		tier = p.tier,
-		pouch = p.pouch,
-		islets = p.islets,
+		tree = p.tree,
 		seen = p.seen,
 		stats = p.stats,
 	}
@@ -73,18 +71,24 @@ function Quest.count(f: Facts, g: Quests.Goal): number
 				n += 1
 			end
 		end
-	elseif k == "befriended" then
-		n = f.stats.befriended
-	elseif k == "battles" then
-		n = f.stats.battles
-	elseif k == "skills" then
-		n = f.stats.skills or 0
-	elseif k == "charted" then
-		n = f.islets
+	elseif k == "housed" then
+		for _, x in f.pals do
+			if x.home ~= 0 then
+				n += 1
+			end
+		end
+	elseif k == "grown" then
+		n = f.stats.grown
+	elseif k == "sold" then
+		n = f.stats.sold
+	elseif k == "best" then
+		n = f.stats.best
+	elseif k == "luck" then
+		n = f.tree.luck
+	elseif k == "speed" then
+		n = f.tree.speed
 	elseif k == "tier" then
 		n = f.tier
-	elseif k == "pouch" then
-		n = f.pouch
 	elseif k == "seen" then
 		for _ in f.seen do
 			n += 1

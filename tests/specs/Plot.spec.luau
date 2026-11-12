@@ -7,7 +7,7 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Street = require("../../build/luautest/shared/Data/Street")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 
--- (an island with no wild places on it: the building rules apart from them, which have a test of their own below)
+-- (an island with no pieces on it, not even the Tree of Life: the building rules on their own)
 local function fresh(): any
 	local p = Schema.default(0, 1)
 	p.shells, p.wood = 1e6, 1e6

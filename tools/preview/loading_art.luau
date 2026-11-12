@@ -10,9 +10,9 @@
 --   * three driftlings of the beach and the meadow (MicroModels.driftling: Clawdle, Mossbun, Gullfin) on the move, as
 --     the island shows them (MicroModels.animate "walk" and their hop), facing left and right;
 --   * the campfire (a ring of stones, crossed logs and MicroModels' flame flickering in thirds, as WorldView's);
---   * the island's pieces (DecorModels): two palms, a Grass Hut, a Tent, a Tiki Torch, a Flower Bed and the wild Tide
---     Pool (its eyes open and shut);
---   * the expedition boat (MicroModels "ship", BoatSpec level 2) rocking on the swell, a step smaller (it is out at sea);
+--   * the island's pieces (DecorModels): two palms, a Grass Shack, a Tent, a Tiki Torch, a Flower Bed and the Tree of
+--     Life with its pen (its hollow and fruit glowing, then dimmer);
+--   * the old boat (MicroModels "ship", BoatSpec level 2) rocking on the swell, a step smaller (it is out at sea);
 --   * hand-made 2D bits: a gull flapping, a star twinkling, a wave crest rising and falling, an ember, a glint of sun.
 -- Output (the scenario's log): per frame `@@LART <seq> <i> <w> <h> <RGBA hex>`, per sequence
 -- `@@LSEQ <seq> <frames> <seconds a frame> <anchor x> <anchor y>`, and points (`@@LPT <seq> <name> <x> <y>`, art px from
@@ -200,12 +200,12 @@ return function(env)
 	piece("torch", "torch", { w = 20, h = 40, ax = 10, ay = 34 }, 0)
 	piece("flowers", "flowers", { w = 40, h = 30, ax = 20, ay = 20 }, 0)
 	piece("bush", "bush", { w = 32, h = 30, ax = 16, ay = 22 }, 0)
-	-- the wild Tide Pool: its eyes open, then shut (a blink)
-	piece("pool", "wild_tidepool", { w = 64, h = 50, ax = 32, ay = 34 }, 0, 2, function(m, i)
+	-- the Tree of Life with its pen: the glowing hollow and the fruit bright, then dim (a slow pulse)
+	piece("tree", "tree", { w = 112, h = 112, ax = 54, ay = 86 }, 0, 2, function(m, i)
 		if i == 2 then
 			for _, d in m:GetDescendants() do
-				if d:IsA("BasePart") and d.Name == "Eye" then
-					d.Transparency = 1
+				if d:IsA("BasePart") and (d.Name == "Pod" or d.Name == "Fruit") then
+					d.Material = Enum.Material.SmoothPlastic
 				end
 			end
 		end

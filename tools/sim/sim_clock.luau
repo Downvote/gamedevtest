@@ -1,8 +1,9 @@
 -- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
 -- here, open menus and Build mode holding nothing; what a day makes and eats matching Island.rates (to a tick); the
 -- stores reaching the client every second (Fx tick); the food running out (everything at half, the shops shut, the
--- chip red) and coming back; a villager moving in only into a free bed with the charm high enough; the training
--- yard training the resting; an expedition's party neither working nor eating; two islands each on their own clock.
+-- chip red) and coming back; a villager moving in only into a free bed with the charm high enough; the Hatchery's egg
+-- hatching into the Tree of Life's pen; two islands each on their own clock. (The tree waits with a full pen while the
+-- rates are measured, so no new driftling changes them.)
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -19,6 +20,7 @@ local Tuning = H.sharedServer("Config.Tuning")
 local Street = H.sharedServer("Data.Street")
 local Plot = H.sharedServer("Logic.Plot")
 local Island = H.sharedServer("Logic.Island")
+local TreeC = H.sharedServer("Logic.Tree")
 
 local p = H.addPlayer({ userId = 9301, name = "Clock" })
 E.run(1)
@@ -50,10 +52,23 @@ end
 ------------------------------------------------------------------ the day's pace
 E.phase = "pace"
 prof.shells, prof.wood = 20000, 2000
-for _, id in { "patch", "patch", "lumber", "tent", "hut", "nest", "stall", "flowers", "palm" } do
+for _, id in { "patch", "patch", "lumber", "tent", "hut", "nest", "stall", "flowers" } do
 	local r = place(id)
 	H.expect(r.ok, "clock", "place " .. id, tostring(r.err))
 end
+-- the tree waits: every driftling in the pen kept there, the pen filled up with kept ones
+local function holdTree()
+	for _, x in prof.pals do
+		if x.home == 0 then
+			x.held = 1
+		end
+	end
+	while not TreeC.waiting(prof) do
+		TreeC.add(prof, "pebblit", {}).held = 1
+	end
+	H.push(p, 0.2)
+end
+holdTree()
 -- the next turn's end (its Fx turn)
 local function nextTurn(limit: number?)
 	local i0 = #fx
@@ -82,7 +97,7 @@ H.expect(#prof.folk >= 2, "clock", "villagers moved into the beds", tostring(#pr
 E.phase = "rates"
 prof.food = 500
 H.push(p, 0.2)
-local r = Island.rates(prof, s.away)
+local r = Island.rates(prof)
 local food0, wood0, sh0 = prof.food, prof.wood, prof.shells
 local folk0 = #prof.folk
 E.run(10)
@@ -135,7 +150,7 @@ E.runUntil(function()
 end, 10, 0.05)
 H.expect(prof.food == 0, "hunger", "the food runs out and stays at none", tostring(prof.food))
 E.run(1.2)
-local rh = Island.rates(prof, s.away)
+local rh = Island.rates(prof)
 H.expect(rh.shells == 0, "hunger", "the shops shut while hungry", tostring(rh.shells))
 v = H.view(p)
 H.expect(v ~= nil and v.food == 0 and v.rates.shells == 0, "hunger", "the view says so (the HUD goes red)")
@@ -143,14 +158,18 @@ local hud = H.buttonNamed(p, "Menu_build")
 H.expect(hud ~= nil, "hunger", "the HUD stays usable")
 prof.food = 100
 H.push(p, 0.3)
-H.expect(Island.rates(prof, s.away).shells > 0, "hunger", "fed again: the shops open")
+H.expect(Island.rates(prof).shells > 0, "hunger", "fed again: the shops open")
 
 ------------------------------------------------------------------ moving in: beds and charm
 E.phase = "move-in"
 local beds = Island.beds(prof)
 while #prof.folk < beds do
-	table.insert(prof.folk, { id = prof.nextId, name = "Extra", look = { skin = 1, hair = 1, style = 1, shirt = 1 }, work = 0, lvl = 1, xp = 0, seed = 7, day = prof.day })
+	table.insert(prof.folk, { id = prof.nextId, name = "Extra", look = { skin = 1, hair = 1, style = 1, shirt = 1 }, work = 0, day = prof.day })
 	prof.nextId += 1
+end
+-- (the driftlings in huts are charming too: they go to the pen, so the charm here is the pieces')
+for _, x in prof.pals do
+	x.home, x.work, x.held = 0, 0, 1
 end
 H.push(p, 0.2)
 local n0 = #prof.folk
@@ -186,49 +205,6 @@ nextTurn()
 H.expect(#prof.folk == n0 + 1, "move-in", "charming enough: a visitor moves in", tostring(#prof.folk))
 H.checkProfile(p, "move-in")
 
------------------------------------------------------------------- the training yard
-E.phase = "yard"
-local ry = place("yard")
-H.expect(ry.ok, "yard", "a training yard", tostring(ry.err))
-local idle = nil
-for _, x in prof.folk do
-	if x.work == 0 then
-		idle = x
-	end
-end
-if idle == nil then
-	idle = prof.folk[1]
-	idle.work = 0
-end
-local xp0, lvl0 = idle.xp, idle.lvl
-nextTurn()
-H.expect(idle.lvl > lvl0 or idle.xp >= xp0 + Tuning.TrainXp, "yard", "a resting villager trains at a turn's end", string.format("lv %d xp %d -> lv %d xp %d", lvl0, xp0, idle.lvl, idle.xp))
-
------------------------------------------------------------------- away on an expedition
-E.phase = "away"
-prof.food = 500
-local worker = nil
-for _, x in prof.folk do
-	if x.work ~= 0 then
-		worker = x
-	end
-end
-H.expect(worker ~= nil, "away", "someone is working")
-if worker then
-	local before = Island.rates(prof, s.away)
-	local res = H.req(p, "exp.start", { site = H.firstSite(prof), party = "v" .. worker.id })
-	H.expect(res.ok, "away", "they go into a wild place", tostring(res.err))
-	local during = Island.rates(prof, s.away)
-	H.expect(during.food > before.food - 0.001 + Tuning.EatFolk - 0.001 or during.wood < before.wood or during.shells < before.shells or during.food < before.food, "away", "the island makes and eats without them", string.format("%.1f/%.1f -> %.1f/%.1f", before.food, before.wood, during.food, during.wood))
-	E.run(1)
-	local folkAttr = E.workspace.Plots.Plot_1:GetAttribute("Folk")
-	H.expect(type(folkAttr) == "string" and string.find(folkAttr, "^" .. worker.id .. "%.") ~= nil or string.find(folkAttr, ";" .. worker.id .. "%.") ~= nil, "away", "the Folk attribute lists them")
-	H.expect(string.find(folkAttr, worker.id .. "%.%d+%.%d+%.%d+%.%d+%.%d+%.1") ~= nil, "away", "marked away", folkAttr)
-	H.req(p, "exp.home", {})
-	E.run(0.5)
-	H.expect(next(s.away) == nil, "away", "home: back at work")
-end
-
 ------------------------------------------------------------------ the Hatchery: two parents, an egg, its turns, a hatching
 E.phase = "hatchery"
 do
@@ -242,7 +218,18 @@ do
 	end
 	local rh = place("hatchery")
 	H.expect(rh.ok, "hatchery", "a Hatchery at the third tier", tostring(rh.err))
-	place("burrow") -- (nests for the hatchling)
+	-- (the kept ones go: the pen has room again, and plenty of huts keep it emptying while the egg warms)
+	local keep = {}
+	for _, x in prof.pals do
+		if not (x.held == 1 and x.sp == "pebblit") then
+			table.insert(keep, x)
+		end
+	end
+	prof.pals = keep
+	for _ = 1, 3 do
+		place("den")
+	end
+	place("burrow")
 	local uid = 0
 	for _, q in prof.plot.placed do
 		if q.id == "hatchery" then
@@ -252,7 +239,7 @@ do
 	-- two parents of one kind (the egg is theirs), carrying a shared mutation
 	local ids = {}
 	for k = 1, 2 do
-		table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", lvl = 6, xp = 0, work = 0, muts = { "swift2", if k == 1 then "angler1" else "lazy" } })
+		table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", home = 0, work = 0, held = 1, muts = { "swift2", if k == 1 then "angler1" else "lazy" } })
 		table.insert(ids, prof.nextId)
 		prof.nextId += 1
 	end
@@ -307,9 +294,14 @@ do
 		end
 	end
 	H.expect(news ~= nil and #news == 1 and news[1].sp == "gullfin", "hatchery", "the egg hatched after its turns (the turn's news)", tostring(news and #news))
-	H.expect(#prof.pals == pals0 + 1 and #prof.eggs == 0 and prof.stats.hatched == 1, "hatchery", "a new driftling in a nest", string.format("%d -> %d", pals0, #prof.pals))
-	local born = prof.pals[#prof.pals]
-	H.expect(born.lvl == 1 and born.sp == "gullfin", "hatchery", "level 1, its parents' kind")
+	local born = nil
+	for _, x in prof.pals do
+		if news and news[1] and x.id == news[1].id then
+			born = x
+		end
+	end
+	H.expect(born ~= nil and #prof.eggs == 0 and prof.stats.hatched == 1, "hatchery", "a new driftling, out of the pen into a hut or waiting there", string.format("%d -> %d", pals0, #prof.pals))
+	H.expect(born ~= nil and born.lvl == nil and born.sp == "gullfin", "hatchery", "its parents' kind (no levels)")
 	H.closePanel(p)
 	H.expect(H.req(p, "plot.store", { i = idx }).ok, "hatchery", "the Hatchery cleared away once empty")
 	H.checkProfile(p, "hatchery")

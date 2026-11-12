@@ -8,8 +8,8 @@
 --     the HUD's strips, wherever they walk, gliding a share of the way a frame (Tuning.CamGlide) in whole art px (at
 --     most what the renderer can scroll in a frame);
 --   free (Build mode): the view stays where Build mode drags it (`panBy`), over the own plot;
---   stage (a microgame, `setStage`): the view frames a microgame's stage (UI/MicroStage, far from the street) over
---     the whole screen, clear of the play overlay's top and bottom strips; it holds still.
+--   stage (`setStage`): the view frames a stage far from the street over the whole screen, clear of an overlay's
+--     top and bottom strips; it holds still (nothing opens one since the expeditions went).
 -- The ray plane sits Tuning.CamRayBack studs behind the plot's origin, so the whole street stays in front of it. In
 -- the classic style the Roblox camera shows the same view (CamOffFov), with the pixel filter on it sits far away at
 -- CamFov (looks orthographic).
@@ -402,8 +402,8 @@ function CameraController.setStage(s: Stage?)
 	CameraController.refit()
 end
 
--- An endless islet's camera: the stage's framing moved by `shift` (world studs); the view glides there a frame at a
--- time (the renderer scrolls; MicroStage.follow), or is put there at once (`snap`: behind the curtain, before the
+-- A stage's framing moved by `shift` (world studs); the view glides there a frame at a
+-- time (the renderer scrolls), or is put there at once (`snap`: behind the curtain, before the
 -- first picture).
 function CameraController.setStageShift(shift: Vector3, snap: boolean?)
 	stageShift = shift

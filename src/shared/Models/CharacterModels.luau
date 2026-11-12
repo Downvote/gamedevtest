@@ -168,7 +168,7 @@ CharacterModels.HEAD_TOP = Vector3.new(0, 3.4, 0)
 -- A founder or a villager: the same head, hair and face as a seated one, raised a stud, on a standing body with
 -- joints: shorts over bare shins, shoes on light soles, a shirt with a collar, two buttons and a belt with a buckle,
 -- sleeves over bare forearms and fists. The rig's origin is between the feet on the ground, facing +Z. Poses bend the
--- knees and elbows, lean and twist the body and change the face (`Pose`: GAME_DESIGN 7's expressive battles).
+-- knees and elbows, lean and twist the body and change the face (`Pose`: the work, the cheers and the cutscenes).
 local HEAD_SET: { [string]: boolean } = {}
 for _, n in HEAD_PARTS do
 	HEAD_SET[n] = true
@@ -511,11 +511,11 @@ local WORK: { [string]: (P: any, t: number, k: number) -> () } = {
 }
 CharacterModels.WORK_HIT = { dig = { 0.62 }, chop = { 0.7 }, hammer = { 0.35, 0.85 }, fish = { 0.9 }, sell = { 0.27 }, train = { 0.25, 0.75 } } :: { [string]: { number } }
 
--- A founder doing something (the islands, the battles, the cutscenes): the walk or stand of poseStanding, then the
+-- A founder doing something (the islands, the cutscenes): the walk or stand of poseStanding, then the
 -- action, k 0..1 its progress where it has one:
 --   "cheer" both arms up waving, happy; "hurt" flinching back, arms flung out; "swing" the right arm from high up (k 0)
 --   down in front (k 1); "reach" both arms out in front; "pet" the right arm patting; "cast" the right arm raised;
---   "jump" knees up and arms up; "sneak" crouched with arms forward; "dance" the arms in turn; and for the battles
+--   "jump" knees up and arms up; "sneak" crouched with arms forward; "dance" the arms in turn; and (from the old fights)
 --   "windup" (crouched, leaning back, the fist drawn back: fierce), "strike" (a lunge, the fist swinging through
 --   with k: shouting), "guard" (crouched behind crossed arms), "throw" (an overhand throw with k), "run" (leaning
 --   into a sprint), "victory" (a jump with a fist pumped up), "ko" (flat on the back, eyes shut).

@@ -1,13 +1,16 @@
 --!strict
 -- What makes one driftling unlike another (GAME_DESIGN 6: "make each creature have a different passive ability. some
--- can have different mutations which allow them to do different things better, such as better health, attack speed,
--- etc. mutations also have tiers, so a rarer mutation gives better benefits"). Pure.
---   Effects (`Fx`): shares added to what a driftling is: hp, atk, def, spd (its timer fills faster), xp (it learns
---   faster), and at work: work (any building), farm, fish, wood, shop (the buildings of that knack). 0.1 = +10%.
+-- can have different mutations which allow them to do different things better ... mutations also have tiers, so a
+-- rarer mutation gives better benefits"; since 2026-11-12 "creatures work faster based on their rarity and can also
+-- have mutations like before"). Pure.
+--   Effects (`Fx`): at work, shares added to its help: work (any building), farm, fish, wood, shop (the buildings of
+--   that knack); eat (the food it eats: below 0 eats less); sell (its price when sold); charm (charm it adds to the
+--   island, whole points); tree and luck (while it lives in a hut, the Tree of Life grows that much faster and that
+--   much luckier: Logic/Tree). 0.1 = +10%.
 --   Each species has a passive of its own (Data/Creatures `passive`); each driftling may carry up to MAX mutations
---   (Pal.muts: ids "<family><tier>", tier 1 .. 4, or a flaw's id), rolled when it is befriended or hatched.
---   Rarity (Data/Creatures `rarity`): 1 common .. 5 legendary: rarer ones turn up less often, are harder to befriend,
---   are stronger, and roll better mutations.
+--   (Pal.muts: ids "<family><tier>", tier 1 .. 4, or a flaw's id), rolled when it grows on the tree or hatches.
+--   Rarity (Data/Creatures `rarity`): 1 common .. 5 legendary: rarer ones grow less often, work faster
+--   (Tuning.RarityWork), sell for more and roll better mutations.
 export type Fx = { [string]: number }
 
 export type Mutation = { id: string, family: string, tier: number, name: string, blurb: string, fx: Fx }
@@ -16,9 +19,9 @@ export type Rarity = { name: string, color: string, weight: number }
 local Traits = {}
 
 Traits.MAX = 4 -- mutations a driftling carries at most
-Traits.KEYS = { "hp", "atk", "def", "spd", "xp", "work", "farm", "fish", "wood", "shop" }
+Traits.KEYS = { "work", "farm", "fish", "wood", "shop", "eat", "sell", "charm", "tree", "luck" }
 
--- The rarities: their names, colours (UIKit / Palette keys) and how often a wild one of each turns up (weights).
+-- The rarities: their names, colours (UIKit / Palette keys) and how often the tree grows each (weights, before luck).
 Traits.RARITY = {
 	{ name = "Common", color = "text_dim", weight = 100 },
 	{ name = "Uncommon", color = "good", weight = 45 },
@@ -31,26 +34,27 @@ Traits.RARITY = {
 Traits.TIER_COLOR = { [0] = "bad", [1] = "text", [2] = "good", [3] = "button", [4] = "accent" } :: { [number]: string }
 Traits.TIER_STARS = { [0] = "", [1] = "*", [2] = "**", [3] = "***", [4] = "****" } :: { [number]: string }
 
--- The families: what each tier is called and gives (rarer tiers give much more).
+-- The families: what each tier is called and gives (rarer tiers give much more). The family ids are the saves' (they
+-- date from the fights, gone 2026-11-12: each family that gave a fighting stat gives something on the island now).
 local FAMILIES: { { family: string, key: string, names: { string }, values: { number } } } = {
-	{ family = "sturdy", key = "hp", names = { "Sturdy", "Hardy", "Ironhide", "Titanic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
-	{ family = "fierce", key = "atk", names = { "Feisty", "Fierce", "Savage", "Ferocious" }, values = { 0.08, 0.15, 0.25, 0.4 } },
-	{ family = "armor", key = "def", names = { "Thickskin", "Armored", "Bulwark", "Fortress" }, values = { 0.08, 0.15, 0.25, 0.4 } },
-	{ family = "swift", key = "spd", names = { "Nimble", "Swift", "Quicksilver", "Lightning" }, values = { 0.06, 0.12, 0.2, 0.32 } },
-	{ family = "bright", key = "xp", names = { "Curious", "Bright", "Clever", "Genius" }, values = { 0.1, 0.2, 0.35, 0.6 } },
+	{ family = "sturdy", key = "eat", names = { "Light Eater", "Frugal", "Lean", "Sunfed" }, values = { -0.15, -0.3, -0.5, -0.8 } },
+	{ family = "fierce", key = "sell", names = { "Shiny", "Glossy", "Golden", "Radiant" }, values = { 0.3, 0.7, 1.5, 3 } },
+	{ family = "armor", key = "charm", names = { "Cute", "Sweet", "Adorable", "Beloved" }, values = { 1, 2, 3, 5 } },
+	{ family = "swift", key = "tree", names = { "Leafy", "Blooming", "Lush", "Evergreen" }, values = { 0.04, 0.08, 0.14, 0.22 } },
+	{ family = "bright", key = "luck", names = { "Lucky", "Blessed", "Fortunate", "Starborn" }, values = { 0.05, 0.1, 0.18, 0.3 } },
 	{ family = "busy", key = "work", names = { "Busy", "Diligent", "Tireless", "Workaholic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
 	{ family = "grower", key = "farm", names = { "Green Thumb", "Grower", "Harvester", "Bountiful" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 	{ family = "angler", key = "fish", names = { "Angler", "Netcaster", "Tidecaller", "Sea Sage" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 	{ family = "chopper", key = "wood", names = { "Chopper", "Woodsy", "Timberwise", "Forest Heart" }, values = { 0.12, 0.24, 0.4, 0.65 } },
-	{ family = "trader", key = "shop", names = { "Chatty", "Charming", "Haggler", "Tycoon" }, values = { 0.12, 0.24, 0.4, 0.65 } },
+	{ family = "trader", key = "shop", names = { "Chatty", "Smooth Talker", "Haggler", "Tycoon" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 }
 -- The flaws (tier 0): a driftling can be born a little worse at something. A flaw belongs to the family of the same
 -- effect (a driftling is Lazy or Diligent, never both; a Hatchery tier-up turns a flaw into its family's first tier).
 local FLAWS: { { id: string, family: string, name: string, key: string, value: number } } = {
-	{ id = "frail", family = "sturdy", name = "Frail", key = "hp", value = -0.1 },
-	{ id = "timid", family = "fierce", name = "Timid", key = "atk", value = -0.1 },
-	{ id = "clumsy", family = "armor", name = "Clumsy", key = "def", value = -0.1 },
-	{ id = "sluggish", family = "swift", name = "Sluggish", key = "spd", value = -0.08 },
+	{ id = "frail", family = "sturdy", name = "Greedy", key = "eat", value = 0.25 },
+	{ id = "timid", family = "fierce", name = "Dull", key = "sell", value = -0.2 },
+	{ id = "clumsy", family = "armor", name = "Grumpy", key = "charm", value = -1 },
+	{ id = "sluggish", family = "swift", name = "Sluggish", key = "work", value = -0.08 },
 	{ id = "lazy", family = "busy", name = "Lazy", key = "work", value = -0.15 },
 }
 
@@ -89,7 +93,7 @@ end
 local COUNT_W = { 34, 36, 22, 8 }
 local TIER_W = { 16, 46, 25, 10, 3 }
 
--- Mutations for a newly befriended (or wild-born) driftling of a rarity (1 .. 5), no family twice.
+-- Mutations for a new driftling of a rarity (1 .. 5; the tree's luck may roll it as a rarer one), no family twice.
 function Traits.roll(rng: any, rarity: number): { string }
 	local r = math.clamp(rarity or 1, 1, 5)
 	local function pickW(ws: { number }): number
@@ -173,25 +177,29 @@ function Traits.clean(muts: any): { string }
 	return out
 end
 
--- An effect's words for the panels ("+15% health", "+24% at farms").
+-- An effect's words for the panels ("+24% at farms", "eats 30% less", "+2 charm").
 local WORDS: { [string]: string } = {
-	hp = "health",
-	atk = "attack",
-	def = "defence",
-	spd = "speed",
-	xp = "learning",
 	work = "work",
 	farm = "at farms",
 	fish = "at fishing",
 	wood = "at wood",
 	shop = "at shops",
+	sell = "sell price",
+	tree = "tree speed",
+	luck = "tree luck",
 }
 function Traits.describe(fx: Fx): string
 	local parts: { string } = {}
 	for _, k in Traits.KEYS do
 		local v = fx[k]
 		if v and math.abs(v) > 1e-6 then
-			table.insert(parts, string.format("%s%d%% %s", if v > 0 then "+" else "", math.round(v * 100), WORDS[k]))
+			if k == "eat" then
+				table.insert(parts, string.format("eats %d%% %s", math.round(math.abs(v) * 100), if v < 0 then "less" else "more"))
+			elseif k == "charm" then
+				table.insert(parts, string.format("%s%d charm", if v > 0 then "+" else "", math.round(v)))
+			else
+				table.insert(parts, string.format("%s%d%% %s", if v > 0 then "+" else "", math.round(v * 100), WORDS[k]))
+			end
 		end
 	end
 	return table.concat(parts, ", ")

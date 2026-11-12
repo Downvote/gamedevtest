@@ -27,14 +27,13 @@ local EVENTS: { [string]: EventDef } = {
 	deny = { id = "Deny", vol = 0.45, pitch = { 0.6, 0.66 }, cd = 0.25 },
 	notice = { id = "Notice", vol = 0.16, pitch = { 0.98, 1.04 }, cd = 0.3 },
 	ding = { id = "Ding", vol = 0.2, pitch = { 1, 1.04 }, cd = 0.2 },
-	-- the shells and the celebrations: pebbles, a shaker, the conch, island stingers
+	-- the shells and the celebrations: pebbles, a shaker, island stingers
 	coin = { id = "Coin", vol = 0.35, pitch = { 1.05, 1.2 }, cd = 0.08, voices = 3 },
 	coins = { id = "CoinsMany", vol = 0.35, pitch = { 0.95, 1.05 }, cd = 0.3 },
 	-- the happy moments, each its own small library sound ("use different sounds for newcomer, victory and other
 	-- sounds ... use sounds from the free roblox library instead", 2026-11-12; kept short and soft, as asked on
 	-- 2026-11-10: "find one with a small short chime instead")
 	newcomer = { id = "DoorChime", vol = 1.8, cd = 1, from = 0.3, len = 1.6, fade = 0.3 },
-	victory = { id = "BellTree", vol = 2.4, cd = 1, from = 0.7, len = 2.3, fade = 0.6 },
 	grow = { id = "BellTreeRun", vol = 2.6, cd = 1, from = 0.3, len = 2.3, fade = 0.6 },
 	friend = { id = "ChimeCluster", vol = 1.5, cd = 0.5 },
 	egg = { id = "MusicBoxWind", vol = 2.4, cd = 1 },
@@ -44,27 +43,11 @@ local EVENTS: { [string]: EventDef } = {
 	combo = { id = "Combo", vol = 0.4, pitch = { 1, 1.1 }, cd = 0.2 },
 	sparkle = { id = "Sparkle", vol = 0.45, pitch = { 0.96, 1.08 }, cd = 0.15 },
 	cheer = { id = "Cheer", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.6 },
-	trumpet = { id = "Trumpet", vol = 0.22, pitch = { 0.98, 1.02 }, cd = 1 },
-	drumroll = { id = "DrumRoll", vol = 0.4, cd = 1, from = 0.05, len = 1.6, fade = 0.4 },
 	tick = { id = "Tick", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.03, voices = 3 },
 	flip = { id = "CardFlip", vol = 0.35, pitch = { 0.95, 1.08 }, cd = 0.04, voices = 3 },
 	pop = { id = "Pop", vol = 0.5, pitch = { 0.95, 1.15 }, cd = 0.04, voices = 3 },
-	-- the battles (the blows kept soft: "make a less loud sound for attacking", 2026-11-11)
-	whoosh = { id = "Whoosh", vol = 0.18, pitch = { 0.92, 1.1 }, cd = 0.05, voices = 3 },
-	whoosh_heavy = { id = "WhooshHeavy", vol = 0.22, pitch = { 0.9, 1 }, cd = 0.1 },
-	hit = { id = "Hit", vol = 0.22, pitch = { 0.9, 1.12 }, cd = 0.03, voices = 4 },
-	hit_heavy = { id = "HitHeavy", vol = 0.3, pitch = { 0.85, 0.95 }, cd = 0.08 },
-	body_fall = { id = "BodyFall", vol = 0.32, pitch = { 0.9, 1.05 }, cd = 0.1 },
-	zap = { id = "Zap", vol = 0.22, pitch = { 0.95, 1.1 }, cd = 0.1 },
-	heal = { id = "Heal", vol = 0.45, pitch = { 1, 1.1 }, cd = 0.15 },
-	shield = { id = "Shield", vol = 0.35, pitch = { 1, 1.15 }, cd = 0.1 },
-	poof = { id = "Poof", vol = 0.45, pitch = { 0.95, 1.1 }, cd = 0.1 },
-	bite = { id = "Bite", vol = 0.18, pitch = { 1, 1.2 }, cd = 0.05, voices = 3 },
 	-- the islands and the sea
-	chest = { id = "ChestOpen", vol = 0.5, cd = 0.3 },
-	splash = { id = "Splash", vol = 0.4, pitch = { 0.9, 1.1 }, cd = 0.08, voices = 3 },
 	hammer = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.05 }, cd = 0.2, from = 0.24, len = 0.17 },
-	horn = { id = "BoatHorn", vol = 0.3, cd = 2 },
 	gull = { id = "Gull", vol = 0.12, pitch = { 0.95, 1.1 }, cd = 4 },
 	birds = { id = "Birds", vol = 0.2, cd = 20 },
 	-- the founder's feet (AvatarView): a step on the lawn, the sand or the boards, a hop, a landing
@@ -177,7 +160,7 @@ function Audio.ambience(name: string, volume: number)
 end
 
 -- Background music (GAME_DESIGN 15: "find cozy background music"): a mood's playlist from
--- Config/Monetization.Music ("day", "night", "sea"; nil: quiet), shuffled and played track after track; a change of
+-- Config/Monetization.Music ("day", "night"; nil: quiet), shuffled and played track after track; a change of
 -- mood, and each track's last seconds, crossfade over MUSIC_FADE seconds. Audio.setMusicOn(false) fades it away (the
 -- settings' Music switch). Never yields.
 local MUSIC_VOL = 0.2
@@ -289,8 +272,8 @@ function Audio.musicState(): { mood: string?, on: boolean, tracks: number }
 end
 
 -- Play a one-shot event. True when it played.
--- Every voice of these events made and loaded now, so the first plays are on time (UI/ExpeditionUI: the battle's
--- swings and blows). Never yields: the loading runs on its own thread.
+-- Every voice of these events made and loaded now, so the first plays are on time (sounds that must land on a beat).
+-- Never yields: the loading runs on its own thread.
 function Audio.preload(names: { string })
 	local list: { Instance } = {}
 	for _, name in names do
@@ -334,7 +317,7 @@ function Audio.play(name: string, opts: PlayOpts?): boolean
 	local snd = voiceOf(name, ev, i)
 	if not snd.IsLoaded then
 		-- (a voice not loaded yet starts late, behind what it goes with: it is asked to load now so the next play is on
-		-- time; Audio.preload loads the battle's sounds ahead so this is rare)
+		-- time; Audio.preload loads such sounds ahead)
 		task.spawn(function()
 			pcall(function()
 				game:GetService("ContentProvider"):PreloadAsync({ snd })

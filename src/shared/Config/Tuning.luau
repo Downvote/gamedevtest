@@ -20,24 +20,26 @@ local Tuning = {
 	LoadRetries = 4,
 
 	-- the island (GAME_DESIGN 3-5): it makes and eats by the turn (TurnSeconds while the player is here: every rate is
-	-- a turn's), and at each turn's end a visitor may move in and the yard trains; the calendar day (the clock, day and
-	-- night, the day count) is DaySeconds of the sea's clock, the same for every island on the server
-	StartShells = 300, -- the tips' buildings (a patch, a camp, a stall, a tent, a nest: 280) and a little over
+	-- a turn's), and at each turn's end a visitor may move in; the calendar day (the clock, day and night, the day
+	-- count) is DaySeconds of the sea's clock, the same for every island on the server
+	StartShells = 300, -- the tips' buildings (a patch, a camp, a stall, a tent, a hut: 280) and a little over
 	StartFood = 30,
 	StartWood = 24,
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	EatFolk = 3, -- food a villager eats a turn
-	EatPal = 2, -- food a driftling eats a turn
+	EatPal = 2, -- food a driftling living in a hut eats a turn (one in the pen eats nothing)
 	Hungry = 0.5, -- everything makes this share while the food has run out
 	IdleOutput = 0.5, -- a building with nobody working there makes this share
-	PalBoost = 0.5, -- a driftling helping at a building of its knack adds this share
+	PalBoost = 0.5, -- a common driftling helping at a building of its knack adds this share ...
+	RarityWork = { 1, 1.6, 2.5, 4, 7 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
+	HelpMax = 2, -- driftlings helping at one building at most
 	VisitorCharm = 15, -- visitors a turn: 1 + charm / this ...
 	VisitorsMax = 14, -- ... at most
 	ShopVisitors = 4, -- a shop sells its rate with this many visitors a turn (more sell more, up to x2)
 	MoveInCharm = 6, -- a visitor moves into a free bed when the charm is at least this x the villagers + 1
 	FolkMax = 40,
-	PalsMax = 40,
+	PalsMax = 200, -- driftlings in the huts and the pen together at most (a save's sanity bound)
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
@@ -49,10 +51,48 @@ local Tuning = {
 		{ shells = 180000, wood = 15000 },
 		{ shells = 480000, wood = 40000 },
 	},
-	-- homes and nests (GAME_DESIGN 4.1): a resident's comfort (its home's, plus this by the home's level) adds to its
-	-- work and its battle stats (health, attack, defence)
+	-- homes and huts (GAME_DESIGN 4.1): a resident's comfort (its home's, plus this by the home's level) adds to its work
 	ComfortLvl = { 0, 0.04, 0.08 },
 	BoostMax = 0.6, -- the boost buildings' shares at one knack together, at most
+
+	-- the Tree of Life (GAME_DESIGN 6; Logic/Tree): it grows a driftling every TreeSecs[speed level] seconds into the
+	-- pen (it waits while the pen is full); the pen sends its best into the huts while they have room
+	TreeSecs = { 12, 11, 10, 9, 8, 7, 6, 5.2, 4.5, 4 }, -- the request: "it creates a creature every few seconds"
+	-- its luck: a rarity r's weight (Data/Traits.RARITY) times (1 + TreeLuck x (level - 1) + the huts' luck)^(r - 1)
+	TreeLuck = 0.12,
+	-- and a mutation roll as one rarity better every TreeMutLuck levels past the first
+	TreeMutLuck = 3,
+	-- the upgrades' prices, the level bought (index 1: the level every island starts at)
+	TreeSpeedCost = {
+		{ shells = 0, wood = 0 },
+		{ shells = 120, wood = 10 },
+		{ shells = 320, wood = 30 },
+		{ shells = 800, wood = 70 },
+		{ shells = 2000, wood = 180 },
+		{ shells = 5000, wood = 450 },
+		{ shells = 12000, wood = 1000 },
+		{ shells = 28000, wood = 2400 },
+		{ shells = 65000, wood = 5500 },
+		{ shells = 150000, wood = 12000 },
+	},
+	TreeLuckCost = {
+		{ shells = 0, wood = 0 },
+		{ shells = 160, wood = 15 },
+		{ shells = 420, wood = 40 },
+		{ shells = 1000, wood = 90 },
+		{ shells = 2500, wood = 220 },
+		{ shells = 6000, wood = 520 },
+		{ shells = 14000, wood = 1200 },
+		{ shells = 32000, wood = 2800 },
+		{ shells = 75000, wood = 6500 },
+		{ shells = 170000, wood = 14000 },
+	},
+	PenRoom = { 6, 8, 10, 12, 14, 16 }, -- driftlings the pen holds, by the island's tier
+	HutTree = 0.5, -- the huts' driftlings' Tree mutations together make it grow this much faster at most ...
+	HutLuck = 0.5, -- ... and their Lucky mutations add this much luck at most
+	-- selling a driftling: shells by its rarity, times 1 + SellTier x its mutations' tiers, times its sell share
+	SellPrice = { 2, 7, 25, 85, 320 },
+	SellTier = 0.25,
 
 	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings and a feast of food make an egg; by the child's rarity
 	BreedFood = { 40, 70, 120, 200, 400 }, -- food the feast takes
@@ -60,64 +100,6 @@ local Tuning = {
 	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does)
 	BreedTierUp = 0.3, -- one both carry comes out a tier better with this chance (a flaw: its family's first tier)
 	BreedNew = 0.15, -- the chance of a new mutation of its own (tier 1 or 2)
-
-	-- driftlings, villagers, the captain and battles (GAME_DESIGN 6, 7; Logic/Battle)
-	LevelGrow = 0.12, -- stats grow by this share of their level-1 values a level
-	LevelMax = 60,
-	XpBase = 12, -- the xp to the next level: XpBase x level ^ XpPow
-	XpPow = 1.35,
-	XpPerFoe = 4.5, -- xp a beaten wild one gives (times its level), shared by the party (lower since the fights got quicker)
-	TrainXp = 2, -- xp a day for each villager or driftling resting at a Training Yard
-	PartyMax = 3, -- members beside the captain
-	Supplies = 4, -- food each member takes on an expedition
-	SkillEvery = 3, -- a fighter's skill fires every this many actions
-	ShieldTake = 0.6, -- damage taken under a Shell Guard skill ...
-	ShieldSecs = 6, -- ... for this many seconds
-	-- timed battles (GAME_DESIGN 7; Logic/Battle): a fighter's timer fills in AtbTime x 2 x AtbRef / (AtbRef + speed)
-	-- seconds (AtbTime at speed AtbRef), within AtbMin .. AtbMax; one action plays at a time, for its events' seconds
-	-- (Battle.EVENT_SECS) times ActLock. In a crowded fight every timer fills slower (Battle.crowd), so that the
-	-- actions the timers ask for take about AtbShare of the time and a full timer seldom waits for another's action.
-	-- Quick since 2026-11-11 ("make attacking cooldowns much faster across all creatures"): about half the old wait
-	AtbTime = 1.3,
-	AtbRef = 10,
-	AtbMin = 0.6,
-	AtbMax = 2.8,
-	ActLock = 0.85,
-	AtbShare = 0.95,
-	-- the party's skill points in a battle (Data/Skills): this many a second while it runs, up to SpMax
-	SpRate = 0.5,
-	SpMax = 10,
-	-- snacks (thrown at wild ones to befriend them): SnackBase an expedition a pouch level; the pouch's levels' prices
-	SnackBase = 5,
-	PouchCost = { { shells = 0, wood = 0 }, { shells = 400, wood = 40 }, { shells = 1200, wood = 120 }, { shells = 3500, wood = 350 }, { shells = 9000, wood = 900 }, { shells = 20000, wood = 2000 } },
-	FleeBase = 0.55,
-	BossBoost = 1.7, -- a guardian's stats times this
-	RestHeal = 0.5,
-	StageWait = 6, -- seconds the expedition's curtain waits at most for the island's picture
-	-- the wild places on the island (GAME_DESIGN 7; Data/Sites, Logic/Expedition.isleOf): what one holds by its level
-	IsleFoodBase = 5, -- a loot node's food: base + per level x the level ...
-	IsleFoodLvl = 3.3,
-	IsleWoodBase = 2, -- ... its wood ...
-	IsleWoodLvl = 3.8,
-	IsleChestBase = 25, -- ... a chest's shells: base + per level x the level squared
-	IsleChestLvl2 = 2,
-	IsleRewardBase = 100, -- the guardian's reward: base + per level x the level squared ...
-	IsleRewardLvl2 = 19,
-	FirstClear = 3, -- ... times this the first time a place is cleared ...
-	ReplayReward = 0.4, -- ... times this on a later trip to a place already cleared
-	-- a place's path: six stops, then its guardian (and it ends there: cleared); harder every stage
-	BossEvery = 7, -- the guardian's stage
-	ClimbFull = 6, -- a place under this level climbs (its wild ones' levels, their boost, its guardian's) only its level
-	-- over this of the way: the first places are learnt on ("the lvl 1 cave should be easy enough to be beaten by
-	-- starting 2 members of the party all the time", 2026-11-12)
-	CatchBreath = 0.5, -- after a won fight in a low place the party gets back this share of its health, times the share
-	-- of the climb the place lacks (the level 1 place: about 0.42; none from ClimbFull up)
-	StageLvl = 0.5, -- the wild ones' level: this much more every stage (a level every other stage) ...
-	StageBoost = 0.02, -- ... and their health and attack this share more every stage (harder every stage)
-	StageLoot = 0.12, -- a stage's loot and chests: the place's times (1 + this x the stages before it)
-	SiteRadius = 2, -- nothing may be built within this many studs of a wild place's footprint (till it is cleared)
-	ClearCharm = 3, -- charm for each place cleared for the first time ...
-	ClearCharmMax = 15, -- ... up to this
 
 	-- server
 	StepHz = 10,
@@ -130,7 +112,7 @@ local Tuning = {
 	PathPieces = { 60, 120, 200, 300, 400, 500 }, -- path tiles, apart from the pieces
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
-	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode, on an islet's screen, sailing)
+	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode)
 
 	-- camera and pixel filter (Random Bakery's values; ARCHITECTURE 9)
 	CamYaw = 45,
@@ -149,12 +131,11 @@ local Tuning = {
 	PixelScaleSides = { 820, 1250, 1700, 2100 },
 	PixelSnapshotMsPerFrame = 2,
 	PixelBakeMsPerFrame = 6,
-	PixelStageBakeMs = 14, -- more ms a frame for an islet stage's bake (the expedition's curtain covers it)
 	PixelMaxRayDist = 1400,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	PixelDisplayOrder = -100,
-	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's villagers and driftlings, an islet's party)
+	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's villagers and driftlings)
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }
 

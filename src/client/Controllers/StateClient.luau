@@ -1,16 +1,19 @@
 --!strict
 -- The client's mirror of the server (docs/ARCHITECTURE.md 8.1): the latest ClientView (State messages), the server's
--- news (Fx messages: the island's stores every second, a new day, an expedition's steps) and requests. The client
--- never trusts itself: every change is a Router request.
+-- news (Fx messages: the island's stores and the tree's growth every second, a new day, what the Tree of Life grew) and
+-- requests. The client never trusts itself: every change is a Router request.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 
 local StateClient = {}
 
 local current: Types.ClientView? = nil
+-- the tree's growth as the server last said (seconds grown, its seconds a driftling) and when (the client runs it on)
+local grow, growSecs, growAt = 0, 1, 0
 StateClient.Changed = Util.Signal() :: Types.Signal<Types.ClientView>
 StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
 -- The island's stores every second (Fx "tick"): the view's shells, food, wood and time of day are patched in place,
@@ -22,6 +25,11 @@ function StateClient.init()
 	r.State.OnClientEvent:Connect(function(v: any)
 		if type(v) == "table" then
 			current = v :: Types.ClientView
+			local tr = (v :: any).tree
+			if type(tr) == "table" and type(tr.t) == "number" then
+				grow, growAt = tr.t, os.clock()
+				growSecs = Tree.secs(v :: any)
+			end
 			StateClient.Changed:Fire(v :: Types.ClientView)
 		end
 	end)
@@ -35,6 +43,10 @@ function StateClient.init()
 						(cur :: any)[k] = x
 					end
 				end
+				if type(msg.grow) == "number" and msg.grow == msg.grow and type(msg.secs) == "number" and msg.secs > 0 then
+					grow, growSecs, growAt = msg.grow, msg.secs, os.clock()
+					cur.tree.t = msg.grow
+				end
 				StateClient.Tick:Fire(cur)
 			end
 			StateClient.Fx:Fire(msg)
@@ -44,6 +56,18 @@ end
 
 function StateClient.view(): Types.ClientView?
 	return current
+end
+
+-- How far the Tree of Life is toward its next driftling now (0 .. 1: the server's last word run on by the clock; it
+-- holds at 1 while the pen is full) and its seconds a driftling.
+function StateClient.treeFrac(): (number, number)
+	local v = current
+	if v == nil then
+		return 0, 1
+	end
+	local full = Tree.inPen(v :: any) >= v.pen
+	local t = if full then growSecs else grow + (os.clock() - growAt)
+	return math.clamp(t / math.max(0.1, growSecs), 0, 1), growSecs
 end
 
 -- Wait (yielding) for the first view.

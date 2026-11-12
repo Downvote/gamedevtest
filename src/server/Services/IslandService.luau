@@ -1,20 +1,18 @@
 --!strict
 -- The island on the server (docs/ARCHITECTURE.md 7.4): every player action and the island's clock, as thin wrappers
--- round the shared rules (Logic/Island, Plot, Expedition) that mark the session dirty and tell the client what
--- happened. The island makes and eats every step (Island.step, those away on an expedition left out); its stores go
--- to the client every second (Fx "tick", so the whole view is not sent every second); a turn ends every
--- Tuning.TurnSeconds (Island.turn: a visitor may move in, the yard trains; Fx "turn"), and the sea's clock
--- (WorldClock: hours a day) counts the calendar days (Island.newDay; Fx "day"). Expeditions live in the
--- session: start, the next node, battle rounds, home (Fx "exp" carries each step's events for the client to play).
--- Everything runs while the player is here, whatever they do.
+-- round the shared rules (Logic/Island, Plot, Tree, Breed) that mark the session dirty and tell the client what
+-- happened. The island makes and eats every step (Island.step); the Tree of Life grows its driftlings into the pen and
+-- the pen sends its best to the huts (Tree.step; Fx "tree"); the stores and the tree's growth go to the client every
+-- second (Fx "tick", so the whole view is not sent every second); a turn ends every Tuning.TurnSeconds (Island.turn: a
+-- visitor may move in; the eggs; Fx "turn"), and the sea's clock (WorldClock: hours a day) counts the calendar days
+-- (Island.newDay; Fx "day"). Everything runs while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
-local Expedition = require(ReplicatedStorage.Shared.Logic.Expedition)
-local Battle = require(ReplicatedStorage.Shared.Logic.Battle)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Session = require(script.Parent.Session)
@@ -27,17 +25,21 @@ local IslandService = {}
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
 -- The tips (GAME_DESIGN 9): 1 food (a farm), 2 wood (a lumber camp), 3 shells (a shop), 4 a home (the first
--- castaway moves in at once: Island.welcome), 5 a nest and set sail, 6 the first fight, 7 catching a driftling with a
--- snack (Logic/Expedition moves 5 .. 7 on), 8 the last tip (OK ends them). Each moves on once what it asks is done.
+-- castaway moves in at once: Island.welcome), 5 a hut (the pen sends its best driftlings there to work), 6 the Tree of
+-- Life (a level of its luck or speed: `tree.upgrade` moves it on), 7 the last tip (OK ends them). Each moves on once
+-- what it asks is done.
 local function tips(s: Session.S)
 	local p = s.profile
 	-- the first home on an island nobody lives on yet: a castaway moves in now, not at a turn's end
 	local v = Island.welcome(p, s.rng)
 	if v then
 		Session.markDirty(s)
-		Session.fx(s, { kind = "turn", movedIn = v, trained = 0 })
+		Session.fx(s, { kind = "turn", movedIn = v })
 	end
-	if p.tut < 1 or p.tut > 4 then
+	if p.tut == 6 and (p.tree.luck > 1 or p.tree.speed > 1) then
+		p.tut = 7
+	end
+	if p.tut < 1 or p.tut > 5 then
 		return
 	end
 	local has: { [string]: boolean } = {}
@@ -47,23 +49,19 @@ local function tips(s: Session.S)
 			has[d.kind] = true
 		end
 	end
-	for step, kind in { "food", "wood", "shop", "home" } do
+	for step, kind in { "food", "wood", "shop", "home", "nest" } do
 		if p.tut == step and has[kind] then
 			p.tut = step + 1
 		end
 	end
 end
 
--- An expedition's end: the loot comes home, the party back to work.
-local function goHome(s: Session.S): { [string]: any }
-	local e = s.exp
-	if e == nil then
-		return {}
+-- The driftlings that moved (the pen sending its best on, or the player's pick) go to the client with the view.
+local function moved(s: Session.S, grown: { any }?, sent: { number }?)
+	if (grown and #grown > 0) or (sent and #sent > 0) then
+		Session.markDirty(s)
+		Session.fx(s, { kind = "tree", grown = grown, sent = sent })
 	end
-	local got = Expedition.home(s.profile, e)
-	Session.setExp(s, nil)
-	Session.markDirty(s)
-	return { got = got, over = e.over, befriended = e.befriended, isle = e.isle.name, site = e.site }
 end
 
 function IslandService.init()
@@ -72,6 +70,9 @@ function IslandService.init()
 		return function(s: Session.S, a: any): (boolean, any)
 			local ok, data = fn(s, a)
 			if ok then
+				-- (a hut built or gone: the pen sends its best on; a building of a knack: the resting take a job)
+				moved(s, nil, Tree.settle(s.profile))
+				Tree.fillJobs(s.profile)
 				PlotService.buildDecor(s)
 				tips(s)
 			end
@@ -93,11 +94,6 @@ function IslandService.init()
 	Router.on(
 		"plot.store",
 		rebuilt(function(s, a)
-			-- (not the wild place the party is in right now)
-			local q = s.profile.plot.placed[a.i]
-			if q and s.exp and s.exp.site == q.uid then
-				return false, "busy"
-			end
 			return Plot.store(s.profile, a.i)
 		end)
 	)
@@ -121,10 +117,6 @@ function IslandService.init()
 		end)
 	)
 	Router.on("island.expand", function(s, _a)
-		-- (the wild places that come up need the party at home: never mid-trip)
-		if s.exp then
-			return false, "busy"
-		end
 		local ok, data = Island.expand(s.profile)
 		if ok then
 			PlotService.build(s)
@@ -136,123 +128,31 @@ function IslandService.init()
 		return Island.setWork(s.profile, a.id, a.uid)
 	end)
 	Router.on("folk.dismiss", function(s, a)
-		if s.away["v" .. a.id] then
-			return false, "busy"
-		end
 		return Island.dismiss(s.profile, a.id)
 	end)
 	Router.on("pal.work", function(s, a)
 		return Island.setHelp(s.profile, a.id, a.uid)
 	end)
-	Router.on("pal.release", function(s, a)
-		if s.away["p" .. a.id] then
-			return false, "busy"
-		end
-		return Island.release(s.profile, a.id)
+	-- the Tree of Life and its pen (GAME_DESIGN 6): a driftling to a hut or the pen, selling, the tree's upgrades
+	Router.on("pal.house", function(s, a)
+		return Tree.house(s.profile, a.id, a.uid, a.swap)
 	end)
-	-- the Hatchery (GAME_DESIGN 6.1): two driftlings at home and a feast make an egg
+	Router.on("pal.sell", function(s, a)
+		return Tree.sell(s.profile, a.id)
+	end)
+	Router.on("pen.sell", function(s, a)
+		return Tree.sellPen(s.profile, a.r)
+	end)
+	Router.on("tree.upgrade", function(s, a)
+		local ok, data = Tree.upgrade(s.profile, a.what)
+		if ok then
+			tips(s)
+		end
+		return ok, data
+	end)
+	-- the Hatchery (GAME_DESIGN 6.1): two driftlings and a feast make an egg
 	Router.on("breed.start", function(s, a)
-		if s.away["p" .. a.a] or s.away["p" .. a.b] then
-			return false, "busy"
-		end
 		return Breed.start(s.profile, a.uid, a.a, a.b, s.rng)
-	end)
-	-- expeditions (GAME_DESIGN 7): into one of the island's wild places (its piece uid)
-	Router.on("exp.start", function(s, a)
-		if s.exp then
-			return false, "busy"
-		end
-		local members: { string } = {}
-		for part in string.gmatch(a.party, "[^,]+") do
-			table.insert(members, part)
-		end
-		local ok, e = Expedition.enter(s.profile, a.site, members)
-		if not ok then
-			return false, e
-		end
-		Session.setExp(s, e)
-		return true, { isle = e.isle, site = a.site }
-	end)
-	Router.on("exp.next", function(s, _a)
-		local e = s.exp
-		if e == nil then
-			return false, "no_exp"
-		end
-		local ok, data = Expedition.next(s.profile, e, s.rng)
-		if ok then
-			Session.fx(s, { kind = "exp", step = "node", data = data })
-		end
-		return ok, data
-	end)
-	-- the timed battle (GAME_DESIGN 7): the player's moves; the battle itself runs in `step`
-	local function battleDone(s: Session.S, data: any)
-		if type(data) == "table" and data.result then
-			Session.markDirty(s)
-			if data.cleared then
-				-- a wild place cleared: its piece is a cleared one now (the model, the ring gone)
-				PlotService.buildDecor(s)
-			end
-		end
-	end
-	Router.on("exp.snack", function(s, a)
-		local e = s.exp
-		if e == nil then
-			return false, "no_exp"
-		end
-		local ok, data = Expedition.snack(s.profile, e, a.target, s.rng)
-		if ok then
-			battleDone(s, data)
-			Session.fx(s, { kind = "exp", step = "act", data = data })
-		end
-		return ok, data
-	end)
-	Router.on("exp.skill", function(s, a)
-		local e = s.exp
-		if e == nil then
-			return false, "no_exp"
-		end
-		local ok, data = Expedition.skill(s.profile, e, a.who, a.skill, if a.target == "" then nil else a.target, s.rng)
-		if ok then
-			battleDone(s, data)
-			Session.fx(s, { kind = "exp", step = "act", data = data })
-		end
-		return ok, data
-	end)
-	Router.on("exp.flee", function(s, _a)
-		local e = s.exp
-		if e == nil then
-			return false, "no_exp"
-		end
-		local ok, data = Expedition.flee(s.profile, e, s.rng)
-		if ok then
-			battleDone(s, data)
-			Session.fx(s, { kind = "exp", step = "act", data = data })
-		end
-		return ok, data
-	end)
-	Router.on("exp.pause", function(s, a)
-		local e = s.exp
-		if e == nil then
-			return false, "no_exp"
-		end
-		return Expedition.pause(e, a.on)
-	end)
-	-- a bigger snack pouch (GAME_DESIGN 7: snacks an expedition, 5 up to 30); not while away
-	Router.on("pouch.upgrade", function(s, _a)
-		if s.exp then
-			return false, "busy"
-		end
-		return Expedition.upgradePouch(s.profile)
-	end)
-	Router.on("exp.home", function(s, _a)
-		local e = s.exp
-		if e == nil then
-			return false, "no_exp"
-		end
-		-- any time, a battle too (GAME_DESIGN 7: the wild ones are left behind, nothing is lost)
-		local data = goHome(s)
-		Session.fx(s, { kind = "exp", step = "home", data = data })
-		return true, data
 	end)
 	-- the founder's look (GAME_DESIGN 9): the player's attribute follows on the next sync
 	Router.on("founder.set", function(s, a)
@@ -286,16 +186,9 @@ function IslandService.init()
 	end)
 end
 
--- An expedition under way ends when its player leaves (the loot kept).
-function IslandService.leaving(s: Session.S)
-	if s.exp then
-		goHome(s)
-	end
-end
-
--- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes and eats, a turn ends
--- every TurnSeconds (a visitor may move in, the yard trains: Fx "turn"), and a calendar day's end on the sea's clock
--- counts a day (Fx "day").
+-- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes and eats, its tree grows,
+-- a turn ends every TurnSeconds (a visitor may move in, the eggs: Fx "turn"), and a calendar day's end on the sea's
+-- clock counts a day (Fx "day").
 function IslandService.step(dt: number)
 	WorldClock.advance(dt)
 	local today = WorldClock.dayIndex()
@@ -305,18 +198,21 @@ function IslandService.step(dt: number)
 		end
 		local p = s.profile
 		local hungry = p.food <= 0
-		Island.step(p, dt, s.away)
+		Island.step(p, dt)
 		if (p.food <= 0) ~= hungry then
 			Session.markDirty(s)
 		end
+		-- the Tree of Life: what grew into the pen, and the best of it sent on to the huts
+		local grown, sent = Tree.step(p, dt, s.rng)
+		moved(s, grown, sent)
 		s.turnClock += dt
 		if s.turnClock >= Tuning.TurnSeconds then
 			s.turnClock -= Tuning.TurnSeconds
-			local news = Island.turn(p, s.rng, s.away)
-			-- the eggs a turn nearer; the ready ones hatch into free nests
+			local news = Island.turn(p, s.rng)
+			-- the eggs a turn nearer; the ready ones hatch into the pen
 			local hatched = Breed.turn(p)
 			Session.markDirty(s)
-			Session.fx(s, { kind = "turn", movedIn = news.movedIn, trained = news.trained, hatched = if #hatched > 0 then hatched else nil })
+			Session.fx(s, { kind = "turn", movedIn = news.movedIn, hatched = if #hatched > 0 then hatched else nil })
 		end
 		if today > s.dayIndex then
 			s.dayIndex = today
@@ -324,33 +220,10 @@ function IslandService.step(dt: number)
 			Session.markDirty(s)
 			Session.fx(s, { kind = "day", day = p.day })
 		end
-		-- the expedition's battle runs on in time (paused while landing, aiming a snack or off the screen); what
-		-- happens goes to the client as it happens, the timers as they stand twice a second
-		local e = s.exp
-		if e and e.battle and not e.over then
-			local out = Expedition.tick(p, e, dt, s.rng)
-			if out then
-				if out.result then
-					Session.markDirty(s)
-					if out.cleared then
-						PlotService.buildDecor(s)
-					end
-				end
-				Session.fx(s, { kind = "exp", step = "act", data = out })
-				s.gaugeClock = 0
-			else
-				s.gaugeClock += dt
-				local b = e.battle
-				if b and not b.paused and s.gaugeClock >= 0.5 then
-					s.gaugeClock = 0
-					Session.fx(s, { kind = "exp", step = "timers", data = Battle.gauges(e.party, b) })
-				end
-			end
-		end
 		s.tickClock += dt
 		if s.tickClock >= 1 then
 			s.tickClock -= 1
-			Session.fx(s, { kind = "tick", shells = p.shells, food = p.food, wood = p.wood, dayFrac = WorldClock.dayFrac() })
+			Session.fx(s, { kind = "tick", shells = p.shells, food = p.food, wood = p.wood, dayFrac = WorldClock.dayFrac(), grow = p.tree.t, secs = Tree.secs(p) })
 		end
 	end
 end

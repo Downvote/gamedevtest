@@ -1,6 +1,7 @@
 --!strict
 -- The Hatchery (GAME_DESIGN 6.1: "make a breeding system that also works like in palworld that unlocks after a certain
--- island level"): two driftlings and a feast of food make an egg; it hatches after a few island turns into a free nest.
+-- island level"): two driftlings and a feast of food make an egg; it hatches after a few island turns into the Tree of
+-- Life's pen (Logic/Tree), which sends it on to a hut like the tree's own.
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
 --   nearest the parents' average (the commoner, then the first by name, on a tie). A legend only hatches from two
@@ -9,13 +10,14 @@
 --   comes out a tier better (a shared flaw turns into its family's first tier); one only a parent carries passes on
 --   with `BreedKeep`; with `BreedNew` it gains one of its own (tier 1 or 2 of a family neither carries). The best four.
 --   An egg is laid at a Hatchery with no egg (one each), for `BreedFood` food by the child's rarity, and takes
---   `BreedTurns` turns (Island.turn's, while the player is here); a ready egg waits for a free nest.
+--   `BreedTurns` turns (Island.turn's, while the player is here); a ready egg waits for room in the pen.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Island = require(script.Parent.Island)
+local Tree = require(script.Parent.Tree)
 
 type Profile = Types.Profile
 type Egg = Types.Egg
@@ -173,27 +175,25 @@ function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (
 	return true, egg
 end
 
--- A turn's end: every egg a turn nearer; the ready ones hatch into free nests (level 1, helping where their knack is
--- needed, in the Index), the rest wait. The hatched.
+-- A turn's end: every egg a turn nearer; the ready ones hatch into the pen while it has room (in the Index; the pen
+-- sends the best on to the huts), the rest wait. The hatched.
 function Breed.turn(p: Profile): { Types.Pal }
 	local born: { Types.Pal } = {}
 	local keep: { Egg } = {}
 	for _, egg in p.eggs do
 		egg.left = math.max(0, egg.left - 1)
 		local d = Creatures.byId[egg.sp]
-		if egg.left == 0 and d and #p.pals < math.min(Tuning.PalsMax, Island.nests(p)) then
-			local x: Types.Pal = { id = p.nextId, sp = egg.sp, lvl = 1, xp = 0, work = 0, muts = Traits.clean(egg.muts) }
-			p.nextId += 1
-			x.work = Island.freeJob(p, d.knack)
-			table.insert(p.pals, x)
-			p.seen[egg.sp] = 2
+		if egg.left == 0 and d and Tree.inPen(p) < Tree.penRoom(p) and #p.pals < Tuning.PalsMax then
+			table.insert(born, Tree.add(p, egg.sp, Traits.clean(egg.muts)))
 			p.stats.hatched += 1
-			table.insert(born, x)
 		else
 			table.insert(keep, egg)
 		end
 	end
 	p.eggs = keep
+	if #born > 0 then
+		Tree.settle(p)
+	end
 	return born
 end
 
