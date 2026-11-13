@@ -251,7 +251,7 @@ end
 -- decor (plot-local NW corners; the seeder moves each to the nearest spot that fits the coast).
 local VILLAGE = {
 	{ "patch", 6, -1 }, { "patch", 10, -1 }, { "lumber", 6, 3 }, { "pier", 10, 3 }, { "stall", 5, 11 },
-	{ "nest", -8, 0 }, { "nest", -11, 3 }, { "nest", -8, 5 }, { "nest", -6, 12 }, { "nest", -10, 9 },
+	{ "nest", -8, 0 }, { "nest", -11, 3 }, { "nest", -8, 5 }, { "nest", -6, 12 },
 	{ "flowers", 4, 13 }, { "palm", -12, 7 }, { "torch", 5, 1 }, { "bench", -5, -3 }, { "shellpile", 9, 8 },
 	{ "bush", -3, -4 }, { "hammock", 0, -4 }, { "flowers", -4, 14 }, { "torch", -5, 10 },
 }
@@ -654,8 +654,9 @@ function SCEN.visit()
 end
 
 -- Build mode: the tray (Wood tab), a piece picked with its ghost on a cell where it fits (cyan), then on the plaza
--- (red), then a tip under way (the tray on its tab, its building pulsing, the tip over the tray), then a hut picked up
--- and Replace (the bigger huts with their prices).
+-- (red), then a tip under way (the tray on its tab, its building pulsing, the tip over the tray), then the Huts tab with
+-- the island at its huts' limit (build_huts: "No room", 4/4), then a hut picked up and Replace (the bigger huts with
+-- their prices).
 function SCEN.build()
 	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "nest", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, pals = { "mossbun" }, shells = 3000, wood = 300 })
 	local p = join(54, "Builder")
@@ -711,8 +712,27 @@ function SCEN.build()
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
 		capture(p, "build_tip")
-		-- replacing a placed piece: a hut tapped, Replace, the huts of its kind with their prices
+		-- the huts' limit: two more huts make four, all a tier 1 island holds (Tuning.HutLimit)
 		prof.tut = 0
+		for _, at in { { -11, 5 }, { -5, -3 } } do
+			local done = false
+			for r = 0, 8 do
+				for dz = -r, r do
+					for dx = -r, r do
+						if not done and Plot.fits(1, prof.plot.placed, "nest", at[1] + dx, at[2] + dz, 0) then
+							table.insert(prof.plot.placed, { uid = prof.nextId, id = "nest", x = at[1] + dx, z = at[2] + dz, rot = 0, lvl = 1 })
+							prof.nextId += 1
+							done = true
+						end
+					end
+				end
+			end
+		end
+		H.push(p, 0.4)
+		H.clickNamed(p, "Tab_nest", { optional = true, wait = 0.3 })
+		settle(p, 10, 0.5)
+		capture(p, "build_huts")
+		-- replacing a placed piece: a hut tapped, Replace, the huts of its kind with their prices
 		prof.tier = 2
 		H.push(p, 0.4)
 		local tapped = false
