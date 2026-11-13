@@ -350,6 +350,7 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 			local x, z, rot = int(q.x, 0, -160, 64), int(q.z, 0, -160, 64), int(q.rot, 0)
 			-- (a fence runs east or south from an even corner)
 			local shape = if group == "fence" then (rot == 0 or rot == 90) and x % 2 == 0 and z % 2 == 0 else (rot == 0 or rot == 90 or rot == 180 or rot == 270)
+			-- (an old path tile moved off the even studs: refit clears it with its price back)
 			if uid > 0 and not used[uid] and shape then
 				used[uid] = true
 				counts[group] += 1

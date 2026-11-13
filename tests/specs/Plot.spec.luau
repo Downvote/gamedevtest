@@ -41,6 +41,8 @@ return function()
 		T.eq(select(2, Plot.fits(1, {}, "flowers", 0, 22, 0)), "outside", "on the beach")
 		T.eq(select(2, Plot.fits(1, {}, "flowers", 8.5, 4, 0)), "outside", "whole studs")
 		T.eq(select(2, Plot.fits(1, {}, "flowers", 8, 4, 45)), "outside", "quarter turns")
+		T.eq(select(2, Plot.fits(1, {}, "dirtpath", 9, 4, 0)), "outside", "a tile on the even studs")
+		T.truthy(Plot.fits(1, {}, "dirtpath", 8, 4, 0))
 		T.eq(select(2, Plot.fits(1, {}, "torch", 0, 4, 0)), "blocked", "on the plaza")
 		T.eq(select(2, Plot.fits(1, {}, "torch", 0, 12, 0)), "blocked", "on the path")
 		local placed = { { uid = 1, id = "flowers", x = 8, z = 4, rot = 0, lvl = 1 } }

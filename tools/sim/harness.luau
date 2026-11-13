@@ -382,18 +382,24 @@ function H.checkProfile(p, label)
 		H.expect(prof[k] == nil, "profile", label .. ": " .. k .. " left in the save (gone with the expeditions)")
 	end
 	H.expect(prof.tut >= 0 and prof.tut <= 6, "profile", label .. ": tips out of range", tostring(prof.tut))
-	-- the pieces: one Tree of Life, the rest within the island's limits
+	-- the pieces: one Tree of Life, the rest within the island's limits (each count to its own: the pieces, the tiles
+	-- (paths and water together), the fences); tiles and fences on the even grid, fences east or south
 	local placed = prof.plot.placed
-	local nPaths, nTrees = 0, 0
+	local n: { [string]: number } = { piece = 0, tile = 0, fence = 0, fixed = 0 }
 	for _, q in placed do
-		if Plot.isPath(q.id) then
-			nPaths += 1
-		elseif Plot.isFixed(q.id) then
-			nTrees += 1
+		local g = Plot.group(q.id)
+		n[g] = (n[g] or 0) + 1
+		if g == "tile" or g == "fence" then
+			H.expect(q.x % 2 == 0 and q.z % 2 == 0, "profile", label .. ": a tile or fence off the even grid", string.format("%s at %d,%d", q.id, q.x, q.z))
+		end
+		if g == "fence" then
+			H.expect(q.rot == 0 or q.rot == 90, "profile", label .. ": a fence turned " .. tostring(q.rot))
 		end
 	end
-	H.expect(nTrees == 1, "profile", label .. ": one Tree of Life", tostring(nTrees))
-	H.expect(#placed - nPaths - nTrees <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths - nTrees, nPaths))
+	H.expect(n.fixed == 1, "profile", label .. ": one Tree of Life", tostring(n.fixed))
+	for _, g in { "piece", "tile", "fence" } do
+		H.expect(n[g] <= Plot.groupLimit(g, prof.tier), "profile", label .. ": more " .. g .. "s than the island holds", string.format("%d of %d", n[g], Plot.groupLimit(g, prof.tier)))
+	end
 	-- the tree's eggs: no more than it lays, ids unique and below the next one's, a rarity each, its clock in range
 	local c = prof.clutch
 	local Tree = H.sharedServer("Logic.Tree")

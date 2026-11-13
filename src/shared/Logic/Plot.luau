@@ -227,6 +227,10 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 	if def.kind == "fence" then
 		return fenceFits(tier, placed, x, z, rot, skip)
 	end
+	-- (a tile lies on the even studs, as it is drawn: the water's banks follow its neighbours on that grid)
+	if (def.kind == "path" or def.kind == "water") and (x % 2 ~= 0 or z % 2 ~= 0) then
+		return false, "outside"
+	end
 	local r = Plot.rect(id, x, z, rot)
 	for cz = r.z0, r.z1 - 1 do
 		for cx = r.x0, r.x1 - 1 do

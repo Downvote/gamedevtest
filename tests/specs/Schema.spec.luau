@@ -395,8 +395,8 @@ return function()
 		full.wood = 0
 		local uid = 100
 		local r = Street.plot(1)
-		for z = r.z0, r.z1, 2 do
-			for x = r.x0, r.x1, 2 do
+		for z = r.z0 - r.z0 % 2, r.z1, 2 do
+			for x = r.x0 - r.x0 % 2, r.x1, 2 do
 				if Plot.fits(1, full.plot.placed, "stonepath", x, z, 0) and #full.plot.placed < Plot.pathLimit(1) then
 					uid += 1
 					table.insert(full.plot.placed, { uid = uid, id = "stonepath", x = x, z = z, rot = 0, lvl = 1 })

@@ -3,14 +3,21 @@
 # SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors, 0 issues everywhere.
 #   sim.luau        the main run: a new island (the loading card, the campfire, the Tree of Life with its first lot of
 #                   eggs, two cheap commons among them, the HUD's tree card, the tips), building in the tips' order for
-#                   wood (a camp, a patch, a hut, an egg hatched by tapping it, a stall), the tree in Build mode (moved,
-#                   never cleared away), the days turning, the eggs (the plot's Eggs attribute, the ring round the tree,
-#                   the price tags and their rules, the card's best three and the time to the next lot, hatching from
-#                   the card, a tag and the panel, the swap picker and its egg gone with a new lot, a new lot every
-#                   Tree.secs, a tap on the tree opening its panel), the Driftlings panel (move to a second hut, swap
-#                   back, work, sell in two taps), the Index panel, looks, settings, expanding for wood (the extra eggs,
-#                   the huts' limit), the questline (Hatch three eggs), a malicious client (egg.hatch payloads; its
-#                   deliberate NaN / infinity payloads are listed apart), a second player drawing both islands' eggs
+#                   wood (a camp, a patch, a hut, an egg hatched by tapping it, a stall; the tray turning to Work's
+#                   Wood row, Farms, Huts, Shops), the tree in Build mode (moved, never cleared away), the days
+#                   turning, the eggs (the plot's Eggs attribute, the ring round the tree, the price tags and their
+#                   rules, the card's best three and the time to the next lot, hatching from the card, a tag and the
+#                   panel, the swap picker and its egg gone with a new lot, a new lot every Tree.secs, a tap on the
+#                   tree opening its panel), the Driftlings panel (move to a second hut, swap back, work, sell in two
+#                   taps), the Index panel, looks, settings, expanding for wood (the extra eggs, the huts' limit, the
+#                   cheer naming the island), the build catalog (tabs and icons, chips, Decor's 13 themes, cards
+#                   cheapest first and locked after, tooltips, the search box, each tab's count), fences drawn (a
+#                   line, a box, one over another, Erase), a river with a bridge and lily pads (refused on grass,
+#                   taken up with their tile, the banks in the tiles' model names), decor put down with its effects,
+#                   Copy, Replace in its row, the keys R and Esc, the questline (Hatch three eggs, Go on build:wood),
+#                   a malicious client (egg.hatch, plot.fence, plot.unfence and plot.unpaint payloads; its deliberate
+#                   NaN / infinity payloads are listed apart), a second player drawing both islands' eggs, then
+#                   Expand past Sunspire Capital to Driftling Haven (Island max, land north of z -64, tiers 7 to 10)
 #   sim_save.luau   saves: leave and rejoin to the same profile (an egg hatched, the same eggs and ids back, their clock
 #                   where it stopped: nothing laid while away), a version 12 save (the tide) with its tree planted and
 #                   a lot laid, a version 11 save (the old tree, its levels, food, the pen sold; a new tree, the patch

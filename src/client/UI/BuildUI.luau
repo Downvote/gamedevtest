@@ -999,6 +999,8 @@ local function expandButton(f: Frame, v: Types.ClientView)
 			-- cheer when the bigger island is on screen (the server swaps in the island it built ahead; the filter
 			-- re-bakes it in a few frames), at most a moment later
 			local moved = if type(res.data) == "table" then tonumber(res.data.moved) or 0 else 0
+			-- (the island it grew into: the server's answer says, the view may still be the old one when this runs)
+			local grown = if type(res.data) == "table" then tonumber(res.data.tier) else nil
 			local cheered = false
 			local function cheer()
 				if cheered then
@@ -1006,8 +1008,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 				end
 				cheered = true
 				Audio.play("grow")
-				local nv = view()
-				local plan = Office.plan(if nv then nv.tier else v.tier + 1)
+				local plan = Office.plan(grown or v.tier + 1)
 				UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s had to move.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s. There's more to build now.", plan.name), UIKit.color("good"), 4)
 			end
 			PixelRenderer.afterBake(cheer)
@@ -1201,6 +1202,11 @@ local function cellAt(pos: Vector2, id: string, rot: number): (number?, number?)
 		local step = Plot.PATH_STEP
 		local lx, lz = hit.X - ox - (if rot == 0 then 1 else 0), hit.Z - oz - (if rot == 90 then 1 else 0)
 		return math.floor(lx / step + 0.5) * step, math.floor(lz / step + 0.5) * step
+	end
+	if Plot.isTile(id) then
+		-- (a tile moved stays on the even studs)
+		local step = Plot.PATH_STEP
+		return math.floor((hit.X - ox) / step) * step, math.floor((hit.Z - oz) / step) * step
 	end
 	local w, d = Plot.footprint(id, rot)
 	return math.floor(hit.X - ox - w / 2 + 0.5), math.floor(hit.Z - oz - d / 2 + 0.5)
