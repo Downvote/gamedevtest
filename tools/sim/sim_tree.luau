@@ -845,7 +845,7 @@ res = place("nest")
 H.expect(res.ok and prof.tut == 4, "build", "a hut: on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
 local hutUid = res.data and res.data.uid
 H.push(p, 0.4)
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "The Tree of Life laid eggs round its roots. Tap one to hatch it.", "build", "the tip: hatch an egg")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch.", "build", "the tip: hatch an egg")
 H.expect(Tree.room(prof) == Buildings.byId.nest.slots, "build", "the hut's room", tostring(Tree.room(prof)))
 local keepShells = prof.shells
 prof.shells = Tree.cost(prof, first.r) - 1

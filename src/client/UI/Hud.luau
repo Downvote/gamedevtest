@@ -388,7 +388,7 @@ local function updateTree(v: Types.ClientView)
 	local tap = Instance.new("TextButton")
 	tap.Name = "TreeCardTap"
 	tap.Text = ""
-	tap.AutoButtonColor = false
+	tap.AutoButtonColor = true -- (an enabled button: see-through, so the press shows nothing)
 	tap.BackgroundTransparency = 1
 	tap.Size = UDim2.new(1, 0, 1, -12)
 	tap.Position = UDim2.fromOffset(0, 12)

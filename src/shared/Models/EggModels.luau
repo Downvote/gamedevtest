@@ -100,7 +100,7 @@ end
 ------------------------------------------------------------------ the hatch scene's egg
 -- The egg up close (UI/HatchScene): the request of 2026-11-13, "the egg hatching scene isnt detailed enough. add much
 -- much more detail to it, especially the egg". Built `h` studs tall on its foot, facing the view (the camera looks from
--- +x +z: the side at azimuth 45 degrees is the front). The shell is nine overlapping balls along its axis, sized to an
+-- +x +z: the side at azimuth 45 degrees is the front). The shell is 25 overlapping balls along its axis, sized to an
 -- egg's profile (broad low, narrow high), so its outline is smooth; a shine high on the lit side (the top left); and the
 -- rarity's own work on it:
 --   common: cream with soft sandy patches and freckles of two browns;
@@ -195,7 +195,9 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		return FRONT + (rnd() * 2 - 1) * spread
 	end
 	-- the shell
-	for _, t in { 0.1, 0.15, 0.21, 0.28, 0.35, 0.42, 0.5, 0.57, 0.64, 0.71, 0.78, 0.84, 0.9 } do
+	-- (25 slices: close enough that the light never steps where two meet)
+	for k = 0, 24 do
+		local t = 0.1 + k / 24 * 0.81
 		local d = prof(t) * R * 2 * 0.99
 		add(Vector3.new(d, d, d), CFrame.new(0, t * h, 0), look.body, t, { shape = "Ball" })
 	end
@@ -301,13 +303,11 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			dab(0.43, a, 0.21 * u, "yellow")
 			bead(0.43, a, 0.14 * u, ({ "berry_red", "blue", "green" })[k % 3 + 1], true)
 		end
-		-- engraving: fine curls of amber above the band and below it
-		for k = 0, 5 do
-			local a0 = FRONT - 1.5 + k * 0.6 + 0.3
-			for j = 0, 6 do
-				local w = j / 6
-				dab(0.56 + w * 0.12, a0 + math.sin(w * math.pi * 1.5) * 0.14, 0.05 * u, "orange")
-				dab(0.3 - w * 0.1, a0 - math.sin(w * math.pi * 1.5) * 0.14, 0.05 * u, "orange")
+		-- glints of light here and there on the gold
+		for _ = 1, 7 do
+			local t = 0.2 + rnd() * 0.6
+			if math.abs(t - 0.43) > 0.06 then
+				bead(t, front(1.3), 0.09 * u, "white", true)
 			end
 		end
 		-- a crown round its top: a ring and points standing up out of it, each tipped with light

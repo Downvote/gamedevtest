@@ -11,6 +11,9 @@
 -- curtains on the two rarest nights, three ranges of hills going darker toward the front, the nearest with round and
 -- pointed trees in outline, two little islets floating far off, and a glow round the egg in dithered rings.
 --   HatchBackdrop.show(r, ex, ey)   paint rarity r's sky with the egg's glow at art pixel (ex, ey) and show it
+--   HatchBackdrop.step(dt)          the sky's life (a layer between the picture and the pixel layer, so the islet hides it):
+--                                   little flocks of birds flapping across a day or twilight sky, shooting stars and
+--                                   twinkling stars on a night one; all whole art pixels, solid colours
 --   HatchBackdrop.hide()            take it away (and free its image)
 --   HatchBackdrop.paint(r, W, H, ex, ey) -> buffer   the picture itself (RGBA, W x H)
 local Players = game:GetService("Players")
@@ -481,6 +484,22 @@ local gui: ScreenGui? = nil
 local label: ImageLabel? = nil
 local image: EditableImage? = nil
 
+-- the sky's life: its own ScreenGui between the painted sky and the pixel layer, pixels as K x K frames
+type Bird = { x: number, y: number, vx: number, ph: number, px: { Frame } }
+type Streak = { x: number, y: number, age: number, px: { Frame } }
+type Twinkle = { f: Frame, ph: number, rate: number }
+local life: ScreenGui? = nil
+local lifeK = 1
+local lifeW, lifeH = 0, 0
+local lifeR = 1
+local birds: { Bird } = {}
+local streak: Streak? = nil
+local streakAt = 0
+local twinkles: { Twinkle } = {}
+local lifeClock = 0
+local INK: { number } = { 0x6E4E78, 0x4F7A6A, 0x1F2A4C, 0, 0 } -- the birds' colour by rarity (none on the two nights)
+local newLife: (r: number, W: number, H: number, K: number) -> ()
+
 function HatchBackdrop.show(r: number, ex: number, ey: number)
 	local K = math.max(1, math.floor(PixelRenderer.pixelScale()))
 	local cam = workspace.CurrentCamera
@@ -507,7 +526,7 @@ function HatchBackdrop.show(r: number, ex: number, ey: number)
 		ng.Name = "HatchBackdrop"
 		ng.IgnoreGuiInset = true
 		ng.ScreenInsets = Enum.ScreenInsets.None
-		ng.DisplayOrder = Tuning.PixelDisplayOrder - 1
+		ng.DisplayOrder = Tuning.PixelDisplayOrder - 2
 		ng.ResetOnSpawn = false
 		local l = Instance.new("ImageLabel")
 		l.Name = "Image"
@@ -526,6 +545,129 @@ function HatchBackdrop.show(r: number, ex: number, ey: number)
 	if g then
 		g.Enabled = true
 	end
+	newLife(r, W, H, K)
+end
+
+local function pixel(parent: Instance, c: number): Frame
+	local f = Instance.new("Frame")
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = Color3.fromRGB(rgb(c))
+	f.Size = UDim2.fromOffset(lifeK, lifeK)
+	f.Parent = parent
+	return f
+end
+
+local function put(f: Frame, x: number, y: number)
+	f.Position = UDim2.fromOffset(math.floor(x) * lifeK, math.floor(y) * lifeK)
+end
+
+-- A bird's two wing beats (5 x 3 art px): wings up in a V, then level.
+local WINGS: { { { number } } } = {
+	{ { 0, 0 }, { 4, 0 }, { 1, 1 }, { 3, 1 }, { 2, 2 } },
+	{ { 0, 1 }, { 1, 1 }, { 3, 1 }, { 4, 1 }, { 2, 2 } },
+}
+
+newLife = function(r: number, W: number, H: number, K: number)
+	local old = life
+	if old then
+		old:Destroy()
+	end
+	table.clear(birds)
+	table.clear(twinkles)
+	streak = nil
+	lifeK, lifeW, lifeH, lifeR = K, W, H, r
+	local g = Instance.new("ScreenGui")
+	g.Name = "HatchSky"
+	g.IgnoreGuiInset = true
+	g.ScreenInsets = Enum.ScreenInsets.None
+	g.DisplayOrder = Tuning.PixelDisplayOrder - 1
+	g.ResetOnSpawn = false
+	g.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	life = g
+	local sky = SKIES[math.clamp(r, 1, 5)]
+	-- twinkling stars: a few bright pixels that come and go
+	if sky.stars > 0 then
+		for i = 1, 14 do
+			local f = pixel(g, if i % 3 == 0 then 0xFFF4C8 else 0xFFFFFF)
+			put(f, hash(i * 41 + 3) * W, hash(i * 59 + 1) * H * 0.5)
+			table.insert(twinkles, { f = f, ph = hash(i * 7) * 6.28, rate = 1.5 + hash(i * 13) * 2.5 })
+		end
+	end
+end
+
+local function newBird(x: number, y: number, vx: number, ph: number): Bird
+	local g = life :: ScreenGui
+	local px: { Frame } = {}
+	for _ = 1, 5 do
+		table.insert(px, pixel(g, INK[lifeR]))
+	end
+	return { x = x, y = y, vx = vx, ph = ph, px = px }
+end
+
+function HatchBackdrop.step(dt: number)
+	local g = life
+	if g == nil then
+		return
+	end
+	lifeClock += dt
+	local W, H = lifeW, lifeH
+	-- birds: a little flock now and then, flapping across the upper sky (day and twilight)
+	if INK[lifeR] ~= 0 and #birds == 0 and math.random() < dt * 0.6 then
+		local fromLeft = math.random() < 0.5
+		local y0 = H * (0.12 + math.random() * 0.25)
+		local n = math.random(2, 5)
+		for k = 1, n do
+			local dx = (k - 1) * 7 + math.random(0, 3)
+			local dy = (if k % 2 == 0 then 1 else -1) * math.floor(k / 2) * 3
+			table.insert(birds, newBird(if fromLeft then -6 - dx else W + dx, y0 + dy, (if fromLeft then 1 else -1) * (14 + math.random() * 4), math.random() * 6.28))
+		end
+	end
+	local keep: { Bird } = {}
+	for _, b in birds do
+		b.x += b.vx * dt
+		b.y += math.sin(lifeClock * 1.3 + b.ph) * dt * 2
+		if b.x < -12 or b.x > W + 12 then
+			for _, f in b.px do
+				f:Destroy()
+			end
+			continue
+		end
+		local beat = WINGS[(math.floor(lifeClock * 6 + b.ph) % 2) + 1]
+		for i, d in beat do
+			put(b.px[i], b.x + d[1], b.y + d[2])
+		end
+		table.insert(keep, b)
+	end
+	birds = keep
+	-- a shooting star now and then on the night skies: a bright head and a tail fading in steps
+	if lifeR >= 3 then
+		local st = streak
+		if st == nil and lifeClock >= streakAt then
+			local tail = { 0xFFFFFF, 0xE6E4FF, 0xB9B6E8, 0x8C88C6, 0x6A649E }
+			local px: { Frame } = {}
+			for _, c in tail do
+				table.insert(px, pixel(g, c))
+			end
+			streak = { x = W * (0.3 + math.random() * 0.6), y = H * (0.04 + math.random() * 0.15), age = 0, px = px }
+			streakAt = lifeClock + 2.5 + math.random() * 4
+		elseif st then
+			st.age += dt
+			local hx, hy = st.x - st.age * 90, st.y + st.age * 45
+			for i, f in st.px do
+				put(f, hx + (i - 1) * 2, hy - (i - 1))
+				f.Visible = st.age < 0.7
+			end
+			if st.age >= 0.7 then
+				for _, f in st.px do
+					f:Destroy()
+				end
+				streak = nil
+			end
+		end
+	end
+	for _, tw in twinkles do
+		tw.f.Visible = math.sin(lifeClock * tw.rate + tw.ph) > -0.2
+	end
 end
 
 function HatchBackdrop.hide()
@@ -533,6 +675,14 @@ function HatchBackdrop.hide()
 	if g then
 		g:Destroy()
 	end
+	local lg = life
+	if lg then
+		lg:Destroy()
+	end
+	life = nil
+	table.clear(birds)
+	table.clear(twinkles)
+	streak = nil
 	local im = image
 	if im then
 		im:Destroy()

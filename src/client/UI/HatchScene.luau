@@ -45,7 +45,7 @@ export type Result = { sp: string, muts: { string }, r: number, hr: number }
 local ORIGIN = Vector3.new(0, 0, 9000) -- far from the islands (z 0 .. -160)
 local NEST_Y = 0.3 -- the nest's bed (an egg's foot, what hatched stands here)
 local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8 } -- each rarity's egg up close (EggModels.hero), studs tall
-local PAL_SCALE = 1.5 -- what hatched, a little bigger than on the island
+local PAL_SCALE = 1.35 -- what hatched, a little bigger than on the island
 local BLIND = 12 -- the curtain's blinds (UI px)
 
 -- How grand each rarity's scene is (by the rarity it hatched as; the rocking by the rarity it was laid as).
@@ -187,16 +187,38 @@ local function buildSet(folder: Folder)
 	local function rod(a: Vector3, b: Vector3, w: number, color: string): BasePart
 		return part(Vector3.new(w, w, (b - a).Magnitude + w * 0.5), CFrame.lookAt((a + b) / 2, b), color)
 	end
+	-- (a round twig or stem from a to b)
+	local function twig(a: Vector3, b: Vector3, w: number, color: string): BasePart
+		return part(Vector3.new((b - a).Magnitude + w * 0.4, w, w), CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), color, "Cylinder")
+	end
+	-- (a pointed leaf or blade from a to its tip b, `w` wide, lying in the plane facing `n`: a wedge turned so its
+	-- triangle is the leaf; it sways in the wind like the islands' leaves)
+	local function blade(a: Vector3, b: Vector3, w: number, n: Vector3, color: string): BasePart
+		local p = part(Vector3.new(0.06, w, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b, n) * CFrame.Angles(0, 0, math.pi / 2), color, "Wedge")
+		p:SetAttribute("PixelWind", 1)
+		return p
+	end
+	-- (a four-sided pyramid on `base`: four corner wedges, their points over the middle)
+	local QUARTERS = { { -1, 1, 0 }, { 1, 1, math.pi / 2 }, { 1, -1, math.pi }, { -1, -1, -math.pi / 2 } }
+	local function cone(base: CFrame, w: number, h: number, color: string)
+		local q = w / 2
+		for _, sq in QUARTERS do
+			Blocks.part(folder, { size = Vector3.new(q, h, q), cf = CFrame.new(ORIGIN) * base * CFrame.new(sq[1] * q / 2, h / 2, sq[2] * q / 2) * CFrame.Angles(0, sq[3], 0), color = color, shape = "CornerWedge", collide = false })
+		end
+	end
 	-- the islet: grass on top, soil under it, stones under that
 	disc(ISLE * 2, 0.3, 0, -0.15, 0, "grass_dark")
 	disc(ISLE * 2 - 0.9, 0.06, 0, 0.03, 0, "grass")
 	disc(4.6, 0.06, 0.15, 0.05, 0.15, "moss")
 	disc(ISLE * 2 - 0.2, 0.75, 0, -0.66, 0, "wood_dark")
 	disc(ISLE * 2 - 1.0, 0.6, 0, -1.3, 0, "rock")
-	for k = 0, 15 do
-		local a = k / 16 * math.pi * 2 + rnd() * 0.2
+	for k = 0, 17 do
+		local a = k / 18 * math.pi * 2 + rnd() * 0.2
 		local rr = ISLE - 0.75 - rnd() * 0.3
-		part(Vector3.new(1.1 + rnd() * 0.5, 0.8 + rnd() * 0.4, 0.9), CFrame.new(math.cos(a) * rr, -1.45 - rnd() * 0.3, math.sin(a) * rr) * CFrame.Angles(rnd() * 0.4, -a, rnd() * 0.4), if k % 3 == 0 then "rock_dark" else "rock")
+		local cf = CFrame.new(math.cos(a) * rr, -1.45 - rnd() * 0.3, math.sin(a) * rr) * CFrame.Angles(rnd() * 0.4, -a, rnd() * 0.4)
+		part(Vector3.new(1.1 + rnd() * 0.5, 0.8 + rnd() * 0.4, 0.9), cf, if k % 3 == 0 then "rock_dark" else "rock", if k % 3 == 1 then "Wedge" else nil)
+		-- (a chip of stone jutting under it, a facet catching the light)
+		part(Vector3.new(0.5, 0.6, 0.5), cf * CFrame.new(0.2, -0.55, 0.15) * CFrame.Angles(math.pi, rnd() * 3, 0), "rock_dark", "CornerWedge")
 	end
 	for _, b in { { 0, -2.5, 0, 3.6, "rock_dark" }, { 1.3, -2.0, -0.7, 2.4, "rock" }, { -1.2, -2.1, 0.8, 2.6, "rock" }, { 0.7, -3.2, 0.8, 1.9, "rock_dark" }, { -0.5, -3.8, -0.3, 1.3, "rock" }, { 1.6, -1.8, 1.5, 1.4, "rock_dark" }, { -1.7, -1.9, -1.4, 1.5, "rock_dark" } } :: { { any } } do
 		ball(b[4], b[1], b[2], b[3], b[5])
@@ -225,14 +247,17 @@ local function buildSet(folder: Folder)
 		for k = 0, n - 1 do
 			local a = (k + ring * 0.5) / n * math.pi * 2
 			local y = 0.2 + ring * 0.13 + (k % 2) * 0.04
-			part(Vector3.new(0.85 + rnd() * 0.3, 0.13, 0.13), CFrame.new(math.cos(a) * rr, y, math.sin(a) * rr) * CFrame.Angles(0, -a + math.pi / 2 + (rnd() - 0.5) * 0.5, (rnd() - 0.5) * 0.5), TWIG[(k + ring) % #TWIG + 1])
+			local len = 0.85 + rnd() * 0.3
+			local tang = Vector3.new(-math.sin(a), (rnd() - 0.5) * 0.4, math.cos(a)).Unit
+			local c0 = Vector3.new(math.cos(a) * rr, y, math.sin(a) * rr)
+			twig(c0 - tang * len / 2, c0 + tang * len / 2, 0.13, TWIG[(k + ring) % #TWIG + 1])
 		end
 	end
 	-- (twigs sticking out of it)
 	for k = 0, 6 do
 		local a = k * 0.9 + 0.3
 		local p0 = Vector3.new(math.cos(a) * 1.3, 0.5, math.sin(a) * 1.3)
-		rod(p0, p0 + Vector3.new(math.cos(a + 0.4) * 0.6, 0.15 + rnd() * 0.25, math.sin(a + 0.4) * 0.6), 0.08, TWIG[k % #TWIG + 1])
+		twig(p0, p0 + Vector3.new(math.cos(a + 0.4) * 0.6, 0.15 + rnd() * 0.25, math.sin(a + 0.4) * 0.6), 0.08, TWIG[k % #TWIG + 1])
 	end
 	for k, f in { { 0.9, "white" }, { 2.0, "cream" }, { 3.3, "white" }, { 5.0, "cream" } } :: { { any } } do
 		local a = f[1]
@@ -252,6 +277,8 @@ local function buildSet(folder: Folder)
 		disc(1.9 * sc, 0.35 * sc, x, 1.5 * sc, z, "berry_red")
 		part(Vector3.new(1.7 * sc, 1.7 * sc, 1.7 * sc), CFrame.new(x, 1.35 * sc, z), "berry_red", "Ball")
 		disc(1.6 * sc, 0.08, x, 1.3 * sc, z, "cream")
+		disc(1.2 * sc, 0.06, x, 1.26 * sc, z, "sand_dark")
+		disc(0.75 * sc, 0.1, x, 0.95 * sc, z, "cream")
 		for k, d in { { 0.6, 0.5 }, { 1.4, 0.75 }, { 2.3, 0.45 }, { 0.2, 1.1 }, { 1.0, 1.25 }, { 2.0, 1.0 } } do
 			local _ = k
 			local a, e = d[1], d[2]
@@ -269,7 +296,12 @@ local function buildSet(folder: Folder)
 	-- a stump with a candle on it
 	post(1.2, 0.7, 2.6, 0, -1.9, "wood_dark")
 	disc(1.05, 0.06, 2.6, 0.71, -1.9, "wood")
-	disc(0.6, 0.065, 2.6, 0.72, -1.9, "wood_dark")
+	disc(0.75, 0.065, 2.6, 0.72, -1.9, "sand_dark")
+	disc(0.45, 0.07, 2.6, 0.73, -1.9, "wood")
+	for k = 0, 4 do
+		local a = k / 5 * math.pi * 2 + 0.3
+		part(Vector3.new(0.3, 0.4, 0.55), CFrame.new(2.6 + math.cos(a) * 0.7, 0.2, -1.9 + math.sin(a) * 0.7) * CFrame.Angles(0, -a - math.pi / 2, 0), "wood_dark", "Wedge")
+	end
 	post(0.22, 0.4, 2.65, 0.74, -1.85, "cream")
 	part(Vector3.new(0.14, 0.2, 0.14), CFrame.new(2.65, 1.25, -1.85), "orange", nil, true)
 	rod(Vector3.new(2.1, 0.05, -1.4), Vector3.new(1.8, 0.05, -1.1), 0.16, "wood_dark")
@@ -278,8 +310,10 @@ local function buildSet(folder: Folder)
 		post(0.22, 2.4, x, 0, z, "wood_dark")
 		part(Vector3.new(0.7, 0.12, 0.12), CFrame.new(x + 0.3, 2.35, z), "wood_dark")
 		part(Vector3.new(0.42, 0.5, 0.42), CFrame.new(x + 0.62, 1.95, z), "yellow", nil, true)
-		part(Vector3.new(0.52, 0.1, 0.52), CFrame.new(x + 0.62, 2.24, z), "wood_dark")
+		part(Vector3.new(0.56, 0.08, 0.56), CFrame.new(x + 0.62, 2.22, z), "wood_dark")
+		cone(CFrame.new(x + 0.62, 2.26, z), 0.62, 0.32, "wood_dark")
 		part(Vector3.new(0.52, 0.08, 0.52), CFrame.new(x + 0.62, 1.66, z), "wood_dark")
+		cone(CFrame.new(x + 0.62, 1.62, z) * CFrame.Angles(math.pi, 0, 0), 0.4, 0.14, "wood_dark")
 		part(Vector3.new(0.06, 0.5, 0.06), CFrame.new(x + 0.4, 1.95, z + 0.21), "wood_dark")
 		part(Vector3.new(0.06, 0.5, 0.06), CFrame.new(x + 0.84, 1.95, z - 0.21), "wood_dark")
 	end
@@ -287,9 +321,15 @@ local function buildSet(folder: Folder)
 	lantern(1.3, -3.4)
 	-- ferns, grass tufts, flowers and pebbles round the edge
 	local function fern(x: number, z: number, sc: number)
-		for k = 0, 5 do
-			local a = k / 6 * math.pi * 2 + x
-			part(Vector3.new(0.28 * sc, 0.07, 1.25 * sc), CFrame.new(x + math.cos(a) * 0.45 * sc, 0.33 * sc, z + math.sin(a) * 0.45 * sc) * CFrame.Angles(0, -a + math.pi / 2, 0) * CFrame.Angles(math.rad(-30), 0, 0), if k % 2 == 0 then "leaf" else "leaf_dark")
+		for k = 0, 6 do
+			local a = k / 7 * math.pi * 2 + x
+			local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+			local base = Vector3.new(x, 0.1, z)
+			local mid = base + dir * 0.55 * sc + Vector3.new(0, 0.55 * sc, 0)
+			local tip = base + dir * 1.15 * sc + Vector3.new(0, 0.3 * sc, 0)
+			local n = Vector3.new(0, 1, 0)
+			blade(base, mid, 0.3 * sc, n, if k % 2 == 0 then "leaf" else "leaf_dark")
+			blade(mid, tip, 0.26 * sc, n, if k % 2 == 0 then "leaf" else "leaf_dark")
 		end
 	end
 	fern(-3.4, -2.4, 1.05)
@@ -300,20 +340,21 @@ local function buildSet(folder: Folder)
 		local a = math.rad(-60 + k * 24) + rnd() * 0.2
 		local rr = ISLE - 0.4 - rnd() * 0.9
 		local x, z = math.cos(a) * rr, math.sin(a) * rr
-		for j = 0, 1 do
-			local lean = (j - 0.5) * 0.5 + (rnd() - 0.5) * 0.3
-			part(Vector3.new(0.06, 0.28 + rnd() * 0.18, 0.06), CFrame.new(x + j * 0.08, 0.16, z) * CFrame.Angles(0, a, lean), if (k + j) % 2 == 0 then "grass" else "leaf")
+		for j = 0, 2 do
+			local lean = Vector3.new((j - 1) * 0.12 + (rnd() - 0.5) * 0.1, 0.32 + rnd() * 0.2, (rnd() - 0.5) * 0.1)
+			local b0 = Vector3.new(x + (j - 1) * 0.08, 0.02, z)
+			blade(b0, b0 + lean, 0.1, Vector3.new(1, 0, 1).Unit, if (k + j) % 2 == 0 then "grass" else "leaf")
 		end
 	end
 	for k, f in { { 2.3, 2.0, "pink" }, { 2.8, 1.2, "yellow" }, { -1.6, 2.7, "white" }, { -2.4, 2.1, "pink" }, { 3.2, -2.9, "white" }, { -3.1, -3.4, "yellow" }, { 1.0, 3.1, "yellow" }, { 3.3, 0.9, "purple" }, { -0.4, 3.4, "pink" } } :: { { any } } do
 		local _ = k
-		post(0.07, 0.32, f[1], 0, f[2], "leaf_dark")
-		part(Vector3.new(0.18, 0.06, 0.08), CFrame.new(f[1] + 0.09, 0.16, f[2]) * CFrame.Angles(0, 0, 0.5), "leaf")
-		for j = 0, 4 do
-			local a = j / 5 * math.pi * 2
-			ball(0.14, f[1] + math.cos(a) * 0.1, 0.36, f[2] + math.sin(a) * 0.1, f[3])
+		twig(Vector3.new(f[1], 0, f[2]), Vector3.new(f[1] + 0.03, 0.34, f[2]), 0.06, "leaf_dark")
+		blade(Vector3.new(f[1], 0.04, f[2]), Vector3.new(f[1] + 0.22, 0.2, f[2] + 0.05), 0.12, Vector3.new(1, 0, 1).Unit, "leaf")
+		for j = 0, 5 do
+			local a = j / 6 * math.pi * 2
+			disc(0.16, 0.05, f[1] + math.cos(a) * 0.11, 0.37, f[2] + math.sin(a) * 0.11, f[3])
 		end
-		ball(0.1, f[1], 0.39, f[2], "yellow")
+		ball(0.12, f[1], 0.39, f[2], "yellow")
 	end
 	for k, pb in { { 1.7, 1.6 }, { -1.5, 1.8 }, { 1.9, -1.2 }, { -0.4, 2.3 }, { 2.9, 2.6 }, { -2.8, 2.9 } } do
 		part(Vector3.new(0.4, 0.22, 0.32), CFrame.new(pb[1], 0.11, pb[2]) * CFrame.Angles(0, pb[1], 0), if k % 2 == 0 then "rock" else "rock_dark")
@@ -883,6 +924,7 @@ local function step(s: Scene, dt: number)
 	stepShards(s, c, d)
 	fireflies(s, c)
 	stepDots(s, d)
+	HatchBackdrop.step(d)
 	if c >= s.crackAt + 0.35 and once(s, "name") then
 		showName(s)
 		s.phase = "reveal"
@@ -902,7 +944,7 @@ local function step(s: Scene, dt: number)
 	if c >= s.endAt and once(s, "hint") then
 		s.phase = "done"
 		local w, h = canvasSize()
-		local hint = UIKit.text(s.root, "Tap to go on", UDim2.fromOffset(w, 10), UDim2.fromOffset(0, 27), { x = "center", color = UIKit.color("text_dim"), z = 33, name = "HatchHint" })
+		local hint = UIKit.text(s.root, "Tap to go on", UDim2.fromOffset(w, 10), UDim2.fromOffset(0, 30), { x = "center", color = UIKit.color("text_dim"), z = 33, name = "HatchHint" })
 		s.hint = hint
 		local _ = h
 	end
@@ -1140,7 +1182,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 	local tap = Instance.new("TextButton")
 	tap.Name = "HatchTap"
 	tap.Text = ""
-	tap.AutoButtonColor = false
+	tap.AutoButtonColor = true -- (an enabled button: see-through, so the press shows nothing)
 	tap.BackgroundTransparency = 1
 	tap.Size = UDim2.fromScale(1, 1)
 	tap.ZIndex = 50
