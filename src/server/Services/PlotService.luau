@@ -17,7 +17,6 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local StreetModels = require(ReplicatedStorage.Shared.Models.StreetModels)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
@@ -220,9 +219,7 @@ local function pieceKey(q: { uid: number, id: string, x: number, z: number, rot:
 	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, q.lvl or 1)
 end
 
--- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones. The
--- Tree of Life's model goes by its stage (Tree.stage: it grows bigger at Luck milestones) in place of a level, so a
--- new stage builds it again.
+-- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones.
 function PlotService.buildDecor(s: S)
 	local static = staticOf(s.plot)
 	local decor = static:FindFirstChild("Decor")
@@ -235,9 +232,8 @@ function PlotService.buildDecor(s: S)
 	local d = decor :: Instance
 	local want: { [string]: boolean } = {}
 	local o = originOf(s.plot)
-	local stage = Tree.stage(s.profile)
 	for _, q in s.profile.plot.placed do
-		local lvl = if q.id == Tree.ID then stage else q.lvl or 1
+		local lvl = q.lvl or 1
 		local key = pieceKey({ uid = q.uid, id = q.id, x = q.x, z = q.z, rot = q.rot, lvl = lvl })
 		want[key] = true
 		if d:FindFirstChild(key) == nil then
@@ -303,8 +299,8 @@ function PlotService.sync(s: S)
 	local m = plotModel(s.plot)
 	local p = s.profile
 	-- who lives there: each driftling in a hut "id.species.work.home" (work: the uid of the building it works at, 0
-	-- resting; home: its hut). The Tree of Life's pen is no place on the island ("no need to render the pen, just a
-	-- ui should be enough"): its driftlings are left out.
+	-- resting; home: its hut; one with no hut, its hut cleared away, shows once it moves in). The tide: the ones
+	-- bobbing at the jetty "id.species" (every client draws every island's, Controllers/WorldView).
 	local pals = {}
 	for _, x in p.pals do
 		if (x.home or 0) ~= 0 then
@@ -320,6 +316,11 @@ function PlotService.sync(s: S)
 	set("Day", p.day)
 	set("Charm", Island.charm(p))
 	set("Pals", table.concat(pals, ";"))
+	local tide = {}
+	for _, d in s.tide.list do
+		table.insert(tide, string.format("%d.%s", d.id, d.sp))
+	end
+	set("Tide", table.concat(tide, ";"))
 	local f = p.founder
 	local look = string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt)
 	if s.player:GetAttribute("Founder") ~= look then

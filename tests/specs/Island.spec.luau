@@ -1,15 +1,16 @@
--- The island's rules (Logic/Island; GAME_DESIGN 3-6): what it makes and eats, charm and visitors, the driftlings at
--- work (from their huts, faster the rarer: they do all the work, no villagers), expanding.
+-- The island's rules (Logic/Island; GAME_DESIGN 3-6): what it makes (wood, and shells from the farms and shops; nothing
+-- eats), charm and visitors, the driftlings at work (from their huts, faster the rarer: they do all the work, no
+-- villagers), expanding (for wood).
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Island = require("../../build/luautest/shared/Logic/Island")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 
--- (an island with nothing on it, the tree too: the rules of building and living, apart from it: Tree.spec)
+-- (an island with nothing on it)
 local function fresh(): any
 	local p = Schema.default(0, 1)
-	p.shells, p.wood, p.food = 1e6, 1e6, 100
+	p.shells, p.wood = 1e6, 1e6
 	p.plot.placed = {}
 	return p
 end
@@ -31,53 +32,46 @@ local function worker(p: any, knack: string, hut: number, work: number): any
 end
 
 return function()
-	T.it("a new island: its stores, nothing built but its Tree of Life, nobody to feed", function()
+	T.it("a new island: its two stores, nothing built", function()
 		local p = Schema.default(0, 1)
 		T.eq(p.shells, Tuning.StartShells)
-		T.eq(p.food, Tuning.StartFood)
 		T.eq(p.wood, Tuning.StartWood)
-		T.eq(#p.plot.placed, 1, "the tree")
-		T.eq(Buildings.byId[p.plot.placed[1].id].kind, "tree")
+		T.eq((p :: any).food, nil, "no food")
+		T.eq(#p.plot.placed, 0)
 		local r = Island.rates(p)
-		T.eq(r.food, 0)
+		T.eq(r.wood, 0)
 		T.eq(r.shells, 0)
+		T.eq((r :: any).food, nil)
 		T.eq(Island.nests(p), 0)
 	end)
-	T.it("a building makes half with no driftling there; each driftling of its knack makes its share, more the rarer", function()
+	T.it("a building makes its share with no driftling there; each driftling of its knack makes its share, more the rarer", function()
 		local p = fresh()
 		local uid = put(p, "patch")
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * Tuning.IdleOutput, 1e-9)
+		-- (a farm sells what it grows: shells)
+		T.near(Island.rates(p).shells, Buildings.byId.patch.rate * Tuning.IdleOutput, 1e-9)
 		local hut = put(p, "nest")
 		table.insert(p.pals, { id = 99, sp = "mossbun", home = hut, work = uid })
 		-- (its share grows with its work share: the mossbun's passive is at farms)
 		local share = Island.palWork(p, p.pals[1])
 		T.truthy(share > 0, "a farm passive helps at a farm")
 		local one = Tuning.PalWork * Tuning.RarityWork[1] * (1 + share)
-		-- (the mossbun eats less: its passive)
-		local eat = Tuning.EatPal * (1 + (Island.fxOf(p.pals[1]).eat or 0))
-		T.truthy(eat < Tuning.EatPal)
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * one - eat, 1e-9, "one common: its share, no idle half")
+		T.near(Island.rates(p).shells, Buildings.byId.patch.rate * one, 1e-9, "one common: its share, no idle share")
 		-- a second, rarer one adds its own share, bigger by its rarity
 		table.insert(p.pals, { id = 98, sp = "bloomoth", home = hut, work = uid })
 		local share2 = Island.palWork(p, p.pals[2])
 		local two = one + Tuning.PalWork * Tuning.RarityWork[3] * (1 + share2)
 		T.truthy(two - one > one, "a rare one makes more than a common")
-		local eat2 = eat + Tuning.EatPal
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * two - eat2, 1e-9)
-		-- in the pen: neither works nor eats
+		T.near(Island.rates(p).shells, Buildings.byId.patch.rate * two, 1e-9)
+		-- with no hut: it doesn't work
 		p.pals[2].home = 0
 		p.pals[2].work = 0
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * one - eat, 1e-9)
+		T.near(Island.rates(p).shells, Buildings.byId.patch.rate * one, 1e-9)
 		table.remove(p.pals, 2)
-		-- hungry: everything at half
-		p.food = 0
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * one * Tuning.Hungry - eat, 1e-9)
 		-- a mutation for work makes it a better worker still
-		p.food = 100
 		p.pals[1].muts = { "grower3" }
 		T.truthy(Island.palWork(p, p.pals[1]) > share, "a farming mutation adds to it")
 	end)
-	T.it("wood and shops: a shop sells to visitors, eating food", function()
+	T.it("wood and shops: a camp makes wood, a shop sells to visitors", function()
 		local p = fresh()
 		local hut = put(p, "nest")
 		local camp = put(p, "lumber")
@@ -88,13 +82,7 @@ return function()
 		local r = Island.rates(p)
 		local k = math.min(2, Island.visitors(p) / Tuning.ShopVisitors) * Island.palBoost(p, v, 0)
 		T.near(r.shells, Buildings.byId.stall.rate * k, 1e-9)
-		local eat = 0
-		for _, x in p.pals do
-			eat += Tuning.EatPal * math.max(0.1, 1 + (Island.fxOf(x).eat or 0))
-		end
-		T.near(r.food, -Buildings.byId.stall.eats * k - eat, 1e-9)
-		p.food = 0
-		T.eq(Island.rates(p).shells, 0, "nothing to sell")
+		T.near(r.wood, Buildings.byId.lumber.rate * Island.palBoost(p, w, 0), 1e-9, "the shop takes no wood")
 	end)
 	T.it("charm and visitors", function()
 		local p = fresh()
@@ -107,21 +95,18 @@ return function()
 		end
 		T.eq(Island.visitors(p), Tuning.VisitorsMax)
 	end)
-	T.it("a turn: what it made, the food never below none", function()
+	T.it("a turn: what it made, the shells counted as earned", function()
 		local p = fresh()
 		local hut = put(p, "nest")
 		local x = worker(p, "farm", hut, put(p, "patch"))
-		local food = p.food
+		worker(p, "wood", hut, put(p, "lumber"))
+		local shells, wood, earned = p.shells, p.wood, p.stats.earned
 		local r = Island.rates(p)
 		Island.step(p, Tuning.TurnSeconds)
-		T.near(p.food, food + r.food, 1e-9)
-		T.truthy(r.food > 0 and x.work ~= 0)
-		x.work = 0
-		for _ = 1, 60 do
-			worker(p, "farm", hut, 0)
-		end
-		Island.step(p, Tuning.TurnSeconds * 10)
-		T.eq(p.food, 0)
+		T.near(p.shells, shells + r.shells, 1e-9)
+		T.near(p.wood, wood + r.wood, 1e-9)
+		T.near(p.stats.earned, earned + r.shells, 1e-9)
+		T.truthy(r.shells > 0 and r.wood > 0 and x.work ~= 0)
 	end)
 	T.it("a new calendar day counts the days; a day lasts hours, many turns", function()
 		local p = fresh()
@@ -144,7 +129,7 @@ return function()
 		T.truthy(Island.setHelp(p, 70, patch))
 		T.truthy(Island.setHelp(p, 71, patch))
 		T.eq(p.pals[1].work, patch, "two at one building")
-		T.eq(select(2, Island.setHelp(p, 72, patch)), "bad_payload", "the pen's don't work")
+		T.eq(select(2, Island.setHelp(p, 72, patch)), "bad_payload", "one with no hut doesn't work")
 		p.pals[3].home = hut
 		T.truthy(Island.setHelp(p, 72, patch))
 		T.eq(p.pals[1].work, 0, "a third: the first there goes back to rest")
@@ -157,22 +142,22 @@ return function()
 		T.truthy(Island.setHelp(p, 72, 0))
 		T.eq(p.pals[3].work, 0, "back to rest")
 	end)
-	T.it("expanding: its price, then the next, then no more", function()
+	T.it("expanding: its price in wood, then the next, then no more", function()
 		local p = fresh()
 		T.truthy(Island.expand(p))
 		T.eq(p.tier, 2)
-		T.eq(p.shells, 1e6 - Tuning.TierCost[2].shells)
+		T.eq(p.wood, 1e6 - Tuning.TierCost[2], "wood")
+		T.eq(p.shells, 1e6, "no shells")
 		p.wood = 0
 		T.eq(select(2, Island.expand(p)), "wood")
 		p.wood = 1e9
-		p.shells = 1e9
 		while p.tier < #Tuning.TierCost do
 			T.truthy(Island.expand(p))
 		end
 		T.eq(p.tier, 6, "six tiers: a castaway's cay to a capital")
 		T.eq(select(2, Island.expand(p)), "max")
 	end)
-	T.it("huts: a resident's comfort (its hut's and its level's) makes it work more; none in the pen", function()
+	T.it("huts: a resident's comfort (its hut's and its level's) makes it work more; none with no hut", function()
 		local p = fresh()
 		p.tier = 6
 		local farm = put(p, "patch")
@@ -181,15 +166,14 @@ return function()
 		table.insert(p.pals, x)
 		T.near(Island.homes(p).p500.comfort, Buildings.byId.den.comfort, 1e-9)
 		T.near(Island.palBoost(p, x, Buildings.byId.den.comfort), Tuning.PalWork * (1 + Island.palWork(p, x) + Buildings.byId.den.comfort), 1e-9)
-		local eat = Tuning.EatPal * (1 + (Island.fxOf(x).eat or 0))
-		T.near(Island.rates(p).food, Buildings.byId.patch.rate * Island.palBoost(p, x, Buildings.byId.den.comfort) - eat, 1e-9)
+		T.near(Island.rates(p).shells, Buildings.byId.patch.rate * Island.palBoost(p, x, Buildings.byId.den.comfort), 1e-9)
 		-- a hut's level (from an older save) adds comfort
 		p.plot.placed[2].lvl = 3
 		T.near(Island.homes(p).p500.comfort, Buildings.byId.den.comfort + Tuning.ComfortLvl[3], 1e-9)
 		x.home = 0
-		T.eq(Island.homes(p).p500, nil, "none in the pen")
+		T.eq(Island.homes(p).p500, nil, "none with no hut")
 	end)
-	T.it("charm: each driftling in a hut, with its charm effects; none for the pen's", function()
+	T.it("charm: each driftling in a hut, with its charm effects; none for one with no hut", function()
 		local p = fresh()
 		local base = Island.charm(p)
 		local hut = put(p, "nest")
@@ -204,10 +188,10 @@ return function()
 		local p = fresh()
 		p.tier = 6
 		local farm = put(p, "patch")
-		local base = Island.rates(p).food
+		local base = Island.rates(p).shells
 		put(p, "windmill")
 		T.near(Island.boosts(p).farm, 0.1, 1e-9)
-		T.near(Island.rates(p).food, base * 1.1, 1e-9)
+		T.near(Island.rates(p).shells, base * 1.1, 1e-9)
 		T.truthy(farm > 0)
 		put(p, "windmill")
 		T.near(Island.boosts(p).farm, 0.1, 1e-9, "a second windmill adds nothing")
@@ -242,12 +226,12 @@ return function()
 		end
 		local x = worker(p, "farm", hut, p.plot.placed[1].uid)
 		local before = #p.plot.placed
-		local shells = p.shells
+		local wood = p.wood
 		local ok, data = Island.expand(p)
 		T.truthy(ok)
 		T.eq(#p.plot.placed, before, "none lost")
 		T.eq(data.cleared, 0)
-		T.eq(p.shells, shells - Tuning.TierCost[2].shells, "nothing refunded")
+		T.eq(p.wood, wood - Tuning.TierCost[2], "nothing refunded")
 		local rest = {}
 		for _, q in p.plot.placed do
 			T.truthy(Plot.fits(p.tier, rest, q.id, q.x, q.z, q.rot), q.id .. " fits the bigger island")

@@ -1,8 +1,8 @@
 --!strict
 -- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the island's day clock,
 -- and what the client is sent. The client mirrors the profile through State messages (the whole ClientView, sent when
--- something changed: Session.dirty) and shows Fx messages (the stores and the tree every second, a new day, an egg
--- hatched, the driftlings the Tree of Life grew).
+-- something changed: Session.dirty) and shows Fx messages (the stores and the tide's clock every second, a new day, an
+-- egg hatched, the driftlings that drifted in and off). The tide (Logic/Tide.State) is the session's, never saved.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -10,7 +10,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
+local Tide = require(ReplicatedStorage.Shared.Logic.Tide)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -22,6 +22,7 @@ export type S = {
 	turnClock: number, -- seconds into the island's turn
 	dayIndex: number, -- the sea's calendar day when this island last counted one (WorldClock.dayIndex)
 	tickClock: number, -- seconds toward the next stores message
+	tide: Tide.State, -- the driftlings bobbing at the jetty (IslandService steps it)
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
@@ -41,10 +42,13 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		turnClock = 0,
 		dayIndex = WorldClock.dayIndex(),
 		tickClock = 0,
+		tide = Tide.new(),
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
 	}
+	-- (the jetty has a few bobbing there already when the player arrives)
+	Tide.start(profile, s.tide, s.rng)
 	sessions[player] = s
 	return s
 end
@@ -61,34 +65,21 @@ function Session.all(): { [Player]: S }
 	return sessions
 end
 
--- What the client sees: the profile plus what the rules derive from it. The driftlings: every one in a hut, and of
--- the pen (no room limit: it can hold tens of thousands) only its best Tuning.PenShown, how many wait there and how
--- many are commons, so the view stays small however big the pen grows.
+-- What the client sees: the profile plus what the rules derive from it, and the tide (each one's cost on this island).
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
 	local r = Island.rates(p)
-	local penTop, penN, penCommons = Tree.penView(p, Tuning.PenShown)
-	local pals: { Types.Pal } = {}
-	for _, x in p.pals do
-		if x.home ~= 0 then
-			table.insert(pals, x)
-		end
-	end
-	for _, x in penTop do
-		table.insert(pals, x)
-	end
 	return {
 		shells = p.shells,
-		food = p.food,
 		wood = p.wood,
 		day = p.day,
 		dayFrac = WorldClock.dayFrac(),
 		tier = p.tier,
 		founder = p.founder,
-		pals = pals,
-		penN = penN,
-		penCommons = penCommons,
-		tree = p.tree,
+		pals = p.pals,
+		tide = Tide.view(p, s.tide),
+		tideT = s.tide.t,
+		tideSecs = Tide.secs(p),
 		plot = s.plot,
 		pieces = p.plot.placed,
 		seen = p.seen,
@@ -97,7 +88,7 @@ function Session.view(s: S): Types.ClientView
 		quest = p.quest,
 		stats = p.stats,
 		settings = p.settings,
-		rates = { food = r.food, wood = r.wood, shells = r.shells },
+		rates = { wood = r.wood, shells = r.shells },
 		charm = Island.charm(p),
 		nests = Island.nests(p),
 		visitors = Island.visitors(p),

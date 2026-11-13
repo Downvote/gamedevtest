@@ -1,9 +1,9 @@
 --!strict
--- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Driftlings (the ones in huts: where each works,
--- moving and selling; the pen's are on the tree's panel), the Tree of Life (its speed and luck, the odds, its pen), the
--- Hatchery (two parents, an egg), Index (every driftling grown) and Looks (the founder's look). Every action is a
--- request; the panel rebuilds from the next view. The work picker is the same panel with an argument ({ pal = id }),
--- the hut picker too ({ move = id }).
+-- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Driftlings (every one: where each lives and works,
+-- moving and selling), the Tide (the ones bobbing at the jetty with their prices, the odds; every hut full, the swap
+-- picker), the Hatchery (two parents, an egg), Index (every driftling seen) and Looks (the founder's look). Every
+-- action is a request; the panel rebuilds from the next view. The work picker is the same panel with an argument
+-- ({ pal = id }), the hut picker too ({ move = id }), the swap picker the tide's ({ take = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -15,9 +15,10 @@ local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
+local Tide = require(ReplicatedStorage.Shared.Logic.Tide)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
+local TideView = require(script.Parent.Parent.Controllers.TideView)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
@@ -82,9 +83,9 @@ local function row(list: Instance, order: number, h: number): Frame
 	return f
 end
 
--- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tree).
+-- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tide).
 local function asProfile(v: Types.ClientView): any
-	return { plot = { placed = v.pieces }, pals = v.pals, tree = v.tree, tier = v.tier, shells = v.shells, wood = v.wood }
+	return { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier, shells = v.shells, wood = v.wood }
 end
 
 -- A driftling's portrait is 32 x 32 (drawn from its model: scripts/gen_art.py), at 4 px in a row: the row's words start
@@ -127,9 +128,9 @@ local function confirmButton(parent: Instance, text: string, size: UDim2, pos: U
 	b.ZIndex = 4
 end
 
--- How fast a driftling works ("Works x2.8": its rarity's speed and its work share at its knack, Logic/Tree.worth).
+-- How fast a driftling works ("Works x2.8": its rarity's speed and its work share at its knack, Logic/Tide.worth).
 local function workWord(x: Types.Pal): string
-	return string.format("Works x%.1f", Tree.worth(x))
+	return string.format("Works x%.1f", Tide.worth(x))
 end
 
 ------------------------------------------------------------------ the work picker
@@ -224,11 +225,10 @@ local function palById(v: Types.ClientView, id: number?): Types.Pal?
 	return nil
 end
 
--- The parent picker: the driftlings the view holds (every one in a hut, the pen's best; not the other parent), each
--- with its passive and mutations.
+-- The parent picker: the island's driftlings (not the other parent), each with its passive and mutations.
 local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, slot: string)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Pick a parent from the huts or the best in the pen. Its kind and mutations can pass to the egg.", W)
+	local top = hint(body, "Pick a parent. Its kind and mutations can pass to the egg.", W)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local pick: Pick = breedPick[uid] or {}
@@ -275,7 +275,7 @@ local function buildHatch(body: Frame, arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Two driftlings and a feast of food make an egg. It hatches a few turns later into the pen.", W)
+	local top = hint(body, "Two driftlings and a feast make an egg. It hatches a few turns later and moves into a hut.", W)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local hs = hatcheries(v)
@@ -338,20 +338,20 @@ local function buildHatch(body: Frame, arg: any?)
 			if pa and pb then
 				local sp = Breed.child(pa.sp, pb.sp)
 				local d = Creatures.byId[sp]
-				local food, turns = Breed.cost(sp)
+				local feast, turns = Breed.cost(sp)
 				local met = (v.seen[sp] or 0) >= 1
 				local rar = Traits.RARITY[if d then d.rarity else 1] or Traits.RARITY[1]
 				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(214, 5), 4)
 				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 10), { color = UIKit.color(rar.color), z = 4, name = "Child" })
 				UIKit.text(f, rar.name, UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 19), { color = UIKit.color(rar.color), z = 4 })
-				UIKit.text(f, string.format("A feast of %d food, %d turns. Shared mutations always pass on.", food, turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
+				UIKit.text(f, string.format("A feast for %s shells, %d turns. Shared mutations always pass on.", Numbers.coins(feast), turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
 				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 51), function()
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
 					if res.ok then
 						breedPick[q.uid] = nil
 						Audio.play("egg")
 					end
-				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.food >= food }).ZIndex = 4
+				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.shells >= feast }).ZIndex = 4
 			else
 				UIKit.text(f, "Pick two driftlings.", UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4 })
 			end
@@ -361,8 +361,8 @@ end
 
 ------------------------------------------------------------------ the hut picker
 -- Where a driftling lives (GAME_DESIGN 6: "the player can also select which creatures are sent to which hut"): every
--- hut, the comfiest first, with its room and comfort, then the pen. One with room: Move here. A full one: each of its
--- driftlings, to swap with (it goes to where this one was).
+-- hut, the comfiest first, with its room and comfort. One with room: Move here. A full one: each of its driftlings, to
+-- swap with (it goes to where this one was).
 local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back: string)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	local me = palById(v, id)
@@ -371,7 +371,7 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		UIKit.openPanel(back)
 		return
 	end
-	local top = hint(body, string.format("Where should %s live? Driftlings in huts work; the pen's wait.", md.name), W - 50)
+	local top = hint(body, string.format("Where should %s live? It works from its hut.", md.name), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
 		UIKit.openPanel(back)
 	end, { name = "Back", color = UIKit.color("plate_light") })
@@ -389,9 +389,9 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		order += 1
 		local f = row(list, order, 22)
 		f.Name = "Hut_" .. uid
-		PixelSprites.image(f, if uid == 0 then "mini_tree" else "mini_nest", UDim2.fromOffset(4, 5), 4)
+		PixelSprites.image(f, "mini_nest", UDim2.fromOffset(4, 5), 4)
 		UIKit.text(f, title, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
-		local sub = (if uid == 0 then string.format("%d waiting", n) else string.format("%d/%d", n, room)) .. (if comfort > 0 then string.format(", comfort +%d%%", math.round(comfort * 100)) else "")
+		local sub = string.format("%d/%d", n, room) .. (if comfort > 0 then string.format(", comfort +%d%%", math.round(comfort * 100)) else "")
 		UIKit.text(f, sub, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(18, 11), { color = if n >= room then UIKit.color("orange") else UIKit.color("text_dim"), z = 4 })
 		local here = me.home == uid
 		UIKit.button(f, if here then "Here now" elseif n >= room then "Full" else "Move here", UDim2.fromOffset(70, 14), UDim2.new(1, -74, 0, 4), function()
@@ -416,7 +416,7 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		end
 	end
 	local p = asProfile(v)
-	for _, h in Tree.huts(p) do
+	for _, h in Tide.huts(p) do
 		place(h.uid, buildingName(v, h.uid) or "Hut", h.n, h.room, h.comfort)
 	end
 	if order == 0 then
@@ -424,13 +424,12 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		local f = row(list, order, 22)
 		UIKit.text(f, "No huts yet. Build one from the Huts tab.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	place(0, "The pen (they stay there)", Tree.inPen(p), math.huge, 0)
 end
 
 ------------------------------------------------------------------ Driftlings
--- The driftlings in huts, the hardest workers first (the pen's are on the tree's panel: it can hold hundreds). Each:
--- its name in its rarity's colour, its rarity and how fast it works, its passive, its mutations, where it lives and
--- works; Move (the hut picker), Work (where it works) and Sell (two taps).
+-- Every driftling, the hardest workers first (one with no hut, its hut cleared away, last). Each: its name in its
+-- rarity's colour, its rarity and how fast it works, its passive, its mutations, where it lives and works; Move (the
+-- hut picker), Work (where it works) and Sell (two taps).
 local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: number, W: number, back: string)
 	local d = Creatures.byId[x.sp]
 	if d == nil then
@@ -448,7 +447,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	local where: string
 	local color = UIKit.color("text_dim")
 	if x.home == 0 then
-		where = if x.held then "In the pen (kept there)" else "In the pen"
+		where = "No hut. It moves in when one has room."
 		color = UIKit.color("orange")
 	else
 		local hut = buildingName(v, x.home) or "a hut"
@@ -466,7 +465,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	UIKit.button(f, "Work", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 16), function()
 		UIKit.openPanel("pals", { pal = x.id })
 	end, { name = "Help_" .. x.id, enabled = x.home ~= 0 }).ZIndex = 4
-	confirmButton(f, "Sell " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 30), function()
+	confirmButton(f, "Sell " .. Numbers.coins(Tide.price(x)), UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 30), function()
 		local res = ask("pal.sell", { id = x.id })
 		if res.ok then
 			Audio.play("coins")
@@ -474,26 +473,6 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 			UIKit.notice(string.format("Sold %s for %s shells.", d.name, Numbers.coins(got)), UIKit.color("good"))
 		end
 	end, "Sell_" .. x.id)
-end
-
--- Equip best (Tree.equipBest): the best of all the driftlings into the huts, in the Driftlings and Tree of Life panels.
--- Its width: the words and a little room.
-local function equipBest(parent: Instance, v: Types.ClientView, x: number, y: number): number
-	local w = UIKit.textWidth("Equip best") + 12
-	UIKit.button(parent, "Equip best", UDim2.fromOffset(w, 13), UDim2.fromOffset(x - w, y), function()
-		local res = ask("pen.best", {})
-		if res.ok then
-			local data = if type(res.data) == "table" then res.data else {}
-			local n, out = tonumber(data.moved) or 0, tonumber(data.out) or 0
-			if n == 0 and out == 0 then
-				UIKit.notice("The best ones are already in the huts.", UIKit.color("text"))
-			else
-				Audio.play("pop")
-				UIKit.notice(if out > 0 then string.format("Moved %d into the huts and %d back to the pen.", n, out) else string.format("Moved %d into the huts.", n), UIKit.color("good"))
-			end
-		end
-	end, { name = "EquipBest", enabled = v.penN > 0 and v.nests > 0 })
-	return w
 end
 
 local function buildPals(body: Frame, arg: any?)
@@ -506,7 +485,7 @@ local function buildPals(body: Frame, arg: any?)
 		return
 	end
 	if type(arg) == "table" and type(arg.move) == "number" then
-		buildHutPicker(body, v, arg.move, if arg.back == "tree" then "tree" else "pals")
+		buildHutPicker(body, v, arg.move, "pals")
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
@@ -516,15 +495,13 @@ local function buildPals(body: Frame, arg: any?)
 			housed += 1
 		end
 	end
-	-- the Tree of Life's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
-	-- (and Equip best beside them: the best of all into the huts)
+	-- the tide's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
 	local hasHatch = #hatcheries(v) > 0
-	local bx = W - (if hasHatch then 124 else 62)
-	local buttons = W - bx + equipBest(body, v, bx, 0) + 4
-	local top = hint(body, string.format("%d in huts (room for %d), %s in the pen. The pen sends its best to huts with room and work.", housed, v.nests, Numbers.int(v.penN)), W - buttons)
-	UIKit.button(body, "Tree", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
-		UIKit.openPanel("tree")
-	end, { name = "OpenTree", color = UIKit.color("button_ok") })
+	local buttons = if hasHatch then 128 else 66
+	local top = hint(body, string.format("%d in huts (room for %d). New ones float in at the jetty.", housed, v.nests), W - buttons)
+	UIKit.button(body, "Tide", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
+		UIKit.openPanel("tide")
+	end, { name = "OpenTide", color = UIKit.color("button_ok") })
 	if hasHatch then
 		UIKit.button(body, "Hatchery", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 122, 0), function()
 			UIKit.openPanel("hatch")
@@ -533,10 +510,50 @@ local function buildPals(body: Frame, arg: any?)
 	top = math.max(top, 16)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
-	if housed == 0 then
+	if #v.pals == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, if v.penN == 0 then "No driftlings yet. The Tree of Life grows one every few seconds into its pen." else "None in a hut yet. Build a hut, and a building that suits the ones in the pen.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then take one in when it floats up to the jetty." else "No driftlings yet. Tap a price at the jetty to take one in.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
+	local order: { Types.Pal } = table.clone(v.pals)
+	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
+		if (a.home == 0) ~= (b.home == 0) then
+			return a.home ~= 0
+		end
+		return Tide.better(a, b)
+	end)
+	for i, x in order do
+		palRow(list, v, x, i, W, "pals")
+	end
+end
+
+------------------------------------------------------------------ the tide
+-- (GAME_DESIGN 6) On the left: how often one drifts in (a bar to the next one), the huts' room, and the odds of each
+-- rarity now. On the right: the ones bobbing at the jetty, the next to drift off first, each with its portrait, name,
+-- rarity and how fast it works, its passive, its mutations and Take (its price in shells). With { take = id } (every
+-- hut full) the swap picker instead: the island's driftlings in huts, the weakest first, each with what it sells for
+-- and Swap (tide.take with it: it's sold and the new one takes its place).
+local function buildSwap(body: Frame, v: Types.ClientView, id: number)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local drift: Types.Drift? = nil
+	for _, d in v.tide do
+		if d.id == id then
+			drift = d
+		end
+	end
+	if drift == nil then
+		UIKit.notice("That one has drifted off.", UIKit.color("text_dim"))
+		UIKit.openPanel("tide")
+		return
+	end
+	local dr = drift :: Types.Drift
+	local def = Creatures.byId[dr.sp]
+	local name = if def then def.name else "It"
+	local top = hint(body, string.format("Every hut is full. Swap one out for %s (%s shells): the one you pick is sold.", name, Numbers.coins(dr.cost)), W - 50)
+	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
+		UIKit.openPanel("tide")
+	end, { name = "Back", color = UIKit.color("plate_light") })
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
+	UIKit.vlist(list, 2)
 	local order: { Types.Pal } = {}
 	for _, x in v.pals do
 		if x.home ~= 0 then
@@ -544,58 +561,35 @@ local function buildPals(body: Frame, arg: any?)
 		end
 	end
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
-		local wa, wb = Tree.worth(a), Tree.worth(b)
-		if math.abs(wa - wb) > 1e-9 then
-			return wa > wb
-		end
-		return a.id < b.id
+		return Tide.better(b, a)
 	end)
 	for i, x in order do
-		palRow(list, v, x, i, W, "pals")
-	end
-end
-
------------------------------------------------------------------- the Tree of Life
--- (GAME_DESIGN 6) On the left: how fast it grows (a bar to the next one), its Speed and Luck with their next level and
--- price, and the odds of each rarity now. On the right: its pen (no room limit), the best PEN_ROWS of it each with To
--- a hut and Sell, how many more wait, and Sell commons.
-local function upgradeRow(body: Instance, v: Types.ClientView, what: string, y: number, w: number)
-	local p = asProfile(v)
-	local lv = if what == "luck" then v.tree.luck else v.tree.speed
-	local cost = Tree.upgradeCost(p, what)
-	local label = if what == "luck" then "Luck" else "Speed"
-	UIKit.text(body, string.format("%s Lv %d", label, lv), UDim2.fromOffset(w - 70, 10), UDim2.fromOffset(0, y + 1), { color = UIKit.color("accent"), name = label .. "Level" })
-	local next = if cost == nil then "As high as it goes" elseif what == "speed" then string.format("Next: one every %.1fs", Tree.secs(p, lv + 1)) else string.format("Next: rare or better %d%%", math.round((function(): number
-		local o = Tree.odds(p, lv + 1)
-		return (o[3] + o[4] + o[5]) * 100
-	end)()))
-	UIKit.text(body, next, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, y + 13), { color = UIKit.color("text_dim"), name = label .. "Next" })
-	if cost then
-		-- the price: the shells it takes and the shell icon after them (no wood: the tree's levels take shells only)
-		local text = Numbers.coins(cost)
-		local can = v.shells >= cost
-		local bw = math.min(w - 50, math.max(48, UIKit.textWidth(text) + 22))
-		local b = UIKit.button(body, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw, y), function()
-			local res = ask("tree.upgrade", { what = what })
-			if res.ok then
-				Audio.play("reward")
-				UIKit.notice(string.format("The tree's %s is level %d now.", string.lower(label), lv + 1), UIKit.color("good"))
-			end
-		end, { name = "Upgrade_" .. what, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
-		-- (the words keep the room left of the icon)
-		local words = b:FindFirstChild("Words")
-		if words and words:IsA("GuiObject") then
-			words.Position = UDim2.fromOffset(2, 0)
-			words.Size = UDim2.new(1, -16, 1, 0)
+		local d = Creatures.byId[x.sp]
+		if d == nil then
+			continue
 		end
-		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
+		local f = row(list, i, 38)
+		f.Name = "SwapOut_" .. x.id
+		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
+		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		local tw = W - 106
+		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
+		mutLine(f, x.muts or {}, PX, 21, tw)
+		UIKit.button(f, "Swap", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
+			TideView.take(id, x.id)
+		end, { name = "SwapTake_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
+		UIKit.text(f, "Sells for " .. Numbers.coins(Tide.price(x)), UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("text_dim"), z = 4 })
 	end
 end
 
-local PEN_ROWS = 40 -- the pen's driftlings listed at most (it can hold hundreds)
-local function buildTree(body: Frame, _arg: any?)
+local function buildTide(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
+		return
+	end
+	if type(arg) == "table" and type(arg.take) == "number" then
+		buildSwap(body, v, arg.take)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
@@ -603,14 +597,11 @@ local function buildTree(body: Frame, _arg: any?)
 	local LW = math.min(150, math.floor(W * 0.42))
 	local RX = LW + 8
 	local RW = W - RX
-	-- how fast, and the bar to the next one (run on by the client between the server's ticks)
-	local secs = Tree.secs(p)
-	-- (at the save's limit the tree rests till some are sold or sent on: nothing is lost)
-	local resting = v.penN >= Tuning.PenSafe
-	UIKit.text(body, if resting then "Resting. Sell some to grow more." else string.format("Grows one every %.1fs", secs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = if resting then UIKit.color("orange") else UIKit.color("text"), name = "Pace" })
+	-- how often, and the bar to the next one (run on by the client between the server's ticks)
+	UIKit.text(body, string.format("One drifts in every %.0fs", v.tideSecs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
 	local back = UIKit.rect(body, UDim2.fromOffset(LW, 5), UDim2.fromOffset(0, 12), UIKit.color("ink"), 3)
-	back.Name = "GrowBar"
-	local fill = UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 4)
+	back.Name = "TideBar"
+	local fill = UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("button"), 4)
 	fill.Name = "Fill"
 	local conn: RBXScriptConnection? = nil
 	conn = RunService.Heartbeat:Connect(function()
@@ -620,15 +611,20 @@ local function buildTree(body: Frame, _arg: any?)
 			end
 			return
 		end
-		local k = StateClient.treeFrac()
+		local k = StateClient.tideFrac()
 		fill.Size = UDim2.fromOffset(math.floor((LW - 2) * k), 3)
 	end)
-	upgradeRow(body, v, "speed", 20, LW)
-	upgradeRow(body, v, "luck", 46, LW)
+	local housed = 0
+	for _, x in v.pals do
+		if x.home ~= 0 then
+			housed += 1
+		end
+	end
+	UIKit.text(body, string.format("In huts %d/%d", housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 20), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
 	-- the odds now, rarity by rarity
-	UIKit.text(body, "What it grows now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 72), { color = UIKit.color("text_dim") })
-	local odds = Tree.odds(p)
-	local y = 82
+	UIKit.text(body, "What drifts in now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 34), { color = UIKit.color("text_dim") })
+	local odds = Tide.odds(p)
+	local y = 44
 	for r = 1, 5 do
 		local rar = Traits.RARITY[r]
 		local pct = odds[r] * 100
@@ -637,72 +633,49 @@ local function buildTree(body: Frame, _arg: any?)
 		UIKit.text(body, txt, UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, y), { x = "right", color = if odds[r] > 0 then UIKit.color("text") else UIKit.color("text_dim") })
 		y += 10
 	end
-	-- the Luck the tree grows bigger at next (Tree.stage)
-	if y + 12 <= H then
-		local nextAt = Tree.nextStage(p)
-		UIKit.text(body, if nextAt then string.format("It grows bigger at Luck %d.", nextAt) else "It's fully grown.", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), name = "Stage" })
-		y += 11
+	if v.tier < 6 and y + 24 <= H then
+		local more = "A bigger island brings new kinds and rarer ones."
+		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
 	end
-	if v.tier < 6 and y + 12 <= H then
-		UIKit.text(body, "A bigger island grows new kinds.", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, y + 2), { color = UIKit.color("text_dim") })
-	end
-	-- the pen: the view carries its best few, in order, and how many wait there in all
-	local inPen: { Types.Pal } = {}
-	for _, x in v.pals do
-		if x.home == 0 then
-			table.insert(inPen, x)
-		end
-	end
-	local commons = v.penCommons
-	local ew = equipBest(body, v, W - 86, 0)
-	UIKit.text(body, "Pen " .. Numbers.int(v.penN), UDim2.fromOffset(math.max(20, RW - 90 - ew), 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "PenCount" })
-	UIKit.button(body, "Sell commons", UDim2.fromOffset(84, 13), UDim2.fromOffset(W - 84, 0), function()
-		local res = ask("pen.sell", { r = 1 })
-		if res.ok then
-			Audio.play("coins")
-			local got = if type(res.data) == "table" then tonumber(res.data.shells) or 0 else 0
-			local n = if type(res.data) == "table" then tonumber(res.data.sold) or 0 else 0
-			UIKit.notice(string.format("Sold %d for %s shells.", n, Numbers.coins(got)), UIKit.color("good"))
-		end
-	end, { name = "SellCommons", color = UIKit.color("button_warn"), enabled = commons > 0 })
-	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 16), UDim2.fromOffset(RX, 16))
+	-- the ones at the jetty
+	UIKit.text(body, "At the jetty", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Jetty" })
+	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
 	UIKit.vlist(list, 2)
-	if v.penN == 0 then
+	if #v.tide == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "Empty. New driftlings wait here till a hut has room and there's work for them.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "Nothing yet. The next one is on its way.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	local shown = math.min(#inPen, PEN_ROWS)
-	if v.penN > shown then
-		-- the rest only as a count (the view carries the pen's best few: it can hold tens of thousands)
-		local f = row(list, shown + 1, 14)
-		f.Name = "PenMore"
-		UIKit.text(f, string.format("%s more, the best listed first", Numbers.int(v.penN - shown)), UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4 })
-	end
-	for i, x in inPen do
-		if i > PEN_ROWS then
-			break
-		end
-		local d = Creatures.byId[x.sp]
-		if d == nil then
+	for i, d in v.tide do
+		local def = Creatures.byId[d.sp]
+		if def == nil then
 			continue
 		end
+		local x: Types.Pal = { id = 0, sp = d.sp, home = 0, work = 0, muts = d.muts }
 		local f = row(list, i, 38)
-		f.Name = "Pen_" .. x.id
-		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
-		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		f.Name = "Drift_" .. d.id
+		PixelSprites.image(f, "icon_" .. d.sp, UDim2.fromOffset(4, 3), 4)
+		local rar = Traits.RARITY[def.rarity] or Traits.RARITY[1]
 		local tw = RW - 106
-		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, def.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
 		UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
-		mutLine(f, x.muts or {}, PX, 21, tw)
-		UIKit.button(f, "To a hut", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
-			UIKit.openPanel("pals", { move = x.id, back = "tree" })
-		end, { name = "ToHut_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
-		confirmButton(f, "Sell " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 18), function()
-			local res = ask("pal.sell", { id = x.id })
-			if res.ok then
-				Audio.play("coins")
-			end
-		end, "PenSell_" .. x.id)
+		mutLine(f, d.muts, PX, 21, tw)
+		-- Take: its price (the shells and the shell icon after them)
+		local text = Numbers.coins(d.cost)
+		local can = v.shells >= d.cost
+		local b = UIKit.button(f, text, UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
+			TideView.take(d.id)
+		end, { name = "PanelTake_" .. d.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
+		b.ZIndex = 4
+		local words = b:FindFirstChild("Words")
+		if words and words:IsA("GuiObject") then
+			words.Position = UDim2.fromOffset(2, 0)
+			words.Size = UDim2.new(1, -16, 1, 0)
+		end
+		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
+		if i == 1 and #v.tide >= Tuning.TideMax then
+			-- (the oldest drifts off when the next one comes)
+			UIKit.text(f, "Leaving soon", UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("orange"), z = 4, name = "Leaving" })
+		end
 	end
 end
 
@@ -719,7 +692,7 @@ local function buildIndex(body: Frame, _arg: any?)
 			seen += 1
 		end
 	end
-	UIKit.text(body, string.format("Grown %d of %d kinds", seen, #Creatures.list), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Found" })
+	UIKit.text(body, string.format("Seen %d of %d kinds", seen, #Creatures.list), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Found" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
 	local cols = if W >= 300 then 3 else 2
 	local grid = Instance.new("UIGridLayout")
@@ -742,11 +715,11 @@ local function buildIndex(body: Frame, _arg: any?)
 		end
 		UIKit.text(f, rar.name, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(37, 13), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
 		if n >= 1 then
-			-- grown: its passive
+			-- seen: its passive
 			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 38), { color = UIKit.color("accent"), z = 4, name = "Passive" })
 			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 48), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
 		else
-			local from = if kind and kind.tier > v.tier then string.format("The tree grows these from island Lv %d.", kind.tier) else "Not grown yet."
+			local from = if kind and kind.tier > v.tier then string.format("These drift in from island Lv %d.", kind.tier) else "Not seen yet."
 			UIKit.text(f, from, UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 38), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 		end
 	end
@@ -797,7 +770,7 @@ end
 function Menus.init()
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
-	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 196, build = buildTree })
+	UIKit.registerPanel("tide", { title = "Tide", icon = "tide", w = 380, h = 196, build = buildTide })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
 	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 200, h = 106, build = buildLooks })
 	UIKit.PanelChanged:Connect(function(name: string?)

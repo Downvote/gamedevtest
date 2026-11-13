@@ -171,8 +171,8 @@ end
 
 -- A saved profile for `userId` (put in the fake cloud before they join): an island of `tier`; opts: pieces ({ id, x,
 -- z, rot? } wanted spots, placed where Logic/Plot says they fit, else at the nearest cell that does; upgraded to lvl
--- when given), pals (species: in the pen, which sends the best to the huts with room and work, where they work at
--- their knack), pen (species kept in the pen), luck, speed (the tree's levels), shells, food, wood, day, tut.
+-- when given), pals (species: into the huts with room, the best first, at work at their knack), shells, wood, day,
+-- tut, seen (kinds seen in the Index).
 local function seedProfile(userId, tier, opts)
 	opts = opts or {}
 	local Tuning = H.sharedServer("Config.Tuning")
@@ -181,9 +181,8 @@ local function seedProfile(userId, tier, opts)
 	local now = math.floor(E.now())
 	local prof = Schema.default(now, userId)
 	prof.tier = tier
-	local Tree = H.sharedServer("Logic.Tree")
+	local Tide = H.sharedServer("Logic.Tide")
 	prof.shells = opts.shells or 4800
-	prof.food = opts.food or 160
 	prof.wood = opts.wood or 420
 	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
@@ -215,24 +214,14 @@ local function seedProfile(userId, tier, opts)
 		prof.seen[sp] = 2
 		local _ = d
 	end
-	-- the pen sends the best into the huts, which take jobs (Logic/Tree); opts.pen: more in the pen, kept there
-	Tree.settle(prof)
-	Tree.fillJobs(prof)
-	for k, sp in opts.pen or {} do
-		local MUTS = { { "fierce2" }, {}, { "busy1", "swift1" }, {} }
-		Tree.add(prof, sp, MUTS[(k - 1) % #MUTS + 1]).held = 1
-	end
-	if opts.luck then
-		prof.tree.luck = opts.luck
-	end
-	if opts.speed then
-		prof.tree.speed = opts.speed
-	end
+	-- into the huts with room, the best first, at work (Logic/Tide)
+	Tide.settle(prof)
+	Tide.fillJobs(prof)
 	for _, sp in opts.seen or {} do
 		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
 	end
 	prof.stats.days = prof.day - 1
-	prof.stats.grown = #prof.pals
+	prof.stats.taken = #prof.pals
 	prof.stats.built = #prof.plot.placed
 	-- an egg warming in the first Hatchery (opts.egg: { sp, left, muts })
 	if opts.egg then
@@ -247,7 +236,7 @@ local function seedProfile(userId, tier, opts)
 	E.cloud.stores[key]["u_" .. userId] = { value = { data = prof }, meta = {}, userIds = { userId }, version = 1, created = now, updated = now }
 end
 
--- A tier-1 village round the plaza: food and wood east, the driftlings' huts west, a stall and a pier by the path,
+-- A tier-1 village round the plaza: farms and wood east, the driftlings' huts west, a stall and a pier by the path,
 -- decor (plot-local NW corners; the seeder moves each to the nearest spot that fits the coast).
 local VILLAGE = {
 	{ "patch", 6, -1 }, { "patch", 10, -1 }, { "lumber", 6, 3 }, { "pier", 10, 3 }, { "stall", 5, 11 },
@@ -269,7 +258,7 @@ local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup"
 ------------------------------------------------------------------ scenarios
 local SCEN = {}
 
--- A brand-new island: its Tree of Life, the founder, the HUD with the first tip.
+-- A brand-new island: the founder, the HUD with the first tip.
 function SCEN.island()
 	local p = join(1, "Pixel")
 	settle(p)
@@ -442,7 +431,7 @@ function SCEN.gallery()
 			z += 8
 		end
 	end
-	seedProfile(17, 6, { pieces = pieces, shells = 900000, wood = 60000, food = 5000 })
+	seedProfile(17, 6, { pieces = pieces, shells = 900000, wood = 60000 })
 	local p = join(17, "Gallery")
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -460,7 +449,7 @@ end
 
 function SCEN.city()
 	local CITY_PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
-	seedProfile(16, 6, { pieces = cityPieces(), pals = CITY_PALS, shells = 900000, wood = 60000, food = 5000})
+	seedProfile(16, 6, { pieces = cityPieces(), pals = CITY_PALS, shells = 900000, wood = 60000})
 	local p = join(16, "Capital")
 	settle(p)
 	E.run(2.5)
@@ -506,16 +495,16 @@ function SCEN.day()
 	return p
 end
 
--- A UI panel by name (UIKit.openPanel): pals, tree (the Tree of Life: its levels, the odds, a pen of driftlings),
--- index, looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents
--- picked through the panel).
+-- A UI panel by name (UIKit.openPanel): pals, tide (the driftlings at the jetty with their prices, the odds), index,
+-- looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents picked
+-- through the panel).
 local function panelScenario(name)
 	if name == "hatch" then
 		local pieces = table.clone(HARBOR)
 		table.insert(pieces, { "hatchery", 4, -18 })
-		seedProfile(20, 3, { pieces = pieces, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, food = 600, seen = { "glacior" } })
+		seedProfile(20, 3, { pieces = pieces, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, shells = 9000, seen = { "glacior" } })
 	else
-		seedProfile(20, 2, { pieces = VILLAGE, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, pen = { "pebblit", "frondle", "twiggle", "sunsprite" }, luck = 3, speed = 4, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
+		seedProfile(20, 2, { pieces = VILLAGE, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
 	end
 	local p = join(20, "Menus")
 	settle(p)
@@ -546,60 +535,50 @@ local function panelScenario(name)
 	return p
 end
 
--- The Tree of Life up close (GAME_DESIGN 6): a village's tree (tree), then two more grown into its pen (tree_grow: the
--- sparkle at the hollow; the pen is only a list), the founder standing in front of it.
-function SCEN.tree()
-	seedProfile(21, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin", "frondle" }, pen = { "pebblit", "conchy", "twiggle" } })
-	local p = join(21, "Grove")
+-- The tide at the jetty (GAME_DESIGN 6): a village's jetty with driftlings bobbing on their rafts, their names and
+-- prices over them, the founder on the jetty (tide); one more drifting in along the channel (tide_arrive); one taken
+-- in by its price tag, hopping ashore (tide_take); a rare one's lantern at night (tide_night).
+function SCEN.tide()
+	seedProfile(21, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000 })
+	local p = join(21, "Jetty")
 	settle(p)
-	local prof = H.profile(p)
+	local s = H.session(p)
 	local Street = H.sharedServer("Data.Street")
-	local Plot = H.sharedServer("Logic.Plot")
-	local tq = nil
-	for _, q in prof.plot.placed do
-		if q.id == "tree" then
-			tq = q
-		end
-	end
-	if tq and p.Character then
-		local ox, oz = Street.origin(H.session(p).plot)
-		local w, d = Plot.footprint(tq.id, tq.rot)
-		-- (to the tree's east, clear of it: the view centres on the founder, the whole tree beside them)
-		p.Character:PivotTo(E.cf.new(ox + tq.x + w + 3, 3, oz + tq.z + d / 2 - 1))
+	local Tide = H.sharedServer("Logic.Tide")
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(s.plot)
+	local j = Street.jetty(prof.tier)
+	if p.Character then
+		p.Character:PivotTo(E.cf.new(ox + 0.5, 3, oz + j.z0 - 1))
 		E.run(2)
 		settle(p, 30, 1)
 	end
-	capture(p, "tree")
-	-- (the tree ready: the next grows now)
-	prof.tree.t = 11.9
-	E.run(0.6)
-	capture(p, "tree_grow")
-	-- its Luck milestones ("make the tree look grander and bigger after certain level milestones for luck"): each
-	-- bought through the action, the model built again at its new stage; the founder further off to see it whole
-	local TreeL = H.sharedServer("Logic.Tree")
-	local Tun = H.sharedServer("Config.Tuning")
-	local CC = H.cmod(p, "Controllers.CameraController")
-	if tq and p.Character then
-		local ox, oz = Street.origin(H.session(p).plot)
-		local w, d = Plot.footprint(tq.id, tq.rot)
-		p.Character:PivotTo(E.cf.new(ox + tq.x + w + 2, 3, oz + tq.z + d + 2))
-		-- (the view held as a cutscene holds it, the same framing for every stage: on the ground 12 studs behind the
-		-- tree, so its foot sits low on the screen and the tallest crown fits above it)
-		H.inClient(p, function()
-			CC.setFocus(E.v3(ox + tq.x + w / 2, Street.LAWN_Y, oz + tq.z + d / 2 - 12), true)
-		end)
-		E.run(1.5)
-		settle(p, 30, 1)
-		capture(p, "tree_stage1")
+	-- (a full jetty: one of each kind of luck, a rare one among them)
+	while #s.tide.list < 3 do
+		Tide.drift(prof, s.tide, s.rng)
 	end
-	for st = 2, #Tun.TreeStages do
-		prof.tree.luck = Tun.TreeStages[st] - 1
-		prof.shells = math.max(prof.shells, 1e7)
-		local res = H.req(p, "tree.upgrade", { what = "luck" })
-		E.run(0.5)
-		settle(p, 30, 1)
-		log("tree: Luck %d, stage %d (%s)", prof.tree.luck, TreeL.stage(prof), tostring(res.ok))
-		capture(p, "tree_stage" .. st)
+	Tide.drift(prof, s.tide, s.rng, 3)
+	H.smod("PlotService").sync(s)
+	E.run(4)
+	settle(p, 30, 1)
+	capture(p, "tide")
+	-- the next one drifting in (the oldest drifting off)
+	s.tide.t = Tide.secs(prof) - 0.05
+	E.run(1.2)
+	capture(p, "tide_arrive")
+	E.run(3)
+	-- one taken in by its tag: it hops ashore at the jetty
+	local first = s.tide.list[#s.tide.list]
+	if first then
+		H.clickNamed(p, "TideTake_" .. first.id, { wait = 0.35 })
+	end
+	capture(p, "tide_take")
+	-- at night: a rare one's lantern lights the water round it
+	local DL = modOr(p, "Controllers.DayLight")
+	if DL then
+		H.inClient(p, DL.debugSet, 0.88)
+		E.run(1.5)
+		capture(p, "tide_night")
 	end
 	return p
 end
@@ -657,7 +636,7 @@ function SCEN.visit()
 	return p
 end
 
--- Build mode: the tray (Food tab), a piece picked with its ghost on a cell where it fits (cyan), then on the plaza
+-- Build mode: the tray (Wood tab), a piece picked with its ghost on a cell where it fits (cyan), then on the plaza
 -- (red), then a tip under way (the tray on its tab, its building pulsing, the tip over the tray), then a hut picked up
 -- and Replace (the bigger huts with their prices).
 function SCEN.build()

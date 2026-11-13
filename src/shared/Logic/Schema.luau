@@ -13,7 +13,7 @@ local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
-local Tree = require(script.Parent.Tree)
+local Tide = require(script.Parent.Tide)
 
 type Profile = Types.Profile
 
@@ -21,12 +21,11 @@ local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone);
--- 11: no villagers (the driftlings do all the work)
-Schema.VERSION = 11
+-- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food)
+Schema.VERSION = 12
 
--- driftlings a save may hold at most: a bound on garbage, past the pen's save limit (Tuning.PenSafe, where the tree
--- rests) and every hut's room on the biggest island
-local MAX_PALS = Tuning.PenSafe + 5000
+-- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
+local MAX_PALS = 5000
 
 local function num(v: any, default: number, lo: number?, hi: number?): number
 	if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -56,31 +55,28 @@ local function look(v: any): Types.Look
 end
 
 ------------------------------------------------------------------ default
--- A new island: Tuning.StartShells, StartFood and StartWood (enough for the tips' buildings), no driftling yet, and
--- its Tree of Life behind the campfire (Logic/Tree.plant).
+-- A new island: Tuning.StartWood (enough for the tips' buildings) and StartShells (the first driftlings off the tide),
+-- no driftling yet.
 function Schema.default(now: number, seed: number): Profile
 	local rng = Util.newRng(seed)
 	local p: Profile = {
 		v = Schema.VERSION,
 		shells = Tuning.StartShells,
-		food = Tuning.StartFood,
 		wood = Tuning.StartWood,
 		day = 1,
 		tier = 1,
 		founder = Island.randomLook(rng),
 		pals = {},
-		tree = { luck = 1, speed = 1, t = 0 },
 		plot = { placed = {} },
 		seen = {},
 		eggs = {},
 		nextId = 1,
 		tut = 1,
 		quest = 1,
-		stats = { days = 0, built = 0, earned = 0, grown = 0, sold = 0, best = 0, hatched = 0 },
+		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
-	Tree.plant(p)
 	return p
 end
 
@@ -108,6 +104,11 @@ end
 --   10 -> 11: no villagers (GAME_DESIGN 1: "remove villagers, only creatures should be enough"): the villagers go,
 --           every home comes down with its whole price back, the tips after the old tent step move one back (the
 --           tent's step is gone: 4 and 5 to 4, 6 to 5, 7 to 6).
+--   11 -> 12: the tide (GAME_DESIGN 6: "you can remove the tree of life, there should now be a steady stream of
+--           driftlings, with rarities that players can pick up") and two stores ("remove food as a resource"): the
+--           Tree of Life, its levels and its pen go; every driftling waiting in the pen is sold for its price (Logic/Tide
+--           .price: shells, counted as sold and earned); the food goes; the driftlings the tree grew count as taken in.
+--           The tips' steps keep their numbers (each moves on at once when what it asks is done: IslandService).
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -248,6 +249,49 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		v = 11
 	end
+	if v < 12 then
+		raw.tree = nil
+		raw.food = nil
+		local placed = if type(raw.plot) == "table" and type(raw.plot.placed) == "table" then raw.plot.placed else nil
+		if placed then
+			local keep: { any } = {}
+			for _, q in placed do
+				if not (type(q) == "table" and q.id == "tree") then
+					table.insert(keep, q)
+				end
+			end
+			raw.plot.placed = keep
+		end
+		local st = if type(raw.stats) == "table" then raw.stats else {}
+		raw.stats = st
+		local got, n = 0, 0
+		if type(raw.pals) == "table" then
+			local keep: { any } = {}
+			for _, x in raw.pals do
+				local home = if type(x) == "table" then tonumber(x.home) else nil
+				if type(x) == "table" and (home == nil or home == 0) and type(x.sp) == "string" and Creatures.byId[x.sp] then
+					got += Tide.price({ id = 0, sp = x.sp, home = 0, work = 0, muts = Traits.clean(x.muts) })
+					n += 1
+				else
+					if type(x) == "table" then
+						x.held = nil
+					end
+					table.insert(keep, x)
+				end
+			end
+			raw.pals = keep
+		end
+		if n > 0 then
+			raw.shells = (if type(raw.shells) == "number" then raw.shells else 0) + got
+			st.sold = (if type(st.sold) == "number" then st.sold else 0) + n
+			st.earned = (if type(st.earned) == "number" then st.earned else 0) + got
+		end
+		if type(st.grown) == "number" then
+			st.taken = st.grown
+		end
+		st.grown = nil
+		v = 12
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -261,20 +305,17 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 	if type(v) ~= "table" then
 		return out
 	end
-	local pieces, paths, trees = 0, 0, 0
+	local pieces, paths = 0, 0
 	for _, q in v do
 		local def = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
 		local path = def ~= nil and def.kind == "path"
-		local fixed = def ~= nil and def.kind == "tree"
-		if def and (if fixed then trees < 1 elseif path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
+		if def and (if path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
 			local uid = int(q.uid, 0, 0)
 			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
 			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
 				used[uid] = true
 				if path then
 					paths += 1
-				elseif fixed then
-					trees += 1
 				else
 					pieces += 1
 				end
@@ -308,7 +349,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	for _, q in placed do
 		ids[q.uid] = true
 	end
-	-- driftlings: a species that exists, a hut that stands (else the pen) with room for it, help only from a hut at a
+	-- driftlings: a species that exists, a hut that stands (else none) with room for it, help only from a hut at a
 	-- building of its knack (Tuning.HelpMax a building)
 	local pals: { Types.Pal } = {}
 	local helpers: { [number]: number } = {}
@@ -338,8 +379,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					if work ~= 0 then
 						helpers[work] = (helpers[work] or 0) + 1
 					end
-					local held = if home == 0 and x.held == 1 then 1 else nil
-					table.insert(pals, { id = id, sp = x.sp, home = home, work = work, muts = Traits.clean(x.muts), held = held })
+					table.insert(pals, { id = id, sp = x.sp, home = home, work = work, muts = Traits.clean(x.muts) })
 				end
 			end
 		end
@@ -360,24 +400,17 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		seen[x.sp] = 2
 		best = math.max(best, Creatures.byId[x.sp].rarity)
 	end
-	local tr = if type(r.tree) == "table" then r.tree else {}
 	local st = if type(r.stats) == "table" then r.stats else {}
 	local settings = if type(r.settings) == "table" then r.settings else {}
 	local pixel = settings.pixel
 	local out: Profile = {
 		v = Schema.VERSION,
 		shells = num(r.shells, d.shells, 0, 1e12),
-		food = num(r.food, d.food, 0, 1e12),
 		wood = num(r.wood, d.wood, 0, 1e12),
 		day = int(r.day, 1, 1),
 		tier = tier,
 		founder = if type(r.founder) == "table" then look(r.founder) else d.founder,
 		pals = pals,
-		tree = {
-			luck = int(tr.luck, 1, 1, #Tuning.TreeLuckCost),
-			speed = int(tr.speed, 1, 1, #Tuning.TreeSpeedCost),
-			t = num(tr.t, 0, 0, Tuning.TreeSecs[1]),
-		},
 		plot = { placed = placed },
 		seen = seen,
 		eggs = {},
@@ -388,7 +421,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			days = int(st.days, 0, 0),
 			built = int(st.built, #placed, 0),
 			earned = num(st.earned, 0, 0, 1e15),
-			grown = int(st.grown, 0, 0),
+			taken = int(st.taken, 0, 0),
 			sold = int(st.sold, 0, 0),
 			best = math.max(best, int(st.best, 0, 0, 5)),
 			hatched = int(st.hatched, 0, 0),
@@ -401,9 +434,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	}
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
-	-- the Tree of Life (an older save gets one), and the pen's best into any hut with room
-	Tree.plant(out)
-	Tree.settle(out)
+	-- the driftlings with no hut into any hut with room
+	Tide.settle(out)
 	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
 	local hatcheries: { [number]: boolean } = {}
 	for _, q in out.plot.placed do

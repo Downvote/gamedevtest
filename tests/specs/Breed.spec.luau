@@ -1,5 +1,5 @@
 -- The Hatchery (Logic/Breed; GAME_DESIGN 6.1): what a pair hatches, what it inherits, laying an egg (its rules and
--- refusals), the turns to a hatching into the pen (which never fills), and a Hatchery kept while it holds an egg.
+-- refusals), the turns to a hatching into a hut with room, and a Hatchery kept while it holds an egg.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Breed = require("../../build/luautest/shared/Logic/Breed")
@@ -11,7 +11,7 @@ local Util = require("../../build/luautest/shared/Logic/Util")
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
-	p.shells, p.wood, p.food = 1e6, 1e6, 1000
+	p.shells, p.wood = 1e6, 1e6
 	p.tier = 3
 	return p
 end
@@ -116,34 +116,30 @@ return function()
 		T.eq(select(2, Breed.start(p, h, a, a, rng)), "bad_payload", "the same one twice")
 		T.eq(select(2, Breed.start(p, h, a, 777, rng)), "not_found", "a driftling not here")
 		local sp = Breed.child("clawdle", "gullfin")
-		local food, turns = Breed.cost(sp)
-		p.food = food - 1
-		T.eq(select(2, Breed.start(p, h, a, b, rng)), "food")
-		p.food = food + 5
+		local feast, turns = Breed.cost(sp)
+		p.shells = feast - 1
+		T.eq(select(2, Breed.start(p, h, a, b, rng)), "money")
+		p.shells = feast + 5
 		local ok, egg = Breed.start(p, h, a, b, rng)
 		T.truthy(ok)
-		T.eq(p.food, 5, "the feast eaten")
+		T.eq(p.shells, 5, "the feast paid in shells")
 		T.eq(egg.sp, sp)
 		T.eq(egg.left, turns)
 		T.truthy(table.find(egg.muts, "fierce2") or table.find(egg.muts, "fierce3"), "the shared mutation passes on")
 		T.eq(#p.eggs, 1)
 		T.eq(select(2, Breed.start(p, h, a, b, rng)), "egg", "one egg a Hatchery")
-		-- a rarer egg takes more food and more turns
-		T.truthy(Tuning.BreedFood[5] > Tuning.BreedFood[1] and Tuning.BreedTurns[5] > Tuning.BreedTurns[1])
+		-- a rarer egg takes a bigger feast and more turns
+		T.truthy(Tuning.BreedShells[5] > Tuning.BreedShells[1] and Tuning.BreedTurns[5] > Tuning.BreedTurns[1])
 		-- not cleared away while it holds the egg
 		local i = #p.plot.placed
 		T.eq(select(2, Plot.store(p, i)), "egg")
 	end)
-	T.it("hatching: the turns count down; it hatches into the pen (in the Index), however many are there", function()
+	T.it("hatching: the turns count down; it hatches into a hut with room, or waits with no hut (in the Index)", function()
 		local p = fresh()
 		local rng = Util.newRng(4)
 		local a = friend(p, "mossbun")
 		local b = friend(p, "mossbun")
 		local h = put(p, "hatchery")
-		-- a crowded pen: no matter
-		for _ = 1, 40 do
-			friend(p, "pebblit")
-		end
 		local before = #p.pals
 		local _, egg = Breed.start(p, h, a, b, rng)
 		T.eq(egg.sp, "mossbun")
@@ -153,7 +149,7 @@ return function()
 		local born = Breed.turn(p)
 		T.eq(#born, 1, "it hatches")
 		T.eq(born[1].sp, "mossbun")
-		T.eq(born[1].home, 0, "into the pen")
+		T.eq(born[1].home, 0, "no hut on this island: it waits")
 		T.eq(#p.pals, before + 1)
 		T.eq(p.seen.mossbun, 2)
 		T.eq(p.stats.hatched, 1)

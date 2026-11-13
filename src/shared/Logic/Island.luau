@@ -1,17 +1,18 @@
 --!strict
--- The island's rules (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 6): what it makes and eats a turn, its charm and visitors,
+-- The island's rules (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 6): what it makes a turn, its charm and visitors,
 -- which driftling works where, expanding the island. The driftlings do all the work (the request of 2026-11-12:
 -- "remove villagers, only creatures should be enough"). Pure: IslandService calls these with the session's profile;
 -- the Economy spec plays whole sessions through the same functions. Actions return (true, data?) or (false, ErrCode)
 -- and change the profile only when they succeed.
 --
--- A turn (Tuning.TurnSeconds): each building of kind food, wood or shop makes its rate (Data/Buildings) times
+-- A turn (Tuning.TurnSeconds): each building of kind farm, wood or shop makes its rate (Data/Buildings) times
 --   (the work of its driftlings, up to Tuning.HelpMax: each PalWork x its rarity's RarityWork x (1 + its work share +
 --   its hut's comfort), its work share its passive's and mutations' (Data/Traits: work and the building's knack);
 --   IdleOutput with none)
---   x (the food has run out ? Hungry : 1) x (1 + the boost buildings' share at its knack)
--- a shop also times its visitors (visitors a turn / ShopVisitors, at most 2) and eats its `eats` food likewise;
--- driftlings in huts eat EatPal (times their eat share); the pen's eat nothing and don't work.
+--   x (1 + the boost buildings' share at its knack)
+-- a wood building makes wood; a farm sells what it grows for shells; a shop sells to the visitors for shells, times
+-- its visitors (visitors a turn / ShopVisitors, at most 2). Nothing eats (food went on 2026-11-13: "remove food as a
+-- resource"); a driftling with no hut doesn't work.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -27,7 +28,7 @@ type ErrCode = Types.ErrCode
 
 local Island = {}
 
-export type Rates = { food: number, wood: number, shells: number, made: number, eaten: number }
+export type Rates = { wood: number, shells: number }
 
 function Island.piece(p: Profile, uid: number): Piece?
 	for _, q in p.plot.placed do
@@ -74,8 +75,8 @@ function Island.visitors(p: Profile): number
 	return math.min(Tuning.VisitorsMax, 1 + Island.charm(p) / Tuning.VisitorCharm)
 end
 
--- Each driftling's hut and its comfort (its own and its level's), keyed "p<id>" (Pal.home: the Tree of Life's pen sends
--- them there, or the player does; Logic/Tree), none for the pen's.
+-- Each driftling's hut and its comfort (its own and its level's), keyed "p<id>" (Pal.home: Logic/Tide), none for one
+-- with no hut.
 export type Home = { uid: number, comfort: number }
 function Island.homes(p: Profile): { [string]: Home }
 	local out: { [string]: Home } = {}
@@ -117,7 +118,7 @@ end
 -- Whether a building takes workers (it makes something).
 function Island.works(id: string): boolean
 	local d = Buildings.byId[id]
-	return d ~= nil and (d.kind == "food" or d.kind == "wood" or d.kind == "shop")
+	return d ~= nil and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop")
 end
 
 -- A driftling's work share where it helps (Data/Traits.workAt: its passive's and mutations' work and the building's
@@ -130,19 +131,19 @@ function Island.palWork(p: Profile, pal: Types.Pal): number
 end
 
 -- What a driftling makes at the building it works at, in shares of the building's rate: PalWork x its rarity's
--- RarityWork x (1 + its work share + its hut's comfort). `comfort`: its hut's (Island.homes), 0 in the pen.
+-- RarityWork x (1 + its work share + its hut's comfort). `comfort`: its hut's (Island.homes), 0 with no hut.
 function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?): number
 	local d = Creatures.byId[pal.sp]
 	local r = if d then d.rarity else 1
 	return Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0))
 end
 
--- What a turn makes and eats now.
+-- What a turn makes now.
 function Island.rates(p: Profile): Rates
-	local out = { food = 0, wood = 0, shells = 0, made = 0, eaten = 0 }
+	local out = { wood = 0, shells = 0 }
 	local homes = Island.homes(p)
 	local boosts = Island.boosts(p)
-	-- the working driftlings' shares (each in a hut: the pen's don't work), added up at each building
+	-- the working driftlings' shares (each in a hut), added up at each building
 	local helper: { [number]: number } = {}
 	for _, pal in p.pals do
 		local h = homes["p" .. pal.id]
@@ -150,45 +151,31 @@ function Island.rates(p: Profile): Rates
 			helper[pal.work] = (helper[pal.work] or 0) + Island.palBoost(p, pal, h.comfort)
 		end
 	end
-	local hungry = p.food <= 0
 	local shop = math.min(2, Island.visitors(p) / Tuning.ShopVisitors)
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 then
-			local k = (helper[q.uid] or Tuning.IdleOutput) * (if hungry then Tuning.Hungry else 1) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
-			if d.kind == "food" then
-				out.food += d.rate * k
-				out.made += d.rate * k
-			elseif d.kind == "wood" then
+			local k = (helper[q.uid] or Tuning.IdleOutput) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
+			if d.kind == "wood" then
 				out.wood += d.rate * k
-			elseif d.kind == "shop" and not hungry then
+			elseif d.kind == "farm" then
+				out.shells += d.rate * k
+			elseif d.kind == "shop" then
 				out.shells += d.rate * k * shop
-				out.food -= d.eats * k * shop
-				out.eaten += d.eats * k * shop
 			end
 		end
 	end
-	local eat = 0
-	for _, pal in p.pals do
-		if pal.home ~= 0 then
-			eat += Tuning.EatPal * math.max(0.1, 1 + (Island.fxOf(pal).eat or 0))
-		end
-	end
-	out.food -= eat
-	out.eaten += eat
 	return out
 end
 
--- dt seconds of the island's turns: what it made and ate (fractions; the food never goes below none). Returns the
--- shells made (the stats count them).
+-- dt seconds of the island's turns: what it made (fractions; the stats count the shells).
 function Island.step(p: Profile, dt: number): Rates
 	local r = Island.rates(p)
 	local k = dt / Tuning.TurnSeconds
-	p.food = math.max(0, p.food + r.food * k)
 	p.wood += r.wood * k
 	p.shells += r.shells * k
 	p.stats.earned += r.shells * k
-	return { food = r.food * k, wood = r.wood * k, shells = r.shells * k, made = r.made * k, eaten = r.eaten * k }
+	return { wood = r.wood * k, shells = r.shells * k }
 end
 
 ------------------------------------------------------------------ looks, work and the days
@@ -197,7 +184,7 @@ function Island.randomLook(rng: Rng): Types.Look
 	return { skin = rng:int(1, #Looks.skin), hair = rng:int(1, #Looks.hair), style = rng:int(1, #Looks.styles), shirt = rng:int(1, #Looks.shirt) }
 end
 
--- A building of a driftling's knack with fewer than Tuning.HelpMax driftlings working there (food first, then wood,
+-- A building of a driftling's knack with fewer than Tuning.HelpMax driftlings working there (farms first, then wood,
 -- then shops; the emptiest first, then the first built), or 0.
 function Island.freeJob(p: Profile, knack: string): number
 	local taken: { [number]: number } = {}
@@ -207,7 +194,7 @@ function Island.freeJob(p: Profile, knack: string): number
 		end
 	end
 	local best, bestN = 0, Tuning.HelpMax
-	for _, kind in { "food", "wood", "shop" } do
+	for _, kind in { "farm", "wood", "shop" } do
 		for _, q in p.plot.placed do
 			local d = Buildings.byId[q.id]
 			local n = taken[q.uid] or 0
@@ -226,7 +213,7 @@ function Island.newDay(p: Profile)
 end
 
 -- A driftling living in a hut to a building of its knack (uid) or resting (0): Tuning.HelpMax a building (a full one
--- sends the helper that came first back to rest). The pen's driftlings don't work (bad_payload).
+-- sends the helper that came first back to rest). One with no hut doesn't work (bad_payload).
 function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	local who: Types.Pal? = nil
 	for _, pal in p.pals do
@@ -259,8 +246,10 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 end
 
 ------------------------------------------------------------------ the island's size
+-- Growing the island to the next tier: its price (wood; no shells since 2026-11-13), nil at the biggest.
 function Island.expandCost(tier: number): { shells: number, wood: number }?
-	return Tuning.TierCost[tier + 1]
+	local w = Tuning.TierCost[tier + 1]
+	return if w then { shells = 0, wood = w } else nil
 end
 
 function Island.expand(p: Profile): (boolean, any)

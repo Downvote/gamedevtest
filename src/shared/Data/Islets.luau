@@ -1,6 +1,6 @@
 --!strict
--- The kinds of land the driftlings come from (GAME_DESIGN 6). Pure. The Tree of Life grows the driftlings of every
--- kind open at the island's tier (`tier`): beaches and meadows from the start, then two more kinds with the second
+-- The kinds of land the driftlings come from (GAME_DESIGN 6). Pure. The driftlings of every kind open at the island's
+-- tier (`tier`) drift in on the tide: beaches and meadows from the start, then two more kinds with the second
 -- tier, two with the third, and one with each tier after, so expanding the island brings new driftlings. The Index
 -- lists the driftlings kind by kind.
 --   wild: the kind's driftlings (Data/Creatures' islet: every one of the kind, the commonest first)
@@ -9,7 +9,7 @@ export type IsletDef = {
 	id: number,
 	name: string, -- the kind ("Beach")
 	plural: string, -- ("Beaches")
-	tier: number, -- the island tier its driftlings start growing on the tree at
+	tier: number, -- the island tier its driftlings start drifting in at
 	wild: { string },
 	color: string,
 	blurb: string,

@@ -1,14 +1,14 @@
 -- A sensible player for the Economy spec and the tuning runs: plays a session second by second through the island's
--- own rules (Logic/Island, Plot, Tree: what the server runs) and logs it every ten minutes. Every few seconds they
--- build what the island lacks most (food when it runs short, a hut while the pen has driftlings, the huts are full and
--- there is work for more, wood, a shop a tier, decor with spare shells), expand the island when they can, buy the
--- tree's next speed or luck when it costs a third of their shells or less, and sell the pen's commons once a few wait
--- there (its uncommons too once many do).
+-- own rules (Logic/Island, Plot, Tide: what the server runs) and logs it every ten minutes. Every few seconds they
+-- take in the best driftling on the tide they can afford (into a hut with room, or swapping out their weakest for one
+-- clearly better), then build what the island lacks most with its wood (a hut while the huts are full and a good one
+-- floats by, a building for driftlings resting with no work, wood when it comes slowly, a shop a tier, decor with
+-- spare wood), and expand the island when they can.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Island = require("../build/luautest/shared/Logic/Island")
 local Plot = require("../build/luautest/shared/Logic/Plot")
-local Tree = require("../build/luautest/shared/Logic/Tree")
+local Tide = require("../build/luautest/shared/Logic/Tide")
 local Breed = require("../build/luautest/shared/Logic/Breed")
 local Buildings = require("../build/luautest/shared/Data/Buildings")
 local Creatures = require("../build/luautest/shared/Data/Creatures")
@@ -17,7 +17,7 @@ local Util = require("../build/luautest/shared/Logic/Util")
 
 local Career = {}
 
-export type Opts = { log: ((string) -> ())?, skill: number? }
+export type Opts = { log: ((string) -> ())? }
 
 -- The first free spot for a piece (scanning the island in rows).
 local function spot(p: any, id: string): (number?, number?)
@@ -41,14 +41,19 @@ local function build(p: any, id: string): boolean
 	if x == nil then
 		return false
 	end
-	return (Plot.place(p, id, x :: number, z :: number, 0))
+	local ok = Plot.place(p, id, x :: number, z :: number, 0)
+	if ok then
+		Tide.settle(p)
+		Tide.fillJobs(p)
+	end
+	return ok
 end
 
 -- The best building of a kind the island can have now (the highest tier first).
 local function best(p: any, kind: string): string?
 	local pick: any = nil
 	for _, d in Buildings.list do
-		if d.kind == kind and d.tier <= p.tier and (pick == nil or d.tier > pick.tier or (d.tier == pick.tier and d.shells > pick.shells)) then
+		if d.kind == kind and d.tier <= p.tier and (pick == nil or d.tier > pick.tier or (d.tier == pick.tier and d.wood > pick.wood)) then
 			pick = d
 		end
 	end
@@ -66,67 +71,105 @@ local function countKind(p: any, kind: string): number
 	return n
 end
 
+-- The weakest driftling in a hut (the one a swap gives up), or nil.
+local function weakest(p: any): any
+	local w: any = nil
+	for _, x in p.pals do
+		if x.home ~= 0 and (w == nil or Tide.better(w, x)) then
+			w = x
+		end
+	end
+	return w
+end
+
+-- Off the tide: the best one it can afford, into a hut with room (one with work waiting for it first), or in a swap
+-- for the weakest when it is clearly better.
+local function shop(p: any, s: any): any
+	local list = {}
+	for _, d in s.list do
+		local x = { id = 0, sp = d.sp, home = 0, work = 0, muts = d.muts }
+		table.insert(list, { d = d, w = Tide.worth(x), cost = Tide.cost(p, d.sp, d.muts) })
+	end
+	table.sort(list, function(a, b)
+		return a.w > b.w
+	end)
+	local room = Tide.room(p)
+	for _, e in list do
+		if e.cost <= p.shells then
+			local knack = Creatures.byId[e.d.sp].knack
+			if room > 0 and (Island.freeJob(p, knack) ~= 0 or e.w >= Tuning.RarityWork[2]) then
+				local ok = Tide.take(p, s, e.d.id, 0)
+				if ok then
+					return e.d
+				end
+			elseif room <= 0 then
+				local w = weakest(p)
+				if w and e.w > Tide.worth(w) * 1.4 then
+					local ok = Tide.take(p, s, e.d.id, w.id)
+					if ok then
+						return e.d
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
 -- One building decision.
-local function plan(p: any)
+local function plan(p: any, s: any)
 	local r = Island.rates(p)
 	local ex = Island.expandCost(p.tier)
-	if ex and p.shells >= ex.shells and p.wood >= ex.wood then
+	if ex and p.wood >= ex.wood then
 		Island.expand(p)
-		Tree.settle(p)
+		Tide.settle(p)
 		return
 	end
-	-- the tips' buildings first (a patch, a camp, a stall, a hut), as a new player builds them
-	for _, first in { { "food", "patch" }, { "wood", "lumber" }, { "shop", "stall" }, { "nest", "nest" } } do
+	-- the tips' buildings first (a camp, a patch, a hut, then a stall), as a new player builds them
+	for _, first in { { "wood", "lumber" }, { "farm", "patch" }, { "nest", "nest" }, { "shop", "stall" } } do
 		if countKind(p, first[1]) == 0 then
-			if build(p, first[2]) then
-				Tree.settle(p)
-				Tree.fillJobs(p)
-			end
+			build(p, first[2])
 			return
 		end
 	end
 	local housed = 0
+	local resting: { [string]: number } = {}
 	for _, x in p.pals do
 		if x.home ~= 0 then
 			housed += 1
-		end
-	end
-	-- saving up for the next tier once the island is going (its shells and its wood)
-	local saving = ex ~= nil and housed >= 4 * p.tier and (p.shells < ex.shells or p.wood < ex.wood)
-	local wants: { string } = {}
-	if r.food < 3 or p.food < 20 then
-		table.insert(wants, "food")
-	end
-	-- the pen: a hut when one waiting has a free place at work but no hut has room; a building of a knack two or more
-	-- wait for with nowhere to work
-	local room = 0
-	for _, h in Tree.huts(p) do
-		room += h.room - h.n
-	end
-	local waiting: { [string]: number } = {}
-	local needHut = false
-	for _, x in p.pals do
-		if x.home == 0 and x.held == nil then
-			local knack = Creatures.byId[x.sp].knack
-			if Island.freeJob(p, knack) ~= 0 then
-				needHut = needHut or room <= 0
-			else
-				waiting[knack] = (waiting[knack] or 0) + 1
+			if x.work == 0 then
+				local k = Creatures.byId[x.sp].knack
+				resting[k] = (resting[k] or 0) + 1
 			end
 		end
 	end
-	if needHut then
-		table.insert(wants, "nest")
+	-- saving up for the next tier once the island is going
+	local saving = ex ~= nil and housed >= 4 * p.tier and p.wood < ex.wood
+	local wants: { string } = {}
+	-- a hut when every hut is full and the island has work for more
+	if Tide.room(p) <= 0 then
+		local jobs = 0
+		for _, q in p.plot.placed do
+			if Island.works(q.id) then
+				jobs += Tuning.HelpMax
+			end
+		end
+		if jobs > housed then
+			table.insert(wants, "nest")
+		end
 	end
-	if r.wood < 3 + 5 * p.tier or (ex and p.wood < ex.wood and r.wood < 10 * p.tier) then
+	if r.wood < 20 * p.tier or (ex and p.wood < ex.wood and r.wood < 60 * p.tier) then
 		table.insert(wants, "wood")
 	end
 	if countKind(p, "shop") < p.tier then
 		table.insert(wants, "shop")
 	end
+	if countKind(p, "farm") < p.tier + 1 then
+		table.insert(wants, "farm")
+	end
 	do
-		local most, pick = 1, nil
-		for knack, n in waiting do
+		local most, pick = 0, nil
+		for knack, n in resting do
 			if n > most then
 				most, pick = n, knack
 			end
@@ -136,7 +179,6 @@ local function plan(p: any)
 		end
 	end
 	for _, kind in wants do
-		local id = best(p, kind)
 		if string.sub(kind, 1, 6) == "knack:" then
 			-- a building of that knack (the best the island can have now that it can afford, else a cheaper one)
 			local knack = string.sub(kind, 7)
@@ -144,44 +186,31 @@ local function plan(p: any)
 			for _, d in Buildings.list do
 				-- (while saving for the next tier, only one it can easily afford)
 				local k = if saving then 3 else 1
-				if d.knack == knack and d.tier <= p.tier and p.shells >= d.shells * k and p.wood >= d.wood * k and (pick == nil or d.tier > pick.tier) then
+				if d.knack == knack and d.tier <= p.tier and p.wood >= d.wood * k and (pick == nil or d.tier > pick.tier) then
 					pick = d
 				end
 			end
 			if pick and build(p, pick.id) then
-				Tree.settle(p)
-				Tree.fillJobs(p)
 				return
 			end
 			continue
 		end
-		if id and build(p, id) then
-			Tree.settle(p)
-			Tree.fillJobs(p)
+		local id = best(p, kind)
+		if id and (not saving or p.wood >= Buildings.byId[id].wood * 3) and build(p, id) then
 			return
 		end
 		-- a cheaper one of the kind will do
 		for _, d in Buildings.list do
-			if d.kind == kind and build(p, d.id) then
-				Tree.settle(p)
-				Tree.fillJobs(p)
+			if d.kind == kind and (not saving or p.wood >= d.wood * 3) and build(p, d.id) then
 				return
 			end
 		end
 	end
-	-- the tree: its next speed or luck when it costs a third of the shells or less
-	for _, what in { "speed", "luck" } do
-		local c = Tree.upgradeCost(p, what)
-		if c and c * 3 <= p.shells then
-			Tree.upgrade(p, what)
-			return
-		end
-	end
-	-- spare shells go on decor (the dearest the island can have and easily afford)
+	-- spare wood goes on decor (the dearest the island can have and easily afford)
 	if not saving then
 		local pick: any = nil
 		for _, d in Buildings.list do
-			if d.kind == "decor" and d.tier <= p.tier and p.shells >= d.shells * 3 and p.wood >= d.wood * 2 and (pick == nil or d.shells > pick.shells) then
+			if d.kind == "decor" and d.tier <= p.tier and p.wood >= d.wood * 4 and (pick == nil or d.wood > pick.wood) then
 				pick = d
 			end
 		end
@@ -191,29 +220,20 @@ local function plan(p: any)
 	end
 end
 
--- The pen (it never fills): its commons sold once a few wait there, its uncommons too once many do.
-local function tidy(p: any)
-	local n = Tree.inPen(p)
-	if n > 8 then
-		Tree.sellPen(p, 1)
-	end
-	if Tree.inPen(p) > 20 then
-		Tree.sellPen(p, 2)
-	end
-end
-
 function Career.play(seed: number, seconds: number, opts: Opts?)
 	local o: Opts = opts or {}
 	local log = o.log
 	local p = Schema.default(0, seed)
 	local rng = Util.newRng(Util.hash32("career:" .. seed)) -- (hashed, as the server seeds a session: a small seed's first draws are weak)
+	local s = Tide.new()
+	Tide.start(p, s, rng)
 	local turnClock = 0
-	local sold = 0
 	local first: { [string]: number } = {}
 	local timeline = {}
-	local function say(s: string)
+	local soldAt = 0
+	local function say(line: string)
 		if log then
-			log(s)
+			log(line)
 		end
 	end
 	local function mark(k: string, t: number)
@@ -222,25 +242,30 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 			say(string.format("  %5ds %s", t, k))
 		end
 	end
+	local shellsSold = 0
 	for t = 1, seconds do
 		Island.step(p, 1)
-		local grown = Tree.step(p, 1, rng)
-		for _, x in grown do
-			local r = Creatures.byId[x.sp].rarity
-			for k = 2, r do
-				mark("rarity" .. k, t)
-			end
-		end
+		Tide.step(p, s, 1, rng)
 		turnClock += 1
 		if turnClock >= Tuning.TurnSeconds then
 			turnClock -= Tuning.TurnSeconds
 			Breed.turn(p)
 		end
 		if t % 5 == 0 then
-			plan(p)
 			local before = p.stats.earned
-			tidy(p)
-			sold += p.stats.earned - before
+			local sold = p.stats.sold
+			local got = shop(p, s)
+			if p.stats.sold > sold then
+				shellsSold += p.stats.earned - before
+			end
+			if got then
+				mark("taken", t)
+				local r = Creatures.byId[got.sp].rarity
+				for k = 2, r do
+					mark("rarity" .. k, t)
+				end
+			end
+			plan(p, s)
 		end
 		for _, x in p.pals do
 			if x.work ~= 0 then
@@ -258,12 +283,13 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 					housed += 1
 				end
 			end
-			local row = { t = t, shells = p.shells, food = p.food, wood = p.wood, pals = housed, pen = Tree.inPen(p), tier = p.tier, luck = p.tree.luck, speed = p.tree.speed, pieces = #p.plot.placed, charm = Island.charm(p), shellRate = r.shells, foodRate = r.food, woodRate = r.wood, sold = sold, earned = p.stats.earned }
+			soldAt = shellsSold
+			local row = { t = t, shells = p.shells, wood = p.wood, pals = housed, tier = p.tier, pieces = #p.plot.placed, charm = Island.charm(p), shellRate = r.shells, woodRate = r.wood, sold = soldAt, earned = p.stats.earned, taken = p.stats.taken, best = p.stats.best }
 			table.insert(timeline, row)
-			say(string.format("%3dmin shells %d (+%.0f/t) food %d (%+.0f/t) wood %d (+%.0f/t) tier %d pieces %d huts %d pen %d luck %d speed %d charm %d sold %d of %d", t // 60, math.floor(p.shells), r.shells, math.floor(p.food), r.food, math.floor(p.wood), r.wood, p.tier, #p.plot.placed, housed, Tree.inPen(p), p.tree.luck, p.tree.speed, Island.charm(p), math.floor(sold), math.floor(p.stats.earned)))
+			say(string.format("%3dmin shells %d (+%.0f/t) wood %d (+%.0f/t) tier %d pieces %d huts %d taken %d best %d charm %d sold %d of %d", t // 60, math.floor(p.shells), r.shells, math.floor(p.wood), r.wood, p.tier, #p.plot.placed, housed, p.stats.taken, p.stats.best, Island.charm(p), math.floor(soldAt), math.floor(p.stats.earned)))
 		end
 	end
-	return { profile = p, timeline = timeline, first = first, sold = sold }
+	return { profile = p, timeline = timeline, first = first, sold = shellsSold }
 end
 
 return Career

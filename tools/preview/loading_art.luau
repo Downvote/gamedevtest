@@ -9,8 +9,8 @@
 --     on the move, as the island shows them (MicroModels.animate "walk" and their hop), facing left and right, and a
 --     Conchy cheering by the fire ("cheer": no villagers since 2026-11-12);
 --   * the campfire (a ring of stones, crossed logs and MicroModels' flame flickering in thirds, as WorldView's);
---   * the island's pieces (DecorModels): two palms, a Driftling Hut, a Cozy Burrow, a Tiki Torch, a Flower Bed and the
---     Tree of Life (its hollow, fruit and marks glowing, then dimmer);
+--   * the island's pieces (DecorModels): two palms, a Driftling Hut, a Cozy Burrow, a Tiki Torch and a Flower Bed (the
+--     Tree of Life went with it on 2026-11-13: the driftlings drift in on the tide);
 --   * the old boat (MicroModels "ship", BoatSpec level 2) rocking on the swell, a step smaller (it is out at sea);
 --   * hand-made 2D bits: a gull flapping, a star twinkling, a wave crest rising and falling, an ember, a glint of sun.
 -- Output (the scenario's log): per frame `@@LART <seq> <i> <w> <h> <RGBA hex>`, per sequence
@@ -171,16 +171,6 @@ return function(env)
 	piece("torch", "torch", { w = 20, h = 40, ax = 10, ay = 34 }, 0)
 	piece("flowers", "flowers", { w = 40, h = 30, ax = 20, ay = 20 }, 0)
 	piece("bush", "bush", { w = 32, h = 30, ax = 16, ay = 22 }, 0)
-	-- the Tree of Life: the glowing hollow, fruit and marks bright, then dim (a slow pulse)
-	piece("tree", "tree", { w = 72, h = 90, ax = 34, ay = 79 }, 0, 2, function(m, i)
-		if i == 2 then
-			for _, d in m:GetDescendants() do
-				if d:IsA("BasePart") and (d.Name == "Pod" or d.Name == "Fruit" or d.Name == "Rune" or d.Name == "Ring" or d.Name == "Glyph" or d.Name == "Mote") then
-					d.Material = Enum.Material.SmoothPlastic
-				end
-			end
-		end
-	end)
 
 	------------------------------------------------------------------ the boat
 	do

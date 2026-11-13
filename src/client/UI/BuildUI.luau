@@ -1,8 +1,8 @@
 --!strict
 -- Build mode (GAME_DESIGN 4; docs/ARCHITECTURE.md 10.7): building the island. The HUD's Build button opens it: the
 -- view stops following the founder and shows the own island (a drag on the world pans it, CameraController.setFree /
--- panBy), and a tray along the bottom lists what can be built, a tab a kind (Food, Wood, Shops, Homes, Nests, Decor),
--- each with its price in shells and wood (locked until the island is big enough: Expand, in the tray's header). With
+-- panBy), and a tray along the bottom lists what can be built, a tab a kind (Farms, Wood, Shops, Huts, Boosts, Paths,
+-- Decor), each with its price in wood (locked until the island is big enough: Expand, in the tray's header). With
 -- a piece picked, a ghost of it stands where the pointer is (mouse) or was tapped (touch), on a footprint that is
 -- cyan where it fits (Logic/Plot.fits, the server's own rule) and red where it does not; Place (or a second click on
 -- the same spot) asks the server (plot.place: paid then), Rotate turns it a quarter. Tapping a piece standing on the
@@ -39,7 +39,7 @@ local TRAY_H = 60
 BuildUI.TRAY_H = TRAY_H
 -- the tray's tabs: a kind (or two) of Data/Buildings each, with its small icon
 local TABS: { { key: string, text: string, kinds: { string }, icon: string } } = {
-	{ key = "food", text = "Food", kinds = { "food" }, icon = "food" },
+	{ key = "farm", text = "Farms", kinds = { "farm" }, icon = "food" },
 	{ key = "wood", text = "Wood", kinds = { "wood" }, icon = "wood" },
 	{ key = "shop", text = "Shops", kinds = { "shop" }, icon = "shell" },
 	{ key = "nest", text = "Huts", kinds = { "nest", "breed" }, icon = "nest" },
@@ -47,17 +47,17 @@ local TABS: { { key: string, text: string, kinds: { string }, icon: string } } =
 	{ key = "path", text = "Paths", kinds = { "path" }, icon = "path" },
 	{ key = "decor", text = "Decor", kinds = { "decor" }, icon = "decor" },
 }
-local tab = "food"
+local tab = "wood"
 
 -- The tips in Build mode (GAME_DESIGN 9: "make the tutorial show while in the build menu as well, and auto switches
 -- the player to the tab where the required buildings are in"): the tip's banner stays above the tray (UI/Hud), and
 -- opening Build mode, or a tip moving on while it is open, turns the tray to the tab of the building the tip asks
 -- for; that building's card (and its tab, while another is shown) pulses until it stands on the island.
 local TUT: { [number]: { tab: string, id: string } } = {
-	[1] = { tab = "food", id = "patch" },
-	[2] = { tab = "wood", id = "lumber" },
-	[3] = { tab = "shop", id = "stall" },
-	[4] = { tab = "nest", id = "nest" },
+	[1] = { tab = "wood", id = "lumber" },
+	[2] = { tab = "farm", id = "patch" },
+	[3] = { tab = "nest", id = "nest" },
+	[5] = { tab = "shop", id = "stall" },
 }
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
 local goalCard: Frame? = nil
@@ -92,7 +92,7 @@ local function placed(): { Types.Piece }
 	return if v then v.pieces else {}
 end
 
--- What the current tip asks to build, while it is not built yet (the nest's tip waits for a sail as well).
+-- What the current tip asks to build, while it is not built yet.
 local function tutGoal(v: Types.ClientView?): { tab: string, id: string }?
 	if v == nil then
 		return nil
@@ -265,7 +265,7 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 				used += 1
 				shells -= def.shells
 				wood -= def.wood
-				cost += def.shells
+				cost += def.wood
 				n += 1
 			end
 			table.insert(out, if ok then "lay" else "no")
@@ -286,7 +286,7 @@ local function showDrawGhost(cells: { { number } })
 	end
 	local plan, n, cost = strokePlan(cells)
 	if label and label:IsA("TextLabel") and #cells > 1 then
-		UIKit.setText(label, if draw.erase then string.format("%d to take up", n) else string.format("%d tile%s, %s shells", n, if n == 1 then "" else "s", Numbers.coins(cost)))
+		UIKit.setText(label, if draw.erase then string.format("%d to take up", n) else string.format("%d tile%s, %s wood", n, if n == 1 then "" else "s", Numbers.coins(cost)))
 	end
 	local ox, oz = origin()
 	local m = Blocks.model(nil, "PathGhost")
@@ -407,13 +407,16 @@ end
 
 ------------------------------------------------------------------ the tray
 
--- A price: its shells and wood with their small icons from x (red when there is not enough); returns the end x.
+-- A price: its wood (and shells, when a piece asks for them: none do since wood pays for building) with their small
+-- icons from x (red when there is not enough); returns the end x.
 local function price(parent: Instance, x: number, y: number, shells: number, wood: number, v: Types.ClientView, z: number?): number
-	PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
-	local t = Numbers.coins(shells)
-	UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
-	x += 13 + UIKit.textWidth(t) + 2
-	if wood > 0 then
+	if shells > 0 then
+		PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
+		local t = Numbers.coins(shells)
+		UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
+		x += 13 + UIKit.textWidth(t) + 2
+	end
+	if wood > 0 or shells == 0 then
 		PixelSprites.image(parent, "mini_wood", UDim2.fromOffset(x, y), z or 4)
 		local tw = Numbers.coins(wood)
 		UIKit.text(parent, tw, UDim2.fromOffset(UIKit.textWidth(tw) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.wood >= wood then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Wood" })
@@ -560,7 +563,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 				end
 			end, "Replace")
 		end
-		btn("Clear away", UIKit.color("button_warn"), not Plot.isFixed(q.id), function()
+		btn("Clear away", UIKit.color("button_warn"), true, function()
 			local cur = pick
 			if cur and cur.move then
 				local res = ask("plot.store", { i = cur.move })

@@ -1,23 +1,23 @@
 --!strict
 -- The client's mirror of the server (docs/ARCHITECTURE.md 8.1): the latest ClientView (State messages), the server's
--- news (Fx messages: the island's stores and the tree's growth every second, a new day, what the Tree of Life grew) and
--- requests. The client never trusts itself: every change is a Router request.
+-- news (Fx messages: the island's stores and the tide's clock every second, a new day, the driftlings drifting in and
+-- off) and requests. The client never trusts itself: every change is a Router request.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 
 local StateClient = {}
 
 local current: Types.ClientView? = nil
--- the tree's growth as the server last said (seconds grown, its seconds a driftling) and when (the client runs it on)
-local grow, growSecs, growAt = 0, 1, 0
+-- the tide's clock as the server last said (seconds since the last one came, its seconds between two) and when (the
+-- client runs it on)
+local tideT, tideSecs, tideAt = 0, 1, 0
 StateClient.Changed = Util.Signal() :: Types.Signal<Types.ClientView>
 StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
--- The island's stores every second (Fx "tick"): the view's shells, food, wood and time of day are patched in place,
--- no whole view is sent.
+-- The island's stores every second (Fx "tick"): the view's shells, wood and time of day are patched in place, no whole
+-- view is sent.
 StateClient.Tick = Util.Signal() :: Types.Signal<Types.ClientView>
 
 function StateClient.init()
@@ -25,10 +25,9 @@ function StateClient.init()
 	r.State.OnClientEvent:Connect(function(v: any)
 		if type(v) == "table" then
 			current = v :: Types.ClientView
-			local tr = (v :: any).tree
-			if type(tr) == "table" and type(tr.t) == "number" then
-				grow, growAt = tr.t, os.clock()
-				growSecs = Tree.secs(v :: any)
+			local t, secs = (v :: any).tideT, (v :: any).tideSecs
+			if type(t) == "number" and t == t and type(secs) == "number" and secs > 0 then
+				tideT, tideSecs, tideAt = t, secs, os.clock()
 			end
 			StateClient.Changed:Fire(v :: Types.ClientView)
 		end
@@ -37,15 +36,15 @@ function StateClient.init()
 		if type(msg) == "table" then
 			local cur = current
 			if msg.kind == "tick" and cur then
-				for _, k in { "shells", "food", "wood", "dayFrac" } do
+				for _, k in { "shells", "wood", "dayFrac" } do
 					local x = msg[k]
 					if type(x) == "number" and x == x then
 						(cur :: any)[k] = x
 					end
 				end
-				if type(msg.grow) == "number" and msg.grow == msg.grow and type(msg.secs) == "number" and msg.secs > 0 then
-					grow, growSecs, growAt = msg.grow, msg.secs, os.clock()
-					cur.tree.t = msg.grow
+				if type(msg.tideT) == "number" and msg.tideT == msg.tideT and type(msg.tideSecs) == "number" and msg.tideSecs > 0 then
+					tideT, tideSecs, tideAt = msg.tideT, msg.tideSecs, os.clock()
+					cur.tideT, cur.tideSecs = msg.tideT, msg.tideSecs
 				end
 				StateClient.Tick:Fire(cur)
 			end
@@ -58,15 +57,15 @@ function StateClient.view(): Types.ClientView?
 	return current
 end
 
--- How far the Tree of Life is toward its next driftling now (0 .. 1: the server's last word run on by the clock) and
--- its seconds a driftling.
-function StateClient.treeFrac(): (number, number)
+-- How far the tide is toward its next driftling now (0 .. 1: the server's last word run on by the clock) and its
+-- seconds between two.
+function StateClient.tideFrac(): (number, number)
 	local v = current
 	if v == nil then
 		return 0, 1
 	end
-	local t = grow + (os.clock() - growAt)
-	return math.clamp(t / math.max(0.1, growSecs), 0, 1), growSecs
+	local t = tideT + (os.clock() - tideAt)
+	return math.clamp(t / math.max(0.1, tideSecs), 0, 1), tideSecs
 end
 
 -- Wait (yielding) for the first view.

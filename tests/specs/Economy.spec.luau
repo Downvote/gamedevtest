@@ -21,10 +21,11 @@ return function()
 			T.truthy(r.first.rarity3 and r.first.rarity3 <= 1200, "seed " .. seed .. ": a rare one at " .. tostring(r.first.rarity3))
 		end
 	end)
-	T.it("the tree: speed and luck at level 3 or more within 40 minutes", function()
+	T.it("the tide: a steady stream taken in, a dozen by half an hour, an epic within two hours", function()
 		for seed, r in runs do
-			local row = at(r, 40)
-			T.truthy(row.speed >= 3 and row.luck >= 3, string.format("seed %d: speed %d luck %d at 40 minutes", seed, row.speed, row.luck))
+			local row = at(r, 30)
+			T.truthy(row.taken >= 12, string.format("seed %d: %d taken in by 30 minutes", seed, row.taken))
+			T.truthy(r.first.rarity4 and r.first.rarity4 <= 7200, "seed " .. seed .. ": an epic at " .. tostring(r.first.rarity4))
 		end
 	end)
 	T.it("selling driftlings helps but the island earns: under two thirds of the shells over three hours", function()
@@ -47,13 +48,14 @@ return function()
 			T.truthy(r.first.tier5 == nil, "seed " .. seed .. ": no city in three hours")
 		end
 	end)
-	T.it("nobody starves for long; the stores stay finite", function()
+	T.it("both stores make and get spent; they stay finite", function()
 		for seed, r in runs do
 			for _, row in r.timeline do
-				T.truthy(row.foodRate > -40 or row.food > 50, string.format("seed %d at %dmin: food %d, %+.0f a day", seed, row.t // 60, row.food, row.foodRate))
+				T.truthy(row.woodRate > 0 and row.shellRate > 0, string.format("seed %d at %dmin: wood %+.0f, shells %+.0f a turn", seed, row.t // 60, row.woodRate, row.shellRate))
 			end
 			local p = r.profile
 			T.truthy(p.shells == p.shells and p.shells < 1e12 and p.wood < 1e12, "finite")
+			T.eq((p :: any).food, nil, "no food")
 		end
 	end)
 end

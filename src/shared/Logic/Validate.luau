@@ -5,7 +5,6 @@
 --   "int"    a whole number in [0, 1e6] (a driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 16] (a look index)
 --   "rarity" a whole number in [1, 5] (a driftling's rarity)
---   "grow"   a Tree of Life upgrade: "luck" or "speed"
 --   "key"    a settings key ("pixel", "music")
 --   "coord"  a whole number in [-64, 64] (a plot-local stud)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
@@ -27,9 +26,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.house"] = { id = "int", uid = "int", swap = "int" },
 	["pal.sell"] = { id = "int" },
-	["pen.sell"] = { r = "rarity" },
-	["pen.best"] = {},
-	["tree.upgrade"] = { what = "grow" },
+	["tide.take"] = { id = "int", swap = "int" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
@@ -54,8 +51,6 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 1, 16)
 	elseif kind == "rarity" then
 		return isInt(v, 1, 5)
-	elseif kind == "grow" then
-		return v == "luck" or v == "speed"
 	elseif kind == "coord" then
 		return isInt(v, -64, 64)
 	elseif kind == "cells" then

@@ -1,7 +1,7 @@
 --!strict
 -- The Hatchery (GAME_DESIGN 6.1: "make a breeding system that also works like in palworld that unlocks after a certain
--- island level"): two driftlings and a feast of food make an egg; it hatches after a few island turns into the Tree of
--- Life's pen (Logic/Tree), which sends it on to a hut like the tree's own.
+-- island level"): two driftlings and a feast make an egg; it hatches after a few island turns into a hut with room
+-- (Logic/Tide.add: with none it waits with no hut till one has room).
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
 --   nearest the parents' average (the commoner, then the first by name, on a tie). A legend only hatches from two
@@ -9,15 +9,15 @@
 --   Its mutations (Data/Traits): one both parents carry always passes on (the better tier), and with `BreedTierUp`
 --   comes out a tier better (a shared flaw turns into its family's first tier); one only a parent carries passes on
 --   with `BreedKeep`; with `BreedNew` it gains one of its own (tier 1 or 2 of a family neither carries). The best four.
---   An egg is laid at a Hatchery with no egg (one each), for `BreedFood` food by the child's rarity, and takes
---   `BreedTurns` turns (Island.turn's, while the player is here); a ready egg hatches into the pen (it always has room).
+--   An egg is laid at a Hatchery with no egg (one each), for a feast of `BreedShells` shells by the child's rarity (food
+--   till 2026-11-13), and takes `BreedTurns` turns (Island.turn's, while the player is here).
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Island = require(script.Parent.Island)
-local Tree = require(script.Parent.Tree)
+local Tide = require(script.Parent.Tide)
 
 type Profile = Types.Profile
 type Egg = Types.Egg
@@ -56,11 +56,11 @@ function Breed.child(a: string, b: string): string
 	return if best then best.id else a
 end
 
--- The feast an egg of a kind takes (food) and the turns it takes to hatch.
+-- The feast an egg of a kind takes (shells) and the turns it takes to hatch.
 function Breed.cost(sp: string): (number, number)
 	local d = Creatures.byId[sp]
 	local r = if d then d.rarity else 1
-	return Tuning.BreedFood[r] or Tuning.BreedFood[1], Tuning.BreedTurns[r] or Tuning.BreedTurns[1]
+	return Tuning.BreedShells[r] or Tuning.BreedShells[1], Tuning.BreedTurns[r] or Tuning.BreedTurns[1]
 end
 
 -- A child's mutations from its parents' (rng: Util.newRng's).
@@ -147,7 +147,7 @@ function Breed.eggAt(p: Profile, uid: number): Egg?
 end
 
 -- Lay an egg at the Hatchery `uid` from driftlings `a` and `b` (two of the island's own): not_found (no such Hatchery or
--- driftling), egg (an egg there already), bad_payload (the same one twice), food (not enough for the feast).
+-- driftling), egg (an egg there already), bad_payload (the same one twice), money (not enough for the feast).
 function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (boolean, any)
 	local q = Island.piece(p, uid)
 	local def = if q then Buildings.byId[q.id] else nil
@@ -165,18 +165,17 @@ function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (
 		return false, "not_found" :: ErrCode
 	end
 	local sp = Breed.child(pa.sp, pb.sp)
-	local food, turns = Breed.cost(sp)
-	if p.food < food then
-		return false, "food" :: ErrCode
+	local feast, turns = Breed.cost(sp)
+	if p.shells < feast then
+		return false, "money" :: ErrCode
 	end
-	p.food -= food
+	p.shells -= feast
 	local egg: Egg = { uid = uid, a = a, b = b, sp = sp, muts = Breed.inherit(pa.muts, pb.muts, rng), left = turns }
 	table.insert(p.eggs, egg)
 	return true, egg
 end
 
--- A turn's end: every egg a turn nearer; the ready ones hatch into the pen (in the Index; the pen sends the best on
--- to the huts). The hatched.
+-- A turn's end: every egg a turn nearer; the ready ones hatch into a hut with room (in the Index). The hatched.
 function Breed.turn(p: Profile): { Types.Pal }
 	local born: { Types.Pal } = {}
 	local keep: { Egg } = {}
@@ -184,16 +183,13 @@ function Breed.turn(p: Profile): { Types.Pal }
 		egg.left = math.max(0, egg.left - 1)
 		local d = Creatures.byId[egg.sp]
 		if egg.left == 0 and d then
-			table.insert(born, Tree.add(p, egg.sp, Traits.clean(egg.muts)))
+			table.insert(born, Tide.add(p, egg.sp, Traits.clean(egg.muts)))
 			p.stats.hatched += 1
 		else
 			table.insert(keep, egg)
 		end
 	end
 	p.eggs = keep
-	if #born > 0 then
-		Tree.settle(p)
-	end
 	return born
 end
 

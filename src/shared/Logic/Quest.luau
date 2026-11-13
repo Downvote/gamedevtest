@@ -15,7 +15,6 @@ export type Facts = {
 	pals: { Types.Pal },
 	pieces: { Types.Piece },
 	tier: number,
-	tree: Types.Tree,
 	seen: { [string]: number },
 	stats: Types.Stats,
 }
@@ -27,7 +26,6 @@ function Quest.facts(p: Profile): Facts
 		pals = p.pals,
 		pieces = p.plot.placed,
 		tier = p.tier,
-		tree = p.tree,
 		seen = p.seen,
 		stats = p.stats,
 	}
@@ -67,16 +65,12 @@ function Quest.count(f: Facts, g: Quests.Goal): number
 				n += 1
 			end
 		end
-	elseif k == "grown" then
-		n = f.stats.grown
+	elseif k == "taken" then
+		n = f.stats.taken
 	elseif k == "sold" then
 		n = f.stats.sold
 	elseif k == "best" then
 		n = f.stats.best
-	elseif k == "luck" then
-		n = f.tree.luck
-	elseif k == "speed" then
-		n = f.tree.speed
 	elseif k == "tier" then
 		n = f.tier
 	elseif k == "seen" then
@@ -118,10 +112,9 @@ function Quest.claim(p: Profile): (boolean, any)
 	end
 	local r = q.reward
 	p.shells += r.shells or 0
-	p.food += r.food or 0
 	p.wood += r.wood or 0
 	p.quest += 1
-	return true, { id = q.id, shells = r.shells or 0, food = r.food or 0, wood = r.wood or 0, next = p.quest }
+	return true, { id = q.id, shells = r.shells or 0, wood = r.wood or 0, next = p.quest }
 end
 
 return Quest

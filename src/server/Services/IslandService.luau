@@ -1,18 +1,18 @@
 --!strict
 -- The island on the server (docs/ARCHITECTURE.md 7.4): every player action and the island's clock, as thin wrappers
--- round the shared rules (Logic/Island, Plot, Tree, Breed) that mark the session dirty and tell the client what
--- happened. The island makes and eats every step (Island.step); the Tree of Life grows its driftlings into the pen and
--- the pen sends its best to the huts (Tree.step; Fx "tree"); the stores and the tree's growth go to the client every
+-- round the shared rules (Logic/Island, Plot, Tide, Breed) that mark the session dirty and tell the client what
+-- happened. The island makes wood and shells every step (Island.step); the tide brings a driftling to the jetty every
+-- few seconds and the oldest drifts off (Tide.step; Fx "tide"); the stores and the tide's clock go to the client every
 -- second (Fx "tick", so the whole view is not sent every second); a turn ends every Tuning.TurnSeconds (the eggs; Fx
--- "turn"), and the sea's clock (WorldClock: hours a day) counts the calendar days
--- (Island.newDay; Fx "day"). Everything runs while the player is here, whatever they do.
+-- "turn"), and the sea's clock (WorldClock: hours a day) counts the calendar days (Island.newDay; Fx "day").
+-- Everything runs while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
+local Tide = require(ReplicatedStorage.Shared.Logic.Tide)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Session = require(script.Parent.Session)
@@ -24,17 +24,13 @@ local IslandService = {}
 
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
--- The tips (GAME_DESIGN 9): 1 food (a farm), 2 wood (a lumber camp), 3 shells (a shop), 4 a hut (the pen sends its
--- best driftlings there to work), 5 the Tree of Life (a level of its luck or speed: `tree.upgrade` moves it on), 6 the
--- last tip (OK ends them). Each moves on once what it asks is done.
+-- The tips (GAME_DESIGN 9): 1 wood (a lumber camp: wood builds everything), 2 shells (a farm: it sells what it
+-- grows), 3 a hut, 4 a driftling off the tide (taken in with shells), 5 a shop (it sells to the visitors), 6 the last
+-- tip (OK ends them). Each moves on once what it asks is done (a save from before the tide moves on through the ones
+-- it has done at once).
+local TIP_KIND: { [number]: string } = { [1] = "wood", [2] = "farm", [3] = "nest", [5] = "shop" }
 local function tips(s: Session.S)
 	local p = s.profile
-	if p.tut == 5 and (p.tree.luck > 1 or p.tree.speed > 1) then
-		p.tut = 6
-	end
-	if p.tut < 1 or p.tut > 4 then
-		return
-	end
 	local has: { [string]: boolean } = {}
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
@@ -42,18 +38,21 @@ local function tips(s: Session.S)
 			has[d.kind] = true
 		end
 	end
-	for step, kind in { "food", "wood", "shop", "nest" } do
-		if p.tut == step and has[kind] then
-			p.tut = step + 1
+	while p.tut >= 1 and p.tut <= 5 do
+		local kind = TIP_KIND[p.tut]
+		local done = if kind then has[kind] == true else (p.stats.taken > 0 or #p.pals > 0)
+		if not done then
+			break
 		end
+		p.tut += 1
 	end
 end
 
--- The driftlings that moved (the pen sending its best on, or the player's pick) go to the client with the view.
-local function moved(s: Session.S, grown: { any }?, sent: { number }?)
-	if (grown and #grown > 0) or (sent and #sent > 0) then
+-- The tide's news (driftlings that drifted in, and off) go to the client with the view.
+local function tide(s: Session.S, came: { any }, gone: { number })
+	if #came > 0 or #gone > 0 then
 		Session.markDirty(s)
-		Session.fx(s, { kind = "tree", grown = grown, sent = sent })
+		Session.fx(s, { kind = "tide", came = came, gone = gone })
 	end
 end
 
@@ -63,10 +62,10 @@ function IslandService.init()
 		return function(s: Session.S, a: any): (boolean, any)
 			local ok, data = fn(s, a)
 			if ok then
-				-- (a building of a knack: the hut driftlings resting there take a place first; a hut built or gone, or a
-				-- place free: the pen sends its best on)
-				Tree.fillJobs(s.profile)
-				moved(s, nil, Tree.settle(s.profile))
+				-- (a building of a knack: the hut driftlings resting there take a place; a hut built: the ones with no
+				-- hut move in)
+				Tide.settle(s.profile)
+				Tide.fillJobs(s.profile)
 				PlotService.buildDecor(s)
 				tips(s)
 			end
@@ -121,32 +120,21 @@ function IslandService.init()
 	Router.on("pal.work", function(s, a)
 		return Island.setHelp(s.profile, a.id, a.uid)
 	end)
-	-- the Tree of Life and its pen (GAME_DESIGN 6): a driftling to a hut or the pen, selling, the tree's upgrades
-	Router.on("pal.house", function(s, a)
-		return Tree.house(s.profile, a.id, a.uid, a.swap)
-	end)
-	Router.on("pal.sell", function(s, a)
-		return Tree.sell(s.profile, a.id)
-	end)
-	Router.on("pen.sell", function(s, a)
-		return Tree.sellPen(s.profile, a.r)
-	end)
-	-- Equip best: the best of all the driftlings into the huts (Tree.equipBest)
-	Router.on("pen.best", function(s, _a)
-		return Tree.equipBest(s.profile)
-	end)
-	Router.on("tree.upgrade", function(s, a)
-		local stage = Tree.stage(s.profile)
-		local ok, data = Tree.upgrade(s.profile, a.what)
+	-- the tide and the huts (GAME_DESIGN 6): one off the tide taken in (a swap when every hut is full), a driftling to
+	-- another hut, selling
+	Router.on("tide.take", function(s, a)
+		local ok, data = Tide.take(s.profile, s.tide, a.id, a.swap)
 		if ok then
 			tips(s)
-			-- a Luck milestone: the tree grows bigger (its model built again at the new stage)
-			if Tree.stage(s.profile) ~= stage then
-				PlotService.buildDecor(s)
-				Session.fx(s, { kind = "treegrew", stage = Tree.stage(s.profile) })
-			end
+			Session.fx(s, { kind = "taken", data = data })
 		end
 		return ok, data
+	end)
+	Router.on("pal.house", function(s, a)
+		return Tide.house(s.profile, a.id, a.uid, a.swap)
+	end)
+	Router.on("pal.sell", function(s, a)
+		return Tide.sell(s.profile, a.id)
 	end)
 	-- the Hatchery (GAME_DESIGN 6.1): two driftlings and a feast make an egg
 	Router.on("breed.start", function(s, a)
@@ -184,9 +172,9 @@ function IslandService.init()
 	end)
 end
 
--- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes and eats, its tree grows,
--- a turn ends every TurnSeconds (the eggs: Fx "turn"), and a calendar day's end on the sea's clock counts a day
--- (Fx "day").
+-- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes wood and shells, its tide
+-- brings driftlings in, a turn ends every TurnSeconds (the eggs: Fx "turn"), and a calendar day's end on the sea's clock
+-- counts a day (Fx "day").
 function IslandService.step(dt: number)
 	WorldClock.advance(dt)
 	local today = WorldClock.dayIndex()
@@ -195,19 +183,14 @@ function IslandService.step(dt: number)
 			continue
 		end
 		local p = s.profile
-		local hungry = p.food <= 0
 		Island.step(p, dt)
-		if (p.food <= 0) ~= hungry then
-			Session.markDirty(s)
-		end
-		-- the Tree of Life: what grew into the pen, and the best of it sent on to the huts (the pen has no room limit;
-		-- at the save's limit the tree rests)
-		local grown, sent = Tree.step(p, dt, s.rng)
-		moved(s, grown, sent)
+		-- the tide: one drifts in every few seconds, the oldest drifting off
+		local came, gone = Tide.step(p, s.tide, dt, s.rng)
+		tide(s, came, gone)
 		s.turnClock += dt
 		if s.turnClock >= Tuning.TurnSeconds then
 			s.turnClock -= Tuning.TurnSeconds
-			-- the eggs a turn nearer; the ready ones hatch into the pen
+			-- the eggs a turn nearer; the ready ones hatch into a hut with room
 			local hatched = Breed.turn(p)
 			Session.markDirty(s)
 			Session.fx(s, { kind = "turn", hatched = if #hatched > 0 then hatched else nil })
@@ -221,7 +204,7 @@ function IslandService.step(dt: number)
 		s.tickClock += dt
 		if s.tickClock >= 1 then
 			s.tickClock -= 1
-			Session.fx(s, { kind = "tick", shells = p.shells, food = p.food, wood = p.wood, dayFrac = WorldClock.dayFrac(), grow = p.tree.t, secs = Tree.secs(p) })
+			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), tideT = s.tide.t, tideSecs = Tide.secs(p) })
 		end
 	end
 end

@@ -1,10 +1,10 @@
 --!strict
--- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (shells, food, wood, the day and its
--- clock), the menu bar along the bottom (Build, Driftlings, Index, Looks), the island card on the right (the
--- island's name, driftlings in huts and their room, visitors, charm, what it makes) with the Tree of Life's card under
--- it (the next driftling's bar, how many wait in the pen), the questline's card, the tips banner, the new
--- day's banner and the alerts for a rare driftling grown (the loading card is src/first's). The camera fits
--- the island clear of the HUD's blocks (CameraController.setHudRects).
+-- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (wood, shells, the day and its clock),
+-- the menu bar along the bottom (Build, Driftlings, Index, Looks), the island card on the right (the island's name,
+-- driftlings in huts and their room, visitors, charm, what it makes) with the tide's card under it (the next one's
+-- bar, each one bobbing at the jetty with its price to take it in), the questline's card, the tips banner, the new
+-- day's banner and the alerts for a rare driftling drifting in (the loading card is src/first's). The camera fits the
+-- island clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -18,9 +18,9 @@ local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Quests = require(ReplicatedStorage.Shared.Data.Quests)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
-local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
+local TideView = require(script.Parent.Parent.Controllers.TideView)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local DayLight = require(script.Parent.Parent.Controllers.DayLight)
@@ -49,7 +49,7 @@ local chipIcons: { [string]: GuiObject } = {}
 local bar: Frame? = nil
 local barW = 0
 local card: Frame? = nil
-local treeCard: Frame? = nil -- the Tree of Life's card (GAME_DESIGN 6)
+local tideCard: Frame? = nil -- the tide's card (GAME_DESIGN 6)
 local tips: Frame? = nil
 local quest: Frame? = nil -- the questline's card (GAME_DESIGN 9)
 local QUEST_W = 150
@@ -126,9 +126,8 @@ end
 
 local function buildTop()
 	local x = 6
+	x = chip("wood", x, 56, "wood")
 	x = chip("shells", x, 56, "shell")
-	x = chip("food", x, 52, "food")
-	x = chip("wood", x, 50, "wood")
 	x = chip("day", x, 50, "sun")
 	-- the day's clock along the day chip's bottom edge
 	local db = UIKit.rect(chipFrames.day, UDim2.fromOffset(0, 1), UDim2.new(0, 3, 1, -2), UIKit.color("accent"), 3)
@@ -187,13 +186,7 @@ end
 
 local function updateTop(v: Types.ClientView)
 	showStore("shells", v.shells, last.shells == nil)
-	showStore("food", v.food, last.food == nil)
 	showStore("wood", v.wood, last.wood == nil)
-	-- the food runs out: the chip goes red (everyone works at half speed and the shops close)
-	local fl = chips.food
-	if fl then
-		UIKit.setTextColor(fl, if v.food <= 0 then UIKit.color("bad") else UIKit.color("text"))
-	end
 	local dl = chips.day
 	if dl then
 		UIKit.setText(dl, "Day " .. v.day)
@@ -283,8 +276,7 @@ local function housedOf(v: Types.ClientView): number
 end
 
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%.1f|%d|%d|%d|%d", v.tier, housedOf(v), v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.food + 0.5), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
-		.. (if v.food <= 0 then "|hungry" else "")
+	return string.format("%d|%d/%d|%.1f|%d|%d|%d", v.tier, housedOf(v), v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
 end
 
 local function updateCard(v: Types.ClientView)
@@ -299,7 +291,7 @@ local function updateCard(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local h = 3 + 12 + 3 * LINE_H + 4 + 3 * LINE_H + 3
+	local h = 3 + 12 + 3 * LINE_H + 4 + 2 * LINE_H + 3
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
@@ -323,7 +315,6 @@ local function updateCard(v: Types.ClientView)
 		line(f, icon, label, y, w, nil, Numbers.perMin(n * 60 / Tuning.TurnSeconds), c, "Rate_" .. icon)
 		y += LINE_H
 	end
-	rate("food", v.rates.food, if v.food <= 0 then "Hungry!" else "Food")
 	rate("wood", v.rates.wood, "Wood")
 	rate("shell", v.rates.shells, "Shells")
 	f:SetAttribute("Key", key)
@@ -331,45 +322,80 @@ local function updateCard(v: Types.ClientView)
 	card = f
 end
 
------------------------------------------------------------------- the Tree of Life's card
--- Under the island card (GAME_DESIGN 6): its name, a bar filling toward the next driftling (Heartbeat runs it on from
--- StateClient.treeFrac), how many wait in the pen ("Pen 12": it has no room limit; orange at the save's limit, where
--- the tree rests), and Open (its panel).
-local function updateTree(v: Types.ClientView)
-	local inPen = v.penN
-	local key = string.format("%d|%d|%d", inPen, v.tree.luck, v.tree.speed)
-	if treeCard and treeCard:GetAttribute("Key") == key then
+------------------------------------------------------------------ the tide's card
+-- Under the island card (GAME_DESIGN 6): its name and Open (the tide's panel), a bar filling toward the next one
+-- (Heartbeat runs it on from StateClient.tideFrac), then each driftling bobbing at the jetty, the oldest (the next to
+-- drift off) first: its name in its rarity's colour and its price on a button that takes it in (TideView.take; green
+-- when the shells are there). On a phone only the newest (the card sits over the quest's, which must clear the menu
+-- bar).
+local TIDE_ROW = 13
+local function updateTide(v: Types.ClientView)
+	local shown: { Types.Drift } = {}
+	local most = if UIKit.phone() then 1 else #v.tide
+	for i = math.max(1, #v.tide - most + 1), #v.tide do
+		table.insert(shown, v.tide[i])
+	end
+	local parts: { string } = {}
+	for _, d in shown do
+		table.insert(parts, string.format("%d:%d:%s", d.id, d.cost, if v.shells >= d.cost then "y" else "n"))
+	end
+	local key = table.concat(parts, ",")
+	if tideCard and tideCard:GetAttribute("Key") == key then
 		return
 	end
-	if treeCard then
-		treeCard:Destroy()
-		treeCard = nil
+	if tideCard then
+		tideCard:Destroy()
+		tideCard = nil
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, 43), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
-	f.Name = "TreeCard"
+	local rows = math.max(1, #shown)
+	local h = 24 + rows * TIDE_ROW + 2
+	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
+	f.Name = "TideCard"
 	UIKit.plank(f, 11, 3)
-	PixelSprites.image(f, "mini_tree", UDim2.fromOffset(3, 1), 4)
-	UIKit.text(f, "Tree of Life", UDim2.fromOffset(w - 20, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
+	PixelSprites.image(f, "mini_tide", UDim2.fromOffset(3, 1), 4)
+	UIKit.text(f, "Tide", UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
+	UIKit.button(f, "Open", UDim2.fromOffset(34, 10), UDim2.fromOffset(w - 37, 1), function()
+		UIKit.openPanel("tide")
+	end, { name = "TideOpen", color = UIKit.color("button_ok") }).ZIndex = 5
 	local back = UIKit.rect(f, UDim2.fromOffset(w - 8, 5), UDim2.fromOffset(4, 14), UIKit.color("ink"), 4)
-	back.Name = "GrowBar"
-	UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("good"), 5).Name = "Fill"
-	UIKit.text(f, "Pen " .. Numbers.int(inPen), UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(4, 26), { color = if inPen >= Tuning.PenSafe then UIKit.color("orange") else UIKit.color("text"), z = 4, name = "Pen" })
-	UIKit.button(f, "Open", UDim2.fromOffset(44, 13), UDim2.fromOffset(w - 48, 25), function()
-		UIKit.openPanel("tree")
-	end, { name = "TreeOpen", color = UIKit.color("button_ok") })
+	back.Name = "TideBar"
+	UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("button"), 5).Name = "Fill"
+	if #shown == 0 then
+		UIKit.text(f, "Nothing yet", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 23), { color = UIKit.color("text_dim"), z = 4 })
+	end
+	for i, d in shown do
+		local def = Creatures.byId[d.sp]
+		local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
+		local y = 22 + (i - 1) * TIDE_ROW
+		local text = Numbers.coins(d.cost)
+		local bw = math.max(34, UIKit.textWidth(text) + 18)
+		UIKit.text(f, if def then def.name else "?", UDim2.fromOffset(w - bw - 10, 10), UDim2.fromOffset(4, y + 1), { color = UIKit.color(rar.color), z = 4, name = "TideName_" .. d.id })
+		local can = v.shells >= d.cost
+		local id = d.id
+		local b = UIKit.button(f, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw - 4, y), function()
+			TideView.take(id)
+		end, { name = "CardTake_" .. d.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
+		b.ZIndex = 5
+		local words = b:FindFirstChild("Words")
+		if words and words:IsA("GuiObject") then
+			words.Position = UDim2.fromOffset(2, 0)
+			words.Size = UDim2.new(1, -16, 1, 0)
+		end
+		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
+	end
 	f:SetAttribute("Key", key)
-	treeCard = f
+	tideCard = f
 end
 
--- The cards stack down the right edge (on a phone the tree's card sits on the left, clear of the jump button).
+-- The cards stack down the right edge (on a phone the tide's card sits on the left, clear of the jump button).
 local function stack()
 	local s = UIKit.size("Hud")
-	local c, e = card, treeCard
-	-- (the tree's wide panel covers the cards but a sliver: they step aside for it too)
-	local hide = BuildUI.isOpen() or UIKit.currentPanel() == "tree"
+	local c, e = card, tideCard
+	-- (the tide's wide panel covers the cards but a sliver: they step aside for it too)
+	local hide = BuildUI.isOpen() or UIKit.currentPanel() == "tide"
 	if c then
 		c.Visible = not hide
 	end
@@ -382,20 +408,20 @@ local function stack()
 			e.Position = UDim2.fromOffset(s.X - CARD_W - 7, y)
 		end
 	end
-	-- the quest's card down the left under the chips (under the tree's card on a phone); it steps aside for a panel
+	-- the quest's card down the left under the chips (under the tide's card on a phone); it steps aside for a panel
 	local qf = quest
 	if qf then
 		qf.Visible = not (BuildUI.isOpen() or UIKit.currentPanel() ~= nil)
 		local y = CARD_Y
 		if UIKit.phone() and e and e.Visible then
-			y = e.Position.Y.Offset + e.Size.Y.Offset + 11
+			y = e.Position.Y.Offset + e.Size.Y.Offset + 7
 		end
 		qf.Position = UDim2.fromOffset(7, y)
 	end
 end
 
 ------------------------------------------------------------------ the questline
--- Where a quest's Go takes the player (Data/Quests' `go`): a panel (the Tree of Life's too) or Build mode on a tab.
+-- Where a quest's Go takes the player (Data/Quests' `go`): a panel (the tide's too) or Build mode on a tab.
 local function goTo(where: string)
 	if string.sub(where, 1, 5) == "build" then
 		BuildUI.open(string.match(where, "^build:(%a+)$"))
@@ -410,7 +436,7 @@ local function claimQuest()
 		if res.ok and type(res.data) == "table" then
 			local d = res.data :: { [string]: any }
 			local parts: { string } = {}
-			for _, it in { { "shells", "shells" }, { "food", "food" }, { "wood", "wood" } } do
+			for _, it in { { "wood", "wood" }, { "shells", "shells" } } do
 				local n = tonumber(d[it[1]]) or 0
 				if n > 0 then
 					table.insert(parts, string.format("+%s %s", Numbers.coins(n), it[2]))
@@ -432,7 +458,7 @@ local function updateQuest(v: Types.ClientView)
 	local q, i = Quest.current(v.tut, v.quest or 1)
 	local have, need = 0, 0
 	if q then
-		local facts: Quest.Facts = { pals = v.pals, pieces = v.pieces, tier = v.tier, tree = v.tree, seen = v.seen, stats = v.stats }
+		local facts: Quest.Facts = { pals = v.pals, pieces = v.pieces, tier = v.tier, seen = v.seen, stats = v.stats }
 		have, need = Quest.progress(facts, q)
 	end
 	local key = if q then string.format("%s:%d:%d", q.id, have, need) else ""
@@ -464,7 +490,7 @@ local function updateQuest(v: Types.ClientView)
 	if done then
 		-- its reward, and Claim
 		local x = 5
-		for _, it in { { "shells", "shell" }, { "food", "food" }, { "wood", "wood" } } do
+		for _, it in { { "wood", "wood" }, { "shells", "shell" } } do
 			local n = (q.reward :: { [string]: number? })[it[1]] or 0
 			if n > 0 then
 				PixelSprites.image(f, "mini_" .. it[2], UDim2.fromOffset(x, y), 3)
@@ -503,17 +529,19 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Driftlings eat. Tap Build and place a Veggie Patch to grow food.",
-	[2] = "Bigger buildings need wood. Place a Lumber Camp.",
-	[3] = "Shells come from visitors. Place a Snack Stall and they'll buy food.",
-	[4] = "The Tree of Life grows a driftling every few seconds. Build a Driftling Hut so they can work.",
-	[5] = "Tap the Tree of Life and buy a level of Speed or Luck.",
-	[6] = "The pen sends driftlings to huts when a building needs them. Sell the ones you don't need.",
+	[1] = "Wood pays for everything you build. Tap Build and place a Lumber Camp.",
+	[2] = "Shells pay for driftlings. Place a Veggie Patch. It sells what it grows.",
+	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
+	[4] = "Driftlings float in at the jetty. Tap a price to take one in.",
+	[5] = "Visitors buy snacks too. Place a Snack Stall for more shells.",
+	[6] = "New ones drift in all the time. When the huts are full, swap a weak one for a better one.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
-	[1] = "Place a Veggie Patch. It grows the food your driftlings eat.",
-	[4] = "Place a Driftling Hut. The pen sends its best driftlings there.",
+	[1] = "Place a Lumber Camp. Wood pays for everything you build.",
+	[2] = "Place a Veggie Patch. It sells its veggies for shells.",
+	[3] = "Place a Driftling Hut. Driftlings live there and go to work.",
+	[5] = "Place a Snack Stall. Visitors buy snacks there.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
@@ -633,20 +661,20 @@ local function onDay(msg: { [string]: any })
 end
 
 ------------------------------------------------------------------ lifecycle
--- What the Tree of Life grew (Fx "tree"): a rare one or better is news (its rarity's colour, a chime; an epic or a
--- legend gets a burst of sparkles too); the commoner ones just turn up in the pen (WorldView).
-local function onTree(msg: { [string]: any })
-	if type(msg.grown) ~= "table" then
+-- What drifted in (Fx "tide"): a rare one or better is news (its rarity's colour, a chime; an epic or a legend gets a
+-- burst of sparkles on the tide's card too); the commoner ones just float up to the jetty (TideView).
+local function onTide(msg: { [string]: any })
+	if type(msg.came) ~= "table" then
 		return
 	end
-	for _, x in msg.grown do
+	for _, x in msg.came do
 		local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
 		if d and d.rarity >= 3 then
 			local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 			local a = if d.rarity == 4 then "An" else "A"
-			UIKit.notice(string.format("%s %s %s grew on the tree.", a, string.lower(rar.name), d.name), UIKit.color(rar.color), 4)
+			UIKit.notice(string.format("%s %s %s is drifting in.", a, string.lower(rar.name), d.name), UIKit.color(rar.color), 4)
 			Audio.play(if d.rarity >= 4 then "grow" else "rare")
-			local tc = treeCard
+			local tc = tideCard
 			if d.rarity >= 4 and tc and tc.Parent and tc.Visible then
 				UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
 			end
@@ -654,21 +682,10 @@ local function onTree(msg: { [string]: any })
 	end
 end
 
--- Fx "treegrew": a Luck milestone made the tree bigger (its model is built again on the island).
-local function onTreeGrew(msg: { [string]: any })
-	local last = tonumber(msg.stage) == #Tuning.TreeStages
-	UIKit.notice(if last then "The Tree of Life is fully grown." else "The Tree of Life grew bigger.", UIKit.color("accent"), 5)
-	Audio.play("grow")
-	local tc = treeCard
-	if tc and tc.Parent and tc.Visible then
-		UIKit.burstOn(tc, { "accent", "good", "white" }, 18, 40)
-	end
-end
-
 local function refresh(v: Types.ClientView)
 	updateTop(v)
 	updateCard(v)
-	updateTree(v)
+	updateTide(v)
 	stack()
 	updateTips(v)
 	updateQuest(v)
@@ -690,12 +707,12 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, treeCard, tips, quest, homeButton, musicButton } :: { Instance? } do
+	for _, f in { card, tideCard, tips, quest, homeButton, musicButton } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
-	card, treeCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
+	card, tideCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 108 else 124
 	buildTop()
 	buildBar()
@@ -731,10 +748,8 @@ function Hud.start()
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "day" or msg.kind == "turn" then
 			onDay(msg)
-		elseif msg.kind == "tree" then
-			onTree(msg)
-		elseif msg.kind == "treegrew" then
-			onTreeGrew(msg)
+		elseif msg.kind == "tide" then
+			onTide(msg)
 		end
 	end)
 	UIKit.Resized:Connect(function()
@@ -793,19 +808,13 @@ function Hud.start()
 				chipBump[name] = nil
 			end
 		end
-		-- the food chip blinks while the island is hungry
-		local ff = chipFrames.food
-		if v and ff and v.food <= 0 and chipBump.food == nil then
-			local on = math.floor(now * 2) % 2 == 0
-			UIKit.setPlate(ff, if on then UIKit.color("plate"):Lerp(UIKit.color("bad"), 0.35) else UIKit.color("plate"))
-		end
-		-- the tree's card: its bar runs on toward the next driftling (the pen never fills, so it never waits)
-		local e = treeCard
+		-- the tide's card: its bar runs on toward the next one drifting in
+		local e = tideCard
 		if e then
-			local back = e:FindFirstChild("GrowBar")
+			local back = e:FindFirstChild("TideBar")
 			local fill = if back then back:FindFirstChild("Fill") else nil
 			if back and fill and back:IsA("Frame") and fill:IsA("Frame") then
-				local k = StateClient.treeFrac()
+				local k = StateClient.tideFrac()
 				local fw = math.floor((back.Size.X.Offset - 2) * k)
 				if fill.Size.X.Offset ~= fw then
 					fill.Size = UDim2.fromOffset(fw, 3)

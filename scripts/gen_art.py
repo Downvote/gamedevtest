@@ -146,6 +146,8 @@ SMALL = {
     "boss": [".........", ".Y..Y..Y.", ".YY.Y.YY.", ".YYYYYYY.", ".YrYYYbY.", ".YYYYYYY.", ".........", ".........", "........."],
     "star": ["....Y....", "....Y....", "...YYY...", "YYYYYYYYY", ".YYYYYYY.", "..YYYYY..", "..YY.YY..", ".Y.....Y.", "........."],
     "boat": [".........", "....W....", "....WW...", "....WWW..", "....N....", ".NNNNNNN.", "..NNNNN..", "BBBBBBBBB", "........."],
+    # the tide: a wave curling over, its crest white
+    "tide": [".........", "....WWW..", "...WBBBW.", "..WBB.BB.", ".WBBB....", "WBBBBB.W.", "BBBBBBBBB", "BBBBBBBBB", "........."],
     # the music switch: two beamed notes
     "note": ["...WWWWWW", "...WWWWWW", "...W....W", "...W....W", "...W....W", ".WWW..WWW", "WWWW.WWWW", "WWW..WWW.", "........."],
 }

@@ -13,17 +13,15 @@ local KINDS = {
 	decor = true,
 	built = true,
 	housed = true,
-	grown = true,
+	taken = true,
 	sold = true,
 	best = true,
-	luck = true,
-	speed = true,
 	tier = true,
 	seen = true,
 	hatched = true,
 }
-local PANELS = { pals = true, index = true, hatch = true, tree = true }
-local TABS = { food = true, wood = true, shop = true, nest = true, gen = true, path = true, decor = true }
+local PANELS = { pals = true, index = true, hatch = true, tide = true }
+local TABS = { farm = true, wood = true, shop = true, nest = true, gen = true, path = true, decor = true }
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
@@ -48,7 +46,8 @@ return function()
 				end
 				T.truthy(any, q.id .. ": a kind of building that exists")
 			end
-			T.truthy((q.reward.shells or 0) + (q.reward.food or 0) + (q.reward.wood or 0) > 0, q.id .. ": pays something")
+			T.truthy((q.reward.shells or 0) + (q.reward.wood or 0) > 0, q.id .. ": pays something")
+			T.eq((q.reward :: any).food, nil, q.id .. ": no food")
 			local tab = string.match(q.go, "^build:(%a+)$")
 			T.truthy(PANELS[q.go] or q.go == "build" or (tab ~= nil and TABS[tab]), q.id .. ": goes somewhere real (" .. q.go .. ")")
 			T.truthy(#q.title > 0 and #q.text > 0 and #q.icon > 0, q.id .. ": words and an icon")
@@ -76,23 +75,23 @@ return function()
 		T.eq(p.quest, 1)
 		table.insert(p.pals, { id = 1, sp = "pebblit", home = 4, work = 5, muts = {} })
 		T.truthy(Quest.done(Quest.facts(p), q), "one at work")
-		local shells, food = p.shells, p.food
+		local shells, wood = p.shells, p.wood
 		local ok, data = Quest.claim(p)
 		T.truthy(ok, "claimed")
 		T.eq(p.shells, shells + (q.reward.shells or 0), "its shells")
-		T.eq(p.food, food + (q.reward.food or 0), "its food")
+		T.eq(p.wood, wood + (q.reward.wood or 0), "its wood")
 		T.eq(p.quest, 2, "the next quest")
 		T.eq(data.id, "help")
 		T.eq(data.next, 2)
 	end)
 
-	T.it("the counts: driftlings at work, paths, a kind built, the Index, the tree and its driftlings", function()
+	T.it("the counts: driftlings at work, paths, a kind built, the Index, the ones taken in", function()
 		local p = fresh()
 		local f = Quest.facts(p)
 		table.insert(p.plot.placed, { uid = 1, id = "patch", x = 0, z = 0, rot = 0, lvl = 2 })
 		table.insert(p.plot.placed, { uid = 2, id = "dirtpath", x = 2, z = 0, rot = 0, lvl = 1 })
 		table.insert(p.plot.placed, { uid = 3, id = "nest", x = 6, z = 0, rot = 0, lvl = 1 })
-		T.eq(Quest.count(f, { kind = "built", n = 2, of = "food" }), 1, "one farm")
+		T.eq(Quest.count(f, { kind = "built", n = 2, of = "farm" }), 1, "one farm")
 		T.eq(Quest.count(f, { kind = "paths", n = 8 }), if Buildings.byId.dirtpath then 1 else 0)
 		T.eq(Quest.count(f, { kind = "built", n = 1, of = "nest" }), 1)
 		p.seen.pebblit, p.seen.mossbun = 2, 2
@@ -103,13 +102,10 @@ return function()
 		T.eq(Quest.count(f, { kind = "helpers", n = 1 }), 0, "resting")
 		p.pals[1].work = 1
 		T.eq(Quest.count(f, { kind = "helpers", n = 1 }), 1, "one at the farm")
-		p.stats.sold, p.stats.grown, p.stats.best = 4, 9, 3
+		p.stats.sold, p.stats.taken, p.stats.best = 4, 9, 3
 		T.eq(Quest.count(f, { kind = "sold", n = 1 }), 4)
-		T.eq(Quest.count(f, { kind = "grown", n = 1 }), 9)
+		T.eq(Quest.count(f, { kind = "taken", n = 1 }), 9)
 		T.eq(Quest.count(f, { kind = "best", n = 3 }), 3)
-		p.tree.luck, p.tree.speed = 4, 2
-		T.eq(Quest.count(f, { kind = "luck", n = 5 }), 4)
-		T.eq(Quest.count(f, { kind = "speed", n = 2 }), 2)
 	end)
 
 	T.it("the save: a new one starts at the first quest; an older one comes in there; a stray number is put right", function()

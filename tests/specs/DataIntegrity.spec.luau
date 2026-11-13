@@ -15,26 +15,17 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { food = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, decor = true }
-		local trees = 0
+		local kinds = { farm = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, decor = true }
 		for _, d in Buildings.list do
-			if d.kind == "tree" then
-				-- the Tree of Life: every island's, never bought, never on a tab
-				trees += 1
-				T.truthy(not seen[d.id], d.id)
-				seen[d.id] = true
-				T.truthy(d.shells == 0 and d.wood == 0 and d.tier > #Office.plans and d.w >= 4 and d.d >= 4, d.id .. " the tree")
-				continue
-			end
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
 			T.truthy(kinds[d.kind], d.id .. " kind")
-			T.truthy(d.shells > 0 and d.wood >= 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id .. " price and footprint")
+			-- (every piece is paid for in wood: "make wood the main resource for building/expanding")
+			T.truthy(d.shells == 0 and d.wood > 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id .. " price and footprint")
 			T.truthy(d.tier >= 1 and d.tier <= #Office.plans, d.id .. " tier")
-			local makes = d.kind == "food" or d.kind == "wood" or d.kind == "shop"
+			local makes = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
 			T.truthy(makes == (d.knack ~= ""), d.id .. " knack")
-			T.truthy((d.kind == "shop") == (d.eats > 0), d.id .. " a shop eats food")
 			T.truthy((d.kind == "nest") == (d.slots > 0), d.id .. " huts have room")
 			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
 			T.truthy((d.kind == "gen") == (d.boost ~= "" and d.boostBy > 0), d.id .. " a boost building boosts")
@@ -42,7 +33,7 @@ return function()
 			T.truthy(d.comfort == 0 or d.kind == "nest", d.id .. " comfort is a hut's")
 			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
-		T.eq(trees, 1, "one Tree of Life")
+		T.eq(Buildings.byId.tree, nil, "no Tree of Life: the tide brings the driftlings")
 		T.truthy(seen.patch and seen.nest and seen.lumber and seen.stall, "the first buildings")
 		T.eq(Buildings.byId.tent, nil, "no homes: no villagers")
 		for _, id in { "patch", "nest", "lumber", "stall" } do
@@ -70,8 +61,8 @@ return function()
 			T.truthy(d.rarity >= 1 and d.rarity <= 5, d.id .. " rarity")
 			T.truthy(#d.passive.name > 0 and next(d.passive.fx) ~= nil, d.id .. " passive")
 			for k, v in d.passive.fx do
-				-- (eating less is the good way; charm in whole points)
-				local good = if k == "eat" then v < 0 and v > -1 elseif k == "charm" then v >= 1 and v == math.floor(v) else v > 0 and v < 1
+				-- (costing less is the good way; charm in whole points)
+				local good = if k == "cost" then v < 0 and v > -1 elseif k == "charm" then v >= 1 and v == math.floor(v) else v > 0 and v < 1
 				T.truthy(table.find(Traits.KEYS, k) ~= nil and good, d.id .. " passive effect " .. k)
 			end
 			T.truthy(d.power > 0, d.id .. " power")
