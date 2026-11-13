@@ -202,12 +202,13 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		add(Vector3.new(d, d, d), CFrame.new(0, t * h, 0), look.body, t, { shape = "Ball" })
 	end
 	local u = h / 2.4 -- (sizes below are for an egg 2.4 studs tall)
-	-- the shine, where the light off the top left meets the view: an oval of white and a dot under it (they keep
-	-- their own white at any light: neon)
+	-- the shine, where the light off the top left meets the view: an oval of white and a dot under it (marks are plain
+	-- colour: only the egg's real lights glow, the cracks' light, the motes, the halo and the beam, since anything that
+	-- glows pools light round it at night)
 	local SHINE = math.rad(95)
-	dab(0.72, SHINE, 0.24 * u, "white", true)
-	dab(0.76, SHINE + 0.12, 0.14 * u, "white", true)
-	dab(0.64, SHINE - 0.05, 0.08 * u, "white", true)
+	dab(0.72, SHINE, 0.24 * u, "white")
+	dab(0.76, SHINE + 0.12, 0.14 * u, "white")
+	dab(0.64, SHINE - 0.05, 0.08 * u, "white")
 	if r == 1 then
 		-- soft sandy patches, then freckles of two browns
 		for _ = 1, 7 do
@@ -249,13 +250,13 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			local t = 0.18 + rnd() * 0.68
 			local a = front(1.5)
 			local d = (0.09 + rnd() * 0.05) * u
-			dab(t, a, d, "white", true)
+			dab(t, a, d, "white")
 			local dt = d * 1.1 / h
 			local da = d * 1.1 / math.max(0.2, prof(t) * R)
-			dab(t + dt, a, d * 0.5, "white", true)
-			dab(t - dt, a, d * 0.5, "white", true)
-			dab(t, a + da, d * 0.5, "white", true)
-			dab(t, a - da, d * 0.5, "white", true)
+			dab(t + dt, a, d * 0.5, "white")
+			dab(t - dt, a, d * 0.5, "white")
+			dab(t, a + da, d * 0.5, "white")
+			dab(t, a - da, d * 0.5, "white")
 			local _ = k
 		end
 		-- a frosty band round its middle, icicles hanging off it at the front
@@ -280,7 +281,7 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		end
 		for k = 1, 9 do
 			local t = 0.2 + rnd() * 0.6
-			dab(t, front(1.3), 0.07 * u, if k % 3 == 0 then "pink" else "white", true)
+			dab(t, front(1.3), 0.07 * u, if k % 3 == 0 then "pink" else "white")
 		end
 		for k = 0, 27 do
 			dab(0.12, k / 28 * math.pi * 2, 0.15 * u, "pink")
@@ -301,13 +302,13 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			local a = FRONT - 1.5 + k * 0.6
 			dab(0.43, a, 0.27 * u, "orange")
 			dab(0.43, a, 0.21 * u, "yellow")
-			bead(0.43, a, 0.14 * u, ({ "berry_red", "blue", "green" })[k % 3 + 1], true)
+			bead(0.43, a, 0.14 * u, ({ "berry_red", "blue", "green" })[k % 3 + 1])
 		end
 		-- glints of light here and there on the gold
 		for _ = 1, 7 do
 			local t = 0.2 + rnd() * 0.6
 			if math.abs(t - 0.43) > 0.06 then
-				bead(t, front(1.3), 0.09 * u, "white", true)
+				bead(t, front(1.3), 0.09 * u, "white")
 			end
 		end
 		-- a crown round its top: a ring and points standing up out of it, each tipped with light
@@ -318,7 +319,7 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			local a = k / 8 * math.pi * 2
 			bead(0.88, a, 0.1 * u, "yellow")
 			bead(0.915, a, 0.07 * u, "yellow")
-			bead(0.945, a, 0.05 * u, "white", true)
+			bead(0.945, a, 0.05 * u, "white")
 		end
 		-- the halo over it and the beam out of its top
 		for k = 0, 19 do

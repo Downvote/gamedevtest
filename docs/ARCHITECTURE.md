@@ -1018,7 +1018,7 @@ see-through `HatchTap`; after the list it waits `Tuning.HatchSceneHold` (6 s) an
 a mutation. `GLORY` by rarity: rocks, build, rays, rayLen, sparks, shards, flash, dim, jolt, confetti, stars.
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
-the shine (Neon white), the fx (`mote` x3 epic, `halo` x20 and `beam` legendary) and the cracks (`Crack = { p, off,
+the shine (white), the fx (`mote` x3 epic, `halo` x20 and `beam` legendary: with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
 stage }`: stage 1 at the egg's second rock, 2 at the build-up, 3 halfway through it, Neon in the rarity's light from
 60% of it; out of sight until then). Parts above `SPLIT` (0.56) are the top.
 `HatchBackdrop.paint(r, W, H, ex, ey) -> buffer` (the sky picture, RGBA at the art grid: banded sky with dithered

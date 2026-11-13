@@ -935,9 +935,11 @@ is drawn, then open on it:
   skies and stars twinkle. Seeds and petals blow across by day, fireflies rise at night.
 - **The egg** (`EggModels.hero`, 2.3 to 2.8 studs by rarity): a smooth shell of 25 overlapping slices, a white shine
   high on its lit side, and its rarity's work painted on it as flat marks: freckles and sandy patches (common), a white
-  zigzag band and a vine with leaves and a sprout on top (uncommon), glowing four-pointed stars and a frosty band with
-  icicles (rare), two pink stripes spiralling up it with glowing runes and three motes circling (epic), a band of gold
-  set with red, blue and green gems, glints, a crown of points, a halo turning over it and a beam of light (legendary).
+  zigzag band and a vine with leaves and a sprout on top (uncommon), white four-pointed stars and a frosty band with
+  icicles (rare), two pink stripes spiralling up it with runes between them and three motes of light circling (epic), a
+  band of gold set with red, blue and green gems, glints, a crown of points, a halo of light turning over it and a beam
+  of light (legendary). Only those lights and the cracks' light glow: anything glowing pools light round it at night,
+  and a glowing mark would wash the shell out.
 - **The beats**: the title names the egg ("An epic egg"). It rocks two to five times (more the rarer it was laid), a
   crack opening at the top on its second rock. If it turns rarer, each step is a hard shake, a flash, sparks and stars,
   "It turned legendary" and the next rarity's egg standing there, the sky and the light changing with it. Then the
