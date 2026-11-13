@@ -2,7 +2,7 @@
 -- own rules (Logic/Island, Plot, Tree: what the server runs) and logs it every ten minutes. Every few seconds they
 -- hatch the rarest egg under the Tree of Life they can afford (into a hut with room, or swapping out their weakest
 -- when it is a rarer egg than that one was), then build what the island lacks most with its wood (a hut while the huts are full and a good one
--- floats by, a building for driftlings resting with no work, wood when it comes slowly, a shop a tier, decor with
+-- floats by, a building for driftlings resting with no work or working away from their knack, wood when it comes slowly, a shop a tier, decor with
 -- spare wood), and expand the island when they can.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
@@ -45,6 +45,20 @@ local function build(p: any, id: string): boolean
 	if ok then
 		Tree.settle(p)
 		Tree.fillJobs(p)
+		-- (driftlings working away from their knack move to a place of it with room, as a player moves them in the
+		-- Driftlings panel: any driftling works anywhere, best at its own knack)
+		for _, w in p.pals do
+			local d = Creatures.byId[w.sp]
+			local q = if w.work ~= 0 then Island.piece(p, w.work) else nil
+			local bd = if q then Buildings.byId[q.id] else nil
+			if d and bd and bd.knack ~= d.knack then
+				local j = Island.freeJob(p, d.knack)
+				local jq = if j ~= 0 then Island.piece(p, j) else nil
+				if jq and Buildings.byId[jq.id].knack == d.knack then
+					Island.setHelp(p, w.id, j)
+				end
+			end
+		end
 	end
 	return ok
 end
@@ -150,12 +164,16 @@ local function plan(p: any, rng: any)
 		end
 	end
 	local housed = 0
+	-- (the driftlings that want a building of their knack: resting, or working at another knack's, where they work
+	-- slower)
 	local resting: { [string]: number } = {}
 	for _, x in p.pals do
 		if x.home ~= 0 then
 			housed += 1
-			if x.work == 0 then
-				local k = Creatures.byId[x.sp].knack
+			local k = Creatures.byId[x.sp].knack
+			local q = if x.work ~= 0 then Island.piece(p, x.work) else nil
+			local bd = if q then Buildings.byId[q.id] else nil
+			if x.work == 0 or (bd and bd.knack ~= k) then
 				resting[k] = (resting[k] or 0) + 1
 			end
 		end

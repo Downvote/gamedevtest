@@ -19,7 +19,7 @@ local list: { Quest } = {
 	{
 		id = "help",
 		title = "Put a driftling to work",
-		text = "A driftling in a hut works at a building that suits it. Open Driftlings to see where.",
+		text = "A driftling in a hut can work at any farm, camp or shop. Open Driftlings to pick where.",
 		goal = { kind = "helpers", n = 1 },
 		reward = { shells = 40, wood = 30 },
 		go = "pals",

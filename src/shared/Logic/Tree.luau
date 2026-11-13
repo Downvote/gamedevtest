@@ -17,7 +17,7 @@
 --   out (it is sold for its `price`). What hatches is one of the egg's rarity's driftlings among the kinds open at the
 --   island's tier, with mutations (Traits.roll, as a rarer one every Tuning.EggMutTier tiers); a new island's first
 --   two are good with wood and at a farm. It moves into the comfiest hut with room (or the swapped one's) and takes a
---   free place at a building of its knack.
+--   free place: at a building of its knack first, else wherever it works fastest (any driftling works anywhere).
 --   A driftling without a hut (its hut cleared away or made smaller, a hatchling with no room) waits on the island,
 --   working nowhere, and moves in the moment a hut has room (`settle`).
 local Types = require(script.Parent.Parent.Types)
@@ -137,6 +137,16 @@ function Tree.worth(x: Pal): number
 	return w
 end
 
+-- How fast a driftling works at a building of `knack` (any driftling works anywhere; its passive and mutations may
+-- help more at one knack than another): its rarity's speed times 1 + its work share there. The work picker shows it.
+function Tree.worthAt(x: Pal, knack: string): number
+	local d = Creatures.byId[x.sp]
+	if d == nil then
+		return 0
+	end
+	return (Tuning.RarityWork[d.rarity] or 1) * (1 + Traits.workAt(Traits.sum(d.passive.fx, x.muts), knack))
+end
+
 -- a before b: the better worker first, then the older
 function Tree.better(a: Pal, b: Pal): boolean
 	local wa, wb = Tree.worth(a), Tree.worth(b)
@@ -223,16 +233,17 @@ local function palOf(p: Profile, id: number): Pal?
 	return nil
 end
 
--- A driftling just moved into a hut takes a free place at a building of its knack (Island.freeJob), if there is one.
+-- A driftling just moved into a hut takes a free place (Island.freeJob: at a building of its knack first, else
+-- wherever it works fastest), if there is one.
 local function toWork(p: Profile, x: Pal)
 	local d = Creatures.byId[x.sp]
 	if d and x.home ~= 0 and x.work == 0 then
-		x.work = Island.freeJob(p, d.knack)
+		x.work = Island.freeJob(p, d.knack, Traits.sum(d.passive.fx, x.muts))
 	end
 end
 
 -- The driftlings with no hut move into the huts with room, the best first into the comfiest, each taking a free
--- place at a building of its knack. Returns the ids moved.
+-- place (its knack's first). Returns the ids moved.
 function Tree.settle(p: Profile): { number }
 	local moved: { number } = {}
 	local waiting: { Pal } = {}
@@ -265,8 +276,8 @@ function Tree.settle(p: Profile): { number }
 	return moved
 end
 
--- Every resting driftling in a hut takes a free place at a building of its knack (after a building went up, or a
--- helper left).
+-- Every resting driftling in a hut takes a free place, its knack's first (after a building went up, or a helper
+-- left).
 function Tree.fillJobs(p: Profile)
 	for _, x in p.pals do
 		toWork(p, x)
@@ -285,7 +296,7 @@ local function sellOne(p: Profile, i: number): number
 end
 
 -- A new driftling (one taken in, or a hatchling): into the comfiest hut with room (none: it waits with no hut), at
--- a free place of its knack; in the Index, and the rarest had.
+-- a free place, its knack's first; in the Index, and the rarest had.
 function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 	local x: Pal = { id = p.nextId, sp = sp, home = 0, work = 0, muts = Traits.clean(muts) }
 	p.nextId += 1

@@ -326,7 +326,7 @@ Plot.unhouse = unhouse
 
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (and its huts' limit: Tuning.HutLimit), its price
--- (wood; IslandService then sends resting driftlings of its knack to work there: Logic/Tree.fillJobs).
+-- (wood; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
 	if def == nil or def.kind == "tree" then
@@ -706,7 +706,7 @@ function Plot.replacements(q: Piece, tier: number): { string }
 end
 
 -- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a hut for a den, a patch for an
--- orchard): its uid stays (its workers stay where the knack still fits), its level starts again at 1. bad_payload
+-- orchard): its uid stays (its workers stay), its level starts again at 1. bad_payload
 -- (another kind, the same piece, the tree), locked (a bigger island's), money / wood, blocked (the new footprint does
 -- not fit there). A smaller hut keeps the driftlings it has room for; the rest are left with no hut.
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
@@ -739,12 +739,7 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if new.kind == "nest" then
 		unhouse(p, q.uid, new.slots)
 	end
-	-- helpers whose knack the new one does not take go back to rest
-	for _, x in p.pals do
-		if x.work == q.uid and new.knack ~= old.knack then
-			x.work = 0
-		end
-	end
+	-- (its helpers stay: any driftling works anywhere)
 	p.stats.built += 1
 	return true, { i = i, uid = q.uid, id = id }
 end

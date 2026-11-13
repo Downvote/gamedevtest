@@ -4,7 +4,7 @@
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
 #   scenario: island | village | island2 | island3 | city | gallery | day | dusk | night | dawn | tree |
-#             panel=<pals|tree|hatch|index|looks> | catalog=<ground|fence|nature|theme|theme2|fun|tab name|id,id,...>
+#             panel=<pals|work|tree|hatch|index|looks> | catalog=<ground|fence|nature|theme|theme2|fun|tab name|id,id,...>
 #             | theme=<beach|garden|frost|zen|volcano|fairy> | themes (all six)
 #             | sea | visit | build | water | late | all
 #             | pportraits | pthumbs[=<k>of<n> | =<id>,<id>] (pictures for the sprites: portraits.sh, thumbs.sh)

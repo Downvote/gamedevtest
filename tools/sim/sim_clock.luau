@@ -25,6 +25,7 @@ local Tuning = H.sharedServer("Config.Tuning")
 local Street = H.sharedServer("Data.Street")
 local Plot = H.sharedServer("Logic.Plot")
 local Island = H.sharedServer("Logic.Island")
+local Buildings = H.sharedServer("Data.Buildings")
 local Tree = H.sharedServer("Logic.Tree")
 local Traits = H.sharedServer("Data.Traits")
 local Breed = H.sharedServer("Logic.Breed")
@@ -348,7 +349,7 @@ H.expect(hud ~= nil, "stores", "the HUD stays usable")
 
 ------------------------------------------------------------------ waiting for a hut, then for work
 -- (GAME_DESIGN 6: a driftling with no hut waits on the island, working nowhere, and moves in the moment a hut has
--- room; in a hut it goes to a free place at a building of its knack once there is one)
+-- room; in a hut it goes to a free place, its knack's first, once there is one)
 E.phase = "work"
 do
 	prof.shells, prof.wood = 1e6, 1e5
@@ -365,7 +366,21 @@ do
 			hutUid = math.max(hutUid, q.uid)
 		end
 	end
-	H.expect(crab.home == hutUid and crab.work == 0, "work", "it moves into the new hut at once; with nowhere to fish it rests there", string.format("home %d work %d", crab.home, crab.work))
+	local function isWork(uid: number): boolean
+		for _, q in prof.plot.placed do
+			if q.uid == uid then
+				local b = Buildings.byId[q.id]
+				return b ~= nil and (b.kind == "farm" or b.kind == "wood" or b.kind == "shop")
+			end
+		end
+		return false
+	end
+	H.expect(crab.home == hutUid and (crab.work == 0 or isWork(crab.work)), "work", "it moves into the new hut at once; with nowhere to fish it takes another free place, or rests", string.format("home %d work %d", crab.home, crab.work))
+	-- (any driftling works anywhere: the player sends it to rest, the pier goes up and it goes fishing, its own knack
+	-- first)
+	local rr = H.req(p, "pal.work", { id = crab.id, uid = 0 })
+	E.run(0.2)
+	H.expect(rr.ok and crab.work == 0, "work", "sent to rest", tostring(rr.err))
 	local rp = place("pier")
 	H.expect(rp.ok, "work", "a fishing pier", tostring(rp.err))
 	E.run(0.3)

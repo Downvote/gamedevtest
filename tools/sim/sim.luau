@@ -1094,11 +1094,21 @@ do
 	local none = pg and pg:FindFirstChild("Muts", true)
 	H.expect(if #(pal.muts or {}) > 0 then shown == #(pal.muts or {}) else none ~= nil, "pals", "its mutations on its row", string.format("%d of %d", shown, #(pal.muts or {})))
 end
--- Work: the work picker (its knack's buildings and Rest); Rest, then back to work
+-- Work: the work picker (every workplace, whatever its knack, its speed at each, and Rest); Rest, then back to work
 do
 	local job = pal.work
 	H.clickNamed(p, "Help_" .. pal.id, { wait = 0.4 })
 	H.expect(H.buttonNamed(p, "Go_0") ~= nil and H.buttonNamed(p, "Go_" .. job, true) ~= nil, "pals", "Work opens the work picker (its building, Rest)")
+	local listed, n = true, 0
+	for _, q in prof.plot.placed do
+		if Island.works(q.id) then
+			n += 1
+			listed = listed and H.buttonNamed(p, "Go_" .. q.uid, true) ~= nil
+		end
+	end
+	local speed = p.PlayerGui:FindFirstChild("Speed", true)
+	H.expect(listed and n >= 3, "pals", "the work picker lists every workplace, whatever its knack", tostring(n))
+	H.expect(speed ~= nil and string.match(speed.Text, "^x%d+%.%d$") ~= nil, "pals", "with how fast it works at each", speed and speed.Text)
 	H.clickNamed(p, "Go_0", { wait = 0.5 })
 	H.expect(pal.work == 0, "pals", "Rest: it stops work", tostring(pal.work))
 	H.openPanel(p, "pals", { pal = pal.id })
@@ -2089,7 +2099,8 @@ H.closePanel(p)
 E.run(0.3)
 res = H.req(p, "quest.claim", {})
 H.expect(not res.ok and res.err == "not_done", "quests", "a claim before the goal is met is refused", tostring(res.err))
--- (a driftling sent to work at a building of its knack, the way the Driftlings panel's Work does)
+-- (a driftling sent to work at a building of another knack, the way the Driftlings panel's Work does: any driftling
+-- works anywhere)
 local sent = false
 for _, x in prof.pals do
 	if x.home == 0 then
@@ -2098,12 +2109,12 @@ for _, x in prof.pals do
 	local d = Creatures.byId[x.sp]
 	for _, q in prof.plot.placed do
 		local b = Buildings.byId[q.id]
-		if not sent and d and b and b.knack == d.knack and Island.works(q.id) then
+		if not sent and d and b and b.knack ~= d.knack and Island.works(q.id) then
 			sent = H.req(p, "pal.work", { id = x.id, uid = q.uid }).ok
 		end
 	end
 end
-H.expect(sent, "quests", "a driftling sent to work at a building of its knack")
+H.expect(sent, "quests", "a driftling sent to work at a building of another knack")
 H.push(p, 0.5)
 H.expect(H.buttonNamed(p, "QuestClaim") ~= nil, "quests", "a driftling at work: Claim shows")
 do

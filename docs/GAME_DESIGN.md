@@ -1,6 +1,15 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "add a search button for the building ui."
+> The request (2026-11-13, the latest): "make it such that each creature can work at any place, and is no longer
+> restricted."
+
+So any driftling can work at any farm, fishing pier, lumber camp or shop. Its **knack** stays as what it's best at:
+its passive usually helps at buildings of its knack ("+15% at farms"), so it works a little faster there, and a new
+driftling goes to a free place of its knack first, else to the free place where it works fastest, rather than
+resting. The Driftlings panel's Work picker lists every workplace on the island with how fast this driftling works at
+each (x1.1, x1.0), the fastest first (§6).
+
+> The request (2026-11-13): "add a search button for the building ui."
 
 So the build tray has a search button now: a magnifier just before the search box (§4.5). Tapping it puts the cursor
 in the box, and it lights up while a search is on.
@@ -75,7 +84,8 @@ rate) so a new island gets going; each driftling at it adds more.
 > also have mutations like before"
 
 Asked what the huts are, the answer was **"Nests become huts"**: the Nests tab's buildings are the huts, and a
-driftling in a hut helps at a farm, pier, lumber camp or shop of its knack, faster the rarer it is. Asked about
+driftling in a hut helps at a farm, pier, lumber camp or shop (any of them since 2026-11-13, faster at its knack's),
+faster the rarer it is. Asked about
 breeding: **"Keep it"**: the Hatchery stays, without levels (§6.1). The huts, the rarities' work and the mutations
 are still the game's, and so is the tree, laying eggs now (above). Its pen, its upgrades and Equip best went with the
 tide on 2026-11-13; before that the tree had grown bigger and grander, the pen had lost its room limit and was only a
@@ -96,8 +106,8 @@ Driftling Isle is a small island-village management game for Roblox. You wash up
 its sand, a jetty down to the boardwalk and a Tree of Life behind the fire. Every few minutes the tree lays **eggs**
 round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
 then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build a Lumber Camp for wood, farms
-and shops for shells, and huts for the driftlings you hatch; each one works at a building of its knack, more the rarer
-it is. Paths, fences, rivers and decor in 13 themes give it a look of its own. The driftlings do all the work: there are
+and shops for shells, and huts for the driftlings you hatch; each one works wherever you send it, a little faster at
+the kind of building it's good at, more the rarer it is. Paths, fences, rivers and decor in 13 themes give it a look of its own. The driftlings do all the work: there are
 no villagers. Wood pays for every building and for growing the island, shells pay for eggs, and once the huts are full a
 better hatchling can take a weak one's place. The islands of everyone on the server sit side by side along one boardwalk
 on a shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
@@ -110,7 +120,7 @@ Build a Lumber Camp for wood, a Veggie Patch that sells what it grows for shells
 works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its wood and shells. All the
 while the Tree of Life lays a new lot of eggs every three minutes, five on a new island, and the ones left from the last
 lot go. Tap an egg, or its price, to hatch it: out comes a driftling of the egg's rarity with mutations of its own. It
-moves into a hut and takes a place at a farm, pier, lumber camp or shop of its knack, adding to what it makes, a
+moves into a hut and takes a place at a farm, pier, lumber camp or shop (its knack's first), adding to what it makes, a
 legendary seven times what a common one adds. Rarer eggs cost more, and on a bigger island every egg costs more, the
 tree lays more of them and the rare ones come more often. When every hut is full, the new one takes the place of one you
 pick, and that one is sold. Spend wood on more buildings, huts (so many a tier), and on decor, paths, fences and water
@@ -663,8 +673,9 @@ island grows into a new stage, the tree is built again at it.
   volcanoes and grottoes at 3, reefs at 4, bluffs at 5, ruins at 6), with mutations of its own (below), rolled as one
   rarity rarer every `EggMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the city
   tiers, three on Moonlit Bay and Evergreen Isle, four on the last two, never past a legendary's roll). It moves
-  into the comfiest hut with room and takes a free place at a building of its knack (`HelpMax`: 2 driftlings a
-  building), or rests in its hut until one is free; "It hatched a rare Wispwing!" in its rarity's colour, and it goes in
+  into the comfiest hut with room and takes a free place (`HelpMax`: 2 driftlings a building; `Island.freeJob`: a
+  building of its knack first, else wherever it works fastest, then the emptiest), or rests in its hut until one is
+  free; "It hatched a rare Wispwing!" in its rarity's colour, and it goes in
   the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
   Patch have help waiting. With no hut built the answer is "Build a hut first. Driftlings need somewhere to live."; an
   egg a new lot replaced before the tap reached the server, "That egg is gone. The tree laid new ones."
@@ -722,8 +733,8 @@ island grows into a new stage, the tree is built again at it.
   Driftling Den 5, Treetop Roost 6, Spring Grotto 8, Driftling Palace 12; the home once called Grass Hut is now the
   Grass Shack so the names don't clash). A driftling in a hut adds its charm.
 - **Your pick:** the Driftlings panel lists every driftling, the hardest workers first, with **Move** (a picker: each
-  hut with its room; a full hut offers to swap with one of its driftlings), **Work** (which building of its knack, or
-  rest) and **Sell**; its buttons open the Tree panel (Eggs) and, when one stands, the Hatchery.
+  hut with its room; a full hut offers to swap with one of its driftlings), **Work** (any workplace on the island,
+  each with how fast this driftling works there, the fastest first, or rest) and **Sell**; its buttons open the Tree panel (Eggs) and, when one stands, the Hatchery.
 - **Selling** (`Tree.sell`, and a swap) pays `SellPrice` shells by rarity (2, 7, 25, 85, 320), times 1 + 0.25 a
   mutation tier (`SellTier`), times 1 + its sell share (Shiny and its family). It gives a little back and no more: a
   common hatched for 20 sells for 2. Over the career it comes to well under a thousandth of the shells earned (§10).
@@ -779,7 +790,8 @@ driftlings hatch once the island reaches that kind's tier, above):
 | Reefs | Coralcrab, Lumajelly, Pearlback, Novafox, Tidewyrm, Abyssmaw |
 | Ruins | Relicrab, Rubblet, Glyphowl, Sentinel, Runemoth, Solwyrm |
 
-Each has a **knack** (farms, fishing piers, lumber camps or shops: where it helps), a 3D model built from parts
+Each has a **knack** (farms, fishing piers, lumber camps or shops: what it's best at; it may work anywhere, its
+passive usually helping at its knack's buildings), a 3D model built from parts
 (twenty body plans: blob, crab, bird, bun, lizard, owl, pup, mole, jelly, fox, wyrm, seal, bat, sprite, yeti, snail,
 turtle, frog, moth, golem and drake) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
 the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
@@ -1010,7 +1022,8 @@ swap for their weakest when the egg is two rarities better than it. Then they bu
 buildings first (a camp, a patch, a hut, a stall), then a hut while every hut is full and there are places at work
 (at the huts' limit, a bigger hut in the smallest one's place, or where there is room once the small one is cleared),
 wood while it comes slowly, a shop a tier, a farm more than the tier, a building for the knack with the most
-driftlings resting, and decor with wood to spare. The catalog has plenty of cheap decor, so the decor stops at a
+driftlings resting or working away from their knack (moving those to it once it stands, as a player would), and decor
+with wood to spare. The catalog has plenty of cheap decor, so the decor stops at a
 third of the piece limit and two thirds stay for buildings (a player decorates, but not before the huts), and the
 player builds nothing that needs water. Once the island is going they save up for the next tier, and they
 expand as soon as they can (the extra eggs laid at once). Its random numbers are seeded through a hash, as the server
@@ -1018,21 +1031,24 @@ seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec
 bounds (in brackets what the three seeds measure):
 
 - a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (5 to 12 minutes);
-- a steady supply: at least 12 hatched by half an hour (22 to 37), an epic within two hours (25 to 30 minutes); a
+- a steady supply: at least 12 hatched by half an hour (18 to 37), an epic within two hours (25 to 30 minutes); a
   legendary comes at 40 to 72 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
   thousandth: 850 to 1,420 shells of 4.4 to 5.2 million);
-- the island's second tier within 25 minutes (12 to 21), the third within 50 (33 to 49); at an hour, at least 12
-  driftlings in huts (34 to 40); Harbor Town (tier 4) not before an hour (78 to 91 minutes), Coral City (tier 5) not
-  before two hours (one seed at 164 minutes; the other two are 33,000 and 129,000 wood short of it at three hours),
-  and no Sunspire Capital (tier 6) within three hours;
+- the island's second tier within 25 minutes (12 to 21), the third within 50 (34 to 45); at an hour, at least 12
+  driftlings in huts (39 to 40); Harbor Town (tier 4) not before an hour (88 to 100 minutes), Coral City (tier 5) not
+  before two hours (one seed at 199 minutes, the other two not yet at three hours), and no Sunspire Capital (tier 6)
+  within three hours;
 - both stores are being made at every ten minutes of the three hours, they stay finite, and the save has no food.
 
 Harbor Town went from 130,000 to 150,000 wood with the conveyor tide, when one seed reached it in 91 minutes. With the
 eggs and the huts' limit it moved out of reach (one seed at 118 minutes, the other two not in three hours), and the
 islands sat on a Grand Isle for most of the second and third hours. The ten tiers brought it down to 60,000 and the
 city tiers with it, so every seed has the town in the second hour and one reaches Coral City in the third. By three
-hours the seeds have hatched 108 to 132 driftlings and house 60 to 64. Shells pile up in the town: the two seeds still
+hours the seeds have hatched 117 to 123 driftlings and house 56 to 60. Letting any driftling work anywhere
+(2026-11-13) changed little: a driftling with no room at its knack now works somewhere else instead of resting, and
+the Career still builds for its knack and moves it there once that stands, so Harbor Town comes about ten minutes
+later than before and Coral City half an hour later. Shells pile up in the town: the two seeds still
 on Harbor Town hold 1.6 and 2.3 million at three hours, with little to spend them on but swaps.
 
 ## 11. Polish and animation

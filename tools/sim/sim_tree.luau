@@ -293,12 +293,12 @@ local function pieceOf(uid)
 	end
 	return nil
 end
--- at work at a building of its knack, or no free place of its knack anywhere
+-- at work at a workplace (any knack: its own first when one had room), or no free place anywhere
 local function workingOrNoPlace(x)
 	local d = Creatures.byId[x.sp]
 	if x.work ~= 0 then
 		local q = pieceOf(x.work)
-		return q ~= nil and Buildings.byId[q.id].knack == d.knack
+		return q ~= nil and Island.works(q.id)
 	end
 	return Island.freeJob(prof, d.knack) == 0
 end
@@ -624,7 +624,7 @@ local function hatched(label, e, b, opts)
 	local d = Creatures.byId[x.sp]
 	H.expect(d ~= nil and d.rarity == hatchRarity(prof.tier, e.r), "hatch", label .. ": one of the egg's rarity", string.format("%s (%s) from a rarity %d egg", x.sp, d and tostring(d.rarity) or "?", e.r))
 	H.expect(x.home ~= 0 and (opts.home == nil or x.home == opts.home), "hatch", label .. ": into a hut" .. (if opts.home then " (the one expected)" else ""), string.format("home %d, want %s", x.home, tostring(opts.home)))
-	H.expect(workingOrNoPlace(x), "hatch", label .. ": at work at a building of its knack (or no free place)", string.format("%s work %d", x.sp, x.work))
+	H.expect(workingOrNoPlace(x), "hatch", label .. ": at work (or no free place anywhere)", string.format("%s work %d", x.sp, x.work))
 	H.expect(prof.seen[x.sp] == 2, "hatch", label .. ": in the Index", tostring(prof.seen[x.sp]))
 	local hf = fxSince(W, b.fx, "hatched")
 	local data = hf[1] and hf[1].msg.data

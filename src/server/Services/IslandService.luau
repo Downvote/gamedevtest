@@ -54,8 +54,8 @@ function IslandService.init()
 		return function(s: Session.S, a: any): (boolean, any)
 			local ok, data = fn(s, a)
 			if ok then
-				-- (a building of a knack: the hut driftlings resting there take a place; a hut built: the ones with no
-				-- hut move in)
+				-- (a workplace built: the hut driftlings resting take a place there, their knack's first; a hut built:
+				-- the ones with no hut move in)
 				Tree.settle(s.profile)
 				Tree.fillJobs(s.profile)
 				PlotService.buildDecor(s)

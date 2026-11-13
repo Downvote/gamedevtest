@@ -385,7 +385,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		ids[q.uid] = true
 	end
 	-- driftlings: a species that exists, a hut that stands (else none) with room for it, help only from a hut at a
-	-- building of its knack (Tuning.HelpMax a building)
+	-- workplace, any knack (Tuning.HelpMax a building)
 	local pals: { Types.Pal } = {}
 	local helpers: { [number]: number } = {}
 	local inHut: { [number]: number } = {}
@@ -408,7 +408,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					local work = int(x.work, 0, 0)
 					local q = byUid[work]
 					local b = if q then Buildings.byId[q.id] else nil
-					if home == 0 or b == nil or b.knack ~= Creatures.byId[x.sp].knack or (helpers[work] or 0) >= Tuning.HelpMax then
+					if home == 0 or b == nil or (b.kind ~= "farm" and b.kind ~= "wood" and b.kind ~= "shop") or (helpers[work] or 0) >= Tuning.HelpMax then
 						work = 0
 					end
 					if work ~= 0 then

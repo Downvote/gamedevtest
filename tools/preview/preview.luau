@@ -521,7 +521,12 @@ local function panelScenario(name)
 	settle(p)
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
-		H.openPanel(p, name)
+		if name == "work" then
+			-- the work picker for the first driftling (Work on its card): every workplace with its speed there
+			H.openPanel(p, "pals", { pal = H.profile(p).pals[1].id })
+		else
+			H.openPanel(p, name)
+		end
 		E.run(0.8)
 		if name == "hatch" then
 			-- the second Hatchery: two parents picked as a player would

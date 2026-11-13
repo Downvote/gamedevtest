@@ -451,7 +451,8 @@ function H.checkProfile(p, label)
 		if x.work ~= 0 then
 			local q = uids[x.work]
 			local b = q and Buildings.byId[q.id]
-			H.expect(b ~= nil and d ~= nil and b.knack == d.knack and (helps[x.work] or 0) < Tuning.HelpMax, "profile", label .. ": a driftling at a bad or full spot", tostring(x.work))
+			-- (any workplace, whatever its knack: a farm, a lumber camp or a shop)
+			H.expect(b ~= nil and d ~= nil and (b.kind == "farm" or b.kind == "wood" or b.kind == "shop") and (helps[x.work] or 0) < Tuning.HelpMax, "profile", label .. ": a driftling at a bad or full spot", tostring(x.work))
 			helps[x.work] = (helps[x.work] or 0) + 1
 		end
 	end

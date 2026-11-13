@@ -120,12 +120,12 @@ return function()
 	T.it("jobs only where they make sense; ids unique; nextId past every id", function()
 		local p = played()
 		local raw = roundTrip(p)
-		raw.pals[1].work = built(raw)[2].uid -- a wood driftling at the patch
+		raw.pals[1].work = built(raw)[2].uid -- a wood driftling at the patch: fine, any driftling works anywhere
 		raw.pals[2].work = built(raw)[3].uid -- a hut is no job
 		table.insert(raw.pals, roundTrip(raw.pals[2])) -- the same id twice
 		raw.nextId = 1
 		local back = Schema.reconcile(raw, 1, 1)
-		T.eq(back.pals[1].work, 0)
+		T.eq(back.pals[1].work, built(raw)[2].uid, "kept at the patch")
 		T.eq(back.pals[2].work, 0)
 		T.eq(#back.pals, 2, "the same id once")
 		-- a hut that isn't there, or a hut over its room: no hut

@@ -218,7 +218,7 @@ return function()
 		T.eq(x.sp, data.sp)
 		T.eq(Creatures.byId[x.sp].rarity, 1, "a common out of a common egg")
 		T.eq(x.home, nest)
-		T.truthy(x.work ~= 0, "at a building of its knack")
+		T.truthy(x.work ~= 0, "at work")
 		T.eq(p.seen[x.sp], 2)
 		T.eq(p.stats.taken, 6)
 		T.eq(data.egg, e.id)
@@ -282,7 +282,7 @@ return function()
 		end
 	end)
 
-	T.it("a driftling in a hut takes a job of its knack (HelpMax a building); one with no hut doesn't work", function()
+	T.it("a driftling in a hut takes a job, its knack's first (HelpMax a building); one with no hut doesn't work", function()
 		local p = fresh()
 		local patch = build(p, "patch")
 		build(p, "nest")
@@ -298,6 +298,23 @@ return function()
 			end
 		end
 		T.eq(at, Tuning.HelpMax, "two at the patch")
+		local resting = 0
+		for _, x in list do
+			resting += if x.work == 0 then 1 else 0
+		end
+		T.eq(resting, #list - Tuning.HelpMax, "the third rests: no other workplace")
+		local camp = build(p, "lumber")
+		Tree.fillJobs(p)
+		local atCamp = 0
+		for _, x in list do
+			atCamp += if x.work == camp then 1 else 0
+		end
+		T.eq(atCamp, #list - Tuning.HelpMax, "a farm driftling with no farm place takes the lumber camp")
+		for _, x in list do
+			if x.work == camp then
+				x.work = 0
+			end
+		end
 		local patch2 = build(p, "patch")
 		Tree.fillJobs(p)
 		for _, x in list do

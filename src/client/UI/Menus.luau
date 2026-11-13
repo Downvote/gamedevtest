@@ -29,8 +29,6 @@ local Menus = {}
 
 local hatcheries: (v: Types.ClientView) -> { Types.Piece } -- (the Hatchery's, below)
 
-local KNACKS: { [string]: string } = { farm = "farms", fish = "fishing piers", wood = "lumber camps", shop = "shops" }
-
 -- Ask the server; tell the player when it says no.
 local function ask(action: string, payload: { [string]: any }?, ok: string?): Types.Response
 	local res = StateClient.request(action, payload)
@@ -128,27 +126,29 @@ local function confirmButton(parent: Instance, text: string, size: UDim2, pos: U
 	b.ZIndex = 4
 end
 
--- How fast a driftling works ("Works x2.8": its rarity's speed and its work share at its knack, Logic/Tree.worth).
+-- How fast a driftling works ("Works x2.8": its rarity's speed and its work share at its own knack, where it's usually
+-- fastest, Logic/Tree.worth; the work picker shows its speed at each workplace).
 local function workWord(x: Types.Pal): string
 	return string.format("Works x%.1f", Tree.worth(x))
 end
 
 ------------------------------------------------------------------ the work picker
--- The buildings of a driftling's knack it can work at, the one there now, and Rest.
+-- Every workplace on the island (any driftling works anywhere: the request of 2026-11-13), the fastest for this one
+-- first (Tree.worthAt: its passive and mutations help most at their knack), the one there now, and Rest.
 local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local knack: string? = nil
+	local me: Types.Pal? = nil
 	local name = "?"
 	local current = 0
 	for _, x in v.pals do
 		if x.id == palId then
 			local d = Creatures.byId[x.sp]
-			knack = if d then d.knack else nil
 			name = if d then d.name else x.sp
 			current = x.work
+			me = x
 		end
 	end
-	local top = hint(body, string.format("Where should %s work? (%s)", name, KNACKS[knack or ""] or ""), W - 50)
+	local top = hint(body, string.format("Where should %s work? The fastest spots come first.", name), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
 		UIKit.openPanel("pals")
 	end, { name = "Back", color = UIKit.color("plate_light") })
@@ -162,35 +162,51 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
 			UIKit.openPanel("pals")
 		end
 	end
-	for _, q in v.pieces do
+	-- the workplaces with this one's speed at each, the fastest first (then farms, wood, shops as built)
+	local spots: { { q: Types.Piece, d: any, speed: number, k: number } } = {}
+	local KIND_ORDER: { [string]: number } = { farm = 1, wood = 2, shop = 3 }
+	for i, q in v.pieces do
 		local d = Buildings.byId[q.id]
-		if d and Island.works(q.id) and d.knack == knack then
-			order += 1
-			local f = row(list, order, 22)
-			f.Name = "Spot_" .. q.uid
-			-- (a farm's veggies, a boost's spark: their kinds have no icon of their own)
-			local icon = if d.kind == "shop" then "shell" elseif d.kind == "farm" then "food" elseif d.kind == "gen" then "boost" else d.kind
-			PixelSprites.image(f, "mini_" .. (if PixelSprites.has("mini_" .. icon) then icon else "work"), UDim2.fromOffset(4, 5), 4)
-			UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
-			-- (Tuning.HelpMax a building; one more sends the first there back to rest)
-			local n = 0
-			for _, x in v.pals do
-				if x.work == q.uid and x.id ~= palId then
-					n += 1
-				end
-			end
-			local full = n >= Tuning.HelpMax
-			local status = if q.uid == current then "Here now" elseif full then "Full: the first there would rest" elseif n > 0 then string.format("%d of %d working", n, Tuning.HelpMax) else "Nobody yet"
-			UIKit.text(f, status, UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 11), { color = if status == "Nobody yet" then UIKit.color("good") else UIKit.color("text_dim"), z = 4 })
-			local b = UIKit.button(f, if q.uid == current then "Here" elseif full then "Swap" else "Go", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
-				choose(q.uid)
-			end, { name = "Go_" .. q.uid, color = UIKit.color("button_ok"), enabled = q.uid ~= current })
-			b.ZIndex = 4
+		if d and Island.works(q.id) then
+			table.insert(spots, { q = q, d = d, speed = if me then Tree.worthAt(me, d.knack) else 1, k = (KIND_ORDER[d.kind] or 4) * 10000 + i })
 		end
+	end
+	table.sort(spots, function(a, b)
+		if math.abs(a.speed - b.speed) > 1e-9 then
+			return a.speed > b.speed
+		end
+		return a.k < b.k
+	end)
+	local fastest = if #spots > 0 then spots[1].speed else 0
+	for _, sp in spots do
+		local q, d = sp.q, sp.d
+		order += 1
+		local f = row(list, order, 22)
+		f.Name = "Spot_" .. q.uid
+		-- (a farm's veggies, a boost's spark: their kinds have no icon of their own)
+		local icon = if d.kind == "shop" then "shell" elseif d.kind == "farm" then "food" elseif d.kind == "gen" then "boost" else d.kind
+		PixelSprites.image(f, "mini_" .. (if PixelSprites.has("mini_" .. icon) then icon else "work"), UDim2.fromOffset(4, 5), 4)
+		UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -124, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
+		-- (Tuning.HelpMax a building; one more sends the first there back to rest)
+		local n = 0
+		for _, x in v.pals do
+			if x.work == q.uid and x.id ~= palId then
+				n += 1
+			end
+		end
+		local full = n >= Tuning.HelpMax
+		local status = if q.uid == current then "Here now" elseif full then "Full: the first there would rest" elseif n > 0 then string.format("%d of %d working", n, Tuning.HelpMax) else "Nobody yet"
+		UIKit.text(f, status, UDim2.new(1, -124, 0, 10), UDim2.fromOffset(18, 11), { color = if status == "Nobody yet" then UIKit.color("good") else UIKit.color("text_dim"), z = 4 })
+		-- how fast it works here: the fastest in the accent colour
+		UIKit.text(f, string.format("x%.1f", sp.speed), UDim2.fromOffset(32, 10), UDim2.new(1, -100, 0, 6), { x = "right", color = if sp.speed >= fastest - 1e-9 then UIKit.color("accent") else UIKit.color("text_dim"), z = 4, name = "Speed" })
+		local b = UIKit.button(f, if q.uid == current then "Here" elseif full then "Swap" else "Go", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
+			choose(q.uid)
+		end, { name = "Go_" .. q.uid, color = UIKit.color("button_ok"), enabled = q.uid ~= current })
+		b.ZIndex = 4
 	end
 	if order == 0 then
 		local f = row(list, 1, 22)
-		UIKit.text(f, "No " .. (KNACKS[knack or ""] or "spots") .. " on the island yet. Build one first.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "Nowhere to work on the island yet. Build a farm, a lumber camp or a shop first.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local f = row(list, order + 1, 22)
 	f.Name = "Rest"
@@ -457,7 +473,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 			where = string.format("%s, working at the %s", hut, buildingName(v, x.work) or "?")
 			color = UIKit.color("good")
 		else
-			where = string.format("%s, resting (no free %s)", hut, KNACKS[d.knack] or d.knack)
+			where = string.format("%s, resting", hut)
 		end
 	end
 	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 31), { color = color, z = 4, name = "Where" })

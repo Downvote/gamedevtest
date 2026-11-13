@@ -7,7 +7,8 @@
 --
 -- A turn (Tuning.TurnSeconds): each building of kind farm, wood or shop makes its rate (Data/Buildings) times
 --   (the work of its driftlings, up to Tuning.HelpMax: each PalWork x its rarity's RarityWork x (1 + its work share +
---   its hut's comfort), its work share its passive's and mutations' (Data/Traits: work and the building's knack);
+--   its hut's comfort), its work share its passive's and mutations' (Data/Traits: work and the building's knack; a
+--   driftling may work anywhere, its passive usually helping at its own knack's buildings);
 --   IdleOutput with none)
 --   x (1 + the boost buildings' share at its knack)
 -- a wood building makes wood; a farm sells what it grows for shells; a shop sells to the visitors for shells, times
@@ -184,22 +185,38 @@ function Island.randomLook(rng: Rng): Types.Look
 	return { skin = rng:int(1, #Looks.skin), hair = rng:int(1, #Looks.hair), style = rng:int(1, #Looks.styles), shirt = rng:int(1, #Looks.shirt) }
 end
 
--- A building of a driftling's knack with fewer than Tuning.HelpMax driftlings working there (farms first, then wood,
--- then shops; the emptiest first, then the first built), or 0.
-function Island.freeJob(p: Profile, knack: string): number
+-- A free place for a driftling of `knack` (with effects `fx`, Data/Traits): a workplace with fewer than Tuning.HelpMax
+-- driftlings working there, or 0. Any driftling may work anywhere (the request of 2026-11-13: "make it such that each
+-- creature can work at any place, and is no longer restricted"); this picks the place it goes to by itself: a building
+-- of its own knack first (its passive helps there), else the one where it works fastest (`fx`); then the emptiest,
+-- farms before wood before shops, the first built.
+function Island.freeJob(p: Profile, knack: string, fx: Traits.Fx?): number
 	local taken: { [number]: number } = {}
 	for _, pal in p.pals do
 		if pal.work ~= 0 then
 			taken[pal.work] = (taken[pal.work] or 0) + 1
 		end
 	end
-	local best, bestN = 0, Tuning.HelpMax
-	for _, kind in { "farm", "wood", "shop" } do
+	local best, bestKey = 0, nil :: { number }?
+	for k, kind in { "farm", "wood", "shop" } do
 		for _, q in p.plot.placed do
 			local d = Buildings.byId[q.id]
 			local n = taken[q.uid] or 0
-			if d and d.kind == kind and d.knack == knack and n < bestN then
-				best, bestN = q.uid, n
+			if d and d.kind == kind and n < Tuning.HelpMax then
+				-- (compared in order: its knack, its share there, room, then the kind's order and the first built)
+				local key = { if d.knack == knack then 1 else 0, if fx then Traits.workAt(fx, d.knack) else 0, -n, -k }
+				local better = bestKey == nil
+				if bestKey then
+					for i = 1, #key do
+						if key[i] ~= bestKey[i] then
+							better = key[i] > bestKey[i]
+							break
+						end
+					end
+				end
+				if better then
+					best, bestKey = q.uid, key
+				end
 			end
 		end
 	end
@@ -212,8 +229,9 @@ function Island.newDay(p: Profile)
 	p.stats.days += 1
 end
 
--- A driftling living in a hut to a building of its knack (uid) or resting (0): Tuning.HelpMax a building (a full one
--- sends the helper that came first back to rest). One with no hut doesn't work (bad_payload).
+-- A driftling living in a hut to any workplace (uid: a farm, a lumber camp or a shop, whatever its knack; it works best
+-- at its own) or resting (0): Tuning.HelpMax a building (a full one sends the helper that came first back to rest).
+-- One with no hut doesn't work, nor anywhere that makes nothing (bad_payload).
 function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	local who: Types.Pal? = nil
 	for _, pal in p.pals do
@@ -227,8 +245,7 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	if uid ~= 0 then
 		local q = Island.piece(p, uid)
 		local def = Creatures.byId[who.sp]
-		local b = if q then Buildings.byId[q.id] else nil
-		if q == nil or b == nil or def == nil or b.knack ~= def.knack or who.home == 0 then
+		if q == nil or def == nil or not Island.works(q.id) or who.home == 0 then
 			return false, "bad_payload" :: ErrCode
 		end
 		local there: { Types.Pal } = {}
