@@ -227,6 +227,10 @@ EGG_BAND = [
 ]
 for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w")], start=1):
     S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask])
+# Build mode's puff of dust (Controllers/Puffs): a little cloud that swells, then thins out and breaks up.
+S("poof_1", [".......", ".......", "..ww...", ".wwws..", ".wsss..", "..ss...", "......."], outline=False, shade=False)
+S("poof_2", [".......", "..ww...", ".wwwws.", "wwwssss", ".wssss.", "..sss..", "......."], outline=False, shade=False)
+S("poof_3", [".......", ".w...w.", "w.....s", ".......", "s.....s", ".s...s.", "......."], outline=False, shade=False)
 # A rare egg's twinkle (EggView's sparks): a small white star that opens and closes, cyan at its tips.
 S("twinkle_1", [".......", ".......", "...c...", "..cwc..", "...c...", ".......", "......."], outline=False, shade=False)
 S("twinkle_2", [".......", "...c...", "...w...", ".cwwwc.", "...w...", "...c...", "......."], outline=False, shade=False)

@@ -14,6 +14,7 @@ local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local Audio = require(script.Parent.Audio)
+local Puffs = require(script.Parent.Puffs)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 
 local AvatarView = {}
@@ -39,6 +40,10 @@ local function floorOf(hit: RaycastResult?): string
 		return "grass"
 	end
 	local n = hit.Instance.Name
+	-- (a river or pond drawn on the island: the founder wades through it, splashing: GAME_DESIGN 4.3)
+	if hit.Instance:GetAttribute("PixelWater") ~= nil and hit.Position.Y > Street.LAWN_Y - 0.3 then
+		return "water"
+	end
 	if string.find(n, "Plank", 1, true) or string.find(n, "Beam", 1, true) or n == "Pier" or n == "Edge" then
 		return "wood"
 	end
@@ -209,8 +214,11 @@ local function step(dt: number)
 			rec.air = false
 			CharacterModels.poseStanding(rec.rig, base, t, rec.speed)
 		end
-		-- a walk kicks up a puff of dust now and then, a run more often
-		if not airborne and rec.speed > 6 and t >= rec.dustAt then
+		-- a walk kicks up a puff of dust now and then, a run more often (in water: splashes)
+		if not airborne and rec.speed > 6 and t >= rec.dustAt and rec.floor == "water" then
+			rec.dustAt = t + (if rec.speed > 14 then 0.14 else 0.24)
+			Puffs.burst("drop", (base * CFrame.new(0, 0.1, -0.3)).Position, 3, 0.3)
+		elseif not airborne and rec.speed > 6 and t >= rec.dustAt then
 			rec.dustAt = t + (if rec.speed > 14 then 0.18 else 0.3)
 			UIKit.bitsAt((base * CFrame.new(0, 0.1, -0.4)).Position, { "white", "text_dim" }, 2, 14, 40)
 		end

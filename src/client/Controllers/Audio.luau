@@ -54,8 +54,21 @@ local EVENTS: { [string]: EventDef } = {
 	step_grass = { id = "StepGrass1", ids = { "StepGrass1", "StepGrass2" }, vol = 1.1, pitch = { 0.9, 1.1 }, cd = 0.12 },
 	step_sand = { id = "StepSand1", ids = { "StepSand1", "StepSand2" }, vol = 0.6, pitch = { 0.9, 1.1 }, cd = 0.12 },
 	step_wood = { id = "StepWood1", ids = { "StepWood1", "StepWood2", "StepWood3" }, vol = 0.25, pitch = { 0.95, 1.1 }, cd = 0.12 },
+	step_water = { id = "Pop", vol = 0.4, pitch = { 0.55, 0.7 }, cd = 0.12 }, -- wading through a river on the island
 	jump = { id = "Hop", vol = 0.16, pitch = { 1, 1.15 }, cd = 0.2 },
 	land = { id = "LandSand", vol = 0.19, pitch = { 0.95, 1.05 }, cd = 0.2 },
+	-- putting a piece down in Build mode (GAME_DESIGN 4: "add effects and polish when putting down decor and other
+	-- amenities"): a sound for what it's made of (Data/Buildings feel), from the clips above
+	place_wood = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.08 }, cd = 0.06, from = 0.24, len = 0.17 },
+	place_stone = { id = "CoinsMany", vol = 0.5, pitch = { 0.7, 0.8 }, cd = 0.06 },
+	place_plant = { id = "StepGrass1", ids = { "StepGrass1", "StepGrass2" }, vol = 1.4, pitch = { 0.8, 0.95 }, cd = 0.05, voices = 3 },
+	place_water = { id = "Pop", vol = 0.6, pitch = { 0.7, 0.85 }, cd = 0.05, voices = 3 },
+	place_metal = { id = "Notice", vol = 0.25, pitch = { 1.1, 1.2 }, cd = 0.08 },
+	place_magic = { id = "Sparkle", vol = 0.5, pitch = { 1, 1.12 }, cd = 0.08 },
+	place_sand = { id = "StepSand1", ids = { "StepSand1", "StepSand2" }, vol = 0.9, pitch = { 0.85, 1 }, cd = 0.05, voices = 3 },
+	place_snow = { id = "StepSand1", ids = { "StepSand1", "StepSand2" }, vol = 0.8, pitch = { 1.2, 1.35 }, cd = 0.05, voices = 3 },
+	place_cloth = { id = "Hop", vol = 0.3, pitch = { 0.85, 0.95 }, cd = 0.06 },
+	place_fire = { id = "Combo", vol = 0.35, pitch = { 0.8, 0.9 }, cd = 0.08 },
 }
 -- the ambience: looped sounds faded toward a volume (Audio.ambience)
 local LOOPS: { [string]: string } = { waves = "Waves", crickets = "Crickets" }

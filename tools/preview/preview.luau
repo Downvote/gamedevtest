@@ -751,6 +751,127 @@ function SCEN.build()
 	return p
 end
 
+-- "buildui": the build catalog (GAME_DESIGN 4: "Polish the build ui more, just like the bakery game, and reference
+-- bloxburg"): the Decor tab on its Garden row with a card's tooltip (buildui_decor), a picket fence drawn round a box
+-- (its markers: buildui_fence), a stream dug in two rows (buildui_river), a plank bridge dropping in over it with its
+-- dust (buildui_drop), and the island after (buildui_done).
+function SCEN.buildui()
+	seedProfile(57, 3, { pieces = VILLAGE, pals = { "mossbun" }, shells = 50000, wood = 200000 })
+	local p = join(57, "Planner")
+	settle(p, 30, 1)
+	local BuildUI = modOr(p, "UI.BuildUI")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local Street = H.sharedServer("Data.Street")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(H.session(p).plot)
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	H.clickNamed(p, "Tab_decor", { optional = true, wait = 0.3 })
+	H.clickNamed(p, "Chip_garden", { optional = true, wait = 0.3 })
+	settle(p, 10, 0.5)
+	if BuildUI then
+		H.inClient(p, function()
+			BuildUI.debugTip("birdbath")
+		end)
+	end
+	E.run(0.2)
+	capture(p, "buildui_decor")
+	if BuildUI == nil or PR == nil then
+		return p
+	end
+	-- a box of grass w x d where every tile fits, the nearest to (tx, tz) (the fence goes round one, the river
+	-- through another, clear of the first)
+	local function freeBox(w, d, tx, tz, avoid)
+		local r = Street.plot(prof.tier)
+		local best, bx, bz = math.huge, nil, nil
+		for z = r.z0 - r.z0 % 2, r.z1, 2 do
+			for x = r.x0 - r.x0 % 2, r.x1, 2 do
+				local dist = (x + w / 2 - tx) ^ 2 + (z + d / 2 - tz) ^ 2
+				if dist >= best then
+					continue
+				end
+				local ok = avoid == nil or (x + w <= avoid[1] - 2 or x >= avoid[1] + avoid[3] + 2 or z + d <= avoid[2] - 2 or z >= avoid[2] + avoid[4] + 2)
+				for dz = 0, d - 2, 2 do
+					for dx = 0, w - 2, 2 do
+						ok = ok and Plot.fits(prof.tier, prof.plot.placed, "stream", x + dx, z + dz, 0)
+					end
+				end
+				if ok then
+					best, bx, bz = dist, x, z
+				end
+			end
+		end
+		return bx, bz
+	end
+	-- the founder walks over (Build mode's view starts on them), then Build mode again on a tab
+	local function goTo(x, z, tabName)
+		H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
+		H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
+		if p.Character then
+			p.Character:PivotTo(E.cf.new(ox + x, 3, oz + z + 3))
+		end
+		E.run(1)
+		settle(p, 20, 0.5)
+		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+		H.clickNamed(p, "Tab_" .. tabName, { optional = true, wait = 0.3 })
+	end
+	local fx, fz = freeBox(8, 6, 10, -4)
+	if fx then
+		goTo(fx + 4, fz + 3, "fence")
+		H.clickNamed(p, "Buy_picket", { optional = true, wait = 0.3 })
+		H.inClient(p, function()
+			BuildUI.debugDraw({ { fx, fz }, { fx + 8, fz + 6 } }, "box", true)
+		end)
+		settle(p, 10, 0.4)
+		capture(p, "buildui_fence")
+		H.inClient(p, function()
+			BuildUI.debugDraw({ { fx, fz }, { fx + 8, fz + 6 } }, "box")
+		end)
+		E.run(0.6)
+	end
+	-- a stream two tiles wide, east to west, away from the fence
+	local rx, rz = freeBox(12, 8, -12, -4, if fx then { fx, fz, 8, 6 } else nil)
+	if rx then
+		goTo(rx + 6, rz + 4, "water")
+		H.clickNamed(p, "Buy_stream", { optional = true, wait = 0.3 })
+		H.inClient(p, function()
+			BuildUI.debugDraw({ { rx, rz + 2 }, { rx + 10, rz + 4 } }, "box")
+		end)
+		settle(p, 10, 0.5)
+		capture(p, "buildui_river")
+		-- a plank bridge across it: picked, tapped where it fits, put down (caught as it lands)
+		H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
+		local bx, bz = nil, nil
+		for x = rx + 2, rx + 8 do
+			if bx == nil and Plot.fits(prof.tier, prof.plot.placed, "plankbridge", x, rz + 1, 0) then
+				bx, bz = x, rz + 1
+			end
+		end
+		log("buildui: river at %d,%d, bridge at %s,%s", rx, rz, tostring(bx), tostring(bz))
+		if bx and bz then
+			H.inClient(p, function()
+				BuildUI.pick("plankbridge", 0)
+				local pos = PR.project(E.v3(ox + bx + 1, Street.LAWN_Y, oz + bz + 3))
+				BuildUI.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
+				BuildUI.confirm()
+			end)
+			E.run(0.2)
+			capture(p, "buildui_drop")
+			E.run(1)
+			local found = false
+			for _, q in prof.plot.placed do
+				found = found or q.id == "plankbridge"
+			end
+			log("buildui: the bridge %s", if found then "stands" else "was not placed")
+		end
+	end
+	H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
+	H.clickNamed(p, "BuildDone", { optional = true, wait = 0.5 })
+	settle(p, 10, 0.5)
+	capture(p, "buildui_done")
+	return p
+end
+
 -- "paths": drawing paths in Build mode (GAME_DESIGN 4): a box being dragged (its markers: cyan where a tile goes,
 -- red where one can't), then the tiles laid (paths_box).
 function SCEN.paths()
