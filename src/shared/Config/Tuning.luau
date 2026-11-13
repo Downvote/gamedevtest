@@ -84,6 +84,9 @@ local Tuning = {
 	MaxPlots = 6, -- islands along the boardwalk (the server's size)
 	PlotSpacing = 80, -- studs between island origins along X
 	PlotPieces = { 24, 40, 60, 85, 115, 150 }, -- buildings and decor standing on an island, by its tier
+	-- huts an island may have, by its tier (GAME_DESIGN 4: "make a limit of huts per island expansion level"): more room
+	-- for driftlings comes from growing the island, or a bigger hut in a small one's place (Replace)
+	HutLimit = { 4, 6, 8, 10, 12, 14 },
 	PathPieces = { 60, 120, 200, 300, 400, 500 }, -- path tiles, apart from the pieces
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,

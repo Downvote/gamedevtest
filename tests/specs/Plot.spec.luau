@@ -285,4 +285,40 @@ return function()
 			T.truthy(found, d.id)
 		end
 	end)
+	T.it("huts: no more than the island's limit for its level; a bigger island allows more; Replace still works", function()
+		local p = fresh()
+		for t = 2, #Tuning.HutLimit do
+			T.truthy(Tuning.HutLimit[t] > Tuning.HutLimit[t - 1], "more huts each level")
+		end
+		local limit = Plot.hutLimit(1)
+		T.truthy(limit >= 2, "the tips' hut and the questline's second fit")
+		for _ = 1, limit do
+			local x, z = spot(p, "nest")
+			T.truthy((Plot.place(p, "nest", x, z, 0)))
+		end
+		T.eq(Plot.huts(p.plot.placed), limit)
+		local x, z = spot(p, "nest")
+		T.eq(select(2, Plot.place(p, "nest", x, z, 0)), "huts", "one past the limit")
+		local wood = p.wood
+		local px, pz = spot(p, "patch")
+		T.truthy((Plot.place(p, "patch", px, pz, 0)), "other buildings still go up")
+		T.truthy(p.wood < wood)
+		-- a bigger island: room for more, and a small hut replaced with a bigger one at the limit
+		p.tier = 2
+		for _ = limit + 1, Plot.hutLimit(2) do
+			local hx, hz = spot(p, "nest")
+			T.truthy((Plot.place(p, "nest", hx, hz, 0)))
+		end
+		local hx, hz = spot(p, "burrow")
+		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "huts")
+		local at = 0
+		for i, q in p.plot.placed do
+			if q.id == "nest" then
+				at = i
+			end
+		end
+		local ok = Plot.replace(p, at, "burrow")
+		T.truthy(ok, "Replace with a bigger hut")
+		T.eq(Plot.huts(p.plot.placed), Plot.hutLimit(2), "the same count")
+	end)
 end

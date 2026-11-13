@@ -26,6 +26,20 @@ Plot.ROTS = { 0, 90, 180, 270 }
 function Plot.limit(tier: number): number
 	return Tuning.PlotPieces[math.clamp(math.floor(tier), 1, #Tuning.PlotPieces)]
 end
+-- How many huts an island of `tier` may have (Tuning.HutLimit), and how many stand.
+function Plot.hutLimit(tier: number): number
+	return Tuning.HutLimit[math.clamp(math.floor(tier), 1, #Tuning.HutLimit)]
+end
+function Plot.huts(placed: { Piece }): number
+	local n = 0
+	for _, q in placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "nest" then
+			n += 1
+		end
+	end
+	return n
+end
 function Plot.pathLimit(tier: number): number
 	return Tuning.PathPieces[math.clamp(math.floor(tier), 1, #Tuning.PathPieces)]
 end
@@ -155,8 +169,8 @@ end
 Plot.unhouse = unhouse
 
 ------------------------------------------------------------------ actions (change the profile only on success)
--- Place a new piece: its tier reached, room under the island's limit, its price (wood; IslandService then sends
--- resting driftlings of its knack to work there: Logic/Tree.fillJobs).
+-- Place a new piece: its tier reached, room under the island's limit (and its huts' limit: Tuning.HutLimit), its price
+-- (wood; IslandService then sends resting driftlings of its knack to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
 	if def == nil or def.kind == "tree" then
@@ -168,6 +182,9 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	local used, most = Plot.used(p, id)
 	if used >= most then
 		return false, "full" :: ErrCode
+	end
+	if def.kind == "nest" and Plot.huts(p.plot.placed) >= Plot.hutLimit(p.tier) then
+		return false, "huts" :: ErrCode
 	end
 	if p.shells < def.shells then
 		return false, "money" :: ErrCode

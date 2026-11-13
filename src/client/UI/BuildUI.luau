@@ -622,6 +622,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		end
 		k += 1
 		local locked = def.tier > v.tier
+		-- (a hut past the island's huts' limit: a bigger hut can still replace a small one)
+		local hutsFull = def.kind == "nest" and Plot.huts(v.pieces) >= Plot.hutLimit(v.tier)
 		local afford = v.shells >= def.shells and v.wood >= def.wood
 		local card = UIKit.plate(list, UDim2.fromOffset(72, 28), nil, if pick and pick.id == def.id then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2, { bevel = true })
 		card.Name = "Card_" .. def.id
@@ -638,6 +640,11 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 				Audio.play("deny")
 				return
 			end
+			if hutsFull then
+				UIKit.notice(Words.errText("huts"), UIKit.color("bad"))
+				Audio.play("deny")
+				return
+			end
 			pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false }
 			clearGhost()
 			clearDrawGhost()
@@ -645,10 +652,12 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			rebuild()
 		end, {
 			name = "Buy_" .. def.id,
-			color = if locked then UIKit.color("button_off") elseif afford then UIKit.color("button_ok") else nil,
+			color = if locked or hutsFull then UIKit.color("button_off") elseif afford then UIKit.color("button_ok") else nil,
 		})
 		if locked then
 			UIKit.text(b, string.format("Island Lv%d", def.tier), UDim2.fromScale(1, 1), nil, { x = "center", color = UIKit.color("text_dim"), z = 6 })
+		elseif hutsFull then
+			UIKit.text(b, "No room", UDim2.fromScale(1, 1), nil, { x = "center", color = UIKit.color("text_dim"), z = 6 })
 		else
 			price(b, 3, 2, def.shells, def.wood, v, 6)
 		end
@@ -728,14 +737,21 @@ rebuild = function()
 			end
 		end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells and v.wood >= cost.wood })
 		local _ = ex
-		-- the pieces standing (or the path tiles, on the Paths tab) and the island's limit
-		local paths = 0
+		-- the pieces standing (the path tiles on the Paths tab, the huts on the Huts tab) and the island's limit
+		local paths, trees = 0, 0
 		for _, q in v.pieces do
 			if Plot.isPath(q.id) then
 				paths += 1
+			elseif Plot.isFixed(q.id) then
+				trees += 1
 			end
 		end
-		local used, most = if tab == "path" then paths else #v.pieces - paths, if tab == "path" then Plot.pathLimit(v.tier) else Plot.limit(v.tier)
+		local used, most = #v.pieces - paths - trees, Plot.limit(v.tier)
+		if tab == "path" then
+			used, most = paths, Plot.pathLimit(v.tier)
+		elseif tab == "nest" then
+			used, most = Plot.huts(v.pieces), Plot.hutLimit(v.tier)
+		end
 		UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
 		if cost then
 			local pf = Instance.new("Frame")
