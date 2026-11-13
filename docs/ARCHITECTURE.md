@@ -13,8 +13,8 @@ read-only as the reference: nothing there was changed). What was copied, and how
 
 > The request (2026-11-12, GAME_DESIGN quotes it with the choices made): "scrap the entire cave, fighting, level,
 > skill and expedition system. instead, players start with a tree of life: it creates a creature every few seconds to
-> be put into a pen. ..." (the expeditions' code is gone; the Tree of Life and its pen, `Logic/Tree`, went in turn on
-> 2026-11-13, below)
+> be put into a pen. ..." (the expeditions' code is gone; the tree's pen, its levels and Equip best went on
+> 2026-11-13, and the tree came back that day laying eggs, below)
 
 > The request (2026-11-12, later): "remove villagers, only creatures should be enough" (no `Villager`, `folk`, homes,
 > `folk.*` actions or Folk attribute; save version 11)
@@ -22,18 +22,20 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > The requests (2026-11-13, GAME_DESIGN quotes them with the talk before): "good idea, use the drifting in idea. you
 > can remove the tree of life, there should now be a steady stream of driftlings, with rarities that players can pick
 > up"; "also, make wood the main resource for building/expanding and shells the main resource of getting new
-> driftlings. remove food as a resource" (`Logic/Tree` is now `Logic/Tide`: no tree piece, pen, levels, stages or
-> Equip best; the tide is each session's `s.tide`, never saved, mirrored as `ClientView.tide` and the plot's `Tide`
-> attribute, drawn by `Controllers/TideView`; the action `tide.take` instead of `pen.sell`, `pen.best` and
-> `tree.upgrade`; no `food`, eating or hunger; every piece priced in wood, `TierCost` in wood, the Hatchery's feast in
-> shells; save version 12)
+> driftlings. remove food as a resource"; later "make them float by just like a conveyer belt instead of drifting
+> towards the island and stopping, with one every second" (what still holds: no `food`, eating or hunger; every piece
+> priced in wood, `TierCost` in wood with `TierCost[4]` 150,000, the Hatchery's feast in shells; the tide itself is
+> gone again, below; its code is in this file's history up to commit 9d34e42)
 
-> The request (2026-11-13, later, GAME_DESIGN 6): "make them float by just like a conveyer belt instead of drifting
-> towards the island and stopping, with one every second" (`TideSecs` 1 and `TideLife` 16, no `TideMax` or
-> `TideStart`; `TideRare` thins the rarer ones; the tide runs on the server's time and each `Drift` keeps `at` and
-> `life`, so every client puts it at the same place along `Street.TIDE`; Fx "tide" patches the client's
-> `ClientView.tide` in place (`StateClient.TideChanged`) and `PlotService.syncTide` the plot's `Tide` attribute, with
-> no whole view a second; no `tideT` or `tideFrac`; `TierCost[4]` 150,000)
+> The request (2026-11-13, the latest, GAME_DESIGN 6): "never mind, bring back the tree of life and remove the
+> converyer belt system. it now spawns eggs around it that the player can choose to hatch for some shells. ..."
+> (`Logic/Tide` is `Logic/Tree` again: the tree a fixed 8 x 8 piece on every island (`Plot.isFixed`, ErrCode
+> `fixed`), its eggs the profile's `clutch` (saved), mirrored as `ClientView.clutch` and the plot's `Eggs` attribute,
+> drawn by `Controllers/EggView`; the action `egg.hatch` instead of `tide.take`; Fx "eggs" and "hatched"; no `Drift`,
+> `s.tide`, `Street.TIDE`, `Tide` attribute, `TideView` or `Tide*` numbers; save version 13)
+
+> And after it: "Also, make a limit of huts per island expansion level" (`Tuning.HutLimit`, `Plot.hutLimit`,
+> `Plot.huts`, ErrCode `huts`)
 
 ## 1. Layout and tooling
 
@@ -43,7 +45,7 @@ default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScript
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
                        maths, copied), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
-src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, TideView,
+src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
                        AvatarView, StreetLife, Audio, DayLight), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
                        Menus, BuildUI, PixelSprites, ArtData (generated), Words)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
@@ -86,44 +88,46 @@ is `DriftlingIsle-<short hash>.rbxl`.)
 
 `Look`, `Piece` (`{ uid, id, x, z, rot, lvl }`: a building standing on the island; `uid` stays while it stands; `lvl`
 a level kept from an older save), `PlotSave` (`{ placed }`), `Pal` (a driftling: `{ id, sp, home (a hut's Piece uid;
-0: no hut, as when its hut was cleared away or made smaller: it waits for room, `Tide.settle`), work (a Piece uid, 0
-resting; only one in a hut works), muts? (its mutations, Data/Traits ids) }`; no `held` since the pen went), `Drift`
-(one floating past on the tide, the session's and never saved: `{ id (the session's drift id, not a Pal id), sp,
-muts, cost (shells: `Tide.cost` on this island), at (the tide's clock when it came in: the server's time,
-`workspace:GetServerTimeNow`), life (the seconds it takes to float past, `Tide.life`) }`), `Settings` (`{ pixel, music? }`: music "on" | "off"),
-`Stats` (`{ days, built, earned, taken (driftlings taken in off the tide; the ones the tree grew before version 12),
-sold (driftlings sold), best (the rarest had), hatched }`), `Egg` (`{ uid (its Hatchery), a, b (the parents' ids),
-sp, muts, left (turns) }`, one a Hatchery), `Profile` (the save, version 12: `shells` (what driftlings cost), `wood`
-(what building costs), `day`, `tier`, `founder`, `pals`, `plot`, `seen` (species -> 1 seen on the tide, 2 had one:
-the Index), `eggs`, `nextId` (driftlings and pieces share it), `tut` (1 .. 6, 0 done), `quest` (the questline's quest
-on the go, Data/Quests; one past the last: all done), `stats`, `settings`, `createdAt`; no `food` or `tree`),
-`ClientView` (the profile's fields plus `dayFrac`, `plot` (the plot index), `pieces`, `rates` (`{ wood, shells }` a
-turn), `charm`, `nests` (the huts' room), `visitors`; `pals` is every driftling; `tide` the `Drift`s floating past,
-the oldest (the furthest along) first, each with its cost on this island; `tideSecs` the seconds between two,
-`Tide.secs`; no `tideT` since the conveyor (each `Drift`'s `at` and `life` say where it is), no `penN`, `penCommons`
-or `tree`), `ErrCode` (with `no_hut`: no hut
-built to take one in; `full`: no room in that hut, or every hut full for a `tide.take` with no swap; no `food` or
-`fixed`), `Response`, and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The file is the
-reference for every field.
+0: no hut, as when its hut was cleared away or made smaller: it waits for room, `Tree.settle`), work (a Piece uid, 0
+resting; only one in a hut works), muts? (its mutations, Data/Traits ids) }`; no `held` since the pen went), `Laid`
+(an egg the Tree of Life laid: `{ id (its own id, not a Pal id), r (its rarity, 1 .. 5: its spots' colour), cost? (only
+on the client's copy: `Tree.cost` on this island now) }`; what hatches is rolled when it is hatched), `Clutch` (the
+tree's eggs, saved: `{ left (seconds till the next lot), list: { Laid }, next (the next egg's id) }`), `Settings`
+(`{ pixel, music? }`: music "on" | "off"), `Stats` (`{ days, built, earned, taken (eggs hatched from the tree; the
+driftlings taken in off the tide and the ones the old tree grew before version 13), sold (driftlings sold), best (the
+rarest had), hatched (the Hatcheries' eggs hatched) }`), `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the
+parents' ids), sp, muts, left (turns) }`, one a Hatchery), `Profile` (the save, version 13: `shells` (what eggs cost),
+`wood` (what building costs), `day`, `tier`, `founder`, `pals`, `plot`, `seen` (species -> 2 had one, the Index; 1,
+seen on the tide, only in a save from then), `eggs` (the Hatcheries'), `clutch` (the tree's), `nextId` (driftlings and
+pieces share it), `tut` (1 .. 6, 0 done), `quest` (the questline's quest on the go, Data/Quests; one past the last:
+all done), `stats`, `settings`, `createdAt`; no `food` or `tree` levels), `ClientView` (the profile's fields plus
+`dayFrac`, `plot` (the plot index), `pieces`, `rates` (`{ wood, shells }` a turn), `charm`, `nests` (the huts' room),
+`visitors`; `pals` is every driftling; `clutch` the tree's eggs now (`{ Laid }`, each with its `cost`), `clutchLeft`
+the seconds till the next lot, `clutchSecs` the seconds between two (`Tree.secs`); no `tide` or `tideSecs`), `ErrCode`
+(with `no_hut`: no hut built to hatch into; `full`: no room in that hut, or every hut full for an `egg.hatch` with no
+swap; `fixed`: the Tree of Life can't be cleared away; `huts`: the island's huts' limit reached; no `food`),
+`Response`, and the utility types `Connection`, `Signal<T...>`, `Rng`, `PixelTier`. The file is the reference for
+every field.
 
 ## 4. Config
 
 - `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the island (`StartWood`
-  (300: the tips' buildings and a little over), `StartShells` (60: the first driftlings), `TurnSeconds` (the island's
-  pace), `DaySeconds` (the sea's day: hours), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
+  (300: the tips' buildings and a little over), `StartShells` (60: the first eggs), `TurnSeconds` (the island's pace),
+  `DaySeconds` (the sea's day: hours), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
   driftling's), `RarityWork` (a driftling's work by its rarity), `HelpMax` (driftlings a building), `VisitorCharm`,
   `VisitorsMax`, `ShopVisitors`, `Refund`, `UpgradeMult` (a level from an older save; no upgrades since 2026-11-11),
   `TierCost` (the wood to grow to each tier: 0, 600, 9,000, 150,000, 320,000, 800,000), `ComfortLvl`, `BoostMax`; no
-  `StartFood`, `EatPal` or `Hungry` since food went), the tide (GAME_DESIGN 6: `TideSecs` (1: seconds between two
-  coming in), `TideLife` (16: the seconds one takes to float past the island), `TidePrice` (shells by rarity),
-  `TideTier` (the price's multiplier by the island's tier), `TideRare` (1, 0.7, 0.3, 0.1, 0.06: each rarity's weight
-  times this, thinning the rarer ones), `TideLuck` (the luck by the island's tier), `TideMutTier`
-  (tiers for a mutation roll one rarity up), `HutTide`, `HutLuck` (the huts' arrival and luck shares at most),
-  `SellPrice` (by rarity), `SellTier` (a mutation tier's share on a price); no `TideMax` or `TideStart` since the
-  conveyor; the tree's `TreeSecs`, `TreeLuck`,
-  `TreeMutLuck`, `TreeSpeedCost`, `TreeLuckCost`, `PenSafe`, `PenShown`, `TreeStages` and `HutTree` are gone),
-  breeding (`BreedShells` (the feast by the child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the
-  server's step and rate limit, the sea (`MaxPlots`, `PlotSpacing`, `PlotPieces`, `PathPieces`, `HomeCooldown`,
+  `StartFood`, `EatPal` or `Hungry` since food went), the Tree of Life's eggs (GAME_DESIGN 6: `EggSecs` (180: seconds
+  between two lots), `EggCount` (eggs a lot by the island's tier: 5, 6, 7, 8, 9, 10), `EggPrice` (shells by rarity:
+  20, 90, 400, 2,000, 10,000), `EggTier` (the price's multiplier by the island's tier: 1, 3, 8, 20, 45, 90), `EggLuck`
+  (the luck by tier: 0, 0.25, 0.5, 0.75, 1, 1.3), `EggMutTier` (2: tiers for a hatchling's mutation roll one rarity
+  up), `TreeStage` (the tree model's stage by tier: 1, 2, 2, 3, 3, 4), `HutTree`, `HutLuck`, `HutCost` (the huts'
+  tree, luck and cost shares at most: 0.5 each), `SellPrice` (by rarity), `SellTier` (a mutation tier's share on a
+  price); none of the tide's `TideSecs`, `TideLife`, `TidePrice`, `TideTier`, `TideRare`, `TideLuck`, `TideMutTier` or
+  `HutTide`, and none of the old tree's `TreeSecs`, `TreeLuck`, `TreeMutLuck`, `TreeSpeedCost`, `TreeLuckCost`,
+  `PenSafe`, `PenShown` or `TreeStages`), breeding (`BreedShells` (the feast by the child's rarity), `BreedTurns`,
+  `BreedKeep`, `BreedTierUp`, `BreedNew`), the server's step and rate limit, the sea (`MaxPlots`, `PlotSpacing`,
+  `PlotPieces`, `HutLimit` (huts an island may have by its tier: 4, 6, 8, 10, 12, 14), `PathPieces`, `HomeCooldown`,
   `WalkSpeed`, `JumpHeight`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45, `CamPitch` 30,
   `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`, `CamFollowBox`,
   `CamGlide`, `CamBuildPan`, `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`).
@@ -137,14 +141,14 @@ reference for every field.
 | Module | Holds |
 |---|---|
 | `Data/Palette` | the LUT colours (`order`, `colors`), the shore's `shallow`, `foam`, `rock` and `rock_dark`, the older rooms' floor and wall themes (`themes`, still in the LUT), the light modes, and the UI's colours (`ui`, `axis`, `match`) |
-| `Data/Buildings` | the 65 pieces (GAME_DESIGN 4) `{ id, name, kind (farm wood shop nest breed gen path decor), shells (0 for every piece since 2026-11-13, kept for a price in both), wood (the price: the old shells and wood added up), w, d, rate (a turn with one common driftling at it: wood for kind wood, shells for farm and shop), knack, slots (a hut's room), charm (a path's may be a fraction), comfort (a hut's share), boost ("farm" "fish" "wood" "shop" "all": a "gen" piece's knack), boostBy, tier (1 .. 6), blurb }`; kind "farm" (the old "food": it sells what it grows or catches for shells), "nest" the huts (Driftling Hut .. Driftling Palace); no `eats` and no "tree" piece since the tide; `list`, `byId` |
+| `Data/Buildings` | the 65 pieces (GAME_DESIGN 4) and the Tree of Life `{ id, name, kind (farm wood shop nest breed gen path decor tree), shells (0 for every piece since 2026-11-13, kept for a price in both), wood (the price: the old shells and wood added up), w, d, rate (a turn with one common driftling at it: wood for kind wood, shells for farm and shop), knack, slots (a hut's room), charm (a path's may be a fraction), comfort (a hut's share), boost ("farm" "fish" "wood" "shop" "all": a "gen" piece's knack), boostBy, tier (1 .. 6), blurb }`; kind "farm" (the old "food": it sells what it grows or catches for shells), "nest" the huts (Driftling Hut .. Driftling Palace), "tree" the Tree of Life (`tree`: 8 x 8, charm 6, no price, tier 99 so no tab of the tray shows it; every island's, `Logic/Tree`); no `eats`; `list`, `byId` |
 | `Data/Creatures` | the 55 driftlings (GAME_DESIGN 6) `{ id, name, islet (its kind, Data/Islets), rarity (1 common .. 5 legendary), hp, atk, def, spd (kept only for `power`), knack, shape (its MicroModels body plan), body, accent, blurb, passive ({ name, fx }: its own, Data/Traits effects), power (its stats weighted, +12% a rarity step: the breeding rank) }`; `list`, `byId` |
-| `Data/Traits` | what makes one driftling unlike another (GAME_DESIGN 6): `MAX` (4 mutations), `KEYS` (the effects: work farm fish wood shop (shares at work), cost (its own price off the tide: below 0 cheaper), sell (the price), charm (whole points), tide, luck (more arrivals and a luckier tide, from a driftling in a hut); 0.1 = +10%; `cost` and `tide` were `eat` and `tree` before the tide), `RARITY` (`{ name, color, weight }` x 5: the tide's weights before luck, 100 45 16 5 1.2), `TIER_COLOR`, `TIER_STARS`, `list`, `byId` (mutations `{ id ("sturdy3"), family, tier (1 .. 4; 0 a flaw), name, blurb, fx }`: ten families x four tiers and five flaws; the families keep their old ids, "sturdy" now Thrifty .. Selfless (cost) and "swift" Breezy .. Moonpull (tide), so older saves read them), `families`, `at(family, tier)`, `roll(rng, rarity) -> { id }` (0 .. 3, no family twice, a rarer one rolls fewer flaws and higher tiers), `sum(passive?, muts?) -> Fx`, `workAt(fx, knack)` (work + the knack's share, at least -0.5), `clean(muts)` (known ids, a family once, at most MAX), `describe(fx)` ("+24% at farms, costs 30% less, +2 charm, +4% arrivals", "+5% tide luck") |
-| `Data/Quests` | the questline (GAME_DESIGN 9) `{ id, title, text (what to do and where), goal { kind, n, of? }, reward { shells?, wood? }, go (its Go: a panel "pals" "index" "hatch" "tide", or "build" / "build:<tab>"), icon (a `mini_` sprite) }`, twenty in order; `list`, `byId`. Goal kinds: helpers (driftlings at work) housed (in huts) built (of a building kind) paths decor taken (off the tide) sold best (the rarest had) tier seen hatched; the tree's `luck`, `speed` and `grown` are gone |
-| `Data/Islets` | the 9 kinds of land the driftlings come from (GAME_DESIGN 6) `{ id, name ("Beach"), plural, tier (the island tier its driftlings start coming on the tide at: Beach, Meadow 1; Snowfield, Mangrove 2; Volcano, Grotto 3; Reef 4; Bluffs 5; Ruins 6), wild (every driftling of its kind, from Data/Creatures, the commonest first), color, blurb }`; `list` |
+| `Data/Traits` | what makes one driftling unlike another (GAME_DESIGN 6): `MAX` (4 mutations), `KEYS` (the effects: work farm fish wood shop (shares at work), cost (the eggs' price: below 0 cheaper), sell (the price), charm (whole points), tree (the next eggs sooner), luck (luckier eggs); cost, tree and luck count from a driftling in a hut, for the whole island; 0.1 = +10%; `cost` was `eat` before the tide and the driftling's own price on it, `tree` was `tide` on it), `RARITY` (`{ name, color, weight }` x 5: the tree's weights before luck, 100 45 16 5 1.2), `TIER_COLOR`, `TIER_STARS`, `list`, `byId` (mutations `{ id ("sturdy3"), family, tier (1 .. 4; 0 a flaw), name, blurb, fx }`: ten families x four tiers and five flaws; the families keep their old ids, "sturdy" now Thrifty .. Selfless (cost) and "swift" Leafy .. Evergreen (tree), so older saves read them), `families`, `at(family, tier)`, `roll(rng, rarity) -> { id }` (0 .. 3, no family twice, a rarer one rolls fewer flaws and higher tiers), `sum(passive?, muts?) -> Fx`, `workAt(fx, knack)` (work + the knack's share, at least -0.5), `clean(muts)` (known ids, a family once, at most MAX), `describe(fx)` ("+24% at farms, eggs cost 30% less, +2 charm, eggs 4% sooner", "+5% egg luck") |
+| `Data/Quests` | the questline (GAME_DESIGN 9) `{ id, title, text (what to do and where), goal { kind, n, of? }, reward { shells?, wood? }, go (its Go: a panel "pals" "index" "hatch" "tree", or "build" / "build:<tab>"), icon (a `mini_` sprite) }`, twenty in order; `list`, `byId`. Goal kinds: helpers (driftlings at work) housed (in huts) built (of a building kind) paths decor taken (eggs hatched from the tree) sold best (the rarest had) tier seen hatched; the tree's `luck`, `speed` and `grown` are gone |
+| `Data/Islets` | the 9 kinds of land the driftlings come from (GAME_DESIGN 6) `{ id, name ("Beach"), plural, tier (the island tier its driftlings start hatching at: Beach, Meadow 1; Snowfield, Mangrove 2; Volcano, Grotto 3; Reef 4; Bluffs 5; Ruins 6), wild (every driftling of its kind, from Data/Creatures, the commonest first), color, blurb }`; `list` |
 | `Data/Looks` | skin, hair, hair style and shirt lists (`Types.Look` indexes them: the founders and the visitors; `Data/Names`, the villagers' names, went with them) |
 | `Data/Office` | the island's six tiers (`plans[tier]`: `{ tier, name }`, Castaway Cay, Palm Isle, Grand Isle, Harbor Town, Coral City, Sunspire Capital: the island card's title), `plan(tier)`, `origin(plot)` (Data/Street's). The island has no house (GAME_DESIGN 8) |
-| `Data/Street` | the islands and the sea (GAME_DESIGN 8): `warm(tier)` (works a tier's cells out now: tens of ms at the top tiers, so never at an expansion), `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT` (a plot's lot: x +-40, z -64 .. 30, room north for the city tiers), `CENTER`, `PLAZA` (the campfire's plaza), `PATH` (the path to the jetty), `TIDE` (the tide's lane: plot-local `z` 26 between the foam and the boardwalk, from `x0` -40 to `x1` 40, west to east, the length of the lot; `clear` 2.5: no shallow rocks within that of `z`); the coast: `isle(tier)` (its oval: centre, radii, wobble phases), `coast(tier, x, z)` (studs from the coast, below 0 inland: the oval's radius times a wobble of four sines, joined
+| `Data/Street` | the islands and the sea (GAME_DESIGN 8): `warm(tier)` (works a tier's cells out now: tens of ms at the top tiers, so never at an expansion), `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `BOARD` / `SEA` (plot-local z bands), `FAR` / `END_FAR` (water past the invisible walls: no sky at the world's edges), `LOT` (a plot's lot: x +-40, z -64 .. 30, room north for the city tiers), `CENTER`, `PLAZA` (the campfire's plaza), `PATH` (the path to the jetty; no `TIDE` lane since the tide went); the coast: `isle(tier)` (its oval: centre, radii, wobble phases), `coast(tier, x, z)` (studs from the coast, below 0 inland: the oval's radius times a wobble of four sines, joined
 to every smaller tier's shape (the least distance) so an island only gains land as it grows), `layerAt(d)`, and per whole-stud cell (cached per tier; `cellKey`) `layer`, `cellDist`, `cellBounds(tier)`, `buildable(tier, x, z)` (grass a stud or more inside the coast), `walkable` (grass, sand, wet sand), `plot(tier)` (the grass's bounding box); `origin(i)` (plots centred on x = 0), `plotAt(x, z)`, `bounds()`, `footpath()`, `jetty(tier)` (planks from the island's sand to the boardwalk), `spawn()` (on the path below the plaza), `sign()` / `mailbox()` (either side of the jetty's foot), `LAMPS`, `PIER_X` / `PIER_Z` / `PIER_W`, `pier()` |
 
 Coordinates in `Data/Street` are studs, plot-local, +Y up. The camera looks from the south-east (+X, +Z), so an
@@ -159,12 +163,12 @@ ErrCode)` and changes the profile only on success:
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
 | `Island` | the turn and the day (GAME_DESIGN 3): `piece(p, uid)`, `nests` (the huts' room), `fxOf(pal) -> Fx` (its passive and mutations, `Traits.sum`), `charm` (every piece's, and each driftling in a hut: 1 + its charm share), `visitors`, `works(id)` (a building that makes something: kind farm, wood or shop), `homes(p) -> { [key]: { uid, comfort } }` (each hut driftling's hut and its comfort (the hut's plus `ComfortLvl` by level), "p<id>", none for one with no hut), `boosts(p) -> { farm fish wood shop all }` (each kind of boost building once), `boostAt(b, knack)` (its own and "all", `BoostMax` at most), `palWork(p, pal) -> number` (its work share at its building's knack, `Traits.workAt`), `palBoost(p, pal, comfort?)` (`PalWork` x `RarityWork[rarity]` x max(0, 1 + `palWork` + the hut's comfort): what a driftling puts in), `rates(p) -> Rates` (`{ wood, shells }` a turn; a building makes its rate times its driftlings' `palBoost` summed (`IdleOutput` with nobody), times 1 + `boostAt`, times `UpgradeMult` by level: a wood building wood, a farm shells, a shop shells times min(2, visitors / `ShopVisitors`); nothing eats), `step(p, dt) -> Rates` (the stores; the shells counted in `stats.earned`), `randomLook(rng)` (a visitor's), `freeJob(p, knack) -> uid` (the emptiest building of that knack with fewer than `HelpMax` driftlings, farms first, then wood, then shops; 0 none), `newDay(p)`, `setHelp` (only a driftling in a hut, at a building of its knack: `HelpMax` a building, the first there sent back to rest; bad_payload for one with no hut), `expandCost(tier) -> { shells = 0, wood }?` (`TierCost`, nil at the top), `expand(p)` (max, wood; data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
-| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `spot(tier, placed, id, x, z, rot) -> (x?, z?, rot?)` (the free spot nearest x, z: `refit` moves with it), `unhouse(p, uid, keep?)` (a hut's driftlings past its first `keep` left with no hut, resting; `Tide.settle` moves them in again; was `toPen`), `pathLimit(tier)` (`PathPieces`), `isPath(id)`, `used(p, id) -> (n, limit)` (the pieces of its count: paths, or the rest), `place` (bad_payload (an unknown piece, a home of the old saves), locked, full (by its count), money (a price in shells: none has one now), wood, blocked), `move` (blocked for the spot; no upgrades: taken out 2026-11-11; a level from an older save stays and counts), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier), `replace(p, i, id)` (bad_payload (another kind, the same piece), locked, money, wood, blocked (the new footprint where the old stands); a smaller hut keeps the driftlings it has room for, the rest left with no hut; the uid kept, the level 1, driftlings of another knack back to rest), `store` (egg; `Refund` back; a hut's driftlings left with no hut), `refit(p) -> (moved, cleared)` (pieces that do not fit move to the nearest free spot, or are cleared with their whole price back: after the island grew and when a save loads); drawn paths (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a path tile's cell, even studs), `PAINT_MAX` (40 cells a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z"), `paint(p, id, cells) -> (ok, { placed, skipped })` (a path piece only; each free cell gets a tile at rotation 0, a cell that doesn't fit is skipped; locked, full, money, wood or blocked (none laid)), `unpaint(p, cells) -> (ok, { removed })` (every path tile covering a cell comes up with `Refund` back; not_found); no `isFixed` since the tree went |
-| `Tide` | the tide and the huts (GAME_DESIGN 6; `Logic/Tree` until 2026-11-13): `hutFx(p) -> (tide, luck)` (the huts' driftlings' shares, at most `HutTide` / `HutLuck`), `secs(p)` (`TideSecs` / (1 + the tide share): seconds between two), `life(p)` (`TideLife` x `secs(p)` / `TideSecs`: seconds one takes to float past, faster with the same share, so they stay as far apart), `luck(p, tier?)` (1 + `TideLuck[tier]` + the luck share), `pool(tier) -> { { sp } }` (by rarity, the kinds open at the tier), `odds(p, tier?) -> { share }` (each rarity's weight x `TideRare[r]` x luck^(r - 1), a rarity the pool lacks given to the next commoner one), `worth(pal)` (`RarityWork` x (1 + its share at its knack): the lists' order and the weakest in a swap, kept per driftling table in a weak table, its kind and mutations never changing), `better(a, b)` (the better worker first, then the older), `price(pal)` (what it sells for: `SellPrice` x (1 + `SellTier` x its mutation tiers) x max(0.2, 1 + its sell share), whole shells, at least 1), `cost(p, sp, muts?)` (what one off the tide costs: `TidePrice` x (1 + `SellTier` x its mutation tiers) x max(0.2, 1 + its cost share) x `TideTier[tier]`, whole shells, at least 1), `huts(p) -> { Hut }` (`{ uid, room, comfort, n }`, the comfiest first, then the first built), `room(p)` (the huts' free places), `settle(p) -> { id }` (the driftlings with no hut, the best first, into the huts with room, the comfiest first, each taking a free job of its knack: who moved), `fillJobs(p)` (resting hut driftlings to free jobs), `add(p, sp, muts) -> Pal` (a hatchling: the comfiest hut with room, or none; a free job; `seen` 2, `stats.best`), `State` (`{ clock, t, list: { Drift }, next }`: a session's tide; `clock` the tide's clock (the server's time on the server), `t` the seconds since the last one came in, `list` the ones floating past, the oldest (the furthest along) first), `new(clock?) -> State` (`clock` 0 when not given: the specs), `roll(p, rng, rarity?, knack?) -> (sp, muts)` (a rarity by `odds` or the one asked, a kind of it (of `knack` when asked and the rarity has one), `Traits.roll` at the rarity + (tier - 1) // `TideMutTier`), `drift(p, s, rng, at, rarity?, knack?) -> Drift` (one comes in at the tide's clock `at` with `life(p)`, `seen` at least 1; with no rarity or knack asked, while the island has taken nothing in and has no driftling, every third one (`s.next % 3 == 1`) is a common with the knack "wood" or "farm" by turns), `start(p, s, rng)` (the belt full: floor(`life` / `secs`) drifts `secs` apart, the newest at `clock`), `step(p, s, dt, rng) -> (came, gone)` (`clock` + dt; one every `secs`, its `at` the exact moment; each one with `clock - at >= life` leaves, its id in `gone`), `along(d, now) -> number` (0 just come in .. 1 gone past), `entry(p, d) -> Drift` (the client's copy, its cost on this island now), `view(p, s) -> { Drift }` (every `entry`), `take(p, s, id, swap)` (not_found (it floated off), no_hut (no hut built), money, full (every hut full and swap 0), bad_payload (a swap that isn't in a hut); the shells paid; a swapped one sold (`price`, `stats.sold`, `stats.earned`) and its hut taken, else the comfiest with room; a free job; `seen` 2, `stats.taken`, `stats.best`; data `{ id, sp, cost, sold, swapped }`), `sell(p, id)` (not_found; its price, `stats.sold`, `stats.earned`, then `settle` and `fillJobs`; data `{ shells, sold }`), `house(p, id, uid, swap)` (to another hut, a job of its knack if one is free; a full hut only in a swap with `swap` (one living there), which goes where this one was; not_found, bad_payload (not a hut, a swap not living there), full; then `settle` and `fillJobs`; data `{ moved }`). Gone with the tree: `ID`, `SPOT`, `inPen`, `resting`, `penView`, `stage`, `nextStage`, `upgradeCost`, `upgrade`, `sellPen`, `equipBest`, `piece`, `plant` |
-| `Breed` | the Hatchery (GAME_DESIGN 6.1): `child(a, b) -> sp` (a pair of one kind its kind, else the kind (no legend unless both are) of power nearest their average; the commoner, then the first id, on a tie), `cost(sp) -> (shells, turns)` (`BreedShells`, `BreedTurns` by its rarity), `inherit(ma, mb, rng) -> muts` (shared: always, the better tier, `BreedTierUp` one better; one parent's: `BreedKeep`; `BreedNew` a tier 1 or 2 of a new family; the best four), `eggAt(p, uid)`, `start(p, uid, a, b, rng)` (not_found, egg, bad_payload, money; the feast paid in shells, `p.eggs` + 1), `turn(p) -> { Pal }` (each egg a turn nearer; a ready one hatches into a hut with room, or none (`Tide.add`), `stats.hatched`) |
+| `Plot` | building (GAME_DESIGN 4): `ROTS`, `limit(tier)`, `hutLimit(tier)` (`HutLimit`: huts the island may have), `huts(placed)` (the huts standing), `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza and the path to the jetty), `isFixed(id)` (the Tree of Life: moved, never bought, cleared away or replaced), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`) / "blocked" / "overlap" / "unknown")`, `spot(tier, placed, id, x, z, rot) -> (x?, z?, rot?)` (the free spot nearest x, z: `Tree.plant` plants with it, `refit` moves with it), `unhouse(p, uid, keep?)` (a hut's driftlings past its first `keep` left with no hut, resting; `Tree.settle` moves them in again; was `toPen`), `pathLimit(tier)` (`PathPieces`), `isPath(id)`, `used(p, id) -> (n, limit)` (the pieces of its count: paths, or the rest; the tree never counts), `place` (bad_payload (an unknown piece, a home of the old saves, the tree), locked, full (by its count), huts (a hut past `hutLimit`), money (a price in shells: none has one now), wood, blocked), `move` (the tree too; blocked for the spot; no upgrades: taken out 2026-11-11; a level from an older save stays and counts), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier; none for the tree), `replace(p, i, id)` (bad_payload (another kind, the same piece, the tree), locked, money, wood, blocked (the new footprint where the old stands); a smaller hut keeps the driftlings it has room for, the rest left with no hut; the uid kept, the level 1, driftlings of another knack back to rest), `store` (fixed (the tree), egg; `Refund` back; a hut's driftlings left with no hut), `refit(p) -> (moved, cleared)` (the tree first, keeping its place; pieces that do not fit move to the nearest free spot, or are cleared with their whole price back, never the tree: after the island grew and when a save loads); a hut past `hutLimit` in a save is kept; drawn paths (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a path tile's cell, even studs), `PAINT_MAX` (40 cells a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z"), `paint(p, id, cells) -> (ok, { placed, skipped })` (a path piece only; each free cell gets a tile at rotation 0, a cell that doesn't fit is skipped; locked, full, money, wood or blocked (none laid)), `unpaint(p, cells) -> (ok, { removed })` (every path tile covering a cell comes up with `Refund` back; not_found) |
+| `Tree` | the Tree of Life, its eggs and the huts (GAME_DESIGN 6; `Logic/Tide` for a few hours on 2026-11-13): `ID` ("tree"), `SPOT` (-4, -6: behind the campfire), `hutFx(p) -> (tree, luck, cost)` (the huts' driftlings' shares, at most `HutTree` / `HutLuck` / `HutCost`; cost as a share off, 0 .. `HutCost`), `secs(p)` (`EggSecs` / (1 + the tree share): seconds between two lots), `count(tier)` (`EggCount[tier]`: eggs a lot), `stage(tier)` (`TreeStage[tier]`: the tree model's stage), `luck(p, tier?)` (1 + `EggLuck[tier]` + the luck share), `pool(tier) -> { { sp } }` (by rarity, the kinds open at the tier), `odds(p, tier?) -> { share }` (each rarity's weight x luck^(r - 1), a rarity the pool lacks given to the next commoner one), `worth(pal)` (`RarityWork` x (1 + its share at its knack): the lists' order and the weakest in a swap, kept per driftling table in a weak table, its kind and mutations never changing), `better(a, b)` (the better worker first, then the older), `price(pal)` (what it sells for: `SellPrice` x (1 + `SellTier` x its mutation tiers) x max(0.2, 1 + its sell share), whole shells, at least 1), `cost(p, r)` (an egg of rarity r: `EggPrice[r]` x `EggTier[tier]` x (1 - the cost share), whole shells, at least 1), `huts(p) -> { Hut }` (`{ uid, room, comfort, n }`, the comfiest first, then the first built), `room(p)` (the huts' free places), `settle(p) -> { id }` (the driftlings with no hut, the best first, into the huts with room, the comfiest first, each taking a free job of its knack: who moved), `fillJobs(p)` (resting hut driftlings to free jobs), `add(p, sp, muts) -> Pal` (a Hatchery's hatchling: the comfiest hut with room, or none; a free job; `seen` 2, `stats.best`), `roll(p, rng, rarity, knack?) -> (sp, muts)` (a kind of that rarity open at the tier, a commoner rarity when none is; of `knack` when asked and it has one; `Traits.roll` at the rarity + (tier - 1) // `EggMutTier`), `fill(p, rng) -> { Laid }` (eggs up to `count(tier)`, each rarity by `odds`; on a new island (`stats.taken` 0, no driftling) the lot's first two commons; the new ones), `lay(p, rng) -> { Laid }` (a new lot: the list cleared, `left` = `secs(p)`, then `fill`), `step(p, dt, rng) -> { Laid }?` (`left` - dt; at 0 or below, `lay`; nil when nothing was laid), `view(p) -> { Laid }` (the client's copy, each egg with its `cost`), `hatch(p, id, swap, rng)` (not_found (no such egg: a new lot came), no_hut (no hut built), money, full (every hut full and swap 0), bad_payload (a swap that isn't in a hut); the shells paid, the egg gone, a swapped one sold (`price`, `stats.sold`, `stats.earned`) and its hut taken, else the comfiest with room; `roll` (the first two on a new island of the knack "wood", then "farm"); a free job; `seen` 2, `stats.taken`, `stats.best`; data `{ id, sp, muts, egg, r, cost, sold, swapped }`), `sell(p, id)` (not_found; its price, `stats.sold`, `stats.earned`, then `settle` and `fillJobs`; data `{ shells, sold }`), `house(p, id, uid, swap)` (to another hut, a job of its knack if one is free; a full hut only in a swap with `swap` (one living there), which goes where this one was; not_found, bad_payload (not a hut, a swap not living there), full; then `settle` and `fillJobs`; data `{ moved }`), `piece(p) -> Piece?` (the tree's), `plant(p) -> Piece?` (an island with no tree gets one at the free spot nearest `SPOT`; on one built full the pieces nearest it make room, paths first, then decor, then the rest that houses nobody, each cleared with its whole price back). None of the tide's `State`, `new`, `start`, `drift`, `life`, `along`, `entry` or `take`, nor the old tree's pen, levels and `equipBest` |
+| `Breed` | the Hatchery (GAME_DESIGN 6.1): `child(a, b) -> sp` (a pair of one kind its kind, else the kind (no legend unless both are) of power nearest their average; the commoner, then the first id, on a tie), `cost(sp) -> (shells, turns)` (`BreedShells`, `BreedTurns` by its rarity), `inherit(ma, mb, rng) -> muts` (shared: always, the better tier, `BreedTierUp` one better; one parent's: `BreedKeep`; `BreedNew` a tier 1 or 2 of a new family; the best four), `eggAt(p, uid)`, `start(p, uid, a, b, rng)` (not_found, egg, bad_payload, money; the feast paid in shells, `p.eggs` + 1), `turn(p) -> { Pal }` (each egg a turn nearer; a ready one hatches into a hut with room, or none (`Tree.add`), `stats.hatched`) |
 | `Quest` | the questline's rules (GAME_DESIGN 9): `Facts` (`{ pals, pieces, tier, seen, stats }`: a profile's, `facts(p)`, or the client view's, same names), `count(facts, goal)` (how far: driftlings at work (`helpers`), path tiles, decor, pieces of a kind, driftlings in huts (`housed`), the stats' counts (`taken`, `sold`, `hatched`), the rarest had (`best`), the tier, kinds in the Index), `current(tut, i) -> (Quest?, i)` (none while the tips are on, or past the last), `progress(facts, q) -> (have, need)`, `done(facts, q)`, `claim(p)` (not_found, not_done; the reward paid in shells and wood, `p.quest` + 1; data `{ id, shells, wood, next }`) |
-| `Schema` | `VERSION` (12: the tide), `default(now, seed)` (`StartShells`, `StartWood`, no driftling and no piece), `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept; 5 -> 6: the tips' steps moved (3 -> 5, 4 -> 6); 6 -> 7: each driftling rolls its mutations once, seeded by its kind and id; 7 -> 8: the questline; 8 -> 9: `boat` and `chart` gone; 9 -> 10: `cap`, `islets`, `sea`, `wilds` and `pouch` gone, a Training Yard refunded (450 shells, 50 wood), the driftlings put in the nests (now huts) in the old order (the comfiest first, in the order they came), the rest to the pen (sold at 11 -> 12), `tut` past 5 back to 5, `quest` 1, `stats.grown` from the old `befriended`, `stats.best` the rarest kept; 10 -> 11: `folk` gone, every home (Tent .. Manor) taken down with its whole price back, `tut` past 4 back one, `stats.movedIn` gone; 11 -> 12: `tree` and `food` gone, the tree's piece taken off the plot, every driftling with no hut (the pen's) sold for `Tide.price` (shells, `stats.sold`, `stats.earned`), `held` dropped, `stats.grown` renamed `stats.taken`; the tips keep their numbers), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist with unique uids and valid turns, driftlings with unique ids (at most `MAX_PALS`, 5000) (a driftling's `home` a standing hut with room or 0, `work` only from a hut at a building of its knack, `muts` through `Traits.clean`), the Index's species, `nextId` past every id, `tut` 0 .. 6; then `Plot.refit` and `Tide.settle`) |
-| `Validate` | `ACTIONS` (the action catalogue, §7.3), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
+| `Schema` | `VERSION` (13: the Tree of Life's eggs), `default(now, seed)` (`StartShells`, `StartWood`, no driftling, `clutch` `{ left 0, list {}, next 1 }` (the first lot laid on the first step), then `Tree.plant`), `migrate(raw)` (1 -> 2: a founder; 2..4 -> 5: the studio gone, the founder, settings and start kept; 5 -> 6: the tips' steps moved (3 -> 5, 4 -> 6); 6 -> 7: each driftling rolls its mutations once, seeded by its kind and id; 7 -> 8: the questline; 8 -> 9: `boat` and `chart` gone; 9 -> 10: `cap`, `islets`, `sea`, `wilds` and `pouch` gone, a Training Yard refunded (450 shells, 50 wood), the driftlings put in the nests (now huts) in the old order (the comfiest first, in the order they came), the rest to the pen (sold at 11 -> 12), `tut` past 5 back to 5, `quest` 1, `stats.grown` from the old `befriended`, `stats.best` the rarest kept; 10 -> 11: `folk` gone, every home (Tent .. Manor) taken down with its whole price back, `tut` past 4 back one, `stats.movedIn` gone; 11 -> 12: `tree` and `food` gone, the tree's piece taken off the plot, every driftling with no hut (the pen's) sold for `Tree.price` (shells, `stats.sold`, `stats.earned`), `held` dropped, `stats.grown` renamed `stats.taken`; the tips keep their numbers; 12 -> 13: `clutch` dropped (reconcile makes it: the tree planted, its first lot laid when the player arrives)), `reconcile(raw, now, seed)` (any table -> a valid Profile: pieces that exist with unique uids and valid turns, driftlings with unique ids (at most `MAX_PALS`, 5000) (a driftling's `home` a standing hut with room or 0, `work` only from a hut at a building of its knack, `muts` through `Traits.clean`), the Index's species, `nextId` past every id, `tut` 0 .. 6; at most one tree, not counted in the piece limit; then `Plot.refit`, `Tree.plant`, the clutch (rarities 1 .. 5, ids unique, at most `Tree.count(tier)` eggs, `left` 0 .. `EggSecs`, `next` past every egg id) and `Tree.settle`) |
+| `Validate` | `ACTIONS` (the action catalogue, §7.3: `egg.hatch` `{ id = int, swap = int }` in place of `tide.take`), `request(action, payload) -> (ok, err?)`: exact schemas, unknown and missing fields refused |
 | `Numbers` | `int`, `short`, `coins`, `rate`, `perMin` ("+57/min"), `oneIn` |
 
 Models (`src/shared/Models`, Roblox modules):
@@ -201,17 +205,30 @@ Models (`src/shared/Models`, Roblox modules):
   in two tones), the invisible coast walls round the walkable cells, the campfire's plaza (`FireStone`s, logs, a
   flame, seats, a flag, torches), the stepping-stone path and the jetty (`JettyPlank`s on beams and posts, a rope),
   the sign with its `SignBoard`, the mailbox, and palms, rocks, shells, starfish, driftwood, seaweed and tufts strewn
-  by the plot's own seed (no rock in the shallows reaching within `Street.TIDE.clear` of the tide's lane, its stones'
-  reach counted: one rolled there is built and thrown away, so the rest of the coast keeps its seed's layout); `Blocks.windy`), `emptyLot(parent, origin)` (open water and a sandbar), `ends(parent)` (the sea past the
+  by the plot's own seed (the shallows' rocks everywhere again since the tide's lane went); `Blocks.windy`), `emptyLot(parent, origin)` (open water and a sandbar), `ends(parent)` (the sea past the
   ends, sandbars, the boardwalk's last lantern, the invisible walls along each end's own stretch of boardwalk, and
   the walls round the world, 40 studs high (past any jump); the pier's things, `PierProps`: bollards, crates, a barrel, rope, and the
   moored `Boat` don't collide). Every wall is
   in the collision group `Bounds`, which the pixel filter's rays (group `PixelRays`) pass through.
-- `DecorModels.build(id, at, lvl?) -> Model` (every building and piece of decor; `at`: the footprint's centre on the
+- `DecorModels.build(id, at, lvl?) -> Model` (every building and piece of decor; `lvl` goes to the builder, and the
+  tree's is its stage; `at`: the footprint's centre on the
   grass, turned; each with its doors, windows, ridged roofs with eaves and its own props (crates, barrels, sacks, pots,
   fences, lamps); a lamp and a pennant (`PennantPole`) at Lv 3; the pier's pond and the fountain's water `PixelWater`
-  2; parts don't collide; `Blocks.windy`), `has`. The homes (Tent .. Manor) went with the villagers, and the Tree of
-  Life (`tree`, its stages and `DecorModels.HOLLOW`) with the tide on 2026-11-13.
+  2; parts don't collide; `Blocks.windy`), `has`. The homes (Tent .. Manor) went with the villagers. The Tree of Life
+  (`tree`, 8 x 8; GAME_DESIGN 6 has the references it was drawn after): an `EggLawn` (7.8 studs across: its eggs lie
+  on it), a `Lawn` and `Moss`; a ring of standing `Stone`s (`StoneMoss` caps, a Neon `Glyph` on some, a gap at the
+  front); `Root`s in eight directions; a `Trunk` core with drums and three braided `Strand`s, Neon `Rune`s up it; the
+  `Hollow` at the front with its glowing `Pod` (Neon), a `Lintel` and two `Jamb`s; `Branch` limbs forking out to the
+  leaf clouds (`Leaves`, `LeavesUnder`), each with `Blossom`, a `Vine` and `VineTip` hanging and Neon gold `Fruit`
+  under it; a `Ring` of gold Neon dashes on the ground, `Mote`s, mushrooms (`Stalk`, `Cap`) and `Flower`s; the
+  ground, the stones and the roots inside the inner 6 x 6, the eggs' lawn round them. Its stage (`lvl` 1 .. 4,
+  `Tree.stage`) scales it above that ground: the trunk's girth, the limbs' and the ring of clouds' height, the top
+  cloud's height (12.2 studs x 1, 1.18, 1.36, 1.55), the crown's spread and each cloud's size; more `Rune`s, lit
+  `Glyph`s, `Blossom` and `Mote`s; `Lantern`s (Neon) from stage 2; eight ring clouds, four more above them and three
+  `Fruit` a cloud from stage 3; at stage 4 blossom on every cloud, a `Halo` of gold Neon over the crown, gold caps on
+  the stones and a second ring of light; no Lv 3 pennant (its `lvl` is a stage). `DecorModels.HOLLOW` (the hollow's
+  foot in the model's frame: where a hatchling steps out when its egg's place is unknown, `EggView.hatchPoint`) and
+  `DecorModels.EGG_RING` (3.45: the studs from its middle to the eggs' circle, `EggView`).
 - `MicroModels` (the driftlings and the island's small things): `build(kind, opts?) -> Thing` (`{ model, parts, rest, sizes,
   baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin, facing +Z), `driftling(shape, body,
   accent)` (the 14 shapes `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm`), `sailboat`,
@@ -222,7 +239,7 @@ Models (`src/shared/Models`, Roblox modules):
   `recolor(t, color?)`, `show(t, on)`, `has`. Parts keep their sizes to the eighth of a stud (about an art px), not
   Blocks' quarter. `driftling(shape, body, accent)` is `DriftModels.build` (below); `animate(t, time, mood, k?)` hands
   a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale`, and moves the other things' limbs by name
-  (`Wing*` flap, `Tail*` wag, `Eye*` blink...; `flap(t, cf, phase, glide?)`). WorldView, TideView and StreetLife call
+  (`Wing*` flap, `Tail*` wag, `Eye*` blink...; `flap(t, cf, phase, glide?)`). WorldView and StreetLife call
   it every frame.
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
   body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
@@ -248,21 +265,19 @@ Models (`src/shared/Models`, Roblox modules):
 ### 7.1 Remotes (`Net`)
 `ReplicatedStorage.Remotes`: `Request` (RemoteFunction, C->S `(action, payload) -> Response`), `Signal` (RemoteEvent,
 C->S `(kind, payload)`; no handlers in this version), `State` (RemoteEvent, S->C the whole `ClientView` when it
-changed), `Fx` (RemoteEvent, S->C `{ kind = "tick", shells, wood, dayFrac, tideSecs (`Tide.secs`) }` every second (no
-`tideT` since the conveyor), `{ kind = "tide", came (the Drifts that came in, each `Tide.entry`: its cost on this
-island, `at`, `life`), gone (the ids of the ones gone past) }` every time one comes in or goes (about one a second;
-no whole view is sent for it, the client patches its own), `{ kind = "taken", data }` (`tide.take`'s data) when one is taken in, `{ kind =
-"turn", hatched? (the Pals hatched: Breed.turn) }` at each turn's end, `{ kind = "day", day }` at each of the sea's
-days, `{ kind = "quest", data }` on a claim; no "tree" or "treegrew" since the tide). `Net.serverInit()` creates them;
-`Net.clientInit()` waits for them.
+changed), `Fx` (RemoteEvent, S->C `{ kind = "tick", shells, wood, dayFrac, clutchLeft (`p.clutch.left`), clutchSecs
+(`Tree.secs`) }` every second, `{ kind = "eggs", laid (`Tree.view`: every egg now, each with its cost), more (0: a
+new lot; n: the eggs added when the island grew) }` when the tree lays (the session is marked dirty with it, so the
+whole view follows), `{ kind = "hatched", data }` (`egg.hatch`'s data) when an egg is hatched, `{ kind = "turn",
+hatched? (the Pals hatched: Breed.turn) }` at each turn's end, `{ kind = "day", day }` at each of the sea's days,
+`{ kind = "quest", data }` on a claim; no "tide" or "taken" since the tide went, and none of the old tree's "tree" or
+"treegrew"). `Net.serverInit()` creates them; `Net.clientInit()` waits for them.
 
 ### 7.2 `Session`
-`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, turnClock, dayIndex, tickClock, tide
-(`Tide.State`: the session's tide, never saved, `Tide.new(workspace:GetServerTimeNow())`; `Tide.start` fills the belt),
-dirty, tideDirty (the tide changed and the plot's `Tide` attribute is behind: Main calls `PlotService.syncTide`; true
-at create), saveAt, reqTimes }`), `get`, `remove`, `all`, `view(s) -> ClientView` (every driftling, `tide` from
-`Tide.view`, `tideSecs`; no `tideT`),
-`markDirty`, `flush` (sends State when dirty), `fx(s, msg)`, `allow(s, now)` (the rate limit).
+`create(player, profile, plot) -> S` (`{ player, profile, plot, rng, ready, turnClock, dayIndex, tickClock, dirty,
+saveAt, reqTimes }`; no `tide` or `tideDirty`: the tree's eggs are the profile's), `get`, `remove`, `all`, `view(s)
+-> ClientView` (every driftling, `clutch` from `Tree.view`, `clutchLeft`, `clutchSecs`), `markDirty`, `flush` (sends
+State when dirty), `fx(s, msg)`, `allow(s, now)` (the rate limit).
 
 ### 7.3 `Router` and the action catalogue
 `Router.on(action, fn(s, payload) -> (ok, data|err))`, `Router.onSignal(kind, fn)`, `Router.handle(player, action,
@@ -271,18 +286,18 @@ handler under pcall; success marks the session dirty).
 
 | Action | Payload | Rule | Errors |
 |---|---|---|---|
-| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place` (paid in wood), the buildings rebuilt by difference, then `Tide.settle` and `Tide.fillJobs`, the tips | locked, full, wood, blocked, bad_payload |
-| `plot.move` | `i x z rot` | `Plot.move` | blocked, bad_payload |
+| `plot.place` | `id x z rot` (coords whole studs in [-64, 64], rot a quarter turn) | `Plot.place` (paid in wood), the buildings rebuilt by difference, then `Tree.settle` and `Tree.fillJobs`, the tips | locked, full, huts (the huts' limit), wood, blocked, bad_payload (the tree, an unknown piece) |
+| `plot.move` | `i x z rot` | `Plot.move` (the tree too) | blocked, bad_payload |
 | `plot.paint` | `id cells` ("x,z;x,z": 1 .. 40 cells, whole studs in [-64, 64]) | `Plot.paint` (data `{ placed, skipped }`), the buildings rebuilt | locked, full, wood, blocked |
 | `plot.unpaint` | `cells` | `Plot.unpaint` (data `{ removed }`), the buildings rebuilt | not_found |
-| `plot.replace` | `i`, `id` | `Plot.replace` (data `{ i, uid, id }`; the island's pieces rebuilt) | bad_payload, locked, wood, blocked |
-| `plot.store` | `i` | `Plot.store` (clear away; a hut's driftlings left with no hut, then into any hut with room) | egg (a Hatchery holding an egg), bad_payload |
+| `plot.replace` | `i`, `id` | `Plot.replace` (data `{ i, uid, id }`; the island's pieces rebuilt; a hut for a bigger one at the huts' limit too) | bad_payload (the tree), locked, wood, blocked |
+| `plot.store` | `i` | `Plot.store` (clear away; a hut's driftlings left with no hut, then into any hut with room) | fixed (the tree), egg (a Hatchery holding an egg), bad_payload |
 | `breed.start` | `uid`, `a`, `b` | `Breed.start` (an egg at the Hatchery `uid` from driftlings `a` and `b`; the feast in shells) | not_found, egg, money, bad_payload |
-| `island.expand` | - | `Island.expand` (paid in wood), the island rebuilt (data `{ tier, moved, cleared }`) | max, wood |
+| `island.expand` | - | `Island.expand` (paid in wood), `Tree.fill` (the bigger island's extra eggs, Fx eggs with `more`), the island rebuilt (data `{ tier, moved, cleared }`) | max, wood |
 | `pal.work` | `id uid` (0: rest) | `Island.setHelp` | not_found, bad_payload |
-| `pal.house` | `id uid swap` (swap 0: none) | `Tide.house` | not_found, bad_payload, full |
-| `pal.sell` | `id` | `Tide.sell` (data `{ shells, sold }`) | not_found |
-| `tide.take` | `id swap` (a drift id on the session's tide; swap 0: none, else a hut driftling sold to make room) | `Tide.take`, the tips, Fx taken (data `{ id, sp, cost, sold, swapped }`) | not_found (it floated off), no_hut, money, full (every hut full and no swap: the client opens the swap picker), bad_payload |
+| `pal.house` | `id uid swap` (swap 0: none) | `Tree.house` | not_found, bad_payload, full |
+| `pal.sell` | `id` | `Tree.sell` (data `{ shells, sold }`) | not_found |
+| `egg.hatch` | `id swap` (an egg id under the tree; swap 0: none, else a hut driftling sold to make room) | `Tree.hatch`, the tips, Fx hatched (data `{ id, sp, muts, egg, r, cost, sold, swapped }`) | not_found (a new lot replaced it), no_hut, money, full (every hut full and no swap: the client opens the swap picker), bad_payload |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `settings.set` | `k` ("pixel" or "music"), `v` | the pixel tier (high, medium, low, off) or the music (on, off) | bad_payload |
 | `tut.next` | - | the tips go away for good | - |
@@ -291,23 +306,23 @@ handler under pcall; success marks the session dirty).
 
 The building actions and `island.expand` still check shells (`money`) for a price in shells, which no piece or tier
 has now. The expedition actions (`exp.*`, `pouch.upgrade`) and `pal.release` are gone (2026-11-12), the villagers'
-`folk.work` and `folk.dismiss` with them later that day, and the tree's `pen.sell`, `pen.best` and `tree.upgrade` on
-2026-11-13: `Validate` answers them `unknown_action`.
+`folk.work` and `folk.dismiss` with them later that day, the tree's `pen.sell`, `pen.best` and `tree.upgrade` on
+2026-11-13, and the tide's `tide.take` later that day: `Validate` answers them `unknown_action`.
 
 ### 7.4 `IslandService`
 Registers the actions above. `step(dt)` (Main's fixed 10 Hz step), for every ready session: `Island.step` (wood and
-shells), `Tide.step` on the session's tide, run on the server's time (dt = `workspace:GetServerTimeNow()` less the tide's
-`clock`; a stall over 5 s is skipped, not caught up), then Fx "tide" with what came and went (`Tide.entry` each) and
-`s.tideDirty` set (the session is not marked dirty for it: no whole view a second), a turn every `TurnSeconds` (`Breed.turn`: Fx "turn"), a day each time the sea's clock passes a day's end (`WorldClock.dayIndex`
-past the session's `dayIndex`: `Island.newDay`, Fx "day"), the stores every second (Fx "tick" with
-`WorldClock.dayFrac` and `tideSecs`: the whole view is not sent for them). `WorldClock` (server): the
-sea's clock, `os.time()` at start advanced by every step (`now`, `advance`, `shift(seconds)` for the sims and
-previews, `dayIndex`, `dayFrac`); a day is `Tuning.DaySeconds` (4 hours). The tips (`tips(s)`, `TIP_KIND`): 1 moves on
-when a wood building stands, 2 a farm, 3 a hut, 4 when a driftling has been had (`stats.taken` above 0 or any
-driftling), 5 a shop, 6 on OK (`tut.next`); a step whose task is already done moves on at once, several in a row if
-need be (a save from before the tide). Every building change (`rebuilt`) runs `Tide.settle` and `Tide.fillJobs`
-before the island's models are rebuilt; `tide.take` runs the tips and sends Fx "taken". Nothing happens while the
-player is away.
+shells), `Tree.step(p, dt, s.rng)` (a new lot when its time comes: the session marked dirty and Fx "eggs" with `more`
+0), a turn every `TurnSeconds` (`Breed.turn`: Fx "turn"), a day each time the sea's clock passes a day's end
+(`WorldClock.dayIndex` past the session's `dayIndex`: `Island.newDay`, Fx "day"), the stores every second (Fx "tick"
+with `WorldClock.dayFrac`, `clutchLeft` and `clutchSecs`: the whole view is not sent for them). `WorldClock`
+(server): the sea's clock, `os.time()` at start advanced by every step (`now`, `advance`, `shift(seconds)` for the
+sims and previews, `dayIndex`, `dayFrac`); a day is `Tuning.DaySeconds` (4 hours). The tips (`tips(s)`,
+`TIP_KIND`): 1 moves on when a wood building stands, 2 a farm, 3 a hut, 4 when an egg has hatched (`stats.taken`
+above 0 or any driftling), 5 a shop, 6 on OK (`tut.next`); a step whose task is already done moves on at once,
+several in a row if need be (an older save). Every building change (`rebuilt`) runs `Tree.settle` and
+`Tree.fillJobs` before the island's models are rebuilt; `egg.hatch` runs the tips and sends Fx "hatched";
+`island.expand` runs `Tree.fill` and, when it laid any, sends Fx "eggs" with `more` the count. Nothing happens while
+the player is away: the tree's clock runs only in a ready session.
 
 ### 7.5 `PlotService` (the sea)
 `init()` registers the collision groups `Bounds` (the invisible walls) and `PixelRays` (the pixel filter's rays),
@@ -318,15 +333,14 @@ free index, 0 when the sea is full: Main kicks), `release(i)` (back to open wate
 `build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets
 `Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs: the island for that tier built
 ahead is swapped in when it is ready, else it is built there and then) and `Decor` by difference
-(`buildDecor(s)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay), then `sync(s)`:
-the attributes `Tier`, `Day`, `Charm`, `Pals` (the hut driftlings, `;`-separated `id.species.work.home`; one with no
-hut is left out until it moves in; no `Folk` since the villagers went), `Tide` (by `syncTide(s)`, which `sync` calls too: the session's
-tide, `;`-separated `id.species.at.life` with `at` (the tide's clock when it came in, the server's time) and `life`
-(the seconds it takes to float past) in tenths of a second as whole numbers, the oldest first, set only when it
-changed, `s.tideDirty` cleared: every client draws each island's at the same place along the way,
-`Controllers/TideView`), and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs every dirty
-session before sending its view, and a session whose only change is its tide (`tideDirty`) gets `syncTide` alone;
-only changed values replicate). The founder: `watchCharacters(player)`,
+(`buildDecor(s)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay; the Tree of
+Life's `lvl` is its stage, `Tree.stage(tier)`, so a new stage builds it again), then `sync(s)`: the attributes `Tier`,
+`Day`, `Charm`, `Pals` (the hut driftlings, `;`-separated `id.species.work.home`; one with no hut is left out until
+it moves in; no `Folk` since the villagers went), `Eggs` (the tree's eggs, `;`-separated `id.rarity`, in the order
+they were laid: every client draws every island's, `Controllers/EggView`; no `Tide` or `syncTide` since the tide
+went), and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs every dirty session before sending
+its view; only changed values replicate). A player leaving clears every attribute, `Eggs` with them, so their eggs
+go from every client. The founder: `watchCharacters(player)`,
 `placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`).
 **The next island, built ahead** (GAME_DESIGN 4: the lag before an expansion): after each `build` a plot that can
 still grow queues its next tier's `Land`; one background thread builds the queue, paced by `Blocks.pace` (60 parts a
@@ -373,8 +387,10 @@ the oval of radii `rx`, `ry / PITCH` times Street's four sines, `PITCH` 0.5), th
 the path to the jetty, the sand round the fire and the jetty. `buildAtlas()` decodes `LoadingArt` into one atlas EditableImage (the run-length
 format of `gen_loading_art.py`), `placeScene(L)` lays the actors (ImageLabels on the atlas, `ImageRectOffset` per
 frame, whole UI px, ZIndex by their foot's row) and `step(dt)` moves them at most `SCENE_FPS` (24) times a second
-from the card's one Heartbeat: stills (a tall palm, `palm_b`, at the back in the middle, or at the back on the left when
-its fronds, `BACK_TOP` art px over its foot, would reach the bar; the Tree of Life stood there until 2026-11-13); the
+from the card's one Heartbeat: stills (the Tree of Life, `tree`, at the back in the middle, or at the back on the left
+when its crown, `TREE_TOP` (77) art px over its foot, would reach the bar; a "blink" still: its second frame, the
+hollow, fruit and marks dimmer, for a fifth of a second every 4.2 s; a tall palm, `palm_b`, stood there while the tide
+ran and now stands on the right); the
 fire, the boat (drifting right, wrapping), the cheering Conchy (a burst, a rest), walkers (driftlings up and down a lane, a pause at each end, the
 sequence's name left and `<name>_r` right),
 followers (a driftling `gap` px behind its walker), gulls, stars, crests and glints (a run, hidden, a new spot: open
@@ -385,16 +401,15 @@ in `SMALL` with a drop shadow) into an EditableImage, centred on the canvas; the
 Without EditableImages (`fallback`): Frames and an Arcade TextLabel. `LoadingArt` (generated: `W`, `H`, `palette`,
 `seqs[name] = { w, h, ax, ay, dur, at, pal, px, base?, head?, flame? }`): `frond`, `frond_r`, `pebble`, `pebble_r`,
 `crab`, `crab_r`, `bun`, `bun_r`, `gullfin`, `gullfin_r`, `cheer` (a Conchy), `fire`, `palm`, `palm_b`, `nest`,
-`burrow`, `torch`, `flowers`, `bush`, `boat` (no `tree` since the tide), and the hand-made `gull`, `star`, `crest`, `ember`, `glint`.
+`burrow`, `torch`, `flowers`, `bush`, `tree` (65 x 85, two frames: lit and dimmer), `boat`, and the hand-made `gull`, `star`, `crest`, `ember`, `glint`.
 
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Tick:
-Signal<ClientView>` (Fx "tick": the view's `shells`, `wood`, `dayFrac` and `tideSecs` are patched in place, no whole
-view comes), `TideChanged: Signal<ClientView>` (Fx "tide": the view's `tide` patched in place, the `gone` ids dropped
-and the `came` ones added after a check of each field (numbers, not NaN), none twice; fired after the patch),
-`tideNow() -> number` (the tide's clock: `workspace:GetServerTimeNow()`, the same on every client), `along(d) ->
-number` (how far along one is now, 0 just come in .. 1 gone past), `request(action, payload) -> Response` (never
-errors), `signal(kind, payload)`. (`tideFrac` went with the conveyor, `treeFrac` with the tree.)
+Signal<ClientView>` (Fx "tick": the view's `shells`, `wood`, `dayFrac`, `clutchLeft` and `clutchSecs` are patched in
+place after a check (numbers, not NaN), no whole view comes), `clutchLeft() -> (left, secs)` (the seconds till the
+tree's next lot, the server's last word (a tick or a view) run down by the client's clock, and the seconds between two
+lots), `request(action, payload) -> Response` (never errors), `signal(kind, payload)`. (No `TideChanged`, `tideNow`
+or `along` since the tide went; `treeFrac` went with the old tree.)
 
 ### 8.2 `DayLight` (the day and night)
 `start()`: the view's `dayFrac` (each tick and view; run on smoothly by `Tuning.DaySeconds` between them) sets
@@ -410,9 +425,9 @@ holds one since the fights went; nil lets go), `debugSet(frac?)`
 so the next play is on time), `preload(names)` (every voice of those events made and loaded now, on its own thread;
 nothing calls it since the fights went), `has(name)`, `EVENTS`: every sound by name (`click open close deny notice
 ding coin coins combo sparkle cheer tick flip pop`; the happy moments, each its own library sound: `newcomer`
-(`DoorChime`; nothing plays it since the villagers went), `grow` (the island grows, or an epic or legendary driftling comes in on the tide: `BellTreeRun`), `friend`
-(an egg hatched: `ChimeCluster`), `level_up` (a piece replaced: `SparkleTones`), `reward` (a quest claimed:
-`Triangle`), `egg` (`MusicBoxWind`), `rare` (one rare or better taken in: `SparklePass`; a rare one coming in has no sound since the conveyor); the founder's feet (AvatarView):
+(`DoorChime`; nothing plays it since the villagers went), `grow` (the island grows, or the tree lays an epic or legendary egg: `BellTreeRun`), `friend`
+(a Hatchery's egg hatched: `ChimeCluster`), `level_up` (a piece replaced: `SparkleTones`), `reward` (a quest claimed:
+`Triangle`), `egg` (`MusicBoxWind`), `rare` (a new lot of eggs, or one rare or better hatched: `SparklePass`; a common or uncommon one hatched plays `pop`); the founder's feet (AvatarView):
 `step_grass step_sand step_wood` (two or three takes each, `ids`), `jump`, `land`; the world's `hammer gull birds`;
 the fights' sounds and their ids went on 2026-11-12), each one `Monetization.Sounds` id (0 =
 silent), or a few takes (`ids`: one voice each, picked at random, never the same twice running), with a volume, a
@@ -438,7 +453,7 @@ behind the first curtain), sun visibility cast at each 2×2 block's even-even an
 pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
 neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_DESIGN 2), shaded with `Render/Shading`'s three
 toon bands and the palette LUT (the indoor tint inside the room), then the ink outline (`Shading.outline`) and the
-contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings, the tide's driftlings on their rafts and the visitors) and the founders: every tick (the tier's Hz) their parts
+contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings and the visitors), the tree's eggs and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
 layer and outlined; only the old and new dirty rects are restored and uploaded. Without EditableImages (or with
 Classic picked) the layer hides and the Roblox camera shows the 3D world.
@@ -597,56 +612,57 @@ corners) and `bitsAt(world, colors, n, speed?, gravity?)` (bits on the World can
 and `Activated` plays `click` (or `deny` when disabled); a panel's shade fades in and its frame rises 10 UI px into
 place; a notice slides down into the stack and fades out.
 
-### 10.2 `WorldView` and `TideView`
+### 10.2 `WorldView` and `EggView`
 The islanders: a walker per hut driftling (`MicroModels.driftling` in its species' shape and colours), parsed from
 each owned plot's `Pals` attribute and placed among the buildings read from its `Static.Decor` models' names
 (`uid:id:x:z:rot:lvl`). A driftling goes to the building it works at (or its hut) and works there by its kind
 (`palMoodOf`: `dip` at a pier or kelp farm, `peck` at the other farms, `push` at the wood and the boosts, `wave` at the
 shops, `nap` at a hut or the hatchery, for longer: `DriftModels.animate`'s work moods), now and then a stroll
-(`strollPoint`: a buildable cell away from the campfire). One new in a hut on an island already peopled was just
-taken in off the tide (or hatched): it comes ashore at the jetty (`TideView.ashore`) with a cheer and walks off to
-work (`born`). Workers stand along the building's front, turned three-quarters to the view (east or south). Only
-islands within 100 studs of the view's centre are drawn (synced every half second); each near owned island's
-campfire gets a flickering flame and rising smoke (`fireOn`, dynamic models). Each island's sign gets a World-root
-label (its name, the own in gold, or "Unclaimed isle"); a tap (`onTap`: a press let go within 8 px, not on the
-interface, not in Build mode) goes to `TideView.tapAt` first (one of the own island's driftlings floating by: taken
-in); otherwise its ray (`PixelRenderer.screenRay` in the `PixelRays` collision group, as the picture's, so it passes
-the invisible coast walls, which Roblox hits whatever their CanQuery says because they collide) on a sign shows
-`signCard(i)` (the day, driftlings at home, charm). Fx "taken" (`takenOne`) bursts bits of the newcomer's rarity's
-colour at the jetty, a rare or better one's name floating up; a hatchling (Fx "turn" `hatched`) gets its name and
-pink bits over the Hatchery; `cheer(words, color)` makes the own islanders cheer. Its Heartbeat runs `TideView.step`
-with the view's centre (world x). `rigCount()` / `ownRigCount()` / `ownCount()` (the walkers drawn: all, the own
-island's) and `tapScreen(pos)` (a tap at screen px, handled as a player's) for the sims. (The tree's tap `treeOf`, its
-label `updateTreeLabel`, `hollowPoint` and `grownOne` went with the tree.)
-`TideView` (client, GAME_DESIGN 6): every island's tide from its plot's `Tide` attribute (`id.species.at.life`,
-tenths of a second on the server's time; the islands within `NEAR` (100) studs of the view's centre, synced every half
-second). Each one rides the lane `Street.TIDE` (plot-local z 26) from `x0` to `x1`, west to east: `k` =
-`along` on `StateClient.tideNow()`, plot-local x = x0 + 80 k, so every client puts it at the same place. `depth(x, k)`
-(how far under, in studs: up to `DEPTH` (4.4, the tallest rider's head under) while within `UNDER` (2.4) of the jetty's
-middle, easing down over the `DUCK` (1.5) studs before it, and coming up over the first and going down over the last
-`ENDS` (0.035) of the way). Only the ones within `VIEW` (62) studs along x of the view's centre have models: its
-driftling (`MicroModels.driftling`, facing the way it goes and turned a little toward the view, idling with a cheer
-now and then) standing on a `TideRaft` (three driftwood planks; for a rare, epic or legendary one a pole and a Neon lantern at
-its back corner in blue, purple or gold, so a light pool at night), both in `Workspace.PixelDynamic`, bobbing and
-tilting; the rest are followed without models. One that leaves the attribute before 0.93 of the way (1 - 2 x
-`ENDS`), or the own player just took, was taken in: it hops onto its island's jetty in `HOP` (0.6) s, cheering, as its
-raft sinks; one that leaves at the end runs on out of sight and is dropped there. Over the own island's ones with
-models it keeps World-root tags: a price button (`TideTake_<id>`: the cost and `mini_shell`, `button_ok` when the
-shells are there, else `plate_light`) and, for an uncommon one or better, a name (`TideName_<id>`, in its rarity's
-colour). The best workers' tags go first (`Tide.worth`, kept on the drift); a tag hides while its driftling is under
-(depth 0.6 or more), off screen, or where it would overlap a better one's tag shown already, so not every one has a
-visible tag at every moment. On tip 4 the `arrow_down_t` bobs over the cheapest shown tag the shells cover.
-`take(id, swap?)` (sends `tide.take`; a notice with who moved in and what a swap sold for, the "rare" sound for a rare
-or better one, else "pop"; `full` opens the tide panel's swap picker `{ take = id }`; other refusals in words),
-`best(v, n) -> { Drift }` (the view's tide by `Tide.worth`, the best n; when the shells cover none of those, the best
-one they cover takes the last place: the HUD's card and the tide panel), `tapAt(pos) -> boolean` (a tap at an
-InputObject's position, which is below the top bar, so the inset is added back: of the own island's driftlings with
-models and not under (depth 1 or less), the nearest one whose body's box on screen holds the tap is taken in; true when
-it hit one), `step(t, focusX)` (WorldView's
-Heartbeat: the near islands synced, every drift moved, dressed or undressed by `VIEW`, the tags kept), `depth(x, k)`,
-`count(plot?) -> (followed, drawn)` (all islands' or one's: the sims and previews), `where(plot, id) -> (x?, y?, z?)`
-(where one is now, world; nil when not followed: the sims), `ashore(i) -> (x, z)` (the jetty's island end on island
-i: where one taken in comes ashore).
+(`strollPoint`: a buildable cell away from the campfire). One new in a hut on an island already peopled has just
+hatched: it steps out where its egg lay (`EggView.hatchPoint`) with a cheer and walks off to work (`born`). Workers
+stand along the building's front, turned three-quarters to the view (east or south). Only islands within 100 studs of
+the view's centre are drawn (synced every half second); each near owned island's campfire gets a flickering flame and
+rising smoke (`fireOn`, dynamic models). Each island's sign gets a World-root label (its name, the own in gold, or
+"Unclaimed isle"); a tap (`onTap`: a press let go within 8 px, not on the interface, not in Build mode) goes to
+`EggView.tapAt` first (an egg under the own tree: hatched); otherwise its ray (`PixelRenderer.screenRay` in the
+`PixelRays` collision group, as the picture's, so it passes the invisible coast walls, which Roblox hits whatever
+their CanQuery says because they collide) on a Tree of Life (`treeOf`: a model with the `Decor` attribute "tree")
+opens the "tree" panel for the own one, or for a neighbour's says "Someone else's Tree of Life. Yours is on your own
+island."; on a sign it shows `signCard(i)` (the day, driftlings at home, charm). Fx "hatched" (`hatchedOne`) bursts
+bits of the hatchling's rarity's colour at `EggView.hatchPoint`, a rare or better one's name floating up; a
+Hatchery's hatchling (Fx "turn" `hatched`) gets its name and pink bits over the Hatchery; `cheer(words, color)` makes
+the own islanders cheer. Its Heartbeat runs `EggView.step` with the view's centre (world x). `rigCount()` /
+`ownRigCount()` / `ownCount()` (the walkers drawn: all, the own island's) and `tapScreen(pos)` (a tap at screen px,
+handled as a player's) for the sims. (No `TideView.ashore`; the old tree's label `updateTreeLabel` and `grownOne`
+stay gone.)
+`EggView` (client, GAME_DESIGN 6): every island's eggs from its plot's `Eggs` attribute (`id.rarity`; the islands
+within `NEAR` (100) studs of the view's centre, synced every half second) round its tree, found from the tree's decor
+model name (`uid:tree:x:z:rot:lvl`). Each egg is a `TreeEgg` model in `Workspace.PixelDynamic` (registered with the
+renderer): a bed of straw, two `Shell` balls (the upper one `Top`, its top half), five spot balls in `SPOTS[r]`
+(`sand_dark`, `green`, `blue`, `purple`, `orange`; Neon from rare up, so a light pool at night), white or, for a
+legendary, gold with a Neon yellow band; `SIZE[r]` (1.25 .. 1.62) a rarer one bigger. Slot k of a lot of n lies on the
+lawn at `DecorModels.EGG_RING` from the tree's middle, spread evenly over the arc from `ARC0` (-62°) to `ARC1` (152°)
+(the south and east, the side the view looks at); a lot keeps its slots while it lasts (an egg's slot its place in
+the lot's order from its first id, `lotFirst`, or, when that slot is taken or past the ring, the first free one: an
+expansion's extra eggs after a hatch never land on another egg's spot), the ring as many slots as `Tuning.EggCount`
+by the island's tier. A
+whole new lot (every egg gone at once and new ones in) rises out of the lawn (`RISE` 0.6 s, `STAGGER` 0.12 s apart,
+from `DEEP` 1.4 studs under) while the old eggs sink (`SINK` 0.5 s); one gone while the rest stay, or one the own
+player just hatched, cracks (`CRACK` 0.9 s: a shake, then `Top` flies off turning and the rest sinks); every egg rocks
+for a moment every 7 s. Over the own island's eggs, risen and not leaving, it keeps World-root price buttons
+(`EggHatch_<id>`: the cost and `mini_shell`, `button_ok` when the shells are there, else `plate_light`; no names), the
+rarest first; one that would overlap a rarer one's tag shown already waits. On tip 4 the `arrow_down_t` bobs over the
+cheapest shown tag the shells cover. `hatch(id, swap?)` (sends `egg.hatch`; the notice "It hatched a rare Wispwing!"
+in its rarity's colour, with what a swap sold for, the "rare" sound for a rare or better one, else "pop"; the egg's
+place kept as the island's hatch point; `full` opens the tree panel's swap picker `{ hatch = id }`; other refusals in
+words), `best(v, n) -> { Laid }` (the view's eggs, the rarest first, then the lower id; when the shells cover none of
+the best n, the best one they cover takes the last place: the HUD's card and the tree panel), `tapAt(pos) -> boolean`
+(a tap at an InputObject's position, below the top bar, so the inset is added back: of the own island's eggs risen
+and not leaving, the nearest one whose box on screen holds the tap is hatched; true when it hit one), `step(t,
+focusX)` (WorldView's Heartbeat: the near islands synced, every egg moved, the tags kept), `count(plot?) -> number`
+(the eggs drawn, not counting ones sinking or cracking: the sims and previews), `where(plot, id) -> Vector3?` (an
+egg's foot now, world; nil when not drawn), `hatchPoint(i) -> (x, z)` (where island i's last hatched egg lay; else in
+front of the tree's hollow, `DecorModels.HOLLOW`; else the jetty's island end).
 `StreetLife` (client, started after AvatarView): four boats (`MicroModels` "ship" at BoatSpec levels 1, 2, 1, 3, blob shadows) crossing
 both ways on two lanes out at sea, rocking on the swell in whole steps, wrapping round the sea's ends; a flock of three
 gulls crossing every 14-24 s, each crossing its own (east or west, a slant, a height, a weave, each gull a little
@@ -664,60 +680,63 @@ right corner, the `mini_note`, sending `settings.set` music on / off, the note g
 (`Menu_build`, `Menu_pals`, `Menu_index`, `Menu_looks`, each with its icon; while Build mode is open the bar and the
 cards step aside and the tips banner rises over the tray with a Build mode wording (`TIPS_BUILD`)), the `IslandCard`
 on the right (the island's name for its tier, driftlings in huts / the huts' room (`Pals`), visitors, charm, and what
-a turn makes of wood and shells a minute, `Rate_wood` and `Rate_shell`: `Numbers.perMin`), the `TideCard` under it
-(GAME_DESIGN 6: the `mini_tide`, "Tide" and `TideOpen` opening the "tide" panel, then a row each of
-`TideView.best(v, 3)` (on a phone `best(v, 1)`): `TideName_<id>` in its rarity's colour, under it `TideLeft_<id>`
-(an ink bar whose `Fill`, in its rarity's colour, Heartbeat sets to the time it has left from `StateClient.along`) and
-`CardTake_<id>` (its cost and `PriceIcon`, sending `TideView.take`; green when the shells are there), or "Nothing
-yet"; no `TideBar` since the conveyor; built again from `StateClient.TideChanged` and each view only when the rows'
-ids, costs or whether the shells cover them change (its `Key` attribute); on a phone the card at the top left; hidden
-in Build mode and while the "tide" panel is open), the questline's card `Quest` (GAME_DESIGN 9: down the left at `CARD_Y`, `QUEST_W`
-150, under the `TideCard` on a phone; hidden while the tips are on and for a panel; `updateQuest(v)` from the view
+a turn makes of wood and shells a minute, `Rate_wood` and `Rate_shell`: `Numbers.perMin`), the `TreeCard` under it
+(GAME_DESIGN 6: the `mini_tree`, "Tree of Life" ("Eggs" on a phone) and `TreeOpen` opening the "tree" panel,
+`TreeNext` ("New eggs in 2:41") over `TreeBar` (an ink bar whose fill Heartbeat runs down from
+`StateClient.clutchLeft`), then a row each of `EggView.best(v, 3)` (on a phone `best(v, 1)`): `EggIcon_<id>` (the
+`egg_<rarity>` sprite), `EggName_<id>` (the rarity's name in its colour) and `CardHatch_<id>` (its cost and
+`PriceIcon`, sending `EggView.hatch`; green when the shells are there), or "No eggs right now"; built again from each
+view only when the rows' ids, costs, whether the shells cover them or the number of eggs change (its `Key`
+attribute); on a phone the card at the top left; hidden in Build mode and while the "tree" panel is open), the questline's card `Quest` (GAME_DESIGN 9: down the left at `CARD_Y`, `QUEST_W`
+150, under the `TreeCard` on a phone; hidden while the tips are on and for a panel; `updateQuest(v)` from the view
 through `Quest.current` / `Quest.progress`, laid out again when the quest or its count changes, sliding in: the
 quest's `mini_` icon, `Title`, `Which` ("3/20"), `Words`, then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
-panel, "tide" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_<store>`, wood then shells) and
+panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_<store>`, wood then shells) and
 `QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`: the steps of
-GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, a driftling off the tide, a Snack Stall, the last; Build
+GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
 mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; a parchment note in a thin frame; on a
 phone it keeps to the room left of the island card, wrapping to two lines), and the `DayBanner` (Fx "day" and "turn":
-the day, what hatched; over a panel or in Build mode a notice instead); Fx "tide" with an epic or legendary one coming
-in: a notice in its rarity's colour ("An epic Sunsprite is floating by."), the `grow` sound and a burst over the
-`TideCard` (`onTide`; a rare one gets nothing since the conveyor, one comes about every half a minute). Shells coming in rise from their chip
+the day, what hatched; over a panel or in Build mode a notice instead); Fx "eggs" (`onEggs`): "The Tree of Life laid new eggs." (with `more`, "The tree laid 2 more eggs.") and the `rare`
+sound, or, with an epic or legendary egg among them, "An epic egg is waiting under the tree." in its rarity's colour,
+the `grow` sound and a burst over the `TreeCard`. Shells coming in rise from their chip
 ("+12", at most every 2 s, from `StateClient.Tick`). Every frame it holds the founder's `JumpHeight` at 0 while Build
 mode or a panel is up, else `Tuning.JumpHeight` (the phone's jump button hides with it), and sets the music's mood
 (`Audio.music`). It reports its blocks to the camera (on PC the top strip, the menu bar and the card's place; on a
 phone Roblox's top bar and the menu bar).
 
 ### 10.4 Menus
-`Menus` registers the panels (the villagers' "folk" went with them): "pals" (`OpenTide` and, when a Hatchery stands,
-`OpenHatch` at the top, the hint beside them in up to three lines (`UIKit.lines`: "6 in huts (room for 8). New ones
-float past the island."); a row a driftling, every one, the hardest workers first (`Tide.better`) and those with no
-hut last, `Pal_<id>`: portrait, name in its rarity's colour, its rarity, passive and its effects, mutations (`Mut_<id>`
-each), where it lives and helps (`Where`; "No hut. It moves in when one has room." in orange); `Move_<id>` opens the
-hut picker (the same panel with `{ move = id }`: a row a hut with its room, `Move_<uid>`; a full hut lists its
-driftlings with `SwapWith_<id>`, sending `pal.house { id, uid, swap }`; no pen row), `Help_<id>` the picker of the
-buildings of its knack (a driftling in a hut only), `Sell_<id>` (two taps, `Tide.price`); no `EquipBest` or
-`OpenTree`), "tide" (GAME_DESIGN 6, 380 x 196: on the left `Pace` ("One floats by every second", else "One floats by every
-0.8s", from `tideSecs`), `Room` ("In huts 6/8", orange when full), "What comes in now" and the odds of each rarity
-(`Odds_<r>`, `Tide.odds`; "<0.1%" under a tenth of a percent) and, below tier 6, "A bigger island brings new kinds and
-rarer ones."; on the right `Jetty` ("Floating by") and a row each of `TideView.best(v, 4)`, `Drift_<id>`: portrait,
-name, rarity and how fast it works, mutations, `PanelTake_<id>` (its cost and `PriceIcon`, sending `TideView.take`)
-and `Left` (the time it has left, its fill run down every Heartbeat from `StateClient.along`); no `TideBar` or
-`Leaving` since the conveyor; on `StateClient.TideChanged` the panel is built again (`UIKit.refreshPanel`) only when
-what it shows changes (`tideKeyOf`: the best four's ids, costs and whether the shells cover them; in the swap picker,
-whether the one being taken is still there); with `{ take = id }`, every hut full, the swap picker: a hint naming the newcomer and its cost, `Back`, and a row a hut
-driftling, the weakest first, `SwapOut_<id>`: portrait, name, rarity, how fast it works, mutations, "Sells for n" and
-`SwapTake_<id>`, sending `tide.take { id, swap }`; once the newcomer has floated off, "That one has floated off." and
-back to the tide panel), "hatch" (a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
+`Menus` registers the panels (the villagers' "folk" went with them; each is built again with every view): "pals"
+(`OpenTree` ("Eggs") and, when a Hatchery stands, `OpenHatch` at the top, the hint beside them in up to three lines
+(`UIKit.lines`: "6 in huts (room for 8). New ones hatch from the Tree of Life's eggs."); a row a driftling, every one,
+the hardest workers first (`Tree.better`) and those with no hut last, `Pal_<id>`: portrait, name in its rarity's
+colour, its rarity, passive and its effects, mutations (`Mut_<id>` each), where it lives and helps (`Where`; "No hut.
+It moves in when one has room." in orange); `Move_<id>` opens the hut picker (the same panel with `{ move = id }`: a
+row a hut with its room, `Move_<uid>`; a full hut lists its driftlings with `SwapWith_<id>`, sending `pal.house { id,
+uid, swap }`), `Help_<id>` the picker of the buildings of its knack (a driftling in a hut only), `Sell_<id>` (two
+taps, `Tree.price`); with no driftling, "No driftlings yet. Tap an egg under the Tree of Life to hatch it." (or "Build
+a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DESIGN 6, title "Tree of Life", 380 x
+196: on the left `Pace` ("New eggs every 3:00", from `clutchSecs`), `Next` ("Next in 2:41") over `TreeBar` (its fill
+run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
+"What it lays now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
+yet" at 0) and, below tier 6, "A bigger island lays more eggs, and better ones."; on the right `Eggs` ("Under the
+tree") and a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
+sprite, "Rare egg" in its colour, "Hatches a rare one" ("an" before uncommon and epic) and `PanelHatch_<id>` (its cost
+and `PriceIcon`, sending `EggView.hatch`), or "No eggs left. The tree lays more soon."; with `{ hatch = id }`, every
+hut full, the swap picker: a hint naming the egg's rarity and cost ("Every hut is full. Swap one out for the rare egg
+(1,200 shells): the one you pick is sold."), `Back`, and a row a hut driftling, the weakest first, `SwapOut_<id>`:
+portrait, name, rarity, how fast it works, mutations, "Sells for n" and `SwapTake_<id>`, sending `egg.hatch { id,
+swap }`; once a new lot has replaced the egg, "That egg is gone. The tree laid new ones." and back to the tree
+panel), "hatch" (a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
 `EggName`, `EggLeft` ("Hatches in 3 turns"), `EggBar`, its parents) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
 picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`), the likely child
 (`Child`: its portrait if seen, else its shape and ???, its rarity), `Cost` ("A feast for 300 shells, 6 turns. ..."),
 `Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`: portrait or silhouette, name or "???", the
 kind of island it comes from, its passive once seen; "Seen n of 55 kinds"; a kind not open yet says the island tier
-it floats by from: "These float by from island Lv 4.") and "looks" (the founder's portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt,
+it hatches from: "These hatch from island Lv 4.") and "looks" (the founder's portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt,
 `SaveLook` sends `founder.set`). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut first. Driftlings
-need somewhere to live."; `full`: "Every hut is full. Swap one out, or build another hut."; `not_found`: "That one has
-floated off."; no `food` or `fixed`).
+need somewhere to live."; `full`: "Every hut is full. Swap one out, or build another hut."; `not_found`: "That egg is
+gone. The tree laid new ones."; `fixed`: "The Tree of Life stays on your island. You can move it."; `huts`: "No room
+for another hut here. Grow the island, or replace a hut with a bigger one."; no `food`).
 
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
@@ -735,8 +754,8 @@ Other players' names float over their heads (World root). `founderPos()`, `count
 ### 10.7 `BuildUI` (Build mode)
 `open(tab?)` (the HUD's Build button; `tab`: the tray opens on that tab, the quests' Go): closes any panel, `CameraController.setFree(true)`, the tray `BuildTray` along the
 bottom (a workbench in a frame of planks, `wood = 3`, its tabs on a `plank`; the cards carved boards): the tabs `Tab_farm Tab_wood Tab_shop Tab_nest Tab_gen Tab_path Tab_decor` (Farms, Wood, Shops, Huts, Boosts, Paths, Decor; their icons
-alone on a narrow screen; it opens on Wood), the count (`Count`: the pieces, or the path tiles on the Paths tab, against their limit), `Expand` (`island.expand`, its price under it; the fanfare and "Your island grew." wait for `PixelRenderer.afterBake`, 1.5 s at most) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
-its price in wood with its icon (shells too only for a piece priced in them: none is now), red when short; a locked one says the island tier it needs). With a
+alone on a narrow screen; it opens on Wood), the count (`Count`: the pieces without the tree against `Plot.limit`; the path tiles on the Paths tab against `pathLimit`; the huts on the Huts tab against `hutLimit`; orange when full), `Expand` (`island.expand`, its price under it; the fanfare and "Your island grew." wait for `PixelRenderer.afterBake`, 1.5 s at most) and `BuildDone`; a card a piece of the tab (`Buy_<id>`:
+its price in wood with its icon (shells too only for a piece priced in them: none is now), red when short; a locked one says the island tier it needs; a hut at the huts' limit is greyed with "No room" and a tap says `Words.errText("huts")`). With a
 piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.PixelDynamic`: the piece and its `Footprint`, a
 raised neon frame of four edges just above the grass, cyan (`screen_on`) where `Plot.fits`
 says it fits, red (`berry_red`) where not) stands on the cell under the pointer (mouse) or the last tap; the bar shows
@@ -745,12 +764,12 @@ when moving a building, `Cancel`, and the `Info` plate (what it is and makes, a 
 charm, its price or the next level's). `Replace` turns the bar to `ReplaceBack`, `ReplaceWhat` and a card a
 replacement (`Swap_<id>`: its name with its room, `SwapTo_<id>` with `Plot.replaceCost`), a tap sends
 `plot.replace`. A tap on a placed piece of the own
-island (a ray into its `Static.Decor`) picks it up (`Store`, Clear away, is always on: no piece is fixed since the
-tree went). A press dragged more than 8 px pans the view
+island (a ray into its `Static.Decor`) picks it up (`Store`, Clear away, is off for the Tree of Life, `Plot.isFixed`;
+it has no `Replace` either, `Plot.replacements` being empty). A press dragged more than 8 px pans the view
 (`CameraController.panBy`). `confirm()` sends `plot.place` (the piece stays picked for another copy) or `plot.move`;
 `close()`; `isOpen()`; `Changed: Signal<boolean>`; `tapScreen(pos, mouse?)` (the sims' and previews' tap). The tray
 is laid out again when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 wood / lumber, 2
-farm / patch, 3 nest / nest, 5 shop / stall; tip 4, a driftling off the tide, has no building): opening, and each new tip while open (`followTut`, from
+farm / patch, 3 nest / nest, 5 shop / stall; tip 4, an egg hatched, has no building): opening, and each new tip while open (`followTut`, from
 the rebuild; it waits while a piece is picked), turns the tray to the tip's tab; the tip's card (`TutGoal`) and its
 tab, while another is shown, pulse to the accent and shine; placing the tip's building drops the pick so the tray goes
 on to the next tab. `TRAY_H` (the HUD lifts the tip's banner over it), `debugState() -> { tab, goal? }`.
@@ -786,9 +805,11 @@ The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<
 animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the driftlings' portraits
 `icon_<species>` (32x32: drawn from its model; `Menus` puts a row's words at `PX` 40, right of one), the small icons `mini_<name>` (11x11: `shell
 food wood sun moon charm folk pal visitor home nest tree train boost path decor start loot chest wild rest boss star
-boat tide`; `tide` a wave curling over, the tide's (its card, panel and quests); `food` the Farms tab's; `tree`, the
-Tree of Life's, unused since the tide; `train`, `start`, `loot`, `chest`, `wild`, `rest`, `boss` and `boat` unused
-since the expeditions went), the arrows `arrow_<dir>` (13x13) and `arrow_<dir>_t` (7x7), `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`:
+boat`; `tree` the Tree of Life's (its card, panel and quests: a round crown with glowing fruit on a short trunk); no
+`tide` since the tide went; `food` the Farms tab's; `train`, `start`, `loot`, `chest`, `wild`, `rest`, `boss` and
+`boat` unused since the expeditions went), the eggs `egg_1` .. `egg_5` (12x15: white with spots of the rarity's
+colour, the legendary's gold; the tree's card and panel and the Hatchery), the arrows `arrow_<dir>` (13x13) and
+`arrow_<dir>_t` (7x7), `note`, `heart`, `spark_1..3`, `bombfuse`. `PixelSprites`:
 `has(name)`, `size(name) -> (w, h)`, `image(parent, name, pos?, z?) -> GuiObject` (an ImageLabel `Sprite_<name>`
 showing the sprite's EditableImage, made once and shared, `ResampleMode` Pixelated, at the sprite's own size: no
 scale; without EditableImages a Frame of 1 px run rects), `anim(parent, names, pos?, z?) -> Anim { f, w, h, set(i),
@@ -797,7 +818,7 @@ flash(seconds?), moveTo(x, y) }`.
 ## 11. Verification
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
-  lists them: Util, Validate, Numbers, DataIntegrity, Traits, Island, Tide, Breed, Economy, Plot, Quest, Schema,
+  lists them: Util, Validate, Numbers, DataIntegrity, Traits, Island, Tree, Breed, Economy, Plot, Quest, Schema,
   Shading, Raster, Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.

@@ -29,11 +29,12 @@
 #                   huts' limit), Build mode's UI (the Huts tab at the limit), paths, malicious plot payloads, a leaving
 #                   player (their eggs gone with the island), a full sea (a newcomer's tree and first lot), every
 #                   island's eggs and price tags, the tree fixed (its panel, moved with its eggs, never cleared away)
-#   sim_tide.luau   the tide: a new island's two commons at the jetty (the view, the plot's Tide attribute, the HUD's
-#                   card, the rafts), refusals (no hut, gone, malformed, a shell short), the tips' buildings and one
-#                   taken in from the card and one from its world tag, one every TideSecs up to TideMax with the
-#                   oldest drifting off (the Index), every hut full (the swap picker), the tide panel, selling in two
-#                   taps, a hut cleared away and another built, expanding (prices times TideTier), a neighbour's
-#                   client drawing the first island's tide
+#   sim_tree.luau   the Tree of Life's eggs: a new island's tree (one fixed piece, moved but never cleared away,
+#                   bought or replaced, outside the piece limit) and its first lot laid at once (two commons first,
+#                   the plot's Eggs attribute, EggView's arc round the tree, the HUD's Tree card, the price tags),
+#                   refusals (no hut, gone, malformed, a shell short, full), hatching from the card, a world tag, the
+#                   egg itself and the panel (wood, then a farm), the swap picker, new lots on the tree's clock (a
+#                   hatched-down lot, every egg left unhatched replaced), the eggs saved over a rejoin, the huts'
+#                   shares, expanding (more eggs at once, dearer, better), tapping the tree, a neighbour's eggs
 SIM=$(cd "$(dirname "$0")" && pwd)
-sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tide.luau:out_tide.log"
+sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log"
