@@ -395,4 +395,202 @@ return function()
 		local ux, uy, uz = Shading.normalVec(13)
 		T.deepEq({ ux, uy, uz }, { 0, 1, 0 }, "13 decodes as up")
 	end)
+
+	-- Surface textures: the patterns the renderer applies at bake time (GAME_DESIGN 2: "textured objects", "wood
+	-- detail"). Each must be a pure answer of the global pixel (the same at every pan), give only -1, 0 or 1, stay sparse,
+	-- and draw 1 px marks (never a 2 x 2 blob: no mixels).
+	local function sample(fn: (number, number) -> number, x0: number, y0: number, w: number, h: number): ({ [number]: number }, number)
+		local out: { [number]: number } = {}
+		local marked = 0
+		for y = y0, y0 + h - 1 do
+			for x = x0, x0 + w - 1 do
+				local v = fn(x, y)
+				out[(y - y0) * w + (x - x0)] = v
+				if v ~= 0 then
+					marked += 1
+				end
+			end
+		end
+		return out, marked
+	end
+	local PATTERNS: { { name: string, fn: (number, number) -> number, lo: number, hi: number } } = {
+		{ name = "grass", fn = Shading.grassMark, lo = 0.03, hi = 0.12 },
+		{ name = "sand", fn = Shading.sandMark, lo = 0.02, hi = 0.1 },
+		{ name = "stone", fn = Shading.stoneMark, lo = 0.02, hi = 0.1 },
+		{ name = "thatch", fn = Shading.thatchMark, lo = 0.06, hi = 0.16 },
+		{ name = "grain upright", fn = function(x, y) return Shading.grain(1, 17, x, y) end, lo = 0.08, hi = 0.25 },
+		{ name = "grain level", fn = function(x, y) return Shading.grain(2, 17, x, y) end, lo = 0.1, hi = 0.3 },
+		{ name = "grain 2:1 down right", fn = function(x, y) return Shading.grain(3, 17, x, y) end, lo = 0.12, hi = 0.3 },
+		{ name = "grain 2:1 down left", fn = function(x, y) return Shading.grain(4, 17, x, y) end, lo = 0.12, hi = 0.3 },
+		{ name = "brick level", fn = function(x, y) return Shading.mortar(2, x, y) end, lo = 0.2, hi = 0.4 },
+		{ name = "brick 2:1 down right", fn = function(x, y) return Shading.mortar(3, x, y) end, lo = 0.2, hi = 0.4 },
+		{ name = "brick 2:1 down left", fn = function(x, y) return Shading.mortar(4, x, y) end, lo = 0.2, hi = 0.4 },
+	}
+
+	T.it("textures: every pattern is a sparse set of 1 px marks, the same at every pan", function()
+		for _, p in PATTERNS do
+			-- far from the origin on both sides (the global grid's numbers are negative where the islands are)
+			for _, at in { { -1990, -961 }, { 37, 5 } } do
+				local W, H = 120, 90
+				local a, marked = sample(p.fn, at[1], at[2], W, H)
+				local share = marked / (W * H)
+				T.truthy(share >= p.lo and share <= p.hi, string.format("%s: %.3f of the pixels marked", p.name, share))
+				for i = 0, W * H - 1 do
+					local v = a[i]
+					T.truthy(v == -1 or v == 0 or v == 1, p.name .. ": a band shift of -1, 0 or 1")
+				end
+				-- no 2 x 2 block all marked (a mark is never a blob)
+				for y = 0, H - 2 do
+					for x = 0, W - 2 do
+						local i = y * W + x
+						T.truthy(not (a[i] ~= 0 and a[i + 1] ~= 0 and a[i + W] ~= 0 and a[i + W + 1] ~= 0), string.format("%s: a 2x2 blob at %d,%d", p.name, x, y))
+					end
+				end
+				-- a window seen from another pan gives the very same marks (the pattern reads the global pixel only)
+				local b = sample(p.fn, at[1] + 7, at[2] + 3, W - 7, H - 3)
+				for y = 0, H - 4 do
+					for x = 0, W - 8 do
+						T.eq(b[y * (W - 7) + x], a[(y + 3) * W + x + 7], p.name .. ": the same mark from another pan")
+					end
+				end
+			end
+		end
+	end)
+
+	T.it("textures: grass flecks of light are single pixels, the rest of the marks darker", function()
+		local W, H = 96, 64
+		local a = sample(Shading.grassMark, -400, -300, W, H)
+		local lighter, darker = 0, 0
+		for y = 1, H - 2 do
+			for x = 1, W - 2 do
+				local i = y * W + x
+				if a[i] == 1 then
+					lighter += 1
+					T.truthy(a[i - 1] == 0 and a[i + 1] == 0 and a[i - W] == 0 and a[i + W] == 0, "a fleck stands alone")
+				elseif a[i] == -1 then
+					darker += 1
+				end
+			end
+		end
+		T.truthy(lighter > 0 and darker > lighter, string.format("%d darker, %d lighter", darker, lighter))
+	end)
+
+	T.it("textures: wood grain follows the long axis as clean lines", function()
+		-- 2:1 lines take two pixels a row, each row two px on (a clean staircase), upright lines one column
+		for y = -20, 20 do
+			for x = -40, 40 do
+				if Shading.grain(3, 5, x, y) ~= 0 then
+					T.truthy((x - 2 * y + 5) % 6 < 2, "down to the right: on its 2:1 line")
+				end
+				if Shading.grain(4, 5, x, y) ~= 0 then
+					T.truthy((x + 2 * y + 5) % 6 < 2, "down to the left: on its 2:1 line")
+				end
+				if Shading.grain(1, 5, x, y) ~= 0 then
+					T.eq((x + 5) % 4, 0, "upright: one column in four")
+				end
+				T.truthy(Shading.grain(2, 5, x, y) <= 0, "grain only darkens")
+			end
+		end
+		-- the seed moves the lines (planks side by side differ)
+		local a, m1 = sample(function(x, y) return Shading.grain(1, 1, x, y) end, 0, 0, 8, 8)
+		local b = sample(function(x, y) return Shading.grain(1, 2, x, y) end, 0, 0, 8, 8)
+		local differ = false
+		for i = 0, 63 do
+			if a[i] ~= b[i] then
+				differ = true
+			end
+		end
+		T.truthy(m1 > 0 and differ, "another seed, other lines")
+	end)
+
+	T.it("textures: the metal streak and the glass sit in the part's box", function()
+		-- a 10 x 8 box at (100, 50): the streak is the "/" lines u = 5 and 6 from its top-left corner, lighter only
+		local lit = 0
+		for y = 50, 57 do
+			for x = 100, 109 do
+				local v = Shading.streak(100, 50, 10, 8, x, y)
+				local u = (x - 100) + (y - 50)
+				T.eq(v, if u == 5 or u == 6 then 1 else 0, string.format("streak at %d,%d", x, y))
+				lit += v
+				local g = Shading.glass(100, 50, 10, 8, x, y)
+				if u == 5 or u == 6 or u == 9 then
+					T.eq(g, 1, "glass: its reflections")
+				elseif y == 57 then
+					T.eq(g, 0, "glass: the lit sill keeps its band")
+				else
+					T.eq(g, -1, "glass: the body a band darker")
+				end
+			end
+		end
+		T.truthy(lit > 0, "the streak shows")
+	end)
+
+	T.it("textures: brick courses follow the face's level direction", function()
+		local Raster = require("../../build/luautest/shared/Render/Raster")
+		local rot = Raster.rotation(45, 30)
+		local a, b = Shading.courseFam(rot, 1, 0, 0), Shading.courseFam(rot, 0, 0, 1)
+		T.truthy((a == 3 and b == 4) or (a == 4 and b == 3), string.format("the two upright sides: %d and %d", a, b))
+		T.eq(Shading.courseFam(rot, 0, 1, 0), 0, "a top face has none")
+		T.eq(Shading.courseFam(rot, 0, -1, 0), 0, "nor a bottom one")
+		T.eq(Shading.courseFam(rot, -1, 0, 0), a, "the opposite side runs the same way")
+		-- a course's joint line is one row deep: one marked row in every four down a column, between the joints
+		for x = 1, 7 do
+			local rows = 0
+			for y = 0, 15 do
+				if Shading.mortar(3, x * 8 + 1, y) ~= 0 then
+					rows += 1
+				end
+			end
+			T.eq(rows, 4, "column " .. x)
+		end
+	end)
+
+	T.it("textures: kinds by colour, and the band rule", function()
+		local C = Palette.colors
+		T.eq(Shading.texKind(C.wood), Shading.TEX_WOOD)
+		T.eq(Shading.texKind(C.wood_dark), Shading.TEX_WOOD)
+		T.eq(Shading.texKind(C.steel), Shading.TEX_METAL)
+		T.eq(Shading.texKind(C.grass), Shading.TEX_GRASS)
+		T.eq(Shading.texKind(C.leaf_dark), Shading.TEX_GRASS)
+		T.eq(Shading.texKind(C.sand), Shading.TEX_SAND)
+		T.eq(Shading.texKind(C.rock), Shading.TEX_STONE)
+		T.eq(Shading.texKind(C.straw), Shading.TEX_THATCH)
+		T.eq(Shading.texKind(C.brick), Shading.TEX_BRICK)
+		for _, plain in { "water", "shallow", "foam", "white", "ink", "berry_red" } do
+			T.eq(Shading.texKind(C[plain]), Shading.TEX_NONE, plain .. " stays plain")
+		end
+		-- Shading.band is the band toon picks
+		restoreDefaults()
+		local cases = { { 0, 1, 0, 1 }, { 0, 1, 0, 0 }, { 1, 0, 0, 1 }, { 0, 0, 1, 1 }, { -1, 0, 0, 1 }, { 0, -1, 0, 1 } }
+		for _, c in cases do
+			local band = Shading.band(c[1], c[2], c[3], c[4])
+			local want = Shading.tone(C.grass, band)
+			T.eq(Shading.toon(C.grass, c[1], c[2], c[3], c[4], 0, 0), want, string.format("band %d for %d,%d,%d lit %d", band, c[1], c[2], c[3], c[4]))
+		end
+		T.eq(Shading.band(0, 1, 0, 1), 1, "a lit top")
+		T.eq(Shading.band(0, 1, 0, 0), 3, "a top in a cast shadow")
+		T.eq(Shading.band(1, 0, 0, 2), 1, "emissive")
+		-- a darker mark on a lit face is the half band, on a half-lit face the shade band: its own ramp
+		T.eq(Shading.toonAt(C.wood, 0, 1, 0, 1, 0, 0, Shading.OUTDOOR, -1), Shading.tone(C.wood, 2))
+		T.eq(Shading.toonAt(C.wood, 0, 0, 1, 1, 0, 0, Shading.OUTDOOR, -1), Shading.tone(C.wood, 3))
+	end)
+
+	T.it("textures: the hash is a 32-bit number that spreads its neighbours", function()
+		local seen: { [number]: boolean } = {}
+		local n, ones = 0, 0
+		for y = -16, 15 do
+			for x = -16, 15 do
+				local h = Shading.texHash(x, y, 1)
+				T.truthy(h >= 0 and h < 4294967296 and h == math.floor(h), "a whole 32-bit number")
+				T.eq(Shading.texHash(x, y, 1), h, "the same every time")
+				if not seen[h] then
+					seen[h] = true
+					n += 1
+				end
+				ones += h % 2
+			end
+		end
+		T.truthy(n >= 1020, "neighbours differ: " .. n .. " of 1024")
+		T.truthy(ones > 412 and ones < 612, "its low bit is even: " .. ones)
+	end)
 end

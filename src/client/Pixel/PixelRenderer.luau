@@ -12,7 +12,9 @@
 --     even-even anchor, shared by the other three pixels when they show the same part and normal, their own ray
 --     otherwise; then every shared pixel next to a change of light and shadow casts its own, so shadow edges fall on
 --     the 1 px grid, never in 2 px steps), depth and part id. Shaded with Render/Shading's three toon bands and palette LUT (indoor tint
---     inside the office), then the 1 px ink outline where parts meet and a contact shade at the foot of upright faces.
+--     inside the office) with its material's surface texture (wood grain, grass blades, sand and stone specks, thatch,
+--     brick courses, a metal or glass streak: 1 px marks a band darker or lighter, no rays; the surface textures
+--     section), then the 1 px ink outline where parts meet and a contact shade at the foot of upright faces.
 --   Dynamic layer: the crew (registerDynamic) are drawn analytically every tick at the tier's rate with the same
 --     orthographic camera (Render/Raster), depth-tested against the static layer and outlined; only their dirty
 --     rects are restored and uploaded.
@@ -109,6 +111,13 @@ type Surf = {
 	ready: boolean?, -- a finished bake is in its buffers (a re-bake then works behind it: `back`)
 }
 
+-- A static part's surface texture (Shading.TEX_*), worked out once per part and id table: its colour (a pixel tinted
+-- by glass in front shows none), its screen box in global art px, how its long axis runs on screen (Shading.grain's
+-- fam) and a number from where it stands. NO_TEX: a part with none.
+type TexInfo = { kind: number, rgb: number, x0: number, y0: number, w: number, h: number, fam: number, seed: number }
+type Texs = { [number]: TexInfo }
+local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
+
 type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number }
 type Dyn = { model: Model, parts: { DynPart } }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
@@ -142,7 +151,7 @@ local rush = false -- a big change's re-bake: more ms a frame (the player is wai
 -- A re-bake while a finished picture is on screen writes into these (fresh buffers and id tables) instead, so the
 -- picture keeps living meanwhile (the crew, driftlings, water and wind go on drawing over it at its camera); the
 -- finished bake swaps in whole. Without it the screen stood still for the whole bake: the lag before an expansion.
-type BackTabs = { ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, nextId: number }
+type BackTabs = { ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, texs: Texs, nextId: number }
 local back: Surf? = nil
 local backTabs: BackTabs? = nil
 local afterBake: { () -> () } = {} -- called once when the next bake is on screen (PixelRenderer.afterBake)
@@ -150,6 +159,7 @@ local afterBake: { () -> () } = {} -- called once when the next bake is on scree
 local staticIds: { [Instance]: number } = {}
 local albedos: { [number]: number } = {}
 local waters: { [number]: number } = {} -- static id -> PixelWater class (0 none)
+local texs: Texs = {} -- static id -> its surface texture (worked out when the bake first meets it)
 local waterClock, waterFrame = 0, 0
 local waterTones: { [number]: number } = {} -- (base colour, class, tone) -> colour
 local nextId = 1
@@ -162,7 +172,7 @@ local tickAcc = 0
 local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
 -- the street's finished picture, kept while a microgame's stage has the view (restored when its key comes back)
-type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, nextId: number, dirty: boolean }
+type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, texs: Texs, nextId: number, dirty: boolean }
 local stash: Stash? = nil
 local offX, offY = 0, 0 -- the layer's shake offset (art px)
 
@@ -205,6 +215,7 @@ local function staticIdOf(part: BasePart): number
 		nextId = 1 -- wraps only in a very long session; a re-bake renumbers
 	end
 	staticIds[part] = nid
+	texs[nid] = nil -- (worked out afresh for the part that has the id now)
 	local attr = part:GetAttribute("PixelColor")
 	local rgb = if typeof(attr) == "Color3" then rgbOf(attr) else rgbOf(part.Color)
 	if part.Material == Enum.Material.Neon then
@@ -323,6 +334,134 @@ local function deactivate(why: string?)
 	end
 end
 
+------------------------------------------------------------------ surface textures
+-- Material detail at bake time (Render/Shading's patterns; Random Bakery's wood grain and metal streak among them):
+-- each static pixel of a textured colour may shift a band darker or lighter on its own ramp, by a pattern on the
+-- global art grid and numbers worked out once per part (its screen box, its long axis, where it stands), so a pan's
+-- strips, a re-cast and a fresh bake all agree. No ray is cast for it. The water (PixelWater: animated on its own) and
+-- glowing parts have none, and a part too small on screen for its pattern to read (TEX_MIN) neither. The dynamic layer
+-- has none: a pattern on the screen's grid would slide over a model as it moves.
+local TEX_GRASS, TEX_SAND, TEX_STONE = Shading.TEX_GRASS, Shading.TEX_SAND, Shading.TEX_STONE
+local TEX_WOOD, TEX_THATCH, TEX_BRICK = Shading.TEX_WOOD, Shading.TEX_THATCH, Shading.TEX_BRICK
+local TEX_METAL = Shading.TEX_METAL
+-- the least screen box (art px wide, tall) each kind needs
+local TEX_MIN: { [number]: { number } } = {
+	[Shading.TEX_WOOD] = { 6, 4 },
+	[Shading.TEX_METAL] = { 4, 4 },
+	[Shading.TEX_GLASS] = { 3, 3 },
+	[Shading.TEX_GRASS] = { 8, 5 },
+	[Shading.TEX_SAND] = { 6, 4 },
+	[Shading.TEX_STONE] = { 6, 4 },
+	[Shading.TEX_THATCH] = { 6, 4 },
+	[Shading.TEX_BRICK] = { 8, 6 },
+}
+local UP_FACING = 0.7 -- grass marks only on faces whose normal looks up at least this much
+local FLAT_TOP = 0.9 -- thatch strokes only on faces whose normal looks up less than this (a roof's slope, a side)
+
+-- A part's texture for the view of layer s (NO_TEX: none).
+local function texInfoOf(s: Surf, part: BasePart, rgb: number, wcls: number): TexInfo
+	if rgb >= EMISSIVE or (wcls >= 1 and wcls <= 3) then
+		return NO_TEX
+	end
+	local kind = Shading.texKind(rgb)
+	if kind == 0 then
+		return NO_TEX
+	end
+	if kind == TEX_BRICK and not (part:IsA("WedgePart") or (part:IsA("Part") and (part :: Part).Shape == Enum.PartType.Block)) then
+		return NO_TEX -- (a round thing in brick red is a berry, a pot or a crown of leaves, not a wall)
+	end
+	local v = s.view
+	local rot, g = v.rot12, v.grid
+	local size = part.Size
+	local px, py, pz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = part.CFrame:GetComponents()
+	-- the part's own axes on the global grid (art px per stud right and down: Raster.gridPoint without its offset)
+	local q = g.q
+	local sr4, sr7, sr10 = rot[4] * q, rot[7] * q, rot[10] * q
+	local sd5, sd8, sd11 = -rot[5] * q, -rot[8] * q, -rot[11] * q
+	local xx, xy = r00 * sr4 + r10 * sr7 + r20 * sr10, r00 * sd5 + r10 * sd8 + r20 * sd11
+	local yx, yy = r01 * sr4 + r11 * sr7 + r21 * sr10, r01 * sd5 + r11 * sd8 + r21 * sd11
+	local zx, zy = r02 * sr4 + r12 * sr7 + r22 * sr10, r02 * sd5 + r12 * sd8 + r22 * sd11
+	-- its screen box: the centre and the half extents of the box's projection
+	local cx, cy = Raster.gridPoint(rot, g, px, py, pz)
+	local hx, hy, hz = size.X / 2, size.Y / 2, size.Z / 2
+	local ex = math.abs(xx) * hx + math.abs(yx) * hy + math.abs(zx) * hz
+	local ey = math.abs(xy) * hx + math.abs(yy) * hy + math.abs(zy) * hz
+	local bx0, by0 = math.floor(cx - ex), math.floor(cy - ey)
+	local w, h = math.ceil(cx + ex) - bx0, math.ceil(cy + ey) - by0
+	local min = TEX_MIN[kind]
+	if min and (w < min[1] or h < min[2]) then
+		return NO_TEX
+	end
+	-- the long axis on screen: 1 upright, 2 level, 3 down to the right (2:1), 4 down to the left
+	local dx: number, dy: number
+	if size.X >= size.Y and size.X >= size.Z then
+		dx, dy = xx, xy
+	elseif size.Y >= size.Z then
+		dx, dy = yx, yy
+	else
+		dx, dy = zx, zy
+	end
+	local fam = if math.abs(dx) < 0.35 * math.abs(dy) then 1 elseif math.abs(dy) < 0.2 * math.abs(dx) then 2 elseif dx * dy > 0 then 3 else 4
+	-- (from where the part stands, not its id: a fresh bake numbers the parts afresh)
+	local seed = math.floor(math.abs(px * 7.3 + py * 13.1 + pz * 17.7) * 4) % 997
+	return { kind = kind, rgb = rgb, x0 = bx0, y0 = by0, w = w, h = h, fam = fam, seed = seed }
+end
+
+-- How a brick face's courses run (Shading.courseFam) by normal index, for the view rotation they were worked out for.
+local courseFams: { number } = {}
+local courseRot: { number }? = nil
+local function courseFamOf(rot: { number }, ni: number): number
+	if courseRot ~= rot then
+		courseRot = rot
+		for i = 1, 27 do
+			courseFams[i] = Shading.courseFam(rot, NX[i], NY[i], NZ[i])
+		end
+	end
+	return courseFams[ni]
+end
+
+-- The band shift texture t gives global pixel (gx, gy), which shows normal index ni - 1 (NX's index ni) with shadow
+-- factor lit. A lighter mark shows only on a face in full light (one in the shade would read as light leaking in); a
+-- darker one shows wherever there is a darker band to take.
+local function texLift(s: Surf, t: TexInfo, ni: number, lit: number, gx: number, gy: number): number
+	local kind = t.kind
+	local mark: number
+	if kind == TEX_GRASS then
+		if NY[ni] < UP_FACING then
+			return 0
+		end
+		mark = Shading.grassMark(gx, gy)
+	elseif kind == TEX_SAND then
+		mark = Shading.sandMark(gx, gy)
+	elseif kind == TEX_STONE then
+		mark = Shading.stoneMark(gx, gy)
+	elseif kind == TEX_WOOD then
+		mark = Shading.grain(t.fam, t.seed, gx, gy)
+	elseif kind == TEX_THATCH then
+		if NY[ni] >= FLAT_TOP then
+			return 0
+		end
+		mark = Shading.thatchMark(gx, gy)
+	elseif kind == TEX_BRICK then
+		local fam = courseFamOf(s.view.rot12, ni)
+		if fam == 0 then
+			return 0
+		end
+		mark = Shading.mortar(fam, gx, gy)
+	elseif kind == TEX_METAL then
+		if lit ~= 1 then
+			return 0
+		end
+		mark = Shading.streak(t.x0, t.y0, t.w, t.h, gx, gy)
+	else
+		mark = Shading.glass(t.x0, t.y0, t.w, t.h, gx, gy)
+	end
+	if mark > 0 and (lit ~= 1 or Shading.band(NX[ni], NY[ni], NZ[ni], lit) ~= 1) then
+		return 0
+	end
+	return mark
+end
+
 ------------------------------------------------------------------ static shading
 local function shadeAt(s: Surf, idx: number, x: number, y: number): number
 	local gx, gy = x + s.cam.gx, y + s.cam.gy
@@ -343,7 +482,13 @@ local function shadeAt(s: Surf, idx: number, x: number, y: number): number
 	local wx, wy, wz = ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth
 	local r = s.view.room
 	local place = if wx >= r.x0 and wx <= r.x1 and wz >= r.z0 and wz <= r.z1 and wy <= r.y1 then Shading.INDOOR else Shading.OUTDOOR
-	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], lit, gx, gy, place, 0)
+	-- the surface's texture (not where glass in front tints it: NO_TEX's colour matches none)
+	local lift = 0
+	local t = texs[buffer.readu16(s.sId, idx * 2)]
+	if t and t.rgb == a then
+		lift = texLift(s, t, ni, lit, gx, gy)
+	end
+	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], lit, gx, gy, place, lift)
 end
 
 -- One bake sample at global (gx, gy), filling the block up to (bx1, by1) (global, inclusive) on the layer.
@@ -359,6 +504,9 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	if part ~= nil then
 		id = staticIdOf(part)
 		albedo = albedos[id]
+		if texs[id] == nil then
+			texs[id] = texInfoOf(s, part, albedo, waters[id] or 0)
+		end
 		if tint ~= nil then
 			local tid = staticIdOf(tint)
 			local over = albedos[tid] % EMISSIVE
@@ -951,12 +1099,12 @@ local function bakeSome(deadline: number): boolean
 	if b == nil or t == nil then
 		return bakeRun(s, s, deadline)
 	end
-	local fIds, fAlb, fWat, fNext = staticIds, albedos, waters, nextId
-	staticIds, albedos, waters, nextId = t.ids, t.albedos, t.waters, t.nextId
+	local fIds, fAlb, fWat, fTex, fNext = staticIds, albedos, waters, texs, nextId
+	staticIds, albedos, waters, texs, nextId = t.ids, t.albedos, t.waters, t.texs, t.nextId
 	local done = bakeRun(s, b, deadline)
 	if not done then
 		t.nextId = nextId
-		staticIds, albedos, waters, nextId = fIds, fAlb, fWat, fNext
+		staticIds, albedos, waters, texs, nextId = fIds, fAlb, fWat, fTex, fNext
 	end
 	return done
 end
@@ -992,7 +1140,7 @@ local function startBake()
 			static = { W = s.W, H = s.H, color = sColor, depth = sDepth, id = sId },
 			frame = s.frame,
 		}
-		backTabs = { ids = {}, albedos = {}, waters = {}, nextId = 1 }
+		backTabs = { ids = {}, albedos = {}, waters = {}, texs = {}, nextId = 1 }
 	else
 		back, backTabs = nil, nil
 		lightStale = true
@@ -1002,6 +1150,7 @@ local function startBake()
 		table.clear(staticIds)
 		table.clear(albedos)
 		table.clear(waters)
+		table.clear(texs)
 		nextId = 1
 	end
 	local cam = s.cam
@@ -1040,14 +1189,14 @@ local function buildSurf(v: CameraController.View)
 	end
 	if old and not baking and not old.view.stage and v.stage then
 		-- a stage takes the view: keep the street's finished picture
-		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), nextId = nextId, dirty = false }
+		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), texs = table.clone(texs), nextId = nextId, dirty = false }
 	end
 	local st = stash
 	if st and not v.stage then
 		stash = nil
 		if st.key == v.key and not st.dirty and img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H then
 			surf = st.surf
-			staticIds, albedos, waters, nextId = st.ids, st.albedos, st.waters, st.nextId
+			staticIds, albedos, waters, texs, nextId = st.ids, st.albedos, st.waters, st.texs, st.nextId
 			baking = false
 			back, backTabs = nil, nil
 			invQueue = {}

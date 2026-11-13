@@ -411,6 +411,285 @@ function Shading.warm(c: number, k: number, place: number): number
 	return packRGB(lutRGB(PLACES[place + 1] or WORLD, r + (WARM_R - r) * k, g + (WARM_G - g) * k, b + (WARM_B - b) * k))
 end
 
+------------------------------------------------------------------ surface textures
+-- Material detail on the static picture, worked out at bake time with no rays (Random Bakery's wood grain and metal
+-- streak, and this game's grass, sand, stone, thatch and brick). Each pattern answers for one global art pixel
+-- (gx, gy) with a band shift: -1 one band darker, 1 one band lighter, 0 none. The renderer hands it to
+-- Shading.toonAt as its `lift`, so a mark is always a tone of the surface's own ramp. The marks are 1 art px, sparse,
+-- and placed on the global art grid (hashed from the pixel's place, or from numbers the renderer works out once per
+-- part from where the part stands), so a pan's strips and a re-cast pixel get the very marks a fresh bake gives them.
+Shading.TEX_NONE = 0
+Shading.TEX_WOOD = 1
+Shading.TEX_METAL = 2
+Shading.TEX_GLASS = 3
+Shading.TEX_GRASS = 4
+Shading.TEX_SAND = 5
+Shading.TEX_STONE = 6
+Shading.TEX_THATCH = 7
+Shading.TEX_BRICK = 8
+
+-- Which palette colours get which texture (Shading.texKind). Grass, moss and leaves get theirs on faces that look up
+-- only, straw on faces that don't (a thatch roof and a bale's sides, not a slab of sandstone path), brick on the
+-- sides of blocks and wedges only (the renderer checks all three). Clay stays plain: in this game it is pots, jars,
+-- tent stripes and roof tiles, not walls.
+local TEX_KEYS: { [string]: number } = {
+	wood = Shading.TEX_WOOD,
+	wood_dark = Shading.TEX_WOOD,
+	bamboo = Shading.TEX_WOOD,
+	desk = Shading.TEX_WOOD,
+	steel = Shading.TEX_METAL,
+	steel_dark = Shading.TEX_METAL,
+	window = Shading.TEX_GLASS,
+	grass = Shading.TEX_GRASS,
+	grass_dark = Shading.TEX_GRASS,
+	moss = Shading.TEX_GRASS,
+	leaf = Shading.TEX_GRASS,
+	leaf_dark = Shading.TEX_GRASS,
+	swamp = Shading.TEX_GRASS,
+	sand = Shading.TEX_SAND,
+	sand_dark = Shading.TEX_SAND,
+	rock = Shading.TEX_STONE,
+	rock_dark = Shading.TEX_STONE,
+	slate = Shading.TEX_STONE,
+	basalt = Shading.TEX_STONE,
+	pavement = Shading.TEX_STONE,
+	straw = Shading.TEX_THATCH,
+	brick = Shading.TEX_BRICK,
+}
+local texByRgb: { [number]: number } = {}
+for key, kind in TEX_KEYS do
+	local c = Palette.colors[key]
+	if c then
+		texByRgb[c] = kind
+	end
+end
+
+-- The texture kind (Shading.TEX_*) of a surface of colour `rgb` (0xRRGGBB); TEX_NONE for a plain one.
+function Shading.texKind(rgb: number): number
+	return texByRgb[rgb] or 0
+end
+
+-- The toon band (1 lit, 2 half, 3 shade) a surface with unit normal n and shadow factor `lit` gets (Shading.toon's
+-- rule; a value above 1, emissive, is band 1).
+function Shading.band(nx: number, ny: number, nz: number, lit: number): number
+	if lit > 1 then
+		return 1
+	end
+	local d = nx * SX + ny * SY + nz * SZ
+	if d < 0 then
+		d = 0
+	end
+	local v = d * lit + HEMI * ny
+	return if v > BAND_HI then 1 elseif v > BAND_LO then 2 else 3
+end
+
+-- h * m modulo 2^32 for whole numbers below 2^32, exact (no product reaches 2^53).
+local function mul32(h: number, m: number): number
+	local lo = h % 65536
+	return (lo * m + ((h - lo) / 65536 * m) % 65536 * 65536) % 4294967296
+end
+
+-- A well-mixed 32-bit number from whole numbers x, y (any sign) and a salt k.
+local function hash(x: number, y: number, k: number): number
+	-- (a sum, not a xor: near neighbours never meet; exact, as every term stays far below 2^53)
+	local h = (x * 73856093 + y * 19349663 + k * 83492791) % 4294967296
+	h = mul32(bit32.bxor(h, bit32.rshift(h, 16)), 0x85EBCA6B)
+	h = mul32(bit32.bxor(h, bit32.rshift(h, 13)), 0xC2B2AE35)
+	return bit32.bxor(h, bit32.rshift(h, 16))
+end
+Shading.texHash = hash
+
+-- The last cell each pattern hashed (1 grass, 2 sand, 3 stone) and its hash: the bake asks for neighbouring pixels one
+-- after another, mostly in the same cell, so this saves most of the hashing. It changes no answer.
+local memoX: { number } = { math.huge, math.huge, math.huge }
+local memoY: { number } = { math.huge, math.huge, math.huge }
+local memoH: { number } = { 0, 0, 0 }
+local function cellHash(cx: number, cy: number, k: number): number
+	if cx == memoX[k] and cy == memoY[k] then
+		return memoH[k]
+	end
+	local h = hash(cx, cy, k)
+	memoX[k], memoY[k], memoH[k] = cx, cy, h
+	return h
+end
+
+-- The marks below sit in cells of the grid, at most one a cell, each row of cells moved on a few px (so no column of
+-- them lines up). A mark never takes a cell's last column or row, so the marks of two cells never touch side by side
+-- or one over the other: no two run together into a blob.
+--
+-- Grass, moss and leaves: in 6 x 4 px cells, a blade (2 px upright), a tuft (a small v) or a blade on the slant, a
+-- band darker, or a fleck of light (1 px a band lighter). The marks' 3 x 2 masks (bit dy * 3 + dx) by the hash's pick;
+-- 0: the fleck.
+local GRASS_W, GRASS_H = 6, 4
+local GRASS_MASKS = { 9, 9, 9, 21, 21, 10, 0, 0 }
+function Shading.grassMark(gx: number, gy: number): number
+	local cy = gy // GRASS_H
+	local sx = gx + cy * 3
+	local cx = sx // GRASS_W
+	local h = cellHash(cx, cy, 1)
+	if h % 16 >= 8 then
+		return 0
+	end
+	local dx = sx - cx * GRASS_W - (h // 16) % (GRASS_W - 3)
+	local dy = gy - cy * GRASS_H - (h // 256) % (GRASS_H - 2)
+	if dx < 0 or dx > 2 or dy < 0 or dy > 1 then
+		return 0
+	end
+	local mask = GRASS_MASKS[(h // 4096) % 8 + 1]
+	if mask == 0 then
+		return if dx == 0 and dy == 0 then 1 else 0
+	end
+	return if bit32.btest(mask, bit32.lshift(1, dy * 3 + dx)) then -1 else 0
+end
+
+-- Sand: a speck in about a third of its 5 x 3 px cells: one px a band darker, now and then a grain of two side by
+-- side or one px of glint a band lighter.
+local SAND_W, SAND_H = 5, 3
+function Shading.sandMark(gx: number, gy: number): number
+	local cy = gy // SAND_H
+	local sx = gx + cy * 2
+	local cx = sx // SAND_W
+	local h = cellHash(cx, cy, 2)
+	if h % 16 >= 5 then
+		return 0
+	end
+	local dx = sx - cx * SAND_W - (h // 16) % (SAND_W - 2)
+	if gy - cy * SAND_H ~= (h // 256) % (SAND_H - 1) or dx < 0 or dx > 1 then
+		return 0
+	end
+	local t = (h // 4096) % 8
+	if t == 6 then
+		return -1
+	elseif t == 7 then
+		return if dx == 0 then 1 else 0
+	end
+	return if dx == 0 then -1 else 0
+end
+
+-- Stone: a speck a band darker in some of its 6 x 4 px cells and now and then a short crack, a 2:1 step of 4 px
+-- either way (4 x 2 masks: bit dy * 4 + dx).
+local STONE_W, STONE_H = 6, 4
+local CRACK_DOWN, CRACK_UP = 195, 60
+function Shading.stoneMark(gx: number, gy: number): number
+	local cy = gy // STONE_H
+	local sx = gx + cy * 3
+	local cx = sx // STONE_W
+	local h = cellHash(cx, cy, 3)
+	if h % 16 >= 6 then
+		return 0
+	end
+	local dx = sx - cx * STONE_W - (h // 16) % (STONE_W - 4)
+	local dy = gy - cy * STONE_H - (h // 256) % (STONE_H - 2)
+	if dx < 0 or dx > 3 or dy < 0 or dy > 1 then
+		return 0
+	end
+	local t = (h // 4096) % 8
+	if t >= 6 then
+		return if bit32.btest(if t == 6 then CRACK_DOWN else CRACK_UP, bit32.lshift(1, dy * 4 + dx)) then -1 else 0
+	end
+	return if dx == 0 and dy == 0 then -1 else 0
+end
+
+-- Thatch and straw: rows of short strokes a band darker, 2 px tall over a 1 px gap, one column in four (each row's
+-- moved on 2 px), a third of them left out.
+function Shading.thatchMark(gx: number, gy: number): number
+	local row = gy // 3
+	if gy - row * 3 == 2 then
+		return 0
+	end
+	local c = gx + row * 2
+	if c % 4 ~= 0 then
+		return 0
+	end
+	return if hash(c // 4, row, 4) % 3 == 0 then 0 else -1
+end
+
+-- Wood (Random Bakery's grain): 1 px streaks of the next darker band along the part's long axis, in broken runs, every
+-- few px across it. fam: how the long axis runs on screen (1 upright, 2 level, 3 down to the right at 2:1, 4 down to the
+-- left); seed: a number from where the part stands, so planks side by side differ.
+function Shading.grain(fam: number, seed: number, gx: number, gy: number): number
+	local key: number, along: number
+	if fam == 1 then
+		key, along = gx, gy
+	elseif fam == 2 then
+		key, along = gy, gx
+	elseif fam == 3 then
+		key, along = gx - 2 * gy, gy
+	else
+		key, along = gx + 2 * gy, gy
+	end
+	key += seed
+	-- a 2:1 line takes two pixels a row (a clean staircase); upright and level lines one
+	local spacing = if fam == 2 then 3 elseif fam == 1 then 4 else 6
+	local width = if fam >= 3 then 2 else 1
+	if key % spacing >= width then
+		return 0
+	end
+	local line = key // spacing
+	local seg = (along + (line * 37) % 11) // (if fam == 2 then 9 else 5)
+	return if (line * 73 + seg * 151 + seed) % 7 < 4 then -1 else 0
+end
+
+-- Metal (Random Bakery's): a streak of light 2 px wide running "/" across the part near the top left of its screen box
+-- (x0, y0, w, h in global art px), where the light comes from. The renderer asks only on faces in full light.
+function Shading.streak(x0: number, y0: number, w: number, h: number, gx: number, gy: number): number
+	local u = (gx - x0) + (gy - y0)
+	local c = math.floor(math.max(1, w + h) * 0.32)
+	return if u == c or u == c + 1 then 1 else 0
+end
+
+-- Glass (Random Bakery's): a body a band darker with two streaks of reflection near the top left of the part's screen
+-- box, its lowest row (the lit sill) left as it is.
+function Shading.glass(x0: number, y0: number, w: number, h: number, gx: number, gy: number): number
+	local u = (gx - x0) + (gy - y0)
+	local c = math.floor(math.max(1, w + h) * 0.3)
+	if u == c or u == c + 1 or u == c + 4 then
+		return 1
+	elseif gy >= y0 + h - 1 then
+		return 0
+	end
+	return -1
+end
+
+-- Brick: courses 4 px apart (a 1 px joint line a band darker) and a joint between bricks every 8 px along a course,
+-- every other course's moved on half a brick. fam: how the face's courses run on screen (Shading.courseFam).
+function Shading.mortar(fam: number, gx: number, gy: number): number
+	local q: number
+	if fam == 2 then
+		q = gy * 2
+	elseif fam == 3 then
+		q = gx - 2 * gy
+	else
+		q = gx + 2 * gy
+	end
+	-- (q falls 2 a row: a course is 8 apart in q, 4 rows; the joint line takes two of its values, one row)
+	local r = q % 8
+	if r < 2 then
+		return -1
+	end
+	local course = (q - r) // 8
+	return if (gx + (course % 2) * 4) % 8 == 0 then -1 else 0
+end
+
+-- How the courses of a face with unit normal n run on screen through view rotation rot12 (its right vector at 4, 7, 10
+-- and up vector at 5, 8, 11, as Raster.gridPoint reads them): 2 level, 3 down to the right at 2:1, 4 down to the left,
+-- 0 none (a face looking up or down, or one seen nearly edge on).
+function Shading.courseFam(rot12: { number }, nx: number, ny: number, nz: number): number
+	if math.abs(ny) > 0.9 then
+		return 0
+	end
+	-- the face's level direction, on screen
+	local tx, tz = -nz, nx
+	local sx = tx * rot12[4] + tz * rot12[10]
+	local sy = -(tx * rot12[5] + tz * rot12[11])
+	if math.abs(sx) < 0.35 * math.abs(sy) then
+		return 0
+	elseif math.abs(sy) < 0.2 * math.abs(sx) then
+		return 2
+	end
+	return if sx * sy > 0 then 3 else 4
+end
+
 -- Sky colour for a ray miss at pixel (x, y) of a gradient H pixels tall (y from its top): a dithered 3-step vertical
 -- gradient. The renderer passes global art pixels (y from a point fixed on its plot), so the sky does not crawl as the
 -- view pans.

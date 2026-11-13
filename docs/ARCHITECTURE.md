@@ -545,8 +545,8 @@ ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`), time-sliced (
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
 pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
 neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_DESIGN 2), shaded with `Render/Shading`'s three
-toon bands and the palette LUT (the indoor tint inside the room), then the ink outline (`Shading.outline`) and the
-contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings and the visitors), the tree's eggs and the founders: every tick (the tier's Hz) their parts
+toon bands and the palette LUT (the indoor tint inside the room) with each material's surface texture (9.3), then the
+ink outline (`Shading.outline`) and the contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings and the visitors), the tree's eggs and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
 layer and outlined; only the old and new dirty rects are restored and uploaded. Without EditableImages (or with
 Classic picked) the layer hides and the Roblox camera shows the 3D world.
@@ -659,6 +659,31 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `lamps` of the way back to the colour by day, warmed, times how dark the hour is (`dark`: from the light's colour,
   0 by day and in the golden dusk, 1 at night) and 0.85 at most. As it gets dark the luminance over a knee is pressed
   down (`press`: up to 0.45 of it for white at night), so pale colours (shells, sand, sails) don't glow.
+- **Surface textures** (GAME_DESIGN 2: "textured objects", "wood detail"; Random Bakery's material texture, widened):
+  a static pixel of a textured colour may be shaded a band darker or lighter on its own ramp (`Shading.toonAt`'s
+  `lift`) as it is shaded at bake time (`shadeAt`: the bake, a pan's strips, a re-cast, `refineShadows`), so it costs
+  no ray. `Shading.texKind(rgb)` names the kind from the palette (`TEX_WOOD`: wood, wood_dark, bamboo, desk;
+  `TEX_METAL`: steel, steel_dark; `TEX_GLASS`: window; `TEX_GRASS`: grass, grass_dark, moss, leaf, leaf_dark, swamp;
+  `TEX_SAND`: sand, sand_dark; `TEX_STONE`: rock, rock_dark, slate, basalt, pavement; `TEX_THATCH`: straw;
+  `TEX_BRICK`: brick; clay stays plain: here it is pots, jars, tent stripes and roof tiles). The first time the bake
+  meets a part (`castSample`) it works out its `TexInfo` once (`texInfoOf`): the kind, its colour, its screen box in
+  global art px (its centre's `Raster.gridPoint` and its box's projected half extents, from one `GetComponents`: the
+  same at every pan), how its long axis runs on screen (`fam`: 1 upright, 2 level, 3 and 4 the two 2:1 slopes) and a
+  `seed` from where it stands (never its id: a fresh bake numbers the parts afresh). `NO_TEX` for a part with none: a
+  plain colour, a glowing one, water (`PixelWater` 1 to 3: animated on its own), a round brick thing, or one too small
+  on screen for its pattern to read (`TEX_MIN`, e.g. 6 x 4 art px for wood, 8 x 5 for grass). The table (`texs`) lives
+  with the other id tables (`staticIds`, `albedos`, `waters`): a bake behind the picture has its own
+  (`backTabs.texs`), a stage's stash keeps the street's, and a new id clears its entry. `texLift` picks the pattern:
+  `Shading.grassMark` (faces whose normal's y is 0.7 or more only), `sandMark`, `stoneMark`, `thatchMark` (faces whose
+  normal's y is under 0.9 only: a roof's slope, a bale's side, never a slab of sandstone path), `grain(fam, seed, gx,
+  gy)`, `mortar(courseFam, gx, gy)` (`Shading.courseFam` of the face's normal and the view's rotation, cached per
+  normal index; none on faces that look up or down), `streak` and `glass` (from the part's box). A lighter mark shows
+  only on a face in full sun (`Shading.band` 1: it turns that pixel `SUNLIT`), a darker one wherever a darker band is
+  left, so in a shadow the texture fades into the shade like the rest of the face. A pixel tinted by glass in front
+  shows none. The grid patterns are hashed from the global art pixel (`Shading.texHash`) in cells, at most one mark a
+  cell and never on a cell's last row or column, so marks never touch into a blob. The blob shadows and the contact
+  shade draw a pixel's shadow tone as before (a darker mark at the shade band is the shade band). The dynamic layer
+  has none: a pattern on the screen's grid would slide over a model as it moves.
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; none while its PrimaryPart is see-through or below its

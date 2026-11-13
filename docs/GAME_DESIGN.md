@@ -188,6 +188,17 @@ offline progress).
   afternoon (`Palette.modes.day` 1.03, 1, 0.95: the same warmth the moving things always had), the grass and leaves a
   touch more golden and the sand a touch warmer. Dusk, twilight and night keep their grades (§8). The hatch scene's
   skies (§6.2) are the warmest of all: a sunset, a golden afternoon, lantern-lit nights.
+- **Surfaces** (the request of 2026-11-13 at the top, "textured objects" and "wood detail"): the filter gives the world's materials a texture as it bakes, the way Random Bakery gives its wood a
+  grain: 1 px marks in a darker or lighter tone of the surface's own colour, few and quiet, so a lawn reads as grass
+  and a plank as wood up close while the island still looks calm from afar. Grass, moss and leaves get little blades,
+  tufts and flecks of light on the faces that look up; sand gets specks and grains; stone and paving get specks and
+  now and then a short crack; wood gets broken grain lines along each plank, post and log; straw gets rows of short
+  strokes like thatch on roofs and the sides of bales; brick gets courses and joints on the sides of walls; metal a
+  streak of light where the sun hits it; window glass a darker pane with two streaks of reflection. The marks belong
+  to the place on the island, not to the screen, so they never crawl when the view moves, and two marks never touch
+  into a blob. A thing too small to carry its pattern stays plain. In a shadow the marks fade into the shade with the
+  rest of the face. The water keeps its own moving waves, and what moves (the driftlings, the eggs, the founders)
+  stays plain: a mark would slide over it as it walks. None of it costs a ray.
 - **The founders** (yours and your neighbours') and the **visitors** are little chibis: shorts over bare shins, shoes
   on light soles, a shirt with a collar, buttons and a belt with a buckle, sleeves over bare forearms and fists, ears,
   brows, a mouth and a glint in each eye; knees and elbows bend, and the face changes. **Driftlings** are small 3D
@@ -277,12 +288,13 @@ offline progress).
   steps are close, no white glints and no near-black to near-white sweeps: nothing looks like polished metal.
 - **Hue shifting:** a ramp's darker tones lean cool (towards blue and purple), its lighter ones warm (towards yellow),
   never only darker or lighter of the same hue.
-- **Calm and readable:** no grain or speckle noise; a material reads from its colour and silhouette. Every sprite is
-  first a silhouette that tells what it is on its own: each driftling its own outline (the crab's raised pincers,
-  the bun's long ears, the pup's floppy ears and flame, the fox's tall ears and pointed chin, the mole's claws, the
-  owl's tufts and round eyes, the jelly's tentacles...), each icon a plain object (an apple, a log, a scallop shell,
-  a house, an egg in a nest, a dumbbell, a flower, a sack, a paw print, a campfire, a hat on the visitor, a round
-  tree for the Tree of Life).
+- **Calm and readable:** a material reads first from its colour and silhouette. The world's surface texture (above) is
+  sparse 1 px marks in the colour's own tones, never a grain or speckle noise, and the sprites stay clean. Every
+  sprite is first a silhouette that tells what it is on its own: each driftling its own outline (the crab's raised
+  pincers, the bun's long ears, the pup's floppy ears and flame, the fox's tall ears and pointed chin, the mole's
+  claws, the owl's tufts and round eyes, the jelly's tentacles...), each icon a plain object (an apple, a log, a
+  scallop shell, a house, an egg in a nest, a dumbbell, a flower, a sack, a paw print, a campfire, a hat on the
+  visitor, a round tree for the Tree of Life).
 
   > The request (2026-11-10): "the sprites still look too busy and hard to read. make sure each sillouhette is
   > distinct enough to tell what the sprites are. the sprites also all look metallic"
