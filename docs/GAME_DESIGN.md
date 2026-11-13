@@ -947,7 +947,7 @@ is drawn, then open on it:
   sparks are drawn in. It cracks: a flash, the top flies off, bits of shell scatter and bounce, what hatched pops up
   in the nest with a hop and a cheer. "It hatched", its name in its rarity's colour and "Rare, good at farms" under it,
   then its mutations one at a time on plates beside it, each name and stars in its tier's colour with what it does
-  ("Lucky *", "+5% egg luck"), or "No mutations". "Tap to go on"; a tap (or a few seconds) closes the blinds and opens
+  ("Lucky *", "+5% egg luck"), or "No mutations". "Tap to go on" under the name; a tap (or a few seconds) closes the blinds and opens
   them on the island, the Tree panel back if it was open.
 - **Grander by rarity** (`GLORY`, by the rarity it hatched as): a longer build-up (0.6 s for a common, 2 s for a
   legendary); the light of dusk for the commoner ones, a blue, violet or deep gold night for the rarer, the lanterns and

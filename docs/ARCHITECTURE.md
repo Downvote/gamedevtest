@@ -1065,7 +1065,8 @@ registered with the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.
 thin Neon blades in the camera's own plane, turning, behind the egg), the bits of shell (`HatchShards`: falling,
 bouncing on the nest and the grass, sinking after 2.2 s) and what hatched (`MicroModels.driftling`, scaled up to
 `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle"). `CameraController.setStage({ name = "hatch", ..., top = 30,
-bottom = 40, clear = true })` frames the islet; the HUD and World roots are disabled meanwhile; `DayLight.hold`
+bottom = 40, clear = true })` frames the islet; the HUD and World roots are disabled meanwhile, and so are the
+phone's touch controls (`GuiService.TouchControlsEnabled`, in a pcall); `DayLight.hold`
 holds the rarity's `GRADE`; `PixelRenderer.setDim` dims the islet in the build-up (`GLORY[hr].dim`) and `setOffset`
 jolts the picture at the crack. The overlay is a `HatchScene` frame on the `Stage` canvas: the curtain (`HatchCurtain`,
 blinds over the bake, up to `Tuning.HatchSceneWait` 4 s), `HatchTitle`, `HatchName`, `HatchLine`, the plates

@@ -20,6 +20,7 @@
 --   HatchScene.isOpen(), HatchScene.skip() (as a tap), HatchScene.debugState() (sims and previews: the phase and
 --   what is shown), HatchScene.setQuick(on) (sims: the scene ends at once, `after` still runs), HatchScene.setWait(secs)
 --   (previews: the blinds wait longer for the stage's picture)
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -521,11 +522,11 @@ local function showName(s: Scene)
 	local w, h = canvasSize()
 	local def = Creatures.byId[s.res.sp]
 	local rar = Traits.RARITY[if def then def.rarity else s.r] or Traits.RARITY[1]
-	local nm = UIKit.text(s.root, if def then def.name else "A driftling", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, h - 36), { x = "center", face = "big", kind = "title", color = UIKit.color(rar.color), z = 33, name = "HatchName" })
-	local line = UIKit.text(s.root, if def then string.format("%s, %s", rar.name, KNACK[def.knack] or "a hard worker") else rar.name, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, h - 18), { x = "center", color = UIKit.color("paper"), z = 33, name = "HatchLine" })
+	local nm = UIKit.text(s.root, if def then def.name else "A driftling", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, h - 42), { x = "center", face = "big", kind = "title", color = UIKit.color(rar.color), z = 33, name = "HatchName" })
+	local line = UIKit.text(s.root, if def then string.format("%s, %s", rar.name, KNACK[def.knack] or "a hard worker") else rar.name, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, h - 24), { x = "center", color = UIKit.color("paper"), z = 33, name = "HatchLine" })
 	s.name, s.line = nm, line
-	nm.Position = UDim2.fromOffset(0, h - 30)
-	UIKit.tween(nm, 0.2, { Position = UDim2.fromOffset(0, h - 36) })
+	nm.Position = UDim2.fromOffset(0, h - 36)
+	UIKit.tween(nm, 0.2, { Position = UDim2.fromOffset(0, h - 42) })
 	local old = s.title
 	if old then
 		old:Destroy()
@@ -943,10 +944,10 @@ local function step(s: Scene, dt: number)
 	end
 	if c >= s.endAt and once(s, "hint") then
 		s.phase = "done"
+		-- (under the name, where nothing of the scene's sits behind it)
 		local w, h = canvasSize()
-		local hint = UIKit.text(s.root, "Tap to go on", UDim2.fromOffset(w, 10), UDim2.fromOffset(0, 30), { x = "center", color = UIKit.color("text_dim"), z = 33, name = "HatchHint" })
+		local hint = UIKit.text(s.root, "Tap to go on", UDim2.fromOffset(w, 10), UDim2.fromOffset(0, h - 13), { x = "center", color = UIKit.color("text_dim"), z = 33, name = "HatchHint" })
 		s.hint = hint
-		local _ = h
 	end
 	local hint = s.hint
 	if hint then
@@ -1028,6 +1029,9 @@ local function restore(s: Scene)
 	end
 	UIKit.root("Hud").Enabled = true
 	UIKit.root("World").Enabled = true
+	pcall(function()
+		GuiService.TouchControlsEnabled = true
+	end)
 end
 
 -- The blinds close over the stage; behind them the stage goes, the island's picture comes back; they open on it and
@@ -1120,6 +1124,10 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 	root.Parent = UIKit.canvas("Stage")
 	UIKit.root("Hud").Enabled = false
 	UIKit.root("World").Enabled = false
+	-- (the phone's jump button and stick too: a tap there would jump instead of going on)
+	pcall(function()
+		GuiService.TouchControlsEnabled = false
+	end)
 	local s: Scene = {
 		res = res,
 		after = after,
