@@ -1670,7 +1670,7 @@ end
 -- The build catalog's own models (GAME_DESIGN 4: "make much, much more building options"), one module a group, each a
 -- table of builders by id: the paths and water, the fences and water decor, nature, the themes, the fun and grand
 -- pieces. A piece modelled here first keeps its builder.
-for _, mod in { require(script.Parent.GroundModels), require(script.Parent.FenceModels), require(script.Parent.NatureModels), require(script.Parent.ThemeModels), require(script.Parent.FunModels) } do
+for _, mod in { require(script.Parent.GroundModels), require(script.Parent.FenceModels), require(script.Parent.NatureModels), require(script.Parent.ThemeModels), require(script.Parent.ThemeMoreModels), require(script.Parent.FunModels) } do
 	for id, fn in mod do
 		if B[id] == nil then
 			B[id] = function(m: Model, f: CFrame, lvl: number?)

@@ -1027,7 +1027,7 @@ end
 
 -- "catalog=<group>": every piece of a group of the build catalog laid out on the biggest island for a close look at its
 -- models (GAME_DESIGN 4): a group is a model module's ("ground" paths and water, "fence" fences, bridges and floating
--- things, "nature", "theme", "fun" with the grand pieces), a Build mode tab ("path", "water", "decor", ...) or ids
+-- things, "nature", "theme" (beach to jungle), "theme2" (frost to volcano), "fun" with the grand pieces), a Build mode tab ("path", "water", "decor", ...) or ids
 -- joined by commas. A path or water is laid as a 2 x 2 block of tiles (its banks show), a fence as a run east and a
 -- turn south, a floating piece on a pond, a bridge across a stream. Frames catalog_1 .. n, rows of about 14 studs.
 local CATALOG_GROUPS: { [string]: (d: any) -> boolean } = {
@@ -1041,7 +1041,10 @@ local CATALOG_GROUPS: { [string]: (d: any) -> boolean } = {
 		return d.tab == "nature"
 	end,
 	theme = function(d)
-		return d.tab == "decor" and d.sub ~= "grand"
+		return d.tab == "decor" and (d.sub == "beach" or d.sub == "garden" or d.sub == "farm" or d.sub == "harbour" or d.sub == "town" or d.sub == "jungle")
+	end,
+	theme2 = function(d)
+		return d.tab == "decor" and (d.sub == "frost" or d.sub == "autumn" or d.sub == "desert" or d.sub == "fairy" or d.sub == "zen" or d.sub == "volcano")
 	end,
 	fun = function(d)
 		return d.tab == "fun" or d.sub == "grand"
