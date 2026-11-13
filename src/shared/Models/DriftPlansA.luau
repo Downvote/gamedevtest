@@ -119,8 +119,11 @@ PLANS.bun = function(b, a)
 		local e1 = V(side * 0.28, 2.36, 0.16)
 		local e2 = V(side * 0.36, 2.74, 0.04)
 		Kit.tube("Ear" .. s, { e0, e1, e2 }, { 0.13, 0.13, 0.09 }, b)
-		-- (a flat strip just in front of the ear, clear of its round surface)
-		Kit.strip("EarIn" .. s, { e0 + V(0, 0.12, 0.15), e1 + V(0, 0, 0.15), e2 + V(0, -0.12, 0.11) }, { 0.13, 0.12, 0.06 }, V(side * 0.15, 0, 1), "pink")
+		-- the inside: a flat pink blade along the ear's front, just clear of its round surface (wide low, pointed at the
+		-- top), in two pieces that follow the ear's lean
+		local f0 = V(side * 0.02, 0, 1).Unit
+		local f1 = (V(side * 0.03, 0.25, 1)).Unit
+		Kit.blade("EarIn" .. s, e0 + V(0, 0.06, 0) + f0 * 0.19, e2 + V(0, -0.06, 0) + f1 * 0.15, 0.16, 0.05, f0 + f1, "pink")
 		Kit.ball("EarTip" .. s, e2 + V(side * 0.01, 0.06, 0), 0.17, a)
 	end
 	-- little front paws held up at the chest

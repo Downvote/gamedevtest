@@ -52,6 +52,9 @@ local V = Vector3.new
 Kit.R = math.rad
 Kit.V = V
 Kit.TUCK = 0.14 -- studs a face part sinks in when it is hidden
+-- Render/Raster draws a part over another only where it is more than 0.03 studs nearer; a face's layers (the eye on the
+-- head, the iris on the eye, the shine on both) each step out by this much, and a ball's size snaps up to 0.05 too
+Kit.BIAS = 0.04
 
 local FINE = 0.05
 local cur: Thing? = nil -- the thing being built
@@ -180,7 +183,9 @@ end
 
 -- A flat disc of diameter d and thickness th facing `normal` at `at` (a spot, blush, an eye's part). On a ball of
 -- radius `onR` it sinks in by the curve's sag so its rim lies on the surface, not in the air.
-function Kit.disc(name: string, at: Vector3, normal: Vector3, d: number, th: number, color: string, detail: boolean?, onR: number?, neon: boolean?): BasePart?
+-- `lift` sets it that much further out (the picture draws a part over another only where it is more than
+-- Kit.BIAS nearer: a face's layers each step out by more than that).
+function Kit.disc(name: string, at: Vector3, normal: Vector3, d: number, th: number, color: string, detail: boolean?, onR: number?, neon: boolean?, lift: number?): BasePart?
 	if detail and not isFull then
 		return nil
 	end
@@ -189,7 +194,7 @@ function Kit.disc(name: string, at: Vector3, normal: Vector3, d: number, th: num
 	if onR and onR > d / 2 then
 		sag = onR - math.sqrt(onR * onR - (d / 2) ^ 2)
 	end
-	local c = at + n * (th / 2 - sag * 0.8)
+	local c = at + n * (th / 2 - sag * 0.8 + (lift or 0))
 	return Kit.part(name, "Cylinder", V(th, d, d), along(c, n), color, neon)
 end
 
@@ -206,8 +211,9 @@ function Kit.rod(name: string, a: Vector3, b: Vector3, d: number, color: string,
 end
 
 -- A flat pointed blade (a leaf, a feather, a fin, a spike, a claw) from `base` to `tip`: a triangle `w` wide at the
--- base and `th` thick, its flat side facing `normal`. Two mirrored half wedges (a Wedge is full height at its back, -Z,
--- and nothing at its front, +Z): each lies with its square edge along the blade's middle line.
+-- base and `th` thick, its flat side facing `normal`. Two mirrored half wedges (a Wedge is full height at its +Z end
+-- and nothing at its -Z end, in Roblox and in Render/Raster): each lies with its square edge along the blade's middle
+-- line, its +Z toward the base.
 function Kit.blade(name: string, base: Vector3, tip: Vector3, w: number, th: number, normal: Vector3, color: string, detail: boolean?): BasePart?
 	if detail and not isFull then
 		return nil
@@ -225,8 +231,8 @@ function Kit.blade(name: string, base: Vector3, tip: Vector3, w: number, th: num
 	local first: BasePart? = nil
 	for _, s in { 1, -1 } do
 		local y = across * s
-		-- (X = the normal, Y = out from the middle line, Z = toward the tip: X x Y = Z flips with s, so X flips too)
-		local cf = CFrame.fromMatrix(mid + y * (w / 4), n * s, y, fwd)
+		-- (X along the normal, Y out from the middle line, Z toward the base: X x Y = Z, so X flips with s)
+		local cf = CFrame.fromMatrix(mid + y * (w / 4), -n * s, y, -fwd)
 		local p = Kit.part(name, "Wedge", V(th, w / 2, len), cf, color)
 		first = first or p
 	end
@@ -362,6 +368,57 @@ function Kit.strip(name: string, pts: { Vector3 }, widths: { number }, normal: V
 	return out
 end
 
+-- A flat strip lying on the front of a tube (the inside of an ear, a stripe down a tail): along the tube's centre curve
+-- `pts` (radii `radii`, as given to `tube`), each disc set out past the tube's surface toward `normal` (taken square to
+-- the tube at that point, so a leaning or bending tube keeps the strip clear of it), `widths` across.
+function Kit.stripOn(name: string, pts: { Vector3 }, radii: { number }, widths: { number }, normal: Vector3, color: string, detail: boolean?): { BasePart }
+	local out: { BasePart } = {}
+	if detail and not isFull then
+		return out
+	end
+	local function lerpList(list: { number }, u: number): number
+		local k = #list
+		if k == 1 then
+			return list[1]
+		end
+		local f = math.clamp(u, 0, 1) * (k - 1)
+		local i = math.min(math.floor(f), k - 2)
+		local s = f - i
+		return list[i + 1] + (list[i + 2] - list[i + 1]) * s
+	end
+	local total = 0
+	local prev = curveAt(pts, 0)
+	for i = 1, 16 do
+		local q = curveAt(pts, i / 16)
+		total += (q - prev).Magnitude
+		prev = q
+	end
+	local avgW = 0
+	for _, w in widths do
+		avgW += w
+	end
+	avgW /= #widths
+	local n = math.max(1, math.ceil(total / (avgW * (if isFull then 0.45 else 0.8))))
+	local nn = normal.Unit
+	for i = 0, n do
+		local u = i / n
+		local c = curveAt(pts, u)
+		local tan = curveAt(pts, math.min(1, u + 0.02)) - curveAt(pts, math.max(0, u - 0.02))
+		tan = if tan.Magnitude > 1e-5 then tan.Unit else V(0, 1, 0)
+		local front = nn - tan * nn:Dot(tan)
+		front = if front.Magnitude > 1e-5 then front.Unit else nn
+		local w = lerpList(widths, u)
+		-- (past the surface by the disc's own sag over the round tube, plus a little: never cut into it)
+		local r = lerpList(radii, u)
+		local sag = if r > w / 2 then r - math.sqrt(r * r - (w / 2) ^ 2) else r
+		local p = Kit.disc(name, c + front * (r - sag + 0.03), front, w, 0.05, color)
+		if p then
+			table.insert(out, p)
+		end
+	end
+	return out
+end
+
 -- A flattened round shape (a shell, a cap, a pad, a face): a disc `h` thick with a ring of balls round its rim, so its
 -- edge is round; `R` its radius, `up` the way it faces. Returns the disc.
 function Kit.pillow(name: string, center: Vector3, R: number, h: number, up: Vector3, color: string, detail: boolean?): BasePart?
@@ -449,19 +506,20 @@ function Kit.eye(side: string, hc: Vector3, hr: number, dir: Vector3, d: number,
 	local up = n:Cross(right).Unit
 	local th = 0.05
 	local col = dark or "black"
-	facePart("eye", Kit.disc("Eye" .. side, at + up * d * 0.12, n, d * 0.92, th, col, false, hr))
-	facePart("eye", Kit.disc("Eye" .. side, at - up * d * 0.14, n, d * 0.92, th, col, false, hr))
+	local B = Kit.BIAS
+	facePart("eye", Kit.disc("Eye" .. side, at + up * d * 0.12, n, d * 0.92, th, col, false, hr, nil, B))
+	facePart("eye", Kit.disc("Eye" .. side, at - up * d * 0.14, n, d * 0.92, th, col, false, hr, nil, B))
 	if iris and isFull then
-		facePart("eye", Kit.disc("Iris" .. side, at - up * d * 0.2, n, d * 0.5, th + 0.02, iris, true, hr))
+		facePart("eye", Kit.disc("Iris" .. side, at - up * d * 0.2, n, d * 0.5, th, iris, true, hr, nil, 2 * B))
 	end
 	-- the shines: up and toward the light (the light comes from the screen's top left: -right on the left eye too)
-	facePart("eye", Kit.disc("Shine" .. side, at + up * d * 0.2 - right * d * 0.16, n, math.max(0.1, d * 0.36), th + 0.04, "white", false, hr))
-	facePart("eye", Kit.disc("Shine" .. side, at - up * d * 0.22 + right * d * 0.18, n, math.max(0.05, d * 0.16), th + 0.04, "white", true, hr))
+	facePart("eye", Kit.disc("Shine" .. side, at + up * d * 0.2 - right * d * 0.16, n, math.max(0.1, d * 0.36), th, "white", false, hr, nil, 3 * B))
+	facePart("eye", Kit.disc("Shine" .. side, at - up * d * 0.22 + right * d * 0.18, n, math.max(0.05, d * 0.16), th, "white", true, hr, nil, 3 * B))
 	-- the lid: an arc bowing down (a content shut eye), hidden in the head until it shuts
 	local m = if isFull then 3 else 2
 	for i = 0, m - 1 do
 		local s = if m == 1 then 0 else -1 + 2 * i / (m - 1)
-		local p = at + right * s * d * 0.36 - up * (1 - s * s) * d * 0.12 + n * 0.02
+		local p = at + right * s * d * 0.36 - up * (1 - s * s) * d * 0.12 + n * (Kit.BIAS + 0.02)
 		local b = Kit.part("Lid" .. side, "Ball", V(d * 0.24, d * 0.24, d * 0.24), along(p, n), col)
 		facePart("lid", b)
 	end
@@ -481,7 +539,7 @@ function Kit.blush(hc: Vector3, hr: number, dir: Vector3, spread: number, drop: 
 	for _, side in { -1, 1 } do
 		local dd = (CFrame.Angles(0, side * spread, 0) * CFrame.Angles(drop, 0, 0)):VectorToWorldSpace(dir.Unit)
 		local at, n = Kit.onBall(hc, hr, dd)
-		Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), at, n, d, 0.05, color or "pink", false, hr)
+		Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), at, n, d, 0.05, color or "pink", false, hr, nil, Kit.BIAS)
 	end
 end
 
@@ -494,16 +552,16 @@ function Kit.mouth(at: Vector3, n: Vector3, w: number, dark: string?, tongue: st
 	right = if right.Magnitude > 1e-4 then right.Unit else V(1, 0, 0)
 	local up = nn:Cross(right).Unit
 	local th = math.max(0.05, w * 0.18)
-	local mid = at - up * w * 0.08 + nn * 0.02
+	local mid = at - up * w * 0.08 + nn * (Kit.BIAS + 0.02)
 	for _, side in { -1, 1 } do
 		local a = mid + right * side * w * 0.5 + up * w * 0.12
 		facePart("closed", Kit.rod("Smile", a, mid, th, col))
 	end
 	if isFull then
-		facePart("open", Kit.disc("Mouth", at - up * w * 0.1, nn, w * 0.75, 0.05, col))
-		facePart("open", Kit.disc("MouthTongue", at - up * w * 0.22, nn, w * 0.42, 0.07, tongue or "berry_red"))
+		facePart("open", Kit.disc("Mouth", at - up * w * 0.1, nn, w * 0.75, 0.05, col, false, nil, nil, Kit.BIAS))
+		facePart("open", Kit.disc("MouthTongue", at - up * w * 0.22, nn, w * 0.42, 0.05, tongue or "berry_red", false, nil, nil, 2 * Kit.BIAS))
 	else
-		facePart("open", Kit.disc("Mouth", at - up * w * 0.1, nn, w * 0.6, 0.05, col))
+		facePart("open", Kit.disc("Mouth", at - up * w * 0.1, nn, w * 0.6, 0.05, col, false, nil, nil, Kit.BIAS))
 	end
 end
 
