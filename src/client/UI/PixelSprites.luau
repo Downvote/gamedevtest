@@ -5,11 +5,14 @@
 -- "mini_x"), so no pixel is ever drawn bigger than the grid's. A sprite is an EditableImage made once per
 -- name and shown by any number of ImageLabels (Pixelated); where EditableImages are not available it is drawn from
 -- runs of 1 px rects instead (the faint anti-aliasing pixels as translucent ones).
+-- The build catalog's pictures, "thumb_<id>" (24 x 24, drawn from the pieces' models: tools/preview/thumbs.sh), are in
+-- UI/ThumbData, in ArtData's format; every function here finds them by the prefix.
 --   PixelSprites.has(name), size(name) -> (w, h)
 --   PixelSprites.image(parent, name, pos?, z?) -> GuiObject
 --   PixelSprites.anim(parent, names, pos?, z?) -> Anim: a stack of frames (and each frame's "_flash"): set(i),
 --     flash(seconds), moveTo(x, y), the frame `f` to position or destroy
 local ArtData = require(script.Parent.ArtData)
+local ThumbData = require(script.Parent.ThumbData)
 local ImageMemory = require(script.Parent.Parent.Pixel.ImageMemory)
 
 local PixelSprites = {}
@@ -24,12 +27,20 @@ local images: { [string]: EditableImage } = {}
 local failed: { [string]: boolean } = {} -- no image for this sprite (the rects draw it)
 local canImages: boolean? = nil
 
+-- A sprite's data: a catalog picture's from ThumbData, any other's from ArtData.
+local function dataOf(name: string): ArtData.SpriteData?
+	if string.sub(name, 1, 6) == "thumb_" then
+		return ThumbData[name]
+	end
+	return ArtData[name]
+end
+
 function PixelSprites.has(name: string): boolean
-	return ArtData[name] ~= nil
+	return dataOf(name) ~= nil
 end
 
 function PixelSprites.size(name: string): (number, number)
-	local d = ArtData[name]
+	local d = dataOf(name)
 	if d == nil then
 		return 0, 0
 	end
@@ -113,7 +124,7 @@ end
 
 -- A sprite at its own size (pos: its top-left, whole UI px).
 function PixelSprites.image(parent: Instance?, name: string, pos: UDim2?, z: number?): GuiObject
-	local d = ArtData[name]
+	local d = dataOf(name)
 	local zz = z or 3
 	if d == nil then
 		local f = Instance.new("Frame")

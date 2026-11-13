@@ -1122,6 +1122,23 @@ function SCEN.pportraits_try()
 	return require("./portraits")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, species = { "pebblit", "clawdle", "gullfin", "mossbun", "frondle", "crystowl", "emberpup", "magmole", "glowbat", "snowpuff", "floe", "sunsprite", "lumajelly", "tidewyrm", "conchy", "shellback", "hopsprout", "bloomoth", "elderbark", "pyredrake" }, yaws = { 30 } })
 end
 
+-- "pthumbs": the build catalog's pictures drawn from the pieces' models (tools/preview/thumbs.luau; gen_thumbs.py tidies
+-- them into scripts/thumbs.txt for scripts/gen_art.py: sh tools/preview/thumbs.sh). "pthumbs=<k>of<n>": every n-th
+-- piece from the k-th (thumbs.sh runs a few at once); "pthumbs=<id>,<id>": those pieces, to try a change.
+local function thumbsScenario(arg: string?)
+	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr }
+	local k, n = string.match(arg or "", "^(%d+)of(%d+)$")
+	if k then
+		env.part, env.parts = tonumber(k), tonumber(n)
+	elseif arg then
+		env.only = {}
+		for id in string.gmatch(arg, "[^,]+") do
+			table.insert(env.only, id)
+		end
+	end
+	return require("./thumbs")(env)
+end
+SCEN.pthumbs = thumbsScenario
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
 -- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
 -- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, its actors, whether it painted).
@@ -1391,6 +1408,12 @@ for _, name in list do
 	if group then
 		fn = function()
 			return catalogScenario(group)
+		end
+	end
+	local thumbs = string.match(name, "^pthumbs=([%w_,]+)$")
+	if thumbs then
+		fn = function()
+			return thumbsScenario(thumbs)
 		end
 	end
 	if fn == nil then

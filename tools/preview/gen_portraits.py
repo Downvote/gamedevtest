@@ -27,11 +27,11 @@ INK = (0x2B, 0x1E, 0x2E)  # the renderer's outline and creases, drawn flat (Data
 BLACK = (0x3B, 0x34, 0x42)  # the models' eyes and mouths (Data/Palette "black"), shaded by the toon bands
 
 
-def parse(path):
+def parse(path, tag="@@PORT "):  # (tools/preview/gen_thumbs.py reads its "@@THUMB " lines with it)
     out = {}
     with open(path) as f:
         for line in f:
-            if not line.startswith("@@PORT "):
+            if not line.startswith(tag):
                 continue
             _, name, w, h, hexs = line.split()[:5]
             w, h = int(w), int(h)
@@ -68,7 +68,11 @@ def shade(c, k):  # a step darker, a little cooler (the ramps' own way: GAME_DES
     return (int(c[0] * k), int(c[1] * k), min(255, int(c[2] * k + 8)))
 
 
-def tidy(px):
+def tidy(px, thin=False):
+    # thin: keep what is thin or pointed on purpose (the build catalog's pictures, gen_thumbs.py): a 1 px pole, spire or
+    # rope keeps its tip and a tile its points (only a pixel sticking out of a straight edge goes, and only once), and a
+    # gap deeper than a pixel (between pickets, under a bench) stays open (only a dent a pixel deep on the silhouette's
+    # edge is filled)
     h, w = len(px), len(px[0])
     get = lambda x, y: px[y][x] if 0 <= x < w and 0 <= y < h else None
     # 1. the picture's own outline off: ink touching the outside (8 ways)
@@ -81,15 +85,33 @@ def tidy(px):
                     body[y][x] = None
     gb = lambda x, y: body[y][x] if 0 <= x < w and 0 <= y < h else None
     # 2. jaggies: lone spikes off, one-pixel notches filled (twice: a spike's stem can be a spike in turn)
-    for _ in range(2):
+    def n4of(x, y):
+        return sum(1 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if gb(x + dx, y + dy) is not None)
+
+    for _ in range(1 if thin else 2):
         nb = [[body[y][x] for x in range(w)] for y in range(h)]
         for y in range(h):
             for x in range(w):
                 n4 = [gb(x + 1, y), gb(x - 1, y), gb(x, y + 1), gb(x, y - 1)]
                 full = [c for c in n4 if c is not None]
                 if body[y][x] is not None and len(full) <= 1:
+                    if thin and len(full) == 1:
+                        # (a line's tip stays, and so does a point where two edges meet (a tile's tips): only a nub
+                        # sticking out of a straight edge goes, the edge running on two pixels past it either way)
+                        dx, dy = next((dx, dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if gb(x + dx, y + dy) is not None)
+                        sx, sy = x + dx, y + dy
+                        if n4of(sx, sy) < 3 or not all(gb(sx + dy * k, sy + dx * k) is not None for k in (-2, -1, 1, 2)):
+                            continue
                     nb[y][x] = None
                 elif body[y][x] is None and len(full) >= 3:
+                    if thin:
+                        # (a dent a pixel deep: past its opening, nothing on either side; a pinhole stays a hole)
+                        if len(full) == 4:
+                            continue
+                        dx, dy = next((dx, dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if gb(x + dx, y + dy) is None)
+                        ox, oy = x + dx, y + dy
+                        if gb(ox + dy, oy + dx) is not None or gb(ox - dy, oy - dx) is not None:
+                            continue
                     # (the commonest neighbour's colour)
                     nb[y][x] = max(full, key=lambda c: (sum(1 for d in full if d == c), lum(c)))
         body = nb

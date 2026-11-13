@@ -174,7 +174,8 @@ driftling. Nothing happens while you are away (no offline progress).
 
 - **No mixels.** One art pixel is one UI px is one K-sized block on the screen: nothing is ever drawn scaled up
   (no 2x or 3x sprites). A bigger or smaller thing is its own sprite drawn at its own size: a driftling's portrait is
-  32x32 (drawn from its model at that size, never shrunk or blown up), a small icon 11x11. The world and the driftlings are 3D and drawn by the pixel filter, so they keep the same
+  32x32 (drawn from its model at that size, never shrunk or blown up), a build catalog picture 24x24 (the piece's
+  model seen as the island shows it, drawn at that size and tidied the portraits' way), a small icon 11x11. The world and the driftlings are 3D and drawn by the pixel filter, so they keep the same
   grid, palette and outline.
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
