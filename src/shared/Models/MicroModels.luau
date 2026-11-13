@@ -564,9 +564,10 @@ BUILD.spot = function(o)
 end
 
 ------------------------------------------------------------------ the driftlings (Data/Creatures shape; body / accent)
--- Built and moved by Models/DriftModels: each body plan on a skeleton of joints (GAME_DESIGN 6).
-function MicroModels.driftling(shape: string, body: string, accent: string): Thing
-	return DriftModels.build(shape, body, accent) :: any
+-- Built and moved by Models/DriftModels: each body plan on a skeleton of joints (GAME_DESIGN 6). `lod` "full" (close
+-- looks: the hatch scene, the portraits; the default) or "world" (the islands: fewer, bigger pieces).
+function MicroModels.driftling(shape: string, body: string, accent: string, lod: string?): Thing
+	return DriftModels.build(shape, body, accent, lod) :: any
 end
 
 -- A driftling's limbs alive, time t (seconds), mood "idle" | "walk" | "attack" | "hurt" | "cheer" | "ko", k 0..1 an

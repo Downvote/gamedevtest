@@ -7,113 +7,38 @@
 -- animations to the creatures, the whole mesh seems to move as one throughout all their animations. you can make
 -- different moving parts for creatures to allow for more expressiveness".
 --
--- Each body plan (Data/Creatures `shape`) is built from plain parts (Models/Blocks: palette colours, eighth-stud
--- sizes, no meshes), facing +Z with its feet on the ground, in its species' body and accent colours, on a small
+-- The request (2026-11-13): "The creatures look blocky and unrealistic. Look at the cakes in the bakery game to
+-- reference how detailed they should be". The body plans are built with Models/DriftKit (round pieces on a fine grid,
+-- tubes, pillows, discs, proper eyes; a "full" and a lighter "world" level of detail) in Models/DriftPlans*.
+--
+-- Each body plan (Data/Creatures `shape`) is built from plain parts (Models/Blocks: palette colours, no meshes),
+-- facing +Z with its feet on the ground, in its species' body and accent colours, on a small
 -- skeleton: joints with a pivot and a parent (the body, then the head on it, the jaw and the ears on the head, the
 -- legs, arms, wings, fins, tail segments, eye stalks, pincers, tendrils and antennae). `animate(thing, time, mood, k,
 -- squash)` turns each joint about its pivot for the moment and the mood (the joints' turns compose down the chain:
 -- an ear on a head that nods), so a driftling breathes, looks about, blinks, twitches its ears, wags its tail and
 -- walks on its own legs, winds up and lunges with its jaw open, recoils when hit and goes limp when knocked out.
 -- Moods: "idle" | "walk" | "attack" (k: the blow's progress) | "hurt" | "cheer" | "ko".
--- Eyes ("EyeL", "EyeR") and their shines are "Keep" parts (a hit's white flash leaves them); the eyes blink by size.
-local Blocks = require(script.Parent.Blocks)
+-- The face parts (the thing's `face`: eyes, irises, shines, lids, the smile and the open mouth) are "Keep" parts and
+-- blink by tucking in: the eye's parts go in and its lid comes out while it is shut; the smile goes in and the open
+-- mouth comes out while the mouth is open.
+local Kit = require(script.Parent.DriftKit)
 
 local DriftModels = {}
 
-export type Joint = { parent: string?, pivot: Vector3, kind: string, side: number, phase: number }
-export type Rig = {
-	joints: { [string]: Joint },
-	order: { string }, -- parents before children
-	of: { [string]: string }, -- part name -> its joint
-	gait: string, -- "quad" | "biped" | "hop" | "scuttle" | "slither" | "fly"
-	world: { [string]: CFrame }, -- each joint's pose now (animate)
-}
-export type Thing = {
-	model: Model,
-	parts: { [string]: BasePart },
-	rest: { [string]: CFrame },
-	sizes: { [string]: Vector3 },
-	baseRest: { [string]: CFrame },
-	baseSize: { [string]: Vector3 },
-	colors: { [string]: Color3 },
-	h: number,
-	r: number,
-	kind: string,
-	rig: Rig?,
-}
+export type Joint = Kit.Joint
+export type Rig = Kit.Rig
+export type Thing = Kit.Thing
 
 local R = math.rad
 local V = Vector3.new
 
------------------------------------------------------------------- building
-local cur: Thing? = nil -- the thing being built
-local curJoint = "body" -- the joint new parts go on
-
-local function fine(v: number): number
-	return math.max(0.125, math.floor(v * 8 + 0.5) / 8)
-end
-
-local function new(shape: string, h: number, r: number, gait: string): Thing
-	local m = Blocks.model(nil, "Micro_drift_" .. shape)
-	local t: Thing = {
-		model = m,
-		parts = {},
-		rest = {},
-		sizes = {},
-		baseRest = {},
-		baseSize = {},
-		colors = {},
-		h = h,
-		r = r,
-		kind = "drift_" .. shape,
-		rig = { joints = {}, order = {}, of = {}, gait = gait, world = {} },
-	}
-	cur = t
-	curJoint = "body"
-	return t
-end
-
--- A joint (and the one new parts go on from now): its pivot in the thing's space, its parent, what moves it.
-local function J(name: string, parent: string?, pivot: Vector3, kind: string, side: number?, phase: number?)
-	local t = cur :: Thing
-	local rig = t.rig :: Rig
-	rig.joints[name] = { parent = parent, pivot = pivot, kind = kind, side = side or 0, phase = phase or 0 }
-	table.insert(rig.order, name)
-	curJoint = name
-end
-
-local function on(name: string)
-	curJoint = name
-end
-
--- One part on the current joint: `at` is its centre, `rot` a turn about it.
-local function P(name: string, shape: string, size: Vector3, at: Vector3, color: string, rot: CFrame?, neon: boolean?): BasePart
-	local t = cur :: Thing
-	local n = name
-	local i = 2
-	while t.parts[n] do
-		n = name .. i
-		i += 1
-	end
-	local cf = CFrame.new(at) * (rot or CFrame.identity)
-	local shp: any = if shape == "Block" then nil else shape
-	local p = Blocks.part(t.model, { size = size, cf = cf, color = color, name = n, shape = shp, collide = false, query = false, neon = neon })
-	p.Size = V(fine(size.X), fine(size.Y), fine(size.Z))
-	p.CastShadow = false
-	t.parts[n] = p
-	t.rest[n] = cf
-	t.sizes[n] = p.Size
-	t.baseRest[n] = cf
-	t.baseSize[n] = p.Size
-	t.colors[n] = p.Color
-	;(t.rig :: Rig).of[n] = curJoint
-	return p
-end
-
-local function keep(p: BasePart): BasePart
-	p:SetAttribute("Keep", true)
-	return p
-end
+------------------------------------------------------------------ building (the old plans' helpers, on the kit)
+local J = Kit.J
+local on = Kit.on
+local P = Kit.P
+local keep = Kit.keep
+local new = Kit.new
 
 -- One eye: a dark oval with a white shine in its upper corner (toward the light: the top left of the picture).
 local function eye(name: string, at: Vector3, s: number, color: string?)
@@ -810,14 +735,29 @@ PLANS.drake = function(b, a)
 end
 
 ------------------------------------------------------------------ build
+-- The new plans (Models/DriftPlans*: the kit's round shapes) over the old ones.
+for _, mod in { require(script.Parent.DriftPlansA), require(script.Parent.DriftPlansB), require(script.Parent.DriftPlansC), require(script.Parent.DriftPlansD) } do
+	for shape, fn in mod do
+		PLANS[shape] = fn
+	end
+end
+
 function DriftModels.has(shape: string): boolean
 	return PLANS[shape] ~= nil
 end
 
-function DriftModels.build(shape: string, body: string, accent: string): Thing
+-- A driftling of a body plan in its colours: `lod` "full" (close looks: the hatch scene, the portraits) or "world"
+-- (the islands: fewer, bigger pieces). Full when not given.
+function DriftModels.build(shape: string, body: string, accent: string, lod: string?): Thing
 	local fn = PLANS[shape] or PLANS.blob
-	local t = fn(body, accent)
-	cur = nil
+	Kit.setFull(lod ~= "world")
+	local ok, t = pcall(fn, body, accent)
+	Kit.setFull(true)
+	if not ok then
+		Kit.finish()
+		error(t)
+	end
+	Kit.finish()
 	return t
 end
 
@@ -1141,8 +1081,21 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 	end
 	local shut = blink or hurt or ko or nap
 	local open = fight or hurt or cheer or waving or snap
+	local face = t.face
 	for name, p in t.parts do
 		local r0 = t.baseRest[name]
+		local fk = face[name]
+		if fk then
+			-- the kit's face parts (Models/DriftKit): each tucked in along its normal (its +X) while it is hidden
+			local hide = if fk == "eye" then shut elseif fk == "lid" then not shut elseif fk == "open" then not open else open
+			if hide then
+				r0 = r0 * CFrame.new(-Kit.TUCK, 0, 0)
+			end
+			local w = world[rig.of[name] or "body"] or CFrame.identity
+			local rr = w * r0
+			t.rest[name] = CFrame.new(rr.Position * sc) * rr.Rotation
+			continue
+		end
 		if shut and string.sub(name, 1, 5) == "Shine" then
 			-- (a shut eye hides its shine: tucked behind it)
 			r0 = r0 * CFrame.new(0, 0, -0.25)
