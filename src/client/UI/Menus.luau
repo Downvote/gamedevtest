@@ -662,7 +662,8 @@ local function buildTree(body: Frame, arg: any?)
 		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, 5), UDim2.fromOffset(6, 5), 4)
 		local tw = RW - 86
 		UIKit.text(f, rar.name .. " egg", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-		UIKit.text(f, "Hatches a " .. string.lower(rar.name) .. " driftling", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+		local an = if e.r == 2 or e.r == 4 then "an" else "a"
+		UIKit.text(f, string.format("Hatches %s %s one", an, string.lower(rar.name)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
 		-- Hatch: its price (the shells and the shell icon after them)
 		local cost = e.cost or 0
 		local text = Numbers.coins(cost)
