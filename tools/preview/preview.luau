@@ -1255,6 +1255,111 @@ local function catalogScenario(group: string)
 	return p
 end
 
+-- "theme=<name>" (or "themes": all of them, a job each): a Sunspire Capital built in one of the catalog's themes, to
+-- show how different two islands can look (GAME_DESIGN 4: "enough paths, fences and other detail to make a lot of
+-- vastly different themed islands"): its paths in a ring round the plaza and an avenue north, a river under a bridge,
+-- a pond with what floats on it, a fenced garden with a gate, trees and plants, the theme's decor and its fun pieces,
+-- and a few huts and workplaces. Frames theme_<name> (the middle) and theme_<name>_north.
+local THEMES: { [string]: { [string]: any } } = {
+	beach = { path = { "sandtrail", "shellpath" }, fence = { "driftwood", "ropefence" }, water = "lagoon", floats = { "duckfloat", "rowboat" }, bridge = "dock", trees = { "palm", "palm", "jungletree" }, plants = { "bush", "monstera", "tallgrass", "fern" }, decor = { "umbrella", "deckchair", "deckchair", "surfboards", "sandcastle", "shellpile", "coconuts", "lifeguard", "buoy" }, fun = { "tikibar", "hammock", "firepit", "torch", "torch" } },
+	garden = { path = { "flagstone", "stonepath" }, fence = { "picket", "hedgerow", "gardengate" }, water = "lilypond", floats = { "lilypads", "duckfloat" }, bridge = "plankbridge", trees = { "oak", "birch", "cherry" }, plants = { "rosebush", "tulips", "sunflowers", "lavender", "flowers", "berrybush" }, decor = { "gnome", "birdbath", "beehive", "trellis", "sundial", "flowerarch", "topiary", "gazebo", "wheelbarrow" }, fun = { "parkbench", "gardenlights", "gardenlights", "smallfountain", "porchswing" } },
+	frost = { path = { "snowpath", "cobble" }, fence = { "icewall", "splitrail" }, water = "icepond", floats = {}, bridge = "plankbridge", trees = { "snowpine", "snowpine", "pine" }, plants = { "snowrock", "boulder", "deadtree" }, decor = { "snowman", "snowman", "sled", "icelantern", "icelantern", "icesculpture", "igloo" }, fun = { "firepit", "candles", "logseats", "stringlights" } },
+	zen = { path = { "raked", "flagstone" }, fence = { "bamboofence" }, water = "lilypond", floats = { "lotus", "steppingstones", "lilypads" }, bridge = "moonbridge", trees = { "cherry", "willow", "pine" }, plants = { "bonsai", "mossrock", "fern", "tallgrass" }, decor = { "stonelantern", "stonelantern", "windchime", "bambooscreen", "zenbasin", "lanterntower", "rockgarden" }, fun = { "stonebench", "paperlanterns", "paperlanterns" } },
+	volcano = { path = { "basalt", "gravel" }, fence = { "stonewall", "palisade" }, water = "hotspring", floats = { "steppingstones" }, bridge = "stonebridge", trees = { "deadtree", "deadtree", "jungletree" }, plants = { "basaltcols", "lavarock", "rockpile", "fern" }, decor = { "firebasin", "firebasin", "steamvent", "obsidian", "lavapool", "idol", "tikimask" }, fun = { "firepit", "torch", "torch", "grill" } },
+	fairy = { path = { "crystalpath", "meadow" }, fence = { "crystalfence", "hedgerow" }, water = "lilypond", floats = { "waterlanterns", "lotus", "lilypads" }, bridge = "ropebridge", trees = { "cherry", "willow", "bigoak" }, plants = { "giantshroom", "glowshroom", "mushrooms", "crystals", "lavender" }, decor = { "fairylantern", "fairylantern", "mushroomring", "moonstone", "wishingwell", "crystalarch" }, fun = { "swing", "candles", "stringlights" } },
+}
+local THEME_ORDER = { "beach", "garden", "frost", "zen", "volcano", "fairy" }
+local function themeScenario(name: string)
+	local T = THEMES[name]
+	if T == nil then
+		error("no theme " .. name)
+	end
+	local pieces = {}
+	local function exact(id, x, z, rot)
+		table.insert(pieces, { id, x, z, rot or 0, 1, true })
+	end
+	local function near(id, x, z, rot)
+		table.insert(pieces, { id, x, z, rot or 0, 1 })
+	end
+	-- the river (two tiles wide, west to east across the island's middle) and its bridge over the avenue
+	for x = -24, 22, 2 do
+		exact(T.water, x, -20)
+		exact(T.water, x, -18)
+	end
+	exact(T.bridge, -1, -22)
+	-- a pond west of the avenue, what floats on it
+	for z = -36, -28, 2 do
+		for x = -26, -16, 2 do
+			exact(T.water, x, z)
+		end
+	end
+	for k, id in T.floats do
+		exact(id, -24 + (k - 1) * 4, -34 + (k % 2) * 2)
+	end
+	-- paths: a ring round the plaza, the avenue north to the garden
+	for x = -14, 12, 2 do
+		exact(T.path[1], x, -8)
+	end
+	for z = -6, 12, 2 do
+		exact(T.path[1], -14, z)
+		exact(T.path[1], 12, z)
+	end
+	for z = -46, -10, 2 do
+		exact(T.path[2] or T.path[1], 0, z)
+	end
+	-- a fenced garden north-east, its gate on the side facing the avenue
+	local fx0, fz0, fx1, fz1 = 6, -44, 22, -28
+	for x = fx0, fx1 - 2, 2 do
+		exact(T.fence[1], x, fz0, 0)
+		exact(if x == fx0 + 6 and T.fence[3] then T.fence[3] else T.fence[1], x, fz1, 0)
+	end
+	for z = fz0, fz1 - 2, 2 do
+		exact(T.fence[2] or T.fence[1], fx0, z, 90)
+		exact(T.fence[2] or T.fence[1], fx1, z, 90)
+	end
+	-- inside the garden: the theme's decor in rows; the rest round the plaza and along the river
+	local spots = { { 8, -42 }, { 12, -42 }, { 16, -42 }, { 19, -41 }, { 8, -37 }, { 13, -37 }, { 18, -36 }, { 9, -32 }, { 15, -32 }, { 19, -31 } }
+	for k, id in T.decor do
+		local sp = spots[(k - 1) % #spots + 1]
+		near(id, sp[1], sp[2])
+	end
+	local funSpots = { { -11, -4 }, { 7, -4 }, { -11, 12 }, { 8, 12 }, { -6, -14 }, { 4, -14 } }
+	for k, id in T.fun do
+		local sp = funSpots[(k - 1) % #funSpots + 1]
+		near(id, sp[1], sp[2])
+	end
+	-- trees round the edges, plants by the paths
+	local treeSpots = { { -24, -6 }, { -22, 4 }, { 20, -8 }, { 22, 2 }, { -8, -44 }, { -20, -46 }, { 26, -24 }, { -28, -16 }, { 18, -50 }, { -12, -52 } }
+	for k, sp in treeSpots do
+		near(T.trees[(k - 1) % #T.trees + 1], sp[1], sp[2])
+	end
+	local plantSpots = { { -17, -2 }, { 15, -2 }, { -17, 8 }, { 15, 8 }, { -4, -26 }, { 4, -26 }, { -4, -38 }, { 4, -38 }, { -12, -14 }, { 10, -14 }, { -14, -42 }, { 26, -16 } }
+	for k, sp in plantSpots do
+		near(T.plants[(k - 1) % #T.plants + 1], sp[1], sp[2])
+	end
+	-- a few huts and workplaces, so it is somebody's island
+	near("burrow", -22, -12)
+	near("nest", -18, 12)
+	near("den", 18, -12)
+	near("lumber", 22, 8)
+	near("patch", -26, 6)
+	seedProfile(70 + table.find(THEME_ORDER, name) :: number, 6, { pieces = pieces, pals = { "mossbun", "clawdle", "pebblit", "gullfin" }, shells = 90000, wood = 90000 })
+	local p = join(70 + table.find(THEME_ORDER, name) :: number, string.upper(string.sub(name, 1, 1)) .. string.sub(name, 2))
+	settle(p)
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	for _, view in { { "theme_" .. name, -2, -14 }, { "theme_" .. name .. "_north", 4, -36 } } do
+		if p.Character then
+			p.Character:PivotTo(E.cf.new(ox + view[2], 3, view[3]))
+		end
+		E.run(1.5)
+		settle(p, 30, 1)
+		capture(p, view[1])
+	end
+	log("theme %s: %d pieces placed of %d", name, #H.profile(p).plot.placed, #pieces)
+	return p
+end
+
 ------------------------------------------------------------------ run
 local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do
@@ -1263,6 +1368,12 @@ for _, name in list do
 	if panel then
 		fn = function()
 			return panelScenario(panel)
+		end
+	end
+	local theme = string.match(name, "^theme=(%w+)$")
+	if theme then
+		fn = function()
+			return themeScenario(theme)
 		end
 	end
 	local group = string.match(name, "^catalog=([%w_,]+)$")

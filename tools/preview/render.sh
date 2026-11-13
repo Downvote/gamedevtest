@@ -4,7 +4,8 @@
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
 #   scenario: island | village | island2 | island3 | city | gallery | day | dusk | night | dawn | tree |
-#             panel=<pals|tree|hatch|index|looks> | catalog=<ground|fence|nature|theme|fun|tab name|id,id,...>
+#             panel=<pals|tree|hatch|index|looks> | catalog=<ground|fence|nature|theme|theme2|fun|tab name|id,id,...>
+#             | theme=<beach|garden|frost|zen|volcano|fairy> | themes (all six)
 #             | sea | visit | build | water | late | all
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
@@ -26,7 +27,8 @@ jobs=${PREVIEW_JOBS:-4}
 
 case $scen in
 	all) scens="island village island3 sea build day" ;;
-	island|village|island2|island3|city|gallery|catalog=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|late|loading|ploadingart|pportraits|pportraits_try) scens=$scen ;;
+	themes) scens="theme=beach theme=garden theme=frost theme=zen theme=volcano theme=fairy" ;;
+	island|village|island2|island3|city|gallery|catalog=*|theme=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|late|loading|ploadingart|pportraits|pportraits_try) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

@@ -9,10 +9,12 @@
 local Blocks = require(script.Parent.Blocks)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 
--- footprints by id (the pennant's corner)
+-- footprints by id (the pennant's corner), and kinds
 local FOOT: { [string]: { number } } = {}
+local KIND: { [string]: string } = {}
 for _, d in Buildings.list do
 	FOOT[d.id] = { d.w, d.d }
+	KIND[d.id] = d.kind
 end
 
 local DecorModels = {}
@@ -1689,7 +1691,9 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	if fn then
 		fn(m, at, l)
 	end
-	if l >= 2 and id ~= "tree" then -- (the tree's lvl is its stage: no pennant)
+	-- (the tree's lvl is its stage, a water tile's its neighbours: no pennant; nor on a path or a fence)
+	local kind = KIND[id]
+	if l >= 2 and kind ~= "tree" and kind ~= "water" and kind ~= "path" and kind ~= "fence" then
 		local size = FOOT[id]
 		if size then
 			pennant(m, at, l, size[1], size[2])
