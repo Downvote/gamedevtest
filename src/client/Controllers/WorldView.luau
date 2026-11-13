@@ -67,6 +67,8 @@ local signLabels: { [number]: TextLabel } = {}
 local myPlot = 0
 local NEAR = 100 -- studs from the view's centre an island is peopled within
 local HOP = 4 -- studs a second
+local FAR_POSE = 40 -- studs from the view's centre past which a driftling is posed every fourth frame only
+local poseFrame = 0
 
 -- What the work at each building is ("there are also no proper animations for creatures and villagers that are working
 -- on something in the island", 2026-11-11): its beat and what flies off at each (soil in the fields, wood chips at the
@@ -508,6 +510,11 @@ local function stepWalker(w: Walker, t: number, dt: number)
 			end
 			w.beat = beats
 		end
+		-- (one far from the view's centre, likely off screen, is posed every fourth frame, staggered by its id)
+		local cw = CameraController.centerWorld()
+		if (math.abs(w.x - cw.X) > FAR_POSE or math.abs(w.z - cw.Z) > FAR_POSE) and (poseFrame + w.id) % 4 ~= 0 then
+			return
+		end
 		local hop = if speed > 0 then math.abs(math.sin(t * 9 + w.id)) * 0.5 elseif working then 0 else math.abs(math.sin(t * 2 + w.id)) * 0.12
 		local bob = if t < w.cheerUntil then math.abs(math.sin(t * 12)) * 1.2 else hop
 		-- its limbs alive: blinks, a wagging tail, stepping legs, a cheer, and its work where it works (or a nap at
@@ -773,6 +780,7 @@ function WorldView.start()
 				fireOn(i, near and m ~= nil and (tonumber(m:GetAttribute("Owner")) or 0) ~= 0)
 			end
 		end
+		poseFrame += 1
 		for _, w in walkers do
 			stepWalker(w, t, dt)
 		end

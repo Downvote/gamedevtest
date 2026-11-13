@@ -825,10 +825,37 @@ function MicroModels.has(kind: string): boolean
 	return BUILD[kind] ~= nil
 end
 
+-- (a thing's parts in a fixed order, and a list for their poses: moved in one call, Workspace:BulkMoveTo, the cheap
+-- way to move many parts a frame; a driftling has up to 70 on the islands)
+local bulk: { [any]: { names: { string }, parts: { BasePart }, cfs: { CFrame } } } = setmetatable({}, { __mode = "k" }) :: any
+
 function MicroModels.place(t: Thing, cf: CFrame)
-	for name, p in t.parts do
-		p.CFrame = cf * t.rest[name]
+	local b = bulk[t]
+	if b == nil or #b.names ~= 0 and b.parts[1].Parent == nil then
+		local names: { string } = {}
+		for name in t.parts do
+			table.insert(names, name)
+		end
+		local parts: { BasePart } = {}
+		for i, name in names do
+			parts[i] = t.parts[name]
+		end
+		b = { names = names, parts = parts, cfs = table.create(#names) }
+		bulk[t] = b
 	end
+	local bb = b :: { names: { string }, parts: { BasePart }, cfs: { CFrame } }
+	if not t.model:IsDescendantOf(workspace) then
+		for name, p in t.parts do
+			p.CFrame = cf * t.rest[name]
+		end
+		return
+	end
+	local rest = t.rest
+	local cfs = bb.cfs
+	for i, name in bb.names do
+		cfs[i] = cf * rest[name]
+	end
+	workspace:BulkMoveTo(bb.parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
 -- Flags and pennants (parts named "Flag...") flutter: a ripple of whole quarter studs along them, time t (seconds).
