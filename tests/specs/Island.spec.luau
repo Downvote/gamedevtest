@@ -32,12 +32,13 @@ local function worker(p: any, knack: string, hut: number, work: number): any
 end
 
 return function()
-	T.it("a new island: its two stores, nothing built", function()
+	T.it("a new island: its two stores, nothing built but its tree", function()
 		local p = Schema.default(0, 1)
 		T.eq(p.shells, Tuning.StartShells)
 		T.eq(p.wood, Tuning.StartWood)
 		T.eq((p :: any).food, nil, "no food")
-		T.eq(#p.plot.placed, 0)
+		T.eq(#p.plot.placed, 1)
+		T.eq(p.plot.placed[1].id, "tree")
 		local r = Island.rates(p)
 		T.eq(r.wood, 0)
 		T.eq(r.shells, 0)

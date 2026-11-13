@@ -563,7 +563,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 				end
 			end, "Replace")
 		end
-		btn("Clear away", UIKit.color("button_warn"), true, function()
+		btn("Clear away", UIKit.color("button_warn"), not Plot.isFixed(q.id), function()
 			local cur = pick
 			if cur and cur.move then
 				local res = ask("plot.store", { i = cur.move })

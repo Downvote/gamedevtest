@@ -13,7 +13,7 @@ local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
-local Tide = require(script.Parent.Tide)
+local Tree = require(script.Parent.Tree)
 
 type Profile = Types.Profile
 
@@ -21,8 +21,9 @@ local Schema = {}
 
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone);
--- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food)
-Schema.VERSION = 12
+-- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
+-- Life again, laying eggs (no tide)
+Schema.VERSION = 13
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -55,8 +56,8 @@ local function look(v: any): Types.Look
 end
 
 ------------------------------------------------------------------ default
--- A new island: Tuning.StartWood (enough for the tips' buildings) and StartShells (the first driftlings off the tide),
--- no driftling yet.
+-- A new island: Tuning.StartWood (enough for the tips' buildings) and StartShells (the first eggs), no driftling yet,
+-- its Tree of Life behind the campfire (Logic/Tree.plant) about to lay its first eggs.
 function Schema.default(now: number, seed: number): Profile
 	local rng = Util.newRng(seed)
 	local p: Profile = {
@@ -70,6 +71,7 @@ function Schema.default(now: number, seed: number): Profile
 		plot = { placed = {} },
 		seen = {},
 		eggs = {},
+		clutch = { left = 0, list = {}, next = 1 },
 		nextId = 1,
 		tut = 1,
 		quest = 1,
@@ -77,6 +79,7 @@ function Schema.default(now: number, seed: number): Profile
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 	}
+	Tree.plant(p)
 	return p
 end
 
@@ -106,9 +109,12 @@ end
 --           tent's step is gone: 4 and 5 to 4, 6 to 5, 7 to 6).
 --   11 -> 12: the tide (GAME_DESIGN 6: "you can remove the tree of life, there should now be a steady stream of
 --           driftlings, with rarities that players can pick up") and two stores ("remove food as a resource"): the
---           Tree of Life, its levels and its pen go; every driftling waiting in the pen is sold for its price (Logic/Tide
+--           Tree of Life, its levels and its pen go; every driftling waiting in the pen is sold for its price (Logic/Tree
 --           .price: shells, counted as sold and earned); the food goes; the driftlings the tree grew count as taken in.
 --           The tips' steps keep their numbers (each moves on at once when what it asks is done: IslandService).
+--   12 -> 13: the Tree of Life again (GAME_DESIGN 6: "bring back the tree of life and remove the converyer belt
+--           system. it now spawns eggs around it"): reconcile plants it (making room as Tree.plant does) and gives it
+--           its eggs, laid the moment the player arrives. The driftlings taken in off the tide count as hatched.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -270,7 +276,7 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 			for _, x in raw.pals do
 				local home = if type(x) == "table" then tonumber(x.home) else nil
 				if type(x) == "table" and (home == nil or home == 0) and type(x.sp) == "string" and Creatures.byId[x.sp] then
-					got += Tide.price({ id = 0, sp = x.sp, home = 0, work = 0, muts = Traits.clean(x.muts) })
+					got += Tree.price({ id = 0, sp = x.sp, home = 0, work = 0, muts = Traits.clean(x.muts) })
 					n += 1
 				else
 					if type(x) == "table" then
@@ -292,6 +298,10 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		st.grown = nil
 		v = 12
 	end
+	if v < 13 then
+		raw.clutch = nil
+		v = 13
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -305,17 +315,20 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 	if type(v) ~= "table" then
 		return out
 	end
-	local pieces, paths = 0, 0
+	local pieces, paths, trees = 0, 0, 0
 	for _, q in v do
 		local def = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
 		local path = def ~= nil and def.kind == "path"
-		if def and (if path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
+		local fixed = def ~= nil and def.kind == "tree"
+		if def and (if fixed then trees < 1 elseif path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
 			local uid = int(q.uid, 0, 0)
 			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
 			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
 				used[uid] = true
 				if path then
 					paths += 1
+				elseif fixed then
+					trees += 1
 				else
 					pieces += 1
 				end
@@ -414,6 +427,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		plot = { placed = placed },
 		seen = seen,
 		eggs = {},
+		clutch = { left = 0, list = {}, next = 1 },
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
 		tut = int(r.tut, 1, 0, 6),
 		quest = int(r.quest, 1, 1, #Quests.list + 1),
@@ -434,8 +448,29 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	}
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
+	-- its Tree of Life (one from before the eggs gets one)
+	Tree.plant(out)
+	-- the tree's eggs: each a rarity, ids unique, no more than it lays; the time to the next lot in range
+	local c = if type(r.clutch) == "table" then r.clutch else {}
+	local cl = out.clutch
+	cl.left = num(c.left, 0, 0, Tuning.EggSecs)
+	local eggIds: { [number]: boolean } = {}
+	local top = 0
+	if type(c.list) == "table" then
+		for _, e in c.list do
+			if type(e) == "table" and #cl.list < Tree.count(tier) then
+				local id = int(e.id, 0, 0)
+				if id > 0 and not eggIds[id] then
+					eggIds[id] = true
+					top = math.max(top, id)
+					table.insert(cl.list, { id = id, r = int(e.r, 1, 1, 5) })
+				end
+			end
+		end
+	end
+	cl.next = math.max(int(c.next, 1, 1), top + 1)
 	-- the driftlings with no hut into any hut with room
-	Tide.settle(out)
+	Tree.settle(out)
 	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
 	local hatcheries: { [number]: boolean } = {}
 	for _, q in out.plot.placed do

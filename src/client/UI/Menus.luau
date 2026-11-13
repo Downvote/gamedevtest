@@ -1,9 +1,9 @@
 --!strict
 -- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Driftlings (every one: where each lives and works,
--- moving and selling), the Tide (the best few floating by with their prices, the odds; every hut full, the swap
+-- moving and selling), the Tree of Life (its eggs with their prices, when it lays the next, the odds; every hut full, the swap
 -- picker), the Hatchery (two parents, an egg), Index (every driftling seen) and Looks (the founder's look). Every
 -- action is a request; the panel rebuilds from the next view. The work picker is the same panel with an argument
--- ({ pal = id }), the hut picker too ({ move = id }), the swap picker the tide's ({ take = id }).
+-- ({ pal = id }), the hut picker too ({ move = id }), the swap picker the tree's ({ hatch = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -15,10 +15,10 @@ local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Tide = require(ReplicatedStorage.Shared.Logic.Tide)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
-local TideView = require(script.Parent.Parent.Controllers.TideView)
+local EggView = require(script.Parent.Parent.Controllers.EggView)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
@@ -83,7 +83,7 @@ local function row(list: Instance, order: number, h: number): Frame
 	return f
 end
 
--- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tide).
+-- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tree).
 local function asProfile(v: Types.ClientView): any
 	return { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier, shells = v.shells, wood = v.wood }
 end
@@ -128,9 +128,9 @@ local function confirmButton(parent: Instance, text: string, size: UDim2, pos: U
 	b.ZIndex = 4
 end
 
--- How fast a driftling works ("Works x2.8": its rarity's speed and its work share at its knack, Logic/Tide.worth).
+-- How fast a driftling works ("Works x2.8": its rarity's speed and its work share at its knack, Logic/Tree.worth).
 local function workWord(x: Types.Pal): string
-	return string.format("Works x%.1f", Tide.worth(x))
+	return string.format("Works x%.1f", Tree.worth(x))
 end
 
 ------------------------------------------------------------------ the work picker
@@ -416,7 +416,7 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		end
 	end
 	local p = asProfile(v)
-	for _, h in Tide.huts(p) do
+	for _, h in Tree.huts(p) do
 		place(h.uid, buildingName(v, h.uid) or "Hut", h.n, h.room, h.comfort)
 	end
 	if order == 0 then
@@ -465,7 +465,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	UIKit.button(f, "Work", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 16), function()
 		UIKit.openPanel("pals", { pal = x.id })
 	end, { name = "Help_" .. x.id, enabled = x.home ~= 0 }).ZIndex = 4
-	confirmButton(f, "Sell " .. Numbers.coins(Tide.price(x)), UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 30), function()
+	confirmButton(f, "Sell " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 30), function()
 		local res = ask("pal.sell", { id = x.id })
 		if res.ok then
 			Audio.play("coins")
@@ -495,13 +495,13 @@ local function buildPals(body: Frame, arg: any?)
 			housed += 1
 		end
 	end
-	-- the tide's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
+	-- the tree's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
 	local hasHatch = #hatcheries(v) > 0
 	local buttons = if hasHatch then 128 else 66
-	local top = hint(body, string.format("%d in huts (room for %d). New ones float past the island.", housed, v.nests), W - buttons)
-	UIKit.button(body, "Tide", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
-		UIKit.openPanel("tide")
-	end, { name = "OpenTide", color = UIKit.color("button_ok") })
+	local top = hint(body, string.format("%d in huts (room for %d). New ones hatch from the Tree of Life's eggs.", housed, v.nests), W - buttons)
+	UIKit.button(body, "Eggs", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
+		UIKit.openPanel("tree")
+	end, { name = "OpenTree", color = UIKit.color("button_ok") })
 	if hasHatch then
 		UIKit.button(body, "Hatchery", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 122, 0), function()
 			UIKit.openPanel("hatch")
@@ -512,46 +512,45 @@ local function buildPals(body: Frame, arg: any?)
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then tap one as it floats past." else "No driftlings yet. Tap one floating past to take it in.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then hatch an egg under the Tree of Life." else "No driftlings yet. Tap an egg under the Tree of Life to hatch it.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local order: { Types.Pal } = table.clone(v.pals)
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
 		if (a.home == 0) ~= (b.home == 0) then
 			return a.home ~= 0
 		end
-		return Tide.better(a, b)
+		return Tree.better(a, b)
 	end)
 	for i, x in order do
 		palRow(list, v, x, i, W, "pals")
 	end
 end
 
------------------------------------------------------------------- the tide
--- (GAME_DESIGN 6) On the left: how often one comes in, the huts' room, and the odds of each rarity now. On the right:
--- the best few floating by now (TideView.best), each with its portrait, name, rarity and how fast it works, its
--- mutations, Take (its price in shells) and a bar of the time it has left. With { take = id } (every
--- hut full) the swap picker instead: the island's driftlings in huts, the weakest first, each with what it sells for
--- and Swap (tide.take with it: it's sold and the new one takes its place).
+------------------------------------------------------------------ the Tree of Life
+-- (GAME_DESIGN 6) On the left: how often it lays and how long till the next lot (a bar running down), how many eggs a
+-- lot, the huts' room, and the odds of each rarity of egg now. On the right: its eggs now, the rarest first, each with
+-- its egg, its rarity, what it hatches and Hatch (its price in shells). With { hatch = id } (every hut full) the swap
+-- picker instead: the island's driftlings in huts, the weakest first, each with what it sells for and Swap (egg.hatch
+-- with it: it's sold and what hatches takes its place).
 local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local drift: Types.Drift? = nil
-	for _, d in v.tide do
-		if d.id == id then
-			drift = d
+	local egg: Types.Laid? = nil
+	for _, e in v.clutch do
+		if e.id == id then
+			egg = e
 		end
 	end
-	if drift == nil then
+	if egg == nil then
 		-- (the list first: opening a panel clears the notices, so the notice goes on the new panel's status line)
-		UIKit.openPanel("tide")
-		UIKit.notice("That one has floated off.", UIKit.color("text_dim"))
+		UIKit.openPanel("tree")
+		UIKit.notice("That egg is gone. The tree laid new ones.", UIKit.color("text_dim"))
 		return
 	end
-	local dr = drift :: Types.Drift
-	local def = Creatures.byId[dr.sp]
-	local name = if def then def.name else "It"
-	local top = hint(body, string.format("Every hut is full. Swap one out for %s (%s shells): the one you pick is sold.", name, Numbers.coins(dr.cost)), W - 50)
+	local e = egg :: Types.Laid
+	local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
+	local top = hint(body, string.format("Every hut is full. Swap one out for the %s egg (%s shells): the one you pick is sold.", string.lower(rar.name), Numbers.coins(e.cost or 0)), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
-		UIKit.openPanel("tide")
+		UIKit.openPanel("tree")
 	end, { name = "Back", color = UIKit.color("plate_light") })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
@@ -562,7 +561,7 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 		end
 	end
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
-		return Tide.better(b, a)
+		return Tree.better(b, a)
 	end)
 	for i, x in order do
 		local d = Creatures.byId[x.sp]
@@ -572,47 +571,30 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 		local f = row(list, i, 38)
 		f.Name = "SwapOut_" .. x.id
 		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
-		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		local xr = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 		local tw = W - 106
-		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-		UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(xr.color), z = 4, name = "Name" })
+		UIKit.text(f, xr.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
 		mutLine(f, x.muts or {}, PX, 21, tw)
 		UIKit.button(f, "Swap", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
-			TideView.take(id, x.id)
+			EggView.hatch(id, x.id)
 		end, { name = "SwapTake_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
-		UIKit.text(f, "Sells for " .. Numbers.coins(Tide.price(x)), UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, "Sells for " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("text_dim"), z = 4 })
 	end
 end
 
--- What the tide panel shows (rebuilt only when it changes: the tide moves every second): the best few's ids, costs and
--- whether the shells cover them; in the swap picker, whether the one being taken is still there.
-local tideArg: any = nil
-local tideKey = ""
-local function tideKeyOf(v: Types.ClientView, arg: any): string
-	if type(arg) == "table" and type(arg.take) == "number" then
-		for _, d in v.tide do
-			if d.id == arg.take then
-				return "swap:" .. d.id
-			end
-		end
-		return "swap:gone"
-	end
-	local parts: { string } = {}
-	for _, d in TideView.best(v, 4) do
-		table.insert(parts, string.format("%d:%d:%s", d.id, d.cost, if v.shells >= d.cost then "y" else "n"))
-	end
-	return table.concat(parts, ",")
+local function clock(secs: number): string
+	local s = math.max(0, math.ceil(secs))
+	return string.format("%d:%02d", s // 60, s % 60)
 end
 
-local function buildTide(body: Frame, arg: any?)
+local function buildTree(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
-	tideArg = arg
-	tideKey = tideKeyOf(v, arg)
-	if type(arg) == "table" and type(arg.take) == "number" then
-		buildSwap(body, v, arg.take)
+	if type(arg) == "table" and type(arg.hatch) == "number" then
+		buildSwap(body, v, arg.hatch)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
@@ -620,20 +602,38 @@ local function buildTide(body: Frame, arg: any?)
 	local LW = math.min(150, math.floor(W * 0.42))
 	local RX = LW + 8
 	local RW = W - RX
-	-- how often
-	local pace = if math.abs(v.tideSecs - 1) < 0.05 then "One floats by every second" else string.format("One floats by every %.1fs", v.tideSecs)
-	UIKit.text(body, pace, UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
+	-- how often, and the bar to the next lot (run down by the client between the server's ticks)
+	UIKit.text(body, "New eggs every " .. clock(v.clutchSecs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
+	local next = UIKit.text(body, "Next in 0:00", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 10), { color = UIKit.color("text_dim"), name = "Next" })
+	local back = UIKit.rect(body, UDim2.fromOffset(LW, 4), UDim2.fromOffset(0, 21), UIKit.color("ink"), 3)
+	back.Name = "TreeBar"
+	local fill = UIKit.rect(back, UDim2.fromOffset(LW - 2, 2), UDim2.fromOffset(1, 1), UIKit.color("good"), 4)
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.Heartbeat:Connect(function()
+		if fill.Parent == nil then
+			if conn then
+				conn:Disconnect()
+			end
+			return
+		end
+		local left, secs = StateClient.clutchLeft()
+		fill.Size = UDim2.fromOffset(math.floor((LW - 2) * math.clamp(left / math.max(1, secs), 0, 1) + 0.5), 2)
+		local text = "Next in " .. clock(left)
+		if next.Text ~= text then
+			next.Text = text
+		end
+	end)
 	local housed = 0
 	for _, x in v.pals do
 		if x.home ~= 0 then
 			housed += 1
 		end
 	end
-	UIKit.text(body, string.format("In huts %d/%d", housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 12), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
+	UIKit.text(body, string.format("%d eggs a lot. In huts %d/%d", Tree.count(v.tier), housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 28), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
 	-- the odds now, rarity by rarity
-	UIKit.text(body, "What comes in now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 28), { color = UIKit.color("text_dim") })
-	local odds = Tide.odds(p)
-	local y = 38
+	UIKit.text(body, "What it lays now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 42), { color = UIKit.color("text_dim") })
+	local odds = Tree.odds(p)
+	local y = 52
 	for r = 1, 5 do
 		local rar = Traits.RARITY[r]
 		local pct = odds[r] * 100
@@ -643,39 +643,34 @@ local function buildTide(body: Frame, arg: any?)
 		y += 10
 	end
 	if v.tier < 6 and y + 24 <= H then
-		local more = "A bigger island brings new kinds and rarer ones."
+		local more = "A bigger island lays more eggs, and better ones."
 		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
 	end
-	-- the best few floating by, each with the time it has left
-	UIKit.text(body, "Floating by", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Jetty" })
+	-- the eggs now, the rarest first
+	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
 	UIKit.vlist(list, 2)
-	local shown = TideView.best(v, 4)
+	local shown = EggView.best(v, #v.clutch)
 	if #shown == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, "Nothing yet. The next one is on its way.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "No eggs left. The tree lays more soon.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	local bars: { { bar: Frame, d: Types.Drift } } = {}
-	for i, d in shown do
-		local def = Creatures.byId[d.sp]
-		if def == nil then
-			continue
-		end
-		local x: Types.Pal = { id = 0, sp = d.sp, home = 0, work = 0, muts = d.muts }
-		local f = row(list, i, 38)
-		f.Name = "Drift_" .. d.id
-		PixelSprites.image(f, "icon_" .. d.sp, UDim2.fromOffset(4, 3), 4)
-		local rar = Traits.RARITY[def.rarity] or Traits.RARITY[1]
-		local tw = RW - 106
-		UIKit.text(f, def.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-		UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
-		mutLine(f, d.muts, PX, 21, tw)
-		-- Take: its price (the shells and the shell icon after them)
-		local text = Numbers.coins(d.cost)
-		local can = v.shells >= d.cost
-		local b = UIKit.button(f, text, UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
-			TideView.take(d.id)
-		end, { name = "PanelTake_" .. d.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
+	for i, e in shown do
+		local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
+		local f = row(list, i, 26)
+		f.Name = "Egg_" .. e.id
+		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, 5), UDim2.fromOffset(6, 5), 4)
+		local tw = RW - 86
+		UIKit.text(f, rar.name .. " egg", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, "Hatches a " .. string.lower(rar.name) .. " driftling", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+		-- Hatch: its price (the shells and the shell icon after them)
+		local cost = e.cost or 0
+		local text = Numbers.coins(cost)
+		local can = v.shells >= cost
+		local id = e.id
+		local b = UIKit.button(f, text, UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 6), function()
+			EggView.hatch(id)
+		end, { name = "PanelHatch_" .. e.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
 		b.ZIndex = 4
 		local words = b:FindFirstChild("Words")
 		if words and words:IsA("GuiObject") then
@@ -683,27 +678,7 @@ local function buildTide(body: Frame, arg: any?)
 			words.Size = UDim2.new(1, -16, 1, 0)
 		end
 		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
-		-- (the time it has left before it's gone past)
-		local back = UIKit.rect(f, UDim2.fromOffset(56, 4), UDim2.new(1, -59, 0, 21), UIKit.color("ink"), 4)
-		back.Name = "Left"
-		local fill = UIKit.rect(back, UDim2.fromOffset(54, 2), UDim2.fromOffset(1, 1), UIKit.color(rar.color), 5)
-		table.insert(bars, { bar = fill, d = d })
 	end
-	local conn: RBXScriptConnection? = nil
-	conn = RunService.Heartbeat:Connect(function()
-		if list.Parent == nil then
-			if conn then
-				conn:Disconnect()
-			end
-			return
-		end
-		for _, r in bars do
-			local fw = math.floor(54 * (1 - StateClient.along(r.d)) + 0.5)
-			if r.bar.Size.X.Offset ~= fw then
-				r.bar.Size = UDim2.fromOffset(fw, 2)
-			end
-		end
-	end)
 end
 
 ------------------------------------------------------------------ Index: the driftlings
@@ -746,7 +721,7 @@ local function buildIndex(body: Frame, _arg: any?)
 			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 38), { color = UIKit.color("accent"), z = 4, name = "Passive" })
 			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 48), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
 		else
-			local from = if kind and kind.tier > v.tier then string.format("These float by from island Lv %d.", kind.tier) else "Not seen yet."
+			local from = if kind and kind.tier > v.tier then string.format("These hatch from island Lv %d.", kind.tier) else "Not seen yet."
 			UIKit.text(f, from, UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 38), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 		end
 	end
@@ -797,7 +772,7 @@ end
 function Menus.init()
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
-	UIKit.registerPanel("tide", { title = "Tide", icon = "tide", w = 380, h = 196, build = buildTide })
+	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 196, build = buildTree })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
 	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 200, h = 106, build = buildLooks })
 	UIKit.PanelChanged:Connect(function(name: string?)
@@ -805,12 +780,7 @@ function Menus.init()
 			draft = nil
 		end
 	end)
-	-- (the tide moves every second: its panel is rebuilt only when what it shows changes)
-	StateClient.TideChanged:Connect(function(v: Types.ClientView)
-		if UIKit.currentPanel() == "tide" and tideKeyOf(v, tideArg) ~= tideKey then
-			UIKit.refreshPanel()
-		end
-	end)
+
 end
 
 return Menus

@@ -3,12 +3,13 @@
 -- model (Models/MicroModels) in Workspace.PixelDynamic, registered with the pixel renderer and moved every frame (the
 -- driftlings do all the work: no villagers since 2026-11-12). It walks to the building it works at and works there a
 -- while (pecking in the fields, dipping for fish, pushing at the wood, waving at the shops: what it works at flies off
--- now and then), strolls round the island, and back; one with nowhere to work naps at its hut. One just taken in off
--- the tide hops ashore at the jetty (Controllers/TideView: the tide itself) and walks off to work. Who lives on each
+-- now and then), strolls round the island, and back; one with nowhere to work naps at its hut. One just hatched from
+-- the Tree of Life's eggs steps out of its egg (Controllers/EggView: the eggs themselves) and walks off to work. Who
+-- lives on each
 -- island comes from its plot's attributes (PlotService: Pals, Tier), where the buildings stand from its Static.Decor
 -- models' names (uid:id:x:z:rot:lvl), so a visit shows a neighbour's island alive too. Only islands near the view get
 -- models. Every island's sign gets its name (or "Unclaimed isle") floating over it; tapping a sign shows a card about
--- the island.
+-- the island; tapping the own Tree of Life opens its panel.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -28,7 +29,7 @@ local CameraController = require(script.Parent.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
-local TideView = require(script.Parent.TideView)
+local EggView = require(script.Parent.EggView)
 
 local WorldView = {}
 
@@ -368,7 +369,8 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 end
 
 -- One island's driftlings from its attributes (only when near the view; far ones are let go). One new in a hut on an
--- island already peopled was just taken in off the tide (or hatched): it comes ashore at the jetty and walks off.
+-- island already peopled just hatched (from the tree's egg, or a Hatchery's): it steps out where its egg lay and walks
+-- off.
 local peopled: { [number]: boolean } = {}
 local born: { [string]: number } = {} -- key -> when it popped out (the arrival's cheer)
 local function syncPlot(i: number, near: boolean)
@@ -389,10 +391,10 @@ local function syncPlot(i: number, near: boolean)
 					end
 					local hm = tonumber(home) or 0
 					if w == nil then
-						-- (just taken in: ashore at the jetty, then off to work)
+						-- (just hatched: out of its egg, then off to work)
 						local at: Vector2? = nil
 						if peopled[i] then
-							local hx, hz = TideView.ashore(i)
+							local hx, hz = EggView.hatchPoint(i)
 							at = Vector2.new(hx, hz)
 							born[key] = os.clock()
 						end
@@ -589,14 +591,26 @@ function WorldView.signCard(i: number)
 	UIKit.notice(string.format("%s: day %s, %d driftlings at home, charm %s", name, Numbers.int(n("Day")), count("Pals"), Numbers.int(n("Charm"))), UIKit.color("accent"), 5)
 end
 
--- A tap (not a drag, not on the interface, not in Build mode) on one of the own island's driftlings floating by takes
--- it in (Controllers/TideView); on an island sign, it shows its card.
+-- The Tree of Life under a world hit: true for the own island's, false for a neighbour's, nil for anything else.
+local function treeOf(inst: Instance): boolean?
+	local m: Instance? = inst
+	while m and m ~= workspace do
+		if m:IsA("Model") and m:GetAttribute("Decor") == "tree" then
+			return m:FindFirstAncestor("Plot_" .. myPlot) ~= nil
+		end
+		m = m.Parent
+	end
+	return nil
+end
+
+-- A tap (not a drag, not on the interface, not in Build mode) on one of the own tree's eggs hatches it
+-- (Controllers/EggView); on the own Tree of Life it opens its panel; on an island sign, it shows its card.
 local function onTap(pos: Vector2)
 	if CameraController.isFree() then
 		return
 	end
-	-- (a driftling floating by: taken in)
-	if TideView.tapAt(pos) then
+	-- (an egg under the own tree: hatched)
+	if EggView.tapAt(pos) then
 		return
 	end
 	local origin, dir = PixelRenderer.screenRay(pos)
@@ -614,6 +628,15 @@ local function onTap(pos: Vector2)
 	params.FilterDescendantsInstances = list
 	local hit = workspace:Raycast(origin, dir, params)
 	if hit == nil then
+		return
+	end
+	-- the Tree of Life: the own one's panel (its eggs)
+	local mine = treeOf(hit.Instance)
+	if mine == true then
+		UIKit.openPanel("tree")
+		return
+	elseif mine == false then
+		UIKit.notice("Someone else's Tree of Life. Yours is on your own island.", UIKit.color("text_dim"), 3)
 		return
 	end
 	local sign = hit.Instance:FindFirstAncestor("PlotSign")
@@ -653,10 +676,10 @@ function WorldView.cheer(words: { string }, color: Color3)
 	end
 end
 
--- One taken in off the own tide (Fx "taken"): bits of its rarity's colour at the jetty where it comes ashore; a rare
--- one or better has its name float up there too.
-local function takenOne(x: { [string]: any })
-	local hx, hz = TideView.ashore(myPlot)
+-- One hatched from the own tree's egg (Fx "hatched"): bits of its rarity's colour where the egg lay; a rare one or
+-- better has its name float up there too.
+local function hatchedOne(x: { [string]: any })
+	local hx, hz = EggView.hatchPoint(myPlot)
 	local d = if type(x.sp) == "string" then Creatures.byId[x.sp] else nil
 	if d then
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
@@ -669,7 +692,7 @@ local function takenOne(x: { [string]: any })
 end
 
 -- A hatchling (Logic/Breed): its kind's name floats up over the Hatchery with pink and gold bits (it moves into a hut
--- with room like one taken in off the tide).
+-- with room like one out of the tree's eggs).
 local function hatched(x: { [string]: any })
 	local at: Vector3? = nil
 	for _, sp in spotsOf(myPlot) do
@@ -705,8 +728,8 @@ function WorldView.start()
 				end
 			end
 		end
-		if msg.kind == "taken" and type(msg.data) == "table" then
-			takenOne(msg.data)
+		if msg.kind == "hatched" and type(msg.data) == "table" then
+			hatchedOne(msg.data)
 		end
 	end)
 	-- taps on the world (a press let go within 8 px of where it began)
@@ -758,8 +781,8 @@ function WorldView.start()
 		end
 		stepBits(dt)
 		updateSigns()
-		-- the tide past every island near the view
-		TideView.step(t, c.X)
+		-- the tree's eggs on every island near the view
+		EggView.step(t, c.X)
 	end)
 end
 

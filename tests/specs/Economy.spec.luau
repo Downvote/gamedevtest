@@ -21,7 +21,7 @@ return function()
 			T.truthy(r.first.rarity3 and r.first.rarity3 <= 1200, "seed " .. seed .. ": a rare one at " .. tostring(r.first.rarity3))
 		end
 	end)
-	T.it("the tide: a steady stream taken in, a dozen by half an hour, an epic within two hours", function()
+	T.it("the eggs: a dozen hatched by half an hour, an epic within two hours", function()
 		for seed, r in runs do
 			local row = at(r, 30)
 			T.truthy(row.taken >= 12, string.format("seed %d: %d taken in by 30 minutes", seed, row.taken))

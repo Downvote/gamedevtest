@@ -26,7 +26,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.house"] = { id = "int", uid = "int", swap = "int" },
 	["pal.sell"] = { id = "int" },
-	["tide.take"] = { id = "int", swap = "int" },
+	["egg.hatch"] = { id = "int", swap = "int" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },

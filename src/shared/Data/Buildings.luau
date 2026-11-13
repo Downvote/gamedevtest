@@ -8,7 +8,7 @@
 --   kind:  "farm" (sells what it grows or catches: shells) | "wood" | "shop" (sells to the visitors: shells)
 --          | "nest" (a driftlings' hut) | "breed" (the Hatchery: two driftlings make an egg, Logic/Breed) | "gen" (a
 --          boost building: every building of a knack makes more) | "path" (a tile of path or road: apart from the
---          piece limit, Tuning.PathPieces) | "decor"
+--          piece limit, Tuning.PathPieces) | "decor" | "tree" (the Tree of Life: every island's, never bought)
 --   rate:  what it makes a turn with one common driftling working there (wood or shells; Logic/Island); the wood
 --          buildings make three times what they did when the shells paid for building, the farms three times what
 --          they grew when it was food
@@ -136,6 +136,11 @@ local LIST: { BuildingDef } = {
 	B({ id = "monument", name = "Founder Monument", kind = "decor", wood = 160000, w = 4, d = 4, charm = 420, tier = 6 }),
 }
 -- stylua: ignore end
+
+-- the Tree of Life (GAME_DESIGN 6; Logic/Tree): every island has one from the start; it is never bought or cleared
+-- away (tier 99 keeps it off every tab), but it can be moved. Its eggs lie in a ring on the lawn round its stones,
+-- inside its footprint (Controllers/EggView)
+table.insert(LIST, B({ id = "tree", name = "Tree of Life", kind = "tree", w = 8, d = 8, charm = 6, tier = 99, blurb = "Lays eggs round its roots every few minutes." }))
 
 local BY_ID: { [string]: BuildingDef } = {}
 for _, d in LIST do

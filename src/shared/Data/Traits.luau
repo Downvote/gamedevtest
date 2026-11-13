@@ -4,14 +4,13 @@
 -- rarer mutation gives better benefits"; since 2026-11-12 "creatures work faster based on their rarity and can also
 -- have mutations like before"). Pure.
 --   Effects (`Fx`): at work, shares added to its help: work (any building), farm, fish, wood, shop (the buildings of
---   that knack); cost (what it costs to take in off the tide: below 0 costs less; the food it ate till food went on
---   2026-11-13); sell (its price when sold); charm (charm it adds to the island, whole points); tide and luck (while it
---   lives in a hut, driftlings drift in that much faster and that much luckier: Logic/Tide; the Tree of Life's speed
---   and luck before the tide). 0.1 = +10%.
+--   that knack); sell (its price when sold); charm (charm it adds to the island, whole points); and while it lives in
+--   a hut, for the whole island: tree (the Tree of Life lays its next eggs that much sooner), luck (its eggs that much
+--   luckier) and cost (its eggs cost that much less: below 0 cheaper). 0.1 = +10%.
 --   Each species has a passive of its own (Data/Creatures `passive`); each driftling may carry up to MAX mutations
---   (Pal.muts: ids "<family><tier>", tier 1 .. 4, or a flaw's id), rolled when it drifts in or hatches.
---   Rarity (Data/Creatures `rarity`): 1 common .. 5 legendary: rarer ones drift in less often, cost more, work faster
---   (Tuning.RarityWork), sell for more and roll better mutations.
+--   (Pal.muts: ids "<family><tier>", tier 1 .. 4, or a flaw's id), rolled when it hatches.
+--   Rarity (Data/Creatures `rarity`): 1 common .. 5 legendary: the tree lays rarer eggs less often, they cost more,
+--   and what hatches works faster (Tuning.RarityWork), sells for more and rolls better mutations.
 export type Fx = { [string]: number }
 
 export type Mutation = { id: string, family: string, tier: number, name: string, blurb: string, fx: Fx }
@@ -20,9 +19,9 @@ export type Rarity = { name: string, color: string, weight: number }
 local Traits = {}
 
 Traits.MAX = 4 -- mutations a driftling carries at most
-Traits.KEYS = { "work", "farm", "fish", "wood", "shop", "cost", "sell", "charm", "tide", "luck" }
+Traits.KEYS = { "work", "farm", "fish", "wood", "shop", "cost", "sell", "charm", "tree", "luck" }
 
--- The rarities: their names, colours (UIKit / Palette keys) and how often each drifts in (weights, before luck).
+-- The rarities: their names, colours (UIKit / Palette keys) and how often the tree lays each (weights, before luck).
 Traits.RARITY = {
 	{ name = "Common", color = "text_dim", weight = 100 },
 	{ name = "Uncommon", color = "good", weight = 45 },
@@ -41,7 +40,7 @@ local FAMILIES: { { family: string, key: string, names: { string }, values: { nu
 	{ family = "sturdy", key = "cost", names = { "Thrifty", "Frugal", "Modest", "Selfless" }, values = { -0.15, -0.3, -0.5, -0.8 } },
 	{ family = "fierce", key = "sell", names = { "Shiny", "Glossy", "Golden", "Radiant" }, values = { 0.3, 0.7, 1.5, 3 } },
 	{ family = "armor", key = "charm", names = { "Cute", "Sweet", "Adorable", "Beloved" }, values = { 1, 2, 3, 5 } },
-	{ family = "swift", key = "tide", names = { "Breezy", "Seaborne", "Wavebound", "Moonpull" }, values = { 0.04, 0.08, 0.14, 0.22 } },
+	{ family = "swift", key = "tree", names = { "Leafy", "Blooming", "Lush", "Evergreen" }, values = { 0.04, 0.08, 0.14, 0.22 } },
 	{ family = "bright", key = "luck", names = { "Lucky", "Blessed", "Fortunate", "Starborn" }, values = { 0.05, 0.1, 0.18, 0.3 } },
 	{ family = "busy", key = "work", names = { "Busy", "Diligent", "Tireless", "Workaholic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
 	{ family = "grower", key = "farm", names = { "Green Thumb", "Grower", "Harvester", "Bountiful" }, values = { 0.12, 0.24, 0.4, 0.65 } },
@@ -178,7 +177,7 @@ function Traits.clean(muts: any): { string }
 	return out
 end
 
--- An effect's words for the panels ("+24% at farms", "costs 30% less", "+2 charm").
+-- An effect's words for the panels ("+24% at farms", "eggs cost 30% less", "eggs 8% sooner", "+2 charm").
 local WORDS: { [string]: string } = {
 	work = "work",
 	farm = "at farms",
@@ -186,8 +185,7 @@ local WORDS: { [string]: string } = {
 	wood = "at wood",
 	shop = "at shops",
 	sell = "sell price",
-	tide = "arrivals",
-	luck = "tide luck",
+	luck = "egg luck",
 }
 function Traits.describe(fx: Fx): string
 	local parts: { string } = {}
@@ -195,7 +193,9 @@ function Traits.describe(fx: Fx): string
 		local v = fx[k]
 		if v and math.abs(v) > 1e-6 then
 			if k == "cost" then
-				table.insert(parts, string.format("costs %d%% %s", math.round(math.abs(v) * 100), if v < 0 then "less" else "more"))
+				table.insert(parts, string.format("eggs cost %d%% %s", math.round(math.abs(v) * 100), if v < 0 then "less" else "more"))
+			elseif k == "tree" then
+				table.insert(parts, string.format("eggs %d%% %s", math.round(math.abs(v) * 100), if v > 0 then "sooner" else "later"))
 			elseif k == "charm" then
 				table.insert(parts, string.format("%s%d charm", if v > 0 then "+" else "", math.round(v)))
 			else

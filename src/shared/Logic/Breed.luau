@@ -1,7 +1,7 @@
 --!strict
 -- The Hatchery (GAME_DESIGN 6.1: "make a breeding system that also works like in palworld that unlocks after a certain
 -- island level"): two driftlings and a feast make an egg; it hatches after a few island turns into a hut with room
--- (Logic/Tide.add: with none it waits with no hut till one has room).
+-- (Logic/Tree.add: with none it waits with no hut till one has room).
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
 --   nearest the parents' average (the commoner, then the first by name, on a tie). A legend only hatches from two
@@ -17,7 +17,7 @@ local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Island = require(script.Parent.Island)
-local Tide = require(script.Parent.Tide)
+local Tree = require(script.Parent.Tree)
 
 type Profile = Types.Profile
 type Egg = Types.Egg
@@ -183,7 +183,7 @@ function Breed.turn(p: Profile): { Types.Pal }
 		egg.left = math.max(0, egg.left - 1)
 		local d = Creatures.byId[egg.sp]
 		if egg.left == 0 and d then
-			table.insert(born, Tide.add(p, egg.sp, Traits.clean(egg.muts)))
+			table.insert(born, Tree.add(p, egg.sp, Traits.clean(egg.muts)))
 			p.stats.hatched += 1
 		else
 			table.insert(keep, egg)

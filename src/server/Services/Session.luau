@@ -1,9 +1,8 @@
 --!strict
 -- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the island's day clock,
 -- and what the client is sent. The client mirrors the profile through State messages (the whole ClientView, sent when
--- something changed: Session.dirty) and shows Fx messages (the stores and the tide's clock every second, a new day, an
--- egg hatched, the driftlings that came in on the tide and went past). The tide (Logic/Tide.State) is the session's,
--- never saved.
+-- something changed: Session.dirty) and shows Fx messages (the stores and the time to the tree's next eggs every
+-- second, a new day, an egg hatched, the Tree of Life's new eggs). The tree's eggs are the profile's (saved).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -11,7 +10,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
-local Tide = require(ReplicatedStorage.Shared.Logic.Tide)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -23,9 +22,7 @@ export type S = {
 	turnClock: number, -- seconds into the island's turn
 	dayIndex: number, -- the sea's calendar day when this island last counted one (WorldClock.dayIndex)
 	tickClock: number, -- seconds toward the next stores message
-	tide: Tide.State, -- the driftlings floating past (IslandService runs it on the server's time)
 	dirty: boolean,
-	tideDirty: boolean, -- the tide changed: the plot's Tide attribute is out of date (Main syncs it)
 	saveAt: number,
 	reqTimes: { number },
 }
@@ -44,14 +41,10 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		turnClock = 0,
 		dayIndex = WorldClock.dayIndex(),
 		tickClock = 0,
-		tide = Tide.new(workspace:GetServerTimeNow()),
 		dirty = true,
-		tideDirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
 	}
-	-- (the tide is already running when the player arrives)
-	Tide.start(profile, s.tide, s.rng)
 	sessions[player] = s
 	return s
 end
@@ -68,7 +61,7 @@ function Session.all(): { [Player]: S }
 	return sessions
 end
 
--- What the client sees: the profile plus what the rules derive from it, and the tide (each one's cost on this island).
+-- What the client sees: the profile plus what the rules derive from it (the tree's eggs each with its price).
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
 	local r = Island.rates(p)
@@ -80,8 +73,9 @@ function Session.view(s: S): Types.ClientView
 		tier = p.tier,
 		founder = p.founder,
 		pals = p.pals,
-		tide = Tide.view(p, s.tide),
-		tideSecs = Tide.secs(p),
+		clutch = Tree.view(p),
+		clutchLeft = p.clutch.left,
+		clutchSecs = Tree.secs(p),
 		plot = s.plot,
 		pieces = p.plot.placed,
 		seen = p.seen,

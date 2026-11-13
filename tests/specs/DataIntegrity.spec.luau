@@ -15,14 +15,16 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { farm = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, decor = true }
+		local kinds = { farm = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, decor = true, tree = true }
 		for _, d in Buildings.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
 			T.truthy(kinds[d.kind], d.id .. " kind")
 			-- (every piece is paid for in wood: "make wood the main resource for building/expanding")
-			T.truthy(d.shells == 0 and d.wood > 0 and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id .. " price and footprint")
-			T.truthy(d.tier >= 1 and d.tier <= #Office.plans, d.id .. " tier")
+			-- (the Tree of Life is never bought: no price, no tier a player reaches)
+			local tree = d.kind == "tree"
+			T.truthy(d.shells == 0 and (d.wood > 0) ~= tree and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id .. " price and footprint")
+			T.truthy(tree or (d.tier >= 1 and d.tier <= #Office.plans), d.id .. " tier")
 			local makes = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
 			T.truthy(makes == (d.knack ~= ""), d.id .. " knack")
@@ -33,7 +35,7 @@ return function()
 			T.truthy(d.comfort == 0 or d.kind == "nest", d.id .. " comfort is a hut's")
 			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
-		T.eq(Buildings.byId.tree, nil, "no Tree of Life: the tide brings the driftlings")
+		T.eq(Buildings.byId.tree.kind, "tree", "the Tree of Life: every island's")
 		T.truthy(seen.patch and seen.nest and seen.lumber and seen.stall, "the first buildings")
 		T.eq(Buildings.byId.tent, nil, "no homes: no villagers")
 		for _, id in { "patch", "nest", "lumber", "stall" } do

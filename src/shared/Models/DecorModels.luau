@@ -1463,6 +1463,210 @@ local function pennant(m: Model, f: CFrame, lvl: number, w: number, d: number)
 end
 
 
+------------------------------------------------------------------ the Tree of Life (GAME_DESIGN 6; Logic/Tree)
+-- Tree of Life (8 x 8; `lvl` its stage, 1 .. 4, Logic/Tree.stage: it grows grander with the island: from the second
+-- stage a taller trunk, a crown climbing and spreading wider, more runes, blossom, fruit, lanterns and lit stones; at
+-- the last a crown in full blossom, a ring of light over it and a second ring of light on the ground). The request
+-- (2026-11-12): "make the tree of life more like a tree of life, reference references for it, make it look bigger and
+-- more grand". After the old pictures of a world tree (our own design): a great trunk of three strands braided round
+-- each other, wide roots that spread over the ground the way the limbs spread overhead (as above, so below), a ring
+-- of standing stones round its foot (the circle of life), a glowing hollow at the front (`Pod`), glowing marks winding
+-- up the bark, long limbs holding out clouds of leaves with sky between them, aerial roots and blossom hanging from
+-- them, gold fruit glowing under them, a ring of light on the ground, and motes of light drifting round. Round the
+-- ring of light a wide mossy lawn where its eggs lie (2026-11-13: "it now spawns eggs around it"): they are the
+-- client's (Controllers/EggView), on a circle DecorModels.EGG_RING studs from its middle. DecorModels.HOLLOW: the
+-- hollow's foot in the model's own frame.
+DecorModels.HOLLOW = Vector3.new(0, 0, 1.25)
+DecorModels.EGG_RING = 3.45
+B.tree = function(m, f, stage)
+	local s = math.clamp(stage or 1, 1, 4)
+	-- what each stage adds (the ground, the stones and the roots stay inside the inner 6 x 6 of its footprint, the eggs'
+	-- lawn round them; the trunk rises, the
+	-- crown climbs and spreads, and the light and fruit grow with it)
+	local hs = ({ 1, 1.18, 1.36, 1.55 })[s] -- the top cloud's height
+	local ys = ({ 1, 1.1, 1.2, 1.3 })[s] -- the limbs' and the ring of clouds' height (the crown spreads more than it climbs)
+	local rs = ({ 1, 1.15, 1.32, 1.5 })[s] -- the crown's spread
+	local ts = ({ 1, 1.1, 1.2, 1.3 })[s] -- the trunk's girth
+	local cs = ({ 1, 1.1, 1.2, 1.3 })[s] -- each leaf cloud's size
+	local function part(size: Vector3, cf: CFrame, color: string, name: string, neon: boolean?)
+		return Blocks.part(m, { size = size, cf = f * cf, color = color, name = name, neon = neon, collide = false })
+	end
+	-- the ground: a round mossy lawn wide enough for the ring of eggs, a soft rim of clover round it, a darker ring of
+	-- moss round the trunk
+	cyl(m, f, 0, 0.02, 0, 7.8, 0.04, "leaf", "EggLawn")
+	cyl(m, f, 0, 0.03, 0, 5.9, 0.06, "grass_dark", "Lawn")
+	cyl(m, f, 0, 0.07, 0, 3.6, 0.06, "leaf_dark", "Moss")
+	-- the circle of standing stones round its foot (a gap at the front for the hollow); more of them glow as it grows:
+	-- every third, then every other one, then all of them
+	local glowEvery = ({ 3, 2, 1, 1 })[s]
+	for k = 0, 9 do
+		local a = (k + 0.5) / 10 * math.pi * 2
+		local h = (if k % 3 == 0 then 0.95 else 0.7) * (if s == 4 then 1.2 else 1)
+		local x, z = math.sin(a) * 2.6, math.cos(a) * 2.6
+		if z > 2.3 then
+			continue
+		end
+		part(Vector3.new(0.45, h, 0.32), CFrame.new(x, h / 2, z) * CFrame.Angles(0, a, 0), if k % 2 == 0 then "rock" else "rock_dark", "Stone")
+		part(Vector3.new(0.47, 0.1, 0.34), CFrame.new(x, h + 0.04, z) * CFrame.Angles(0, a, 0), if s == 4 then "gold" else "leaf_dark", "StoneMoss")
+		if k % glowEvery == 0 then
+			-- a glowing mark carved in the stone
+			part(Vector3.new(0.14, 0.3, 0.04), CFrame.new(x, h * 0.55, z) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 0.17), "screen_on", "Glyph", true)
+		end
+	end
+	-- wide roots spreading over the ground, as the limbs spread overhead: each in two lengths, sloping down
+	for k = 0, 7 do
+		local a = k / 8 * math.pi * 2 + 0.2
+		if math.abs(((a + math.pi) % (math.pi * 2)) - math.pi) < 0.3 then
+			continue -- (the front stays clear: the hollow)
+		end
+		local dx, dz = math.sin(a), math.cos(a)
+		part(Vector3.new(0.7 * ts, 0.55 * ts, 1.5), CFrame.new(dx * 1.1 * ts, 0.32 * ts, dz * 1.1 * ts) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(14), 0, 0), if k % 2 == 0 then "wood_dark" else "wood", "Root")
+		part(Vector3.new(0.45, 0.35, 1.2), CFrame.new(dx * 2.0, 0.16, dz * 2.0) * CFrame.Angles(0, a + 0.15, 0) * CFrame.Angles(math.rad(8), 0, 0), "wood_dark", "Root")
+	end
+	-- the trunk: a flared core, and three thick strands braided round it, twisting as they rise
+	local base = 7.0 * ys -- where the limbs leave the trunk
+	cyl(m, f, 0, 0.6, 0, 2.4 * ts, 1.2, "wood_dark", "Trunk")
+	local drums = math.ceil((base - 1.0) / 0.85)
+	for i = 0, drums - 1 do
+		cyl(m, f, 0, 1.0 + i * 0.85, 0, (1.9 - i * 0.08 / ys) * ts, 0.9, "wood_dark", "Trunk")
+	end
+	local segs = math.floor(8 * ys + 0.5)
+	for st = 0, 2 do
+		for i = 0, segs - 1 do
+			local a = st / 3 * math.pi * 2 + i * 0.45
+			local r = (0.7 - i * 0.03 / ys) * ts
+			cyl(m, f, math.sin(a) * r, 0.7 + i * 0.85, math.cos(a) * r, (1.15 - i * 0.04 / ys) * ts, 0.95, if (st + i) % 2 == 0 then "wood" else "wood_dark", "Strand")
+		end
+	end
+	-- glowing marks winding up the bark (more as it grows)
+	for i = 0, 3 + 3 * s - 1 do
+		local a = i * 0.9 + 0.6
+		local r = (1.08 - i * 0.03 / ys) * ts
+		part(Vector3.new(0.12, 0.34, 0.08), CFrame.new(math.sin(a) * r, 1.8 + i * 0.8 * (ys * 6 / (3 + 3 * s)), math.cos(a) * r) * CFrame.Angles(0, a, 0), "screen_on", "Rune", true)
+	end
+	-- the hollow at the front: an arched opening of dark wood, a warm light in it
+	local hz = 1.18 * ts
+	part(Vector3.new(1.0, 1.25, 0.2), CFrame.new(0, 0.7, hz), "black", "Hollow")
+	part(Vector3.new(0.7, 0.95, 0.1), CFrame.new(0, 0.62, hz + 0.08), "gold", "Pod", true)
+	part(Vector3.new(1.3, 0.22, 0.24), CFrame.new(0, 1.4, hz + 0.02), "wood_dark", "Lintel")
+	part(Vector3.new(0.22, 1.3, 0.24), CFrame.new(-0.6, 0.65, hz + 0.02), "wood", "Jamb")
+	part(Vector3.new(0.22, 1.3, 0.24), CFrame.new(0.6, 0.65, hz + 0.02), "wood", "Jamb")
+	-- the crown: clouds of leaves held out on long limbs, one at the top and a ring round it at two heights (eight
+	-- from the third stage, and an upper ring of four), with sky between them so the limbs show
+	local function limb(p0: Vector3, p1: Vector3, thick: number, color: string)
+		local mid = (p0 + p1) / 2
+		part(Vector3.new(thick, thick, (p1 - p0).Magnitude + thick * 0.5), CFrame.lookAt(mid, p1), color, "Branch")
+	end
+	local clouds: { Vector3 } = { Vector3.new(0, 12.2 * hs, 0) }
+	local ring = if s >= 3 then 8 else 6
+	for k = 0, ring - 1 do
+		local a = k / ring * math.pi * 2 + 0.3
+		local r = (if k % 2 == 0 then 3.5 else 3.1) * rs
+		table.insert(clouds, Vector3.new(math.sin(a) * r, (if k % 2 == 0 then 8.9 else 10.3) * ys, math.cos(a) * r))
+	end
+	if s >= 3 then
+		for k = 0, 3 do
+			local a = k / 4 * math.pi * 2 + 0.7
+			table.insert(clouds, Vector3.new(math.sin(a) * 2.2 * rs, (10.3 * ys + 12.2 * hs) / 2, math.cos(a) * 2.2 * rs))
+		end
+	end
+	local top = Vector3.new(0, base, 0)
+	for k, c in clouds do
+		-- the limb out to it, forking once on the way
+		local bend = Vector3.new(c.X * 0.55, base + 0.6 + (c.Y - base - 0.6) * 0.35, c.Z * 0.55)
+		limb(top, bend, (if k == 1 then 0.75 else 0.6) * ts, if k % 2 == 0 then "wood" else "wood_dark")
+		limb(bend, c - Vector3.new(0, 0.6, 0), 0.45 * ts, "wood_dark")
+		if k > 1 then
+			local side = Vector3.new(-c.Z, 0, c.X).Unit * 1.1
+			limb(bend, c + side * 0.8 - Vector3.new(0, 0.4, 0), 0.3, "wood_dark")
+		end
+		-- the cloud: a dark underside, a light top, side puffs (in full blossom at the last stage)
+		local big = (if k == 1 then 3.0 else 2.6) * cs
+		ball(m, f, c.X, c.Y - 0.55, c.Z, big * 0.85, "leaf_dark", "LeavesUnder")
+		ball(m, f, c.X, c.Y, c.Z, big, "leaf", "Leaves")
+		for j = 0, 3 do
+			local a = j / 4 * math.pi * 2 + k
+			ball(m, f, c.X + math.sin(a) * big * 0.42, c.Y - 0.15, c.Z + math.cos(a) * big * 0.42, big * 0.7, if j % 2 == 0 then "leaf" else "leaf_dark", "Leaves")
+		end
+		ball(m, f, c.X + 0.2, c.Y + big * 0.32, c.Z - 0.1, big * 0.6, "leaf", "Leaves")
+		if s == 4 then
+			ball(m, f, c.X - 0.3, c.Y + big * 0.42, c.Z + 0.2, big * 0.38, if k % 2 == 0 then "pink" else "white", "Blossom")
+		end
+	end
+	-- blossom through the clouds (more as it grows)
+	for k = 0, 20 + 9 * (s - 1) do
+		local c = clouds[k % #clouds + 1]
+		local a = k * 2.4
+		ball(m, f, c.X + math.sin(a) * 1.2 * cs, c.Y + 0.4 + (k % 3) * 0.25, c.Z + math.cos(a) * 1.2 * cs, if k % 3 == 0 then 0.6 else 0.45, if k % 2 == 0 then "pink" else "white", "Blossom")
+	end
+	-- aerial roots hanging from the clouds (the roots again, overhead), longer as it grows
+	for k = 2, #clouds do
+		local c = clouds[k]
+		local len = (1.0 + (k % 3) * 0.6) * (1 + 0.25 * (s - 1))
+		local out = Vector3.new(c.X, 0, c.Z).Unit * 1.2 * cs
+		part(Vector3.new(0.12, len, 0.12), CFrame.new(c.X + out.X, c.Y - 1.1 - len / 2, c.Z + out.Z), "leaf_dark", "Vine")
+		part(Vector3.new(0.22, 0.18, 0.22), CFrame.new(c.X + out.X, c.Y - 1.1 - len, c.Z + out.Z), if k % 2 == 0 then "pink" else "leaf", "VineTip")
+	end
+	-- a ring of light on the ground round the stones (the circle of life), in short glowing dashes; a second ring
+	-- inside it at the last stage
+	for k = 0, 23 do
+		local a = (k + 0.5) / 24 * math.pi * 2
+		local x, z = math.sin(a) * 2.95, math.cos(a) * 2.95
+		if math.abs(x) < 0.7 and z > 0 then
+			continue
+		end
+		part(Vector3.new(0.4, 0.04, 0.12), CFrame.new(x, 0.08, z) * CFrame.Angles(0, a + math.pi / 2, 0), "gold", "Ring", true)
+		if s == 4 and k % 2 == 0 then
+			part(Vector3.new(0.3, 0.04, 0.1), CFrame.new(x * 0.72, 0.09, z * 0.72) * CFrame.Angles(0, a + math.pi / 2, 0), "gold", "Ring", true)
+		end
+	end
+	-- gold fruit glowing under the clouds (three a cloud from the third stage)
+	for k = 2, #clouds do
+		local c = clouds[k]
+		for j = 0, (if s >= 3 then 2 else 1) do
+			local a = j * (math.pi * 2 / (if s >= 3 then 3 else 2)) + k
+			local x, y, z = c.X + math.sin(a) * 0.9 * cs, c.Y - 1.55 * cs - j * 0.2, c.Z + math.cos(a) * 0.9 * cs
+			part(Vector3.new(0.06, 0.45, 0.06), CFrame.new(x, y + 0.42, z), "wood_dark", "Stalk")
+			ball(m, f, x, y, z, 0.5, "gold", "Fruit").Material = Enum.Material.Neon
+		end
+	end
+	-- lanterns of light hanging from the lower limbs (from the second stage)
+	if s >= 2 then
+		for k = 2, ring + 1, 2 do
+			local c = clouds[k]
+			local x, z = c.X * 0.7, c.Z * 0.7
+			local y = base + 0.2
+			part(Vector3.new(0.05, 0.6, 0.05), CFrame.new(x, y - 0.3, z), "wood_dark", "Stalk")
+			part(Vector3.new(0.3, 0.38, 0.3), CFrame.new(x, y - 0.75, z), "yellow", "Lantern", true)
+		end
+	end
+	-- a crown of light over the top cloud at the last stage
+	if s == 4 then
+		local c = clouds[1]
+		for k = 0, 11 do
+			local a = k / 12 * math.pi * 2
+			part(Vector3.new(0.34, 0.1, 0.1), CFrame.new(c.X + math.sin(a) * 1.7, c.Y + 2.6, c.Z + math.cos(a) * 1.7) * CFrame.Angles(0, a + math.pi / 2, 0), "gold", "Halo", true)
+		end
+	end
+	-- motes of light drifting round it (more as it grows)
+	local motes = { { -2.4, 3.2, 1.6 }, { 2.2, 4.4, 1.2 }, { -1.6, 5.6, -2.0 }, { 2.6, 2.4, -1.0 }, { 0.6, 6.4, 2.4 }, { -2.8, 6.8, 0.2 } }
+	for k = 1, 3 * (s - 1) do
+		local a = k * 2.1
+		table.insert(motes, { math.sin(a) * (2.4 + (k % 3) * 0.5) * rs, 3 + (k % 5) * 1.3 * ys, math.cos(a) * (2.4 + (k % 3) * 0.5) * rs })
+	end
+	for k, c in motes do
+		part(Vector3.new(0.18, 0.18, 0.18), CFrame.new(c[1], c[2] * (if k <= 6 then ys else 1), c[3]), if k % 2 == 0 then "yellow" else "white", "Mote", true)
+	end
+	-- mushrooms and flowers among the roots
+	for k, c in { { -2.0, 1.4 }, { 1.7, 1.6 }, { -1.5, -2.0 }, { 2.1, -1.2 } } do
+		box(m, f, c[1], 0.19, c[2], 0.12, 0.34, 0.12, "cream", "Stalk")
+		box(m, f, c[1], 0.4, c[2], 0.36, 0.14, 0.36, if k % 2 == 0 then "berry_red" else "orange", "Cap")
+	end
+	for k, c in { { -1.2, 2.1 }, { 1.2, 2.1 }, { -2.3, -0.4 }, { 2.4, 0.4 }, { 0.3, -2.4 } } do
+		box(m, f, c[1], 0.13, c[2], 0.22, 0.12, 0.22, if k % 2 == 0 then "yellow" else "pink", "Flower")
+	end
+end
+
 -- The piece's model at `at` (the footprint's centre on the grass, turned). Unknown ids build nothing.
 function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	local m = Blocks.model(nil, "Decor_" .. id)
@@ -1472,7 +1676,7 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	if fn then
 		fn(m, at, l)
 	end
-	if l >= 2 then
+	if l >= 2 and id ~= "tree" then -- (the tree's lvl is its stage: no pennant)
 		local size = FOOT[id]
 		if size then
 			pennant(m, at, l, size[1], size[2])

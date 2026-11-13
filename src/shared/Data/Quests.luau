@@ -4,9 +4,9 @@
 -- each names something to do, says where to do it, and pays a small reward when the player claims it (Logic/Quest).
 --   goal: what it counts (Logic/Quest.count) and how many; `of` a building kind for "built".
 --     "helpers" driftlings at work, "housed" driftlings in huts, "paths" path tiles, "decor" decorations, "built"
---     pieces of a kind, "taken" driftlings taken in off the tide, "sold" driftlings sold, "best" the rarest driftling
+--     pieces of a kind, "taken" the tree's eggs hatched, "sold" driftlings sold, "best" the rarest driftling
 --     had (1 .. 5), "tier" the island's tier, "seen" kinds in the Index, "hatched" eggs hatched
---   go: where its Go button takes the player: a panel ("pals" "index" "hatch" "tide") or Build mode ("build",
+--   go: where its Go button takes the player: a panel ("pals" "index" "hatch" "tree") or Build mode ("build",
 --     or "build:<tab>")
 --   reward: wood for the building quests, shells for the driftling ones (what each pays for)
 export type Goal = { kind: string, n: number, of: string? }
@@ -36,12 +36,12 @@ local list: { Quest } = {
 	},
 	{
 		id = "take3",
-		title = "Three off the tide",
-		text = "Driftlings float past the island. Tap one to take it in.",
+		title = "Hatch three eggs",
+		text = "The Tree of Life lays eggs round its roots. Tap one to hatch it.",
 		goal = { kind = "taken", n = 3 },
 		reward = { shells = 60, wood = 40 },
-		go = "tide",
-		icon = "tide",
+		go = "tree",
+		icon = "tree",
 	},
 	{
 		id = "camp",
@@ -73,10 +73,10 @@ local list: { Quest } = {
 	{
 		id = "uncommon",
 		title = "An uncommon one",
-		text = "Uncommon ones float by now and then. They cost more and work faster.",
+		text = "Green-spotted eggs hatch uncommon ones. They cost more and work faster.",
 		goal = { kind = "best", n = 2 },
 		reward = { shells = 100 },
-		go = "tide",
+		go = "tree",
 		icon = "star",
 	},
 	{
@@ -109,16 +109,16 @@ local list: { Quest } = {
 	{
 		id = "rare",
 		title = "A rare one",
-		text = "Rare ones carry a lantern. Save some shells for one.",
+		text = "Blue-spotted eggs hatch rare ones, and they glow at night. Save some shells for one.",
 		goal = { kind = "best", n = 3 },
 		reward = { shells = 200 },
-		go = "tide",
+		go = "tree",
 		icon = "star",
 	},
 	{
 		id = "expand",
 		title = "Grow your island",
-		text = "In Build mode tap Expand. A bigger island fits more, and new kinds float by.",
+		text = "In Build mode tap Expand. A bigger island fits more, and the tree lays more eggs, and better ones.",
 		goal = { kind = "tier", n = 2 },
 		reward = { shells = 200, wood = 400 },
 		go = "build",
@@ -184,17 +184,17 @@ local list: { Quest } = {
 		text = "Epic driftlings work more than three times as fast as common ones.",
 		goal = { kind = "best", n = 4 },
 		reward = { wood = 3000 },
-		go = "tide",
+		go = "tree",
 		icon = "star",
 	},
 	{
 		id = "crowd",
-		title = "Sixty off the tide",
-		text = "Take in sixty driftlings in all. Swap out the weak ones as better ones come.",
+		title = "Sixty hatched",
+		text = "Hatch sixty eggs in all. Swap out the weak ones as better ones come.",
 		goal = { kind = "taken", n = 60 },
 		reward = { shells = 3000 },
-		go = "tide",
-		icon = "tide",
+		go = "tree",
+		icon = "tree",
 	},
 }
 

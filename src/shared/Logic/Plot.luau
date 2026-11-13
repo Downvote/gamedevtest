@@ -4,8 +4,10 @@
 -- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
 -- footprint's width and depth). A piece stands wholly on the island's buildable cells (Data/Street: the grass a stud
 -- in from its edge, the island's shape by its tier), off the plaza round the campfire and the path to the jetty, and
--- off every other piece. Clearing a hut away (or replacing it with a smaller one) leaves the driftlings it can no
--- longer house with no hut: they wait till a hut has room (Logic/Tide.settle).
+-- off every other piece. The Tree of Life (Data/Buildings kind "tree": every island's, Logic/Tree) may be moved like any
+-- piece, but is never bought, cleared away or replaced, and isn't counted in the piece limit. Clearing a hut away (or
+-- replacing it with a smaller one) leaves the driftlings it can no longer house with no hut: they wait till a hut has
+-- room (Logic/Tree.settle).
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Street = require(script.Parent.Parent.Data.Street)
@@ -34,12 +36,18 @@ function Plot.isPath(id: string): boolean
 	return d ~= nil and d.kind == "path"
 end
 
--- How many pieces of the same count as `id` stand (paths, or the rest), and that count's limit.
+-- Whether a piece is the Tree of Life (it stays on the island: never bought, cleared away or replaced).
+function Plot.isFixed(id: string): boolean
+	local d = Buildings.byId[id]
+	return d ~= nil and d.kind == "tree"
+end
+
+-- How many pieces of the same count as `id` stand (paths, or the rest: the tree never counts), and that count's limit.
 function Plot.used(p: Profile, id: string): (number, number)
 	local path = Plot.isPath(id)
 	local n = 0
 	for _, q in p.plot.placed do
-		if Plot.isPath(q.id) == path then
+		if Plot.isPath(q.id) == path and not Plot.isFixed(q.id) then
 			n += 1
 		end
 	end
@@ -107,7 +115,7 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 end
 
 -- The free spot nearest (x, z) where piece `id` fits (turned `rot`, or a quarter more if that is nearer), searched over
--- the island's grass: x, z, rot, or nil when there is none (refit moves pieces with it).
+-- the island's grass: x, z, rot, or nil when there is none (Logic/Tree plants the tree with it; refit moves pieces).
 function Plot.spot(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number): (number?, number?, number?)
 	local pr = Street.plot(tier)
 	local best, bx, bz, brot = math.huge, nil, nil, rot
@@ -128,7 +136,7 @@ function Plot.spot(tier: number, placed: { Piece }, id: string, x: number, z: nu
 end
 
 -- Driftlings out of a hut that is gone (cleared away, or past a smaller hut's room): no hut, resting (they move into
--- a hut with room again: Logic/Tide.settle).
+-- a hut with room again: Logic/Tree.settle).
 local function unhouse(p: Profile, uid: number, keep: number?)
 	local list: { Types.Pal } = {}
 	for _, x in p.pals do
@@ -148,10 +156,10 @@ Plot.unhouse = unhouse
 
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit, its price (wood; IslandService then sends
--- resting driftlings of its knack to work there: Logic/Tide.fillJobs).
+-- resting driftlings of its knack to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
-	if def == nil then
+	if def == nil or def.kind == "tree" then
 		return false, "bad_payload" :: ErrCode
 	end
 	if def.tier > p.tier then
@@ -312,7 +320,7 @@ end
 function Plot.replacements(q: Piece, tier: number): { string }
 	local old = Buildings.byId[q.id]
 	local out: { string } = {}
-	if old == nil then
+	if old == nil or old.kind == "tree" then
 		return out
 	end
 	for _, d in Buildings.list do
@@ -325,12 +333,12 @@ end
 
 -- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a hut for a den, a patch for an
 -- orchard): its uid stays (its workers stay where the knack still fits), its level starts again at 1. bad_payload
--- (another kind, the same piece), locked (a bigger island's), money / wood, blocked (the new footprint does not fit
--- there). A smaller hut keeps the driftlings it has room for; the rest are left with no hut.
+-- (another kind, the same piece, the tree), locked (a bigger island's), money / wood, blocked (the new footprint does
+-- not fit there). A smaller hut keeps the driftlings it has room for; the rest are left with no hut.
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	local q = p.plot.placed[i]
 	local old, new = if q then Buildings.byId[q.id] else nil, Buildings.byId[id]
-	if q == nil or old == nil or new == nil or new.kind ~= old.kind or new.id == old.id then
+	if q == nil or old == nil or new == nil or new.kind ~= old.kind or new.id == old.id or old.kind == "tree" then
 		return false, "bad_payload" :: ErrCode
 	end
 	if new.tier > p.tier then
@@ -369,7 +377,16 @@ end
 function Plot.refit(p: Profile): (number, number)
 	local kept: { Piece } = {}
 	local homeless: { Piece } = {}
+	-- (the tree first: it keeps its place, the rest make room round it)
+	local order: { Piece } = {}
 	for _, q in p.plot.placed do
+		if Plot.isFixed(q.id) then
+			table.insert(order, 1, q)
+		else
+			table.insert(order, q)
+		end
+	end
+	for _, q in order do
 		if Plot.fits(p.tier, kept, q.id, q.x, q.z, q.rot) then
 			table.insert(kept, q)
 		else
@@ -387,6 +404,9 @@ function Plot.refit(p: Profile): (number, number)
 			q.x, q.z, q.rot = bx, bz, brot
 			table.insert(kept, q)
 			moved += 1
+		elseif Plot.isFixed(q.id) then
+			-- (the tree is never cleared away: it stays where it stood)
+			table.insert(kept, q)
 		else
 			local def = Buildings.byId[q.id]
 			if def then
@@ -416,11 +436,14 @@ function Plot.refit(p: Profile): (number, number)
 end
 
 -- Clear a piece away: a share of its price back; its workers go to rest, a hut's driftlings are left with no hut. Not
--- a Hatchery warming an egg (egg).
+-- the tree (fixed), not a Hatchery warming an egg (egg).
 function Plot.store(p: Profile, i: number): (boolean, any)
 	local q = p.plot.placed[i]
 	if q == nil then
 		return false, "bad_payload" :: ErrCode
+	end
+	if Plot.isFixed(q.id) then
+		return false, "fixed" :: ErrCode
 	end
 	local def = Buildings.byId[q.id]
 	if def then

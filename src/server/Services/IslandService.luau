@@ -1,19 +1,18 @@
 --!strict
 -- The island on the server (docs/ARCHITECTURE.md 7.4): every player action and the island's clock, as thin wrappers
--- round the shared rules (Logic/Island, Plot, Tide, Breed) that mark the session dirty and tell the client what
--- happened. The island makes wood and shells every step (Island.step); the tide brings a driftling in every second
--- and each floats past the island and off (Tide.step; Fx "tide"); the stores go to the client every second (Fx "tick",
+-- round the shared rules (Logic/Island, Plot, Tree, Breed) that mark the session dirty and tell the client what
+-- happened. The island makes wood and shells every step (Island.step); the Tree of Life lays a new lot of eggs every
+-- few minutes (Tree.step; Fx "eggs"); the stores and the time to the next lot go to the client every second (Fx "tick",
 -- so the whole view is not sent every second); a turn ends every Tuning.TurnSeconds (the eggs; Fx
 -- "turn"), and the sea's clock (WorldClock: hours a day) counts the calendar days (Island.newDay; Fx "day").
 -- Everything runs while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
-local Tide = require(ReplicatedStorage.Shared.Logic.Tide)
+local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Session = require(script.Parent.Session)
@@ -26,9 +25,9 @@ local IslandService = {}
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
 -- The tips (GAME_DESIGN 9): 1 wood (a lumber camp: wood builds everything), 2 shells (a farm: it sells what it
--- grows), 3 a hut, 4 a driftling off the tide (taken in with shells), 5 a shop (it sells to the visitors), 6 the last
--- tip (OK ends them). Each moves on once what it asks is done (a save from before the tide moves on through the ones
--- it has done at once).
+-- grows), 3 a hut, 4 an egg hatched from the Tree of Life (with shells), 5 a shop (it sells to the visitors), 6 the last
+-- tip (OK ends them). Each moves on once what it asks is done (an older save moves on through the ones it has done
+-- at once).
 local TIP_KIND: { [number]: string } = { [1] = "wood", [2] = "farm", [3] = "nest", [5] = "shop" }
 local function tips(s: Session.S)
 	local p = s.profile
@@ -49,19 +48,6 @@ local function tips(s: Session.S)
 	end
 end
 
--- The tide's news (driftlings that came in, and the ones gone past) go to the client on their own (one a second: the
--- whole view isn't sent for them; StateClient patches its copy), and the plot's Tide attribute follows (Main).
-local function tide(s: Session.S, came: { Types.Drift }, gone: { number })
-	if #came > 0 or #gone > 0 then
-		s.tideDirty = true
-		local list = {}
-		for _, d in came do
-			table.insert(list, Tide.entry(s.profile, d))
-		end
-		Session.fx(s, { kind = "tide", came = list, gone = gone })
-	end
-end
-
 function IslandService.init()
 	-- building (GAME_DESIGN 4): every change rebuilds the island's pieces by difference
 	local function rebuilt(fn: (s: Session.S, a: any) -> (boolean, any)): (s: Session.S, a: any) -> (boolean, any)
@@ -70,8 +56,8 @@ function IslandService.init()
 			if ok then
 				-- (a building of a knack: the hut driftlings resting there take a place; a hut built: the ones with no
 				-- hut move in)
-				Tide.settle(s.profile)
-				Tide.fillJobs(s.profile)
+				Tree.settle(s.profile)
+				Tree.fillJobs(s.profile)
 				PlotService.buildDecor(s)
 				tips(s)
 			end
@@ -118,7 +104,12 @@ function IslandService.init()
 	Router.on("island.expand", function(s, _a)
 		local ok, data = Island.expand(s.profile)
 		if ok then
+			-- (a bigger island: the tree lays its extra eggs at once)
+			local laid = Tree.fill(s.profile, s.rng)
 			PlotService.build(s)
+			if #laid > 0 then
+				Session.fx(s, { kind = "eggs", laid = Tree.view(s.profile), more = #laid })
+			end
 		end
 		return ok, data
 	end)
@@ -126,21 +117,21 @@ function IslandService.init()
 	Router.on("pal.work", function(s, a)
 		return Island.setHelp(s.profile, a.id, a.uid)
 	end)
-	-- the tide and the huts (GAME_DESIGN 6): one off the tide taken in (a swap when every hut is full), a driftling to
+	-- the tree's eggs and the huts (GAME_DESIGN 6): an egg hatched (a swap when every hut is full), a driftling to
 	-- another hut, selling
-	Router.on("tide.take", function(s, a)
-		local ok, data = Tide.take(s.profile, s.tide, a.id, a.swap)
+	Router.on("egg.hatch", function(s, a)
+		local ok, data = Tree.hatch(s.profile, a.id, a.swap, s.rng)
 		if ok then
 			tips(s)
-			Session.fx(s, { kind = "taken", data = data })
+			Session.fx(s, { kind = "hatched", data = data })
 		end
 		return ok, data
 	end)
 	Router.on("pal.house", function(s, a)
-		return Tide.house(s.profile, a.id, a.uid, a.swap)
+		return Tree.house(s.profile, a.id, a.uid, a.swap)
 	end)
 	Router.on("pal.sell", function(s, a)
-		return Tide.sell(s.profile, a.id)
+		return Tree.sell(s.profile, a.id)
 	end)
 	-- the Hatchery (GAME_DESIGN 6.1): two driftlings and a feast make an egg
 	Router.on("breed.start", function(s, a)
@@ -178,9 +169,9 @@ function IslandService.init()
 	end)
 end
 
--- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes wood and shells, its tide
--- brings driftlings in, a turn ends every TurnSeconds (the eggs: Fx "turn"), and a calendar day's end on the sea's clock
--- counts a day (Fx "day").
+-- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes wood and shells, its tree
+-- lays a new lot of eggs when their time comes (Fx "eggs"), a turn ends every TurnSeconds (the Hatcheries' eggs: Fx
+-- "turn"), and a calendar day's end on the sea's clock counts a day (Fx "day").
 function IslandService.step(dt: number)
 	WorldClock.advance(dt)
 	local today = WorldClock.dayIndex()
@@ -190,14 +181,12 @@ function IslandService.step(dt: number)
 		end
 		local p = s.profile
 		Island.step(p, dt)
-		-- the tide, on the server's time (so every client puts each one at the same place): one comes in every second,
-		-- each one gone past the island leaves (a long stall is skipped, not caught up)
-		local now = workspace:GetServerTimeNow()
-		if now - s.tide.clock > 5 then
-			s.tide.clock = now - 5
+		-- the tree: a new lot of eggs when its time comes (the ones left go)
+		local laid = Tree.step(p, dt, s.rng)
+		if laid then
+			Session.markDirty(s)
+			Session.fx(s, { kind = "eggs", laid = Tree.view(p), more = 0 })
 		end
-		local came, gone = Tide.step(p, s.tide, math.max(0, now - s.tide.clock), s.rng)
-		tide(s, came, gone)
 		s.turnClock += dt
 		if s.turnClock >= Tuning.TurnSeconds then
 			s.turnClock -= Tuning.TurnSeconds
@@ -215,7 +204,7 @@ function IslandService.step(dt: number)
 		s.tickClock += dt
 		if s.tickClock >= 1 then
 			s.tickClock -= 1
-			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), tideSecs = Tide.secs(p) })
+			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
 		end
 	end
 end

@@ -1,7 +1,8 @@
 -- The save (Logic/Schema; docs/ARCHITECTURE.md 7.6): a new island, a played profile surviving a round trip, garbage,
 -- the old saves (versions 1 to 4: the studios) loading into the island with the founder kept, a save from before the
 -- Tree of Life (version 9: the wild places and the fights) coming in with its driftlings in huts, and a save from the
--- Tree of Life's days (version 11) losing the tree, its pen (sold) and its food.
+-- Tree of Life's days (version 11) losing its pen (sold) and its food, and a save from the tide (version 12) getting
+-- its Tree of Life back with eggs to lay.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
@@ -11,11 +12,11 @@ local Util = require("../../build/luautest/shared/Logic/Util")
 local Traits = require("../../build/luautest/shared/Data/Traits")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 
--- the pieces built
+-- the pieces built (not the tree: every island has it)
 local function built(p: any): { any }
 	local out = {}
 	for _, q in p.plot.placed do
-		if Buildings.byId[q.id] then
+		if Buildings.byId[q.id] and q.id ~= "tree" then
 			table.insert(out, q)
 		end
 	end
@@ -88,15 +89,16 @@ return function()
 		T.eq((p :: any).folk, nil, "no villagers")
 		T.deepEq(Schema.default(1, 5).founder, Schema.default(1, 5).founder, "the same seed, the same founder")
 		T.eq(#built(p), 0, "nothing built")
-		T.eq(treeCount(p), 0, "no Tree of Life")
-		T.eq((p :: any).tree, nil)
+		T.eq(treeCount(p), 1, "its Tree of Life")
+		T.eq((p :: any).tree, nil, "no tree levels")
+		T.deepEq(p.clutch, { left = 0, list = {}, next = 1 }, "its first eggs laid when the player arrives")
 		T.eq((p :: any).food, nil, "no food")
 		T.eq(p.wood, Tuning.StartWood)
 		T.deepEq(Schema.default(1, 5).plot.placed, Schema.default(1, 5).plot.placed, "the same place every time")
 	end)
 	T.it("reconcile keeps a played profile as it is", function()
 		local p = played()
-		T.truthy(#built(p) == 4 and treeCount(p) == 0 and #p.pals == 2)
+		T.truthy(#built(p) == 4 and treeCount(p) == 1 and #p.pals == 2)
 		T.truthy(p.pals[1].work ~= 0, "the driftling works")
 		local back = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(back, p)
@@ -109,7 +111,7 @@ return function()
 			T.eq((p :: any).food, nil)
 			T.truthy(p.tier >= 1 and p.tier <= #Tuning.TierCost)
 			T.eq(#built(p), 0)
-			T.eq(treeCount(p), 0)
+			T.eq(treeCount(p), 1)
 			T.eq(#p.pals, 0)
 			T.eq((p :: any).tree, nil)
 			T.truthy(p.seen.x == nil)
@@ -177,7 +179,7 @@ return function()
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { pixel = "low", music = "off" } }, 2000, 9) :: any).settings.music, "off", "music off kept")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { music = 7 } }, 2000, 9) :: any).settings.music, "on", "a bad value: on")
 		T.eq(#built(p), 0)
-		T.eq(treeCount(p), 0, "no tree")
+		T.eq(treeCount(p), 1, "a tree")
 		T.eq(p.tut, 1, "the tips start over")
 		T.eq(p.coins, nil)
 		T.eq(p.games, nil)
@@ -211,7 +213,7 @@ return function()
 		T.eq(p.chart, nil, "no chart")
 		T.eq(p.islets, nil)
 		T.eq(p.sea, nil)
-		T.eq(treeCount(p), 0)
+		T.eq(treeCount(p), 1)
 		T.eq(#built(p), 4, "what was built stays")
 		local again = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(again, p, "and stays put on the next load")
@@ -262,7 +264,7 @@ return function()
 			T.truthy(Buildings.byId[q.id] ~= nil, q.id .. " a known piece")
 			T.truthy(q.id ~= "yard", "no yard")
 		end
-		T.eq(treeCount(p), 0, "no tree")
+		T.eq(treeCount(p), 1, "a tree")
 		T.truthy(p.shells >= shells + 450 and p.wood >= wood + 50, "the yard's price back")
 		T.eq(p.folk, nil, "no villagers")
 		T.eq(p.pals[1].home, nest, "the first two in the nest, as before")
@@ -335,7 +337,7 @@ return function()
 		T.deepEq(d.pals[1].muts, {}, "garbage: none")
 	end)
 	T.it("a version 11 save (the Tree of Life): the tree, its levels and its food go; the pen is sold; grown counts as taken", function()
-		local Tide = require("../../build/luautest/shared/Logic/Tide")
+		local Tree = require("../../build/luautest/shared/Logic/Tree")
 		local p0 = played()
 		local raw = roundTrip(p0)
 		raw.v = 11
@@ -348,13 +350,13 @@ return function()
 		-- the pen: two waiting (one kept there by the player)
 		table.insert(raw.pals, { id = 7301, sp = "gullfin", home = 0, work = 0, muts = { "fierce1" } })
 		table.insert(raw.pals, { id = 7302, sp = "solwyrm", home = 0, work = 0, muts = {}, held = 1 })
-		local price = Tide.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts = { "fierce1" } }) + Tide.price({ id = 0, sp = "solwyrm", home = 0, work = 0, muts = {} })
+		local price = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts = { "fierce1" } }) + Tree.price({ id = 0, sp = "solwyrm", home = 0, work = 0, muts = {} })
 		local shells, earned = raw.shells, raw.stats.earned
 		local p = Schema.reconcile(raw, 2000, 9) :: any
 		T.eq(p.v, Schema.VERSION)
 		T.eq(p.tree, nil, "no tree")
 		T.eq(p.food, nil, "no food")
-		T.eq(treeCount(p), 0, "the tree's gone from the island")
+		T.eq(treeCount(p), 1, "a new tree (the old one and its levels went with the tide; the eggs brought it back)")
 		T.eq(#built(p), 4, "the rest stays")
 		T.eq(#p.pals, 2, "the huts' driftlings stay")
 		T.eq(p.shells, shells + price, "the pen sold for its price")
@@ -367,6 +369,49 @@ return function()
 		end
 		local again = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(again, p, "and stays put on the next load")
+	end)
+	T.it("a version 12 save (the tide): the Tree of Life comes back, its eggs laid when the player arrives", function()
+		local p0 = played()
+		local raw = roundTrip(p0)
+		raw.v = 12
+		raw.clutch = nil
+		local keep = {}
+		for _, q in raw.plot.placed do
+			if q.id ~= "tree" then
+				table.insert(keep, q)
+			end
+		end
+		raw.plot.placed = keep
+		local p = Schema.reconcile(raw, 2000, 9) :: any
+		T.eq(p.v, Schema.VERSION)
+		T.eq(treeCount(p), 1, "the tree is back")
+		T.eq(#built(p), 4, "what was built stays")
+		T.eq(#p.pals, 2)
+		T.deepEq(p.clutch, { left = 0, list = {}, next = 1 }, "eggs to lay at once")
+		-- an island built full: the pieces nearest the tree's spot make room, their price back
+		local full = roundTrip(p0)
+		full.v = 12
+		full.plot.placed = {}
+		full.wood = 0
+		local uid = 100
+		local r = Street.plot(1)
+		for z = r.z0, r.z1, 2 do
+			for x = r.x0, r.x1, 2 do
+				if Plot.fits(1, full.plot.placed, "stonepath", x, z, 0) and #full.plot.placed < Plot.pathLimit(1) then
+					uid += 1
+					table.insert(full.plot.placed, { uid = uid, id = "stonepath", x = x, z = z, rot = 0, lvl = 1 })
+				end
+			end
+		end
+		full.pals = {}
+		local q = Schema.reconcile(full, 2000, 9) :: any
+		T.eq(treeCount(q), 1, "room made for the tree")
+		T.truthy(q.wood > 0, "the paths it took up paid back")
+		-- a saved lot of eggs is kept as it was (leaving and coming back lays no new one)
+		local p2 = roundTrip(p)
+		p2.clutch = { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 9 }, { id = 4, r = 1 }, "x" }, next = 2 }
+		local q2 = Schema.reconcile(p2, 2000, 9) :: any
+		T.deepEq(q2.clutch, { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 5 } }, next = 5 }, "cleaned: a rarity in range, ids once, next past them")
 	end)
 	T.it("a version 1 save loads too", function()
 		local p = Schema.reconcile({ v = 1, money = 5, staff = {} }, 2000, 9)

@@ -75,7 +75,7 @@ function Island.visitors(p: Profile): number
 	return math.min(Tuning.VisitorsMax, 1 + Island.charm(p) / Tuning.VisitorCharm)
 end
 
--- Each driftling's hut and its comfort (its own and its level's), keyed "p<id>" (Pal.home: Logic/Tide), none for one
+-- Each driftling's hut and its comfort (its own and its level's), keyed "p<id>" (Pal.home: Logic/Tree), none for one
 -- with no hut.
 export type Home = { uid: number, comfort: number }
 function Island.homes(p: Profile): { [string]: Home }

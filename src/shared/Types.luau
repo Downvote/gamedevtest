@@ -13,20 +13,23 @@ export type Piece = { uid: number, id: string, x: number, z: number, rot: number
 export type PlotSave = { placed: { Piece } }
 
 -- A driftling (GAME_DESIGN 6): its species (Data/Creatures), where it lives (`home`: a hut's Piece uid, 0: no hut, as
--- when its hut was cleared away: it waits for room, Logic/Tide.settle), the building it works at (a Piece uid, 0:
+-- when its hut was cleared away: it waits for room, Logic/Tree.settle), the building it works at (a Piece uid, 0:
 -- resting; only a driftling in a hut works).
--- muts: its mutations (Data/Traits ids, at most Traits.MAX), rolled when it drifted in or hatched.
+-- muts: its mutations (Data/Traits ids, at most Traits.MAX), rolled when it hatched.
 export type Pal = { id: number, sp: string, home: number, work: number, muts: { string }? }
 
--- A driftling floating past on the tide (Logic/Tide; the session's, never saved): what it is and costs.
--- One on the tide: `at` the tide's clock when it came in (the server's time, workspace:GetServerTimeNow), `life` the
--- seconds it takes to float past (Logic/Tide).
-export type Drift = { id: number, sp: string, muts: { string }, cost: number, at: number, life: number }
+-- An egg the Tree of Life laid round its roots (Logic/Tree; GAME_DESIGN 6): its id and its rarity (1 .. 5: its shell's
+-- colour); what hatches from it is rolled when the player hatches it. `cost` is on the client's copy only
+-- (Session.view: its price on this island now).
+export type Laid = { id: number, r: number, cost: number? }
+-- The tree's eggs (saved): seconds till it lays the next lot (they replace the ones left), the eggs, the next egg's id.
+export type Clutch = { left: number, list: { Laid }, next: number }
 
 export type Settings = { pixel: string, music: string? } -- music: "on" (default) | "off"
 
--- days: island days lived; earned: shells made in all; taken: driftlings taken in off the tide (and the Tree of Life's
--- before it); sold: driftlings sold; best: the rarest driftling had (0 none yet, 1 .. 5) (the questline counts them).
+-- days: island days lived; earned: shells made in all; taken: eggs hatched from the Tree of Life (and driftlings taken
+-- in before it laid eggs); sold: driftlings sold; best: the rarest driftling had (0 none yet, 1 .. 5); hatched: the
+-- Hatcheries' eggs hatched (the questline counts them).
 export type Stats = { days: number, built: number, earned: number, taken: number, sold: number, best: number, hatched: number }
 
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
@@ -44,6 +47,7 @@ export type Profile = {
 	plot: PlotSave,
 	seen: { [string]: number }, -- species id -> 2 had one (the Index)
 	eggs: { Egg }, -- the Hatcheries' eggs (one a hatchery)
+	clutch: Clutch, -- the Tree of Life's eggs round its roots
 	nextId: number, -- the next driftling or piece id
 	tut: number, -- the tips' step (1 .. 6; 0 = done)
 	quest: number, -- the questline's quest on the go (Data/Quests; one past the last: all done)
@@ -61,8 +65,9 @@ export type ClientView = {
 	tier: number,
 	founder: Look,
 	pals: { Pal }, -- every driftling
-	tide: { Drift }, -- the driftlings floating past, the oldest (the furthest along) first
-	tideSecs: number, -- seconds between two (Logic/Tide.secs)
+	clutch: { Laid }, -- the tree's eggs now, each with its price
+	clutchLeft: number, -- seconds till the tree lays the next lot
+	clutchSecs: number, -- seconds between two lots (Logic/Tree.secs)
 	plot: number, -- the plot index on the sea
 	pieces: { Piece },
 	seen: { [string]: number },
@@ -86,6 +91,7 @@ export type ErrCode =
 	| "money"
 	| "wood"
 	| "no_hut"
+	| "fixed"
 	| "locked"
 	| "full"
 	| "egg"

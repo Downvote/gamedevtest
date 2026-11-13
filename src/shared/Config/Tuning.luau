@@ -25,7 +25,7 @@ local Tuning = {
 	-- ("make wood the main resource for building/expanding and shells the main resource of getting new driftlings.
 	-- remove food as a resource"): wood pays for every piece and for growing the island, shells for the driftlings
 	StartWood = 300, -- the tips' buildings (a camp, a patch, a hut, a stall: 265) and a little over
-	StartShells = 60, -- the first driftlings off the tide
+	StartShells = 60, -- the first eggs
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
@@ -44,26 +44,27 @@ local Tuning = {
 	ComfortLvl = { 0, 0.04, 0.08 },
 	BoostMax = 0.6, -- the boost buildings' shares at one knack together, at most
 
-	-- the tide (GAME_DESIGN 6; Logic/Tide: "there should now be a steady stream of driftlings, with rarities that
-	-- players can pick up", then "make them float by just like a conveyer belt instead of drifting towards the island
-	-- and stopping, with one every second"): a driftling comes in on the tide every TideSecs seconds and floats past
-	-- the island in TideLife seconds (then it's gone), so TideLife / TideSecs float by at once
-	TideSecs = 1,
-	TideLife = 16,
-	-- what it costs to take one in: shells by its rarity, times 1 + SellTier x its mutations' tiers, times its cost
-	-- share, times TideTier by the island's tier (a bigger island earns more and draws rarer ones)
-	TidePrice = { 20, 80, 300, 1200, 5000 },
-	TideTier = { 1, 2, 4, 8, 16, 30 },
-	-- its luck by the island's tier: a rarity r's weight (Data/Traits.RARITY) times TideRare[r] times
-	-- (1 + TideLuck + the huts' luck)^(r - 1). (TideRare thins the rarer ones out: with one a second, a rare one floats
-	-- by about every half a minute on a new island, an epic every few minutes, a legendary every twenty on tier 2.)
-	TideRare = { 1, 0.7, 0.3, 0.1, 0.06 },
-	TideLuck = { 0, 0.15, 0.3, 0.45, 0.6, 0.8 },
-	-- a new driftling's mutations roll as one rarity better every TideMutTier tiers past the first
-	TideMutTier = 2,
-	HutTide = 0.5, -- the huts' driftlings' tide shares together run the tide this much faster at most ...
-	HutLuck = 0.5, -- ... and their luck shares add this much luck at most
-	-- selling a driftling (or swapping it out for one off the tide): shells by its rarity, times 1 + SellTier x its
+	-- the Tree of Life's eggs (GAME_DESIGN 6; Logic/Tree: "bring back the tree of life ... it now spawns eggs around it
+	-- that the player can choose to hatch for some shells. it spawns in 5 eggs around it, which refreshes every few
+	-- minutes to spawn in another 5 eggs, replacing any existing eggs that were not taken. expanding the island
+	-- increases the quality of eggs spawned and amount of eggs spawned"): every EggSecs seconds (sooner with the huts'
+	-- tree shares) the tree lays EggCount[tier] eggs round its roots, the ones left unhatched going
+	EggSecs = 180,
+	EggCount = { 5, 6, 7, 8, 9, 10 },
+	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
+	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off)
+	EggPrice = { 20, 90, 400, 2000, 10000 },
+	EggTier = { 1, 3, 8, 20, 45, 90 },
+	-- an egg's rarity: a rarity r's weight (Data/Traits.RARITY) times (1 + EggLuck by the island's tier + the huts'
+	-- luck)^(r - 1); what hatches rolls its mutations as one rarity better every EggMutTier tiers past the first
+	EggLuck = { 0, 0.25, 0.5, 0.75, 1.0, 1.3 },
+	EggMutTier = 2,
+	-- the tree's model grows grander with the island (its stage by tier, Models/DecorModels)
+	TreeStage = { 1, 2, 2, 3, 3, 4 },
+	HutTree = 0.5, -- the huts' driftlings' tree shares together bring the next eggs this much sooner at most ...
+	HutLuck = 0.5, -- ... their luck shares add this much luck at most ...
+	HutCost = 0.5, -- ... and their cost shares take this much off the eggs' price at most
+	-- selling a driftling (or swapping it out for a new hatchling): shells by its rarity, times 1 + SellTier x its
 	-- mutations' tiers, times its sell share
 	SellPrice = { 2, 7, 25, 85, 320 },
 	SellTier = 0.25,

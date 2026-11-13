@@ -1,14 +1,14 @@
 -- A sensible player for the Economy spec and the tuning runs: plays a session second by second through the island's
--- own rules (Logic/Island, Plot, Tide: what the server runs) and logs it every ten minutes. Every few seconds they
--- take in the best driftling on the tide they can afford (into a hut with room, or swapping out their weakest for one
--- clearly better), then build what the island lacks most with its wood (a hut while the huts are full and a good one
+-- own rules (Logic/Island, Plot, Tree: what the server runs) and logs it every ten minutes. Every few seconds they
+-- hatch the rarest egg under the Tree of Life they can afford (into a hut with room, or swapping out their weakest
+-- when it is a rarer egg than that one was), then build what the island lacks most with its wood (a hut while the huts are full and a good one
 -- floats by, a building for driftlings resting with no work, wood when it comes slowly, a shop a tier, decor with
 -- spare wood), and expand the island when they can.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
 local Schema = require("../build/luautest/shared/Logic/Schema")
 local Island = require("../build/luautest/shared/Logic/Island")
 local Plot = require("../build/luautest/shared/Logic/Plot")
-local Tide = require("../build/luautest/shared/Logic/Tide")
+local Tree = require("../build/luautest/shared/Logic/Tree")
 local Breed = require("../build/luautest/shared/Logic/Breed")
 local Buildings = require("../build/luautest/shared/Data/Buildings")
 local Creatures = require("../build/luautest/shared/Data/Creatures")
@@ -43,8 +43,8 @@ local function build(p: any, id: string): boolean
 	end
 	local ok = Plot.place(p, id, x :: number, z :: number, 0)
 	if ok then
-		Tide.settle(p)
-		Tide.fillJobs(p)
+		Tree.settle(p)
+		Tree.fillJobs(p)
 	end
 	return ok
 end
@@ -75,39 +75,55 @@ end
 local function weakest(p: any): any
 	local w: any = nil
 	for _, x in p.pals do
-		if x.home ~= 0 and (w == nil or Tide.better(w, x)) then
+		if x.home ~= 0 and (w == nil or Tree.better(w, x)) then
 			w = x
 		end
 	end
 	return w
 end
 
--- Off the tide: the best one it can afford, into a hut with room (one with work waiting for it first), or in a swap
--- for the weakest when it is clearly better.
-local function shop(p: any, s: any): any
+-- Under the tree: the rarest egg it can afford, into a hut with room (while there is work waiting, or the egg is better
+-- than common), or in a swap for the weakest when the egg is two rarities better than it.
+local function shop(p: any, rng: any): any
 	local list = {}
-	for _, d in s.list do
-		local x = { id = 0, sp = d.sp, home = 0, work = 0, muts = d.muts }
-		table.insert(list, { d = d, w = Tide.worth(x), cost = Tide.cost(p, d.sp, d.muts) })
+	for _, e in p.clutch.list do
+		table.insert(list, { e = e, cost = Tree.cost(p, e.r) })
 	end
 	table.sort(list, function(a, b)
-		return a.w > b.w
+		if a.e.r ~= b.e.r then
+			return a.e.r > b.e.r
+		end
+		return a.cost < b.cost
 	end)
-	local room = Tide.room(p)
-	for _, e in list do
-		if e.cost <= p.shells then
-			local knack = Creatures.byId[e.d.sp].knack
-			if room > 0 and (Island.freeJob(p, knack) ~= 0 or e.w >= Tuning.RarityWork[2]) then
-				local ok = Tide.take(p, s, e.d.id, 0)
-				if ok then
-					return e.d
+	local room = Tree.room(p)
+	for _, x in list do
+		if x.cost <= p.shells then
+			if room > 0 then
+				local jobs = 0
+				for _, q in p.plot.placed do
+					if Island.works(q.id) then
+						jobs += Tuning.HelpMax
+					end
 				end
-			elseif room <= 0 then
-				local w = weakest(p)
-				if w and e.w > Tide.worth(w) * 1.4 then
-					local ok = Tide.take(p, s, e.d.id, w.id)
+				local at = 0
+				for _, pal in p.pals do
+					if pal.work ~= 0 then
+						at += 1
+					end
+				end
+				if jobs > at or x.e.r >= 2 then
+					local ok, data = Tree.hatch(p, x.e.id, 0, rng)
 					if ok then
-						return e.d
+						return data
+					end
+				end
+			else
+				local w = weakest(p)
+				local wr = if w then Creatures.byId[w.sp].rarity else 5
+				if w and x.e.r >= wr + 2 then
+					local ok, data = Tree.hatch(p, x.e.id, w.id, rng)
+					if ok then
+						return data
 					end
 				end
 			end
@@ -117,12 +133,13 @@ local function shop(p: any, s: any): any
 end
 
 -- One building decision.
-local function plan(p: any, s: any)
+local function plan(p: any, rng: any)
 	local r = Island.rates(p)
 	local ex = Island.expandCost(p.tier)
 	if ex and p.wood >= ex.wood then
 		Island.expand(p)
-		Tide.settle(p)
+		Tree.settle(p)
+		Tree.fill(p, rng)
 		return
 	end
 	-- the tips' buildings first (a camp, a patch, a hut, then a stall), as a new player builds them
@@ -147,7 +164,7 @@ local function plan(p: any, s: any)
 	local saving = ex ~= nil and housed >= 4 * p.tier and p.wood < ex.wood
 	local wants: { string } = {}
 	-- a hut when every hut is full and the island has work for more
-	if Tide.room(p) <= 0 then
+	if Tree.room(p) <= 0 then
 		local jobs = 0
 		for _, q in p.plot.placed do
 			if Island.works(q.id) then
@@ -225,8 +242,6 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 	local log = o.log
 	local p = Schema.default(0, seed)
 	local rng = Util.newRng(Util.hash32("career:" .. seed)) -- (hashed, as the server seeds a session: a small seed's first draws are weak)
-	local s = Tide.new()
-	Tide.start(p, s, rng)
 	local turnClock = 0
 	local first: { [string]: number } = {}
 	local timeline = {}
@@ -245,7 +260,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 	local shellsSold = 0
 	for t = 1, seconds do
 		Island.step(p, 1)
-		Tide.step(p, s, 1, rng)
+		Tree.step(p, 1, rng)
 		turnClock += 1
 		if turnClock >= Tuning.TurnSeconds then
 			turnClock -= Tuning.TurnSeconds
@@ -254,7 +269,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 		if t % 5 == 0 then
 			local before = p.stats.earned
 			local sold = p.stats.sold
-			local got = shop(p, s)
+			local got = shop(p, rng)
 			if p.stats.sold > sold then
 				shellsSold += p.stats.earned - before
 			end
@@ -265,7 +280,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 					mark("rarity" .. k, t)
 				end
 			end
-			plan(p, s)
+			plan(p, rng)
 		end
 		for _, x in p.pals do
 			if x.work ~= 0 then

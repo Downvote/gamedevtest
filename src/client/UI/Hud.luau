@@ -1,9 +1,9 @@
 --!strict
 -- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (wood, shells, the day and its clock),
 -- the menu bar along the bottom (Build, Driftlings, Index, Looks), the island card on the right (the island's name,
--- driftlings in huts and their room, visitors, charm, what it makes) with the tide's card under it (the best few
--- floating by, each with its price to take it in and the time it has left), the questline's card, the tips banner, the
--- new day's banner and the alerts for an epic or legendary one floating by (the loading card is src/first's). The camera fits the
+-- driftlings in huts and their room, visitors, charm, what it makes) with the Tree of Life's card under it (the time to
+-- its next eggs, its best few eggs with their prices to hatch them), the questline's card, the tips banner, the new
+-- day's banner and the alerts for a new lot of eggs (the loading card is src/first's). The camera fits the
 -- island clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,7 +20,7 @@ local Quests = require(ReplicatedStorage.Shared.Data.Quests)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
-local TideView = require(script.Parent.Parent.Controllers.TideView)
+local EggView = require(script.Parent.Parent.Controllers.EggView)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local DayLight = require(script.Parent.Parent.Controllers.DayLight)
@@ -49,7 +49,7 @@ local chipIcons: { [string]: GuiObject } = {}
 local bar: Frame? = nil
 local barW = 0
 local card: Frame? = nil
-local tideCard: Frame? = nil -- the tide's card (GAME_DESIGN 6)
+local treeCard: Frame? = nil -- the Tree of Life's card (GAME_DESIGN 6)
 local tips: Frame? = nil
 local quest: Frame? = nil -- the questline's card (GAME_DESIGN 9)
 local QUEST_W = 150
@@ -322,64 +322,67 @@ local function updateCard(v: Types.ClientView)
 	card = f
 end
 
------------------------------------------------------------------- the tide's card
--- Under the island card (GAME_DESIGN 6): its name and Open (the tide's panel), then the best few floating past now
--- (TideView.best: the best workers, and one the shells cover if none of those is): each one's name in its rarity's
--- colour, its price on a button that takes it in (TideView.take; green when the shells are there) and under its name a
--- bar of the time it has left before it's gone (Heartbeat runs it down). On a phone only the best (the card sits over
--- the quest's, which must clear the menu bar).
-local TIDE_ROW = 15
-local tideRows: { { bar: Frame, d: Types.Drift, w: number } } = {}
-local function updateTide(v: Types.ClientView)
-	local shown = TideView.best(v, if UIKit.phone() then 1 else 3)
+------------------------------------------------------------------ the tree's card
+-- Under the island card (GAME_DESIGN 6): the Tree of Life's name and Open (its panel), how long till it lays its next
+-- eggs (a bar running down: Heartbeat runs it on from StateClient.clutchLeft), then its best few eggs (EggView.best:
+-- the rarest, and one the shells cover if none of those is): each one's egg, its rarity's name in its colour and its
+-- price on a button that hatches it (EggView.hatch; green when the shells are there). On a phone only the best (the
+-- card sits over the quest's, which must clear the menu bar).
+local TREE_ROW = 15
+local treeBar: Frame? = nil
+local treeTime: TextLabel? = nil
+local function clock(secs: number): string
+	local s = math.max(0, math.ceil(secs))
+	return string.format("%d:%02d", s // 60, s % 60)
+end
+local function updateTree(v: Types.ClientView)
+	local shown = EggView.best(v, if UIKit.phone() then 1 else 3)
 	local parts: { string } = {}
-	for _, d in shown do
-		table.insert(parts, string.format("%d:%d:%s", d.id, d.cost, if v.shells >= d.cost then "y" else "n"))
+	for _, e in shown do
+		table.insert(parts, string.format("%d:%d:%s", e.id, e.cost or 0, if v.shells >= (e.cost or 0) then "y" else "n"))
 	end
-	local key = table.concat(parts, ",")
-	if tideCard and tideCard:GetAttribute("Key") == key then
+	local key = table.concat(parts, ",") .. ":" .. #v.clutch
+	if treeCard and treeCard:GetAttribute("Key") == key then
 		return
 	end
-	if tideCard then
-		tideCard:Destroy()
-		tideCard = nil
+	if treeCard then
+		treeCard:Destroy()
+		treeCard = nil
 	end
-	table.clear(tideRows)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
 	local rows = math.max(1, #shown)
-	local h = 15 + rows * TIDE_ROW + 1
+	local h = 26 + rows * TREE_ROW + 1
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
-	f.Name = "TideCard"
+	f.Name = "TreeCard"
 	UIKit.plank(f, 11, 3)
-	PixelSprites.image(f, "mini_tide", UDim2.fromOffset(3, 1), 4)
-	UIKit.text(f, "Tide", UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
+	PixelSprites.image(f, "mini_tree", UDim2.fromOffset(3, 1), 4)
+	UIKit.text(f, if UIKit.phone() then "Eggs" else "Tree of Life", UDim2.fromOffset(w - 56, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("paper"), kind = "shadow", z = 4, name = "Title" })
 	UIKit.button(f, "Open", UDim2.fromOffset(34, 10), UDim2.fromOffset(w - 37, 1), function()
-		UIKit.openPanel("tide")
-	end, { name = "TideOpen", color = UIKit.color("button_ok") }).ZIndex = 5
+		UIKit.openPanel("tree")
+	end, { name = "TreeOpen", color = UIKit.color("button_ok") }).ZIndex = 5
+	-- (how long till the next eggs: the time and a bar running down)
+	treeTime = UIKit.text(f, "New eggs in 0:00", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13), { color = UIKit.color("text_dim"), z = 4, name = "TreeNext" })
+	local back = UIKit.rect(f, UDim2.fromOffset(w - 8, 3), UDim2.fromOffset(4, 23), UIKit.color("ink"), 4)
+	back.Name = "TreeBar"
+	treeBar = UIKit.rect(back, UDim2.fromOffset(w - 10, 1), UDim2.fromOffset(1, 1), UIKit.color("good"), 5)
 	if #shown == 0 then
-		UIKit.text(f, "Nothing yet", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 16), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, "No eggs right now", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 28), { color = UIKit.color("text_dim"), z = 4 })
 	end
-	for i, d in shown do
-		local def = Creatures.byId[d.sp]
-		local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
-		local y = 14 + (i - 1) * TIDE_ROW
-		local text = Numbers.coins(d.cost)
+	for i, e in shown do
+		local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
+		local y = 27 + (i - 1) * TREE_ROW
+		local cost = e.cost or 0
+		local text = Numbers.coins(cost)
 		local bw = math.max(34, UIKit.textWidth(text) + 18)
-		local nw = w - bw - 10
-		UIKit.text(f, if def then def.name else "?", UDim2.fromOffset(nw, 10), UDim2.fromOffset(4, y + 1), { color = UIKit.color(rar.color), z = 4, name = "TideName_" .. d.id })
-		-- (the time it has left: a bar under its name)
-		local back = UIKit.rect(f, UDim2.fromOffset(nw - 2, 3), UDim2.fromOffset(4, y + 11), UIKit.color("ink"), 4)
-		back.Name = "TideLeft_" .. d.id
-		local fill = UIKit.rect(back, UDim2.fromOffset(nw - 4, 1), UDim2.fromOffset(1, 1), UIKit.color(rar.color), 5)
-		fill.Name = "Fill"
-		table.insert(tideRows, { bar = fill, d = d, w = nw - 4 })
-		local can = v.shells >= d.cost
-		local id = d.id
+		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, 5), UDim2.fromOffset(3, y), 4).Name = "EggIcon_" .. e.id
+		UIKit.text(f, rar.name, UDim2.fromOffset(w - bw - 22, 10), UDim2.fromOffset(17, y + 2), { color = UIKit.color(rar.color), z = 4, name = "EggName_" .. e.id })
+		local can = v.shells >= cost
+		local id = e.id
 		local b = UIKit.button(f, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw - 4, y + 1), function()
-			TideView.take(id)
-		end, { name = "CardTake_" .. d.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
+			EggView.hatch(id)
+		end, { name = "CardHatch_" .. e.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
 		b.ZIndex = 5
 		local words = b:FindFirstChild("Words")
 		if words and words:IsA("GuiObject") then
@@ -389,15 +392,15 @@ local function updateTide(v: Types.ClientView)
 		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
 	end
 	f:SetAttribute("Key", key)
-	tideCard = f
+	treeCard = f
 end
 
--- The cards stack down the right edge (on a phone the tide's card sits on the left, clear of the jump button).
+-- The cards stack down the right edge (on a phone the tree's card sits on the left, clear of the jump button).
 local function stack()
 	local s = UIKit.size("Hud")
-	local c, e = card, tideCard
-	-- (the tide's wide panel covers the cards but a sliver: they step aside for it too)
-	local hide = BuildUI.isOpen() or UIKit.currentPanel() == "tide"
+	local c, e = card, treeCard
+	-- (the tree's wide panel covers the cards but a sliver: they step aside for it too)
+	local hide = BuildUI.isOpen() or UIKit.currentPanel() == "tree"
 	if c then
 		c.Visible = not hide
 	end
@@ -410,7 +413,7 @@ local function stack()
 			e.Position = UDim2.fromOffset(s.X - CARD_W - 7, y)
 		end
 	end
-	-- the quest's card down the left under the chips (under the tide's card on a phone); it steps aside for a panel
+	-- the quest's card down the left under the chips (under the tree's card on a phone); it steps aside for a panel
 	local qf = quest
 	if qf then
 		qf.Visible = not (BuildUI.isOpen() or UIKit.currentPanel() ~= nil)
@@ -423,7 +426,7 @@ local function stack()
 end
 
 ------------------------------------------------------------------ the questline
--- Where a quest's Go takes the player (Data/Quests' `go`): a panel (the tide's too) or Build mode on a tab.
+-- Where a quest's Go takes the player (Data/Quests' `go`): a panel (the tree's too) or Build mode on a tab.
 local function goTo(where: string)
 	if string.sub(where, 1, 5) == "build" then
 		BuildUI.open(string.match(where, "^build:(%a+)$"))
@@ -532,11 +535,11 @@ end
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
 	[1] = "Wood pays for everything you build. Tap Build and place a Lumber Camp.",
-	[2] = "Shells pay for driftlings. Place a Veggie Patch. It sells what it grows.",
+	[2] = "Shells hatch eggs. Place a Veggie Patch. It sells what it grows.",
 	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
-	[4] = "Driftlings float past the island. Tap one, or its price, to take it in.",
+	[4] = "The Tree of Life laid eggs round its roots. Tap one to hatch it.",
 	[5] = "Visitors buy snacks too. Place a Snack Stall for more shells.",
-	[6] = "A new one floats by every second. When the huts are full, swap a weak one for a better one.",
+	[6] = "The tree lays new eggs every few minutes. When the huts are full, swap a weak one for a better one.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
@@ -663,31 +666,41 @@ local function onDay(msg: { [string]: any })
 end
 
 ------------------------------------------------------------------ lifecycle
--- What came in on the tide (Fx "tide"): an epic one or better is news (its rarity's colour, a chime, a burst on the
--- tide's card); a rare one's lantern is enough (one comes by every half a minute or so).
-local function onTide(msg: { [string]: any })
-	if type(msg.came) ~= "table" then
+-- A new lot of eggs under the tree (Fx "eggs"): a short notice, a chime, and if an epic or legendary egg is among them
+-- it's named (its rarity's colour, a burst on the tree's card).
+local function onEggs(msg: { [string]: any })
+	if type(msg.laid) ~= "table" then
 		return
 	end
-	for _, x in msg.came do
-		local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
-		if d and d.rarity >= 4 then
-			local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-			local a = if d.rarity == 4 then "An" else "A"
-			UIKit.notice(string.format("%s %s %s is floating by.", a, string.lower(rar.name), d.name), UIKit.color(rar.color), 4)
-			Audio.play("grow")
-			local tc = tideCard
-			if tc and tc.Parent and tc.Visible then
-				UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
-			end
+	local best = 1
+	for _, x in msg.laid do
+		if type(x) == "table" and type(x.r) == "number" then
+			best = math.max(best, x.r)
 		end
+	end
+	local more = tonumber(msg.more) or 0
+	if best >= 4 then
+		local rar = Traits.RARITY[best] or Traits.RARITY[1]
+		local a = if best == 4 then "An" else "A"
+		UIKit.notice(string.format("%s %s egg is waiting under the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
+		Audio.play("grow")
+		local tc = treeCard
+		if tc and tc.Parent and tc.Visible then
+			UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
+		end
+	elseif more > 0 then
+		UIKit.notice(string.format("The tree laid %d more %s.", more, if more == 1 then "egg" else "eggs"), UIKit.color("good"), 3)
+		Audio.play("rare")
+	else
+		UIKit.notice("The Tree of Life laid new eggs.", UIKit.color("good"), 3)
+		Audio.play("rare")
 	end
 end
 
 local function refresh(v: Types.ClientView)
 	updateTop(v)
 	updateCard(v)
-	updateTide(v)
+	updateTree(v)
 	stack()
 	updateTips(v)
 	updateQuest(v)
@@ -709,12 +722,12 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, tideCard, tips, quest, homeButton, musicButton } :: { Instance? } do
+	for _, f in { card, treeCard, tips, quest, homeButton, musicButton } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
-	card, tideCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
+	card, treeCard, tips, quest, homeButton, dayBar, musicButton = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 108 else 124
 	buildTop()
 	buildBar()
@@ -730,11 +743,6 @@ function Hud.start()
 	Menus.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
-	-- (the tide changes every second: only its card follows)
-	StateClient.TideChanged:Connect(function(v: Types.ClientView)
-		updateTide(v)
-		stack()
-	end)
 	-- the stores every second: the chips count, shells coming in rise from their chip ("+12") at most every 2 s
 	local popShells: number? = nil
 	local gained, popAt = 0, 0
@@ -755,8 +763,8 @@ function Hud.start()
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "day" or msg.kind == "turn" then
 			onDay(msg)
-		elseif msg.kind == "tide" then
-			onTide(msg)
+		elseif msg.kind == "eggs" then
+			onEggs(msg)
 		end
 	end)
 	UIKit.Resized:Connect(function()
@@ -815,11 +823,19 @@ function Hud.start()
 				chipBump[name] = nil
 			end
 		end
-		-- the tide's card: each one's time left runs down
-		for _, r in tideRows do
-			local fw = math.floor(r.w * (1 - StateClient.along(r.d)) + 0.5)
-			if r.bar.Size.X.Offset ~= fw then
-				r.bar.Size = UDim2.fromOffset(fw, 1)
+		-- the tree's card: the time to its next eggs runs down
+		local tb, tt = treeBar, treeTime
+		if tb and tb.Parent and tt then
+			local left, secs = StateClient.clutchLeft()
+			local back = tb.Parent :: GuiObject
+			local fw = back.Size.X.Offset - 2
+			local w = math.floor(fw * math.clamp(left / math.max(1, secs), 0, 1) + 0.5)
+			if tb.Size.X.Offset ~= w then
+				tb.Size = UDim2.fromOffset(w, 1)
+			end
+			local text = "New eggs in " .. clock(left)
+			if tt.Text ~= text then
+				tt.Text = text
 			end
 		end
 		-- the background music: easygoing island tunes by day, softer ones from the twilight; the note in the corner

@@ -376,21 +376,36 @@ function H.checkProfile(p, label)
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
 	H.expect(prof.shells >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s", tostring(prof.shells), tostring(prof.wood)))
-	H.expect(prof.food == nil and prof.tree == nil, "profile", label .. ": food or the Tree of Life left in the save (gone with the tide)")
+	H.expect(prof.food == nil and prof.tree == nil, "profile", label .. ": food or the old tree levels left in the save")
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
 	for _, k in { "boat", "chart", "cap", "pouch", "islets", "sea", "wilds" } do
 		H.expect(prof[k] == nil, "profile", label .. ": " .. k .. " left in the save (gone with the expeditions)")
 	end
 	H.expect(prof.tut >= 0 and prof.tut <= 6, "profile", label .. ": tips out of range", tostring(prof.tut))
-	-- the pieces: within the island's limits
+	-- the pieces: one Tree of Life, the rest within the island's limits
 	local placed = prof.plot.placed
-	local nPaths = 0
+	local nPaths, nTrees = 0, 0
 	for _, q in placed do
 		if Plot.isPath(q.id) then
 			nPaths += 1
+		elseif Plot.isFixed(q.id) then
+			nTrees += 1
 		end
 	end
-	H.expect(#placed - nPaths <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths, nPaths))
+	H.expect(nTrees == 1, "profile", label .. ": one Tree of Life", tostring(nTrees))
+	H.expect(#placed - nPaths - nTrees <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths - nTrees, nPaths))
+	-- the tree's eggs: no more than it lays, ids unique and below the next one's, a rarity each, its clock in range
+	local c = prof.clutch
+	local Tree = H.sharedServer("Logic.Tree")
+	if H.expect(type(c) == "table" and type(c.list) == "table", "profile", label .. ": no clutch") then
+		H.expect(#c.list <= Tree.count(prof.tier), "profile", label .. ": more eggs than the tree lays", string.format("%d of %d", #c.list, Tree.count(prof.tier)))
+		H.expect(finite(c.left) and c.left >= -1 and c.left <= Tuning.EggSecs + 1, "profile", label .. ": the eggs' clock out of range", tostring(c.left))
+		local eggIds = {}
+		for _, e in c.list do
+			H.expect(e.id > 0 and e.id < c.next and not eggIds[e.id] and e.r >= 1 and e.r <= 5 and e.r == math.floor(e.r), "profile", label .. ": a bad egg", string.format("%s r%s", tostring(e.id), tostring(e.r)))
+			eggIds[e.id] = true
+		end
+	end
 	local uids = {}
 	local rest = {}
 	for i, q in placed do
@@ -471,38 +486,19 @@ function H.checkMirror(p, label)
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
 		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))
 	end
-	-- (the view holds every driftling, and the tide: the session's own)
+	-- (the view holds every driftling)
 	H.expect(#v.pals == #prof.pals and v.folk == nil and v.penN == nil and v.tree == nil, "mirror", label .. ": driftlings differ", string.format("%d vs %d", #v.pals, #prof.pals))
 	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
-	local s = H.session(p)
-	if s and s.tide then
-		-- (the same ones, the same kinds and times; a tide message still on its way, the last moment's, is let be: one
-		-- that just came and isn't on the client yet, one just gone past that the client still has)
-		local IN_FLIGHT = 0.35
-		local now = s.tide.clock
-		local mine = {}
-		for _, d in v.tide do
-			mine[d.id] = d
+	-- (the tree's eggs: the same ones, each with its price on this island)
+	local Tree = H.sharedServer("Logic.Tree")
+	local same = type(v.clutch) == "table" and #v.clutch == #prof.clutch.list
+	if same then
+		for i, e in prof.clutch.list do
+			local c = v.clutch[i]
+			same = same and c ~= nil and c.id == e.id and c.r == e.r and c.cost == Tree.cost(prof, e.r)
 		end
-		local bad = {}
-		for _, d in s.tide.list do
-			local c = mine[d.id]
-			if c == nil then
-				if now - d.at > IN_FLIGHT then
-					table.insert(bad, "missing " .. d.id)
-				end
-			elseif c.sp ~= d.sp or math.abs((c.at or 0) - d.at) > 1e-6 or math.abs((c.life or 0) - d.life) > 1e-6 then
-				table.insert(bad, "differs " .. d.id)
-			end
-			mine[d.id] = nil
-		end
-		for id, c in mine do
-			if now - ((c.at or 0) + (c.life or 0)) > IN_FLIGHT then
-				table.insert(bad, "stale " .. id)
-			end
-		end
-		H.expect(#bad == 0, "mirror", label .. ": the tide differs", string.format("%d vs %d: %s", #v.tide, #s.tide.list, table.concat(bad, ", ")))
 	end
+	H.expect(same, "mirror", label .. ": the eggs differ", string.format("%d vs %d", type(v.clutch) == "table" and #v.clutch or -1, #prof.clutch.list))
 	local homes = {}
 	for _, x in prof.pals do
 		homes[x.id] = x.home

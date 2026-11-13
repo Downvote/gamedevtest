@@ -555,16 +555,7 @@ local function scatter(m: Instance, o: CFrame, tier: number, b: Rect, rng: Rng, 
 		palm(m, o * CFrame.new(x, Street.SAND_Y, z), 0.9 + rng:next() * 0.3, lean)
 	end)
 	pick(cells[Street.SHALLOW], 3 + tier * 2, 2.5, function(x, z)
-		local turn = rng:next() * 6
-		local size = 0.8 + rng:next() * 0.6
-		-- (none reaching into the tide's lane, its stones' reach counted: one rolled there is made and thrown away, so
-		-- the rest of the coast stays as it was)
-		local inLane = math.abs(z - Street.TIDE.z) < Street.TIDE.clear + 1.95 * size
-		local into = if inLane then Blocks.model(nil, "Dropped") else m
-		rocks(into, o * CFrame.new(x, Street.SHALLOW_Y - 0.2, z) * CFrame.Angles(0, turn, 0), size, rng)
-		if inLane then
-			into:Destroy()
-		end
+		rocks(m, o * CFrame.new(x, Street.SHALLOW_Y - 0.2, z) * CFrame.Angles(0, rng:next() * 6, 0), 0.8 + rng:next() * 0.6, rng)
 	end)
 	pick(cells[Street.FOAM], 2 + tier, 2, function(x, z)
 		rocks(m, o * CFrame.new(x, Street.FOAM_Y - 0.25, z) * CFrame.Angles(0, rng:next() * 6, 0), 0.6 + rng:next() * 0.3, rng)

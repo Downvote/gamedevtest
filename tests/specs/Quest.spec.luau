@@ -20,7 +20,7 @@ local KINDS = {
 	seen = true,
 	hatched = true,
 }
-local PANELS = { pals = true, index = true, hatch = true, tide = true }
+local PANELS = { pals = true, index = true, hatch = true, tree = true }
 local TABS = { farm = true, wood = true, shop = true, nest = true, gen = true, path = true, decor = true }
 
 local function fresh(): any

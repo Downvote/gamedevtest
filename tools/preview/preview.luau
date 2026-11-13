@@ -181,7 +181,7 @@ local function seedProfile(userId, tier, opts)
 	local now = math.floor(E.now())
 	local prof = Schema.default(now, userId)
 	prof.tier = tier
-	local Tide = H.sharedServer("Logic.Tide")
+	local Tree = H.sharedServer("Logic.Tree")
 	prof.shells = opts.shells or 4800
 	prof.wood = opts.wood or 420
 	prof.day = opts.day or 12
@@ -214,9 +214,20 @@ local function seedProfile(userId, tier, opts)
 		prof.seen[sp] = 2
 		local _ = d
 	end
-	-- into the huts with room, the best first, at work (Logic/Tide)
-	Tide.settle(prof)
-	Tide.fillJobs(prof)
+	-- into the huts with room, the best first, at work (Logic/Tree)
+	Tree.settle(prof)
+	Tree.fillJobs(prof)
+	-- the tree's eggs: a lot laid a minute ago (opts.eggs: rarities to lay instead of rolling them)
+	local Util = H.sharedServer("Logic.Util")
+	Tree.lay(prof, Util.newRng(userId * 31 + 7))
+	if opts.eggs then
+		for k, r in opts.eggs do
+			if prof.clutch.list[k] then
+				prof.clutch.list[k].r = r
+			end
+		end
+	end
+	prof.clutch.left = opts.left or (Tuning.EggSecs - 60)
 	for _, sp in opts.seen or {} do
 		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
 	end
@@ -495,7 +506,7 @@ function SCEN.day()
 	return p
 end
 
--- A UI panel by name (UIKit.openPanel): pals, tide (the best floating by with their prices, the odds), index,
+-- A UI panel by name (UIKit.openPanel): pals, tree (its eggs with their prices, the odds), index,
 -- looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents picked
 -- through the panel).
 local function panelScenario(name)
@@ -535,76 +546,56 @@ local function panelScenario(name)
 	return p
 end
 
--- The tide past a village (GAME_DESIGN 6): driftlings on their rafts riding the lane past the island, one a second, a
--- rare one coming up to the jetty and an epic just past it, their prices over them, the founder at the jetty (tide);
--- two and a half seconds on, the whole belt moved along (tide_flow); one taken in by its price tag, hopping ashore
--- (tide_take); the lanterns at night (tide_night).
-function SCEN.tide()
-	seedProfile(21, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000 })
-	local p = join(21, "Jetty")
+-- The Tree of Life and its eggs (GAME_DESIGN 6): a village's tree with its lot of eggs round its roots (a rare one and
+-- an epic among them), their prices over them, the founder in front of it (tree); a new lot rising out of the lawn,
+-- the old one sinking (tree_lay); one hatched by its price tag, cracking, its driftling stepping out (tree_hatch); the
+-- glowing eggs at night (tree_night).
+function SCEN.tree()
+	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 3, 1, 2, 4, 1 } })
+	local p = join(21, "Grove")
 	settle(p)
 	local s = H.session(p)
 	local Street = H.sharedServer("Data.Street")
-	local Tide = H.sharedServer("Logic.Tide")
+	local Tree = H.sharedServer("Logic.Tree")
+	local Plot = H.sharedServer("Logic.Plot")
 	local prof = H.profile(p)
 	local ox, oz = Street.origin(s.plot)
-	local j = Street.jetty(prof.tier)
-	if p.Character then
-		p.Character:PivotTo(E.cf.new(ox + 0.5, 3, oz + j.z0 - 1))
+	local q = Tree.piece(prof)
+	if q and p.Character then
+		local w, d = Plot.footprint(q.id, q.rot)
+		p.Character:PivotTo(E.cf.new(ox + q.x + w / 2 + 1, 3, oz + q.z + d + 2))
 		E.run(2)
 		settle(p, 30, 1)
 	end
-	-- (the tide already running past: a rare one coming up to the jetty and an epic just past it, in the places of the
-	-- ones there)
-	local now = E.workspace:GetServerTimeNow()
-	local function placeAt(lx, rarity)
-		local k = (lx - Street.TIDE.x0) / (Street.TIDE.x1 - Street.TIDE.x0)
-		local best, bestD = nil, math.huge
-		for _, d in s.tide.list do
-			local dk = math.abs((now - d.at) / d.life - k)
-			if dk < bestD then
-				best, bestD = d, dk
-			end
-		end
-		if best then
-			-- (a new one in its place: a new id, so every client draws it afresh)
-			best.id = s.tide.next
-			s.tide.next += 1
-			best.sp, best.muts = Tide.roll(prof, s.rng, rarity)
-			best.cost = Tide.cost(prof, best.sp, best.muts)
-		end
-	end
-	placeAt(-9, 3)
-	placeAt(7, 4)
-	H.smod("PlotService").syncTide(s)
-	s.dirty = true
-	E.run(0.2)
-	settle(p, 30, 1)
-	capture(p, "tide")
-	-- two and a half seconds on: the whole belt has moved along (one more in at the west end, one gone at the east)
-	E.run(2.5)
-	capture(p, "tide_flow")
-	-- one taken in by its tag: it hops ashore at the jetty
+	capture(p, "tree")
+	-- a new lot: the old eggs sink, the new ones rise one after another
+	prof.clutch.left = 0.05
+	E.run(0.9)
+	capture(p, "tree_lay")
+	E.run(2)
+	settle(p, 10, 0.5)
+	-- one hatched by its tag: it cracks and its driftling steps out
 	local v = H.inClient(p, function()
 		return modOr(p, "Controllers.StateClient").view()
 	end)
 	local pick = nil
-	for _, d in (v and v.tide or {}) do
-		local tag = H.buttonNamed(p, "TideTake_" .. d.id)
-		if tag and prof.shells >= d.cost and (pick == nil or d.cost > pick.cost) then
-			pick = d
+	for _, e in (v and v.clutch or {}) do
+		local tag = H.buttonNamed(p, "EggHatch_" .. e.id)
+		if tag and prof.shells >= (e.cost or 0) and (pick == nil or (e.cost or 0) > (pick.cost or 0)) then
+			pick = e
 		end
 	end
 	if pick then
-		H.clickNamed(p, "TideTake_" .. pick.id, { wait = 0.35 })
+		H.clickNamed(p, "EggHatch_" .. pick.id, { wait = 0.45 })
 	end
-	capture(p, "tide_take")
-	-- at night: a rare one's lantern lights the water round it
+	capture(p, "tree_hatch")
+	-- at night: the rare eggs' spots glow
 	local DL = modOr(p, "Controllers.DayLight")
 	if DL then
+		E.run(1)
 		H.inClient(p, DL.debugSet, 0.88)
 		E.run(1.5)
-		capture(p, "tide_night")
+		capture(p, "tree_night")
 	end
 	return p
 end
