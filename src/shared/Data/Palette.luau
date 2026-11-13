@@ -93,8 +93,8 @@ local COLORS: { [string]: number } = {
 	ink = 0x2B1E2E,
 	sky_day = 0x9FD8F2,
 	sky_night = 0x1F2552,
-	grass = 0x8ACB6C,
-	grass_dark = 0x6FAE57,
+	grass = 0x90C96B,
+	grass_dark = 0x74AB56,
 	pavement = 0xCFC7BA,
 	floor_a = 0xE9DCC4,
 	floor_b = 0xD9C6A6,
@@ -111,8 +111,8 @@ local COLORS: { [string]: number } = {
 	screen_code = 0x9BF2A8,
 	plastic = 0xF2F0EA,
 	plastic_dark = 0x9C9AA3,
-	leaf = 0x6CC06A,
-	leaf_dark = 0x3F8F4F,
+	leaf = 0x71BD67,
+	leaf_dark = 0x438C4F,
 	pot = 0xD9825B,
 	paper = 0xFFFDF4,
 	sofa = 0xE86F6F,
@@ -131,8 +131,8 @@ local COLORS: { [string]: number } = {
 	black = 0x3B3442,
 	white = 0xFFFFFF,
 
-	sand = 0xF2D49B,
-	sand_dark = 0xD9B577,
+	sand = 0xF4D7A2,
+	sand_dark = 0xDDB67B,
 	water = 0x3FA6C4,
 	night = 0x2E2A52,
 	chalk = 0x2F5A3E,
@@ -194,9 +194,11 @@ local THEMES: { [string]: { [string]: number } } = {
 	},
 }
 
--- Multiplicative tints (0.8..1.2) applied by the renderer and the classic lighting.
+-- Multiplicative tints (0.8..1.2) applied by the renderer and the classic lighting. The day is a little warm, like
+-- the light late on a summer afternoon (the request of 2026-11-13: "make the entire game feel more cozy, such as the
+-- pallette and other details to emphasize it"), the same as the dynamic models' (INDOOR below).
 local MODES: { [string]: { r: number, g: number, b: number } } = {
-	day = { r = 1, g = 1, b = 1 },
+	day = { r = 1.03, g = 1, b = 0.95 },
 	night = { r = 0.8, g = 0.84, b = 1.15 },
 }
 

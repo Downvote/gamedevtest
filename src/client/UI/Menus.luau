@@ -664,6 +664,11 @@ local function buildTree(body: Frame, arg: any?)
 	if v.tier < 10 and y + 24 <= H then
 		local more = if v.tier < 6 then "A bigger island lays more eggs, and better ones." else "A bigger island lays better eggs."
 		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
+		y += 24
+	end
+	-- (Logic/Tree.rise: an egg may hatch rarer than it was laid)
+	if y + 22 <= H then
+		UIKit.text(body, "Now and then an egg turns rarer as it hatches.", UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("accent"), wrap = true, name = "Rise" })
 	end
 	-- the eggs now, the rarest first
 	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })

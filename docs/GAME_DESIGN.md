@@ -1,6 +1,32 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "make it much cheaper to buy work and hut buildings"
+> The request (2026-11-13, the latest): "There is no need to make things limited by squares and spheres, make
+> everything more detailed with various shapes and textured objects. Also, like the bakery game, you can use 2d details
+> to add to the athmosphere, such as grass, wood detail, birds and other details"
+
+> The request (2026-11-13): "the egg hatching scene isnt detailed enough. add much much more detail to it, especially
+> the egg. you are allowed to use 2d elements as well for the background"
+
+> The request (2026-11-13): "make the entire game feel more cozy, such as the pallette and other details to emphasize
+> it. also, remove these, the eggs should be buyable only after the player clicks on the tree or enters the tree menu.
+> also, make a cutscene for eggs hatching and shows the creature hatched, listing the mutations it has as it hatches,
+> with eggs having a chance to skip to the next rarity during the cutscene. the cutscenes become more glorious as the
+> rarity of egg increases." (with a picture of the price tags over the eggs under the tree)
+
+So the eggs carry no price tags any more: a tap on an egg, on the tree or on the HUD's Tree card opens the Tree panel,
+and the eggs are bought there (§6). Hatch plays the **hatch scene** (§6.2): the egg up close on a floating islet in a
+painted sky, rocking, perhaps turning rarer (`Tuning.EggUp`), cracking, and what hatched standing in the nest with its
+mutations listed beside it, grander the rarer it is. The light of day is a little warmer, and the greens and the sand
+with it (§2). The islet's things are built from many shapes (round twigs, pointed blades, pyramid roofs, wedge-cut
+stones) and the sky behind it is drawn in 2D, with birds and shooting stars crossing it.
+
+> The request (2026-11-13): "could you bevel these to make them smoother, with rounded corners? for the trees, you
+> should also make the trunk connected smoothly as well without the stepped boxes" (with pictures of the stepped coast
+> and a palm's stepped trunk)
+
+So the coast's layers are bevelled into diagonals and every stepped trunk is one smooth curve (§8).
+
+> The request (2026-11-13): "make it much cheaper to buy work and hut buildings"
 
 So everything on the Work tab (farms, lumber, shops, boosts) and the Huts tab (the huts and the Hatchery) costs about
 a third of what it did (`Tuning.BuildingPrice` 0.3, to two figures: a Lumber Camp 21 wood, a Veggie Patch 12, a
@@ -136,7 +162,8 @@ decides everything, pure Data/Logic modules with specs, and the fake-engine simu
 Build a Lumber Camp for wood, a Veggie Patch that sells what it grows for shells, and a Driftling Hut; each building
 works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its wood and shells. All the
 while the Tree of Life lays a new lot of eggs every three minutes, five on a new island, and the ones left from the last
-lot go. Tap an egg, or its price, to hatch it: out comes a driftling of the egg's rarity with mutations of its own. It
+lot go. Tap the tree (or an egg, or the Tree card) to see them and hatch one there: out comes a driftling of the
+egg's rarity, now and then of a rarer one, with mutations of its own, shown off in a short hatch scene. It
 moves into a hut and takes a place at a farm, pier, lumber camp or shop (its knack's first), adding to what it makes, a
 legendary seven times what a common one adds. Rarer eggs cost more, and on a bigger island every egg costs more, the
 tree lays more of them and the rare ones come more often. When every hut is full, the new one takes the place of one you
@@ -157,6 +184,10 @@ offline progress).
   ray is cast once for each 2x2 pixels, and every pixel on a shadow's edge then casts its own, so a shadow's edge
   steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
   respecting the pixel grid").
+- **Cozy light** (the request of 2026-11-13 at the top): the day's light is a little warm, like a late summer
+  afternoon (`Palette.modes.day` 1.03, 1, 0.95: the same warmth the moving things always had), the grass and leaves a
+  touch more golden and the sand a touch warmer. Dusk, twilight and night keep their grades (§8). The hatch scene's
+  skies (§6.2) are the warmest of all: a sunset, a golden afternoon, lantern-lit nights.
 - **The founders** (yours and your neighbours') and the **visitors** are little chibis: shorts over bare shins, shoes
   on light soles, a shirt with a collar, buttons and a belt with a buckle, sleeves over bare forearms and fists, ears,
   brows, a mouth and a glint in each eye; knees and elbows bend, and the face changes. **Driftlings** are small 3D
@@ -690,15 +721,19 @@ island grows into a new stage, the tree is built again at it.
   | 9 Skyreach Isle | 8,400 | 37,800 | 168,000 | 840,000 | 4,200,000 |
   | 10 Driftling Haven | 12,800 | 57,600 | 256,000 | 1,280,000 | 6,400,000 |
 
-- **Hatching one** (`egg.hatch`): a tap on the egg itself or on its price tag over it, or its row on the HUD's Tree card
-  or in the Tree panel. You pay its price and what hatches (`Tree.roll`) is one of the egg's rarity's kinds among those
+- **Hatching one** (`egg.hatch`): Hatch on its row in the Tree panel, and only there (a tap on an egg under the tree, on
+  the tree itself or on the HUD's Tree card opens the panel). You pay its price. The egg may turn rarer first
+  (`Tree.rise`): one rarity up with `Tuning.EggUp` (a common 6%, an uncommon 4%, a rare 2.5%, an epic 1.2%), and on
+  again from there while the rolls hold, never to a rarity none of the island's kinds has, and never for the tips'
+  first two. The result says what it was laid as (`r`) and what it hatched as (`hr`). What hatches (`Tree.roll`) is
+  one of that rarity's kinds among those
   open at the island's tier (`Data/Islets` tier: beaches and meadows from the start, snowfields and mangroves at 2,
   volcanoes and grottoes at 3, reefs at 4, bluffs at 5, ruins at 6), with mutations of its own (below), rolled as one
   rarity rarer every `EggMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the city
   tiers, three on Moonlit Bay and Evergreen Isle, four on the last two, never past a legendary's roll). It moves
   into the comfiest hut with room and takes a free place (`HelpMax`: 2 driftlings a building; `Island.freeJob`: a
   building of its knack first, else wherever it works fastest, then the emptiest), or rests in its hut until one is
-  free; "It hatched a rare Wispwing!" in its rarity's colour, and it goes in
+  free; the hatch scene plays (§6.2), then "It hatched a rare Wispwing." in its rarity's colour, and it goes in
   the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
   Patch have help waiting. With no hut built the answer is "Build a hut first. Driftlings need somewhere to live."; an
   egg a new lot replaced before the tap reached the server, "That egg is gone. The tree laid new ones."
@@ -731,25 +766,24 @@ island grows into a new stage, the tree is built again at it.
   the Hatchery) are drawn to match. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
   side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
   lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
-  little. Over each of the own island's eggs floats its price on a button (the shells and the shell icon, green when you
-  have them); there are no names, the egg's colour tells the rarity, and where tags would crowd the rarer egg's shows. A
-  hatched egg shakes, its top flies off and the rest sinks into the lawn; the driftling steps out where it lay with a
-  cheer, bits of its rarity's colour burst there (a rare one's name floats up too) and it walks off to its work. A
-  neighbour's tree lays its eggs too, drawn without tags; only the islands near the view have theirs drawn. While the
-  tips ask for a hatch (step 4) an arrow bobs over the cheapest tag you can pay. A tap on your own tree opens the Tree
-  panel; on a neighbour's, "Someone else's Tree of Life. Yours is on your own island."
+  little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the
+  Tree panel. A hatched egg is gone from under the tree when the hatch scene ends; the driftling steps out where it lay
+  and walks off to its work. A neighbour's tree lays its eggs too; only the islands near the view have theirs drawn.
+  While the tips ask for a hatch (step 4) an arrow bobs over your tree. A tap on your own tree opens the Tree panel; on
+  a neighbour's, "Someone else's Tree of Life. Yours is on your own island."
 - **The HUD's Tree card** (under the island card; on a phone at the top left): the tree's icon, "Tree of Life"
   ("Eggs" on a phone) and Open, "New eggs in 2:41" over a bar running down to the next lot, then the best three eggs
   now, the rarest first and the cheaper among them (if you can pay for none of them, the best one you can pay for takes
-  the last row): each with its egg, its rarity's name in its colour and its price on a button that hatches it. On a
-  phone only one row; "No eggs right now" once all are hatched. A new lot gets a notice ("The Tree of Life laid new
+  the last row): each with its egg, its rarity's name in its colour and its price (green when you have the shells). A
+  tap anywhere on the card opens the Tree panel; the card buys nothing itself. On a phone only one row; "No eggs right now" once all are hatched. A new lot gets a notice ("The Tree of Life laid new
   eggs."), and one with an epic or legendary egg in it is news: "An epic egg is waiting under the tree." in its
   rarity's colour with a bell-tree run and sparkles over the card. The card steps aside in Build mode and while the
   Tree panel is open.
 - **The Tree panel** (Open on the card, a tap on the tree, Eggs in the Driftlings panel, a quest's Go): on the left
   "New eggs every 3:00" (sooner with the huts' tree shares), "Next in 2:41" over a bar, "7 eggs a lot. In huts 6/8"
   (orange when full), the odds of each rarity now under "What it lays now" ("<0.1%" under a tenth of a percent, "not
-  yet" for a rarity none of the open kinds has) and, below tier 6, "A bigger island lays more eggs, and better ones.";
+  yet" for a rarity none of the open kinds has), below tier 6 "A bigger island lays more eggs, and better ones." and
+  "Now and then an egg turns rarer as it hatches.";
   on the right, under "Under the tree", every egg there, the rarest first, each with its egg, "Rare egg", "Hatches a
   rare one" and its price on a button that hatches it.
 - **The huts** (the Huts tab in Build mode, so many a tier: §4; the old nests: Driftling Hut 2 places, Cozy Burrow 4,
@@ -868,6 +902,47 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
   each egg: its rarity's egg, "Hatches in 3 turns" over a bar, its parents. A Hatchery holding an egg is not cleared
   away ("An egg is still warming in that Hatchery."). On the island its name floats up over the Hatchery in pink.
 
+### 6.2 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `EggModels.hero`)
+
+The egg bought is shown up close (the requests at the top). Ink blinds close over the island while the scene's picture
+is drawn, then open on it:
+
+- **The stage**: a little islet floating in the sky, far from the islands (the camera's stage view). Its grassy top has
+  a darker rim and a mossy middle, a band of soil under it and a rounded underside of stones, wedge-cut chips of rock,
+  roots and moss hanging off its edge. In the middle a woven nest: three rings of round twigs, twigs sticking out,
+  feathers and moss on its rim, a bed of straw. Round the back two big red mushrooms with white spots, gills and a ring
+  on the stem, a cluster of little orange ones, a stump with rings and roots and a candle burning on it, two lanterns on
+  posts with pyramid roofs, ferns of pointed fronds and tufts of pointed grass that sway in the wind, flowers of six
+  petals, pebbles.
+- **The sky behind it** is a picture drawn pixel by pixel in 2D (the stage's sky is see-through, so it shows round the
+  islet), its own for each rarity: a sunset with a banded sun and outlined clouds (common), a golden afternoon (uncommon),
+  a blue twilight with a crescent moon (rare), a violet night with a full moon and aurora (epic), a deep gold night
+  with a great setting sun throwing beams (legendary). Every sky has three ranges of hills going darker toward the
+  front, the nearest with round and pointed trees in outline, two little islets floating far off, and a glow round the
+  egg in dithered rings. Across it little flocks of birds flap by (day and twilight), shooting stars cross the night
+  skies and stars twinkle. Seeds and petals blow across by day, fireflies rise at night.
+- **The egg** (`EggModels.hero`, 2.3 to 2.8 studs by rarity): a smooth shell of 25 overlapping slices, a white shine
+  high on its lit side, and its rarity's work painted on it as flat marks: freckles and sandy patches (common), a white
+  zigzag band and a vine with leaves and a sprout on top (uncommon), glowing four-pointed stars and a frosty band with
+  icicles (rare), two pink stripes spiralling up it with glowing runes and three motes circling (epic), a band of gold
+  set with red, blue and green gems, glints, a crown of points, a halo turning over it and a beam of light (legendary).
+- **The beats**: the title names the egg ("An epic egg"). It rocks two to five times (more the rarer it was laid), a
+  crack opening at the top on its second rock. If it turns rarer, each step is a hard shake, a flash, sparks and stars,
+  "It turned legendary" and the next rarity's egg standing there, the sky and the light changing with it. Then the
+  build-up: the egg shakes harder and harder, the cracks run down and round its middle and light shines out of them,
+  sparks are drawn in. It cracks: a flash, the top flies off, bits of shell scatter and bounce, what hatched pops up
+  in the nest with a hop and a cheer. "It hatched", its name in its rarity's colour and "Rare, good at farms" under it,
+  then its mutations one at a time on plates beside it, each name and stars in its tier's colour with what it does
+  ("Lucky *", "+5% egg luck"), or "No mutations". "Tap to go on"; a tap (or a few seconds) closes the blinds and opens
+  them on the island, the Tree panel back if it was open.
+- **Grander by rarity** (`GLORY`, by the rarity it hatched as): a longer build-up (0.6 s for a common, 2 s for a
+  legendary); the light of dusk for the commoner ones, a blue, violet or deep gold night for the rarer, the lanterns and
+  the egg's own lights pooling round them; rays of light turning behind the egg (8 from rare, 12 epic, 16 legendary),
+  staying behind what hatched from epic up; the islet dimmed round the egg (rare up); more sparks and shell; the picture
+  jolts (rare up); confetti (epic up); a ring of stars (uncommon up); the sounds grow with it.
+- A tap before the crack skips to it (any steps up taken at once), a tap during the list shows the rest. One scene at
+  a time. With the pixel filter off (the classic look) the same stage plays without the painted sky.
+
 ## 7. Expeditions and battles (gone)
 
 The request of 2026-11-12 quoted at the top of this file took them out: the wild places on the island (the Tide Pool,
@@ -983,7 +1058,7 @@ the stores come from:
 
 1 "Wood pays for everything you build. Tap Build and place a Lumber Camp."; 2 "Shells hatch eggs. Place a Veggie
 Patch. It sells what it grows."; 3 "Driftlings need somewhere to live. Place a Driftling Hut."; 4 "The Tree of Life
-laid eggs round its roots. Tap one to hatch it." (an arrow bobs over the cheapest price tag you can pay); 5 "Visitors
+laid eggs round its roots. Tap the tree to pick one to hatch." (an arrow bobs over your tree); 5 "Visitors
 buy snacks too. Place a Snack Stall for more shells."; 6 "The tree lays new eggs every few minutes. When the huts are
 full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
 ("Place a Lumber Camp. Wood pays for everything you build."). Each moves on once what it asks is done, tip 4 once an
@@ -1070,14 +1145,14 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (7 to 11 minutes);
-- a steady supply: at least 12 hatched by half an hour (35 to 53), an epic within two hours (11 to 17 minutes); a
-  legendary comes to one seed at 80 minutes, the other two have none in three hours (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (3 to 4 minutes);
+- a steady supply: at least 12 hatched by half an hour (37 to 47), an epic within two hours (11 to 17 minutes); a
+  legendary comes at 23 to 37 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  thousandth: 290 to 850 shells of 0.7 to 2.5 million);
-- the island's second tier within 25 minutes (6 to 7), the third within 50 (24 to 30); at an hour, at least 12
-  driftlings in huts (40 to 48); Harbor Town (tier 4) not before 50 minutes (57 to 60), Coral City (tier 5) not before
-  90 (100 to 105), Sunspire Capital (tier 6) not before two and a half hours (2 hours 41 to 2 hours 49), and nothing
+  thousandth: 330 to 440 shells of 0.9 to 1.4 million);
+- the island's second tier within 25 minutes (5 to 6), the third within 50 (26 to 32); at an hour, at least 12
+  driftlings in huts (40 to 50); Harbor Town (tier 4) not before 50 minutes (57 to 65), Coral City (tier 5) not before
+  90 (98 to 107), Sunspire Capital (tier 6) not before two and a half hours (2 hours 33 to 2 hours 47), and nothing
   past it within three hours;
 - both stores are being made at every ten minutes of the three hours, they stay finite, and the save has no food.
 
@@ -1094,7 +1169,11 @@ old Career ran short of wood: it built wood only while wood came in slowly, a fe
 then it sat saving for the next tier (one seed never reached the town in three hours). It now builds wood too while
 the next thing would take over half an hour to save for. With that Career at the old prices the town came at 71 to 83 minutes and Coral City at 125 to
 137; at the new prices they come at 57 to 60 and 100 to 105, and every seed reaches Sunspire Capital before three hours.
-So the bounds moved by about a quarter. By three hours the seeds have hatched 155 to 179 driftlings and house 100,
+So the bounds moved by about a quarter. Eggs turning rarer as they hatch (`Tuning.EggUp`, the same day) moved little
+on its own: at 10%, 8%, 6% and 4% a step one seed reached the capital a minute inside the bound, so the chances went
+down to 6%, 4%, 2.5% and 1.2%; the first legendary moved earlier (from 80 minutes for one seed to 23 to 37 for all
+three), mostly because every hatch draws one more random number and the seeds' later rolls fall differently. By three
+hours the seeds have hatched 162 to 168 driftlings and house 100,
 the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
 
 ## 11. Polish and animation
