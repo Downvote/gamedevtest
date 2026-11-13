@@ -29,9 +29,11 @@ end
 -- well-separated test palette (pure black is avoided: its darker ramp shades share its 32-level LUT cell)
 local PRIMARIES = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF, 0xFFFF00 }
 
+-- (the "plain" light: the colours as they are, so a palette colour lands on itself; the world's day is a little warm,
+-- Palette.modes.day)
 local function restoreDefaults()
 	Shading.setPalette(Shading.defaultColors())
-	Shading.setMode("day")
+	Shading.setMode("plain")
 end
 
 return function()
@@ -50,7 +52,7 @@ return function()
 
 	T.it("LUT nearest colour", function()
 		Shading.setPalette(PRIMARIES)
-		Shading.setMode("day")
+		Shading.setMode("plain")
 		-- exact palette colours map to themselves
 		for _, c in PRIMARIES do
 			T.eq(Shading.lut(c), c, string.format("exact %06X", c))
@@ -237,15 +239,20 @@ return function()
 
 	T.it("day palette: UI pictures ignore the world's mode tint", function()
 		Shading.setPalette(Shading.defaultColors())
-		Shading.setMode("day")
+		Shading.setMode("plain")
 		local c = Palette.colors.pink or 0xF2A7C3
-		local day = Shading.toon(c, 0, 1, 0, 1, 0, 0)
+		local plain = Shading.toon(c, 0, 1, 0, 1, 0, 0)
+		Shading.setMode("day")
+		local dayWorld = Shading.toon(c, 0, 1, 0, 1, 0, 0)
+		local dayUi = Shading.toon(c, 0, 1, 0, 1, 0, 0, true)
 		Shading.setMode("night")
 		local nightWorld = Shading.toon(c, 0, 1, 0, 1, 0, 0)
 		local nightUi = Shading.toon(c, 0, 1, 0, 1, 0, 0, true)
 		Shading.setMode("day")
-		T.truthy(nightWorld ~= day, "the world is tinted at night")
-		T.eq(nightUi, day, "the day context is not")
+		T.truthy(nightWorld ~= dayWorld, "the world is tinted at night")
+		T.truthy(dayWorld ~= plain, "the world's day is a little warm")
+		T.eq(nightUi, dayUi, "the UI pictures' context is the same whatever the world's mode")
+		T.eq(dayUi, plain, "and shows the colours as they are")
 	end)
 
 	T.it("blend: on-palette mix, see-through over transparency", function()

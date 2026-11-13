@@ -199,6 +199,7 @@ local THEMES: { [string]: { [string]: number } } = {
 -- pallette and other details to emphasize it"), the same as the dynamic models' (INDOOR below).
 local MODES: { [string]: { r: number, g: number, b: number } } = {
 	day = { r = 1.03, g = 1, b = 0.95 },
+	plain = { r = 1, g = 1, b = 1 }, -- the colours as they are (the specs: a palette colour lands on itself)
 	night = { r = 0.8, g = 0.84, b = 1.15 },
 }
 
