@@ -1271,10 +1271,23 @@ do
 		full("a piece past the piece limit: refused (full)", "plot.place", { id = "torch", x = cells[#cells][1], z = cells[#cells][2], rot = 0 })
 	end
 	-- every count at its limit: a tile taken up makes room for another (another look), a fence length the same
+	-- (a path with nothing standing on it: decor and fun pieces may stand on paths, and the torches filled spots there)
+	local function bare(t: any): boolean
+		local r = Plot.rect(t.id, t.x, t.z, t.rot)
+		for _, o in pb.plot.placed do
+			if not Plot.isDrawn(o.id) then
+				local orr = Plot.rect(o.id, o.x, o.z, o.rot)
+				if orr.x0 < r.x1 and r.x0 < orr.x1 and orr.z0 < r.z1 and r.z0 < orr.z1 then
+					return false
+				end
+			end
+		end
+		return true
+	end
 	local pathQ, fenceQ = nil, nil
 	for _, q in pb.plot.placed do
 		if Plot.isPath(q.id) then
-			pathQ = pathQ or q
+			pathQ = pathQ or (if bare(q) then q else nil)
 		elseif Plot.isFence(q.id) and q.id == "picket" then
 			fenceQ = fenceQ or q
 		end
