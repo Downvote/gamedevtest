@@ -1,12 +1,16 @@
--- Saves (docs/ARCHITECTURE.md 7.6): a player builds, takes a driftling off the tide into the hut (a second one put
--- there with its mutations), then leaves (saved, lock released) and rejoins to the very same profile, with a fresh tide
--- running past (the drifts are the session's, never saved: their ids start again); a version 11 save (the Tree of Life, its levels, food, a pen with one
--- held) loads as version 12 with the tree and its levels gone, the pen sold for its price, the food gone and what the
--- tree grew counted as taken in; a version 9 save (the wild places, the fights, the levels and a villager in a Tent)
--- loads with its yard's and its Tent's prices back, no villagers, two driftlings in the hut and the pen's one sold; a
--- save under another server's live lock is never overwritten; a join waits out another server's lock and then takes
--- over; a corrupt record still loads into a valid profile; a version 4 save (the game studio) starts a fresh island
--- keeping the founder's look and the settings, its tide bringing a cheap common for the first buildings every third one.
+-- Saves (docs/ARCHITECTURE.md 7.6): a player builds, hatches one of the Tree of Life's eggs into the hut (a second
+-- driftling put there with its mutations), then leaves (saved with the tree's eggs and their clock, lock released) and
+-- rejoins to the very same profile: the same eggs with the same ids, their clock where it stopped (it only runs while
+-- the player is here, so no new lot came while they were away); a version 12 save (the tide: no tree, no eggs) loads
+-- as version 13 with its Tree of Life planted and a lot laid on the first step; a version 11 save (the old Tree of
+-- Life, its levels, food, a pen with one held) loads with the old tree and its levels gone and a new tree planted (the
+-- patch making room for it), the pen sold for its price, the food gone and what the old tree grew counted as hatched; a
+-- version 9 save (the wild places, the fights, the levels and a villager in a Tent) loads with its yard's and its
+-- Tent's prices back, no villagers, two driftlings in the hut, the pen's one sold and a tree planted; a save under
+-- another server's live lock is never overwritten; a join waits out another server's lock and then takes over; a
+-- corrupt record still loads into a valid profile, and junk eggs are cleaned; a version 4 save (the game studio)
+-- starts a fresh island keeping the founder's look and the settings, its tree's first lot starting with two cheap
+-- commons.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -23,9 +27,9 @@ local Tuning = H.sharedServer("Config.Tuning")
 local Street = H.sharedServer("Data.Street")
 local Plot = H.sharedServer("Logic.Plot")
 local Schema = H.sharedServer("Logic.Schema")
-local Tide = H.sharedServer("Logic.Tide")
+local Tree = H.sharedServer("Logic.Tree")
 local Traits = H.sharedServer("Data.Traits")
-local Creatures = H.sharedServer("Data.Creatures")
+local Buildings = H.sharedServer("Data.Buildings")
 local STORE = Tuning.DataStoreName .. "/global" -- the fake engine keys stores by name and scope
 local function record(userId)
 	local st = E.cloud.stores[STORE]
@@ -35,36 +39,46 @@ local function seed(userId, value)
 	E.cloud.stores[STORE] = E.cloud.stores[STORE] or {}
 	E.cloud.stores[STORE]["u_" .. userId] = { value = value, meta = {}, userIds = {}, version = 1, created = E.SIM.now, updated = E.SIM.now }
 end
--- A session's tide runs full: one every Tide.secs, each floating past in Tide.life, so life / secs at once (one more
--- or less for the moment one comes in as another leaves).
-local function full(s, prof): (boolean, number)
-	local n = math.floor(Tide.life(prof) / Tide.secs(prof))
-	return s ~= nil and math.abs(#s.tide.list - n) <= 1, n
+-- The tree's eggs as "id.r;..." (to compare two lists of eggs).
+local function eggsOf(c): string
+	local out = {}
+	for _, e in if type(c) == "table" and type(c.list) == "table" then c.list else {} do
+		table.insert(out, string.format("%s.%s", tostring(e.id), tostring(e.r)))
+	end
+	return table.concat(out, ";")
 end
--- A new island's tide (nothing taken in, nobody in a hut): every third one (ids 1, 4, 7...) a common that can work at
--- the first buildings, good with wood and at a farm by turns. Whether every such one in the list is, and the knacks seen.
-local function firstOnes(s): (boolean, { [string]: boolean })
-	local ok, knacks = true, {}
-	for _, d in s and s.tide.list or {} do
-		if d.id % 3 == 1 then
-			local cd = Creatures.byId[d.sp]
-			local want = if (d.id // 3) % 2 == 0 then "wood" else "farm"
-			ok = ok and cd ~= nil and cd.rarity == 1 and cd.knack == want
-			knacks[want] = true
+-- A lot just laid: as many eggs as the tree lays at the island's tier, their ids one after another up to the next
+-- one's, its clock wound to Tree.secs less the few seconds since (`since`).
+local function lot(prof, since): (boolean, string)
+	local c = prof.clutch
+	local secs = Tree.secs(prof)
+	local ok = #c.list == Tree.count(prof.tier) and c.left <= secs + 1e-6 and c.left >= secs - since
+	for i, e in c.list do
+		ok = ok and e.id == c.next - #c.list + i - 1
+	end
+	return ok, string.format("%d eggs (%d a lot), %.1f s of %.1f to the next: %s", #c.list, Tree.count(prof.tier), c.left, secs, eggsOf(c))
+end
+-- The tree in the island's pieces: how many, and the first.
+local function treesOf(prof): (number, any)
+	local n, first = 0, nil
+	for _, q in prof.plot.placed do
+		if Plot.isFixed(q.id) then
+			n += 1
+			first = first or q
 		end
 	end
-	return ok, knacks
+	return n, first
 end
--- The client's copy of the tide follows the session's from the Fx (one a second): one that just came is on its way
--- for a moment. Wait it out before comparing the two.
+-- The client's view follows the profile's eggs (a new lot reaches it with the next whole view). Wait it out before
+-- comparing the two.
 local function settled(p)
 	E.runUntil(function()
-		local s, v = H.session(p), H.view(p)
-		if s == nil or v == nil or #v.tide ~= #s.tide.list then
+		local prof, v = H.profile(p), H.view(p)
+		if prof == nil or v == nil or type(v.clutch) ~= "table" or #v.clutch ~= #prof.clutch.list then
 			return false
 		end
-		for i, d in s.tide.list do
-			if v.tide[i].id ~= d.id then
+		for i, e in prof.clutch.list do
+			if v.clutch[i].id ~= e.id then
 				return false
 			end
 		end
@@ -94,6 +108,10 @@ local p = H.addPlayer({ userId = 9201, name = "Saver" })
 E.run(2)
 H.expect(not H.smod("DataService").usingMemory(), "save", "the DataStore is used (not the memory fallback)")
 local prof = H.profile(p)
+-- (a new island: its tree laid its first lot on the first step, the first two cheap commons)
+local okLot, whyLot = lot(prof, 2.5)
+local c1 = prof.clutch.list
+H.expect(okLot and c1[1].id == 1 and c1[1].r == 1 and c1[2].r == 1, "save", "the tree laid its first lot when the player arrived (the first two commons)", whyLot)
 prof.shells, prof.wood = 5000, 500
 placeAll(p, { "patch", "pier", "nest", "lumber", "stall", "flowers" })
 local function housed(): number
@@ -105,13 +123,16 @@ local function housed(): number
 	end
 	return n
 end
--- one off the tide taken in (the newest: the most time left before it floats off): into the hut
-local s1 = H.session(p)
-local full1, n1 = full(s1, prof)
-H.expect(full1, "save", "the tide is running when the player arrives (it starts full)", string.format("%d floating past, %d at once", #s1.tide.list, n1))
-local first = s1.tide.list[#s1.tide.list]
-local rt = first and H.req(p, "tide.take", { id = first.id, swap = 0 })
-H.expect(rt ~= nil and rt.ok and housed() == 1 and prof.stats.taken == 1 and prof.folk == nil, "save", "a driftling taken off the tide into the hut (no villagers)", string.format("%s, %d in the hut", tostring(rt and rt.err), housed()))
+-- one egg hatched (the first, a common): into the hut, the rest left lying
+local first = prof.clutch.list[1]
+local restOf = {}
+for i = 2, #prof.clutch.list do
+	local e = prof.clutch.list[i]
+	table.insert(restOf, string.format("%d.%d", e.id, e.r))
+end
+local rt = first and H.req(p, "egg.hatch", { id = first.id, swap = 0 })
+H.expect(rt ~= nil and rt.ok and housed() == 1 and prof.stats.taken == 1 and prof.folk == nil, "save", "an egg hatched into the hut (no villagers)", string.format("%s, %d in the hut", tostring(rt and rt.err), housed()))
+H.expect(eggsOf(prof.clutch) == table.concat(restOf, ";"), "save", "the hatched egg gone, the others still lying", eggsOf(prof.clutch))
 -- (a second one in the hut, its mutations kept through the save)
 local nestUid = 0
 for _, q in prof.plot.placed do
@@ -131,46 +152,98 @@ for _, q in prof.plot.placed do
 end
 prof.stats.best = math.max(prof.stats.best, 2)
 H.push(p, 0.5)
--- the tide goes on: more come in and the oldest float off before the player leaves
-local next0, oldest0 = s1.tide.next, s1.tide.list[1].id
-E.run(Tide.secs(prof) * 3 + 0.2)
-local oldTide = s1.tide.next - 1
-H.expect(s1.tide.next >= next0 + 3 and s1.tide.list[1].id > oldest0 and full(s1, prof) and housed() == 2, "save", "the tide went on meanwhile (more came in, the oldest floated off)", string.format("ids up to %d (%d before), the oldest %d (%d before)", oldTide, next0 - 1, s1.tide.list[1].id, oldest0))
+-- the eggs' clock runs on before the player leaves (no new lot yet: one comes every few minutes)
+local left0, next0, eggs0 = prof.clutch.left, prof.clutch.next, eggsOf(prof.clutch)
+E.run(3)
+H.expect(prof.clutch.left < left0 - 2.5 and prof.clutch.left > left0 - 3.5 and prof.clutch.next == next0 and eggsOf(prof.clutch) == eggs0 and housed() == 2, "save", "the eggs' clock runs on meanwhile, the same eggs lying (no new lot yet)", string.format("%.2f -> %.2f s, %s", left0, prof.clutch.left, eggsOf(prof.clutch)))
 local before = E.deepCopy(H.profile(p))
+local leftAt = E.SIM.now
 E.phase = "leave"
 E.removePlayer(p, "leave")
 E.run(2)
 local rec = record(9201)
 H.expect(rec ~= nil and type(rec.value) == "table" and type(rec.value.data) == "table", "save", "the profile is saved on leave")
 H.expect(rec ~= nil and rec.value.lock == nil, "save", "the lock is released on leave")
-H.expect(rec ~= nil and rec.value.data.tide == nil and rec.value.data.tree == nil and rec.value.data.food == nil, "save", "no tide, tree or food in the record (the tide is the session's)")
+H.expect(rec ~= nil and rec.value.data.tide == nil and rec.value.data.tree == nil and rec.value.data.food == nil, "save", "no tide, old tree levels or food in the record")
+local savedC = rec and rec.value.data.clutch
+local savedLeft = if type(savedC) == "table" then savedC.left else nil
+H.expect(type(savedC) == "table" and eggsOf(savedC) == eggs0 and savedC.next == next0 and type(savedLeft) == "number" and math.abs(savedLeft - before.clutch.left) < 0.25, "save", "the tree's eggs saved with their ids and their clock", string.format("%s, next %s, %s s", eggsOf(savedC), tostring(type(savedC) == "table" and savedC.next), tostring(savedLeft)))
 local freed = E.workspace.Plots:FindFirstChild("Plot_1")
-H.expect(freed ~= nil and freed:GetAttribute("Owner") == 0 and freed:FindFirstChild("EmptyLot", true) ~= nil, "save", "the island is freed: open water again")
+H.expect(freed ~= nil and freed:GetAttribute("Owner") == 0 and freed:FindFirstChild("EmptyLot", true) ~= nil and freed:GetAttribute("Eggs") == nil, "save", "the island is freed: open water again, no eggs listed")
 E.phase = "rejoin"
 local p2 = H.addPlayer({ userId = 9201, name = "Saver" })
 E.run(2)
 local after = E.deepCopy(H.profile(p2))
 -- the clock ran a little since: the day's making (nothing happens offline)
 after.shells, after.wood, after.stats.earned = before.shells, before.wood, before.stats.earned
--- (the fresh tide's drifts go in the Index as seen: kinds never seen before are left out of the comparison)
-for k, n in after.seen do
-	if before.seen[k] == nil and n == 1 then
-		after.seen[k] = nil
-	end
-end
+-- (the eggs' clock ran on only while the player was here again, never while they were away)
+local away = E.SIM.now - leftAt
+local ran = before.clutch.left - after.clutch.left
+after.clutch.left = before.clutch.left
 local diff = H.diff(before, after)
-H.expect(diff == nil, "save", "the rejoined profile is the one saved", tostring(diff))
+H.expect(diff == nil, "save", "the rejoined profile is the one saved (the same eggs, the same ids)", tostring(diff))
+H.expect(ran >= 0 and ran <= 2.05 and ran < away - 1.5, "save", "the eggs' clock where it stopped: it ran only since the player came back, not while away", string.format("%.2f s off the clock in %.1f s since leaving", ran, away))
 H.expect(H.session(p2).plot == 1, "save", "island 1 again")
-local s2 = H.session(p2)
--- (its ids start again at 1: the ones from the start, then one a second for the two seconds since)
-local full2, n2 = full(s2, H.profile(p2))
-local since = s2 and s2.tide.next - 1 - n2 or -1
-H.expect(s2 ~= nil and full2 and since >= 0 and since <= math.ceil(2.5 / Tide.secs(H.profile(p2))) and s2.tide ~= s1.tide, "save", "a fresh tide running past: its ids from 1 again, none of the last visit's", string.format("%d floating past, ids up to %d (%d last visit)", s2 and #s2.tide.list or -1, s2 and s2.tide.next - 1 or -1, oldTide))
+local isle = E.workspace.Plots:FindFirstChild("Plot_1")
+H.expect(isle ~= nil and isle:GetAttribute("Eggs") == eggs0, "save", "the plot lists the same eggs again", tostring(isle and isle:GetAttribute("Eggs")))
 settled(p2)
 H.checkProfile(p2, "rejoin")
 H.checkMirror(p2, "rejoin")
 
------------------------------------------------------------------- a version 11 save (the Tree of Life, its pen, food)
+------------------------------------------------------------------ a version 12 save (the tide: no tree, no eggs)
+E.phase = "v12"
+seed(9208, { data = {
+	v = 12,
+	shells = 800,
+	wood = 120,
+	tier = 2,
+	tut = 0,
+	quest = 4,
+	pals = {
+		{ id = 20, sp = "mossbun", home = 11, work = 10, muts = {} },
+		{ id = 21, sp = "pebblit", home = 11, work = 0, muts = {} },
+	},
+	plot = { placed = {
+		{ uid = 10, id = "patch", x = 8, z = 6, rot = 0, lvl = 1 },
+		{ uid = 11, id = "nest", x = -10, z = 4, rot = 0, lvl = 1 },
+		{ uid = 12, id = "flowers", x = -4, z = -6, rot = 0, lvl = 1 },
+	} },
+	seen = { mossbun = 2, pebblit = 2, gullfin = 1 },
+	stats = { days = 6, built = 3, earned = 1500, taken = 2, sold = 0, best = 1, hatched = 0 },
+	nextId = 30,
+} })
+local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
+E.run(3)
+local pt = H.profile(v12)
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 13, "save", "a version 12 save loads as version 13", tostring(pt and pt.v))
+if pt then
+	local trees, tq = treesOf(pt)
+	local kept = 0
+	for _, q in pt.plot.placed do
+		if q.uid == 10 or q.uid == 11 or q.uid == 12 then
+			kept += 1
+		end
+	end
+	H.expect(trees == 1 and tq.uid >= 30 and kept == 3 and #pt.plot.placed == 4, "save", "its Tree of Life planted (a new piece), the patch, the hut and the flowers kept", string.format("%d trees, %d kept of %d pieces", trees, kept, #pt.plot.placed))
+	local ok, why = lot(pt, 3)
+	H.expect(ok and pt.clutch.list[1].id == 1, "save", "and a lot of eggs laid on the first step (the tier's count, ids from 1)", why)
+	local inHut = 0
+	for _, x in pt.pals do
+		if x.home == 11 then
+			inHut += 1
+		end
+	end
+	H.expect(#pt.pals == 2 and inHut == 2 and pt.stats.taken == 2 and pt.stats.sold == 0, "save", "its driftlings kept in the hut, the ones taken in off the tide counted as hatched", string.format("%d pals, %d in the hut, taken %d", #pt.pals, inHut, pt.stats.taken))
+	H.expect(pt.shells >= 800 and pt.wood == 120 and pt.tut == 0 and pt.quest == 4 and pt.seen.gullfin == 1, "save", "its stores, the tips, the questline and the Index kept", string.format("%s %s", tostring(pt.shells), tostring(pt.wood)))
+	H.checkProfile(v12, "v12")
+	settled(v12)
+	H.checkMirror(v12, "v12")
+end
+-- (they leave again: six islands to a sea, and more joins follow)
+E.removePlayer(v12, "leave")
+E.run(1)
+
+------------------------------------------------------------------ a version 11 save (the old Tree of Life, its pen, food)
 E.phase = "v11"
 seed(9207, { data = {
 	v = 11,
@@ -196,21 +269,30 @@ seed(9207, { data = {
 	stats = { days = 9, built = 5, earned = 2000, grown = 7, sold = 3, best = 2, hatched = 0 },
 	nextId = 40,
 } })
--- what the pen sells for (Logic/Tide.price)
-local penPrice = Tide.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts = Traits.clean({ "angler2" }) })
-	+ Tide.price({ id = 0, sp = "clawdle", home = 0, work = 0, muts = Traits.clean({}) })
+-- what the pen sells for (Logic/Tree.price)
+local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts = Traits.clean({ "angler2" }) })
+	+ Tree.price({ id = 0, sp = "clawdle", home = 0, work = 0, muts = Traits.clean({}) })
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 12, "save", "a version 11 save loads as version 12", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 13, "save", "a version 11 save loads as version 13", tostring(pv and pv.v))
 if pv then
-	local trees = 0
+	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid. A tier-1 island has
+	-- few places an 8 by 8 tree fits, and the patch and the hut take them all: the patch makes room, its whole price
+	-- back, as Logic/Tree.plant clears the nearest piece that houses nobody)
+	local trees, tq = treesOf(pv)
+	local hut, patch = 0, 0
 	for _, q in pv.plot.placed do
-		if q.id == "tree" then
-			trees += 1
+		if q.uid == 12 and q.id == "nest" then
+			hut += 1
+		elseif q.id == "patch" then
+			patch += 1
 		end
 	end
-	H.expect(trees == 0 and #pv.plot.placed == 2 and pv.tree == nil, "save", "the Tree of Life and its levels gone, the patch and the hut kept", string.format("%d trees, %d pieces", trees, #pv.plot.placed))
+	H.expect(trees == 1 and tq.uid ~= 10 and pv.tree == nil, "save", "the old Tree of Life and its levels gone, a new tree planted", string.format("%d trees (uid %s)", trees, tostring(tq and tq.uid)))
+	H.expect(#pv.plot.placed == 2 and hut == 1 and patch == 0, "save", "the patch made room for it, the hut kept", string.format("%d pieces, %d huts, %d patches", #pv.plot.placed, hut, patch))
+	local ok, why = lot(pv, 3)
+	H.expect(ok, "save", "its first lot of eggs laid", why)
 	local inHut = 0
 	for _, x in pv.pals do
 		if x.home == 12 and (x.id == 30 or x.id == 31) then
@@ -218,13 +300,13 @@ if pv then
 		end
 	end
 	H.expect(#pv.pals == 2 and inHut == 2, "save", "the hut's two kept, the pen's two gone", string.format("%d pals, %d in the hut", #pv.pals, inHut))
-	-- (the shells since: the patch sold a little, counted as earned too)
+	-- (the shells since: nothing sold, the patch gone, its worker resting)
 	local made = pv.stats.earned - (2000 + penPrice)
 	H.expect(made >= 0 and made < 5 and math.abs((pv.shells - pv.stats.earned) - (1000 - 2000)) < 1e-6, "save", "the pen sold for its price into shells (counted as earned)", string.format("%s shells, %s earned, the pen %d", tostring(pv.shells), tostring(pv.stats.earned), penPrice))
 	H.expect(pv.stats.sold == 3 + 2, "save", "and as sold", tostring(pv.stats.sold))
-	H.expect(pv.food == nil and pv.wood == 80, "save", "the food gone, the wood kept", string.format("%s %s", tostring(pv.food), tostring(pv.wood)))
+	H.expect(pv.food == nil and pv.wood == 80 + Buildings.byId.patch.wood, "save", "the food gone, the wood kept and the patch's wood back", string.format("%s %s", tostring(pv.food), tostring(pv.wood)))
 	local st = pv.stats :: any
-	H.expect(st.taken == 7 and st.grown == nil, "save", "what the tree grew counted as taken in", string.format("taken %s grown %s", tostring(st.taken), tostring(st.grown)))
+	H.expect(st.taken == 7 and st.grown == nil, "save", "what the old tree grew counted as hatched", string.format("taken %s grown %s", tostring(st.taken), tostring(st.grown)))
 	H.expect(pv.tut == 5 and pv.quest == 3 and pv.seen.conchy == 1, "save", "the tips, the questline and the Index kept", string.format("tut %d quest %d", pv.tut, pv.quest))
 	H.checkProfile(v11, "v11")
 	settled(v11)
@@ -283,9 +365,9 @@ if ov then
 			yards += 1
 		end
 	end
-	H.expect(trees == 0 and places == 0 and yards == 0 and #ov.plot.placed == 2, "save", "no Tree of Life; the wild places, the yard and the Tent gone (the patch and the hut kept)", string.format("%d %d %d, %d pieces", trees, places, yards, #ov.plot.placed))
+	H.expect(trees == 1 and places == 0 and yards == 0 and #ov.plot.placed == 2, "save", "a Tree of Life planted (the patch made room for it); the wild places, the yard and the Tent gone (the hut kept)", string.format("%d %d %d, %d pieces", trees, places, yards, #ov.plot.placed))
 	-- (the third went to the pen at version 10, and the pen was sold at version 12)
-	local sold = Tide.price({ id = 0, sp = "mossbun", home = 0, work = 0, muts = Traits.clean({ "lazy" }) })
+	local sold = Tree.price({ id = 0, sp = "mossbun", home = 0, work = 0, muts = Traits.clean({ "lazy" }) })
 	H.expect(ov.shells >= 1000 + 450 + 30 + sold and ov.wood >= 80 + 50, "save", "the yard's and the Tent's prices back, and the pen's driftling sold", string.format("%s %s (the pen's %d)", tostring(ov.shells), tostring(ov.wood), sold))
 	local inNest = 0
 	for _, x in ov.pals do
@@ -295,7 +377,7 @@ if ov then
 	end
 	H.expect(#ov.pals == 2 and inNest == 2 and ov.stats.sold == 1, "save", "its driftlings: two in the hut, the pen's one sold", string.format("%d, %d in the hut, %d sold", #ov.pals, inNest, ov.stats.sold))
 	local st = ov.stats :: any
-	H.expect(ov.folk == nil and st.movedIn == nil and ov.tut == 4 and ov.quest == 1 and st.taken == 3 and st.grown == nil, "save", "no villagers or levels; the tips on step 4; the questline afresh; befriended counted as taken in", string.format("tut %d taken %s", ov.tut, tostring(st.taken)))
+	H.expect(ov.folk == nil and st.movedIn == nil and ov.tut == 4 and ov.quest == 1 and st.taken == 3 and st.grown == nil, "save", "no villagers or levels; the tips on step 4; the questline afresh; befriended counted as hatched", string.format("tut %d taken %s", ov.tut, tostring(st.taken)))
 	H.checkProfile(old, "v9")
 	settled(old)
 	H.checkMirror(old, "v9")
@@ -354,15 +436,60 @@ if cp then
 	-- to, and was sold at version 12; the shells it held were junk, so its price is all there is, and the patch has
 	-- sold a little since, working with nobody at it)
 	local Util = H.sharedServer("Logic.Util")
-	local crab = Tide.price({ id = 8, sp = "clawdle", home = 0, work = 0, muts = Traits.clean(Traits.roll(Util.newRng(Util.hash32("clawdle:8")), 1)) })
+	local crab = Tree.price({ id = 8, sp = "clawdle", home = 0, work = 0, muts = Traits.clean(Traits.roll(Util.newRng(Util.hash32("clawdle:8")), 1)) })
 	H.expect(cp.shells >= crab and cp.shells < crab + 2 and cp.wood == Tuning.StartWood and cp.food == nil and cp.tier == #Tuning.TierCost, "save", "into a valid profile (the tier at the top)", string.format("%s %s %d (the Clawdle %d)", tostring(cp.shells), tostring(cp.wood), cp.tier, crab))
-	local q = cp.plot.placed[1]
-	H.expect(#cp.plot.placed == 1 and q.id == "patch" and Plot.fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone (no tree planted)", string.format("%d pieces", #cp.plot.placed))
+	local pq, tq = cp.plot.placed[1], cp.plot.placed[2]
+	H.expect(#cp.plot.placed == 2 and pq.id == "patch" and Plot.fits(cp.tier, {}, pq.id, pq.x, pq.z, pq.rot) and tq.id == "tree", "save", "the patch off the island moved onto it, the unknown piece gone, a Tree of Life planted", string.format("%d pieces", #cp.plot.placed))
 	H.expect(cp.folk == nil and #cp.pals == 0 and cp.stats.sold == 1, "save", "only what makes sense kept (no villagers, the unknown kind gone, the pen's Clawdle sold)", string.format("%d pals, %d sold", #cp.pals, cp.stats.sold))
+	local ok, why = lot(cp, 3)
+	H.expect(ok, "save", "its tree's first lot laid (the top tier's count)", why)
 	H.checkProfile(c, "corrupt")
 	settled(c)
 	H.checkMirror(c, "corrupt")
 end
+-- junk eggs in a version 13 save: only eggs with an id of their own and a rarity in range, no more than the tree lays,
+-- the next id past them all, the clock no longer than a lot's
+E.phase = "corrupt-eggs"
+seed(9209, { data = {
+	v = 13,
+	shells = 300,
+	wood = 40,
+	tier = 1,
+	tut = 0,
+	quest = 2,
+	clutch = {
+		left = 1e9,
+		next = 2,
+		list = {
+			{ id = 3, r = 2 },
+			{ id = 3, r = 4 }, -- (the same id again)
+			"an egg",
+			{ id = -1, r = 1 }, -- (no id)
+			{ id = 7, r = 99 }, -- (past legendary)
+			{ id = 8, r = 0 },
+			{ id = 9.5, r = 2.7 },
+			{ id = 10, r = "rare" },
+			{ id = 11, r = 1 }, -- (one past the five a tier-1 tree lays)
+		},
+	},
+	stats = { taken = 3 },
+	nextId = 5,
+} })
+local j = H.addPlayer({ userId = 9209, name = "Scrambled" })
+E.run(3)
+local jp = H.profile(j)
+H.expect(jp ~= nil, "save", "a save with junk eggs still loads")
+if jp then
+	local jc = jp.clutch
+	H.expect(eggsOf(jc) == "3.2;7.5;8.1;9.2;10.1", "save", "its eggs cleaned: one an id, rarities 1 to 5, at most the tree's five", eggsOf(jc))
+	H.expect(jc.next == 11 and jc.left <= Tuning.EggSecs and jc.left > Tuning.EggSecs - 3, "save", "the next id past them, the clock cut to a lot's (no new lot laid)", string.format("next %d, %.1f s", jc.next, jc.left))
+	H.expect((treesOf(jp)) == 1, "save", "and its Tree of Life planted")
+	H.checkProfile(j, "corrupt-eggs")
+	settled(j)
+	H.checkMirror(j, "corrupt-eggs")
+end
+E.removePlayer(j, "leave")
+E.run(1)
 
 ------------------------------------------------------------------ an old save (version 4: the game studio)
 E.phase = "old-save"
@@ -383,12 +510,12 @@ local op = H.profile(o)
 H.expect(op ~= nil and op.v == Schema.VERSION, "save", "a version 4 save loads as an island", tostring(op and op.v))
 if op then
 	H.expect(op.founder.shirt == 6 and op.settings.pixel == "low" and op.createdAt == 1234, "save", "the founder's look, the settings and the start kept")
-	H.expect(op.coins == nil and op.team == nil and op.games == nil and #op.plot.placed == 0 and #op.pals == 0 and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips (nothing built, no Tree of Life)")
+	H.expect(op.coins == nil and op.team == nil and op.games == nil and #op.plot.placed == 1 and op.plot.placed[1].id == "tree" and #op.pals == 0 and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips (nothing built but its Tree of Life)")
 	H.expect(op.shells == Tuning.StartShells and op.wood == Tuning.StartWood, "save", "the starting shells and wood", string.format("%s %s", tostring(op.shells), tostring(op.wood)))
-	-- (a fresh island's tide: every third one a common for the tips' first buildings, good with wood or at a farm)
-	local so = H.session(o)
-	local firstOk, knacks = firstOnes(so)
-	H.expect(so ~= nil and full(so, op) and firstOk and knacks.wood and knacks.farm, "save", "its tide runs full, every third one a common for the camp or a farm, by turns", so and tostring(#so.tide.list))
+	-- (a fresh island's first lot: the first two cheap commons, for the tips' first driftling)
+	local ok, why = lot(op, 3)
+	local ol = op.clutch.list
+	H.expect(ok and ol[1].id == 1 and ol[1].r == 1 and ol[2].r == 1, "save", "its tree's first lot laid, the first two commons", why)
 	settled(o)
 	H.checkProfile(o, "old-save")
 	H.checkMirror(o, "old-save")

@@ -213,10 +213,11 @@ function EggView.hatch(id: number, swap: number?)
 		local sold = tonumber(data.sold) or 0
 		local a = if def and (def.rarity == 4 or def.rarity == 2) then "an" else "a"
 		local what = if def then string.format("%s %s %s", a, string.lower(rar.name), name) else name
-		UIKit.notice(if sold > 0 then string.format("It hatched %s! The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s!", what), UIKit.color(rar.color), 4)
+		-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
 		if UIKit.currentPanel() == "tree" then
 			UIKit.openPanel("tree")
 		end
+		UIKit.notice(if sold > 0 then string.format("It hatched %s! The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s!", what), UIKit.color(rar.color), 4)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id })
 	else
@@ -256,7 +257,7 @@ end
 
 -- One island's eggs from its attribute (near the view only): new ones rise, ones gone sink (or crack, hatched). A lot
 -- keeps its slots on the ring while it lasts (slot: its place in the order it was laid; a bigger island's extra eggs
--- take the next ones), the ring as many slots as the island lays (Tuning.EggCount by its tier).
+-- take the free ones), the ring as many slots as the island lays (Tuning.EggCount by its tier).
 local lotFirst: { [number]: number } = {}
 local function syncPlot(i: number, near: boolean, t: number)
 	local m = plotModel(i)
@@ -322,12 +323,28 @@ local function syncPlot(i: number, near: boolean, t: number)
 			e.sink = t
 		end
 	end
+	-- (a new egg takes its place in the lot's order when that slot is on the ring and free, else the first free one: the
+	-- extra eggs of an expansion after a hatch, or a lot first seen with gaps in it, never land on another egg's spot)
+	local held: { [number]: boolean } = {}
+	for _, e in eggs do
+		if e.plot == i and e.sink == nil and e.crack == nil then
+			held[e.slot] = true
+		end
+	end
 	local came = 0
 	for _, x in list do
 		local key = i .. ":e" .. x.id
 		local e = eggs[key]
 		if e == nil then
-			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = math.max(1, x.id - first + 1), n = n, parts = {}, top = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER }
+			local slot = math.max(1, x.id - first + 1)
+			if slot > n or held[slot] then
+				slot = 1
+				while held[slot] do
+					slot += 1
+				end
+			end
+			held[slot] = true
+			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = slot, n = n, parts = {}, top = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER }
 			came += 1
 		else
 			e.n = math.max(n, e.slot)

@@ -1,12 +1,14 @@
 -- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
 -- here, open menus and Build mode holding nothing; the wood and shells a day makes matching Island.rates (to a tick);
--- the stores reaching the client every second (Fx tick); the tide on the server's time: a driftling coming in every
--- second and floating past in TideLife seconds (Fx tide, the client patching its copy with no whole view sent for it,
--- the Tide card's time-left bars running down); nothing eating (no food since 2026-11-13: the stores only grow,
--- even from none); a driftling waiting with no hut while every hut is full, moving in once a hut goes up and going to
--- work once a building of its knack does; the Hatchery's egg (a feast of shells) hatching into a hut with room, or
--- waiting with no hut; two islands each on their own clock. (The huts are full while the rates are measured, and
--- nobody takes a driftling off the tide, so nobody new goes to work.)
+-- the stores and the time to the Tree of Life's next eggs reaching the client every second (Fx tick, patched into the
+-- view with no whole view sent); the tree's eggs: its first lot laid when the island comes, a new lot every Tree.secs
+-- (Fx eggs with a whole view: the old ones gone, the clock wound again, the ticks' time running down and starting over,
+-- the HUD's Tree card counting down), sooner with the huts' tree shares, the extra eggs laid at once when the island
+-- grows, and the clock running only while the player is here (nothing laid while they're away); nothing eating (no
+-- food since 2026-11-13: the stores only grow, even from none); a driftling waiting with no hut while every hut is
+-- full, moving in once a hut goes up and going to work once a building of its knack does; the Hatchery's egg (a feast
+-- of shells) hatching into a hut with room, or waiting with no hut; two islands each on their own clocks. (The huts are
+-- full while the rates are measured, and nobody hatches one of the tree's eggs, so nobody new goes to work.)
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -23,52 +25,84 @@ local Tuning = H.sharedServer("Config.Tuning")
 local Street = H.sharedServer("Data.Street")
 local Plot = H.sharedServer("Logic.Plot")
 local Island = H.sharedServer("Logic.Island")
-local Tide = H.sharedServer("Logic.Tide")
+local Tree = H.sharedServer("Logic.Tree")
+local Traits = H.sharedServer("Data.Traits")
 local Breed = H.sharedServer("Logic.Breed")
+local STORE = Tuning.DataStoreName .. "/global" -- the fake engine keys stores by name and scope
 
 local p = H.addPlayer({ userId = 9301, name = "Clock" })
 E.run(1)
 local fx = H.watchFx(p)
 local prof = H.profile(p)
 local s = H.session(p)
--- (when each tide message reaches the client, on the server's time, and how many whole views it gets: the tide's news
--- are patched into the view, so no whole view comes every second)
+-- (when each lot of eggs reaches the client, the Tree.secs it was laid with, and how many whole views the client gets:
+-- the ticks are patched into the view, so no whole view comes every second)
 local SC = H.cmod(p, "Controllers.StateClient")
-local tideAt, views = {}, 0
+local lots, views = {}, 0
 H.inClient(p, function()
 	SC.Fx:Connect(function(msg)
-		if msg.kind == "tide" then
-			table.insert(tideAt, { msg = msg, now = E.workspace:GetServerTimeNow() })
+		if msg.kind == "eggs" then
+			table.insert(lots, { msg = msg, now = E.SIM.now, secs = Tree.secs(prof), at = #fx })
 		end
 	end)
 	SC.Changed:Connect(function()
 		views += 1
 	end)
 end)
--- every drift this session's tide has had (its `at` and `life`): the ones running past now, and each that comes in
-local known = {}
-for _, d in s.tide.list do
-	known[d.id] = { at = d.at, life = d.life }
+-- The tree's eggs as "id.r;..." (to compare two lists of eggs).
+local function eggsOf(c): string
+	local out = {}
+	for _, e in if type(c) == "table" and type(c.list) == "table" then c.list else {} do
+		table.insert(out, string.format("%s.%s", tostring(e.id), tostring(e.r)))
+	end
+	return table.concat(out, ";")
 end
--- The client's copy of the tide follows the session's from the Fx (one a second): one that just came is on its way
--- for a moment. Wait it out before comparing the two.
+-- The client's view follows the profile's eggs (a new lot reaches it with the next whole view). Wait it out before
+-- comparing the two.
 local function settled(who)
 	E.runUntil(function()
-		local ss, v = H.session(who), H.view(who)
-		if ss == nil or v == nil or #v.tide ~= #ss.tide.list then
+		local pr, v = H.profile(who), H.view(who)
+		if pr == nil or v == nil or type(v.clutch) ~= "table" or #v.clutch ~= #pr.clutch.list then
 			return false
 		end
-		for i, d in ss.tide.list do
-			if v.tide[i].id ~= d.id then
+		for i, e in pr.clutch.list do
+			if v.clutch[i].id ~= e.id then
 				return false
 			end
 		end
 		return true
 	end, 1, 0.05)
 end
--- A session's tide runs full: life / secs at once (one more or less for the moment one comes in as another leaves).
-local function full(ss, pr): boolean
-	return math.abs(#ss.tide.list - math.floor(Tide.life(pr) / Tide.secs(pr))) <= 1
+-- The next lot laid from now on (the tree's clock runs out on the server; its Fx reaches the client): the entry in
+-- `lots`, or nil within `limit` seconds. A top-up (more > 0, the island grown) is no lot.
+local function nextLot(limit: number)
+	local n0 = #lots
+	local found = nil
+	E.runUntil(function()
+		for k = n0 + 1, #lots do
+			if lots[k].msg.more == 0 then
+				found = lots[k]
+				return true
+			end
+		end
+		return false
+	end, limit, 0.05)
+	return found
+end
+-- "m:ss", as the HUD shows the time to the next lot.
+local function clock(secs: number): string
+	local x = math.max(0, math.ceil(secs))
+	return string.format("%d:%02d", x // 60, x % 60)
+end
+
+------------------------------------------------------------------ the first lot
+-- (a new island: the tree laid its first lot the moment it came, the first two cheap commons, its clock wound)
+E.phase = "first"
+do
+	local c = prof.clutch
+	local n = Tree.count(prof.tier)
+	H.expect(#c.list == n and c.next == n + 1 and c.list[1].id == 1 and c.list[1].r == 1 and c.list[2].r == 1, "eggs", "the tree laid its first lot when the island came (the first two commons)", eggsOf(c))
+	H.expect(c.left <= Tuning.EggSecs and c.left > Tuning.EggSecs - 2.5, "eggs", "its clock wound to EggSecs and running", string.format("%.2f", c.left))
 end
 
 local function place(id)
@@ -100,7 +134,7 @@ for _, id in { "patch", "patch", "lumber", "nest", "nest", "stall", "flowers" } 
 	H.expect(r.ok, "clock", "place " .. id, tostring(r.err))
 end
 -- the huts filled: four driftlings with places at the farms, the camp and the stall (a new island has none of its
--- own yet: the tide's are only taken in by the player)
+-- own yet: the tree's eggs are only hatched by the player)
 local function hutsN(): number
 	local n = 0
 	for _, x in prof.pals do
@@ -112,7 +146,7 @@ local function hutsN(): number
 end
 H.expect(#prof.pals == 0, "clock", "a new island has no driftling yet", tostring(#prof.pals))
 for _, sp in { "mossbun", "frondle", "pebblit", "conchy" } do
-	Tide.add(prof, sp, {})
+	Tree.add(prof, sp, {})
 end
 H.push(p, 0.2)
 local working = 0
@@ -121,7 +155,7 @@ for _, x in prof.pals do
 		working += 1
 	end
 end
-H.expect(hutsN() == 4 and working == 4 and Tide.room(prof) == 0, "clock", "the two huts full, all four at work", string.format("%d in huts, %d at work", hutsN(), working))
+H.expect(hutsN() == 4 and working == 4 and Tree.room(prof) == 0, "clock", "the two huts full, all four at work", string.format("%d in huts, %d at work", hutsN(), working))
 -- the next turn's end (its Fx turn)
 local function nextTurn(limit: number?)
 	local i0 = #fx
@@ -135,7 +169,7 @@ nextTurn()
 local t0 = E.SIM.now
 E.run(0.3) -- (the first turn's Fx on its way)
 local f0 = #fx
-local tf0, views0 = #tideAt, views
+local views0 = views
 E.runUntil(function()
 	return count("turn", f0) >= 2
 end, Tuning.TurnSeconds * 3 + 3, 0.05)
@@ -146,125 +180,122 @@ H.expect(count("turn", f0) == 2, "clock", "an Fx turn each", tostring(count("tur
 H.expect(prof.day == d0, "clock", "turns are not days (a day is hours of the sea's clock)", string.format("%d -> %d", d0, prof.day))
 H.expect(math.abs(count("tick", f0) - took) <= 2, "clock", "an Fx tick every second", string.format("%d in %.1fs", count("tick", f0), took))
 
------------------------------------------------------------------- the tide on the server's time
--- (one comes in every second and floats past the island in TideLife seconds, on the server's time, which is
--- workspace:GetServerTimeNow: each one that came carries the moment it came, `at`, a second after the one before, and
--- its `life`, and leaves once its life is up. The ticks carry the seconds between two, no tide clock. The client
--- patches its copy of the tide from these messages, with no whole view for them, and the Tide card's bars run down.)
-E.phase = "tide"
+------------------------------------------------------------------ the tree's eggs on the island's clock
+-- (the tree lays a new lot every Tree.secs while the player is here: the eggs left go, Tree.count new ones come with
+-- their prices, an Fx eggs and a whole view; the ticks carry the time to the next lot, a second less each, and the
+-- seconds between two; the HUD's Tree card counts down from StateClient.clutchLeft. The huts' tree shares bring the
+-- lots sooner.)
+E.phase = "eggs"
+local lastForced = nil -- (the lot brought on last here: the lots phase waits for the one after it)
 do
-	local secs, life = Tide.secs(prof), Tide.life(prof)
-	H.expect(math.abs(secs - Tuning.TideSecs) < 1e-9 and math.abs(life - Tuning.TideLife) < 1e-9, "tide", "one comes in every TideSecs and floats past in TideLife (no tide shares in the huts)", string.format("%s %s", tostring(secs), tostring(life)))
+	local secs = Tree.secs(prof)
+	H.expect(math.abs(secs - Tuning.EggSecs) < 1e-9, "eggs", "a lot every EggSecs (no tree shares in the huts)", tostring(secs))
 	local ticks = {}
 	for i = f0 + 1, #fx do
 		if fx[i].kind == "tick" then
 			table.insert(ticks, fx[i])
 		end
 	end
-	local carried = true
-	for _, m in ticks do
-		carried = carried and m.tideT == nil and type(m.tideSecs) == "number" and math.abs(m.tideSecs - secs) < 1e-9
-	end
-	H.expect(#ticks >= 10 and carried, "tide", "every tick carries the seconds between two (no tide clock any more)", string.format("%d ticks", #ticks))
-	-- what came and what left over the two turns, and when each reached the client
-	local came, gone = {}, {}
-	for i = 1, #tideAt do
-		local m, now = tideAt[i].msg, tideAt[i].now
-		for _, d in if type(m.came) == "table" then m.came else {} do
-			if type(d) == "table" and type(d.id) == "number" then
-				known[d.id] = { at = d.at, life = d.life }
-				if i > tf0 then
-					table.insert(came, { d = d, now = now })
-				end
-			end
-		end
-		for _, id in if type(m.gone) == "table" then m.gone else {} do
-			if i > tf0 then
-				table.insert(gone, { id = id, now = now })
-			end
+	local carried, down = true, true
+	for k, m in ticks do
+		carried = carried and m.tideSecs == nil and type(m.clutchLeft) == "number" and type(m.clutchSecs) == "number" and math.abs(m.clutchSecs - secs) < 1e-9
+		local prev = ticks[k - 1]
+		if prev and type(prev.clutchLeft) == "number" and type(m.clutchLeft) == "number" then
+			down = down and math.abs((prev.clutchLeft - m.clutchLeft) - 1) < 0.15
 		end
 	end
-	local spaced, onTime, lives = true, true, true
-	for k, c in came do
-		local prev = came[k - 1]
-		if prev then
-			spaced = spaced and math.abs((c.d.at - prev.d.at) - secs) < 1e-3
-		end
-		-- (it came at `at`: the server's step that saw it, the message on its way)
-		onTime = onTime and type(c.d.at) == "number" and c.now >= c.d.at and c.now - c.d.at <= 0.25
-		lives = lives and type(c.d.life) == "number" and math.abs(c.d.life - life) < 1e-6 and type(c.d.cost) == "number"
-	end
-	H.expect(math.abs(#came - took / secs) <= 1, "tide", "one came in every second", string.format("%d came in %.1fs", #came, took))
-	H.expect(#came > 0 and spaced, "tide", "each a second after the one before, on the tide's clock")
-	H.expect(#came > 0 and onTime, "tide", "each came at the server's time it says (its at)")
-	H.expect(#came > 0 and lives, "tide", "each with its life (TideLife) and its cost on this island")
-	local afterLife, unknown = true, 0
-	for _, g in gone do
-		local k = known[g.id]
-		if k == nil then
-			unknown += 1
-		else
-			afterLife = afterLife and g.now >= k.at + k.life - 1e-6 and g.now - (k.at + k.life) <= 0.25
-		end
-	end
-	H.expect(math.abs(#gone - #came) <= 1 and unknown == 0, "tide", "as many floated off as came in", string.format("%d gone, %d came, %d unknown", #gone, #came, unknown))
-	H.expect(#gone > 0 and afterLife, "tide", "each left once its life was up, on the server's time")
-	local now = E.workspace:GetServerTimeNow()
-	H.expect(full(s, prof) and math.abs(s.tide.clock - now) < 0.2, "tide", "TideLife / TideSecs floating past at once, the tide's clock the server's", string.format("%d floating past, clock %.2f behind", #s.tide.list, now - s.tide.clock))
-	-- the client: its copy patched from the messages (the whole view only came with the turns)
-	H.expect(views - views0 <= count("turn", f0) + 1, "tide", "no whole view sent for the tide (the client patches its copy)", string.format("%d views, %d tide messages", views - views0, #tideAt - tf0))
-	settled(p)
+	H.expect(#ticks >= 10 and carried, "eggs", "every tick carries the time to the next lot and the seconds between two (no tide)", string.format("%d ticks", #ticks))
+	H.expect(#ticks >= 10 and down, "eggs", "the time to the next lot a second less each tick")
+	H.expect(views - views0 <= count("turn", f0) + 1, "eggs", "no whole view a second (the ticks are patched into the view)", string.format("%d views in %d ticks", views - views0, #ticks))
 	local v = H.view(p)
-	local same = v ~= nil and #v.tide == #s.tide.list
-	for i, d in s.tide.list do
-		local e = v and v.tide[i]
-		same = same and e ~= nil and e.id == d.id and e.sp == d.sp and math.abs(e.at - d.at) < 1e-6 and math.abs(e.life - d.life) < 1e-6
+	H.expect(v ~= nil and v.tide == nil and v.tideSecs == nil and math.abs(v.clutchLeft - prof.clutch.left) <= 1.1 and v.clutchSecs == secs, "eggs", "the view's clock the server's, to a tick", string.format("%s vs %.2f", tostring(v and v.clutchLeft), prof.clutch.left))
+	H.expect(hutsN() == 4 and #prof.pals == 4, "eggs", "nobody hatches by themselves", string.format("%d driftlings", #prof.pals))
+	-- the clock brought near its end: the eggs left go and a new lot comes, with its Fx and a whole view
+	local old = {}
+	for _, e in prof.clutch.list do
+		old[e.id] = true
 	end
-	H.expect(same and v.tideT == nil and v.tideSecs == secs, "tide", "the view's tide is the session's, drift by drift (when each came, its life)", string.format("%d vs %d", v and #v.tide or -1, #s.tide.list))
-	local along = v ~= nil
-	local nowV = E.workspace:GetServerTimeNow()
-	for _, d in v and v.tide or {} do
-		along = along and math.abs(SC.along(d) - Tide.along(d, nowV)) < 1e-6
-	end
-	H.expect(along, "tide", "the client puts each one as far along as the server's time says (StateClient.along)")
-	-- the Tide card: the best few, each with its time left (a bar under its name, running down)
-	local TV = H.cmod(p, "Controllers.TideView")
-	local UIKit = H.cmod(p, "UI.UIKit")
-	local best = TV.best(v, if UIKit.phone() then 1 else 3)
-	local function barOf(d): (any, any)
-		local card = p.PlayerGui:FindFirstChild("TideCard", true)
-		local back = card and card:FindFirstChild("TideLeft_" .. d.id)
-		return back, back and back:FindFirstChild("Fill")
-	end
-	local bars, why = 0, {}
-	local w0 = {}
-	for _, d in best do
-		local back, fill = barOf(d)
-		if fill then
-			local want = (back.Size.X.Offset - 2) * (1 - SC.along(d))
-			w0[d.id] = fill.Size.X.Offset
-			if math.abs(fill.Size.X.Offset - want) <= 1 then
-				bars += 1
-			else
-				table.insert(why, string.format("%d: %d px, %.1f due", d.id, fill.Size.X.Offset, want))
-			end
-		else
-			table.insert(why, string.format("%d: no bar", d.id))
+	local next0, views1 = prof.clutch.next, views
+	prof.clutch.left = 1.5
+	local due = E.SIM.now + 1.5
+	local got = nextLot(3)
+	local n = Tree.count(prof.tier)
+	H.expect(got ~= nil and math.abs(got.now - due) <= 0.25, "eggs", "a new lot the moment the clock runs out (Fx eggs)", string.format("%s s off", got and string.format("%.2f", got.now - due) or "none"))
+	local kept = 0
+	for _, e in prof.clutch.list do
+		if old[e.id] then
+			kept += 1
 		end
 	end
-	H.expect(#best >= 1 and bars == #best, "tide", "the Tide card's bars: each one's time left", table.concat(why, ", "))
-	-- (a moment on, the ones still on the card have shorter bars)
+	H.expect(kept == 0 and #prof.clutch.list == n and prof.clutch.list[1].id == next0 and prof.clutch.next == next0 + n, "eggs", "the old eggs gone, a whole new lot laid, the ids carrying on", eggsOf(prof.clutch))
+	local same = got ~= nil and type(got.msg.laid) == "table" and #got.msg.laid == n
+	for i, e in prof.clutch.list do
+		local x = got and type(got.msg.laid) == "table" and got.msg.laid[i]
+		same = same and x ~= nil and x.id == e.id and x.r == e.r and x.cost == Tree.cost(prof, e.r)
+	end
+	H.expect(same, "eggs", "the message lists the new lot, each egg with its price")
+	H.expect(prof.clutch.left <= secs and prof.clutch.left > secs - 0.6, "eggs", "the clock wound to Tree.secs again", string.format("%.2f", prof.clutch.left))
+	settled(p)
+	H.expect(views > views1, "eggs", "a whole view sent with the new lot", string.format("%d views", views - views1))
+	H.checkMirror(p, "lot")
+	-- (the first tick after it: the time to the next lot starting over)
+	local iLot = got and got.at or #fx
+	E.runUntil(function()
+		return count("tick", iLot) >= 1
+	end, 1.5, 0.05)
+	local tk = nil
+	for i = iLot + 1, #fx do
+		if fx[i].kind == "tick" then
+			tk = fx[i]
+			break
+		end
+	end
+	H.expect(tk ~= nil and tk.clutchLeft <= secs and tk.clutchLeft > secs - 1.1, "eggs", "the next tick's time to the next lot starts over from the top", tostring(tk and tk.clutchLeft))
+	-- the HUD's Tree card: "New eggs in m:ss" and its bar, run down from the client's clock
 	E.run(2)
-	local still, shorter = 0, 0
-	for _, d in best do
-		local _, fill = barOf(d)
-		if fill and w0[d.id] then
-			still += 1
-			shorter += if fill.Size.X.Offset < w0[d.id] then 1 else 0
+	local card = p.PlayerGui:FindFirstChild("TreeCard", true)
+	local label = card and card:FindFirstChild("TreeNext")
+	local back = card and card:FindFirstChild("TreeBar")
+	local fill = back and back:FindFirstChildWhichIsA("Frame")
+	local cl = H.inClient(p, function()
+		local left, between = SC.clutchLeft()
+		return { left = left, secs = between }
+	end)
+	H.expect(math.abs(cl.left - prof.clutch.left) <= 1.1 and cl.secs == secs, "eggs", "the client's clock (StateClient.clutchLeft) the server's, to a tick", string.format("%.2f vs %.2f", cl.left, prof.clutch.left))
+	local text = label and label.Text or "none"
+	H.expect(text == "New eggs in " .. clock(cl.left) or text == "New eggs in " .. clock(cl.left + E.dt), "eggs", "the Tree card counts down to the next lot", string.format("%q, %.2f s left", text, cl.left))
+	local width = if back then math.floor((back.Size.X.Offset - 2) * math.clamp(cl.left / cl.secs, 0, 1) + 0.5) else -1
+	H.expect(fill ~= nil and math.abs(fill.Size.X.Offset - width) <= 1 and width < back.Size.X.Offset - 2, "eggs", "and its bar runs down with it", string.format("%s px, %d due", tostring(fill and fill.Size.X.Offset), width))
+	-- the huts' tree shares: a Lush driftling in a hut brings every lot 14% sooner (the ticks say so, the next lot is
+	-- wound to the shorter time)
+	local lush = prof.pals[1]
+	local muts0 = lush.muts
+	lush.muts = { "swift3" }
+	H.push(p, 0.2)
+	local share = Traits.byId.swift3.fx.tree
+	local sooner = Tree.secs(prof)
+	H.expect(share > 0 and math.abs(sooner - Tuning.EggSecs / (1 + share)) < 1e-6, "eggs", "a Lush driftling in a hut: the lots come sooner", string.format("%.2f s (%.2f share)", sooner, share))
+	local iT = #fx
+	E.runUntil(function()
+		return count("tick", iT) >= 1
+	end, 1.5, 0.05)
+	local said = nil
+	for i = iT + 1, #fx do
+		if fx[i].kind == "tick" then
+			said = fx[i].clutchSecs
 		end
 	end
-	H.expect(still >= 1 and shorter == still, "tide", "and they run down", string.format("%d of %d shorter", shorter, still))
-	H.expect(hutsN() == 4 and #prof.pals == 4, "tide", "nobody comes in off the tide by themselves", string.format("%d driftlings", #prof.pals))
+	H.expect(said ~= nil and math.abs(said - sooner) < 1e-6, "eggs", "the ticks say the shorter time between two", tostring(said))
+	prof.clutch.left = 1
+	local got2 = nextLot(2.5)
+	lastForced = got2
+	H.expect(got2 ~= nil and prof.clutch.left <= sooner and prof.clutch.left > sooner - 0.6, "eggs", "the next lot wound to the shorter time", string.format("%.2f of %.2f", prof.clutch.left, sooner))
+	-- (the Lush one back to what it was: the lots EggSecs apart again, the one on the way still the shorter time off)
+	lush.muts = muts0
+	H.push(p, 0.2)
+	H.expect(math.abs(Tree.secs(prof) - Tuning.EggSecs) < 1e-9, "eggs", "and back to EggSecs without it", tostring(Tree.secs(prof)))
+	settled(p)
+	H.checkProfile(p, "eggs")
 end
 
 ------------------------------------------------------------------ making wood and shells to the rates
@@ -321,7 +352,7 @@ H.expect(hud ~= nil, "stores", "the HUD stays usable")
 E.phase = "work"
 do
 	prof.shells, prof.wood = 1e6, 1e5
-	local crab = Tide.add(prof, "clawdle", {}) -- (good at fishing: nowhere on the island to fish yet)
+	local crab = Tree.add(prof, "clawdle", {}) -- (good at fishing: nowhere on the island to fish yet)
 	H.push(p, 0.2)
 	H.expect(crab.home == 0 and crab.work == 0, "work", "every hut full: the Clawdle waits with no hut", string.format("home %d", crab.home))
 	H.checkProfile(p, "waiting")
@@ -348,13 +379,23 @@ do
 	H.checkProfile(p, "work")
 	settled(p)
 	H.checkMirror(p, "work")
-	-- the island expanded twice (the buildings where the coast changed make room)
+	-- the island expanded twice (the buildings where the coast changed make room); each time the tree lays the extra
+	-- eggs a bigger island has at once (Fx eggs with how many more), the ones lying there kept, its clock as it was
 	for _ = 1, 2 do
+		local eggs0, n0, left0, l0 = eggsOf(prof.clutch), #prof.clutch.list, prof.clutch.left, #lots
 		local rx = H.req(p, "island.expand", {})
 		H.expect(rx.ok, "work", "the island expands", tostring(rx.err))
+		E.run(0.3)
+		local more = Tree.count(prof.tier) - n0
+		local msg = lots[l0 + 1] and lots[l0 + 1].msg
+		H.expect(more >= 1 and #prof.clutch.list == Tree.count(prof.tier) and string.sub(eggsOf(prof.clutch), 1, #eggs0) == eggs0, "work", "a bigger island: the tree lays its extra eggs at once, the others kept", string.format("%d -> %d eggs", n0, #prof.clutch.list))
+		H.expect(msg ~= nil and msg.more == more and type(msg.laid) == "table" and #msg.laid == #prof.clutch.list and #lots == l0 + 1, "work", "and says so (Fx eggs with how many more)", tostring(msg and msg.more))
+		H.expect(prof.clutch.left < left0 and prof.clutch.left > left0 - 1, "work", "its clock running on as it was (no new lot)", string.format("%.2f -> %.2f", left0, prof.clutch.left))
 	end
 	H.expect(prof.tier == 3, "work", "to the third tier", tostring(prof.tier))
 	H.checkProfile(p, "expanded")
+	settled(p)
+	H.checkMirror(p, "expanded")
 end
 
 ------------------------------------------------------------------ the Hatchery: two parents, an egg, its turns, a hatching
@@ -383,7 +424,7 @@ do
 	-- two parents of one kind (the egg is theirs), carrying a shared mutation
 	local ids = {}
 	for k = 1, 2 do
-		local x = Tide.add(prof, "gullfin", { "swift2", if k == 1 then "angler1" else "lazy" })
+		local x = Tree.add(prof, "gullfin", { "swift2", if k == 1 then "angler1" else "lazy" })
 		table.insert(ids, x.id)
 	end
 	H.push(p, 0.4)
@@ -440,11 +481,11 @@ do
 	H.expect(H.req(p, "plot.store", { i = indexOf(uid) }).err == "egg", "hatchery", "not cleared away with an egg in it")
 	-- the huts filled to one place left: the first to hatch takes it, the second waits with no hut
 	local fillers = {}
-	while Tide.room(prof) > 1 do
-		table.insert(fillers, Tide.add(prof, "pebblit", {}).id)
+	while Tree.room(prof) > 1 do
+		table.insert(fillers, Tree.add(prof, "pebblit", {}).id)
 	end
 	H.push(p, 0.3)
-	H.expect(Tide.room(prof) == 1, "hatchery", "(one place left in the huts)", tostring(Tide.room(prof)))
+	H.expect(Tree.room(prof) == 1, "hatchery", "(one place left in the huts)", tostring(Tree.room(prof)))
 	-- the turns: the egg on the panel counts down, then they hatch (announced)
 	H.openPanel(p, "hatch")
 	local pals0 = #prof.pals
@@ -483,9 +524,38 @@ do
 	H.checkProfile(p, "hatchery")
 end
 
+------------------------------------------------------------------ a lot every Tree.secs
+-- (the lot laid with the Lush driftling in a hut was wound to the shorter time: the next comes that long after it, by
+-- itself, whatever happened on the island meanwhile)
+E.phase = "lots"
+do
+	local last = lastForced
+	local wound = last and last.secs or 0
+	-- (the first lot after it, waited for if it hasn't come yet)
+	local nextOne = nil
+	for _, l in lots do
+		if last and nextOne == nil and l.msg.more == 0 and l.now > last.now then
+			nextOne = l
+		end
+	end
+	if nextOne == nil and last then
+		nextOne = nextLot(math.max(1, last.now + wound + 2 - E.SIM.now))
+	end
+	H.expect(last ~= nil and nextOne ~= nil and math.abs((nextOne.now - last.now) - wound) <= 0.25, "lots", "the next lot came by itself, Tree.secs after the last", string.format("%s s apart, wound to %.2f", if last and nextOne then string.format("%.2f", nextOne.now - last.now) else "none", wound))
+	H.expect(nextOne ~= nil and math.abs(prof.clutch.left - (nextOne.secs - (E.SIM.now - nextOne.now))) <= 0.25, "lots", "and wound the clock to Tree.secs as it stood then", string.format("%.2f left, %.2f then", prof.clutch.left, nextOne and nextOne.secs or -1))
+	settled(p)
+	H.checkMirror(p, "lots")
+end
+
 ------------------------------------------------------------------ two islands, two clocks
 E.phase = "two"
+local pLeft0, pNext0, pAt = prof.clutch.left, prof.clutch.next, E.SIM.now
 local q = H.addPlayer({ userId = 9302, name = "Tock" })
+E.runUntil(function()
+	local ss = H.session(q)
+	return ss ~= nil and ss.ready
+end, 5, 0.05)
+local qAt = E.SIM.now
 E.run(2)
 local sq = H.session(q)
 local pq = H.profile(q)
@@ -502,9 +572,39 @@ H.expect(qt >= 1 and count("turn", fp0) >= 1, "two", "both islands' turns end", 
 H.expect(sq.turnClock >= 0 and sq.turnClock < Tuning.TurnSeconds and s.turnClock >= 0 and s.turnClock < Tuning.TurnSeconds, "two", "each on its own turn clock", string.format("%.2f %.2f", sq.turnClock, s.turnClock))
 local vq, vp = H.view(q), H.view(p)
 H.expect(vq ~= nil and vp ~= nil and math.abs(vq.dayFrac - vp.dayFrac) < 0.001, "two", "one sea, one time of day", string.format("%s %s", vq and vq.dayFrac, vp and vp.dayFrac))
-local nowT = E.workspace:GetServerTimeNow()
-H.expect(sq.tide ~= s.tide and full(sq, pq) and full(s, prof) and sq.tide.t < Tide.secs(pq) and s.tide.t < Tide.secs(prof), "two", "each its own tide running past", string.format("%d and %d floating past", #sq.tide.list, #s.tide.list))
-H.expect(math.abs(sq.tide.clock - nowT) < 0.2 and math.abs(s.tide.clock - nowT) < 0.2, "two", "both tides on the server's time", string.format("%.2f %.2f behind", nowT - sq.tide.clock, nowT - s.tide.clock))
+-- (each its own tree and eggs: Tock's first lot laid when Tock came, its clock from then; Clock's eggs and clock going
+-- on as they were, untouched by the newcomer)
+local nq = Tree.count(pq.tier)
+H.expect(pq.clutch ~= prof.clutch and #pq.clutch.list == nq and pq.clutch.next == nq + 1 and math.abs(pq.clutch.left - (Tree.secs(pq) - (E.SIM.now - qAt))) <= 0.25, "two", "the newcomer's tree laid its own first lot when they came, its clock from then", string.format("%d eggs, %.2f s left, %.2f s since", #pq.clutch.list, pq.clutch.left, E.SIM.now - qAt))
+H.expect(prof.clutch.next == pNext0 and math.abs(prof.clutch.left - (pLeft0 - (E.SIM.now - pAt))) <= 0.25, "two", "the first island's eggs and clock going on as they were", string.format("%.2f s left, %.2f before", prof.clutch.left, pLeft0))
+
+------------------------------------------------------------------ away
+-- (the eggs' clock only runs while the player is here: Tock leaves with the next lot three seconds off and stays away
+-- twice that long, comes back to the same eggs three seconds from a lot, and the lot comes three seconds later)
+E.phase = "away"
+do
+	pq.clutch.left = 3
+	local eggsQ, nextQ = eggsOf(pq.clutch), pq.clutch.next
+	E.removePlayer(q, "leave")
+	E.run(6)
+	local st = E.cloud.stores[STORE]
+	local rec = st and st["u_9302"]
+	local saved = rec and rec.value and rec.value.data and rec.value.data.clutch
+	H.expect(type(saved) == "table" and eggsOf(saved) == eggsQ and saved.next == nextQ and math.abs(saved.left - 3) < 0.15, "away", "saved on leaving: the eggs and three seconds to the next lot", string.format("%s, %s s", eggsOf(saved), tostring(type(saved) == "table" and saved.left)))
+	q = H.addPlayer({ userId = 9302, name = "Tock" })
+	E.runUntil(function()
+		local ss = H.session(q)
+		return ss ~= nil and ss.ready
+	end, 5, 0.05)
+	local back = E.SIM.now
+	pq = H.profile(q)
+	H.expect(pq ~= nil and eggsOf(pq.clutch) == eggsQ and pq.clutch.next == nextQ and pq.clutch.left > 2.8 and pq.clutch.left <= 3, "away", "back: the same eggs, their clock where it stopped (nothing laid while away)", string.format("%.2f s left", pq and pq.clutch.left or -1))
+	E.runUntil(function()
+		return pq ~= nil and pq.clutch.next > nextQ
+	end, 4, 0.05)
+	H.expect(pq ~= nil and pq.clutch.next == nextQ + Tree.count(pq.tier) and math.abs((E.SIM.now - back) - 3) <= 0.25, "away", "the lot comes once those three seconds have run with them here", string.format("%.2f s after coming back", E.SIM.now - back))
+	E.run(1)
+end
 ------------------------------------------------------------------ day and night
 E.phase = "daynight"
 -- the day and night (GAME_DESIGN 8): the sea's clock grades the picture: plain by day, dark blue at night with the
