@@ -24,7 +24,11 @@ local Tuning = {
 	-- for every island on the server. The driftlings do all the work (no villagers since 2026-11-12). Two stores
 	-- ("make wood the main resource for building/expanding and shells the main resource of getting new driftlings.
 	-- remove food as a resource"): wood pays for every piece and for growing the island, shells for the driftlings
-	StartWood = 300, -- the tips' buildings (a camp, a patch, a hut, a stall: 265) and a little over
+	StartWood = 300, -- the tips' buildings (a camp, a patch, a hut, a stall) and plenty over
+	-- the Work and Huts tabs' buildings (farms, lumber, shops, boosts, huts, the Hatchery) cost this share of the price
+	-- Data/Buildings lists for them, to two figures (the request of 2026-11-13: "make it much cheaper to buy work and
+	-- hut buildings")
+	BuildingPrice = 0.3,
 	StartShells = 60, -- the first eggs
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"

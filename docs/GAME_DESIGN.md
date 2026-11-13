@@ -1,6 +1,13 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "remove the docks area, it should just be an island. players can swim around
+> The request (2026-11-13, the latest): "make it much cheaper to buy work and hut buildings"
+
+So everything on the Work tab (farms, lumber, shops, boosts) and the Huts tab (the huts and the Hatchery) costs about
+a third of what it did (`Tuning.BuildingPrice` 0.3, to two figures: a Lumber Camp 21 wood, a Veggie Patch 12, a
+Driftling Hut 17, a Snack Stall 30, a Sawmill 190, a Hatchery 1,200, a Driftling Palace 18,000). Decor, paths, fences
+and water keep their prices, and growing the island costs what it did.
+
+> The request (2026-11-13): "remove the docks area, it should just be an island. players can swim around
 > in water to reach other player islands."
 
 So the boardwalk, the jetty, the path down to it, the pier with its moored boat and the mailbox are gone. Each island
@@ -353,9 +360,10 @@ save's old ones come up with their price back, §10). Every piece also has a **f
 water, metal, magic, sand, snow, cloth or fire), which picks what flies up and what it sounds like when it goes down
 (§4.5).
 
-Each is paid in wood when placed (since 2026-11-13 its old price in shells and wood added up and rounded: a Lumber
-Camp 70, a Veggie Patch 40, a Driftling Hut 55, a Snack Stall 100; the new pieces from 4 wood for a tile of Sand Trail
-to 1,500,000 for the Rainbow Arch), on whole studs of the island's grass (a stud or more in from the sand), turned a
+Each is paid in wood when placed (since 2026-11-13 its old price in shells and wood added up and rounded; later that
+day the Work and Huts tabs' buildings went to `Tuning.BuildingPrice` (0.3) of that, to two figures: a Lumber Camp 21,
+a Veggie Patch 12, a Driftling Hut 17, a Snack Stall 30; the other pieces from 4 wood for a tile of Sand Trail to
+1,500,000 for the Rainbow Arch), on whole studs of the island's grass (a stud or more in from the sand), turned a
 quarter at a time, off the campfire's plaza, off every other piece and off water unless it
 is made to go over or on it (§4.3). Paths are the one thing decor may share a spot with (a paved yard, below).
 
@@ -1034,7 +1042,7 @@ into a hut with room while a building has a free place or the egg is better than
 swap for their weakest when the egg is two rarities better than it. Then they build what the island lacks: the tips'
 buildings first (a camp, a patch, a hut, a stall), then a hut while every hut is full and there are places at work
 (at the huts' limit, a bigger hut in the smallest one's place, or where there is room once the small one is cleared),
-wood while it comes slowly, a shop a tier, a farm more than the tier, a building for the knack with the most
+wood while it comes slowly or while saving for the next building would take over half an hour, a shop a tier, a farm more than the tier, a building for the knack with the most
 driftlings resting or working away from their knack (moving those to it once it stands, as a player would), and decor
 with wood to spare. The catalog has plenty of cheap decor, so the decor stops at a
 third of the piece limit and two thirds stay for buildings (a player decorates, but not before the huts), and the
@@ -1043,26 +1051,32 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (5 to 12 minutes);
-- a steady supply: at least 12 hatched by half an hour (18 to 37), an epic within two hours (25 to 30 minutes); a
-  legendary comes at 40 to 72 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (7 to 11 minutes);
+- a steady supply: at least 12 hatched by half an hour (35 to 53), an epic within two hours (11 to 17 minutes); a
+  legendary comes to one seed at 80 minutes, the other two have none in three hours (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  thousandth: 850 to 1,420 shells of 4.4 to 5.2 million);
-- the island's second tier within 25 minutes (12 to 21), the third within 50 (34 to 45); at an hour, at least 12
-  driftlings in huts (39 to 40); Harbor Town (tier 4) not before an hour (88 to 100 minutes), Coral City (tier 5) not
-  before two hours (one seed at 199 minutes, the other two not yet at three hours), and no Sunspire Capital (tier 6)
-  within three hours;
+  thousandth: 290 to 850 shells of 0.7 to 2.5 million);
+- the island's second tier within 25 minutes (6 to 7), the third within 50 (24 to 30); at an hour, at least 12
+  driftlings in huts (40 to 48); Harbor Town (tier 4) not before 50 minutes (57 to 60), Coral City (tier 5) not before
+  90 (100 to 105), Sunspire Capital (tier 6) not before two and a half hours (2 hours 41 to 2 hours 49), and nothing
+  past it within three hours;
 - both stores are being made at every ten minutes of the three hours, they stay finite, and the save has no food.
 
 Harbor Town went from 130,000 to 150,000 wood with the conveyor tide, when one seed reached it in 91 minutes. With the
 eggs and the huts' limit it moved out of reach (one seed at 118 minutes, the other two not in three hours), and the
 islands sat on a Grand Isle for most of the second and third hours. The ten tiers brought it down to 60,000 and the
-city tiers with it, so every seed has the town in the second hour and one reaches Coral City in the third. By three
-hours the seeds have hatched 117 to 123 driftlings and house 56 to 60. Letting any driftling work anywhere
-(2026-11-13) changed little: a driftling with no room at its knack now works somewhere else instead of resting, and
-the Career still builds for its knack and moves it there once that stands, so Harbor Town comes about ten minutes
-later than before and Coral City half an hour later. Shells pile up in the town: the two seeds still
-on Harbor Town hold 1.6 and 2.3 million at three hours, with little to spend them on but swaps.
+city tiers with it, so every seed has the town in the second hour and one reaches Coral City in the third. Letting any
+driftling work anywhere (2026-11-13) changed little: a driftling with no room at its knack now works somewhere else
+instead of resting, and the Career still builds for its knack and moves it there once that stands, so Harbor Town came
+about ten minutes later than before and Coral City half an hour later.
+
+The cheaper work and hut buildings (2026-11-13, `Tuning.BuildingPrice` 0.3) moved everything up. At the new prices the
+old Career ran short of wood: it built wood only while wood came in slowly, a few cheap camps were enough for that, and
+then it sat saving for the next tier (one seed never reached the town in three hours). It now builds wood too while
+the next thing would take over half an hour to save for. With that Career at the old prices the town came at 71 to 83 minutes and Coral City at 125 to
+137; at the new prices they come at 57 to 60 and 100 to 105, and every seed reaches Sunspire Capital before three hours.
+So the bounds moved by about a quarter. By three hours the seeds have hatched 155 to 179 driftlings and house 100,
+the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
 
 ## 11. Polish and animation
 

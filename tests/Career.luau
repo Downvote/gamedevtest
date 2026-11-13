@@ -19,12 +19,37 @@ local Career = {}
 
 export type Opts = { log: ((string) -> ())? }
 
--- The first free spot for a piece (scanning the island in rows).
+-- The first free spot for a piece (scanning the island in rows). A map of the covered cells first, so Plot.fits (which
+-- looks at every piece) only checks the spots that are free on it (a full island has hundreds of pieces).
 local function spot(p: any, id: string): (number?, number?)
 	local r = Street.plot(p.tier)
+	local covered: { [number]: boolean } = {}
+	-- (decor, plants and fun pieces may stand on path tiles: those don't count for them)
+	local onPaths = Plot.onPaths(id)
+	for _, q in p.plot.placed do
+		if not Plot.isFence(q.id) and not (onPaths and Plot.isPath(q.id)) then
+			local qr = Plot.rect(q.id, q.x, q.z, q.rot)
+			for cz = qr.z0, qr.z1 - 1 do
+				for cx = qr.x0, qr.x1 - 1 do
+					covered[Street.cellKey(cx, cz)] = true
+				end
+			end
+		end
+	end
+	local w, d = Plot.footprint(id, 0)
+	local function free(x: number, z: number): boolean
+		for cz = z, z + d - 1 do
+			for cx = x, x + w - 1 do
+				if covered[Street.cellKey(cx, cz)] or not Street.buildable(p.tier, cx, cz) then
+					return false
+				end
+			end
+		end
+		return true
+	end
 	for z = r.z0 + 1, r.z1 - 2 do
 		for x = r.x0 + 1, r.x1 - 2 do
-			if Plot.fits(p.tier, p.plot.placed, id, x, z, 0) then
+			if free(x, z) and Plot.fits(p.tier, p.plot.placed, id, x, z, 0) then
 				return x, z
 			end
 		end
@@ -35,6 +60,11 @@ end
 local function build(p: any, id: string): boolean
 	local d = Buildings.byId[id]
 	if d == nil or d.tier > p.tier or p.shells < d.shells or p.wood < d.wood then
+		return false
+	end
+	-- (no room for one more of its count, or a hut past the huts' limit: no scan of the island for a spot)
+	local used, most = Plot.used(p, id)
+	if used >= most or (d.kind == "nest" and Plot.huts(p.plot.placed) >= Plot.hutLimit(p.tier)) then
 		return false
 	end
 	local x, z = spot(p, id)
@@ -233,7 +263,9 @@ local function plan(p: any, rng: any)
 			end
 		end
 	end
-	if r.wood < 20 * p.tier or (ex and p.wood < ex.wood and r.wood < 60 * p.tier) then
+	-- (more wood when it comes slowly, or when saving up for the next tier at this rate would take over half an hour)
+	local slowSave = ex ~= nil and p.wood < ex.wood and (ex.wood - p.wood) / math.max(1, r.wood) > 1800 / Tuning.TurnSeconds
+	if r.wood < 20 * p.tier or (ex and p.wood < ex.wood and r.wood < 60 * p.tier) or slowSave then
 		table.insert(wants, "wood")
 	end
 	if countKind(p, "shop") < p.tier then

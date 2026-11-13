@@ -29,6 +29,8 @@
 --          lily pads, reeds, a rowboat)
 --   feel:  how putting it down looks and sounds (Build mode's effects: "wood" "stone" "plant" "water" "metal" "magic"
 --          "sand" "snow" "cloth" "fire")
+local Tuning = require(script.Parent.Parent.Config.Tuning)
+
 export type BuildingDef = {
 	id: string,
 	name: string,
@@ -57,13 +59,25 @@ local TAB: { [string]: string } = { farm = "work", wood = "work", shop = "work",
 local SUB: { [string]: string } = { farm = "farm", wood = "wood", shop = "shop", gen = "gen", water = "tiles" }
 local FEEL: { [string]: string } = { path = "stone", water = "water", fence = "wood", farm = "plant" }
 
+-- A Work or Huts tab building's price: Tuning.BuildingPrice of its listed wood, to two figures (5 at least); any other
+-- piece's as listed.
+local function priceOf(kind: string, wood: number): number
+	local tab = TAB[kind]
+	if wood <= 0 or (tab ~= "work" and tab ~= "nest") then
+		return wood
+	end
+	local w = wood * Tuning.BuildingPrice
+	local step = 10 ^ math.max(0, math.floor(math.log10(w)) - 1)
+	return math.max(5, math.floor(w / step + 0.5) * step)
+end
+
 local function B(t: { [string]: any }): BuildingDef
 	return {
 		id = t.id,
 		name = t.name,
 		kind = t.kind,
 		shells = t.shells or 0,
-		wood = t.wood or 0,
+		wood = priceOf(t.kind, t.wood or 0),
 		w = t.w,
 		d = t.d,
 		rate = t.rate or 0,
