@@ -1,19 +1,41 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "never mind, bring back the tree of life and remove the converyer belt system.
-> it now spawns eggs around it that the player can choose to hatch for some shells. it spawns in 5 eggs around it,
-> which refreshes every few minutes to spawn in another 5 eggs, replacing any existing eggs that were not taken.
-> expanding the island increases the quality of eggs spawned and amount of eggs spawned"
+> The request (2026-11-13, the latest): "Make much, much more building options, like paths and fences. Polish the
+> build ui more, just like the bakery game, and reference bloxburg. Also, add effects and polish when putting down
+> decor and other amenities. There should be enough paths, fences and other detail to make a lot of vastly different
+> themed islands. Also, add the ability to add water to make rivers. Make more island progression and allow the
+> player to expand their land even more."
+
+So Build mode is a catalog now, like the bakery's decor box: 245 pieces on eight tabs (Work, Huts, Paths, Fences,
+Water, Nature, Decor and Fun), each tab split into rows, each card a small picture of the piece drawn from its own
+model. Paths, water and fences are drawn in a line or a box. Water makes rivers and ponds, with bridges over them and
+lily pads on them. Decor comes in 13 themes, enough for a beach island and a frozen one that look nothing alike. A
+piece put down drops in and lands in a puff of dust with bits of what it's made of flying up. The island grows through
+ten tiers now, four longer islands past Sunspire Capital, and each brings more room and better eggs (§4).
+
+> Before it, the same day: "Also, color each egg differently with different effects to allow players to distinguish
+> easily between egg rarities"
+
+Each rarity's egg has its own colour and marks, and the rarer ones their own lights: a common egg is cream with brown
+freckles, an uncommon one green with a white zigzag band, a rare one sky blue with glowing stars, an epic one purple
+with glowing spots and two motes of light circling it, and a legendary one gold with a beam of light standing up out
+of it (§6).
+
+> Earlier that day: "never mind, bring back the tree of life and remove the converyer belt system. it now spawns eggs
+> around it that the player can choose to hatch for some shells. it spawns in 5 eggs around it, which refreshes every
+> few minutes to spawn in another 5 eggs, replacing any existing eggs that were not taken. expanding the island
+> increases the quality of eggs spawned and amount of eggs spawned"
 
 So the Tree of Life is back on every island and the tide is gone. Every three minutes the tree lays a lot of eggs
-round its roots: five on a new island, one more with each tier, ten on the capital. The eggs nobody hatched go when
-the new lot comes. Each egg's spots show its rarity and its price in shells hangs over it; tap it and pay, and what
-hatches moves into a hut and goes to work (§6). A bigger island lays more eggs and rarer ones, and growing the island
-lays the extra eggs at once. A save from the tide gets its tree back, with a first lot laid as the player arrives (§10).
+round its roots: five on a new island, one more with each tier up to ten on the capital and the islands past it. The
+eggs nobody hatched go when the new lot comes. Each egg's colour shows its rarity and its price in shells hangs over
+it; tap it and pay, and what hatches moves into a hut and goes to work (§6). A bigger island lays more eggs and rarer
+ones, and growing the island lays the extra eggs at once. A save from the tide gets its tree back, with a first lot
+laid as the player arrives (§10).
 
 > And after it: "Also, make a limit of huts per island expansion level"
 
-Each tier allows so many huts (4 on a new island, two more a tier, 14 on the capital). Past that, more room for
+Each tier allows so many huts (4 on a new island, two more a tier, 22 on the biggest). Past that, more room for
 driftlings comes from growing the island or from a bigger hut in a small one's place (§4).
 
 > Before them, the same day: "this system of getting creatures might not be working. can you come up with ideas that
@@ -25,8 +47,9 @@ driftlings comes from growing the island or from a bigger hut in a small one's p
 
 For a few hours driftlings floated past the island on the tide, each on a raft with its price over it, at the end one
 a second like a conveyor belt (this file's history has it, up to commit 9d34e42). What stayed: shells pay for new
-driftlings, a rarer one costs more, a full set of huts takes a better one in a swap for a weak one, and Harbor Town
-costs 150,000 wood (§4.1, §10). The tree came back without its pen, its Speed and Luck upgrades and Equip best.
+driftlings, a rarer one costs more, and a full set of huts takes a better one in a swap for a weak one. Harbor Town
+went up to 150,000 wood with the tide and stayed there until the ten tiers brought it down to 60,000 (§4.4, §10). The
+tree came back without its pen, its Speed and Luck upgrades and Equip best.
 
 > With the tide (2026-11-13): "also, make wood the main resource for building/expanding and shells the main resource
 > of getting new driftlings. remove food as a resource"
@@ -64,30 +87,31 @@ from kariosoft and make a simplified version of it in gamedevtest. dont touch th
 reference"), the pixel art rules (§2) and the polish requests (§11). The game studio of the earlier versions is gone
 (§10: an old save starts a fresh island).
 
-Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
-on its sand, a jetty down to the boardwalk and a Tree of Life behind the fire. Every few minutes the tree lays
-**eggs** round its roots, each spotted in its rarity's colour with its price in shells over it: mostly commons, now
-and then a rare one whose spots glow. Hatch one and a **driftling** comes out. Build a Lumber Camp for wood, farms and
-shops for shells, and huts for the driftlings you hatch; each one works at a building of its knack, more the rarer it
-is. The driftlings do all the work: there are no villagers. Wood pays for every building and for growing the island,
-shells pay for eggs, and once the huts are full a better hatchling can take a weak one's place. The islands of
-everyone on the server sit side by side along one boardwalk on a shared sea. The look, the build system and the file
-formats come from our own Random Bakery (`Downvote/test`): the 2:1 pixel-art isometric diorama seen through the pixel
-filter, the pixel font, Rojo with strict Luau, a server that decides everything, pure Data/Logic modules with specs,
-and the fake-engine simulator and preview tools.
+Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire on
+its sand, a jetty down to the boardwalk and a Tree of Life behind the fire. Every few minutes the tree lays **eggs**
+round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
+then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build a Lumber Camp for wood, farms
+and shops for shells, and huts for the driftlings you hatch; each one works at a building of its knack, more the rarer
+it is. Paths, fences, rivers and decor in 13 themes give it a look of its own. The driftlings do all the work: there are
+no villagers. Wood pays for every building and for growing the island, shells pay for eggs, and once the huts are full a
+better hatchling can take a weak one's place. The islands of everyone on the server sit side by side along one boardwalk
+on a shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
+2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
+decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
 ## 1. The loop in one paragraph
 
 Build a Lumber Camp for wood, a Veggie Patch that sells what it grows for shells, and a Driftling Hut; each building
-works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its wood and shells. All
-the while the Tree of Life lays a new lot of eggs every three minutes, five on a new island, and the ones left from the
-last lot go. Tap an egg, or its price, to hatch it: out comes a driftling of the egg's rarity with mutations of its
-own. It moves into a hut and takes a place at a farm, pier, lumber camp or shop of its knack, adding to what it makes,
-a legendary seven times what a common one adds. Rarer eggs cost more, and on a bigger island every egg costs more,
-the tree lays more of them and the rare ones come more often. When every hut is full, the new one takes the place of
-one you pick, and that one is sold. Spend wood on more buildings, huts (so many a tier) and decor (charm brings the
-visitors who buy at the shops), and expand the island for bigger buildings, more huts, more eggs and new kinds of
-driftling. Nothing happens while you are away (no offline progress).
+works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its wood and shells. All the
+while the Tree of Life lays a new lot of eggs every three minutes, five on a new island, and the ones left from the last
+lot go. Tap an egg, or its price, to hatch it: out comes a driftling of the egg's rarity with mutations of its own. It
+moves into a hut and takes a place at a farm, pier, lumber camp or shop of its knack, adding to what it makes, a
+legendary seven times what a common one adds. Rarer eggs cost more, and on a bigger island every egg costs more, the
+tree lays more of them and the rare ones come more often. When every hut is full, the new one takes the place of one you
+pick, and that one is sold. Spend wood on more buildings, huts (so many a tier), and on decor, paths, fences and water
+(charm brings the visitors who buy at the shops), and expand the island for bigger buildings, more huts, more eggs and
+new kinds of driftling, and past the capital for more room and better eggs. Nothing happens while you are away (no
+offline progress).
 
 ## 2. Look and feel
 
@@ -110,7 +134,8 @@ driftling. Nothing happens while you are away (no offline progress).
 - **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
   panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
-  icon. Every driftling has a 32x32 portrait and the island's things 11x11 icons, drawn by the rules below.
+  icon. Every driftling has a 32x32 portrait, every piece in the build catalog a 24x24 picture and the island's
+  things 11x11 icons, drawn by the rules below.
 
   > The request (2026-11-12): "instead of character sprites for the creatures, can you take their pixellated models
   > in a 3/4 angle, and polish them to follow pixel art rules if required?"
@@ -237,50 +262,119 @@ driftling. Nothing happens while you are away (no offline progress).
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
-65 pieces in eight kinds, opening as the island grows (tier 1 .. 6, the build tray's "Island Lv"), and the Tree of
-Life, which every island has and nobody buys (§6):
+> From the request at the top (2026-11-13): "Make much, much more building options, like paths and fences. ... There
+> should be enough paths, fences and other detail to make a lot of vastly different themed islands."
 
-| Kind | Pieces (the tier they open at) |
+**The catalog** (`Data/Buildings`): 245 pieces, each opening at an island tier (1 .. 10; a locked card says "Lv7"),
+and the Tree of Life, which every island has and nobody buys (§6). Build mode lists them on eight tabs, and each tab's
+pieces in rows (a piece's `tab` and `sub`), so an island can keep to one look:
+
+| Tab | Its rows | Pieces |
+|---|---|---|
+| **Work** | Farms 7, Wood 5, Shops 6, Boosts 7 | 25 |
+| **Huts** | the six huts and the Hatchery | 7 |
+| **Paths** | (one row) | 22 |
+| **Fences** | (one row) | 17 |
+| **Water** | Water 7 (the tiles), Bridges 7, On the water 8 | 22 |
+| **Nature** | Trees 11, Plants 17, Rocks 8 | 36 |
+| **Decor** | 13 themes: Beach 7, Garden 9, Farm 8, Harbour 8, Town 8, Jungle 5, Frost 5, Autumn 5, Desert 5, Fairy 5, Zen 6, Volcano 4, Grand 9 | 84 |
+| **Fun** | Seats 7, Lights 8, Play 7, Treats 5, Fountains 5 | 32 |
+
+The buildings that work or house (the tier each opens at in brackets):
+
+| Kind | Pieces |
 |---|---|
 | **farms** | Veggie Patch, Fishing Pier (1), Fruit Orchard (2), Greenhouse (3), Rice Terrace (4), Kelp Farm (5), Sky Garden (6) |
 | **wood** | Lumber Camp (1), Sawmill (2), Timber Works (3), Bamboo Grove (4), Grand Mill (5) |
 | **shops** | Snack Stall (1), Beach Cafe (2), Seaside Inn (3), Bakery (4), Grand Bazaar (5), Grand Hotel (6) |
 | **huts** (room, comfort: §6) | Driftling Hut 2, Cozy Burrow 4 +5% (2), Driftling Den 5 +8% (3), Treetop Roost 6 +12% (4), Spring Grotto 8 +18% (5), Driftling Palace 12 +25% (6) |
 | **boosts** | Tool Shed (wood +10%), Windmill (farms +10%), Smokehouse (fishing +10%) (2), Market Hall (shops +12%) (3), Water Tower (all +6%) (4), Town Hall (all +10%) (5), Sun Beacon (all +15%) (6) |
-| **paths** (2 x 2 tiles) | Dirt Path (1), Stone Path (2), Brick Road (4), Marble Walk (5) |
 | the **Hatchery** (3, §6.1) | |
-| **decor** (charm) | Flower Bed, Round Bush, Picket Fence, Tiki Torch, Sandcastle, Rock Garden, Shell Pile, Palm Tree, Bench, Hammock (1); Hedge, Lamp Post, Picnic Table, Flower Arch, Totem Pole, Fountain (2); Gazebo, Lighthouse, Guardian Statue (3); Street Lamp, Topiary, Bandstand, Clock Tower (4); Canal Bridge, Grand Arch, Observatory (5); Crystal Fountain, Sun Spire, Founder Monument (6) |
+
+The rest are there for charm (§3) and for the look of the place:
+
+| Row | Pieces |
+|---|---|
+| Paths (2 x 2 tiles) | Dirt Path, Sand Trail, Gravel Path, Shell Path, Plank Walk (1); Stone Path, Flagstones, Cobblestones, Mossy Stones, Leaf Litter, Flower Meadow (2); Raked Gravel, Snowy Path, Sandstone Tiles, Terracotta Tiles, Checker Tiles (3); Brick Road (4); Crystal Path, Basalt Steps, Marble Walk (5); Gilded Walk (7); Starlit Path (8) |
+| Fences (2-stud lengths, §4.2) | Rope Fence, Picket Fence, Split Rail (1); Bamboo Fence, Driftwood Fence, Woven Fence, Hedgerow, Garden Gate (2); Low Stone Wall, Log Palisade (3); Iron Railing, Lantern Rope (4); Brick Wall, Adobe Wall (5); Snowbank, Shell Wall (6); Crystal Fence (8) |
+| Water (2 x 2 tiles, §4.3) | Stream (1); Deep River, Lily Pond (2); Swamp Water (3); Lagoon (4); Hot Spring (5); Frozen Pond (6) |
+| Bridges (over water) | Plank Bridge (1); Little Dock (2); Rope Bridge, Stone Bridge (3); Waterwheel (4); Canal Bridge (5); Moon Bridge (6) |
+| On the water | Lily Pads, Reeds, Stepping Stones (1); Duck Decoy, Rowboat (2); Lotus Flowers, Little Waterfall (3); Floating Lanterns (4) |
+| Trees | Pine Tree, Oak Tree, Palm Tree (1); Bare Tree, Birch Tree (2); Cherry Blossom, Maple Tree, Jungle Tree (3); Willow (4); Great Oak (5); Snowy Pine (6) |
+| Plants | Fern, Tall Grass, Round Bush, Berry Bush, Tulip Row, Flower Bed (1); Mushrooms, Rose Bush, Sunflowers, Lavender, Pumpkin Patch (2); Cactus, Big Leaf Plant (3); Tall Cactus, Giant Mushroom, Bonsai (4); Glow Mushrooms (6) |
+| Rocks | Boulder, Rock Pile (1); Mossy Rock (2); Desert Rock (3); Crystal Cluster (5); Snowy Rock, Basalt Columns (6); Lava Rock (7) |
+| Beach | Coconut Pile, Sandcastle, Deck Chair, Beach Umbrella, Shell Pile (1); Surfboard Rack (2); Lifeguard Chair (3) |
+| Garden | Garden Gnome, Wheelbarrow, Birdbath (1); Beehive, Rose Trellis, Flower Arch (2); Sundial, Gazebo (3); Topiary (4) |
+| Farm | Milk Churns, Hay Bale, Scarecrow, Barrel Stack (1); Haystack, Water Trough, Farm Cart, Stone Well (2) |
+| Harbour | Mooring Post, Buoy, Crate Stack (1); Lobster Pots, Net Rack, Anchor (2); Ship's Wheel, Lighthouse (3) |
+| Town | Bin, Signpost (1); Planter Box, Post Box, Notice Board (2); Newsstand, Bandstand, Clock Tower (4) |
+| Jungle | Tiki Mask, Totem Pole (2); Parrot Perch, Vine Arch (3); Mossy Idol (4) |
+| Frost | Snowman (2); Sled, Ice Lantern, Ice Sculpture, Igloo (6) |
+| Autumn | Leaf Pile, Harvest Basket, Pumpkin Stack (2); Corn Stalks, Carved Pumpkin (3) |
+| Desert | Water Jars, Clay Pots (3); Market Rug, Striped Tent, Sandstone Arch (5) |
+| Fairy | Fairy Lantern, Mushroom Ring (5); Moonstone, Wishing Well (6); Crystal Arch (8) |
+| Zen | Rock Garden (1); Bamboo Screen, Wind Chimes, Stone Lantern (4); Water Basin (5); Lantern Tower (7) |
+| Volcano | Fire Basin, Steam Vent (7); Obsidian Spire (8); Lava Pool (9) |
+| Grand | Guardian Statue (3); Grand Arch, Observatory (5); Sun Spire, Founder Monument (6); Golden Driftling (7); Sky Bell Tower (8); Crystal Spire (9); Rainbow Arch (10) |
+| Seats | Log Seats, Bench, Hammock (1); Park Bench, Picnic Table (2); Stone Bench, Porch Swing (3) |
+| Lights | Garden Lights, Tiki Torch, Fire Pit (1); Candles, Paper Lanterns, Lamp Post (2); String Lights (3); Street Lamp (4) |
+| Play | Sandbox (1); Seesaw, Swing Set (2); Slide (3); Trampoline, Merry-Go-Round (4); Climbing Frame (5) |
+| Treats | Grill, Lemonade Stand (2); Ice Cream Cart (3); Telescope, Tiki Bar (4) |
+| Fountains | Drinking Fountain, Little Fountain, Fountain (2); Koi Pond (5); Crystal Fountain (6) |
+
+The old decor went into these rows (the Palm Tree to Trees, the Bench to Seats, the Lighthouse to Harbour, the Canal
+Bridge to Bridges and so on); the old one-piece Picket Fence and Hedge became drawn fences (Picket Fence, Hedgerow; a
+save's old ones come up with their price back, §10). Every piece also has a **feel** (`feel`: wood, stone, plant,
+water, metal, magic, sand, snow, cloth or fire), which picks what flies up and what it sounds like when it goes down
+(§4.5).
 
 Each is paid in wood when placed (since 2026-11-13 its old price in shells and wood added up and rounded: a Lumber
-Camp 70, a Veggie Patch 40, a Driftling Hut 55, a Snack Stall 100), on whole studs of the island's grass (a stud or
-more in from the sand), turned a quarter at a time, off the campfire's plaza and the path to the jetty, and off every
-other piece, up to the island's piece limit (`PlotPieces`: 24, 40, 60, 85, 115, 150; path tiles apart, `PathPieces`:
-60 .. 500; the Tree of Life apart too).
+Camp 70, a Veggie Patch 40, a Driftling Hut 55, a Snack Stall 100; the new pieces from 4 wood for a tile of Sand Trail
+to 1,500,000 for the Rainbow Arch), on whole studs of the island's grass (a stud or more in from the sand), turned a
+quarter at a time, off the campfire's plaza and the path to the jetty, off every other piece and off water unless it
+is made to go over or on it (§4.3). Paths are the one thing decor may share a spot with (a paved yard, below).
+
+**The limits.** Each sort of thing has its own limit, and each grows with the island (§4.4 has them by tier): the
+pieces (`PlotPieces`: 36 on a new island, 540 on Driftling Haven), the path and water tiles together (`PathPieces`: 80
+to 1,200), the fence lengths (`FencePieces`: 40 to 600) and, among the pieces, the huts (below). The Tree of Life
+counts toward none of them. At a limit the server refuses one more (`full`) and nothing is paid, while the other
+limits still take theirs. Build mode's count shows the tab's own: the pieces on Work, Nature, Decor and Fun, the tiles
+on Paths and Water, the lengths on Fences and the huts on Huts, orange when full.
 
 > The request (2026-11-13): "Also, make a limit of huts per island expansion level"
 
-**The huts' limit** (`HutLimit`, `Plot.hutLimit`): an island may have 4 huts, then 6, 8, 10, 12 and 14 as it grows.
-At the limit the Huts tab's cards are greyed with "No room", and placing one more is refused ("No room for another
-hut here. Grow the island, or replace a hut with a bigger one."). Replace still works there: a bigger hut can take a
-small one's place (§4.1). The Huts tab's count shows the huts against the limit ("6/6"). A save with more huts than
-its tier allows keeps them all, and it can't build another until it is under the limit. With the best hut of each tier
-in every place, the most driftlings an island can house is 8 on Castaway Cay (four Driftling Huts), then 24 (six Cozy
-Burrows), 40 (eight Driftling Dens), 60 (ten Treetop Roosts), 96 (twelve Spring Grottoes) and 168 (fourteen Driftling
-Palaces) on the capital.
+**The huts' limit** (`HutLimit`, `Plot.hutLimit`): an island may have 4 huts, then two more each tier up to 22 on
+Driftling Haven. At the limit the Huts tab's cards are greyed with "No room", and placing one more is refused ("No room
+for another hut here. Grow the island, or replace a hut with a bigger one."). Replace still works there: a bigger hut
+can take a small one's place (§4.1). The Huts tab's count shows the huts against the limit ("6/6"). A save with more
+huts than its tier allows keeps them all, and it can't build another until it is under the limit. With the best hut of
+each tier in every place, the most driftlings an island can house is 8 on Castaway Cay (four Driftling Huts), then 24
+(six Cozy Burrows), 40 (eight Driftling Dens), 60 (ten Treetop Roosts), 96 (twelve Spring Grottoes) and 168 (fourteen
+Driftling Palaces) on the capital, and 192, 216, 240 and 264 (sixteen to twenty-two Palaces) on the islands past it.
 
 > The request (2026-11-11): "paths should be able to be drawn or made in a box like the original interface in the
 > bakery game. also, fights should be shown in the same view as pokemon or beasty bay, in an angle like the image
 > shown, and the party will also walk forward in the view like the image shown. polish the battle experience and
 > interface much much more"
 
-Paths are drawn, the way the bakery's floors were. Picking a path on the Paths tab opens the draw bar instead of the
-usual placing: **Line** (drag and the tiles follow the finger, filling the gaps between cells), **Box** (drag a box
-and every free cell inside it is filled), **Erase** (drag over tiles to lift them, with the usual refund) and **Look
-around** (drag the view without drawing), and Cancel and Done. While dragging, each 2 x 2 cell shows as a glowing
-plate: blue where a tile goes down, orange where one comes up, red where it can't (off the grass, on a piece, past
-the limit); the bar says how many and what they cost in wood. Letting go lays them in one go (`plot.paint`, up to
-`PAINT_MAX` (40) cells a request: a long stroke goes in a few) or lifts them (`plot.unpaint`). Cells that can't take a
-tile are skipped, never refused as a whole; running out of wood stops where it runs out.
+**Drawing.** Paths, water and fences are drawn, the way the bakery's floors were. Picking one opens the draw bar
+instead of the usual placing: **Line** (drag and the tiles follow the finger, filling the gaps between cells; a fence
+follows the grid lines), **Box** (drag a box and every free cell inside it is filled, or a fence runs all the way round
+it), **Erase** (drag over them to take them up, half their price back), **Look around** (drag the view without
+drawing) and **Cancel**. While dragging, each 2 x 2 cell (or each length of fence) shows as a glowing plate: cyan where
+one goes down, yellow where one of another look is swapped for it, orange where one comes up, red where it can't (off
+the grass, on a piece, past the limit or the wood); the bar says how many and what they cost ("12 tiles, 180 wood").
+Letting go lays them in one go (`plot.paint` or `plot.fence`, up to `PAINT_MAX` (40) a request: a long stroke goes in
+a few) or takes them up (`plot.unpaint`, `plot.unfence`). A cell that can't take one is skipped, never refused as a
+whole; running out of wood or room stops where it runs out. Tiles lie on the even studs (a tile's corner at even x and
+z), so they always meet edge to edge, and one moved in Build mode snaps to them. Drawing another look over a path, a
+water tile or a fence swaps it where it lies: half the old one's price back, the new one's paid.
+
+**A paved yard** (`Plot.onPaths`): a piece from the Decor, Nature or Fun tab may stand on path tiles, and paths may be
+drawn under one that stands already, so a themed yard can be paved in its own ground: a snowman on snow, a deck chair
+on sand, a stone lantern on raked gravel. Huts, workplaces, the Tree of Life, fences and the pieces for the water never
+stand on paths, and a path is never drawn under them. Taking the paving up leaves the decor where it stands, and two
+pieces still never share a spot. Water keeps its own rules (§4.3).
 
 ### 4.1 The town and the city
 
@@ -290,49 +384,113 @@ tile are skipped, never refused as a whole; running out of wood stops where it r
 > big island that is well decorated should look like a well developed city. give players the ability to
 > replace/upgrade buildings as well, including homes of creatures and villagers"
 
-- **Six tiers** (`TierCost`, in wood): Castaway Cay, Palm Isle (600 wood), Grand Isle (9,000), then **Harbor Town**
-  (150,000), **Coral City** (320,000) and **Sunspire Capital** (800,000), each coming about when the island before it
-  is built up. (They were paid in shells and wood until 2026-11-13; the first two were made cheaper on 2026-11-12:
-  "expanding island costs too much, make them cheaper early on"; Harbor Town went from 130,000 to 150,000 with the
-  conveyor tide, and stayed there, §10.) The island grows north each time (the boardwalk
-  stays where it is), to twice tier 3's grass at the capital, and only ever gains land (each tier's shape joined to
-  the smaller ones': nothing built near an old shore has to move); more driftlings live there in more and bigger huts, the
-  tree lays more eggs and better ones, and new kinds hatch (§6). (The homes for villagers this request asked for went with the villagers on 2026-11-12.)
+- **The tiers** (`TierCost`, in wood): Castaway Cay, Palm Isle (600 wood), Grand Isle (9,000), then **Harbor Town**
+  (60,000), **Coral City** (160,000) and **Sunspire Capital** (380,000), and since 2026-11-13 four longer islands past
+  the capital (§4.4), each coming about when the island before it is built up. (They were paid in shells and wood
+  until 2026-11-13; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
+  early on"; Harbor Town went from 130,000 to 150,000 with the conveyor tide and down to 60,000 with the ten tiers,
+  §10.) The island grows north each time (the boardwalk stays where it is), to twice tier 3's grass at the capital and
+  nearly four times at Driftling Haven, and only ever gains land (each tier's shape joined to the smaller ones':
+  nothing built near an old shore has to move); more driftlings live there in more and bigger huts, the tree lays more
+  eggs and better ones, and new kinds hatch up to the capital (§6). (The homes for villagers this request asked for
+  went with the villagers on 2026-11-12.)
 - **Comfort** (huts): a driftling hatched goes to the comfiest hut with room. A driftling's comfort (its hut's, plus
   4% / 8% at a level 2 / 3 hut kept from an older save) makes it work that much more (`Island.palBoost`: 1 plus its
   share plus its comfort). The Driftlings panel shows each one's hut.
 - **Boost buildings**: every building of a knack makes more (`Island.boosts`); each kind of boost building counts
   once however many stand, the "all" ones count at every knack, and the boosts at one knack stop at `BoostMax` (60%).
-- **Paths** in four materials, laid tile after tile (the piece stays picked), apart from the piece limit: roads
-  through a town (a Brick Road brings a little charm, a Marble Walk more).
+- **Paths** in 22 looks (§4), drawn in lines and boxes, apart from the piece limit: roads through a town (the dearer
+  ones bring a little charm, a quarter of a point a tile up to two on the Gilded Walk and the Starlit Path).
 - **No upgrades** (taken out 2026-11-11: "remove the ability to upgrade buildings"). A better building is a
   **Replace** away, and a level from an older save is kept and still counts.
-- **Replace**: a standing piece picked up shows **Replace**: the tray lists the others of its kind open at the tier
-  (room for huts), each for its price less half the old one's (`Plot.replaceCost`); a tap swaps it where it stands
-  (the new footprint must fit there): its driftlings stay (a smaller hut keeps as many as it has room for, and the rest
-  are left with no hut, §6), its level starts again. A patch becomes an orchard, a hut a palace (at the huts' limit, the way to more room).
+- **Replace**: a standing piece picked up shows **Replace**: the tray lists what it can become at the tier, each with
+  its picture, its room or charm and its price less half the old one's (`Plot.replaceCost`). A building's choices are
+  the others of its kind (room for huts); a piece of decor's are the others in its own row, a tree for a tree and a
+  bench for a bench (`Plot.replacements`). A tap swaps it where it stands (the new footprint must fit there; it drops
+  in with sparkle tones): its driftlings stay (a smaller hut keeps as many as it has room for, and the rest are left
+  with no hut, §6), its level starts again. A patch becomes an orchard, a hut a palace (at the huts' limit, the way to
+  more room). A path, water tile or fence has no Replace: draw the new look over it (§4).
 - A big island well built reads as a city: roads in a grid with street lamps, a town hall and a clock tower, markets
-  and a grand hotel, dens and roosts, parks with hedges, topiaries and fountains (the `city` preview).
+  and a grand hotel, dens and roosts, parks with topiaries and fountains (the `city` preview). Built in one theme it
+  reads as that place instead: a beach of sand trails, driftwood fences and a lagoon, a frozen island of snowy paths,
+  snowbanks and an igloo, a zen garden of raked gravel and a moon bridge, a volcano of basalt steps and lava pools (the
+  `theme=<name>` previews).
 
-- **Build mode** (the HUD's Build): the view frees to pan over the island; a tray of tabs (Farms, Wood, Shops, Huts,
-  Boosts, Paths, Decor: icons alone on a phone; it opens on Wood) lists every piece with its price in wood (red when
-  you are short, locked ones greyed with the tier they need). A picked piece is a ghost on a cyan footprint where it
-  fits, red where not; Place (or a second click on the same spot) builds it. Tapping a standing piece picks it up to
-  move, **Replace** it (§4.1) or **Clear it away** (half its price back; not a Hatchery warming an egg; a hut's
-  driftlings are left with no hut and move into the next hut with room, §6). The Tree of Life only moves: Clear away
-  is off for it and nothing replaces it ("The Tree of Life stays on your island. You can move it."). The header
-  counts the pieces without the tree (the path tiles on the Paths tab, the huts against their limit on the Huts
-  tab).
-- **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
-  is open) turns the tray to the tab of the building the tip asks for, and that building's card (and its tab, while
-  another tab is shown) pulses until it stands on the island; placing it goes straight on to the next tip's tab.
+### 4.2 Fences (`Plot.fence`, `Models/FenceModels`)
 
-  > The request (2026-11-10): "make the tutorial show while in the build menu as well, and auto switches the player to
-  > the tab where the required buildings are in"
-- **Expand** (in the tray's header): the island grows five times (`TierCost`, §4.1), its coast reaching further out
-  round the same campfire. A piece that no longer fits moves to the nearest free spot (none is
-  lost; one with no spot left would be cleared with its whole price back). The Tree of Life keeps its place, the rest
-  make room round it, and it lays the bigger island's extra eggs at once (§6).
+A fence is drawn, not placed one at a time: it goes up in 2-stud lengths along the island's grid lines on the even
+studs, each length running east or south from a corner (`rot` 0 or 90). A length has a post at each end (a pier, a
+lump of stone or a cane, by the fence) that the next length shares, so a run joins up and a corner closes with no gap.
+**Line** puts lengths along the grid lines the drag passes (along x, then along z from the last corner, so a slanting
+drag makes steps); **Box** runs a fence all the way round the box from the press to the finger; **Erase** takes
+lengths down, half their price back. Drawing another fence over a length swaps it. A length goes where each of its two
+studs has grass on one side or the other, so a fence can run along the island's edge; it never runs through a
+building, the plaza or the path to the jetty, but it may run along a building's side and past paths and water, and a
+building can't be put down across a fence. A length picked up turns between east and south with Rotate (R). The
+seventeen run from a rope sagging between two posts to a crystal fence with glowing points, by way of white pickets,
+split rails, a bamboo screen, bleached driftwood, woven willow, a clipped hedgerow, a garden gate under a little arch,
+a low wall of field stones, a log palisade, iron railing with gold spear tips, a lantern rope whose lights glow at
+night, brick, adobe, a snowbank hung with icicles and a shell wall.
+
+### 4.3 Water (`Plot.paint`, `Models/GroundModels`, `PlotService.waterMasks`)
+
+> From the request at the top: "Also, add the ability to add water to make rivers."
+
+Water is drawn like paths, in 2 x 2 tiles on the even studs: a line digs a river, a box fills a pond. There are seven:
+a Stream with pebbles, a darker Deep River with current streaks, a Lily Pond, Swamp Water with reeds, a Lagoon with
+sandy banks, a steaming Hot Spring and a Frozen Pond. A tile draws its bank only on the sides where the water ends and
+rounds the corner where two banks meet, so a river of many tiles reads as one body of water: the server works out each
+tile's neighbours (`PlotService.waterMasks`), and a tile is built again when water is dug or taken up next to it. The
+water moves the way the shallows do (§8). Water shares its limit with the paths (`PathPieces`), and each eraser takes
+up only its own kind (Erase with a path picked leaves the water alone).
+
+What goes with water: a piece made to go **over** it (the bridges, the dock, the waterwheel, the little waterfall)
+stands on grass, on water or across both; one made to go **on** it (lily pads, reeds, stepping stones, the duck decoy,
+the rowboat, lotus flowers, floating lanterns) only on water, every stud of it ("Tap the water where it should float.";
+on the grass its frame is red). Nothing else stands on water, and water can still be dug under a bridge or round a
+lily pad already there. Taking water up takes what floats on it with it, half its price back too; a bridge stays where
+it is. The founder wades through rivers: each step splashes a few drops and makes a soft watery pop (`step_water`).
+
+### 4.4 Growing the island (`Data/Office`, `Data/Street`, `TierCost`)
+
+> From the request at the top: "Make more island progression and allow the player to expand their land even more."
+
+Ten tiers. The first six are the old ones with lower walls: Harbor Town 60,000 wood (was 150,000), Coral City 160,000
+(was 320,000), Sunspire Capital 380,000 (was 800,000), so the town comes in the second hour again and a city can come
+in the third (§10). Past the capital four more islands grow north, each as wide as the capital and longer than the one
+before (`Data/Street`'s isles 7 to 10; the lot reaches 136 studs north of the island's origin for the biggest one's
+shallows): Moonlit Bay, Evergreen Isle, Skyreach Isle and Driftling Haven. On Driftling Haven the grass reaches more
+than a hundred studs north of the campfire, 6,608 cells of it, nearly four times a Grand Isle's and 1.8 times the
+capital's.
+
+| Tier | Island | Wood to grow to it | Grass (cells) | Pieces | Path and water tiles | Fence lengths | Huts | Eggs a lot |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Castaway Cay | (the start) | 489 | 36 | 80 | 40 | 4 | 5 |
+| 2 | Palm Isle | 600 | 1,044 | 60 | 150 | 80 | 6 | 6 |
+| 3 | Grand Isle | 9,000 | 1,707 | 90 | 240 | 130 | 8 | 7 |
+| 4 | Harbor Town | 60,000 | 2,367 | 130 | 340 | 180 | 10 | 8 |
+| 5 | Coral City | 160,000 | 3,002 | 180 | 460 | 240 | 12 | 9 |
+| 6 | Sunspire Capital | 380,000 | 3,658 | 240 | 600 | 300 | 14 | 10 |
+| 7 | Moonlit Bay | 800,000 | 4,368 | 300 | 750 | 370 | 16 | 10 |
+| 8 | Evergreen Isle | 1,600,000 | 5,129 | 370 | 900 | 440 | 18 | 10 |
+| 9 | Skyreach Isle | 3,000,000 | 5,977 | 450 | 1,050 | 520 | 20 | 10 |
+| 10 | Driftling Haven | 5,000,000 | 6,608 | 540 | 1,200 | 600 | 22 | 10 |
+
+No new buildings or huts open past the capital and no new kinds hatch there. What a bigger island brings instead is
+room (the limits above, up to 264 driftlings in Palaces), the dearest decor (Gilded Walk, Lava Rock, the Lantern
+Tower, the Fire Basin, the Steam Vent and the Golden Driftling at 7; Starlit Path, the Crystal Fence, the Crystal Arch,
+the Obsidian Spire and the Sky Bell Tower at 8; the Lava Pool and the Crystal Spire at 9; the Rainbow Arch at 10) and
+better eggs. The tree lays ten a lot as on the capital, but luckier ones (`EggLuck` 1.6, 1.9, 2.2, 2.6: on Driftling
+Haven more than one egg in five is legendary), dearer ones (`EggTier` 160, 270, 420, 640), and a hatchling's mutations
+roll three rarities up on Moonlit Bay and Evergreen Isle and four on the last two (§6). The tree stays at its last
+stage (`TreeStage` 4).
+
+- **Expand** (in the tray's header, its price in wood under it; "Island max" on Driftling Haven): the island grows,
+  its coast reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot
+  (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
+  fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
+  it, and it lays the bigger island's extra eggs at once (§6). Once the bigger island is on screen: "Your island grew
+  into Moonlit Bay. There's more to build now."
 
   > The request (2026-11-11): "also, expanding the island causes the game to lag abit before the actual expansion"
 
@@ -341,9 +499,57 @@ tile are skipped, never refused as a whole; running out of wood stops where it r
   stood still the whole time it baked. And the fanfare played at the tap, before anything had changed. Now the
   server builds each island's next size in the background, a few dozen parts a frame, and Expand only swaps it in.
   The filter re-bakes sooner, with more time a frame, behind the old picture, and the island keeps moving
-  meanwhile (driftlings, the founder, water and wind). The fanfare and "Your island grew." wait until the bigger
-  island is on screen. Every size's coast cells are worked out when the server starts, and the next size's on
+  meanwhile (driftlings, the founder, water and wind). The fanfare and "Your island grew into ..." wait until the
+  bigger island is on screen. Every size's coast cells are worked out when the server starts, and the next size's on
   the client a few seconds after each change, so the tap never waits for them either.
+
+### 4.5 Build mode (`UI/BuildUI`, `Controllers/BuildFx`)
+
+> From the request at the top: "Polish the build ui more, just like the bakery game, and reference bloxburg. Also,
+> add effects and polish when putting down decor and other amenities."
+
+- **The tray** (the HUD's Build): the view frees to pan over the island (drag it), and a workbench along the bottom
+  holds the catalog. Along its top plank: the eight tabs, each with its icon (the icons alone when the names don't fit,
+  as on a phone), the tab's count, **Expand** with its price under it, and **Done**. Under them the tab's rows as chips
+  (All first, then each row: Decor's fourteen fit one line on a computer, and scroll sideways on a phone). A **search
+  box** sits on the tabs' plank when there's room there (on a narrow screen, at the end of the chips' row): its words
+  list the matching pieces from every tab, by name, row or tab ("lantern" finds the lanterns on every tab), like the
+  bakery's decor box. It opens on Work's Wood row. Then the cards: each a 24 x 24 picture of the piece drawn from its
+  own model (§2) over its price in wood (red when you are short), the cheapest first, then the locked ones by the tier
+  they open at, each with "Lv7" in place of a price. A mouse over a card shows its tooltip: the name, its size ("3 x 3",
+  "2 x 2 tiles", "2-stud lengths"), what it is and what it makes, a hut's room and comfort, its charm, "Goes over
+  water." or "Goes on water.", its price and, while locked, "Opens at island level 7." A tap on a locked card says
+  "Expand your island to level 7 to build this."
+- **Placing**: a picked piece is a ghost on a raised frame where the mouse is (or the last tap): cyan where it fits, red
+  where not; **Place** (a second click on the same spot, or E) builds it and keeps it picked for another; **Rotate** (R)
+  turns it a quarter. A tap on a standing piece picks it up to **Move** it, **Copy** it (another of the same, turned the
+  same way: C), **Replace** it (§4.1) or **Clear it away** (X or Delete; half its price back; not a Hatchery warming an
+  egg; a hut's driftlings are left with no hut and move into the next hut with room, §6). Esc drops what is picked, and
+  with nothing picked closes Build mode. Under the buttons an info plate shows the piece's picture, its name, what it is
+  and its price, and with a keyboard the keys ("R turns it. E puts it down. Esc stops."). While a piece is picked or a
+  stroke drawn, the tray shrinks to the height of that plate, so more of the island shows (the tip's banner comes down
+  with it). The Tree of Life only moves: it has no Copy, Clear away is greyed and nothing replaces it ("The Tree of Life
+  stays on your island. You can move it.").
+- **Putting a piece down** (`Controllers/BuildFx`, its particles in `Controllers/Puffs`): it drops in from a stud and
+  a half up, falling faster as it comes, and hops once as it lands (a stand-in falls while the server's own model is
+  held back, then the real one takes its place). As it lands, a ring of six little dust clouds puffs round its
+  footprint, a burst of what it's made of flies up by its feel (wood chips, chips of stone, leaves, drops of water,
+  glints of metal, magic motes and stars, sand, snow, confetti for cloth, embers for fire), a twinkle shows over its
+  top, it makes its sound and "+N" floats up with the charm heart when it brings a point of charm or more. A stroke of
+  path, water or fence puffs along its tiles or lengths (at most 24 puffs, spread along it) with its sound in a quick
+  run of up to six; taking them up puffs dust. A piece cleared away goes in a puff. The particles are 1 px bits and
+  small sprites at whole pixels (at most 260 at once); with the pixel filter off there are none.
+- **The sounds** go by feel, cut from clips the game already has: a hammer's tap for wood, pebbles for stone, rustling
+  grass for plants, a low bubble pop for water, a chime's clink for metal, a sparkle of chimes for magic, footsteps in
+  sand for sand (higher for snow), a cloth flap for cloth and a shaker for fire.
+- **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
+  is open) turns the tray to the tab and row of the building the tip asks for (the Lumber Camp on Work's Wood row, the
+  Veggie Patch on Farms, the Driftling Hut on Huts, the Snack Stall on Shops), and that building's card (and its tab,
+  while another tab is shown) pulses until it stands on the island; placing it goes straight on to the next tip's tab.
+  The quests' Go opens Build mode on its tab (an old tab's name, "build:wood", opens Work on that row).
+
+  > The request (2026-11-10): "make the tutorial show while in the build menu as well, and auto switches the player to
+  > the tab where the required buildings are in"
 
 ## 5. Villagers (gone)
 
@@ -355,7 +561,7 @@ Villagers button. Visitors still come for the charm and buy at the shops. A buil
 
 ## 6. Driftlings and the Tree of Life (`Logic/Tree`, `Data/Creatures`, `Data/Traits`, the Tree panel, the Driftlings panel, the Index)
 
-The request at the top of this file (2026-11-13) brought the tree back to lay eggs: "it spawns in 5 eggs around it,
+The request of 2026-11-13 near the top of this file brought the tree back to lay eggs: "it spawns in 5 eggs around it,
 which refreshes every few minutes to spawn in another 5 eggs, replacing any existing eggs that were not taken.
 expanding the island increases the quality of eggs spawned and amount of eggs spawned". (Before it, for a few hours,
 driftlings floated past on the tide; before that the tree grew one every few seconds into a pen, with Speed and Luck
@@ -388,17 +594,18 @@ on forked limbs, each with a dark underside, blossom, hanging vines and gold fru
 the ground, motes in the air, mushrooms and flowers at its foot. Round the stones a wide round lawn of moss holds its
 eggs (the footprint grew from 6 x 6 to 8 x 8 for them).
 
-**It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4): stage 2 on a Palm Isle and a
-Grand Isle, 3 on Harbor Town and Coral City, 4 on the capital. Each stage the trunk thickens, the crown spreads wider
-(half as wide again at the last) and climbs (the top cloud from 12 studs to 19), the leaf clouds grow, and more of it
-glows: more runes up the bark, more of the standing stones lit (every third, every other, then all), more blossom,
+**It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, then 4): stage 2 on a Palm Isle and a
+Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital on. Each stage the trunk thickens, the crown spreads
+wider (half as wide again at the last) and climbs (the top cloud from 12 studs to 19), the leaf clouds grow, and more of
+it glows: more runes up the bark, more of the standing stones lit (every third, every other, then all), more blossom,
 longer vines. From the second stage lanterns of light hang in its lower limbs; from the third the ring of clouds is
-eight with an upper ring of four, and every cloud carries three gold fruit; at the last the crown is in full blossom,
-a ring of gold light floats over it, the stones wear gold caps and a second ring of light glows on the ground. When
-the island grows into a new stage, the tree is built again at it.
+eight with an upper ring of four, and every cloud carries three gold fruit; at the last the crown is in full blossom, a
+ring of gold light floats over it, the stones wear gold caps and a second ring of light glows on the ground. When the
+island grows into a new stage, the tree is built again at it.
 
 - **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (180) seconds the tree lays a new lot round its roots,
-  `EggCount` by the island's tier: 5, 6, 7, 8, 9, 10. The eggs still there from the last lot go as the new ones come.
+  `EggCount` by the island's tier: 5, 6, 7, 8, 9, then 10 from the capital on. The eggs still there from the last lot
+  go as the new ones come.
   The huts' tree shares (Leafy and its family, and a few passives; `HutTree`: 50% at most) bring the next lot sooner,
   at the most every two minutes. The clock runs only while you are on the server, and the eggs and the time left are
   saved, so leaving and coming back lays no new lot. A new island, and a save from before the eggs, gets its first lot
@@ -406,9 +613,9 @@ the island grows into a new stage, the tree is built again at it.
   it, so the tips' first hatch is cheap.
 - **Rarity** (`Tree.odds`, rolled when the egg is laid): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5,
   1.2) times the island's luck to the power of the steps. The luck is 1 plus `EggLuck` by the island's tier (0, 0.25,
-  0.5, 0.75, 1, 1.3) plus the huts' luck shares (Lucky and its family: `HutLuck`, 0.5 at most). A rarity none of the
-  kinds open at the island's tier has falls to the next commoner one. Before the huts' shares (in brackets, about how
-  often an egg of that rarity is laid):
+  0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6) plus the huts' luck shares (Lucky and its family: `HutLuck`, 0.5 at most). A
+  rarity none of the kinds open at the island's tier has falls to the next commoner one. Before the huts' shares (in
+  brackets, about how often an egg of that rarity is laid):
 
   | Island tier | Eggs a lot | Common | Uncommon | Rare | Epic | Legendary |
   |---|---|---|---|---|---|---|
@@ -418,13 +625,17 @@ the island grows into a new stage, the tree is built again at it.
   | 4 | 8 | 37.6% | 29.6% | 18.4% (2 min) | 10.1% (3.7 min) | 4.2% (9 min) |
   | 5 | 9 | 31.9% | 28.7% | 20.4% (1.6 min) | 12.8% (2.6 min) | 6.1% (5.4 min) |
   | 6 | 10 | 26.1% | 27.1% | 22.1% (1.4 min) | 15.9% (1.9 min) | 8.8% (3.4 min) |
+  | 7 | 10 | 21.4% | 25.0% | 23.1% (1.3 min) | 18.8% (1.6 min) | 11.7% (2.6 min) |
+  | 8 | 10 | 17.5% | 22.8% | 23.5% (1.3 min) | 21.3% (1.4 min) | 14.8% (2 min) |
+  | 9 | 10 | 14.3% | 20.6% | 23.5% (1.3 min) | 23.5% (1.3 min) | 18.0% (1.7 min) |
+  | 10 | 10 | 11.1% | 17.9% | 22.9% (1.3 min) | 25.8% (1.2 min) | 22.3% (1.3 min) |
 
 - **A bigger island at once** (`Tree.fill`): growing the island tops the lot up to the new count straight away, the
   new eggs rolled at the new odds ("The tree laid 1 more egg."); the eggs already there stay.
-- **The price** (`Tree.cost`): `EggPrice` by rarity (20, 90, 400, 2,000, 10,000 shells) times `EggTier` by the
-  island's tier (1, 3, 8, 20, 45, 90), less the huts' cost shares (Thrifty and its family: `HutCost`, half off at
-  most; a Greedy one takes some of that share back but never makes eggs dearer). A bigger island earns more and lays
-  better eggs, so its eggs cost more:
+- **The price** (`Tree.cost`): `EggPrice` by rarity (20, 90, 400, 2,000, 10,000 shells) times `EggTier` by the island's
+  tier (1, 3, 8, 20, 45, 90, 160, 270, 420, 640), less the huts' cost shares (Thrifty and its family: `HutCost`, half
+  off at most; a Greedy one takes some of that share back but never makes eggs dearer). A bigger island earns more and
+  lays better eggs, so its eggs cost more:
 
   | Island tier | Common | Uncommon | Rare | Epic | Legendary |
   |---|---|---|---|---|---|
@@ -434,18 +645,22 @@ the island grows into a new stage, the tree is built again at it.
   | 4 Harbor Town | 400 | 1,800 | 8,000 | 40,000 | 200,000 |
   | 5 Coral City | 900 | 4,050 | 18,000 | 90,000 | 450,000 |
   | 6 Sunspire Capital | 1,800 | 8,100 | 36,000 | 180,000 | 900,000 |
+  | 7 Moonlit Bay | 3,200 | 14,400 | 64,000 | 320,000 | 1,600,000 |
+  | 8 Evergreen Isle | 5,400 | 24,300 | 108,000 | 540,000 | 2,700,000 |
+  | 9 Skyreach Isle | 8,400 | 37,800 | 168,000 | 840,000 | 4,200,000 |
+  | 10 Driftling Haven | 12,800 | 57,600 | 256,000 | 1,280,000 | 6,400,000 |
 
-- **Hatching one** (`egg.hatch`): a tap on the egg itself or on its price tag over it, or its row on the HUD's Tree
-  card or in the Tree panel. You pay its price and what hatches (`Tree.roll`) is one of the egg's rarity's kinds among
-  those open at the island's tier (`Data/Islets` tier: beaches and meadows from the start, snowfields and mangroves at
-  2, volcanoes and grottoes at 3, reefs at 4, bluffs at 5, ruins at 6), with mutations of its own (below), rolled as
-  one rarity rarer every `EggMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the
-  city tiers). It moves into the comfiest hut with room and takes a free place at a building of its knack (`HelpMax`:
-  2 driftlings a building), or rests in its hut until one is free; "It hatched a rare Wispwing!" in its rarity's
-  colour, and it goes in the Index. A new island's first two hatches are good with wood and then at a farm, so the
-  tips' Lumber Camp and Veggie Patch have help waiting. With no hut built the answer is "Build a hut first. Driftlings
-  need somewhere to live."; an egg a new lot replaced before the tap reached the server, "That egg is gone. The tree
-  laid new ones."
+- **Hatching one** (`egg.hatch`): a tap on the egg itself or on its price tag over it, or its row on the HUD's Tree card
+  or in the Tree panel. You pay its price and what hatches (`Tree.roll`) is one of the egg's rarity's kinds among those
+  open at the island's tier (`Data/Islets` tier: beaches and meadows from the start, snowfields and mangroves at 2,
+  volcanoes and grottoes at 3, reefs at 4, bluffs at 5, ruins at 6), with mutations of its own (below), rolled as one
+  rarity rarer every `EggMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the city
+  tiers, three on Moonlit Bay and Evergreen Isle, four on the last two, never past a legendary's roll). It moves
+  into the comfiest hut with room and takes a free place at a building of its knack (`HelpMax`: 2 driftlings a
+  building), or rests in its hut until one is free; "It hatched a rare Wispwing!" in its rarity's colour, and it goes in
+  the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
+  Patch have help waiting. With no hut built the answer is "Build a hut first. Driftlings need somewhere to live."; an
+  egg a new lot replaced before the tap reached the server, "That egg is gone. The tree laid new ones."
 - **Every hut full** (`full`): the Tree panel's swap picker opens, listing every driftling in a hut, the weakest first,
   each with what it sells for. Pick one and it is sold for its price (`Tree.price`, below) and the hatchling takes its
   place ("It hatched an epic Pyredrake! The one it replaced sold for 7 shells."). If a new lot replaced the egg while
@@ -454,19 +669,34 @@ the island grows into a new stage, the tree is built again at it.
   with no room, waits with no hut (`home` 0). It works nowhere and is not drawn on the island; the Driftlings panel
   lists it last ("No hut. It moves in when one has room.") and it moves in the moment a hut has room (`Tree.settle`).
 - **In the world** (`Controllers/EggView`): an egg is two spheres on a little bed of straw, a broad one below and a
-  smaller one on top for an egg's curve, white with five spots of its rarity's colour on the side facing you (sand
-  for a common, then green, blue and purple; a legendary egg is gold with orange spots and a band of light round its
-  middle), a rarer egg a little bigger. The spots of a rare, epic or legendary egg glow, so at night they pool light on
-  the lawn. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the side the view looks at
-  (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new lot rises out of the
-  lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a little. Over each of
-  the own island's eggs floats its price on a button (the shells and the shell icon, green when you have them); there
-  are no names, the spots tell the rarity, and where tags would crowd the rarer egg's shows. A hatched egg shakes, its
-  top flies off and the rest sinks into the lawn; the driftling steps out where it lay with a cheer, bits of its
-  rarity's colour burst there (a rare one's name floats up too) and it walks off to its work. A neighbour's tree lays
-  its eggs too, drawn without tags; only the islands near the view have theirs drawn. While the tips ask for a hatch
-  (step 4) an arrow bobs over the cheapest tag you can pay. A tap on your own tree opens the Tree panel; on a
-  neighbour's, "Someone else's Tree of Life. Yours is on your own island."
+  smaller one on top for an egg's curve, a rarer egg a little bigger. Each rarity has its own colour, marks and lights
+  (`EggView.LOOK`), so a player can tell the eggs apart at a glance:
+
+  > The request (2026-11-13): "Also, color each egg differently with different effects to allow players to
+  > distinguish easily between egg rarities"
+
+  | Rarity | Shell | Marks | Lights |
+  |---|---|---|---|
+  | Common | cream | brown freckles | none |
+  | Uncommon | green | a white zigzag band round its middle | a leaf drifts up off it now and then |
+  | Rare | sky blue | white stars that glow | white and cyan twinkles blink round it |
+  | Epic | purple | pink spots that glow | a purple glow on the lawn under it, two motes of light (pink and white) circling and bobbing, pink and white sparks rising |
+  | Legendary | gold | a glowing yellow zigzag band, and a band of light round its middle | a beam of light standing up out of its top, breathing taller and shorter, a gold glow on the lawn, gold sparks and stars rising |
+
+  The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
+  whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
+  several a second off a legendary one), only over eggs lying still and at most 140 at once; the motes and the beam go
+  out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_5`: the Tree card, the Tree panel and
+  the Hatchery) are drawn to match. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
+  side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
+  lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
+  little. Over each of the own island's eggs floats its price on a button (the shells and the shell icon, green when you
+  have them); there are no names, the egg's colour tells the rarity, and where tags would crowd the rarer egg's shows. A
+  hatched egg shakes, its top flies off and the rest sinks into the lawn; the driftling steps out where it lay with a
+  cheer, bits of its rarity's colour burst there (a rare one's name floats up too) and it walks off to its work. A
+  neighbour's tree lays its eggs too, drawn without tags; only the islands near the view have theirs drawn. While the
+  tips ask for a hatch (step 4) an arrow bobs over the cheapest tag you can pay. A tap on your own tree opens the Tree
+  panel; on a neighbour's, "Someone else's Tree of Life. Yours is on your own island."
 - **The HUD's Tree card** (under the island card; on a phone at the top left): the tree's icon, "Tree of Life"
   ("Eggs" on a phone) and Open, "New eggs in 2:41" over a bar running down to the next lot, then the best three eggs
   now, the rarest first and the cheaper among them (if you can pay for none of them, the best one you can pay for takes
@@ -624,7 +854,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   mailbox either side of its foot. Visitors stroll the grass round it.
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
-  pier's pond and the fountain move the same way.
+  pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) move the same way.
 - **Day and night** (the request of 2026-11-10: "make an actual day night cycle, causing things to go dark and then bright
   as time goes on"): the island's day clock grades the whole picture (`Controllers/DayLight`): a rosy dawn as the day
   begins, plain daylight, a golden dusk (from 0.6 of the day), a violet twilight and a deep blue night (from 0.81)
@@ -686,7 +916,7 @@ The Looks panel sets the founder's skin, hair, style and shirt (every client see
 > cleared them onto the sea: they now stand far higher)
 
 Settings: the pixel filter's quality, and the music (the note in the HUD's top right corner, on or off, kept with the
-profile). **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4), each saying where
+profile). **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:
 
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
@@ -739,28 +969,32 @@ Sun Beacon is a name). Stat lines keep their "label: value" form.
 
 ## 10. Saves and the economy, checked
 
-The save is version 13 (`Logic/Schema`). It holds the tree's eggs (`clutch`: each egg's id and rarity, and the
-seconds to the next lot), checked on every load: rarities 1 to 5, ids unique, no more eggs than the island lays, the
-clock between nothing and three minutes. A version 12 save (the tide's) gets its Tree of Life back behind the campfire
-(on an island built full, the nearest pieces make room with their whole price back) and no eggs yet, its clock at
-nothing, so the tree lays its first lot as the player arrives; the driftlings it took in off the tide count as
-hatched (`stats.taken`). A version 11 save loses the old tree's levels and growth and its food, and gets a new tree as
-a version 12 save does. Every driftling waiting in its pen is sold for its price (`Tree.price`: the shells added and
-counted as sold and earned); the driftlings in huts stay where they are, at their jobs, without `held`; and the
-driftlings the old tree grew count as hatched (`stats.taken`). Its tips keep their step's number (a step whose task
-is already done moves on at once) and the questline its place. A save with more huts than its tier now allows keeps
-them (§4). A version 10 save also loses its villagers: every home
-comes down with its whole price back (Tent 30 shells, Grass Shack 140 and 20 wood, Cottage 700 and 80, Longhouse
-2,400 and 260, Townhouse 7,000 and 700, Villa 20,000 and 2,000, Manor 60,000 and 5,000), its tips on a step past the
-Tent's move back one, and `movedIn` leaves the stats. A version 9 save also loses its wild places, the captain, the
-snack pouch and every level and skill; a Training Yard comes down with its whole price back (450 shells, 50 wood);
-each driftling moves into a hut the way the nests were filled before (the comfiest first, in the order they came) and
-the ones left over are sold as the pen's are; its tips on the old sailing steps move on with the rest; the questline
-starts again at its first quest. Its driftlings and their mutations, its buildings, paths and stores are kept (a
-cleared wild place goes with the rest). A version 8 save also drops its boat and its sea chart; a version 7 save also
-starts the questline; a version 6 save's driftlings each roll their mutations once (from their kind and id: the same
-every load); a version 5 save's tips move to the new steps; an older save (the game studio's) keeps the founder's
-look, the settings and its start date and begins a fresh island with the tips.
+The save is version 14 (`Logic/Schema`). It holds the tree's eggs (`clutch`: each egg's id and rarity, and the seconds
+to the next lot), checked on every load: rarities 1 to 5, ids unique, no more eggs than the island lays, the clock
+between nothing and three minutes. Its pieces are checked on every load too: each count against its own limit (the
+pieces, the path and water tiles together, the fence lengths, one Tree of Life), their places between -160 and 64 studs
+(the far islands reach that far north), a fence starting on an even corner and running east or south (any other is
+dropped), and a path or water tile off the even studs cleared with its whole price back. A version 13 save (before the
+catalog) loses the old one-piece Picket Fence and Hedge: fences are drawn now (§4.2), so each one standing comes up with
+its whole price back in wood (25 for the fence, 120 for the hedge). A version 12 save (the tide's) gets its Tree of Life
+back behind the campfire (on an island built full, the nearest pieces make room with their whole price back) and no eggs
+yet, its clock at nothing, so the tree lays its first lot as the player arrives; the driftlings it took in off the tide
+count as hatched (`stats.taken`). A version 11 save loses the old tree's levels and growth and its food, and gets a new
+tree as a version 12 save does. Every driftling waiting in its pen is sold for its price (`Tree.price`: the shells added
+and counted as sold and earned); the driftlings in huts stay where they are, at their jobs, without `held`; and the
+driftlings the old tree grew count as hatched (`stats.taken`). Its tips keep their step's number (a step whose task is
+already done moves on at once) and the questline its place. A save with more huts than its tier now allows keeps them
+(§4). A version 10 save also loses its villagers: every home comes down with its whole price back (Tent 30 shells, Grass
+Shack 140 and 20 wood, Cottage 700 and 80, Longhouse 2,400 and 260, Townhouse 7,000 and 700, Villa 20,000 and 2,000,
+Manor 60,000 and 5,000), its tips on a step past the Tent's move back one, and `movedIn` leaves the stats. A version 9
+save also loses its wild places, the captain, the snack pouch and every level and skill; a Training Yard comes down with
+its whole price back (450 shells, 50 wood); each driftling moves into a hut the way the nests were filled before (the
+comfiest first, in the order they came) and the ones left over are sold as the pen's are; its tips on the old sailing
+steps move on with the rest; the questline starts again at its first quest. Its driftlings and their mutations, its
+buildings, paths and stores are kept (a cleared wild place goes with the rest). A version 8 save also drops its boat and
+its sea chart; a version 7 save also starts the questline; a version 6 save's driftlings each roll their mutations once
+(from their kind and id: the same every load); a version 5 save's tips move to the new steps; an older save (the game
+studio's) keeps the founder's look, the settings and its start date and begins a fresh island with the tips.
 
 `tests/Career.luau` plays a sensible player through the same rules (`Logic/*`) for three seeds and three hours. Every
 five seconds they hatch the rarest egg under the tree they can afford (the cheaper first among eggs of one rarity):
@@ -769,26 +1003,30 @@ swap for their weakest when the egg is two rarities better than it. Then they bu
 buildings first (a camp, a patch, a hut, a stall), then a hut while every hut is full and there are places at work
 (at the huts' limit, a bigger hut in the smallest one's place, or where there is room once the small one is cleared),
 wood while it comes slowly, a shop a tier, a farm more than the tier, a building for the knack with the most
-driftlings resting, and decor with wood to spare. Once the island is going they save up for the next tier, and they
+driftlings resting, and decor with wood to spare. The catalog has plenty of cheap decor, so the decor stops at a
+third of the piece limit and two thirds stay for buildings (a player decorates, but not before the huts), and the
+player builds nothing that needs water. Once the island is going they save up for the next tier, and they
 expand as soon as they can (the extra eggs laid at once). Its random numbers are seeded through a hash, as the server
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
 - a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (5 to 12 minutes);
-- a steady supply: at least 12 hatched by half an hour (26 to 37), an epic within two hours (18 to 24 minutes); a
-  legendary comes at 62 to 79 minutes (no bound);
+- a steady supply: at least 12 hatched by half an hour (22 to 37), an epic within two hours (25 to 30 minutes); a
+  legendary comes at 40 to 72 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  thousandth: 840 to 970 shells of 2.4 to 4.5 million);
-- the island's second tier within 25 minutes (11 to 14), the third within 50 (33 to 41); at an hour, at least 12
-  driftlings in huts (40 on every seed, all a Grand Isle's eight huts hold); Harbor Town (tier 4) never before 100
-  minutes (one seed at 118; the other two are 19,000 and 28,000 wood short of it at three hours) and no city (tier 5)
-  within three hours;
+  thousandth: 850 to 1,420 shells of 4.4 to 5.2 million);
+- the island's second tier within 25 minutes (12 to 21), the third within 50 (33 to 49); at an hour, at least 12
+  driftlings in huts (34 to 40); Harbor Town (tier 4) not before an hour (78 to 91 minutes), Coral City (tier 5) not
+  before two hours (one seed at 164 minutes; the other two are 33,000 and 129,000 wood short of it at three hours),
+  and no Sunspire Capital (tier 6) within three hours;
 - both stores are being made at every ten minutes of the three hours, they stay finite, and the save has no food.
 
 Harbor Town went from 130,000 to 150,000 wood with the conveyor tide, when one seed reached it in 91 minutes. With the
-eggs and the huts' limit it is further off: once a Grand Isle's 40 places are full (within the first hour) the
-islands grow slowly, and by three hours the seeds have hatched 85 to 120 driftlings. Shells pile up then: the two
-seeds still on a Grand Isle hold 2.8 and 3.4 million at three hours, with nothing left to spend them on but swaps.
+eggs and the huts' limit it moved out of reach (one seed at 118 minutes, the other two not in three hours), and the
+islands sat on a Grand Isle for most of the second and third hours. The ten tiers brought it down to 60,000 and the
+city tiers with it, so every seed has the town in the second hour and one reaches Coral City in the third. By three
+hours the seeds have hatched 108 to 132 driftlings and house 60 to 64. Shells pile up in the town: the two seeds still
+on Harbor Town hold 1.6 and 2.3 million at three hours, with little to spend them on but swaps.
 
 ## 11. Polish and animation
 
@@ -886,7 +1124,8 @@ seeds still on a Grand Isle hold 2.8 and 3.4 million at three hours, with nothin
 
   The interface is wood and bamboo: a temple-block tap for a click, a bamboo swish as a panel opens and closes, a low
   wooden knock for "no", wind chimes for a notice; shells coming in clack like pebbles (a handful for many); a bubble
-  pops; pages turn; a shaker for a cheer. Building is two quick hammer taps.
+  pops; pages turn; a shaker for a cheer. Building was two quick hammer taps; since 2026-11-13 a piece put down
+  sounds like what it's made of (§4.5), a wooden one still with the hammer's tap.
 
   > The requests (2026-11-10): "remove the victory sound whenever a fight finishes"; "the victory sound and wherever
   > it plays in such as a villager coming is too noisy, find one with a small short chime instead"; "the building
@@ -910,7 +1149,7 @@ seeds still on a Grand Isle hold 2.8 and 3.4 million at three hours, with nothin
 
   > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"
 
-  The islands and the sea: a hammer on wood when a building goes up, gulls squawking as a flock passes over, the
+  The islands and the sea: a hammer on wood when a wooden piece goes up, gulls squawking as a flock passes over, the
   surf on the sand always, crickets through the night and birds at dawn.
 - **Music** (`Audio.music`): APM Music's library on the Creator Store, shuffled, one track after another, crossfaded,
   quiet: calm, drumless music that sits in the background. Soft acoustic island guitar by day (Campfire Stories,

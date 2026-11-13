@@ -12,12 +12,14 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 1067, `sim_save.luau` about 539, `sim_clock.luau` about 1212, `sim_world.luau` about 450, `sim_tree.luau`
-about 1694).
+`sim.luau` about 2672, `sim_save.luau` about 911, `sim_clock.luau` about 1228, `sim_world.luau` about 2484,
+`sim_tree.luau` about 1722).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city gallery tree day dusk night dawn sea visit build expand zoo paths water work late loading`
-or `panel=<pals|tree|hatch|index|looks>`. The loading card's art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place
-file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
+village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work late
+loading themes`, `panel=<pals|tree|hatch|index|looks>`, `catalog=<group>` (a group of the build catalog: `ground fence
+nature theme theme2 fun`, a Build mode tab or ids) or `theme=<beach|garden|frost|zen|volcano|fairy>`. The loading card's
+art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place file is
+`DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):
 never copy another game's names, creatures, islands, story or art. Driftlings, islets and buildings are this game's.
@@ -29,14 +31,17 @@ The repository `Downvote/test` (Random Bakery) is the reference this game was bu
 The user's standing rule: "for pixel art, always dont use mixels. use pixel art techniques such as anti-aliasing,
 avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pixel art grid." So every sprite, icon,
 scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or bigger thing is its own sprite: the
-11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 32x32, drawn from its 3D model: after changing
-a driftling's model, run `sh tools/preview/portraits.sh`), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
-anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py` (run it; `--png <file>`
-for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The world is 3D: the islands, the
-buildings (the Tree of Life among them), the tree's eggs and the driftlings are built from parts (`Models/DecorModels`,
-`Models/MicroModels`, `Models/DriftModels`, the eggs in `Controllers/EggView`), world-aligned on the iso grid and drawn
-by the pixel filter. (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of
-Life's place for a few hours; the tree is back, laying the eggs the driftlings hatch from.)
+11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 32x32, drawn from its 3D model: after changing a
+driftling's model, run `sh tools/preview/portraits.sh`; a build catalog card's picture is 24x24, drawn from the piece's
+model: after changing a piece's model, run `sh tools/preview/thumbs.sh`), at whole UI px (tweens snap, particles are
+1 px), a 1 px ink outline, anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py`
+(run it; `--png <file>` for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The world
+is 3D: the islands, the buildings (the Tree of Life among them), the build catalog's pieces, the tree's eggs and the
+driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,
+`NatureModels`, `ThemeModels`, `ThemeMoreModels` and `FunModels` on `Models/Parts`, `Models/MicroModels`,
+`Models/DriftModels`, the eggs in `Controllers/EggView`), world-aligned on the iso grid and drawn by the pixel filter.
+(The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few
+hours; the tree is back, laying the eggs the driftlings hatch from.)
 
 ## Writing (always)
 
