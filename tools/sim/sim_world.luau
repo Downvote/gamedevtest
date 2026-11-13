@@ -1565,31 +1565,16 @@ H.expect(okA, "eggs", "Ava's client draws the newcomer's next door", whyA)
 local EVc = H.cmod(c, "Controllers.EggView")
 H.expect(#eggsAttr(cPlot + 3) >= 1 and EVc.count(cPlot + 3) == 0, "eggs", "a far island's eggs are not drawn (only those near the view)", tostring(EVc.count(cPlot + 3)))
 do
-	-- (a price tag for each of its own, none for the neighbours': the ids are each island's own, so the tags are
-	-- counted against Cy's eggs; the ones crowding a rarer one's wait, the rest show)
+	-- (no price tags over anyone's eggs: the eggs are bought in the tree's panel, the request of 2026-11-13)
 	local canvasC = c.PlayerGui:FindFirstChild("World") and c.PlayerGui.World:FindFirstChild("Canvas")
-	local function tagsNow(): (number, number, boolean)
-		local mine = {}
-		for _, e in sc.profile.clutch.list do
-			mine[e.id] = true
+	E.run(0.5)
+	local tags = 0
+	for _, g in canvasC and canvasC:GetDescendants() or {} do
+		if string.match(g.Name, "^EggHatch_(%d+)$") then
+			tags += 1
 		end
-		local tags, shown, own = 0, 0, true
-		for _, g in canvasC and canvasC:GetChildren() or {} do
-			local id = tonumber(string.match(g.Name, "^EggHatch_(%d+)$"))
-			if id then
-				tags += 1
-				own = own and mine[id] == true
-				shown += if g.Visible then 1 else 0
-			end
-		end
-		return tags, shown, own
 	end
-	E.runUntil(function()
-		return (tagsNow()) == #sc.profile.clutch.list
-	end, 5, 0.1)
-	local tags, shown, own = tagsNow()
-	H.expect(tags == #sc.profile.clutch.list and tags == EVc.count(cPlot) and own, "eggs", "a price tag for each of Cy's own eggs, none for the neighbours'", string.format("%d tags, %d eggs", tags, #sc.profile.clutch.list))
-	H.expect(shown >= 1, "eggs", "and they show over the eggs", string.format("%d of %d shown", shown, tags))
+	H.expect(tags == 0 and EVc.count(cPlot) == #sc.profile.clutch.list, "eggs", "Cy's own eggs drawn, with no price tags over them or the neighbours'", string.format("%d tags, %d of %d eggs drawn", tags, EVc.count(cPlot), #sc.profile.clutch.list))
 end
 -- the tree on Cy's island: a tap on it opens its panel; it is never cleared away, bought or replaced, but it moves like
 -- any piece (its model and its eggs with it); in Build mode a tap picks it up with Clear away off. Every other piece

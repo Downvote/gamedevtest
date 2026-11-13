@@ -1529,7 +1529,7 @@ local function hatchScenario(code)
 		local PR = modOr(p, "Pixel.PixelRenderer")
 		local v = CC and H.inClient(p, CC.view)
 		local dst = PR and H.inClient(p, PR.debugStatic)
-		log("hatch: view stage %s key %s a %s; layer baking %s shown %s bakes %s", tostring(v and v.stage), tostring(v and v.key), tostring(v and v.grid.a), tostring(dst and dst.baking), tostring(dst and dst.shown), tostring(dst and dst.bakes))
+		log("hatch: view stage %s key %s a %s; layer baking %s shown %s bakes %s; compose %.2f ms, %d dynamic models", tostring(v and v.stage), tostring(v and v.key), tostring(v and v.grid.a), tostring(dst and dst.baking), tostring(dst and dst.shown), tostring(dst and dst.bakes), dst and dst.composeMs or -1, dst and dst.dyn or -1)
 	end
 	log("hatch %s: laid %d, hatches %d as %s, crack at %.2f, end at %.2f", code, r, hr, tostring(sp), st.crackAt, st.endAt)
 	for k = 1, hr - r do
