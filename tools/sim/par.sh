@@ -1,12 +1,13 @@
 #!/bin/sh
 # Every scenario of Driftling Isle's simulator: regenerate the sources once, then run them in parallel and print each
 # SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors, 0 issues everywhere.
-#   sim.luau        the main run: a new island (the loading card, the campfire, the Tree of Life, the HUD, the tips),
-#                   building what the tips ask (food, a camp, a stall, a tent, a hut), the days turning (a villager moves
-#                   in and works), the tree growing driftlings into its pen and the pen sending the best to the hut, the
-#                   tree's card and panel (Speed, selling from the pen), the Driftlings panel (move, swap, help, sell),
-#                   the Villagers and Index panels, looks, settings, expanding, the questline, a malicious client (its
-#                   deliberate NaN / infinity payloads are listed apart), a second player
+#   sim.luau        the main run: a new island (the loading card, the campfire, the jetty's first two driftlings, the
+#                   HUD's tide card, the tips), building in the tips' order for wood (a camp, a patch, a hut, one taken
+#                   off the tide from the card, a stall), the days turning, the tide (one every TideSecs up to TideMax,
+#                   the Index, the card, the world's price tags, the tide panel, the swap picker, one taken in walking
+#                   the island), the Driftlings panel (move to a second hut, swap back, work, sell in two taps), the
+#                   Index panel, looks, settings, expanding for wood, the questline, a malicious client (its deliberate
+#                   NaN / infinity payloads are listed apart), a second player
 #   sim_save.luau   saves: leave and rejoin to the same profile (the tree's levels, one kept in the pen), a version 9
 #                   save (the wild places and fights) loading with its tree and huts, another server's lock, a takeover,
 #                   a corrupt record, a version 4 save (the game studio) starting an island
@@ -17,10 +18,11 @@
 #                   every client, walking (the camera follows, Home), building (place, move, no upgrades, clear away, every
 #                   refusal), Build mode's UI, paths, malicious plot payloads, a leaving player, a full sea, a newcomer's
 #                   Tree of Life (moved, never cleared away)
-#   sim_tree.luau   the Tree of Life: growing and waiting with a full pen, the pen sending its best to the huts (a sold
-#                   one's place filled, a hut cleared away), Speed and Luck to the top with every refusal, a rare one
-#                   announced, expanding (a bigger pen, new kinds), a swap through the hut picker, Equip best (a held
-#                   better one in from the Tree panel, then nothing to move), the tree moved, a neighbour's client
-#                   drawing the pen
+#   sim_tide.luau   the tide: a new island's two commons at the jetty (the view, the plot's Tide attribute, the HUD's
+#                   card, the rafts), refusals (no hut, gone, malformed, a shell short), the tips' buildings and one
+#                   taken in from the card and one from its world tag, one every TideSecs up to TideMax with the
+#                   oldest drifting off (the Index), every hut full (the swap picker), the tide panel, selling in two
+#                   taps, a hut cleared away and another built, expanding (prices times TideTier), a neighbour's
+#                   client drawing the first island's tide
 SIM=$(cd "$(dirname "$0")" && pwd)
-sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log"
+sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tide.luau:out_tide.log"

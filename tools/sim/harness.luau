@@ -295,15 +295,6 @@ function H.dismissCards(p, max)
 	end
 	return n
 end
--- A player's Tree of Life piece (its uid), or 0.
-function H.treeUid(prof)
-	for _, q in prof.plot.placed do
-		if q.id == "tree" then
-			return q.uid
-		end
-	end
-	return 0
-end
 -- The visible button named `name` (its Instance name: Menu_build, Place, BuildDone...), or nil.
 function H.buttonNamed(p, name, includeDisabled)
 	for _, x in H.buttons(p, nil, includeDisabled) do
@@ -368,7 +359,7 @@ H.finite = finite
 
 -- The profile is valid: finite non-negative stores, pieces that fit the island with unique uids,
 -- driftlings with unique ids working only where they may (a driftling from a hut, Tuning.HelpMax a building), the huts
--- within their room, one Tree of Life with its levels in range, no level left on anyone, the tips in range.
+-- within their room, no Tree of Life (gone with its pen on 2026-11-13), no food, no level left on anyone, the tips in range.
 function H.checkProfile(p, label)
 	local prof = H.profile(p)
 	if not H.expect(prof ~= nil, "profile", label .. ": no profile") then
@@ -381,31 +372,25 @@ function H.checkProfile(p, label)
 	local Traits = H.sharedServer("Data.Traits")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
-	local Tree = H.sharedServer("Logic.Tree")
-	for _, k in { "shells", "food", "wood", "day", "tier", "nextId", "tut", "quest" } do
+	for _, k in { "shells", "wood", "day", "tier", "nextId", "tut", "quest" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
-	H.expect(prof.shells >= 0 and prof.food >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s %s", tostring(prof.shells), tostring(prof.food), tostring(prof.wood)))
+	H.expect(prof.shells >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s", tostring(prof.shells), tostring(prof.wood)))
+	H.expect(prof.food == nil and prof.tree == nil, "profile", label .. ": food or the Tree of Life left in the save (gone with the tide)")
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
 	for _, k in { "boat", "chart", "cap", "pouch", "islets", "sea", "wilds" } do
 		H.expect(prof[k] == nil, "profile", label .. ": " .. k .. " left in the save (gone with the expeditions)")
 	end
 	H.expect(prof.tut >= 0 and prof.tut <= 6, "profile", label .. ": tips out of range", tostring(prof.tut))
-	-- the Tree of Life: its levels, its growth
-	local tr = prof.tree
-	H.expect(type(tr) == "table" and tr.luck >= 1 and tr.luck <= #Tuning.TreeLuckCost and tr.speed >= 1 and tr.speed <= #Tuning.TreeSpeedCost and finite(tr.t) and tr.t >= 0, "profile", label .. ": the tree's levels or growth", if type(tr) == "table" then string.format("%s %s %s", tostring(tr.luck), tostring(tr.speed), tostring(tr.t)) else "none")
-	-- the pieces: one tree, the rest within the island's limits
+	-- the pieces: within the island's limits
 	local placed = prof.plot.placed
-	local nPaths, nTrees = 0, 0
+	local nPaths = 0
 	for _, q in placed do
 		if Plot.isPath(q.id) then
 			nPaths += 1
-		elseif Plot.isFixed(q.id) then
-			nTrees += 1
 		end
 	end
-	H.expect(nTrees == 1, "profile", label .. ": one Tree of Life", tostring(nTrees))
-	H.expect(#placed - nPaths - nTrees <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths - nTrees, nPaths))
+	H.expect(#placed - nPaths <= Plot.limit(prof.tier) and nPaths <= Plot.pathLimit(prof.tier), "profile", label .. ": more pieces than the island holds", string.format("%d pieces, %d paths", #placed - nPaths, nPaths))
 	local uids = {}
 	local rest = {}
 	for i, q in placed do
@@ -422,7 +407,7 @@ function H.checkProfile(p, label)
 	local ids = {}
 	local helps = {}
 	local inHut = {}
-	local inPen = 0
+	local noHut = 0
 	for _, x in prof.pals do
 		H.expect(x.id > 0 and x.id < prof.nextId and not ids[x.id] and not uids[x.id], "profile", label .. ": a bad or shared driftling id", tostring(x.id))
 		ids[x.id] = true
@@ -432,9 +417,10 @@ function H.checkProfile(p, label)
 		H.expect((prof.seen[x.sp] or 0) == 2, "profile", label .. ": a driftling not in the Index", tostring(x.sp))
 		local clean = Traits.clean(x.muts)
 		H.expect(type(x.muts) == "table" and #clean == #x.muts, "profile", label .. ": a driftling's mutations not a clean list (known, a family once, at most four)", tostring(x.muts and #x.muts))
+		H.expect(x.held == nil, "profile", label .. ": a hold left on a driftling (the pen is gone)")
 		if x.home == 0 then
-			inPen += 1
-			H.expect(x.work == 0, "profile", label .. ": a driftling in the pen at work", tostring(x.work))
+			noHut += 1
+			H.expect(x.work == 0, "profile", label .. ": a driftling with no hut at work", tostring(x.work))
 		else
 			local hq = uids[x.home]
 			local hd = hq and Buildings.byId[hq.id]
@@ -453,7 +439,17 @@ function H.checkProfile(p, label)
 		local hd = q and Buildings.byId[q.id]
 		H.expect(hd ~= nil and n <= hd.slots, "profile", label .. ": a hut over its room", string.format("%d in %s", n, tostring(q and q.id)))
 	end
-	H.expect(inPen <= Tuning.PenSafe + 50, "profile", label .. ": the pen past the save's limit (the tree rests there)", tostring(inPen))
+	-- (one with no hut only waits while every hut is full)
+	if noHut > 0 then
+		local room = 0
+		for uid, q in uids do
+			local hd = Buildings.byId[q.id]
+			if hd and hd.kind == "nest" then
+				room += hd.slots - (inHut[uid] or 0)
+			end
+		end
+		H.expect(room == 0, "profile", label .. ": a driftling with no hut while a hut has room", string.format("%d waiting, %d room", noHut, room))
+	end
 	for k, n in prof.seen do
 		H.expect(Creatures.byId[k] ~= nil and (n == 1 or n == 2), "profile", label .. ": a bad Index entry", tostring(k))
 	end
@@ -471,23 +467,21 @@ function H.checkMirror(p, label)
 	end
 	local r = H.sharedServer("Logic.Island").rates(prof)
 	local tick = H.sharedServer("Config.Tuning").TurnSeconds
-	for _, k in { "shells", "food", "wood" } do
+	for _, k in { "shells", "wood" } do
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
 		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))
 	end
-	-- (the view holds every driftling in a hut and the pen's best Tuning.PenShown, with the pen's count)
-	local Tuning = H.sharedServer("Config.Tuning")
-	local housed, penN = 0, 0
-	for _, x in prof.pals do
-		if x.home ~= 0 then
-			housed += 1
-		else
-			penN += 1
-		end
-	end
-	H.expect(#v.pals == housed + math.min(penN, Tuning.PenShown) and v.penN == penN and v.folk == nil, "mirror", label .. ": driftlings differ", string.format("%d (pen %s) vs %d in huts, %d in the pen", #v.pals, tostring(v.penN), housed, penN))
+	-- (the view holds every driftling, and the tide: the session's own)
+	H.expect(#v.pals == #prof.pals and v.folk == nil and v.penN == nil and v.tree == nil, "mirror", label .. ": driftlings differ", string.format("%d vs %d", #v.pals, #prof.pals))
 	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
-	H.expect(v.tree ~= nil and v.tree.luck == prof.tree.luck and v.tree.speed == prof.tree.speed, "mirror", label .. ": the tree's levels differ")
+	local s = H.session(p)
+	if s and s.tide then
+		local same = #v.tide == #s.tide.list
+		for i, d in s.tide.list do
+			same = same and v.tide[i] ~= nil and v.tide[i].id == d.id and v.tide[i].sp == d.sp
+		end
+		H.expect(same, "mirror", label .. ": the tide differs", string.format("%d vs %d", #v.tide, #s.tide.list))
+	end
 	local homes = {}
 	for _, x in prof.pals do
 		homes[x.id] = x.home
