@@ -7,6 +7,9 @@ two disagree on an API, a type or a name, this file wins; on a number, `src/shar
 The build system, the conventions and much of the rendering code come from Random Bakery (`Downvote/test`, used
 read-only as the reference: nothing there was changed). What was copied, and how it was changed, is listed in §12.
 
+> The request (2026-11-13, GAME_DESIGN quotes it): "add a search button for the building ui." (`BuildUI`'s
+> `SearchButton` and `focusSearch`, the `mini_search` sprite: §10.7)
+
 > The request (2026-11-10, GAME_DESIGN quotes it with the choices made): "scrap this idea. could you make replicate
 > beasty bay from kariosoft instead? still use the test repo as a reference" (an original island-village game in the
 > genre: island building and farming, creature taming, expeditions and battles, villagers moving in, a shared sea)
@@ -833,10 +836,12 @@ fence lengths on Fences, the huts against `hutLimit` on Huts; orange when full);
 top tier; `island.expand`, its price under it in `ExpandCost`; the fanfare and "Your island grew into Moonlit Bay.
 There's more to build now." (or how many buildings had to move), named from the answer's `tier`, wait for
 `PixelRenderer.afterBake`, 1.5 s at most) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
-pixel-font copy of its words, `Query`, "Search" while empty, and `ClearSearch`; on the tabs' plank right of the tabs
-when there are 72 px free there (up to 110 wide), so Decor's fourteen chips fit one line on a computer, else at the end
-of the chips' row, 96 wide or 70 on a screen under 500; kept across rebuilds so typing keeps the keyboard, cleared when
-Build mode closes); under the tabs the tab's rows (`Chips`, scrolling sideways: `Chip_all` and a `Chip_<sub>` a row,
+pixel-font copy of its words, `Query`, "Search" while empty, and `ClearSearch`), with the search button `SearchButton`
+just before it (16 wide, the 11 x 11 `mini_search` magnifier; it calls `focusSearch()`, the cursor into `Box`; the
+accent colour while a search is on): both on the tabs' plank right of the tabs when there are 80 px free there (the box
+62 to 110 wide), so Decor's fourteen chips fit one line on a computer, else at the end of the chips' row, the box 96
+wide or 70 on a screen under 500; the box kept across rebuilds so typing keeps the keyboard, cleared when Build mode
+closes; under the tabs the tab's rows (`Chips`, scrolling sideways: `Chip_all` and a `Chip_<sub>` a row,
 `CHIPS`: Work's `farm wood shop gen`, Water's `tiles bridge float` ("Water", "Bridges", "On the water"), Nature's
 `trees plants rocks`, Decor's 13 themes, Fun's `seats lights play treats fountains`; a tab with one row shows a
 `TabHint` instead), or, while the search box has words, "Everything called "lantern":" and every piece whose name, row
@@ -878,7 +883,8 @@ building): opening, and each new tip while open (`followTut`, from the rebuild; 
 turns the tray to the tip's tab and row; the tip's card (`TutGoal`) and its tab, while another is shown, pulse to the
 accent and shine; placing the tip's building drops the pick so the tray goes on to the next tab. `TRAY_H` (82),
 `debugState() -> { tab, chip, goal? }`, `debugTip(id) -> boolean` (a card's tooltip, as a mouse over it),
-`debugSearch(text)` (typed into the box), `tapScreen(pos, mouse?)` (the sims' and previews' tap).
+`debugSearch(text)` (typed into the box), `focusSearch()` (the search button's work), `tapScreen(pos, mouse?)` (the sims'
+and previews' tap).
 
 **Drawing paths, water and fences** (GAME_DESIGN 4): picking a drawn piece (`Plot.isDrawn`) opens the draw bar
 (`DrawLine`, `DrawBox`, `DrawErase`, `DrawLook`, `Cancel`, `BuildDone`, and the `Info` plate with the `Stroke` label:

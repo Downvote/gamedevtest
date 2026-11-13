@@ -190,6 +190,8 @@ SMALL = {
     "boss": [".........", ".Y..Y..Y.", ".YY.Y.YY.", ".YYYYYYY.", ".YrYYYbY.", ".YYYYYYY.", ".........", ".........", "........."],
     "star": ["....Y....", "....Y....", "...YYY...", "YYYYYYYYY", ".YYYYYYY.", "..YYYYY..", "..YY.YY..", ".Y.....Y.", "........."],
     "boat": [".........", "....W....", "....WW...", "....WWW..", "....N....", ".NNNNNNN.", "..NNNNN..", "BBBBBBBBB", "........."],
+    # the build tray's search button: a round glass lens in a grey rim, a wooden handle down to the right
+    "search": ["..SSS....", ".SCCCS...", "SCCCCCS..", "SCCCCCS..", "SCCCCCS..", ".SCCCSN..", "..SSSNN..", "......NN.", ".......NN"],
     # the music switch: two beamed notes
     "note": ["...WWWWWW", "...WWWWWW", "...W....W", "...W....W", "...W....W", ".WWW..WWW", "WWWW.WWWW", "WWW..WWW.", "........."],
 }

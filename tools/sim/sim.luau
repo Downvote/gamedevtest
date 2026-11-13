@@ -1526,7 +1526,17 @@ do
 	H.clickNamed(p, "Chip_zen", { wait = 0.2 })
 	do
 		local box = p.PlayerGui:FindFirstChild("BuildSearch", true)
-		H.expect(box ~= nil and box:FindFirstChild("Box") ~= nil and H.guiVisible(box), "tray", "the search box in the chip row")
+		H.expect(box ~= nil and box:FindFirstChild("Box") ~= nil and H.guiVisible(box), "tray", "the search box")
+		-- the search button by it puts the cursor in the box
+		local sb = p.PlayerGui:FindFirstChild("SearchButton", true)
+		local tb = if box then box:FindFirstChild("Box") else nil
+		H.expect(sb ~= nil and H.guiVisible(sb), "tray", "the search button by the box")
+		H.expect(H.clickNamed(p, "SearchButton", { wait = 0.2 }) and tb ~= nil and tb:IsFocused(), "tray", "the search button puts the cursor in the box")
+		if tb then
+			H.inClient(p, function()
+				tb:ReleaseFocus()
+			end)
+		end
 		H.inClient(p, BuildUI.debugSearch, "lantern")
 		E.run(0.3)
 		local got = {}

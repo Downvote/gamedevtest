@@ -1172,10 +1172,18 @@ rebuild = function()
 		-- on a narrow screen it sits at the end of the chips' row)
 		local trayW = s.X - 16
 		local free = trayW - 150 - (x + 2)
-		local up = free >= 72
-		local sw = if up then math.min(110, free) elseif s.X < 500 then 70 else 96
-		searchField(f, sw, if up then UDim2.fromOffset(x + 2, 3) else UDim2.new(1, -106 - sw, 0, 17))
-		local rowW = if up then -110 else -112 - sw
+		local BW = 16 -- the search button's width
+		local up = free >= 62 + BW + 2 -- (a box of 62 still shows "Search" and its clear mark)
+		local sw = if up then math.min(110, free - BW - 2) elseif s.X < 500 then 70 else 96
+		searchField(f, sw, if up then UDim2.fromOffset(x + 4 + BW, 3) else UDim2.new(1, -106 - sw, 0, 17))
+		-- the search button just before the box (a magnifier, as in Bloxburg's catalog): it puts the cursor in the box;
+		-- lit while a search is on
+		local sb = UIKit.button(f, "", UDim2.fromOffset(BW, if up then 13 else 12), if up then UDim2.fromOffset(x + 2, 2) else UDim2.new(1, -108 - sw - BW, 0, 17), function()
+			Audio.play("flip")
+			BuildUI.focusSearch()
+		end, { name = "SearchButton", color = if query ~= "" then UIKit.color("accent") else UIKit.color("plate_light") })
+		PixelSprites.image(sb, "mini_search", UDim2.fromOffset(2, if up then 1 else 0), 6)
+		local rowW = if up then -110 else -114 - sw - BW
 		if query ~= "" then
 			rows = nil
 		end
@@ -1355,6 +1363,15 @@ end
 function BuildUI.trayHeight(): number
 	local tray = UIKit.canvas("Hud"):FindFirstChild("BuildTray")
 	return if tray and tray:IsA("GuiObject") then tray.Size.Y.Offset else TRAY_H
+end
+
+-- The search button's work: the cursor into the search box (the tray's cards follow what's typed there).
+function BuildUI.focusSearch()
+	local sf = search
+	local box = if sf then sf:FindFirstChild("Box") else nil
+	if box and box:IsA("TextBox") then
+		box:CaptureFocus()
+	end
 end
 
 function BuildUI.isOpen(): boolean

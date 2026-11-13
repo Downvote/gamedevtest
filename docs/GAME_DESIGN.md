@@ -1,6 +1,11 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "Make much, much more building options, like paths and fences. Polish the
+> The request (2026-11-13, the latest): "add a search button for the building ui."
+
+So the build tray has a search button now: a magnifier just before the search box (§4.5). Tapping it puts the cursor
+in the box, and it lights up while a search is on.
+
+> The request (2026-11-13): "Make much, much more building options, like paths and fences. Polish the
 > build ui more, just like the bakery game, and reference bloxburg. Also, add effects and polish when putting down
 > decor and other amenities. There should be enough paths, fences and other detail to make a lot of vastly different
 > themed islands. Also, add the ability to add water to make rivers. Make more island progression and allow the
@@ -512,7 +517,9 @@ stage (`TreeStage` 4).
   holds the catalog. Along its top plank: the eight tabs, each with its icon (the icons alone when the names don't fit,
   as on a phone), the tab's count, **Expand** with its price under it, and **Done**. Under them the tab's rows as chips
   (All first, then each row: Decor's fourteen fit one line on a computer, and scroll sideways on a phone). A **search
-  box** sits on the tabs' plank when there's room there (on a narrow screen, at the end of the chips' row): its words
+  button** (a magnifier) and the **search box** after it sit on the tabs' plank when there's room there (on a narrow
+  screen, at the end of the chips' row): the button puts the cursor in the box and lights up while a search is on; the
+  box's words
   list the matching pieces from every tab, by name, row or tab ("lantern" finds the lanterns on every tab), like the
   bakery's decor box. It opens on Work's Wood row. Then the cards: each a 24 x 24 picture of the piece drawn from its
   own model (§2) over its price in wood (red when you are short), the cheapest first, then the locked ones by the tier
