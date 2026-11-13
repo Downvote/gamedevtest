@@ -1212,56 +1212,108 @@ local function catalogScenario(group: string)
 			table.insert(ids, d.id)
 		end
 	end
-	-- the layout: rows across the island's middle, each piece with room round it (exact places: d[6])
+	-- the layout: rows across the island's middle, each piece with room round it (exact places: d[6]). Each spot is
+	-- checked with the game's own rules (Plot.fits, against the tree and the pieces laid so far) and kept off the
+	-- founder's spot in each frame, so nothing lands in the sea or under the founder; a piece that doesn't fit moves on.
+	local Plot = H.sharedServer("Logic.Plot")
+	local Schema = H.sharedServer("Logic.Schema")
+	local placed = Schema.default(0, 19).plot.placed
 	local pieces = {}
-	-- (rows across the island's wide middle: its north tip is beach)
-	local x, z = -22, -84
-	local rowD = 0
-	local function put(id: string, px: number, pz: number, rot: number?)
-		table.insert(pieces, { id, px, pz, rot or 0, 1, true })
-	end
-	for _, id in ids do
-		local d = Buildings.byId[id]
-		local w = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 6 elseif d.water ~= "" then math.max(d.w + 2, 6) else d.w
-		local dd = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 4 elseif d.water ~= "" then math.max(d.d + 2, 6) else d.d
-		if x + w > 22 then
-			x = -22
-			z += rowD + 4
-			rowD = 0
+	local clear = {}
+	for sz = -80, 60, 14 do
+		for _, sx in { -13, 13 } do
+			table.insert(clear, { x0 = sx - 3, z0 = sz + 2, x1 = sx + 3, z1 = sz + 7 })
 		end
-		local ex, ez = x - x % 2, z - z % 2
+	end
+	local function blockOf(id: string, ex: number, ez: number, x: number, z: number): { { any } }
+		local d = Buildings.byId[id]
+		local list = {}
 		if d.kind == "path" or d.kind == "water" then
 			for k = 0, 3 do
-				put(id, ex + (k % 2) * 2, ez + (k // 2) * 2)
+				table.insert(list, { id, ex + (k % 2) * 2, ez + (k // 2) * 2, 0 })
 			end
 		elseif d.kind == "fence" then
-			put(id, ex, ez, 0)
-			put(id, ex + 2, ez, 0)
-			put(id, ex + 4, ez, 0)
-			put(id, ex + 6, ez, 90)
-			put(id, ex + 6, ez + 2, 90)
+			table.insert(list, { id, ex, ez, 0 })
+			table.insert(list, { id, ex + 2, ez, 0 })
+			table.insert(list, { id, ex + 4, ez, 0 })
+			table.insert(list, { id, ex + 6, ez, 90 })
+			table.insert(list, { id, ex + 6, ez + 2, 90 })
 		elseif d.water == "on" then
 			-- a pond under it, a tile wider all round
 			for tz = ez, ez + math.max(d.d + 2, 4), 2 do
 				for tx = ex, ex + math.max(d.w + 2, 4), 2 do
-					put("stream", tx, tz)
+					table.insert(list, { "stream", tx, tz, 0 })
 				end
 			end
-			put(id, ex + 2, ez + 2)
+			table.insert(list, { id, ex + 2, ez + 2, 0 })
 		elseif d.water == "over" then
 			-- a stream two tiles wide running east under its middle
 			local mz = ez + 2 + math.floor(d.d / 2) - 2
 			mz -= mz % 2
 			for tx = ex, ex + d.w + 2, 2 do
-				put("stream", tx, mz)
-				put("stream", tx, mz + 2)
+				table.insert(list, { "stream", tx, mz, 0 })
+				table.insert(list, { "stream", tx, mz + 2, 0 })
 			end
-			put(id, ex + 1, ez + 1)
+			table.insert(list, { id, ex + 1, ez + 1, 0 })
 		else
-			put(id, x, z)
+			table.insert(list, { id, x, z, 0 })
 		end
-		x += w + 3
-		rowD = math.max(rowD, dd)
+		return list
+	end
+	local function tryBlock(list: { { any } }, w: number, dd: number, x: number, z: number): boolean
+		for _, r in clear do
+			if x - 1 < r.x1 and r.x0 < x + w + 1 and z - 1 < r.z1 and r.z0 < z + dd + 1 then
+				return false
+			end
+		end
+		local n = #placed
+		local ok = true
+		for _, q in list do
+			if ok and Plot.fits(10, placed, q[1], q[2], q[3], q[4]) then
+				table.insert(placed, { uid = 0, id = q[1], x = q[2], z = q[3], rot = q[4], lvl = 1 })
+			else
+				ok = false
+			end
+		end
+		if not ok then
+			for i = #placed, n + 1, -1 do
+				placed[i] = nil
+			end
+		end
+		return ok
+	end
+	-- (rows across the island's wide middle: its north tip is beach)
+	local x, z = -22, -84
+	local rowD = 0
+	local dropped = 0
+	for _, id in ids do
+		local d = Buildings.byId[id]
+		local w = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 6 elseif d.water ~= "" then math.max(d.w + 2, 6) else d.w
+		local dd = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 4 elseif d.water ~= "" then math.max(d.d + 2, 6) else d.d
+		local done = false
+		while not done and z < 60 do
+			if x + w > 22 then
+				x = -22
+				z += math.max(rowD, 2) + 4
+				rowD = 0
+			end
+			local ex, ez = x - x % 2, z - z % 2
+			local list = blockOf(id, ex, ez, x, z)
+			if tryBlock(list, w, dd, ex, ez) then
+				for _, q in list do
+					table.insert(pieces, { q[1], q[2], q[3], q[4], 1, true })
+				end
+				done = true
+				x += w + 3
+				rowD = math.max(rowD, dd)
+			else
+				x += 2
+			end
+		end
+		if not done then
+			dropped += 1
+			log("catalog: no room for %s", id)
+		end
 	end
 	seedProfile(19, 10, { pieces = pieces, shells = 900000, wood = 900000 })
 	local p = join(19, "Catalog")
@@ -1280,7 +1332,7 @@ local function catalogScenario(group: string)
 			capture(p, "catalog_" .. k)
 		end
 	end
-	log("catalog %s: %d pieces in %d frames", group, #ids, k)
+	log("catalog %s: %d pieces in %d frames (%d with no room)", group, #ids, k, dropped)
 	return p
 end
 
