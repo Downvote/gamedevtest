@@ -393,6 +393,15 @@ return function()
 		end
 		T.eq(#Plot.replacements({ uid = 1, id = "picket", x = 0, z = 0, rot = 0, lvl = 1 }, 10), 0)
 		T.eq(#Plot.replacements({ uid = 1, id = "stream", x = 0, z = 0, rot = 0, lvl = 1 }, 10), 0)
+		-- the server keeps to the same rows: a gnome can't be swapped for a snowman, nor a path for a stream
+		local x, z = spot(p, "gnome")
+		T.truthy(Plot.place(p, "gnome", x, z, 0))
+		local i = #p.plot.placed
+		T.eq(select(2, Plot.replace(p, i, "snowman")), "bad_payload", "another row")
+		T.truthy(Plot.replace(p, i, "birdbath"), "the same row")
+		local px, pz = spot(p, "dirtpath")
+		T.truthy(Plot.paint(p, "dirtpath", { { px, pz } }))
+		T.eq(select(2, Plot.replace(p, #p.plot.placed, "gravel")), "bad_payload", "drawn pieces are drawn over instead")
 	end)
 	T.it("every piece fits somewhere on the smallest island", function()
 		for _, d in Buildings.list do

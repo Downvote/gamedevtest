@@ -184,6 +184,24 @@ local function origin(): (number, number)
 	return Office.origin(myPlot())
 end
 
+-- What a refusal says in Build mode: "full" names the count that ran out (paths and water, fences, or pieces; a hut's
+-- own limit is "huts"), the rest as everywhere else.
+local function buildErr(err: string?, id: string?): string
+	if err == "blocked" then
+		return "It doesn't fit there."
+	elseif err == "full" and id then
+		local g = Plot.group(id)
+		if g == "tile" then
+			return "That's all the paths and water this island holds. Grow the island for more."
+		elseif g == "fence" then
+			return "That's all the fencing this island holds. Grow the island for more."
+		elseif g == "piece" then
+			return "This island has no room for more pieces. Grow it, or clear something away."
+		end
+	end
+	return Words.errText(err)
+end
+
 local function ask(action: string, payload: { [string]: any }, ok: string?): Types.Response
 	local res = StateClient.request(action, payload)
 	if res.ok then
@@ -191,7 +209,7 @@ local function ask(action: string, payload: { [string]: any }, ok: string?): Typ
 			UIKit.notice(ok, UIKit.color("good"))
 		end
 	else
-		UIKit.notice(if res.err == "blocked" then "It doesn't fit there." else Words.errText(res.err), UIKit.color("bad"))
+		UIKit.notice(buildErr(res.err, if type(payload.id) == "string" then payload.id else nil), UIKit.color("bad"))
 	end
 	return res
 end
@@ -572,7 +590,7 @@ local function finishStroke()
 			lifted += tonumber(res.data.removed) or 0
 			table.move(part, 1, #part, #done + 1, done)
 		elseif not res.ok then
-			UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+			UIKit.notice(buildErr(res.err, p.id), UIKit.color("bad"))
 			break
 		end
 	end

@@ -168,7 +168,9 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
 			order += 1
 			local f = row(list, order, 22)
 			f.Name = "Spot_" .. q.uid
-			PixelSprites.image(f, "mini_" .. (if d.kind == "shop" then "shell" else d.kind), UDim2.fromOffset(4, 5), 4)
+			-- (a farm's veggies, a boost's spark: their kinds have no icon of their own)
+			local icon = if d.kind == "shop" then "shell" elseif d.kind == "farm" then "food" elseif d.kind == "gen" then "boost" else d.kind
+			PixelSprites.image(f, "mini_" .. (if PixelSprites.has("mini_" .. icon) then icon else "work"), UDim2.fromOffset(4, 5), 4)
 			UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -90, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
 			-- (Tuning.HelpMax a building; one more sends the first there back to rest)
 			local n = 0
@@ -642,8 +644,9 @@ local function buildTree(body: Frame, arg: any?)
 		UIKit.text(body, txt, UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, y), { x = "right", color = if odds[r] > 0 then UIKit.color("text") else UIKit.color("text_dim") })
 		y += 10
 	end
-	if v.tier < 6 and y + 24 <= H then
-		local more = "A bigger island lays more eggs, and better ones."
+	-- (Tuning.EggCount stops growing at the capital, EggTier and EggLuck keep on to the last island)
+	if v.tier < 10 and y + 24 <= H then
+		local more = if v.tier < 6 then "A bigger island lays more eggs, and better ones." else "A bigger island lays better eggs."
 		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
 	end
 	-- the eggs now, the rarest first

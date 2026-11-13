@@ -73,7 +73,7 @@ local list: { Quest } = {
 	{
 		id = "uncommon",
 		title = "An uncommon one",
-		text = "Green-spotted eggs hatch uncommon ones. They cost more and work faster.",
+		text = "Green eggs with a white zigzag hatch uncommon ones. They cost more and work faster.",
 		goal = { kind = "best", n = 2 },
 		reward = { shells = 100 },
 		go = "tree",

@@ -715,6 +715,10 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if q == nil or old == nil or new == nil or new.kind ~= old.kind or new.id == old.id or old.kind == "tree" then
 		return false, "bad_payload" :: ErrCode
 	end
+	-- (drawn pieces aren't replaced; decor only from its own row, as Plot.replacements offers)
+	if Plot.isDrawn(old.id) or (old.kind == "decor" and (new.tab ~= old.tab or new.sub ~= old.sub)) then
+		return false, "bad_payload" :: ErrCode
+	end
 	if new.tier > p.tier then
 		return false, "locked" :: ErrCode
 	end
