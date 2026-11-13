@@ -2,15 +2,18 @@
 -- driftling put there with its mutations), then leaves (saved with the tree's eggs and their clock, lock released) and
 -- rejoins to the very same profile: the same eggs with the same ids, their clock where it stopped (it only runs while
 -- the player is here, so no new lot came while they were away); a version 12 save (the tide: no tree, no eggs) loads
--- as version 13 with its Tree of Life planted and a lot laid on the first step; a version 11 save (the old Tree of
+-- as version 14 with its Tree of Life planted and a lot laid on the first step; a version 11 save (the old Tree of
 -- Life, its levels, food, a pen with one held) loads with the old tree and its levels gone and a new tree planted (the
 -- patch making room for it), the pen sold for its price, the food gone and what the old tree grew counted as hatched; a
 -- version 9 save (the wild places, the fights, the levels and a villager in a Tent) loads with its yard's and its
 -- Tent's prices back, no villagers, two driftlings in the hut, the pen's one sold and a tree planted; a save under
 -- another server's live lock is never overwritten; a join waits out another server's lock and then takes over; a
--- corrupt record still loads into a valid profile, and junk eggs are cleaned; a version 4 save (the game studio)
--- starts a fresh island keeping the founder's look and the settings, its tree's first lot starting with two cheap
--- commons.
+-- corrupt record still loads into a valid profile, and junk eggs are cleaned; the build catalog's saves (version 14):
+-- a version 13 save's old one-piece fence and hedge gone with their price back in wood, a tier 2 island's fences,
+-- water tiles and lily pads through leave and rejoin exactly (a fence off the grid or turned 180 dropped, a tile off
+-- the even studs cleared with its price back), a tier 10 island's far-north pieces (z below -64) kept where they
+-- stood; a version 4 save (the game studio) starts a fresh island keeping the founder's look and the settings, its
+-- tree's first lot starting with two cheap commons.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -215,7 +218,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 13, "save", "a version 12 save loads as version 13", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 14, "save", "a version 12 save loads as version 14", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -275,7 +278,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 13, "save", "a version 11 save loads as version 13", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 14, "save", "a version 11 save loads as version 14", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid. A tier-1 island has
 	-- few places an 8 by 8 tree fits, and the patch and the hut take them all: the patch makes room, its whole price
@@ -490,6 +493,223 @@ if jp then
 end
 E.removePlayer(j, "leave")
 E.run(1)
+
+------------------------------------------------------------------ the build catalog's saves (version 14)
+-- A saved island laid out as a player could have built it: the tree where a new island of that tier has it, then each
+-- piece at a free spot. `pieceList` writes the pieces as "uid:id:x:z:rot;..." to compare two lists.
+local function treePiece(tier: number, uid: number)
+	local x, z, rot = Plot.spot(tier, {}, Tree.ID, Tree.SPOT.x, Tree.SPOT.z, 0)
+	return { uid = uid, id = Tree.ID, x = x, z = z, rot = rot, lvl = 1 }
+end
+-- the first spot (from the south-east, as placeAll looks) where `id` fits and `ok` (if given) agrees
+local function freeAt(tier: number, placed, id: string, rot: number, ok: ((number, number) -> boolean)?): (number?, number?)
+	local pr = Street.plot(tier)
+	for z = pr.z1 - 1, pr.z0, -1 do
+		for x = pr.x1 - 1, pr.x0, -1 do
+			if (ok == nil or ok(x, z)) and Plot.fits(tier, placed, id, x, z, rot) then
+				return x, z
+			end
+		end
+	end
+	return nil, nil
+end
+local function pieceList(placed): string
+	local out = {}
+	for _, q in placed or {} do
+		table.insert(out, string.format("%s:%s:%s:%s:%s", tostring(q.uid), tostring(q.id), tostring(q.x), tostring(q.z), tostring(q.rot)))
+	end
+	return table.concat(out, ";")
+end
+local function piece(uid: number, id: string, x: number, z: number, rot: number)
+	return { uid = uid, id = id, x = x, z = z, rot = rot, lvl = 1 }
+end
+
+-- a version 13 save with the old one-piece Picket Fence and Hedge (fences are drawn along the grid lines now): it
+-- loads as version 14 without them, their whole price back in wood (25 and 120), the rest where it stood
+E.phase = "v13-fences"
+do
+	H.expect(Buildings.byId.fence == nil and Buildings.byId.hedge == nil, "save", "(the one-piece fence and hedge are gone from the catalog)")
+	local tq = treePiece(1, 10)
+	local fx, fz = freeAt(1, { tq }, "flowers", 0)
+	local flowers = piece(11, "flowers", fx :: number, fz :: number, 0)
+	seed(9210, { data = {
+		v = 13,
+		shells = 300,
+		wood = 90,
+		tier = 1,
+		tut = 0,
+		quest = 2,
+		plot = { placed = { tq, piece(12, "fence", 4, 12, 0), flowers, piece(13, "hedge", -6, 12, 90), piece(14, "fence", 6, 12, 0) } },
+		stats = { built = 5, taken = 1 },
+		nextId = 20,
+	} })
+	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
+	E.run(3)
+	local fp = H.profile(f13)
+	H.expect(fp ~= nil and fp.v == 14, "save", "a version 13 save loads as version 14", tostring(fp and fp.v))
+	if fp then
+		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
+		H.expect(fp.wood == 90 + 25 * 2 + 120, "save", "their price back in wood (two fences at 25, a hedge at 120)", tostring(fp.wood))
+		H.checkProfile(f13, "v13-fences")
+		settled(f13)
+		H.checkMirror(f13, "v13-fences")
+	end
+	E.removePlayer(f13, "leave")
+	E.run(1)
+end
+
+-- fences, water and what floats on it, through leave and rejoin: a tier 2 save with a pond of four water tiles, lily
+-- pads and reeds on it, fence lengths along its sides (on the even grid, east or south) and two bad ones (one off the
+-- grid, one turned 180: dropped on load), a tile off the even studs (cleared, its price back); more of each added while
+-- playing; the record holds them exactly and the rejoined profile is the one saved
+E.phase = "fences-water"
+do
+	local T2 = 2
+	local tq = treePiece(T2, 10)
+	local pr = Street.plot(T2)
+	-- a pond's north-west corner: four tiles fit, and a fence along its north and west sides
+	local px, pz = nil, nil
+	for z = pr.z1 - pr.z1 % 2 - 4, pr.z0, -2 do
+		for x = pr.x1 - pr.x1 % 2 - 6, pr.x0, -2 do
+			if px == nil then
+				local list = { tq }
+				local ok = true
+				for _, c in { { 0, 0 }, { 2, 0 }, { 0, 2 }, { 2, 2 }, { 4, 0 } } do
+					ok = ok and Plot.fits(T2, list, "stream", x + c[1], z + c[2], 0)
+					table.insert(list, piece(0, "stream", x + c[1], z + c[2], 0))
+				end
+				ok = ok and Plot.fits(T2, list, "picket", x, z, 0) and Plot.fits(T2, list, "picket", x + 2, z, 0) and Plot.fits(T2, list, "ropefence", x, z, 90) and Plot.fits(T2, list, "picket", x + 4, z, 0)
+				if ok then
+					px, pz = x, z
+				end
+			end
+		end
+	end
+	if H.expect(px ~= nil, "save", "(room for a pond on a tier 2 island)") then
+		local x, z = px :: number, pz :: number
+		local water = { piece(11, "stream", x, z, 0), piece(12, "stream", x + 2, z, 0), piece(13, "river", x, z + 2, 0), piece(14, "stream", x + 2, z + 2, 0) }
+		local floats = { piece(15, "lilypads", x, z, 0), piece(16, "reeds", x + 2, z + 2, 0) }
+		local good = { piece(17, "picket", x, z, 0), piece(18, "picket", x + 2, z, 0), piece(19, "ropefence", x, z, 90) }
+		local bad = { piece(20, "picket", x + 1, z + 4, 0), piece(21, "splitrail", x, z + 4, 180), piece(23, "stream", x + 5, z + 4, 0) }
+		local all = { tq }
+		for _, l in { water, floats, good } do
+			for _, q in l do
+				table.insert(all, q)
+			end
+		end
+		local kept = table.clone(all)
+		local fx, fz = freeAt(T2, kept, "flowers", 0)
+		local flowers = piece(22, "flowers", fx :: number, fz :: number, 0)
+		table.insert(kept, flowers)
+		local saved = table.clone(all)
+		table.insert(saved, bad[1])
+		table.insert(saved, flowers)
+		table.insert(saved, bad[2])
+		table.insert(saved, bad[3])
+		seed(9211, { data = {
+			v = 14,
+			shells = 500,
+			wood = 2000,
+			tier = T2,
+			tut = 0,
+			quest = 2,
+			plot = { placed = saved },
+			stats = { built = 12, taken = 2 },
+			nextId = 30,
+		} })
+		local fw = H.addPlayer({ userId = 9211, name = "Ponder" })
+		E.run(3)
+		local wp = H.profile(fw)
+		H.expect(wp ~= nil and wp.v == 14 and wp.tier == T2, "save", "a save with fences and water loads", tostring(wp and wp.v))
+		if wp then
+			H.expect(pieceList(wp.plot.placed) == pieceList(kept), "save", "its water, what floats on it, its good fences and the rest where they stood; the fence off the grid, the one turned 180 and the tile off the even studs gone", pieceList(wp.plot.placed))
+			-- (the tile off the even studs cleared with its whole price back, as any piece that no longer fits; the
+			-- bad fences dropped as junk)
+			H.expect(wp.wood == 2000 + Buildings.byId.stream.wood, "save", "the tile off the even studs cleared, its whole price back in wood", tostring(wp.wood))
+			-- more while playing: a fifth tile east of the pond, stepping stones on it, a fence along it, a fence
+			-- taken down and put back as another look
+			local r1 = H.req(fw, "plot.paint", { id = "stream", cells = string.format("%d,%d", x + 4, z) })
+			local r2 = H.req(fw, "plot.place", { id = "steppingstones", x = x + 4, z = z, rot = 0 })
+			local r3 = H.req(fw, "plot.fence", { id = "picket", edges = string.format("%d,%d,0", x + 4, z) })
+			local r4 = H.req(fw, "plot.fence", { id = "hedgerow", edges = string.format("%d,%d,90", x, z) })
+			H.expect(r1.ok and r2.ok and r3.ok and r4.ok and type(r4.data) == "table" and r4.data.swapped == 1, "save", "a tile dug, stones floated on it, a fence put up and one swapped for a hedgerow", string.format("%s %s %s %s", tostring(r1.err), tostring(r2.err), tostring(r3.err), tostring(r4.err)))
+			E.run(0.5)
+			H.checkProfile(fw, "fences-water")
+			settled(fw)
+			H.checkMirror(fw, "fences-water")
+			local beforeW = E.deepCopy(H.profile(fw))
+			local listW = pieceList(beforeW.plot.placed)
+			local leftW = E.SIM.now
+			E.removePlayer(fw, "leave")
+			E.run(2)
+			local recW = record(9211)
+			local dataW = recW and recW.value and recW.value.data
+			H.expect(type(dataW) == "table" and pieceList(dataW.plot and dataW.plot.placed) == listW, "save", "the record holds the fences, the water and what floats on it exactly", type(dataW) == "table" and pieceList(dataW.plot and dataW.plot.placed) or "no record")
+			local fw2 = H.addPlayer({ userId = 9211, name = "Ponder" })
+			E.run(2)
+			local afterW = E.deepCopy(H.profile(fw2))
+			if H.expect(afterW ~= nil, "save", "(the pond's owner back)") then
+				afterW.shells, afterW.wood, afterW.stats.earned = beforeW.shells, beforeW.wood, beforeW.stats.earned
+				local ranW = beforeW.clutch.left - afterW.clutch.left
+				afterW.clutch.left = beforeW.clutch.left
+				local diffW = H.diff(beforeW, afterW)
+				H.expect(diffW == nil and pieceList(afterW.plot.placed) == listW, "save", "rejoined: the very same island, fence by fence and tile by tile", tostring(diffW))
+				H.expect(ranW >= 0 and ranW < E.SIM.now - leftW - 1.5, "save", "(its eggs' clock where it stopped)", string.format("%.2f", ranW))
+				H.checkProfile(fw2, "fences-water rejoin")
+				settled(fw2)
+				H.checkMirror(fw2, "fences-water rejoin")
+			end
+			E.removePlayer(fw2, "leave")
+			E.run(1)
+		end
+	end
+end
+
+-- a tier 10 island (Driftling Haven) reaches far north: pieces past z -64 (the old edge of a plot's coords) load
+-- where they stood, a tile and a fence too
+E.phase = "tier10"
+do
+	local T10 = #Tuning.TierCost
+	local tq = treePiece(T10, 10)
+	local list = { tq }
+	local ox, oz = freeAt(T10, list, "oak", 0, function(_, z)
+		return z <= -80
+	end)
+	table.insert(list, piece(11, "oak", ox :: number, oz :: number, 0))
+	local wx, wz = freeAt(T10, list, "stream", 0, function(x, z)
+		return z < -64 and x % 2 == 0 and z % 2 == 0
+	end)
+	table.insert(list, piece(12, "stream", wx :: number, wz :: number, 0))
+	local fx, fz = freeAt(T10, list, "brickwall", 0, function(x, z)
+		return z < -70 and x % 2 == 0 and z % 2 == 0
+	end)
+	table.insert(list, piece(13, "brickwall", fx :: number, fz :: number, 0))
+	-- (and a torch on the northernmost grass a piece may stand on)
+	local pr = Street.plot(T10)
+	local nx, nz = nil, nil
+	for z = pr.z0, pr.z1 do
+		for x = pr.x0, pr.x1 do
+			if nx == nil and Plot.fits(T10, list, "torch", x, z, 0) then
+				nx, nz = x, z
+			end
+		end
+	end
+	table.insert(list, piece(14, "torch", nx :: number, nz :: number, 0))
+	H.expect(oz ~= nil and wz ~= nil and fz ~= nil and nz ~= nil and (nz :: number) < -100, "save", "(a tier 10 island's far north has room: the northmost spot " .. tostring(nz) .. ")")
+	seed(9212, { data = { v = 14, shells = 100000, wood = 50000, tier = T10, tut = 0, quest = 5, plot = { placed = list }, stats = { built = 4 }, nextId = 30 } })
+	local big = H.addPlayer({ userId = 9212, name = "Farnorth" })
+	E.run(3)
+	local bp = H.profile(big)
+	H.expect(bp ~= nil and bp.tier == T10, "save", "a tier 10 save loads", tostring(bp and bp.tier))
+	if bp then
+		H.expect(pieceList(bp.plot.placed) == pieceList(list), "save", "its far-north pieces kept where they stood (z below -64), the tile and the fence too", pieceList(bp.plot.placed))
+		H.checkProfile(big, "tier10")
+		settled(big)
+		H.checkMirror(big, "tier10")
+	end
+	E.removePlayer(big, "leave")
+	E.run(1)
+end
 
 ------------------------------------------------------------------ an old save (version 4: the game studio)
 E.phase = "old-save"

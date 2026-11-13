@@ -22,8 +22,10 @@
 #                   where it stopped: nothing laid while away), a version 12 save (the tide) with its tree planted and
 #                   a lot laid, a version 11 save (the old tree, its levels, food, the pen sold; a new tree, the patch
 #                   making room), a version 9 save (the wild places and fights) loading with its huts, another
-#                   server's lock, a takeover, a corrupt record, junk eggs cleaned, a version 4 save (the game studio)
-#                   starting an island (its first lot with two cheap commons)
+#                   server's lock, a takeover, a corrupt record, junk eggs cleaned, a version 13 save's old one-piece
+#                   fence and hedge gone with their wood back, fences, water and lily pads through leave and rejoin
+#                   (bad fences dropped, an odd tile cleared), a tier 10 island's far-north pieces kept, a version 4
+#                   save (the game studio) starting an island (its first lot with two cheap commons)
 #   sim_clock.luau  the island's clock: the day's pace and its Fx, the tree's eggs (the first lot, the ticks' time to
 #                   the next lot, a new lot with its Fx and a whole view, the old eggs gone, the Tree card counting
 #                   down, the huts' tree shares bringing lots sooner, a lot every Tree.secs, the extra eggs when the
@@ -33,9 +35,13 @@
 #   sim_world.luau  the sea and the islands: the sea built at start, two islands with their trees, their driftlings
 #                   and both islands' eggs round the trees on every client (the plot's Eggs attribute), walking (the
 #                   camera follows, Home), building for wood (place, move, no upgrades, clear away, every refusal, the
-#                   huts' limit), Build mode's UI (the Huts tab at the limit), paths, malicious plot payloads, a leaving
-#                   player (their eggs gone with the island), a full sea (a newcomer's tree and first lot), every
-#                   island's eggs and price tags, the tree fixed (its panel, moved with its eggs, never cleared away)
+#                   huts' limit), Build mode's catalog (tabs and rows, a locked card's tooltip, the Huts tab at the
+#                   limit, paths, fences as a line and a box, water, erasing by kind), fences and water on both islands
+#                   (their models, the water's neighbour masks, lily pads, fences beside buildings, wading), the piece,
+#                   tile and fence limits each on its own, malicious plot payloads (fences too), a leaving player
+#                   (their eggs gone with the island), a full sea (a newcomer's tree and first lot), every island's
+#                   eggs and price tags, the tree fixed (its panel, moved with its eggs, never cleared away), a tier
+#                   10 island (its land and walls far north, pieces up there)
 #   sim_tree.luau   the Tree of Life's eggs: a new island's tree (one fixed piece, moved but never cleared away,
 #                   bought or replaced, outside the piece limit) and its first lot laid at once (two commons first,
 #                   the plot's Eggs attribute, EggView's arc round the tree, the HUD's Tree card, the price tags),

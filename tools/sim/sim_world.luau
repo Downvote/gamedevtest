@@ -5,11 +5,19 @@
 -- and both islands' eggs round their trees; a founder walking onto the neighbour's island (the camera follows, Home
 -- shows) and going home (and its cooldown); placing (paid in wood), moving and clearing buildings with every refusal
 -- (no upgrades, the piece limit with the tree apart, the huts' limit), the server's Static.Decor following piece by
--- piece; the same through Build mode's UI (the Huts tab at the huts' limit); malicious plot payloads; a leaving
--- player's island back to open water with its eggs gone; a full sea kicking the seventh player; a newcomer's tree
--- planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the clients near it, the
+-- piece; the same through Build mode's catalog (the Work tab's Farms row, a locked card and its tooltip, the Nature
+-- tab's Plants row, the Huts tab at the huts' limit, paths, fences drawn as a line and a box and erased, water dug and
+-- a path's eraser leaving it); fences and water on both islands (their models in Static.Decor, a water tile's name
+-- carrying its neighbours and built again when one is dug next to it, lily pads only on water and gone with it, the
+-- eraser's kind, a fence never through a building but along its side, a building never across a fence, the founder
+-- wading through a river); the piece, tile and fence limits each refusing one more (full) on their own while the others
+-- still take theirs, Build mode's count on each tab; malicious plot payloads (fences and erasers among them); a
+-- leaving player's island back to open water with its eggs gone; a full sea kicking the seventh player; a newcomer's
+-- tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the clients near it, the
 -- price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away, bought or replaced; it
--- moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other piece clears away.
+-- moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other piece clears away; a
+-- tier 10 island from a saved profile (its land far north of z -64, its coast walls holding up there, the founder at
+-- home up there, pieces, tiles and fences fitting there).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -541,11 +549,26 @@ local BuildUI = H.cmod(a, "UI.BuildUI")
 H.expect(H.clickNamed(a, "Menu_build"), "build", "the HUD's Build button")
 H.expect(BuildUI.isOpen() and CCa.isFree(), "build", "Build mode is open, the view free")
 E.run(0.4)
-H.clickNamed(a, "Tab_farm", { wait = 0.3 }) -- (the tray opens on the tip's tab)
-H.expect(H.buttonNamed(a, "Buy_patch") ~= nil, "build", "the Farms tab offers the veggie patch")
-H.expect(H.buttonNamed(a, "Buy_orchard", true) ~= nil, "build", "the orchard shows, locked")
-H.clickNamed(a, "Tab_decor", { wait = 0.3 })
-H.expect(H.buttonNamed(a, "Buy_flowers") ~= nil and H.buttonNamed(a, "Buy_patch", true) == nil, "build", "the Decor tab")
+-- (the catalog: the Work tab's Farms row, then the Nature tab's Plants row; the tray's tab and row as BuildUI keeps them)
+H.clickNamed(a, "Tab_work", { wait = 0.3 })
+H.clickNamed(a, "Chip_farm", { wait = 0.3 })
+do
+	local st = BuildUI.debugState()
+	H.expect(st.tab == "work" and st.chip == "farm", "build", "the Work tab on its Farms row", string.format("%s %s", st.tab, st.chip))
+	H.expect(H.buttonNamed(a, "Buy_patch") ~= nil and H.buttonNamed(a, "Buy_lumber", true) == nil, "build", "the Farms row offers the veggie patch (and no lumber camp)")
+	local orchard = H.buttonNamed(a, "Buy_orchard", true)
+	local lock = orchard and orchard:FindFirstChild("Lock", true)
+	H.expect(lock ~= nil and lock.Text == "Lv" .. Buildings.byId.orchard.tier, "build", "the orchard shows, locked with its level", lock and lock.Text)
+	-- (a card's tooltip: its name, what it is, the level it opens at)
+	local shown = H.inClient(a, BuildUI.debugTip, "orchard")
+	local tipF = a.PlayerGui:FindFirstChild("BuildTip", true)
+	local tName = tipF and tipF:FindFirstChild("TipName", true)
+	local tLock = tipF and tipF:FindFirstChild("TipLocked", true)
+	H.expect(shown and tName ~= nil and tName.Text == Buildings.byId.orchard.name and tLock ~= nil and string.find(tLock.Text, tostring(Buildings.byId.orchard.tier), 1, true) ~= nil, "build", "a card's tooltip names it and says when it opens", tLock and tLock.Text)
+end
+H.clickNamed(a, "Tab_nature", { wait = 0.3 })
+H.clickNamed(a, "Chip_plants", { wait = 0.3 })
+H.expect(H.buttonNamed(a, "Buy_flowers") ~= nil and H.buttonNamed(a, "Buy_patch", true) == nil, "build", "the Nature tab's Plants row offers the flower bed (and no farm)")
 -- the Huts tab at the huts' limit: its count says so, the hut's card shows No room and picks nothing; then the huts
 -- put up for it go again
 H.clickNamed(a, "Tab_nest", { wait = 0.3 })
@@ -575,7 +598,7 @@ do
 	H.expect(Plot.huts(prof.plot.placed) == 0 and #prof.plot.placed == 5, "build", "(the huts cleared away again)", tostring(Plot.huts(prof.plot.placed)))
 	local c2 = a.PlayerGui:FindFirstChild("Count", true)
 	H.expect(c2 ~= nil and c2.Text == string.format("0/%d", most), "build", "the count follows", c2 and c2.Text)
-	H.clickNamed(a, "Tab_decor", { wait = 0.3 })
+	H.clickNamed(a, "Tab_nature", { wait = 0.3 })
 end
 local function screenOf(world)
 	return H.inClient(a, function()
@@ -740,12 +763,552 @@ do
 	H.expect(ok and type(out) == "table" and out.err == "bad_payload", "build", "junk cells refused")
 	H.clickNamed(a, "Cancel", { optional = true })
 end
+-- drawing fences ("much, much more building options, like paths and fences"): 2-stud lengths along the grid lines,
+-- a line going along x then z between the corners the pointer passes, a box running all the way round; Erase takes
+-- them down, half their price back (BuildUI.debugDraw: for a fence the cells are grid corners)
+local function countOf(group: string): number
+	local n = 0
+	for _, q in prof.plot.placed do
+		if Plot.group(q.id) == group then
+			n += 1
+		end
+	end
+	return n
+end
+local function hasFence(x: number, z: number, rot: number): boolean
+	for _, q in prof.plot.placed do
+		if Plot.isFence(q.id) and q.x == x and q.z == z and q.rot == rot then
+			return true
+		end
+	end
+	return false
+end
+local function countWord(): string
+	local c = a.PlayerGui:FindFirstChild("Count", true)
+	return if c then c.Text else "none"
+end
+local function planCount(plan: { string }, what: string): number
+	local n = 0
+	for _, w in plan do
+		if w == what then
+			n += 1
+		end
+	end
+	return n
+end
+-- the north-west corner of a square of the grid `side` studs across where every length round it fits (corners on the
+-- even studs, grass on a side, no piece crossing)
+local function fenceSquare(side: number): (number?, number?)
+	local r = Street.plot(prof.tier)
+	for z = r.z0 - r.z0 % 2, r.z1, 2 do
+		for x = r.x0 - r.x0 % 2, r.x1, 2 do
+			local ok = true
+			for k = 0, side - 2, 2 do
+				ok = ok
+					and Plot.fits(prof.tier, prof.plot.placed, "ropefence", x + k, z, 0)
+					and Plot.fits(prof.tier, prof.plot.placed, "ropefence", x + k, z + side, 0)
+					and Plot.fits(prof.tier, prof.plot.placed, "ropefence", x, z + k, 90)
+					and Plot.fits(prof.tier, prof.plot.placed, "ropefence", x + side, z + k, 90)
+			end
+			if ok then
+				return x, z
+			end
+		end
+	end
+	return nil, nil
+end
+do
+	H.clickNamed(a, "Tab_fence", { wait = 0.3 })
+	H.expect(countWord() == string.format("%d/%d", countOf("fence"), Plot.fenceLimit(prof.tier)), "build", "the Fences tab counts the lengths against their own limit", countWord())
+	local crystal = H.buttonNamed(a, "Buy_crystalfence", true)
+	local lock = crystal and crystal:FindFirstChild("Lock", true)
+	H.expect(H.buttonNamed(a, "Buy_picket") ~= nil and lock ~= nil and lock.Text == "Lv" .. Buildings.byId.crystalfence.tier, "build", "the fences on offer, a bigger island's locked", lock and lock.Text)
+	H.clickNamed(a, "Buy_ropefence", { wait = 0.3 })
+	H.expect(H.buttonNamed(a, "DrawLine") ~= nil and H.buttonNamed(a, "DrawBox") ~= nil and H.buttonNamed(a, "DrawErase") ~= nil, "build", "a fence picked: Line, Box and Erase")
+	local fx, fz = fenceSquare(4)
+	if H.expect(fx ~= nil, "build", "(a free square of the grid for a fence)") then
+		local x, z = fx :: number, fz :: number
+		local f0 = countOf("fence")
+		local plan = H.inClient(a, BuildUI.debugDraw, { { x, z }, { x + 4, z + 4 } }, "line")
+		E.run(0.4)
+		local along = hasFence(x, z, 0) and hasFence(x + 2, z, 0) and hasFence(x + 4, z, 90) and hasFence(x + 4, z + 2, 90)
+		H.expect(#plan == 4 and planCount(plan, "lay") == 4 and countOf("fence") == f0 + 4 and along, "build", "a fence line goes along x, then down z to the corner: four lengths", string.format("%d planned, %d -> %d", #plan, f0, countOf("fence")))
+		-- a box elsewhere: every length round it
+		local bx, bz = fenceSquare(4)
+		if H.expect(bx ~= nil, "build", "(a second square for a fence box)") then
+			local x2, z2 = bx :: number, bz :: number
+			local f1 = countOf("fence")
+			local planB = H.inClient(a, BuildUI.debugDraw, { { x2, z2 }, { x2 + 4, z2 + 4 } }, "box")
+			E.run(0.4)
+			local round = true
+			for k = 0, 2, 2 do
+				round = round and hasFence(x2 + k, z2, 0) and hasFence(x2 + k, z2 + 4, 0) and hasFence(x2, z2 + k, 90) and hasFence(x2 + 4, z2 + k, 90)
+			end
+			H.expect(#planB == 8 and countOf("fence") == f1 + 8 and round, "build", "a fence box runs all the way round: eight lengths", string.format("%d planned, %d -> %d", #planB, f1, countOf("fence")))
+		end
+		-- the line taken down again
+		local wood0 = prof.wood
+		local planE = H.inClient(a, BuildUI.debugDraw, { { x, z }, { x + 4, z + 4 } }, "erase")
+		E.run(0.4)
+		local back = math.floor(Buildings.byId.ropefence.wood * Tuning.Refund) * 4
+		H.expect(planCount(planE, "lift") == 4 and not hasFence(x, z, 0) and not hasFence(x + 4, z + 2, 90) and math.abs((prof.wood - wood0) - back) < 1, "build", "Erase takes the fence line down, half its wood back", string.format("%d lifted, %.2f back of %d", planCount(planE, "lift"), prof.wood - wood0, back))
+	end
+	H.clickNamed(a, "Cancel", { optional = true })
+end
+-- digging water (rivers and ponds: "add the ability to add water to make rivers"): drawn like paths, counted with
+-- them; a path laid on in the same row; Erase takes up only the kind picked
+local river: { { number } } = {}
+do
+	H.clickNamed(a, "Tab_water", { wait = 0.3 })
+	H.clickNamed(a, "Chip_tiles", { wait = 0.3 })
+	H.expect(H.buttonNamed(a, "Buy_stream") ~= nil and H.buttonNamed(a, "Buy_plankbridge", true) == nil and H.buttonNamed(a, "Buy_lilypads", true) == nil, "build", "the Water tab's water row: the tiles only")
+	H.expect(countWord() == string.format("%d/%d", countOf("tile"), Plot.pathLimit(prof.tier)), "build", "the Water tab counts its tiles with the paths, against their limit", countWord())
+	-- six free cells in a row, west to east: three for water, three for a path after them
+	local row = nil
+	local r = Street.plot(prof.tier)
+	for z = r.z0 - r.z0 % 2, r.z1, 2 do
+		for x = r.x0 - r.x0 % 2, r.x1, 2 do
+			if row == nil then
+				local ok = true
+				for k = 0, 5 do
+					ok = ok and Plot.fits(prof.tier, prof.plot.placed, "stream", x + 2 * k, z, 0)
+				end
+				if ok then
+					row = { x, z }
+				end
+			end
+		end
+	end
+	if H.expect(row ~= nil, "build", "(six free cells in a row)") then
+		local x, z = row[1], row[2]
+		H.clickNamed(a, "Buy_stream", { wait = 0.3 })
+		local t0, w0 = countOf("tile"), 0
+		local plan = H.inClient(a, BuildUI.debugDraw, { { x, z }, { x + 4, z } }, "line")
+		E.run(0.4)
+		for _, q in prof.plot.placed do
+			if Plot.isWater(q.id) then
+				w0 += 1
+			end
+		end
+		H.expect(planCount(plan, "lay") == 3 and countOf("tile") == t0 + 3 and w0 == 3, "build", "a river dug: three water tiles", string.format("%d planned, %d water", planCount(plan, "lay"), w0))
+		H.clickNamed(a, "Cancel", { optional = true })
+		H.clickNamed(a, "Tab_path", { wait = 0.3 })
+		H.clickNamed(a, "Buy_dirtpath", { wait = 0.3 })
+		local planP = H.inClient(a, BuildUI.debugDraw, { { x + 6, z }, { x + 10, z } }, "line")
+		E.run(0.4)
+		H.expect(planCount(planP, "lay") == 3 and countOf("tile") == t0 + 6, "build", "and a path on from it in the same row", tostring(countOf("tile")))
+		-- with the path picked, Erase down the whole row takes up the path only
+		local planE = H.inClient(a, BuildUI.debugDraw, { { x, z }, { x + 10, z } }, "erase")
+		E.run(0.4)
+		local water = 0
+		for _, q in prof.plot.placed do
+			if Plot.isWater(q.id) then
+				water += 1
+				table.insert(river, { q.x, q.z })
+			end
+		end
+		H.expect(planCount(planE, "lift") == 3 and planCount(planE, "no") == 3 and countOf("tile") == t0 + 3 and water == 3, "build", "Erase with a path picked takes up the path, the water stays", string.format("%d lifted, %d water", planCount(planE, "lift"), water))
+		H.clickNamed(a, "Cancel", { optional = true })
+	end
+end
 H.clickNamed(a, "BuildDone")
 E.run(0.4)
 H.expect(not BuildUI.isOpen() and not CCa.isFree(), "build", "Done: closed, the view follows again")
 H.expect(ghostFootprint() == nil, "build", "no ghost left")
 
------------------------------------------------------------------- 6. malicious plot payloads
+------------------------------------------------------------------ 6. fences and water on both islands
+E.phase = "fences-water"
+-- A water tile's neighbour mask as PlotService puts it in its model's name (1, and north 1, east 2, south 4, west 8
+-- for each side with water next to it), worked out here from the pieces.
+local function tileKey(placed, q): string
+	local wet = {}
+	for _, o in placed do
+		if Plot.isWater(o.id) then
+			wet[o.x .. "," .. o.z] = true
+		end
+	end
+	local m = 1
+	for _, s in { { 0, -2, 1 }, { 2, 0, 2 }, { 0, 2, 4 }, { -2, 0, 8 } } do
+		if wet[(q.x + s[1]) .. "," .. (q.z + s[2])] then
+			m += s[3]
+		end
+	end
+	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, m)
+end
+do
+	local pb = H.profile(b)
+	pb.wood = 1e5
+	H.push(b, 0.3)
+	local tierB = pb.tier
+	-- the first even cell (x, z) from the north-west where `ok` agrees
+	local function firstCell(tier: number, ok: (number, number) -> boolean): (number?, number?)
+		local r = Street.plot(tier)
+		for z = r.z0 - r.z0 % 2, r.z1, 2 do
+			for x = r.x0 - r.x0 % 2, r.x1, 2 do
+				if ok(x, z) then
+					return x, z
+				end
+			end
+		end
+		return nil, nil
+	end
+	local function wetAt(placed, x: number, z: number): boolean
+		for _, q in placed do
+			if Plot.isWater(q.id) and q.x == x and q.z == z then
+				return true
+			end
+		end
+		return false
+	end
+	-- Bo digs a river four tiles long and fences its north bank with pickets (by requests; Ava drew hers in Build mode)
+	local rx, rz = firstCell(tierB, function(x, z)
+		local ok = true
+		for k = 0, 4 do
+			ok = ok and Plot.fits(tierB, pb.plot.placed, "stream", x + 2 * k, z, 0) and Plot.fits(tierB, pb.plot.placed, "picket", x + 2 * k, z, 0)
+		end
+		return ok
+	end)
+	if H.expect(rx ~= nil, "fences", "(room for a river on Bo's island)") then
+		local cells, edges = {}, {}
+		for k = 0, 3 do
+			table.insert(cells, { rx + 2 * k, rz })
+			table.insert(edges, { rx + 2 * k, rz, 0 })
+		end
+		local r1 = H.req(b, "plot.paint", { id = "stream", cells = Plot.cellString(cells) })
+		local r2 = H.req(b, "plot.fence", { id = "picket", edges = Plot.edgeString(edges) })
+		H.expect(r1.ok and r1.data.placed == 4 and r2.ok and r2.data.placed == 4, "fences", "Bo digs a river four tiles long and fences its bank", string.format("%s %s", tostring(r1.err), tostring(r2.err)))
+	end
+	E.run(0.5)
+	-- both islands' fences and water stand in their Static.Decor, a model a piece named by it, a water tile's with its
+	-- neighbour mask in the level's place and its surface animated (PixelWater); the fake engine shares one DataModel
+	-- between the clients, so what the server builds there is what both clients' pixel filters draw
+	for _, pair in { { 1, a }, { 2, b } } do
+		local i, owner = pair[1], pair[2]
+		local placed = H.profile(owner).plot.placed
+		local decor = decorOf(i)
+		local fences, tiles, masks, missing = 0, 0, {}, {}
+		for _, q in placed do
+			local name = nil
+			if Plot.isFence(q.id) then
+				fences += 1
+				name = keyOf(q)
+			elseif Plot.isWater(q.id) then
+				tiles += 1
+				name = tileKey(placed, q)
+				table.insert(masks, string.match(name, "(%d+)$"))
+			end
+			if name then
+				local m = decor and decor:FindFirstChild(name)
+				local parts, wet = 0, false
+				for _, d in if m then m:GetDescendants() else {} do
+					if d:IsA("BasePart") then
+						parts += 1
+						wet = wet or d:GetAttribute("PixelWater") ~= nil
+					end
+				end
+				if m == nil or parts == 0 or (Plot.isWater(q.id) and not wet) then
+					table.insert(missing, name)
+				end
+			end
+		end
+		local want = if i == 1 then "3,11,9" else "3,11,11,9"
+		H.expect(fences >= 4 and #missing == 0 and decor ~= nil and #decor:GetChildren() == #placed, "fences", string.format("island %d's fence lengths stand for both clients, a model each", i), string.format("%d fences, missing %s", fences, table.concat(missing, " ")))
+		H.expect(tiles >= 3 and table.concat(masks, ",") == want, "fences", string.format("island %d's river stands for both clients, each tile's model named with its neighbours (%s)", i, want), table.concat(masks, ","))
+	end
+	-- a lone tile on Bo's island, then one dug east of it: the first one's model is built again with its new mask (and
+	-- again when the neighbour is taken up)
+	local lx, lz = firstCell(tierB, function(x, z)
+		if not (Plot.fits(tierB, pb.plot.placed, "stream", x, z, 0) and Plot.fits(tierB, pb.plot.placed, "stream", x + 2, z, 0)) then
+			return false
+		end
+		for _, c in { { 0, -2 }, { 0, 2 }, { -2, 0 }, { 2, -2 }, { 2, 2 }, { 4, 0 } } do
+			if wetAt(pb.plot.placed, x + c[1], z + c[2]) then
+				return false
+			end
+		end
+		return true
+	end)
+	if H.expect(lx ~= nil, "fences", "(room for two tiles apart from the river)") then
+		local decorB = decorOf(2)
+		local function tileAt(x: number, z: number)
+			for _, q in pb.plot.placed do
+				if Plot.isWater(q.id) and q.x == x and q.z == z then
+					return q
+				end
+			end
+			return nil
+		end
+		H.req(b, "plot.paint", { id = "stream", cells = string.format("%d,%d", lx, lz) })
+		E.run(0.3)
+		local t = tileAt(lx, lz)
+		local m1 = t and decorB:FindFirstChild(tileKey(pb.plot.placed, t))
+		H.expect(m1 ~= nil and string.sub(m1.Name, -2) == ":1", "fences", "a lone tile's model: no water round it (mask 1)", m1 and m1.Name)
+		H.req(b, "plot.paint", { id = "stream", cells = string.format("%d,%d", lx + 2, lz) })
+		E.run(0.3)
+		local e = tileAt(lx + 2, lz)
+		local m2 = t and decorB:FindFirstChild(tileKey(pb.plot.placed, t))
+		local me = e and decorB:FindFirstChild(tileKey(pb.plot.placed, e))
+		H.expect(m1 ~= nil and m1.Parent == nil and m2 ~= nil and m2 ~= m1 and string.sub(m2.Name, -2) == ":3" and me ~= nil and string.sub(me.Name, -2) == ":9", "fences", "a tile dug next to it: its model built again with water to the east (3), the new one's to the west (9)", string.format("%s, %s", tostring(m2 and m2.Name), tostring(me and me.Name)))
+		H.req(b, "plot.unpaint", { cells = string.format("%d,%d", lx + 2, lz), kind = "water" })
+		E.run(0.3)
+		local m3 = t and decorB:FindFirstChild(tileKey(pb.plot.placed, t))
+		H.expect(m2 ~= nil and m2.Parent == nil and m3 ~= nil and string.sub(m3.Name, -2) == ":1" and me ~= nil and me.Parent == nil, "fences", "and back to a lone tile when the neighbour is taken up", m3 and m3.Name)
+	end
+	-- floating: lily pads only go on water (not on the grass), and taking the water up takes them with it, half the
+	-- price of each back
+	if rx then
+		-- (a patch of grass a flower bed of the same size fits on)
+		local gx, gz = spot("flowers", 0, pb.plot.placed, tierB)
+		local rg = H.req(b, "plot.place", { id = "lilypads", x = gx or 0, z = gz or 0, rot = 0 })
+		H.expect(gx ~= nil and not rg.ok and rg.err == "blocked", "fences", "lily pads on the grass: refused (blocked)", string.format("%s %s", tostring(gx), tostring(rg.err)))
+		local n0 = #pb.plot.placed
+		local rl = H.req(b, "plot.place", { id = "lilypads", x = rx, z = rz, rot = 0 })
+		H.expect(rl.ok and #pb.plot.placed == n0 + 1, "fences", "lily pads on the river: placed", tostring(rl.err))
+		local wood0 = pb.wood
+		local ru = H.req(b, "plot.unpaint", { cells = string.format("%d,%d", rx, rz), kind = "water" })
+		local pads = 0
+		for _, q in pb.plot.placed do
+			if q.id == "lilypads" then
+				pads += 1
+			end
+		end
+		local due = math.floor(Buildings.byId.stream.wood * Tuning.Refund) + math.floor(Buildings.byId.lilypads.wood * Tuning.Refund)
+		H.expect(ru.ok and ru.data.removed == 1 and ru.data.floated == 1 and pads == 0 and #pb.plot.placed == n0 - 1, "fences", "the water under them taken up: the pads go with it", string.format("%s, %d pads left", tostring(ru.err), pads))
+		H.expect(math.abs((pb.wood - wood0) - due) < 1, "fences", "half the tile's and the pads' wood back", string.format("%.2f back of %d", pb.wood - wood0, due))
+		-- (the river whole again, for the walk below and the limits)
+		H.req(b, "plot.paint", { id = "stream", cells = string.format("%d,%d", rx, rz) })
+	end
+	-- the eraser's kind: water's eraser leaves a path where it is, a path's leaves water
+	local pathQ, waterQ = nil, nil
+	for _, q in prof.plot.placed do
+		if Plot.isPath(q.id) then
+			pathQ = pathQ or q
+		elseif Plot.isWater(q.id) then
+			waterQ = waterQ or q
+		end
+	end
+	if H.expect(pathQ ~= nil and waterQ ~= nil, "fences", "(Ava has a path and water)") then
+		local n0 = #prof.plot.placed
+		local e1 = H.req(a, "plot.unpaint", { cells = string.format("%d,%d", pathQ.x, pathQ.z), kind = "water" })
+		local e2 = H.req(a, "plot.unpaint", { cells = string.format("%d,%d", waterQ.x, waterQ.z), kind = "path" })
+		H.expect(e1.err == "not_found" and e2.err == "not_found" and #prof.plot.placed == n0, "fences", "the water eraser leaves a path, the path eraser leaves water (not_found)", string.format("%s %s", tostring(e1.err), tostring(e2.err)))
+	end
+	-- a fence never runs through a building but may run along its side: a veggie patch put down on the even studs,
+	-- lengths through its middle refused (blocked, nothing paid), along its north and west sides put up
+	local px, pz = firstCell(prof.tier, function(x, z)
+		local placed = prof.plot.placed
+		return Plot.fits(prof.tier, placed, "patch", x, z, 0)
+			and Plot.fits(prof.tier, placed, "picket", x, z, 0)
+			and Plot.fits(prof.tier, placed, "picket", x, z, 90)
+			and Plot.fits(prof.tier, placed, "picket", x, z + 2, 0)
+			and Plot.fits(prof.tier, placed, "picket", x + 2, z, 90)
+	end)
+	if H.expect(px ~= nil, "fences", "(room for a patch on the even studs)") then
+		local rp = H.req(a, "plot.place", { id = "patch", x = px, z = pz, rot = 0 })
+		local f0, wood0 = countOf("fence"), prof.wood
+		local t1 = H.req(a, "plot.fence", { id = "picket", edges = string.format("%d,%d,0", px, pz + 2) })
+		local t2 = H.req(a, "plot.fence", { id = "picket", edges = string.format("%d,%d,90", px + 2, pz) })
+		H.expect(rp.ok and t1.err == "blocked" and t2.err == "blocked" and countOf("fence") == f0 and prof.wood >= wood0 - 1e-6, "fences", "a fence through a building: refused (blocked), nothing paid", string.format("%s %s %s", tostring(rp.err), tostring(t1.err), tostring(t2.err)))
+		local t3 = H.req(a, "plot.fence", { id = "picket", edges = string.format("%d,%d,0;%d,%d,90", px, pz, px, pz) })
+		H.expect(t3.ok and t3.data.placed == 2 and hasFence(px, pz, 0) and hasFence(px, pz, 90), "fences", "along its north and west sides: put up", tostring(t3.err))
+	end
+	-- a building never stands across a fence: a lone fence length, an oak where it would fit but for the fence refused
+	-- (and moved there refused), right up against it put down
+	local gx, gz = firstCell(prof.tier, function(x, z)
+		local placed = prof.plot.placed
+		return Plot.fits(prof.tier, placed, "picket", x, z, 0) and Plot.fits(prof.tier, placed, "oak", x, z - 1, 0) and Plot.fits(prof.tier, placed, "oak", x, z - 3, 0)
+	end)
+	if H.expect(gx ~= nil, "fences", "(room for a fence and an oak)") then
+		local rf = H.req(a, "plot.fence", { id = "picket", edges = string.format("%d,%d,0", gx, gz) })
+		local n0, wood0 = #prof.plot.placed, prof.wood
+		local o1 = H.req(a, "plot.place", { id = "oak", x = gx, z = gz - 1, rot = 0 })
+		H.expect(rf.ok and o1.err == "blocked" and #prof.plot.placed == n0 and prof.wood >= wood0 - 1e-6, "fences", "a building across a fence: refused (blocked), nothing paid", string.format("%s %s", tostring(rf.err), tostring(o1.err)))
+		local o2 = H.req(a, "plot.place", { id = "oak", x = gx, z = gz - 3, rot = 0 })
+		H.expect(o2.ok, "fences", "right up against the fence: put down", tostring(o2.err))
+		local o3 = H.req(a, "plot.move", { i = #prof.plot.placed, x = gx, z = gz - 1, rot = 0 })
+		H.expect(o2.ok and o3.err == "blocked", "fences", "and moved across it: refused", tostring(o3.err))
+	end
+	E.run(0.3)
+	-- the founder wades through Ava's river (GAME_DESIGN 4.3): the ground under their feet is the tile's water, so
+	-- AvatarView's floor reads "water" and the wading steps are heard (Audio "step_water"); with E.raycastParts the
+	-- ground ray hits every part, as in Roblox
+	if H.expect(#river == 3, "wade", "(Ava's river of three tiles)", tostring(#river)) then
+		local AudioA = H.cmod(a, "Controllers.Audio")
+		local wx, wz = math.huge, river[1][2]
+		for _, c in river do
+			wx = math.min(wx, c[1])
+		end
+		local wet0 = H.inClient(a, AudioA.playCount, "step_water")
+		E.raycastParts = true
+		for k = 0, 19 do
+			local along = 0.5 + (if k < 10 then k else 19 - k) * 0.55
+			a.Character:PivotTo(E.cf.new(ox1 + wx + along, 3, oz1 + wz + 1))
+			E.run(0.1)
+		end
+		local wet1 = H.inClient(a, AudioA.playCount, "step_water")
+		-- (then the ground ray down onto the middle tile, the founder off it)
+		a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
+		E.run(0.2)
+		local hit = E.workspace:Raycast(E.v3(ox1 + wx + 3, Street.LAWN_Y + 2, oz1 + wz + 1), E.v3(0, -10, 0))
+		E.raycastParts = nil
+		H.expect(wet1 > wet0, "wade", "the founder wades through the river: AvatarView's floor is water (its steps heard)", string.format("%d -> %d", wet0, wet1))
+		local part = hit and hit.Instance
+		local inTile = part ~= nil and part:IsDescendantOf(decorOf(1)) and string.find(part.Parent.Name, ":stream:", 1, true) ~= nil
+		H.expect(inTile and part:GetAttribute("PixelWater") ~= nil and hit.Position.Y > Street.LAWN_Y - 0.3, "wade", "the ground ray hits the tile's water, over the lawn", part and string.format("%s in %s at %.2f", part.Name, part.Parent.Name, hit.Position.Y) or "nothing")
+	end
+	H.checkProfile(a, "fences-water")
+	H.checkMirror(a, "fences-water")
+	H.checkProfile(b, "fences-water")
+	H.checkMirror(b, "fences-water")
+end
+
+------------------------------------------------------------------ 7. each count to its own limit
+-- (GAME_DESIGN 4: paths and water count together against Tuning.PathPieces, fence lengths against
+-- Tuning.FencePieces, the rest against the piece limit, Tuning.PlotPieces; the tree in none) on Bo's island, grown to
+-- tier 2 for the room: each count fills to its limit and refuses one more (full, nothing paid) while the others still
+-- take theirs
+E.phase = "limits"
+do
+	local pb = H.profile(b)
+	pb.wood, pb.shells = 1e6, 1e5
+	H.push(b, 0.3)
+	local rx = H.req(b, "island.expand", {})
+	E.run(1.5)
+	H.expect(rx.ok and pb.tier == 2, "limits", "Bo's island grown to tier 2", tostring(rx.err))
+	local T = pb.tier
+	local function count(g: string): number
+		local n = 0
+		for _, q in pb.plot.placed do
+			if Plot.group(q.id) == g then
+				n += 1
+			end
+		end
+		return n
+	end
+	-- free places now: tile cells (even studs), fence edges (x, z, rot), single cells (a torch)
+	local function freeOf(id: string, n: number, rots: { number }): { { number } }
+		local out = {}
+		local r = Street.plot(T)
+		local step = if id == "torch" then 1 else 2
+		for z = r.z0 - r.z0 % 2, r.z1, step do
+			for x = r.x0 - r.x0 % 2, r.x1, step do
+				for _, rot in rots do
+					if #out < n and Plot.fits(T, pb.plot.placed, id, x, z, rot) then
+						table.insert(out, if id == "picket" then { x, z, rot } else { x, z })
+					end
+				end
+			end
+		end
+		return out
+	end
+	local function batches(action: string, ids: { string }, list: { { number } })
+		local k, look = 1, 0
+		while k <= #list do
+			local part = table.move(list, k, math.min(#list, k + Plot.PAINT_MAX - 1), 1, {})
+			local id = ids[look % #ids + 1]
+			local r = if action == "plot.fence" then H.req(b, action, { id = id, edges = Plot.edgeString(part) }) else H.req(b, action, { id = id, cells = Plot.cellString(part) })
+			if not H.expect(r.ok, "limits", "(a batch of " .. id .. ")", tostring(r.err)) then
+				break
+			end
+			E.run(0.1)
+			k += Plot.PAINT_MAX
+			look += 1
+		end
+	end
+	local function full(label: string, action: string, payload)
+		local n, wood = #pb.plot.placed, pb.wood
+		local r = H.req(b, action, payload)
+		E.run(0.1)
+		H.expect(not r.ok and r.err == "full" and #pb.plot.placed == n and pb.wood >= wood - 1e-6, "limits", label, tostring(r.err))
+	end
+	local function goes(label: string, action: string, payload)
+		local n = #pb.plot.placed
+		local r = H.req(b, action, payload)
+		E.run(0.1)
+		H.expect(r.ok and #pb.plot.placed == n + 1, "limits", label, tostring(r.err))
+	end
+	local function one(c: { number }): string
+		return if #c == 3 then Plot.edgeString({ c }) else Plot.cellString({ c })
+	end
+	-- the tiles: paths and water by turns up to the tile limit
+	local tileMost = Plot.pathLimit(T)
+	local tiles = freeOf("stream", tileMost - count("tile"), { 0 })
+	if H.expect(#tiles == tileMost - count("tile"), "limits", "(room for the tile limit)", string.format("%d free of %d", #tiles, tileMost - count("tile"))) then
+		batches("plot.paint", { "dirtpath", "stream" }, tiles)
+		local paths, water = 0, 0
+		for _, q in pb.plot.placed do
+			paths += if Plot.isPath(q.id) then 1 else 0
+			water += if Plot.isWater(q.id) then 1 else 0
+		end
+		H.expect(count("tile") == tileMost and paths > 40 and water > 40 and paths + water == tileMost, "limits", string.format("paths and water fill the tile limit together (%d)", tileMost), string.format("%d paths, %d water", paths, water))
+		local spare = freeOf("stream", 1, { 0 })[1]
+		full("a path past the tile limit: refused (full)", "plot.paint", { id = "dirtpath", cells = one(spare) })
+		full("water past it too: they count together", "plot.paint", { id = "stream", cells = one(spare) })
+		goes("at the tile limit a fence still goes up (its own count)", "plot.fence", { id = "picket", edges = one(freeOf("picket", 1, { 0, 90 })[1]) })
+		goes("and a piece still goes down", "plot.place", { id = "torch", x = freeOf("torch", 1, { 0 })[1][1], z = freeOf("torch", 1, { 0 })[1][2], rot = 0 })
+	end
+	-- the fence lengths up to theirs
+	local fenceMost = Plot.fenceLimit(T)
+	local edges = freeOf("picket", fenceMost - count("fence"), { 0, 90 })
+	if H.expect(#edges == fenceMost - count("fence"), "limits", "(room for the fence limit)", tostring(#edges)) then
+		batches("plot.fence", { "picket", "splitrail" }, edges)
+		H.expect(count("fence") == fenceMost, "limits", string.format("fence lengths fill their limit (%d)", fenceMost), tostring(count("fence")))
+		full("a fence past the fence limit: refused (full)", "plot.fence", { id = "picket", edges = one(freeOf("picket", 1, { 0, 90 })[1]) })
+		local c = freeOf("torch", 1, { 0 })[1]
+		goes("at the fence limit a piece still goes down", "plot.place", { id = "torch", x = c[1], z = c[2], rot = 0 })
+	end
+	-- the pieces up to theirs (the tree apart)
+	local pieceMost = Plot.limit(T)
+	local cells = freeOf("torch", pieceMost - count("piece") + 1, { 0 })
+	if H.expect(#cells == pieceMost - count("piece") + 1, "limits", "(room for the piece limit)", tostring(#cells)) then
+		local k = 1
+		while count("piece") < pieceMost and k < #cells do
+			H.req(b, "plot.place", { id = "torch", x = cells[k][1], z = cells[k][2], rot = 0 })
+			E.run(0.1)
+			k += 1
+		end
+		H.expect(count("piece") == pieceMost and count("fixed") == 1, "limits", string.format("pieces fill their limit (%d), the tree not counted", pieceMost), tostring(count("piece")))
+		full("a piece past the piece limit: refused (full)", "plot.place", { id = "torch", x = cells[#cells][1], z = cells[#cells][2], rot = 0 })
+	end
+	-- every count at its limit: a tile taken up makes room for another (another look), a fence length the same
+	local pathQ, fenceQ = nil, nil
+	for _, q in pb.plot.placed do
+		if Plot.isPath(q.id) then
+			pathQ = pathQ or q
+		elseif Plot.isFence(q.id) and q.id == "picket" then
+			fenceQ = fenceQ or q
+		end
+	end
+	if H.expect(pathQ ~= nil and fenceQ ~= nil, "limits", "(a path and a fence to take up)") then
+		local cell, edge = { pathQ.x, pathQ.z }, { fenceQ.x, fenceQ.z, fenceQ.rot }
+		local u1 = H.req(b, "plot.unpaint", { cells = one(cell), kind = "path" })
+		E.run(0.1)
+		goes("at the piece limit a tile taken up makes room for water there", "plot.paint", { id = "stream", cells = one(cell) })
+		local u2 = H.req(b, "plot.unfence", { edges = one(edge) })
+		E.run(0.1)
+		goes("and a fence taken down for another look of fence", "plot.fence", { id = "ropefence", edges = one(edge) })
+		H.expect(u1.ok and u2.ok and count("tile") == tileMost and count("fence") == fenceMost and count("piece") == pieceMost, "limits", "(every count at its limit again)", string.format("%s %s", tostring(u1.err), tostring(u2.err)))
+	end
+	-- the tray's count on each tab: Paths and Water the same tiles, Fences its lengths, Decor the pieces
+	local BuildB = H.cmod(b, "UI.BuildUI")
+	H.inClient(b, BuildB.open)
+	E.run(0.5)
+	local words = {}
+	for _, t in { "path", "water", "fence", "decor" } do
+		H.clickNamed(b, "Tab_" .. t, { wait = 0.3 })
+		local c = b.PlayerGui:FindFirstChild("Count", true)
+		table.insert(words, if c then c.Text else "none")
+	end
+	local want = string.format("%d/%d %d/%d %d/%d %d/%d", tileMost, tileMost, tileMost, tileMost, fenceMost, fenceMost, pieceMost, pieceMost)
+	H.expect(table.concat(words, " ") == want, "limits", "Build mode's count on each tab: Paths and Water the tiles together, Fences the lengths, Decor the pieces", table.concat(words, " "))
+	H.inClient(b, BuildB.close)
+	E.run(0.3)
+	H.checkProfile(b, "limits")
+	settled(b)
+	H.checkMirror(b, "limits")
+end
+
+------------------------------------------------------------------ 8. malicious plot payloads
 E.phase = "malicious"
 local function snap()
 	local q = H.profile(a)
@@ -768,7 +1331,9 @@ refused("a 45 degree turn", "bad_payload", "plot.place", { id = "torch", x = 20,
 refused("NaN", "bad_payload", "plot.place", { id = "torch", x = 0 / 0, z = 20, rot = 0 })
 refused("index 0", "bad_payload", "plot.move", { i = 0, x = 20, z = 20, rot = 0 })
 refused("index 999", "bad_payload", "plot.store", { i = 999 })
-refused("a piece not there", "bad_payload", "plot.store", { i = 60 })
+refused("a piece not there", "bad_payload", "plot.store", { i = #prof.plot.placed + 1 })
+refused("an index past any island's pieces", "bad_payload", "plot.store", { i = 4097 })
+refused("z past the far north", "bad_payload", "plot.place", { id = "torch", x = 0, z = -161, rot = 0 })
 refused("an upgrade (there are none now)", "unknown_action", "plot.upgrade", { i = 1 })
 refused("an extra field", "bad_payload", "plot.place", { id = "torch", x = 20, z = 20, rot = 0, price = 0 })
 refused("a home with a payload", "bad_payload", "char.home", { x = 1 })
@@ -782,13 +1347,47 @@ for i, q in prof.plot.placed do
 end
 refused("the Tree of Life cleared away", "fixed", "plot.store", { i = treeI })
 refused("a Tree of Life bought", "bad_payload", "plot.place", { id = "tree", x = 20, z = 20, rot = 0 })
+-- fences (plot.fence / plot.unfence: edges "x,z,r", r 0 or 90, at most Plot.PAINT_MAX) and the eraser's kind
+do
+	local ex, ez = fenceSquare(2)
+	local free = string.format("%d,%d,0", ex or 0, ez or 0)
+	local many = {}
+	for k = 1, Plot.PAINT_MAX + 1 do
+		table.insert(many, string.format("%d,%d,0", 2 * k - 40, 0))
+	end
+	refused("a fence turned 45 degrees", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4,45" })
+	refused("a fence turned 180", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4,180" })
+	refused("a fence edge out of range", "bad_payload", "plot.fence", { id = "picket", edges = "0,-162,0" })
+	refused("a fractional fence edge", "bad_payload", "plot.fence", { id = "picket", edges = "0.5,-4,0" })
+	refused("an edge with no way", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4" })
+	refused("junk edges", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4,0;;2,-4,0" })
+	refused("more lengths than one request takes", "bad_payload", "plot.fence", { id = "picket", edges = table.concat(many, ";") })
+	refused("edges as a table", "bad_payload", "plot.fence", { id = "picket", edges = { "0,-4,0" } })
+	refused("a fence with a price", "bad_payload", "plot.fence", { id = "picket", edges = free, price = 0 })
+	refused("a fence with no id", "bad_payload", "plot.fence", { edges = free })
+	refused("a building drawn as a fence", "bad_payload", "plot.fence", { id = "patch", edges = free })
+	refused("a path drawn as a fence", "bad_payload", "plot.fence", { id = "dirtpath", edges = free })
+	refused("an unknown fence", "bad_payload", "plot.fence", { id = "castlewall", edges = free })
+	refused("a fence painted as tiles", "bad_payload", "plot.paint", { id = "picket", cells = "0,0" })
+	refused("a bigger island's fence", "locked", "plot.fence", { id = "crystalfence", edges = free })
+	refused("a fence off the grid", "blocked", "plot.fence", { id = "picket", edges = string.format("%d,%d,0", (ex or 0) + 1, ez or 0) })
+	refused("a fence off the island", "blocked", "plot.fence", { id = "picket", edges = "60,0,0" })
+	refused("a fence across the plaza", "blocked", "plot.fence", { id = "picket", edges = "-2,6,0" })
+	refused("a fence down the middle of the path", "blocked", "plot.fence", { id = "picket", edges = "0,12,90" })
+	refused("a fence taken down with an id", "bad_payload", "plot.unfence", { id = "picket", edges = free })
+	refused("a fence taken down at 45 degrees", "bad_payload", "plot.unfence", { edges = "0,-4,45" })
+	refused("no edges to take down", "bad_payload", "plot.unfence", {})
+	refused("no fence there to take down", "not_found", "plot.unfence", { edges = free })
+	refused("an eraser of lava", "bad_payload", "plot.unpaint", { cells = "0,0", kind = "lava" })
+	refused("an eraser's kind as a number", "bad_payload", "plot.unpaint", { cells = "0,0", kind = 1 })
+end
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
 -- (the stores: nothing paid; the island only made a little meanwhile)
 H.expect(prof.shells >= storesBefore.shells - 1e-6 and prof.wood >= storesBefore.wood - 1e-6, "malicious", "and took nothing from the stores", string.format("%s -> %s, %s -> %s", storesBefore.shells, prof.shells, storesBefore.wood, prof.wood))
 E.run(0.3)
 
------------------------------------------------------------------- 7. a player leaves
+------------------------------------------------------------------ 9. a player leaves
 E.phase = "leave"
 local EVa = H.cmod(a, "Controllers.EggView")
 local followed2 = EVa.count(2)
@@ -810,7 +1409,7 @@ H.expect(H.cmod(a, "Controllers.AvatarView").count() == 1, "leave", "one founder
 H.expect(m2 ~= nil and m2:GetAttribute("Eggs") == nil and followed2 >= 1 and dropped2 and EVa.count(2) == 0, "leave", "and their eggs are gone with the island (the attribute cleared, none drawn)", string.format("%s, %d drawn before, %d now", tostring(m2 and m2:GetAttribute("Eggs")), followed2, EVa.count(2)))
 H.expect(EVa.count(1) == #eggsAttr(1) and #eggsAttr(1) >= 1, "leave", "Ava's own eggs still drawn", string.format("%d of %d", EVa.count(1), #eggsAttr(1)))
 
------------------------------------------------------------------- 8. a full sea
+------------------------------------------------------------------ 10. a full sea
 E.phase = "full"
 local c = H.addPlayer({ userId = 9403, name = "Cy" })
 E.run(3)
@@ -824,8 +1423,9 @@ do
 	local _, model = treeOn(2)
 	H.expect(model ~= nil and ok and cl[1].r == 1 and cl[2].r == 1, "full", "the newcomer's tree planted and its first lot laid, the first two commons", why)
 end
+local extras = {}
 for k = 1, Street.MAX - 2 do
-	H.addPlayer({ userId = 9410 + k, name = "Extra" .. k, client = false, noCharacter = true })
+	table.insert(extras, H.addPlayer({ userId = 9410 + k, name = "Extra" .. k, client = false, noCharacter = true }))
 	E.run(1.5)
 end
 local taken = 0
@@ -845,7 +1445,7 @@ for _, k in E.kicks or {} do
 end
 H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is told the sea is full")
 
------------------------------------------------------------------- 9. every island's tree and eggs; the tree fixed (GAME_DESIGN 4, 6)
+------------------------------------------------------------------ 11. every island's tree and eggs; the tree fixed (GAME_DESIGN 4, 6)
 E.phase = "eggs"
 -- every claimed island has its tree and its eggs (the server-side players' too): its plot's Eggs attribute is its
 -- session's, egg by egg; the clients draw the eggs of the islands near their view: Cy's own and the neighbours' on
@@ -990,5 +1590,157 @@ H.expect(#decorOf(cPlot):GetChildren() == 1, "fixed", "their models gone, the tr
 H.checkProfile(c, "fixed")
 settled(c)
 H.checkMirror(c, "fixed")
+
+------------------------------------------------------------------ 12. a big island (GAME_DESIGN 4: "allow the player to expand their land even more")
+-- A tier 10 save (Driftling Haven, the last of the ten tiers) joins on the plot the last server-side neighbour leaves:
+-- its land reaches far north of z -64 (where a plot's coordinates once ended), the invisible coast walls hold up there
+-- (a wall on every edge between where a founder may stand and where they may not, far higher than a jump), the founder
+-- walks up there and is still at home with the view on them, and pieces, tiles and fences fit up there (the saved oak
+-- among them).
+E.phase = "big-island"
+do
+	local last = extras[#extras]
+	local freed = H.session(last) and H.session(last).plot
+	E.removePlayer(last, "leave")
+	E.run(2)
+	local TB = #Tuning.TierCost
+	local tx, tz, trot = Plot.spot(TB, {}, Tree.ID, Tree.SPOT.x, Tree.SPOT.z, 0)
+	local treeQ = { uid = 10, id = Tree.ID, x = tx, z = tz, rot = trot, lvl = 1 }
+	local pr = Street.plot(TB)
+	local oak = nil
+	for z = pr.z0, -80 do
+		for x = pr.x0, pr.x1 do
+			if oak == nil and Plot.fits(TB, { treeQ }, "oak", x, z, 0) then
+				oak = { uid = 11, id = "oak", x = x, z = z, rot = 0, lvl = 1 }
+			end
+		end
+	end
+	local store = Tuning.DataStoreName .. "/global"
+	E.cloud.stores[store] = E.cloud.stores[store] or {}
+	E.cloud.stores[store]["u_9430"] = {
+		value = { data = { v = 14, shells = 1e5, wood = 1e5, tier = TB, tut = 0, quest = 5, plot = { placed = { treeQ, oak } }, nextId = 20 } },
+		meta = {},
+		userIds = {},
+		version = 1,
+		created = E.SIM.now,
+		updated = E.SIM.now,
+	}
+	local big = H.addPlayer({ userId = 9430, name = "Haven" })
+	E.run(4)
+	local sb, bp = H.session(big), H.profile(big)
+	H.expect(sb ~= nil and sb.plot == freed and bp.tier == TB and plotModel(freed):GetAttribute("Tier") == TB, "big", "a tier 10 island takes the freed plot", string.format("%s on %s", tostring(bp and bp.tier), tostring(sb and sb.plot)))
+	local bi = if sb then sb.plot else freed
+	local land = staticOf(bi) and staticOf(bi):FindFirstChild("Land")
+	local box = Street.origin(bi)
+	-- the lawn reaches the island's northern edge, far past z -64
+	local north = math.huge
+	for _, d in if land then land:GetDescendants() else {} do
+		if d.Name == "Lawn" and d:IsA("BasePart") then
+			north = math.min(north, d.Position.Z - d.Size.Z / 2)
+		end
+	end
+	H.expect(pr.z0 < -100 and math.abs(north - pr.z0) < 0.01, "big", "its land reaches far north of z -64 (the lawn to its edge)", string.format("lawn to z %.2f, grass to %d", north, pr.z0))
+	-- the coast walls hold in the far north: past every edge from a cell a founder may stand on (z -64 and on north)
+	-- to one they may not, a wall stands, far higher than a jump
+	local walls = {}
+	for _, d in if land then land:GetDescendants() else {} do
+		if d.Name == "Bound" and d:IsA("BasePart") then
+			local c, sz = d.Position, d.Size
+			table.insert(walls, { x0 = c.X - sz.X / 2 - box, x1 = c.X + sz.X / 2 - box, z0 = c.Z - sz.Z / 2, z1 = c.Z + sz.Z / 2, top = c.Y + sz.Y / 2, group = d.CollisionGroup })
+		end
+	end
+	local edges, gaps = 0, {}
+	local cb = Street.cellBounds(TB)
+	for z = cb.z0, -64 do
+		for x = cb.x0, cb.x1 do
+			if Street.walkable(TB, x, z) then
+				for _, n in { { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } } do
+					if not Street.walkable(TB, x + n[1], z + n[2]) then
+						edges += 1
+						-- (just past the edge's middle, on the side a founder may not go)
+						local qx, qz = x + 0.5 + n[1] * 0.75, z + 0.5 + n[2] * 0.75
+						local held = false
+						for _, w in walls do
+							if qx >= w.x0 - 1e-3 and qx <= w.x1 + 1e-3 and qz >= w.z0 - 1e-3 and qz <= w.z1 + 1e-3 and w.top >= Street.LAWN_Y + Tuning.JumpHeight + 6 and w.group == "Bounds" then
+								held = true
+								break
+							end
+						end
+						if not held and #gaps < 6 then
+							table.insert(gaps, string.format("%d,%d to %d,%d", x, z, x + n[1], z + n[2]))
+						end
+					end
+				end
+			end
+		end
+	end
+	H.expect(edges > 40 and #gaps == 0, "big", "its coast walls hold in the far north: a wall past every edge of the walkable ground, far over a jump", string.format("%d edges, gaps at %s", edges, table.concat(gaps, " ")))
+	-- the saved oak stands up there
+	local decorB = decorOf(bi)
+	H.expect(oak ~= nil and decorB ~= nil and decorB:FindFirstChild(keyOf(oak)) ~= nil, "big", "the saved oak far north stands there", oak and keyOf(oak))
+	-- the founder walks up there: still on their own island (no Home button), the view keeping them in the middle
+	local CCb = H.cmod(big, "Controllers.CameraController")
+	local wz = -95
+	local wxs = nil
+	for x = pr.x0, pr.x1 do
+		if wxs == nil and Street.buildable(TB, x, wz) then
+			wxs = x + 8
+		end
+	end
+	E.run(1)
+	local p0x, p0y = CCb.pan()
+	if big.Character and wxs then
+		big.Character:PivotTo(E.cf.new(box + wxs + 0.5, 3, wz + 0.5))
+	end
+	E.run(3)
+	local p1x, p1y = CCb.pan()
+	local r = rootOf(big)
+	local v = CCb.view()
+	local gx, gy = RasterW.gridPoint(v.rot12, v.grid, r.Position.X, Street.LAWN_Y + 1.5, r.Position.Z)
+	local sx2, sy2 = (gx - p1x) * v.K, (gy - p1y) * v.K
+	local mid = math.abs(sx2 - v.fullX / 2) <= v.fullX * 0.06 and sy2 >= v.fullY * 0.3 and sy2 <= v.fullY * 0.7
+	H.expect(r ~= nil and r.Position.Z < -90 and (p1x ~= p0x or p1y ~= p0y) and mid, "big", "the founder walks far north, the view following them there", string.format("%d,%d on %dx%d", sx2, sy2, v.fullX, v.fullY))
+	H.expect(H.buttonNamed(big, "Home") == nil, "big", "and they are still at home there (no Home button)")
+	-- pieces, tiles and fences fit up there: a torch on the northernmost grass a piece may stand on, a water tile, a
+	-- length of brick wall; past the island's edge refused
+	local placed = bp.plot.placed
+	local nx, nz = nil, nil
+	for z = pr.z0, pr.z1 do
+		for x = pr.x0, pr.x1 do
+			if nx == nil and Plot.fits(TB, placed, "torch", x, z, 0) then
+				nx, nz = x, z
+			end
+		end
+	end
+	local function evenFree(id: string, rot: number, zMax: number): (number?, number?)
+		for z = zMax - zMax % 2, pr.z0, -2 do
+			for x = pr.x0 - pr.x0 % 2, pr.x1, 2 do
+				if Plot.fits(TB, placed, id, x, z, rot) then
+					return x, z
+				end
+			end
+		end
+		return nil, nil
+	end
+	local ok1 = nx ~= nil and H.req(big, "plot.place", { id = "torch", x = nx, z = nz, rot = 0 }).ok
+	local wx, wz2 = evenFree("stream", 0, -70)
+	local ok2 = wx ~= nil and H.req(big, "plot.paint", { id = "stream", cells = string.format("%d,%d", wx, wz2) }).ok
+	local fx, fz = evenFree("brickwall", 0, -76)
+	local ok3 = fx ~= nil and H.req(big, "plot.fence", { id = "brickwall", edges = string.format("%d,%d,0", fx, fz) }).ok
+	E.run(0.5)
+	local built = 0
+	for _, q in placed do
+		-- (the lone water tile's mask is 1, its level's place: keyOf's name all the same)
+		if q.z < -64 and decorB and decorB:FindFirstChild(keyOf(q)) then
+			built += 1
+		end
+	end
+	H.expect(ok1 and ok2 and ok3 and (nz or 0) < -100 and built == 4, "big", "a torch on its northernmost grass, a water tile and a wall up there: placed and built", string.format("torch at %s, %s %s %s, %d built", tostring(nz), tostring(ok1), tostring(ok2), tostring(ok3), built))
+	local off = H.req(big, "plot.place", { id = "oak", x = 0, z = -150, rot = 0 })
+	H.expect(not off.ok and off.err == "blocked", "big", "past the island's northern edge: refused (blocked)", tostring(off.err))
+	H.checkProfile(big, "big island")
+	settled(big)
+	H.checkMirror(big, "big island")
+end
 
 report(E, H)
