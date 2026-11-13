@@ -1,12 +1,12 @@
 -- Saves (docs/ARCHITECTURE.md 7.6): a player builds, takes a driftling off the tide into the hut (a second one put
 -- there with its mutations), then leaves (saved, lock released) and rejoins to the very same profile, with a fresh tide
--- (the drifts are the session's, never saved); a version 11 save (the Tree of Life, its levels, food, a pen with one
+-- running past (the drifts are the session's, never saved: their ids start again); a version 11 save (the Tree of Life, its levels, food, a pen with one
 -- held) loads as version 12 with the tree and its levels gone, the pen sold for its price, the food gone and what the
 -- tree grew counted as taken in; a version 9 save (the wild places, the fights, the levels and a villager in a Tent)
 -- loads with its yard's and its Tent's prices back, no villagers, two driftlings in the hut and the pen's one sold; a
 -- save under another server's live lock is never overwritten; a join waits out another server's lock and then takes
 -- over; a corrupt record still loads into a valid profile; a version 4 save (the game studio) starts a fresh island
--- keeping the founder's look and the settings.
+-- keeping the founder's look and the settings, its tide bringing a cheap common for the first buildings every third one.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -34,6 +34,42 @@ end
 local function seed(userId, value)
 	E.cloud.stores[STORE] = E.cloud.stores[STORE] or {}
 	E.cloud.stores[STORE]["u_" .. userId] = { value = value, meta = {}, userIds = {}, version = 1, created = E.SIM.now, updated = E.SIM.now }
+end
+-- A session's tide runs full: one every Tide.secs, each floating past in Tide.life, so life / secs at once (one more
+-- or less for the moment one comes in as another leaves).
+local function full(s, prof): (boolean, number)
+	local n = math.floor(Tide.life(prof) / Tide.secs(prof))
+	return s ~= nil and math.abs(#s.tide.list - n) <= 1, n
+end
+-- A new island's tide (nothing taken in, nobody in a hut): every third one (ids 1, 4, 7...) a common that can work at
+-- the first buildings, good with wood and at a farm by turns. Whether every such one in the list is, and the knacks seen.
+local function firstOnes(s): (boolean, { [string]: boolean })
+	local ok, knacks = true, {}
+	for _, d in s and s.tide.list or {} do
+		if d.id % 3 == 1 then
+			local cd = Creatures.byId[d.sp]
+			local want = if (d.id // 3) % 2 == 0 then "wood" else "farm"
+			ok = ok and cd ~= nil and cd.rarity == 1 and cd.knack == want
+			knacks[want] = true
+		end
+	end
+	return ok, knacks
+end
+-- The client's copy of the tide follows the session's from the Fx (one a second): one that just came is on its way
+-- for a moment. Wait it out before comparing the two.
+local function settled(p)
+	E.runUntil(function()
+		local s, v = H.session(p), H.view(p)
+		if s == nil or v == nil or #v.tide ~= #s.tide.list then
+			return false
+		end
+		for i, d in s.tide.list do
+			if v.tide[i].id ~= d.id then
+				return false
+			end
+		end
+		return true
+	end, 1, 0.05)
 end
 local function placeAll(p, ids)
 	local prof = H.profile(p)
@@ -69,10 +105,11 @@ local function housed(): number
 	end
 	return n
 end
--- one off the tide taken in (a new island's first two drifts are commons): into the hut
+-- one off the tide taken in (the newest: the most time left before it floats off): into the hut
 local s1 = H.session(p)
-H.expect(#s1.tide.list == Tuning.TideStart, "save", "the jetty has its first drifts", tostring(#s1.tide.list))
-local first = s1.tide.list[1]
+local full1, n1 = full(s1, prof)
+H.expect(full1, "save", "the tide is running when the player arrives (it starts full)", string.format("%d floating past, %d at once", #s1.tide.list, n1))
+local first = s1.tide.list[#s1.tide.list]
 local rt = first and H.req(p, "tide.take", { id = first.id, swap = 0 })
 H.expect(rt ~= nil and rt.ok and housed() == 1 and prof.stats.taken == 1 and prof.folk == nil, "save", "a driftling taken off the tide into the hut (no villagers)", string.format("%s, %d in the hut", tostring(rt and rt.err), housed()))
 -- (a second one in the hut, its mutations kept through the save)
@@ -94,12 +131,11 @@ for _, q in prof.plot.placed do
 end
 prof.stats.best = math.max(prof.stats.best, 2)
 H.push(p, 0.5)
--- the tide goes on: more bob at the jetty before the player leaves
-E.runUntil(function()
-	return #s1.tide.list >= Tuning.TideStart + 1
-end, Tuning.TideSecs * 3 + 2, 0.1)
-local oldTide = #s1.tide.list
-H.expect(oldTide > Tuning.TideStart and housed() == 2, "save", "the tide brought more in meanwhile", tostring(oldTide))
+-- the tide goes on: more come in and the oldest float off before the player leaves
+local next0, oldest0 = s1.tide.next, s1.tide.list[1].id
+E.run(Tide.secs(prof) * 3 + 0.2)
+local oldTide = s1.tide.next - 1
+H.expect(s1.tide.next >= next0 + 3 and s1.tide.list[1].id > oldest0 and full(s1, prof) and housed() == 2, "save", "the tide went on meanwhile (more came in, the oldest floated off)", string.format("ids up to %d (%d before), the oldest %d (%d before)", oldTide, next0 - 1, s1.tide.list[1].id, oldest0))
 local before = E.deepCopy(H.profile(p))
 E.phase = "leave"
 E.removePlayer(p, "leave")
@@ -126,7 +162,11 @@ local diff = H.diff(before, after)
 H.expect(diff == nil, "save", "the rejoined profile is the one saved", tostring(diff))
 H.expect(H.session(p2).plot == 1, "save", "island 1 again")
 local s2 = H.session(p2)
-H.expect(s2 ~= nil and #s2.tide.list == Tuning.TideStart and s2.tide.next == Tuning.TideStart + 1, "save", "a fresh tide: its first drifts again, none of the last visit's", string.format("%d bobbing (%d before), next %d", s2 and #s2.tide.list or -1, oldTide, s2 and s2.tide.next or -1))
+-- (its ids start again at 1: the ones from the start, then one a second for the two seconds since)
+local full2, n2 = full(s2, H.profile(p2))
+local since = s2 and s2.tide.next - 1 - n2 or -1
+H.expect(s2 ~= nil and full2 and since >= 0 and since <= math.ceil(2.5 / Tide.secs(H.profile(p2))) and s2.tide ~= s1.tide, "save", "a fresh tide running past: its ids from 1 again, none of the last visit's", string.format("%d floating past, ids up to %d (%d last visit)", s2 and #s2.tide.list or -1, s2 and s2.tide.next - 1 or -1, oldTide))
+settled(p2)
 H.checkProfile(p2, "rejoin")
 H.checkMirror(p2, "rejoin")
 
@@ -187,6 +227,7 @@ if pv then
 	H.expect(st.taken == 7 and st.grown == nil, "save", "what the tree grew counted as taken in", string.format("taken %s grown %s", tostring(st.taken), tostring(st.grown)))
 	H.expect(pv.tut == 5 and pv.quest == 3 and pv.seen.conchy == 1, "save", "the tips, the questline and the Index kept", string.format("tut %d quest %d", pv.tut, pv.quest))
 	H.checkProfile(v11, "v11")
+	settled(v11)
 	H.checkMirror(v11, "v11")
 end
 
@@ -256,6 +297,7 @@ if ov then
 	local st = ov.stats :: any
 	H.expect(ov.folk == nil and st.movedIn == nil and ov.tut == 4 and ov.quest == 1 and st.taken == 3 and st.grown == nil, "save", "no villagers or levels; the tips on step 4; the questline afresh; befriended counted as taken in", string.format("tut %d taken %s", ov.tut, tostring(st.taken)))
 	H.checkProfile(old, "v9")
+	settled(old)
 	H.checkMirror(old, "v9")
 end
 
@@ -318,6 +360,7 @@ if cp then
 	H.expect(#cp.plot.placed == 1 and q.id == "patch" and Plot.fits(cp.tier, {}, q.id, q.x, q.z, q.rot), "save", "the patch off the island moved onto it, the unknown piece gone (no tree planted)", string.format("%d pieces", #cp.plot.placed))
 	H.expect(cp.folk == nil and #cp.pals == 0 and cp.stats.sold == 1, "save", "only what makes sense kept (no villagers, the unknown kind gone, the pen's Clawdle sold)", string.format("%d pals, %d sold", #cp.pals, cp.stats.sold))
 	H.checkProfile(c, "corrupt")
+	settled(c)
 	H.checkMirror(c, "corrupt")
 end
 
@@ -342,16 +385,11 @@ if op then
 	H.expect(op.founder.shirt == 6 and op.settings.pixel == "low" and op.createdAt == 1234, "save", "the founder's look, the settings and the start kept")
 	H.expect(op.coins == nil and op.team == nil and op.games == nil and #op.plot.placed == 0 and #op.pals == 0 and op.tier == 1 and op.tut == 1, "save", "the studio gone: a fresh island with the tips (nothing built, no Tree of Life)")
 	H.expect(op.shells == Tuning.StartShells and op.wood == Tuning.StartWood, "save", "the starting shells and wood", string.format("%s %s", tostring(op.shells), tostring(op.wood)))
-	-- (a fresh island's first drifts: commons, one good with wood and one at a farm, for the tips' first buildings)
+	-- (a fresh island's tide: every third one a common for the tips' first buildings, good with wood or at a farm)
 	local so = H.session(o)
-	local knacks = {}
-	for _, d in so and so.tide.list or {} do
-		local cd = Creatures.byId[d.sp]
-		if d.id <= Tuning.TideStart and cd and cd.rarity == 1 then
-			knacks[cd.knack] = true
-		end
-	end
-	H.expect(so ~= nil and #so.tide.list == Tuning.TideStart and knacks.wood and knacks.farm, "save", "its tide starts with two commons: one for the camp, one for a farm", so and tostring(#so.tide.list))
+	local firstOk, knacks = firstOnes(so)
+	H.expect(so ~= nil and full(so, op) and firstOk and knacks.wood and knacks.farm, "save", "its tide runs full, every third one a common for the camp or a farm, by turns", so and tostring(#so.tide.list))
+	settled(o)
 	H.checkProfile(o, "old-save")
 	H.checkMirror(o, "old-save")
 end

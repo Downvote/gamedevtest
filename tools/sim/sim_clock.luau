@@ -1,7 +1,8 @@
 -- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
 -- here, open menus and Build mode holding nothing; the wood and shells a day makes matching Island.rates (to a tick);
--- the stores and the tide's clock reaching the client every second (Fx tick), a driftling drifting in to the jetty every
--- few seconds (Fx tide, never more than TideMax there); nothing eating (no food since 2026-11-13: the stores only grow,
+-- the stores reaching the client every second (Fx tick); the tide on the server's time: a driftling coming in every
+-- second and floating past in TideLife seconds (Fx tide, the client patching its copy with no whole view sent for it,
+-- the Tide card's time-left bars running down); nothing eating (no food since 2026-11-13: the stores only grow,
 -- even from none); a driftling waiting with no hut while every hut is full, moving in once a hut goes up and going to
 -- work once a building of its knack does; the Hatchery's egg (a feast of shells) hatching into a hut with room, or
 -- waiting with no hut; two islands each on their own clock. (The huts are full while the rates are measured, and
@@ -30,6 +31,45 @@ E.run(1)
 local fx = H.watchFx(p)
 local prof = H.profile(p)
 local s = H.session(p)
+-- (when each tide message reaches the client, on the server's time, and how many whole views it gets: the tide's news
+-- are patched into the view, so no whole view comes every second)
+local SC = H.cmod(p, "Controllers.StateClient")
+local tideAt, views = {}, 0
+H.inClient(p, function()
+	SC.Fx:Connect(function(msg)
+		if msg.kind == "tide" then
+			table.insert(tideAt, { msg = msg, now = E.workspace:GetServerTimeNow() })
+		end
+	end)
+	SC.Changed:Connect(function()
+		views += 1
+	end)
+end)
+-- every drift this session's tide has had (its `at` and `life`): the ones running past now, and each that comes in
+local known = {}
+for _, d in s.tide.list do
+	known[d.id] = { at = d.at, life = d.life }
+end
+-- The client's copy of the tide follows the session's from the Fx (one a second): one that just came is on its way
+-- for a moment. Wait it out before comparing the two.
+local function settled(who)
+	E.runUntil(function()
+		local ss, v = H.session(who), H.view(who)
+		if ss == nil or v == nil or #v.tide ~= #ss.tide.list then
+			return false
+		end
+		for i, d in ss.tide.list do
+			if v.tide[i].id ~= d.id then
+				return false
+			end
+		end
+		return true
+	end, 1, 0.05)
+end
+-- A session's tide runs full: life / secs at once (one more or less for the moment one comes in as another leaves).
+local function full(ss, pr): boolean
+	return math.abs(#ss.tide.list - math.floor(Tide.life(pr) / Tide.secs(pr))) <= 1
+end
 
 local function place(id)
 	local pr = Street.plot(prof.tier)
@@ -95,6 +135,7 @@ nextTurn()
 local t0 = E.SIM.now
 E.run(0.3) -- (the first turn's Fx on its way)
 local f0 = #fx
+local tf0, views0 = #tideAt, views
 E.runUntil(function()
 	return count("turn", f0) >= 2
 end, Tuning.TurnSeconds * 3 + 3, 0.05)
@@ -105,46 +146,124 @@ H.expect(count("turn", f0) == 2, "clock", "an Fx turn each", tostring(count("tur
 H.expect(prof.day == d0, "clock", "turns are not days (a day is hours of the sea's clock)", string.format("%d -> %d", d0, prof.day))
 H.expect(math.abs(count("tick", f0) - took) <= 2, "clock", "an Fx tick every second", string.format("%d in %.1fs", count("tick", f0), took))
 
------------------------------------------------------------------- the tide's clock
--- (every tick carries the tide's clock: seconds since the last one drifted in, and the seconds between two; it runs on
--- a second a tick and starts again each time one comes)
+------------------------------------------------------------------ the tide on the server's time
+-- (one comes in every second and floats past the island in TideLife seconds, on the server's time, which is
+-- workspace:GetServerTimeNow: each one that came carries the moment it came, `at`, a second after the one before, and
+-- its `life`, and leaves once its life is up. The ticks carry the seconds between two, no tide clock. The client
+-- patches its copy of the tide from these messages, with no whole view for them, and the Tide card's bars run down.)
 E.phase = "tide"
 do
-	local secs = Tide.secs(prof)
-	H.expect(math.abs(secs - Tuning.TideSecs) < 1e-9, "tide", "one drifts in every TideSecs (no tide shares in the huts)", tostring(secs))
+	local secs, life = Tide.secs(prof), Tide.life(prof)
+	H.expect(math.abs(secs - Tuning.TideSecs) < 1e-9 and math.abs(life - Tuning.TideLife) < 1e-9, "tide", "one comes in every TideSecs and floats past in TideLife (no tide shares in the huts)", string.format("%s %s", tostring(secs), tostring(life)))
 	local ticks = {}
-	local came, gone = 0, 0
 	for i = f0 + 1, #fx do
-		local m = fx[i]
-		if m.kind == "tick" then
-			table.insert(ticks, m)
-		elseif m.kind == "tide" then
-			came += if type(m.came) == "table" then #m.came else 0
-			gone += if type(m.gone) == "table" then #m.gone else 0
+		if fx[i].kind == "tick" then
+			table.insert(ticks, fx[i])
 		end
 	end
-	local carried, steps, wraps = true, true, 0
-	for i, m in ticks do
-		carried = carried and type(m.tideT) == "number" and m.tideT >= 0 and m.tideT < secs + 1e-6 and type(m.tideSecs) == "number" and math.abs(m.tideSecs - secs) < 1e-9
-		local prev = ticks[i - 1]
-		if prev and type(prev.tideT) == "number" and type(m.tideT) == "number" then
-			local d = (m.tideT - prev.tideT) % secs
-			steps = steps and math.abs(d - 1) < 0.06
-			if m.tideT < prev.tideT then
-				wraps += 1
+	local carried = true
+	for _, m in ticks do
+		carried = carried and m.tideT == nil and type(m.tideSecs) == "number" and math.abs(m.tideSecs - secs) < 1e-9
+	end
+	H.expect(#ticks >= 10 and carried, "tide", "every tick carries the seconds between two (no tide clock any more)", string.format("%d ticks", #ticks))
+	-- what came and what left over the two turns, and when each reached the client
+	local came, gone = {}, {}
+	for i = 1, #tideAt do
+		local m, now = tideAt[i].msg, tideAt[i].now
+		for _, d in if type(m.came) == "table" then m.came else {} do
+			if type(d) == "table" and type(d.id) == "number" then
+				known[d.id] = { at = d.at, life = d.life }
+				if i > tf0 then
+					table.insert(came, { d = d, now = now })
+				end
+			end
+		end
+		for _, id in if type(m.gone) == "table" then m.gone else {} do
+			if i > tf0 then
+				table.insert(gone, { id = id, now = now })
 			end
 		end
 	end
-	H.expect(#ticks >= 10 and carried, "tide", "every tick carries the tide's clock and its seconds", string.format("%d ticks", #ticks))
-	H.expect(steps, "tide", "the tide's clock runs on a second a tick")
-	H.expect(math.abs(came - took / secs) <= 1 and math.abs(wraps - came) <= 1, "tide", "one drifted in each time it came round", string.format("%d came, %d wraps in %.1fs", came, wraps, took))
-	H.expect(#s.tide.list == Tuning.TideMax and gone >= 1, "tide", "never more than TideMax bobbing: the oldest drifted off", string.format("%d bobbing, %d gone", #s.tide.list, gone))
+	local spaced, onTime, lives = true, true, true
+	for k, c in came do
+		local prev = came[k - 1]
+		if prev then
+			spaced = spaced and math.abs((c.d.at - prev.d.at) - secs) < 1e-3
+		end
+		-- (it came at `at`: the server's step that saw it, the message on its way)
+		onTime = onTime and type(c.d.at) == "number" and c.now >= c.d.at and c.now - c.d.at <= 0.25
+		lives = lives and type(c.d.life) == "number" and math.abs(c.d.life - life) < 1e-6 and type(c.d.cost) == "number"
+	end
+	H.expect(math.abs(#came - took / secs) <= 1, "tide", "one came in every second", string.format("%d came in %.1fs", #came, took))
+	H.expect(#came > 0 and spaced, "tide", "each a second after the one before, on the tide's clock")
+	H.expect(#came > 0 and onTime, "tide", "each came at the server's time it says (its at)")
+	H.expect(#came > 0 and lives, "tide", "each with its life (TideLife) and its cost on this island")
+	local afterLife, unknown = true, 0
+	for _, g in gone do
+		local k = known[g.id]
+		if k == nil then
+			unknown += 1
+		else
+			afterLife = afterLife and g.now >= k.at + k.life - 1e-6 and g.now - (k.at + k.life) <= 0.25
+		end
+	end
+	H.expect(math.abs(#gone - #came) <= 1 and unknown == 0, "tide", "as many floated off as came in", string.format("%d gone, %d came, %d unknown", #gone, #came, unknown))
+	H.expect(#gone > 0 and afterLife, "tide", "each left once its life was up, on the server's time")
+	local now = E.workspace:GetServerTimeNow()
+	H.expect(full(s, prof) and math.abs(s.tide.clock - now) < 0.2, "tide", "TideLife / TideSecs floating past at once, the tide's clock the server's", string.format("%d floating past, clock %.2f behind", #s.tide.list, now - s.tide.clock))
+	-- the client: its copy patched from the messages (the whole view only came with the turns)
+	H.expect(views - views0 <= count("turn", f0) + 1, "tide", "no whole view sent for the tide (the client patches its copy)", string.format("%d views, %d tide messages", views - views0, #tideAt - tf0))
+	settled(p)
 	local v = H.view(p)
-	local last = ticks[#ticks]
-	H.expect(v ~= nil and last ~= nil and v.tideT == last.tideT and v.tideSecs == secs, "tide", "the view's tide clock follows the ticks", string.format("%s vs %s", tostring(v and v.tideT), tostring(last and last.tideT)))
-	local SC = H.cmod(p, "Controllers.StateClient")
-	local frac, fsecs = SC.tideFrac()
-	H.expect(frac >= 0 and frac <= 1 and math.abs(fsecs - secs) < 1e-9, "tide", "the client's tide bar (StateClient.tideFrac)", string.format("%.3f %s", frac, tostring(fsecs)))
+	local same = v ~= nil and #v.tide == #s.tide.list
+	for i, d in s.tide.list do
+		local e = v and v.tide[i]
+		same = same and e ~= nil and e.id == d.id and e.sp == d.sp and math.abs(e.at - d.at) < 1e-6 and math.abs(e.life - d.life) < 1e-6
+	end
+	H.expect(same and v.tideT == nil and v.tideSecs == secs, "tide", "the view's tide is the session's, drift by drift (when each came, its life)", string.format("%d vs %d", v and #v.tide or -1, #s.tide.list))
+	local along = v ~= nil
+	local nowV = E.workspace:GetServerTimeNow()
+	for _, d in v and v.tide or {} do
+		along = along and math.abs(SC.along(d) - Tide.along(d, nowV)) < 1e-6
+	end
+	H.expect(along, "tide", "the client puts each one as far along as the server's time says (StateClient.along)")
+	-- the Tide card: the best few, each with its time left (a bar under its name, running down)
+	local TV = H.cmod(p, "Controllers.TideView")
+	local UIKit = H.cmod(p, "UI.UIKit")
+	local best = TV.best(v, if UIKit.phone() then 1 else 3)
+	local function barOf(d): (any, any)
+		local card = p.PlayerGui:FindFirstChild("TideCard", true)
+		local back = card and card:FindFirstChild("TideLeft_" .. d.id)
+		return back, back and back:FindFirstChild("Fill")
+	end
+	local bars, why = 0, {}
+	local w0 = {}
+	for _, d in best do
+		local back, fill = barOf(d)
+		if fill then
+			local want = (back.Size.X.Offset - 2) * (1 - SC.along(d))
+			w0[d.id] = fill.Size.X.Offset
+			if math.abs(fill.Size.X.Offset - want) <= 1 then
+				bars += 1
+			else
+				table.insert(why, string.format("%d: %d px, %.1f due", d.id, fill.Size.X.Offset, want))
+			end
+		else
+			table.insert(why, string.format("%d: no bar", d.id))
+		end
+	end
+	H.expect(#best >= 1 and bars == #best, "tide", "the Tide card's bars: each one's time left", table.concat(why, ", "))
+	-- (a moment on, the ones still on the card have shorter bars)
+	E.run(2)
+	local still, shorter = 0, 0
+	for _, d in best do
+		local _, fill = barOf(d)
+		if fill and w0[d.id] then
+			still += 1
+			shorter += if fill.Size.X.Offset < w0[d.id] then 1 else 0
+		end
+	end
+	H.expect(still >= 1 and shorter == still, "tide", "and they run down", string.format("%d of %d shorter", shorter, still))
 	H.expect(hutsN() == 4 and #prof.pals == 4, "tide", "nobody comes in off the tide by themselves", string.format("%d driftlings", #prof.pals))
 end
 
@@ -163,6 +282,7 @@ local v = H.view(p)
 H.expect(v ~= nil and math.abs(v.rates.wood - r.wood) < 1e-6 and math.abs(v.rates.shells - r.shells) < 1e-6 and v.rates.food == nil, "rates", "the view says the rates (wood and shells, no food)")
 H.expect(v ~= nil and math.abs(v.wood - prof.wood) <= r.wood / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's wood follows the ticks", string.format("%s vs %s", v and v.wood, prof.wood))
 H.expect(v ~= nil and math.abs(v.shells - prof.shells) <= r.shells / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's shells follow the ticks", string.format("%s vs %s", v and v.shells, prof.shells))
+settled(p)
 H.checkMirror(p, "rates")
 
 ------------------------------------------------------------------ open menus and Build mode hold nothing
@@ -226,6 +346,7 @@ do
 	end
 	H.expect(crab.home == hutUid and crab.work == pierUid, "work", "a place at the pier: it fishes there", string.format("home %d work %d", crab.home, crab.work))
 	H.checkProfile(p, "work")
+	settled(p)
 	H.checkMirror(p, "work")
 	-- the island expanded twice (the buildings where the coast changed make room)
 	for _ = 1, 2 do
@@ -381,7 +502,9 @@ H.expect(qt >= 1 and count("turn", fp0) >= 1, "two", "both islands' turns end", 
 H.expect(sq.turnClock >= 0 and sq.turnClock < Tuning.TurnSeconds and s.turnClock >= 0 and s.turnClock < Tuning.TurnSeconds, "two", "each on its own turn clock", string.format("%.2f %.2f", sq.turnClock, s.turnClock))
 local vq, vp = H.view(q), H.view(p)
 H.expect(vq ~= nil and vp ~= nil and math.abs(vq.dayFrac - vp.dayFrac) < 0.001, "two", "one sea, one time of day", string.format("%s %s", vq and vq.dayFrac, vp and vp.dayFrac))
-H.expect(sq.tide ~= s.tide and #sq.tide.list >= Tuning.TideStart and #s.tide.list >= 1 and sq.tide.t < Tide.secs(pq) and s.tide.t < Tide.secs(prof), "two", "each its own tide at its own jetty", string.format("%d and %d bobbing", #sq.tide.list, #s.tide.list))
+local nowT = E.workspace:GetServerTimeNow()
+H.expect(sq.tide ~= s.tide and full(sq, pq) and full(s, prof) and sq.tide.t < Tide.secs(pq) and s.tide.t < Tide.secs(prof), "two", "each its own tide running past", string.format("%d and %d floating past", #sq.tide.list, #s.tide.list))
+H.expect(math.abs(sq.tide.clock - nowT) < 0.2 and math.abs(s.tide.clock - nowT) < 0.2, "two", "both tides on the server's time", string.format("%.2f %.2f behind", nowT - sq.tide.clock, nowT - s.tide.clock))
 ------------------------------------------------------------------ day and night
 E.phase = "daynight"
 -- the day and night (GAME_DESIGN 8): the sea's clock grades the picture: plain by day, dark blue at night with the
@@ -413,8 +536,10 @@ do
 end
 
 H.checkProfile(p, "end")
+settled(p)
 H.checkMirror(p, "end")
 H.checkProfile(q, "end")
+settled(q)
 H.checkMirror(q, "end")
 
 report(E, H)

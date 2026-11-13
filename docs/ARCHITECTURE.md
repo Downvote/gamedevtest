@@ -201,8 +201,8 @@ Models (`src/shared/Models`, Roblox modules):
   in two tones), the invisible coast walls round the walkable cells, the campfire's plaza (`FireStone`s, logs, a
   flame, seats, a flag, torches), the stepping-stone path and the jetty (`JettyPlank`s on beams and posts, a rope),
   the sign with its `SignBoard`, the mailbox, and palms, rocks, shells, starfish, driftwood, seaweed and tufts strewn
-  by the plot's own seed (no rocks in the shallows within `Street.TIDE.clear` of the tide's lane: one rolled there is
-  built and thrown away, so the rest of the coast keeps its seed's layout); `Blocks.windy`), `emptyLot(parent, origin)` (open water and a sandbar), `ends(parent)` (the sea past the
+  by the plot's own seed (no rock in the shallows reaching within `Street.TIDE.clear` of the tide's lane, its stones'
+  reach counted: one rolled there is built and thrown away, so the rest of the coast keeps its seed's layout); `Blocks.windy`), `emptyLot(parent, origin)` (open water and a sandbar), `ends(parent)` (the sea past the
   ends, sandbars, the boardwalk's last lantern, the invisible walls along each end's own stretch of boardwalk, and
   the walls round the world, 40 studs high (past any jump); the pier's things, `PierProps`: bollards, crates, a barrel, rope, and the
   moored `Boat` don't collide). Every wall is

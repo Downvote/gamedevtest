@@ -49,8 +49,9 @@ Street.END_FAR = 160
 
 -- The tide's lane (GAME_DESIGN 6: "make them float by just like a conveyer belt"): the water between the island's
 -- foam and the boardwalk, all along the lot (plot-local z; the driftlings float from x0 to x1, west to east, and duck
--- under the jetty on the way). Nothing stands in it (no rocks in the shallows there).
-Street.TIDE = { z = 26, x0 = -Tuning.PlotSpacing / 2, x1 = Tuning.PlotSpacing / 2, clear = 2.5 }
+-- under the jetty on the way). Nothing stands within `clear` of its middle (the widest rider is about 2.7 studs across:
+-- no rock in the shallows reaches in).
+Street.TIDE = { z = 26, x0 = -Tuning.PlotSpacing / 2, x1 = Tuning.PlotSpacing / 2, clear = 1.5 }
 
 -- The lot: the water between two neighbours (plot-local).
 Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -64, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect

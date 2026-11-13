@@ -1,12 +1,14 @@
 -- The sea and the islands (GAME_DESIGN 4, 6, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
 -- start (the boardwalk, open water on every lot); two islands on plots 1 and 2 with their lands, attributes and
 -- founders; each client drawing its own island's hut driftlings, the neighbour's and both founders, no villagers, and
--- the drifts on the tide at both jetties; a founder walking onto the neighbour's island (the camera follows, Home
--- shows) and going home (and its cooldown); placing (paid in wood), moving and clearing buildings with every refusal
--- (no upgrades), the server's Static.Decor following piece by piece; the same through Build mode's UI; malicious plot
--- payloads; a leaving player's island back to open water and its tide gone; a full sea kicking the seventh player;
--- every claimed island's tide at its jetty, a newcomer's drawn by its own client and the neighbour's, and any piece
--- of its cleared away (nothing is fixed: no Tree of Life).
+-- both islands' tides floating past (each plot's Tide attribute its session's, every client following both belts and
+-- drawing the ones near its view); the tide's lane clear of the island on every tier (the jetty apart); a founder
+-- walking onto the neighbour's island (the camera follows, Home shows) and going home (and its cooldown); placing (paid
+-- in wood), moving and clearing buildings with every refusal (no upgrades), the server's Static.Decor following piece
+-- by piece; the same through Build mode's UI; malicious plot payloads; a leaving player's island back to open water
+-- and its tide gone; a full sea kicking the seventh player; every claimed island's tide in its attribute, a newcomer's
+-- drawn by its own client and the neighbour's, its price tags over its own only, and any piece of its cleared away
+-- (nothing is fixed: no Tree of Life).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -76,8 +78,8 @@ local b = H.addPlayer({ userId = 9402, name = "Bo" })
 E.run(3)
 local sa, sb = H.session(a), H.session(b)
 H.expect(sa and sa.plot == 1 and sb and sb.plot == 2, "islands", "plots 1 and 2", string.format("%s %s", tostring(sa and sa.plot), tostring(sb and sb.plot)))
--- both new islands start bare (no Tree of Life, no driftling: the tide brings them to the jetty, the player takes
--- them in), so the hut driftlings counted below are the ones put there
+-- both new islands start bare (no Tree of Life, no driftling: the tide brings them past, the player takes them in),
+-- so the hut driftlings counted below are the ones put there
 local function housed(prof): number
 	local n = 0
 	for _, x in prof.pals do
@@ -87,7 +89,9 @@ local function housed(prof): number
 	end
 	return n
 end
--- the tide at island i's jetty: its plot's "Tide" attribute ("id.species;..."), every client draws it near its view
+-- the tide past island i: its plot's "Tide" attribute ("id.species.at.life;...", at and life in tenths of a second on
+-- the server's time), every client follows it near its view
+local Tide = H.sharedServer("Logic.Tide")
 local function tideAttr(i): { string }
 	local m = plotModel(i)
 	local raw = m and m:GetAttribute("Tide")
@@ -107,25 +111,76 @@ local function sessionOn(i)
 	end
 	return nil
 end
--- the drifts the client of `p` draws on island i match the attribute (a drift that just drifted off is drawn for a
--- moment more, and a new one shows within the client's next sync: waited out)
-local function drawsTide(p, i): (boolean, string)
+-- The plot's attribute is its session's tide, drift by drift, the times in tenths of a second; the newest came within
+-- a step of the server's time now and the oldest hasn't floated past yet; and it runs full (life / secs at once, one
+-- more or less for the moment one comes in as another leaves).
+local function tideMatches(i, s): (boolean, string)
+	local list = tideAttr(i)
+	local same = s ~= nil and #list == #s.tide.list and #list >= 1
+	for j, d in s and s.tide.list or {} do
+		same = same and list[j] == string.format("%d.%s.%d.%d", d.id, d.sp, math.floor(d.at * 10 + 0.5), math.floor(d.life * 10 + 0.5))
+	end
+	if not same then
+		return false, string.format("%d in the session: %s", s and #s.tide.list or -1, table.concat(list, ";"))
+	end
+	local now = E.workspace:GetServerTimeNow()
+	local secs = Tide.secs(s.profile)
+	local newest = tonumber(string.match(list[#list], "^%d+%.[%w_]+%.(%d+)%.%d+$")) or 0
+	local oldestAt, oldestLife = string.match(list[1], "^%d+%.[%w_]+%.(%d+)%.(%d+)$")
+	local onTime = newest / 10 <= now + 0.05 and newest / 10 > now - secs - 0.15
+	local running = (tonumber(oldestAt) or 0) / 10 + (tonumber(oldestLife) or 0) / 10 > now - 0.15
+	local full = math.abs(#s.tide.list - math.floor(Tide.life(s.profile) / secs)) <= 1
+	return onTime and running and full, string.format("%d in the session, now %.1f: %s", #s.tide.list, now, table.concat(list, ";"))
+end
+-- The client of `p` follows every drift in island i's attribute (a new one is picked up within its next sync, twice a
+-- second, and one at the end of the way goes as it leaves: waited out), and of those draws the ones near its view's
+-- centre (within 62 studs along the lane: one right at that edge may go either way). Also returns how many it draws.
+local VIEW = 62
+local function drawsTide(p, i): (boolean, string, number)
 	local TV = H.cmod(p, "Controllers.TideView")
+	local CC = H.cmod(p, "Controllers.CameraController")
 	E.runUntil(function()
 		return TV.count(i) == #tideAttr(i)
 	end, 5, 0.1)
-	return TV.count(i) == #tideAttr(i), string.format("%d drawn, %d on the tide", TV.count(i), #tideAttr(i))
+	local n, drawn = TV.count(i)
+	local cx = CC.centerWorld().X
+	local inside, edge = 0, 0
+	for _, e in tideAttr(i) do
+		local x = TV.where(i, tonumber(string.match(e, "^(%d+)%.")) or 0)
+		if x then
+			local off = math.abs(x - cx)
+			if off < VIEW - 1 then
+				inside += 1
+			elseif off <= VIEW + 1 then
+				edge += 1
+			end
+		end
+	end
+	local ok = n == #tideAttr(i) and drawn >= inside and drawn <= inside + edge
+	return ok, string.format("%d followed, %d on the tide, %d drawn, %d near the view (%d at its edge)", n, #tideAttr(i), drawn, inside, edge), drawn
+end
+-- The client's copy of the tide follows the session's from the Fx (one a second): one that just came is on its way
+-- for a moment. Wait it out before comparing the two.
+local function settled(p)
+	E.runUntil(function()
+		local s, v = H.session(p), H.view(p)
+		if s == nil or v == nil or #v.tide ~= #s.tide.list then
+			return false
+		end
+		for i, d in s.tide.list do
+			if v.tide[i].id ~= d.id then
+				return false
+			end
+		end
+		return true
+	end, 1, 0.05)
 end
 for _, p in { a, b } do
 	local prof = H.profile(p)
 	H.expect(#prof.plot.placed == 0 and #prof.pals == 0 and prof.tree == nil, "islands", p.Name .. ": a new island starts bare (no Tree of Life)", string.format("%d pieces, %d driftlings", #prof.plot.placed, #prof.pals))
 	local s = H.session(p)
-	local list = tideAttr(s.plot)
-	local same = #list == #s.tide.list
-	for j, d in s.tide.list do
-		same = same and list[j] == string.format("%d.%s", d.id, d.sp)
-	end
-	H.expect(#s.tide.list >= Tuning.TideStart and same, "islands", p.Name .. ": drifts at the jetty, listed in the plot's Tide attribute", string.format("%d bobbing, attribute %s", #s.tide.list, table.concat(list, ";")))
+	local ok, why = tideMatches(s.plot, s)
+	H.expect(ok, "islands", p.Name .. ": its tide running full past the island, listed in the plot's Tide attribute on the server's time", why)
 end
 for k, p in { a, b } do
 	local m = plotModel(k)
@@ -155,6 +210,7 @@ for k, p in { a, b } do
 	local root = rootOf(p)
 	H.expect(root ~= nil and math.abs(root.Position.X - (ox + sx)) < 0.5 and math.abs(root.Position.Z - (oz + sz)) < 0.5, "islands", p.Name .. ": the founder appears on their path", root and tostring(root.Position))
 	H.checkProfile(p, "island " .. p.Name)
+	settled(p)
 	H.checkMirror(p, "island " .. p.Name)
 end
 -- driftlings on both islands (the hut's; no villagers)
@@ -200,12 +256,12 @@ for _, pair in { { a, b }, { b, a } } do
 	local oth = housed(H.profile(other))
 	H.expect(own >= 1 and WV.ownRigCount() == own and WV.rigCount() == own + oth, "islands", me.Name .. ": own hut driftlings and the neighbour's", string.format("%d own of %d, %d all of %d", WV.ownRigCount(), own, WV.rigCount(), own + oth))
 	H.expect(AV.count() == 2, "islands", me.Name .. ": both founders", tostring(AV.count()))
-	-- the tide at both jetties: its own and the neighbour's
+	-- both tides: its own (all of it in view from the middle of the island) and the neighbour's belt (the end nearest)
 	local myPlot, otherPlot = H.session(me).plot, H.session(other).plot
-	local okOwn, whyOwn = drawsTide(me, myPlot)
-	H.expect(#tideAttr(myPlot) >= 1 and okOwn, "islands", me.Name .. ": draws the drifts at its own jetty", whyOwn)
-	local okOther, whyOther = drawsTide(me, otherPlot)
-	H.expect(#tideAttr(otherPlot) >= 1 and okOther, "islands", me.Name .. ": and the neighbour's", whyOther)
+	local okOwn, whyOwn, drawnOwn = drawsTide(me, myPlot)
+	H.expect(#tideAttr(myPlot) >= 1 and okOwn and drawnOwn == #tideAttr(myPlot), "islands", me.Name .. ": follows and draws its own tide all along the island", whyOwn)
+	local okOther, whyOther, drawnOther = drawsTide(me, otherPlot)
+	H.expect(#tideAttr(otherPlot) >= 1 and okOther and drawnOther >= 1 and drawnOther < #tideAttr(otherPlot), "islands", me.Name .. ": follows the neighbour's belt too and draws its near end", whyOther)
 end
 H.expect(plotModel(1):GetAttribute("Folk") == nil, "islands", "no Folk attribute (no villagers)", tostring(plotModel(1):GetAttribute("Folk")))
 local palsAttr = plotModel(1):GetAttribute("Pals")
@@ -242,6 +298,46 @@ do
 		end
 	end
 	H.expect(#blockers == 0, "sea", "the way from the jetty across the boardwalk to the pier's end is open", table.concat(blockers, ", "))
+end
+-- the tide's lane is clear (Street.TIDE: the water between the foam and the boardwalk, all along the lot): no part of
+-- an island stands where the rafts ride, from just under the water to a tall rider's head, on plot 1's island (tier 1)
+-- and on every other tier's, built apart. The jetty's own parts are apart (they duck under it), and so are the water's
+-- surfaces and the invisible walls. (A raft is a stud and a half across the lane, the widest rider about 2.7 studs:
+-- room for both.)
+do
+	local LANE = Street.TIDE
+	local HALF = 1.4
+	local JETTY = { JettyBeam = true, JettyPlank = true, JettyPost = true, Rope = true }
+	local StreetModels = H.sharedServer("Models.StreetModels")
+	local blockers = {}
+	local function scan(root, ox, oz, label)
+		for _, d in root:GetDescendants() do
+			if d:IsA("BasePart") and not JETTY[d.Name] and d:GetAttribute("PixelWater") == nil and d.CollisionGroup ~= "Bounds" then
+				-- (its box's reach, turned as it is)
+				local cf, sz = d.CFrame, d.Size
+				local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
+				local hx = math.abs(r.X) * sz.X / 2 + math.abs(u.X) * sz.Y / 2 + math.abs(l.X) * sz.Z / 2
+				local hy = math.abs(r.Y) * sz.X / 2 + math.abs(u.Y) * sz.Y / 2 + math.abs(l.Y) * sz.Z / 2
+				local hz = math.abs(r.Z) * sz.X / 2 + math.abs(u.Z) * sz.Y / 2 + math.abs(l.Z) * sz.Z / 2
+				local c = cf.Position
+				local x, z = c.X - ox, c.Z - oz
+				if x + hx > LANE.x0 and x - hx < LANE.x1 and math.abs(z - LANE.z) < hz + HALF and c.Y + hy > Street.WATER_Y - 0.3 and c.Y - hy < Street.WATER_Y + 4.4 then
+					table.insert(blockers, string.format("%s (%s) at %.1f, %.1f on %s", d.Name, d.Parent and d.Parent.Name or "?", x, z, label))
+				end
+			end
+		end
+	end
+	local ox1, oz1 = Street.origin(1)
+	scan(staticOf(1), ox1, oz1, "plot 1")
+	for tier = 2, 6 do
+		local folder = E.Instance.new("Folder")
+		E.call(E.serverCtx, 10, function()
+			StreetModels.land(folder, E.types.Vector3.new(0, 0, 0), tier)
+		end)
+		scan(folder, 0, 0, "tier " .. tier)
+		folder:Destroy()
+	end
+	H.expect(#blockers == 0, "sea", "the tide's lane is clear of the island on every tier (the jetty apart)", table.concat(blockers, ", "))
 end
 local CCa = H.cmod(a, "Controllers.CameraController")
 local PRa = H.cmod(a, "Pixel.PixelRenderer")
@@ -649,19 +745,25 @@ E.run(0.3)
 
 ------------------------------------------------------------------ 7. a player leaves
 E.phase = "leave"
+local TVa = H.cmod(a, "Controllers.TideView")
+local followed2 = TVa.count(2)
 E.removePlayer(b, "leave")
+-- (their tide goes with them: once their island is open water, Ava's client drops the belt at its next look at the
+-- plots, twice a second; none of it hops ashore as if taken in, which would take another 0.6 s)
+E.runUntil(function()
+	return plotModel(2):GetAttribute("Tide") == nil
+end, 3, 0.02)
+local dropped2 = E.runUntil(function()
+	return (TVa.count(2)) == 0
+end, 0.55, 0.02)
 E.run(2)
 local m2 = plotModel(2)
 H.expect(m2 and m2:GetAttribute("Owner") == 0 and m2:GetAttribute("StudioName") == nil and m2:FindFirstChild("EmptyLot", true) ~= nil and officeOf(2) == nil, "leave", "their island is open water again")
 local WVa = H.cmod(a, "Controllers.WorldView")
 H.expect(WVa.rigCount() == WVa.ownRigCount(), "leave", "Ava no longer draws Bo's islanders", string.format("%d all, %d own", WVa.rigCount(), WVa.ownRigCount()))
 H.expect(H.cmod(a, "Controllers.AvatarView").count() == 1, "leave", "one founder left")
--- (their tide goes with them: the open water has none, and Ava's client lets the last drifts float off)
-local TVa = H.cmod(a, "Controllers.TideView")
-E.runUntil(function()
-	return TVa.count(2) == 0
-end, 5, 0.1)
-H.expect(m2 ~= nil and m2:GetAttribute("Tide") == nil and TVa.count(2) == 0, "leave", "and their tide is gone from the open water", string.format("%s, %d drawn", tostring(m2 and m2:GetAttribute("Tide")), TVa.count(2)))
+local left2, drawn2 = TVa.count(2)
+H.expect(m2 ~= nil and m2:GetAttribute("Tide") == nil and followed2 >= 1 and dropped2 and left2 == 0 and drawn2 == 0, "leave", "and their tide is gone from the open water, dropped with the island (none hopping ashore)", string.format("%s, %d followed before, %d followed, %d drawn", tostring(m2 and m2:GetAttribute("Tide")), followed2, left2, drawn2))
 
 ------------------------------------------------------------------ 8. a full sea
 E.phase = "full"
@@ -692,57 +794,75 @@ H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is to
 
 ------------------------------------------------------------------ 9. every island's tide; nothing fixed (GAME_DESIGN 4, 6)
 E.phase = "tide"
--- every claimed island's jetty has its tide (the server-side players' too): its plot's Tide attribute lists the
--- session's drifts; the clients draw the ones near their view: Cy's own island's and the neighbours' on either side,
--- and Ava's client Cy's next door; Cy's price buttons hang over its own drifts only
+-- every claimed island has its tide running past (the server-side players' too): its plot's Tide attribute is its
+-- session's, drift by drift; the clients follow the ones near their view and draw the nearest: Cy's own island's and
+-- the neighbours' belts on either side, and Ava's client Cy's next door; Cy's price tags hang over its own only
 local claimed = 0
 for i = 1, Street.MAX do
 	local m = plotModel(i)
 	if m:GetAttribute("Owner") ~= 0 then
 		claimed += 1
-		local s = sessionOn(i)
-		local list = tideAttr(i)
-		local same = s ~= nil and #list == #s.tide.list and #list >= 1
-		for j, d in s and s.tide.list or {} do
-			same = same and list[j] == string.format("%d.%s", d.id, d.sp)
-		end
-		H.expect(same, "tide", "island " .. i .. ": its tide at the jetty, listed in its Tide attribute", table.concat(list, ";"))
+		local ok, why = tideMatches(i, sessionOn(i))
+		H.expect(ok, "tide", "island " .. i .. ": its tide running past, listed in its Tide attribute", why)
 	end
 end
 H.expect(claimed == Street.MAX, "tide", "(every island claimed)", tostring(claimed))
 local cPlot = H.session(c).plot
 local sc = H.session(c)
--- (a brand-new island's first two: commons, one good with wood and one at a farm)
+-- (a brand-new island's tide: every third one, ids 1, 4, 7..., a common for its first buildings, good with wood and at
+-- a farm by turns, until it takes one in)
 local Creatures = H.sharedServer("Data.Creatures")
-local knacks = {}
+local firstOk, knacks = true, {}
 for _, d in sc.tide.list do
-	local cd = Creatures.byId[d.sp]
-	if d.id <= Tuning.TideStart and cd and cd.rarity == 1 then
-		knacks[cd.knack] = true
+	if d.id % 3 == 1 then
+		local cd = Creatures.byId[d.sp]
+		local want = if (d.id // 3) % 2 == 0 then "wood" else "farm"
+		firstOk = firstOk and cd ~= nil and cd.rarity == 1 and cd.knack == want
+		knacks[want] = true
 	end
 end
-H.expect(sc.tide.list[1] == nil or sc.tide.list[1].id > Tuning.TideStart or (knacks.wood and knacks.farm), "tide", "the newcomer's first drifts: two commons, one for the camp and one for a farm")
+H.expect(firstOk and knacks.wood and knacks.farm, "tide", "the newcomer's tide: every third one a common for the camp or a farm, by turns")
 for _, i in { cPlot, cPlot - 1, cPlot + 1 } do
-	local ok, why = drawsTide(c, i)
-	H.expect(ok and #tideAttr(i) >= 1, "tide", "Cy's client draws island " .. i .. "'s tide", why)
+	local ok, why, drawn = drawsTide(c, i)
+	H.expect(ok and #tideAttr(i) >= 1 and drawn >= 1, "tide", "Cy's client follows island " .. i .. "'s tide and draws the ones near its view", why)
 end
 local okA, whyA = drawsTide(a, cPlot)
-H.expect(okA and #tideAttr(cPlot) >= 1, "tide", "Ava's client draws the newcomer's tide next door", whyA)
+H.expect(okA and #tideAttr(cPlot) >= 1, "tide", "Ava's client follows the newcomer's tide next door", whyA)
 local TVc = H.cmod(c, "Controllers.TideView")
-H.expect(TVc.count(cPlot + 3) == 0, "tide", "far islands' tides are not drawn (only those near the view)", tostring(TVc.count(cPlot + 3)))
+local farN, farDrawn = TVc.count(cPlot + 3)
+H.expect(farN == 0 and farDrawn == 0, "tide", "far islands' tides are not followed (only those near the view)", tostring(farN))
 do
+	-- (a tag over each of its own it draws, none over the neighbours': the ids are each island's own, so they are
+	-- counted against Cy's drawn ones; a name too over an uncommon one or better)
 	local canvasC = c.PlayerGui:FindFirstChild("World") and c.PlayerGui.World:FindFirstChild("Canvas")
-	E.runUntil(function()
-		return TVc.count(cPlot) == #tideAttr(cPlot)
-	end, 5, 0.1)
-	E.run(0.2)
-	local tags = 0
-	for _, g in canvasC and canvasC:GetChildren() or {} do
-		if string.match(g.Name, "^TideTake_%d+$") then
-			tags += 1
+	local function tagsNow(): (number, number, boolean)
+		local rarity = {}
+		for _, d in (H.view(c) or { tide = {} }).tide do
+			local cd = Creatures.byId[d.sp]
+			rarity[d.id] = cd and cd.rarity or 0
 		end
+		local tags, names, own = 0, 0, true
+		for _, g in canvasC and canvasC:GetChildren() or {} do
+			local tid = tonumber(string.match(g.Name, "^TideTake_(%d+)$"))
+			local nid = tonumber(string.match(g.Name, "^TideName_(%d+)$"))
+			if tid then
+				tags += 1
+				own = own and rarity[tid] ~= nil
+			elseif nid then
+				names += 1
+				own = own and (rarity[nid] or 0) >= 2
+			end
+		end
+		return tags, names, own
 	end
-	H.expect(tags == #sc.tide.list, "tide", "a price button over each of Cy's own drifts, none over the neighbours'", string.format("%d buttons, %d drifts", tags, #sc.tide.list))
+	E.runUntil(function()
+		local n, drawn = TVc.count(cPlot)
+		return n == #tideAttr(cPlot) and (tagsNow()) == drawn
+	end, 5, 0.1)
+	local n, drawn = TVc.count(cPlot)
+	local tags, names, own = tagsNow()
+	H.expect(drawn >= 1 and tags == drawn and own, "tide", "a price tag over each of Cy's own drifts it draws, none over the neighbours'", string.format("%d tags, %d drawn, %d followed, %d drifts", tags, drawn, n, #sc.tide.list))
+	H.expect(own and names <= tags, "tide", "names only over its uncommon ones and better", string.format("%d names", names))
 end
 -- nothing on an island is fixed now (the Tree of Life is gone): every piece clears away (a Hatchery with an egg in it
 -- apart: sim_clock), and there's no tree to buy
@@ -771,6 +891,7 @@ H.expect(H.req(c, "plot.place", { id = "tree", x = 0, z = 0, rot = 0 }).err == "
 E.run(0.4)
 H.expect(#decorOf(cPlot):GetChildren() == 0, "fixed", "and their models gone", tostring(#decorOf(cPlot):GetChildren()))
 H.checkProfile(c, "tide")
+settled(c)
 H.checkMirror(c, "tide")
 
 report(E, H)

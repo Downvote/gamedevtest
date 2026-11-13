@@ -254,7 +254,8 @@ local function syncPlot(i: number, near: boolean, now: number)
 	end
 	for key, d in drifts do
 		if d.plot == i and not want[key] and d.hop == nil and not d.done then
-			if not near then
+			if not near or raw == nil then
+				-- (out of the view's reach, or the island is gone: its player left)
 				drop(d)
 			elseif (d.plot == myPlot and taken[d.id]) or along(d, now) < 1 - 2 * ENDS then
 				-- (gone before the end of the way: taken in by its island's player)

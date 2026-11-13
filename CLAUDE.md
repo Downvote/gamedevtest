@@ -12,7 +12,7 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 895, `sim_save.luau` about 342, `sim_clock.luau` 990, `sim_world.luau` 349, `sim_tide.luau` about 903).
+`sim.luau` about 960, `sim_save.luau` about 376, `sim_clock.luau` 1050, `sim_world.luau` 372, `sim_tide.luau` about 1391).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tide day dusk night dawn sea visit build expand zoo paths water work late loading`
 or `panel=<pals|tide|hatch|index|looks>`. The loading card's art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place

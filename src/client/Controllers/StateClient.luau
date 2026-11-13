@@ -85,6 +85,10 @@ function StateClient.init()
 						if d and not have[d.id] and not gone[d.id] then
 							table.insert(list, d)
 							have[d.id] = true
+							-- (seen on the tide: in the Index, as the server marks it; no whole view comes for it)
+							if type(cur.seen) == "table" then
+								cur.seen[d.sp] = math.max(cur.seen[d.sp] or 0, 1)
+							end
 						end
 					end
 				end

@@ -476,11 +476,32 @@ function H.checkMirror(p, label)
 	H.expect(#v.pieces == #prof.plot.placed, "mirror", label .. ": pieces differ", string.format("%d vs %d", #v.pieces, #prof.plot.placed))
 	local s = H.session(p)
 	if s and s.tide then
-		local same = #v.tide == #s.tide.list
-		for i, d in s.tide.list do
-			same = same and v.tide[i] ~= nil and v.tide[i].id == d.id and v.tide[i].sp == d.sp
+		-- (the same ones, the same kinds and times; a tide message still on its way, the last moment's, is let be: one
+		-- that just came and isn't on the client yet, one just gone past that the client still has)
+		local IN_FLIGHT = 0.35
+		local now = s.tide.clock
+		local mine = {}
+		for _, d in v.tide do
+			mine[d.id] = d
 		end
-		H.expect(same, "mirror", label .. ": the tide differs", string.format("%d vs %d", #v.tide, #s.tide.list))
+		local bad = {}
+		for _, d in s.tide.list do
+			local c = mine[d.id]
+			if c == nil then
+				if now - d.at > IN_FLIGHT then
+					table.insert(bad, "missing " .. d.id)
+				end
+			elseif c.sp ~= d.sp or math.abs((c.at or 0) - d.at) > 1e-6 or math.abs((c.life or 0) - d.life) > 1e-6 then
+				table.insert(bad, "differs " .. d.id)
+			end
+			mine[d.id] = nil
+		end
+		for id, c in mine do
+			if now - ((c.at or 0) + (c.life or 0)) > IN_FLIGHT then
+				table.insert(bad, "stale " .. id)
+			end
+		end
+		H.expect(#bad == 0, "mirror", label .. ": the tide differs", string.format("%d vs %d: %s", #v.tide, #s.tide.list, table.concat(bad, ", ")))
 	end
 	local homes = {}
 	for _, x in prof.pals do
