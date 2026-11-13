@@ -37,7 +37,7 @@ local list: { Quest } = {
 	{
 		id = "take3",
 		title = "Hatch three eggs",
-		text = "The Tree of Life lays eggs round its roots. Tap one to hatch it.",
+		text = "The Tree of Life lays eggs round its roots. Tap the tree to pick one to hatch.",
 		goal = { kind = "taken", n = 3 },
 		reward = { shells = 60, wood = 40 },
 		go = "tree",

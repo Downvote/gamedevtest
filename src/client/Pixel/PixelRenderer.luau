@@ -25,9 +25,11 @@
 -- their shadow cover (in global art px, so a pan does not move them), at most Tuning.PixelInvalidateRaysFrame rays a
 -- frame; a change over a third of the layer re-bakes it whole behind the old picture. Players' characters are never
 -- in the bake (AvatarView draws the founders). Nothing here moves or parents a part of the world.
--- A stage (CameraController.setStage; nothing opens one now) is a view of its own, baked with a bigger budget a frame while the
--- play overlay's curtain covers the screen; the street's finished picture is kept aside meanwhile and comes back at
--- once when the stage closes (baked again only if a part under Workspace.Plots came or went in between). A dynamic
+-- A stage (CameraController.setStage: the hatch scene's, UI/HatchScene) is a view of its own, baked with a bigger
+-- budget a frame while the scene's curtain covers the screen; the street's finished picture is kept aside meanwhile
+-- and comes back at once when the stage closes (baked again only if a part under Workspace.Plots came or went in
+-- between). A stage with a see-through sky (Stage.clear) leaves the pixels its rays miss empty (alpha 0, never graded
+-- or dimmed), so a picture behind the layer (the hatch scene's painted backdrop) shows round what stands there. A dynamic
 -- model with a "PixelShadow" attribute (a radius in studs) casts a blob shadow on the static picture under it (on
 -- the ground at its "PixelGroundY", default 0): the pixels there are shaded as in the sun's shadow, so it lands on the
 -- palette's own shadow tones, smaller the higher the model is (none when it is hidden or below its ground).
@@ -325,7 +327,8 @@ end
 local function shadeAt(s: Surf, idx: number, x: number, y: number): number
 	local gx, gy = x + s.cam.gx, y + s.cam.gy
 	if buffer.readu16(s.sId, idx * 2) == 0 then
-		return Shading.sky(gx, gy - s.skyRef, s.H)
+		-- (a stage with a see-through sky: nothing there, the picture behind the layer shows)
+		return if s.view.clear then 0 else Shading.sky(gx, gy - s.skyRef, s.H)
 	end
 	local a = buffer.readu32(s.sAlbedo, idx * 4)
 	if a >= EMISSIVE then
@@ -701,7 +704,7 @@ local function gradeSpan(s: Surf, i0: number, n: number, out: buffer, o0: number
 		local c = buffer.readu32(src, i * 4)
 		local id = buffer.readu16(fid, i * 2)
 		local o = c
-		if not isGlow(id) then
+		if c ~= 0 and not isGlow(id) then
 			if g then
 				local lvl = if lm then buffer.readu8(lm, i) else 0
 				local key = c + lvl * 4294967296

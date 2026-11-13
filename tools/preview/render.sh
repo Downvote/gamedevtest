@@ -29,7 +29,8 @@ jobs=${PREVIEW_JOBS:-4}
 case $scen in
 	all) scens="island village island3 sea build day" ;;
 	themes) scens="theme=beach theme=garden theme=frost theme=zen theme=volcano theme=fairy" ;;
-	island|village|island2|island3|city|gallery|catalog=*|theme=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*) scens=$scen ;;
+	hatches) scens="hatch=11 hatch=23 hatch=33 hatch=45 hatch=55" ;;
+	island|village|island2|island3|city|gallery|catalog=*|theme=*|hatch=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

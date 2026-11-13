@@ -29,7 +29,8 @@ export type Room = { x0: number, x1: number, z0: number, z1: number, y1: number 
 -- A microgame's stage: its origin on the ground (the ray plane's anchor), the points its picture must show (x, y, z
 -- triples), the overlay's strips (art px) and a name for the view's key.
 -- (`tight`: a smaller frame for a short screen, a phone held sideways: the band the action is in, drawn bigger)
-export type Stage = { name: string, origin: Vector3, pts: { number }, tight: { number }?, top: number, bottom: number }
+-- (`clear`: the sky left see-through, so a picture behind the pixel layer shows round the stage: the hatch scene's)
+export type Stage = { name: string, origin: Vector3, pts: { number }, tight: { number }?, top: number, bottom: number, clear: boolean? }
 export type View = {
 	rot12: { number },
 	center: Vector3, -- the home view's centre on the ground
@@ -45,6 +46,7 @@ export type View = {
 	room: Room, -- an inside lit as indoors (none any more: kept for the renderer)
 	box: Raster.Rect, -- the framing box on screen at the home pan (full-screen px)
 	stage: boolean, -- a microgame's stage (setStage), not the street
+	clear: boolean, -- the stage's sky see-through (Stage.clear)
 }
 
 local CameraController = {}
@@ -165,6 +167,7 @@ local function build(): View
 		room = room,
 		box = { x0 = (bx0 - g.px) * K, y0 = (by0 - g.py) * K, x1 = (bx1 - g.px) * K, y1 = (by1 - g.py) * K },
 		stage = st ~= nil,
+		clear = st ~= nil and st.clear == true,
 	}
 end
 

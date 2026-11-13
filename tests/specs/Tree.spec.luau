@@ -129,10 +129,54 @@ return function()
 			local e = egg(p, 1)
 			local ok, data = Tree.hatch(p, e.id, 0, Util.newRng(k))
 			T.truthy(ok, tostring(data))
+			T.eq(data.hr, 1, "the tips' first two never turn rarer")
 			table.insert(knacks, Creatures.byId[data.sp].knack)
 		end
 		T.eq(knacks[1], "wood")
 		T.eq(knacks[2], "farm")
+	end)
+
+	-- (the request of 2026-11-13: "eggs having a chance to skip to the next rarity during the cutscene")
+	T.it("an egg may turn rarer as it hatches: EggUp a step, on while the rolls hold, never past the open kinds", function()
+		local p = fresh()
+		local always = { next = function(): number return 0 end, int = function(_, a: number): number return a end } :: any
+		local never = { next = function(): number return 0.999 end, int = function(_, a: number): number return a end } :: any
+		-- (a new island has no legendary kind open: a sure climb stops at epic)
+		T.eq(Tree.rise(p, always, 1), 4)
+		T.eq(Tree.rise(p, never, 2), 2)
+		p.tier = 10
+		T.eq(Tree.rise(p, always, 3), 5)
+		T.eq(Tree.rise(p, always, 5), 5)
+		local rng = Util.newRng(21)
+		local up, n = 0, 4000
+		for _ = 1, n do
+			if Tree.rise(p, rng, 1) > 1 then
+				up += 1
+			end
+		end
+		T.truthy(math.abs(up / n - Tuning.EggUp[1]) < 0.02, "about EggUp[1] of commons turn rarer: " .. up / n)
+		-- the hatch says what it was laid as and what it hatched as; what hatched is of that rarity
+		build(p, "lumber")
+		build(p, "patch")
+		for _ = 1, 4 do
+			build(p, "nest")
+		end
+		p.stats.taken = 5
+		local rose = 0
+		for k = 1, 60 do
+			local e = egg(p, 2)
+			local ok, data = Tree.hatch(p, e.id, 0, Util.newRng(100 + k))
+			if not ok then
+				break
+			end
+			T.eq(data.r, 2)
+			T.truthy(data.hr >= 2 and data.hr <= 5)
+			T.eq(Creatures.byId[data.sp].rarity, data.hr, "it hatches the rarity it rose to")
+			if data.hr > 2 then
+				rose += 1
+			end
+		end
+		T.truthy(rose < 20, "most stay as laid: " .. rose)
 	end)
 
 	T.it("what hatches: the kinds open at the island's tier of the egg's rarity; rarer eggs less often", function()
@@ -216,7 +260,8 @@ return function()
 		T.eq(#p.clutch.list, 0, "the egg is gone")
 		local x = p.pals[#p.pals]
 		T.eq(x.sp, data.sp)
-		T.eq(Creatures.byId[x.sp].rarity, 1, "a common out of a common egg")
+		T.eq(data.r, 1, "laid a common")
+		T.eq(Creatures.byId[x.sp].rarity, data.hr, "what hatched has the rarity the egg hatched as (Tree.rise)")
 		T.eq(x.home, nest)
 		T.truthy(x.work ~= 0, "at work")
 		T.eq(p.seen[x.sp], 2)

@@ -1,0 +1,543 @@
+--!strict
+--!native
+-- The hatch scene's painted backdrop (UI/HatchScene; GAME_DESIGN 6.2): the request of 2026-11-13, "the egg hatching
+-- scene isnt detailed enough. add much much more detail to it, especially the egg. you are allowed to use 2d elements
+-- as well for the background". A picture drawn pixel by pixel into one EditableImage at the world's art grid (each art
+-- pixel K x K screen px, like the pixel layer), shown on a ScreenGui just behind the pixel layer: the stage's sky is
+-- see-through (CameraController Stage.clear), so the floating islet with the nest stands in front of it.
+-- Each rarity has its own sky (a cozy sunset for a common egg, a golden afternoon, a blue twilight, a violet night, a
+-- deep gold night): the sky in bands with ordered dither between them (never a smear), the sun or the moon lit from the
+-- top left with anti-aliased edges, stars (single pixels and little crosses), soft clouds with a 1 px outline, aurora
+-- curtains on the two rarest nights, three ranges of hills going darker toward the front, the nearest with round and
+-- pointed trees in outline, two little islets floating far off, and a glow round the egg in dithered rings.
+--   HatchBackdrop.show(r, ex, ey)   paint rarity r's sky with the egg's glow at art pixel (ex, ey) and show it
+--   HatchBackdrop.hide()            take it away (and free its image)
+--   HatchBackdrop.paint(r, W, H, ex, ey) -> buffer   the picture itself (RGBA, W x H)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
+local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local ImageMemory = require(script.Parent.Parent.Pixel.ImageMemory)
+
+local HatchBackdrop = {}
+
+type Sky = {
+	stops: { number }, -- the sky's colours from the top down to the horizon
+	horizon: number, -- where the last stop is reached (share of the height)
+	body: string, -- "sun" | "crescent" | "moon" | "bigsun"
+	bodyC: { number }, -- its fill, its shade (the side away from the light), its spots
+	bodyR: number, -- its radius (share of the height)
+	stars: number,
+	clouds: { number }?, -- fill, shade, outline
+	aurora: { number }?,
+	hills: { { number } }, -- far to near: fill, rim
+	trees: { number }, -- fill, light, outline
+	glow: number,
+	glowK: number, -- how strong (0 .. 1)
+	glowR: number, -- its radius (share of the height)
+}
+
+local SKIES: { Sky } = {
+	-- a cozy sunset
+	{
+		stops = { 0x7D72BE, 0xA97DB8, 0xD88BA6, 0xF2A487, 0xF8C88A, 0xFBE3A6 },
+		horizon = 0.72,
+		body = "sun",
+		bodyC = { 0xFFEFB4, 0xFFCF7A, 0xFFB86A },
+		bodyR = 0.12,
+		stars = 0,
+		clouds = { 0xFFD9BC, 0xF2A9A2, 0xB4728E },
+		aurora = nil,
+		hills = { { 0xC995AC, 0xDDA9B9 }, { 0x9C7AA0, 0xB08DB2 }, { 0x6E5A86, 0x82709A } },
+		trees = { 0x584A74, 0x6D5D8A, 0x2F2846 },
+		glow = 0xFFF2CC,
+		glowK = 0.45,
+		glowR = 0.3,
+	},
+	-- a golden afternoon
+	{
+		stops = { 0x6CBFD6, 0x8ED2D2, 0xB1DEC5, 0xD5EAB7, 0xF2EDBA, 0xFAF2CF },
+		horizon = 0.72,
+		body = "sun",
+		bodyC = { 0xFFFBE0, 0xFFE9A6, 0xFFE09A },
+		bodyR = 0.08,
+		stars = 0,
+		clouds = { 0xFFFFFF, 0xD9EEEA, 0x86B6C2 },
+		aurora = nil,
+		hills = { { 0xA9D2A4, 0xC1E0B2 }, { 0x82B87F, 0x9ACB8E }, { 0x5C9763, 0x70AA72 } },
+		trees = { 0x4A8256, 0x5E9A62, 0x2C4F3A },
+		glow = 0xE4FFC2,
+		glowK = 0.5,
+		glowR = 0.34,
+	},
+	-- a blue twilight
+	{
+		stops = { 0x1B2A55, 0x26396E, 0x34508C, 0x4D6DAD, 0x7491C8, 0xA8BEE0 },
+		horizon = 0.74,
+		body = "crescent",
+		bodyC = { 0xF7F3DC, 0xDCD6B8, 0xD0C8A6 },
+		bodyR = 0.085,
+		stars = 70,
+		clouds = { 0x6A80BA, 0x52669C, 0x26356A },
+		aurora = nil,
+		hills = { { 0x4E66A0, 0x6079B2 }, { 0x3A4E84, 0x4A5F96 }, { 0x283862, 0x344674 } },
+		trees = { 0x213052, 0x2C3D66, 0x111A32 },
+		glow = 0xC4E8FF,
+		glowK = 0.6,
+		glowR = 0.4,
+	},
+	-- a violet night
+	{
+		stops = { 0x140D2E, 0x22174A, 0x372564, 0x553482, 0x8551A0, 0xC27FB8 },
+		horizon = 0.76,
+		body = "moon",
+		bodyC = { 0xF8ECF4, 0xDCC6E0, 0xCDB2D4 },
+		bodyR = 0.1,
+		stars = 140,
+		clouds = nil,
+		aurora = { 0x86E6C8, 0xF2A2D6 },
+		hills = { { 0x5C3F84, 0x6C4F96 }, { 0x45306A, 0x553E7C }, { 0x2E2050, 0x3A2A60 } },
+		trees = { 0x251A42, 0x33245A, 0x120B24 },
+		glow = 0xF2C0FF,
+		glowK = 0.68,
+		glowR = 0.46,
+	},
+	-- a deep gold night
+	{
+		stops = { 0x170E2C, 0x30194A, 0x5A2652, 0x93404E, 0xD06A4A, 0xF5A653 },
+		horizon = 0.78,
+		body = "bigsun",
+		bodyC = { 0xFFEFA2, 0xFFCB5C, 0xFFB046 },
+		bodyR = 0.16,
+		stars = 110,
+		clouds = nil,
+		aurora = { 0xFFD878, 0xFF9C6A },
+		hills = { { 0x8C4C5C, 0xA05E68 }, { 0x62334F, 0x74405C }, { 0x3C1E3E, 0x4A284A } },
+		trees = { 0x2E1532, 0x3E2040, 0x16081A },
+		glow = 0xFFEAA6,
+		glowK = 0.8,
+		glowR = 0.55,
+	},
+}
+
+------------------------------------------------------------------ colours
+local BAYER: { number } = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 }
+local function bay(x: number, y: number): number
+	return (BAYER[(y % 4) * 4 + (x % 4) + 1] + 0.5) / 16
+end
+
+local function rgb(c: number): (number, number, number)
+	return bit32.rshift(c, 16) % 256, bit32.rshift(c, 8) % 256, c % 256
+end
+
+local function mix(a: number, b: number, k: number): number
+	local ar, ag, ab = rgb(a)
+	local br, bg, bb = rgb(b)
+	local r = math.floor(ar + (br - ar) * k + 0.5)
+	local g = math.floor(ag + (bg - ag) * k + 0.5)
+	local bl = math.floor(ab + (bb - ab) * k + 0.5)
+	return r * 65536 + g * 256 + bl
+end
+
+-- a 0xRRGGBB colour as the image's RGBA bytes (little-endian u32, opaque)
+local function packed(c: number): number
+	local r, g, b = rgb(c)
+	return r + g * 256 + b * 65536 + 255 * 16777216
+end
+
+local function hash(n: number): number
+	local x = math.floor(n) % 2147483647
+	x = (x * 1103515245 + 12345) % 2147483648
+	x = (x * 1103515245 + 12345) % 2147483648
+	return x / 2147483648
+end
+
+------------------------------------------------------------------ painting
+-- The picture as 0xRRGGBB per pixel in a plain array (painted layer over layer), packed into RGBA at the end.
+function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number): buffer
+	local sky = SKIES[math.clamp(r, 1, 5)]
+	local px: { number } = table.create(W * H, 0)
+	local function get(x: number, y: number): number
+		return px[y * W + x + 1]
+	end
+	local function set(x: number, y: number, c: number)
+		if x >= 0 and y >= 0 and x < W and y < H then
+			px[y * W + x + 1] = c
+		end
+	end
+	-- the sky: solid bands, each meeting the next in a short dithered seam
+	local stops = sky.stops
+	local hy = sky.horizon * H
+	for y = 0, H - 1 do
+		local t = math.clamp(y / hy, 0, 1) * (#stops - 1)
+		local i = math.min(#stops - 1, math.floor(t))
+		local f = t - i
+		local k = math.clamp((f - 0.3) / 0.4, 0, 1)
+		local a, b = stops[i + 1], stops[math.min(#stops, i + 2)]
+		local row = y * W
+		for x = 0, W - 1 do
+			px[row + x + 1] = if k > bay(x, y) then b else a
+		end
+	end
+	-- aurora curtains (the rarest nights): wavy ribbons hanging in streaks, fading at their edges in dither
+	local au = sky.aurora
+	if au then
+		for band = 1, 2 do
+			local col = au[band]
+			local base = H * (0.12 + 0.1 * band)
+			for x = 0, W - 1 do
+				local cy = base + math.sin(x * 0.021 + band * 1.7) * H * 0.06 + math.sin(x * 0.007 + band) * H * 0.04
+				local streak = 0.55 + 0.45 * math.sin(x * 0.31 + band * 2.1) * math.sin(x * 0.077)
+				local th = H * 0.07 * (0.7 + 0.3 * streak)
+				for y = math.max(0, math.floor(cy - th * 1.6)), math.min(H - 1, math.floor(cy + th * 0.6)) do
+					local d = (y - cy) / th
+					local k = if d < 0 then 1 + d / 1.6 else 1 - d / 0.6
+					k = math.clamp(k * streak, 0, 1) * 0.7
+					local lvl = math.floor(k * 3 + bay(x, y))
+					if lvl > 0 then
+						set(x, y, mix(get(x, y), col, lvl / 4))
+					end
+				end
+			end
+		end
+	end
+	-- stars: single pixels in two brightnesses, now and then a little cross with a bright middle
+	for i = 1, sky.stars do
+		local x = math.floor(hash(i * 7 + r) * W)
+		local y = math.floor(hash(i * 13 + 5) * hy * 0.8)
+		local bright = hash(i * 3 + 11)
+		local base = get(x, y)
+		if bright > 0.88 then
+			set(x, y, 0xFFFFFF)
+			for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+				set(x + d[1], y + d[2], mix(get(math.clamp(x + d[1], 0, W - 1), math.clamp(y + d[2], 0, H - 1)), 0xFFFFFF, 0.5))
+			end
+		else
+			set(x, y, mix(base, 0xFFFFFF, if bright > 0.5 then 0.85 else 0.45))
+		end
+	end
+	-- the sun or the moon, up and to the left: lit from the top left, a darker side away from it, anti-aliased edges
+	local bc = sky.bodyC
+	local bx, by, br = W * 0.2, H * 0.24, H * sky.bodyR
+	if sky.body == "bigsun" then
+		bx, by = W * 0.5, hy - H * 0.06
+	elseif sky.body == "sun" and r == 1 then
+		bx, by = W * 0.24, hy - H * 0.14
+	end
+	-- (a soft halo round it first: two dithered rings)
+	for y = math.max(0, math.floor(by - br * 2.2)), math.min(H - 1, math.ceil(by + br * 2.2)) do
+		for x = math.max(0, math.floor(bx - br * 2.2)), math.min(W - 1, math.ceil(bx + br * 2.2)) do
+			local d = math.sqrt((x + 0.5 - bx) ^ 2 + (y + 0.5 - by) ^ 2) / br
+			if d > 1 and d < 2.2 then
+				local k = (2.2 - d) / 1.2
+				local lvl = math.floor(k * 2 + bay(x, y))
+				if lvl > 0 then
+					set(x, y, mix(get(x, y), bc[1], lvl * 0.18))
+				end
+			end
+		end
+	end
+	for y = math.max(0, math.floor(by - br - 1)), math.min(H - 1, math.ceil(by + br + 1)) do
+		for x = math.max(0, math.floor(bx - br - 1)), math.min(W - 1, math.ceil(bx + br + 1)) do
+			local dx, dy = x + 0.5 - bx, y + 0.5 - by
+			local d = math.sqrt(dx * dx + dy * dy)
+			local cover = math.clamp(br + 0.5 - d, 0, 1)
+			if sky.body == "crescent" then
+				-- (the dark of the moon: a second disc down and to the right takes a bite)
+				local d2 = math.sqrt((dx - br * 0.45) ^ 2 + (dy + br * 0.1) ^ 2)
+				cover = math.min(cover, math.clamp(d2 - br * 0.85 + 0.5, 0, 1))
+			end
+			if cover > 0 then
+				local shade = (dx + dy) / br > 0.55
+				local c = if shade then bc[2] else bc[1]
+				if sky.body == "moon" then
+					-- craters: three soft spots
+					for _, cr in { { -0.3, -0.2, 0.22 }, { 0.25, 0.3, 0.17 }, { 0.35, -0.35, 0.12 } } do
+						if (dx / br - cr[1]) ^ 2 + (dy / br - cr[2]) ^ 2 < cr[3] * cr[3] then
+							c = bc[3]
+						end
+					end
+				elseif sky.body == "sun" and r == 1 then
+					-- a sunset's bands across its lower half
+					local v = dy / br
+					if v > 0.15 and (math.floor((v - 0.15) * 9) % 2 == 1) then
+						c = bc[3]
+					end
+				elseif sky.body == "bigsun" then
+					local v = dy / br
+					if v > -0.05 and (math.floor((v + 0.05) * 7) % 2 == 1) then
+						c = bc[3]
+					end
+				end
+				set(x, y, if cover >= 0.75 then c elseif cover >= 0.25 then mix(get(x, y), c, 0.5) else get(x, y))
+			end
+		end
+	end
+	-- the gold night's sun: long beams fanning up out of it
+	if sky.body == "bigsun" then
+		for y = 0, math.floor(by) do
+			for x = 0, W - 1 do
+				local a = math.atan2(by - y, x + 0.5 - bx)
+				local d = math.sqrt((x + 0.5 - bx) ^ 2 + (by - y) ^ 2)
+				if d > br * 1.2 and math.sin(a * 14) > 0.55 then
+					local k = math.clamp(1 - d / (H * 0.9), 0, 1)
+					local lvl = math.floor(k * 2.4 + bay(x, y))
+					if lvl > 0 then
+						set(x, y, mix(get(x, y), bc[1], lvl * 0.14))
+					end
+				end
+			end
+		end
+	end
+	-- clouds: soft heaps of round puffs, a flat underside in shade, lit at the top left, a 1 px outline
+	local cl = sky.clouds
+	if cl then
+		for i = 1, 5 do
+			local cx = hash(i * 17 + r * 3) * W
+			local cy = H * (0.1 + hash(i * 29 + 7) * 0.35)
+			if math.abs(cx - bx) < br * 2.4 and math.abs(cy - by) < br * 2 then
+				continue
+			end
+			local w = H * (0.1 + hash(i * 31) * 0.1)
+			local puffs: { { number } } = {}
+			for k = 0, 4 do
+				local u = k / 4
+				table.insert(puffs, { cx - w + u * 2 * w, cy - math.sin(u * math.pi) * w * 0.35, w * (0.32 + math.sin(u * math.pi) * 0.22) })
+			end
+			local function inside(x: number, y: number): boolean
+				if y > cy + w * 0.12 then
+					return false
+				end
+				for _, pf in puffs do
+					if (x - pf[1]) ^ 2 + (y - pf[2]) ^ 2 <= pf[3] * pf[3] then
+						return true
+					end
+				end
+				return false
+			end
+			local x0, x1 = math.floor(cx - w * 1.6), math.ceil(cx + w * 1.6)
+			local y0, y1 = math.floor(cy - w * 1.2), math.ceil(cy + w * 0.3)
+			for y = y0, y1 do
+				for x = x0, x1 do
+					local here = inside(x + 0.5, y + 0.5)
+					if here then
+						local lit = not inside(x - 0.5, y - 0.5)
+						local low = y + 0.5 > cy - w * 0.08
+						set(x, y, if lit then mix(cl[1], 0xFFFFFF, 0.4) elseif low then cl[2] else cl[1])
+					elseif inside(x + 1.5, y + 0.5) or inside(x - 0.5, y + 0.5) or inside(x + 0.5, y + 1.5) or inside(x + 0.5, y - 0.5) then
+						set(x, y, cl[3])
+					end
+				end
+			end
+		end
+	end
+	-- the glow round the egg: rings of its light over the sky, dithered from one to the next
+	local gr = H * sky.glowR
+	for y = math.max(0, math.floor(ey - gr)), math.min(H - 1, math.ceil(ey + gr)) do
+		for x = math.max(0, math.floor(ex - gr)), math.min(W - 1, math.ceil(ex + gr)) do
+			local d = math.sqrt((x + 0.5 - ex) ^ 2 + (y + 0.5 - ey) ^ 2) / gr
+			if d < 1 then
+				local lvl = math.floor((1 - d) ^ 1.4 * 4 + bay(x, y))
+				if lvl > 0 then
+					set(x, y, mix(get(x, y), sky.glow, math.min(4, lvl) / 4 * sky.glowK))
+				end
+			end
+		end
+	end
+	-- two little islets floating far off, either side: a grassy top, a rocky cone under it, a tree, a 1 px outline
+	local far = sky.hills[1]
+	for i = 1, 2 do
+		local ix = if i == 1 then W * 0.12 else W * 0.86
+		local iy = H * (0.36 + 0.06 * i)
+		local iw = H * (0.07 - 0.012 * i)
+		local function isle(x: number, y: number): number
+			local dx = (x - ix) / iw
+			if math.abs(dx) > 1 then
+				return 0
+			end
+			local top = iy - (1 - dx * dx) * iw * 0.18
+			local bottom = iy + (1 - math.abs(dx)) * iw * 0.9
+			if y >= top and y < iy + 1 then
+				return 1
+			elseif y >= iy + 1 and y <= bottom then
+				return 2
+			end
+			return 0
+		end
+		for y = math.floor(iy - iw), math.ceil(iy + iw) do
+			for x = math.floor(ix - iw - 1), math.ceil(ix + iw + 1) do
+				local k = isle(x + 0.5, y + 0.5)
+				if k == 1 then
+					set(x, y, far[2])
+				elseif k == 2 then
+					set(x, y, if (x + 0.5 - ix) > 0 then mix(far[1], 0x000000, 0.15) else far[1])
+				elseif isle(x + 1.5, y + 0.5) ~= 0 or isle(x - 0.5, y + 0.5) ~= 0 or isle(x + 0.5, y + 1.5) ~= 0 or isle(x + 0.5, y - 0.5) ~= 0 then
+					set(x, y, mix(far[1], 0x000000, 0.35))
+				end
+			end
+		end
+		-- (a little round tree on it)
+		local tx, ty, tr = ix - iw * 0.2, iy - iw * 0.4, math.max(2, iw * 0.22)
+		for y = math.floor(ty - tr - 1), math.ceil(ty + iw * 0.3) do
+			for x = math.floor(tx - tr - 1), math.ceil(tx + tr + 1) do
+				local d = math.sqrt((x + 0.5 - tx) ^ 2 + (y + 0.5 - ty) ^ 2)
+				if d <= tr then
+					set(x, y, if (x + 0.5 - tx) + (y + 0.5 - ty) < -tr * 0.3 then far[2] else mix(far[1], 0x000000, 0.1))
+				elseif d <= tr + 1 then
+					set(x, y, mix(far[1], 0x000000, 0.35))
+				elseif math.abs(x + 0.5 - tx) < 1 and y > ty and y < iy then
+					set(x, y, mix(far[1], 0x000000, 0.35))
+				end
+			end
+		end
+	end
+	-- three ranges of hills, far to near, each a wavy ridge with a lit rim; trees along the nearest
+	for li, hl in sky.hills do
+		local base = hy - H * 0.13 + li * H * 0.075
+		local amp = H * (0.05 - li * 0.008)
+		local function ridge(x: number): number
+			return base - amp * (0.6 + 0.4 * math.sin(x * (0.011 + li * 0.004) + li * 2.3)) - amp * 0.5 * math.sin(x * (0.031 + li * 0.006) + li)
+		end
+		for x = 0, W - 1 do
+			local top = math.floor(ridge(x + 0.5))
+			for y = math.max(0, top), H - 1 do
+				px[y * W + x + 1] = if y == top then hl[2] else hl[1]
+			end
+		end
+		if li == #sky.hills then
+			local tc = sky.trees
+			local x = 4
+			while x < W do
+				local pointed = hash(x * 5 + r) < 0.35
+				local tr = 3 + math.floor(hash(x * 11) * 4)
+				local foot = ridge(x + 0.5)
+				local ty = foot - tr - 1
+				for y = math.floor(ty - tr * (if pointed then 1.6 else 1) - 1), math.ceil(foot) do
+					for xx = x - tr - 1, x + tr + 1 do
+						local inside = false
+						local lit = false
+						if pointed then
+							local h = tr * 2.6
+							local apex = ty - tr * 1.6
+							local v = (y + 0.5 - apex) / h
+							inside = v >= 0 and v <= 1 and math.abs(xx + 0.5 - x) <= v * tr
+							lit = inside and (xx + 0.5 - x) < -v * tr * 0.3
+						else
+							local d = math.sqrt((xx + 0.5 - x) ^ 2 + (y + 0.5 - ty) ^ 2)
+							inside = d <= tr
+							lit = inside and (xx + 0.5 - x) + (y + 0.5 - ty) < -tr * 0.4
+						end
+						if inside then
+							set(xx, y, if lit then tc[2] else tc[1])
+						end
+					end
+				end
+				-- (the outline: tree pixels next to anything else)
+				x += tr * 2 + 1 + math.floor(hash(x * 3) * 5)
+			end
+			-- an ink edge round the trees and the ridge (pixels of the tree colours next to the sky or the hills behind)
+			local nearTop: { number } = {}
+			for xx = 0, W - 1 do
+				nearTop[xx] = math.floor(ridge(xx + 0.5))
+			end
+			local outline: { number } = {}
+			for y = 1, H - 2 do
+				for xx = 1, W - 2 do
+					local c = px[y * W + xx + 1]
+					if c ~= tc[1] and c ~= tc[2] and y < nearTop[xx] then
+						for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+							local n = px[(y + d[2]) * W + xx + d[1] + 1]
+							if n == tc[1] or n == tc[2] then
+								table.insert(outline, y * W + xx + 1)
+								break
+							end
+						end
+					end
+				end
+			end
+			for _, i in outline do
+				px[i] = tc[3]
+			end
+		end
+	end
+	-- packed
+	local out = buffer.create(W * H * 4)
+	local cache: { [number]: number } = {}
+	for i = 1, W * H do
+		local c = px[i]
+		local p = cache[c]
+		if p == nil then
+			p = packed(c)
+			cache[c] = p
+		end
+		buffer.writeu32(out, (i - 1) * 4, p)
+	end
+	return out
+end
+
+------------------------------------------------------------------ on screen
+local gui: ScreenGui? = nil
+local label: ImageLabel? = nil
+local image: EditableImage? = nil
+
+function HatchBackdrop.show(r: number, ex: number, ey: number)
+	local K = math.max(1, math.floor(PixelRenderer.pixelScale()))
+	local cam = workspace.CurrentCamera
+	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	local W, H = math.ceil(vp.X / K), math.ceil(vp.Y / K)
+	local im = image
+	if im == nil or im.Size.X ~= W or im.Size.Y ~= H then
+		if im then
+			im:Destroy()
+		end
+		im = ImageMemory.create(W, H, "hatch")
+		image = im
+	end
+	if im == nil then
+		return
+	end
+	local buf = HatchBackdrop.paint(r, W, H, ex, ey)
+	pcall(function()
+		(im :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(W, H), buf)
+	end)
+	local g = gui
+	if g == nil then
+		local ng = Instance.new("ScreenGui")
+		ng.Name = "HatchBackdrop"
+		ng.IgnoreGuiInset = true
+		ng.ScreenInsets = Enum.ScreenInsets.None
+		ng.DisplayOrder = Tuning.PixelDisplayOrder - 1
+		ng.ResetOnSpawn = false
+		local l = Instance.new("ImageLabel")
+		l.Name = "Image"
+		l.BackgroundTransparency = 1
+		l.BorderSizePixel = 0
+		l.ResampleMode = Enum.ResamplerMode.Pixelated
+		l.Parent = ng
+		ng.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+		gui, label = ng, l
+		g = ng
+	end
+	local l = label :: ImageLabel
+	l.ImageContent = Content.fromObject(im)
+	l.Size = UDim2.fromOffset(W * K, H * K)
+	l.Position = UDim2.fromOffset(0, 0)
+	if g then
+		g.Enabled = true
+	end
+end
+
+function HatchBackdrop.hide()
+	local g = gui
+	if g then
+		g:Destroy()
+	end
+	local im = image
+	if im then
+		im:Destroy()
+	end
+	gui, label, image = nil, nil, nil
+end
+
+return HatchBackdrop

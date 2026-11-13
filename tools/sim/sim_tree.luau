@@ -5,15 +5,17 @@
 -- through the real server and client: a new island's tree (one piece, never bought, cleared away or replaced, moved
 -- like any other, outside the piece limit) and its first lot laid at once (Tree.count eggs, two cheap commons first),
 -- the profile's clutch, the plot's Eggs attribute, the view, the client drawing them on the arc round the tree's front
--- (EggView), the HUD's Tree card (the time to the next lot, the best three) and the price tags over the own eggs
--- (never over a neighbour's, never on top of each other, a rarer egg's first); refusals (no hut, gone, malformed, a
--- shell short, every hut full); hatching from the card, a world tag, the tree panel and by tapping the egg itself, each
--- paid for, into a hut and off to work, the egg cracking where it lay (the first two good with wood, then at a farm);
+-- (EggView), the HUD's Tree card (the time to the next lot, the best three with their prices) and no price tags over
+-- the eggs at all (the request of 2026-11-13: "remove these, the eggs should be buyable only after the player clicks on
+-- the tree or enters the tree menu": the card, an egg or the tree tapped opens the tree's panel, which alone buys);
+-- refusals (no hut, gone, malformed, a shell short, every hut full); hatching from the panel opened by the card, its
+-- Open, a tapped egg and the tree, each paid for (the hatch scene ends at once here: HatchScene.setQuick; sim.luau plays
+-- it), into a hut and off to work, the egg cracking where it lay (the first two good with wood, then at a farm);
 -- the swap picker; the lot replaced on the tree's clock (every old egg gone, new ids, Fx eggs), a hatched-down lot too,
 -- and the swap picker going back to the list when its egg goes; the eggs and their clock kept over a leave and a
 -- rejoin; the huts' tree, luck and cost shares; expanding (the extra eggs at once, dearer, better odds, the ring
 -- spaced out again); the own tree tapped opens its panel, a neighbour's says whose it is; a neighbour's eggs drawn by
--- both clients, with price tags only on each player's own.
+-- both clients, with no price tags on either.
 local E = require("./loader")
 local H = require("./harness")
 local I = require("./inst")
@@ -52,6 +54,8 @@ local s = H.session(p)
 local prof = H.profile(p)
 
 local function clientOf(pl)
+	-- (the hatch scene ends at once: these hatches test the rules, the panels and the island)
+	H.inClient(pl, H.cmod(pl, "UI.HatchScene").setQuick, true)
 	return {
 		EV = H.cmod(pl, "Controllers.EggView"),
 		WV = H.cmod(pl, "Controllers.WorldView"),
@@ -60,6 +64,7 @@ local function clientOf(pl)
 		UIKit = H.cmod(pl, "UI.UIKit"),
 		BuildUI = H.cmod(pl, "UI.BuildUI"),
 		Words = H.cmod(pl, "UI.Words"),
+		HS = H.cmod(pl, "UI.HatchScene"),
 	}
 end
 local C = clientOf(p)
@@ -418,90 +423,24 @@ local function drawnCheck(pl, sess, label)
 	end
 end
 
--- the price tags over the own island's eggs (World canvas, EggHatch_<id>): one for each egg, with its price, none for
--- anything else (a neighbour's eggs); a shown one sits over its egg; shown ones never on top of each other; a hidden one
--- (on screen, risen) is covered by the tag of a rarer egg (or as rare and older), and the rarest egg's tag always shows
+-- no price tags over any egg (the World canvas has no EggHatch_<id>): the eggs are bought in the tree's panel
 local function tagCheck(pl, label, sharedCam)
 	local c = clientOf(pl)
-	local sess = H.session(pl)
-	local pr = sess.profile
-	local plot = sess.plot
 	local canvas = H.inClient(pl, c.UIKit.canvas, "World")
-	local tags, ntags = {}, 0
-	for _, g in canvas:GetChildren() do
-		local id = tonumber(string.match(g.Name, "^EggHatch_(%d+)$"))
-		if id then
-			tags[id] = g
+	local ntags = 0
+	for _, g in canvas:GetDescendants() do
+		if string.match(g.Name, "^EggHatch_(%d+)$") then
 			ntags += 1
 		end
 	end
-	local order = table.clone(pr.clutch.list)
-	table.sort(order, function(a, b)
-		if a.r ~= b.r then
-			return a.r > b.r
-		end
-		return a.id < b.id
-	end)
-	local shown = {}
-	local badTag, badPlace, badHidden, firstOn = nil, nil, nil, nil
-	for _, e in order do
-		local tag = tags[e.id]
-		local ve = viewEgg(pl, e.id)
-		local foot = H.inClient(pl, function()
-			local w = c.EV.where(plot, e.id)
-			if w == nil then
-				return nil
-			end
-			local px, py, on = c.PR.projectPixel(w)
-			return { px = px, py = py, on = on }
-		end)
-		if tag == nil or ve == nil or string.find(buttonText(tag), Numbers.coins(ve.cost), 1, true) == nil then
-			badTag = badTag or string.format("%d: %s", e.id, buttonText(tag))
-			continue
-		end
-		local tw, th = tag.Size.X.Offset, tag.Size.Y.Offset
-		local r = { tag.Position.X.Offset, tag.Position.Y.Offset, tag.Position.X.Offset + tw, tag.Position.Y.Offset + th }
-		if foot and foot.on and firstOn == nil then
-			firstOn = { id = e.id, vis = tag.Visible }
-		end
-		if tag.Visible then
-			if foot == nil or math.abs(r[1] + math.floor(tw / 2) - foot.px) > 1 or r[4] >= foot.py or r[4] < foot.py - 40 then
-				badPlace = badPlace or string.format("%d: tag at %d..%d,%d over %s", e.id, r[1], r[3], r[4], foot and string.format("%d,%d", foot.px, foot.py) or "nothing")
-			end
-			table.insert(shown, { id = e.id, r = r })
-		elseif foot and foot.on then
-			local covered = false
-			for _, o in shown do
-				if r[1] < o.r[3] + 2 and o.r[1] < r[3] + 2 and r[2] < o.r[4] + 1 and o.r[2] < r[4] + 1 then
-					covered = true
-				end
-			end
-			if not covered then
-				badHidden = badHidden or tostring(e.id)
-			end
-		end
-	end
-	local overlap = nil
-	for i, a in shown do
-		for j = i + 1, #shown do
-			local b = shown[j]
-			if a.r[1] < b.r[3] and b.r[1] < a.r[3] and a.r[2] < b.r[4] and b.r[2] < a.r[4] then
-				overlap = overlap or string.format("%d and %d", a.id, b.id)
-			end
-		end
-	end
-	H.expect(badTag == nil, "tags", label .. ": a price tag for each egg, with its price", tostring(badTag))
-	H.expect(ntags == #order, "tags", label .. ": no other price tags (none over a neighbour's eggs)", string.format("%d tags, %d eggs", ntags, #order))
-	H.expect(badPlace == nil, "tags", label .. ": each shown tag over its egg", tostring(badPlace))
-	H.expect(overlap == nil, "tags", label .. ": no two tags on top of each other", tostring(overlap))
-	H.expect(badHidden == nil, "tags", label .. ": a hidden tag is only one a rarer egg's covers", tostring(badHidden))
-	-- (with two clients the fake engine's one camera may be on the other island: the own eggs off screen)
-	H.expect(if firstOn then firstOn.vis else (#order == 0 or sharedCam == true), "tags", label .. ": the rarest egg on screen has its tag shown", firstOn and tostring(firstOn.id) or "none on screen")
-	return #shown
+	H.expect(ntags == 0, "tags", label .. ": no price tags over the eggs", tostring(ntags))
+	local _ = sharedCam
+	return ntags
 end
 
 -- the HUD's card: Open, the time to the next lot (the server's clock, a tick behind at most) with its bar, and a row
--- for each of the best three (EggView.best): the egg, its rarity's name, its price on a button
+-- for each of the best three (EggView.best): the egg, its rarity's name, its price (no buy button: a tap anywhere on the
+-- card opens the tree's panel)
 local function cardCheck(label)
 	local v = H.view(p)
 	local want = bestOf(v, 3)
@@ -513,15 +452,16 @@ local function cardCheck(label)
 	H.expect(idsOf(want) == idsOf(H.inClient(p, C.EV.best, v, 3)), "card", label .. ": EggView.best: the rarest first, the oldest among them, one the shells cover last", idsOf(want))
 	local badRow = nil
 	for _, e in want do
-		local b = card:FindFirstChild("CardHatch_" .. e.id, true)
+		local b = card:FindFirstChild("CardPrice_" .. e.id, true)
 		local nm = card:FindFirstChild("EggName_" .. e.id, true)
 		local icon = card:FindFirstChild("EggIcon_" .. e.id, true)
-		if not (b and string.find(buttonText(b), Numbers.coins(e.cost), 1, true) and nm and nm.Text == Traits.RARITY[e.r].name and icon) then
-			badRow = badRow or string.format("%d: %s / %s", e.id, buttonText(b), nm and nm.Text or "no name")
+		if not (b and b:IsA("TextLabel") and b.Text == Numbers.coins(e.cost) and nm and nm.Text == Traits.RARITY[e.r].name and icon) then
+			badRow = badRow or string.format("%d: %s / %s", e.id, b and b:IsA("TextLabel") and b.Text or "no price", nm and nm.Text or "no name")
 		end
 	end
 	H.expect(badRow == nil, "card", label .. ": each row's egg, rarity and price", tostring(badRow))
-	H.expect(#named(p, "CardHatch_", false, card) == #want and #named(p, "EggName_", false, card) == #want, "card", label .. ": no other rows", string.format("%d rows, %d wanted", #named(p, "CardHatch_", false, card), #want))
+	H.expect(#named(p, "CardPrice_", false, card) == #want and #named(p, "EggName_", false, card) == #want, "card", label .. ": no other rows", string.format("%d rows, %d wanted", #named(p, "CardPrice_", false, card), #want))
+	H.expect(#named(p, "CardHatch_", false, card) == 0 and card:FindFirstChild("TreeCardTap", true) ~= nil, "card", label .. ": no buy buttons; the card opens the tree's panel")
 	if #want == 0 then
 		H.expect(says(p, "No eggs right now"), "card", label .. ": no eggs: it says so")
 	end
@@ -622,7 +562,9 @@ local function hatched(label, e, b, opts)
 		return nil
 	end
 	local d = Creatures.byId[x.sp]
-	H.expect(d ~= nil and d.rarity == hatchRarity(prof.tier, e.r), "hatch", label .. ": one of the egg's rarity", string.format("%s (%s) from a rarity %d egg", x.sp, d and tostring(d.rarity) or "?", e.r))
+	local hf0 = fxSince(W, b.fx, "hatched")
+	local hr = hf0[1] and type(hf0[1].msg.data) == "table" and hf0[1].msg.data.hr or 0
+	H.expect(d ~= nil and hr >= e.r and d.rarity == hatchRarity(prof.tier, hr), "hatch", label .. ": one of the rarity the egg hatched as (its own, or rarer: Tree.rise)", string.format("%s (%s) from a rarity %d egg hatched as %d", x.sp, d and tostring(d.rarity) or "?", e.r, hr))
 	H.expect(x.home ~= 0 and (opts.home == nil or x.home == opts.home), "hatch", label .. ": into a hut" .. (if opts.home then " (the one expected)" else ""), string.format("home %d, want %s", x.home, tostring(opts.home)))
 	H.expect(workingOrNoPlace(x), "hatch", label .. ": at work (or no free place anywhere)", string.format("%s work %d", x.sp, x.work))
 	H.expect(prof.seen[x.sp] == 2, "hatch", label .. ": in the Index", tostring(prof.seen[x.sp]))
@@ -634,7 +576,7 @@ local function hatched(label, e, b, opts)
 	H.expect(H.inClient(p, C.EV.count, s.plot) == b.drawn - 1, "hatch", label .. ": one egg fewer drawn", string.format("%d, was %d", H.inClient(p, C.EV.count, s.plot), b.drawn))
 	local hx, hz = H.inClient(p, C.EV.hatchPoint, s.plot)
 	H.expect(b.spot ~= nil and math.abs(hx - b.spot.X) < 1e-3 and math.abs(hz - b.spot.Z) < 1e-3, "hatch", label .. ": what hatched steps out where the egg lay (EggView.hatchPoint)", b.spot and string.format("%.2f,%.2f vs %.2f,%.2f", hx, hz, b.spot.X, b.spot.Z) or "not drawn")
-	H.expect(gui(p, "EggHatch_" .. e.id) == nil and gui(p, "CardHatch_" .. e.id) == nil, "hatch", label .. ": its price tag and card row gone")
+	H.expect(gui(p, "CardPrice_" .. e.id) == nil, "hatch", label .. ": its card row gone")
 	E.run(1)
 	H.expect(H.inClient(p, C.EV.where, s.plot, e.id) == nil, "hatch", label .. ": it cracked open and is gone")
 	H.expect(H.inClient(p, C.WV.ownCount) == housed(), "hatch", label .. ": walking the island from its hut", string.format("%d walking, %d in huts", H.inClient(p, C.WV.ownCount), housed()))
@@ -746,8 +688,7 @@ H.expect(attrOk and parsed == #c0.list, "eggs", "the plot's Eggs attribute reads
 H.expect(m1:GetAttribute("Tide") == nil, "eggs", "no Tide attribute any more")
 eggMirror(p, "join")
 drawnCheck(p, s, "join")
-local shown0 = tagCheck(p, "join")
-H.expect(shown0 >= 3, "tags", "join: the tags over most of the eggs shown", tostring(shown0))
+tagCheck(p, "join")
 cardCheck("join")
 local n1s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 E.run(3)
@@ -928,28 +869,30 @@ end
 H.expect(pick ~= nil, "hatch", "the card offers an egg the shells cover")
 pick = pick or prof.clutch.list[1]
 local b = before(pick)
-H.expect(H.clickNamed(p, "CardHatch_" .. pick.id, { wait = 0.6 }), "hatch", "the card's price button")
+H.expect(H.clickNamed(p, "TreeCardTap", { wait = 0.4 }) and H.currentPanel(p) == "tree" and prof.stats.taken == b.taken, "hatch", "a tap on the card opens the tree's panel, nothing bought", tostring(H.currentPanel(p)))
+H.expect(H.clickNamed(p, "PanelHatch_" .. pick.id, { wait = 0.6 }), "hatch", "Hatch on the egg the card showed")
 local x1 = hatched("card", pick, b, { home = hutUid })
 H.expect(x1 ~= nil and Creatures.byId[x1.sp].knack == "wood" and x1.work == lumberUid, "hatch", "a new island's first hatchling: good with wood, at the lumber camp", x1 and string.format("%s at %d", x1.sp, x1.work))
 H.expect(prof.tut == 5, "hatch", "the tips on to the shop", tostring(prof.tut))
-H.expect(says(p, "It hatched"), "hatch", "the HUD says what hatched")
+H.expect(says(p, "It hatched") and H.currentPanel(p) == "tree", "hatch", "the panel there again after the hatch scene, saying what hatched")
+H.closePanel(p)
 tagCheck(p, "card")
 cardCheck("card")
--- (from its price tag over the lawn: a shown one the shells cover)
-local canvas = H.inClient(p, C.UIKit.canvas, "World")
+-- (from the card's Open: the cheapest the shells cover)
 local tagPick = nil
 for _, e in prof.clutch.list do
-	local tag = canvas:FindFirstChild("EggHatch_" .. e.id)
-	if tag and tag.Visible and Tree.cost(prof, e.r) <= prof.shells and (tagPick == nil or e.r < tagPick.r) then
+	if Tree.cost(prof, e.r) <= prof.shells and (tagPick == nil or e.r < tagPick.r) then
 		tagPick = e
 	end
 end
-H.expect(tagPick ~= nil, "hatch", "a price tag shown over an egg the shells cover")
+H.expect(tagPick ~= nil, "hatch", "an egg the shells cover")
 tagPick = tagPick or prof.clutch.list[1]
 b = before(tagPick)
-local found, vis = tap(p, "EggHatch_" .. tagPick.id)
-H.expect(found and vis, "hatch", "the world tag is there, on screen")
-local x2 = hatched("world tag", tagPick, b, { home = hutUid })
+local found, vis = tap(p, "TreeOpen")
+H.expect(found and vis and H.currentPanel(p) == "tree", "hatch", "the card's Open opens the tree's panel")
+H.expect(H.clickNamed(p, "PanelHatch_" .. tagPick.id, { wait = 0.6 }), "hatch", "Hatch on it")
+local x2 = hatched("the card's Open", tagPick, b, { home = hutUid })
+H.closePanel(p)
 H.expect(x2 ~= nil and Creatures.byId[x2.sp].knack == "farm" and x2.work == patchUid, "hatch", "the second: at a farm, at the veggie patch", x2 and string.format("%s at %d", x2.sp, x2.work))
 H.expect(Tree.room(prof) == 0, "hatch", "the hut full", tostring(Tree.room(prof)))
 -- (a second hut; a tap on the lawn hatches nothing, a tap on an egg hatches it)
@@ -987,7 +930,10 @@ tapPick = tapPick or prof.clutch.list[1]
 b = before(tapPick)
 H.expect(tapEgg(p, s.plot, tapPick.id), "hatch", "a tap on the egg itself")
 E.run(0.6)
+H.expect(H.currentPanel(p) == "tree" and prof.stats.taken == b.taken and eggOf(prof, tapPick.id) ~= nil, "hatch", "a tap on the egg opens the tree's panel and buys nothing", tostring(H.currentPanel(p)))
+H.expect(H.clickNamed(p, "PanelHatch_" .. tapPick.id, { wait = 0.6 }), "hatch", "Hatch on the egg tapped")
 hatched("tapping the egg", tapPick, b, { home = hut2 })
+H.closePanel(p)
 -- (from the tree panel: Open on the card)
 H.expect(H.clickNamed(p, "TreeOpen", { wait = 0.4 }), "hatch", "the card's Open")
 panelCheck("open")
@@ -1019,7 +965,7 @@ H.expect(rawErr(p, "egg.hatch", { id = last.id, swap = hutUid }) == "bad_payload
 H.expect(rawErr(p, "egg.hatch", { id = 99999, swap = prof.pals[1].id }) == "not_found", "full", "a swap for an egg never laid: not_found")
 H.expect(#prof.pals == 4 and eggOf(prof, last.id) ~= nil and prof.stats.sold == 0, "full", "nothing changed")
 local n0 = #prof.pals
-H.expect(H.clickNamed(p, "CardHatch_" .. last.id, { wait = 0.6 }), "full", "the card's price button")
+H.expect(H.clickNamed(p, "TreeCardTap", { wait = 0.4 }) and H.clickNamed(p, "PanelHatch_" .. last.id, { wait = 0.6 }), "full", "Hatch in the panel the card opens")
 H.expect(#prof.pals == n0 and eggOf(prof, last.id) ~= nil, "full", "refused (full): nothing hatched")
 H.expect(H.currentPanel(p) == "tree" and #named(p, "SwapOut_", true) == housed(), "full", "the tree panel opens on the swap picker: a row for each in a hut", string.format("%s, %d rows", tostring(H.currentPanel(p)), #named(p, "SwapOut_", true)))
 local hutPals = {}

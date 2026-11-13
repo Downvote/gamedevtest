@@ -342,6 +342,17 @@ function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?): (strin
 	return sp, Traits.roll(rng, mutR)
 end
 
+-- The rarity an egg of rarity `r` hatches as: one up with Tuning.EggUp[r], and on while the rolls hold, never past a
+-- rarity the island's tree has no driftlings of (the hatch scene shows each step).
+function Tree.rise(p: Profile, rng: Rng, r: number): number
+	local pool = Tree.pool(p.tier)
+	local out = math.clamp(r, 1, 5)
+	while out < 5 and #pool[out + 1] > 0 and rng:next() < (Tuning.EggUp[out] or 0) do
+		out += 1
+	end
+	return out
+end
+
 -- An egg's rarity by the odds now.
 local function rarityRoll(p: Profile, rng: Rng): number
 	local odds = Tree.odds(p)
@@ -411,8 +422,9 @@ function Tree.view(p: Profile): { Laid }
 end
 
 ------------------------------------------------------------------ the player's actions
--- Hatch egg `id` for its cost: what hatches moves into the comfiest hut with room, or, every hut full, into the place
--- of `swap` (one of the player's in a hut: sold for its price). not_found (no such egg: a new lot came), no_hut (no
+-- Hatch egg `id` for its cost: it may turn rarer first (Tree.rise; `hr` in the result), then what hatches moves into
+-- the comfiest hut with room, or, every hut full, into the place of `swap` (one of the player's in a hut: sold for its
+-- price). not_found (no such egg: a new lot came), no_hut (no
 -- hut built), money, full (every hut full and no swap named), bad_payload (a swap that isn't in a hut).
 local FIRST_KNACKS = { "wood", "farm" }
 function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, any)
@@ -460,7 +472,9 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	table.remove(p.clutch.list, at)
 	-- (a new island's first two: good with wood, then at a farm, the tips' first buildings)
 	local knack = if p.stats.taken < #FIRST_KNACKS and #p.pals < #FIRST_KNACKS then FIRST_KNACKS[p.stats.taken + 1] else nil
-	local sp, muts = Tree.roll(p, rng, egg.r, knack)
+	-- (it may turn rarer as it hatches; never the tips' first two)
+	local hr = if knack then egg.r else Tree.rise(p, rng, egg.r)
+	local sp, muts = Tree.roll(p, rng, hr, knack)
 	local x: Pal = { id = p.nextId, sp = sp, home = home, work = 0, muts = Traits.clean(muts) }
 	p.nextId += 1
 	table.insert(p.pals, x)
@@ -471,7 +485,7 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	if def then
 		p.stats.best = math.max(p.stats.best, def.rarity)
 	end
-	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, cost = cost, sold = sold, swapped = if out then swap else 0 }
+	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = cost, sold = sold, swapped = if out then swap else 0 }
 end
 
 -- A driftling sold (from a hut or with none): its price in shells; a hut's room goes to one waiting with no hut.

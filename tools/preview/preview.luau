@@ -579,19 +579,26 @@ function SCEN.tree()
 	capture(p, "tree_lay")
 	E.run(2)
 	settle(p, 10, 0.5)
-	-- one hatched by its tag: it cracks and its driftling steps out
+	-- one hatched from the tree's panel (the hatch scene ends at once here: the hatch=<r><hr> scenario shows it): it
+	-- cracks and its driftling steps out
 	local v = H.inClient(p, function()
 		return modOr(p, "Controllers.StateClient").view()
 	end)
+	local HS = modOr(p, "UI.HatchScene")
+	if HS then
+		H.inClient(p, HS.setQuick, true)
+	end
 	local pick = nil
 	for _, e in (v and v.clutch or {}) do
-		local tag = H.buttonNamed(p, "EggHatch_" .. e.id)
-		if tag and prof.shells >= (e.cost or 0) and (pick == nil or (e.cost or 0) > (pick.cost or 0)) then
+		if prof.shells >= (e.cost or 0) and (pick == nil or (e.cost or 0) > (pick.cost or 0)) then
 			pick = e
 		end
 	end
 	if pick then
-		H.clickNamed(p, "EggHatch_" .. pick.id, { wait = 0.45 })
+		H.openPanel(p, "tree")
+		H.clickNamed(p, "PanelHatch_" .. pick.id, { wait = 0.1 })
+		H.closePanel(p)
+		E.run(0.3)
 	end
 	capture(p, "tree_hatch")
 	-- at night: the rare eggs' spots glow
@@ -1467,6 +1474,93 @@ local function themeScenario(name: string)
 	return p
 end
 
+-- "hatch=<r><hr>": the hatch scene (UI/HatchScene; GAME_DESIGN 6.2: "make a cutscene for eggs hatching and shows the
+-- creature hatched, listing the mutations it has as it hatches, with eggs having a chance to skip to the next rarity
+-- during the cutscene. the cutscenes become more glorious as the rarity of egg increases") for an egg laid as rarity r
+-- that hatches as hr (hr > r: it turns rarer on the way): the egg in its nest (hatch_egg), each step up just after its
+-- flash (hatch_rise<k>), the build-up (hatch_build), the crack (hatch_crack), what hatched with its mutations listed
+-- (hatch_reveal) and the island after (hatch_back).
+local function hatchScenario(code)
+	local r = tonumber(string.sub(code, 1, 1)) or 1
+	local hr = tonumber(string.sub(code, 2, 2)) or r
+	seedProfile(61, 10, { pieces = VILLAGE, pals = { "mossbun" }, shells = 9e6 })
+	local p = join(61, "Hatcher")
+	settle(p)
+	local HS = modOr(p, "UI.HatchScene")
+	if HS == nil then
+		log("no HatchScene")
+		return p
+	end
+	local Creatures = H.sharedServer("Data.Creatures")
+	local sp = nil
+	for _, d in Creatures.list do
+		if d.rarity == hr and sp == nil then
+			sp = d.id
+		end
+	end
+	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "swift2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" } }
+	local muts = MUTS[hr] or {}
+	H.inClient(p, function()
+		HS.setWait(120)
+		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr }, nil)
+	end)
+	local function state()
+		return H.inClient(p, HS.debugState)
+	end
+	local function runUntil(cond, max)
+		local t = 0
+		while t < (max or 20) do
+			local st = state()
+			if cond(st) then
+				return st
+			end
+			E.step(E.dt)
+			t += E.dt
+		end
+		log("hatch: timed out in phase %s", tostring(state().phase))
+		return state()
+	end
+	local st = runUntil(function(x)
+		return x.phase == "egg" and x.clock > 0.5
+	end, 120)
+	capture(p, "hatch_egg")
+	do
+		local CC = modOr(p, "Controllers.CameraController")
+		local PR = modOr(p, "Pixel.PixelRenderer")
+		local v = CC and H.inClient(p, CC.view)
+		local dst = PR and H.inClient(p, PR.debugStatic)
+		log("hatch: view stage %s key %s a %s; layer baking %s shown %s bakes %s", tostring(v and v.stage), tostring(v and v.key), tostring(v and v.grid.a), tostring(dst and dst.baking), tostring(dst and dst.shown), tostring(dst and dst.bakes))
+	end
+	log("hatch %s: laid %d, hatches %d as %s, crack at %.2f, end at %.2f", code, r, hr, tostring(sp), st.crackAt, st.endAt)
+	for k = 1, hr - r do
+		runUntil(function(x)
+			return x.r >= r + k and x.phase == "rise"
+		end)
+		E.run(0.12)
+		capture(p, "hatch_rise" .. k)
+	end
+	runUntil(function(x)
+		return x.phase == "build" and x.clock > x.crackAt - 0.3
+	end)
+	capture(p, "hatch_build")
+	runUntil(function(x)
+		return x.clock > x.crackAt + 0.2
+	end)
+	capture(p, "hatch_crack")
+	st = runUntil(function(x)
+		return x.phase == "done" and x.clock > x.endAt + 0.3
+	end)
+	capture(p, "hatch_reveal")
+	log("hatch %s: shown %d mutations of %d, %s, title %q, name %q", code, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name)
+	H.inClient(p, HS.skip)
+	runUntil(function(x)
+		return not x.open
+	end, 10)
+	settle(p, 10, 0.5)
+	capture(p, "hatch_back")
+	return p
+end
+
 ------------------------------------------------------------------ run
 local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do
@@ -1487,6 +1581,12 @@ for _, name in list do
 	if group then
 		fn = function()
 			return catalogScenario(group)
+		end
+	end
+	local hatch = string.match(name, "^hatch=(%d%d)$")
+	if hatch then
+		fn = function()
+			return hatchScenario(hatch)
 		end
 	end
 	local thumbs = string.match(name, "^pthumbs=([%w_,]+)$")

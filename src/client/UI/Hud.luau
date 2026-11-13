@@ -327,8 +327,9 @@ end
 -- Under the island card (GAME_DESIGN 6): the Tree of Life's name and Open (its panel), how long till it lays its next
 -- eggs (a bar running down: Heartbeat runs it on from StateClient.clutchLeft), then its best few eggs (EggView.best:
 -- the rarest, and one the shells cover if none of those is): each one's egg, its rarity's name in its colour and its
--- price on a button that hatches it (EggView.hatch; green when the shells are there). On a phone only the best (the
--- card sits over the quest's, which must clear the menu bar).
+-- price (green when the shells are there). The eggs are bought in the tree's panel only, so a tap anywhere on the card
+-- opens it (the request of 2026-11-13: "the eggs should be buyable only after the player clicks on the tree or enters
+-- the tree menu"). On a phone only the best (the card sits over the quest's, which must clear the menu bar).
 local TREE_ROW = 15
 local treeBar: Frame? = nil
 local treeTime: TextLabel? = nil
@@ -380,18 +381,23 @@ local function updateTree(v: Types.ClientView)
 		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, 5), UDim2.fromOffset(3, y), 4).Name = "EggIcon_" .. e.id
 		UIKit.text(f, rar.name, UDim2.fromOffset(w - bw - 22, 10), UDim2.fromOffset(17, y + 2), { color = UIKit.color(rar.color), z = 4, name = "EggName_" .. e.id })
 		local can = v.shells >= cost
-		local id = e.id
-		local b = UIKit.button(f, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw - 4, y + 1), function()
-			EggView.hatch(id)
-		end, { name = "CardHatch_" .. e.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
-		b.ZIndex = 5
-		local words = b:FindFirstChild("Words")
-		if words and words:IsA("GuiObject") then
-			words.Position = UDim2.fromOffset(2, 0)
-			words.Size = UDim2.new(1, -16, 1, 0)
-		end
-		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
+		local price = UIKit.text(f, text, UDim2.fromOffset(bw - 14, 10), UDim2.fromOffset(w - bw - 4, y + 2), { x = "right", color = if can then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "CardPrice_" .. e.id })
+		PixelSprites.image(price, "mini_shell", UDim2.new(1, 2, 0, 0), 5).Name = "PriceIcon"
 	end
+	-- (the whole card under the title opens the panel: the eggs are bought there)
+	local tap = Instance.new("TextButton")
+	tap.Name = "TreeCardTap"
+	tap.Text = ""
+	tap.AutoButtonColor = false
+	tap.BackgroundTransparency = 1
+	tap.Size = UDim2.new(1, 0, 1, -12)
+	tap.Position = UDim2.fromOffset(0, 12)
+	tap.ZIndex = 6
+	tap.Parent = f
+	tap.Activated:Connect(function()
+		Audio.play("click")
+		UIKit.openPanel("tree")
+	end)
 	f:SetAttribute("Key", key)
 	treeCard = f
 end
@@ -538,7 +544,7 @@ local TIPS: { [number]: string } = {
 	[1] = "Wood pays for everything you build. Tap Build and place a Lumber Camp.",
 	[2] = "Shells hatch eggs. Place a Veggie Patch. It sells what it grows.",
 	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
-	[4] = "The Tree of Life laid eggs round its roots. Tap one to hatch it.",
+	[4] = "The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch.",
 	[5] = "Visitors buy snacks too. Place a Snack Stall for more shells.",
 	[6] = "The tree lays new eggs every few minutes. When the huts are full, swap a weak one for a better one.",
 }

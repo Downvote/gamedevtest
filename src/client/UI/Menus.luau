@@ -530,7 +530,7 @@ local function buildPals(body: Frame, arg: any?)
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then hatch an egg under the Tree of Life." else "No driftlings yet. Tap an egg under the Tree of Life to hatch it.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then hatch an egg under the Tree of Life." else "No driftlings yet. Tap the Tree of Life to pick an egg to hatch.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local order: { Types.Pal } = table.clone(v.pals)
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean

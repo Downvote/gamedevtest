@@ -10,10 +10,12 @@
 -- band of light, a beam of light standing up out of it, a gold glow on the lawn and gold sparks rising), lying on the
 -- tree's lawn on a ring round its stones
 -- (Models/DecorModels.EGG_RING), spaced evenly along the side the view looks at. A new lot rises out of the lawn one
--- egg after another; the old ones left sink back into it. Now and then an egg rocks a little. Over each of the own
--- island's floats its price on a button (its spots show its rarity; where they crowd, the rarer one's tag shows): tapping it, or the egg itself, hatches it (EggView.hatch: egg.hatch; every hut full, the tree
--- panel's swap picker opens). A hatched egg shakes, cracks, its top flies off and what hatched stands there a moment
--- before its walker takes over (Controllers/WorldView: it walks off to work from the egg's place).
+-- egg after another; the old ones left sink back into it. Now and then an egg rocks a little. The eggs carry no price
+-- tags and a tap on one opens the tree's panel, where they are bought (the request of 2026-11-13: "remove these, the
+-- eggs should be buyable only after the player clicks on the tree or enters the tree menu"). Hatch there runs
+-- EggView.hatch (egg.hatch; every hut full, the panel's swap picker) and then the hatch scene (UI/HatchScene: the
+-- egg up close, perhaps turning rarer, cracking, what hatched and its mutations). Back on the island the egg is gone
+-- and what hatched walks off to work from its place (Controllers/WorldView).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GuiService = game:GetService("GuiService")
 
@@ -26,12 +28,14 @@ local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
+local EggModels = require(ReplicatedStorage.Shared.Models.EggModels)
 local StateClient = require(script.Parent.StateClient)
 local Audio = require(script.Parent.Audio)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 local PixelSprites = require(script.Parent.Parent.UI.PixelSprites)
 local Words = require(script.Parent.Parent.UI.Words)
+local HatchScene = require(script.Parent.Parent.UI.HatchScene)
 
 local EggView = {}
 
@@ -52,8 +56,6 @@ type Egg = {
 	born: number, -- when it rose out of the lawn
 	sink: number?, -- when it started sinking back (a new lot replaced it)
 	crack: number?, -- when it started hatching
-	tag: GuiObject?,
-	name: TextLabel?,
 }
 
 local eggs: { [string]: Egg } = {}
@@ -66,19 +68,8 @@ local STAGGER = 0.12
 local SINK = 0.5 -- seconds an old one takes to sink back
 local CRACK = 0.9 -- seconds a hatching one takes: a shake, the top off, the bottom gone
 local DEEP = 1.4 -- studs under the lawn an egg starts (and ends) at
-local SIZE: { [number]: number } = { 1.25, 1.3, 1.38, 1.48, 1.62 } -- rarer eggs are a little bigger
--- Each rarity's shell (its colour and its marks) and glow (Traits.RARITY's colours: grey, green, blue, purple, gold):
--- body, marks ("spots" freckles or stars, "band" a zigzag band round its middle), whether the marks glow, the glow on
--- the lawn under it.
-type Look = { body: string, mark: string, marks: string, glow: boolean, lawn: string? }
-local LOOK: { [number]: Look } = {
-	{ body = "cream", mark = "sand_dark", marks = "spots", glow = false },
-	{ body = "green", mark = "white", marks = "band", glow = false },
-	{ body = "blue", mark = "white", marks = "spots", glow = true },
-	{ body = "purple", mark = "pink", marks = "spots", glow = true, lawn = "purple" },
-	{ body = "gold", mark = "yellow", marks = "band", glow = true, lawn = "yellow" },
-}
-EggView.LOOK = LOOK
+local SIZE = EggModels.SIZE -- rarer eggs are a little bigger
+EggView.LOOK = EggModels.LOOK
 
 local function dyn(): Folder
 	local found = workspace:FindFirstChild("PixelDynamic")
@@ -134,86 +125,11 @@ local function spotOf(i: number, k: number, n: number): Vector3?
 	return c + Vector3.new(math.sin(a) * DecorModels.EGG_RING, 0, math.cos(a) * DecorModels.EGG_RING)
 end
 
--- An egg of rarity r (LOOK): a round shell on a bed of straw, its marks on it (freckles, stars or a zigzag band; glowing
--- from rare up), and from epic up its lights: a glow on the lawn under it, two motes circling it (epic) or a beam of
--- light standing up out of its top (legendary). Its parts' offsets from its foot; the top half (it flies off when it
--- hatches); the lights (moved every frame: stepEgg).
-local function eggOf(r: number): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
-	local m = Blocks.model(nil, "TreeEgg")
-	local parts: { { p: BasePart, off: CFrame } } = {}
-	local top: { BasePart } = {}
-	local fx: { { p: BasePart, kind: string, k: number } } = {}
-	local s = SIZE[r] or 1
-	local look = LOOK[r] or LOOK[1]
-	local function add(size: Vector3, off: CFrame, color: string, neon: boolean?, upper: boolean?, shape: string?)
-		local p = Blocks.part(m, { size = size, cf = off, color = color, collide = false, query = false, neon = neon, shape = shape :: any, name = if upper then "Top" else "Shell" })
-		table.insert(parts, { p = p, off = off })
-		if upper then
-			table.insert(top, p)
-		end
-		return p
-	end
-	-- the glow on the lawn (epic and legendary): a thin disc of light just over the grass, round the straw
-	if look.lawn then
-		add(Vector3.new(0.25, 1.5 * s, 1.5 * s), CFrame.new(0, -0.11, 0) * CFrame.Angles(0, 0, math.pi / 2), look.lawn, true, nil, "Cylinder")
-	end
-	-- the bed of straw
-	add(Vector3.new(1.1 * s, 0.08, 0.55 * s), CFrame.new(0, 0.04, -0.25 * s), "sand")
-	add(Vector3.new(0.55 * s, 0.08, 1.1 * s), CFrame.new(0.25 * s, 0.05, 0), "sand_dark")
-	add(Vector3.new(1.0 * s, 0.06, 0.5 * s), CFrame.new(-0.05 * s, 0.06, 0.3 * s), "sand")
-	-- the shell: a broad round bottom and a smaller round top, overlapping (an egg's curve); the top the half that flies
-	-- off when it hatches
-	local y0 = 0.06
-	local function ball(dia: number, off: CFrame, color: string, neon: boolean?, upper: boolean?)
-		add(Vector3.new(dia, dia, dia), off, color, neon, upper, "Ball")
-	end
-	ball(0.86 * s, CFrame.new(0, y0 + 0.4 * s, 0), look.body)
-	ball(0.66 * s, CFrame.new(0, y0 + 0.7 * s, 0), look.body, nil, true)
-	if look.marks == "spots" then
-		-- freckles or stars on the side facing the view, little round dabs set into the shell
-		local sp = { { 0.3, 0.3, 0.22 }, { 0.48, 0.05, 0.4 }, { 0.56, 0.38, -0.02 }, { 0.36, -0.2, 0.33 }, { 0.82, 0.18, 0.2 }, { 0.62, -0.12, 0.3 } }
-		for k, d in sp do
-			ball(0.17 * s, CFrame.new(d[2] * s, y0 + d[1] * s, d[3] * s), look.mark, look.glow, k == 5)
-		end
-	else
-		-- a zigzag band round its middle: dabs a little up and down in turn, all the way round
-		for k = 0, 11 do
-			local a = k * math.pi / 6
-			local up = if k % 2 == 0 then 0.07 else -0.07
-			ball(0.16 * s, CFrame.new(math.cos(a) * 0.4 * s, y0 + (0.46 + up) * s, math.sin(a) * 0.4 * s), look.mark, look.glow)
-		end
-	end
-	if r >= 5 then
-		-- a legendary egg: a band of light round its middle, and a beam standing up out of its top
-		add(Vector3.new(0.62 * s, 0.06, 0.62 * s), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
-		add(Vector3.new(0.06, 0.06, 0.9 * s), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
-		add(Vector3.new(0.9 * s, 0.06, 0.06), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
-		local beam = Blocks.part(m, { size = Vector3.new(0.25, 2, 0.25), cf = CFrame.new(0, y0 + 2 * s, 0), color = "yellow", collide = false, query = false, neon = true, name = "Beam" })
-		table.insert(fx, { p = beam, kind = "beam", k = 0 })
-	elseif r == 4 then
-		-- an epic egg: two motes of light circling it, a pink one and a white one
-		for k, c in { "pink", "white" } do
-			local mote = Blocks.part(m, { size = Vector3.new(0.25, 0.25, 0.25), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
-			table.insert(fx, { p = mote, kind = "mote", k = k })
-		end
-	end
-	return m, parts, top, fx
-end
-
-local function untag(e: Egg)
-	for _, g in { e.tag, e.name } :: { GuiObject? } do
-		if g then
-			g:Destroy()
-		end
-	end
-	e.tag, e.name = nil, nil
-end
-
 local function dress(e: Egg)
 	if e.model then
 		return
 	end
-	local m, parts, top, fx = eggOf(e.r)
+	local m, parts, top, fx = EggModels.build(e.r)
 	m.Parent = dyn()
 	PixelRenderer.registerDynamic(m)
 	e.model, e.parts, e.top, e.fx = m, parts, top, fx
@@ -225,17 +141,19 @@ local function drop(e: Egg)
 		PixelRenderer.unregisterDynamic(m)
 		m:Destroy()
 	end
-	untag(e)
 	eggs[e.key] = nil
 end
 
 ------------------------------------------------------------------ hatching
 -- Hatch the own tree's egg `id` (egg.hatch): into a hut, or every hut full, the tree panel's swap picker (swap 0);
--- with `swap`, in that one's place (it's sold).
+-- with `swap`, in that one's place (it's sold). Done, the hatch scene plays (UI/HatchScene: the egg up close, perhaps
+-- turning rarer, cracking, what hatched and its mutations); after it the tree's panel comes back if it was open (the
+-- next egg a tap away) and a notice says what hatched.
 function EggView.hatch(id: number, swap: number?)
 	-- (where it lies: its driftling steps out there)
 	local e = eggs[myPlot .. ":e" .. id]
 	local spot = if e then spotOf(myPlot, e.slot, e.n) else nil
+	local fromPanel = UIKit.currentPanel() == "tree"
 	local res = StateClient.request("egg.hatch", { id = id, swap = swap or 0 })
 	if res.ok then
 		hatching[id] = os.clock()
@@ -245,16 +163,27 @@ function EggView.hatch(id: number, swap: number?)
 		local data = if type(res.data) == "table" then res.data else {}
 		local def = if type(data.sp) == "string" then Creatures.byId[data.sp] else nil
 		local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
-		Audio.play(if def and def.rarity >= 3 then "rare" else "pop")
 		local name = if def then def.name else "a driftling"
 		local sold = tonumber(data.sold) or 0
 		local a = if def and (def.rarity == 4 or def.rarity == 2) then "an" else "a"
 		local what = if def then string.format("%s %s %s", a, string.lower(rar.name), name) else name
-		-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
-		if UIKit.currentPanel() == "tree" then
-			UIKit.openPanel("tree")
+		local muts: { string } = {}
+		if type(data.muts) == "table" then
+			for _, m in data.muts do
+				if type(m) == "string" then
+					table.insert(muts, m)
+				end
+			end
 		end
-		UIKit.notice(if sold > 0 then string.format("It hatched %s! The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s!", what), UIKit.color(rar.color), 4)
+		local r = math.clamp(tonumber(data.r) or 1, 1, 5)
+		UIKit.closePanel()
+		HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, 5) }, function()
+			-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
+			if fromPanel and StateClient.view() ~= nil then
+				UIKit.openPanel("tree")
+			end
+			UIKit.notice(if sold > 0 then string.format("It hatched %s. The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s.", what), UIKit.color(rar.color), 4)
+		end)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id })
 	else
@@ -567,114 +496,33 @@ local function stepSparks(t: number)
 	sparks = keep
 end
 
--- The own island's tags over the eggs near the view and above the lawn: the price on a button (green when the shells
--- are there). The rarest eggs' tags go first; one that would cover a rarer one's waits. The tips' step 4 bobs an arrow over the cheapest shown.
+-- The tips' step 4 (hatch an egg): an arrow bobbing over the own Tree of Life (a tap on it opens its panel, where the
+-- eggs are bought).
 local tutArrow: ImageLabel? = nil
-local function overlaps(a: { number }, list: { { number } }): boolean
-	for _, b in list do
-		if a[1] < b[3] + 2 and b[1] < a[3] + 2 and a[2] < b[4] + 1 and b[2] < a[4] + 1 then
-			return true
-		end
-	end
-	return false
-end
-
-local function updateTags(t: number)
+local function updateArrow(t: number)
 	local v = StateClient.view()
-	local costOf: { [number]: number } = {}
-	if v then
-		for _, x in v.clutch do
-			costOf[x.id] = x.cost or 0
+	local c = if v and v.tut == 4 and not HatchScene.isOpen() and UIKit.currentPanel() == nil then treeAt(myPlot) else nil
+	if c == nil then
+		if tutArrow then
+			tutArrow:Destroy()
+			tutArrow = nil
 		end
+		return
 	end
-	local mine: { Egg } = {}
-	for _, e in eggs do
-		if e.plot == myPlot and e.sink == nil and e.crack == nil and e.model ~= nil and costOf[e.id] ~= nil then
-			table.insert(mine, e)
-		else
-			untag(e)
-		end
+	local a = tutArrow
+	if a == nil then
+		a = PixelSprites.image(UIKit.canvas("World"), "arrow_down_t", UDim2.fromOffset(0, 0), 5) :: any
+		tutArrow = a
 	end
-	table.sort(mine, function(a: Egg, b: Egg): boolean
-		if a.r ~= b.r then
-			return a.r > b.r
-		end
-		return a.id < b.id
-	end)
-	local shown: { { number } } = {}
-	local cheapest: Egg? = nil
-	for _, e in mine do
-		local cost = costOf[e.id]
-		local can = v ~= nil and v.shells >= cost
-		local text = Numbers.coins(cost)
-		local tag = e.tag
-		if tag == nil or tag:GetAttribute("Cost") ~= cost or tag:GetAttribute("Can") ~= can then
-			if tag then
-				tag:Destroy()
-			end
-			local w = UIKit.textWidth(text) + 18
-			local id = e.id
-			local b = UIKit.button(UIKit.canvas("World"), text, UDim2.fromOffset(w, 12), UDim2.fromOffset(0, 0), function()
-				EggView.hatch(id)
-			end, { name = "EggHatch_" .. e.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
-			local words = b:FindFirstChild("Words")
-			if words and words:IsA("GuiObject") then
-				words.Position = UDim2.fromOffset(2, 0)
-				words.Size = UDim2.new(1, -16, 1, 0)
-			end
-			PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
-			b:SetAttribute("Cost", cost)
-			b:SetAttribute("Can", can)
-			e.tag = b
-			tag = b
-		end
-		local at, under = placeOf(e, t)
-		local foot = if at then (at :: CFrame).Position else Vector3.zero
-		local px, py, on = PixelRenderer.projectPixel(foot + Vector3.new(0, under + 1.25 * (SIZE[e.r] or 1) + 0.35, 0))
-		local tg = tag :: GuiObject
-		local tw = tg.Size.X.Offset
-		local rect = { px - math.floor(tw / 2), py - 12, px - math.floor(tw / 2) + tw, py }
-		local nm = e.name
-		if nm then
-			local nw = nm.Size.X.Offset
-			rect = { math.min(rect[1], px - math.floor(nw / 2)), py - 23, math.max(rect[3], px - math.floor(nw / 2) + nw), py }
-		end
-		on = on and at ~= nil and under < 0.3 and not overlaps(rect, shown)
-		if on then
-			table.insert(shown, rect)
-		end
-		tg.Visible = on
-		tg.Position = UDim2.fromOffset(px - math.floor(tw / 2), py - 12)
-		if nm then
-			nm.Visible = on
-			nm.Position = UDim2.fromOffset(px - math.floor(nm.Size.X.Offset / 2), py - 23)
-		end
-		if on and can and (cheapest == nil or cost < (costOf[(cheapest :: Egg).id] or math.huge)) then
-			cheapest = e
-		end
-	end
-	-- the tips: hatch an egg (step 4)
-	local c = cheapest
-	if v and v.tut == 4 and c and c.tag and c.tag.Visible then
-		local a = tutArrow
-		if a == nil then
-			a = PixelSprites.image(UIKit.canvas("World"), "arrow_down_t", UDim2.fromOffset(0, 0), 5) :: any
-			tutArrow = a
-		end
-		local bob = if math.floor(t * 3) % 2 == 0 then 0 else 2
-		local tg = c.tag :: GuiObject
-		local top = if c.name then 33 else 22
-		local arrow = a :: ImageLabel
-		arrow.Visible = true
-		arrow.Position = UDim2.fromOffset(tg.Position.X.Offset + math.floor(tg.Size.X.Offset / 2) - 3, tg.Position.Y.Offset - top + bob)
-	elseif tutArrow then
-		tutArrow:Destroy()
-		tutArrow = nil
-	end
+	local arrow = a :: ImageLabel
+	local px, py, on = PixelRenderer.projectPixel((c :: Vector3) + Vector3.new(0, 4.5, 0))
+	local bob = if math.floor(t * 3) % 2 == 0 then 0 else 2
+	arrow.Visible = on
+	arrow.Position = UDim2.fromOffset(px - 3, py - 9 + bob)
 end
 
--- A tap on the screen (`pos`: an InputObject's, below the top bar) on one of the own tree's eggs hatches it, tag or
--- not (WorldView's taps ask here first). True when it hit one.
+-- A tap on the screen (`pos`: an InputObject's, below the top bar) on one of the own tree's eggs opens the tree's
+-- panel, where the eggs are bought (WorldView's taps ask here first). True when it hit one.
 function EggView.tapAt(pos: Vector2): boolean
 	local inset = GuiService:GetGuiInset()
 	local sx, sy = pos.X + inset.X, pos.Y + inset.Y
@@ -701,7 +549,8 @@ function EggView.tapAt(pos: Vector2): boolean
 		end
 	end
 	if best then
-		task.spawn(EggView.hatch, best.id)
+		Audio.play("click")
+		UIKit.openPanel("tree")
 		return true
 	end
 	return false
@@ -710,7 +559,7 @@ end
 ------------------------------------------------------------------ lifecycle
 local syncAt = 0
 -- Every frame from WorldView's Heartbeat (`focusX`: the view's centre, world x): the islands near it synced twice a
--- second, every egg moved, the own island's tags kept over them.
+-- second, every egg moved, the tips' arrow kept over the tree.
 function EggView.step(t: number, focusX: number)
 	local v = StateClient.view()
 	if v then
@@ -731,7 +580,7 @@ function EggView.step(t: number, focusX: number)
 		stepEgg(e, t)
 	end
 	stepSparks(t)
-	updateTags(t)
+	updateArrow(t)
 end
 
 -- Sims and previews: the eggs drawn now (all islands', or one island's), not counting ones sinking or cracking.
