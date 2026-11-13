@@ -1214,7 +1214,8 @@ local function catalogScenario(group: string)
 	end
 	-- the layout: rows across the island's middle, each piece with room round it (exact places: d[6])
 	local pieces = {}
-	local x, z = -26, -100
+	-- (rows across the island's wide middle: its north tip is beach)
+	local x, z = -22, -84
 	local rowD = 0
 	local function put(id: string, px: number, pz: number, rot: number?)
 		table.insert(pieces, { id, px, pz, rot or 0, 1, true })
@@ -1223,8 +1224,8 @@ local function catalogScenario(group: string)
 		local d = Buildings.byId[id]
 		local w = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 6 elseif d.water ~= "" then math.max(d.w + 2, 6) else d.w
 		local dd = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 4 elseif d.water ~= "" then math.max(d.d + 2, 6) else d.d
-		if x + w > 26 then
-			x = -26
+		if x + w > 22 then
+			x = -22
 			z += rowD + 4
 			rowD = 0
 		end
@@ -1268,7 +1269,7 @@ local function catalogScenario(group: string)
 	local Street = H.sharedServer("Data.Street")
 	local ox = Street.origin(H.session(p).plot)
 	local k = 0
-	for sz = -96, z + rowD, 14 do
+	for sz = -80, z + rowD, 14 do
 		for _, sx in { -13, 13 } do
 			if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 				p.Character:PivotTo(E.cf.new(ox + sx, 3, sz + 4))
