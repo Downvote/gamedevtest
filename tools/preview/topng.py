@@ -7,7 +7,8 @@ Usage: topng.py <dump.txt> <outdir> [--ui] [--boxes] [--no-core] [--iso]
   GUI drawn from the dumped PlayerGui tree (layout per guilayout.py) in DisplayOrder / ZIndex order.
   --ui     also writes <label>_ui.png (the GUI alone on a transparent background)
   --boxes  also writes <label>_boxes.png (every visible GuiObject rect outlined, with names; layout debugging)
-  --no-core  skip the approximate Roblox core UI (top bar buttons, touch jump button).
+  --no-core  skip the approximate Roblox core UI (top bar buttons, touch jump button; the jump button hides while the
+             character can't jump, as Roblox's does).
   --iso    also writes <label>_iso.png: the world from the REWORK2 true-isometric orthographic camera (framing of 1.2,
            layer height of the tier, toon bands and ink outlines). An approximation drawn by this tool, not the
            game's renderer: it shows the floor plan and framing while the game's camera or renderer is not ready."""
@@ -605,7 +606,7 @@ class Renderer:
                 td.rounded_rectangle((0, 0, 43, 43), radius=22, fill=(18, 18, 21, 150))
                 td.rounded_rectangle((13, 13, 30, 30), radius=3, outline=(255, 255, 255, 230), width=3)
                 cv.paste(tile, x0, max(0, (inset - 44) // 2), None)
-        if meta.get("touch") and meta.get("touchControls", True):
+        if meta.get("touch") and meta.get("touchControls", True) and meta.get("jump", True):
             small = min(self.W, self.H) <= 500
             size = 70 if small else 120
             jx, jy = (self.W - 95, self.H - 90) if small else (self.W - 170, self.H - 210)

@@ -853,7 +853,8 @@ function SCEN.buildui()
 		-- a plank bridge across it: picked, tapped where it fits, put down (caught as it lands)
 		H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
 		local bx, bz = nil, nil
-		for x = rx + 2, rx + 8 do
+		-- (from the stream's east end: its west end runs in behind the Tree of Life in this view)
+		for x = rx + 8, rx + 2, -1 do
 			if bx == nil and Plot.fits(prof.tier, prof.plot.placed, "plankbridge", x, rz + 1, 0) then
 				bx, bz = x, rz + 1
 			end
@@ -866,7 +867,9 @@ function SCEN.buildui()
 				BuildUI.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
 				BuildUI.confirm()
 			end)
-			E.run(0.2)
+			-- (the bridge stays picked for another, its ghost over the new one: put it down to see the landing)
+			H.clickNamed(p, "Cancel", { optional = true, wait = 0 })
+			E.run(0.15)
 			capture(p, "buildui_drop")
 			E.run(1)
 			local found = false
@@ -1286,6 +1289,7 @@ local function catalogScenario(group: string)
 	local x, z = -22, -84
 	local rowD = 0
 	local dropped = 0
+	local firstZ: number? = nil
 	for _, id in ids do
 		local d = Buildings.byId[id]
 		local w = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 6 elseif d.water ~= "" then math.max(d.w + 2, 6) else d.w
@@ -1304,6 +1308,7 @@ local function catalogScenario(group: string)
 					table.insert(pieces, { q[1], q[2], q[3], q[4], 1, true })
 				end
 				done = true
+				firstZ = firstZ or z
 				x += w + 3
 				rowD = math.max(rowD, dd)
 			else
@@ -1321,7 +1326,9 @@ local function catalogScenario(group: string)
 	local Street = H.sharedServer("Data.Street")
 	local ox = Street.origin(H.session(p).plot)
 	local k = 0
-	for sz = -80, z + rowD, 14 do
+	-- (the frames on the founder's spots kept clear above, from the first row with a piece in it; at least one)
+	local sz0 = -80 + 14 * math.floor(((firstZ or -84) + 4 + 80) / 14)
+	for sz = sz0, math.max(sz0, z + rowD), 14 do
 		for _, sx in { -13, 13 } do
 			if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 				p.Character:PivotTo(E.cf.new(ox + sx, 3, sz + 4))

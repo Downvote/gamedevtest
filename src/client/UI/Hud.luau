@@ -551,7 +551,7 @@ local TIPS_BUILD: { [number]: string } = {
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
 local function tipsLift(): number
-	return if BuildUI.isOpen() then BuildUI.TRAY_H + 12 else BAR_H + 2 * DOCK + 8
+	return if BuildUI.isOpen() then BuildUI.trayHeight() + 12 else BAR_H + 2 * DOCK + 8
 end
 
 local function updateTips(v: Types.ClientView)

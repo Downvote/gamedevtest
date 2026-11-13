@@ -707,19 +707,23 @@ end
 -- The info plate under the action bars: the piece's picture, its name, what it is, its price (or the stroke's).
 local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, say: string, showPrice: boolean)
 	local def = Buildings.byId[p.id]
-	local info = UIKit.plate(f, UDim2.new(1, -8, 0, TRAY_H - 24), UDim2.fromOffset(4, 18), UIKit.color("plate_light"), 0, 2, { bevel = true })
-	info.Name = "Info"
-	picture(info, p.id, UDim2.fromOffset(4, 4), 4)
 	local w = f.Size.X.Offset - 8
-	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
 	local tw = w - 40 - (if showPrice then 96 else 0)
 	local nl = math.min(4, UIKit.lines(say, tw))
+	-- (as tall as its words: the tray shrinks to fit it while a piece is picked, so more of the island shows, the way
+	-- a placing bar sits low in Bloxburg)
+	local keyed = UserInputService.KeyboardEnabled
+	local h = math.max(PIC + 8, 14 + nl * 10 + (if keyed then 12 else 0) + 3)
+	local info = UIKit.plate(f, UDim2.new(1, -8, 0, h), UDim2.fromOffset(4, 18), UIKit.color("plate_light"), 0, 2, { bevel = true })
+	info.Name = "Info"
+	picture(info, p.id, UDim2.fromOffset(4, 4), 4)
+	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
 	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, 14), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
 	if def and showPrice then
 		price(info, math.max(4, w - 92), 3, def.shells, def.wood, v)
 	end
 	-- (with a keyboard: its keys, along the bottom)
-	if UserInputService.KeyboardEnabled then
+	if keyed then
 		local keys = if drawing() then "Esc stops drawing." elseif p.move then "R turns it. C copies it. X clears it away. Esc puts it back." else "R turns it. E puts it down. Esc stops."
 		UIKit.text(info, keys, UDim2.new(1, -40, 0, 10), UDim2.new(0, 32, 1, -12), { color = UIKit.color("text_dim"), z = 4, name = "Keys" })
 	end
@@ -1107,6 +1111,11 @@ rebuild = function()
 	local p = pick
 	if p then
 		actionBar(f, p, v)
+		-- (the tray as tall as the info plate under the action bar; Replace's cards keep the full height)
+		local info = f:FindFirstChild("Info")
+		if info and info:IsA("GuiObject") then
+			f.Size = UDim2.fromOffset(f.Size.X.Offset, math.min(TRAY_H, info.Position.Y.Offset + info.Size.Y.Offset + 6))
+		end
 	else
 		-- the tabs (their icons alone on a narrow screen), the count, Expand
 		local x = 4
@@ -1141,13 +1150,19 @@ rebuild = function()
 		UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
 		-- the tab's rows: chips (scrolling sideways when there are many)
 		local rows: { { string } }? = CHIPS[tab]
-		local sw = if s.X < 500 then 70 else 96
-		searchField(f, sw, UDim2.new(1, -106 - sw, 0, 17))
+		-- (the search box goes up on the tabs' plank when there's room there, so a long row of chips has the width;
+		-- on a narrow screen it sits at the end of the chips' row)
+		local trayW = s.X - 16
+		local free = trayW - 150 - (x + 2)
+		local up = free >= 72
+		local sw = if up then math.min(110, free) elseif s.X < 500 then 70 else 96
+		searchField(f, sw, if up then UDim2.fromOffset(x + 2, 3) else UDim2.new(1, -106 - sw, 0, 17))
+		local rowW = if up then -110 else -112 - sw
 		if query ~= "" then
 			rows = nil
 		end
 		if rows then
-			local cl = UIKit.scroll(f, UDim2.new(1, -112 - sw, 0, 13), UDim2.fromOffset(4, 17))
+			local cl = UIKit.scroll(f, UDim2.new(1, rowW, 0, 13), UDim2.fromOffset(4, 17))
 			cl.Name = "Chips"
 			cl.ScrollingDirection = Enum.ScrollingDirection.X
 			cl.AutomaticCanvasSize = Enum.AutomaticSize.X
@@ -1166,7 +1181,7 @@ rebuild = function()
 			end
 		else
 			local hint = if query ~= "" then string.format("Everything called \"%s\":", query) elseif tab == "path" then "Pick a path, then drag across the grass." elseif tab == "fence" then "Pick a fence, then drag along the grid lines." else "Pick a hut, then tap the grass."
-			UIKit.text(f, hint, UDim2.new(1, -112 - sw, 0, 12), UDim2.fromOffset(6, 17), { color = UIKit.color("text_dim"), name = "TabHint" })
+			UIKit.text(f, hint, UDim2.new(1, rowW, 0, 12), UDim2.fromOffset(6, 17), { color = UIKit.color("text_dim"), name = "TabHint" })
 		end
 	end
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
@@ -1316,6 +1331,12 @@ function BuildUI.confirm()
 			rebuild()
 		end)
 	end
+end
+
+-- How tall the tray stands now (shorter while a piece is picked): the tips' banner sits on it.
+function BuildUI.trayHeight(): number
+	local tray = UIKit.canvas("Hud"):FindFirstChild("BuildTray")
+	return if tray and tray:IsA("GuiObject") then tray.Size.Y.Offset else TRAY_H
 end
 
 function BuildUI.isOpen(): boolean

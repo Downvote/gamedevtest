@@ -518,8 +518,17 @@ function C.dump(player, label, extra)
 	local touch = getD(UIS).props.TouchEnabled == true
 	local gs = E.services.GuiService
 	local touchControls = not (gs and getD(gs).props.TouchControlsEnabled == false)
+	-- (Roblox hides the phone's jump button while the character can't jump: JumpHeight 0, as in Build mode)
+	local jump = true
+	pcall(function()
+		local char = player and player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum and hum.JumpHeight ~= nil and hum.JumpHeight <= 0 then
+			jump = false
+		end
+	end)
 	print("@@FRAME " .. label)
-	print(string.format('@@META {"w":%d,"h":%d,"inset":%d,"touch":%s,"touchControls":%s,"t":%s,"label":%s%s}', vp.X, vp.Y, E.inset, if touch then "true" else "false", if touchControls then "true" else "false", jnum(E.SIM.now - E.t0), jstr(label), extra or ""))
+	print(string.format('@@META {"w":%d,"h":%d,"inset":%d,"touch":%s,"touchControls":%s,"jump":%s,"t":%s,"label":%s%s}', vp.X, vp.Y, E.inset, if touch then "true" else "false", if touchControls then "true" else "false", if jump then "true" else "false", jnum(E.SIM.now - E.t0), jstr(label), extra or ""))
 	for _, img in imagesShown(player) do
 		emitImage(img)
 	end
