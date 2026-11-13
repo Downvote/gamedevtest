@@ -236,6 +236,23 @@ Models (`src/shared/Models`, Roblox modules):
   world, 40 studs high). The seabed, the shelves and the walls are invisible, in the collision group `Bounds`, which
   the pixel filter's rays (group `PixelRays`) pass through; the water lets a founder through, so they swim anywhere
   inside the world's walls and climb out on any beach.
+  The layers are bevelled (2026-11-13, GAME_DESIGN 8: "could you bevel these to make them smoother, with rounded
+  corners?"; `coast` and `bevelled`, the plaza's `PlazaSand` too). Each layer is a region of cells with a label (the
+  shallows, foam, wet sand and beach each the cells at or inside that band, every one running on under the bands
+  inside it, the foam included; the lawn 1 light, 2 dark, its rim of cells next to anything else always dark), and a
+  cell is four quarters (`quarters`): where both sides of a corner border another label the half at that corner takes
+  it, a higher label filling a notch, a lower one cutting a square corner only where no notch beside it is filled (so
+  the edge never zigzags). Whole cells are merged into boxes as before (`greedy`: by rows or by columns, whichever
+  makes fewer); a half cell is a `WedgePart` lying on its side (`flat`: its triangle flat, the prism's length upright
+  and as deep as the layer, the same name, colour and `PixelWater` kind as the layer's boxes), a run of half cells
+  along a diagonal one big wedge where the cells it also covers are the layer's own in that label, a lone quarter two
+  half-stud wedges. Coplanar parts of different colours never overlap (the lawn's tones split a cell between them).
+  Collision is as it was: a filled notch never collides, a cell still wholly covered does (two wedges), and a cut cell
+  of a solid layer keeps an invisible part where it stood (in `Bounds`, named as its layer). Parts at tiers 1, 5 and 10:
+  462, 1046 and 1517 before, about 660, 1540 and 2280 after (the island model, its props included). The palms
+  (`palm`, and `emptyLot`'s and `ends`') have one smooth trunk (`palmTrunk`: six round `Trunk` segments along a curve
+  from the foot into the crown, a `Trunk` ball at each joint as wide as the segment below, the two woods in turn,
+  widths on the 1/8-stud grid and lengths exact so the joints meet); the crown, fronds and coconuts where they were.
 - `DecorModels.build(id, at, lvl?) -> Model` (every piece in `Data/Buildings`; `lvl` goes to the builder: a level
   kept from an older save, the tree's stage, or a water tile's neighbour mask plus 1; `at`: the footprint's centre on
   the grass, turned; each building with its doors, windows, ridged roofs with eaves and its own props (crates, barrels,
@@ -243,10 +260,16 @@ Models (`src/shared/Models`, Roblox modules):
   building (never on the tree, a path, a water tile or a fence, whose `lvl` means something else or nothing); the
   pier's pond and the fountain's water `PixelWater` 2; parts don't collide; `Blocks.windy`), `has`. It holds the
   builders of the old pieces and the tree (64) and takes the rest from the catalog's model modules below, by id (a
-  builder of its own wins). The homes (Tent .. Manor) went with the villagers. The Tree of Life
+  builder of its own wins). The homes (Tent .. Manor) went with the villagers. `tube(m, f, pts, dia, color, name,
+  cap?)`: a round trunk or strand through points, a cylinder between each two and a ball at each joint as wide as the
+  segment below (widths on the 1/8-stud grid, lengths exact, so it bends with no gap or step); the Palm Tree's trunk is
+  one (`palmTrunk`, as StreetModels' palms). The Tree of Life
   (`tree`, 8 x 8; GAME_DESIGN 6 has the references it was drawn after): an `EggLawn` (7.8 studs across: its eggs lie
   on it), a `Lawn` and `Moss`; a ring of standing `Stone`s (`StoneMoss` caps, a Neon `Glyph` on some, a gap at the
-  front); `Root`s in eight directions; a `Trunk` core with drums and three braided `Strand`s, Neon `Rune`s up it; the
+  front); `Root`s in eight directions; a `Trunk` core (one cylinder from the ground, a ball on top) and three
+  braided `Strand`s (each a `tube`: upright from the ground, then round segments along a twist round the core, a ball
+  at each joint and on its top, the two woods in turn; nothing below the ground, so the model's box is as it was),
+  Neon `Rune`s up it; the
   `Hollow` at the front with its glowing `Pod` (Neon), a `Lintel` and two `Jamb`s; `Branch` limbs forking out to the
   leaf clouds (`Leaves`, `LeavesUnder`), each with `Blossom`, a `Vine` and `VineTip` hanging and Neon gold `Fruit`
   under it; a `Ring` of gold Neon dashes on the ground, `Mote`s, mushrooms (`Stalk`, `Cap`) and `Flower`s; the
@@ -268,7 +291,10 @@ Models (`src/shared/Models`, Roblox modules):
   at z = 0 with a post at each end that the next length shares, within about 0.35 of its line and at most 8 parts; six
   of the bridges, along Z, landing on the grass at z -3 and +3 (the Canal Bridge is DecorModels' own); the 8 pieces for
   the water, floating at its surface), `NatureModels` (33 trees, plants and rocks; the Palm Tree, Round Bush and
-  Flower Bed are DecorModels' own; blossom, maple leaves, snow and grass marked to sway as leaves do), `ThemeModels`
+  Flower Bed are DecorModels' own; blossom, maple leaves, snow and grass marked to sway as leaves do; no trunk is a
+  stack of steps: one column from the ground (on a flat plate of `Root` at most), or a `tube` through its bends (the
+  Bare Tree, the Bonsai), as DecorModels' `tube`; nothing reaches lower into the ground than before, since the
+  catalog's pictures and the loading card stand a model on its box), `ThemeModels`
   (36 pieces of the beach, garden, farm, harbour, town and jungle rows) and `ThemeMoreModels` (29 of frost, autumn,
   desert, fairy, zen and volcano), each theme in its own colours, its lights Neon so they glow at night, and
   `FunModels` (the 24 seats, lights, play pieces, treats and fountains not modelled before, and the four grand pieces

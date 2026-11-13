@@ -40,6 +40,38 @@ local function log(m: Instance, f: CFrame, x: number, y: number, z: number, len:
 	return Blocks.part(m, { size = Vector3.new(len, dia, dia), cf = f * CFrame.new(x, y, z), color = color, shape = "Cylinder", name = name or "Log", collide = false })
 end
 
+-- A round tube through `pts` (f's frame, in order): a cylinder from each point to the next and a ball at each joint as
+-- wide as the segment below it, so it bends with no gap and no step (a trunk, a braided strand). `dia(i)` and
+-- `color(i)` give segment i's width (on the 1/8-stud grid: an art pixel; exact, so the joints meet) and colour; `cap`
+-- puts a ball on its last point too.
+local function tube(m: Instance, f: CFrame, pts: { Vector3 }, dia: (i: number) -> number, color: (i: number) -> string, name: string, cap: boolean?)
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local d = math.max(0.25, math.floor(dia(i) * 8 + 0.5) / 8)
+		local seg = Blocks.part(m, { size = Vector3.new(1, 1, 1), cf = f * CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), color = color(i), shape = "Cylinder", name = name, collide = false })
+		seg.Size = Vector3.new((b - a).Magnitude, d, d)
+		if i < #pts - 1 or cap then
+			local joint = Blocks.part(m, { size = Vector3.new(1, 1, 1), cf = f * CFrame.new(b), color = color(i), shape = "Ball", name = name, collide = false })
+			joint.Size = Vector3.new(d, d, d)
+		end
+	end
+end
+
+-- A palm's trunk from its foot up into its crown at (x, top) in f: one smooth curve (upright at the foot, leaning out
+-- through the middle, upright again under the crown) in six rings of the two woods in turn, narrowing from w.
+local function palmTrunk(m: Instance, f: CFrame, x: number, top: number, w: number)
+	local pts: { Vector3 } = {}
+	for j = 0, 6 do
+		local t = j / 6
+		table.insert(pts, Vector3.new(x * (3 * t * t - 2 * t * t * t), top * t, 0))
+	end
+	tube(m, f, pts, function(i: number): number
+		return w * (1 - (i - 1) * 0.055)
+	end, function(i: number): string
+		return if i % 2 == 1 then "wood" else "wood_dark"
+	end, "Trunk")
+end
+
 -- A wedge (its sloped face toward -Z, full height at +Z before `turn`).
 local function wedge(m: Instance, f: CFrame, x: number, y: number, z: number, w: number, h: number, d: number, color: string, turn: number?, name: string?): BasePart
 	return Blocks.part(m, { size = Vector3.new(w, h, d), cf = f * CFrame.new(x, y, z) * CFrame.Angles(0, turn or 0, 0), color = color, shape = "Wedge", name = name, collide = false })
@@ -567,15 +599,12 @@ B.shellpile = function(m, f)
 	box(m, f, -0.6, 0.08, 0.65, 0.15, 0.1, 0.6, "orange", "Starfish")
 end
 
--- Palm Tree (3 x 3): a ringed trunk curving up, eight fronds, coconuts, a mound of sand at its foot.
+-- Palm Tree (3 x 3): a ringed trunk curving up in one smooth line, eight fronds, coconuts, a mound of sand at its foot.
 B.palm = function(m, f)
 	box(m, f, 0, 0.05, 0, 1.5, 0.1, 1.5, "sand", "Mound")
-	local x = 0
-	for i = 0, 5 do
-		x += 0.1 * i
-		box(m, f, x, 0.45 + i * 0.85, 0, 0.7 - i * 0.04, 0.85, 0.7 - i * 0.04, if i % 2 == 0 then "wood" else "wood_dark", "Trunk")
-	end
+	local x = 1.5
 	local top = 5.4
+	palmTrunk(m, f, x, top - 0.1, 0.7)
 	box(m, f, x, top, 0, 1.2, 0.45, 1.2, "leaf_dark", "Crown")
 	for k, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } } do
 		local long = k <= 4
@@ -1525,25 +1554,34 @@ B.tree = function(m, f, stage)
 		part(Vector3.new(0.7 * ts, 0.55 * ts, 1.5), CFrame.new(dx * 1.1 * ts, 0.32 * ts, dz * 1.1 * ts) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(14), 0, 0), if k % 2 == 0 then "wood_dark" else "wood", "Root")
 		part(Vector3.new(0.45, 0.35, 1.2), CFrame.new(dx * 2.0, 0.16, dz * 2.0) * CFrame.Angles(0, a + 0.15, 0) * CFrame.Angles(math.rad(8), 0, 0), "wood_dark", "Root")
 	end
-	-- the trunk: a flared core, and three thick strands braided round it, twisting as they rise
+	-- the trunk: one smooth core from the ground to the limbs, and three thick strands braided round it, each one round
+	-- tube rising straight from the ground, then twisting as it climbs and narrowing a little (the request of
+	-- 2026-11-13: "make the trunk connected smoothly as well without the stepped boxes"; nothing below the ground, so
+	-- the model's box is as it was)
 	local base = 7.0 * ys -- where the limbs leave the trunk
-	cyl(m, f, 0, 0.6, 0, 2.4 * ts, 1.2, "wood_dark", "Trunk")
-	local drums = math.ceil((base - 1.0) / 0.85)
-	for i = 0, drums - 1 do
-		cyl(m, f, 0, 1.0 + i * 0.85, 0, (1.9 - i * 0.08 / ys) * ts, 0.9, "wood_dark", "Trunk")
-	end
+	local core = 1.7 * ts
+	cyl(m, f, 0, base / 2, 0, core, base, "wood_dark", "Trunk")
+	ball(m, f, 0, base, 0, core, "wood_dark", "Trunk")
 	local segs = math.floor(8 * ys + 0.5)
+	local rise = (base - 0.6 * ts) / segs
 	for st = 0, 2 do
-		for i = 0, segs - 1 do
-			local a = st / 3 * math.pi * 2 + i * 0.45
+		local a0 = st / 3 * math.pi * 2
+		local pts: { Vector3 } = { Vector3.new(math.sin(a0) * 0.7 * ts, 0, math.cos(a0) * 0.7 * ts) }
+		for i = 0, segs do
+			local a = a0 + i * 0.45
 			local r = (0.7 - i * 0.03 / ys) * ts
-			cyl(m, f, math.sin(a) * r, 0.7 + i * 0.85, math.cos(a) * r, (1.15 - i * 0.04 / ys) * ts, 0.95, if (st + i) % 2 == 0 then "wood" else "wood_dark", "Strand")
+			table.insert(pts, Vector3.new(math.sin(a) * r, 0.6 * ts + i * rise, math.cos(a) * r))
 		end
+		tube(m, f, pts, function(i: number): number
+			return (1.15 - math.max(0, i - 2) * 0.04 / ys) * ts
+		end, function(i: number): string
+			return if (st + i) % 2 == 1 then "wood" else "wood_dark"
+		end, "Strand", true)
 	end
 	-- glowing marks winding up the bark (more as it grows)
 	for i = 0, 3 + 3 * s - 1 do
 		local a = i * 0.9 + 0.6
-		local r = (1.08 - i * 0.03 / ys) * ts
+		local r = core / 2 + 0.1
 		part(Vector3.new(0.12, 0.34, 0.08), CFrame.new(math.sin(a) * r, 1.8 + i * 0.8 * (ys * 6 / (3 + 3 * s)), math.cos(a) * r) * CFrame.Angles(0, a, 0), "screen_on", "Rune", true)
 	end
 	-- the hollow at the front: an arched opening of dark wood, a warm light in it

@@ -354,6 +354,10 @@ The rest are there for charm (§3) and for the look of the place:
 | Treats | Grill, Lemonade Stand (2); Ice Cream Cart (3); Telescope, Tiki Bar (4) |
 | Fountains | Drinking Fountain, Little Fountain, Fountain (2); Koi Pond (5); Crystal Fountain (6) |
 
+A tree's trunk is never a stack of steps (2026-11-13, §8): the Palm Tree's is a smooth curve of round rings, the Bare
+Tree's and the Bonsai's crooked trunks are round segments joined by balls at their bends, and the Great Oak's trunk
+is one column from the ground instead of a wide drum under a narrower one.
+
 The old decor went into these rows (the Palm Tree to Trees, the Bench to Seats, the Lighthouse to Harbour, the Canal
 Bridge to Bridges and so on); the old one-piece Picket Fence and Hedge became drawn fences (Picket Fence, Hedgerow; a
 save's old ones come up with their price back, §10). Every piece also has a **feel** (`feel`: wood, stone, plant,
@@ -624,7 +628,8 @@ sacred tree with a glow of its own and something hanging from it
 ([a pixel tileset's glowing tree](https://winlu.itch.io/winlu-fantasy-tileset-exterior/devlog/528816/giant-glowing-tree)).
 So ours stands about 13 studs tall: a ring of standing stones round its foot (pale blue marks glowing on some, a gap at
 the front), roots spreading out as far as the crown, a trunk of three braided strands round a core with pale blue
-runes glowing on it, the hollow in front with a gold glow in a frame of lintel and posts, and a crown of leaf clouds
+runes glowing on it (since 2026-11-13 the core one smooth column and each strand one round tube rising from the
+ground and twisting up it, no stacked drums), the hollow in front with a gold glow in a frame of lintel and posts, and a crown of leaf clouds
 on forked limbs, each with a dark underside, blossom, hanging vines and gold fruit under it; a ring of gold light on
 the ground, motes in the air, mushrooms and flowers at its foot. Round the stones a wide round lawn of moss holds its
 eggs (the footprint grew from 6 x 6 to 8 x 8 for them).
@@ -886,6 +891,20 @@ text (the requests and how each was met) is in the history of this file, up to c
   wobbles of their own phases), with its bays and points. From the coast inward is the grass; outward a sand beach,
   wet sand, the foam line and the shallows, each a little lower than the one inside it, so the shore steps down into
   the sea. Buildings stand on the grass a stud or more in from the sand.
+- **Rounded shores** (the request of 2026-11-13, with a picture of the stepped shore and a palm's trunk of stacked
+  boxes):
+
+  > "could you bevel these to make them smoother, with rounded corners? for the trees, you should also make the trunk
+  > connected smoothly as well without the stepped boxes"
+
+  Each band's edge was a staircase of whole studs. Now every inner corner of the stairs is filled with a flat
+  triangle of that band, and a square outer corner is cut back the same way, so each edge runs straight along the
+  grid or on a diagonal and turns in 45 degree steps: the island reads round, and a stretch at 45 degrees is one clean
+  line. The lawn's dark rim and darker patches, the shallows, the foam and the plaza's ring of sand are bevelled the
+  same way, and the moving water runs over the new corners like the rest of it. You walk and swim exactly where you
+  did: the triangles are only looked at. The palms' trunks are one smooth curve of round rings joined end to end,
+  rising from the sand, leaning out and straightening under the crown, the rings in two woods in turn and a little
+  narrower going up; the catalog's trees lost their steps too (§4).
 - **No house:** the island's heart is a plaza round a campfire (fire stones, logs, a flame with smoke, seats, a flag
   and torches). Your sign stands on the south beach with the island's name over it. Visitors stroll the grass round
   it. There are no docks (2026-11-13): the island stands alone in the sea.
@@ -913,7 +932,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   instead.
 
   > The bug report (2026-11-10): "lighting also seems buggy, especially with shells"
-- **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
+- **Detail everywhere:** palms that lean on curved trunks, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
   each island's own seed. Every building has its doors, windows, ridged roofs with eaves, crates,
   barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
   the stall's awning, the lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks

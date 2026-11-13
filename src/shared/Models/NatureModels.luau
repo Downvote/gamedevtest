@@ -4,6 +4,9 @@
 -- The view looks from +X +Z and down: the +Z faces show on the left (lit), the +X faces on the right (shaded), so
 -- the telling details sit on those sides. Leaves in leaf / leaf_dark sway by themselves; blossom, autumn leaves and
 -- snow on branches are marked to sway as well. A tree's crown may reach a little past its footprint, its trunk never.
+-- A trunk is smooth (2026-11-13: "make the trunk connected smoothly as well without the stepped boxes"): one column
+-- from the ground (on a flat plate of roots at most), or round segments joined by balls where it bends (`tube`),
+-- never a stack of steps. Nothing reaches far below the ground: the pictures drawn from a model stand it on its box.
 local Blocks = require(script.Parent.Blocks)
 local Parts = require(script.Parent.Parts)
 
@@ -33,6 +36,22 @@ end
 -- A round limb (a cylinder) from a to b.
 local function stem(m: Instance, f: CFrame, a: Vector3, b: Vector3, dia: number, color: string, name: string?): BasePart
 	return put(m, f, CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), (b - a).Magnitude + dia * 0.4, dia, dia, color, "Cylinder", name or "Stem")
+end
+
+-- A round trunk through `pts` (in f's frame, from the foot up): a cylinder from each point to the next and a ball at
+-- each joint as wide as the segment below it, so it bends with no gap and no step; `dias` the segments' widths (on the
+-- 1/8-stud grid: an art pixel; exact, so the joints meet), a ball on the last point too when `cap`.
+local function tube(m: Instance, f: CFrame, pts: { Vector3 }, dias: { number }, color: string, name: string, cap: boolean?)
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local d = math.max(0.25, math.floor(dias[i] * 8 + 0.5) / 8)
+		local seg = put(m, f, CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), 1, 1, 1, color, "Cylinder", name)
+		seg.Size = Vector3.new((b - a).Magnitude, d, d)
+		if i < #pts - 1 or cap then
+			local joint = put(m, f, CFrame.new(b), 1, 1, 1, color, "Ball", name)
+			joint.Size = Vector3.new(d, d, d)
+		end
+	end
 end
 
 -- A flat blade from a to b (a leaf, a frond, a strand): w wide, its flat side up.
@@ -121,9 +140,8 @@ M.deadtree = function(m, f)
 	for _, a in { 0.6, 2.4, 4.2 } do
 		limb(m, f, Vector3.new(0, 0.4, 0), Vector3.new(math.sin(a) * 0.7, 0.05, math.cos(a) * 0.7), 0.35, "wood_dark", "Root")
 	end
-	stem(m, f, p0, p1, 0.75, "wood_dark", "Trunk")
-	stem(m, f, p1, p2, 0.5, "wood_dark", "Trunk")
-	stem(m, f, p2, p3, 0.5, "wood_dark", "Trunk")
+	-- (the crooked trunk one round line through its bends, narrowing as it rises, its foot a little in the ground)
+	tube(m, f, { p0 - (p1 - p0) / 9, p1, p2, p3 }, { 0.75, 0.625, 0.5 }, "wood_dark", "Trunk", true)
 	limb(m, f, p3, p4, 0.25, "wood_dark")
 	box(m, f, 0.15, 0.95, 0.3, 0.25, 0.5, 0.25, "black", "Hollow")
 	-- the branches, each bending up at a fork
@@ -306,8 +324,8 @@ M.bigoak = function(m, f)
 			put(m, f, CFrame.new(dx * 1.1, 0.55, dz * 1.1) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(16), 0, 0), 0.75, 0.25, 0.75, "moss", nil, "Moss")
 		end
 	end
-	cyl(m, f, 0, 0.5, 0, 1.75, 1.0, "wood_dark", "Trunk")
-	cyl(m, f, 0, 2.1, 0, 1.5, 2.75, "wood_dark", "Trunk")
+	-- (the trunk one column from the ground, its foot in the roots)
+	cyl(m, f, 0, 1.74, 0, 1.5, 3.48, "wood_dark", "Trunk")
 	ball(m, f, 0.5, 1.4, 0.45, 1.0, "wood_dark", "Gnarl")
 	ball(m, f, -0.45, 2.5, 0.5, 0.75, "wood_dark", "Gnarl")
 	for _, r in { { 0.73, 0.1 }, { 0.2, 0.71 }, { 0.6, 0.45 } } do
@@ -620,9 +638,7 @@ M.bonsai = function(m, f)
 	box(m, f, 0.2, 0.43, 0.12, 0.5, 0.25, 0.25, "moss", "Moss")
 	ball(m, f, -0.28, 0.5, 0.15, 0.25, "rock", "Stone")
 	local a, b, c, d = Vector3.new(0, 0.4, 0), Vector3.new(0.2, 0.7, -0.1), Vector3.new(-0.1, 1.0, 0.05), Vector3.new(0.05, 1.25, 0)
-	limb(m, f, a, b, 0.25, "wood_dark", "Trunk")
-	limb(m, f, b, c, 0.25, "wood_dark", "Trunk")
-	limb(m, f, c, d, 0.25, "wood_dark", "Trunk")
+	tube(m, f, { a, b, c, d }, { 0.25, 0.25, 0.25 }, "wood_dark", "Trunk", true)
 	limb(m, f, b, Vector3.new(-0.2, 0.85, 0.25), 0.25, "wood_dark")
 	limb(m, f, c, Vector3.new(0.22, 1.05, -0.24), 0.25, "wood_dark")
 	cyl(m, f, -0.22, 0.95, 0.27, 0.5, 0.25, "leaf_dark", "Pad")
