@@ -322,12 +322,14 @@ Models (`src/shared/Models`, Roblox modules):
   thing's `Flag...` parts ripple: their depth and height step through four frames), ambient kinds (`bird
   butterfly light flame crab ...`), `slab`, `grid`, `hoop`, and the fights' `aim`, `aimpath` and `aimring` (nothing
   builds them now), `place(t, cf)`, `scale(t, k)`,
-  `recolor(t, color?)`, `show(t, on)`, `has`. Parts keep their sizes to the eighth of a stud (about an art px), not
+  `recolor(t, color?)`, `show(t, on)`, `has`. `place` moves a thing's parts with one `Workspace:BulkMoveTo` (its part
+  list kept per thing; part by part while the model is outside Workspace). Parts keep their sizes to the eighth of a stud (about an art px), not
   Blocks' quarter. `driftling(shape, body, accent, lod?)` is `DriftModels.build` (below; WorldView builds "world",
   everything else the default "full"); `animate(t, time, mood, k?)` hands
   a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale`, and moves the other things' limbs by name
   (`Wing*` flap, `Tail*` wag, `Eye*` blink...; `flap(t, cf, phase, glide?)`). WorldView and StreetLife call
-  it every frame.
+  it every frame (WorldView poses a driftling more than `FAR_POSE` 40 studs from the view's centre every fourth frame
+  only, staggered by its id). The driftlings' parts are on the kit's 0.05 grid (DriftKit, below).
 - `DriftKit` (GAME_DESIGN 6, "Look at the cakes in the bakery game to reference how detailed they should be"): the
   driftlings' building kit, after Random Bakery's FoodKit. Builder state (the thing being built, its current joint):
   `new(shape, h, r, gait)`, `J(name, parent?, pivot, kind, side?, phase?)`, `on(joint)`, `finish()`, `setFull(on)`,
@@ -347,8 +349,9 @@ Models (`src/shared/Models`, Roblox modules):
   sits `TUCK` (0.14) studs in along its local +X, its normal. `detail` arguments and `D` drop a piece from the "world"
   level of detail. `Thing` adds `face` and `lod` ("full" | "world") to DriftModels' old fields.
 - `DriftPlansA..D`: the body plans built with the kit, each `(b, a) -> Thing` facing +Z with its feet at y 0, the old
-  plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: 90 to
-  200 parts; world: 30 to 70. `DriftModels` takes them over its own old plans.
+  plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: 96 to
+  200 parts; world: 45 to 72. A: blob, bun; B: crab, snail, turtle, frog, jelly, sprite; C: bird, owl, bat, moth,
+  drake, wyrm; D: lizard, pup, mole, yeti, seal, golem (the golem's look follows its body colour).
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
   body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
   golem drake`, from `DriftPlansA..D`) in its species' body and accent colours, built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of

@@ -845,7 +845,8 @@ blush, stripes and the inside of an ear lie flat on the surface; leaves, feather
 blades. The eyes are big and glossy: a dark oval, a coloured iris low in it and two shines, and when they blink a
 soft curved lid takes their place. A closed mouth is a little smile that opens when the driftling cheers or yawns.
 Up close (the hatch scene, the portraits) a driftling has 90 to 200 pieces: toes, whiskers, fur tufts, flecks and
-cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces.
+cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces
+(45 to 72), and one far from the view is posed every fourth frame.
 
 **Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`): each of the twenty body plans is built to read as its animal. The turtle has
 a domed shell with a ring of plates and a rim, a head on a neck with a beak, and flippered legs. The fox pup has a
