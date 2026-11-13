@@ -15,3 +15,5 @@ tools/sim/*.log
 tools/preview/work/
 tools/preview/out*/
 __pycache__/
+# agents' git worktrees (Claude Code)
+.claude/worktrees/
