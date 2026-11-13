@@ -4,7 +4,7 @@
 -- driftlings do all the work: no villagers since 2026-11-12). It walks to the building it works at and works there a
 -- while (pecking in the fields, dipping for fish, pushing at the wood, waving at the shops: what it works at flies off
 -- now and then), strolls round the island, and back; one with nowhere to work naps at its hut. One just taken in off
--- the tide comes ashore at the jetty (Controllers/TideView: the tide itself) and walks off to work. Who lives on each
+-- the tide hops ashore at the jetty (Controllers/TideView: the tide itself) and walks off to work. Who lives on each
 -- island comes from its plot's attributes (PlotService: Pals, Tier), where the buildings stand from its Static.Decor
 -- models' names (uid:id:x:z:rot:lvl), so a visit shows a neighbour's island alive too. Only islands near the view get
 -- models. Every island's sign gets its name (or "Unclaimed isle") floating over it; tapping a sign shows a card about
@@ -589,10 +589,14 @@ function WorldView.signCard(i: number)
 	UIKit.notice(string.format("%s: day %s, %d driftlings at home, charm %s", name, Numbers.int(n("Day")), count("Pals"), Numbers.int(n("Charm"))), UIKit.color("accent"), 5)
 end
 
--- A tap (not a drag, not on the interface, not in Build mode) on an island sign shows its card (the tide's driftlings
--- are taken with their price buttons: Controllers/TideView).
+-- A tap (not a drag, not on the interface, not in Build mode) on one of the own island's driftlings floating by takes
+-- it in (Controllers/TideView); on an island sign, it shows its card.
 local function onTap(pos: Vector2)
 	if CameraController.isFree() then
+		return
+	end
+	-- (a driftling floating by: taken in)
+	if TideView.tapAt(pos) then
 		return
 	end
 	local origin, dir = PixelRenderer.screenRay(pos)
@@ -754,10 +758,8 @@ function WorldView.start()
 		end
 		stepBits(dt)
 		updateSigns()
-		-- the tide by every island's jetty (near the view)
-		TideView.step(t, function(i: number): boolean
-			return math.abs(Street.origin(i) - c.X) <= NEAR
-		end)
+		-- the tide past every island near the view
+		TideView.step(t, c.X)
 	end)
 end
 

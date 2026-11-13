@@ -39,26 +39,29 @@ local Tuning = {
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
 	-- growing the island, in wood (cheaper early on: "expanding island costs too much, make them cheaper early on")
-	TierCost = { 0, 600, 9000, 130000, 320000, 800000 },
+	TierCost = { 0, 600, 9000, 150000, 320000, 800000 },
 	-- the huts (GAME_DESIGN 4.1): a resident's comfort (its hut's, plus this by the hut's level) adds to its work
 	ComfortLvl = { 0, 0.04, 0.08 },
 	BoostMax = 0.6, -- the boost buildings' shares at one knack together, at most
 
 	-- the tide (GAME_DESIGN 6; Logic/Tide: "there should now be a steady stream of driftlings, with rarities that
-	-- players can pick up"): a driftling drifts in to the jetty every TideSecs seconds, TideMax of them bob there at
-	-- once (the oldest drifts off when another comes), TideStart there already when the player arrives
-	TideSecs = 12,
-	TideMax = 4,
-	TideStart = 2,
+	-- players can pick up", then "make them float by just like a conveyer belt instead of drifting towards the island
+	-- and stopping, with one every second"): a driftling comes in on the tide every TideSecs seconds and floats past
+	-- the island in TideLife seconds (then it's gone), so TideLife / TideSecs float by at once
+	TideSecs = 1,
+	TideLife = 16,
 	-- what it costs to take one in: shells by its rarity, times 1 + SellTier x its mutations' tiers, times its cost
 	-- share, times TideTier by the island's tier (a bigger island earns more and draws rarer ones)
 	TidePrice = { 20, 80, 300, 1200, 5000 },
 	TideTier = { 1, 2, 4, 8, 16, 30 },
-	-- its luck by the island's tier: a rarity r's weight (Data/Traits.RARITY) times (1 + TideLuck + the huts' luck)^(r - 1)
+	-- its luck by the island's tier: a rarity r's weight (Data/Traits.RARITY) times TideRare[r] times
+	-- (1 + TideLuck + the huts' luck)^(r - 1). (TideRare thins the rarer ones out: with one a second, a rare one floats
+	-- by about every half a minute on a new island, an epic every few minutes, a legendary every twenty on tier 2.)
+	TideRare = { 1, 0.7, 0.3, 0.1, 0.06 },
 	TideLuck = { 0, 0.15, 0.3, 0.45, 0.6, 0.8 },
 	-- a new driftling's mutations roll as one rarity better every TideMutTier tiers past the first
 	TideMutTier = 2,
-	HutTide = 0.5, -- the huts' driftlings' tide shares together bring them in this much faster at most ...
+	HutTide = 0.5, -- the huts' driftlings' tide shares together run the tide this much faster at most ...
 	HutLuck = 0.5, -- ... and their luck shares add this much luck at most
 	-- selling a driftling (or swapping it out for one off the tide): shells by its rarity, times 1 + SellTier x its
 	-- mutations' tiers, times its sell share

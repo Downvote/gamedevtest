@@ -1,6 +1,6 @@
 --!strict
 -- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Driftlings (every one: where each lives and works,
--- moving and selling), the Tide (the ones bobbing at the jetty with their prices, the odds; every hut full, the swap
+-- moving and selling), the Tide (the best few floating by with their prices, the odds; every hut full, the swap
 -- picker), the Hatchery (two parents, an egg), Index (every driftling seen) and Looks (the founder's look). Every
 -- action is a request; the panel rebuilds from the next view. The work picker is the same panel with an argument
 -- ({ pal = id }), the hut picker too ({ move = id }), the swap picker the tide's ({ take = id }).
@@ -498,7 +498,7 @@ local function buildPals(body: Frame, arg: any?)
 	-- the tide's panel and a Hatchery's beside the hint (GAME_DESIGN 6, 6.1)
 	local hasHatch = #hatcheries(v) > 0
 	local buttons = if hasHatch then 128 else 66
-	local top = hint(body, string.format("%d in huts (room for %d). New ones float in at the jetty.", housed, v.nests), W - buttons)
+	local top = hint(body, string.format("%d in huts (room for %d). New ones float past the island.", housed, v.nests), W - buttons)
 	UIKit.button(body, "Tide", UDim2.fromOffset(60, 13), UDim2.fromOffset(W - 60, 0), function()
 		UIKit.openPanel("tide")
 	end, { name = "OpenTide", color = UIKit.color("button_ok") })
@@ -512,7 +512,7 @@ local function buildPals(body: Frame, arg: any?)
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
 		local f = row(list, 1, 24)
-		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then take one in when it floats up to the jetty." else "No driftlings yet. Tap a price at the jetty to take one in.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then tap one as it floats past." else "No driftlings yet. Tap one floating past to take it in.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local order: { Types.Pal } = table.clone(v.pals)
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
@@ -527,9 +527,9 @@ local function buildPals(body: Frame, arg: any?)
 end
 
 ------------------------------------------------------------------ the tide
--- (GAME_DESIGN 6) On the left: how often one drifts in (a bar to the next one), the huts' room, and the odds of each
--- rarity now. On the right: the ones bobbing at the jetty, the next to drift off first, each with its portrait, name,
--- rarity and how fast it works, its passive, its mutations and Take (its price in shells). With { take = id } (every
+-- (GAME_DESIGN 6) On the left: how often one comes in, the huts' room, and the odds of each rarity now. On the right:
+-- the best few floating by now (TideView.best), each with its portrait, name, rarity and how fast it works, its
+-- mutations, Take (its price in shells) and a bar of the time it has left. With { take = id } (every
 -- hut full) the swap picker instead: the island's driftlings in huts, the weakest first, each with what it sells for
 -- and Swap (tide.take with it: it's sold and the new one takes its place).
 local function buildSwap(body: Frame, v: Types.ClientView, id: number)
@@ -541,7 +541,7 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 		end
 	end
 	if drift == nil then
-		UIKit.notice("That one has drifted off.", UIKit.color("text_dim"))
+		UIKit.notice("That one has floated off.", UIKit.color("text_dim"))
 		UIKit.openPanel("tide")
 		return
 	end
@@ -583,11 +583,33 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 	end
 end
 
+-- What the tide panel shows (rebuilt only when it changes: the tide moves every second): the best few's ids, costs and
+-- whether the shells cover them; in the swap picker, whether the one being taken is still there.
+local tideArg: any = nil
+local tideKey = ""
+local function tideKeyOf(v: Types.ClientView, arg: any): string
+	if type(arg) == "table" and type(arg.take) == "number" then
+		for _, d in v.tide do
+			if d.id == arg.take then
+				return "swap:" .. d.id
+			end
+		end
+		return "swap:gone"
+	end
+	local parts: { string } = {}
+	for _, d in TideView.best(v, 4) do
+		table.insert(parts, string.format("%d:%d:%s", d.id, d.cost, if v.shells >= d.cost then "y" else "n"))
+	end
+	return table.concat(parts, ",")
+end
+
 local function buildTide(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
 		return
 	end
+	tideArg = arg
+	tideKey = tideKeyOf(v, arg)
 	if type(arg) == "table" and type(arg.take) == "number" then
 		buildSwap(body, v, arg.take)
 		return
@@ -597,38 +619,24 @@ local function buildTide(body: Frame, arg: any?)
 	local LW = math.min(150, math.floor(W * 0.42))
 	local RX = LW + 8
 	local RW = W - RX
-	-- how often, and the bar to the next one (run on by the client between the server's ticks)
-	UIKit.text(body, string.format("One drifts in every %.0fs", v.tideSecs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
-	local back = UIKit.rect(body, UDim2.fromOffset(LW, 5), UDim2.fromOffset(0, 12), UIKit.color("ink"), 3)
-	back.Name = "TideBar"
-	local fill = UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("button"), 4)
-	fill.Name = "Fill"
-	local conn: RBXScriptConnection? = nil
-	conn = RunService.Heartbeat:Connect(function()
-		if fill.Parent == nil then
-			if conn then
-				conn:Disconnect()
-			end
-			return
-		end
-		local k = StateClient.tideFrac()
-		fill.Size = UDim2.fromOffset(math.floor((LW - 2) * k), 3)
-	end)
+	-- how often
+	local pace = if math.abs(v.tideSecs - 1) < 0.05 then "One floats by every second" else string.format("One floats by every %.1fs", v.tideSecs)
+	UIKit.text(body, pace, UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
 	local housed = 0
 	for _, x in v.pals do
 		if x.home ~= 0 then
 			housed += 1
 		end
 	end
-	UIKit.text(body, string.format("In huts %d/%d", housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 20), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
+	UIKit.text(body, string.format("In huts %d/%d", housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 12), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
 	-- the odds now, rarity by rarity
-	UIKit.text(body, "What drifts in now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 34), { color = UIKit.color("text_dim") })
+	UIKit.text(body, "What comes in now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 28), { color = UIKit.color("text_dim") })
 	local odds = Tide.odds(p)
-	local y = 44
+	local y = 38
 	for r = 1, 5 do
 		local rar = Traits.RARITY[r]
 		local pct = odds[r] * 100
-		local txt = if odds[r] <= 0 then "not yet" elseif pct < 1 then string.format("%.1f%%", pct) else string.format("%d%%", math.round(pct))
+		local txt = if odds[r] <= 0 then "not yet" elseif pct < 0.1 then "<0.1%" elseif pct < 1 then string.format("%.1f%%", pct) else string.format("%d%%", math.round(pct))
 		UIKit.text(body, rar.name, UDim2.fromOffset(LW - 40, 10), UDim2.fromOffset(0, y), { color = UIKit.color(rar.color), name = "Odds_" .. r })
 		UIKit.text(body, txt, UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, y), { x = "right", color = if odds[r] > 0 then UIKit.color("text") else UIKit.color("text_dim") })
 		y += 10
@@ -637,15 +645,17 @@ local function buildTide(body: Frame, arg: any?)
 		local more = "A bigger island brings new kinds and rarer ones."
 		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
 	end
-	-- the ones at the jetty
-	UIKit.text(body, "At the jetty", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Jetty" })
+	-- the best few floating by, each with the time it has left
+	UIKit.text(body, "Floating by", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Jetty" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
 	UIKit.vlist(list, 2)
-	if #v.tide == 0 then
+	local shown = TideView.best(v, 4)
+	if #shown == 0 then
 		local f = row(list, 1, 24)
 		UIKit.text(f, "Nothing yet. The next one is on its way.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	for i, d in v.tide do
+	local bars: { { bar: Frame, d: Types.Drift } } = {}
+	for i, d in shown do
 		local def = Creatures.byId[d.sp]
 		if def == nil then
 			continue
@@ -672,11 +682,27 @@ local function buildTide(body: Frame, arg: any?)
 			words.Size = UDim2.new(1, -16, 1, 0)
 		end
 		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
-		if i == 1 and #v.tide >= Tuning.TideMax then
-			-- (the oldest drifts off when the next one comes)
-			UIKit.text(f, "Leaving soon", UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("orange"), z = 4, name = "Leaving" })
-		end
+		-- (the time it has left before it's gone past)
+		local back = UIKit.rect(f, UDim2.fromOffset(56, 4), UDim2.new(1, -59, 0, 21), UIKit.color("ink"), 4)
+		back.Name = "Left"
+		local fill = UIKit.rect(back, UDim2.fromOffset(54, 2), UDim2.fromOffset(1, 1), UIKit.color(rar.color), 5)
+		table.insert(bars, { bar = fill, d = d })
 	end
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.Heartbeat:Connect(function()
+		if list.Parent == nil then
+			if conn then
+				conn:Disconnect()
+			end
+			return
+		end
+		for _, r in bars do
+			local fw = math.floor(54 * (1 - StateClient.along(r.d)) + 0.5)
+			if r.bar.Size.X.Offset ~= fw then
+				r.bar.Size = UDim2.fromOffset(fw, 2)
+			end
+		end
+	end)
 end
 
 ------------------------------------------------------------------ Index: the driftlings
@@ -719,7 +745,7 @@ local function buildIndex(body: Frame, _arg: any?)
 			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 38), { color = UIKit.color("accent"), z = 4, name = "Passive" })
 			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 48), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
 		else
-			local from = if kind and kind.tier > v.tier then string.format("These drift in from island Lv %d.", kind.tier) else "Not seen yet."
+			local from = if kind and kind.tier > v.tier then string.format("These float by from island Lv %d.", kind.tier) else "Not seen yet."
 			UIKit.text(f, from, UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 38), { color = UIKit.color("text_dim"), wrap = true, z = 4 })
 		end
 	end
@@ -776,6 +802,12 @@ function Menus.init()
 	UIKit.PanelChanged:Connect(function(name: string?)
 		if name ~= "looks" then
 			draft = nil
+		end
+	end)
+	-- (the tide moves every second: its panel is rebuilt only when what it shows changes)
+	StateClient.TideChanged:Connect(function(v: Types.ClientView)
+		if UIKit.currentPanel() == "tide" and tideKeyOf(v, tideArg) ~= tideKey then
+			UIKit.refreshPanel()
 		end
 	end)
 end

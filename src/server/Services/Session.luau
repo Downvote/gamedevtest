@@ -2,7 +2,8 @@
 -- Player sessions (docs/ARCHITECTURE.md 7.2): the loaded profile, the plot, the session's Rng, the island's day clock,
 -- and what the client is sent. The client mirrors the profile through State messages (the whole ClientView, sent when
 -- something changed: Session.dirty) and shows Fx messages (the stores and the tide's clock every second, a new day, an
--- egg hatched, the driftlings that drifted in and off). The tide (Logic/Tide.State) is the session's, never saved.
+-- egg hatched, the driftlings that came in on the tide and went past). The tide (Logic/Tide.State) is the session's,
+-- never saved.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -22,8 +23,9 @@ export type S = {
 	turnClock: number, -- seconds into the island's turn
 	dayIndex: number, -- the sea's calendar day when this island last counted one (WorldClock.dayIndex)
 	tickClock: number, -- seconds toward the next stores message
-	tide: Tide.State, -- the driftlings bobbing at the jetty (IslandService steps it)
+	tide: Tide.State, -- the driftlings floating past (IslandService runs it on the server's time)
 	dirty: boolean,
+	tideDirty: boolean, -- the tide changed: the plot's Tide attribute is out of date (Main syncs it)
 	saveAt: number,
 	reqTimes: { number },
 }
@@ -42,12 +44,13 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		turnClock = 0,
 		dayIndex = WorldClock.dayIndex(),
 		tickClock = 0,
-		tide = Tide.new(),
+		tide = Tide.new(workspace:GetServerTimeNow()),
 		dirty = true,
+		tideDirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
 	}
-	-- (the jetty has a few bobbing there already when the player arrives)
+	-- (the tide is already running when the player arrives)
 	Tide.start(profile, s.tide, s.rng)
 	sessions[player] = s
 	return s
@@ -78,7 +81,6 @@ function Session.view(s: S): Types.ClientView
 		founder = p.founder,
 		pals = p.pals,
 		tide = Tide.view(p, s.tide),
-		tideT = s.tide.t,
 		tideSecs = Tide.secs(p),
 		plot = s.plot,
 		pieces = p.plot.placed,

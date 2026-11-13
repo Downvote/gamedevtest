@@ -4,12 +4,15 @@
 -- should now be a steady stream of driftlings, with rarities that players can pick up". Pure: IslandService keeps each
 -- session's tide (`State`, never saved) and calls these with its profile and Rng. Actions return (true, data?) or
 -- (false, ErrCode) and change the profile only when they succeed.
---   Every `secs(p)` seconds (Tuning.TideSecs, faster with the huts' tide shares) a driftling drifts in to the jetty: a
---   rarity by Data/Traits.RARITY's weights, each rarity step's weight times the island's luck (`luck(p)`:
---   Tuning.TideLuck by its tier and the huts' luck shares), then one of that rarity's driftlings among the kinds open
---   at the island's tier (Data/Islets `tier`; a rarity none of them has falls to the next commoner one), with
---   mutations (Traits.roll, as a rarer one every Tuning.TideMutTier tiers). Tuning.TideMax bob there at once; when
---   another comes the oldest drifts off. Seeing one puts it in the Index (`seen` 1).
+--   The request after (2026-11-13): "make them float by just like a conveyer belt instead of drifting towards the
+--   island and stopping, with one every second". Every `secs(p)` seconds (Tuning.TideSecs, faster with the huts' tide
+--   shares) a driftling comes in on the tide and floats past the island in `life(p)` seconds (Tuning.TideLife, as
+--   much faster), then it's gone: a rarity by Data/Traits.RARITY's weights, each rarity step's weight times the
+--   island's luck (`luck(p)`: Tuning.TideLuck by its tier and the huts' luck shares), then one of that rarity's
+--   driftlings among the kinds open at the island's tier (Data/Islets `tier`; a rarity none of them has falls to the
+--   next commoner one), with mutations (Traits.roll, as a rarer one every Tuning.TideMutTier tiers). Each keeps the
+--   tide's clock when it came (`at`) and its `life`, so every client puts it at the same place along the way
+--   (Controllers/TideView). Seeing one puts it in the Index (`seen` 1).
 --   Taking one in (`take`) costs shells (`cost`) and needs a hut with room; with every hut full the player names one of
 --   theirs to swap out (it is sold for its `price`). It moves into the comfiest hut with room (or the swapped one's)
 --   and takes a free place at a building of its knack.
@@ -47,7 +50,7 @@ function Tide.hutFx(p: Profile): (number, number)
 	return math.clamp(tide, 0, Tuning.HutTide), math.clamp(luck, 0, Tuning.HutLuck)
 end
 
--- Seconds between two driftlings drifting in.
+-- Seconds between two driftlings coming in.
 function Tide.secs(p: Profile): number
 	local boost = Tide.hutFx(p)
 	return Tuning.TideSecs / (1 + boost)
@@ -83,7 +86,7 @@ function Tide.odds(p: Profile, tier: number?): { number }
 	local w: { number } = {}
 	local total = 0
 	for r, rd in Traits.RARITY do
-		w[r] = rd.weight * f ^ (r - 1)
+		w[r] = rd.weight * (Tuning.TideRare[r] or 1) * f ^ (r - 1)
 		total += w[r]
 	end
 	local out: { number } = { 0, 0, 0, 0, 0 }
@@ -291,12 +294,17 @@ function Tide.add(p: Profile, sp: string, muts: { string }): Pal
 end
 
 ------------------------------------------------------------------ the tide
--- A session's tide (never saved): seconds since the last one drifted in, the ones bobbing at the jetty (the oldest
--- first) and the next drift's id.
-export type State = { t: number, list: { Drift }, next: number }
+-- Seconds one takes to float past the island (the faster the tide comes in, the faster it runs).
+function Tide.life(p: Profile): number
+	return Tuning.TideLife * Tide.secs(p) / Tuning.TideSecs
+end
 
-function Tide.new(): State
-	return { t = 0, list = {}, next = 1 }
+-- A session's tide (never saved): its clock (IslandService runs it on the server's time), seconds since the last one
+-- came in, the ones floating past (the oldest, the furthest along, first) and the next one's id.
+export type State = { clock: number, t: number, list: { Drift }, next: number }
+
+function Tide.new(clock: number?): State
+	return { clock = clock or 0, t = 0, list = {}, next = 1 }
 end
 
 -- A kind and its mutations off the tide: a rarity by the odds (or `rarity`), one of its kinds (of `knack` when one is
@@ -335,64 +343,87 @@ function Tide.roll(p: Profile, rng: Rng, rarity: number?, knack: string?): (stri
 	return sp, Traits.roll(rng, mutR)
 end
 
--- One drifts in (seen in the Index); at TideMax the oldest drifts off first. Returns it and the id that left (0: none).
-function Tide.drift(p: Profile, s: State, rng: Rng, rarity: number?, knack: string?): (Drift, number)
-	local left = 0
-	if #s.list >= Tuning.TideMax then
-		local gone = table.remove(s.list, 1)
-		left = if gone then gone.id else 0
+-- A new island (nothing taken in yet, nobody in a hut): every third one is a common that can work at its first
+-- buildings (good with wood, or at a farm, by turns), so the tips' first driftling is cheap and has somewhere to go.
+local FIRST_KNACKS = { "wood", "farm" }
+local function firstOf(p: Profile, s: State): (number?, string?)
+	if p.stats.taken == 0 and #p.pals == 0 and s.next % 3 == 1 then
+		return 1, FIRST_KNACKS[(s.next // 3) % #FIRST_KNACKS + 1]
 	end
-	local sp, muts = Tide.roll(p, rng, rarity, knack)
-	local d: Drift = { id = s.next, sp = sp, muts = muts, cost = Tide.cost(p, sp, muts) }
+	return nil, nil
+end
+
+-- One comes in at the tide's clock `at` (seen in the Index). Returns it.
+function Tide.drift(p: Profile, s: State, rng: Rng, at: number, rarity: number?, knack: string?): Drift
+	local r, k = rarity, knack
+	if r == nil and k == nil then
+		r, k = firstOf(p, s)
+	end
+	local sp, muts = Tide.roll(p, rng, r, k)
+	local d: Drift = { id = s.next, sp = sp, muts = muts, cost = Tide.cost(p, sp, muts), at = at, life = Tide.life(p) }
 	s.next += 1
 	table.insert(s.list, d)
 	p.seen[sp] = math.max(p.seen[sp] or 0, 1)
-	return d, left
+	return d
 end
 
--- A session's first: TideStart there already. A new island's are commons that can work at its first buildings (one
--- good with wood, one at a farm), so the tips' first driftlings are cheap and have somewhere to go.
+-- A session's first: the tide already running, one every `secs` all the way along.
 function Tide.start(p: Profile, s: State, rng: Rng)
-	local first = p.stats.taken == 0 and #p.pals == 0
-	local KNACKS = { "wood", "farm" }
-	for i = 1, Tuning.TideStart do
-		if first then
-			Tide.drift(p, s, rng, 1, KNACKS[(i - 1) % #KNACKS + 1])
-		else
-			Tide.drift(p, s, rng)
-		end
+	local secs, life = Tide.secs(p), Tide.life(p)
+	local n = math.max(1, math.floor(life / secs))
+	for k = n - 1, 0, -1 do
+		Tide.drift(p, s, rng, s.clock - k * secs)
 	end
+	s.t = 0
 end
 
--- dt seconds of the tide: every `secs` one drifts in. Returns the ones that came and the ids that drifted off.
+-- dt seconds of the tide: every `secs` one comes in; each one gone past the island leaves. Returns the ones that came
+-- and the ids that left.
 function Tide.step(p: Profile, s: State, dt: number, rng: Rng): ({ Drift }, { number })
 	local came: { Drift } = {}
 	local gone: { number } = {}
 	local secs = Tide.secs(p)
+	s.clock += dt
 	s.t += dt
 	while s.t >= secs do
 		s.t -= secs
-		local d, left = Tide.drift(p, s, rng)
-		table.insert(came, d)
-		if left ~= 0 then
-			table.insert(gone, left)
+		table.insert(came, Tide.drift(p, s, rng, s.clock - s.t))
+	end
+	local i = 1
+	while i <= #s.list do
+		local d = s.list[i]
+		if s.clock - d.at >= d.life then
+			table.remove(s.list, i)
+			table.insert(gone, d.id)
+		else
+			i += 1
 		end
 	end
 	return came, gone
 end
 
--- The ones bobbing now, each with its cost on this island (it changes as the island grows).
+-- How far along one is (0 just come in .. 1 gone past), at the tide's clock `now`.
+function Tide.along(d: Drift, now: number): number
+	return math.clamp((now - d.at) / math.max(0.1, d.life), 0, 1)
+end
+
+-- One as the client sees it: its cost on this island (it changes as the island grows).
+function Tide.entry(p: Profile, d: Drift): Drift
+	return { id = d.id, sp = d.sp, muts = d.muts, cost = Tide.cost(p, d.sp, d.muts), at = d.at, life = d.life }
+end
+
+-- The ones floating past now.
 function Tide.view(p: Profile, s: State): { Drift }
 	local out: { Drift } = {}
 	for _, d in s.list do
-		table.insert(out, { id = d.id, sp = d.sp, muts = d.muts, cost = Tide.cost(p, d.sp, d.muts) })
+		table.insert(out, Tide.entry(p, d))
 	end
 	return out
 end
 
 ------------------------------------------------------------------ the player's actions
 -- One off the tide taken in for its cost: into the comfiest hut with room, or, every hut full, into the place of
--- `swap` (one of the player's in a hut: sold for its price). not_found (it drifted off), no_hut (no hut built),
+-- `swap` (one of the player's in a hut: sold for its price). not_found (it floated off), no_hut (no hut built),
 -- money, full (every hut full and no swap named), bad_payload (a swap that isn't in a hut).
 function Tide.take(p: Profile, s: State, id: number, swap: number): (boolean, any)
 	local at = 0

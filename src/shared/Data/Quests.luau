@@ -37,7 +37,7 @@ local list: { Quest } = {
 	{
 		id = "take3",
 		title = "Three off the tide",
-		text = "Driftlings float up to the jetty. Tap one to take it in.",
+		text = "Driftlings float past the island. Tap one to take it in.",
 		goal = { kind = "taken", n = 3 },
 		reward = { shells = 60, wood = 40 },
 		go = "tide",
@@ -73,7 +73,7 @@ local list: { Quest } = {
 	{
 		id = "uncommon",
 		title = "An uncommon one",
-		text = "Uncommon ones drift in now and then. They cost more and work faster.",
+		text = "Uncommon ones float by now and then. They cost more and work faster.",
 		goal = { kind = "best", n = 2 },
 		reward = { shells = 100 },
 		go = "tide",
@@ -109,7 +109,7 @@ local list: { Quest } = {
 	{
 		id = "rare",
 		title = "A rare one",
-		text = "Rare ones glow as they drift in. Save some shells for one.",
+		text = "Rare ones carry a lantern. Save some shells for one.",
 		goal = { kind = "best", n = 3 },
 		reward = { shells = 200 },
 		go = "tide",
@@ -118,7 +118,7 @@ local list: { Quest } = {
 	{
 		id = "expand",
 		title = "Grow your island",
-		text = "In Build mode tap Expand. A bigger island fits more, and new kinds drift in.",
+		text = "In Build mode tap Expand. A bigger island fits more, and new kinds float by.",
 		goal = { kind = "tier", n = 2 },
 		reward = { shells = 200, wood = 400 },
 		go = "build",
@@ -145,7 +145,7 @@ local list: { Quest } = {
 	{
 		id = "index",
 		title = "Meet twelve kinds",
-		text = "The Index lists every kind that has drifted in. A bigger island brings more kinds.",
+		text = "The Index lists every kind that has floated by. A bigger island brings more kinds.",
 		goal = { kind = "seen", n = 12 },
 		reward = { shells = 500 },
 		go = "index",

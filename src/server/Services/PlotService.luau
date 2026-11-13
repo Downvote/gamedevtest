@@ -294,13 +294,29 @@ function PlotService.debugNext(i: number): (number?, boolean, number)
 	return if n then n.tier else nil, n ~= nil and n.model ~= nil, swaps
 end
 
+-- The plot's tide: the ones floating past "id.species.at.life" (at: the tide's clock when it came in, life: the seconds
+-- it takes to float past, both in tenths of a second), so every client draws every island's at the same place along
+-- the way (Controllers/TideView). Main calls it whenever the tide changed (one a second).
+function PlotService.syncTide(s: S)
+	local m = plotModel(s.plot)
+	local tide = {}
+	for _, d in s.tide.list do
+		table.insert(tide, string.format("%d.%s.%d.%d", d.id, d.sp, math.floor(d.at * 10 + 0.5), math.floor(d.life * 10 + 0.5)))
+	end
+	local v = table.concat(tide, ";")
+	if m:GetAttribute("Tide") ~= v then
+		m:SetAttribute("Tide", v)
+	end
+	s.tideDirty = false
+end
+
 -- The plot's attributes from the session (cheap: only changed values replicate).
 function PlotService.sync(s: S)
 	local m = plotModel(s.plot)
 	local p = s.profile
 	-- who lives there: each driftling in a hut "id.species.work.home" (work: the uid of the building it works at, 0
-	-- resting; home: its hut; one with no hut, its hut cleared away, shows once it moves in). The tide: the ones
-	-- bobbing at the jetty "id.species" (every client draws every island's, Controllers/WorldView).
+	-- resting; home: its hut; one with no hut, its hut cleared away, shows once it moves in). The tide follows
+	-- (PlotService.syncTide).
 	local pals = {}
 	for _, x in p.pals do
 		if (x.home or 0) ~= 0 then
@@ -316,11 +332,7 @@ function PlotService.sync(s: S)
 	set("Day", p.day)
 	set("Charm", Island.charm(p))
 	set("Pals", table.concat(pals, ";"))
-	local tide = {}
-	for _, d in s.tide.list do
-		table.insert(tide, string.format("%d.%s", d.id, d.sp))
-	end
-	set("Tide", table.concat(tide, ";"))
+	PlotService.syncTide(s)
 	local f = p.founder
 	local look = string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt)
 	if s.player:GetAttribute("Founder") ~= look then

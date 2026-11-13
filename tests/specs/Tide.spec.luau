@@ -1,5 +1,5 @@
--- The tide and the huts (Logic/Tide; GAME_DESIGN 6): a driftling drifts in to the jetty every few seconds, TideMax bob
--- there at once and the oldest drifts off when another comes; rarer ones come less often, more on a bigger island;
+-- The tide and the huts (Logic/Tide; GAME_DESIGN 6): a driftling comes in on the tide every second and floats past the
+-- island in TideLife seconds, then it's gone, like a conveyor belt; rarer ones come less often, more on a bigger island;
 -- taking one in costs shells and a hut's room (every hut full: a swap, the one swapped out sold); a driftling in a hut
 -- takes a job of its knack; one with no hut waits for room; the player moves them between huts and sells them.
 local T = require("../TestKit")
@@ -35,7 +35,7 @@ end
 
 -- one of a kind on the tide (a drift of a known kind, for the take tests)
 local function drift(s: any, p: any, sp: string, muts: { string }?): any
-	local d = { id = s.next, sp = sp, muts = muts or {}, cost = Tide.cost(p, sp, muts) }
+	local d = { id = s.next, sp = sp, muts = muts or {}, cost = Tide.cost(p, sp, muts), at = s.clock, life = Tide.life(p) }
 	s.next += 1
 	table.insert(s.list, d)
 	return d
@@ -59,47 +59,83 @@ return function()
 		T.truthy(need <= Tuning.StartWood, "the tips' buildings: " .. need)
 	end)
 
-	T.it("one drifts in every TideSecs; TideMax bob at once and the oldest drifts off; each seen in the Index", function()
+	T.it("one comes in every TideSecs and floats past in TideLife, then it's gone; each seen in the Index", function()
 		local p = fresh()
-		local s = Tide.new()
+		local s = Tide.new(100)
 		local rng = Util.newRng(3)
 		local came, gone = Tide.step(p, s, Tuning.TideSecs - 0.01, rng)
 		T.eq(#came, 0, "not yet")
 		came, gone = Tide.step(p, s, 0.02, rng)
 		T.eq(#came, 1, "one came")
 		T.eq(#gone, 0)
-		T.eq(p.seen[came[1].sp], 1, "seen, not had")
-		came, gone = Tide.step(p, s, Tuning.TideSecs * (Tuning.TideMax + 2), rng)
-		T.eq(#came, Tuning.TideMax + 2)
-		T.eq(#s.list, Tuning.TideMax, "never more than TideMax")
-		T.eq(#gone, 3, "the oldest drifted off")
-		T.eq(gone[1], 1, "the first to come is the first to go")
+		local first = came[1]
+		T.near(first.at, 100 + Tuning.TideSecs, 1e-6, "its clock when it came")
+		T.near(first.life, Tuning.TideLife, 1e-9)
+		T.eq(p.seen[first.sp], 1, "seen, not had")
+		T.near(Tide.along(first, first.at + Tuning.TideLife / 2), 0.5, 1e-9, "halfway along at half its life")
+		-- the belt fills: TideLife / TideSecs floating past at once, the first gone once its life is up
+		local most, sawFirstGo = 0, false
+		for _ = 1, math.ceil(Tuning.TideLife * 3 / 0.25) do
+			came, gone = Tide.step(p, s, 0.25, rng)
+			most = math.max(most, #s.list)
+			for _, id in gone do
+				if id == first.id then
+					sawFirstGo = true
+					T.truthy(s.clock - first.at >= first.life - 1e-6, "not before its life is up")
+					T.truthy(s.clock - first.at < first.life + 0.25 + 1e-6, "and right when it is")
+				end
+			end
+			for _, d in s.list do
+				T.truthy(s.clock - d.at < d.life, "nobody past the end")
+			end
+		end
+		T.truthy(sawFirstGo, "the first floated off")
+		local n = Tuning.TideLife / Tuning.TideSecs
+		T.truthy(most >= n - 1 and most <= n + 1, "about TideLife / TideSecs at once: " .. most)
 		for i = 2, #s.list do
-			T.truthy(s.list[i].id > s.list[i - 1].id, "the oldest first")
+			T.truthy(s.list[i].id > s.list[i - 1].id and s.list[i].at > s.list[i - 1].at, "the oldest (furthest along) first")
 		end
 		T.eq(#p.pals, 0, "seeing one isn't having it")
 	end)
 
-	T.it("a new island's first two are cheap commons: one good with wood, one at a farm", function()
+	T.it("the tide is already running when the player comes, spread all along; a new island gets cheap commons", function()
 		local p = Schema.default(0, 9)
-		local s = Tide.new()
+		local s = Tide.new(50)
 		Tide.start(p, s, Util.newRng(1))
-		T.eq(#s.list, Tuning.TideStart)
+		local n = math.floor(Tuning.TideLife / Tuning.TideSecs)
+		T.eq(#s.list, n, "the belt full")
+		T.near(s.list[#s.list].at, 50, 1e-9, "the newest just came")
+		T.near(s.list[1].at, 50 - (n - 1) * Tuning.TideSecs, 1e-9, "the oldest far along")
 		local knacks = {}
+		local cheap = 0
 		for _, d in s.list do
 			local c = Creatures.byId[d.sp]
-			T.eq(c.rarity, 1, d.sp .. " a common")
-			knacks[c.knack] = true
-			T.truthy(d.cost <= Tuning.StartShells, "affordable at the start")
+			if c.rarity == 1 and d.cost <= Tuning.StartShells then
+				knacks[c.knack] = true
+				cheap += 1
+			end
 		end
-		T.truthy(knacks.wood and knacks.farm, "wood and farm")
+		T.truthy(knacks.wood and knacks.farm, "cheap ones good with wood and at a farm")
+		T.truthy(cheap >= n // 3, "every third one at least: " .. cheap)
+		-- and they keep coming while nothing is taken in
+		local guaranteed = 0
+		for _ = 1, 30 do
+			local came = Tide.step(p, s, Tuning.TideSecs, Util.newRng(guaranteed + 5))
+			for _, d in came do
+				local c = Creatures.byId[d.sp]
+				if c.rarity == 1 and (c.knack == "wood" or c.knack == "farm") then
+					guaranteed += 1
+				end
+			end
+		end
+		T.truthy(guaranteed >= 10, "a cheap one with work every few seconds: " .. guaranteed)
 		-- an island with driftlings gets the tide as it comes
 		local q = fresh()
 		pal(q, "pebblit")
 		q.stats.taken = 1
 		local s2 = Tide.new()
 		Tide.start(q, s2, Util.newRng(1))
-		T.eq(#s2.list, Tuning.TideStart)
+		T.eq(#s2.list, n)
 	end)
 
 	T.it("what drifts in: the kinds open at the island's tier, rarer ones less often, a bigger island luckier", function()

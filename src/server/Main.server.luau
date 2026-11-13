@@ -82,6 +82,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 	for player, s in Session.all() do
 		if s.dirty and s.ready then
 			PlotService.sync(s)
+		elseif s.tideDirty and s.ready then
+			PlotService.syncTide(s)
 		end
 		Session.flush(s)
 		if s.ready and now >= s.saveAt then

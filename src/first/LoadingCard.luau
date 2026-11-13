@@ -111,11 +111,11 @@ local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 local STATUS = { start = "Waking up your island", island = "Finding your island", picture = "Drawing your island" }
 local TIPS = {
 	"Wood pays for building. Shells pay for driftlings.",
-	"Driftlings float up to the jetty. Tap a price to take one in.",
+	"Driftlings float past your island. Tap one to take it in.",
 	"Rare driftlings work much faster than common ones.",
 	"When the huts are full, swap a weak one for a better one.",
-	"A rare one glows as it drifts in. Keep some shells for it.",
-	"Grow the island and new kinds drift in.",
+	"A rare one carries a lantern. Keep some shells for it.",
+	"Grow the island and new kinds float by.",
 }
 
 type Rect = { x0: number, y0: number, x1: number, y1: number }

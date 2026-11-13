@@ -495,7 +495,7 @@ function SCEN.day()
 	return p
 end
 
--- A UI panel by name (UIKit.openPanel): pals, tide (the driftlings at the jetty with their prices, the odds), index,
+-- A UI panel by name (UIKit.openPanel): pals, tide (the best floating by with their prices, the odds), index,
 -- looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents picked
 -- through the panel).
 local function panelScenario(name)
@@ -535,9 +535,10 @@ local function panelScenario(name)
 	return p
 end
 
--- The tide at the jetty (GAME_DESIGN 6): a village's jetty with driftlings bobbing on their rafts, their names and
--- prices over them, the founder on the jetty (tide); one more drifting in along the channel (tide_arrive); one taken
--- in by its price tag, hopping ashore (tide_take); a rare one's lantern at night (tide_night).
+-- The tide past a village (GAME_DESIGN 6): driftlings on their rafts riding the lane past the island, one a second, a
+-- rare one coming up to the jetty and an epic just past it, their prices over them, the founder at the jetty (tide);
+-- two and a half seconds on, the whole belt moved along (tide_flow); one taken in by its price tag, hopping ashore
+-- (tide_take); the lanterns at night (tide_night).
 function SCEN.tide()
 	seedProfile(21, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000 })
 	local p = join(21, "Jetty")
@@ -553,24 +554,49 @@ function SCEN.tide()
 		E.run(2)
 		settle(p, 30, 1)
 	end
-	-- (a full jetty: one of each kind of luck, a rare one among them)
-	while #s.tide.list < 3 do
-		Tide.drift(prof, s.tide, s.rng)
+	-- (the tide already running past: a rare one coming up to the jetty and an epic just past it, in the places of the
+	-- ones there)
+	local now = E.workspace:GetServerTimeNow()
+	local function placeAt(lx, rarity)
+		local k = (lx - Street.TIDE.x0) / (Street.TIDE.x1 - Street.TIDE.x0)
+		local best, bestD = nil, math.huge
+		for _, d in s.tide.list do
+			local dk = math.abs((now - d.at) / d.life - k)
+			if dk < bestD then
+				best, bestD = d, dk
+			end
+		end
+		if best then
+			-- (a new one in its place: a new id, so every client draws it afresh)
+			best.id = s.tide.next
+			s.tide.next += 1
+			best.sp, best.muts = Tide.roll(prof, s.rng, rarity)
+			best.cost = Tide.cost(prof, best.sp, best.muts)
+		end
 	end
-	Tide.drift(prof, s.tide, s.rng, 3)
-	H.smod("PlotService").sync(s)
-	E.run(4)
+	placeAt(-9, 3)
+	placeAt(7, 4)
+	H.smod("PlotService").syncTide(s)
+	s.dirty = true
+	E.run(0.2)
 	settle(p, 30, 1)
 	capture(p, "tide")
-	-- the next one drifting in (the oldest drifting off)
-	s.tide.t = Tide.secs(prof) - 0.05
-	E.run(1.2)
-	capture(p, "tide_arrive")
-	E.run(3)
+	-- two and a half seconds on: the whole belt has moved along (one more in at the west end, one gone at the east)
+	E.run(2.5)
+	capture(p, "tide_flow")
 	-- one taken in by its tag: it hops ashore at the jetty
-	local first = s.tide.list[#s.tide.list]
-	if first then
-		H.clickNamed(p, "TideTake_" .. first.id, { wait = 0.35 })
+	local v = H.inClient(p, function()
+		return modOr(p, "Controllers.StateClient").view()
+	end)
+	local pick = nil
+	for _, d in (v and v.tide or {}) do
+		local tag = H.buttonNamed(p, "TideTake_" .. d.id)
+		if tag and prof.shells >= d.cost and (pick == nil or d.cost > pick.cost) then
+			pick = d
+		end
+	end
+	if pick then
+		H.clickNamed(p, "TideTake_" .. pick.id, { wait = 0.35 })
 	end
 	capture(p, "tide_take")
 	-- at night: a rare one's lantern lights the water round it

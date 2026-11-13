@@ -18,8 +18,10 @@ export type PlotSave = { placed: { Piece } }
 -- muts: its mutations (Data/Traits ids, at most Traits.MAX), rolled when it drifted in or hatched.
 export type Pal = { id: number, sp: string, home: number, work: number, muts: { string }? }
 
--- A driftling bobbing at the jetty on the tide (Logic/Tide; the session's, never saved): what it is and costs.
-export type Drift = { id: number, sp: string, muts: { string }, cost: number }
+-- A driftling floating past on the tide (Logic/Tide; the session's, never saved): what it is and costs.
+-- One on the tide: `at` the tide's clock when it came in (the server's time, workspace:GetServerTimeNow), `life` the
+-- seconds it takes to float past (Logic/Tide).
+export type Drift = { id: number, sp: string, muts: { string }, cost: number, at: number, life: number }
 
 export type Settings = { pixel: string, music: string? } -- music: "on" (default) | "off"
 
@@ -59,8 +61,7 @@ export type ClientView = {
 	tier: number,
 	founder: Look,
 	pals: { Pal }, -- every driftling
-	tide: { Drift }, -- the driftlings bobbing at the jetty, the oldest first (it drifts off when the next comes)
-	tideT: number, -- seconds since the last one drifted in
+	tide: { Drift }, -- the driftlings floating past, the oldest (the furthest along) first
 	tideSecs: number, -- seconds between two (Logic/Tide.secs)
 	plot: number, -- the plot index on the sea
 	pieces: { Piece },

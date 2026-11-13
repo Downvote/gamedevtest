@@ -1,13 +1,14 @@
 --!strict
 -- The island on the server (docs/ARCHITECTURE.md 7.4): every player action and the island's clock, as thin wrappers
 -- round the shared rules (Logic/Island, Plot, Tide, Breed) that mark the session dirty and tell the client what
--- happened. The island makes wood and shells every step (Island.step); the tide brings a driftling to the jetty every
--- few seconds and the oldest drifts off (Tide.step; Fx "tide"); the stores and the tide's clock go to the client every
--- second (Fx "tick", so the whole view is not sent every second); a turn ends every Tuning.TurnSeconds (the eggs; Fx
+-- happened. The island makes wood and shells every step (Island.step); the tide brings a driftling in every second
+-- and each floats past the island and off (Tide.step; Fx "tide"); the stores go to the client every second (Fx "tick",
+-- so the whole view is not sent every second); a turn ends every Tuning.TurnSeconds (the eggs; Fx
 -- "turn"), and the sea's clock (WorldClock: hours a day) counts the calendar days (Island.newDay; Fx "day").
 -- Everything runs while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
@@ -48,11 +49,16 @@ local function tips(s: Session.S)
 	end
 end
 
--- The tide's news (driftlings that drifted in, and off) go to the client with the view.
-local function tide(s: Session.S, came: { any }, gone: { number })
+-- The tide's news (driftlings that came in, and the ones gone past) go to the client on their own (one a second: the
+-- whole view isn't sent for them; StateClient patches its copy), and the plot's Tide attribute follows (Main).
+local function tide(s: Session.S, came: { Types.Drift }, gone: { number })
 	if #came > 0 or #gone > 0 then
-		Session.markDirty(s)
-		Session.fx(s, { kind = "tide", came = came, gone = gone })
+		s.tideDirty = true
+		local list = {}
+		for _, d in came do
+			table.insert(list, Tide.entry(s.profile, d))
+		end
+		Session.fx(s, { kind = "tide", came = list, gone = gone })
 	end
 end
 
@@ -184,8 +190,13 @@ function IslandService.step(dt: number)
 		end
 		local p = s.profile
 		Island.step(p, dt)
-		-- the tide: one drifts in every few seconds, the oldest drifting off
-		local came, gone = Tide.step(p, s.tide, dt, s.rng)
+		-- the tide, on the server's time (so every client puts each one at the same place): one comes in every second,
+		-- each one gone past the island leaves (a long stall is skipped, not caught up)
+		local now = workspace:GetServerTimeNow()
+		if now - s.tide.clock > 5 then
+			s.tide.clock = now - 5
+		end
+		local came, gone = Tide.step(p, s.tide, math.max(0, now - s.tide.clock), s.rng)
 		tide(s, came, gone)
 		s.turnClock += dt
 		if s.turnClock >= Tuning.TurnSeconds then
@@ -204,7 +215,7 @@ function IslandService.step(dt: number)
 		s.tickClock += dt
 		if s.tickClock >= 1 then
 			s.tickClock -= 1
-			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), tideT = s.tide.t, tideSecs = Tide.secs(p) })
+			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), tideSecs = Tide.secs(p) })
 		end
 	end
 end

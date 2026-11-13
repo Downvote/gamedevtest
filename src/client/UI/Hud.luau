@@ -1,9 +1,9 @@
 --!strict
 -- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the chips along the top (wood, shells, the day and its clock),
 -- the menu bar along the bottom (Build, Driftlings, Index, Looks), the island card on the right (the island's name,
--- driftlings in huts and their room, visitors, charm, what it makes) with the tide's card under it (the next one's
--- bar, each one bobbing at the jetty with its price to take it in), the questline's card, the tips banner, the new
--- day's banner and the alerts for a rare driftling drifting in (the loading card is src/first's). The camera fits the
+-- driftlings in huts and their room, visitors, charm, what it makes) with the tide's card under it (the best few
+-- floating by, each with its price to take it in and the time it has left), the questline's card, the tips banner, the
+-- new day's banner and the alerts for an epic or legendary one floating by (the loading card is src/first's). The camera fits the
 -- island clear of the HUD's blocks (CameraController.setHudRects).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -323,18 +323,15 @@ local function updateCard(v: Types.ClientView)
 end
 
 ------------------------------------------------------------------ the tide's card
--- Under the island card (GAME_DESIGN 6): its name and Open (the tide's panel), a bar filling toward the next one
--- (Heartbeat runs it on from StateClient.tideFrac), then each driftling bobbing at the jetty, the oldest (the next to
--- drift off) first: its name in its rarity's colour and its price on a button that takes it in (TideView.take; green
--- when the shells are there). On a phone only the newest (the card sits over the quest's, which must clear the menu
--- bar).
-local TIDE_ROW = 13
+-- Under the island card (GAME_DESIGN 6): its name and Open (the tide's panel), then the best few floating past now
+-- (TideView.best: the best workers, and one the shells cover if none of those is): each one's name in its rarity's
+-- colour, its price on a button that takes it in (TideView.take; green when the shells are there) and under its name a
+-- bar of the time it has left before it's gone (Heartbeat runs it down). On a phone only the best (the card sits over
+-- the quest's, which must clear the menu bar).
+local TIDE_ROW = 15
+local tideRows: { { bar: Frame, d: Types.Drift, w: number } } = {}
 local function updateTide(v: Types.ClientView)
-	local shown: { Types.Drift } = {}
-	local most = if UIKit.phone() then 1 else #v.tide
-	for i = math.max(1, #v.tide - most + 1), #v.tide do
-		table.insert(shown, v.tide[i])
-	end
+	local shown = TideView.best(v, if UIKit.phone() then 1 else 3)
 	local parts: { string } = {}
 	for _, d in shown do
 		table.insert(parts, string.format("%d:%d:%s", d.id, d.cost, if v.shells >= d.cost then "y" else "n"))
@@ -347,11 +344,12 @@ local function updateTide(v: Types.ClientView)
 		tideCard:Destroy()
 		tideCard = nil
 	end
+	table.clear(tideRows)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
 	local rows = math.max(1, #shown)
-	local h = 24 + rows * TIDE_ROW + 2
+	local h = 15 + rows * TIDE_ROW + 1
 	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - 7, CARD_Y), UIKit.color("plate"), 0.04, 3, { shadow = true, wood = 3 })
 	f.Name = "TideCard"
 	UIKit.plank(f, 11, 3)
@@ -360,22 +358,26 @@ local function updateTide(v: Types.ClientView)
 	UIKit.button(f, "Open", UDim2.fromOffset(34, 10), UDim2.fromOffset(w - 37, 1), function()
 		UIKit.openPanel("tide")
 	end, { name = "TideOpen", color = UIKit.color("button_ok") }).ZIndex = 5
-	local back = UIKit.rect(f, UDim2.fromOffset(w - 8, 5), UDim2.fromOffset(4, 14), UIKit.color("ink"), 4)
-	back.Name = "TideBar"
-	UIKit.rect(back, UDim2.fromOffset(0, 3), UDim2.fromOffset(1, 1), UIKit.color("button"), 5).Name = "Fill"
 	if #shown == 0 then
-		UIKit.text(f, "Nothing yet", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 23), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.text(f, "Nothing yet", UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 16), { color = UIKit.color("text_dim"), z = 4 })
 	end
 	for i, d in shown do
 		local def = Creatures.byId[d.sp]
 		local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
-		local y = 22 + (i - 1) * TIDE_ROW
+		local y = 14 + (i - 1) * TIDE_ROW
 		local text = Numbers.coins(d.cost)
 		local bw = math.max(34, UIKit.textWidth(text) + 18)
-		UIKit.text(f, if def then def.name else "?", UDim2.fromOffset(w - bw - 10, 10), UDim2.fromOffset(4, y + 1), { color = UIKit.color(rar.color), z = 4, name = "TideName_" .. d.id })
+		local nw = w - bw - 10
+		UIKit.text(f, if def then def.name else "?", UDim2.fromOffset(nw, 10), UDim2.fromOffset(4, y + 1), { color = UIKit.color(rar.color), z = 4, name = "TideName_" .. d.id })
+		-- (the time it has left: a bar under its name)
+		local back = UIKit.rect(f, UDim2.fromOffset(nw - 2, 3), UDim2.fromOffset(4, y + 11), UIKit.color("ink"), 4)
+		back.Name = "TideLeft_" .. d.id
+		local fill = UIKit.rect(back, UDim2.fromOffset(nw - 4, 1), UDim2.fromOffset(1, 1), UIKit.color(rar.color), 5)
+		fill.Name = "Fill"
+		table.insert(tideRows, { bar = fill, d = d, w = nw - 4 })
 		local can = v.shells >= d.cost
 		local id = d.id
-		local b = UIKit.button(f, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw - 4, y), function()
+		local b = UIKit.button(f, text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(w - bw - 4, y + 1), function()
 			TideView.take(id)
 		end, { name = "CardTake_" .. d.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
 		b.ZIndex = 5
@@ -532,9 +534,9 @@ local TIPS: { [number]: string } = {
 	[1] = "Wood pays for everything you build. Tap Build and place a Lumber Camp.",
 	[2] = "Shells pay for driftlings. Place a Veggie Patch. It sells what it grows.",
 	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
-	[4] = "Driftlings float in at the jetty. Tap a price to take one in.",
+	[4] = "Driftlings float past the island. Tap one, or its price, to take it in.",
 	[5] = "Visitors buy snacks too. Place a Snack Stall for more shells.",
-	[6] = "New ones drift in all the time. When the huts are full, swap a weak one for a better one.",
+	[6] = "A new one floats by every second. When the huts are full, swap a weak one for a better one.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
@@ -661,21 +663,21 @@ local function onDay(msg: { [string]: any })
 end
 
 ------------------------------------------------------------------ lifecycle
--- What drifted in (Fx "tide"): a rare one or better is news (its rarity's colour, a chime; an epic or a legend gets a
--- burst of sparkles on the tide's card too); the commoner ones just float up to the jetty (TideView).
+-- What came in on the tide (Fx "tide"): an epic one or better is news (its rarity's colour, a chime, a burst on the
+-- tide's card); a rare one's lantern is enough (one comes by every half a minute or so).
 local function onTide(msg: { [string]: any })
 	if type(msg.came) ~= "table" then
 		return
 	end
 	for _, x in msg.came do
 		local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
-		if d and d.rarity >= 3 then
+		if d and d.rarity >= 4 then
 			local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 			local a = if d.rarity == 4 then "An" else "A"
-			UIKit.notice(string.format("%s %s %s is drifting in.", a, string.lower(rar.name), d.name), UIKit.color(rar.color), 4)
-			Audio.play(if d.rarity >= 4 then "grow" else "rare")
+			UIKit.notice(string.format("%s %s %s is floating by.", a, string.lower(rar.name), d.name), UIKit.color(rar.color), 4)
+			Audio.play("grow")
 			local tc = tideCard
-			if d.rarity >= 4 and tc and tc.Parent and tc.Visible then
+			if tc and tc.Parent and tc.Visible then
 				UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
 			end
 		end
@@ -728,6 +730,11 @@ function Hud.start()
 	Menus.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
+	-- (the tide changes every second: only its card follows)
+	StateClient.TideChanged:Connect(function(v: Types.ClientView)
+		updateTide(v)
+		stack()
+	end)
 	-- the stores every second: the chips count, shells coming in rise from their chip ("+12") at most every 2 s
 	local popShells: number? = nil
 	local gained, popAt = 0, 0
@@ -808,17 +815,11 @@ function Hud.start()
 				chipBump[name] = nil
 			end
 		end
-		-- the tide's card: its bar runs on toward the next one drifting in
-		local e = tideCard
-		if e then
-			local back = e:FindFirstChild("TideBar")
-			local fill = if back then back:FindFirstChild("Fill") else nil
-			if back and fill and back:IsA("Frame") and fill:IsA("Frame") then
-				local k = StateClient.tideFrac()
-				local fw = math.floor((back.Size.X.Offset - 2) * k)
-				if fill.Size.X.Offset ~= fw then
-					fill.Size = UDim2.fromOffset(fw, 3)
-				end
+		-- the tide's card: each one's time left runs down
+		for _, r in tideRows do
+			local fw = math.floor(r.w * (1 - StateClient.along(r.d)) + 0.5)
+			if r.bar.Size.X.Offset ~= fw then
+				r.bar.Size = UDim2.fromOffset(fw, 1)
 			end
 		end
 		-- the background music: easygoing island tunes by day, softer ones from the twilight; the note in the corner
