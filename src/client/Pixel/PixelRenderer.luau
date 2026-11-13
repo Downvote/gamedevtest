@@ -81,9 +81,9 @@ local PICK_LEN = 2000
 local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
 local WATER_HZ = 6 -- the water's frames a second
 local WATER_SPEED = 2 -- phase units a frame (a crest every 64 units: about 10 studs)
-local WATER_CREST = 0xC8F0FA -- a crest's light blue (0xRRGGBB)
-local WATER_DEEP = 0x1E5C7A
-local WATER_SHALLOW = 0x6CCFD2
+local WATER_CREST = 0xD6F3FA -- a crest's light blue (0xRRGGBB)
+local WATER_DEEP = 0x3F7F98 -- (soft, like the rest of the pastel palette: Data/Palette)
+local WATER_SHALLOW = Palette.colors.shallow
 
 local NX: { number } = {}
 local NY: { number } = {}

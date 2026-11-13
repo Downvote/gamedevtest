@@ -34,26 +34,28 @@ CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*+-/:
 
 PAL = {
     "ink": 0x2B1E2E,
+    # Pastel (the request of 2026-11-13: "could everything use a more pastelish colour pallette?"): every tone lifted
+    # toward a soft light, the deep ones least so the shading still reads.
     # four tones a colour, the base (2) doing most of the work: a shadow (1) a step darker and a little cooler, a light
     # (3) a step lighter and a little warmer, a deep (0) only where a shadow meets the outline on a curve. Close steps
     # and saturated shadows: matte and soft, never a chrome sweep from near black to near white.
-    "red0": 0x6B1F48, "red1": 0xB83450, "red2": 0xE8535C, "red3": 0xFF8C72,
-    "org0": 0x8A3A2E, "org1": 0xD2652E, "org2": 0xF7963F, "org3": 0xFFC86E,
-    "yel0": 0x8F5E24, "yel1": 0xD99A2B, "yel2": 0xFFC93C, "yel3": 0xFFE98A,
-    "grn0": 0x1F5650, "grn1": 0x3A8C55, "grn2": 0x6CBF5E, "grn3": 0xAEE07A,
-    "cyn0": 0x26558F, "cyn1": 0x3B97C7, "cyn2": 0x6FCFEA, "cyn3": 0xB4F1F0,
-    "blu0": 0x2E2F7C, "blu1": 0x4561BA, "blu2": 0x6F98E8, "blu3": 0xA9CFFA,
-    "pur0": 0x3A2672, "pur1": 0x6A47AC, "pur2": 0x9B74D8, "pur3": 0xCAA6F0,
-    "pnk0": 0x76306B, "pnk1": 0xC2548F, "pnk2": 0xF286B5, "pnk3": 0xFFBACB,
-    "brn0": 0x4B2A33, "brn1": 0x8A553A, "brn2": 0xC28A57, "brn3": 0xE9BC7F,
-    "gry0": 0x45425A, "gry1": 0x75738C, "gry2": 0xA5A4B5, "gry3": 0xD3D2D8,
-    "skn0": 0x8F4C55, "skn1": 0xD18A6D, "skn2": 0xF4C49E, "skn3": 0xFFE3C2,
-    "wht0": 0x8D93BF, "wht1": 0xBAC4E2, "wht2": 0xEDF1F7,
-    "drk0": 0x2E2433, "drk1": 0x4B3D4E, "drk2": 0x685767, "drk3": 0x8C7886,
-    "bas0": 0x3A2D35, "bas1": 0x5A4549, "bas2": 0x7A5E5C, "bas3": 0x9E7D72,
-    "crm0": 0xA86E5E, "crm1": 0xDDAE86, "crm2": 0xFBE2BC, "crm3": 0xFFF6E2,  # cream: bellies, muzzles, jaws
-    "tel0": 0x1B4B57, "tel1": 0x2A7F7D, "tel2": 0x3FB0A2, "tel3": 0x86DCC0,  # teal: the island birds' backs
-    "cor0": 0x7C2B40, "cor1": 0xC9504F, "cor2": 0xFF8A72, "cor3": 0xFFC09A,  # coral: a wren's breast
+    "red0": 0x752A52, "red1": 0xC14A63, "red2": 0xE67980, "red3": 0xFAA997,
+    "org0": 0x8C4339, "org1": 0xCE774C, "org2": 0xF1AA6B, "org3": 0xF9D395,
+    "yel0": 0x91642F, "yel1": 0xD3A149, "yel2": 0xF7CF68, "yel3": 0xFAEAA6,
+    "grn0": 0x2B635D, "grn1": 0x4CA469, "grn2": 0x8DC883, "grn3": 0xC1E49E,
+    "cyn0": 0x315C91, "cyn1": 0x569FC5, "cyn2": 0x8BD4E8, "cyn3": 0xC2F0F0,
+    "blu0": 0x393981, "blu1": 0x5E74BB, "blu2": 0x8BAAE7, "blu3": 0xBAD7F7,
+    "pur0": 0x44317A, "pur1": 0x7B5DB4, "pur2": 0xAD90DA, "pur3": 0xD4B9F0,
+    "pnk0": 0x7C3A71, "pnk1": 0xC16898, "pnk2": 0xEF98BE, "pnk3": 0xFCC3D1,
+    "brn0": 0x58363F, "brn1": 0xA2694C, "brn2": 0xCBA37E, "brn3": 0xEACBA1,
+    "gry0": 0x4E4C62, "gry1": 0x848296, "gry2": 0xB4B3C0, "gry3": 0xD9D8DD,
+    "skn0": 0x8E535B, "skn1": 0xCD9179, "skn2": 0xF1C8A7, "skn3": 0xFCE4C8,
+    "wht0": 0x9196BB, "wht1": 0xBCC5E0, "wht2": 0xEDF1F7,
+    "drk0": 0x342A39, "drk1": 0x57485A, "drk2": 0x796677, "drk3": 0x988893,
+    "bas0": 0x40323A, "bas1": 0x654F53, "bas2": 0x896C6A, "bas3": 0xA78C83,
+    "crm0": 0xA27164, "crm1": 0xD8AE8B, "crm2": 0xF8E1BF, "crm3": 0xFEF5E3,  # cream: bellies, muzzles, jaws
+    "tel0": 0x275865, "tel1": 0x3D9E9C, "tel2": 0x6BC3B8, "tel3": 0xA6E1CE,  # teal: the island birds' backs
+    "cor0": 0x813649, "cor1": 0xC76564, "cor2": 0xF99C89, "cor3": 0xFBCCB0,  # coral: a wren's breast
     # the tone markers of a tinted sprite (Render/Fx.TONES, the same four values): drawn in the world they take the
     # tones of a colour given at draw time (a tuft the lawn's under it, a leaf its tree's, a butterfly its own), here a
     # plain green so the contact sheet shows them

@@ -50,8 +50,10 @@ local SCARE_R2, SCARE_DY = 3.5 * 3.5, 5
 local GULL_R2 = 5 * 5
 local LAWN_Y, SAND_Y = Street.LAWN_Y, Street.SAND_Y
 local LAWN_RGB: { [number]: boolean } = { [Palette.colors.grass] = true, [Palette.colors.grass_dark] = true }
-local FLOWER_RGB = { 0xFFA7CA, 0xFFE172, 0xFFF6E2, 0xC39BF0, 0xFF8C78 }
-local BFLY_RGB = { 0xFFE172, 0xFFA7CA, 0x9FD8F2, 0xFFF6E2, 0xFF8C78 }
+-- (the palette's own pastels: pink, yellow, cream, crystal, coral; the butterflies sky blue among them)
+local PC = Palette.colors
+local FLOWER_RGB = { PC.pink, PC.yellow, PC.cream, PC.crystal, PC.coral }
+local BFLY_RGB = { PC.yellow, PC.pink, PC.sky_day, PC.cream, PC.coral }
 -- the parts that smoke or steam (by name), how often a wisp comes (s) and how long one lives
 local PUFFS: { [string]: { kind: string, every: number, life: number } } = {
 	Chimney = { kind = "smoke", every = 0.13, life = 2.6 },
