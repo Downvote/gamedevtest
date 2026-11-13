@@ -213,6 +213,16 @@ local function fenceFits(tier: number, placed: { Piece }, x: number, z: number, 
 	return true, nil
 end
 
+-- Whether a piece may stand on path tiles (GAME_DESIGN 4: a themed yard paved in snow, sand or moss stone with its decor
+-- on it): decor, nature and the fun pieces; never a hut, a workplace, the tree, a fence or anything for the water.
+local function onPaths(def: Buildings.BuildingDef): boolean
+	return (def.tab == "decor" or def.tab == "nature" or def.tab == "fun") and def.water == "" and def.kind ~= "tree"
+end
+function Plot.onPaths(id: string): boolean
+	local d = Buildings.byId[id]
+	return d ~= nil and onPaths(d)
+end
+
 -- Whether piece `id` fits at (x, z, rot) on an island of `tier` with these pieces (skip = the index of the piece
 -- being moved). Returns true, or false and why: "outside" (off the buildable grass or not on the grid; a piece that
 -- floats, off the water), "blocked" (the plaza or the path), "overlap" (another piece), "unknown" (no such piece).
@@ -260,6 +270,10 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 			-- (a bridge or a lily pad over water)
 		elseif def.kind == "water" and qd and qd.water ~= "" then
 			-- (water under a bridge or a lily pad)
+		elseif qk == "path" and onPaths(def) then
+			-- (decor, a plant or a bench on a paved yard: a snowman on snow, a deck chair on sand)
+		elseif def.kind == "path" and qd and onPaths(qd) then
+			-- (paving under them)
 		elseif overlaps(r, Plot.rect(q.id, q.x, q.z, q.rot)) then
 			return false, "overlap"
 		end

@@ -335,6 +335,40 @@ return function()
 			T.truthy(q.id ~= "lilypads", "no lily pads on the grass")
 		end
 	end)
+	T.it("a paved yard: decor, plants and fun pieces stand on path tiles; huts, workplaces and water pieces don't", function()
+		local p = fresh()
+		p.tier = 3
+		local cells = {}
+		for z = -8, -4, 2 do
+			for x = 8, 12, 2 do
+				table.insert(cells, { x, z })
+			end
+		end
+		T.truthy(Plot.paint(p, "snowpath", cells))
+		T.truthy(Plot.onPaths("snowman") and Plot.onPaths("pine") and Plot.onPaths("parkbench"))
+		T.truthy(not Plot.onPaths("nest") and not Plot.onPaths("patch") and not Plot.onPaths("lilypads") and not Plot.onPaths("tree"))
+		T.truthy(Plot.place(p, "snowman", 9, -7, 0), "a snowman on the snow")
+		T.truthy(Plot.place(p, "pine", 11, -5, 0), "a tree in it")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "nest", 8, -8, 0)), "overlap", "no hut on the paving")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "patch", 8, -8, 0)), "overlap", "no farm on it")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "snowman", 9, -7, 0)), "overlap", "two pieces still never share a spot")
+		-- paving round decor that stands already; never under a hut
+		local q = fresh()
+		q.tier = 3
+		T.truthy(Plot.place(q, "gnome", 9, -7, 0))
+		T.truthy(Plot.place(q, "nest", 13, -8, 0))
+		local ok, data = Plot.paint(q, "sandtrail", { { 8, -8 }, { 12, -8 } })
+		T.truthy(ok)
+		T.eq(data.placed, 1, "under the gnome")
+		T.eq(data.skipped, 1, "not under the hut")
+		-- taking the paving up leaves the decor where it stands
+		T.truthy(Plot.unpaint(q, { { 8, -8 } }, "path"))
+		local gnome = false
+		for _, x in q.plot.placed do
+			gnome = gnome or x.id == "gnome"
+		end
+		T.truthy(gnome)
+	end)
 	T.it("paths over paths: another look swapped where it lies (half the old price back), the same look passed over", function()
 		local p = fresh()
 		p.tier = 2

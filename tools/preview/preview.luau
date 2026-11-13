@@ -1349,12 +1349,12 @@ end
 -- a pond with what floats on it, a fenced garden with a gate, trees and plants, the theme's decor and its fun pieces,
 -- and a few huts and workplaces. Frames theme_<name> (the middle) and theme_<name>_north.
 local THEMES: { [string]: { [string]: any } } = {
-	beach = { path = { "sandtrail", "shellpath" }, fence = { "driftwood", "ropefence" }, water = "lagoon", floats = { "duckfloat", "rowboat" }, bridge = "dock", trees = { "palm", "palm", "jungletree" }, plants = { "bush", "monstera", "tallgrass", "fern" }, decor = { "umbrella", "deckchair", "deckchair", "surfboards", "sandcastle", "shellpile", "coconuts", "lifeguard", "buoy" }, fun = { "tikibar", "hammock", "firepit", "torch", "torch" } },
-	garden = { path = { "flagstone", "stonepath" }, fence = { "picket", "hedgerow", "gardengate" }, water = "lilypond", floats = { "lilypads", "duckfloat" }, bridge = "plankbridge", trees = { "oak", "birch", "cherry" }, plants = { "rosebush", "tulips", "sunflowers", "lavender", "flowers", "berrybush" }, decor = { "gnome", "birdbath", "beehive", "trellis", "sundial", "flowerarch", "topiary", "gazebo", "wheelbarrow" }, fun = { "parkbench", "gardenlights", "gardenlights", "smallfountain", "porchswing" } },
-	frost = { path = { "snowpath", "cobble" }, fence = { "icewall", "splitrail" }, water = "icepond", floats = {}, bridge = "plankbridge", trees = { "snowpine", "snowpine", "pine" }, plants = { "snowrock", "boulder", "deadtree" }, decor = { "snowman", "snowman", "sled", "icelantern", "icelantern", "icesculpture", "igloo" }, fun = { "firepit", "candles", "logseats", "stringlights" } },
-	zen = { path = { "raked", "flagstone" }, fence = { "bamboofence" }, water = "lilypond", floats = { "lotus", "steppingstones", "lilypads" }, bridge = "moonbridge", trees = { "cherry", "willow", "pine" }, plants = { "bonsai", "mossrock", "fern", "tallgrass" }, decor = { "stonelantern", "stonelantern", "windchime", "bambooscreen", "zenbasin", "lanterntower", "rockgarden" }, fun = { "stonebench", "paperlanterns", "paperlanterns" } },
-	volcano = { path = { "basalt", "gravel" }, fence = { "stonewall", "palisade" }, water = "hotspring", floats = { "steppingstones" }, bridge = "stonebridge", trees = { "deadtree", "deadtree", "jungletree" }, plants = { "basaltcols", "lavarock", "rockpile", "fern" }, decor = { "firebasin", "firebasin", "steamvent", "obsidian", "lavapool", "idol", "tikimask" }, fun = { "firepit", "torch", "torch", "grill" } },
-	fairy = { path = { "crystalpath", "meadow" }, fence = { "crystalfence", "hedgerow" }, water = "lilypond", floats = { "waterlanterns", "lotus", "lilypads" }, bridge = "ropebridge", trees = { "cherry", "willow", "bigoak" }, plants = { "giantshroom", "glowshroom", "mushrooms", "crystals", "lavender" }, decor = { "fairylantern", "fairylantern", "mushroomring", "moonstone", "wishingwell", "crystalarch" }, fun = { "swing", "candles", "stringlights" } },
+	beach = { ground = "sandtrail", path = { "sandtrail", "shellpath" }, fence = { "driftwood", "ropefence" }, water = "lagoon", floats = { "duckfloat", "rowboat" }, bridge = "dock", trees = { "palm", "palm", "jungletree" }, plants = { "bush", "monstera", "tallgrass", "fern" }, decor = { "umbrella", "deckchair", "deckchair", "surfboards", "sandcastle", "shellpile", "coconuts", "lifeguard", "buoy" }, fun = { "tikibar", "hammock", "firepit", "torch", "torch" } },
+	garden = { ground = "flagstone", path = { "flagstone", "stonepath" }, fence = { "picket", "hedgerow", "gardengate" }, water = "lilypond", floats = { "lilypads", "duckfloat" }, bridge = "plankbridge", trees = { "oak", "birch", "cherry" }, plants = { "rosebush", "tulips", "sunflowers", "lavender", "flowers", "berrybush" }, decor = { "gnome", "birdbath", "beehive", "trellis", "sundial", "flowerarch", "topiary", "gazebo", "wheelbarrow" }, fun = { "parkbench", "gardenlights", "gardenlights", "smallfountain", "porchswing" } },
+	frost = { ground = "snowpath", path = { "snowpath", "cobble" }, fence = { "icewall", "splitrail" }, water = "icepond", floats = {}, bridge = "plankbridge", trees = { "snowpine", "snowpine", "pine" }, plants = { "snowrock", "boulder", "deadtree" }, decor = { "snowman", "snowman", "sled", "icelantern", "icelantern", "icesculpture", "igloo" }, fun = { "firepit", "candles", "logseats", "stringlights" } },
+	zen = { ground = "raked", path = { "raked", "flagstone" }, fence = { "bamboofence" }, water = "lilypond", floats = { "lotus", "steppingstones", "lilypads" }, bridge = "moonbridge", trees = { "cherry", "willow", "pine" }, plants = { "bonsai", "mossrock", "fern", "tallgrass" }, decor = { "stonelantern", "stonelantern", "windchime", "bambooscreen", "zenbasin", "lanterntower", "rockgarden" }, fun = { "stonebench", "paperlanterns", "paperlanterns" } },
+	volcano = { ground = "basalt", path = { "basalt", "gravel" }, fence = { "stonewall", "palisade" }, water = "hotspring", floats = { "steppingstones" }, bridge = "stonebridge", trees = { "deadtree", "deadtree", "jungletree" }, plants = { "basaltcols", "lavarock", "rockpile", "fern" }, decor = { "firebasin", "firebasin", "steamvent", "obsidian", "lavapool", "idol", "tikimask" }, fun = { "firepit", "torch", "torch", "grill" } },
+	fairy = { ground = "meadow", path = { "crystalpath", "meadow" }, fence = { "crystalfence", "hedgerow" }, water = "lilypond", floats = { "waterlanterns", "lotus", "lilypads" }, bridge = "ropebridge", trees = { "cherry", "willow", "bigoak" }, plants = { "giantshroom", "glowshroom", "mushrooms", "crystals", "lavender" }, decor = { "fairylantern", "fairylantern", "mushroomring", "moonstone", "wishingwell", "crystalarch" }, fun = { "swing", "candles", "stringlights" } },
 }
 local THEME_ORDER = { "beach", "garden", "frost", "zen", "volcano", "fairy" }
 local function themeScenario(name: string)
@@ -1404,6 +1404,20 @@ local function themeScenario(name: string)
 	for z = fz0, fz1 - 2, 2 do
 		exact(T.fence[2] or T.fence[1], fx0, z, 90)
 		exact(T.fence[2] or T.fence[1], fx1, z, 90)
+	end
+	-- the theme's ground paving the yard inside the fence and the strip between the river and the plaza (decor, plants
+	-- and benches stand on it: a snowman on snow)
+	for z = fz0, fz1 - 2, 2 do
+		for x = fx0, fx1 - 2, 2 do
+			exact(T.ground, x, z)
+		end
+	end
+	for z = -16, -12, 2 do
+		for x = -14, 12, 2 do
+			if x ~= 0 then
+				exact(T.ground, x, z)
+			end
+		end
 	end
 	-- inside the garden: the theme's decor in rows; the rest round the plaza and along the river
 	local spots = { { 8, -42 }, { 12, -42 }, { 16, -42 }, { 19, -41 }, { 8, -37 }, { 13, -37 }, { 18, -36 }, { 9, -32 }, { 15, -32 }, { 19, -31 } }
