@@ -1,9 +1,11 @@
 -- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
--- here, open menus and Build mode holding nothing; what a day makes and eats matching Island.rates (to a tick); the
--- stores reaching the client every second (Fx tick); the food running out (everything at half, the shops shut, the
--- chip red) and coming back; the pen sending a driftling to a hut only when a building of its knack has a free place;
--- the Hatchery's egg hatching into the Tree of Life's pen; two islands each on their own clock. (The huts are full
--- while the rates are measured: what the tree grows waits in the pen, where it neither works nor eats.)
+-- here, open menus and Build mode holding nothing; the wood and shells a day makes matching Island.rates (to a tick);
+-- the stores and the tide's clock reaching the client every second (Fx tick), a driftling drifting in to the jetty every
+-- few seconds (Fx tide, never more than TideMax there); nothing eating (no food since 2026-11-13: the stores only grow,
+-- even from none); a driftling waiting with no hut while every hut is full, moving in once a hut goes up and going to
+-- work once a building of its knack does; the Hatchery's egg (a feast of shells) hatching into a hut with room, or
+-- waiting with no hut; two islands each on their own clock. (The huts are full while the rates are measured, and
+-- nobody takes a driftling off the tide, so nobody new goes to work.)
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -20,7 +22,8 @@ local Tuning = H.sharedServer("Config.Tuning")
 local Street = H.sharedServer("Data.Street")
 local Plot = H.sharedServer("Logic.Plot")
 local Island = H.sharedServer("Logic.Island")
-local TreeC = H.sharedServer("Logic.Tree")
+local Tide = H.sharedServer("Logic.Tide")
+local Breed = H.sharedServer("Logic.Breed")
 
 local p = H.addPlayer({ userId = 9301, name = "Clock" })
 E.run(1)
@@ -56,8 +59,8 @@ for _, id in { "patch", "patch", "lumber", "nest", "nest", "stall", "flowers" } 
 	local r = place(id)
 	H.expect(r.ok, "clock", "place " .. id, tostring(r.err))
 end
--- the huts filled: four driftlings with places at the farms, the camp and the stall (whoever grew already kept in
--- the pen), so what the tree grows from now on waits there
+-- the huts filled: four driftlings with places at the farms, the camp and the stall (a new island has none of its
+-- own yet: the tide's are only taken in by the player)
 local function hutsN(): number
 	local n = 0
 	for _, x in prof.pals do
@@ -67,15 +70,18 @@ local function hutsN(): number
 	end
 	return n
 end
-for _, x in prof.pals do
-	x.home, x.work, x.held = 0, 0, 1
-end
+H.expect(#prof.pals == 0, "clock", "a new island has no driftling yet", tostring(#prof.pals))
 for _, sp in { "mossbun", "frondle", "pebblit", "conchy" } do
-	TreeC.add(prof, sp, {})
+	Tide.add(prof, sp, {})
 end
-TreeC.settle(prof)
 H.push(p, 0.2)
-H.expect(hutsN() == 4, "clock", "the two huts full, all four at work", tostring(hutsN()))
+local working = 0
+for _, x in prof.pals do
+	if x.work ~= 0 then
+		working += 1
+	end
+end
+H.expect(hutsN() == 4 and working == 4 and Tide.room(prof) == 0, "clock", "the two huts full, all four at work", string.format("%d in huts, %d at work", hutsN(), working))
 -- the next turn's end (its Fx turn)
 local function nextTurn(limit: number?)
 	local i0 = #fx
@@ -98,33 +104,74 @@ E.run(0.3)
 H.expect(count("turn", f0) == 2, "clock", "an Fx turn each", tostring(count("turn", f0)))
 H.expect(prof.day == d0, "clock", "turns are not days (a day is hours of the sea's clock)", string.format("%d -> %d", d0, prof.day))
 H.expect(math.abs(count("tick", f0) - took) <= 2, "clock", "an Fx tick every second", string.format("%d in %.1fs", count("tick", f0), took))
-H.expect(hutsN() == 4 and TreeC.inPen(prof) >= 1, "clock", "the huts full: what the tree grew waits in the pen", string.format("%d in huts, %d in the pen", hutsN(), TreeC.inPen(prof)))
 
------------------------------------------------------------------- making and eating to the rates
+------------------------------------------------------------------ the tide's clock
+-- (every tick carries the tide's clock: seconds since the last one drifted in, and the seconds between two; it runs on
+-- a second a tick and starts again each time one comes)
+E.phase = "tide"
+do
+	local secs = Tide.secs(prof)
+	H.expect(math.abs(secs - Tuning.TideSecs) < 1e-9, "tide", "one drifts in every TideSecs (no tide shares in the huts)", tostring(secs))
+	local ticks = {}
+	local came, gone = 0, 0
+	for i = f0 + 1, #fx do
+		local m = fx[i]
+		if m.kind == "tick" then
+			table.insert(ticks, m)
+		elseif m.kind == "tide" then
+			came += if type(m.came) == "table" then #m.came else 0
+			gone += if type(m.gone) == "table" then #m.gone else 0
+		end
+	end
+	local carried, steps, wraps = true, true, 0
+	for i, m in ticks do
+		carried = carried and type(m.tideT) == "number" and m.tideT >= 0 and m.tideT < secs + 1e-6 and type(m.tideSecs) == "number" and math.abs(m.tideSecs - secs) < 1e-9
+		local prev = ticks[i - 1]
+		if prev and type(prev.tideT) == "number" and type(m.tideT) == "number" then
+			local d = (m.tideT - prev.tideT) % secs
+			steps = steps and math.abs(d - 1) < 0.06
+			if m.tideT < prev.tideT then
+				wraps += 1
+			end
+		end
+	end
+	H.expect(#ticks >= 10 and carried, "tide", "every tick carries the tide's clock and its seconds", string.format("%d ticks", #ticks))
+	H.expect(steps, "tide", "the tide's clock runs on a second a tick")
+	H.expect(math.abs(came - took / secs) <= 1 and math.abs(wraps - came) <= 1, "tide", "one drifted in each time it came round", string.format("%d came, %d wraps in %.1fs", came, wraps, took))
+	H.expect(#s.tide.list == Tuning.TideMax and gone >= 1, "tide", "never more than TideMax bobbing: the oldest drifted off", string.format("%d bobbing, %d gone", #s.tide.list, gone))
+	local v = H.view(p)
+	local last = ticks[#ticks]
+	H.expect(v ~= nil and last ~= nil and v.tideT == last.tideT and v.tideSecs == secs, "tide", "the view's tide clock follows the ticks", string.format("%s vs %s", tostring(v and v.tideT), tostring(last and last.tideT)))
+	local SC = H.cmod(p, "Controllers.StateClient")
+	local frac, fsecs = SC.tideFrac()
+	H.expect(frac >= 0 and frac <= 1 and math.abs(fsecs - secs) < 1e-9, "tide", "the client's tide bar (StateClient.tideFrac)", string.format("%.3f %s", frac, tostring(fsecs)))
+	H.expect(hutsN() == 4 and #prof.pals == 4, "tide", "nobody comes in off the tide by themselves", string.format("%d driftlings", #prof.pals))
+end
+
+------------------------------------------------------------------ making wood and shells to the rates
 E.phase = "rates"
-prof.food = 500
-H.push(p, 0.2)
 local r = Island.rates(prof)
-local food0, wood0, sh0 = prof.food, prof.wood, prof.shells
+local wood0, sh0 = prof.wood, prof.shells
 E.run(10)
 local k = 10 / Tuning.TurnSeconds
 H.expect(hutsN() == 4, "rates", "(nobody new at work meanwhile)")
-H.expect(math.abs((prof.food - food0) - r.food * k) <= math.abs(r.food) * 0.02 + 0.5, "rates", "food to the day's rate", string.format("%.2f vs %.2f", prof.food - food0, r.food * k))
+H.expect(r.wood > 0, "rates", "the camp makes wood", tostring(r.wood))
 H.expect(math.abs((prof.wood - wood0) - r.wood * k) <= r.wood * 0.02 + 0.5, "rates", "wood to the day's rate", string.format("%.2f vs %.2f", prof.wood - wood0, r.wood * k))
-H.expect(math.abs((prof.shells - sh0) - r.shells * k) <= r.shells * 0.02 + 0.5, "rates", "shells to the day's rate (the stall sells to visitors)", string.format("%.2f vs %.2f", prof.shells - sh0, r.shells * k))
-H.expect(r.shells > 0, "rates", "the stall makes shells", tostring(r.shells))
+H.expect(math.abs((prof.shells - sh0) - r.shells * k) <= r.shells * 0.02 + 0.5, "rates", "shells to the day's rate (the farms sell what they grow, the stall sells to visitors)", string.format("%.2f vs %.2f", prof.shells - sh0, r.shells * k))
+H.expect(r.shells > 0, "rates", "the farms and the stall make shells", tostring(r.shells))
 local v = H.view(p)
-H.expect(v ~= nil and math.abs(v.rates.food - r.food) < 1e-6 and math.abs(v.rates.shells - r.shells) < 1e-6, "rates", "the view says the rates")
-H.expect(v ~= nil and math.abs(v.food - prof.food) <= math.abs(r.food) / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's food follows the ticks", string.format("%s vs %s", v and v.food, prof.food))
+H.expect(v ~= nil and math.abs(v.rates.wood - r.wood) < 1e-6 and math.abs(v.rates.shells - r.shells) < 1e-6 and v.rates.food == nil, "rates", "the view says the rates (wood and shells, no food)")
+H.expect(v ~= nil and math.abs(v.wood - prof.wood) <= r.wood / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's wood follows the ticks", string.format("%s vs %s", v and v.wood, prof.wood))
+H.expect(v ~= nil and math.abs(v.shells - prof.shells) <= r.shells / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's shells follow the ticks", string.format("%s vs %s", v and v.shells, prof.shells))
 H.checkMirror(p, "rates")
 
 ------------------------------------------------------------------ open menus and Build mode hold nothing
 E.phase = "menus"
 H.openPanel(p, "index")
 E.run(0.3)
-local fA = prof.food
+local sA = prof.shells
 E.run(4)
-H.expect(prof.food ~= fA, "menus", "the island goes on while a menu is open")
+H.expect(prof.shells > sA, "menus", "the island goes on while a menu is open")
 H.closePanel(p)
 H.clickNamed(p, "Menu_build", { wait = 0.3 })
 local wA = prof.wood
@@ -132,80 +179,67 @@ E.run(4)
 H.expect(prof.wood > wA, "menus", "and in Build mode")
 H.clickNamed(p, "BuildDone", { wait = 0.3 })
 
------------------------------------------------------------------- hunger
-E.phase = "hunger"
-prof.food = 0.5
-for _, q in prof.plot.placed do
-	if q.id == "patch" then
-		q.id = "flowers" -- (no food made: the island runs dry; whoever worked there rests)
-		for _, x in prof.pals do
-			if x.work == q.uid then
-				x.work = 0
-			end
-		end
-	end
-end
+------------------------------------------------------------------ nothing eats
+-- (food went on 2026-11-13: no hunger, so the stores only ever grow, and the shops stay open with nothing in store)
+E.phase = "stores"
+prof.shells, prof.wood = 0, 0
 H.push(p, 0.2)
-E.runUntil(function()
-	return prof.food <= 0
-end, 10, 0.05)
-H.expect(prof.food == 0, "hunger", "the food runs out and stays at none", tostring(prof.food))
-E.run(1.2)
-local rh = Island.rates(prof)
-H.expect(rh.shells == 0, "hunger", "the shops shut while hungry", tostring(rh.shells))
+E.run(3)
+H.expect(prof.shells > 0 and prof.wood > 0, "stores", "from empty stores the island makes wood and shells (nothing eats)", string.format("%s %s", tostring(prof.shells), tostring(prof.wood)))
+local rz = Island.rates(prof)
+H.expect(rz.shells > 0 and math.abs(rz.shells - r.shells) < 1e-6 and math.abs(rz.wood - r.wood) < 1e-6, "stores", "the same rates with nothing in store (no hunger shutting the shops)", string.format("%s vs %s", tostring(rz.shells), tostring(r.shells)))
 v = H.view(p)
-H.expect(v ~= nil and v.food == 0 and v.rates.shells == 0, "hunger", "the view says so (the HUD goes red)")
+H.expect(v ~= nil and v.food == nil and v.rates.food == nil, "stores", "no food in the view")
+local pg = p:FindFirstChild("PlayerGui")
+H.expect(pg ~= nil and pg:FindFirstChild("Chip_wood", true) ~= nil and pg:FindFirstChild("Chip_shells", true) ~= nil and pg:FindFirstChild("Chip_food", true) == nil, "stores", "the HUD's chips: wood and shells, no food")
 local hud = H.buttonNamed(p, "Menu_build")
-H.expect(hud ~= nil, "hunger", "the HUD stays usable")
-prof.food = 100
-H.push(p, 0.3)
-H.expect(Island.rates(prof).shells > 0, "hunger", "fed again: the shops open")
+H.expect(hud ~= nil, "stores", "the HUD stays usable")
 
------------------------------------------------------------------- to a hut only with work to do
--- (GAME_DESIGN 6: the pen sends its best on to a hut with room, but only one that a building of its knack has a free
--- place for: a driftling with nowhere to work stays in the pen till there is somewhere)
+------------------------------------------------------------------ waiting for a hut, then for work
+-- (GAME_DESIGN 6: a driftling with no hut waits on the island, working nowhere, and moves in the moment a hut has
+-- room; in a hut it goes to a free place at a building of its knack once there is one)
 E.phase = "work"
 do
 	prof.shells, prof.wood = 1e6, 1e5
-	for _, x in prof.pals do
-		if x.home == 0 then
-			x.held = 1 -- (whoever waits in the pen kept there)
-		end
-	end
-	local crab = TreeC.add(prof, "clawdle", {}) -- (good at fishing: nowhere on the island to fish yet)
-	prof.tree.t = 0 -- (nothing new grows meanwhile)
+	local crab = Tide.add(prof, "clawdle", {}) -- (good at fishing: nowhere on the island to fish yet)
 	H.push(p, 0.2)
+	H.expect(crab.home == 0 and crab.work == 0, "work", "every hut full: the Clawdle waits with no hut", string.format("home %d", crab.home))
+	H.checkProfile(p, "waiting")
 	local rn = place("nest")
 	H.expect(rn.ok, "work", "a new hut with room", tostring(rn.err))
 	E.run(0.3)
-	H.expect(crab.home == 0 and crab.work == 0, "work", "no fishing place: the Clawdle stays in the pen though the hut has room", string.format("home %d", crab.home))
-	local rp = place("pier")
-	H.expect(rp.ok, "work", "a fishing pier", tostring(rp.err))
-	E.run(0.3)
-	local hutUid, pierUid = 0, 0
+	local hutUid = 0
 	for _, q in prof.plot.placed do
 		if q.id == "nest" then
 			hutUid = math.max(hutUid, q.uid)
-		elseif q.id == "pier" then
+		end
+	end
+	H.expect(crab.home == hutUid and crab.work == 0, "work", "it moves into the new hut at once; with nowhere to fish it rests there", string.format("home %d work %d", crab.home, crab.work))
+	local rp = place("pier")
+	H.expect(rp.ok, "work", "a fishing pier", tostring(rp.err))
+	E.run(0.3)
+	local pierUid = 0
+	for _, q in prof.plot.placed do
+		if q.id == "pier" then
 			pierUid = q.uid
 		end
 	end
-	H.expect(crab.home == hutUid and crab.work == pierUid, "work", "a place at the pier: the pen sends it to the new hut and it fishes there", string.format("home %d work %d", crab.home, crab.work))
+	H.expect(crab.home == hutUid and crab.work == pierUid, "work", "a place at the pier: it fishes there", string.format("home %d work %d", crab.home, crab.work))
 	H.checkProfile(p, "work")
 	H.checkMirror(p, "work")
-	-- the island expanded to its biggest (the buildings where the coast changed make room)
+	-- the island expanded twice (the buildings where the coast changed make room)
 	for _ = 1, 2 do
 		local rx = H.req(p, "island.expand", {})
 		H.expect(rx.ok, "work", "the island expands", tostring(rx.err))
 	end
-	H.expect(prof.tier == 3, "work", "to its biggest", tostring(prof.tier))
+	H.expect(prof.tier == 3, "work", "to the third tier", tostring(prof.tier))
 	H.checkProfile(p, "expanded")
 end
 
 ------------------------------------------------------------------ the Hatchery: two parents, an egg, its turns, a hatching
 E.phase = "hatchery"
 do
-	prof.shells, prof.wood, prof.food = 1e7, 1e6, 2000
+	prof.shells, prof.wood = 1e7, 1e6
 	while prof.tier < 3 do
 		local r = H.req(p, "island.expand", {})
 		if not H.expect(r.ok, "hatchery", "expanding to the third tier", tostring(r.err)) then
@@ -213,27 +247,24 @@ do
 		end
 		E.run(0.5)
 	end
-	local rh = place("hatchery")
-	H.expect(rh.ok, "hatchery", "a Hatchery at the third tier", tostring(rh.err))
-	-- (more huts, so the pen keeps sending driftlings on while the egg warms)
-	for _ = 1, 3 do
-		place("den")
+	-- two Hatcheries (a second egg alongside, to hatch on the same turn) and a den with room
+	for _, id in { "hatchery", "hatchery", "den" } do
+		local rh = place(id)
+		H.expect(rh.ok, "hatchery", "a " .. id .. " at the third tier", tostring(rh.err))
 	end
-	place("burrow")
-	local uid = 0
+	local uids = {}
 	for _, q in prof.plot.placed do
 		if q.id == "hatchery" then
-			uid = q.uid
+			table.insert(uids, q.uid)
 		end
 	end
+	local uid = uids[1] or 0
 	-- two parents of one kind (the egg is theirs), carrying a shared mutation
 	local ids = {}
 	for k = 1, 2 do
-		table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", home = 0, work = 0, held = 1, muts = { "swift2", if k == 1 then "angler1" else "lazy" } })
-		table.insert(ids, prof.nextId)
-		prof.nextId += 1
+		local x = Tide.add(prof, "gullfin", { "swift2", if k == 1 then "angler1" else "lazy" })
+		table.insert(ids, x.id)
 	end
-	prof.seen.gullfin = 2
 	H.push(p, 0.4)
 	-- through the panels as a player: the Driftlings panel's Hatchery button, a parent in each slot, Breed
 	H.openPanel(p, "pals")
@@ -244,11 +275,25 @@ do
 	H.clickNamed(p, "Slot_b_" .. uid, { wait = 0.4 })
 	H.expect(H.buttonNamed(p, "PickParent_" .. ids[1]) == nil, "hatchery", "the first parent is not offered again")
 	H.clickNamed(p, "PickParent_" .. ids[2], { wait = 0.4 })
-	local food0 = prof.food
+	-- the feast is paid in shells: none in store, no egg
+	local feast = Breed.cost("gullfin")
+	prof.shells = 0
+	H.push(p, 0.3)
+	H.openPanel(p, "hatch")
+	H.expect(H.buttonNamed(p, "Breed_" .. uid) == nil and H.buttonNamed(p, "Breed_" .. uid, true) ~= nil, "hatchery", "Breed is off without the feast's shells")
+	H.expect(H.req(p, "breed.start", { uid = uid, a = ids[1], b = ids[2] }).err == "money", "hatchery", "and the server refuses it (money)")
+	-- (both eggs laid early in one turn, so they hatch on the same turn)
+	nextTurn()
+	prof.shells = 5000
+	H.push(p, 0.3)
+	H.openPanel(p, "hatch")
+	local shells0 = prof.shells
+	local made = Island.rates(prof).shells * 2 / Tuning.TurnSeconds + 0.5
 	H.clickNamed(p, "Breed_" .. uid, { wait = 0.6 })
 	local egg = prof.eggs[1]
 	H.expect(egg ~= nil and egg.uid == uid and egg.sp == "gullfin", "hatchery", "an egg of their kind is laid", tostring(egg and egg.sp))
-	H.expect(prof.food < food0, "hatchery", "the feast is eaten", string.format("%d -> %d", food0, prof.food))
+	local paid = shells0 - prof.shells
+	H.expect(paid <= feast + 1e-6 and paid >= feast - made, "hatchery", "the feast paid in shells", string.format("%.2f paid, the feast %d", paid, feast))
 	local swift = false
 	for _, id in egg and egg.muts or {} do
 		if id == "swift2" or id == "swift3" then
@@ -256,19 +301,30 @@ do
 		end
 	end
 	H.expect(swift, "hatchery", "the shared mutation passes on")
+	local r2 = H.req(p, "breed.start", { uid = uids[2] or 0, a = ids[1], b = ids[2] })
+	H.expect(r2.ok and #prof.eggs == 2 and prof.eggs[2].left == prof.eggs[1].left, "hatchery", "a second egg at the other Hatchery, due the same turn", tostring(r2.err))
 	-- refusals
 	H.expect(H.req(p, "breed.start", { uid = uid, a = ids[1], b = ids[2] }).err == "egg", "hatchery", "one egg a Hatchery")
 	H.expect(H.req(p, "breed.start", { uid = 99999, a = ids[1], b = ids[2] }).err == "not_found", "hatchery", "no Hatchery there")
 	H.expect(H.req(p, "breed.start", { uid = uid, a = ids[1], b = ids[1] }).err ~= nil, "hatchery", "the same one twice")
 	H.expect(H.req(p, "breed.start", { uid = uid, a = -1, b = 0.5 }).err == "bad_payload", "hatchery", "a bad payload")
-	local idx = 0
-	for i, q in prof.plot.placed do
-		if q.uid == uid then
-			idx = i
+	local function indexOf(u)
+		for i, q in prof.plot.placed do
+			if q.uid == u then
+				return i
+			end
 		end
+		return 0
 	end
-	H.expect(H.req(p, "plot.store", { i = idx }).err == "egg", "hatchery", "not cleared away with an egg in it")
-	-- the turns: the egg on the panel counts down, then it hatches (announced)
+	H.expect(H.req(p, "plot.store", { i = indexOf(uid) }).err == "egg", "hatchery", "not cleared away with an egg in it")
+	-- the huts filled to one place left: the first to hatch takes it, the second waits with no hut
+	local fillers = {}
+	while Tide.room(prof) > 1 do
+		table.insert(fillers, Tide.add(prof, "pebblit", {}).id)
+	end
+	H.push(p, 0.3)
+	H.expect(Tide.room(prof) == 1, "hatchery", "(one place left in the huts)", tostring(Tide.room(prof)))
+	-- the turns: the egg on the panel counts down, then they hatch (announced)
 	H.openPanel(p, "hatch")
 	local pals0 = #prof.pals
 	local i0 = #fx
@@ -283,17 +339,26 @@ do
 			news = fx[i].hatched
 		end
 	end
-	H.expect(news ~= nil and #news == 1 and news[1].sp == "gullfin", "hatchery", "the egg hatched after its turns (the turn's news)", tostring(news and #news))
-	local born = nil
-	for _, x in prof.pals do
-		if news and news[1] and x.id == news[1].id then
-			born = x
+	H.expect(news ~= nil and #news == 2 and news[1].sp == "gullfin" and news[2].sp == "gullfin", "hatchery", "both eggs hatched after their turns (the turn's news)", tostring(news and #news))
+	local born = {}
+	for _, n in news or {} do
+		for _, x in prof.pals do
+			if x.id == n.id then
+				table.insert(born, x)
+			end
 		end
 	end
-	H.expect(born ~= nil and #prof.eggs == 0 and prof.stats.hatched == 1, "hatchery", "a new driftling, out of the pen into a hut or waiting there", string.format("%d -> %d", pals0, #prof.pals))
-	H.expect(born ~= nil and born.lvl == nil and born.sp == "gullfin", "hatchery", "its parents' kind (no levels)")
+	H.expect(#born == 2 and #prof.eggs == 0 and prof.stats.hatched == 2 and #prof.pals == pals0 + 2, "hatchery", "two new driftlings", string.format("%d -> %d", pals0, #prof.pals))
+	H.expect(#born == 2 and born[1].home ~= 0 and born[2].home == 0 and born[2].work == 0, "hatchery", "the first into the hut with room, the second waiting with no hut", string.format("homes %s %s", tostring(born[1] and born[1].home), tostring(born[2] and born[2].home)))
+	H.expect(#born == 2 and born[1].lvl == nil and born[1].sp == "gullfin", "hatchery", "its parents' kind (no levels)")
+	H.checkProfile(p, "hatched")
+	-- a place freed (one sold): the waiting one moves in
+	local rs = H.req(p, "pal.sell", { id = fillers[1] or 0 })
+	H.expect(rs.ok and born[2] ~= nil and born[2].home ~= 0, "hatchery", "one sold: the hatchling waiting moves into its place", string.format("%s home %s", tostring(rs.err), tostring(born[2] and born[2].home)))
 	H.closePanel(p)
-	H.expect(H.req(p, "plot.store", { i = idx }).ok, "hatchery", "the Hatchery cleared away once empty")
+	for _, u in uids do
+		H.expect(H.req(p, "plot.store", { i = indexOf(u) }).ok, "hatchery", "a Hatchery cleared away once empty")
+	end
 	H.checkProfile(p, "hatchery")
 end
 
@@ -316,6 +381,7 @@ H.expect(qt >= 1 and count("turn", fp0) >= 1, "two", "both islands' turns end", 
 H.expect(sq.turnClock >= 0 and sq.turnClock < Tuning.TurnSeconds and s.turnClock >= 0 and s.turnClock < Tuning.TurnSeconds, "two", "each on its own turn clock", string.format("%.2f %.2f", sq.turnClock, s.turnClock))
 local vq, vp = H.view(q), H.view(p)
 H.expect(vq ~= nil and vp ~= nil and math.abs(vq.dayFrac - vp.dayFrac) < 0.001, "two", "one sea, one time of day", string.format("%s %s", vq and vq.dayFrac, vp and vp.dayFrac))
+H.expect(sq.tide ~= s.tide and #sq.tide.list >= Tuning.TideStart and #s.tide.list >= 1 and sq.tide.t < Tide.secs(pq) and s.tide.t < Tide.secs(prof), "two", "each its own tide at its own jetty", string.format("%d and %d bobbing", #sq.tide.list, #s.tide.list))
 ------------------------------------------------------------------ day and night
 E.phase = "daynight"
 -- the day and night (GAME_DESIGN 8): the sea's clock grades the picture: plain by day, dark blue at night with the

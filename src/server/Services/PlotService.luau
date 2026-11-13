@@ -149,7 +149,7 @@ end
 -- An empty lot on plot i, with no attributes left of its last owner.
 local function emptyLot(i: number)
 	local m = plotModel(i)
-	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Pals" } do
+	for _, k in { "Owner", "OwnerName", "StudioName", "Tier", "Day", "Charm", "Pals", "Tide" } do
 		m:SetAttribute(k, nil)
 	end
 	m:SetAttribute("Owner", 0)

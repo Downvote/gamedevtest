@@ -12,10 +12,10 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 1112, `sim_save.luau` about 313, `sim_clock.luau` 1161, `sim_world.luau` 366, `sim_tree.luau` about 8612).
+`sim.luau` about 895, `sim_save.luau` about 342, `sim_clock.luau` 990, `sim_world.luau` 349, `sim_tide.luau` about 903).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city gallery tree day dusk night dawn sea visit build expand zoo paths water work late loading`
-or `panel=<pals|tree|hatch|index|looks>`. The loading card's art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place
+village island2 island3 city gallery tide day dusk night dawn sea visit build expand zoo paths water work late loading`
+or `panel=<pals|tide|hatch|index|looks>`. The loading card's art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place
 file is `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):
@@ -32,9 +32,9 @@ scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or
 a driftling's model, run `sh tools/preview/portraits.sh`), at whole UI px (tweens snap, particles are 1 px), a 1 px ink outline,
 anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py` (run it; `--png <file>`
 for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The world is 3D: the islands, the
-buildings, the Tree of Life and the driftlings are built from parts (`Models/DecorModels`, `Models/MicroModels`,
+buildings, the tide's rafts and the driftlings are built from parts (`Models/DecorModels`, `Models/MicroModels`,
 `Models/DriftModels`), world-aligned on the iso grid and drawn by the pixel filter. (The expeditions and their 3D
-stages went on 2026-11-12: the Tree of Life grows the driftlings now.)
+stages went on 2026-11-12, the Tree of Life on 2026-11-13: the tide brings the driftlings now.)
 
 ## Writing (always)
 

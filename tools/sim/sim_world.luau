@@ -1,11 +1,12 @@
--- The sea and the islands (GAME_DESIGN 4, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
--- start (the boardwalk, open water on every lot); two islands on plots 1 and 2 with their lodges, lands, attributes
--- and founders; each client drawing its own island's hut driftlings (never the pen's), the neighbour's and both
--- founders, no villagers; a founder
--- walking onto the neighbour's island (the camera follows, Home shows) and going home (and its cooldown); placing,
--- moving, upgrading and clearing buildings with every refusal, the server's Static.Decor following piece by piece;
--- the same through Build mode's UI; malicious plot payloads; a leaving player's island back to open water; a full
--- sea kicking the seventh player; a newcomer's Tree of Life (its model, a tap on it, moved but never cleared away).
+-- The sea and the islands (GAME_DESIGN 4, 6, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
+-- start (the boardwalk, open water on every lot); two islands on plots 1 and 2 with their lands, attributes and
+-- founders; each client drawing its own island's hut driftlings, the neighbour's and both founders, no villagers, and
+-- the drifts on the tide at both jetties; a founder walking onto the neighbour's island (the camera follows, Home
+-- shows) and going home (and its cooldown); placing (paid in wood), moving and clearing buildings with every refusal
+-- (no upgrades), the server's Static.Decor following piece by piece; the same through Build mode's UI; malicious plot
+-- payloads; a leaving player's island back to open water and its tide gone; a full sea kicking the seventh player;
+-- every claimed island's tide at its jetty, a newcomer's drawn by its own client and the neighbour's, and any piece
+-- of its cleared away (nothing is fixed: no Tree of Life).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -75,17 +76,8 @@ local b = H.addPlayer({ userId = 9402, name = "Bo" })
 E.run(3)
 local sa, sb = H.session(a), H.session(b)
 H.expect(sa and sa.plot == 1 and sb and sb.plot == 2, "islands", "plots 1 and 2", string.format("%s %s", tostring(sa and sa.plot), tostring(sb and sb.plot)))
--- both new islands have their Tree of Life (the tree's own checks come at the end, on another newcomer's island);
--- whoever grew already is kept in the pen, so the hut driftlings counted below are the ones put there
-local PlotRules = H.sharedServer("Logic.Plot")
-local function fillPen(prof)
-	for _, x in prof.pals do
-		if x.home == 0 then
-			x.held = 1
-		end
-	end
-	prof.tree.t = 0
-end
+-- both new islands start bare (no Tree of Life, no driftling: the tide brings them to the jetty, the player takes
+-- them in), so the hut driftlings counted below are the ones put there
 local function housed(prof): number
 	local n = 0
 	for _, x in prof.pals do
@@ -95,17 +87,45 @@ local function housed(prof): number
 	end
 	return n
 end
-for _, p in { a, b } do
-	local prof = H.profile(p)
-	local trees = 0
-	for _, q in prof.plot.placed do
-		if PlotRules.isFixed(q.id) then
-			trees += 1
+-- the tide at island i's jetty: its plot's "Tide" attribute ("id.species;..."), every client draws it near its view
+local function tideAttr(i): { string }
+	local m = plotModel(i)
+	local raw = m and m:GetAttribute("Tide")
+	local out = {}
+	if type(raw) == "string" then
+		for entry in string.gmatch(raw, "[^;]+") do
+			table.insert(out, entry)
 		end
 	end
-	H.expect(trees == 1, "islands", p.Name .. ": a new island's Tree of Life", tostring(trees))
-	fillPen(prof)
-	H.push(p, 0.2)
+	return out
+end
+local function sessionOn(i)
+	for _, s in H.smod("Session").all() do
+		if s.plot == i then
+			return s
+		end
+	end
+	return nil
+end
+-- the drifts the client of `p` draws on island i match the attribute (a drift that just drifted off is drawn for a
+-- moment more, and a new one shows within the client's next sync: waited out)
+local function drawsTide(p, i): (boolean, string)
+	local TV = H.cmod(p, "Controllers.TideView")
+	E.runUntil(function()
+		return TV.count(i) == #tideAttr(i)
+	end, 5, 0.1)
+	return TV.count(i) == #tideAttr(i), string.format("%d drawn, %d on the tide", TV.count(i), #tideAttr(i))
+end
+for _, p in { a, b } do
+	local prof = H.profile(p)
+	H.expect(#prof.plot.placed == 0 and #prof.pals == 0 and prof.tree == nil, "islands", p.Name .. ": a new island starts bare (no Tree of Life)", string.format("%d pieces, %d driftlings", #prof.plot.placed, #prof.pals))
+	local s = H.session(p)
+	local list = tideAttr(s.plot)
+	local same = #list == #s.tide.list
+	for j, d in s.tide.list do
+		same = same and list[j] == string.format("%d.%s", d.id, d.sp)
+	end
+	H.expect(#s.tide.list >= Tuning.TideStart and same, "islands", p.Name .. ": drifts at the jetty, listed in the plot's Tide attribute", string.format("%d bobbing, attribute %s", #s.tide.list, table.concat(list, ";")))
 end
 for k, p in { a, b } do
 	local m = plotModel(k)
@@ -143,7 +163,6 @@ for k, p in { a, b } do
 	prof.shells, prof.wood = 50000, 5000
 	H.push(p, 0.2)
 	local placed = 0
-	fillPen(prof)
 	for _, id in { "patch", "lumber", "flowers", "nest" } do
 		local pr = Street.plot(1)
 		local done = false
@@ -179,12 +198,18 @@ for _, pair in { { a, b }, { b, a } } do
 	local AV = H.cmod(me, "Controllers.AvatarView")
 	local own = housed(H.profile(me))
 	local oth = housed(H.profile(other))
-	H.expect(own >= 1 and WV.ownRigCount() == own and WV.rigCount() == own + oth, "islands", me.Name .. ": own hut driftlings and the neighbour's (not the pens')", string.format("%d own of %d, %d all of %d", WV.ownRigCount(), own, WV.rigCount(), own + oth))
+	H.expect(own >= 1 and WV.ownRigCount() == own and WV.rigCount() == own + oth, "islands", me.Name .. ": own hut driftlings and the neighbour's", string.format("%d own of %d, %d all of %d", WV.ownRigCount(), own, WV.rigCount(), own + oth))
 	H.expect(AV.count() == 2, "islands", me.Name .. ": both founders", tostring(AV.count()))
+	-- the tide at both jetties: its own and the neighbour's
+	local myPlot, otherPlot = H.session(me).plot, H.session(other).plot
+	local okOwn, whyOwn = drawsTide(me, myPlot)
+	H.expect(#tideAttr(myPlot) >= 1 and okOwn, "islands", me.Name .. ": draws the drifts at its own jetty", whyOwn)
+	local okOther, whyOther = drawsTide(me, otherPlot)
+	H.expect(#tideAttr(otherPlot) >= 1 and okOther, "islands", me.Name .. ": and the neighbour's", whyOther)
 end
 H.expect(plotModel(1):GetAttribute("Folk") == nil, "islands", "no Folk attribute (no villagers)", tostring(plotModel(1):GetAttribute("Folk")))
 local palsAttr = plotModel(1):GetAttribute("Pals")
-H.expect(type(palsAttr) == "string" and string.find(palsAttr, "mossbun") ~= nil and #string.split(palsAttr, ";") == housed(H.profile(a)), "islands", "the Pals attribute lists the hut driftlings (the pen's are left out)", tostring(palsAttr))
+H.expect(type(palsAttr) == "string" and string.find(palsAttr, "mossbun") ~= nil and #string.split(palsAttr, ";") == housed(H.profile(a)), "islands", "the Pals attribute lists the hut driftlings (the tide's are apart)", tostring(palsAttr))
 -- the island signs' labels
 local canvasA = a.PlayerGui:FindFirstChild("World") and a.PlayerGui.World:FindFirstChild("Canvas")
 local s1 = canvasA and canvasA:FindFirstChild("Sign_1")
@@ -268,7 +293,6 @@ E.run(2.5)
 ------------------------------------------------------------------ 4. building: place, move, clear away (no upgrades)
 E.phase = "build"
 local prof = H.profile(a)
-prof.food = 0
 prof.pals[1].work = 0
 H.push(a, 0.3)
 local function spot(id, rot, placed, tier)
@@ -287,7 +311,9 @@ local s0, w0 = prof.shells, prof.wood
 local gx, gz = spot("stall", 0, prof.plot.placed)
 res = H.req(a, "plot.place", { id = "stall", x = gx, z = gz, rot = 0 })
 H.expect(res.ok and #prof.plot.placed == n0 + 1, "build", "place a snack stall", tostring(res.err))
-H.expect(math.abs(prof.shells - (s0 - Buildings.byId.stall.shells)) < 1 and math.abs(prof.wood - (w0 - Buildings.byId.stall.wood)) < 1, "build", "its shells and wood paid", string.format("%s %s", prof.shells, prof.wood))
+-- (wood pays for every piece: "make wood the main resource for building/expanding"; the island makes a little of both
+-- meanwhile)
+H.expect(Buildings.byId.stall.shells == 0 and Buildings.byId.stall.wood > 0 and math.abs(prof.wood - (w0 - Buildings.byId.stall.wood)) < 1 and prof.shells >= s0 - 1e-6, "build", "its wood paid (no shells)", string.format("%s %s", prof.shells, prof.wood))
 E.run(0.3)
 local decor = decorOf(1)
 local stall = prof.plot.placed[#prof.plot.placed]
@@ -307,6 +333,25 @@ res = H.req(a, "plot.place", { id = "torch", x = Street.plot(1).x1 + 5, z = 10, 
 H.expect(not res.ok and res.err == "blocked", "build", "not off the island", tostring(res.err))
 res = H.req(a, "plot.place", { id = "cafe", x = 10, z = 10, rot = 0 })
 H.expect(not res.ok and res.err == "locked", "build", "not a bigger island's building", tostring(res.err))
+-- short of wood: refused; no shells at all: built all the same (shells only buy driftlings and feasts)
+do
+	local wood, shells = prof.wood, prof.shells
+	local tx, tz = spot("torch", 0, prof.plot.placed)
+	prof.wood = Buildings.byId.torch.wood - 1
+	H.push(a, 0.2)
+	res = H.req(a, "plot.place", { id = "torch", x = tx, z = tz, rot = 0 })
+	H.expect(not res.ok and res.err == "wood" and #prof.plot.placed == n0 + 1, "build", "not without the wood", tostring(res.err))
+	prof.wood, prof.shells = wood, 0
+	H.push(a, 0.2)
+	res = H.req(a, "plot.place", { id = "torch", x = tx, z = tz, rot = 0 })
+	H.expect(res.ok and res.err == nil, "build", "with no shells at all: built (money is never asked for a building)", tostring(res.err))
+	if res.ok then
+		res = H.req(a, "plot.store", { i = #prof.plot.placed })
+		H.expect(res.ok and prof.plot.placed[#prof.plot.placed] == stall, "build", "(the torch cleared away again)", tostring(res.err))
+	end
+	prof.shells = shells
+	H.push(a, 0.2)
+end
 -- move it
 local others = {}
 for i, q in prof.plot.placed do
@@ -346,27 +391,31 @@ H.expect(H.req(a, "plot.replace", { i = fi, id = "cottage" }).err == "bad_payloa
 E.run(0.3)
 H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil, "build", "the moved model is still built (its key carries the level)")
 -- clear it away: half back
-s0 = prof.shells
+w0 = prof.wood
 local n1 = #prof.plot.placed
 res = H.req(a, "plot.store", { i = #prof.plot.placed })
 H.expect(res.ok and #prof.plot.placed == n1 - 1, "build", "clear the stall away", tostring(res.err))
-H.expect(math.abs(prof.shells - (s0 + math.floor(Buildings.byId.stall.shells * Tuning.Refund))) < 1, "build", "half its price back", string.format("%s -> %s", s0, prof.shells))
--- a hut cleared away: its driftlings back to the pen (it has room for any number)
+H.expect(math.abs(prof.wood - (w0 + math.floor(Buildings.byId.stall.wood * Tuning.Refund))) < 1, "build", "half its wood back", string.format("%s -> %s", w0, prof.wood))
+-- a hut cleared away: its driftlings wait with no hut (and move in once a hut has room)
 local hutUid = prof.plot.placed[fi].uid
 res = H.req(a, "plot.store", { i = fi })
-local stillIn = 0
+local stillIn, waiting = 0, 0
 for _, x in prof.pals do
 	if x.home == hutUid then
 		stillIn += 1
+	elseif x.home == 0 and x.work == 0 then
+		waiting += 1
 	end
 end
-H.expect(res.ok and stillIn == 0, "build", "a hut with driftlings in it cleared away: they go back to the pen", tostring(res.err))
+H.expect(res.ok and stillIn == 0 and waiting == #prof.pals and waiting >= 1, "build", "a hut with driftlings in it cleared away: they wait with no hut", string.format("%s, %d waiting", tostring(res.err), waiting))
+E.run(0.3)
+H.expect(plotModel(1):GetAttribute("Pals") == "", "build", "and are not drawn on the island meanwhile (the Pals attribute leaves them out)", tostring(plotModel(1):GetAttribute("Pals")))
 E.run(0.3)
 H.expect(#decor:GetChildren() == #prof.plot.placed, "build", "a model a piece", string.format("%d vs %d", #decor:GetChildren(), #prof.plot.placed))
 -- the piece limit
 local limit = Plot.limit(1)
 local guard = 0
-while #prof.plot.placed < limit + 1 and guard < 80 do
+while #prof.plot.placed < limit and guard < 80 do
 	guard += 1
 	local x, z = spot("torch", 0, prof.plot.placed)
 	if x == nil then
@@ -375,16 +424,16 @@ while #prof.plot.placed < limit + 1 and guard < 80 do
 	res = H.req(a, "plot.place", { id = "torch", x = x, z = z, rot = 0 })
 	E.run(0.1)
 end
-H.expect(#prof.plot.placed == limit + 1, "build", "the island fills to its limit (the tree apart)", tostring(#prof.plot.placed))
+H.expect(#prof.plot.placed == limit, "build", "the island fills to its limit", tostring(#prof.plot.placed))
 local lx, lz = spot("torch", 0, prof.plot.placed)
 res = H.req(a, "plot.place", { id = "torch", x = lx or 20, z = lz or 20, rot = 0 })
 H.expect(not res.ok and (res.err == "full" or res.err == "blocked"), "build", "the island's piece limit", tostring(res.err))
-while #prof.plot.placed > 5 do
+while #prof.plot.placed > 4 do
 	H.req(a, "plot.store", { i = #prof.plot.placed })
 	E.run(0.1)
 end
 E.run(0.5)
-H.expect(#decor:GetChildren() == 5, "build", "and back (four and the tree)", tostring(#decor:GetChildren()))
+H.expect(#decor:GetChildren() == 4, "build", "and back (three and a torch)", tostring(#decor:GetChildren()))
 H.checkProfile(a, "build")
 H.checkMirror(a, "build")
 
@@ -395,8 +444,8 @@ local BuildUI = H.cmod(a, "UI.BuildUI")
 H.expect(H.clickNamed(a, "Menu_build"), "build", "the HUD's Build button")
 H.expect(BuildUI.isOpen() and CCa.isFree(), "build", "Build mode is open, the view free")
 E.run(0.4)
-H.clickNamed(a, "Tab_food", { wait = 0.3 }) -- (the tray opens on the tip's tab)
-H.expect(H.buttonNamed(a, "Buy_patch") ~= nil, "build", "the Food tab offers the veggie patch")
+H.clickNamed(a, "Tab_farm", { wait = 0.3 }) -- (the tray opens on the tip's tab)
+H.expect(H.buttonNamed(a, "Buy_patch") ~= nil, "build", "the Farms tab offers the veggie patch")
 H.expect(H.buttonNamed(a, "Buy_orchard", true) ~= nil, "build", "the orchard shows, locked")
 H.clickNamed(a, "Tab_decor", { wait = 0.3 })
 H.expect(H.buttonNamed(a, "Buy_flowers") ~= nil and H.buttonNamed(a, "Buy_patch", true) == nil, "build", "the Decor tab")
@@ -458,11 +507,6 @@ H.expect(#prof.plot.placed == placedBefore, "build", "cleared through the UI", t
 -- a building that makes something: no Upgrade in its bar either
 E.raycastParts = true
 local q1 = prof.plot.placed[1]
-for _, q in prof.plot.placed do
-	if q1.id == "tree" and q.id ~= "tree" then
-		q1 = q
-	end
-end
 local w1, d1 = Plot.footprint(q1.id, q1.rot)
 H.inClient(a, function()
 	BuildUI.tapScreen(screenOf(E.v3(ox1 + q1.x + w1 / 2, Street.LAWN_Y + 0.3, oz1 + q1.z + d1 / 2)), false)
@@ -473,7 +517,6 @@ H.expect(H.buttonNamed(a, "Upgrade", true) == nil, "build", "a " .. q1.id .. " p
 -- Replace: the others of its kind, each with its price after the refund; a tap swaps it where it stands
 local alt = Plot.replacements(q1, prof.tier)[1]
 if H.expect(alt ~= nil and H.buttonNamed(a, "Replace", true) ~= nil, "build", "a " .. q1.id .. " picked up shows Replace") then
-	prof.shells += 5000
 	prof.wood += 500
 	H.push(a, 0.3)
 	H.clickNamed(a, "Replace", { wait = 0.3 })
@@ -545,7 +588,7 @@ do
 	H.expect(#planB == 9, "build", "a box's stroke is every cell between its corners", tostring(#planB))
 	H.expect(paths() == p1 + laysB, "build", "the box's tiles go down", string.format("%d planned, %d -> %d", laysB, p1, paths()))
 	-- erase the line again: half the price back for each tile
-	local shells0 = prof.shells
+	local wood0 = prof.wood
 	local planE = H.inClient(a, BuildUI.debugDraw, { a0, a1 }, "erase")
 	E.run(0.4)
 	local lifts = 0
@@ -555,7 +598,8 @@ do
 		end
 	end
 	H.expect(lifts == lays and paths() == p1 + laysB - lays, "build", "Erase takes the line's tiles up", string.format("%d lifted, %d paths", lifts, paths()))
-	H.expect(prof.shells > shells0, "build", "and gives part of their price back")
+	local back = math.floor(Buildings.byId.dirtpath.wood * Tuning.Refund) * lifts
+	H.expect(back > 0 and math.abs((prof.wood - wood0) - back) < 1, "build", "and gives half their wood back", string.format("%.2f back, %d due", prof.wood - wood0, back))
 	-- the server's side: a non-path id, junk cells
 	local ok, out = H.raw(a, "plot.paint", { id = "patch", cells = "0,0" })
 	H.expect(ok and type(out) == "table" and out.ok == false, "build", "paint refuses a building", tostring(type(out) == "table" and out.err))
@@ -576,7 +620,7 @@ local function snap()
 	for _, x in q.plot.placed do
 		table.insert(placed, string.format("%s:%d:%d:%d:%d", x.id, x.x, x.z, x.rot, x.lvl))
 	end
-	return { shells = math.floor(q.shells), wood = math.floor(q.wood), placed = table.concat(placed, ";"), tier = q.tier }
+	return { placed = table.concat(placed, ";"), tier = q.tier, nextId = q.nextId }
 end
 local function refused(label, err, action, payload)
 	local ok, out = H.raw(a, action, payload)
@@ -584,6 +628,7 @@ local function refused(label, err, action, payload)
 	E.run(0.15)
 end
 local before = snap()
+local storesBefore = { shells = prof.shells, wood = prof.wood }
 refused("a fractional x", "bad_payload", "plot.place", { id = "torch", x = 1.5, z = 20, rot = 0 })
 refused("x out of range", "bad_payload", "plot.place", { id = "torch", x = 100, z = 20, rot = 0 })
 refused("a 45 degree turn", "bad_payload", "plot.place", { id = "torch", x = 20, z = 20, rot = 45 })
@@ -598,6 +643,8 @@ refused("an unknown piece", "bad_payload", "plot.place", { id = "castle", x = 20
 refused("a string coord", "bad_payload", "plot.place", { id = "torch", x = "20", z = 20, rot = 0 })
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
+-- (the stores: nothing paid; the island only made a little meanwhile)
+H.expect(prof.shells >= storesBefore.shells - 1e-6 and prof.wood >= storesBefore.wood - 1e-6, "malicious", "and took nothing from the stores", string.format("%s -> %s, %s -> %s", storesBefore.shells, prof.shells, storesBefore.wood, prof.wood))
 E.run(0.3)
 
 ------------------------------------------------------------------ 7. a player leaves
@@ -609,6 +656,12 @@ H.expect(m2 and m2:GetAttribute("Owner") == 0 and m2:GetAttribute("StudioName") 
 local WVa = H.cmod(a, "Controllers.WorldView")
 H.expect(WVa.rigCount() == WVa.ownRigCount(), "leave", "Ava no longer draws Bo's islanders", string.format("%d all, %d own", WVa.rigCount(), WVa.ownRigCount()))
 H.expect(H.cmod(a, "Controllers.AvatarView").count() == 1, "leave", "one founder left")
+-- (their tide goes with them: the open water has none, and Ava's client lets the last drifts float off)
+local TVa = H.cmod(a, "Controllers.TideView")
+E.runUntil(function()
+	return TVa.count(2) == 0
+end, 5, 0.1)
+H.expect(m2 ~= nil and m2:GetAttribute("Tide") == nil and TVa.count(2) == 0, "leave", "and their tide is gone from the open water", string.format("%s, %d drawn", tostring(m2 and m2:GetAttribute("Tide")), TVa.count(2)))
 
 ------------------------------------------------------------------ 8. a full sea
 E.phase = "full"
@@ -637,82 +690,87 @@ for _, k in E.kicks or {} do
 end
 H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is told the sea is full")
 
------------------------------------------------------------------- 9. the Tree of Life (GAME_DESIGN 6)
-E.phase = "tree"
--- Cy's island (a newcomer's): its tree stands there as a model (the tree and its pen); a tap on it on Cy's screen
--- opens its panel; it can be moved (its model follows), never cleared away, replaced or bought; in Build mode a tap
--- picks it up with Clear away off
-local cp = H.profile(c)
-local ti, tq = nil, nil
-for i, q in cp.plot.placed do
-	if q.id == "tree" then
-		ti, tq = i, q
+------------------------------------------------------------------ 9. every island's tide; nothing fixed (GAME_DESIGN 4, 6)
+E.phase = "tide"
+-- every claimed island's jetty has its tide (the server-side players' too): its plot's Tide attribute lists the
+-- session's drifts; the clients draw the ones near their view: Cy's own island's and the neighbours' on either side,
+-- and Ava's client Cy's next door; Cy's price buttons hang over its own drifts only
+local claimed = 0
+for i = 1, Street.MAX do
+	local m = plotModel(i)
+	if m:GetAttribute("Owner") ~= 0 then
+		claimed += 1
+		local s = sessionOn(i)
+		local list = tideAttr(i)
+		local same = s ~= nil and #list == #s.tide.list and #list >= 1
+		for j, d in s and s.tide.list or {} do
+			same = same and list[j] == string.format("%d.%s", d.id, d.sp)
+		end
+		H.expect(same, "tide", "island " .. i .. ": its tide at the jetty, listed in its Tide attribute", table.concat(list, ";"))
 	end
 end
-H.expect(tq ~= nil, "tree", "the newcomer's island has its Tree of Life")
-local cdecor = decorOf(H.session(c).plot)
-local treeModels = 0
-for _, m in cdecor:GetChildren() do
-	if m:GetAttribute("Decor") == "tree" then
-		treeModels += 1
+H.expect(claimed == Street.MAX, "tide", "(every island claimed)", tostring(claimed))
+local cPlot = H.session(c).plot
+local sc = H.session(c)
+-- (a brand-new island's first two: commons, one good with wood and one at a farm)
+local Creatures = H.sharedServer("Data.Creatures")
+local knacks = {}
+for _, d in sc.tide.list do
+	local cd = Creatures.byId[d.sp]
+	if d.id <= Tuning.TideStart and cd and cd.rarity == 1 then
+		knacks[cd.knack] = true
 	end
 end
-H.expect(treeModels == 1, "tree", "its model on the island", tostring(treeModels))
--- a tap on it on Cy's screen opens its panel (the tap's ray passes the island's invisible coast walls)
-local WorldViewC = H.cmod(c, "Controllers.WorldView")
-local PRc = H.cmod(c, "Pixel.PixelRenderer")
-local cox, coz = Street.origin(H.session(c).plot)
-local tw, td = PlotRules.footprint(tq.id, tq.rot)
-local at = E.v3(cox + tq.x + tw / 2 + 0.3, Street.LAWN_Y + 0.05, coz + tq.z + td / 2 + 0.3)
-E.run(1)
-E.raycastParts = true
-H.inClient(c, function()
-	local pos = PRc.project(at)
-	WorldViewC.tapScreen(E.v2(pos.X, pos.Y - E.inset))
-end)
-E.raycastParts = nil
-E.run(0.5)
-H.expect(H.currentPanel(c) == "tree", "tree", "a tap on it opens its panel", tostring(H.currentPanel(c)))
-H.closePanel(c)
-cp.shells, cp.wood = 50000, 5000
-H.expect(H.req(c, "plot.store", { i = ti }).err == "fixed", "tree", "it isn't cleared away")
-H.expect(H.req(c, "plot.place", { id = "tree", x = 0, z = 0, rot = 0 }).err == "bad_payload", "tree", "or bought")
-H.expect(H.req(c, "plot.replace", { i = ti, id = "nest" }).err == "bad_payload", "tree", "or replaced")
-local mx, mz, mr = PlotRules.spot(cp.tier, (function()
-	local others = {}
-	for i, q in cp.plot.placed do
-		if i ~= ti then
-			table.insert(others, q)
+H.expect(sc.tide.list[1] == nil or sc.tide.list[1].id > Tuning.TideStart or (knacks.wood and knacks.farm), "tide", "the newcomer's first drifts: two commons, one for the camp and one for a farm")
+for _, i in { cPlot, cPlot - 1, cPlot + 1 } do
+	local ok, why = drawsTide(c, i)
+	H.expect(ok and #tideAttr(i) >= 1, "tide", "Cy's client draws island " .. i .. "'s tide", why)
+end
+local okA, whyA = drawsTide(a, cPlot)
+H.expect(okA and #tideAttr(cPlot) >= 1, "tide", "Ava's client draws the newcomer's tide next door", whyA)
+local TVc = H.cmod(c, "Controllers.TideView")
+H.expect(TVc.count(cPlot + 3) == 0, "tide", "far islands' tides are not drawn (only those near the view)", tostring(TVc.count(cPlot + 3)))
+do
+	local canvasC = c.PlayerGui:FindFirstChild("World") and c.PlayerGui.World:FindFirstChild("Canvas")
+	E.runUntil(function()
+		return TVc.count(cPlot) == #tideAttr(cPlot)
+	end, 5, 0.1)
+	E.run(0.2)
+	local tags = 0
+	for _, g in canvasC and canvasC:GetChildren() or {} do
+		if string.match(g.Name, "^TideTake_%d+$") then
+			tags += 1
 		end
 	end
-	return others
-end)(), "tree", tq.x + 6, tq.z + 4, 0)
-H.expect(mx ~= nil and H.req(c, "plot.move", { i = ti, x = mx, z = mz, rot = mr }).ok and tq.x == mx and tq.z == mz, "tree", "it moves like any piece", string.format("to %s,%s", tostring(mx), tostring(mz)))
-E.run(0.4)
-local moved = false
-for _, m in cdecor:GetChildren() do
-	if m:GetAttribute("Decor") == "tree" and string.find(m.Name, string.format(":tree:%d:%d:", tq.x, tq.z), 1, true) then
-		moved = true
-	end
+	H.expect(tags == #sc.tide.list, "tide", "a price button over each of Cy's own drifts, none over the neighbours'", string.format("%d buttons, %d drifts", tags, #sc.tide.list))
 end
-H.expect(moved, "tree", "its model rebuilt where it stands now")
-tw, td = PlotRules.footprint(tq.id, tq.rot)
--- Build mode: tapping the tree picks it up to move, Clear away off
-local BuildC = H.cmod(c, "UI.BuildUI")
-H.inClient(c, BuildC.open)
-E.run(0.5)
-E.raycastParts = true
-H.inClient(c, function()
-	local pos = PRc.project(E.v3(cox + tq.x + tw / 2 + 0.3, Street.LAWN_Y + 0.05, coz + tq.z + td / 2 + 0.3))
-	BuildC.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
-end)
-E.raycastParts = nil
+-- nothing on an island is fixed now (the Tree of Life is gone): every piece clears away (a Hatchery with an egg in it
+-- apart: sim_clock), and there's no tree to buy
+E.phase = "fixed"
+local cp = H.profile(c)
+cp.shells, cp.wood = 50000, 5000
+H.push(c, 0.2)
+H.expect(#cp.plot.placed == 0, "fixed", "the newcomer's island starts bare", tostring(#cp.plot.placed))
+local kinds = { "patch", "lumber", "stall", "nest", "flowers", "torch" }
+for _, id in kinds do
+	local x, z = spot(id, 0, cp.plot.placed, cp.tier)
+	local r = H.req(c, "plot.place", { id = id, x = x, z = z, rot = 0 })
+	H.expect(r.ok, "fixed", "place a " .. id, tostring(r.err))
+end
+local cleared = 0
+while #cp.plot.placed > 0 do
+	local id = cp.plot.placed[1].id
+	local r = H.req(c, "plot.store", { i = 1 })
+	if not H.expect(r.ok, "fixed", "clear away a " .. id, tostring(r.err)) then
+		break
+	end
+	cleared += 1
+end
+H.expect(cleared == #kinds and #cp.plot.placed == 0, "fixed", "every piece clears away (nothing is fixed)", string.format("%d of %d", cleared, #kinds))
+H.expect(H.req(c, "plot.place", { id = "tree", x = 0, z = 0, rot = 0 }).err == "bad_payload", "fixed", "no Tree of Life to buy")
 E.run(0.4)
-local store = H.buttonNamed(c, "Store", true)
-H.expect(store ~= nil and H.buttonNamed(c, "Store") == nil, "tree", "Build mode: the tree picked up, Clear away greyed out")
-H.inClient(c, BuildC.close)
-E.run(0.3)
-H.checkProfile(c, "tree")
-H.checkMirror(c, "tree")
+H.expect(#decorOf(cPlot):GetChildren() == 0, "fixed", "and their models gone", tostring(#decorOf(cPlot):GetChildren()))
+H.checkProfile(c, "tide")
+H.checkMirror(c, "tide")
 
 report(E, H)

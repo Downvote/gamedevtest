@@ -685,10 +685,11 @@ function SCEN.build()
 		tapWorld(E.v3(ox + 0.5, Street.LAWN_Y, oz + 6.5))
 		settle(p, 10, 0.5)
 		capture(p, "build_red")
-		-- the tips in Build mode: the second tip (wood) turns the tray to the Wood tab, the lumber camp pulsing
+		-- the tips in Build mode: the stall's tip (the island has none yet) turns the tray to the Shops tab, the stall
+		-- pulsing
 		H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
 		H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
-		prof.tut = 2
+		prof.tut = 5
 		H.push(p, 0.4)
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
