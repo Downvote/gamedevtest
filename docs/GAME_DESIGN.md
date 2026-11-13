@@ -11,10 +11,21 @@
 
 So the Tree of Life is gone, and with it its pen, its Speed and Luck upgrades, its four stages and Equip best. The
 tree grew a driftling every few seconds into a pen with no limit, and the pen sent its best on to the huts; getting a
-good one meant buying upgrades, sorting a long list and sending them on. Now a driftling drifts in on the tide to the
-island's jetty every 12 seconds, a few bob there at once on rafts with their price over them, and the player takes in
-the ones they want with shells (§6). Food is gone too: wood builds everything and shells buy driftlings (§3). A save
-from before keeps its huts' driftlings and gets the pen's back as shells (§10).
+good one meant buying upgrades, sorting a long list and sending them on. Now driftlings come on the tide, each on a
+raft with its price over it, and the player takes in the ones they want with shells (§6). Food is gone too: wood
+builds everything and shells buy driftlings (§3). A save from before keeps its huts' driftlings and gets the pen's
+back as shells (§10).
+
+> Then (2026-11-13): "make them float by just like a conveyer belt instead of drifting towards the island and
+> stopping, with one every second"
+
+At first a driftling drifted in to the jetty every 12 seconds and up to four bobbed there, the oldest drifting off
+when a fifth came. Now the tide runs past the island like a conveyor belt. Every second one comes up out of the water
+at the west end of the lot, floats along the water between the beach and the boardwalk, ducks under the jetty and
+goes down at the east end 16 seconds later, so about sixteen are on their way at any moment (§6). With that many
+going by, the rarer ones are thinned out: a rare one floats by about every half a minute on a new island, an epic
+every four minutes, a legendary about every twenty minutes on a Palm Isle. Harbor Town costs 150,000 wood instead of
+130,000 (§4.1, §10).
 
 > The request (2026-11-12, later): "remove villagers, only creatures should be enough"
 
@@ -47,8 +58,8 @@ reference"), the pixel art rules (§2) and the polish requests (§11). The game 
 (§10: an old save starts a fresh island).
 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire
-on its sand and a jetty down to the boardwalk. **Driftlings** drift in on the tide to that jetty, each on a raft with
-its price over it: mostly commons, now and then a rare one with a lantern. Build a Lumber Camp for wood, farms and
+on its sand and a jetty down to the boardwalk. **Driftlings** float past on the tide, one a second, each on a raft
+with its price over it: mostly commons, now and then a rare one with a lantern. Build a Lumber Camp for wood, farms and
 shops for shells, and huts for the driftlings you take in; each one works at a building of its knack, more the rarer
 it is. The driftlings do all the work: there are no villagers. Wood pays for every building and for growing the
 island, shells pay for driftlings, and once the huts are full a better one off the tide can take a weak one's place.
@@ -61,10 +72,10 @@ Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
 Build a Lumber Camp for wood, a Veggie Patch that sells what it grows for shells, and a Driftling Hut; each building
 works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its wood and shells. All
-the while a driftling drifts in to the jetty every 12 seconds, its rarity rolled by the island's luck and its own
-mutations with it, and up to four bob there at once; when a fifth comes the oldest drifts off. Tap one's price to take
-it in: it moves into a hut and takes a place at a farm, pier, lumber camp or shop of its knack, adding to what it
-makes, a legendary seven times what a common one adds. Rarer ones cost more, and on a bigger island every driftling
+the while a driftling comes in on the tide every second, its rarity rolled by the island's luck and its own mutations
+with it, and floats past the island in 16 seconds before it's gone. Tap one, or its price, to take it in: it moves
+into a hut and takes a place at a farm, pier, lumber camp or shop of its knack, adding to what it makes, a legendary
+seven times what a common one adds. Rarer ones cost more, and on a bigger island every driftling
 costs more and rare ones come more often. When every hut is full, the new one takes the place of one you pick, and
 that one is sold. Spend wood on more buildings, huts and decor (charm brings the visitors who buy at the shops), and
 expand the island for bigger buildings and new kinds of driftling. Nothing happens while you are away (no offline
@@ -87,7 +98,7 @@ progress).
   brows, a mouth and a glint in each eye; knees and elbows bend, and the face changes. **Driftlings** are small 3D
   creatures of our own design walking to their work and doing it, each with its own details (moss and stubby arms on
   the pebble, bubbles on the crab, whiskers and a sprout on the bun, wing bones on the bat...) and limbs that move
-  (§7). The driftlings in huts live on the island; the ones on the tide float on rafts by the jetty (§6).
+  (§7). The driftlings in huts live on the island; the ones on the tide float past it on rafts (§6).
 - **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
   panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
@@ -259,12 +270,13 @@ tile are skipped, never refused as a whole; running out of wood stops where it r
 > replace/upgrade buildings as well, including homes of creatures and villagers"
 
 - **Six tiers** (`TierCost`, in wood): Castaway Cay, Palm Isle (600 wood), Grand Isle (9,000), then **Harbor Town**
-  (130,000), **Coral City** (320,000) and **Sunspire Capital** (800,000), each coming about when the island before it
+  (150,000), **Coral City** (320,000) and **Sunspire Capital** (800,000), each coming about when the island before it
   is built up. (They were paid in shells and wood until 2026-11-13; the first two were made cheaper on 2026-11-12:
-  "expanding island costs too much, make them cheaper early on".) The island grows north each time (the boardwalk
+  "expanding island costs too much, make them cheaper early on"; Harbor Town went from 130,000 to 150,000 with the
+  conveyor tide, §10.) The island grows north each time (the boardwalk
   stays where it is), to twice tier 3's grass at the capital, and only ever gains land (each tier's shape joined to
   the smaller ones': nothing built near an old shore has to move); more driftlings live there in bigger huts, and new
-  kinds drift in (§6). (The homes for villagers this request asked for went with the villagers on 2026-11-12.)
+  kinds float by (§6). (The homes for villagers this request asked for went with the villagers on 2026-11-12.)
 - **Comfort** (huts): a driftling taken in goes to the comfiest hut with room. A driftling's comfort (its hut's, plus
   4% / 8% at a level 2 / 3 hut kept from an older save) makes it work that much more (`Island.palBoost`: 1 plus its
   share plus its comfort). The Driftlings panel shows each one's hut.
@@ -321,64 +333,82 @@ Villagers button. Visitors still come for the charm and buy at the shops. A buil
 
 The requests at the top of this file (2026-11-13) replaced the Tree of Life with the tide: "there should now be a
 steady stream of driftlings, with rarities that players can pick up". It is the idea the popular Roblox pet games
-use, pets coming past the player on a conveyor to be bought, with the sea for the conveyor.
+use, pets coming past the player on a conveyor to be bought, with the sea for the conveyor. Later that day it became a
+real conveyor: "make them float by just like a conveyer belt instead of drifting towards the island and
+stopping, with one every second". (Until then one drifted in to the jetty every 12 seconds, up to four bobbed there
+and the oldest drifted off when a fifth came.)
 
-- **The stream** (`Logic/Tide`; the session's, never saved): a driftling drifts in to the jetty every `TideSecs` (12)
-  seconds while you are on the server, sooner with the huts' arrival shares (Breezy and its family, and a few
-  passives; `HutTide`: 50% at most, one every 8 seconds). Up to `TideMax` (4) bob there at once; when another comes
-  the oldest drifts off, so each stays about 48 seconds unless it is taken. When you arrive `TideStart` (2) are there
-  already. On a brand-new island those two are commons, one good with wood and one at a farm, so the tips' first
-  driftlings are cheap and have work waiting.
-- **Rarity** (`Tide.roll`, `Tide.odds`): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5, 1.2) times the
-  island's luck to the power of the steps. The luck is 1 plus `TideLuck` by the island's tier (0, 0.15, 0.3, 0.45,
-  0.6, 0.8) plus the huts' tide luck shares (Lucky and its family: `HutLuck`, 0.5 at most). Before those shares:
+- **The stream** (`Logic/Tide`; the session's, never saved): a driftling comes in on the tide every `TideSecs` (1)
+  second while you are on the server and floats past the island in `TideLife` (16) seconds, then it's gone, so about
+  sixteen are on their way at once, 5 studs apart. The huts' arrival shares (Breezy and its family, and a few
+  passives; `HutTide`: 50% at most) make the tide come faster and run faster together (`Tide.life`), so they stay 5
+  studs apart: at the most one every two thirds of a second, each past in about 11 seconds. The tide runs on the
+  server's time and each driftling keeps the moment it came in, so every player sees it at the same place along the
+  way. It is already running when you arrive, the lane full from end to end. On a brand-new island (nothing taken in
+  yet and nobody in a hut) every third one is a common that can work at the first buildings, good with wood or at a
+  farm by turns, so the tips' first driftling is cheap and has work waiting. Once one is taken in, that stops.
+- **Rarity** (`Tide.roll`, `Tide.odds`): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5, 1.2) times
+  `TideRare` (1, 0.7, 0.3, 0.1, 0.06: with one a second the rarer ones are thinned out) times the island's luck to the
+  power of the steps. The luck is 1 plus `TideLuck` by the island's tier (0, 0.15, 0.3, 0.45, 0.6, 0.8) plus the huts'
+  tide luck shares (Lucky and its family: `HutLuck`, 0.5 at most). Before those shares (in brackets, about how often
+  one of that rarity floats by at one a second):
 
   | Island tier | Common | Uncommon | Rare | Epic | Legendary |
   |---|---|---|---|---|---|
-  | 1 | 59.8% | 26.9% | 9.6% | 3.7% | none (beaches and meadows have no legendary) |
-  | 2 | 54.8% | 28.3% | 11.6% | 4.2% | 1.1% |
-  | 3 | 50.0% | 29.3% | 13.5% | 5.5% | 1.7% |
-  | 4 | 45.6% | 29.7% | 15.3% | 6.9% | 2.4% |
-  | 5 | 41.4% | 29.8% | 17.0% | 8.5% | 3.3% |
-  | 6 | 36.4% | 29.5% | 18.9% | 10.6% | 4.6% |
+  | 1 | 73.1% | 23.0% | 3.5% (29 s) | 0.42% (4 min) | none (beaches and meadows have no legendary) |
+  | 2 | 69.7% | 25.3% | 4.4% (23 s) | 0.53% (3.1 min) | 0.09% (19 min) |
+  | 3 | 66.5% | 27.2% | 5.4% (19 s) | 0.73% (2.3 min) | 0.14% (12 min) |
+  | 4 | 63.4% | 29.0% | 6.4% (16 s) | 0.97% (1.7 min) | 0.20% (8.3 min) |
+  | 5 | 60.5% | 30.5% | 7.4% (13 s) | 1.24% (1.3 min) | 0.29% (5.8 min) |
+  | 6 | 56.8% | 32.2% | 8.8% (11 s) | 1.66% (1 min) | 0.43% (3.9 min) |
 
   Then one of that rarity's kinds among those open at the island's tier (`Data/Islets` tier: beaches and meadows from
   the start, snowfields and mangroves at 2, volcanoes and grottoes at 3, reefs at 4, bluffs at 5, ruins at 6); a
-  rarity none of them has falls to the next commoner one. Each comes with its own mutations (below), rolled as one
-  rarity rarer every `TideMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the city
-  tiers). One seen on the tide goes in the Index.
+  rarity none of them has falls to the next commoner one (on a first island the legendary's share goes to the epics).
+  Each comes with its own mutations (below), rolled as one rarity rarer every `TideMutTier` (2) tiers past the first
+  (one step on a Grand Isle or Harbor Town, two on the city tiers). One seen on the tide goes in the Index.
 - **The price** (`Tide.cost`): `TidePrice` by rarity (20, 80, 300, 1,200, 5,000 shells), times 1 + 0.25 a mutation
   tier (`SellTier`), times its cost share (Thrifty and its family make it cheaper, Greedy dearer; never under a fifth),
   times `TideTier` by the island's tier (1, 2, 4, 8, 16, 30). A bigger island earns more and draws rarer ones, so its
   driftlings cost more.
-- **Taking one in** (`tide.take`): from its price tag over it in the world, its row on the HUD's Tide card or its row
-  in the Tide panel. It moves into the comfiest hut with room and takes a free place at a building of its knack
-  (`HelpMax`: 2 driftlings a building), or rests in its hut until one is free. With no hut built the answer is "Build
-  a hut first. Driftlings need somewhere to live."
+- **Taking one in** (`tide.take`): a tap on the driftling itself or on its price tag over it in the world, or its row
+  on the HUD's Tide card or in the Tide panel. It moves into the comfiest hut with room and takes a free place at a
+  building of its knack (`HelpMax`: 2 driftlings a building), or rests in its hut until one is free. With no hut built
+  the answer is "Build a hut first. Driftlings need somewhere to live."; one that went past the end before the tap
+  reached the server, "That one has floated off."
 - **Every hut full** (`full`): the Tide panel's swap picker opens, listing every driftling in a hut, the weakest first,
   each with what it sells for. Pick one and the new one takes its place: the one swapped out is sold for its price
   (`Tide.price`, below) and the newcomer moves into its hut ("Pyredrake moved in. The one it replaced sold for 7
-  shells.").
+  shells."). If the newcomer floats off while the picker is open, it says so and goes back to the tide.
 - **A driftling with no hut**: one whose hut was cleared away or replaced by a smaller one, or a hatchling with no
   room, waits with no hut (`home` 0). It works nowhere and is not drawn on the island; the Driftlings panel lists it
   last ("No hut. It moves in when one has room.") and it moves in the moment a hut has room (`Tide.settle`).
-- **In the world** (`Controllers/TideView`): each one on the tide stands on a raft of three driftwood planks in the
-  water between the island's beach and the boardwalk, by the jetty, in one of four places, two either side of it. It
-  drifts in along that channel from further out on its side, bobs and looks about while it waits (a cheer now and
-  then) and drifts off the same way. A rare, epic or legendary one has a lantern on a pole in its rarity's colour
-  (blue, purple, gold) that pools light round it at night. Over the own island's floats each one's name in its
-  rarity's colour and its price on a button (the shells and the shell icon, green when you have them); a neighbour's
-  tide floats by too, without tags. One taken in hops ashore at the jetty with a cheer, bits of its rarity's colour
-  burst there (a rare one's name floats up too) and it walks off to its work. While the tips ask for one (step 4) an
-  arrow bobs over the cheapest.
-- **The HUD's Tide card** (under the island card): "Tide" and Open, a bar filling toward the next one, and each one
-  bobbing at the jetty, the oldest first, with its name in its rarity's colour and its price on a button that takes it
-  in (on a phone only the newest two). A rare one or better drifting in is news: "A rare Floe is drifting in." in its
-  rarity's colour with a chime, and an epic or a legendary bursts sparkles over the card.
-- **The Tide panel**: on the left how often one comes ("One drifts in every 12s") with the bar, the huts' room ("In
-  huts 6/8", orange when full), the odds of each rarity now and "A bigger island brings new kinds and rarer ones."; on
-  the right the ones at the jetty, each with its portrait, name, rarity, how fast it works, its passive, its mutations
-  and its price, the oldest marked "Leaving soon" while the jetty is full.
+- **In the world** (`Controllers/TideView`): each one on the tide stands on a raft of three driftwood planks and rides
+  a straight lane along the water between the island's foam and the boardwalk (`Street.TIDE`), from the west end of
+  the lot to the east end, facing the way it goes and turned a little toward you, idling with a cheer now and then. It
+  comes up out of the water at the start, ducks under the jetty on the way (raft and rider sink out of sight and come
+  up on the other side) and goes down again at the east end, just where the next island's tide comes up, so the lanes
+  of a row of islands read as one long belt. No rocks stand in the lane. A rare, epic or legendary one has a lantern
+  on a pole at the back of its raft in its rarity's colour (blue, purple, gold) that pools light round it at night.
+  Over each of the own island's floats its price on a button (the shells and the shell icon, green when you have
+  them), and over an uncommon one or better its name too, in its rarity's colour. Where tags would crowd, the better
+  worker's shows and the other waits (they all float at one speed, so the ones shown stay put), and a tag hides while
+  its driftling is under the water. A neighbour's tide floats by too, without tags, and only the driftlings near the
+  view are drawn. One taken in hops off its raft onto the jetty with a cheer, bits of its rarity's colour burst there
+  (a rare one's name floats up too) and it walks off to its work; a neighbour's taken one hops onto their jetty. While
+  the tips ask for one (step 4) an arrow bobs over the cheapest tag shown that you can pay for.
+- **The HUD's Tide card** (under the island card): "Tide" and Open, then the best three floating by now, the best
+  workers first (if you can pay for none of them, the best one you can pay for takes the last row). Each row has the
+  name in its rarity's colour, the price on a button that takes it in and, under the name, a bar in its rarity's
+  colour of the time it has left, running down as it floats on. On a phone only one row. An epic or a legendary coming
+  in is news: "An epic Sunsprite is floating by." in its rarity's colour with a bell-tree run and sparkles over the
+  card. A rare one is not announced (one comes by about every half a minute): its lantern is enough.
+- **The Tide panel**: on the left how often one comes ("One floats by every second", or "One floats by every 0.8s"
+  with the huts' arrival shares), the huts' room ("In huts 6/8", orange when full), the odds of each rarity now under
+  "What comes in now" ("<0.1%" when it is under a tenth of a percent) and "A bigger island brings new kinds and rarer
+  ones."; on the right, under "Floating by", the best four picked as on the card, each with its portrait, name,
+  rarity, how fast it works, its mutations, its price and a bar of the time it has left. It is drawn again only when
+  those four change or the shells to pay for them do, not every second.
 - **The huts** (the Huts tab in Build mode; the old nests: Driftling Hut 2 places, Cozy Burrow 4, Driftling Den 5,
   Treetop Roost 6, Spring Grotto 8, Driftling Palace 12; the home once called Grass Hut is now the Grass Shack so the
   names don't clash). A driftling in a hut adds its charm.
@@ -387,7 +417,7 @@ use, pets coming past the player on a conveyor to be bought, with the sea for th
   rest) and **Sell**; its buttons open the Tide panel and, when one stands, the Hatchery.
 - **Selling** (`Tide.sell`, and a swap) pays `SellPrice` shells by rarity (2, 7, 25, 85, 320), times 1 + 0.25 a
   mutation tier (`SellTier`), times 1 + its sell share (Shiny and its family). It gives a little back and no more: a
-  common taken in for 20 sells for 2. Over the career it comes to well under a third of the shells earned (§10).
+  common taken in for 20 sells for 2. Over the career it comes to well under a hundredth of the shells earned (§10).
 
 **How much a driftling works:** each one at a building puts in `PalWork` (0.6) times `RarityWork` by rarity (1, 1.6,
 2.5, 4, 7: the request's "creatures work faster based on their rarity") times 1 plus its work share at that building
@@ -426,7 +456,7 @@ rabbit or frog hops on both hind legs, a crab scuttles, a seal or snail sways, a
 looks up with its arms up and wags fast. At work it has its own moves (§11).
 
 Fifty-five driftlings of our own, five to seven to each of the nine kinds of island (`Data/Islets`: a kind's
-driftlings drift in once the island reaches that kind's tier, above):
+driftlings float by once the island reaches that kind's tier, above):
 
 | Kind | Its driftlings (common .. legendary) |
 |---|---|
@@ -466,8 +496,9 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
   at most (a Hatchery child can gain one, §6.1). Their names show in tier colours (with stars) on the Driftlings
   panel.
 
-The **Index** lists all fifty-five ("Seen 12 of 55 kinds"): a dark shape and its rarity until one has drifted in to
-your jetty (or hatched), then its name and passive; a kind you have had sits on a darker plate.
+The **Index** lists all fifty-five ("Seen 12 of 55 kinds"): a dark shape and its rarity until one has floated past
+your island (or hatched), then its name and passive; a kind you have had sits on a darker plate. A kind not open yet
+says the island tier it floats by from ("These float by from island Lv 4.").
 
 ### 6.1 The Hatchery (`Logic/Breed`, the Hatchery panel)
 
@@ -544,10 +575,11 @@ text (the requests and how each was met) is in the history of this file, up to c
 
   > The bug report (2026-11-10): "lighting also seems buggy, especially with shells"
 - **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
-  each island's own seed; the boardwalk's planks on beams and posts with rope rails and lanterns; a pier with your
-  moored boat. Every building has its doors, windows, ridged roofs with eaves, crates, barrels, sacks and pots, its own
-  touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts, the stall's awning, the
-  lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks and a mouth.
+  each island's own seed (no rocks in the tide's lane, §6); the boardwalk's planks on beams and posts with rope rails
+  and lanterns; a pier with your moored boat. Every building has its doors, windows, ridged roofs with eaves, crates,
+  barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
+  the stall's awning, the lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks
+  and a mouth.
 - **Boats** (`Models/BoatSpec`: one plan for the boat at the pier and the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
   seams, a painted band (gold trim from level 4), a rim, a bow (tall against the hull, flush with the rim, its keel
   sloping up to the stem's point), a stern with its rudder and tiller and a planked deck;
@@ -590,15 +622,15 @@ the stores come from:
 
 1 "Wood pays for everything you build. Tap Build and place a Lumber Camp."; 2 "Shells pay for driftlings. Place a
 Veggie Patch. It sells what it grows."; 3 "Driftlings need somewhere to live. Place a Driftling Hut."; 4 "Driftlings
-float in at the jetty. Tap a price to take one in." (an arrow bobs over the cheapest one's price tag); 5 "Visitors buy
-snacks too. Place a Snack Stall for more shells."; 6 "New ones drift in all the time. When the huts are full, swap a
-weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode ("Place a
-Lumber Camp. Wood pays for everything you build."). Each moves on once what it asks is done, tip 4 once a driftling
-has been taken in. A new island starts with `StartWood` (300) wood and `StartShells` (60) shells: the camp, the patch,
-the hut and the stall of the tips cost 265 wood, and the shells pay for the first driftlings (the two commons waiting
-at the jetty cost 20 or a little more each, with their mutations). (Until 2026-11-13 the tips asked for a patch, a
-camp, a stall, a hut and a level of the tree. A save from before keeps its step's number, and a step whose task is
-already done moves on at once.)
+float past the island. Tap one, or its price, to take it in." (an arrow bobs over the cheapest price tag you can pay);
+5 "Visitors buy snacks too. Place a Snack Stall for more shells."; 6 "A new one floats by every second. When the huts
+are full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build
+mode ("Place a Lumber Camp. Wood pays for everything you build."). Each moves on once what it asks is done, tip 4 once
+a driftling has been taken in. A new island starts with `StartWood` (300) wood and `StartShells` (60) shells: the
+camp, the patch, the hut and the stall of the tips cost 265 wood, and the shells pay for the first driftlings (on a
+new island every third one floating by is a common good with wood or at a farm, 20 shells or a little more with its
+mutations). (Until 2026-11-13 the tips asked for a patch, a camp, a stall, a hut and a level of the tree. A save from
+before keeps its step's number, and a step whose task is already done moves on at once.)
 
 > The request (2026-11-11): "also, please rewrite all text and dialogue to be less ai-like. research what are the
 > telltale signs of ai writing and avoid them. note this from further on as well"
@@ -661,15 +693,18 @@ wood to spare. Once the island is going they save up for the next tier, and they
 random numbers are seeded through a hash, as the server seeds a session (a small seed's first draws are weak).
 `tests/specs/Economy.spec.luau` holds the economy to these bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (about 20 seconds), a rare one taken in within 20 (6 to 11 minutes);
-- a steady stream: at least 12 taken in by half an hour (84 to 96), an epic within two hours (15 to 19 minutes); a
-  legendary comes at 27 to 51 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one taken in within 20 (8 to 11 minutes);
+- a steady stream: at least 12 taken in by half an hour (74 to 122), an epic within two hours (26 to 38 minutes); a
+  legendary comes at 54 to 63 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (well under a
-  third);
-- the island's second tier within 25 minutes (15.5 to 16), the third within 50 (27 to 30); at an hour, at least 12
-  driftlings in huts; Harbor Town (tier 4) never before 100 minutes (117 to 147) and no city (tier 5) within three
-  hours;
+  hundredth);
+- the island's second tier within 25 minutes (13 to 22), the third within 50 (25 to 33); at an hour, at least 12
+  driftlings in huts (60); Harbor Town (tier 4) never before 100 minutes (102 and 176; the third seed gets there at
+  188, just past the three hours) and no city (tier 5) within three hours;
 - both stores are being made at every ten minutes of the three hours, they stay finite, and the save has no food.
+
+With the conveyor tide (2026-11-13) good workers come sooner, and at 130,000 wood one seed reached Harbor Town in 91
+minutes. Its price went up to 150,000 (`TierCost[4]`), which puts it back past 100.
 
 ## 11. Polish and animation
 
@@ -714,10 +749,10 @@ random numbers are seeded through a hash, as the server seeds a session (a small
   sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Driftling Isle" in the
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
-  ink plate, a new one every few seconds ("Wood pays for building. Shells pay for driftlings.", "Driftlings float up to
-  the jetty. Tap a price to take one in.", "Rare driftlings work much faster than common ones.", "When the huts are
-  full, swap a weak one for a better one.", "A rare one glows as it drifts in. Keep some shells for it.", "Grow the
-  island and new kinds drift in."). Everything is laid out from the screen's size each time it changes (the old
+  ink plate, a new one every few seconds ("Wood pays for building. Shells pay for driftlings.", "Driftlings float past
+  your island. Tap one to take it in.", "Rare driftlings work much faster than common ones.", "When the huts are
+  full, swap a weak one for a better one.", "A rare one carries a lantern. Keep some shells for it.", "Grow the
+  island and new kinds float by."). Everything is laid out from the screen's size each time it changes (the old
   curtain took its size once, so on a window still settling its words sat left of the middle). Roblox's touch
   buttons are hidden while it is up. When the first picture is on screen the bar fills and the card fades into it.
   Without EditableImages it is a plain card (sky, sea, island, title, bar).
@@ -736,8 +771,8 @@ random numbers are seeded through a hash, as the server seeds a session (a small
 - **Buttons** lighten under the mouse, sink a pixel while pressed, click when used and buzz when disabled; panels and
   cards fade and rise in; notices slide down.
 - **The HUD:** the stores count up and their chip flashes when they change, shells coming in rise from their chip
-  ("+12"); the day chip's clock bar creeps along and its sun sets into a moon; the tide's card fills its bar toward
-  the next arrival; a new tip bounces in; a new day's banner (every few hours) drops in with a ding.
+  ("+12"); the day chip's clock bar creeps along and its sun sets into a moon; the bars on the tide's card run down as
+  their driftlings float on; a new tip bounces in; a new day's banner (every few hours) drops in with a ding.
 - **The island lives:** the hut driftlings walk to their buildings and back and work there, and nap at their huts with
   nothing to do; one just taken in off the tide hops ashore at the jetty with a cheer and walks off to work.
 
@@ -753,9 +788,9 @@ random numbers are seeded through a hash, as the server seeds a session (a small
   blue instead?"), leaves
   sway and flags ripple in the wind, sailboats (the boats of §8, their flags fluttering) rock on the swell as they
   cross both ways, gulls cross now and then (from either side, at their own height, weaving and gliding, a
-  different crossing each time); each island's campfire flickers and smokes; driftlings on their rafts drift in to the jetty, bob there and drift
-  off (§6). (No clouds' shadows: the
-  player asked for the "random shadow that appears sometimes" gone.)
+  different crossing each time); each island's campfire flickers and smokes; driftlings on their rafts float past
+  each island, one a second, ducking under the jetty (§6). (No clouds' shadows: the player asked for the "random
+  shadow that appears sometimes" gone.)
 - **Night falls** and the lamps light up (§8).
 - **Sounds** (`Controllers/Audio`): every event plays a free Creator Store sound from Roblox's licensed libraries
   (ProSoundEffects, and APM Music's stingers), none of Random Bakery's, its pitch varied a little, repeats inside a
@@ -777,7 +812,7 @@ random numbers are seeded through a hash, as the server seeds a session (a small
   The happy moments each have their own small, short sound from the library, measured for length and loudness before
   going in (no more one music-box note pitched up or down to stand in for the others): a door bell's ding-dong that
   welcomed a newcomer (silent since the villagers went); a bell-tree run as the island grows, or as an epic or
-  legendary driftling drifts in; a sparkling sweep for a rare one drifting in or taken in; a soft cluster of chimes
+  legendary driftling comes in on the tide; a sparkling sweep for a rare one or better taken in; a soft cluster of chimes
   when an egg hatches; a few bright sparkle tones when a piece is replaced by a better one; one triangle ting for a
   reward (a quest claimed); a music box winding up as an egg is laid. (The sounds of the places and the fights went
   with them, 2026-11-12.) Longer takes play only their first moment and fade out.
