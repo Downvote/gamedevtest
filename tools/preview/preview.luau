@@ -1025,6 +1025,112 @@ function SCEN.loading()
 	return p
 end
 
+-- "catalog=<group>": every piece of a group of the build catalog laid out on the biggest island for a close look at its
+-- models (GAME_DESIGN 4): a group is a model module's ("ground" paths and water, "fence" fences, bridges and floating
+-- things, "nature", "theme", "fun" with the grand pieces), a Build mode tab ("path", "water", "decor", ...) or ids
+-- joined by commas. A path or water is laid as a 2 x 2 block of tiles (its banks show), a fence as a run east and a
+-- turn south, a floating piece on a pond, a bridge across a stream. Frames catalog_1 .. n, rows of about 14 studs.
+local CATALOG_GROUPS: { [string]: (d: any) -> boolean } = {
+	ground = function(d)
+		return d.kind == "path" or d.kind == "water"
+	end,
+	fence = function(d)
+		return d.kind == "fence" or d.tab == "water"
+	end,
+	nature = function(d)
+		return d.tab == "nature"
+	end,
+	theme = function(d)
+		return d.tab == "decor" and d.sub ~= "grand"
+	end,
+	fun = function(d)
+		return d.tab == "fun" or d.sub == "grand"
+	end,
+}
+local function catalogScenario(group: string)
+	local Buildings = H.sharedServer("Data.Buildings")
+	local want: { [string]: boolean } = {}
+	for id in string.gmatch(group, "[^,]+") do
+		want[id] = true
+	end
+	local pick = CATALOG_GROUPS[group]
+	local ids = {}
+	for _, d in Buildings.list do
+		if d.kind ~= "tree" and ((pick and pick(d)) or want[d.id] or (pick == nil and d.tab == group)) then
+			table.insert(ids, d.id)
+		end
+	end
+	-- the layout: rows across the island's middle, each piece with room round it (exact places: d[6])
+	local pieces = {}
+	local x, z = -26, -100
+	local rowD = 0
+	local function put(id: string, px: number, pz: number, rot: number?)
+		table.insert(pieces, { id, px, pz, rot or 0, 1, true })
+	end
+	for _, id in ids do
+		local d = Buildings.byId[id]
+		local w = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 6 elseif d.water ~= "" then math.max(d.w + 2, 6) else d.w
+		local dd = if d.kind == "path" or d.kind == "water" then 4 elseif d.kind == "fence" then 4 elseif d.water ~= "" then math.max(d.d + 2, 6) else d.d
+		if x + w > 26 then
+			x = -26
+			z += rowD + 4
+			rowD = 0
+		end
+		local ex, ez = x - x % 2, z - z % 2
+		if d.kind == "path" or d.kind == "water" then
+			for k = 0, 3 do
+				put(id, ex + (k % 2) * 2, ez + (k // 2) * 2)
+			end
+		elseif d.kind == "fence" then
+			put(id, ex, ez, 0)
+			put(id, ex + 2, ez, 0)
+			put(id, ex + 4, ez, 0)
+			put(id, ex + 6, ez, 90)
+			put(id, ex + 6, ez + 2, 90)
+		elseif d.water == "on" then
+			-- a pond under it, a tile wider all round
+			for tz = ez, ez + math.max(d.d + 2, 4), 2 do
+				for tx = ex, ex + math.max(d.w + 2, 4), 2 do
+					put("stream", tx, tz)
+				end
+			end
+			put(id, ex + 2, ez + 2)
+		elseif d.water == "over" then
+			-- a stream two tiles wide running east under its middle
+			local mz = ez + 2 + math.floor(d.d / 2) - 2
+			mz -= mz % 2
+			for tx = ex, ex + d.w + 2, 2 do
+				put("stream", tx, mz)
+				put("stream", tx, mz + 2)
+			end
+			put(id, ex + 1, ez + 1)
+		else
+			put(id, x, z)
+		end
+		x += w + 3
+		rowD = math.max(rowD, dd)
+	end
+	seedProfile(19, 10, { pieces = pieces, shells = 900000, wood = 900000 })
+	local p = join(19, "Catalog")
+	settle(p)
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	local k = 0
+	for sz = -96, z + rowD, 14 do
+		for _, sx in { -13, 13 } do
+			if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+				p.Character:PivotTo(E.cf.new(ox + sx, 3, sz + 4))
+				E.run(1.5)
+				settle(p, 30, 1)
+			end
+			k += 1
+			capture(p, "catalog_" .. k)
+		end
+	end
+	log("catalog %s: %d pieces in %d frames", group, #ids, k)
+	return p
+end
+
 ------------------------------------------------------------------ run
 local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do
@@ -1033,6 +1139,12 @@ for _, name in list do
 	if panel then
 		fn = function()
 			return panelScenario(panel)
+		end
+	end
+	local group = string.match(name, "^catalog=([%w_,]+)$")
+	if group then
+		fn = function()
+			return catalogScenario(group)
 		end
 	end
 	if fn == nil then
