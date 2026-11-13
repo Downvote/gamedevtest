@@ -6,7 +6,7 @@ local SPECS = {
 	"DataIntegrity", "Traits", -- the content tables
 	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", -- the rules
 	"Schema", -- the save
-	"Shading", "Raster", "Rim", -- the pixel filter (from Random Bakery)
+	"Shading", "Raster", "Rim", "Fx", -- the pixel filter (from Random Bakery) and its effects
 	"PixelFont", -- the pixel font
 }
 for _, name in SPECS do

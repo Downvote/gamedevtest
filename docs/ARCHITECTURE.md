@@ -70,10 +70,10 @@ read-only as the reference: nothing there was changed). What was copied, and how
 default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScriptService, Client -> StarterPlayerScripts;
                        characters on (the founder walks and jumps on the islands: JumpHeight 7.2)
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
-                       maths, copied), Models (procedural models), Locale (Lang: English only)
+                       maths, copied; Fx, the effects in the pixel layer), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
-                       AvatarView, StreetLife, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
+                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
                        Menus, BuildUI, PixelSprites, ArtData and ThumbData (generated), Words)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
                        (puts the loading card up first), LoadingCard, LoadingArt (generated: tools/preview/loading_art.sh)
@@ -450,7 +450,7 @@ needs a `Schema.VERSION` step in `migrate` and a spec that an older profile stil
 `Main.client`: the loading card's `show()` (ReplicatedFirst's, nothing when Boot put it up), `StateClient.init`
 (remotes), `PixelRenderer.init` (lighting), `CameraController.init`, the card's phase "island", wait for the first
 view, `CameraController.start`, `PixelRenderer.start`, `DayLight.start`, `UIKit.init`, `WorldView.start`,
-`AvatarView.start`, `StreetLife.start`, `Hud.start` (which starts `Menus`), then the card's phase
+`AvatarView.start`, `StreetLife.start`, `AmbientView.start`, `Hud.start` (which starts `Menus`), then the card's phase
 "picture": `PixelRenderer.firstPicture()`'s progress every 0.05 s until it is on screen (or 30 s), then `finish()`.
 
 ### 8.0 The loading card (`src/first`, ReplicatedFirst.Loading)
@@ -548,8 +548,10 @@ neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_D
 toon bands and the palette LUT (the indoor tint inside the room) with each material's surface texture (9.3), then the
 ink outline (`Shading.outline`) and the contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings and the visitors), the tree's eggs and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
-layer and outlined; only the old and new dirty rects are restored and uploaded. Without EditableImages (or with
-Classic picked) the layer hides and the Roblox camera shows the 3D world.
+layer and outlined; only the old and new dirty rects are restored and uploaded. The **effect layers** (9.3,
+`Render/Fx`) draw over both every tick: 2D sprites and pixels in the world (the islands' small lives,
+`AmbientView`), depth-tested, colour only. Without EditableImages (or with Classic picked) the layer hides and the
+Roblox camera shows the 3D world.
 
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
@@ -597,7 +599,8 @@ hundreds of boxes, re-casts its union once instead of re-baking the whole pictur
 when none is coming or the filter is off; Build mode's expansion cheers then), `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
 direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `debugStatic()`
-(CLI checks: layer, pan, bakes, ticks, `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`.
+(CLI checks: layer, pan, bakes, ticks, `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`,
+`addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
   art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
   even-even anchor first with its sun ray, then the pixels sharing it), re-outlined with a pixel round them; at most
@@ -684,6 +687,27 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   cell and never on a cell's last row or column, so marks never touch into a blob. The blob shadows and the contact
   shade draw a pixel's shadow tone as before (a darker mark at the shade band is the shade band). The dynamic layer
   has none: a pattern on the screen's grid would slide over a model as it moves.
+- **Effects** (`addFxLayer(name, draw: (Fx.Ctx) -> ()) -> () -> ()`; `Render/Fx`; the request of 2026-11-13: "use 2d
+  details to add to the athmosphere, such as grass, wood detail, birds and other details"): each tick, after the
+  dynamic models and their outline and before the upload, every layer (the newest first) gets a `Fx.Ctx` over the
+  frame: the frame (colour, depth, ids), its camera, the static buffers (`sColor`, `sId`, `sNormal`, `sAlbedo`,
+  `sDepth`, `sWClass`), art px per stud (`ppu`), `ver` (`staticVer`, bumped by `staticChanged()` at every bake's end,
+  scroll step, finished re-cast, stash return and new layer: what a layer works out from the static picture may be
+  kept until it changes), `now`, `dt` (clamped to 0.25), `idOf(part)` and its book of written pixels. Effects write
+  colour only (`Fx.put`; a light's pixel also writes `Fx.GLOW_ID`, 65535, which `isGlow` treats as Neon, so the
+  night's grade keeps its colour). Two books swap every tick: last tick's pixels go back to the static picture
+  (`fxRestore`, colour and id) before the dynamic layer is drawn. `fxShown` (u32 a pixel) holds the effect colour the
+  image shows there, its top byte the tick's mark (1 or 2): a pixel written this tick in a new colour, or one last
+  tick's effects left, marks its 16 x 8 tile (`FX_TW`, `FX_TH`); the tiles go up in runs along their rows (a gap of one
+  tile joins two; over `FX_MAX_RUNS` (40) runs, one rect a row of tiles), so an effect at rest costs no upload.
+  **Sticky** pixels (`ctx.stick(i, c)` / `ctx.unstick(i)`, through `Fx.stickSprite` / `Fx.unstick`): things that stay
+  put on the picture (the lawn's tufts and flowers) are kept in `stickCol` (u32 a pixel) and `stickList` and put back
+  over the static picture wherever the frame takes it back (`restoreRect`, `fxRestore`, a full compose's copy), so they
+  are drawn once and again only when they change; their changes mark their tiles; `staticChanged()` drops them all
+  (every caller uploads the whole picture), as does removing a layer. A layer that errors is removed with a warning.
+  They run inside `compose`: paused with the renderer, at its tier's rate, never in the classic style.
+  `fxStats() -> { ms, bookMs, px, changed, rects, upPx, ticks, layers }` (the last tick's: the layers' ms, the books'
+  ms, pixels written, changed, the rects and pixels uploaded).
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; none while its PrimaryPart is see-through or below its
@@ -801,6 +825,40 @@ in them collides, so a swimmer passes through) crossing both ways on two lanes o
 gulls crossing every 14-24 s, each crossing its own (east or west, a slant, a height, a weave, each gull a little
 behind the next), every gull turned the way it flies (the model's head is +Z) and gliding now and then (no clouds'
 shadows: the player asked for them gone). `count()` for the CLI.
+`AmbientView` (client, started after StreetLife; GAME_DESIGN 8.1): the islands' small lives, one effect layer
+("ambient", `PixelRenderer.addFxLayer`) drawn with `Render/Fx` and UI/ArtData's `fx_` sprites (`Fx.define`: the frames
+`fx_<group>_1..n`; a group's small sprites `fx_<group>s_*` where the island shows small, `ppu` under `BIG_PPU` 7).
+Every claimed plot whose island's box (its cells and shallows, `Street.cellBounds`) lies on the layer gets an `Isle`
+(made when it comes into view, let go `ISLE_KEEP` 10 s after it leaves; looked at every `ISLE_EVERY` 0.5 s): its cells
+by the tier's shape (`buildLand`: tufts sown in patches, `Fx.patch(x, z) * 0.4` a grass cell, kept in 8-stud
+chunks culled to the screen; little flowers in clusters, 2.5 % of the cells; the dry beach; water cells 0.8 to 11 studs
+past the foam), and what its models hold (`scan`, again 0.6 s after a piece comes or goes in its `Static.Decor`: the
+highest `Post`, `Rail` or `Top` of each fence, each `Ridge`, flat `Roof` and the sign's `Top` to perch on; `Flower`,
+`Bloom`, `Blossom`, `Petals`, `FlowerHeart` parts for the butterflies; `Leaves`, `Blossom` and `Leaf` parts a stud or
+more across, their colour, a blossom or a pale pink one dropping petals; `Chimney`, `Smoke`, `Coals` (and the
+smokehouse's `Vent`) smoking, `Steam`, `Teapot`, `Mug` steaming; the cells the pieces cover, so no bird stands in a
+building). A tick (`draw`, nothing while `CameraController.view().stage`): `stepLife` (the birds, the butterflies,
+leaves, wisps, a fish, fireflies), then the tufts and flowers (`drawDecos`: once per `ver`, whether the lawn itself
+shows at the tuft's foot (an up-facing static pixel at its depth whose albedo is the grass or the dark grass) and the
+lawn's tones there (`Fx.tones` of the static colour); stuck with `Fx.stickSprite` in the frame of the gust passing
+(`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share), the sea's
+glints (a few a second on random sea or shallows pixels, by `sWClass`; fewer at night), splash rings, the fish, the
+particles (`Fx.step`: drops, wisps, leaves), the birds and the butterflies, the fireflies last. Birds (`stepBird`;
+4 an island at high, 3 medium, 2 low, pips and wrens in turn, and a gull): away, then in (flown in from one side of
+the screen over 1.6 s, a gull from the sea over 2.4 s) to a perch picked on screen round its middle (an ellipse
+0.24 x 0.3 of the screen, a gull's 0.3 x 0.36: never under the HUD's cards), nobody within 3.5 studs (a gull 5) and no
+other bird on it (`pickPerch`: a rail, ridge or the sign 45 %, else a lawn cell, sometimes the beach; a gull the beach
+only), perched (pecks, hops along the perch, looks round, 20 to 70 s, a gull 12 to 30), then off (`flee`: away from
+whoever came near, or when bored; at dusk) and away 6 to 16 s (a gull 25 to 60). Who walks: every player's character
+and the models in `Workspace.PixelDynamic` on the lawn (`PixelGroundY` the lawn's: the driftlings), every
+`RIGS_EVERY` 0.15 s. Butterflies (3 an island at high) by day (`DayLight.frac` 0.06 to 0.68) between the flowers,
+resting on one now and then; fireflies (22 at high) at night (0.78 to 0.97) over the lawn's spots; birds by day (0.03
+to 0.72). Fish: an island on screen every 9 to 22 s (divided by the tier's scale), a jump of 1.7 studs along the shore
+from a water cell round the screen's middle. Reduced motion (`GuiService.ReducedMotionEnabled`): no particles, flights
+or sway. `stats()` (what is alive and drawn, and the last tick's parts in ms: `msLife`, `msDecos`, `msParticles`,
+`msCreatures`), `birds(plot)` (`{ sp, state, x, y, z, on }`), `debugRun(on)` (the sims: the lives stepped on
+Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` (every bird, gull, fish and leaf due
+now), `setSuspended(on)` (a timing's A/B).
 
 ### 10.3 `Hud`
 The island's looks (GAME_DESIGN 2): the chips are carved boards in thin frames of planks (`CHIP_Y` 5), the cards in
@@ -1046,6 +1104,14 @@ too near the body, then the plan's own colour, a black `Pupil<L|R>` part as a do
 a Neon glow for a sprite; a golem keeps its slits), then tidied by `tools/preview/gen_portraits.py`: binary alpha, the outline made again 1 px on
 the four sides, lone spikes and notches, the bands' dither settled, creases 1 px and a shade of the colour beside
 them, dark bodies lifted (not the eyes), a little more saturation, near tones merged, curves softened inside; `sh tools/preview/portraits.sh` runs the three and remakes `ArtData`).
+The islands' small lives (`AmbientView`, drawn by `Render/Fx` into the pixel layer, not the interface) are `fx_`
+sprites in `ArtData`, hand-shaded with digit tones (`FX` and `GROUND` in `gen_art.py`; no `_flash`): `fx_pip`,
+`fx_wren`, `fx_gull` (four frames: sitting or standing, pecking, wings up, wings down; teal `T` and coral `Q` ramps),
+`fx_fish` (nose up, level, nose down), each with a small version (`fx_pips` ...) for a screen that shows the island
+small, all outlined in ink; and without an outline (ground and light, like the sparks) `fx_tuft` (upright, leaning
+with the wind, leaning back), `fx_flower`, their small `fx_tufts` and `fx_flowers`, `fx_bfly`, `fx_leaf`,
+`fx_petal`, `fx_glint`, `fx_ripple`. The pixels a tinted sprite draws in `tn0` .. `tn3` (the same values as
+`Fx.TONES`) take the tones of a colour given at draw time (`Fx.tones`, Render/Ramp's ramp).
 The overlay's sprites also have a white `<name>_flash`; the icons have a dark `<name>_sil` (not met yet); an
 animation's frames `<name>_1`, `<name>_2`... share one canvas (bottom centre). The sprites: the driftlings' portraits
 `icon_<species>` (32x32: drawn from its model; `Menus` puts a row's words at `PX` 40, right of one), the small icons
@@ -1084,7 +1150,7 @@ flash(seconds?), moveTo(x, y) }`.
 
 - `bash scripts/check.sh`: Rojo sourcemap, luau-lsp strict analysis (0 errors), luau-compile, the specs (`tests/run.luau`
   lists them: Util, Validate, Numbers, DataIntegrity, Traits, Island, Tree, Breed, Economy, Plot, Quest, Schema,
-  Shading, Raster, Rim, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
+  Shading, Raster, Rim, Fx, PixelFont), the Rojo build. Must end with `ALL CHECKS PASSED`.
 - `tools/sim`: the fake Roblox engine boots the real server and client; this game's scenarios and their baselines
   are in `tools/README.md` and `CLAUDE.md`.
 - `tools/preview`: PNGs of the real renderer and UI at device sizes (`tools/README.md`).
@@ -1097,7 +1163,9 @@ Copied unchanged or nearly: `Render/Raster`, `Render/Picture`, `Render/PixelFont
 `PixelFont`, `Util`, `tests/TestKit.luau`, `scripts/gen_pixelfont.py`, `tools/setup.sh`, `tools/defs`, the sim and
 preview engines, `docs/WORKFLOW.md`. Adapted: `Render/Shading` (its LUT colours are the palette and the older rooms'
 themes; the bakery's wallpapers and land tiles are gone) and its spec, `scripts/check.sh` (no locale or server-codes
-steps; builds `build/ByteSizeStudio.rbxlx` as its check), `Net`. Written new for this game: everything else, including a much smaller
+steps; builds `build/ByteSizeStudio.rbxlx` as its check), `Net`, `Render/Fx` (the effect layer, cut down: no
+seasons or places, no weather or shelters; sprites from `ArtData` instead of legends, tinted sprites, sticky pixels,
+a light's glow id; the renderer's books upload only the pixels that changed). Written new for this game: everything else, including a much smaller
 `PixelRenderer` (one fitted scale with pans and rect re-casts, no Actors, no Hold, no per-plot indoor light) and
 `CameraController` (the fitted home view, following the founder, Build mode's free pan), and the sea of islands
 (`Data/Street`, `StreetModels`, PlotService's plots and open water, AvatarView's founders), modelled on Random Bakery's

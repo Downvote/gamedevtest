@@ -1,24 +1,25 @@
 -- The sea and the islands (GAME_DESIGN 4, 6, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
 -- start (no docks: open water on every lot with the seabed the founders swim on); two islands on plots 1 and 2 with
--- their lands (no coast walls, the sign on the beach), attributes and
--- founders, each with its Tree of Life (its model by its stage) and its first lot of eggs (the plot's Eggs attribute
--- its session's); each client drawing its own island's hut driftlings, the neighbour's and both founders, no villagers,
--- and both islands' eggs round their trees; the sea between two islands open to swim; a founder going onto the
--- neighbour's island (the camera follows, Home shows) and going home (and its cooldown); placing (paid in wood), moving and clearing buildings with every refusal
--- (no upgrades, the piece limit with the tree apart, the huts' limit), the server's Static.Decor following piece by
--- piece; the same through Build mode's catalog (the Work tab's Farms row, a locked card and its tooltip, the Nature
--- tab's Plants row, the Huts tab at the huts' limit, paths, fences drawn as a line and a box and erased, water dug and
--- a path's eraser leaving it); fences and water on both islands (their models in Static.Decor, a water tile's name
--- carrying its neighbours and built again when one is dug next to it, lily pads only on water and gone with it, the
--- eraser's kind, a fence never through a building but along its side, a building never across a fence, the founder
--- wading through a river); the piece, tile and fence limits each refusing one more (full) on their own while the others
--- still take theirs, Build mode's count on each tab; malicious plot payloads (fences and erasers among them); a
--- leaving player's island back to open water with its eggs gone; a full sea kicking the seventh player; a newcomer's
--- tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the clients near it, the
--- price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away, bought or replaced; it
--- moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other piece clears away; a
--- tier 10 island from a saved profile (its land far north of z -64, no walls up there either and the seabed under the
--- sea there, the founder at home up there, pieces, tiles and fences fitting there).
+-- their lands (no coast walls, the sign on the beach), attributes and founders, each with its Tree of Life (its model
+-- by its stage) and its first lot of eggs (the plot's Eggs attribute its session's); each client drawing its own
+-- island's hut driftlings, the neighbour's and both founders, no villagers, and both islands' eggs round their trees;
+-- the sea between two islands open to swim; a founder going onto the neighbour's island (the camera follows, Home
+-- shows) and going home (and its cooldown); the island's small lives (AmbientView: birds alighting on the own island,
+-- flying off when the founder walks up, back later, away at night); placing (paid in wood), moving and clearing
+-- buildings with every refusal (no upgrades, the piece limit with the tree apart, the huts' limit), the server's
+-- Static.Decor following piece by piece; the same through Build mode's catalog (the Work tab's Farms row, a locked card
+-- and its tooltip, the Nature tab's Plants row, the Huts tab at the huts' limit, paths, fences drawn as a line and a
+-- box and erased, water dug and a path's eraser leaving it); fences and water on both islands (their models in
+-- Static.Decor, a water tile's name carrying its neighbours and built again when one is dug next to it, lily pads only
+-- on water and gone with it, the eraser's kind, a fence never through a building but along its side, a building never
+-- across a fence, the founder wading through a river); the piece, tile and fence limits each refusing one more (full)
+-- on their own while the others still take theirs, Build mode's count on each tab; malicious plot payloads (fences and
+-- erasers among them); a leaving player's island back to open water with its eggs gone; a full sea kicking the seventh
+-- player; a newcomer's tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the
+-- clients near it, the price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away,
+-- bought or replaced; it moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other
+-- piece clears away; a tier 10 island from a saved profile (its land far north of z -64, no walls up there either and
+-- the seabed under the sea there, the founder at home up there, pieces, tiles and fences fitting there).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -444,6 +445,101 @@ centred("still in the middle")
 H.expect(H.buttonNamed(a, "Home") == nil, "walk", "the Home button stays away on the own island")
 a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
 E.run(2.5)
+
+------------------------------------------------------------------ 3b. the island's small lives (Controllers/AmbientView)
+-- Drawn in the pixel layer, which the sims have no picture of: AmbientView.debugRun steps the lives with the view's own
+-- camera. By day the birds alight on the own island (its grass, its beach, a fence, a roof or the sign, never the
+-- water), fly off when the founder walks up to one and come back a while later; they leave for the night.
+E.phase = "ambient"
+do
+	local AVa = H.cmod(a, "Controllers.AmbientView")
+	local DLa = H.cmod(a, "Controllers.DayLight")
+	local myPlot = H.session(a).plot
+	local tierA = H.profile(a).tier
+	local ox, oz = Street.origin(myPlot)
+	H.inClient(a, DLa.debugSet, 0.3)
+	H.inClient(a, AVa.debugRun, true)
+	E.run(1)
+	H.inClient(a, AVa.debugHurry)
+	E.run(5)
+	local st = H.inClient(a, AVa.stats)
+	H.expect(st.isles >= 1 and st.visible >= 1, "ambient", "the own island's lives are made while it is in view", string.format("%d islands, %d in view", st.isles, st.visible))
+	H.expect(st.decos >= 40, "ambient", "tufts and flowers sown on its lawn", tostring(st.decos))
+	local function onIsland(b)
+		if Street.plotAt(b.x, b.z) ~= myPlot then
+			return false
+		end
+		local l = Street.layer(tierA, math.floor(b.x - ox), math.floor(b.z - oz))
+		if b.on == "lawn" then
+			return l == Street.GRASS and math.abs(b.y - Street.LAWN_Y) < 0.01
+		elseif b.on == "sand" then
+			return l == Street.SAND and math.abs(b.y - Street.SAND_Y) < 0.01
+		end
+		return (b.on == "roof" or b.on == "fence") and b.y > Street.LAWN_Y and l ~= Street.SEA_CELL and l ~= Street.SHALLOW
+	end
+	local function perched()
+		local list, bad = {}, {}
+		for k, b in H.inClient(a, AVa.birds, myPlot) do
+			if b.state == "perched" then
+				table.insert(list, k)
+				if not onIsland(b) then
+					table.insert(bad, string.format("%s on %s at %.1f,%.1f,%.1f", b.sp, b.on, b.x, b.y, b.z))
+				end
+			end
+		end
+		return list, bad
+	end
+	local landed, bad = perched()
+	H.expect(#landed >= 2, "ambient", "birds alight on the own island by day", tostring(#landed))
+	H.expect(#bad == 0, "ambient", "each on its grass, its beach, a fence, a roof or the sign", table.concat(bad, "; "))
+	-- the founder walks up to a perched bird: it flies off (and the island's other birds stay put unless near too)
+	local k = landed[1]
+	local b0 = k and H.inClient(a, AVa.birds, myPlot)[k]
+	if b0 then
+		a.Character:PivotTo(E.cf.new(b0.x + 1, 3, b0.z + 0.6))
+		E.run(0.5)
+		local b1 = H.inClient(a, AVa.birds, myPlot)[k]
+		H.expect(b1.state == "flee", "ambient", "a bird flies off when the founder walks up to it", b1.state)
+		H.expect(b1.y > b0.y, "ambient", "up and away", string.format("%.2f -> %.2f", b0.y, b1.y))
+		E.run(3)
+		local b2 = H.inClient(a, AVa.birds, myPlot)[k]
+		H.expect(b2.state == "away", "ambient", "and is gone a little later", b2.state)
+		-- the founder back on the plaza: the birds come back
+		a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
+		E.run(1)
+		H.inClient(a, AVa.debugHurry)
+		E.run(5)
+		local again = perched()
+		local b3 = H.inClient(a, AVa.birds, myPlot)[k]
+		H.expect(#again >= 2 and b3.state ~= "away", "ambient", "and they come back a while later", string.format("%d perched, the one that fled %s", #again, b3.state))
+		-- the founder walking right through them: none stays within a few studs
+		local near = 0
+		for _, kk in again do
+			local bb = H.inClient(a, AVa.birds, myPlot)[kk]
+			a.Character:PivotTo(E.cf.new(bb.x, 3, bb.z))
+			E.run(0.4)
+			if H.inClient(a, AVa.birds, myPlot)[kk].state == "perched" then
+				near += 1
+			end
+		end
+		H.expect(near == 0, "ambient", "no bird sits still under the founder's feet", tostring(near))
+		a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
+		E.run(1)
+	end
+	-- at night they leave (and do not come back until morning)
+	H.inClient(a, DLa.debugSet, 0.88)
+	E.run(4)
+	H.inClient(a, AVa.debugHurry)
+	E.run(2)
+	local out = 0
+	for _, b in H.inClient(a, AVa.birds, myPlot) do
+		out += if b.state == "away" then 1 else 0
+	end
+	H.expect(out == #H.inClient(a, AVa.birds, myPlot), "ambient", "the birds are away at night", tostring(out))
+	H.inClient(a, DLa.debugSet, nil)
+	H.inClient(a, AVa.debugRun, false)
+	E.run(0.5)
+end
 
 ------------------------------------------------------------------ 4. building: place, move, clear away (no upgrades)
 E.phase = "build"

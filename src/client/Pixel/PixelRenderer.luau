@@ -40,6 +40,11 @@
 -- picture). WATER_HZ times a second (not on the low tier) the water pixels not under an ink line are shaded again
 -- from their baked shade: crests of light (and the sea's darker troughs) travel across the sea and the shallows along
 -- the phase's wavy lines, and the foam laps in and out along the shore. Only colours change: no ray is cast.
+-- Effects (addFxLayer; Render/Fx): drawn every tick over the dynamic models and their outline, depth-tested, colour
+-- only (a light's pixel also takes Fx.GLOW_ID, which the night's grade leaves alone). The pixels they wrote go back to
+-- the static picture on the next tick; only the pixels whose colour changed since the image last showed them are
+-- uploaded, in runs of 16 x 8 tiles (a tuft at rest costs nothing). Controllers/AmbientView draws the islands' small
+-- lives this way. They pause with the renderer and run at its tick rate.
 local GuiService = game:GetService("GuiService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -54,6 +59,7 @@ local Palette = require(ReplicatedStorage.Shared.Data.Palette)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Shading = require(ReplicatedStorage.Shared.Render.Shading)
+local Fx = require(ReplicatedStorage.Shared.Render.Fx)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local BakeCast = require(script.Parent.BakeCast)
@@ -166,10 +172,37 @@ local nextId = 1
 
 local dyns: { [Model]: Dyn } = {}
 local nextDyn = DYN_ID0
-local dynGlow: { [number]: boolean } = {} -- dynamic part id -> Neon (it stays lit at night)
+local dynGlow: { [number]: boolean } = { [Fx.GLOW_ID] = true } -- dynamic part id -> Neon (it stays lit at night)
 local prevRects: { Rect } = {}
 local tickAcc = 0
 local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
+local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
+-- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
+-- put back over the static picture wherever the frame takes it back (a model's rect restored, a full compose, last
+-- tick's effects undone), so they are drawn once and again only when they change. A change to the static picture
+-- drops them all (Fx.Ctx.ver changes: their owner sticks them again).
+local stickCol: buffer? = nil -- u32 a layer pixel: the colour stuck there (0: none)
+local stickList: { number } = {} -- the pixels stuck (one unstuck stays listed until the list is rebuilt)
+local stickLive = 0
+local stickDirty: { number } = {} -- pixels stuck or unstuck since the last compose (their tiles go up)
+
+-- The static picture changed: what was worked out from it is stale and the sticky pixels go. (Every caller uploads the
+-- whole picture next.)
+local function staticChanged()
+	staticVer += 1
+	local sc = stickCol
+	if sc then
+		local len = buffer.len(sc)
+		for _, i in stickList do
+			if i * 4 < len then
+				buffer.writeu32(sc, i * 4, 0)
+			end
+		end
+	end
+	table.clear(stickList)
+	table.clear(stickDirty)
+	stickLive = 0
+end
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
 -- the street's finished picture, kept while a microgame's stage has the view (restored when its key comes back)
 type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, texs: Texs, nextId: number, dirty: boolean }
@@ -1029,6 +1062,7 @@ local function finishBake(s: Surf, b: Surf)
 	prevRects = {}
 	uploadAll(s)
 	stats.bakes += 1
+	staticChanged()
 	rush = false
 	if #afterBake > 0 then
 		local fns = afterBake
@@ -1203,6 +1237,7 @@ local function buildSurf(v: CameraController.View)
 			invCur = nil
 			prevRects = {}
 			needFull = true
+			staticChanged()
 			if image then
 				image.Visible = true
 				image.ImageTransparency = 0
@@ -1376,6 +1411,19 @@ local function restoreRect(s: Surf, r: Rect)
 		buffer.copy(f.depth, o * 4, s.sDepth, o * 4, w * 4)
 		buffer.copy(f.id, o * 2, s.sId, o * 2, w * 2)
 	end
+	-- (the sticky effect pixels over it again)
+	local sc = stickCol
+	if stickLive > 0 and sc and buffer.len(sc) == W * s.H * 4 then
+		for y = y0, y1 do
+			local row = y * W
+			for x = x0, x1 do
+				local c = buffer.readu32(sc, (row + x) * 4)
+				if c ~= 0 then
+					buffer.writeu32(f.color, (row + x) * 4, c)
+				end
+			end
+		end
+	end
 end
 
 ------------------------------------------------------------------ water
@@ -1514,6 +1562,254 @@ local function animateWind(s: Surf, k: number): boolean
 	return any
 end
 
+------------------------------------------------------------------ effect layers (Render/Fx)
+-- Two books of written pixels swap every tick: the ones last tick's effects wrote (put back to the static picture
+-- before the dynamic layer is drawn) and this tick's. `fxShown` holds, per layer pixel, the effect colour the image
+-- shows there (0: none), its top byte the tick's mark (1 or 2, alternating) instead of the alpha: a pixel written
+-- this tick whose colour differs, or one last tick's effects left, marks its 16 x 8 tile, and the tiles' runs are
+-- uploaded. The static picture under an effect at rest costs nothing to keep.
+type FxLayer = { name: string, draw: (ctx: Fx.Ctx) -> (), last: number }
+local fxLayers: { FxLayer } = {}
+local fxStats = { ms = 0, bookMs = 0, px = 0, changed = 0, rects = 0, upPx = 0, ticks = 0, layers = 0 }
+local fxPrev, fxCur = Fx.newBook(), Fx.newBook()
+local fxPrevN = 0
+local fxCtx: Fx.Ctx? = nil
+local fxShown: buffer? = nil
+local fxTiles: buffer? = nil
+local fxMark = 1 -- this tick's mark (1 or 2)
+local fxOn: Surf? = nil -- the layer the books belong to
+local FX_TW, FX_TH = 16, 8 -- an upload tile (art px)
+local FX_MAX_RUNS = 40 -- more runs than this: one rect a row of tiles
+
+-- The books for layer s (a new layer starts them afresh: its picture is uploaded whole anyway).
+local function fxBooks(s: Surf)
+	local n = s.W * s.H
+	local shownBuf = fxShown
+	if fxOn ~= s or shownBuf == nil or buffer.len(shownBuf) ~= n * 4 then
+		fxOn = s
+		fxPrevN = 0
+		fxShown = buffer.create(n * 4)
+		fxTiles = buffer.create(((s.W + FX_TW - 1) // FX_TW) * ((s.H + FX_TH - 1) // FX_TH))
+		stickCol = buffer.create(n * 4)
+		table.clear(stickList)
+		table.clear(stickDirty)
+		stickLive = 0
+		staticVer += 1
+	end
+end
+
+-- Put the static picture back where last tick's effects drew (the dynamic layer is drawn over it again anyway).
+local function fxRestore(s: Surf)
+	local f = s.frame
+	local color, id = f.color, f.id
+	local len = s.W * s.H
+	local sc = stickCol :: buffer
+	for k = 0, fxPrevN - 1 do
+		local i = buffer.readu32(fxPrev, k * 4)
+		if i < len then
+			local c = buffer.readu32(sc, i * 4)
+			buffer.writeu32(color, i * 4, if c ~= 0 then c else buffer.readu32(s.sColor, i * 4))
+			buffer.writeu16(id, i * 2, buffer.readu16(s.sId, i * 2))
+		end
+	end
+end
+
+-- Stick colour c at layer pixel i (Fx.stickSprite): kept until unstuck or the static picture changes; drawn into the
+-- frame now where it shows the static picture (a model over it keeps it hidden).
+local function stickAt(i: number, c: number)
+	local s = surf
+	local sc = stickCol
+	if s == nil or sc == nil or i * 4 >= buffer.len(sc) then
+		return
+	end
+	if buffer.readu32(sc, i * 4) == 0 then
+		table.insert(stickList, i)
+		stickLive += 1
+	end
+	buffer.writeu32(sc, i * 4, c)
+	if buffer.readu16(s.frame.id, i * 2) == buffer.readu16(s.sId, i * 2) then
+		buffer.writeu32(s.frame.color, i * 4, c)
+	end
+	table.insert(stickDirty, i)
+end
+
+local function unstickAt(i: number)
+	local s = surf
+	local sc = stickCol
+	if s == nil or sc == nil or i * 4 >= buffer.len(sc) or buffer.readu32(sc, i * 4) == 0 then
+		return
+	end
+	buffer.writeu32(sc, i * 4, 0)
+	stickLive -= 1
+	if buffer.readu16(s.frame.id, i * 2) == buffer.readu16(s.sId, i * 2) then
+		buffer.writeu32(s.frame.color, i * 4, buffer.readu32(s.sColor, i * 4))
+	end
+	table.insert(stickDirty, i)
+	-- (the list keeps unstuck pixels until it is twice what is stuck: then it is rebuilt)
+	if #stickList > stickLive * 2 + 512 then
+		local keep: { number } = {}
+		local seen: { [number]: boolean } = {}
+		for _, k in stickList do
+			if not seen[k] and buffer.readu32(sc, k * 4) ~= 0 then
+				seen[k] = true
+				table.insert(keep, k)
+			end
+		end
+		stickList = keep
+	end
+end
+
+-- Run the effect layers (newest first) over the composed frame; returns the rects whose pixels changed.
+local function runFx(s: Surf, now: number): { Rect }
+	local W, H = s.W, s.H
+	local cam = s.cam
+	local c: Fx.Ctx = fxCtx or {
+		f = s.frame,
+		W = W,
+		H = H,
+		cam = cam,
+		sColor = s.sColor,
+		sId = s.sId,
+		sNormal = s.sNormal,
+		sAlbedo = s.sAlbedo,
+		sDepth = s.sDepth,
+		sWClass = s.sWClass,
+		ppu = cam.s / cam.K,
+		ver = staticVer,
+		now = now,
+		dt = 0,
+		idOf = function(inst: any): number
+			return if typeof(inst) == "Instance" then (staticIds[inst] or 0) else 0
+		end,
+		stick = stickAt,
+		unstick = unstickAt,
+		px = fxCur,
+		npx = 0,
+		cap = buffer.len(fxCur) // 4,
+	}
+	fxCtx = c
+	c.f, c.W, c.H, c.cam = s.frame, W, H, cam
+	c.sColor, c.sId, c.sNormal, c.sAlbedo, c.sDepth, c.sWClass = s.sColor, s.sId, s.sNormal, s.sAlbedo, s.sDepth, s.sWClass
+	c.ppu = cam.s / cam.K
+	c.ver = staticVer
+	c.now = now
+	c.px, c.cap = fxCur, buffer.len(fxCur) // 4
+	Fx.reset(c)
+	local t0 = os.clock()
+	for i = #fxLayers, 1, -1 do
+		local L = fxLayers[i]
+		c.dt = math.clamp(now - L.last, 0, 0.25)
+		L.last = now
+		local f: any = L.draw -- (typed through any: pcall mis-infers the returns of a () -> () function)
+		local ok, err = pcall(f, c)
+		if not ok then
+			warn("[PixelRenderer] effect layer " .. L.name .. " failed and was removed: " .. tostring(err))
+			table.remove(fxLayers, i)
+			fxStats.layers = #fxLayers
+			staticChanged()
+			needFull = true
+		end
+	end
+	local t1 = os.clock()
+	-- what changed: this tick's pixels against what the image shows, and the pixels the effects left
+	local shown, tiles = fxShown :: buffer, fxTiles :: buffer
+	local color = s.frame.color
+	local tx = (W + FX_TW - 1) // FX_TW
+	buffer.fill(tiles, 0, 0)
+	fxMark = 3 - fxMark
+	local mark = fxMark * 16777216
+	local written, n = c.px, c.npx
+	local changed = 0
+	for k = 0, n - 1 do
+		local i = buffer.readu32(written, k * 4)
+		local col = buffer.readu32(color, i * 4) % 16777216 + mark
+		local was = buffer.readu32(shown, i * 4)
+		if was ~= col then
+			buffer.writeu32(shown, i * 4, col)
+			-- (only the colour counts: a pixel shown last tick in the same colour needs no upload)
+			if was % 16777216 ~= col % 16777216 or was == 0 then
+				buffer.writeu8(tiles, ((i // W) // FX_TH) * tx + (i % W) // FX_TW, 1)
+				changed += 1
+			end
+		end
+	end
+	local len = W * H
+	for _, i in stickDirty do
+		if i < len then
+			buffer.writeu8(tiles, ((i // W) // FX_TH) * tx + (i % W) // FX_TW, 1)
+			changed += 1
+		end
+	end
+	table.clear(stickDirty)
+	for k = 0, fxPrevN - 1 do
+		local i = buffer.readu32(fxPrev, k * 4)
+		if i < len then
+			local was = buffer.readu32(shown, i * 4)
+			if was ~= 0 and was - was % 16777216 ~= mark then
+				buffer.writeu32(shown, i * 4, 0)
+				buffer.writeu8(tiles, ((i // W) // FX_TH) * tx + (i % W) // FX_TW, 1)
+				changed += 1
+			end
+		end
+	end
+	-- the books swap (Fx.put may have grown this tick's)
+	fxPrev, fxCur = written, fxPrev
+	fxPrevN = n
+	c.px, c.cap = fxCur, buffer.len(fxCur) // 4
+	-- the changed tiles in runs along their rows (a gap of one clean tile joins two runs)
+	local out: { Rect } = {}
+	if changed > 0 then
+		local ty = (H + FX_TH - 1) // FX_TH
+		for row = 0, ty - 1 do
+			local o = row * tx
+			local a = -1
+			local last = -1
+			for col = 0, tx - 1 do
+				if buffer.readu8(tiles, o + col) ~= 0 then
+					if a < 0 then
+						a = col
+					elseif col - last > 2 then
+						table.insert(out, { x0 = a * FX_TW, y0 = row * FX_TH, x1 = (last + 1) * FX_TW - 1, y1 = (row + 1) * FX_TH - 1 })
+						a = col
+					end
+					last = col
+				end
+			end
+			if a >= 0 then
+				table.insert(out, { x0 = a * FX_TW, y0 = row * FX_TH, x1 = (last + 1) * FX_TW - 1, y1 = (row + 1) * FX_TH - 1 })
+			end
+		end
+		if #out > FX_MAX_RUNS then
+			-- too many: one rect a row of tiles, from its first changed tile to its last
+			local rows: { [number]: Rect } = {}
+			for _, r in out do
+				local have = rows[r.y0]
+				if have then
+					have.x0, have.x1 = math.min(have.x0, r.x0), math.max(have.x1, r.x1)
+				else
+					rows[r.y0] = { x0 = r.x0, y0 = r.y0, x1 = r.x1, y1 = r.y1 }
+				end
+			end
+			out = {}
+			for _, r in rows do
+				table.insert(out, r)
+			end
+		end
+	end
+	local up = 0
+	for _, r in out do
+		up += (math.min(r.x1, W - 1) - r.x0 + 1) * (math.min(r.y1, H - 1) - r.y0 + 1)
+	end
+	fxStats.ms = (t1 - t0) * 1000
+	fxStats.bookMs = (os.clock() - t1) * 1000
+	fxStats.px = n
+	fxStats.changed = changed
+	fxStats.rects = #out
+	fxStats.upPx = up
+	fxStats.ticks += 1
+	return out
+end
+
 local function compose()
 	local s = surf
 	if s == nil then
@@ -1522,6 +1818,7 @@ local function compose()
 	local t0 = os.clock()
 	local cam = s.cam
 	panX, panY = cam.gx, cam.gy
+	fxBooks(s)
 	local full = needFull
 	if full then
 		local n = s.W * s.H
@@ -1529,11 +1826,19 @@ local function compose()
 		buffer.copy(f.color, 0, s.sColor, 0, n * 4)
 		buffer.copy(f.depth, 0, s.sDepth, 0, n * 4)
 		buffer.copy(f.id, 0, s.sId, 0, n * 2)
+		local sc = stickCol :: buffer
+		for _, i in stickList do
+			local c = buffer.readu32(sc, i * 4)
+			if c ~= 0 then
+				buffer.writeu32(f.color, i * 4, c)
+			end
+		end
 		prevRects = {}
 	else
 		for _, r in prevRects do
 			restoreRect(s, r)
 		end
+		fxRestore(s)
 	end
 	local rects: { Rect } = {}
 	-- the blob shadows first (on the static picture), then the models over them
@@ -1586,10 +1891,15 @@ local function compose()
 	for _, r in rects do
 		Shading.outline(s.frame, r.x0, r.y0, r.x1, r.y1)
 	end
+	-- the effects over everything (their changed pixels' tiles go up with the rest)
+	local fxRects = runFx(s, os.clock())
 	if full then
 		needFull = false
 		uploadAll(s)
 	else
+		for _, r in fxRects do
+			uploadRect(s, r)
+		end
 		-- upload the old and the new rects (merged when there are many)
 		local up: { Rect } = table.clone(prevRects)
 		for _, r in rects do
@@ -1739,6 +2049,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		reoutline(s, r.x0, r.y0, r.x1, r.y1)
 	end
 	stats.scrolls += 1
+	staticChanged()
 	stats.scrollRays += rays
 	needFull = true
 	lightStale = true
@@ -1862,6 +2173,7 @@ local function processInvalidation()
 			buffer.fill(s.sShadowC, 0, 0)
 			invCur = nil
 			stats.recasts += 1
+			staticChanged()
 			needFull = true
 		end
 	end
@@ -2186,6 +2498,31 @@ end
 
 function PixelRenderer.setPaused(on: boolean)
 	paused = on
+end
+
+-- An effect layer (Render/Fx): `draw` runs every tick (the tier's rate, not while paused or in the classic style)
+-- after the dynamic models, with a Fx.Ctx over the frame (Fx.dot / mix / drawSprite / step). Layers added later draw
+-- first, under the older ones. A layer that errors is removed (with a warning). Returns a function that removes it.
+function PixelRenderer.addFxLayer(name: string, draw: (ctx: Fx.Ctx) -> ()): () -> ()
+	local L: FxLayer = { name = name, draw = draw, last = os.clock() }
+	table.insert(fxLayers, L)
+	fxStats.layers = #fxLayers
+	return function()
+		local i = table.find(fxLayers, L)
+		if i then
+			table.remove(fxLayers, i)
+		end
+		fxStats.layers = #fxLayers
+		-- (what it stuck goes with it)
+		staticChanged()
+		needFull = true
+	end
+end
+
+-- Previews and sims: the last tick's effects: the layers' ms, the books' ms (what changed, the runs), the pixels
+-- written, those that changed, the rects uploaded and their pixels, the ticks so far and the layers.
+function PixelRenderer.fxStats(): { ms: number, bookMs: number, px: number, changed: number, rects: number, upPx: number, ticks: number, layers: number }
+	return table.clone(fxStats)
 end
 
 -- A world point in full-screen px (ScreenInsets None space) and whether it is on screen: the layer's own camera

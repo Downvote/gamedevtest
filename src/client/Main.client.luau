@@ -1,6 +1,6 @@
 --!strict
 -- Client bootstrap (docs/ARCHITECTURE.md 8): the server's mirror first, then the camera and the pixel filter, the
--- day and night, the interface, the island's life and the HUD.
+-- day and night, the interface, the island's life (its models, then its small lives in the pixel layer) and the HUD.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
@@ -20,6 +20,7 @@ local UIKit = require(script.Parent.UI.UIKit)
 local WorldView = require(script.Parent.Controllers.WorldView)
 local AvatarView = require(script.Parent.Controllers.AvatarView)
 local StreetLife = require(script.Parent.Controllers.StreetLife)
+local AmbientView = require(script.Parent.Controllers.AmbientView)
 local Hud = require(script.Parent.UI.Hud)
 local DayLight = require(script.Parent.Controllers.DayLight)
 
@@ -41,6 +42,7 @@ WorldView.init()
 WorldView.start()
 AvatarView.start()
 StreetLife.start()
+AmbientView.start()
 Hud.start()
 
 -- the card follows the first picture's bake and fades into it once it is on screen (or after a while regardless)

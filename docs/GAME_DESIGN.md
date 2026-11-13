@@ -1053,6 +1053,35 @@ text (the requests and how each was met) is in the history of this file, up to c
   sends you back to your own plaza. A tap on a sign shows that island's
   day, driftlings at home and charm.
 
+### 8.1 The island's small lives (`Controllers/AmbientView`, `Render/Fx`)
+
+> The request (2026-11-13): "There is no need to make things limited by squares and spheres, make everything more
+> detailed with various shapes and textured objects. Also, like the bakery game, you can use 2d details to add to the
+> athmosphere, such as grass, wood detail, birds and other details"
+
+The models' shapes and textures are other work; this is the 2D part. Small things live on every island near the view,
+drawn as pixel-art sprites in the pixel layer itself (like Random Bakery's garden): they sit in the world, hide
+behind what stands in front of them and are drawn on whole art pixels like everything else.
+
+- **Birds:** little island birds of our own, a teal pip with a crest and a cream breast and a sandy wren with a coral
+  breast and a cocked tail, fly in and alight on the lawn, a fence post, a roof's ridge, the island's sign or the
+  beach, near the middle of the view. They hop along their perch, peck and look round, and fly off when you (or a
+  driftling) come within a few studs, coming back a while later. Now and then a gull glides in from the sea and
+  stands on the beach. They go at dusk and come back at dawn.
+- **Grass and flowers:** tufts of grass in patches (a lush stretch here, bare grass there) and little flowers in
+  clusters on the lawn, in the lawn's own green, leaning as gusts roll across the island. They show only where the
+  lawn itself shows: never on a path, a building or anything in front.
+- **Butterflies** flit between the flowers (the decor's flower beds and the lawn's own) by day and rest on one now and
+  then; **fireflies** drift over the lawn at night, blinking, their light keeping its colour in the dark.
+- **Trees** let a leaf or a petal go now and then, in their own colour; it drifts down, lands on what is under it and
+  fades. **Smoke** curls from the chimneys, the smokehouse's vent and the grills, **steam** from the hot springs and
+  the teapots.
+- **The sea:** glints of light on the water now and then (fewer at night), and once in a while a fish jumps out of
+  the water near the shore with a splash and a ring where it goes in.
+- None of it shows on the hatch scene's stage, and it stops with the picture. A lower graphics setting has fewer of
+  everything (birds, tufts, smoke); a phone, where the island shows small, gets smaller sprites. Roblox's reduced
+  motion setting keeps the birds still and leaves out what flies, falls and sways.
+
 ## 9. Your founder, settings and the tips
 
 The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). The founder walks and jumps
@@ -1277,6 +1306,9 @@ the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
   cross both ways, gulls cross now and then (from either side, at their own height, weaving and gliding, a
   different crossing each time); each island's campfire flickers and smokes. (No clouds' shadows: the player asked for the "random
   shadow that appears sometimes" gone.)
+- **Small lives** (§8.1): birds alight, peck and fly off as you come near, a gull lands on the beach, tufts and
+  flowers lean in the gusts, butterflies by day and fireflies at night, leaves drift down from the trees, chimneys
+  smoke, the sea glints and a fish jumps now and then.
 - **Night falls** and the lamps light up (§8).
 - **Sounds** (`Controllers/Audio`): every event plays a free Creator Store sound from Roblox's licensed libraries
   (ProSoundEffects, and APM Music's stingers), none of Random Bakery's, its pitch varied a little, repeats inside a

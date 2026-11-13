@@ -52,6 +52,12 @@ PAL = {
     "drk0": 0x2E2433, "drk1": 0x4B3D4E, "drk2": 0x685767, "drk3": 0x8C7886,
     "bas0": 0x3A2D35, "bas1": 0x5A4549, "bas2": 0x7A5E5C, "bas3": 0x9E7D72,
     "crm0": 0xA86E5E, "crm1": 0xDDAE86, "crm2": 0xFBE2BC, "crm3": 0xFFF6E2,  # cream: bellies, muzzles, jaws
+    "tel0": 0x1B4B57, "tel1": 0x2A7F7D, "tel2": 0x3FB0A2, "tel3": 0x86DCC0,  # teal: the island birds' backs
+    "cor0": 0x7C2B40, "cor1": 0xC9504F, "cor2": 0xFF8A72, "cor3": 0xFFC09A,  # coral: a wren's breast
+    # the tone markers of a tinted sprite (Render/Fx.TONES, the same four values): drawn in the world they take the
+    # tones of a colour given at draw time (a tuft the lawn's under it, a leaf its tree's, a butterfly its own), here a
+    # plain green so the contact sheet shows them
+    "tn0": 0x2E5937, "tn1": 0x4A8A4C, "tn2": 0x76B862, "tn3": 0xB7E08B,
     "wht": 0xFFFFFF, "crm": 0xFFF3D9, "blk": 0x3B3442, "plt": 0x463B5C,
 }
 RAMPS = {
@@ -60,6 +66,7 @@ RAMPS = {
     "P": ["pur0", "pur1", "pur2", "pur3"], "K": ["pnk0", "pnk1", "pnk2", "pnk3"], "N": ["brn0", "brn1", "brn2", "brn3"],
     "S": ["gry0", "gry1", "gry2", "gry3"], "F": ["skn0", "skn1", "skn2", "skn3"], "W": ["wht0", "wht1", "wht2", "wht"],
     "D": ["drk0", "drk1", "drk2", "drk3"], "M": ["bas0", "bas1", "bas2", "bas3"], "E": ["crm0", "crm1", "crm2", "crm3"],
+    "T": ["tel0", "tel1", "tel2", "tel3"], "Q": ["cor0", "cor1", "cor2", "cor3"],
 }
 FLAT = {
     "k": "ink", "w": "wht", "r": "red2", "o": "org2", "y": "yel2", "g": "grn2", "c": "cyn2", "b": "blu2", "p": "pnk2",
@@ -276,6 +283,97 @@ S("twinkle_1", [".......", ".......", "...c...", "..cwc..", "...c...", "......."
 S("twinkle_2", [".......", "...c...", "...w...", ".cwwwc.", "...w...", "...c...", "......."], outline=False, shade=False)
 S("heart", [".........", ".KK...KK.", "KKKK.KKKK", "KwKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K....", "........."])
 
+# ---------------------------------------------------------------- the islands' small lives (Controllers/AmbientView)
+# Drawn into the pixel layer by Render/Fx, in the world: one sprite pixel is one art pixel, so each has its own small
+# version for a screen that shows the island small (a phone: "s" after the name). Hand-shaded with digit tones (0 deep,
+# 1 shadow, 2 base, 3 light, from the top left); the creatures get the 1 px ink outline, the grass, flowers, leaves and
+# glints are ground and light, drawn without one (like the sparks). No "_flash" for these. A tinted sprite draws its
+# "0".."3" in the tones of a colour given at draw time (Render/Fx.TONES): a tuft in the lawn's own green, a leaf in its
+# tree's, a flower or a butterfly in its own colour.
+PIP = {"0": "tel0", "1": "tel1", "2": "tel2", "3": "tel3", "5": "crm1", "6": "crm2", "7": "crm3", "o": "org2"}
+WREN = {"0": "brn0", "1": "brn1", "2": "brn2", "3": "brn3", "5": "cor1", "6": "cor2", "7": "cor3", "x": "blk"}
+GULL = {"1": "wht0", "2": "wht1", "3": "wht2", "4": "wht", "s": "gry2", "d": "gry1", "t": "drk0", "y": "yel2"}
+TINT = {"0": "tn0", "1": "tn1", "2": "tn2", "3": "tn3"}
+FISH = {"1": "blu0", "2": "blu1", "3": "gry3", "4": "wht", "w": "wht2"}  # a silver fish, its back blue
+FX = {
+    # a teal pip with a crest, a cream breast and an orange beak: sitting, pecking, wings up, wings down (facing right)
+    "pip": (PIP, [
+        ["....3...", "...3322.", "..322k2o", "22222776", ".1222665", "..11555."],
+        ["........", "21......", ".2333...", "..12222.", "..12k22o", "...5662.", "....55.."],
+        [".33.....", ".233....", "..2333..", "22222k2o", ".1222776", "..11555."],
+        ["....332.", "22223k2o", ".2322776", "..12065.", "..01...."],
+    ]),
+    "pips": (PIP, [
+        ["..3.", ".22o", "2276", ".15."],
+        ["....", "2...", ".22.", ".12o", "..5."],
+        ["3...", ".33.", "222o", ".15."],
+        ["....", "..2.", "222o", "215."],
+    ]),
+    # a sandy wren with a coral breast and a cocked tail: sitting, pecking, wings up, wings down
+    "wren": (WREN, [
+        ["2.......", "21..332.", ".2232kx.", "..222776", "..122665", "...1555."],
+        ["........", "2.......", "21......", ".22333..", "..1222k2", "...2266x", "....555."],
+        [".33.....", "2.333...", "21.2332.", ".2222kx.", "..122776", "...1155."],
+        ["2...332.", "21222kx.", ".122277.", "..10266.", "..01...."],
+    ]),
+    "wrens": (WREN, [
+        ["2...", "2.2x", ".276", "..15"],
+        ["....", "2...", "222.", ".12x", "..5."],
+        ["3...", "2.3.", ".22x", "..15"],
+        ["....", "2.2.", "222x", "21.5"],
+    ]),
+    # a gull for the beach: standing, looking down, wings up, wings down
+    "gull": (GULL, [
+        ["......334..", ".....3342ky", "dsss33332..", ".tdsss3332.", "..tdss3321.", "...11111..."],
+        ["...........", "......334..", "dsss33342k.", ".tdsss333y.", "..tdss332y.", "...11111..."],
+        ["ss........ss", ".sss....sss.", "...dss3ss...", "....t3343kyy", ".....1111..."],
+        ["............", "....334.....", "dss33343kyy.", ".ssd2233....", "..sss11.....", "...ss......."],
+    ]),
+    "gulls": (GULL, [
+        ["...34.", "...3ky", "ds332.", ".t221."],
+        ["......", "ds33..", ".t2334", "..12ky"],
+        ["s...s.", ".s3s..", "..t3ky", "...11."],
+        ["......", "..334.", "ds33ky", ".s11.."],
+    ]),
+    # a fish leaping out of the sea: nose up, level, nose down (facing right)
+    "fish": (FISH, [
+        ["....3.", "...34.", "..3k4.", "2.32..", ".22...", "2....."],
+        ["2..34.", ".233k4", "2.22w."],
+        ["2.....", ".22...", "2.33..", "..3k4.", "...34.", "....w."],
+    ]),
+    "fishs": (FISH, [
+        ["..3", ".34", "2.."],
+        ["2.34", ".23k"],
+        ["2..", ".33", "..4"],
+    ]),
+}
+for _name, (_flat, _frames) in FX.items():
+    for _k, _rows in enumerate(_frames, start=1):
+        S("fx_%s_%d" % (_name, _k), _rows, flat=_flat, shade=False, pad=True)
+# grass tufts (upright, leaning right, leaning left as a gust goes by) and flowers (upright, leaning), tinted: a tuft
+# by the lawn under it, a flower's petals by their colour (its stem stays green)
+GROUND = {
+    "tuft": [["..3..", "3.3.3", ".232.", ".1.1."], ["...3.", ".3.33", ".232.", ".1.1."], [".3...", "33.3.", ".232.", ".1.1."]],
+    "tufts": [["3.3", ".1."], [".3.3", ".1.."], ["3.3.", "..1."]],
+    "flower": [[".3.", "3y2", ".1.", ".g.", ".l."], ["..3.", ".3y2", "..1.", ".g..", ".l.."]],
+    "flowers": [["3", "g"], [".3", "g."]],
+}
+for _name, _frames in GROUND.items():
+    for _k, _rows in enumerate(_frames, start=1):
+        S("fx_%s_%d" % (_name, _k), _rows, flat=dict(TINT, y="yel2", g="grn1", l="grn0"), shade=False, outline=False)
+# a butterfly (wings open, wings folded; tinted by its colour, its body ink)
+for _k, _rows in enumerate([["33.33", "32k23", ".1k1."], [".33..", ".32k.", "...k."]], start=1):
+    S("fx_bfly_%d" % _k, _rows, flat=TINT, shade=False, outline=False)
+# a leaf and a petal tumbling down (tinted by their tree), a glint on the sea, a ring spreading where a fish splashed
+for _k, _rows in enumerate([[".3", "21"], ["32", ".1"], ["3", "2", "1"], ["321"]], start=1):
+    S("fx_leaf_%d" % _k, _rows, flat=TINT, shade=False, outline=False)
+for _k, _rows in enumerate([["32"], ["3", "2"], ["23"]], start=1):
+    S("fx_petal_%d" % _k, _rows, flat=TINT, shade=False, outline=False)
+for _k, _rows in enumerate([["w"], [".z.", "zwz", ".z."], ["..z..", "zwwwz", "..z.."]], start=1):
+    S("fx_glint_%d" % _k, _rows, shade=False, outline=False)
+for _k, _rows in enumerate([[".hh.", "h..h", ".hh."], ["..hhh..", "hh...hh", "..hhh.."]], start=1):
+    S("fx_ripple_%d" % _k, _rows, flat={"h": "wht2"}, shade=False, outline=False)
+
 ARROW = [
     ".............",
     "......W......",
@@ -450,7 +548,7 @@ def all_sprites():
         for n in names:
             out[n] = pad_to(out[n], W, H)
     for name in list(out):
-        if name.endswith("_alt"):
+        if name.endswith("_alt") or name.startswith("fx_"):
             continue
         # a white flash (the fuse's bomb blinking) for the overlay's sprites, a dark silhouette (not found yet) for the
         # icons: the same outline

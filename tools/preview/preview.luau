@@ -318,6 +318,159 @@ function SCEN.water()
 	return p
 end
 
+-- The islands' small lives in the pixel layer (GAME_DESIGN 8; Controllers/AmbientView): a harbour island with
+-- chimneys, a smokehouse, a grill, trees and a picket fence by the plaza. The birds called in (`debugHurry`) and landed
+-- (ambient), then a frame every eighth of a second for two seconds (ambient_000 .. 015: hops, pecks, tufts swaying,
+-- smoke curling, a glint or a fish; `make_gif.py <outdir> ambient <device> 8`); the founder put next to a perched bird
+-- and a frame every tenth of a second as it flies off (ambient_flee_000 .. 009); the same island at night with its
+-- fireflies (ambient_night). Then the timing: 90 frames at 60 Hz on the real clock with the ambient layer and 90
+-- without (AmbientView.setSuspended), the client's whole frame each time, and the effect layer's own numbers
+-- (PixelRenderer.fxStats: the layers' ms, the books' ms, pixels written and changed, rects and pixels uploaded).
+local AMBIENT = {
+	{ "inn", 7, 11, 0, 2 }, { "cafe", -12, 9 }, { "smokehouse", 13, 2 }, { "grill", 5, 1 }, { "stall", -6, 13 },
+	{ "oak", -10, 1 }, { "cherry", 9, -5 }, { "palm", -16, 6 }, { "flowers", -4, 15 }, { "flowers", 4, -1 },
+	{ "nest", -9, -6 }, { "nest", -14, -2 }, { "patch", 16, -6 }, { "torch", 5, 6 }, { "bench", -5, -3 },
+	{ "picket", -6, 0, 0, 1, true }, { "picket", -4, 0, 0, 1, true }, { "picket", -2, 0, 0, 1, true },
+	{ "picket", 0, 0, 0, 1, true }, { "picket", 2, 0, 0, 1, true },
+}
+function SCEN.ambient()
+	seedProfile(2, 3, { pieces = AMBIENT, pals = { "clawdle", "mossbun", "pebblit", "gullfin" }, shells = 60000, wood = 5000 })
+	local p = join(2, "Wren")
+	settle(p)
+	local AV = modOr(p, "Controllers.AmbientView")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local DL = modOr(p, "Controllers.DayLight")
+	if AV == nil or PR == nil then
+		log("ambient: no AmbientView or PixelRenderer")
+		return p
+	end
+	if DL then
+		H.inClient(p, DL.debugSet, 0.3)
+	end
+	local plot = H.session(p).plot
+	local function birdsLine(label)
+		local list = H.inClient(p, AV.birds, plot)
+		local parts = {}
+		for _, b in list do
+			-- (where it shows: full-screen px, as the PNG has it)
+			local sx, sy = H.inClient(p, function()
+				local pos = PR.project(E.v3(b.x, b.y, b.z))
+				return pos.X, pos.Y
+			end)
+			table.insert(parts, string.format("%s %s%s at %d,%d", b.sp, b.state, if b.on ~= "" then " on " .. b.on else "", sx, sy))
+		end
+		local st = H.inClient(p, AV.stats)
+		log("ambient %s: birds [%s]; %d decos (%d drawn), %d perches, %d smoke spots (%d wisps), %d leafy crowns (%d leaves), %d glints, butterflies drawn %d, fish drawn %d, fireflies %d",
+			label, table.concat(parts, ", "), st.decos, st.drawnDecos, st.perches, st.puffs, st.wisps, st.canopies, st.leaves, st.glints, st.drawnButterflies, st.drawnFish, st.fireflies)
+	end
+	H.inClient(p, AV.debugHurry)
+	E.run(4)
+	birdsLine("landed")
+	capture(p, "ambient")
+	H.inClient(p, AV.debugHurry)
+	local seen = {}
+	for k = 0, 15 do
+		capture(p, string.format("ambient_%03d", k))
+		local st = H.inClient(p, AV.stats)
+		local fishOn = ""
+		if st.fishAt then
+			local fx, fy = H.inClient(p, function()
+				local pos = PR.project(E.v3(st.fishAt[1], st.fishAt[2], st.fishAt[3]))
+				return pos.X, pos.Y
+			end)
+			fishOn = string.format(" at %d,%d", fx, fy)
+		end
+		table.insert(seen, string.format("%03d: fish %d%s glints %d butterflies %d leaves %d decos %d", k, st.drawnFish, fishOn, st.drawnGlints, st.drawnButterflies, st.leaves, st.drawnDecos))
+		E.run(1 / 8)
+	end
+	log("ambient frames: %s", table.concat(seen, "; "))
+	birdsLine("two seconds on")
+	-- the founder walks up to a perched bird: it flies off
+	local target = nil
+	for _, b in H.inClient(p, AV.birds, plot) do
+		if b.state == "perched" and b.sp ~= "gull" then
+			target = b
+			break
+		end
+	end
+	if target and p.Character then
+		p.Character:PivotTo(E.cf.new(target.x + 1.2, 3, target.z + 1.2))
+		for k = 0, 9 do
+			E.run(0.1)
+			capture(p, string.format("ambient_flee_%03d", k))
+		end
+		birdsLine("the founder by a " .. target.sp)
+	else
+		log("ambient: no perched bird to walk up to")
+	end
+	-- at night: the fireflies over the lawn
+	if DL then
+		H.inClient(p, DL.debugSet, 0.88)
+		E.run(4)
+		birdsLine("night")
+		capture(p, "ambient_night")
+		H.inClient(p, DL.debugSet, 0.3)
+	end
+	-- the timing: back home by day, the lives back, then the real clock
+	local hx, hz = H.sharedServer("Data.Street").spawn()
+	local hox = H.sharedServer("Data.Street").origin(plot)
+	p.Character:PivotTo(E.cf.new(hox + hx, 3, hz))
+	E.run(2)
+	settle(p, 20, 1)
+	H.inClient(p, AV.debugHurry)
+	E.run(4)
+	local realClock = os.clock
+	local sim0 = E.simClock
+	local off = E.SIM.lastClock - realClock() + 1
+	E.simClock = function()
+		local v = realClock() + off
+		E.SIM.lastClock = v
+		return v
+	end
+	local function frames(n, label)
+		local sum, worst, fxMs, bookMs, written, changed, rects, up, ticks = 0, 0, 0, 0, 0, 0, 0, 0, 0
+		local mLife, mDecos, mParticles, mCreatures = 0, 0, 0, 0
+		local t0 = H.inClient(p, PR.fxStats).ticks
+		for _ = 1, n do
+			local a = realClock()
+			E.step(1 / 60)
+			local ms = (realClock() - a) * 1000
+			sum += ms
+			worst = math.max(worst, ms)
+			local fs = H.inClient(p, PR.fxStats)
+			if fs.ticks ~= t0 then
+				t0 = fs.ticks
+				ticks += 1
+				fxMs += fs.ms
+				bookMs += fs.bookMs
+				written += fs.px
+				changed += fs.changed
+				rects += fs.rects
+				up += fs.upPx
+				local st = H.inClient(p, AV.stats)
+				mLife += st.msLife
+				mDecos += st.msDecos
+				mParticles += st.msParticles
+				mCreatures += st.msCreatures
+			end
+		end
+		local k = math.max(1, ticks)
+		log("ambient timing %s: %d frames, client frame mean %.2f ms, worst %.2f ms; %d ticks: layers %.3f ms, books %.3f ms, %d px written, %d changed, %.1f rects, %d px uploaded a tick",
+			label, n, sum / n, worst, ticks, fxMs / k, bookMs / k, written // k, changed // k, rects / k, up // k)
+		if fxMs > 0 then
+			log("ambient timing %s, the layer's parts a tick: life %.3f ms, tufts %.3f ms, sea and particles %.3f ms, creatures %.3f ms", label, mLife / k, mDecos / k, mParticles / k, mCreatures / k)
+		end
+	end
+	frames(90, "with the lives")
+	H.inClient(p, AV.setSuspended, true)
+	E.run(0.2)
+	frames(90, "without")
+	H.inClient(p, AV.setSuspended, false)
+	frames(90, "with the lives again")
+	E.simClock = sim0
+	return p
+end
+
 -- The day and night (GAME_DESIGN 8): the village at dusk (dusk), at night with its lamps, torches and fire lit
 -- (night), and at dawn (dawn): UI/DayLight held at that time of day.
 local function timeScenario(frac, name)
@@ -473,6 +626,21 @@ function SCEN.city()
 	end
 	log("city: %d pieces, %d path tiles, %d driftlings", #prof.plot.placed - paths, paths, #prof.pals)
 	capture(p, "city")
+	-- what a look at the island's models for its small lives costs (AmbientView.scan, after a piece comes or goes)
+	local AVc = modOr(p, "Controllers.AmbientView")
+	if AVc then
+		local realClock = os.clock
+		local sim0 = E.simClock
+		local off = E.SIM.lastClock - realClock() + 1
+		E.simClock = function()
+			local v = realClock() + off
+			E.SIM.lastClock = v
+			return v
+		end
+		local ms, again, found = H.inClient(p, AVc.debugScan)
+		E.simClock = sim0
+		log("city: the ambient scan of the islands' models took %.1f ms from scratch, %.1f ms again (%d spots found)", ms, again, found)
+	end
 	-- the heart of the city, further north
 	local Street = H.sharedServer("Data.Street")
 	local ox = Street.origin(H.session(p).plot)
@@ -1530,6 +1698,12 @@ local function hatchScenario(code)
 		local v = CC and H.inClient(p, CC.view)
 		local dst = PR and H.inClient(p, PR.debugStatic)
 		log("hatch: view stage %s key %s a %s; layer baking %s shown %s bakes %s; compose %.2f ms, %d dynamic models", tostring(v and v.stage), tostring(v and v.key), tostring(v and v.grid.a), tostring(dst and dst.baking), tostring(dst and dst.shown), tostring(dst and dst.bakes), dst and dst.composeMs or -1, dst and dst.dyn or -1)
+		-- the islands' small lives show none of themselves on the stage
+		local AV = modOr(p, "Controllers.AmbientView")
+		if AV and PR then
+			local st, fs = H.inClient(p, AV.stats), H.inClient(p, PR.fxStats)
+			log("hatch: ambient on the stage %s, effect pixels written %d, birds drawn %d, tufts drawn %d", tostring(st.onStage), fs.px, st.drawnBirds, st.drawnDecos)
+		end
 	end
 	log("hatch %s: laid %d, hatches %d as %s, crack at %.2f, end at %.2f", code, r, hr, tostring(sp), st.crackAt, st.endAt)
 	for k = 1, hr - r do
