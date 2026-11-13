@@ -137,6 +137,12 @@ SMALL = {
     "boost": ["....G....", "...GGG...", "..GGGGG..", ".GGGGGGG.", "...GGG...", "...GGG...", "...GGG...", "...GGG...", "........."],
     "path": [".........", "SSS......", "SSS.SSS..", "....SSS..", ".SSS.....", ".SSS.SSS.", ".....SSS.", "..SSS....", "..SSS...."],
     "decor": ["..KK.KK..", ".KKKKKKK.", "..KKyKK..", ".KKKKKKK.", "..KK.KK..", "....G....", ".GG.G....", "..GGG.GG.", "....GGG.."],
+    # the build catalog's tabs (GAME_DESIGN 4): work (a hammer), fences, water, nature (a pine), fun (a balloon)
+    "work": [".........", ".SSSS....", "SSSSSS...", ".SSSSN...", ".....N...", "......N..", ".......N.", "........N", "........."],
+    "fence": [".........", "N...N...N", "NNNNNNNNN", "N...N...N", "N...N...N", "NNNNNNNNN", "N...N...N", "N...N...N", "........."],
+    "water": [".........", ".........", ".BB...BB.", "BBBB.BBBB", "BBBBBBBBB", ".........", ".BB...BB.", "BBBB.BBBB", "BBBBBBBBB"],
+    "nature": ["....G....", "...GGG...", "..GGGGG..", "...GGG...", "..GGGGG..", ".GGGGGGG.", "....N....", "....N....", "........."],
+    "fun": ["..RRR....", ".RRRRR...", ".RRRRR...", ".RRRRR...", "..RRR....", "...R.....", "...N.....", "....N....", "...N....."],
     # marks for a route (drawn since the expeditions; kept for the icon set)
     "start": ["..R......", "..RRR....", "..RRRRR..", "..RRR....", "..N......", "..N......", "..N......", ".NNN.....", "........."],
     "loot": ["..N...N..", "...NNN...", "...ooo...", "..NNNNN..", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "..NNNNN..", "........."],
