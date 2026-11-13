@@ -112,6 +112,10 @@ local marker: BasePart? = nil
 local conns: { { Disconnect: (any) -> () } } = {}
 local cardScroll = 0 -- the cards' scroll, kept across rebuilds of the same tab and row
 local cardScrollKey = ""
+-- the search box (the bakery's decor box has one): its words (lower case) list the matching pieces from every tab; the
+-- box itself is kept across rebuilds, so typing never loses the keyboard
+local query = ""
+local search: Frame? = nil
 
 -- Drawing paths, water and fences (GAME_DESIGN 4: "paths should be able to be drawn or made in a box like the original
 -- interface in the bakery game"; fences and rivers the same way): with one picked, a press on the island starts a
@@ -870,11 +874,18 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 end
 
 -- The tab's pieces in the chosen row: unlocked first, cheapest first; the locked ones after, by the level they open at.
+local function matches(d: Buildings.BuildingDef, q: string): boolean
+	return string.find(string.lower(d.name), q, 1, true) ~= nil or string.find(d.sub, q, 1, true) ~= nil or string.find(d.tab, q, 1, true) ~= nil
+end
+
 local function listFor(v: Types.ClientView): { Buildings.BuildingDef }
 	local row = chip[tab] or ""
 	local out: { Buildings.BuildingDef } = {}
 	for _, d in Buildings.list do
-		if d.kind ~= "tree" and d.tab == tab and (row == "" or d.sub == row) then
+		if d.kind == "tree" then
+			continue
+		end
+		if (query ~= "" and matches(d, query)) or (query == "" and d.tab == tab and (row == "" or d.sub == row)) then
 			table.insert(out, d)
 		end
 	end
@@ -1014,8 +1025,58 @@ local function expandButton(f: Frame, v: Types.ClientView)
 	end
 end
 
+-- The search box: a TextBox under the pixel font's copy of its words, a clear mark while there are any.
+local function searchField(parent: Frame, w: number, pos: UDim2): Frame
+	local f = search
+	if f == nil then
+		local nf = UIKit.plate(nil, UDim2.fromOffset(w, 12), pos, UIKit.color("plate_light"), 0, 2, { bevel = true })
+		nf.Name = "BuildSearch"
+		local box = Instance.new("TextBox")
+		box.Name = "Box"
+		box.Text = ""
+		box.PlaceholderText = ""
+		box.ClearTextOnFocus = false
+		box.MultiLine = false
+		box.TextTransparency = 1
+		box.TextStrokeTransparency = 1
+		box.TextSize = 1
+		box.BackgroundTransparency = 1
+		box.BorderSizePixel = 0
+		box.Size = UDim2.fromScale(1, 1)
+		box.ZIndex = 8
+		box.Parent = nf
+		local mirror = UIKit.text(nf, "Search", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 7, name = "Query" })
+		local clear = UIKit.button(nf, "x", UDim2.fromOffset(12, 10), UDim2.new(1, -13, 0, 1), function()
+			box.Text = ""
+		end, { name = "ClearSearch", color = UIKit.color("plate_light") })
+		clear.Visible = false
+		box:GetPropertyChangedSignal("Text"):Connect(function()
+			local q = string.lower((string.gsub(box.Text, "^%s+", "")))
+			clear.Visible = q ~= ""
+			UIKit.setText(mirror, if q ~= "" then box.Text else "Search")
+			UIKit.setTextColor(mirror, if q ~= "" then UIKit.color("text") else UIKit.color("text_dim"))
+			if q ~= query then
+				query = q
+				cardScroll = 0
+				rebuild()
+			end
+		end)
+		search = nf
+		f = nf
+	end
+	local sf = f :: Frame
+	sf.Position = pos
+	sf.Size = UDim2.fromOffset(w, 12)
+	sf.Parent = parent
+	return sf
+end
+
 rebuild = function()
 	goalCard, goalTab = nil, nil
+	-- (the search box stays: it moves to the new tray)
+	if search then
+		(search :: Frame).Parent = nil
+	end
 	closeTip()
 	if tray then
 		local list = (tray :: Frame):FindFirstChild("Cards")
@@ -1078,9 +1139,14 @@ rebuild = function()
 		local used, most = countFor(v)
 		UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
 		-- the tab's rows: chips (scrolling sideways when there are many)
-		local rows = CHIPS[tab]
+		local rows: { { string } }? = CHIPS[tab]
+		local sw = if s.X < 500 then 70 else 96
+		searchField(f, sw, UDim2.new(1, -106 - sw, 0, 17))
+		if query ~= "" then
+			rows = nil
+		end
 		if rows then
-			local cl = UIKit.scroll(f, UDim2.new(1, -112, 0, 13), UDim2.fromOffset(4, 17))
+			local cl = UIKit.scroll(f, UDim2.new(1, -112 - sw, 0, 13), UDim2.fromOffset(4, 17))
 			cl.Name = "Chips"
 			cl.ScrollingDirection = Enum.ScrollingDirection.X
 			cl.AutomaticCanvasSize = Enum.AutomaticSize.X
@@ -1098,8 +1164,8 @@ rebuild = function()
 				b.LayoutOrder = k
 			end
 		else
-			local hint = if tab == "path" then "Pick a path, then drag across the grass." elseif tab == "fence" then "Pick a fence, then drag along the grid lines." else "Pick a hut, then tap the grass."
-			UIKit.text(f, hint, UDim2.new(1, -112, 0, 12), UDim2.fromOffset(6, 17), { color = UIKit.color("text_dim"), name = "TabHint" })
+			local hint = if query ~= "" then string.format("Everything called \"%s\":", query) elseif tab == "path" then "Pick a path, then drag across the grass." elseif tab == "fence" then "Pick a fence, then drag along the grid lines." else "Pick a hut, then tap the grass."
+			UIKit.text(f, hint, UDim2.new(1, -112 - sw, 0, 12), UDim2.fromOffset(6, 17), { color = UIKit.color("text_dim"), name = "TabHint" })
 		end
 	end
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
@@ -1111,7 +1177,7 @@ rebuild = function()
 		list.ScrollingDirection = Enum.ScrollingDirection.X
 		list.AutomaticCanvasSize = Enum.AutomaticSize.X
 		cards(list, v)
-		local k = tab .. ":" .. (chip[tab] or "")
+		local k = tab .. ":" .. (chip[tab] or "") .. ":" .. query
 		if k == cardScrollKey then
 			list.CanvasPosition = Vector2.new(cardScroll, 0)
 		else
@@ -1435,6 +1501,12 @@ function BuildUI.close()
 	clearGhost()
 	clearDrawGhost()
 	draw.start, draw.last, draw.cells, draw.seen, draw.memo = nil, nil, {}, {}, {}
+	-- (the search box is cleared for next time)
+	query = ""
+	if search then
+		(search :: Frame):Destroy()
+		search = nil
+	end
 	if tray then
 		tray:Destroy()
 		tray = nil
@@ -1476,6 +1548,14 @@ function BuildUI.debugDraw(cells: { { number } }, mode: string, keep: boolean?):
 	end
 	rebuild()
 	return plan
+end
+-- Sims and previews: type in the search box (as a player would).
+function BuildUI.debugSearch(text: string)
+	local f = search
+	local box = if f then f:FindFirstChild("Box") else nil
+	if box and box:IsA("TextBox") then
+		box.Text = text
+	end
 end
 -- Sims and previews: show a card's tooltip (as a mouse over it would).
 function BuildUI.debugTip(id: string): boolean

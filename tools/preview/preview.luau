@@ -752,7 +752,8 @@ function SCEN.build()
 end
 
 -- "buildui": the build catalog (GAME_DESIGN 4: "Polish the build ui more, just like the bakery game, and reference
--- bloxburg"): the Decor tab on its Garden row with a card's tooltip (buildui_decor), a picket fence drawn round a box
+-- bloxburg"): the Decor tab on its Garden row with a card's tooltip (buildui_decor), the search box finding every
+-- lantern (buildui_search), a picket fence drawn round a box
 -- (its markers: buildui_fence), a stream dug in two rows (buildui_river), a plank bridge dropping in over it with its
 -- dust (buildui_drop), and the island after (buildui_done).
 function SCEN.buildui()
@@ -779,6 +780,16 @@ function SCEN.buildui()
 	if BuildUI == nil or PR == nil then
 		return p
 	end
+	-- the search box: everything with "lantern" in its name, from every tab
+	H.inClient(p, function()
+		BuildUI.debugSearch("lantern")
+	end)
+	E.run(0.3)
+	capture(p, "buildui_search")
+	H.inClient(p, function()
+		BuildUI.debugSearch("")
+	end)
+	E.run(0.2)
 	-- a box of grass w x d where every tile fits, the nearest to (tx, tz) (the fence goes round one, the river
 	-- through another, clear of the first)
 	local function freeBox(w, d, tx, tz, avoid)
