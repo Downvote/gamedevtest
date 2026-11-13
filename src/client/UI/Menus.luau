@@ -541,8 +541,9 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 		end
 	end
 	if drift == nil then
-		UIKit.notice("That one has floated off.", UIKit.color("text_dim"))
+		-- (the list first: opening a panel clears the notices, so the notice goes on the new panel's status line)
 		UIKit.openPanel("tide")
+		UIKit.notice("That one has floated off.", UIKit.color("text_dim"))
 		return
 	end
 	local dr = drift :: Types.Drift

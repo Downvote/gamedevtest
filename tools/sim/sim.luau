@@ -1,13 +1,16 @@
--- The main simulation: a new island end to end through the real client and its UI (the campfire, the jetty with the
--- tide's first two driftlings bobbing there, the HUD with its tide card, the tips), building what the tips ask in their
--- order (a lumber camp, a veggie patch, a hut, then a driftling taken off the tide from the HUD's card, then a snack
--- stall: the starting wood and shells cover them), the days turning (the stores grow, every building working a little
--- with nobody at it), the tide (one drifting in every TideSecs, never more than TideMax, the oldest drifting off; each
--- in the Index; the HUD's card and the world's price tags; the tide's panel taking one in, then the swap picker once
--- the hut is full; one taken in walking the island), the Driftlings panel (moving one to a second hut and back in a
--- swap, Work, selling in two taps), the Index panel, the founder's looks, settings, expanding for wood, the questline,
--- then a malicious client, then a second player. No villagers since 2026-11-12, no Tree of Life and no food since
--- 2026-11-13. Every check is an H.expect; the SIM REPORT must show 0 findings and 0 errors.
+-- The main simulation: a new island end to end through the real client and its UI (the campfire, the jetty, the tide
+-- already floating past, the HUD with its tide card, the tips), building what the tips ask in their order (a lumber
+-- camp, a veggie patch, a hut, then a driftling taken off the tide by tapping it as it floats past, then a snack stall:
+-- the starting wood and shells cover them), the days turning (the stores grow, every building working a little with
+-- nobody at it), the tide (one coming in every TideSecs and floating past the island in TideLife seconds, then gone;
+-- each in the Index; the plot's Tide attribute; the lane every client draws them on; the price tags, hidden while one
+-- is under and where they'd cover a better one's, names only on the rarer ones; the HUD's card with the best three and
+-- the time they have left, one taken in from it; the tide's panel with the best four, rebuilt only when they change,
+-- its Take opening the swap picker once the hut is full; a world tag's swap picker going back to the list when its
+-- driftling floats off), the Driftlings panel (moving one to a second hut and back in a swap, Work, selling in two
+-- taps), the Index panel, the founder's looks, settings, expanding for wood, the questline, then a malicious client,
+-- then a second player. No villagers since 2026-11-12, no Tree of Life and no food since 2026-11-13, the tide a
+-- conveyor since 2026-11-13. Every check is an H.expect; the SIM REPORT must show 0 findings and 0 errors.
 local E = require("./loader")
 local H = require("./harness")
 local report = require("./report")
@@ -121,61 +124,237 @@ local function worldTag(id)
 		return UIKitP.canvas("World"):FindFirstChild("TideTake_" .. id, true)
 	end)
 end
--- the tide (GAME_DESIGN 6): TideStart driftlings bob at the jetty already, a new island's two commons good at its first
--- buildings (one with wood, one at a farm), each one seen in the Index; the HUD's tide card lists them with their
--- prices, and TideView floats them on rafts by the jetty with a price tag over each
+local SCp = H.cmod(p, "Controllers.StateClient")
+local PRp = H.cmod(p, "Pixel.PixelRenderer")
+local WVp = H.cmod(p, "Controllers.WorldView")
+local CCp = H.cmod(p, "Controllers.CameraController")
+-- the session's drift `id` while it is still floating past, or nil
+local function onTide(id)
+	for _, d in s.tide.list do
+		if d.id == id then
+			return d
+		end
+	end
+	return nil
+end
+local function idsOf(list)
+	local out = {}
+	for _, d in list do
+		table.insert(out, tostring(d.id))
+	end
+	return table.concat(out, ",")
+end
+-- the best n floating by, as the HUD's card and the tide panel pick them (GAME_DESIGN 6): the best workers first
+-- (Tide.worth, the newer of two the same), and if the shells cover none of those, the best one they do in the last place
+local function bestOf(list, shells, n)
+	local sorted = table.clone(list)
+	local function w(d)
+		return TideL.worth({ id = 0, sp = d.sp, home = 0, work = 0, muts = d.muts })
+	end
+	table.sort(sorted, function(a, b)
+		if math.abs(w(a) - w(b)) > 1e-9 then
+			return w(a) > w(b)
+		end
+		return a.id > b.id
+	end)
+	local out, can = {}, false
+	for i = 1, math.min(n, #sorted) do
+		table.insert(out, sorted[i])
+		can = can or shells >= sorted[i].cost
+	end
+	if not can and #out > 0 then
+		for i = n + 1, #sorted do
+			if shells >= sorted[i].cost then
+				out[#out] = sorted[i]
+				break
+			end
+		end
+	end
+	return out
+end
+-- the view's tide and the session's hold the same ones (an Fx tide reaches the client a frame after the server's step)
+local function tideSynced(pl)
+	local v, ss = H.view(pl), H.session(pl)
+	return v ~= nil and ss ~= nil and idsOf(v.tide) == idsOf(ss.tide.list)
+end
+local function mirror(pl, label)
+	E.runUntil(function()
+		return tideSynced(pl)
+	end, 0.5)
+	H.checkMirror(pl, label)
+end
+-- the own island's price tags now, as the player sees them: for each of the view's drifts that has a tag on the World
+-- canvas, how far along and under it is, whether its tag and name show, whether it is on screen, its worth and its tag's
+-- place on the canvas (Controllers/TideView)
+local function tagState()
+	local v = H.view(p)
+	local ox = Street.origin(s.plot)
+	local out = H.inClient(p, function()
+		local list = {}
+		local canvas = UIKitP.canvas("World")
+		for _, d in v.tide do
+			local tag = canvas:FindFirstChild("TideTake_" .. d.id, true)
+			local x, y, z = TideViewP.where(s.plot, d.id)
+			if tag and x then
+				local k = SCp.along(d)
+				local depth = TideViewP.depth(x - ox, k)
+				local _, _, on = PRp.projectPixel(E.v3(x, y + depth + 2.9, z))
+				local name = canvas:FindFirstChild("TideName_" .. d.id, true)
+				table.insert(list, {
+					d = d,
+					k = k,
+					depth = depth,
+					on = on,
+					shown = H.guiVisible(tag),
+					hasName = name ~= nil,
+					nameShown = name ~= nil and H.guiVisible(name),
+					rect = { tag.Position.X.Offset, tag.Position.Y.Offset, tag.Size.X.Offset, tag.Size.Y.Offset },
+				})
+			end
+		end
+		return list
+	end)
+	for _, e in out do
+		e.worth = TideL.worth({ id = 0, sp = e.d.sp, home = 0, work = 0, muts = e.d.muts })
+		local c = Creatures.byId[e.d.sp]
+		e.rarity = c and c.rarity or 1
+	end
+	return out
+end
+-- what's wrong with the tags now: one showing while under, a name on a common (or missing on a rarer one, or showing
+-- apart from its price), two showing over each other, the best worker on screen and above the water without its tag
+local function tagProblems(st)
+	local bad = {}
+	local shown = {}
+	local best = nil
+	for _, e in st do
+		if e.shown and e.depth >= 0.6 then
+			table.insert(bad, "under " .. e.d.id)
+		end
+		if e.hasName ~= (e.rarity >= 2) or (e.hasName and e.nameShown ~= e.shown) then
+			table.insert(bad, "name " .. e.d.id)
+		end
+		if e.shown then
+			for _, o in shown do
+				local a, b = e.rect, o.rect
+				if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4] then
+					table.insert(bad, string.format("overlap %d/%d", e.d.id, o.d.id))
+				end
+			end
+			table.insert(shown, e)
+		end
+		if e.on and e.depth < 0.6 and (best == nil or e.worth > best.worth + 1e-9 or (math.abs(e.worth - best.worth) <= 1e-9 and e.d.id < best.d.id)) then
+			best = e
+		end
+	end
+	if best and not best.shown then
+		table.insert(bad, "best hidden " .. best.d.id)
+	end
+	return bad
+end
+-- the shells the island may have earned on its own since t1 (a turn's rate over TurnSeconds, with room to spare;
+-- `rate`: the rate before a change that may have lowered it)
+local function earnedSince(t1, rate)
+	return math.max(rate or 0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - t1) * 1.5 + 0.5
+end
+-- the shells moved since sh1 come to `want`, give or take what the island earned on its own since t1
+local function paid(sh1, want, t1, rate)
+	local got = prof.shells - sh1
+	return got >= want - 0.5 and got <= want + earnedSince(t1, rate)
+end
+-- the tide (GAME_DESIGN 6): already running when the player arrives, one coming in every TideSecs and floating past the
+-- island in TideLife seconds, so TideLife / TideSecs are on the way at once; while the island has taken nothing in,
+-- every third one is a common good at its first buildings (with wood or at a farm, by turns); each one seen is in the
+-- Index. The HUD's tide card shows the best three (TideView.best) with their prices, and TideView floats every one
+-- along the lane past the island, the price tags over the ones it can show
 do
 	local list = s.tide.list
-	local commons, knacks, seen = true, {}, true
+	local secs, life = TideL.secs(prof), TideL.life(prof)
+	local n = math.floor(life / secs + 1e-9)
+	H.expect(math.abs(life - Tuning.TideLife) < 1e-9 and math.abs(secs - Tuning.TideSecs) < 1e-9 and Tuning.TideMax == nil and Tuning.TideStart == nil, "join", "the tide's pace on a new island: one every TideSecs, TideLife seconds to float past (no TideMax, no TideStart)", string.format("%.2f s, %.2f s", secs, life))
+	H.expect(math.abs(#list - n) <= 1, "join", "the tide is already running: TideLife / TideSecs floating past", string.format("%d of %d", #list, n))
+	local spaced, onWay = true, true
+	for i, d in list do
+		onWay = onWay and s.tide.clock - d.at < d.life and math.abs(d.life - life) < 1e-9
+		if i > 1 then
+			spaced = spaced and math.abs(d.at - list[i - 1].at - secs) < 1e-6
+		end
+	end
+	H.expect(spaced and onWay, "join", "each one came in TideSecs after the last and is still on its way", string.format("%s %s", tostring(spaced), tostring(onWay)))
+	local firsts, okFirst, knacks, seen = 0, true, {}, true
 	for _, d in list do
 		local c = Creatures.byId[d.sp]
-		commons = commons and c ~= nil and c.rarity == 1
-		if c then
-			knacks[c.knack] = true
+		if d.id % 3 == 1 then
+			firsts += 1
+			okFirst = okFirst and c ~= nil and c.rarity == 1 and (c.knack == "wood" or c.knack == "farm")
+			if c then
+				knacks[c.knack] = true
+			end
 		end
 		seen = seen and (prof.seen[d.sp] or 0) >= 1
 	end
-	H.expect(#list == Tuning.TideStart, "join", "TideStart driftlings bobbing at the jetty already", tostring(#list))
-	H.expect(commons and knacks.wood and knacks.farm, "join", "a new island's first two: commons, one good with wood, one at a farm", table.concat((function()
+	H.expect(firsts >= 2 and okFirst and knacks.wood and knacks.farm, "join", "a new island's every third one: a common good with wood or at a farm, by turns", table.concat((function()
 		local out = {}
 		for _, d in list do
-			table.insert(out, d.sp)
+			table.insert(out, d.id .. "." .. d.sp)
 		end
 		return out
 	end)(), ","))
 	H.expect(seen, "join", "each one seen is in the Index")
+	E.runUntil(function()
+		return tideSynced(p)
+	end, 0.5)
 	local v0 = H.view(p)
-	H.expect(v0 ~= nil and #v0.tide == #list and v0.tideSecs == TideL.secs(prof) and v0.tree == nil and v0.penN == nil, "join", "the view carries the tide and its pace (no tree, no pen)", v0 and string.format("%d of %d, %s s", #v0.tide, #list, tostring(v0.tideSecs)))
+	local same = v0 ~= nil and #v0.tide == #list
+	for i, d in list do
+		same = same and v0.tide[i].id == d.id and v0.tide[i].at == d.at and v0.tide[i].life == d.life and v0.tide[i].cost == d.cost
+	end
+	H.expect(same and v0.tideSecs == secs and v0.tideT == nil and v0.tree == nil and v0.penN == nil, "join", "the view carries the tide (each one's time it came and its time to float past) and its pace (no tideT, no tree, no pen)", v0 and string.format("%d of %d, %s s", #v0.tide, #list, tostring(v0.tideSecs)))
 	local card = p.PlayerGui:FindFirstChild("TideCard", true)
-	H.expect(card ~= nil and H.guiVisible(card) and H.buttonNamed(p, "TideOpen") ~= nil, "join", "the HUD's tide card with Open")
-	local rows = 0
-	for _, d in list do
-		if H.buttonNamed(p, "CardTake_" .. d.id, true) ~= nil then
+	H.expect(card ~= nil and H.guiVisible(card) and H.buttonNamed(p, "TideOpen") ~= nil and card:FindFirstChild("TideBar", true) == nil, "join", "the HUD's tide card with Open (no bar to the next one)")
+	local best3 = H.inClient(p, TideViewP.best, v0, 3)
+	local rows, cardRows = 0, 0
+	for _, d in best3 do
+		if H.buttonNamed(p, "CardTake_" .. d.id, true) ~= nil and card and card:FindFirstChild("TideName_" .. d.id, true) and card:FindFirstChild("TideLeft_" .. d.id, true) then
 			rows += 1
 		end
 	end
-	H.expect(rows == #list, "join", "the card lists each one with its price", string.format("%d of %d", rows, #list))
-	E.runUntil(function()
-		return H.inClient(p, TideViewP.count, s.plot) >= #list
-	end, 2, 0.1)
-	local tags = 0
-	for _, d in list do
-		if worldTag(d.id) ~= nil then
-			tags += 1
+	for _, x in (card and card:GetDescendants() or {}) do
+		if string.sub(x.Name, 1, 9) == "CardTake_" then
+			cardRows += 1
 		end
 	end
-	H.expect(H.inClient(p, TideViewP.count, s.plot) >= #list and tags == #list, "join", "each one floats by the jetty with a price tag over it", string.format("%d drawn, %d tags", H.inClient(p, TideViewP.count, s.plot), tags))
-	-- no hut yet: a tap on a price is refused (no_hut) and says why
-	local d1 = list[1]
+	H.expect(#best3 == math.min(3, #list) and rows == #best3 and cardRows == #best3, "join", "the card shows the best three floating by, each with its name, its price and the time it has left", string.format("%d rows of %d, %d on the card", rows, #best3, cardRows))
+	E.runUntil(function()
+		return H.inClient(p, TideViewP.count, s.plot) >= #list - 1
+	end, 2, 0.1)
+	local followed, drawn = H.inClient(p, TideViewP.count, s.plot)
+	H.expect(followed >= #list - 1 and followed <= #list + 2 and drawn >= 1, "join", "TideView floats them past the island (the ones near the view drawn)", string.format("%d followed, %d drawn of %d", followed, drawn, #list))
+	local st = tagState()
+	local shownTags = 0
+	for _, e in st do
+		if e.shown then
+			shownTags += 1
+		end
+	end
+	local bad = tagProblems(st)
+	H.expect(shownTags >= 1 and #bad == 0, "join", "price tags over the ones it can show (not while under, not over a better one's; names on the rarer ones only)", string.format("%d tags, %d showing: %s", #st, shownTags, table.concat(bad, " ")))
+	-- no hut yet: a tap on a price is refused (no_hut) and says why (the newest on the card: it has the most time left)
+	local d1 = nil
+	for _, d in best3 do
+		if d1 == nil or d.at > d1.at then
+			d1 = d
+		end
+	end
 	local sh = prof.shells
 	H.clickNamed(p, "CardTake_" .. d1.id, { wait = 0.5 })
-	H.expect(#prof.pals == 0 and prof.shells == sh and s.tide.list[1] == d1, "join", "no hut yet: taking one in is refused, nothing paid", string.format("%d driftlings, %s shells", #prof.pals, tostring(prof.shells)))
+	H.expect(#prof.pals == 0 and prof.shells == sh and onTide(d1.id) ~= nil, "join", "no hut yet: taking one in is refused, nothing paid", string.format("%d driftlings, %s shells", #prof.pals, tostring(prof.shells)))
 	H.expect(statusSays("Build a hut first"), "join", "and the notice says to build a hut first")
 	local res = H.req(p, "tide.take", { id = d1.id, swap = 0 })
 	H.expect(not res.ok and res.err == "no_hut", "join", "the server's word for it: no_hut", tostring(res.err))
 end
 H.checkProfile(p, "join")
-H.checkMirror(p, "join")
+mirror(p, "join")
 
 ------------------------------------------------------------------ 2. building
 E.phase = "build"
@@ -236,33 +415,56 @@ res = place("patch")
 H.expect(res.ok and prof.tut == 3, "build", "a veggie patch: the tips move on to a hut", tostring(res.err))
 res = place("nest")
 H.expect(res.ok and prof.tut == 4, "build", "a hut: the tips move on to a driftling off the tide", string.format("%s tut %d", tostring(res.err), prof.tut))
--- step 4: one off the tide, its price tapped on the HUD's tide card (one good at a building the island has: the tips'
--- first two are), into the hut and off to work at a building of its knack
+-- step 4: one off the tide, the driftling itself tapped as it floats past (TideView.tapAt: WorldView's taps ask it
+-- first): one good at a building the island has (every third one on a new island is) that the shells cover, above the
+-- water and in view; into the hut and off to work at a building of its knack
 do
 	local has = {}
 	for _, q in prof.plot.placed do
 		has[Buildings.byId[q.id].knack] = true
 	end
-	local pick = nil
-	for _, d in s.tide.list do
-		local c = Creatures.byId[d.sp]
-		if c and has[c.knack] and (pick == nil or d.cost < pick.cost) then
-			pick = d
-		end
+	H.push(p, 0.3)
+	local ox = Street.origin(s.plot)
+	-- (in the client: the cheapest such one now, and the screen point in the middle of it, as a tap's position)
+	local function target()
+		local v = H.view(p)
+		return H.inClient(p, function()
+			local focus = CCp.centerWorld()
+			local pick, pos = nil, nil
+			for _, d in v.tide do
+				local c = Creatures.byId[d.sp]
+				local k = SCp.along(d)
+				local x, y, z = TideViewP.where(s.plot, d.id)
+				if c and has[c.knack] and d.cost <= v.shells and k > 0.1 and k < 0.75 and x and math.abs(x - focus.X) < 55 then
+					local depth = TideViewP.depth(x - ox, k)
+					local feet, on = PRp.project(E.v3(x, y + depth, z))
+					local head = PRp.project(E.v3(x, y + depth + 2.4, z))
+					if depth < 0.3 and on and (pick == nil or d.cost < pick.cost) then
+						pick, pos = d, E.v2(feet.X, (feet.Y + head.Y) / 2 - E.inset)
+					end
+				end
+			end
+			return pick, pos
+		end)
 	end
-	H.expect(pick ~= nil and prof.shells >= pick.cost, "build", "the starting shells cover one at the jetty that has work here", pick and string.format("%s shells, it costs %d", tostring(prof.shells), pick.cost) or "none with work here")
+	local pick, pos = nil, nil
+	E.runUntil(function()
+		pick, pos = target()
+		return pick ~= nil
+	end, Tuning.TideLife, 0.1)
+	H.expect(pick ~= nil and prof.shells >= pick.cost, "build", "one floating past has work here, the starting shells cover it and it's in view", pick and string.format("%s shells, it costs %d", tostring(prof.shells), pick.cost) or "none with work here")
 	if pick then
-		H.push(p, 0.3)
-		local sh1 = prof.shells
+		local sh1, t1, rate0 = prof.shells, E.now(), Island.rates(prof).shells
 		local fTaken = #fx
-		H.clickNamed(p, "CardTake_" .. pick.id, { wait = 0.6 })
+		H.inClient(p, WVp.tapScreen, pos)
+		E.run(0.6)
 		local first = prof.pals[1]
-		H.expect(#prof.pals == 1 and prof.stats.taken == 1 and first.sp == pick.sp and math.abs(prof.shells - (sh1 - pick.cost)) < 2, "build", "a tap on its price on the tide's card takes it in for its shells", string.format("%d driftlings, %+.1f shells (cost %d)", #prof.pals, prof.shells - sh1, pick.cost))
-		local gone = true
-		for _, d in s.tide.list do
-			gone = gone and d.id ~= pick.id
-		end
-		H.expect(gone, "build", "and it leaves the jetty")
+		H.expect(#prof.pals == 1 and prof.stats.taken == 1 and first.sp == pick.sp and paid(sh1, -pick.cost, t1, rate0), "build", "a tap on the driftling itself as it floats past takes it in for its shells", string.format("%d driftlings, %+.1f shells (cost %d)", #prof.pals, prof.shells - sh1, pick.cost))
+		H.expect(onTide(pick.id) == nil, "build", "and it leaves the tide")
+		E.runUntil(function()
+			return H.inClient(p, TideViewP.where, s.plot, pick.id) == nil
+		end, 2, 0.1)
+		H.expect(H.inClient(p, TideViewP.where, s.plot, pick.id) == nil, "build", "it hops ashore and is gone from the lane")
 		local takenFx = 0
 		for i = fTaken + 1, #fx do
 			if fx[i].kind == "taken" then
@@ -305,7 +507,7 @@ H.expect(v ~= nil and #v.pieces == 4 and v.nests == 2 and v.beds == nil and v.pe
 local decor = static and static:FindFirstChild("Decor")
 H.expect(decor ~= nil and #decor:GetChildren() == 4, "build", "the server built a model a piece", tostring(decor and #decor:GetChildren()))
 H.checkProfile(p, "build")
-H.checkMirror(p, "build")
+mirror(p, "build")
 
 ------------------------------------------------------------------ 3. turns and days
 E.phase = "days"
@@ -332,13 +534,13 @@ local ticks, tideTicks = 0, 0
 for i = f0 + 1, #fx do
 	if fx[i].kind == "tick" then
 		ticks += 1
-		if H.finite(fx[i].tideT) and H.finite(fx[i].tideSecs) and fx[i].tideSecs > 0 and fx[i].grow == nil and fx[i].food == nil then
+		if fx[i].tideT == nil and H.finite(fx[i].tideSecs) and fx[i].tideSecs > 0 and fx[i].grow == nil and fx[i].food == nil then
 			tideTicks += 1
 		end
 	end
 end
 H.expect(ticks >= math.floor(E.now() - t0) - 3, "days", "the stores reach the client every second (Fx tick)", string.format("%d ticks in %.1f s", ticks, E.now() - t0))
-H.expect(tideTicks == ticks, "days", "each tick carries the tide's clock (no tree, no food)", string.format("%d of %d", tideTicks, ticks))
+H.expect(tideTicks == ticks, "days", "each tick carries the tide's pace (no tideT: the tide runs on the server's time; no tree, no food)", string.format("%d of %d", tideTicks, ticks))
 -- a calendar day is hours of the sea's clock: jumped to a day's end, the island counts one (Fx day)
 do
 	local WC = H.smod("WorldClock")
@@ -371,167 +573,399 @@ H.expect(housedN() == 1 and H.inClient(p, WV.ownCount) == housedN(), "days", "th
 local r = Island.rates(prof)
 H.expect(r.shells > 0 and r.wood > 0 and r.food == nil, "days", "wood and shells come in (a building works a little with nobody at it)", string.format("%.1f %.1f", r.wood, r.shells))
 H.checkProfile(p, "days")
-H.checkMirror(p, "days")
+mirror(p, "days")
 
 ------------------------------------------------------------------ 4. the tide (GAME_DESIGN 6)
 E.phase = "tide"
--- (wait for a quiet moment: at least `need` seconds before the next one drifts in, so two taps or a panel are not cut
--- across by the view changing)
-local function calm(need)
-	E.runUntil(function()
-		return TideL.secs(prof) - s.tide.t >= (need or 2)
-	end, TideL.secs(prof) + 1, 0.05)
-end
--- the cheapest one at the jetty (that `ok` likes)
+-- the cheapest one floating past (that `ok` likes) with a few seconds left, so a request for it isn't cut off by its
+-- floating off
 local function cheapest(ok)
 	local best = nil
 	for _, d in s.tide.list do
-		if (ok == nil or ok(d)) and (best == nil or d.cost < best.cost) then
+		if TideL.along(d, E.now()) < 0.75 and (ok == nil or ok(d)) and (best == nil or d.cost < best.cost) then
 			best = d
 		end
 	end
 	return best
 end
+-- (the full views the client gets from now on: the tide alone sends none, only patches)
+local views = 0
+H.inClient(p, function()
+	SCp.Changed:Connect(function()
+		views += 1
+	end)
+end)
 -- a fishing pier, so every kind of the first island's driftlings has a building of its knack to work at
 prof.wood = math.max(prof.wood, 400)
 res = place("pier")
 H.expect(res.ok, "tide", "a fishing pier", tostring(res.err))
--- one drifts in every Tide.secs (Fx tide); the jetty holds TideMax and the oldest drifts off as the next comes
+-- one comes in every Tide.secs and floats past the island in Tide.life seconds, then it's gone (Fx tide came and gone),
+-- so the count on the way stays put; meanwhile the price tags keep their rules at every moment
+local goneId = nil
 do
-	local secs = TideL.secs(prof)
-	local arrivals = {}
-	local most = #s.tide.list
-	local fT = #fx
-	local function came()
-		local n = 0
-		for i = fT + 1, #fx do
-			if fx[i].kind == "tide" and type(fx[i].came) == "table" then
-				n += #fx[i].came
+	local secs, life = TideL.secs(prof), TideL.life(prof)
+	local n = math.floor(life / secs + 1e-9)
+	local known = {}
+	for _, d in s.tide.list do
+		known[d.id] = { at = d.at, life = d.life }
+	end
+	local cameAt, goneAt, cameIds = {}, {}, {}
+	local lo, hi = #s.tide.list, #s.tide.list
+	local samples, bad, under, crowded = 0, {}, 0, 0
+	local fSeen = #fx
+	local views0 = views
+	local t0 = E.now()
+	while E.now() - t0 < 6 do
+		E.run(E.dt)
+		for i = fSeen + 1, #fx do
+			local m = fx[i]
+			if m.kind == "tide" then
+				for _, x in (if type(m.came) == "table" then m.came else {}) do
+					cameAt[x.id] = E.now()
+					known[x.id] = { at = x.at, life = x.life }
+					table.insert(cameIds, x.id)
+				end
+				for _, id in (if type(m.gone) == "table" then m.gone else {}) do
+					goneAt[id] = E.now()
+				end
 			end
 		end
-		return n
-	end
-	for k = 1, 3 do
-		E.runUntil(function()
-			most = math.max(most, #s.tide.list)
-			return came() >= k
-		end, secs + 2, 0.05)
-		table.insert(arrivals, E.now())
-	end
-	local even = #arrivals == 3
-	for k = 2, #arrivals do
-		even = even and math.abs(arrivals[k] - arrivals[k - 1] - secs) <= 0.3
-	end
-	H.expect(came() == 3 and even, "tide", "one drifts in every Tide.secs (Fx tide)", string.format("%d came, %s apart (every %.1f s)", came(), if #arrivals >= 2 then string.format("%.2f s", arrivals[#arrivals] - arrivals[#arrivals - 1]) else "?", secs))
-	local goneIds = {}
-	for i = fT + 1, #fx do
-		if fx[i].kind == "tide" and type(fx[i].gone) == "table" then
-			for _, id in fx[i].gone do
-				table.insert(goneIds, id)
+		fSeen = #fx
+		lo, hi = math.min(lo, #s.tide.list), math.max(hi, #s.tide.list)
+		local st = tagState()
+		samples += 1
+		for _, b in tagProblems(st) do
+			table.insert(bad, string.format("%.2f %s", E.now() - t0, b))
+		end
+		for _, e in st do
+			if e.depth >= 0.6 then
+				under += 1
+			elseif e.on and not e.shown then
+				crowded += 1
 			end
 		end
 	end
-	local stillThere = false
-	for _, id in goneIds do
-		for _, d in s.tide.list do
-			stillThere = stillThere or d.id == id
+	local want = 6 / secs
+	H.expect(#cameIds >= math.floor(want) - 1 and #cameIds <= math.ceil(want) + 1, "tide", "one comes in every Tide.secs (Fx tide came)", string.format("%d in 6 s (every %.2f s)", #cameIds, secs))
+	local spaced, onTime = true, true
+	for i, id in cameIds do
+		local k = known[id]
+		onTime = onTime and cameAt[id] - k.at >= -1e-6 and cameAt[id] - k.at <= 0.25 and math.abs(k.life - life) < 1e-6
+		if i > 1 then
+			spaced = spaced and math.abs(k.at - known[cameIds[i - 1]].at - secs) < 1e-6
 		end
 	end
-	H.expect(most <= Tuning.TideMax and #s.tide.list == Tuning.TideMax and #goneIds >= 1 and not stillThere, "tide", "TideMax at the jetty at most: the oldest drifts off as the next comes (Fx tide gone)", string.format("%d at most, %d now, %d gone", most, #s.tide.list, #goneIds))
+	H.expect(spaced and onTime, "tide", "each one's time it came in is the moment it came, Tide.secs after the last, its time to float past Tide.life", string.format("%s %s", tostring(spaced), tostring(onTime)))
+	local gones, ontimeGone, stillThere = 0, true, false
+	for id, at in goneAt do
+		gones += 1
+		goneId = goneId or id
+		local k = known[id]
+		ontimeGone = ontimeGone and k ~= nil and at - (k.at + k.life) >= -1e-6 and at - (k.at + k.life) <= 0.25
+		stillThere = stillThere or onTide(id) ~= nil
+	end
+	H.expect(gones >= math.floor(want) - 1 and ontimeGone and not stillThere, "tide", "each one is gone once it has floated past for Tide.life seconds (Fx tide gone)", string.format("%d gone, on time %s, still there %s", gones, tostring(ontimeGone), tostring(stillThere)))
+	H.expect(lo >= n - 1 and hi <= n + 1, "tide", "so Tide.life / Tide.secs float past at any moment", string.format("%d to %d (%d)", lo, hi, n))
+	H.expect(views == views0, "tide", "the tide sends no whole view (the client patches its copy)", string.format("%d views", views - views0))
 	local seen = true
 	for _, d in s.tide.list do
 		seen = seen and (prof.seen[d.sp] or 0) >= 1
 	end
-	H.expect(seen, "tide", "each one that drifts in is seen in the Index")
-	local k, every = H.inClient(p, H.cmod(p, "Controllers.StateClient").tideFrac)
-	H.expect(k >= 0 and k <= 1 and math.abs(every - secs) < 1e-6, "tide", "the client runs the tide's clock on (StateClient.tideFrac)", string.format("%.2f of %.1f s", k, every))
+	H.expect(seen, "tide", "each one that comes in is seen in the Index")
+	H.expect(samples > 0 and #bad == 0, "tide", "at every moment the price tags keep their rules (none while under, none over another, names on the rarer ones only, the best one in view always tagged)", string.format("%d samples: %s", samples, string.sub(table.concat(bad, "; "), 1, 600)))
+	H.expect(under > 0, "tide", "(some went under the jetty or at the ends meanwhile, their tags hidden)", string.format("%d under, %d crowded out", under, crowded))
+	H.log("tide: %d came, %d gone in 6 s; tags: %d under, %d crowded out over %d samples", #cameIds, gones, under, crowded, samples)
 end
--- the HUD's tide card and the world's price tags: one each for every one at the jetty
-calm(2)
-H.push(p, 0.6)
+-- every client draws them from the plot's Tide attribute: "id.species.at.life" (tenths of a second, the server's time)
 do
-	local rows, tags = 0, 0
+	local raw = plot1:GetAttribute("Tide")
+	local parsed = {}
+	for entry in string.gmatch(raw or "", "[^;]+") do
+		local id, sp, at, life = string.match(entry, "^(%d+)%.([%w_]+)%.(%d+)%.(%d+)$")
+		table.insert(parsed, { id = tonumber(id), sp = sp, at = tonumber(at), life = tonumber(life) })
+	end
+	local same = #parsed == #s.tide.list
+	for i, d in s.tide.list do
+		local e = parsed[i]
+		same = same and e ~= nil and e.id == d.id and e.sp == d.sp and e.at == math.floor(d.at * 10 + 0.5) and e.life == math.floor(d.life * 10 + 0.5)
+	end
+	H.expect(same, "tide", "the plot's Tide attribute: each one's id, kind, time it came and time to float past", string.sub(tostring(raw), 1, 200))
+end
+-- the client's clock is the server's, so it puts each one where the server's clock says, on the lane past the island
+-- (Street.TIDE: from x0 to x1, west to east)
+do
+	E.runUntil(function()
+		return tideSynced(p)
+	end, 0.5)
+	local v1 = H.view(p)
+	local now, okAlong = H.inClient(p, SCp.tideNow), true
+	for _, d in v1.tide do
+		okAlong = okAlong and math.abs(H.inClient(p, SCp.along, d) - TideL.along(d, E.now())) < 1e-6
+	end
+	H.expect(math.abs(now - E.now()) < 1e-6 and okAlong and v1.tideT == nil, "tide", "the client's tide clock is the server's time (StateClient.tideNow, along)", string.format("%.3f vs %.3f", now, E.now()))
+	local ox, oz = Street.origin(s.plot)
+	local lane = Street.TIDE
+	local onLane, followed, worst = true, 0, 0
 	for _, d in s.tide.list do
-		if H.buttonNamed(p, "CardTake_" .. d.id, true) ~= nil then
-			rows += 1
-		end
-		if worldTag(d.id) ~= nil then
-			tags += 1
+		local x, _, z = H.inClient(p, TideViewP.where, s.plot, d.id)
+		if x then
+			followed += 1
+			local want = ox + lane.x0 + (lane.x1 - lane.x0) * TideL.along(d, E.now())
+			worst = math.max(worst, math.abs(x - want))
+			onLane = onLane and math.abs(z - (oz + lane.z)) < 1e-6 and math.abs(x - want) < 0.3
 		end
 	end
-	H.expect(rows == #s.tide.list, "tide", "the tide's card lists every one at the jetty", string.format("%d of %d", rows, #s.tide.list))
-	H.expect(tags == #s.tide.list and H.inClient(p, TideViewP.count, s.plot) >= #s.tide.list, "tide", "every one floats by the jetty with its price tag", string.format("%d tags, %d drawn of %d", tags, H.inClient(p, TideViewP.count, s.plot), #s.tide.list))
+	local nf, drawn = H.inClient(p, TideViewP.count, s.plot)
+	H.expect(onLane and followed >= #s.tide.list - 1, "tide", "each one rides the lane past the island, as far along as its time says", string.format("%d of %d followed, %.2f studs off at most", followed, #s.tide.list, worst))
+	H.expect(drawn >= 1 and drawn <= nf, "tide", "the ones near the view have models", string.format("%d drawn of %d followed", drawn, nf))
 end
--- the tide's panel from the card's Open: how often, the odds, the ones at the jetty with Take
+-- TideView.best's rule on a made-up tide: three uncommons the shells don't cover and two commons they do; the best
+-- uncommons first and the better common in the last place. With the shells, the best three
+do
+	local made = {
+		{ id = 1, sp = "gullfin", muts = {}, cost = 80, at = 0, life = 16 },
+		{ id = 2, sp = "pebblit", muts = {}, cost = 20, at = 0, life = 16 },
+		{ id = 3, sp = "conchy", muts = {}, cost = 80, at = 0, life = 16 },
+		{ id = 4, sp = "frondle", muts = {}, cost = 20, at = 0, life = 16 },
+		{ id = 5, sp = "twiggle", muts = {}, cost = 80, at = 0, life = 16 },
+	}
+	local poor = H.inClient(p, TideViewP.best, { tide = made, shells = 50 }, 3)
+	local want = bestOf(made, 50, 3)
+	local c3 = poor[3] and Creatures.byId[poor[3].sp]
+	H.expect(idsOf(poor) == idsOf(want) and c3 ~= nil and c3.rarity == 1 and Creatures.byId[poor[1].sp].rarity == 2, "tide", "the best three: the best workers, the best one the shells cover last when they cover none of those", idsOf(poor))
+	local rich = H.inClient(p, TideViewP.best, { tide = made, shells = 500 }, 3)
+	local all = true
+	for _, d in rich do
+		all = all and Creatures.byId[d.sp].rarity == 2
+	end
+	H.expect(#rich == 3 and all and idsOf(rich) == idsOf(bestOf(made, 500, 3)), "tide", "and with the shells, simply the best three", idsOf(rich))
+end
+-- the HUD's tide card: the best three floating by, each with its name, its price and a bar of the time it has left
+-- (running down); a tap on a price takes it in (the hut has room for one more), and it comes ashore to walk the island
 prof.shells = math.max(prof.shells, 2000)
 H.push(p, 0.4)
-calm(3)
+do
+	E.runUntil(function()
+		return tideSynced(p)
+	end, 0.5)
+	local v1 = H.view(p)
+	local best3 = H.inClient(p, TideViewP.best, v1, 3)
+	H.expect(idsOf(best3) == idsOf(bestOf(v1.tide, v1.shells, 3)), "tide", "TideView.best picks the best three workers floating by", idsOf(best3))
+	local card = p.PlayerGui:FindFirstChild("TideCard", true)
+	local rows, bars, cardRows = 0, 0, 0
+	for _, d in best3 do
+		local back = card and card:FindFirstChild("TideLeft_" .. d.id, true)
+		local fill = back and back:FindFirstChild("Fill")
+		if H.buttonNamed(p, "CardTake_" .. d.id) ~= nil and card:FindFirstChild("TideName_" .. d.id, true) then
+			rows += 1
+		end
+		if fill then
+			local w = math.floor((back.Size.X.Offset - 2) * (1 - TideL.along(d, E.now())) + 0.5)
+			if math.abs(fill.Size.X.Offset - w) <= 1 then
+				bars += 1
+			end
+		end
+	end
+	for _, x in (card and card:GetDescendants() or {}) do
+		if string.sub(x.Name, 1, 9) == "CardTake_" then
+			cardRows += 1
+		end
+	end
+	H.expect(card ~= nil and H.guiVisible(card) and rows == #best3 and cardRows == #best3 and #best3 == 3, "tide", "the tide's card shows the best three floating by, with their names and prices", string.format("%d of %d, %d on the card", rows, #best3, cardRows))
+	H.expect(bars == #best3, "tide", "each with a bar of the time it has left", string.format("%d of %d", bars, #best3))
+	-- (the bar runs down: two seconds later the newest of them has less left)
+	local d1 = best3[1]
+	for _, d in best3 do
+		if d.at > d1.at then
+			d1 = d
+		end
+	end
+	local function barOf(d)
+		local c = p.PlayerGui:FindFirstChild("TideCard", true)
+		local back = c and c:FindFirstChild("TideLeft_" .. d.id, true)
+		local fill = back and back:FindFirstChild("Fill")
+		return fill and fill.Size.X.Offset
+	end
+	local w1 = barOf(d1)
+	E.run(2)
+	local w2 = barOf(d1)
+	H.expect(w1 == nil or w2 == nil or w2 < w1, "tide", "and it runs down", string.format("%s -> %s", tostring(w1), tostring(w2)))
+	-- take one in from the card (one with a few seconds left)
+	local pick = nil
+	E.runUntil(function()
+		pick = nil
+		for _, d in H.inClient(p, TideViewP.best, H.view(p), 3) do
+			if pick == nil and d.cost <= prof.shells and TideL.along(d, E.now()) < 0.75 and H.buttonNamed(p, "CardTake_" .. d.id) ~= nil then
+				pick = d
+			end
+		end
+		return pick ~= nil
+	end, Tuning.TideLife, 0.1)
+	H.expect(pick ~= nil, "tide", "one on the card with time left that the shells cover")
+	if pick then
+		local sh1, n0, t1, rate0 = prof.shells, #prof.pals, E.now(), Island.rates(prof).shells
+		local fTaken = #fx
+		H.clickNamed(p, "CardTake_" .. pick.id, { wait = 0.6 })
+		local x = prof.pals[#prof.pals]
+		H.expect(#prof.pals == n0 + 1 and prof.stats.taken == 2 and x.sp == pick.sp and paid(sh1, -pick.cost, t1, rate0), "tide", "a tap on its price on the tide's card takes it in for its shells", string.format("%d driftlings, %+.1f shells (cost %d)", #prof.pals, prof.shells - sh1, pick.cost))
+		H.expect(x.home == pieceOf("nest").uid and onTide(pick.id) == nil, "tide", "into the hut with room, gone from the tide", tostring(x.home))
+		local takenFx = 0
+		for i = fTaken + 1, #fx do
+			if fx[i].kind == "taken" then
+				takenFx += 1
+			end
+		end
+		H.expect(takenFx == 1, "tide", "the client hears of it (Fx taken)", tostring(takenFx))
+		E.runUntil(function()
+			return H.inClient(p, WV.ownCount) == housedN()
+		end, 3, 0.25)
+		H.expect(H.inClient(p, WV.ownCount) == housedN() and housedN() == 2, "tide", "the one taken in walks the island", string.format("%d drawn, %d in huts", H.inClient(p, WV.ownCount), housedN()))
+	end
+end
+-- the tide's panel from the card's Open: how often one comes in, the huts' room, the odds, and the best four floating
+-- by with Take and the time they have left; it is rebuilt only when what it shows changes
 H.clickNamed(p, "TideOpen", { wait = 0.4 })
 H.expect(H.currentPanel(p) == "tide", "tide", "Open on the tide's card opens the tide's panel", tostring(H.currentPanel(p)))
 do
 	local pg = p.PlayerGui
-	local rows = 0
-	for _, d in s.tide.list do
-		if pg:FindFirstChild("Drift_" .. d.id, true) and H.buttonNamed(p, "PanelTake_" .. d.id) ~= nil then
-			rows += 1
+	local function panelKey()
+		local v1 = H.view(p)
+		local parts = {}
+		for _, d in H.inClient(p, TideViewP.best, v1, 4) do
+			table.insert(parts, string.format("%d:%d:%s", d.id, d.cost, if v1.shells >= d.cost then "y" else "n"))
 		end
+		return table.concat(parts, ",")
 	end
-	H.expect(rows == #s.tide.list, "tide", "the panel lists every one at the jetty with Take", string.format("%d of %d", rows, #s.tide.list))
-	H.expect(pg:FindFirstChild("Pace", true) ~= nil and pg:FindFirstChild("Odds_1", true) ~= nil and pg:FindFirstChild("Room", true) ~= nil, "tide", "its pace, the huts' room and the odds")
+	local function panelRows()
+		local best4 = H.inClient(p, TideViewP.best, H.view(p), 4)
+		local rows, all = 0, 0
+		for _, d in best4 do
+			local f = pg:FindFirstChild("Drift_" .. d.id, true)
+			if f and H.buttonNamed(p, "PanelTake_" .. d.id) ~= nil and f:FindFirstChild("Left") then
+				rows += 1
+			end
+		end
+		for _, x in pg:GetDescendants() do
+			if string.sub(x.Name, 1, 6) == "Drift_" then
+				all += 1
+			end
+		end
+		return rows, all, best4
+	end
+	local rows, all, best4 = panelRows()
+	H.expect(#best4 == 4 and rows == 4 and all == 4, "tide", "the panel shows the best four floating by, each with Take and the time it has left", string.format("%d of %d, %d rows", rows, #best4, all))
+	local v1 = H.view(p)
+	local pace = pg:FindFirstChild("Pace", true)
+	local paceWant = if math.abs(v1.tideSecs - 1) < 0.05 then "One floats by every second" else string.format("One floats by every %.1fs", v1.tideSecs)
+	H.expect(pace ~= nil and pace.Text == paceWant and pg:FindFirstChild("Odds_1", true) ~= nil and pg:FindFirstChild("Odds_5", true) ~= nil and pg:FindFirstChild("Room", true) ~= nil, "tide", "its pace, the huts' room and the odds", pace and pace.Text)
+	local head = pg:FindFirstChild("Jetty", true)
+	H.expect(head ~= nil and head.Text == "Floating by" and pg:FindFirstChild("TideBar", true) == nil and pg:FindFirstChild("Leaving", true) == nil, "tide", "under Floating by (no bar to the next one, no Leaving soon)", head and head.Text)
 	local card = pg:FindFirstChild("TideCard", true)
 	H.expect(card == nil or not H.guiVisible(card), "tide", "the HUD's cards step aside for the wide panel")
-end
--- Take: the hut has room for one more
-do
-	local d = cheapest()
-	local sh1, n0 = prof.shells, #prof.pals
-	H.clickNamed(p, "PanelTake_" .. d.id, { wait = 0.6 })
-	local x = prof.pals[#prof.pals]
-	H.expect(#prof.pals == n0 + 1 and prof.stats.taken == 2 and x.sp == d.sp and math.abs(prof.shells - (sh1 - d.cost)) < 2, "tide", "Take in the panel takes it in for its price", string.format("%d driftlings, %+.1f shells (cost %d)", #prof.pals, prof.shells - sh1, d.cost))
-	H.expect(x.home == pieceOf("nest").uid, "tide", "into the hut with room", tostring(x.home))
-	H.expect(H.currentPanel(p) == "tide", "tide", "the panel stays open", tostring(H.currentPanel(p)))
-	-- the one taken in comes ashore and walks the island
+	-- (while the best four stay the same, the panel keeps its rows: the tide moving every second doesn't rebuild it)
+	local key0, row0 = panelKey(), pg:FindFirstChild("Drift_" .. best4[1].id, true)
+	local views0 = views
+	local held, steps = true, 0
+	while steps < 40 do
+		E.run(E.dt)
+		if panelKey() ~= key0 then
+			break
+		end
+		steps += 1
+		held = held and row0.Parent ~= nil
+	end
+	if views == views0 and steps >= 10 then
+		H.expect(held, "tide", "the panel isn't rebuilt while what it shows stays the same", string.format("%d steps", steps))
+	else
+		H.log("tide: the panel's rows changed too soon to see them held (%d steps, %d views)", steps, views - views0)
+	end
+	-- (and when they change, the panel follows)
+	local key1 = panelKey()
 	E.runUntil(function()
-		return H.inClient(p, WV.ownCount) == housedN()
-	end, 3, 0.25)
-	H.expect(H.inClient(p, WV.ownCount) == housedN() and housedN() == 2, "tide", "the one taken in walks the island", string.format("%d drawn, %d in huts", H.inClient(p, WV.ownCount), housedN()))
+		return panelKey() ~= key1
+	end, Tuning.TideLife + 1, E.dt)
+	E.run(0.1)
+	rows, all, best4 = panelRows()
+	H.expect(rows == #best4 and all == #best4, "tide", "once they change, the panel shows the new best four", string.format("%d of %d, %d rows", rows, #best4, all))
 end
--- every hut full: a tap on a world price tag opens the swap picker instead; Swap sells the one picked and the new one
--- takes its place
-H.closePanel(p)
-calm(4)
+-- every hut full: Take opens the swap picker instead; Swap sells the one picked and the new one takes its place
 do
-	local d = cheapest()
-	local tag = worldTag(d.id)
-	local n0, taken0 = #prof.pals, prof.stats.taken
-	H.expect(tag ~= nil and H.guiVisible(tag), "tide", "its price tag shows over it by the jetty")
-	H.clickNamed(p, "TideTake_" .. d.id, { wait = 0.6 })
-	H.expect(#prof.pals == n0 and prof.stats.taken == taken0, "tide", "every hut full: nothing taken yet", string.format("%d driftlings", #prof.pals))
-	H.expect(H.currentPanel(p) == "tide", "tide", "the tide's panel opens on the swap picker", tostring(H.currentPanel(p)))
-	local pg = p.PlayerGui
-	local rows = 0
-	for _, x in prof.pals do
-		if x.home ~= 0 and pg:FindFirstChild("SwapOut_" .. x.id, true) and H.buttonNamed(p, "SwapTake_" .. x.id) ~= nil then
-			rows += 1
+	local d = nil
+	E.runUntil(function()
+		d = nil
+		for _, x in H.inClient(p, TideViewP.best, H.view(p), 4) do
+			if d == nil and TideL.along(x, E.now()) < 0.7 and H.buttonNamed(p, "PanelTake_" .. x.id) ~= nil then
+				d = x
+			end
 		end
-	end
-	H.expect(rows == housedN(), "tide", "the picker lists every hut driftling with Swap", string.format("%d of %d", rows, housedN()))
-	-- (the weakest, the picker's first)
-	local weak = nil
-	for _, x in prof.pals do
-		if x.home ~= 0 and (weak == nil or TideL.better(weak, x)) then
-			weak = x
+		return d ~= nil
+	end, Tuning.TideLife, 0.1)
+	H.expect(d ~= nil, "tide", "one in the panel with time left")
+	if d then
+		local n0, taken0 = #prof.pals, prof.stats.taken
+		H.clickNamed(p, "PanelTake_" .. d.id, { wait = 0.6 })
+		H.expect(#prof.pals == n0 and prof.stats.taken == taken0, "tide", "every hut full: Take takes nothing yet", string.format("%d driftlings", #prof.pals))
+		H.expect(H.currentPanel(p) == "tide", "tide", "the tide's panel turns to the swap picker", tostring(H.currentPanel(p)))
+		local pg = p.PlayerGui
+		local rows = 0
+		for _, x in prof.pals do
+			if x.home ~= 0 and pg:FindFirstChild("SwapOut_" .. x.id, true) and H.buttonNamed(p, "SwapTake_" .. x.id) ~= nil then
+				rows += 1
+			end
 		end
+		H.expect(rows == housedN(), "tide", "the picker lists every hut driftling with Swap", string.format("%d of %d", rows, housedN()))
+		-- (the weakest, the picker's first)
+		local weak = nil
+		for _, x in prof.pals do
+			if x.home ~= 0 and (weak == nil or TideL.better(weak, x)) then
+				weak = x
+			end
+		end
+		local price = TideL.price(weak)
+		local sh1, sold0, hut, t1, rate0 = prof.shells, prof.stats.sold, weak.home, E.now(), Island.rates(prof).shells
+		H.clickNamed(p, "SwapTake_" .. weak.id, { wait = 0.6 })
+		local x = prof.pals[#prof.pals]
+		H.expect(table.find(prof.pals, weak) == nil and prof.stats.sold == sold0 + 1 and prof.stats.taken == taken0 + 1, "tide", "Swap: the one picked is sold", string.format("sold %d, taken %d", prof.stats.sold, prof.stats.taken))
+		H.expect(x.sp == d.sp and x.home == hut and #prof.pals == n0 and paid(sh1, price - d.cost, t1, rate0), "tide", "and the new one takes its place in the hut, paid less what the other sold for", string.format("%+.1f shells (cost %d, sold for %d)", prof.shells - sh1, d.cost, price))
+		H.expect(H.currentPanel(p) == "tide" and H.buttonNamed(p, "SwapTake_" .. (prof.pals[1] and prof.pals[1].id or 0)) == nil, "tide", "the panel stays open, back on the ones floating by", tostring(H.currentPanel(p)))
 	end
-	local price = TideL.price(weak)
-	local sh1, sold0, hut = prof.shells, prof.stats.sold, weak.home
-	H.clickNamed(p, "SwapTake_" .. weak.id, { wait = 0.6 })
-	local x = prof.pals[#prof.pals]
-	H.expect(table.find(prof.pals, weak) == nil and prof.stats.sold == sold0 + 1 and prof.stats.taken == taken0 + 1, "tide", "Swap: the one picked is sold", string.format("sold %d, taken %d", prof.stats.sold, prof.stats.taken))
-	H.expect(x.sp == d.sp and x.home == hut and #prof.pals == n0 and math.abs(prof.shells - (sh1 - d.cost + price)) < 2, "tide", "and the new one takes its place in the hut, paid less what the other sold for", string.format("%+.1f shells (cost %d, sold for %d)", prof.shells - sh1, d.cost, price))
 	H.closePanel(p)
 end
--- not enough shells: refused, nothing changes
+-- a world price tag (one showing, the shells there): every hut full, the swap picker opens; when its driftling floats
+-- off meanwhile, the picker gives way to the list and says so
+do
+	local d = nil
+	E.runUntil(function()
+		d = nil
+		for _, e in tagState() do
+			if d == nil and e.shown and e.d.cost <= prof.shells and e.k > 0.6 and e.k < 0.9 then
+				d = e.d
+			end
+		end
+		return d ~= nil
+	end, Tuning.TideLife, 0.1)
+	H.expect(d ~= nil and H.guiVisible(worldTag(d.id)), "tide", "a price tag shows over one floating past that the shells cover")
+	if d then
+		local n0, taken0 = #prof.pals, prof.stats.taken
+		H.clickNamed(p, "TideTake_" .. d.id, { wait = 0.6 })
+		H.expect(#prof.pals == n0 and prof.stats.taken == taken0, "tide", "every hut full: a tap on the tag takes nothing yet", string.format("%d driftlings", #prof.pals))
+		local hutPal = nil
+		for _, x in prof.pals do
+			if x.home ~= 0 and hutPal == nil then
+				hutPal = x
+			end
+		end
+		H.expect(H.currentPanel(p) == "tide" and hutPal ~= nil and H.buttonNamed(p, "SwapTake_" .. hutPal.id) ~= nil, "tide", "the tide's panel opens on the swap picker", tostring(H.currentPanel(p)))
+		E.runUntil(function()
+			return onTide(d.id) == nil
+		end, Tuning.TideLife, E.dt)
+		E.run(0.2)
+		H.expect(onTide(d.id) == nil and H.currentPanel(p) == "tide" and hutPal ~= nil and H.buttonNamed(p, "SwapTake_" .. hutPal.id) == nil and p.PlayerGui:FindFirstChild("Pace", true) ~= nil, "tide", "it floats off: the picker gives way to the ones floating by", tostring(H.currentPanel(p)))
+		H.expect(statusSays("That one has floated off."), "tide", "and says it has floated off")
+	end
+	H.closePanel(p)
+end
+-- not enough shells, or one that has floated off: refused, nothing changes
 do
 	local sh = prof.shells
 	prof.shells = 0
@@ -539,9 +973,11 @@ do
 	local n0 = #prof.pals
 	res = H.req(p, "tide.take", { id = d.id, swap = prof.pals[1].id })
 	H.expect(not res.ok and res.err == "money" and #prof.pals == n0, "tide", "not enough shells", tostring(res.err))
-	res = H.req(p, "tide.take", { id = 424242, swap = 0 })
-	H.expect(not res.ok and res.err == "not_found", "tide", "one that has drifted off", tostring(res.err))
 	prof.shells = sh
+	res = H.req(p, "tide.take", { id = goneId or 424242, swap = prof.pals[1].id })
+	H.expect(not res.ok and res.err == "not_found" and #prof.pals == n0, "tide", "one that has floated off past the island", string.format("%s (%s)", tostring(res.err), tostring(goneId)))
+	res = H.req(p, "tide.take", { id = 424242, swap = 0 })
+	H.expect(not res.ok and res.err == "not_found", "tide", "one that never came", tostring(res.err))
 end
 -- the Index: every kind seen on the tide counts
 do
@@ -557,7 +993,7 @@ do
 	H.closePanel(p)
 end
 H.checkProfile(p, "tide")
-H.checkMirror(p, "tide")
+mirror(p, "tide")
 
 ------------------------------------------------------------------ 5. the Driftlings panel: moving, working, selling
 E.phase = "pals"
@@ -568,7 +1004,6 @@ local hutA = pieceOf("nest")
 local hutB = prof.plot.placed[#prof.plot.placed]
 H.expect(res.ok and hutB.id == "nest" and hutB ~= hutA, "pals", "a second hut", tostring(res.err))
 H.push(p, 0.4)
-calm(4)
 local pal = nil
 for _, x in prof.pals do
 	if x.home == hutA.uid and x.work ~= 0 and pal == nil then
@@ -603,7 +1038,6 @@ do
 	H.expect(pal.work == job, "pals", "Go: back to work there", tostring(pal.work))
 end
 -- Move: the hut picker (both huts, no pen); to the empty one it goes
-calm(4)
 H.openPanel(p, "pals")
 H.clickNamed(p, "Move_" .. pal.id, { wait = 0.4 })
 H.expect(H.buttonNamed(p, "Move_" .. hutB.uid) ~= nil and H.buttonNamed(p, "Move_" .. hutA.uid, true) ~= nil, "pals", "the hut picker lists both huts")
@@ -618,7 +1052,6 @@ do
 	local x = prof.pals[#prof.pals]
 	H.expect(res.ok and x.home == hutA.uid, "pals", "one more off the tide into the first hut (the comfiest with room)", string.format("%s home %d", tostring(res.err), x.home))
 end
-calm(4)
 H.openPanel(p, "pals", { move = pal.id })
 local other = nil
 for _, x in prof.pals do
@@ -630,17 +1063,16 @@ H.expect(other ~= nil and H.buttonNamed(p, "SwapWith_" .. other.id) ~= nil, "pal
 H.clickNamed(p, "SwapWith_" .. (if other then other.id else 0), { wait = 0.5 })
 H.expect(pal.home == hutA.uid and other ~= nil and other.home == hutB.uid, "pals", "swapped: it lives in the first hut again, the other in the second", string.format("%d / %s", pal.home, tostring(other and other.home)))
 -- selling from the panel takes two taps
-calm(4)
 do
 	local nPals, sold0, sh1, t1 = #prof.pals, prof.stats.sold, prof.shells, E.now()
-	local price = TideL.price(pal)
+	local price, rate0 = TideL.price(pal), Island.rates(prof).shells
 	H.openPanel(p, "pals")
 	E.run(0.3)
 	H.clickNamed(p, "Sell_" .. pal.id, { wait = 0.3 })
 	H.expect(#prof.pals == nPals, "pals", "one tap only asks Sure?")
 	H.clickNamed(p, "Sell_" .. pal.id, { wait = 0.5 })
-	-- (the island earns meanwhile: its shells a second, a turn's rate over TurnSeconds)
-	local earned = Island.rates(prof).shells / Tuning.TurnSeconds * (E.now() - t1) * 1.5 + 0.5
+	-- (the island earns meanwhile: its shells a second, a turn's rate over TurnSeconds, at the rate before the sale)
+	local earned = earnedSince(t1, rate0)
 	local got = prof.shells - sh1
 	H.expect(#prof.pals == nPals - 1 and table.find(prof.pals, pal) == nil and prof.stats.sold == sold0 + 1 and got >= price - 0.5 and got <= price + earned, "pals", "the second sells it for its price", string.format("%d driftlings, %+.1f shells (price %d, the island's own %.1f at most)", #prof.pals, got, price, earned))
 end
@@ -650,7 +1082,7 @@ H.clickNamed(p, "OpenTide", { wait = 0.4 })
 H.expect(H.currentPanel(p) == "tide", "pals", "Tide opens the tide's panel", tostring(H.currentPanel(p)))
 H.closePanel(p)
 H.checkProfile(p, "pals")
-H.checkMirror(p, "pals")
+mirror(p, "pals")
 
 ------------------------------------------------------------------ 6. the founder's looks
 E.phase = "looks"
@@ -732,7 +1164,7 @@ H.expect(lands == 1, "panels", "one island model after the swap", tostring(lands
 H.expect((PS.debugNext(1)) == 3, "panels", "the island after that is planned", tostring((PS.debugNext(1))))
 H.clickNamed(p, "BuildDone", { wait = 0.4 })
 H.checkProfile(p, "panels")
-H.checkMirror(p, "panels")
+mirror(p, "panels")
 
 ------------------------------------------------------------------ the questline (GAME_DESIGN 9)
 -- once the tips are over a card down the left names the quest on the go: Go opens the place it needs, and when its
@@ -819,7 +1251,7 @@ H.expect(H.buttonNamed(p, "QuestGo") == nil and H.buttonNamed(p, "QuestClaim") =
 prof.quest = 2
 H.push(p, 0.3)
 H.checkProfile(p, "quests")
-H.checkMirror(p, "quests")
+mirror(p, "quests")
 
 ------------------------------------------------------------------ 8. a malicious client
 E.phase = "malicious"
@@ -889,7 +1321,7 @@ expectRefused("a take without its swap field", ok, out, "bad_payload")
 ok, out = H.raw(p, "tide.take", { id = 1, swap = 0, n = 5 })
 expectRefused("a take with an extra field", ok, out, "bad_payload")
 ok, out = H.raw(p, "tide.take", { id = 424242, swap = 0 })
-expectRefused("a driftling not at the jetty", ok, out, "not_found")
+expectRefused("a driftling not on the tide", ok, out, "not_found")
 do
 	-- (every hut full, so a swap is asked for: one that lives nowhere is no swap)
 	local d = cheapest()
@@ -945,7 +1377,7 @@ end
 H.expect(rated >= 30 - Tuning.RateLimitPerSec, "malicious", "the rate limit refuses a flood", string.format("%d of 30 refused", rated))
 E.run(0.5)
 H.checkProfile(p, "malicious")
-H.checkMirror(p, "malicious")
+mirror(p, "malicious")
 
 ------------------------------------------------------------------ 9. a second player
 E.phase = "second"
@@ -956,19 +1388,50 @@ H.expect(sq ~= nil and sq.ready and sq.plot == 2, "second", "the second player g
 H.expect(E.workspace.Plots:FindFirstChild("Plot_2") ~= nil, "second", "their island is built")
 H.expect(H.cmod(q, "Controllers.CameraController").view().plot == 2, "second", "their camera frames their own island")
 H.expect(housedN() > 0 and H.inClient(q, H.cmod(q, "Controllers.WorldView").rigCount) >= housedN(), "second", "the second client draws the first island's hut driftlings", string.format("%d of %d", H.inClient(q, H.cmod(q, "Controllers.WorldView").rigCount), housedN()))
+-- both islands' tides float past on the second client too, each one where the first client puts it (both run them on
+-- the server's time from the plot's Tide attribute); the first island's carry no price tags there
 do
 	local TVq = H.cmod(q, "Controllers.TideView")
-	H.expect(H.inClient(q, TVq.count, 1) >= 1 and H.inClient(q, TVq.count, 2) >= Tuning.TideStart, "second", "the second client draws both islands' tides", string.format("island 1: %d, island 2: %d", H.inClient(q, TVq.count, 1), H.inClient(q, TVq.count, 2)))
-	local first = true
+	local UIKitQ = H.cmod(q, "UI.UIKit")
+	E.runUntil(function()
+		return H.inClient(q, TVq.count, 2) >= #sq.tide.list - 1 and H.inClient(q, TVq.count, 1) >= 1
+	end, 2, 0.1)
+	local n1, n2 = H.inClient(q, TVq.count, 1), H.inClient(q, TVq.count, 2)
+	H.expect(n1 >= 1 and n2 >= #sq.tide.list - 1 and n2 <= #sq.tide.list + 2, "second", "the second client follows both islands' tides", string.format("island 1: %d, island 2: %d of %d", n1, n2, #sq.tide.list))
+	local both, same, tagged = 0, true, 0
+	local own = {}
+	for _, d in sq.tide.list do
+		own[d.id] = true
+	end
+	for _, d in s.tide.list do
+		local xq, _, zq = H.inClient(q, TVq.where, 1, d.id)
+		local xp, _, zp = H.inClient(p, TideViewP.where, 1, d.id)
+		if xq and xp then
+			both += 1
+			same = same and math.abs(xq - xp) < 1e-6 and math.abs(zq - zp) < 1e-6
+		end
+		if not own[d.id] and H.inClient(q, function()
+			return UIKitQ.canvas("World"):FindFirstChild("TideTake_" .. d.id, true)
+		end) ~= nil then
+			tagged += 1
+		end
+	end
+	H.expect(both >= 1 and same, "second", "each of the first island's is at the same place on both clients", string.format("%d on both", both))
+	H.expect(tagged == 0, "second", "and the first island's carry no price tags on the second client", tostring(tagged))
+	local n = math.floor(TideL.life(sq.profile) / TideL.secs(sq.profile) + 1e-9)
+	local okFirst, firsts = true, 0
 	for _, d in sq.tide.list do
 		local c = Creatures.byId[d.sp]
-		first = first and c ~= nil and c.rarity == 1
+		if d.id % 3 == 1 then
+			firsts += 1
+			okFirst = okFirst and c ~= nil and c.rarity == 1 and (c.knack == "wood" or c.knack == "farm")
+		end
 	end
-	H.expect(#sq.tide.list == Tuning.TideStart and first, "second", "their own tide starts with two commons too", tostring(#sq.tide.list))
+	H.expect(math.abs(#sq.tide.list - n) <= 1 and firsts >= 2 and okFirst, "second", "their own tide is running too, every third one a common good with wood or at a farm", string.format("%d of %d, %d firsts", #sq.tide.list, n, firsts))
 end
 H.checkProfile(q, "second")
-H.checkMirror(q, "second")
+mirror(q, "second")
 H.checkProfile(p, "end")
-H.checkMirror(p, "end")
+mirror(p, "end")
 
 report(E, H)
