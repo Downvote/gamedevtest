@@ -2,8 +2,13 @@
 -- The Tree of Life's eggs (GAME_DESIGN 6; docs/ARCHITECTURE.md 10.2): "bring back the tree of life ... it now spawns
 -- eggs around it that the player can choose to hatch for some shells". Every island's eggs come from its plot's "Eggs"
 -- attribute (PlotService.sync: "id.rarity;..."), so a neighbour's tree has its eggs too. Each egg is a model of parts
--- (a speckled shell on a little bed of straw: white with spots of its rarity's colour, a legendary one gold; a rare one
--- or better has glowing spots, a light at night), lying on the tree's lawn on a ring round its stones
+-- (a shell on a little bed of straw, coloured and patterned by its rarity so one can tell them apart at a glance: "color
+-- each egg differently with different effects to allow players to distinguish easily between egg rarities". A common
+-- egg is cream with brown freckles; an uncommon one green with a white zigzag band and a leaf drifting up off it now
+-- and then; a rare one sky blue with glowing white stars and twinkles round it; an epic one purple with glowing pink
+-- spots, two motes of light circling it, a purple glow on the lawn and pink sparks rising; a legendary one gold with a
+-- band of light, a beam of light standing up out of it, a gold glow on the lawn and gold sparks rising), lying on the
+-- tree's lawn on a ring round its stones
 -- (Models/DecorModels.EGG_RING), spaced evenly along the side the view looks at. A new lot rises out of the lawn one
 -- egg after another; the old ones left sink back into it. Now and then an egg rocks a little. Over each of the own
 -- island's floats its price on a button (its spots show its rarity; where they crowd, the rarer one's tag shows): tapping it, or the egg itself, hatches it (EggView.hatch: egg.hatch; every hut full, the tree
@@ -41,7 +46,9 @@ type Egg = {
 	model: Model?,
 	parts: { { p: BasePart, off: CFrame } },
 	top: { BasePart }, -- the shell's upper half (it flies off when it hatches)
+	fx: { { p: BasePart, kind: string, k: number } }, -- the rarity's moving lights (motes, a beam)
 	ph: number,
+	spawnAt: number, -- when its next spark (the overlay's) comes
 	born: number, -- when it rose out of the lawn
 	sink: number?, -- when it started sinking back (a new lot replaced it)
 	crack: number?, -- when it started hatching
@@ -60,7 +67,18 @@ local SINK = 0.5 -- seconds an old one takes to sink back
 local CRACK = 0.9 -- seconds a hatching one takes: a shake, the top off, the bottom gone
 local DEEP = 1.4 -- studs under the lawn an egg starts (and ends) at
 local SIZE: { [number]: number } = { 1.25, 1.3, 1.38, 1.48, 1.62 } -- rarer eggs are a little bigger
-local SPOTS: { [number]: string } = { "sand_dark", "green", "blue", "purple", "orange" }
+-- Each rarity's shell (its colour and its marks) and glow (Traits.RARITY's colours: grey, green, blue, purple, gold):
+-- body, marks ("spots" freckles or stars, "band" a zigzag band round its middle), whether the marks glow, the glow on
+-- the lawn under it.
+type Look = { body: string, mark: string, marks: string, glow: boolean, lawn: string? }
+local LOOK: { [number]: Look } = {
+	{ body = "cream", mark = "sand_dark", marks = "spots", glow = false },
+	{ body = "green", mark = "white", marks = "band", glow = false },
+	{ body = "blue", mark = "white", marks = "spots", glow = true },
+	{ body = "purple", mark = "pink", marks = "spots", glow = true, lawn = "purple" },
+	{ body = "gold", mark = "yellow", marks = "band", glow = true, lawn = "yellow" },
+}
+EggView.LOOK = LOOK
 
 local function dyn(): Folder
 	local found = workspace:FindFirstChild("PixelDynamic")
@@ -116,22 +134,28 @@ local function spotOf(i: number, k: number, n: number): Vector3?
 	return c + Vector3.new(math.sin(a) * DecorModels.EGG_RING, 0, math.cos(a) * DecorModels.EGG_RING)
 end
 
--- An egg of rarity r: a shell of stacked slices (round from the side), spots of its rarity's colour (glowing on a rare
--- one or better), a bed of straw. Its parts' offsets from its foot.
-local function eggOf(r: number): (Model, { { p: BasePart, off: CFrame } }, { BasePart })
+-- An egg of rarity r (LOOK): a round shell on a bed of straw, its marks on it (freckles, stars or a zigzag band; glowing
+-- from rare up), and from epic up its lights: a glow on the lawn under it, two motes circling it (epic) or a beam of
+-- light standing up out of its top (legendary). Its parts' offsets from its foot; the top half (it flies off when it
+-- hatches); the lights (moved every frame: stepEgg).
+local function eggOf(r: number): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
 	local m = Blocks.model(nil, "TreeEgg")
 	local parts: { { p: BasePart, off: CFrame } } = {}
 	local top: { BasePart } = {}
+	local fx: { { p: BasePart, kind: string, k: number } } = {}
 	local s = SIZE[r] or 1
-	local body = if r >= 5 then "gold" else "white"
-	local spot = SPOTS[r] or "sand_dark"
-	local glow = r >= 3
-	local function add(size: Vector3, off: CFrame, color: string, neon: boolean?, upper: boolean?)
-		local p = Blocks.part(m, { size = size, cf = off, color = color, collide = false, query = false, neon = neon, name = if upper then "Top" else "Shell" })
+	local look = LOOK[r] or LOOK[1]
+	local function add(size: Vector3, off: CFrame, color: string, neon: boolean?, upper: boolean?, shape: string?)
+		local p = Blocks.part(m, { size = size, cf = off, color = color, collide = false, query = false, neon = neon, shape = shape :: any, name = if upper then "Top" else "Shell" })
 		table.insert(parts, { p = p, off = off })
 		if upper then
 			table.insert(top, p)
 		end
+		return p
+	end
+	-- the glow on the lawn (epic and legendary): a thin disc of light just over the grass, round the straw
+	if look.lawn then
+		add(Vector3.new(0.25, 1.5 * s, 1.5 * s), CFrame.new(0, -0.11, 0) * CFrame.Angles(0, 0, math.pi / 2), look.lawn, true, nil, "Cylinder")
 	end
 	-- the bed of straw
 	add(Vector3.new(1.1 * s, 0.08, 0.55 * s), CFrame.new(0, 0.04, -0.25 * s), "sand")
@@ -141,26 +165,39 @@ local function eggOf(r: number): (Model, { { p: BasePart, off: CFrame } }, { Bas
 	-- off when it hatches
 	local y0 = 0.06
 	local function ball(dia: number, off: CFrame, color: string, neon: boolean?, upper: boolean?)
-		local p = Blocks.part(m, { size = Vector3.new(dia, dia, dia), cf = off, color = color, collide = false, query = false, neon = neon, shape = "Ball", name = if upper then "Top" else "Shell" })
-		table.insert(parts, { p = p, off = off })
-		if upper then
-			table.insert(top, p)
+		add(Vector3.new(dia, dia, dia), off, color, neon, upper, "Ball")
+	end
+	ball(0.86 * s, CFrame.new(0, y0 + 0.4 * s, 0), look.body)
+	ball(0.66 * s, CFrame.new(0, y0 + 0.7 * s, 0), look.body, nil, true)
+	if look.marks == "spots" then
+		-- freckles or stars on the side facing the view, little round dabs set into the shell
+		local sp = { { 0.3, 0.3, 0.22 }, { 0.48, 0.05, 0.4 }, { 0.56, 0.38, -0.02 }, { 0.36, -0.2, 0.33 }, { 0.82, 0.18, 0.2 }, { 0.62, -0.12, 0.3 } }
+		for k, d in sp do
+			ball(0.17 * s, CFrame.new(d[2] * s, y0 + d[1] * s, d[3] * s), look.mark, look.glow, k == 5)
+		end
+	else
+		-- a zigzag band round its middle: dabs a little up and down in turn, all the way round
+		for k = 0, 11 do
+			local a = k * math.pi / 6
+			local up = if k % 2 == 0 then 0.07 else -0.07
+			ball(0.16 * s, CFrame.new(math.cos(a) * 0.4 * s, y0 + (0.46 + up) * s, math.sin(a) * 0.4 * s), look.mark, look.glow)
 		end
 	end
-	ball(0.86 * s, CFrame.new(0, y0 + 0.4 * s, 0), body)
-	ball(0.66 * s, CFrame.new(0, y0 + 0.7 * s, 0), body, nil, true)
-	-- spots on the side facing the view (glowing on a rare one or better), little round dabs set into the shell
-	local sp = { { 0.3, 0.3, 0.22 }, { 0.48, 0.05, 0.4 }, { 0.56, 0.38, -0.02 }, { 0.36, -0.2, 0.33 }, { 0.82, 0.18, 0.2 } }
-	for k, d in sp do
-		ball(0.17 * s, CFrame.new(d[2] * s, y0 + d[1] * s, d[3] * s), spot, glow, k == 5)
-	end
 	if r >= 5 then
-		-- a legendary egg: a band of light round its middle
+		-- a legendary egg: a band of light round its middle, and a beam standing up out of its top
 		add(Vector3.new(0.62 * s, 0.06, 0.62 * s), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
 		add(Vector3.new(0.06, 0.06, 0.9 * s), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
 		add(Vector3.new(0.9 * s, 0.06, 0.06), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
+		local beam = Blocks.part(m, { size = Vector3.new(0.25, 2, 0.25), cf = CFrame.new(0, y0 + 2 * s, 0), color = "yellow", collide = false, query = false, neon = true, name = "Beam" })
+		table.insert(fx, { p = beam, kind = "beam", k = 0 })
+	elseif r == 4 then
+		-- an epic egg: two motes of light circling it, a pink one and a white one
+		for k, c in { "pink", "white" } do
+			local mote = Blocks.part(m, { size = Vector3.new(0.25, 0.25, 0.25), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
+			table.insert(fx, { p = mote, kind = "mote", k = k })
+		end
 	end
-	return m, parts, top
+	return m, parts, top, fx
 end
 
 local function untag(e: Egg)
@@ -176,10 +213,10 @@ local function dress(e: Egg)
 	if e.model then
 		return
 	end
-	local m, parts, top = eggOf(e.r)
+	local m, parts, top, fx = eggOf(e.r)
 	m.Parent = dyn()
 	PixelRenderer.registerDynamic(m)
-	e.model, e.parts, e.top = m, parts, top
+	e.model, e.parts, e.top, e.fx = m, parts, top, fx
 end
 
 local function drop(e: Egg)
@@ -344,7 +381,7 @@ local function syncPlot(i: number, near: boolean, t: number)
 				end
 			end
 			held[slot] = true
-			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = slot, n = n, parts = {}, top = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER }
+			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0 }
 			came += 1
 		else
 			e.n = math.max(n, e.slot)
@@ -411,6 +448,123 @@ local function stepEgg(e: Egg, t: number)
 		end
 		rp.p.CFrame = here
 	end
+	-- the rarity's lights: an epic egg's motes circle it, bobbing; a legendary egg's beam stands up out of its top,
+	-- breathing taller and shorter. Hatching or sinking, they go out (under the lawn).
+	local s = SIZE[e.r] or 1
+	local quiet = e.crack ~= nil or e.sink ~= nil
+	for _, f in e.fx do
+		if quiet then
+			f.p.CFrame = CFrame.new(cf.Position - Vector3.new(0, 6, 0))
+		elseif f.kind == "mote" then
+			local a = t * 1.7 + e.ph + f.k * math.pi
+			local y = 0.06 + (0.62 + 0.12 * math.sin(t * 2.3 + f.k * 2)) * s
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * 0.78 * s, y, math.sin(a) * 0.78 * s)
+		elseif f.kind == "beam" then
+			local h = 2.2 + 0.5 * math.sin(t * 1.9 + e.ph)
+			local baseY = 0.06 + 1.1 * s
+			f.p.Size = Vector3.new(0.25, Blocks.snap(h), 0.25)
+			f.p.CFrame = cf * CFrame.new(0, baseY + Blocks.snap(h) / 2, 0)
+		end
+	end
+end
+
+-- The rarities' sparks over the eggs (2D, on the World canvas, at whole UI px: "particles are 1 px"): an uncommon egg
+-- lets a green leaf drift up now and then, a rare one twinkles (white and cyan stars blink round it), an epic one sends
+-- pink and white sparks up, a legendary one gold sparks and gold stars. Only round eggs lying still (not rising,
+-- sinking or hatching), at most SPARKS at once.
+type Spark = { egg: string, at: Vector3, vel: Vector3, born: number, life: number, kind: string, gui: GuiObject, frames: { GuiObject }?, sway: number }
+local sparks: { Spark } = {}
+local SPARKS = 140
+local EVERY: { [number]: number } = { 0, 0.8, 0.42, 0.26, 0.14 } -- seconds between an egg's sparks, by rarity (0: none)
+
+local function newSpark(e: Egg, foot: Vector3, t: number)
+	if #sparks >= SPARKS then
+		return
+	end
+	local s = SIZE[e.r] or 1
+	local canvas = UIKit.canvas("World")
+	local a = math.random() * math.pi * 2
+	local function dot(color: string, at: Vector3, vel: Vector3, life: number)
+		local g = UIKit.rect(canvas, UDim2.fromOffset(1, 1), nil, Blocks.color(color), 3)
+		g.Name = "EggSpark"
+		local sp: Spark = { egg = e.key, at = at, vel = vel, born = t, life = life, kind = "dot", gui = g, frames = nil, sway = math.random() * 6.28 }
+		table.insert(sparks, sp)
+	end
+	local function star(names: { string }, at: Vector3, life: number)
+		local holder = Instance.new("Frame")
+		holder.Name = "EggStar"
+		holder.BackgroundTransparency = 1
+		local w, h = PixelSprites.size(names[1])
+		holder.Size = UDim2.fromOffset(w, h)
+		local frames: { GuiObject } = {}
+		for k, n in names do
+			local im = PixelSprites.image(holder, n, UDim2.fromOffset(0, 0), 3)
+			im.Visible = k == 1
+			frames[k] = im
+		end
+		holder.Parent = canvas
+		local sp: Spark = { egg = e.key, at = at, vel = Vector3.zero, born = t, life = life, kind = "star", gui = holder, frames = frames, sway = 0 }
+		table.insert(sparks, sp)
+	end
+	if e.r == 2 then
+		-- a leaf off the top, drifting up and to the side
+		dot(if math.random() < 0.5 then "green" else "leaf", foot + Vector3.new(math.cos(a) * 0.3 * s, 1.0 * s, math.sin(a) * 0.3 * s), Vector3.new(0, 0.6, 0), 1.6)
+	elseif e.r == 3 then
+		-- a star blinking somewhere round the shell
+		local at = foot + Vector3.new(math.cos(a) * 0.62 * s, (0.25 + math.random()) * s, math.sin(a) * 0.62 * s)
+		star({ "twinkle_1", "twinkle_2", "twinkle_1" }, at, 0.6)
+	elseif e.r == 4 then
+		dot(if math.random() < 0.6 then "pink" else "white", foot + Vector3.new(math.cos(a) * 0.55 * s, 0.3 * s, math.sin(a) * 0.55 * s), Vector3.new(0, 0.9 + math.random() * 0.4, 0), 1.3)
+	else
+		dot(if math.random() < 0.7 then "yellow" else "white", foot + Vector3.new(math.cos(a) * 0.6 * s, 0.2 * s, math.sin(a) * 0.6 * s), Vector3.new(0, 1.3 + math.random() * 0.6, 0), 1.2)
+		if math.random() < 0.3 then
+			star({ "spark_1", "spark_2", "spark_3" }, foot + Vector3.new(math.cos(a + 1) * 0.7 * s, (0.4 + math.random() * 1.2) * s, math.sin(a + 1) * 0.7 * s), 0.55)
+		end
+	end
+end
+
+local function stepSparks(t: number)
+	-- new ones from the eggs lying still on the lawn
+	if PixelRenderer.isActive() then
+		for _, e in eggs do
+			local every = EVERY[e.r] or 0
+			if every <= 0 or e.model == nil or e.sink ~= nil or e.crack ~= nil then
+				continue
+			end
+			if t >= e.spawnAt then
+				local at, under = placeOf(e, t)
+				if at and under < 0.05 then
+					newSpark(e, (at :: CFrame).Position, t)
+				end
+				e.spawnAt = t + every * (0.6 + math.random() * 0.8)
+			end
+		end
+	end
+	local keep: { Spark } = {}
+	for _, sp in sparks do
+		local age = t - sp.born
+		local e = eggs[sp.egg]
+		if age >= sp.life or e == nil or e.crack ~= nil or e.sink ~= nil then
+			sp.gui:Destroy()
+			continue
+		end
+		local w = sp.at + sp.vel * age + Vector3.new(math.sin(sp.sway + age * 4) * 0.12 * (if sp.kind == "dot" then 1 else 0), 0, 0)
+		local px, py, on = PixelRenderer.projectPixel(w)
+		if sp.kind == "star" then
+			local frames = sp.frames :: { GuiObject }
+			local k = math.clamp(math.floor(age / sp.life * #frames) + 1, 1, #frames)
+			for i, f in frames do
+				f.Visible = i == k
+			end
+			local g = sp.gui
+			g.Position = UDim2.fromOffset(math.floor(px) - math.floor(g.Size.X.Offset / 2), math.floor(py) - math.floor(g.Size.Y.Offset / 2))
+		else
+			sp.gui.Position = UDim2.fromOffset(math.floor(px), math.floor(py))
+		end
+		sp.gui.Visible = on
+		table.insert(keep, sp)
+	end
+	sparks = keep
 end
 
 -- The own island's tags over the eggs near the view and above the lawn: the price on a button (green when the shells
@@ -576,6 +730,7 @@ function EggView.step(t: number, focusX: number)
 	for _, e in eggs do
 		stepEgg(e, t)
 	end
+	stepSparks(t)
 	updateTags(t)
 end
 

@@ -551,7 +551,7 @@ end
 -- the old one sinking (tree_lay); one hatched by its price tag, cracking, its driftling stepping out (tree_hatch); the
 -- glowing eggs at night (tree_night).
 function SCEN.tree()
-	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 3, 1, 2, 4, 1 } })
+	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 2, 3, 4, 5, 1 } })
 	local p = join(21, "Grove")
 	settle(p)
 	local s = H.session(p)
@@ -563,7 +563,7 @@ function SCEN.tree()
 	local q = Tree.piece(prof)
 	if q and p.Character then
 		local w, d = Plot.footprint(q.id, q.rot)
-		p.Character:PivotTo(E.cf.new(ox + q.x + w / 2 + 1, 3, oz + q.z + d + 2))
+		p.Character:PivotTo(E.cf.new(ox + q.x - 1, 3, oz + q.z + d + 2))
 		E.run(2)
 		settle(p, 30, 1)
 	end

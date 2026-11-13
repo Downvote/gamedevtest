@@ -181,8 +181,10 @@ S("bombfuse", [
     "...DDDD...",
     "..........",
 ])
-# The Hatchery's eggs (GAME_DESIGN 6.1), one a rarity: a pale shell lit from the top left, speckled in the rarity's
-# colour (a legend's shell gold).
+# The tree's eggs (GAME_DESIGN 6), one a rarity, matching their 3D models (Controllers/EggView.LOOK: "color each egg
+# differently with different effects to allow players to distinguish easily between egg rarities"): a common egg cream
+# with brown freckles, an uncommon one green with a white zigzag band, a rare one sky blue with white stars, an epic one
+# purple with pink spots, a legendary one gold with a band of light.
 EGG = [
     "....AAAA....",
     "...AAAAAA...",
@@ -200,8 +202,28 @@ EGG = [
     "..AAAAAAAA..",
     "....AAAA....",
 ]
-for _r, (_body, _spot) in enumerate([("W", "s"), ("W", "l"), ("W", "b"), ("W", "u"), ("Y", "t")], start=1):
-    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in EGG])
+EGG_BAND = [
+    "....AAAA....",
+    "...AAAAAA...",
+    "..AAAAAAAA..",
+    "..AAAAAAAA..",
+    ".AAAAAAAAAA.",
+    ".AAAAAAAAAA.",
+    "AxAAAxAAAxAA",
+    "xAxAxAxAxAxA",
+    "AAAxAAAxAAAx",
+    "AAAAAAAAAAAA",
+    "AAAAAAAAAAAA",
+    ".AAAAAAAAAA.",
+    ".AAAAAAAAAA.",
+    "..AAAAAAAA..",
+    "....AAAA....",
+]
+for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w")], start=1):
+    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask])
+# A rare egg's twinkle (EggView's sparks): a small white star that opens and closes, cyan at its tips.
+S("twinkle_1", [".......", ".......", "...c...", "..cwc..", "...c...", ".......", "......."], outline=False, shade=False)
+S("twinkle_2", [".......", "...c...", "...w...", ".cwwwc.", "...w...", "...c...", "......."], outline=False, shade=False)
 S("heart", [".........", ".KK...KK.", "KKKK.KKKK", "KwKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K....", "........."])
 
 ARROW = [
