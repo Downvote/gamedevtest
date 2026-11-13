@@ -17,7 +17,7 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work ambient late
 loading themes hatches`, `panel=<pals|work|tree|hatch|index|looks>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
-that hatches as hr), `catalog=<group>` (a group of the build catalog: `ground fence
+that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `catalog=<group>` (a group of the build catalog: `ground fence
 nature theme theme2 fun`, a Build mode tab or ids) or `theme=<beach|garden|frost|zen|volcano|fairy>`. The loading card's
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place file is
 `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
@@ -40,7 +40,8 @@ model: after changing a piece's model, run `sh tools/preview/thumbs.sh`), at who
 is 3D: the islands, the buildings (the Tree of Life among them), the build catalog's pieces, the tree's eggs and the
 driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,
 `NatureModels`, `ThemeModels`, `ThemeMoreModels` and `FunModels` on `Models/Parts`, `Models/MicroModels`,
-`Models/DriftModels`, the eggs in `Models/EggModels`, the hatch scene's islet in `UI/HatchScene`), world-aligned on the iso
+`Models/DriftModels`, the eggs in `Models/EggModels`, the hatch scene's islet in `UI/HatchScene`; the driftlings' round pieces from
+`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail), world-aligned on the iso
 grid and drawn by the pixel filter. The hatch scene's sky is a 2D picture painted pixel by pixel (`UI/HatchBackdrop`).
 (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few
 hours; the tree is back, laying the eggs the driftlings hatch from.)

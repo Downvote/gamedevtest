@@ -62,7 +62,10 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > with various shapes and textured objects. Also, like the bakery game, you can use 2d details ..." (no `EggHatch_`
 > tags or `CardHatch_` buttons: `EggView.tapAt` and the HUD's `TreeCardTap` open the tree panel; `Tree.rise` and
 > `Tuning.EggUp`, the result's `hr`; `Models/EggModels` (`build`, `hero`); `UI/HatchScene`, `UI/HatchBackdrop`;
-> `Stage.clear` and the renderer's see-through sky; `Palette.modes.day` warm)
+> `Stage.clear` and the renderer's see-through sky; `Palette.modes.day` warm). Then "The creatures look blocky and
+> unrealistic. Look at the cakes in the bakery game to reference how detailed they should be" and "could everything
+> use a more pastelish colour pallette?" (`Models/DriftKit`, `Models/DriftPlansA..D`, `DriftModels.build`'s `lod`,
+> `MicroModels.driftling(..., lod)`; the pastel `Data/Palette` colours and UI colours, `gen_art.py`'s `PAL`)
 
 ## 1. Layout and tooling
 
@@ -175,7 +178,7 @@ every field.
 
 | Module | Holds |
 |---|---|
-| `Data/Palette` | the LUT colours (`order`, `colors`), the shore's `shallow`, `foam`, `rock` and `rock_dark`, the older rooms' floor and wall themes (`themes`, still in the LUT), the build catalog's 16 theme colours (`moss maple bamboo clay slate snow ice lava basalt crystal cherry teal swamp coral straw brick`, in `order` and so in the LUT), the light modes (`modes.day` a little warm, 1.03, 1, 0.95: GAME_DESIGN 2's cozy light), and the UI's colours (`ui`, `axis`, `match`) |
+| `Data/Palette` | the LUT colours (`order`, `colors`), the shore's `shallow`, `foam`, `rock` and `rock_dark`, the older rooms' floor and wall themes (`themes`, still in the LUT), the build catalog's 16 theme colours (`moss maple bamboo clay slate snow ice lava basalt crystal cherry teal swamp coral straw brick`, in `order` and so in the LUT), the light modes (`modes.day` a little warm, 1.03, 1, 0.95: GAME_DESIGN 2's cozy light), and the UI's colours (`ui`, `axis`, `match`). All pastel (GAME_DESIGN 2), the darks lifted less; the office themes nudged so each still lands on itself in the LUT (the Shading spec) |
 | `Data/Buildings` | the 245 pieces (GAME_DESIGN 4) and the Tree of Life `{ id, name, kind (farm wood shop nest breed gen path water fence decor tree), shells (0 for every piece since 2026-11-13, kept for a price in both), wood (the price: the old shells and wood added up; a Work or Huts tab building's, kinds farm wood shop gen nest breed, times `Tuning.BuildingPrice` to two figures, 5 at least: `priceOf`), w, d (a path or water tile 2 x 2; a fence length w 2, d 0: a line along the grid), rate (a turn with one common driftling at it: wood for kind wood, shells for farm and shop), knack, slots (a hut's room), charm (a path's, water's or fence's may be a fraction), comfort (a hut's share), boost ("farm" "fish" "wood" "shop" "all": a "gen" piece's knack), boostBy, tier (1 .. 10), blurb, tab (Build mode's tab: `work nest path fence water nature decor fun`; from the kind when not given: farm, wood, shop and gen "work", nest and breed "nest", path, water and fence their own, decor "decor"), sub (its row of chips: a Decor piece's theme `beach garden farm harbour town jungle frost autumn desert fairy zen volcano grand`, Nature's `trees plants rocks`, Fun's `seats lights play treats fountains`, Water's `tiles bridge float`, Work's the kind `farm wood shop gen`; "" for the huts, paths and fences), water ("" none; "over": may stand over water tiles as well as grass, the bridges, the dock, the waterwheel and the little waterfall; "on": only on water tiles, lily pads, reeds, stepping stones, the duck decoy, the rowboat, lotus flowers, floating lanterns), feel (what putting it down throws up and sounds like, `Controllers/BuildFx`: `wood stone plant water metal magic sand snow cloth fire`; from the kind when not given: path stone, water water, farm plant, else wood) }`; kind "farm" (the old "food": it sells what it grows or catches for shells), "nest" the huts (Driftling Hut .. Driftling Palace), "path" and "water" the drawn tiles, "fence" the drawn lengths, "decor" everything for charm on the Nature, Decor, Fun and Water tabs (the bridges and floating pieces among them), "tree" the Tree of Life (`tree`: 8 x 8, charm 6, no price, tier 99 so no tab of the tray shows it; every island's, `Logic/Tree`); no `eats`, and no one-piece `fence` or `hedge` since save version 14; `list`, `byId` |
 | `Data/Creatures` | the 55 driftlings (GAME_DESIGN 6) `{ id, name, islet (its kind, Data/Islets), rarity (1 common .. 5 legendary), hp, atk, def, spd (kept only for `power`), knack, shape (its MicroModels body plan), body, accent, blurb, passive ({ name, fx }: its own, Data/Traits effects), power (its stats weighted, +12% a rarity step: the breeding rank) }`; `list`, `byId` |
 | `Data/Traits` | what makes one driftling unlike another (GAME_DESIGN 6): `MAX` (4 mutations), `KEYS` (the effects: work farm fish wood shop (shares at work), cost (the eggs' price: below 0 cheaper), sell (the price), charm (whole points), tree (the next eggs sooner), luck (luckier eggs); cost, tree and luck count from a driftling in a hut, for the whole island; 0.1 = +10%; `cost` was `eat` before the tide and the driftling's own price on it, `tree` was `tide` on it), `RARITY` (`{ name, color, weight }` x 5: the tree's weights before luck, 100 45 16 5 1.2), `TIER_COLOR`, `TIER_STARS`, `list`, `byId` (mutations `{ id ("sturdy3"), family, tier (1 .. 4; 0 a flaw), name, blurb, fx }`: ten families x four tiers and five flaws; the families keep their old ids, "sturdy" now Thrifty .. Selfless (cost) and "swift" Leafy .. Evergreen (tree), so older saves read them), `families`, `at(family, tier)`, `roll(rng, rarity) -> { id }` (0 .. 3, no family twice, a rarer one rolls fewer flaws and higher tiers), `sum(passive?, muts?) -> Fx`, `workAt(fx, knack)` (work + the knack's share, at least -0.5), `clean(muts)` (known ids, a family once, at most MAX), `describe(fx)` ("+24% at farms, eggs cost 30% less, +2 charm, eggs 4% sooner", "+5% egg luck") |
@@ -320,18 +323,39 @@ Models (`src/shared/Models`, Roblox modules):
   butterfly light flame crab ...`), `slab`, `grid`, `hoop`, and the fights' `aim`, `aimpath` and `aimring` (nothing
   builds them now), `place(t, cf)`, `scale(t, k)`,
   `recolor(t, color?)`, `show(t, on)`, `has`. Parts keep their sizes to the eighth of a stud (about an art px), not
-  Blocks' quarter. `driftling(shape, body, accent)` is `DriftModels.build` (below); `animate(t, time, mood, k?)` hands
+  Blocks' quarter. `driftling(shape, body, accent, lod?)` is `DriftModels.build` (below; WorldView builds "world",
+  everything else the default "full"); `animate(t, time, mood, k?)` hands
   a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale`, and moves the other things' limbs by name
   (`Wing*` flap, `Tail*` wag, `Eye*` blink...; `flap(t, cf, phase, glide?)`). WorldView and StreetLife call
   it every frame.
+- `DriftKit` (GAME_DESIGN 6, "Look at the cakes in the bakery game to reference how detailed they should be"): the
+  driftlings' building kit, after Random Bakery's FoodKit. Builder state (the thing being built, its current joint):
+  `new(shape, h, r, gait)`, `J(name, parent?, pivot, kind, side?, phase?)`, `on(joint)`, `finish()`, `setFull(on)`,
+  `full()`. Parts on the 0.05-stud grid (a Ball's diameter its smallest side): `part(name, shape, size, cf, color,
+  neon?)`, `P` (centre and turn), `D` (full only), `keep`. Round shapes: `ball`, `disc(name, at, normal, d, th, color,
+  detail?, onR?)` (flat, sunk onto a ball of radius onR so its rim meets the surface), `rod(a, b, d)`, `blade(base,
+  tip, w, th, normal)` (a flat pointed triangle: two mirrored half wedges), `tube(name, pts, radii, color, step?)` (a
+  capsule chain along a Catmull-Rom curve: cylinders between points with a ball at each joint, the joints' balls 0.86
+  of their links so no two surfaces lie flush, the ends round), `strip(pts, widths, normal)` (overlapping coplanar
+  discs), `pillow(center, R, h, up)` (a disc with a ring of balls round its rim), `ovoid(center, half, color, rot?)`
+  (an ellipsoid of balls along its longest axis, two or three rows where it is much wider than deep), `tuft`,
+  `toes`, `whiskers`, `onBall(c, r, dir) -> (point, normal)`, `along(at, dir)`, `curveAt(pts, u)`. The face:
+  `eye(side, hc, hr, dir, d, iris?, dark?)` / `eyes(hc, hr, dir, spread, lift, d, iris?, dark?)` (two dark discs for
+  an oval, an iris disc, two shines, a lid of small balls), `blush`, `mouth(at, n, w)` (a smile of two rods, an open
+  mouth disc and tongue). Face parts are listed in the thing's `face` table: "eye" (tucked in while shut), "lid" (out
+  only while shut), "open" (out only while the mouth is open), "closed" (out only while it is shut); a tucked part
+  sits `TUCK` (0.14) studs in along its local +X, its normal. `detail` arguments and `D` drop a piece from the "world"
+  level of detail. `Thing` adds `face` and `lod` ("full" | "world") to DriftModels' old fields.
+- `DriftPlansA..D`: the body plans built with the kit, each `(b, a) -> Thing` facing +Z with its feet at y 0, the old
+  plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: 90 to
+  200 parts; world: 30 to 70. `DriftModels` takes them over its own old plans.
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
   body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
-  golem drake`), each 25 to 50 parts in its species' body and accent colours (eighth-stud sizes, wedges for beaks and
-  tails), built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of
+  golem drake`, from `DriftPlansA..D`) in its species' body and accent colours, built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of
   (part -> joint), gait ("quad" | "biped" | "hop" | "scuttle" | "slither" | "fly"), world }`. Joint kinds: `body` (the
   root), `head`, `neck`, `jaw`, `ear`, `arm`, `leg`, `tail` (segments in a chain, `phase` their order), `wing` (an
   outer segment as a child), `fin`, `stalk` (eye stalks), `pincer`, `tendril` (two segments), `antenna`, `shell`.
-  `build(shape, body, accent) -> Thing` (with `rig`), `has(shape)`, `animate(t, time, mood, k?, squash)`: every joint's
+  `build(shape, body, accent, lod?) -> Thing` (with `rig`; `lod` "full", the default, or "world"), `has(shape)`, `animate(t, time, mood, k?, squash)`: every joint's
   turn and shift about its pivot for the moment and the mood, composed down the chain (`world[j] = world[parent] *
   pivot * turn * pivot^-1`), then each part's rest pose (times the squash). Idle: breathing, a look about every 6 s,
   a yawn every 9 s, ear twitches, a slow tail sway and wing flutter, a blink every 3.4 s; walk by gait (legs in
@@ -341,7 +365,7 @@ Models (`src/shared/Models`, Roblox modules):
   (WorldView): `peck` (bursts of pecks at the ground, jaw open at the bottom), `push` (leaning in, pacing on the spot,
   arms forward), `dip` (head dipping for fish, a snap every 4 s), `wave` (a raised arm waving, chattering, wings
   beating, quick wags), `nap` (low and breathing slowly, eyes shut, head down, wings folded) and `hop`. Later segments of a tail
-  or wing swing less (the tip doesn't whip round). `Eye*` shut by size (their shines tucked behind), `Mouth` opens.
+  or wing swing less (the tip doesn't whip round). The kit's face parts blink and open by tucking (`face`, above).
 
 ## 7. Server
 

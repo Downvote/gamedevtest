@@ -1,6 +1,9 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "There is no need to make things limited by squares and spheres, make
+> The requests (2026-11-13, the latest): "The creatures look blocky and unrealistic. Look at the cakes in the bakery
+> game to reference how detailed they should be"; "Also, could everything use a more pastelish colour pallette?"
+
+> The request (2026-11-13): "There is no need to make things limited by squares and spheres, make
 > everything more detailed with various shapes and textured objects. Also, like the bakery game, you can use 2d details
 > to add to the athmosphere, such as grass, wood detail, birds and other details"
 
@@ -188,7 +191,13 @@ offline progress).
   afternoon (`Palette.modes.day` 1.03, 1, 0.95: the same warmth the moving things always had), the grass and leaves a
   touch more golden and the sand a touch warmer. Dusk, twilight and night keep their grades (§8). The hatch scene's
   skies (§6.2) are the warmest of all: a sunset, a golden afternoon, lantern-lit nights.
-- **Surfaces** (the request of 2026-11-13 at the top, "textured objects" and "wood detail"): the filter gives the world's materials a texture as it bakes, the way Random Bakery gives its wood a
+- **Pastel** (the request of 2026-11-13 at the top: "could everything use a more pastelish colour pallette?"): every
+  colour in the game is a soft pastel, a lighter and gentler take on the hue it was: sage grass, a pale aqua sea, cream
+  sand, rose reds, butter yellows, lilac purples. The darks are lifted less, so shade and shadow still read, and the
+  ink outline stays ink. The interface follows: pastel buttons, light wooden frames, plates a soft plum-brown dark
+  enough for white text. The sprites, the hatch scene's painted skies, the loading card and the small lives on the
+  lawn (flowers, butterflies) use the same soft colours.
+- **Surfaces** (the request of 2026-11-13, "textured objects" and "wood detail"): the filter gives the world's materials a texture as it bakes, the way Random Bakery gives its wood a
   grain: 1 px marks in a darker or lighter tone of the surface's own colour, few and quiet, so a lawn reads as grass
   and a plank as wood up close while the island still looks calm from afar. Grass, moss and leaves get little blades,
   tufts and flecks of light on the faces that look up; sand gets specks and grains; stone and paving get specks and
@@ -828,7 +837,17 @@ there.
 > mesh seems to move as one throughout all their animations. you can make different moving parts for creatures to
 > allow for more expressiveness"
 
-**Their bodies** (`Models/DriftModels`): each of the twenty body plans is built to read as its animal. The turtle has
+**Built like the bakery's cakes** (the request of 2026-11-13 at the top: "The creatures look blocky and unrealistic.
+Look at the cakes in the bakery game to reference how detailed they should be"): a driftling is made the way Random
+Bakery makes a cake, from round pieces on a fine grid and many small ones (`Models/DriftKit`). Bodies are egg-round;
+necks, limbs, tails, ears and horns are smooth tubes that taper and bend; shells and pads are round pillows; spots,
+blush, stripes and the inside of an ear lie flat on the surface; leaves, feathers, fins and spikes are thin pointed
+blades. The eyes are big and glossy: a dark oval, a coloured iris low in it and two shines, and when they blink a
+soft curved lid takes their place. A closed mouth is a little smile that opens when the driftling cheers or yawns.
+Up close (the hatch scene, the portraits) a driftling has 90 to 200 pieces: toes, whiskers, fur tufts, flecks and
+cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces.
+
+**Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`): each of the twenty body plans is built to read as its animal. The turtle has
 a domed shell with a ring of plates and a rim, a head on a neck with a beak, and flippered legs. The fox pup has a
 snout and nose, tall ears with dark tips, a fluffy chest and a bushy tail with a white tip. The crab has eyes on
 stalks, big claws with a hinged pincer and three legs a side. The gull has a beak in two halves, wings with a white
