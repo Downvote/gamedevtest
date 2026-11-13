@@ -38,8 +38,10 @@ local Tuning = {
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
-	-- growing the island, in wood (cheaper early on: "expanding island costs too much, make them cheaper early on")
-	TierCost = { 0, 600, 9000, 150000, 320000, 800000 },
+	-- growing the island, in wood (cheaper early on: "expanding island costs too much, make them cheaper early on"),
+	-- ten tiers since "make more island progression and allow the player to expand their land even more"
+	-- (GAME_DESIGN 4): the old wall before Harbor Town lower, four bigger islands past Sunspire Capital
+	TierCost = { 0, 600, 9000, 60000, 160000, 380000, 800000, 1600000, 3000000, 5000000 },
 	-- the huts (GAME_DESIGN 4.1): a resident's comfort (its hut's, plus this by the hut's level) adds to its work
 	ComfortLvl = { 0, 0.04, 0.08 },
 	BoostMax = 0.6, -- the boost buildings' shares at one knack together, at most
@@ -50,17 +52,17 @@ local Tuning = {
 	-- increases the quality of eggs spawned and amount of eggs spawned"): every EggSecs seconds (sooner with the huts'
 	-- tree shares) the tree lays EggCount[tier] eggs round its roots, the ones left unhatched going
 	EggSecs = 180,
-	EggCount = { 5, 6, 7, 8, 9, 10 },
+	EggCount = { 5, 6, 7, 8, 9, 10, 10, 10, 10, 10 },
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
 	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off)
 	EggPrice = { 20, 90, 400, 2000, 10000 },
-	EggTier = { 1, 3, 8, 20, 45, 90 },
+	EggTier = { 1, 3, 8, 20, 45, 90, 160, 270, 420, 640 },
 	-- an egg's rarity: a rarity r's weight (Data/Traits.RARITY) times (1 + EggLuck by the island's tier + the huts'
 	-- luck)^(r - 1); what hatches rolls its mutations as one rarity better every EggMutTier tiers past the first
-	EggLuck = { 0, 0.25, 0.5, 0.75, 1.0, 1.3 },
+	EggLuck = { 0, 0.25, 0.5, 0.75, 1.0, 1.3, 1.6, 1.9, 2.2, 2.6 },
 	EggMutTier = 2,
 	-- the tree's model grows grander with the island (its stage by tier, Models/DecorModels)
-	TreeStage = { 1, 2, 2, 3, 3, 4 },
+	TreeStage = { 1, 2, 2, 3, 3, 4, 4, 4, 4, 4 },
 	HutTree = 0.5, -- the huts' driftlings' tree shares together bring the next eggs this much sooner at most ...
 	HutLuck = 0.5, -- ... their luck shares add this much luck at most ...
 	HutCost = 0.5, -- ... and their cost shares take this much off the eggs' price at most
@@ -83,11 +85,14 @@ local Tuning = {
 	-- the sea and the islands (GAME_DESIGN 8; Data/Street)
 	MaxPlots = 6, -- islands along the boardwalk (the server's size)
 	PlotSpacing = 80, -- studs between island origins along X
-	PlotPieces = { 24, 40, 60, 85, 115, 150 }, -- buildings and decor standing on an island, by its tier
+	-- buildings and decor standing on an island, by its tier (more room since the build catalog grew: GAME_DESIGN 4)
+	PlotPieces = { 36, 60, 90, 130, 180, 240, 300, 370, 450, 540 },
 	-- huts an island may have, by its tier (GAME_DESIGN 4: "make a limit of huts per island expansion level"): more room
 	-- for driftlings comes from growing the island, or a bigger hut in a small one's place (Replace)
-	HutLimit = { 4, 6, 8, 10, 12, 14 },
-	PathPieces = { 60, 120, 200, 300, 400, 500 }, -- path tiles, apart from the pieces
+	HutLimit = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 },
+	-- path and water tiles together, apart from the pieces; fence lengths, apart again
+	PathPieces = { 80, 150, 240, 340, 460, 600, 750, 900, 1050, 1200 },
+	FencePieces = { 40, 80, 130, 180, 240, 300, 370, 440, 520, 600 },
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
 	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode)

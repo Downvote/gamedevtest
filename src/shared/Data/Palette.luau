@@ -69,6 +69,24 @@ local ORDER: { string } = {
 	"hair_red",
 	"hair_blue",
 	"jeans",
+	-- the build catalog's themes (GAME_DESIGN 4: "enough paths, fences and other detail to make a lot of vastly
+	-- different themed islands")
+	"moss",
+	"maple",
+	"bamboo",
+	"clay",
+	"slate",
+	"snow",
+	"ice",
+	"lava",
+	"basalt",
+	"crystal",
+	"cherry",
+	"teal",
+	"swamp",
+	"coral",
+	"straw",
+	"brick",
 }
 
 local COLORS: { [string]: number } = {
@@ -134,6 +152,23 @@ local COLORS: { [string]: number } = {
 	hair_red = 0xD9603B,
 	hair_blue = 0x5B7FD9,
 	jeans = 0x4E6A9C,
+
+	moss = 0x6F9A48,
+	maple = 0xE0663A,
+	bamboo = 0xC4C46A,
+	clay = 0xC4683F,
+	slate = 0x5E6779,
+	snow = 0xF1F6FB,
+	ice = 0xB6E0F0,
+	lava = 0xFF7C2B,
+	basalt = 0x433D48,
+	crystal = 0xC39BF0,
+	cherry = 0xFFC3DA,
+	teal = 0x46B7A6,
+	swamp = 0x5D7F57,
+	coral = 0xFF8C78,
+	straw = 0xE6C468,
+	brick = 0xB4523A,
 }
 
 -- The office tiers' surfaces (Data/Office: theme per tier). floor_a / floor_b: the two floor tile tones, wall /

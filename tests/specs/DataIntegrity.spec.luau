@@ -15,7 +15,9 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { farm = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, decor = true, tree = true }
+		local kinds = { farm = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, water = true, fence = true, decor = true, tree = true }
+		local tabs = { work = true, nest = true, path = true, water = true, fence = true, nature = true, decor = true, fun = true }
+		local feels = { wood = true, stone = true, plant = true, water = true, metal = true, magic = true, sand = true, snow = true, cloth = true, fire = true }
 		for _, d in Buildings.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
@@ -23,7 +25,18 @@ return function()
 			-- (every piece is paid for in wood: "make wood the main resource for building/expanding")
 			-- (the Tree of Life is never bought: no price, no tier a player reaches)
 			local tree = d.kind == "tree"
-			T.truthy(d.shells == 0 and (d.wood > 0) ~= tree and d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d), d.id .. " price and footprint")
+			-- (a fence is a 2-stud length along a grid line: 2 x 0; paths and water are 2 x 2 tiles)
+			local fence = d.kind == "fence"
+			local foot = if fence then d.w == 2 and d.d == 0 else d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d)
+			T.truthy(d.shells == 0 and (d.wood > 0) ~= tree and foot, d.id .. " price and footprint")
+			if d.kind == "path" or d.kind == "water" then
+				T.truthy(d.w == 2 and d.d == 2, d.id .. " a 2 x 2 tile")
+			end
+			T.truthy(tree or tabs[d.tab], d.id .. " tab")
+			T.truthy(feels[d.feel], d.id .. " feel")
+			T.truthy(d.water == "" or d.water == "over" or d.water == "on", d.id .. " water")
+			T.truthy(d.water == "" or d.kind == "decor", d.id .. " only decor stands over water")
+			T.truthy(d.kind ~= "decor" or d.sub ~= "", d.id .. " a row in its tab")
 			T.truthy(tree or (d.tier >= 1 and d.tier <= #Office.plans), d.id .. " tier")
 			local makes = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
@@ -101,7 +114,8 @@ return function()
 			opened[d.tier] = (opened[d.tier] or 0) + 1
 		end
 		T.truthy((opened[1] or 0) >= 2, "two kinds from the start")
-		for t = 2, #Office.plans do
+		-- (the first six tiers each bring a kind; the four past them bring land, better eggs and decor sets)
+		for t = 2, 6 do
 			T.truthy((opened[t] or 0) >= 1, "each expansion brings a kind: tier " .. t)
 		end
 	end)

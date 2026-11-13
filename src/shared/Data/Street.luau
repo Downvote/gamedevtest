@@ -48,7 +48,8 @@ Street.FAR = 120
 Street.END_FAR = 160
 
 -- The lot: the water between two neighbours (plot-local).
-Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -64, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
+-- (north far enough for the biggest island's shallows: ISLES[10])
+Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -136, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
 
 -- The island's heart: a plaza round the campfire (the same on every tier), and the path from it south down to the
 -- jetty and the boardwalk.
@@ -65,6 +66,11 @@ local ISLES: { Isle } = {
 	{ cx = 0, cz = -8, rx = 30, rz = 25, ph = { 0.9, 1.8, 4.1, 2.7 } },
 	{ cx = 0, cz = -14, rx = 31, rz = 30, ph = { 3.0, 0.7, 5.5, 1.9 } },
 	{ cx = 0, cz = -20, rx = 31, rz = 35, ph = { 1.7, 2.9, 0.4, 3.6 } },
+	-- and on north past Sunspire Capital ("allow the player to expand their land even more"): as wide, longer each tier
+	{ cx = 0, cz = -27, rx = 31, rz = 41, ph = { 2.5, 1.2, 3.9, 0.8 } },
+	{ cx = 0, cz = -34, rx = 31, rz = 47, ph = { 0.4, 3.6, 2.2, 4.7 } },
+	{ cx = 0, cz = -41, rx = 31, rz = 53, ph = { 3.3, 2.4, 0.9, 2.1 } },
+	{ cx = 0, cz = -48, rx = 31, rz = 59, ph = { 1.1, 0.6, 4.6, 3.3 } },
 }
 local AMP = { 0.09, 0.06, 0.045, 0.025 }
 local FREQ = { 2, 3, 5, 7 }

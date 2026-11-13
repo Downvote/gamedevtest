@@ -413,6 +413,31 @@ return function()
 		local q2 = Schema.reconcile(p2, 2000, 9) :: any
 		T.deepEq(q2.clutch, { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 5 } }, next = 5 }, "cleaned: a rarity in range, ids once, next past them")
 	end)
+	T.it("a version 13 save: the old one-piece fence and hedge come up with their price back; drawn pieces checked", function()
+		local raw = roundTrip(played())
+		raw.v = 13
+		local w0 = raw.wood
+		table.insert(raw.plot.placed, { uid = 900, id = "fence", x = 9, z = 4, rot = 0, lvl = 1 })
+		table.insert(raw.plot.placed, { uid = 901, id = "hedge", x = 6, z = -4, rot = 90, lvl = 1 })
+		-- a fence length off the even grid, one turned the wrong way, and good ones (a fence, water, a path far north)
+		table.insert(raw.plot.placed, { uid = 902, id = "picket", x = 3, z = 4, rot = 0, lvl = 1 })
+		table.insert(raw.plot.placed, { uid = 903, id = "picket", x = 4, z = 4, rot = 180, lvl = 1 })
+		table.insert(raw.plot.placed, { uid = 904, id = "picket", x = 8, z = -8, rot = 90, lvl = 1 })
+		table.insert(raw.plot.placed, { uid = 905, id = "stream", x = 10, z = -8, rot = 0, lvl = 1 })
+		raw.tier = 10
+		table.insert(raw.plot.placed, { uid = 906, id = "dirtpath", x = 0, z = -100, rot = 0, lvl = 1 })
+		local p = Schema.reconcile(raw, 2000, 9) :: any
+		T.eq(p.v, Schema.VERSION)
+		local has: { [number]: boolean } = {}
+		for _, q in p.plot.placed do
+			has[q.uid] = true
+		end
+		T.truthy(not has[900] and not has[901], "the old fence and hedge are gone")
+		T.eq(p.wood, w0 + 25 + 120, "their whole price back")
+		T.truthy(not has[902] and not has[903], "a fence off the grid or turned wrong")
+		T.truthy(has[904] and has[905], "a fence length and a water tile kept")
+		T.truthy(has[906], "the biggest island's far north")
+	end)
 	T.it("a version 1 save loads too", function()
 		local p = Schema.reconcile({ v = 1, money = 5, staff = {} }, 2000, 9)
 		T.eq(p.v, Schema.VERSION)

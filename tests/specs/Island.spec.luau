@@ -155,7 +155,7 @@ return function()
 		while p.tier < #Tuning.TierCost do
 			T.truthy(Island.expand(p))
 		end
-		T.eq(p.tier, 6, "six tiers: a castaway's cay to a capital")
+		T.eq(p.tier, 10, "ten tiers: a castaway's cay to Driftling Haven")
 		T.eq(select(2, Island.expand(p)), "max")
 	end)
 	T.it("huts: a resident's comfort (its hut's and its level's) makes it work more; none with no hut", function()

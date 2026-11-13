@@ -1667,6 +1667,19 @@ B.tree = function(m, f, stage)
 	end
 end
 
+-- The build catalog's own models (GAME_DESIGN 4: "make much, much more building options"), one module a group, each a
+-- table of builders by id: the paths and water, the fences and water decor, nature, the themes, the fun and grand
+-- pieces. A piece modelled here first keeps its builder.
+for _, mod in { require(script.Parent.GroundModels), require(script.Parent.FenceModels), require(script.Parent.NatureModels), require(script.Parent.ThemeModels), require(script.Parent.FunModels) } do
+	for id, fn in mod do
+		if B[id] == nil then
+			B[id] = function(m: Model, f: CFrame, lvl: number?)
+				fn(m, f, lvl or 1)
+			end
+		end
+	end
+end
+
 -- The piece's model at `at` (the footprint's centre on the grass, turned). Unknown ids build nothing.
 function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	local m = Blocks.model(nil, "Decor_" .. id)

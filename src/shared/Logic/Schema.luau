@@ -23,7 +23,7 @@ local Schema = {}
 -- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone);
 -- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
 -- Life again, laying eggs (no tide)
-Schema.VERSION = 13
+Schema.VERSION = 14
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -115,6 +115,9 @@ end
 --   12 -> 13: the Tree of Life again (GAME_DESIGN 6: "bring back the tree of life and remove the converyer belt
 --           system. it now spawns eggs around it"): reconcile plants it (making room as Tree.plant does) and gives it
 --           its eggs, laid the moment the player arrives. The driftlings taken in off the tide count as hatched.
+--   13 -> 14: the build catalog (GAME_DESIGN 4: "make much, much more building options, like paths and fences"):
+--           fences are drawn along the grid lines now, so the old one-piece Picket Fence and Hedge come up with their
+--           whole price back. Paths, water and fences each count to their own limit; islands reach further north.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -302,6 +305,28 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		raw.clutch = nil
 		v = 13
 	end
+	if v < 14 then
+		-- the old one-piece fence and hedge are drawn now (Fences: Picket Fence, Hedgerow): each one standing comes
+		-- up with its whole price back
+		local back = { fence = 25, hedge = 120 }
+		if type(raw.plot) == "table" and type(raw.plot.placed) == "table" then
+			local keep: { any } = {}
+			local got = 0
+			for _, q in raw.plot.placed do
+				local w = if type(q) == "table" then back[q.id] else nil
+				if w then
+					got += w
+				else
+					table.insert(keep, q)
+				end
+			end
+			raw.plot.placed = keep
+			if got > 0 then
+				raw.wood = (if type(raw.wood) == "number" then raw.wood else 0) + got
+			end
+		end
+		v = 14
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -315,23 +340,19 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 	if type(v) ~= "table" then
 		return out
 	end
-	local pieces, paths, trees = 0, 0, 0
+	-- (each count to its limit: the pieces, the tiles (paths and water), the fences, one tree)
+	local counts: { [string]: number } = { piece = 0, tile = 0, fence = 0, fixed = 0 }
 	for _, q in v do
 		local def = if type(q) == "table" and type(q.id) == "string" then Buildings.byId[q.id] else nil
-		local path = def ~= nil and def.kind == "path"
-		local fixed = def ~= nil and def.kind == "tree"
-		if def and (if fixed then trees < 1 elseif path then paths < Plot.pathLimit(tier) else pieces < Plot.limit(tier)) then
+		local group = if def then Plot.group(def.id) else ""
+		if def and counts[group] < Plot.groupLimit(group, tier) then
 			local uid = int(q.uid, 0, 0)
-			local x, z, rot = int(q.x, 0, -64, 64), int(q.z, 0, -64, 64), int(q.rot, 0)
-			if uid > 0 and not used[uid] and (rot == 0 or rot == 90 or rot == 180 or rot == 270) then
+			local x, z, rot = int(q.x, 0, -160, 64), int(q.z, 0, -160, 64), int(q.rot, 0)
+			-- (a fence runs east or south from an even corner)
+			local shape = if group == "fence" then (rot == 0 or rot == 90) and x % 2 == 0 and z % 2 == 0 else (rot == 0 or rot == 90 or rot == 180 or rot == 270)
+			if uid > 0 and not used[uid] and shape then
 				used[uid] = true
-				if path then
-					paths += 1
-				elseif fixed then
-					trees += 1
-				else
-					pieces += 1
-				end
+				counts[group] += 1
 				-- a level: the makers' and huts' (from before upgrades were taken out: kept)
 				local leveled = Island.works(q.id) or def.kind == "nest"
 				local lvl = if leveled then int(q.lvl, 1, 1, #Tuning.UpgradeMult) else 1

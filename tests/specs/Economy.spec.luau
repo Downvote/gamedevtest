@@ -42,10 +42,11 @@ return function()
 			T.truthy(h1.pals >= 12, string.format("seed %d: hour 1 %d driftlings in huts", seed, h1.pals))
 		end
 	end)
-	T.it("the town (tier 4) and beyond are long-term goals: never before 100 minutes", function()
+	T.it("the town (tier 4) and beyond are long-term goals: not before an hour, a city not before two, no capital in three", function()
 		for seed, r in runs do
-			T.truthy(r.first.tier4 == nil or r.first.tier4 > 6000, "seed " .. seed .. ": tier 4 at " .. tostring(r.first.tier4))
-			T.truthy(r.first.tier5 == nil, "seed " .. seed .. ": no city in three hours")
+			T.truthy(r.first.tier4 == nil or r.first.tier4 > 3600, "seed " .. seed .. ": tier 4 at " .. tostring(r.first.tier4))
+			T.truthy(r.first.tier5 == nil or r.first.tier5 > 7200, "seed " .. seed .. ": tier 5 at " .. tostring(r.first.tier5))
+			T.truthy(r.first.tier6 == nil, "seed " .. seed .. ": no capital in three hours")
 		end
 	end)
 	T.it("both stores make and get spent; they stay finite", function()

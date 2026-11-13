@@ -15,6 +15,10 @@ local PLANS: { Plan } = {
 	{ tier = 4, name = "Harbor Town" },
 	{ tier = 5, name = "Coral City" },
 	{ tier = 6, name = "Sunspire Capital" },
+	{ tier = 7, name = "Moonlit Bay" },
+	{ tier = 8, name = "Evergreen Isle" },
+	{ tier = 9, name = "Skyreach Isle" },
+	{ tier = 10, name = "Driftling Haven" },
 }
 Office.plans = PLANS
 

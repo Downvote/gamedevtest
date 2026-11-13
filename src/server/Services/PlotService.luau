@@ -13,6 +13,7 @@ local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
@@ -220,9 +221,42 @@ local function pieceKey(q: { uid: number, id: string, x: number, z: number, rot:
 	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, q.lvl or 1)
 end
 
+-- A water tile's neighbours (GAME_DESIGN 4.3): 1 + a bit for each side with water next to it (north 1, east 2, south
+-- 4, west 8), so its model draws its banks only where the water ends; it takes the level's place in the model's name,
+-- so a tile is built again when the water round it changes.
+local function waterMasks(placed: { Types.Piece }): { [number]: number }
+	local wet: { [number]: boolean } = {}
+	for _, q in placed do
+		if Plot.isWater(q.id) then
+			wet[Street.cellKey(q.x, q.z)] = true
+		end
+	end
+	local out: { [number]: number } = {}
+	for _, q in placed do
+		if Plot.isWater(q.id) then
+			local m = 0
+			if wet[Street.cellKey(q.x, q.z - 2)] then
+				m += 1
+			end
+			if wet[Street.cellKey(q.x + 2, q.z)] then
+				m += 2
+			end
+			if wet[Street.cellKey(q.x, q.z + 2)] then
+				m += 4
+			end
+			if wet[Street.cellKey(q.x - 2, q.z)] then
+				m += 8
+			end
+			out[Street.cellKey(q.x, q.z)] = 1 + m
+		end
+	end
+	return out
+end
+PlotService.waterMasks = waterMasks
+
 -- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones. The
 -- Tree of Life's model goes by its stage (Tree.stage: it grows grander with the island) in place of a level, so a new
--- stage builds it again.
+-- stage builds it again; a water tile's by its neighbours (waterMasks).
 function PlotService.buildDecor(s: S)
 	local static = staticOf(s.plot)
 	local decor = static:FindFirstChild("Decor")
@@ -236,8 +270,9 @@ function PlotService.buildDecor(s: S)
 	local want: { [string]: boolean } = {}
 	local o = originOf(s.plot)
 	local stage = Tree.stage(s.profile.tier)
+	local masks = waterMasks(s.profile.plot.placed)
 	for _, q in s.profile.plot.placed do
-		local lvl = if q.id == Tree.ID then stage else q.lvl or 1
+		local lvl = if q.id == Tree.ID then stage elseif Plot.isWater(q.id) then masks[Street.cellKey(q.x, q.z)] or 1 else q.lvl or 1
 		local key = pieceKey({ uid = q.uid, id = q.id, x = q.x, z = q.z, rot = q.rot, lvl = lvl })
 		want[key] = true
 		if d:FindFirstChild(key) == nil then

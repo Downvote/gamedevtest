@@ -82,7 +82,7 @@ function IslandService.init()
 			return Plot.store(s.profile, a.i)
 		end)
 	)
-	-- paths drawn in a line or a box, or erased (GAME_DESIGN 4)
+	-- paths and water drawn in a line or a box, or erased; fences drawn along the grid lines or taken down (GAME_DESIGN 4)
 	Router.on(
 		"plot.paint",
 		rebuilt(function(s, a)
@@ -92,7 +92,19 @@ function IslandService.init()
 	Router.on(
 		"plot.unpaint",
 		rebuilt(function(s, a)
-			return Plot.unpaint(s.profile, Plot.cells(a.cells))
+			return Plot.unpaint(s.profile, Plot.cells(a.cells), a.kind)
+		end)
+	)
+	Router.on(
+		"plot.fence",
+		rebuilt(function(s, a)
+			return Plot.fence(s.profile, a.id, Plot.edges(a.edges))
+		end)
+	)
+	Router.on(
+		"plot.unfence",
+		rebuilt(function(s, a)
+			return Plot.unfence(s.profile, Plot.edges(a.edges))
 		end)
 	)
 	Router.on(

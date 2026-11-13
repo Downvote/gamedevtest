@@ -263,11 +263,20 @@ local function plan(p: any, rng: any)
 			end
 		end
 	end
-	-- spare wood goes on decor (the dearest the island can have and easily afford)
-	if not saving then
+	-- spare wood goes on decor (the dearest the island can have and easily afford), keeping two thirds of the island's
+	-- piece room for buildings (the catalog has plenty of cheap decor: a player decorates, but not before the huts),
+	-- nothing that needs water
+	local decor = 0
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "decor" then
+			decor += 1
+		end
+	end
+	if not saving and decor < Plot.limit(p.tier) // 3 then
 		local pick: any = nil
 		for _, d in Buildings.list do
-			if d.kind == "decor" and d.tier <= p.tier and p.wood >= d.wood * 4 and (pick == nil or d.wood > pick.wood) then
+			if d.kind == "decor" and d.water == "" and d.tier <= p.tier and p.wood >= d.wood * 4 and (pick == nil or d.wood > pick.wood) then
 				pick = d
 			end
 		end

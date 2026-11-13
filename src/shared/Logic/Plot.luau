@@ -4,7 +4,13 @@
 -- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
 -- footprint's width and depth). A piece stands wholly on the island's buildable cells (Data/Street: the grass a stud
 -- in from its edge, the island's shape by its tier), off the plaza round the campfire and the path to the jetty, and
--- off every other piece. The Tree of Life (Data/Buildings kind "tree": every island's, Logic/Tree) may be moved like any
+-- off every other piece. Paths and water are 2 x 2 tiles drawn on the even studs (paint / unpaint): water makes rivers and
+-- ponds ("add the ability to add water to make rivers"), a piece marked `water = "over"` (a bridge, a dock) may stand
+-- over water tiles as well as grass and one marked "on" (lily pads, a rowboat) only on water. Fences are 2-stud lengths
+-- along the even grid lines (fence / unfence: rot 0 runs east from (x, z), rot 90 south), never through a building,
+-- the plaza or the path; tiles and fences never get in each other's way, and a fence may run along a building's side.
+-- Paths and water count together against Tuning.PathPieces, fences against Tuning.FencePieces, the rest against the
+-- piece limit. The Tree of Life (Data/Buildings kind "tree": every island's, Logic/Tree) may be moved like any
 -- piece, but is never bought, cleared away or replaced, and isn't counted in the piece limit. Clearing a hut away (or
 -- replacing it with a smaller one) leaves the driftlings it can no longer house with no hut: they wait till a hut has
 -- room (Logic/Tree.settle).
@@ -43,29 +49,76 @@ end
 function Plot.pathLimit(tier: number): number
 	return Tuning.PathPieces[math.clamp(math.floor(tier), 1, #Tuning.PathPieces)]
 end
+function Plot.fenceLimit(tier: number): number
+	return Tuning.FencePieces[math.clamp(math.floor(tier), 1, #Tuning.FencePieces)]
+end
 
--- Whether a piece is a path tile (counted apart).
-function Plot.isPath(id: string): boolean
+local function kindOf(id: string): string
 	local d = Buildings.byId[id]
-	return d ~= nil and d.kind == "path"
+	return if d then d.kind else ""
+end
+
+-- Whether a piece is a path tile, a water tile, either (a tile: drawn on the even studs, counted apart), a fence length.
+function Plot.isPath(id: string): boolean
+	return kindOf(id) == "path"
+end
+function Plot.isWater(id: string): boolean
+	return kindOf(id) == "water"
+end
+function Plot.isTile(id: string): boolean
+	local k = kindOf(id)
+	return k == "path" or k == "water"
+end
+function Plot.isFence(id: string): boolean
+	return kindOf(id) == "fence"
+end
+-- Whether a piece is drawn with Build mode's draw bar (a line, a box, rubbed out) rather than put down one at a time.
+function Plot.isDrawn(id: string): boolean
+	local k = kindOf(id)
+	return k == "path" or k == "water" or k == "fence"
 end
 
 -- Whether a piece is the Tree of Life (it stays on the island: never bought, cleared away or replaced).
 function Plot.isFixed(id: string): boolean
-	local d = Buildings.byId[id]
-	return d ~= nil and d.kind == "tree"
+	return kindOf(id) == "tree"
 end
 
--- How many pieces of the same count as `id` stand (paths, or the rest: the tree never counts), and that count's limit.
+-- A piece's count: "tile" (paths and water: Tuning.PathPieces), "fence" (Tuning.FencePieces), "fixed" (the tree: never
+-- counted) or "piece" (the rest: the piece limit).
+function Plot.group(id: string): string
+	local k = kindOf(id)
+	if k == "path" or k == "water" then
+		return "tile"
+	elseif k == "fence" then
+		return "fence"
+	elseif k == "tree" then
+		return "fixed"
+	end
+	return "piece"
+end
+
+-- A count's limit at a tier.
+function Plot.groupLimit(group: string, tier: number): number
+	if group == "tile" then
+		return Plot.pathLimit(tier)
+	elseif group == "fence" then
+		return Plot.fenceLimit(tier)
+	elseif group == "fixed" then
+		return 1
+	end
+	return Plot.limit(tier)
+end
+
+-- How many pieces of the same count as `id` stand, and that count's limit.
 function Plot.used(p: Profile, id: string): (number, number)
-	local path = Plot.isPath(id)
+	local g = Plot.group(id)
 	local n = 0
 	for _, q in p.plot.placed do
-		if Plot.isPath(q.id) == path and not Plot.isFixed(q.id) then
+		if Plot.group(q.id) == g then
 			n += 1
 		end
 	end
-	return n, if path then Plot.pathLimit(p.tier) else Plot.limit(p.tier)
+	return n, Plot.groupLimit(g, p.tier)
 end
 
 -- The footprint (w along x, d along z) of a piece turned by rot.
@@ -97,15 +150,82 @@ end
 
 local ROT_OK: { [number]: boolean } = { [0] = true, [90] = true, [180] = true, [270] = true }
 
+-- Whether every cell of rect r is covered by a water tile of `placed` (skip: the index left out).
+local function onWater(r: Rect, placed: { Piece }, skip: number?): boolean
+	local wet: { [number]: boolean } = {}
+	for i, q in placed do
+		if i ~= skip and Plot.isWater(q.id) then
+			local qr = Plot.rect(q.id, q.x, q.z, q.rot)
+			for cz = qr.z0, qr.z1 - 1 do
+				for cx = qr.x0, qr.x1 - 1 do
+					wet[Street.cellKey(cx, cz)] = true
+				end
+			end
+		end
+	end
+	for cz = r.z0, r.z1 - 1 do
+		for cx = r.x0, r.x1 - 1 do
+			if not wet[Street.cellKey(cx, cz)] then
+				return false
+			end
+		end
+	end
+	return true
+end
+
+-- A fence length at (x, z, rot): on the even grid, rot 0 (east) or 90 (south), each of its two studs with buildable
+-- grass on at least one side; not through the plaza, the path or a piece (it may run along one's side, and past tiles),
+-- and not where a fence stands already.
+local function fenceFits(tier: number, placed: { Piece }, x: number, z: number, rot: number, skip: number?): (boolean, string?)
+	if x % 2 ~= 0 or z % 2 ~= 0 or (rot ~= 0 and rot ~= 90) then
+		return false, "outside"
+	end
+	for k = 0, 1 do
+		local ok
+		if rot == 0 then
+			ok = Street.buildable(tier, x + k, z - 1) or Street.buildable(tier, x + k, z)
+		else
+			ok = Street.buildable(tier, x - 1, z + k) or Street.buildable(tier, x, z + k)
+		end
+		if not ok then
+			return false, "outside"
+		end
+	end
+	local seg: Rect = if rot == 0 then { x0 = x, z0 = z, x1 = x + 2, z1 = z } else { x0 = x, z0 = z, x1 = x, z1 = z + 2 }
+	for _, b in Plot.blockers(tier) do
+		if overlaps(seg, b) then
+			return false, "blocked"
+		end
+	end
+	for i, q in placed do
+		if i == skip then
+			continue
+		end
+		local k = kindOf(q.id)
+		if k == "fence" then
+			if q.x == x and q.z == z and q.rot % 180 == rot % 180 then
+				return false, "overlap"
+			end
+		elseif k ~= "path" and k ~= "water" and overlaps(seg, Plot.rect(q.id, q.x, q.z, q.rot)) then
+			return false, "overlap"
+		end
+	end
+	return true, nil
+end
+
 -- Whether piece `id` fits at (x, z, rot) on an island of `tier` with these pieces (skip = the index of the piece
--- being moved). Returns true, or false and why: "outside" (off the buildable grass or not on the grid), "blocked"
--- (the plaza or the path), "overlap" (another piece), "unknown" (no such piece).
+-- being moved). Returns true, or false and why: "outside" (off the buildable grass or not on the grid; a piece that
+-- floats, off the water), "blocked" (the plaza or the path), "overlap" (another piece), "unknown" (no such piece).
 function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number, skip: number?): (boolean, string?)
-	if Buildings.byId[id] == nil then
+	local def = Buildings.byId[id]
+	if def == nil then
 		return false, "unknown"
 	end
 	if x ~= math.floor(x) or z ~= math.floor(z) or not ROT_OK[rot] then
 		return false, "outside"
+	end
+	if def.kind == "fence" then
+		return fenceFits(tier, placed, x, z, rot, skip)
 	end
 	local r = Plot.rect(id, x, z, rot)
 	for cz = r.z0, r.z1 - 1 do
@@ -120,10 +240,28 @@ function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: nu
 			return false, "blocked"
 		end
 	end
+	local tile = def.kind == "path" or def.kind == "water"
 	for i, q in placed do
-		if i ~= skip and overlaps(r, Plot.rect(q.id, q.x, q.z, q.rot)) then
+		if i == skip then
+			continue
+		end
+		local qd = Buildings.byId[q.id]
+		local qk = if qd then qd.kind else ""
+		if qk == "fence" then
+			-- (a tile never meets a fence; a piece may not have one running through it)
+			if not tile and overlaps(r, Plot.rect(q.id, q.x, q.z, q.rot)) then
+				return false, "overlap"
+			end
+		elseif qk == "water" and def.water ~= "" then
+			-- (a bridge or a lily pad over water)
+		elseif def.kind == "water" and qd and qd.water ~= "" then
+			-- (water under a bridge or a lily pad)
+		elseif overlaps(r, Plot.rect(q.id, q.x, q.z, q.rot)) then
 			return false, "overlap"
 		end
+	end
+	if def.water == "on" and not onWater(r, placed, skip) then
+		return false, "outside"
 	end
 	return true, nil
 end
@@ -204,9 +342,10 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	return true, { i = #p.plot.placed, uid = uid }
 end
 
------------------------------------------------------------------- drawing paths (GAME_DESIGN 4: a line or a box)
--- Path tiles are 2 x 2 and drawn on the even studs (a cell is a tile's north-west corner); a request carries at most
--- PAINT_MAX cells, written "x,z;x,z;..." (Validate's "cells").
+------------------------------------------------------------------ drawing paths, water and fences (GAME_DESIGN 4)
+-- Tiles (paths and water) are 2 x 2 and drawn on the even studs (a cell is a tile's north-west corner); a request carries
+-- at most PAINT_MAX cells, written "x,z;x,z;..." (Validate's "cells"). Fences are drawn along the grid lines: an edge is
+-- a length's start and its way, "x,z,r;..." (r 0 east, 90 south; Validate's "edges").
 Plot.PAINT_MAX = 40
 Plot.PATH_STEP = 2
 
@@ -226,85 +365,283 @@ function Plot.cellString(cells: { { number } }): string
 	return table.concat(parts, ";")
 end
 
--- Lay path tiles of `id` on the cells in order, while the island's path room and the stores last; a cell where a tile
--- doesn't fit is passed over. True with { placed, skipped } when at least one went down, else why none could.
+function Plot.edges(s: string): { { number } }
+	local out: { { number } } = {}
+	for x, z, r in string.gmatch(s, "(%-?%d+),(%-?%d+),(%d+)") do
+		table.insert(out, { tonumber(x) :: number, tonumber(z) :: number, tonumber(r) :: number })
+	end
+	return out
+end
+
+function Plot.edgeString(edges: { { number } }): string
+	local parts = {}
+	for _, e in edges do
+		table.insert(parts, e[1] .. "," .. e[2] .. "," .. e[3])
+	end
+	return table.concat(parts, ";")
+end
+
+local function count(placed: { Piece }, group: string): number
+	local n = 0
+	for _, q in placed do
+		if Plot.group(q.id) == group then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Swap the drawn piece q for `id` where it lies (another look of the same kind): half the old one's price back, the
+-- new one's paid. False when the stores can't cover it.
+local function swapDrawn(p: Profile, q: Piece, id: string): boolean
+	local old, new = Buildings.byId[q.id], Buildings.byId[id]
+	if old == nil or new == nil then
+		return false
+	end
+	local backS, backW = math.floor(old.shells * Tuning.Refund), math.floor(old.wood * Tuning.Refund)
+	if p.shells + backS < new.shells or p.wood + backW < new.wood then
+		return false
+	end
+	p.shells += backS - new.shells
+	p.wood += backW - new.wood
+	q.id = id
+	q.lvl = 1
+	p.stats.built += 1
+	return true
+end
+
+-- Lay tiles of `id` (a path or water) on the cells in order, while the island's tile room and the stores last. Where a
+-- tile of the same kind but another look lies, it's swapped for this one (half its price back); a cell where a tile
+-- doesn't fit is passed over. True with { placed, swapped, skipped } when at least one changed, else why none could.
 function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, any)
 	local def = Buildings.byId[id]
-	if def == nil or def.kind ~= "path" or #cells == 0 or #cells > Plot.PAINT_MAX then
+	if def == nil or (def.kind ~= "path" and def.kind ~= "water") or #cells == 0 or #cells > Plot.PAINT_MAX then
 		return false, "bad_payload" :: ErrCode
 	end
 	if def.tier > p.tier then
 		return false, "locked" :: ErrCode
 	end
-	local laid, skipped = 0, 0
+	local at: { [number]: Piece } = {}
+	for _, q in p.plot.placed do
+		if Plot.isTile(q.id) then
+			at[Street.cellKey(q.x, q.z)] = q
+		end
+	end
+	local used, most = count(p.plot.placed, "tile"), Plot.pathLimit(p.tier)
+	local laid, swapped, skipped = 0, 0, 0
 	local why: ErrCode = "blocked"
 	for _, c in cells do
-		local used, most = Plot.used(p, id)
-		if used >= most then
-			why = "full"
-			break
-		end
-		if p.shells < def.shells then
-			why = "money"
-			break
-		end
-		if p.wood < def.wood then
-			why = "wood"
-			break
-		end
-		if Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0) then
-			p.shells -= def.shells
-			p.wood -= def.wood
-			local uid = p.nextId
-			p.nextId += 1
-			table.insert(p.plot.placed, { uid = uid, id = id, x = c[1], z = c[2], rot = 0, lvl = 1 })
-			p.stats.built += 1
-			laid += 1
-		else
+		local k = Street.cellKey(c[1], c[2])
+		local old = at[k]
+		if old and old.id == id then
 			skipped += 1
+		elseif old and old.rot == 0 and kindOf(old.id) == def.kind then
+			if swapDrawn(p, old, id) then
+				swapped += 1
+			else
+				why = if p.wood < def.wood then "wood" else "money"
+				break
+			end
+		else
+			if used >= most then
+				why = "full"
+				break
+			end
+			if p.shells < def.shells then
+				why = "money"
+				break
+			end
+			if p.wood < def.wood then
+				why = "wood"
+				break
+			end
+			if Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0) then
+				p.shells -= def.shells
+				p.wood -= def.wood
+				local uid = p.nextId
+				p.nextId += 1
+				local q: Piece = { uid = uid, id = id, x = c[1], z = c[2], rot = 0, lvl = 1 }
+				table.insert(p.plot.placed, q)
+				at[k] = q
+				p.stats.built += 1
+				used += 1
+				laid += 1
+			else
+				skipped += 1
+			end
 		end
 	end
-	if laid == 0 then
+	if laid + swapped == 0 then
 		return false, why
 	end
-	return true, { placed = laid, skipped = skipped }
+	return true, { placed = laid, swapped = swapped, skipped = skipped }
 end
 
--- Take up every path tile that covers one of the cells' studs (Erase), half its price back each.
-function Plot.unpaint(p: Profile, cells: { { number } }): (boolean, any)
+-- Clear the pieces at the indices in `gone` away, `share` of each one's price back (workers to rest, huts emptied).
+local function clearOut(p: Profile, gone: { [number]: boolean }, share: number)
+	local keep: { Piece } = {}
+	for i, q in p.plot.placed do
+		if gone[i] then
+			local def = Buildings.byId[q.id]
+			if def then
+				p.shells += math.floor(def.shells * share)
+				p.wood += math.floor(def.wood * share)
+			end
+			for _, x in p.pals do
+				if x.work == q.uid then
+					x.work = 0
+				end
+			end
+			unhouse(p, q.uid)
+		else
+			table.insert(keep, q)
+		end
+	end
+	p.plot.placed = keep
+end
+
+-- Take up every tile of `kind` ("path", "water" or "all") that covers one of the cells' studs (Erase), half its price
+-- back each. Anything that floats (water "on") left off the water comes up with it, half its price back too. True with
+-- { removed, floated }, else not_found.
+function Plot.unpaint(p: Profile, cells: { { number } }, kind: string?): (boolean, any)
 	if #cells == 0 or #cells > Plot.PAINT_MAX then
 		return false, "bad_payload" :: ErrCode
 	end
+	local want = kind or "all"
 	local hit: { [number]: boolean } = {}
+	local removed = 0
+	local wet = false
 	for i, q in p.plot.placed do
-		if Plot.isPath(q.id) then
+		local k = kindOf(q.id)
+		if (k == "path" or k == "water") and (want == "all" or want == k) then
 			local r = Plot.rect(q.id, q.x, q.z, q.rot)
 			for _, c in cells do
 				if c[1] < r.x1 and c[1] + Plot.PATH_STEP > r.x0 and c[2] < r.z1 and c[2] + Plot.PATH_STEP > r.z0 then
 					hit[i] = true
+					removed += 1
+					wet = wet or k == "water"
 					break
 				end
 			end
 		end
 	end
-	local keep: { Piece } = {}
+	if removed == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	-- (what floated on the water taken up goes with it)
+	local floated = 0
+	if wet then
+		local after: { Piece } = {}
+		for i, q in p.plot.placed do
+			if not hit[i] then
+				table.insert(after, q)
+			end
+		end
+		for i, q in p.plot.placed do
+			local d = Buildings.byId[q.id]
+			if not hit[i] and d and d.water == "on" and not onWater(Plot.rect(q.id, q.x, q.z, q.rot), after) then
+				hit[i] = true
+				floated += 1
+			end
+		end
+	end
+	clearOut(p, hit, Tuning.Refund)
+	return true, { removed = removed, floated = floated }
+end
+
+-- Put fence lengths of `id` along the edges in order, while the fence room and the stores last. A length of another
+-- fence on an edge is swapped for this one (half its price back); an edge where it doesn't fit is passed over. True
+-- with { placed, swapped, skipped } when at least one changed, else why none could.
+function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, any)
+	local def = Buildings.byId[id]
+	if def == nil or def.kind ~= "fence" or #edges == 0 or #edges > Plot.PAINT_MAX then
+		return false, "bad_payload" :: ErrCode
+	end
+	if def.tier > p.tier then
+		return false, "locked" :: ErrCode
+	end
+	local at: { [string]: Piece } = {}
+	for _, q in p.plot.placed do
+		if Plot.isFence(q.id) then
+			at[q.x .. "," .. q.z .. "," .. q.rot % 180] = q
+		end
+	end
+	local used, most = count(p.plot.placed, "fence"), Plot.fenceLimit(p.tier)
+	local laid, swapped, skipped = 0, 0, 0
+	local why: ErrCode = "blocked"
+	for _, e in edges do
+		local rot = e[3]
+		if rot ~= 0 and rot ~= 90 then
+			skipped += 1
+			continue
+		end
+		local k = e[1] .. "," .. e[2] .. "," .. rot
+		local old = at[k]
+		if old and old.id == id then
+			skipped += 1
+		elseif old then
+			if swapDrawn(p, old, id) then
+				swapped += 1
+			else
+				why = if p.wood < def.wood then "wood" else "money"
+				break
+			end
+		else
+			if used >= most then
+				why = "full"
+				break
+			end
+			if p.shells < def.shells then
+				why = "money"
+				break
+			end
+			if p.wood < def.wood then
+				why = "wood"
+				break
+			end
+			if fenceFits(p.tier, p.plot.placed, e[1], e[2], rot, nil) then
+				p.shells -= def.shells
+				p.wood -= def.wood
+				local uid = p.nextId
+				p.nextId += 1
+				local q: Piece = { uid = uid, id = id, x = e[1], z = e[2], rot = rot, lvl = 1 }
+				table.insert(p.plot.placed, q)
+				at[k] = q
+				p.stats.built += 1
+				used += 1
+				laid += 1
+			else
+				skipped += 1
+			end
+		end
+	end
+	if laid + swapped == 0 then
+		return false, why
+	end
+	return true, { placed = laid, swapped = swapped, skipped = skipped }
+end
+
+-- Take the fence lengths on the edges down, half their price back each. True with { removed }, else not_found.
+function Plot.unfence(p: Profile, edges: { { number } }): (boolean, any)
+	if #edges == 0 or #edges > Plot.PAINT_MAX then
+		return false, "bad_payload" :: ErrCode
+	end
+	local want: { [string]: boolean } = {}
+	for _, e in edges do
+		want[e[1] .. "," .. e[2] .. "," .. e[3] % 180] = true
+	end
+	local hit: { [number]: boolean } = {}
 	local removed = 0
 	for i, q in p.plot.placed do
-		if hit[i] then
-			local def = Buildings.byId[q.id]
-			if def then
-				p.shells += math.floor(def.shells * Tuning.Refund)
-				p.wood += math.floor(def.wood * Tuning.Refund)
-			end
+		if Plot.isFence(q.id) and want[q.x .. "," .. q.z .. "," .. q.rot % 180] then
+			hit[i] = true
 			removed += 1
-		else
-			table.insert(keep, q)
 		end
 	end
 	if removed == 0 then
 		return false, "not_found" :: ErrCode
 	end
-	p.plot.placed = keep
+	clearOut(p, hit, Tuning.Refund)
 	return true, { removed = removed }
 end
 
@@ -333,15 +670,17 @@ function Plot.replaceCost(q: Piece, id: string): { shells: number, wood: number 
 	}
 end
 
--- The pieces piece `q` may be replaced with: the others of its kind open at the tier (the island's own list order).
+-- The pieces piece `q` may be replaced with: the others of its kind open at the tier (the island's own list order); a
+-- decor piece's from its own row (Data/Buildings tab and sub); none for the tree or a drawn piece (draw over it).
 function Plot.replacements(q: Piece, tier: number): { string }
 	local old = Buildings.byId[q.id]
 	local out: { string } = {}
-	if old == nil or old.kind == "tree" then
+	if old == nil or old.kind == "tree" or Plot.isDrawn(old.id) then
 		return out
 	end
 	for _, d in Buildings.list do
-		if d.kind == old.kind and d.id ~= old.id and d.tier <= tier then
+		-- (decor: the others in its row of Build mode's tab, a tree for a tree, a bench for a bench)
+		if d.kind == old.kind and d.id ~= old.id and d.tier <= tier and (old.kind ~= "decor" or (d.tab == old.tab and d.sub == old.sub)) then
 			table.insert(out, d.id)
 		end
 	end
@@ -416,7 +755,11 @@ function Plot.refit(p: Profile): (number, number)
 	local moved, cleared = 0, 0
 	local gone: { [Piece]: boolean } = {}
 	for _, q in homeless do
-		local bx, bz, brot = Plot.spot(p.tier, kept, q.id, q.x, q.z, q.rot)
+		-- (a tile or a fence isn't moved somewhere else: it's cleared away below)
+		local bx, bz, brot = nil, nil, nil
+		if not Plot.isDrawn(q.id) then
+			bx, bz, brot = Plot.spot(p.tier, kept, q.id, q.x, q.z, q.rot)
+		end
 		if bx and bz and brot then
 			q.x, q.z, q.rot = bx, bz, brot
 			table.insert(kept, q)

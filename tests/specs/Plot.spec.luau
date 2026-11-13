@@ -267,8 +267,103 @@ return function()
 		T.truthy(q.x > 8, "toward where it was")
 		T.eq(q.lvl, 2, "its level kept")
 	end)
+	T.it("fences: drawn along the even grid lines, apart from the pieces; not through a building, along one is fine", function()
+		local p = fresh()
+		local ok, data = Plot.fence(p, "picket", { { 8, 4, 0 }, { 10, 4, 0 }, { 12, 4, 90 } })
+		T.truthy(ok)
+		T.eq(data.placed, 3)
+		T.eq(p.wood, 1e6 - 3 * 8, "paid in wood")
+		T.eq(select(1, Plot.used(p, "picket")), 3)
+		T.eq(select(2, Plot.used(p, "picket")), Plot.fenceLimit(1), "its own limit")
+		T.eq(select(1, Plot.used(p, "flowers")), 0, "the pieces don't count fences")
+		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 4, 0)), "overlap", "one fence an edge")
+		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 9, 4, 0)), "outside", "the even grid")
+		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 4, 180)), "outside", "east or south")
+		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", -2, 4, 0)), "blocked", "not across the plaza")
+		-- a building where the fence runs through refused; one beside it fine; a fence through a building refused
+		T.eq(select(2, Plot.fits(1, p.plot.placed, "patch", 8, 3, 0)), "overlap", "a fence through it")
+		T.truthy(Plot.fits(1, p.plot.placed, "patch", 8, 5, 0), "a fence along its side")
+		T.truthy(Plot.place(p, "patch", 8, 5, 0))
+		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 6, 0)), "overlap", "a fence through a building")
+		T.truthy(Plot.fits(1, p.plot.placed, "picket", 8, 8, 0), "along its far side")
+		-- another fence over one: swapped, half the old one's price back
+		local before = p.wood
+		ok, data = Plot.fence(p, "splitrail", { { 8, 4, 0 } })
+		T.truthy(ok)
+		T.eq(data.swapped, 1)
+		T.eq(p.wood, before + math.floor(8 * Tuning.Refund) - 10)
+		-- taken down: half back each
+		before = p.wood
+		ok, data = Plot.unfence(p, { { 8, 4, 0 }, { 12, 4, 90 } })
+		T.truthy(ok)
+		T.eq(data.removed, 2)
+		T.eq(p.wood, before + math.floor(10 * Tuning.Refund) + math.floor(8 * Tuning.Refund))
+		T.eq(select(2, Plot.unfence(p, { { 30, 30, 0 } })), "not_found")
+		T.eq(select(2, Plot.fence(p, "crystalfence", { { 0, -6, 0 } })), "locked")
+		T.eq(select(2, Plot.fence(p, "dirtpath", { { 0, -6, 0 } })), "bad_payload")
+	end)
+	T.it("water: tiles drawn like paths; pieces stay off it, a bridge goes over it, lily pads only on it", function()
+		local p = fresh()
+		p.tier = 3
+		local cells = { { 8, -8 }, { 10, -8 }, { 12, -8 }, { 8, -6 }, { 10, -6 }, { 12, -6 } }
+		local ok, data = Plot.paint(p, "stream", cells)
+		T.truthy(ok)
+		T.eq(data.placed, 6)
+		T.eq(select(1, Plot.used(p, "dirtpath")), 6, "water and paths count together")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "flowers", 8, -8, 0)), "overlap", "no flower bed in the river")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "dirtpath", 8, -8, 0)), "overlap", "no path on the water")
+		T.truthy(Plot.fits(3, p.plot.placed, "lilypads", 10, -8, 0), "lily pads on water")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "lilypads", 14, -8, 0)), "outside", "lily pads off the water")
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "lilypads", 13, -7, 0)), "outside", "wholly on water")
+		T.truthy(Plot.fits(3, p.plot.placed, "plankbridge", 10, -10, 0), "a bridge across the stream, its ends on grass")
+		T.truthy(Plot.place(p, "lilypads", 10, -8, 0))
+		T.truthy(Plot.place(p, "plankbridge", 12, -10, 0))
+		T.eq(select(2, Plot.fits(3, p.plot.placed, "steppingstones", 10, -8, 0)), "overlap", "one floating thing a place")
+		-- another water over water: swapped where it lies
+		ok, data = Plot.paint(p, "river", { { 8, -8 } })
+		T.truthy(ok)
+		T.eq(data.swapped, 1)
+		-- erasing paths leaves the water; erasing water takes what floats on it too
+		T.eq(select(2, Plot.unpaint(p, { { 10, -8 } }, "path")), "not_found")
+		ok, data = Plot.unpaint(p, { { 10, -8 } }, "water")
+		T.truthy(ok)
+		T.eq(data.removed, 1)
+		T.eq(data.floated, 1, "the lily pads came up with it")
+		for _, q in p.plot.placed do
+			T.truthy(q.id ~= "lilypads", "no lily pads on the grass")
+		end
+	end)
+	T.it("paths over paths: another look swapped where it lies (half the old price back), the same look passed over", function()
+		local p = fresh()
+		p.tier = 2
+		T.truthy(Plot.paint(p, "dirtpath", { { 8, 4 }, { 10, 4 } }))
+		local before = p.wood
+		local ok, data = Plot.paint(p, "stonepath", { { 8, 4 }, { 10, 4 }, { 12, 4 } })
+		T.truthy(ok)
+		T.eq(data.swapped, 2)
+		T.eq(data.placed, 1)
+		T.eq(p.wood, before - 3 * 15 + 2 * math.floor(5 * Tuning.Refund))
+		ok, data = Plot.paint(p, "stonepath", { { 8, 4 } })
+		T.eq(ok, false, "nothing changed")
+		T.eq(select(2, Plot.paint(p, "stream", { { 8, 4 } })), "blocked", "water doesn't swap a path")
+	end)
+	T.it("replacing decor: from its own row (a tree for a tree); drawn pieces aren't replaced", function()
+		local p = fresh()
+		p.tier = 10
+		local reps = Plot.replacements({ uid = 1, id = "oak", x = 0, z = 0, rot = 0, lvl = 1 }, 10)
+		T.truthy(#reps > 3)
+		for _, id in reps do
+			T.eq(Buildings.byId[id].sub, "trees", id)
+		end
+		T.eq(#Plot.replacements({ uid = 1, id = "picket", x = 0, z = 0, rot = 0, lvl = 1 }, 10), 0)
+		T.eq(#Plot.replacements({ uid = 1, id = "stream", x = 0, z = 0, rot = 0, lvl = 1 }, 10), 0)
+	end)
 	T.it("every piece fits somewhere on the smallest island", function()
 		for _, d in Buildings.list do
+			-- (a piece that floats needs water: Plot's water test)
+			if d.water == "on" then
+				continue
+			end
 			local plot = Street.plot(1)
 			local found = false
 			for z = plot.z0, plot.z1 do
