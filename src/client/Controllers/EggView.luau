@@ -756,7 +756,7 @@ function EggView.where(plot: number, id: number): Vector3?
 end
 
 -- Where island i's last hatched egg was (world, on the lawn): where its driftling comes from. Else in front of the
--- tree's hollow, else the jetty's island end.
+-- tree's hollow, else the plaza's south edge.
 function EggView.hatchPoint(i: number): (number, number)
 	local p = lastHatch[i]
 	if p then
@@ -767,10 +767,8 @@ function EggView.hatchPoint(i: number): (number, number)
 		local f = CFrame.new(c) * CFrame.Angles(0, turn, 0) * Vector3.new(DecorModels.HOLLOW.X, 0, DecorModels.HOLLOW.Z + 1)
 		return f.X, f.Z
 	end
-	local m = plotModel(i)
-	local tier = if m then (m:GetAttribute("Tier") :: number?) or 1 else 1
 	local ox, oz = Street.origin(i)
-	return ox, oz + Street.jetty(tier).z0 + 0.5
+	return ox + Street.CENTER.x, oz + Street.PLAZA.z1
 end
 
 return EggView

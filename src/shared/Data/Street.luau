@@ -1,23 +1,25 @@
 --!strict
 -- The sea (GAME_DESIGN 8; docs/ARCHITECTURE.md 5): every island on the server stands on a plot in one row along X,
--- all joined by one long boardwalk on their south side (the side the camera sees), the open sea beyond. Pure.
--- Coordinates are studs; plot-local ones are from the plot's origin (`Street.origin(i)`). (The module keeps its old
--- name: the street it once was.)
+-- each an island alone in the sea, nothing between them but water (the request of 2026-11-13: "remove the docks area,
+-- it should just be an island. players can swim around in water to reach other player islands"). Pure. Coordinates
+-- are studs; plot-local ones are from the plot's origin (`Street.origin(i)`). (The module keeps its old name: the
+-- street it once was.)
 --
 --   north (-Z)   ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 --                |  lot (water)   (( an island: grass, sand, wet sand, foam, shallows ))      |
---                |                     a plaza (the campfire) and a path south to a jetty    |
---   z = 30..35   |================ the boardwalk (planks on posts) ===========================|
---                |                 a pier from the boardwalk, a boat at its end               |
---   z = 35..58   ~ ~ ~ ~ ~ ~ ~ ~ ~ the open sea ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+--                |                     a plaza (the campfire), the island's sign on its beach |
+--   z = 30..58   ~ ~ ~ ~ ~ ~ ~ ~ ~ the open sea (sailboats pass) ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 --   south (+Z)
+--
+-- The founders swim: the water (the sea, the shallows, the foam) lets them through down to an invisible seabed
+-- (SEABED_Y) that runs under the whole sea, so they swim from island to island, and the wet sand steps up out of it.
 --
 -- An island is a wobbly ellipse that grows with its tier (ISLES[tier]): its coast is `coast(tier, x, z)`, the signed
 -- distance in studs from the grass's edge (negative on the grass). Round the grass, outward: the sand beach, the wet
 -- sand at the waterline, a ring of foam, the light shallows, then the sea. Whole-stud cells (x .. x + 1, z .. z + 1)
 -- have a `layer` by their centre's coast distance; buildings stand only on `buildable` cells (a stud in from the grass's
--- edge, off the plaza and the path). The same tier is the same shape on every plot (a save does not depend on where
--- the island is moored).
+-- edge, off the plaza). The same tier is the same shape on every plot (a save does not depend on where the island is
+-- moored).
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 export type Rect = { x0: number, z0: number, x1: number, z1: number }
@@ -33,15 +35,15 @@ Street.WET_Y = -0.72 -- the wet sand at the waterline
 Street.FOAM_Y = -0.98 -- the foam lapping the shore
 Street.SHALLOW_Y = -1.04 -- the shallows round an island
 Street.WATER_Y = -1.1 -- the sea's surface
+Street.SEABED_Y = -1.6 -- the invisible floor under the water the founders swim on (the wet sand's foot: one step up)
 
 -- The layers of a cell, outward (0: the open sea).
 Street.GRASS, Street.SAND, Street.WET, Street.FOAM, Street.SHALLOW, Street.SEA_CELL = 1, 2, 3, 4, 5, 0
 -- Where each layer ends (studs past the grass's edge).
 Street.BANDS = { sand = 2.5, wet = 3.5, foam = 4.5, shallow = 8 }
 
--- The boardwalk and the sea, plot-local z (the same for every plot).
-Street.BOARD = { z0 = 30, z1 = 35 }
-Street.SEA = { z0 = 35, z1 = 58 }
+-- The open sea south of the lots, plot-local z (the same for every plot; the sailboats' lanes).
+Street.SEA = { z0 = 30, z1 = 58 }
 -- Water past the invisible walls (studs): north of the lots, south of the sea and both ends, so no sky shows past the
 -- world's edges wherever the view goes.
 Street.FAR = 120
@@ -51,18 +53,17 @@ Street.END_FAR = 160
 -- (north far enough for the biggest island's shallows: ISLES[10])
 Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -136, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
 
--- The island's heart: a plaza round the campfire (the same on every tier), and the path from it south down to the
--- jetty and the boardwalk.
+-- The island's heart: a plaza round the campfire (the same on every tier). (A path ran from it south to a jetty and
+-- the boardwalk until 2026-11-13: that land is the island's to build on now.)
 Street.CENTER = { x = 0, z = 6 }
 Street.PLAZA = { x0 = -4, z0 = 2, x1 = 4, z1 = 10 } :: Rect
-Street.PATH = { x0 = -2, z0 = 10, x1 = 2, z1 = 30 } :: Rect
 
 -- The islands by tier: centre, radii, the coast's wobble phases (four sines round the coast).
 local ISLES: { Isle } = {
 	{ cx = 0, cz = 6, rx = 15, rz = 12, ph = { 0.6, 2.1, 0.3, 4.0 } },
 	{ cx = 0, cz = 2, rx = 22, rz = 16, ph = { 1.4, 0.4, 2.6, 1.1 } },
 	{ cx = 0, cz = -2, rx = 28, rz = 20, ph = { 2.2, 3.3, 1.7, 5.2 } },
-	-- the town and city tiers grow north (the boardwalk stays where it is): twice tier 3's grass by tier 6
+	-- the town and city tiers grow north (the south shore stays where it is): twice tier 3's grass by tier 6
 	{ cx = 0, cz = -8, rx = 30, rz = 25, ph = { 0.9, 1.8, 4.1, 2.7 } },
 	{ cx = 0, cz = -14, rx = 31, rz = 30, ph = { 3.0, 0.7, 5.5, 1.9 } },
 	{ cx = 0, cz = -20, rx = 31, rz = 35, ph = { 1.7, 2.9, 0.4, 3.6 } },
@@ -184,7 +185,7 @@ function Street.cellBounds(tier: number): Rect
 	return cellsOf(tier).bounds
 end
 
--- Whether a building may cover cell (x, z): grass a stud in from its edge (the plaza and the path are Logic/Plot's).
+-- Whether a building may cover cell (x, z): grass a stud in from its edge (the plaza is Logic/Plot's).
 function Street.buildable(tier: number, x: number, z: number): boolean
 	local d = cellsOf(tier).dist[key(x, z)]
 	return d ~= nil and d <= -1
@@ -206,7 +207,7 @@ function Street.origin(i: number): (number, number)
 	return (i - (Street.MAX + 1) / 2) * Street.SPACING, 0
 end
 
--- Which plot a world point stands on (its lot, by x), 0 when off the row's lots.
+-- Which plot a world point is at (its lot, by x; the open sea south of a lot counts as that lot's), 0 off the row.
 function Street.plotAt(x: number, z: number): number
 	local i = math.floor(x / Street.SPACING + (Street.MAX + 1) / 2 + 0.5)
 	if i < 1 or i > Street.MAX then
@@ -214,56 +215,33 @@ function Street.plotAt(x: number, z: number): number
 	end
 	local ox, oz = Street.origin(i)
 	local lx, lz = x - ox, z - oz
-	if lx >= Street.LOT.x0 and lx <= Street.LOT.x1 and lz >= Street.LOT.z0 and lz <= Street.LOT.z1 then
+	if lx >= Street.LOT.x0 and lx <= Street.LOT.x1 and lz >= Street.LOT.z0 and lz <= Street.SEA.z1 then
 		return i
 	end
 	return 0
 end
 
--- The world's box (world studs): every lot, the boardwalk and the sea, and a stretch past each end.
+-- The world's box (world studs): every lot and the sea south of them, and a stretch past each end (the founders swim
+-- anywhere inside it).
 function Street.bounds(): Rect
 	local x0 = Street.origin(1) + Street.LOT.x0 - 24
 	local x1 = Street.origin(Street.MAX) + Street.LOT.x1 + 24
 	return { x0 = x0, z0 = Street.LOT.z0, x1 = x1, z1 = Street.SEA.z1 }
 end
 
--- The path from the plaza south to the boardwalk (plot-local): a jetty where it crosses the water.
-function Street.footpath(): Rect
-	return Street.PATH
+-- Where a founder appears: on the plaza, south of the campfire (plot-local x, z; nothing is ever built there).
+function Street.spawn(): (number, number)
+	return 0, Street.PLAZA.z1 - 1
 end
 
--- The jetty: where the path leaves the island's walkable sand for the boardwalk (plot-local z), on a tier.
-function Street.jetty(tier: number): Rect
+-- The island's sign: on its south beach, west of the plaza (plot-local centre, on the sand), on a tier.
+function Street.sign(tier: number): (number, number)
+	local x = -5
 	local z = Street.CENTER.z
-	while z < Street.BOARD.z0 and Street.walkable(tier, 0, z) do
+	while z < Street.SEA.z0 and Street.layer(tier, x, z) ~= Street.SAND do
 		z += 1
 	end
-	return { x0 = Street.PATH.x0, z0 = z - 1, x1 = Street.PATH.x1, z1 = Street.BOARD.z0 }
-end
-
--- Where a founder appears: on the path just south of the plaza (plot-local x, z).
-function Street.spawn(): (number, number)
-	return 0, Street.PLAZA.z1 + 2
-end
-
--- The island's sign and the mailbox on the boardwalk's north edge, west and east of the jetty (plot-local centres).
-function Street.sign(): (number, number)
-	return -4.5, Street.BOARD.z0 + 0.75
-end
-function Street.mailbox(): (number, number)
-	return 3.5, Street.BOARD.z0 + 0.75
-end
-
--- Along each plot's stretch (plot-local): lanterns on the boardwalk's posts, and the pier (its x, from the boardwalk
--- out to PIER_Z) where the old boat is moored.
-Street.LAMPS = { -28, -8, 12, 28 } :: { number }
-Street.PIER_X = 0
-Street.PIER_Z = 44
-Street.PIER_W = 4
-
--- The pier of plot-local x (where the boat waits).
-function Street.pier(): Rect
-	return { x0 = Street.PIER_X - Street.PIER_W / 2, z0 = Street.BOARD.z1, x1 = Street.PIER_X + Street.PIER_W / 2, z1 = Street.PIER_Z }
+	return x + 0.5, z + 0.5
 end
 
 return Street

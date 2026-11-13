@@ -1,6 +1,16 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-13, the latest): "make it such that each creature can work at any place, and is no longer
+> The request (2026-11-13, the latest): "remove the docks area, it should just be an island. players can swim around
+> in water to reach other player islands."
+
+So the boardwalk, the jetty, the path down to it, the pier with its moored boat and the mailbox are gone. Each island
+stands alone in the sea, and the land where the path ran is the island's to build on. Nothing holds a founder on the
+beach any more: they walk off the sand into the sea and swim (§8), head and shoulders above the water, a ring of foam
+round them, crawling when they move and treading water when they stop, slower than on land and with no jump. They swim
+over to anyone's island and climb out on its beach. The island's sign moved to its south beach and still carries its
+name; a founder now appears on the plaza, and Home brings them back there.
+
+> The request (2026-11-13): "make it such that each creature can work at any place, and is no longer
 > restricted."
 
 So any driftling can work at any farm, fishing pier, lumber camp or shop. Its **knack** stays as what it's best at:
@@ -103,14 +113,14 @@ reference"), the pixel art rules (§2) and the polish requests (§11). The game 
 (§10: an old save starts a fresh island).
 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire on
-its sand, a jetty down to the boardwalk and a Tree of Life behind the fire. Every few minutes the tree lays **eggs**
+its grass and a Tree of Life behind the fire, the sea all round. Every few minutes the tree lays **eggs**
 round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
 then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build a Lumber Camp for wood, farms
 and shops for shells, and huts for the driftlings you hatch; each one works wherever you send it, a little faster at
 the kind of building it's good at, more the rarer it is. Paths, fences, rivers and decor in 13 themes give it a look of its own. The driftlings do all the work: there are
 no villagers. Wood pays for every building and for growing the island, shells pay for eggs, and once the huts are full a
-better hatchling can take a weak one's place. The islands of everyone on the server sit side by side along one boardwalk
-on a shared sea. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
+better hatchling can take a weak one's place. The islands of everyone on the server sit side by side on a shared sea, and
+you swim from one to the next. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
 decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
@@ -130,7 +140,7 @@ offline progress).
 
 ## 2. Look and feel
 
-- **World:** one island per player along a shared boardwalk on the open sea, each of its own shape with a campfire at
+- **World:** one island per player in a row on the open sea (no docks: you swim between them), each of its own shape with a campfire at
   its heart, its grass, a sand beach and a shore stepping down into a moving sea (§8), seen from the Random Bakery
   camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
@@ -204,7 +214,7 @@ offline progress).
   names on planks; the chips, the notices and the tip (a parchment note) thin frames; the chips and the rows in the
   panels are carved boards (a lit top row, a shaded bottom one); the menu bar stands on a wooden dock; the build tray is
   a workbench with its tabs on a plank. The loading card is the island at dusk (§11).
-- **The founder:** you walk your island and the boardwalk as a chibi founder (§9).
+- **The founder:** you walk your island and swim the sea as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
 
@@ -346,7 +356,7 @@ water, metal, magic, sand, snow, cloth or fire), which picks what flies up and w
 Each is paid in wood when placed (since 2026-11-13 its old price in shells and wood added up and rounded: a Lumber
 Camp 70, a Veggie Patch 40, a Driftling Hut 55, a Snack Stall 100; the new pieces from 4 wood for a tile of Sand Trail
 to 1,500,000 for the Rainbow Arch), on whole studs of the island's grass (a stud or more in from the sand), turned a
-quarter at a time, off the campfire's plaza and the path to the jetty, off every other piece and off water unless it
+quarter at a time, off the campfire's plaza, off every other piece and off water unless it
 is made to go over or on it (§4.3). Paths are the one thing decor may share a spot with (a paved yard, below).
 
 **The limits.** Each sort of thing has its own limit, and each grows with the island (§4.4 has them by tier): the
@@ -404,7 +414,7 @@ pieces still never share a spot. Water keeps its own rules (§4.3).
   the capital (§4.4), each coming about when the island before it is built up. (They were paid in shells and wood
   until 2026-11-13; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
   early on"; Harbor Town went from 130,000 to 150,000 with the conveyor tide and down to 60,000 with the ten tiers,
-  §10.) The island grows north each time (the boardwalk stays where it is), to twice tier 3's grass at the capital and
+  §10.) The island grows north each time (its south shore stays where it is), to twice tier 3's grass at the capital and
   nearly four times at Driftling Haven, and only ever gains land (each tier's shape joined to the smaller ones':
   nothing built near an old shore has to move); more driftlings live there in more and bigger huts, the tree lays more
   eggs and better ones, and new kinds hatch up to the capital (§6). (The homes for villagers this request asked for
@@ -440,7 +450,7 @@ lump of stone or a cane, by the fence) that the next length shares, so a run joi
 drag makes steps); **Box** runs a fence all the way round the box from the press to the finger; **Erase** takes
 lengths down, half their price back. Drawing another fence over a length swaps it. A length goes where each of its two
 studs has grass on one side or the other, so a fence can run along the island's edge; it never runs through a
-building, the plaza or the path to the jetty, but it may run along a building's side and past paths and water, and a
+building or the plaza, but it may run along a building's side and past paths and water, and a
 building can't be put down across a fence. A length picked up turns between east and south with Rotate (R). The
 seventeen run from a rope sagging between two posts to a crystal fence with glowing points, by way of white pickets,
 split rails, a bamboo screen, bleached driftwood, woven willow, a clipped hedgerow, a garden gate under a little arch,
@@ -869,8 +879,8 @@ text (the requests and how each was met) is in the history of this file, up to c
   wet sand, the foam line and the shallows, each a little lower than the one inside it, so the shore steps down into
   the sea. Buildings stand on the grass a stud or more in from the sand.
 - **No house:** the island's heart is a plaza round a campfire (fire stones, logs, a flame with smoke, seats, a flag
-  and torches); a path of stepping stones runs from it down to a wooden jetty that meets the boardwalk, your sign and
-  mailbox either side of its foot. Visitors stroll the grass round it.
+  and torches). Your sign stands on the south beach with the island's name over it. Visitors stroll the grass round
+  it. There are no docks (2026-11-13): the island stands alone in the sea.
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) move the same way.
@@ -896,19 +906,18 @@ text (the requests and how each was met) is in the history of this file, up to c
 
   > The bug report (2026-11-10): "lighting also seems buggy, especially with shells"
 - **Detail everywhere:** palms that lean, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
-  each island's own seed; the boardwalk's planks on beams and posts with rope rails
-  and lanterns; a pier with your moored boat. Every building has its doors, windows, ridged roofs with eaves, crates,
+  each island's own seed. Every building has its doors, windows, ridged roofs with eaves, crates,
   barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
   the stall's awning, the lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks
   and a mouth.
-- **Boats** (`Models/BoatSpec`: one plan for the boat at the pier and the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
+- **Boats** (`Models/BoatSpec`: one plan for the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
   seams, a painted band (gold trim from level 4), a rim, a bow (tall against the hull, flush with the rim, its keel
   sloping up to the stem's point), a stern with its rudder and tiller and a planked deck;
   a rowboat's oars at level 1; a cabin with a door, windows and a life ring from 2; a bowsprit and jib from 3; a
   foremast, a crow's nest and a figurehead from 4; a chimney and a stern lantern from 5; a mizzen and blue sails at
   6; striped sails, a flag and pennants, a lantern, fenders, a crate and barrels.
-  With the sea chart and the expeditions gone (§7) the boat at the pier is scenery: the first boat, moored
-  there for good; the sailboats crossing the sea still come in every size.
+  With the sea chart and the expeditions gone (§7) the boat at the pier was scenery, and it went with the docks on
+  2026-11-13; the sailboats crossing the sea still come in every size, and a swimmer passes through them.
 
   > The request (2026-11-10): "polish everything even further, such as more detailed boat models, flags rippling in
   > the wind, and swaying leaves."; the bug report: "it seems like the boats are buggy, the triangle part here is
@@ -919,9 +928,13 @@ text (the requests and how each was met) is in the history of this file, up to c
   ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
   zoom on every tier; Build mode frees it to pan.
-- Up to `MaxPlots` (6) islands sit in a row along the boardwalk; an unclaimed lot is open water with a sandbar and a
-  sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. You can walk onto anyone's island
-  (the shore's edge holds you back from the sea); Home sends you back to your own. A tap on a sign shows that island's
+- Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
+  and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
+  beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole
+  sea, an invisible shelf under the foam is the step back up onto the wet sand, and only the world's edge stops you).
+  In the water the founder shows from the chest up with a ring of foam round them, crawls when moving and treads water
+  when still, splashing, the strokes heard; they swim at `SwimSpeed` (11, against 16 on land) and can't jump. Home
+  sends you back to your own plaza. A tap on a sign shows that island's
   day, driftlings at home and charm.
 
 ## 9. Your founder, settings and the tips
@@ -932,7 +945,7 @@ The Looks panel sets the founder's skin, hair, style and shirt (every client see
 > The request (2026-11-10): "allow the player to jump in their own island as well"; the bug report: "jumping seems
 > bugged. also, the player can walk on water" (the chibi stood still on the ground while the character jumped: it now
 > rises with it, knees up, and lands in a puff; the coast's invisible walls stood a little under a jump, so a jump
-> cleared them onto the sea: they now stand far higher)
+> cleared them onto the sea: they then stood far higher; since 2026-11-13 there are no coast walls, the founders swim)
 
 Settings: the pixel filter's quality, and the music (the note in the HUD's top right corner, on or off, kept with the
 profile). **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
@@ -1062,8 +1075,8 @@ on Harbor Town hold 1.6 and 2.3 million at three hours, with little to spend the
   wider in front (lit along its back edge, a small dark step down to the wet sand in front, grains and a few shells),
   then grass in darker and lighter patches with tufts and flowers, its front edge a darker lip. Out from the shore: a
   broken line of foam, the shallows lighter near the shore with a broken line of surf further out, dithered into the
-  sea. Rocks with an ink outline sit at the waterline, driftwood lies on the beach, and a dirt path runs from the
-  campfire down to the jetty. The sprites on it were moved where the new coast came too close.
+  sea. Rocks with an ink outline sit at the waterline and driftwood lies on the beach (the dirt path and the jetty went
+  with the docks on 2026-11-13). The sprites on it were moved where the new coast came too close.
 - **The sun's path:** the sea round it is lifted into warm tones, wide along the horizon and closing to the path's
   width toward us. On that glow lie lines of light, close together near the horizon and further apart nearer the
   island, narrowing, broken where the swell dips, pale gold at the top, then gold, then coral, each line's ends a tone
@@ -1084,7 +1097,7 @@ on Harbor Town hold 1.6 and 2.3 million at three hours, with little to spend the
   arrived, Random Bakery's way): Driftling Isle at dusk. A sky in dithered bands from night blue to a warm orange, stars
   in the dark of it, the sun going down on the horizon with far islands either side, a banded sea with the sun's path
   on it and small waves; in the middle the island (its shallows, a ring of foam, wet sand, the sand with its cliff in
-  front, the grass, a jetty). On it the game's own models, drawn ahead of time through the game's picture path (the
+  front, the grass). On it the game's own models, drawn ahead of time through the game's picture path (the
   preview scenario `ploadingart` bakes them frame by frame into `src/first/LoadingArt`): the Tree of Life at the
   back rising over the sea, its hollow, fruit and runes glowing and dimming (on a short screen, a phone held flat, it
   stands at the back on the left so its crown stays clear of the bar; a tall palm stood there while the tide ran),
@@ -1167,7 +1180,7 @@ on Harbor Town hold 1.6 and 2.3 million at three hours, with little to spend the
 
   Your founder's feet are the game's own too: Roblox's built-in footstep, jump and landing sounds are switched off
   (an empty `RbxCharacterSounds` script takes their place) and the founder steps softly on the lawn, crunches on the
-  sand and knocks on the boards of the boardwalk, the jetty and the pier, a step a stride (quicker when running,
+  sand and knocks on wooden boards, splashes through a river and strokes through the sea, a step a stride (quicker when running,
   several takes so no two steps in a row are the same), with a cloth flap for a jump and a soft thump on landing.
 
   > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"

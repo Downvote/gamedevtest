@@ -1,32 +1,31 @@
 --!strict
 -- The sea from parts (GAME_DESIGN 8; docs/ARCHITECTURE.md 6; Data/Street). Roblox module (server: PlotService builds
--- every plot's stretch at start and each plot's island as players come and go).
---   road(parent, origin)          a plot's stretch: the water of its lot and the open sea, the boardwalk of planks on
---                                 its posts with a rope rail and lanterns, the pier with its bollards, crates and the
---                                 old boat moored at its end (every plot, occupied or not, so the boardwalk
---                                 runs on unbroken)
+-- every plot's water at start and each plot's island as players come and go).
+--   road(parent, origin)          a plot's water: its lot's and the open sea's, and the invisible seabed under it
+--                                 (every plot, occupied or not)
 --   land(parent, origin, tier)    an occupied plot: the island (Data/Street's coast: grass in two tones, the sand
 --                                 beach, the wet sand at the waterline, a ring of foam, the light shallows), the plaza
---                                 with its campfire, log seats and flag, stepping stones down to the jetty, the
---                                 island's sign (its board named "SignBoard") and the mailbox on the boardwalk, palms,
---                                 rocks, shells, starfish, driftwood, seaweed and flowers round the coast (never where a
---                                 building may stand), and the invisible walls that follow the coast and the jetty
+--                                 with its campfire, log seats and flag, the island's sign on its south beach (its
+--                                 board named "SignBoard"), palms, rocks, shells, starfish, driftwood, seaweed and
+--                                 flowers round the coast (never where a building may stand)
 --   emptyLot(parent, origin)      an unclaimed plot: open water and a little sandbar with a palm and a sign
---   ends(parent)                  the sea at both ends of the boardwalk and the invisible walls round the world
+--   ends(parent)                  the sea at both ends of the row and the invisible walls round the world
 -- The island's layers are whole-stud cells merged into as few boxes as they make (greedy rectangles), each layer a
 -- little lower than the one inside it, so the coast steps down to the sea. The sea, the shallows and the foam carry a
--- "PixelWater" attribute (1, 2, 3): the pixel filter animates them. Walls are invisible and never queried (the
--- renderer's rays pass through), 40 studs high: far higher than a jump (nobody hops the coast onto the sea).
+-- "PixelWater" attribute (1, 2, 3): the pixel filter animates them. There are no docks: each island stands alone in
+-- the sea (the request of 2026-11-13: "remove the docks area, it should just be an island. players can swim around
+-- in water to reach other player islands"). The water lets the founders through to the seabed (Street.SEABED_Y), an
+-- invisible floor under the whole sea, and an invisible shelf under the foam is the step up to the wet sand, so they
+-- swim off any beach and climb out on any other. The seabed, the shelves and the world's walls are invisible and in
+-- the "Bounds" collision group (the pixel filter's rays pass through them).
 local Street = require(script.Parent.Parent.Data.Street)
 local Util = require(script.Parent.Parent.Logic.Util)
 local Types = require(script.Parent.Parent.Types)
 local Blocks = require(script.Parent.Blocks)
-local BoatSpec = require(script.Parent.BoatSpec)
 
 local StreetModels = {}
 
-local BOARD_Y = -0.3
-local WALL_H = 40 -- far over a jump (Tuning.JumpHeight): nobody hops the coast onto the sea
+local WALL_H = 40 -- the world's edge: far over a jump (Tuning.JumpHeight)
 
 type Rect = Street.Rect
 type Rng = Types.Rng
@@ -44,23 +43,26 @@ local function ball(parent: Instance, frame: CFrame, x: number, y: number, z: nu
 	return Blocks.part(parent, { size = Vector3.new(dia, dia, dia), cf = frame * CFrame.new(x, y, z), color = color, shape = "Ball" })
 end
 
+-- Water (animated by the pixel filter: kind 1 the sea, 2 the shallows, 3 the foam): the founders swim through it.
 local function water(p: BasePart, kind: number): BasePart
 	p:SetAttribute("PixelWater", kind)
+	p.CanCollide = false
 	return p
 end
 
--- An invisible wall (plot-local x0..x1, z0..z1) the founder can't walk through.
-local function wall(parent: Instance, o: CFrame, x0: number, z0: number, x1: number, z1: number)
-	local w = Blocks.part(parent, {
-		size = Vector3.new(math.max(0.5, x1 - x0), WALL_H, math.max(0.5, z1 - z0)),
-		cf = o * CFrame.new((x0 + x1) / 2, WALL_H / 2 - 1, (z0 + z1) / 2),
+-- An invisible floor (plot-local x0..x1, z0..z1, its top at `top`): the seabed the founders swim on, or the shelf under
+-- the foam that steps up to the wet sand. Never in the pixel filter's rays ("Bounds").
+local function floor(parent: Instance, o: CFrame, x0: number, z0: number, x1: number, z1: number, top: number, name: string)
+	local f = Blocks.part(parent, {
+		size = Vector3.new(math.max(0.5, x1 - x0), 1, math.max(0.5, z1 - z0)),
+		cf = o * CFrame.new((x0 + x1) / 2, top - 0.5, (z0 + z1) / 2),
 		color = "white",
-		name = "Bound",
+		name = name,
 		transparency = 1,
 		query = false,
 	})
-	w.CastShadow = false
-	w.CollisionGroup = "Bounds"
+	f.CastShadow = false
+	f.CollisionGroup = "Bounds"
 end
 
 ------------------------------------------------------------------ cells to boxes
@@ -111,20 +113,6 @@ local function greedy(b: Rect, want: (x: number, z: number) -> boolean): { Rect 
 end
 
 ------------------------------------------------------------------ small things
-local function lantern(parent: Instance, at: CFrame)
-	local m = Blocks.model(nil, "Lantern")
-	box(m, at, 0, 1.5, 0, 0.5, 3, 0.5, "wood_dark", "Pole")
-	box(m, at, 0, 0.125, 0, 0.75, 0.25, 0.75, "wood_dark", "Foot")
-	box(m, at, 0, 3.25, 0, 1, 0.25, 1, "wood_dark", "Cap")
-	box(m, at, 0, 3.5, 0, 0.5, 0.25, 0.5, "wood_dark", "Knob")
-	box(m, at, 0, 2.75, 0, 0.75, 0.75, 0.75, "yellow", "Light", true)
-	for _, c in { { -0.375, -0.375 }, { 0.375, -0.375 }, { -0.375, 0.375 }, { 0.375, 0.375 } } do
-		box(m, at, c[1], 2.75, c[2], 0.125, 0.75, 0.125, "black", "Frame")
-	end
-	m.Parent = parent
-end
-
--- A palm: a curving trunk of rings leaning `lean` (radians about Y: the way it leans), a crown of fronds, coconuts.
 local function palm(parent: Instance, at: CFrame, s: number, lean: number?)
 	local m = Blocks.model(nil, "Palm")
 	local f = at * CFrame.Angles(0, lean or 0, 0)
@@ -197,121 +185,15 @@ local function tuft(parent: Instance, at: CFrame, flower: string?)
 	end
 end
 
--- The boat moored beside the pier (Models/BoatSpec at `level`, 1 from `road`: scenery; its bow to the south). Its
--- flags carry PixelWind 2 (they ripple in the pixel filter's wind).
-function StreetModels.boat(parent: Instance, origin: Vector3, level: number): Model
-	local m = Blocks.model(nil, "Boat")
-	m:SetAttribute("Level", level)
-	local mx, mz = BoatSpec.moor(level)
-	local at = CFrame.new(origin) * CFrame.new(mx, Street.WATER_Y + BoatSpec.deckOverWater(level), mz)
-	for _, sp in BoatSpec.parts(level) do
-		local cf = at * sp.cf
-		local p: BasePart
-		if sp.shape == "CylY" then
-			p = Blocks.cylY(m, sp.size.X, sp.size.Y, cf, sp.color)
-		else
-			p = Blocks.part(m, { size = sp.size, cf = cf, color = sp.color, name = sp.name, shape = if sp.shape == "Wedge" then "Wedge" else nil, neon = sp.neon })
-		end
-		p.Name = sp.name
-		p.CanCollide = false -- (scenery beside the pier: nothing to snag on)
-		if sp.wind then
-			p:SetAttribute("PixelWind", sp.wind)
-		end
-	end
-	m.Parent = parent
-	return m
-end
-
-local function crate(parent: Instance, at: CFrame, s: number)
-	box(parent, at, 0, 0.5 * s, 0, s, s, s, "wood", "Crate")
-	box(parent, at, 0, 0.5 * s, 0, s + 0.05, 0.2 * s, s + 0.05, "wood_dark", "Strap")
-	box(parent, at, 0, s + 0.02, 0, 0.8 * s, 0.05, 0.15 * s, "wood_dark", "Lid")
-end
-
-local function barrel(parent: Instance, at: CFrame)
-	Blocks.cylY(parent, 1.0, 1.2, at * CFrame.new(0, 0.6, 0), "wood")
-	Blocks.cylY(parent, 1.08, 0.12, at * CFrame.new(0, 0.3, 0), "steel_dark")
-	Blocks.cylY(parent, 1.08, 0.12, at * CFrame.new(0, 0.9, 0), "steel_dark")
-end
-
------------------------------------------------------------------- a plot's stretch
+------------------------------------------------------------------ a plot's water
 function StreetModels.road(parent: Instance, origin: Vector3): Model
 	local m = Blocks.model(nil, "Road")
 	local o = CFrame.new(origin)
 	local x0, x1 = Street.LOT.x0, Street.LOT.x1
-	-- the water: the lot's and the open sea's (animated by the pixel filter)
-	water(slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.BOARD.z0, Street.WATER_Y, 1, "water", "Water"), 1)
-	water(slab(m, o, x0, Street.BOARD.z1, x1, Street.SEA.z1 + Street.FAR, Street.WATER_Y, 1, "water", "Water"), 1)
-	water(slab(m, o, x0, Street.BOARD.z0, x1, Street.BOARD.z1, Street.WATER_Y, 1, "water", "Water"), 1)
-	-- the boardwalk: planks across it in three tones, beams under its edges, posts down into the water
-	local B0, B1 = Street.BOARD.z0, Street.BOARD.z1
-	slab(m, o, x0, B0 + 0.25, x1, B1 - 0.25, BOARD_Y - 0.25, 0.5, "wood_dark", "Beam")
-	local tones = { "wood", "wood", "desk", "wood" }
-	local rng = Util.newRng(7)
-	local x = x0
-	while x < x1 do
-		local w = math.min(1, x1 - x)
-		slab(m, o, x + 0.05, B0, x + w - 0.05, B1, BOARD_Y, 0.25, tones[rng:int(1, #tones)], "Plank")
-		x += w
-	end
-	slab(m, o, x0, B0, x1, B0 + 0.25, BOARD_Y - 0.25, 0.25, "wood_dark", "Edge")
-	slab(m, o, x0, B1 - 0.25, x1, B1, BOARD_Y - 0.25, 0.25, "wood_dark", "Edge")
-	x = x0 + 2
-	while x < x1 do
-		for _, z in { B0 + 0.25, B1 - 0.25 } do
-			box(m, o, x, (BOARD_Y + Street.WATER_Y) / 2 - 0.4, z, 0.5, BOARD_Y - Street.WATER_Y + 0.7, 0.5, "wood_dark", "Post")
-		end
-		x += 4
-	end
-	-- the sea side's rope rail: a short post every 4 studs (but at the pier), a rope between
-	local pr = Street.pier()
-	x = x0 + 2
-	while x < x1 do
-		if x < pr.x0 - 0.5 or x > pr.x1 + 0.5 then
-			box(m, o, x, BOARD_Y + 0.6, B1 - 0.25, 0.25, 1.2, 0.25, "wood_dark", "RailPost")
-		end
-		x += 4
-	end
-	slab(m, o, x0, B1 - 0.32, pr.x0, B1 - 0.18, BOARD_Y + 1.0, 0.1, "sand_dark", "Rope")
-	slab(m, o, pr.x1, B1 - 0.32, x1, B1 - 0.18, BOARD_Y + 1.0, 0.1, "sand_dark", "Rope")
-	for _, lx in Street.LAMPS do
-		lantern(m, o * CFrame.new(lx, BOARD_Y, B1 - 0.6))
-	end
-	-- the pier: planks along it, posts, bollards at its end, crates and a barrel, its boat
-	slab(m, o, pr.x0, pr.z0, pr.x1, pr.z1, BOARD_Y - 0.25, 0.5, "wood_dark", "PierBeam")
-	local z = pr.z0
-	while z < pr.z1 do
-		slab(m, o, pr.x0, z + 0.05, pr.x1, math.min(z + 1, pr.z1) - 0.05, BOARD_Y, 0.25, tones[rng:int(1, #tones)], "Pier")
-		z += 1
-	end
-	for zz = pr.z0 + 2, pr.z1, 3 do
-		box(m, o, pr.x0 + 0.25, (BOARD_Y + Street.WATER_Y) / 2 - 0.4, zz, 0.5, BOARD_Y - Street.WATER_Y + 0.7, 0.5, "wood_dark", "Post")
-		box(m, o, pr.x1 - 0.25, (BOARD_Y + Street.WATER_Y) / 2 - 0.4, zz, 0.5, BOARD_Y - Street.WATER_Y + 0.7, 0.5, "wood_dark", "Post")
-	end
-	-- the pier's things (bollards, crates, a barrel, a coil of rope) and its boat are scenery: nothing to snag on
-	local props = Instance.new("Folder")
-	props.Name = "PierProps"
-	for _, bx in { pr.x0 + 0.5, pr.x1 - 0.5 } do
-		Blocks.cylY(props, 0.5, 0.8, o * CFrame.new(bx, BOARD_Y + 0.4, pr.z1 - 0.5), "steel_dark")
-		Blocks.cylY(props, 0.7, 0.15, o * CFrame.new(bx, BOARD_Y + 0.85, pr.z1 - 0.5), "steel_dark")
-	end
-	crate(props, o * CFrame.new(pr.x0 + 0.75, BOARD_Y, pr.z0 + 3), 1)
-	crate(props, o * CFrame.new(pr.x0 + 0.65, BOARD_Y + 1, pr.z0 + 3.1), 0.7)
-	barrel(props, o * CFrame.new(pr.x1 - 0.75, BOARD_Y, pr.z0 + 5))
-	Blocks.cylY(props, 0.9, 0.2, o * CFrame.new(pr.x1 - 0.7, BOARD_Y + 0.1, pr.z1 - 2.5), "sand_dark") -- a coil of rope
-	for _, d in props:GetChildren() do
-		if d:IsA("BasePart") then
-			d.CanCollide = false
-		end
-	end
-	props.Parent = m
-	StreetModels.boat(m, origin, 1)
-	-- walls: the boardwalk's sea side (but the pier), the pier's sides and end
-	wall(m, o, x0, B1, pr.x0, B1 + 0.5)
-	wall(m, o, pr.x1, B1, x1, B1 + 0.5)
-	wall(m, o, pr.x0 - 0.5, pr.z0, pr.x0, pr.z1)
-	wall(m, o, pr.x1, pr.z0, pr.x1 + 0.5, pr.z1)
-	wall(m, o, pr.x0 - 0.5, pr.z1, pr.x1 + 0.5, pr.z1 + 0.5)
+	-- the water: the lot's and the open sea's (animated by the pixel filter), far past the world's walls
+	water(slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.SEA.z1 + Street.FAR, Street.WATER_Y, 1, "water", "Water"), 1)
+	-- the seabed under it, as far as the world's walls
+	floor(m, o, x0, Street.LOT.z0, x1, Street.SEA.z1, Street.SEABED_Y, "Seabed")
 	m.Parent = parent
 	return m
 end
@@ -347,6 +229,8 @@ local function coast(m: Instance, o: CFrame, b: Rect, layer: (x: number, z: numb
 		return layer(x, z) == F
 	end) do
 		water(slab(m, o, r.x0, r.z0, r.x1, r.z1, Street.FOAM_Y, 0.2, "foam", "Foam"), 3)
+		-- (the step out of the sea: halfway from the seabed up to the wet sand)
+		floor(m, o, r.x0, r.z0, r.x1, r.z1, (Street.SEABED_Y + Street.WET_Y) / 2, "Shelf")
 	end
 	for _, r in greedy(b, beach) do
 		slab(m, o, r.x0, r.z0, r.x1, r.z1, Street.WET_Y, 0.9, "sand_dark", "WetSand")
@@ -366,52 +250,6 @@ local function coast(m: Instance, o: CFrame, b: Rect, layer: (x: number, z: numb
 	end
 end
 
--- Invisible walls round the walkable cells (walk(x, z)): a wall on every edge between a walkable cell and one that is
--- not, runs along a row or a column merged into one wall.
-local function coastWalls(m: Instance, o: CFrame, b: Rect, walk: (x: number, z: number) -> boolean)
-	-- horizontal edges: the line z (between cells z - 1 and z), x runs
-	for z = b.z0, b.z1 + 1 do
-		local run: number? = nil
-		local side = 0
-		for x = b.x0, b.x1 + 1 do
-			local a, c = walk(x, z - 1), walk(x, z)
-			local s = if a and not c then 1 elseif c and not a then -1 else 0
-			if s ~= side or s == 0 then
-				if run and side ~= 0 then
-					-- the wall stands on the side away from the walkable cell
-					if side == 1 then
-						wall(m, o, run, z, x, z + 0.5)
-					else
-						wall(m, o, run, z - 0.5, x, z)
-					end
-				end
-				run = if s ~= 0 then x else nil
-				side = s
-			end
-		end
-	end
-	-- vertical edges: the line x (between cells x - 1 and x), z runs
-	for x = b.x0, b.x1 + 1 do
-		local run: number? = nil
-		local side = 0
-		for z = b.z0, b.z1 + 1 do
-			local a, c = walk(x - 1, z), walk(x, z)
-			local s = if a and not c then 1 elseif c and not a then -1 else 0
-			if s ~= side or s == 0 then
-				if run and side ~= 0 then
-					if side == 1 then
-						wall(m, o, x, run, x + 0.5, z)
-					else
-						wall(m, o, x - 0.5, run, x, z)
-					end
-				end
-				run = if s ~= 0 then z else nil
-				side = s
-			end
-		end
-	end
-end
-
 ------------------------------------------------------------------ an island
 local function sign(m: Instance, at: CFrame, words: string?)
 	local s = Blocks.model(nil, "PlotSign")
@@ -424,14 +262,6 @@ local function sign(m: Instance, at: CFrame, words: string?)
 	box(s, at, 0, 2.05, 0.2, 2.25, 0.75, 0.25, "paper", "Face")
 	box(s, at, 0, 2.75, 0.1, 3, 0.15, 0.4, "wood_dark", "Top")
 	s.Parent = m
-end
-
-local function mailbox(m: Instance, at: CFrame)
-	box(m, at, 0, 0.8, 0, 0.25, 1.6, 0.25, "wood_dark", "MailPost")
-	box(m, at, 0, 1.85, 0, 0.75, 0.75, 1.25, "berry_red", "Mailbox")
-	box(m, at, 0, 2.3, 0, 0.75, 0.15, 1.25, "berry_red", "Lid")
-	box(m, at, 0, 1.85, 0.66, 0.5, 0.5, 0.05, "black", "Slot")
-	box(m, at, 0.45, 2.1, -0.2, 0.25, 0.5, 0.25, "yellow", "Flag")
 end
 
 -- The plaza round the campfire: a ring of sand on the grass, a ring of stones round the fire's logs and flames, three
@@ -464,7 +294,7 @@ local function plaza(m: Instance, o: CFrame)
 	ball(m, at, 3, 5.1, -3, 0.4, "gold")
 	box(m, at, 3, 4.4, -2.1, 0.1, 1, 1.75, "berry_red", "Pennant")
 	box(m, at, 3, 4.4, -1.5, 0.1, 0.5, 0.5, "white", "Mark")
-	-- two tiki torches at the path's start
+	-- two tiki torches at the plaza's south edge
 	for _, tx in { -2.5, 2.5 } do
 		local tf = o * CFrame.new(tx, Street.LAWN_Y, Street.PLAZA.z1 - 0.5)
 		box(m, tf, 0, 1.1, 0, 0.25, 2.2, 0.25, "wood_dark", "TorchPole")
@@ -473,46 +303,18 @@ local function plaza(m: Instance, o: CFrame)
 	end
 end
 
--- The stepping stones from the plaza to the shore, and the jetty of planks over the water to the boardwalk.
-local function pathAndJetty(m: Instance, o: CFrame, tier: number, rng: Rng)
-	local jt = Street.jetty(tier)
-	local z = Street.PLAZA.z1 + 0.5
-	local k = 0
-	while z < jt.z0 do
-		local sx = if k % 2 == 0 then -0.6 else 0.5
-		local top = if Street.layer(tier, 0, math.floor(z)) == Street.GRASS then Street.LAWN_Y + 0.06 else Street.SAND_Y + 0.06
-		slab(m, o, sx - 0.75 + rng:next() * 0.2, z, sx + 0.75, z + 1, top, 0.15, if k % 3 == 0 then "rock" else "pavement", "Stone")
-		z += 1.5
-		k += 1
-	end
-	-- the jetty: a beam, planks across, posts both sides, a rope rail on posts
-	local jz0 = jt.z0
-	slab(m, o, jt.x0 + 0.25, jz0, jt.x1 - 0.25, jt.z1, BOARD_Y - 0.25, 0.4, "wood_dark", "JettyBeam")
-	z = jz0
-	while z < jt.z1 do
-		slab(m, o, jt.x0, z + 0.05, jt.x1, math.min(z + 1, jt.z1) - 0.05, BOARD_Y, 0.25, if rng:chance(0.3) then "desk" else "wood", "JettyPlank")
-		z += 1
-	end
-	for pz = jz0 + 1, jt.z1, 2.5 do
-		for _, px in { jt.x0 + 0.2, jt.x1 - 0.2 } do
-			box(m, o, px, (BOARD_Y + Street.WATER_Y) / 2 - 0.4 + 0.5, pz, 0.4, BOARD_Y - Street.WATER_Y + 1.7, 0.4, "wood_dark", "JettyPost")
-		end
-	end
-	slab(m, o, jt.x0 + 0.1, jz0 + 1, jt.x0 + 0.3, jt.z1, BOARD_Y + 1.0, 0.1, "sand_dark", "Rope")
-	slab(m, o, jt.x1 - 0.3, jz0 + 1, jt.x1 - 0.1, jt.z1, BOARD_Y + 1.0, 0.1, "sand_dark", "Rope")
-	return jt
-end
-
 -- Things round the coast, never on a cell a building may use: palms at the grass's edge, rocks in the shallows,
 -- shells and starfish on the beach, driftwood, seaweed on the wet sand, tufts and flowers on the grass's rim.
-local function scatter(m: Instance, o: CFrame, tier: number, b: Rect, rng: Rng, jt: Rect)
+local function scatter(m: Instance, o: CFrame, tier: number, b: Rect, rng: Rng)
 	local cells: { [number]: { { x: number, z: number } } } = { {}, {}, {}, {}, {} }
 	local rim: { { x: number, z: number } } = {}
+	local sx, sz = Street.sign(tier)
 	for z = b.z0, b.z1 do
 		for x = b.x0, b.x1 do
 			local l = Street.layer(tier, x, z)
-			local nearJetty = x >= jt.x0 - 2 and x < jt.x1 + 2 and z >= Street.PLAZA.z1
-			if l ~= Street.SEA_CELL and not nearJetty then
+			-- (clear round the island's sign)
+			local nearSign = math.abs(x + 0.5 - sx) < 3 and math.abs(z + 0.5 - sz) < 2.5
+			if l ~= Street.SEA_CELL and not nearSign then
 				table.insert(cells[l], { x = x, z = z })
 				if l == Street.GRASS and not Street.buildable(tier, x, z) then
 					table.insert(rim, { x = x, z = z })
@@ -520,7 +322,8 @@ local function scatter(m: Instance, o: CFrame, tier: number, b: Rect, rng: Rng, 
 			end
 		end
 	end
-	local taken: { { x: number, z: number, r: number } } = {}
+	-- (the sign's spot taken first, wide: no palm leans in front of it)
+	local taken: { { x: number, z: number, r: number } } = { { x = sx, z = sz, r = 5 } }
 	local function clear(x: number, z: number, r: number): boolean
 		for _, t in taken do
 			if (t.x - x) ^ 2 + (t.z - z) ^ 2 < (t.r + r) ^ 2 then
@@ -589,25 +392,10 @@ function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Mod
 	end)
 	local rng = Util.newRng(tier * 7919 + 13)
 	plaza(m, o)
-	local jt = pathAndJetty(m, o, tier, rng)
-	scatter(m, o, tier, cb, rng, jt)
-	local sx, sz = Street.sign()
-	sign(m, o * CFrame.new(sx, BOARD_Y, sz), "island")
-	local mx, mz = Street.mailbox()
-	mailbox(m, o * CFrame.new(mx, BOARD_Y, mz))
-	-- walls round the walkable sand and grass, the jetty's sides, the boardwalk's island side (but the jetty)
-	local function walk(x: number, z: number): boolean
-		if z >= Street.BOARD.z0 then
-			return true
-		end
-		if x >= jt.x0 and x < jt.x1 and z >= jt.z0 then
-			return true
-		end
-		return Street.walkable(tier, x, z)
-	end
-	coastWalls(m, o, { x0 = cb.x0 - 1, z0 = cb.z0 - 1, x1 = cb.x1 + 1, z1 = Street.BOARD.z0 - 1 }, walk)
-	wall(m, o, lot.x0, Street.BOARD.z0 - 0.5, math.min(cb.x0 - 1, jt.x0), Street.BOARD.z0)
-	wall(m, o, math.max(cb.x1 + 2, jt.x1), Street.BOARD.z0 - 0.5, lot.x1, Street.BOARD.z0)
+	scatter(m, o, tier, cb, rng)
+	-- the island's sign on its south beach (tapped: the island's card; its name floats over it)
+	local sx, sz = Street.sign(tier)
+	sign(m, o * CFrame.new(sx, Street.SAND_Y, sz), "island")
 	Blocks.windy(m) -- palms and tufts sway, the plaza's pennant ripples
 	m.Parent = parent
 	return m
@@ -637,13 +425,13 @@ function StreetModels.emptyLot(parent: Instance, origin: Vector3): Model
 	rocks(m, o * CFrame.new(5, Street.SHALLOW_Y - 0.2, 10), 0.9, Util.newRng(3))
 	shell(m, o * CFrame.new(3, Street.SAND_Y, 11.5), 1)
 	shell(m, o * CFrame.new(-0.5, Street.SAND_Y, 13.8), 2)
-	-- the boardwalk's island side is closed here
-	wall(m, o, Street.LOT.x0, Street.BOARD.z0 - 0.5, Street.LOT.x1, Street.BOARD.z0)
 	m.Parent = parent
 	return m
 end
 
 ------------------------------------------------------------------ the sea's ends and the world's walls
+-- The sea past the row's ends (the seabed under it as far as the walls), a sandbar with a palm beyond each wall, and
+-- the invisible walls round the world.
 function StreetModels.ends(parent: Instance): Model
 	local m = Blocks.model(nil, "StreetEnds")
 	local b = Street.bounds()
@@ -655,13 +443,11 @@ function StreetModels.ends(parent: Instance): Model
 		local x0 = if west then e[1] - Street.END_FAR else e[1]
 		local x1 = if west then e[2] else e[2] + Street.END_FAR
 		water(slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.SEA.z1 + Street.FAR, Street.WATER_Y, 1, "water", "Water"), 1)
-		-- the boardwalk runs on to a last post and lantern (this end's stretch only: past the first plot on the west,
-		-- past the last on the east; the east's once ran from the first plot, its walls across every pier and jetty)
+		-- the seabed from the row's end to the world's wall
 		local bx0 = if west then b.x0 else last
 		local bx1 = if west then first else b.x1
-		slab(m, o, bx0, Street.BOARD.z0, bx1, Street.BOARD.z1, BOARD_Y, 0.5, "wood", "Boardwalk")
+		floor(m, o, bx0, Street.LOT.z0, bx1, Street.SEA.z1, Street.SEABED_Y, "Seabed")
 		local hx = if west then b.x0 + 1 else b.x1 - 1
-		lantern(m, o * CFrame.new(hx, BOARD_Y, Street.BOARD.z0 + 0.5))
 		local sx = if west then hx - 12 else hx + 12
 		local function dist(x: number, z: number): number
 			local dx, dz = x + 0.5 - sx, z + 0.5 - 6
@@ -673,8 +459,6 @@ function StreetModels.ends(parent: Instance): Model
 		end
 		coast(m, o, { x0 = math.floor(sx) - 16, z0 = -8, x1 = math.floor(sx) + 15, z1 = 20 }, layer, dist)
 		palm(m, o * CFrame.new(sx, Street.SAND_Y, 6), 1.2, if west then 3.1 else 0)
-		wall(m, o, bx0, Street.BOARD.z0 - 0.5, bx1, Street.BOARD.z0)
-		wall(m, o, bx0, Street.BOARD.z1, bx1, Street.BOARD.z1 + 0.5)
 	end
 	-- the world's outer walls
 	local function outer(wx0: number, z0: number, wx1: number, z1: number)

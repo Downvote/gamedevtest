@@ -621,8 +621,8 @@ local function walkTo(p, x, z)
 	settle(p, 30, 1)
 end
 
--- The founder on the boardwalk between two islands (the neighbour's village at work, boats out at sea); then the
--- same pan baked from scratch, to compare a scrolled picture with a fresh one.
+-- The founder swimming in the sea between two islands (no docks since 2026-11-13: the neighbour's village at work,
+-- boats out at sea); then the same pan baked from scratch, to compare a scrolled picture with a fresh one.
 function SCEN.sea()
 	local p = join(50, "Walker")
 	seedProfile(51, 2, { pieces = VILLAGE, pals = PALS})
@@ -631,7 +631,7 @@ function SCEN.sea()
 	local Street = H.sharedServer("Data.Street")
 	local x1 = Street.origin(1)
 	local x2 = Street.origin(2)
-	walkTo(p, (x1 + x2) / 2 + 6, (Street.BOARD.z0 + Street.BOARD.z1) / 2)
+	walkTo(p, (x1 + x2) / 2 + 2, 16)
 	E.run(0.5)
 	settle(p, 10, 0.5)
 	capture(p, "sea")

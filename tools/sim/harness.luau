@@ -64,7 +64,7 @@ function H.patchMonetizationIds(tree)
 end
 
 -- A player joins with a full client and, like Roblox with Players.CharacterAutoLoads on, a character half a second
--- later (the founder AvatarView draws, placed on their own footpath by PlotService). opts.noCharacter: no character
+-- later (the founder AvatarView draws, placed on their own island's plaza by PlotService). opts.noCharacter: no character
 -- at all (the fake engine does not read project properties, so the harness decides); opts.charDelay: another delay.
 function H.addPlayer(opts)
 	if opts.noCharacter then

@@ -83,7 +83,7 @@ local Tuning = {
 	RateLimitPerSec = 12, -- requests per player per second (more are refused with "rate")
 
 	-- the sea and the islands (GAME_DESIGN 8; Data/Street)
-	MaxPlots = 6, -- islands along the boardwalk (the server's size)
+	MaxPlots = 6, -- islands in a row on the sea (the server's size)
 	PlotSpacing = 80, -- studs between island origins along X
 	-- buildings and decor standing on an island, by its tier (more room since the build catalog grew: GAME_DESIGN 4)
 	PlotPieces = { 36, 60, 90, 130, 180, 240, 300, 370, 450, 540 },
@@ -95,6 +95,7 @@ local Tuning = {
 	FencePieces = { 40, 80, 130, 180, 240, 300, 370, 440, 520, 600 },
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
+	SwimSpeed = 11, -- studs a second in the sea (the founders swim between the islands)
 	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode)
 
 	-- camera and pixel filter (Random Bakery's values; ARCHITECTURE 9)

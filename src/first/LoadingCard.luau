@@ -103,8 +103,6 @@ local FLOWER_A, FLOWER_B = 0xFFE17A, 0xF6A6C8
 local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x8E8A99, 0xC9C4D2, 0x6E6A7C, 0x4A4556
 local PLAZA, PLAZA_RIM = 0xE2C48C, 0xC9A26A
 local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xB89474, 0xDCC4A4, 0x8C6A50, 0x50392A
-local PATH_DIRT, PATH_DIRT_EDGE = 0xDDB97E, 0xC29C64
-local JETTY, JETTY_LO, JETTY_EDGE = 0xBB8350, 0x9C6A40, 0x603E27
 local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 
 -- what the status says in each phase (and the tips, one after another)
@@ -725,38 +723,8 @@ local function paint(L: Layout): buffer
 			end
 		end
 	end
-	-- a trodden path from the campfire down to the jetty: a bend to the left on its way, dirt with a dithered edge,
-	-- only on the grass
+	-- the plaza round the campfire (no path, no jetty: the island stands alone in the sea since 2026-11-13)
 	local fx, fy = isl(L, 0.02, 0.1)
-	local jx = cx + math.floor(rx * 0.3)
-	local jy = fy
-	while jy < by1 and kindAt(jx, jy) ~= 5 and kindAt(jx, jy) ~= 4 do
-		jy += 1
-	end
-	do
-		local pts = {}
-		local n = math.max(12, math.floor(math.abs(jy - fy) + math.abs(jx - fx)))
-		for s = 0, n do
-			local t = s / n
-			table.insert(pts, Vector2.new(fx + (jx - fx) * t - math.sin(t * math.pi) * 6, fy + 3 + (jy - fy - 3) * t))
-		end
-		for y = math.min(fy, jy) - 3, math.max(fy, jy) + 3 do
-			for x = math.min(fx, jx) - 10, math.max(fx, jx) + 4 do
-				if kindAt(x, y) == 7 then
-					local best = math.huge
-					for _, p in pts do
-						-- (rows count double: the path is as wide on the ground across as along)
-						best = math.min(best, (p.X - x) ^ 2 + ((p.Y - y) * 2) ^ 2)
-					end
-					if best <= 1.6 ^ 2 then
-						put(x, y, PATH_DIRT)
-					elseif best <= 2.7 ^ 2 and stepOn(x, y, 2) then
-						put(x, y, PATH_DIRT_EDGE)
-					end
-				end
-			end
-		end
-	end
 	for y = fy - 5, fy + 5 do
 		local q = (y - fy) / 5
 		if q >= -1 and q <= 1 then
@@ -764,24 +732,6 @@ local function paint(L: Layout): buffer
 			row(y, fx - h, fx + h, PLAZA)
 			if y == fy + 5 or (y > fy and math.floor(13 * math.sqrt(math.max(0, 1 - ((y + 1 - fy) / 5) ^ 2))) < h - 2) then
 				row(y, fx - h, fx + h, PLAZA_RIM)
-			end
-		end
-	end
-	-- a wooden jetty from the beach out over the shallows (planks across it in two tones, a dark edge each side, posts
-	-- under its end)
-	do
-		local y0 = jy - 2
-		local y1 = math.min(y0 + math.max(10, math.floor(L.ry * 0.45)), L.tipY - 6)
-		for y = y0, y1 do
-			local x0 = jx - 4 + math.floor((y - y0) / 2)
-			row(y, x0, x0 + 7, if (y - y0) % 3 == 0 then JETTY_LO else JETTY)
-			put(x0, y, JETTY_EDGE)
-			put(x0 + 7, y, JETTY_EDGE)
-		end
-		local xe = jx - 4 + math.floor((y1 - y0) / 2)
-		for _, px0 in { xe + 1, xe + 6 } do
-			for y = y1 + 1, math.min(y1 + 3, L.H - 1) do
-				put(px0, y, JETTY_EDGE)
 			end
 		end
 	end

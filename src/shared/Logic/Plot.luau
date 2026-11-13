@@ -142,10 +142,10 @@ local function overlaps(a: Rect, b: Rect): boolean
 	return a.x0 < b.x1 and b.x0 < a.x1 and a.z0 < b.z1 and b.z0 < a.z1
 end
 
--- The fixed things on an island no piece may cover (plot-local): the plaza round the campfire and the path to the
--- jetty (the same on every tier).
+-- The fixed things on an island no piece may cover (plot-local): the plaza round the campfire (the same on every tier;
+-- the path south to the jetty went with the docks on 2026-11-13).
 function Plot.blockers(_tier: number): { Rect }
-	return { Street.PLAZA, Street.PATH }
+	return { Street.PLAZA }
 end
 
 local ROT_OK: { [number]: boolean } = { [0] = true, [90] = true, [180] = true, [270] = true }

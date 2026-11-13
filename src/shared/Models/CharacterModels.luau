@@ -518,10 +518,11 @@ CharacterModels.WORK_HIT = { dig = { 0.62 }, chop = { 0.7 }, hammer = { 0.35, 0.
 --   "jump" knees up and arms up; "sneak" crouched with arms forward; "dance" the arms in turn; and (from the old fights)
 --   "windup" (crouched, leaning back, the fist drawn back: fierce), "strike" (a lunge, the fist swinging through
 --   with k: shouting), "guard" (crouched behind crossed arms), "throw" (an overhand throw with k), "run" (leaning
---   into a sprint), "victory" (a jump with a fist pumped up), "ko" (flat on the back, eyes shut).
+--   into a sprint), "victory" (a jump with a fist pumped up), "ko" (flat on the back, eyes shut); "swim" (in the sea:
+--   a crawl when speed > 1, else treading water).
 function CharacterModels.poseAction(rig: Rig, base: CFrame, t: number, speed: number, action: string, k: number?)
 	local kk = math.clamp(k or 0, 0, 1)
-	local P = walkPose(rig, t, if action == "run" then math.max(speed, 20) else (if action == "jump" or action == "ko" then 0 else speed))
+	local P = walkPose(rig, t, if action == "run" then math.max(speed, 20) else (if action == "jump" or action == "ko" or action == "swim" then 0 else speed))
 	if action == "cheer" then
 		local wave = math.sin(t * 12) * 0.25
 		P.armL = CFrame.Angles(0, 0, math.rad(-150 + wave * 25))
@@ -615,6 +616,28 @@ function CharacterModels.poseAction(rig: Rig, base: CFrame, t: number, speed: nu
 		P.mood = "happy"
 	elseif action == "run" then
 		P.lean = math.rad(18)
+	elseif action == "swim" then
+		-- in the sea (AvatarView sinks the rig to its chest): moving, a crawl (the arms turning over in turn, the legs
+		-- kicking, leaning into it); still, treading water (the arms sweeping out and back, a slow bob)
+		if speed > 1 then
+			local a = (t * 5) % (math.pi * 2)
+			P.lean = math.rad(30)
+			P.armL = CFrame.Angles(-a, 0, math.rad(-12))
+			P.armR = CFrame.Angles(-(a + math.pi), 0, math.rad(12))
+			P.elbowL, P.elbowR = math.rad(15), math.rad(15)
+			P.hipL, P.kneeL = math.sin(t * 12) * math.rad(20), math.rad(10)
+			P.hipR, P.kneeR = -math.sin(t * 12) * math.rad(20), math.rad(10)
+		else
+			local sw = math.sin(t * 3)
+			P.lean = 0
+			P.armL = CFrame.Angles(0, sw * 0.4, math.rad(-70))
+			P.armR = CFrame.Angles(0, -sw * 0.4, math.rad(70))
+			P.elbowL, P.elbowR = math.rad(25), math.rad(25)
+			P.hipL, P.kneeL = math.rad(-15) + sw * 0.2, math.rad(40)
+			P.hipR, P.kneeR = math.rad(-15) - sw * 0.2, math.rad(40)
+			P.lift = 0.06 * math.sin(t * 2)
+		end
+		P.mood = "happy"
 	elseif WORK[action] then
 		WORK[action](P, t, kk)
 	end

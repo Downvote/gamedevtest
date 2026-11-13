@@ -24,6 +24,7 @@ local EggView = require(script.Parent.Parent.Controllers.EggView)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local DayLight = require(script.Parent.Parent.Controllers.DayLight)
+local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
@@ -133,7 +134,7 @@ local function buildTop()
 	local db = UIKit.rect(chipFrames.day, UDim2.fromOffset(0, 1), UDim2.new(0, 3, 1, -2), UIKit.color("accent"), 3)
 	db.Name = "DayBar"
 	dayBar = db
-	-- Home: shown while the founder is off their own island (char.home sends them back to their path)
+	-- Home: shown while the founder is off their own island (char.home sends them back to their plaza)
 	local hb = UIKit.button(UIKit.canvas("Hud"), "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(x - 3, CHIP_Y), function()
 		local res = StateClient.request("char.home", {})
 		if not res.ok and res.err ~= "cooldown" then
@@ -856,13 +857,18 @@ function Hud.start()
 			end
 		end
 		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
-		-- clear of the tray's and the panels' buttons)
+		-- clear of the tray's and the panels' buttons) and while swimming; in the sea the founder swims slower
 		local char = Players.LocalPlayer.Character
 		local hum = if char then char:FindFirstChildOfClass("Humanoid") else nil
 		if hum then
-			local want = if BuildUI.isOpen() or UIKit.currentPanel() ~= nil then 0 else Tuning.JumpHeight
+			local swimming = AvatarView.swimming()
+			local want = if BuildUI.isOpen() or UIKit.currentPanel() ~= nil or swimming then 0 else Tuning.JumpHeight
 			if hum.JumpHeight ~= want then
 				hum.JumpHeight = want
+			end
+			local pace = if swimming then Tuning.SwimSpeed else Tuning.WalkSpeed
+			if hum.WalkSpeed ~= pace then
+				hum.WalkSpeed = pace
 			end
 		end
 		local hb = homeButton

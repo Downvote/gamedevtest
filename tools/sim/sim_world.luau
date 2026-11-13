@@ -1,9 +1,10 @@
 -- The sea and the islands (GAME_DESIGN 4, 6, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
--- start (the boardwalk, open water on every lot); two islands on plots 1 and 2 with their lands, attributes and
+-- start (no docks: open water on every lot with the seabed the founders swim on); two islands on plots 1 and 2 with
+-- their lands (no coast walls, the sign on the beach), attributes and
 -- founders, each with its Tree of Life (its model by its stage) and its first lot of eggs (the plot's Eggs attribute
 -- its session's); each client drawing its own island's hut driftlings, the neighbour's and both founders, no villagers,
--- and both islands' eggs round their trees; a founder walking onto the neighbour's island (the camera follows, Home
--- shows) and going home (and its cooldown); placing (paid in wood), moving and clearing buildings with every refusal
+-- and both islands' eggs round their trees; the sea between two islands open to swim; a founder going onto the
+-- neighbour's island (the camera follows, Home shows) and going home (and its cooldown); placing (paid in wood), moving and clearing buildings with every refusal
 -- (no upgrades, the piece limit with the tree apart, the huts' limit), the server's Static.Decor following piece by
 -- piece; the same through Build mode's catalog (the Work tab's Farms row, a locked card and its tooltip, the Nature
 -- tab's Plants row, the Huts tab at the huts' limit, paths, fences drawn as a line and a box and erased, water dug and
@@ -16,8 +17,8 @@
 -- tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the clients near it, the
 -- price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away, bought or replaced; it
 -- moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other piece clears away; a
--- tier 10 island from a saved profile (its land far north of z -64, its coast walls holding up there, the founder at
--- home up there, pieces, tiles and fences fitting there).
+-- tier 10 island from a saved profile (its land far north of z -64, no walls up there either and the seabed under the
+-- sea there, the founder at home up there, pieces, tiles and fences fitting there).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -75,7 +76,26 @@ if seaFolder then
 		end
 	end
 end
-H.expect(stretches == Street.MAX and ends == 1, "sea", "a boardwalk stretch per plot and the sea's ends", string.format("%d stretches, %d ends", stretches, ends))
+H.expect(stretches == Street.MAX and ends == 1, "sea", "the water of every plot and the sea's ends", string.format("%d stretches, %d ends", stretches, ends))
+-- no docks: no boardwalk, pier or boat; the water lets a founder through, the seabed under it holds them, out of the
+-- pixel filter's rays
+do
+	local docks, water, bed = {}, 0, 0
+	for _, d in if seaFolder then seaFolder:GetDescendants() else {} do
+		if d:IsA("BasePart") then
+			if d.Name == "Plank" or d.Name == "Boardwalk" or d.Name == "Pier" or d.Name == "Post" or d.Name == "Mailbox" then
+				table.insert(docks, d.Name)
+			elseif d.Name == "Water" then
+				water += if d.CanCollide == false and d:GetAttribute("PixelWater") == 1 then 1 else 0
+			elseif d.Name == "Seabed" then
+				local top = d.Position.Y + d.Size.Y / 2
+				bed += if d.CanCollide and d.Transparency == 1 and d.CollisionGroup == "Bounds" and math.abs(top - Street.SEABED_Y) < 1e-3 then 1 else 0
+			end
+		end
+	end
+	H.expect(#docks == 0, "sea", "no docks on the sea", table.concat(docks, ", "))
+	H.expect(water >= Street.MAX and bed >= Street.MAX, "sea", "water a founder swims through, an invisible seabed under it for every plot", string.format("%d water, %d seabeds", water, bed))
+end
 for i = 1, Street.MAX do
 	local m = plotModel(i)
 	H.expect(m ~= nil and m:GetAttribute("Owner") == 0 and m:FindFirstChild("EmptyLot", true) ~= nil and officeOf(i) == nil, "sea", "plot " .. i .. " is open water")
@@ -220,22 +240,31 @@ for k, p in { a, b } do
 	H.expect(land ~= nil and land:FindFirstChild("Foam", true) ~= nil and land:FindFirstChild("Shallows", true) ~= nil and land:FindFirstChild("Lawn", true) ~= nil, "islands", p.Name .. ": its coast (grass, foam, shallows)")
 	local fw = land and land:FindFirstChild("Foam", true)
 	H.expect(fw ~= nil and fw:GetAttribute("PixelWater") == 3, "islands", p.Name .. ": the foam animates (PixelWater)")
-	local bound = land and land:FindFirstChild("Bound", true)
-	H.expect(bound ~= nil and bound.CollisionGroup == "Bounds" and bound.Transparency == 1, "islands", p.Name .. ": invisible coast walls out of the pixel filter's rays")
-	-- (far over a jump: nobody hops the coast onto the sea)
-	local lowest = math.huge
+	-- no docks and no coast walls: the founder swims off any beach; the foam and the shallows let them through, an
+	-- invisible shelf under the foam is the step back up to the wet sand
+	H.expect(land ~= nil and land:FindFirstChild("Bound", true) == nil and land:FindFirstChild("JettyPlank", true) == nil and land:FindFirstChild("Mailbox", true) == nil, "islands", p.Name .. ": no coast walls, no jetty, no mailbox")
+	local through, shelf = true, nil :: BasePart?
 	for _, d in (land :: Instance):GetDescendants() do
-		if d.Name == "Bound" and d:IsA("BasePart") then
-			lowest = math.min(lowest, d.Position.Y + d.Size.Y / 2)
+		if d:IsA("BasePart") and (d.Name == "Foam" or d.Name == "Shallows") and d.CanCollide then
+			through = false
+		elseif d:IsA("BasePart") and d.Name == "Shelf" then
+			shelf = d
 		end
 	end
-	H.expect(lowest >= Street.LAWN_Y + Tuning.JumpHeight + 6, "islands", p.Name .. ": every coast wall far higher than a jump", tostring(lowest))
+	H.expect(through, "islands", p.Name .. ": the foam and the shallows let a swimmer through")
+	local shelfTop = if shelf then shelf.Position.Y + shelf.Size.Y / 2 else 0
+	H.expect(shelf ~= nil and shelf.CanCollide and shelf.Transparency == 1 and shelf.CollisionGroup == "Bounds" and shelfTop > Street.SEABED_Y and shelfTop < Street.WET_Y, "islands", p.Name .. ": an invisible shelf under the foam, a step between the seabed and the wet sand", tostring(shelfTop))
+	-- the island's sign on its south beach
+	local sign = land and land:FindFirstChild("SignBoard", true)
+	local gx, gz = Street.sign(1)
+	local ox0, oz0 = Street.origin(k)
+	H.expect(sign ~= nil and sign:IsA("BasePart") and math.abs(sign.Position.X - (ox0 + gx)) < 1 and math.abs(sign.Position.Z - (oz0 + gz)) < 1, "islands", p.Name .. ": its sign on the south beach", sign and tostring(sign.Position))
 	local f = prof.founder
 	H.expect(p:GetAttribute("Founder") == string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt) and p:GetAttribute("Plot") == k, "islands", p.Name .. ": Founder and Plot attributes", tostring(p:GetAttribute("Founder")))
 	local sx, sz = Street.spawn()
 	local ox, oz = Street.origin(k)
 	local root = rootOf(p)
-	H.expect(root ~= nil and math.abs(root.Position.X - (ox + sx)) < 0.5 and math.abs(root.Position.Z - (oz + sz)) < 0.5, "islands", p.Name .. ": the founder appears on their path", root and tostring(root.Position))
+	H.expect(root ~= nil and math.abs(root.Position.X - (ox + sx)) < 0.5 and math.abs(root.Position.Z - (oz + sz)) < 0.5, "islands", p.Name .. ": the founder appears on their plaza", root and tostring(root.Position))
 	H.checkProfile(p, "island " .. p.Name)
 	settled(p)
 	H.checkMirror(p, "island " .. p.Name)
@@ -300,31 +329,74 @@ local s3 = canvasA and canvasA:FindFirstChild("Sign_3")
 H.expect(s1 ~= nil and s1.Text == "Ava's Isle", "islands", "island 1's sign label", s1 and s1.Text)
 H.expect(s3 ~= nil and s3.Text == "Unclaimed isle", "islands", "open water's sign label", s3 and s3.Text)
 
------------------------------------------------------------------- 3. walking the boardwalk
+------------------------------------------------------------------ 3. swimming over to the neighbour
 E.phase = "walk"
--- the way from an island's jetty across the boardwalk to its pier's end is open: nothing collidable stands in its
--- middle (the bug: the street's east end once ran its invisible walls along the whole boardwalk, across every pier
--- and jetty, and a founder put on the pier after the voyage home could not leave it)
+-- the sea between island 1 and island 2 is open to swim: across from one's east shallows to the other's west ones,
+-- nothing collidable stands between the seabed and a head's height (the islands' land and the sailboats apart), and the
+-- seabed runs under all of it
 do
-	local pr = Street.pier()
-	local blockers = {}
-	-- plot 1 an island (from its jetty), the last plot open water (from the boardwalk: an empty lot has no jetty)
-	for _, i in { 1, Street.MAX } do
-		local ox, oz = Street.origin(i)
-		local from = if i == 1 then Street.BOARD.z0 - 3 else Street.BOARD.z0 + 0.1
+	local o1, o2 = Street.origin(1), Street.origin(2)
+	local x0, x1 = o1 + Street.isle(1).rx + 10, o2 - Street.isle(1).rx - 10
+	local blockers, holes = {}, 0
+	for _, z in { 0, 12, 24, 40 } do
 		for _, d in plots:GetDescendants() do
 			if d:IsA("BasePart") and d.CanCollide then
 				local c, sz = d.Position, d.Size
-				local x0, x1 = c.X - sz.X / 2 - ox, c.X + sz.X / 2 - ox
-				local z0, z1 = c.Z - sz.Z / 2 - oz, c.Z + sz.Z / 2 - oz
 				local y0, y1 = c.Y - sz.Y / 2, c.Y + sz.Y / 2
-				if x1 > Street.PIER_X - 1 and x0 < Street.PIER_X + 1 and z1 > from and z0 < pr.z1 - 0.5 and y1 > -0.25 and y0 < 4 then
-					table.insert(blockers, string.format("%s (%s) on plot %d", d.Name, d.Parent and d.Parent.Name or "?", i))
+				if c.X + sz.X / 2 > x0 and c.X - sz.X / 2 < x1 and c.Z + sz.Z / 2 > z and c.Z - sz.Z / 2 < z and y1 > Street.SEABED_Y + 0.05 and y0 < 3 then
+					table.insert(blockers, string.format("%s (%s) at z %d", d.Name, d.Parent and d.Parent.Name or "?", z))
 				end
 			end
 		end
+		for x = math.ceil(x0), math.floor(x1), 4 do
+			local held = false
+			for _, d in plots:GetDescendants() do
+				if d:IsA("BasePart") and d.Name == "Seabed" then
+					local c, sz = d.Position, d.Size
+					if math.abs(x - c.X) <= sz.X / 2 and math.abs(z - c.Z) <= sz.Z / 2 then
+						held = true
+						break
+					end
+				end
+			end
+			holes += if held then 0 else 1
+		end
 	end
-	H.expect(#blockers == 0, "sea", "the way from the jetty across the boardwalk to the pier's end is open", table.concat(blockers, ", "))
+	H.expect(#blockers == 0, "walk", "the sea between two islands is open to swim", table.concat(blockers, ", "))
+	H.expect(holes == 0, "walk", "the seabed under all of it", tostring(holes))
+end
+-- a founder in that sea swims (AvatarView: the ground under them is the sea, the rig sunk to its chest at the
+-- surface, the strokes heard, a ring of foam round them; the HUD holds the jump and slows them to Tuning.SwimSpeed);
+-- with E.raycastParts the ground ray hits every part, as in Roblox
+do
+	local AV = H.cmod(a, "Controllers.AvatarView")
+	local AudioA = H.cmod(a, "Controllers.Audio")
+	local mid = (Street.origin(1) + Street.origin(2)) / 2
+	local s0 = H.inClient(a, AudioA.playCount, "step_water")
+	E.raycastParts = true
+	for k = 0, 19 do
+		a.Character:PivotTo(E.cf.new(mid + k * 0.6, 3, 16))
+		E.run(0.1)
+	end
+	local swimming = H.inClient(a, AV.swimming)
+	local s1 = H.inClient(a, AudioA.playCount, "step_water")
+	local dynF = E.workspace:FindFirstChild("PixelDynamic")
+	local rig = dynF and dynF:FindFirstChild("Founder_" .. a.UserId)
+	local torso = rig and rig:FindFirstChild("Torso", true)
+	local ring = dynF and dynF:FindFirstChild("Ripple", true)
+	local ringPart = ring and ring:FindFirstChild("Ring1")
+	local hum = a.Character:FindFirstChildOfClass("Humanoid")
+	E.raycastParts = nil
+	H.expect(swimming == true, "walk", "in the sea between two islands the founder swims", tostring(swimming))
+	H.expect(torso ~= nil and torso.Position.Y < Street.WATER_Y + 1 and torso.Position.Y > Street.WATER_Y - 1.5, "walk", "the rig sunk to its chest at the surface", torso and string.format("%.2f", torso.Position.Y))
+	H.expect(ringPart ~= nil and math.abs(ringPart.Position.Y - Street.WATER_Y) < 0.2, "walk", "a ring of foam round them on the water", ringPart and string.format("%.2f", ringPart.Position.Y))
+	H.expect(s1 > s0, "walk", "the strokes heard", string.format("%d -> %d", s0, s1))
+	H.expect(hum ~= nil and hum.WalkSpeed == Tuning.SwimSpeed and hum.JumpHeight == 0, "walk", "slower in the water, and no jump", hum and string.format("speed %s jump %s", tostring(hum.WalkSpeed), tostring(hum.JumpHeight)))
+	-- back home on the plaza for the camera's checks
+	local hx, hz = Street.spawn()
+	local hox, hoz = Street.origin(1)
+	a.Character:PivotTo(E.cf.new(hox + hx, 3, hoz + hz))
+	E.run(1)
 end
 local CCa = H.cmod(a, "Controllers.CameraController")
 local PRa = H.cmod(a, "Pixel.PixelRenderer")
@@ -358,7 +430,7 @@ E.run(0.5)
 local sx, sz = Street.spawn()
 local ox1, oz1 = Street.origin(1)
 local root = rootOf(a)
-H.expect(root ~= nil and math.abs(root.Position.X - (ox1 + sx)) < 0.5 and math.abs(root.Position.Z - (oz1 + sz)) < 0.5, "walk", "home: back on the path", root and tostring(root.Position))
+H.expect(root ~= nil and math.abs(root.Position.X - (ox1 + sx)) < 0.5 and math.abs(root.Position.Z - (oz1 + sz)) < 0.5, "walk", "home: back on the plaza", root and tostring(root.Position))
 res = H.req(a, "char.home", {})
 H.expect(not res.ok and res.err == "cooldown", "walk", "a second home within the cooldown", tostring(res.err))
 E.run(3)
@@ -409,9 +481,16 @@ res = H.req(a, "plot.place", { id = "stall", x = gx, z = gz, rot = 0 })
 H.expect(not res.ok and res.err == "blocked", "build", "not on another piece", tostring(res.err))
 res = H.req(a, "plot.place", { id = "flowers", x = 0, z = 4, rot = 0 })
 H.expect(not res.ok and res.err == "blocked", "build", "not on the plaza", tostring(res.err))
-local fp = Street.footpath()
-res = H.req(a, "plot.place", { id = "torch", x = math.floor(fp.x0) + 1, z = math.floor(fp.z0) + 2, rot = 0 })
-H.expect(not res.ok and res.err == "blocked", "build", "not on the path", tostring(res.err))
+do
+	-- (the land where the path to the jetty ran, x -2 .. 2 south of the plaza: buildable now)
+	local free = false
+	for z = Street.PLAZA.z1, Street.PLAZA.z1 + 6 do
+		for x = -2, 1 do
+			free = free or Plot.fits(1, prof.plot.placed, "torch", x, z, 0)
+		end
+	end
+	H.expect(free, "build", "where the path to the jetty ran: the island's to build on now")
+end
 res = H.req(a, "plot.place", { id = "torch", x = Street.plot(1).x1 + 5, z = 10, rot = 0 })
 H.expect(not res.ok and res.err == "blocked", "build", "not off the island", tostring(res.err))
 res = H.req(a, "plot.place", { id = "cafe", x = 10, z = 10, rot = 0 })
@@ -1653,41 +1732,18 @@ do
 		end
 	end
 	H.expect(pr.z0 < -100 and math.abs(north - pr.z0) < 0.01, "big", "its land reaches far north of z -64 (the lawn to its edge)", string.format("lawn to z %.2f, grass to %d", north, pr.z0))
-	-- the coast walls hold in the far north: past every edge from a cell a founder may stand on (z -64 and on north)
-	-- to one they may not, a wall stands, far higher than a jump
-	local walls = {}
-	for _, d in if land then land:GetDescendants() else {} do
-		if d.Name == "Bound" and d:IsA("BasePart") then
+	-- no walls in the far north either (the founder swims off any beach), and the seabed under the sea up there
+	H.expect(land ~= nil and land:FindFirstChild("Bound", true) == nil, "big", "no coast walls up north either")
+	local bedNorth = false
+	for _, d in plots:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Seabed" then
 			local c, sz = d.Position, d.Size
-			table.insert(walls, { x0 = c.X - sz.X / 2 - box, x1 = c.X + sz.X / 2 - box, z0 = c.Z - sz.Z / 2, z1 = c.Z + sz.Z / 2, top = c.Y + sz.Y / 2, group = d.CollisionGroup })
-		end
-	end
-	local edges, gaps = 0, {}
-	local cb = Street.cellBounds(TB)
-	for z = cb.z0, -64 do
-		for x = cb.x0, cb.x1 do
-			if Street.walkable(TB, x, z) then
-				for _, n in { { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } } do
-					if not Street.walkable(TB, x + n[1], z + n[2]) then
-						edges += 1
-						-- (just past the edge's middle, on the side a founder may not go)
-						local qx, qz = x + 0.5 + n[1] * 0.75, z + 0.5 + n[2] * 0.75
-						local held = false
-						for _, w in walls do
-							if qx >= w.x0 - 1e-3 and qx <= w.x1 + 1e-3 and qz >= w.z0 - 1e-3 and qz <= w.z1 + 1e-3 and w.top >= Street.LAWN_Y + Tuning.JumpHeight + 6 and w.group == "Bounds" then
-								held = true
-								break
-							end
-						end
-						if not held and #gaps < 6 then
-							table.insert(gaps, string.format("%d,%d to %d,%d", x, z, x + n[1], z + n[2]))
-						end
-					end
-				end
+			if math.abs(box - c.X) <= sz.X / 2 and math.abs(Street.plot(TB).z0 - 6 - c.Z) <= sz.Z / 2 then
+				bedNorth = true
 			end
 		end
 	end
-	H.expect(edges > 40 and #gaps == 0, "big", "its coast walls hold in the far north: a wall past every edge of the walkable ground, far over a jump", string.format("%d edges, gaps at %s", edges, table.concat(gaps, " ")))
+	H.expect(bedNorth, "big", "the seabed reaches past its north shore")
 	-- the saved oak stands up there
 	local decorB = decorOf(bi)
 	H.expect(oak ~= nil and decorB ~= nil and decorB:FindFirstChild(keyOf(oak)) ~= nil, "big", "the saved oak far north stands there", oak and keyOf(oak))

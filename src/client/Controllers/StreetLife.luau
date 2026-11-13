@@ -1,6 +1,6 @@
 --!strict
--- The sea's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): sailboats crossing both ways beyond the
--- boardwalk, rocking on the swell, and a flock of gulls crossing now and then (no clouds' shadows: the player asked for
+-- The sea's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): sailboats crossing both ways south of the
+-- islands, rocking on the swell (nothing a swimming founder bumps into), and a flock of gulls crossing now and then (no clouds' shadows: the player asked for
 -- them gone). Client only, all in
 -- Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the server's business. (The module keeps its old name: the street it once was.)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,6 +36,12 @@ local function adopt(t: MicroModels.Thing, shadow: number?, groundY: number?)
 		t.model:SetAttribute("PixelShadow", shadow)
 		t.model:SetAttribute("PixelGroundY", groundY or Street.WATER_Y)
 	end
+	-- (scenery: a founder swimming by passes through it)
+	for _, d in t.model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CanCollide = false
+		end
+	end
 	t.model.Parent = dyn()
 	PixelRenderer.registerDynamic(t.model)
 end
@@ -46,9 +52,9 @@ function StreetLife.start()
 	end
 	started = true
 	local b = Street.bounds()
-	-- two lanes out on the open sea, clear of the piers (Street.PIER_Z + the boat moored there)
-	local laneE = Street.SEA.z0 + 12 -- eastbound (+X), the near lane
-	local laneW = Street.SEA.z0 + 18 -- westbound
+	-- two lanes out on the open sea, south of the islands' shallows
+	local laneE = Street.SEA.z0 + 17 -- eastbound (+X), the near lane
+	local laneW = Street.SEA.z0 + 23 -- westbound
 	local boats: { Boat } = {}
 	for i = 1, 4 do
 		-- the detailed boats of Models/BoatSpec, of a few sizes, their flags fluttering

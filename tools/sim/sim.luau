@@ -1,4 +1,4 @@
--- The main simulation: a new island end to end through the real client and its UI (the campfire, the jetty, the Tree of
+-- The main simulation: a new island end to end through the real client and its UI (the campfire, the sign, the Tree of
 -- Life with its first lot of eggs round its roots, the HUD with the tree's card, the tips), building what the tips ask
 -- in their order (a lumber camp, a veggie patch, a hut, then an egg hatched by tapping it, then a snack stall: the
 -- starting wood and shells cover them; Build mode turns its tray to Work's Wood row, then Farms, Huts and Shops), the
@@ -58,7 +58,8 @@ local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirs
 local static = plot1 and plot1:FindFirstChild("Static")
 local land1 = static and static:FindFirstChild("Land")
 H.expect(land1 ~= nil and land1:FindFirstChild("Land") ~= nil and static:FindFirstChild("Office") == nil, "join", "the island is built under Plots.Plot_1.Static.Land (no house)")
-H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) ~= nil and land1:FindFirstChild("JettyPlank", true) ~= nil, "join", "its plaza's campfire and the jetty")
+H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) ~= nil and land1:FindFirstChild("PlotSign", true) ~= nil, "join", "its plaza's campfire and its sign")
+H.expect(land1 ~= nil and land1:FindFirstChild("JettyPlank", true) == nil and land1:FindFirstChild("Mailbox", true) == nil and land1:FindFirstChild("Bound", true) == nil, "join", "no docks: no jetty, no mailbox, no coast walls (the founders swim)")
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
 H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")

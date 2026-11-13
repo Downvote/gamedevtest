@@ -1,16 +1,14 @@
 --!strict
--- The boat by its level (GAME_DESIGN 8; docs/ARCHITECTURE.md 6): one description of every part, so the boat moored
--- at the pier (Models/StreetModels, static: always level 1, scenery since the sea chart went) and the ones crossing
--- the sea (Models/MicroModels "ship", dynamic) are the same boat. Pure data from a level:
+-- The boat by its level (GAME_DESIGN 8; docs/ARCHITECTURE.md 6): one description of every part, for the sailboats
+-- crossing the sea (Models/MicroModels "ship", dynamic; the boat moored at the pier went with the docks on
+-- 2026-11-13). Pure data from a level:
 --   parts(level) -> { Part }   (boat space: x across, y up from the deck's top, z toward the bow; all world-aligned)
 --   dims(level) -> Dims         (length, width, the hull's depth under the deck)
 --   deck(level) -> { Vector3 }  (where the party stands: the founder first, then three)
---   moor(level) -> (x, z)       (its centre beside the pier, plot-local; Data/Street's pier)
 -- Level 1 is a rowing sloop; 2 brings a cabin, a striped sail, a lantern, fenders and a life ring; 3 a bigger hull, a
 -- bowsprit and jib, barrels; 4 a foremast, a crow's nest, a figurehead and gold trim; 5 a chimney and a stern
 -- lantern; 6 a mizzen mast and blue sails. Flags and pennants are named "Flag..." (they flutter:
--- MicroModels.flutter; the moored boat's ripple in the pixel filter's wind, PixelWind 2).
-local Street = require(script.Parent.Parent.Data.Street)
+-- MicroModels.flutter; marked PixelWind 2 for a static one in the pixel filter's wind).
 
 export type Part = { name: string, shape: string, size: Vector3, cf: CFrame, color: string, neon: boolean?, wind: number? }
 export type Dims = { L: number, W: number, H: number }
@@ -46,12 +44,6 @@ end
 function BoatSpec.deck(level: number): { Vector3 }
 	local zf = frontOf(level)
 	return { Vector3.new(0, 0, zf), Vector3.new(-0.8, 0, zf + 1.1), Vector3.new(0.8, 0, zf + 1.1), Vector3.new(0, 0, zf + 2.2) }
-end
-
-function BoatSpec.moor(level: number): (number, number)
-	local d = BoatSpec.dims(level)
-	local pr = Street.pier()
-	return pr.x1 + 0.35 + d.W / 2, pr.z1 - d.L / 2 + 0.25
 end
 
 -- The deck's top over the sea's surface.

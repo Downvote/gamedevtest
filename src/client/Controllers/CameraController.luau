@@ -241,7 +241,7 @@ end
 
 ------------------------------------------------------------------ follow and free pan
 -- A new character appears where Roblox drops it (the world's origin, mid-street) and the server moves it to its own
--- footpath a moment later: until it has stood on its own lot once, or SPAWN_SETTLE seconds have passed, the view
+-- island a moment later: until it has stood on its own lot once, or SPAWN_SETTLE seconds have passed, the view
 -- ignores it (it never chases a character down the street and back, which would bake the picture twice).
 local SPAWN_SETTLE = 3
 local seenChar: Model? = nil

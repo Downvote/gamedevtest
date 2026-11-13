@@ -12,7 +12,7 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 2676, `sim_save.luau` about 911, `sim_clock.luau` about 1238, `sim_world.luau` about 2484,
+`sim.luau` about 2677, `sim_save.luau` about 911, `sim_clock.luau` about 1238, `sim_world.luau` about 2497,
 `sim_tree.luau` about 1730).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work late

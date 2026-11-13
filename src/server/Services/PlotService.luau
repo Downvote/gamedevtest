@@ -1,14 +1,15 @@
 --!strict
 -- The islands on the sea (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 8). At start the whole sea is built: every island
--- plot's stretch of boardwalk and water (Workspace.Plots.Street) and an empty sandbar on every plot. A player who
--- joins takes the lowest free plot: Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its grass and
--- coast, the plaza and campfire, the path and jetty, the sign, the mailbox) and their buildings and decor
+-- plot's water and the seabed the founders swim on (Workspace.Plots.Street) and an empty sandbar on every plot; no
+-- docks (2026-11-13): each island stands alone and the founders swim between them. A player who joins takes the
+-- lowest free plot: Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its grass and coast, the plaza
+-- and campfire, the sign on its beach) and their buildings and decor
 -- (Static.Decor, one model a piece, named by its uid, kind, place and level); the island is rebuilt only when its tier
 -- changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
 -- goes up before an old one comes down. A player who leaves leaves an empty sandbar. Plot_<i>'s attributes tell every
 -- client who is there and who lives there (WorldView draws every island's driftlings from them):
 -- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Pals (the driftlings in its huts). The founder (the player's
--- character) appears on their own path.
+-- character) appears on their own island's plaza.
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -177,7 +178,8 @@ function PlotService.init()
 	for t = 1, most do
 		Street.warm(t)
 	end
-	-- the invisible walls ("Bounds") keep founders in but are never in the pixel filter's rays ("PixelRays")
+	-- the invisible seabed, shelves and world walls ("Bounds") hold the founders but are never in the pixel filter's
+	-- rays ("PixelRays")
 	pcall(function()
 		PhysicsService:RegisterCollisionGroup("Bounds")
 		PhysicsService:RegisterCollisionGroup("PixelRays")
@@ -369,7 +371,7 @@ function PlotService.sync(s: S)
 end
 
 ------------------------------------------------------------------ the founder
--- Where a session's founder appears (world CFrame): on the path just south of the plaza.
+-- Where a session's founder appears (world CFrame): on their island's plaza, south of the campfire.
 function PlotService.spawnCFrame(s: S): CFrame
 	local x, z = Street.spawn()
 	local o = originOf(s.plot)
@@ -383,7 +385,8 @@ function PlotService.placeCharacter(s: S)
 	end
 end
 
--- "Go home" (char.home): the founder back on their own footpath, at most once every Tuning.HomeCooldown seconds.
+-- "Go home" (char.home): the founder back on their own island's plaza (from a swim, a neighbour's island), at most
+-- once every Tuning.HomeCooldown seconds.
 function PlotService.home(s: S): (boolean, any)
 	local now = os.clock()
 	if now - (homeAt[s.player] or -math.huge) < Tuning.HomeCooldown then
