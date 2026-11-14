@@ -547,7 +547,7 @@ do
 		E.run(0.8)
 		hs = H.inClient(p, HSp.debugState)
 		local def0 = prof.pals[1] and Creatures.byId[prof.pals[1].sp]
-		H.expect(hs.name == (def0 and def0.name) and hs.shown == math.max(1, hs.muts) and hs.phase == "done", "build", "its name under it, its mutations listed (or that it has none)", string.format("%q, %d of %d, %s", hs.name, hs.shown, hs.muts, hs.phase))
+		H.expect(hs.name == (def0 and def0.name) and hs.shown == hs.muts and hs.phase == "done" and def0 ~= nil and hs.passive == def0.passive.name, "build", "its name under it, its passive on a plate above its mutations (no \"No mutations\" plate)", string.format("%q, %d of %d, %s", hs.name, hs.shown, hs.muts, hs.phase))
 		-- (the request of 2026-11-14: "there should a tip saying "New!" If the creature caught is new")
 		H.expect(hs.fresh, "build", "the first of its kind: a \"New!\" tag by its name", tostring(hs.fresh))
 		H.inClient(p, HSp.skip)

@@ -16,7 +16,7 @@
 -- the result's `hr` over its `r`: a hard shake, a flash, the egg in the next rarity's colours, the sky and the light
 -- changing with it), then each mutation (a shake, a new crack, its plate sliding in at the right with its name, stars
 -- and what it does). When nothing is left the cracks glow and the next tap hatches it: a flash, the top flies off, bits
--- of shell scatter and what hatched pops out, its name and rarity under it ("No mutations" on a plate if it has none).
+-- of shell scatter and what hatched pops out, its name and rarity under it, its passive on a plate above its mutations.
 -- One more tap goes back to the island (its picture was kept, so it is there at once) and `after` runs.
 -- The rarer it hatched as, the grander (GLORY): twinkles round the egg (rare and up), more sparks and
 -- shell, a jolt of the picture, confetti, stars ringing it; the light of dusk for the commoner ones, a blue, violet or
@@ -152,6 +152,7 @@ type Scene = {
 	hint: TextLabel?,
 	plates: { Frame },
 	shown: number, -- mutation plates shown
+	passive: boolean, -- the passive's plate shown (as it hatches)
 	flash: Frame?,
 	beat: RBXScriptConnection?,
 	keys: RBXScriptConnection?,
@@ -348,22 +349,78 @@ local function showName(s: Scene)
 	end
 end
 
--- One more of its mutations, on a plate sliding in at the right: its name and stars in its tier's colour, what it
--- does under it. With none, one plate says so.
+-- The plates at the right: its passive on top (shown as it hatches: the request of 2026-11-14, "also, show the passive
+-- of creatures when hatching eggs, above all mutations. if no mutations, show this tab instead of the no mutations
+-- tab"), each of its mutations under it as the taps reveal them. Slot 0 is the passive's, kept free till it hatches.
 local PLATE_W, PLATE_H = 122, 22
-local function showMut(s: Scene, i: number)
+-- The passive's plate: as wide as its words, but never past the room right of the driftling (a phone): there its
+-- words wrap onto more lines and the plate grows taller.
+local function passiveBox(s: Scene): (number, number, { string })
+	local w = canvasSize()
+	local def = Creatures.byId[s.res.sp]
+	if def == nil then
+		return PLATE_W, PLATE_H, {}
+	end
+	local words = Traits.describe(def.passive.fx)
+	local room = math.max(PLATE_W, w - (math.floor(w / 2) + 78) - 6)
+	local width = math.min(room, math.max(PLATE_W, 15 + math.max(UIKit.textWidth(def.passive.name), UIKit.textWidth(words)) + 5))
+	local lines: { string } = {}
+	local cur = ""
+	for word in string.gmatch(words, "%S+") do
+		local try = if cur == "" then word else cur .. " " .. word
+		if cur ~= "" and 15 + UIKit.textWidth(try) + 5 > width then
+			table.insert(lines, cur)
+			cur = word
+		else
+			cur = try
+		end
+	end
+	if cur ~= "" then
+		table.insert(lines, cur)
+	end
+	return width, 12 + math.max(1, #lines) * 10, lines
+end
+local function plateAt(s: Scene, slot: number, width: number): (number, number)
 	local w, h = canvasSize()
+	local x = math.min(w - width - 6, math.floor(w / 2) + 78)
+	local _, ph = passiveBox(s)
+	local total = ph + 3 + #s.res.muts * (PLATE_H + 3)
+	local y0 = math.floor((h - total) / 2) - 6
+	return x, if slot == 0 then y0 else y0 + ph + 3 + (slot - 1) * (PLATE_H + 3)
+end
+
+-- Its passive on the top plate: a star, its name in the accent and what it does ("+35% at shops, +45% sell price").
+local function showPassive(s: Scene)
+	local def = Creatures.byId[s.res.sp]
+	if def == nil or s.passive then
+		return
+	end
+	local width, height, lines = passiveBox(s)
+	local words = table.concat(lines, "\n")
+	local x, y = plateAt(s, 0, width)
+	local f = UIKit.glass(s.root, UDim2.fromOffset(width, height), UDim2.fromOffset(x + 30, y), 2)
+	f.Name = "HatchPassive"
+	f.ZIndex = 33
+	table.insert(s.plates, f)
+	s.passive = true
+	UIKit.tween(f, 0.2, { Position = UDim2.fromOffset(x, y) })
+	PixelSprites.image(f, "mini_star", UDim2.fromOffset(3, 2), 34)
+	UIKit.text(f, def.passive.name, UDim2.fromOffset(width - 19, 10), UDim2.fromOffset(15, 1), { color = UIKit.color("accent"), z = 34, name = "Name" })
+	UIKit.text(f, words, UDim2.fromOffset(width - 19, height - 12), UDim2.fromOffset(15, 11), { color = UIKit.color("text"), z = 34, name = "Blurb", y = "top" })
+	Audio.play("ding", { pitch = 1.2 })
+end
+
+-- One more of its mutations, on a plate sliding in at the right under the passive's: its name and stars in its tier's
+-- colour, what it does under it.
+local function showMut(s: Scene, i: number)
 	local muts = s.res.muts
-	local x = math.min(w - PLATE_W - 6, math.floor(w / 2) + 78)
-	local n = math.max(1, #muts)
-	local y0 = math.floor((h - n * (PLATE_H + 3)) / 2) - 6
-	local y = y0 + (i - 1) * (PLATE_H + 3)
+	local x, y = plateAt(s, i, PLATE_W)
 	local f = UIKit.glass(s.root, UDim2.fromOffset(PLATE_W, PLATE_H), UDim2.fromOffset(x + 30, y), 2)
 	f.Name = "HatchMut_" .. i
 	f.ZIndex = 33
 	table.insert(s.plates, f)
 	UIKit.tween(f, 0.2, { Position = UDim2.fromOffset(x, y) })
-	local m = if #muts > 0 then Traits.byId[muts[i]] else nil
+	local m = Traits.byId[muts[i]]
 	if m then
 		local tier = m.tier
 		UIKit.text(f, m.name .. " " .. (Traits.TIER_STARS[tier] or ""), UDim2.fromOffset(PLATE_W - 8, 10), UDim2.fromOffset(4, 1), { color = UIKit.color(Traits.TIER_COLOR[tier] or "text"), z = 34, name = "Name" })
@@ -375,10 +432,6 @@ local function showMut(s: Scene, i: number)
 				addDot(s, Traits.TIER_COLOR[tier] or "text", nil, x + 8, y + PLATE_H / 2, math.cos(a) * 40, math.sin(a) * 40, 30, 0.5)
 			end
 		end
-	else
-		UIKit.text(f, "No mutations", UDim2.fromOffset(PLATE_W - 8, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("text"), z = 34, name = "Name" })
-		UIKit.text(f, "Just itself", UDim2.fromOffset(PLATE_W - 8, 10), UDim2.fromOffset(4, 11), { color = UIKit.color("text_dim"), z = 34, name = "Blurb" })
-		Audio.play("flip")
 	end
 end
 
@@ -475,10 +528,7 @@ local function hatch(s: Scene)
 		end
 	end
 	showName(s)
-	if #s.res.muts == 0 then
-		s.shown += 1
-		showMut(s, s.shown)
-	end
+	showPassive(s)
 	local hint = s.hint
 	if hint then
 		hint:Destroy()
@@ -862,6 +912,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		hint = nil,
 		plates = {},
 		shown = 0,
+		passive = false,
 		flash = nil,
 		beat = nil,
 		keys = nil,
@@ -929,10 +980,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean, passive: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false, passive = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -955,6 +1006,12 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		title = if t then t.Text else "",
 		name = if n then n.Text else "",
 		fresh = s.root:FindFirstChild("HatchNew") ~= nil, -- the "New!" tag by the name
+		passive = (function()
+			-- the passive's plate words ("" until it hatches)
+			local pf = s.root:FindFirstChild("HatchPassive")
+			local nm = pf and pf:FindFirstChild("Name")
+			return if nm and nm:IsA("TextLabel") then nm.Text else ""
+		end)(),
 	}
 end
 

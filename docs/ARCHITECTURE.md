@@ -1350,7 +1350,9 @@ egg's own title is its rarity's name: `eggWords`); a "mut" shakes
 the egg and slides in the plate `HatchMut_<i>`. Each runs `crack` one further (0 .. 3: a `Crack` shows while its
 `stage <= crack`). With the queue empty the cracks turn Neon in the rarity's light (`glowing`) and `HatchHint` says "Tap
 to hatch it"; the next tap hatches it (phase "hatched": the top flies off, the rest falls, `HatchName` and `HatchLine`,
-a "No mutations" plate when there are none); 0.7 s later phase "done" and "Tap to go on", and that tap closes it: the
+the passive's plate `HatchPassive` on top of the mutations' (`showPassive`: `mini_star`, its name in the accent, its
+`Traits.describe` words, as wide as they need up to the room right of the driftling, wrapping beyond; slot 0 kept free
+for it while the mutations reveal; no "No mutations" plate since 2026-11-14; `debugState().passive` its name); 0.7 s later phase "done" and "Tap to go on", and that tap closes it: the
 stage off (the island's picture comes back from the renderer's stash at once), the roots back, then `after`. The
 overlay is a `HatchScene` frame on the `Stage` canvas: `HatchTitle` (the egg's words and each step up; gone once it
 hatches, "remove the it hatched text"), `HatchName`, `HatchLine`, the plates `HatchMut_<i>`

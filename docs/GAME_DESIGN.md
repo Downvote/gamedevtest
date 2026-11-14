@@ -1410,7 +1410,11 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   hatched pops out where the egg was with one jump, arms up (the request of 2026-11-14: "make the pet jump only once
   instead of a few times after hatching"; it used to jump three times). The egg's title goes (no "It hatched" since the request of 2026-11-14,
   "remove the it hatched text"); its name in its rarity's colour and "Rare,
-  good at farms" under it, and "No mutations" on a plate if it has none. The first of a kind you ever have gets a
+  good at farms" under it, and its passive on a plate above its mutations: a star, its name in gold and what it does
+  ("Ice Breath", "+35% at shops, +45% sell price"), its words wrapping onto a second line where the screen is narrow;
+  with no mutations that plate is the only one (the request of 2026-11-14: "also, show the passive of creatures when
+  hatching eggs, above all mutations. if no mutations, show this tab instead of the no mutations tab"; there was a
+  "No mutations" plate before). The first of a kind you ever have gets a
   little "New!" tag at its name's right, mango yellow with an ink outline, dropping in with a sparkle and a ring of
   yellow bits (the request of 2026-11-14: "there should a tip saying "New!" If the creature caught is new"). It is
   decided on the server before the hatch: the kind was never had (in the Index as seen only, or not at all), whatever
