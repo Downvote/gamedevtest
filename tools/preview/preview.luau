@@ -1147,7 +1147,7 @@ function SCEN.buildui()
 end
 
 -- "paths": drawing paths in Build mode (GAME_DESIGN 4): a box being dragged (its markers: cyan where a tile goes,
--- red where one can't), then the tiles laid (paths_box).
+-- red where one can't), then the tiles laid (paths_box), then a hut and a farm standing on them (paths_built).
 function SCEN.paths()
 	seedProfile(58, 2, { pieces = VILLAGE, shells = 1e6, wood = 1e5 })
 	local p = join(58, "Paver")
@@ -1193,6 +1193,13 @@ function SCEN.paths()
 		end
 	end
 	log("paths: %d tiles down", n)
+	-- a hut and a farm on the paving (the request of 2026-11-14: "make it such that paths can be put below buildings,
+	-- and buildings can be put on to paths"): paths_built
+	local hut = H.req(p, "plot.place", { id = "nest", x = c0[1] + 1, z = c0[2] + 1, rot = 0 })
+	local farm = H.req(p, "plot.place", { id = "patch", x = c0[1] + 5, z = c0[2] + 1, rot = 0 })
+	log("paths: a hut on the paving %s, a farm %s", tostring(hut and hut.ok), tostring(farm and farm.ok))
+	settle(p, 10, 0.5)
+	capture(p, "paths_built")
 	return p
 end
 

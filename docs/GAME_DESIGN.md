@@ -526,7 +526,7 @@ day the Work and Huts tabs' buildings went to `Tuning.BuildingPrice` (0.3) of th
 a Veggie Patch 12, a Driftling Hut 17, a Snack Stall 30; the other pieces from 4 wood for a tile of Sand Trail to
 1,500,000 for the Rainbow Arch), on whole studs of the island's grass (a stud or more in from the sand), turned a
 quarter at a time, off the campfire's plaza, off every other piece and off water unless it
-is made to go over or on it (§4.3). Paths are the one thing decor may share a spot with (a paved yard, below).
+is made to go over or on it (§4.3). Paths are the one thing a piece may share a spot with (a paved yard, below).
 
 **The limits.** Each sort of thing has its own limit, and each grows with the island (§4.4 has them by tier): the
 pieces (`PlotPieces`: 36 on a new island, 540 on Driftling Haven), the path and water tiles together (`PathPieces`: 80
@@ -564,11 +564,16 @@ whole; running out of wood or room stops where it runs out. Tiles lie on the eve
 z), so they always meet edge to edge, and one moved in Build mode snaps to them. Drawing another look over a path, a
 water tile or a fence swaps it where it lies: half the old one's price back, the new one's paid.
 
-**A paved yard** (`Plot.onPaths`): a piece from the Decor, Nature or Fun tab may stand on path tiles, and paths may be
-drawn under one that stands already, so a themed yard can be paved in its own ground: a snowman on snow, a deck chair
-on sand, a stone lantern on raked gravel. Huts, workplaces, the Tree of Life, fences and the pieces for the water never
-stand on paths, and a path is never drawn under them. Taking the paving up leaves the decor where it stands, and two
-pieces still never share a spot. Water keeps its own rules (§4.3).
+**A paved yard** (`Plot.onPaths`):
+
+> The request (2026-11-14): "make it such that paths can be put below buildings, and buildings can be put on to paths"
+
+A piece may stand on path tiles, and paths may be drawn under one that stands already: decor, plants and fun pieces,
+and since that request the huts and the workplaces too, so a themed yard can be paved in its own ground (a snowman on
+snow, a deck chair on sand, a stone lantern on raked gravel) and a hut or a farm can sit in a paved square. The Tree of
+Life (its eggs lie on its own lawn), fences and the pieces for the water never stand on paths, and a path is never
+drawn under them. Taking the paving up leaves the piece where it stands, and two pieces still never share a spot.
+Water keeps its own rules (§4.3).
 
 ### 4.1 The town and the city
 

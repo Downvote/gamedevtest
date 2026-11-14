@@ -213,10 +213,13 @@ local function fenceFits(tier: number, placed: { Piece }, x: number, z: number, 
 	return true, nil
 end
 
--- Whether a piece may stand on path tiles (GAME_DESIGN 4: a themed yard paved in snow, sand or moss stone with its decor
--- on it): decor, nature and the fun pieces; never a hut, a workplace, the tree, a fence or anything for the water.
+-- Whether a piece may stand on path tiles, and paving go under it (GAME_DESIGN 4: a themed yard paved in snow, sand or
+-- moss stone with its decor on it; since the request of 2026-11-14, "make it such that paths can be put below
+-- buildings, and buildings can be put on to paths", the huts and the workplaces too): every piece but the tree (its eggs
+-- lie on its own lawn), a fence, the tiles themselves and anything for the water.
 local function onPaths(def: Buildings.BuildingDef): boolean
-	return (def.tab == "decor" or def.tab == "nature" or def.tab == "fun") and def.water == "" and def.kind ~= "tree"
+	local k = def.kind
+	return k ~= "tree" and k ~= "fence" and k ~= "path" and k ~= "water" and def.water == ""
 end
 function Plot.onPaths(id: string): boolean
 	local d = Buildings.byId[id]
