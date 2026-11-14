@@ -1,14 +1,20 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, one of several asked together): "also, make the pallette more pinkish, changing the sand
-> pink and the rest of the pallette to match." Then, the latest: "not that pink, i meant a light pink, close to the
-> color of actual sand" (§2, the pink sand)
+> The requests (2026-11-14, the latest, asked together): "make sounds when cracking the egg. also, make the egg rise up
+> into view when it is being opened. also, there is a bug where the player snaps above buildings while walking over
+> them. also, while the rare one quest is active or any rarity related quests, make it such that an egg of that rarity
+> will always spawn in the tree of life. also, make the pallette more pinkish, changing the sand pink and the rest of
+> the pallette to match. also, right now, the models simply move by rotating or moving parts of the mesh around.
+> please use bones and rigging to make more realistic and detailed movement. follow and use as many animation
+> principles when animating as well."; then, on the pink, "not that pink, i meant a light pink, close to the color of
+> actual sand"
 
-> The request (2026-11-14): "also, while the rare one quest is active or any rarity related quests, make it
-> such that an egg of that rarity will always spawn in the tree of life."
-
-So while the quest on the go asks for a rarity ("An uncommon one", "A rare one", "An epic one") and isn't met yet, the
-eggs under the tree always hold one of it (§6, §9).
+So: the egg crunches at every tap that cracks it and breaks open with a crack, and it rises into view when the scene
+opens (§6.2). The founder walks through buildings with their feet on the ground (§9). While the quest on the go asks for
+a rarity ("An uncommon one", "A rare one", "An epic one") and isn't met yet, the eggs under the tree always hold one of
+it (§6, §9). The sand is a light pink, close to real sand, and the rest of the colours keep only a little of the pink
+(§2). The driftlings move on a rig: bones, parts skinned to them, squash and stretch, springs, and keyed poses that
+follow the twelve principles of animation (§6).
 
 > The request (2026-11-14): "could you also remove the transition that happens when clicking to hatch an
 > egg? you can simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each
