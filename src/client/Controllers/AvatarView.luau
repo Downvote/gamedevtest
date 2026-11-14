@@ -39,6 +39,7 @@ type Rec = {
 	speed: number,
 	tag: NameTags.Tag, -- the name and title over its head
 	hl: Highlight?, -- its white outline in the classic style (the pixel filter off)
+	top: number?, -- how high over its feet its head (and hat) reach: the name tag's place
 	char: Model?,
 	dustAt: number, -- when their feet next kick up a puff of dust (walking)
 	air: boolean, -- in the air (a jump) last frame
@@ -354,9 +355,10 @@ local function step(dt: number)
 			rec.dustAt = t + (if rec.speed > 14 then 0.18 else 0.3)
 			UIKit.bitsAt((base * CFrame.new(0, 0.1, -0.4)).Position, { "white", "text_dim" }, 2, 14, 40)
 		end
-		-- the name tag over the head (higher by a hat's height when one is worn)
-		local top = CharacterModels.STAND_TOP + (if rec.rig.extra and #rec.rig.extra.head > 0 then Vector3.new(0, 0.6, 0) else Vector3.zero)
-		NameTags.place(rec.tag, (base * CFrame.new(top * Tuning.FounderScale)).Position)
+		-- the name tag over the head, and over a hat when one is worn (CharacterModels.topOf, worked out once a rig)
+		local top = rec.top or CharacterModels.topOf(rec.rig)
+		rec.top = top
+		NameTags.place(rec.tag, (base * CFrame.new(0, top + 0.2, 0)).Position)
 	end
 	for pl in recs do
 		if pl.Parent == nil then

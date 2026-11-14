@@ -70,9 +70,11 @@ MAKE.bandana = function(h)
 	h(V(0.25, 0.5, 0.125), V(0.15, 0.2, -1.0), "berry_red", nil, CFrame.Angles(0, 0, R(-20)))
 end
 MAKE.beanie = function(h)
-	h(V(1.95, 1.25, 1.75), V(0, 0.95, -0.05), "orange", "Ball")
-	h(V(1.95, 0.375, 1.7), V(0, 0.55, -0.05), "cream")
-	h(V(0.5, 0.5, 0.5), V(0, 1.6, -0.05), "white", "Ball")
+	-- (a knit block over the whole cap, a round crown, the cuff, a pompom)
+	h(V(1.95, 0.625, 1.75), V(0, 0.85, -0.05), "orange")
+	h(V(1.9, 0.75, 1.7), V(0, 1.15, -0.05), "orange", "Ball")
+	h(V(2.0, 0.375, 1.8), V(0, 0.55, -0.05), "cream")
+	h(V(0.5, 0.5, 0.5), V(0, 1.55, -0.05), "white", "Ball")
 end
 COVERS.beanie = "top"
 MAKE.sunvisor = function(h)
@@ -108,10 +110,10 @@ end
 COVERS.leafhat = "top"
 MAKE.shellcap = function(h)
 	h(V(1.75, 1.0, 1.625), V(0, 1.0, -0.05), "cream", "Ball")
+	-- (the ridges follow the dome: flat rounds a little proud of it)
 	for k = -1, 1 do
-		h(V(0.15, 0.95, 1.55), V(k * 0.42, 1.08, -0.05), "coral")
+		h(V(0.2, 1.0, 1.6), V(k * 0.42, 1.02, -0.05), "coral", "Ball")
 	end
-	h(V(0.5, 0.25, 0.25), V(0, 0.75, 0.75), "coral")
 end
 COVERS.shellcap = "top"
 MAKE.tricorn = function(h)
@@ -153,7 +155,8 @@ COVERS.wizardhat = "top"
 MAKE.halo = function(h)
 	for k = 0, 5 do
 		local a = k * math.pi / 3
-		h(V(0.6, 0.125, 0.2), V(math.sin(a) * 0.62, 1.55, -0.05 + math.cos(a) * 0.62), "yellow", nil, CFrame.Angles(0, a + math.pi / 2, 0), true)
+		-- (each piece along the ring: its long side on the circle's tangent)
+		h(V(0.6, 0.125, 0.2), V(math.sin(a) * 0.62, 1.55, -0.05 + math.cos(a) * 0.62), "yellow", nil, CFrame.Angles(0, a, 0), true)
 	end
 end
 MAKE.fishbowl = function(h)
@@ -485,10 +488,11 @@ MAKE.lantern = function(_, _, r)
 	r(V(0.3, 0.1, 0.3), V(0, 0.98, 0.1), "black")
 end
 MAKE.umbrella = function(_, _, r)
-	r(V(0.1, 3.1, 0.1), V(0, 1.35, 0.05), "wood")
-	r(V(0.3, 1.9, 1.9), V(0, 2.95, 0.05), "coral", "Cylinder", UP)
-	r(V(0.1, 1.95, 1.95), V(0, 2.8, 0.05), "cherry", "Cylinder", UP)
-	r(V(0.2, 0.2, 0.2), V(0, 3.15, 0.05), "wood", "Ball")
+	-- (held up over the head)
+	r(V(0.1, 3.9, 0.1), V(0, 1.75, 0.05), "wood")
+	r(V(0.3, 1.9, 1.9), V(0, 3.65, 0.05), "coral", "Cylinder", UP)
+	r(V(0.1, 1.95, 1.95), V(0, 3.5, 0.05), "cherry", "Cylinder", UP)
+	r(V(0.2, 0.2, 0.2), V(0, 3.85, 0.05), "wood", "Ball")
 end
 MAKE.fishingrod = function(_, _, r)
 	local tilt = CFrame.Angles(R(-25), 0, 0)
@@ -498,9 +502,10 @@ MAKE.fishingrod = function(_, _, r)
 	r(V(0.25, 0.25, 0.25), V(0, 0.95, 1.0), "berry_red", "Ball")
 end
 MAKE.balloon = function(_, _, r)
-	r(V(0.0625, 2.0, 0.0625), V(0, 1.1, 0.05), "white")
-	r(V(0.8, 0.95, 0.8), V(0, 2.55, 0.05), "berry_red", "Ball")
-	r(V(0.15, 0.15, 0.15), V(0, 2.05, 0.05), "berry_red")
+	-- (floating up past the head)
+	r(V(0.0625, 2.9, 0.0625), V(0, 1.55, 0.05), "white")
+	r(V(0.8, 0.95, 0.8), V(0, 3.45, 0.05), "berry_red", "Ball")
+	r(V(0.15, 0.15, 0.15), V(0, 2.95, 0.05), "berry_red")
 end
 MAKE.ukulele = function(_, _, r)
 	r(V(0.15, 0.9, 0.1), V(0, 0.3, 0.2), "wood_dark")

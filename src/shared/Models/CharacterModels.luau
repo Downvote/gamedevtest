@@ -819,4 +819,29 @@ end
 -- Where a founder's name label floats (rig space).
 CharacterModels.STAND_TOP = Vector3.new(0, 4.6, 0)
 
+-- The top of a standing rig's head and what it wears there (rig space, as drawn: its scale in), the hair and a hat
+-- included, held pieces not: where the name tag goes (AvatarView). At least STAND_TOP's height.
+function CharacterModels.topOf(rig: Rig): number
+	local k = rig.scale or 1
+	local top = CharacterModels.STAND_TOP.Y * k
+	local function up(n: string)
+		local p, r = rig.parts[n], rig.rest[n]
+		if p and r and p.Transparency < 0.95 then
+			-- (a turned part reaches up by its rotated half extents)
+			local s = p.Size * 0.5
+			local reach = math.abs(r.RightVector.Y) * s.X + math.abs(r.UpVector.Y) * s.Y + math.abs(r.LookVector.Y) * s.Z
+			top = math.max(top, r.Position.Y * k + reach)
+		end
+	end
+	for _, n in HEAD_PARTS do
+		up(n)
+	end
+	if rig.extra then
+		for _, n in rig.extra.head do
+			up(n)
+		end
+	end
+	return top
+end
+
 return CharacterModels
