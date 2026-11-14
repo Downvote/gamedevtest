@@ -1768,31 +1768,32 @@ Driftling Haven a fifth cheaper, the town came at 55 to 59 minutes (was 57 to 65
 107) and Sunspire Capital at 2 hours 18 to 2 hours 20 (was 2 hours 33 to 2 hours 47), so its bound moved from two and
 a half hours to two; with one store the town and the city sit about where they were and the capital comes sooner (the
 bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take about half an
-hour of the checker's time each): `luau tests/career.luau -a <seed> 1500` prints it. With shells as the one store the
-three seeds reach each island at:
+hour of the checker's time each): `luau tests/career.luau -a <seed> 1700` prints it. With today's settings (shells as
+the one store, the cheaper eggs, the automatic work and the housing limit) the three seeds reach each island at:
 
 | Tier | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|
-| 7 Moonlit Bay | 3 h 00 | 3 h 13 | 3 h 05 |
-| 10 Driftling Haven | 6 h 09 | 6 h 08 | 5 h 24 |
-| 11 Lantern Cove | 7 h 57 | 7 h 51 | 6 h 43 |
-| 13 Kelpwood Isle | 11 h 58 | 11 h 14 | 10 h 15 |
-| 15 Cloudberry Isle | 16 h 42 | 15 h 35 | 13 h 42 |
-| 17 Starfall Atoll | 19 h 26 | 18 h 03 | 16 h 08 |
-| 20 Everdrift | 23 h 29 | 21 h 46 | 19 h 33 |
+| 7 Moonlit Bay | 4 h 44 | 3 h 21 | 4 h 40 |
+| 10 Driftling Haven | 11 h 11 | 8 h 24 | 11 h 07 |
+| 11 Lantern Cove | 13 h 54 | 10 h 53 | 13 h 49 |
+| 13 Kelpwood Isle | 17 h 48 | 14 h 29 | 17 h 55 |
+| 15 Cloudberry Isle | 20 h 43 | 17 h 10 | 20 h 34 |
+| 17 Starfall Atoll | 22 h 43 | 18 h 54 | 22 h 45 |
+| 20 Everdrift | 26 h 13 | 22 h 12 | 25 h 48 |
 
-About an hour and a half to two hours an island past Driftling Haven (the two-store economy took three quarters of an
-hour to an hour and a half), and Everdrift in 19 to 24 hours, housing about 700 driftlings on 430 or so pieces with
-charm adding 98 to 99% to every shell. Getting there took two changes to the Career and two to the prices. The old
-Career filled a full island with idle lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Bay for
-good; now a building with no room left takes the weakest of its kind's place (above), which also brought Driftling
-Haven from never to under six hours. With the first prices for tiers 11 to 20 (6,000,000 rising to 60,000,000 wood)
-the island's wood grew about 12% a tier while the price grew 30%, and the seeds would have needed 30 hours or more; at
-5,000,000 to 23,000,000, with the new wood buildings making about a third more than first planned (the Log Flume 900,
-the Ironwood Yard 1,700, the Canopy Mill 3,200), the island keeps up. With shells, `WoodTierUp` carried on past
-Driftling Haven would have put Everdrift at 180,000,000,000 shells; it stops there (`WoodTierTop`), so the last ten
-islands cost 380,000,000 to 1,800,000,000 shells. The eggs' `EggTier` past Driftling Haven went from steps of a third
-to steps of about a sixth for the same reason.
+Lantern Cove takes two and a half hours after Driftling Haven, the next two islands about two hours each, and from
+Kelpwood Isle on about an hour and a quarter each, as the island's income catches up with the prices. Everdrift comes
+in 22 to 26 hours, housing 756 to 796 driftlings on about 600 pieces with charm adding the full 100% to every shell.
+Getting there took two changes to the Career and two to the prices. The old Career filled a full island with idle
+lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Bay for good; now a building with no room left
+takes the weakest of its kind's place (above), which also brought Driftling Haven from never to inside a day. With the
+first prices for tiers 11 to 20 (6,000,000 rising to 60,000,000 wood) the island's income grew about 12% a tier while
+the price grew 30%, and the seeds would have needed 30 hours or more; at 5,000,000 to 23,000,000, with the new wood
+buildings making about a third more than first planned (the Log Flume 900, the Ironwood Yard 1,700, the Canopy Mill
+3,200), the island keeps up. With shells, `WoodTierUp` carried on past Driftling Haven would have put Everdrift at
+180,000,000,000 shells; it stops there (`WoodTierTop`), so the last ten islands cost 470,000,000 to 2,200,000,000
+shells. The eggs' `EggTier` past Driftling Haven went from steps of a third to steps of about a sixth for the same
+reason.
 
 ## 11. Polish and animation
 
