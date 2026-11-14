@@ -2161,6 +2161,54 @@ H.expect(H.currentPanel(p) == "tree", "quests", "Go on sixty hatched opens the t
 H.closePanel(p)
 res = H.req(p, "quest.claim", {})
 H.expect(not res.ok and res.err == "not_done", "quests", "sixty hatched not reached: not done", string.format("%s taken %d", tostring(res.err), prof.stats.taken))
+-- a quest asking for a rarity (the request of 2026-11-14: "also, while the rare one quest is active or any rarity
+-- related quests, make it such that an egg of that rarity will always spawn in the tree of life."): with none of it
+-- under the tree the commonest egg turns into one within a second (the same eggs), the client hears of it and says so,
+-- the view and the plot's Eggs attribute follow, and the next lot holds one too; once it's met the help stops
+do
+	local qid = if #TreeL.pool(prof.tier)[3] > 0 then "rare" else "uncommon"
+	local want = Quests.list[questAt(qid)].goal.n
+	local best0 = prof.stats.best
+	prof.stats.best = want - 1
+	for i, e in prof.clutch.list do
+		if e.r == want or i == 1 then
+			e.r = 1
+		end
+	end
+	local ids0 = idsOf(prof.clutch.list)
+	local f1 = #fx
+	prof.quest = questAt(qid)
+	E.run(1.4)
+	local function wanted(list)
+		local n = 0
+		for _, e in list do
+			if e.r == want then
+				n += 1
+			end
+		end
+		return n
+	end
+	local heard = fxSince(f1, "eggs")
+	H.expect(TreeL.wanted(prof) == want and wanted(prof.clutch.list) == 1 and idsOf(prof.clutch.list) == ids0, "quests", "a quest asking for a rarity: one egg of it under the tree within a second, the same eggs", string.format("%s: %s", qid, eggsAttr(prof.clutch.list)))
+	H.expect(#heard >= 1 and heard[#heard].turned == want and heard[#heard].more == 0, "quests", "the client hears of it (Fx eggs with turned)", tostring(#heard))
+	local rar = Traits.RARITY[want]
+	H.expect(statusSays(string.lower(rar.name) .. " egg is waiting under the tree."), "quests", "and a notice names it")
+	local v = H.view(p)
+	H.expect(v ~= nil and wanted(v.clutch) == 1, "quests", "the view has it, at its price")
+	H.expect(plot1:GetAttribute("Eggs") == eggsAttr(prof.clutch.list), "quests", "the plot's Eggs attribute follows", tostring(plot1:GetAttribute("Eggs")))
+	-- the next lot holds one too
+	local f2 = #fx
+	prof.clutch.left = 0.05
+	E.runUntil(function()
+		return #fxSince(f2, "eggs") > 0
+	end, 2, E.dt)
+	E.run(0.3)
+	H.expect(wanted(prof.clutch.list) >= 1 and #prof.clutch.list == TreeL.count(prof.tier), "quests", "a new lot while it's on: one egg of that rarity among them", eggsAttr(prof.clutch.list))
+	-- met: the help stops
+	prof.stats.best = want
+	H.expect(TreeL.wanted(prof) == 0, "quests", "met: no more help")
+	prof.stats.best = best0
+end
 prof.quest = questAt("paths")
 H.push(p, 0.5)
 local paths = 0

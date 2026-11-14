@@ -48,6 +48,16 @@ local function tips(s: Session.S)
 	end
 end
 
+-- The quest's egg (Logic/Tree.ensure): while the quest on the go asks for a rarity, one egg of it is under the tree.
+-- When an egg turns, the client hears of it (Fx "eggs" with `turned`: its rarity) and the view follows.
+local function questEgg(s: Session.S)
+	local e = Tree.ensure(s.profile)
+	if e then
+		Session.markDirty(s)
+		Session.fx(s, { kind = "eggs", laid = Tree.view(s.profile), more = 0, turned = e.r })
+	end
+end
+
 function IslandService.init()
 	-- building (GAME_DESIGN 4): every change rebuilds the island's pieces by difference
 	local function rebuilt(fn: (s: Session.S, a: any) -> (boolean, any)): (s: Session.S, a: any) -> (boolean, any)
@@ -169,6 +179,7 @@ function IslandService.init()
 	end)
 	Router.on("tut.next", function(s, _a)
 		s.profile.tut = 0
+		questEgg(s)
 		return true, nil
 	end)
 	-- the questline (GAME_DESIGN 9): the quest on the go claimed once its goal is met, its reward paid
@@ -176,14 +187,16 @@ function IslandService.init()
 		local ok, data = Quest.claim(s.profile)
 		if ok then
 			Session.fx(s, { kind = "quest", data = data })
+			-- (the next quest may ask for a rarity: its egg under the tree at once)
+			questEgg(s)
 		end
 		return ok, data
 	end)
 end
 
 -- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes wood and shells, its tree
--- lays a new lot of eggs when their time comes (Fx "eggs"), a turn ends every TurnSeconds (the Hatcheries' eggs: Fx
--- "turn"), and a calendar day's end on the sea's clock counts a day (Fx "day").
+-- lays a new lot of eggs when their time comes (Fx "eggs"; the quest's egg checked every second), a turn ends every
+-- TurnSeconds (the Hatcheries' eggs: Fx "turn"), and a calendar day's end on the sea's clock counts a day (Fx "day").
 function IslandService.step(dt: number)
 	WorldClock.advance(dt)
 	local today = WorldClock.dayIndex()
@@ -216,6 +229,9 @@ function IslandService.step(dt: number)
 		s.tickClock += dt
 		if s.tickClock >= 1 then
 			s.tickClock -= 1
+			-- (the quest's egg, once a second: a save loaded with such a quest on the go, or anything else that left
+			-- the lot without one)
+			questEgg(s)
 			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
 		end
 	end

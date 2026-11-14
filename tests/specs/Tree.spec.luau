@@ -11,6 +11,7 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
 local Islets = require("../../build/luautest/shared/Data/Islets")
+local Quests = require("../../build/luautest/shared/Data/Quests")
 local Traits = require("../../build/luautest/shared/Data/Traits")
 local Util = require("../../build/luautest/shared/Logic/Util")
 
@@ -134,6 +135,151 @@ return function()
 		end
 		T.eq(knacks[1], "wood")
 		T.eq(knacks[2], "farm")
+	end)
+
+	-- (the request of 2026-11-14: "also, while the rare one quest is active or any rarity related quests, make it such
+	-- that an egg of that rarity will always spawn in the tree of life.")
+	T.it("a quest asking for a rarity always finds an egg of it under the tree; nothing changes without one", function()
+		-- an island past the tips, its rarity quests in Data/Quests (a "best" goal)
+		local function island(quest: number, tier: number): any
+			local p = fresh()
+			p.tut, p.quest, p.tier = 0, quest, tier
+			p.stats.taken, p.stats.best = 3, 1
+			pal(p, Creatures.list[1].id)
+			p.stats.best = 1
+			return p
+		end
+		local lowest = function(r: number): number
+			for t = 1, #Tuning.EggCount do
+				if #Tree.pool(t)[r] > 0 then
+					return t
+				end
+			end
+			return 0
+		end
+		local asked = 0
+		local plain = 0
+		for qi, q in Quests.list do
+			if q.goal.kind ~= "best" then
+				plain = if plain == 0 then qi else plain
+				continue
+			end
+			asked += 1
+			local r = q.goal.n
+			local tier = lowest(r)
+			T.truthy(tier > 0, q.id .. ": some tier hatches its rarity")
+			local p = island(qi, tier)
+			T.eq(Tree.wanted(p), r, q.id .. " wants rarity " .. r)
+			-- every lot laid holds one, at that rarity's price, the lot no bigger
+			for seed = 1, 60 do
+				Tree.lay(p, Util.newRng(seed))
+				T.eq(#p.clutch.list, Tree.count(tier), "the lot's size")
+				local has = false
+				for i, e in p.clutch.list do
+					if e.r == r then
+						has = true
+						T.eq(Tree.view(p)[i].cost, Tree.cost(p, r), "its rarity's price")
+					end
+				end
+				T.truthy(has, q.id .. ": an egg of rarity " .. r .. " (seed " .. seed .. ")")
+			end
+			-- met: no more help; the tips on: none either
+			p.stats.best = r
+			T.eq(Tree.wanted(p), 0, q.id .. " met")
+			p.stats.best = 1
+			p.tut = 3
+			T.eq(Tree.wanted(p), 0, "not while the tips are on")
+		end
+		T.truthy(asked >= 3, "the uncommon, rare and epic quests: " .. asked)
+		-- without such a quest the lot is the plain roll; with one, at most one egg differs: the commonest, turned
+		local rareQ = 0
+		for qi, q in Quests.list do
+			if q.goal.kind == "best" and q.goal.n == 3 then
+				rareQ = qi
+			end
+		end
+		local tier = lowest(3)
+		local turnedSome = false
+		for seed = 1, 120 do
+			local a, b = island(plain, tier), island(rareQ, tier)
+			T.eq(Tree.wanted(a), 0, "a quest that asks for no rarity")
+			Tree.lay(a, Util.newRng(seed))
+			Tree.lay(b, Util.newRng(seed))
+			local hadRare, low = false, 9
+			for _, e in a.clutch.list do
+				hadRare = hadRare or e.r == 3
+				low = math.min(low, e.r)
+			end
+			local diff = 0
+			for i, e in a.clutch.list do
+				local f = b.clutch.list[i]
+				T.eq(f.id, e.id, "the same eggs")
+				if f.r ~= e.r then
+					diff += 1
+					T.truthy(not hadRare, "only when none was there")
+					T.eq(e.r, low, "the commonest one turned")
+					T.eq(f.r, 3)
+					turnedSome = true
+				end
+			end
+			T.truthy(diff <= 1, "one egg at most")
+		end
+		T.truthy(turnedSome, "some lots needed the turn")
+		-- a quest coming up mid-lot: the commonest egg there (the first laid of those) turns at once, keeping its id
+		local p = island(plain, tier)
+		local seed = 1
+		repeat
+			Tree.lay(p, Util.newRng(seed))
+			seed += 1
+			local any = false
+			for _, e in p.clutch.list do
+				any = any or e.r >= 3
+			end
+		until not any
+		T.eq(Tree.ensure(p), nil, "nothing to do without the quest")
+		local low, first = 9, nil
+		for _, e in p.clutch.list do
+			if e.r < low then
+				low, first = e.r, e
+			end
+		end
+		local ids = {}
+		for _, e in p.clutch.list do
+			table.insert(ids, e.id)
+		end
+		p.quest = rareQ
+		local turned = Tree.ensure(p)
+		T.truthy(turned ~= nil and turned == first, "the commonest, first laid")
+		T.eq((turned :: any).r, 3)
+		for i, e in p.clutch.list do
+			T.eq(e.id, ids[i], "ids and places kept")
+		end
+		T.eq(Tree.ensure(p), nil, "once is enough")
+		-- hatched: the quest is met, the next lot is the plain roll again
+		build(p, "nest")
+		p.shells = 1e7
+		local ok, data = Tree.hatch(p, (turned :: any).id, 0, Util.newRng(9))
+		T.truthy(ok, tostring(data))
+		T.truthy(data.hr >= 3)
+		T.eq(Tree.wanted(p), 0, "the rare one had")
+		-- an egg already rarer than asked is left alone
+		local q = island(rareQ, tier)
+		table.clear(q.clutch.list)
+		egg(q, 5)
+		egg(q, 4)
+		T.eq(Tree.ensure(q), nil, "every egg rarer: nothing turns")
+		T.eq(q.clutch.list[1].r, 5)
+		-- a new island's first lot keeps its two commons
+		local n = Schema.default(0, 9)
+		n.tut, n.quest = 0, rareQ
+		Tree.step(n, 0.1, Util.newRng(1))
+		local commons = 0
+		for _, e in n.clutch.list do
+			if e.r == 1 then
+				commons += 1
+			end
+		end
+		T.truthy(commons >= 2, "the first lot's commons")
 	end)
 
 	-- (the request of 2026-11-13: "eggs having a chance to skip to the next rarity during the cutscene")

@@ -20,6 +20,8 @@
 --   free place: at a building of its knack first, else wherever it works fastest (any driftling works anywhere).
 --   A driftling without a hut (its hut cleared away or made smaller, a hatchling with no room) waits on the island,
 --   working nowhere, and moves in the moment a hut has room (`settle`).
+--   While the quest on the go asks for a rarity (`wanted`: the uncommon, rare and epic ones), the eggs under the tree
+--   always hold one of it (`ensure`: every lot laid, and the lot there when such a quest comes up).
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -28,6 +30,7 @@ local Islets = require(script.Parent.Parent.Data.Islets)
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
+local Quest = require(script.Parent.Quest)
 
 type Profile = Types.Profile
 type Pal = Types.Pal
@@ -372,7 +375,47 @@ local function fresh(p: Profile): boolean
 	return p.stats.taken == 0 and #p.pals == 0
 end
 
--- Eggs up to the island's count (after it grew, or a lot just laid).
+-- The rarity the quest on the go asks for (Data/Quests: a "best" goal, the rarest driftling had: "An uncommon one",
+-- "A rare one", "An epic one") while it isn't met yet and the island's tree has driftlings of that rarity; 0 when
+-- there is none. The request (2026-11-14): "also, while the rare one quest is active or any rarity related quests,
+-- make it such that an egg of that rarity will always spawn in the tree of life."
+function Tree.wanted(p: Profile): number
+	local q = Quest.current(p.tut, p.quest)
+	if q == nil or q.goal.kind ~= "best" then
+		return 0
+	end
+	local r = math.clamp(q.goal.n, 1, 5)
+	if r <= 1 or p.stats.best >= r or #Tree.pool(p.tier)[r] == 0 then
+		return 0
+	end
+	return r
+end
+
+-- While a quest wants a rarity (`wanted`), the eggs under the tree hold one of it: with none there, the commonest egg
+-- (the first laid of those) turns into one, keeping its id and its place on the ring, at that rarity's price. An
+-- egg already rarer than the quest asks is left alone (with every egg rarer, nothing changes), and so is a new
+-- island's first lot. Returns the egg that turned (nil: nothing changed).
+function Tree.ensure(p: Profile): Laid?
+	local r = Tree.wanted(p)
+	if r == 0 or fresh(p) then
+		return nil
+	end
+	local pick: Laid? = nil
+	for _, e in p.clutch.list do
+		if e.r == r then
+			return nil
+		end
+		if e.r < r and (pick == nil or e.r < (pick :: Laid).r) then
+			pick = e
+		end
+	end
+	if pick then
+		pick.r = r
+	end
+	return pick
+end
+
+-- Eggs up to the island's count (after it grew, or a lot just laid), the quest's egg among them (`ensure`).
 function Tree.fill(p: Profile, rng: Rng): { Laid }
 	local c = p.clutch
 	local laid: { Laid } = {}
@@ -392,6 +435,7 @@ function Tree.fill(p: Profile, rng: Rng): { Laid }
 		table.insert(c.list, e)
 		table.insert(laid, e)
 	end
+	Tree.ensure(p)
 	return laid
 end
 
