@@ -77,22 +77,9 @@ local function build(p: any, id: string): boolean
 	end
 	local ok = Plot.place(p, id, x :: number, z :: number, 0)
 	if ok then
+		-- (the driftlings arrange themselves where they make the most: Island.arrange, as on the server)
 		Tree.settle(p)
 		Tree.fillJobs(p)
-		-- (driftlings working away from their knack move to a place of it with room, as a player moves them in the
-		-- Driftlings panel: any driftling works anywhere, best at its own knack)
-		for _, w in p.pals do
-			local d = Creatures.byId[w.sp]
-			local q = if w.work ~= 0 then Island.piece(p, w.work) else nil
-			local bd = if q then Buildings.byId[q.id] else nil
-			if d and bd and bd.knack ~= d.knack then
-				local j = Island.freeJob(p, d.knack)
-				local jq = if j ~= 0 then Island.piece(p, j) else nil
-				if jq and Buildings.byId[jq.id].knack == d.knack then
-					Island.setHelp(p, w.id, j)
-				end
-			end
-		end
 	end
 	return ok
 end

@@ -33,12 +33,14 @@ local Tuning = {
 	-- to two figures: the farms' and shops' shells go to building now too, and a big island's buildings pay for
 	-- themselves fast, so building costs more of them than it did of the wood, the more the bigger
 	-- (Data/Buildings.shellsFor, Logic/Island.expandCost)
-	WoodShells = 3,
-	WoodTierUp = 1.5,
-	-- ... up to this tier: past Driftling Haven the price rises only as the listed prices and TierCost rise (the ten
-	-- islands past it were priced for that: GAME_DESIGN 4.4), or the last ones would cost thousands of times more
-	WoodTierTop = 10,
-	StartShells = 360, -- the tips' buildings (a camp, a patch, a hut, a stall: 80 at BuildingPrice), the first eggs and plenty over (the old 300 wood and 60 shells together)
+	WoodShells = 4,
+	WoodTierUp = 1.75,
+	-- ... up to this tier (Moonlit Bay): past it the price rises only as the listed prices and TierCost rise (the
+	-- islands past Driftling Haven were priced for that: GAME_DESIGN 4.4), or the last ones would cost thousands of
+	-- times more. (3, 1.5 and 10 until the driftlings arranged themselves at their best work, 2026-11-14: the island
+	-- earned a third more and every island came far sooner)
+	WoodTierTop = 7,
+	StartShells = 440, -- the tips' buildings (a camp, a patch, a hut, a stall: 320 at BuildingPrice and WoodShells), the first eggs and a little over
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
@@ -84,8 +86,9 @@ local Tuning = {
 	EggMutTier = 2,
 	-- an egg may turn rarer as it hatches (the hatch scene shows it: the request of 2026-11-13, "eggs having a chance to
 	-- skip to the next rarity during the cutscene"): an egg of rarity r goes up one with EggUp[r], and on from there with
-	-- the next one's share while the rolls hold (never to a rarity the island has no driftlings of)
-	EggUp = { 0.06, 0.04, 0.025, 0.012, 0.006, 0.003 },
+	-- the next one's share while the rolls hold (never to a rarity the island has no driftlings of); twice what it was
+	-- since the request of 2026-11-14, "also, increase the chance of eggs tiering up"
+	EggUp = { 0.12, 0.08, 0.05, 0.025, 0.012, 0.006 },
 	-- the seasons and the weather (Data/Weather, Logic/Weather; GAME_DESIGN 13: "also, make weather and seasons, and eggs
 	-- spawns are affected by these with different mutations"): one sea, one calendar for every island, worked out from
 	-- the sea's clock (WorldClock) from WeatherEpoch. A season lasts SeasonSecs (2 h 30 min: the four come round every

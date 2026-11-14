@@ -56,6 +56,17 @@ function Numbers.perMin(n: number): string
 	return (if n < -0.5 then "-" else "+") .. Numbers.short(r) .. "/min"
 end
 
+-- A length of time in whole minutes rounded up: "2 h 10 min", "2 h", "45 min", "1 min" (the weather's lines, the
+-- Hatchery's eggs: the request of 2026-11-14, "instead of "Hatches after x turns", describe it in minutes or hours").
+function Numbers.duration(secs: number): string
+	local m = math.max(1, math.ceil(math.max(0, secs) / 60))
+	if m >= 60 then
+		local h, rest = m // 60, m % 60
+		return if rest == 0 then string.format("%d h", h) else string.format("%d h %d min", h, rest)
+	end
+	return string.format("%d min", m)
+end
+
 -- A rarity: "1 in 1,250" (short past a million: "1 in 4.5M").
 function Numbers.oneIn(n: number): string
 	if n >= 1e6 then

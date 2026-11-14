@@ -426,7 +426,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					if work ~= 0 then
 						helpers[work] = (helpers[work] or 0) + 1
 					end
-					table.insert(pals, { id = id, sp = x.sp, home = home, work = work, muts = Traits.clean(x.muts) })
+					-- (`pin`: placed by the player's hand, kept only while it lives in a hut)
+					table.insert(pals, { id = id, sp = x.sp, home = home, work = work, muts = Traits.clean(x.muts), pin = if x.pin == true and home ~= 0 then true else nil })
 				end
 			end
 		end

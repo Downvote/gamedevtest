@@ -381,8 +381,9 @@ do
 		return false
 	end
 	H.expect(crab.home == hutUid and (crab.work == 0 or isWork(crab.work)), "work", "it moves into the new hut at once; with nowhere to fish it takes another free place, or rests", string.format("home %d work %d", crab.home, crab.work))
-	-- (any driftling works anywhere: the player sends it to rest, the pier goes up and it goes fishing, its own knack
-	-- first)
+	-- (the player sends it to rest: that's a pick, kept while the pier goes up and the rest are arranged round it;
+	-- Auto hands it back to the arrangement, Island.arrange: the request of 2026-11-14, "make it such that driftlings
+	-- will automatically work at whatever they do best in, at the best work areas")
 	local rr = H.req(p, "pal.work", { id = crab.id, uid = 0 })
 	E.run(0.2)
 	H.expect(rr.ok and crab.work == 0, "work", "sent to rest", tostring(rr.err))
@@ -395,7 +396,16 @@ do
 			pierUid = q.uid
 		end
 	end
-	H.expect(crab.home == hutUid and crab.work == pierUid, "work", "a place at the pier: it fishes there", string.format("home %d work %d", crab.home, crab.work))
+	local atPier = 0
+	for _, x in prof.pals do
+		if x.work == pierUid then
+			atPier += 1
+		end
+	end
+	H.expect(crab.home == hutUid and crab.work == 0 and crab.pin == true and atPier > 0, "work", "resting by the player's hand it stays resting; the pier gets the arrangement's workers", string.format("home %d work %d, %d at the pier", crab.home, crab.work, atPier))
+	local ra = H.req(p, "pal.auto", { id = crab.id })
+	E.run(0.2)
+	H.expect(ra.ok and crab.pin == nil and crab.work ~= 0 and isWork(crab.work), "work", "Auto: back to work where the arrangement puts it", string.format("%s work %d", tostring(ra.err), crab.work))
 	H.checkProfile(p, "work")
 	settled(p)
 	H.checkMirror(p, "work")
@@ -508,6 +518,14 @@ do
 	H.expect(Tree.room(prof) == 1, "hatchery", "(one place left in the huts)", tostring(Tree.room(prof)))
 	-- the turns: the egg on the panel counts down, then they hatch (announced)
 	H.openPanel(p, "hatch")
+	-- (the time left in minutes or hours, never turns: "instead of "Hatches after x turns", describe it in minutes or
+	-- hours")
+	do
+		local NumbersH = H.sharedServer("Logic.Numbers")
+		local left = p.PlayerGui:FindFirstChild("EggLeft", true)
+		local want = if egg then "Hatches in " .. NumbersH.duration(egg.left * Tuning.TurnSeconds) else "?"
+		H.expect(left ~= nil and left.Text == want and not string.find(left.Text, "turn", 1, true), "hatchery", "the egg's time left in minutes", left and left.Text)
+	end
 	local pals0 = #prof.pals
 	local i0 = #fx
 	local turns = egg and egg.left or 0

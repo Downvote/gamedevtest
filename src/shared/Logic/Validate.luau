@@ -29,6 +29,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.replace"] = { i = "index", id = "id" },
 	["island.expand"] = {},
 	["pal.work"] = { id = "int", uid = "int" },
+	["pal.auto"] = { id = "int" },
 	["pal.house"] = { id = "int", uid = "int", swap = "int" },
 	["pal.sell"] = { id = "int" },
 	["egg.hatch"] = { id = "int", swap = "int" },

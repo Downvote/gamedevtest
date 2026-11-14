@@ -16,7 +16,9 @@ export type PlotSave = { placed: { Piece } }
 -- when its hut was cleared away: it waits for room, Logic/Tree.settle), the building it works at (a Piece uid, 0:
 -- resting; only a driftling in a hut works).
 -- muts: its mutations (Data/Traits ids, at most Traits.MAX), rolled when it hatched.
-export type Pal = { id: number, sp: string, home: number, work: number, muts: { string }? }
+-- `pin`: the player picked its workplace (or rest) in the work picker, so the automatic arrangement leaves it there
+-- (Island.arrange; absent: it works wherever it makes the most, the request of 2026-11-14).
+export type Pal = { id: number, sp: string, home: number, work: number, muts: { string }?, pin: boolean? }
 
 -- An egg the Tree of Life laid round its roots (Logic/Tree; GAME_DESIGN 6): its id and its rarity (1 .. 5: its shell's
 -- colour); what hatches from it is rolled when the player hatches it. `cost` is on the client's copy only

@@ -227,8 +227,119 @@ function Island.newDay(p: Profile)
 	p.stats.days += 1
 end
 
+-- The automatic arrangement (the request of 2026-11-14: "make it such that driftlings will automatically work at
+-- whatever they do best in, at the best work areas"). Every driftling living in a hut that the player hasn't placed
+-- by hand (`pin`) works where it makes the most shells: the best workers choose first (their best speed, then the
+-- older), each taking the free place where its output is highest, a workplace's own (rate x level x the boosts at
+-- its knack) times its speed there (Tuning.PalWork x its rarity's RarityWork x (1 + its work share at that knack +
+-- its hut's comfort)). So it goes to the kind of work it does best, at the best workplace of that kind with room,
+-- and only elsewhere when that kind is full or much better is free. Ties: its own knack, then farms, wood, shops,
+-- then the first built. A pinned one keeps its place while that stands (its place gone, it goes back to the
+-- arrangement); one with no hut rests. Runs whenever the island changes (Logic/Tree.fillJobs and settle, a hatch, a
+-- building placed, replaced or cleared, a sale, a move, growing the island, a save loaded).
+local ARRANGE_KNACKS = { "farm", "wood", "shop" }
+function Island.arrange(p: Profile)
+	local homes = Island.homes(p)
+	local boosts = Island.boosts(p)
+	-- the workplaces of each knack, the best first, and the places left at each
+	type Spot = { uid: number, out: number, n: number, order: number }
+	local byKnack: { [string]: { Spot } } = { farm = {}, wood = {}, shop = {} }
+	local spots: { [number]: Spot } = {}
+	for i, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and d.rate > 0 and Island.works(q.id) then
+			local out = d.rate * (Tuning.UpgradeMult[q.lvl or 1] or 1) * (1 + Island.boostAt(boosts, d.knack))
+			local sp: Spot = { uid = q.uid, out = out, n = Tuning.HelpMax, order = i }
+			spots[q.uid] = sp
+			local list = byKnack[d.knack]
+			if list == nil then
+				list = {}
+				byKnack[d.knack] = list
+			end
+			table.insert(list, sp)
+		end
+	end
+	-- the pinned keep their places (a place gone: back to the arrangement); one with no hut rests
+	local free: { Types.Pal } = {}
+	for _, x in p.pals do
+		if x.home == 0 or homes["p" .. x.id] == nil then
+			x.work = 0
+		elseif x.pin then
+			local sp = if x.work ~= 0 then spots[x.work] else nil
+			if x.work ~= 0 and (sp == nil or sp.n <= 0) then
+				x.pin = nil
+				table.insert(free, x)
+			elseif sp then
+				sp.n -= 1
+			end
+		else
+			table.insert(free, x)
+		end
+	end
+	for _, list in byKnack do
+		table.sort(list, function(a, b)
+			if math.abs(a.out - b.out) > 1e-9 then
+				return a.out > b.out
+			end
+			return a.order < b.order
+		end)
+	end
+	-- each one's speed at each knack, and its best
+	local speed: { [Types.Pal]: { [string]: number } } = {}
+	local best: { [Types.Pal]: number } = {}
+	for _, x in free do
+		local c = homes["p" .. x.id].comfort
+		local d = Creatures.byId[x.sp]
+		local r = if d then d.rarity else 1
+		local fx = Island.fxOf(x)
+		local s: { [string]: number } = {}
+		local top = 0
+		for _, k in ARRANGE_KNACKS do
+			local v = Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Traits.workAt(fx, k) + c)
+			s[k] = v
+			top = math.max(top, v)
+		end
+		speed[x], best[x] = s, top
+	end
+	table.sort(free, function(a, b)
+		if math.abs(best[a] - best[b]) > 1e-9 then
+			return best[a] > best[b]
+		end
+		return a.id < b.id
+	end)
+	local head: { [string]: number } = { farm = 1, wood = 1, shop = 1 }
+	for _, x in free do
+		local d = Creatures.byId[x.sp]
+		local own = if d then d.knack else ""
+		local pick: Spot?, pickOut, pickRank = nil, -1, 99
+		for rank, k in ARRANGE_KNACKS do
+			local list = byKnack[k]
+			local h = head[k]
+			while list[h] and list[h].n <= 0 do
+				h += 1
+			end
+			head[k] = h
+			local sp = list[h]
+			if sp then
+				local out = sp.out * speed[x][k]
+				local rk = if k == own then 0 else rank
+				if out > pickOut + 1e-9 or (math.abs(out - pickOut) <= 1e-9 and rk < pickRank) then
+					pick, pickOut, pickRank = sp, out, rk
+				end
+			end
+		end
+		if pick then
+			pick.n -= 1
+			x.work = pick.uid
+		else
+			x.work = 0
+		end
+	end
+end
+
 -- A driftling living in a hut to any workplace (uid: a farm, a lumber camp or a shop, whatever its knack; it works best
--- at its own) or resting (0): Tuning.HelpMax a building (a full one sends the helper that came first back to rest).
+-- at its own) or resting (0), by the player's hand: it stays there (`pin`) while the rest are arranged round it
+-- (Island.arrange). Tuning.HelpMax a building: a full one sends the helper that came first back to the arrangement.
 -- One with no hut doesn't work, nor anywhere that makes nothing (bad_payload).
 function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	local who: Types.Pal? = nil
@@ -254,10 +365,25 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 		end
 		if #there >= Tuning.HelpMax then
 			there[1].work = 0
+			there[1].pin = nil
 		end
 	end
 	who.work = uid
+	who.pin = true
+	Island.arrange(p)
 	return true, nil
+end
+
+-- A driftling handed back to the arrangement (the work picker's Auto): it works wherever it makes the most.
+function Island.autoWork(p: Profile, id: number): (boolean, any)
+	for _, pal in p.pals do
+		if pal.id == id then
+			pal.pin = nil
+			Island.arrange(p)
+			return true, { work = pal.work }
+		end
+	end
+	return false, "not_found" :: ErrCode
 end
 
 ------------------------------------------------------------------ the island's size
@@ -280,6 +406,7 @@ function Island.expand(p: Profile): (boolean, any)
 	p.tier += 1
 	-- pieces that no longer fit the bigger island's shape make room (Plot.refit)
 	local moved, cleared = Plot.refit(p)
+	Island.arrange(p)
 	return true, { tier = p.tier, moved = moved, cleared = cleared }
 end
 

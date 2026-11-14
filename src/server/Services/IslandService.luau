@@ -143,6 +143,10 @@ function IslandService.init()
 	Router.on("pal.work", function(s, a)
 		return Island.setHelp(s.profile, a.id, a.uid)
 	end)
+	-- (the work picker's Auto: back to the arrangement, where it makes the most: Island.arrange)
+	Router.on("pal.auto", function(s, a)
+		return Island.autoWork(s.profile, a.id)
+	end)
 	-- the tree's eggs and the huts (GAME_DESIGN 6): an egg hatched (a swap when every hut is full), a driftling to
 	-- another hut, selling
 	Router.on("egg.hatch", function(s, a)

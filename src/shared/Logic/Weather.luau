@@ -13,6 +13,7 @@ local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Data = require(script.Parent.Parent.Data.Weather)
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Util = require(script.Parent.Util)
+local Numbers = require(script.Parent.Numbers)
 
 local Weather = {}
 
@@ -148,14 +149,10 @@ function Weather.knownSeason(season: any): boolean
 	return type(season) == "string" and Data.seasonById[season] ~= nil
 end
 
--- A length of time for the HUD's status lines, in whole minutes rounded up: "2 h 10 min", "2 h", "45 min", "1 min".
+-- A length of time for the HUD's status lines, in whole minutes rounded up: "2 h 10 min", "2 h", "45 min", "1 min"
+-- (Logic/Numbers.duration).
 function Weather.left(secs: number): string
-	local m = math.max(1, math.ceil(math.max(0, secs) / 60))
-	if m >= 60 then
-		local h, rest = m // 60, m % 60
-		return if rest == 0 then string.format("%d h", h) else string.format("%d h %d min", h, rest)
-	end
-	return string.format("%d min", m)
+	return Numbers.duration(secs)
 end
 
 return Weather

@@ -616,7 +616,7 @@ local function lotCheck(label, at, old, next0, f0, st0, said)
 	for _, e in prof.clutch.list do
 		best = math.max(best, e.r)
 	end
-	H.expect(says(p, said or (if best >= 4 then "egg is waiting under the tree" else "The Tree of Life laid new eggs.")), "lot", label .. ": the HUD says the tree laid", said)
+	H.expect(says(p, said or (if best >= 4 then "egg is waiting under the tree" else "The Tree of Life has new eggs!")), "lot", label .. ": the HUD says the tree laid", said)
 end
 
 -- the time the server's step laid the next lot: wait for it (no longer than `timeout`)

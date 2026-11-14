@@ -883,7 +883,7 @@ local function onEggs(msg: { [string]: any })
 		UIKit.notice(string.format("The tree laid %d more %s.", more, if more == 1 then "egg" else "eggs"), UIKit.color("good"), 3)
 		Audio.play("rare")
 	else
-		UIKit.notice("The Tree of Life laid new eggs.", UIKit.color("good"), 3)
+		UIKit.notice("The Tree of Life has new eggs!", UIKit.color("good"), 3)
 		Audio.play("rare")
 	end
 end

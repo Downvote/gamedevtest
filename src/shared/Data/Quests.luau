@@ -172,7 +172,7 @@ local list: { Quest } = {
 	{
 		id = "egg",
 		title = "Hatch an egg",
-		text = "Open the Hatchery, pick two driftlings and pay for a feast. It hatches a few turns later.",
+		text = "Open the Hatchery, pick two driftlings and pay for a feast. It hatches a few minutes later.",
 		goal = { kind = "hatched", n = 1 },
 		reward = { shells = 1200 },
 		go = "hatch",

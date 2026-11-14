@@ -241,15 +241,8 @@ local function palOf(p: Profile, id: number): Pal?
 	return nil
 end
 
--- A driftling just moved into a hut takes a free place (Island.freeJob: at a building of its knack first, else
--- wherever it works fastest), if there is one.
-local function toWork(p: Profile, x: Pal)
-	local d = Creatures.byId[x.sp]
-	if d and x.home ~= 0 and x.work == 0 then
-		x.work = Island.freeJob(p, d.knack, Traits.sum(d.passive.fx, x.muts))
-	end
-end
-
+-- A driftling just moved into a hut, or one that moved, goes to work through the arrangement (Island.arrange: where it
+-- makes the most, the best workers first; the request of 2026-11-14), which the callers run once they are done.
 -- The driftlings with no hut move into the huts with room, the best first into the comfiest, each taking a free
 -- place (its knack's first). Returns the ids moved.
 function Tree.settle(p: Profile): { number }
@@ -278,18 +271,16 @@ function Tree.settle(p: Profile): { number }
 		end
 		spot.n += 1
 		x.home, x.work = spot.uid, 0
-		toWork(p, x)
 		table.insert(moved, x.id)
 	end
+	Island.arrange(p)
 	return moved
 end
 
--- Every resting driftling in a hut takes a free place, its knack's first (after a building went up, or a helper
--- left).
+-- Every driftling in a hut to work where it makes the most (Island.arrange), after a building went up or came down,
+-- a helper left, a hatch or a move; the ones the player placed by hand stay.
 function Tree.fillJobs(p: Profile)
-	for _, x in p.pals do
-		toWork(p, x)
-	end
+	Island.arrange(p)
 end
 
 -- A driftling sold (or swapped out): its price in shells.
@@ -315,7 +306,7 @@ function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 		end
 	end
 	table.insert(p.pals, x)
-	toWork(p, x)
+	Island.arrange(p)
 	p.seen[sp] = 2
 	local d = Creatures.byId[sp]
 	if d then
@@ -603,7 +594,7 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	local x: Pal = { id = p.nextId, sp = sp, home = home, work = 0, muts = Traits.clean(muts) }
 	p.nextId += 1
 	table.insert(p.pals, x)
-	toWork(p, x)
+	Island.arrange(p)
 	-- (`new`: a kind never had before this one, seen in the Index or not: the hatch says "New!")
 	local fresh = (p.seen[x.sp] or 0) < 2
 	p.seen[x.sp] = 2
@@ -665,10 +656,6 @@ function Tree.house(p: Profile, id: number, uid: number, swap: number): (boolean
 	end
 	x.home = uid
 	x.work = 0
-	toWork(p, x)
-	if other then
-		toWork(p, other)
-	end
 	-- (a hut left with room takes in one waiting with no hut; the helpers' places freed fill too)
 	Tree.settle(p)
 	Tree.fillJobs(p)

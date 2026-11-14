@@ -150,6 +150,7 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back
 			me = x
 		end
 	end
+	local pinned = me ~= nil and me.pin == true
 	local top = hint(body, string.format("Where should %s work? The fastest spots come first.", name), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
 		UIKit.openPanel(back, backArg)
@@ -163,6 +164,22 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back
 			Audio.play("ding")
 			UIKit.openPanel(back, backArg)
 		end
+	end
+	-- Auto first: it works wherever it makes the most and moves by itself when the island changes (Island.arrange;
+	-- the request of 2026-11-14). Picking a spot below keeps it there instead.
+	do
+		order += 1
+		local f = row(list, order, 22)
+		f.Name = "Auto"
+		UIKit.text(f, "Auto: where it does best", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(6, 1), { color = UIKit.color("accent"), z = 4 })
+		UIKit.text(f, if pinned then "You picked its spot. Auto moves it by itself." else "On now. It moves when you build or hatch.", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(6, 11), { color = UIKit.color("text_dim"), z = 4 })
+		UIKit.button(f, if pinned then "Auto" else "On", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
+			local res = ask("pal.auto", { id = palId })
+			if res.ok then
+				Audio.play("ding")
+				UIKit.openPanel(back, backArg)
+			end
+		end, { name = "Go_auto", color = UIKit.color("button_ok"), enabled = pinned }).ZIndex = 4
 	end
 	-- the workplaces with this one's speed at each, the fastest first (then farms, wood, shops as built)
 	local spots: { { q: Types.Piece, d: any, speed: number, k: number } } = {}
@@ -206,8 +223,9 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back
 		end, { name = "Go_" .. q.uid, color = UIKit.color("button_ok"), enabled = q.uid ~= current })
 		b.ZIndex = 4
 	end
-	if order == 0 then
-		local f = row(list, 1, 22)
+	if #spots == 0 then
+		order += 1
+		local f = row(list, order, 22)
 		UIKit.text(f, "Nowhere to work on the island yet. Build a farm, a lumber camp or a shop first.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
 	local f = row(list, order + 1, 22)
@@ -215,7 +233,7 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back
 	UIKit.text(f, "Rest in its hut", UDim2.new(1, -90, 0, 10), UDim2.fromOffset(6, 6), { color = UIKit.color("text"), z = 4 })
 	UIKit.button(f, "Rest", UDim2.fromOffset(60, 14), UDim2.new(1, -64, 0, 4), function()
 		choose(0)
-	end, { name = "Go_0", enabled = current ~= 0 }).ZIndex = 4
+	end, { name = "Go_0", enabled = current ~= 0 or not pinned }).ZIndex = 4
 end
 
 ------------------------------------------------------------------ the Hatchery
@@ -295,7 +313,7 @@ local function buildHatch(body: Frame, arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Two driftlings and a feast make an egg. It hatches a few turns later and moves into a hut.", W)
+	local top = hint(body, "Two driftlings and a feast make an egg. It hatches a few minutes later and moves into a hut.", W)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local hs = hatcheries(v)
@@ -322,7 +340,8 @@ local function buildHatch(body: Frame, arg: any?)
 			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
 			UIKit.text(f, rar.name, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
 			local _, total = Breed.cost(egg.sp)
-			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Hatching now."
+			-- (in minutes or hours: its turns left, Tuning.TurnSeconds each while you are on the island)
+			local line = if egg.left > 0 then "Hatches in " .. Numbers.duration(egg.left * Tuning.TurnSeconds) else "Hatching now."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
 			local bw = math.min(140, W - 40)
 			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("glass"), 4)
@@ -365,7 +384,7 @@ local function buildHatch(body: Frame, arg: any?)
 				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(214, 5), 4)
 				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 10), { color = UIKit.color(rar.color), z = 4, name = "Child" })
 				UIKit.text(f, rar.name, UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 19), { color = UIKit.color(rar.color), z = 4 })
-				UIKit.text(f, string.format("A feast for %s shells, %d turns. Shared mutations always pass on.", Numbers.coins(feast), turns), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
+				UIKit.text(f, string.format("A feast for %s shells, hatches in %s. Shared mutations always pass on.", Numbers.coins(feast), Numbers.duration(turns * Tuning.TurnSeconds)), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
 				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 51), function()
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
 					if res.ok then
@@ -668,7 +687,8 @@ local function buildPal(body: Frame, arg: any?)
 	end
 	if wd then
 		local here = Tree.worthAt(pal, wd.knack)
-		info(top, "work", "Works at the " .. wd.name, string.format("x%.1f here, x%.1f at its best", here, best), UIKit.color("good"), "Where")
+		local how = if own and pal.pin then "your pick" else "auto"
+		info(top, "work", "Works at the " .. wd.name, string.format("x%.1f here, x%.1f at its best (%s)", here, best, how), UIKit.color("good"), "Where")
 	else
 		info(top, "rest", if hutName then "Resting" else "Waiting for a hut", string.format("Works x%.1f at its best", best), UIKit.color("text"), "Where")
 	end

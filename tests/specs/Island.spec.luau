@@ -148,7 +148,8 @@ return function()
 		T.eq(select(2, Island.setHelp(p, 72, patch)), "bad_payload", "one with no hut doesn't work")
 		p.pals[3].home = hut
 		T.truthy(Island.setHelp(p, 72, patch))
-		T.eq(p.pals[1].work, 0, "a third: the first there goes back to rest")
+		T.eq(p.pals[1].work, lumber, "a third: the first there goes back to the arrangement, and the lumber camp has room")
+		T.truthy(p.pals[1].pin == nil and p.pals[2].pin == true and p.pals[3].pin == true, "the bumped one is the arrangement's again; the picked stay picked")
 		T.eq(p.pals[2].work, patch)
 		T.eq(Island.freeJob(p, "farm"), lumber, "the only farm is full: the lumber camp has room")
 		local patch2 = put(p, "patch")
@@ -161,6 +162,62 @@ return function()
 		T.eq(Island.freeJob(p, "", { wood = 0.2 }), lumber, "a woodworker's for wood")
 		T.truthy(Island.setHelp(p, 72, 0))
 		T.eq(p.pals[3].work, 0, "back to rest")
+	end)
+	T.it("the arrangement: each works where it makes the most, the best first; a hand-picked one stays till Auto", function()
+		-- (the request of 2026-11-14: "make it such that driftlings will automatically work at whatever they do best in,
+		-- at the best work areas")
+		local p = fresh()
+		p.tier = 2
+		local hut = put(p, "burrow") -- (room for four)
+		local patch = put(p, "patch") -- (rate 36)
+		local orchard = put(p, "orchard") -- (rate 102: the better farm)
+		local lumber = put(p, "lumber")
+		local common = worker(p, "farm", hut, 0) -- a Mossbun, farms +15%
+		local rare = { id = p.nextId, sp = "bloomoth", home = hut, work = 0 } -- rare, farms +40%
+		p.nextId += 1
+		table.insert(p.pals, rare)
+		local epic = { id = p.nextId, sp = "sunsprite", home = hut, work = 0 } -- epic, farms +35%
+		p.nextId += 1
+		table.insert(p.pals, epic)
+		local woody = worker(p, "wood", hut, 0) -- a Pebblit, wood +15%
+		Island.arrange(p)
+		T.eq(epic.work, orchard, "the best worker at the best farm")
+		T.eq(rare.work, orchard, "the next best with it (two a building)")
+		T.eq(common.work, patch, "the orchard full: the next farm")
+		T.eq(woody.work, lumber, "a woodworker at the wood")
+		-- a far better workplace of another kind wins over a poor one of its own (it makes more there)
+		local cafe = put(p, "cafe") -- (a shop, rate 120)
+		Island.arrange(p)
+		T.eq(common.work, cafe, "the Mossbun makes more at the cafe than at the patch")
+		T.truthy(Island.rates(p).shells > 0)
+		-- picked by hand: it stays, the rest arranged round it; Auto hands it back
+		T.truthy(Island.setHelp(p, epic.id, patch))
+		T.truthy(epic.work == patch and epic.pin == true, "the player's pick stays")
+		Island.arrange(p)
+		T.eq(epic.work, patch, "and survives the next arrangement")
+		local ok, data = Island.autoWork(p, epic.id)
+		T.truthy(ok and data.work == orchard and epic.pin == nil, "Auto: back to the best farm")
+		T.eq(select(2, Island.autoWork(p, 999)), "not_found")
+		-- resting by hand is a pick too
+		T.truthy(Island.setHelp(p, woody.id, 0))
+		Island.arrange(p)
+		T.truthy(woody.work == 0 and woody.pin == true, "rests while the player wants it to")
+		-- a picked place cleared away: back to the arrangement
+		Island.setHelp(p, epic.id, patch)
+		for i, q in p.plot.placed do
+			if q.uid == patch then
+				table.remove(p.plot.placed, i)
+				break
+			end
+		end
+		Island.arrange(p)
+		T.truthy(epic.pin == nil and epic.work == orchard, "its place gone: the arrangement places it")
+		-- no hut, no work; no room anywhere, rest
+		local homeless = { id = p.nextId, sp = "mossbun", home = 0, work = lumber }
+		p.nextId += 1
+		table.insert(p.pals, homeless)
+		Island.arrange(p)
+		T.eq(homeless.work, 0, "no hut: it rests")
 	end)
 	T.it("work at another knack: a driftling's passive helps at its own knack's buildings only", function()
 		local p = fresh()
@@ -271,6 +328,7 @@ return function()
 			end
 		end
 		local x = worker(p, "farm", hut, p.plot.placed[1].uid)
+		x.pin = true -- (placed by hand: the arrangement leaves it be)
 		local before = #p.plot.placed
 		local shells = p.shells
 		local ok, data = Island.expand(p)
@@ -283,7 +341,7 @@ return function()
 			T.truthy(Plot.fits(p.tier, rest, q.id, q.x, q.z, q.rot), q.id .. " fits the bigger island")
 			table.insert(rest, q)
 		end
-		T.eq(x.work, p.plot.placed[1].uid, "the worker keeps its place (the uid stays)")
+		T.eq(x.work, p.plot.placed[1].uid, "the worker placed by hand keeps its place (the uid stays)")
 		-- the third tier too
 		T.truthy(Island.expand(p))
 		rest = {}
