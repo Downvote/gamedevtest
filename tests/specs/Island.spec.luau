@@ -174,8 +174,21 @@ return function()
 		while p.tier < #Tuning.TierCost do
 			T.truthy(Island.expand(p))
 		end
-		T.eq(p.tier, 10, "ten tiers: a castaway's cay to Driftling Haven")
+		T.eq(p.tier, 20, "twenty tiers: a castaway's cay to Everdrift")
 		T.eq(select(2, Island.expand(p)), "max")
+	end)
+	T.it("the expansions' prices: levels 2 to 10 a bit cheaper than they were, 11 to 20 rising smoothly from there", function()
+		-- (the request of 2026-11-14: "allow expansion up to level 20, you can make the previous levels of expansion a
+		-- bit cheaper too"; the prices before it)
+		local OLD = { 0, 600, 9000, 60000, 160000, 380000, 800000, 1600000, 3000000, 5000000 }
+		for t = 2, 10 do
+			local k = Tuning.TierCost[t] / OLD[t]
+			T.truthy(k >= 0.75 and k <= 0.85, string.format("level %d at %.0f%% of its old price", t, k * 100))
+		end
+		for t = 11, 20 do
+			local k = Tuning.TierCost[t] / Tuning.TierCost[t - 1]
+			T.truthy(k > 1.15 and k < 1.6, string.format("level %d at %.2f times the one before", t, k))
+		end
 	end)
 	T.it("huts: a resident's comfort (its hut's and its level's) makes it work more; none with no hut", function()
 		local p = fresh()

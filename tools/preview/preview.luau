@@ -671,6 +671,52 @@ function SCEN.city()
 	return p
 end
 
+-- "everdrift": the biggest island (Everdrift, the top tier: the request of 2026-11-14, "allow expansion up to level
+-- 20 ... add decor, huts, work buildings") built up along its whole length: the work buildings, huts and decor of the
+-- tiers past Driftling Haven in rows with a few of the city's between them, street lamps along the middle. Frames
+-- everdrift_1 (the south shore, the tree and the plaza) .. everdrift_5 (the far north tip), the founder walking north.
+function SCEN.everdrift()
+	local Buildings = H.sharedServer("Data.Buildings")
+	local Tuning = H.sharedServer("Config.Tuning")
+	local top = #Tuning.TierCost
+	local NEW: { string } = {}
+	for _, d in Buildings.list do
+		if d.tier > 10 and d.tier <= top and d.kind ~= "path" and d.kind ~= "fence" then
+			table.insert(NEW, d.id)
+		end
+	end
+	local OLD = { "hotel", "palace", "skygarden", "grandmill", "beacon", "bazaar", "townhall", "rainbowarch", "crystalspire", "bigoak" }
+	local pieces = {}
+	local k = 0
+	for z = -192, -6, 9 do
+		for _, x in { -27, -18, -9, 2, 11, 21 } do
+			k += 1
+			local id = if k % 4 == 0 then OLD[(k // 4 - 1) % #OLD + 1] else NEW[(k - 1 - k // 4) % #NEW + 1]
+			table.insert(pieces, { id, x, z })
+		end
+		table.insert(pieces, { "streetlamp", -3, z + 4 })
+	end
+	local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
+	seedProfile(18, top, { pieces = pieces, pals = PALS, shells = 9e6, wood = 9e6 })
+	local p = join(18, "Everdrift")
+	settle(p)
+	E.run(2.5)
+	local prof = H.profile(p)
+	log("everdrift: tier %d (%s), %d pieces, %d driftlings", prof.tier, H.sharedServer("Data.Office").plan(prof.tier).name, #prof.plot.placed, #prof.pals)
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	for i, z in { 4, -45, -95, -145, -190 } do
+		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			p.Character:PivotTo(E.cf.new(ox - 2, 3, z))
+			E.run(2)
+			settle(p, 30, 1)
+		end
+		E.run(1.5)
+		capture(p, "everdrift_" .. i)
+	end
+	return p
+end
+
 -- A new day's banner: the sea's clock jumped to just before a day's end (a day is hours long).
 function SCEN.day()
 	seedProfile(3, 1, { pieces = VILLAGE, pals = { "gullfin" } })
@@ -1566,6 +1612,8 @@ local function catalogScenario(group: string)
 	-- founder's spot in each frame, so nothing lands in the sea or under the founder; a piece that doesn't fit moves on.
 	local Plot = H.sharedServer("Logic.Plot")
 	local Schema = H.sharedServer("Logic.Schema")
+	-- (the top tier, so every piece is open: Everdrift since the request of 2026-11-14)
+	local TOP = #H.sharedServer("Config.Tuning").TierCost
 	local placed = Schema.default(0, 19).plot.placed
 	local pieces = {}
 	local clear = {}
@@ -1618,7 +1666,7 @@ local function catalogScenario(group: string)
 		local n = #placed
 		local ok = true
 		for _, q in list do
-			if ok and Plot.fits(10, placed, q[1], q[2], q[3], q[4]) then
+			if ok and Plot.fits(TOP, placed, q[1], q[2], q[3], q[4]) then
 				table.insert(placed, { uid = 0, id = q[1], x = q[2], z = q[3], rot = q[4], lvl = 1 })
 			else
 				ok = false
@@ -1666,7 +1714,7 @@ local function catalogScenario(group: string)
 			log("catalog: no room for %s", id)
 		end
 	end
-	seedProfile(19, 10, { pieces = pieces, shells = 900000, wood = 900000 })
+	seedProfile(19, TOP, { pieces = pieces, shells = 900000, wood = 900000 })
 	local p = join(19, "Catalog")
 	settle(p)
 	local Street = H.sharedServer("Data.Street")

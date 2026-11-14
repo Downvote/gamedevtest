@@ -43,12 +43,14 @@ return function()
 		end
 	end)
 	-- (the bounds moved with the cheaper work and hut buildings of 2026-11-13, a quarter faster: they were an hour, two
-	-- hours and no capital in three)
-	T.it("the town (tier 4) and beyond are long-term goals: not before 50 minutes, a city not before 90, a capital not before 2.5 hours", function()
+	-- hours and no capital in three; the capital's moved again with the request of 2026-11-14, "allow expansion up to
+	-- level 20, you can make the previous levels of expansion a bit cheaper too": every level up to Driftling Haven a
+	-- fifth cheaper brought it from 2.5 hours to a little over 2)
+	T.it("the town (tier 4) and beyond are long-term goals: not before 50 minutes, a city not before 90, a capital not before 2 hours", function()
 		for seed, r in runs do
 			T.truthy(r.first.tier4 == nil or r.first.tier4 > 3000, "seed " .. seed .. ": tier 4 at " .. tostring(r.first.tier4))
 			T.truthy(r.first.tier5 == nil or r.first.tier5 > 5400, "seed " .. seed .. ": tier 5 at " .. tostring(r.first.tier5))
-			T.truthy(r.first.tier6 == nil or r.first.tier6 > 9000, "seed " .. seed .. ": tier 6 at " .. tostring(r.first.tier6))
+			T.truthy(r.first.tier6 == nil or r.first.tier6 > 7200, "seed " .. seed .. ": tier 6 at " .. tostring(r.first.tier6))
 			T.truthy(r.first.tier7 == nil, "seed " .. seed .. ": nothing past the capital in three hours")
 		end
 	end)

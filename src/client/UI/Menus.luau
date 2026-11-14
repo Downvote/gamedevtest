@@ -820,9 +820,9 @@ local function buildTree(body: Frame, arg: any?)
 		UIKit.text(body, txt, UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, y), { x = "right", color = if odds[r] > 0 then UIKit.color("text") else UIKit.color("text_dim") })
 		y += 10
 	end
-	-- (Tuning.EggCount stops growing at the capital, EggTier and EggLuck keep on to the last island)
-	if v.tier < 10 and y + 24 <= H then
-		local more = if v.tier < 6 then "A bigger island lays more eggs, and better ones." else "A bigger island lays better eggs."
+	-- (Tuning.EggCount grows on some tiers, EggTier and EggLuck on every one to the last island)
+	if v.tier < #Tuning.TierCost and y + 24 <= H then
+		local more = if Tree.count(v.tier + 1) > Tree.count(v.tier) then "A bigger island lays more eggs, and better ones." else "A bigger island lays better eggs."
 		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
 		y += 24
 	end

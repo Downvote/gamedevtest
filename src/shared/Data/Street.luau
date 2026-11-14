@@ -50,8 +50,8 @@ Street.FAR = 120
 Street.END_FAR = 160
 
 -- The lot: the water between two neighbours (plot-local).
--- (north far enough for the biggest island's shallows: ISLES[10])
-Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -136, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
+-- (north far enough for the biggest island's shallows: ISLES[20])
+Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -232, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
 
 -- The island's heart: a plaza round the campfire (the same on every tier). (A path ran from it south to a jetty and
 -- the boardwalk until 2026-11-13: that land is the island's to build on now.)
@@ -72,6 +72,18 @@ local ISLES: { Isle } = {
 	{ cx = 0, cz = -34, rx = 31, rz = 47, ph = { 0.4, 3.6, 2.2, 4.7 } },
 	{ cx = 0, cz = -41, rx = 31, rz = 53, ph = { 3.3, 2.4, 0.9, 2.1 } },
 	{ cx = 0, cz = -48, rx = 31, rz = 59, ph = { 1.1, 0.6, 4.6, 3.3 } },
+	-- and on north again to tier 20 (the request of 2026-11-14: "allow expansion up to level 20"): ten studs longer a
+	-- tier (about 550 more cells to build on each time), the south shore where it was
+	{ cx = 0, cz = -53, rx = 31, rz = 64, ph = { 1.1, 1.2, 2.6, 4.6 } },
+	{ cx = 0, cz = -58, rx = 31, rz = 69, ph = { 0.3, 4.1, 5.6, 1.2 } },
+	{ cx = 0, cz = -63, rx = 31, rz = 74, ph = { 2.1, 3.7, 2.8, 0.7 } },
+	{ cx = 0, cz = -68, rx = 31, rz = 79, ph = { 2.8, 3.5, 1.8, 4.1 } },
+	{ cx = 0, cz = -73, rx = 31, rz = 84, ph = { 1.5, 5.1, 2.2, 1.2 } },
+	{ cx = 0, cz = -78, rx = 31, rz = 89, ph = { 2.5, 1.2, 5.9, 4.7 } },
+	{ cx = 0, cz = -83, rx = 31, rz = 94, ph = { 2.0, 4.2, 2.8, 5.4 } },
+	{ cx = 0, cz = -88, rx = 31, rz = 99, ph = { 1.2, 5.2, 2.2, 2.7 } },
+	{ cx = 0, cz = -93, rx = 31, rz = 104, ph = { 0.5, 4.6, 0.7, 5.8 } },
+	{ cx = 0, cz = -98, rx = 31, rz = 109, ph = { 1.8, 1.7, 4.9, 0.6 } },
 }
 local AMP = { 0.09, 0.06, 0.045, 0.025 }
 local FREQ = { 2, 3, 5, 7 }
@@ -124,11 +136,12 @@ end
 type Cells = { layer: { [number]: number }, dist: { [number]: number }, bounds: Rect, land: Rect }
 local cache: { [number]: Cells } = {}
 local function key(x: number, z: number): number
-	return (x + 256) * 1024 + (z + 256)
+	return (x + 1024) * 4096 + (z + 1024)
 end
 Street.cellKey = key
 
-local function cellsOf(tier: number): Cells
+local cellsOf: (tier: number) -> Cells
+function cellsOf(tier: number): Cells
 	local t = math.clamp(math.floor(tier), 1, #ISLES)
 	local c = cache[t]
 	if c then
@@ -145,9 +158,20 @@ local function cellsOf(tier: number): Cells
 	end
 	local layer, dist = {}, {}
 	local lx0, lz0, lx1, lz1 = math.huge, math.huge, -math.huge, -math.huge
+	-- (the tier's own shape against the tier below's cells: the same as Street.coast for every cell short of the open
+	-- sea, as a cell the tier below leaves out is more than the shallows' width from its coast, and one sum a cell
+	-- in place of twenty at the top tier)
+	local below = if t > 1 then cellsOf(t - 1).dist else nil
+	local s = ISLES[t]
 	for z = z0, z1 do
 		for x = x0, x1 do
-			local d = Street.coast(t, x + 0.5, z + 0.5)
+			local d = ownCoast(s, x + 0.5, z + 0.5)
+			if below then
+				local b = below[key(x, z)]
+				if b and b < d then
+					d = b
+				end
+			end
 			local l = Street.layerAt(d)
 			if l ~= Street.SEA_CELL then
 				local k = key(x, z)

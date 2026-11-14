@@ -801,4 +801,77 @@ M.lavarock = function(m, f)
 	Parts.glow(m, f, -0.75, 0.02, 0.7, 0.25, 0.25, 0.25, "lava", "Ember")
 end
 
+------------------------------------------------------------------ the islands past Driftling Haven
+-- (the request of 2026-11-14: "allow expansion up to level 20 ... add decor")
+
+-- Starfruit Tree (3 x 3): a smooth leaning trunk under three round clumps of leaves, gold star-shaped fruit hanging
+-- under them (a cross of two small bars), a few fallen on the grass.
+M.starfruit = function(m, f)
+	cyl(m, f, 0, 0.12, 0, 1.0, 0.25, "wood_dark", "Root")
+	tube(m, f, { Vector3.new(0, 0, 0), Vector3.new(0.1, 0.9, 0), Vector3.new(-0.15, 1.8, -0.1), Vector3.new(0, 2.4, 0) }, { 0.5, 0.5, 0.375 }, "wood", "Trunk")
+	for k, c in { { 0, 2.9, 0, 1.75 }, { -0.7, 2.5, 0.3, 1.25 }, { 0.75, 2.6, -0.35, 1.25 } } do
+		for _, p in clump(m, f, c[1], c[2], c[3], c[4], if k == 1 then "leaf" else "green", "leaf_dark") do
+			sway(p)
+		end
+	end
+	for k, s in { { -0.6, 1.9, 0.7 }, { 0.5, 2.0, 0.55 }, { 0.9, 2.05, -0.2 }, { -0.95, 1.95, -0.2 }, { 0.1, 2.15, 0.85 } } do
+		box(m, f, s[1], s[2], s[3], 0.25, 0.5, 0.25, "gold", "Fruit", true)
+		box(m, f, s[1], s[2], s[3], 0.5, 0.25, 0.25, "yellow", "Fruit", true)
+	end
+	box(m, f, 0.9, 0.05, 0.95, 0.5, 0.25, 0.25, "gold", "Fallen")
+	box(m, f, -1.0, 0.05, 0.6, 0.25, 0.25, 0.5, "yellow", "Fallen")
+end
+
+-- Redwood (4 x 4): a very tall straight red trunk, its roots flaring at the foot, short dark branches all the way up
+-- and a narrow crown of dark green cones at the top, ferns round its foot.
+M.redwood = function(m, f)
+	for k = 0, 3 do
+		local a = k * math.pi / 2 + 0.6
+		limb(m, f, Vector3.new(math.sin(a) * 0.45, 0.45, math.cos(a) * 0.45), Vector3.new(math.sin(a) * 1.2, 0.1, math.cos(a) * 1.2), 0.5, "brick", "Root")
+	end
+	tube(m, f, { Vector3.new(0, 0, 0), Vector3.new(0, 2.5, 0), Vector3.new(0, 5.0, 0), Vector3.new(0, 7.5, 0) }, { 1.25, 1.0, 0.75 }, "brick", "Trunk")
+	for k = 0, 5 do
+		local a = k * 2.4
+		local y = 3.0 + k * 0.7
+		limb(m, f, Vector3.new(0, y, 0), Vector3.new(math.sin(a) * 1.1, y + 0.3, math.cos(a) * 1.1), 0.25, "wood_dark", "Branch")
+		sway(ball(m, f, math.sin(a) * 1.2, y + 0.35, math.cos(a) * 1.2, 0.75, if k % 2 == 0 then "leaf_dark" else "swamp", "Needles"))
+	end
+	for _, t in { { 2.5, 6.0, 1.5 }, { 2.0, 7.0, 1.5 }, { 1.5, 8.0, 1.25 }, { 1.0, 8.9, 1.0 } } do
+		for _, p in cone(m, f, CFrame.new(0, t[2], 0), t[1], t[3], "leaf_dark", "Needles") do
+			sway(p)
+		end
+	end
+	for _, c in { { 1.3, 1.2 }, { -1.4, 0.9 }, { 0.9, -1.4 } } do
+		sway(blade(m, f, Vector3.new(c[1], 0.15, c[2]), Vector3.new(c[1] * 1.3, 0.45, c[2] * 1.3), 0.5, "leaf", "Fern"))
+	end
+end
+
+-- Glass Flowers (1 x 1): three tall stems with clear petals that catch the light, a glowing heart in each.
+M.glassflowers = function(m, f)
+	box(m, f, 0, 0.05, 0, 0.75, 0.25, 0.75, "leaf_dark", "Leaves")
+	for k, c in ({ { -0.2, 0.9, -0.1, "ice" }, { 0.2, 0.7, 0.1, "crystal" }, { 0.0, 1.1, 0.25, "ice" } } :: { { any } }) do
+		stem(m, f, Vector3.new(c[1] * 0.4, 0.1, c[3] * 0.4), Vector3.new(c[1], c[2], c[3]), 0.25, "leaf", "Stem")
+		for j = 0, 3 do
+			local a = j * math.pi / 2 + k
+			put(m, f, CFrame.new(c[1] + math.sin(a) * 0.15, c[2] + 0.05, c[3] + math.cos(a) * 0.15) * CFrame.Angles(0, a, 0.5), 0.25, 0.25, 0.25, c[4], nil, "Petal")
+		end
+		box(m, f, c[1], c[2] + 0.12, c[3], 0.25, 0.25, 0.25, "white", "Heart", true)
+	end
+end
+
+-- Geode (2 x 2): a plain grey rock split down the middle, the two halves leaning apart, the inside lined with purple
+-- crystal points, a glow in the hollow.
+M.geode = function(m, f)
+	for _, s in { -1, 1 } do
+		local a = CFrame.new(s * 0.4, 0.55, 0) * CFrame.Angles(0, 0, s * 0.25)
+		put(m, f, a, 0.5, 1.0, 1.25, "rock", nil, "Shell")
+		put(m, f, a * CFrame.new(s * 0.25, 0, 0), 0.25, 0.75, 1.0, "rock_dark", nil, "Shell")
+		for k = 0, 2 do
+			crystal(m, f, a * CFrame.new(-s * 0.3, -0.3 + k * 0.3, -0.3 + k * 0.25) * CFrame.Angles(0, math.pi / 4, -s * 1.2), 0.25, 0.25 + (k % 2) * 0.25, if k % 2 == 0 then "purple" else "crystal")
+		end
+	end
+	put(m, f, CFrame.new(0, 0.2, 0), 0.5, 0.25, 0.75, "crystal", nil, "Glow", true)
+	box(m, f, 0.7, 0.05, 0.75, 0.25, 0.25, 0.25, "purple", "Chip")
+end
+
 return M

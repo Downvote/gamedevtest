@@ -898,4 +898,127 @@ M.koipond = function(m, f)
 	box(m, f, -0.85, 1.05, -1.25, 0.25, 0.5, 0.25, "wood_dark", "Cattail")
 end
 
+------------------------------------------------------------------ the islands past Driftling Haven
+-- (the request of 2026-11-14: "allow expansion up to level 20 ... add decor")
+
+-- Driftling Colossus (4 x 4): a driftling carved in grey stone sitting up on a plinth, as tall as a tower: a round body,
+-- a big head with ears, a moss cap, eyes set with glowing stones, its paws on its knees.
+M.colossus = function(m, f)
+	box(m, f, 0, 0.25, 0, 4, 0.5, 4, "slate", "Plinth")
+	box(m, f, 0, 0.62, 0, 3.5, 0.25, 3.5, "rock", "Plinth")
+	ball(m, f, 0, 2.2, -0.2, 3.25, "rock", "Body")
+	ball(m, f, 0, 2.0, 0.4, 2.25, "cream", "Belly")
+	for _, s in { -1, 1 } do
+		ball(m, f, s * 1.0, 1.0, 1.0, 1.0, "rock_dark", "Foot")
+		ball(m, f, s * 1.2, 2.0, 0.9, 0.75, "rock_dark", "Paw")
+		at(m, f, CFrame.new(s * 0.85, 5.75, -0.2) * CFrame.Angles(0, 0, -s * 0.35), 0.75, 1.25, 0.5, "rock", "Ear")
+		glow(m, f, s * 0.5, 4.6, 0.95, 0.5, 0.5, 0.25, "teal", "Eye")
+	end
+	ball(m, f, 0, 4.6, -0.1, 2.75, "rock", "Head")
+	box(m, f, 0, 4.1, 1.15, 0.5, 0.25, 0.25, "rock_dark", "Mouth")
+	ball(m, f, -0.4, 5.75, -0.3, 1.25, "moss", "Moss")
+	ball(m, f, 0.5, 5.6, -0.6, 0.75, "moss", "Moss")
+	box(m, f, 0, 0.5, 2.05, 1.5, 0.25, 0.25, "gold", "Plaque")
+end
+
+-- Moonwell (4 x 4): a round well of pale stone on three steps, a ring of standing stones round it, a glowing moon of
+-- water inside, a silver arch over it holding a crescent, motes of light over the water.
+M.moonwell = function(m, f)
+	cyl(m, f, 0, 0.12, 0, 4.0, 0.25, "slate", "Step")
+	cyl(m, f, 0, 0.37, 0, 3.25, 0.25, "rock", "Step")
+	cyl(m, f, 0, 0.75, 0, 2.25, 0.5, "white", "Wall")
+	cyl(m, f, 0, 1.05, 0, 2.5, 0.25, "cream", "Lip")
+	cyl(m, f, 0, 1.0, 0, 1.75, 0.25, "ice", "Moon", true)
+	for k = 0, 7 do
+		local a = k * PI / 4 + PI / 8
+		box(m, f, math.sin(a) * 1.75, 0.75, math.cos(a) * 1.75, 0.25, 1.0, 0.25, "rock", "Stone")
+		glow(m, f, math.sin(a) * 1.75, 1.35, math.cos(a) * 1.75, 0.25, 0.25, 0.25, "crystal", "StoneLight")
+	end
+	for _, s in { -1, 1 } do
+		box(m, f, s * 1.1, 2.0, 0, 0.25, 2.0, 0.25, "steel", "ArchPost")
+	end
+	box(m, f, 0, 3.0, 0, 2.5, 0.25, 0.25, "steel", "ArchTop")
+	disc(m, f, 0, 3.55, 0, 0.75, 0.25, "ice", "Crescent", true)
+	disc(m, f, 0.2, 3.65, 0.1, 0.5, 0.25, "steel", "CrescentShade")
+	for k = 0, 3 do
+		local a = k * 1.7
+		glow(m, f, math.sin(a) * 0.5, 1.6 + k * 0.3, math.cos(a) * 0.5, 0.25, 0.25, 0.25, if k % 2 == 0 then "white" else "ice", "Mote")
+	end
+end
+
+-- Star Gate (5 x 2): a great ring of carved stone standing on its edge in two feet, its middle filled with a field of
+-- stars, runes glowing round the ring and a gold key stone at the top.
+M.stargate = function(m, f)
+	box(m, f, 0, 0.25, 0, 5, 0.5, 2, "slate", "Base")
+	for _, s in { -1, 1 } do
+		box(m, f, s * 1.75, 0.9, 0, 1.0, 0.75, 1.25, "rock", "Foot")
+	end
+	local r = 2.0
+	for k = 0, 15 do
+		local a = k * PI / 8
+		at(m, f, CFrame.new(math.sin(a) * r, 2.75 + math.cos(a) * r, 0) * CFrame.Angles(0, 0, -a), 0.75, 0.75, 0.75, if k % 2 == 0 then "rock" else "slate", "Ring")
+		if k % 2 == 1 then
+			glow(m, f, math.sin(a) * r, 2.75 + math.cos(a) * r, 0.4, 0.25, 0.25, 0.25, "teal", "Rune")
+		end
+	end
+	disc(m, f, 0, 2.75, 0, 3.25, 0.25, "night", "Stars")
+	for k = 0, 9 do
+		local a = k * 2.3
+		local d = 0.3 + (k % 4) * 0.35
+		glow(m, f, math.sin(a) * d, 2.75 + math.cos(a) * d, 0.15, 0.25, 0.25, 0.25, if k % 3 == 0 then "yellow" else "white", "Star")
+	end
+	box(m, f, 0, 4.85, 0, 0.75, 0.5, 0.75, "gold", "KeyStone")
+end
+
+-- Crown of the Sea (5 x 5): a crown three rings high built of coral and gold on a round base of pale stone, each ring
+-- narrower with points round its rim, pearls on the points, a great glowing pearl at the top and shells round the foot.
+M.seacrown = function(m, f)
+	cyl(m, f, 0, 0.12, 0, 5.0, 0.25, "sand", "Base")
+	cyl(m, f, 0, 0.37, 0, 4.25, 0.25, "white", "Base")
+	for i = 0, 2 do
+		local dia = 3.75 - i * 1.0
+		local y = 0.75 + i * 1.25
+		cyl(m, f, 0, y + 0.37, 0, dia, 0.75, if i % 2 == 0 then "coral" else "gold", "Band")
+		cyl(m, f, 0, y + 0.85, 0, dia + 0.25, 0.25, if i % 2 == 0 then "gold" else "coral", "Rim")
+		local n = 8 - i * 2
+		for k = 0, n - 1 do
+			local a = k * 2 * PI / n
+			local x, z = math.sin(a) * dia / 2, math.cos(a) * dia / 2
+			at(m, f, CFrame.new(x, y + 1.2, z) * CFrame.Angles(0, a, 0), 0.25, 0.5, 0.25, "gold", "Point")
+			ball(m, f, x, y + 1.5, z, 0.25, "white", "Pearl")
+		end
+	end
+	ball(m, f, 0, 4.65, 0, 0.75, "white", "GreatPearl").Material = Enum.Material.Neon
+	for k = 0, 5 do
+		local a = k * PI / 3 + 0.3
+		ball(m, f, math.sin(a) * 2.25, 0.35, math.cos(a) * 2.25, 0.5, if k % 2 == 0 then "pink" else "cream", "Shell")
+	end
+end
+
+-- Big Wheel (4 x 2): a ferris wheel on two A-frame legs, its rim and spokes in white, six little cars in bright colours
+-- hanging from it, lights on the hub and the rim.
+M.bigwheel = function(m, f)
+	box(m, f, 0, 0.12, 0, 4, 0.25, 2, "pavement", "Base")
+	local hub = V(0, 2.25, 0)
+	for _, sz in { -0.75, 0.75 } do
+		beam(m, f, V(-1.25, 0.25, sz), V(0, 2.25, sz), 0.25, "steel_dark", "Leg")
+		beam(m, f, V(1.25, 0.25, sz), V(0, 2.25, sz), 0.25, "steel_dark", "Leg")
+	end
+	rod(m, f, CFrame.new(hub) * CFrame.Angles(0, PI / 2, 0), 1.75, 0.5, "steel", "Axle")
+	disc(m, f, 0, 2.25, 0, 0.75, 0.5, "yellow", "Hub", true)
+	local r = 1.75
+	for k = 0, 11 do
+		local a = k * PI / 6
+		local p = V(math.sin(a) * r, 2.25 + math.cos(a) * r, 0)
+		local q = V(math.sin(a + PI / 6) * r, 2.25 + math.cos(a + PI / 6) * r, 0)
+		beam(m, f, p, q, 0.25, "white", "Rim")
+		if k % 2 == 0 then
+			beam(m, f, hub, p, 0.25, "white", "Spoke")
+			box(m, f, p.X, p.Y - 0.5, 0.35, 0.5, 0.5, 0.5, ({ "berry_red", "teal", "yellow", "purple", "orange", "pink" })[k // 2 + 1], "Car")
+		else
+			glow(m, f, p.X, p.Y, 0.15, 0.25, 0.25, 0.25, "yellow", "Bulb")
+		end
+	end
+end
+
 return M

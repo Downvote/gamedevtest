@@ -118,6 +118,55 @@ local function countKind(p: any, kind: string): number
 	return n
 end
 
+-- The weakest building of a kind replaced with the best the island can have (where it stands, its workers staying;
+-- else cleared away and the new one built where there's room), as a player upgrades a camp to a mill once the island
+-- has places to spare at work. `k`: how many times its price there must be in the store.
+local function upgrade(p: any, kind: string, k: number): boolean
+	local bestId = best(p, kind)
+	local bd = if bestId then Buildings.byId[bestId] else nil
+	if bd == nil or p.wood < bd.wood * k then
+		return false
+	end
+	local worst: any, wi = nil, 0
+	for i, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == kind and (worst == nil or d.rate < worst.rate) then
+			worst, wi = d, i
+		end
+	end
+	if worst == nil or worst.rate >= bd.rate then
+		return false
+	end
+	if Plot.replace(p, wi, bd.id) then
+		Tree.settle(p)
+		Tree.fillJobs(p)
+		return true
+	end
+	if spot(p, bd.id) ~= nil and Plot.store(p, wi) then
+		build(p, bd.id)
+		Tree.settle(p)
+		Tree.fillJobs(p)
+		return true
+	end
+	return false
+end
+
+-- Places at work with nobody there (every workplace takes Tuning.HelpMax).
+local function freeJobs(p: any): number
+	local jobs, at = 0, 0
+	for _, q in p.plot.placed do
+		if Island.works(q.id) then
+			jobs += Tuning.HelpMax
+		end
+	end
+	for _, pal in p.pals do
+		if pal.work ~= 0 then
+			at += 1
+		end
+	end
+	return jobs - at
+end
+
 -- The weakest driftling in a hut (the one a swap gives up), or nil.
 local function weakest(p: any): any
 	local w: any = nil
@@ -260,6 +309,25 @@ local function plan(p: any, rng: any)
 						Tree.fillJobs(p)
 						return
 					end
+					-- (no room anywhere: the weakest workplace nobody works at comes down to make some)
+					if not fits and freeJobs(p) >= Tuning.HelpMax then
+						local taken: { [number]: boolean } = {}
+						for _, pal in p.pals do
+							if pal.work ~= 0 then
+								taken[pal.work] = true
+							end
+						end
+						local low, li = math.huge, 0
+						for i, w in p.plot.placed do
+							local d = Buildings.byId[w.id]
+							if d and Island.works(w.id) and not taken[w.uid] and d.rate < low then
+								low, li = d.rate, i
+							end
+						end
+						if li > 0 and Plot.store(p, li) then
+							return
+						end
+					end
 				end
 			else
 				table.insert(wants, "nest")
@@ -307,6 +375,10 @@ local function plan(p: any, rng: any)
 		end
 		local id = best(p, kind)
 		if id and (not saving or p.wood >= Buildings.byId[id].wood * 3) and build(p, id) then
+			return
+		end
+		-- (no room for it: the weakest of its kind makes way for it)
+		if id and upgrade(p, kind, if saving then 3 else 1) then
 			return
 		end
 		-- a cheaper one of the kind will do
@@ -370,7 +442,9 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 			turnClock -= Tuning.TurnSeconds
 			Breed.turn(p)
 		end
-		if t % 5 == 0 then
+		-- (every five seconds; every twenty from Moonlit Bay on, where a turn's choices are big ones and the Economy
+		-- spec's three hours never reach)
+		if t % (if p.tier >= 7 then 20 else 5) == 0 then
 			local before = p.stats.earned
 			local sold = p.stats.sold
 			local got = shop(p, rng)

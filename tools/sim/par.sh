@@ -17,14 +17,14 @@
 #                   Copy, Replace in its row, the keys R and Esc, the questline (Hatch three eggs, Go on build:wood),
 #                   a malicious client (egg.hatch, plot.fence, plot.unfence and plot.unpaint payloads; its deliberate
 #                   NaN / infinity payloads are listed apart), a second player drawing both islands' eggs, then
-#                   Expand past Sunspire Capital to Driftling Haven (Island max, land north of z -64, tiers 7 to 10)
+#                   Expand on to Everdrift (tier 20, Island max, land north of Driftling Haven's end, tiers 7 to 20)
 #   sim_save.luau   saves: leave and rejoin to the same profile (an egg hatched, the same eggs and ids back, their clock
 #                   where it stopped: nothing laid while away), a version 12 save (the tide) with its tree planted and
 #                   a lot laid, a version 11 save (the old tree, its levels, food, the pen sold; a new tree, the patch
 #                   making room), a version 9 save (the wild places and fights) loading with its huts, another
 #                   server's lock, a takeover, a corrupt record, junk eggs cleaned, a version 13 save's old one-piece
 #                   fence and hedge gone with their wood back, fences, water and lily pads through leave and rejoin
-#                   (bad fences dropped, an odd tile cleared), a tier 10 island's far-north pieces kept, a version 4
+#                   (bad fences dropped, an odd tile cleared), a tier 20 island's far-north pieces kept, a version 4
 #                   save (the game studio) starting an island (its first lot with two cheap commons)
 #   sim_clock.luau  the island's clock: the day's pace and its Fx, the tree's eggs (the first lot, the ticks' time to
 #                   the next lot, a new lot with its Fx and a whole view, the old eggs gone, the Tree card counting
@@ -41,7 +41,7 @@
 #                   tile and fence limits each on its own, malicious plot payloads (fences too), a leaving player
 #                   (their eggs gone with the island), a full sea (a newcomer's tree and first lot), every island's
 #                   eggs and price tags, the tree fixed (its panel, moved with its eggs, never cleared away), a tier
-#                   10 island (its land and walls far north, pieces up there)
+#                   20 island (its land far north, pieces of tiers 11 to 20 up there, Island max)
 #   sim_tree.luau   the Tree of Life's eggs: a new island's tree (one fixed piece, moved but never cleared away,
 #                   bought or replaced, outside the piece limit) and its first lot laid at once (two commons first,
 #                   the plot's Eggs attribute, EggView's arc round the tree, the HUD's Tree card, the price tags),

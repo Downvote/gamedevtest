@@ -11,7 +11,7 @@
 -- corrupt record still loads into a valid profile, and junk eggs are cleaned; the build catalog's saves (version 14):
 -- a version 13 save's old one-piece fence and hedge gone with their price back in wood, a tier 2 island's fences,
 -- water tiles and lily pads through leave and rejoin exactly (a fence off the grid or turned 180 dropped, a tile off
--- the even studs cleared with its price back), a tier 10 island's far-north pieces (z below -64) kept where they
+-- the even studs cleared with its price back), a tier 20 island's far-north pieces (z below -160) kept where they
 -- stood; a version 4 save (the game studio) starts a fresh island keeping the founder's look and the settings, its
 -- tree's first lot starting with two cheap commons.
 local E = require("./loader")
@@ -665,47 +665,47 @@ do
 	end
 end
 
--- a tier 10 island (Driftling Haven) reaches far north: pieces past z -64 (the old edge of a plot's coords) load
--- where they stood, a tile and a fence too
-E.phase = "tier10"
+-- the top tier's island (Everdrift, tier 20 since the request of 2026-11-14) reaches far north: pieces past z -160 (the
+-- old edge of a plot's coords, before the tiers past Driftling Haven) load where they stood, a tile and a fence too
+E.phase = "tier20"
 do
-	local T10 = #Tuning.TierCost
-	local tq = treePiece(T10, 10)
+	local TOP = #Tuning.TierCost
+	local tq = treePiece(TOP, 10)
 	local list = { tq }
-	local ox, oz = freeAt(T10, list, "oak", 0, function(_, z)
-		return z <= -80
+	local ox, oz = freeAt(TOP, list, "oak", 0, function(_, z)
+		return z <= -170
 	end)
 	table.insert(list, piece(11, "oak", ox :: number, oz :: number, 0))
-	local wx, wz = freeAt(T10, list, "stream", 0, function(x, z)
-		return z < -64 and x % 2 == 0 and z % 2 == 0
+	local wx, wz = freeAt(TOP, list, "stream", 0, function(x, z)
+		return z < -160 and x % 2 == 0 and z % 2 == 0
 	end)
 	table.insert(list, piece(12, "stream", wx :: number, wz :: number, 0))
-	local fx, fz = freeAt(T10, list, "brickwall", 0, function(x, z)
-		return z < -70 and x % 2 == 0 and z % 2 == 0
+	local fx, fz = freeAt(TOP, list, "brickwall", 0, function(x, z)
+		return z < -160 and x % 2 == 0 and z % 2 == 0
 	end)
 	table.insert(list, piece(13, "brickwall", fx :: number, fz :: number, 0))
 	-- (and a torch on the northernmost grass a piece may stand on)
-	local pr = Street.plot(T10)
+	local pr = Street.plot(TOP)
 	local nx, nz = nil, nil
 	for z = pr.z0, pr.z1 do
 		for x = pr.x0, pr.x1 do
-			if nx == nil and Plot.fits(T10, list, "torch", x, z, 0) then
+			if nx == nil and Plot.fits(TOP, list, "torch", x, z, 0) then
 				nx, nz = x, z
 			end
 		end
 	end
 	table.insert(list, piece(14, "torch", nx :: number, nz :: number, 0))
-	H.expect(oz ~= nil and wz ~= nil and fz ~= nil and nz ~= nil and (nz :: number) < -100, "save", "(a tier 10 island's far north has room: the northmost spot " .. tostring(nz) .. ")")
-	seed(9212, { data = { v = 14, shells = 100000, wood = 50000, tier = T10, tut = 0, quest = 5, plot = { placed = list }, stats = { built = 4 }, nextId = 30 } })
+	H.expect(oz ~= nil and wz ~= nil and fz ~= nil and nz ~= nil and (nz :: number) < -190, "save", "(a tier 20 island's far north has room: the northmost spot " .. tostring(nz) .. ")")
+	seed(9212, { data = { v = 14, shells = 100000, wood = 50000, tier = TOP, tut = 0, quest = 5, plot = { placed = list }, stats = { built = 4 }, nextId = 30 } })
 	local big = H.addPlayer({ userId = 9212, name = "Farnorth" })
 	E.run(3)
 	local bp = H.profile(big)
-	H.expect(bp ~= nil and bp.tier == T10, "save", "a tier 10 save loads", tostring(bp and bp.tier))
+	H.expect(bp ~= nil and bp.tier == TOP and TOP == 20, "save", "a tier 20 save loads", tostring(bp and bp.tier))
 	if bp then
-		H.expect(pieceList(bp.plot.placed) == pieceList(list), "save", "its far-north pieces kept where they stood (z below -64), the tile and the fence too", pieceList(bp.plot.placed))
-		H.checkProfile(big, "tier10")
+		H.expect(pieceList(bp.plot.placed) == pieceList(list), "save", "its far-north pieces kept where they stood (z below -160), the tile and the fence too", pieceList(bp.plot.placed))
+		H.checkProfile(big, "tier20")
 		settled(big)
-		H.checkMirror(big, "tier10")
+		H.checkMirror(big, "tier20")
 	end
 	E.removePlayer(big, "leave")
 	E.run(1)
