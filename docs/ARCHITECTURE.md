@@ -192,8 +192,9 @@ every field.
 
 - `Config/Tuning.luau`: persistence (`DataStoreName = "BSS_Profile_v1"`, never renamed), the island (`BuildingPrice`
   (0.3: the Work and Huts tabs' buildings cost this share of their listed price, Data/Buildings `priceOf`: "make it
-  much cheaper to buy work and hut buildings"), `WoodShells` (3) and `WoodTierUp` (1.55: a price that was wood is
-  WoodShells shells a wood, times WoodTierUp for each tier past the second, to two figures: every piece's,
+  much cheaper to buy work and hut buildings"), `WoodShells` (3), `WoodTierUp` (1.5) and `WoodTierTop` (10: a price that
+  was wood is WoodShells shells a wood, times WoodTierUp for each tier past the second up to WoodTierTop, to two
+  figures: every piece's,
   `Buildings.shellsFor`, and growing the island's, `Island.expandCost`; GAME_DESIGN 4, 10), `StartShells` (360: the
   tips' buildings, the first eggs and plenty over; `StartWood` went with the wood), `TurnSeconds` (the island's pace),
   `DaySeconds` (the sea's day: hours), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
