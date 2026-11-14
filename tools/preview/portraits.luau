@@ -27,7 +27,7 @@ return function(env)
 	-- (turned 30 degrees from the world's own view, its face toward +Z: three quarters, turned left, the face toward us
 	-- and the body's side still showing)
 	local YAW = env.yaw or 30
-	local REST = 2.3 -- (seconds into the idle loop: eyes open, the body at the middle of its breath)
+	local REST = 2.3 -- (any time: the "rest" mood is the pose as built, eyes open: Models/DriftMotion)
 	-- (a portrait's own proportions, so it reads at 32 px: the head and everything on it bigger about the neck, the eyes
 	-- bigger again, and the camera lower than the world's, so the face shows more and the top of the head less)
 	local HEAD = env.head or 1.45
@@ -149,7 +149,7 @@ return function(env)
 				local name = if env.yaws then def.id .. "@" .. yaw else def.id
 				local snap = Snapshot.get("portrait:" .. name, function()
 					local t = MM.species(def.id)
-					MM.animate(t, REST, "idle", 0)
+					MM.animate(t, REST, "rest", 0)
 					portraitPose(t, def.shape, def.body, def.accent)
 					MM.place(t, CFrame.new())
 					return t.model

@@ -271,12 +271,15 @@ local function breathe(o: Prog, t: number, depth: number)
 end
 
 -- Work out a mood's shared values at time t into `out`. Moods: "idle", "walk", "cheer", "hop", "attack" (k), "hurt"
--- and "ko" (by age), and the work moods "peck", "push", "dip", "wave", "nap".
+-- and "ko" (by age), the work moods "peck", "push", "dip", "wave", "nap", and "rest" (the pose as built, eyes open).
 function Motion.program(mood: string, t: number, age: number, k: number, gait: string, tempo: number, seed: number, out: Prog): Prog
 	local o = out
 	reset(o, mood, gait, t)
 	local fly = gait == "fly"
 	local tt = t * tempo
+	if mood == "rest" then
+		return o -- (the pose as built, eyes open: the portraits)
+	end
 	o.shut = blinking(t, seed)
 	if mood == "walk" then
 		-- one stride (two steps) every 0.7 s at tempo 1

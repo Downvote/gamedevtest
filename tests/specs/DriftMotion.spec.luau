@@ -73,7 +73,7 @@ return function()
 		local kinds = { "body", "head", "neck", "jaw", "ear", "arm", "leg", "tail", "wing", "fin", "stalk", "pincer", "tendril", "antenna", "nothing" }
 		local o = Motion.newProg()
 		for _, gait in { "quad", "biped", "hop", "scuttle", "slither", "fly" } do
-			for _, mood in { "idle", "walk", "cheer", "hop", "attack", "hurt", "ko", "peck", "push", "dip", "wave", "nap", "unknown" } do
+			for _, mood in { "idle", "walk", "cheer", "hop", "attack", "hurt", "ko", "peck", "push", "dip", "wave", "nap", "rest", "unknown" } do
 				for i = 0, 30 do
 					local t = i * 0.37
 					Motion.program(mood, t, t, (i % 11) / 10, gait, 1, 3.3, o)

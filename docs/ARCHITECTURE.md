@@ -420,7 +420,7 @@ Models (`src/shared/Models`, Roblox modules):
   6 s with a counter-turn first and an overshoot, a yawn every 11 s, ear twitches one at a time, blinks and double
   blinks), walk by gait (a bouncy step with a squash at each contact for two and four legs, the head nodding a beat
   late and keeping level, the arms swinging a beat behind the legs; a hop's jump; a slither's sway; a scuttle; flight),
-  cheer and hop (jumps: cheer higher, arms up, mouth open), attack (the `LUNGE` over k), hurt (by its age: a hard
+  cheer and hop (jumps: cheer higher, arms up, mouth open), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
   squash wobbling back, flung back, ears folded back), ko, and the work moods peck, push, dip, wave and nap. `PITCH`
   scales how far a long body (four legs, a serpent) tips.
 
