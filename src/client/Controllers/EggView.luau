@@ -600,6 +600,35 @@ end
 
 -- A tap on the screen (`pos`: an InputObject's, below the top bar) on one of the own tree's eggs opens the tree's
 -- panel, where the eggs are bought (WorldView's taps ask here first). True when it hit one.
+-- How far (screen px squared, from the egg's middle) the nearest own egg under a tap at `pos` lies, or nil: WorldView
+-- weighs it against a driftling under the same tap, the nearer one taken.
+function EggView.hitDist(pos: Vector2): number?
+	local inset = GuiService:GetGuiInset()
+	local sx, sy = pos.X + inset.X, pos.Y + inset.Y
+	local t = os.clock()
+	local bestD: number? = nil
+	for _, e in eggs do
+		if e.plot ~= myPlot or e.sink ~= nil or e.crack ~= nil or e.model == nil then
+			continue
+		end
+		local at, under = placeOf(e, t)
+		if at == nil or under > 0.3 then
+			continue
+		end
+		local foot, on = PixelRenderer.project((at :: CFrame).Position)
+		local head = PixelRenderer.project((at :: CFrame).Position + Vector3.new(0, 1.1 * (SIZE[e.r] or 1), 0))
+		local h = math.max(8, foot.Y - head.Y)
+		local dx, dy = sx - foot.X, sy - (foot.Y + head.Y) / 2
+		if on and math.abs(dx) <= h * 0.6 and math.abs(dy) <= h * 0.7 then
+			local dist = dx * dx + dy * dy
+			if bestD == nil or dist < bestD then
+				bestD = dist
+			end
+		end
+	end
+	return bestD
+end
+
 function EggView.tapAt(pos: Vector2): boolean
 	local inset = GuiService:GetGuiInset()
 	local sx, sy = pos.X + inset.X, pos.Y + inset.Y

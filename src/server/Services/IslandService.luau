@@ -313,9 +313,9 @@ function IslandService.step(dt: number)
 			local mc = (s.minuteClock or 0) + 1
 			s.minuteClock = mc
 			if mc >= 60 then
+				-- (no whole view for it: the track's points go out with the next one)
 				s.minuteClock = mc - 60
 				Store.addXp(p, "minute")
-				Session.markDirty(s)
 			end
 			local rot = Store.rotation(now)
 			if s.shopRot ~= rot then

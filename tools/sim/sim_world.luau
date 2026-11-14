@@ -168,10 +168,11 @@ end
 local function eggsMatch(i, s): (boolean, string)
 	local list = eggsAttr(i)
 	local want = {}
-	for _, e in if s then s.profile.clutch.list else {} do
-		table.insert(want, string.format("%d.%d", e.id, e.r))
+	-- (the attribute lists the rarest Tuning.EggShown of the lot, the first laid of two the same: Logic/Tree.shown)
+	for _, e in if s then Tree.shown(s.profile) else {} do
+		table.insert(want, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
-	local ok = s ~= nil and #list >= 1 and table.concat(list, ";") == table.concat(want, ";") and #want == Tree.count(s.profile.tier)
+	local ok = s ~= nil and #list >= 1 and table.concat(list, ";") == table.concat(want, ";") and #want == math.min(Tuning.EggShown, Tree.count(s.profile.tier))
 	return ok, string.format("%s (the session's %s)", table.concat(list, ";"), table.concat(want, ";"))
 end
 -- The client of `p` draws every egg in island i's attribute (EggView draws the islands within 100 studs of the view's
@@ -1883,7 +1884,8 @@ do
 			tags += 1
 		end
 	end
-	H.expect(tags == 0 and EVc.count(cPlot) == #sc.profile.clutch.list, "eggs", "Cy's own eggs drawn, with no price tags over them or the neighbours'", string.format("%d tags, %d of %d eggs drawn", tags, EVc.count(cPlot), #sc.profile.clutch.list))
+	local shownC = #Tree.shown(sc.profile)
+	H.expect(tags == 0 and EVc.count(cPlot) == shownC, "eggs", "Cy's own eggs drawn (the rarest dozen), with no price tags over them or the neighbours'", string.format("%d tags, %d of %d eggs drawn", tags, EVc.count(cPlot), shownC))
 end
 -- the tree on Cy's island: a tap on it opens its panel; it is never cleared away, bought or replaced, but it moves like
 -- any piece (its model and its eggs with it); in Build mode a tap picks it up with Clear away off. Every other piece

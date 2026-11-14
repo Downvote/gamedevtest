@@ -162,9 +162,24 @@ local function idsOf(list)
 	return table.concat(out, ",")
 end
 -- the eggs as the plot's Eggs attribute writes them: "id.rarity;..."
+-- the eggs the world shows round the tree: the rarest Tuning.EggShown of the lot, the first laid of two the same
+-- (Logic/Tree.shown, the ring's room; the tree's panel lists them all)
+local function shownOf(list)
+	local shown = table.clone(list)
+	table.sort(shown, function(a, b)
+		if a.r ~= b.r then
+			return a.r > b.r
+		end
+		return a.id < b.id
+	end)
+	while #shown > Tuning.EggShown do
+		table.remove(shown)
+	end
+	return shown
+end
 local function eggsAttr(list)
 	local out = {}
-	for _, e in list do
+	for _, e in shownOf(list) do
 		table.insert(out, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
 	return table.concat(out, ";")
@@ -345,12 +360,13 @@ do
 	-- menu": the card has no buy buttons, a tap on it opens the tree's panel)
 	H.expect(buys == 0 and H.buttonNamed(p, "TreeCardTap") ~= nil, "join", "the card buys nothing itself: a tap on it opens the tree's panel", string.format("%d buy buttons", buys))
 	-- (each egg rises out of the lawn, one after another)
+	local shown0 = shownOf(c.list)
 	E.runUntil(function()
-		return H.inClient(p, EggViewP.count, s.plot) == #c.list
+		return H.inClient(p, EggViewP.count, s.plot) == #shown0
 	end, 3, 0.1)
 	E.run(1.5)
-	local drawn, onRing, apart, clash = ringState(p, s.plot, c.list, treeQ)
-	H.expect(drawn == #c.list and H.inClient(p, EggViewP.count, s.plot) == #c.list and onRing and apart, "join", "EggView lays every egg on the ring round the tree, each on its own spot", string.format("%d drawn of %d, ring %s, on one spot: %s", drawn, #c.list, tostring(onRing), clash))
+	local drawn, onRing, apart, clash = ringState(p, s.plot, shown0, treeQ)
+	H.expect(#shown0 == math.min(#c.list, Tuning.EggShown) and drawn == #shown0 and H.inClient(p, EggViewP.count, s.plot) == #shown0 and onRing and apart, "join", "EggView lays the rarest dozen on the ring round the tree, each on its own spot", string.format("%d drawn of %d, ring %s, on one spot: %s", drawn, #shown0, tostring(onRing), clash))
 	local tags = H.inClient(p, function()
 		local n = 0
 		for _, d in UIKitP.canvas("World"):GetDescendants() do
@@ -573,7 +589,7 @@ do
 		E.runUntil(function()
 			return H.inClient(p, EggViewP.where, s.plot, pick.id) == nil
 		end, 2, 0.1)
-		H.expect(H.inClient(p, EggViewP.where, s.plot, pick.id) == nil and H.inClient(p, EggViewP.count, s.plot) == #prof.clutch.list, "build", "its egg cracks open and is gone, the others stay", tostring(H.inClient(p, EggViewP.count, s.plot)))
+		H.expect(H.inClient(p, EggViewP.where, s.plot, pick.id) == nil and H.inClient(p, EggViewP.count, s.plot) == #shownOf(prof.clutch.list), "build", "its egg cracks open and is gone, the others stay", tostring(H.inClient(p, EggViewP.count, s.plot)))
 		local hut = pieceOf("nest")
 		H.expect(first ~= nil and hut ~= nil and first.home == hut.uid and first.work == pieceOf("lumber").uid, "build", "it moves into the hut and goes to work at the lumber camp", first and string.format("home %d work %d", first.home, first.work))
 		H.expect(prof.tut == 5, "build", "the tips move on to a shop", tostring(prof.tut))
@@ -658,8 +674,9 @@ do
 		E.run(0.6)
 		local model = treeModel(s.plot)
 		H.expect(model ~= nil and model.Name == string.format("%d:tree:%d:%d:%d:%d", q.uid, q.x, q.z, q.rot, TreeL.stage(prof.tier)), "build", "its model stands in its new place", model and model.Name)
-		local drawn, onRing, apart, clash = ringState(p, s.plot, prof.clutch.list, q)
-		H.expect(drawn == #prof.clutch.list and onRing and apart, "build", "and its eggs lie round it there", string.format("%d of %d, ring %s, on one spot: %s", drawn, #prof.clutch.list, tostring(onRing), clash))
+		local shownQ = shownOf(prof.clutch.list)
+		local drawn, onRing, apart, clash = ringState(p, s.plot, shownQ, q)
+		H.expect(drawn == #shownQ and onRing and apart, "build", "and its eggs lie round it there", string.format("%d of %d, ring %s, on one spot: %s", drawn, #shownQ, tostring(onRing), clash))
 	end
 	H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
 	H.clickNamed(p, "BuildDone", { wait = 0.3 })
@@ -876,7 +893,7 @@ do
 	local d = x and Creatures.byId[x.sp]
 	if x and d then
 		local muts0 = x.muts
-		x.muts = { "swift2", "rainy3" }
+		x.muts = { "bright2", "rainy3" }
 		H.push(p, 0.6)
 		H.inClient(p, WV.holdPal, s.plot, x.id, 6)
 		E.run(0.2)
@@ -895,9 +912,9 @@ do
 			local rar = Traits.RARITY[d.rarity]
 			H.expect(H.currentPanel(p) == "pal" and label("Name") == d.name, "pals", "a tap on it opens its details, its name at the top", string.format("%s %s", tostring(H.currentPanel(p)), tostring(label("Name"))))
 			H.expect(label("Rarity") == rar.name .. " " .. string.rep("*", d.rarity) and label("Passive") == d.passive.name, "pals", "its rarity with its stars, its passive", string.format("%s / %s", tostring(label("Rarity")), tostring(label("Passive"))))
-			local sw, rn = Traits.byId.swift2, Traits.byId.rainy3
-			H.expect(label("Mut_swift2") == sw.name .. " " .. Traits.TIER_STARS[sw.tier] and label("MutFx_swift2") == sw.blurb and label("Mut_rainy3") == rn.name .. " " .. Traits.TIER_STARS[rn.tier] and label("MutFx_rainy3") == rn.blurb, "pals", "every mutation with its stars and what it does", string.format("%s / %s", tostring(label("Mut_swift2")), tostring(label("Mut_rainy3"))))
-			H.expect(panel ~= nil and panel:FindFirstChild("MutIcon_rainy3", true) ~= nil and panel:FindFirstChild("MutIcon_swift2", true) == nil, "pals", "a weather's mutation with that weather's icon")
+			local sw, rn = Traits.byId.bright2, Traits.byId.rainy3
+			H.expect(label("Mut_bright2") == sw.name .. " " .. Traits.TIER_STARS[sw.tier] and label("MutFx_bright2") == sw.blurb and label("Mut_rainy3") == rn.name .. " " .. Traits.TIER_STARS[rn.tier] and label("MutFx_rainy3") == rn.blurb, "pals", "every mutation with its stars and what it does", string.format("%s / %s", tostring(label("Mut_bright2")), tostring(label("Mut_rainy3"))))
+			H.expect(panel ~= nil and panel:FindFirstChild("MutIcon_rainy3", true) ~= nil and panel:FindFirstChild("MutIcon_bright2", true) == nil, "pals", "a weather's mutation with that weather's icon")
 			local work = x.work ~= 0 and Buildings.byId[(function()
 				for _, q in prof.plot.placed do
 					if q.uid == x.work then
@@ -1105,15 +1122,16 @@ do
 		H.expect(statusSays("That egg is gone. The tree laid new ones."), "tree", "and says the egg is gone")
 		local rows, all, n = panelRows()
 		H.expect(rows == n and all == n and n == #c.list, "tree", "the panel lists the new lot", string.format("%d of %d, %d rows", rows, n, all))
-		E.run(1.5)
+		E.run(1.5 + Tuning.EggShown * 0.12)
 		local oldDrawn = 0
 		for id in old do
 			if H.inClient(p, EggViewP.where, s.plot, id) ~= nil then
 				oldDrawn += 1
 			end
 		end
-		local drawn, onRing, apart, clash = ringState(p, s.plot, c.list, treePiece())
-		H.expect(oldDrawn == 0 and drawn == #c.list and H.inClient(p, EggViewP.count, s.plot) == #c.list and onRing and apart, "tree", "the old eggs sink into the lawn, the new ones rise on the ring", string.format("%d old left, %d of %d new, ring %s, on one spot: %s", oldDrawn, drawn, #c.list, tostring(onRing), clash))
+		local shownN = shownOf(c.list)
+		local drawn, onRing, apart, clash = ringState(p, s.plot, shownN, treePiece())
+		H.expect(oldDrawn == 0 and drawn == #shownN and H.inClient(p, EggViewP.count, s.plot) == #shownN and onRing and apart, "tree", "the old eggs sink into the lawn, the new lot's rarest dozen rise on the ring", string.format("%d old left, %d of %d new, ring %s, on one spot: %s", oldDrawn, drawn, #shownN, tostring(onRing), clash))
 	end
 	H.closePanel(p)
 end
@@ -1384,12 +1402,13 @@ do
 	local q = treePiece()
 	local model = treeModel(s.plot)
 	H.expect(TreeL.stage(2) == Tuning.TreeStage[2] and model ~= nil and model.Name == string.format("%d:tree:%d:%d:%d:%d", q.uid, q.x, q.z, q.rot, TreeL.stage(2)), "panels", "the tree's model at its next stage", model and model.Name)
+	local shownX = shownOf(c.list)
 	E.runUntil(function()
-		return H.inClient(p, EggViewP.count, s.plot) == #c.list
+		return H.inClient(p, EggViewP.count, s.plot) == #shownX
 	end, 2, 0.1)
 	E.run(1.5)
-	local drawn, onRing, apart, clash = ringState(p, s.plot, c.list, q)
-	H.expect(drawn == #c.list and onRing and apart, "panels", "EggView lays the extra eggs on the ring too, each on its own spot", string.format("%d of %d, ring %s, on one spot: %s", drawn, #c.list, tostring(onRing), clash))
+	local drawn, onRing, apart, clash = ringState(p, s.plot, shownX, q)
+	H.expect(drawn == #shownX and onRing and apart, "panels", "EggView lays the bigger lot's rarest dozen on the ring, each on its own spot", string.format("%d of %d, ring %s, on one spot: %s", drawn, #shownX, tostring(onRing), clash))
 end
 -- the housing limit by the island's tier (Tuning.HousingLimit; GAME_DESIGN 4; the request of 2026-11-14: "instead of a
 -- hut (building) limit per expansion, make it such that the limit of driftling housing is the limit, such that you can
@@ -2691,14 +2710,15 @@ do
 	H.expect(plot2 ~= nil and plot2:GetAttribute("Eggs") == eggsAttr(qc.list), "second", "their plot's Eggs attribute", tostring(plot2 and plot2:GetAttribute("Eggs")))
 	local EVq = H.cmod(q, "Controllers.EggView")
 	local UIKitQ = H.cmod(q, "UI.UIKit")
+	local sh1, sh2 = shownOf(prof.clutch.list), shownOf(qc.list)
 	E.runUntil(function()
-		return H.inClient(q, EVq.count, 2) == #qc.list and H.inClient(q, EVq.count, 1) == #prof.clutch.list
+		return H.inClient(q, EVq.count, 2) == #sh2 and H.inClient(q, EVq.count, 1) == #sh1
 	end, 3, 0.1)
-	E.run(1.5)
-	local d1, ring1, apart1, clash1 = ringState(q, 1, prof.clutch.list, treePiece())
-	local d2, ring2, apart2, clash2 = ringState(q, 2, qc.list, qTree)
-	H.expect(d1 == #prof.clutch.list and ring1 and apart1, "second", "the second client lays the first island's eggs round its tree", string.format("%d of %d, ring %s, on one spot: %s", d1, #prof.clutch.list, tostring(ring1), clash1))
-	H.expect(d2 == #qc.list and ring2 and apart2, "second", "and their own round theirs", string.format("%d of %d, ring %s, on one spot: %s", d2, #qc.list, tostring(ring2), clash2))
+	E.run(1.5 + Tuning.EggShown * 0.12)
+	local d1, ring1, apart1, clash1 = ringState(q, 1, sh1, treePiece())
+	local d2, ring2, apart2, clash2 = ringState(q, 2, sh2, qTree)
+	H.expect(d1 == #sh1 and ring1 and apart1, "second", "the second client lays the first island's eggs (the rarest dozen) round its tree", string.format("%d of %d, ring %s, on one spot: %s", d1, #sh1, tostring(ring1), clash1))
+	H.expect(d2 == #sh2 and ring2 and apart2, "second", "and their own round theirs", string.format("%d of %d, ring %s, on one spot: %s", d2, #sh2, tostring(ring2), clash2))
 	local own = {}
 	for _, e in qc.list do
 		own[e.id] = true
