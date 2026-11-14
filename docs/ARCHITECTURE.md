@@ -1165,7 +1165,8 @@ a nil `text`, removes a line `Status_<name>` (an 11 px `mini_<icon>` and its `Te
 for a panel or Build mode; the `Quest` card sits under it; a module mounted from Hud can be handed `Hud.statusLine`),
 the menu bar
 (`Menu_build`, `Menu_pals`, `Menu_hatch` (the Hatchery, `mini_egg`, after Driftlings once the view's tier reaches
-the Hatchery's: `buildBar` again when that changes; 2026-11-14), `Menu_index`, `Menu_looks`, ghost buttons, each with
+the Hatchery's: `buildBar` again when that changes; 2026-11-14), `Menu_index`, `Menu_looks`, `Menu_store` (the Store,
+`mini_store`; GAME_DESIGN 14.2), ghost buttons, each with
 its icon, Build's words in the accent; while Build mode is open the bar and the
 cards step aside and the tips banner sits on the tray (`BuildUI.trayHeight()`: lower while a piece is picked) with a
 Build mode wording (`TIPS_BUILD`)), the `IslandCard`
@@ -1195,7 +1196,12 @@ burst over the `TreeCard`. Shells coming in rise from their chip
 ("+12", at most every 2 s, from `StateClient.Tick`). Every frame it holds the founder's `JumpHeight` at 0 while Build
 mode or a panel is up, else `Tuning.JumpHeight` (the phone's jump button hides with it), and sets the music's mood
 (`Audio.music`). It reports its blocks to the camera (on PC the top strip, the menu bar and the card's place; on a
-phone Roblox's top bar and the menu bar).
+phone Roblox's top bar and the menu bar). The store's `Offers` column (`StoreUI.offers(canvas, v, CARD_W)`, built
+again when `StoreUI.offerKey(v)` changes) sits under the right-hand column (the island card, and the tree's card on a
+desktop) and hides with the cards: `Offer_StarterPack` (until `gifts.starter`; its `Offer_StarterPack_Go` opens "store"
+on "eggs") and `Offer_VipGift` (VIP owned and `vipDay` not today; `Offer_VipGift_Go` sends `vip.daily`), each a glass
+chip with its `mini_` icon, `Text` and, when both fit, `Sub` (its price or "Ready"). `Hud.start` runs `StoreUI.init()`
+after `Menus.init()`.
 
 ### 10.4 Menus
 `Menus` registers the panels (the villagers' "folk" went with them; each is built again with every view): "pal"
@@ -1221,25 +1227,27 @@ row a hut with its room, `Move_<uid>`; a full hut lists its driftlings with `Swa
 uid, swap }`), `Help_<id>` the work picker (a driftling in a hut only): every workplace on the island whatever its knack, the fastest for this driftling first (`Tree.worthAt`), each `Spot_<uid>` with its name, who works there, its speed `Speed` ("x1.1", the fastest in the accent colour) and `Go_<uid>` ("Here", "Swap" when full, else "Go"), then `Rest` (`Go_0`), `Sell_<id>` (two
 taps, `Tree.price`); with no driftling, "No driftlings yet. Tap an egg under the Tree of Life to hatch it." (or "Build
 a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DESIGN 6, title "Tree of Life", 380 x
-196: on the left `Pace` ("New eggs every 3:00", from `clutchSecs`), `Next` ("Next in 2:41") over `TreeBar` (its fill
+196: on the left `Pace` ("New eggs every 10:00", from `clutchSecs`: 5:00 with Quick Tree), `Next` ("Next in 2:41") over `TreeBar` (its fill
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
 "What it lays now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
 yet" at 0) and, below tier 6, "A bigger island lays more eggs, and better ones."; on the right `Eggs` ("Under the
-tree") and a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
+tree") with `EggCount` ("16 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
+("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
+`BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
 sprite, "Rare egg" in its colour, "Hatches a rare one" ("an" before uncommon and epic) and `PanelHatch_<id>` (its cost
 and `PriceIcon`, sending `EggView.hatch`), or "No eggs left. The tree lays more soon."; with `{ hatch = id }`, every
 hut full, the swap picker: a hint naming the egg's rarity and cost ("Every hut is full. Swap one out for the rare egg
 (1,200 shells): the one you pick is sold."), `Back`, and a row a hut driftling, the weakest first, `SwapOut_<id>`:
 portrait, name, rarity, how fast it works, mutations, "Sells for n" and `SwapTake_<id>`, sending `egg.hatch { id,
-swap }`; once a new lot has replaced the egg, "That egg is gone. The tree laid new ones." and back to the tree
-panel), "hatch" (a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
+swap }`; with `{ hatch = id, bag = true }` the same for a bag egg ("... for the epic egg from your bag ...",
+`SwapTake_<id>` sending `EggView.hatchBag(id, swap)`); once a new lot has replaced the egg, "That egg is gone. The tree laid new ones." and back to the tree
+panel), "hatch" (`FinishNow` in the top corner while any egg warms: `StoreUI.buy("HatcheryNow")`; a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
 `EggName`, `EggLeft` ("Hatches in 3 turns"), `EggBar`, its parents) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
 picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`), the likely child
 (`Child`: its portrait if seen, else its shape and ???, its rarity), `Cost` ("A feast for 300 shells, 6 turns. ..."),
 `Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`: portrait or silhouette, name or "???", the
 kind of island it comes from, its passive once seen; "Seen n of 55 kinds"; a kind not open yet says the island tier
-it hatches from: "These hatch from island Lv 4.") and "looks" (the founder's portrait, `Prev_<k>` / `Next_<k>` for skin, hair, style and shirt,
-`SaveLook` sends `founder.set`). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut first. Driftlings
+it hatches from: "These hatch from island Lv 4."). "looks" is `UI/StoreUI`'s since 2026-11-14 (10.13). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut first. Driftlings
 need somewhere to live."; `full`: "Every hut is full. Swap one out, or build another hut."; `not_found`: "That egg is
 gone. The tree laid new ones."; `fixed`: "The Tree of Life stays on your island. You can move it."; `huts`: "No room
 for another hut here. Grow the island, or replace a hut with a bigger one."; no `food`). In Build mode `BuildUI`
@@ -1272,6 +1280,10 @@ Other players' names float over their heads (World root). `founderPos()`, `count
 `setOverride(fn?)` (a cutscene poses the own rig instead: `fn(rig, t, dt)` every frame; nil gives it back).
 
 ### 10.7 `BuildUI` (Build mode), `BuildFx` and `Puffs`
+Prices are `Plot.price(view, id)` everywhere in Build mode (the cards, the tip, the info plate, a stroke's cost, the
+afford key, the inventory's Sell at `Refund` of it) and replacements `Plot.replaceCost(q, id, view)`: with the Free
+Decor pass decor, paths, water and fences cost 0 and read "Free" (`price` writes "Free" in the accent for 0; a card's
+`Shells` label says "Free"; GAME_DESIGN 14.2).
 `open(tab?)` (the HUD's Build button; `tab`: the tray opens on that tab, the quests' Go; an old tab's name, `farm`
 `wood` `shop` or `gen`, opens Work on that row; a tip's tab still wins): closes any panel,
 `CameraController.setFree(true, TRAY_H + 8)` and lays out the tray `BuildTray` along the bottom (black glass at
@@ -1450,6 +1462,40 @@ three ranges of hills with trees outlined in ink), `show(r, ex, ey)` (paints it 
 `HatchBackdrop` ScreenGui and starts the sky's life on `HatchSky`), `step(dt)` (birds in `WINGS` beats, a shooting
 star, twinkles: K x K frames at whole art px), `hide()`.
 
+### 10.13 The Store and Looks (`UI/StoreUI`; GAME_DESIGN 14.2)
+`StoreUI.init()` registers "store" (title "Store", `mini_store`, 380 x 210; its argument a tab id) and "looks" (360 x
+200; argument "pieces" or "titles"), and words the store's Fx: `pass` with `bought` (a thanks line by key), `rewards`
+(`StoreUI.rewardText(from, given)`: "<from>: <what>." with each thing when three or fewer, else counted; `from` a
+product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it from Looks.", Newcomer never). `StoreUI.buy(key)`
+hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `PromptProductPurchase` only when
+`Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". Prices: `GetProductInfoAsync` once per set id
+in the background (`PriceInRobux`, the panel refreshed when it lands), else `SuggestedRobux`, written "R$ 399".
+"store": the tabs `Tab_passes`, `Tab_eggs`, `Tab_shop`, `Tab_track` (each a `mini_` icon and its words; the open one
+`button`), then the tab's `List` (scrolling):
+- passes: `Pass_<key>` rows (icon, `Name`, `Blurb`), `Buy_<key>` (its price, or "Owned" disabled); VIP owned: `VipGift`
+  ("Daily gift" while `vipDay` isn't the sea clock's UTC day, sending `vip.daily`; else "Owned" and "Gift again
+  tomorrow").
+- eggs: `Product_<key>` rows (the Starter Pack hidden once `gifts.starter`; Finish Hatcheries saying how many warm; the
+  eggs `egg_<r>` in their colours), `Buy_<key>`, and `BagNote`.
+- shop: `ShopLeft` ("New pieces in 3 h 40 min", run down from `Store.rotation(StateClient.seaClock())`), `ShopRefresh`
+  ("New set R$ 19"), a grid (three columns from 330 px) of `Piece_<id>`: `Pic_<id>` (`CosmeticIcons.image` centred in
+  24 px), `Name` (rarity colour), `Kind` ("Rare, hat"), then `Price` and `ShopBuy_<id>` (`shop.buy`) or `Owned` and
+  `Wear_<id>` (`look.wear`; "Wearing" off while worn).
+- track: `TrackLevel`, `TrackBar` (`trackInto` / `trackNeed`), `TrackPoints`, `TrackLeft` ("Ends in 27 days", days from
+  two days up), `FreeHead`, `PremHead`, `Buy_PremiumTrackTop` without the pass; `Level_<L>` rows: `Lv`, each side's
+  picture (a piece's, `egg_<r>`, `mini_star` for a title, `mini_shell`), `FreeWords` / `PremWords` (Data/Track's
+  reward in words, shells as `minuteShells` x minutes; the last level's extra after a "+"), then `Claim_<L>` /
+  `ClaimP_<L>` (`track.claim`), or a label of that name: "Got it", "Lv L", or the premium side's ticket without the
+  pass. The list scrolls to the first level with something to claim.
+"looks": the portrait (`UIKit.portrait` of the worn look with the colours being tried), `WornTitle`, `Prev_<k>` /
+`Next_<k>` (skin, hair, style, shirt over Data/Looks' lengths), `SaveLook` (`founder.set`), `PieceCount`,
+`LooksShop` (opens "store" on "shop"), the tabs `LooksTab_pieces` / `LooksTab_titles`; pieces: `Slot_<slot>` chips, then
+`Own_<id>` rows (the rarest first; `WearPiece_<id>`: Wear, or Take off sending id ""), or `NoPieces`; titles:
+`Title_none` (`WearTitle_none`), earned `Title_<id>` (`Name` in its colour, what earned it, `WearTitle_<id>` sending
+`title.set`), then `Locked_<id>` greyed with `StoreUI.howWords(t)`. The draft colours are dropped when another panel
+opens. `StoreUI.offers` / `offerKey`: the HUD's chips (10.3). `EggView.hatchBag(id, swap?)` sends `bag.hatch` and plays
+the same hatch scene as `EggView.hatch` (a shared `played`); `full` opens the tree's swap picker with `bag = true`.
+
 ### 10.12 The weather (`Controllers/WeatherView`, `UI/WeatherChip`; GAME_DESIGN 13)
 `WeatherView`: one effect layer of its own (`PixelRenderer.addFxLayer("weather", draw)`, Render/Fx, whole art
 pixels, depth-tested, no parts) for `Weather.at(StateClient.seaClock())`'s kind. Each kind's strength fades in and out
@@ -1486,6 +1532,9 @@ skill window, the cards) went with the expeditions (GAME_DESIGN 7, 2026-11-12). 
 up to commit f667462.
 
 ### 10.10 Sprites (`PixelSprites`, `ArtData`, `ThumbData`)
+The store's 11 x 11 icons (2026-11-14, `scripts/gen_art.py` SMALL): `mini_store` (a stall with a striped awning: the
+menu bar's Store), `mini_crown` (VIP), `mini_ticket` (the pass track), `mini_gift` (the Starter Pack, VIP's gift),
+`mini_refresh` (two turning arrows: Shop Refresh), each with its `_sil`.
 `ArtData` (generated by `scripts/gen_art.py`; do not edit): `{ [name]: { w, h, px, pal, alpha } }`, one character a
 pixel (`.` clear, else an index into `pal` 0xRRGGBB with its `alpha`). How `gen_art.py` shades (GAME_DESIGN 2):
 `cel_tones` over the whole silhouette (the base; a 1 px shadow along the bottom and right edges, two under a

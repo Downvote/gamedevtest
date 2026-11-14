@@ -863,7 +863,7 @@ function StoreUI.offers(parent: Instance, v: Types.ClientView, w: number): Frame
 	for i, o in list do
 		local g = UIKit.glass(f, UDim2.fromOffset(w, H), UDim2.fromOffset(0, (i - 1) * (H + 2)), 2)
 		g.Name = o.name
-		local b = UIKit.button(g, "", UDim2.fromScale(1, 1), UDim2.fromOffset(0, 0), o.go, { name = "Go", ghost = true })
+		local b = UIKit.button(g, "", UDim2.fromScale(1, 1), UDim2.fromOffset(0, 0), o.go, { name = o.name .. "_Go", ghost = true })
 		b.ZIndex = 3
 		PixelSprites.image(g, o.icon, UDim2.fromOffset(2, 1), 4)
 		UIKit.text(g, o.text, UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(15, 2), { color = o.color, z = 4, name = "Text" })

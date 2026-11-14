@@ -65,7 +65,7 @@ H.expect(land1 ~= nil and land1:FindFirstChild("JettyPlank", true) == nil and la
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
 H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")
-for _, n in { "Menu_build", "Menu_pals", "Menu_index", "Menu_looks" } do
+for _, n in { "Menu_build", "Menu_pals", "Menu_index", "Menu_looks", "Menu_store" } do
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
 H.expect(H.buttonNamed(p, "Menu_folk") == nil, "join", "no Villagers button (the driftlings do all the work)")
@@ -1295,14 +1295,15 @@ H.openPanel(p, "looks")
 E.run(0.4)
 H.clickNamed(p, "Next_skin", { wait = 0.2 })
 H.clickNamed(p, "SaveLook", { wait = 0.6 })
-H.expect(prof.founder.skin == skin0 % 4 + 1, "looks", "the new skin is saved", string.format("%d -> %d", skin0, prof.founder.skin))
+-- (six skins since 2026-11-14: Data/Looks)
+H.expect(prof.founder.skin == skin0 % #H.sharedServer("Data.Looks").skin + 1, "looks", "the new skin is saved", string.format("%d -> %d", skin0, prof.founder.skin))
 H.expect(p:GetAttribute("Founder") == string.format("%d.%d.%d.%d", prof.founder.skin, prof.founder.hair, prof.founder.style, prof.founder.shirt), "looks", "every client sees the new look (the Founder attribute)", tostring(p:GetAttribute("Founder")))
 H.closePanel(p)
 
 ------------------------------------------------------------------ 7. the other panels, settings, tips, expanding
 E.phase = "panels"
 local errs0 = #E.errors
-for _, name in { "pals", "tree", "hatch", "index", "looks" } do
+for _, name in { "pals", "tree", "hatch", "index", "looks", "store" } do
 	H.openPanel(p, name)
 	E.run(0.3)
 	H.expect(H.currentPanel(p) == name, "panels", name .. " opens")
@@ -2880,6 +2881,176 @@ do
 end
 H.checkProfile(p, "everdrift")
 mirror(p, "everdrift")
+
+------------------------------------------------------------------ 11. the store (GAME_DESIGN 14)
+-- The request (2026-11-14): "make titles. make much more cosmetics, and a rotating shop for cosmetics. make gamepasses
+-- ...". The menu bar's Store opens on its four tabs; a pass's Buy asks Roblox (the harness's test ids); a pass set shows
+-- Owned; the rotating shop sells a piece for shells and it can be worn (the Founder attribute carries it); the pass
+-- track's level 1 is claimed; a product paid through MonetizationService.grant (the way ProcessReceipt does) is told
+-- and never paid twice; its egg waits in the bag and hatches from the Tree panel for nothing (a swap when every hut is
+-- full); a title is worn from Looks (the Title attribute); the Starter Pack's HUD offer opens the Store.
+E.phase = "store"
+do
+	local StoreL = H.sharedServer("Logic.Store")
+	local Cos = H.sharedServer("Data.Cosmetics")
+	local Mon = H.sharedServer("Config.Monetization")
+	local MS = H.smod("MonetizationService")
+	local sh0 = prof.shells
+	H.closePanel(p)
+	H.clickNamed(p, "BuildDone", { wait = 0.3, optional = true })
+	H.push(p, 0.3)
+	-- the Starter Pack's offer on the HUD (not bought yet) opens the Store on its Eggs tab
+	H.expect(H.buttonNamed(p, "Offer_StarterPack_Go") ~= nil, "store", "the HUD offers the Starter Pack")
+	H.clickNamed(p, "Offer_StarterPack_Go", { wait = 0.4, optional = true })
+	H.expect(H.currentPanel(p) == "store" and H.buttonNamed(p, "Buy_StarterPack") ~= nil, "store", "the offer opens the Store on the Starter Pack", tostring(H.currentPanel(p)))
+	H.closePanel(p)
+	H.clickNamed(p, "Menu_store", { wait = 0.4 })
+	H.expect(H.currentPanel(p) == "store", "store", "the menu bar's Store opens it", tostring(H.currentPanel(p)))
+	local tabs = 0
+	for _, t in { "passes", "eggs", "shop", "track" } do
+		if H.buttonNamed(p, "Tab_" .. t) then
+			tabs += 1
+		end
+	end
+	H.expect(tabs == 4, "store", "its four tabs: Passes, Eggs and more, Shop, Track", tostring(tabs))
+	-- the passes: each with its price; Buy asks Roblox for the pass
+	H.clickNamed(p, "Tab_passes", { wait = 0.3 })
+	local rows = 0
+	for _, key in StoreL.PASSES do
+		if H.buttonNamed(p, "Buy_" .. key, true) or (key == "VIP" and H.buttonNamed(p, "VipGift", true)) then
+			rows += 1
+		end
+	end
+	H.expect(rows == #StoreL.PASSES, "store", "every pass has its row and button", string.format("%d of %d", rows, #StoreL.PASSES))
+	local pr0 = #E.prompts
+	H.clickNamed(p, "Buy_DoubleIncome", { wait = 0.3 })
+	local last = E.prompts[#E.prompts]
+	H.expect(#E.prompts == pr0 + 1 and last and last.kind == "pass" and last.id == Mon.GamePasses.DoubleIncome, "store", "Buy asks Roblox to sell the pass", last and string.format("%s %s", tostring(last.kind), tostring(last.id)))
+	-- a pass owned (as the purchase's finish sets it: Store.setPass): Owned, and every shell counts twice
+	local r0 = Island.rates(prof).shells
+	StoreL.setPass(prof, "DoubleIncome", true)
+	H.push(p, 0.4)
+	local own = H.buttonNamed(p, "Buy_DoubleIncome", true)
+	H.expect(own ~= nil and table.find(H.textsOf(own), "Owned") ~= nil, "store", "a pass owned says Owned", own and table.concat(H.textsOf(own), "/"))
+	H.expect(math.abs(Island.rates(prof).shells - 2 * r0) < 1e-6 * math.max(1, r0) and H.view(p).incomeMult == 2, "store", "Double Income: every shell x2", string.format("%.1f -> %.1f", r0, Island.rates(prof).shells))
+	StoreL.setPass(prof, "DoubleIncome", false)
+	-- the rotating shop: six pieces, one bought for shells, then worn
+	prof.shells = math.max(prof.shells, 1e9)
+	H.push(p, 0.3)
+	H.clickNamed(p, "Tab_shop", { wait = 0.3 })
+	local v = H.view(p)
+	H.expect(#v.shopList == 6 and p.PlayerGui:FindFirstChild("Piece_" .. v.shopList[1], true) ~= nil, "store", "the shop shows its six pieces", tostring(#v.shopList))
+	local id = nil
+	for _, x in v.shopList do
+		if not prof.owned[x] then
+			id = x
+			break
+		end
+	end
+	if id then
+		local cost = StoreL.price(prof, id)
+		H.clickNamed(p, "ShopBuy_" .. id, { wait = 0.4 })
+		H.expect(prof.owned[id] == true and p.PlayerGui:FindFirstChild("Wear_" .. id, true) ~= nil, "store", "Buy: the piece is theirs (Wear in its place)", string.format("%s for %d", id, cost))
+		H.clickNamed(p, "Wear_" .. id, { wait = 0.4 })
+		local slot = Cos.byId[id].slot
+		H.expect((prof.founder :: any)[slot] == id and string.find(tostring(p:GetAttribute("Founder")), id, 1, true) ~= nil, "store", "Wear: the founder wears it, every client sees it (the Founder attribute)", tostring(p:GetAttribute("Founder")))
+	else
+		H.expect(false, "store", "a piece in the shop not owned yet")
+	end
+	-- the pass track: points for growing the island, level 1's free reward claimed
+	StoreL.addXp(prof, "expand")
+	H.push(p, 0.3)
+	H.clickNamed(p, "Tab_track", { wait = 0.3 })
+	local f0 = #fx
+	H.clickNamed(p, "Claim_1", { wait = 0.5 })
+	local told = fxSince(f0, "rewards")
+	H.expect(table.find(prof.track.got, 1) ~= nil and #told == 1 and told[1].from == "track", "store", "the track's level 1 claimed, the reward told", string.format("%d rewards", #told))
+	H.expect(statusSays("Pass track:"), "store", "a notice says what the track gave")
+	H.expect(H.buttonNamed(p, "ClaimP_1") == nil, "store", "the premium side stays locked without its pass")
+	H.closePanel(p)
+	-- a product paid as ProcessReceipt pays it: an epic egg in the bag, told; the same receipt again pays nothing
+	local bag0 = #prof.bag
+	local f1 = #fx
+	-- (in the server's context, as ProcessReceipt runs)
+	local paid, saved = E.call(E.serverCtx, 15, MS.grant, s, "EggEpic", "sim-receipt-1")
+	E.run(0.4)
+	H.expect(paid and saved and #prof.bag == bag0 + 1 and prof.bag[#prof.bag].r == 4, "store", "an Epic Egg bought: in the bag", string.format("paid %s saved %s bag %d", tostring(paid), tostring(saved), #prof.bag))
+	H.expect(#fxSince(f1, "rewards") == 1 and statusSays("Epic Egg: an epic egg"), "store", "a notice says what it gave")
+	E.call(E.serverCtx, 15, MS.grant, s, "EggEpic", "sim-receipt-1")
+	H.expect(#prof.bag == bag0 + 1, "store", "the same receipt again pays nothing", tostring(#prof.bag))
+	-- the bag's egg hatched from the Tree panel for nothing (every hut full: the swap picker, then a swap)
+	local egg = prof.bag[#prof.bag]
+	local pals0, taken0 = #prof.pals, prof.stats.taken
+	H.openPanel(p, "tree")
+	E.run(0.4)
+	H.expect(H.buttonNamed(p, "BagHatch_" .. egg.id) ~= nil, "store", "the Tree panel lists the bag's egg with Hatch")
+	local function inBag(): boolean
+		for _, e in prof.bag do
+			if e.id == egg.id then
+				return true
+			end
+		end
+		return false
+	end
+	local hut0 = TreeL.room(prof)
+	H.clickNamed(p, "BagHatch_" .. egg.id, { wait = 0.6 })
+	local swapped = false
+	if inBag() and hut0 == 0 then
+		-- (every hut full: the swap picker, as with the tree's own eggs)
+		local swap = nil
+		for _, b in H.buttons(p) do
+			local n = b.Name
+			if string.sub(n, 1, 9) == "SwapTake_" then
+				swap = n
+				break
+			end
+		end
+		H.expect(swap ~= nil and H.currentPanel(p) == "tree", "store", "every hut full: the swap picker for the bag's egg")
+		if swap then
+			H.clickNamed(p, swap, { wait = 0.6 })
+			swapped = true
+		end
+	end
+	-- (the sims' hatch scene ends at once, HatchScene.setQuick; the tree's panel comes back after it)
+	H.expect(not inBag() and prof.stats.taken == taken0 + 1 and #prof.pals == pals0 + (if swapped then 0 else 1), "store", "it hatched out of the bag for nothing", string.format("%d pals (was %d), room %d, swapped %s", #prof.pals, pals0, hut0, tostring(swapped)))
+	H.expect(H.currentPanel(p) == "tree" and H.buttonNamed(p, "BagHatch_" .. egg.id) == nil, "store", "the tree's panel back, the egg gone from its list", tostring(H.currentPanel(p)))
+	H.closePanel(p)
+	-- Free Decor: Build mode's decor reads Free and goes down for no shells
+	StoreL.setPass(prof, "FreeDecor", true)
+	H.push(p, 0.3)
+	local BUIp = H.cmod(p, "UI.BuildUI")
+	H.inClient(p, BUIp.open, "nature")
+	E.run(0.5)
+	local card = p.PlayerGui:FindFirstChild("Card_oak", true)
+	local price = card and card:FindFirstChild("Shells", true)
+	H.expect(price ~= nil and price.Text == "Free" and Plot.price(H.view(p), "oak") == 0, "store", "Free Decor: an Oak Tree's card reads Free", price and price.Text)
+	H.clickNamed(p, "BuildDone", { wait = 0.3, optional = true })
+	StoreL.setPass(prof, "FreeDecor", false)
+	-- VIP: today's gift waits on the HUD; a tap claims it (shells and an egg), told
+	StoreL.setPass(prof, "VIP", true)
+	prof.vipDay = -1
+	H.push(p, 0.4)
+	H.expect(H.buttonNamed(p, "Offer_VipGift_Go") ~= nil, "store", "VIP: today's gift waits on the HUD")
+	local f2, bag2 = #fx, #prof.bag
+	H.clickNamed(p, "Offer_VipGift_Go", { wait = 0.5, optional = true })
+	H.expect(prof.vipDay >= 0 and #prof.bag == bag2 + 1 and #fxSince(f2, "rewards") == 1 and statusSays("Today's VIP gift:"), "store", "a tap claims it: shells and an egg, told", string.format("day %d, bag %d -> %d", prof.vipDay, bag2, #prof.bag))
+	H.push(p, 0.3)
+	H.expect(H.buttonNamed(p, "Offer_VipGift_Go") == nil, "store", "and the gift is gone till tomorrow")
+	StoreL.setPass(prof, "VIP", false)
+	-- a title worn from Looks: every client sees it (the Title attribute)
+	prof.titles.settler = true
+	H.push(p, 0.3)
+	H.openPanel(p, "looks", "titles")
+	E.run(0.4)
+	H.clickNamed(p, "WearTitle_settler", { wait = 0.4 })
+	H.expect(prof.title == "settler" and p:GetAttribute("Title") == "settler", "store", "a title worn from Looks (the Title attribute)", tostring(p:GetAttribute("Title")))
+	H.expect(H.buttonNamed(p, "LooksTab_pieces") ~= nil, "store", "Looks has its pieces too")
+	H.closePanel(p)
+	prof.shells = sh0
+	H.push(p, 0.3)
+end
+H.checkProfile(p, "store")
+mirror(p, "store")
 H.checkProfile(p, "end")
 mirror(p, "end")
 

@@ -16,7 +16,7 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 `sim_tree.luau` about 1988).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui inventory expand zoo paths water work ambient late
-loading themes hatches weathers`, `panel=<pals|work|tree|hatch|index|looks|pal>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
+loading themes hatches weathers`, `panel=<pals|work|tree|hatch|index|looks|pal>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<pieces|titles>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
 on its skeleton, eight frames a mood), `catalog=<group>` (a group of the build catalog: `ground fence
 nature theme theme2 fun`, a Build mode tab or ids), `theme=<beach|garden|frost|zen|volcano|fairy>` or `weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves>` (the village by its tree in that weather, two touched eggs, the HUD's season and weather lines). The loading card's
