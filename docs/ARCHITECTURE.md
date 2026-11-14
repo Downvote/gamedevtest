@@ -443,7 +443,8 @@ Models (`src/shared/Models`, Roblox modules):
   6 s with a counter-turn first and an overshoot, a yawn every 11 s, ear twitches one at a time, blinks and double
   blinks), walk by gait (a bouncy step with a squash at each contact for two and four legs, the head nodding a beat
   late and keeping level, the arms swinging a beat behind the legs; a hop's jump; a slither's sway; a scuttle; flight),
-  cheer and hop (jumps: cheer higher, arms up, mouth open), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
+  cheer and hop (jumps: cheer higher, arms up, mouth open), hooray (one jump from the mood's start, then the cheer's
+  pose held: the hatch scene and a driftling just hatched on the island, WorldView's `cheerMood`), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
   squash wobbling back, flung back, ears folded back), ko, and the work moods peck, push, dip, wave and nap. `PITCH`
   scales how far a long body (four legs, a serpent) tips.
 
@@ -668,8 +669,9 @@ Roblox camera shows the 3D world.
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
 Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the island's heart (`FRAME`, the same on every
-tier, shrunk about its middle by `Tuning.CamFrame`: 0.7 since 2026-11-14, "zoom into the island more such that there
-isnt too much sea in the screen", about 1.4 times closer than at 1) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
+tier, shrunk about its middle by `Tuning.CamFrame`: 0.95, 9 art px a stud on a desktop; it was 1 (8 px), then 0.7 (12 px)
+after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 after "zoom out abit
+more. the whole island should still be visible", both 2026-11-14) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
 `Raster.gridPhase`) whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`),
 and its scale the one zoom. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
 key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: anything else (the HUD's blocks, the

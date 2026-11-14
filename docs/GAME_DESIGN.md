@@ -1153,7 +1153,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   little further (three stages) with the crunch of a cracking shell, a little higher each time. Once nothing is left the cracks glow from inside and the hint says "Tap to hatch it".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
 - **The hatch**: the shell breaks with a crack, a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
-  hatched pops out where the egg was with a hop and a cheer. "It hatched", its name in its rarity's colour and "Rare,
+  hatched pops out where the egg was with one jump, arms up (the request of 2026-11-14: "make the pet jump only once
+  instead of a few times after hatching"; it used to jump three times). "It hatched", its name in its rarity's colour and "Rare,
   good at farms" under it, and "No mutations" on a plate if it has none. "Tap to go on" shows after a moment; that tap
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
   pressed there. The scene waits for that tap and never closes by itself.
@@ -1240,10 +1241,11 @@ text (the requests and how each was met) is in the history of this file, up to c
   bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
   ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
-  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). Since
-  2026-11-14 it is about 1.4 times closer ("zoom into the island more such that there isnt too much sea in the
-  screen": the box round the island's heart it fits on screen is 0.7 of its old size, `Tuning.CamFrame`), so the
-  first island nearly fills the screen and a big one is seen a part at a time as you walk.
+  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). On
+  2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
+  step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
+  screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud
+  on a desktop, from 8). A bigger island is seen a part at a time as you walk.
 - Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
   and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
   beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole
