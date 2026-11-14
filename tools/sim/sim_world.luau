@@ -1790,6 +1790,75 @@ H.expect(prof.shells >= storesBefore.shells - 1e-6 and prof.wood == nil, "malici
 E.run(0.3)
 
 ------------------------------------------------------------------ 9. a player leaves
+E.phase = "tags"
+-- every founder outlined in white with a name tag (GAME_DESIGN 14.1; the request of 2026-11-14: "make the player be
+-- outlined white like the bakery game, with the name and title on top"): on each client both founders' rigs carry the
+-- pixel filter's rim (the own "self", the other "player"), and each has a tag over its head with the player's name and
+-- the title they wear (the "Title" attribute: Newcomer for a new founder), in that title's colour
+do
+	local Titles = H.sharedServer("Data.Titles")
+	for _, pair in { { a, b }, { b, a } } do
+		local me, other = pair[1], pair[2]
+		local AV = H.cmod(me, "Controllers.AvatarView")
+		for _, pl in { me, other } do
+			local rig, outlined = AV.debugRig(pl)
+			H.expect(rig ~= nil and outlined, "tags", me.Name .. ": " .. pl.Name .. "'s founder outlined in white", tostring(outlined))
+			local name, title, shown = AV.debugTag(pl)
+			local want = Titles.byId[H.profile(pl).title]
+			H.expect(name == pl.DisplayName and want ~= nil and title == want.name, "tags", me.Name .. ": " .. pl.Name .. "'s tag shows their name and title", string.format("%s / %s", tostring(name), tostring(title)))
+			H.expect(pl:GetAttribute("Title") == H.profile(pl).title, "tags", pl.Name .. ": the Title attribute is the title worn", tostring(pl:GetAttribute("Title")))
+			local _ = shown
+		end
+		local PR = H.cmod(me, "Pixel.PixelRenderer")
+		local rims = PR.debugRims()
+		H.expect(rims.registered >= 2, "tags", me.Name .. ": both founders registered with a rim", tostring(rims.registered))
+	end
+	-- Ava puts on a straw hat, a kite and a sailor shirt and wears the Egg Hunter title: Bo's client builds those pieces
+	-- on her founder (the hat hides her spiky hair's spikes), its tag says the new title in its colour
+	local pa = H.profile(a)
+	for _, id in { "strawhat", "kite", "sailor" } do
+		pa.owned[id] = true
+	end
+	pa.titles.egghunter = true
+	pa.founder.style = 4 -- spiky
+	for _, w in { { "hat", "strawhat" }, { "back", "kite" }, { "top", "sailor" } } do
+		local r = H.req(a, "look.wear", { slot = w[1], id = w[2] })
+		H.expect(r and r.ok, "tags", "Ava wears the " .. w[2], tostring(r and r.err))
+	end
+	local rt = H.req(a, "title.set", { id = "egghunter" })
+	H.expect(rt and rt.ok, "tags", "Ava wears the Egg Hunter title", tostring(rt and rt.err))
+	E.run(1.5)
+	local attr = a:GetAttribute("Founder")
+	H.expect(type(attr) == "string" and string.find(attr, "|strawhat|", 1, true) ~= nil and string.find(attr, "|kite|", 1, true) ~= nil, "tags", "Ava's Founder attribute carries the pieces she wears", tostring(attr))
+	local AVb = H.cmod(b, "Controllers.AvatarView")
+	local rig = AVb.debugRig(a)
+	local hasHat = rig ~= nil and rig.parts["strawhat_Wear1"] ~= nil and rig.parts["kite_Wear1"] ~= nil and rig.parts["sailor_Wear1"] ~= nil
+	H.expect(hasHat, "tags", "Bo's client builds Ava's straw hat, kite and sailor collar on her founder")
+	H.expect(rig ~= nil and rig.parts.SpikeB == nil and rig.parts.HairCap ~= nil, "tags", "the hat hides the spikes of her hair, the cap stays", tostring(rig and rig.parts.SpikeB))
+	H.expect(rig ~= nil and rig.extra ~= nil and #rig.extra.head == 3 and #rig.extra.body >= 7, "tags", "the hat's parts move with the head, the kite's and the collar's with the body", rig and rig.extra and string.format("%d head, %d body", #rig.extra.head, #rig.extra.body))
+	local torso = rig and rig.parts.Torso
+	local white = H.sharedServer("Data.Palette").colors.white
+	local tc = torso and torso.Color
+	local okWhite = tc ~= nil and math.abs(math.floor(tc.R * 255 + 0.5) - bit32.rshift(white, 16)) <= 1 and math.abs(math.floor(tc.B * 255 + 0.5) - bit32.band(white, 255)) <= 1
+	H.expect(okWhite, "tags", "her shirt takes the sailor's white", tc and string.format("%.2f %.2f %.2f", tc.R, tc.G, tc.B))
+	local nameB, titleB = AVb.debugTag(a)
+	H.expect(nameB == a.DisplayName and titleB == Titles.byId.egghunter.name, "tags", "Bo sees Ava's new title over her head", tostring(titleB))
+	local PRb = H.cmod(b, "Pixel.PixelRenderer")
+	H.expect(rig ~= nil and PRb.hasRim(rig.model), "tags", "her rebuilt founder is outlined again", "")
+	-- an id the client doesn't know, or a piece in the wrong slot, in the attribute: left off, the rest drawn
+	local saved = attr
+	a:SetAttribute("Founder", "1.1.1.1|nothing|strawhat||||")
+	E.run(0.5)
+	local rig2 = AVb.debugRig(a)
+	H.expect(rig2 ~= nil and rig2.extra ~= nil and #rig2.extra.head == 0 and #rig2.extra.body == 0, "tags", "unknown ids and a hat named for the face are left off", rig2 and rig2.extra and tostring(#rig2.extra.head))
+	a:SetAttribute("Founder", saved)
+	-- back to what she had (the next sync puts the attribute back anyway)
+	for _, w in { "hat", "back", "top" } do
+		H.req(a, "look.wear", { slot = w, id = "" })
+	end
+	H.req(a, "title.set", { id = "newcomer" })
+	E.run(1)
+end
 E.phase = "leave"
 local EVa = H.cmod(a, "Controllers.EggView")
 local followed2 = EVa.count(2)

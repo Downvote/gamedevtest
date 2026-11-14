@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Types = require(ReplicatedStorage.Shared.Types)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Blocks = require(script.Parent.Blocks)
+local CosmeticModels = require(script.Parent.CosmeticModels)
 
 local CharacterModels = {}
 
@@ -16,11 +17,22 @@ export type Rig = {
 	rest: { [string]: CFrame }, -- each part's offset from the rig's origin
 	seed: number,
 	scale: number?, -- drawn at this size about its feet (setScale; nil: as built)
+	-- the parts of the pieces worn (Models/CosmeticModels; GAME_DESIGN 14.1) by the bone each moves with
+	extra: { head: { string }, body: { string }, hand: { string } }?,
 }
 
 type Spec = { name: string, size: Vector3, at: Vector3, color: string, shape: ("Block" | "Ball")? }
 
--- The parts of a developer, rest pose (seat top centre = origin, facing +Z).
+-- What a hat hides of the hair (CosmeticModels.covers): "top", what sticks up over a crown; "hood", all of it but the
+-- fringe.
+local HAIR_TOP: { [string]: boolean } = { SpikeA = true, SpikeB = true, SpikeC = true, Bun = true, CurlA = true, CurlB = true, CurlC = true, Mohawk = true, MohawkB = true }
+local HAIR_ALL: { [string]: boolean } = table.clone(HAIR_TOP)
+for _, n in { "HairCap", "HairBack", "LockL", "LockR", "CurlL", "CurlR", "PonyTie", "PonyTail", "TwinL", "TwinR", "TieL", "TieR", "BobL", "BobR", "BraidA", "BraidB", "BraidC", "BraidTie" } do
+	HAIR_ALL[n] = true
+end
+
+-- The parts of a developer, rest pose (seat top centre = origin, facing +Z). The ten hair styles (Data/Looks: short,
+-- long, bun, spiky, curly, pony, twintails, mohawk, bob, braid); a hat worn hides what it covers.
 local function specs(look: Types.Look): { Spec }
 	local skin = Looks.skin[look.skin] or "skin1"
 	local hair = Looks.hair[look.hair] or "hair_brown"
@@ -64,10 +76,94 @@ local function specs(look: Types.Look): { Spec }
 		table.insert(list, { name = "SpikeA", size = Vector3.new(0.5, 0.5, 0.5), at = Vector3.new(-0.5, 3.15, 0.0), color = hair })
 		table.insert(list, { name = "SpikeB", size = Vector3.new(0.5, 0.75, 0.5), at = Vector3.new(0.05, 3.25, -0.2), color = hair })
 		table.insert(list, { name = "SpikeC", size = Vector3.new(0.5, 0.5, 0.5), at = Vector3.new(0.55, 3.1, 0.1), color = hair })
+	elseif style == "curly" then
+		-- round curls over the crown and at the sides
+		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 1.25, 0.5), at = Vector3.new(0, 2.25, -0.75), color = hair })
+		table.insert(list, { name = "CurlA", size = Vector3.new(0.625, 0.625, 0.625), at = Vector3.new(-0.45, 3.1, 0.1), color = hair, shape = "Ball" })
+		table.insert(list, { name = "CurlB", size = Vector3.new(0.75, 0.75, 0.75), at = Vector3.new(0.1, 3.15, -0.25), color = hair, shape = "Ball" })
+		table.insert(list, { name = "CurlC", size = Vector3.new(0.625, 0.625, 0.625), at = Vector3.new(0.5, 3.05, 0.15), color = hair, shape = "Ball" })
+		table.insert(list, { name = "CurlL", size = Vector3.new(0.5, 0.625, 0.625), at = Vector3.new(-0.85, 2.35, -0.25), color = hair, shape = "Ball" })
+		table.insert(list, { name = "CurlR", size = Vector3.new(0.5, 0.625, 0.625), at = Vector3.new(0.85, 2.35, -0.25), color = hair, shape = "Ball" })
+	elseif style == "pony" then
+		-- a ponytail tied high at the back
+		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 1.0, 0.5), at = Vector3.new(0, 2.35, -0.75), color = hair })
+		table.insert(list, { name = "PonyTie", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0, 2.75, -1.05), color = "berry_red", shape = "Ball" })
+		table.insert(list, { name = "PonyTail", size = Vector3.new(0.5, 1.125, 0.375), at = Vector3.new(0, 2.2, -1.15), color = hair })
+	elseif style == "twintails" then
+		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 1.0, 0.5), at = Vector3.new(0, 2.35, -0.75), color = hair })
+		table.insert(list, { name = "TieL", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(-0.95, 2.6, -0.35), color = "pink", shape = "Ball" })
+		table.insert(list, { name = "TieR", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(0.95, 2.6, -0.35), color = "pink", shape = "Ball" })
+		table.insert(list, { name = "TwinL", size = Vector3.new(0.375, 1.0, 0.5), at = Vector3.new(-1.0, 2.0, -0.4), color = hair })
+		table.insert(list, { name = "TwinR", size = Vector3.new(0.375, 1.0, 0.5), at = Vector3.new(1.0, 2.0, -0.4), color = hair })
+	elseif style == "mohawk" then
+		-- a tall strip over the middle
+		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 0.75, 0.5), at = Vector3.new(0, 2.45, -0.75), color = hair })
+		table.insert(list, { name = "Mohawk", size = Vector3.new(0.375, 0.5, 1.375), at = Vector3.new(0, 3.2, -0.15), color = hair })
+		table.insert(list, { name = "MohawkB", size = Vector3.new(0.375, 0.375, 0.5), at = Vector3.new(0, 3.5, -0.4), color = hair })
+	elseif style == "bob" then
+		-- a rounded cut to the jaw, fuller at the sides
+		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 1.25, 0.5), at = Vector3.new(0, 2.25, -0.75), color = hair })
+		table.insert(list, { name = "BobL", size = Vector3.new(0.3, 1.0, 1.125), at = Vector3.new(-0.88, 2.15, -0.1), color = hair })
+		table.insert(list, { name = "BobR", size = Vector3.new(0.3, 1.0, 1.125), at = Vector3.new(0.88, 2.15, -0.1), color = hair })
+	elseif style == "braid" then
+		-- one braid down the back, tied off at the end
+		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 1.0, 0.5), at = Vector3.new(0, 2.35, -0.75), color = hair })
+		table.insert(list, { name = "BraidA", size = Vector3.new(0.5, 0.5, 0.5), at = Vector3.new(0, 1.95, -0.95), color = hair, shape = "Ball" })
+		table.insert(list, { name = "BraidB", size = Vector3.new(0.45, 0.45, 0.45), at = Vector3.new(0, 1.55, -1.0), color = hair, shape = "Ball" })
+		table.insert(list, { name = "BraidC", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0, 1.2, -1.02), color = hair, shape = "Ball" })
+		table.insert(list, { name = "BraidTie", size = Vector3.new(0.25, 0.125, 0.25), at = Vector3.new(0, 0.98, -1.02), color = "teal" })
 	else
 		table.insert(list, { name = "HairBack", size = Vector3.new(1.75, 1.0, 0.5), at = Vector3.new(0, 2.35, -0.75), color = hair })
 	end
+	-- a hat hides the hair it covers
+	local cover = if type(look.hat) == "string" and look.hat ~= "" then CosmeticModels.covers(look.hat) else nil
+	local hide = if cover == "hood" then HAIR_ALL elseif cover == "top" then HAIR_TOP else nil
+	if hide then
+		local kept: { Spec } = {}
+		for _, sp in list do
+			if not hide[sp.name] then
+				table.insert(kept, sp)
+			end
+		end
+		list = kept
+	end
 	return list
+end
+
+-- The pieces worn (Data/Looks' slots), each a list of CosmeticModels specs, in the slots' order.
+local function worn(look: Types.Look): { CosmeticModels.Spec }
+	local out: { CosmeticModels.Spec } = {}
+	for _, slot in Looks.worn do
+		local id = (look :: any)[slot]
+		if type(id) == "string" and id ~= "" then
+			for _, sp in CosmeticModels.parts(id) do
+				table.insert(out, sp)
+			end
+		end
+	end
+	return out
+end
+
+type Extra = { head: { string }, body: { string }, hand: { string } }
+
+-- Adds the pieces' parts to a rig being built: `offset` moves each bone's parts from the standing rig's place to this
+-- rig's (the seated rig's head and body sit lower; a bone with no offset is left out: the seated rig holds nothing).
+local function addWorn(model: Model, parts: { [string]: BasePart }, rest: { [string]: CFrame }, look: Types.Look, offset: { [string]: Vector3 }): Extra
+	local extra: Extra = { head = {}, body = {}, hand = {} }
+	for _, sp in worn(look) do
+		local off: Vector3? = offset[sp.bone]
+		if not off then
+			continue
+		end
+		local cf = CFrame.new(sp.at + off) * (sp.rot or CFrame.identity)
+		local p = Blocks.part(model, { size = sp.size, cf = cf, color = sp.color, name = sp.name, shape = sp.shape, collide = false, query = false, neon = sp.neon })
+		p.Size = sp.size -- exact (an art pixel and up)
+		p.CastShadow = false
+		parts[sp.name] = p
+		rest[sp.name] = cf
+		table.insert((extra :: any)[sp.bone], sp.name)
+	end
+	return extra
 end
 
 -- A developer's rig (unparented; the caller parents it into Workspace.PixelDynamic). Parts are not queryable or
@@ -91,11 +187,29 @@ function CharacterModels.build(look: Types.Look, name: string, seed: number?): R
 		parts[sp.name] = p
 		rest[sp.name] = CFrame.new(sp.at)
 	end
+	-- (the pieces worn: the hat and the face's on the seated head, the neck's, the back's and a top's on its torso, the
+	-- top's colours on the shirt and sleeves; the held ones stay off the desk)
+	local top = if type(look.top) == "string" and look.top ~= "" then CosmeticModels.top(look.top) else nil
+	if top then
+		for n, key in { Torso = top.torso, ArmL = top.arms, ArmR = top.arms } :: { [string]: string? } do
+			local p = parts[n]
+			if p and key then
+				p.Color = Blocks.color(key)
+			end
+		end
+	end
+	local extra = addWorn(model, parts, rest, look, { head = Vector3.new(0, -1, -0.05), body = Vector3.new(0, -1, -0.1) })
 	model.PrimaryPart = parts.Torso
-	return { model = model, parts = parts, rest = rest, seed = seed or 0 }
+	return { model = model, parts = parts, rest = rest, seed = seed or 0, extra = extra }
 end
 
-local HEAD_PARTS = { "Head", "EyeL", "EyeR", "GlintL", "GlintR", "BrowL", "BrowR", "Mouth", "EarL", "EarR", "CheekL", "CheekR", "HairCap", "Fringe", "HairBack", "LockL", "LockR", "Bun", "SpikeA", "SpikeB", "SpikeC" }
+local HEAD_PARTS = {
+	"Head", "EyeL", "EyeR", "GlintL", "GlintR", "BrowL", "BrowR", "Mouth", "EarL", "EarR", "CheekL", "CheekR", "HairCap", "Fringe",
+	"HairBack", "LockL", "LockR", "Bun", "SpikeA", "SpikeB", "SpikeC",
+	-- (the hair styles of 2026-11-14: Data/Looks)
+	"CurlA", "CurlB", "CurlC", "CurlL", "CurlR", "PonyTie", "PonyTail", "TwinL", "TwinR", "TieL", "TieR", "Mohawk", "MohawkB",
+	"BobL", "BobR", "BraidA", "BraidB", "BraidC", "BraidTie",
+}
 local NECK = Vector3.new(0, 1.5, -0.05)
 local SHOULDER_L, SHOULDER_R = Vector3.new(-0.7, 1.3, -0.1), Vector3.new(0.7, 1.3, -0.1)
 
@@ -137,6 +251,16 @@ function CharacterModels.pose(rig: Rig, base: CFrame, t: number, state: string)
 		headRot = CFrame.Angles(math.rad(-8), 0, 0)
 	end
 	turn(rig, base, HEAD_PARTS, NECK, headRot, body)
+	local extra = rig.extra
+	if extra then
+		turn(rig, base, extra.head, NECK, headRot, body)
+		for _, n in extra.body do
+			local p = rig.parts[n]
+			if p then
+				p.CFrame = base * CFrame.new(body) * rig.rest[n]
+			end
+		end
+	end
 	-- arms and hands
 	if state == "cheer" then
 		local wave = math.sin((t + ph) * 10) * 0.15
@@ -188,7 +312,21 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 	local rest: { [string]: CFrame } = {}
 	local skin = Looks.skin[look.skin] or "skin1"
 	local shirt = Looks.shirt[look.shirt] or "blue"
-	local trim = if shirt == "white" then "blue" else "cream"
+	local trim = if shirt == "white" or shirt == "cream" then "blue" else "cream"
+	-- a top worn over the shirt (CosmeticModels.top): its colours for the torso, the sleeves and the trim, and the
+	-- shirt's parts it hides
+	local top = if type(look.top) == "string" and look.top ~= "" then CosmeticModels.top(look.top) else nil
+	local arms = shirt
+	local hidden: { [string]: boolean } = {}
+	if top then
+		shirt = top.torso or shirt
+		arms = top.arms or arms
+		trim = top.trim or trim
+		local hide: { string } = top.hide or {}
+		for _, n in hide do
+			hidden[n] = true
+		end
+	end
 	local list: { Spec } = {
 		{ name = "SoleL", size = Vector3.new(0.5, 0.125, 0.75), at = Vector3.new(-0.3, 0.0625, 0.1), color = "cream" },
 		{ name = "SoleR", size = Vector3.new(0.5, 0.125, 0.75), at = Vector3.new(0.3, 0.0625, 0.1), color = "cream" },
@@ -204,8 +342,8 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 		{ name = "Collar", size = Vector3.new(0.75, 0.125, 0.25), at = Vector3.new(0, 2.4375, 0.28), color = trim },
 		{ name = "ButtonA", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(0, 2.125, 0.4), color = trim },
 		{ name = "ButtonB", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(0, 1.75, 0.4), color = trim },
-		{ name = "ArmL", size = Vector3.new(0.375, 0.5, 0.375), at = Vector3.new(-0.8125, 2.2, 0), color = shirt },
-		{ name = "ArmR", size = Vector3.new(0.375, 0.5, 0.375), at = Vector3.new(0.8125, 2.2, 0), color = shirt },
+		{ name = "ArmL", size = Vector3.new(0.375, 0.5, 0.375), at = Vector3.new(-0.8125, 2.2, 0), color = arms },
+		{ name = "ArmR", size = Vector3.new(0.375, 0.5, 0.375), at = Vector3.new(0.8125, 2.2, 0), color = arms },
 		{ name = "ForeL", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(-0.8125, 1.7625, 0), color = skin },
 		{ name = "ForeR", size = Vector3.new(0.375, 0.375, 0.375), at = Vector3.new(0.8125, 1.7625, 0), color = skin },
 		{ name = "HandL", size = Vector3.new(0.5, 0.375, 0.5), at = Vector3.new(-0.8125, 1.39, 0), color = skin },
@@ -217,14 +355,19 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 		end
 	end
 	for _, sp in list do
+		if hidden[sp.name] then
+			continue
+		end
 		local p = Blocks.part(model, { size = sp.size, cf = CFrame.new(sp.at), color = sp.color, name = sp.name, shape = sp.shape, collide = false, query = false })
 		p.Size = sp.size -- exact (an art pixel and up)
 		p.CastShadow = false
 		parts[sp.name] = p
 		rest[sp.name] = CFrame.new(sp.at)
 	end
+	-- the pieces worn, each on its bone (GAME_DESIGN 14.1)
+	local extra = addWorn(model, parts, rest, look, { head = Vector3.zero, body = Vector3.zero, hand = Vector3.zero })
 	model.PrimaryPart = parts.Torso
-	return { model = model, parts = parts, rest = rest, seed = seed or 0 }
+	return { model = model, parts = parts, rest = rest, seed = seed or 0, extra = extra }
 end
 
 local HIP_L, HIP_R = Vector3.new(-0.3, 1.25, 0), Vector3.new(0.3, 1.25, 0)
@@ -302,7 +445,7 @@ local function setMood(rig: Rig, mood: string)
 end
 
 -- Moves the upper and lower part of a limb: the upper about its joint, the lower about its own joint after that.
-local function limb(rig: Rig, at: CFrame, upper: { string }, pivot: Vector3, rot: CFrame, lower: { string }, pivot2: Vector3, rot2: CFrame)
+local function limb(rig: Rig, at: CFrame, upper: { string }, pivot: Vector3, rot: CFrame, lower: { string }, pivot2: Vector3, rot2: CFrame): CFrame
 	local up = at * CFrame.new(pivot) * rot * CFrame.new(-pivot)
 	for _, n in upper do
 		local p = rig.parts[n]
@@ -317,6 +460,7 @@ local function limb(rig: Rig, at: CFrame, upper: { string }, pivot: Vector3, rot
 			p.CFrame = low * rig.rest[n]
 		end
 	end
+	return low
 end
 
 -- Pose a standing rig at `base` (the ground between the feet, facing +Z).
@@ -337,12 +481,26 @@ function CharacterModels.posePose(rig: Rig, base: CFrame, P: Pose)
 		end
 	end
 	limb(rig, body, UPPER_L, ARM_L, P.armL or CFrame.identity, LOWER_L, ELBOW_L, CFrame.Angles(-(P.elbowL or 0), 0, 0))
-	limb(rig, body, UPPER_R, ARM_R, P.armR or CFrame.identity, LOWER_R, ELBOW_R, CFrame.Angles(-(P.elbowR or 0), 0, 0))
+	local lowR = limb(rig, body, UPPER_R, ARM_R, P.armR or CFrame.identity, LOWER_R, ELBOW_R, CFrame.Angles(-(P.elbowR or 0), 0, 0))
 	local head = body * CFrame.new(STAND_NECK) * (P.head or CFrame.identity) * CFrame.new(-STAND_NECK)
 	for _, n in HEAD_PARTS do
 		local p = rig.parts[n]
 		if p and rig.rest[n] then
 			p.CFrame = head * rig.rest[n]
+		end
+	end
+	-- the pieces worn go with their bones: the hat and the face's with the head, the rest with the body, a held one with
+	-- the right forearm
+	local extra = rig.extra
+	if extra then
+		for _, n in extra.head do
+			rig.parts[n].CFrame = head * rig.rest[n]
+		end
+		for _, n in extra.body do
+			rig.parts[n].CFrame = body * rig.rest[n]
+		end
+		for _, n in extra.hand do
+			rig.parts[n].CFrame = lowR * rig.rest[n]
 		end
 	end
 	-- a rig drawn smaller (setScale): the whole pose shrunk about the base (its feet)
@@ -669,5 +827,30 @@ end
 
 -- Where a founder's name label floats (rig space).
 CharacterModels.STAND_TOP = Vector3.new(0, 4.6, 0)
+
+-- The top of a standing rig's head and what it wears there (rig space, as drawn: its scale in), the hair and a hat
+-- included, held pieces not: where the name tag goes (AvatarView). At least STAND_TOP's height.
+function CharacterModels.topOf(rig: Rig): number
+	local k = rig.scale or 1
+	local top = CharacterModels.STAND_TOP.Y * k
+	local function up(n: string)
+		local p, r = rig.parts[n], rig.rest[n]
+		if p and r and p.Transparency < 0.95 then
+			-- (a turned part reaches up by its rotated half extents)
+			local s = p.Size * 0.5
+			local reach = math.abs(r.RightVector.Y) * s.X + math.abs(r.UpVector.Y) * s.Y + math.abs(r.LookVector.Y) * s.Z
+			top = math.max(top, r.Position.Y * k + reach)
+		end
+	end
+	for _, n in HEAD_PARTS do
+		up(n)
+	end
+	if rig.extra then
+		for _, n in rig.extra.head do
+			up(n)
+		end
+	end
+	return top
+end
 
 return CharacterModels

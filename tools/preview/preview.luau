@@ -1675,6 +1675,22 @@ local function thumbsScenario(arg: string?)
 	return require("./thumbs")(env)
 end
 SCEN.pthumbs = thumbsScenario
+-- "cthumbs" / "cthumbs=<k>of<n>" / "cthumbs=<id>,<id>": the cosmetics' pictures (tools/preview/cosmetic_thumbs.luau;
+-- sh tools/preview/cosmetic_thumbs.sh runs it and makes UI/CosmeticThumbData)
+local function cthumbsScenario(arg: string?)
+	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr }
+	local k, n = string.match(arg or "", "^(%d+)of(%d+)$")
+	if k then
+		env.part, env.parts = tonumber(k), tonumber(n)
+	elseif arg then
+		env.only = {}
+		for id in string.gmatch(arg, "[^,]+") do
+			table.insert(env.only, id)
+		end
+	end
+	return require("./cosmetic_thumbs")(env)
+end
+SCEN.cthumbs = cthumbsScenario
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
 -- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
 -- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, its actors, whether it painted).
@@ -2159,6 +2175,146 @@ local function palsScenario(arg)
 	return p
 end
 
+-- "looks=<n>" or "looks=<id>,<id>,...": eight founders up close wearing the pieces of Data/Cosmetics (GAME_DESIGN 14.1:
+-- Models/CosmeticModels on Models/CharacterModels' standing rig), each outlined in white (the pixel filter's rim; the
+-- first one as the player's own, "self") with a name tag and a title over its head (Controllers/NameTags), in two rows
+-- of four on a lawn far from the islands; standing (looks_stand) and walking (looks_walk). Batch n dresses founder i
+-- (8n-7 .. 8n) in each slot's piece i (round the slot's list), with skin, hair colour, hair style and shirt colour
+-- turning too, so batches 1 to 4 show every piece and every style; an id list puts one piece on each founder. The log
+-- lists each founder's pieces and part count.
+local function looksScenario(arg)
+	seedProfile(64, 1, {})
+	local p = join(64, "Dresser")
+	settle(p, 30, 1)
+	local Cosmetics = H.sharedServer("Data.Cosmetics")
+	local Looks = H.sharedServer("Data.Looks")
+	local Titles = H.sharedServer("Data.Titles")
+	local ctx = E.clientCtx(p)
+	local CM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.CharacterModels"))
+	local Blocks = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.Blocks"))
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
+	local CC = H.cmod(p, "Controllers.CameraController")
+	local NT = H.cmod(p, "Controllers.NameTags")
+	for _, g in p.PlayerGui:GetChildren() do
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "World" then
+			g.Enabled = false
+		end
+	end
+	local looks = {}
+	local n = tonumber(arg)
+	for k = 1, 8 do
+		local look = {}
+		if n then
+			local i = (n - 1) * 8 + k
+			look = { skin = (i - 1) % #Looks.skin + 1, hair = (i * 3) % #Looks.hair + 1, style = (i - 1) % #Looks.styles + 1, shirt = (i - 1) % #Looks.shirt + 1 }
+			for _, slot in Looks.worn do
+				local list = Cosmetics.bySlot[slot]
+				look[slot] = list[(i - 1) % #list + 1].id
+			end
+		else
+			local ids = {}
+			for id in string.gmatch(arg, "[^,]+") do
+				table.insert(ids, id)
+			end
+			local id = ids[k]
+			if id == nil then
+				break
+			end
+			look = { skin = k % #Looks.skin + 1, hair = k % #Looks.hair + 1, style = k % #Looks.styles + 1, shirt = k % #Looks.shirt + 1 }
+			local c = Cosmetics.byId[id]
+			if c then
+				look[c.slot] = id
+			end
+		end
+		table.insert(looks, look)
+	end
+	local OX, OZ = 0, 9400
+	local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+	local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+	local faceViewer = math.atan2(vx, vz)
+	H.inClient(p, function()
+		local m = Blocks.model(E.workspace, "LooksLawn")
+		Blocks.part(m, { size = E.v3(30, 1, 30), cf = E.cf.new(OX, -0.5, OZ), color = "grass" })
+	end)
+	-- a row of four at a time (the tags of a row in front would cover the faces behind)
+	for row = 1, 2 do
+		local things = {}
+		H.inClient(p, function()
+			local names = {}
+			for k = 1, 4 do
+				local i = (row - 1) * 4 + k
+				local look = looks[i]
+				if look == nil then
+					break
+				end
+				local rig = CM.buildStanding(look, "Look_" .. i, i * 7)
+				rig.model.Parent = E.workspace
+				PR.registerDynamic(rig.model, if i == 1 then "self" else "player")
+				local u = -5.4 + (k - 1) * 3.6
+				-- (a stand-in player for the name tag: its name and the title it wears)
+				local title = Titles.list[(i * 5) % #Titles.list + 1]
+				local fake = { DisplayName = "Founder " .. i, UserId = 70000 + i, GetAttribute = function(_, key)
+					return if key == "Title" then title.id else nil
+				end }
+				local tag = NT.make(fake)
+				table.insert(things, { rig = rig, tag = tag, x = OX + ux * u, z = OZ + uz * u })
+				local c, worn = 0, {}
+				for _ in rig.parts do
+					c += 1
+				end
+				for _, slot in Looks.worn do
+					if look[slot] then
+						table.insert(worn, look[slot])
+					end
+				end
+				table.insert(names, string.format("%d: %s / %s (%d parts, %s)", i, Looks.styles[look.style], table.concat(worn, ","), c, title.name))
+			end
+			log("looks %s row %d: %s", arg, row, table.concat(names, "; "))
+			local pts = {}
+			for _, q in { { -7.4, -1.6 }, { 7.4, -1.6 }, { -7.4, 1.6 }, { 7.4, 1.6 } } do
+				for _, y in { 0, 6.2 } do
+					table.insert(pts, OX + ux * q[1] + vx * q[2])
+					table.insert(pts, y)
+					table.insert(pts, OZ + uz * q[1] + vz * q[2])
+				end
+			end
+			CC.setStage({ name = "looks" .. row, origin = E.v3(OX, 0, OZ), pts = pts, tight = nil, top = 14, bottom = 8 })
+		end)
+		if #things == 0 then
+			break
+		end
+		for _, mode in { "stand", "walk" } do
+			local function pose()
+				for j, x in things do
+					CM.poseStanding(x.rig, E.cf.new(x.x, 0, x.z) * E.cf.Angles(0, faceViewer + math.rad(25), 0), 1.3 + j * 0.41, if mode == "walk" then 9 else 0)
+				end
+			end
+			H.inClient(p, pose)
+			settle(p, 60, 0.5)
+			H.inClient(p, function()
+				pose()
+				for _, x in things do
+					NT.place(x.tag, (E.cf.new(x.x, 0, x.z) * E.cf.new(0, CM.topOf(x.rig) + 0.2, 0)).Position)
+				end
+			end)
+			E.step(E.dt)
+			local okR, rims = pcall(PR.debugRims)
+			if okR and type(rims) == "table" then
+				log("looks row %d %s: %d rims drawn (%d registered), %d white px, %.2f ms", row, mode, rims.drawn, rims.registered, rims.px, rims.ms)
+			end
+			capture(p, string.format("looks_%d_%s", row, mode))
+		end
+		H.inClient(p, function()
+			for _, x in things do
+				PR.unregisterDynamic(x.rig.model)
+				x.rig.model:Destroy()
+				NT.drop(x.tag)
+			end
+		end)
+	end
+	return p
+end
+
 -- "anim=<id>" or "anim=<id>:<mood>,<mood>": one driftling up close (built "full") moving on its skeleton
 -- (Models/DriftRig, Models/DriftMotion: the request of 2026-11-14, "please use bones and rigging to make more realistic
 -- and detailed movement. follow and use as many animation principles when animating as well"). It is posed every
@@ -2273,6 +2429,12 @@ for _, name in list do
 			return animScenario(animArg)
 		end
 	end
+	local looksArg = string.match(name, "^looks=([%w_,]+)$")
+	if looksArg then
+		fn = function()
+			return looksScenario(looksArg)
+		end
+	end
 	local palsArg = string.match(name, "^pals=([%w_,]+)$")
 	if palsArg then
 		fn = function()
@@ -2289,6 +2451,12 @@ for _, name in list do
 	if hatch then
 		fn = function()
 			return hatchScenario(hatch)
+		end
+	end
+	local cthumbs = string.match(name, "^cthumbs=([%w_,]+)$")
+	if cthumbs then
+		fn = function()
+			return cthumbsScenario(cthumbs)
 		end
 	end
 	local thumbs = string.match(name, "^pthumbs=([%w_,]+)$")

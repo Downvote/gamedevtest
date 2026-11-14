@@ -1,9 +1,11 @@
 --!strict
--- A cosmetic's picture for the Store, the Looks panel and the reward cards (GAME_DESIGN 14; Data/Cosmetics). For now
--- each slot's own mini icon; Models/CharacterModels' pieces drawn small replace it (the 24 x 24 thumbnails, drawn from
--- each piece's model like the build catalog's: tools/preview/thumbs).
+-- A cosmetic's picture for the Store, the Looks panel and the reward cards (GAME_DESIGN 14.1; Data/Cosmetics): its
+-- 24 x 24 thumbnail, "look_<id>" in UI/CosmeticThumbData, drawn from the piece's own model the way the build catalog's
+-- are (sh tools/preview/cosmetic_thumbs.sh; a top on a little body), a 1 px ink outline and tidied to the pixel art
+-- rules. A piece with no picture yet shows its slot's mini icon.
 --   CosmeticIcons.image(parent, id, pos?, z?) -> GuiObject   the piece's picture (a slot icon for an unknown id)
---   CosmeticIcons.size(id) -> (w, h)                          its size in UI px
+--   CosmeticIcons.size(id) -> (w, h)                          its size in UI px (24 x 24 for a picture)
+--   CosmeticIcons.has(id) -> boolean                          whether the piece has its own picture
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Cosmetics = require(ReplicatedStorage.Shared.Data.Cosmetics)
@@ -21,6 +23,10 @@ local SLOT_ICON: { [string]: string } = {
 }
 
 local function spriteOf(id: string): string
+	local pic = "look_" .. id
+	if PixelSprites.has(pic) then
+		return pic
+	end
 	local c = Cosmetics.byId[id]
 	return SLOT_ICON[if c then c.slot else "hand"] or "mini_star"
 end
@@ -31,6 +37,10 @@ end
 
 function CosmeticIcons.size(id: string): (number, number)
 	return PixelSprites.size(spriteOf(id))
+end
+
+function CosmeticIcons.has(id: string): boolean
+	return PixelSprites.has("look_" .. id)
 end
 
 return CosmeticIcons

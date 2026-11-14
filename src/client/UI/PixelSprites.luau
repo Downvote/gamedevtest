@@ -6,13 +6,16 @@
 -- name and shown by any number of ImageLabels (Pixelated); where EditableImages are not available it is drawn from
 -- runs of 1 px rects instead (the faint anti-aliasing pixels as translucent ones).
 -- The build catalog's pictures, "thumb_<id>" (24 x 24, drawn from the pieces' models: tools/preview/thumbs.sh), are in
--- UI/ThumbData, in ArtData's format; every function here finds them by the prefix.
+-- UI/ThumbData, and the cosmetics' pictures, "look_<id>" (24 x 24, drawn from the pieces' models:
+-- tools/preview/cosmetic_thumbs.sh), in UI/CosmeticThumbData, both in ArtData's format; every function here finds them
+-- by the prefix.
 --   PixelSprites.has(name), size(name) -> (w, h)
 --   PixelSprites.image(parent, name, pos?, z?) -> GuiObject
 --   PixelSprites.anim(parent, names, pos?, z?) -> Anim: a stack of frames (and each frame's "_flash"): set(i),
 --     flash(seconds), moveTo(x, y), the frame `f` to position or destroy
 local ArtData = require(script.Parent.ArtData)
 local ThumbData = require(script.Parent.ThumbData)
+local CosmeticThumbData = require(script.Parent.CosmeticThumbData)
 local ImageMemory = require(script.Parent.Parent.Pixel.ImageMemory)
 
 local PixelSprites = {}
@@ -27,10 +30,12 @@ local images: { [string]: EditableImage } = {}
 local failed: { [string]: boolean } = {} -- no image for this sprite (the rects draw it)
 local canImages: boolean? = nil
 
--- A sprite's data: a catalog picture's from ThumbData, any other's from ArtData.
+-- A sprite's data: a catalog picture's from ThumbData, a cosmetic's from CosmeticThumbData, any other's from ArtData.
 local function dataOf(name: string): ArtData.SpriteData?
 	if string.sub(name, 1, 6) == "thumb_" then
 		return ThumbData[name]
+	elseif string.sub(name, 1, 5) == "look_" then
+		return CosmeticThumbData[name]
 	end
 	return ArtData[name]
 end

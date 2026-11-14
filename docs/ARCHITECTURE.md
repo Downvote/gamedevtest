@@ -327,7 +327,18 @@ Models (`src/shared/Models`, Roblox modules):
   water, the arms sweeping out and back with a slow bob), the
   fights' `windup strike guard throw run victory ko` (nothing plays them now), and the island's work, each a loop with `k` the beat's phase:
   `dig pick fish chop saw sell serve hammer train tend`), `WORK_HIT` (where in a beat a work's blows land:
-  `{ [action]: { phase } }`), `STAND_TOP`.
+  `{ [action]: { phase } }`), `STAND_TOP`, `topOf(rig)` (the top of the head and its hat as drawn: the name tag's
+  height). The hair styles are Data/Looks' ten (`short long bun spiky curly pony twintails mohawk bob braid`, each a few
+  head parts); the pieces worn (GAME_DESIGN 14.1) are built from `Models/CosmeticModels` onto the rig, `Rig.extra =
+  { head, body, hand }` (their part names by the bone they move with: `posePose` moves the head ones with the head, the
+  body ones with the torso, the hand ones with the right forearm (`limb` returns the forearm's frame); the seated rig
+  keeps the head and body ones, moved down to its head and torso, and holds nothing); a hat's `covers` hides the hair it
+  covers ("top": SpikeA..C, Bun, CurlA..C, Mohawk, MohawkB; "hood": all the hair but the Fringe); a top recolours the
+  Torso, the sleeves and the trim and hides the shirt's parts it lists (the Belt and Buckle under a coat).
+- `CosmeticModels.parts(id) -> { Spec }` (each of Data/Cosmetics' 83 pieces: `{ name ("<id>_WearN"), size, at (the
+  standing rig's space), color, shape?, rot?, bone ("head" | "body" | "hand"), neon? }`, a few parts each, cached; the
+  module asserts every piece has its model), `top(id) -> { torso?, arms?, trim?, hide? }?`, `covers(id) -> "top" |
+  "hood" | nil`, the anchors `HEAD` (0, 3.125, 0), `BODY` (0, 1.875, 0), `HAND` (0.8125, 1.39, 0).
 - `Blocks.windy(root)`: the wind's tags for the pixel filter (§9.3): every part named `Flag...` or `Pennant...` (not
   a `...Pole`) gets `PixelWind` 2, every part in `leaf` or `leaf_dark` `PixelWind` 1 (water parts left alone). Called
   by `StreetModels.land` and `DecorModels.build` on their models.
@@ -797,7 +808,14 @@ before the first picture: only the boat arrival, unused now, asked for it).
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
-progress)`, `registerDynamic(model)`, `unregisterDynamic`, `refreshDynamic`, `rebake`, `setPaused`,
+progress)`, `registerDynamic(model, outline?)` (outline "self" or "player": a founder, outlined in white, GAME_DESIGN
+14.1: Random Bakery's rim. Once every model and its ink edge is drawn, each founder's whole silhouette, hidden parts too,
+is drawn again flat into a scratch window of its parts' rect (`Raster.window`, a buffer grown on demand and never
+shrunk) and `Shading.rim` lays white on its edge pixels, dotted on the global grid where something nearer hides that
+part (x-ray); at most `Rims.max` (8) a tick, the own one ("self") first, then the nearest to the layer's middle; the
+rim state is one table, `Rims`, since the main chunk sits at Luau's 200 registers), `hasRim(model)`, `debugRims() ->
+{ drawn, px, ms, registered }` (the last tick's rims, their white pixels and ms), `unregisterDynamic`,
+`refreshDynamic`, `rebake`, `setPaused`,
 On a view with `clear` the pixels its rays miss are 0 (alpha 0) and the grade and dim pass them by, so a picture behind
 the layer shows round the stage (`UI/HatchBackdrop`, a ScreenGui at `PixelDisplayOrder` - 2, its sky life at - 1).
 On a view with `empty` (`Stage.empty`, the hatch scene's) nothing is cast: the static picture is cleared (no colour,
@@ -1276,8 +1294,18 @@ growing and shrinking in two steps; deep under the sea otherwise), a splash goin
 still; `swimming()` (the own founder now: the HUD sets `WalkSpeed` to `Tuning.SwimSpeed` and `JumpHeight` 0 while it
 is true); `step_sand` on ground under the lawn's height (the beach),
 else `step_grass`; `jump` as it leaves the ground, `land` (on the boards a firmer `step_wood`) as it comes down. The Roblox avatar is hidden on every client (`LocalTransparencyModifier` 1 on its parts and decals).
-Other players' names float over their heads (World root). `founderPos()`, `count()`, `lookOf(player)`,
-`setOverride(fn?)` (a cutscene poses the own rig instead: `fn(rig, t, dt)` every frame; nil gives it back).
+The look (GAME_DESIGN 14.1): `Data/Looks.decode` of the `Founder` attribute, the indices clamped to the lists and a
+worn piece kept only when it is a known `Data/Cosmetics` id of that slot; the attribute string is the rig's key (a new
+one rebuilds it). Every founder is registered with the renderer's rim (`registerDynamic(model, "self")` for the own,
+`"player"` for the rest) and, in the classic style (`tier() == "off"`), carries a white outline `Highlight` (the own
+`AlwaysOnTop`, the rest `Occluded`), made and dropped as the tier changes. Every founder, the own too, has a name tag
+(`Controllers/NameTags`: `make(player)`, `refresh(tag, player)` (the name and the "Title" attribute's title, its words
+and colour from `Data/Titles`; laid out again only when they change), `place(tag, worldTop)` (whole UI px over the
+point, hidden off the view), `drop`, `texts(tag) -> (name, title?, shown)`), on the World root (hidden with it in the
+hatch scene; hidden too while a cutscene poses the own rig), placed over `CharacterModels.topOf(rig)` (the head and a
+hat, worked out once a rig) every frame. `founderPos()`, `count()`, `lookOf(player)`, `debugTag(player) -> (name?,
+title?, shown)`, `debugRig(player) -> (rig?, outlined)` (CLI checks), `setOverride(fn?)` (a cutscene poses the own rig
+instead: `fn(rig, t, dt)` every frame; nil gives it back).
 
 ### 10.7 `BuildUI` (Build mode), `BuildFx` and `Puffs`
 Prices are `Plot.price(view, id)` everywhere in Build mode (the cards, the tip, the info plate, a stroke's cost, the
@@ -1531,7 +1559,15 @@ The walk in and home (`Voyage`) and the islet's screen (`ExpeditionUI`, `MicroSt
 skill window, the cards) went with the expeditions (GAME_DESIGN 7, 2026-11-12). Their text is in this file's history,
 up to commit f667462.
 
-### 10.10 Sprites (`PixelSprites`, `ArtData`, `ThumbData`)
+### 10.10 Sprites (`PixelSprites`, `ArtData`, `ThumbData`, `CosmeticThumbData`)
+The cosmetics' pictures (GAME_DESIGN 14.1): `UI/CosmeticThumbData`, "look_<id>" 24 x 24 in ArtData's format,
+generated by `scripts/gen_art.py` from `scripts/cosmetic_thumbs.txt`, which `sh tools/preview/cosmetic_thumbs.sh` makes:
+the preview scenario `cthumbs` (`tools/preview/cosmetic_thumbs.luau`: each piece's `CosmeticModels.parts` alone, a top
+on a little body in its colours, turned 25 degrees to the camera, a back piece 205 so its back shows, a part thinner
+than a sixteenth of the piece's span made that thick; `Pixel/Snapshot` on five canvases a pixel apart) tidied by
+`tools/preview/gen_thumbs.py --cosmetics` (the catalog's tidying; the full set and order from `Data/Cosmetics`).
+`PixelSprites` finds them by the "look_" prefix; `UI/CosmeticIcons` (`image(parent, id, pos?, z?)`, `size(id)`,
+`has(id)`) draws a piece's picture, or its slot's mini icon when it has none.
 The store's 11 x 11 icons (2026-11-14, `scripts/gen_art.py` SMALL): `mini_store` (a stall with a striped awning: the
 menu bar's Store), `mini_crown` (VIP), `mini_ticket` (the pass track), `mini_gift` (the Starter Pack, VIP's gift),
 `mini_refresh` (two turning arrows: Shop Refresh), each with its `_sil`.
