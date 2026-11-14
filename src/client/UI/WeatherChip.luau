@@ -1,7 +1,8 @@
 --!strict
--- The season and the weather on the HUD (GAME_DESIGN 13; docs/ARCHITECTURE.md 10.12): two lines in the HUD's status
--- panel under the top bar (Hud.statusLine, so they wear the HUD's glass): the season's icon, its name and the time
--- left in it ("Winter · 2 h"), then the weather's icon, its name and the time left in this spell ("Rain · 6 min"),
+-- The season and the weather on the HUD (GAME_DESIGN 13; docs/ARCHITECTURE.md 10.12): two chips on the top bar's one
+-- line after the shells (Hud.topChip; the request of 2026-11-14: "also, this can be compressed into one line. remove
+-- the "day 1" as well"): the season's icon, its name and the time left in it ("Winter · 2 h"), then the weather's
+-- icon, its name and the time left in this spell ("Rain · 6 min"),
 -- from the sea's clock (Logic/Weather.at). A weather that can touch an egg is written in a light tone of its own
 -- colour (Data/Weather `mark`), any other in plain white. A notice when the weather turns ("It started to
 -- rain.") or a new season comes ("Summer is here. Beach, volcano and reef kinds come more often."). Main starts it
@@ -34,8 +35,8 @@ local function update()
 	local c = StateClient.seaClock()
 	if c <= 0 then
 		if shown.text ~= "" then
-			Hud.statusLine("season", nil, nil)
-			Hud.statusLine("weather", nil, nil)
+			Hud.topChip("season", nil, nil)
+			Hud.topChip("weather", nil, nil)
 			shown.season, shown.weather, shown.text = "", "", ""
 		end
 		return
@@ -53,8 +54,8 @@ local function update()
 		return
 	end
 	shown.season, shown.weather, shown.text = st.season, st.kind, key
-	Hud.statusLine("season", sdef.icon, sText)
-	Hud.statusLine("weather", wdef.icon, wText, tone(wdef))
+	Hud.topChip("season", sdef.icon, sText)
+	Hud.topChip("weather", wdef.icon, wText, tone(wdef))
 end
 
 function WeatherChip.start()

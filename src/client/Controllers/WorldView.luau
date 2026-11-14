@@ -620,6 +620,18 @@ local function treeOf(inst: Instance): boolean?
 	return nil
 end
 
+-- A Hatchery under a world hit: true for one on the own island, false for a neighbour's, nil for anything else.
+local function hatcheryOf(inst: Instance): boolean?
+	local m: Instance? = inst
+	while m and m ~= workspace do
+		if m:IsA("Model") and m:GetAttribute("Decor") == "hatchery" then
+			return m:FindFirstAncestor("Plot_" .. myPlot) ~= nil
+		end
+		m = m.Parent
+	end
+	return nil
+end
+
 -- What a tap's ray may hit: the islands and their buildings, never the driftlings, the founders or anything else in
 -- PixelDynamic.
 local function rayParams(): RaycastParams
@@ -780,6 +792,16 @@ local function onTap(pos: Vector2)
 		return
 	elseif mine == false then
 		UIKit.notice("Someone else's Tree of Life. Yours is on your own island.", UIKit.color("text_dim"), 3)
+		return
+	end
+	-- a Hatchery: the own one opens the Hatchery panel (the request of 2026-11-14: "allow clicking on a hatchery to open
+	-- the hatchery menu")
+	local hatch = hatcheryOf(hit.Instance)
+	if hatch == true then
+		UIKit.openPanel("hatch")
+		return
+	elseif hatch == false then
+		UIKit.notice("Someone else's Hatchery. Build one on your own island.", UIKit.color("text_dim"), 3)
 		return
 	end
 	local sign = hit.Instance:FindFirstAncestor("PlotSign")

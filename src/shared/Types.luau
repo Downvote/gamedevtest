@@ -94,6 +94,7 @@ export type ErrCode =
 	| "money"
 	| "no_hut"
 	| "huts"
+	| "hatcheries"
 	| "fixed"
 	| "locked"
 	| "full"

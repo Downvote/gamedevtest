@@ -220,6 +220,8 @@ SMALL = {
     "season_summer": ["....Y....", ".Y..Y..Y.", "..YYYYY..", "..YYYYY..", "YYYYYYYYY", "..YYYYY..", "..YYYYY..", ".Y..Y..Y.", "....Y...."],
     "season_autumn": ["..RRRRR..", ".RRWRRRR.", "RRRRRRWRR", "RWRRRRRRR", ".RRRRRRR.", "...EEE...", "...EEE...", "...EEE...", "..EEEEE.."],
     "season_winter": ["....W....", "...WGW...", "..GGWGG..", "...GGG...", "..WGGGW..", ".GGGWGGG.", "GGWGGGWGG", "....N....", "....N...."],
+    # the Hatchery's button on the menu bar (2026-11-14): a cream egg with pink spots
+    "egg": ["...WWW...", "..WWWWW..", "..WKWWW..", ".WWWWKWW.", ".WWWWWWW.", "WKWWWWWWW", "WWWWWKWWW", ".WWWWWWW.", "..WWWWW.."],
 }
 SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():

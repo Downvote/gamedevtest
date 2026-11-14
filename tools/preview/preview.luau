@@ -1050,7 +1050,7 @@ function SCEN.build()
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
 		capture(p, "build_tip")
-		-- the huts' limit: two more huts make four, all a tier 1 island holds (Tuning.HutLimit)
+		-- the housing limit: two more huts make four, all the room a tier 1 island has (Tuning.HousingLimit: 8)
 		prof.tut = 0
 		for _, at in { { -11, 5 }, { -5, -3 } } do
 			local done = false

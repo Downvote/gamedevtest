@@ -18,6 +18,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Office = require(ReplicatedStorage.Shared.Data.Office)
+local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
@@ -64,7 +65,6 @@ local status: Frame? = nil -- the status panel under the top bar (Hud.statusLine
 local statusLines: { [string]: Frame } = {}
 local statusOrder: { string } = {}
 local homeButton: TextButton? = nil
-local dayBar: Frame? = nil
 local musicButton: GuiButton? = nil
 local musicPref: string? = nil -- the music switch as last tapped (before the server's answer comes back)
 local banner: Frame? = nil
@@ -126,8 +126,10 @@ end
 -- One glass strip of chips (Random Bakery's top bar): each chip its 11 px icon and its value; the day's chip has a
 -- thin bar under its words for how far through the day it is.
 local CHIP_GAP = 7
-local CHIP_MIN: { [string]: number } = { shells = 40, day = 46 }
-local CHIP_ORDER = { "shells", "day" }
+-- (the top bar is one line: the shells, then the season and the weather, Hud.topChip; the day count went from it on
+-- 2026-11-14: "also, this can be compressed into one line. remove the "day 1" as well")
+local CHIP_MIN: { [string]: number } = { shells = 40, season = 24, weather = 24 }
+local CHIP_ORDER = { "shells", "season", "weather" }
 -- Each chip as wide as its words need (never under its minimum), the strip round them, Home after it.
 local function layoutTop()
 	local tb = topBar
@@ -138,11 +140,16 @@ local function layoutTop()
 	for _, name in CHIP_ORDER do
 		local f = chipFrames[name]
 		local l = chips[name]
-		if f and l then
-			local w = math.max(CHIP_MIN[name] or 40, 13 + UIKit.textWidth(tostring(l:GetAttribute("Source") or l.Text)) + 1)
+		local words = if l then tostring(l:GetAttribute("Source") or l.Text) else ""
+		-- (a chip with nothing to say yet takes no room)
+		if f and l and words ~= "" then
+			local w = math.max(CHIP_MIN[name] or 40, 13 + UIKit.textWidth(words) + 1)
+			f.Visible = true
 			f.Position = UDim2.fromOffset(x, 0)
 			f.Size = UDim2.fromOffset(w, TOP_H)
 			x += w + CHIP_GAP
+		elseif f then
+			f.Visible = false
 		end
 	end
 	local w = x - CHIP_GAP + PAD - 1
@@ -171,17 +178,15 @@ end
 local function buildTop()
 	local canvas = UIKit.canvas("Hud")
 	local widths = CHIP_MIN
-	local w = PAD + widths.shells + CHIP_GAP + widths.day + PAD - 1
+	local w = PAD + widths.shells + PAD - 1
 	local tb = UIKit.glass(canvas, UDim2.fromOffset(w, TOP_H), UDim2.fromOffset(EDGE, CHIP_Y), 2)
 	tb.Name = "TopBar"
 	topBar = tb
 	local x = PAD
 	x = chip("shells", x, widths.shells, "shell")
-	x = chip("day", x, widths.day, "sun")
-	-- the day's clock: a thin bar under its words (like the bakery's XP bar under its level)
-	local db = UIKit.rect(chipFrames.day, UDim2.fromOffset(0, 1), UDim2.new(0, 13, 1, -2), UIKit.color("accent"), 3)
-	db.Name = "DayBar"
-	dayBar = db
+	x = chip("season", x, widths.season, "sun")
+	x = chip("weather", x, widths.weather, "sun")
+	layoutTop()
 	-- Home: shown while the founder is off their own island (char.home sends them back to their plaza)
 	local hb = UIKit.button(canvas, "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(EDGE + w + GAP, CHIP_Y), function()
 		local res = StateClient.request("char.home", {})
@@ -317,28 +322,52 @@ end
 
 local function updateTop(v: Types.ClientView)
 	showStore("shells", v.shells, last.shells == nil)
-	local dl = chips.day
-	if dl then
-		local t = "Day " .. v.day
-		if dl:GetAttribute("Source") ~= t then
-			dl:SetAttribute("Source", t)
-			UIKit.setText(dl, t)
-			layoutTop()
+end
+
+-- A chip on the top bar's line after the shells (UI/WeatherChip: "season", "weather"): its icon, its words and their
+-- colour; nil words take it away.
+function Hud.topChip(name: string, icon: string?, text: string?, color: Color3?)
+	local f: Frame?, l: TextLabel? = chipFrames[name], chips[name]
+	if not f or not l then
+		return
+	end
+	local words = text or ""
+	if icon and f:GetAttribute("Icon") ~= icon then
+		f:SetAttribute("Icon", icon)
+		local old = chipIcons[name]
+		if old then
+			old:Destroy()
 		end
+		chipIcons[name] = PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(0, 1), 3)
 	end
-	local db, df = dayBar, chipFrames.day
-	if db and df then
-		db.Size = UDim2.fromOffset(math.floor((df.Size.X.Offset - 13) * math.clamp(v.dayFrac, 0, 1)), 1)
+	if l:GetAttribute("Source") ~= words then
+		l:SetAttribute("Source", words)
+		UIKit.setText(l, words)
 	end
+	UIKit.setTextColor(l, color or UIKit.color("text"))
+	layoutTop()
 end
 
 ------------------------------------------------------------------ the menu bar
-local MENUS: { { text: string, panel: string, icon: string } } = {
+type Menu = { text: string, panel: string, icon: string }
+local MENUS: { Menu } = {
 	{ text = "Build", panel = "build", icon = "home" },
 	{ text = "Driftlings", panel = "pals", icon = "pal" },
 	{ text = "Index", panel = "index", icon = "star" },
 	{ text = "Looks", panel = "looks", icon = "visitor" },
 }
+-- the Hatchery's button after Driftlings, once the island reaches the Hatchery's tier (the request of 2026-11-14:
+-- "add a hatchery tab once it is unlocked too")
+local HATCH_MENU: Menu = { text = "Hatchery", panel = "hatch", icon = "egg" }
+local hatchShown = false
+local function menus(): { Menu }
+	if not hatchShown then
+		return MENUS
+	end
+	local out = table.clone(MENUS)
+	table.insert(out, 3, HATCH_MENU)
+	return out
+end
 local MENU_ICON = 13 -- a menu button's icon (11 px and a gap) before its words
 
 local function buildBar()
@@ -348,7 +377,7 @@ local function buildBar()
 		bar:Destroy()
 	end
 	local total = 0
-	for _, m in MENUS do
+	for _, m in menus() do
 		total += UIKit.buttonWidth(m.text, 4) + MENU_ICON + 2
 	end
 	total -= 2
@@ -367,7 +396,7 @@ local function buildBar()
 	dock.Name = "Dock"
 	dock.ZIndex = 1
 	local x = 0
-	for _, m in MENUS do
+	for _, m in menus() do
 		local w = UIKit.buttonWidth(m.text, 4) + MENU_ICON
 		local b = UIKit.button(f, m.text, UDim2.fromOffset(w, BAR_H), UDim2.fromOffset(x, 0), function()
 			if m.panel == "build" then
@@ -890,6 +919,12 @@ end
 
 local function refresh(v: Types.ClientView)
 	updateTop(v)
+	local hatch = Buildings.byId.hatchery
+	local want = hatch ~= nil and v.tier >= hatch.tier
+	if want ~= hatchShown then
+		hatchShown = want
+		buildBar()
+	end
 	updateCard(v)
 	updateTree(v)
 	stack()
@@ -918,7 +953,7 @@ local function rebuild()
 			f:Destroy()
 		end
 	end
-	card, treeCard, tips, quest, homeButton, dayBar, musicButton, topBar = nil, nil, nil, nil, nil, nil, nil, nil
+	card, treeCard, tips, quest, homeButton, musicButton, topBar = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 104 else 116
 	buildTop()
 	-- the status panel keeps its lines across a rebuild (they come from other modules)
@@ -996,13 +1031,6 @@ function Hud.start()
 		stepEases(dt)
 		-- the calendar day creeps along between the server's ticks (no night: "remove the day night cycle", 2026-11-14;
 		-- the sun stays on the chip)
-		local v = StateClient.view()
-		if v then
-			local db, df = dayBar, chipFrames.day
-			if db and df then
-				db.Size = UDim2.fromOffset(math.floor((df.Size.X.Offset - 6) * math.clamp(v.dayFrac, 0, 1)), 1)
-			end
-		end
 		-- a chip whose value changed flashes its number in the accent for a moment
 		for name, at in chipBump do
 			local l = chips[name]

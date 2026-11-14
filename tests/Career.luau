@@ -68,7 +68,7 @@ local function build(p: any, id: string): boolean
 	end
 	-- (no room for one more of its count, or a hut past the huts' limit: no scan of the island for a spot)
 	local used, most = Plot.used(p, id)
-	if used >= most or (d.kind == "nest" and Plot.huts(p.plot.placed) >= Plot.hutLimit(p.tier)) then
+	if used >= most or (d.kind == "nest" and Plot.housing(p.plot.placed) + d.slots > Plot.housingLimit(p.tier)) or (d.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier)) then
 		return false
 	end
 	local x, z = spot(p, id)
@@ -287,8 +287,8 @@ local function plan(p: any, rng: any)
 	-- saving up for the next tier once the island is going
 	local saving = ex ~= nil and housed >= 4 * p.tier and p.shells < ex.shells
 	local wants: { string } = {}
-	-- a hut when every hut is full and the island has work for more; at the island's huts' limit, a bigger hut in the
-	-- smallest one's place
+	-- a hut when every hut is full and the island has work for more: the best one while the housing limit has room for
+	-- it, else the best that fits; at the limit, the smallest huts traded for the best one (more comfort)
 	if Tree.room(p) <= 0 then
 		local jobs = 0
 		for _, q in p.plot.placed do
@@ -297,27 +297,52 @@ local function plan(p: any, rng: any)
 			end
 		end
 		if jobs > housed then
-			if Plot.huts(p.plot.placed) >= Plot.hutLimit(p.tier) then
-				local small, si = math.huge, 0
+			-- (the housing limit, Plot.housingLimit: huts' room together, however many huts)
+			local room = Plot.housingLimit(p.tier) - Plot.housing(p.plot.placed)
+			local big = best(p, "nest")
+			local bd = if big then Buildings.byId[big] else nil
+			local k = if saving then 3 else 1
+			if bd and room >= bd.slots then
+				table.insert(wants, "nest")
+			elseif bd then
+				-- the smallest huts traded for the best one: the same room (or more, while the limit has it) with more
+				-- comfort, as a player swaps two Driftling Huts for a Cozy Burrow
+				local huts: { { i: number, slots: number } } = {}
 				for i, q in p.plot.placed do
 					local d = Buildings.byId[q.id]
-					if d and d.kind == "nest" and d.slots < small then
-						small, si = d.slots, i
+					if d and d.kind == "nest" then
+						table.insert(huts, { i = i, slots = d.slots })
 					end
 				end
-				local big = best(p, "nest")
-				local bd = if big then Buildings.byId[big] else nil
-				if si > 0 and bd and bd.slots > small and p.shells >= bd.shells * (if saving then 3 else 1) then
-					if Plot.replace(p, si, bd.id) then
+				table.sort(huts, function(x, y)
+					return x.slots < y.slots
+				end)
+				local take: { { i: number, slots: number } } = {}
+				local freed = room
+				for _, h in huts do
+					if freed >= bd.slots or h.slots >= bd.slots then
+						break
+					end
+					table.insert(take, h)
+					freed += h.slots
+				end
+				if #take > 0 and freed >= bd.slots and p.shells >= bd.shells * k then
+					if #take == 1 and Plot.replace(p, take[1].i, bd.id) then
 						Tree.settle(p)
 						Tree.fillJobs(p)
 						return
 					end
-					-- (it doesn't fit where the small one stands: the small one comes down, the big one goes up where
-					-- there's room, and its driftlings move in)
-					local q = p.plot.placed[si]
-					local rest = table.clone(p.plot.placed)
-					table.remove(rest, si)
+					-- (where the best one goes once the small ones come down: their driftlings move in)
+					local gone: { [number]: boolean } = {}
+					for _, h in take do
+						gone[h.i] = true
+					end
+					local rest = {}
+					for i, q in p.plot.placed do
+						if not gone[i] then
+							table.insert(rest, q)
+						end
+					end
 					local r = Street.plot(p.tier)
 					local fits = false
 					for z = r.z0 + 1, r.z1 - 2 do
@@ -327,14 +352,20 @@ local function plan(p: any, rng: any)
 							end
 						end
 					end
-					if fits and q and Plot.store(p, si) then
+					if fits then
+						table.sort(take, function(x, y)
+							return x.i > y.i
+						end)
+						for _, h in take do
+							Plot.store(p, h.i)
+						end
 						build(p, bd.id)
 						Tree.settle(p)
 						Tree.fillJobs(p)
 						return
 					end
 					-- (no room anywhere: the weakest workplace nobody works at comes down to make some)
-					if not fits and freeJobs(p) >= Tuning.HelpMax then
+					if freeJobs(p) >= Tuning.HelpMax then
 						local taken: { [number]: boolean } = {}
 						for _, pal in p.pals do
 							if pal.work ~= 0 then
@@ -352,9 +383,20 @@ local function plan(p: any, rng: any)
 							return
 						end
 					end
+				elseif room > 0 then
+					-- (room for a smaller hut than the best: the best that fits)
+					local fit: any = nil
+					for _, d in Buildings.list do
+						if d.kind == "nest" and d.tier <= p.tier and d.slots <= room and (fit == nil or d.tier > fit.tier) then
+							fit = d
+						end
+					end
+					if fit and p.shells >= fit.shells * k and build(p, fit.id) then
+						Tree.settle(p)
+						Tree.fillJobs(p)
+						return
+					end
 				end
-			else
-				table.insert(wants, "nest")
 			end
 		end
 	end

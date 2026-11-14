@@ -1,6 +1,18 @@
 # Driftling Isle: Game Design
 
-> The requests (2026-11-14, the latest): "make it such that driftlings will automatically work at whatever they do
+> The requests (2026-11-14, the latest): "instead of a hut (building) limit per expansion, make it such that the limit
+> of driftling housing is the limit, such that you can have 2 driftling huts in the place of a cozy burrow at the cost
+> of comfort", "also, allow clicking on a hatchery to open the hatchery menu. add a hatchery tab once it is unlocked
+> too", "there should also be a hatchery limit per expansion. the first expansion where you unlock hatcheries, make the
+> limit 1", "make eggs much cheaper" and "also, this can be compressed into one line. remove the "day 1" as well"
+
+So an island's limit is the room its huts have together, not how many huts stand: two Driftling Huts can stand where a
+Cozy Burrow would, with less comfort (§4). An island may have one Hatchery where they open (Grand Isle) and more later;
+a tap on one opens its panel, and the menu bar gets a Hatchery button once the island reaches that tier (§6.1). Eggs
+cost about a quarter of what they did, and building costs a little more again to keep the pace (§6, §10). The top bar
+is one line: the shells, the season and the weather, with no day count (§2, §13).
+
+> The requests before them (2026-11-14): "make it such that driftlings will automatically work at whatever they do
 > best in, at the best work areas", "also, the "Tree of life laid new eggs" should be "The tree of life has new
 > eggs!"", "instead of "Hatches after x turns", describe it in minutes or hours for hatcheries" and "also, increase
 > the chance of eggs tiering up"
@@ -19,7 +31,7 @@ likely to turn rarer as it hatches (§6).
 
 So shells are the only money now. Everything that made wood sells it for shells instead, and shells pay for the eggs,
 every building, decor, path and fence and for growing the island; an old save's wood is added to its shells. A price
-that was wood is `Tuning.WoodShells` (4) shells a wood, times `WoodTierUp` (1.75) for each tier past the second up to
+that was wood is `Tuning.WoodShells` (5) shells a wood, times `WoodTierUp` (1.8) for each tier past the second up to
 Moonlit Bay (tier 7), since the farms' and shops' shells now go into building too (§4, §4.4, §10). Each driftling is good at one of the Work tab's
 three groups, farms, wood or shops: the twelve that fished moved, the sea's catchers to the farms and the rest to wood
 or shops, the Fishing Pier and the Kelp Farm count as farms, the Smokehouse boosts farms, and an old Angler mutation is
@@ -408,10 +420,11 @@ floor, it just looks noisy", 2026-11-14),
 
   **Black glass** (`UIKit.glass`): every card, panel, bar, tip and notice is flat black glass (`Palette.ui.glass`,
   62% opaque; a panel 84%, its lists over the world) with corners of two stepped pixels and no outline, frame, bevel
-  or shadow. The top bar is one strip: the shells and the day (the wood went on 2026-11-14), each an 11 px icon and its number (as wide as
-  the number needs), a thin gold bar under "Day 12" for how far through the day it is; the music's note on its own
-  dark square in the top right. Under the top bar on the left a second strip holds lines like the season and the
-  weather (empty, it hides), and the quest's card under that. Down the right the island card and the Tree of Life's
+  or shadow. The top bar is one line: the shells, the season and the weather, each an 11 px icon and its words (as wide as the
+  words need; the wood went on 2026-11-14, the day count and its gold bar the same day: "also, this can be compressed
+  into one line. remove the "day 1" as well"); the music's note on its own dark square in the top right. Under the top
+  bar on the left a second strip holds other status lines when there are any (empty, it hides), and the quest's card
+  under that. Down the right the island card and the Tree of Life's
   card, the same width, 3 px apart: the name in gold, a faint rule under it, quiet labels with their numbers on the
   right. The menu bar is one glass strip with its four words and icons on it (Build in gold), a faint veil under the
   mouse. Inside a panel each row or card sits on a faint white veil; neutral buttons are dark glass with white words,
@@ -584,11 +597,11 @@ water, metal, magic, sand, snow, cloth or fire), which picks what flies up and w
 
 Each is paid in shells when placed (the request at the top, 2026-11-14: "allowing you to buy decor and expansions
 with it"). Its price is what it cost in wood (since 2026-11-13 its old price in shells and wood added up and rounded,
-the Work and Huts tabs' buildings at `Tuning.BuildingPrice` (0.3) of that), at `Tuning.WoodShells` (4) shells a wood,
-times `WoodTierUp` (1.75) for each tier the piece opens at past the second up to Moonlit Bay (`WoodTierTop`, 7), to
-two figures: a Lumber Camp 84, a Veggie Patch 48, a Driftling Hut 68, a Snack Stall 120, a Sawmill 760, a Hatchery
-8,400, a Driftling Palace 680,000; a tile of Sand Trail 16, a Picket Fence length 32, the Rainbow Arch 98,000,000, the
-Driftling Citadel 98,000,000 and the Crown of the Sea 790,000,000. The farms' and shops' shells go into building
+the Work and Huts tabs' buildings at `Tuning.BuildingPrice` (0.3) of that), at `Tuning.WoodShells` (5) shells a wood,
+times `WoodTierUp` (1.8) for each tier the piece opens at past the second up to Moonlit Bay (`WoodTierTop`, 7), to
+two figures: a Lumber Camp 110, a Veggie Patch 60, a Driftling Hut 85, a Snack Stall 150, a Sawmill 950, a Hatchery
+11,000, a Driftling Palace 940,000; a tile of Sand Trail 20, a Picket Fence length 40, the Rainbow Arch 140,000,000, the
+Driftling Citadel 140,000,000 and the Crown of the Sea 1,100,000,000. The farms' and shops' shells go into building
 too now, and a big island's buildings pay for themselves in minutes, so building costs more shells than it did wood,
 the more the bigger the piece's tier (§10 measured it). Pieces go down on whole studs of the island's grass (a stud or more in from the sand), turned a
 quarter at a time, off the campfire's plaza, off every other piece and off water unless it
@@ -599,20 +612,32 @@ is made to go over or on it (§4.3). Paths are the one thing a piece may share a
 (`PathPieces`: 80 to 2,400), the fence lengths (`FencePieces`: 40 to 1,200) and, among the pieces, the huts (below). The
 Tree of Life counts toward none of them. At a limit the server refuses one more (`full`) and nothing is paid, while the
 other limits still take theirs. Build mode's count shows the tab's own: the pieces on Work, Nature, Decor and Fun, the
-tiles on Paths and Water, the lengths on Fences and the huts on Huts, orange when full.
+tiles on Paths and Water, the lengths on Fences and the huts' room on Huts, orange when full.
 
 > The request (2026-11-13): "Also, make a limit of huts per island expansion level"
 
-**The huts' limit** (`HutLimit`, `Plot.hutLimit`): an island may have 4 huts, then two more each tier up to 22 on
-Driftling Haven and 42 on Everdrift. At the limit the Huts tab's cards are greyed with "No room", and placing one more
-is refused ("No room for another hut here. Grow the island, or replace a hut with a bigger one."). Replace still works
-there: a bigger hut can take a small one's place (§4.1). The Huts tab's count shows the huts against the limit ("6/6").
-A save with more huts than its tier allows keeps them all, and it can't build another until it is under the limit. With
-the best hut of each tier in every place, the most driftlings an island can house is 8 on Castaway Cay (four Driftling
-Huts), then 24 (six Cozy Burrows), 40 (eight Driftling Dens), 60 (ten Treetop Roosts), 96 (twelve Spring Grottoes) and
-168 (fourteen Driftling Palaces) on the capital, and 192, 216, 240 and 264 (sixteen to twenty-two Palaces) on the four
-islands past it; then 336 on Lantern Cove (24 Lighthouse Lofts), 480 on Pearlstone Port (30 Coral Manors), 648 on
-Starfall Atoll (36 Cloud Keeps) and 840 on Everdrift (42 Driftling Citadels).
+> The request (2026-11-14): "instead of a hut (building) limit per expansion, make it such that the limit of driftling
+> housing is the limit, such that you can have 2 driftling huts in the place of a cozy burrow at the cost of comfort"
+
+**The housing limit** (`HousingLimit`, `Plot.housingLimit`, `Plot.housing`): an island's huts may house so many
+driftlings together, however many huts that takes: 8 on Castaway Cay, then 24, 40, 60, 96 and 168 on the capital,
+192, 216, 240 and 264 on the four islands past it, 336 on Lantern Cove, 480 on Pearlstone Port, 648 on Starfall Atoll
+and 840 on Everdrift. Each is what the old limit of huts held in that tier's biggest hut (four Driftling Huts, six Cozy
+Burrows, eight Dens and so on up to 42 Driftling Citadels), so an island has the same room as before, but now the huts
+can be small: two Driftling Huts (two each) hold as many as a Cozy Burrow (four), with no comfort where the burrow has
+some. A hut whose room won't fit shows "No room" on its card, and placing it is refused ("Your huts already hold as many
+driftlings as this island allows. Grow the island for more room."). A bigger hut replaces a smaller one only while the
+limit has room for the difference; a smaller one always can; and two small huts cleared make way for a bigger one. The
+Huts tab's count shows the room against the limit ("24/24"). A save housing more than its tier allows keeps its huts.
+(Until 2026-11-14 the limit was a number of huts: 4, then two more a tier.)
+
+> The request (2026-11-14): "there should also be a hatchery limit per expansion. the first expansion where you unlock
+> hatcheries, make the limit 1"
+
+**The Hatcheries' limit** (`HatcheryLimit`, `Plot.hatcheryLimit`): one on Grand Isle, Harbor Town and Coral City (they
+open at Grand Isle), two from the capital, three from Driftling Haven, four from Pearlstone Port and five from Tidecrown.
+At the limit the Hatchery's card says "Max" and placing one more is refused ("This island has all the Hatcheries it can
+hold. Grow it for another."). A save with more keeps them.
 
 > The request (2026-11-11): "paths should be able to be drawn or made in a box like the original interface in the
 > bakery game. also, fights should be shown in the same view as pokemon or beasty bay, in an angle like the image
@@ -652,9 +677,9 @@ Water keeps its own rules (§4.3).
 > replace/upgrade buildings as well, including homes of creatures and villagers"
 
 - **The tiers** (`TierCost`, in wood, paid in shells since 2026-11-14 at the rate of §4.4): Castaway Cay, Palm Isle
-  (480 wood: 1,900 shells), Grand Isle (7,200: 50,000), then **Harbor Town** (48,000: 590,000), **Coral City** (128,000:
-  2,700,000) and **Sunspire Capital** (300,000: 11,000,000), since 2026-11-13 four longer islands past the capital and
-  since 2026-11-14 ten more past those, to Everdrift (23,000,000: 1,500,000,000; §4.4), each coming about when the
+  (480 wood: 2,400 shells), Grand Isle (7,200: 65,000), then **Harbor Town** (48,000: 780,000), **Coral City** (128,000:
+  3,700,000) and **Sunspire Capital** (300,000: 16,000,000), since 2026-11-13 four longer islands past the capital and
+  since 2026-11-14 ten more past those, to Everdrift (23,000,000: 2,200,000,000; §4.4), each coming about when the
   island before it is built up (a fifth off every price up to Driftling Haven the same day). (They were paid in shells
   and wood until 2026-11-13, in wood until 2026-11-14; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
   early on"; Harbor Town went from 130,000 to 150,000 with the conveyor tide and down to 60,000 with the ten tiers,
@@ -759,32 +784,32 @@ wobbly coasts were picked so the grass stays 35 studs either side of the campfir
 reaches 232 studs north of the island's origin for Everdrift's shallows, and a piece may stand anywhere from 240 studs
 north to 64 south (`Validate`'s `coord`, `Schema`). On Everdrift the grass reaches 199 studs north of the campfire,
 12,193 cells of it, 1.8 times Driftling Haven's and seven times a Grand Isle's. Since 2026-11-14 they cost
-shells: `TierCost`'s wood at `Tuning.WoodShells` (4) a wood, times `WoodTierUp` (1.75) for each tier past the second up to
+shells: `TierCost`'s wood at `Tuning.WoodShells` (5) a wood, times `WoodTierUp` (1.8) for each tier past the second up to
 Moonlit Bay (`WoodTierTop`, 7; `Island.expandCost`), the table's last column: past it the price rises only as
 `TierCost` does, or Everdrift would cost thousands of times more.
 
-| Tier | Island | `TierCost` (wood) | Grass (cells) | Pieces | Path and water tiles | Fence lengths | Huts | Eggs a lot | Shells to grow to it |
+| Tier | Island | `TierCost` (wood) | Grass (cells) | Pieces | Path and water tiles | Fence lengths | Room for driftlings | Eggs a lot | Shells to grow to it |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | Castaway Cay | (the start) | 489 | 36 | 80 | 40 | 4 | 5 | (the start) |
-| 2 | Palm Isle | 480 (was 600) | 1,044 | 60 | 150 | 80 | 6 | 6 | 1,900 |
-| 3 | Grand Isle | 7,200 (was 9,000) | 1,707 | 90 | 240 | 130 | 8 | 7 | 50,000 |
-| 4 | Harbor Town | 48,000 (was 60,000) | 2,367 | 130 | 340 | 180 | 10 | 8 | 590,000 |
-| 5 | Coral City | 128,000 (was 160,000) | 3,002 | 180 | 460 | 240 | 12 | 9 | 2,700,000 |
-| 6 | Sunspire Capital | 300,000 (was 380,000) | 3,658 | 240 | 600 | 300 | 14 | 10 | 11,000,000 |
-| 7 | Moonlit Bay | 640,000 (was 800,000) | 4,368 | 300 | 750 | 370 | 16 | 10 | 42,000,000 |
-| 8 | Evergreen Isle | 1,280,000 (was 1,600,000) | 5,129 | 370 | 900 | 440 | 18 | 10 | 84,000,000 |
-| 9 | Skyreach Isle | 2,400,000 (was 3,000,000) | 5,977 | 450 | 1,050 | 520 | 20 | 10 | 160,000,000 |
-| 10 | Driftling Haven | 4,000,000 (was 5,000,000) | 6,608 | 540 | 1,200 | 600 | 22 | 10 | 260,000,000 |
-| 11 | Lantern Cove | 5,000,000 | 7,159 | 600 | 1,320 | 660 | 24 | 10 | 330,000,000 |
-| 12 | Saltwind Reach | 6,000,000 | 7,726 | 660 | 1,440 | 720 | 26 | 10 | 390,000,000 |
-| 13 | Kelpwood Isle | 7,200,000 | 8,286 | 720 | 1,560 | 780 | 28 | 11 | 470,000,000 |
-| 14 | Pearlstone Port | 8,600,000 | 8,837 | 780 | 1,680 | 840 | 30 | 11 | 560,000,000 |
-| 15 | Cloudberry Isle | 10,200,000 | 9,396 | 840 | 1,800 | 900 | 32 | 11 | 670,000,000 |
-| 16 | Amberfield | 12,000,000 | 9,969 | 900 | 1,920 | 960 | 34 | 11 | 790,000,000 |
-| 17 | Starfall Atoll | 14,000,000 | 10,525 | 960 | 2,040 | 1,020 | 36 | 12 | 920,000,000 |
-| 18 | Tidecrown | 16,500,000 | 11,091 | 1,020 | 2,160 | 1,080 | 38 | 12 | 1,100,000,000 |
-| 19 | Farshore | 19,500,000 | 11,645 | 1,080 | 2,280 | 1,140 | 40 | 12 | 1,300,000,000 |
-| 20 | Everdrift | 23,000,000 | 12,193 | 1,140 | 2,400 | 1,200 | 42 | 12 | 1,500,000,000 |
+| 1 | Castaway Cay | (the start) | 489 | 36 | 80 | 40 | 8 | 5 | (the start) |
+| 2 | Palm Isle | 480 (was 600) | 1,044 | 60 | 150 | 80 | 24 | 6 | 2,400 |
+| 3 | Grand Isle | 7,200 (was 9,000) | 1,707 | 90 | 240 | 130 | 40 | 7 | 65,000 |
+| 4 | Harbor Town | 48,000 (was 60,000) | 2,367 | 130 | 340 | 180 | 60 | 8 | 780,000 |
+| 5 | Coral City | 128,000 (was 160,000) | 3,002 | 180 | 460 | 240 | 96 | 9 | 3,700,000 |
+| 6 | Sunspire Capital | 300,000 (was 380,000) | 3,658 | 240 | 600 | 300 | 168 | 10 | 16,000,000 |
+| 7 | Moonlit Bay | 640,000 (was 800,000) | 4,368 | 300 | 750 | 370 | 192 | 10 | 60,000,000 |
+| 8 | Evergreen Isle | 1,280,000 (was 1,600,000) | 5,129 | 370 | 900 | 440 | 216 | 10 | 120,000,000 |
+| 9 | Skyreach Isle | 2,400,000 (was 3,000,000) | 5,977 | 450 | 1,050 | 520 | 240 | 10 | 230,000,000 |
+| 10 | Driftling Haven | 4,000,000 (was 5,000,000) | 6,608 | 540 | 1,200 | 600 | 264 | 10 | 380,000,000 |
+| 11 | Lantern Cove | 5,000,000 | 7,159 | 600 | 1,320 | 660 | 336 | 10 | 470,000,000 |
+| 12 | Saltwind Reach | 6,000,000 | 7,726 | 660 | 1,440 | 720 | 364 | 10 | 570,000,000 |
+| 13 | Kelpwood Isle | 7,200,000 | 8,286 | 720 | 1,560 | 780 | 392 | 11 | 680,000,000 |
+| 14 | Pearlstone Port | 8,600,000 | 8,837 | 780 | 1,680 | 840 | 480 | 11 | 810,000,000 |
+| 15 | Cloudberry Isle | 10,200,000 | 9,396 | 840 | 1,800 | 900 | 512 | 11 | 960,000,000 |
+| 16 | Amberfield | 12,000,000 | 9,969 | 900 | 1,920 | 960 | 544 | 11 | 1,100,000,000 |
+| 17 | Starfall Atoll | 14,000,000 | 10,525 | 960 | 2,040 | 1,020 | 648 | 12 | 1,300,000,000 |
+| 18 | Tidecrown | 16,500,000 | 11,091 | 1,020 | 2,160 | 1,080 | 684 | 12 | 1,600,000,000 |
+| 19 | Farshore | 19,500,000 | 11,645 | 1,080 | 2,280 | 1,140 | 720 | 12 | 1,800,000,000 |
+| 20 | Everdrift | 23,000,000 | 12,193 | 1,140 | 2,400 | 1,200 | 840 | 12 | 2,200,000,000 |
 
 Past Driftling Haven each step costs about a fifth more than the one before (1.25 times for Lantern Cove, then 1.17 to
 1.2 times), smooth to the last.
@@ -1011,24 +1036,24 @@ When the island grows into a new stage, the tree is built again at it.
 
 - **A bigger island at once** (`Tree.fill`): growing the island tops the lot up to the new count straight away, the
   new eggs rolled at the new odds ("The tree laid 1 more egg."); the eggs already there stay.
-- **The price** (`Tree.cost`): `EggPrice` by rarity (20, 90, 400, 2,000, 10,000 shells, 60,000 a mythic egg and
-  400,000 a celestial one) times `EggTier` by the island's
-  tier (1, 3, 8, 20, 45, 90, 160, 270, 420, 640), less the huts' cost shares (Thrifty and its family: `HutCost`, half
+- **The price** (`Tree.cost`): `EggPrice` by rarity (8, 36, 160, 800, 4,000 shells, 24,000 a mythic egg and 160,000 a
+  celestial one) times `EggTier` by the island's tier (1, 2, 5, 12, 27, 54, 96, 160, 250, 380, then 460 up to 2,000 on
+  Everdrift; about a quarter of what they were since the request of 2026-11-14, "make eggs much cheaper"), less the huts' cost shares (Thrifty and its family: `HutCost`, half
   off at most; a Greedy one takes some of that share back but never makes eggs dearer). A bigger island earns more and
   lays better eggs, so its eggs cost more:
 
   | Island tier | Common | Uncommon | Rare | Epic | Legendary |
   |---|---|---|---|---|---|
-  | 1 Castaway Cay | 20 | 90 | 400 | 2,000 | (none laid) |
-  | 2 Palm Isle | 60 | 270 | 1,200 | 6,000 | 30,000 |
-  | 3 Grand Isle | 160 | 720 | 3,200 | 16,000 | 80,000 |
-  | 4 Harbor Town | 400 | 1,800 | 8,000 | 40,000 | 200,000 |
-  | 5 Coral City | 900 | 4,050 | 18,000 | 90,000 | 450,000 |
-  | 6 Sunspire Capital | 1,800 | 8,100 | 36,000 | 180,000 | 900,000 |
-  | 7 Moonlit Bay | 3,200 | 14,400 | 64,000 | 320,000 | 1,600,000 |
-  | 8 Evergreen Isle | 5,400 | 24,300 | 108,000 | 540,000 | 2,700,000 |
-  | 9 Skyreach Isle | 8,400 | 37,800 | 168,000 | 840,000 | 4,200,000 |
-  | 10 Driftling Haven | 12,800 | 57,600 | 256,000 | 1,280,000 | 6,400,000 |
+  | 1 Castaway Cay | 8 | 36 | 160 | 800 | (none laid) |
+  | 2 Palm Isle | 16 | 72 | 320 | 1,600 | 8,000 |
+  | 3 Grand Isle | 40 | 180 | 800 | 4,000 | 20,000 |
+  | 4 Harbor Town | 96 | 432 | 1,920 | 9,600 | 48,000 |
+  | 5 Coral City | 216 | 972 | 4,320 | 21,600 | 108,000 |
+  | 6 Sunspire Capital | 432 | 1,944 | 8,640 | 43,200 | 216,000 |
+  | 7 Moonlit Bay | 768 | 3,456 | 15,360 | 76,800 | 384,000 |
+  | 8 Evergreen Isle | 1,280 | 5,760 | 25,600 | 128,000 | 640,000 |
+  | 9 Skyreach Isle | 2,000 | 9,000 | 40,000 | 200,000 | 1,000,000 |
+  | 10 Driftling Haven | 3,040 | 13,680 | 60,800 | 304,000 | 1,520,000 |
 
 - **Hatching one** (`egg.hatch`): Hatch on its row in the Tree panel, and only there (a tap on an egg under the tree, on
   the tree itself or on the HUD's Tree card opens the panel). You pay its price. The egg may turn rarer first
@@ -1315,7 +1340,11 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
 > traits passed on) in our own buildings, numbers and words.
 
 - **The Hatchery** (Huts tab, island tier 3: a warm nursery with a nest of speckled eggs and a heat lamp): one egg at a
-  time each; several may stand. The Driftlings panel's **Hatchery** button opens its panel.
+  time each; one may stand on Grand Isle and more on bigger islands (`HatcheryLimit`, §4). Its panel opens from a tap
+  on the Hatchery itself, from the menu bar's **Hatchery** button (after Driftlings, with an egg icon, once the island
+  reaches tier 3) and from the Driftlings panel's Hatchery button (the request of 2026-11-14: "also, allow clicking on
+  a hatchery to open the hatchery menu. add a hatchery tab once it is unlocked too"). A neighbour's Hatchery says
+  "Someone else's Hatchery. Build one on your own island."
 - **Laying an egg**: tap each slot, pick a parent from your driftlings (not the other one); the
   panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
   feast and how long it takes to hatch, in minutes or hours ("hatches in 4 min"); **Breed** pays the feast (`BreedShells` 20 / 80 / 300 / 1,200 / 5,000 / 22,000 /
@@ -1545,7 +1574,7 @@ Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch." (an 
 Stall sells snacks for shells too. Place one by the path."; 6 "The tree lays new eggs every few minutes. When the huts
 are full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
 ("Place a Lumber Camp. It sells the wood it cuts for shells."). Each moves on once what it asks is done, tip 4 once an
-egg has hatched. A new island starts with `StartShells` (440: the four tip buildings at 320 and the first eggs): the camp, the
+egg has hatched. A new island starts with `StartShells` (440: the four tip buildings at 405 and the first eggs): the camp, the
 patch, the hut and the stall of the tips cost 240, and the rest pays for the first eggs (the first lot has two commons
 at 20 shells, and the first two hatches are good with wood and at a farm). (Until 2026-11-13 the tips asked for a
 patch, a camp, a stall, a hut and a level of the tree. A save from before keeps its step's number, and a step whose
@@ -1642,15 +1671,16 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (4 to 14 minutes);
-- a steady supply: at least 12 hatched by half an hour (36 to 39), an epic within two hours (18 to 23 minutes); a
-  legendary comes at 30 to 47 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (3 to 9 minutes);
+- a steady supply: at least 12 hatched by half an hour (35 to 53), an epic within two hours (13 to 19 minutes); a
+  legendary comes at 18 to 36 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  ten-thousandth: 1,700 to 2,200 shells of 38 to 53 million);
-- the island's second tier within 25 minutes (7 to 8), the third within 50 (34 to 35); at an hour, at least 12
-  driftlings in huts (40); Harbor Town (tier 4) not before 50 minutes (70 to 72), Coral City (tier 5) not before 90
-  (104 to 111), Sunspire Capital (tier 6) not before two hours (2 hours 34 to 2 hours 43; it was two and a half hours
-  before the twenty tiers' cheaper levels), and nothing past it within three hours;
+  ten-thousandth: 1,300 to 2,100 shells of 23 to 79 million);
+- the island's second tier within 25 minutes (8 to 9), the third within 50 (24 to 31); at an hour, at least 12
+  driftlings in huts (32 to 56); Harbor Town (tier 4) not before 50 minutes (57 to 64), Coral City (tier 5) not before
+  90 (90 to 111), Sunspire Capital (tier 6) not before two hours (2 hours 14 and 2 hours 57 for two seeds, the third
+  saving for it at three hours; it was two and a half hours before the twenty tiers' cheaper levels), and nothing past
+  it within three hours;
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
   food.
 
@@ -1696,7 +1726,12 @@ hours. The prices climb faster again to keep the pace: `WoodShells` 4 (was 3) an
 stopping at Moonlit Bay (`WoodTierTop` 7, was 10, so the islands past it are no dearer than before), with
 `StartShells` 440 so the tips' buildings still fit. At 3.5 shells a wood one seed had Coral City at 81 minutes; at
 1.65 or 1.8 with 3 a wood the capital still came inside two hours for some seeds. Eggs twice as likely to turn rarer
-(`EggUp`, the same day) moved little: the first legendary came a few minutes sooner for one seed.
+(`EggUp`, the same day) moved little: the first legendary came a few minutes sooner for one seed. Eggs at a quarter of
+their price ("make eggs much cheaper", the same day) moved a lot: rarer driftlings came early, the town at 40 to 55
+minutes and Moonlit Bay inside three hours, so the building prices went up again to `WoodShells` 5 and `WoodTierUp`
+1.8 (at 5 and 1.75 one seed had Coral City at 85 minutes). The housing limit in place of the huts' count (the same day)
+moved nothing measurable: the Career builds the best hut that fits the room left, and at the limit trades its smallest
+huts for the best one.
 
 The twenty tiers (2026-11-14, the request: "allow expansion up to level 20, you can make the previous levels of
 expansion a bit cheaper too") moved the early pace a little: in the two-store economy, with every level up to
@@ -1928,9 +1963,9 @@ in rain, a heavy rain loop in a storm, wind gusts on a breezy, blossom or leafy 
 library, chosen by listening to their length and loudness with ffprobe, not by title). Reduced motion keeps the light
 and drops the particles; the lower picture tiers get fewer of them.
 
-**On the HUD.** Two lines in the status panel under the top bar: the season's icon, name and time left ("Winter · 2 h
-30 min"), then the weather's icon, name and time left in its spell ("Rain · 10 min"), a weather that touches eggs in a
-light tone of its colour. A notice says when the weather turns ("It started to rain.") or a season starts ("Winter is
+**On the HUD.** On the top bar's one line after the shells (`Hud.topChip`): the season's icon, name and time left
+("Winter · 2 h 30 min"), then the weather's icon, name and time left in its spell ("Rain · 10 min"), a weather that
+touches eggs in a light tone of its colour. (Two lines in a panel under the top bar until 2026-11-14.) A notice says when the weather turns ("It started to rain.") or a season starts ("Winter is
 here. Snowfield and grotto kinds come more often.").
 
 **The economy.** The weather only adds: no egg costs more, none is taken away. The career model (`tests/Career.luau`)

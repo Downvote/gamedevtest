@@ -32,9 +32,34 @@ Plot.ROTS = { 0, 90, 180, 270 }
 function Plot.limit(tier: number): number
 	return Tuning.PlotPieces[math.clamp(math.floor(tier), 1, #Tuning.PlotPieces)]
 end
--- How many huts an island of `tier` may have (Tuning.HutLimit), and how many stand.
-function Plot.hutLimit(tier: number): number
-	return Tuning.HutLimit[math.clamp(math.floor(tier), 1, #Tuning.HutLimit)]
+-- The driftlings an island of `tier` may house (Tuning.HousingLimit: its huts' room together, however many huts), and
+-- the room its huts have now; the Hatcheries it may have (Tuning.HatcheryLimit) and how many stand; how many huts
+-- stand.
+function Plot.housingLimit(tier: number): number
+	return Tuning.HousingLimit[math.clamp(math.floor(tier), 1, #Tuning.HousingLimit)]
+end
+function Plot.housing(placed: { Piece }): number
+	local n = 0
+	for _, q in placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "nest" then
+			n += d.slots
+		end
+	end
+	return n
+end
+function Plot.hatcheryLimit(tier: number): number
+	return Tuning.HatcheryLimit[math.clamp(math.floor(tier), 1, #Tuning.HatcheryLimit)]
+end
+function Plot.hatcheries(placed: { Piece }): number
+	local n = 0
+	for _, q in placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "breed" then
+			n += 1
+		end
+	end
+	return n
 end
 function Plot.huts(placed: { Piece }): number
 	local n = 0
@@ -328,7 +353,8 @@ end
 Plot.unhouse = unhouse
 
 ------------------------------------------------------------------ actions (change the profile only on success)
--- Place a new piece: its tier reached, room under the island's limit (and its huts' limit: Tuning.HutLimit), its price
+-- Place a new piece: its tier reached, room under the island's limit (a hut's room under the housing limit,
+-- Tuning.HousingLimit; a Hatchery under Tuning.HatcheryLimit), its price
 -- (shells; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
@@ -342,8 +368,11 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	if used >= most then
 		return false, "full" :: ErrCode
 	end
-	if def.kind == "nest" and Plot.huts(p.plot.placed) >= Plot.hutLimit(p.tier) then
+	if def.kind == "nest" and Plot.housing(p.plot.placed) + def.slots > Plot.housingLimit(p.tier) then
 		return false, "huts" :: ErrCode
+	end
+	if def.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier) then
+		return false, "hatcheries" :: ErrCode
 	end
 	if p.shells < def.shells then
 		return false, "money" :: ErrCode
@@ -707,6 +736,10 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	end
 	if new.tier > p.tier then
 		return false, "locked" :: ErrCode
+	end
+	-- (a bigger hut only while the housing limit has room for the difference; a smaller one always)
+	if new.kind == "nest" and new.slots > old.slots and Plot.housing(p.plot.placed) - old.slots + new.slots > Plot.housingLimit(p.tier) then
+		return false, "huts" :: ErrCode
 	end
 	local cost = Plot.replaceCost(q, id) :: { shells: number }
 	if p.shells < cost.shells then

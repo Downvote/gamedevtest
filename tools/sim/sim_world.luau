@@ -755,13 +755,13 @@ while #prof.plot.placed > 5 do
 end
 E.run(0.5)
 H.expect(#decor:GetChildren() == 5, "build", "and back (three, a torch and the tree)", tostring(#decor:GetChildren()))
--- the huts' limit (GAME_DESIGN 4: "make a limit of huts per island expansion level", Tuning.HutLimit): a tier-1 island
--- takes four; one more is refused (huts) with nothing paid
-local most = Plot.hutLimit(prof.tier)
+-- the housing limit (GAME_DESIGN 4, Tuning.HousingLimit: since 2026-11-14 the huts' room together, not their count): a
+-- tier-1 island houses eight, four Driftling Huts; one more is refused (huts) with nothing paid
+local most = Plot.housingLimit(prof.tier)
 local addedHuts = {}
 prof.shells += 2000
 H.push(a, 0.2)
-while Plot.huts(prof.plot.placed) < most and #addedHuts < 10 do
+while Plot.housing(prof.plot.placed) + Buildings.byId.nest.slots <= most and #addedHuts < 10 do
 	local x, z = spot("nest", 0, prof.plot.placed)
 	res = if x then H.req(a, "plot.place", { id = "nest", x = x, z = z, rot = 0 }) else { ok = false, err = "no spot" }
 	if not H.expect(res.ok, "build", "a hut under the limit", tostring(res.err)) then
@@ -769,7 +769,7 @@ while Plot.huts(prof.plot.placed) < most and #addedHuts < 10 do
 	end
 	table.insert(addedHuts, prof.plot.placed[#prof.plot.placed].uid)
 end
-H.expect(most == Tuning.HutLimit[1] and Plot.huts(prof.plot.placed) == most, "build", "huts up to the island's limit", string.format("%d of %d", Plot.huts(prof.plot.placed), most))
+H.expect(most == Tuning.HousingLimit[1] and Plot.housing(prof.plot.placed) == most, "build", "huts up to the island's room", string.format("%d of %d", Plot.housing(prof.plot.placed), most))
 do
 	local hx, hz = spot("nest", 0, prof.plot.placed)
 	local n, shellsH = #prof.plot.placed, prof.shells
@@ -845,7 +845,7 @@ H.expect(H.buttonNamed(a, "Buy_flowers") ~= nil and H.buttonNamed(a, "Buy_patch"
 H.clickNamed(a, "Tab_nest", { wait = 0.3 })
 do
 	local count = a.PlayerGui:FindFirstChild("Count", true)
-	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "build", "the Huts tab's count: the huts of the limit", count and count.Text)
+	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "build", "the Huts tab's count: the room of the limit", count and count.Text)
 	local hutCard = H.buttonNamed(a, "Buy_nest", true)
 	local words = if hutCard then table.concat(H.textsOf(hutCard), "/") else ""
 	H.expect(hutCard ~= nil and string.find(words, "No room", 1, true) ~= nil, "build", "the hut's card shows No room", words)
@@ -866,7 +866,7 @@ do
 		end
 	end
 	E.run(0.3)
-	H.expect(Plot.huts(prof.plot.placed) == 0 and #prof.plot.placed == 5, "build", "(the huts cleared away again)", tostring(Plot.huts(prof.plot.placed)))
+	H.expect(Plot.housing(prof.plot.placed) == 0 and #prof.plot.placed == 5, "build", "(the huts cleared away again)", tostring(Plot.housing(prof.plot.placed)))
 	local c2 = a.PlayerGui:FindFirstChild("Count", true)
 	H.expect(c2 ~= nil and c2.Text == string.format("0/%d", most), "build", "the count follows", c2 and c2.Text)
 	H.clickNamed(a, "Tab_nature", { wait = 0.3 })

@@ -33,14 +33,15 @@ local Tuning = {
 	-- to two figures: the farms' and shops' shells go to building now too, and a big island's buildings pay for
 	-- themselves fast, so building costs more of them than it did of the wood, the more the bigger
 	-- (Data/Buildings.shellsFor, Logic/Island.expandCost)
-	WoodShells = 4,
-	WoodTierUp = 1.75,
+	WoodShells = 5,
+	WoodTierUp = 1.8,
 	-- ... up to this tier (Moonlit Bay): past it the price rises only as the listed prices and TierCost rise (the
 	-- islands past Driftling Haven were priced for that: GAME_DESIGN 4.4), or the last ones would cost thousands of
-	-- times more. (3, 1.5 and 10 until the driftlings arranged themselves at their best work, 2026-11-14: the island
+	-- times more. (3, 1.5 and 10 until the driftlings arranged themselves at their best work, 2026-11-14, and 4 and
+	-- 1.75 until eggs cost a quarter the same day: the island
 	-- earned a third more and every island came far sooner)
 	WoodTierTop = 7,
-	StartShells = 440, -- the tips' buildings (a camp, a patch, a hut, a stall: 320 at BuildingPrice and WoodShells), the first eggs and a little over
+	StartShells = 440, -- the tips' buildings (a camp, a patch, a hut, a stall: 405 at BuildingPrice and WoodShells), the first eggs and a little over
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
@@ -77,9 +78,10 @@ local Tuning = {
 	EggSecs = 180,
 	EggCount = { 5, 6, 7, 8, 9, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12 },
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
-	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off)
-	EggPrice = { 20, 90, 400, 2000, 10000, 60000, 400000 },
-	EggTier = { 1, 3, 8, 20, 45, 90, 160, 270, 420, 640, 760, 900, 1060, 1250, 1470, 1730, 2040, 2400, 2830, 3330 },
+	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off). About a quarter of what they were since
+	-- the request of 2026-11-14, "make eggs much cheaper" (the prices x0.4, the tiers' multipliers x0.6)
+	EggPrice = { 8, 36, 160, 800, 4000, 24000, 160000 },
+	EggTier = { 1, 2, 5, 12, 27, 54, 96, 160, 250, 380, 460, 540, 640, 750, 880, 1040, 1220, 1440, 1700, 2000 },
 	-- an egg's rarity: a rarity r's weight (Data/Traits.RARITY) times (1 + EggLuck by the island's tier + the huts'
 	-- luck)^(r - 1); what hatches rolls its mutations as one rarity better every EggMutTier tiers past the first
 	EggLuck = { 0, 0.25, 0.5, 0.75, 1.0, 1.3, 1.6, 1.9, 2.2, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6 },
@@ -132,9 +134,16 @@ local Tuning = {
 	PlotSpacing = 80, -- studs between island origins along X
 	-- buildings and decor standing on an island, by its tier (more room since the build catalog grew: GAME_DESIGN 4)
 	PlotPieces = { 36, 60, 90, 130, 180, 240, 300, 370, 450, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140 },
-	-- huts an island may have, by its tier (GAME_DESIGN 4: "make a limit of huts per island expansion level"): more room
-	-- for driftlings comes from growing the island, or a bigger hut in a small one's place (Replace)
-	HutLimit = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42 },
+	-- the driftlings an island's huts may house together, by its tier (GAME_DESIGN 4; the request of 2026-11-14:
+	-- "instead of a hut (building) limit per expansion, make it such that the limit of driftling housing is the limit,
+	-- such that you can have 2 driftling huts in the place of a cozy burrow at the cost of comfort"): however many huts
+	-- that takes. Each tier's is what its old hut limit held in its biggest huts (4 Driftling Huts, 6 Cozy Burrows, 8
+	-- Dens ... 42 Driftling Citadels), so the room is the same; small huts fill it with less comfort
+	HousingLimit = { 8, 24, 40, 60, 96, 168, 192, 216, 240, 264, 336, 364, 392, 480, 512, 544, 648, 684, 720, 840 },
+	-- Hatcheries an island may have, by its tier (the request of 2026-11-14: "there should also be a hatchery limit per
+	-- expansion. the first expansion where you unlock hatcheries, make the limit 1"): one from Grand Isle, where they
+	-- open, a second on the capital, then one more every four tiers
+	HatcheryLimit = { 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5 },
 	-- path and water tiles together, apart from the pieces; fence lengths, apart again
 	PathPieces = { 80, 150, 240, 340, 460, 600, 750, 900, 1050, 1200, 1320, 1440, 1560, 1680, 1800, 1920, 2040, 2160, 2280, 2400 },
 	FencePieces = { 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200 },

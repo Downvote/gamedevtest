@@ -431,40 +431,93 @@ return function()
 			T.truthy(found, d.id)
 		end
 	end)
-	T.it("huts: no more than the island's limit for its level; a bigger island allows more; Replace still works", function()
+	T.it("housing: the huts' room together under the island's limit, however many huts; a bigger island allows more", function()
+		-- (the request of 2026-11-14: "instead of a hut (building) limit per expansion, make it such that the limit of
+		-- driftling housing is the limit, such that you can have 2 driftling huts in the place of a cozy burrow at the cost
+		-- of comfort")
 		local p = fresh()
-		for t = 2, #Tuning.HutLimit do
-			T.truthy(Tuning.HutLimit[t] > Tuning.HutLimit[t - 1], "more huts each level")
+		for t = 2, #Tuning.HousingLimit do
+			T.truthy(Tuning.HousingLimit[t] > Tuning.HousingLimit[t - 1], "more room each level")
 		end
-		local limit = Plot.hutLimit(1)
-		T.truthy(limit >= 2, "the tips' hut and the questline's second fit")
-		for _ = 1, limit do
+		T.eq(#Tuning.HousingLimit, #Tuning.TierCost, "a limit for every tier")
+		local limit = Plot.housingLimit(1)
+		T.truthy(limit >= 4, "the tips' hut and the questline's second fit")
+		local nest = Buildings.byId.nest.slots
+		for _ = 1, limit // nest do
 			local x, z = spot(p, "nest")
 			T.truthy((Plot.place(p, "nest", x, z, 0)))
 		end
-		T.eq(Plot.huts(p.plot.placed), limit)
+		T.eq(Plot.housing(p.plot.placed), limit)
 		local x, z = spot(p, "nest")
-		T.eq(select(2, Plot.place(p, "nest", x, z, 0)), "huts", "one past the limit")
+		T.eq(select(2, Plot.place(p, "nest", x, z, 0)), "huts", "one hut past the room")
 		local shells = p.shells
 		local px, pz = spot(p, "patch")
 		T.truthy((Plot.place(p, "patch", px, pz, 0)), "other buildings still go up")
 		T.truthy(p.shells < shells)
-		-- a bigger island: room for more, and a small hut replaced with a bigger one at the limit
+		-- a bigger island: a Cozy Burrow, or two Driftling Huts in its place (the same room, no comfort)
 		p.tier = 2
-		for _ = limit + 1, Plot.hutLimit(2) do
+		local room = Plot.housingLimit(2) - Plot.housing(p.plot.placed)
+		T.eq(Buildings.byId.burrow.slots, 2 * nest, "a burrow holds two huts' driftlings")
+		T.truthy(Buildings.byId.burrow.comfort > Buildings.byId.nest.comfort, "with more comfort")
+		while room >= nest do
 			local hx, hz = spot(p, "nest")
-			T.truthy((Plot.place(p, "nest", hx, hz, 0)))
+			T.truthy((Plot.place(p, "nest", hx, hz, 0)), "a small hut while there's room")
+			room -= nest
 		end
+		T.eq(Plot.housing(p.plot.placed), Plot.housingLimit(2), "the room full of small huts")
+		T.truthy(Plot.huts(p.plot.placed) > Tuning.HousingLimit[2] // Buildings.byId.burrow.slots, "more huts than burrows would take")
 		local hx, hz = spot(p, "burrow")
-		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "huts")
+		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "huts", "no room for a burrow")
 		local at = 0
 		for i, q in p.plot.placed do
 			if q.id == "nest" then
 				at = i
 			end
 		end
-		local ok = Plot.replace(p, at, "burrow")
-		T.truthy(ok, "Replace with a bigger hut")
-		T.eq(Plot.huts(p.plot.placed), Plot.hutLimit(2), "the same count")
+		T.eq(select(2, Plot.replace(p, at, "burrow")), "huts", "a bigger hut needs the room for the difference")
+		-- two huts down, a burrow up: the same room, more comfort
+		for _ = 1, 2 do
+			for i = #p.plot.placed, 1, -1 do
+				if p.plot.placed[i].id == "nest" then
+					Plot.store(p, i)
+					break
+				end
+			end
+		end
+		hx, hz = spot(p, "burrow")
+		T.truthy((Plot.place(p, "burrow", hx, hz, 0)), "a burrow where two huts stood")
+		T.eq(Plot.housing(p.plot.placed), Plot.housingLimit(2), "the same room")
+		-- a smaller hut always replaces a bigger one
+		local bi = 0
+		for i, q in p.plot.placed do
+			if q.id == "burrow" then
+				bi = i
+			end
+		end
+		T.truthy((Plot.replace(p, bi, "nest")), "smaller is always fine")
+	end)
+	T.it("Hatcheries: one where they open, more on bigger islands", function()
+		-- (the request of 2026-11-14: "there should also be a hatchery limit per expansion. the first expansion where you
+		-- unlock hatcheries, make the limit 1")
+		local open = Buildings.byId.hatchery.tier
+		T.eq(Plot.hatcheryLimit(open), 1, "one on the first level they open at")
+		T.eq(Plot.hatcheryLimit(open - 1), 0)
+		T.eq(#Tuning.HatcheryLimit, #Tuning.TierCost)
+		for t = 2, #Tuning.HatcheryLimit do
+			T.truthy(Tuning.HatcheryLimit[t] >= Tuning.HatcheryLimit[t - 1], "never fewer on a bigger island")
+		end
+		T.truthy(Plot.hatcheryLimit(#Tuning.TierCost) > 1, "more later")
+		local p = fresh()
+		p.tier = open
+		local x, z = spot(p, "hatchery")
+		T.truthy((Plot.place(p, "hatchery", x, z, 0)))
+		x, z = spot(p, "hatchery")
+		T.eq(select(2, Plot.place(p, "hatchery", x, z, 0)), "hatcheries", "a second one waits for a bigger island")
+		while Plot.hatcheryLimit(p.tier) < 2 do
+			p.tier += 1
+		end
+		x, z = spot(p, "hatchery")
+		T.truthy((Plot.place(p, "hatchery", x, z, 0)), "a bigger island: a second one")
+		T.eq(Plot.hatcheries(p.plot.placed), 2)
 	end)
 end

@@ -439,10 +439,54 @@ do
 		end
 		E.run(0.5)
 	end
-	-- two Hatcheries (a second egg alongside, to hatch on the same turn) and a den with room
-	for _, id in { "hatchery", "hatchery", "den" } do
+	-- a Hatchery and a den with room; a second Hatchery waits for a bigger island (Tuning.HatcheryLimit: the request of
+	-- 2026-11-14, "there should also be a hatchery limit per expansion. the first expansion where you unlock hatcheries,
+	-- make the limit 1")
+	for _, id in { "hatchery", "den" } do
 		local rh = place(id)
 		H.expect(rh.ok, "hatchery", "a " .. id .. " at the third tier", tostring(rh.err))
+	end
+	do
+		local n0 = #prof.plot.placed
+		local r2 = place("hatchery")
+		H.expect(not r2.ok and r2.err == "hatcheries" and #prof.plot.placed == n0 and Plot.hatcheryLimit(prof.tier) == 1, "hatchery", "a second Hatchery at the third tier is refused (hatcheries)", tostring(r2.err))
+		-- (an older save's second one stays where it stands: a second egg alongside, to hatch on the same turn)
+		local hx, hz, hr = Plot.spot(prof.tier, prof.plot.placed, "hatchery", 0, 0, 0)
+		if H.expect(hx ~= nil, "hatchery", "(room for an older save's second Hatchery)") then
+			table.insert(prof.plot.placed, { uid = prof.nextId, id = "hatchery", x = hx :: number, z = hz :: number, rot = hr or 0, lvl = 1 })
+			prof.nextId += 1
+		end
+	end
+	-- the menu bar's Hatchery button now the island has them (the request of 2026-11-14: "add a hatchery tab once it is
+	-- unlocked too"), and a tap on the Hatchery itself ("allow clicking on a hatchery to open the hatchery menu")
+	H.push(p, 0.4)
+	H.expect(H.buttonNamed(p, "Menu_hatch") ~= nil, "hatchery", "the menu bar has a Hatchery button from the third tier")
+	H.clickNamed(p, "Menu_hatch", { wait = 0.4 })
+	H.expect(H.currentPanel(p) == "hatch", "hatchery", "it opens the Hatchery", tostring(H.currentPanel(p)))
+	H.closePanel(p)
+	do
+		local model: Instance? = nil
+		local plotModel = E.workspace.Plots:FindFirstChild("Plot_" .. H.session(p).plot)
+		for _, d in (if plotModel then plotModel:GetDescendants() else {}) do
+			if model == nil and d:IsA("Model") and d:GetAttribute("Decor") == "hatchery" then
+				model = d
+			end
+		end
+		local PRh = H.cmod(p, "Pixel.PixelRenderer")
+		local WVh = H.cmod(p, "Controllers.WorldView")
+		if H.expect(model ~= nil, "hatchery", "(the Hatchery's model on the island)") then
+			local at = (model :: Model):GetPivot().Position + E.v3(0, 1.5, 0)
+			local pos = H.inClient(p, function()
+				local sp = PRh.project(at)
+				return E.v2(sp.X, sp.Y - E.inset)
+			end)
+			E.raycastParts = true
+			H.inClient(p, WVh.tapScreen, pos)
+			E.raycastParts = nil
+			E.run(0.4)
+			H.expect(H.currentPanel(p) == "hatch", "hatchery", "a tap on the Hatchery opens its panel", tostring(H.currentPanel(p)))
+			H.closePanel(p)
+		end
 	end
 	local uids = {}
 	for _, q in prof.plot.placed do
@@ -664,19 +708,21 @@ do
 	local st = WL.at(WC.now())
 	local chip = H.inClient(p, Chip.debugState)
 	H.expect(chip.season == st.season and chip.weather == st.kind, "weather", "the HUD shows the season and the weather now", string.format("%s %s vs %s %s", chip.season, chip.weather, st.season, st.kind))
-	-- (two lines in the HUD's status panel, Hud.statusLine: the season's name, the weather's name)
+	-- (one line: the top bar's chips after the shells, Hud.topChip: the season's name, the weather's name; no day count:
+	-- "also, this can be compressed into one line. remove the "day 1" as well")
 	do
 		local WD = H.sharedServer("Data.Weather")
 		local pg = p:FindFirstChild("PlayerGui")
-		local panel: Instance? = nil
+		local bar: Instance? = nil
 		local function words(name: string): string
-			local line = pg and pg:FindFirstChild("Status_" .. name, true)
-			panel = panel or (line and line.Parent)
-			local t = line and line:FindFirstChild("Text")
+			local c = pg and pg:FindFirstChild("Chip_" .. name, true)
+			bar = bar or (c and c.Parent)
+			local t = c and c:FindFirstChild("Value")
 			return if t and t:IsA("TextLabel") then t.Text else ""
 		end
 		local sw, ww = words("season"), words("weather")
-		H.expect(panel ~= nil and (panel :: any).Name == "Status" and string.find(sw, WD.seasonById[st.season].name, 1, true) == 1 and string.find(ww, WD.byId[st.kind].name, 1, true) == 1, "weather", "the HUD's status panel has a line for each", string.format("%q %q", tostring(sw), tostring(ww)))
+		H.expect(bar ~= nil and (bar :: any).Name == "TopBar" and string.find(sw, WD.seasonById[st.season].name, 1, true) == 1 and string.find(ww, WD.byId[st.kind].name, 1, true) == 1, "weather", "the top bar's line has a chip for each", string.format("%q %q", tostring(sw), tostring(ww)))
+		H.expect(pg ~= nil and pg:FindFirstChild("Chip_day", true) == nil and pg:FindFirstChild("Status_season", true) == nil, "weather", "no day count, no second line")
 	end
 	-- a rainy spell ahead: the clock jumped just into it
 	local target = nil

@@ -920,11 +920,12 @@ end
 
 local function cards(list: ScrollingFrame, v: Types.ClientView)
 	UIKit.hlist(list, 3)
-	local hutsFull = Plot.huts(v.pieces) >= Plot.hutLimit(v.tier)
+	-- (the housing limit: a hut whose room won't fit, Plot.housingLimit; the Hatcheries' limit)
+	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
+	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
 	for k, def in listFor(v) do
 		local locked = def.tier > v.tier
-		-- (a hut past the island's huts' limit: a bigger hut can still replace a small one)
-		local noRoom = def.kind == "nest" and hutsFull
+		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
 		local afford = v.shells >= def.shells
 		local picked = pick ~= nil and pick.id == def.id
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil, if picked then UIKit.color("accent") else nil, if picked then 0.55 else nil)
@@ -942,7 +943,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 				return
 			end
 			if noRoom then
-				UIKit.notice(Words.errText("huts"), UIKit.color("bad"))
+				UIKit.notice(Words.errText(if def.kind == "breed" then "hatcheries" else "huts"), UIKit.color("bad"))
 				Audio.play("deny")
 				return
 			end
@@ -974,7 +975,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		if locked then
 			UIKit.text(b, string.format("Lv%d", def.tier), UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif noRoom then
-			UIKit.text(b, "No room", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
+			UIKit.text(b, if def.kind == "breed" then "Max" else "No room", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		else
 			local t = Numbers.coins(def.shells)
 			local w = UIKit.textWidth(t) + 11
@@ -989,10 +990,11 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 	end
 end
 
--- The count shown for the tab: its pieces against its limit (huts, tiles and fences have their own).
+-- The count shown for the tab: its pieces against its limit (the Huts tab: the room its huts have against the
+-- housing limit; tiles and fences have their own).
 local function countFor(v: Types.ClientView): (number, number)
 	if tab == "nest" then
-		return Plot.huts(v.pieces), Plot.hutLimit(v.tier)
+		return Plot.housing(v.pieces), Plot.housingLimit(v.tier)
 	end
 	local group = if tab == "path" or tab == "water" then "tile" elseif tab == "fence" then "fence" else "piece"
 	local n = 0

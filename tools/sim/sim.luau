@@ -1389,36 +1389,39 @@ do
 	local drawn, onRing, apart, clash = ringState(p, s.plot, c.list, q)
 	H.expect(drawn == #c.list and onRing and apart, "panels", "EggView lays the extra eggs on the ring too, each on its own spot", string.format("%d of %d, ring %s, on one spot: %s", drawn, #c.list, tostring(onRing), clash))
 end
--- the huts' limit by the island's tier (Tuning.HutLimit; GAME_DESIGN 4): huts up to it, one more refused (huts); in Build
--- mode the Huts tab counts the huts out of the limit and the hut cards say No room, while the other tabs' count leaves
--- the Tree of Life out; a bigger hut still replaces a small one at the limit. The huts added go again after
+-- the housing limit by the island's tier (Tuning.HousingLimit; GAME_DESIGN 4; the request of 2026-11-14: "instead of a
+-- hut (building) limit per expansion, make it such that the limit of driftling housing is the limit, such that you can
+-- have 2 driftling huts in the place of a cozy burrow at the cost of comfort"): small huts up to its room, one more
+-- refused (huts); in Build mode the Huts tab counts the room out of the limit and the hut cards say No room, while the
+-- other tabs' count leaves the Tree of Life out; a bigger hut can't replace a small one at the limit, but two small ones
+-- make way for it. The huts added go again after
 do
-	prof.shells = math.max(prof.shells, 3000)
-	local most = Plot.hutLimit(prof.tier)
+	prof.shells = math.max(prof.shells, 30000)
+	local most = Plot.housingLimit(prof.tier)
+	local nest = Buildings.byId.nest.slots
 	local added = {}
-	local placedOk = most == Tuning.HutLimit[2] and Plot.huts(prof.plot.placed) < most
-	while placedOk and Plot.huts(prof.plot.placed) < most do
-		-- (the first where a bigger hut fits in its place)
-		local bx, bz = spot("burrow", 0)
-		res = if #added == 0 and bx then H.req(p, "plot.place", { id = "nest", x = bx, z = bz, rot = 0 }) else place("nest")
+	local placedOk = most == Tuning.HousingLimit[2] and Plot.housing(prof.plot.placed) + nest <= most
+	while placedOk and Plot.housing(prof.plot.placed) + nest <= most do
+		res = place("nest")
 		placedOk = res.ok
 		if res.ok then
 			table.insert(added, prof.plot.placed[#prof.plot.placed].uid)
 		end
 	end
-	H.expect(placedOk and Plot.huts(prof.plot.placed) == most, "panels", "huts up to the island's limit (HutLimit by its tier)", string.format("%d of %d", Plot.huts(prof.plot.placed), most))
+	local room = Plot.housing(prof.plot.placed)
+	H.expect(placedOk and room > most - nest and room <= most, "panels", "small huts up to the island's room (HousingLimit by its tier)", string.format("%d of %d", room, most))
 	local n0 = #prof.plot.placed
 	res = place("nest")
-	H.expect(not res.ok and res.err == "huts" and #prof.plot.placed == n0, "panels", "one hut past the limit is refused (huts)", tostring(res.err))
+	H.expect(not res.ok and res.err == "huts" and #prof.plot.placed == n0, "panels", "one hut past the room is refused (huts)", tostring(res.err))
 	H.push(p, 0.3)
 	H.clickNamed(p, "Menu_build", { wait = 0.4 })
 	H.clickNamed(p, "Tab_nest", { wait = 0.3 })
 	local count = p.PlayerGui:FindFirstChild("Count", true)
-	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "panels", "the Huts tab counts the huts out of the limit", count and count.Text)
-	local card = H.buttonNamed(p, "Buy_nest", true)
-	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the hut card says No room", card and table.concat(H.textsOf(card), "/"))
-	H.clickNamed(p, "Buy_nest", { includeDisabled = true, wait = 0.3 })
-	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("No room for another hut here."), "panels", "a tap on it picks nothing up and says why")
+	H.expect(count ~= nil and count.Text == string.format("%d/%d", room, most), "panels", "the Huts tab counts the room out of the limit", count and count.Text)
+	local card = H.buttonNamed(p, "Buy_burrow", true)
+	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the burrow's card says No room", card and table.concat(H.textsOf(card), "/"))
+	H.clickNamed(p, "Buy_burrow", { includeDisabled = true, wait = 0.3 })
+	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("Your huts already hold"), "panels", "a tap on it picks nothing up and says why")
 	H.clickNamed(p, "Tab_work", { wait = 0.3 })
 	count = p.PlayerGui:FindFirstChild("Count", true)
 	local pieces = 0
@@ -1437,15 +1440,24 @@ do
 		end
 		return 0
 	end
-	if #added > 0 then
+	if #added >= 2 then
 		res = H.req(p, "plot.replace", { i = indexOf(added[1]), id = "burrow" })
-		local q = prof.plot.placed[indexOf(added[1])]
-		H.expect(res.ok and q ~= nil and q.id == "burrow" and Plot.huts(prof.plot.placed) == most, "panels", "at the limit a bigger hut still replaces a small one", tostring(res.err))
+		H.expect(not res.ok and res.err == "huts", "panels", "at the limit a bigger hut can't replace a small one (huts)", tostring(res.err))
+		-- two small huts make way for a burrow: the same room, with comfort
+		H.req(p, "plot.store", { i = indexOf(added[#added]) })
+		H.req(p, "plot.store", { i = indexOf(added[#added - 1]) })
+		table.remove(added)
+		table.remove(added)
+		res = place("burrow")
+		H.expect(res.ok and Plot.housing(prof.plot.placed) == room, "panels", "two huts down, a burrow up: the same room", tostring(res.err))
+		if res.ok then
+			table.insert(added, prof.plot.placed[#prof.plot.placed].uid)
+		end
 	end
 	for _, uid in added do
 		H.req(p, "plot.store", { i = indexOf(uid) })
 	end
-	H.expect(#prof.plot.placed == n0 - #added and Plot.huts(prof.plot.placed) == most - #added, "panels", "(the huts added cleared away again)", string.format("%d pieces, %d huts", #prof.plot.placed, Plot.huts(prof.plot.placed)))
+	H.expect(#prof.plot.placed <= n0 - #added, "panels", "(the huts added cleared away again)", string.format("%d pieces", #prof.plot.placed))
 end
 H.checkProfile(p, "panels")
 mirror(p, "panels")
@@ -1548,7 +1560,7 @@ do
 	-- together) and the fences against their own
 	local function wantCount(tabKey)
 		if tabKey == "nest" then
-			return string.format("%d/%d", Plot.huts(prof.plot.placed), Plot.hutLimit(prof.tier))
+			return string.format("%d/%d", Plot.housing(prof.plot.placed), Plot.housingLimit(prof.tier))
 		end
 		local group = if tabKey == "path" or tabKey == "water" then "tile" elseif tabKey == "fence" then "fence" else "piece"
 		local n = 0
