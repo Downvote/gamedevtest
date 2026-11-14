@@ -35,6 +35,7 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
 local StoreUI = require(script.Parent.StoreUI)
+local SettingsUI = require(script.Parent.SettingsUI)
 local BuildUI = require(script.Parent.BuildUI)
 
 local Hud = {}
@@ -66,8 +67,9 @@ local status: Frame? = nil -- the status panel under the top bar (Hud.statusLine
 local statusLines: { [string]: Frame } = {}
 local statusOrder: { string } = {}
 local homeButton: TextButton? = nil
-local musicButton: GuiButton? = nil
-local musicPref: string? = nil -- the music switch as last tapped (before the server's answer comes back)
+-- (the HUD's blocks laid out again: set once `stack` is defined below; the top bar and Home call it when the
+-- right-hand column may move between the top row and under the top bar)
+local restackSoon: () -> () = function() end
 local banner: Frame? = nil
 local lastKey = ""
 
@@ -98,6 +100,24 @@ end
 local chipBump: { [string]: number } = {}
 
 ------------------------------------------------------------------ layout
+-- The right-hand column's top (the island card, the tree's card on a desktop, the store's offers): up in the top row
+-- beside the top bar, where the music note was (the request of 2026-11-14: "Add a settings tab, replacing the music
+-- button, then move the right side tab up"), when the row has room for both; on a screen too narrow for that (the top
+-- bar's words, or Home beside it, reaching the column) it waits under the top bar as before.
+local function rightTop(): number
+	local s = UIKit.size("Hud")
+	local right = EDGE
+	local tb = topBar
+	if tb then
+		right = EDGE + tb.Size.X.Offset
+	end
+	local hb = homeButton
+	if hb and hb.Visible then
+		right = math.max(right, hb.Position.X.Offset + hb.Size.X.Offset)
+	end
+	return if right + GAP <= s.X - CARD_W - EDGE then CHIP_Y else CARD_Y
+end
+
 local function hudRects()
 	local s = UIKit.size("Hud")
 	local K = UIKit.P()
@@ -117,7 +137,7 @@ local function hudRects()
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (CHIP_Y + TOP_H + 2) * K },
 			r(math.floor(s.X / 2) - half, s.Y - BAR_H - 2 * DOCK - EDGE, math.floor(s.X / 2) + half, s.Y),
-			r(s.X - CARD_W - EDGE - 2, CARD_Y - 2, s.X, CARD_Y + CARD_MAX_H),
+			r(s.X - CARD_W - EDGE - 2, rightTop() - 2, s.X, rightTop() + CARD_MAX_H),
 		}
 	end
 	CameraController.setHudRects(list)
@@ -161,6 +181,11 @@ local function layoutTop()
 	if hb then
 		hb.Position = UDim2.fromOffset(EDGE + w + GAP, CHIP_Y)
 	end
+	-- (the top bar grew or shrank: the right-hand column may move between the top row and under it)
+	local c = card
+	if c and c.Position.Y.Offset ~= rightTop() then
+		restackSoon()
+	end
 end
 local function chip(name: string, x: number, w: number, icon: string): number
 	local f = Instance.new("Frame")
@@ -197,20 +222,8 @@ local function buildTop()
 	end, { name = "Home", color = UIKit.color("button_warn") })
 	hb.Visible = false
 	homeButton = hb
-	-- the music switch: a note on dark glass in the top right corner (settings.music, kept with the profile)
-	local s = UIKit.size("Hud")
-	local mb = UIKit.button(canvas, "", UDim2.fromOffset(TOP_H + 2, TOP_H), UDim2.fromOffset(s.X - TOP_H - 2 - EDGE, CHIP_Y), function()
-		local v = StateClient.view()
-		local cur = musicPref or (if v and v.settings.music == "off" then "off" else "on")
-		local want = if cur == "off" then "on" else "off"
-		musicPref = want
-		Audio.play("click")
-		task.spawn(function()
-			StateClient.request("settings.set", { k = "music", v = want })
-		end)
-	end, { name = "MusicToggle", color = UIKit.color("glass") })
-	PixelSprites.image(mb, "mini_note", UDim2.fromOffset(2, 1), 6).Name = "Note"
-	musicButton = mb
+	-- (the music switch that sat in the top right corner moved into the Settings panel: UI/SettingsUI, the menu bar's
+	-- Settings, 2026-11-14)
 end
 
 ------------------------------------------------------------------ the status panel
@@ -358,6 +371,8 @@ local MENUS: { Menu } = {
 	{ text = "Looks", panel = "looks", icon = "visitor" },
 	-- the store (GAME_DESIGN 14, 2026-11-14): passes, products, the rotating shop and the pass track
 	{ text = "Store", panel = "store", icon = "store" },
+	-- the settings (UI/SettingsUI, 2026-11-14: "Add a settings tab, replacing the music button"): music, sounds, pixel art
+	{ text = "Settings", panel = "settings", icon = "gear" },
 }
 -- the Hatchery's button after Driftlings, once the island reaches the Hatchery's tier (the request of 2026-11-14:
 -- "add a hatchery tab once it is unlocked too")
@@ -462,7 +477,7 @@ local function updateCard(v: Types.ClientView)
 	local s = UIKit.size("Hud")
 	local w = CARD_W
 	local h = 15 + 3 * LINE_H + 4 + LINE_H + 2
-	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, CARD_Y), 2)
+	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, rightTop()), 2)
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
 	-- the island's name, a faint rule under it
@@ -498,7 +513,7 @@ end
 -- the rarest, and one the shells cover if none of those is): each one's egg, its rarity's name in its colour and its
 -- price (green when the shells are there). The eggs are bought in the tree's panel only, so a tap anywhere on the card
 -- opens it (the request of 2026-11-13: "the eggs should be buyable only after the player clicks on the tree or enters
--- the tree menu"). On a phone only the best (the card sits over the quest's, which must clear the menu bar).
+-- the tree menu"). On a phone no egg rows at all (2026-11-14): the name, Open and the time to the next eggs.
 local TREE_ROW = 15
 local treeBar: Frame? = nil
 local treeTime: TextLabel? = nil
@@ -507,7 +522,10 @@ local function clock(secs: number): string
 	return string.format("%d:%02d", s // 60, s % 60)
 end
 local function updateTree(v: Types.ClientView)
-	local shown = EggView.best(v, if UIKit.phone() then 1 else 3)
+	-- (on a phone no egg rows: just the card's name, Open and the time to the next eggs; the request of 2026-11-14:
+	-- "for mobile, remove the egg list in the tree tab")
+	local phone = UIKit.phone()
+	local shown: { Types.Laid } = if phone then {} else EggView.best(v, 3)
 	local parts: { string } = {}
 	for _, e in shown do
 		table.insert(parts, string.format("%d:%d:%s", e.id, e.cost or 0, if v.shells >= (e.cost or 0) then "y" else "n"))
@@ -523,9 +541,9 @@ local function updateTree(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local rows = math.max(1, #shown)
-	local h = 27 + rows * TREE_ROW + 1
-	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, CARD_Y), 2)
+	local rows = if phone then 0 else math.max(1, #shown)
+	local h = 27 + rows * TREE_ROW + (if phone then 4 else 1)
+	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, rightTop()), 2)
 	f.Name = "TreeCard"
 	UIKit.plank(f, 11)
 	PixelSprites.image(f, "mini_tree", UDim2.fromOffset(PAD - 1, 1), 4)
@@ -539,7 +557,7 @@ local function updateTree(v: Types.ClientView)
 	back.BackgroundTransparency = 0.2
 	back.Name = "TreeBar"
 	treeBar = UIKit.rect(back, UDim2.fromOffset(w - 2 * PAD - 2, 1), UDim2.fromOffset(1, 1), UIKit.color("good"), 5)
-	if #shown == 0 then
+	if #shown == 0 and not phone then
 		UIKit.text(f, "No eggs right now", UDim2.fromOffset(w - 2 * PAD, 10), UDim2.fromOffset(PAD, 30), { color = UIKit.color("text_dim"), z = 4 })
 	end
 	for i, e in shown do
@@ -580,9 +598,10 @@ local function stack()
 	local c, e = card, treeCard
 	-- (they step aside for Build mode and for any panel: the panel's glass would show them through it)
 	local hide = BuildUI.isOpen() or UIKit.currentPanel() ~= nil
+	local top = rightTop()
 	if c then
 		c.Visible = not hide
-		c.Position = UDim2.fromOffset(s.X - CARD_W - EDGE, CARD_Y)
+		c.Position = UDim2.fromOffset(s.X - CARD_W - EDGE, top)
 	end
 	local leftY = CARD_Y
 	local st = status
@@ -599,7 +618,7 @@ local function stack()
 		if UIKit.phone() then
 			e.Position = UDim2.fromOffset(EDGE, leftY)
 		else
-			local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + GAP else CARD_Y
+			local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + GAP else top
 			e.Position = UDim2.fromOffset(s.X - CARD_W - EDGE, y)
 		end
 	end
@@ -607,7 +626,7 @@ local function stack()
 	local of = offers
 	if of then
 		of.Visible = not hide
-		local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + GAP else CARD_Y
+		local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + GAP else top
 		if not UIKit.phone() and e and e.Visible then
 			y = e.Position.Y.Offset + e.Size.Y.Offset + GAP
 		end
@@ -634,6 +653,10 @@ restack = function()
 		qf.Position = from
 		UIKit.tween(qf, 0.18, { Position = to })
 	end
+end
+restackSoon = function()
+	stack()
+	hudRects()
 end
 
 ------------------------------------------------------------------ the questline
@@ -976,13 +999,13 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, treeCard, tips, quest, homeButton, musicButton, topBar, offers } :: { Instance? } do
+	for _, f in { card, treeCard, tips, quest, homeButton, topBar, offers } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
 	offers, offerKey = nil, nil
-	card, treeCard, tips, quest, homeButton, musicButton, topBar = nil, nil, nil, nil, nil, nil, nil
+	card, treeCard, tips, quest, homeButton, topBar = nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 104 else 116
 	buildTop()
 	-- the status panel keeps its lines across a rebuild (they come from other modules)
@@ -1004,6 +1027,7 @@ end
 function Hud.start()
 	Menus.init()
 	StoreUI.init()
+	SettingsUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
 	-- the stores every second: the chips count, shells coming in rise from their chip ("+12") at most every 2 s
@@ -1087,22 +1111,10 @@ function Hud.start()
 				tt.Text = text
 			end
 		end
-		-- the background music: the easygoing island tunes (always day now); the note in the corner switches it off
-		-- and on
+		-- the background music: the easygoing island tunes (always day now); the Settings panel switches it and the
+		-- sounds off and on (UI/SettingsUI)
 		Audio.music("day")
-		local vw = StateClient.view()
-		local on = (musicPref or (if vw and vw.settings.music == "off" then "off" else "on")) ~= "off"
-		Audio.setMusicOn(on)
-		local mb = musicButton
-		if mb then
-			local note = mb:FindFirstChild("Note")
-			if note and note:IsA("ImageLabel") then
-				local c = if on then Color3.new(1, 1, 1) else Color3.fromRGB(120, 110, 130)
-				if note.ImageColor3 ~= c then
-					note.ImageColor3 = c
-				end
-			end
-		end
+		SettingsUI.apply()
 		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
 		-- clear of the tray's and the panels' buttons) and while swimming; in the sea the founder swims slower
 		local char = Players.LocalPlayer.Character
@@ -1123,6 +1135,7 @@ function Hud.start()
 			local show = not atHome() and not BuildUI.isOpen()
 			if hb.Visible ~= show then
 				hb.Visible = show
+				restackSoon()
 			end
 		end
 	end)

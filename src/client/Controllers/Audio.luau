@@ -140,6 +140,8 @@ end
 -- it is heard. Never yields.
 local loops: { [string]: { s: Sound, target: number } } = {}
 local fading = false
+-- the sounds switch (the Settings panel's Sounds, settings.sfx): off, no one-shot plays and the loops fade to nothing
+local soundsOn = true
 function Audio.ambience(name: string, volume: number)
 	local key = LOOPS[name]
 	local id = if key then (Monetization.Sounds :: { [string]: number })[key] else nil
@@ -169,7 +171,7 @@ function Audio.ambience(name: string, volume: number)
 		RunService.Heartbeat:Connect(function(dt: number)
 			for _, lp in loops do
 				local v = lp.s.Volume
-				local t = lp.target
+				local t = if soundsOn then lp.target else 0
 				if v ~= t then
 					local step = dt * 0.6
 					lp.s.Volume = if math.abs(t - v) <= step then t elseif t > v then v + step else v - step
@@ -287,6 +289,15 @@ function Audio.setMusicOn(on: boolean)
 	musicOn = on
 end
 
+-- The sounds on or off (the Settings panel's Sounds): the interface's and the island's one-shots and the loops.
+function Audio.setSoundsOn(on: boolean)
+	soundsOn = on
+end
+
+function Audio.soundsOn(): boolean
+	return soundsOn
+end
+
 function Audio.musicState(): { mood: string?, on: boolean, tracks: number }
 	return { mood = mood, on = musicOn, tracks = #tracks }
 end
@@ -314,7 +325,7 @@ end
 
 function Audio.play(name: string, opts: PlayOpts?): boolean
 	local ev = EVENTS[name]
-	if ev == nil or not Audio.has(name) then
+	if ev == nil or not Audio.has(name) or not soundsOn then
 		return false
 	end
 	local now = os.clock()

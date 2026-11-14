@@ -100,9 +100,9 @@ local FRAME = { x0 = -12, z0 = -6, x1 = 14, z1 = 18, y1 = 6 }
 
 -- The box's corners, shrunk about its middle by Tuning.CamFrame (the request of 2026-11-14: "zoom into the island more
 -- such that there isnt too much sea in the screen": a smaller box is fitted bigger, so the view is closer).
-local function framePts(ox: number, oz: number): { number }
+local function framePts(ox: number, oz: number, phone: boolean?): { number }
 	local f = Street.CENTER
-	local k = Tuning.CamFrame
+	local k = if phone then Tuning.CamFramePhone else Tuning.CamFrame
 	local mx, mz = (FRAME.x0 + FRAME.x1) / 2, (FRAME.z0 + FRAME.z1) / 2
 	local pts = {}
 	for _, x in { FRAME.x0, FRAME.x1 } do
@@ -122,7 +122,8 @@ local function build(): View
 	local fx, fy = size.X, size.Y
 	local K = CameraController.pixelK(size)
 	local ox, oz = Street.origin(plot)
-	local pts = framePts(ox, oz)
+	-- (a phone: the screen's short side 500 px or less, UIKit.phone's rule, gets its own box: Tuning.CamFramePhone)
+	local pts = framePts(ox, oz, math.min(fx, fy) <= 500)
 	local bl = blocks(size, K)
 	local st = stage
 	if st then

@@ -65,7 +65,7 @@ H.expect(land1 ~= nil and land1:FindFirstChild("JettyPlank", true) == nil and la
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
 H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")
-for _, n in { "Menu_build", "Menu_pals", "Menu_index", "Menu_looks", "Menu_store" } do
+for _, n in { "Menu_build", "Menu_pals", "Menu_index", "Menu_looks", "Menu_store", "Menu_settings" } do
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
 H.expect(H.buttonNamed(p, "Menu_folk") == nil, "join", "no Villagers button (the driftlings do all the work)")
@@ -83,12 +83,33 @@ do
 	local pg = p:FindFirstChildOfClass("PlayerGui")
 	H.expect(pg ~= nil and pg:FindFirstChild("LoadingCard") == nil, "join", "and nothing of it left on the screen")
 end
--- the background music: the island's tunes by the clock; the note in the corner switches it off and on (kept)
+-- the background music: the island's tunes by the clock; the Settings panel (the menu bar's Settings, in place of the
+-- note in the corner since 2026-11-14) switches it and the sounds off and on, and sets the pixel art's detail (kept)
 local AudioM = H.cmod(p, "Controllers.Audio")
 local ms = H.inClient(p, AudioM.musicState)
 H.expect((ms.mood == "day" or ms.mood == "night") and ms.on and ms.tracks >= 1, "join", "the island's music plays", string.format("%s %s %d", tostring(ms.mood), tostring(ms.on), ms.tracks))
-H.expect(H.clickNamed(p, "MusicToggle", { wait = 0.5 }) and prof.settings.music == "off" and not H.inClient(p, AudioM.musicState).on, "join", "the note switches the music off, kept with the profile", tostring(prof.settings.music))
-H.expect(H.clickNamed(p, "MusicToggle", { wait = 0.5 }) and prof.settings.music == "on" and H.inClient(p, AudioM.musicState).on, "join", "and on again", tostring(prof.settings.music))
+H.expect(H.buttonNamed(p, "MusicToggle", true) == nil, "settings", "no music note in the corner any more")
+do
+	-- (the island card up in the top row where the note was, level with the top bar)
+	local hudCard = p.PlayerGui:FindFirstChild("IslandCard", true)
+	local hudTop = p.PlayerGui:FindFirstChild("TopBar", true)
+	H.expect(hudCard ~= nil and hudTop ~= nil and math.abs(hudCard.AbsolutePosition.Y - hudTop.AbsolutePosition.Y) <= 1, "settings", "the island card moved up level with the top bar", hudCard and hudTop and string.format("%d vs %d", hudCard.AbsolutePosition.Y, hudTop.AbsolutePosition.Y) or "missing")
+end
+H.expect(H.clickNamed(p, "Menu_settings", { wait = 0.4 }) and H.currentPanel(p) == "settings", "settings", "the menu bar's Settings opens the Settings panel", tostring(H.currentPanel(p)))
+for _, b in { "Set_music_on", "Set_music_off", "Set_sfx_on", "Set_sfx_off", "Set_pixel_high", "Set_pixel_medium", "Set_pixel_low" } do
+	H.expect(H.buttonNamed(p, b) ~= nil, "settings", "the panel's " .. b)
+end
+H.expect(H.buttonNamed(p, "Set_pixel_off", true) == nil, "settings", "no way to turn the pixel filter off")
+H.expect(H.clickNamed(p, "Set_music_off", { wait = 0.5 }) and prof.settings.music == "off" and not H.inClient(p, AudioM.musicState).on, "settings", "Music Off: the music stops, kept with the profile", tostring(prof.settings.music))
+H.expect(H.clickNamed(p, "Set_music_on", { wait = 0.5 }) and prof.settings.music == "on" and H.inClient(p, AudioM.musicState).on, "settings", "and On again", tostring(prof.settings.music))
+H.expect(H.clickNamed(p, "Set_sfx_off", { wait = 0.5 }) and prof.settings.sfx == "off" and not H.inClient(p, AudioM.soundsOn) and not H.inClient(p, AudioM.play, "click"), "settings", "Sounds Off: no sound plays, kept with the profile", tostring(prof.settings.sfx))
+H.expect(H.clickNamed(p, "Set_sfx_on", { wait = 0.5 }) and prof.settings.sfx == "on" and H.inClient(p, AudioM.soundsOn), "settings", "and On again", tostring(prof.settings.sfx))
+local PRm = H.cmod(p, "Pixel.PixelRenderer")
+H.expect(H.clickNamed(p, "Set_pixel_low", { wait = 0.5 }) and prof.settings.pixel == "low", "settings", "Pixel art Low, kept with the profile", tostring(prof.settings.pixel))
+H.expect(H.clickNamed(p, "Set_pixel_high", { wait = 0.5 }) and prof.settings.pixel == "high", "settings", "and High again", tostring(prof.settings.pixel))
+H.expect(H.req(p, "settings.set", { k = "sfx", v = "loud" }).err == "bad_payload", "settings", "a sounds value that isn't on or off: bad_payload")
+local _ = PRm
+H.closePanel(p)
 -- the sounds (GAME_DESIGN 11): every event has a library sound, each of its takes too; the founder's feet are heard
 -- (the game's own step sounds: Roblox's are switched off by the empty RbxCharacterSounds)
 local Mon = H.sharedServer("Config.Monetization")
@@ -124,7 +145,8 @@ H.expect(tipsOk == nil, "join", "the first tips have no OK (they move on by buil
 -- a line of the HUD or a notice saying `pattern` (plain)
 local function statusSays(pattern)
 	for _, d in p.PlayerGui:GetDescendants() do
-		if d:IsA("TextLabel") and string.find(d.Text, pattern, 1, true) then
+		-- (shown words only: a closed scene's labels left hidden don't count)
+		if d:IsA("TextLabel") and string.find(d.Text, pattern, 1, true) and H.guiVisible(d) then
 			return true
 		end
 	end
@@ -320,7 +342,7 @@ do
 	H.expect(n == Tuning.EggCount[1] and #c.list == n and c.next == n + 1, "join", "its first lot laid at once: Tree.count(1) eggs round its roots", string.format("%d of %d, next %d", #c.list, n, c.next))
 	local common = TreeL.cost(prof, 1)
 	H.expect(#c.list >= 2 and c.list[1].r == 1 and c.list[2].r == 1 and common == Tuning.EggPrice[1] * Tuning.EggTier[1] and 2 * common <= Tuning.StartShells, "join", "the first two cheap commons the starting shells cover", eggsAttr(c.list))
-	H.expect(math.abs(TreeL.secs(prof) - Tuning.EggSecs) < 1e-9 and c.left > TreeL.secs(prof) - 6 and c.left <= TreeL.secs(prof), "join", "the next lot Tree.secs (EggSecs) away", string.format("%.1f s of %.1f", c.left, TreeL.secs(prof)))
+	H.expect(math.abs(TreeL.secs(prof) - Tuning.EggSecs) < 1e-9 and c.left > TreeL.secs(prof) - 12 and c.left <= TreeL.secs(prof), "join", "the next lot Tree.secs (EggSecs) away (the Settings checks before it take a few seconds)", string.format("%.1f s of %.1f", c.left, TreeL.secs(prof)))
 	H.expect(plot1:GetAttribute("Eggs") == eggsAttr(c.list) and plot1:GetAttribute("Tide") == nil, "join", "the plot's Eggs attribute: each egg's id and rarity (no Tide)", tostring(plot1:GetAttribute("Eggs")))
 	E.runUntil(function()
 		return eggsSynced(p)
@@ -1041,12 +1063,27 @@ do
 		for _, cd in Creatures.list do
 			prof.seen[cd.id] = 2
 		end
+		-- (every kind seen earns the Index's titles: given now, so their notices don't cover the hatch's)
+		local titles0 = table.clone(prof.titles)
+		for _, tid in { "collector", "naturalist", "archivist" } do
+			prof.titles[tid] = true
+		end
 		local f1 = #fx
 		H.clickNamed(p, "SwapTake_" .. weak.id, { wait = 0.6 })
 		do
 			local got = fxSince(f1, "hatched")[1]
 			local gx = prof.pals[#prof.pals]
-			H.expect(type(got) == "table" and type(got.data) == "table" and got.data.new == false and statusSays("It hatched") and not statusSays("New!"), "tree", "a kind had before: not new, no \"New!\" in the notice", tostring(got and got.data and got.data.new))
+			local shownWords = {}
+			for _, d in p.PlayerGui:GetDescendants() do
+				if d:IsA("TextLabel") and H.guiVisible(d) and (string.find(d.Text, "New", 1, true) or string.find(d.Text, "hatched", 1, true)) then
+					table.insert(shownWords, d.Text)
+				end
+			end
+			H.expect(type(got) == "table" and type(got.data) == "table" and got.data.new == false and statusSays("It hatched") and not statusSays("New!"), "tree", "a kind had before: not new, no \"New!\" in the notice", string.format("%s | %s", tostring(got and got.data and got.data.new), table.concat(shownWords, " / ")))
+			table.clear(prof.titles)
+			for k, on in titles0 do
+				prof.titles[k] = on
+			end
 			table.clear(prof.seen)
 			for k, n in seen0 do
 				prof.seen[k] = n

@@ -28,7 +28,7 @@
 # Mask characters: "." empty; an UPPERCASE letter a shaded region (REGIONS: R red, O orange, Y yellow, G green, C cyan,
 # B blue, P purple, K pink, N brown, S stone grey, F skin and peach, W white, D dark, M warm basalt, E cream); a lowercase letter or digit a flat colour
 # (FLAT, or the sprite's own "flat" map); "#" an ink line inside the sprite.
-import argparse, os, sys
+import argparse, math, os, sys
 
 # a pixel's character in ArtData and ThumbData (and in scripts/thumbs.txt): its colour's place in the sprite's palette
 CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*+-/:;<=>?@^_~"
@@ -81,7 +81,7 @@ FLAT = {
 SPRITES = {}  # name -> dict(rows, flat, shade, outline, recolor)
 
 
-def S(name, rows, flat=None, shade=True, outline=True, variants=None, pad=False):
+def S(name, rows, flat=None, shade=True, outline=True, variants=None, pad=False, sphere=None):
     def touches(rs):
         return any(c != "." for c in rs[0] + rs[-1]) or any(r[0] != "." or r[-1] != "." for r in rs)
     if pad or (outline and touches(rows)):  # a 1 px margin all round for the outline
@@ -90,7 +90,7 @@ def S(name, rows, flat=None, shade=True, outline=True, variants=None, pad=False)
     for r in rows:
         if len(r) != w:
             sys.exit("%s: rows of different widths (%d vs %d): %r" % (name, len(r), w, r))
-    SPRITES[name] = dict(rows=rows, flat=flat or {}, shade=shade, outline=outline, variants=variants or {})
+    SPRITES[name] = dict(rows=rows, flat=flat or {}, shade=shade, outline=outline, variants=variants or {}, sphere=sphere)
 
 
 def rot90(rows):  # a quarter turn clockwise
@@ -240,6 +240,9 @@ SMALL = {
     "ticket": [".........", ".........", "TTTTTTTTT", "TTWTTTTTT", "..TTTTTTT", "TTWTTTTTT", "TTTTTTTTT", ".........", "........."],
     "gift": ["..K...K..", "...K.K...", "QQQQKQQQQ", "QQQQKQQQQ", ".........", ".QQQKQQQ.", ".QQQKQQQ.", ".QQQKQQQ.", ".QQQKQQQ."],
     "refresh": ["...GGGG..", "..G....G.", ".G.....GG", ".G....GGG", ".........", "BBB....B.", "BB.....B.", ".B....B..", "..BBBB..."],
+    # the menu bar's Settings (2026-11-14, in place of the music note): a steel gear, four teeth and four between them,
+    # a hole through its middle
+    "gear": ["...SSS...", ".S.SSS.S.", "..SSSSS..", "SSS...SSS", "SSS...SSS", "SSS...SSS", "..SSSSS..", ".S.SSS.S.", "...SSS..."],
 }
 SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():
@@ -347,7 +350,7 @@ EGG_STARS = [
     "....AAAA....",
 ]
 for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w"), (EGG_MOON, "H", "w"), (EGG_STARS, "I", "w")], start=1):
-    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask])
+    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask], sphere={"body": _body, "light": "wyz", "dark": "np"})
 # Build mode's puff of dust (Controllers/Puffs): a little cloud that swells, then thins out and breaks up.
 S("poof_1", [".......", ".......", "..ww...", ".wwws..", ".wsss..", "..ss...", "......."], outline=False, shade=False)
 S("poof_2", [".......", "..ww...", ".wwwws.", "wwwssss", ".wssss.", "..sss..", "......."], outline=False, shade=False)
@@ -484,6 +487,39 @@ for nm, rows in (("arrow", ARROW), ("arrow_t", ARROW_T)):
 
 
 # ---------------------------------------------------------------- the passes
+# A round thing's tones (the eggs: the request of 2026-11-14, "The egg sprites seem flat and have no depth. Reshade
+# them"): the silhouette taken as the front of an egg (its ellipse, its middle a little low: an egg is fuller at the
+# bottom), each pixel's slope lit from the top left and a little in front. A highlight (3) in a soft patch up at the
+# top left, the base (2) over the middle, a shadow (1) crescent round the lower right and a deep (0) rim where the
+# shell turns away, the bands smooth (no dither, no stray pixels: a lone pixel takes its neighbours' band).
+def sphere_tones(grid, w, h):
+    pts = [(x, y) for y in range(h) for x in range(w) if grid[y][x] != "."]
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    cx = (min(xs) + max(xs)) / 2
+    cy = (min(ys) + max(ys)) / 2 + 0.7
+    rx = (max(xs) - min(xs)) / 2 + 0.6
+    ry = (max(ys) - min(ys)) / 2 + 0.6
+    lx, ly, lz = -0.45, -0.55, 0.70
+    ln = math.sqrt(lx * lx + ly * ly + lz * lz)
+    lx, ly, lz = lx / ln, ly / ln, lz / ln
+    tone = [[2] * w for _ in range(h)]
+    for x, y in pts:
+        nx = (x - cx) / rx
+        ny = (y - cy) / (ry + (0.9 if y < cy else 0.0))  # the narrow top curves away faster
+        r2 = min(nx * nx + ny * ny, 0.98)
+        nz = math.sqrt(1 - r2)
+        d = nx * lx + ny * ly + nz * lz
+        tone[y][x] = 3 if d > 0.84 else 2 if d > 0.42 else 1 if d > 0.14 else 0
+    # a lone pixel of a band takes its neighbours' (no specks in the gradient)
+    for x, y in pts:
+        t = tone[y][x]
+        nb = [tone[y + dy][x + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if 0 <= x + dx < w and 0 <= y + dy < h and grid[y + dy][x + dx] != "."]
+        if nb and all(n != t for n in nb):
+            tone[y][x] = max(set(nb), key=nb.count)
+    return tone
+
+
 def cel_tones(grid, w, h):
     """The tone of every shaded pixel, for the whole silhouette at once (never region by region: no pillow shading):
     the base (2) everywhere but a 1 px shadow (1) along the bottom and right edges (on a portrait also a second row
@@ -543,7 +579,8 @@ def build(name, spec, recolor=None):
                 flat[k] = v
     px = [[None] * w for _ in range(h)]  # (hex, alpha)
     solid = [[grid[y][x] != "." for x in range(w)] for y in range(h)]
-    tones = cel_tones(grid, w, h)
+    sph = spec.get("sphere")
+    tones = sphere_tones(grid, w, h) if sph else cel_tones(grid, w, h)
     for y in range(h):
         for x in range(w):
             c = grid[y][x]
@@ -561,6 +598,12 @@ def build(name, spec, recolor=None):
                 key = flat.get(c)
                 if key is None:
                     sys.exit("%s: no colour for %r" % (name, c))
+                # (on a round thing a light mark turns with the shell: in its shadow the body's light tone, at its
+                # rim the body's base, so the marks curve round it too)
+                if sph and c in sph.get("light", "") and tones[y][x] <= 1:
+                    key = RAMPS[sph["body"]][3 if tones[y][x] == 1 else 2]
+                elif sph and c in sph.get("dark", "") and tones[y][x] == 0:
+                    key = RAMPS[sph["body"]][0]
                 px[y][x] = (PAL[key], 1.0)
     if spec["outline"]:
         outl = [[False] * w for _ in range(h)]

@@ -41,7 +41,8 @@ export type Laid = { id: number, r: number, cost: number?, ss: string?, wx: stri
 -- The tree's eggs (saved): seconds till it lays the next lot (they replace the ones left), the eggs, the next egg's id.
 export type Clutch = { left: number, list: { Laid }, next: number }
 
-export type Settings = { pixel: string, music: string? } -- music: "on" (default) | "off"
+-- music, sfx (the sounds: the interface, the island, the weather): "on" (default) | "off" (the Settings panel, 2026-11-14)
+export type Settings = { pixel: string, music: string?, sfx: string? }
 
 -- days: island days lived; earned: shells made in all; taken: eggs hatched from the Tree of Life (and driftlings taken
 -- in before it laid eggs); sold: driftlings sold; best: the rarest driftling had (0 none yet, 1 .. 5); hatched: the

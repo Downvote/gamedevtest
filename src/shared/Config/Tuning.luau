@@ -202,6 +202,9 @@ local Tuning = {
 	-- (0.95: 9 art px a stud; the grid snaps the zoom to whole steps: 0.85 gives 10, which clips the first island's
 	-- far shore)
 	CamFrame = 0.95,
+	-- on a phone (the screen's short side 500 px or less) a smaller box: the request of 2026-11-14, "On mobile, zoom in to
+	-- fit the island more" (the camera follows the founder round the rest)
+	CamFramePhone = 0.75,
 	-- the founders on the islands are drawn at this share of their built size, about their feet (the request of
 	-- 2026-11-14: "make the chacter smaller, about 75% the original size"); the character's own collision is unchanged
 	FounderScale = 0.75,

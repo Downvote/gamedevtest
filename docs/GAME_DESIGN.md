@@ -438,9 +438,11 @@ floor, it just looks noisy", 2026-11-14),
   62% opaque; a panel 84%, its lists over the world) with corners of two stepped pixels and no outline, frame, bevel
   or shadow. The top bar is one line: the shells, the season and the weather, each an 11 px icon and its words (as wide as the
   words need; the wood went on 2026-11-14, the day count and its gold bar the same day: "also, this can be compressed
-  into one line. remove the "day 1" as well"); the music's note on its own dark square in the top right. Under the top
-  bar on the left a second strip holds other status lines when there are any (empty, it hides), and the quest's card
-  under that. Down the right the island card and the Tree of Life's
+  into one line. remove the "day 1" as well"). The music's note that sat in the top right went into the Settings panel
+  on 2026-11-14 ("Add a settings tab, replacing the music button, then move the right side tab up"), so the right-hand
+  column now starts in the top row, level with the top bar (on a screen too narrow for both it waits under the top bar).
+  Under the top bar on the left a second strip holds other status lines when there are any (empty, it hides), and the
+  quest's card under that. Down the right the island card and the Tree of Life's
   card, the same width, 3 px apart: the name in gold, a faint rule under it, quiet labels with their numbers on the
   right. The menu bar is one glass strip with its four words and icons on it (Build in gold), a faint veil under the
   mouse. Inside a panel each row or card sits on a faint white veil; neutral buttons are dark glass with white words,
@@ -1164,7 +1166,10 @@ When the island grows into a new stage, the tree is built again at it.
   several a second off a legendary one), only over eggs lying still and at most 140 at once; the motes and the beam go
   out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_7`: the Tree card, the Tree panel and
   the Hatchery; a white crescent and band on the mythic one, a little constellation on the celestial one) are drawn to
-  match. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
+  match, lit as round shells since 2026-11-14 ("The egg sprites seem flat and have no depth. Reshade them":
+  `gen_art.py`'s `sphere_tones`, each pixel's slope on the egg's curve lit from the top left: a soft highlight up there,
+  the base over the middle, a shadow crescent and a deep rim round the lower right, the light marks turning with the
+  shell). The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
   side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
   lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the
@@ -1176,7 +1181,9 @@ When the island grows into a new stage, the tree is built again at it.
   ("Eggs" on a phone) and Open, "New eggs in 2:41" over a bar running down to the next lot, then the best three eggs
   now, the rarest first and the cheaper among them (if you can pay for none of them, the best one you can pay for takes
   the last row): each with its egg, its rarity's name in its colour and its price (green when you have the shells). A
-  tap anywhere on the card opens the Tree panel; the card buys nothing itself. On a phone only one row; "No eggs right now" once all are hatched. A new lot gets a notice ("The Tree of Life has new
+  tap anywhere on the card opens the Tree panel; the card buys nothing itself. On a phone no egg rows (2026-11-14: "for
+  mobile, remove the egg list in the tree tab"): the name, Open and the time to the next eggs; "No eggs right now" on a
+  desktop once all are hatched. A new lot gets a notice ("The Tree of Life has new
   eggs!": the request of 2026-11-14, "the "Tree of life laid new eggs" should be "The tree of life has new eggs!""), and one with an epic or legendary egg in it is news: "An epic egg is waiting under the tree." in its
   rarity's colour with a bell-tree run and sparkles over the card. The card steps aside in Build mode and while the
   Tree panel is open.
@@ -1610,8 +1617,13 @@ them": the feet were found by a ray down that met a roof or a bench first, so th
 > rises with it, knees up, and lands in a puff; the coast's invisible walls stood a little under a jump, so a jump
 > cleared them onto the sea: they then stood far higher; since 2026-11-13 there are no coast walls, the founders swim)
 
-Settings: the pixel filter's quality, and the music (the note in the HUD's top right corner, on or off, kept with the
-profile). **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
+**Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
+replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
+rain; `settings.sfx`), and Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need
+for an option to turn off the pixel filter"). A tap works at once and is kept with the profile. **The camera on a phone** (the screen's short
+side 500 px or less) fits a smaller box round the island's heart (`CamFramePhone` 0.75 against `CamFrame` 0.95: the
+request of 2026-11-14, "On mobile, zoom in to fit the island more"), so the island fills the screen; the view follows
+the founder round the rest. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:
 
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
@@ -1948,7 +1960,7 @@ reason.
   quiet: calm, drumless music that sits in the background. Soft acoustic island guitar by day (Campfire Stories,
   Tender Reflection, Home Camp), soft solo piano from the twilight (Gymnopedie No. 1, two Live Piano Stories), each
   evened out to the same loudness. Chosen by measuring the tracks (notes a second, the drums' share, the beat's strength, the
-  loudness section by section), not by their names. The note in the HUD's corner switches it off and on.
+  loudness section by section), not by their names. The Settings panel's Music switches it off and on.
 
   > The requests (2026-11-10): "also, find cozy background music"; "the background track is too upbeat and noisy.
   > find one that would fit well as background noise and is cozy"

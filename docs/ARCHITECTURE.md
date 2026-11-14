@@ -179,7 +179,7 @@ not a Pal id), r (its rarity, 1 .. 7 (`Traits.RMAX`): its look, `EggView.LOOK`),
 island now), ss? (the season it was laid in, a Data/Weather season id), wx? (the weather that touched it, a
 Data/Weather kind id with a mutation family), wt? (that touch's tier, 1 .. 4) }`; what hatches is rolled when it is
 hatched; ss, wx and wt are kept by `Schema.reconcile` only when known, wt only with wx (GAME_DESIGN 13)), `Clutch` (the tree's eggs, saved: `{ left (seconds till the
-next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, music? }`: music "on" | "off"), `Stats`
+next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, music?, sfx? }`: music and sfx "on" | "off", the Settings panel), `Stats`
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
@@ -568,7 +568,7 @@ handler under pcall; success marks the session dirty).
 | `pal.sell` | `id` | `Tree.sell` (data `{ shells, sold }`) | not_found |
 | `egg.hatch` | `id swap` (an egg id under the tree; swap 0: none, else a hut driftling sold to make room) | `Tree.hatch`, the tips, Fx hatched (data `{ id, sp, muts, egg, r, hr, cost, sold, swapped, wx, wm, new }`) | not_found (a new lot replaced it), no_hut, money, full (every hut full and no swap: the client opens the swap picker), bad_payload |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
-| `settings.set` | `k` ("pixel" or "music"), `v` | the pixel tier (high, medium, low, off) or the music (on, off) | bad_payload |
+| `settings.set` | `k` ("pixel", "music" or "sfx"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
 | `char.home` | - | PlotService puts the founder on their path | cooldown (`Tuning.HomeCooldown`), not_ready |
@@ -767,7 +767,7 @@ Roblox camera shows the 3D world.
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
 Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the island's heart (`FRAME`, the same on every
-tier, shrunk about its middle by `Tuning.CamFrame`: 0.95, 9 art px a stud on a desktop; it was 1 (8 px), then 0.7 (12 px)
+tier, shrunk about its middle by `Tuning.CamFrame`: 0.95, 9 art px a stud on a desktop (a phone, the screen's short side 500 px or less, `Tuning.CamFramePhone`: 0.75, a step closer, 2026-11-14); it was 1 (8 px), then 0.7 (12 px)
 after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 after "zoom out abit
 more. the whole island should still be visible", both 2026-11-14) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
 `Raster.gridPhase`) whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`),
@@ -1176,8 +1176,9 @@ of it. Chips on one line (`Chip_shells`, `Chip_season`, `Chip_weather`; frames i
 `Value`; the shells easing to the store, the number flashing gold when it changes; `Hud.topChip(name, icon?, text?,
 color?)` sets the season's and the weather's icon, words and colour, nil words hiding it; no `Chip_wood` since
 2026-11-14, no `Chip_day` or `DayBar` since the same day: "also, this can be compressed into one line. remove the "day
-1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, sending `char.home`; `MusicToggle` in the top
-right corner (a dark glass button), the `mini_note`, sending `settings.set` music on / off, the note greyed while off),
+1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, sending `char.home` (no `MusicToggle` since 2026-11-14: the music, the sounds and the pixel art are the
+Settings panel's, `UI/SettingsUI`; the right-hand column's top is `rightTop()`: `CHIP_Y`, level with the top bar, when
+the top bar and Home leave the column room, else `CARD_Y`; the top bar and Home call `restackSoon` when that may change),
 the `Status` panel under the top bar on the left (`Hud.statusLine(name, icon?, text?, color?)`: adds, changes or, with
 a nil `text`, removes a line `Status_<name>` (an 11 px `mini_<icon>` and its `Text`); hidden while it has no lines and
 for a panel or Build mode; the `Quest` card sits under it; a module mounted from Hud can be handed `Hud.statusLine`),
@@ -1490,6 +1491,14 @@ three ranges of hills with trees outlined in ink), `show(r, ex, ey)` (paints it 
 `HatchBackdrop` ScreenGui and starts the sky's life on `HatchSky`), `step(dt)` (birds in `WINGS` beats, a shooting
 star, twinkles: K x K frames at whole art px), `hide()`.
 
+### 10.14 Settings (`UI/SettingsUI`; GAME_DESIGN 9)
+The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`): `ROWS` Music (`settings.music`), Sounds
+(`settings.sfx`) and Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish), each a row of buttons `Set_<k>_<v>`, the chosen
+one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
+`Audio.setSoundsOn`, `PixelRenderer.setTier`) and sends `settings.set`; a refusal drops the pending value with a notice.
+`SettingsUI.value(k)`, `SettingsUI.apply()` (Hud's heartbeat: music and sounds follow the settings). `Audio.setSoundsOn(on)`
+stops every one-shot (`Audio.play` returns false) and fades the loops to nothing; `Audio.soundsOn()`.
+
 ### 10.13 The Store and Looks (`UI/StoreUI`; GAME_DESIGN 14.2)
 `StoreUI.init()` registers "store" (title "Store", `mini_store`, 380 x 210; its argument a tab id) and "looks" (360 x
 200; argument "pieces" or "titles"), and words the store's Fx: `pass` with `bought` (a thanks line by key), `rewards`
@@ -1600,7 +1609,7 @@ water nature fun start loot chest wild rest boss star boat`; `tree` the Tree of 
 round crown with glowing fruit on a short trunk); Build mode's tabs `work` (a hammer), `nest`, `path`, `fence`,
 `water`, `nature` (a pine), `decor` and `fun` (a balloon); `charm` (a heart) the "+N" over a piece put down; no `tide`
 since the tide went; `food` unused since the Work tab took the Farms tab's place; `train`, `start`, `loot`, `chest`,
-`wild`, `rest`, `boss` and `boat` unused since the expeditions went), the eggs `egg_1` .. `egg_7` (12x15, matching
+`wild`, `rest`, `boss` and `boat` unused since the expeditions went), the eggs `egg_1` .. `egg_7` (12x15, lit as round shells by `sphere_tones` (S's `sphere`: the body's ramp by each pixel's slope on the egg's ellipse, light marks turning with it), matching
 `EggView.LOOK`: cream with brown freckles, green with a white zigzag band, sky blue with white stars, purple with pink
 spots, gold with a band of light, rose with a white crescent and band (ramp `H`), night blue with a little
 constellation (ramp `I`); the tree's card and panel and the Hatchery), the twinkles `twinkle_p1..p3` (7x7, pink) and

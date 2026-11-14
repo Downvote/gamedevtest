@@ -116,7 +116,7 @@ function Schema.default(now: number, seed: number): Profile
 		tut = 1,
 		quest = 1,
 		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
-		settings = { pixel = "high", music = "on" },
+		settings = { pixel = "high", music = "on", sfx = "on" },
 		createdAt = now,
 		inv = {},
 		passes = {},
@@ -535,6 +535,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		settings = {
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",
 			music = if settings.music == "off" then "off" else "on",
+			sfx = if settings.sfx == "off" then "off" else "on",
 		},
 		createdAt = num(r.createdAt, now),
 		passes = {},
