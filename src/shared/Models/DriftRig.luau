@@ -290,8 +290,8 @@ function Rig.animate(t: Kit.Thing, time: number, mood: string, k: number?, sc: V
 	end
 	if jumped then
 		st.from = nil
-		if last == nil then
-			st.moodAt = time - 10 -- (first seen mid-mood: a hurt one already flinched)
+		if last == nil and mood ~= "hooray" then
+			st.moodAt = time - 10 -- (first seen mid-mood: a hurt one already flinched; a hooray starts now)
 		end
 	end
 	local kk = math.clamp(k or 0, 0, 1)

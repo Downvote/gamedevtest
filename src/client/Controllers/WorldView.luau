@@ -56,6 +56,7 @@ type Walker = {
 	beat: number, -- the work's beats so far, last frame (a blow's chips as a beat passes its moment)
 	ph: number, -- where in its beat it started
 	cheerUntil: number,
+	cheerMood: string, -- "cheer" (jumping on) or "hooray" (one jump: a driftling just hatched)
 	rng: Types.Rng,
 }
 
@@ -358,6 +359,7 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 		beat = 0,
 		ph = rng:next(),
 		cheerUntil = 0,
+		cheerMood = "cheer",
 		rng = rng,
 	}
 	local def = Creatures.byId[sp]
@@ -403,6 +405,7 @@ local function syncPlot(i: number, near: boolean)
 						local nw = newWalker(key, tonumber(id) or 0, i, sp, tonumber(work) or 0, hm, at)
 						if at then
 							nw.cheerUntil = os.clock() + 1.2
+							nw.cheerMood = "hooray" -- (just hatched: one jump, 2026-11-14)
 							nw.untilT = os.clock() + 1.2
 						end
 						walkers[key] = nw
@@ -518,7 +521,7 @@ local function stepWalker(w: Walker, t: number, dt: number)
 		-- alive on its skeleton (Models/DriftRig): the bouncy walk, the cheer's jumps, breathing, blinks, a wagging
 		-- tail, its work where it works (or a nap at its hut); the rig lifts and squashes it, so it is placed on the
 		-- ground
-		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then "cheer" elseif speed > 0 then "walk" elseif working then w.mood else "idle", 0)
+		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then w.cheerMood elseif speed > 0 then "walk" elseif working then w.mood else "idle", 0)
 		MicroModels.place(w.thing, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0))
 	end
 end
@@ -675,6 +678,7 @@ function WorldView.cheer(words: { string }, color: Color3)
 		local first = k == 1
 		task.delay((k - 1) * 0.1, function()
 			w.cheerUntil = os.clock() + 1.4
+			w.cheerMood = "cheer"
 			local at = headOf(w)
 			UIKit.floatText(at, word, color, first)
 			UIKit.bitsAt(at, { "accent", "fun", "good", "white" }, 12, 40, 80)

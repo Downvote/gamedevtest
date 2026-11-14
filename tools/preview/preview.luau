@@ -1982,7 +1982,7 @@ local function animScenario(arg)
 	end)
 	log("anim %s (%s, gait %s): %d bones, %d springs, %d parts, %d shared by two bones", def.id, def.shape, tostring(th.rig and th.rig.gait), st.bones, st.springs, st.parts, st.shared)
 	settle(p, 60, 0.5)
-	local GAP: { [string]: number } = { idle = 0.3, walk = 0.0875, cheer = 0.0825, hop = 0.11, peck = 0.21, hurt = 0.1, nap = 0.4, wave = 0.1, dip = 0.375, push = 0.2, attack = 0.1, ko = 0.3 }
+	local GAP: { [string]: number } = { hooray = 0.25, idle = 0.3, walk = 0.0875, cheer = 0.0825, hop = 0.11, peck = 0.21, hurt = 0.1, nap = 0.4, wave = 0.1, dip = 0.375, push = 0.2, attack = 0.1, ko = 0.3 }
 	local moods = {}
 	for m in string.gmatch(if moodArg and moodArg ~= "" then moodArg else "idle,walk,cheer,peck,hurt", "[^,]+") do
 		table.insert(moods, m)

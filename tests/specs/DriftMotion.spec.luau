@@ -73,7 +73,7 @@ return function()
 		local kinds = { "body", "head", "neck", "jaw", "ear", "arm", "leg", "tail", "wing", "fin", "stalk", "pincer", "tendril", "antenna", "nothing" }
 		local o = Motion.newProg()
 		for _, gait in { "quad", "biped", "hop", "scuttle", "slither", "fly" } do
-			for _, mood in { "idle", "walk", "cheer", "hop", "attack", "hurt", "ko", "peck", "push", "dip", "wave", "nap", "rest", "unknown" } do
+			for _, mood in { "idle", "walk", "cheer", "hop", "attack", "hurt", "ko", "peck", "push", "dip", "wave", "nap", "rest", "hooray", "unknown" } do
 				for i = 0, 30 do
 					local t = i * 0.37
 					Motion.program(mood, t, t, (i % 11) / 10, gait, 1, 3.3, o)
@@ -99,6 +99,25 @@ return function()
 			lo, hi = math.min(lo, o.bsq), math.max(hi, o.bsq)
 		end
 		T.truthy(lo < 0.95 and hi > 1.02, string.format("squash %.2f .. %.2f", lo, hi))
+	end)
+
+	T.it("a hooray jumps once, then holds the happy pose", function()
+		-- (the request of 2026-11-14: "make the pet jump only once instead of a few times after hatching")
+		local o = Motion.newProg()
+		for _, gait in { "biped", "quad", "hop" } do
+			local jumps, up = 0, false
+			for i = 0, 300 do
+				local age = i / 100
+				Motion.program("hooray", 7 + age, age, 0, gait, 1, 2.5, o)
+				local high = o.bty > 0.2
+				if high and not up then
+					jumps += 1
+				end
+				up = high
+			end
+			T.eq(jumps, 1, gait .. ": one jump in three seconds")
+			T.truthy(o.bty == 0 and o.bsq == 1 and o.open and o.arm < -2, gait .. ": landed, arms up, mouth open")
+		end
 	end)
 
 	T.it("a hit squashes hard at once and wobbles back", function()

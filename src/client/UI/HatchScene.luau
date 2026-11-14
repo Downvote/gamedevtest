@@ -599,8 +599,8 @@ local function stepEgg(s: Scene, c: number)
 	end
 end
 
--- What hatched: popping out of the shell (small to a little over its size and back), hopping, cheering a while, then
--- floating where the egg was with a slow bob.
+-- What hatched: popping out of the shell (small to a little over its size and back) with one jump and its arms up
+-- ("hooray"), then floating where the egg was with a slow bob.
 local function stepPal(s: Scene, c: number)
 	local thing = s.pal
 	local pop = s.popAt
@@ -610,8 +610,10 @@ local function stepPal(s: Scene, c: number)
 	local k = (c - pop) / 0.45
 	local sc = if k < 0 then 0.3 elseif k < 0.6 then 0.3 + (PAL_SCALE * 1.15 - 0.3) * ease(k / 0.6) else PAL_SCALE * (1.15 - 0.15 * ease((k - 0.6) / 0.4))
 	MicroModels.scale(thing, Vector3.one * sc)
-	local hop = if k < 1 then math.sin(math.clamp(k, 0, 1) * math.pi) * 0.9 else math.sin((c - pop) * 1.6) * 0.08
-	local mood = if c - pop < 2.2 then "cheer" else "idle"
+	-- (it jumps once on its skeleton as it pops out, then floats with a slow bob: "make the pet jump only once instead
+	-- of a few times after hatching", 2026-11-14)
+	local hop = if k < 1 then 0 else math.sin((c - pop - 0.45) * 1.6) * 0.08
+	local mood = if c - pop < 2.2 then "hooray" else "idle"
 	MicroModels.animate(thing, c, mood, 0)
 	MicroModels.place(thing, CFrame.new(at(0, FLOAT_Y + hop, 0)) * CFrame.Angles(0, math.pi / 4, 0))
 end

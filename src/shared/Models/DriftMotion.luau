@@ -271,7 +271,8 @@ local function breathe(o: Prog, t: number, depth: number)
 end
 
 -- Work out a mood's shared values at time t into `out`. Moods: "idle", "walk", "cheer", "hop", "attack" (k), "hurt"
--- and "ko" (by age), the work moods "peck", "push", "dip", "wave", "nap", and "rest" (the pose as built, eyes open).
+-- and "ko" (by age), "hooray" (one jump from its start, then the happy pose held), the work moods "peck", "push",
+-- "dip", "wave", "nap", and "rest" (the pose as built, eyes open).
 function Motion.program(mood: string, t: number, age: number, k: number, gait: string, tempo: number, seed: number, out: Prog): Prog
 	local o = out
 	reset(o, mood, gait, t)
@@ -320,12 +321,14 @@ function Motion.program(mood: string, t: number, age: number, k: number, gait: s
 			o.hrx = 0.07 * cos(TAU * (2 * u - 0.16))
 			o.legMode = 1
 		end
-	elseif mood == "cheer" or mood == "hop" then
-		local cheer = mood == "cheer"
+	elseif mood == "cheer" or mood == "hop" or mood == "hooray" then
+		-- (a cheer jumps on and on; "hooray" jumps once, from the moment it starts, then holds the happy pose: the
+		-- request of 2026-11-14, "make the pet jump only once instead of a few times after hatching")
+		local cheer = mood ~= "hop"
 		local period = (if cheer then 0.66 else 0.88) / tempo
-		local u = frac(t / period + seed * 0.21)
+		local u = if mood == "hooray" then math.clamp(age / period, 0, 1) else frac(t / period + seed * 0.21)
 		if fly then
-			o.bty = 0.25 * abs(sin(PI * u)) + 0.04 * sin(t * 18)
+			o.bty = 0.25 * abs(sin(PI * u)) + (if mood == "hooray" then 0 else 0.04 * sin(t * 18))
 			o.bsq = 1 + 0.06 * sin(TAU * u)
 			o.wingAmp, o.wingF = 0.75, 18 * tempo
 			o.legMode = 6
