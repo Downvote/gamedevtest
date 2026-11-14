@@ -773,13 +773,23 @@ local function onDay(msg: { [string]: any })
 	local day = tonumber(msg.day) or 0
 	local lines: { string } = {}
 	-- an egg hatched at the Hatchery (Logic/Breed): its kind (and what it was born with)
+	-- (a kind the player never had before gets "New!" in front: the turn's `fresh`)
 	local hatched = 0
+	local fresh: { [string]: boolean } = {}
+	if type(msg.fresh) == "table" then
+		for _, sp in msg.fresh do
+			if type(sp) == "string" then
+				fresh[sp] = true
+			end
+		end
+	end
 	if type(msg.hatched) == "table" then
 		for _, x in msg.hatched do
 			local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
 			if d then
 				hatched += 1
-				table.insert(lines, d.name .. " hatched!")
+				table.insert(lines, (if fresh[d.id] then "New! " else "") .. d.name .. " hatched!")
+				fresh[d.id] = nil
 			end
 		end
 	end

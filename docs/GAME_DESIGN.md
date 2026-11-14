@@ -1,5 +1,13 @@
 # Driftling Isle: Game Design
 
+> The request (2026-11-14, the latest, its first two asks): "allow players to click on creatures to open up a menu
+> seeing their details. also, there should a tip saying "New!" If the creature caught is new."
+
+So a tap (or a click) on any driftling walking an island opens a card about it: its portrait, name, rarity, kind and
+knack, its passive and every mutation with what each does, where it works and how fast, its hut and what it sells for.
+Your own have Work, Move and Sell on the card; a neighbour's is only to look at (§6). The first of a kind you ever
+hatch gets a "New!" tag by its name in the hatch scene, and the notice after it starts with "New!" too (§6.2).
+
 > The request (2026-11-14, the latest): "also, make weather and seasons, and eggs spawns are affected by these with
 > different mutations"
 
@@ -950,6 +958,23 @@ island grows into a new stage, the tree is built again at it.
 - **Your pick:** the Driftlings panel lists every driftling, the hardest workers first, with **Move** (a picker: each
   hut with its room; a full hut offers to swap with one of its driftlings), **Work** (any workplace on the island,
   each with how fast this driftling works there, the fastest first, or rest) and **Sell**; its buttons open the Tree panel (Eggs) and, when one stands, the Hatchery.
+- **One driftling's card** (the request of 2026-11-14: "allow players to click on creatures to open up a menu seeing
+  their details"): a tap or a click on a driftling walking an island opens its card. At the top its portrait, its name
+  big in its rarity's colour, "Rare ***" (a star a rarity step), "Meadow kind, good at farms" (its kind of land and
+  its knack, as `Data/Creatures` gives them) and its line of description (left out on a phone, where the card is
+  shorter). On the left its passive ("Mossy Ears", what it does under it) and every mutation, one a line: its name
+  and stars in its tier's colour and what it does ("Rainkissed ** +20% at farms"), a weather's with that weather's
+  little picture. On the right where it works ("Works at the Veggie Patch", "x1.4 here, x2.2 at its best": its best
+  is the fastest it would work at any kind of workplace) or "Resting", its hut ("Lives in the Driftling Hut") and
+  "Sells for 25 shells". Along the foot of your own: **All driftlings** (the list), **Work** and **Move** (the same
+  pickers as the list's; their Back comes back to the card) and **Sell** (two taps, as in the list). A neighbour's
+  card shows the same, with "Worth 25 shells" and "Lives on Bo's Isle. Only its keeper can move it." in place of the
+  buttons. The pick: each driftling drawn near the view is a box on the screen from its feet to the top of its model,
+  about as wide as it is tall (never under a few pixels, so a small one is easy to hit); of the boxes under the tap,
+  the one whose middle is nearest wins, and one hidden behind a hut or the tree (something nearer the camera along
+  the tap's ray) is passed over for the next. An egg under your tree still comes first, then a driftling, then the
+  tree, the signs and the ground; the interface takes its taps before any of them. With a mouse, the name of the
+  driftling under the pointer floats over its head in its rarity's colour, so it reads as something to click.
 - **Selling** (`Tree.sell`, and a swap) pays `SellPrice` shells by rarity (2, 7, 25, 85, 320), times 1 + 0.25 a
   mutation tier (`SellTier`), times 1 + its sell share (Shiny and its family). It gives a little back and no more: a
   common hatched for 20 sells for 2. Over the career it comes to well under a thousandth of the shells earned (§10).
@@ -1158,7 +1183,12 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   hatched pops out where the egg was with one jump, arms up (the request of 2026-11-14: "make the pet jump only once
   instead of a few times after hatching"; it used to jump three times). The egg's title goes (no "It hatched" since the request of 2026-11-14,
   "remove the it hatched text"); its name in its rarity's colour and "Rare,
-  good at farms" under it, and "No mutations" on a plate if it has none. "Tap to go on" shows after a moment; that tap
+  good at farms" under it, and "No mutations" on a plate if it has none. The first of a kind you ever have gets a
+  little "New!" tag at its name's right, mango yellow with an ink outline, dropping in with a sparkle and a ring of
+  yellow bits (the request of 2026-11-14: "there should a tip saying "New!" If the creature caught is new"). It is
+  decided on the server before the hatch: the kind was never had (in the Index as seen only, or not at all), whatever
+  its mutations. After the scene the notice starts with it too: "New! It hatched a rare Wispwing." A Hatchery's
+  hatchling of a kind never had says it in the turn's banner ("New! Floe hatched!"). "Tap to go on" shows after a moment; that tap
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
   pressed there. The scene waits for that tap and never closes by itself.
 - **Grander by rarity** (`GLORY`, by the rarity it is at that moment): the light of dusk for the commoner ones, a blue,

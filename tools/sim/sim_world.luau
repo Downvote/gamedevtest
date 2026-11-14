@@ -424,6 +424,52 @@ local px1, py1 = CCa.pan()
 H.expect(px1 ~= px0 or py1 ~= py0, "walk", "the camera follows the founder onto the neighbour's island", string.format("%d,%d", px1, py1))
 centred("and keeps them in the middle there")
 H.expect(H.buttonNamed(a, "Home") ~= nil, "walk", "the Home button shows off the own island")
+-- a tap on one of Bo's driftlings there opens its details, only to look at (the request of 2026-11-14, "allow players
+-- to click on creatures to open up a menu seeing their details"): its mutations come with its island's Pals attribute
+do
+	local CreaturesW = H.sharedServer("Data.Creatures")
+	local WVw = H.cmod(a, "Controllers.WorldView")
+	local pb = H.profile(b)
+	local bx = nil
+	for _, x in pb.pals do
+		if x.home ~= 0 then
+			bx = x
+			break
+		end
+	end
+	H.expect(bx ~= nil, "walk", "Bo has a driftling in a hut")
+	if bx then
+		local muts0 = bx.muts
+		bx.muts = { "bright2", "rainy1" }
+		H.push(b, 0.8)
+		local attr = plotModel(2):GetAttribute("Pals")
+		H.expect(type(attr) == "string" and string.find(attr, string.format("%d.%s.%d.%d.bright2,rainy1", bx.id, bx.sp, bx.work, bx.home), 1, true) ~= nil, "walk", "the Pals attribute carries each one's mutations", tostring(attr))
+		H.inClient(a, WVw.holdPal, 2, bx.id, 6)
+		E.run(0.2)
+		local pos = H.inClient(a, WVw.palScreen, 2, bx.id)
+		H.expect(pos ~= nil, "walk", "Bo's driftling on Ava's screen", tostring(pos))
+		if pos then
+			H.inClient(a, WVw.tapScreen, pos)
+			E.run(0.4)
+			local panel = a.PlayerGui:FindFirstChild("Panel_pal", true)
+			local function label(name)
+				local l = panel and panel:FindFirstChild(name, true)
+				return if l and l:IsA("TextLabel") then l.Text else nil
+			end
+			local d = CreaturesW.byId[bx.sp]
+			H.expect(H.currentPanel(a) == "pal" and d ~= nil and label("Name") == d.name, "walk", "a tap on it opens its details on Ava's screen", string.format("%s %s", tostring(H.currentPanel(a)), tostring(label("Name"))))
+			H.expect(label("Mut_bright2") ~= nil and label("Mut_rainy1") ~= nil, "walk", "with its mutations", string.format("%s / %s", tostring(label("Mut_bright2")), tostring(label("Mut_rainy1"))))
+			local where = panel and panel:FindFirstChild("Where", true)
+			local whereTop = where and where:FindFirstChild("Top")
+			H.expect(whereTop ~= nil and whereTop.Text == "Works at the " .. Buildings.byId.patch.name, "walk", "where it works on Bo's island", whereTop and whereTop.Text)
+			local ro = label("ReadOnly")
+			H.expect(ro ~= nil and string.find(ro, "Bo's Isle", 1, true) ~= nil and H.buttonNamed(a, "PalWork", true) == nil and H.buttonNamed(a, "PalMove", true) == nil and H.buttonNamed(a, "PalSell", true) == nil, "walk", "someone else's: only to look at, no Work, Move or Sell", tostring(ro))
+			H.closePanel(a)
+		end
+		bx.muts = muts0
+		H.push(b, 0.4)
+	end
+end
 -- a few steps on the own island: the view moves with every one
 local res = H.req(a, "char.home", {})
 H.expect(res.ok, "walk", "char.home", tostring(res.err))

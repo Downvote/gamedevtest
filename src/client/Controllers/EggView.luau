@@ -180,13 +180,16 @@ function EggView.hatch(id: number, swap: number?)
 			end
 		end
 		local r = math.clamp(tonumber(data.r) or 1, 1, 5)
+		-- (a kind never had before: "New!" by its name in the scene and in front of the notice)
+		local fresh = data.new == true
 		UIKit.closePanel()
-		HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, 5) }, function()
+		HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, 5), new = fresh }, function()
 			-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
 			if fromPanel and StateClient.view() ~= nil then
 				UIKit.openPanel("tree")
 			end
-			UIKit.notice(if sold > 0 then string.format("It hatched %s. The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s.", what), UIKit.color(rar.color), 4)
+			local said = if sold > 0 then string.format("It hatched %s. The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s.", what)
+			UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
 		end)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id })

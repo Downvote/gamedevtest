@@ -229,9 +229,9 @@ function IslandService.step(dt: number)
 		if s.turnClock >= Tuning.TurnSeconds then
 			s.turnClock -= Tuning.TurnSeconds
 			-- the eggs a turn nearer; the ready ones hatch into a hut with room
-			local hatched = Breed.turn(p)
+			local hatched, fresh = Breed.turn(p)
 			Session.markDirty(s)
-			Session.fx(s, { kind = "turn", hatched = if #hatched > 0 then hatched else nil })
+			Session.fx(s, { kind = "turn", hatched = if #hatched > 0 then hatched else nil, fresh = if #fresh > 0 then fresh else nil })
 		end
 		if today > s.dayIndex then
 			s.dayIndex = today

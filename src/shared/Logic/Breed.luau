@@ -175,14 +175,19 @@ function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (
 	return true, egg
 end
 
--- A turn's end: every egg a turn nearer; the ready ones hatch into a hut with room (in the Index). The hatched.
-function Breed.turn(p: Profile): { Types.Pal }
+-- A turn's end: every egg a turn nearer; the ready ones hatch into a hut with room (in the Index). The hatched, and
+-- the kinds among them the player never had before (the notice's "New!").
+function Breed.turn(p: Profile): ({ Types.Pal }, { string })
 	local born: { Types.Pal } = {}
+	local fresh: { string } = {}
 	local keep: { Egg } = {}
 	for _, egg in p.eggs do
 		egg.left = math.max(0, egg.left - 1)
 		local d = Creatures.byId[egg.sp]
 		if egg.left == 0 and d then
+			if (p.seen[egg.sp] or 0) < 2 then
+				table.insert(fresh, egg.sp)
+			end
 			table.insert(born, Tree.add(p, egg.sp, Traits.clean(egg.muts)))
 			p.stats.hatched += 1
 		else
@@ -190,7 +195,7 @@ function Breed.turn(p: Profile): { Types.Pal }
 		end
 	end
 	p.eggs = keep
-	return born
+	return born, fresh
 end
 
 return table.freeze(Breed)

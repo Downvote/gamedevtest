@@ -10,6 +10,7 @@
 -- models' names (uid:id:x:z:rot:lvl), so a visit shows a neighbour's island alive too. Only islands near the view get
 -- models. Every island's sign gets its name (or "Unclaimed isle") floating over it; tapping a sign shows a card about
 -- the island; tapping the own Tree of Life opens its panel.
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -42,6 +43,7 @@ type Walker = {
 	sig: string,
 	work: number,
 	home: number, -- its hut (the hut's uid)
+	muts: { string }, -- its mutations (the Pals attribute's last field: a tap shows them)
 	thing: MicroModels.Thing?,
 	x: number, -- world
 	z: number,
@@ -331,7 +333,7 @@ local function groundY(): number
 	return Street.LAWN_Y
 end
 
-local function newWalker(key: string, id: number, plot: number, sp: string, work: number, home: number, at: Vector2?): Walker
+local function newWalker(key: string, id: number, plot: number, sp: string, work: number, home: number, at: Vector2?, muts: { string }): Walker
 	local rng = Util.newRng(Util.hash32(key))
 	local x, z = strollPoint(plot, rng)
 	if at then
@@ -345,6 +347,7 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 		sig = sp,
 		work = work,
 		home = home,
+		muts = muts,
 		thing = nil,
 		x = x,
 		z = z,
@@ -384,8 +387,12 @@ local function syncPlot(i: number, near: boolean)
 		local pals = m:GetAttribute("Pals")
 		if type(pals) == "string" then
 			for entry in string.gmatch(pals, "[^;]+") do
-				local id, sp, work, home = string.match(entry, "^(%d+)%.([%w_]+)%.(%d+)%.(%d+)$")
+				local id, sp, work, home, mutList = string.match(entry, "^(%d+)%.([%w_]+)%.(%d+)%.(%d+)%.?([%w_,]*)$")
 				if id and sp then
+					local muts: { string } = {}
+					for mu in string.gmatch(mutList or "", "[%w_]+") do
+						table.insert(muts, mu)
+					end
 					local key = i .. ":p" .. id
 					want[key] = true
 					local w: Walker? = walkers[key]
@@ -402,7 +409,7 @@ local function syncPlot(i: number, near: boolean)
 							at = Vector2.new(hx, hz)
 							born[key] = os.clock()
 						end
-						local nw = newWalker(key, tonumber(id) or 0, i, sp, tonumber(work) or 0, hm, at)
+						local nw = newWalker(key, tonumber(id) or 0, i, sp, tonumber(work) or 0, hm, at, muts)
 						if at then
 							nw.cheerUntil = os.clock() + 1.2
 							nw.cheerMood = "hooray" -- (just hatched: one jump, 2026-11-14)
@@ -413,6 +420,7 @@ local function syncPlot(i: number, near: boolean)
 						local moved = w.home ~= hm or w.work ~= (tonumber(work) or 0)
 						w.work = tonumber(work) or 0
 						w.home = hm
+						w.muts = muts
 						if moved then
 							-- (a new place: off it goes now)
 							w.untilT = 0
@@ -612,17 +620,9 @@ local function treeOf(inst: Instance): boolean?
 	return nil
 end
 
--- A tap (not a drag, not on the interface, not in Build mode) on one of the own tree's eggs hatches it
--- (Controllers/EggView); on the own Tree of Life it opens its panel; on an island sign, it shows its card.
-local function onTap(pos: Vector2)
-	if CameraController.isFree() then
-		return
-	end
-	-- (an egg under the own tree: hatched)
-	if EggView.tapAt(pos) then
-		return
-	end
-	local origin, dir = PixelRenderer.screenRay(pos)
+-- What a tap's ray may hit: the islands and their buildings, never the driftlings, the founders or anything else in
+-- PixelDynamic.
+local function rayParams(): RaycastParams
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	-- (the pixel filter's group: the invisible coast walls stand far taller than anything on the island and, since
@@ -635,7 +635,141 @@ local function onTap(pos: Vector2)
 		end
 	end
 	params.FilterDescendantsInstances = list
-	local hit = workspace:Raycast(origin, dir, params)
+	return params
+end
+
+------------------------------------------------------------------ picking a driftling
+-- The driftling drawn under a screen point (pos = InputObject.Position, below the top bar), the request of
+-- 2026-11-14, "allow players to click on creatures to open up a menu seeing their details": each one drawn near the
+-- view projected to a box on the screen (its foot to the top of its model, about as wide as it is tall, a few px of
+-- slack for a small one), and of the boxes holding the point the one whose centre is nearest. One hidden behind
+-- something nearer the camera (a hut, the tree: what the tap's ray meets first) is passed over for the next.
+local function palAt(pos: Vector2): Walker?
+	if CameraController.stage() ~= nil then
+		return nil
+	end
+	local inset = GuiService:GetGuiInset()
+	local sx, sy = pos.X + inset.X, pos.Y + inset.Y
+	local hits: { { w: Walker, d: number } } = {}
+	for _, w in walkers do
+		local t = w.thing
+		if t == nil then
+			continue
+		end
+		local base = Vector3.new(w.x, groundY(), w.z)
+		local foot, on = PixelRenderer.project(base)
+		if not on then
+			continue
+		end
+		local head = PixelRenderer.project(base + Vector3.new(0, t.h, 0))
+		local h = math.max(10, foot.Y - head.Y)
+		local dx, dy = sx - foot.X, sy - (foot.Y + head.Y) / 2
+		if math.abs(dx) <= math.max(8, h * 0.6) and math.abs(dy) <= h * 0.5 + 4 then
+			table.insert(hits, { w = w, d = dx * dx + dy * dy })
+		end
+	end
+	if #hits == 0 then
+		return nil
+	end
+	table.sort(hits, function(a, b): boolean
+		return a.d < b.d
+	end)
+	local origin, dir = PixelRenderer.screenRay(pos)
+	local hit = workspace:Raycast(origin, dir, rayParams())
+	local unit = dir.Unit
+	for _, c in hits do
+		local t = c.w.thing :: MicroModels.Thing
+		local centre = Vector3.new(c.w.x, groundY() + t.h / 2, c.w.z)
+		if hit == nil or (hit.Position - origin):Dot(unit) >= (centre - origin):Dot(unit) - (t.r + 1.5) then
+			return c.w
+		end
+	end
+	return nil
+end
+
+-- The details of a driftling picked on an island (Menus' "pal" panel): the own island's by its id (its buttons: work,
+-- move, sell), a neighbour's from what its island's Pals attribute says (read only), where it works and lives named
+-- from the buildings standing there.
+local function openPal(w: Walker)
+	if w.plot == myPlot then
+		UIKit.openPanel("pal", { id = w.id })
+		return
+	end
+	local spots = spotsNow(w.plot)
+	local ws, hs = spots[w.work], spots[w.home]
+	local m = plotModel(w.plot)
+	local owner = if m then m:GetAttribute("StudioName") else nil
+	UIKit.openPanel("pal", {
+		id = w.id,
+		plot = w.plot,
+		sp = w.sig,
+		muts = table.clone(w.muts),
+		work = if ws then ws.id else "",
+		home = if hs then hs.id else "",
+		isle = if type(owner) == "string" then owner else "",
+	})
+end
+
+-- With a mouse: the name of the driftling under the pointer floats over its head in its rarity's colour (checked ten
+-- times a second, nothing over the interface, a panel open or in Build mode), so it reads as something to click.
+local hoverPos: Vector2? = nil
+local hoverAt = 0
+local hoverKey: string? = nil
+local hoverLabel: TextLabel? = nil
+local function stepHover(t: number)
+	if t >= hoverAt then
+		hoverAt = t + 0.1
+		local hp = hoverPos
+		local w = if hp and UserInputService.MouseEnabled and UIKit.currentPanel() == nil and not CameraController.isFree() then palAt(hp) else nil
+		hoverKey = if w then w.key else nil
+	end
+	local key = hoverKey
+	local w = if key then walkers[key] else nil
+	local l = hoverLabel
+	if w == nil then
+		if l then
+			l.Visible = false
+		end
+		return
+	end
+	local def = Creatures.byId[w.sig]
+	local text = if def then def.name else "A driftling"
+	local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
+	if l == nil then
+		l = UIKit.text(UIKit.canvas("World"), text, UDim2.fromOffset(UIKit.textWidth(text) + 4, 10), nil, { x = "center", kind = "outline", name = "PalHover" })
+		hoverLabel = l
+	end
+	local label = l :: TextLabel
+	if label.Text ~= text then
+		label.Size = UDim2.fromOffset(UIKit.textWidth(text) + 4, 10)
+		UIKit.setText(label, text)
+	end
+	UIKit.setTextColor(label, UIKit.color(rar.color))
+	local h = if w.thing then w.thing.h else 2
+	local x, y, on = PixelRenderer.projectPixel(Vector3.new(w.x, groundY() + h + 0.4, w.z))
+	label.Visible = on
+	label.Position = UDim2.fromOffset(x - math.floor(label.Size.X.Offset / 2), y - 10)
+end
+
+-- A tap (not a drag, not on the interface, not in Build mode) on one of the own tree's eggs hatches it
+-- (Controllers/EggView); on a driftling it opens its details; on the own Tree of Life it opens its panel; on an
+-- island sign, it shows its card.
+local function onTap(pos: Vector2)
+	if CameraController.isFree() then
+		return
+	end
+	-- (an egg under the own tree: hatched)
+	if EggView.tapAt(pos) then
+		return
+	end
+	-- (a driftling, before the ground and the buildings behind it)
+	local w = palAt(pos)
+	if w then
+		openPal(w)
+		return
+	end
+	local origin, dir = PixelRenderer.screenRay(pos)
+	local hit = workspace:Raycast(origin, dir, rayParams())
 	if hit == nil then
 		return
 	end
@@ -765,6 +899,12 @@ function WorldView.start()
 			end
 		end
 	end)
+	-- the pointer, for the name over the driftling under it (gone while over the interface)
+	UserInputService.InputChanged:Connect(function(input, processed)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			hoverPos = if processed then nil else Vector2.new(input.Position.X, input.Position.Y)
+		end
+	end)
 	local syncAt = 0
 	local last = os.clock()
 	RunService.Heartbeat:Connect(function()
@@ -792,15 +932,51 @@ function WorldView.start()
 		end
 		stepBits(dt)
 		updateSigns()
+		stepHover(t)
 		-- the tree's eggs on every island near the view
 		EggView.step(t, c.X)
 	end)
 end
 
 -- Sims: a tap on the screen at `pos` (screen px, as an InputObject's), as a player's tap is handled (a sign shows its
--- card).
+-- card, a driftling its details).
 function WorldView.tapScreen(pos: Vector2)
 	onTap(pos)
+end
+
+-- Sims and previews: where a driftling stands on the screen (screen px, as an InputObject's: its box's centre) and
+-- its key "<plot>:p<id>", for driftling `id` of island `plot`; nil when it isn't drawn or is off the screen.
+function WorldView.palScreen(plot: number, id: number): Vector2?
+	local w = walkers[plot .. ":p" .. id]
+	local t = if w then w.thing else nil
+	if w == nil or t == nil then
+		return nil
+	end
+	local base = Vector3.new(w.x, groundY(), w.z)
+	local foot, on = PixelRenderer.project(base)
+	local head = PixelRenderer.project(base + Vector3.new(0, t.h, 0))
+	if not on then
+		return nil
+	end
+	local inset = GuiService:GetGuiInset()
+	return Vector2.new(foot.X - inset.X, (foot.Y + head.Y) / 2 - inset.Y)
+end
+
+-- Sims: the driftling a tap at `pos` would pick ("<plot>:p<id>"), or nil.
+function WorldView.palKeyAt(pos: Vector2): string?
+	local w = palAt(pos)
+	return if w then w.key else nil
+end
+
+-- Sims and previews: hold a driftling still where it stands (its walk, its work and its strolls wait) for `secs`, so a
+-- tap at where it was drawn lands on it.
+function WorldView.holdPal(plot: number, id: number, secs: number)
+	local w = walkers[plot .. ":p" .. id]
+	if w then
+		w.tx, w.tz = w.x, w.z
+		w.state = "idle"
+		w.untilT = os.clock() + secs
+	end
 end
 
 -- CLI checks only: the islanders drawn now (all islands', and the own island's).
