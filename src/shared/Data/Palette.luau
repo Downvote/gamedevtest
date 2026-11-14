@@ -90,59 +90,62 @@ local ORDER: { string } = {
 }
 
 -- Rich, warm colours (the request of 2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use
--- more cozy colors. saturate the game back more"): the cozy pass's colours with the colourful hues 15% fuller.
+-- more cozy colors. saturate the game back more"): the cozy pass's colours with the colourful hues 15% fuller. Then
+-- pink led (2026-11-14: "make the pallette more pinkish, changing the sand pink and the rest of the pallette to
+-- match"): pink sand, a fresher green lawn and leaves, a turquoise sea, rosy wood, mauve rock and steel, pink-white foam
+-- and cream.
 local COLORS: { [string]: number } = {
 	ink = 0x2B1E2E,
-	sky_day = 0x98DBF9,
-	sky_night = 0x1F2552,
-	grass = 0x8ED262,
-	grass_dark = 0x71B44D,
-	pavement = 0xCFC7BA,
-	floor_a = 0xEDDDC0,
-	floor_b = 0xDEC7A1,
-	wall = 0xF4EFE6,
+	sky_day = 0xA2D8F8,
+	sky_night = 0x272252,
+	grass = 0x84DA72,
+	grass_dark = 0x62BC5C,
+	pavement = 0xD8C6C6,
+	floor_a = 0xF0DCCF,
+	floor_b = 0xE2C2AE,
+	wall = 0xF6EEEB,
 	wall_trim = 0xEE879E,
 	window = 0xBDECFD,
-	wood = 0xD28C52,
-	wood_dark = 0x935935,
-	steel = 0xBAC3CE,
-	steel_dark = 0x7B8696,
-	desk = 0xE8CB9A,
+	wood = 0xD2896A,
+	wood_dark = 0x925646,
+	steel = 0xC2BFCF,
+	steel_dark = 0x837E96,
+	desk = 0xEBC7A8,
 	screen_off = 0x3C4A5E,
 	screen_on = 0x64D9FD,
 	screen_code = 0x93FAA3,
 	plastic = 0xF2F0EA,
 	plastic_dark = 0x9C9AA3,
-	leaf = 0x6AC65E,
-	leaf_dark = 0x3B944A,
-	pot = 0xE47E50,
-	paper = 0xFFFDF4,
+	leaf = 0x60C46E,
+	leaf_dark = 0x37935A,
+	pot = 0xE2786A,
+	paper = 0xFFFAF7,
 	sofa = 0xF36464,
 	rug = 0xFDCA62,
-	road = 0x625E6B,
+	road = 0x66596B,
 
-	cream = 0xFEF3DA,
+	cream = 0xFFF1E6,
 	berry_red = 0xF63850,
 	blue = 0x65A8F5,
-	green = 0x77D268,
+	green = 0x6FD47E,
 	yellow = 0xFDE074,
-	orange = 0xFCA556,
+	orange = 0xFCA05E,
 	pink = 0xFEA8CA,
 	purple = 0xA675DF,
 	gold = 0xFCC933,
 	black = 0x3B3442,
 	white = 0xFFFFFF,
 
-	sand = 0xFBD99B,
-	sand_dark = 0xE6B872,
-	water = 0x33ADD0,
+	sand = 0xFCC0B8,
+	sand_dark = 0xEC9E99,
+	water = 0x2EBBC4,
 	night = 0x2E2A52,
 	chalk = 0x2A5F3D,
 
-	shallow = 0x62D8DC,
-	foam = 0xEEF9F6,
-	rock = 0x9E978F,
-	rock_dark = 0x6E6862,
+	shallow = 0x6FE0D2,
+	foam = 0xFDF3F3,
+	rock = 0xA0929B,
+	rock_dark = 0x70626C,
 
 	skin1 = 0xFEE1CA,
 	skin2 = 0xF9C293,
@@ -198,16 +201,17 @@ local THEMES: { [string]: { [string]: number } } = {
 
 -- Multiplicative tints (0.8..1.2) applied by the renderer and the classic lighting. The day is a little warm, like
 -- the light late on a summer afternoon (the request of 2026-11-13: "make the entire game feel more cozy, such as the
--- pallette and other details to emphasize it"), the same as the dynamic models' (INDOOR below).
+-- pallette and other details to emphasize it"), and since the pink pass a touch rosy (the night's violet is
+-- DayLight's). The same as the dynamic models' (INDOOR below).
 local MODES: { [string]: { r: number, g: number, b: number } } = {
-	day = { r = 1.03, g = 1, b = 0.95 },
+	day = { r = 1.04, g = 0.98, b = 0.97 },
 	plain = { r = 1, g = 1, b = 1 }, -- the colours as they are (the specs: a palette colour lands on itself)
 	night = { r = 0.8, g = 0.84, b = 1.15 },
 }
 
 -- Inside the office the renderer tints by these instead (Render/Shading INDOOR): lit a little warmer by the lamps.
 local INDOOR: { [string]: { r: number, g: number, b: number } } = {
-	day = { r = 1.03, g = 1, b = 0.96 },
+	day = { r = 1.04, g = 0.99, b = 0.97 },
 	night = { r = 1.04, g = 0.94, b = 0.86 },
 }
 
@@ -231,32 +235,32 @@ local MATCH: { [string]: number } = {
 }
 
 -- The interface's own colours (UIKit), an island's (GAME_DESIGN 2: "more in theme with the island theme"): dark
--- driftwood plates in frames of planks (frame_*), nail heads, sand-coloured quiet text, buttons painted lagoon blue,
--- palm green, mango and coral, a sea-dark backdrop behind a panel.
+-- rosewood plates in frames of rosy planks (frame_*), nail heads, pink sand quiet text, buttons painted lagoon
+-- turquoise, mint, mango and coral, a sea-dark backdrop behind a panel.
 local UI: { [string]: number } = {
-	ink = 0x2A1C1A,
-	plate = 0x3D2A22,
-	plate_light = 0x5A3E30,
-	paper = 0xFFF3DC,
-	paper_dark = 0xEAD3AE,
+	ink = 0x2C1A20,
+	plate = 0x3E2629,
+	plate_light = 0x5E3B3E,
+	paper = 0xFFF1EC,
+	paper_dark = 0xF0CFC6,
 	text = 0xFFFFFF,
-	text_dim = 0xDCC6A2,
-	text_ink = 0x2A1C1A,
+	text_dim = 0xE6C3BC,
+	text_ink = 0x2C1A20,
 	accent = 0xFFCB30,
-	good = 0x7DD87A,
+	good = 0x78DA8A,
 	bad = 0xFF6F6A,
-	button = 0x4DB8D6,
-	button_ok = 0x7DD87A,
+	button = 0x45BFC6,
+	button_ok = 0x78DA8A,
 	button_warn = 0xFFA553,
-	button_off = 0x85735F,
-	button_close = 0xE8705A,
-	frame_hi = 0xE8B97F,
-	frame = 0xBB8350,
-	frame_lo = 0x825637,
-	frame_dark = 0x603E27,
-	nail_hi = 0xF6EEDF,
-	nail_lo = 0x6E5E53,
-	sea_shade = 0x0C2531,
+	button_off = 0x8A6E6E,
+	button_close = 0xEC6E6E,
+	frame_hi = 0xF0B5A0,
+	frame = 0xC47E68,
+	frame_lo = 0x8A5149,
+	frame_dark = 0x643937,
+	nail_hi = 0xFAEDEA,
+	nail_lo = 0x735B5B,
+	sea_shade = 0x0C2A31,
 }
 
 local Palette: {

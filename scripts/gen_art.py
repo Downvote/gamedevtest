@@ -40,25 +40,25 @@ PAL = {
     "red0": 0x6B1F48, "red1": 0xB83450, "red2": 0xE8535C, "red3": 0xFF8C72,
     "org0": 0x8A3A2E, "org1": 0xD2652E, "org2": 0xF7963F, "org3": 0xFFC86E,
     "yel0": 0x8F5E24, "yel1": 0xD99A2B, "yel2": 0xFFC93C, "yel3": 0xFFE98A,
-    "grn0": 0x1F5650, "grn1": 0x3A8C55, "grn2": 0x6CBF5E, "grn3": 0xAEE07A,
-    "cyn0": 0x26558F, "cyn1": 0x3B97C7, "cyn2": 0x6FCFEA, "cyn3": 0xB4F1F0,
+    "grn0": 0x1E5652, "grn1": 0x368E5E, "grn2": 0x66C26E, "grn3": 0xA6E28C,
+    "cyn0": 0x235A86, "cyn1": 0x34A0BC, "cyn2": 0x66D6DE, "cyn3": 0xB2F4EC,
     "blu0": 0x2E2F7C, "blu1": 0x4561BA, "blu2": 0x6F98E8, "blu3": 0xA9CFFA,
     "pur0": 0x3A2672, "pur1": 0x6A47AC, "pur2": 0x9B74D8, "pur3": 0xCAA6F0,
     "pnk0": 0x76306B, "pnk1": 0xC2548F, "pnk2": 0xF286B5, "pnk3": 0xFFBACB,
-    "brn0": 0x4B2A33, "brn1": 0x8A553A, "brn2": 0xC28A57, "brn3": 0xE9BC7F,
-    "gry0": 0x45425A, "gry1": 0x75738C, "gry2": 0xA5A4B5, "gry3": 0xD3D2D8,
+    "brn0": 0x4C2834, "brn1": 0x8C5244, "brn2": 0xC6866A, "brn3": 0xEDBA98,
+    "gry0": 0x48405A, "gry1": 0x7A708C, "gry2": 0xAAA0B4, "gry3": 0xD8D0D8,
     "skn0": 0x8F4C55, "skn1": 0xD18A6D, "skn2": 0xF4C49E, "skn3": 0xFFE3C2,
     "wht0": 0x8D93BF, "wht1": 0xBAC4E2, "wht2": 0xEDF1F7,
     "drk0": 0x2E2433, "drk1": 0x4B3D4E, "drk2": 0x685767, "drk3": 0x8C7886,
     "bas0": 0x3A2D35, "bas1": 0x5A4549, "bas2": 0x7A5E5C, "bas3": 0x9E7D72,
-    "crm0": 0xA86E5E, "crm1": 0xDDAE86, "crm2": 0xFBE2BC, "crm3": 0xFFF6E2,  # cream: bellies, muzzles, jaws
-    "tel0": 0x1B4B57, "tel1": 0x2A7F7D, "tel2": 0x3FB0A2, "tel3": 0x86DCC0,  # teal: the island birds' backs
+    "crm0": 0xA86A64, "crm1": 0xDFA890, "crm2": 0xFCDCC8, "crm3": 0xFFF3EA,  # cream: bellies, muzzles, jaws
+    "tel0": 0x1A4C58, "tel1": 0x28827E, "tel2": 0x3CB4A8, "tel3": 0x84E0C8,  # teal: the island birds' backs
     "cor0": 0x7C2B40, "cor1": 0xC9504F, "cor2": 0xFF8A72, "cor3": 0xFFC09A,  # coral: a wren's breast
     # the tone markers of a tinted sprite (Render/Fx.TONES, the same four values): drawn in the world they take the
     # tones of a colour given at draw time (a tuft the lawn's under it, a leaf its tree's, a butterfly its own), here a
     # plain green so the contact sheet shows them
     "tn0": 0x2E5937, "tn1": 0x4A8A4C, "tn2": 0x76B862, "tn3": 0xB7E08B,
-    "wht": 0xFFFFFF, "crm": 0xFFF3D9, "blk": 0x3B3442, "plt": 0x463B5C,
+    "wht": 0xFFFFFF, "crm": 0xFFF1E6, "blk": 0x3B3442, "plt": 0x463B5C,
 }
 RAMPS = {
     "R": ["red0", "red1", "red2", "red3"], "O": ["org0", "org1", "org2", "org3"], "Y": ["yel0", "yel1", "yel2", "yel3"],
