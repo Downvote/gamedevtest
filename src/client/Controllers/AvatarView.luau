@@ -4,7 +4,12 @@
 -- sets it from profile.founder). The rig follows the player's character every frame: its feet on the ground under the
 -- HumanoidRootPart, facing where the character faces, its legs and arms swinging with its speed. The Roblox avatar
 -- itself is hidden on this client (LocalTransparencyModifier; the pixel bake never sees characters), so the classic
--- style shows the chibis too. Other players' names float over their heads; walking feet kick up puffs of dust. In the
+-- style shows the chibis too. Every founder (GAME_DESIGN 14.1; the request of 2026-11-14: "make the player be outlined
+-- white like the bakery game, with the name and title on top") wears the pieces of its look (Data/Looks.decode of the
+-- "Founder" attribute: the colours, the hair style and a piece in each of Data/Cosmetics' slots, built by
+-- Models/CharacterModels), is outlined in white (PixelRenderer's rim: outline "self" for the player's own, "player" for
+-- the others; a white Highlight in the classic style) and has a name tag over its head with the title it wears
+-- (Controllers/NameTags, the "Title" attribute). Walking feet kick up puffs of dust. In the
 -- sea (GAME_DESIGN 8: no docks since 2026-11-13, "players can swim around in water to reach other player islands") a
 -- founder swims: the rig sinks to its chest at the water's surface and crawls (treads water when still), splashing,
 -- the strokes heard; the HUD slows the character to Tuning.SwimSpeed there and holds its jump.
@@ -15,11 +20,14 @@ local RunService = game:GetService("RunService")
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
+local Looks = require(ReplicatedStorage.Shared.Data.Looks)
+local Cosmetics = require(ReplicatedStorage.Shared.Data.Cosmetics)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local Audio = require(script.Parent.Audio)
 local Puffs = require(script.Parent.Puffs)
+local NameTags = require(script.Parent.NameTags)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 
 local AvatarView = {}
@@ -29,7 +37,8 @@ type Rec = {
 	sig: string,
 	last: Vector3?,
 	speed: number,
-	label: TextLabel?,
+	tag: NameTags.Tag, -- the name and title over its head
+	hl: Highlight?, -- its white outline in the classic style (the pixel filter off)
 	char: Model?,
 	dustAt: number, -- when their feet next kick up a puff of dust (walking)
 	air: boolean, -- in the air (a jump) last frame
@@ -108,12 +117,28 @@ groundParams.RespectCanCollide = true
 local wetParams = RaycastParams.new()
 wetParams.FilterType = Enum.RaycastFilterType.Exclude
 
+-- A player's look from their "Founder" attribute (Data/Looks.decode: indices clamped to the lists, a piece kept only
+-- when it is a known one of that slot), or one from their user id while there is none. The string is the rig's key:
+-- a new one rebuilds it.
 local function lookOf(pl: Player): (Types.Look, string)
 	local a = pl:GetAttribute("Founder")
 	local s = if type(a) == "string" then a else ""
-	local k, h, st, sh = string.match(s, "^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
-	if k and h and st and sh then
-		return { skin = tonumber(k) :: number, hair = tonumber(h) :: number, style = tonumber(st) :: number, shirt = tonumber(sh) :: number }, s
+	local d = Looks.decode(s)
+	if d then
+		local look: Types.Look = {
+			skin = math.clamp(math.floor(tonumber(d.skin) or 1), 1, #Looks.skin),
+			hair = math.clamp(math.floor(tonumber(d.hair) or 1), 1, #Looks.hair),
+			style = math.clamp(math.floor(tonumber(d.style) or 1), 1, #Looks.styles),
+			shirt = math.clamp(math.floor(tonumber(d.shirt) or 1), 1, #Looks.shirt),
+		}
+		for _, slot in Looks.worn do
+			local id = d[slot]
+			local c = if type(id) == "string" then Cosmetics.byId[id] else nil
+			if c and c.slot == slot then
+				(look :: any)[slot] = id
+			end
+		end
+		return look, s
 	end
 	local u = pl.UserId
 	local look = { skin = u % 4 + 1, hair = (u // 4) % 5 + 1, style = (u // 20) % 4 + 1, shirt = (u // 80) % 8 + 1 }
@@ -153,9 +178,7 @@ local function drop(pl: Player)
 		r.rig.model:Destroy()
 		PixelRenderer.unregisterDynamic(r.ripple)
 		r.ripple:Destroy()
-		if r.label then
-			r.label:Destroy()
-		end
+		NameTags.drop(r.tag)
 		recs[pl] = nil
 	end
 end
@@ -215,15 +238,12 @@ local function step(dt: number)
 			local rig = CharacterModels.buildStanding(look, "Founder_" .. pl.UserId, pl.UserId % 97)
 			CharacterModels.setScale(rig, Tuning.FounderScale)
 			rig.model.Parent = dyn()
-			PixelRenderer.registerDynamic(rig.model)
-			local label: TextLabel? = nil
-			if pl ~= me then
-				label = UIKit.text(UIKit.canvas("World"), pl.DisplayName, UDim2.fromOffset(UIKit.textWidth(pl.DisplayName) + 4, 10), nil, { x = "center", kind = "outline", name = "Name" })
-			end
+			-- (outlined in white: the player's own "self", everyone else's "player")
+			PixelRenderer.registerDynamic(rig.model, if pl == me then "self" else "player")
 			local ripple = rippleModel()
 			ripple.Parent = dyn()
 			PixelRenderer.registerDynamic(ripple)
-			r = { rig = rig, sig = sig, last = nil, speed = 0, label = label, char = nil, dustAt = 0, air = false, floor = "grass", stepAt = 0, ripple = ripple }
+			r = { rig = rig, sig = sig, last = nil, speed = 0, tag = NameTags.make(pl), char = nil, dustAt = 0, air = false, floor = "grass", stepAt = 0, ripple = ripple }
 			recs[pl] = r
 		end
 		local rec = r :: Rec
@@ -231,8 +251,28 @@ local function step(dt: number)
 			rec.char = char
 			hide(char)
 		end
+		-- the classic style (no pixel filter) outlines the founders with a white Highlight in place of the rim (the own
+		-- one seen through the scenery, like the rim's dotted part)
+		local classic = PixelRenderer.tier() == "off"
+		if classic and rec.hl == nil then
+			local hl = Instance.new("Highlight")
+			hl.Name = "Outline"
+			hl.FillTransparency = 1
+			hl.OutlineColor = Color3.new(1, 1, 1)
+			hl.OutlineTransparency = 0
+			hl.DepthMode = if pl == me then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded
+			hl.Adornee = rec.rig.model
+			hl.Parent = rec.rig.model
+			rec.hl = hl
+		elseif not classic and rec.hl then
+			(rec.hl :: Highlight):Destroy()
+			rec.hl = nil
+		end
+		NameTags.refresh(rec.tag, pl)
 		if pl == me and override then
+			-- (a cutscene poses the own founder: its tag steps aside)
 			(override :: (CharacterModels.Rig, number, number) -> ())(rec.rig, t, dt)
+			rec.tag.frame.Visible = false
 			rec.last = nil
 			continue
 		end
@@ -314,16 +354,9 @@ local function step(dt: number)
 			rec.dustAt = t + (if rec.speed > 14 then 0.18 else 0.3)
 			UIKit.bitsAt((base * CFrame.new(0, 0.1, -0.4)).Position, { "white", "text_dim" }, 2, 14, 40)
 		end
-		local label = rec.label
-		if label then
-			local top = (base * CFrame.new(CharacterModels.STAND_TOP * Tuning.FounderScale)).Position
-			local i, j, on = PixelRenderer.projectPixel(top)
-			label.Visible = on
-			if on then
-				local w = label.Size.X.Offset
-				label.Position = UDim2.fromOffset(i - math.floor(w / 2), j - 10)
-			end
-		end
+		-- the name tag over the head (higher by a hat's height when one is worn)
+		local top = CharacterModels.STAND_TOP + (if rec.rig.extra and #rec.rig.extra.head > 0 then Vector3.new(0, 0.6, 0) else Vector3.zero)
+		NameTags.place(rec.tag, (base * CFrame.new(top * Tuning.FounderScale)).Position)
 	end
 	for pl in recs do
 		if pl.Parent == nil then
@@ -348,6 +381,23 @@ end
 -- A cutscene poses the own founder (nil: back to following the character).
 function AvatarView.setOverride(fn: ((rig: CharacterModels.Rig, t: number, dt: number) -> ())?)
 	override = fn
+end
+
+-- CLI checks only: a player's name tag (its name, its title line or nil, whether it shows), the rig and whether it
+-- is outlined (the pixel filter's rim registered, or its Highlight in the classic style).
+function AvatarView.debugTag(pl: Player): (string?, string?, boolean)
+	local r = recs[pl]
+	if r == nil then
+		return nil, nil, false
+	end
+	return NameTags.texts(r.tag)
+end
+function AvatarView.debugRig(pl: Player): (CharacterModels.Rig?, boolean)
+	local r = recs[pl]
+	if r == nil then
+		return nil, false
+	end
+	return r.rig, PixelRenderer.hasRim(r.rig.model) or r.hl ~= nil
 end
 
 -- CLI checks only: the founders drawn now.

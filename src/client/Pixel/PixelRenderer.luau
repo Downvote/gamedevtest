@@ -79,6 +79,11 @@ local UP_INDEX = Shading.normalIndex(0, 1, 0)
 local DYN_ID0 = 32768 -- dynamic part ids start here (static ids are 1..32767)
 local MAX_RECTS = 12
 local CULL = 48 -- art px past the layer's edge a dynamic model may stand and still be drawn
+-- The founders' white outline (registerDynamic outline "self" / "player"; the request of 2026-11-14: "make the player be
+-- outlined white like the bakery game"): Random Bakery's rim. Each founder's whole silhouette, hidden parts too, is drawn
+-- again flat into a scratch window of its own rect (Raster.window), and Shading.rim lays a 1 px white line on its edge
+-- pixels over the ink one, dotted where something nearer hides that part of it (x-ray), so a founder behind a tree still
+-- shows. At most Rims.max (8) a tick: the own founder first, then the nearest to the layer's middle.
 local PICK_LEN = 2000
 local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
 local WATER_HZ = 6 -- the water's frames a second
@@ -127,7 +132,9 @@ type Texs = { [number]: TexInfo }
 local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
 
 type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number }
-type Dyn = { model: Model, parts: { DynPart } }
+-- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
+-- own: the local player's (drawn first when there are more than Rims.max)
+type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean? }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
 ------------------------------------------------------------------ state
@@ -220,7 +227,6 @@ local needFull = false -- the next compose copies the whole static layer and upl
 -- the street's finished picture, kept while a microgame's stage has the view (restored when its key comes back)
 type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, texs: Texs, nextId: number, dirty: boolean }
 local stash: Stash? = nil
-local offX, offY = 0, 0 -- the layer's shake offset (art px)
 
 -- invalidated rects in global art px, and the one being re-cast (its cursor: phase 1 anchors, phase 2 the rest)
 local invQueue: { Rect } = {}
@@ -1996,6 +2002,90 @@ local function runFx(s: Surf, now: number): { Rect }
 	return out
 end
 
+------------------------------------------------------------------ the founders' rims
+-- The scratch window a rim's silhouette is drawn into (grown on demand, never shrunk) and a far depth to clear it with.
+-- (one table: the renderer's main chunk is at Luau's 200 registers; number constants cost none)
+local Rims = {
+	rgb = Palette.colors.white or 0xFFFFFF,
+	max = 8, -- MAX_RIMS
+	-- the scratch window a rim's silhouette is drawn into (grown on demand, never shrunk) and a far depth to clear it
+	-- with
+	mask = { W = 0, H = 0, color = buffer.create(0), depth = buffer.create(0), id = buffer.create(0) } :: Raster.Frame,
+	cap = 0,
+	far = buffer.create(0),
+	list = {} :: { Dyn }, -- this tick's founders drawn, and each one's parts' rect (clipped to the layer)
+	rects = {} :: { Rect },
+	stats = { drawn = 0, px = 0, ms = 0 },
+}
+function Rims.flat(_rgb: number, _nx: number, _ny: number, _nz: number, _x: number, _y: number): number
+	return 0
+end
+Raster.markUniform(Rims.flat)
+
+-- The white rim of founder e, whose parts (drawn this tick) cover layer rect r. Returns the rim pixels laid.
+function Rims.draw(s: Surf, e: Dyn, r: Rect): number
+	local w, h = r.x1 - r.x0 + 1, r.y1 - r.y0 + 1
+	if w <= 0 or h <= 0 then
+		return 0
+	end
+	local n = w * h
+	local m = Rims.mask
+	if n > Rims.cap then
+		local cap = math.max(n, Rims.cap * 2)
+		Rims.cap = cap
+		m.color = buffer.create(cap * 4)
+		m.depth = buffer.create(cap * 4)
+		m.id = buffer.create(cap * 2)
+		local far = buffer.create(cap * 4)
+		for i = 0, cap - 1 do
+			buffer.writef32(far, i * 4, FAR)
+		end
+		Rims.far = far
+	end
+	m.W, m.H = w, h
+	buffer.fill(m.id, 0, 0, n * 2)
+	buffer.copy(m.depth, 0, Rims.far, 0, n * 4)
+	local wcam = Raster.window(s.cam, r.x0, r.y0, w, h)
+	for _, p in e.parts do
+		local part = p.part
+		if part.Parent ~= nil and part.Transparency < 0.95 then
+			local sz = part.Size
+			Raster.drawPart(m, wcam, p.shape, { part.CFrame:GetComponents() }, sz.X, sz.Y, sz.Z, 0, p.id, Rims.flat)
+		end
+	end
+	return Shading.rim(s.frame, m, r.x0, r.y0, Rims.rgb, Rims.rgb, nil, true, s.cam.gx, s.cam.gy)
+end
+
+-- Every founder drawn this tick gets its rim (at most Rims.max: the own one first, then the nearest to (cx, cy)).
+function Rims.drawAll(s: Surf, cx: number, cy: number)
+	local t0 = os.clock()
+	local list, rects = Rims.list, Rims.rects
+	local nr = #list
+	if nr > Rims.max then
+		local order = {}
+		for i = 1, nr do
+			local r = rects[i]
+			local mx, my = (r.x0 + r.x1) * 0.5 - cx, (r.y0 + r.y1) * 0.5 - cy
+			order[i] = { e = list[i], r = r, k = if list[i].own then -1 else mx * mx + my * my }
+		end
+		table.sort(order, function(x, y)
+			return x.k < y.k
+		end)
+		for i = 1, nr do
+			list[i], rects[i] = order[i].e, order[i].r
+		end
+		nr = Rims.max
+	end
+	local px = 0
+	for i = 1, nr do
+		px += Rims.draw(s, list[i], rects[i])
+	end
+	local st = Rims.stats
+	st.drawn, st.px, st.ms = nr, px, (os.clock() - t0) * 1000
+	table.clear(list)
+	table.clear(rects)
+end
+
 local function compose()
 	local s = surf
 	if s == nil then
@@ -2082,11 +2172,17 @@ local function compose()
 		end
 		if x0 <= x1 then
 			table.insert(rects, { x0 = x0 - 1, y0 = y0 - 1, x1 = x1 + 1, y1 = y1 + 1 })
+			if d.rim then
+				table.insert(Rims.list, d)
+				table.insert(Rims.rects, { x0 = math.max(0, x0), y0 = math.max(0, y0), x1 = math.min(s.W - 1, x1), y1 = math.min(s.H - 1, y1) })
+			end
 		end
 	end
 	for _, r in rects do
 		Shading.outline(s.frame, r.x0, r.y0, r.x1, r.y1)
 	end
+	-- the founders' white rims, once every model and its ink edge is in (a later model's ink must not cover one)
+	Rims.drawAll(s, s.W * 0.5, s.H * 0.5)
 	-- the effects over everything (their changed pixels' tiles go up with the rest)
 	local fxRects = runFx(s, os.clock())
 	if full then
@@ -2625,7 +2721,7 @@ function PixelRenderer.firstPicture(): (boolean, number)
 	return false, math.clamp(passShare[p] + weight[p] * (bakeGY - bakeRY0) / rows, 0, 0.99)
 end
 
-function PixelRenderer.registerDynamic(model: Model)
+function PixelRenderer.registerDynamic(model: Model, outline: string?)
 	local parts: { DynPart } = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -2654,7 +2750,7 @@ function PixelRenderer.registerDynamic(model: Model)
 			table.insert(parts, { part = d, id = nextDyn, shape = shape, glow = glow, rgb = rgb, tex = tex })
 		end
 	end
-	dyns[model] = { model = model, parts = parts }
+	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self" }
 end
 
 function PixelRenderer.unregisterDynamic(model: Model)
@@ -2685,7 +2781,8 @@ end
 
 -- The layer shifted by whole art px (a hit's jolt on a minigame's stage); 0, 0 puts it back.
 function PixelRenderer.setOffset(dx: number, dy: number)
-	offX, offY = math.floor(dx + 0.5), math.floor(dy + 0.5)
+	-- (kept nowhere else: the main chunk is at Luau's 200 registers)
+	local offX, offY = math.floor(dx + 0.5), math.floor(dy + 0.5)
 	local im = image
 	if im then
 		local K = if surf then (surf :: Surf).K else CameraController.pixelK()
@@ -2903,6 +3000,25 @@ function PixelRenderer.setDim(k: number)
 	dim = q
 	table.clear(dimMap)
 	needFull = true
+end
+
+-- Sims and previews: the founders' rims last tick (how many, the white pixels laid, the ms they took) and the models
+-- registered with a rim now.
+function PixelRenderer.debugRims(): { drawn: number, px: number, ms: number, registered: number }
+	local reg = 0
+	for _, d in dyns do
+		if d.rim then
+			reg += 1
+		end
+	end
+	local st = Rims.stats
+	return { drawn = st.drawn, px = st.px, ms = st.ms, registered = reg }
+end
+
+-- Whether a model is registered with a founder's white rim (registerDynamic outline "self" or "player").
+function PixelRenderer.hasRim(model: Model): boolean
+	local d = dyns[model]
+	return d ~= nil and d.rim == true
 end
 
 -- Sims and previews: the spotlight's dimming now.
