@@ -109,7 +109,7 @@ local TWINKLE: { { string } } = {
 	{ "glint_1", "glint_2", "glint_3", "glint_2", "glint_1" },
 }
 
-local KNACK: { [string]: string } = { farm = "good at farms", fish = "good at fishing", wood = "good with wood", shop = "good at shops" }
+local KNACK: { [string]: string } = { farm = "good at farms", wood = "good with wood", shop = "good at shops" }
 
 ------------------------------------------------------------------ state
 type Reveal = { kind: string, r: number?, i: number? } -- "rise" (to rarity r) | "mut" (the i-th mutation)

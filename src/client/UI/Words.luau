@@ -5,7 +5,6 @@ local Words = {}
 
 local ERRORS: { [string]: string } = {
 	money = "Not enough shells.",
-	wood = "Not enough wood.",
 	no_hut = "Build a hut first. Driftlings need somewhere to live.",
 	huts = "No room for another hut here. Grow the island, or replace a hut with a bigger one.",
 	busy = "Not right now.",

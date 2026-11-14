@@ -1,7 +1,7 @@
 --!strict
 -- The island on the server (docs/ARCHITECTURE.md 7.4): every player action and the island's clock, as thin wrappers
 -- round the shared rules (Logic/Island, Plot, Tree, Breed) that mark the session dirty and tell the client what
--- happened. The island makes wood and shells every step (Island.step); the Tree of Life lays a new lot of eggs every
+-- happened. The island makes shells every step (Island.step); the Tree of Life lays a new lot of eggs every
 -- few minutes (Tree.step; Fx "eggs"); the stores and the time to the next lot go to the client every second (Fx "tick",
 -- so the whole view is not sent every second); a turn ends every Tuning.TurnSeconds (the eggs; Fx
 -- "turn"), and the sea's clock (WorldClock: hours a day) counts the calendar days (Island.newDay; Fx "day").
@@ -28,8 +28,8 @@ local lastSeason: string? = nil
 
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
--- The tips (GAME_DESIGN 9): 1 wood (a lumber camp: wood builds everything), 2 shells (a farm: it sells what it
--- grows), 3 a hut, 4 an egg hatched from the Tree of Life (with shells), 5 a shop (it sells to the visitors), 6 the last
+-- The tips (GAME_DESIGN 9): 1 a lumber camp (it sells what it cuts), 2 a farm (it sells what it grows), 3 a hut, 4 an
+-- egg hatched from the Tree of Life (with shells), 5 a shop (it sells snacks), 6 the last
 -- tip (OK ends them). Each moves on once what it asks is done (an older save moves on through the ones it has done
 -- at once).
 local TIP_KIND: { [number]: string } = { [1] = "wood", [2] = "farm", [3] = "nest", [5] = "shop" }
@@ -198,7 +198,7 @@ function IslandService.init()
 	end)
 end
 
--- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes wood and shells, its tree
+-- The clock (Main's fixed step): the sea's clock runs on; every ready session's island makes shells, its tree
 -- lays a new lot of eggs when their time comes (Fx "eggs"; the quest's egg checked every second), a turn ends every
 -- TurnSeconds (the Hatcheries' eggs: Fx "turn"), and a calendar day's end on the sea's clock counts a day (Fx "day").
 function IslandService.step(dt: number)
@@ -245,7 +245,7 @@ function IslandService.step(dt: number)
 			-- (the quest's egg, once a second: a save loaded with such a quest on the go, or anything else that left
 			-- the lot without one)
 			questEgg(s)
-			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), clock = WorldClock.now(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
+			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = WorldClock.now(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
 		end
 	end
 end

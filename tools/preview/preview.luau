@@ -171,7 +171,7 @@ end
 
 -- A saved profile for `userId` (put in the fake cloud before they join): an island of `tier`; opts: pieces ({ id, x,
 -- z, rot? } wanted spots, placed where Logic/Plot says they fit, else at the nearest cell that does; upgraded to lvl
--- when given), pals (species: into the huts with room, the best first, at work at their knack), shells, wood, day,
+-- when given), pals (species: into the huts with room, the best first, at work at their knack), shells (the one store), day,
 -- tut, seen (kinds seen in the Index).
 local function seedProfile(userId, tier, opts)
 	opts = opts or {}
@@ -183,7 +183,6 @@ local function seedProfile(userId, tier, opts)
 	prof.tier = tier
 	local Tree = H.sharedServer("Logic.Tree")
 	prof.shells = opts.shells or 4800
-	prof.wood = opts.wood or 420
 	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
 	for _, d in opts.pieces or {} do
@@ -207,7 +206,7 @@ local function seedProfile(userId, tier, opts)
 		local Creatures = H.sharedServer("Data.Creatures")
 		local d = Creatures.byId[sp]
 		-- (a set of mutations each, so the panels show them: Data/Traits)
-		local MUTS = { { "fierce3", "swift1" }, { "angler2" }, {}, { "sturdy4", "bright2", "lazy" } }
+		local MUTS = { { "fierce3", "swift1" }, { "grower2" }, {}, { "sturdy4", "bright2", "lazy" } }
 		local x = { id = prof.nextId, sp = sp, home = 0, work = 0, muts = MUTS[(k - 1) % #MUTS + 1] }
 		prof.nextId += 1
 		table.insert(prof.pals, x)
@@ -344,7 +343,7 @@ local AMBIENT = {
 	{ "picket", 0, 0, 0, 1, true }, { "picket", 2, 0, 0, 1, true },
 }
 function SCEN.ambient()
-	seedProfile(2, 3, { pieces = AMBIENT, pals = { "clawdle", "mossbun", "pebblit", "gullfin" }, shells = 60000, wood = 5000 })
+	seedProfile(2, 3, { pieces = AMBIENT, pals = { "clawdle", "mossbun", "pebblit", "gullfin" }, shells = 65000 })
 	local p = join(2, "Wren")
 	settle(p)
 	local AV = modOr(p, "Controllers.AmbientView")
@@ -515,7 +514,7 @@ SCEN.dawn = timeScenario(0.02, "dawn")
 
 local function islandScenario(tier, label)
 	return function()
-		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, pals = PALS, shells = 60000, wood = 5000 })
+		seedProfile(10 + tier, tier, { pieces = if tier == 3 then HARBOR else VILLAGE, pals = PALS, shells = 65000 })
 		local p = join(10 + tier, "Isle" .. tier)
 		settle(p)
 		E.run(2.5)
@@ -605,7 +604,7 @@ function SCEN.gallery()
 			z += 8
 		end
 	end
-	seedProfile(17, 6, { pieces = pieces, shells = 900000, wood = 60000 })
+	seedProfile(17, 6, { pieces = pieces, shells = 960000 })
 	local p = join(17, "Gallery")
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -623,7 +622,7 @@ end
 
 function SCEN.city()
 	local CITY_PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
-	seedProfile(16, 6, { pieces = cityPieces(), pals = CITY_PALS, shells = 900000, wood = 60000})
+	seedProfile(16, 6, { pieces = cityPieces(), pals = CITY_PALS, shells = 960000})
 	local p = join(16, "Capital")
 	settle(p)
 	E.run(2.5)
@@ -697,7 +696,7 @@ function SCEN.everdrift()
 		table.insert(pieces, { "streetlamp", -3, z + 4 })
 	end
 	local PALS = { "clawdle", "gullfin", "mossbun", "pebblit", "frondle", "emberpup", "twiggle", "snowpuff", "conchy", "bloomoth", "glowbat", "breezle", "relicrab", "cloudbun", "hopsprout", "murkle" }
-	seedProfile(18, top, { pieces = pieces, pals = PALS, shells = 9e6, wood = 9e6 })
+	seedProfile(18, top, { pieces = pieces, pals = PALS, shells = 9e8 })
 	local p = join(18, "Everdrift")
 	settle(p)
 	E.run(2.5)
@@ -997,7 +996,7 @@ end
 -- the island at its huts' limit (build_huts: "No room", 4/4), then a hut picked up and Replace (the bigger huts with
 -- their prices).
 function SCEN.build()
-	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "nest", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, pals = { "mossbun" }, shells = 3000, wood = 300 })
+	seedProfile(54, 1, { pieces = { { "patch", 6, 5 }, { "nest", -8, 1 }, { "nest", -7, 11 }, { "flowers", 5, 13 } }, pals = { "mossbun" }, shells = 3300 })
 	local p = join(54, "Builder")
 	settle(p, 30, 1)
 	if not H.clickNamed(p, "Menu_build", { optional = true }) then
@@ -1096,7 +1095,7 @@ end
 -- (its markers: buildui_fence), a stream dug in two rows (buildui_river), a plank bridge dropping in over it with its
 -- dust (buildui_drop), and the island after (buildui_done).
 function SCEN.buildui()
-	seedProfile(57, 3, { pieces = VILLAGE, pals = { "mossbun" }, shells = 50000, wood = 200000 })
+	seedProfile(57, 3, { pieces = VILLAGE, pals = { "mossbun" }, shells = 250000 })
 	local p = join(57, "Planner")
 	settle(p, 30, 1)
 	local BuildUI = modOr(p, "UI.BuildUI")
@@ -1228,7 +1227,7 @@ end
 -- "paths": drawing paths in Build mode (GAME_DESIGN 4): a box being dragged (its markers: cyan where a tile goes,
 -- red where one can't), then the tiles laid (paths_box), then a hut and a farm standing on them (paths_built).
 function SCEN.paths()
-	seedProfile(58, 2, { pieces = VILLAGE, shells = 1e6, wood = 1e5 })
+	seedProfile(58, 2, { pieces = VILLAGE, shells = 1100000 })
 	local p = join(58, "Paver")
 	settle(p, 30, 1)
 	local BuildUI = modOr(p, "UI.BuildUI")
@@ -1362,7 +1361,7 @@ end
 -- the founder as they walk on a few studs (build_walk: the view lowered a little, the founder near the middle). The
 -- log says how long the re-bake took, how many pixels the growth moved and when the cheer and the eggs came.
 function SCEN.expand()
-	seedProfile(56, 1, { pieces = VILLAGE, shells = 1e6, wood = 1e5 })
+	seedProfile(56, 1, { pieces = VILLAGE, shells = 1100000 })
 	local p = join(56, "Grower")
 	settle(p, 30, 1)
 	local PS = H.smod("PlotService")
@@ -1714,7 +1713,7 @@ local function catalogScenario(group: string)
 			log("catalog: no room for %s", id)
 		end
 	end
-	seedProfile(19, TOP, { pieces = pieces, shells = 900000, wood = 900000 })
+	seedProfile(19, TOP, { pieces = pieces, shells = 1e9 })
 	local p = join(19, "Catalog")
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
@@ -1839,7 +1838,7 @@ local function themeScenario(name: string)
 	near("den", 18, -12)
 	near("lumber", 22, 8)
 	near("patch", -26, 6)
-	seedProfile(70 + table.find(THEME_ORDER, name) :: number, 6, { pieces = pieces, pals = { "mossbun", "clawdle", "pebblit", "gullfin" }, shells = 90000, wood = 90000 })
+	seedProfile(70 + table.find(THEME_ORDER, name) :: number, 6, { pieces = pieces, pals = { "mossbun", "clawdle", "pebblit", "gullfin" }, shells = 180000 })
 	local p = join(70 + table.find(THEME_ORDER, name) :: number, string.upper(string.sub(name, 1, 1)) .. string.sub(name, 2))
 	settle(p)
 	local Street = H.sharedServer("Data.Street")

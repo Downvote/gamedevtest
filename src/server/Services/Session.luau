@@ -67,7 +67,6 @@ function Session.view(s: S): Types.ClientView
 	local r = Island.rates(p)
 	return {
 		shells = p.shells,
-		wood = p.wood,
 		day = p.day,
 		dayFrac = WorldClock.dayFrac(),
 		clock = WorldClock.now(),
@@ -85,10 +84,10 @@ function Session.view(s: S): Types.ClientView
 		quest = p.quest,
 		stats = p.stats,
 		settings = p.settings,
-		rates = { wood = r.wood, shells = r.shells },
+		rates = { shells = r.shells },
 		charm = Island.charm(p),
+		charmBonus = Island.charmBonus(Island.charm(p)),
 		nests = Island.nests(p),
-		visitors = Island.visitors(p),
 	}
 end
 

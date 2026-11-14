@@ -85,7 +85,7 @@ end
 
 -- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tree).
 local function asProfile(v: Types.ClientView): any
-	return { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier, shells = v.shells, wood = v.wood }
+	return { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier, shells = v.shells }
 end
 
 -- A driftling's portrait is 32 x 32 (drawn from its model: scripts/gen_art.py), at 4 px in a row: the row's words start
@@ -570,7 +570,7 @@ for _, k in WeatherData.KINDS do
 		WEATHER_ICON[k.family] = k.icon
 	end
 end
-local KNACK_WORDS: { [string]: string } = { farm = "good at farms", fish = "good at fishing", wood = "good with wood", shop = "good at shops" }
+local KNACK_WORDS: { [string]: string } = { farm = "good at farms", wood = "good with wood", shop = "good at shops" }
 
 local function buildPal(body: Frame, arg: any?)
 	local v = StateClient.view()

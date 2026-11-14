@@ -1,5 +1,5 @@
 --!strict
--- The island's rules (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 6): what it makes a turn, its charm and visitors,
+-- The island's rules (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 6): what it makes a turn, its charm and what charm adds,
 -- which driftling works where, expanding the island. The driftlings do all the work (the request of 2026-11-12:
 -- "remove villagers, only creatures should be enough"). Pure: IslandService calls these with the session's profile;
 -- the Economy spec plays whole sessions through the same functions. Actions return (true, data?) or (false, ErrCode)
@@ -11,9 +11,11 @@
 --   driftling may work anywhere, its passive usually helping at its own knack's buildings);
 --   IdleOutput with none)
 --   x (1 + the boost buildings' share at its knack)
--- a wood building makes wood; a farm sells what it grows for shells; a shop sells to the visitors for shells, times
--- its visitors (visitors a turn / ShopVisitors, at most 2). Nothing eats (food went on 2026-11-13: "remove food as a
--- resource"); a driftling with no hut doesn't work.
+-- in shells, all of it: a farm sells what it grows, a wood building what it cuts, a shop its snacks and rooms (the
+-- request of 2026-11-14: "make shells the main currency ... the wood tab buildings will also now give shells ... remove
+-- the visitors mechanic, charm simply increases your shell gain"); then the whole is times 1 + the charm bonus
+-- (`charmBonus`). Nothing eats (food went on 2026-11-13: "remove food as a resource"); a driftling with no hut doesn't
+-- work.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -29,7 +31,7 @@ type ErrCode = Types.ErrCode
 
 local Island = {}
 
-export type Rates = { wood: number, shells: number }
+export type Rates = { shells: number }
 
 function Island.piece(p: Profile, uid: number): Piece?
 	for _, q in p.plot.placed do
@@ -61,7 +63,7 @@ function Island.fxOf(pal: Types.Pal): Traits.Fx
 	return Traits.sum(if d then d.passive.fx else nil, pal.muts)
 end
 
--- The charm: every piece's, and each driftling living in a hut (visitors like them: one each, and their charm share).
+-- The charm: every piece's, and each driftling living in a hut (one each, and their charm share).
 function Island.charm(p: Profile): number
 	local n = count(p, "charm")
 	for _, x in p.pals do
@@ -72,8 +74,11 @@ function Island.charm(p: Profile): number
 	return math.max(0, n)
 end
 
-function Island.visitors(p: Profile): number
-	return math.min(Tuning.VisitorsMax, 1 + Island.charm(p) / Tuning.VisitorCharm)
+-- What charm adds to every shell the island makes (0.25 = +25%): CharmMax x charm / (charm + CharmHalf), a soft curve
+-- that never passes CharmMax (the visitors it brought went on 2026-11-14).
+function Island.charmBonus(charm: number): number
+	local c = math.max(0, charm)
+	return Tuning.CharmMax * c / (c + Tuning.CharmHalf)
 end
 
 -- Each driftling's hut and its comfort (its own and its level's), keyed "p<id>" (Pal.home: Logic/Tree), none for one
@@ -99,7 +104,7 @@ end
 
 -- The boost buildings' shares (GAME_DESIGN 4.1), by knack and "all": each kind of boost building counts once.
 function Island.boosts(p: Profile): { [string]: number }
-	local out: { [string]: number } = { farm = 0, fish = 0, wood = 0, shop = 0, all = 0 }
+	local out: { [string]: number } = { farm = 0, wood = 0, shop = 0, all = 0 }
 	local seen: { [string]: boolean } = {}
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
@@ -139,9 +144,9 @@ function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?): number
 	return Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0))
 end
 
--- What a turn makes now.
+-- What a turn makes now (the charm bonus in).
 function Island.rates(p: Profile): Rates
-	local out = { wood = 0, shells = 0 }
+	local out = { shells = 0 }
 	local homes = Island.homes(p)
 	local boosts = Island.boosts(p)
 	-- the working driftlings' shares (each in a hut), added up at each building
@@ -152,20 +157,14 @@ function Island.rates(p: Profile): Rates
 			helper[pal.work] = (helper[pal.work] or 0) + Island.palBoost(p, pal, h.comfort)
 		end
 	end
-	local shop = math.min(2, Island.visitors(p) / Tuning.ShopVisitors)
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
-		if d and d.rate > 0 then
+		if d and d.rate > 0 and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop") then
 			local k = (helper[q.uid] or Tuning.IdleOutput) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
-			if d.kind == "wood" then
-				out.wood += d.rate * k
-			elseif d.kind == "farm" then
-				out.shells += d.rate * k
-			elseif d.kind == "shop" then
-				out.shells += d.rate * k * shop
-			end
+			out.shells += d.rate * k
 		end
 	end
+	out.shells *= 1 + Island.charmBonus(Island.charm(p))
 	return out
 end
 
@@ -173,10 +172,9 @@ end
 function Island.step(p: Profile, dt: number): Rates
 	local r = Island.rates(p)
 	local k = dt / Tuning.TurnSeconds
-	p.wood += r.wood * k
 	p.shells += r.shells * k
 	p.stats.earned += r.shells * k
-	return { wood = r.wood * k, shells = r.shells * k }
+	return { shells = r.shells * k }
 end
 
 ------------------------------------------------------------------ looks, work and the days
@@ -263,10 +261,11 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 end
 
 ------------------------------------------------------------------ the island's size
--- Growing the island to the next tier: its price (wood; no shells since 2026-11-13), nil at the biggest.
-function Island.expandCost(tier: number): { shells: number, wood: number }?
+-- Growing the island to the next tier: its price in shells, TierCost's wood at Tuning.WoodShells (it was wood until
+-- 2026-11-14: "allowing you to buy decor and expansions with it"), nil at the biggest.
+function Island.expandCost(tier: number): { shells: number }?
 	local w = Tuning.TierCost[tier + 1]
-	return if w then { shells = 0, wood = w } else nil
+	return if w then { shells = Buildings.shellsFor(w, tier + 1) } else nil
 end
 
 function Island.expand(p: Profile): (boolean, any)
@@ -277,11 +276,7 @@ function Island.expand(p: Profile): (boolean, any)
 	if p.shells < cost.shells then
 		return false, "money" :: ErrCode
 	end
-	if p.wood < cost.wood then
-		return false, "wood" :: ErrCode
-	end
 	p.shells -= cost.shells
-	p.wood -= cost.wood
 	p.tier += 1
 	-- pieces that no longer fit the bigger island's shape make room (Plot.refit)
 	local moved, cleared = Plot.refit(p)

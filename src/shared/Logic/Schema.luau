@@ -24,7 +24,7 @@ local Schema = {}
 -- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone);
 -- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
 -- Life again, laying eggs (no tide)
-Schema.VERSION = 14
+Schema.VERSION = 15
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -64,7 +64,6 @@ function Schema.default(now: number, seed: number): Profile
 	local p: Profile = {
 		v = Schema.VERSION,
 		shells = Tuning.StartShells,
-		wood = Tuning.StartWood,
 		day = 1,
 		tier = 1,
 		founder = Island.randomLook(rng),
@@ -119,6 +118,9 @@ end
 --   13 -> 14: the build catalog (GAME_DESIGN 4: "make much, much more building options, like paths and fences"):
 --           fences are drawn along the grid lines now, so the old one-piece Picket Fence and Hedge come up with their
 --           whole price back. Paths, water and fences each count to their own limit; islands reach further north.
+--   14 -> 15: one store (GAME_DESIGN 3: "make shells the main currency, allowing you to buy decor and expansions with
+--           it. remove wood as a currency"): the wood the save holds is added to its shells, one for one (after the
+--           older steps, which may have paid some back in wood), and the wood goes.
 function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	local v = if type(raw.v) == "number" then raw.v else 1
 	if v < 2 then
@@ -328,6 +330,15 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		v = 14
 	end
+	if v < 15 then
+		local w = raw.wood
+		if type(w) == "number" and w == w and w > 0 then
+			local sh = raw.shells
+			raw.shells = math.min(1e12, (if type(sh) == "number" and sh == sh and sh > 0 then sh else 0) + math.min(w, 1e12))
+		end
+		raw.wood = nil
+		v = 15
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -442,7 +453,6 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	local out: Profile = {
 		v = Schema.VERSION,
 		shells = num(r.shells, d.shells, 0, 1e12),
-		wood = num(r.wood, d.wood, 0, 1e12),
 		day = int(r.day, 1, 1),
 		tier = tier,
 		founder = if type(r.founder) == "table" then look(r.founder) else d.founder,

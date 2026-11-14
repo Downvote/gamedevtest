@@ -1,5 +1,5 @@
 -- The island's clock (GAME_DESIGN 3-6; docs/ARCHITECTURE.md 7.4): a turn every Tuning.TurnSeconds while the player is
--- here, open menus and Build mode holding nothing; the wood and shells a day makes matching Island.rates (to a tick);
+-- here, open menus and Build mode holding nothing; the shells a day makes matching Island.rates (to a tick);
 -- the stores and the time to the Tree of Life's next eggs reaching the client every second (Fx tick, patched into the
 -- view with no whole view sent); the tree's eggs: its first lot laid when the island comes, a new lot every Tree.secs
 -- (Fx eggs with a whole view: the old ones gone, the clock wound again, the ticks' time running down and starting over,
@@ -129,7 +129,7 @@ end
 
 ------------------------------------------------------------------ the day's pace
 E.phase = "pace"
-prof.shells, prof.wood = 20000, 2000
+prof.shells = 22000
 for _, id in { "patch", "patch", "lumber", "nest", "nest", "stall", "flowers" } do
 	local r = place(id)
 	H.expect(r.ok, "clock", "place " .. id, tostring(r.err))
@@ -299,20 +299,18 @@ do
 	H.checkProfile(p, "eggs")
 end
 
------------------------------------------------------------------- making wood and shells to the rates
+------------------------------------------------------------------ making shells to the rates
 E.phase = "rates"
 local r = Island.rates(prof)
-local wood0, sh0 = prof.wood, prof.shells
+local sh0 = prof.shells
 E.run(10)
 local k = 10 / Tuning.TurnSeconds
 H.expect(hutsN() == 4, "rates", "(nobody new at work meanwhile)")
-H.expect(r.wood > 0, "rates", "the camp makes wood", tostring(r.wood))
-H.expect(math.abs((prof.wood - wood0) - r.wood * k) <= r.wood * 0.02 + 0.5, "rates", "wood to the day's rate", string.format("%.2f vs %.2f", prof.wood - wood0, r.wood * k))
-H.expect(math.abs((prof.shells - sh0) - r.shells * k) <= r.shells * 0.02 + 0.5, "rates", "shells to the day's rate (the farms sell what they grow, the stall sells to visitors)", string.format("%.2f vs %.2f", prof.shells - sh0, r.shells * k))
-H.expect(r.shells > 0, "rates", "the farms and the stall make shells", tostring(r.shells))
+H.expect(math.abs((prof.shells - sh0) - r.shells * k) <= r.shells * 0.02 + 0.5, "rates", "shells to the day's rate (the farms, the camp and the stall all sell for shells)", string.format("%.2f vs %.2f", prof.shells - sh0, r.shells * k))
+H.expect(r.shells > 0 and r.wood == nil, "rates", "the farms, the camp and the stall make shells (no wood)", tostring(r.shells))
 local v = H.view(p)
-H.expect(v ~= nil and math.abs(v.rates.wood - r.wood) < 1e-6 and math.abs(v.rates.shells - r.shells) < 1e-6 and v.rates.food == nil, "rates", "the view says the rates (wood and shells, no food)")
-H.expect(v ~= nil and math.abs(v.wood - prof.wood) <= r.wood / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's wood follows the ticks", string.format("%s vs %s", v and v.wood, prof.wood))
+H.expect(v ~= nil and math.abs(v.rates.shells - r.shells) < 1e-6 and v.rates.wood == nil and v.rates.food == nil, "rates", "the view says the rate (shells, no wood, no food)")
+H.expect(v ~= nil and v.wood == nil and v.visitors == nil and v.charmBonus ~= nil and math.abs(v.charmBonus - Island.charmBonus(Island.charm(prof))) < 1e-9, "rates", "the view: no wood, no visitors, the charm bonus", string.format("%s %s %s", tostring(v and v.wood), tostring(v and v.visitors), tostring(v and v.charmBonus)))
 H.expect(v ~= nil and math.abs(v.shells - prof.shells) <= r.shells / Tuning.TurnSeconds * 1.5 + 1, "rates", "the view's shells follow the ticks", string.format("%s vs %s", v and v.shells, prof.shells))
 settled(p)
 H.checkMirror(p, "rates")
@@ -326,24 +324,31 @@ E.run(4)
 H.expect(prof.shells > sA, "menus", "the island goes on while a menu is open")
 H.closePanel(p)
 H.clickNamed(p, "Menu_build", { wait = 0.3 })
-local wA = prof.wood
+local wA = prof.shells
 E.run(4)
-H.expect(prof.wood > wA, "menus", "and in Build mode")
+H.expect(prof.shells > wA, "menus", "and in Build mode")
 H.clickNamed(p, "BuildDone", { wait = 0.3 })
 
 ------------------------------------------------------------------ nothing eats
 -- (food went on 2026-11-13: no hunger, so the stores only ever grow, and the shops stay open with nothing in store)
 E.phase = "stores"
-prof.shells, prof.wood = 0, 0
+prof.shells = 0
 H.push(p, 0.2)
 E.run(3)
-H.expect(prof.shells > 0 and prof.wood > 0, "stores", "from empty stores the island makes wood and shells (nothing eats)", string.format("%s %s", tostring(prof.shells), tostring(prof.wood)))
+H.expect(prof.shells > 0, "stores", "from an empty store the island makes shells (nothing eats)", tostring(prof.shells))
 local rz = Island.rates(prof)
-H.expect(rz.shells > 0 and math.abs(rz.shells - r.shells) < 1e-6 and math.abs(rz.wood - r.wood) < 1e-6, "stores", "the same rates with nothing in store (no hunger shutting the shops)", string.format("%s vs %s", tostring(rz.shells), tostring(r.shells)))
+H.expect(rz.shells > 0 and math.abs(rz.shells - r.shells) < 1e-6, "stores", "the same rate with nothing in store (no hunger shutting the shops)", string.format("%s vs %s", tostring(rz.shells), tostring(r.shells)))
 v = H.view(p)
 H.expect(v ~= nil and v.food == nil and v.rates.food == nil, "stores", "no food in the view")
 local pg = p:FindFirstChild("PlayerGui")
-H.expect(pg ~= nil and pg:FindFirstChild("Chip_wood", true) ~= nil and pg:FindFirstChild("Chip_shells", true) ~= nil and pg:FindFirstChild("Chip_food", true) == nil, "stores", "the HUD's chips: wood and shells, no food")
+H.expect(pg ~= nil and pg:FindFirstChild("Chip_wood", true) == nil and pg:FindFirstChild("Chip_shells", true) ~= nil and pg:FindFirstChild("Chip_food", true) == nil, "stores", "the HUD's chips: shells, no wood, no food")
+do
+	-- the island card: the charm and what it adds to every shell (no visitors since 2026-11-14)
+	local cardF = pg and pg:FindFirstChild("IslandCard", true)
+	local bonus = cardF and cardF:FindFirstChild("CharmBonusR", true)
+	local want = string.format("+%d%%", math.round(Island.charmBonus(Island.charm(prof)) * 100))
+	H.expect(cardF ~= nil and bonus ~= nil and table.find(H.textsOf(bonus), want) ~= nil and cardF:FindFirstChild("Visitors", true) == nil, "stores", "the island card shows the charm bonus, no visitors", bonus and table.concat(H.textsOf(bonus), "/") or "none")
+end
 local hud = H.buttonNamed(p, "Menu_build")
 H.expect(hud ~= nil, "stores", "the HUD stays usable")
 
@@ -352,7 +357,7 @@ H.expect(hud ~= nil, "stores", "the HUD stays usable")
 -- room; in a hut it goes to a free place, its knack's first, once there is one)
 E.phase = "work"
 do
-	prof.shells, prof.wood = 1e6, 1e5
+	prof.shells = 1e6
 	local crab = Tree.add(prof, "clawdle", {}) -- (good at fishing: nowhere on the island to fish yet)
 	H.push(p, 0.2)
 	H.expect(crab.home == 0 and crab.work == 0, "work", "every hut full: the Clawdle waits with no hut", string.format("home %d", crab.home))
@@ -416,7 +421,7 @@ end
 ------------------------------------------------------------------ the Hatchery: two parents, an egg, its turns, a hatching
 E.phase = "hatchery"
 do
-	prof.shells, prof.wood = 1e7, 1e6
+	prof.shells = 1e7
 	while prof.tier < 3 do
 		local r = H.req(p, "island.expand", {})
 		if not H.expect(r.ok, "hatchery", "expanding to the third tier", tostring(r.err)) then
@@ -439,7 +444,7 @@ do
 	-- two parents of one kind (the egg is theirs), carrying a shared mutation
 	local ids = {}
 	for k = 1, 2 do
-		local x = Tree.add(prof, "gullfin", { "swift2", if k == 1 then "angler1" else "lazy" })
+		local x = Tree.add(prof, "gullfin", { "swift2", if k == 1 then "grower1" else "lazy" })
 		table.insert(ids, x.id)
 	end
 	H.push(p, 0.4)

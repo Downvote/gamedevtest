@@ -1,4 +1,4 @@
--- The island's building rules (Logic/Plot; GAME_DESIGN 4): where pieces may stand, placing (paid in wood,
+-- The island's building rules (Logic/Plot; GAME_DESIGN 4): where pieces may stand, placing (paid in shells since 2026-11-14,
 -- the island's tier), moving, clearing away (a refund; never a home or a nest still needed), the piece limit.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
@@ -10,7 +10,7 @@ local Buildings = require("../../build/luautest/shared/Data/Buildings")
 -- (an island with no pieces on it: the building rules on their own)
 local function fresh(): any
 	local p = Schema.default(0, 1)
-	p.shells, p.wood = 1e6, 1e6
+	p.shells = 1e6
 	p.plot.placed = {}
 	return p
 end
@@ -67,13 +67,13 @@ return function()
 			end
 		end
 	end)
-	T.it("place: paid in wood, the tier reached, a uid each", function()
+	T.it("place: paid in shells, the tier reached, a uid each", function()
 		local p = fresh()
 		p.nextId = 51
 		local ok, data = Plot.place(p, "pier", 8, 4, 0)
 		T.truthy(ok)
-		T.eq(p.shells, 1e6, "no shells")
-		T.eq(p.wood, 1e6 - Buildings.byId.pier.wood)
+		T.eq(p.shells, 1e6 - Buildings.byId.pier.shells)
+		T.eq((p :: any).wood, nil, "no wood")
 		T.eq(data.uid, 51)
 		T.deepEq(p.plot.placed[1], { uid = 51, id = "pier", x = 8, z = 4, rot = 0, lvl = 1 })
 		T.eq(p.stats.built, 1)
@@ -83,8 +83,8 @@ return function()
 		ox, oz = spot(p, "orchard")
 		T.truthy(Plot.place(p, "orchard", ox, oz, 0))
 		local hx, hz = spot(p, "burrow")
-		p.shells, p.wood = 1e6, 10
-		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "wood")
+		p.shells = 10
+		T.eq(select(2, Plot.place(p, "burrow", hx, hz, 0)), "money")
 		T.eq(select(2, Plot.place(p, "castle", hx, hz, 0)), "bad_payload")
 		T.eq(select(2, Plot.place(p, "tent", hx, hz, 0)), "bad_payload", "no homes any more")
 	end)
@@ -108,12 +108,12 @@ return function()
 		Plot.place(p, "torch", q.x + 2, q.z, 0)
 		T.eq(select(2, Plot.replace(p, 1, "burrow")), "blocked")
 		Plot.store(p, #p.plot.placed)
-		local before = p.wood
+		local before = p.shells
 		local ok = Plot.replace(p, 1, "burrow")
 		T.truthy(ok, "a burrow where the hut stood")
 		T.eq(p.plot.placed[1].id, "burrow")
 		T.eq(p.plot.placed[1].uid, uid, "its uid stays")
-		T.eq(p.wood, before - (Buildings.byId.burrow.wood - math.floor(Buildings.byId.nest.wood * Tuning.Refund)))
+		T.eq(p.shells, before - (Buildings.byId.burrow.shells - math.floor(Buildings.byId.nest.shells * Tuning.Refund)))
 		-- a farm for an orchard keeps its driftling (the patch where an orchard would fit)
 		local fx, fz = spot(p, "orchard")
 		Plot.place(p, "patch", fx, fz, 0)
@@ -141,7 +141,7 @@ return function()
 		T.eq(most, Plot.limit(1))
 		T.eq(select(2, Plot.place(p, "dirtpath", 30, 30, 0)), "full")
 	end)
-	T.it("drawing paths: a line or a box of tiles in one go, passing over cells that don't fit, while room and wood last", function()
+	T.it("drawing paths: a line or a box of tiles in one go, passing over cells that don't fit, while room and shells last", function()
 		local p = fresh()
 		-- the even cells a path tile fits on, scanning the island
 		local free = {}
@@ -156,22 +156,22 @@ return function()
 		T.truthy(#free >= 12, "room for a dozen tiles")
 		-- a line of six cells, one of them over the plaza (passed over)
 		local line = { free[1], free[2], free[3], free[4], free[5], { Street.PLAZA.x0, Street.PLAZA.z0 } }
-		local wood0 = p.wood
+		local shells0 = p.shells
 		local ok, out = Plot.paint(p, "dirtpath", line)
 		T.truthy(ok, "a line goes down")
 		T.eq(out.placed + out.skipped, 6, "every cell placed or passed over")
-		T.eq(p.wood, wood0 - out.placed * Buildings.byId.dirtpath.wood, "paid a tile at a time")
+		T.eq(p.shells, shells0 - out.placed * Buildings.byId.dirtpath.shells, "paid a tile at a time")
 		local n0 = #p.plot.placed
 		-- the same line again: every cell taken now
 		T.eq(select(2, Plot.paint(p, "dirtpath", line)), "blocked")
 		T.eq(#p.plot.placed, n0, "nothing laid twice")
-		-- a box, paid until the wood runs out
-		p.wood = Buildings.byId.dirtpath.wood * 3
+		-- a box, paid until the shells run out
+		p.shells = Buildings.byId.dirtpath.shells * 3
 		local box = { free[6], free[7], free[8], free[9], free[10] }
 		local ok2, out2 = Plot.paint(p, "dirtpath", box)
 		T.truthy(ok2)
-		T.eq(out2.placed, 3, "three tiles' worth of wood, three tiles")
-		T.eq(select(2, Plot.paint(p, "dirtpath", { free[11] })), "wood")
+		T.eq(out2.placed, 3, "three tiles' worth of shells, three tiles")
+		T.eq(select(2, Plot.paint(p, "dirtpath", { free[11] })), "money")
 		-- not a path, too many cells, a locked path
 		T.eq(select(2, Plot.paint(p, "patch", line)), "bad_payload")
 		local many = {}
@@ -179,7 +179,7 @@ return function()
 			table.insert(many, { 0, 0 })
 		end
 		T.eq(select(2, Plot.paint(p, "dirtpath", many)), "bad_payload")
-		p.wood = 1e6
+		p.shells = 1e6
 		T.eq(select(2, Plot.paint(p, "marblewalk", line)), "locked")
 		-- the cells round trip through their request string
 		local back = Plot.cells(Plot.cellString(box))
@@ -203,12 +203,12 @@ return function()
 		local _, out = Plot.paint(p, "dirtpath", cells)
 		T.eq(out.placed, 4)
 		local before = #p.plot.placed
-		local wood0 = p.wood
+		local shells0 = p.shells
 		local ok, res = Plot.unpaint(p, cells)
 		T.truthy(ok)
 		T.eq(res.removed, out.placed, "every tile laid comes up")
 		T.eq(#p.plot.placed, before - out.placed)
-		T.eq(p.wood, wood0 + out.placed * math.floor(Buildings.byId.dirtpath.wood * Tuning.Refund), "half back each")
+		T.eq(p.shells, shells0 + out.placed * math.floor(Buildings.byId.dirtpath.shells * Tuning.Refund), "half back each")
 		T.eq(p.plot.placed[1].id, "patch", "the patch stays")
 		T.eq(select(2, Plot.unpaint(p, cells)), "not_found")
 		T.eq(select(2, Plot.unpaint(p, { { x, z } })), "not_found", "a building is never erased")
@@ -222,9 +222,9 @@ return function()
 		T.eq(p.plot.placed[1].z, 8)
 		T.eq(select(2, Plot.move(p, 1, 0, 4, 0)), "blocked", "not onto the plaza")
 		T.eq(select(2, Plot.move(p, 9, 8, 8, 0)), "bad_payload")
-		local before = p.wood
+		local before = p.shells
 		T.truthy(Plot.store(p, 1))
-		T.eq(p.wood, before + math.floor(Buildings.byId.torch.wood * Tuning.Refund))
+		T.eq(p.shells, before + math.floor(Buildings.byId.torch.shells * Tuning.Refund))
 		T.eq(#p.plot.placed, 1)
 		T.eq(select(2, Plot.store(p, 5)), "bad_payload")
 		-- a hut cleared away: its driftlings left with no hut; a workplace gone: they rest
@@ -274,7 +274,8 @@ return function()
 		local ok, data = Plot.fence(p, "picket", { { 8, 4, 0 }, { 10, 4, 0 }, { 12, 4, 90 } })
 		T.truthy(ok)
 		T.eq(data.placed, 3)
-		T.eq(p.wood, 1e6 - 3 * 8, "paid in wood")
+		local pk, sr = Buildings.byId.picket.shells, Buildings.byId.splitrail.shells
+		T.eq(p.shells, 1e6 - 3 * pk, "paid in shells")
 		T.eq(select(1, Plot.used(p, "picket")), 3)
 		T.eq(select(2, Plot.used(p, "picket")), Plot.fenceLimit(1), "its own limit")
 		T.eq(select(1, Plot.used(p, "flowers")), 0, "the pieces don't count fences")
@@ -289,17 +290,17 @@ return function()
 		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 6, 0)), "overlap", "a fence through a building")
 		T.truthy(Plot.fits(1, p.plot.placed, "picket", 8, 8, 0), "along its far side")
 		-- another fence over one: swapped, half the old one's price back
-		local before = p.wood
+		local before = p.shells
 		ok, data = Plot.fence(p, "splitrail", { { 8, 4, 0 } })
 		T.truthy(ok)
 		T.eq(data.swapped, 1)
-		T.eq(p.wood, before + math.floor(8 * Tuning.Refund) - 10)
+		T.eq(p.shells, before + math.floor(pk * Tuning.Refund) - sr)
 		-- taken down: half back each
-		before = p.wood
+		before = p.shells
 		ok, data = Plot.unfence(p, { { 8, 4, 0 }, { 12, 4, 90 } })
 		T.truthy(ok)
 		T.eq(data.removed, 2)
-		T.eq(p.wood, before + math.floor(10 * Tuning.Refund) + math.floor(8 * Tuning.Refund))
+		T.eq(p.shells, before + math.floor(sr * Tuning.Refund) + math.floor(pk * Tuning.Refund))
 		T.eq(select(2, Plot.unfence(p, { { 30, 30, 0 } })), "not_found")
 		T.eq(select(2, Plot.fence(p, "crystalfence", { { 0, -6, 0 } })), "locked")
 		T.eq(select(2, Plot.fence(p, "dirtpath", { { 0, -6, 0 } })), "bad_payload")
@@ -378,12 +379,12 @@ return function()
 		local p = fresh()
 		p.tier = 2
 		T.truthy(Plot.paint(p, "dirtpath", { { 8, 4 }, { 10, 4 } }))
-		local before = p.wood
+		local before = p.shells
 		local ok, data = Plot.paint(p, "stonepath", { { 8, 4 }, { 10, 4 }, { 12, 4 } })
 		T.truthy(ok)
 		T.eq(data.swapped, 2)
 		T.eq(data.placed, 1)
-		T.eq(p.wood, before - 3 * 15 + 2 * math.floor(5 * Tuning.Refund))
+		T.eq(p.shells, before - 3 * Buildings.byId.stonepath.shells + 2 * math.floor(Buildings.byId.dirtpath.shells * Tuning.Refund))
 		ok, data = Plot.paint(p, "stonepath", { { 8, 4 } })
 		T.eq(ok, false, "nothing changed")
 		T.eq(select(2, Plot.paint(p, "stream", { { 8, 4 } })), "blocked", "water doesn't swap a path")
@@ -444,10 +445,10 @@ return function()
 		T.eq(Plot.huts(p.plot.placed), limit)
 		local x, z = spot(p, "nest")
 		T.eq(select(2, Plot.place(p, "nest", x, z, 0)), "huts", "one past the limit")
-		local wood = p.wood
+		local shells = p.shells
 		local px, pz = spot(p, "patch")
 		T.truthy((Plot.place(p, "patch", px, pz, 0)), "other buildings still go up")
-		T.truthy(p.wood < wood)
+		T.truthy(p.shells < shells)
 		-- a bigger island: room for more, and a small hut replaced with a bigger one at the limit
 		p.tier = 2
 		for _ = limit + 1, Plot.hutLimit(2) do

@@ -372,10 +372,10 @@ function H.checkProfile(p, label)
 	local Traits = H.sharedServer("Data.Traits")
 	local Plot = H.sharedServer("Logic.Plot")
 	local Island = H.sharedServer("Logic.Island")
-	for _, k in { "shells", "wood", "day", "tier", "nextId", "tut", "quest" } do
+	for _, k in { "shells", "day", "tier", "nextId", "tut", "quest" } do
 		H.expect(finite(prof[k]), "profile", string.format("%s: %s is not a finite number", label, k), tostring(prof[k]))
 	end
-	H.expect(prof.shells >= 0 and prof.wood >= 0, "profile", label .. ": a negative store", string.format("%s %s", tostring(prof.shells), tostring(prof.wood)))
+	H.expect(prof.shells >= 0 and prof.wood == nil, "profile", label .. ": a negative store, or wood", string.format("%s %s", tostring(prof.shells), tostring(prof.wood)))
 	H.expect(prof.food == nil and prof.tree == nil, "profile", label .. ": food or the old tree levels left in the save")
 	H.expect(Office.plans[prof.tier] ~= nil, "profile", label .. ": tier out of range", tostring(prof.tier))
 	for _, k in { "boat", "chart", "cap", "pouch", "islets", "sea", "wilds" } do
@@ -489,7 +489,8 @@ function H.checkMirror(p, label)
 	end
 	local r = H.sharedServer("Logic.Island").rates(prof)
 	local tick = H.sharedServer("Config.Tuning").TurnSeconds
-	for _, k in { "shells", "wood" } do
+	H.expect(v.wood == nil and prof.wood == nil, "mirror", label .. ": wood in the view or the save")
+	for _, k in { "shells" } do
 		local slack = math.max(2, math.abs(r[k]) * 2 / tick + 1)
 		H.expect(math.abs(v[k] - prof[k]) <= slack, "mirror", string.format("%s: view %s differ by more than a tick", label, k), string.format("%s vs %s", tostring(v[k]), tostring(prof[k])))
 	end

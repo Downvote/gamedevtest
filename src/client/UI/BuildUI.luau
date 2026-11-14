@@ -8,7 +8,7 @@
 --   chips    the tab's rows: Decor's themes (beach, garden, farm, harbour, town, jungle, frost, autumn, desert, fairy,
 --            zen, volcano, grand), Nature's trees, plants and rocks, Fun's seats, lights, play, treats and fountains,
 --            Work's kinds, Water's water, bridges and floating things
---   cards    a picture of each piece drawn from its 3D model (UI/ThumbData "thumb_<id>") and its price in wood, cheapest
+--   cards    a picture of each piece drawn from its 3D model (UI/ThumbData "thumb_<id>") and its price in shells, cheapest
 --            first, the locked ones after with the island level they open at; a mouse over a card shows its name,
 --            what it is, its charm and size
 -- A piece picked: its ghost stands where the pointer is (mouse) or was tapped (touch), on a footprint that is cyan where
@@ -350,7 +350,7 @@ local function fenceAt(e: { number }): number?
 end
 
 -- What the stroke would do, cell by cell (or edge by edge): "lay" (one goes down), "swap" (one of another look is
--- swapped for it), "lift" (Erase: one comes up) or "no" (it can't: taken, off the grass, no room or not enough wood);
+-- swapped for it), "lift" (Erase: one comes up) or "no" (it can't: taken, off the grass, no room or not enough shells);
 -- and how many change and what they cost.
 local function strokePlan(cells: { { number } }): ({ string }, number, number)
 	local v = view()
@@ -371,7 +371,7 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 		end
 	end
 	local most = Plot.groupLimit(Plot.group(p.id), v.tier)
-	local wood = v.wood
+	local have = v.shells
 	local n, cost = 0, 0
 	for _, c in cells do
 		if draw.erase then
@@ -388,9 +388,9 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 			table.insert(out, "no")
 		elseif oq and (fence or oq.rot == 0) then
 			local od = Buildings.byId[oq.id]
-			local price = def.wood - (if od then math.floor(od.wood * Tuning.Refund) else 0)
-			if wood >= price then
-				wood -= price
+			local price = def.shells - (if od then math.floor(od.shells * Tuning.Refund) else 0)
+			if have >= price then
+				have -= price
 				cost += math.max(0, price)
 				n += 1
 				table.insert(out, "swap")
@@ -404,10 +404,10 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 				ok = (Plot.fits(v.tier, v.pieces, p.id, c[1], c[2], if fence then c[3] else 0))
 				draw.memo[k] = ok
 			end
-			if ok and used < most and wood >= def.wood then
+			if ok and used < most and have >= def.shells then
 				used += 1
-				wood -= def.wood
-				cost += def.wood
+				have -= def.shells
+				cost += def.shells
 				n += 1
 				table.insert(out, "lay")
 			else
@@ -432,7 +432,7 @@ local function showDrawGhost(cells: { { number } })
 	local fence = fenceDraw()
 	if label and label:IsA("TextLabel") and #cells > 1 then
 		local what = if fence then "length" else "tile"
-		UIKit.setText(label, if draw.erase then string.format("%d to take up", n) else string.format("%d %s%s, %s wood", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
+		UIKit.setText(label, if draw.erase then string.format("%d to take up", n) else string.format("%d %s%s, %s shells", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
 	end
 	local ox, oz = origin()
 	local m = Blocks.model(nil, "DrawGhost")
@@ -602,29 +602,20 @@ end
 
 ------------------------------------------------------------------ the tray
 
--- A price: its wood (and shells, when a piece asks for them: none do since wood pays for building) with their small
--- icons from x (red when there is not enough); returns the end x.
-local function price(parent: Instance, x: number, y: number, shells: number, wood: number, v: Types.ClientView, z: number?): number
-	if shells > 0 then
-		PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
-		local t = Numbers.coins(shells)
-		UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
-		x += 13 + UIKit.textWidth(t) + 2
-	end
-	if wood > 0 or shells == 0 then
-		PixelSprites.image(parent, "mini_wood", UDim2.fromOffset(x, y), z or 4)
-		local tw = Numbers.coins(wood)
-		UIKit.text(parent, tw, UDim2.fromOffset(UIKit.textWidth(tw) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.wood >= wood then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Wood" })
-		x += 13 + UIKit.textWidth(tw) + 2
-	end
-	return x
+-- A price in shells (the one store since 2026-11-14) with the small shell from x (red when there is not enough);
+-- returns the end x.
+local function price(parent: Instance, x: number, y: number, shells: number, v: Types.ClientView, z: number?): number
+	PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
+	local t = Numbers.coins(shells)
+	UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
+	return x + 13 + UIKit.textWidth(t) + 2
 end
 
 -- What a piece is, in a line: its blurb, what it makes, its room and comfort, its charm, its size.
 local function about(def: Buildings.BuildingDef, lvl: number?): string
 	local say = def.blurb
 	if def.rate > 0 then
-		say = string.format("%s %s a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
+		say = string.format("%s %s shells a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
 	end
 	if def.slots > 0 then
 		local c = def.comfort + (Tuning.ComfortLvl[lvl or 1] or 0)
@@ -669,7 +660,7 @@ local function showTip(card: GuiObject, def: Buildings.BuildingDef, v: Types.Cli
 	if def.tier > v.tier then
 		UIKit.text(f, string.format("Opens at island level %d.", def.tier), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13 + nl * 10), { color = UIKit.color("orange"), z = 22, name = "TipLocked" })
 	end
-	price(f, 4, h - 12, def.shells, def.wood, v, 22)
+	price(f, 4, h - 12, def.shells, v, 22)
 	tip = f
 end
 
@@ -695,7 +686,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 		if d == nil or cost == nil then
 			continue
 		end
-		local afford = v.shells >= cost.shells and v.wood >= cost.wood
+		local afford = v.shells >= cost.shells
 		local card = UIKit.row(list, UDim2.fromOffset(88, CARD_H + 10), nil)
 		card.Name = "Swap_" .. id
 		card.LayoutOrder = k
@@ -718,7 +709,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 				task.defer(rebuild)
 			end
 		end, { name = "SwapTo_" .. id, color = if afford then UIKit.color("button_ok") else nil })
-		price(b, 3, 2, cost.shells, cost.wood, v, 6)
+		price(b, 3, 2, cost.shells, v, 6)
 	end
 end
 
@@ -738,7 +729,7 @@ local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, 
 	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
 	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, 14), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
 	if def and showPrice then
-		price(info, math.max(4, w - 92), 3, def.shells, def.wood, v)
+		price(info, math.max(4, w - 92), 3, def.shells, v)
 	end
 	-- (with a keyboard: its keys, along the bottom)
 	if keyed then
@@ -919,8 +910,8 @@ local function listFor(v: Types.ClientView): { Buildings.BuildingDef }
 		if la and a.tier ~= b.tier then
 			return a.tier < b.tier
 		end
-		if a.wood ~= b.wood then
-			return a.wood < b.wood
+		if a.shells ~= b.shells then
+			return a.shells < b.shells
 		end
 		return a.id < b.id
 	end)
@@ -934,7 +925,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		local locked = def.tier > v.tier
 		-- (a hut past the island's huts' limit: a bigger hut can still replace a small one)
 		local noRoom = def.kind == "nest" and hutsFull
-		local afford = v.shells >= def.shells and v.wood >= def.wood
+		local afford = v.shells >= def.shells
 		local picked = pick ~= nil and pick.id == def.id
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil, if picked then UIKit.color("accent") else nil, if picked then 0.55 else nil)
 		card.Name = "Card_" .. def.id
@@ -985,11 +976,11 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		elseif noRoom then
 			UIKit.text(b, "No room", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		else
-			local t = Numbers.coins(def.wood)
+			local t = Numbers.coins(def.shells)
 			local w = UIKit.textWidth(t) + 11
 			local px = math.max(0, math.floor((CARD_W - 4 - w) / 2))
-			PixelSprites.image(b, "mini_wood", UDim2.fromOffset(px, PIC + 3), 7)
-			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = if v.wood >= def.wood then UIKit.color("text") else UIKit.color("bad"), z = 7, name = "Wood" })
+			PixelSprites.image(b, "mini_shell", UDim2.fromOffset(px, PIC + 3), 7)
+			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = if v.shells >= def.shells then UIKit.color("text") else UIKit.color("bad"), z = 7, name = "Shells" })
 		end
 		b.MouseEnter:Connect(function()
 			showTip(card, def, v)
@@ -1052,7 +1043,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 				cheer()
 			end)
 		end
-	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells and v.wood >= cost.wood })
+	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells })
 	if cost then
 		local pf = Instance.new("Frame")
 		pf.Name = "ExpandCost"
@@ -1060,7 +1051,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 		pf.Size = UDim2.fromOffset(100, 11)
 		pf.Position = UDim2.new(1, -102, 0, 17)
 		pf.Parent = f
-		price(pf, 0, 0, cost.shells, cost.wood, v)
+		price(pf, 0, 0, cost.shells, v)
 	end
 end
 
@@ -1556,7 +1547,7 @@ function BuildUI.open(onTab: string?)
 		end
 		local keyParts = {}
 		for _, def in Buildings.list do
-			table.insert(keyParts, if v.shells >= def.shells and v.wood >= def.wood then "1" else "0")
+			table.insert(keyParts, if v.shells >= def.shells then "1" else "0")
 		end
 		local k = table.concat(keyParts)
 		if k ~= affordKey then

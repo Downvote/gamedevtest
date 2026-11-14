@@ -1,6 +1,6 @@
 --!strict
 -- The island's building rules (GAME_DESIGN 4; docs/ARCHITECTURE.md 6): where buildings and decor may stand, placing
--- (paid in wood: Data/Buildings), moving and clearing them away. Pure. Positions are plot-local whole studs: a piece's
+-- (paid in shells: Data/Buildings), moving and clearing them away. Pure. Positions are plot-local whole studs: a piece's
 -- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
 -- footprint's width and depth). A piece stands wholly on the island's buildable cells (Data/Street: the grass a stud
 -- in from its edge, the island's shape by its tier), off the plaza round the campfire and the path to the jetty, and
@@ -329,7 +329,7 @@ Plot.unhouse = unhouse
 
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (and its huts' limit: Tuning.HutLimit), its price
--- (wood; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
+-- (shells; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
 	if def == nil or def.kind == "tree" then
@@ -348,14 +348,10 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	if p.shells < def.shells then
 		return false, "money" :: ErrCode
 	end
-	if p.wood < def.wood then
-		return false, "wood" :: ErrCode
-	end
 	if not Plot.fits(p.tier, p.plot.placed, id, x, z, rot) then
 		return false, "blocked" :: ErrCode
 	end
 	p.shells -= def.shells
-	p.wood -= def.wood
 	local uid = p.nextId
 	p.nextId += 1
 	table.insert(p.plot.placed, { uid = uid, id = id, x = x, z = z, rot = rot, lvl = 1 })
@@ -419,12 +415,11 @@ local function swapDrawn(p: Profile, q: Piece, id: string): boolean
 	if old == nil or new == nil then
 		return false
 	end
-	local backS, backW = math.floor(old.shells * Tuning.Refund), math.floor(old.wood * Tuning.Refund)
-	if p.shells + backS < new.shells or p.wood + backW < new.wood then
+	local back = math.floor(old.shells * Tuning.Refund)
+	if p.shells + back < new.shells then
 		return false
 	end
-	p.shells += backS - new.shells
-	p.wood += backW - new.wood
+	p.shells += back - new.shells
 	q.id = id
 	q.lvl = 1
 	p.stats.built += 1
@@ -460,7 +455,7 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 			if swapDrawn(p, old, id) then
 				swapped += 1
 			else
-				why = if p.wood < def.wood then "wood" else "money"
+				why = "money"
 				break
 			end
 		else
@@ -472,13 +467,8 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 				why = "money"
 				break
 			end
-			if p.wood < def.wood then
-				why = "wood"
-				break
-			end
 			if Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0) then
 				p.shells -= def.shells
-				p.wood -= def.wood
 				local uid = p.nextId
 				p.nextId += 1
 				local q: Piece = { uid = uid, id = id, x = c[1], z = c[2], rot = 0, lvl = 1 }
@@ -506,7 +496,6 @@ local function clearOut(p: Profile, gone: { [number]: boolean }, share: number)
 			local def = Buildings.byId[q.id]
 			if def then
 				p.shells += math.floor(def.shells * share)
-				p.wood += math.floor(def.wood * share)
 			end
 			for _, x in p.pals do
 				if x.work == q.uid then
@@ -604,7 +593,7 @@ function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, an
 			if swapDrawn(p, old, id) then
 				swapped += 1
 			else
-				why = if p.wood < def.wood then "wood" else "money"
+				why = "money"
 				break
 			end
 		else
@@ -616,13 +605,8 @@ function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, an
 				why = "money"
 				break
 			end
-			if p.wood < def.wood then
-				why = "wood"
-				break
-			end
 			if fenceFits(p.tier, p.plot.placed, e[1], e[2], rot, nil) then
 				p.shells -= def.shells
-				p.wood -= def.wood
 				local uid = p.nextId
 				p.nextId += 1
 				local q: Piece = { uid = uid, id = id, x = e[1], z = e[2], rot = rot, lvl = 1 }
@@ -680,14 +664,13 @@ end
 
 -- What replacing piece `q` with `id` costs: the new one's price less what clearing the old away gives back (never
 -- below nothing).
-function Plot.replaceCost(q: Piece, id: string): { shells: number, wood: number }?
+function Plot.replaceCost(q: Piece, id: string): { shells: number }?
 	local old, new = Buildings.byId[q.id], Buildings.byId[id]
 	if old == nil or new == nil then
 		return nil
 	end
 	return {
 		shells = math.max(0, new.shells - math.floor(old.shells * Tuning.Refund)),
-		wood = math.max(0, new.wood - math.floor(old.wood * Tuning.Refund)),
 	}
 end
 
@@ -710,7 +693,7 @@ end
 
 -- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a hut for a den, a patch for an
 -- orchard): its uid stays (its workers stay), its level starts again at 1. bad_payload
--- (another kind, the same piece, the tree), locked (a bigger island's), money / wood, blocked (the new footprint does
+-- (another kind, the same piece, the tree), locked (a bigger island's), money, blocked (the new footprint does
 -- not fit there). A smaller hut keeps the driftlings it has room for; the rest are left with no hut.
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	local q = p.plot.placed[i]
@@ -725,18 +708,14 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if new.tier > p.tier then
 		return false, "locked" :: ErrCode
 	end
-	local cost = Plot.replaceCost(q, id) :: { shells: number, wood: number }
+	local cost = Plot.replaceCost(q, id) :: { shells: number }
 	if p.shells < cost.shells then
 		return false, "money" :: ErrCode
-	end
-	if p.wood < cost.wood then
-		return false, "wood" :: ErrCode
 	end
 	if not Plot.fits(p.tier, p.plot.placed, id, q.x, q.z, q.rot, i) then
 		return false, "blocked" :: ErrCode
 	end
 	p.shells -= cost.shells
-	p.wood -= cost.wood
 	q.id = id
 	q.lvl = 1
 	if new.kind == "nest" then
@@ -791,7 +770,6 @@ function Plot.refit(p: Profile): (number, number)
 			local def = Buildings.byId[q.id]
 			if def then
 				p.shells += def.shells
-				p.wood += def.wood
 			end
 			for _, x in p.pals do
 				if x.work == q.uid then
@@ -835,7 +813,6 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 			end
 		end
 		p.shells += math.floor(def.shells * Tuning.Refund)
-		p.wood += math.floor(def.wood * Tuning.Refund)
 	end
 	for _, pal in p.pals do
 		if pal.work == q.uid then

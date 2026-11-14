@@ -695,7 +695,7 @@ local n1s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 E.run(3)
 local n2s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 H.expect(n1s ~= nil and n2s ~= nil and n1s - n2s >= 2 and n1s - n2s <= 4, "card", "join: New eggs in m:ss counts down", string.format("%s then %s", tostring(n1s), tostring(n2s)))
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Wood pays for everything you build. Tap Build and place a Lumber Camp.", "join", "the first tip")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts.", "join", "the first tip")
 -- Fx tick every second: the clock running down, and the seconds between two lots
 local i0 = #W.fx
 E.run(3.2)
@@ -771,7 +771,8 @@ E.run(1.2)
 H.expect(res.ok and tq.x == ox0 and tq.z == oz0, "piece", "and back", tostring(res.err))
 drawnCheck(p, s, "moved back")
 -- the piece limit: the island fills with Plot.limit pieces besides the tree
-prof.wood = 1e5
+local shellsPiece = prof.shells
+prof.shells = math.max(prof.shells, 1e5)
 H.push(p, 0.3)
 local limit = Plot.limit(prof.tier)
 local guard = 0
@@ -794,7 +795,7 @@ for i = #prof.plot.placed, 1, -1 do
 	end
 end
 H.expect(#prof.plot.placed == 1 and Tree.piece(prof) ~= nil, "piece", "the torches cleared away, the tree stays", tostring(#prof.plot.placed))
-prof.wood = Tuning.StartWood
+prof.shells = shellsPiece
 E.run(0.5)
 checks("piece")
 
@@ -897,7 +898,6 @@ H.closePanel(p)
 H.expect(x2 ~= nil and Creatures.byId[x2.sp].knack == "farm" and x2.work == patchUid, "hatch", "the second: at a farm, at the veggie patch", x2 and string.format("%s at %d", x2.sp, x2.work))
 H.expect(Tree.room(prof) == 0, "hatch", "the hut full", tostring(Tree.room(prof)))
 -- (a second hut; a tap on the lawn hatches nothing, a tap on an egg hatches it)
-prof.wood = math.max(prof.wood, Buildings.byId.nest.wood + 10)
 prof.shells = 50000
 H.push(p, 0.3)
 res = place("nest")
@@ -1190,8 +1190,7 @@ checks("shares")
 
 ------------------------------------------------------------------ 10. the island grows: more eggs at once, dearer, better
 E.phase = "expand"
-prof.shells = 1e6
-prof.wood = Tuning.TierCost[2] + 300
+prof.shells = 1e6 + Island.expandCost(1).shells
 H.push(p, 0.3)
 -- (two of the lot hatched first, so the extra eggs fill the places they left as well as the new ones)
 for k = 1, 2 do
@@ -1397,7 +1396,7 @@ H.expect(H.currentPanel(p) == nil and says(p, "Someone else's Tree of Life. Your
 res = H.req(p, "char.home", {})
 E.run(1.5)
 -- the neighbour hatches one: the first client sees it crack and go
-qprof.wood = math.max(qprof.wood, Buildings.byId.nest.wood + 10)
+qprof.shells = math.max(qprof.shells, Buildings.byId.nest.shells + 200)
 H.push(q, 0.3)
 res = placeFor(q, "nest")
 H.expect(res.ok, "neighbour", "the neighbour builds a hut", tostring(res.err))

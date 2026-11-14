@@ -46,7 +46,7 @@ return function()
 				end
 				T.truthy(any, q.id .. ": a kind of building that exists")
 			end
-			T.truthy((q.reward.shells or 0) + (q.reward.wood or 0) > 0, q.id .. ": pays something")
+			T.truthy((q.reward.shells or 0) > 0 and (q.reward :: any).wood == nil, q.id .. ": pays shells")
 			T.eq((q.reward :: any).food, nil, q.id .. ": no food")
 			local tab = string.match(q.go, "^build:(%a+)$")
 			T.truthy(PANELS[q.go] or q.go == "build" or (tab ~= nil and TABS[tab]), q.id .. ": goes somewhere real (" .. q.go .. ")")
@@ -75,11 +75,10 @@ return function()
 		T.eq(p.quest, 1)
 		table.insert(p.pals, { id = 1, sp = "pebblit", home = 4, work = 5, muts = {} })
 		T.truthy(Quest.done(Quest.facts(p), q), "one at work")
-		local shells, wood = p.shells, p.wood
+		local shells = p.shells
 		local ok, data = Quest.claim(p)
 		T.truthy(ok, "claimed")
 		T.eq(p.shells, shells + (q.reward.shells or 0), "its shells")
-		T.eq(p.wood, wood + (q.reward.wood or 0), "its wood")
 		T.eq(p.quest, 2, "the next quest")
 		T.eq(data.id, "help")
 		T.eq(data.next, 2)
