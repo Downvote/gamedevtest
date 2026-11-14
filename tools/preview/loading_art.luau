@@ -101,7 +101,7 @@ return function(env)
 		local def = Creatures.byId[sp]
 		local n = 8
 		return seq(name, n, 0.085, CRITTER, function(i)
-			local t = MM.driftling(def.shape, def.body, def.accent)
+			local t = MM.species(def.id)
 			local time = 4 + (i - 1) * (math.pi / 9) / n * 2
 			MM.animate(t, time, "walk", 0)
 			local bob = if hop then math.abs(math.sin(time * 9)) * 0.5 else 0
@@ -124,7 +124,7 @@ return function(env)
 		local def = Creatures.byId.conchy
 		local n = 6
 		seq("cheer", n, 0.09, CRITTER, function(i)
-			local t = MM.driftling(def.shape, def.body, def.accent)
+			local t = MM.species(def.id)
 			local time = 5 + (i - 1) * (2 * math.pi / 12) / n
 			MM.animate(t, time, "cheer", 0)
 			MM.place(t, CFrame.new(0, math.abs(math.sin(time * 12)) * 0.6, 0))

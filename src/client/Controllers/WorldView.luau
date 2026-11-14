@@ -361,7 +361,7 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 		rng = rng,
 	}
 	local def = Creatures.byId[sp]
-	local t = MicroModels.driftling(if def then def.shape else "blob", if def then def.body else "steel", if def then def.accent else "steel_dark", "world")
+	local t = MicroModels.species(sp, "world")
 	t.model:SetAttribute("PixelShadow", 1)
 	t.model:SetAttribute("PixelGroundY", groundY())
 	t.model.Parent = dyn()

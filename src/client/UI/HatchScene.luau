@@ -678,7 +678,7 @@ local function stepEgg(s: Scene, c: number)
 		PixelRenderer.registerDynamic(bits)
 		-- what hatched
 		local def = Creatures.byId[s.res.sp]
-		local thing = MicroModels.driftling(if def then def.shape else "blob", if def then def.body else "steel", if def then def.accent else "steel_dark")
+		local thing = MicroModels.species(s.res.sp)
 		thing.model:SetAttribute("PixelShadow", 1.1)
 		thing.model:SetAttribute("PixelGroundY", ORIGIN.Y + NEST_Y)
 		MicroModels.scale(thing, Vector3.one * 0.3)

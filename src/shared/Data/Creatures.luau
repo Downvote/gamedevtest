@@ -21,6 +21,10 @@ export type CreatureDef = {
 	shape: string,
 	body: string,
 	accent: string,
+	eye: string, -- its eyes (Models/DriftKit's eye styles, Creatures.EYES)
+	iris: string?, -- their colour where the style has one (a palette key)
+	tex: string, -- the texture on its body colour (Render/DynTex)
+	tex2: string?, -- and on its accent colour, where that is a big surface (a shell, crystals)
 	blurb: string,
 	passive: Passive,
 	power: number,
@@ -40,6 +44,10 @@ local function C(t: { [string]: any }): CreatureDef
 		shape = t.shape,
 		body = t.body,
 		accent = t.accent,
+		eye = "sparkle",
+		iris = nil,
+		tex = "skin",
+		tex2 = nil,
 		blurb = t.blurb,
 		passive = { name = t.pn, fx = t.fx },
 		power = 0,
@@ -125,4 +133,47 @@ for _, d in LIST do
 	BY_ID[d.id] = d
 end
 
-return table.freeze({ list = LIST, byId = BY_ID })
+-- Each one's eyes and texture (the request of 2026-11-14: "Can you use different eyes for each? Also, apply texture
+-- to each of them"): no two of a body plan share a style of eye, and the iris colours set apart the rest.
+--   id = { eye style, iris (palette key or false), body texture, accent texture or nil }
+-- stylua: ignore start
+local LOOKS: { [string]: { any } } = {
+	pebblit = { "button", false, "stone" },      quartzle = { "gem", "purple", "crystal", "crystal" }, rubblet = { "sleepy", "sand", "brick" },
+	clawdle = { "fierce", "orange", "chitin" },   coralcrab = { "lashes", "orange", "chitin" },    relicrab = { "ringed", "gold", "chitin" },
+	gullfin = { "wide", "blue", "feather" },      breezle = { "sleepy", "blue", "feather" },
+	conchy = { "sparkle", "pink", "skin", "shell" }, bogsnail = { "sleepy", "green", "skin", "shell" }, gemsnail = { "gem", "screen_on", "skin", "crystal" },
+	shellback = { "sleepy", "sand", "scale", "shell" }, pearlback = { "round", "pink", "scale", "shell" },
+	sunsprite = { "star", "yellow", "velvet" },   frostling = { "fierce", "blue", "ice" },
+	mossbun = { "sparkle", "leaf_dark", "fur" },  cloudbun = { "lashes", "window", "fluff" },
+	frondle = { "slit", "yellow", "scale" },      reedle = { "bead", false, "scale" },
+	twiggle = { "button", false, "bark" },        crystowl = { "ringed", "purple", "feather" },   stormowl = { "glow", "yellow", "feather" }, glyphowl = { "specs", "gold", "feather" },
+	hopsprout = { "round", "gold", "skin" },      murkle = { "bar", "sand", "skin" },             cindertoad = { "happy", false, "ember" }, icetoad = { "wide", "blue", "ice" },
+	bloomoth = { "compound", "pink", "velvet" },  wispwing = { "glow", "yellow", "velvet" },      prismoth = { "heart", "pink", "velvet" }, runemoth = { "ringed", "purple", "velvet" },
+	elderbark = { "sleepy", "leaf", "bark" },     basaltor = { "glow", "orange", "ember" },        glacior = { "bead", false, "ice" },       sentinel = { "visor", "gold", "stone" },
+	mudmole = { "dot", false, "velvet" },         magmole = { "glow", "orange", "ember" },
+	emberpup = { "sparkle", "yellow", "fur" },    skyfox = { "round", "blue", "fur" },             novafox = { "star", "purple", "fur" },
+	scorchwing = { "fierce", "orange", "fur" },   glowbat = { "glow", "screen_on", "fur" },        aurorawing = { "star", "pink", "fur" },
+	snowpuff = { "happy", false, "fluff" },       frostcrown = { "sleepy", "blue", "fluff" },
+	floe = { "button", false, "skin" },
+	lumajelly = { "sparkle", "purple", "jelly" },
+	pyredrake = { "slit", "orange", "scale" },    pyrelord = { "fierce", "berry_red", "scale" },   frostdrake = { "gem", "white", "scale" }, thunderdrake = { "wide", "yellow", "scale" },
+	mirewyrm = { "sleepy", "yellow", "scale" },   tidewyrm = { "ringed", "screen_on", "scale" },   abyssmaw = { "glow", "purple", "scale" }, solwyrm = { "slit", "gold", "scale" },
+}
+-- stylua: ignore end
+for _, d in LIST do
+	local look = LOOKS[d.id]
+	if look then
+		d.eye = look[1]
+		d.iris = if look[2] then look[2] else nil
+		d.tex = look[3]
+		d.tex2 = look[4]
+	end
+end
+
+-- The eye styles (Models/DriftKit draws each).
+local EYES = {
+	"sparkle", "lashes", "button", "bead", "dot", "star", "heart", "round", "wide", "specs", "slit", "bar", "ringed",
+	"sleepy", "fierce", "happy", "glow", "gem", "visor", "compound",
+}
+
+return table.freeze({ list = LIST, byId = BY_ID, EYES = EYES })

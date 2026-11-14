@@ -88,7 +88,9 @@ export type Rect = { x0: number, y0: number, x1: number, y1: number }
 -- position along the look vector (C.L; rays start at l - back), and the pan (px, py): the global art pixel at the
 -- layer's top-left (whole numbers).
 export type Grid = { a: number, q: number, phX: number, phY: number, l: number, px: number, py: number }
-export type Shade = (rgb: number, nx: number, ny: number, nz: number, x: number, y: number) -> number
+-- (t: the hit's distance along the pixel's ray, from Raster.origin(cam, x, y), where the solid knows it: a textured
+-- shade finds the point on the part with it; a uniform shade never gets it)
+export type Shade = (rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?) -> number
 export type Mix = (over: number, under: number) -> number
 -- color u32 RGBA little-endian (R + G*256 + B*65536 + 255*2^24), depth f32 (ray distance), id u16
 export type Frame = { W: number, H: number, color: buffer, depth: buffer, id: buffer }
@@ -1017,7 +1019,7 @@ local function fillFace(
 				local idx = row + i
 				local o = idx * 4
 				if t + bias < buffer.readf32(depth, o) then
-					local c = c0 or shade(rgb, nx, ny, nz, i, j)
+					local c = c0 or shade(rgb, nx, ny, nz, i, j, t)
 					if mix then
 						buffer.writeu32(color, o, mix(c, buffer.readu32(color, o)))
 					else
@@ -1164,7 +1166,7 @@ function Raster.drawSphere(
 					local nx = (qx + t * lx) * invR
 					local ny = (qy + t * ly) * invR
 					local nz = (qz + t * lz) * invR
-					local c = shade(rgb, nx, ny, nz, i, j)
+					local c = shade(rgb, nx, ny, nz, i, j, t)
 					if mix then
 						buffer.writeu32(color, o, mix(c, buffer.readu32(color, o)))
 					else
@@ -1299,7 +1301,7 @@ function Raster.drawCylinder(
 						else
 							nx, ny, nz = ax * capS, ay * capS, az * capS
 						end
-						local c = shade(rgb, nx, ny, nz, i, j)
+						local c = shade(rgb, nx, ny, nz, i, j, t)
 						if mix then
 							buffer.writeu32(color, o, mix(c, buffer.readu32(color, o)))
 						else
@@ -1421,7 +1423,7 @@ function Raster.drawConvex(
 				local o = idx * 4
 				if tIn < buffer.readf32(depth, o) - bias then
 					local b = best * 4
-					local c = shade(rgb, planes[b - 3], planes[b - 2], planes[b - 1], i, j)
+					local c = shade(rgb, planes[b - 3], planes[b - 2], planes[b - 1], i, j, tIn)
 					if mix then
 						buffer.writeu32(color, o, mix(c, buffer.readu32(color, o)))
 					else

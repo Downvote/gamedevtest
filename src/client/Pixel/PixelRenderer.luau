@@ -60,6 +60,7 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Shading = require(ReplicatedStorage.Shared.Render.Shading)
 local Fx = require(ReplicatedStorage.Shared.Render.Fx)
+local DynTex = require(ReplicatedStorage.Shared.Render.DynTex)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local BakeCast = require(script.Parent.BakeCast)
@@ -124,7 +125,7 @@ type TexInfo = { kind: number, rgb: number, x0: number, y0: number, w: number, h
 type Texs = { [number]: TexInfo }
 local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
 
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number }
 type Dyn = { model: Model, parts: { DynPart } }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
@@ -1310,6 +1311,36 @@ local function shadeGlow(rgb: number, nx: number, ny: number, nz: number, x: num
 	return Shading.toonAt(rgb, nx, ny, nz, 2, x + panX, y + panY, Shading.INDOOR, 0)
 end
 
+-- A textured part (a driftling's fur, scales, shell...: its "PixelTex" attribute, Render/DynTex): the pixel's ray hits
+-- the part at distance t; that point in the part's own frame, laid out flat round the part's axis, picks a step
+-- lighter or darker on the colour's ramp, so the pattern turns and walks with the part and keeps to the pixel grid.
+-- The part being drawn is set in these before each draw (compose).
+local texCam: Raster.Cam? = nil
+local texCF: { number } = {}
+local texShape = "Block"
+local texKind = 0
+local texSeed = 0
+local texPx = 1 -- studs a layer pixel
+local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
+	local lift = 0
+	local cam = texCam
+	if t and cam then
+		-- the hit point, from the pixel's ray (the same origin the solids step their rays from)
+		local ox = cam.ox + x * cam.ix + y * cam.jx
+		local oy = cam.oy + x * cam.iy + y * cam.jy
+		local oz = cam.oz + x * cam.iz + y * cam.jz
+		local cf = texCF
+		local px, py, pz = ox + t * cam.lx - cf[1], oy + t * cam.ly - cf[2], oz + t * cam.lz - cf[3]
+		-- in the part's frame (its axes are the columns of the rotation)
+		local lx = px * cf[4] + py * cf[7] + pz * cf[10]
+		local ly = px * cf[5] + py * cf[8] + pz * cf[11]
+		local lz = px * cf[6] + py * cf[9] + pz * cf[12]
+		local u, v = DynTex.uv(texShape, lx, ly, lz)
+		lift = DynTex.lift(texKind, u, v, texPx, texSeed)
+	end
+	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift)
+end
+
 -- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow), cached per pixel until the static
 -- layer changes (a bake, a pan, a re-cast).
 local function shadeShadowed(s: Surf, idx: number, x: number, y: number): number
@@ -1852,6 +1883,11 @@ local function compose()
 		end
 	end
 	local drawn = 0
+	-- (textures only where a driftling is drawn big enough for a one-pixel pattern to read: Render/DynTex)
+	local pxPerStud = cam.s / cam.K
+	local texOn = pxPerStud >= DynTex.MIN_PX_PER_STUD
+	texCam = cam
+	texPx = 1 / pxPerStud
 	for model, d in dyns do
 		if model.Parent == nil then
 			continue
@@ -1880,7 +1916,12 @@ local function compose()
 			local sz = part.Size
 			local bx0, by0, bx1, by1 = Raster.boxRect(cam, cf12, sz.X, sz.Y, sz.Z)
 			if bx0 and by0 and bx1 and by1 then
-				Raster.drawPart(s.frame, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, if p.glow then shadeGlow else shadeLit)
+				local shade = if p.glow then shadeGlow else shadeLit
+				if texOn and p.tex > 0 then
+					texCF, texShape, texKind, texSeed = cf12, p.shape, p.tex, p.id % 97
+					shade = shadeTex
+				end
+				Raster.drawPart(s.frame, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade)
 				x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
 			end
 		end
@@ -2418,7 +2459,9 @@ function PixelRenderer.registerDynamic(model: Model)
 			end
 			local glow = d.Material == Enum.Material.Neon
 			dynGlow[nextDyn] = glow
-			table.insert(parts, { part = d, id = nextDyn, shape = shape, glow = glow, rgb = rgb })
+			local texName = d:GetAttribute("PixelTex")
+			local tex = if glow or type(texName) ~= "string" then 0 else DynTex.kind(texName)
+			table.insert(parts, { part = d, id = nextDyn, shape = shape, glow = glow, rgb = rgb, tex = tex })
 		end
 	end
 	dyns[model] = { model = model, parts = parts }

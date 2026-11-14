@@ -23,6 +23,7 @@
 -- blink by tucking in: the eye's parts go in and its lid comes out while it is shut; the smile goes in and the open
 -- mouth comes out while the mouth is open.
 local Kit = require(script.Parent.DriftKit)
+local Blocks = require(script.Parent.Blocks)
 
 local DriftModels = {}
 
@@ -47,17 +48,35 @@ function DriftModels.has(shape: string): boolean
 end
 
 -- A driftling of a body plan in its colours: `lod` "full" (close looks: the hatch scene, the portraits) or "world"
--- (the islands: fewer, bigger pieces). Full when not given.
-function DriftModels.build(shape: string, body: string, accent: string, lod: string?): Thing
+-- (the islands: fewer, bigger pieces), full when not given. `look` (its species': Data/Creatures) picks its eyes'
+-- style and iris colour (DriftKit.eye) and the textures its body and accent colours wear (each part of that colour,
+-- not the face, gets a "PixelTex" attribute: the pixel renderer patterns it, Render/DynTex).
+export type Look = { eye: string?, iris: string?, tex: string?, tex2: string? }
+function DriftModels.build(shape: string, body: string, accent: string, lod: string?, look: Look?): Thing
 	local fn = PLANS[shape] or PLANS.blob
 	Kit.setFull(lod ~= "world")
+	Kit.setLook({ eye = look and look.eye, iris = look and look.iris, body = body, accent = accent })
 	local ok, t = pcall(fn, body, accent)
 	Kit.setFull(true)
+	Kit.setLook(nil)
 	if not ok then
 		Kit.finish()
 		error(t)
 	end
 	Kit.finish()
+	local tex, tex2 = look and look.tex, look and look.tex2
+	if tex or tex2 then
+		local cb, ca = Blocks.color(body), Blocks.color(accent)
+		for name, p in t.parts do
+			if t.face[name] == nil and p.Material ~= Enum.Material.Neon then
+				if tex and p.Color == cb then
+					p:SetAttribute("PixelTex", tex)
+				elseif tex2 and p.Color == ca then
+					p:SetAttribute("PixelTex", tex2)
+				end
+			end
+		end
+	end
 	return t
 end
 
@@ -389,7 +408,7 @@ function DriftModels.animate(t: Thing, time: number, mood: string, k: number?, s
 			-- the kit's face parts (Models/DriftKit): each tucked in along its normal (its +X) while it is hidden
 			local hide = if fk == "eye" then shut elseif fk == "lid" then not shut elseif fk == "open" then not open else open
 			if hide then
-				r0 = r0 * CFrame.new(-Kit.TUCK, 0, 0)
+				r0 = r0 * CFrame.new(t.tuck[name] or Vector3.new(-Kit.TUCK, 0, 0))
 			end
 			local w = world[rig.of[name] or "body"] or CFrame.identity
 			local rr = w * r0

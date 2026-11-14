@@ -1163,7 +1163,7 @@ function SCEN.zoo()
 			end
 			table.insert(names, d.id)
 			local t = H.inClient(p, function()
-				local th = MM.driftling(d.shape, d.body, d.accent, "world")
+				local th = MM.species(d.id, "world")
 				th.model:SetAttribute("PixelShadow", 1)
 				th.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
 				th.model.Parent = E.workspace
@@ -1781,7 +1781,7 @@ local function palsScenario(arg)
 		for i, id in ids do
 			local d = Creatures.byId[id]
 			if d then
-				local th = MM.driftling(d.shape, d.body, d.accent)
+				local th = MM.species(d.id)
 				th.model:SetAttribute("PixelShadow", 1)
 				th.model:SetAttribute("PixelGroundY", 0)
 				th.model.Parent = E.workspace

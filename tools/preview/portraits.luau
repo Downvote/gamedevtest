@@ -148,7 +148,7 @@ return function(env)
 			for _, yaw in env.yaws or { YAW } do
 				local name = if env.yaws then def.id .. "@" .. yaw else def.id
 				local snap = Snapshot.get("portrait:" .. name, function()
-					local t = MM.driftling(def.shape, def.body, def.accent)
+					local t = MM.species(def.id)
 					MM.animate(t, REST, "idle", 0)
 					portraitPose(t, def.shape, def.body, def.accent)
 					MM.place(t, CFrame.new())

@@ -13,6 +13,7 @@ local _ = ReplicatedStorage
 local Blocks = require(script.Parent.Blocks)
 local BoatSpec = require(script.Parent.BoatSpec)
 local DriftModels = require(script.Parent.DriftModels)
+local Creatures = require(script.Parent.Parent.Data.Creatures)
 
 local MicroModels = {}
 
@@ -566,8 +567,17 @@ end
 ------------------------------------------------------------------ the driftlings (Data/Creatures shape; body / accent)
 -- Built and moved by Models/DriftModels: each body plan on a skeleton of joints (GAME_DESIGN 6). `lod` "full" (close
 -- looks: the hatch scene, the portraits; the default) or "world" (the islands: fewer, bigger pieces).
-function MicroModels.driftling(shape: string, body: string, accent: string, lod: string?): Thing
-	return DriftModels.build(shape, body, accent, lod) :: any
+function MicroModels.driftling(shape: string, body: string, accent: string, lod: string?, look: DriftModels.Look?): Thing
+	return DriftModels.build(shape, body, accent, lod, look) :: any
+end
+
+-- A species' driftling (Data/Creatures: its plan, colours, eyes and textures); an unknown id is a plain pebble.
+function MicroModels.species(id: string, lod: string?): Thing
+	local def = Creatures.byId[id]
+	if def == nil then
+		return MicroModels.driftling("blob", "steel", "steel_dark", lod)
+	end
+	return MicroModels.driftling(def.shape, def.body, def.accent, lod, { eye = def.eye, iris = def.iris, tex = def.tex, tex2 = def.tex2 })
 end
 
 -- A driftling's limbs alive, time t (seconds), mood "idle" | "walk" | "attack" | "hurt" | "cheer" | "ko", k 0..1 an

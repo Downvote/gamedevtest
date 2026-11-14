@@ -6,7 +6,7 @@ local SPECS = {
 	"DataIntegrity", "Traits", -- the content tables
 	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", -- the rules
 	"Schema", -- the save
-	"Shading", "Raster", "Rim", "Fx", -- the pixel filter (from Random Bakery) and its effects
+	"Shading", "Raster", "Rim", "Fx", "DynTex", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures
 	"PixelFont", -- the pixel font
 }
 for _, name in SPECS do
