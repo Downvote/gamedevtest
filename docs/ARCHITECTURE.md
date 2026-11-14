@@ -1212,7 +1212,7 @@ box, kept while the model stays; `room` `Tuning.HelpMax` for a workplace, the hu
 whose `work` / `home` it is). WorldView drives it: `step(t, plot, hoverPos?, palHovered)` every Heartbeat (the plot
 changing clears everything), `tapAt(pos) -> boolean` from `onTap` after the eggs, the driftlings, the tree and the
 Hatchery. Over each spot with `n` 0 a `BuildingAlert` (World canvas, glass, `mini_alert` and `Words` "Empty", 2 px over
-`top`, bobbing 1 px twice a second; none while the camera has a stage). The `BuildingCard` (glass: `Name` in the
+`top`, bobbing 1 px twice a second; none while the camera has a stage or a panel is open, where they showed through its glass). The `BuildingCard` (glass: `Name` in the
 accent, `mini_work` or `mini_nest`, `Line` "Workers n/2" or "Living here n/room" in `bad` at 0, `good` when full, else
 `text`; over the alert when there is one, kept on the screen and `CARD_TOP` 22 below the top of the HUD's canvas, under the top bar's chips): a tap's for `CARD_SECS` 3 (while no panel is open), else the pointer's,
 looked for every `HOVER_SECS` 0.1 with a mouse, no panel, not Build mode (`CameraController.isFree`) and no driftling's
@@ -1260,7 +1260,7 @@ through `Quest.current` / `Quest.progress`, laid out again when the quest or its
 quest's `mini_` icon, `Title` (wrapping onto a second line when it is wider than its 106 px, the card growing by one
 line: "Discover 12 unique creatures"), `Which` ("3/20"), `Words` (up to four lines), then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
 panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_shells`) and
-`QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`: the steps of
+`QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`, kept on the menu bar or the build tray every Heartbeat once its 0.2 s bounce is done, since the tray changes height with no word to the HUD and a correction during the bounce was overwritten by it: the user's report of 2026-11-14, "the tutorial tooltip sometimes gets hidden by the build menu after something is built"; the steps of
 GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
 mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; glass with white words; on a
 phone it keeps to the room left of the island card, wrapping to two lines), and the `DayBanner` (Fx "day" and "turn":
@@ -1619,7 +1619,7 @@ product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it from Lo
 hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `PromptProductPurchase` only when
 `Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". `StoreUI.robuxText(key)` is a key's price
 words ("R$ 25", the live price once known) for other panels' buy buttons: the tree panel's `TreeRefresh` ("New eggs
-now", `RefreshEggs`) and `TreeQuick` ("Every 5 min: Quick Tree", while `QuickTree` isn't owned) under its timer bar
+now", `RefreshEggs`) and `TreeQuick` ("Shorten cooldown permanently: R$ …", while `QuickTree` isn't owned; 22 px tall with its words wrapped when they are wider than the button) under its timer bar
 (the panel 226 tall for them), and Build mode's `BuyFreeDecor` (`mini_decor`, "Free Decor", on a tab over the tray's
 right corner while `FreeDecor` isn't owned). The `RefreshEggs` product (`Store.product`) runs the tree's clock out
 (`clutch.left = 0`) so `IslandService.step` lays a fresh lot at its next tick (Fx "eggs"); its `given` is

@@ -254,10 +254,11 @@ function BuildingTags.step(t: number, plot: number, hoverPos: Vector2?, palHover
 		scan(v)
 	end
 	local busy = CameraController.stage() ~= nil
-	-- the alerts
+	-- the alerts (none while a panel is open: they showed faintly through its glass)
+	local hidden = busy or UIKit.currentPanel() ~= nil
 	local bob = if math.floor(t * 2) % 2 == 0 then 0 else 1
 	for u, s in spots do
-		if s.n == 0 and s.room > 0 and not busy then
+		if s.n == 0 and s.room > 0 and not hidden then
 			place(alertFor(s), s.top, 2 + bob)
 		else
 			dropAlert(u)

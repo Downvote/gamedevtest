@@ -1004,7 +1004,8 @@ and how many work there of the two it takes ("Workers 1/2") or how many live the
 red when it is empty and green when it is full. A phone has no pointer, so a tap on one shows the same card for three
 seconds. The card waits while a panel is open, in Build mode and while a driftling's name is showing under the pointer.
 Over every workplace nobody works at, and every hut nobody lives in, a little tag floats with an orange "!" badge and
-the word "Empty", bobbing a pixel. It goes the moment a driftling moves in or starts work there. Neighbours' islands
+the word "Empty", bobbing a pixel (hidden while a panel is open). It goes the moment a driftling moves in or starts work
+there. Neighbours' islands
 show neither: it is your own island to run. Benches, lamps and other decor in front of a building never hide it from
 the pointer; the Tree of Life does.
 
@@ -2182,7 +2183,8 @@ the purchase went through only once the save holds it):
 Where they are sold beside the Store (the request of 2026-11-14: "make a developer product to refresh eggs in the tree
 of life, and put the gamepass to cut the tree of life time to 5 min in the tree of life menu as well. add the free
 decor gamepass in the build menu"): the Tree of Life's panel has "New eggs now R$ 25" under its timer and, while it
-isn't owned, "Every 5 min: Quick Tree R$ 199" under that; Build mode has "Free Decor R$ 249" on a tab over the tray's
+isn't owned, "Shorten cooldown permanently: R$ 199" under that (the user's words of 2026-11-14, on two lines where the
+button is narrow; it was "Every 5 min: Quick Tree"); Build mode has "Free Decor R$ 249" on a tab over the tray's
 right corner while that pass isn't owned. Each opens Roblox's purchase prompt.
 
 A "minutes of shells" reward is what the island makes in that many minutes now, at least `RewardFloor` (25) shells a

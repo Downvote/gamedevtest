@@ -489,9 +489,38 @@ H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
 H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 H.expect(H.inClient(p, BuildUI.debugState).tab == "decor", "build", "the player can still look round the other tabs")
 H.expect(H.buttonNamed(p, "Buy_tree", true) == nil, "build", "no Tree of Life in the tray (every island has its one)")
+-- (the tip's banner rides on the tray, whatever height it is: the user's report of 2026-11-14, "the tutorial tooltip
+-- sometimes gets hidden by the build menu after something is built": a piece still picked when the camp went up, the
+-- next tip's banner was laid on the short tray, then the tray turned to the next tip's row at its full height)
+local function tipsAbove(): (boolean, string)
+	local tipsF = p.PlayerGui:FindFirstChild("Tips", true)
+	local trayF = p.PlayerGui:FindFirstChild("BuildTray", true)
+	if tipsF == nil or trayF == nil then
+		return false, "missing " .. (if tipsF == nil then "Tips" else "BuildTray")
+	end
+	local bottom = tipsF.AbsolutePosition.Y + tipsF.AbsoluteSize.Y
+	return bottom <= trayF.AbsolutePosition.Y, string.format("banner's bottom %d, tray's top %d", bottom, trayF.AbsolutePosition.Y)
+end
 local sh0 = prof.shells
-local res = place("lumber")
-E.run(0.5)
+-- (the camp built the way a player builds it: its card picked, a tap on the lawn, Place)
+local res
+do
+	H.inClient(p, BuildUI.pick, "lumber")
+	E.run(0.3)
+	local lx, lz = spot("lumber", 0)
+	local ox, oz = Street.origin(s.plot)
+	local w, d = Plot.footprint("lumber", 0)
+	local at = H.inClient(p, function()
+		local pos = PRp.project(E.v3(ox + (lx or 0) + w / 2, Street.LAWN_Y, oz + (lz or 0) + d / 2))
+		return E.v2(pos.X, pos.Y - E.inset)
+	end)
+	H.inClient(p, BuildUI.tapScreen, at, false)
+	E.run(0.2)
+	H.clickNamed(p, "Place", { wait = 0.6 })
+	res = { ok = pieceOf("lumber") ~= nil, err = if pieceOf("lumber") then nil else "not placed" }
+	local ok, say = tipsAbove()
+	H.expect(ok, "build", "the camp built from the tray: the next tip's banner sits above the tray, not under it", say)
+end
 bst = H.inClient(p, BuildUI.debugState)
 H.expect(bst.tab == "work" and bst.chip == "farm" and bst.goal == "patch" and H.buttonNamed(p, "Buy_patch") ~= nil and goalCard("patch") ~= nil, "build", "the camp built: the tray turns to Work's Farms row and the veggie patch", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
 H.expect(tipShown(), "build", "the next tip's banner over the tray")
@@ -507,6 +536,16 @@ do
 	E.run(0.3)
 	local st, say = trayOn()
 	H.expect(st.tab == "nest" and st.goal == "nest" and goalCard("nest") ~= nil, "build", "Build mode opens on the Huts tab for the hut tip, the hut's card pulsing", say)
+end
+-- (the banner rides on the tray as it changes height, a piece picked and let go)
+do
+	H.inClient(p, BuildUI.pick, "nest")
+	E.run(0.5)
+	local ok, say = tipsAbove()
+	H.expect(ok, "build", "a piece picked, the tray shorter: the tip's banner comes down with it, above it", say)
+	H.clickNamed(p, "Cancel", { wait = 0.5 })
+	ok, say = tipsAbove()
+	H.expect(ok, "build", "the pick let go, the tray full height again: the tip's banner goes back up over it", say)
 end
 res = place("nest")
 H.expect(res.ok and prof.tut == 4, "build", "a hut: the tips move on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))

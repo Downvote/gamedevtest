@@ -834,8 +834,9 @@ local function updateTips(v: Types.ClientView)
 		end, { name = "TipsOk" })
 	end
 	tips = f
-	-- a new tip bounces in
+	-- a new tip bounces in (the Heartbeat keeps it on the tray once it has)
 	f.Position = UDim2.new(0, left, 1, -(tipsLift() - 4))
+	f:SetAttribute("Settled", os.clock() + 0.2)
 	UIKit.tween(f, 0.18, { Position = UDim2.new(0, left, 1, -tipsLift()) })
 end
 
@@ -1105,6 +1106,17 @@ function Hud.start()
 			end
 			if k <= 0 then
 				chipBump[name] = nil
+			end
+		end
+		-- the tip's banner rides on the menu bar or the build tray: the tray grows and shrinks with no word to the HUD
+		-- (a piece picked or let go, the next tip's tab once something is built), and a banner left at the old height
+		-- went under the tray's tabs (the user's report of 2026-11-14, "the tutorial tooltip sometimes gets hidden by
+		-- the build menu after something is built")
+		local tp = tips
+		if tp and now >= ((tp:GetAttribute("Settled") :: number?) or 0) then
+			local y = -tipsLift()
+			if tp.Position.Y.Offset ~= y or tp.Position.Y.Scale ~= 1 then
+				tp.Position = UDim2.new(tp.Position.X.Scale, tp.Position.X.Offset, 1, y)
 			end
 		end
 		-- the tree's card: the time to its next eggs runs down

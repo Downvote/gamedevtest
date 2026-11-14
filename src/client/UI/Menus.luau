@@ -843,11 +843,18 @@ local function buildTree(body: Frame, arg: any?)
 	nb.ZIndex = 4
 	dy += 14
 	if not (v.passes and v.passes.QuickTree) then
-		local qb = UIKit.button(body, "Every 5 min: Quick Tree " .. StoreUI.robuxText("QuickTree"), UDim2.fromOffset(LW, 12), UDim2.fromOffset(0, dy), function()
+		-- (the user's words of 2026-11-14: "Shorten cooldown permanently: R$"; two lines on a button too narrow for one)
+		local words = "Shorten cooldown permanently: " .. StoreUI.robuxText("QuickTree")
+		local qh = if UIKit.textWidth(words) > LW - 6 then 22 else 12
+		local qb = UIKit.button(body, words, UDim2.fromOffset(LW, qh), UDim2.fromOffset(0, dy), function()
 			StoreUI.buy("QuickTree")
 		end, { name = "TreeQuick", color = UIKit.color("button_warn") })
 		qb.ZIndex = 4
-		dy += 14
+		local ql = qb:FindFirstChild("Words")
+		if qh > 12 and ql and ql:IsA("TextLabel") then
+			ql.TextWrapped = true
+		end
+		dy += qh + 2
 	end
 	local housed = 0
 	for _, x in v.pals do
