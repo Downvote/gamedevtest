@@ -20,7 +20,7 @@
 --   slots: the driftlings a hut houses (its room)
 --   charm: what it adds to the island's charm (visitors come for it)
 --   comfort: a hut's share added to its residents' work (Logic/Island.homes)
---   boost / boostBy: a boost building's knack ("farm" "fish" "wood" "shop", or "all") and its share (each kind of boost
+--   boost / boostBy: a boost building's knack ("farm" "wood" "shop", or "all") and its share (each kind of boost
 --          building counts once however many stand: Logic/Island.boosts)
 --   tier:  the island tier it needs
 --   tab / sub: where Build mode lists it (its tab, and the row of chips under it: a decor piece's theme, a nature
@@ -100,11 +100,11 @@ end
 local LIST: { BuildingDef } = {
 	-- farms: they sell what they grow or catch (shells)
 	B({ id = "patch", name = "Veggie Patch", kind = "farm", wood = 40, w = 3, d = 3, rate = 36, knack = "farm", charm = 1, blurb = "Grows veggies to sell." }),
-	B({ id = "pier", name = "Fishing Pier", kind = "farm", wood = 160, w = 3, d = 3, rate = 60, knack = "fish", charm = 1, blurb = "Lands fish to sell." }),
+	B({ id = "pier", name = "Fishing Pier", kind = "farm", wood = 160, w = 3, d = 3, rate = 60, knack = "farm", charm = 1, blurb = "Lands fish to sell." }),
 	B({ id = "orchard", name = "Fruit Orchard", kind = "farm", wood = 460, w = 4, d = 4, rate = 102, knack = "farm", charm = 3, tier = 2, blurb = "Lots of fruit to sell." }),
 	B({ id = "greenhouse", name = "Greenhouse", kind = "farm", wood = 2900, w = 4, d = 3, rate = 240, knack = "farm", charm = 4, tier = 3, blurb = "Something to sell all year." }),
 	B({ id = "paddy", name = "Rice Terrace", kind = "farm", wood = 9800, w = 4, d = 4, rate = 510, knack = "farm", charm = 5, tier = 4, blurb = "Steps of rice in still water." }),
-	B({ id = "kelpfarm", name = "Kelp Farm", kind = "farm", wood = 28000, w = 4, d = 4, rate = 990, knack = "fish", charm = 6, tier = 5, blurb = "Rows of kelp in a sea pen." }),
+	B({ id = "kelpfarm", name = "Kelp Farm", kind = "farm", wood = 28000, w = 4, d = 4, rate = 990, knack = "farm", charm = 6, tier = 5, blurb = "Rows of kelp in a sea pen." }),
 	B({ id = "skygarden", name = "Sky Garden", kind = "farm", wood = 76000, w = 5, d = 4, rate = 1800, knack = "farm", charm = 12, tier = 6, blurb = "Gardens stacked up a glass tower." }),
 	-- wood
 	B({ id = "lumber", name = "Lumber Camp", kind = "wood", wood = 70, w = 4, d = 3, rate = 30, knack = "wood", blurb = "Chops wood." }),
@@ -131,7 +131,7 @@ local LIST: { BuildingDef } = {
 	-- boosts: every building of a knack makes more (each kind counts once)
 	B({ id = "toolshed", name = "Tool Shed", kind = "gen", wood = 1300, w = 2, d = 2, charm = 1, boost = "wood", boostBy = 0.1, tier = 2, blurb = "Sharp axes: wood +10%." }),
 	B({ id = "windmill", name = "Windmill", kind = "gen", wood = 1600, w = 3, d = 3, charm = 4, boost = "farm", boostBy = 0.1, tier = 2, blurb = "Grinds the harvest: farms +10%." }),
-	B({ id = "smokehouse", name = "Smokehouse", kind = "gen", wood = 1500, w = 3, d = 3, charm = 2, boost = "fish", boostBy = 0.1, tier = 2, blurb = "Smoked fish keeps: fishing +10%." }),
+	B({ id = "smokehouse", name = "Smokehouse", kind = "gen", wood = 1500, w = 3, d = 3, charm = 2, boost = "farm", boostBy = 0.1, tier = 2, blurb = "Smoked fish keeps: farms +10%." }),
 	B({ id = "market", name = "Market Hall", kind = "gen", wood = 5500, w = 4, d = 3, charm = 8, boost = "shop", boostBy = 0.12, tier = 3, blurb = "Brings the buyers: shops +12%." }),
 	B({ id = "watertower", name = "Water Tower", kind = "gen", wood = 13000, w = 3, d = 3, charm = 6, boost = "all", boostBy = 0.06, tier = 4, blurb = "Fresh water for all: everything +6%." }),
 	B({ id = "townhall", name = "Town Hall", kind = "gen", wood = 39000, w = 5, d = 4, charm = 30, boost = "all", boostBy = 0.1, tier = 5, blurb = "The town runs smoothly: everything +10%." }),

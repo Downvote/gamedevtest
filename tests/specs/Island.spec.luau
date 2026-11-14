@@ -23,7 +23,7 @@ local function put(p: any, id: string): number
 end
 
 -- a common driftling of a knack living in hut `hut`, working at `work` (0: resting)
-local KNACK = { farm = "mossbun", wood = "pebblit", fish = "clawdle", shop = "conchy" }
+local KNACK = { farm = "mossbun", wood = "pebblit", shop = "conchy" }
 local function worker(p: any, knack: string, hut: number, work: number): any
 	local x = { id = p.nextId, sp = KNACK[knack], home = hut, work = work }
 	p.nextId += 1
@@ -141,11 +141,11 @@ return function()
 		local patch2 = put(p, "patch")
 		T.eq(Island.freeJob(p, "farm"), patch2, "its own knack's first: the empty farm")
 		T.eq(Island.freeJob(p, "wood"), lumber)
-		T.eq(Island.freeJob(p, "fish"), patch2, "no pier: the emptiest farm")
-		-- with its effects: where it works fastest when its knack has no room (Traits.workAt)
+		T.eq(Island.freeJob(p, "shop"), patch2, "no shop: the emptiest, farms first")
+		-- with its effects: where it works fastest when its knack has no say (Traits.workAt)
 		local stall = put(p, "stall")
-		T.eq(Island.freeJob(p, "fish", { shop = 0.3 }), stall, "a seller's knack for shops")
-		T.eq(Island.freeJob(p, "fish", { wood = 0.2 }), lumber, "a woodworker's for wood")
+		T.eq(Island.freeJob(p, "", { shop = 0.3 }), stall, "a seller's share for shops")
+		T.eq(Island.freeJob(p, "", { wood = 0.2 }), lumber, "a woodworker's for wood")
 		T.truthy(Island.setHelp(p, 72, 0))
 		T.eq(p.pals[3].work, 0, "back to rest")
 	end)

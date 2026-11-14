@@ -99,7 +99,7 @@ end
 
 -- The boost buildings' shares (GAME_DESIGN 4.1), by knack and "all": each kind of boost building counts once.
 function Island.boosts(p: Profile): { [string]: number }
-	local out: { [string]: number } = { farm = 0, fish = 0, wood = 0, shop = 0, all = 0 }
+	local out: { [string]: number } = { farm = 0, wood = 0, shop = 0, all = 0 }
 	local seen: { [string]: boolean } = {}
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]

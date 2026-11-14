@@ -60,10 +60,12 @@ return function()
 			local makes = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
 			T.truthy(makes == (d.knack ~= ""), d.id .. " knack")
+			-- (the Work tab's three groups: "creatures are adept in either wood, farm or shops as seen in the build tab")
+			T.truthy(d.knack == "" or d.knack == d.kind, d.id .. " a workplace's knack is its group")
 			T.truthy((d.kind == "nest") == (d.slots > 0), d.id .. " huts have room")
 			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
 			T.truthy((d.kind == "gen") == (d.boost ~= "" and d.boostBy > 0), d.id .. " a boost building boosts")
-			T.truthy(d.boost == "" or d.boost == "farm" or d.boost == "fish" or d.boost == "wood" or d.boost == "shop" or d.boost == "all", d.id .. " boost knack")
+			T.truthy(d.boost == "" or d.boost == "farm" or d.boost == "wood" or d.boost == "shop" or d.boost == "all", d.id .. " boost knack")
 			T.truthy(d.comfort == 0 or d.kind == "nest", d.id .. " comfort is a hut's")
 			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
@@ -90,6 +92,7 @@ return function()
 			perIslet[d.islet] = (perIslet[d.islet] or 0) + 1
 			T.truthy(d.hp > 0 and d.atk > 0 and d.def > 0 and d.spd > 0, d.id .. " stats")
 			T.truthy(knacks[d.knack], d.id .. " knack " .. d.knack)
+			T.truthy(d.knack == "farm" or d.knack == "wood" or d.knack == "shop", d.id .. " farm, wood or shops")
 			T.truthy(color(d.body) and color(d.accent), d.id .. " colours")
 			-- its rarity, its passive (named, effects Data/Traits knows) and its breeding rank
 			T.truthy(d.rarity >= 1 and d.rarity <= 5, d.id .. " rarity")

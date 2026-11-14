@@ -207,7 +207,7 @@ local function seedProfile(userId, tier, opts)
 		local Creatures = H.sharedServer("Data.Creatures")
 		local d = Creatures.byId[sp]
 		-- (a set of mutations each, so the panels show them: Data/Traits)
-		local MUTS = { { "fierce3", "swift1" }, { "angler2" }, {}, { "sturdy4", "bright2", "lazy" } }
+		local MUTS = { { "fierce3", "swift1" }, { "grower2" }, {}, { "sturdy4", "bright2", "lazy" } }
 		local x = { id = prof.nextId, sp = sp, home = 0, work = 0, muts = MUTS[(k - 1) % #MUTS + 1] }
 		prof.nextId += 1
 		table.insert(prof.pals, x)

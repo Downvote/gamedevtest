@@ -439,7 +439,7 @@ do
 	-- two parents of one kind (the egg is theirs), carrying a shared mutation
 	local ids = {}
 	for k = 1, 2 do
-		local x = Tree.add(prof, "gullfin", { "swift2", if k == 1 then "angler1" else "lazy" })
+		local x = Tree.add(prof, "gullfin", { "swift2", if k == 1 then "grower1" else "lazy" })
 		table.insert(ids, x.id)
 	end
 	H.push(p, 0.4)

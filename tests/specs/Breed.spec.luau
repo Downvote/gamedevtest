@@ -66,7 +66,7 @@ return function()
 		local both, up, single, new = 0, 0, 0, 0
 		local N = 3000
 		for _ = 1, N do
-			local m = Breed.inherit({ "fierce2", "lazy" }, { "fierce1", "angler3" }, rng)
+			local m = Breed.inherit({ "fierce2", "lazy" }, { "fierce1", "grower3" }, rng)
 			T.truthy(#m <= Traits.MAX)
 			T.deepEq(Traits.clean(m), m, "a clean list")
 			local fam: { [string]: string } = {}
@@ -82,7 +82,7 @@ return function()
 				single += 1
 			end
 			for f in fam do
-				if f ~= "fierce" and f ~= "busy" and f ~= "angler" then
+				if f ~= "fierce" and f ~= "busy" and f ~= "grower" then
 					new += 1
 				end
 			end
@@ -99,7 +99,7 @@ return function()
 		end
 		-- the best four of many
 		for _ = 1, 200 do
-			local m = Breed.inherit({ "fierce4", "swift4", "sturdy4", "armor4" }, { "bright4", "busy4", "grower4", "angler4" }, rng)
+			local m = Breed.inherit({ "fierce4", "swift4", "sturdy4", "armor4" }, { "bright4", "busy4", "grower4", "chopper4" }, rng)
 			T.eq(#m <= 4, true)
 		end
 		T.deepEq(Breed.inherit(nil, nil, Util.newRng(1)) ~= nil, true)
@@ -108,7 +108,7 @@ return function()
 		local p = fresh()
 		local rng = Util.newRng(3)
 		local a = friend(p, "clawdle", { "fierce2" })
-		local b = friend(p, "gullfin", { "fierce2", "angler1" })
+		local b = friend(p, "gullfin", { "fierce2", "grower1" })
 		T.eq(select(2, Breed.start(p, 999, a, b, rng)), "not_found", "no Hatchery")
 		local farm = put(p, "patch")
 		T.eq(select(2, Breed.start(p, farm, a, b, rng)), "not_found", "a farm is no Hatchery")

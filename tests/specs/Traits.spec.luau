@@ -5,8 +5,9 @@ local Traits = require("../../build/luautest/shared/Data/Traits")
 local Util = require("../../build/luautest/shared/Logic/Util")
 
 return function()
-	T.it("ten families of four tiers and the flaws; a higher tier gives more", function()
-		T.eq(#Traits.families, 10)
+	T.it("nine families of four tiers and the flaws; a higher tier gives more", function()
+		-- (the Angler family went with fishing on 2026-11-14: below)
+		T.eq(#Traits.families, 9)
 		for _, f in Traits.families do
 			for tier = 1, 4 do
 				local m = Traits.byId[f.family .. tier]
@@ -90,6 +91,13 @@ return function()
 		T.eq(Traits.byId.sturdy2.blurb, "eggs cost 30% less")
 		T.eq(Traits.byId.fierce3.name, "Golden")
 		T.eq(Traits.byId.bright1.blurb, "+5% egg luck")
+		-- a saved Angler (fishing went into the farms on 2026-11-14) becomes a Green Thumb of its tier, once a family
+		T.deepEq(Traits.clean({ "angler2", "lazy" }), { "grower2", "lazy" }, "an Angler is a Green Thumb now")
+		T.deepEq(Traits.clean({ "grower1", "angler3" }), { "grower1" }, "never the family twice")
+		T.eq(Traits.byId.angler1, nil, "no new Anglers")
+		for _, k in Traits.KEYS do
+			T.truthy(k ~= "fish", "no fishing share")
+		end
 		T.deepEq(Traits.clean(nil), {})
 		T.deepEq(Traits.clean("sturdy1"), {})
 	end)

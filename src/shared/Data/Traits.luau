@@ -3,8 +3,8 @@
 -- can have different mutations which allow them to do different things better ... mutations also have tiers, so a
 -- rarer mutation gives better benefits"; since 2026-11-12 "creatures work faster based on their rarity and can also
 -- have mutations like before"). Pure.
---   Effects (`Fx`): at work, shares added to its help: work (any building), farm, fish, wood, shop (the buildings of
---   that knack); sell (its price when sold); charm (charm it adds to the island, whole points); and while it lives in
+--   Effects (`Fx`): at work, shares added to its help: work (any building), farm, wood, shop (the buildings of that
+--   knack: the Work tab's three groups since 2026-11-14, fishing being farm work); sell (its price when sold); charm (charm it adds to the island, whole points); and while it lives in
 --   a hut, for the whole island: tree (the Tree of Life lays its next eggs that much sooner), luck (its eggs that much
 --   luckier) and cost (its eggs cost that much less: below 0 cheaper). 0.1 = +10%.
 --   Each species has a passive of its own (Data/Creatures `passive`); each driftling may carry up to MAX mutations
@@ -19,7 +19,7 @@ export type Rarity = { name: string, color: string, weight: number }
 local Traits = {}
 
 Traits.MAX = 4 -- mutations a driftling carries at most
-Traits.KEYS = { "work", "farm", "fish", "wood", "shop", "cost", "sell", "charm", "tree", "luck" }
+Traits.KEYS = { "work", "farm", "wood", "shop", "cost", "sell", "charm", "tree", "luck" }
 
 -- The rarities: their names, colours (UIKit / Palette keys) and how often the tree lays each (weights, before luck).
 Traits.RARITY = {
@@ -44,7 +44,6 @@ local FAMILIES: { { family: string, key: string, names: { string }, values: { nu
 	{ family = "bright", key = "luck", names = { "Lucky", "Blessed", "Fortunate", "Starborn" }, values = { 0.05, 0.1, 0.18, 0.3 } },
 	{ family = "busy", key = "work", names = { "Busy", "Diligent", "Tireless", "Workaholic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
 	{ family = "grower", key = "farm", names = { "Green Thumb", "Grower", "Harvester", "Bountiful" }, values = { 0.12, 0.24, 0.4, 0.65 } },
-	{ family = "angler", key = "fish", names = { "Angler", "Netcaster", "Tidecaller", "Sea Sage" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 	{ family = "chopper", key = "wood", names = { "Chopper", "Woodsy", "Timberwise", "Forest Heart" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 	{ family = "trader", key = "shop", names = { "Chatty", "Smooth Talker", "Haggler", "Tycoon" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 }
@@ -54,7 +53,8 @@ local FAMILIES: { { family: string, key: string, names: { string }, values: { nu
 -- Hatchery's new mutation, only from the weather (a Hatchery passes one on and tiers it up like any other).
 local WEATHER_FAMILIES: { { family: string, key: string, names: { string }, values: { number }, weather: string } } = {
 	{ family = "rainy", weather = "rain", key = "farm", names = { "Drizzly", "Rainkissed", "Downpour", "Monsoon" }, values = { 0.1, 0.2, 0.35, 0.55 } },
-	{ family = "frosty", weather = "snow", key = "fish", names = { "Chilly", "Frosty", "Snowbound", "Glacial" }, values = { 0.1, 0.2, 0.35, 0.55 } },
+	-- (snow's helped at fishing until 2026-11-14: fishing went into the farms, so it helps a little at any work)
+	{ family = "frosty", weather = "snow", key = "work", names = { "Chilly", "Frosty", "Snowbound", "Glacial" }, values = { 0.06, 0.12, 0.2, 0.32 } },
 	{ family = "sunny", weather = "haze", key = "shop", names = { "Warm", "Sunbaked", "Sunkissed", "Midsummer" }, values = { 0.1, 0.2, 0.35, 0.55 } },
 	{ family = "bloomy", weather = "blossom", key = "charm", names = { "Budding", "Petalled", "Flowering", "Springborn" }, values = { 1, 2, 3, 5 } },
 	{ family = "autumn", weather = "leaves", key = "wood", names = { "Russet", "Amber", "Copper", "Goldleaf" }, values = { 0.1, 0.2, 0.35, 0.55 } },
@@ -182,7 +182,18 @@ function Traits.workAt(fx: Fx, knack: string): number
 	return math.max(-0.5, (fx.work or 0) + (fx[knack] or 0))
 end
 
--- Keep only known mutations, no family twice, at most MAX (a save's or a payload's list).
+-- Families that went, and the family a saved one of theirs becomes (the Angler family helped at fishing: since
+-- 2026-11-14 fishing is farm work, so an Angler is a Green Thumb of the same tier).
+local RENAMED: { [string]: string } = { angler = "grower" }
+local function renamed(id: string): string
+	local fam, tier = string.match(id, "^(%a+)(%d)$")
+	local to = if fam then RENAMED[fam] else nil
+	return if to and tier then to .. tier else id
+end
+Traits.renamed = renamed
+
+-- Keep only known mutations, no family twice, at most MAX (a save's or a payload's list; a renamed family's id becomes
+-- its new family's).
 function Traits.clean(muts: any): { string }
 	local out: { string } = {}
 	local used: { [string]: boolean } = {}
@@ -190,10 +201,10 @@ function Traits.clean(muts: any): { string }
 		return out
 	end
 	for _, id in muts do
-		local m = if type(id) == "string" then BY_ID[id] else nil
+		local m = if type(id) == "string" then BY_ID[renamed(id)] else nil
 		if m and not used[m.family] and #out < Traits.MAX then
 			used[m.family] = true
-			table.insert(out, id)
+			table.insert(out, m.id)
 		end
 	end
 	return out
@@ -203,7 +214,6 @@ end
 local WORDS: { [string]: string } = {
 	work = "work",
 	farm = "at farms",
-	fish = "at fishing",
 	wood = "at wood",
 	shop = "at shops",
 	sell = "sell price",
