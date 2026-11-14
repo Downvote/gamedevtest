@@ -2087,3 +2087,33 @@ on most levels, eggs every few levels (up to legendary on the free side and myth
 on each side, Deckhand at 15 and First Mate at 30 on the free side, Captain at 30 on the premium side (the last level
 also brings a legendary or a mythic egg). A new season starts the points and claims again; what was won stays.
 
+
+### 14.1 The founder's outline, name tag and pieces (`Models/CosmeticModels`, `Models/CharacterModels`, `Controllers/AvatarView`, `Controllers/NameTags`)
+
+> The request (2026-11-14): "make the player be outlined white like the bakery game, with the name and title on top"
+> and "make much more cosmetics"
+
+**The outline.** Every founder on the screen, yours and everyone else's, has a 1 px white outline in place of the ink
+one, the way Random Bakery's bakers do: the pixel filter draws the founder's whole outline again, hidden parts too, and
+lays white on its edge pixels; where a tree, a building or a driftling stands in front, that part of the outline is
+dotted (one pixel on, one off), so a founder behind the Tree of Life still shows. At most eight a frame, yours first,
+then the nearest to the middle of the view. Without the pixel filter (the classic style) a white outline Highlight does
+the same, yours seen through the scenery.
+
+**The name tag.** Over every founder's head floats their name in white and, under it, the title they wear in that
+title's colour (Newcomer in grey, VIP in gold, Star Catcher in its celestial colour), in the pixel font at whole UI
+pixels, over the hat when one is worn. It steps aside in the hatch scene and in a cutscene.
+
+**The pieces.** All 83 pieces of §14 are built from a few parts each on the founder's own rig, and move with it: hats
+and face pieces with the head, neck pieces, back pieces and tops with the body, held pieces in the right hand. A hat that
+sits on the crown hides the hair that would poke through it (spikes, a bun, curls, a mohawk); the frog hood hides all
+the hair but the fringe. A top recolours the shirt and its sleeves under it (a sailor shirt is white with a blue
+collar, a raincoat yellow down to the knees) and adds what it has over them. Some reach past the founder: an umbrella
+and a balloon are held up over the head, a kite and a surfboard stick up behind. The free looks are six skins, ten hair
+colours, ten hair styles (short, long, bun, spiky, curly, ponytail, twin tails, mohawk, bob, braid) and fifteen shirt
+colours.
+
+**The pictures.** Each piece has a 24 x 24 picture for the Store and the Looks panel, drawn from its own model by the
+game's picture path (a top on a little body, a back piece turned to show its back) and tidied to the pixel art rules:
+a 1 px ink outline, no half see-through pixels, the outline made again on the four sides. After changing a piece's
+model, `sh tools/preview/cosmetic_thumbs.sh` draws them again.

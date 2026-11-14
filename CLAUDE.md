@@ -12,12 +12,13 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 2875, `sim_save.luau` about 1032, `sim_clock.luau` about 1519, `sim_world.luau` about 2649,
+`sim.luau` about 2875, `sim_save.luau` about 1032, `sim_clock.luau` about 1519, `sim_world.luau` about 2675,
 `sim_tree.luau` about 1988).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui inventory expand zoo paths water work ambient late
 loading themes hatches weathers`, `panel=<pals|work|tree|hatch|index|looks|pal>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
-that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
+that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing
+the cosmetics, with their white outlines and name tags), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
 on its skeleton, eight frames a mood), `catalog=<group>` (a group of the build catalog: `ground fence
 nature theme theme2 fun`, a Build mode tab or ids), `theme=<beach|garden|frost|zen|volcano|fairy>` or `weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves>` (the village by its tree in that weather, two touched eggs, the HUD's season and weather lines). The loading card's
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place file is
@@ -35,7 +36,8 @@ avoiding jaggies, and avoiding mixels, and use a 1 pixel outline. respect the pi
 scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or bigger thing is its own sprite: the
 11x11 `mini_` icons, the 7x7 `_t` arrows; a driftling's portrait is 32x32, drawn from its 3D model: after changing a
 driftling's model, run `sh tools/preview/portraits.sh`; a build catalog card's picture is 24x24, drawn from the piece's
-model: after changing a piece's model, run `sh tools/preview/thumbs.sh`), at whole UI px (tweens snap, particles are
+model: after changing a piece's model, run `sh tools/preview/thumbs.sh`; a cosmetic's picture is 24x24 too, drawn
+from `Models/CosmeticModels`: after changing one, run `sh tools/preview/cosmetic_thumbs.sh`), at whole UI px (tweens snap, particles are
 1 px), a 1 px ink outline, anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py`
 (run it; `--png <file>` for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The world
 is 3D: the islands, the buildings (the Tree of Life among them), the build catalog's pieces, the tree's eggs and the
