@@ -13,7 +13,9 @@
 -- Static.Decor, a water tile's name carrying its neighbours and built again when one is dug next to it, lily pads only
 -- on water and gone with it, the eraser's kind, a fence never through a building but along its side, a building never
 -- across a fence, the founder wading through a river); the piece, tile and fence limits each refusing one more (full)
--- on their own while the others still take theirs, Build mode's count on each tab; malicious plot payloads (fences and
+-- on their own while the others still take theirs, Build mode's count on each tab, Remove all on the Inventory tab (a
+-- second tap to be sure, every group into the inventory, the tree staying) and everything back down from it for
+-- nothing; malicious plot payloads (fences and
 -- erasers among them); a leaving player's island back to open water with its eggs gone; a full sea kicking the seventh
 -- player; a newcomer's tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the
 -- clients near it, the price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away,
@@ -707,14 +709,15 @@ H.expect(H.req(a, "plot.replace", { i = fi, id = "burrow" }).err == "locked", "b
 H.expect(H.req(a, "plot.replace", { i = fi, id = "cottage" }).err == "bad_payload", "build", "a home (gone): refused")
 E.run(0.3)
 H.expect(decor:FindFirstChild(keyOf(stall)) ~= nil, "build", "the moved model is still built (its key carries the level)")
--- clear it away: half back
+-- clear it away: into the inventory (2026-11-14), nothing paid back
 s0, t0 = prof.shells, E.now()
 local n1 = #prof.plot.placed
+local stalls0 = (prof.inv or {}).stall or 0
 res = H.req(a, "plot.store", { i = #prof.plot.placed })
 H.expect(res.ok and #prof.plot.placed == n1 - 1, "build", "clear the stall away", tostring(res.err))
 do
-	local ok, say = shellsNear(prof, s0, math.floor(Buildings.byId.stall.shells * Tuning.Refund), t0)
-	H.expect(ok, "build", "half its price back", say)
+	local ok, say = shellsNear(prof, s0, 0, t0)
+	H.expect(ok and ((prof.inv or {}).stall or 0) == stalls0 + 1, "build", "it waits in the inventory, nothing paid back", say)
 end
 -- a hut cleared away: its driftlings wait with no hut (and move in once a hut has room)
 local hutUid = prof.plot.placed[fi].uid
@@ -1014,8 +1017,9 @@ do
 	end
 	H.expect(#planB == 9, "build", "a box's stroke is every cell between its corners", tostring(#planB))
 	H.expect(paths() == p1 + laysB, "build", "the box's tiles go down", string.format("%d planned, %d -> %d", laysB, p1, paths()))
-	-- erase the line again: half the price back for each tile
+	-- erase the line again: each tile into the inventory
 	local wood0, tE = prof.shells, E.now()
+	local held0 = (prof.inv or {}).dirtpath or 0
 	local planE = H.inClient(a, BuildUI.debugDraw, { a0, a1 }, "erase")
 	E.run(0.4)
 	local lifts = 0
@@ -1025,9 +1029,8 @@ do
 		end
 	end
 	H.expect(lifts == lays and paths() == p1 + laysB - lays, "build", "Erase takes the line's tiles up", string.format("%d lifted, %d paths", lifts, paths()))
-	local back = math.floor(Buildings.byId.dirtpath.shells * Tuning.Refund) * lifts
-	local okE, sayE = shellsNear(prof, wood0, back, tE)
-	H.expect(back > 0 and okE, "build", "and gives half their price back", sayE)
+	local okE, sayE = shellsNear(prof, wood0, 0, tE)
+	H.expect(lifts > 0 and okE and ((prof.inv or {}).dirtpath or 0) == held0 + lifts, "build", "and puts them in the inventory, nothing paid back", sayE)
 	-- the server's side: a non-path id, junk cells
 	local ok, out = H.raw(a, "plot.paint", { id = "patch", cells = "0,0" })
 	H.expect(ok and type(out) == "table" and out.ok == false, "build", "paint refuses a building", tostring(type(out) == "table" and out.err))
@@ -1037,7 +1040,7 @@ do
 end
 -- drawing fences ("much, much more building options, like paths and fences"): 2-stud lengths along the grid lines,
 -- a line going along x then z between the corners the pointer passes, a box running all the way round; Erase takes
--- them down, half their price back (BuildUI.debugDraw: for a fence the cells are grid corners)
+-- them down into the inventory (BuildUI.debugDraw: for a fence the cells are grid corners)
 local function countOf(group: string): number
 	local n = 0
 	for _, q in prof.plot.placed do
@@ -1120,11 +1123,11 @@ do
 		end
 		-- the line taken down again
 		local wood0, tE = prof.shells, E.now()
+		local rope0 = (prof.inv or {}).ropefence or 0
 		local planE = H.inClient(a, BuildUI.debugDraw, { { x, z }, { x + 4, z + 4 } }, "erase")
 		E.run(0.4)
-		local back = math.floor(Buildings.byId.ropefence.shells * Tuning.Refund) * 4
-		local okE, sayE = shellsNear(prof, wood0, back, tE)
-		H.expect(planCount(planE, "lift") == 4 and not hasFence(x, z, 0) and not hasFence(x + 4, z + 2, 90) and okE, "build", "Erase takes the fence line down, half its price back", string.format("%d lifted, %s", planCount(planE, "lift"), sayE))
+		local okE, sayE = shellsNear(prof, wood0, 0, tE)
+		H.expect(planCount(planE, "lift") == 4 and not hasFence(x, z, 0) and not hasFence(x + 4, z + 2, 90) and okE and ((prof.inv or {}).ropefence or 0) == rope0 + 4, "build", "Erase takes the fence line down into the inventory", string.format("%d lifted, %s", planCount(planE, "lift"), sayE))
 	end
 	H.clickNamed(a, "Cancel", { optional = true })
 end
@@ -1338,6 +1341,7 @@ do
 		local rl = H.req(b, "plot.place", { id = "lilypads", x = rx, z = rz, rot = 0 })
 		H.expect(rl.ok and #pb.plot.placed == n0 + 1, "fences", "lily pads on the river: placed", tostring(rl.err))
 		local wood0, tU = pb.shells, E.now()
+		local stream0, pads0 = (pb.inv or {}).stream or 0, (pb.inv or {}).lilypads or 0
 		local ru = H.req(b, "plot.unpaint", { cells = string.format("%d,%d", rx, rz), kind = "water" })
 		local pads = 0
 		for _, q in pb.plot.placed do
@@ -1345,10 +1349,10 @@ do
 				pads += 1
 			end
 		end
-		local due = math.floor(Buildings.byId.stream.shells * Tuning.Refund) + math.floor(Buildings.byId.lilypads.shells * Tuning.Refund)
 		H.expect(ru.ok and ru.data.removed == 1 and ru.data.floated == 1 and pads == 0 and #pb.plot.placed == n0 - 1, "fences", "the water under them taken up: the pads go with it", string.format("%s, %d pads left", tostring(ru.err), pads))
-		local okU, sayU = shellsNear(pb, wood0, due, tU)
-		H.expect(okU, "fences", "half the tile's and the pads' price back", sayU)
+		local okU, sayU = shellsNear(pb, wood0, 0, tU)
+		local inv = pb.inv or {}
+		H.expect(okU and (inv.stream or 0) == stream0 + 1 and (inv.lilypads or 0) == pads0 + 1, "fences", "the tile and the pads into the inventory, nothing paid back", sayU)
 		-- (the river whole again, for the walk below and the limits)
 		H.req(b, "plot.paint", { id = "stream", cells = string.format("%d,%d", rx, rz) })
 	end
@@ -1622,6 +1626,82 @@ do
 	end
 	local want = string.format("%d/%d %d/%d %d/%d %d/%d", tileMost, tileMost, tileMost, tileMost, fenceMost, fenceMost, pieceMost, pieceMost)
 	H.expect(table.concat(words, " ") == want, "limits", "Build mode's count on each tab: Paths and Water the tiles together, Fences the lengths, Decor the pieces", table.concat(words, " "))
+	-- Remove all (GAME_DESIGN 4.5, 2026-11-14), on the Inventory tab: the first tap asks (the button says how many), the
+	-- second takes the whole group into the inventory, nothing paid back; the tree stays; an empty group's button is off
+	H.clickNamed(b, "Tab_inv", { wait = 0.3 })
+	local before = {}
+	for _, q in pb.plot.placed do
+		table.insert(before, { id = q.id, x = q.x, z = q.z, rot = q.rot })
+	end
+	local function heldAll(): number
+		local n = 0
+		for _, k in (pb.inv or {}) do
+			n += k
+		end
+		return n
+	end
+	for _, c in { { "fences", "fence" }, { "tiles", "tile" }, { "pieces", "piece" } } do
+		local what, group = c[1], c[2]
+		local n0 = count(group)
+		-- (what floats on the water comes up with the tiles)
+		local floats = 0
+		if group == "tile" then
+			for _, q in pb.plot.placed do
+				local d = Buildings.byId[q.id]
+				if d and d.water == "on" then
+					floats += 1
+				end
+			end
+		end
+		local held0, s0, t0 = heldAll(), pb.shells, E.now()
+		H.clickNamed(b, "Clear_" .. what, { wait = 0.3 })
+		local btn = H.buttonNamed(b, "Clear_" .. what)
+		local label = btn and btn:FindFirstChildWhichIsA("TextLabel", true)
+		H.expect(n0 > 0 and count(group) == n0 and label ~= nil and string.find(label.Text, "Tap again", 1, true) ~= nil and string.find(label.Text, tostring(n0), 1, true) ~= nil, "limits", "Remove all " .. what .. ": the first tap only asks, saying how many", label and label.Text)
+		H.clickNamed(b, "Clear_" .. what, { wait = 0.5 })
+		local okS, sayS = shellsNear(pb, s0, 0, t0)
+		H.expect(count(group) == 0 and heldAll() - held0 == n0 + floats and okS, "limits", "the second tap takes every one into the inventory, nothing paid back", string.format("%d left, %d more held (%d and %d floating), %s", count(group), heldAll() - held0, n0, floats, sayS))
+		H.expect(H.buttonNamed(b, "Clear_" .. what) == nil and H.buttonNamed(b, "Clear_" .. what, true) ~= nil, "limits", "and its button is off with none left")
+	end
+	local trees = 0
+	for _, q in pb.plot.placed do
+		if Plot.isFixed(q.id) then
+			trees += 1
+		end
+	end
+	H.expect(trees == 1 and #pb.plot.placed == 1, "limits", "only the tree stays through Remove all", tostring(#pb.plot.placed))
+	-- and every one back where it was from the inventory, for nothing: the tiles, the pieces, the fences
+	local heldFull, sBack, tBack = heldAll(), pb.shells, E.now()
+	local refused = 0
+	for _, g in { "tile", "piece", "fence" } do
+		local lists: { [string]: { { number } } } = {}
+		for _, q in before do
+			if Plot.group(q.id) ~= g then
+				continue
+			end
+			if g == "piece" then
+				if not H.req(b, "plot.place", { id = q.id, x = q.x, z = q.z, rot = q.rot }).ok then
+					refused += 1
+				end
+				E.run(0.05)
+			else
+				lists[q.id] = lists[q.id] or {}
+				table.insert(lists[q.id], if g == "fence" then { q.x, q.z, q.rot } else { q.x, q.z })
+			end
+		end
+		for id, list in lists do
+			for k = 1, #list, Plot.PAINT_MAX do
+				local part = table.move(list, k, math.min(#list, k + Plot.PAINT_MAX - 1), 1, {})
+				local r = if g == "fence" then H.req(b, "plot.fence", { id = id, edges = Plot.edgeString(part) }) else H.req(b, "plot.paint", { id = id, cells = Plot.cellString(part) })
+				if not r.ok then
+					refused += 1
+				end
+				E.run(0.1)
+			end
+		end
+	end
+	local okB, sayB = shellsNear(pb, sBack, 0, tBack)
+	H.expect(refused == 0 and #pb.plot.placed == #before and heldAll() == heldFull - (#before - 1) and okB, "limits", "everything goes back down from the inventory for nothing", string.format("%d refused, %d of %d pieces, %d held, %s", refused, #pb.plot.placed, #before, heldAll(), sayB))
 	H.inClient(b, BuildB.close)
 	E.run(0.3)
 	H.checkProfile(b, "limits")

@@ -530,7 +530,8 @@ floor, it just looks noisy", 2026-11-14),
 
 **The catalog** (`Data/Buildings`): 245 pieces, each opening at an island tier (1 .. 10; a locked card says "Lv7"),
 and the Tree of Life, which every island has and nobody buys (§6). Build mode lists them on eight tabs, and each tab's
-pieces in rows (a piece's `tab` and `sub`), so an island can keep to one look:
+pieces in rows (a piece's `tab` and `sub`), so an island can keep to one look (a ninth tab, the Inventory, holds what
+was put away: §4.5):
 
 | Tab | Its rows | Pieces |
 |---|---|---|
@@ -647,7 +648,7 @@ hold. Grow it for another."). A save with more keeps them.
 **Drawing.** Paths, water and fences are drawn, the way the bakery's floors were. Picking one opens the draw bar
 instead of the usual placing: **Line** (drag and the tiles follow the finger, filling the gaps between cells; a fence
 follows the grid lines), **Box** (drag a box and every free cell inside it is filled, or a fence runs all the way round
-it), **Erase** (drag over them to take them up, half their price back), **Look around** (drag the view without
+it), **Erase** (drag over them to take them up into the inventory, §4.5), **Look around** (drag the view without
 drawing) and **Cancel**. While dragging, each 2 x 2 cell (or each length of fence) shows as a glowing plate: cyan where
 one goes down, yellow where one of another look is swapped for it, orange where one comes up, red where it can't (off
 the grass, on a piece, past the limit or the shells); the bar says how many and what they cost ("12 tiles, 540 shells").
@@ -655,7 +656,8 @@ Letting go lays them in one go (`plot.paint` or `plot.fence`, up to `PAINT_MAX` 
 a few) or takes them up (`plot.unpaint`, `plot.unfence`). A cell that can't take one is skipped, never refused as a
 whole; running out of shells or room stops where it runs out. Tiles lie on the even studs (a tile's corner at even x and
 z), so they always meet edge to edge, and one moved in Build mode snaps to them. Drawing another look over a path, a
-water tile or a fence swaps it where it lies: half the old one's price back, the new one's paid.
+water tile or a fence swaps it where it lies: the old one goes into the inventory, the new one comes from it when one
+waits there, else it's paid. Tiles and lengths waiting in the inventory go down first, for nothing.
 
 **A paved yard** (`Plot.onPaths`):
 
@@ -738,7 +740,7 @@ studs, each length running east or south from a corner (`rot` 0 or 90). A length
 lump of stone or a cane, by the fence) that the next length shares, so a run joins up and a corner closes with no gap.
 **Line** puts lengths along the grid lines the drag passes (along x, then along z from the last corner, so a slanting
 drag makes steps); **Box** runs a fence all the way round the box from the press to the finger; **Erase** takes
-lengths down, half their price back. Drawing another fence over a length swaps it. A length goes where each of its two
+lengths down into the inventory. Drawing another fence over a length swaps it. A length goes where each of its two
 studs has grass on one side or the other, so a fence can run along the island's edge; it never runs through a
 building or the plaza, but it may run along a building's side and past paths and water, and a
 building can't be put down across a fence. A length picked up turns between east and south with Rotate (R). The
@@ -763,7 +765,7 @@ What goes with water: a piece made to go **over** it (the bridges, the dock, the
 stands on grass, on water or across both; one made to go **on** it (lily pads, reeds, stepping stones, the duck decoy,
 the rowboat, lotus flowers, floating lanterns) only on water, every stud of it ("Tap the water where it should float.";
 on the grass its frame is red). Nothing else stands on water, and water can still be dug under a bridge or round a
-lily pad already there. Taking water up takes what floats on it with it, half its price back too; a bridge stays where
+lily pad already there. Taking water up takes what floats on it with it, into the inventory too; a bridge stays where
 it is. The founder wades through rivers: each step splashes a few drops and makes a soft watery pop (`step_water`).
 
 ### 4.4 Growing the island (`Data/Office`, `Data/Street`, `TierCost`)
@@ -887,8 +889,9 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   so the tray doesn't cover them. A drag moves it from there (kept over your island) and holds while you stand still;
   once you walk it eases back onto you. A picked piece's ghost stays under a still mouse as the view moves.
 - **The tray** (the HUD's Build): drag the view to look round the island, and a workbench along the bottom
-  holds the catalog. Along its top plank: the eight tabs, each with its icon (the icons alone when the names don't fit,
-  as on a phone), the tab's count, **Expand** with its price under it, and **Done**. Under them the tab's rows as chips
+  holds the catalog. Along its top plank: the eight tabs and the **Inventory** tab, each with its icon (the icons alone
+  when the names don't fit, as on a phone), **Quick remove** (the orange button with an arrow going into a box), the
+  tab's count, **Expand** with its price under it, and **Done**. Under them the tab's rows as chips
   (All first, then each row: Decor's fourteen fit one line on a computer, and scroll sideways on a phone). A **search
   button** (a magnifier) and the **search box** after it sit on the tabs' plank when there's room there (on a narrow
   screen, at the end of the chips' row): the button puts the cursor in the box and lights up while a search is on; the
@@ -903,13 +906,35 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
 - **Placing**: a picked piece is a ghost on a raised frame where the mouse is (or the last tap): cyan where it fits, red
   where not; **Place** (a second click on the same spot, or E) builds it and keeps it picked for another; **Rotate** (R)
   turns it a quarter. A tap on a standing piece picks it up to **Move** it, **Copy** it (another of the same, turned the
-  same way: C), **Replace** it (§4.1) or **Clear it away** (X or Delete; half its price back; not a Hatchery warming an
-  egg; a hut's driftlings are left with no hut and move into the next hut with room, §6). Esc drops what is picked, and
+  same way: C), **Replace** it (§4.1) or **Put it away** (X or Delete; into the inventory, below; not a Hatchery warming
+  an egg; a hut's driftlings are left with no hut and move into the next hut with room, §6). Esc drops what is picked, and
   with nothing picked closes Build mode. Under the buttons an info plate shows the piece's picture, its name, what it is
   and its price, and with a keyboard the keys ("R turns it. E puts it down. Esc stops."). While a piece is picked or a
   stroke drawn, the tray shrinks to the height of that plate, so more of the island shows (the tip's banner comes down
-  with it). The Tree of Life only moves: it has no Copy, Clear away is greyed and nothing replaces it ("The Tree of Life
+  with it). The Tree of Life only moves: it has no Copy, Put away is greyed and nothing replaces it ("The Tree of Life
   stays on your island. You can move it.").
+- **The inventory** (`Profile.inv`, `Plot.store`, `Plot.clear`, `Plot.sellHeld`):
+
+  > The request (2026-11-14): "also, add an inventory system to build mode, players can remove buildings to put them in
+  > their inventory. add a button to remove all buildings, remove all path/water etc, and a tool to quick remove
+  > buildings and paths"
+
+  Nothing taken off the island is sold back any more: a piece put away, a tile or a fence length erased, the old one
+  of a swapped look and what floated on water taken up all go into the inventory, saved with the island (how many of
+  each, up to 9999). The **Inventory** tab lists them, sorted the way the tabs run, each card with "Free" under its
+  picture and how many in the corner ("x3"); a tap picks one to put down, and it goes down for nothing. Picked from
+  there, only the ones waiting go down: the last one down drops the pick, and a stroke stops where they run out
+  ("None left in the inventory."). A card on any other tab for a piece that waits there says "Free" too, and putting
+  one down from it takes the inventory's first, then pays. The usual limits still hold (the pieces, the huts' room, the
+  Hatcheries). The tab's row holds **Sell** (on, every card shows what one sells for, half its price, and a tap sells
+  one: "Sold a Lumber Camp for 55 shells.") and three **Remove all** buttons: **Remove all buildings** (every building
+  and decor piece but the tree, and never a Hatchery warming an egg), **Remove all paths and water** (with what floats
+  on it) and **Remove all fences**. The first tap asks ("Tap again to put away 18", for four seconds), the second takes
+  them all into the inventory; with none left the button is greyed. **Quick remove** swaps the tabs for its own bar:
+  a tap on any piece puts it away at once with no menu (never the tree), and a drag over the island takes up the paths
+  and water under it, or the fences with **Fences** on (**Box** for a box, **Look around** to move the view, **Stop** or
+  Esc to finish), the same orange plates as Erase. Replace still pays the difference after half the old one's price
+  back (§4.1), as it always did.
 - **Putting a piece down** (`Controllers/BuildFx`, its particles in `Controllers/Puffs`): it drops in from a stud and
   a half up, falling faster as it comes, and hops once as it lands (a stand-in falls while the server's own model is
   held back, then the real one takes its place). As it lands, a ring of six little dust clouds puffs round its
@@ -917,7 +942,7 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   glints of metal, magic motes and stars, sand, snow, confetti for cloth, embers for fire), a twinkle shows over its
   top, it makes its sound and "+N" floats up with the charm heart when it brings a point of charm or more. A stroke of
   path, water or fence puffs along its tiles or lengths (at most 24 puffs, spread along it) with its sound in a quick
-  run of up to six; taking them up puffs dust. A piece cleared away goes in a puff. The particles are 1 px bits and
+  run of up to six; taking them up puffs dust. A piece put away goes in a puff. The particles are 1 px bits and
   small sprites at whole pixels (at most 260 at once); with the pixel filter off there are none.
 - **The sounds** go by feel, cut from clips the game already has: a hammer's tap for wood, pebbles for stone, rustling
   grass for plants, a low bubble pop for water, a chime's clink for metal, a sparkle of chimes for magic, footsteps in

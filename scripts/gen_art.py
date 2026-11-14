@@ -222,6 +222,10 @@ SMALL = {
     "season_winter": ["....W....", "...WGW...", "..GGWGG..", "...GGG...", "..WGGGW..", ".GGGWGGG.", "GGWGGGWGG", "....N....", "....N...."],
     # the Hatchery's button on the menu bar (2026-11-14): a cream egg with pink spots
     "egg": ["...WWW...", "..WWWWW..", "..WKWWW..", ".WWWWKWW.", ".WWWWWWW.", "WKWWWWWWW", "WWWWWKWWW", ".WWWWWWW.", "..WWWWW.."],
+    # Build mode's inventory (2026-11-14): its tab, an open box with its flaps folded out and the dark inside showing;
+    # Quick remove's button, an orange arrow going down into the box
+    "inv": ["N.......N", "NN.....NN", ".NdddddN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "........."],
+    "takeup": ["...OOO...", "...OOO...", ".OOOOOOO.", "..OOOOO..", "N..OOO..N", "NN..O..NN", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN."],
 }
 SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():

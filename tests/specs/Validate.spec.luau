@@ -56,6 +56,14 @@ return function()
 		T.truthy(not Validate.request("plot.fence", { id = "picket", edges = "0,0,45" }), "east or south only")
 		T.truthy(not Validate.request("plot.fence", { id = "picket", edges = "0,0" }), "an edge has a way")
 		T.truthy(not Validate.request("plot.unfence", { edges = "0,0,0;" }))
+		-- Build mode's inventory (2026-11-14): Remove all by group, selling what waits
+		T.truthy(Validate.request("plot.clear", { what = "pieces" }))
+		T.truthy(Validate.request("plot.clear", { what = "tiles" }) and Validate.request("plot.clear", { what = "fences" }))
+		T.truthy(not Validate.request("plot.clear", { what = "tree" }), "only the three groups")
+		T.truthy(not Validate.request("plot.clear", {}), "which group")
+		T.truthy(Validate.request("inv.sell", { id = "patch", n = 3 }))
+		T.truthy(not Validate.request("inv.sell", { id = "patch", n = 2.5 }), "whole counts")
+		T.truthy(not Validate.request("inv.sell", { id = "patch" }), "how many")
 		local forty = {}
 		for k = 1, 40 do
 			table.insert(forty, k % 30 .. "," .. -k % 30)

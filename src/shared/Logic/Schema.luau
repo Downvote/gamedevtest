@@ -78,6 +78,7 @@ function Schema.default(now: number, seed: number): Profile
 		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
+		inv = {},
 	}
 	Tree.plant(p)
 	return p
@@ -459,6 +460,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		founder = if type(r.founder) == "table" then look(r.founder) else d.founder,
 		pals = pals,
 		plot = { placed = placed },
+		inv = Plot.cleanInv(r.inv),
 		seen = seen,
 		eggs = {},
 		clutch = { left = 0, list = {}, next = 1 },

@@ -15,8 +15,12 @@
 -- it fits (Logic/Plot.fits, the server's own rule) and red where it does not; Place (or a second click on the same spot,
 -- or E) asks the server (plot.place: paid then) and keeps it picked for another; Rotate (R) turns it a quarter. Tapping a
 -- piece on the island picks it up: Move it, Copy it (another of the same, C), Replace it with another of its row, or
--- Clear it away (X: half its price back). Esc drops what is picked, then leaves. Paths, water and fences are drawn (the
+-- Put it away (X: into the inventory). Esc drops what is picked, then leaves. Paths, water and fences are drawn (the
 -- draw bar below). Putting anything down has its effects and sounds (Controllers/BuildFx). Done closes it.
+-- The inventory (GAME_DESIGN 4.5, 2026-11-14): the Inventory tab lists what was put away with how many ("x3"), each
+-- going down again for nothing (a catalog card shows "Free" for one waiting there); its row holds Sell and the three
+-- Remove all buttons (a second tap to be sure); Quick remove, the box with the arrow by the tabs, puts a tapped piece
+-- away with no menu and takes up the paths and water (or fences) a drag goes over.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -60,6 +64,7 @@ local TABS: { Tab } = {
 	{ key = "nature", text = "Nature", icon = "nature" },
 	{ key = "decor", text = "Decor", icon = "decor" },
 	{ key = "fun", text = "Fun", icon = "fun" },
+	{ key = "inv", text = "Inventory", icon = "inv" },
 }
 local CHIPS: { [string]: { { string } } } = {
 	work = { { "", "All" }, { "farm", "Farms" }, { "wood", "Wood" }, { "shop", "Shops" }, { "gen", "Boosts" } },
@@ -101,7 +106,8 @@ local TUT: { [number]: { tab: string, chip: string, id: string } } = {
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
 local goalCard: Frame? = nil
 local goalTab: GuiButton? = nil
-type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean, replace: boolean? }
+-- (`inv`: picked from the Inventory tab, so only the ones waiting there go down)
+type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean, replace: boolean?, inv: boolean? }
 
 local open = false
 local tray: Frame? = nil
@@ -131,6 +137,24 @@ local draw: Draw = { box = false, erase = false, look = false, start = nil, last
 local drawGhost: Model? = nil
 local DRAW_MOST = 240 -- cells or edges a stroke holds at most (a box is cut there)
 
+-- The inventory (the request of 2026-11-14: "also, add an inventory system to build mode, players can remove buildings
+-- to put them in their inventory. add a button to remove all buildings, remove all path/water etc, and a tool to quick
+-- remove buildings and paths"). Quick remove: on (the tray shows its bar), a tap on a piece puts it away with no menu
+-- and a drag over the island takes up the paths and water, or the fences, under it (the draw bar's Erase strokes,
+-- `draw` holding its Box and Look around). Sell: on, a tap on an Inventory card sells one. Remove all waits for a
+-- second tap (CLEAR_WAIT seconds).
+local quick = { on = false, fence = false }
+local selling = false
+local confirmClear: string? = nil
+local confirmUntil = 0
+local CLEAR_WAIT = 4
+type Clear = { what: string, group: string, text: string }
+local CLEARS: { Clear } = {
+	{ what = "pieces", group = "piece", text = "Remove all buildings" },
+	{ what = "tiles", group = "tile", text = "Remove all paths and water" },
+	{ what = "fences", group = "fence", text = "Remove all fences" },
+}
+
 local function view(): Types.ClientView?
 	return StateClient.view()
 end
@@ -143,6 +167,17 @@ end
 local function myPlot(): number
 	local v = view()
 	return if v then v.plot else 1
+end
+
+-- How many of a piece wait in the inventory.
+local function heldOf(v: Types.ClientView?, id: string): number
+	local inv = if v then v.inv else nil
+	return if inv then inv[id] or 0 else 0
+end
+
+-- Quick remove is on and nothing is picked.
+local function quickOn(): boolean
+	return quick.on and pick == nil
 end
 
 -- What the current tip asks to build, while it is not built yet.
@@ -196,7 +231,7 @@ local function buildErr(err: string?, id: string?): string
 		elseif g == "fence" then
 			return "That's all the fencing this island holds. Grow the island for more."
 		elseif g == "piece" then
-			return "This island has no room for more pieces. Grow it, or clear something away."
+			return "This island has no room for more pieces. Grow it, or put something away."
 		end
 	end
 	return Words.errText(err)
@@ -301,7 +336,10 @@ end
 
 local function fenceDraw(): boolean
 	local p = pick
-	return p ~= nil and Plot.isFence(p.id)
+	if p == nil then
+		return quickOn() and quick.fence
+	end
+	return Plot.isFence(p.id)
 end
 
 local function clearDrawGhost()
@@ -351,13 +389,28 @@ end
 
 -- What the stroke would do, cell by cell (or edge by edge): "lay" (one goes down), "swap" (one of another look is
 -- swapped for it), "lift" (Erase: one comes up) or "no" (it can't: taken, off the grass, no room or not enough shells);
--- and how many change and what they cost.
+-- and how many change and what they cost. The inventory's ones go first, for nothing (picked from the Inventory tab:
+-- only those). Quick remove: every path and water tile (or fence) under the stroke comes up.
 local function strokePlan(cells: { { number } }): ({ string }, number, number)
 	local v = view()
 	local p = pick
 	local out: { string } = {}
-	if v == nil or p == nil then
+	if v == nil then
 		return out, 0, 0
+	end
+	if p == nil then
+		if not quickOn() then
+			return out, 0, 0
+		end
+		local lifted = 0
+		for _, c in cells do
+			local hit = if quick.fence then fenceAt(c) ~= nil else tilesOn(c, nil) > 0
+			table.insert(out, if hit then "lift" else "no")
+			if hit then
+				lifted += 1
+			end
+		end
+		return out, lifted, 0
 	end
 	local def = Buildings.byId[p.id]
 	if def == nil then
@@ -372,6 +425,8 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 	end
 	local most = Plot.groupLimit(Plot.group(p.id), v.tier)
 	local have = v.shells
+	local held = heldOf(v, p.id)
+	local onlyHeld = p.inv == true
 	local n, cost = 0, 0
 	for _, c in cells do
 		if draw.erase then
@@ -387,11 +442,14 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 		if oq and oq.id == p.id then
 			table.insert(out, "no")
 		elseif oq and (fence or oq.rot == 0) then
-			local od = Buildings.byId[oq.id]
-			local price = def.shells - (if od then math.floor(od.shells * Tuning.Refund) else 0)
-			if have >= price then
-				have -= price
-				cost += math.max(0, price)
+			-- (the old one goes into the inventory; the new one from it, else paid)
+			if held > 0 then
+				held -= 1
+				n += 1
+				table.insert(out, "swap")
+			elseif not onlyHeld and have >= def.shells then
+				have -= def.shells
+				cost += def.shells
 				n += 1
 				table.insert(out, "swap")
 			else
@@ -404,10 +462,14 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 				ok = (Plot.fits(v.tier, v.pieces, p.id, c[1], c[2], if fence then c[3] else 0))
 				draw.memo[k] = ok
 			end
-			if ok and used < most and have >= def.shells then
+			if ok and used < most and (held > 0 or (not onlyHeld and have >= def.shells)) then
 				used += 1
-				have -= def.shells
-				cost += def.shells
+				if held > 0 then
+					held -= 1
+				else
+					have -= def.shells
+					cost += def.shells
+				end
 				n += 1
 				table.insert(out, "lay")
 			else
@@ -432,7 +494,8 @@ local function showDrawGhost(cells: { { number } })
 	local fence = fenceDraw()
 	if label and label:IsA("TextLabel") and #cells > 1 then
 		local what = if fence then "length" else "tile"
-		UIKit.setText(label, if draw.erase then string.format("%d to take up", n) else string.format("%d %s%s, %s shells", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
+		local erase = draw.erase or pick == nil
+		UIKit.setText(label, if erase then string.format("%d to take up", n) elseif cost == 0 then string.format("%d %s%s, free", n, what, if n == 1 then "" else "s") else string.format("%d %s%s, %s shells", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
 	end
 	local ox, oz = origin()
 	local m = Blocks.model(nil, "DrawGhost")
@@ -551,17 +614,20 @@ end
 
 local rebuild: () -> () = function() end
 
--- The stroke let go: its cells or edges go to the server (in parts), and the island's markers go.
+-- The stroke let go: its cells or edges go to the server (in parts), and the island's markers go. (Quick remove: an
+-- Erase stroke of every path and water tile, or every fence.)
 local function finishStroke()
 	local cells = draw.cells
 	local p = pick
 	draw.start, draw.last, draw.cells, draw.seen, draw.memo = nil, nil, {}, {}, {}
 	clearDrawGhost()
-	if p == nil or #cells == 0 then
+	if (p == nil and not quickOn()) or #cells == 0 then
 		return
 	end
-	local def = Buildings.byId[p.id]
-	local fence = Plot.isFence(p.id)
+	local def = if p then Buildings.byId[p.id] else nil
+	local fence = fenceDraw()
+	local erase = draw.erase or p == nil
+	local heldBefore = if p then heldOf(view(), p.id) else 0
 	local plan = strokePlan(cells)
 	local send: { { number } } = {}
 	for k, c in cells do
@@ -571,9 +637,19 @@ local function finishStroke()
 	end
 	if #send == 0 then
 		Audio.play("deny")
-		local what = if fence then "fence" elseif def and def.kind == "water" then "water" else "path"
-		UIKit.notice(if draw.erase then string.format("No %s there to take up.", what) else if fence then "No fence fits there." else "No tile fits there.", UIKit.color("bad"), 2)
+		local what = if fence then "fence" elseif p == nil then "path or water" elseif def and def.kind == "water" then "water" else "path"
+		local say = if erase then string.format("No %s there to take up.", what) elseif p and p.inv then "None left in the inventory." elseif fence then "No fence fits there." else "No tile fits there."
+		UIKit.notice(say, UIKit.color("bad"), 2)
 		return
+	end
+	-- (the effects' feel: the piece drawn, or the first one a Quick remove stroke takes up)
+	local fxId = if p then p.id elseif fence then "picket" else "dirtpath"
+	if p == nil then
+		local first = if fence then fenceAt(send[1]) else tileAt(send[1], nil)
+		local fq = if first then placed()[first] else nil
+		if fq then
+			fxId = fq.id
+		end
 	end
 	local changed, lifted = 0, 0
 	local done: { { number } } = {}
@@ -581,21 +657,28 @@ local function finishStroke()
 		local part = table.move(send, i, math.min(#send, i + Plot.PAINT_MAX - 1), 1, {})
 		local res
 		if fence then
-			res = if draw.erase then StateClient.request("plot.unfence", { edges = Plot.edgeString(part) }) else StateClient.request("plot.fence", { id = p.id, edges = Plot.edgeString(part) })
+			res = if erase or p == nil then StateClient.request("plot.unfence", { edges = Plot.edgeString(part) }) else StateClient.request("plot.fence", { id = p.id, edges = Plot.edgeString(part) })
 		else
-			res = if draw.erase then StateClient.request("plot.unpaint", { cells = Plot.cellString(part), kind = if def then def.kind else "all" }) else StateClient.request("plot.paint", { id = p.id, cells = Plot.cellString(part) })
+			res = if erase or p == nil then StateClient.request("plot.unpaint", { cells = Plot.cellString(part), kind = if def then def.kind else "all" }) else StateClient.request("plot.paint", { id = p.id, cells = Plot.cellString(part) })
 		end
 		if res.ok and type(res.data) == "table" then
 			changed += (tonumber(res.data.placed) or 0) + (tonumber(res.data.swapped) or 0)
 			lifted += tonumber(res.data.removed) or 0
 			table.move(part, 1, #part, #done + 1, done)
 		elseif not res.ok then
-			UIKit.notice(buildErr(res.err, p.id), UIKit.color("bad"))
+			UIKit.notice(buildErr(res.err, if p then p.id else nil), UIKit.color("bad"))
 			break
 		end
 	end
 	if changed > 0 or lifted > 0 then
-		BuildFx.stroke(myPlot(), p.id, done, fence, lifted > 0)
+		BuildFx.stroke(myPlot(), fxId, done, fence, lifted > 0)
+	end
+	if lifted > 0 then
+		UIKit.notice(string.format("%d in the inventory now.", lifted), UIKit.color("text_dim"), 1.5)
+	end
+	-- (drawing from the Inventory tab: the last of them down, the pick goes)
+	if p and p.inv and changed >= heldBefore and pick == p then
+		pick = nil
 	end
 	task.defer(rebuild)
 end
@@ -660,7 +743,12 @@ local function showTip(card: GuiObject, def: Buildings.BuildingDef, v: Types.Cli
 	if def.tier > v.tier then
 		UIKit.text(f, string.format("Opens at island level %d.", def.tier), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 13 + nl * 10), { color = UIKit.color("orange"), z = 22, name = "TipLocked" })
 	end
-	price(f, 4, h - 12, def.shells, v, 22)
+	local n = heldOf(v, def.id)
+	if n > 0 then
+		UIKit.text(f, string.format("%d in your inventory. Free to put down.", n), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, h - 12), { color = UIKit.color("accent"), z = 22, name = "TipHeld" })
+	else
+		price(f, 4, h - 12, def.shells, v, 22)
+	end
 	tip = f
 end
 
@@ -729,11 +817,16 @@ local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, 
 	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
 	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, 14), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
 	if def and showPrice then
-		price(info, math.max(4, w - 92), 3, def.shells, v)
+		local n = heldOf(v, p.id)
+		if n > 0 then
+			UIKit.text(info, string.format("%d in the inventory", n), UDim2.fromOffset(92, 10), UDim2.fromOffset(math.max(4, w - 92), 4), { x = "right", color = UIKit.color("accent"), z = 4, name = "Held" })
+		else
+			price(info, math.max(4, w - 92), 3, def.shells, v)
+		end
 	end
 	-- (with a keyboard: its keys, along the bottom)
 	if keyed then
-		local keys = if drawing() then "Esc stops drawing." elseif p.move then "R turns it. C copies it. X clears it away. Esc puts it back." else "R turns it. E puts it down. Esc stops."
+		local keys = if drawing() then "Esc stops drawing." elseif p.move then "R turns it. C copies it. X puts it away. Esc puts it back." else "R turns it. E puts it down. Esc stops."
 		UIKit.text(info, keys, UDim2.new(1, -40, 0, 10), UDim2.new(0, 32, 1, -12), { color = UIKit.color("text_dim"), z = 4, name = "Keys" })
 	end
 	return info
@@ -776,7 +869,7 @@ local function drawBar(f: Frame, p: Pick, v: Types.ClientView)
 	if draw.look then
 		say = "Drag to look around. Tap Look around again to draw."
 	elseif draw.erase then
-		say = if draw.box then string.format("Drag a box over the %s to take them up. Half their price comes back.", noun) else string.format("Drag along the %s to take them up. Half their price comes back.", noun)
+		say = if draw.box then string.format("Drag a box over the %s to take them up. They go in your inventory.", noun) else string.format("Drag along the %s to take them up. They go in your inventory.", noun)
 	elseif fence then
 		say = if draw.box then "Drag a box to run a fence all the way round it." else "Drag along the grid lines to put up a fence."
 	elseif def and def.kind == "water" then
@@ -792,17 +885,30 @@ local function drawBar(f: Frame, p: Pick, v: Types.ClientView)
 	UIKit.text(info, "", UDim2.fromOffset(150, 10), UDim2.new(1, -154, 0, 15), { x = "right", color = UIKit.color("accent"), z = 4, name = "Stroke" })
 end
 
+-- Put the piece at index i away into the inventory (never the tree): true when it went.
+local function storeAt(i: number): boolean
+	local q = placed()[i]
+	if q == nil or Plot.isFixed(q.id) then
+		Audio.play("deny")
+		if q then
+			UIKit.notice(Words.errText("fixed"), UIKit.color("bad"), 2)
+		end
+		return false
+	end
+	local res = ask("plot.store", { i = i })
+	if res.ok then
+		BuildFx.cleared(myPlot(), q.id, q.x, q.z, q.rot)
+		local d = Buildings.byId[q.id]
+		UIKit.notice(string.format("%s put in the inventory.", if d then d.name else "Piece"), UIKit.color("text_dim"), 1.5)
+		return true
+	end
+	return false
+end
+
 local function storePicked()
 	local cur = pick
 	if cur and cur.move then
-		local q = placed()[cur.move]
-		if q == nil or Plot.isFixed(q.id) then
-			Audio.play("deny")
-			return
-		end
-		local res = ask("plot.store", { i = cur.move })
-		if res.ok then
-			BuildFx.cleared(myPlot(), q.id, q.x, q.z, q.rot)
+		if storeAt(cur.move) then
 			pick = nil
 			clearGhost()
 			task.defer(rebuild)
@@ -874,7 +980,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 				end
 			end, "Replace")
 		end
-		btn("Clear away", UIKit.color("button_warn"), not Plot.isFixed(q.id), storePicked, "Store")
+		btn("Put away", UIKit.color("button_warn"), not Plot.isFixed(q.id), storePicked, "Store")
 	end
 	btn("Cancel", UIKit.color("plate_light"), true, function()
 		pick = nil
@@ -918,15 +1024,140 @@ local function listFor(v: Types.ClientView): { Buildings.BuildingDef }
 	return out
 end
 
+-- Pick a piece to put down, as its card does (`fromInv`: from the Inventory tab).
+local function pickPiece(def: Buildings.BuildingDef, fromInv: boolean)
+	closeTip()
+	pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false, inv = if fromInv then true else nil }
+	draw.erase, draw.look = false, false
+	clearGhost()
+	clearDrawGhost()
+	Audio.play("flip")
+	local say
+	if def.kind == "fence" then
+		say = "Drag along the grid lines to put up a fence."
+	elseif def.kind == "water" then
+		say = "Drag across the grass to dig a river or a pond."
+	elseif def.kind == "path" then
+		say = "Drag across the grass to lay tiles."
+	elseif def.water == "on" then
+		say = "Tap the water where it should float."
+	else
+		say = "Tap the grass where it should go."
+	end
+	UIKit.notice(say, UIKit.color("text_dim"), 2.5)
+	rebuild()
+end
+
+-- How many wait in the inventory, low in the picture's right corner ("x3"), where an island piece's picture is bare.
+local function heldCount(b: GuiObject, n: number, z: number)
+	UIKit.text(b, "x" .. n, UDim2.fromOffset(CARD_W - 6, 10), UDim2.fromOffset(0, PIC - 8), { x = "right", color = UIKit.color("accent"), z = z, name = "Count" })
+end
+
+-- A card for a piece waiting in the inventory: "Free" where its price would be, how many in the corner.
+local function heldLine(b: GuiObject, n: number, z: number)
+	UIKit.text(b, "Free", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 4), { x = "center", color = UIKit.color("accent"), z = z, name = "Held" })
+	heldCount(b, n, z + 1)
+end
+
+-- The Inventory tab's pieces: by the tray's tab order, then cheapest first.
+local TAB_ORDER: { [string]: number } = {}
+for k, t in TABS do
+	TAB_ORDER[t.key] = k
+end
+local function invList(v: Types.ClientView): { Buildings.BuildingDef }
+	local out: { Buildings.BuildingDef } = {}
+	local inv: { [string]: number } = v.inv or {}
+	for id, n in inv do
+		local d = Buildings.byId[id]
+		if d and n > 0 then
+			table.insert(out, d)
+		end
+	end
+	table.sort(out, function(a, b)
+		local ta, tb = TAB_ORDER[a.tab] or 99, TAB_ORDER[b.tab] or 99
+		if ta ~= tb then
+			return ta < tb
+		end
+		if a.shells ~= b.shells then
+			return a.shells < b.shells
+		end
+		return a.id < b.id
+	end)
+	return out
+end
+
+-- The Inventory tab's cards: each piece waiting there and how many; a tap picks one to put down for nothing (Sell on:
+-- a tap sells one for its share of the price, the share shown on the card).
+local function invCards(list: ScrollingFrame, v: Types.ClientView)
+	local defs = invList(v)
+	if #defs == 0 then
+		local w = UIKit.size("Hud").X - 32
+		UIKit.text(list, "Nothing put away yet. Pick up a piece on the island and tap Put away, or use Quick remove (the box by the tabs).", UDim2.fromOffset(w, 30), nil, { color = UIKit.color("text_dim"), wrap = true, name = "InvEmpty" })
+		return
+	end
+	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
+	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
+	for k, def in defs do
+		local n = heldOf(v, def.id)
+		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
+		local back = math.floor(def.shells * Tuning.Refund)
+		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil)
+		card.Name = "InvCard_" .. def.id
+		card.LayoutOrder = k
+		local b = UIKit.button(card, "", UDim2.fromOffset(CARD_W - 4, CARD_H - 4), UDim2.fromOffset(2, 2), function()
+			if selling then
+				local res = StateClient.request("inv.sell", { id = def.id, n = 1 })
+				if res.ok and type(res.data) == "table" then
+					Audio.play("coins")
+					UIKit.notice(string.format("Sold a %s for %s shells.", def.name, Numbers.coins(tonumber(res.data.shells) or back)), UIKit.color("good"), 2)
+				else
+					Audio.play("deny")
+					UIKit.notice(if res.err == "not_found" then "None of those left." else Words.errText(res.err), UIKit.color("bad"))
+				end
+				task.defer(rebuild)
+				return
+			end
+			if noRoom then
+				UIKit.notice(Words.errText(if def.kind == "breed" then "hatcheries" else "huts"), UIKit.color("bad"))
+				Audio.play("deny")
+				return
+			end
+			pickPiece(def, true)
+		end, { name = "Inv_" .. def.id, color = if selling then UIKit.color("button_warn") elseif noRoom then UIKit.color("button_off") else UIKit.color("button_ok") })
+		picture(b, def.id, UDim2.fromOffset(math.floor((CARD_W - 4 - PIC) / 2), 1), 6)
+		if selling then
+			-- (what one sells for: a share of its price)
+			local t = Numbers.coins(back)
+			local w = UIKit.textWidth(t) + 11
+			local px = math.max(0, math.floor((CARD_W - 4 - w) / 2))
+			PixelSprites.image(b, "mini_shell", UDim2.fromOffset(px, PIC + 3), 7)
+			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = UIKit.color("text"), z = 7, name = "Shells" })
+			-- (and how many are left, in the corner)
+			heldCount(b, n, 8)
+		else
+			heldLine(b, n, 7)
+		end
+		b.MouseEnter:Connect(function()
+			showTip(card, def, v)
+		end)
+		b.MouseLeave:Connect(closeTip)
+	end
+end
+
 local function cards(list: ScrollingFrame, v: Types.ClientView)
 	UIKit.hlist(list, 3)
+	if tab == "inv" and query == "" then
+		invCards(list, v)
+		return
+	end
 	-- (the housing limit: a hut whose room won't fit, Plot.housingLimit; the Hatcheries' limit)
 	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
 	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
 	for k, def in listFor(v) do
 		local locked = def.tier > v.tier
 		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
-		local afford = v.shells >= def.shells
+		local held = heldOf(v, def.id)
+		local afford = v.shells >= def.shells or held > 0
 		local picked = pick ~= nil and pick.id == def.id
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil, if picked then UIKit.color("accent") else nil, if picked then 0.55 else nil)
 		card.Name = "Card_" .. def.id
@@ -947,26 +1178,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 				Audio.play("deny")
 				return
 			end
-			closeTip()
-			pick = { id = def.id, rot = 0, move = nil, x = 0, z = 0, set = false }
-			draw.erase, draw.look = false, false
-			clearGhost()
-			clearDrawGhost()
-			Audio.play("flip")
-			local say
-			if def.kind == "fence" then
-				say = "Drag along the grid lines to put up a fence."
-			elseif def.kind == "water" then
-				say = "Drag across the grass to dig a river or a pond."
-			elseif def.kind == "path" then
-				say = "Drag across the grass to lay tiles."
-			elseif def.water == "on" then
-				say = "Tap the water where it should float."
-			else
-				say = "Tap the grass where it should go."
-			end
-			UIKit.notice(say, UIKit.color("text_dim"), 2.5)
-			rebuild()
+			pickPiece(def, false)
 		end, {
 			name = "Buy_" .. def.id,
 			color = if locked or noRoom then UIKit.color("button_off") elseif picked then UIKit.color("accent") elseif afford then UIKit.color("button_ok") else UIKit.color("plate_light"),
@@ -976,6 +1188,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			UIKit.text(b, string.format("Lv%d", def.tier), UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif noRoom then
 			UIKit.text(b, if def.kind == "breed" then "Max" else "No room", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
+		elseif held > 0 then
+			heldLine(b, held, 7)
 		else
 			local t = Numbers.coins(def.shells)
 			local w = UIKit.textWidth(t) + 11
@@ -1004,6 +1218,122 @@ local function countFor(v: Types.ClientView): (number, number)
 		end
 	end
 	return n, Plot.groupLimit(group, v.tier)
+end
+
+-- How many pieces of a group stand on the island (never the tree).
+local function groupCount(v: Types.ClientView, group: string): number
+	local n = 0
+	for _, q in v.pieces do
+		if Plot.group(q.id) == group then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Remove all: the first tap asks (the button says how many go, for CLEAR_WAIT seconds), the second takes the whole
+-- group into the inventory (plot.clear; the tree stays, and a Hatchery warming an egg).
+local function clearGroup(c: Clear)
+	local now = os.clock()
+	if confirmClear ~= c.what or now >= confirmUntil then
+		confirmClear, confirmUntil = c.what, now + CLEAR_WAIT
+		Audio.play("flip")
+		rebuild()
+		task.delay(CLEAR_WAIT + 0.1, function()
+			if confirmClear == c.what and os.clock() >= confirmUntil then
+				confirmClear = nil
+				rebuild()
+			end
+		end)
+		return
+	end
+	confirmClear = nil
+	local res = StateClient.request("plot.clear", { what = c.what })
+	if res.ok and type(res.data) == "table" then
+		local n = tonumber(res.data.removed) or 0
+		Audio.play("close")
+		UIKit.notice(string.format("Put away %d. They wait in the Inventory tab.", n), UIKit.color("good"), 3)
+	else
+		Audio.play("deny")
+		UIKit.notice(if res.err == "not_found" then "There's nothing there to put away." else buildErr(res.err), UIKit.color("bad"))
+	end
+	task.defer(rebuild)
+end
+
+-- The Inventory tab's row: Sell (on: a tap on a card sells one) and the three Remove all buttons, scrolling sideways
+-- on a narrow screen.
+local function invRow(f: Frame, v: Types.ClientView, rowW: number)
+	local cl = UIKit.scroll(f, UDim2.new(1, rowW, 0, 13), UDim2.fromOffset(4, 17))
+	cl.Name = "InvRow"
+	cl.ScrollingDirection = Enum.ScrollingDirection.X
+	cl.AutomaticCanvasSize = Enum.AutomaticSize.X
+	UIKit.hlist(cl, 2)
+	local sellText = if selling then "Selling: tap a card" else "Sell"
+	local sb = UIKit.button(cl, sellText, UDim2.fromOffset(UIKit.buttonWidth(sellText, 4), 12), nil, function()
+		selling = not selling
+		Audio.play("flip")
+		rebuild()
+	end, { name = "InvSell", color = if selling then UIKit.color("button_warn") else UIKit.color("plate_light") })
+	sb.LayoutOrder = 1
+	local now = os.clock()
+	for k, c in CLEARS do
+		local n = groupCount(v, c.group)
+		local asking = confirmClear == c.what and now < confirmUntil
+		local text = if asking then string.format("Tap again to put away %d", n) else c.text
+		local b = UIKit.button(cl, text, UDim2.fromOffset(UIKit.buttonWidth(text, 4), 12), nil, function()
+			clearGroup(c)
+		end, { name = "Clear_" .. c.what, color = if asking then UIKit.color("button_close") else UIKit.color("button_warn"), enabled = n > 0 })
+		b.LayoutOrder = k + 1
+	end
+end
+
+-- Quick remove's bar (in place of the tabs while it's on): what a drag takes up (paths and water, or fences), Box,
+-- Look around, Stop; under them what it does and the stroke's count.
+local function quickBar(f: Frame)
+	local x = 4
+	local function tool(text: string, on: boolean, click: () -> (), name: string)
+		local w = UIKit.buttonWidth(text, 5)
+		UIKit.button(f, text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), function()
+			Audio.play("flip")
+			click()
+			clearDrawGhost()
+			rebuild()
+		end, { color = if on then UIKit.color("accent") else UIKit.color("plate_light"), name = name })
+		x += w + 3
+	end
+	tool("Paths and water", not quick.fence and not draw.look, function()
+		quick.fence, draw.look = false, false
+	end, "QuickTiles")
+	tool("Fences", quick.fence and not draw.look, function()
+		quick.fence, draw.look = true, false
+	end, "QuickFences")
+	tool("Box", draw.box and not draw.look, function()
+		draw.box, draw.look = not draw.box, false
+	end, "QuickBox")
+	tool("Look around", draw.look, function()
+		draw.look = not draw.look
+	end, "QuickLook")
+	UIKit.button(f, "Stop", UDim2.fromOffset(UIKit.buttonWidth("Stop", 5), 13), UDim2.fromOffset(x, 2), function()
+		BuildUI.quickRemove(false)
+	end, { color = UIKit.color("plate_light"), name = "QuickStop" })
+	local noun = if quick.fence then "fences" else "paths and water"
+	local say
+	if draw.look then
+		say = "Drag to look around. Tap Look around again to take things up."
+	else
+		say = string.format("Tap a building to put it in your inventory. %s", if draw.box then string.format("Drag a box to take up the %s in it.", noun) else string.format("Drag across the %s to take them up.", noun))
+	end
+	local w = f.Size.X.Offset - 8
+	local tw = w - 40 - 96
+	local nl = math.min(4, UIKit.lines(say, tw))
+	local h = math.max(PIC + 8, 14 + nl * 10 + 3)
+	local info = UIKit.row(f, UDim2.new(1, -8, 0, h), UDim2.fromOffset(4, 18))
+	info.Name = "Info"
+	PixelSprites.image(info, "mini_takeup", UDim2.fromOffset(10, 9), 4)
+	UIKit.text(info, "Quick remove", UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
+	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, 14), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
+	-- (the stroke under way: how many come up; set as it changes: showDrawGhost)
+	UIKit.text(info, "", UDim2.fromOffset(92, 10), UDim2.new(1, -96, 0, 15), { x = "right", color = UIKit.color("accent"), z = 4, name = "Stroke" })
 end
 
 local function expandButton(f: Frame, v: Types.ClientView)
@@ -1143,6 +1473,12 @@ rebuild = function()
 		if info and info:IsA("GuiObject") then
 			f.Size = UDim2.fromOffset(f.Size.X.Offset, math.min(TRAY_H, info.Position.Y.Offset + info.Size.Y.Offset + 6))
 		end
+	elseif quick.on then
+		quickBar(f)
+		local info = f:FindFirstChild("Info")
+		if info and info:IsA("GuiObject") then
+			f.Size = UDim2.fromOffset(f.Size.X.Offset, math.min(TRAY_H, info.Position.Y.Offset + info.Size.Y.Offset + 6))
+		end
 	else
 		-- the tabs (their icons alone on a narrow screen), the count, Expand
 		local x = 4
@@ -1150,7 +1486,7 @@ rebuild = function()
 		for _, t in TABS do
 			wide += UIKit.buttonWidth(t.text, 5) + 13
 		end
-		local short = wide > s.X - 8 - 160
+		local short = wide > s.X - 180
 		for _, t in TABS do
 			local w = if short then 16 else UIKit.buttonWidth(t.text, 5) + 11
 			local b = UIKit.button(f, if short then "" else t.text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), function()
@@ -1173,14 +1509,21 @@ rebuild = function()
 			x += w + 2
 		end
 		expandButton(f, v)
-		local used, most = countFor(v)
-		UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
+		if tab ~= "inv" then
+			local used, most = countFor(v)
+			UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
+		end
+		-- Quick remove's button (the box with the arrow going in), before the count
+		local qb = UIKit.button(f, "", UDim2.fromOffset(16, 13), UDim2.new(1, -162, 0, 2), function()
+			BuildUI.quickRemove(true)
+		end, { name = "QuickRemove", color = UIKit.color("button_warn") })
+		PixelSprites.image(qb, "mini_takeup", UDim2.fromOffset(2, 1), 6)
 		-- the tab's rows: chips (scrolling sideways when there are many)
 		local rows: { { string } }? = CHIPS[tab]
 		-- (the search box goes up on the tabs' plank when there's room there, so a long row of chips has the width;
 		-- on a narrow screen it sits at the end of the chips' row)
 		local trayW = s.X - 16
-		local free = trayW - 150 - (x + 2)
+		local free = trayW - 166 - (x + 2)
 		local BW = 16 -- the search button's width
 		local up = free >= 62 + BW + 2 -- (a box of 62 still shows "Search" and its clear mark)
 		local sw = if up then math.min(110, free - BW - 2) elseif s.X < 500 then 70 else 96
@@ -1196,7 +1539,9 @@ rebuild = function()
 		if query ~= "" then
 			rows = nil
 		end
-		if rows then
+		if tab == "inv" and query == "" then
+			invRow(f, v, rowW)
+		elseif rows then
 			local cl = UIKit.scroll(f, UDim2.new(1, rowW, 0, 13), UDim2.fromOffset(4, 17))
 			cl.Name = "Chips"
 			cl.ScrollingDirection = Enum.ScrollingDirection.X
@@ -1222,7 +1567,7 @@ rebuild = function()
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
 		BuildUI.close()
 	end, { color = UIKit.color("accent"), name = "BuildDone" })
-	if p == nil then
+	if p == nil and not quick.on then
 		local list = UIKit.scroll(f, UDim2.new(1, -8, 0, CARD_H + 2), UDim2.fromOffset(4, 31))
 		list.Name = "Cards"
 		list.ScrollingDirection = Enum.ScrollingDirection.X
@@ -1329,6 +1674,24 @@ local function onTap(pos: Vector2, mouse: boolean)
 	end
 end
 
+-- Quick remove's tap: the piece under it put away; on bare ground, the tile (or fence) there comes up.
+local function quickTap(pos: Vector2)
+	local i = pieceAt(pos)
+	if i then
+		if storeAt(i) then
+			task.defer(rebuild)
+		end
+		return
+	end
+	local c = drawCellAt(pos)
+	if c == nil then
+		return
+	end
+	draw.start, draw.last, draw.cells, draw.seen, draw.memo = c, nil, {}, {}, {}
+	strokeTo(if fenceDraw() then { c[1], c[2], 0 } else c)
+	finishStroke()
+end
+
 ------------------------------------------------------------------ open, close, confirm
 function BuildUI.confirm()
 	local p = pick
@@ -1338,6 +1701,16 @@ function BuildUI.confirm()
 	local res
 	local goal = tutGoal(view())
 	local moving = p.move
+	local heldBefore = heldOf(view(), p.id)
+	if p.inv and not moving and heldBefore <= 0 then
+		-- (picked from the Inventory tab and none left there: it isn't bought instead)
+		Audio.play("deny")
+		UIKit.notice("None left in the inventory.", UIKit.color("bad"), 2)
+		pick = nil
+		clearGhost()
+		rebuild()
+		return
+	end
 	local lvl = 1
 	local uid = 0
 	if moving then
@@ -1355,8 +1728,9 @@ function BuildUI.confirm()
 	if res.ok then
 		-- (it drops in and lands with its dust, its sound and its charm)
 		BuildFx.drop(myPlot(), uid, p.id, p.x, p.z, p.rot, lvl)
-		-- (the tip's building placed: the tray goes on to the next tip's tab rather than offering another copy)
-		if moving or (goal and goal.id == p.id) then
+		-- (the tip's building placed: the tray goes on to the next tip's tab rather than offering another copy; the last
+		-- one from the Inventory tab down: nothing left to put down)
+		if moving or (goal and goal.id == p.id) or (p.inv and heldBefore <= 1) then
 			pick = nil
 			clearGhost()
 		end
@@ -1402,6 +1776,12 @@ end
 function BuildUI.open(onTab: string?)
 	if open then
 		if onTab then
+			-- (a quest's Go: the tab shows, Quick remove ends)
+			if quick.on then
+				quick.on = false
+				draw.erase, draw.box, draw.look = false, false, false
+				clearDrawGhost()
+			end
 			setTab(onTab)
 			rebuild()
 		end
@@ -1436,6 +1816,8 @@ function BuildUI.open(onTab: string?)
 					clearGhost()
 					clearDrawGhost()
 					rebuild()
+				elseif quick.on then
+					BuildUI.quickRemove(false)
 				else
 					BuildUI.close()
 				end
@@ -1467,6 +1849,22 @@ function BuildUI.open(onTab: string?)
 					strokeTo(c)
 				end
 				last = pos
+			elseif quickOn() and d and not draw.look then
+				-- Quick remove: a drag past the tap's slack starts an Erase stroke from where the press was
+				if (pos - d).Magnitude > 8 then
+					dragged = true
+					local c0 = drawCellAt(d)
+					if c0 then
+						stroking = true
+						draw.start, draw.last, draw.cells, draw.seen, draw.memo = c0, nil, {}, {}, {}
+						strokeTo(c0)
+						local c = drawCellAt(pos)
+						if c and (c[1] ~= c0[1] or c[2] ~= c0[2]) then
+							strokeTo(c)
+						end
+					end
+				end
+				last = pos
 			elseif drawing() and d == nil and input.UserInputType == Enum.UserInputType.MouseMovement and not processed and not draw.look then
 				-- a mouse over the grass: where a press would start (a cell, or a fence's first length east)
 				local c = drawCellAt(pos)
@@ -1494,7 +1892,11 @@ function BuildUI.open(onTab: string?)
 				finishStroke()
 				return
 			end
-			if d and not dragged and not processed and not drawing() then
+			if d and not dragged and not processed and quickOn() then
+				if not draw.look then
+					quickTap(Vector2.new(input.Position.X, input.Position.Y))
+				end
+			elseif d and not dragged and not processed and not drawing() then
 				onTap(Vector2.new(input.Position.X, input.Position.Y), input.UserInputType == Enum.UserInputType.MouseButton1)
 			end
 		end
@@ -1581,6 +1983,8 @@ function BuildUI.close()
 	end
 	conns = {}
 	pick = nil
+	quick.on, quick.fence, selling, confirmClear = false, false, false, nil
+	draw.erase, draw.box, draw.look = false, false, false
 	closeTip()
 	clearGhost()
 	clearDrawGhost()
@@ -1599,10 +2003,27 @@ function BuildUI.close()
 	BuildUI.Changed:Fire(false)
 end
 
--- Sims and previews: the tray's tab, its row and the tip's building (nil when none).
-function BuildUI.debugState(): { tab: string, chip: string, goal: string? }
+-- Quick remove on or off (its button by the tabs; Stop or Esc turns it off): nothing picked, the draw bar's Erase
+-- strokes ready (a line, over paths and water).
+function BuildUI.quickRemove(on: boolean)
+	quick.on = on
+	pick = nil
+	closeTip()
+	clearGhost()
+	clearDrawGhost()
+	draw.erase, draw.box, draw.look = on, false, false
+	draw.start, draw.last, draw.cells, draw.seen, draw.memo = nil, nil, {}, {}, {}
+	Audio.play("flip")
+	if on then
+		UIKit.notice("Tap a building to put it away, or drag across paths and water.", UIKit.color("text_dim"), 2.5)
+	end
+	rebuild()
+end
+
+-- Sims and previews: the tray's tab, its row, the tip's building (nil when none), Quick remove and Sell on or off.
+function BuildUI.debugState(): { tab: string, chip: string, goal: string?, quick: boolean, selling: boolean }
 	local g = tutGoal(view())
-	return { tab = tab, chip = chip[tab] or "", goal = if g then g.id else nil }
+	return { tab = tab, chip = chip[tab] or "", goal = if g then g.id else nil, quick = quick.on, selling = selling }
 end
 
 -- Sims and previews: pick a piece to place as a player would (its card).
@@ -1613,14 +2034,18 @@ function BuildUI.pick(id: string, rot: number?)
 end
 -- Sims and previews: tap a world point as a player would (the screen point the pixel layer shows it at).
 function BuildUI.tapScreen(pos: Vector2, mouse: boolean?)
-	onTap(pos, mouse == true)
+	if quickOn() then
+		quickTap(pos)
+	else
+		onTap(pos, mouse == true)
+	end
 end
 -- Sims and previews: a stroke as a player draws it, through plot-local cells (tiles) or corners (fences) (mode "line",
--- "box" or "erase"; `keep` leaves the markers up without sending, for a preview's frame). Returns what the plan says a
--- cell (or an edge) at a time.
+-- "box" or "erase"; with Quick remove on, a line or box of it; `keep` leaves the markers up without sending, for a
+-- preview's frame). Returns what the plan says a cell (or an edge) at a time.
 function BuildUI.debugDraw(cells: { { number } }, mode: string, keep: boolean?): { string }
 	draw.box = mode == "box"
-	draw.erase = mode == "erase"
+	draw.erase = mode == "erase" or quickOn()
 	draw.look = false
 	draw.start, draw.last, draw.cells, draw.seen, draw.memo = cells[1], nil, {}, {}, {}
 	for _, c in cells do

@@ -57,6 +57,9 @@ export type Profile = {
 	stats: Stats,
 	settings: Settings,
 	createdAt: number,
+	-- Build mode's inventory: pieces taken away, waiting to go down again for nothing (piece id -> how many; Logic/Plot,
+	-- GAME_DESIGN 4.5; 2026-11-14)
+	inv: { [string]: number },
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -73,6 +76,7 @@ export type ClientView = {
 	clutchSecs: number, -- seconds between two lots (Logic/Tree.secs)
 	plot: number, -- the plot index on the sea
 	pieces: { Piece },
+	inv: { [string]: number }, -- Build mode's inventory (Profile.inv)
 	seen: { [string]: number },
 	eggs: { Egg },
 	tut: number,
