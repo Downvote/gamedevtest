@@ -4,7 +4,7 @@ local TestKit = require("./TestKit")
 local SPECS = {
 	"Util", "Validate", "Numbers", -- helpers
 	"DataIntegrity", "Traits", -- the content tables
-	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", -- the rules
+	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", "Store", -- the rules
 	"Schema", -- the save
 	"Shading", "Raster", "Rim", "Fx", "DynTex", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures
 	"DriftMotion", -- the driftlings' motion on their skeletons

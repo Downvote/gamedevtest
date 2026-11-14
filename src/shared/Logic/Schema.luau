@@ -15,6 +15,10 @@ local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
 local Tree = require(script.Parent.Tree)
 local Weather = require(script.Parent.Weather)
+local Cosmetics = require(script.Parent.Parent.Data.Cosmetics)
+local Titles = require(script.Parent.Parent.Data.Titles)
+local Track = require(script.Parent.Parent.Data.Track)
+local Monetization = require(script.Parent.Parent.Config.Monetization)
 
 type Profile = Types.Profile
 
@@ -23,8 +27,9 @@ local Schema = {}
 -- 1: the first shape; 2: the founder's look and the plot; 3: the idea loop; 4: one game on sale at a time;
 -- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone);
 -- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
--- Life again, laying eggs (no tide)
-Schema.VERSION = 15
+-- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
+-- titles, the rotating shop, the pass track: GAME_DESIGN 14)
+Schema.VERSION = 16
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -46,14 +51,49 @@ local function int(v: any, default: number, lo: number?, hi: number?): number
 	return math.floor(num(v, default, lo, hi))
 end
 
-local function look(v: any): Types.Look
+-- `owned`: the cosmetics the player owns (a slot keeps a piece only when it is owned and of that slot).
+local function look(v: any, owned: { [string]: boolean }?): Types.Look
 	local t = if type(v) == "table" then v else {}
-	return {
+	local out: Types.Look = {
 		skin = int(t.skin, 1, 1, #Looks.skin),
 		hair = int(t.hair, 1, 1, #Looks.hair),
 		style = int(t.style, 1, 1, #Looks.styles),
 		shirt = int(t.shirt, 1, 1, #Looks.shirt),
 	}
+	for _, slot in Looks.worn do
+		local id = t[slot]
+		local c = if type(id) == "string" then Cosmetics.byId[id] else nil
+		if c and c.slot == slot and owned and owned[id] then
+			(out :: any)[slot] = id
+		end
+	end
+	return out
+end
+
+-- A set of known ids (cosmetics or titles): { id = true } kept for ids `known` has.
+local function idSet(v: any, known: { [string]: any }): { [string]: boolean }
+	local out: { [string]: boolean } = {}
+	if type(v) == "table" then
+		for id, on in v do
+			if type(id) == "string" and on == true and known[id] ~= nil then
+				out[id] = true
+			end
+		end
+	end
+	return out
+end
+
+-- Whole numbers 1 .. hi, none twice, at most n of them.
+local function levels(v: any, hi: number): { number }
+	local out: { number } = {}
+	if type(v) == "table" then
+		for _, x in v do
+			if type(x) == "number" and x == math.floor(x) and x >= 1 and x <= hi and table.find(out, x) == nil and #out < hi then
+				table.insert(out, x)
+			end
+		end
+	end
+	return out
 end
 
 ------------------------------------------------------------------ default
@@ -79,6 +119,16 @@ function Schema.default(now: number, seed: number): Profile
 		settings = { pixel = "high", music = "on" },
 		createdAt = now,
 		inv = {},
+		passes = {},
+		receipts = {},
+		gifts = {},
+		vipDay = -1,
+		bag = {},
+		owned = {},
+		titles = { newcomer = true },
+		title = "newcomer",
+		shop = { at = -1, n = 0 },
+		track = { s = -1, xp = 0, got = {}, gotP = {} },
 	}
 	Tree.plant(p)
 	return p
@@ -340,6 +390,12 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		raw.wood = nil
 		v = 15
 	end
+	-- 15 -> 16: the store's fields (reconcile fills them in); every founder has the Newcomer title, worn
+	if v < 16 then
+		raw.titles = { newcomer = true }
+		raw.title = "newcomer"
+		v = 16
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -457,7 +513,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		shells = num(r.shells, d.shells, 0, 1e12),
 		day = int(r.day, 1, 1),
 		tier = tier,
-		founder = if type(r.founder) == "table" then look(r.founder) else d.founder,
+		founder = d.founder, -- (below, once the cosmetics owned are known)
 		pals = pals,
 		plot = { placed = placed },
 		inv = Plot.cleanInv(r.inv),
@@ -481,7 +537,51 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			music = if settings.music == "off" then "off" else "on",
 		},
 		createdAt = num(r.createdAt, now),
+		passes = {},
+		receipts = {},
+		gifts = {},
+		vipDay = int(r.vipDay, -1, -1),
+		bag = {},
+		owned = idSet(r.owned, Cosmetics.byId),
+		titles = idSet(r.titles, Titles.byId),
+		title = "",
+		shop = { at = -1, n = 0 },
+		track = { s = -1, xp = 0, got = {}, gotP = {} },
 	}
+	-- the store (GAME_DESIGN 14): passes by their keys (MonetizationService checks them again at the join), the last
+	-- receipts, the one-time gifts, the bag's eggs, the look with only owned pieces worn, a title earned, the shop's
+	-- refreshes, the track's season
+	if type(r.passes) == "table" then
+		for k, on in r.passes do
+			if type(k) == "string" and on == true and Monetization.GamePasses[k] ~= nil then
+				out.passes[k] = true
+			end
+		end
+	end
+	if type(r.receipts) == "table" then
+		for _, id in r.receipts do
+			if type(id) == "string" and #id <= 64 and #out.receipts < 50 then
+				table.insert(out.receipts, id)
+			end
+		end
+	end
+	if type(r.gifts) == "table" then
+		for _, k in { "starter", "vip" } do
+			if r.gifts[k] == true then
+				out.gifts[k] = true
+			end
+		end
+	end
+	out.founder = if type(r.founder) == "table" then look(r.founder, out.owned) else d.founder
+	out.titles.newcomer = true
+	out.title = if type(r.title) == "string" and (r.title == "" or out.titles[r.title]) then r.title else "newcomer"
+	if type(r.shop) == "table" then
+		out.shop = { at = int(r.shop.at, -1, -1), n = int(r.shop.n, 0, 0, 1000) }
+	end
+	if type(r.track) == "table" then
+		local t = r.track
+		out.track = { s = int(t.s, -1, -1), xp = num(t.xp, 0, 0, 1e9), got = levels(t.got, Track.LEVELS), gotP = levels(t.gotP, Track.LEVELS) }
+	end
 	-- pieces off the island's buildable grass (an older shape) move to the nearest free spot, or come back as shells
 	Plot.refit(out)
 	-- its Tree of Life (one from before the eggs gets one)
@@ -517,6 +617,19 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	cl.next = math.max(int(c.next, 1, 1), top + 1)
 	-- the driftlings with no hut into any hut with room
 	Tree.settle(out)
+	-- the bag's eggs (GAME_DESIGN 14): each a rarity, its id unique among the save's ids, no more than the bag holds
+	if type(r.bag) == "table" then
+		for _, e in r.bag do
+			if type(e) == "table" and #out.bag < Tree.BAG_MAX then
+				local id = int(e.id, 0, 0)
+				if id > 0 and not ids[id] then
+					ids[id] = true
+					table.insert(out.bag, { id = id, r = int(e.r, 1, 1, Traits.RMAX) })
+					out.nextId = math.max(out.nextId, id + 1)
+				end
+			end
+		end
+	end
 	-- the eggs: one a Hatchery still standing, a kind that exists, its mutations clean, its turns in range
 	local hatcheries: { [number]: boolean } = {}
 	for _, q in out.plot.placed do

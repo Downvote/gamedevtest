@@ -144,7 +144,7 @@ function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?): number
 	return Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0))
 end
 
--- What a turn makes now (the charm bonus in).
+-- What a turn makes now (the charm bonus and the passes in).
 function Island.rates(p: Profile): Rates
 	local out = { shells = 0 }
 	local homes = Island.homes(p)
@@ -164,8 +164,18 @@ function Island.rates(p: Profile): Rates
 			out.shells += d.rate * k
 		end
 	end
-	out.shells *= 1 + Island.charmBonus(Island.charm(p))
+	out.shells *= (1 + Island.charmBonus(Island.charm(p))) * Island.passMult(p)
 	return out
+end
+
+-- What the passes multiply every shell by (GAME_DESIGN 14): Double Income x Tuning.DoubleIncome, VIP 1 +
+-- Tuning.VipIncome (both: x2 x 1.25).
+function Island.passMult(p: Profile): number
+	local ps = p.passes
+	if ps == nil then
+		return 1
+	end
+	return (if ps.DoubleIncome then Tuning.DoubleIncome else 1) * (if ps.VIP then 1 + Tuning.VipIncome else 1)
 end
 
 -- dt seconds of the island's turns: what it made (fractions; the stats count the shells).
@@ -410,12 +420,13 @@ function Island.expand(p: Profile): (boolean, any)
 	return true, { tier = p.tier, moved = moved, cleared = cleared }
 end
 
--- The founder's look (free).
+-- The founder's colours and hair style (free; the pieces they wear stay on: Logic/Store.wear).
 function Island.setFounder(p: Profile, skin: number, hair: number, style: number, shirt: number): (boolean, any)
 	if skin > #Looks.skin or hair > #Looks.hair or style > #Looks.styles or shirt > #Looks.shirt then
 		return false, "bad_payload" :: ErrCode
 	end
-	p.founder = { skin = skin, hair = hair, style = style, shirt = shirt }
+	local f = p.founder
+	f.skin, f.hair, f.style, f.shirt = skin, hair, style, shirt
 	return true, nil
 end
 

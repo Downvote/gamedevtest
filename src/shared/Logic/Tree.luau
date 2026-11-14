@@ -6,7 +6,7 @@
 -- and amount of eggs spawned". Pure: IslandService calls these with the session's profile and Rng. Actions return
 -- (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --   Every island has its tree (a piece, `plant`: never bought, cleared away or replaced). Every `secs(p)` seconds
---   while the player is here (Tuning.EggSecs, sooner with the huts' tree shares) it lays `count(tier)` eggs round its
+--   while the player is here (Tuning.EggSecs: ten minutes, five with the Quick Tree pass) it lays `count(tier)` eggs round its
 --   roots (Tuning.EggCount: more on a bigger island), the ones left unhatched going (`step`, `lay`). An egg's rarity:
 --   Data/Traits.RARITY's weights, each rarity step's weight times the island's luck (`luck(p)`: Tuning.EggLuck by its
 --   tier and the huts' luck shares: a bigger island lays better eggs). A rarity none of the kinds open at the island's
@@ -46,26 +46,25 @@ Tree.ID = "tree" -- its piece (Data/Buildings)
 Tree.SPOT = { x = -4, z = -6 } -- where a new island's tree goes (the nearest free spot: behind the campfire)
 
 ------------------------------------------------------------------ its numbers
--- The huts' driftlings' tree, luck and cost shares together (Data/Traits: Leafy, Lucky, Thrifty and their kin,
--- passives too), each at most Tuning.HutTree / HutLuck / HutCost (cost: a share off, 0 .. HutCost).
-function Tree.hutFx(p: Profile): (number, number, number)
-	local tree, luck, cost = 0, 0, 0
+-- The huts' driftlings' luck and cost shares together (Data/Traits: Lucky, Thrifty and their kin, passives too), each
+-- at most Tuning.HutLuck / HutCost (cost: a share off, 0 .. HutCost).
+function Tree.hutFx(p: Profile): (number, number)
+	local luck, cost = 0, 0
 	for _, x in p.pals do
 		if x.home ~= 0 then
 			local d = Creatures.byId[x.sp]
 			local fx = Traits.sum(if d then d.passive.fx else nil, x.muts)
-			tree += fx.tree or 0
 			luck += fx.luck or 0
 			cost -= fx.cost or 0
 		end
 	end
-	return math.clamp(tree, 0, Tuning.HutTree), math.clamp(luck, 0, Tuning.HutLuck), math.clamp(cost, 0, Tuning.HutCost)
+	return math.clamp(luck, 0, Tuning.HutLuck), math.clamp(cost, 0, Tuning.HutCost)
 end
 
--- Seconds between two lots of eggs.
+-- Seconds between two lots of eggs: ten minutes the whole game through, five with the Quick Tree pass (the request
+-- of 2026-11-14: "keep it at 10 minutes throughout the whole game unless a gamepass is bought").
 function Tree.secs(p: Profile): number
-	local boost = Tree.hutFx(p)
-	return Tuning.EggSecs / (1 + boost)
+	return if p.passes and p.passes.QuickTree then Tuning.EggSecsPass else Tuning.EggSecs
 end
 
 -- How many eggs the tree lays on an island of `tier`.
@@ -81,7 +80,7 @@ end
 -- The island's luck: each rarity step's weight is multiplied by this (`tier`: another tier, for a preview).
 function Tree.luck(p: Profile, tier: number?): number
 	local t = math.clamp(tier or p.tier, 1, #Tuning.EggLuck)
-	local _, extra = Tree.hutFx(p)
+	local extra = Tree.hutFx(p)
 	return 1 + Tuning.EggLuck[t] + extra
 end
 
@@ -190,7 +189,7 @@ end
 -- What an egg of rarity `r` costs to hatch: its rarity's price, times the island's EggTier, less the huts' cost shares.
 function Tree.cost(p: Profile, r: number): number
 	local tier = Tuning.EggTier[math.clamp(p.tier, 1, #Tuning.EggTier)]
-	local _, _, off = Tree.hutFx(p)
+	local _, off = Tree.hutFx(p)
 	return math.max(1, math.floor(Tuning.EggPrice[math.clamp(r, 1, Traits.RMAX)] * tier * (1 - off) + 0.5))
 end
 
@@ -318,10 +317,11 @@ end
 ------------------------------------------------------------------ the eggs
 -- A kind and its mutations out of an egg of rarity `rarity` (of `knack` when one is asked for and the rarity has one),
 -- mutations as a rarer one every EggMutTier tiers. `season`: the season the egg was laid in (Data/Weather): its own
--- islets' kinds come Tuning.SeasonFavour times as often (when the rarity has any).
-function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season: string?): (string, { string })
+-- islets' kinds come Tuning.SeasonFavour times as often (when the rarity has any). `tier`: the island tier whose kinds
+-- may hatch (the island's own when nil; an egg held in the bag hatches from every kind: Tree.BAG_TIER).
+function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season: string?, tier: number?): (string, { string })
 	local r = math.clamp(rarity, 1, Traits.RMAX)
-	local pool = Tree.pool(p.tier)
+	local pool = Tree.pool(tier or p.tier)
 	while r > 1 and #pool[r] == 0 do
 		r -= 1
 	end
@@ -365,8 +365,8 @@ end
 
 -- The rarity an egg of rarity `r` hatches as: one up with Tuning.EggUp[r], and on while the rolls hold, never past a
 -- rarity the island's tree has no driftlings of (the hatch scene shows each step).
-function Tree.rise(p: Profile, rng: Rng, r: number): number
-	local pool = Tree.pool(p.tier)
+function Tree.rise(p: Profile, rng: Rng, r: number, tier: number?): number
+	local pool = Tree.pool(tier or p.tier)
 	local out = math.clamp(r, 1, Traits.RMAX)
 	while out < Traits.RMAX and #pool[out + 1] > 0 and rng:next() < (Tuning.EggUp[out] or 0) do
 		out += 1
@@ -486,6 +486,22 @@ function Tree.step(p: Profile, dt: number, rng: Rng, wx: Weather.State?): { Laid
 	return nil
 end
 
+-- The eggs the world shows round the tree's roots (Tuning.EggShown of them, the rarest first, then the first laid):
+-- the island's "Eggs" attribute (PlotService.sync; Controllers/EggView). The tree's panel lists them all.
+function Tree.shown(p: Profile): { Laid }
+	local list = table.clone(p.clutch.list)
+	table.sort(list, function(a: Laid, b: Laid): boolean
+		if a.r ~= b.r then
+			return a.r > b.r
+		end
+		return a.id < b.id
+	end)
+	while #list > Tuning.EggShown do
+		table.remove(list)
+	end
+	return list
+end
+
 -- The eggs as the client sees them: each with its price on this island now, the season it was laid in and the
 -- weather that touched it.
 function Tree.view(p: Profile): { Laid }
@@ -532,12 +548,57 @@ local function withWeather(muts: { string }, id: string): { string }
 end
 
 ------------------------------------------------------------------ the player's actions
+local FIRST_KNACKS = { "wood", "farm" }
+
+-- Where a hatchling goes: the comfiest hut with room (its uid), or, every hut full, the place of `swap` (one of the
+-- player's in a hut). Returns (home uid, the one swapped out or nil) or (nil, nil, why).
+local function homeFor(p: Profile, swap: number): (number?, Pal?, ErrCode?)
+	local huts = Tree.huts(p)
+	if #huts == 0 then
+		return nil, nil, "no_hut"
+	end
+	for _, h in huts do
+		if h.n < h.room then
+			return h.uid, nil, nil
+		end
+	end
+	if swap == 0 then
+		return nil, nil, "full"
+	end
+	local out = palOf(p, swap)
+	if out == nil or out.home == 0 then
+		return nil, nil, "bad_payload"
+	end
+	return out.home, out, nil
+end
+
+-- A hatchling of `sp` with `muts` into `home` (the one swapped out sold first, for its price). Returns the driftling,
+-- the shells the swap sold for and whether it is a kind never had before (the hatch scene's "New!").
+local function hatchling(p: Profile, sp: string, muts: { string }, home: number, out: Pal?): (Pal, number, boolean)
+	local sold = 0
+	if out then
+		sold = sellOne(p, table.find(p.pals, out) :: number)
+	end
+	local x: Pal = { id = p.nextId, sp = sp, home = home, work = 0, muts = Traits.clean(muts) }
+	p.nextId += 1
+	table.insert(p.pals, x)
+	Island.arrange(p)
+	-- (`new`: a kind never had before this one, seen in the Index or not)
+	local fresh = (p.seen[x.sp] or 0) < 2
+	p.seen[x.sp] = 2
+	p.stats.taken += 1
+	local def = Creatures.byId[x.sp]
+	if def then
+		p.stats.best = math.max(p.stats.best, def.rarity)
+	end
+	return x, sold, fresh
+end
+
 -- Hatch egg `id` for its cost: it may turn rarer first (Tree.rise; `hr` in the result), then what hatches moves into
 -- the comfiest hut with room, or, every hut full, into the place of `swap` (one of the player's in a hut: sold for its
 -- price). The result's `new` is true when the player never had that kind before (the hatch scene's "New!").
 -- not_found (no such egg: a new lot came), no_hut (no hut built), money, full (every hut full and no swap named),
 -- bad_payload (a swap that isn't in a hut).
-local FIRST_KNACKS = { "wood", "farm" }
 function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, any)
 	local at = 0
 	for i, e in p.clutch.list do
@@ -549,37 +610,18 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 		return false, "not_found" :: ErrCode
 	end
 	local egg = p.clutch.list[at]
-	local huts = Tree.huts(p)
-	if #huts == 0 then
+	if #Tree.huts(p) == 0 then
 		return false, "no_hut" :: ErrCode
 	end
 	local cost = Tree.cost(p, egg.r)
 	if p.shells < cost then
 		return false, "money" :: ErrCode
 	end
-	local spot: Hut? = nil
-	for _, h in huts do
-		if h.n < h.room then
-			spot = h
-			break
-		end
-	end
-	local out: Pal? = nil
-	if spot == nil then
-		if swap == 0 then
-			return false, "full" :: ErrCode
-		end
-		out = palOf(p, swap)
-		if out == nil or out.home == 0 then
-			return false, "bad_payload" :: ErrCode
-		end
+	local home, out, why = homeFor(p, swap)
+	if home == nil then
+		return false, why :: ErrCode
 	end
 	p.shells -= cost
-	local sold, home = 0, if spot then spot.uid else 0
-	if out then
-		home = out.home
-		sold = sellOne(p, table.find(p.pals, out) :: number)
-	end
 	table.remove(p.clutch.list, at)
 	-- (a new island's first two: good with wood, then at a farm, the tips' first buildings)
 	local knack = if p.stats.taken < #FIRST_KNACKS and #p.pals < #FIRST_KNACKS then FIRST_KNACKS[p.stats.taken + 1] else nil
@@ -591,19 +633,51 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	if wm then
 		muts = withWeather(Traits.clean(muts), wm)
 	end
-	local x: Pal = { id = p.nextId, sp = sp, home = home, work = 0, muts = Traits.clean(muts) }
-	p.nextId += 1
-	table.insert(p.pals, x)
-	Island.arrange(p)
-	-- (`new`: a kind never had before this one, seen in the Index or not: the hatch says "New!")
-	local fresh = (p.seen[x.sp] or 0) < 2
-	p.seen[x.sp] = 2
-	p.stats.taken += 1
-	local def = Creatures.byId[x.sp]
-	if def then
-		p.stats.best = math.max(p.stats.best, def.rarity)
-	end
+	local x, sold, fresh = hatchling(p, sp, muts, home, out)
 	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = cost, sold = sold, swapped = if out then swap else 0, wx = egg.wx, wm = wm, new = fresh }
+end
+
+------------------------------------------------------------------ the bag: eggs held to hatch for nothing
+-- Eggs bought (a developer product), won on the pass track, or from the starter pack and VIP (Logic/Store) wait in the
+-- bag (Profile.bag) till the player hatches them, for nothing. One of rarity r hatches as one of that rarity's kinds
+-- from any land (BAG_TIER: every kind, whatever the island's tier), may turn rarer like any egg, and rolls its
+-- mutations as the island's tree's would.
+Tree.BAG_TIER = 20
+Tree.BAG_MAX = 200 -- eggs the bag holds at most (more are paid out as shells: Logic/Store)
+
+-- Put an egg of rarity r in the bag. Returns it, or nil when the bag is full.
+function Tree.bagAdd(p: Profile, r: number): Types.Bagged?
+	if #p.bag >= Tree.BAG_MAX then
+		return nil
+	end
+	local e: Types.Bagged = { id = p.nextId, r = math.clamp(math.floor(r), 1, Traits.RMAX) }
+	p.nextId += 1
+	table.insert(p.bag, e)
+	return e
+end
+
+-- Hatch the bag's egg `id` (no shells): into the comfiest hut with room or `swap`'s place, as Tree.hatch. The result
+-- is Tree.hatch's, with `bag = true` and cost 0. not_found, no_hut, full, bad_payload.
+function Tree.hatchBag(p: Profile, id: number, swap: number, rng: Rng): (boolean, any)
+	local at = 0
+	for i, e in p.bag do
+		if e.id == id then
+			at = i
+		end
+	end
+	if at == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	local egg = p.bag[at]
+	local home, out, why = homeFor(p, swap)
+	if home == nil then
+		return false, why :: ErrCode
+	end
+	table.remove(p.bag, at)
+	local hr = Tree.rise(p, rng, egg.r, Tree.BAG_TIER)
+	local sp, muts = Tree.roll(p, rng, hr, nil, nil, Tree.BAG_TIER)
+	local x, sold, fresh = hatchling(p, sp, muts, home, out)
+	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = 0, sold = sold, swapped = if out then swap else 0, new = fresh, bag = true }
 end
 
 -- A driftling sold (from a hut or with none): its price in shells; a hut's room goes to one waiting with no hut.

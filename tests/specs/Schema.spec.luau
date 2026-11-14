@@ -332,7 +332,8 @@ return function()
 		-- a version 7 save's own list: kept, cleaned (unknown ids, a family twice, past MAX)
 		local NEST = { placed = { { uid = 50, id = "nest", x = 6, z = 4, rot = 0 } } }
 		local c = Schema.reconcile({ v = 7, plot = NEST, pals = { { id = 4, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = { "fierce2", "nope", "fierce4", 7, "swift1", "bright3", "busy1", "sturdy1" } } } }, 2000, 9) :: any
-		T.deepEq(c.pals[1].muts, { "fierce2", "swift1", "bright3", "busy1" })
+		-- (swift1, a Leafy one, is Lucky now: bright, already there, so it goes)
+		T.deepEq(c.pals[1].muts, { "fierce2", "bright1", "busy1", "sturdy1" })
 		local d = Schema.reconcile({ v = 7, plot = NEST, pals = { { id = 4, sp = "pebblit", lvl = 1, xp = 0, work = 0, muts = "x" } } }, 2000, 9) :: any
 		T.deepEq(d.pals[1].muts, {}, "garbage: none")
 	end)

@@ -1,5 +1,21 @@
 # Driftling Isle: Game Design
 
+> The request (2026-11-14, the latest): "remove anything that decreases the tree of life refresh, keep it at 10
+> minutes throughout the whole game unless a gamepass is bought. make the player be outlined white like the bakery
+> game, with the name and title on top. make titles. make much more cosmetics, and a rotating shop for cosmetics. make
+> gamepasses for double income, developer products for hatching any rarity of egg, refreshing shop, a starter pack,
+> speeding up hatcheries, a gamepass track with eggs, money and cosmetics along with a premium track, a vip gamepass
+> offering alot of rewards, and cosmetics, a title and a percentage increase to income, a gamepass that speeds up the
+> tree of life refresh to 5 minutes, and a gamepass that allows for decor and paths to be free"
+
+So the Tree of Life lays every ten minutes from the first island to the last; nothing a driftling has shortens it, and
+only the Quick Tree pass makes it five. Its lots are three times the size, so the islands grow at the same pace (§6,
+§10). Every founder is outlined in white with their name and a title over their head, titles come from play and the
+store, there are 83 cosmetics in six slots with a shop that turns over every four hours, and the game sells five passes
+(VIP, Double Income, Quick Tree, Free Decor, Premium Track) and nine products (an egg of any rarity from Uncommon up,
+a shop refresh, the starter pack, finishing the Hatcheries now), with a 30-level pass track that has a free and a
+premium side (§14).
+
 > The requests (2026-11-14, the latest): "instead of a hut (building) limit per expansion, make it such that the limit
 > of driftling housing is the limit, such that you can have 2 driftling huts in the place of a cozy burrow at the cost
 > of comfort", "also, allow clicking on a hatchery to open the hatchery menu. add a hatchery tab once it is unlocked
@@ -1014,12 +1030,15 @@ light over the crown and three mossy stones round the trunk, each with its glowi
 the crown, a third ring of light on the ground and a ring of low standing stones with gold caps round the eggs' lawn.
 When the island grows into a new stage, the tree is built again at it.
 
-- **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (180) seconds the tree lays a new lot round its roots,
-  `EggCount` by the island's tier: 5, 6, 7, 8, 9, then 10 from the capital, 11 from Kelpwood Isle and 12 from Starfall
-  Atoll. The eggs still there from the last lot
-  go as the new ones come.
-  The huts' tree shares (Leafy and its family, and a few passives; `HutTree`: 50% at most) bring the next lot sooner,
-  at the most every two minutes. The clock runs only while you are on the server, and the eggs and the time left are
+- **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (600) seconds the tree lays a new lot round its roots,
+  `EggCount` by the island's tier: 14, 16, 19, 22, 25, then 27 from the capital, 30 from Kelpwood Isle and 33 from
+  Starfall Atoll. The eggs still there from the last lot go as the new ones come. Ten minutes the whole game through
+  since the request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10 minutes
+  throughout the whole game unless a gamepass is bought"): the huts' tree shares are gone (the Leafy family loads as
+  Lucky, each passive's share became that much egg luck) and only the Quick Tree pass (§14) makes it five
+  (`EggSecsPass`). A lot is about three times what it was when it came every three minutes, so an hour lays about as
+  many eggs as before and the islands keep the pace §10 promises. The world shows the `EggShown` (12) rarest of a lot
+  round the roots (`Tree.shown`: the ring's room); the Tree panel lists them all. The clock runs only while you are on the server, and the eggs and the time left are
   saved, so leaving and coming back lays no new lot. A new island, and a save from before the eggs, gets its first lot
   the moment it arrives. On a brand-new island (nothing hatched yet and no driftling) the first lot has two commons in
   it, so the tips' first hatch is cheap.
@@ -1162,7 +1181,7 @@ When the island grows into a new stage, the tree is built again at it.
   rarity's colour with a bell-tree run and sparkles over the card. The card steps aside in Build mode and while the
   Tree panel is open.
 - **The Tree panel** (Open on the card, a tap on the tree, Eggs in the Driftlings panel, a quest's Go): on the left
-  "New eggs every 3:00" (sooner with the huts' tree shares), "Next in 2:41" over a bar, "7 eggs a lot. In huts 6/8"
+  "New eggs every 10:00" (5:00 with the Quick Tree pass), "Next in 9:41" over a bar, "7 eggs a lot. In huts 6/8"
   (orange when full), the odds of each rarity now under "What it lays now" ("<0.1%" under a tenth of a percent, "not
   yet" for a rarity none of the open kinds has), below tier 6 "A bigger island lays more eggs, and better ones." and
   "Now and then an egg turns rarer as it hatches.";
@@ -1343,8 +1362,9 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
   2026-11-12 and the eating one the eggs' price on 2026-11-13, keeping their ids so old saves read them): Thrifty /
   Frugal / Modest / Selfless (eggs cost 15 / 30 / 50 / 80% less, the huts' together half off at most), Shiny / Glossy
   / Golden / Radiant (sells for 30 / 70 / 150 / 300% more), Cute / Sweet / Adorable / Beloved (+1 / 2 / 3 / 5 charm),
-  Leafy / Blooming / Lush / Evergreen (eggs 4 / 8 / 14 / 22% sooner), Lucky / Blessed / Fortunate / Starborn (+5 /
-  10 / 18 / 30% egg luck),
+  Lucky / Blessed / Fortunate / Starborn (+5 / 10 / 18 / 30% egg luck; a saved Leafy / Blooming / Lush / Evergreen,
+  which brought the eggs sooner until 2026-11-14, loads as the Lucky one of its tier, and Sluggish joined the Busy
+  family's flaws),
   Busy .. Workaholic (+8 .. 40% work anywhere), and Green Thumb .. Bountiful, Chopper .. Forest Heart, Chatty ..
   Tycoon (+12 .. 65% at farms, lumber, shops). The Angler family (Angler .. Sea Sage, at fishing) went with fishing on
   2026-11-14: a saved one loads as the Green Thumb of its tier (`Traits.clean`), and a driftling with both keeps the
@@ -1652,7 +1672,7 @@ wood) has its wood added to its shells, one for one, and the wood goes (the requ
 wood as a currency"); a wood that isn't a number, or below nothing, adds nothing. An Angler mutation it holds loads as
 the Green Thumb of its tier (§6). The save holds the tree's eggs (`clutch`: each egg's id and rarity, and the seconds
 to the next lot), checked on every load: rarities 1 to 5, ids unique, no more eggs than the island lays, the clock
-between nothing and three minutes. Its pieces are checked on every load too: each count against its own limit (the
+between nothing and ten minutes. Its pieces are checked on every load too: each count against its own limit (the
 pieces, the path and water tiles together, the fence lengths, one Tree of Life), their places between -240 and 64 studs
 (the far islands reach that far north), a fence starting on an even corner and running east or south (any other is
 dropped), and a path or water tile off the even studs cleared with its whole price back. A version 13 save (before the
@@ -1933,9 +1953,8 @@ reason.
 
 ## 12. Out of scope for this version
 
-Trading between players, visiting with gifts, offline progress, purchases (no game passes or products:
-`Config/Monetization.luau` holds only the sound and music ids), other languages (English only; every string goes through
-`Locale/Lang.t`).
+Trading between players, visiting with gifts, offline progress, other languages (English only; every string goes
+through `Locale/Lang.t`). (Purchases came in on 2026-11-14: §14.)
 
 ## 13. Seasons and the weather (`Data/Weather`, `Logic/Weather`, `Controllers/WeatherView`, `UI/WeatherChip`)
 
@@ -1973,7 +1992,7 @@ them; a hatchling keeps at most `Traits.MAX` mutations, a weather one replacing 
 | Heat haze | sunny | Warm, Sunbaked, Sunkissed, Midsummer | +10, 20, 35, 55% at shops |
 | Blossom wind | bloomy | Budding, Petalled, Flowering, Springborn | +1, 2, 3, 5 charm |
 | Falling leaves | autumn | Russet, Amber, Copper, Goldleaf | +10, 20, 35, 55% at wood |
-| Fog | misty | Misty, Foggy, Veiled, Phantom | eggs 3, 6, 10, 16% sooner |
+| Fog | misty | Misty, Foggy, Veiled, Phantom | +20, 45, 90, 180% sell price (eggs sooner until 2026-11-14: the tree keeps its 10 minutes now) |
 | Storm | stormy | Gusty, Stormborn, Thunderous, Tempest | +6, 12, 20, 32% egg luck |
 
 **How a touched egg shows.** Under the tree it wears a small piece of its weather over its crown, its own shape so it
@@ -2001,3 +2020,70 @@ here. Snowfield and grotto kinds come more often.").
 **The economy.** The weather only adds: no egg costs more, none is taken away. The career model (`tests/Career.luau`)
 lays its eggs in the weather of its own clock, so the Economy spec's bounds (§10) are checked with the touches and the
 season's kinds in them.
+
+## 14. The store, cosmetics and titles (`Logic/Store`, `Data/Cosmetics`, `Data/Titles`, `Data/Track`, `MonetizationService`)
+
+> The request (2026-11-14): "make the player be outlined white like the bakery game, with the name and title on top.
+> make titles. make much more cosmetics, and a rotating shop for cosmetics. make gamepasses for double income,
+> developer products for hatching any rarity of egg, refreshing shop, a starter pack, speeding up hatcheries, a
+> gamepass track with eggs, money and cosmetics along with a premium track, a vip gamepass offering alot of rewards,
+> and cosmetics, a title and a percentage increase to income, a gamepass that speeds up the tree of life refresh to 5
+> minutes, and a gamepass that allows for decor and paths to be free"
+
+**Ids.** Every pass and product is listed in `Config/Monetization` with an id of 0 until it is made on the Creator
+Dashboard (Monetization, then Passes or Developer Products) and its id is pasted in. An id of 0 is never sent to
+Roblox: the Store still shows the item with its suggested price (`SuggestedRobux`) and says it isn't on sale yet.
+
+**The passes** (`Profile.passes`, checked again at every join: `MonetizationService.join`; a pass bought in game works
+at once):
+
+| Pass | Suggested | What it does |
+|---|---|---|
+| VIP | 399 | +25% shells (`VipIncome`), a welcome gift once (three hours of shells, two epic eggs, a legendary and a mythic egg, the six VIP pieces and the VIP title) and every UTC day a gift (20 minutes of shells and a rare egg) |
+| Double Income | 299 | every shell x2 (`DoubleIncome`; with VIP x2 x1.25) |
+| Quick Tree | 199 | the Tree of Life lays every 5 minutes (`EggSecsPass`) |
+| Free Decor | 249 | decor, paths, water and fences cost nothing (`Plot.price`); while it is owned they sell back for nothing too, so no free piece turns into shells |
+| Premium Track | 349 | the pass track's premium side, this season and every one after |
+
+**The products** (paid once each in `ProcessReceipt`: the purchase id is saved with the profile, and Roblox is told
+the purchase went through only once the save holds it):
+
+| Product | Suggested | What it gives |
+|---|---|---|
+| Uncommon, Rare, Epic, Legendary, Mythic and Celestial Egg | 15, 35, 75, 159, 399, 999 | an egg of that rarity in the bag |
+| Shop Refresh | 19 | a new set in the rotating shop, till it turns over |
+| Starter Pack | 49 | once: an hour of shells, an epic and a legendary egg, the Explorer Hat and Explorer Shirt, the Early Bird title (bought again: half an hour of shells) |
+| Finish Hatcheries | 29 | every egg in the Hatcheries hatches now (none there: half an hour of shells) |
+
+A "minutes of shells" reward is what the island makes in that many minutes now, at least `RewardFloor` (25) shells a
+minute times `EggTier` by its tier, so it means something on a new island and on Everdrift alike.
+
+**The bag** (`Profile.bag`, `Tree.bagAdd`, `Tree.hatchBag`). Eggs bought, won on the track or given by the starter
+pack and VIP wait in the bag till the player hatches them, for nothing. One of a rarity hatches as one of that
+rarity's kinds from any land (a celestial egg on a new island is a celestial driftling), may turn rarer like any egg,
+and needs a hut with room (or a swap) like the tree's. The bag holds 200; past that an egg pays its worth in shells.
+
+**Cosmetics** (`Data/Cosmetics`, `Data/Looks`). The skin (six), hair colour (ten), hair style (ten) and shirt colour
+(fifteen) are free. 83 pieces go in six slots: a hat (20), the face (12), round the neck (12), the back (14), the hand
+(12) and a top over the shirt (13), each a rarity from common to legendary. 63 of them come round in the shop; the
+rest come from the pass track (6 free, 6 premium), VIP (6) and the starter pack (2). A founder wears one piece a slot
+(`look.wear`), and every client draws it from the "Founder" attribute.
+
+**The rotating shop** (`Store.shopNow`, `Store.buy`). Six pieces every four hours (`ShopSecs`) on the sea's clock,
+the same for everyone, picked by rarity (`ShopWeight`: commons often, legendaries now and then). A Shop Refresh deals
+the player a new six till the shop turns over. A piece costs `CosmeticPrice` by its rarity (120, 400, 1,500, 6,000,
+24,000) times `EggTier` by the island's tier, in shells.
+
+**Titles** (`Data/Titles`, `Store.earn`). 34 titles: Newcomer for everyone, then by the island's tier (Settler at tier
+2 up to Everdrifter at 20), eggs hatched (10, 100, 500, 2,000), the rarest driftling had (epic to celestial), kinds in
+the Index (20, 50, every one), Hatchery eggs, shells made (a million, a billion, a trillion), days, cosmetics owned, and
+VIP, Early Bird and three from the pass track. They are checked every second; a new one is told. A founder wears one
+(`title.set`), shown under their name over their head to every player ("Title" attribute).
+
+**The pass track** (`Data/Track`, `Store.claim`). A season lasts 28 days on the sea's clock. Its points come from play:
+6 an egg hatched, 10 a Hatchery egg, 30 a quest, 120 for growing the island and 2 a minute on the island. Level L costs
+100 + 20 x (L - 1) points, 11,700 for all 30. Each level has a free reward and a premium one, claimed by hand: shells
+on most levels, eggs every few levels (up to legendary on the free side and mythic on the premium side), six cosmetics
+on each side, Deckhand at 15 and First Mate at 30 on the free side, Captain at 30 on the premium side (the last level
+also brings a legendary or a mythic egg). A new season starts the points and claims again; what was won stays.
+

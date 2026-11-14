@@ -267,15 +267,19 @@ do
 	H.expect(text == "New eggs in " .. clock(cl.left) or text == "New eggs in " .. clock(cl.left + E.dt), "eggs", "the Tree card counts down to the next lot", string.format("%q, %.2f s left", text, cl.left))
 	local width = if back then math.floor((back.Size.X.Offset - 2) * math.clamp(cl.left / cl.secs, 0, 1) + 0.5) else -1
 	H.expect(fill ~= nil and math.abs(fill.Size.X.Offset - width) <= 1 and width < back.Size.X.Offset - 2, "eggs", "and its bar runs down with it", string.format("%s px, %d due", tostring(fill and fill.Size.X.Offset), width))
-	-- the huts' tree shares: a Lush driftling in a hut brings every lot 14% sooner (the ticks say so, the next lot is
-	-- wound to the shorter time)
+	-- the tree keeps its 10 minutes whatever the huts hold (the request of 2026-11-14: "keep it at 10 minutes throughout
+	-- the whole game unless a gamepass is bought"): a once-Leafy driftling changes nothing; the Quick Tree pass makes it
+	-- five (the ticks say so, the next lot is wound to the shorter time)
 	local lush = prof.pals[1]
 	local muts0 = lush.muts
-	lush.muts = { "swift3" }
+	lush.muts = Traits.clean({ "swift3" })
 	H.push(p, 0.2)
-	local share = Traits.byId.swift3.fx.tree
+	H.expect(Tree.secs(prof) == Tuning.EggSecs and Tuning.EggSecs == 600, "eggs", "a once-Leafy driftling in a hut: still 10 minutes", tostring(Tree.secs(prof)))
+	lush.muts = muts0
+	prof.passes.QuickTree = true
+	H.push(p, 0.2)
 	local sooner = Tree.secs(prof)
-	H.expect(share > 0 and math.abs(sooner - Tuning.EggSecs / (1 + share)) < 1e-6, "eggs", "a Lush driftling in a hut: the lots come sooner", string.format("%.2f s (%.2f share)", sooner, share))
+	H.expect(sooner == Tuning.EggSecsPass and sooner == 300, "eggs", "the Quick Tree pass: every 5 minutes", string.format("%.2f s", sooner))
 	local iT = #fx
 	E.runUntil(function()
 		return count("tick", iT) >= 1
@@ -291,8 +295,8 @@ do
 	local got2 = nextLot(2.5)
 	lastForced = got2
 	H.expect(got2 ~= nil and prof.clutch.left <= sooner and prof.clutch.left > sooner - 0.6, "eggs", "the next lot wound to the shorter time", string.format("%.2f of %.2f", prof.clutch.left, sooner))
-	-- (the Lush one back to what it was: the lots EggSecs apart again, the one on the way still the shorter time off)
-	lush.muts = muts0
+	-- (the pass off again for the rest: the lots EggSecs apart, the one on the way still the shorter time off)
+	prof.passes.QuickTree = nil
 	H.push(p, 0.2)
 	H.expect(math.abs(Tree.secs(prof) - Tuning.EggSecs) < 1e-9, "eggs", "and back to EggSecs without it", tostring(Tree.secs(prof)))
 	settled(p)

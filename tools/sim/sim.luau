@@ -1375,7 +1375,7 @@ do
 	E.runUntil(function()
 		return eggsSynced(p)
 	end, 0.5)
-	local _, _, off = TreeL.hutFx(prof)
+	local _, off = TreeL.hutFx(prof)
 	local priced = true
 	for _, e in H.view(p).clutch do
 		priced = priced and e.cost == math.max(1, math.floor(Tuning.EggPrice[e.r] * Tuning.EggTier[2] * (1 - off) + 0.5))

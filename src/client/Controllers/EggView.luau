@@ -284,7 +284,8 @@ local function syncPlot(i: number, near: boolean, t: number)
 	end
 	local first = lotFirst[i] or 1
 	local tier = (m:GetAttribute("Tier") :: number?) or 1
-	local n = Tuning.EggCount[math.clamp(tier, 1, #Tuning.EggCount)]
+	-- (the ring shows the rarest Tuning.EggShown of a lot: Logic/Tree.shown)
+	local n = math.min(Tuning.EggShown, Tuning.EggCount[math.clamp(tier, 1, #Tuning.EggCount)])
 	for _, e in gone do
 		if hatching[e.id] or not fresh then
 			-- (one gone while the rest stay: hatched)

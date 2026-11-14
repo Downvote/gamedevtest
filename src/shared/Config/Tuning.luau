@@ -73,10 +73,17 @@ local Tuning = {
 	-- the Tree of Life's eggs (GAME_DESIGN 6; Logic/Tree: "bring back the tree of life ... it now spawns eggs around it
 	-- that the player can choose to hatch for some shells. it spawns in 5 eggs around it, which refreshes every few
 	-- minutes to spawn in another 5 eggs, replacing any existing eggs that were not taken. expanding the island
-	-- increases the quality of eggs spawned and amount of eggs spawned"): every EggSecs seconds (sooner with the huts'
-	-- tree shares) the tree lays EggCount[tier] eggs round its roots, the ones left unhatched going
-	EggSecs = 180,
-	EggCount = { 5, 6, 7, 8, 9, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12 },
+	-- increases the quality of eggs spawned and amount of eggs spawned"): every EggSecs seconds the tree lays
+	-- EggCount[tier] eggs round its roots, the ones left unhatched going. Ten minutes the whole game through since the
+	-- request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10 minutes throughout
+	-- the whole game unless a gamepass is bought"): nothing shortens it but the Quick Tree pass (EggSecsPass)
+	EggSecs = 600,
+	EggSecsPass = 300,
+	-- three times the eggs a lot since the same request (a lot every 10 minutes in place of every 3: about as many eggs
+	-- an hour as before, so the island grows at the pace GAME_DESIGN 10 promises); the world shows the EggShown rarest
+	-- of them round the roots (the ring's room), the tree's panel every one
+	EggCount = { 14, 16, 19, 22, 25, 27, 27, 27, 27, 27, 27, 27, 30, 30, 30, 30, 33, 33, 33, 33 },
+	EggShown = 12,
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
 	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off). About a quarter of what they were since
 	-- the request of 2026-11-14, "make eggs much cheaper" (the prices x0.4, the tiers' multipliers x0.6)
@@ -110,8 +117,7 @@ local Tuning = {
 	SeasonFavour = 3,
 	-- the tree's model grows grander with the island (its stage by tier, Models/DecorModels)
 	TreeStage = { 1, 2, 2, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6 },
-	HutTree = 0.5, -- the huts' driftlings' tree shares together bring the next eggs this much sooner at most ...
-	HutLuck = 0.5, -- ... their luck shares add this much luck at most ...
+	HutLuck = 0.5, -- the huts' driftlings' luck shares add this much luck at most ...
 	HutCost = 0.5, -- ... and their cost shares take this much off the eggs' price at most
 	-- selling a driftling (or swapping it out for a new hatchling): shells by its rarity, times 1 + SellTier x its
 	-- mutations' tiers, times its sell share
@@ -124,6 +130,38 @@ local Tuning = {
 	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does)
 	BreedTierUp = 0.3, -- one both carry comes out a tier better with this chance (a flaw: its family's first tier)
 	BreedNew = 0.15, -- the chance of a new mutation of its own (tier 1 or 2)
+
+	-- the store (GAME_DESIGN 14; Logic/Store; the request of 2026-11-14: "make gamepasses for double income, developer
+	-- products for hatching any rarity of egg, refreshing shop, a starter pack, speeding up hatcheries, a gamepass track
+	-- with eggs, money and cosmetics along with a premium track, a vip gamepass offering alot of rewards, and cosmetics, a
+	-- title and a percentage increase to income, a gamepass that speeds up the tree of life refresh to 5 minutes, and a
+	-- gamepass that allows for decor and paths to be free")
+	DoubleIncome = 2, -- the Double Income pass multiplies every shell the island makes by this
+	VipIncome = 0.25, -- the VIP pass adds this share to every shell (with Double Income: x2 x 1.25)
+	-- a shells reward is minutes of what the island makes now, at least RewardFloor shells a minute times EggTier by
+	-- its tier (a new island makes next to nothing)
+	RewardFloor = 25,
+	StarterMins = 60, -- the starter pack's shells
+	StarterEggs = { 4, 5 }, -- its eggs' rarities (an epic and a legendary)
+	VipMins = 180, -- VIP's welcome gift: shells, eggs ...
+	VipEggs = { 4, 4, 5, 6 },
+	VipDailyMins = 20, -- ... and every UTC day after: shells and an egg
+	VipDailyEgg = 3,
+	FallbackMins = 30, -- a product that can't do its thing (a starter pack bought twice, no Hatchery egg to finish) pays this
+	-- the rotating shop: ShopSize pieces every ShopSecs on the sea's clock (everyone sees the same; a refresh bought
+	-- deals the player a new set till it turns over), picked by rarity with ShopWeight; a piece costs CosmeticPrice by
+	-- its rarity times EggTier by the island's tier
+	ShopSecs = 14400,
+	ShopSize = 6,
+	ShopWeight = { 40, 30, 18, 9, 3 },
+	CosmeticPrice = { 120, 400, 1500, 6000, 24000 },
+	-- the pass track (Data/Track): a season lasts TrackSecs on the sea's clock; level L costs TrackBase + TrackStep x
+	-- (L - 1) points; points for an egg hatched (the tree's or the bag's), a Hatchery egg, a quest claimed, the island
+	-- grown, and every minute on the island
+	TrackSecs = 28 * 86400,
+	TrackBase = 100,
+	TrackStep = 20,
+	TrackXp = { egg = 6, breed = 10, quest = 30, expand = 120, minute = 2 } :: { [string]: number },
 
 	-- server
 	StepHz = 10,

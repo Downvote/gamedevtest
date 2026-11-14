@@ -390,6 +390,20 @@ local function takeHeld(p: Profile, id: string): boolean
 	return true
 end
 
+-- A piece's price for this player (GAME_DESIGN 14): its shells, nothing for decor, paths, water and fences with the
+-- Free Decor pass (and what one of those sells back for is nothing then too: no free piece turns into shells).
+local FREE_KINDS: { [string]: boolean } = { decor = true, path = true, water = true, fence = true }
+function Plot.price(p: any, id: string): number
+	local def = Buildings.byId[id]
+	if def == nil then
+		return 0
+	end
+	if p.passes and p.passes.FreeDecor and FREE_KINDS[def.kind] then
+		return 0
+	end
+	return def.shells
+end
+
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (a hut's room under the housing limit,
 -- Tuning.HousingLimit; a Hatchery under Tuning.HatcheryLimit), its price (shells; nothing for one waiting in the
@@ -414,7 +428,7 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	end
 	-- (one waiting in the inventory goes down for nothing)
 	local free = Plot.held(p, id) > 0
-	if not free and p.shells < def.shells then
+	if not free and p.shells < Plot.price(p, id) then
 		return false, "money" :: ErrCode
 	end
 	if not Plot.fits(p.tier, p.plot.placed, id, x, z, rot) then
@@ -423,7 +437,7 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	if free then
 		takeHeld(p, id)
 	else
-		p.shells -= def.shells
+		p.shells -= Plot.price(p, id)
 	end
 	local uid = p.nextId
 	p.nextId += 1
@@ -489,13 +503,13 @@ local function swapDrawn(p: Profile, q: Piece, id: string): boolean
 		return false
 	end
 	local free = Plot.held(p, id) > 0
-	if not free and p.shells < new.shells then
+	if not free and p.shells < Plot.price(p, id) then
 		return false
 	end
 	if free then
 		takeHeld(p, id)
 	else
-		p.shells -= new.shells
+		p.shells -= Plot.price(p, id)
 	end
 	stow(p, q.id)
 	q.id = id
@@ -542,7 +556,7 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 				break
 			end
 			local free = Plot.held(p, id) > 0
-			if not free and p.shells < def.shells then
+			if not free and p.shells < Plot.price(p, id) then
 				why = "money"
 				break
 			end
@@ -550,7 +564,7 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 				if free then
 					takeHeld(p, id)
 				else
-					p.shells -= def.shells
+					p.shells -= Plot.price(p, id)
 				end
 				local uid = p.nextId
 				p.nextId += 1
@@ -684,7 +698,7 @@ function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, an
 				break
 			end
 			local free = Plot.held(p, id) > 0
-			if not free and p.shells < def.shells then
+			if not free and p.shells < Plot.price(p, id) then
 				why = "money"
 				break
 			end
@@ -692,7 +706,7 @@ function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, an
 				if free then
 					takeHeld(p, id)
 				else
-					p.shells -= def.shells
+					p.shells -= Plot.price(p, id)
 				end
 				local uid = p.nextId
 				p.nextId += 1
@@ -750,14 +764,16 @@ function Plot.move(p: Profile, i: number, x: number, z: number, rot: number): (b
 end
 
 -- What replacing piece `q` with `id` costs: the new one's price less what clearing the old away gives back (never
--- below nothing).
-function Plot.replaceCost(q: Piece, id: string): { shells: number }?
+-- below nothing). `p`: the player (or their view), for Plot.price (the Free Decor pass); nil: the list prices.
+function Plot.replaceCost(q: Piece, id: string, p: any?): { shells: number }?
 	local old, new = Buildings.byId[q.id], Buildings.byId[id]
 	if old == nil or new == nil then
 		return nil
 	end
+	local newP = if p then Plot.price(p, id) else new.shells
+	local oldP = if p then Plot.price(p, q.id) else old.shells
 	return {
-		shells = math.max(0, new.shells - math.floor(old.shells * Tuning.Refund)),
+		shells = math.max(0, newP - math.floor(oldP * Tuning.Refund)),
 	}
 end
 
@@ -799,7 +815,7 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if new.kind == "nest" and new.slots > old.slots and Plot.housing(p.plot.placed) - old.slots + new.slots > Plot.housingLimit(p.tier) then
 		return false, "huts" :: ErrCode
 	end
-	local cost = Plot.replaceCost(q, id) :: { shells: number }
+	local cost = Plot.replaceCost(q, id, p) :: { shells: number }
 	if p.shells < cost.shells then
 		return false, "money" :: ErrCode
 	end
@@ -858,10 +874,7 @@ function Plot.refit(p: Profile): (number, number)
 			-- (the tree is never cleared away: it stays where it stood)
 			table.insert(kept, q)
 		else
-			local def = Buildings.byId[q.id]
-			if def then
-				p.shells += def.shells
-			end
+			p.shells += Plot.price(p, q.id)
 			for _, x in p.pals do
 				if x.work == q.uid then
 					x.work = 0
@@ -962,7 +975,7 @@ function Plot.sellHeld(p: Profile, id: string, n: number): (boolean, any)
 		return false, "not_found" :: ErrCode
 	end
 	local k = math.min(have, math.floor(n))
-	local got = math.floor(def.shells * Tuning.Refund) * k
+	local got = math.floor(Plot.price(p, id) * Tuning.Refund) * k
 	if have > k then
 		inv[id] = have - k
 	else

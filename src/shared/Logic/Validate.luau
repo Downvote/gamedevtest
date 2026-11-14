@@ -13,9 +13,15 @@
 --   "edges"  1 to 40 edges "x,z,r" joined by ";", each a coord and r 0 or 90 (fences drawn or taken down: Plot.fence)
 --   "tiles"  which tiles an eraser takes up: "path", "water" or "all"
 --   "group"  what Build mode's Remove all takes away: "pieces", "tiles" or "fences"
+--   "slot"   a cosmetics slot (Data/Cosmetics.SLOTS: "hat", "face", "neck", "back", "hand", "top")
+--   "lookid" a string of 0-24 letters, digits or underscores (a cosmetic or a title; "" for none)
+--   "level"  a whole number in [1, 30] (a pass track level)
+--   "bool"   true or false
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
 local Traits = require(script.Parent.Parent.Data.Traits)
+local Cosmetics = require(script.Parent.Parent.Data.Cosmetics)
+local Track = require(script.Parent.Parent.Data.Track)
 
 local Validate = {}
 
@@ -42,6 +48,14 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["tut.next"] = {},
 	["quest.claim"] = {},
 	["char.home"] = {},
+	-- the store (GAME_DESIGN 14): wearing a cosmetic or a title, buying from the rotating shop, the pass track's rewards,
+	-- hatching a bag egg, VIP's daily gift
+	["look.wear"] = { slot = "slot", id = "lookid" },
+	["title.set"] = { id = "lookid" },
+	["shop.buy"] = { id = "id" },
+	["track.claim"] = { lvl = "level", prem = "bool" },
+	["bag.hatch"] = { id = "int", swap = "int" },
+	["vip.daily"] = {},
 }
 Validate.ACTIONS = ACTIONS
 
@@ -92,6 +106,14 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 1, 8192)
 	elseif kind == "key" then
 		return type(v) == "string" and SETTINGS[v] == true
+	elseif kind == "slot" then
+		return type(v) == "string" and Cosmetics.bySlot[v] ~= nil
+	elseif kind == "lookid" then
+		return type(v) == "string" and #v <= 24 and (v == "" or string.match(v, "^[%w_]+$") ~= nil)
+	elseif kind == "level" then
+		return isInt(v, 1, Track.LEVELS)
+	elseif kind == "bool" then
+		return type(v) == "boolean"
 	elseif kind == "any" then
 		local t = type(v)
 		return t == "string" and #v <= 32 or t == "number" or t == "boolean"

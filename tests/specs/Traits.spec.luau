@@ -36,9 +36,10 @@ return function()
 		end
 	end)
 
-	T.it("nine families of four tiers and the flaws; a higher tier gives more", function()
-		-- (the Angler family went with fishing on 2026-11-14: below)
-		T.eq(#Traits.families, 9)
+	T.it("eight families of four tiers and the flaws; a higher tier gives more", function()
+		-- (the Angler family went with fishing on 2026-11-14, the Leafy family with the tree's shorter waits the same day:
+		-- below)
+		T.eq(#Traits.families, 8)
 		for _, f in Traits.families do
 			for tier = 1, 4 do
 				local m = Traits.byId[f.family .. tier]
@@ -113,11 +114,14 @@ return function()
 		T.eq(Traits.workAt({ work = -3 }, "farm"), -0.5, "never below -50%")
 		T.eq(Traits.describe({ cost = -0.3, farm = 0.27 }), "+27% at farms, eggs cost 30% less")
 		T.eq(Traits.describe({ work = -0.15 }), "-15% work")
-		T.eq(Traits.describe({ charm = 2, sell = 0.7, tree = 0.08, luck = 0.1 }), "+70% sell price, +2 charm, eggs 8% sooner, +10% egg luck")
+		T.eq(Traits.describe({ charm = 2, sell = 0.7, luck = 0.1 }), "+70% sell price, +2 charm, +10% egg luck")
+		-- (nothing brings the tree's eggs sooner any more: a `tree` share isn't one of the keys)
+		T.eq(Traits.describe({ tree = 0.08 }), "")
 		T.eq(Traits.describe({}), "")
 	end)
 	T.it("cleaning a save's list: known ids, a family once, at most four", function()
-		T.deepEq(Traits.clean({ "swift2", "swift4", "x", 5, "lazy", "busy1", "fierce1", "armor3", "bright1" }), { "swift2", "lazy", "fierce1", "armor3" }, "Lazy and Diligent: one family")
+		-- (a saved Leafy one is Lucky of the same tier since 2026-11-14)
+		T.deepEq(Traits.clean({ "swift2", "swift4", "x", 5, "lazy", "busy1", "fierce1", "armor3", "bright1" }), { "bright2", "lazy", "fierce1", "armor3" }, "Lazy and Diligent: one family")
 		T.eq(Traits.byId.frail.blurb, "eggs cost 25% more")
 		T.eq(Traits.byId.sturdy2.blurb, "eggs cost 30% less")
 		T.eq(Traits.byId.fierce3.name, "Golden")

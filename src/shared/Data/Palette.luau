@@ -87,6 +87,9 @@ local ORDER: { string } = {
 	"coral",
 	"straw",
 	"brick",
+	-- (more skins for the founders: Data/Looks, 2026-11-14)
+	"skin5",
+	"skin6",
 }
 
 -- Rich, warm colours (the request of 2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use
@@ -175,6 +178,8 @@ local COLORS: { [string]: number } = {
 	coral = 0xFD8D7A,
 	straw = 0xF1C95D,
 	brick = 0xC04B2E,
+	skin5 = 0x5E3826,
+	skin6 = 0xFFD7C7,
 }
 
 -- The office tiers' surfaces (Data/Office: theme per tier). floor_a / floor_b: the two floor tile tones, wall /

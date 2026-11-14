@@ -388,7 +388,7 @@ return function()
 		T.near(sum, 1, 1e-9)
 	end)
 
-	T.it("the huts' tree, luck and cost shares: eggs sooner, luckier and cheaper, each capped", function()
+	T.it("the huts' luck and cost shares: eggs luckier and cheaper, each capped; the tree's 10 minutes never shorter", function()
 		local p = fresh()
 		build(p, "lumber")
 		build(p, "pier")
@@ -398,12 +398,18 @@ return function()
 		T.near(base, Tuning.EggSecs, 1e-9)
 		local l0 = Tree.luck(p)
 		local c0 = Tree.cost(p, 3)
-		pal(p, "gullfin", { "swift4", "bright4", "sturdy4" }) -- its passive's tree share and three big mutations
-		T.truthy(Tree.secs(p) < base, "sooner")
+		pal(p, "gullfin", { "swift4", "bright4", "sturdy4" }) -- its passive (once a tree share, egg luck now) and three big mutations
+		T.eq(Tree.secs(p), Tuning.EggSecs, "the tree keeps its time (the request of 2026-11-14)")
+		T.eq(Tuning.EggSecs, 600, "ten minutes")
 		T.truthy(Tree.luck(p) > l0, "luckier")
 		T.truthy(Tree.cost(p, 3) < c0, "cheaper")
-		local tree, luck, cost = Tree.hutFx(p)
-		T.truthy(tree <= Tuning.HutTree and luck <= Tuning.HutLuck and cost <= Tuning.HutCost)
+		local luck, cost = Tree.hutFx(p)
+		T.truthy(luck <= Tuning.HutLuck and cost <= Tuning.HutCost)
+		-- only the Quick Tree pass makes it five
+		p.passes.QuickTree = true
+		T.eq(Tree.secs(p), Tuning.EggSecsPass)
+		T.eq(Tuning.EggSecsPass, 300, "five minutes")
+		p.passes.QuickTree = nil
 		T.eq(Tree.cost(p, 3), math.max(1, math.floor(Tuning.EggPrice[3] * (1 - cost) + 0.5)))
 	end)
 

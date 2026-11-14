@@ -1,9 +1,46 @@
 --!strict
 -- Every Roblox id (game passes, developer products, badges, sounds). Pure. 0 = not created yet: every call site
--- checks that an id is set before using it. This first version sells nothing (GAME_DESIGN 10).
+-- checks that an id is set before using it (Monetization.isEnabled). The store (GAME_DESIGN 14): create each pass and
+-- product on the Creator Dashboard (Monetization > Passes / Developer Products) and put its id here; until then the
+-- Store shows it with its suggested price and says it isn't on sale yet.
 local Monetization = {
-	GamePasses = {} :: { [string]: number },
-	DevProducts = {} :: { [string]: number },
+	-- the game passes (Logic/Store.owns reads Profile.passes, set from these at every join and on a purchase)
+	GamePasses = {
+		VIP = 0, -- +25% shells, a welcome gift (shells, four eggs, six cosmetics, the VIP title) and a gift every day
+		DoubleIncome = 0, -- every shell x2
+		QuickTree = 0, -- the Tree of Life lays every 5 minutes in place of 10
+		FreeDecor = 0, -- decor, paths, water and fences cost nothing
+		PremiumTrack = 0, -- the pass track's premium side, this season and every one after
+	} :: { [string]: number },
+	-- the developer products (MonetizationService: ProcessReceipt, Logic/Store.product)
+	DevProducts = {
+		EggUncommon = 0, -- an egg of that rarity into the bag, to hatch for nothing (any kind of that rarity)
+		EggRare = 0,
+		EggEpic = 0,
+		EggLegendary = 0,
+		EggMythic = 0,
+		EggCelestial = 0,
+		RefreshShop = 0, -- a new set of pieces in the rotating shop
+		StarterPack = 0, -- once: shells, an epic and a legendary egg, the Explorer set and the Early Bird title
+		HatcheryNow = 0, -- every egg in the Hatcheries hatches now
+	} :: { [string]: number },
+	-- what each should cost (set the real price on the Creator Dashboard; the Store shows the live price once it has it)
+	SuggestedRobux = {
+		VIP = 399,
+		DoubleIncome = 299,
+		QuickTree = 199,
+		FreeDecor = 249,
+		PremiumTrack = 349,
+		EggUncommon = 15,
+		EggRare = 35,
+		EggEpic = 75,
+		EggLegendary = 159,
+		EggMythic = 399,
+		EggCelestial = 999,
+		RefreshShop = 19,
+		StarterPack = 49,
+		HatcheryNow = 29,
+	} :: { [string]: number },
 	Badges = {
 		FirstGame = 0,
 		HallOfFame = 0,
@@ -82,5 +119,10 @@ local Monetization = {
 		},
 	} :: { [string]: { { id: number, gain: number } } },
 }
+
+-- Whether an id is set (0: not created yet).
+function Monetization.isEnabled(id: number?): boolean
+	return type(id) == "number" and id > 0
+end
 
 return table.freeze(Monetization)

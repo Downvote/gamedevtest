@@ -1,8 +1,20 @@
 --!strict
 -- Shared types (docs/ARCHITECTURE.md 3). Pure: no requires, no Roblox APIs.
 
--- The founder's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour).
-export type Look = { skin: number, hair: number, style: number, shirt: number }
+-- The founder's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour), and what they wear
+-- in each of Data/Cosmetics' slots (a cosmetic's id, absent or "" for nothing: GAME_DESIGN 14).
+export type Look = {
+	skin: number,
+	hair: number,
+	style: number,
+	shirt: number,
+	hat: string?,
+	face: string?,
+	neck: string?,
+	back: string?,
+	hand: string?,
+	top: string?,
+}
 
 -- A building or a piece of decor standing on the island (Logic/Plot): `uid` stays the same while it stands (the
 -- driftlings living or working there point at it), `id` is a Data/Buildings id, (x, z) its footprint's
@@ -36,6 +48,14 @@ export type Settings = { pixel: string, music: string? } -- music: "on" (default
 -- Hatcheries' eggs hatched (the questline counts them).
 export type Stats = { days: number, built: number, earned: number, taken: number, sold: number, best: number, hatched: number }
 
+-- An egg held in the bag (Logic/Tree.bagAdd; GAME_DESIGN 14): bought, won on the pass track, or from the starter pack
+-- or VIP; hatched for nothing whenever the player likes.
+export type Bagged = { id: number, r: number }
+
+-- The pass track (Data/Track; Logic/Store): the season these points are for (Logic/Store.season), the points, and the
+-- levels whose free and premium rewards were claimed.
+export type Track = { s: number, xp: number, got: { number }, gotP: { number } }
+
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
 -- the kind and its mutations) and the island turns left (it hatches into a hut with room at the turn it reaches 0).
 export type Egg = { uid: number, a: number, b: number, sp: string, muts: { string }, left: number }
@@ -60,6 +80,17 @@ export type Profile = {
 	-- Build mode's inventory: pieces taken away, waiting to go down again for nothing (piece id -> how many; Logic/Plot,
 	-- GAME_DESIGN 4.5; 2026-11-14)
 	inv: { [string]: number },
+	-- the store (GAME_DESIGN 14; Logic/Store; 2026-11-14)
+	passes: { [string]: boolean }, -- game passes owned (Config/Monetization keys), checked again at every join
+	receipts: { string }, -- the last developer product purchases paid (their PurchaseIds: never paid twice)
+	gifts: { [string]: boolean }, -- one-time gifts given: "starter", "vip"
+	vipDay: number, -- the UTC day VIP's daily gift was last claimed
+	bag: { Bagged }, -- eggs held to hatch for nothing
+	owned: { [string]: boolean }, -- cosmetics owned (Data/Cosmetics ids)
+	titles: { [string]: boolean }, -- titles earned (Data/Titles ids)
+	title: string, -- the title worn ("" none)
+	shop: { at: number, n: number }, -- the rotating shop: the rotation the refreshes are for, and how many were bought
+	track: Track,
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -87,6 +118,24 @@ export type ClientView = {
 	charm: number,
 	charmBonus: number, -- the share charm adds to every shell the island makes (Logic/Island.charmBonus: 0.25 = +25%)
 	nests: number, -- the huts' room
+	-- the store (GAME_DESIGN 14)
+	passes: { [string]: boolean },
+	gifts: { [string]: boolean },
+	vipDay: number,
+	bag: { Bagged },
+	owned: { [string]: boolean },
+	titles: { [string]: boolean },
+	title: string,
+	shopList: { string }, -- the rotating shop's pieces now (Logic/Store.shopNow)
+	shopLeft: number, -- seconds till the shop turns over
+	shopRefresh: number, -- the refreshes bought in this rotation
+	track: Track,
+	trackLevel: number, -- the levels reached this season (Logic/Store.level)
+	trackInto: number, -- points into the next level
+	trackNeed: number, -- points the next level costs
+	trackLeft: number, -- seconds till the season ends
+	minuteShells: number, -- a minute of what the island makes now (the shells rewards: Logic/Store.minutes)
+	incomeMult: number, -- what the passes multiply the island's shells by (Logic/Island.passMult)
 }
 
 export type ErrCode =

@@ -19,6 +19,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local StreetModels = require(ReplicatedStorage.Shared.Models.StreetModels)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
@@ -360,15 +361,20 @@ function PlotService.sync(s: S)
 	set("Charm", Island.charm(p))
 	set("Pals", table.concat(pals, ";"))
 	local eggs = {}
-	for _, e in p.clutch.list do
-		-- ("id.r", or "id.r.wx" for an egg the weather touched: every client marks it, GAME_DESIGN 13)
+	for _, e in Tree.shown(p) do
+		-- ("id.r", or "id.r.wx" for an egg the weather touched: every client marks it, GAME_DESIGN 13; the rarest
+		-- Tuning.EggShown of the lot: the ring's room)
 		table.insert(eggs, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
 	set("Eggs", table.concat(eggs, ";"))
-	local f = p.founder
-	local look = string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt)
+	-- the founder's look (Data/Looks.encode: the colours and style, then the pieces worn) and the title worn (a
+	-- Data/Titles id, "" none): every client draws the founder and the name tag over them from these (GAME_DESIGN 14)
+	local look = Looks.encode(p.founder :: any)
 	if s.player:GetAttribute("Founder") ~= look then
 		s.player:SetAttribute("Founder", look)
+	end
+	if s.player:GetAttribute("Title") ~= p.title then
+		s.player:SetAttribute("Title", p.title)
 	end
 	s.player:SetAttribute("Plot", s.plot)
 end

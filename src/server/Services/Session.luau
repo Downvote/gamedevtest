@@ -11,6 +11,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
+local Store = require(ReplicatedStorage.Shared.Logic.Store)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -25,6 +26,8 @@ export type S = {
 	dirty: boolean,
 	saveAt: number,
 	reqTimes: { number },
+	minuteClock: number?, -- seconds toward the pass track's next minute of points (GAME_DESIGN 14)
+	shopRot: number?, -- the rotating shop's rotation last sent
 }
 
 local Session = {}
@@ -65,6 +68,11 @@ end
 function Session.view(s: S): Types.ClientView
 	local p = s.profile
 	local r = Island.rates(p)
+	local now = WorldClock.now()
+	Store.sync(p, now)
+	local shopList, shopLeft = Store.shopNow(p, now)
+	local lvl, into, need = Store.level(p)
+	local _, trackLeft = Store.season(now)
 	return {
 		shells = p.shells,
 		day = p.day,
@@ -89,6 +97,24 @@ function Session.view(s: S): Types.ClientView
 		charm = Island.charm(p),
 		charmBonus = Island.charmBonus(Island.charm(p)),
 		nests = Island.nests(p),
+		-- the store (GAME_DESIGN 14)
+		passes = p.passes,
+		gifts = p.gifts,
+		vipDay = p.vipDay,
+		bag = p.bag,
+		owned = p.owned,
+		titles = p.titles,
+		title = p.title,
+		shopList = shopList,
+		shopLeft = shopLeft,
+		shopRefresh = Store.refreshes(p, now),
+		track = p.track,
+		trackLevel = lvl,
+		trackInto = into,
+		trackNeed = need,
+		trackLeft = trackLeft,
+		minuteShells = Store.perMinute(p),
+		incomeMult = Island.passMult(p),
 	}
 end
 

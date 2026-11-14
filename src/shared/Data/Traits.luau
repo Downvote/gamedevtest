@@ -5,8 +5,10 @@
 -- have mutations like before"). Pure.
 --   Effects (`Fx`): at work, shares added to its help: work (any building), farm, wood, shop (the buildings of that
 --   knack: the Work tab's three groups since 2026-11-14, fishing being farm work); sell (its price when sold); charm (charm it adds to the island, whole points); and while it lives in
---   a hut, for the whole island: tree (the Tree of Life lays its next eggs that much sooner), luck (its eggs that much
---   luckier) and cost (its eggs cost that much less: below 0 cheaper). 0.1 = +10%.
+--   a hut, for the whole island: luck (its eggs that much luckier) and cost (its eggs cost that much less: below 0
+--   cheaper). 0.1 = +10%. (A `tree` share, the next eggs sooner, went on 2026-11-14: "remove anything that decreases the
+--   tree of life refresh, keep it at 10 minutes throughout the whole game unless a gamepass is bought". Each passive's
+--   became that much luck.)
 --   Each species has a passive of its own (Data/Creatures `passive`); each driftling may carry up to MAX mutations
 --   (Pal.muts: ids "<family><tier>", tier 1 .. 4, or a flaw's id), rolled when it hatches.
 --   Rarity (Data/Creatures `rarity`): 1 common .. 7 celestial (RMAX): the tree lays rarer eggs less often, they cost
@@ -20,7 +22,7 @@ export type Rarity = { name: string, color: string, weight: number }
 local Traits = {}
 
 Traits.MAX = 4 -- mutations a driftling carries at most
-Traits.KEYS = { "work", "farm", "wood", "shop", "cost", "sell", "charm", "tree", "luck" }
+Traits.KEYS = { "work", "farm", "wood", "shop", "cost", "sell", "charm", "luck" }
 
 -- The rarities: their names, colours (UIKit / Palette keys) and how often the tree lays each (weights, before luck).
 Traits.RARITY = {
@@ -44,7 +46,6 @@ local FAMILIES: { { family: string, key: string, names: { string }, values: { nu
 	{ family = "sturdy", key = "cost", names = { "Thrifty", "Frugal", "Modest", "Selfless" }, values = { -0.15, -0.3, -0.5, -0.8 } },
 	{ family = "fierce", key = "sell", names = { "Shiny", "Glossy", "Golden", "Radiant" }, values = { 0.3, 0.7, 1.5, 3 } },
 	{ family = "armor", key = "charm", names = { "Cute", "Sweet", "Adorable", "Beloved" }, values = { 1, 2, 3, 5 } },
-	{ family = "swift", key = "tree", names = { "Leafy", "Blooming", "Lush", "Evergreen" }, values = { 0.04, 0.08, 0.14, 0.22 } },
 	{ family = "bright", key = "luck", names = { "Lucky", "Blessed", "Fortunate", "Starborn" }, values = { 0.05, 0.1, 0.18, 0.3 } },
 	{ family = "busy", key = "work", names = { "Busy", "Diligent", "Tireless", "Workaholic" }, values = { 0.08, 0.15, 0.25, 0.4 } },
 	{ family = "grower", key = "farm", names = { "Green Thumb", "Grower", "Harvester", "Bountiful" }, values = { 0.12, 0.24, 0.4, 0.65 } },
@@ -62,7 +63,8 @@ local WEATHER_FAMILIES: { { family: string, key: string, names: { string }, valu
 	{ family = "sunny", weather = "haze", key = "shop", names = { "Warm", "Sunbaked", "Sunkissed", "Midsummer" }, values = { 0.1, 0.2, 0.35, 0.55 } },
 	{ family = "bloomy", weather = "blossom", key = "charm", names = { "Budding", "Petalled", "Flowering", "Springborn" }, values = { 1, 2, 3, 5 } },
 	{ family = "autumn", weather = "leaves", key = "wood", names = { "Russet", "Amber", "Copper", "Goldleaf" }, values = { 0.1, 0.2, 0.35, 0.55 } },
-	{ family = "misty", weather = "fog", key = "tree", names = { "Misty", "Foggy", "Veiled", "Phantom" }, values = { 0.03, 0.06, 0.1, 0.16 } },
+	-- (fog's brought the tree's eggs sooner until 2026-11-14: the tree keeps its 10 minutes now, so it helps the price)
+	{ family = "misty", weather = "fog", key = "sell", names = { "Misty", "Foggy", "Veiled", "Phantom" }, values = { 0.2, 0.45, 0.9, 1.8 } },
 	{ family = "stormy", weather = "storm", key = "luck", names = { "Gusty", "Stormborn", "Thunderous", "Tempest" }, values = { 0.06, 0.12, 0.2, 0.32 } },
 }
 
@@ -72,7 +74,7 @@ local FLAWS: { { id: string, family: string, name: string, key: string, value: n
 	{ id = "frail", family = "sturdy", name = "Greedy", key = "cost", value = 0.25 },
 	{ id = "timid", family = "fierce", name = "Dull", key = "sell", value = -0.2 },
 	{ id = "clumsy", family = "armor", name = "Grumpy", key = "charm", value = -1 },
-	{ id = "sluggish", family = "swift", name = "Sluggish", key = "work", value = -0.08 },
+	{ id = "sluggish", family = "busy", name = "Sluggish", key = "work", value = -0.08 },
 	{ id = "lazy", family = "busy", name = "Lazy", key = "work", value = -0.15 },
 }
 
@@ -187,8 +189,9 @@ function Traits.workAt(fx: Fx, knack: string): number
 end
 
 -- Families that went, and the family a saved one of theirs becomes (the Angler family helped at fishing: since
--- 2026-11-14 fishing is farm work, so an Angler is a Green Thumb of the same tier).
-local RENAMED: { [string]: string } = { angler = "grower" }
+-- 2026-11-14 fishing is farm work, so an Angler is a Green Thumb of the same tier; the Leafy family brought the tree's
+-- eggs sooner: since the same day the tree keeps its time, so a Leafy one is Lucky of the same tier).
+local RENAMED: { [string]: string } = { angler = "grower", swift = "bright" }
 local function renamed(id: string): string
 	local fam, tier = string.match(id, "^(%a+)(%d)$")
 	local to = if fam then RENAMED[fam] else nil
@@ -214,7 +217,7 @@ function Traits.clean(muts: any): { string }
 	return out
 end
 
--- An effect's words for the panels ("+24% at farms", "eggs cost 30% less", "eggs 8% sooner", "+2 charm").
+-- An effect's words for the panels ("+24% at farms", "eggs cost 30% less", "+2 charm").
 local WORDS: { [string]: string } = {
 	work = "work",
 	farm = "at farms",
@@ -230,8 +233,6 @@ function Traits.describe(fx: Fx): string
 		if v and math.abs(v) > 1e-6 then
 			if k == "cost" then
 				table.insert(parts, string.format("eggs cost %d%% %s", math.round(math.abs(v) * 100), if v < 0 then "less" else "more"))
-			elseif k == "tree" then
-				table.insert(parts, string.format("eggs %d%% %s", math.round(math.abs(v) * 100), if v > 0 then "sooner" else "later"))
 			elseif k == "charm" then
 				table.insert(parts, string.format("%s%d charm", if v > 0 then "+" else "", math.round(v)))
 			else

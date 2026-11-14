@@ -17,11 +17,13 @@ local Session = require(Services.Session)
 local Router = require(Services.Router)
 local PlotService = require(Services.PlotService)
 local IslandService = require(Services.IslandService)
+local MonetizationService = require(Services.MonetizationService)
 
 DataService.init()
 PlotService.init()
 Router.init()
 IslandService.init()
+MonetizationService.init()
 
 local function join(player: Player)
 	PlotService.watchCharacters(player)
@@ -48,6 +50,8 @@ local function join(player: Player)
 	PlotService.placeCharacter(s)
 	Session.markDirty(s)
 	Session.flush(s)
+	-- the passes the player owns (GAME_DESIGN 14: checked at every join)
+	MonetizationService.join(s)
 end
 
 local function leave(player: Player)

@@ -16,6 +16,7 @@ local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Weather = require(ReplicatedStorage.Shared.Logic.Weather)
+local Store = require(ReplicatedStorage.Shared.Logic.Store)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
 local Router = require(script.Parent.Router)
@@ -141,6 +142,7 @@ function IslandService.init()
 	Router.on("island.expand", function(s, _a)
 		local ok, data = Island.expand(s.profile)
 		if ok then
+			Store.addXp(s.profile, "expand")
 			-- (a bigger island: the tree lays its extra eggs at once, in the weather now)
 			local laid = Tree.fill(s.profile, s.rng, Weather.at(WorldClock.now()))
 			PlotService.build(s)
@@ -163,6 +165,7 @@ function IslandService.init()
 	Router.on("egg.hatch", function(s, a)
 		local ok, data = Tree.hatch(s.profile, a.id, a.swap, s.rng)
 		if ok then
+			Store.addXp(s.profile, "egg")
 			tips(s)
 			Session.fx(s, { kind = "hatched", data = data })
 		end
@@ -181,6 +184,40 @@ function IslandService.init()
 	-- the founder's look (GAME_DESIGN 9): the player's attribute follows on the next sync
 	Router.on("founder.set", function(s, a)
 		return Island.setFounder(s.profile, a.skin, a.hair, a.style, a.shirt)
+	end)
+	-- the store (GAME_DESIGN 14): a cosmetic or a title worn (the attributes follow on the next sync), a piece bought
+	-- from the rotating shop, a pass track reward claimed, a bag egg hatched (no shells), VIP's daily gift
+	Router.on("look.wear", function(s, a)
+		return Store.wear(s.profile, a.slot, a.id)
+	end)
+	Router.on("title.set", function(s, a)
+		return Store.setTitle(s.profile, a.id)
+	end)
+	Router.on("shop.buy", function(s, a)
+		return Store.buy(s.profile, a.id, WorldClock.now())
+	end)
+	Router.on("track.claim", function(s, a)
+		local ok, data = Store.claim(s.profile, a.lvl, a.prem, WorldClock.now())
+		if ok then
+			Session.fx(s, { kind = "rewards", from = "track", given = data.given })
+		end
+		return ok, data
+	end)
+	Router.on("bag.hatch", function(s, a)
+		local ok, data = Tree.hatchBag(s.profile, a.id, a.swap, s.rng)
+		if ok then
+			Store.addXp(s.profile, "egg")
+			tips(s)
+			Session.fx(s, { kind = "hatched", data = data })
+		end
+		return ok, data
+	end)
+	Router.on("vip.daily", function(s, _a)
+		local ok, data = Store.vipDaily(s.profile, WorldClock.now())
+		if ok then
+			Session.fx(s, { kind = "rewards", from = "vip", given = data.given })
+		end
+		return ok, data
 	end)
 	Router.on("settings.set", function(s, a)
 		if a.k == "pixel" and type(a.v) == "string" and PIXEL_TIERS[a.v] then
@@ -205,6 +242,7 @@ function IslandService.init()
 	Router.on("quest.claim", function(s, _a)
 		local ok, data = Quest.claim(s.profile)
 		if ok then
+			Store.addXp(s.profile, "quest")
 			Session.fx(s, { kind = "quest", data = data })
 			-- (the next quest may ask for a rarity: its egg under the tree at once)
 			questEgg(s)
@@ -245,6 +283,7 @@ function IslandService.step(dt: number)
 			s.turnClock -= Tuning.TurnSeconds
 			-- the eggs a turn nearer; the ready ones hatch into a hut with room
 			local hatched, fresh = Breed.turn(p)
+			Store.addXp(p, "breed", #hatched)
 			Session.markDirty(s)
 			Session.fx(s, { kind = "turn", hatched = if #hatched > 0 then hatched else nil, fresh = if #fresh > 0 then fresh else nil })
 		end
@@ -260,7 +299,30 @@ function IslandService.step(dt: number)
 			-- (the quest's egg, once a second: a save loaded with such a quest on the go, or anything else that left
 			-- the lot without one)
 			questEgg(s)
-			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = WorldClock.now(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
+			-- the store (GAME_DESIGN 14): titles earned by play (Fx "titles"), a new season of the pass track, a minute's
+			-- points, a new set in the rotating shop
+			local now = WorldClock.now()
+			local titles = Store.earn(p)
+			if #titles > 0 then
+				Session.markDirty(s)
+				Session.fx(s, { kind = "titles", ids = titles })
+			end
+			if Store.sync(p, now) then
+				Session.markDirty(s)
+			end
+			local mc = (s.minuteClock or 0) + 1
+			s.minuteClock = mc
+			if mc >= 60 then
+				s.minuteClock = mc - 60
+				Store.addXp(p, "minute")
+				Session.markDirty(s)
+			end
+			local rot = Store.rotation(now)
+			if s.shopRot ~= rot then
+				s.shopRot = rot
+				Session.markDirty(s)
+			end
+			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = now, clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
 		end
 	end
 end
