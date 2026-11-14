@@ -100,7 +100,7 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > egg of that rarity will always spawn in the tree of life. also, make the pallette more pinkish, changing the sand
 > pink and the rest of the pallette to match. also, right now, the models simply move by rotating or moving parts of the
 > mesh around. please use bones and rigging to make more realistic and detailed movement. follow and use as many
-> animation principles when animating as well." (Audio `crack`, `crack_open`; HatchScene's `RISE` and `liftOf`;
+> animation principles when animating as well." (Audio `crack`, `crack_open`; HatchScene's `DROP` and `liftOf`;
 > AvatarView's ground ray `RespectCanCollide`; `Tree.wanted` and `Tree.ensure`; `Data/Palette` with pink sand, then
 > "not that pink, i meant a light pink, close to the color of actual sand"; `Models/DriftRig` and `Models/DriftMotion`) Then "also, expanding the island dosent have a good
 > transition, it simply make the new land appear out of nowhere. could you make a transition such that it feels like the
@@ -1463,8 +1463,26 @@ as one, and taps while the egg rises wait), `isOpen()`, `setQuick(on)` (sims: it
 `debugState()` (`{ open, phase ("egg", "breaking", "hatched", "done"), r, hr, clock, lift, reveals, left, crack, shake,
 shown, muts, rays, shards, pal, egg, glowing, title, name, fresh }`; `shake` how hard it shakes this frame): `fresh` the "New!" tag shown). `res.new` (the result's `new`: a kind
 never had) puts `HatchNew` beside `HatchName` when it shows: a 1-step-corner plate in `accent` with the ink outline
-and `Word` "New!" in `text_ink`, dropping 6 px into place at the name's right, ten `accent` dots and Audio "sparkle". The egg rises into view over `RISE` 0.95 s from `RISE_FROM` 7 studs under
-its spot (`liftOf(clock)`: an ease-out-back about 5% past it; the rays open out with it; "sparkle" as it arrives).
+and `Word` "New!" in `text_ink`, dropping 6 px into place at the name's right, ten `accent` dots and Audio "sparkle". The egg drops in (2026-11-14, in place of rising from below):
+`liftOf(clock)` is its height over its resting spot, `DROP_FROM` 9 studs falling to 0 over `FALL` 0.52 s (gravity),
+then the bounces `BOUNCE` { 0.75, 0.2 } studs over `BOUNCE_T` { 0.3, 0.18 } s (arcs), `DROP` 1 s in all (taps wait).
+It rests with its lowest slice on the pedestal's top at `FLOAT_Y` (`footY(r)` = `FLOAT_Y - EggModels.heroBottom(h)`);
+the first landing calls `landed(s, 1)` (Audio "pop" low, a kick of 0.35, ten dust dots from its foot), "sparkle" and
+`HatchBackdrop.land()`; the second `landed(s, 0.45)`. What hatched stands at `FLOAT_Y`. `debugState().rings` is
+`HatchBackdrop.rings()`. `backdrop(s)` passes the pedestal: its top centre (`projectPixel` of the spot at `FLOAT_Y`) and
+half width (the egg's widest, 0.37 h, times 2, along the camera's flat right). `HatchBackdrop.show(r, ex, ey, base?)`
+paints it (`BASES` by rarity: top, topLit, side lit, side, sideDark, trim, gem, ink, flower, ring): the column under it
+(0.58 of the half width, fluted every 4 px, dithered darker toward the foot, down past the picture's bottom), the side
+(joints every 9 px, the trim band at its foot), the top (lit rim, inlaid ring, the egg's dithered shadow, gems from rare
+up), the ink outline of the whole, two tufts on the rim; then the foreground tufts and the dithered corners for every
+sky. The skies have no clouds, no trees on the hills and no islets since 2026-11-14 (`Sky` lost `clouds` and `trees`;
+`hash2(x, y)` scatters pixels without lines). The rings: their own `EditableImage` ("Rings" on the
+HatchSky layer, 2 x half width by 0.84 x, centred on the top), redrawn each step while any spread: `land()` starts one
+and sets them going every `RING_EVERY` 0.85 s, each widening from half to 0.97 of the half width over `RING_LIFE` 1.7 s
+(ease out), a midpoint ellipse (height 0.42 of its width) in `ring`, then two steps toward the top's colour.
+`EggModels.hero` gives each shell slice `PixelTex` (`DynTex.EGG[r]`), `PixelTexV` (its height, so the slices share one
+pattern), `PixelTexSeed` (11 + r) and `PixelTexSoft` 0.8; PixelRenderer's dynamic parts read those three (texV, texSeed,
+texSoft; `texOpt` in the draw). `EggModels.heroBottom(h)` is the lowest slice's reach under the foot.
 Each reveal tap plays Audio `crack` (pitch up with `crack`), and so does the tap that hatches it; the hatch plays
 `crack_open`. The egg shakes as it cracks (`stepEgg`; the request of 2026-11-14: "Make eggs shake while being cracked
 open"): a tap's shake (`kick`, 1 for a step up, 0.6 for a mutation) rocks it on its foot about the line the camera looks

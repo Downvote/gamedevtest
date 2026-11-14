@@ -428,8 +428,11 @@ S("bombfuse", [
 # with brown freckles, an uncommon one green with a white zigzag band, a rare one sky blue with white stars, an epic one
 # purple with pink spots, a legendary one gold with a band of light, a mythic one rose with a white crescent moon and
 # a white band, a celestial one night blue with a little constellation of white and cyan stars.
+# (an egg, not an oval: the top narrower, the widest a little low, the base fuller: "The eggs also look too much
+# like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14)
 EGG = [
     "....AAAA....",
+    "...AAAAAA...",
     "...AAAAAA...",
     "..AAAAxAAA..",
     "..AAAAAAAA..",
@@ -442,11 +445,11 @@ EGG = [
     "AAxxAAAxAAAA",
     ".AAAAAAxxAA.",
     ".AAAAAAAAAA.",
-    "..AAAAAAAA..",
-    "....AAAA....",
+    "...AAAAAA...",
 ]
 EGG_BAND = [
     "....AAAA....",
+    "...AAAAAA...",
     "...AAAAAA...",
     "..AAAAAAAA..",
     "..AAAAAAAA..",
@@ -459,11 +462,11 @@ EGG_BAND = [
     "AAAAAAAAAAAA",
     ".AAAAAAAAAA.",
     ".AAAAAAAAAA.",
-    "..AAAAAAAA..",
-    "....AAAA....",
+    "...AAAAAA...",
 ]
 EGG_MOON = [
     "....AAAA....",
+    "...AAAAAA...",
     "...AAAAAA...",
     "..AAAAAAAA..",
     "..AAAxxAAA..",
@@ -476,11 +479,11 @@ EGG_MOON = [
     "AAAAAAAAAAAA",
     ".AAAAAAAAAA.",
     ".AAAAAAAAAA.",
-    "..AAAAAAAA..",
-    "....AAAA....",
+    "...AAAAAA...",
 ]
 EGG_STARS = [
     "....AAAA....",
+    "...AAAAAA...",
     "...AAAAyA...",
     "..AAAAAAAA..",
     "..AxAAAAAA..",
@@ -493,8 +496,7 @@ EGG_STARS = [
     "AAAAAAAAAAAA",
     ".AAAAAAAAxA.",
     ".AAAzAAAAAA.",
-    "..AAAAAAAA..",
-    "....AAAA....",
+    "...AAAAAA...",
 ]
 for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w"), (EGG_MOON, "H", "w"), (EGG_STARS, "I", "w")], start=1):
     S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask], sphere={"body": _body, "light": "wyz", "dark": "np"})

@@ -131,7 +131,7 @@ type TexInfo = { kind: number, rgb: number, x0: number, y0: number, w: number, h
 type Texs = { [number]: TexInfo }
 local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
 
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
 type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean? }
@@ -1480,7 +1480,9 @@ local texCam: Raster.Cam? = nil
 local texCF: { number } = {}
 local texShape = "Block"
 local texKind = 0
-local texSeed = 0
+-- the part's pattern seed, the studs added to its v (PixelTexV: a hatch-scene egg's slices share one pattern) and how
+-- far a mark steps (PixelTexSoft)
+local texOpt = { seed = 0, v = 0, soft = DynTex.SOFT }
 local texPx = 1 -- studs a layer pixel
 local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
 	local lift = 0
@@ -1497,9 +1499,9 @@ local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: numb
 		local ly = px * cf[5] + py * cf[8] + pz * cf[11]
 		local lz = px * cf[6] + py * cf[9] + pz * cf[12]
 		local u, v = DynTex.uv(texShape, lx, ly, lz)
-		lift = DynTex.lift(texKind, u, v, texPx, texSeed)
+		lift = DynTex.lift(texKind, u, v + texOpt.v, texPx, texOpt.seed)
 	end
-	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift, DynTex.SOFT)
+	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift, texOpt.soft)
 end
 
 -- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow), cached per pixel until the static
@@ -2163,7 +2165,8 @@ local function compose()
 			if bx0 and by0 and bx1 and by1 then
 				local shade = if p.glow then shadeGlow else shadeLit
 				if texOn and p.tex > 0 then
-					texCF, texShape, texKind, texSeed = cf12, p.shape, p.tex, p.id % 97
+					texCF, texShape, texKind = cf12, p.shape, p.tex
+					texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
 					shade = shadeTex
 				end
 				Raster.drawPart(s.frame, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade)
@@ -2747,7 +2750,20 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			dynGlow[nextDyn] = glow
 			local texName = d:GetAttribute("PixelTex")
 			local tex = if glow or type(texName) ~= "string" then 0 else DynTex.kind(texName)
-			table.insert(parts, { part = d, id = nextDyn, shape = shape, glow = glow, rgb = rgb, tex = tex })
+			-- (a pattern shared by several parts: PixelTexV lifts v by studs, PixelTexSeed keeps one seed; PixelTexSoft
+			-- how far its marks step, DynTex.SOFT unless set)
+			local tv, ts, tsoft = d:GetAttribute("PixelTexV"), d:GetAttribute("PixelTexSeed"), d:GetAttribute("PixelTexSoft")
+			table.insert(parts, {
+				part = d,
+				id = nextDyn,
+				shape = shape,
+				glow = glow,
+				rgb = rgb,
+				tex = tex,
+				texV = if type(tv) == "number" then tv else 0,
+				texSeed = if type(ts) == "number" then ts else nil,
+				texSoft = if type(tsoft) == "number" then tsoft else DynTex.SOFT,
+			})
 		end
 	end
 	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self" }

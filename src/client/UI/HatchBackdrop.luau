@@ -4,20 +4,33 @@
 -- scene isnt detailed enough. add much much more detail to it, especially the egg. you are allowed to use 2d elements
 -- as well for the background". A picture drawn pixel by pixel into one EditableImage at the world's art grid (each art
 -- pixel K x K screen px, like the pixel layer), shown on a ScreenGui just behind the pixel layer: the stage's sky is
--- see-through (CameraController Stage.clear), so the floating islet with the nest stands in front of it.
+-- see-through (CameraController Stage.clear), so the egg stands in front of it.
 -- Each rarity has its own sky (a cozy sunset for a common egg, a golden afternoon, a blue twilight, a violet night, a
 -- deep gold night, and since 2026-11-14 a rose night under two moons for a mythic egg and a deep starry sky with a
 -- ringed planet and the band of the galaxy across it for a celestial one): the sky in bands with ordered dither between
 -- them (never a smear), the sun, the moons or the planet lit from the top left with anti-aliased edges, stars (single
--- pixels and little crosses), soft clouds with a 1 px outline, aurora curtains on the rarest nights, three ranges of
--- hills going darker toward the front, the nearest with round and pointed trees in outline, two little islets floating
--- far off, and a glow round the egg in dithered rings.
---   HatchBackdrop.show(r, ex, ey)   paint rarity r's sky with the egg's glow at art pixel (ex, ey) and show it
+-- pixels and little crosses), aurora curtains on the rarest nights, three ranges of hills going darker toward the
+-- front and a glow round the egg in dithered rings. (The clouds, the trees along the nearest hills and the two islets
+-- floating far off went on 2026-11-14: "For the hatch screen, remove the trees in the background, and the floating
+-- islands as well", then "Remove the clouds in the hatch screen background as well".)
+-- Since 2026-11-14 ("Polish the egg opening backgrounds even more, drawing in a base for the eggs to land on", and "add an
+-- expanding circle ring that constantly emits below each egg") a round pedestal stands where the egg comes down: its
+-- top an ellipse with a lit rim at the back left, an inlaid ring (gems on it from rare up), the egg's dithered shadow,
+-- its side lit on the left and shaded on the right with a carved band and the joints of its stones, standing on a
+-- fluted column of the same stone that rises from below the picture, a 1 px ink outline round it all, in each
+-- rarity's stone (BASES); tufts of grass and little flowers along the bottom, and
+-- the corners a dithered step darker. Once the egg has landed (`land`) rings of light spread over the pedestal's top
+-- from under it, one every RING_EVERY s, each a clean 1 px ellipse stepping from bright to faint as it widens (their
+-- own image on the sky's life layer, so the egg stands in front of them).
+--   HatchBackdrop.show(r, ex, ey, base?)   paint rarity r's sky with the egg's glow at art pixel (ex, ey) and show it;
+--                                   base { x, y, w }: the pedestal's top centre and half width, art px
+--   HatchBackdrop.land()            the egg is down: a strong ring now, then rings for as long as the backdrop shows
+--   HatchBackdrop.rings() -> number the rings spreading now (sims and previews)
 --   HatchBackdrop.step(dt)          the sky's life (a layer between the picture and the pixel layer, so the islet hides it):
 --                                   little flocks of birds flapping across a day or twilight sky, shooting stars and
 --                                   twinkling stars on a night one; all whole art pixels, solid colours
 --   HatchBackdrop.hide()            take it away (and free its image)
---   HatchBackdrop.paint(r, W, H, ex, ey) -> buffer   the picture itself (RGBA, W x H)
+--   HatchBackdrop.paint(r, W, H, ex, ey, base?) -> buffer   the picture itself (RGBA, W x H)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -37,10 +50,8 @@ type Sky = {
 	milky: number?, -- the galaxy's band of light across the sky (its colour), thick with stars
 	ring: { number }?, -- the planet's ring: lit, shade
 	twinkle: { number }?, -- the twinkling stars' colours (on screen, `step`), and how many there are with them
-	clouds: { number }?, -- fill, shade, outline
 	aurora: { number }?,
 	hills: { { number } }, -- far to near: fill, rim
-	trees: { number }, -- fill, light, outline
 	glow: number,
 	glowK: number, -- how strong (0 .. 1)
 	glowR: number, -- its radius (share of the height)
@@ -55,10 +66,8 @@ local SKIES: { Sky } = {
 		bodyC = { 0xFFEFB4, 0xFFCF7A, 0xFFB86A },
 		bodyR = 0.12,
 		stars = 0,
-		clouds = { 0xFFD9BC, 0xF2A9A2, 0xB4728E },
 		aurora = nil,
 		hills = { { 0xC995AC, 0xDDA9B9 }, { 0x9C7AA0, 0xB08DB2 }, { 0x6E5A86, 0x82709A } },
-		trees = { 0x584A74, 0x6D5D8A, 0x2F2846 },
 		glow = 0xFFF2CC,
 		glowK = 0.45,
 		glowR = 0.3,
@@ -71,10 +80,8 @@ local SKIES: { Sky } = {
 		bodyC = { 0xFFFBE0, 0xFFE9A6, 0xFFE09A },
 		bodyR = 0.08,
 		stars = 0,
-		clouds = { 0xFFFFFF, 0xE0EBE9, 0x95B0BD },
 		aurora = nil,
 		hills = { { 0xA4D8B0, 0xBEE4C2 }, { 0x7CBE8E, 0x96CEA2 }, { 0x58A070, 0x6CB282 } },
-		trees = { 0x468A60, 0x5AA06E, 0x2A5240 },
 		glow = 0xE4FFC2,
 		glowK = 0.5,
 		glowR = 0.34,
@@ -87,10 +94,8 @@ local SKIES: { Sky } = {
 		bodyC = { 0xF7F3DC, 0xDCD6B8, 0xD0C8A6 },
 		bodyR = 0.085,
 		stars = 70,
-		clouds = { 0x7281BC, 0x58669D, 0x28346C },
 		aurora = nil,
 		hills = { { 0x5064A0, 0x6277B2 }, { 0x3B4D84, 0x4B5E96 }, { 0x293762, 0x354574 } },
-		trees = { 0x213052, 0x2C3D66, 0x111A32 },
 		glow = 0xC4E8FF,
 		glowK = 0.6,
 		glowR = 0.4,
@@ -103,10 +108,8 @@ local SKIES: { Sky } = {
 		bodyC = { 0xF8ECF4, 0xDCC6E0, 0xCDB2D4 },
 		bodyR = 0.1,
 		stars = 140,
-		clouds = nil,
 		aurora = { 0x86E6C8, 0xF2A2D6 },
 		hills = { { 0x5C3F84, 0x6C4F96 }, { 0x45306A, 0x553E7C }, { 0x2E2050, 0x3A2A60 } },
-		trees = { 0x251A42, 0x33245A, 0x120B24 },
 		glow = 0xF2C0FF,
 		glowK = 0.68,
 		glowR = 0.46,
@@ -119,10 +122,8 @@ local SKIES: { Sky } = {
 		bodyC = { 0xFFEFA2, 0xFFCB5C, 0xFFB046 },
 		bodyR = 0.16,
 		stars = 110,
-		clouds = nil,
 		aurora = { 0xFFD878, 0xFF9C6A },
 		hills = { { 0x8C4C5C, 0xA05E68 }, { 0x62334F, 0x74405C }, { 0x3C1E3E, 0x4A284A } },
-		trees = { 0x2E1532, 0x3E2040, 0x16081A },
 		glow = 0xFFEAA6,
 		glowK = 0.8,
 		glowR = 0.55,
@@ -136,10 +137,8 @@ local SKIES: { Sky } = {
 		bodyR = 0.13,
 		stars = 170,
 		twinkle = { 0xFFFFFF, 0xFFC8E4, 0xFF9CCB },
-		clouds = nil,
 		aurora = { 0xFF8CC6, 0xFFD2A8 },
 		hills = { { 0x8A3A6E, 0x9E4C80 }, { 0x63285A, 0x76346A }, { 0x3E1640, 0x4C1E4E } },
-		trees = { 0x2E0F32, 0x401A44, 0x16061A },
 		glow = 0xFFC6E2,
 		glowK = 0.84,
 		glowR = 0.58,
@@ -155,14 +154,32 @@ local SKIES: { Sky } = {
 		milky = 0xB6C8FF,
 		ring = { 0xFFF0C8, 0xC8B49A },
 		twinkle = { 0xFFFFFF, 0xC4F6FF, 0xFFF0B0, 0xF8C4FF },
-		clouds = nil,
 		aurora = { 0x8CF2E8, 0xC6A8FF },
 		hills = { { 0x2C4C86, 0x3A5E98 }, { 0x1E3668, 0x2A447A }, { 0x12224A, 0x1A2E5A } },
-		trees = { 0x0E1A3A, 0x18284E, 0x050A1C },
 		glow = 0xD6F6FF,
 		glowK = 0.9,
 		glowR = 0.62,
 	},
+}
+
+-- Each rarity's pedestal (`paint`'s base): its top, the top's lit rim, its side lit, plain and shaded, the carved band
+-- and the inlaid ring, the gems, the ink, the flowers along the bottom, the rings' light.
+type Base = { top: number, topLit: number, sideLit: number, side: number, sideDark: number, trim: number, gem: number, ink: number, flower: number, ring: number }
+local BASES: { Base } = {
+	-- warm sandstone under the sunset
+	{ top = 0xD9B89E, topLit = 0xF0D6BA, sideLit = 0xC79E8A, side = 0xB08878, sideDark = 0x8C6A68, trim = 0x7E5C62, gem = 0xFFD08A, ink = 0x3A2A3E, flower = 0xFFE3A8, ring = 0xFFF4D6 },
+	-- mossy stone in the afternoon
+	{ top = 0xA2CE8E, topLit = 0xC2E6A6, sideLit = 0xBFB09A, side = 0xA89A86, sideDark = 0x847868, trim = 0x6E8E60, gem = 0xFFF2A8, ink = 0x2C3A30, flower = 0xFFF6C0, ring = 0xF4FFD8 },
+	-- pale blue stone at twilight
+	{ top = 0xB6CAE8, topLit = 0xD8E6FA, sideLit = 0xA4B8DC, side = 0x8EA2CA, sideDark = 0x6C7EAA, trim = 0x5A6A9A, gem = 0xBFF6FF, ink = 0x1C2240, flower = 0xD6F0FF, ring = 0xDFF8FF },
+	-- violet stone with pink runes
+	{ top = 0xA88ECC, topLit = 0xC6AAE4, sideLit = 0x947CBE, side = 0x7E68AA, sideDark = 0x5E4C88, trim = 0xE89CCC, gem = 0xFFBCE8, ink = 0x1C1430, flower = 0xFFB0DA, ring = 0xFFD6F2 },
+	-- cream marble trimmed with gold
+	{ top = 0xECE0C8, topLit = 0xFCF4E2, sideLit = 0xDECCAA, side = 0xC8B696, sideDark = 0xA2906E, trim = 0xF2C24E, gem = 0xFFE88C, ink = 0x2E2216, flower = 0xFFE07A, ring = 0xFFF2B4 },
+	-- rose quartz, pearl trim
+	{ top = 0xEEB4C8, topLit = 0xFAD4E0, sideLit = 0xDC9EB8, side = 0xC88AA6, sideDark = 0xA46C8A, trim = 0xFFF0F6, gem = 0xFFFFFF, ink = 0x3A1E30, flower = 0xFFD0E0, ring = 0xFFE8F2 },
+	-- dark starstone with cyan inlay
+	{ top = 0x3C4E88, topLit = 0x566AAA, sideLit = 0x32427C, side = 0x28366C, sideDark = 0x1A2452, trim = 0x80E8F2, gem = 0xD8F8FF, ink = 0x060A1E, flower = 0x9CF0FF, ring = 0xC8FAFF },
 }
 
 ------------------------------------------------------------------ colours
@@ -197,13 +214,20 @@ local function hash(n: number): number
 	return x / 2147483648
 end
 
+-- a well-mixed number for a pixel (x, y): no lines across the picture, as a plain sum of the two would draw
+local function hash2(x: number, y: number): number
+	return hash(x * 92821 + math.floor(hash(y * 7 + 13) * 1000003))
+end
+
 ------------------------------------------------------------------ painting
 -- The picture as 0xRRGGBB per pixel in a plain array (painted layer over layer), packed into RGBA at the end.
-function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number): buffer
+type BaseAt = { x: number, y: number, w: number }
+
+function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number, base: BaseAt?): buffer
 	local sky = SKIES[math.clamp(r, 1, #SKIES)]
 	local px: { number } = table.create(W * H, 0)
 	local function get(x: number, y: number): number
-		return px[y * W + x + 1]
+		return px[math.clamp(y, 0, H - 1) * W + math.clamp(x, 0, W - 1) + 1]
 	end
 	local function set(x: number, y: number, c: number)
 		if x >= 0 and y >= 0 and x < W and y < H then
@@ -406,48 +430,7 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			end
 		end
 	end
-	-- clouds: soft heaps of round puffs, a flat underside in shade, lit at the top left, a 1 px outline
-	local cl = sky.clouds
-	if cl then
-		for i = 1, 5 do
-			local cx = hash(i * 17 + r * 3) * W
-			local cy = H * (0.1 + hash(i * 29 + 7) * 0.35)
-			if math.abs(cx - bx) < br * 2.4 and math.abs(cy - by) < br * 2 then
-				continue
-			end
-			local w = H * (0.1 + hash(i * 31) * 0.1)
-			local puffs: { { number } } = {}
-			for k = 0, 4 do
-				local u = k / 4
-				table.insert(puffs, { cx - w + u * 2 * w, cy - math.sin(u * math.pi) * w * 0.35, w * (0.32 + math.sin(u * math.pi) * 0.22) })
-			end
-			local function inside(x: number, y: number): boolean
-				if y > cy + w * 0.12 then
-					return false
-				end
-				for _, pf in puffs do
-					if (x - pf[1]) ^ 2 + (y - pf[2]) ^ 2 <= pf[3] * pf[3] then
-						return true
-					end
-				end
-				return false
-			end
-			local x0, x1 = math.floor(cx - w * 1.6), math.ceil(cx + w * 1.6)
-			local y0, y1 = math.floor(cy - w * 1.2), math.ceil(cy + w * 0.3)
-			for y = y0, y1 do
-				for x = x0, x1 do
-					local here = inside(x + 0.5, y + 0.5)
-					if here then
-						local lit = not inside(x - 0.5, y - 0.5)
-						local low = y + 0.5 > cy - w * 0.08
-						set(x, y, if lit then mix(cl[1], 0xFFFFFF, 0.4) elseif low then cl[2] else cl[1])
-					elseif inside(x + 1.5, y + 0.5) or inside(x - 0.5, y + 0.5) or inside(x + 0.5, y + 1.5) or inside(x + 0.5, y - 0.5) then
-						set(x, y, cl[3])
-					end
-				end
-			end
-		end
-	end
+	-- (no clouds since 2026-11-14: "Remove the clouds in the hatch screen background as well")
 	-- the glow round the egg: rings of its light over the sky, dithered from one to the next
 	local gr = H * sky.glowR
 	for y = math.max(0, math.floor(ey - gr)), math.min(H - 1, math.ceil(ey + gr)) do
@@ -461,54 +444,9 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			end
 		end
 	end
-	-- two little islets floating far off, either side: a grassy top, a rocky cone under it, a tree, a 1 px outline
-	local far = sky.hills[1]
-	for i = 1, 2 do
-		local ix = if i == 1 then W * 0.12 else W * 0.86
-		local iy = H * (0.36 + 0.06 * i)
-		local iw = H * (0.07 - 0.012 * i)
-		local function isle(x: number, y: number): number
-			local dx = (x - ix) / iw
-			if math.abs(dx) > 1 then
-				return 0
-			end
-			local top = iy - (1 - dx * dx) * iw * 0.18
-			local bottom = iy + (1 - math.abs(dx)) * iw * 0.9
-			if y >= top and y < iy + 1 then
-				return 1
-			elseif y >= iy + 1 and y <= bottom then
-				return 2
-			end
-			return 0
-		end
-		for y = math.floor(iy - iw), math.ceil(iy + iw) do
-			for x = math.floor(ix - iw - 1), math.ceil(ix + iw + 1) do
-				local k = isle(x + 0.5, y + 0.5)
-				if k == 1 then
-					set(x, y, far[2])
-				elseif k == 2 then
-					set(x, y, if (x + 0.5 - ix) > 0 then mix(far[1], 0x000000, 0.15) else far[1])
-				elseif isle(x + 1.5, y + 0.5) ~= 0 or isle(x - 0.5, y + 0.5) ~= 0 or isle(x + 0.5, y + 1.5) ~= 0 or isle(x + 0.5, y - 0.5) ~= 0 then
-					set(x, y, mix(far[1], 0x000000, 0.35))
-				end
-			end
-		end
-		-- (a little round tree on it)
-		local tx, ty, tr = ix - iw * 0.2, iy - iw * 0.4, math.max(2, iw * 0.22)
-		for y = math.floor(ty - tr - 1), math.ceil(ty + iw * 0.3) do
-			for x = math.floor(tx - tr - 1), math.ceil(tx + tr + 1) do
-				local d = math.sqrt((x + 0.5 - tx) ^ 2 + (y + 0.5 - ty) ^ 2)
-				if d <= tr then
-					set(x, y, if (x + 0.5 - tx) + (y + 0.5 - ty) < -tr * 0.3 then far[2] else mix(far[1], 0x000000, 0.1))
-				elseif d <= tr + 1 then
-					set(x, y, mix(far[1], 0x000000, 0.35))
-				elseif math.abs(x + 0.5 - tx) < 1 and y > ty and y < iy then
-					set(x, y, mix(far[1], 0x000000, 0.35))
-				end
-			end
-		end
-	end
-	-- three ranges of hills, far to near, each a wavy ridge with a lit rim; trees along the nearest
+	-- (no islets floating far off since 2026-11-14: "For the hatch screen, remove the trees in the background, and the
+	-- floating islands as well")
+	-- three ranges of hills, far to near, each a wavy ridge with a lit rim (no trees along the nearest since 2026-11-14)
 	for li, hl in sky.hills do
 		local base = hy - H * 0.13 + li * H * 0.075
 		local amp = H * (0.05 - li * 0.008)
@@ -521,59 +459,163 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				px[y * W + x + 1] = if y == top then hl[2] else hl[1]
 			end
 		end
-		if li == #sky.hills then
-			local tc = sky.trees
-			local x = 4
-			while x < W do
-				local pointed = hash(x * 5 + r) < 0.35
-				local tr = 3 + math.floor(hash(x * 11) * 4)
-				local foot = ridge(x + 0.5)
-				local ty = foot - tr - 1
-				for y = math.floor(ty - tr * (if pointed then 1.6 else 1) - 1), math.ceil(foot) do
-					for xx = x - tr - 1, x + tr + 1 do
-						local inside = false
-						local lit = false
-						if pointed then
-							local h = tr * 2.6
-							local apex = ty - tr * 1.6
-							local v = (y + 0.5 - apex) / h
-							inside = v >= 0 and v <= 1 and math.abs(xx + 0.5 - x) <= v * tr
-							lit = inside and (xx + 0.5 - x) < -v * tr * 0.3
-						else
-							local d = math.sqrt((xx + 0.5 - x) ^ 2 + (y + 0.5 - ty) ^ 2)
-							inside = d <= tr
-							lit = inside and (xx + 0.5 - x) + (y + 0.5 - ty) < -tr * 0.4
+	end
+	-- the foreground: tufts of grass along the bottom (three blades, the middle tallest, the left one lit), a little
+	-- flower on some
+	local near = sky.hills[#sky.hills]
+	local B = BASES[math.clamp(r, 1, #BASES)]
+	local bladeLit, blade = mix(near[2], 0xFFFFFF, 0.12), mix(near[1], near[2], 0.5)
+	for i = 1, math.floor(W / 6) do
+		local x = math.floor(hash(i * 71 + r * 5) * W)
+		local y = H - 1 - math.floor(hash(i * 83 + 3) * H * 0.08)
+		local tall = 2 + math.floor(hash(i * 97 + 1) * 3)
+		for k = -1, 1 do
+			local hgt = if k == 0 then tall else tall - 1
+			for j = 0, hgt - 1 do
+				set(x + k * 2 + (if j == hgt - 1 and k ~= 0 then k else 0), y - j, if k < 0 then bladeLit else blade)
+			end
+		end
+		if hash(i * 13 + 7) < 0.3 then
+			set(x, y - tall, B.flower)
+		end
+	end
+	-- the pedestal the egg lands on
+	if base then
+		local cx, cy, bw = base.x, base.y, math.max(8, base.w)
+		local ry = bw * 0.42
+		local sh = math.max(5, math.floor(bw * 0.34 + 0.5))
+		local function inTop(x: number, y: number): boolean
+			return ((x - cx) / bw) ^ 2 + ((y - cy) / ry) ^ 2 <= 1
+		end
+		-- (it stands on a column of the same stone rising from below the picture: fluted, lit on the left, a step
+		-- darker toward the foot)
+		local cw = bw * 0.58
+		local function inColumn(x: number, y: number): boolean
+			return math.abs(x - cx) <= cw and y >= cy + sh and y < H + 2
+		end
+		local function inBase(x: number, y: number): boolean
+			local dx = (x - cx) / bw
+			if math.abs(dx) > 1 then
+				return false
+			end
+			local e = ry * math.sqrt(1 - dx * dx)
+			return (y >= cy - e and y <= cy + e + sh) or inColumn(x, y)
+		end
+		local colLit, col, colDark = mix(B.sideLit, B.ink, 0.12), mix(B.side, B.ink, 0.18), mix(B.sideDark, B.ink, 0.25)
+		local colTop = math.floor(cy + sh)
+		for y = colTop, H - 1 do
+			local fade = math.clamp((y - colTop) / math.max(1, H - colTop), 0, 1)
+			for x = math.floor(cx - cw), math.ceil(cx + cw) do
+				if inColumn(x + 0.5, y + 0.5) then
+					local dx = (x + 0.5 - cx) / cw
+					local c = if dx < -0.4 then colLit elseif dx > 0.35 then colDark else col
+					if (x - math.floor(cx)) % 4 == 0 then
+						c = mix(c, B.ink, 0.22) -- (its fluting)
+					end
+					local lvl = math.floor(fade * 2 + bay(x, y) - 0.3)
+					if lvl > 0 then
+						c = mix(c, B.ink, 0.1 * lvl)
+					end
+					set(x, y, c)
+				end
+			end
+		end
+		-- the side: lit on the left, shaded on the right, a carved band round it, the stones' joints set over each other
+		local x0c = math.floor(cx)
+		for x = math.floor(cx - bw), math.ceil(cx + bw) do
+			local dx = (x + 0.5 - cx) / bw
+			if math.abs(dx) <= 1 then
+				local yTop = cy + ry * math.sqrt(1 - dx * dx)
+				for y = math.floor(yTop), math.ceil(yTop + sh) do
+					if inBase(x + 0.5, y + 0.5) and not inTop(x + 0.5, y + 0.5) then
+						local v = (y + 0.5 - yTop) / sh
+						local c = if dx < -0.5 then B.sideLit elseif dx > 0.45 then B.sideDark else B.side
+						if v > 0.68 and v < 0.84 then
+							c = if dx > 0.45 then mix(B.trim, B.sideDark, 0.5) else mix(B.trim, c, 0.25)
+						elseif v <= 0.68 and (x - x0c) % 9 == 0 then
+							c = mix(c, B.ink, 0.3)
+						elseif r == 7 and hash2(x, y) > 0.95 then
+							c = B.gem -- (stars in the starstone)
 						end
-						if inside then
-							set(xx, y, if lit then tc[2] else tc[1])
-						end
+						set(x, y, c)
 					end
 				end
-				-- (the outline: tree pixels next to anything else)
-				x += tr * 2 + 1 + math.floor(hash(x * 3) * 5)
 			end
-			-- an ink edge round the trees and the ridge (pixels of the tree colours next to the sky or the hills behind)
-			local nearTop: { number } = {}
-			for xx = 0, W - 1 do
-				nearTop[xx] = math.floor(ridge(xx + 0.5))
-			end
-			local outline: { number } = {}
-			for y = 1, H - 2 do
-				for xx = 1, W - 2 do
-					local c = px[y * W + xx + 1]
-					if c ~= tc[1] and c ~= tc[2] and y < nearTop[xx] then
-						for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-							local n = px[(y + d[2]) * W + xx + d[1] + 1]
-							if n == tc[1] or n == tc[2] then
-								table.insert(outline, y * W + xx + 1)
-								break
-							end
+		end
+		-- the top: its stone, a lit rim at the back left and a darker lip at the front right, an inlaid ring, the egg's
+		-- shadow just down and to the right of the middle
+		for y = math.floor(cy - ry) - 1, math.ceil(cy + ry) + 1 do
+			for x = math.floor(cx - bw) - 1, math.ceil(cx + bw) + 1 do
+				local dx, dy = (x + 0.5 - cx) / bw, (y + 0.5 - cy) / ry
+				local d = math.sqrt(dx * dx + dy * dy)
+				if d <= 1 then
+					local c = B.top
+					if d > 0.86 then
+						if dx + dy * 0.6 < -0.25 then
+							c = B.topLit
+						elseif dx + dy * 0.6 > 0.45 then
+							c = B.sideLit
+						end
+					elseif d > 0.64 and d < 0.64 + 1.6 / bw then
+						c = B.trim
+					end
+					local sd = ((x + 0.5 - (cx + bw * 0.08)) / (bw * 0.44)) ^ 2 + ((y + 0.5 - (cy + ry * 0.1)) / (ry * 0.42)) ^ 2
+					if sd < 1 then
+						local lvl = math.floor((1 - sd) * 2 + bay(x, y))
+						if lvl > 0 then
+							c = mix(c, 0x000000, 0.12 * lvl)
 						end
 					end
+					set(x, y, c)
 				end
 			end
-			for _, i in outline do
-				px[i] = tc[3]
+		end
+		-- gems on the inlaid ring, from rare up: at its left, right, front and back
+		if r >= 3 then
+			for k = 0, 3 do
+				local a = k * math.pi / 2
+				local gx, gy2 = math.floor(cx + math.cos(a) * bw * 0.66), math.floor(cy + math.sin(a) * ry * 0.66)
+				set(gx, gy2, B.gem)
+				set(gx + 1, gy2, mix(B.gem, B.trim, 0.5))
+			end
+		end
+		-- the ink outline round the whole of it
+		local edge: { number } = {}
+		for y = math.floor(cy - ry) - 2, math.ceil(cy + ry + sh) + 2 do
+			for x = math.floor(cx - bw) - 2, math.ceil(cx + bw) + 2 do
+				if not inBase(x + 0.5, y + 0.5) and (inBase(x + 1.5, y + 0.5) or inBase(x - 0.5, y + 0.5) or inBase(x + 0.5, y + 1.5) or inBase(x + 0.5, y - 0.5)) then
+					table.insert(edge, x)
+					table.insert(edge, y)
+				end
+			end
+		end
+		for i = 1, #edge, 2 do
+			set(edge[i], edge[i + 1], B.ink)
+		end
+		-- tufts of grass on the top's rim at the back, a little flower in each
+		for k = 1, 2 do
+			local a = if k == 1 then math.pi * 1.18 else math.pi * 1.72
+			local fx = math.floor(cx + math.cos(a) * bw * 0.9)
+			local fy = math.floor(cy + math.sin(a) * ry * 0.9)
+			for j = 0, 1 do
+				set(fx - 1, fy - j, bladeLit)
+				set(fx + 1, fy - j, blade)
+			end
+			set(fx, fy - 2, bladeLit)
+			set(fx, fy - 3, B.flower)
+		end
+	end
+	-- the corners a dithered step or two darker, framing the egg
+	for y = 0, H - 1 do
+		local vy = (y + 0.5) / H - 0.5
+		for x = 0, W - 1 do
+			local vx = (x + 0.5) / W - 0.5
+			local d = vx * vx * 1.6 + vy * vy * 2.2
+			if d > 0.32 then
+				local lvl = math.floor(math.clamp((d - 0.32) / 0.22, 0, 1) * 2 + bay(x, y))
+				if lvl > 0 then
+					px[y * W + x + 1] = mix(px[y * W + x + 1], 0x000000, 0.08 * lvl)
+				end
 			end
 		end
 	end
@@ -613,7 +655,10 @@ local lifeClock = 0
 local INK: { number } = { 0x6E4E78, 0x4F7A6A, 0x1F2A4C, 0, 0, 0, 0 } -- the birds' colour by rarity (none on the nights)
 local newLife: (r: number, W: number, H: number, K: number) -> ()
 
-function HatchBackdrop.show(r: number, ex: number, ey: number)
+local ringBase: BaseAt? = nil
+local makeRings: (r: number, K: number) -> ()
+
+function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
 	local K = math.max(1, math.floor(PixelRenderer.pixelScale()))
 	local cam = workspace.CurrentCamera
 	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
@@ -629,7 +674,8 @@ function HatchBackdrop.show(r: number, ex: number, ey: number)
 	if im == nil then
 		return
 	end
-	local buf = HatchBackdrop.paint(r, W, H, ex, ey)
+	ringBase = base
+	local buf = HatchBackdrop.paint(r, W, H, ex, ey, base)
 	pcall(function()
 		(im :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(W, H), buf)
 	end)
@@ -659,6 +705,7 @@ function HatchBackdrop.show(r: number, ex: number, ey: number)
 		g.Enabled = true
 	end
 	newLife(r, W, H, K)
+	makeRings(r, K)
 end
 
 local function pixel(parent: Instance, c: number): Frame
@@ -707,6 +754,136 @@ newLife = function(r: number, W: number, H: number, K: number)
 			table.insert(twinkles, { f = f, ph = hash(i * 7) * 6.28, rate = 1.5 + hash(i * 13) * 2.5 })
 		end
 	end
+end
+
+------------------------------------------------------------------ the rings over the pedestal
+local RING_EVERY = 0.85 -- seconds between two rings
+local RING_LIFE = 1.7 -- seconds a ring takes to spread to the pedestal's rim
+local ringImg: EditableImage? = nil
+local ringLabel: ImageLabel? = nil
+local ringBuf: buffer? = nil
+local ringW, ringH = 0, 0
+local ringCols: { number } = {}
+local ringBorn: { number } = {}
+local ringOn = false
+local ringNext = 0
+local ringDirty = false
+
+makeRings = function(r: number, K: number)
+	local base = ringBase
+	local g = life
+	if base == nil or g == nil then
+		return
+	end
+	local B = BASES[math.clamp(r, 1, #BASES)]
+	-- (bright, then a step toward the stone, then nearly the stone: a ring fades as it widens)
+	ringCols = { packed(B.ring), packed(mix(B.ring, B.top, 0.45)), packed(mix(B.ring, B.top, 0.75)) }
+	local bw = math.max(8, base.w)
+	local w, h = math.ceil(bw * 2) + 4, math.ceil(bw * 0.84) + 4
+	local im = ringImg
+	if im == nil or im.Size.X ~= w or im.Size.Y ~= h then
+		if im then
+			im:Destroy()
+		end
+		im = ImageMemory.create(w, h, "hatch rings")
+		ringImg = im
+		ringBuf = buffer.create(w * h * 4)
+	end
+	if im == nil then
+		return
+	end
+	ringW, ringH = w, h
+	local l = Instance.new("ImageLabel")
+	l.Name = "Rings"
+	l.BackgroundTransparency = 1
+	l.BorderSizePixel = 0
+	l.ResampleMode = Enum.ResamplerMode.Pixelated
+	l.ImageContent = Content.fromObject(im)
+	l.Size = UDim2.fromOffset(w * K, h * K)
+	l.Position = UDim2.fromOffset((math.floor(base.x) - math.floor(w / 2)) * K, (math.floor(base.y) - math.floor(h / 2)) * K)
+	l.Parent = g
+	ringLabel = l
+	ringDirty = true
+end
+
+-- One clean 1 px ellipse (the midpoint way: no doubled pixels, no gaps), centred in the ring image.
+local function ellipse(buf: buffer, a: number, b: number, col: number)
+	local cx, cy = math.floor(ringW / 2), math.floor(ringH / 2)
+	local function plot(x: number, y: number)
+		for _, p in { { cx + x, cy + y }, { cx - x, cy + y }, { cx + x, cy - y }, { cx - x, cy - y } } do
+			if p[1] >= 0 and p[2] >= 0 and p[1] < ringW and p[2] < ringH then
+				buffer.writeu32(buf, (p[2] * ringW + p[1]) * 4, col)
+			end
+		end
+	end
+	if a < 1 or b < 1 then
+		return
+	end
+	local a2, b2 = a * a, b * b
+	local x, y = 0, b
+	local dx, dy = 0, 2 * a2 * y
+	local d1 = b2 - a2 * b + 0.25 * a2
+	while dx < dy do
+		plot(x, y)
+		x += 1
+		dx += 2 * b2
+		if d1 < 0 then
+			d1 += dx + b2
+		else
+			y -= 1
+			dy -= 2 * a2
+			d1 += dx - dy + b2
+		end
+	end
+	local d2 = b2 * (x + 0.5) ^ 2 + a2 * (y - 1) ^ 2 - a2 * b2
+	while y >= 0 do
+		plot(x, y)
+		y -= 1
+		dy -= 2 * a2
+		if d2 > 0 then
+			d2 += a2 - dy
+		else
+			x += 1
+			dx += 2 * b2
+			d2 += dx - dy + a2
+		end
+	end
+end
+
+-- The rings now: each spreads from the egg's width to the pedestal's rim (easing out), bright, then fainter, then gone.
+local function drawRings()
+	local im, buf, base = ringImg, ringBuf, ringBase
+	if im == nil or buf == nil or base == nil then
+		return
+	end
+	buffer.fill(buf, 0, 0)
+	local bw = math.max(8, base.w)
+	local r0, r1 = bw * 0.5, bw * 0.97
+	local keep: { number } = {}
+	for _, born in ringBorn do
+		local u = (lifeClock - born) / RING_LIFE
+		if u < 1 then
+			table.insert(keep, born)
+			local rad = r0 + (r1 - r0) * (1 - (1 - u) * (1 - u))
+			local col = if u < 0.35 then ringCols[1] elseif u < 0.7 then ringCols[2] else ringCols[3]
+			ellipse(buf, math.floor(rad + 0.5), math.floor(rad * 0.42 + 0.5), col)
+		end
+	end
+	ringBorn = keep
+	pcall(function()
+		im:WritePixelsBuffer(Vector2.zero, Vector2.new(ringW, ringH), buf)
+	end)
+end
+
+function HatchBackdrop.land()
+	ringOn = true
+	table.insert(ringBorn, lifeClock)
+	ringNext = lifeClock + RING_EVERY
+	ringDirty = true
+end
+
+function HatchBackdrop.rings(): number
+	return #ringBorn
 end
 
 local function newBird(x: number, y: number, vx: number, ph: number): Bird
@@ -782,6 +959,15 @@ function HatchBackdrop.step(dt: number)
 	for _, tw in twinkles do
 		tw.f.Visible = math.sin(lifeClock * tw.rate + tw.ph) > -0.2
 	end
+	-- the rings over the pedestal, once the egg is down
+	if ringOn and lifeClock >= ringNext then
+		table.insert(ringBorn, lifeClock)
+		ringNext = lifeClock + RING_EVERY
+	end
+	if #ringBorn > 0 or ringDirty then
+		ringDirty = #ringBorn > 0
+		drawRings()
+	end
 end
 
 function HatchBackdrop.hide()
@@ -797,6 +983,13 @@ function HatchBackdrop.hide()
 	table.clear(birds)
 	table.clear(twinkles)
 	streak = nil
+	ringOn, ringNext, ringDirty = false, 0, false
+	table.clear(ringBorn)
+	local ri = ringImg
+	if ri then
+		ri:Destroy()
+	end
+	ringImg, ringLabel, ringBuf, ringBase = nil, nil, nil, nil
 	local im = image
 	if im then
 		im:Destroy()

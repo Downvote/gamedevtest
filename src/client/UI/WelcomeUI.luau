@@ -90,7 +90,7 @@ local function build(body: Frame, _arg: any?)
 	if not pass then
 		local gw = math.max(40, UIKit.buttonWidth("See pass", 6))
 		PixelSprites.image(body, "mini_moon", UDim2.fromOffset(PAD, y + 1), 3)
-		UIKit.text(body, string.format("Offline Pass: up to %d h away, %s.", Tuning.OfflinePassHours, pace(Tuning.OfflinePassPct)), UDim2.fromOffset(W - 2 * PAD - gw - 18, 10), UDim2.fromOffset(PAD + 14, y + 1), { color = UIKit.color("text_dim"), name = "PassNote" })
+		UIKit.text(body, string.format("Offline Pass: %d h %s.", Tuning.OfflinePassHours, pace(Tuning.OfflinePassPct)), UDim2.fromOffset(W - 2 * PAD - gw - 18, 10), UDim2.fromOffset(PAD + 14, y + 1), { color = UIKit.color("text_dim"), name = "PassNote" })
 		local b = UIKit.button(body, "See pass", UDim2.fromOffset(gw, 12), UDim2.fromOffset(W - PAD - gw, y), function()
 			Audio.play("click")
 			UIKit.openPanel("store", "passes")

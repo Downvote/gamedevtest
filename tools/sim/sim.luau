@@ -557,18 +557,20 @@ do
 		H.expect(hs.phase == "egg" and hs.egg and not hs.pal, "build", "the egg floats there at once, waiting for a tap", string.format("phase %s", hs.phase))
 		-- (its title the rarity alone: "no need for "A x egg" for rarities for eggs, just do "Legendary" "Common" etc.")
 		H.expect(hs.title == Traits.RARITY[pick.r].name, "build", "the egg's title: its rarity alone", string.format("%q", hs.title))
-		-- (then "make the egg rise up into view when it is being opened": it comes up from below, and a tap while it
-		-- rises waits; the cracks crunch, Audio "crack", and the hatch breaks it open, "crack_open")
-		H.expect(hs.lift < -0.5, "build", "it is still rising into view", string.format("%.2f studs under its spot at %.2f s", -hs.lift, hs.clock))
+		-- (then "make the egg rise up into view when it is being opened", and since "Make the egg drop down and bounce a
+		-- bit instead of appearing by going up": it drops in from above onto its pedestal, and a tap while it comes
+		-- down waits; the cracks crunch, Audio "crack", and the hatch breaks it open, "crack_open")
+		H.expect(hs.lift > 0.5, "build", "it is still dropping into view", string.format("%.2f studs over its spot at %.2f s", hs.lift, hs.clock))
 		local Aud = H.cmod(p, "Controllers.Audio")
 		local crack0, open0 = H.inClient(p, Aud.playCount, "crack"), H.inClient(p, Aud.playCount, "crack_open")
 		H.inClient(p, HSp.skip)
 		E.run(0.05)
 		local hsr = H.inClient(p, HSp.debugState)
-		H.expect(hsr.left == hsr.reveals and not hsr.pal, "build", "a tap while it rises does nothing yet", string.format("%d of %d left", hsr.left, hsr.reveals))
+		H.expect(hsr.left == hsr.reveals and not hsr.pal, "build", "a tap while it comes down does nothing yet", string.format("%d of %d left", hsr.left, hsr.reveals))
 		E.run(1)
 		hs = H.inClient(p, HSp.debugState)
-		H.expect(hs.lift == 0, "build", "it has risen to its spot", string.format("%.2f", hs.lift))
+		H.expect(hs.lift == 0, "build", "it has landed on its pedestal", string.format("%.2f", hs.lift))
+		H.expect(hs.rings >= 1, "build", "rings spread from under it once it has landed", tostring(hs.rings))
 		local taps, revealed = 0, 0
 		local shook, broke = 0, nil
 		while not hs.pal and taps < 12 do

@@ -2023,8 +2023,8 @@ end
 -- mutations by rarity. The
 -- request of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can
 -- simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each click
--- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches". Frames: the egg floating at
--- once, the frame it opens (hatch_egg), after each tap's reveal (hatch_rise<k> for a step up, hatch_mut<k> for a
+-- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches". Frames: the egg dropping onto
+-- its pedestal (hatch_dropping), resting there with rings spreading from under it (hatch_egg), after each tap's reveal (hatch_rise<k> for a step up, hatch_mut<k> for a
 -- mutation), the tap that hatches it (hatch_shake: the egg shaking open, "Make eggs shake while being cracked open";
 -- hatch_crack, just after the shell opens) and what hatched with its mutations listed
 -- (hatch_reveal), then the island after one more tap (hatch_back).
@@ -2046,7 +2046,7 @@ local function hatchScenario(code)
 			sp = d.id
 		end
 	end
-	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "swift2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" }, { "busy4", "grower3", "bright2" }, { "bright4", "swift4", "trader3", "fierce2" } }
+	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "sturdy2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" }, { "busy4", "grower3", "bright2" }, { "bright4", "sturdy3", "trader3", "fierce2" } }
 	local muts = MUTS[hr] or {}
 	H.inClient(p, function()
 		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr, new = (sp or "mossbun") ~= "mossbun" }, nil)
@@ -2060,11 +2060,14 @@ local function hatchScenario(code)
 	local ready = PR and H.inClient(p, PR.ready)
 	local st = state()
 	log("hatch %s: opened at once: phase %s, renderer ready %s, %d reveals to tap", code, st.phase, tostring(ready), st.reveals)
-	E.run(0.2)
-	capture(p, "hatch_rising")
-	log("hatch %s: rising: %.2f studs under its spot", code, -state().lift)
+	-- (it drops in from above onto its pedestal and bounces: "Make the egg drop down and bounce a bit instead of
+	-- appearing by going up", 2026-11-14)
+	E.run(0.33)
+	capture(p, "hatch_dropping")
+	log("hatch %s: dropping: %.2f studs over its spot", code, state().lift)
 	E.run(0.9)
 	capture(p, "hatch_egg")
+	log("hatch %s: landed: %.2f over its spot, %d rings spreading", code, state().lift, state().rings)
 	local rises, mutsShown = 0, 0
 	for _ = 1, st.reveals do
 		local before = state()

@@ -11,6 +11,9 @@
 -- a mark is one pixel wide at any zoom and the pattern keeps to the pixel grid: strands of fur, rows of scales or
 -- feathers, a shell's growth lines, specks and cracks in stone, a wall's courses, bark's grain, a crystal's facets,
 -- pores in skin, ice's streaks, velvet's fuzz, a shell's pits, a jelly's bubbles and cooling lava's bright cracks.
+-- The hatch scene's eggs wear one too (2026-11-14): freckles, dapples, frost sparkles, swirls, a filigree lattice, tiny
+-- flowers and stardust, one by rarity (DynTex.EGG); their slices share one pattern (the part's PixelTexV attribute
+-- lifts v to the egg's own height, PixelTexSeed keeps one seed) and it is drawn a little firmer (PixelTexSoft).
 
 local DynTex = {}
 
@@ -30,6 +33,15 @@ DynTex.NAMES = {
 	"chitin",
 	"jelly",
 	"ember",
+	-- the hatch scene's eggs, drawn on the shell by rarity (the request of 2026-11-14: "Could you detail the eggs in the
+	-- egg hatching screen more? You are allowed to draw in the detail on the eggs instead of adding more meshes")
+	"freckle",
+	"dapple",
+	"frost",
+	"swirl",
+	"filigree",
+	"bloom",
+	"stardust",
 }
 local KIND: { [string]: number } = {}
 for i, name in DynTex.NAMES do
@@ -260,8 +272,101 @@ function DynTex.lift(kind: number, u: number, v: number, px: number, seed: numbe
 			end
 		end
 		return if hash(iu, iv, 35) < 0.05 then -1 else 0
+	elseif kind == 16 then
+		-- freckle (a common egg): freckles in some 4 px cells, now and then two side by side, a pale fleck rarely
+		local cu, cv = iu // 4, iv // 4
+		local h = hash(cu, cv, 36)
+		local lu, lv = iu - cu * 4, iv - cv * 4
+		local fu, fv = math.floor(h * 3), math.floor((h * 7.7) % 1 * 3)
+		if h < 0.45 and lv == fv and (lu == fu or (h < 0.15 and lu == fu + 1)) then
+			return -1
+		end
+		return if hash(iu, iv, 37) > 0.985 then 1 else 0
+	elseif kind == 17 then
+		-- dapple (an uncommon egg): soft round blots of light, five pixels in a plus, in some cells of shifted rows;
+		-- a dark seed now and then between them
+		local row = iv // 6
+		local shift = (row % 2) * 4
+		local col = (iu + shift) // 8
+		local lu, lv = (iu + shift) - col * 8, iv - row * 6
+		if hash(col, row, 38) < 0.7 then
+			local du, dv = lu - 3, lv - 2
+			if (du == 0 and math.abs(dv) <= 1) or (dv == 0 and math.abs(du) <= 1) then
+				return 1
+			end
+		end
+		return if hash(iu, iv, 39) < 0.025 then -1 else 0
+	elseif kind == 18 then
+		-- frost (a rare egg): little four-pointed sparkles in some 8 px cells, single glints between them
+		local cu, cv = iu // 8, iv // 8
+		local h = hash(cu, cv, 40)
+		if h < 0.55 then
+			local lu, lv = iu - cu * 8, iv - cv * 8
+			local su, sv = 2 + math.floor(h * 7) % 4, 2 + math.floor(h * 13) % 4
+			local du, dv = lu - su, lv - sv
+			if (du == 0 and math.abs(dv) <= 1) or (dv == 0 and math.abs(du) <= 1) then
+				return 1
+			end
+		end
+		return if hash(iu, iv, 41) > 0.97 then 1 else 0
+	elseif kind == 19 then
+		-- swirl (an epic egg): soft bands curling round the shell, a light line with a darker one under it
+		local wave = math.floor(2.2 * math.sin(iu / 6 + iv / 11))
+		local k = (iu + iv + wave) % 10
+		if k == 0 then
+			return 1
+		elseif k == 1 then
+			return -1
+		end
+		return 0
+	elseif kind == 20 then
+		-- filigree (a legendary egg): a fine engraved lattice of diamonds, a bright bead where the lines cross
+		local a, b = (iu + iv) % 10, (iu - iv) % 10
+		if a == 0 and b == 0 then
+			return 1
+		end
+		if a == 0 or b == 0 then
+			return -1
+		end
+		if (a == 5 and b == 5) then
+			return 1
+		end
+		return 0
+	elseif kind == 21 then
+		-- bloom (a mythic egg): tiny flowers, four light petals round a darker heart, in some 7 px cells
+		local cu, cv = iu // 7, iv // 7
+		local h = hash(cu, cv, 42)
+		if h < 0.6 then
+			local lu, lv = iu - cu * 7, iv - cv * 7
+			local fu, fv = 2 + math.floor(h * 11) % 3, 2 + math.floor(h * 17) % 3
+			local du, dv = lu - fu, lv - fv
+			if du == 0 and dv == 0 then
+				return -1
+			end
+			if (du == 0 and math.abs(dv) == 1) or (dv == 0 and math.abs(du) == 1) then
+				return 1
+			end
+		end
+		return 0
+	elseif kind == 22 then
+		-- stardust (a celestial egg): fine specks of light thick over the shell, a four-pointed star in some 9 px cells
+		local cu, cv = iu // 9, iv // 9
+		local h = hash(cu, cv, 43)
+		if h < 0.4 then
+			local lu, lv = iu - cu * 9, iv - cv * 9
+			local su, sv = 2 + math.floor(h * 19) % 5, 2 + math.floor(h * 23) % 5
+			local du, dv = lu - su, lv - sv
+			if (du == 0 and math.abs(dv) <= 2) or (dv == 0 and math.abs(du) <= 2) then
+				return 1
+			end
+		end
+		local g = hash(iu, iv, 44)
+		return if g > 0.94 then 1 elseif g < 0.02 then -1 else 0
 	end
 	return 0
 end
+
+-- The egg pattern drawn on a hatch-scene egg of rarity r (the names above, by rarity).
+DynTex.EGG = { "freckle", "dapple", "frost", "swirl", "filigree", "bloom", "stardust" } :: { string }
 
 return DynTex

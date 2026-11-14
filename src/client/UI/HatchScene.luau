@@ -9,10 +9,14 @@
 -- crack shakes it, the glowing egg trembles, and the tap that hatches it shakes it harder and harder for BREAK s
 -- before the shell opens).
 --
--- An egg bought at the Tree of Life (Controllers/EggView.hatch) floats in front of a painted sky (UI/HatchBackdrop)
+-- An egg bought at the Tree of Life (Controllers/EggView.hatch) shows in front of a painted sky (UI/HatchBackdrop)
 -- at once: no blinds, nothing to bake (the camera's stage view on an empty see-through stage, CameraController's
--- Stage.empty: the pixel renderer draws only the moving egg over the 2D picture). It rises up into view from below
--- (RISE s, easing out past its spot and settling back), then bobs and now and then wobbles, asking to be tapped.
+-- Stage.empty: the pixel renderer draws only the moving egg over the 2D picture). Since 2026-11-14 ("Make the egg drop
+-- down and bounce a bit instead of appearing by going up. Polish the egg opening backgrounds even more, drawing in a
+-- base for the eggs to land on") it drops in from above onto a pedestal painted into the backdrop (FALL s, then two
+-- bounces, DROP s in all), lands with a thud and a puff of dust, and rings of light start spreading from under it
+-- over the pedestal (HatchBackdrop.land); then it rests there and now and then wobbles, asking to be tapped. Its shell
+-- wears its rarity's pattern, drawn by the pixel filter (EggModels.hero, Render/DynTex.EGG).
 -- Every tap that cracks it crunches (Audio "crack", a little higher each time) and the hatch breaks the shell open
 -- ("crack_open"). Each tap takes the next of what is waiting inside: first each step up in rarity (Logic/Tree.rise:
 -- the result's `hr` over its `r`: a hard shake, a flash, the egg in the next rarity's colours, the sky and the light
@@ -53,7 +57,7 @@ local HatchScene = {}
 export type Result = { sp: string, muts: { string }, r: number, hr: number, new: boolean? }
 
 local ORIGIN = Vector3.new(0, 0, 9000) -- far from the islands (z 0 .. -160)
-local FLOAT_Y = 1.2 -- the egg's foot above ORIGIN (it floats: nothing under it)
+local FLOAT_Y = 1.2 -- the pedestal's top above ORIGIN: the egg rests on it, what hatched stands on it
 local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8, 2.9, 3.0 } -- each rarity's egg up close (EggModels.hero), studs tall
 local PAL_SCALE = 1.35 -- what hatched, a little bigger than on the island
 local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is one)
@@ -61,8 +65,14 @@ local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is 
 -- what hatches smaller on the screen (the request of 2026-11-14: "make the egg and creature smaller in the hatching
 -- screen"; it was 1)
 local STAGE_ROOM = 1.45
-local RISE = 0.95 -- seconds the egg takes to rise into view when the scene opens (taps wait for it)
-local RISE_FROM = 7 -- studs under its spot it starts, out of the picture
+-- the egg's way in (the request of 2026-11-14: "Make the egg drop down and bounce a bit instead of appearing by going
+-- up"): it falls from out of the picture onto the pedestal (FALL s, gravity), bounces up BOUNCE[1] studs and down
+-- (BOUNCE_T[1] s), then a little bounce, then rests; taps wait till it does (DROP s in all)
+local DROP_FROM = 9 -- studs over its spot it starts
+local FALL = 0.52
+local BOUNCE = { 0.75, 0.2 }
+local BOUNCE_T = { 0.3, 0.18 }
+local DROP = FALL + BOUNCE_T[1] + BOUNCE_T[2]
 local BREAK = 0.6 -- seconds the egg shakes, harder and harder, between the tap that hatches it and the shell opening
 
 -- How grand each rarity's scene is (by the rarity it is now; the hatch's by the rarity it hatched as).
@@ -142,7 +152,8 @@ type Scene = {
 	fx: { { p: BasePart, kind: string, k: number } },
 	cracks: { EggModels.Crack },
 	glowing: boolean, -- the cracks lit from inside (nothing left to reveal: the next tap hatches it)
-	arrived: boolean, -- it has risen into view (a soft chime as it gets there)
+	arrived: boolean, -- it has landed on the pedestal (a thud, dust, the rings start)
+	bounced: boolean, -- it has come down from its first bounce (a softer thud)
 	topOff: number?, -- when it hatched (the top flew off)
 	rays: { { p: BasePart, a: number, k: number } }, -- (none since the twinkles took their place)
 	twinkleN: number, -- twinkles round it at once, about (GLORY.rays; 0: none)
@@ -212,19 +223,33 @@ local function newRays(s: Scene, r: number)
 	s.twinkleN = glory(r).rays
 end
 
-local function eggMiddle(r: number): Vector3
-	return at(0, FLOAT_Y + 0.5 * (EGG_H[r] or 2.4), 0)
+-- The egg's foot when it rests on the pedestal (its lowest slice bulges past the foot: EggModels.heroBottom).
+local function footY(r: number): number
+	return FLOAT_Y - EggModels.heroBottom(EGG_H[r] or 2.4)
 end
 
--- How far under its spot the egg still is while it rises into view (0 once it has): fast at first, easing out a
--- little past its spot and settling back (an ease-out-back, so it arrives with some weight).
+local function eggMiddle(r: number): Vector3
+	return at(0, footY(r) + 0.5 * (EGG_H[r] or 2.4), 0)
+end
+
+-- How far over its spot the egg is while it comes in (0 once it rests): falling faster and faster, then each bounce a
+-- quick arc, the second lower and quicker than the first.
 local function liftOf(c: number): number
-	if c >= RISE then
+	if c >= DROP then
 		return 0
+	elseif c < FALL then
+		local u = c / FALL
+		return DROP_FROM * (1 - u * u)
 	end
-	local u = math.clamp(c / RISE, 0, 1) - 1
-	local back = 1 + 2.2 * u * u * u + 1.2 * u * u -- (0 at the start, 1 at the end, about 1.05 two thirds of the way)
-	return -RISE_FROM * (1 - back)
+	local k = c - FALL
+	for i, d in BOUNCE_T do
+		if k < d then
+			local u = k / d
+			return 4 * BOUNCE[i] * u * (1 - u)
+		end
+		k -= d
+	end
+	return 0
 end
 
 -- The painted sky (UI/HatchBackdrop), the egg's glow round where it floats on screen; only with the pixel filter on
@@ -234,7 +259,15 @@ local function backdrop(s: Scene)
 		return
 	end
 	local ex, ey = PixelRenderer.projectPixel(eggMiddle(s.r))
-	HatchBackdrop.show(s.r, ex, ey)
+	-- (the pedestal: its top where the egg rests, twice the egg's widest across)
+	local top = at(0, FLOAT_Y, 0)
+	local bx, by = PixelRenderer.projectPixel(top)
+	local cam = workspace.CurrentCamera
+	local rv = if cam then cam.CFrame.RightVector else Vector3.xAxis
+	local right = Vector3.new(rv.X, 0, rv.Z)
+	right = if right.Magnitude > 1e-3 then right.Unit else Vector3.xAxis
+	local rx = PixelRenderer.projectPixel(top + right * (0.37 * (EGG_H[s.r] or 2.4) * 2))
+	HatchBackdrop.show(s.r, ex, ey, { x = bx, y = by, w = math.abs(rx - bx) })
 end
 
 ------------------------------------------------------------------ the overlay's bits
@@ -567,8 +600,8 @@ function HatchScene.skip()
 	if s.clock - s.lastTap < TAP_GAP and s.lastTap > 0 then
 		return
 	end
-	if s.phase == "egg" and s.clock < RISE then
-		return -- (still rising into view)
+	if s.phase == "egg" and s.clock < DROP then
+		return -- (still coming down onto the pedestal)
 	end
 	s.lastTap = s.clock
 	if s.phase == "done" then
@@ -610,15 +643,27 @@ function HatchScene.skip()
 end
 
 ------------------------------------------------------------------ every frame
+-- The egg comes down on the pedestal (k: how hard, 1 the first time): a thud, a puff of dust either side of its foot,
+-- a little shake.
+local function landed(s: Scene, k: number)
+	Audio.play("pop", { pitch = 0.5 + (1 - k) * 0.2 })
+	s.kickAt, s.kick = s.clock, 0.35 * k
+	local fx, fy = PixelRenderer.projectPixel(at(0, FLOAT_Y, 0))
+	for i = 1, math.floor(10 * k) do
+		local side = if i % 2 == 0 then 1 else -1
+		addDot(s, if i % 3 == 0 then "cream" else "white", nil, fx + side * (6 + math.random(0, 6)), fy - math.random(0, 2), side * (18 + math.random() * 22), -(10 + math.random() * 14), 50, 0.45 + math.random() * 0.25)
+	end
+end
+
 local function stepEgg(s: Scene, c: number)
 	local r = s.r
 	local eh = EGG_H[r] or 2.4
-	-- floating: a slow bob, a sway. Each tap that cracks it shakes it (rocking side to side on its foot and jumping
-	-- sideways, a step up's the hardest), dying away; once every crack is lit it trembles, waiting; the tap that hatches
-	-- it shakes it harder and faster until the shell opens (BREAK). Now and then, while it waits, a little wobble asking
-	-- to be tapped.
-	local bob = math.sin(c * 1.6) * 0.08
-	local tilt = math.sin(c * 1.1) * 0.03
+	-- resting on the pedestal, the faintest sway. Each tap that cracks it shakes it (rocking side to side on its foot
+	-- and jumping sideways, a step up's the hardest), dying away; once every crack is lit it trembles, waiting; the tap
+	-- that hatches it shakes it harder and faster until the shell opens (BREAK). Now and then, while it waits, a little
+	-- wobble asking to be tapped.
+	local bob = 0
+	local tilt = math.sin(c * 1.1) * 0.012
 	local rock, side, amp = 0, 0, 0
 	local k = c - s.kickAt
 	if s.phase == "breaking" then
@@ -652,7 +697,7 @@ local function stepEgg(s: Scene, c: number)
 	right = if right.Magnitude > 1e-3 then right.Unit else Vector3.xAxis
 	local fwd = Vector3.new(-right.Z, 0, right.X)
 	local lift = liftOf(c)
-	local foot = at(0, FLOAT_Y + bob + lift, 0) + right * side
+	local foot = at(0, footY(r) + bob + lift, 0) + right * side
 	local cf = CFrame.new(foot) * CFrame.fromAxisAngle(fwd, rock) * CFrame.Angles(tilt, 0, tilt * 0.6)
 	local off = s.topOff
 	for _, rp in s.parts do
@@ -699,7 +744,7 @@ local function stepEgg(s: Scene, c: number)
 end
 
 -- What hatched: popping out of the shell (small to a little over its size and back) with one jump and its arms up
--- ("hooray"), then floating where the egg was with a slow bob.
+-- ("hooray"), then standing on the pedestal where the egg was.
 local function stepPal(s: Scene, c: number)
 	local thing = s.pal
 	local pop = s.popAt
@@ -711,7 +756,7 @@ local function stepPal(s: Scene, c: number)
 	MicroModels.scale(thing, Vector3.one * sc)
 	-- (it jumps once on its skeleton as it pops out, then floats with a slow bob: "make the pet jump only once instead
 	-- of a few times after hatching", 2026-11-14)
-	local hop = if k < 1 then 0 else math.sin((c - pop - 0.45) * 1.6) * 0.08
+	local hop = 0 -- (it stands on the pedestal where the egg was)
 	local mood = if c - pop < 2.2 then "hooray" else "idle"
 	MicroModels.animate(thing, c, mood, 0)
 	MicroModels.place(thing, CFrame.new(at(0, FLOAT_Y + hop, 0)) * CFrame.Angles(0, math.pi / 4, 0))
@@ -810,9 +855,16 @@ local function step(s: Scene, dt: number)
 	if s.phase == "breaking" and c - s.breakAt >= BREAK then
 		hatch(s)
 	end
-	if not s.arrived and c >= RISE * 0.65 then
+	-- down on the pedestal: a thud, a puff of dust, a little shake, and the rings start spreading from under it; the
+	-- second time down a softer thud
+	if not s.arrived and c >= FALL then
 		s.arrived = true
+		landed(s, 1)
+		HatchBackdrop.land()
 		Audio.play("sparkle", { pitch = 0.9 + s.r * 0.04 })
+	elseif s.arrived and not s.bounced and c >= FALL + BOUNCE_T[1] then
+		s.bounced = true
+		landed(s, 0.45)
 	end
 	stepPal(s, c)
 	stepShards(s, c, d)
@@ -944,6 +996,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		cracks = {},
 		glowing = false,
 		arrived = false,
+		bounced = false,
 		topOff = nil,
 		rays = {},
 		twinkleN = 0,
@@ -1027,10 +1080,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean, passive: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean, passive: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false, passive = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false, passive = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -1040,6 +1093,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		hr = s.res.hr,
 		clock = s.clock,
 		lift = liftOf(s.clock),
+		rings = HatchBackdrop.rings(),
 		reveals = s.total,
 		left = #s.queue,
 		crack = s.crack,

@@ -1436,30 +1436,46 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
 The egg bought is shown up close the moment Hatch is pressed (the requests at the top). There are no blinds and no
 wait: the egg floats on its own in front of a painted sky, and the player taps it open.
 
-- **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a banded sun and outlined
-  clouds (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
+- **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a banded sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), and a deep starry sky with a ringed planet, the band of the galaxy slanting
   across it thick with stars and an aurora of teal and violet (celestial). Every sky has
-  three ranges of hills going darker toward the front, the nearest with round and pointed trees in outline, two little
-  islets floating far off, and a glow round the egg in dithered rings. Little flocks of birds flap by (day and
+  three ranges of hills going darker toward the front and a glow round the egg in dithered rings (no clouds, no trees
+  along the hills and no islets floating far off since 2026-11-14: "For the hatch screen, remove the trees in the
+  background, and the floating islands as well", then "Remove the clouds in the hatch screen background as well"). Little flocks of birds flap by (day and
   twilight), shooting stars cross the night skies and stars twinkle (pink ones on the rose night, white, cyan, gold and
   pink ones on the starry sky). Seeds and petals blow across by day, fireflies rise at night, pink petals fall slowly
-  on the rose night and white and cyan motes rise on the starry one.
+  on the rose night and white and cyan motes rise on the starry one. Since 2026-11-14 ("Polish the egg opening
+  backgrounds even more, drawing in a base for the eggs to land on") a round **pedestal** stands where the egg comes
+  down: its top an ellipse with a lit rim at the back left, an inlaid ring (four gems on it from rare up) and the egg's
+  dithered shadow, a tuft of grass with a flower at the back either side; its side lit on the left and shaded on the
+  right with its stones' joints and a carved band at the foot; under it a fluted column of the same stone rising from
+  below the picture, a step darker toward its foot; a 1 px ink line round all of it. Each
+  rarity has its stone: warm sandstone, mossy stone, pale blue stone, violet stone with pink runes, cream marble trimmed
+  with gold, rose quartz with pearl trim, dark starstone with cyan inlay and stars in it. Tufts of grass with little
+  flowers line the bottom of the picture and its corners are a dithered step or two darker.
 - **The egg** (`EggModels.hero`, 2.3 to 3 studs by rarity; drawn smaller since the request of 2026-11-14, "make the
   egg and creature smaller in the hatching screen": the view takes in 1.45 times the room round it, so the egg and
-  what hatches are about two thirds of their old size on the screen): a smooth shell of 25 overlapping slices, a white shine
-  high on its lit side, and its rarity's work painted on it as flat marks: freckles and sandy patches (common), a white
+  what hatches are about two thirds of their old size on the screen): a smooth shell of 25 overlapping slices in an
+  egg's shape (the widest a little below the middle over a full round base, the top narrowing: "The eggs also look too
+  much like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14; the eggs under the tree and
+  the egg icons have the fuller base too), its rarity's pattern drawn on it pixel by pixel ("Could you detail the eggs
+  in the egg hatching screen more? You are allowed to draw in the detail on the eggs instead of adding more meshes":
+  freckles, soft dapples of light, frost sparkles, curling swirls, a fine engraved lattice with bright beads, tiny
+  four-petal flowers, stardust with four-pointed stars), a white shine
+  high on its lit side, and its rarity's work painted on it as flat marks: freckles (common; its sandy patches went on
+  2026-11-14, the drawn freckles took their place), a white
   zigzag band and a vine with leaves and a sprout on top (uncommon), white four-pointed stars and a frosty band with
   icicles (rare), two pink stripes spiralling up it with runes between them and three motes of light circling (epic), a
   band of gold set with red, blue and green gems, glints, a crown of points and a halo of light turning over it
   (legendary), rose with white polka dots, two strings of pearls round its middle with a pink band between them, a ring
   of pearls round its top, a halo of pink and white lights and three motes (mythic), the dark blue of a night sky with
-  three constellations of white stars joined by lilac dots, a few cyan stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes (celestial). When the scene opens it rises up into view from below (a little under a second, coming up
-  fast, easing out just past its spot and settling back, a soft chime as it gets there; taps wait until it has).
-  Then it hangs in the middle of the picture with nothing under it, bobbing and swaying, and every few seconds it
-  gives a little wobble, as if asking to be tapped (the request of 2026-11-14: "make sounds when cracking the egg.
-  also, make the egg rise up into view when it is being opened").
+  three constellations of white stars joined by lilac dots, a few cyan stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes (celestial). When the scene opens it drops in from above onto the pedestal (the request of 2026-11-14: "Make the egg drop down and bounce a bit instead of appearing by going up"; it used to rise from below): it falls faster and faster for half a second, lands with a thud and a puff of dust and a little shake and a soft chime, bounces up and down again, then a smaller bounce; taps wait until it rests, about a second in all.
+  From the first landing **rings of light** spread over the pedestal's top from under it, one every 0.85 s, each a
+  clean 1 px ellipse that widens to the rim in 1.7 s and steps from bright to faint (the request: "add an expanding
+  circle ring that constantly emits below each egg in the egg hatching screen"); they go on for the whole scene. Then
+  it rests on the pedestal, barely swaying, and every few seconds it gives a little wobble, as if asking to be tapped.
+  What hatches stands on the pedestal where the egg was.
 - **The taps**: the title is the egg's rarity alone ("Epic"; the request of 2026-11-14: "no need for "A x egg" for
   rarities for eggs, just do "Legendary" "Common" etc. do the same for "It turned x", just the rarity is enough"; the
   tree's and the Hatchery's egg rows say just the rarity too) and "Tap the egg" blinks at the foot of the screen. Each
@@ -2163,7 +2179,7 @@ now (`OfflinePct`). With the **Offline Pass** it is up to 24 hours (`OfflinePass
 
 The **welcome-back card** opens by itself once the loading card has gone: "+3,240 shells" big, then "You were away for
 9 h 20 min. Your driftlings worked the first 3 h of it, at 30% pace." Without the pass, a line says what it gives ("Offline
-Pass: up to 24 h away, at full pace.") with See pass, which opens the Store's Passes tab. **Collect** pays it; in an
+Pass: 24 h at full pace.") with See pass, which opens the Store's Passes tab. **Collect** pays it; in an
 island's first three days (`OfflineDoubleDays`) **Collect x2** is there too, free. Closed without collecting, it waits
 behind an "Away earnings +3,240" chip under the right-hand cards; leaving the game pays it as shown, so nothing is lost.
 
