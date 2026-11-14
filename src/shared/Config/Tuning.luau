@@ -135,6 +135,9 @@ local Tuning = {
 	-- (0.95: 9 art px a stud; the grid snaps the zoom to whole steps: 0.85 gives 10, which clips the first island's
 	-- far shore)
 	CamFrame = 0.95,
+	-- the founders on the islands are drawn at this share of their built size, about their feet (the request of
+	-- 2026-11-14: "make the chacter smaller, about 75% the original size"); the character's own collision is unchanged
+	FounderScale = 0.75,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	CamGlide = 0.18, -- share of the way to its target the view moves a frame (in whole art px)

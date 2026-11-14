@@ -1288,6 +1288,8 @@ behind what stands in front of them and are drawn on whole art pixels like every
 
 The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). The founder walks and jumps
 (`JumpHeight`) on the islands; jumping is held in Build mode (the phone's jump button hides with it).
+The founder is drawn at three quarters of their old size (the request of 2026-11-14: "make the chacter smaller, about
+75% the original size"; `Tuning.FounderScale`), shrunk about their feet; how far they walk and jump is the same.
 The buildings, trees and decor don't stop the founder: they walk through them, and their feet stay on the ground as
 they do (the bug report of 2026-11-14: "there is a bug where the player snaps above buildings while walking over
 them": the feet were found by a ray down that met a roof or a bench first, so the founder was drawn up on it).

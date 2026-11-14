@@ -1128,7 +1128,8 @@ the rest go to `Words.errText`.
 
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
-UserId), registered with the renderer and posed every frame at their character: feet on the ground under the
+UserId; drawn at `Tuning.FounderScale` 0.75 by `CharacterModels.setScale(rig, k)`: the parts' sizes once, and every
+pose shrunk about its base, the feet, in `posePose`; the swim depth and the name's height follow it), registered with the renderer and posed every frame at their character: feet on the ground under the
 HumanoidRootPart (a raycast down past characters and rigs, `RespectCanCollide`: only what the founder stands on, never
 a building, tree or piece of decor it walks through; a second ray without it finds a river or pond's water no more
 than a stud over that ground, for the wading) while the Humanoid stands (its `FloorMaterial`), in the air

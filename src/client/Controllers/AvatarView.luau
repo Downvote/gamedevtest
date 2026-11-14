@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
@@ -65,7 +66,7 @@ end
 
 local recs: { [Player]: Rec } = {}
 -- (swimming: the rig's feet this far under the water's surface, so it shows from the chest up)
-local SWIM_SINK = 1.8
+local SWIM_SINK = 1.8 * Tuning.FounderScale -- (to the chest of a founder drawn at FounderScale)
 local HIDDEN = CFrame.new(0, -60, 0)
 
 -- A swimmer's ring of foam: four flat strips round them on the water (it grows and shrinks in two whole steps).
@@ -212,6 +213,7 @@ local function step(dt: number)
 		if r == nil or r.sig ~= sig then
 			drop(pl)
 			local rig = CharacterModels.buildStanding(look, "Founder_" .. pl.UserId, pl.UserId % 97)
+			CharacterModels.setScale(rig, Tuning.FounderScale)
 			rig.model.Parent = dyn()
 			PixelRenderer.registerDynamic(rig.model)
 			local label: TextLabel? = nil
@@ -314,7 +316,7 @@ local function step(dt: number)
 		end
 		local label = rec.label
 		if label then
-			local top = (base * CFrame.new(CharacterModels.STAND_TOP)).Position
+			local top = (base * CFrame.new(CharacterModels.STAND_TOP * Tuning.FounderScale)).Position
 			local i, j, on = PixelRenderer.projectPixel(top)
 			label.Visible = on
 			if on then

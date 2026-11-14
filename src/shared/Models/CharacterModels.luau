@@ -15,6 +15,7 @@ export type Rig = {
 	parts: { [string]: BasePart },
 	rest: { [string]: CFrame }, -- each part's offset from the rig's origin
 	seed: number,
+	scale: number?, -- drawn at this size about its feet (setScale; nil: as built)
 }
 
 type Spec = { name: string, size: Vector3, at: Vector3, color: string, shape: ("Block" | "Ball")? }
@@ -344,6 +345,28 @@ function CharacterModels.posePose(rig: Rig, base: CFrame, P: Pose)
 			p.CFrame = head * rig.rest[n]
 		end
 	end
+	-- a rig drawn smaller (setScale): the whole pose shrunk about the base (its feet)
+	local k = rig.scale
+	if k and k ~= 1 then
+		local inv = base:Inverse()
+		for _, p in rig.parts do
+			local rel = inv * p.CFrame
+			p.CFrame = base * (CFrame.new(rel.Position * k) * rel.Rotation)
+		end
+	end
+end
+
+-- Draw a rig at `k` times its built size about its feet (the founders on the islands at Tuning.FounderScale: the
+-- request of 2026-11-14, "make the chacter smaller, about 75% the original size"). Call once, after building.
+function CharacterModels.setScale(rig: Rig, k: number)
+	local was = rig.scale or 1
+	if math.abs(k - was) < 1e-6 then
+		return
+	end
+	for _, p in rig.parts do
+		p.Size = p.Size * (k / was)
+	end
+	rig.scale = k
 end
 
 -- The walk or the stand (breathing, looking round now and then) at `speed` studs a second, as a Pose.
