@@ -396,6 +396,7 @@ end
 local TEX_GRASS, TEX_SAND, TEX_STONE = Shading.TEX_GRASS, Shading.TEX_SAND, Shading.TEX_STONE
 local TEX_WOOD, TEX_THATCH, TEX_BRICK = Shading.TEX_WOOD, Shading.TEX_THATCH, Shading.TEX_BRICK
 local TEX_METAL = Shading.TEX_METAL
+local TEX_SOFT = Shading.TEX_SOFT
 -- the least screen box (art px wide, tall) each kind needs
 local TEX_MIN: { [number]: { number } } = {
 	[Shading.TEX_WOOD] = { 6, 4 },
@@ -535,12 +536,13 @@ local function shadeAt(s: Surf, idx: number, x: number, y: number): number
 	local r = s.view.room
 	local place = if wx >= r.x0 and wx <= r.x1 and wz >= r.z0 and wz <= r.z1 and wy <= r.y1 then Shading.INDOOR else Shading.OUTDOOR
 	-- the surface's texture (not where glass in front tints it: NO_TEX's colour matches none)
-	local lift = 0
+	local lift, soft = 0, 1
 	local t = texs[buffer.readu16(s.sId, idx * 2)]
 	if t and t.rgb == a then
 		lift = texLift(s, t, ni, lit, gx, gy)
+		soft = TEX_SOFT[t.kind] or 1 -- (a mark a gentle tone, not a whole band: Shading.TEX_SOFT)
 	end
-	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], lit, gx, gy, place, lift)
+	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], lit, gx, gy, place, lift, soft)
 end
 
 -- One bake sample at global (gx, gy), filling the block up to (bx1, by1) (global, inclusive) on the layer.
@@ -1491,7 +1493,7 @@ local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: numb
 		local u, v = DynTex.uv(texShape, lx, ly, lz)
 		lift = DynTex.lift(texKind, u, v, texPx, texSeed)
 	end
-	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift)
+	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift, DynTex.SOFT)
 end
 
 -- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow), cached per pixel until the static

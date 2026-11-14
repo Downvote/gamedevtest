@@ -288,6 +288,31 @@ local function newBird(sp: string, k: number): Bird
 	}
 end
 
+-- A colour's tones (Fx.tones) pulled toward the colour itself: `k` of each step kept (the request of 2026-11-14:
+-- "make the noise textures across everything more less contrast with whatever material they are on, such as the 2d
+-- grass sprites"). A tuft keeps TUFT_K of the way to its lawn's darker and lighter tones, so it reads as the lawn a
+-- shade off, not a dark green stroke; a flower's petals keep FLOWER_K of theirs.
+local TUFT_K = 0.38
+local FLOWER_K = 0.6
+local function mixPacked(a: number, b: number, k: number): number
+	local r0, g0, b0 = bit32.band(a, 0xFF), bit32.band(bit32.rshift(a, 8), 0xFF), bit32.band(bit32.rshift(a, 16), 0xFF)
+	local r1, g1, b1 = bit32.band(b, 0xFF), bit32.band(bit32.rshift(b, 8), 0xFF), bit32.band(bit32.rshift(b, 16), 0xFF)
+	return math.floor(r0 + (r1 - r0) * k + 0.5) + math.floor(g0 + (g1 - g0) * k + 0.5) * 256 + math.floor(b0 + (b1 - b0) * k + 0.5) * 65536 + bit32.band(a, 0xFF000000)
+end
+local function softTones(t: { number }, k: number): { number }
+	local mid = t[3]
+	return { mixPacked(mid, t[1], k), mixPacked(mid, t[2], k), mid, mixPacked(mid, t[4], k) }
+end
+local flowerTones: { [number]: { number } } = {}
+local function flowerTint(rgb: number): { number }
+	local t = flowerTones[rgb]
+	if t == nil then
+		t = softTones(Fx.tones(rgb), FLOWER_K)
+		flowerTones[rgb] = t
+	end
+	return t
+end
+
 -- The land's cells (by the tier's shape) and the tufts and flowers on the grass, the same every time for a plot.
 local function buildLand(I: Isle)
 	local tier, ox, oz = I.tier, I.ox, I.oz
@@ -313,7 +338,7 @@ local function buildLand(I: Isle)
 					table.insert(ch.list, { x = ox + x + r:NextNumber(), z = oz + z + r:NextNumber(), flower = false, tint = nil, phase = r:NextNumber() * 6.28, ver = -1, i = 0, j = 0, d = 0, ok = false, px = {}, pf = 0 })
 				end
 				if r:NextNumber() < 0.025 then
-					local tint = Fx.tones(FLOWER_RGB[r:NextInteger(1, #FLOWER_RGB)])
+					local tint = flowerTint(FLOWER_RGB[r:NextInteger(1, #FLOWER_RGB)])
 					for _ = 1, r:NextInteger(2, 3) do
 						table.insert(ch.list, { x = ox + x + r:NextNumber(-0.6, 1.6), z = oz + z + r:NextNumber(-0.6, 1.6), flower = true, tint = tint, phase = r:NextNumber() * 6.28, ver = -1, i = 0, j = 0, d = 0, ok = false, px = {}, pf = 0 })
 					end
@@ -976,7 +1001,7 @@ local function drawDecos(ctx: Fx.Ctx, I: Isle, now: number, quiet: boolean)
 									table.clear(lawnTones)
 									lawnCount = 0
 								end
-								tint = Fx.tones(Fx.unpack(base))
+								tint = softTones(Fx.tones(Fx.unpack(base)), TUFT_K)
 								lawnTones[base] = tint
 								lawnCount += 1
 							end

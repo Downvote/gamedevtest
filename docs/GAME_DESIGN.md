@@ -260,6 +260,16 @@ floor, it just looks noisy", 2026-11-14),
   into a blob. A thing too small to carry its pattern stays plain. In a shadow the marks fade into the shade with the
   rest of the face. The water keeps its own moving waves, and what moves (the driftlings, the eggs, the founders)
   stays plain: a mark would slide over it as it walks. None of it costs a ray.
+
+  > The request (2026-11-14): "make the noise textures across everything more less contrast with whatever material
+  > they are on, such as the 2d grass sprites and the sand dots. tone down the brightness abit, it should be around
+  > this brightness level" (with a picture of Random Bakery's bright, soft snowy street)
+
+  So every mark is gentler: where it took a whole step to the next darker or lighter tone, it now goes only part of
+  the way, in the same hue (the sand's dots and the lawn's blades about half way, stone a little less, brick courses
+  a little more, the driftlings' fur, feathers and scales half way). The lawn's 2D tufts are the lawn a shade off
+  instead of a dark green stroke, and the flowers keep their colour a little softer. The marks are still there up
+  close; from afar the island reads calmer. (The brightness was toned down to the picture's at the same time, §8.)
 - **The founders** (yours and your neighbours') and the **visitors** are little chibis: shorts over bare shins, shoes
   on light soles, a shirt with a collar, buttons and a belt with a buckle, sleeves over bare forearms and fists, ears,
   brows, a mouth and a glint in each eye; knees and elbows bend, and the face changes. **Driftlings** are small 3D
