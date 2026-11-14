@@ -620,34 +620,40 @@ do
 	H.expect(pq ~= nil and pq.clutch.next == nextQ + Tree.count(pq.tier) and math.abs((E.SIM.now - back) - 3) <= 0.25, "away", "the lot comes once those three seconds have run with them here", string.format("%.2f s after coming back", E.SIM.now - back))
 	E.run(1)
 end
------------------------------------------------------------------- day and night
+------------------------------------------------------------------ no night
 E.phase = "daynight"
--- the day and night (GAME_DESIGN 8): the sea's clock grades the picture: plain by day, dark blue at night with the
--- lamps lit, bright again at dawn (UI/DayLight; with the filter off, as in this engine, Roblox's own clock follows)
+-- no day and night (the request of 2026-11-14: "remove the day night cycle, and make everything brighter"): whatever
+-- the sea's clock says, the light is the same bright day (UI/DayLight's BRIGHT grade: lighter, never dark, no lamp
+-- pools; with the filter off, as in this engine, Roblox's own clock stays at early afternoon), the crickets never sing
+-- and the music is the day's
 do
 	local PR = H.cmod(p, "Pixel.PixelRenderer")
 	local DL = H.cmod(p, "Controllers.DayLight")
-	local nightGrade = DL.at(0.88)
-	H.expect(DL.at(0.35) == nil and nightGrade ~= nil and nightGrade.mr < 0.6 and nightGrade.lamps > 0.9, "daynight", "the grade: none at noon, dark with the lamps lit at night")
-	local dusk = DL.at(0.68)
-	H.expect(dusk ~= nil and dusk.mr > dusk.mb, "daynight", "a warm dusk")
-	-- (a day is hours: the sea's clock jumps to the time of day, then runs on a moment)
+	local Aud = H.cmod(p, "Controllers.Audio")
+	local same = true
+	for _, f in { 0.05, 0.35, 0.68, 0.75, 0.88 } do
+		local g = DL.at(f)
+		same = same and g ~= nil and g.mr >= 1 and g.mg >= 1 and g.mb >= 1 and g.lamps == 0 and g == DL.at(0.35)
+	end
+	H.expect(same, "daynight", "the same bright grade at every hour (lighter than plain, no lamps)")
 	local WC = H.smod("WorldClock")
-	local function at(lo, hi)
-		local want = (lo + hi) / 2
+	local function at(want)
 		WC.shift(((want - WC.dayFrac()) % 1) * Tuning.DaySeconds)
 		E.run(1.3)
 		local off = H.inClient(p, PR.tier) == "off"
 		local st = H.inClient(p, DL.debugState)
-		return st.grade, off, st.clock
+		return st, off
 	end
-	local noon, off1, c1 = at(0.3, 0.45)
-	H.expect(noon == "" and (not off1 or (c1 >= 9 and c1 <= 15)), "daynight", "plain daylight at noon", string.format("%q %s %s", noon, tostring(off1), tostring(c1)))
-	local night, off2, c2 = at(0.84, 0.92)
-	local mr = tonumber(string.match(night, "^(%S+)"))
-	H.expect(if off2 then (c2 >= 19 or c2 <= 5) else (mr ~= nil and mr < 0.6), "daynight", "dark at night", string.format("%q %s %s", night, tostring(off2), tostring(c2)))
-	local dawn, off3, c3 = at(0.08, 0.2)
-	H.expect(dawn == "" and (not off3 or (c3 >= 6 and c3 <= 11)), "daynight", "bright again in the morning", string.format("%q %s %s", dawn, tostring(off3), tostring(c3)))
+	local _ = Aud
+	for _, f in { 0.3, 0.86, 0.1 } do
+		local st, off = at(f)
+		H.expect(st.frac == DL.frac() and (if off then st.clock >= 12 and st.clock <= 15 else true), "daynight", string.format("bright day at %.2f of the calendar day", f), string.format("frac %.2f, clock %s", st.frac, tostring(st.clock)))
+	end
+	local loud = H.inClient(p, function()
+		local snd = E.find("SoundService"):FindFirstChild("Ambience_crickets", true)
+		return if snd and snd:IsA("Sound") then snd.Volume else 0
+	end)
+	H.expect(loud == 0, "daynight", "no crickets through the calendar's night hours: there is no night", tostring(loud))
 end
 
 H.checkProfile(p, "end")

@@ -581,14 +581,15 @@ tree's next lot, the server's last word (a tick or a view) run down by the clien
 lots), `request(action, payload) -> Response` (never errors), `signal(kind, payload)`. (No `TideChanged`, `tideNow`
 or `along` since the tide went; `treeFrac` went with the old tree.)
 
-### 8.2 `DayLight` (the day and night)
-`start()`: the view's `dayFrac` (each tick and view; run on smoothly by `Tuning.DaySeconds` between them) sets
-`PixelRenderer.setGrade(at(frac))` every frame (with the filter off,
-`Lighting.ClockTime` instead: 6 at dawn, 18 at dusk). `at(frac) -> Grade?`: the day's keys (`KEYS`: dawn 0, morning
-0.07, afternoon 0.6, dusk 0.68, twilight 0.75, night 0.81 to 0.95, dawn again at 1), the step between two keys in
-`STEPS` (6) steps; nil when it is plain daylight. `frac()` (the time of day now: the HUD's music), `hold(grade?)` (a grade held over the clock's; nothing
-holds one since the fights went; nil lets go), `debugSet(frac?)`
-(previews: a fixed time), `debugState() -> { frac, grade, clock }`.
+### 8.2 `DayLight` (the light: one bright day)
+The request of 2026-11-14, "remove the day night cycle, and make everything brighter": `start()` sets
+`PixelRenderer.setGrade(hold or BRIGHT)` every frame (with the filter off, `Lighting.ClockTime` 13.5), keeps the surf
+going (`Audio.ambience("waves")`, the crickets at 0) and plays the birds every `BIRDS_EVERY` 80 s. `BRIGHT` = `{ mr
+1.035, mg 1.035, mb 1.025, lift 3, sat 1.02, lamps 0 }`. `at(frac) -> Grade` (`BRIGHT` at any time), `frac()` (always
+0.35, the day's middle: AmbientView's birds and butterflies are always about, its fireflies never), `hold(grade?)`
+(the hatch scene's rarity grades over the day's; nil lets go), `debugSet(frac?)` (kept for the previews' day, dusk,
+night and dawn scenarios: it changes nothing now, so they all show the same day), `debugState() -> { frac, grade,
+clock }`. The view's `dayFrac` still moves (the HUD's calendar bar); nothing lights by it.
 
 ### 8.3 `Audio`
 `play(name, opts?) -> boolean` (opts `{ volume, pitch }` times the event's; a voice not loaded yet is asked to load
@@ -610,7 +611,7 @@ pitch range, a cooldown (a repeat inside it is dropped), a few voices and maybe 
 the hammer's first two taps, the door chime's first ding-dong; its last `fade` seconds tweened down, a fade still
 running cancelled when the voice plays again; the voice stops when it is over) (Sounds in `SoundService.UISounds`,
 reused). `playCount(name)`: how many times an event has played on this client (the sims: the footsteps). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
-(DayLight: the surf always, crickets at night). `music(mood?)`: the background music, a mood's playlist of
+(DayLight: the surf always; the crickets no longer, there is no night). `music(mood?)`: the background music, a mood's playlist of
 `Monetization.Music` ("day", "night"; nil: quiet) shuffled once and played round, track after track
 (`Music_<mood>` Sounds at `MUSIC_VOL` (0.2) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
 that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades

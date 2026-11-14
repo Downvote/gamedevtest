@@ -23,7 +23,6 @@ local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local EggView = require(script.Parent.Parent.Controllers.EggView)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
-local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
@@ -816,20 +815,13 @@ function Hud.start()
 		local dt = math.min(0.1, now - lastBeat)
 		lastBeat = now
 		stepEases(dt)
-		-- the day's clock creeps along between the server's ticks; the sun sets into the moon for the evening
+		-- the calendar day creeps along between the server's ticks (no night: "remove the day night cycle", 2026-11-14;
+		-- the sun stays on the chip)
 		local v = StateClient.view()
 		if v then
 			local db, df = dayBar, chipFrames.day
 			if db and df then
 				db.Size = UDim2.fromOffset(math.floor((df.Size.X.Offset - 6) * math.clamp(v.dayFrac, 0, 1)), 1)
-			end
-			local icon = chipIcons.day
-			local night = v.dayFrac >= 0.75
-			if icon and icon:GetAttribute("Night") ~= night and df then
-				icon:Destroy()
-				local ni = PixelSprites.image(df, if night then "mini_moon" else "mini_sun", UDim2.fromOffset(1, 1), 3)
-				ni:SetAttribute("Night", night)
-				chipIcons.day = ni
 			end
 		end
 		-- a chip whose value changed flashes for a moment
@@ -858,10 +850,9 @@ function Hud.start()
 				tt.Text = text
 			end
 		end
-		-- the background music: easygoing island tunes by day, softer ones from the twilight; the note in the corner
-		-- switches it off and on
-		local f = DayLight.frac()
-		Audio.music(if f >= 0.74 or f < 0.02 then "night" else "day")
+		-- the background music: the easygoing island tunes (always day now); the note in the corner switches it off
+		-- and on
+		Audio.music("day")
 		local vw = StateClient.view()
 		local on = (musicPref or (if vw and vw.settings.music == "off" then "off" else "on")) ~= "off"
 		Audio.setMusicOn(on)

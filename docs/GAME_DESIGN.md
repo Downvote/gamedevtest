@@ -218,9 +218,8 @@ offline progress).
   respecting the pixel grid").
 - **Cozy light** (the request of 2026-11-13 at the top): the day's light is a little warm, like a late summer
   afternoon, with a faint blush since the pink sand below (`Palette.modes.day` 1.033, 0.995, 0.955: the moving
-  things' light the same). The dusk is a golden one, a little rosy (DayLight's grade 1.022, 0.845, 0.675), the night
-  a touch violet. The hatch scene's skies (§6.2) are the warmest of all: a sunset, a golden afternoon, moonlit
-  nights.
+  things' light the same), and since 2026-11-14 brighter all the time, with no dusk or night (§8). The hatch scene's
+  skies (§6.2) are the warmest of all: a sunset, a golden afternoon, moonlit nights.
 - **Cozy colours** (the request of 2026-11-13, "could everything use a more pastelish colour pallette?", then of
   2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use more cozy colors. saturate the game
   back more"): the colours are rich and warm, a little more saturated than the cozy pass of 2026-11-13 left them (the
@@ -380,8 +379,8 @@ floor, it just looks noisy", 2026-11-14),
   what it grew in food (a Veggie Patch 36 shells a turn). The shops kept their rates and no longer use anything up.
   Hunger, eating and the food chip went with the food.
 - **A day** is `DaySeconds` (4 hours) of the sea's clock (`WorldClock`: one time of day for every island on the
-  server, carried on across visits: it follows the real clock): the HUD shows the day count and its clock (a sun, a
-  moon for the evening); day and night follow it (§8); each day's end while you play counts a day (a banner).
+  server, carried on across visits: it follows the real clock): the HUD shows the day count and how far through the
+  day it is (a sun; there is no night since 2026-11-14, §8); each day's end while you play counts a day (a banner).
 - **Shops** sell to the visitors: their rate times visitors / `ShopVisitors` (at most double). **Visitors** a turn:
   1 + charm / `VisitorCharm`, at most `VisitorsMax`.
 - **Charm:** every piece's charm, and one for each driftling living in a hut plus its charm share (Cute and its
@@ -1126,27 +1125,16 @@ text (the requests and how each was met) is in the history of this file, up to c
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) move the same way.
-- **Day and night** (the request of 2026-11-10: "make an actual day night cycle, causing things to go dark and then bright
-  as time goes on"): the island's day clock grades the whole picture (`Controllers/DayLight`): a rosy dawn as the day
-  begins, plain daylight, a golden dusk (from 0.6 of the day), a violet twilight and a deep blue night (from 0.81)
-  that brightens into the next dawn. At night the lamps, torches, the campfire, lanterns and lit windows keep their
-  colour and pool warm light round them in three stepped rings on the pixel grid (the pools move with the picture as
-  the view follows you), only as strong as the dark is deep (no orange rings in the late afternoon), never all the
-  way back to the day. Each pool is as big as its light:
-
-  > The request (2026-11-12): "also, lights seem off, the all have the same size even though the light source might
-  > be smaller or bigger"
-
-  Every light had the same pool, so a one-pixel glint lit as far as the campfire and a canopy hung with small lights
-  came out in bright rings (the Tree of Life's, then). Now a light is the patch of lit pixels it shows (or a moving
-  model's lit parts together, a fire's flames or a driftling's glowing eyes), and its pool's radius goes with that
-  patch's size to the power 0.6: a glint gets a two-pixel halo, a pier lantern 7, a torch 11 and the campfire about 21
-  (the biggest 22). As it gets dark pale things lose more of their light than dark ones (their brightness over a knee
-  is pressed down), so white and pink shells, the sand and the sails stay in the night instead of glowing blue. The
-  change steps (a few steps between keys, never a smear). With the pixel filter off Roblox's own clock follows the day
-  instead.
-
-  > The bug report (2026-11-10): "lighting also seems buggy, especially with shells"
+- **One bright day, no night** (the request of 2026-11-14: "remove the day night cycle, and make everything
+  brighter"): the light no longer follows a clock. It is the same clear day all the time, a little brighter than the
+  plain baked picture (`Controllers/DayLight`'s `BRIGHT` grade: the colours 3.5% lighter, 2.5% in the blue, the shadows
+  lifted a touch; first 8% lighter, then toned down: "tone down the brightness abit, it should be around this
+  brightness level", with a picture of Random Bakery's bright snowy street), so there is no dawn, dusk, twilight or night, no lamp pools, no crickets
+  and no night music. The calendar still counts days (the HUD's "Day 12"). With the pixel filter off Roblox's own
+  clock stays at early afternoon. (Before, from the request of 2026-11-10, "make an actual day night cycle, causing
+  things to go dark and then bright as time goes on", the clock graded the picture through a rosy dawn, a golden
+  dusk, a violet twilight and a blue night with lamps pooling light round them; that text is in this file's history,
+  up to commit 60212c6.)
 - **Detail everywhere:** palms that lean on curved trunks, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
   each island's own seed. Every building has its doors, windows, ridged roofs with eaves, crates,
   barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
@@ -1476,7 +1464,7 @@ the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
   > The request (2026-11-10): "also, find new sounds from the roblox free library to use. try to find fitting ones"
 
   The islands and the sea: a hammer on wood when a wooden piece goes up, gulls squawking as a flock passes over, the
-  surf on the sand always, crickets through the night and birds at dawn.
+  surf on the sand always and birds now and then (the crickets went with the night, 2026-11-14).
 - **Music** (`Audio.music`): APM Music's library on the Creator Store, shuffled, one track after another, crossfaded,
   quiet: calm, drumless music that sits in the background. Soft acoustic island guitar by day (Campfire Stories,
   Tender Reflection, Home Camp), soft solo piano from the twilight (Gymnopedie No. 1, two Live Piano Stories), each

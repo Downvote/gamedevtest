@@ -170,7 +170,8 @@ local function reduceMotion(now: number): boolean
 	return still
 end
 
--- The hour: birds about by day (not from dusk to dawn), butterflies in the day's middle, fireflies at night.
+-- The hour: birds and butterflies about, no fireflies (there is no night since 2026-11-14: "remove the day night
+-- cycle"; DayLight.frac() is always the day's middle).
 local function hour(): (boolean, boolean, boolean)
 	local f = DayLight.frac()
 	return f >= 0.03 and f < 0.72, f >= 0.06 and f < 0.68, f >= 0.78 and f < 0.97
