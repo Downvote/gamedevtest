@@ -583,7 +583,8 @@ end
 -- reward on a card under it, a padlock on each while the pass isn't owned. A card that can be taken glows and says
 -- Claim, and a tap takes it; one taken shows a tick. The track opens at the level being worked on (or the first reward
 -- waiting further back) and keeps its place while the panel is rebuilt.
-local TRACK_COL, TRACK_GAP, TRACK_CARD, TRACK_SPINE = 46, 3, 34, 11
+-- (a column as wide as "Legendary", the widest egg's caption: "there is a few boxes where text overflows", 2026-11-14)
+local TRACK_COL, TRACK_GAP, TRACK_CARD, TRACK_SPINE = 50, 3, 34, 11
 local trackScroll = -1 -- the track's place (UI px across; -1: not opened yet)
 
 -- A reward's few words under its card: "4.2K", "Rare", "Look", "Title".

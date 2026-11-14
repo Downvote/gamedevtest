@@ -385,6 +385,11 @@ floor, it just looks noisy", 2026-11-14),
   creatures of our own design walking to their work and doing it, each with its own details (moss and stubby arms on
   the pebble, bubbles on the crab, whiskers and a sprout on the bun, wing bones on the bat...) and limbs that move
   (§7). The driftlings live on the island, and the tree's eggs lie on the lawn round its roots (§6).
+- **Words fit their boxes** (the request of 2026-11-14: "there is a few boxes where text overflows. can you prevent
+  this?"): a row whose words are too long for one line grows a line (a driftling's card, its passive in the list, the
+  Hatchery's cost), a mutation whose words don't fit beside its name takes a line of its own, the pass track's columns
+  are as wide as "Legendary"; anything still too long ends in "..." inside its box, never past its edge, and the
+  previews log every label that needed it.
 - **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
   panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its

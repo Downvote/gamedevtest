@@ -394,7 +394,11 @@ local function buildHatch(body: Frame, arg: any?)
 				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(214, 5), 4)
 				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 10), { color = UIKit.color(rar.color), z = 4, name = "Child" })
 				UIKit.text(f, rar.name, UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 19), { color = UIKit.color(rar.color), z = 4 })
-				UIKit.text(f, string.format("A feast for %s shells, hatches in %s. Shared mutations always pass on.", Numbers.coins(feast), Numbers.duration(turns * Tuning.TurnSeconds)), UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
+				-- (on two lines left of Breed when one is too narrow for it)
+				local costWords = string.format("A feast for %s shells, hatches in %s. Shared mutations always pass on.", Numbers.coins(feast), Numbers.duration(turns * Tuning.TurnSeconds))
+				local cw = if UIKit.textWidth(costWords) > W - 8 then W - 76 else W - 8
+				local cl = math.clamp(UIKit.lines(costWords, cw), 1, 2)
+				UIKit.text(f, costWords, UDim2.fromOffset(cw, 10 * cl), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost", wrap = cl > 1, y = "top" })
 				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 51), function()
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
 					if res.ok then
@@ -485,15 +489,20 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	if d == nil then
 		return
 	end
-	local f = row(list, order, 44)
-	f.Name = "Pal_" .. x.id
-	PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 6), 4)
 	local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 	local tw = W - 108
+	-- (its passive on two lines when one is too narrow, the row a line taller: "there is a few boxes where text
+	-- overflows. can you prevent this?", 2026-11-14)
+	local passive = d.passive.name .. ": " .. Traits.describe(d.passive.fx)
+	local pl = math.clamp(UIKit.lines(passive, tw), 1, 2)
+	local dy = (pl - 1) * 10
+	local f = row(list, order, 44 + dy)
+	f.Name = "Pal_" .. x.id
+	PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 6), 4)
 	UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
 	UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(PX + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4, name = "Rarity" })
-	UIKit.text(f, d.passive.name .. ": " .. Traits.describe(d.passive.fx), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("accent"), z = 4, name = "Passive" })
-	mutLine(f, x.muts or {}, PX, 21, tw)
+	UIKit.text(f, passive, UDim2.fromOffset(tw, 10 * pl), UDim2.fromOffset(PX, 11), { color = UIKit.color("accent"), z = 4, name = "Passive", wrap = pl > 1, y = "top" })
+	mutLine(f, x.muts or {}, PX, 21 + dy, tw)
 	local where: string
 	local color = UIKit.color("text_dim")
 	if x.home == 0 then
@@ -508,7 +517,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 			where = string.format("%s, resting", hut)
 		end
 	end
-	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 31), { color = color, z = 4, name = "Where" })
+	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 31 + dy), { color = color, z = 4, name = "Where" })
 	UIKit.button(f, "Move", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 2), function()
 		UIKit.openPanel("pals", { move = x.id, back = back })
 	end, { name = "Move_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
@@ -652,10 +661,12 @@ local function buildPal(body: Frame, arg: any?)
 	if #muts == 0 then
 		UIKit.text(body, "No mutations", UDim2.fromOffset(L, 10), UDim2.fromOffset(2, top + 35), { color = UIKit.color("text_dim"), name = "MutsTitle" })
 	end
-	for i, id in muts do
+	-- (a mutation whose words don't fit beside its name and stars has them on a line of their own under it)
+	local my = top + 35
+	for _, id in muts do
 		local m = Traits.byId[id]
 		if m then
-			local y = top + 35 + (i - 1) * 11
+			local y = my
 			local icon = WEATHER_ICON[m.family]
 			local nx = 2
 			if icon and PixelSprites.has("mini_" .. icon) then
@@ -663,16 +674,29 @@ local function buildPal(body: Frame, arg: any?)
 				nx = 14
 			end
 			local _, lw = TierStars.label(body, m.name, m.tier, nx, y, { name = "Mut_" .. id })
-			UIKit.text(body, m.blurb, UDim2.fromOffset(math.max(10, L - nx - lw - 6), 10), UDim2.fromOffset(nx + lw + 6, y), { color = UIKit.color("text_dim"), name = "MutFx_" .. id })
+			local room = L - nx - lw - 6
+			if UIKit.textWidth(m.blurb) <= room then
+				UIKit.text(body, m.blurb, UDim2.fromOffset(math.max(10, room), 10), UDim2.fromOffset(nx + lw + 6, y), { color = UIKit.color("text_dim"), name = "MutFx_" .. id })
+				my += 11
+			else
+				UIKit.text(body, m.blurb, UDim2.fromOffset(L - nx - 2, 10), UDim2.fromOffset(nx + 2, y + 10), { color = UIKit.color("text_dim"), name = "MutFx_" .. id })
+				my += 21
+			end
 		end
 	end
 	-- the right half: where it works and how fast, its hut, its price
-	local function info(y: number, icon: string, top: string, sub: string, color: Color3, name: string)
-		local f = UIKit.row(body, UDim2.fromOffset(RW, 22), UDim2.fromOffset(R0, y))
+	-- (a row grows a line for words too long for one, so nothing runs past its edge: the request of 2026-11-14, "there
+	-- is a few boxes where text overflows. can you prevent this?"; it returns its height, the rows stacking under it)
+	local function info(y: number, icon: string, top: string, sub: string, color: Color3, name: string): number
+		local tw = RW - 18
+		local tl, sl = math.max(1, UIKit.lines(top, tw)), math.max(1, UIKit.lines(sub, tw))
+		local h = 2 + 10 * (tl + sl)
+		local f = UIKit.row(body, UDim2.fromOffset(RW, h), UDim2.fromOffset(R0, y))
 		f.Name = name
 		PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(3, 5), 4)
-		UIKit.text(f, top, UDim2.fromOffset(RW - 18, 10), UDim2.fromOffset(16, 1), { color = color, z = 4, name = "Top" })
-		UIKit.text(f, sub, UDim2.fromOffset(RW - 18, 10), UDim2.fromOffset(16, 11), { color = UIKit.color("text_dim"), z = 4, name = "Sub" })
+		UIKit.text(f, top, UDim2.fromOffset(tw, 10 * tl), UDim2.fromOffset(16, 1), { color = color, z = 4, name = "Top", wrap = tl > 1, y = "top" })
+		UIKit.text(f, sub, UDim2.fromOffset(tw, 10 * sl), UDim2.fromOffset(16, 1 + 10 * tl), { color = UIKit.color("text_dim"), z = 4, name = "Sub", wrap = sl > 1, y = "top" })
+		return h
 	end
 	local workId: string? = nil
 	local hutName: string? = nil
@@ -686,6 +710,7 @@ local function buildPal(body: Frame, arg: any?)
 		hutName = if hd then hd.name else "hut"
 	end
 	local wd = if workId then Buildings.byId[workId] else nil
+	local ry = top
 	-- (its best: the fastest it works at any kind of workplace there is, its passive and mutations counted)
 	local best = Tree.worth(pal)
 	for _, b in Buildings.list do
@@ -696,13 +721,13 @@ local function buildPal(body: Frame, arg: any?)
 	if wd then
 		local here = Tree.worthAt(pal, wd.knack)
 		local how = if own and pal.pin then "your pick" else "auto"
-		info(top, "work", "Works at the " .. wd.name, string.format("x%.1f here, x%.1f at its best (%s)", here, best, how), UIKit.color("good"), "Where")
+		ry += info(ry, "work", "Works at the " .. wd.name, string.format("x%.1f here, x%.1f at its best (%s)", here, best, how), UIKit.color("good"), "Where") + 2
 	else
-		info(top, "rest", if hutName then "Resting" else "Waiting for a hut", string.format("Works x%.1f at its best", best), UIKit.color("text"), "Where")
+		ry += info(ry, "rest", if hutName then "Resting" else "Waiting for a hut", string.format("Works x%.1f at its best", best), UIKit.color("text"), "Where") + 2
 	end
-	info(top + 24, "nest", if hutName then "Lives in the " .. hutName else "No hut yet", if hutName then "It works from its hut" else "It moves in when one has room", if hutName then UIKit.color("text") else UIKit.color("orange"), "Hut")
+	ry += info(ry, "nest", if hutName then "Lives in the " .. hutName else "No hut yet", if hutName then "It works from its hut" else "It moves in when one has room", if hutName then UIKit.color("text") else UIKit.color("orange"), "Hut")
 	local price = Tree.price(pal)
-	info(top + 48, "shell", string.format("%s %s shells", if own then "Sells for" else "Worth", Numbers.coins(price)), if own then "Two taps on Sell to sell it" else "Only its keeper can sell it", UIKit.color("accent"), "Price")
+	info(ry, "shell", string.format("%s %s shells", if own then "Sells for" else "Worth", Numbers.coins(price)), if own then "Two taps on Sell to sell it" else "Only its keeper can sell it", UIKit.color("accent"), "Price")
 	-- the foot: the own one's buttons; a neighbour's says whose it is
 	local fy = H - 14
 	if own then

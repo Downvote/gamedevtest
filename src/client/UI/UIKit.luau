@@ -241,6 +241,10 @@ function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, o
 	l.TextXAlignment = XA[o.x or "left"] or Enum.TextXAlignment.Left
 	l.TextYAlignment = YA[o.y or "center"] or Enum.TextYAlignment.Center
 	l.TextWrapped = o.wrap == true
+	-- (words too long for the box end in "..." inside it rather than running past its edge, the last line of a
+	-- wrapped label too: the request of 2026-11-14, "there is a few boxes where text overflows. can you prevent
+	-- this?"; the previews still log every label that needed it, PixelText.overflows)
+	l.TextTruncate = Enum.TextTruncate.AtEnd
 	l.ZIndex = o.z or 2
 	l.Font = Enum.Font.Arcade
 	l.TextSize = if o.face == "big" then 16 else 8

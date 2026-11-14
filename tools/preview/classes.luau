@@ -567,8 +567,9 @@ DEFAULT.GuiObject = {
 	Interactable = true,
 }
 DEFAULT.GuiButton = { AutoButtonColor = true, Active = true, Selectable = true }
-DEFAULT.TextLabel = { TextSize = 14, Text = "Label", TextColor3 = c3(0, 0, 0), TextTransparency = 0, TextStrokeTransparency = 1 }
-DEFAULT.TextButton = { TextSize = 14, Text = "Button", TextColor3 = c3(0, 0, 0), TextTransparency = 0, TextStrokeTransparency = 1 }
+DEFAULT.TextLabel = { TextSize = 14, Text = "Label", TextColor3 = c3(0, 0, 0), TextTransparency = 0, TextStrokeTransparency = 1, TextTruncate = E.Enum.TextTruncate.None }
+-- (TextTruncate None as Roblox has it: the first item of its enum here is AtEnd, which clipped every label with "...")
+DEFAULT.TextButton = { TextSize = 14, Text = "Button", TextColor3 = c3(0, 0, 0), TextTransparency = 0, TextStrokeTransparency = 1, TextTruncate = E.Enum.TextTruncate.None }
 DEFAULT.TextBox = { TextSize = 14, Text = "TextBox", TextColor3 = c3(0, 0, 0), TextEditable = true, ClearTextOnFocus = true }
 DEFAULT.ImageLabel = { ImageTransparency = 0, ImageColor3 = c3(1, 1, 1) }
 DEFAULT.ImageButton = { ImageTransparency = 0, ImageColor3 = c3(1, 1, 1) }

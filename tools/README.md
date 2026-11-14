@@ -113,6 +113,12 @@ Ball / Cylinder / Wedge / CornerWedge intersection, a BVH), captures what it wri
 PREVIEW_KEEP=1 sh tools/preview/render.sh <scenario> <outdir> "desktop phone" [tier]
 ```
 
+Every frame's log (with `PREVIEW_KEEP=1`, in `<outdir>/_logs`) lists each label on show whose words need more room
+than its box as an `OVERFLOW` line: its name, its words, the room needed and the box, "(clipped)" when it ends in
+"..." (`PixelText.overflows`; GAME_DESIGN 2). There should be none: `grep -h OVERFLOW <outdir>/_logs/*`. The fake
+engine gives a label `TextTruncate` None, as Roblox does (an unset enum used to read as its first item, AtEnd, which
+clipped every label and hid the overflow players saw).
+
 | Scenario | Frames | What happens |
 |---|---|---|
 | `island` | `island` | a brand-new island alone in the sea: its shore, the campfire's plaza, the sign on its beach, the founder in the middle of the view, the HUD with the first tip |

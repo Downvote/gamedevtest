@@ -1027,7 +1027,10 @@ rect as the new picture; `finish(state)` shows the new picture everywhere at onc
 
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
-keeps its `Text`. `Pixel/Snapshot` (copied): pixel-art pictures of models drawn analytically (`Render/Picture`), for
+keeps its `Text`. `PixelText.overflows() -> { { name, text, w, h, bw, bh, clipped } }` (previews and sims: the bound
+labels on show whose words need more room than their box, a line too wide or too many lines; `clipped` when the label
+truncates them; the previews log each as an OVERFLOW line, the request of 2026-11-14, "there is a few boxes where text
+overflows. can you prevent this?"). `Pixel/Snapshot` (copied): pixel-art pictures of models drawn analytically (`Render/Picture`), for
 UI icons: the Staff panel's portraits (`UIKit.portrait`: a developer's head and shoulders turned to face the viewer). `Pixel/ImageMemory` (copied): every EditableImage is made through
 it.
 
@@ -1036,7 +1039,8 @@ it.
 ### 10.1 `UIKit`
 Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
 with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `hex`, `P`, `size(root)`, `phone`,
-`canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound), `setText`, `setTextColor`, `textWidth`,
+`canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound; `TextTruncate` AtEnd, so words too long for
+the box end in "..." inside it, the last line of a wrapped one too, never past its edge), `setText`, `setTextColor`, `textWidth`,
 `lineHeight`, `lines(text, w, face?)` (how many lines a wrapped label breaks it into). The look since 2026-11-14
 ("make the ui appear like this instead, with a black transparent background and make it neater", with a picture of
 Random Bakery's HUD): `glass(parent, size, pos?, corner?)` (black see-through glass: `Palette.ui.glass` at
@@ -1643,7 +1647,7 @@ in the background (`PriceInRobux`, the panel refreshed when it lands), else `Sug
 - track (a pass, running sideways; GAME_DESIGN 14.3): `TrackIcon`, `TrackTitle` ("Pass Track") and `TrackLevel`
   ("Level 6/30"); `TrackBox` with `TrackNext` ("Next: level 7"), `TrackBar` and its `Fill` (`trackInto` / `trackNeed`),
   `TrackPoints` ("40/220" or "Max") and `TrackLeft` ("Ends in 27 days. ..."); `Buy_PremiumTrackTop` without the pass;
-  `FreeHead`, `PremHead`; then the `Track` scroller (sideways, `TRACK_COL` 46 a column, `TRACK_GAP` 3): `TrackLine`
+  `FreeHead`, `PremHead`; then the `Track` scroller (sideways, `TRACK_COL` 50 a column (as wide as "Legendary"), `TRACK_GAP` 3): `TrackLine`
   and its `Fill` (to the points so far), a `Level_<L>` tag a level (`Num`; pink reached, yellow the next), and the
   cards `FreeCard_<L>` over it and `PremCard_<L>` under it: the picture (a piece's, `egg_<r>`, `mini_star` for a
   title, `mini_shell`), `Caption` (`rewardShort`: shells as `minuteShells` x minutes in short, the egg's rarity, the

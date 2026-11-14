@@ -1238,6 +1238,68 @@ function PixelText.flush()
 	end
 end
 
+-- Previews and sims: the bound labels on show whose words don't fit their box (a line wider than it, or more lines
+-- than it is tall), each with its full name, its words, the room they need and the box, in art px; `clipped` when
+-- the label truncates them ("..."), else they run past its edge. A label that sizes itself to its lines is never
+-- over. The request of 2026-11-14: "there is a few boxes where text overflows. can you prevent this?"
+function PixelText.overflows(): { { name: string, text: string, w: number, h: number, bw: number, bh: number, clipped: boolean } }
+	local out = {}
+	for label, rec in recs do
+		local l = rec.label
+		if label.Parent == nil or rec.autoY then
+			continue
+		end
+		-- (compared by name: an unset value reads as None)
+		local truncates = l.TextTruncate ~= nil and not string.find(tostring(l.TextTruncate), "None", 1, true)
+		local vis = true
+		local g: Instance? = l
+		while g do
+			if g:IsA("GuiObject") and not g.Visible then
+				vis = false
+				break
+			end
+			if g:IsA("LayerCollector") then
+				vis = g.Enabled
+				break
+			end
+			g = g.Parent
+		end
+		if not vis or g == nil then
+			continue
+		end
+		local f = rec.face
+		local text = shown(rec)
+		if l.RichText and string.find(text, "<", 1, true) ~= nil then
+			text = (PixelFont.rich(text))
+		end
+		if text == "" then
+			continue
+		end
+		local bw, bh = boxOf(rec)
+		if bw <= 0 then
+			continue
+		end
+		local lines: { string }
+		if l.TextWrapped then
+			lines = PixelFont.wrap(text, bw, f)
+		else
+			lines = string.split(text, "\n")
+		end
+		local w = 0
+		for _, line in lines do
+			w = math.max(w, PixelFont.width(line, f))
+		end
+		local h = (#lines - 1) * PixelFont.pitch(l.LineHeight, f) + f.em
+		if w > bw or h > bh + 1 then
+			table.insert(out, { name = l:GetFullName(), text = text, w = w, h = h, bw = bw, bh = bh, clipped = truncates })
+		end
+	end
+	table.sort(out, function(a, b): boolean
+		return a.name < b.name
+	end)
+	return out
+end
+
 function PixelText.stats(): { [string]: number }
 	local bytes = 0
 	for _, p in pages do

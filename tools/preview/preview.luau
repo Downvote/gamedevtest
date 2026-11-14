@@ -139,6 +139,17 @@ local function capture(p, label)
 		if okS and type(st) == "table" then
 			log("pixeltext %s: %d pages, %d entries, %d labels, %d draws, %d failures", name, st.pages or 0, st.entries or 0, st.labels or 0, st.draws or 0, st.failures or 0)
 		end
+		-- (words too big for their box: "there is a few boxes where text overflows", 2026-11-14)
+		if PT.overflows then
+			local okO, over = pcall(PT.overflows)
+			if okO and type(over) == "table" then
+				for _, o in over do
+					log("OVERFLOW %s: %s %q needs %dx%d, box %dx%d%s", name, o.name, o.text, o.w, o.h, o.bw, o.bh, if o.clipped then " (clipped)" else "")
+				end
+			else
+				log("overflow check %s failed: %s", name, tostring(over))
+			end
+		end
 	end
 	C.dump(p, name, string.format(',"device":%s,"scenario":%s,"tier":%s', C.jstr(device), C.jstr(scenario), C.jstr(tierArg)))
 end
