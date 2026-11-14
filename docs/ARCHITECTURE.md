@@ -75,7 +75,15 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > the floating egg in a 2d background. also, make the player click to hatch the egg, each click revealing a mutation or
 > a tier up upgrade if there is any, otherwise it just hatches" (`Stage.empty` and the renderer's empty stage, no bake;
 > `UI/HatchScene` without the islet, the blinds or the timeline: a queue of reveals, one a tap; `Tuning.HatchSceneWait`
-> and `HatchSceneHold` gone; `HatchScene.setWait` gone)
+> and `HatchSceneHold` gone; `HatchScene.setWait` gone). Then, asked together: "make sounds when cracking the egg. also,
+> make the egg rise up into view when it is being opened. also, there is a bug where the player snaps above buildings
+> while walking over them. also, while the rare one quest is active or any rarity related quests, make it such that an
+> egg of that rarity will always spawn in the tree of life. also, make the pallette more pinkish, changing the sand
+> pink and the rest of the pallette to match. also, right now, the models simply move by rotating or moving parts of the
+> mesh around. please use bones and rigging to make more realistic and detailed movement. follow and use as many
+> animation principles when animating as well." (Audio `crack`, `crack_open`; HatchScene's `RISE` and `liftOf`;
+> AvatarView's ground ray `RespectCanCollide`; `Tree.wanted` and `Tree.ensure`; `Data/Palette` with pink sand, then
+> "not that pink, i meant a light pink, close to the color of actual sand"; `Models/DriftRig` and `Models/DriftMotion`)
 
 ## 1. Layout and tooling
 
@@ -336,7 +344,9 @@ Models (`src/shared/Models`, Roblox modules):
   list kept per thing; part by part while the model is outside Workspace). Parts keep their sizes to the eighth of a stud (about an art px), not
   Blocks' quarter. `species(id, lod?)` builds a species (Data/Creatures) with its look; `driftling(shape, body, accent, lod?, look?)` is `DriftModels.build` (below; WorldView builds "world",
   everything else the default "full"); `animate(t, time, mood, k?)` hands
-  a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale`, and moves the other things' limbs by name
+  a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale` (its clock must run on smoothly: the
+  springs and blends use it; WorldView places a driftling on the ground and the rig lifts it), and moves the other
+  things' limbs by name
   (`Wing*` flap, `Tail*` wag, `Eye*` blink...; `flap(t, cf, phase, glide?)`). WorldView and StreetLife call
   it every frame (WorldView poses a driftling more than `FAR_POSE` 40 studs from the view's centre every fourth frame
   only, staggered by its id). The driftlings' parts are on the kit's 0.05 grid (DriftKit, below).
@@ -376,17 +386,43 @@ Models (`src/shared/Models`, Roblox modules):
   outer segment as a child), `fin`, `stalk` (eye stalks), `pincer`, `tendril` (two segments), `antenna`, `shell`.
   `build(shape, body, accent, lod?, look?) -> Thing` (with `rig`; `lod` "full", the default, or "world"; `look` `{ eye?,
   iris?, tex?, tex2? }`: the eyes, and a "PixelTex" attribute on every non-face, non-Neon part of the body colour
-  (`tex`) or the accent (`tex2`)), `has(shape)`, `animate(t, time, mood, k?, squash)`: every joint's
-  turn and shift about its pivot for the moment and the mood, composed down the chain (`world[j] = world[parent] *
-  pivot * turn * pivot^-1`), then each part's rest pose (times the squash). Idle: breathing, a look about every 6 s,
-  a yawn every 9 s, ear twitches, a slow tail sway and wing flutter, a blink every 3.4 s; walk by gait (legs in
-  diagonal pairs, both hind legs and a hop, a sideways scuttle, a slither's sway, flight's flapping); attack (a
-  wind-up at k 0, then the body and head lunging, the jaw open, arms and pincers up, the tail raised), hurt (a recoil,
-  ears down, eyes shut), cheer (head up, arms up, ears wiggling, quick wags) and ko (limp). The island's work moods
-  (WorldView): `peck` (bursts of pecks at the ground, jaw open at the bottom), `push` (leaning in, pacing on the spot,
-  arms forward), `dip` (head dipping for fish, a snap every 4 s), `wave` (a raised arm waving, chattering, wings
-  beating, quick wags), `nap` (low and breathing slowly, eyes shut, head down, wings folded) and `hop`. Later segments of a tail
-  or wing swing less (the tip doesn't whip round). The kit's face parts blink and open by tucking (`face`, above).
+  (`tex`) or the accent (`tex2`)), `has(shape)`, `animate(t, time, mood, k?, squash)`: hands it to `DriftRig.animate`
+  (below). The kit's `Rig` also carries `skel` and `anim` (DriftRig's skeleton and motion state, made when first
+  posed) and `placed` (the CFrame `MicroModels.place` last put it at: the springs feel it move).
+- `DriftRig` (GAME_DESIGN 6, the request of 2026-11-14: "please use bones and rigging to make more realistic and
+  detailed movement. follow and use as many animation principles when animating as well"): the skeleton and skin.
+  Roblox's `Bone` instances bend only skinned MeshParts (uploaded meshes); a driftling is plain parts drawn by the pixel
+  filter, so the rig is in code. `skeleton(t) -> Skel { bones, skins, root, ground, tempo, seed, full }` (kept on the
+  rig): a `Bone { name, parent (index, 0 the root), pivot, kind, side, phase, axis, len, spring?, children }` per joint,
+  its tail the farthest of its parts' centres and its children's pivots; a `Skin { name, part, r0, b1, b2, w, face?,
+  tuck?, shine, blink?, size }` per part: on its bone `b1`, and a small part (no side over 0.55 studs, not a face part)
+  within a third of a bone's length of a joint (0.12 .. 0.32 studs) shared with the bone across it, `w` 0.5 at the
+  pivot down to 0 (`BLEND` kinds: neck head tail ear arm leg wing fin tendril stalk antenna; the jaw and pincers
+  hinge). `tempo` (1.9 / height)^0.35 in 0.82 .. 1.18 (a bigger one is slower); `seed` its own phase. `animate(t, time,
+  mood, k?, sc)`: the mood's program (DriftMotion) and each bone's pose, blended from the last mood's over `BLEND_T`
+  0.28 s; forward kinematics (`world[i] = world[parent] * T(pivot + shift) * turn * T(-pivot)`, a stretched parent
+  carrying the child's pivot with it); `SPRINGS` (ear, tail, antenna, tendril, stalk, fin, and a wing's outer
+  segment: stiffness k, damping z, max turn) as a point mass at the bone's tip in world space (with `placed`), up to
+  four substeps a frame, the bone turned toward it (at most `max`), reset on the first pose, a jump in the clock or a
+  move of more than `TELEPORT` 3 studs in a frame; then the skin: each part at `world[b1] * r0` (lerped toward
+  `world[b2] * r0` by `w`), stretched with its bone along its axis (volume kept), and everything squashed by the body
+  bone's stretch from the ground (y 0; a flyer about its body's pivot), x and z by 1 / sqrt. Up close (`full`) the
+  parts' sizes follow the body's squash in `SIZE_STEP` 0.05 steps, written only when they change; on the islands
+  ("world") only positions squash. Face parts tuck as before. `stretchAt(p, o, axis, s)`, `stats(t) -> { bones,
+  springs, parts, shared }`, `debugSprings(t)` (each spring's turn, degrees: the previews).
+- `DriftMotion` (pure, no instances; tests/specs/DriftMotion.spec.luau): `ease(id, x)` (`LINEAR SMOOTH OUT IN BACK
+  HOLD`), `track(keys, u)` (keys `{ u, value, ease }`), the key sets `JUMP` (ty, sq, rx, leg: crouch, push off, the
+  arc, the fall, the landing squash, the settle), `STEP_SQ`, `LOOK`, `WEIGHT`, `YAWN`, `PECK`, `DIP`, `LUNGE`, `TWITCH`;
+  `newProg()`, `program(mood, t, age, k, gait, tempo, seed, out) -> Prog` (the shared values of a frame: the body's
+  turns, shift and stretch `brx bry brz btx bty btz bsq`, the head's `hrx hry hrz htz hsq`, `jaw`, the ears, arm and
+  leg modes, the stride or jump phase `u`, the tail, wing and fin waves, `shut`, `open`), `bone(prog, kind, side,
+  phase) -> (rx, ry, rz, tx, ty, tz, sq)`. Moods: idle (breathing, the weight shifting every 8 s, a look about every
+  6 s with a counter-turn first and an overshoot, a yawn every 11 s, ear twitches one at a time, blinks and double
+  blinks), walk by gait (a bouncy step with a squash at each contact for two and four legs, the head nodding a beat
+  late and keeping level, the arms swinging a beat behind the legs; a hop's jump; a slither's sway; a scuttle; flight),
+  cheer and hop (jumps: cheer higher, arms up, mouth open), attack (the `LUNGE` over k), hurt (by its age: a hard
+  squash wobbling back, flung back, ears folded back), ko, and the work moods peck, push, dip, wave and nap. `PITCH`
+  scales how far a long body (four legs, a serpent) tips.
 
 ## 7. Server
 

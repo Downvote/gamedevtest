@@ -31,6 +31,9 @@ export type Rig = {
 	of: { [string]: string }, -- part name -> its joint
 	gait: string, -- "quad" | "biped" | "hop" | "scuttle" | "slither" | "fly"
 	world: { [string]: CFrame }, -- each joint's pose now (animate)
+	skel: any?, -- its skeleton and skin, worked out when first posed (Models/DriftRig)
+	anim: any?, -- its motion's state: the mood, the blend, the springs (Models/DriftRig)
+	placed: CFrame?, -- where MicroModels.place last put it (the springs feel its movement)
 }
 export type Thing = {
 	model: Model,

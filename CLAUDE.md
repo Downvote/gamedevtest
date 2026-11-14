@@ -17,7 +17,8 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work ambient late
 loading themes hatches`, `panel=<pals|work|tree|hatch|index|looks>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
-that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `catalog=<group>` (a group of the build catalog: `ground fence
+that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
+on its skeleton, eight frames a mood), `catalog=<group>` (a group of the build catalog: `ground fence
 nature theme theme2 fun`, a Build mode tab or ids) or `theme=<beach|garden|frost|zen|volcano|fairy>`. The loading card's
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place file is
 `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
@@ -41,7 +42,8 @@ is 3D: the islands, the buildings (the Tree of Life among them), the build catal
 driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,
 `NatureModels`, `ThemeModels`, `ThemeMoreModels` and `FunModels` on `Models/Parts`, `Models/MicroModels`,
 `Models/DriftModels`, the eggs in `Models/EggModels`; the driftlings' round pieces from
-`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail; each kind's eye
+`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail, moved on a rig
+(`Models/DriftRig`: bones, skin weights, squash and stretch, springs) by keyed poses (`Models/DriftMotion`); each kind's eye
 style and texture in `Data/Creatures`, the textures drawn by `Render/DynTex` in one-pixel marks), world-aligned on the iso
 grid and drawn by the pixel filter. The hatch scene is the egg alone, floating in front of a 2D sky painted pixel by pixel (`UI/HatchBackdrop`).
 (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few

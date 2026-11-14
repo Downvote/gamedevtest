@@ -928,6 +928,43 @@ looks about now and then, yawns, twitches its ears, sways its tail and blinks. W
 rabbit or frog hops on both hind legs, a crab scuttles, a seal or snail sways, a bat or moth flaps). Cheering, it
 looks up with its arms up and wags fast. At work it has its own moves (§11).
 
+> The request (2026-11-14): "right now, the models simply move by rotating or moving parts of the mesh around. please
+> use bones and rigging to make more realistic and detailed movement. follow and use as many animation principles
+> when animating as well."
+
+**Bones and rigging** (`Models/DriftRig`, `Models/DriftMotion`): the skeleton is a rig now. Each joint is a bone with
+a direction and a length, and every part is skinned to its bone; the small pieces round a joint are skinned to the
+two bones either side of it, half and half at the joint, so a neck, a tail, an ear or a leg bends smoothly instead of
+hinging like a toy. The whole driftling squashes and stretches from its feet up and keeps its volume (shorter means
+wider), and a bone can stretch on its own (ears perking up). Roblox's own bones only bend uploaded meshes, and a
+driftling is drawn from parts by the pixel filter, so the rig is worked out in the game's code. It moves by keyed
+poses that ease in and out, blended from one mood into the next (no snapping), with springs on the floppy parts.
+The twelve principles, and where each one shows:
+- **Squash and stretch:** a crouch squashes before every jump, it stretches leaving the ground and falling, and
+  squashes hard on landing; each step of a walk squashes at the foot's contact; breathing; a hit squashes it flat for
+  a moment and it wobbles back.
+- **Anticipation:** the crouch before a jump, the lean back before a lunge, a little turn the other way before it
+  turns to look about, the head going up before a peck, a breath in before a yawn.
+- **Staging:** one clear action at a time, the head turned toward what it looks at.
+- **Straight ahead and pose to pose:** the keyed poses, with the springs worked out frame by frame.
+- **Follow through and overlapping action:** ears, tails, antennae, tendrils, eye stalks, fins and wing tips are on
+  springs, so they lag behind, swing past and settle when the body moves or stops, the driftling's own walking about
+  the island included; the head nods a beat after the step, the arms swing a beat after the legs, a tail's segments
+  wave one after another.
+- **Slow in and slow out:** every key eases.
+- **Arcs:** everything turns about its joint; a jump rises and falls on a curve.
+- **Secondary action:** blinks and now and then a double blink, ear twitches, breathing, a tail swaying while it works.
+- **Timing:** a bigger driftling moves a little slower; a jump spends longer in the air than on the ground; a peck
+  strikes fast and comes back slowly.
+- **Exaggeration:** a cheer jumps higher and squashes harder than a hop.
+- **Solid drawing:** the weight shifts onto the planted foot, the hips turn with the stride, the head stays level as
+  the body rolls; a long body (four legs, a serpent) tips less, so its head doesn't plough into the ground.
+- **Appeal:** no twins: the left and right ears twitch apart, each driftling has its own phase, the head tilts with a
+  look.
+
+Up close (the hatch scene, the portraits) the parts' sizes squash with the body too; on the islands, where a
+driftling is a few pixels tall, only their places do, which keeps the frame cheap.
+
 Fifty-five driftlings of our own, five to seven to each of the nine kinds of island (`Data/Islets`: a kind's
 driftlings hatch once the island reaches that kind's tier, above):
 

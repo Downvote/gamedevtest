@@ -515,12 +515,11 @@ local function stepWalker(w: Walker, t: number, dt: number)
 		if (math.abs(w.x - cw.X) > FAR_POSE or math.abs(w.z - cw.Z) > FAR_POSE) and (poseFrame + w.id) % 4 ~= 0 then
 			return
 		end
-		local hop = if speed > 0 then math.abs(math.sin(t * 9 + w.id)) * 0.5 elseif working then 0 else math.abs(math.sin(t * 2 + w.id)) * 0.12
-		local bob = if t < w.cheerUntil then math.abs(math.sin(t * 12)) * 1.2 else hop
-		-- its limbs alive: blinks, a wagging tail, stepping legs, a cheer, and its work where it works (or a nap at
-		-- its hut)
+		-- alive on its skeleton (Models/DriftRig): the bouncy walk, the cheer's jumps, breathing, blinks, a wagging
+		-- tail, its work where it works (or a nap at its hut); the rig lifts and squashes it, so it is placed on the
+		-- ground
 		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then "cheer" elseif speed > 0 then "walk" elseif working then w.mood else "idle", 0)
-		MicroModels.place(w.thing, CFrame.new(w.x, y + bob, w.z) * CFrame.Angles(0, w.yaw, 0))
+		MicroModels.place(w.thing, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0))
 	end
 end
 

@@ -7,6 +7,7 @@ local SPECS = {
 	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", -- the rules
 	"Schema", -- the save
 	"Shading", "Raster", "Rim", "Fx", "DynTex", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures
+	"DriftMotion", -- the driftlings' motion on their skeletons
 	"PixelFont", -- the pixel font
 }
 for _, name in SPECS do

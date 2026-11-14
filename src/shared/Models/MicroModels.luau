@@ -580,11 +580,12 @@ function MicroModels.species(id: string, lod: string?): Thing
 	return MicroModels.driftling(def.shape, def.body, def.accent, lod, { eye = def.eye, iris = def.iris, tex = def.tex, tex2 = def.tex2 })
 end
 
--- A driftling's limbs alive, time t (seconds), mood "idle" | "walk" | "attack" | "hurt" | "cheer" | "ko", k 0..1 an
--- attack's progress: wings flap (fast in a fight), claws and pincers snap open, tails wag (faster when happy),
--- ears twitch now and then and droop when hurt, arms swing up to strike, legs step when walking, tendrils and fins
--- wave, eyes blink every few seconds (shut when hurt or down) and the mouth opens to bite, cry or cheer. Offsets from
--- the built pose (times the squash of `scale`); call before `place`.
+-- A thing's moving parts for the moment, time t (seconds, its own clock: keep it running smoothly), mood, k 0..1 an
+-- action's progress; call before `place`. A driftling is posed by its skeleton (Models/DriftRig with
+-- Models/DriftMotion: bones, skin, springs, the moods "idle" "walk" "cheer" "hop" "attack" "hurt" "ko" and the work
+-- moods "peck" "push" "dip" "wave" "nap"); anything else by its part names: wings flap, claws snap, tails wag, ears
+-- twitch, arms swing, legs step, eyes blink and the mouth opens. Offsets from the built pose (times the squash of
+-- `scale`).
 function MicroModels.animate(t: Thing, time: number, mood: string, k: number?)
 	local sc = scaleOf[t] or Vector3.one
 	if t.rig ~= nil then
@@ -840,6 +841,10 @@ end
 local bulk: { [any]: { names: { string }, parts: { BasePart }, cfs: { CFrame } } } = setmetatable({}, { __mode = "k" }) :: any
 
 function MicroModels.place(t: Thing, cf: CFrame)
+	local rig = t.rig
+	if rig ~= nil then
+		rig.placed = cf -- (a driftling's springs feel it move about: Models/DriftRig)
+	end
 	local b = bulk[t]
 	if b == nil or #b.names ~= 0 and b.parts[1].Parent == nil then
 		local names: { string } = {}

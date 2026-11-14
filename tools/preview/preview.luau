@@ -1718,6 +1718,177 @@ local function hatchScenario(code)
 	return p
 end
 
+-- "pals=<n>" or "pals=<id>,<id>,...": driftlings up close (Models/DriftModels, built "full" as the hatch scene and the
+-- portraits show them), eight to a picture in two rows of four on a patch of lawn far from the islands, framed by the
+-- camera's stage view; idle (pals_idle) and cheering (pals_cheer). Batch n is Data/Creatures.list's species 8n-7 ..
+-- 8n; the log lists them left to right, back row first, with each one's part count.
+local function palsScenario(arg)
+	seedProfile(62, 1, {})
+	local p = join(62, "Keeper")
+	settle(p, 30, 1)
+	local Creatures = H.sharedServer("Data.Creatures")
+	local ids = {}
+	local n = tonumber(arg)
+	if n then
+		for i = (n - 1) * 8 + 1, n * 8 do
+			local d = Creatures.list[i]
+			if d then
+				table.insert(ids, d.id)
+			end
+		end
+	else
+		for id in string.gmatch(arg, "[^,]+") do
+			table.insert(ids, id)
+		end
+	end
+	local ctx = E.clientCtx(p)
+	local MM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.MicroModels"))
+	local Blocks = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.Blocks"))
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
+	local CC = H.cmod(p, "Controllers.CameraController")
+	for _, g in p.PlayerGui:GetChildren() do
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			g.Enabled = false
+		end
+	end
+	local OX, OZ = 0, 9400
+	-- (the ground's screen-right and toward-the-viewer directions, as the zoo)
+	local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+	local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+	local faceViewer = math.atan2(vx, vz)
+	local things = {}
+	H.inClient(p, function()
+		local m = Blocks.model(E.workspace, "PalsLawn")
+		Blocks.part(m, { size = E.v3(30, 1, 30), cf = E.cf.new(OX, -0.5, OZ), color = "grass" })
+		local names = {}
+		for i, id in ids do
+			local d = Creatures.byId[id]
+			if d then
+				local th = MM.species(d.id)
+				th.model:SetAttribute("PixelShadow", 1)
+				th.model:SetAttribute("PixelGroundY", 0)
+				th.model.Parent = E.workspace
+				PR.registerDynamic(th.model)
+				local k = i - 1
+				local u, v = -4.8 + (k % 4) * 3.2, -2.2 + math.floor(k / 4) * 4.4
+				table.insert(things, { t = th, x = OX + ux * u + vx * v, z = OZ + uz * u + vz * v })
+				local c = 0
+				for _ in th.parts do
+					c += 1
+				end
+				table.insert(names, string.format("%s (%s, %d parts)", id, d.shape, c))
+			end
+		end
+		log("pals %s: %s", arg, table.concat(names, ", "))
+		local pts = {}
+		for _, q in { { -6.8, -3.8 }, { 6.8, -3.8 }, { -6.8, 5.4 }, { 6.8, 5.4 } } do
+			for _, y in { 0, 2.6 } do
+				table.insert(pts, OX + ux * q[1] + vx * q[2])
+				table.insert(pts, y)
+				table.insert(pts, OZ + uz * q[1] + vz * q[2])
+			end
+		end
+		CC.setStage({ name = "pals", origin = E.v3(OX, 0, OZ), pts = pts, tight = nil, top = 8, bottom = 8 })
+	end)
+	for _, mood in { "idle", "cheer" } do
+		H.inClient(p, function()
+			for j, x in things do
+				MM.animate(x.t, 0.6 + j * 0.37, mood, 0)
+				MM.place(x.t, E.cf.new(x.x, 0, x.z) * E.cf.Angles(0, faceViewer + math.rad(30), 0))
+			end
+		end)
+		settle(p, 60, 0.5)
+		capture(p, "pals_" .. mood)
+	end
+	return p
+end
+
+-- "anim=<id>" or "anim=<id>:<mood>,<mood>": one driftling up close (built "full") moving on its skeleton
+-- (Models/DriftRig, Models/DriftMotion: the request of 2026-11-14, "please use bones and rigging to make more realistic
+-- and detailed movement. follow and use as many animation principles when animating as well"). It is posed every
+-- frame at 60 a second, so its springs and the blends between moods run as in the game; eight frames are kept through
+-- each mood (anim_<mood>_<k>), the mood changing straight from the last (the blend shows in its first frames). The log
+-- gives its bones, springs, parts and the parts two bones share.
+local function animScenario(arg)
+	local id, moodArg = string.match(arg, "^([%w_]+):?([%w_,]*)$")
+	seedProfile(63, 1, {})
+	local p = join(63, "Animator")
+	settle(p, 30, 1)
+	local Creatures = H.sharedServer("Data.Creatures")
+	local def = Creatures.byId[id or ""] or Creatures.list[1]
+	local ctx = E.clientCtx(p)
+	local MM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.MicroModels"))
+	local DR = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.DriftRig"))
+	local Blocks = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.Blocks"))
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
+	local CC = H.cmod(p, "Controllers.CameraController")
+	for _, g in p.PlayerGui:GetChildren() do
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			g.Enabled = false
+		end
+	end
+	local OX, OZ = 0, 9600
+	local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+	local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+	local face = math.atan2(vx, vz) + math.rad(30)
+	local th = H.inClient(p, function()
+		local m = Blocks.model(E.workspace, "AnimLawn")
+		Blocks.part(m, { size = E.v3(16, 1, 16), cf = E.cf.new(OX, -0.5, OZ), color = "grass" })
+		local x = MM.species(def.id)
+		x.model:SetAttribute("PixelShadow", 1)
+		x.model:SetAttribute("PixelGroundY", 0)
+		x.model.Parent = E.workspace
+		PR.registerDynamic(x.model)
+		local pts = {}
+		for _, q in { { -2.4, -2.4 }, { 2.4, -2.4 }, { -2.4, 2.4 }, { 2.4, 2.4 } } do
+			for _, y in { 0, 3.4 } do
+				table.insert(pts, OX + ux * q[1] + vx * q[2])
+				table.insert(pts, y)
+				table.insert(pts, OZ + uz * q[1] + vz * q[2])
+			end
+		end
+		CC.setStage({ name = "anim", origin = E.v3(OX, 0, OZ), pts = pts, tight = nil, top = 8, bottom = 8 })
+		return x
+	end)
+	local st = H.inClient(p, function()
+		MM.animate(th, 0, "idle", 0)
+		return DR.stats(th)
+	end)
+	log("anim %s (%s, gait %s): %d bones, %d springs, %d parts, %d shared by two bones", def.id, def.shape, tostring(th.rig and th.rig.gait), st.bones, st.springs, st.parts, st.shared)
+	settle(p, 60, 0.5)
+	local GAP: { [string]: number } = { idle = 0.3, walk = 0.0875, cheer = 0.0825, hop = 0.11, peck = 0.21, hurt = 0.1, nap = 0.4, wave = 0.1, dip = 0.375, push = 0.2, attack = 0.1, ko = 0.3 }
+	local moods = {}
+	for m in string.gmatch(if moodArg and moodArg ~= "" then moodArg else "idle,walk,cheer,peck,hurt", "[^,]+") do
+		table.insert(moods, m)
+	end
+	local clock = 1
+	for _, mood in moods do
+		local gap = GAP[mood] or 0.12
+		for k = 1, 8 do
+			local steps = math.max(1, math.floor(gap * 60 + 0.5))
+			H.inClient(p, function()
+				for _ = 1, steps do
+					clock += 1 / 60
+					MM.animate(th, clock, mood, (k - 1) / 7)
+					MM.place(th, E.cf.new(OX, 0, OZ) * E.cf.Angles(0, face, 0))
+				end
+			end)
+			E.step(E.dt)
+			capture(p, string.format("anim_%s_%d", mood, k))
+			local sp = H.inClient(p, function()
+				return DR.debugSprings(th)
+			end)
+			local bits = {}
+			for name, a in sp do
+				table.insert(bits, name .. " " .. a)
+			end
+			table.sort(bits)
+			log("anim %s %d: springs %s", mood, k, table.concat(bits, ", "))
+		end
+	end
+	return p
+end
+
 ------------------------------------------------------------------ run
 local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do
@@ -1738,6 +1909,12 @@ for _, name in list do
 	if group then
 		fn = function()
 			return catalogScenario(group)
+		end
+	end
+	local animArg = string.match(name, "^anim=([%w_:,]+)$")
+	if animArg then
+		fn = function()
+			return animScenario(animArg)
 		end
 	end
 	local palsArg = string.match(name, "^pals=([%w_,]+)$")
