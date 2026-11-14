@@ -4,12 +4,15 @@
 -- skip to the next rarity during the cutscene. the cutscenes become more glorious as the rarity of egg increases",
 -- and of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can simply
 -- render the floating egg in a 2d background. also, make the player click to hatch the egg, each click revealing a
--- mutation or a tier up upgrade if there is any, otherwise it just hatches".
+-- mutation or a tier up upgrade if there is any, otherwise it just hatches"; then "make sounds when cracking the egg.
+-- also, make the egg rise up into view when it is being opened".
 --
 -- An egg bought at the Tree of Life (Controllers/EggView.hatch) floats in front of a painted sky (UI/HatchBackdrop)
 -- at once: no blinds, nothing to bake (the camera's stage view on an empty see-through stage, CameraController's
--- Stage.empty: the pixel renderer draws only the moving egg over the 2D picture). It bobs and now and then wobbles,
--- asking to be tapped. Each tap takes the next of what is waiting inside: first each step up in rarity (Logic/Tree.rise:
+-- Stage.empty: the pixel renderer draws only the moving egg over the 2D picture). It rises up into view from below
+-- (RISE s, easing out past its spot and settling back), then bobs and now and then wobbles, asking to be tapped.
+-- Every tap that cracks it crunches (Audio "crack", a little higher each time) and the hatch breaks the shell open
+-- ("crack_open"). Each tap takes the next of what is waiting inside: first each step up in rarity (Logic/Tree.rise:
 -- the result's `hr` over its `r`: a hard shake, a flash, the egg in the next rarity's colours, the sky and the light
 -- changing with it), then each mutation (a shake, a new crack, its plate sliding in at the right with its name, stars
 -- and what it does). When nothing is left the cracks glow and the next tap hatches it: a flash, the top flies off, bits
@@ -48,6 +51,8 @@ local FLOAT_Y = 1.2 -- the egg's foot above ORIGIN (it floats: nothing under it)
 local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8 } -- each rarity's egg up close (EggModels.hero), studs tall
 local PAL_SCALE = 1.35 -- what hatched, a little bigger than on the island
 local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is one)
+local RISE = 0.95 -- seconds the egg takes to rise into view when the scene opens (taps wait for it)
+local RISE_FROM = 7 -- studs under its spot it starts, out of the picture
 
 -- How grand each rarity's scene is (by the rarity it is now; the hatch's by the rarity it hatched as).
 type Glory = {
@@ -107,6 +112,7 @@ type Scene = {
 	fx: { { p: BasePart, kind: string, k: number } },
 	cracks: { EggModels.Crack },
 	glowing: boolean, -- the cracks lit from inside (nothing left to reveal: the next tap hatches it)
+	arrived: boolean, -- it has risen into view (a soft chime as it gets there)
 	topOff: number?, -- when it hatched (the top flew off)
 	rays: { { p: BasePart, a: number, k: number } },
 	shards: { Shard },
@@ -188,6 +194,17 @@ end
 
 local function eggMiddle(r: number): Vector3
 	return at(0, FLOAT_Y + 0.5 * (EGG_H[r] or 2.4), 0)
+end
+
+-- How far under its spot the egg still is while it rises into view (0 once it has): fast at first, easing out a
+-- little past its spot and settling back (an ease-out-back, so it arrives with some weight).
+local function liftOf(c: number): number
+	if c >= RISE then
+		return 0
+	end
+	local u = math.clamp(c / RISE, 0, 1) - 1
+	local back = 1 + 2.2 * u * u * u + 1.2 * u * u -- (0 at the start, 1 at the end, about 1.05 two thirds of the way)
+	return -RISE_FROM * (1 - back)
 end
 
 -- The painted sky (UI/HatchBackdrop), the egg's glow round where it floats on screen; only with the pixel filter on
@@ -377,6 +394,7 @@ local function hatch(s: Scene)
 	s.topOff = c
 	local mid = eggMiddle(r)
 	local look = EggModels.LOOK[r] or EggModels.LOOK[1]
+	Audio.play("crack_open")
 	Audio.play("pop", { pitch = 0.8 })
 	if r >= 3 then
 		Audio.play("rare")
@@ -460,6 +478,9 @@ function HatchScene.skip()
 	if s.clock - s.lastTap < TAP_GAP and s.lastTap > 0 then
 		return
 	end
+	if s.phase == "egg" and s.clock < RISE then
+		return -- (still rising into view)
+	end
 	s.lastTap = s.clock
 	if s.phase == "done" then
 		closeScene(s)
@@ -473,7 +494,7 @@ function HatchScene.skip()
 		return
 	end
 	s.crack = math.min(3, s.crack + 1)
-	Audio.play("tick", { pitch = 0.75 + s.crack * 0.12 })
+	Audio.play("crack", { pitch = 0.9 + s.crack * 0.07 })
 	if nxt.kind == "rise" then
 		rise(s, nxt.r or s.r + 1)
 	else
@@ -506,7 +527,8 @@ local function stepEgg(s: Scene, c: number)
 			tilt += math.sin(w / 0.45 * math.pi * 2) * (if s.glowing then 0.1 else 0.05)
 		end
 	end
-	local foot = at(0, FLOAT_Y + bob, 0)
+	local lift = liftOf(c)
+	local foot = at(0, FLOAT_Y + bob + lift, 0)
 	local cf = CFrame.new(foot) * CFrame.Angles(tilt, 0, tilt * 0.6)
 	local off = s.topOff
 	for _, rp in s.parts do
@@ -560,7 +582,8 @@ local function stepEgg(s: Scene, c: number)
 				wid *= math.max(0.4, fade)
 			end
 		end
-		local mid = eggMiddle(r) + LOOK * 2.4
+		local mid = eggMiddle(r) + LOOK * 2.4 + Vector3.new(0, lift, 0)
+		len *= math.clamp(c / RISE, 0, 1) -- (the rays open out as it rises)
 		for _, ray in s.rays do
 			local a = ray.a + c * (0.35 + 0.05 * (ray.k % 3))
 			local dir = RIGHT * math.cos(a) + UP * math.sin(a)
@@ -656,6 +679,10 @@ local function step(s: Scene, dt: number)
 	s.clock += d
 	local c = s.clock
 	stepEgg(s, c)
+	if not s.arrived and c >= RISE * 0.65 then
+		s.arrived = true
+		Audio.play("sparkle", { pitch = 0.9 + s.r * 0.04 })
+	end
 	stepPal(s, c)
 	stepShards(s, c, d)
 	fireflies(s, c)
@@ -782,6 +809,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		fx = {},
 		cracks = {},
 		glowing = false,
+		arrived = false,
 		topOff = nil,
 		rays = {},
 		shards = {},
@@ -861,10 +889,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -873,6 +901,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		r = s.r,
 		hr = s.res.hr,
 		clock = s.clock,
+		lift = liftOf(s.clock),
 		reveals = s.total,
 		left = #s.queue,
 		crack = s.crack,

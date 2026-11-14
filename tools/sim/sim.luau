@@ -515,6 +515,18 @@ do
 		-- up upgrade if there is any, otherwise it just hatches": no blinds, the egg there at once)
 		hs = H.inClient(p, HSp.debugState)
 		H.expect(hs.phase == "egg" and hs.egg and not hs.pal, "build", "the egg floats there at once, waiting for a tap", string.format("phase %s", hs.phase))
+		-- (then "make the egg rise up into view when it is being opened": it comes up from below, and a tap while it
+		-- rises waits; the cracks crunch, Audio "crack", and the hatch breaks it open, "crack_open")
+		H.expect(hs.lift < -0.5, "build", "it is still rising into view", string.format("%.2f studs under its spot at %.2f s", -hs.lift, hs.clock))
+		local Aud = H.cmod(p, "Controllers.Audio")
+		local crack0, open0 = H.inClient(p, Aud.playCount, "crack"), H.inClient(p, Aud.playCount, "crack_open")
+		H.inClient(p, HSp.skip)
+		E.run(0.05)
+		local hsr = H.inClient(p, HSp.debugState)
+		H.expect(hsr.left == hsr.reveals and not hsr.pal, "build", "a tap while it rises does nothing yet", string.format("%d of %d left", hsr.left, hsr.reveals))
+		E.run(1)
+		hs = H.inClient(p, HSp.debugState)
+		H.expect(hs.lift == 0, "build", "it has risen to its spot", string.format("%.2f", hs.lift))
 		local taps, revealed = 0, 0
 		while not hs.pal and taps < 12 do
 			H.inClient(p, HSp.skip)
@@ -528,6 +540,8 @@ do
 			end
 		end
 		H.expect(hs.pal and taps == hs.reveals + 1, "build", "each tap reveals a step up or a mutation, the one after them hatches it", string.format("%d taps, %d reveals", taps, hs.reveals))
+		local crack1, open1 = H.inClient(p, Aud.playCount, "crack"), H.inClient(p, Aud.playCount, "crack_open")
+		H.expect(crack1 - crack0 == hs.reveals and open1 - open0 == 1, "build", "each reveal cracks it with a crunch, the hatch breaks it open with a sound", string.format("%d crunches for %d reveals, %d opens", crack1 - crack0, hs.reveals, open1 - open0))
 		E.run(0.8)
 		hs = H.inClient(p, HSp.debugState)
 		local def0 = prof.pals[1] and Creatures.byId[prof.pals[1].sp]

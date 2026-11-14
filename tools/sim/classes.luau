@@ -337,11 +337,16 @@ IMPL.WorldRoot = {
 			local include = params and params.FilterType == Enum.RaycastFilterType.Include
 			-- (as Roblox: a part whose collision group doesn't collide with the ray's is passed through)
 			local rayGroup = params and params.CollisionGroup or "Default"
+			local solidOnly = params ~= nil and params.RespectCanCollide == true
 			local best, bestPart, bestN = math.huge, nil, nil
 			for _, p in partsOf(self) do
 				local pd = getD(p)
-				-- (as Roblox: CanQuery = false only counts on a part that doesn't collide)
+				-- (as Roblox: CanQuery = false only counts on a part that doesn't collide; RespectCanCollide passes
+				-- through every part that doesn't collide)
 				local queried = pd.props.CanQuery ~= false or pd.props.CanCollide ~= false
+				if solidOnly and pd.props.CanCollide == false then
+					queried = false
+				end
 				if queried and E.collisionGroupsCollide(rayGroup, pd.props.CollisionGroup or "Default") then
 					local inFilter = false
 					for _, f in filter do

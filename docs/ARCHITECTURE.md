@@ -560,7 +560,7 @@ nothing calls it since the fights went), `has(name)`, `EVENTS`: every sound by n
 ding coin coins combo sparkle cheer tick flip pop`; the happy moments, each its own library sound: `newcomer`
 (`DoorChime`; nothing plays it since the villagers went), `grow` (the island grows, or the tree lays an epic or legendary egg: `BellTreeRun`), `friend`
 (a Hatchery's egg hatched: `ChimeCluster`), `level_up` (a piece replaced: `SparkleTones`), `reward` (a quest claimed:
-`Triangle`), `egg` (`MusicBoxWind`), `rare` (a new lot of eggs, or one rare or better hatched: `SparklePass`; a common or uncommon one hatched plays `pop`); the founder's feet (AvatarView):
+`Triangle`), `egg` (`MusicBoxWind`), `rare` (a new lot of eggs, or one rare or better hatched: `SparklePass`; a common or uncommon one hatched plays `pop`); the hatch scene's egg: `crack` (a tap that cracks it: `CrackEgg1..3`, ProSoundEffects' "Crack Egg Crunchy", the crunch cut out, `ids`) and `crack_open` (the hatch: `EggBreak`, "Eggs Break 15"); the founder's feet (AvatarView):
 `step_grass step_sand step_wood` (two or three takes each, `ids`), `step_water` (wading through a river: `Pop`
 pitched low), `jump`, `land`; putting a piece down in Build mode (`Controllers/BuildFx`, by its `feel`, cut from
 the clips above): `place_wood` (the hammer's taps), `place_stone` (`CoinsMany`, pebbles, low), `place_plant`
@@ -995,7 +995,9 @@ the rest go to `Words.errText`.
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
 UserId), registered with the renderer and posed every frame at their character: feet on the ground under the
-HumanoidRootPart (a raycast down past characters and rigs) while the Humanoid stands (its `FloorMaterial`), in the air
+HumanoidRootPart (a raycast down past characters and rigs, `RespectCanCollide`: only what the founder stands on, never
+a building, tree or piece of decor it walks through; a second ray without it finds a river or pond's water no more
+than a stud over that ground, for the wading) while the Humanoid stands (its `FloorMaterial`), in the air
 (`FloorMaterial` Air) at the root's height less its rest offset (learnt while it stands), posed "jump"
 (`CharacterModels.poseAction`), with a puff of dust on landing; facing the root's look direction, walking at the speed
 the root moves. The own founder's feet are heard (Roblox's own character sounds are off: `RbxCharacterSounds`): a
@@ -1113,8 +1115,11 @@ from a world point and blinking out by 1.1 s), `count()`.
 ### 10.11 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `Models/EggModels`; GAME_DESIGN 6.2)
 `HatchScene.play(res, after?)` (`res = { sp, muts, r, hr }` from `egg.hatch`; one scene at a time; `after` runs when it
 ends), `skip()` (a tap: the next reveal, else the hatch, else away; taps under `TAP_GAP` 0.22 s after the last count
-as one), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs), `debugState()` (`{ open, phase ("egg",
-"hatched", "done"), r, hr, clock, reveals, left, crack, shown, muts, rays, shards, pal, egg, glowing, title, name }`).
+as one, and taps while the egg rises wait), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs),
+`debugState()` (`{ open, phase ("egg", "hatched", "done"), r, hr, clock, lift, reveals, left, crack, shown, muts, rays,
+shards, pal, egg, glowing, title, name }`). The egg rises into view over `RISE` 0.95 s from `RISE_FROM` 7 studs under
+its spot (`liftOf(clock)`: an ease-out-back about 5% past it; the rays open out with it; "sparkle" as it arrives).
+Each reveal tap plays Audio `crack` (pitch up with `crack`), the hatch `crack_open`.
 `play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
 `{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
 the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`

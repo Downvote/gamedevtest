@@ -1331,6 +1331,40 @@ do
 		local inTile = part ~= nil and part:IsDescendantOf(decorOf(1)) and string.find(part.Parent.Name, ":stream:", 1, true) ~= nil
 		H.expect(inTile and part:GetAttribute("PixelWater") ~= nil and hit.Position.Y > Street.LAWN_Y - 0.3, "wade", "the ground ray hits the tile's water, over the lawn", part and string.format("%s in %s at %.2f", part.Name, part.Parent.Name, hit.Position.Y) or "nothing")
 	end
+	-- the founder walks through a building (they don't collide): the chibi stays on the lawn, never up on its roof
+	-- (the bug report of 2026-11-14: "there is a bug where the player snaps above buildings while walking over them")
+	do
+		local AVa = H.cmod(a, "Controllers.AvatarView")
+		local best, bx, bz = nil, 0, 0
+		for _, m in decorOf(1):GetChildren() do
+			if m:IsA("Model") and string.find(m.Name, ":tree", 1, true) == nil then
+				local top, n, mx, mz = -math.huge, 0, 0, 0
+				for _, d in m:GetDescendants() do
+					if d:IsA("BasePart") and d.CanCollide == false then
+						top = math.max(top, d.Position.Y + d.Size.Y / 2)
+						n += 1
+						mx += d.Position.X
+						mz += d.Position.Z
+					end
+				end
+				if n > 0 and top > Street.LAWN_Y + 2 and (best == nil or top > best) then
+					best, bx, bz = top, mx / n, mz / n
+				end
+			end
+		end
+		if H.expect(best ~= nil, "walk-through", "(a building on Ava's island)") then
+			E.raycastParts = true
+			a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
+			E.run(0.3)
+			local open = H.inClient(a, AVa.founderPos)
+			a.Character:PivotTo(E.cf.new(bx, 3, bz))
+			E.run(0.3)
+			local inside = H.inClient(a, AVa.founderPos)
+			E.raycastParts = nil
+			local ok = open ~= nil and inside ~= nil and math.abs(inside.Y - open.Y) < 0.3
+			H.expect(ok, "walk-through", "walking through a building the founder stays on the lawn, not on its roof", string.format("open %.2f, inside %.2f, roof %.2f", open and open.Y or -1, inside and inside.Y or -1, best :: number))
+		end
+	end
 	H.checkProfile(a, "fences-water")
 	H.checkMirror(a, "fences-water")
 	H.checkProfile(b, "fences-water")

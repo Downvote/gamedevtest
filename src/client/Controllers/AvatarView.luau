@@ -97,8 +97,15 @@ local function placeRipple(m: Model, at: Vector3?, half: number)
 end
 -- A cutscene's hold on the own founder (UI/Voyage): it poses the rig instead of the character
 local override: ((rig: CharacterModels.Rig, t: number, dt: number) -> ())? = nil
+-- The ground under a founder: only what it can stand on (the lawn, a floor, the boardwalk). The buildings, decor and
+-- trees on an island don't collide (the founder walks through them), so a ray that met them would put the chibi up
+-- on a roof as it walked through (the bug report of 2026-11-14: "there is a bug where the player snaps above
+-- buildings while walking over them"). A second ray, `wetParams`, still finds the water a founder wades in.
 local groundParams = RaycastParams.new()
 groundParams.FilterType = Enum.RaycastFilterType.Exclude
+groundParams.RespectCanCollide = true
+local wetParams = RaycastParams.new()
+wetParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local function lookOf(pl: Player): (Types.Look, string)
 	local a = pl:GetAttribute("Founder")
@@ -168,6 +175,14 @@ local function feetY(rec: Rec, char: Model, root: BasePart): (number, boolean)
 	local hit = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), groundParams)
 	if hit then
 		rec.floor = floorOf(hit)
+		if rec.floor ~= "swim" then
+			-- (a river, pond or pool laid on the ground doesn't collide either: wading in it splashes)
+			wetParams.FilterDescendantsInstances = list
+			local wet = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), wetParams)
+			if wet and wet.Instance:GetAttribute("PixelWater") ~= nil and wet.Position.Y <= hit.Position.Y + 1 then
+				rec.floor = floorOf(wet)
+			end
+		end
 	end
 	if hit and not inAir then
 		rec.rest = root.Position.Y - hit.Position.Y

@@ -981,16 +981,19 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   zigzag band and a vine with leaves and a sprout on top (uncommon), white four-pointed stars and a frosty band with
   icicles (rare), two pink stripes spiralling up it with runes between them and three motes of light circling (epic), a
   band of gold set with red, blue and green gems, glints, a crown of points, a halo of light turning over it and a beam
-  of light (legendary). It hangs in the middle of the picture with nothing under it, bobbing and swaying, and every
-  few seconds it gives a little wobble, as if asking to be tapped.
+  of light (legendary). When the scene opens it rises up into view from below (a little under a second, coming up
+  fast, easing out just past its spot and settling back, a soft chime as it gets there; taps wait until it has).
+  Then it hangs in the middle of the picture with nothing under it, bobbing and swaying, and every few seconds it
+  gives a little wobble, as if asking to be tapped (the request of 2026-11-14: "make sounds when cracking the egg.
+  also, make the egg rise up into view when it is being opened").
 - **The taps**: the title names the egg ("An epic egg") and "Tap the egg" blinks at the foot of the screen. Each tap
   takes the next thing waiting inside. First each step up in rarity (`Tuning.EggUp`, the result's `hr`): a hard shake,
   a flash, sparks and a ring of stars, "It turned legendary" and the next rarity's egg floating there, the sky and the
   light changing with it. Then each mutation: a shake, a new crack, and its plate sliding in at the right with its name
   and stars in its tier's colour and what it does ("Lucky *", "+5% egg luck"). Each of these taps runs the cracks a
-  little further (three stages). Once nothing is left the cracks glow from inside and the hint says "Tap to hatch it".
+  little further (three stages) with the crunch of a cracking shell, a little higher each time. Once nothing is left the cracks glow from inside and the hint says "Tap to hatch it".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
-- **The hatch**: a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
+- **The hatch**: the shell breaks with a crack, a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
   hatched pops out where the egg was with a hop and a cheer. "It hatched", its name in its rarity's colour and "Rare,
   good at farms" under it, and "No mutations" on a plate if it has none. "Tap to go on" shows after a moment; that tap
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
@@ -1132,6 +1135,9 @@ behind what stands in front of them and are drawn on whole art pixels like every
 
 The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). The founder walks and jumps
 (`JumpHeight`) on the islands; jumping is held in Build mode (the phone's jump button hides with it).
+The buildings, trees and decor don't stop the founder: they walk through them, and their feet stay on the ground as
+they do (the bug report of 2026-11-14: "there is a bug where the player snaps above buildings while walking over
+them": the feet were found by a ray down that met a roof or a bench first, so the founder was drawn up on it).
 
 > The request (2026-11-10): "allow the player to jump in their own island as well"; the bug report: "jumping seems
 > bugged. also, the player can walk on water" (the chibi stood still on the ground while the character jumped: it now

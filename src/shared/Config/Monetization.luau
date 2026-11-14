@@ -36,6 +36,12 @@ local Monetization = {
 		CardFlip = 9118835802, -- Scrapbook Open And Turn Pages 7
 		Pop = 9112872239, -- Small Bubbles Water Surface Float Up Pop 5
 		Sparkle = 9116395089, -- Magic Glows Soft Clusters Of Chiming Hits 4
+		-- the hatch scene's egg cracking (the request of 2026-11-14: "make sounds when cracking the egg"): measured, the
+		-- crunch of each is between about 0.15 s and 0.6 s into the clip
+		CrackEgg1 = 9113959343, -- Crack Egg Crunchy 11
+		CrackEgg2 = 9113959332, -- Crack Egg Crunchy 9
+		CrackEgg3 = 9113958797, -- Crack Egg Crunchy 4
+		EggBreak = 9114232663, -- Eggs Break 15 (the shell giving way, from about 0.4 s)
 		-- the islands and the sea (Creator Store, free: Roblox's licensed ProSoundEffects library)
 		Hammer = 9114756004, -- Hammer Nail Into Wood 7 (Audio plays its first two taps only)
 		Gull = 9118858259, -- Seagull Squawks 3

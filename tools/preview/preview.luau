@@ -1682,7 +1682,10 @@ local function hatchScenario(code)
 	local ready = PR and H.inClient(p, PR.ready)
 	local st = state()
 	log("hatch %s: opened at once: phase %s, renderer ready %s, %d reveals to tap", code, st.phase, tostring(ready), st.reveals)
-	E.run(0.5)
+	E.run(0.2)
+	capture(p, "hatch_rising")
+	log("hatch %s: rising: %.2f studs under its spot", code, -state().lift)
+	E.run(0.9)
 	capture(p, "hatch_egg")
 	local rises, mutsShown = 0, 0
 	for _ = 1, st.reveals do

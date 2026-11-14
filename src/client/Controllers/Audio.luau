@@ -46,6 +46,9 @@ local EVENTS: { [string]: EventDef } = {
 	tick = { id = "Tick", vol = 0.4, pitch = { 0.95, 1.08 }, cd = 0.03, voices = 3 },
 	flip = { id = "CardFlip", vol = 0.35, pitch = { 0.95, 1.08 }, cd = 0.04, voices = 3 },
 	pop = { id = "Pop", vol = 0.5, pitch = { 0.95, 1.15 }, cd = 0.04, voices = 3 },
+	-- the hatch scene's egg: a crunch at each tap that cracks it further, the shell breaking open when it hatches
+	crack = { id = "CrackEgg1", ids = { "CrackEgg1", "CrackEgg2", "CrackEgg3" }, vol = 0.7, pitch = { 0.95, 1.08 }, cd = 0.05, from = 0.12, len = 0.55, fade = 0.1 },
+	crack_open = { id = "EggBreak", vol = 0.55, pitch = { 0.98, 1.04 }, cd = 0.3, from = 0.36, len = 1.2, fade = 0.4 },
 	-- the islands and the sea
 	hammer = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.05 }, cd = 0.2, from = 0.24, len = 0.17 },
 	gull = { id = "Gull", vol = 0.12, pitch = { 0.95, 1.1 }, cd = 4 },
