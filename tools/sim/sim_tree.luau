@@ -205,7 +205,7 @@ end
 local function attrWant(pr)
 	local out = {}
 	for _, e in pr.clutch.list do
-		table.insert(out, string.format("%d.%d", e.id, e.r))
+		table.insert(out, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
 	return table.concat(out, ";")
 end
@@ -679,7 +679,7 @@ H.expect(Tree.cost(prof, 1) == Tuning.EggPrice[1] * Tuning.EggTier[1] and 2 * Tr
 local m1 = plotModel(s.plot)
 local parsed, attrOk = 0, true
 for entry in string.gmatch(tostring(m1:GetAttribute("Eggs") or ""), "[^;]+") do
-	local id, r = string.match(entry, "^(%d+)%.(%d)$")
+	local id, r = string.match(entry, "^(%d+)%.(%d)%.?%a*$")
 	local e = id and eggOf(prof, tonumber(id))
 	attrOk = attrOk and e ~= nil and e.r == tonumber(r)
 	parsed += 1
@@ -1086,7 +1086,8 @@ end
 local plot1 = s.plot
 local keptList = {}
 for _, e in prof.clutch.list do
-	table.insert(keptList, { id = e.id, r = e.r })
+	-- (each with the season it was laid in and the weather that touched it, if any: GAME_DESIGN 13)
+	table.insert(keptList, { id = e.id, r = e.r, ss = e.ss, wx = e.wx, wt = e.wt })
 end
 local keptNext = prof.clutch.next
 E.removePlayer(p, "leave")
@@ -1107,7 +1108,7 @@ W = watch(p)
 H.expect(s ~= nil and s.ready and s.plot == plot1, "save", "back on the same island")
 local again = {}
 for _, e in prof.clutch.list do
-	table.insert(again, { id = e.id, r = e.r })
+	table.insert(again, { id = e.id, r = e.r, ss = e.ss, wx = e.wx, wt = e.wt })
 end
 H.expect(H.diff(again, keptList) == nil and prof.clutch.next == keptNext, "save", "the same eggs: no new lot laid on the way in", idsOf(prof.clutch.list))
 H.expect(prof.clutch.left < leftAtLeave and prof.clutch.left >= leftAtLeave - (E.now() - back) - 0.2, "save", "the clock goes on from where it stopped (it runs only while the player is here)", string.format("%.2f, %.2f at the leave", prof.clutch.left, leftAtLeave))

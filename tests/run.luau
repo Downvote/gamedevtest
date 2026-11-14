@@ -8,6 +8,7 @@ local SPECS = {
 	"Schema", -- the save
 	"Shading", "Raster", "Rim", "Fx", "DynTex", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures
 	"DriftMotion", -- the driftlings' motion on their skeletons
+	"Weather", -- the seasons and the weather, and the eggs they touch
 	"PixelFont", -- the pixel font
 }
 for _, name in SPECS do

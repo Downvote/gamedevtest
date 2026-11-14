@@ -620,6 +620,114 @@ do
 	H.expect(pq ~= nil and pq.clutch.next == nextQ + Tree.count(pq.tier) and math.abs((E.SIM.now - back) - 3) <= 0.25, "away", "the lot comes once those three seconds have run with them here", string.format("%.2f s after coming back", E.SIM.now - back))
 	E.run(1)
 end
+------------------------------------------------------------------ the seasons and the weather
+E.phase = "weather"
+-- (GAME_DESIGN 13: "also, make weather and seasons, and eggs spawns are affected by these with different mutations"):
+-- the client's sea clock follows the server's, the HUD's status lines show the season and the weather of that clock, the
+-- weather turning is told (Fx weather) and the islands show it; the tree's eggs keep the season they were laid in,
+-- some laid in the rain are touched by it (the plot's Eggs attribute marks them) and one hatches with the rain's
+-- mutation
+do
+	local WC = H.smod("WorldClock")
+	local WL = H.sharedServer("Logic.Weather")
+	local SCp = H.cmod(p, "Controllers.StateClient")
+	local Chip = H.cmod(p, "UI.WeatherChip")
+	local WV = H.cmod(p, "Controllers.WeatherView")
+	E.run(1.2)
+	local v = H.view(p)
+	local sea, seen = WC.now(), H.inClient(p, SCp.seaClock)
+	H.expect(v ~= nil and type(v.clock) == "number" and math.abs(seen - sea) < 1.5, "weather", "the client's sea clock is the server's", string.format("%.1f vs %.1f", seen, sea))
+	E.run(0.6)
+	local st = WL.at(WC.now())
+	local chip = H.inClient(p, Chip.debugState)
+	H.expect(chip.season == st.season and chip.weather == st.kind, "weather", "the HUD shows the season and the weather now", string.format("%s %s vs %s %s", chip.season, chip.weather, st.season, st.kind))
+	-- (two lines in the HUD's status panel, Hud.statusLine: the season's name, the weather's name)
+	do
+		local WD = H.sharedServer("Data.Weather")
+		local pg = p:FindFirstChild("PlayerGui")
+		local panel: Instance? = nil
+		local function words(name: string): string
+			local line = pg and pg:FindFirstChild("Status_" .. name, true)
+			panel = panel or (line and line.Parent)
+			local t = line and line:FindFirstChild("Text")
+			return if t and t:IsA("TextLabel") then t.Text else ""
+		end
+		local sw, ww = words("season"), words("weather")
+		H.expect(panel ~= nil and (panel :: any).Name == "Status" and string.find(sw, WD.seasonById[st.season].name, 1, true) == 1 and string.find(ww, WD.byId[st.kind].name, 1, true) == 1, "weather", "the HUD's status panel has a line for each", string.format("%q %q", tostring(sw), tostring(ww)))
+	end
+	-- a rainy spell ahead: the clock jumped just into it
+	local target = nil
+	for k = 1, 600 do
+		local tt = WC.now() + k * Tuning.WeatherSecs
+		if WL.at(tt).kind == "rain" then
+			target = tt
+			break
+		end
+	end
+	if H.expect(target ~= nil, "weather", "(a rainy spell ahead)") then
+		local f0 = #fx
+		local start = Tuning.WeatherEpoch + WL.at(target :: number).spell * Tuning.WeatherSecs
+		WC.shift(start + 5 - WC.now())
+		E.run(1.5)
+		local told = false
+		for k = f0 + 1, #fx do
+			if fx[k].kind == "weather" and fx[k].wx == "rain" then
+				told = true
+			end
+		end
+		H.expect(told, "weather", "the weather turning is told to the player (Fx weather)")
+		E.run(0.6)
+		chip = H.inClient(p, Chip.debugState)
+		local wv = H.inClient(p, WV.debugState)
+		H.expect(chip.weather == "rain" and wv.kind == "rain", "weather", "the HUD and the islands show the rain", string.format("%s %s", chip.weather, wv.kind))
+		-- lots laid in the rain until an egg is touched
+		local touched = nil
+		local season = WL.at(WC.now()).season
+		local allSeason = true
+		for _ = 1, 15 do
+			prof.clutch.left = 0.05
+			E.run(0.3)
+			for _, e in prof.clutch.list do
+				allSeason = allSeason and e.ss == season
+				if e.wx == "rain" and touched == nil then
+					touched = e
+				end
+			end
+			if touched then
+				break
+			end
+		end
+		H.expect(allSeason, "weather", "every egg keeps the season it was laid in", season)
+		if H.expect(touched ~= nil, "weather", "an egg laid in the rain is touched by it") then
+			local egg = touched :: any
+			E.run(0.4)
+			local m = E.workspace.Plots:FindFirstChild("Plot_" .. s.plot)
+			local attr = m and m:GetAttribute("Eggs") or ""
+			H.expect(string.find(";" .. tostring(attr) .. ";", string.format(";%d.%d.rain;", egg.id, egg.r), 1, true) ~= nil, "weather", "the plot's Eggs attribute marks it (id.r.rain)", tostring(attr))
+			local ve = nil
+			for _, x in (H.view(p) :: any).clutch do
+				if x.id == egg.id then
+					ve = x
+				end
+			end
+			H.expect(ve ~= nil and ve.wx == "rain" and ve.wt == egg.wt, "weather", "the client's view has its weather and tier")
+			-- hatched (every hut is full here: swapping out the weakest)
+			prof.shells += Tree.cost(prof, egg.r) + 10
+			local swap = 0
+			for _, x in prof.pals do
+				if x.home ~= 0 then
+					swap = x.id
+				end
+			end
+			local want = WL.mutation(egg.wx, egg.wt)
+			local res = H.req(p, "egg.hatch", { id = egg.id, swap = if Tree.room(prof) > 0 then 0 else swap })
+			local d = res and res.data
+			H.expect(res.ok and type(d) == "table" and d.wm == want and table.find(d.muts, want) ~= nil, "weather", "it hatches with the rain's mutation", string.format("%s %s %s", tostring(res.err), tostring(d and d.wm), tostring(want)))
+		end
+	end
+	H.checkProfile(p, "weather")
+end
+
 ------------------------------------------------------------------ no night
 E.phase = "daynight"
 -- no day and night (the request of 2026-11-14: "remove the day night cycle, and make everything brighter"): whatever

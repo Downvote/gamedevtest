@@ -58,6 +58,12 @@ local Monetization = {
 		LandSand = 9118768199, -- Sand Impacts 6 (landing)
 		Waves = 9126010643, -- Surf Bubbles Wave Bubbles On Sand Ocean Foam (a loop)
 		Crickets = 9112764546, -- Crickets Night 1 (a loop)
+		-- the weather (GAME_DESIGN 13), measured: a quiet drizzle (36 s, about -52 dB mean), a downpour for a storm
+		-- (61 s, -41 dB), light gusts (37 s, -47 dB), a distant boom of thunder (6.7 s, -32 dB)
+		RainLight = 9112852671, -- Rain Continuous Drizzle 2 (a loop)
+		RainHeavy = 9112858162, -- Rainstorm Heavy Summer Downpour 2 (a loop)
+		WindGusts = 9114057104, -- Desert Wind Whistley Light Gusts 1 (a loop)
+		Thunder = 9120017047, -- Thunder Distant Boom Thud Rapid Hits 5
 	} :: { [string]: number },
 	-- Background music (Audio.music): APM Music's library on the Creator Store (free), chosen by measuring each track
 	-- (downloaded and analysed: notes a second, the percussive share, the beat's strength, the loudness section by

@@ -213,6 +213,8 @@ end
 -- and the like, from other modules: `Hud.statusLine(name, icon, text, color?)` adds or changes a line, a nil `text`
 -- takes it away. It hides while it has no lines; the quest's card sits under it.
 local STATUS_W = QUEST_W
+-- (the blocks under it move when a line comes or goes: `stack`, set once it is defined below)
+local restack: () -> () = function() end
 local function layoutStatus()
 	local st = status
 	if st == nil then
@@ -245,10 +247,12 @@ function Hud.statusLine(name: string, icon: string?, text: string?, color: Color
 				table.remove(statusOrder, i)
 			end
 			layoutStatus()
+			restack()
 		end
 		return
 	end
 	local l: Frame? = old
+	local added = l == nil
 	if not l then
 		local nf = Instance.new("Frame")
 		nf.Name = "Status_" .. name
@@ -276,6 +280,9 @@ function Hud.statusLine(name: string, icon: string?, text: string?, color: Color
 		UIKit.text(line, text, UDim2.new(1, -13, 0, 10), UDim2.fromOffset(13, 1), { color = color or UIKit.color("text"), name = "Text", z = 3 })
 	end
 	layoutStatus()
+	if added then
+		restack()
+	end
 end
 
 -- Whether the founder stands on their own island.
@@ -574,6 +581,17 @@ local function stack()
 			y = e.Position.Y.Offset + e.Size.Y.Offset + GAP
 		end
 		qf.Position = UDim2.fromOffset(EDGE, y)
+	end
+end
+-- (a status line came or went: the quest's card slides to its new place, taking over from its own slide in)
+restack = function()
+	local qf = quest
+	local from = if qf then qf.Position else nil
+	stack()
+	if qf and from and qf.Parent then
+		local to = qf.Position
+		qf.Position = from
+		UIKit.tween(qf, 0.18, { Position = to })
 	end
 end
 

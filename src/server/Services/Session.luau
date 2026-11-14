@@ -70,6 +70,7 @@ function Session.view(s: S): Types.ClientView
 		wood = p.wood,
 		day = p.day,
 		dayFrac = WorldClock.dayFrac(),
+		clock = WorldClock.now(),
 		tier = p.tier,
 		founder = p.founder,
 		pals = p.pals,

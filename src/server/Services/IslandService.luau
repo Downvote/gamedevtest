@@ -15,12 +15,16 @@ local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
+local Weather = require(ReplicatedStorage.Shared.Logic.Weather)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
 local Router = require(script.Parent.Router)
 local PlotService = require(script.Parent.PlotService)
 
 local IslandService = {}
+
+local lastKind: string? = nil -- the weather and season last step (a change is told: Fx "weather")
+local lastSeason: string? = nil
 
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
@@ -126,8 +130,8 @@ function IslandService.init()
 	Router.on("island.expand", function(s, _a)
 		local ok, data = Island.expand(s.profile)
 		if ok then
-			-- (a bigger island: the tree lays its extra eggs at once)
-			local laid = Tree.fill(s.profile, s.rng)
+			-- (a bigger island: the tree lays its extra eggs at once, in the weather now)
+			local laid = Tree.fill(s.profile, s.rng, Weather.at(WorldClock.now()))
 			PlotService.build(s)
 			if #laid > 0 then
 				Session.fx(s, { kind = "eggs", laid = Tree.view(s.profile), more = #laid })
@@ -200,14 +204,23 @@ end
 function IslandService.step(dt: number)
 	WorldClock.advance(dt)
 	local today = WorldClock.dayIndex()
+	-- the season and the weather (one for the whole sea, from its clock: Logic/Weather); a new spell's weather is
+	-- told to every player (Fx "weather"), its eggs laid in it
+	local wx = Weather.at(WorldClock.now())
+	local turned = lastKind ~= nil and wx.kind ~= lastKind
+	local newSeason = lastSeason ~= nil and wx.season ~= lastSeason
+	lastKind, lastSeason = wx.kind, wx.season
 	for _, s in Session.all() do
 		if not s.ready then
 			continue
 		end
+		if turned or newSeason then
+			Session.fx(s, { kind = "weather", wx = wx.kind, season = wx.season, newSeason = newSeason, clock = WorldClock.now() })
+		end
 		local p = s.profile
 		Island.step(p, dt)
-		-- the tree: a new lot of eggs when its time comes (the ones left go)
-		local laid = Tree.step(p, dt, s.rng)
+		-- the tree: a new lot of eggs when its time comes (the ones left go), in the weather now
+		local laid = Tree.step(p, dt, s.rng, wx)
 		if laid then
 			Session.markDirty(s)
 			Session.fx(s, { kind = "eggs", laid = Tree.view(p), more = 0 })
@@ -232,7 +245,7 @@ function IslandService.step(dt: number)
 			-- (the quest's egg, once a second: a save loaded with such a quest on the go, or anything else that left
 			-- the lot without one)
 			questEgg(s)
-			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
+			Session.fx(s, { kind = "tick", shells = p.shells, wood = p.wood, dayFrac = WorldClock.dayFrac(), clock = WorldClock.now(), clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
 		end
 	end
 end

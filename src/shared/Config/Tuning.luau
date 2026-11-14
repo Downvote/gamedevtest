@@ -69,6 +69,23 @@ local Tuning = {
 	-- skip to the next rarity during the cutscene"): an egg of rarity r goes up one with EggUp[r], and on from there with
 	-- the next one's share while the rolls hold (never to a rarity the island has no driftlings of)
 	EggUp = { 0.06, 0.04, 0.025, 0.012 },
+	-- the seasons and the weather (Data/Weather, Logic/Weather; GAME_DESIGN 13: "also, make weather and seasons, and eggs
+	-- spawns are affected by these with different mutations"): one sea, one calendar for every island, worked out from
+	-- the sea's clock (WorldClock) from WeatherEpoch. A season lasts SeasonSecs (2 h 30 min: the four come round every
+	-- 10 hours, so any hour of the day sees each of them within a few days); it is WeatherSecs spells of weather (10
+	-- minutes each, 15 a season), each spell's weather picked by the season's odds.
+	WeatherEpoch = 0,
+	SeasonSecs = 9000,
+	WeatherSecs = 600,
+	-- an egg laid in a weather is touched by it with WeatherTouch[kind] (a plain sunny or breezy spell touches none):
+	-- it hatches with that weather's mutation (Data/Traits' weather families), its tier rolled by WeatherTierW (tier
+	-- 1 .. 4, better for a rarer egg; a storm's a tier better, at least 2)
+	WeatherTouch = { rain = 0.35, snow = 0.35, blossom = 0.35, leaves = 0.35, haze = 0.3, fog = 0.3, storm = 0.2 } :: { [string]: number },
+	WeatherTierW = { 52, 30, 13, 5 },
+	-- while it storms the tree's eggs come luckier (luck added to the island's: rarer eggs)
+	WeatherLuck = { storm = 0.25 } :: { [string]: number },
+	-- a season's own kinds of driftling (its islets, Data/Weather) come SeasonFavour times as often out of its eggs
+	SeasonFavour = 3,
 	-- the tree's model grows grander with the island (its stage by tier, Models/DecorModels)
 	TreeStage = { 1, 2, 2, 3, 3, 4, 4, 4, 4, 4 },
 	HutTree = 0.5, -- the huts' driftlings' tree shares together bring the next eggs this much sooner at most ...

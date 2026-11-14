@@ -9,6 +9,7 @@ local Schema = require("../build/luautest/shared/Logic/Schema")
 local Island = require("../build/luautest/shared/Logic/Island")
 local Plot = require("../build/luautest/shared/Logic/Plot")
 local Tree = require("../build/luautest/shared/Logic/Tree")
+local Weather = require("../build/luautest/shared/Logic/Weather")
 local Breed = require("../build/luautest/shared/Logic/Breed")
 local Buildings = require("../build/luautest/shared/Data/Buildings")
 local Creatures = require("../build/luautest/shared/Data/Creatures")
@@ -16,6 +17,8 @@ local Street = require("../build/luautest/shared/Data/Street")
 local Util = require("../build/luautest/shared/Logic/Util")
 
 local Career = {}
+
+local clock = 0 -- the career's second now: the sea's clock its weather comes from (Logic/Weather)
 
 export type Opts = { log: ((string) -> ())? }
 
@@ -183,7 +186,7 @@ local function plan(p: any, rng: any)
 	if ex and p.wood >= ex.wood then
 		Island.expand(p)
 		Tree.settle(p)
-		Tree.fill(p, rng)
+		Tree.fill(p, rng, Weather.at(clock))
 		return
 	end
 	-- the tips' buildings first (a camp, a patch, a hut, then a stall), as a new player builds them
@@ -359,7 +362,9 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 	local shellsSold = 0
 	for t = 1, seconds do
 		Island.step(p, 1)
-		Tree.step(p, 1, rng)
+		clock = t
+		-- (the eggs laid in the weather of the sea's clock from the epoch: GAME_DESIGN 13, the weather mutations counted)
+		Tree.step(p, 1, rng, Weather.at(t))
 		turnClock += 1
 		if turnClock >= Tuning.TurnSeconds then
 			turnClock -= Tuning.TurnSeconds

@@ -45,6 +45,7 @@ type Egg = {
 	id: number,
 	plot: number,
 	r: number,
+	wx: string?, -- the weather that touched it (its mark: Models/EggModels; GAME_DESIGN 13)
 	slot: number,
 	n: number,
 	model: Model?,
@@ -131,7 +132,7 @@ local function dress(e: Egg)
 	if e.model then
 		return
 	end
-	local m, parts, top, fx = EggModels.build(e.r)
+	local m, parts, top, fx = EggModels.build(e.r, nil, nil, e.wx)
 	m.Parent = dyn()
 	PixelRenderer.registerDynamic(m)
 	e.model, e.parts, e.top, e.fx = m, parts, top, fx
@@ -239,15 +240,16 @@ local function syncPlot(i: number, near: boolean, t: number)
 		return
 	end
 	local raw = m:GetAttribute("Eggs")
-	local list: { { id: number, r: number } } = {}
+	local list: { { id: number, r: number, wx: string? } } = {}
 	local inList: { [number]: boolean } = {}
 	local low = math.huge
 	if type(raw) == "string" then
 		for entry in string.gmatch(raw, "[^;]+") do
-			local id, r = string.match(entry, "^(%d+)%.(%d)$")
+			-- ("id.r", or "id.r.wx": the weather that touched it, GAME_DESIGN 13)
+			local id, r, wx = string.match(entry, "^(%d+)%.(%d)%.?(%a*)$")
 			local n, rr = tonumber(id), tonumber(r)
 			if n and rr then
-				table.insert(list, { id = n, r = math.clamp(rr, 1, 5) })
+				table.insert(list, { id = n, r = math.clamp(rr, 1, 5), wx = if wx and wx ~= "" then wx else nil })
 				inList[n] = true
 				low = math.min(low, n)
 			end
@@ -314,7 +316,7 @@ local function syncPlot(i: number, near: boolean, t: number)
 			held[slot] = true
 			-- (laid by the own island's expansion while its new land grows in: it waits, then pops up)
 			local waitGrow = i == myPlot and (PixelRenderer.growing())
-			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0, wait = if waitGrow then true else nil }
+			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, wx = x.wx, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0, wait = if waitGrow then true else nil }
 			came += 1
 		else
 			e.n = math.max(n, e.slot)

@@ -201,6 +201,22 @@ SMALL = {
     "search": ["..SSS....", ".SCCCS...", "SCCCCCS..", "SCCCCCS..", "SCCCCCS..", ".SCCCSN..", "..SSSNN..", "......NN.", ".......NN"],
     # the music switch: two beamed notes
     "note": ["...WWWWWW", "...WWWWWW", "...W....W", "...W....W", "...W....W", ".WWW..WWW", "WWWW.WWWW", "WWW..WWW.", "........."],
+    # the weather (GAME_DESIGN 13: the HUD's chip, the tree panel's touched eggs): a breeze's curls, a cloud and its
+    # drops, a dark cloud and a bolt, a grey cloud over banks of fog, a snowflake, a blossom, the sun over heat waves, a
+    # falling leaf
+    "breeze": [".........", "WWWWWW...", "......W..", "WWWWWW...", ".........", "..WWWWWWW", ".W.......", "..WWWW...", "........."],
+    "rain": ["...WWW...", ".WWWWWWW.", "WWWWWWWWW", ".WWWWWWW.", ".........", "..B...B..", "..B...B..", ".........", "....B...."],
+    "storm": ["...SSS...", ".SSSSSSS.", "SSSSSSSSS", ".SSSSSSS.", "....YY...", "...YY....", "..YYYY...", "....YY...", "...YY...."],
+    "fog": ["..SSSS...", ".SSSSSS..", "SSSSSSSS.", ".........", "SSSSSSSSS", ".........", ".SSSSSSS.", ".........", "..SSSSS.."],
+    "snow": ["....W....", ".W..W..W.", "..W.W.W..", "...WWW...", "WWWWWWWWW", "...WWW...", "..W.W.W..", ".W..W..W.", "....W...."],
+    "petal": ["...KKK...", "...KKK...", "KKK.K.KKK", "KKKKYKKKK", ".KKYYYKK.", "..KKYKK..", ".KKK.KKK.", ".KK...KK.", "........."],
+    "heat": ["...OOO...", "..OOOOO..", "..OOOOO..", "...OOO...", ".........", ".OO...OO.", "O..OOO..O", ".........", ".OO...OO."],
+    "leaf": ["....O....", "...OOO...", "..OOOOO..", ".OOOOOOO.", "OOOOOOOOO", ".OOOOOOO.", "..OOOOO..", "....N....", "....N...."],
+    # the seasons: a sprout, the sun, a red toadstool with white spots, a snowy pine
+    "season_spring": [".........", ".GG...GG.", "GGGG.GGGG", ".GGG.GGG.", "...GGG...", "....G....", "....G....", "..NNNNN..", "........."],
+    "season_summer": ["....Y....", ".Y..Y..Y.", "..YYYYY..", "..YYYYY..", "YYYYYYYYY", "..YYYYY..", "..YYYYY..", ".Y..Y..Y.", "....Y...."],
+    "season_autumn": ["..RRRRR..", ".RRWRRRR.", "RRRRRRWRR", "RWRRRRRRR", ".RRRRRRR.", "...EEE...", "...EEE...", "...EEE...", "..EEEEE.."],
+    "season_winter": ["....W....", "...WGW...", "..GGWGG..", "...GGG...", "..WGGGW..", ".GGGWGGG.", "GGWGGGWGG", "....N....", "....N...."],
 }
 SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():
@@ -369,6 +385,10 @@ for _k, _rows in enumerate([[".3", "21"], ["32", ".1"], ["3", "2", "1"], ["321"]
     S("fx_leaf_%d" % _k, _rows, flat=TINT, shade=False, outline=False)
 for _k, _rows in enumerate([["32"], ["3", "2"], ["23"]], start=1):
     S("fx_petal_%d" % _k, _rows, flat=TINT, shade=False, outline=False)
+# a snowflake drifting down (the weather, GAME_DESIGN 13): a small one, a round one, a star with soft arms (no outline:
+# white on the light; the arms a step greyer, the flake's anti-aliasing)
+for _k, _rows in enumerate([["w"], ["wh", "hz"], [".h.", "hwh", ".h."]], start=1):
+    S("fx_flake_%d" % _k, _rows, flat={"w": "wht", "h": "wht2", "z": "wht1"}, shade=False, outline=False)
 for _k, _rows in enumerate([["w"], [".z.", "zwz", ".z."], ["..z..", "zwwwz", "..z.."]], start=1):
     S("fx_glint_%d" % _k, _rows, shade=False, outline=False)
 for _k, _rows in enumerate([[".hh.", "h..h", ".hh."], ["..hhh..", "hh...hh", "..hhh.."]], start=1):

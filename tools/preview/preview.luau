@@ -227,6 +227,16 @@ local function seedProfile(userId, tier, opts)
 			end
 		end
 	end
+	-- (opts.touch: { kind, season, { egg, tier }, ... }: those eggs laid in that season and touched by that weather,
+	-- GAME_DESIGN 13)
+	if opts.touch then
+		for k = 3, #opts.touch do
+			local e = prof.clutch.list[opts.touch[k][1]]
+			if e then
+				e.ss, e.wx, e.wt = opts.touch[2], opts.touch[1], opts.touch[k][2]
+			end
+		end
+	end
 	prof.clutch.left = opts.left or (Tuning.EggSecs - 60)
 	for _, sp in opts.seen or {} do
 		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
@@ -776,6 +786,76 @@ function SCEN.tree()
 		H.inClient(p, DL.debugSet, 0.88)
 		E.run(1.5)
 		capture(p, "tree_night")
+	end
+	return p
+end
+
+-- The weather (GAME_DESIGN 13): the tree's village in one weather ("weather=rain", "snow", "storm", "fog", "blossom",
+-- "leaves", "haze", "breezy", "sunny"). The sea's clock jumps to a spell of it, so the HUD's status lines (the season
+-- and the weather with their time left) and the islands agree; WeatherView holds it at full strength (its streaks,
+-- flakes, petals, leaves, motes or fog banks in the pixel layer, its light on the picture); two of the eggs under the
+-- tree were laid in it and touched (their beads in its colour) when it touches eggs. weather=storm also catches a
+-- flash of lightning (weather_storm_flash); "weathers" runs each in turn.
+local function weatherScenario(kind: string)
+	local WD = H.sharedServer("Data.Weather")
+	local WL = H.sharedServer("Logic.Weather")
+	local def = WD.byId[kind]
+	if def == nil then
+		error("no weather " .. kind)
+	end
+	local WC = H.smod("WorldClock")
+	-- the first spell of it ahead on the sea's clock (the seeded eggs keep that spell's season)
+	local start, season = nil, "spring"
+	for k = 0, 2000 do
+		local t = WC.now() + k * H.sharedServer("Config.Tuning").WeatherSecs
+		local st = WL.at(t)
+		if st.kind == kind then
+			start = H.sharedServer("Config.Tuning").WeatherEpoch + st.spell * H.sharedServer("Config.Tuning").WeatherSecs
+			season = st.season
+			break
+		end
+	end
+	local touch = if def.family then { kind, season, { 2, 2 }, { 4, 3 } } else nil
+	seedProfile(22, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 3, 2, 4, 1, 2 }, touch = touch })
+	local p = join(22, "Rainy")
+	if start then
+		WC.shift(math.max(0, start + 20 - WC.now()))
+	end
+	local s = H.session(p)
+	local Street = H.sharedServer("Data.Street")
+	local Tree = H.sharedServer("Logic.Tree")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(s.plot)
+	local q = Tree.piece(prof)
+	if q and p.Character then
+		local _, d = Plot.footprint(q.id, q.rot)
+		p.Character:PivotTo(E.cf.new(ox + q.x - 1, 3, oz + q.z + d + 2))
+	end
+	E.run(1)
+	settle(p, 30, 1)
+	local WV = modOr(p, "Controllers.WeatherView")
+	if WV then
+		H.inClient(p, WV.debugSet, kind)
+	end
+	-- (the banner and the notice for the jump go by; the snow and the petals fill the screen)
+	E.run(5.5)
+	settle(p, 10, 0.5)
+	if WV then
+		local st = H.inClient(p, WV.debugState)
+		log("weather %s: season %s, strength %.2f, drops %d, flakes %d, fog %d, lines %d", st.kind, st.season, st.strength, st.drops, st.flakes, st.fog, st.lines)
+	end
+	local chip = modOr(p, "UI.WeatherChip")
+	if chip then
+		local cs = H.inClient(p, chip.debugState)
+		log("status lines: %s", tostring(cs.text))
+	end
+	capture(p, "weather_" .. kind)
+	if kind == "storm" and WV then
+		H.inClient(p, WV.debugFlash, 1)
+		E.run(0.2)
+		settle(p, 2, 0.1)
+		capture(p, "weather_storm_flash")
 	end
 	return p
 end
@@ -1967,6 +2047,12 @@ for _, name in list do
 	if palsArg then
 		fn = function()
 			return palsScenario(palsArg)
+		end
+	end
+	local wxArg = string.match(name, "^weather=(%a+)$")
+	if wxArg then
+		fn = function()
+			return weatherScenario(wxArg)
 		end
 	end
 	local hatch = string.match(name, "^hatch=(%d%d)$")
