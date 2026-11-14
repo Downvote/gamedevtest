@@ -13,7 +13,9 @@
 -- tab's count), fences drawn through the UI (a line, a box, one over another, Erase), a river two tiles wide (its
 -- tiles' banks in their model names) with a bridge over it and lily pads on it (refused on the grass, taken up with
 -- their tile), decor put down with its effects (BuildFx's drop, Puffs' particles, with the pixel filter on for them),
--- Copy, Replace within the row, the keys R and Esc, the questline (Go on an old tab's name opening Work's row), then a
+-- Copy, Replace within the row, the inventory (Put away, Free on a card, the Inventory tab, a piece down again from it
+-- for nothing, Quick remove's taps and drags, Sell), the keys R and Esc, the questline (Go on an old tab's name opening
+-- Work's row), then a
 -- malicious client (the fences' and tiles' payloads among the rest), then a second player, then the first island grown
 -- on to Everdrift (tier 20, Island max, land far north of where Driftling Haven ended, the pieces of tiers 7 to 20 built
 -- up there). No villagers since 2026-11-12, no food since 2026-11-13, the Tree of Life's eggs in place of the tide
@@ -1685,13 +1687,19 @@ end
 
 -- Fences drawn through Build mode's draw bar (BuildUI.debugDraw, corner to corner, as a drag along the grid lines):
 -- a line goes along x then z, a box runs all the way round; each length lies on the even grid running east (rot 0) or
--- south (rot 90). One fence drawn over another swaps it; Erase takes them down, half their price back
+-- south (rot 90). One fence drawn over another swaps it (the old one into the inventory); Erase takes them down into
+-- the inventory (2026-11-14: nothing paid back)
 E.phase = "fences"
 -- the shells moved since w1 come to `want`, give or take what the island made on its own since t1
 local function woodMoved(w1, want, t1)
 	local got = prof.shells - w1
 	local own = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - t1) * 1.5 + 0.5
 	return got >= want - 0.5 and got <= want + own, string.format("%+.1f shells (want %+d)", got, want)
+end
+-- how many of a piece wait in the player's inventory
+local function heldNow(id)
+	local inv = prof.inv or {}
+	return inv[id] or 0
 end
 -- the fence length on edge e of the island, or nil
 local function fenceOn(e)
@@ -1806,8 +1814,9 @@ do
 			end
 		end
 		H.expect(#off == 0, "fences", "every length on the even grid, turned 0 or 90", table.concat(off, " "))
-		-- Erase: the line taken down, half its price back
+		-- Erase: the line taken down, into the inventory
 		local n0, w1, t1 = #prof.plot.placed, prof.shells, E.now()
+		local held0 = heldNow("ropefence")
 		plan = H.inClient(p, BuildUI.debugDraw, { a, b }, "erase")
 		E.run(0.4)
 		local gone = true
@@ -1815,8 +1824,8 @@ do
 			gone = gone and fenceOn(e) == nil
 		end
 		H.expect(plannedAll(plan, "lift", 5) and gone and #prof.plot.placed == n0 - 5, "fences", "Erase takes the line down", table.concat(plan, ","))
-		local ok, say = woodMoved(w1, 5 * math.floor(Buildings.byId.ropefence.shells * Tuning.Refund), t1)
-		H.expect(ok, "fences", "half their price back", say)
+		local ok, say = woodMoved(w1, 0, t1)
+		H.expect(ok and heldNow("ropefence") == held0 + 5, "fences", "the five lengths go into the inventory, nothing paid back", string.format("%s, %d held", say, heldNow("ropefence")))
 	end
 	-- one fence over another: a picket line along the box's north side swaps the rope there, the count unchanged
 	if fenceBox then
@@ -1831,6 +1840,7 @@ do
 			uids[i] = q and q.uid
 		end
 		local n0, w1, t1 = #prof.plot.placed, prof.shells, E.now()
+		local rope0, picket0 = heldNow("ropefence"), heldNow("picket")
 		local plan = H.inClient(p, BuildUI.debugDraw, { a, b }, "line")
 		E.run(0.4)
 		local swapped = true
@@ -1839,8 +1849,8 @@ do
 			swapped = swapped and q ~= nil and q.id == "picket" and q.uid == uids[i]
 		end
 		H.expect(plannedAll(plan, "swap", 4) and swapped and #prof.plot.placed == n0, "fences", "a picket fence drawn over the rope one swaps it where it runs", table.concat(plan, ","))
-		local ok, say = woodMoved(w1, -4 * (Buildings.byId.picket.shells - math.floor(Buildings.byId.ropefence.shells * Tuning.Refund)), t1)
-		H.expect(ok, "fences", "for its price less half the old one's", say)
+		local ok, say = woodMoved(w1, -math.max(0, 4 - picket0) * Buildings.byId.picket.shells, t1)
+		H.expect(ok and heldNow("ropefence") == rope0 + 4, "fences", "for its price (or from the inventory), the old lengths into the inventory", string.format("%s, %d rope held", say, heldNow("ropefence")))
 	end
 	H.clickNamed(p, "Cancel", { wait = 0.2 })
 	H.expect(TrayCheck.countText() == TrayCheck.count("fence"), "fences", "the Fences tab counts the fence lengths", string.format("%s, want %s", tostring(TrayCheck.countText()), TrayCheck.count("fence")))
@@ -2012,15 +2022,16 @@ do
 		local pads = pieceAt("lilypads", rx, rz)
 		H.expect(pads ~= nil and countOf("lilypads") == nPads + 1, "water", "Place: lily pads float on the river")
 		H.clickNamed(p, "Cancel", { wait = 0.2 })
-		-- Erase the tile under them: they come up with it, half of both prices back; the bridge stays
+		-- Erase the tile under them: they come up with it, both into the inventory; the bridge stays
 		H.clickNamed(p, "Chip_tiles", { wait = 0.2 })
 		H.clickNamed(p, "Buy_stream", { wait = 0.3 })
 		local w2, t2 = prof.shells, E.now()
+		local stream0, pads0 = heldNow("stream"), heldNow("lilypads")
 		plan = H.inClient(p, BuildUI.debugDraw, { { rx, rz } }, "erase")
 		E.run(0.5)
 		H.expect(plannedAll(plan, "lift", 1) and pieceAt("stream", rx, rz) == nil and countOf("lilypads") == nPads, "water", "Erase on the tile under the lily pads takes them up with it", table.concat(plan, ","))
-		ok, say = woodMoved(w2, math.floor(Buildings.byId.stream.shells * Tuning.Refund) + math.floor(Buildings.byId.lilypads.shells * Tuning.Refund), t2)
-		H.expect(ok, "water", "half the tile's price back and half the lily pads'", say)
+		ok, say = woodMoved(w2, 0, t2)
+		H.expect(ok and heldNow("stream") == stream0 + 1 and heldNow("lilypads") == pads0 + 1, "water", "the tile and the lily pads into the inventory, nothing paid back", string.format("%s, %d stream, %d pads held", say, heldNow("stream"), heldNow("lilypads")))
 		H.expect(pieceAt("plankbridge", bx, bz) ~= nil, "water", "the bridge stays")
 		bad = maskProblems()
 		H.expect(#bad == 0, "water", "the tiles next to it are built again with their new banks", table.concat(bad, " "))
@@ -2162,6 +2173,113 @@ do
 			H.clickNamed(p, "SwapTo_umbrella", { wait = 0.6 })
 			local rq = pieceAt("umbrella", cx, cz)
 			H.expect(rq ~= nil and rq.uid == uid and countOf("sandcastle") == n0, "decor", "a tap on one replaces it where it stands", tostring(rq and rq.uid))
+		end
+	end
+	-- the inventory (GAME_DESIGN 4.5, 2026-11-14): a piece put away waits in the Inventory tab with how many, a catalog
+	-- card for it says Free, it goes down again from there for nothing (the last one down, nothing stays picked); Quick
+	-- remove (its button by the tabs) puts a tapped piece away with no menu, never the tree, and takes up the paths and
+	-- the fences a drag goes over; Sell sells one for its share of the price
+	do
+		local function held(id)
+			local inv = prof.inv or {}
+			return inv[id] or 0
+		end
+		local um = pieceOf("umbrella")
+		if H.expect(um ~= nil, "inventory", "(the umbrella to put away)") then
+			local h0 = held("umbrella")
+			local w1, t1 = prof.shells, E.now()
+			tapPiece(um)
+			H.expect(H.buttonNamed(p, "Store") ~= nil, "inventory", "a piece picked up has Put away")
+			H.clickNamed(p, "Store", { wait = 0.4 })
+			local ok, say = woodMoved(w1, 0, t1)
+			H.expect(pieceOf("umbrella") == nil and held("umbrella") == h0 + 1 and ok, "inventory", "Put away: the umbrella into the inventory, nothing paid back", say)
+			-- the catalog's card for it: Free
+			H.clickNamed(p, "Tab_decor", { optional = true, wait = 0.2 })
+			H.clickNamed(p, "Chip_beach", { wait = 0.2 })
+			local cc = p.PlayerGui:FindFirstChild("Card_umbrella", true)
+			local cl = cc and cc:FindFirstChild("Held", true)
+			H.expect(cl ~= nil and string.find(cl.Text, "Free", 1, true) ~= nil, "inventory", "its catalog card says Free", cl and cl.Text)
+			-- the Inventory tab: its card with how many, the row's buttons
+			H.clickNamed(p, "Tab_inv", { wait = 0.3 })
+			local st = H.inClient(p, BuildUI.debugState)
+			local card = p.PlayerGui:FindFirstChild("InvCard_umbrella", true)
+			local line = card and card:FindFirstChild("Count", true)
+			H.expect(st.tab == "inv" and line ~= nil and line.Text == "x" .. held("umbrella"), "inventory", "the Inventory tab lists it with how many", line and line.Text)
+			H.expect(H.buttonNamed(p, "InvSell") ~= nil and H.buttonNamed(p, "Clear_pieces") ~= nil and H.buttonNamed(p, "Clear_tiles", true) ~= nil and H.buttonNamed(p, "Clear_fences", true) ~= nil, "inventory", "its row: Sell and the three Remove all buttons")
+			-- picked there and put down: free, out of the inventory, nothing left picked
+			H.clickNamed(p, "Inv_umbrella", { wait = 0.3 })
+			local heldLabel = p.PlayerGui:FindFirstChild("Held", true)
+			H.expect(heldLabel ~= nil and string.find(heldLabel.Text, "in the inventory", 1, true) ~= nil, "inventory", "picked: the plate says how many wait, no price", heldLabel and heldLabel.Text)
+			local ux, uz = spot("umbrella", 0)
+			w1, t1 = prof.shells, E.now()
+			if ux then
+				tapFor("umbrella", ux, uz)
+				H.clickNamed(p, "Place", { wait = 0.6 })
+			end
+			ok, say = woodMoved(w1, 0, t1)
+			H.expect(ux ~= nil and pieceAt("umbrella", ux, uz) ~= nil and held("umbrella") == h0 and ok, "inventory", "an Inventory card puts it down again for nothing", say)
+			H.expect(H.buttonNamed(p, "Place", true) == nil, "inventory", "the last one down: nothing stays picked")
+			-- Quick remove: its bar in place of the tabs, a tap puts a piece away at once
+			H.clickNamed(p, "QuickRemove", { wait = 0.3 })
+			st = H.inClient(p, BuildUI.debugState)
+			H.expect(st.quick and H.buttonNamed(p, "QuickStop") ~= nil and H.buttonNamed(p, "Tab_decor") == nil, "inventory", "Quick remove on: its bar in place of the tabs")
+			local um2 = pieceOf("umbrella")
+			w1, t1 = prof.shells, E.now()
+			if um2 then
+				tapPiece(um2)
+			end
+			ok, say = woodMoved(w1, 0, t1)
+			H.expect(um2 ~= nil and pieceOf("umbrella") == nil and held("umbrella") == h0 + 1 and H.buttonNamed(p, "Store") == nil and ok, "inventory", "a tap puts the piece away at once, no menu", say)
+			local tq = treePiece()
+			E.raycastParts = true
+			H.inClient(p, BuildUI.tapScreen, screenAt(treeMiddle(s.plot, tq) + E.v3(0, 2, 0)), false)
+			E.raycastParts = nil
+			E.run(0.3)
+			H.expect(treePiece() == tq and held("tree") == 0, "inventory", "a tap on the tree leaves it be")
+			-- a drag over paths takes them up; with Fences, a drag along the grid takes the fence up
+			local pr = Street.plot(prof.tier)
+			local row = nil
+			for z = pr.z1 - 2 - pr.z1 % 2, pr.z0, -2 do
+				for x = pr.x0 - pr.x0 % 2 + 2, pr.x1 - 6, 2 do
+					if row == nil and Plot.fits(prof.tier, prof.plot.placed, "dirtpath", x, z, 0) and Plot.fits(prof.tier, prof.plot.placed, "dirtpath", x + 2, z, 0) and Plot.fits(prof.tier, prof.plot.placed, "dirtpath", x + 4, z, 0) and Plot.fits(prof.tier, prof.plot.placed, "picket", x, z, 0) and Plot.fits(prof.tier, prof.plot.placed, "picket", x + 2, z, 0) then
+						row = { { x, z }, { x + 2, z }, { x + 4, z } }
+					end
+				end
+			end
+			if H.expect(row ~= nil, "inventory", "(three cells in a row for a path)") then
+				local x, z = row[1][1], row[1][2]
+				local rp = H.req(p, "plot.paint", { id = "dirtpath", cells = Plot.cellString(row) })
+				E.run(0.3)
+				local d0 = held("dirtpath")
+				local plan = H.inClient(p, BuildUI.debugDraw, { row[1], row[3] }, "line")
+				E.run(0.4)
+				H.expect(rp.ok and plannedAll(plan, "lift", 3) and pieceAt("dirtpath", x, z) == nil and pieceAt("dirtpath", x + 4, z) == nil and held("dirtpath") == d0 + 3, "inventory", "a drag over three path tiles takes them up into the inventory", table.concat(plan, ","))
+				H.clickNamed(p, "QuickFences", { wait = 0.2 })
+				local rf = H.req(p, "plot.fence", { id = "picket", edges = Plot.edgeString({ { x, z, 0 }, { x + 2, z, 0 } }) })
+				E.run(0.3)
+				local f0 = held("picket")
+				local planF = H.inClient(p, BuildUI.debugDraw, { { x, z }, { x + 4, z } }, "line")
+				E.run(0.4)
+				local left = 0
+				for _, q in prof.plot.placed do
+					if q.id == "picket" and q.z == z and (q.x == x or q.x == x + 2) and q.rot == 0 then
+						left += 1
+					end
+				end
+				H.expect(rf.ok and plannedAll(planF, "lift", 2) and left == 0 and held("picket") == f0 + 2, "inventory", "with Fences on, a drag along the grid takes the fence up", string.format("%s, fence %s", table.concat(planF, ","), tostring(rf.err)))
+			end
+			H.clickNamed(p, "QuickStop", { wait = 0.3 })
+			st = H.inClient(p, BuildUI.debugState)
+			H.expect(not st.quick and H.buttonNamed(p, "Tab_decor") ~= nil, "inventory", "Stop: the tabs back")
+			-- Sell: a tap on a card sells one for its share
+			H.clickNamed(p, "Tab_inv", { wait = 0.3 })
+			H.clickNamed(p, "InvSell", { wait = 0.2 })
+			local u0 = held("umbrella")
+			w1, t1 = prof.shells, E.now()
+			H.clickNamed(p, "Inv_umbrella", { wait = 0.4 })
+			ok, say = woodMoved(w1, math.floor(Buildings.byId.umbrella.shells * Tuning.Refund), t1)
+			H.expect(H.inClient(p, BuildUI.debugState).selling and held("umbrella") == u0 - 1 and ok, "inventory", "Sell on: a tap on a card sells one for its share of the price", say)
+			H.clickNamed(p, "InvSell", { wait = 0.2 })
 		end
 	end
 	-- the keys: R turns the piece picked a quarter, Esc drops it, a second Esc leaves Build mode

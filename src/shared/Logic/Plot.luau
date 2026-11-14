@@ -352,10 +352,48 @@ local function unhouse(p: Profile, uid: number, keep: number?)
 end
 Plot.unhouse = unhouse
 
+------------------------------------------------------------------ the inventory (GAME_DESIGN 4.5)
+-- The request of 2026-11-14: "also, add an inventory system to build mode, players can remove buildings to put them in
+-- their inventory. add a button to remove all buildings, remove all path/water etc, and a tool to quick remove
+-- buildings and paths". A piece taken away (Plot.store, Plot.unpaint, Plot.unfence, Plot.clear) waits in `p.inv` (id
+-- -> how many) instead of giving shells back, and goes down again for nothing: Plot.place, paint and fence take from
+-- it before they charge. Plot.sellHeld sells what waits there for Tuning.Refund of its price.
+Plot.INV_MAX = 9999
+local function invOf(p: Profile): { [string]: number }
+	local inv = (p :: any).inv
+	if type(inv) ~= "table" then
+		inv = {}
+		;(p :: any).inv = inv
+	end
+	return inv
+end
+-- How many of `id` wait in the inventory.
+function Plot.held(p: Profile, id: string): number
+	return invOf(p)[id] or 0
+end
+local function stow(p: Profile, id: string)
+	local inv = invOf(p)
+	inv[id] = math.min(Plot.INV_MAX, (inv[id] or 0) + 1)
+end
+-- One of `id` out of the inventory, if one waits there.
+local function takeHeld(p: Profile, id: string): boolean
+	local inv = invOf(p)
+	local n = inv[id] or 0
+	if n <= 0 then
+		return false
+	end
+	if n > 1 then
+		inv[id] = n - 1
+	else
+		(inv :: any)[id] = nil
+	end
+	return true
+end
+
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (a hut's room under the housing limit,
--- Tuning.HousingLimit; a Hatchery under Tuning.HatcheryLimit), its price
--- (shells; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
+-- Tuning.HousingLimit; a Hatchery under Tuning.HatcheryLimit), its price (shells; nothing for one waiting in the
+-- inventory; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
 	if def == nil or def.kind == "tree" then
@@ -374,18 +412,24 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	if def.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier) then
 		return false, "hatcheries" :: ErrCode
 	end
-	if p.shells < def.shells then
+	-- (one waiting in the inventory goes down for nothing)
+	local free = Plot.held(p, id) > 0
+	if not free and p.shells < def.shells then
 		return false, "money" :: ErrCode
 	end
 	if not Plot.fits(p.tier, p.plot.placed, id, x, z, rot) then
 		return false, "blocked" :: ErrCode
 	end
-	p.shells -= def.shells
+	if free then
+		takeHeld(p, id)
+	else
+		p.shells -= def.shells
+	end
 	local uid = p.nextId
 	p.nextId += 1
 	table.insert(p.plot.placed, { uid = uid, id = id, x = x, z = z, rot = rot, lvl = 1 })
 	p.stats.built += 1
-	return true, { i = #p.plot.placed, uid = uid }
+	return true, { i = #p.plot.placed, uid = uid, free = free }
 end
 
 ------------------------------------------------------------------ drawing paths, water and fences (GAME_DESIGN 4)
@@ -437,27 +481,32 @@ local function count(placed: { Piece }, group: string): number
 	return n
 end
 
--- Swap the drawn piece q for `id` where it lies (another look of the same kind): half the old one's price back, the
--- new one's paid. False when the stores can't cover it.
+-- Swap the drawn piece q for `id` where it lies (another look of the same kind): the old one into the inventory, the
+-- new one from it or paid. False when the stores can't cover it.
 local function swapDrawn(p: Profile, q: Piece, id: string): boolean
 	local old, new = Buildings.byId[q.id], Buildings.byId[id]
 	if old == nil or new == nil then
 		return false
 	end
-	local back = math.floor(old.shells * Tuning.Refund)
-	if p.shells + back < new.shells then
+	local free = Plot.held(p, id) > 0
+	if not free and p.shells < new.shells then
 		return false
 	end
-	p.shells += back - new.shells
+	if free then
+		takeHeld(p, id)
+	else
+		p.shells -= new.shells
+	end
+	stow(p, q.id)
 	q.id = id
 	q.lvl = 1
 	p.stats.built += 1
 	return true
 end
 
--- Lay tiles of `id` (a path or water) on the cells in order, while the island's tile room and the stores last. Where a
--- tile of the same kind but another look lies, it's swapped for this one (half its price back); a cell where a tile
--- doesn't fit is passed over. True with { placed, swapped, skipped } when at least one changed, else why none could.
+-- Lay tiles of `id` (a path or water) on the cells in order, while the island's tile room and the stores last (the
+-- inventory's tiles first, for nothing, then shells). Where a tile of the same kind but another look lies, it's swapped
+-- for this one (the old one into the inventory); a cell where a tile doesn't fit is passed over. True with { placed, swapped, skipped } when at least one changed, else why none could.
 function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, any)
 	local def = Buildings.byId[id]
 	if def == nil or (def.kind ~= "path" and def.kind ~= "water") or #cells == 0 or #cells > Plot.PAINT_MAX then
@@ -492,12 +541,17 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 				why = "full"
 				break
 			end
-			if p.shells < def.shells then
+			local free = Plot.held(p, id) > 0
+			if not free and p.shells < def.shells then
 				why = "money"
 				break
 			end
 			if Plot.fits(p.tier, p.plot.placed, id, c[1], c[2], 0) then
-				p.shells -= def.shells
+				if free then
+					takeHeld(p, id)
+				else
+					p.shells -= def.shells
+				end
 				local uid = p.nextId
 				p.nextId += 1
 				local q: Piece = { uid = uid, id = id, x = c[1], z = c[2], rot = 0, lvl = 1 }
@@ -517,14 +571,13 @@ function Plot.paint(p: Profile, id: string, cells: { { number } }): (boolean, an
 	return true, { placed = laid, swapped = swapped, skipped = skipped }
 end
 
--- Clear the pieces at the indices in `gone` away, `share` of each one's price back (workers to rest, huts emptied).
-local function clearOut(p: Profile, gone: { [number]: boolean }, share: number)
+-- Take the pieces at the indices in `gone` away into the inventory (workers to rest, huts emptied).
+local function clearOut(p: Profile, gone: { [number]: boolean })
 	local keep: { Piece } = {}
 	for i, q in p.plot.placed do
 		if gone[i] then
-			local def = Buildings.byId[q.id]
-			if def then
-				p.shells += math.floor(def.shells * share)
+			if Buildings.byId[q.id] then
+				stow(p, q.id)
 			end
 			for _, x in p.pals do
 				if x.work == q.uid then
@@ -539,8 +592,8 @@ local function clearOut(p: Profile, gone: { [number]: boolean }, share: number)
 	p.plot.placed = keep
 end
 
--- Take up every tile of `kind` ("path", "water" or "all") that covers one of the cells' studs (Erase), half its price
--- back each. Anything that floats (water "on") left off the water comes up with it, half its price back too. True with
+-- Take up every tile of `kind` ("path", "water" or "all") that covers one of the cells' studs (Erase), each into the
+-- inventory. Anything that floats (water "on") left off the water comes up with it, into the inventory too. True with
 -- { removed, floated }, else not_found.
 function Plot.unpaint(p: Profile, cells: { { number } }, kind: string?): (boolean, any)
 	if #cells == 0 or #cells > Plot.PAINT_MAX then
@@ -584,12 +637,12 @@ function Plot.unpaint(p: Profile, cells: { { number } }, kind: string?): (boolea
 			end
 		end
 	end
-	clearOut(p, hit, Tuning.Refund)
+	clearOut(p, hit)
 	return true, { removed = removed, floated = floated }
 end
 
--- Put fence lengths of `id` along the edges in order, while the fence room and the stores last. A length of another
--- fence on an edge is swapped for this one (half its price back); an edge where it doesn't fit is passed over. True
+-- Put fence lengths of `id` along the edges in order, while the fence room and the stores last (the inventory's
+-- lengths first). A length of another fence on an edge is swapped for this one (the old one into the inventory); an edge where it doesn't fit is passed over. True
 -- with { placed, swapped, skipped } when at least one changed, else why none could.
 function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, any)
 	local def = Buildings.byId[id]
@@ -630,12 +683,17 @@ function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, an
 				why = "full"
 				break
 			end
-			if p.shells < def.shells then
+			local free = Plot.held(p, id) > 0
+			if not free and p.shells < def.shells then
 				why = "money"
 				break
 			end
 			if fenceFits(p.tier, p.plot.placed, e[1], e[2], rot, nil) then
-				p.shells -= def.shells
+				if free then
+					takeHeld(p, id)
+				else
+					p.shells -= def.shells
+				end
 				local uid = p.nextId
 				p.nextId += 1
 				local q: Piece = { uid = uid, id = id, x = e[1], z = e[2], rot = rot, lvl = 1 }
@@ -655,7 +713,7 @@ function Plot.fence(p: Profile, id: string, edges: { { number } }): (boolean, an
 	return true, { placed = laid, swapped = swapped, skipped = skipped }
 end
 
--- Take the fence lengths on the edges down, half their price back each. True with { removed }, else not_found.
+-- Take the fence lengths on the edges down, each into the inventory. True with { removed }, else not_found.
 function Plot.unfence(p: Profile, edges: { { number } }): (boolean, any)
 	if #edges == 0 or #edges > Plot.PAINT_MAX then
 		return false, "bad_payload" :: ErrCode
@@ -675,7 +733,7 @@ function Plot.unfence(p: Profile, edges: { { number } }): (boolean, any)
 	if removed == 0 then
 		return false, "not_found" :: ErrCode
 	end
-	clearOut(p, hit, Tuning.Refund)
+	clearOut(p, hit)
 	return true, { removed = removed }
 end
 
@@ -826,8 +884,8 @@ function Plot.refit(p: Profile): (number, number)
 	return moved, cleared
 end
 
--- Clear a piece away: a share of its price back; its workers go to rest, a hut's driftlings are left with no hut. Not
--- the tree (fixed), not a Hatchery warming an egg (egg).
+-- Take a piece away into the inventory (nothing paid back: it goes down again for nothing); its workers go to rest, a
+-- hut's driftlings are left with no hut. Not the tree (fixed), not a Hatchery warming an egg (egg). Data { id }.
 function Plot.store(p: Profile, i: number): (boolean, any)
 	local q = p.plot.placed[i]
 	if q == nil then
@@ -845,7 +903,7 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 				return false, "egg" :: ErrCode
 			end
 		end
-		p.shells += math.floor(def.shells * Tuning.Refund)
+		stow(p, q.id)
 	end
 	for _, pal in p.pals do
 		if pal.work == q.uid then
@@ -854,7 +912,80 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 	end
 	unhouse(p, q.uid)
 	table.remove(p.plot.placed, i)
-	return true, nil
+	return true, { id = q.id }
+end
+
+-- Take every piece of a group away into the inventory at once (Build mode's Remove all): "pieces" (buildings and decor:
+-- Plot.group "piece"; never the tree, nor a Hatchery warming an egg), "tiles" (paths and water, and what floats on the
+-- water with them) or "fences". True with { removed }, else not_found (nothing of that group) or bad_payload.
+function Plot.clear(p: Profile, what: string): (boolean, any)
+	local group = if what == "pieces" then "piece" elseif what == "tiles" then "tile" elseif what == "fences" then "fence" else nil
+	if group == nil then
+		return false, "bad_payload" :: ErrCode
+	end
+	local warming: { [number]: boolean } = {}
+	local eggs: { Types.Egg } = p.eggs or {}
+	for _, egg in eggs do
+		warming[egg.uid] = true
+	end
+	local hit: { [number]: boolean } = {}
+	local removed = 0
+	for i, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		local take = Plot.group(q.id) == group and not Plot.isFixed(q.id) and not warming[q.uid]
+		-- (what floats goes with the water)
+		if what == "tiles" and d and d.water == "on" then
+			take = true
+		end
+		if take then
+			hit[i] = true
+			removed += 1
+		end
+	end
+	if removed == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	clearOut(p, hit)
+	return true, { removed = removed }
+end
+
+-- Sell `n` of `id` out of the inventory (or all there are, when fewer wait) for Tuning.Refund of its price each. True
+-- with { sold, shells }, else not_found (none waits) or bad_payload.
+function Plot.sellHeld(p: Profile, id: string, n: number): (boolean, any)
+	local def = Buildings.byId[id]
+	if def == nil or n < 1 then
+		return false, "bad_payload" :: ErrCode
+	end
+	local inv = invOf(p)
+	local have = inv[id] or 0
+	if have <= 0 then
+		return false, "not_found" :: ErrCode
+	end
+	local k = math.min(have, math.floor(n))
+	local got = math.floor(def.shells * Tuning.Refund) * k
+	if have > k then
+		inv[id] = have - k
+	else
+		(inv :: any)[id] = nil
+	end
+	p.shells += got
+	return true, { sold = k, shells = got }
+end
+
+-- Clean a save's inventory: known pieces that can be placed (never the tree), whole counts 1 .. INV_MAX
+-- (Logic/Schema).
+function Plot.cleanInv(v: any): { [string]: number }
+	local out: { [string]: number } = {}
+	if type(v) ~= "table" then
+		return out
+	end
+	for id, c in v do
+		local d = if type(id) == "string" then Buildings.byId[id] else nil
+		if d and d.kind ~= "tree" and type(c) == "number" and c == c and c >= 1 then
+			out[id] = math.min(Plot.INV_MAX, math.floor(c))
+		end
+	end
+	return out
 end
 
 return Plot

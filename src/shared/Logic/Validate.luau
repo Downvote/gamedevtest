@@ -12,6 +12,7 @@
 --   "cells"  1 to 40 cells "x,z" joined by ";", each a coord (path or water tiles drawn or erased: Logic/Plot.paint)
 --   "edges"  1 to 40 edges "x,z,r" joined by ";", each a coord and r 0 or 90 (fences drawn or taken down: Plot.fence)
 --   "tiles"  which tiles an eraser takes up: "path", "water" or "all"
+--   "group"  what Build mode's Remove all takes away: "pieces", "tiles" or "fences"
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
 local Traits = require(script.Parent.Parent.Data.Traits)
@@ -27,6 +28,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.fence"] = { id = "id", edges = "edges" },
 	["plot.unfence"] = { edges = "edges" },
 	["plot.replace"] = { i = "index", id = "id" },
+	["plot.clear"] = { what = "group" },
+	["inv.sell"] = { id = "id", n = "int" },
 	["island.expand"] = {},
 	["pal.work"] = { id = "int", uid = "int" },
 	["pal.auto"] = { id = "int" },
@@ -81,6 +84,8 @@ local function check(kind: string, v: any): boolean
 		return n >= 1 and n <= 40 and string.match(v, ";;") == nil and string.sub(v, 1, 1) ~= ";" and string.sub(v, -1) ~= ";"
 	elseif kind == "tiles" then
 		return v == "path" or v == "water" or v == "all"
+	elseif kind == "group" then
+		return v == "pieces" or v == "tiles" or v == "fences"
 	elseif kind == "rot" then
 		return v == 0 or v == 90 or v == 180 or v == 270
 	elseif kind == "index" then

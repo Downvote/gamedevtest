@@ -78,6 +78,7 @@ function Session.view(s: S): Types.ClientView
 		clutchSecs = Tree.secs(p),
 		plot = s.plot,
 		pieces = p.plot.placed,
+		inv = p.inv,
 		seen = p.seen,
 		eggs = p.eggs,
 		tut = p.tut,

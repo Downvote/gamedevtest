@@ -127,6 +127,17 @@ function IslandService.init()
 			return Plot.replace(s.profile, a.i, a.id)
 		end)
 	)
+	-- Build mode's inventory (GAME_DESIGN 4.5): Remove all (a group into the inventory at once), and selling what waits
+	-- there
+	Router.on(
+		"plot.clear",
+		rebuilt(function(s, a)
+			return Plot.clear(s.profile, a.what)
+		end)
+	)
+	Router.on("inv.sell", function(s, a)
+		return Plot.sellHeld(s.profile, a.id, a.n)
+	end)
 	Router.on("island.expand", function(s, _a)
 		local ok, data = Island.expand(s.profile)
 		if ok then

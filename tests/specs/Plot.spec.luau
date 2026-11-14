@@ -1,5 +1,6 @@
 -- The island's building rules (Logic/Plot; GAME_DESIGN 4): where pieces may stand, placing (paid in shells since 2026-11-14,
--- the island's tier), moving, clearing away (a refund; never a home or a nest still needed), the piece limit.
+-- the island's tier), moving, clearing away (into the inventory since 2026-11-14; never a home or a nest still needed),
+-- the piece limit, the inventory and Remove all.
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Plot = require("../../build/luautest/shared/Logic/Plot")
@@ -187,7 +188,7 @@ return function()
 		T.eq(back[3][1], box[3][1])
 		T.eq(back[3][2], box[3][2])
 	end)
-	T.it("erasing paths: every tile under the cells comes up with half its price back; other pieces stay", function()
+	T.it("erasing paths: every tile under the cells comes up into the inventory; other pieces stay", function()
 		local p = fresh()
 		local x, z = spot(p, "patch")
 		Plot.place(p, "patch", x, z, 0)
@@ -208,12 +209,13 @@ return function()
 		T.truthy(ok)
 		T.eq(res.removed, out.placed, "every tile laid comes up")
 		T.eq(#p.plot.placed, before - out.placed)
-		T.eq(p.shells, shells0 + out.placed * math.floor(Buildings.byId.dirtpath.shells * Tuning.Refund), "half back each")
+		T.eq(p.shells, shells0, "nothing paid back")
+		T.eq(Plot.held(p, "dirtpath"), out.placed, "each tile into the inventory")
 		T.eq(p.plot.placed[1].id, "patch", "the patch stays")
 		T.eq(select(2, Plot.unpaint(p, cells)), "not_found")
 		T.eq(select(2, Plot.unpaint(p, { { x, z } })), "not_found", "a building is never erased")
 	end)
-	T.it("move, clear away (a refund, the workers idle), not a home or a nest still needed, the limit", function()
+	T.it("move, clear away (into the inventory, the workers idle), not a home or a nest still needed, the limit", function()
 		local p = fresh()
 		T.truthy(Plot.place(p, "torch", 8, 4, 0))
 		T.truthy(Plot.place(p, "torch", 10, 4, 0), "as many as fit")
@@ -223,8 +225,10 @@ return function()
 		T.eq(select(2, Plot.move(p, 1, 0, 4, 0)), "blocked", "not onto the plaza")
 		T.eq(select(2, Plot.move(p, 9, 8, 8, 0)), "bad_payload")
 		local before = p.shells
-		T.truthy(Plot.store(p, 1))
-		T.eq(p.shells, before + math.floor(Buildings.byId.torch.shells * Tuning.Refund))
+		local okS, dataS = Plot.store(p, 1)
+		T.truthy(okS and dataS.id == "torch")
+		T.eq(p.shells, before, "nothing paid back")
+		T.eq(Plot.held(p, "torch"), 1, "the torch waits in the inventory")
 		T.eq(#p.plot.placed, 1)
 		T.eq(select(2, Plot.store(p, 5)), "bad_payload")
 		-- a hut cleared away: its driftlings left with no hut; a workplace gone: they rest
@@ -289,18 +293,25 @@ return function()
 		T.truthy(Plot.place(p, "patch", 8, 5, 0))
 		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 6, 0)), "overlap", "a fence through a building")
 		T.truthy(Plot.fits(1, p.plot.placed, "picket", 8, 8, 0), "along its far side")
-		-- another fence over one: swapped, half the old one's price back
+		-- another fence over one: swapped, the old length into the inventory
 		local before = p.shells
 		ok, data = Plot.fence(p, "splitrail", { { 8, 4, 0 } })
 		T.truthy(ok)
 		T.eq(data.swapped, 1)
-		T.eq(p.shells, before + math.floor(pk * Tuning.Refund) - sr)
-		-- taken down: half back each
+		T.eq(p.shells, before - sr)
+		T.eq(Plot.held(p, "picket"), 1)
+		-- taken down: each into the inventory
 		before = p.shells
 		ok, data = Plot.unfence(p, { { 8, 4, 0 }, { 12, 4, 90 } })
 		T.truthy(ok)
 		T.eq(data.removed, 2)
-		T.eq(p.shells, before + math.floor(sr * Tuning.Refund) + math.floor(pk * Tuning.Refund))
+		T.eq(p.shells, before)
+		T.truthy(Plot.held(p, "splitrail") == 1 and Plot.held(p, "picket") == 2, "both lengths waiting")
+		-- the inventory's lengths go up again for nothing
+		before = p.shells
+		ok, data = Plot.fence(p, "picket", { { 8, 4, 0 } })
+		T.truthy(ok and data.placed == 1 and p.shells == before and Plot.held(p, "picket") == 1, "a length from the inventory, free")
+		T.eq(pk > 0, true)
 		T.eq(select(2, Plot.unfence(p, { { 30, 30, 0 } })), "not_found")
 		T.eq(select(2, Plot.fence(p, "crystalfence", { { 0, -6, 0 } })), "locked")
 		T.eq(select(2, Plot.fence(p, "dirtpath", { { 0, -6, 0 } })), "bad_payload")
@@ -375,7 +386,7 @@ return function()
 		end
 		T.truthy(gnome)
 	end)
-	T.it("paths over paths: another look swapped where it lies (half the old price back), the same look passed over", function()
+	T.it("paths over paths: another look swapped where it lies (the old into the inventory), the same look passed over", function()
 		local p = fresh()
 		p.tier = 2
 		T.truthy(Plot.paint(p, "dirtpath", { { 8, 4 }, { 10, 4 } }))
@@ -384,7 +395,8 @@ return function()
 		T.truthy(ok)
 		T.eq(data.swapped, 2)
 		T.eq(data.placed, 1)
-		T.eq(p.shells, before - 3 * Buildings.byId.stonepath.shells + 2 * math.floor(Buildings.byId.dirtpath.shells * Tuning.Refund))
+		T.eq(p.shells, before - 3 * Buildings.byId.stonepath.shells)
+		T.eq(Plot.held(p, "dirtpath"), 2, "the old tiles into the inventory")
 		ok, data = Plot.paint(p, "stonepath", { { 8, 4 } })
 		T.eq(ok, false, "nothing changed")
 		T.eq(select(2, Plot.paint(p, "stream", { { 8, 4 } })), "blocked", "water doesn't swap a path")
@@ -519,5 +531,103 @@ return function()
 		x, z = spot(p, "hatchery")
 		T.truthy((Plot.place(p, "hatchery", x, z, 0)), "a bigger island: a second one")
 		T.eq(Plot.hatcheries(p.plot.placed), 2)
+	end)
+	T.it("the inventory: taken away into it, down again for nothing, Remove all, sold for a share", function()
+		-- (the request of 2026-11-14: "also, add an inventory system to build mode, players can remove buildings to put
+		-- them in their inventory. add a button to remove all buildings, remove all path/water etc, and a tool to quick
+		-- remove buildings and paths")
+		local p = fresh()
+		p.tier = 3
+		T.eq(next(Schema.default(0, 1).inv), nil, "a new island's inventory is empty")
+		local x, z = spot(p, "patch")
+		T.truthy(Plot.place(p, "patch", x, z, 0))
+		T.truthy(Plot.store(p, #p.plot.placed))
+		T.eq(Plot.held(p, "patch"), 1)
+		-- placing one that waits there: free, and it leaves the inventory
+		local before = p.shells
+		local ok, data = Plot.place(p, "patch", x, z, 0)
+		T.truthy(ok and data.free == true, "from the inventory")
+		T.eq(p.shells, before, "for nothing")
+		T.eq(Plot.held(p, "patch"), 0)
+		local x2, z2 = spot(p, "patch")
+		ok, data = Plot.place(p, "patch", x2, z2, 0)
+		T.truthy(ok and data.free == false and p.shells == before - Buildings.byId.patch.shells, "none left: paid as ever")
+		-- the limits still hold for a free one
+		p.inv.nest = 99
+		local room = Plot.housingLimit(p.tier)
+		local placedHuts = 0
+		while Plot.housing(p.plot.placed) + Buildings.byId.nest.slots <= room do
+			local hx, hz = spot(p, "nest")
+			T.truthy((Plot.place(p, "nest", hx, hz, 0)))
+			placedHuts += 1
+		end
+		local hx, hz = spot(p, "nest")
+		T.eq(select(2, Plot.place(p, "nest", hx, hz, 0)), "huts", "the housing limit still holds")
+		T.eq(Plot.held(p, "nest"), 99 - placedHuts)
+		-- paths from the inventory first, then paid
+		p.inv.dirtpath = 1
+		before = p.shells
+		local cells = {}
+		local r = Street.plot(p.tier)
+		for zz = r.z0 - r.z0 % 2, r.z1, 2 do
+			for xx = r.x0 - r.x0 % 2, r.x1, 2 do
+				if #cells < 2 and Plot.fits(p.tier, p.plot.placed, "dirtpath", xx, zz, 0) then
+					table.insert(cells, { xx, zz })
+				end
+			end
+		end
+		ok, data = Plot.paint(p, "dirtpath", cells)
+		T.truthy(ok and data.placed == 2)
+		T.eq(p.shells, before - Buildings.byId.dirtpath.shells, "one tile free, one paid")
+		T.eq(Plot.held(p, "dirtpath"), 0)
+		-- Remove all: every building and decor (never the tree), then every tile, into the inventory
+		local tree = 0
+		for _, q in p.plot.placed do
+			if Plot.isFixed(q.id) then
+				tree += 1
+			end
+		end
+		local pieces = 0
+		for _, q in p.plot.placed do
+			if Plot.group(q.id) == "piece" then
+				pieces += 1
+			end
+		end
+		ok, data = Plot.clear(p, "pieces")
+		T.truthy(ok and data.removed == pieces, "every piece taken away")
+		T.eq(Plot.held(p, "nest"), 99, "the huts back in the inventory")
+		ok, data = Plot.clear(p, "tiles")
+		T.truthy(ok and data.removed == 2 and Plot.held(p, "dirtpath") == 2, "the tiles too")
+		local left = 0
+		for _, q in p.plot.placed do
+			left += 1
+			T.truthy(Plot.isFixed(q.id), "only the tree stays")
+		end
+		T.eq(left, tree)
+		T.eq(select(2, Plot.clear(p, "fences")), "not_found", "no fences to take")
+		T.eq(select(2, Plot.clear(p, "everything")), "bad_payload")
+		-- a Hatchery warming an egg stays where it is
+		local bx, bz = spot(p, "hatchery")
+		T.truthy(Plot.place(p, "hatchery", bx, bz, 0))
+		local hq = p.plot.placed[#p.plot.placed]
+		p.eggs = { { uid = hq.uid, a = 1, b = 2, sp = "mossbun", muts = {}, left = 3 } }
+		local okC = Plot.clear(p, "pieces")
+		T.eq(okC, false, "only the warm Hatchery: nothing to take")
+		p.eggs = {}
+		-- selling what waits: a share of the price each, the rest kept
+		before = p.shells
+		ok, data = Plot.sellHeld(p, "nest", 4)
+		T.truthy(ok and data.sold == 4 and data.shells == 4 * math.floor(Buildings.byId.nest.shells * Tuning.Refund))
+		T.eq(p.shells, before + data.shells)
+		T.eq(Plot.held(p, "nest"), 95)
+		ok, data = Plot.sellHeld(p, "dirtpath", 50)
+		T.truthy(ok and data.sold == 2 and Plot.held(p, "dirtpath") == 0, "no more than there are")
+		T.eq(select(2, Plot.sellHeld(p, "dirtpath", 1)), "not_found")
+		T.eq(select(2, Plot.sellHeld(p, "nope", 1)), "bad_payload")
+		-- a save's inventory cleaned: known placeable pieces, whole counts
+		local inv = Plot.cleanInv({ patch = 3.7, tree = 2, nope = 1, nest = -1, torch = 1e9, [5] = 2 })
+		T.truthy(inv.patch == 3 and inv.tree == nil and inv.nope == nil and inv.nest == nil and inv.torch == Plot.INV_MAX, "cleaned")
+		local loaded = Schema.reconcile({ v = Schema.VERSION, inv = { patch = 2, tree = 1 } }, 0, 1)
+		T.truthy(loaded.inv.patch == 2 and loaded.inv.tree == nil, "a save's inventory kept, cleaned")
 	end)
 end

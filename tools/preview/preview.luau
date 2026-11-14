@@ -183,6 +183,8 @@ local function seedProfile(userId, tier, opts)
 	prof.tier = tier
 	local Tree = H.sharedServer("Logic.Tree")
 	prof.shells = opts.shells or 4800
+	-- (opts.inv: Build mode's inventory, { [id] = how many })
+	prof.inv = opts.inv or prof.inv
 	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
 	for _, d in opts.pieces or {} do
@@ -1221,6 +1223,80 @@ function SCEN.buildui()
 	H.clickNamed(p, "BuildDone", { optional = true, wait = 0.5 })
 	settle(p, 10, 0.5)
 	capture(p, "buildui_done")
+	return p
+end
+
+-- "inventory": Build mode's inventory (GAME_DESIGN 4.5, the request of 2026-11-14: "add an inventory system to build
+-- mode ... a button to remove all buildings, remove all path/water etc, and a tool to quick remove buildings and
+-- paths"): the Inventory tab with the pieces put away and how many, Remove all buildings asking for its second tap
+-- (inventory_tab); Sell on, each card showing its share of the price (inventory_sell); the Nature tab's Trees with a
+-- card saying Free for the oaks waiting (inventory_free); Quick remove on, a box dragged over paths with its orange
+-- markers (inventory_quick).
+function SCEN.inventory()
+	local inv = { lumber = 1, nest = 2, oak = 3, lantern = 1, dirtpath = 30, picket = 12, bench = 2, umbrella = 1, gnome = 4 }
+	seedProfile(59, 3, { pieces = VILLAGE, pals = { "mossbun" }, shells = 250000, inv = inv })
+	local p = join(59, "Keeper")
+	settle(p, 30, 1)
+	local BuildUI = modOr(p, "UI.BuildUI")
+	local Street = H.sharedServer("Data.Street")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(H.session(p).plot)
+	-- (paths in a box of grass near the plaza, laid from the inventory, and the founder beside them: Build mode's view
+	-- starts on them)
+	local r = Street.plot(prof.tier)
+	local best, bx, bz = math.huge, nil, nil
+	for z = r.z0 - r.z0 % 2, r.z1, 2 do
+		for x = r.x0 - r.x0 % 2, r.x1, 2 do
+			local dist = (x + 3 - 2) ^ 2 + (z + 2 - 6) ^ 2
+			if dist < best then
+				local ok = true
+				for dz = 0, 4, 2 do
+					for dx = 0, 6, 2 do
+						ok = ok and Plot.fits(prof.tier, prof.plot.placed, "stream", x + dx, z + dz, 0)
+					end
+				end
+				if ok then
+					best, bx, bz = dist, x, z
+				end
+			end
+		end
+	end
+	if bx and bz then
+		local cells = {}
+		for dz = 0, 4, 2 do
+			for dx = 0, 6, 2 do
+				table.insert(cells, { bx + dx, bz + dz })
+			end
+		end
+		H.req(p, "plot.paint", { id = "dirtpath", cells = Plot.cellString(cells) })
+		if p.Character then
+			p.Character:PivotTo(E.cf.new(ox + bx + 4, 3, oz + bz + 6))
+		end
+		E.run(1)
+		settle(p, 20, 0.5)
+	end
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	H.clickNamed(p, "Tab_inv", { optional = true, wait = 0.3 })
+	H.clickNamed(p, "Clear_pieces", { optional = true, wait = 0.3 })
+	settle(p, 10, 0.5)
+	capture(p, "inventory_tab")
+	-- (Remove all left waiting: it goes back by itself)
+	E.run(4.5)
+	H.clickNamed(p, "InvSell", { optional = true, wait = 0.3 })
+	capture(p, "inventory_sell")
+	H.clickNamed(p, "InvSell", { optional = true, wait = 0.3 })
+	H.clickNamed(p, "Tab_nature", { optional = true, wait = 0.3 })
+	H.clickNamed(p, "Chip_trees", { optional = true, wait = 0.3 })
+	capture(p, "inventory_free")
+	if BuildUI and bx and bz then
+		H.clickNamed(p, "QuickRemove", { optional = true, wait = 0.3 })
+		H.inClient(p, function()
+			BuildUI.debugDraw({ { bx + 2, bz }, { bx + 6, bz + 4 } }, "box", true)
+		end)
+		settle(p, 10, 0.4)
+		capture(p, "inventory_quick")
+	end
 	return p
 end
 

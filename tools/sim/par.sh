@@ -14,7 +14,8 @@
 #                   cheapest first and locked after, tooltips, the search box, each tab's count), fences drawn (a
 #                   line, a box, one over another, Erase), a river with a bridge and lily pads (refused on grass,
 #                   taken up with their tile, the banks in the tiles' model names), decor put down with its effects,
-#                   Copy, Replace in its row, the keys R and Esc, the questline (Hatch three eggs, Go on build:wood),
+#                   Copy, Replace in its row, the inventory (Put away, Free, the Inventory tab, Quick remove, Sell),
+#                   the keys R and Esc, the questline (Hatch three eggs, Go on build:wood),
 #                   a malicious client (egg.hatch, plot.fence, plot.unfence and plot.unpaint payloads; its deliberate
 #                   NaN / infinity payloads are listed apart), a second player drawing both islands' eggs, then
 #                   Expand on to Everdrift (tier 20, Island max, land north of Driftling Haven's end, tiers 7 to 20)
@@ -38,7 +39,8 @@
 #                   huts' limit), Build mode's catalog (tabs and rows, a locked card's tooltip, the Huts tab at the
 #                   limit, paths, fences as a line and a box, water, erasing by kind), fences and water on both islands
 #                   (their models, the water's neighbour masks, lily pads, fences beside buildings, wading), the piece,
-#                   tile and fence limits each on its own, malicious plot payloads (fences too), a leaving player
+#                   tile and fence limits each on its own, Remove all and everything back from the inventory,
+#                   malicious plot payloads (fences too), a leaving player
 #                   (their eggs gone with the island), a full sea (a newcomer's tree and first lot), every island's
 #                   eggs and price tags, the tree fixed (its panel, moved with its eggs, never cleared away), a tier
 #                   20 island (its land far north, pieces of tiers 11 to 20 up there, Island max)
