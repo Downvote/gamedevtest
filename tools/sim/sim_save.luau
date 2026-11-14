@@ -158,6 +158,8 @@ prof.stats.best = math.max(prof.stats.best, 2)
 H.push(p, 0.5)
 -- the eggs' clock runs on before the player leaves (no new lot yet: one comes every few minutes)
 local left0, next0, eggs0 = prof.clutch.left, prof.clutch.next, eggsOf(prof.clutch)
+-- (the plot's attribute lists the rarest Tuning.EggShown of them: Logic/Tree.shown)
+local attr0 = E.workspace.Plots:FindFirstChild("Plot_1") and E.workspace.Plots.Plot_1:GetAttribute("Eggs")
 E.run(3)
 H.expect(prof.clutch.left < left0 - 2.5 and prof.clutch.left > left0 - 3.5 and prof.clutch.next == next0 and eggsOf(prof.clutch) == eggs0 and housed() == 2, "save", "the eggs' clock runs on meanwhile, the same eggs lying (no new lot yet)", string.format("%.2f -> %.2f s, %s", left0, prof.clutch.left, eggsOf(prof.clutch)))
 local before = E.deepCopy(H.profile(p))
@@ -189,7 +191,7 @@ H.expect(diff == nil, "save", "the rejoined profile is the one saved (the same e
 H.expect(ran >= 0 and ran <= 2.05 and ran < away - 1.5, "save", "the eggs' clock where it stopped: it ran only since the player came back, not while away", string.format("%.2f s off the clock in %.1f s since leaving", ran, away))
 H.expect(H.session(p2).plot == 1, "save", "island 1 again")
 local isle = E.workspace.Plots:FindFirstChild("Plot_1")
-H.expect(isle ~= nil and isle:GetAttribute("Eggs") == eggs0, "save", "the plot lists the same eggs again", tostring(isle and isle:GetAttribute("Eggs")))
+H.expect(isle ~= nil and attr0 ~= nil and isle:GetAttribute("Eggs") == attr0, "save", "the plot lists the same eggs again", tostring(isle and isle:GetAttribute("Eggs")))
 settled(p2)
 H.checkProfile(p2, "rejoin")
 H.checkMirror(p2, "rejoin")
@@ -219,7 +221,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 15, "save", "a version 12 save loads as version 15", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 16, "save", "a version 12 save loads as version 16", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -279,7 +281,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 15, "save", "a version 11 save loads as version 15", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 16, "save", "a version 11 save loads as version 16", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid. A tier-1 island has
 	-- few places an 8 by 8 tree fits, and the patch and the hut take them all: the patch makes room, its whole price
@@ -475,7 +477,7 @@ seed(9209, { data = {
 			{ id = 8, r = 0 },
 			{ id = 9.5, r = 2.7 },
 			{ id = 10, r = "rare" },
-			{ id = 11, r = 1 }, -- (one past the five a tier-1 tree lays)
+			{ id = 11, r = 1 },
 		},
 	},
 	stats = { taken = 3 },
@@ -487,8 +489,8 @@ local jp = H.profile(j)
 H.expect(jp ~= nil, "save", "a save with junk eggs still loads")
 if jp then
 	local jc = jp.clutch
-	H.expect(eggsOf(jc) == "3.2;7.7;8.1;9.2;10.1", "save", "its eggs cleaned: one an id, rarities 1 to 7, at most the tree's five", eggsOf(jc))
-	H.expect(jc.next == 11 and jc.left <= Tuning.EggSecs and jc.left > Tuning.EggSecs - 3, "save", "the next id past them, the clock cut to a lot's (no new lot laid)", string.format("next %d, %.1f s", jc.next, jc.left))
+	H.expect(eggsOf(jc) == "3.2;7.7;8.1;9.2;10.1;11.1", "save", "its eggs cleaned: one an id, rarities 1 to 7, at most the tree's lot", eggsOf(jc))
+	H.expect(jc.next == 12 and jc.left <= Tuning.EggSecs and jc.left > Tuning.EggSecs - 3, "save", "the next id past them, the clock cut to a lot's (no new lot laid)", string.format("next %d, %.1f s", jc.next, jc.left))
 	H.expect((treesOf(jp)) == 1, "save", "and its Tree of Life planted")
 	H.checkProfile(j, "corrupt-eggs")
 	settled(j)
@@ -549,7 +551,7 @@ do
 	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
 	E.run(3)
 	local fp = H.profile(f13)
-	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 15", tostring(fp and fp.v))
+	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 16", tostring(fp and fp.v))
 	if fp then
 		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
 		H.expect(fp.wood == nil and fp.shells >= 300 + 90 + 25 * 2 + 120 and fp.shells < 300 + 90 + 25 * 2 + 120 + 2, "save", "their price back (two fences at 25, a hedge at 120) and the wood, as shells", string.format("%s %s", tostring(fp.shells), tostring(fp.wood)))

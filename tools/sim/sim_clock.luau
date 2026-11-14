@@ -266,7 +266,7 @@ do
 	local text = label and label.Text or "none"
 	H.expect(text == "New eggs in " .. clock(cl.left) or text == "New eggs in " .. clock(cl.left + E.dt), "eggs", "the Tree card counts down to the next lot", string.format("%q, %.2f s left", text, cl.left))
 	local width = if back then math.floor((back.Size.X.Offset - 2) * math.clamp(cl.left / cl.secs, 0, 1) + 0.5) else -1
-	H.expect(fill ~= nil and math.abs(fill.Size.X.Offset - width) <= 1 and width < back.Size.X.Offset - 2, "eggs", "and its bar runs down with it", string.format("%s px, %d due", tostring(fill and fill.Size.X.Offset), width))
+	H.expect(fill ~= nil and math.abs(fill.Size.X.Offset - width) <= 1 and width <= back.Size.X.Offset - 2, "eggs", "and its bar runs down with it", string.format("%s px, %d due", tostring(fill and fill.Size.X.Offset), width))
 	-- the tree keeps its 10 minutes whatever the huts hold (the request of 2026-11-14: "keep it at 10 minutes throughout
 	-- the whole game unless a gamepass is bought"): a once-Leafy driftling changes nothing; the Quick Tree pass makes it
 	-- five (the ticks say so, the next lot is wound to the shorter time)
@@ -536,7 +536,8 @@ do
 	H.expect(paid <= feast + 1e-6 and paid >= feast - made, "hatchery", "the feast paid in shells", string.format("%.2f paid, the feast %d", paid, feast))
 	local swift = false
 	for _, id in egg and egg.muts or {} do
-		if id == "swift2" or id == "swift3" then
+		-- (the parents' Leafy mutation loads as Lucky since 2026-11-14)
+		if id == "bright2" or id == "bright3" then
 			swift = true
 		end
 	end

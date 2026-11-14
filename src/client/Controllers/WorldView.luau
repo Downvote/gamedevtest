@@ -766,16 +766,31 @@ end
 -- A tap (not a drag, not on the interface, not in Build mode) on one of the own tree's eggs hatches it
 -- (Controllers/EggView); on a driftling it opens its details; on the own Tree of Life it opens its panel; on an
 -- island sign, it shows its card.
+-- How far (screen px squared) a tap at `pos` lies from driftling `w`'s middle (palAt's measure).
+local function palDist(w: Walker, pos: Vector2): number
+	local t = w.thing
+	if t == nil then
+		return math.huge
+	end
+	local inset = GuiService:GetGuiInset()
+	local base = Vector3.new(w.x, groundY(), w.z)
+	local foot = PixelRenderer.project(base)
+	local head = PixelRenderer.project(base + Vector3.new(0, t.h, 0))
+	local dx, dy = pos.X + inset.X - foot.X, pos.Y + inset.Y - (foot.Y + head.Y) / 2
+	return dx * dx + dy * dy
+end
+
 local function onTap(pos: Vector2)
 	if CameraController.isFree() then
 		return
 	end
-	-- (an egg under the own tree: hatched)
-	if EggView.tapAt(pos) then
+	-- (an egg under the own tree opens its panel, a driftling its details: the one nearer the tap when both are under
+	-- it, so a driftling standing in front of the eggs is still its own; both before the ground and the buildings)
+	local w = palAt(pos)
+	local eggD = EggView.hitDist(pos)
+	if eggD and (w == nil or eggD <= palDist(w, pos)) and EggView.tapAt(pos) then
 		return
 	end
-	-- (a driftling, before the ground and the buildings behind it)
-	local w = palAt(pos)
 	if w then
 		openPal(w)
 		return

@@ -47,6 +47,8 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		dirty = true,
 		saveAt = os.clock() + Tuning.AutosaveSec,
 		reqTimes = {},
+		minuteClock = 0,
+		shopRot = (Store.rotation(WorldClock.now())),
 	}
 	sessions[player] = s
 	return s
