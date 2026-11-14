@@ -1016,10 +1016,16 @@ end
 local function expandButton(f: Frame, v: Types.ClientView)
 	local cost = Island.expandCost(v.tier)
 	UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(54, 13), UDim2.new(1, -102, 0, 2), function()
+		-- the bigger island grows out of this one on the picture (Pixel/Grow), armed before the server swaps it in
+		local ox, oz = Street.origin(v.plot)
+		PixelRenderer.growNext(Vector3.new(ox, 0, oz), v.tier, v.tier + 1)
 		local res = ask("island.expand", {})
+		if not res.ok then
+			PixelRenderer.growNext(nil)
+		end
 		if res.ok then
-			-- cheer when the bigger island is on screen (the server swaps in the island it built ahead; the filter
-			-- re-bakes it in a few frames), at most a moment later
+			-- cheer once the bigger island has grown in (the server swaps in the island it built ahead; the filter
+			-- re-bakes it in a few frames, then the coast moves out over Tuning.GrowSecs), at most a moment later
 			local moved = if type(res.data) == "table" then tonumber(res.data.moved) or 0 else 0
 			-- (the island it grew into: the server's answer says, the view may still be the old one when this runs)
 			local grown = if type(res.data) == "table" then tonumber(res.data.tier) else nil
@@ -1033,8 +1039,18 @@ local function expandButton(f: Frame, v: Types.ClientView)
 				local plan = Office.plan(grown or v.tier + 1)
 				UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s had to move.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s. There's more to build now.", plan.name), UIKit.color("good"), 4)
 			end
-			PixelRenderer.afterBake(cheer)
-			task.delay(1.5, cheer)
+			PixelRenderer.afterGrow(cheer)
+			-- (a safety net: afterGrow always comes, but never later than this once nothing is growing)
+			task.spawn(function()
+				local t0 = os.clock()
+				while not cheered and os.clock() - t0 < 30 do
+					task.wait(1)
+					if os.clock() - t0 > Tuning.GrowArmSecs + Tuning.GrowSecs + 3 and not PixelRenderer.growing() then
+						cheer()
+					end
+				end
+				cheer()
+			end)
 		end
 	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells and v.wood >= cost.wood })
 	if cost then
@@ -1405,6 +1421,7 @@ function BuildUI.open(onTab: string?)
 	local last: Vector2? = nil
 	local dragged = false
 	local stroking = false -- a stroke under way (drawing: the press doesn't pan)
+	local hover: Vector2? = nil -- the mouse's last place over the world (the ghost stays under it as the view follows)
 	table.insert(conns, UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then
 			return
@@ -1470,6 +1487,7 @@ function BuildUI.open(onTab: string?)
 				end
 				last = pos
 			elseif input.UserInputType == Enum.UserInputType.MouseMovement and not processed and pick then
+				hover = pos
 				moveGhostTo(pos)
 			end
 		end
@@ -1497,8 +1515,18 @@ function BuildUI.open(onTab: string?)
 	end))
 	-- the tip's building pulses (its card, and its tab while another is shown) and shines now and then
 	local nextShine = 0
+	local lastPanX, lastPanY = CameraController.pan()
 	table.insert(conns, RunService.Heartbeat:Connect(function()
 		local now = os.clock()
+		-- the view follows the founder in Build mode: a picked piece's ghost stays under a still mouse as it moves
+		local px, py = CameraController.pan()
+		if px ~= lastPanX or py ~= lastPanY then
+			lastPanX, lastPanY = px, py
+			local h = hover
+			if h and pick and downAt == nil then
+				moveGhostTo(h)
+			end
+		end
 		local k = (math.sin(now * 5) + 1) / 2
 		local shine = now >= nextShine
 		if shine then

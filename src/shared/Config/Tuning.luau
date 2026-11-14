@@ -116,6 +116,7 @@ local Tuning = {
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	CamGlide = 0.18, -- share of the way to its target the view moves a frame (in whole art px)
 	CamBuildPan = 30, -- studs: in Build mode the view may be dragged this far past the plot's edges
+	CamBuildRecenter = 0.12, -- share of Build mode's drag the view gives back each frame the founder walks (it eases back onto them)
 	CamHudTop = 22, -- art px: the top HUD strip assumed until the HUD reports its blocks
 	CamHudBottom = 26, -- art px: the bottom HUD strip assumed until then
 	PixelTiers = PixelTiers,
@@ -126,6 +127,10 @@ local Tuning = {
 	PixelMaxRayDist = 1400,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
+	-- the island growing into its next tier (Pixel/Grow; GAME_DESIGN 4: "could you make a transition such that it feels
+	-- like the island grows out the new land smoothly?")
+	GrowSecs = 1.9, -- seconds the coast takes to move out from the old shore to the new one (eased out)
+	GrowArmSecs = 3, -- seconds an armed growth waits for the bigger island's bake to begin before it lapses
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's driftlings, visitors and founders)
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects

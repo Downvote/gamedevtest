@@ -1,6 +1,15 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest): "could you also remove the transition that happens when clicking to hatch an
+> The requests (2026-11-14, the latest): "also, expanding the island dosent have a good transition, it simply make the
+> new land appear out of nowhere. could you make a transition such that it feels like the island grows out the new land
+> smoothly?" and "also, in build mode, make the camera still follow the player as they walk around, even though it is
+> displaced downwards abit"
+
+So the bigger island grows out of the old one: its whole shore, beach, foam and shallows move out together over about
+two seconds, sea spray jumping where it pushes into the water, and the new palms and the extra eggs come once it has
+settled (§4.4). In Build mode the view still follows your founder as you walk, a little lower for the tray (§4.5).
+
+> The request (2026-11-14): "could you also remove the transition that happens when clicking to hatch an
 > egg? you can simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each
 > click revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches"
 
@@ -593,8 +602,25 @@ stage (`TreeStage` 4).
   its coast reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot
   (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
   fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
-  it, and it lays the bigger island's extra eggs at once (§6). Once the bigger island is on screen: "Your island grew
+  it, and it lays the bigger island's extra eggs at once (§6). Once the bigger island has grown in: "Your island grew
   into Moonlit Bay. There's more to build now."
+
+  > The request (2026-11-14): "also, expanding the island dosent have a good transition, it simply make the new land
+  > appear out of nowhere. could you make a transition such that it feels like the island grows out the new land
+  > smoothly?"
+
+  The new land grows out of the old (`Pixel/Grow`, on the pixel filter's picture; the island itself is the server's,
+  swapped in at once as before). Once the bigger island's picture is ready behind the old one, its coast moves out from
+  the old shoreline to the new one over `Tuning.GrowSecs` (1.9 s), quick at first and settling into place, the whole
+  way round at once so it reaches the new shore everywhere at the same moment. The shore's whole profile moves with it:
+  grass up to the edge, then the sand, the wet sand, a line of foam and the shallows, so a beach rides out over what was
+  sea, in the palette's own colours, the sand speckled, the foam and shallows rippling with the sea. Things standing on
+  the old beach go when the grass reaches them; the new beach's palms, rocks and shells come whole near the end; what
+  still differs over the last few hundredths turns in a pixel dither, never a blend. Sea spray jumps up where the
+  moving shore meets the water (1 px drops), the surf rushes (the Waves clip) and the sand settles with a few soft
+  thumps. The eggs the bigger island lays wait under the lawn until the land has grown, then pop up round the tree one
+  after another with a little overshoot. The fanfare and the notice come at the end. Walking during it is fine: the
+  growing picture scrolls with the view.
 
   > The request (2026-11-11): "also, expanding the island causes the game to lag abit before the actual expansion"
 
@@ -612,7 +638,11 @@ stage (`TreeStage` 4).
 > From the request at the top: "Polish the build ui more, just like the bakery game, and reference bloxburg. Also,
 > add effects and polish when putting down decor and other amenities."
 
-- **The tray** (the HUD's Build): the view frees to pan over the island (drag it), and a workbench along the bottom
+- **The view** (the request of 2026-11-14: "also, in build mode, make the camera still follow the player as they walk
+  around, even though it is displaced downwards abit"): it keeps following your founder as you walk, lowered a little
+  so the tray doesn't cover them. A drag moves it from there (kept over your island) and holds while you stand still;
+  once you walk it eases back onto you. A picked piece's ghost stays under a still mouse as the view moves.
+- **The tray** (the HUD's Build): drag the view to look round the island, and a workbench along the bottom
   holds the catalog. Along its top plank: the eight tabs, each with its icon (the icons alone when the names don't fit,
   as on a phone), the tab's count, **Expand** with its price under it, and **Done**. Under them the tab's rows as chips
   (All first, then each row: Decor's fourteen fit one line on a computer, and scroll sideways on a phone). A **search
@@ -1089,7 +1119,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
   ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
-  zoom on every tier; Build mode frees it to pan.
+  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5).
 - Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
   and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
   beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole

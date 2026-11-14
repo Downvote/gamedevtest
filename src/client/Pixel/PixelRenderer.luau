@@ -65,6 +65,7 @@ local CameraController = require(script.Parent.Parent.Controllers.CameraControll
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local BakeCast = require(script.Parent.BakeCast)
 local ImageMemory = require(script.Parent.ImageMemory)
+local Grow = require(script.Parent.Grow)
 
 local PixelRenderer = {}
 PixelRenderer.Changed = Util.Signal() :: Types.Signal<Types.PixelTier>
@@ -162,6 +163,17 @@ type BackTabs = { ids: { [Instance]: number }, albedos: { [number]: number }, wa
 local back: Surf? = nil
 local backTabs: BackTabs? = nil
 local afterBake: { () -> () } = {} -- called once when the next bake is on screen (PixelRenderer.afterBake)
+-- The island growing into its next tier (Pixel/Grow; GAME_DESIGN 4): Build mode's Expand arms it before it asks
+-- (`growNext`); the bigger island's bake behind the picture then hands Grow both pictures instead of swapping, and the
+-- coast moves out over Tuning.GrowSecs. `prevTabs`: the id tables of the picture a back bake replaced (its pixels
+-- shown meanwhile keep their parts' colours and water through them).
+local growArm: { plot: Vector3, from: number, to: number }? = nil
+local growing: Grow.State? = nil
+local growT0 = 0
+local growFront: { Vector3 } = {} -- points the moving edge reached since growFront() was last asked
+local afterGrowFns: { () -> () } = {}
+local growCount = 0 -- growths started (previews and sims)
+local prevTabs: BackTabs? = nil
 
 local staticIds: { [Instance]: number } = {}
 local albedos: { [number]: number } = {}
@@ -360,7 +372,13 @@ local function deactivate(why: string?)
 	prevRects = {}
 	rush = false
 	back, backTabs = nil, nil
-	-- no bake is coming: whoever waits for one goes on now
+	growing, growArm = nil, nil
+	-- no bake (and no growth) is coming: whoever waits for one goes on now
+	local gfns = afterGrowFns
+	afterGrowFns = {}
+	for _, fn in gfns do
+		task.spawn(fn)
+	end
 	local fns = afterBake
 	afterBake = {}
 	for _, fn in fns do
@@ -526,6 +544,13 @@ local function shadeAt(s: Surf, idx: number, x: number, y: number): number
 end
 
 -- One bake sample at global (gx, gy), filling the block up to (bx1, by1) (global, inclusive) on the layer.
+-- The sea's wave phase at a world point (wavy lines across the world, about 10 studs apart): the bake's, and Pixel/Grow's
+-- for the shallows and foam of a growing island's moving shore.
+local function waterPhase(wx: number, wz: number): number
+	local v = wx * 0.6 + wz * 0.35 + 1.6 * math.sin(wz * 0.23 + wx * 0.05) + 1.1 * math.sin(wx * 0.17)
+	return math.floor(v * 9.14) % 256
+end
+
 local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: number, own: boolean, shadows: boolean)
 	local cam = s.cam
 	local x, y = gx - cam.gx, gy - cam.gy
@@ -584,8 +609,7 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 			-- flags: a quick wave along their length
 			wph = math.floor((wx * 1.6 + wz * 1.1) * 4) % 256
 		else
-			local v = wx * 0.6 + wz * 0.35 + 1.6 * math.sin(wz * 0.23 + wx * 0.05) + 1.1 * math.sin(wx * 0.17)
-			wph = math.floor(v * 9.14) % 256
+			wph = waterPhase(wx, wz)
 		end
 	end
 	buffer.writeu8(s.sWClass, idx, wcls)
@@ -1035,8 +1059,102 @@ local function refineShadows(s: Surf, x0: number, y0: number, x1: number, y1: nu
 	return rays
 end
 
+-- The growth's end (now, wherever it has got: a pan, a re-cast or a new bake can't wait): the new picture everywhere,
+-- then whoever waits for it (Build mode's cheer).
+local function endGrow()
+	local g = growing
+	if g then
+		Grow.finish(g)
+		growing = nil
+		staticChanged()
+		lightStale = true
+		needFull = true
+	end
+	if g or growArm == nil then
+		local fns = afterGrowFns
+		afterGrowFns = {}
+		for _, fn in fns do
+			task.spawn(fn)
+		end
+	end
+end
+
+-- A finished bake behind the picture of the own island grown a tier (armed by `growNext`): Grow shows the old
+-- picture where the new one must wait for the moving coast.
+local function startGrow(s: Surf, old: Grow.Bufs)
+	local arm = growArm
+	growArm = nil
+	if arm == nil or s.view.stage then
+		endGrow()
+		return
+	end
+	local tabs = prevTabs
+	local NXl, NYl, NZl = NX, NY, NZ
+	-- (the layer's camera changes as it scrolls: the closures read it as it is)
+	local synth: { [number]: number } = {}
+	local TINTS = { [2] = Palette.colors.sand, [3] = Palette.colors.sand_dark, [4] = Palette.colors.foam, [5] = Palette.colors.shallow }
+	local function freshId(rgb: number, water: number): number
+		if nextId + 1 >= DYN_ID0 then
+			return 0
+		end
+		local nid = nextId
+		nextId += 1
+		albedos[nid] = rgb
+		waters[nid] = water
+		texs[nid] = NO_TEX
+		return nid
+	end
+	growing = Grow.begin({
+		live = s :: any,
+		old = old,
+		W = s.W,
+		H = s.H,
+		origin = function(i: number, j: number): (number, number, number)
+			return Raster.origin(s.cam, i, j)
+		end,
+		look = s.look,
+		far = FAR * 0.5,
+		plot = arm.plot,
+		from = arm.from,
+		to = arm.to,
+		remap = function(oid: number): number
+			-- (the old part's colour, water and texture under a fresh id in the layer's tables)
+			if tabs == nil then
+				return 0
+			end
+			local nid = freshId(tabs.albedos[oid] or 0, tabs.waters[oid] or 0)
+			if nid ~= 0 then
+				texs[nid] = tabs.texs[oid]
+			end
+			return nid
+		end,
+		tints = TINTS,
+		synthId = function(ly: number): number
+			local id = synth[ly]
+			if id == nil then
+				id = freshId(TINTS[ly] or 0, if ly == 4 then 3 elseif ly == 5 then 2 else 0)
+				synth[ly] = id
+			end
+			return id
+		end,
+		up = UP_INDEX,
+		toon = function(rgb: number, i: number): number
+			local ni = buffer.readu8(s.sNormal, i) + 1
+			return Shading.toonAt(rgb, NXl[ni], NYl[ni], NZl[ni], buffer.readu8(s.sLit, i), i % s.W + s.cam.gx, i // s.W + s.cam.gy, Shading.INDOOR, 0)
+		end,
+		wave = waterPhase,
+	})
+	growT0 = -1 -- (set when its pixels are worked out: Grow.prep)
+	growCount += 1
+	table.clear(growFront)
+end
+
 local function finishBake(s: Surf, b: Surf)
 	baking = false
+	local old: Grow.Bufs? = nil
+	if b ~= s then
+		old = { sColor = s.sColor, sShade = s.sShade, sShadowC = s.sShadowC, sAlbedo = s.sAlbedo, sNormal = s.sNormal, sLit = s.sLit, sDepth = s.sDepth, sId = s.sId, sShare = s.sShare, sWClass = s.sWClass, sWave = s.sWave }
+	end
 	if b ~= s then
 		-- the bake behind the picture is done: its buffers become the layer's (the old picture's wind paint goes
 		-- with its buffers)
@@ -1056,6 +1174,10 @@ local function finishBake(s: Surf, b: Surf)
 	end
 	Shading.outline(s.static, 0, 0, s.W - 1, s.H - 1, s.sShade)
 	contactPass(s)
+	if old and growArm then
+		startGrow(s, old :: Grow.Bufs)
+	end
+	prevTabs = nil
 	local f = s.frame
 	buffer.copy(f.color, 0, s.sColor, 0, s.W * s.H * 4)
 	buffer.copy(f.depth, 0, s.sDepth, 0, s.W * s.H * 4)
@@ -1136,6 +1258,7 @@ local function bakeSome(deadline: number): boolean
 	end
 	local fIds, fAlb, fWat, fTex, fNext = staticIds, albedos, waters, texs, nextId
 	staticIds, albedos, waters, texs, nextId = t.ids, t.albedos, t.waters, t.texs, t.nextId
+	prevTabs = { ids = fIds, albedos = fAlb, waters = fWat, texs = fTex, nextId = fNext }
 	local done = bakeRun(s, b, deadline)
 	if not done then
 		t.nextId = nextId
@@ -1148,6 +1271,9 @@ local function startBake()
 	local s = surf
 	if s == nil then
 		return
+	end
+	if growing then
+		endGrow()
 	end
 	if s.view.empty then
 		-- an empty see-through stage (CameraController's Stage.empty: only moving things in front of a 2D picture, the
@@ -2067,6 +2193,10 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local mx = math.max(1, math.floor(budget / (H * 1.5)))
 	local my = math.max(1, math.floor(budget / (W * 1.5)))
 	local sx, sy = math.clamp(dx, -mx, mx), math.clamp(dy, -my, my)
+	local gp = growing
+	if gp and gp.phase == "prep" then
+		endGrow() -- (still working its pixels out: the new picture at once rather than a stale one)
+	end
 	for _, b in { s.sColor, s.sShade, s.sAlbedo, s.sDepth } do
 		shift(b, W, H, 4, sx, sy)
 	end
@@ -2077,6 +2207,10 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	shift(s.sShare, W, H, 1, sx, sy)
 	shift(s.sWClass, W, H, 1, sx, sy)
 	shift(s.sWave, W, H, 1, sx, sy)
+	local g = growing
+	if g then
+		Grow.shift(g, sx, sy)
+	end
 	-- the lamps' pools move with the picture (the strips coming in are dark until the next rebuild adds their lamps)
 	local lm = lightMap
 	if lm and buffer.len(lm) == W * H then
@@ -2187,7 +2321,7 @@ local function queueRect(r: Rect)
 	for _, q in invQueue do
 		area += (math.min(q.x1, gx0 + s.W - 1) - math.max(q.x0, gx0) + 1) * (math.min(q.y1, gy0 + s.H - 1) - math.max(q.y0, gy0) + 1)
 	end
-	if area > s.W * s.H * REBAKE_SHARE then
+	if area > s.W * s.H * REBAKE_SHARE or growArm ~= nil then
 		-- a big change (the island grew): bake again, behind the old picture, soon (the parts of one rebuild land
 		-- together) and with a bigger budget a frame
 		rebakeAt = os.clock() + 0.15
@@ -2238,6 +2372,10 @@ local function processInvalidation()
 		end
 		if c.phase > 2 then
 			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
+			local g = growing
+			if g then
+				Grow.adopt(g, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
+			end
 			buffer.fill(s.sShadowC, 0, 0)
 			invCur = nil
 			stats.recasts += 1
@@ -2294,6 +2432,29 @@ local function onHeartbeat(dt: number)
 		bakeSome(os.clock() + budget / 1000)
 		if baking and back == nil then
 			return -- nothing on screen to keep alive (the first bake, a jump)
+		end
+	end
+	-- the island growing: the coast moves out (eased: quick at first, settling into place)
+	local g = growing
+	if g and surf and g.phase == "prep" then
+		-- (its pixels worked out over a few frames, the old picture showing meanwhile)
+		if Grow.prep(g) then
+			growT0 = os.clock()
+		end
+	elseif g and surf then
+		local u = math.clamp((os.clock() - growT0) / Tuning.GrowSecs, 0, 1)
+		local e = 1 - (1 - u) ^ 3
+		local changed, front = Grow.step(g, e)
+		for _, f in front do
+			if #growFront < 64 then
+				table.insert(growFront, f)
+			end
+		end
+		if changed then
+			needFull = true
+		end
+		if g.phase == "done" then
+			endGrow()
 		end
 	end
 	local s = surf
@@ -2538,6 +2699,70 @@ function PixelRenderer.afterBake(fn: () -> ())
 		return
 	end
 	table.insert(afterBake, fn)
+end
+
+-- The own island is about to grow from tier `from` into `to` (Build mode's Expand, before it asks the server; nil:
+-- not after all). The next big change re-bakes the layer behind the picture, and when that bake is done the new land
+-- grows out of the old over Tuning.GrowSecs (Pixel/Grow) instead of appearing at once. The arm lapses after
+-- Tuning.GrowArmSecs if no bake has come for it by then (the island out of view), or once one under way is done.
+function PixelRenderer.growNext(plot: Vector3?, from: number?, to: number?)
+	if plot == nil or from == nil or to == nil or surf == nil or tier == "off" then
+		growArm = nil
+		if plot == nil and growing == nil then
+			endGrow()
+		end
+		return
+	end
+	local arm = { plot = plot, from = from, to = to }
+	growArm = arm
+	local function lapse()
+		if growArm ~= arm then
+			return
+		end
+		if baking or rebakeAt >= 0 then
+			task.delay(0.5, lapse) -- (its bake is under way: it starts when that is done)
+			return
+		end
+		-- (no bake came for it: nothing will grow, whoever waits goes on)
+		growArm = nil
+		if growing == nil then
+			endGrow()
+		end
+	end
+	task.delay(Tuning.GrowArmSecs, lapse)
+end
+
+-- Whether the island is growing or about to (armed, its bake not done yet), and how far its coast has got (0 .. 1,
+-- eased: quick at first, settling into place).
+function PixelRenderer.growing(): (boolean, number)
+	if growing then
+		local u = if growT0 < 0 then 0 else math.clamp((os.clock() - growT0) / Tuning.GrowSecs, 0, 1)
+		return true, 1 - (1 - u) ^ 3
+	end
+	return growArm ~= nil, 0
+end
+
+-- The world points the moving edge reached since the last call (Controllers/GrowFx throws spray up there).
+function PixelRenderer.growFront(): { Vector3 }
+	local out = growFront
+	growFront = {}
+	return out
+end
+
+-- fn runs once the island has finished growing (or at once when none is armed or under way: the filter off).
+function PixelRenderer.afterGrow(fn: () -> ())
+	if growing == nil and growArm == nil then
+		task.spawn(fn)
+		return
+	end
+	table.insert(afterGrowFns, fn)
+end
+
+-- Previews and sims: growths started, and the one under way (pixels that differ, still waiting, on the moving beach).
+function PixelRenderer.growStats(): { count: number, active: boolean, changed: number, pending: number, fresh: number }
+	local g = growing
+	local st = if g then Grow.stats(g) else nil
+	return { count = growCount, active = g ~= nil, changed = if st then st.changed else 0, pending = if st then st.pending else 0, fresh = if st then st.fresh else 0 }
 end
 
 -- A stage's folder of static parts (an endless islet's areas come and go as the party runs on): a part added or

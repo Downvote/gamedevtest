@@ -35,6 +35,9 @@ local EVENTS: { [string]: EventDef } = {
 	-- 2026-11-10: "find one with a small short chime instead")
 	newcomer = { id = "DoorChime", vol = 1.8, cd = 1, from = 0.3, len = 1.6, fade = 0.3 },
 	grow = { id = "BellTreeRun", vol = 2.6, cd = 1, from = 0.3, len = 2.3, fade = 0.6 },
+	-- the island growing (Controllers/GrowFx): the surf rushing along the moving shore, the sand settling
+	grow_surf = { id = "Waves", vol = 0.9, cd = 1, from = 0.4, len = 2.1, fade = 0.7 },
+	grow_sand = { id = "StepSand1", ids = { "StepSand1", "StepSand2", "LandSand" }, vol = 0.5, pitch = { 0.7, 0.85 }, cd = 0.15, voices = 3 },
 	friend = { id = "ChimeCluster", vol = 1.5, cd = 0.5 },
 	egg = { id = "MusicBoxWind", vol = 2.4, cd = 1 },
 	rare = { id = "SparklePass", vol = 0.38, cd = 1, from = 0.1, len = 2.2, fade = 0.5 },

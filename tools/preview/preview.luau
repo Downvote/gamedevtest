@@ -1188,15 +1188,22 @@ function SCEN.zoo()
 	return p
 end
 
--- "expand": the island grows from the build tray. The server swaps in the island it built ahead; the filter re-bakes
--- it (rushed); the cheer waits for the new picture. Frames expand_before and expand_after; the log says whether the
--- next island was ready, and how many frames and bakes passed before the cheer.
+-- "expand": the island grows from the build tray (GAME_DESIGN 4: "could you make a transition such that it feels like
+-- the island grows out the new land smoothly?"). The server swaps in the island it built ahead; the filter re-bakes it
+-- behind the picture (rushed), then the new land grows out of the old (Pixel/Grow: the coast moves out over
+-- Tuning.GrowSecs, a beach riding on it, spray along it); the cheer waits for the end. Frames expand_before, the
+-- growth a quarter, half, three quarters and nine tenths of the way (expand_grow25 ..), expand_after; then Build mode still following
+-- the founder as they walk on a few studs (build_walk: the view lowered a little, the founder near the middle). The
+-- log says how long the re-bake took, how many pixels the growth moved and when the cheer and the eggs came.
 function SCEN.expand()
 	seedProfile(56, 1, { pieces = VILLAGE, shells = 1e6, wood = 1e5 })
 	local p = join(56, "Grower")
 	settle(p, 30, 1)
 	local PS = H.smod("PlotService")
 	local PR = modOr(p, "Pixel.PixelRenderer")
+	local CC = modOr(p, "Controllers.CameraController")
+	local GF = modOr(p, "Controllers.GrowFx")
+	local EV = modOr(p, "Controllers.EggView")
 	local guard = 0
 	while not select(2, PS.debugNext(1)) and guard < 200 do
 		guard += 1
@@ -1208,27 +1215,66 @@ function SCEN.expand()
 	settle(p, 10, 0.5)
 	capture(p, "expand_before")
 	local bakes0, ticks0 = PR.debugStatic().bakes, PR.debugStatic().ticks
+	local eggs0 = EV and EV.count(1) or 0
 	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
-	local n, cheered = 0, false
-	while n < 600 and not cheered do
+	-- the bigger island's bake behind the picture, then the growth
+	local n = 0
+	while n < 3000 and PR.growStats().count == 0 do
 		E.step(E.dt)
 		n += 1
+	end
+	local _, _, swaps = PS.debugNext(1)
+	local gs = PR.growStats()
+	log("expand: tier %d, swaps %d; the re-bake took %d frames (E.dt %.3f), bakes %d -> %d, the picture composed %d times meanwhile; growth started %s: %d pixels differ, %d wait for the coast", H.profile(p).tier, swaps, n, E.dt, bakes0, PR.debugStatic().bakes, PR.debugStatic().ticks - ticks0, tostring(gs.active), gs.changed, gs.pending)
+	for _, at in { 0.25, 0.5, 0.75, 0.92 } do
+		local g2 = 0
+		while g2 < 900 do
+			local on, k = PR.growing()
+			if not on or k >= at then
+				break
+			end
+			E.step(E.dt)
+			g2 += 1
+		end
+		local st = PR.growStats()
+		local cheerNow = false
+		for _, d in p.PlayerGui:GetDescendants() do
+			if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
+				cheerNow = true
+			end
+		end
+		log("expand: growth at %.2f: %d pixels still wait, %d on the moving beach, spray %d, eggs drawn %d, cheer yet %s", select(2, PR.growing()), st.pending, st.fresh, GF and GF.sprays() or -1, EV and EV.count(1) or -1, tostring(cheerNow))
+		capture(p, string.format("expand_grow%02d", math.floor(at * 100 + 0.5)))
+	end
+	local cheered, m = false, 0
+	while m < 900 and not cheered do
+		E.step(E.dt)
+		m += 1
 		for _, d in p.PlayerGui:GetDescendants() do
 			if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
 				cheered = true
 			end
 		end
 	end
-	local _, _, swaps = PS.debugNext(1)
-	log("expand: tier %d, swaps %d, cheer after %d frames (%s), bakes %d -> %d, baking %s, queued %s", H.profile(p).tier, swaps, n, tostring(cheered), bakes0, PR.debugStatic().bakes, tostring(PR.debugStatic().baking), tostring(PR.debugStatic().queued))
-	local m = 0
-	while m < 2000 and PR.debugStatic().bakes == bakes0 do
-		E.step(E.dt)
-		m += 1
-	end
-	log("expand: the re-bake finished %d frames after that (E.dt %.3f); the picture composed %d times meanwhile (it kept living)", m, E.dt, PR.debugStatic().ticks - ticks0)
-	settle(p, 10, 0.3)
+	log("expand: grown (active %s, %d growths); the cheer %d frames after the last growth frame (%s); spray bursts %d", tostring(PR.growStats().active), PR.growStats().count, m, tostring(cheered), GF and GF.sprays() or -1)
+	settle(p, 10, 1.5)
+	log("expand: eggs drawn %d before, %d after", eggs0, EV and EV.count(1) or -1)
 	capture(p, "expand_after")
+	-- Build mode keeps following the founder as they walk (lowered a little for the tray)
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	if root and CC then
+		local x0, z0 = root.Position.X, root.Position.Z
+		local px0, py0 = CC.pan()
+		for k = 1, 24 do
+			p.Character:PivotTo(E.cf.new(x0 + k * 0.35, 3, z0 + k * 0.25))
+			E.run(0.06)
+		end
+		settle(p, 6, 1)
+		local px1, py1 = CC.pan()
+		local dx, dy = CC.buildDrag()
+		log("build: the founder walked %.1f studs; the view moved from (%d, %d) to (%d, %d); still free %s, drag %d %d", math.sqrt((24 * 0.35) ^ 2 + (24 * 0.25) ^ 2), px0, py0, px1, py1, tostring(CC.isFree()), dx, dy)
+		capture(p, "build_walk")
+	end
 	return p
 end
 
