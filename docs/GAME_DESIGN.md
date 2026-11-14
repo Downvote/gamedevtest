@@ -1788,22 +1788,24 @@ Driftling Haven a fifth cheaper, the town came at 55 to 59 minutes (was 57 to 65
 107) and Sunspire Capital at 2 hours 18 to 2 hours 20 (was 2 hours 33 to 2 hours 47), so its bound moved from two and
 a half hours to two; with one store the town and the city sit about where they were and the capital comes sooner (the
 bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take about half an
-hour of the checker's time each): `luau tests/career.luau -a <seed> 1700` prints it. With today's settings (shells as
-the one store, the cheaper eggs, the automatic work and the housing limit) the three seeds reach each island at:
+hour of the checker's time each): `luau tests/career.luau -a <seed> 1800` prints it. With today's settings (shells as
+the one store, the cheaper eggs, the automatic work, the housing limit, and since the request of 2026-11-14 the tree's
+lots every 10 minutes, three times the size) the three seeds reach each island at:
 
 | Tier | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|
-| 7 Moonlit Bay | 4 h 44 | 3 h 21 | 4 h 40 |
-| 10 Driftling Haven | 11 h 11 | 8 h 24 | 11 h 07 |
-| 11 Lantern Cove | 13 h 54 | 10 h 53 | 13 h 49 |
-| 13 Kelpwood Isle | 17 h 48 | 14 h 29 | 17 h 55 |
-| 15 Cloudberry Isle | 20 h 43 | 17 h 10 | 20 h 34 |
-| 17 Starfall Atoll | 22 h 43 | 18 h 54 | 22 h 45 |
-| 20 Everdrift | 26 h 13 | 22 h 12 | 25 h 48 |
+| 7 Moonlit Bay | 4 h 24 | 4 h 09 | 4 h 06 |
+| 10 Driftling Haven | 10 h 43 | 9 h 57 | 9 h 33 |
+| 11 Lantern Cove | 13 h 25 | 12 h 37 | 12 h 05 |
+| 13 Kelpwood Isle | 17 h 26 | 16 h 03 | 15 h 45 |
+| 15 Cloudberry Isle | 20 h 21 | 18 h 51 | 18 h 34 |
+| 17 Starfall Atoll | 22 h 26 | 20 h 44 | 20 h 27 |
+| 20 Everdrift | 25 h 36 | 23 h 51 | 23 h 41 |
 
-Lantern Cove takes two and a half hours after Driftling Haven, the next two islands about two hours each, and from
+(Before the 10 minute tree, with lots of 5 to 12 every three minutes, Everdrift came at 22 h 12 to 26 h 13: the bigger
+lots keep the pace.) Lantern Cove takes two and a half hours after Driftling Haven, the next two islands about two hours each, and from
 Kelpwood Isle on about an hour and a quarter each, as the island's income catches up with the prices. Everdrift comes
-in 22 to 26 hours, housing 756 to 796 driftlings on about 600 pieces with charm adding the full 100% to every shell.
+in 23 to 26 hours, housing 772 to 814 driftlings on about 620 pieces with charm adding the full 100% to every shell.
 Getting there took two changes to the Career and two to the prices. The old Career filled a full island with idle
 lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Bay for good; now a building with no room left
 takes the weakest of its kind's place (above), which also brought Driftling Haven from never to inside a day. With the
