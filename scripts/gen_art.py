@@ -45,20 +45,20 @@ PAL = {
     "blu0": 0x2E2F7C, "blu1": 0x4561BA, "blu2": 0x6F98E8, "blu3": 0xA9CFFA,
     "pur0": 0x3A2672, "pur1": 0x6A47AC, "pur2": 0x9B74D8, "pur3": 0xCAA6F0,
     "pnk0": 0x76306B, "pnk1": 0xC2548F, "pnk2": 0xF286B5, "pnk3": 0xFFBACB,
-    "brn0": 0x4C2834, "brn1": 0x8C5244, "brn2": 0xC6866A, "brn3": 0xEDBA98,
-    "gry0": 0x48405A, "gry1": 0x7A708C, "gry2": 0xAAA0B4, "gry3": 0xD8D0D8,
+    "brn0": 0x4B2A33, "brn1": 0x8A543C, "brn2": 0xC3895C, "brn3": 0xEABC85,
+    "gry0": 0x46425A, "gry1": 0x76728C, "gry2": 0xA6A3B5, "gry3": 0xD4D2D8,
     "skn0": 0x8F4C55, "skn1": 0xD18A6D, "skn2": 0xF4C49E, "skn3": 0xFFE3C2,
     "wht0": 0x8D93BF, "wht1": 0xBAC4E2, "wht2": 0xEDF1F7,
     "drk0": 0x2E2433, "drk1": 0x4B3D4E, "drk2": 0x685767, "drk3": 0x8C7886,
     "bas0": 0x3A2D35, "bas1": 0x5A4549, "bas2": 0x7A5E5C, "bas3": 0x9E7D72,
-    "crm0": 0xA86A64, "crm1": 0xDFA890, "crm2": 0xFCDCC8, "crm3": 0xFFF3EA,  # cream: bellies, muzzles, jaws
+    "crm0": 0xA86D60, "crm1": 0xDEAC88, "crm2": 0xFBE0BF, "crm3": 0xFFF5E4,  # cream: bellies, muzzles, jaws
     "tel0": 0x1A4C58, "tel1": 0x28827E, "tel2": 0x3CB4A8, "tel3": 0x84E0C8,  # teal: the island birds' backs
     "cor0": 0x7C2B40, "cor1": 0xC9504F, "cor2": 0xFF8A72, "cor3": 0xFFC09A,  # coral: a wren's breast
     # the tone markers of a tinted sprite (Render/Fx.TONES, the same four values): drawn in the world they take the
     # tones of a colour given at draw time (a tuft the lawn's under it, a leaf its tree's, a butterfly its own), here a
     # plain green so the contact sheet shows them
     "tn0": 0x2E5937, "tn1": 0x4A8A4C, "tn2": 0x76B862, "tn3": 0xB7E08B,
-    "wht": 0xFFFFFF, "crm": 0xFFF1E6, "blk": 0x3B3442, "plt": 0x463B5C,
+    "wht": 0xFFFFFF, "crm": 0xFFF2DC, "blk": 0x3B3442, "plt": 0x463B5C,
 }
 RAMPS = {
     "R": ["red0", "red1", "red2", "red3"], "O": ["org0", "org1", "org2", "org3"], "Y": ["yel0", "yel1", "yel2", "yel3"],

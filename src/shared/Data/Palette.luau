@@ -91,26 +91,27 @@ local ORDER: { string } = {
 
 -- Rich, warm colours (the request of 2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use
 -- more cozy colors. saturate the game back more"): the cozy pass's colours with the colourful hues 15% fuller. Then
--- pink led (2026-11-14: "make the pallette more pinkish, changing the sand pink and the rest of the pallette to
--- match"): pink sand, a fresher green lawn and leaves, a turquoise sea, rosy wood, mauve rock and steel, pink-white foam
--- and cream.
+-- a pink sand (2026-11-14: "make the pallette more pinkish, changing the sand pink and the rest of the pallette to
+-- match", then "not that pink, i meant a light pink, close to the color of actual sand"): the sand a pale beige with
+-- a blush of pink, a fresher green lawn and leaves, a turquoise sea; the wood, rock, steel, foam and cream back near
+-- the cozy colours with a quarter of the pink pass's blush left in them.
 local COLORS: { [string]: number } = {
 	ink = 0x2B1E2E,
-	sky_day = 0xA2D8F8,
-	sky_night = 0x272252,
+	sky_day = 0x9ADAF9,
+	sky_night = 0x212452,
 	grass = 0x84DA72,
 	grass_dark = 0x62BC5C,
-	pavement = 0xD8C6C6,
-	floor_a = 0xF0DCCF,
-	floor_b = 0xE2C2AE,
-	wall = 0xF6EEEB,
+	pavement = 0xD1C7BD,
+	floor_a = 0xEEDDC4,
+	floor_b = 0xE0C9B4,
+	wall = 0xF4EFE7,
 	wall_trim = 0xEE879E,
 	window = 0xBDECFD,
-	wood = 0xD2896A,
-	wood_dark = 0x925646,
-	steel = 0xC2BFCF,
-	steel_dark = 0x837E96,
-	desk = 0xEBC7A8,
+	wood = 0xD28B58,
+	wood_dark = 0x935839,
+	steel = 0xBCC2CE,
+	steel_dark = 0x7D8496,
+	desk = 0xEACCB1,
 	screen_off = 0x3C4A5E,
 	screen_on = 0x64D9FD,
 	screen_code = 0x93FAA3,
@@ -118,34 +119,34 @@ local COLORS: { [string]: number } = {
 	plastic_dark = 0x9C9AA3,
 	leaf = 0x60C46E,
 	leaf_dark = 0x37935A,
-	pot = 0xE2786A,
-	paper = 0xFFFAF7,
+	pot = 0xE47C56,
+	paper = 0xFFFCF5,
 	sofa = 0xF36464,
 	rug = 0xFDCA62,
-	road = 0x66596B,
+	road = 0x635D6B,
 
-	cream = 0xFFF1E6,
+	cream = 0xFEF2DD,
 	berry_red = 0xF63850,
 	blue = 0x65A8F5,
 	green = 0x6FD47E,
 	yellow = 0xFDE074,
-	orange = 0xFCA05E,
+	orange = 0xFCA458,
 	pink = 0xFEA8CA,
 	purple = 0xA675DF,
 	gold = 0xFCC933,
 	black = 0x3B3442,
 	white = 0xFFFFFF,
 
-	sand = 0xFCC0B8,
-	sand_dark = 0xEC9E99,
+	sand = 0xFCDEC2,
+	sand_dark = 0xE9C5A3,
 	water = 0x2EBBC4,
 	night = 0x2E2A52,
 	chalk = 0x2A5F3D,
 
 	shallow = 0x6FE0D2,
-	foam = 0xFDF3F3,
-	rock = 0xA0929B,
-	rock_dark = 0x70626C,
+	foam = 0xF2F8F5,
+	rock = 0x9E9692,
+	rock_dark = 0x6E6664,
 
 	skin1 = 0xFEE1CA,
 	skin2 = 0xF9C293,
@@ -201,17 +202,17 @@ local THEMES: { [string]: { [string]: number } } = {
 
 -- Multiplicative tints (0.8..1.2) applied by the renderer and the classic lighting. The day is a little warm, like
 -- the light late on a summer afternoon (the request of 2026-11-13: "make the entire game feel more cozy, such as the
--- pallette and other details to emphasize it"), and since the pink pass a touch rosy (the night's violet is
+-- pallette and other details to emphasize it"), with a faint blush since the pink sand (the night's violet is
 -- DayLight's). The same as the dynamic models' (INDOOR below).
 local MODES: { [string]: { r: number, g: number, b: number } } = {
-	day = { r = 1.04, g = 0.98, b = 0.97 },
+	day = { r = 1.033, g = 0.995, b = 0.955 },
 	plain = { r = 1, g = 1, b = 1 }, -- the colours as they are (the specs: a palette colour lands on itself)
 	night = { r = 0.8, g = 0.84, b = 1.15 },
 }
 
 -- Inside the office the renderer tints by these instead (Render/Shading INDOOR): lit a little warmer by the lamps.
 local INDOOR: { [string]: { r: number, g: number, b: number } } = {
-	day = { r = 1.04, g = 0.99, b = 0.97 },
+	day = { r = 1.033, g = 0.998, b = 0.963 },
 	night = { r = 1.04, g = 0.94, b = 0.86 },
 }
 
@@ -235,32 +236,32 @@ local MATCH: { [string]: number } = {
 }
 
 -- The interface's own colours (UIKit), an island's (GAME_DESIGN 2: "more in theme with the island theme"): dark
--- rosewood plates in frames of rosy planks (frame_*), nail heads, pink sand quiet text, buttons painted lagoon
--- turquoise, mint, mango and coral, a sea-dark backdrop behind a panel.
+-- driftwood plates in frames of warm planks with a faint blush (frame_*), nail heads, quiet text the colour of the
+-- pink sand, buttons painted lagoon turquoise, mint, mango and coral, a sea-dark backdrop behind a panel.
 local UI: { [string]: number } = {
-	ink = 0x2C1A20,
-	plate = 0x3E2629,
-	plate_light = 0x5E3B3E,
-	paper = 0xFFF1EC,
-	paper_dark = 0xF0CFC6,
+	ink = 0x2A1C1C,
+	plate = 0x3D2924,
+	plate_light = 0x5B3D34,
+	paper = 0xFFF2E0,
+	paper_dark = 0xEDDBCA,
 	text = 0xFFFFFF,
-	text_dim = 0xE6C3BC,
-	text_ink = 0x2C1A20,
+	text_dim = 0xE1CFBE,
+	text_ink = 0x2A1C1C,
 	accent = 0xFFCB30,
 	good = 0x78DA8A,
 	bad = 0xFF6F6A,
 	button = 0x45BFC6,
 	button_ok = 0x78DA8A,
 	button_warn = 0xFFA553,
-	button_off = 0x8A6E6E,
-	button_close = 0xEC6E6E,
-	frame_hi = 0xF0B5A0,
-	frame = 0xC47E68,
-	frame_lo = 0x8A5149,
-	frame_dark = 0x643937,
-	nail_hi = 0xFAEDEA,
-	nail_lo = 0x735B5B,
-	sea_shade = 0x0C2A31,
+	button_off = 0x867263,
+	button_close = 0xE9705F,
+	frame_hi = 0xEAB887,
+	frame = 0xBD8256,
+	frame_lo = 0x84553C,
+	frame_dark = 0x613D2B,
+	nail_hi = 0xF7EEE2,
+	nail_lo = 0x6F5D55,
+	sea_shade = 0x0C2631,
 }
 
 local Palette: {
