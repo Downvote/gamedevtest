@@ -392,13 +392,20 @@ end
 
 -- A piece's price for this player (GAME_DESIGN 14): its shells, nothing for decor, paths, water and fences with the
 -- Free Decor pass (and what one of those sells back for is nothing then too: no free piece turns into shells).
+-- The tips' snack stall is free too: while the tips ask for a shop (step 5, which moves on as soon as one stands) a
+-- Snack Stall costs nothing (the request of 2026-11-14, "make the first snack stall in the tutorial free").
 local FREE_KINDS: { [string]: boolean } = { decor = true, path = true, water = true, fence = true }
+Plot.TIP_SHOP = 5 -- the tips' step that asks for a shop (IslandService's TIP_KIND)
+Plot.TIP_FREE = "stall" -- the piece it gives for nothing
 function Plot.price(p: any, id: string): number
 	local def = Buildings.byId[id]
 	if def == nil then
 		return 0
 	end
 	if p.passes and p.passes.FreeDecor and FREE_KINDS[def.kind] then
+		return 0
+	end
+	if id == Plot.TIP_FREE and p.tut == Plot.TIP_SHOP then
 		return 0
 	end
 	return def.shells

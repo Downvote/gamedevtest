@@ -1729,11 +1729,13 @@ Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch." (Bui
 hut goes down, and an arrow bobs over your tree, or with the tree off the screen points the way to it from the screen's
 edge: the request of 2026-11-14, "auto close the build tab when going to the hatching step and point towards the tree
 of life for the player to click"); 5 "A Snack
-Stall sells snacks for shells too. Place one by the path."; 6 "The tree lays new eggs every few minutes. When the huts
+Stall sells snacks for shells too. Your first one is free. Place it by the path." (a Snack Stall costs nothing while
+this tip is up, its card in the tray saying Free: the request of 2026-11-14, "make the first snack stall in the
+tutorial free"); 6 "The tree lays new eggs every few minutes. When the huts
 are full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
 ("Place a Lumber Camp. It sells the wood it cuts for shells."). Each moves on once what it asks is done, tip 4 once an
-egg has hatched. A new island starts with `StartShells` (600: the four tip buildings at 405 and room to fill the first
-hut with two eggs, say a rare and a common, so no tip waits on shells; it was 440, one common egg and the stall, and a
+egg has hatched. A new island starts with `StartShells` (600: the three tip buildings that cost at 305, the stall free,
+and room to fill the first hut with two eggs, say a rare and a common, so no tip waits on shells; it was 440, one common egg and the stall, and a
 player who hatched an uncommon or filled the hut had to wait for the stall: "the snack store part in the tutorial takes
 too long. give the player more shells so every task is completable at the start without needing to wait",
 2026-11-14). The first lot has two commons at 8 shells, and the first two hatches are good with wood and at a farm. (Until 2026-11-13 the tips asked for a

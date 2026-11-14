@@ -33,7 +33,7 @@ local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = t
 -- egg hatched from the Tree of Life (with shells), 5 a shop (it sells snacks), 6 the last
 -- tip (OK ends them). Each moves on once what it asks is done (an older save moves on through the ones it has done
 -- at once).
-local TIP_KIND: { [number]: string } = { [1] = "wood", [2] = "farm", [3] = "nest", [5] = "shop" }
+local TIP_KIND: { [number]: string } = { [1] = "wood", [2] = "farm", [3] = "nest", [Plot.TIP_SHOP] = "shop" } -- (a Snack Stall free meanwhile: Plot.price)
 local function tips(s: Session.S)
 	local p = s.profile
 	local has: { [string]: boolean } = {}

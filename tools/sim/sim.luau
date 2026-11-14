@@ -722,10 +722,15 @@ do
 	E.run(0.3)
 	local st, say = trayOn()
 	H.expect(st.tab == "work" and st.chip == "shop" and st.goal == "stall" and goalCard("stall") ~= nil, "build", "then on Work's Shops row for the shop tip, the stall's card pulsing", say)
+	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
+	local card = goalCard("stall")
+	H.expect(card ~= nil and table.find(H.textsOf(card), "Free") ~= nil, "build", "the tips' snack stall's card says Free", card and table.concat(H.textsOf(card), "/"))
 	H.clickNamed(p, "BuildDone", { wait = 0.3 })
 end
+local shStall = prof.shells
 res = place("stall")
 H.expect(res.ok and prof.tut == 6, "build", "a snack stall: the tips move on to the last", string.format("%s tut %d", tostring(res.err), prof.tut))
+H.expect(math.abs(prof.shells - shStall) < 1, "build", "the tips' snack stall cost nothing", string.format("%.0f -> %.0f", shStall, prof.shells))
 local tipCost = Buildings.byId.lumber.shells + Buildings.byId.patch.shells + Buildings.byId.nest.shells + Buildings.byId.stall.shells
 H.expect(#prof.plot.placed == 5 and tipCost <= Tuning.StartShells and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for (beside the tree) and the first egg", string.format("%d pieces, %d shells of %d, %.0f left", #prof.plot.placed, tipCost, Tuning.StartShells, prof.shells))
 res = place("orchard")

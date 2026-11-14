@@ -783,7 +783,7 @@ local TIPS: { [number]: string } = {
 	[2] = "Shells hatch eggs. Place a Veggie Patch. It sells what it grows.",
 	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
 	[4] = "The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch.",
-	[5] = "A Snack Stall sells snacks for shells too. Place one by the path.",
+	[5] = "A Snack Stall sells snacks for shells too. Your first one is free. Place it by the path.",
 	[6] = "The tree lays new eggs every few minutes. When the huts are full, swap a weak one for a better one.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
@@ -791,7 +791,7 @@ local TIPS_BUILD: { [number]: string } = {
 	[1] = "Place a Lumber Camp. It sells the wood it cuts for shells.",
 	[2] = "Place a Veggie Patch. It sells its veggies for shells.",
 	[3] = "Place a Driftling Hut. Driftlings live there and go to work.",
-	[5] = "Place a Snack Stall. It sells snacks for shells.",
+	[5] = "Place a Snack Stall. It sells snacks for shells, and your first one is free.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).

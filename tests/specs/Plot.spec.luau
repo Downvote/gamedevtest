@@ -30,6 +30,24 @@ local function spot(p: any, id: string): (number, number)
 end
 
 return function()
+	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
+	T.it("the tips' snack stall: free while the tips ask for a shop, full price before and after", function()
+		local p = fresh()
+		local full = Buildings.byId.stall.shells
+		p.tut = Plot.TIP_SHOP - 1
+		T.eq(Plot.price(p, "stall"), full, "before its step")
+		p.tut = Plot.TIP_SHOP
+		T.eq(Plot.price(p, "stall"), 0, "on its step")
+		T.eq(Plot.price(p, "cafe"), Buildings.byId.cafe.shells, "only the stall")
+		local sh = p.shells
+		local x, z = spot(p, "stall")
+		local ok = Plot.place(p, "stall", x, z, 0)
+		T.truthy(ok, "placed")
+		T.eq(p.shells, sh, "paid nothing")
+		p.tut = Plot.TIP_SHOP + 1
+		T.eq(Plot.price(p, "stall"), full, "after it")
+	end)
+
 	T.it("a quarter turn swaps the footprint", function()
 		T.eq(select(1, Plot.footprint("bench", 0)), 3)
 		T.eq(select(2, Plot.footprint("bench", 0)), 2)

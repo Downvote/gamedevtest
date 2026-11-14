@@ -1396,7 +1396,9 @@ instead: `fn(rig, t, dt)` every frame; nil gives it back).
 ### 10.7 `BuildUI` (Build mode), `BuildFx` and `Puffs`
 Prices are `Plot.price(view, id)` everywhere in Build mode (the cards, the tip, the info plate, a stroke's cost, the
 afford key, the inventory's Sell at `Refund` of it) and replacements `Plot.replaceCost(q, id, view)`: with the Free
-Decor pass decor, paths, water and fences cost 0 and read "Free" (`price` writes "Free" in the accent for 0; a card's
+Decor pass decor, paths, water and fences cost 0 and read "Free", and so does a Snack Stall while the tips ask for a
+shop (`Plot.TIP_FREE` "stall" on step `Plot.TIP_SHOP` 5, IslandService's `TIP_KIND`; the request of 2026-11-14, "make the
+first snack stall in the tutorial free") (`price` writes "Free" in the accent for 0; a card's
 `Shells` label says "Free"; GAME_DESIGN 14.2).
 `open(tab?)` (the HUD's Build button; `tab`: the tray opens on that tab, the quests' Go; an old tab's name, `farm`
 `wood` `shop` or `gen`, opens Work on that row; a tip's tab still wins): closes any panel,
