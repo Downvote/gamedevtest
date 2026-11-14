@@ -17,7 +17,16 @@ So the interface is black see-through glass now, the bakery's way: one strip of 
 cards and panels flat black at about 60% with small stepped corners and no frames, quiet labels with their numbers on the
 right, everything on one grid (§2). The camera sits about 1.4 times closer, so the island fills the screen (§8).
 
-> The requests (2026-11-14, the latest, asked together): "make sounds when cracking the egg. also, make the egg rise up
+> The requests (2026-11-14): "remove the day night cycle, and make everything brighter", then "make the noise textures
+> across everything more less contrast with whatever material they are on, such as the 2d grass sprites and the sand
+> dots. tone down the brightness abit, it should be around this brightness level" (with a picture of Random Bakery's
+> bright street)
+
+So there is no night: one bright day all the time, a little lighter than before (§8), and every texture (the lawn's
+marks and tufts, the sand's dots, wood, stone, the driftlings' patterns) sits much closer to the colour of what it is
+on (§2).
+
+> The requests (2026-11-14, asked together): "make sounds when cracking the egg. also, make the egg rise up
 > into view when it is being opened. also, there is a bug where the player snaps above buildings while walking over
 > them. also, while the rare one quest is active or any rarity related quests, make it such that an egg of that rarity
 > will always spawn in the tree of life. also, make the pallette more pinkish, changing the sand pink and the rest of
