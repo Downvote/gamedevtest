@@ -64,46 +64,46 @@ local ORDER = 300 -- over everything the game draws
 -- the palette's and the UI theme's colours (0xRRGGBB), written out
 local C = {
 	ink = 0x2A1C1A,
-	plate = 0x4B3A42,
-	accent = 0xFFD86E,
-	accent_hi = 0xF7E39F,
-	title_aa = 0xAF7C2F,
-	text = 0xF3EAD6,
-	status = 0xF0DEBD,
-	frame_hi = 0xF2D0A6,
-	frame = 0xD5A87E,
-	frame_lo = 0xA67F64,
-	frame_dark = 0x7C5C49,
+	plate = 0x3D2A22,
+	accent = 0xFFCB30,
+	accent_hi = 0xFFE48A,
+	title_aa = 0x9C6A1E,
+	text = 0xF4EAD5,
+	status = 0xF2DDB8,
+	frame_hi = 0xE8B97F,
+	frame = 0xBB8350,
+	frame_lo = 0x825637,
+	frame_dark = 0x603E27,
 }
 -- the sky from its top to the horizon, the sea from the horizon down
-local SKY = { 0x38335F, 0x3F3965, 0x483F6B, 0x524579, 0x634B7F, 0x7B5381, 0x95597D, 0xBC7E8B, 0xD68C84, 0xE8A280, 0xF1BB86 }
-local SEA = { 0xAE9AB1, 0x8E92B4, 0x7589B4, 0x506CA0, 0x46639B, 0x3E5B94, 0x38538C, 0x334C83 }
+local SKY = { 0x1C1934, 0x24203F, 0x2E2749, 0x3B2F5C, 0x4D3766, 0x66406C, 0x87496E, 0xAD576A, 0xD06C62, 0xE98B5E, 0xF4AD68 }
+local SEA = { 0x9A7F9E, 0x6E73A2, 0x50689C, 0x405D93, 0x35528A, 0x2C477D, 0x253D70, 0x1F3462 }
 -- the warm tones the sun's glow lifts the sea to, ahead of its bands
-local SEA_WARM = { 0xDDAA96, 0xC4A1A8 }
+local SEA_WARM = { 0xD9967C, 0xB88993 }
 local SEA_LIT = table.clone(SEA_WARM)
 for _, c in SEA do
 	table.insert(SEA_LIT, c)
 end
-local SUN, SUN_RIM, SUN_HALO = 0xFBEFC8, 0xF6D595, 0xF4C08B
-local CLOUD_LIT, CLOUD_RIM = 0xE8A888, 0xD08A94
-local FAR, FAR_TOP = 0x584878, 0xAA7D91
-local HORIZON, HORIZON_HI = 0xEEBD92, 0xF9DEB2
-local DASH = 0x95A6CD
+local SUN, SUN_RIM, SUN_HALO = 0xFFF1C4, 0xFFD27A, 0xF7B470
+local CLOUD_LIT, CLOUD_RIM = 0xE8946A, 0xC86A78
+local FAR, FAR_TOP = 0x40325C, 0x8F5A72
+local HORIZON, HORIZON_HI = 0xF0B079, 0xFFDDA6
+local DASH = 0x7A90C4
 -- the sun's path on the water, from the horizon toward us (each line's core, its ends a tone down), and its glow
-local PATH = { 0xFBEFC8, 0xF6D595, 0xF1B681, 0xDC9489 }
-local SHALLOW, SHALLOW_LIGHT, SHALLOW_OUT = 0x4B98AD, 0x7EBEC8, 0x4A7DA6
-local FOAM, FOAM_DIM = 0xEFFAF7, 0xBCDEE5
-local WET, WET_HI = 0xCFAF87, 0xDCBF96
-local SAND, SAND_HI, SAND_GRAIN = 0xEFD7A3, 0xF8E5BA, 0xE0C696
-local SHELL, SHELL_PINK = 0xFEF8EF, 0xF4BAC4
-local CLIFF, CLIFF_DARK = 0xC7A37D, 0x976A4B
-local GRASS, GRASS_HI, GRASS_LIP, GRASS_TUFT = 0x94CA85, 0xADD995, 0x5D9F55, 0x82B977
-local GRASS_DARK, GRASS_LIGHT = 0x89BF7E, 0xA0D28B
-local FLOWER_A, FLOWER_B = 0xF6E095, 0xF4B0CD
-local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0xA5A2AD, 0xCECAD6, 0x8E8A9A, 0x605B6D
-local PLAZA, PLAZA_RIM = 0xE3CCA0, 0xD0B48A
-local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xC4A992, 0xDFCBB2, 0x97775E, 0x705441
-local STAR_DIM, STAR = 0xA59FC1, 0xDAD3F1
+local PATH = { 0xFFF1C4, 0xFFD27A, 0xF4A660, 0xD9786A }
+local SHALLOW, SHALLOW_LIGHT, SHALLOW_OUT = 0x3C8DA4, 0x58B0BE, 0x3A6F9A
+local FOAM, FOAM_DIM = 0xEFFAF7, 0xB4DCE4
+local WET, WET_HI = 0xC79C66, 0xD8B27C
+local SAND, SAND_HI, SAND_GRAIN = 0xF0D292, 0xFBE6B6, 0xDDBB7C
+local SHELL, SHELL_PINK = 0xFFF8EE, 0xF6B4C0
+local CLIFF, CLIFF_DARK = 0xBC8B57, 0x86593A
+local GRASS, GRASS_HI, GRASS_LIP, GRASS_TUFT = 0x77C062, 0x9AD47A, 0x4E9446, 0x5EA650
+local GRASS_DARK, GRASS_LIGHT = 0x67B157, 0x88CB6C
+local FLOWER_A, FLOWER_B = 0xFFE17A, 0xF6A6C8
+local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x8E8A99, 0xC9C4D2, 0x6E6A7C, 0x4A4556
+local PLAZA, PLAZA_RIM = 0xE2C48C, 0xC9A26A
+local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xB89474, 0xDCC4A4, 0x8C6A50, 0x50392A
+local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 
 -- what the status says in each phase (and the tips, one after another)
 local STATUS = { start = "Waking up your island", island = "Finding your island", picture = "Drawing your island" }

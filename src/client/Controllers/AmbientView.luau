@@ -306,8 +306,9 @@ local function buildLand(I: Isle)
 					ch = { x = ox + (x // 8) * 8 + 4, z = oz + (z // 8) * 8 + 4, list = {} }
 					chunks[key] = ch
 				end
-				-- tufts in patches (a lusher stretch here, bare grass there), a cell in five on average
-				if r:NextNumber() < Fx.patch(x, z) * 0.4 then
+				-- tufts in patches (a lusher stretch here, bare grass there), a cell in twenty on average (the request of
+				-- 2026-11-14: "no need to use so much grass on the floor, it just looks noisy")
+				if r:NextNumber() < Fx.patch(x, z) * 0.1 then
 					table.insert(ch.list, { x = ox + x + r:NextNumber(), z = oz + z + r:NextNumber(), flower = false, tint = nil, phase = r:NextNumber() * 6.28, ver = -1, i = 0, j = 0, d = 0, ok = false, px = {}, pf = 0 })
 				end
 				if r:NextNumber() < 0.025 then

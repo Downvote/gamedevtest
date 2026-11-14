@@ -193,15 +193,17 @@ offline progress).
   afternoon (`Palette.modes.day` 1.03, 1, 0.95: the same warmth the moving things always had), the grass and leaves a
   touch more golden and the sand a touch warmer. Dusk, twilight and night keep their grades (§8). The hatch scene's
   skies (§6.2) are the warmest of all: a sunset, a golden afternoon, lantern-lit nights.
-- **Pastel** (the request of 2026-11-13 at the top: "could everything use a more pastelish colour pallette?"): every
-  colour in the game is a soft pastel, a lighter and gentler take on the hue it was: sage grass, a pale aqua sea, cream
-  sand, rose reds, butter yellows, lilac purples. The darks are lifted less, so shade and shadow still read, and the
-  ink outline stays ink. The interface follows: pastel buttons, light wooden frames, plates a soft plum-brown dark
-  enough for white text. The sprites, the hatch scene's painted skies, the loading card and the small lives on the
-  lawn (flowers, butterflies) use the same soft colours.
+- **Cozy colours** (the request of 2026-11-13, "could everything use a more pastelish colour pallette?", then of
+  2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use more cozy colors. saturate the game
+  back more"): the colours are rich and warm, a little more saturated than the cozy pass of 2026-11-13 left them (the
+  colourful hues of `Data/Palette` 15% fuller, greys, ink and white as they were): sunny greens, warm sand and wood,
+  a clear aqua sea, bright berry reds and butter yellows. The interface, the sprites, the hatch scene's skies and the
+  loading card keep their own warm colours.
 - **Surfaces** (the request of 2026-11-13, "textured objects" and "wood detail"): the filter gives the world's materials a texture as it bakes, the way Random Bakery gives its wood a
   grain: 1 px marks in a darker or lighter tone of the surface's own colour, few and quiet, so a lawn reads as grass
-  and a plank as wood up close while the island still looks calm from afar. Grass, moss and leaves get little blades,
+  and a plank as wood up close while the island still looks calm from afar. Grass, moss and leaves get a few little blades
+(about one 6 x 4 px cell in five, and the lawn's 2D tufts one cell in twenty: "no need to use so much grass on the
+floor, it just looks noisy", 2026-11-14),
   tufts and flecks of light on the faces that look up; sand gets specks and grains; stone and paving get specks and
   now and then a short crack; wood gets broken grain lines along each plank, post and log; straw gets rows of short
   strokes like thatch on roofs and the sides of bales; brick gets courses and joints on the sides of walls; metal a

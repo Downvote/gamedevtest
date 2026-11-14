@@ -517,8 +517,9 @@ end
 -- them lines up). A mark never takes a cell's last column or row, so the marks of two cells never touch side by side
 -- or one over the other: no two run together into a blob.
 --
--- Grass, moss and leaves: in 6 x 4 px cells, a blade (2 px upright), a tuft (a small v) or a blade on the slant, a
--- band darker, or a fleck of light (1 px a band lighter). The marks' 3 x 2 masks (bit dy * 3 + dx) by the hash's pick;
+-- Grass, moss and leaves: in about one 6 x 4 px cell in five (the request of 2026-11-14: "no need to use so much grass
+-- on the floor, it just looks noisy"), a blade (2 px upright), a tuft (a small v) or a blade on the slant, a band
+-- darker, or a fleck of light (1 px a band lighter). The marks' 3 x 2 masks (bit dy * 3 + dx) by the hash's pick;
 -- 0: the fleck.
 local GRASS_W, GRASS_H = 6, 4
 local GRASS_MASKS = { 9, 9, 9, 21, 21, 10, 0, 0 }
@@ -527,7 +528,7 @@ function Shading.grassMark(gx: number, gy: number): number
 	local sx = gx + cy * 3
 	local cx = sx // GRASS_W
 	local h = cellHash(cx, cy, 1)
-	if h % 16 >= 8 then
+	if h % 16 >= 3 then
 		return 0
 	end
 	local dx = sx - cx * GRASS_W - (h // 16) % (GRASS_W - 3)

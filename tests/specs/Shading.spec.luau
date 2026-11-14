@@ -414,7 +414,8 @@ return function()
 		return out, marked
 	end
 	local PATTERNS: { { name: string, fn: (number, number) -> number, lo: number, hi: number } } = {
-		{ name = "grass", fn = Shading.grassMark, lo = 0.03, hi = 0.12 },
+		-- (sparse on purpose: "no need to use so much grass on the floor, it just looks noisy", 2026-11-14)
+		{ name = "grass", fn = Shading.grassMark, lo = 0.01, hi = 0.04 },
 		{ name = "sand", fn = Shading.sandMark, lo = 0.02, hi = 0.1 },
 		{ name = "stone", fn = Shading.stoneMark, lo = 0.02, hi = 0.1 },
 		{ name = "thatch", fn = Shading.thatchMark, lo = 0.06, hi = 0.16 },
