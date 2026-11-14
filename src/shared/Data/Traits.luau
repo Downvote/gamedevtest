@@ -38,7 +38,6 @@ Traits.RMAX = #Traits.RARITY -- the rarest (every table by rarity has this many 
 
 -- A mutation's tier: its name's colour (UIKit) and how often a roll lands on it (flaws are tier 0).
 Traits.TIER_COLOR = { [0] = "bad", [1] = "text", [2] = "good", [3] = "button", [4] = "accent" } :: { [number]: string }
-Traits.TIER_STARS = { [0] = "", [1] = "*", [2] = "**", [3] = "***", [4] = "****" } :: { [number]: string }
 
 -- The families: what each tier is called and gives (rarer tiers give much more). The family ids are the saves' (they
 -- date from the fights, gone 2026-11-12: each family that gave a fighting stat gives something on the island now).

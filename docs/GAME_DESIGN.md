@@ -1215,7 +1215,8 @@ When the island grows into a new stage, the tree is built again at it.
   big in its rarity's colour, "Rare ***" (a star a rarity step), "Meadow kind, good at farms" (its kind of land and
   its knack, as `Data/Creatures` gives them) and its line of description (left out on a phone, where the card is
   shorter). On the left its passive ("Mossy Ears", what it does under it) and every mutation, one a line: its name
-  and stars in its tier's colour and what it does ("Rainkissed ** +20% at farms"), a weather's with that weather's
+  in its tier's colour with a little star sprite a tier after it, and what it does ("Rainkissed", two stars, "+20% at
+  farms"), a weather's with that weather's
   little picture. On the right where it works ("Works at the Veggie Patch", "x1.4 here, x2.2 at its best": its best
   is the fastest it would work at any kind of workplace) or "Resting", its hut ("Lives in the Driftling Hut") and
   "Sells for 25 shells". Along the foot of your own: **All driftlings** (the list), **Work** and **Move** (the same
@@ -1388,8 +1389,9 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
   first. Tier weights 46 / 25 / 10 / 3 (and 16 for a
   **flaw**: Greedy makes eggs cost 25% more, Dull sells for 20% less, Grumpy takes a charm, Sluggish and Lazy work 8 and 15%
   less; never beside its own family's strength); a rarer driftling rolls fewer flaws and more of the top tiers. Four
-  at most (a Hatchery child can gain one, §6.1). Their names show in tier colours (with stars) on the Driftlings
-  panel.
+  at most (a Hatchery child can gain one, §6.1). Their names show in tier colours on the Driftlings panel, each
+  followed by its tier in small star sprites (7x7, one a tier, white, green, teal or gold by the tier: the request
+  of 2026-11-14, "the * in mutations should be replaced with small star sprites to show the rarity of mutations").
 
 The **Index** lists all seventy-three ("Seen 12 of 73 kinds"): a dark shape and its rarity until you have had one (a
 save from the tide keeps the ones it saw float by, on a lighter plate), then its name and passive. A kind not open yet
@@ -1465,9 +1467,14 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   shake, a flash, sparks and a ring of stars, the new rarity as the title ("Legendary") and the next rarity's egg
   floating there, the sky and the
   light changing with it. Then each mutation: a shake, a new crack, and its plate sliding in at the right with its name
-  and stars in its tier's colour and what it does ("Lucky *", "+5% egg luck"). Each of these taps runs the cracks a
-  little further (three stages) with the crunch of a cracking shell, a little higher each time. Once nothing is left the cracks glow from inside and the hint says "Tap to hatch it".
+  in its tier's colour, its star sprites and what it does ("Lucky", one star, "+5% egg luck"). Each of these taps runs the cracks a
+  little further (three stages) with the crunch of a cracking shell, a little higher each time, and shakes the egg:
+  it rocks on its foot and jumps side to side, settling over half a second. Once nothing is left the cracks glow from
+  inside, the egg trembles and the hint says "Tap to hatch it".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
+- **Shaking open** (the request of 2026-11-14: "Make eggs shake while being cracked open"): the tap that hatches it
+  crunches, every crack shows, and the egg shakes harder and faster for a little over half a second before the shell
+  breaks.
 - **The hatch**: the shell breaks with a crack, a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
   hatched pops out where the egg was with one jump, arms up (the request of 2026-11-14: "make the pet jump only once
   instead of a few times after hatching"; it used to jump three times). The egg's title goes (no "It hatched" since the request of 2026-11-14,

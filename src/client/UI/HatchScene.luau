@@ -5,7 +5,9 @@
 -- and of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can simply
 -- render the floating egg in a 2d background. also, make the player click to hatch the egg, each click revealing a
 -- mutation or a tier up upgrade if there is any, otherwise it just hatches"; then "make sounds when cracking the egg.
--- also, make the egg rise up into view when it is being opened".
+-- also, make the egg rise up into view when it is being opened"; then "Make eggs shake while being cracked open" (each
+-- crack shakes it, the glowing egg trembles, and the tap that hatches it shakes it harder and harder for BREAK s
+-- before the shell opens).
 --
 -- An egg bought at the Tree of Life (Controllers/EggView.hatch) floats in front of a painted sky (UI/HatchBackdrop)
 -- at once: no blinds, nothing to bake (the camera's stage view on an empty see-through stage, CameraController's
@@ -14,8 +16,9 @@
 -- Every tap that cracks it crunches (Audio "crack", a little higher each time) and the hatch breaks the shell open
 -- ("crack_open"). Each tap takes the next of what is waiting inside: first each step up in rarity (Logic/Tree.rise:
 -- the result's `hr` over its `r`: a hard shake, a flash, the egg in the next rarity's colours, the sky and the light
--- changing with it), then each mutation (a shake, a new crack, its plate sliding in at the right with its name, stars
--- and what it does). When nothing is left the cracks glow and the next tap hatches it: a flash, the top flies off, bits
+-- changing with it), then each mutation (a shake, a new crack, its plate sliding in at the right with its name, star
+-- sprites and what it does). When nothing is left the cracks glow and the next tap shakes it open and hatches it: a
+-- flash, the top flies off, bits
 -- of shell scatter and what hatched pops out, its name and rarity under it, its passive on a plate above its mutations.
 -- One more tap goes back to the island (its picture was kept, so it is there at once) and `after` runs.
 -- The rarer it hatched as, the grander (GLORY): twinkles round the egg (rare and up), more sparks and
@@ -41,6 +44,7 @@ local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
+local TierStars = require(script.Parent.TierStars)
 local HatchBackdrop = require(script.Parent.HatchBackdrop)
 
 local HatchScene = {}
@@ -59,6 +63,7 @@ local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is 
 local STAGE_ROOM = 1.45
 local RISE = 0.95 -- seconds the egg takes to rise into view when the scene opens (taps wait for it)
 local RISE_FROM = 7 -- studs under its spot it starts, out of the picture
+local BREAK = 0.6 -- seconds the egg shakes, harder and harder, between the tap that hatches it and the shell opening
 
 -- How grand each rarity's scene is (by the rarity it is now; the hatch's by the rarity it hatched as).
 type Glory = {
@@ -121,13 +126,15 @@ type Scene = {
 	r: number, -- the rarity shown now (it climbs to res.hr)
 	dyn: Folder,
 	clock: number,
-	phase: string, -- "egg" (taps reveal) | "hatched" (what hatched popping out) | "done" (a tap goes back)
+	phase: string, -- "egg" (taps reveal) | "breaking" (shaking open) | "hatched" (what hatched popping out) | "done" (a tap goes back)
 	queue: { Reveal }, -- what the next taps reveal, in order
 	total: number, -- reveals in all
 	crack: number, -- the cracks shown (0 .. 3)
 	lastTap: number, -- the scene clock at the last tap taken
 	kickAt: number, -- the last shake (scene clock) and how hard
 	kick: number,
+	breakAt: number, -- when the tap that hatches it came (it shakes open for BREAK s)
+	shake: number, -- how hard it shakes this frame (0 at rest; sims and previews)
 	-- the egg
 	egg: Model?,
 	parts: { { p: BasePart, off: CFrame } },
@@ -423,7 +430,7 @@ local function showMut(s: Scene, i: number)
 	local m = Traits.byId[muts[i]]
 	if m then
 		local tier = m.tier
-		UIKit.text(f, m.name .. " " .. (Traits.TIER_STARS[tier] or ""), UDim2.fromOffset(PLATE_W - 8, 10), UDim2.fromOffset(4, 1), { color = UIKit.color(Traits.TIER_COLOR[tier] or "text"), z = 34, name = "Name" })
+		TierStars.label(f, m.name, tier, 4, 1, { z = 34, name = "Name" })
 		UIKit.text(f, m.blurb, UDim2.fromOffset(PLATE_W - 8, 10), UDim2.fromOffset(4, 11), { color = UIKit.color("text_dim"), z = 34, name = "Blurb" })
 		Audio.play(if tier >= 3 then "sparkle" elseif tier == 0 then "flip" else "ding", { pitch = 0.9 + tier * 0.08 })
 		if tier >= 2 then
@@ -572,7 +579,18 @@ function HatchScene.skip()
 	end
 	local nxt = table.remove(s.queue, 1)
 	if nxt == nil then
-		hatch(s)
+		-- (the request of 2026-11-14: "Make eggs shake while being cracked open": every crack lit, it shakes harder
+		-- and harder for BREAK s, crunching, then the shell opens)
+		s.phase = "breaking"
+		s.breakAt = s.clock
+		s.crack = 3
+		glow(s)
+		Audio.play("crack", { pitch = 1.15 })
+		local hint = s.hint
+		if hint then
+			hint:Destroy()
+			s.hint = nil
+		end
 		return
 	end
 	s.crack = math.min(3, s.crack + 1)
@@ -595,23 +613,47 @@ end
 local function stepEgg(s: Scene, c: number)
 	local r = s.r
 	local eh = EGG_H[r] or 2.4
-	-- floating: a slow bob, a sway; a shake after a tap (a step up's the hardest), dying away; now and then, while it
-	-- waits, a little wobble asking to be tapped
+	-- floating: a slow bob, a sway. Each tap that cracks it shakes it (rocking side to side on its foot and jumping
+	-- sideways, a step up's the hardest), dying away; once every crack is lit it trembles, waiting; the tap that hatches
+	-- it shakes it harder and faster until the shell opens (BREAK). Now and then, while it waits, a little wobble asking
+	-- to be tapped.
 	local bob = math.sin(c * 1.6) * 0.08
 	local tilt = math.sin(c * 1.1) * 0.03
+	local rock, side, amp = 0, 0, 0
 	local k = c - s.kickAt
-	if k >= 0 and k < 0.7 then
-		tilt += math.sin(k * 40) * 0.16 * s.kick * (1 - k / 0.7)
-		bob += math.abs(math.sin(k * 20)) * 0.06 * s.kick * (1 - k / 0.7)
+	if s.phase == "breaking" then
+		local b = c - s.breakAt
+		local u = math.clamp(b / BREAK, 0, 1)
+		amp = 0.55 + 0.9 * u * u
+		local ph = b * (36 + 34 * u)
+		rock = math.sin(ph) * 0.2 * amp
+		side = math.sin(ph * 1.37 + 1) * 0.1 * amp
+		bob += math.abs(math.sin(ph * 0.5)) * 0.05 * amp
+	elseif k >= 0 and k < 0.6 then
+		amp = s.kick * (1 - k / 0.6)
+		rock = math.sin(k * 42) * 0.22 * amp
+		side = math.sin(k * 55) * 0.12 * amp
+		bob += math.abs(math.sin(k * 21)) * 0.06 * amp
+	elseif s.phase == "egg" and s.glowing then
+		amp = 0.15
+		rock = math.sin(c * 34) * 0.035
+		side = math.sin(c * 47 + 2) * 0.02
 	elseif s.phase == "egg" then
 		local w = (c + 0.8) % 2.6
 		if w < 0.45 then
-			tilt += math.sin(w / 0.45 * math.pi * 2) * (if s.glowing then 0.1 else 0.05)
+			tilt += math.sin(w / 0.45 * math.pi * 2) * 0.05
 		end
 	end
+	s.shake = amp
+	-- (the shake goes across the screen: the camera's right, flat, and a rock about the line it looks along)
+	local cam = workspace.CurrentCamera
+	local rv = if cam then cam.CFrame.RightVector else Vector3.xAxis
+	local right = Vector3.new(rv.X, 0, rv.Z)
+	right = if right.Magnitude > 1e-3 then right.Unit else Vector3.xAxis
+	local fwd = Vector3.new(-right.Z, 0, right.X)
 	local lift = liftOf(c)
-	local foot = at(0, FLOAT_Y + bob + lift, 0)
-	local cf = CFrame.new(foot) * CFrame.Angles(tilt, 0, tilt * 0.6)
+	local foot = at(0, FLOAT_Y + bob + lift, 0) + right * side
+	local cf = CFrame.new(foot) * CFrame.fromAxisAngle(fwd, rock) * CFrame.Angles(tilt, 0, tilt * 0.6)
 	local off = s.topOff
 	for _, rp in s.parts do
 		local here = cf * rp.off
@@ -765,6 +807,9 @@ local function step(s: Scene, dt: number)
 	s.clock += d
 	local c = s.clock
 	stepEgg(s, c)
+	if s.phase == "breaking" and c - s.breakAt >= BREAK then
+		hatch(s)
+	end
 	if not s.arrived and c >= RISE * 0.65 then
 		s.arrived = true
 		Audio.play("sparkle", { pitch = 0.9 + s.r * 0.04 })
@@ -890,6 +935,8 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		lastTap = 0,
 		kickAt = -10,
 		kick = 0,
+		breakAt = -10,
+		shake = 0,
 		egg = nil,
 		parts = {},
 		top = {},
@@ -980,10 +1027,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean, passive: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean, passive: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false, passive = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false, passive = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -996,6 +1043,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		reveals = s.total,
 		left = #s.queue,
 		crack = s.crack,
+		shake = s.shake,
 		shown = s.shown,
 		muts = #s.res.muts,
 		rays = #s.rays,

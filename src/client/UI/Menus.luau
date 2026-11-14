@@ -22,6 +22,7 @@ local EggView = require(script.Parent.Parent.Controllers.EggView)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
+local TierStars = require(script.Parent.TierStars)
 local Words = require(script.Parent.Words)
 local StoreUI = require(script.Parent.StoreUI)
 local RunService = game:GetService("RunService")
@@ -64,12 +65,12 @@ local function mutLine(parent: Instance, muts: { string }, x: number, y: number,
 	for i, id in muts do
 		local m = Traits.byId[id]
 		if m then
-			local label = m.name .. Traits.TIER_STARS[m.tier] .. (if i < #muts then "," else "")
-			local lw = UIKit.textWidth(label)
+			local suffix = if i < #muts then "," else nil
+			local lw = TierStars.measure(m.name, m.tier, suffix)
 			if cx + lw > x + w then
 				break
 			end
-			UIKit.text(parent, label, UDim2.fromOffset(lw + 2, 10), UDim2.fromOffset(cx, y), { color = UIKit.color(Traits.TIER_COLOR[m.tier] or "text"), z = 4, name = "Mut_" .. id })
+			TierStars.label(parent, m.name, m.tier, cx, y, { z = 4, name = "Mut_" .. id, suffix = suffix })
 			cx += lw + 5
 		end
 	end
@@ -661,9 +662,7 @@ local function buildPal(body: Frame, arg: any?)
 				PixelSprites.image(body, "mini_" .. icon, UDim2.fromOffset(1, y), 4).Name = "MutIcon_" .. id
 				nx = 14
 			end
-			local label = m.name .. " " .. (Traits.TIER_STARS[m.tier] or "")
-			local lw = UIKit.textWidth(label)
-			UIKit.text(body, label, UDim2.fromOffset(lw + 2, 10), UDim2.fromOffset(nx, y), { color = UIKit.color(Traits.TIER_COLOR[m.tier] or "text"), name = "Mut_" .. id })
+			local _, lw = TierStars.label(body, m.name, m.tier, nx, y, { name = "Mut_" .. id })
 			UIKit.text(body, m.blurb, UDim2.fromOffset(math.max(10, L - nx - lw - 6), 10), UDim2.fromOffset(nx + lw + 6, y), { color = UIKit.color("text_dim"), name = "MutFx_" .. id })
 		end
 	end
@@ -913,7 +912,7 @@ local function buildTree(body: Frame, arg: any?)
 			UIKit.text(f, wdef.laid, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, name = "Laid" })
 			PixelSprites.image(f, "mini_" .. wdef.icon, UDim2.fromOffset(24, 23), 4).Name = "WeatherIcon"
 			local tc = Traits.TIER_COLOR[wm.tier] or "text"
-			UIKit.text(f, wm.name .. " " .. (Traits.TIER_STARS[wm.tier] or ""), UDim2.fromOffset(tw - 13, 10), UDim2.fromOffset(37, 22), { color = UIKit.color(tc), z = 4, name = "WeatherMut" })
+			TierStars.label(f, wm.name, wm.tier, 37, 22, { color = UIKit.color(tc), z = 4, name = "WeatherMut" })
 		else
 			UIKit.text(f, string.format("Hatches %s %s one", an, string.lower(rar.name)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
 		end

@@ -388,6 +388,13 @@ for _k, (_rows, _ramps, _flat) in ICONS.items():
     assert len(_rows) == 9, _k
     HAND("mini_" + _k, _rows, _ramps, _flat)
 
+# A mutation's tier, in stars after its name (the request of 2026-11-14: "the * in mutations should be replaced with
+# small star sprites to show the rarity of mutations"): one 7 x 7 star a tier, in the tier's colour (UI's
+# Traits.TIER_COLOR: white, green, teal, gold), drawn at its own size for a 10 px line of text.
+STAR_T = ["..4..", ".443.", "44432", ".432.", ".3.2."]
+for _t, _ramp in enumerate(("W", "G", "C", "Y"), start=1):
+    HAND("star_t%d" % _t, STAR_T, [_ramp])
+
 # ---------------------------------------------------------------- the microgames' overlay: a note, the fuse's spark and bomb, a heart
 # (the microgames themselves are 3D now: Models/MicroModels on a stage the pixel filter draws)
 S("note", [

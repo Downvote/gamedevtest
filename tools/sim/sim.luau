@@ -570,20 +570,31 @@ do
 		hs = H.inClient(p, HSp.debugState)
 		H.expect(hs.lift == 0, "build", "it has risen to its spot", string.format("%.2f", hs.lift))
 		local taps, revealed = 0, 0
+		local shook, broke = 0, nil
 		while not hs.pal and taps < 12 do
 			H.inClient(p, HSp.skip)
-			E.run(0.35)
+			E.run(0.05)
+			hs = H.inClient(p, HSp.debugState)
+			shook = math.max(shook, hs.shake)
+			E.run(0.3)
 			taps += 1
 			local before = revealed
 			hs = H.inClient(p, HSp.debugState)
 			revealed = hs.reveals - hs.left
-			if not hs.pal then
+			if hs.phase == "breaking" then
+				-- (the request of 2026-11-14: "Make eggs shake while being cracked open": the tap that hatches it
+				-- shakes it harder and harder, every crack showing, then the shell opens)
+				broke = { shake = hs.shake, crack = hs.crack, pal = hs.pal, glowing = hs.glowing }
+				E.run(0.45)
+				hs = H.inClient(p, HSp.debugState)
+			elseif not hs.pal then
 				H.expect(revealed == before + 1, "build", "a tap before it hatches reveals one step up or mutation", string.format("tap %d: %d revealed", taps, revealed))
 			end
 		end
 		H.expect(hs.pal and taps == hs.reveals + 1, "build", "each tap reveals a step up or a mutation, the one after them hatches it", string.format("%d taps, %d reveals", taps, hs.reveals))
+		H.expect(broke ~= nil and broke.shake > 0.7 and broke.crack == 3 and broke.glowing and not broke.pal and (hs.reveals == 0 or shook > 0.2), "build", "it shakes as it cracks: each tap, then harder as it breaks open, every crack lit", broke and string.format("shake %.2f at the break, cracks %d, %.2f a tap", broke.shake, broke.crack, shook) or "no break")
 		local crack1, open1 = H.inClient(p, Aud.playCount, "crack"), H.inClient(p, Aud.playCount, "crack_open")
-		H.expect(crack1 - crack0 == hs.reveals and open1 - open0 == 1, "build", "each reveal cracks it with a crunch, the hatch breaks it open with a sound", string.format("%d crunches for %d reveals, %d opens", crack1 - crack0, hs.reveals, open1 - open0))
+		H.expect(crack1 - crack0 == hs.reveals + 1 and open1 - open0 == 1, "build", "each reveal cracks it with a crunch, so does the tap that hatches it, and the shell opens with a sound", string.format("%d crunches for %d reveals, %d opens", crack1 - crack0, hs.reveals, open1 - open0))
 		E.run(0.8)
 		hs = H.inClient(p, HSp.debugState)
 		local def0 = prof.pals[1] and Creatures.byId[prof.pals[1].sp]
@@ -935,7 +946,13 @@ do
 			H.expect(H.currentPanel(p) == "pal" and label("Name") == d.name, "pals", "a tap on it opens its details, its name at the top", string.format("%s %s", tostring(H.currentPanel(p)), tostring(label("Name"))))
 			H.expect(label("Rarity") == rar.name .. " " .. string.rep("*", d.rarity) and label("Passive") == d.passive.name, "pals", "its rarity with its stars, its passive", string.format("%s / %s", tostring(label("Rarity")), tostring(label("Passive"))))
 			local sw, rn = Traits.byId.bright2, Traits.byId.rainy3
-			H.expect(label("Mut_bright2") == sw.name .. " " .. Traits.TIER_STARS[sw.tier] and label("MutFx_bright2") == sw.blurb and label("Mut_rainy3") == rn.name .. " " .. Traits.TIER_STARS[rn.tier] and label("MutFx_rainy3") == rn.blurb, "pals", "every mutation with its stars and what it does", string.format("%s / %s", tostring(label("Mut_bright2")), tostring(label("Mut_rainy3"))))
+			-- (the request of 2026-11-14: "the * in mutations should be replaced with small star sprites to show the
+			-- rarity of mutations": the name alone in the label, one star sprite a tier after it)
+			local function stars(name)
+				local l = panel and panel:FindFirstChild(name, true)
+				return H.inClient(p, H.cmod(p, "UI.TierStars").shown, l)
+			end
+			H.expect(label("Mut_bright2") == sw.name and stars("Mut_bright2") == sw.tier and label("MutFx_bright2") == sw.blurb and label("Mut_rainy3") == rn.name and stars("Mut_rainy3") == rn.tier and label("MutFx_rainy3") == rn.blurb, "pals", "every mutation with its star sprites and what it does", string.format("%s %d / %s %d", tostring(label("Mut_bright2")), stars("Mut_bright2"), tostring(label("Mut_rainy3")), stars("Mut_rainy3")))
 			H.expect(panel ~= nil and panel:FindFirstChild("MutIcon_rainy3", true) ~= nil and panel:FindFirstChild("MutIcon_bright2", true) == nil, "pals", "a weather's mutation with that weather's icon")
 			local work = x.work ~= 0 and Buildings.byId[(function()
 				for _, q in prof.plot.placed do

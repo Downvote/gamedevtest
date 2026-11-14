@@ -2020,7 +2020,8 @@ end
 -- simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each click
 -- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches". Frames: the egg floating at
 -- once, the frame it opens (hatch_egg), after each tap's reveal (hatch_rise<k> for a step up, hatch_mut<k> for a
--- mutation), the tap that hatches it (hatch_crack, just after) and what hatched with its mutations listed
+-- mutation), the tap that hatches it (hatch_shake: the egg shaking open, "Make eggs shake while being cracked open";
+-- hatch_crack, just after the shell opens) and what hatched with its mutations listed
 -- (hatch_reveal), then the island after one more tap (hatch_back).
 local function hatchScenario(code)
 	local r = tonumber(string.sub(code, 1, 1)) or 1
@@ -2076,7 +2077,11 @@ local function hatchScenario(code)
 	st = state()
 	log("hatch %s: after %d taps: rarity %d, %d mutations shown, cracks %d, glowing %s, title %q", code, st.reveals, st.r, st.shown, st.crack, tostring(st.glowing), st.title)
 	H.inClient(p, HS.skip)
-	E.run(0.18)
+	E.run(0.35)
+	st = state()
+	capture(p, "hatch_shake")
+	log("hatch %s: shaking open: phase %s, shake %.2f, cracks %d", code, st.phase, st.shake, st.crack)
+	E.run(0.43)
 	capture(p, "hatch_crack")
 	E.run(1.4)
 	st = state()
