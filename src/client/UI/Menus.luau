@@ -85,7 +85,7 @@ end
 
 -- The view as a profile for the shared rules that read the island (Logic/Island, Logic/Tree).
 local function asProfile(v: Types.ClientView): any
-	return { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier, shells = v.shells, wood = v.wood }
+	return { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier, shells = v.shells }
 end
 
 -- A driftling's portrait is 32 x 32 (drawn from its model: scripts/gen_art.py), at 4 px in a row: the row's words start

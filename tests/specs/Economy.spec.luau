@@ -52,13 +52,15 @@ return function()
 			T.truthy(r.first.tier7 == nil, "seed " .. seed .. ": nothing past the capital in three hours")
 		end
 	end)
-	T.it("both stores make and get spent; they stay finite", function()
+	T.it("the shells come in all the way and stay finite; no wood, no food", function()
+		-- (one store since 2026-11-14: "make shells the main currency ... remove wood as a currency")
 		for seed, r in runs do
 			for _, row in r.timeline do
-				T.truthy(row.woodRate > 0 and row.shellRate > 0, string.format("seed %d at %dmin: wood %+.0f, shells %+.0f a turn", seed, row.t // 60, row.woodRate, row.shellRate))
+				T.truthy(row.shellRate > 0, string.format("seed %d at %dmin: shells %+.0f a turn", seed, row.t // 60, row.shellRate))
 			end
 			local p = r.profile
-			T.truthy(p.shells == p.shells and p.shells < 1e12 and p.wood < 1e12, "finite")
+			T.truthy(p.shells == p.shells and p.shells < 1e12, "finite")
+			T.eq((p :: any).wood, nil, "no wood")
 			T.eq((p :: any).food, nil, "no food")
 		end
 	end)

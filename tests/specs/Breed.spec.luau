@@ -11,7 +11,7 @@ local Util = require("../../build/luautest/shared/Logic/Util")
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
-	p.shells, p.wood = 1e6, 1e6
+	p.shells = 1e6
 	p.tier = 3
 	return p
 end

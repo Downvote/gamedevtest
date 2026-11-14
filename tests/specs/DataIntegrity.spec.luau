@@ -41,13 +41,14 @@ return function()
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
 			seen[d.id] = true
 			T.truthy(kinds[d.kind], d.id .. " kind")
-			-- (every piece is paid for in wood: "make wood the main resource for building/expanding")
+			-- (every piece is paid for in shells: "make shells the main currency, allowing you to buy decor and expansions
+			-- with it. remove wood as a currency")
 			-- (the Tree of Life is never bought: no price, no tier a player reaches)
 			local tree = d.kind == "tree"
 			-- (a fence is a 2-stud length along a grid line: 2 x 0; paths and water are 2 x 2 tiles)
 			local fence = d.kind == "fence"
 			local foot = if fence then d.w == 2 and d.d == 0 else d.w >= 1 and d.d >= 1 and d.w == math.floor(d.w) and d.d == math.floor(d.d)
-			T.truthy(d.shells == 0 and (d.wood > 0) ~= tree and foot, d.id .. " price and footprint")
+			T.truthy((d :: any).wood == nil and (d.shells > 0) ~= tree and foot, d.id .. " price and footprint")
 			if d.kind == "path" or d.kind == "water" then
 				T.truthy(d.w == 2 and d.d == 2, d.id .. " a 2 x 2 tile")
 			end

@@ -1,8 +1,8 @@
 --!strict
--- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the top bar (wood, shells, the day and its clock), the
+-- The HUD (docs/ARCHITECTURE.md 10.3; GAME_DESIGN 3-9): the top bar (shells, the day and its clock), the
 -- status panel under it on the left (lines like the season and the weather: `Hud.statusLine`) with the questline's
 -- card under that, the menu bar along the bottom (Build, Driftlings, Index, Looks), the island card on the right (the
--- island's name, driftlings in huts and their room, visitors, charm, what it makes) with the Tree of Life's card under
+-- island's name, driftlings in huts and their room, charm and what it adds, what it makes) with the Tree of Life's card under
 -- it (the time to its next eggs, its best few eggs with their prices to hatch them), the tips banner, the new day's
 -- banner and the alerts for a new lot of eggs (the loading card is src/first's). The camera fits the island clear of
 -- the HUD's blocks (CameraController.setHudRects).
@@ -126,8 +126,8 @@ end
 -- One glass strip of chips (Random Bakery's top bar): each chip its 11 px icon and its value; the day's chip has a
 -- thin bar under its words for how far through the day it is.
 local CHIP_GAP = 7
-local CHIP_MIN: { [string]: number } = { wood = 40, shells = 40, day = 46 }
-local CHIP_ORDER = { "wood", "shells", "day" }
+local CHIP_MIN: { [string]: number } = { shells = 40, day = 46 }
+local CHIP_ORDER = { "shells", "day" }
 -- Each chip as wide as its words need (never under its minimum), the strip round them, Home after it.
 local function layoutTop()
 	local tb = topBar
@@ -171,12 +171,11 @@ end
 local function buildTop()
 	local canvas = UIKit.canvas("Hud")
 	local widths = CHIP_MIN
-	local w = PAD + widths.wood + CHIP_GAP + widths.shells + CHIP_GAP + widths.day + PAD - 1
+	local w = PAD + widths.shells + CHIP_GAP + widths.day + PAD - 1
 	local tb = UIKit.glass(canvas, UDim2.fromOffset(w, TOP_H), UDim2.fromOffset(EDGE, CHIP_Y), 2)
 	tb.Name = "TopBar"
 	topBar = tb
 	local x = PAD
-	x = chip("wood", x, widths.wood, "wood")
 	x = chip("shells", x, widths.shells, "shell")
 	x = chip("day", x, widths.day, "sun")
 	-- the day's clock: a thin bar under its words (like the bakery's XP bar under its level)
@@ -318,7 +317,6 @@ end
 
 local function updateTop(v: Types.ClientView)
 	showStore("shells", v.shells, last.shells == nil)
-	showStore("wood", v.wood, last.wood == nil)
 	local dl = chips.day
 	if dl then
 		local t = "Day " .. v.day
@@ -416,7 +414,7 @@ local function housedOf(v: Types.ClientView): number
 end
 
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%.1f|%d|%d|%d", v.tier, housedOf(v), v.nests, v.visitors, math.floor(v.charm), math.floor(v.rates.wood + 0.5), math.floor(v.rates.shells + 0.5))
+	return string.format("%d|%d/%d|%d|%d|%d", v.tier, housedOf(v), v.nests, math.floor(v.charm), math.round((v.charmBonus or 0) * 100), math.floor(v.rates.shells + 0.5))
 end
 
 local function updateCard(v: Types.ClientView)
@@ -431,7 +429,7 @@ local function updateCard(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local h = 15 + 3 * LINE_H + 4 + 2 * LINE_H + 2
+	local h = 15 + 3 * LINE_H + 4 + LINE_H + 2
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, CARD_Y), 2)
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
@@ -442,9 +440,10 @@ local function updateCard(v: Types.ClientView)
 	local housed = housedOf(v)
 	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
 	y += LINE_H
-	line(f, "visitor", "Visitors", y, w, nil, string.format("%.1f", v.visitors), nil, "Visitors")
-	y += LINE_H
 	line(f, "charm", "Charm", y, w, nil, Numbers.int(math.floor(v.charm)), UIKit.color("pink"), "Charm")
+	y += LINE_H
+	-- what the charm adds to every shell (Logic/Island.charmBonus: the visitors went on 2026-11-14)
+	line(f, "shell", "Charm bonus", y, w, nil, string.format("+%d%%", math.round((v.charmBonus or 0) * 100)), UIKit.color("pink"), "CharmBonus")
 	y += LINE_H
 	-- a faint rule between the island and what it makes
 	local rule = UIKit.rect(f, UDim2.fromOffset(w - 2 * PAD, 1), UDim2.fromOffset(PAD, y + 1), UIKit.color("rule"), 4)
@@ -455,7 +454,6 @@ local function updateCard(v: Types.ClientView)
 		line(f, icon, label, y, w, nil, Numbers.perMin(n * 60 / Tuning.TurnSeconds), c, "Rate_" .. icon)
 		y += LINE_H
 	end
-	rate("wood", v.rates.wood, "Wood")
 	rate("shell", v.rates.shells, "Shells")
 	f:SetAttribute("Key", key)
 	f.Visible = not BuildUI.isOpen()
@@ -611,7 +609,7 @@ local function claimQuest()
 		if res.ok and type(res.data) == "table" then
 			local d = res.data :: { [string]: any }
 			local parts: { string } = {}
-			for _, it in { { "wood", "wood" }, { "shells", "shells" } } do
+			for _, it in { { "shells", "shells" } } do
 				local n = tonumber(d[it[1]]) or 0
 				if n > 0 then
 					table.insert(parts, string.format("+%s %s", Numbers.coins(n), it[2]))
@@ -665,7 +663,7 @@ local function updateQuest(v: Types.ClientView)
 	if done then
 		-- its reward, and Claim
 		local x = 5
-		for _, it in { { "wood", "wood" }, { "shells", "shell" } } do
+		for _, it in { { "shells", "shell" } } do
 			local n = (q.reward :: { [string]: number? })[it[1]] or 0
 			if n > 0 then
 				PixelSprites.image(f, "mini_" .. it[2], UDim2.fromOffset(x, y), 3)
@@ -705,19 +703,19 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Wood pays for everything you build. Tap Build and place a Lumber Camp.",
+	[1] = "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts.",
 	[2] = "Shells hatch eggs. Place a Veggie Patch. It sells what it grows.",
 	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
 	[4] = "The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch.",
-	[5] = "Visitors buy snacks too. Place a Snack Stall for more shells.",
+	[5] = "A Snack Stall sells snacks for shells too. Place one by the path.",
 	[6] = "The tree lays new eggs every few minutes. When the huts are full, swap a weak one for a better one.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
-	[1] = "Place a Lumber Camp. Wood pays for everything you build.",
+	[1] = "Place a Lumber Camp. It sells the wood it cuts for shells.",
 	[2] = "Place a Veggie Patch. It sells its veggies for shells.",
 	[3] = "Place a Driftling Hut. Driftlings live there and go to work.",
-	[5] = "Place a Snack Stall. Visitors buy snacks there.",
+	[5] = "Place a Snack Stall. It sells snacks for shells.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).

@@ -112,9 +112,8 @@ function Quest.claim(p: Profile): (boolean, any)
 	end
 	local r = q.reward
 	p.shells += r.shells or 0
-	p.wood += r.wood or 0
 	p.quest += 1
-	return true, { id = q.id, shells = r.shells or 0, wood = r.wood or 0, next = p.quest }
+	return true, { id = q.id, shells = r.shells or 0, next = p.quest }
 end
 
 return Quest

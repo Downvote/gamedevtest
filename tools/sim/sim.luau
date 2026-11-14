@@ -1,13 +1,13 @@
 -- The main simulation: a new island end to end through the real client and its UI (the campfire, the sign, the Tree of
 -- Life with its first lot of eggs round its roots, the HUD with the tree's card, the tips), building what the tips ask
 -- in their order (a lumber camp, a veggie patch, a hut, then an egg hatched by tapping it, then a snack stall: the
--- starting wood and shells cover them; Build mode turns its tray to Work's Wood row, then Farms, Huts and Shops), the
+-- starting shells cover them; Build mode turns its tray to Work's Wood row, then Farms, Huts and Shops), the
 -- tree in Build mode (moved like any piece, never cleared away), the days turning (the stores grow, every building
 -- working a little with nobody at it), the tree's eggs (the plot's Eggs attribute, the ring every client lays them on,
 -- the price tags and their rules, the card's best three and the time to the next lot, hatching from the card, a tag and
 -- the panel, the swap picker when every hut is full, the picker going back to the list when a new lot replaced its egg,
 -- a new lot every Tree.secs, a tap on the tree opening its panel), the Driftlings panel (moving one to a second hut and
--- back in a swap, Work, selling in two taps), the Index panel, the founder's looks, settings, expanding for wood (the
+-- back in a swap, Work, selling in two taps), the Index panel, the founder's looks, settings, expanding for shells (the
 -- extra eggs laid at once, the cheer naming the new island), the build catalog (the tray's tabs and icons, each tab's
 -- chips, Decor's 13 themes, the cards cheapest first with the locked ones after, a card's tooltip, the search box, each
 -- tab's count), fences drawn through the UI (a line, a box, one over another, Erase), a river two tiles wide (its
@@ -51,7 +51,7 @@ local fx = H.watchFx(p)
 local s = H.session(p)
 H.expect(s ~= nil and s.ready, "join", "the session is ready")
 local prof = H.profile(p)
-H.expect(prof.shells == Tuning.StartShells and prof.wood == Tuning.StartWood and prof.food == nil, "join", "the starting stores (wood and shells, no food)", string.format("%s %s %s", tostring(prof.shells), tostring(prof.wood), tostring(prof.food)))
+H.expect(prof.shells == Tuning.StartShells and prof.wood == nil and prof.food == nil, "join", "the starting store (shells, no wood, no food)", string.format("%s %s %s", tostring(prof.shells), tostring(prof.wood), tostring(prof.food)))
 H.expect(prof.tier == 1 and prof.tut == 1 and prof.folk == nil and #prof.plot.placed == 1 and prof.plot.placed[1].id == "tree" and prof.tree == nil, "join", "a new island, tips at step 1, no villagers, nothing built but its Tree of Life", string.format("%d pieces", #prof.plot.placed))
 H.expect(s.plot == 1, "join", "the first player gets island 1", tostring(s.plot))
 local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_1")
@@ -447,7 +447,7 @@ H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
 H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 H.expect(H.inClient(p, BuildUI.debugState).tab == "decor", "build", "the player can still look round the other tabs")
 H.expect(H.buttonNamed(p, "Buy_tree", true) == nil, "build", "no Tree of Life in the tray (every island has its one)")
-local wood0, sh0 = prof.wood, prof.shells
+local sh0 = prof.shells
 local res = place("lumber")
 E.run(0.5)
 bst = H.inClient(p, BuildUI.debugState)
@@ -456,8 +456,8 @@ H.expect(tipShown(), "build", "the next tip's banner over the tray")
 H.clickNamed(p, "BuildDone", { wait = 0.3 })
 H.expect(not BuildUI.isOpen() and tipShown(), "build", "Done: the tray goes, the tip stays")
 H.expect(res.ok and #prof.plot.placed == 2 and pieceOf("lumber") ~= nil, "build", "a lumber camp", tostring(res.err))
-H.expect(math.abs(prof.wood - (wood0 - Buildings.byId.lumber.wood)) < 2 and math.abs(prof.shells - sh0) < 1, "build", "paid for in wood, no shells", string.format("wood %s -> %s, shells %s -> %s", wood0, prof.wood, sh0, prof.shells))
-H.expect(prof.tut == 2, "build", "the tips move on to a farm (wood built)", tostring(prof.tut))
+H.expect(math.abs(prof.shells - (sh0 - Buildings.byId.lumber.shells)) < 2 and prof.wood == nil, "build", "paid for in shells (no wood any more)", string.format("shells %s -> %s", sh0, prof.shells))
+H.expect(prof.tut == 2, "build", "the tips move on to a farm (the camp built)", tostring(prof.tut))
 H.expect(H.buttonNamed(p, "TipsOk") == nil, "build", "no OK on the early tips")
 res = place("patch")
 H.expect(res.ok and prof.tut == 3, "build", "a veggie patch: the tips move on to a hut", tostring(res.err))
@@ -580,8 +580,8 @@ do
 end
 res = place("stall")
 H.expect(res.ok and prof.tut == 6, "build", "a snack stall: the tips move on to the last", string.format("%s tut %d", tostring(res.err), prof.tut))
-local tipWood = Buildings.byId.lumber.wood + Buildings.byId.patch.wood + Buildings.byId.nest.wood + Buildings.byId.stall.wood
-H.expect(#prof.plot.placed == 5 and tipWood <= Tuning.StartWood and prof.wood >= 0, "build", "the starting wood paid for every building the tips ask for (beside the tree)", string.format("%d pieces, %d wood of %d, %.0f left", #prof.plot.placed, tipWood, Tuning.StartWood, prof.wood))
+local tipCost = Buildings.byId.lumber.shells + Buildings.byId.patch.shells + Buildings.byId.nest.shells + Buildings.byId.stall.shells
+H.expect(#prof.plot.placed == 5 and tipCost <= Tuning.StartShells and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for (beside the tree) and the first egg", string.format("%d pieces, %d shells of %d, %.0f left", #prof.plot.placed, tipCost, Tuning.StartShells, prof.shells))
 res = place("orchard")
 H.expect(not res.ok and res.err == "locked", "build", "an orchard waits for a bigger island", tostring(res.err))
 res = place("tent")
@@ -589,18 +589,18 @@ H.expect(not res.ok and res.err == "bad_payload", "build", "no homes to build an
 res = place("tree")
 H.expect(not res.ok and res.err == "bad_payload", "build", "a second Tree of Life can't be bought", tostring(res.err))
 do
-	local w, sh = prof.wood, prof.shells
-	prof.wood = 5
+	local sh = prof.shells
+	prof.shells = 5
 	res = place("nest")
-	H.expect(not res.ok and res.err == "wood", "build", "not enough wood", tostring(res.err))
-	prof.wood, prof.shells = 1000, 0
+	H.expect(not res.ok and res.err == "money", "build", "not enough shells", tostring(res.err))
+	prof.shells = 1000
 	res = place("flowers")
-	H.expect(res.ok, "build", "no shells needed to build (wood pays)", tostring(res.err))
+	H.expect(res.ok and prof.wood == nil, "build", "shells pay for decor", tostring(res.err))
 	if res.ok then
 		res = H.req(p, "plot.store", { i = #prof.plot.placed })
 		H.expect(res.ok, "build", "(the flowers cleared away again)", tostring(res.err))
 	end
-	prof.wood, prof.shells = w, sh
+	prof.shells = sh
 end
 H.push(p, 0.4)
 local v = H.view(p)
@@ -728,7 +728,7 @@ local function housedN(): number
 end
 H.expect(housedN() == 1 and H.inClient(p, WV.ownCount) == housedN(), "days", "the hut's driftling walks the island", string.format("%d drawn, %d in huts", H.inClient(p, WV.ownCount), housedN()))
 local r = Island.rates(prof)
-H.expect(r.shells > 0 and r.wood > 0 and r.food == nil, "days", "wood and shells come in (a building works a little with nobody at it)", string.format("%.1f %.1f", r.wood, r.shells))
+H.expect(r.shells > 0 and r.wood == nil and r.food == nil, "days", "shells come in (a building works a little with nobody at it)", string.format("%.1f", r.shells))
 H.checkProfile(p, "days")
 mirror(p, "days")
 
@@ -755,7 +755,7 @@ local function weakest()
 	return weak
 end
 -- a fishing pier, so every kind of the first island's driftlings has a building of its knack to work at
-prof.wood = math.max(prof.wood, 400)
+prof.shells = math.max(prof.shells, 400)
 res = place("pier")
 H.expect(res.ok, "tree", "a fishing pier", tostring(res.err))
 -- EggView.best's rule on made-up eggs: three uncommons the shells don't cover and two commons they do; the uncommons
@@ -1079,7 +1079,7 @@ mirror(p, "tree")
 ------------------------------------------------------------------ 5. the Driftlings panel: moving, working, selling
 E.phase = "pals"
 -- a second hut, so there is somewhere to move one to
-prof.wood = math.max(prof.wood, 200)
+prof.shells = math.max(prof.shells, 200)
 res = place("nest")
 local hutA = pieceOf("nest")
 local hutB = prof.plot.placed[#prof.plot.placed]
@@ -1218,14 +1218,14 @@ E.run(0.4)
 H.expect(H.buttonNamed(p, "TipsOk") ~= nil, "panels", "the last tip has an OK")
 H.clickNamed(p, "TipsOk", { wait = 0.5 })
 H.expect(prof.tut == 0 and H.buttonNamed(p, "TipsOk") == nil, "panels", "OK puts the tips away for good")
--- expanding costs wood (GAME_DESIGN 3: "make wood the main resource for building/expanding"): short of it, refused
--- whatever the shells
-prof.shells, prof.wood = 1e6, 10
+-- expanding costs shells (GAME_DESIGN 3: "make shells the main currency, allowing you to buy decor and expansions with
+-- it"): short of them, refused
+prof.shells = 10
 res = H.req(p, "island.expand", {})
-H.expect(not res.ok and res.err == "wood" and prof.tier == 1, "panels", "Expand short of wood is refused, shells or not", tostring(res.err))
+H.expect(not res.ok and res.err == "money" and prof.tier == 1, "panels", "Expand short of shells is refused", tostring(res.err))
 -- expanding from the build tray: the next island was built ahead in the background, so the expansion swaps it in (no
 -- ~1,200 parts made in the frame of the click), and the cheer waits for the bigger island's picture
-prof.shells, prof.wood = 500, Tuning.TierCost[2] + 300
+prof.shells = Tuning.TierCost[2] + 800
 H.push(p, 0.4)
 local PS = H.smod("PlotService")
 local guardNext = 0
@@ -1236,7 +1236,7 @@ end
 local nt, nready, swaps0 = PS.debugNext(1)
 H.expect(nt == 2 and nready, "panels", "the next island is built ahead in the background", string.format("%s %s", tostring(nt), tostring(nready)))
 H.clickNamed(p, "Menu_build", { wait = 0.5 })
-local woodX, shellsX = prof.wood, prof.shells
+local shellsX, tX = prof.shells, E.now()
 -- (the eggs before: a bigger island lays more)
 local eggs0, eggIds0, fEggs = #prof.clutch.list, {}, #fx
 for _, e in prof.clutch.list do
@@ -1244,7 +1244,11 @@ for _, e in prof.clutch.list do
 end
 H.clickNamed(p, "Expand", { wait = 0 })
 H.expect(prof.tier == 2, "panels", "Expand: the island grows", tostring(prof.tier))
-H.expect(math.abs(prof.wood - (woodX - Tuning.TierCost[2])) < 2 and prof.shells >= shellsX - 1, "panels", "for its wood (no shells)", string.format("wood %+.1f (cost %d), shells %+.1f", prof.wood - woodX, Tuning.TierCost[2], prof.shells - shellsX))
+do
+	local own = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - tX) * 1.5 + 2
+	local moved = prof.shells - shellsX
+	H.expect(moved >= -Tuning.TierCost[2] - 2 and moved <= -Tuning.TierCost[2] + own, "panels", "for its shells", string.format("shells %+.1f (cost %d)", moved, Tuning.TierCost[2]))
+end
 local _, _, swaps1 = PS.debugNext(1)
 H.expect(swaps1 == swaps0 + 1, "panels", "the expansion swaps in the island built ahead", string.format("%d -> %d", swaps0, swaps1))
 local cheerAt = -1
@@ -1306,7 +1310,7 @@ end
 -- mode the Huts tab counts the huts out of the limit and the hut cards say No room, while the other tabs' count leaves
 -- the Tree of Life out; a bigger hut still replaces a small one at the limit. The huts added go again after
 do
-	prof.wood = math.max(prof.wood, 3000)
+	prof.shells = math.max(prof.shells, 3000)
 	local most = Plot.hutLimit(prof.tier)
 	local added = {}
 	local placedOk = most == Tuning.HutLimit[2] and Plot.huts(prof.plot.placed) < most
@@ -1448,10 +1452,10 @@ do
 				if c.lock ~= nil and c.lock ~= "No room" then
 					table.insert(bad, string.format("%s says %s", c.id, tostring(c.lock)))
 				end
-				if d.wood < lastWood then
+				if d.shells < lastWood then
 					table.insert(bad, "price order at " .. c.id)
 				end
-				lastWood = d.wood
+				lastWood = d.shells
 			end
 		end
 		return bad, #shown
@@ -1479,7 +1483,7 @@ do
 		return c and c.Text
 	end
 	TrayCheck.countText = countText
-	prof.wood = math.max(prof.wood, 20000)
+	prof.shells = math.max(prof.shells, 20000)
 	H.push(p, 0.4)
 	H.clickNamed(p, "Menu_build", { wait = 0.4 })
 	for _, t in TABS do
@@ -1588,11 +1592,11 @@ end
 -- a line goes along x then z, a box runs all the way round; each length lies on the even grid running east (rot 0) or
 -- south (rot 90). One fence drawn over another swaps it; Erase takes them down, half their price back
 E.phase = "fences"
--- the wood moved since w1 comes to `want`, give or take what the island made on its own since t1
+-- the shells moved since w1 come to `want`, give or take what the island made on its own since t1
 local function woodMoved(w1, want, t1)
-	local got = prof.wood - w1
-	local own = math.max(0, Island.rates(prof).wood) / Tuning.TurnSeconds * (E.now() - t1) * 1.5 + 0.5
-	return got >= want - 0.5 and got <= want + own, string.format("%+.1f wood (want %+d)", got, want)
+	local got = prof.shells - w1
+	local own = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - t1) * 1.5 + 0.5
+	return got >= want - 0.5 and got <= want + own, string.format("%+.1f shells (want %+d)", got, want)
 end
 -- the fence length on edge e of the island, or nil
 local function fenceOn(e)
@@ -1671,7 +1675,7 @@ do
 		fenceBox = { a, b }
 		H.log("fences: a box from %d,%d to %d,%d", a[1], a[2], b[1], b[2])
 		local edges = boxEdges(a, b)
-		local n0, w1, t1 = #prof.plot.placed, prof.wood, E.now()
+		local n0, w1, t1 = #prof.plot.placed, prof.shells, E.now()
 		local plan = H.inClient(p, BuildUI.debugDraw, { a, b }, "box")
 		E.run(0.4)
 		local all = true
@@ -1681,8 +1685,8 @@ do
 		end
 		H.expect(plannedAll(plan, "lay", #edges) and #edges == 14, "fences", "Box: the plan runs a length along each of the box's 14 edges", table.concat(plan, ","))
 		H.expect(all and #prof.plot.placed == n0 + #edges, "fences", "and the island gets them, all the way round", string.format("%d pieces (was %d)", #prof.plot.placed, n0))
-		local ok, say = woodMoved(w1, -#edges * Buildings.byId.ropefence.wood, t1)
-		H.expect(ok, "fences", "paid in wood, a length at a time", say)
+		local ok, say = woodMoved(w1, -#edges * Buildings.byId.ropefence.shells, t1)
+		H.expect(ok, "fences", "paid in shells, a length at a time", say)
 	end
 	-- a line from one corner to another: along x, then z
 	local lx, lz = fenceSpot("ropefence", function(x, z)
@@ -1708,7 +1712,7 @@ do
 		end
 		H.expect(#off == 0, "fences", "every length on the even grid, turned 0 or 90", table.concat(off, " "))
 		-- Erase: the line taken down, half its price back
-		local n0, w1, t1 = #prof.plot.placed, prof.wood, E.now()
+		local n0, w1, t1 = #prof.plot.placed, prof.shells, E.now()
 		plan = H.inClient(p, BuildUI.debugDraw, { a, b }, "erase")
 		E.run(0.4)
 		local gone = true
@@ -1716,7 +1720,7 @@ do
 			gone = gone and fenceOn(e) == nil
 		end
 		H.expect(plannedAll(plan, "lift", 5) and gone and #prof.plot.placed == n0 - 5, "fences", "Erase takes the line down", table.concat(plan, ","))
-		local ok, say = woodMoved(w1, 5 * math.floor(Buildings.byId.ropefence.wood * Tuning.Refund), t1)
+		local ok, say = woodMoved(w1, 5 * math.floor(Buildings.byId.ropefence.shells * Tuning.Refund), t1)
 		H.expect(ok, "fences", "half their price back", say)
 	end
 	-- one fence over another: a picket line along the box's north side swaps the rope there, the count unchanged
@@ -1731,7 +1735,7 @@ do
 			local q = fenceOn(e)
 			uids[i] = q and q.uid
 		end
-		local n0, w1, t1 = #prof.plot.placed, prof.wood, E.now()
+		local n0, w1, t1 = #prof.plot.placed, prof.shells, E.now()
 		local plan = H.inClient(p, BuildUI.debugDraw, { a, b }, "line")
 		E.run(0.4)
 		local swapped = true
@@ -1740,7 +1744,7 @@ do
 			swapped = swapped and q ~= nil and q.id == "picket" and q.uid == uids[i]
 		end
 		H.expect(plannedAll(plan, "swap", 4) and swapped and #prof.plot.placed == n0, "fences", "a picket fence drawn over the rope one swaps it where it runs", table.concat(plan, ","))
-		local ok, say = woodMoved(w1, -4 * (Buildings.byId.picket.wood - math.floor(Buildings.byId.ropefence.wood * Tuning.Refund)), t1)
+		local ok, say = woodMoved(w1, -4 * (Buildings.byId.picket.shells - math.floor(Buildings.byId.ropefence.shells * Tuning.Refund)), t1)
 		H.expect(ok, "fences", "for its price less half the old one's", say)
 	end
 	H.clickNamed(p, "Cancel", { wait = 0.2 })
@@ -1866,7 +1870,7 @@ do
 	if rx then
 		H.log("water: a river from %d,%d, five tiles long and two wide", rx, rz)
 		local cells = riverCells(rx, rz)
-		local n0, w1, t1 = #prof.plot.placed, prof.wood, E.now()
+		local n0, w1, t1 = #prof.plot.placed, prof.shells, E.now()
 		local plan = H.inClient(p, BuildUI.debugDraw, { { rx, rz }, { rx + 2 * (L - 1), rz + 2 } }, "box")
 		E.run(0.5)
 		local all = true
@@ -1874,8 +1878,8 @@ do
 			all = all and pieceAt("stream", c[1], c[2]) ~= nil
 		end
 		H.expect(plannedAll(plan, "lay", 2 * L) and all and #prof.plot.placed == n0 + 2 * L, "water", "a river two tiles wide dug in one box", table.concat(plan, ","))
-		local ok, say = woodMoved(w1, -2 * L * Buildings.byId.stream.wood, t1)
-		H.expect(ok, "water", "paid in wood, a tile at a time", say)
+		local ok, say = woodMoved(w1, -2 * L * Buildings.byId.stream.shells, t1)
+		H.expect(ok, "water", "paid in shells, a tile at a time", say)
 		local bad, n = maskProblems()
 		H.expect(n == 2 * L and #bad == 0, "water", "each tile's model in Static.Decor carries the water round it (its banks only at the river's edge)", table.concat(bad, " "))
 		H.clickNamed(p, "Cancel", { wait = 0.2 })
@@ -1916,11 +1920,11 @@ do
 		-- Erase the tile under them: they come up with it, half of both prices back; the bridge stays
 		H.clickNamed(p, "Chip_tiles", { wait = 0.2 })
 		H.clickNamed(p, "Buy_stream", { wait = 0.3 })
-		local w2, t2 = prof.wood, E.now()
+		local w2, t2 = prof.shells, E.now()
 		plan = H.inClient(p, BuildUI.debugDraw, { { rx, rz } }, "erase")
 		E.run(0.5)
 		H.expect(plannedAll(plan, "lift", 1) and pieceAt("stream", rx, rz) == nil and countOf("lilypads") == nPads, "water", "Erase on the tile under the lily pads takes them up with it", table.concat(plan, ","))
-		ok, say = woodMoved(w2, math.floor(Buildings.byId.stream.wood * Tuning.Refund) + math.floor(Buildings.byId.lilypads.wood * Tuning.Refund), t2)
+		ok, say = woodMoved(w2, math.floor(Buildings.byId.stream.shells * Tuning.Refund) + math.floor(Buildings.byId.lilypads.shells * Tuning.Refund), t2)
 		H.expect(ok, "water", "half the tile's price back and half the lily pads'", say)
 		H.expect(pieceAt("plankbridge", bx, bz) ~= nil, "water", "the bridge stays")
 		bad = maskProblems()
@@ -2028,14 +2032,14 @@ do
 		local what2 = p.PlayerGui:FindFirstChild("What", true)
 		H.expect(what2 ~= nil and what2.Text == "Placing: Sandcastle" and H.buttonNamed(p, "Copy") == nil, "decor", "Copy: another sandcastle picked to place", what2 and what2.Text)
 		local cx, cz = spot("sandcastle", 0)
-		local n0, w1, t1 = countOf("sandcastle"), prof.wood, E.now()
+		local n0, w1, t1 = countOf("sandcastle"), prof.shells, E.now()
 		if cx then
 			tapFor("sandcastle", cx, cz)
 			H.clickNamed(p, "Place", { wait = 0.6 })
 		end
 		local copy = cx and pieceAt("sandcastle", cx, cz)
 		H.expect(copy ~= nil and countOf("sandcastle") == n0 + 1 and pieceAt("sandcastle", sx, sz) == q, "decor", "Place: a second sandcastle, the first where it was", string.format("%d sandcastles", countOf("sandcastle")))
-		local ok, say = woodMoved(w1, -Buildings.byId.sandcastle.wood, t1)
+		local ok, say = woodMoved(w1, -Buildings.byId.sandcastle.shells, t1)
 		H.expect(ok, "decor", "the copy paid for", say)
 		H.clickNamed(p, "Cancel", { wait = 0.2 })
 		-- Replace: only the others of its row (the beach's, open at this level), each with its price; one taken
@@ -2134,16 +2138,16 @@ H.expect(sent, "quests", "a driftling sent to work at a building of another knac
 H.push(p, 0.5)
 H.expect(H.buttonNamed(p, "QuestClaim") ~= nil, "quests", "a driftling at work: Claim shows")
 do
-	local shells0, wood0q = prof.shells, prof.wood
+	local shells0 = prof.shells
 	local reward = Quests.list[1].reward
 	H.clickNamed(p, "QuestClaim", { wait = 0.5 })
-	H.expect(prof.quest == 2 and prof.shells >= shells0 + (reward.shells or 0) and prof.wood >= wood0q + (reward.wood or 0), "quests", "Claim pays the reward (shells and wood) and moves on", string.format("quest %d, shells %+d, wood %+d", prof.quest, prof.shells - shells0, prof.wood - wood0q))
+	H.expect(prof.quest == 2 and prof.shells >= shells0 + (reward.shells or 0), "quests", "Claim pays the reward (shells) and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
 end
--- a quest's Go naming an old tab ("build:wood": More wood) opens Build mode on Work's row of that name
+-- a quest's Go naming an old tab ("build:wood": Another camp) opens Build mode on Work's row of that name
 do
 	prof.quest = questAt("camp")
 	H.push(p, 0.5)
-	H.expect(Quests.list[questAt("camp")].go == "build:wood" and H.buttonNamed(p, "QuestGo") ~= nil, "quests", "the quest card: More wood, with Go")
+	H.expect(Quests.list[questAt("camp")].go == "build:wood" and H.buttonNamed(p, "QuestGo") ~= nil, "quests", "the quest card: Another camp, with Go")
 	H.clickNamed(p, "QuestGo", { wait = 0.5 })
 	local st = H.inClient(p, BuildUI.debugState)
 	H.expect(H.inClient(p, BuildUI.isOpen) and st.tab == "work" and st.chip == "wood" and H.buttonNamed(p, "Buy_lumber") ~= nil, "quests", "Go on it opens Build mode on Work's Wood row", string.format("%s %s", tostring(st.tab), tostring(st.chip)))
@@ -2252,7 +2256,7 @@ mirror(p, "quests")
 E.phase = "malicious"
 local function snap()
 	local q = H.profile(p)
-	return { placed = #q.plot.placed, pals = #q.pals, tier = q.tier, skin = q.founder.skin, tut = q.tut, sold = q.stats.sold, taken = q.stats.taken, wood = math.floor(q.wood / 1000), eggs = idsOf(q.clutch.list), eggNext = q.clutch.next }
+	return { placed = #q.plot.placed, pals = #q.pals, tier = q.tier, skin = q.founder.skin, tut = q.tut, sold = q.stats.sold, taken = q.stats.taken, eggs = idsOf(q.clutch.list), eggNext = q.clutch.next }
 end
 local function expectRefused(label, ok, out, err)
 	H.expect(ok and type(out) == "table" and out.ok == false and out.err == err, "malicious", label .. " refused with " .. err, string.format("%s %s", tostring(ok), type(out) == "table" and tostring(out.err) or tostring(out)))
@@ -2268,7 +2272,7 @@ end
 H.expect(TreeL.room(prof) == 0 and #prof.clutch.list > 0, "malicious", "(the huts filled from the tree's eggs, some left)", string.format("room %d, %d eggs", TreeL.room(prof), #prof.clutch.list))
 -- (the shells aside: every building works a little with nobody at it, so the farms and the stall go on selling;
 -- they are checked apart, a jump being what a refusal let through)
-prof.wood = 5500
+prof.shells = math.max(prof.shells, 5500)
 H.push(p, 0.3)
 local before = snap()
 local shellsBefore = prof.shells
@@ -2520,7 +2524,7 @@ do
 	end
 	local nt, nready, swaps0 = PS.debugNext(1)
 	H.expect(nt == 10 and nready, "haven", "Driftling Haven is built ahead in the background", string.format("%s %s", tostring(nt), tostring(nready)))
-	prof.wood = Tuning.TierCost[10] + 3000000
+	prof.shells = Tuning.TierCost[10] + 3000000
 	H.push(p, 0.4)
 	H.clickNamed(p, "Menu_build", { wait = 0.4 })
 	H.clickNamed(p, "Tab_decor", { wait = 0.3 })
@@ -2538,13 +2542,15 @@ do
 	res = H.req(p, "plot.place", { id = "rainbowarch", x = 0, z = -20, rot = 0 })
 	H.expect(not res.ok and res.err == "locked", "haven", "and the server won't build it yet (locked)", tostring(res.err))
 	local cost = p.PlayerGui:FindFirstChild("ExpandCost", true)
-	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Tuning.TierCost[10])) ~= nil, "haven", "Expand on, its price the last step's wood", cost and table.concat(H.textsOf(cost), "/"))
-	local wood1, f1, eggs1 = prof.wood, #fx, #prof.clutch.list
+	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Tuning.TierCost[10])) ~= nil, "haven", "Expand on, its price the last step's shells", cost and table.concat(H.textsOf(cost), "/"))
+	local wood1, f1, eggs1, tH = prof.shells, #fx, #prof.clutch.list, E.now()
 	H.clickNamed(p, "Expand", { wait = 0 })
 	local cheer = E.runUntil(function()
 		return statusSays("Your island grew into Driftling Haven.")
 	end, 2, 0.05)
-	H.expect(prof.tier == 10 and math.abs(prof.wood - (wood1 - Tuning.TierCost[10])) < 2, "haven", "Expand: tier 10 for its wood", string.format("tier %d, wood %+.0f", prof.tier, prof.wood - wood1))
+	local ownH = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - tH) * 1.5 + 2
+	local movedH = prof.shells - wood1
+	H.expect(prof.tier == 10 and movedH >= -Tuning.TierCost[10] - 2 and movedH <= -Tuning.TierCost[10] + ownH, "haven", "Expand: tier 10 for its shells", string.format("tier %d, shells %+.0f", prof.tier, movedH))
 	local grew = ""
 	for _, d in p.PlayerGui:GetDescendants() do
 		if d:IsA("TextLabel") and string.find(d.Text, "grew", 1, true) then

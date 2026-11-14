@@ -13,7 +13,7 @@ local StateClient = {}
 local current: Types.ClientView? = nil
 StateClient.Changed = Util.Signal() :: Types.Signal<Types.ClientView>
 StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
--- The island's stores every second (Fx "tick"): the view's shells, wood and time of day are patched in place, no whole
+-- The island's store every second (Fx "tick"): the view's shells and time of day are patched in place, no whole
 -- view is sent.
 StateClient.Tick = Util.Signal() :: Types.Signal<Types.ClientView>
 -- the time to the tree's next eggs as the server last said, and when (the client runs it down between its ticks)
@@ -43,7 +43,7 @@ function StateClient.init()
 		if type(msg) == "table" then
 			local cur = current
 			if msg.kind == "tick" and cur then
-				for _, k in { "shells", "wood", "dayFrac" } do
+				for _, k in { "shells", "dayFrac" } do
 					local x = msg[k]
 					if type(x) == "number" and x == x then
 						(cur :: any)[k] = x

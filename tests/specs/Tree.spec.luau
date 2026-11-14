@@ -17,7 +17,7 @@ local Util = require("../../build/luautest/shared/Logic/Util")
 
 local function fresh(): any
 	local p = Schema.default(0, 7)
-	p.shells, p.wood = 1e7, 1e7
+	p.shells = 1e7
 	return p
 end
 
@@ -43,23 +43,22 @@ local function egg(p: any, r: number): any
 end
 
 return function()
-	T.it("a new island has its Tree of Life and two stores: wood to build, shells for eggs", function()
+	T.it("a new island has its Tree of Life and one store: shells to build and for eggs", function()
 		local p = Schema.default(0, 1)
 		T.eq(#p.plot.placed, 1, "only the tree")
 		T.eq(p.plot.placed[1].id, Tree.ID)
 		T.truthy(Tree.piece(p) ~= nil)
-		T.eq(p.wood, Tuning.StartWood)
+		T.eq((p :: any).wood, nil, "no wood: one store since 2026-11-14")
 		T.eq(p.shells, Tuning.StartShells)
 		T.eq((p :: any).food, nil, "no food")
 		T.eq(#p.clutch.list, 0, "its first eggs come the moment the player arrives")
 		T.eq(p.clutch.left, 0)
-		-- the tips' buildings fit the starting wood (a camp, a patch, a hut)
+		-- the tips' buildings (a camp, a patch, a hut, a stall) and a few first eggs fit the starting shells
 		local need = 0
-		for _, id in { "lumber", "patch", "nest" } do
-			need += Buildings.byId[id].wood
-			T.eq(Buildings.byId[id].shells, 0, id .. " costs no shells")
+		for _, id in { "lumber", "patch", "nest", "stall" } do
+			need += Buildings.byId[id].shells
 		end
-		T.truthy(need <= Tuning.StartWood, "the tips' buildings: " .. need)
+		T.truthy(need + 4 * Tuning.EggPrice[1] * Tuning.EggTier[1] <= Tuning.StartShells, "the tips' buildings: " .. need)
 	end)
 
 	T.it("the tree lays EggCount eggs every EggSecs, the ones left going; each one's price", function()

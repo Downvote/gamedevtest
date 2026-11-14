@@ -708,7 +708,6 @@ function Tree.plant(p: Profile): Types.Piece?
 		local d = Buildings.byId[q.id]
 		if d then
 			p.shells += d.shells
-			p.wood += d.wood
 		end
 		for _, pal in p.pals do
 			if pal.work == q.uid then

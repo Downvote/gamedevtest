@@ -60,7 +60,7 @@ local function place(p: any, id: string)
 end
 local function played(): any
 	local p = Schema.default(1000, 7)
-	p.shells, p.wood = 1e5, 1e5
+	p.shells = 1e5
 	place(p, "stall")
 	place(p, "patch")
 	place(p, "nest")
@@ -93,7 +93,7 @@ return function()
 		T.eq((p :: any).tree, nil, "no tree levels")
 		T.deepEq(p.clutch, { left = 0, list = {}, next = 1 }, "its first eggs laid when the player arrives")
 		T.eq((p :: any).food, nil, "no food")
-		T.eq(p.wood, Tuning.StartWood)
+		T.eq((p :: any).wood, nil, "no wood: one store")
 		T.deepEq(Schema.default(1, 5).plot.placed, Schema.default(1, 5).plot.placed, "the same place every time")
 	end)
 	T.it("reconcile keeps a played profile as it is", function()
@@ -107,7 +107,7 @@ return function()
 		for _, raw in { nil, 5, "x", {}, { v = 5, shells = 0 / 0, food = -5, tier = 99, folk = "no", pals = { { sp = "dragon" }, 7 }, plot = { placed = { { uid = 1, id = "castle", x = 0, z = 0, rot = 0 }, 3 } }, seen = { pebblit = 9, x = 1 }, tree = { luck = 99, speed = -4, t = 0 / 0 } } } :: { any } do
 			local p = Schema.reconcile(raw, 1000, 3)
 			T.truthy(p.shells == p.shells and p.shells >= 0, "shells")
-			T.truthy(p.wood == p.wood and p.wood >= 0, "wood")
+			T.eq((p :: any).wood, nil, "no wood")
 			T.eq((p :: any).food, nil)
 			T.truthy(p.tier >= 1 and p.tier <= #Tuning.TierCost)
 			T.eq(#built(p), 0)
@@ -254,7 +254,7 @@ return function()
 			{ id = 8002, sp = "sunsprite", lvl = 3, xp = 0, work = 0, muts = {} },
 			{ id = 8003, sp = "mossbun", lvl = 2, xp = 0, work = 0, muts = {} },
 		}
-		local shells, wood = raw.shells, raw.wood
+		local shells = raw.shells
 		local p = Schema.reconcile(raw, 2000, 9) :: any
 		T.eq(p.v, Schema.VERSION)
 		for _, k in { "cap", "pouch", "islets", "sea", "wilds" } do
@@ -265,7 +265,7 @@ return function()
 			T.truthy(q.id ~= "yard", "no yard")
 		end
 		T.eq(treeCount(p), 1, "a tree")
-		T.truthy(p.shells >= shells + 450 and p.wood >= wood + 50, "the yard's price back")
+		T.truthy(p.shells >= shells + 450 + 50 and p.wood == nil, "the yard's price back (its wood as shells)")
 		T.eq(p.folk, nil, "no villagers")
 		T.eq(p.pals[1].home, nest, "the first two in the nest, as before")
 		T.eq(p.pals[2].home, nest)
@@ -294,7 +294,7 @@ return function()
 		raw.tut = 6
 		table.insert(raw.plot.placed, { uid = 7101, id = "tent", x = 9, z = 8, rot = 0, lvl = 1 })
 		table.insert(raw.plot.placed, { uid = 7102, id = "villa", x = -9, z = 8, rot = 0, lvl = 2 })
-		local shells, wood = raw.shells, raw.wood
+		local shells = raw.shells
 		local p = Schema.reconcile(raw, 2000, 9) :: any
 		T.eq(p.v, Schema.VERSION)
 		T.eq(p.folk, nil, "no villagers")
@@ -303,8 +303,8 @@ return function()
 			T.truthy(q.id ~= "tent" and q.id ~= "villa", "no homes")
 		end
 		T.eq(#built(p), 4, "the rest stays")
-		T.eq(p.shells, shells + 30 + 20000, "the homes' price back")
-		T.eq(p.wood, wood + 2000)
+		T.eq(p.shells, shells + 30 + 20000 + 2000, "the homes' price back (their wood as shells)")
+		T.eq(p.wood, nil)
 		T.eq(p.tut, 5, "one step back")
 		T.eq(#p.pals, 2, "the driftlings stay")
 		T.eq(p.pals[1].work, built(p0)[4].uid, "at work as before")
@@ -392,7 +392,7 @@ return function()
 		local full = roundTrip(p0)
 		full.v = 12
 		full.plot.placed = {}
-		full.wood = 0
+		full.shells = 0
 		local uid = 100
 		local r = Street.plot(1)
 		for z = r.z0 - r.z0 % 2, r.z1, 2 do
@@ -406,17 +406,41 @@ return function()
 		full.pals = {}
 		local q = Schema.reconcile(full, 2000, 9) :: any
 		T.eq(treeCount(q), 1, "room made for the tree")
-		T.truthy(q.wood > 0, "the paths it took up paid back")
+		T.truthy(q.shells > 0, "the paths it took up paid back")
 		-- a saved lot of eggs is kept as it was (leaving and coming back lays no new one)
 		local p2 = roundTrip(p)
 		p2.clutch = { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 9 }, { id = 4, r = 1 }, "x" }, next = 2 }
 		local q2 = Schema.reconcile(p2, 2000, 9) :: any
 		T.deepEq(q2.clutch, { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 5 } }, next = 5 }, "cleaned: a rarity in range, ids once, next past them")
 	end)
+	T.it("a version 14 save (two stores): its wood is added to its shells, one for one, and the wood goes", function()
+		-- (the request of 2026-11-14: "make shells the main currency ... remove wood as a currency")
+		local raw = roundTrip(played())
+		raw.v = 14
+		raw.shells = 1234
+		raw.wood = 5678
+		local p = Schema.reconcile(raw, 2000, 9) :: any
+		T.eq(p.v, Schema.VERSION)
+		T.eq(p.shells, 1234 + 5678, "the wood folded in")
+		T.eq(p.wood, nil, "no wood")
+		T.eq(#built(p), 4, "what was built stays")
+		local again = Schema.reconcile(roundTrip(p), 2000, 9)
+		T.deepEq(again, p, "and stays put on the next load")
+		-- garbage wood adds nothing, and never spoils the shells
+		for _, w in { 0 / 0, -50, "x", math.huge } :: { any } do
+			local bad = roundTrip(played())
+			bad.v = 14
+			bad.shells = 300
+			bad.wood = w
+			local q = Schema.reconcile(bad, 2000, 9) :: any
+			T.truthy(q.shells == q.shells and q.shells >= 300 and q.shells <= 1e12, "shells kept: " .. tostring(w))
+			T.eq(q.wood, nil)
+		end
+	end)
 	T.it("a version 13 save: the old one-piece fence and hedge come up with their price back; drawn pieces checked", function()
 		local raw = roundTrip(played())
 		raw.v = 13
-		local w0 = raw.wood
+		local s0 = raw.shells
 		table.insert(raw.plot.placed, { uid = 900, id = "fence", x = 9, z = 4, rot = 0, lvl = 1 })
 		table.insert(raw.plot.placed, { uid = 901, id = "hedge", x = 6, z = -4, rot = 90, lvl = 1 })
 		-- a fence length off the even grid, one turned the wrong way, and good ones (a fence, water, a path far north)
@@ -433,7 +457,7 @@ return function()
 			has[q.uid] = true
 		end
 		T.truthy(not has[900] and not has[901], "the old fence and hedge are gone")
-		T.eq(p.wood, w0 + 25 + 120, "their whole price back")
+		T.eq(p.shells, s0 + 25 + 120, "their whole price back (in wood then, shells now)")
 		T.truthy(not has[902] and not has[903], "a fence off the grid or turned wrong")
 		T.truthy(has[904] and has[905], "a fence length and a water tile kept")
 		T.truthy(has[906], "the biggest island's far north")

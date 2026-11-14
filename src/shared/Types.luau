@@ -40,8 +40,7 @@ export type Egg = { uid: number, a: number, b: number, sp: string, muts: { strin
 
 export type Profile = {
 	v: number,
-	shells: number, -- what driftlings cost (GAME_DESIGN 3)
-	wood: number, -- what building costs
+	shells: number, -- the one store: driftlings, building and growing the island (GAME_DESIGN 3; wood went 2026-11-14)
 	day: number, -- the island's day (1 at the start)
 	tier: number, -- the island's size (Data/Office tier)
 	founder: Look, -- the player's chibi (AvatarView)
@@ -61,7 +60,6 @@ export type Profile = {
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
 export type ClientView = {
 	shells: number,
-	wood: number,
 	day: number,
 	dayFrac: number, -- how far into the sea's calendar day (0 dawn .. 1; a day is Tuning.DaySeconds: hours)
 	clock: number, -- the sea's clock (WorldClock.now: seconds); the season and the weather come from it (Logic/Weather)
@@ -79,10 +77,10 @@ export type ClientView = {
 	quest: number,
 	stats: Stats,
 	settings: Settings,
-	rates: { wood: number, shells: number }, -- a turn
+	rates: { shells: number }, -- a turn, the charm bonus in
 	charm: number,
+	charmBonus: number, -- the share charm adds to every shell the island makes (Logic/Island.charmBonus: 0.25 = +25%)
 	nests: number, -- the huts' room
-	visitors: number, -- a turn
 }
 
 export type ErrCode =
@@ -92,7 +90,6 @@ export type ErrCode =
 	| "not_ready"
 	| "busy"
 	| "money"
-	| "wood"
 	| "no_hut"
 	| "huts"
 	| "fixed"

@@ -21,28 +21,29 @@ local Tuning = {
 
 	-- the island (GAME_DESIGN 3-5): it makes and eats by the turn (TurnSeconds while the player is here: every rate is
 	-- a turn's); the calendar day (the clock, day and night, the day count) is DaySeconds of the sea's clock, the same
-	-- for every island on the server. The driftlings do all the work (no villagers since 2026-11-12). Two stores
-	-- ("make wood the main resource for building/expanding and shells the main resource of getting new driftlings.
-	-- remove food as a resource"): wood pays for every piece and for growing the island, shells for the driftlings
-	StartWood = 300, -- the tips' buildings (a camp, a patch, a hut, a stall) and plenty over
+	-- for every island on the server. The driftlings do all the work (no villagers since 2026-11-12). One store since
+	-- 2026-11-14 ("make shells the main currency, allowing you to buy decor and expansions with it. remove wood as a
+	-- currency"): shells pay for the driftlings, every piece and growing the island
 	-- the Work and Huts tabs' buildings (farms, lumber, shops, boosts, huts, the Hatchery) cost this share of the price
 	-- Data/Buildings lists for them, to two figures (the request of 2026-11-13: "make it much cheaper to buy work and
 	-- hut buildings")
 	BuildingPrice = 0.3,
-	StartShells = 60, -- the first eggs
+	StartShells = 360, -- the tips' buildings (a camp, a patch, a hut, a stall: 80 at BuildingPrice), the first eggs and plenty over (the old 300 wood and 60 shells together)
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
 	PalWork = 0.6, -- a common driftling working at a building of its knack makes this share of its rate ...
 	RarityWork = { 1, 1.6, 2.5, 4, 7 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
 	HelpMax = 2, -- driftlings working at one building at most
-	VisitorCharm = 15, -- visitors a turn: 1 + charm / this ...
-	VisitorsMax = 14, -- ... at most
-	ShopVisitors = 4, -- a shop sells its rate with this many visitors a turn (more sell more, up to x2)
+	-- charm raises every shell the island makes (the request of 2026-11-14: "remove the visitors mechanic, charm simply
+	-- increases your shell gain"): times 1 + CharmMax x charm / (charm + CharmHalf), a soft curve: the first decor
+	-- counts the most, and the bonus never passes CharmMax
+	CharmMax = 1,
+	CharmHalf = 200,
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
-	-- growing the island, in wood (cheaper early on: "expanding island costs too much, make them cheaper early on"),
+	-- growing the island, in shells (wood until 2026-11-14; cheaper early on: "expanding island costs too much, make them cheaper early on"),
 	-- ten tiers since "make more island progression and allow the player to expand their land even more"
 	-- (GAME_DESIGN 4): the old wall before Harbor Town lower, four bigger islands past Sunspire Capital
 	TierCost = { 0, 600, 9000, 60000, 160000, 380000, 800000, 1600000, 3000000, 5000000 },
@@ -158,7 +159,7 @@ local Tuning = {
 	GrowSecs = 1.9, -- seconds the coast takes to move out from the old shore to the new one (eased out)
 	GrowArmSecs = 3, -- seconds an armed growth waits for the bigger island's bake to begin before it lapses
 	PixelDisplayOrder = -100,
-	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's driftlings, visitors and founders)
+	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's driftlings and founders)
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }
 
