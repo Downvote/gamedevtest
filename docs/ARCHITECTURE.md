@@ -774,9 +774,14 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   0 by day and in the golden dusk, 1 at night) and 0.85 at most. As it gets dark the luminance over a knee is pressed
   down (`press`: up to 0.45 of it for white at night), so pale colours (shells, sand, sails) don't glow.
 - **Surface textures** (GAME_DESIGN 2: "textured objects", "wood detail"; Random Bakery's material texture, widened):
-  a static pixel of a textured colour may be shaded a band darker or lighter on its own ramp (`Shading.toonAt`'s
+  a static pixel of a textured colour may be shaded toward the band darker or lighter on its own ramp (`Shading.toonAt`'s
   `lift`) as it is shaded at bake time (`shadeAt`: the bake, a pan's strips, a re-cast, `refineShadows`), so it costs
-  no ray. `Shading.texKind(rgb)` names the kind from the palette (`TEX_WOOD`: wood, wood_dark, bamboo, desk;
+  no ray. Since the request of 2026-11-14 ("make the noise textures across everything more less contrast with
+  whatever material they are on, such as the 2d grass sprites and the sand dots") a mark takes only part of that step:
+  `toonAt(..., lift, soft)` mixes the surface's band colour and the stepped one channel by channel, `soft` of the way
+  (`Shading.softMix`, cached by the pair; both ends are tones of the same ramp, so no new hue and no palette snap),
+  by kind `Shading.TEX_SOFT` (before: a whole band, 1): grass 0.45, sand 0.5, stone 0.45, wood 0.5, thatch 0.5, brick
+  0.6, metal 0.55, glass 1 (its body is the material, not a mark). `Shading.texKind(rgb)` names the kind from the palette (`TEX_WOOD`: wood, wood_dark, bamboo, desk;
   `TEX_METAL`: steel, steel_dark; `TEX_GLASS`: window; `TEX_GRASS`: grass, grass_dark, moss, leaf, leaf_dark, swamp;
   `TEX_SAND`: sand, sand_dark; `TEX_STONE`: rock, rock_dark, slate, basalt, pavement; `TEX_THATCH`: straw;
   `TEX_BRICK`: brick; clay stays plain: here it is pots, jars, tent stripes and roof tiles). The first time the bake
@@ -804,7 +809,8 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   along the pixel's ray (`Shade`'s seventh argument; the solids pass it, a uniform face never needs it), the shade
   finds the hit point in the part's own frame, lays it flat round the part's axis (`DynTex.uv`: a ball round its Y, a
   cylinder round its X, a box across and up) and `DynTex.lift(kind, u, v, px, seed)` says whether the pixel steps a
-  band lighter (+1) or darker (-1) on its ramp (`Shading.toonAt`'s lift). The patterns are measured in art px (`px`
+  band lighter (+1) or darker (-1) on its ramp (`Shading.toonAt`'s lift, half of the step: `DynTex.SOFT` 0.5, a
+  whole band before 2026-11-14). The patterns are measured in art px (`px`
   studs a pixel), so a mark is one pixel at any zoom: fur, fluff, feather, scale, shell, stone, brick, bark, crystal,
   skin, ice, velvet, chitin, jelly, ember. Below the threshold (the islands, 8 px a stud) parts draw plain.
 - **Effects** (`addFxLayer(name, draw: (Fx.Ctx) -> ()) -> () -> ()`; `Render/Fx`; the request of 2026-11-13: "use 2d
@@ -984,7 +990,8 @@ smokehouse's `Vent`) smoking, `Steam`, `Teapot`, `Mug` steaming; the cells the p
 building). A tick (`draw`, nothing while `CameraController.view().stage`): `stepLife` (the birds, the butterflies,
 leaves, wisps, a fish, fireflies), then the tufts and flowers (`drawDecos`: once per `ver`, whether the lawn itself
 shows at the tuft's foot (an up-facing static pixel at its depth whose albedo is the grass or the dark grass) and the
-lawn's tones there (`Fx.tones` of the static colour); stuck with `Fx.stickSprite` in the frame of the gust passing
+lawn's tones there (`Fx.tones` of the static colour, pulled toward it: `softTones`, `TUFT_K` 0.38 of each step
+kept, a flower's petals `FLOWER_K` 0.6; whole tones before 2026-11-14); stuck with `Fx.stickSprite` in the frame of the gust passing
 (`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share), the sea's
 glints (a few a second on random sea or shallows pixels, by `sWClass`; fewer at night), splash rings, the fish, the
 particles (`Fx.step`: drops, wisps, leaves), the birds and the butterflies, the fireflies last. Birds (`stepBird`;

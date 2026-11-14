@@ -324,10 +324,52 @@ function Shading.toon(rgb: number, nx: number, ny: number, nz: number, lit: numb
 	return c
 end
 
+-- A texture mark's colour partway between two packed colours (the surface's own band and the band the mark steps to):
+-- `soft` of the way (0 .. 1), per channel, no palette snap (both ends are tones of the same ramp, so the mark stays
+-- in its material's hue). Cached by the pair and the share.
+local softCache: { [number]: { [number]: number } } = {}
+local softCount = 0
+local function softMix(base: number, full: number, soft: number): number
+	local q = math.floor(soft * 20 + 0.5)
+	local row = softCache[base]
+	if row == nil then
+		if softCount > 4096 then
+			table.clear(softCache)
+			softCount = 0
+		end
+		row = {}
+		softCache[base] = row
+		softCount += 1
+	end
+	local key = full * 32 + q
+	local hit = row[key]
+	if hit then
+		return hit
+	end
+	local k = q / 20
+	local r0, g0, b0 = bit32.band(base, 0xFF), bit32.band(bit32.rshift(base, 8), 0xFF), bit32.band(bit32.rshift(base, 16), 0xFF)
+	local r1, g1, b1 = bit32.band(full, 0xFF), bit32.band(bit32.rshift(full, 8), 0xFF), bit32.band(bit32.rshift(full, 16), 0xFF)
+	local c = math.floor(r0 + (r1 - r0) * k + 0.5) + math.floor(g0 + (g1 - g0) * k + 0.5) * 256 + math.floor(b0 + (b1 - b0) * k + 0.5) * 65536 + ALPHA
+	row[key] = c
+	return c
+end
+Shading.softMix = softMix
+
 -- Shading.toon in a place (Shading.OUTDOOR, INDOOR or SUNLIT: its own tint and LUT). `lift` > 0 raises the band one
 -- step (a pixel seen through a shaft of window light, a metal's specular streak); a lit pixel that is lifted turns
--- sunlit instead. `lift` < 0 lowers it one step (wood grain, a glass body), at most to the shade band.
-function Shading.toonAt(rgb: number, nx: number, ny: number, nz: number, lit: number, x: number, y: number, place: number, lift: number): number
+-- sunlit instead. `lift` < 0 lowers it one step (wood grain, a glass body), at most to the shade band. `soft` (0 .. 1,
+-- default 1) takes only that share of the step: a texture's mark a gentle tone between the surface and the next band
+-- (the request of 2026-11-14: "make the noise textures across everything more less contrast with whatever material
+-- they are on"; Shading.TEX_SOFT).
+function Shading.toonAt(rgb: number, nx: number, ny: number, nz: number, lit: number, x: number, y: number, place: number, lift: number, soft: number?): number
+	if lift ~= 0 and soft ~= nil and soft < 1 and lit <= 1 then
+		local base = Shading.toonAt(rgb, nx, ny, nz, lit, x, y, place, 0)
+		local full = Shading.toonAt(rgb, nx, ny, nz, lit, x, y, place, lift)
+		if base == full or soft <= 0 then
+			return base
+		end
+		return softMix(base, full, soft)
+	end
 	local bi: number
 	if lit > 1 then
 		bi = 1
@@ -463,6 +505,21 @@ for key, kind in TEX_KEYS do
 		texByRgb[c] = kind
 	end
 end
+
+-- How far each texture's marks step toward the next band (Shading.toonAt's `soft`): the request of 2026-11-14, "make
+-- the noise textures across everything more less contrast with whatever material they are on, such as the 2d grass
+-- sprites and the sand dots". A whole band (1) read as dark and bright dots; now the marks are gentle variation, the
+-- sand's and the grass's softest. Glass keeps its whole step (its body is the material, not a mark).
+Shading.TEX_SOFT = {
+	[Shading.TEX_WOOD] = 0.5,
+	[Shading.TEX_METAL] = 0.55,
+	[Shading.TEX_GLASS] = 1,
+	[Shading.TEX_GRASS] = 0.45,
+	[Shading.TEX_SAND] = 0.5,
+	[Shading.TEX_STONE] = 0.45,
+	[Shading.TEX_THATCH] = 0.5,
+	[Shading.TEX_BRICK] = 0.6,
+} :: { [number]: number }
 
 -- The texture kind (Shading.TEX_*) of a surface of colour `rgb` (0xRRGGBB); TEX_NONE for a plain one.
 function Shading.texKind(rgb: number): number

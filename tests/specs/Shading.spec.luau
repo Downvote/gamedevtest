@@ -576,6 +576,43 @@ return function()
 		T.eq(Shading.toonAt(C.wood, 0, 0, 1, 1, 0, 0, Shading.OUTDOOR, -1), Shading.tone(C.wood, 3))
 	end)
 
+	-- the request of 2026-11-14: "make the noise textures across everything more less contrast with whatever material
+	-- they are on, such as the 2d grass sprites and the sand dots": a texture's mark takes only part of the step to the
+	-- next band (Shading.TEX_SOFT), so it sits between the surface's colour and that band, in the same hue
+	T.it("textures: a soft mark sits partway between the surface and the next band", function()
+		restoreDefaults()
+		local C = Palette.colors
+		local function chan(c: number, k: number): number
+			return bit32.band(bit32.rshift(c, k), 0xFF)
+		end
+		local function lum(c: number): number
+			return 0.3 * chan(c, 0) + 0.59 * chan(c, 8) + 0.11 * chan(c, 16)
+		end
+		for name, kind in { grass = Shading.TEX_GRASS, sand = Shading.TEX_SAND, rock = Shading.TEX_STONE, wood = Shading.TEX_WOOD, straw = Shading.TEX_THATCH, brick = Shading.TEX_BRICK, steel = Shading.TEX_METAL } do
+			local soft = Shading.TEX_SOFT[kind]
+			T.truthy(soft ~= nil and soft > 0.2 and soft < 1, name .. ": its marks soften (" .. tostring(soft) .. ")")
+			local rgb = C[name]
+			for _, lift in { -1, 1 } do
+				local base = Shading.toonAt(rgb, 0, 1, 0, 1, 0, 0, Shading.OUTDOOR, 0)
+				local full = Shading.toonAt(rgb, 0, 1, 0, 1, 0, 0, Shading.OUTDOOR, lift)
+				local mark = Shading.toonAt(rgb, 0, 1, 0, 1, 0, 0, Shading.OUTDOOR, lift, soft)
+				local lb, lf, lm = lum(base), lum(full), lum(mark)
+				T.truthy(math.abs(lm - lb) <= math.abs(lf - lb) + 0.5, string.format("%s %+d: no further than a whole band", name, lift))
+				if full ~= base then
+					T.truthy(math.abs(lm - lb) < math.abs(lf - lb) * 0.8, string.format("%s %+d: softer than a whole band (%.1f of %.1f)", name, lift, math.abs(lm - lb), math.abs(lf - lb)))
+					T.truthy((lm - lb) * (lf - lb) > 0, string.format("%s %+d: still a mark, the right way", name, lift))
+				end
+				for _, k in { 0, 8, 16 } do
+					local lo, hi = math.min(chan(base, k), chan(full, k)), math.max(chan(base, k), chan(full, k))
+					T.truthy(chan(mark, k) >= lo and chan(mark, k) <= hi, string.format("%s %+d: each channel between the two (the same hue)", name, lift))
+				end
+			end
+		end
+		-- no soft value, or 1: the whole band, as before
+		T.eq(Shading.toonAt(C.wood, 0, 1, 0, 1, 0, 0, Shading.OUTDOOR, -1, 1), Shading.tone(C.wood, 2))
+		T.eq(Shading.toonAt(C.wood, 0, 1, 0, 1, 0, 0, Shading.OUTDOOR, 0, 0.5), Shading.tone(C.wood, 1))
+	end)
+
 	T.it("textures: the hash is a 32-bit number that spreads its neighbours", function()
 		local seen: { [number]: boolean } = {}
 		local n, ones = 0, 0

@@ -95,6 +95,11 @@ local function scallop(iu: number, iv: number, w: number, h: number, seed: numbe
 	return false
 end
 
+-- How far a driftling's texture mark steps toward the next band (Shading.toonAt's `soft`): half way, a gentle tone
+-- of its colour rather than a whole band (the request of 2026-11-14: "make the noise textures across everything more
+-- less contrast with whatever material they are on").
+DynTex.SOFT = 0.5
+
 -- Whether the pixel at (u, v) (studs on the part, from DynTex.uv) steps lighter (+1), darker (-1) or not (0) for
 -- texture `kind` (DynTex.KIND), with `px` studs a pixel and `seed` (a whole number) keeping two parts' patterns apart.
 function DynTex.lift(kind: number, u: number, v: number, px: number, seed: number): number
