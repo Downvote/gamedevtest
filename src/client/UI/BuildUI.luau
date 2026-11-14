@@ -1912,11 +1912,27 @@ function BuildUI.open(onTab: string?)
 			end
 		end
 	end))
+	-- (the tip the view was on when last heard: the hut placed, the tips moving on to hatching, Build mode closes)
+	local tutWas = if view() then (view() :: Types.ClientView).tut else 0
 	table.insert(conns, StateClient.Changed:Connect(function()
 		if open then
 			draw.memo = {}
 			showGhost()
 			rebuild()
+			-- the hut placed, the tips move on to hatching an egg: Build mode closes a moment later (the hut's puff
+			-- seen), so the Tree of Life and the arrow over it show (EggView). The request of 2026-11-14: "auto close
+			-- the build tab when going to the hatching step and point towards the tree of life for the player to
+			-- click". Opened again on that step, it stays open.
+			local v = view()
+			local now = if v then v.tut else 0
+			if tutWas == 3 and now == 4 then
+				task.delay(0.8, function()
+					if open then
+						BuildUI.close()
+					end
+				end)
+			end
+			tutWas = now
 		end
 	end))
 	-- the tip's building pulses (its card, and its tab while another is shown) and shines now and then

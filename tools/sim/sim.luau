@@ -505,10 +505,21 @@ do
 	E.run(0.3)
 	local st, say = trayOn()
 	H.expect(st.tab == "nest" and st.goal == "nest" and goalCard("nest") ~= nil, "build", "Build mode opens on the Huts tab for the hut tip, the hut's card pulsing", say)
-	H.clickNamed(p, "BuildDone", { wait = 0.3 })
 end
 res = place("nest")
 H.expect(res.ok and prof.tut == 4, "build", "a hut: the tips move on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
+-- (the request of 2026-11-14: "auto close the build tab when going to the hatching step and point towards the tree of
+-- life for the player to click": the hut placed with Build mode open, it closes itself a moment later, and an arrow
+-- points at the Tree of Life, or from the screen's edge the way to it)
+E.run(1.3)
+H.expect(not BuildUI.isOpen(), "build", "the hut placed in Build mode: Build mode closes itself for the hatching tip")
+do
+	local arrow = p.PlayerGui:FindFirstChild("TutArrow", true)
+	H.expect(arrow ~= nil and arrow:IsA("GuiObject") and arrow.Visible, "build", "an arrow points at the Tree of Life for the hatching tip")
+end
+-- (the starting shells cover the rest of the tips with room for a second egg: "give the player more shells so every
+-- task is completable at the start without needing to wait")
+H.expect(prof.shells >= Buildings.byId.stall.shells + 2 * Tuning.EggPrice[2] * Tuning.EggTier[1], "build", "after the hut, the shells left pay for the snack stall and two uncommon eggs", tostring(prof.shells))
 -- step 4: an egg hatched. A tap on an egg under the tree (EggView.tapAt: WorldView's taps ask it first) opens the tree's
 -- panel and buys nothing (the request of 2026-11-13: "the eggs should be buyable only after the player clicks on the tree
 -- or enters the tree menu"); Hatch there on the cheapest the shells cover plays the hatch scene (UI/HatchScene: the egg
@@ -625,8 +636,10 @@ do
 		H.closePanel(p)
 		-- (from here on the scene ends at once: the hatches below test the rules and the panels, not the scene)
 		H.inClient(p, HSp.setQuick, true)
+		-- (the island's eggs went while the hatch scene's stage was in view, and come back at the next sync, within half
+		-- a second: wait for them)
 		E.runUntil(function()
-			return H.inClient(p, EggViewP.where, s.plot, pick.id) == nil
+			return H.inClient(p, EggViewP.where, s.plot, pick.id) == nil and H.inClient(p, EggViewP.count, s.plot) == #shownOf(prof.clutch.list)
 		end, 2, 0.1)
 		H.expect(H.inClient(p, EggViewP.where, s.plot, pick.id) == nil and H.inClient(p, EggViewP.count, s.plot) == #shownOf(prof.clutch.list), "build", "its egg cracks open and is gone, the others stay", tostring(H.inClient(p, EggViewP.count, s.plot)))
 		local hut = pieceOf("nest")

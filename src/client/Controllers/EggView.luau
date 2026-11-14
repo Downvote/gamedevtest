@@ -574,8 +574,11 @@ local function stepSparks(t: number)
 end
 
 -- The tips' step 4 (hatch an egg): an arrow bobbing over the own Tree of Life (a tap on it opens its panel, where the
--- eggs are bought).
+-- eggs are bought); with the tree off the screen, an arrow at the screen's edge pointing the way to it. The request of
+-- 2026-11-14: "auto close the build tab when going to the hatching step and point towards the tree of life for the
+-- player to click" (the full-size arrow, 13 px: the small one was easy to miss; Build mode closes itself: BuildUI).
 local tutArrow: ImageLabel? = nil
+local tutArrowName = ""
 local function updateArrow(t: number)
 	local v = StateClient.view()
 	local c = if v and v.tut == 4 and not HatchScene.isOpen() and UIKit.currentPanel() == nil then treeAt(myPlot) else nil
@@ -586,16 +589,39 @@ local function updateArrow(t: number)
 		end
 		return
 	end
-	local a = tutArrow
-	if a == nil then
-		a = PixelSprites.image(UIKit.canvas("World"), "arrow_down_t", UDim2.fromOffset(0, 0), 5) :: any
-		tutArrow = a
-	end
-	local arrow = a :: ImageLabel
 	local px, py, on = PixelRenderer.projectPixel((c :: Vector3) + Vector3.new(0, 4.5, 0))
+	local size = UIKit.size("World")
+	local W, H = size.X, size.Y
+	local M = 14 -- (how far in from the edges the edge arrow keeps)
 	local bob = if math.floor(t * 3) % 2 == 0 then 0 else 2
-	arrow.Visible = on
-	arrow.Position = UDim2.fromOffset(px - 3, py - 9 + bob)
+	local name, x, y
+	if on and px >= M and px <= W - M and py >= M + 13 and py <= H - M then
+		-- over the tree, pointing down at it
+		name, x, y = "arrow_down", px - 6, py - 15 + bob
+	else
+		-- at the edge, pointing the way from the middle of the screen
+		local dx, dy = px - W / 2, py - H / 2
+		local k = math.min((W / 2 - M) / math.max(1, math.abs(dx)), (H / 2 - M) / math.max(1, math.abs(dy)))
+		local ex, ey = W / 2 + dx * math.min(1, k), H / 2 + dy * math.min(1, k)
+		if math.abs(dx) * H >= math.abs(dy) * W then
+			name = if dx > 0 then "arrow_right" else "arrow_left"
+			x, y = ex - 6 + (if dx > 0 then bob else -bob), ey - 6
+		else
+			name = if dy > 0 then "arrow_down" else "arrow_up"
+			x, y = ex - 6, ey - 6 + (if dy > 0 then bob else -bob)
+		end
+	end
+	if tutArrow == nil or tutArrowName ~= name then
+		if tutArrow then
+			tutArrow:Destroy()
+		end
+		tutArrow = PixelSprites.image(UIKit.canvas("World"), name, UDim2.fromOffset(0, 0), 5) :: any
+		tutArrowName = name
+	end
+	local arrow = tutArrow :: ImageLabel
+	arrow.Name = "TutArrow"
+	arrow.Visible = true
+	arrow.Position = UDim2.fromOffset(math.floor(x), math.floor(y))
 end
 
 -- A tap on the screen (`pos`: an InputObject's, below the top bar) on one of the own tree's eggs opens the tree's

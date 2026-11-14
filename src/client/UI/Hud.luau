@@ -719,7 +719,8 @@ local function updateQuest(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local w = QUEST_W
 	local textW = w - 10
-	local lines = math.clamp(math.ceil(UIKit.textWidth(q.text) / textW), 1, 3)
+	-- (up to four lines: "Three at work" says what three need, beds and work buildings)
+	local lines = math.clamp(math.ceil(UIKit.textWidth(q.text) / textW), 1, 4)
 	local h = 16 + lines * 10 + 16
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(EDGE, CARD_Y), 2)
 	f.Name = "Quest"

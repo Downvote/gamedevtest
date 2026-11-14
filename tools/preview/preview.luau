@@ -1123,6 +1123,17 @@ function SCEN.build()
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
 		capture(p, "build_tip")
+		-- the hut's tip done in Build mode, the tips moving on to hatching: Build mode closes itself and an arrow points
+		-- at the Tree of Life ("auto close the build tab when going to the hatching step and point towards the tree of
+		-- life for the player to click")
+		H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
+		prof.tut = 3
+		H.push(p, 0.4)
+		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+		prof.tut = 4
+		H.push(p, 0.4)
+		settle(p, 10, 1.4)
+		capture(p, "tip_tree")
 		-- the housing limit: two more huts make four, all the room a tier 1 island has (Tuning.HousingLimit: 8)
 		prof.tut = 0
 		for _, at in { { -11, 5 }, { -5, -3 } } do

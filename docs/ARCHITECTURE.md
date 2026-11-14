@@ -220,8 +220,8 @@ every field.
   much cheaper to buy work and hut buildings"), `WoodShells` (5), `WoodTierUp` (1.8) and `WoodTierTop` (7: a price that
   was wood is WoodShells shells a wood, times WoodTierUp for each tier past the second up to WoodTierTop, to two
   figures: every piece's,
-  `Buildings.shellsFor`, and growing the island's, `Island.expandCost`; GAME_DESIGN 4, 10), `StartShells` (440: the
-  tips' buildings, the first eggs and plenty over; `StartWood` went with the wood), `TurnSeconds` (the island's pace),
+  `Buildings.shellsFor`, and growing the island's, `Island.expandCost`; GAME_DESIGN 4, 10), `StartShells` (600: the
+  tips' buildings, 405, and two eggs for the first hut, a rare and a common, so no tip waits on shells; `StartWood` went with the wood), `TurnSeconds` (the island's pace),
   `DaySeconds` (the sea's day: hours), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
   driftling's), `RarityWork` (a driftling's work by its rarity), `HelpMax` (driftlings a building), `CharmMax` (1) and
   `CharmHalf` (200: charm's bonus to every shell, `Island.charmBonus`; the visitors' numbers went on 2026-11-14),
@@ -1147,8 +1147,11 @@ rises one after another round the ring (0.15 s, then `STAGGER` by slot) with a l
 with a back); one gone while the rest stay, or one the own
 player just hatched, cracks (`CRACK` 0.9 s: a shake, then `Top` flies off turning and the rest sinks); every egg rocks
 for a moment every 7 s. No price tags or names over them (the request of 2026-11-13: "remove these, the eggs should be
-buyable only after the player clicks on the tree or enters the tree menu"). On tip 4 the `arrow_down_t` bobs over the
-own tree (unless a panel or the hatch scene is open). `hatch(id, swap?)` (sends `egg.hatch`; done, the panel shuts and
+buyable only after the player clicks on the tree or enters the tree menu"). On tip 4 a `TutArrow` (`arrow_down`, 13 px) bobs over
+the own tree (unless a panel or the hatch scene is open); with the tree off the screen, or too near its edge, the arrow
+sits 14 px in from the edge on the line from the screen's middle to the tree, `arrow_left` / `right` / `up` / `down` by
+the way it lies, bobbing along it. Build mode closes itself 0.8 s after the view's tip goes from 3 to 4 (the hut placed
+in it; BuildUI's `tutWas`), so the tree and the arrow show; opened again on tip 4 it stays. `hatch(id, swap?)` (sends `egg.hatch`; done, the panel shuts and
 `HatchScene.play({ sp, muts, r, hr, new }, after)` runs; `after` opens the tree panel again if Hatch was pressed there and
 says "It hatched a rare Wispwing." in its rarity's colour ("New! It hatched..." when the result's `new` is true), with what a swap sold for; the egg's place kept as the
 island's hatch point; `full` opens the tree panel's swap picker `{ hatch = id }`; other refusals in words), `best(v, n) -> { Laid }` (the view's eggs, the rarest first, then the lower id; when the shells cover none of

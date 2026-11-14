@@ -1687,13 +1687,18 @@ the stores come from:
 
 1 "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts."; 2 "Shells hatch eggs.
 Place a Veggie Patch. It sells what it grows."; 3 "Driftlings need somewhere to live. Place a Driftling Hut."; 4 "The
-Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch." (an arrow bobs over your tree); 5 "A Snack
+Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch." (Build mode closes itself a moment after the
+hut goes down, and an arrow bobs over your tree, or with the tree off the screen points the way to it from the screen's
+edge: the request of 2026-11-14, "auto close the build tab when going to the hatching step and point towards the tree
+of life for the player to click"); 5 "A Snack
 Stall sells snacks for shells too. Place one by the path."; 6 "The tree lays new eggs every few minutes. When the huts
 are full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
 ("Place a Lumber Camp. It sells the wood it cuts for shells."). Each moves on once what it asks is done, tip 4 once an
-egg has hatched. A new island starts with `StartShells` (440: the four tip buildings at 405 and the first eggs): the camp, the
-patch, the hut and the stall of the tips cost 240, and the rest pays for the first eggs (the first lot has two commons
-at 20 shells, and the first two hatches are good with wood and at a farm). (Until 2026-11-13 the tips asked for a
+egg has hatched. A new island starts with `StartShells` (600: the four tip buildings at 405 and room to fill the first
+hut with two eggs, say a rare and a common, so no tip waits on shells; it was 440, one common egg and the stall, and a
+player who hatched an uncommon or filled the hut had to wait for the stall: "the snack store part in the tutorial takes
+too long. give the player more shells so every task is completable at the start without needing to wait",
+2026-11-14). The first lot has two commons at 8 shells, and the first two hatches are good with wood and at a farm. (Until 2026-11-13 the tips asked for a
 patch, a camp, a stall, a hut and a level of the tree. A save from before keeps its step's number, and a step whose
 task is already done moves on at once.)
 
@@ -1710,7 +1715,10 @@ Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go 
 the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island has now or what its
 stats have kept (eggs hatched from the tree, sold, the Hatchery's hatched, the rarest had), so one already met can be
 claimed at once. Rewritten for the eggs (2026-11-13), in order: put a driftling to work; sell a driftling; hatch three
-eggs; another camp (a second Lumber Camp); three at work; build another hut (2 huts); an uncommon one ("Green-spotted
+eggs; another camp (a second Lumber Camp); three at work ("Get three driftlings working. Each needs a bed in a hut (a
+hut sleeps two) and a farm, camp or shop to work at.": the request of 2026-11-14, "for this step, specify that you need
+3 huts, and you need work buildings for them to work in"; a hut sleeps two, so it names beds, not three huts); build
+another hut (2 huts); an uncommon one ("Green-spotted
 eggs hatch uncommon ones."); another farm (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); a rare
 one; grow your island (tier 2); build a boost; ten driftlings at work; meet twelve kinds; grow the island again (tier
 3); build a Hatchery; hatch an egg in it; an epic one; sixty hatched.

@@ -55,7 +55,7 @@ local list: { Quest } = {
 	{
 		id = "three",
 		title = "Three at work",
-		text = "Get three driftlings working. Each one goes to a building that suits it.",
+		text = "Get three driftlings working. Each needs a bed in a hut (a hut sleeps two) and a farm, camp or shop to work at.",
 		goal = { kind = "helpers", n = 3 },
 		reward = { shells = 120 },
 		go = "pals",

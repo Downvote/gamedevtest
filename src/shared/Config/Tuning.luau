@@ -41,7 +41,11 @@ local Tuning = {
 	-- 1.75 until eggs cost a quarter the same day: the island
 	-- earned a third more and every island came far sooner)
 	WoodTierTop = 7,
-	StartShells = 440, -- the tips' buildings (a camp, a patch, a hut, a stall: 405 at BuildingPrice and WoodShells), the first eggs and a little over
+	-- the tips' buildings (a camp, a patch, a hut, a stall: 405 at BuildingPrice and WoodShells) and room to fill the
+	-- first hut with two eggs of the first lot (a rare and a common, or two uncommons), so no tip waits on shells: the
+	-- request of 2026-11-14, "the snack store part in the tutorial takes too long. give the player more shells so
+	-- every task is completable at the start without needing to wait" (440 before: one common egg and the stall)
+	StartShells = 600,
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share

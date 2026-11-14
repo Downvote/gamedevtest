@@ -59,6 +59,10 @@ return function()
 			need += Buildings.byId[id].shells
 		end
 		T.truthy(need + 4 * Tuning.EggPrice[1] * Tuning.EggTier[1] <= Tuning.StartShells, "the tips' buildings: " .. need)
+		-- (and the first hut filled with a rare and a common, so no tip waits on shells: "give the player more shells
+		-- so every task is completable at the start without needing to wait", 2026-11-14)
+		local eggs = (Tuning.EggPrice[3] + Tuning.EggPrice[1]) * Tuning.EggTier[1]
+		T.truthy(need + eggs <= Tuning.StartShells, string.format("the tips' buildings %d and a rare and a common egg %d", need, eggs))
 	end)
 
 	T.it("the tree lays EggCount eggs every EggSecs, the ones left going; each one's price", function()
