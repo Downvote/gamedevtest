@@ -153,6 +153,37 @@ end
 -- with `swap`, in that one's place (it's sold). Done, the hatch scene plays (UI/HatchScene: the egg up close, perhaps
 -- turning rarer, cracking, what hatched and its mutations); after it the tree's panel comes back if it was open (the
 -- next egg a tap away) and a notice says what hatched.
+-- What hatched (egg.hatch's or bag.hatch's data): the hatch scene, then the tree's panel back when it was open and a
+-- notice of what came out.
+local function played(data: { [string]: any }, fromPanel: boolean)
+	local def = if type(data.sp) == "string" then Creatures.byId[data.sp] else nil
+	local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
+	local name = if def then def.name else "a driftling"
+	local sold = tonumber(data.sold) or 0
+	local a = if def and (def.rarity == 4 or def.rarity == 2) then "an" else "a"
+	local what = if def then string.format("%s %s %s", a, string.lower(rar.name), name) else name
+	local muts: { string } = {}
+	if type(data.muts) == "table" then
+		for _, m in data.muts do
+			if type(m) == "string" then
+				table.insert(muts, m)
+			end
+		end
+	end
+	local r = math.clamp(tonumber(data.r) or 1, 1, Traits.RMAX)
+	-- (a kind never had before: "New!" by its name in the scene and in front of the notice)
+	local fresh = data.new == true
+	UIKit.closePanel()
+	HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, Traits.RMAX), new = fresh }, function()
+		-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
+		if fromPanel and StateClient.view() ~= nil then
+			UIKit.openPanel("tree")
+		end
+		local said = if sold > 0 then string.format("It hatched %s. The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s.", what)
+		UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
+	end)
+end
+
 function EggView.hatch(id: number, swap: number?)
 	-- (where it lies: its driftling steps out there)
 	local e = eggs[myPlot .. ":e" .. id]
@@ -164,35 +195,25 @@ function EggView.hatch(id: number, swap: number?)
 		if spot then
 			lastHatch[myPlot] = spot
 		end
-		local data = if type(res.data) == "table" then res.data else {}
-		local def = if type(data.sp) == "string" then Creatures.byId[data.sp] else nil
-		local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
-		local name = if def then def.name else "a driftling"
-		local sold = tonumber(data.sold) or 0
-		local a = if def and (def.rarity == 4 or def.rarity == 2) then "an" else "a"
-		local what = if def then string.format("%s %s %s", a, string.lower(rar.name), name) else name
-		local muts: { string } = {}
-		if type(data.muts) == "table" then
-			for _, m in data.muts do
-				if type(m) == "string" then
-					table.insert(muts, m)
-				end
-			end
-		end
-		local r = math.clamp(tonumber(data.r) or 1, 1, Traits.RMAX)
-		-- (a kind never had before: "New!" by its name in the scene and in front of the notice)
-		local fresh = data.new == true
-		UIKit.closePanel()
-		HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, Traits.RMAX), new = fresh }, function()
-			-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
-			if fromPanel and StateClient.view() ~= nil then
-				UIKit.openPanel("tree")
-			end
-			local said = if sold > 0 then string.format("It hatched %s. The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s.", what)
-			UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
-		end)
+		played(if type(res.data) == "table" then res.data else {}, fromPanel)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id })
+	else
+		Audio.play("deny")
+		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+	end
+end
+
+-- Hatch the bag's egg `id` (bag.hatch: bought, won on the pass track or a gift; GAME_DESIGN 14): no shells, into a
+-- hut, or every hut full, the tree panel's swap picker for it; the same hatch scene. It never lay under the tree, so
+-- no egg on the ring cracks.
+function EggView.hatchBag(id: number, swap: number?)
+	local fromPanel = UIKit.currentPanel() == "tree"
+	local res = StateClient.request("bag.hatch", { id = id, swap = swap or 0 })
+	if res.ok then
+		played(if type(res.data) == "table" then res.data else {}, fromPanel)
+	elseif res.err == "full" then
+		UIKit.openPanel("tree", { hatch = id, bag = true })
 	else
 		Audio.play("deny")
 		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))

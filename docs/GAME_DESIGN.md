@@ -2089,3 +2089,48 @@ on most levels, eggs every few levels (up to legendary on the free side and myth
 on each side, Deckhand at 15 and First Mate at 30 on the free side, Captain at 30 on the premium side (the last level
 also brings a legendary or a mythic egg). A new season starts the points and claims again; what was won stays.
 
+### 14.2 The Store screens (`UI/StoreUI`, the Tree panel, the Hatchery panel, Build mode, the HUD)
+
+**The Store.** A Store button closes the menu bar (`mini_store`, a beach stall). Its panel has four tabs along the top:
+
+- **Passes.** The five passes, each with a line on what it does and its price in Robux ("R$ 399": the live price once
+  Roblox gives it, else the suggested one), Buy or Owned. Once VIP is owned its row has the daily gift's button
+  ("Daily gift", then "Gift again tomorrow").
+- **Eggs and more.** The Starter Pack first (gone once bought), Finish Hatcheries (how many eggs are warming), Shop
+  Refresh, then the six eggs from Uncommon to Celestial in their rarity's colours. A line at the foot counts the eggs
+  in the bag and says where to hatch them.
+- **Shop.** The rotating shop's six pieces, three to a row on a desktop (two on a narrow screen): the piece's picture,
+  its name in its rarity's colour, its rarity and slot, its price in shells and Buy; once bought, Owned and Wear (or
+  Wearing). Over them, when the next set comes ("New pieces in 3 h 40 min") and "New set R$ 19", the Shop Refresh.
+- **Track.** The level ("Level 6 of 30"), a bar to the next one with its points ("40/220"), the season's time left
+  ("Ends in 27 days"), then a row a level: the free reward and the premium one, each with its picture and words ("2,860
+  shells", "a rare egg", "Glow Visor", "Title: Captain") and Claim, "Got it" once claimed, or the level it opens at.
+  Without the Premium Track pass the premium side shows a ticket and "Unlock R$ 349" sits over it. The list opens at
+  the first level with something to claim.
+
+Buy hands the pass or product to Roblox's own purchase window; an item whose id isn't set yet says "That isn't on sale
+yet." What a purchase gives is told in a notice when it arrives ("Starter Pack: 3,000 shells, 2 eggs, 2 pieces and a
+title."), as are a pass bought ("Thanks! Every shell counts twice now."), the track's rewards ("Pass track: a rare
+egg.") and a title earned ("New title: Egg Hunter. Wear it from Looks.").
+
+**Looks.** The founder's portrait with the title they wear under it, the free colours and hair style (Skin 6, Hair 10,
+Style 10, Shirt 15, then Save look), how many of the 83 pieces they own and "Shop for more" (the Store's Shop). On the
+right two tabs: **Pieces**, the six slots (Hat, Face, Neck, Back, Hand, Top) and the pieces owned in the one picked, the
+rarest first, each with Wear or Take off (a piece goes on at once; the colours wait for Save look); and **Titles**, "No
+title", then every title earned with what earned it and Wear (or Worn), then the ones still to earn, greyed, each with
+what earns it ("Grow your island to level 7.", "Have a mythic driftling.", "Comes with VIP.").
+
+**The bag in the Tree panel.** Over the eggs under the tree, "Your eggs: 2" and a row each, the rarest first, "Free to
+hatch" with Hatch. A bag egg hatches in the same hatch scene as the tree's; with every hut full the swap picker opens
+for it the same way ("Swap one out for the epic egg from your bag"). The panel's heading counts the lot ("16 eggs") and
+says how often it lays ("New eggs every 10:00", 5:00 with Quick Tree).
+
+**The Hatchery.** While an egg is warming, "Finish now" in the panel's top corner buys Finish Hatcheries.
+
+**Build mode.** With Free Decor, the decor, paths, water and fences read "Free" on their cards, in the tip and on the
+info plate, they go down for no shells, a replacement among them costs nothing, and in the inventory they sell for 0.
+
+**The HUD.** Under the right-hand cards, a small glass chip each: "Starter Pack R$ 49" until it is bought (a tap opens
+the Store on Eggs and more) and "VIP gift Ready" on a day VIP's gift waits (a tap claims it). On a phone the chip drops
+the price when it would not fit.
+

@@ -226,6 +226,14 @@ SMALL = {
     # Quick remove's button, an orange arrow going down into the box
     "inv": ["N.......N", "NN.....NN", ".NdddddN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "........."],
     "takeup": ["...OOO...", "...OOO...", ".OOOOOOO.", "..OOOOO..", "N..OOO..N", "NN..O..NN", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN."],
+    # the store (GAME_DESIGN 14, 2026-11-14): the menu bar's Store, a beach stall with a striped awning; VIP's gold crown
+    # with a pink stone; the pass track's ticket with its notch; a gift box with a ribbon (the starter pack, VIP's daily
+    # gift); a new set in the shop, two turning arrows
+    "store": ["RWRWRWRWR", "RWRWRWRWR", ".RWRWRWR.", ".N.....N.", ".N.YYY.N.", ".N.YYY.N.", ".NNNNNNN.", ".NNNNNNN.", "........."],
+    "crown": [".........", "Y...Y...Y", "YY.YYY.YY", "YYYYYYYYY", "YYYYKYYYY", "YYYYYYYYY", ".YYYYYYY.", ".........", "........."],
+    "ticket": [".........", ".........", "TTTTTTTTT", "TTWTTTTTT", "..TTTTTTT", "TTWTTTTTT", "TTTTTTTTT", ".........", "........."],
+    "gift": ["..K...K..", "...K.K...", "QQQQKQQQQ", "QQQQKQQQQ", ".........", ".QQQKQQQ.", ".QQQKQQQ.", ".QQQKQQQ.", ".QQQKQQQ."],
+    "refresh": ["...GGGG..", "..G....G.", ".G.....GG", ".G....GGG", ".........", "BBB....B.", "BB.....B.", ".B....B..", "..BBBB..."],
 }
 SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
 for k, rows in SMALL.items():

@@ -34,6 +34,7 @@ local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
+local StoreUI = require(script.Parent.StoreUI)
 local BuildUI = require(script.Parent.BuildUI)
 
 local Hud = {}
@@ -355,6 +356,8 @@ local MENUS: { Menu } = {
 	{ text = "Driftlings", panel = "pals", icon = "pal" },
 	{ text = "Index", panel = "index", icon = "star" },
 	{ text = "Looks", panel = "looks", icon = "visitor" },
+	-- the store (GAME_DESIGN 14, 2026-11-14): passes, products, the rotating shop and the pass track
+	{ text = "Store", panel = "store", icon = "store" },
 }
 -- the Hatchery's button after Driftlings, once the island reaches the Hatchery's tier (the request of 2026-11-14:
 -- "add a hatchery tab once it is unlocked too")
@@ -571,6 +574,7 @@ end
 
 -- The cards stack down the right edge, GAP apart (on a phone the tree's card sits on the left, clear of the jump
 -- button); down the left, the status panel and the quest's card under it.
+local offers: Frame? = nil -- the store's offers (UI/StoreUI.offers: the Starter Pack, VIP's gift)
 local function stack()
 	local s = UIKit.size("Hud")
 	local c, e = card, treeCard
@@ -598,6 +602,16 @@ local function stack()
 			local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + GAP else CARD_Y
 			e.Position = UDim2.fromOffset(s.X - CARD_W - EDGE, y)
 		end
+	end
+	-- the store's offers under the right-hand column (the island card, and the tree's card on a desktop)
+	local of = offers
+	if of then
+		of.Visible = not hide
+		local y = if c then c.Position.Y.Offset + c.Size.Y.Offset + GAP else CARD_Y
+		if not UIKit.phone() and e and e.Visible then
+			y = e.Position.Y.Offset + e.Size.Y.Offset + GAP
+		end
+		of.Position = UDim2.fromOffset(s.X - CARD_W - EDGE, y)
 	end
 	-- the quest's card down the left (under the tree's card on a phone); it steps aside for a panel
 	local qf = quest
@@ -917,6 +931,19 @@ local function onEggs(msg: { [string]: any })
 	end
 end
 
+local offerKey: string? = nil
+local function updateOffers(v: Types.ClientView)
+	local key = StoreUI.offerKey(v)
+	if key == offerKey and (offers == nil or (offers :: Frame).Parent ~= nil) then
+		return
+	end
+	offerKey = key
+	if offers then
+		(offers :: Frame):Destroy()
+	end
+	offers = StoreUI.offers(UIKit.canvas("Hud"), v, CARD_W)
+end
+
 local function refresh(v: Types.ClientView)
 	updateTop(v)
 	local hatch = Buildings.byId.hatchery
@@ -927,6 +954,7 @@ local function refresh(v: Types.ClientView)
 	end
 	updateCard(v)
 	updateTree(v)
+	updateOffers(v)
 	stack()
 	updateTips(v)
 	updateQuest(v)
@@ -948,11 +976,12 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, treeCard, tips, quest, homeButton, musicButton, topBar } :: { Instance? } do
+	for _, f in { card, treeCard, tips, quest, homeButton, musicButton, topBar, offers } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
+	offers, offerKey = nil, nil
 	card, treeCard, tips, quest, homeButton, musicButton, topBar = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 104 else 116
 	buildTop()
@@ -974,6 +1003,7 @@ end
 
 function Hud.start()
 	Menus.init()
+	StoreUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
 	-- the stores every second: the chips count, shells coming in rise from their chip ("+12") at most every 2 s

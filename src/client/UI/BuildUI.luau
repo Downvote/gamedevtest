@@ -427,6 +427,8 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 	local have = v.shells
 	local held = heldOf(v, p.id)
 	local onlyHeld = p.inv == true
+	-- (its price for this player: nothing for decor, paths, water and fences with the Free Decor pass, Plot.price)
+	local each = Plot.price(v, p.id)
 	local n, cost = 0, 0
 	for _, c in cells do
 		if draw.erase then
@@ -447,9 +449,9 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 				held -= 1
 				n += 1
 				table.insert(out, "swap")
-			elseif not onlyHeld and have >= def.shells then
-				have -= def.shells
-				cost += def.shells
+			elseif not onlyHeld and have >= each then
+				have -= each
+				cost += each
 				n += 1
 				table.insert(out, "swap")
 			else
@@ -462,13 +464,13 @@ local function strokePlan(cells: { { number } }): ({ string }, number, number)
 				ok = (Plot.fits(v.tier, v.pieces, p.id, c[1], c[2], if fence then c[3] else 0))
 				draw.memo[k] = ok
 			end
-			if ok and used < most and (held > 0 or (not onlyHeld and have >= def.shells)) then
+			if ok and used < most and (held > 0 or (not onlyHeld and have >= each)) then
 				used += 1
 				if held > 0 then
 					held -= 1
 				else
-					have -= def.shells
-					cost += def.shells
+					have -= each
+					cost += each
 				end
 				n += 1
 				table.insert(out, "lay")
@@ -686,8 +688,12 @@ end
 ------------------------------------------------------------------ the tray
 
 -- A price in shells (the one store since 2026-11-14) with the small shell from x (red when there is not enough);
--- returns the end x.
+-- returns the end x. Nothing (decor, paths, water and fences with the Free Decor pass, GAME_DESIGN 14) reads "Free".
 local function price(parent: Instance, x: number, y: number, shells: number, v: Types.ClientView, z: number?): number
+	if shells <= 0 then
+		UIKit.text(parent, "Free", UDim2.fromOffset(UIKit.textWidth("Free") + 2, 10), UDim2.fromOffset(x, y + 1), { color = UIKit.color("accent"), z = z or 4, name = "Shells" })
+		return x + UIKit.textWidth("Free") + 2
+	end
 	PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
 	local t = Numbers.coins(shells)
 	UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
@@ -747,7 +753,7 @@ local function showTip(card: GuiObject, def: Buildings.BuildingDef, v: Types.Cli
 	if n > 0 then
 		UIKit.text(f, string.format("%d in your inventory. Free to put down.", n), UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, h - 12), { color = UIKit.color("accent"), z = 22, name = "TipHeld" })
 	else
-		price(f, 4, h - 12, def.shells, v, 22)
+		price(f, 4, h - 12, Plot.price(v, def.id), v, 22)
 	end
 	tip = f
 end
@@ -770,7 +776,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 	UIKit.hlist(list, 3)
 	for k, id in Plot.replacements(q, v.tier) do
 		local d = Buildings.byId[id]
-		local cost = Plot.replaceCost(q, id)
+		local cost = Plot.replaceCost(q, id, v)
 		if d == nil or cost == nil then
 			continue
 		end
@@ -821,7 +827,7 @@ local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, 
 		if n > 0 then
 			UIKit.text(info, string.format("%d in the inventory", n), UDim2.fromOffset(92, 10), UDim2.fromOffset(math.max(4, w - 92), 4), { x = "right", color = UIKit.color("accent"), z = 4, name = "Held" })
 		else
-			price(info, math.max(4, w - 92), 3, def.shells, v)
+			price(info, math.max(4, w - 92), 3, Plot.price(v, def.id), v)
 		end
 	end
 	-- (with a keyboard: its keys, along the bottom)
@@ -1100,7 +1106,8 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 	for k, def in defs do
 		local n = heldOf(v, def.id)
 		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
-		local back = math.floor(def.shells * Tuning.Refund)
+		-- (what it sells back for: nothing for a free piece while the Free Decor pass is owned, Plot.price)
+		local back = math.floor(Plot.price(v, def.id) * Tuning.Refund)
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil)
 		card.Name = "InvCard_" .. def.id
 		card.LayoutOrder = k
@@ -1157,7 +1164,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		local locked = def.tier > v.tier
 		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
 		local held = heldOf(v, def.id)
-		local afford = v.shells >= def.shells or held > 0
+		local cost = Plot.price(v, def.id)
+		local afford = v.shells >= cost or held > 0
 		local picked = pick ~= nil and pick.id == def.id
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil, if picked then UIKit.color("accent") else nil, if picked then 0.55 else nil)
 		card.Name = "Card_" .. def.id
@@ -1190,12 +1198,15 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			UIKit.text(b, if def.kind == "breed" then "Max" else "No room", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif held > 0 then
 			heldLine(b, held, 7)
+		elseif cost <= 0 then
+			-- (the Free Decor pass: GAME_DESIGN 14)
+			UIKit.text(b, "Free", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 4), { x = "center", color = UIKit.color("accent"), z = 7, name = "Shells" })
 		else
-			local t = Numbers.coins(def.shells)
+			local t = Numbers.coins(cost)
 			local w = UIKit.textWidth(t) + 11
 			local px = math.max(0, math.floor((CARD_W - 4 - w) / 2))
 			PixelSprites.image(b, "mini_shell", UDim2.fromOffset(px, PIC + 3), 7)
-			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = if v.shells >= def.shells then UIKit.color("text") else UIKit.color("bad"), z = 7, name = "Shells" })
+			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = if v.shells >= cost then UIKit.color("text") else UIKit.color("bad"), z = 7, name = "Shells" })
 		end
 		b.MouseEnter:Connect(function()
 			showTip(card, def, v)
@@ -1951,7 +1962,7 @@ function BuildUI.open(onTab: string?)
 		end
 		local keyParts = {}
 		for _, def in Buildings.list do
-			table.insert(keyParts, if v.shells >= def.shells then "1" else "0")
+			table.insert(keyParts, if v.shells >= Plot.price(v, def.id) then "1" else "0")
 		end
 		local k = table.concat(keyParts)
 		if k ~= affordKey then
