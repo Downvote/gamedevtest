@@ -68,7 +68,14 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > `MicroModels.driftling(..., lod)`; the pastel `Data/Palette` colours and UI colours, `gen_art.py`'s `PAL`). Then
 > "Can you use different eyes for each? Also, apply texture to each of them" (`Data/Creatures` eye, iris, tex, tex2;
 > DriftKit's eye styles and `tuck`; `Render/DynTex`; Raster's `Shade` gets `t`; the renderer's `shadeTex`;
-> `MicroModels.species`)
+> `MicroModels.species`). Then (2026-11-14) "when i meant pastel color, i didnt mean desaturated it, i meant use more
+> cozy colors. saturate the game back more. also, no need to use so much grass on the floor, it just looks noisy"
+> (`Data/Palette` and `gen_art.py`'s `PAL` back from pastel and 15% fuller; `Shading.grassMark` and AmbientView's tufts
+> thinned), and "could you also remove the transition that happens when clicking to hatch an egg? you can simply render
+> the floating egg in a 2d background. also, make the player click to hatch the egg, each click revealing a mutation or
+> a tier up upgrade if there is any, otherwise it just hatches" (`Stage.empty` and the renderer's empty stage, no bake;
+> `UI/HatchScene` without the islet, the blinds or the timeline: a queue of reveals, one a tap; `Tuning.HatchSceneWait`
+> and `HatchSceneHold` gone; `HatchScene.setWait` gone)
 
 ## 1. Layout and tooling
 
@@ -160,7 +167,7 @@ every field.
   lots), `EggCount` (eggs a lot by the island's tier: 5, 6, 7, 8, 9, then 10), `EggPrice` (shells by rarity: 20, 90,
   400, 2,000, 10,000), `EggTier` (the price's multiplier by the island's tier: 1, 3, 8, 20, 45, 90, 160, 270, 420, 640),
   `EggLuck` (the luck by tier: 0, 0.25, 0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6), `EggMutTier` (2: tiers for a hatchling's
-  mutation roll one rarity up), `EggUp` (an egg's chance a step to turn rarer as it hatches, by rarity: 0.06, 0.04, 0.025, 0.012), `HatchSceneWait` (4 s: the hatch scene's blinds wait at most this for its picture), `HatchSceneHold` (6 s: it waits this on what hatched before going back by itself), `TreeStage` (the tree model's stage by tier: 1, 2, 2, 3, 3, then 4), `HutTree`,
+  mutation roll one rarity up), `EggUp` (an egg's chance a step to turn rarer as it hatches, by rarity: 0.06, 0.04, 0.025, 0.012), `TreeStage` (the tree model's stage by tier: 1, 2, 2, 3, 3, then 4), `HutTree`,
   `HutLuck`, `HutCost` (the huts' tree, luck and cost shares at most: 0.5 each), `SellPrice` (by rarity), `SellTier` (a
   mutation tier's share on a price); none of the tide's `TideSecs`, `TideLife`, `TidePrice`, `TideTier`, `TideRare`,
   `TideLuck`, `TideMutTier` or `HutTide`, and none of the old tree's `TreeSecs`, `TreeLuck`, `TreeMutLuck`,
@@ -615,11 +622,13 @@ A new tier's cells and the next one's are worked out 3 s after the view's tier c
 `gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
 `ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
 pan now: far away at `CamFov` with the filter on, at `CamOffFov` in the classic style.
-**Stage mode** (the hatch scene's, `UI/HatchScene`): `setStage(Stage?)` with `Stage = { name, origin, pts, tight?, top, bottom, clear? }` fits the
+**Stage mode** (the hatch scene's, `UI/HatchScene`): `setStage(Stage?)` with `Stage = { name, origin, pts, tight?, top, bottom, clear?, empty? }` fits the
 stage's points (`tight` instead on a screen under 600 px tall: a phone held sideways, the action's band drawn at a
 bigger scale) full screen clear of the play overlay's top and bottom strips (art px), the ray plane at the stage's origin,
 the key `stage:<name>|...`, no indoor room; the view holds still (`view().stage` true; `view().clear` when the stage's
-sky is see-through, `Stage.clear`: the renderer leaves what its rays miss empty); `setStage(nil)` goes back
+sky is see-through, `Stage.clear`: the renderer leaves what its rays miss empty; `view().empty` when it is also
+`Stage.empty`, a stage with nothing static on it: the renderer casts no rays for it and has its empty picture at once,
+so only the moving things show, over whatever is behind the layer); `setStage(nil)` goes back
 to the street; `stage()`. `setStageShift(shift, snap?)`: an endless islet's camera, the stage's framing moved by
 `shift` studs (the target is the home pan plus the shift's grid px); on a stage the view glides, so the renderer
 scrolls to the next area and never re-bakes (reset by `setStage`); `snap` puts it there at once (behind the curtain,
@@ -630,6 +639,8 @@ before the first picture: only the boat arrival, unused now, asked for it).
 progress)`, `registerDynamic(model)`, `unregisterDynamic`, `refreshDynamic`, `rebake`, `setPaused`,
 On a view with `clear` the pixels its rays miss are 0 (alpha 0) and the grade and dim pass them by, so a picture behind
 the layer shows round the stage (`UI/HatchBackdrop`, a ScreenGui at `PixelDisplayOrder` - 2, its sky life at - 1).
+On a view with `empty` (`Stage.empty`, the hatch scene's) nothing is cast: the static picture is cleared (no colour,
+far depth, no ids) and finished at once, so the first picture is there on the next frame with only the moving things.
 `watchStage(root)` (unused now: a stage's static parts that come or go while it is in view re-cast their rects; a rect over one
 already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
@@ -1101,32 +1112,34 @@ from a world point and blinking out by 1.1 s), `count()`.
 
 ### 10.11 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `Models/EggModels`; GAME_DESIGN 6.2)
 `HatchScene.play(res, after?)` (`res = { sp, muts, r, hr }` from `egg.hatch`; one scene at a time; `after` runs when it
-ends), `skip()` (a tap: to the crack, then the whole list, then away), `isOpen()`, `setQuick(on)` (sims: it ends at
-once, `after` still runs), `setWait(secs?)` (previews: the blinds wait longer for the stage's picture), `debugState()`
-(`{ open, phase ("curtain", "egg", "rise", "build", "crack", "reveal", "done"), r, hr, clock, crackAt, endAt, shown,
-muts, rays, shards, pal, egg, title, name }`).
-It builds its stage in a `HatchStage` folder at `ORIGIN` (0, 0, 9000): the floating islet (`ISLE` 4.2 studs), the
-woven nest, the props (cylinders for twigs and stems, Wedge blades marked `PixelWind` for fern fronds and grass,
-CornerWedge pyramids for the lantern roofs and rock chips, Wedge roots), and the moving things in `HatchDynamic`, each
-registered with the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8), the rays (`HatchRays`:
-thin Neon blades in the camera's own plane, turning, behind the egg), the bits of shell (`HatchShards`: falling,
-bouncing on the nest and the grass, sinking after 2.2 s) and what hatched (`MicroModels.driftling`, scaled up to
-`PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle"). `CameraController.setStage({ name = "hatch", ..., top = 30,
-bottom = 40, clear = true })` frames the islet; the HUD and World roots are disabled meanwhile, and so are the
-phone's touch controls (`GuiService.TouchControlsEnabled`, in a pcall); `DayLight.hold`
-holds the rarity's `GRADE`; `PixelRenderer.setDim` dims the islet in the build-up (`GLORY[hr].dim`) and `setOffset`
-jolts the picture at the crack. The overlay is a `HatchScene` frame on the `Stage` canvas: the curtain (`HatchCurtain`,
-blinds over the bake, up to `Tuning.HatchSceneWait` 4 s), `HatchTitle`, `HatchName`, `HatchLine`, the plates
-`HatchMut_<i>` (`Name`, `Blurb`), `HatchHint`, `HatchFlash`, 1 px `HatchDot`s and `HatchStar` sprites, and the
-see-through `HatchTap`; after the list it waits `Tuning.HatchSceneHold` (6 s) and closes by itself. The timeline
-(`plan`): `INTRO` 0.7 s, the rocks (`GLORY[r].rocks` x `ROCK` 0.55 s), a step up each `RISE` 1.7 s (its flash at
-0.9 s), the build-up `GLORY[hr].build`, the crack, the name 0.35 s after it, the list from 1.1 s after it, half a second
-a mutation. `GLORY` by rarity: rocks, build, rays, rayLen, sparks, shards, flash, dim, jolt, confetti, stars.
+ends), `skip()` (a tap: the next reveal, else the hatch, else away; taps under `TAP_GAP` 0.22 s after the last count
+as one), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs), `debugState()` (`{ open, phase ("egg",
+"hatched", "done"), r, hr, clock, reveals, left, crack, shown, muts, rays, shards, pal, egg, glowing, title, name }`).
+`play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
+`{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
+the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`
+(0, 0, 9000) with nothing under it), the rays (`HatchRays`: thin Neon blades in the camera's own plane, turning, behind
+the egg, rare and up), the bits of shell (`HatchShards`: thrown out at the hatch, falling away, gone after 2 s) and what
+hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle").
+`CameraController.setStage({ name = "hatch", ..., top = 30, bottom = 40, clear = true, empty = true })` frames the egg
+on an empty see-through stage, so the renderer has its picture at once and `HatchBackdrop` shows round the egg; the HUD
+and World roots are disabled meanwhile, and so are the phone's touch controls (`GuiService.TouchControlsEnabled`, in a
+pcall); `DayLight.hold` holds the rarity's `GRADE`; `setOffset` jolts the picture at the hatch. A tap (`HatchTap`, or
+Space, Enter, ButtonA) in phase "egg" takes the queue's head: a "rise" builds the next rarity's egg, its rays, its
+light and its sky with a flash, a hard shake, sparks and stars and "It turned <rarity>" as the title; a "mut" shakes
+the egg and slides in the plate `HatchMut_<i>`. Each runs `crack` one further (0 .. 3: a `Crack` shows while its
+`stage <= crack`). With the queue empty the cracks turn Neon in the rarity's light (`glowing`) and `HatchHint` says "Tap
+to hatch it"; the next tap hatches it (phase "hatched": the top flies off, the rest falls, `HatchName` and `HatchLine`,
+a "No mutations" plate when there are none); 0.7 s later phase "done" and "Tap to go on", and that tap closes it: the
+stage off (the island's picture comes back from the renderer's stash at once), the roots back, then `after`. The
+overlay is a `HatchScene` frame on the `Stage` canvas: `HatchTitle`, `HatchName`, `HatchLine`, the plates `HatchMut_<i>`
+(`Name`, `Blurb`), `HatchHint` (on 0.85 s of every 1.2), `HatchFlash`, 1 px `HatchDot`s and `HatchStar` sprites, and the
+see-through `HatchTap`. `GLORY` by the rarity shown: rays, rayLen, sparks, shards, flash, jolt, confetti, stars.
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
 the shine (white), the fx (`mote` x3 epic, `halo` x20 and `beam` legendary: with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
-stage }`: stage 1 at the egg's second rock, 2 at the build-up, 3 halfway through it, Neon in the rarity's light from
-60% of it; out of sight until then). Parts above `SPLIT` (0.56) are the top.
+stage }`: 1 a short crack at the top, 2 running down and branching, 3 round its middle; out of sight until the scene's
+taps reach its stage, Neon in the rarity's light once nothing is left to reveal). Parts above `SPLIT` (0.56) are the top.
 `HatchBackdrop.paint(r, W, H, ex, ey) -> buffer` (the sky picture, RGBA at the art grid: banded sky with dithered
 seams (`SKIES[r].stops`), aurora, stars, sun or moon with its halo, clouds, the egg's glow at (ex, ey), two far islets,
 three ranges of hills with trees outlined in ink), `show(r, ex, ey)` (paints it into an `EditableImage` on the

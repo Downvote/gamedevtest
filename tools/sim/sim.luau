@@ -472,7 +472,7 @@ H.expect(res.ok and prof.tut == 4, "build", "a hut: the tips move on to hatching
 -- step 4: an egg hatched. A tap on an egg under the tree (EggView.tapAt: WorldView's taps ask it first) opens the tree's
 -- panel and buys nothing (the request of 2026-11-13: "the eggs should be buyable only after the player clicks on the tree
 -- or enters the tree menu"); Hatch there on the cheapest the shells cover plays the hatch scene (UI/HatchScene: the egg
--- up close, its crack, what hatched and its mutations), a tap skips it, a second goes back; what hatches (a new island's
+-- floating, each tap revealing a step up or a mutation, the tap after them hatching it), one more goes back; what hatches (a new island's
 -- first: good with wood) moves into the hut and goes to work at the lumber camp, and the panel is there again
 local HSp = H.cmod(p, "UI.HatchScene")
 do
@@ -511,19 +511,27 @@ do
 		H.clickNamed(p, "PanelHatch_" .. pick.id, { wait = 0.3 })
 		local hs = H.inClient(p, HSp.debugState)
 		H.expect(hs.open and hs.r == pick.r and hs.hr == pick.r and H.currentPanel(p) == nil, "build", "Hatch: the hatch scene opens on the egg (the panel shut meanwhile; a new island's first never turns rarer)", string.format("open %s r %d hr %d", tostring(hs.open), hs.r, hs.hr))
-		E.runUntil(function()
-			local x = H.inClient(p, HSp.debugState)
-			return x.phase == "egg"
-		end, 10, 0.1)
-		H.inClient(p, HSp.skip)
-		E.run(0.2)
+		-- (the request of 2026-11-14: "make the player click to hatch the egg, each click revealing a mutation or a tier
+		-- up upgrade if there is any, otherwise it just hatches": no blinds, the egg there at once)
 		hs = H.inClient(p, HSp.debugState)
-		H.expect(hs.pal and not hs.egg or hs.clock >= hs.crackAt, "build", "a tap skips to the crack: what hatched is there", string.format("phase %s, %.2f of %.2f", hs.phase, hs.clock, hs.crackAt))
-		E.run(1.6)
+		H.expect(hs.phase == "egg" and hs.egg and not hs.pal, "build", "the egg floats there at once, waiting for a tap", string.format("phase %s", hs.phase))
+		local taps, revealed = 0, 0
+		while not hs.pal and taps < 12 do
+			H.inClient(p, HSp.skip)
+			E.run(0.35)
+			taps += 1
+			local before = revealed
+			hs = H.inClient(p, HSp.debugState)
+			revealed = hs.reveals - hs.left
+			if not hs.pal then
+				H.expect(revealed == before + 1, "build", "a tap before it hatches reveals one step up or mutation", string.format("tap %d: %d revealed", taps, revealed))
+			end
+		end
+		H.expect(hs.pal and taps == hs.reveals + 1, "build", "each tap reveals a step up or a mutation, the one after them hatches it", string.format("%d taps, %d reveals", taps, hs.reveals))
+		E.run(0.8)
 		hs = H.inClient(p, HSp.debugState)
 		local def0 = prof.pals[1] and Creatures.byId[prof.pals[1].sp]
-		H.expect(hs.name == (def0 and def0.name) and hs.shown == math.max(1, hs.muts), "build", "its name under it, its mutations listed (or that it has none)", string.format("%q, %d of %d", hs.name, hs.shown, hs.muts))
-		H.inClient(p, HSp.skip)
+		H.expect(hs.name == (def0 and def0.name) and hs.shown == math.max(1, hs.muts) and hs.phase == "done", "build", "its name under it, its mutations listed (or that it has none)", string.format("%q, %d of %d, %s", hs.name, hs.shown, hs.muts, hs.phase))
 		H.inClient(p, HSp.skip)
 		E.runUntil(function()
 			return not H.inClient(p, HSp.debugState).open

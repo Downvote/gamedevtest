@@ -1642,12 +1642,14 @@ local function themeScenario(name: string)
 	return p
 end
 
--- "hatch=<r><hr>": the hatch scene (UI/HatchScene; GAME_DESIGN 6.2: "make a cutscene for eggs hatching and shows the
--- creature hatched, listing the mutations it has as it hatches, with eggs having a chance to skip to the next rarity
--- during the cutscene. the cutscenes become more glorious as the rarity of egg increases") for an egg laid as rarity r
--- that hatches as hr (hr > r: it turns rarer on the way): the egg in its nest (hatch_egg), each step up just after its
--- flash (hatch_rise<k>), the build-up (hatch_build), the crack (hatch_crack), what hatched with its mutations listed
--- (hatch_reveal) and the island after (hatch_back).
+-- "hatch=<r><hr>": the hatch scene (UI/HatchScene; GAME_DESIGN 6.2) for an egg laid as rarity r that hatches as hr
+-- (hr > r: it turns rarer on the way), a tier 10 island's kind of that rarity with a set of mutations by rarity. The
+-- request of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can
+-- simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each click
+-- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches". Frames: the egg floating at
+-- once, the frame it opens (hatch_egg), after each tap's reveal (hatch_rise<k> for a step up, hatch_mut<k> for a
+-- mutation), the tap that hatches it (hatch_crack, just after) and what hatched with its mutations listed
+-- (hatch_reveal), then the island after one more tap (hatch_back).
 local function hatchScenario(code)
 	local r = tonumber(string.sub(code, 1, 1)) or 1
 	local hr = tonumber(string.sub(code, 2, 2)) or r
@@ -1669,154 +1671,47 @@ local function hatchScenario(code)
 	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "swift2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" } }
 	local muts = MUTS[hr] or {}
 	H.inClient(p, function()
-		HS.setWait(120)
 		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr }, nil)
 	end)
 	local function state()
 		return H.inClient(p, HS.debugState)
 	end
-	local function runUntil(cond, max)
-		local t = 0
-		while t < (max or 20) do
-			local st = state()
-			if cond(st) then
-				return st
-			end
-			E.step(E.dt)
-			t += E.dt
-		end
-		log("hatch: timed out in phase %s", tostring(state().phase))
-		return state()
-	end
-	local st = runUntil(function(x)
-		return x.phase == "egg" and x.clock > 0.5
-	end, 120)
+	-- (no blinds: the egg is there in the very next frames; a few frames for the picture)
+	E.run(0.12)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local ready = PR and H.inClient(p, PR.ready)
+	local st = state()
+	log("hatch %s: opened at once: phase %s, renderer ready %s, %d reveals to tap", code, st.phase, tostring(ready), st.reveals)
+	E.run(0.5)
 	capture(p, "hatch_egg")
-	do
-		local CC = modOr(p, "Controllers.CameraController")
-		local PR = modOr(p, "Pixel.PixelRenderer")
-		local v = CC and H.inClient(p, CC.view)
-		local dst = PR and H.inClient(p, PR.debugStatic)
-		log("hatch: view stage %s key %s a %s; layer baking %s shown %s bakes %s; compose %.2f ms, %d dynamic models", tostring(v and v.stage), tostring(v and v.key), tostring(v and v.grid.a), tostring(dst and dst.baking), tostring(dst and dst.shown), tostring(dst and dst.bakes), dst and dst.composeMs or -1, dst and dst.dyn or -1)
-		-- the islands' small lives show none of themselves on the stage
-		local AV = modOr(p, "Controllers.AmbientView")
-		if AV and PR then
-			local st, fs = H.inClient(p, AV.stats), H.inClient(p, PR.fxStats)
-			log("hatch: ambient on the stage %s, effect pixels written %d, birds drawn %d, tufts drawn %d", tostring(st.onStage), fs.px, st.drawnBirds, st.drawnDecos)
+	local rises, mutsShown = 0, 0
+	for _ = 1, st.reveals do
+		local before = state()
+		H.inClient(p, HS.skip)
+		E.run(0.3)
+		local after = state()
+		if after.r > before.r then
+			rises += 1
+			capture(p, "hatch_rise" .. rises)
+		else
+			mutsShown += 1
+			capture(p, "hatch_mut" .. mutsShown)
 		end
 	end
-	log("hatch %s: laid %d, hatches %d as %s, crack at %.2f, end at %.2f", code, r, hr, tostring(sp), st.crackAt, st.endAt)
-	for k = 1, hr - r do
-		runUntil(function(x)
-			return x.r >= r + k and x.phase == "rise"
-		end)
-		E.run(0.12)
-		capture(p, "hatch_rise" .. k)
-	end
-	runUntil(function(x)
-		return x.phase == "build" and x.clock > x.crackAt - 0.3
-	end)
-	capture(p, "hatch_build")
-	runUntil(function(x)
-		return x.clock > x.crackAt + 0.2
-	end)
-	capture(p, "hatch_crack")
-	st = runUntil(function(x)
-		return x.phase == "done" and x.clock > x.endAt + 0.3
-	end)
-	capture(p, "hatch_reveal")
-	log("hatch %s: shown %d mutations of %d, %s, title %q, name %q", code, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name)
+	st = state()
+	log("hatch %s: after %d taps: rarity %d, %d mutations shown, cracks %d, glowing %s, title %q", code, st.reveals, st.r, st.shown, st.crack, tostring(st.glowing), st.title)
 	H.inClient(p, HS.skip)
-	runUntil(function(x)
-		return not x.open
-	end, 10)
-	settle(p, 10, 0.5)
+	E.run(0.18)
+	capture(p, "hatch_crack")
+	E.run(1.4)
+	st = state()
+	capture(p, "hatch_reveal")
+	log("hatch %s: laid %d, hatched %d as %s: phase %s, %d mutations of %d, %s, title %q, name %q", code, r, st.r, tostring(sp), st.phase, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name)
+	H.inClient(p, HS.skip)
+	E.run(0.2)
+	log("hatch %s: closed %s", code, tostring(not state().open))
+	settle(p, 10, 0.3)
 	capture(p, "hatch_back")
-	return p
-end
-
--- "pals=<n>" or "pals=<id>,<id>,...": driftlings up close (Models/DriftModels, built "full" as the hatch scene and the
--- portraits show them), eight to a picture in two rows of four on a patch of lawn far from the islands, framed by the
--- camera's stage view; idle (pals_idle) and cheering (pals_cheer). Batch n is Data/Creatures.list's species 8n-7 ..
--- 8n; the log lists them left to right, back row first, with each one's part count.
-local function palsScenario(arg)
-	seedProfile(62, 1, {})
-	local p = join(62, "Keeper")
-	settle(p, 30, 1)
-	local Creatures = H.sharedServer("Data.Creatures")
-	local ids = {}
-	local n = tonumber(arg)
-	if n then
-		for i = (n - 1) * 8 + 1, n * 8 do
-			local d = Creatures.list[i]
-			if d then
-				table.insert(ids, d.id)
-			end
-		end
-	else
-		for id in string.gmatch(arg, "[^,]+") do
-			table.insert(ids, id)
-		end
-	end
-	local ctx = E.clientCtx(p)
-	local MM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.MicroModels"))
-	local Blocks = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.Blocks"))
-	local PR = H.cmod(p, "Pixel.PixelRenderer")
-	local CC = H.cmod(p, "Controllers.CameraController")
-	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
-			g.Enabled = false
-		end
-	end
-	local OX, OZ = 0, 9400
-	-- (the ground's screen-right and toward-the-viewer directions, as the zoo)
-	local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
-	local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
-	local faceViewer = math.atan2(vx, vz)
-	local things = {}
-	H.inClient(p, function()
-		local m = Blocks.model(E.workspace, "PalsLawn")
-		Blocks.part(m, { size = E.v3(30, 1, 30), cf = E.cf.new(OX, -0.5, OZ), color = "grass" })
-		local names = {}
-		for i, id in ids do
-			local d = Creatures.byId[id]
-			if d then
-				local th = MM.species(d.id)
-				th.model:SetAttribute("PixelShadow", 1)
-				th.model:SetAttribute("PixelGroundY", 0)
-				th.model.Parent = E.workspace
-				PR.registerDynamic(th.model)
-				local k = i - 1
-				local u, v = -4.8 + (k % 4) * 3.2, -2.2 + math.floor(k / 4) * 4.4
-				table.insert(things, { t = th, x = OX + ux * u + vx * v, z = OZ + uz * u + vz * v })
-				local c = 0
-				for _ in th.parts do
-					c += 1
-				end
-				table.insert(names, string.format("%s (%s, %d parts)", id, d.shape, c))
-			end
-		end
-		log("pals %s: %s", arg, table.concat(names, ", "))
-		local pts = {}
-		for _, q in { { -6.8, -3.8 }, { 6.8, -3.8 }, { -6.8, 5.4 }, { 6.8, 5.4 } } do
-			for _, y in { 0, 2.6 } do
-				table.insert(pts, OX + ux * q[1] + vx * q[2])
-				table.insert(pts, y)
-				table.insert(pts, OZ + uz * q[1] + vz * q[2])
-			end
-		end
-		CC.setStage({ name = "pals", origin = E.v3(OX, 0, OZ), pts = pts, tight = nil, top = 8, bottom = 8 })
-	end)
-	for _, mood in { "idle", "cheer" } do
-		H.inClient(p, function()
-			for j, x in things do
-				MM.animate(x.t, 0.6 + j * 0.37, mood, 0)
-				MM.place(x.t, E.cf.new(x.x, 0, x.z) * E.cf.Angles(0, faceViewer + math.rad(30), 0))
-			end
-		end)
-		settle(p, 60, 0.5)
-		capture(p, "pals_" .. mood)
-	end
 	return p
 end
 

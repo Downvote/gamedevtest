@@ -28,9 +28,9 @@
 -- frame; a change over a third of the layer re-bakes it whole behind the old picture. Players' characters are never
 -- in the bake (AvatarView draws the founders). Nothing here moves or parents a part of the world.
 -- A stage (CameraController.setStage: the hatch scene's, UI/HatchScene) is a view of its own, baked with a bigger
--- budget a frame while the scene's curtain covers the screen; the street's finished picture is kept aside meanwhile
--- and comes back at once when the stage closes (baked again only if a part under Workspace.Plots came or went in
--- between). A stage with a see-through sky (Stage.clear) leaves the pixels its rays miss empty (alpha 0, never graded
+-- budget a frame; the street's finished picture is kept aside meanwhile and comes back at once when the stage closes
+-- (baked again only if a part under Workspace.Plots came or went in between). An empty stage (Stage.empty: nothing
+-- static on it, the hatch scene's) is not baked at all: its picture is empty and ready at once. A stage with a see-through sky (Stage.clear) leaves the pixels its rays miss empty (alpha 0, never graded
 -- or dimmed), so a picture behind the layer (the hatch scene's painted backdrop) shows round what stands there. A dynamic
 -- model with a "PixelShadow" attribute (a radius in studs) casts a blob shadow on the static picture under it (on
 -- the ground at its "PixelGroundY", default 0): the pixels there are shaded as in the sun's shadow, so it lands on the
@@ -1147,6 +1147,33 @@ end
 local function startBake()
 	local s = surf
 	if s == nil then
+		return
+	end
+	if s.view.empty then
+		-- an empty see-through stage (CameraController's Stage.empty: only moving things in front of a 2D picture, the
+		-- hatch scene's egg): every pixel is the clear sky a ray would find, written at once, no rays and no wait
+		local n = s.W * s.H
+		buffer.fill(s.sColor, 0, 0)
+		buffer.fill(s.sShade, 0, 0)
+		buffer.fill(s.sAlbedo, 0, 0)
+		buffer.fill(s.sId, 0, 0)
+		buffer.fill(s.sNormal, 0, 0)
+		buffer.fill(s.sLit, 0, 1)
+		buffer.fill(s.sShare, 0, 0)
+		buffer.fill(s.sWClass, 0, 0)
+		buffer.fill(s.sWave, 0, 0)
+		for i = 0, n - 1 do
+			buffer.writef32(s.sDepth, i * 4, FAR)
+		end
+		back, backTabs = nil, nil
+		table.clear(staticIds)
+		table.clear(albedos)
+		table.clear(waters)
+		table.clear(texs)
+		nextId = 1
+		invQueue = {}
+		invCur = nil
+		finishBake(s, s)
 		return
 	end
 	if s.ready and shown then

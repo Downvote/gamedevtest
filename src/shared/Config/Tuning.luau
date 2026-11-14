@@ -69,10 +69,6 @@ local Tuning = {
 	-- skip to the next rarity during the cutscene"): an egg of rarity r goes up one with EggUp[r], and on from there with
 	-- the next one's share while the rolls hold (never to a rarity the island has no driftlings of)
 	EggUp = { 0.06, 0.04, 0.025, 0.012 },
-	-- the hatch scene (UI/HatchScene): seconds at most behind its blinds while its picture is baked, and seconds it
-	-- waits on what hatched before it goes back to the island by itself
-	HatchSceneWait = 4,
-	HatchSceneHold = 6,
 	-- the tree's model grows grander with the island (its stage by tier, Models/DecorModels)
 	TreeStage = { 1, 2, 2, 3, 3, 4, 4, 4, 4, 4 },
 	HutTree = 0.5, -- the huts' driftlings' tree shares together bring the next eggs this much sooner at most ...

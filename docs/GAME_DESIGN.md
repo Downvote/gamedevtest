@@ -1,6 +1,17 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest): "Can you use different eyes for each? Also, apply texture to each of them"
+> The request (2026-11-14, the latest): "could you also remove the transition that happens when clicking to hatch an
+> egg? you can simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each
+> click revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches"
+
+So the hatch scene opens at once, with no blinds and nothing to wait for: the egg floats on its own in front of the
+painted sky. Each tap takes the next thing waiting inside it, every step up in rarity first, then each mutation; with
+nothing left, the next tap hatches it (§6.2). The islet the egg used to sit on is gone.
+
+> The request (2026-11-14): "when i meant pastel color, i didnt mean desaturated it, i meant use more cozy colors.
+> saturate the game back more. also, no need to use so much grass on the floor, it just looks noisy" (§2)
+
+> The request (2026-11-14): "Can you use different eyes for each? Also, apply texture to each of them"
 
 > The requests (2026-11-13): "The creatures look blocky and unrealistic. Look at the cakes in the bakery
 > game to reference how detailed they should be"; "Also, could everything use a more pastelish colour pallette?"
@@ -19,11 +30,11 @@
 > rarity of egg increases." (with a picture of the price tags over the eggs under the tree)
 
 So the eggs carry no price tags any more: a tap on an egg, on the tree or on the HUD's Tree card opens the Tree panel,
-and the eggs are bought there (§6). Hatch plays the **hatch scene** (§6.2): the egg up close on a floating islet in a
-painted sky, rocking, perhaps turning rarer (`Tuning.EggUp`), cracking, and what hatched standing in the nest with its
-mutations listed beside it, grander the rarer it is. The light of day is a little warmer, and the greens and the sand
-with it (§2). The islet's things are built from many shapes (round twigs, pointed blades, pyramid roofs, wedge-cut
-stones) and the sky behind it is drawn in 2D, with birds and shooting stars crossing it.
+and the eggs are bought there (§6). Hatch plays the **hatch scene** (§6.2): the egg up close in a painted sky,
+perhaps turning rarer (`Tuning.EggUp`), cracking, and what hatched with its mutations listed beside it, grander the
+rarer it is. The light of day is a little warmer, and the greens and the sand with it (§2). The sky behind the egg is
+drawn in 2D, with birds and shooting stars crossing it. (The islet the egg sat on then, its nest and props, went on
+2026-11-14, the request at the top.)
 
 > The request (2026-11-13): "could you bevel these to make them smoother, with rounded corners? for the trees, you
 > should also make the trunk connected smoothly as well without the stepped boxes" (with pictures of the stepped coast
@@ -192,7 +203,7 @@ offline progress).
 - **Cozy light** (the request of 2026-11-13 at the top): the day's light is a little warm, like a late summer
   afternoon (`Palette.modes.day` 1.03, 1, 0.95: the same warmth the moving things always had), the grass and leaves a
   touch more golden and the sand a touch warmer. Dusk, twilight and night keep their grades (§8). The hatch scene's
-  skies (§6.2) are the warmest of all: a sunset, a golden afternoon, lantern-lit nights.
+  skies (§6.2) are the warmest of all: a sunset, a golden afternoon, moonlit nights.
 - **Cozy colours** (the request of 2026-11-13, "could everything use a more pastelish colour pallette?", then of
   2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use more cozy colors. saturate the game
   back more"): the colours are rich and warm, a little more saturated than the cozy pass of 2026-11-13 left them (the
@@ -955,46 +966,42 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
 
 ### 6.2 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `EggModels.hero`)
 
-The egg bought is shown up close (the requests at the top). Ink blinds close over the island while the scene's picture
-is drawn, then open on it:
+The egg bought is shown up close the moment Hatch is pressed (the requests at the top). There are no blinds and no
+wait: the egg floats on its own in front of a painted sky, and the player taps it open.
 
-- **The stage**: a little islet floating in the sky, far from the islands (the camera's stage view). Its grassy top has
-  a darker rim and a mossy middle, a band of soil under it and a rounded underside of stones, wedge-cut chips of rock,
-  roots and moss hanging off its edge. In the middle a woven nest: three rings of round twigs, twigs sticking out,
-  feathers and moss on its rim, a bed of straw. Round the back two big red mushrooms with white spots, gills and a ring
-  on the stem, a cluster of little orange ones, a stump with rings and roots and a candle burning on it, two lanterns on
-  posts with pyramid roofs, ferns of pointed fronds and tufts of pointed grass that sway in the wind, flowers of six
-  petals, pebbles.
-- **The sky behind it** is a picture drawn pixel by pixel in 2D (the stage's sky is see-through, so it shows round the
-  islet), its own for each rarity: a sunset with a banded sun and outlined clouds (common), a golden afternoon (uncommon),
-  a blue twilight with a crescent moon (rare), a violet night with a full moon and aurora (epic), a deep gold night
-  with a great setting sun throwing beams (legendary). Every sky has three ranges of hills going darker toward the
-  front, the nearest with round and pointed trees in outline, two little islets floating far off, and a glow round the
-  egg in dithered rings. Across it little flocks of birds flap by (day and twilight), shooting stars cross the night
-  skies and stars twinkle. Seeds and petals blow across by day, fireflies rise at night.
+- **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a banded sun and outlined
+  clouds (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
+  full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary). Every sky has
+  three ranges of hills going darker toward the front, the nearest with round and pointed trees in outline, two little
+  islets floating far off, and a glow round the egg in dithered rings. Little flocks of birds flap by (day and
+  twilight), shooting stars cross the night skies and stars twinkle. Seeds and petals blow across by day, fireflies
+  rise at night.
 - **The egg** (`EggModels.hero`, 2.3 to 2.8 studs by rarity): a smooth shell of 25 overlapping slices, a white shine
   high on its lit side, and its rarity's work painted on it as flat marks: freckles and sandy patches (common), a white
   zigzag band and a vine with leaves and a sprout on top (uncommon), white four-pointed stars and a frosty band with
   icicles (rare), two pink stripes spiralling up it with runes between them and three motes of light circling (epic), a
   band of gold set with red, blue and green gems, glints, a crown of points, a halo of light turning over it and a beam
-  of light (legendary). Only those lights and the cracks' light glow: anything glowing pools light round it at night,
-  and a glowing mark would wash the shell out.
-- **The beats**: the title names the egg ("An epic egg"). It rocks two to five times (more the rarer it was laid), a
-  crack opening at the top on its second rock. If it turns rarer, each step is a hard shake, a flash, sparks and stars,
-  "It turned legendary" and the next rarity's egg standing there, the sky and the light changing with it. Then the
-  build-up: the egg shakes harder and harder, the cracks run down and round its middle and light shines out of them,
-  sparks are drawn in. It cracks: a flash, the top flies off, bits of shell scatter and bounce, what hatched pops up
-  in the nest with a hop and a cheer. "It hatched", its name in its rarity's colour and "Rare, good at farms" under it,
-  then its mutations one at a time on plates beside it, each name and stars in its tier's colour with what it does
-  ("Lucky *", "+5% egg luck"), or "No mutations". "Tap to go on" under the name; a tap (or a few seconds) closes the blinds and opens
-  them on the island, the Tree panel back if it was open.
-- **Grander by rarity** (`GLORY`, by the rarity it hatched as): a longer build-up (0.6 s for a common, 2 s for a
-  legendary); the light of dusk for the commoner ones, a blue, violet or deep gold night for the rarer, the lanterns and
-  the egg's own lights pooling round them; rays of light turning behind the egg (8 from rare, 12 epic, 16 legendary),
-  staying behind what hatched from epic up; the islet dimmed round the egg (rare up); more sparks and shell; the picture
-  jolts (rare up); confetti (epic up); a ring of stars (uncommon up); the sounds grow with it.
-- A tap before the crack skips to it (any steps up taken at once), a tap during the list shows the rest. One scene at
-  a time. With the pixel filter off (the classic look) the same stage plays without the painted sky.
+  of light (legendary). It hangs in the middle of the picture with nothing under it, bobbing and swaying, and every
+  few seconds it gives a little wobble, as if asking to be tapped.
+- **The taps**: the title names the egg ("An epic egg") and "Tap the egg" blinks at the foot of the screen. Each tap
+  takes the next thing waiting inside. First each step up in rarity (`Tuning.EggUp`, the result's `hr`): a hard shake,
+  a flash, sparks and a ring of stars, "It turned legendary" and the next rarity's egg floating there, the sky and the
+  light changing with it. Then each mutation: a shake, a new crack, and its plate sliding in at the right with its name
+  and stars in its tier's colour and what it does ("Lucky *", "+5% egg luck"). Each of these taps runs the cracks a
+  little further (three stages). Once nothing is left the cracks glow from inside and the hint says "Tap to hatch it".
+  An egg with no step up and no mutation starts out like that, so its first tap hatches it.
+- **The hatch**: a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
+  hatched pops out where the egg was with a hop and a cheer. "It hatched", its name in its rarity's colour and "Rare,
+  good at farms" under it, and "No mutations" on a plate if it has none. "Tap to go on" shows after a moment; that tap
+  goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
+  pressed there. The scene waits for that tap and never closes by itself.
+- **Grander by rarity** (`GLORY`, by the rarity it is at that moment): the light of dusk for the commoner ones, a blue,
+  violet or deep gold night for the rarer, the egg's own lights pooling round it; rays of light turning behind the egg
+  (8 from rare, 12 epic, 16 legendary); more sparks and shell; the picture jolts (rare up); confetti (epic up); a ring
+  of stars (uncommon up); the sounds grow with it.
+- Two taps closer together than a fifth of a second count as one, so a double tap never skips a reveal. Space, Enter
+  and a gamepad's A tap too. One scene at a time. With the pixel filter off (the classic look) the egg floats the same
+  way without the painted sky.
 
 ## 7. Expeditions and battles (gone)
 

@@ -12,7 +12,7 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 2688, `sim_save.luau` about 911, `sim_clock.luau` about 1238, `sim_world.luau` about 2506,
+`sim.luau` about 2690, `sim_save.luau` about 911, `sim_clock.luau` about 1238, `sim_world.luau` about 2506,
 `sim_tree.luau` about 1690).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work ambient late
@@ -40,10 +40,10 @@ model: after changing a piece's model, run `sh tools/preview/thumbs.sh`), at who
 is 3D: the islands, the buildings (the Tree of Life among them), the build catalog's pieces, the tree's eggs and the
 driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,
 `NatureModels`, `ThemeModels`, `ThemeMoreModels` and `FunModels` on `Models/Parts`, `Models/MicroModels`,
-`Models/DriftModels`, the eggs in `Models/EggModels`, the hatch scene's islet in `UI/HatchScene`; the driftlings' round pieces from
+`Models/DriftModels`, the eggs in `Models/EggModels`; the driftlings' round pieces from
 `Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail; each kind's eye
 style and texture in `Data/Creatures`, the textures drawn by `Render/DynTex` in one-pixel marks), world-aligned on the iso
-grid and drawn by the pixel filter. The hatch scene's sky is a 2D picture painted pixel by pixel (`UI/HatchBackdrop`).
+grid and drawn by the pixel filter. The hatch scene is the egg alone, floating in front of a 2D sky painted pixel by pixel (`UI/HatchBackdrop`).
 (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few
 hours; the tree is back, laying the eggs the driftlings hatch from.)
 
