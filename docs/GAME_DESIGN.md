@@ -993,6 +993,21 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, Â
   > The request (2026-11-10): "make the tutorial show while in the build menu as well, and auto switches the player to
   > the tab where the required buildings are in"
 
+### 4.6 How full each building is (`Controllers/BuildingTags`)
+
+> The request (2026-11-14): "also, show capacities of work buildings when hovered over. if noone is working on a
+> building, make a alert on top of said work building stating so. do the same for huts and housing", then "Make it say
+> "Empty" instead of no one home or no workers".
+
+On your own island, point at a workplace (a farm, camp or shop) or a hut and a small card shows over its roof: its name,
+and how many work there of the two it takes ("Workers 1/2") or how many live there of its room ("Living here 2/2"), in
+red when it is empty and green when it is full. A phone has no pointer, so a tap on one shows the same card for three
+seconds. The card waits while a panel is open, in Build mode and while a driftling's name is showing under the pointer.
+Over every workplace nobody works at, and every hut nobody lives in, a little tag floats with an orange "!" badge and
+the word "Empty", bobbing a pixel. It goes the moment a driftling moves in or starts work there. Neighbours' islands
+show neither: it is your own island to run. Benches, lamps and other decor in front of a building never hide it from
+the pointer; the Tree of Life does.
+
 ## 5. Villagers (gone)
 
 The request of 2026-11-12 quoted at the top of this file took them out: "remove villagers, only creatures should be
@@ -1806,17 +1821,17 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched by the third lot, 21 minutes (it was within 20,
-  the second lot, until the two more eggs a lot of 2026-11-14 shuffled the rolls and one seed's second lot held no rare
-  egg: its first came from the third, at 20 minutes 5 seconds);
-- a steady supply: at least 12 hatched by half an hour (15 to 18), an epic within two hours (10 to 30 minutes); a
-  legendary comes at 22 to 45 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched by the third lot, 21 minutes (11 to 20; it was
+  within 20, the second lot, until the two more eggs a lot of 2026-11-14 shuffled the rolls and one seed's second lot
+  held no rare egg: its first came from the third, at 20 minutes 5 seconds);
+- a steady supply: at least 12 hatched by half an hour (18 to 33), an epic within two hours (15 to 30 minutes); a
+  legendary comes at 40 to 50 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  ten-thousandth: 160 to 310 shells of 4.8 million);
-- the island's second tier within 25 minutes (11 to 12), the third within 50 (31 to 39); at an hour, at least 12
-  driftlings in huts (22 to 30); Harbor Town (tier 4) not before 50 minutes (86 to 106), Coral City (tier 5) not before
-  90 (2 hours 59 for one seed, the other two a few minutes past three hours), Sunspire Capital (tier 6) not before two
-  hours (4 hours 50 to 5 hours 9), and nothing past it within three hours;
+  ten-thousandth: 240 to 370 shells of 6.8 to 13.6 million);
+- the island's second tier within 25 minutes (8 to 9), the third within 50 (29 to 38); at an hour, at least 12
+  driftlings in huts (30 to 40); Harbor Town (tier 4) not before 50 minutes (72 to 92), Coral City (tier 5) not before
+  90 (2 hours 12 to 2 hours 44), Sunspire Capital (tier 6) not before two hours (3 hours 43 to 4 hours 35), and nothing
+  past it within three hours;
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
   food.
 
@@ -1832,6 +1847,11 @@ Going back to the old lots on the 10 minute tree (2026-11-14: "use the same amou
 before") slowed the middle of the game: about a third as many eggs an hour as with lots three times the size, so
 Harbor Town comes at 86 to 106 minutes (was 57 to 64), Coral City at about three hours (was 90 to 111 minutes) and
 Sunspire Capital at about five. The early bounds all still hold.
+
+Two more eggs a lot on every island (2026-11-14: "increase the amount of eggs produced by the tree by 2 across all
+expansions") gave the middle of the game some of that back: more driftlings working sooner, so Harbor Town comes at 72
+to 92 minutes, Coral City at 2 hours 12 to 2 hours 44 and Sunspire Capital at 3 hours 43 to 4 hours 35, and Everdrift
+about an hour sooner (the table below). Every bound still holds, the rare one's restated as by the third lot (above).
 
 The cheaper work and hut buildings (2026-11-13, `Tuning.BuildingPrice` 0.3) moved everything up. At the new prices the
 old Career ran short of wood: it built wood only while wood came in slowly, a few cheap camps were enough for that, and
@@ -1880,25 +1900,26 @@ Driftling Haven a fifth cheaper, the town came at 55 to 59 minutes (was 57 to 65
 107) and Sunspire Capital at 2 hours 18 to 2 hours 20 (was 2 hours 33 to 2 hours 47), so its bound moved from two and
 a half hours to two; with one store the town and the city sit about where they were and the capital comes sooner (the
 bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take about half an
-hour of the checker's time each): `luau tests/career.luau -a <seed> 1800` prints it. With today's settings (shells as
+hour of the checker's time each): `luau tests/career.luau -a <seed> 2100` prints it. With today's settings (shells as
 the one store, the cheaper eggs, the automatic work, the housing limit, and since 2026-11-14 the tree's lots every 10
-minutes, 5 to 12 eggs each) the three seeds reach each island at:
+minutes, 7 to 14 eggs each since the two more of 2026-11-14) the three seeds reach each island at:
 
 | Tier | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|
-| 7 Moonlit Bay | 7 h 40 | 8 h 31 | 8 h 41 |
-| 10 Driftling Haven | 15 h 53 | 16 h 44 | 17 h 23 |
-| 11 Lantern Cove | 18 h 39 | 19 h 33 | 20 h 03 |
-| 13 Kelpwood Isle | 22 h 18 | 23 h 26 | 23 h 44 |
-| 15 Cloudberry Isle | 24 h 31 | 25 h 58 | 26 h 03 |
-| 17 Starfall Atoll | 26 h 49 | 28 h 27 | 28 h 17 |
-| 20 Everdrift | 30 h 21 | 32 h 15 | 31 h 55 |
+| 7 Moonlit Bay | 6 h 36 | 8 h 05 | 6 h 15 |
+| 10 Driftling Haven | 14 h 15 | 16 h 36 | 13 h 33 |
+| 11 Lantern Cove | 17 h 02 | 19 h 28 | 16 h 21 |
+| 13 Kelpwood Isle | 20 h 39 | 23 h 20 | 20 h 10 |
+| 15 Cloudberry Isle | 23 h 53 | 26 h 14 | 23 h 15 |
+| 17 Starfall Atoll | 25 h 51 | 28 h 08 | 25 h 18 |
+| 20 Everdrift | 29 h 37 | 31 h 36 | 28 h 56 |
 
 (Before the 10 minute tree, with the same lots every three minutes, Everdrift came at 22 h 12 to 26 h 13; with lots
-three times the size every 10 minutes, at 23 h 41 to 25 h 36.) Lantern Cove takes about two and three quarter hours
+three times the size every 10 minutes, at 23 h 41 to 25 h 36; with 5 to 12 eggs a lot every 10 minutes, at 30 h 21 to
+32 h 15.) Lantern Cove takes about two and three quarter hours
 after Driftling Haven, the next two islands about an hour and three quarters each, and from Kelpwood Isle on a little
-over an hour each, as the island's income catches up with the prices. Everdrift comes in 30 to 32 hours, housing 758
-to 788 driftlings on about 600 pieces with charm adding the full 100% to every shell.
+over an hour each, as the island's income catches up with the prices. Everdrift comes in 29 to 32 hours, housing
+about 730 driftlings on about 420 pieces when it does, with charm adding 98% to every shell.
 Getting there took two changes to the Career and two to the prices. The old Career filled a full island with idle
 lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Bay for good; now a building with no room left
 takes the weakest of its kind's place (above), which also brought Driftling Haven from never to inside a day. With the

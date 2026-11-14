@@ -1204,6 +1204,23 @@ or sway. `stats()` (what is alive and drawn, and the last tick's parts in ms: `m
 Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` (every bird, gull, fish and leaf due
 now), `setSuspended(on)` (a timing's A/B).
 
+`BuildingTags` (GAME_DESIGN 4.6; the requests of 2026-11-14, "show capacities of work buildings when hovered over. if
+noone is working on a building, make a alert on top of said work building stating so. do the same for huts and
+housing" and "Make it say "Empty""): the own island's workplaces (`Island.works`) and huts (kind "nest"), scanned from
+its `Decor` folder every `SCAN_SECS` 0.5 (a `Spot` `{ uid, id, model, top, work, room, n }`: `top` over its bounding
+box, kept while the model stays; `room` `Tuning.HelpMax` for a workplace, the hut's `slots`; `n` the view's driftlings
+whose `work` / `home` it is). WorldView drives it: `step(t, plot, hoverPos?, palHovered)` every Heartbeat (the plot
+changing clears everything), `tapAt(pos) -> boolean` from `onTap` after the eggs, the driftlings, the tree and the
+Hatchery. Over each spot with `n` 0 a `BuildingAlert` (World canvas, glass, `mini_alert` and `Words` "Empty", 2 px over
+`top`, bobbing 1 px twice a second; none while the camera has a stage). The `BuildingCard` (glass: `Name` in the
+accent, `mini_work` or `mini_nest`, `Line` "Workers n/2" or "Living here n/room" in `bad` at 0, `good` when full, else
+`text`; over the alert when there is one, kept on the screen and `CARD_TOP` 22 below the top of the HUD's canvas, under the top bar's chips): a tap's for `CARD_SECS` 3 (while no panel is open), else the pointer's,
+looked for every `HOVER_SECS` 0.1 with a mouse, no panel, not Build mode (`CameraController.isFree`) and no driftling's
+name showing. The pick ray (`PixelRenderer.screenRay`, `PixelRays`) includes only the spots' models and the tree's
+(`pickList`), so decor in front never hides a building and the tree does. `debugState() -> { spots, alerts, words,
+card, cardUid, hit }` (`hit`: what the last pick met), `debugSpots() -> { { uid, id, work, n, room, tap? } }` (`tap`:
+an InputObject point on its middle, nil off the screen).
+
 ### 10.3 `Hud`
 The look since 2026-11-14 (GAME_DESIGN 2, Random Bakery's HUD): every block is `UIKit.glass`, `EDGE` 5 UI px from the
 screen's edges, `GAP` 3 between blocks stacked in a column. The `TopBar` (`CHIP_Y` 4, `TOP_H` 14 tall) holds the chips

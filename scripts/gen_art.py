@@ -229,6 +229,19 @@ HAND("mini_lock", [
     "3333222",
     "3322221",
 ], ["Y", "S"])
+# an alert over a building no driftling works at or lives in: an orange badge with a white "!" (the request of
+# 2026-11-14, "if noone is working on a building, make a alert on top of said work building stating so")
+HAND("mini_alert", [
+    "..44433..",
+    ".444w333.",
+    "4443w3332",
+    "4443w3332",
+    "4433w3322",
+    "4333w3322",
+    "333333222",
+    ".332w221.",
+    "..22111..",
+], ["O"])
 # a reward taken on the pass track: a green tick
 HAND("mini_check", [
     "......4",

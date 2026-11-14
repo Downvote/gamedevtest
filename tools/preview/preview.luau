@@ -300,6 +300,25 @@ function SCEN.village()
 	settle(p)
 	E.run(2.5)
 	capture(p, "village")
+	-- (how full the buildings are, the request of 2026-11-14: alerts over the empty ones, and a tap on a hut with
+	-- driftlings in it showing its card, village_card)
+	local BT = modOr(p, "Controllers.BuildingTags")
+	if BT then
+		local st = H.inClient(p, BT.debugState)
+		log("village: %d workplaces and huts, %d alerts (%s)", st.spots, st.alerts, table.concat(st.words, ", "))
+		local pick
+		for _, sp in H.inClient(p, BT.debugSpots) do
+			if not sp.work and sp.n > 0 and sp.tap and pick == nil then
+				pick = sp
+			end
+		end
+		if pick then
+			local shown = H.inClient(p, BT.tapAt, pick.tap)
+			E.run(0.3)
+			log("village: a tap on the %s (uid %d): card %s %q", pick.id, pick.uid, tostring(shown), H.inClient(p, BT.debugState).card)
+			capture(p, "village_card")
+		end
+	end
 	return p
 end
 

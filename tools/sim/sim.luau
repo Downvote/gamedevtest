@@ -519,6 +519,15 @@ do
 	local arrow = p.PlayerGui:FindFirstChild("TutArrow", true)
 	H.expect(arrow ~= nil and arrow:IsA("GuiObject") and arrow.Visible, "build", "an arrow points at the Tree of Life for the hatching tip")
 end
+-- (how full the buildings are, the request of 2026-11-14: "if noone is working on a building, make a alert on top of
+-- said work building stating so. do the same for huts and housing", and then "Make it say "Empty"": with no driftling
+-- yet, the camp, the patch and the hut each have an alert over them)
+local BTp = H.cmod(p, "Controllers.BuildingTags")
+do
+	E.run(0.6)
+	local bt = H.inClient(p, BTp.debugState)
+	H.expect(bt.spots == 3 and bt.alerts == 3 and table.concat(bt.words, ",") == "Empty,Empty,Empty", "build", "with no driftling yet: \"Empty\" over the camp, the patch and the hut", string.format("%d spots, %d alerts: %s", bt.spots, bt.alerts, table.concat(bt.words, ",")))
+end
 -- (the starting shells cover the rest of the tips with room for a second egg: "give the player more shells so every
 -- task is completable at the start without needing to wait")
 H.expect(prof.shells >= Buildings.byId.stall.shells + 2 * Tuning.EggPrice[2] * Tuning.EggTier[1], "build", "after the hut, the shells left pay for the snack stall and two uncommon eggs", tostring(prof.shells))
@@ -649,6 +658,25 @@ do
 		local hut = pieceOf("nest")
 		H.expect(first ~= nil and hut ~= nil and first.home == hut.uid and first.work == pieceOf("lumber").uid, "build", "it moves into the hut and goes to work at the lumber camp", first and string.format("home %d work %d", first.home, first.work))
 		H.expect(prof.tut == 5, "build", "the tips move on to a shop", tostring(prof.tut))
+		-- (the camp has its worker and the hut someone living there: their alerts go, the patch's stays; a tap on the
+		-- hut shows how full it is, "show capacities of work buildings when hovered over", a phone's tap for the hover)
+		E.run(0.6)
+		local bt = H.inClient(p, BTp.debugState)
+		H.expect(bt.alerts == 1, "build", "the camp and the hut no longer empty: only the patch's alert left", string.format("%d alerts", bt.alerts))
+		local hutTap = nil
+		for _, sp in H.inClient(p, BTp.debugSpots) do
+			if sp.uid == hut.uid then
+				hutTap = sp.tap
+			end
+		end
+		E.raycastParts = true
+		local shown = hutTap ~= nil and H.inClient(p, BTp.tapAt, hutTap)
+		E.raycastParts = nil
+		E.run(0.2)
+		bt = H.inClient(p, BTp.debugState)
+		H.expect(shown and bt.card == string.format("%s Living here 1/%d", Buildings.byId.nest.name, Buildings.byId.nest.slots), "build", "a tap on the hut: its card, how many live there of its room", string.format("%s %q at %s, the ray met %s", tostring(shown), bt.card, tostring(hutTap), bt.hit))
+		E.run(3.2)
+		H.expect(H.inClient(p, BTp.debugState).card == "", "build", "the tap's card goes after a few seconds")
 	end
 end
 do

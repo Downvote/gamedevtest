@@ -31,6 +31,7 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local EggView = require(script.Parent.EggView)
+local BuildingTags = require(script.Parent.BuildingTags)
 
 local WorldView = {}
 
@@ -819,6 +820,11 @@ local function onTap(pos: Vector2)
 		UIKit.notice("Someone else's Hatchery. Build one on your own island.", UIKit.color("text_dim"), 3)
 		return
 	end
+	-- a workplace or a hut of the own island: how full it is, for a few seconds (Controllers/BuildingTags; the request
+	-- of 2026-11-14, "show capacities of work buildings when hovered over": a phone has no pointer)
+	if BuildingTags.tapAt(pos) then
+		return
+	end
 	local sign = hit.Instance:FindFirstAncestor("PlotSign")
 	local pm = if sign then sign:FindFirstAncestorWhichIsA("Model") else nil
 	while pm and not string.match(pm.Name, "^Plot_%d+$") do
@@ -970,6 +976,8 @@ function WorldView.start()
 		stepBits(dt)
 		updateSigns()
 		stepHover(t)
+		-- the own buildings: alerts over the empty ones, the card over the one under the pointer
+		BuildingTags.step(t, myPlot, hoverPos, hoverKey ~= nil)
 		-- the tree's eggs on every island near the view
 		EggView.step(t, c.X)
 	end)
