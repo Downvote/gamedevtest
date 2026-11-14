@@ -4,7 +4,7 @@
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]
 #   scenario: island | village | island2 | island3 | city | gallery | day | dusk | night | dawn | tree |
-#             panel=<pals|work|tree|hatch|index|looks> | catalog=<ground|fence|nature|theme|theme2|fun|tab name|id,id,...>
+#             panel=<pals|work|tree|hatch|index|looks|pal> | catalog=<ground|fence|nature|theme|theme2|fun|tab name|id,id,...>
 #             | theme=<beach|garden|frost|zen|volcano|fairy> | themes (all six) | hatch=<r><hr>
 #             | pals=<n> | pals=<id>,<id>,... (driftlings up close, eight a picture)
 #             | anim=<id> | anim=<id>:<mood>,<mood> (one driftling moving on its skeleton, eight frames a mood)

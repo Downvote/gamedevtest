@@ -423,6 +423,38 @@ return function()
 		T.eq(p.pals[#p.pals].home, burrow, "the burrow is comfier")
 	end)
 
+	T.it("a kind never had before hatches as new (the scene's \"New!\"); a second of it doesn't", function()
+		-- (the request of 2026-11-14: "there should a tip saying \"New!\" If the creature caught is new")
+		local p = fresh()
+		p.stats.taken = 5
+		build(p, "nest")
+		build(p, "nest")
+		local rng = Util.newRng(11)
+		local e = egg(p, 1)
+		local ok, data = Tree.hatch(p, e.id, 0, rng)
+		T.truthy(ok, tostring(data))
+		T.eq(data.new, true, "the first of its kind")
+		local sp = data.sp
+		-- the same kind again: every common kind had, so whatever hatches has been had
+		for _, d in Creatures.list do
+			p.seen[d.id] = 2
+		end
+		local f = egg(p, 1)
+		local ok2, data2 = Tree.hatch(p, f.id, 0, rng)
+		T.truthy(ok2, tostring(data2))
+		T.eq(data2.new, false, "had before: not new")
+		-- met in the Index (seen 1) but never had: still new
+		for _, d in Creatures.list do
+			p.seen[d.id] = 1
+		end
+		p.seen[sp] = 1
+		local g = egg(p, 1)
+		local ok3, data3 = Tree.hatch(p, g.id, 0, rng)
+		T.truthy(ok3, tostring(data3))
+		T.eq(data3.new, true, "only seen, never had: new")
+		T.eq(p.seen[data3.sp], 2, "had now")
+	end)
+
 	T.it("every hut full: a swap, the one swapped out sold for its price; refusals", function()
 		local p = fresh()
 		p.stats.taken = 5

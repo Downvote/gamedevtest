@@ -546,6 +546,8 @@ do
 		hs = H.inClient(p, HSp.debugState)
 		local def0 = prof.pals[1] and Creatures.byId[prof.pals[1].sp]
 		H.expect(hs.name == (def0 and def0.name) and hs.shown == math.max(1, hs.muts) and hs.phase == "done", "build", "its name under it, its mutations listed (or that it has none)", string.format("%q, %d of %d, %s", hs.name, hs.shown, hs.muts, hs.phase))
+		-- (the request of 2026-11-14: "there should a tip saying "New!" If the creature caught is new")
+		H.expect(hs.fresh, "build", "the first of its kind: a \"New!\" tag by its name", tostring(hs.fresh))
 		H.inClient(p, HSp.skip)
 		E.runUntil(function()
 			return not H.inClient(p, HSp.debugState).open
@@ -560,6 +562,7 @@ do
 		local hatched = fxSince(f1, "hatched")
 		H.expect(#hatched == 1 and type(hatched[1].data) == "table" and hatched[1].data.egg == pick.id and hatched[1].data.sp == (first and first.sp), "build", "the client hears of it (Fx hatched)", tostring(#hatched))
 		H.expect(statusSays("It hatched"), "build", "and says what hatched")
+		H.expect(type(hatched[1]) == "table" and type(hatched[1].data) == "table" and hatched[1].data.new == true and statusSays("New! It hatched"), "build", "a kind never had: the result says new, the notice starts with \"New!\"", tostring(hatched[1] and hatched[1].data and hatched[1].data.new))
 		H.closePanel(p)
 		-- (from here on the scene ends at once: the hatches below test the rules and the panels, not the scene)
 		H.inClient(p, HSp.setQuick, true)
@@ -860,6 +863,66 @@ do
 		H.expect(H.inClient(p, WV.ownCount) == housedN() and housedN() == 2, "tree", "what hatched walks the island", string.format("%d drawn, %d in huts", H.inClient(p, WV.ownCount), housedN()))
 	end
 end
+-- a tap on one of the own driftlings on the island opens its details (the request of 2026-11-14, "allow players to
+-- click on creatures to open up a menu seeing their details"): its name, rarity, passive and every mutation with what
+-- it does (a weather's with its icon), where it works and lives, its price; Work, Move and Sell. Work's picker and
+-- Move's go back to the details
+do
+	local x = prof.pals[#prof.pals]
+	local d = x and Creatures.byId[x.sp]
+	if x and d then
+		local muts0 = x.muts
+		x.muts = { "swift2", "rainy3" }
+		H.push(p, 0.6)
+		H.inClient(p, WV.holdPal, s.plot, x.id, 6)
+		E.run(0.2)
+		local pos = H.inClient(p, WV.palScreen, s.plot, x.id)
+		H.expect(pos ~= nil, "pals", "the driftling is on the screen", tostring(pos))
+		if pos then
+			local key = H.inClient(p, WV.palKeyAt, pos)
+			H.expect(key == s.plot .. ":p" .. x.id, "pals", "the pick finds it under the tap (its box on the screen)", tostring(key))
+			H.inClient(p, WV.tapScreen, pos)
+			E.run(0.4)
+			local panel = p.PlayerGui:FindFirstChild("Panel_pal", true)
+			local function label(name)
+				local l = panel and panel:FindFirstChild(name, true)
+				return if l and l:IsA("TextLabel") then l.Text else nil
+			end
+			local rar = Traits.RARITY[d.rarity]
+			H.expect(H.currentPanel(p) == "pal" and label("Name") == d.name, "pals", "a tap on it opens its details, its name at the top", string.format("%s %s", tostring(H.currentPanel(p)), tostring(label("Name"))))
+			H.expect(label("Rarity") == rar.name .. " " .. string.rep("*", d.rarity) and label("Passive") == d.passive.name, "pals", "its rarity with its stars, its passive", string.format("%s / %s", tostring(label("Rarity")), tostring(label("Passive"))))
+			local sw, rn = Traits.byId.swift2, Traits.byId.rainy3
+			H.expect(label("Mut_swift2") == sw.name .. " " .. Traits.TIER_STARS[sw.tier] and label("MutFx_swift2") == sw.blurb and label("Mut_rainy3") == rn.name .. " " .. Traits.TIER_STARS[rn.tier] and label("MutFx_rainy3") == rn.blurb, "pals", "every mutation with its stars and what it does", string.format("%s / %s", tostring(label("Mut_swift2")), tostring(label("Mut_rainy3"))))
+			H.expect(panel ~= nil and panel:FindFirstChild("MutIcon_rainy3", true) ~= nil and panel:FindFirstChild("MutIcon_swift2", true) == nil, "pals", "a weather's mutation with that weather's icon")
+			local work = x.work ~= 0 and Buildings.byId[(function()
+				for _, q in prof.plot.placed do
+					if q.uid == x.work then
+						return q.id
+					end
+				end
+				return ""
+			end)()]
+			local where = panel and panel:FindFirstChild("Where", true)
+			local whereTop = where and where:FindFirstChild("Top")
+			H.expect(work and whereTop and whereTop.Text == "Works at the " .. work.name, "pals", "where it works", whereTop and whereTop.Text)
+			local priceRow = panel and panel:FindFirstChild("Price", true)
+			local priceTop = priceRow and priceRow:FindFirstChild("Top")
+			H.expect(priceTop and priceTop.Text == string.format("Sells for %s shells", Numbers.coins(TreeL.price(x))), "pals", "what it sells for, in shells", priceTop and priceTop.Text)
+			H.expect(H.buttonNamed(p, "PalWork") ~= nil and H.buttonNamed(p, "PalMove") ~= nil and H.buttonNamed(p, "PalSell") ~= nil and label("ReadOnly") == nil, "pals", "its own: Work, Move and Sell")
+			H.clickNamed(p, "PalWork", { wait = 0.3 })
+			H.expect(H.currentPanel(p) == "pals" and H.buttonNamed(p, "Go_0", true) ~= nil, "pals", "Work opens the work picker", tostring(H.currentPanel(p)))
+			H.clickNamed(p, "Back", { wait = 0.3 })
+			H.expect(H.currentPanel(p) == "pal", "pals", "its Back goes back to the details", tostring(H.currentPanel(p)))
+			H.clickNamed(p, "PalMove", { wait = 0.3 })
+			H.expect(H.currentPanel(p) == "pals" and p.PlayerGui:FindFirstChild("Hut_" .. x.home, true) ~= nil, "pals", "Move opens the hut picker", tostring(H.currentPanel(p)))
+			H.clickNamed(p, "Back", { wait = 0.3 })
+			H.expect(H.currentPanel(p) == "pal", "pals", "and its Back goes back to the details too", tostring(H.currentPanel(p)))
+			H.closePanel(p)
+		end
+		x.muts = muts0
+		H.push(p, 0.4)
+	end
+end
 -- the tree's panel from the card's Open: how often it lays and the time to the next lot with its bar, how many eggs a
 -- lot and the huts' room, the odds, and under the tree every egg with Hatch, the rarest first
 H.clickNamed(p, "TreeOpen", { wait = 0.4 })
@@ -952,8 +1015,25 @@ do
 		local weak = weakest()
 		local price = TreeL.price(weak)
 		local sh1, sold0, hut, t1, rate0 = prof.shells, prof.stats.sold, weak.home, E.now(), Island.rates(prof).shells
+		-- (every kind had for this one, so what hatches is no first: no "New!"; the Index put back after)
+		local seen0 = table.clone(prof.seen)
+		for _, cd in Creatures.list do
+			prof.seen[cd.id] = 2
+		end
 		local f1 = #fx
 		H.clickNamed(p, "SwapTake_" .. weak.id, { wait = 0.6 })
+		do
+			local got = fxSince(f1, "hatched")[1]
+			local gx = prof.pals[#prof.pals]
+			H.expect(type(got) == "table" and type(got.data) == "table" and got.data.new == false and statusSays("It hatched") and not statusSays("New!"), "tree", "a kind had before: not new, no \"New!\" in the notice", tostring(got and got.data and got.data.new))
+			table.clear(prof.seen)
+			for k, n in seen0 do
+				prof.seen[k] = n
+			end
+			if gx then
+				prof.seen[gx.sp] = 2
+			end
+		end
 		local x = prof.pals[#prof.pals]
 		local c = x and Creatures.byId[x.sp]
 		H.expect(table.find(prof.pals, weak) == nil and prof.stats.sold == sold0 + 1 and prof.stats.taken == taken0 + 1, "tree", "Swap: the one picked is sold", string.format("sold %d, taken %d", prof.stats.sold, prof.stats.taken))

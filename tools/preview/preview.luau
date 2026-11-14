@@ -702,6 +702,33 @@ local function panelScenario(name)
 		if name == "work" then
 			-- the work picker for the first driftling (Work on its card): every workplace with its speed there
 			H.openPanel(p, "pals", { pal = H.profile(p).pals[1].id })
+		elseif name == "pal" then
+			-- one driftling's details (the request of 2026-11-14, "allow players to click on creatures to open up a
+			-- menu seeing their details"), opened as a player would, by a tap on it where it stands on the island
+			-- (Controllers/WorldView's pick); four mutations, a weather's among them
+			local prof = H.profile(p)
+			local x = prof.pals[1]
+			x.muts = { "fierce3", "busy2", "rainy2", "lazy" }
+			H.push(p, 0.6)
+			local WV = modOr(p, "Controllers.WorldView")
+			local s = H.session(p)
+			local how = "opened directly"
+			if WV and WV.palScreen then
+				H.inClient(p, WV.holdPal, s.plot, x.id, 8)
+				E.run(0.3)
+				local pos = H.inClient(p, WV.palScreen, s.plot, x.id)
+				if pos then
+					H.inClient(p, WV.tapScreen, pos)
+					E.run(0.1)
+					if H.currentPanel(p) == "pal" then
+						how = string.format("a tap at %d,%d", pos.X, pos.Y)
+					end
+				end
+			end
+			if H.currentPanel(p) ~= "pal" then
+				H.openPanel(p, "pal", { id = x.id })
+			end
+			log("panel pal: %s (%s)", x.sp, how)
 		else
 			H.openPanel(p, name)
 		end
@@ -726,6 +753,12 @@ local function panelScenario(name)
 		log("no UIKit.openPanel: capturing the HUD")
 	end
 	capture(p, "panel_" .. name)
+	if name == "pal" and UIKit and UIKit.openPanel then
+		-- a neighbour's driftling, only to look at: what its island's Pals attribute says
+		H.openPanel(p, "pal", { id = 9, plot = 99, sp = "gullfin", muts = { "trader2", "rainy3" }, work = "patch", home = "nest", isle = "Bo's Isle" })
+		E.run(0.8)
+		capture(p, "panel_pal_visit")
+	end
 	return p
 end
 
@@ -1804,7 +1837,7 @@ local function hatchScenario(code)
 	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "swift2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" } }
 	local muts = MUTS[hr] or {}
 	H.inClient(p, function()
-		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr }, nil)
+		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr, new = (sp or "mossbun") ~= "mossbun" }, nil)
 	end)
 	local function state()
 		return H.inClient(p, HS.debugState)
@@ -1842,7 +1875,7 @@ local function hatchScenario(code)
 	E.run(1.4)
 	st = state()
 	capture(p, "hatch_reveal")
-	log("hatch %s: laid %d, hatched %d as %s: phase %s, %d mutations of %d, %s, title %q, name %q", code, r, st.r, tostring(sp), st.phase, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name)
+	log("hatch %s: laid %d, hatched %d as %s: phase %s, %d mutations of %d, %s, title %q, name %q, New! %s", code, r, st.r, tostring(sp), st.phase, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name, tostring(st.fresh))
 	H.inClient(p, HS.skip)
 	E.run(0.2)
 	log("hatch %s: closed %s", code, tostring(not state().open))

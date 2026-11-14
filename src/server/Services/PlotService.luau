@@ -340,12 +340,14 @@ function PlotService.sync(s: S)
 	local m = plotModel(s.plot)
 	local p = s.profile
 	-- who lives there: each driftling in a hut "id.species.work.home" (work: the uid of the building it works at, 0
-	-- resting; home: its hut; one with no hut, its hut cleared away, shows once it moves in). The tree's eggs round its
-	-- roots "id.rarity" (every client draws every island's, Controllers/EggView).
+	-- resting; home: its hut; one with no hut, its hut cleared away, shows once it moves in), then ".mut,mut" when it
+	-- has mutations (a tap on a neighbour's driftling shows them: Menus' "pal" panel). The tree's eggs round its roots
+	-- "id.rarity" (every client draws every island's, Controllers/EggView).
 	local pals = {}
 	for _, x in p.pals do
 		if (x.home or 0) ~= 0 then
-			table.insert(pals, string.format("%d.%s.%d.%d", x.id, x.sp, x.work, x.home))
+			local muts = if x.muts and #x.muts > 0 then "." .. table.concat(x.muts, ",") else ""
+			table.insert(pals, string.format("%d.%s.%d.%d", x.id, x.sp, x.work, x.home) .. muts)
 		end
 	end
 	local function set(k: string, v: any)

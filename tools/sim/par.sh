@@ -9,7 +9,7 @@
 #                   rules, the card's best three and the time to the next lot, hatching from the card, a tag and the
 #                   panel, the swap picker and its egg gone with a new lot, a new lot every Tree.secs, a tap on the
 #                   tree opening its panel), the Driftlings panel (move to a second hut, swap back, work, sell in two
-#                   taps), the Index panel, looks, settings, expanding for wood (the extra eggs, the huts' limit, the
+#                   taps), a tap on a driftling opening its card, "New!" on a first-of-its-kind hatch, the Index panel, looks, settings, expanding for wood (the extra eggs, the huts' limit, the
 #                   cheer naming the island), the build catalog (tabs and icons, chips, Decor's 13 themes, cards
 #                   cheapest first and locked after, tooltips, the search box, each tab's count), fences drawn (a
 #                   line, a box, one over another, Erase), a river with a bridge and lily pads (refused on grass,
@@ -34,7 +34,7 @@
 #                   of shells, two eggs: one into a hut, one waiting), two islands, day and night
 #   sim_world.luau  the sea and the islands: the sea built at start, two islands with their trees, their driftlings
 #                   and both islands' eggs round the trees on every client (the plot's Eggs attribute), walking (the
-#                   camera follows, Home), building for wood (place, move, no upgrades, clear away, every refusal, the
+#                   camera follows, Home, a neighbour's driftling's card, only to look at), building for wood (place, move, no upgrades, clear away, every refusal, the
 #                   huts' limit), Build mode's catalog (tabs and rows, a locked card's tooltip, the Huts tab at the
 #                   limit, paths, fences as a line and a box, water, erasing by kind), fences and water on both islands
 #                   (their models, the water's neighbour masks, lily pads, fences beside buildings, wading), the piece,

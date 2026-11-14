@@ -137,7 +137,7 @@ end
 ------------------------------------------------------------------ the work picker
 -- Every workplace on the island (any driftling works anywhere: the request of 2026-11-13), the fastest for this one
 -- first (Tree.worthAt: its passive and mutations help most at their knack), the one there now, and Rest.
-local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
+local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back: string, backArg: any?)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	local me: Types.Pal? = nil
 	local name = "?"
@@ -152,7 +152,7 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
 	end
 	local top = hint(body, string.format("Where should %s work? The fastest spots come first.", name), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
-		UIKit.openPanel("pals")
+		UIKit.openPanel(back, backArg)
 	end, { name = "Back", color = UIKit.color("plate_light") })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
@@ -161,7 +161,7 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number)
 		local res = ask("pal.work", { id = palId, uid = uid })
 		if res.ok then
 			Audio.play("ding")
-			UIKit.openPanel("pals")
+			UIKit.openPanel(back, backArg)
 		end
 	end
 	-- the workplaces with this one's speed at each, the fastest first (then farms, wood, shops as built)
@@ -384,17 +384,17 @@ end
 -- Where a driftling lives (GAME_DESIGN 6: "the player can also select which creatures are sent to which hut"): every
 -- hut, the comfiest first, with its room and comfort. One with room: Move here. A full one: each of its driftlings, to
 -- swap with (it goes to where this one was).
-local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back: string)
+local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back: string, backArg: any?)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	local me = palById(v, id)
 	local md = if me then Creatures.byId[me.sp] else nil
 	if me == nil or md == nil then
-		UIKit.openPanel(back)
+		UIKit.openPanel(back, backArg)
 		return
 	end
 	local top = hint(body, string.format("Where should %s live? It works from its hut.", md.name), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
-		UIKit.openPanel(back)
+		UIKit.openPanel(back, backArg)
 	end, { name = "Back", color = UIKit.color("plate_light") })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
@@ -403,7 +403,7 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		local res = ask("pal.house", { id = id, uid = uid, swap = swap })
 		if res.ok then
 			Audio.play("pop")
-			UIKit.openPanel(back)
+			UIKit.openPanel(back, backArg)
 		end
 	end
 	local function place(uid: number, title: string, n: number, room: number, comfort: number)
@@ -501,12 +501,21 @@ local function buildPals(body: Frame, arg: any?)
 	if v == nil then
 		return
 	end
+	-- (from a driftling's details, { back = "pal" }: Back and a choice go back to its details)
 	if type(arg) == "table" and type(arg.pal) == "number" then
-		buildPicker(body, v, arg.pal)
+		if arg.back == "pal" then
+			buildPicker(body, v, arg.pal, "pal", { id = arg.pal })
+		else
+			buildPicker(body, v, arg.pal, "pals")
+		end
 		return
 	end
 	if type(arg) == "table" and type(arg.move) == "number" then
-		buildHutPicker(body, v, arg.move, "pals")
+		if arg.back == "pal" then
+			buildHutPicker(body, v, arg.move, "pal", { id = arg.move })
+		else
+			buildHutPicker(body, v, arg.move, "pals")
+		end
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
@@ -544,6 +553,153 @@ local function buildPals(body: Frame, arg: any?)
 	end)
 	for i, x in order do
 		palRow(list, v, x, i, W, "pals")
+	end
+end
+
+------------------------------------------------------------------ one driftling's details
+-- The request of 2026-11-14, "allow players to click on creatures to open up a menu seeing their details": a tap on a
+-- driftling on an island (Controllers/WorldView's pick) opens this. Its portrait, its name big in its rarity's colour,
+-- its rarity with its stars, its kind of land and knack, its line of description; on the left its passive and every
+-- mutation (name and stars in its tier's colour, what it does; a weather's with that weather's icon); on the right
+-- where it works and how fast there (Tree.worthAt) next to its best, its hut, what it sells for. The own island's
+-- ({ id }) has Work (the work picker), Move (the hut picker) and Sell (two taps) along the foot; a neighbour's
+-- ({ id, plot, sp, muts, work, home, isle }: the building ids from its island) is only looked at.
+local WEATHER_ICON: { [string]: string } = {} -- a weather family -> its weather's mini icon
+for _, k in WeatherData.KINDS do
+	if k.family then
+		WEATHER_ICON[k.family] = k.icon
+	end
+end
+local KNACK_WORDS: { [string]: string } = { farm = "good at farms", fish = "good at fishing", wood = "good with wood", shop = "good at shops" }
+
+local function buildPal(body: Frame, arg: any?)
+	local v = StateClient.view()
+	if v == nil or type(arg) ~= "table" then
+		return
+	end
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local own = arg.plot == nil or arg.plot == v.plot
+	-- the driftling: the own one from the view (gone: sold, or the view moved on), a neighbour's as its island told it
+	local x: Types.Pal?
+	if own then
+		x = palById(v, tonumber(arg.id))
+	elseif type(arg.sp) == "string" then
+		x = { id = tonumber(arg.id) or 0, sp = arg.sp, home = 0, work = 0, muts = Traits.clean(arg.muts) }
+	end
+	local d = if x then Creatures.byId[x.sp] else nil
+	if x == nil or d == nil then
+		UIKit.text(body, "That driftling isn't on your island any more.", UDim2.fromOffset(W, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "Gone" })
+		UIKit.button(body, "All driftlings", UDim2.fromOffset(80, 13), UDim2.fromOffset(0, 16), function()
+			UIKit.openPanel("pals")
+		end, { name = "AllPals", color = UIKit.color("button_ok") })
+		return
+	end
+	local pal = x :: Types.Pal
+	local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+	local muts: { string } = pal.muts or {}
+	-- its portrait (32 x 32, drawn from its model) on a veil, its name, rarity and kind beside it
+	local frame = UIKit.row(body, UDim2.fromOffset(38, 38), UDim2.fromOffset(0, 0), nil, 0.84)
+	frame.Name = "Portrait"
+	PixelSprites.image(frame, "icon_" .. pal.sp, UDim2.fromOffset(3, 3), 4)
+	UIKit.text(body, d.name, UDim2.fromOffset(W - 44, 18), UDim2.fromOffset(44, -1), { face = "big", kind = "title", color = UIKit.color(rar.color), name = "Name" })
+	UIKit.text(body, rar.name .. " " .. string.rep("*", d.rarity), UDim2.fromOffset(W - 44, 10), UDim2.fromOffset(44, 17), { color = UIKit.color(rar.color), name = "Rarity" })
+	local land = Islets.list[d.islet]
+	local kind = (if land then land.name .. " kind" else "A driftling") .. ", " .. (KNACK_WORDS[d.knack] or "a hard worker")
+	UIKit.text(body, kind, UDim2.fromOffset(W - 44, 10), UDim2.fromOffset(44, 27), { color = UIKit.color("text"), name = "Kind" })
+	-- (its line of description when the panel is tall enough: a phone's is not)
+	local top = 41
+	if H >= 150 then
+		UIKit.text(body, d.blurb, UDim2.fromOffset(W, 10), UDim2.fromOffset(0, 40), { color = UIKit.color("text_dim"), name = "Blurb" })
+		top = 52
+	end
+	-- the left half: its passive (what it does over two lines), then its mutations, one a line
+	local L = math.floor((W - 4) / 2)
+	local R0, RW = L + 4, W - L - 4
+	local pv = UIKit.row(body, UDim2.fromOffset(L, 32), UDim2.fromOffset(0, top))
+	pv.Name = "PassiveRow"
+	PixelSprites.image(pv, "mini_star", UDim2.fromOffset(3, 5), 4)
+	UIKit.text(pv, d.passive.name, UDim2.fromOffset(L - 18, 10), UDim2.fromOffset(16, 1), { color = UIKit.color("accent"), z = 4, name = "Passive" })
+	UIKit.text(pv, Traits.describe(d.passive.fx), UDim2.fromOffset(L - 18, 20), UDim2.fromOffset(16, 11), { color = UIKit.color("text_dim"), z = 4, wrap = true, y = "top", name = "PassiveFx" })
+	if #muts == 0 then
+		UIKit.text(body, "No mutations", UDim2.fromOffset(L, 10), UDim2.fromOffset(2, top + 35), { color = UIKit.color("text_dim"), name = "MutsTitle" })
+	end
+	for i, id in muts do
+		local m = Traits.byId[id]
+		if m then
+			local y = top + 35 + (i - 1) * 11
+			local icon = WEATHER_ICON[m.family]
+			local nx = 2
+			if icon and PixelSprites.has("mini_" .. icon) then
+				PixelSprites.image(body, "mini_" .. icon, UDim2.fromOffset(1, y), 4).Name = "MutIcon_" .. id
+				nx = 14
+			end
+			local label = m.name .. " " .. (Traits.TIER_STARS[m.tier] or "")
+			local lw = UIKit.textWidth(label)
+			UIKit.text(body, label, UDim2.fromOffset(lw + 2, 10), UDim2.fromOffset(nx, y), { color = UIKit.color(Traits.TIER_COLOR[m.tier] or "text"), name = "Mut_" .. id })
+			UIKit.text(body, m.blurb, UDim2.fromOffset(math.max(10, L - nx - lw - 6), 10), UDim2.fromOffset(nx + lw + 6, y), { color = UIKit.color("text_dim"), name = "MutFx_" .. id })
+		end
+	end
+	-- the right half: where it works and how fast, its hut, its price
+	local function info(y: number, icon: string, top: string, sub: string, color: Color3, name: string)
+		local f = UIKit.row(body, UDim2.fromOffset(RW, 22), UDim2.fromOffset(R0, y))
+		f.Name = name
+		PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(3, 5), 4)
+		UIKit.text(f, top, UDim2.fromOffset(RW - 18, 10), UDim2.fromOffset(16, 1), { color = color, z = 4, name = "Top" })
+		UIKit.text(f, sub, UDim2.fromOffset(RW - 18, 10), UDim2.fromOffset(16, 11), { color = UIKit.color("text_dim"), z = 4, name = "Sub" })
+	end
+	local workId: string? = nil
+	local hutName: string? = nil
+	if own then
+		local q = if pal.work ~= 0 then pieceOf(v, pal.work) else nil
+		workId = if q then q.id else nil
+		hutName = if pal.home ~= 0 then buildingName(v, pal.home) or "hut" else nil
+	else
+		workId = if type(arg.work) == "string" and arg.work ~= "" then arg.work else nil
+		local hd = if type(arg.home) == "string" then Buildings.byId[arg.home] else nil
+		hutName = if hd then hd.name else "hut"
+	end
+	local wd = if workId then Buildings.byId[workId] else nil
+	-- (its best: the fastest it works at any kind of workplace there is, its passive and mutations counted)
+	local best = Tree.worth(pal)
+	for _, b in Buildings.list do
+		if b.knack and b.knack ~= "" then
+			best = math.max(best, Tree.worthAt(pal, b.knack))
+		end
+	end
+	if wd then
+		local here = Tree.worthAt(pal, wd.knack)
+		info(top, "work", "Works at the " .. wd.name, string.format("x%.1f here, x%.1f at its best", here, best), UIKit.color("good"), "Where")
+	else
+		info(top, "rest", if hutName then "Resting" else "Waiting for a hut", string.format("Works x%.1f at its best", best), UIKit.color("text"), "Where")
+	end
+	info(top + 24, "nest", if hutName then "Lives in the " .. hutName else "No hut yet", if hutName then "It works from its hut" else "It moves in when one has room", if hutName then UIKit.color("text") else UIKit.color("orange"), "Hut")
+	local price = Tree.price(pal)
+	info(top + 48, "shell", string.format("%s %s shells", if own then "Sells for" else "Worth", Numbers.coins(price)), if own then "Two taps on Sell to sell it" else "Only its keeper can sell it", UIKit.color("accent"), "Price")
+	-- the foot: the own one's buttons; a neighbour's says whose it is
+	local fy = H - 14
+	if own then
+		local bw = 52
+		UIKit.button(body, "All driftlings", UDim2.fromOffset(80, 13), UDim2.fromOffset(0, fy), function()
+			UIKit.openPanel("pals")
+		end, { name = "PalAll" })
+		UIKit.button(body, "Work", UDim2.fromOffset(bw, 13), UDim2.fromOffset(W - 3 * bw - 8 - 12, fy), function()
+			UIKit.openPanel("pals", { pal = pal.id, back = "pal" })
+		end, { name = "PalWork", enabled = pal.home ~= 0 })
+		UIKit.button(body, "Move", UDim2.fromOffset(bw, 13), UDim2.fromOffset(W - 2 * bw - 4 - 12, fy), function()
+			UIKit.openPanel("pals", { move = pal.id, back = "pal" })
+		end, { name = "PalMove", color = UIKit.color("button_ok") })
+		confirmButton(body, "Sell " .. Numbers.coins(price), UDim2.fromOffset(bw + 12, 13), UDim2.fromOffset(W - bw - 12, fy), function()
+			local res = ask("pal.sell", { id = pal.id })
+			if res.ok then
+				Audio.play("coins")
+				local got = if type(res.data) == "table" then tonumber(res.data.shells) or 0 else 0
+				UIKit.openPanel("pals")
+				UIKit.notice(string.format("Sold %s for %s shells.", d.name, Numbers.coins(got)), UIKit.color("good"))
+			end
+		end, "PalSell")
+	else
+		local isle = if type(arg.isle) == "string" and arg.isle ~= "" then arg.isle else "another island"
+		UIKit.text(body, string.format("Lives on %s. Only its keeper can move it.", isle), UDim2.fromOffset(W, 12), UDim2.fromOffset(0, fy), { color = UIKit.color("text_dim"), name = "ReadOnly" })
 	end
 end
 
@@ -812,6 +968,7 @@ end
 
 function Menus.init()
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
+	UIKit.registerPanel("pal", { title = "Driftling", icon = "pal", w = 320, h = 182, build = buildPal })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
 	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 196, build = buildTree })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })

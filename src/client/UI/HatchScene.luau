@@ -21,7 +21,7 @@
 -- The rarer it hatched as, the grander (GLORY): twinkles round the egg (rare and up), more sparks and
 -- shell, a jolt of the picture, confetti, stars ringing it; the light of dusk for the commoner ones, a blue, violet or
 -- deep gold night for the rarer (DayLight.hold).
---   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as) }
+--   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as), new? (a kind never had: "New!") }
 --   HatchScene.isOpen(), HatchScene.skip() (a tap), HatchScene.debugState() (sims and previews: the phase and what is
 --   shown), HatchScene.setQuick(on) (sims: the scene ends at once, `after` still runs)
 local GuiService = game:GetService("GuiService")
@@ -44,7 +44,8 @@ local HatchBackdrop = require(script.Parent.HatchBackdrop)
 
 local HatchScene = {}
 
-export type Result = { sp: string, muts: { string }, r: number, hr: number }
+-- `new`: a kind the player never had before (Logic/Tree.hatch's `new`): a "New!" badge pops up by its name.
+export type Result = { sp: string, muts: { string }, r: number, hr: number, new: boolean? }
 
 local ORIGIN = Vector3.new(0, 0, 9000) -- far from the islands (z 0 .. -160)
 local FLOAT_Y = 1.2 -- the egg's foot above ORIGIN (it floats: nothing under it)
@@ -297,6 +298,24 @@ local function showName(s: Scene)
 	s.name, s.line = nm, line
 	nm.Position = UDim2.fromOffset(0, h - 36)
 	UIKit.tween(nm, 0.2, { Position = UDim2.fromOffset(0, h - 42) })
+	-- (a kind never had before: a mango "New!" tag pops up at the name's right with a sparkle, the request of
+	-- 2026-11-14, "there should a tip saying "New!" If the creature caught is new")
+	if s.res.new == true then
+		local nameW = UIKit.textWidth(nm.Text, "big")
+		local tw = UIKit.textWidth("New!") + 6
+		local bx = math.min(w - tw - 2, math.floor((w + nameW) / 2) + 4)
+		local by = h - 40
+		local tag = UIKit.plate(s.root, UDim2.fromOffset(tw, 12), UDim2.fromOffset(bx, by - 6), UIKit.color("accent"), 0, 1)
+		tag.Name = "HatchNew"
+		tag.ZIndex = 34
+		UIKit.text(tag, "New!", UDim2.fromOffset(tw, 12), UDim2.fromOffset(0, 0), { x = "center", color = UIKit.color("text_ink"), kind = "plain", z = 35, name = "Word" })
+		UIKit.tween(tag, 0.22, { Position = UDim2.fromOffset(bx, by) })
+		for k = 1, 10 do
+			local a = k / 10 * math.pi * 2
+			addDot(s, "accent", nil, bx + tw / 2, by + 6, math.cos(a) * 34, math.sin(a) * 26 - 10, 30, 0.55)
+		end
+		Audio.play("sparkle", { pitch = 1.12 })
+	end
 	-- (the egg's title goes and nothing takes its place: the request of 2026-11-14, "remove the it hatched text")
 	local old = s.title
 	if old then
@@ -876,10 +895,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, reveals: number, left: number, crack: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, reveals = 0, left = 0, crack = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -901,6 +920,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		glowing = s.glowing,
 		title = if t then t.Text else "",
 		name = if n then n.Text else "",
+		fresh = s.root:FindFirstChild("HatchNew") ~= nil, -- the "New!" tag by the name
 	}
 end
 

@@ -539,8 +539,9 @@ end
 ------------------------------------------------------------------ the player's actions
 -- Hatch egg `id` for its cost: it may turn rarer first (Tree.rise; `hr` in the result), then what hatches moves into
 -- the comfiest hut with room, or, every hut full, into the place of `swap` (one of the player's in a hut: sold for its
--- price). not_found (no such egg: a new lot came), no_hut (no
--- hut built), money, full (every hut full and no swap named), bad_payload (a swap that isn't in a hut).
+-- price). The result's `new` is true when the player never had that kind before (the hatch scene's "New!").
+-- not_found (no such egg: a new lot came), no_hut (no hut built), money, full (every hut full and no swap named),
+-- bad_payload (a swap that isn't in a hut).
 local FIRST_KNACKS = { "wood", "farm" }
 function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, any)
 	local at = 0
@@ -599,13 +600,15 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	p.nextId += 1
 	table.insert(p.pals, x)
 	toWork(p, x)
+	-- (`new`: a kind never had before this one, seen in the Index or not: the hatch says "New!")
+	local fresh = (p.seen[x.sp] or 0) < 2
 	p.seen[x.sp] = 2
 	p.stats.taken += 1
 	local def = Creatures.byId[x.sp]
 	if def then
 		p.stats.best = math.max(p.stats.best, def.rarity)
 	end
-	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = cost, sold = sold, swapped = if out then swap else 0, wx = egg.wx, wm = wm }
+	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = cost, sold = sold, swapped = if out then swap else 0, wx = egg.wx, wm = wm, new = fresh }
 end
 
 -- A driftling sold (from a hut or with none): its price in shells; a hut's room goes to one waiting with no hut.
