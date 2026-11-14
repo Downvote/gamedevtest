@@ -41,7 +41,8 @@ is 3D: the islands, the buildings (the Tree of Life among them), the build catal
 driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,
 `NatureModels`, `ThemeModels`, `ThemeMoreModels` and `FunModels` on `Models/Parts`, `Models/MicroModels`,
 `Models/DriftModels`, the eggs in `Models/EggModels`, the hatch scene's islet in `UI/HatchScene`; the driftlings' round pieces from
-`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail), world-aligned on the iso
+`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail; each kind's eye
+style and texture in `Data/Creatures`, the textures drawn by `Render/DynTex` in one-pixel marks), world-aligned on the iso
 grid and drawn by the pixel filter. The hatch scene's sky is a 2D picture painted pixel by pixel (`UI/HatchBackdrop`).
 (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few
 hours; the tree is back, laying the eggs the driftlings hatch from.)

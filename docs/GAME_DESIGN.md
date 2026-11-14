@@ -1,6 +1,8 @@
 # Driftling Isle: Game Design
 
-> The requests (2026-11-13, the latest): "The creatures look blocky and unrealistic. Look at the cakes in the bakery
+> The request (2026-11-14, the latest): "Can you use different eyes for each? Also, apply texture to each of them"
+
+> The requests (2026-11-13): "The creatures look blocky and unrealistic. Look at the cakes in the bakery
 > game to reference how detailed they should be"; "Also, could everything use a more pastelish colour pallette?"
 
 > The request (2026-11-13): "There is no need to make things limited by squares and spheres, make
@@ -844,6 +846,21 @@ necks, limbs, tails, ears and horns are smooth tubes that taper and bend; shells
 blush, stripes and the inside of an ear lie flat on the surface; leaves, feathers, fins and spikes are thin pointed
 blades. The eyes are big and glossy: a dark oval, a coloured iris low in it and two shines, and when they blink a
 soft curved lid takes their place. A closed mouth is a little smile that opens when the driftling cheers or yawns.
+**Their own eyes and textures** (the request of 2026-11-14 at the top: "Can you use different eyes for each? Also,
+apply texture to each of them"): every kind of driftling has its own eyes, and no two that share a body plan look out
+the same way. There are twenty styles of eye: glossy sparkling ovals, the same with lashes, plain buttons, little beads
+and dots, a star or a heart in the shine, round cartoon eyes with a coloured iris, wide startled ones, reading glasses
+(the owl that reads old carvings), a cat's slit and a goat's bar, ringed owl eyes, heavy sleepy lids, a fierce brow,
+eyes shut in a happy arch, eyes that glow, crystal gems, a glowing visor slot (the guardian golem) and a moth's cluster
+of beads, each in the iris colour that suits the kind. All of them blink except the happy arches. And each wears a
+texture on its body: fur, fluffy curls, feathers, scales, a shell's growth lines, stone specks and cracks, a fallen
+wall's courses of brick, bark, crystal facets, skin with pores, streaks of ice, velvet fuzz, a crab's pitted shell,
+a jelly's bubbles or cooled lava's bright cracks; a snail's or a turtle's shell and a crystal creature's crystals wear
+theirs too. The texture is one-pixel marks a shade lighter or darker than the colour under them, drawn on the
+driftling itself, so it turns and walks with it and never slides. It shows wherever a driftling is drawn big (the
+hatch scene, close looks); on the islands, where a driftling is a figure a few pixels tall, it is left off, as it
+would only be noise.
+
 Up close (the hatch scene, the portraits) a driftling has 90 to 200 pieces: toes, whiskers, fur tufts, flecks and
 cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces
 (45 to 72), and one far from the view is posed every fourth frame.
