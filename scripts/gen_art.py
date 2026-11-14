@@ -217,6 +217,27 @@ HAND("mini_egg", [
     ".3322221.",
     "..22111..",
 ], ["E"], {"p": "pnk2"})
+# the pass track's premium side without its pass: a small gold padlock, its shackle grey (the request of 2026-11-14:
+# "make the pass look more like a pass")
+HAND("mini_lock", [
+    "..777..",
+    ".7...6.",
+    ".7...6.",
+    "4444333",
+    "443x332",
+    "433x322",
+    "3333222",
+    "3322221",
+], ["Y", "S"])
+# a reward taken on the pass track: a green tick
+HAND("mini_check", [
+    "......4",
+    ".....43",
+    "4...43.",
+    "34.43..",
+    ".343...",
+    "..3....",
+], ["G"])
 # spring: a pink blossom with a gold heart on a green stem and leaf
 HAND("mini_season_spring", [
     "..44433..",

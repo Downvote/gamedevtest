@@ -2160,6 +2160,15 @@ on most levels, eggs every few levels (up to legendary on the free side and myth
 on each side, Deckhand at 15 and First Mate at 30 on the free side, Captain at 30 on the premium side (the last level
 also brings a legendary or a mythic egg). A new season starts the points and claims again; what was won stays.
 
+It looks like a pass ("make the pass look more like a pass, like this", 2026-11-14, with Random Bakery's pass to go
+by): under the heading and the level reached, a box with the bar to the next level, the time left and where points come
+from, then the Premium Track's button while it isn't owned, then the track running sideways. Each level is a column:
+its free reward on a card over a bar of level numbers, the bar filled up to the points so far (levels reached in pink,
+the one being worked on in yellow), its premium reward on a card under it with a padlock while the pass isn't owned. A
+card says what it holds in a word or two ("4.2K", "Rare", "Look", "Title"); one ready to take turns yellow and says
+Claim, and a tap takes it; one taken shows a tick. The track opens at the level being worked on, or at the first reward
+still waiting. On a phone the heading folds into the box so the whole track shows.
+
 
 ### 14.1 The founder's outline, name tag and pieces (`Models/CosmeticModels`, `Models/CharacterModels`, `Controllers/AvatarView`, `Controllers/NameTags`)
 
@@ -2251,7 +2260,10 @@ what earns it ("Grow your island to level 7.", "Have a mythic driftling.", "Come
 **The bag in the Tree panel.** Over the eggs under the tree, "Your eggs: 2" and a row each, the rarest first, "Free to
 hatch" with Hatch. A bag egg hatches in the same hatch scene as the tree's; with every hut full the swap picker opens
 for it the same way ("Swap one out for the epic egg from your bag"). The panel's heading counts the lot ("16 eggs") and
-says how often it lays ("New eggs every 10:00", 5:00 with Quick Tree).
+says how often it lays ("New eggs every 10:00", 5:00 with Quick Tree). Under the eggs under the tree, "Buy an egg" and
+a row an egg from Uncommon to Celestial with its Robux, the same products as the Store's Eggs tab, each going into the
+bag at the top of the list (the request of 2026-11-14: "make it possible to purchase eggs in the tree of life menu below
+the eggs under the tree tab").
 
 **The Hatchery.** While an egg is warming, "Finish now" in the panel's top corner buys Finish Hatcheries.
 

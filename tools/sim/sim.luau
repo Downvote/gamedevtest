@@ -3043,6 +3043,24 @@ do
 	H.openPanel(p, "tree")
 	E.run(0.4)
 	H.expect(H.buttonNamed(p, "BagHatch_" .. egg.id) ~= nil, "store", "the Tree panel lists the bag's egg with Hatch")
+	-- (the request of 2026-11-14: "make it possible to purchase eggs in the tree of life menu below the eggs under the
+	-- tree tab": an egg a rarity from Uncommon up, each with its Robux, after the eggs lying there)
+	do
+		local missing = nil
+		for key, _ in StoreL.EGG_R do
+			if H.buttonNamed(p, "Buy_" .. key) == nil then
+				missing = missing or key
+			end
+		end
+		local head = p.PlayerGui:FindFirstChild("BuyHead", true)
+		local lastEgg = 0
+		for _, g in p.PlayerGui:GetDescendants() do
+			if g:IsA("GuiObject") and (string.sub(g.Name, 1, 4) == "Egg_" or string.sub(g.Name, 1, 7) == "BagEgg_") then
+				lastEgg = math.max(lastEgg, g.LayoutOrder)
+			end
+		end
+		H.expect(missing == nil and head ~= nil and head:IsA("GuiObject") and head.LayoutOrder > lastEgg, "store", "the Tree panel sells an egg of each rarity from Uncommon up, under the eggs", tostring(missing))
+	end
 	local function inBag(): boolean
 		for _, e in prof.bag do
 			if e.id == egg.id then

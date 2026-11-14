@@ -1288,7 +1288,9 @@ tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
 sprite, "Rare egg" in its colour, "Hatches a rare one" ("an" before uncommon and epic) and `PanelHatch_<id>` (its cost
-and `PriceIcon`, sending `EggView.hatch`), or "No eggs left. The tree lays more soon."; with `{ hatch = id }`, every
+and `PriceIcon`, sending `EggView.hatch`), or "No eggs left. The tree lays more soon."; under them `StoreUI.eggRows`:
+`BuyHead` ("Buy an egg") and a row an egg product from Uncommon up, `BuyEgg_<key>` (its `egg_<r>`, "Rare Egg" in its
+colour, "Free to hatch" and `Buy_<key>`, its Robux, `StoreUI.buy`); with `{ hatch = id }`, every
 hut full, the swap picker: a hint naming the egg's rarity and cost ("Every hut is full. Swap one out for the rare egg
 (1,200 shells): the one you pick is sold."), `Back`, and a row a hut driftling, the weakest first, `SwapOut_<id>`:
 portrait, name, rarity, how fast it works, mutations, "Sells for n" and `SwapTake_<id>`, sending `egg.hatch { id,
@@ -1578,7 +1580,8 @@ stops every one-shot (`Audio.play` returns false) and fades the loops to nothing
 (`StoreUI.rewardText(from, given)`: "<from>: <what>." with each thing when three or fewer, else counted; `from` a
 product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it from Looks.", Newcomer never). `StoreUI.buy(key)`
 hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `PromptProductPurchase` only when
-`Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". Prices: `GetProductInfoAsync` once per set id
+`Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". `StoreUI.eggRows(list, order, w) -> number`
+puts the egg products at the end of another panel's list (the Tree of Life's) and returns the next LayoutOrder. Prices: `GetProductInfoAsync` once per set id
 in the background (`PriceInRobux`, the panel refreshed when it lands), else `SuggestedRobux`, written "R$ 399".
 "store": the tabs `Tab_passes`, `Tab_eggs`, `Tab_shop`, `Tab_track` (each a `mini_` icon and its words; the open one
 `button`), then the tab's `List` (scrolling):
@@ -1594,12 +1597,19 @@ in the background (`PriceInRobux`, the panel refreshed when it lands), else `Sug
   ("New set R$ 19"), a grid (three columns from 330 px) of `Piece_<id>`: `Pic_<id>` (`CosmeticIcons.image` centred in
   24 px), `Name` (rarity colour), `Kind` ("Rare, hat"), then `Price` and `ShopBuy_<id>` (`shop.buy`) or `Owned` and
   `Wear_<id>` (`look.wear`; "Wearing" off while worn).
-- track: `TrackLevel`, `TrackBar` (`trackInto` / `trackNeed`), `TrackPoints`, `TrackLeft` ("Ends in 27 days", days from
-  two days up), `FreeHead`, `PremHead`, `Buy_PremiumTrackTop` without the pass; `Level_<L>` rows: `Lv`, each side's
-  picture (a piece's, `egg_<r>`, `mini_star` for a title, `mini_shell`), `FreeWords` / `PremWords` (Data/Track's
-  reward in words, shells as `minuteShells` x minutes; the last level's extra after a "+"), then `Claim_<L>` /
-  `ClaimP_<L>` (`track.claim`), or a label of that name: "Got it", "Lv L", or the premium side's ticket without the
-  pass. The list scrolls to the first level with something to claim.
+- track (a pass, running sideways; GAME_DESIGN 14.3): `TrackIcon`, `TrackTitle` ("Pass Track") and `TrackLevel`
+  ("Level 6/30"); `TrackBox` with `TrackNext` ("Next: level 7"), `TrackBar` and its `Fill` (`trackInto` / `trackNeed`),
+  `TrackPoints` ("40/220" or "Max") and `TrackLeft` ("Ends in 27 days. ..."); `Buy_PremiumTrackTop` without the pass;
+  `FreeHead`, `PremHead`; then the `Track` scroller (sideways, `TRACK_COL` 46 a column, `TRACK_GAP` 3): `TrackLine`
+  and its `Fill` (to the points so far), a `Level_<L>` tag a level (`Num`; pink reached, yellow the next), and the
+  cards `FreeCard_<L>` over it and `PremCard_<L>` under it: the picture (a piece's, `egg_<r>`, `mini_star` for a
+  title, `mini_shell`), `Caption` (`rewardShort`: shells as `minuteShells` x minutes in short, the egg's rarity, the
+  piece's name when it fits else "Look", "Title"; "Claim" when ready), `Got` (`mini_check`) once taken, `Lock`
+  (`mini_lock`) on the premium side without the pass, and over a card ready to take a see-through `Claim_<L>` /
+  `ClaimP_<L>` (`track.claim`). It opens at the level being worked on, a column in, or the first reward waiting
+  further back, and keeps its place (`trackScroll`, UI px; `CanvasPosition` counts screen px, `UIKit.P` a UI px).
+  When the panel is short (a phone) the heading, `FreeHead` and `PremHead` go and the box says "Pass Track: level
+  6/30" as `TrackLevel`.
 "looks": the portrait (`UIKit.portrait` of the worn look with the colours being tried), `WornTitle`, `Prev_<k>` /
 `Next_<k>` (skin, hair, style, shirt over Data/Looks' lengths), `SaveLook` (`founder.set`), `PieceCount`,
 `LooksShop` (opens "store" on "shop"), the tabs `LooksTab_pieces` / `LooksTab_titles`; pieces: `Slot_<slot>` chips, then
@@ -1654,7 +1664,7 @@ than a sixteenth of the piece's span made that thick; `Pixel/Snapshot` on five c
 `PixelSprites` finds them by the "look_" prefix; `UI/CosmeticIcons` (`image(parent, id, pos?, z?)`, `size(id)`,
 `has(id)`) draws a piece's picture, or its slot's mini icon when it has none.
 The store's 11 x 11 icons (2026-11-14): `mini_store` (a stall with a striped awning: the menu bar's Store),
-`mini_crown` (VIP), `mini_ticket` (the pass track), `mini_gift` (the Starter Pack, VIP's gift), `mini_refresh` (two
+`mini_crown` (VIP), `mini_ticket` (the pass track), `mini_lock` (a premium card without its pass), `mini_check` (a track reward taken), `mini_gift` (the Starter Pack, VIP's gift), `mini_refresh` (two
 turning arrows: Shop Refresh), each with its `_sil`.
 Every `mini_` icon but the shell (51 of them, 2026-11-14) is hand-toned: `HAND(name, rows, ramps, flat?)` in `gen_art.py` takes 9 x 9
 rows where `1234`, `5678` and `abcd` are the dark, shadow, base and light tones of up to three `RAMPS`, `w` a white

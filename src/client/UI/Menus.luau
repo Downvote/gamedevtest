@@ -932,6 +932,8 @@ local function buildTree(body: Frame, arg: any?)
 		end
 		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
 	end
+	-- under the eggs, eggs to buy (into the bag above, free to hatch: StoreUI.eggRows)
+	StoreUI.eggRows(list, base + math.max(1, #shown) + 1, RW)
 end
 
 ------------------------------------------------------------------ Index: the driftlings

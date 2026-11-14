@@ -12,8 +12,9 @@
 --     Shop: the rotating shop's six pieces (Logic/Store.shopNow, the view's shopList) with their pictures
 --       (UI/CosmeticIcons), rarity, slot and price in shells; Buy (shop.buy), then Wear; when the next set comes, and a
 --       button to buy a new set now.
---     Track: the pass track's level, a bar to the next one and the season's time left; each level's free and premium
---       reward with Claim (track.claim), the premium side locked without its pass (a button to buy it).
+--     Track: a pass, running sideways: the level reached, a box with the bar to the next level and the season's time
+--       left, the Premium Track's button, then a column a level, its free reward's card over a bar of level numbers and
+--       its premium one under it (padlocked without the pass); a card ready to take says Claim (track.claim).
 --   Buying: only an id that is set (Monetization.isEnabled) goes to MarketplaceService; one that isn't says so. What a
 --   purchase gives comes back as Fx "pass" and "rewards" (MonetizationService), each told in a notice; a title earned
 --   is told too (Fx "titles").
@@ -468,6 +469,29 @@ local function buildEggs(body: Frame, v: Types.ClientView, W: number, H: number,
 	UIKit.text(f, if n > 0 then string.format("%d %s in your bag. Hatch them from the Tree of Life.", n, if n == 1 then "egg" else "eggs") else "Eggs you buy wait in your bag at the Tree of Life.", UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 4 })
 end
 
+-- The eggs on sale, as rows at the end of a list (the Tree of Life's panel, under the eggs lying there: the request of
+-- 2026-11-14, "make it possible to purchase eggs in the tree of life menu below the eggs under the tree tab"): a
+-- heading, then an egg a rarity from Uncommon up, each with its Robux; bought, it waits in the bag at the top of the
+-- same list, free to hatch. Returns the next free LayoutOrder.
+function StoreUI.eggRows(list: Instance, order: number, w: number): number
+	local h = row(list, order, 14, "BuyHead")
+	UIKit.text(h, "Buy an egg", UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("accent"), z = 4, name = "BuyTitle" })
+	local BW = 52
+	for _, key in Store.PRODUCTS do
+		local r = Store.EGG_R[key]
+		if r then
+			order += 1
+			local rar = Traits.RARITY[r]
+			local f = row(list, order, 24, "BuyEgg_" .. key)
+			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(6, 4), 4)
+			UIKit.text(f, rar.name .. " Egg", UDim2.fromOffset(w - BW - 34, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+			UIKit.text(f, "Free to hatch", UDim2.fromOffset(w - BW - 34, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, name = "Blurb" })
+			robuxButton(f, key, w - BW - 9, 6, BW)
+		end
+	end
+	return order + 1
+end
+
 -- (Logic/Store.price reads only the tier)
 local function asProfileLite(v: Types.ClientView): any
 	return { tier = v.tier }
@@ -547,95 +571,201 @@ local function buildShop(body: Frame, v: Types.ClientView, W: number, H: number,
 	end
 end
 
+-- The pass track as a pass (the request of 2026-11-14: "make the pass look more like a pass, like this", with Random
+-- Bakery's pass to go by): a heading with the level reached; a box with the next level's bar, the time left and where
+-- points come from; the Premium Track's button while it isn't owned; then the track itself, running sideways: a column
+-- a level, its free reward on a card over a bar of level numbers (the bar filled up to the points so far), its premium
+-- reward on a card under it, a padlock on each while the pass isn't owned. A card that can be taken glows and says
+-- Claim, and a tap takes it; one taken shows a tick. The track opens at the level being worked on (or the first reward
+-- waiting further back) and keeps its place while the panel is rebuilt.
+local TRACK_COL, TRACK_GAP, TRACK_CARD, TRACK_SPINE = 46, 3, 34, 11
+local trackScroll = -1 -- the track's place (UI px across; -1: not opened yet)
+
+-- A reward's few words under its card: "4.2K", "Rare", "Look", "Title".
+local function rewardShort(v: Types.ClientView, r: Track.Reward): string
+	if r.kind == "shells" then
+		return Numbers.short(math.floor((v.minuteShells or 0) * (r.mins or 1)))
+	elseif r.kind == "egg" then
+		return Traits.RARITY[math.clamp(r.r or 1, 1, Traits.RMAX)].name
+	elseif r.kind == "look" then
+		local c = Cosmetics.byId[r.id or ""]
+		if c and UIKit.textWidth(c.name) <= TRACK_COL - 4 then
+			return c.name
+		end
+		return "Look"
+	elseif r.kind == "title" then
+		return "Title"
+	end
+	return ""
+end
+
 local function buildTrack(body: Frame, v: Types.ClientView, W: number, H: number, top: number)
 	local lvl, into, need = v.trackLevel or 0, v.trackInto or 0, v.trackNeed or 0
 	local prem = owns(v, "PremiumTrack")
-	UIKit.text(body, string.format("Level %d of %d", lvl, Track.LEVELS), UDim2.fromOffset(90, 10), UDim2.fromOffset(0, top), { color = UIKit.color("accent"), name = "TrackLevel" })
-	local bw = math.max(60, W - 230)
-	local back = UIKit.rect(body, UDim2.fromOffset(bw, 6), UDim2.fromOffset(92, top + 2), UIKit.color("glass"), 3)
-	back.BackgroundTransparency = 0.25
-	back.Name = "TrackBar"
-	local k = if need > 0 then math.clamp(into / need, 0, 1) else 1
-	UIKit.rect(back, UDim2.fromOffset(math.floor((bw - 2) * k + 0.5), 4), UDim2.fromOffset(1, 1), UIKit.color("good"), 4).Name = "Fill"
-	UIKit.text(body, if need > 0 then string.format("%d/%d", math.floor(into), need) else "All done", UDim2.fromOffset(60, 10), UDim2.fromOffset(96 + bw, top), { color = UIKit.color("text_dim"), name = "TrackPoints" })
-	local left = UIKit.text(body, "", UDim2.fromOffset(110, 10), UDim2.fromOffset(W - 110, top), { x = "right", color = UIKit.color("text_dim"), name = "TrackLeft" })
-	countdown(left, function(): number
-		local _, l = Store.season(StateClient.seaClock())
-		return l
-	end, "Ends in %s")
-	-- the sides' headings, and the premium side's lock
-	local y1 = top + 12
-	local LW = 30
-	local half = math.floor((W - LW - 10) / 2)
-	UIKit.text(body, "Free", UDim2.fromOffset(half, 10), UDim2.fromOffset(LW, y1), { color = UIKit.color("text"), name = "FreeHead" })
-	UIKit.text(body, "Premium", UDim2.fromOffset(half, 10), UDim2.fromOffset(LW + half + 4, y1), { color = UIKit.color("accent"), name = "PremHead" })
-	if not prem then
-		local b = UIKit.button(body, "Unlock " .. robuxText("PremiumTrack"), UDim2.fromOffset(110, 12), UDim2.fromOffset(W - 112, y1 - 1), function()
-			StoreUI.buy("PremiumTrack")
-		end, { name = "Buy_PremiumTrackTop", color = UIKit.color("button_warn") })
-		b.ZIndex = 4
+	local done = lvl >= Track.LEVELS
+	local k = if need > 0 and not done then math.clamp(into / need, 0, 1) else 1
+	local stride = TRACK_COL + TRACK_GAP
+	local trackH = TRACK_CARD + 2 + TRACK_SPINE + 2 + TRACK_CARD
+	-- (a short panel, a phone held sideways: no heading, the level in the box, which keeps to one line, and no
+	-- "Free" over the track, so the whole track shows)
+	local roomy = H - top >= 12 + 34 + (if prem then 0 else 15) + 11 + trackH + 4
+	local y = top
+	if roomy then
+		-- the heading
+		PixelSprites.image(body, "mini_ticket", UDim2.fromOffset(0, top), 4).Name = "TrackIcon"
+		UIKit.text(body, "Pass Track", UDim2.fromOffset(120, 10), UDim2.fromOffset(13, top + 1), { color = UIKit.color("pink"), name = "TrackTitle" })
+		UIKit.text(body, string.format("Level %d/%d", lvl, Track.LEVELS), UDim2.fromOffset(90, 10), UDim2.fromOffset(W - 92, top + 1), { x = "right", color = UIKit.color("text"), name = "TrackLevel" })
+		y += 12
 	end
-	local y0 = y1 + 12
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - y0), UDim2.fromOffset(0, y0))
-	list.Name = "List"
-	UIKit.vlist(list, 2)
+	-- the box: the next level, its bar and points, the time left and where points come from
+	local boxH = if roomy then 31 else 21
+	local box = UIKit.row(body, UDim2.fromOffset(W - 2, boxH), UDim2.fromOffset(0, y))
+	box.Name = "TrackBox"
+	spriteIn(box, "mini_star", 3, 3, 11, 4)
+	local nextWords = if done then "Every level done" else string.format("Next: level %d", lvl + 1)
+	if not roomy then
+		nextWords = string.format("Pass Track: level %d/%d", lvl, Track.LEVELS)
+	end
+	UIKit.text(box, nextWords, UDim2.fromOffset(200, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4, name = if roomy then "TrackNext" else "TrackLevel" })
+	local bw = W - 2 - 18 - 58
+	local back = UIKit.rect(box, UDim2.fromOffset(bw, 4), UDim2.fromOffset(18, 13), UIKit.color("glass"), 4)
+	back.BackgroundTransparency = 0.2
+	back.Name = "TrackBar"
+	if k > 0 then
+		UIKit.rect(back, UDim2.fromOffset(math.max(1, math.floor(bw * k + 0.5)), 4), UDim2.fromOffset(0, 0), UIKit.color("pink"), 5).Name = "Fill"
+	end
+	UIKit.text(box, if done then "Max" else string.format("%d/%d", math.floor(into), need), UDim2.fromOffset(54, 10), UDim2.fromOffset(W - 2 - 56, 10), { x = "right", color = UIKit.color("text_dim"), z = 4, name = "TrackPoints" })
+	if roomy then
+		local left = UIKit.text(box, "", UDim2.fromOffset(W - 24, 10), UDim2.fromOffset(18, 20), { color = UIKit.color("text_dim"), z = 4, name = "TrackLeft" })
+		countdown(left, function(): number
+			local _, l = Store.season(StateClient.seaClock())
+			return l
+		end, "Ends in %s. Most things you do on the island give points.")
+	end
+	y += boxH + 3
+	-- the premium pass, while it isn't owned
+	if not prem then
+		local words = "Premium in every season: Premium Track " .. robuxText("PremiumTrack")
+		local b = UIKit.button(body, words, UDim2.fromOffset(math.min(W - 2, UIKit.buttonWidth(words, 6)), 13), UDim2.fromOffset(0, y), function()
+			StoreUI.buy("PremiumTrack")
+		end, { name = "Buy_PremiumTrackTop", color = UIKit.color("button_ok") })
+		b.ZIndex = 4
+		y += 15
+	end
+	if roomy then
+		UIKit.text(body, "Free", UDim2.fromOffset(60, 10), UDim2.fromOffset(1, y), { color = UIKit.color("pink"), name = "FreeHead" })
+		UIKit.text(body, if prem then "Premium below" else "Premium below (locked)", UDim2.fromOffset(150, 10), UDim2.fromOffset(W - 152, y), { x = "right", color = UIKit.color("accent"), name = "PremHead" })
+		y += 11
+	end
+	-- the track
+	local scrollH = math.min(trackH + 5, H - y)
+	local sc = Instance.new("ScrollingFrame")
+	sc.Name = "Track"
+	sc.BackgroundTransparency = 1
+	sc.BorderSizePixel = 0
+	sc.Size = UDim2.fromOffset(W, scrollH)
+	sc.Position = UDim2.fromOffset(0, y)
+	sc.ScrollingDirection = Enum.ScrollingDirection.X
+	sc.ScrollBarThickness = 3
+	sc.ScrollBarImageColor3 = UIKit.color("text_dim")
+	local trackW = Track.LEVELS * stride - TRACK_GAP
+	sc.CanvasSize = UDim2.fromOffset(trackW, trackH + 4)
+	sc.ElasticBehavior = Enum.ElasticBehavior.Never
+	sc.ZIndex = 2
+	sc.Parent = body
+	-- the bar of level numbers: filled from the first level's middle up to the points so far
+	local spineY = TRACK_CARD + 2
+	local function mid(L: number): number
+		return (L - 1) * stride + math.floor(TRACK_COL / 2)
+	end
+	local lastMid = mid(Track.LEVELS)
+	local line = UIKit.rect(sc, UDim2.fromOffset(lastMid - mid(1), 3), UDim2.fromOffset(mid(1), spineY + 4), UIKit.color("glass"), 3)
+	line.BackgroundTransparency = 0.2
+	line.Name = "TrackLine"
+	local fillTo = if done then lastMid elseif lvl <= 0 then mid(1) else mid(lvl) + math.floor(stride * k + 0.5)
+	if fillTo > mid(1) then
+		UIKit.rect(line, UDim2.fromOffset(fillTo - mid(1), 3), UDim2.fromOffset(0, 0), UIKit.color("pink"), 4).Name = "Fill"
+	end
 	local got: { number } = if v.track then v.track.got else {}
 	local gotP: { number } = if v.track then v.track.gotP else {}
-	local first: Frame? = nil
-	for L, lv in Track.list do
-		local f = row(list, L, 28, "Level_" .. L)
+	local firstReady: number? = nil
+	-- a reward's card
+	local function card(L: number, r: Track.Reward, isPrem: boolean, claimed: boolean, x: number, cy: number)
 		local reached = L <= lvl
-		UIKit.text(f, "Lv " .. L, UDim2.fromOffset(LW - 2, 10), UDim2.fromOffset(3, 9), { color = if reached then UIKit.color("accent") else UIKit.color("text_dim"), z = 4, name = "Lv" })
-		local function side(r: Track.Reward, x: number, isPrem: boolean, claimed: boolean)
-			local extra = if L == Track.LEVELS then (if isPrem then Track.extra.prem else Track.extra.free) else nil
-			-- its picture: a piece's own, an egg, the shell, the star for a title
-			if r.kind == "look" and r.id then
-				pieceIcon(f, r.id, x, 2, 24)
-			elseif r.kind == "egg" then
-				spriteIn(f, "egg_" .. math.clamp(r.r or 1, 1, Traits.RMAX), x, 2, 24)
-			elseif r.kind == "title" then
-				spriteIn(f, "mini_star", x, 2, 24)
-			else
-				spriteIn(f, "mini_shell", x, 2, 24)
-			end
-			local words = rewardWords(v, r) .. (if extra then " + " .. rewardWords(v, extra) else "")
-			local color = if r.kind == "egg" then UIKit.color(Traits.RARITY[math.clamp(r.r or 1, 1, Traits.RMAX)].color) elseif r.kind == "look" or r.kind == "title" then UIKit.color("accent") else UIKit.color("text")
-			local tw = half - 26 - 46
-			UIKit.text(f, words, UDim2.fromOffset(tw, 22), UDim2.fromOffset(x + 26, 3), { color = color, z = 4, wrap = true, name = if isPrem then "PremWords" else "FreeWords" })
-			local bx = x + half - 46
-			local name = (if isPrem then "ClaimP_" else "Claim_") .. L
-			if claimed then
-				UIKit.text(f, "Got it", UDim2.fromOffset(44, 10), UDim2.fromOffset(bx, 9), { x = "center", color = UIKit.color("good"), z = 4, name = name })
-			elseif isPrem and not prem then
-				spriteIn(f, "mini_ticket", bx + 16, 8, 12).Name = name
-			elseif not reached then
-				UIKit.text(f, "Lv " .. L, UDim2.fromOffset(44, 10), UDim2.fromOffset(bx, 9), { x = "center", color = UIKit.color("text_dim"), z = 4, name = name })
-			else
-				local b = UIKit.button(f, "Claim", UDim2.fromOffset(44, 13), UDim2.fromOffset(bx, 7), function()
-					local res = StateClient.request("track.claim", { lvl = L, prem = isPrem })
-					if res.ok then
-						Audio.play("reward")
-					else
-						Audio.play("deny")
-						UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
-					end
-				end, { name = name, color = UIKit.color("button_ok") })
-				b.ZIndex = 4
-			end
+		local locked = isPrem and not prem
+		local can = reached and not claimed and not locked
+		local c = UIKit.plate(sc, UDim2.fromOffset(TRACK_COL, TRACK_CARD), UDim2.fromOffset(x, cy), if can then UIKit.color("yellow") else UIKit.color("plate_light"), if can then 0.15 elseif reached then 0.35 else 0.6, 2)
+		c.Name = (if isPrem then "PremCard_" else "FreeCard_") .. L
+		c.ZIndex = 3
+		local ix = math.floor((TRACK_COL - 24) / 2)
+		if r.kind == "look" and r.id then
+			pieceIcon(c, r.id, ix, 1, 24, 5)
+		elseif r.kind == "egg" then
+			spriteIn(c, "egg_" .. math.clamp(r.r or 1, 1, Traits.RMAX), ix, 1, 24, 5)
+		elseif r.kind == "title" then
+			spriteIn(c, "mini_star", ix, 1, 24, 5)
+		else
+			spriteIn(c, "mini_shell", ix, 1, 24, 5)
 		end
-		side(lv.free, LW, false, table.find(got, L) ~= nil)
-		side(lv.prem, LW + half + 4, true, table.find(gotP, L) ~= nil)
-		if first == nil and reached and (table.find(got, L) == nil or (prem and table.find(gotP, L) == nil)) then
-			first = f
+		local words = if can then "Claim" else rewardShort(v, r)
+		local wc = if can then UIKit.color("glass") elseif claimed or not reached then UIKit.color("text_dim") else UIKit.color("text")
+		UIKit.text(c, words, UDim2.fromOffset(TRACK_COL, 10), UDim2.fromOffset(0, 24), { x = "center", color = wc, kind = if can then "plain" else nil, z = 6, name = "Caption" })
+		if claimed then
+			PixelSprites.image(c, "mini_check", UDim2.fromOffset(TRACK_COL - 10, 1), 6).Name = "Got"
+		elseif locked then
+			PixelSprites.image(c, "mini_lock", UDim2.fromOffset(TRACK_COL - 10, 1), 6).Name = "Lock"
+		end
+		if can then
+			-- (the whole card takes it)
+			local tap = Instance.new("TextButton")
+			tap.Name = (if isPrem then "ClaimP_" else "Claim_") .. L
+			tap.Text = ""
+			tap.BackgroundTransparency = 1
+			tap.Size = UDim2.fromScale(1, 1)
+			tap.ZIndex = 7
+			tap.Parent = c
+			tap.Activated:Connect(function()
+				local res = StateClient.request("track.claim", { lvl = L, prem = isPrem })
+				if res.ok then
+					Audio.play("reward")
+				else
+					Audio.play("deny")
+					UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+				end
+			end)
+			if firstReady == nil or L < firstReady then
+				firstReady = L
+			end
 		end
 	end
-	-- (the list opens at the first level with something to claim, else at the level reached)
-	task.defer(function()
-		if list.Parent == nil then
-			return
+	for L, lv in Track.list do
+		local x = (L - 1) * stride
+		card(L, lv.free, false, table.find(got, L) ~= nil, x, 0)
+		card(L, lv.prem, true, table.find(gotP, L) ~= nil, x, spineY + TRACK_SPINE + 2)
+		-- the level's number on the bar: reached in pink, the one being worked on in yellow
+		local num = tostring(L)
+		local tw = UIKit.textWidth(num) + 6
+		local tagC = if L <= lvl then UIKit.color("pink") elseif L == lvl + 1 then UIKit.color("yellow") else UIKit.color("plate_light")
+		local tag = UIKit.plate(sc, UDim2.fromOffset(tw, TRACK_SPINE), UDim2.fromOffset(mid(L) - math.floor(tw / 2), spineY), tagC, 0, 1)
+		tag.Name = "Level_" .. L
+		tag.ZIndex = 4
+		UIKit.text(tag, num, UDim2.fromOffset(tw, 10), UDim2.fromOffset(0, 0), { x = "center", color = if L <= lvl + 1 then UIKit.color("glass") else UIKit.color("text"), kind = if L <= lvl + 1 then "plain" else nil, z = 5, name = "Num" })
+	end
+	-- (where it opens: the level being worked on, a column in from the left, or the first reward waiting further back;
+	-- after that, where it was left)
+	-- (CanvasPosition counts screen px: UIKit.P a UI px)
+	local P = UIKit.P()
+	local maxScroll = math.max(0, trackW - W)
+	if trackScroll < 0 then
+		local want = (math.min(lvl + 1, Track.LEVELS) - 2) * stride
+		if firstReady and (firstReady - 1) * stride < want then
+			want = (firstReady - 1) * stride
 		end
-		local at = math.max(0, (if first then first.LayoutOrder else lvl + 1) - 2)
-		list.CanvasPosition = Vector2.new(0, at * 30)
+		trackScroll = math.clamp(want, 0, maxScroll)
+	end
+	sc.CanvasPosition = Vector2.new(math.clamp(trackScroll, 0, maxScroll) * P, 0)
+	sc:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		trackScroll = math.floor(sc.CanvasPosition.X / P + 0.5)
 	end)
 end
 
