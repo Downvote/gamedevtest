@@ -202,10 +202,11 @@ local function viewEgg(pl, id)
 	end
 	return nil
 end
--- what the plot's Eggs attribute should say: "id.rarity" each, in the order laid
+-- what the plot's Eggs attribute should say: "id.rarity" each, the rarest Tuning.EggShown of the lot (Tree.shown: the
+-- ring's room; the tree's panel lists them all)
 local function attrWant(pr)
 	local out = {}
-	for _, e in pr.clutch.list do
+	for _, e in Tree.shown(pr) do
 		table.insert(out, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
 	return table.concat(out, ";")
@@ -359,16 +360,16 @@ local function checks(label)
 	eggMirror(p, label)
 end
 
--- what a client draws of island `sess`'s eggs: each one the profile has (no others), on the lawn on the ring round the
--- tree's middle (EGG_RING), at one of the arc's evenly spaced places for the island's count (Tree.count), each at its
--- own place, the arc on the side the view looks at
+-- what a client draws of island `sess`'s eggs: each one the world shows (Tree.shown: the rarest Tuning.EggShown of the
+-- lot, no others), on the lawn on the ring round the tree's middle (EGG_RING), at one of the arc's evenly spaced places
+-- for the ring's count (the island's lot, at most EggShown), each at its own place, the arc on the side the view looks at
 local function drawnCheck(pl, sess, label)
 	local c = clientOf(pl)
 	local pr = sess.profile
 	local plot = sess.plot
-	local n = Tree.count(pr.tier)
+	local n = math.min(Tuning.EggShown, Tree.count(pr.tier))
 	local centre = centreOf(pr, plot)
-	local list = pr.clutch.list
+	local list = Tree.shown(pr)
 	local cnt = H.inClient(pl, c.EV.count, plot)
 	H.expect(cnt == #list, "drawn", label .. ": every egg under the tree drawn, and no others", string.format("%d drawn, %d laid", cnt, #list))
 	local missing, offRing, offArc, offSlot, offLawn, shared = nil, nil, nil, nil, nil, nil
@@ -574,7 +575,8 @@ local function hatched(label, e, b, opts)
 	H.expect(#hf == 1 and type(data) == "table" and data.id == x.id and data.sp == x.sp and data.egg == e.id and data.r == e.r and data.cost == b.cost and data.sold == sold and data.swapped == (opts.swapped or 0), "hatch", label .. ": Fx hatched: its id, kind, egg, rarity, cost, sold and swapped", data and string.format("id %s egg %s r %s cost %s sold %s swapped %s", tostring(data.id), tostring(data.egg), tostring(data.r), tostring(data.cost), tostring(data.sold), tostring(data.swapped)) or tostring(#hf))
 	-- the client
 	E.run(0.6)
-	H.expect(H.inClient(p, C.EV.count, s.plot) == b.drawn - 1, "hatch", label .. ": one egg fewer drawn", string.format("%d, was %d", H.inClient(p, C.EV.count, s.plot), b.drawn))
+	-- (one fewer drawn, or with more than the ring holds, the next rarest takes its place: Tree.shown)
+	H.expect(H.inClient(p, C.EV.count, s.plot) == math.min(b.drawn - 1 + (if #prof.clutch.list >= Tuning.EggShown then 1 else 0), Tuning.EggShown), "hatch", label .. ": one egg fewer drawn (or the next rarest in its place)", string.format("%d, was %d", H.inClient(p, C.EV.count, s.plot), b.drawn))
 	local hx, hz = H.inClient(p, C.EV.hatchPoint, s.plot)
 	H.expect(b.spot ~= nil and math.abs(hx - b.spot.X) < 1e-3 and math.abs(hz - b.spot.Z) < 1e-3, "hatch", label .. ": what hatched steps out where the egg lay (EggView.hatchPoint)", b.spot and string.format("%.2f,%.2f vs %.2f,%.2f", hx, hz, b.spot.X, b.spot.Z) or "not drawn")
 	H.expect(gui(p, "CardPrice_" .. e.id) == nil, "hatch", label .. ": its card row gone")
@@ -657,8 +659,13 @@ end
 H.expect(treeModel() ~= nil and treeModel():GetAttribute("Decor") == "tree", "tree", "its model on the island, by its stage (Tree.stage)", tostring(Tree.stage(prof.tier)))
 -- the first lot, laid when the player arrived
 local c0 = prof.clutch
-H.expect(Tree.count(1) == 5 and #c0.list == Tree.count(1), "eggs", "the first lot laid at once: Tree.count(1), five eggs", tostring(#c0.list))
-H.expect(idsOf(c0.list) == "1,2,3,4,5" and c0.next == 6, "eggs", "their ids 1 to 5, the next 6", idsOf(c0.list))
+local N1 = Tree.count(1)
+local firstIds = {}
+for id = 1, N1 do
+	table.insert(firstIds, tostring(id))
+end
+H.expect(N1 == Tuning.EggCount[1] and N1 == 14 and #c0.list == N1, "eggs", "the first lot laid at once: Tree.count(1), fourteen eggs (a lot every 10 minutes: GAME_DESIGN 6)", tostring(#c0.list))
+H.expect(idsOf(c0.list) == table.concat(firstIds, ",") and c0.next == N1 + 1, "eggs", "their ids 1 to 14, the next 15", idsOf(c0.list))
 local commons = 0
 for _, e in c0.list do
 	if e.r == 1 then
@@ -666,7 +673,7 @@ for _, e in c0.list do
 	end
 end
 H.expect(c0.list[2] ~= nil and c0.list[1].r == 1 and c0.list[2].r == 1 and commons >= 2, "eggs", "a new island's first lot: two commons first", string.format("%d commons", commons))
-H.expect(Tree.secs(prof) == Tuning.EggSecs, "eggs", "no huts: a lot every EggSecs", tostring(Tree.secs(prof)))
+H.expect(Tree.secs(prof) == Tuning.EggSecs and Tuning.EggSecs == 600, "eggs", "a lot every EggSecs: ten minutes", tostring(Tree.secs(prof)))
 local layAt = E.now() - (Tree.secs(prof) - c0.left) -- when the first lot was laid
 H.expect(layAt >= joinT and layAt <= joinT + 2.2, "eggs", "laid when the player arrived", string.format("%.2f s after the join", layAt - joinT))
 local cheap = 0
@@ -685,7 +692,7 @@ for entry in string.gmatch(tostring(m1:GetAttribute("Eggs") or ""), "[^;]+") do
 	attrOk = attrOk and e ~= nil and e.r == tonumber(r)
 	parsed += 1
 end
-H.expect(attrOk and parsed == #c0.list, "eggs", "the plot's Eggs attribute reads back as id.rarity", tostring(m1:GetAttribute("Eggs")))
+H.expect(attrOk and parsed == math.min(#c0.list, Tuning.EggShown), "eggs", "the plot's Eggs attribute reads back as id.rarity (the rarest EggShown)", tostring(m1:GetAttribute("Eggs")))
 H.expect(m1:GetAttribute("Tide") == nil, "eggs", "no Tide attribute any more")
 eggMirror(p, "join")
 drawnCheck(p, s, "join")
@@ -800,6 +807,14 @@ E.run(0.5)
 checks("piece")
 
 ------------------------------------------------------------------ 3. refusals before a hut
+-- (the hatching below tells its story with five of the lot: the rest go, the two commons first kept, and every view
+-- follows)
+while #prof.clutch.list > 5 do
+	table.remove(prof.clutch.list)
+end
+H.push(p, 0.4)
+E.run(RISEN)
+checks("five")
 E.phase = "refuse"
 local first = prof.clutch.list[1]
 local sh0 = prof.shells
@@ -1014,7 +1029,7 @@ local due = E.now() + prof.clutch.left
 local f0, st0 = #W.fx, W.states
 local at, old, next0 = waitLot(prof.clutch.left + 2)
 H.expect(at ~= nil and math.abs(at - due) <= 0.15, "lot", "a hatched-down lot replaced on time", at and string.format("%.2f vs %.2f", at, due) or "none")
-H.expect(next0 == 6, "lot", "after the first lot (ids 1 to 5)", tostring(next0))
+H.expect(next0 == N1 + 1, "lot", "after the first lot (ids 1 to 14)", tostring(next0))
 lotCheck("hatched down", at, old, next0, f0, st0)
 E.run(RISEN)
 eggMirror(p, "lot 2")
@@ -1034,7 +1049,7 @@ f0, st0 = #W.fx, W.states
 local sinkSeen = false
 local at3 = nil
 E.runUntil(function()
-	if prof.clutch.next ~= 11 then
+	if prof.clutch.next ~= next0 + Tree.count(prof.tier) then
 		at3 = at3 or E.now()
 	end
 	-- (the old ones sink back into the lawn while the new ones rise)
@@ -1055,8 +1070,13 @@ for _, e in lot2 do
 		keptOld += 1
 	end
 end
-H.expect(keptOld == 0 and #prof.clutch.list == Tree.count(prof.tier) and idsOf(prof.clutch.list) == "11,12,13,14,15", "lot", "every egg left unhatched gone, a whole new lot", idsOf(prof.clutch.list))
-lotCheck("none hatched", at3, lot2, 11, f0, st0, "The tree laid new ones.")
+local next3 = next0 + Tree.count(prof.tier)
+local lot3Ids = {}
+for id = next3, next3 + Tree.count(prof.tier) - 1 do
+	table.insert(lot3Ids, tostring(id))
+end
+H.expect(keptOld == 0 and #prof.clutch.list == Tree.count(prof.tier) and idsOf(prof.clutch.list) == table.concat(lot3Ids, ","), "lot", "every egg left unhatched gone, a whole new lot", idsOf(prof.clutch.list))
+lotCheck("none hatched", at3, lot2, next3, f0, st0, "The tree laid new ones.")
 H.expect(sinkSeen, "lot", "the old ones sink back into the lawn")
 local gone = 0
 for _, e in lot2 do
@@ -1121,7 +1141,7 @@ tagCheck(p, "rejoin")
 cardCheck("rejoin")
 checks("rejoin")
 
------------------------------------------------------------------- 9. the huts' shares: eggs sooner, luckier, cheaper
+------------------------------------------------------------------ 9. the huts' shares: eggs luckier, cheaper; the Quick Tree pass sooner
 E.phase = "shares"
 local keptMuts = {}
 for _, x in prof.pals do
@@ -1130,29 +1150,27 @@ for _, x in prof.pals do
 end
 H.push(p, 0.3)
 local secs0, luck0, cost0, odds0 = Tree.secs(prof), Tree.luck(prof), Tree.cost(prof, 3), Tree.odds(prof)
--- (one hut driftling Evergreen, Starborn and Frugal)
+-- (one hut driftling Lucky (once Leafy), Starborn and Frugal: a saved Leafy one is Lucky since 2026-11-14)
 local star = nil
 for _, x in prof.pals do
 	if x.home ~= 0 and star == nil then
 		star = x
 	end
 end
-star.muts = { "swift4", "bright4", "sturdy2" }
-local tS, lS, cS = 0, 0, 0
+star.muts = Traits.clean({ "swift4", "bright4", "sturdy2" })
+local lS, cS = 0, 0
 for _, x in prof.pals do
 	if x.home ~= 0 then
 		local d = Creatures.byId[x.sp]
 		local f = Traits.sum(d and d.passive.fx, x.muts)
-		tS += f.tree or 0
 		lS += f.luck or 0
 		cS -= f.cost or 0
 	end
 end
-local wantSecs = Tuning.EggSecs / (1 + math.clamp(tS, 0, Tuning.HutTree))
 local wantLuck = 1 + Tuning.EggLuck[prof.tier] + math.clamp(lS, 0, Tuning.HutLuck)
 local wantCost = math.max(1, math.floor(Tuning.EggPrice[3] * Tuning.EggTier[prof.tier] * (1 - math.clamp(cS, 0, Tuning.HutCost)) + 0.5))
 H.push(p, 0.3)
-H.expect(Tree.secs(prof) < secs0 and math.abs(Tree.secs(prof) - wantSecs) < 1e-9, "shares", "a Leafy kind's tree share: the eggs come sooner", string.format("%.2f s, was %.2f", Tree.secs(prof), secs0))
+H.expect(Tree.secs(prof) == secs0 and secs0 == Tuning.EggSecs, "shares", "no share brings the eggs sooner: the tree keeps its 10 minutes", string.format("%.2f s, was %.2f", Tree.secs(prof), secs0))
 H.expect(Tree.luck(prof) > luck0 and math.abs(Tree.luck(prof) - wantLuck) < 1e-9, "shares", "a Lucky kind's luck share: luckier eggs", string.format("%.3f, was %.3f", Tree.luck(prof), luck0))
 H.expect(Tree.cost(prof, 3) < cost0 and Tree.cost(prof, 3) == wantCost, "shares", "a Thrifty kind's cost share: cheaper eggs", string.format("%d, was %d", Tree.cost(prof, 3), cost0))
 local odds1 = Tree.odds(prof)
@@ -1163,6 +1181,10 @@ for r = 2, 5 do
 	end
 end
 H.expect(top >= 3 and odds1[1] < odds0[1] and odds1[top] > odds0[top], "shares", "the odds lean rarer (fewer commons, more of the rarest open here)", string.format("common %.3f -> %.3f, rarity %d %.4f -> %.4f", odds0[1], odds1[1], top, odds0[top], odds1[top]))
+-- (only the Quick Tree pass makes the wait shorter: five minutes)
+prof.passes.QuickTree = true
+local wantSecs = Tuning.EggSecsPass
+H.push(p, 0.3)
 eggMirror(p, "shares")
 tagCheck(p, "shares")
 cardCheck("shares")
@@ -1172,12 +1194,13 @@ H.closePanel(p)
 -- (the lot laid now waits the shorter time: brought on early, then a whole wait on the clock)
 prof.clutch.left = 1.5
 local atA = waitLot(4)
-H.expect(atA ~= nil and math.abs(prof.clutch.left - (wantSecs - (E.now() - atA))) <= 0.15, "shares", "the next lot's clock set to the shorter Tree.secs", string.format("%.2f", prof.clutch.left))
+H.expect(atA ~= nil and math.abs(prof.clutch.left - (wantSecs - (E.now() - atA))) <= 0.15, "shares", "Quick Tree: the next lot's clock set to the shorter Tree.secs", string.format("%.2f", prof.clutch.left))
 E.run(1.2)
 local tk = fxSince(W, 0, "tick")
 H.expect(#tk > 0 and math.abs(tk[#tk].msg.clutchSecs - wantSecs) < 1e-9, "shares", "Fx tick: the shorter clutchSecs", tk[#tk] and tostring(tk[#tk].msg.clutchSecs))
 local atB = waitLot(wantSecs + 2)
 H.expect(atA ~= nil and atB ~= nil and math.abs((atB - atA) - wantSecs) <= 0.15, "shares", "and the one after comes that much sooner", atB and atA and string.format("%.2f s apart", atB - atA) or "none")
+prof.passes.QuickTree = nil
 for _, x in prof.pals do
 	if keptMuts[x.id] then
 		x.muts = keptMuts[x.id]
@@ -1211,7 +1234,7 @@ f0 = #W.fx
 res = H.req(p, "island.expand", {})
 E.run(1.5)
 H.expect(res.ok and prof.tier == 2, "expand", "the island grows", tostring(res.err))
-H.expect(#prof.clutch.list == Tree.count(2) and Tree.count(2) == 6, "expand", "the tree lays the extra eggs at once: up to Tree.count(2)", string.format("%d of %d", #prof.clutch.list, Tree.count(2)))
+H.expect(#prof.clutch.list == Tree.count(2) and Tree.count(2) == Tuning.EggCount[2], "expand", "the tree lays the extra eggs at once: up to Tree.count(2)", string.format("%d of %d", #prof.clutch.list, Tree.count(2)))
 local keptAll, newIds = true, {}
 for id, was in before1 do
 	local e = eggOf(prof, id)
@@ -1350,7 +1373,7 @@ local WQ = watch(q)
 H.expect(sq ~= nil and sq.ready and sq.plot ~= s.plot and math.abs(Street.origin(sq.plot) - Street.origin(s.plot)) <= Tuning.PlotSpacing, "neighbour", "a second island next door", sq and tostring(sq.plot))
 E.run(RISEN)
 local mq = plotModel(sq.plot)
-H.expect(#qprof.clutch.list == 5 and qprof.clutch.list[1].r == 1 and qprof.clutch.list[2].r == 1 and mq:GetAttribute("Eggs") == attrWant(qprof), "neighbour", "its own first lot, two commons first, in its own attribute", tostring(mq:GetAttribute("Eggs")))
+H.expect(#qprof.clutch.list == Tree.count(1) and qprof.clutch.list[1].r == 1 and qprof.clutch.list[2].r == 1 and mq:GetAttribute("Eggs") == attrWant(qprof), "neighbour", "its own first lot, two commons first, in its own attribute", tostring(mq:GetAttribute("Eggs")))
 -- (both islands count their eggs from 1, so their ids meet: here the neighbour's take the first island's own, so a
 -- tag or a tap that took the other island's egg for its own would show)
 for k, e in qprof.clutch.list do
@@ -1408,7 +1431,7 @@ H.expect(res.ok and #qprof.pals == 1 and Creatures.byId[qprof.pals[1].sp].knack 
 local hq = fxSince(WQ, 0, "hatched")
 H.expect(#hq == 1 and #fxSince(W, pf0, "hatched") == 0, "neighbour", "Fx hatched to the neighbour only")
 E.run(0.6)
-H.expect(H.inClient(p, C.EV.count, sq.plot) == seenBy - 1, "neighbour", "the first client: one of the neighbour's eggs fewer", string.format("%d, was %d", H.inClient(p, C.EV.count, sq.plot), seenBy))
+H.expect(H.inClient(p, C.EV.count, sq.plot) == math.min(Tuning.EggShown, #qprof.clutch.list) and #qprof.clutch.list == Tree.count(1) - 1, "neighbour", "the first client: the neighbour's eggs drawn, one hatched (the rarest dozen of the rest)", string.format("%d, was %d", H.inClient(p, C.EV.count, sq.plot), seenBy))
 E.run(1)
 H.expect(H.inClient(p, C.EV.where, sq.plot, qe.id) == nil and H.inClient(q, CQ.EV.where, sq.plot, qe.id) == nil, "neighbour", "it cracked open and is gone on both clients")
 tagCheck(q, "neighbour hatched", true)
