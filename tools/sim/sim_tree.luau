@@ -679,7 +679,7 @@ local firstIds = {}
 for id = 1, N1 do
 	table.insert(firstIds, tostring(id))
 end
-H.expect(N1 == Tuning.EggCount[1] and N1 == 5 and #c0.list == N1, "eggs", "the first lot laid at once: Tree.count(1), five eggs (GAME_DESIGN 6)", tostring(#c0.list))
+H.expect(N1 == Tuning.EggCount[1] and N1 == 7 and #c0.list == N1, "eggs", "the first lot laid at once: Tree.count(1), seven eggs (GAME_DESIGN 6: five, and two more since 2026-11-14)", tostring(#c0.list))
 H.expect(idsOf(c0.list) == table.concat(firstIds, ",") and c0.next == N1 + 1, "eggs", "their ids 1 to 5, the next 6", idsOf(c0.list))
 local commons = 0
 for _, e in c0.list do
@@ -1284,9 +1284,11 @@ end
 H.expect(says(p, if bestE >= 4 then "egg is waiting under the tree" else string.format("The tree laid %d more eggs.", Tree.count(2) - n1)), "expand", "the HUD says how many more")
 local ratio = Tuning.EggTier[2] / Tuning.EggTier[1]
 local priced = true
+-- (less the huts' cost share: a driftling hatched earlier may have a passive that takes some off)
+local _, offE = Tree.hutFx(prof)
 for id, was in before1 do
 	local e = eggOf(prof, id)
-	priced = priced and e ~= nil and Tree.cost(prof, e.r) == Tuning.EggPrice[e.r] * Tuning.EggTier[2] and math.abs(Tree.cost(prof, e.r) - was.cost * ratio) <= ratio
+	priced = priced and e ~= nil and Tree.cost(prof, e.r) == math.max(1, math.floor(Tuning.EggPrice[e.r] * Tuning.EggTier[2] * (1 - offE) + 0.5)) and math.abs(Tree.cost(prof, e.r) - was.cost * ratio) <= ratio
 end
 H.expect(priced, "expand", "every egg's price times EggTier[2]")
 local odds2 = Tree.odds(prof)

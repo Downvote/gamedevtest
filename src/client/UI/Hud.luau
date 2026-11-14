@@ -721,16 +721,21 @@ local function updateQuest(v: Types.ClientView)
 	local textW = w - 10
 	-- (up to four lines: "Three at work" says what three need, beds and work buildings)
 	local lines = math.clamp(math.ceil(UIKit.textWidth(q.text) / textW), 1, 4)
-	local h = 16 + lines * 10 + 16
+	-- (a title too long for its line wraps onto a second one rather than run under the count: "Discover 12 unique
+	-- creatures", 2026-11-14)
+	local titleW = w - 44
+	local tl = math.clamp(UIKit.lines(q.title, titleW), 1, 2)
+	local dy = (tl - 1) * 10
+	local h = 16 + lines * 10 + 16 + dy
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(EDGE, CARD_Y), 2)
 	f.Name = "Quest"
 	f:SetAttribute("Key", key)
 	PixelSprites.image(f, "mini_" .. q.icon, UDim2.fromOffset(3, 2), 3)
-	UIKit.text(f, q.title, UDim2.fromOffset(w - 44, 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3 })
+	UIKit.text(f, q.title, UDim2.fromOffset(titleW, tl * 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3, wrap = tl > 1, y = "top" })
 	local which = string.format("%d/%d", i, #Quests.list)
 	UIKit.text(f, which, UDim2.fromOffset(26, 10), UDim2.fromOffset(w - 30, 2), { x = "right", color = UIKit.color("text_dim"), name = "Which", z = 3 })
-	UIKit.text(f, q.text, UDim2.fromOffset(textW, lines * 10), UDim2.fromOffset(5, 14), { color = UIKit.color("text"), wrap = lines > 1, name = "Words", z = 3 })
-	local y = 15 + lines * 10 + 1
+	UIKit.text(f, q.text, UDim2.fromOffset(textW, lines * 10), UDim2.fromOffset(5, 14 + dy), { color = UIKit.color("text"), wrap = lines > 1, name = "Words", z = 3 })
+	local y = 15 + lines * 10 + 1 + dy
 	if done then
 		-- its reward, and Claim
 		local x = 5

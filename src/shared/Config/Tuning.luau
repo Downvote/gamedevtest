@@ -85,8 +85,10 @@ local Tuning = {
 	EggSecsPass = 300,
 	-- the eggs a lot by the island's tier: back to the counts from before the 10 minute tree (the request of
 	-- 2026-11-14: "use the same amount of eggs each tree refresh had as before"; they had been tripled to keep the eggs
-	-- an hour); the world shows the EggShown rarest of them round the roots (the ring's room), the tree's panel every one
-	EggCount = { 5, 6, 7, 8, 9, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12 },
+	-- an hour), then two more on every island (the request of 2026-11-14: "increase the amount of eggs produced by the
+	-- tree by 2 across all expansions"); the world shows the EggShown rarest of them round the roots (the ring's room),
+	-- the tree's panel every one
+	EggCount = { 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14 },
 	EggShown = 12,
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
 	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off). About a quarter of what they were since

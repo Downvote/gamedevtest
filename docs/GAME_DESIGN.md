@@ -74,7 +74,7 @@ Keep and the Driftling Citadel, up to 20 driftlings a hut), ten workplaces (the 
 Terraces and the Grand Vineyard; the Log Flume, the Ironwood Yard and the Canopy Mill; the Night Market, the Seaside
 Theatre and the Sky Tram), four boost buildings (the Seed Vault, the Carpenters' Hall, the Trade Hall and the Tide
 Bell) and 21 pieces of decor in the themes and the grand row, up to the Crown of the Sea (§4.1). The Tree of Life grows
-two stages grander and lays up to twelve eggs a lot (§4.4, §6).
+two stages grander and lays up to fourteen eggs a lot (§4.4, §6).
 
 So there are two rarities past legendary now, Mythic and Celestial, and three kinds of land past the capital to hatch
 them from: Moonwoods at island tier 11 (the first mythic driftling), Cloudtops at 14 (the first celestial one) and
@@ -1052,9 +1052,12 @@ the crown, a third ring of light on the ground and a ring of low standing stones
 When the island grows into a new stage, the tree is built again at it.
 
 - **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (600) seconds the tree lays a new lot round its roots,
-  `EggCount` by the island's tier: 5, 6, 7, 8, 9, then 10 from the capital, 11 from Kelpwood Isle and 12 from Starfall
-  Atoll (the counts from before the 10 minute tree: the request of 2026-11-14, "use the same amount of eggs each tree
-  refresh had as before"; they had been three times that for a while). The eggs still there from the last lot go as the new ones come. Ten minutes the whole game through
+  `EggCount` by the island's tier: 7, 8, 9, 10, 11, then 12 from the capital, 13 from Kelpwood Isle and 14 from
+  Starfall Atoll: the counts from before the 10 minute tree (the request of 2026-11-14, "use the same amount of eggs
+  each tree refresh had as before"; they had been three times that for a while), then two more on every island (the
+  request of 2026-11-14, "increase the amount of eggs produced by the tree by 2 across all expansions"). The ring round
+  the roots shows the rarest twelve (fourteen there overlap at the biggest islands); the tree's panel, where they are
+  bought, lists every one. The eggs still there from the last lot go as the new ones come. Ten minutes the whole game through
   since the request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10 minutes
   throughout the whole game unless a gamepass is bought"): the huts' tree shares are gone (the Leafy family loads as
   Lucky, each passive's share became that much egg luck) and only the Quick Tree pass (§14) makes it five
@@ -1724,7 +1727,10 @@ hut sleeps two) and a farm, camp or shop to work at.": the request of 2026-11-14
 3 huts, and you need work buildings for them to work in"; a hut sleeps two, so it names beds, not three huts); build
 another hut (2 huts); an uncommon one ("Green-spotted
 eggs hatch uncommon ones."); another farm (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); a rare
-one; grow your island (tier 2); build a boost; ten driftlings at work; meet twelve kinds; grow the island again (tier
+one ("Get a rare egg from the tree! There's always one under it while this quest is on. Save some shells for it.": the
+user's words of 2026-11-14, "Get a rare egg from the tree! Save some shells for one. also, this quest spawns a rare egg
+below the tree if there isnt one already"); grow your island (tier 2); build a boost; ten driftlings at work; discover 12 unique creatures ("The Index lists every creature you
+discovered. Expanding your island lets you discover more.": the user's words of 2026-11-14, its title too); grow the island again (tier
 3); build a Hatchery; hatch an egg in it; an epic one; sixty hatched.
 While one of the rarity quests (an uncommon, a rare or an epic one) is on the go and not met, the tree always has an
 egg of that rarity waiting (§6, "The quest's egg"; the request of 2026-11-14: "also, while the rare one quest is
@@ -1800,7 +1806,9 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (10 minutes: the second lot);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched by the third lot, 21 minutes (it was within 20,
+  the second lot, until the two more eggs a lot of 2026-11-14 shuffled the rolls and one seed's second lot held no rare
+  egg: its first came from the third, at 20 minutes 5 seconds);
 - a steady supply: at least 12 hatched by half an hour (15 to 18), an epic within two hours (10 to 30 minutes); a
   legendary comes at 22 to 45 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a

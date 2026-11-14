@@ -109,7 +109,9 @@ local list: { Quest } = {
 	{
 		id = "rare",
 		title = "A rare one",
-		text = "Blue-spotted eggs hatch rare ones, and they glow at night. Save some shells for one.",
+		-- (the user's words of 2026-11-14: "Get a rare egg from the tree! Save some shells for one.", and the tree
+		-- keeps one under it while this quest is on: Logic/Tree.ensure)
+		text = "Get a rare egg from the tree! There's always one under it while this quest is on. Save some shells for it.",
 		goal = { kind = "best", n = 3 },
 		reward = { shells = 200 },
 		go = "tree",
@@ -144,8 +146,9 @@ local list: { Quest } = {
 	},
 	{
 		id = "index",
-		title = "Meet twelve kinds",
-		text = "The Index lists every kind that has floated by. A bigger island brings more kinds.",
+		-- (the user's words of 2026-11-14)
+		title = "Discover 12 unique creatures",
+		text = "The Index lists every creature you discovered. Expanding your island lets you discover more.",
 		goal = { kind = "seen", n = 12 },
 		reward = { shells = 500 },
 		go = "index",

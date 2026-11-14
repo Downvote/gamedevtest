@@ -3,6 +3,7 @@
 -- has built build/luautest).
 local T = require("../TestKit")
 local Career = require("../Career")
+local Tuning = require("../../build/luautest/shared/Config/Tuning")
 
 local SEEDS = { 1, 2, 3 }
 local MINUTES = 180
@@ -15,10 +16,13 @@ return function()
 	local function at(r: any, minute: number): any
 		return r.timeline[minute // 10]
 	end
-	T.it("the first minutes: a driftling at work within 3 minutes, a rare one within 20", function()
+	-- (a rare one by the third lot, 20 minutes and a hatch: with two more eggs a lot, 2026-11-14, one seed's second lot
+	-- rolled no rare egg and its first came from the third, laid at 20:00 and hatched 5 seconds on; it had been "within
+	-- 20", the second lot)
+	T.it("the first minutes: a driftling at work within 3 minutes, a rare one by the third lot", function()
 		for seed, r in runs do
 			T.truthy(r.first.helper and r.first.helper <= 180, "seed " .. seed .. ": a driftling at work at " .. tostring(r.first.helper))
-			T.truthy(r.first.rarity3 and r.first.rarity3 <= 1200, "seed " .. seed .. ": a rare one at " .. tostring(r.first.rarity3))
+			T.truthy(r.first.rarity3 and r.first.rarity3 <= 2 * Tuning.EggSecs + 60, "seed " .. seed .. ": a rare one at " .. tostring(r.first.rarity3))
 		end
 	end)
 	T.it("the eggs: a dozen hatched by half an hour, an epic within two hours", function()

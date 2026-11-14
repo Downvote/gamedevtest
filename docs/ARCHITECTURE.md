@@ -233,7 +233,7 @@ every field.
   6,000,000, 7,200,000, 8,600,000, 10,200,000, 12,000,000, 14,000,000, 16,500,000, 19,500,000, 23,000,000; every table
   by tier has twenty entries, and the top tier is `#TierCost`, GAME_DESIGN 4.4), `ComfortLvl`, `BoostMax` (0.7); no `StartFood`,
   `EatPal` or `Hungry` since food went), the Tree of Life's eggs (GAME_DESIGN 6: `EggSecs` (180: seconds between two
-  lots), `EggCount` (eggs a lot by the island's tier: 5, 6, 7, 8, 9, 10 from tier 6, 11 from 13, 12 from 17), `EggPrice`
+  lots), `EggCount` (eggs a lot by the island's tier: 7, 8, 9, 10, 11, 12 from tier 6, 13 from 13, 14 from 17; two more on every tier since 2026-11-14), `EggPrice`
   (shells by rarity, seven of them: 8, 36, 160, 800, 4,000, 24,000, 160,000), `EggTier` (the price's multiplier by the
   island's tier: 1, 2, 5, 12, 27, 54, 96, 160, 250, 380, then 460, 540, 640, 750, 880, 1,040, 1,220, 1,440, 1,700,
   2,000; about a quarter of the old prices since 2026-11-14, "make eggs much cheaper"), `EggLuck` (the luck by tier: 0, 0.25, 0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6, then 2.8 up by 0.2 a tier
@@ -1240,7 +1240,8 @@ attribute); on a phone the card at the top left; the island card and it hidden i
 open, since 2026-11-14, so nothing shows through a panel's glass), the questline's card `Quest` (GAME_DESIGN 9: down the left under the `Status` panel, `QUEST_W`
 150, under the `TreeCard` on a phone; hidden while the tips are on and for a panel; `updateQuest(v)` from the view
 through `Quest.current` / `Quest.progress`, laid out again when the quest or its count changes, sliding in: the
-quest's `mini_` icon, `Title`, `Which` ("3/20"), `Words`, then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
+quest's `mini_` icon, `Title` (wrapping onto a second line when it is wider than its 106 px, the card growing by one
+line: "Discover 12 unique creatures"), `Which` ("3/20"), `Words` (up to four lines), then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
 panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_shells`) and
 `QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`: the steps of
 GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
