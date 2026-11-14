@@ -50,13 +50,13 @@ Weather.KINDS = {
 } :: { Kind }
 
 Weather.SEASONS = {
-	{ id = "spring", name = "Spring", icon = "season_spring", favour = { 2, 6 }, blurb = "Meadow and mangrove kinds come more often.",
+	{ id = "spring", name = "Spring", icon = "season_spring", favour = { 2, 6, 11 }, blurb = "Meadow, mangrove and cloudtop kinds come more often.",
 		odds = { { kind = "sunny", w = 30 }, { kind = "blossom", w = 26 }, { kind = "rain", w = 24 }, { kind = "breezy", w = 14 }, { kind = "storm", w = 6 } } },
 	{ id = "summer", name = "Summer", icon = "season_summer", favour = { 1, 3, 5 }, blurb = "Beach, volcano and reef kinds come more often.",
 		odds = { { kind = "sunny", w = 38 }, { kind = "haze", w = 26 }, { kind = "breezy", w = 14 }, { kind = "rain", w = 12 }, { kind = "storm", w = 10 } } },
-	{ id = "autumn", name = "Autumn", icon = "season_autumn", favour = { 8, 9 }, blurb = "Bluff and ruin kinds come more often.",
+	{ id = "autumn", name = "Autumn", icon = "season_autumn", favour = { 8, 9, 10 }, blurb = "Bluff, ruin and moonwood kinds come more often.",
 		odds = { { kind = "leaves", w = 30 }, { kind = "breezy", w = 18 }, { kind = "rain", w = 20 }, { kind = "fog", w = 22 }, { kind = "storm", w = 10 } } },
-	{ id = "winter", name = "Winter", icon = "season_winter", favour = { 4, 7 }, blurb = "Snowfield and grotto kinds come more often.",
+	{ id = "winter", name = "Winter", icon = "season_winter", favour = { 4, 7, 12 }, blurb = "Snowfield, grotto and starfall kinds come more often.",
 		odds = { { kind = "snow", w = 40 }, { kind = "fog", w = 20 }, { kind = "sunny", w = 22 }, { kind = "breezy", w = 12 }, { kind = "storm", w = 6 } } },
 } :: { Season }
 -- stylua: ignore end

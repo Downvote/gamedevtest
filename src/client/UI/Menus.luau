@@ -320,7 +320,7 @@ local function buildHatch(body: Frame, arg: any?)
 			local r = if d then d.rarity else 1
 			local rar = Traits.RARITY[r] or Traits.RARITY[1]
 			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
-			UIKit.text(f, string.format("%s %s egg", if r == 4 then "An" else "A", rar.name), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
+			UIKit.text(f, string.format("%s %s egg", if r == 2 or r == 4 then "An" else "A", rar.name), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
 			local _, total = Breed.cost(egg.sp)
 			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Hatching now."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
@@ -357,7 +357,7 @@ local function buildHatch(body: Frame, arg: any?)
 			UIKit.text(f, "+", UDim2.fromOffset(8, 10), UDim2.fromOffset(103, 16), { color = UIKit.color("text"), z = 4 })
 			slot(pb, "b", 112)
 			if pa and pb then
-				local sp = Breed.child(pa.sp, pb.sp)
+				local sp = Breed.child(pa.sp, pb.sp, v.tier)
 				local d = Creatures.byId[sp]
 				local feast, turns = Breed.cost(sp)
 				local met = (v.seen[sp] or 0) >= 1
@@ -656,7 +656,7 @@ local function buildTree(body: Frame, arg: any?)
 	UIKit.text(body, "What it lays now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 42), { color = UIKit.color("text_dim") })
 	local odds = Tree.odds(p)
 	local y = 52
-	for r = 1, 5 do
+	for r = 1, Traits.RMAX do
 		local rar = Traits.RARITY[r]
 		local pct = odds[r] * 100
 		local txt = if odds[r] <= 0 then "not yet" elseif pct < 0.1 then "<0.1%" elseif pct < 1 then string.format("%.1f%%", pct) else string.format("%d%%", math.round(pct))
@@ -691,7 +691,7 @@ local function buildTree(body: Frame, arg: any?)
 		local wm = if wdef then Traits.byId[Traits.at(wdef.family or "", e.wt or 1)] else nil
 		local f = row(list, i, if wm then 36 else 26)
 		f.Name = "Egg_" .. e.id
-		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, 5), UDim2.fromOffset(6, 5), 4)
+		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(6, 5), 4)
 		local tw = RW - 86
 		UIKit.text(f, rar.name .. " egg", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
 		local an = if e.r == 2 or e.r == 4 then "an" else "a"

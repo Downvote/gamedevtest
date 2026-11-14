@@ -408,7 +408,7 @@ function H.checkProfile(p, label)
 		H.expect(finite(c.left) and c.left >= -1 and c.left <= Tuning.EggSecs + 1, "profile", label .. ": the eggs' clock out of range", tostring(c.left))
 		local eggIds = {}
 		for _, e in c.list do
-			H.expect(e.id > 0 and e.id < c.next and not eggIds[e.id] and e.r >= 1 and e.r <= 5 and e.r == math.floor(e.r), "profile", label .. ": a bad egg", string.format("%s r%s", tostring(e.id), tostring(e.r)))
+			H.expect(e.id > 0 and e.id < c.next and not eggIds[e.id] and e.r >= 1 and e.r <= Traits.RMAX and e.r == math.floor(e.r), "profile", label .. ": a bad egg", string.format("%s r%s", tostring(e.id), tostring(e.r)))
 			eggIds[e.id] = true
 		end
 	end

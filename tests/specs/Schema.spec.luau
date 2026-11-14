@@ -411,7 +411,7 @@ return function()
 		local p2 = roundTrip(p)
 		p2.clutch = { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 9 }, { id = 4, r = 1 }, "x" }, next = 2 }
 		local q2 = Schema.reconcile(p2, 2000, 9) :: any
-		T.deepEq(q2.clutch, { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = 5 } }, next = 5 }, "cleaned: a rarity in range, ids once, next past them")
+		T.deepEq(q2.clutch, { left = 77, list = { { id = 3, r = 2 }, { id = 4, r = Traits.RMAX } }, next = 5 }, "cleaned: a rarity in range, ids once, next past them")
 	end)
 	T.it("a version 13 save: the old one-piece fence and hedge come up with their price back; drawn pieces checked", function()
 		local raw = roundTrip(played())

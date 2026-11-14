@@ -14,8 +14,9 @@
 -- the swap picker; the lot replaced on the tree's clock (every old egg gone, new ids, Fx eggs), a hatched-down lot too,
 -- and the swap picker going back to the list when its egg goes; the eggs and their clock kept over a leave and a
 -- rejoin; the huts' tree, luck and cost shares; expanding (the extra eggs at once, dearer, better odds, the ring
--- spaced out again); the own tree tapped opens its panel, a neighbour's says whose it is; a neighbour's eggs drawn by
--- both clients, with no price tags on either.
+-- spaced out again); the own tree tapped opens its panel, a neighbour's says whose it is; the rarest eggs (mythic and
+-- celestial: the odds, the price, drawn, each hatched into one of its rarity); a neighbour's eggs drawn by both
+-- clients, with no price tags on either.
 local E = require("./loader")
 local H = require("./harness")
 local I = require("./inst")
@@ -1278,7 +1279,68 @@ H.expect(H.currentPanel(p) == "tree" and #prof.clutch.list == eggs0, "tap", "a t
 H.closePanel(p)
 checks("tap")
 
------------------------------------------------------------------- 12. a neighbour: both islands' eggs on both clients, tags only on the own
+------------------------------------------------------------------ 12. the rarest eggs: mythic and celestial
+-- (2026-11-14: "more egg rarities and creatures"): the kinds past the capital (moonwoods at tier 11, cloudtops at 14,
+-- starfalls at 17) bring the mythic and celestial driftlings; where this island is not that far on, those kinds open at
+-- its own tier for these checks, as they will at theirs. Seven rarities in the odds, mythic rarer than legendary and
+-- celestial rarer still; a mythic egg and a celestial one under the tree (the profile, the attribute, the view, dearer
+-- than a legendary one), each hatched (a hut's weakest swapped out when every hut is full) into one of its rarity.
+E.phase = "rarest"
+do
+	local Islets = H.sharedServer("Data.Islets")
+	local moved = {}
+	for _, k in Islets.list do
+		if k.tier > prof.tier then
+			moved[k] = k.tier
+			k.tier = prof.tier
+		end
+	end
+	local pool = Tree.pool(prof.tier)
+	H.expect(#pool[6] >= 3 and #pool[7] >= 3, "rarest", "the kinds past the capital bring mythic and celestial driftlings", string.format("%d mythic, %d celestial", #pool[6], #pool[7]))
+	local odds = Tree.odds(prof)
+	local sum = 0
+	for _, o in odds do
+		sum += o
+	end
+	H.expect(#odds == Traits.RMAX and Traits.RMAX == 7 and math.abs(sum - 1) < 1e-9 and odds[6] > 0 and odds[7] > 0 and odds[7] < odds[6] and odds[6] < odds[5], "rarest", "the odds: seven rarities, mythic rarer than legendary, celestial rarer still", string.format("legendary %.4f, mythic %.4f, celestial %.4f, sum %.6f", odds[5], odds[6], odds[7], sum))
+	H.expect(Tree.cost(prof, 7) > Tree.cost(prof, 6) and Tree.cost(prof, 6) > Tree.cost(prof, 5), "rarest", "a celestial egg dearer than a mythic one, dearer than a legendary one", string.format("%d, %d, %d", Tree.cost(prof, 5), Tree.cost(prof, 6), Tree.cost(prof, 7)))
+	local em, ec = prof.clutch.list[1], prof.clutch.list[2]
+	H.expect(em ~= nil and ec ~= nil, "rarest", "two eggs under the tree to turn")
+	if em and ec then
+		em.r, ec.r = 6, 7
+		H.push(p, 0.3)
+		E.run(RISEN)
+		H.expect(plotModel(s.plot):GetAttribute("Eggs") == attrWant(prof), "rarest", "the attribute says a mythic egg and a celestial one", tostring(plotModel(s.plot):GetAttribute("Eggs")))
+		eggMirror(p, "rarest")
+		H.expect(H.inClient(p, C.EV.where, s.plot, em.id) ~= nil and H.inClient(p, C.EV.where, s.plot, ec.id) ~= nil, "rarest", "both drawn under the tree")
+		for _, e in { em, ec } do
+			prof.shells = Tree.cost(prof, e.r) + 5000
+			H.push(p, 0.3)
+			local b = before(e)
+			local w = if housed() >= Island.nests(prof) then weakest() else nil
+			local sold = if w then Tree.price(w) else 0
+			local r1 = H.req(p, "egg.hatch", { id = e.id, swap = if w then w.id else 0 })
+			H.expect(r1.ok, "rarest", "a rarity " .. e.r .. " egg hatches", tostring(r1.err))
+			if r1.ok then
+				local x = hatched(Traits.RARITY[e.r].name .. " egg", e, b, { sold = sold, swapped = if w then w.id else 0 })
+				local d = x and Creatures.byId[x.sp]
+				H.expect(d ~= nil and d.rarity >= e.r and Islets.list[d.islet] ~= nil and (moved[Islets.list[d.islet]] or 0) >= 11, "rarest", Traits.RARITY[e.r].name .. ": one of the far kinds' driftlings", d and string.format("%s (%s, %s)", d.id, d.rarity, Islets.list[d.islet].name) or "none")
+			end
+		end
+		H.expect(prof.stats.best == 7, "rarest", "the rarest had: celestial", tostring(prof.stats.best))
+	end
+	for k, t in moved do
+		k.tier = t
+	end
+	-- (a whole new lot for what follows)
+	prof.clutch.left = 0.05
+	local at = waitLot(5)
+	E.run(RISEN)
+	H.expect(at ~= nil and #prof.clutch.list == Tree.count(prof.tier), "rarest", "a new lot after", tostring(#prof.clutch.list))
+	checks("rarest")
+end
+
+------------------------------------------------------------------ 13. a neighbour: both islands' eggs on both clients, tags only on the own
 E.phase = "neighbour"
 local q = H.addPlayer({ userId = 9702, name = "Neighbour" })
 E.run(2.5)

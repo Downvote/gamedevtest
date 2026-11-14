@@ -105,7 +105,7 @@ function Weather.touch(rng: any, state: State?, rarity: number): (string?, numbe
 		return nil, nil
 	end
 	local w = table.clone(Tuning.WeatherTierW)
-	local r = math.clamp(rarity, 1, 5)
+	local r = math.clamp(rarity, 1, Traits.RMAX)
 	-- (a rarer egg: fewer first tiers, more of the top ones)
 	w[1] = math.max(8, w[1] - (r - 1) * 8)
 	w[3] += (r - 1) * 3

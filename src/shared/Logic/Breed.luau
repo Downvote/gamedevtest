@@ -5,7 +5,8 @@
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
 --   nearest the parents' average (the commoner, then the first by name, on a tie). A legend only hatches from two
---   legends.
+--   legends, a mythic one from two mythic or rarer, a celestial one from two celestial ones. With the island's tier
+--   given, only kinds of land open there (Data/Islets `tier`) hatch, besides the parents' own kinds.
 --   Its mutations (Data/Traits): one both parents carry always passes on (the better tier), and with `BreedTierUp`
 --   comes out a tier better (a shared flaw turns into its family's first tier); one only a parent carries passes on
 --   with `BreedKeep`; with `BreedNew` it gains one of its own (tier 1 or 2 of a family neither carries). The best four.
@@ -15,6 +16,7 @@ local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Islets = require(script.Parent.Parent.Data.Islets)
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Island = require(script.Parent.Island)
 local Tree = require(script.Parent.Tree)
@@ -25,8 +27,8 @@ type ErrCode = Types.ErrCode
 
 local Breed = {}
 
--- What a pair hatches (species ids).
-function Breed.child(a: string, b: string): string
+-- What a pair hatches (species ids; `tier`: the island's, so a far kind's driftling never hatches early).
+function Breed.child(a: string, b: string, tier: number?): string
 	if a == b then
 		return a
 	end
@@ -35,11 +37,14 @@ function Breed.child(a: string, b: string): string
 		return if da then a else b
 	end
 	local avg = (da.power + db.power) / 2
-	local legend = da.rarity == 5 and db.rarity == 5
+	-- (legendary and up: no rarer than the commoner parent)
+	local top = math.max(4, math.min(da.rarity, db.rarity))
 	local best: Creatures.CreatureDef? = nil
 	local bestD = math.huge
 	for _, d in Creatures.list do
-		if d.rarity < 5 or legend then
+		local kind = Islets.list[d.islet]
+		local open = tier == nil or kind == nil or kind.tier <= tier or d.id == a or d.id == b
+		if d.rarity <= top and open then
 			local dist = math.abs(d.power - avg)
 			local better = false
 			if best == nil or dist < bestD - 1e-9 then
@@ -164,7 +169,7 @@ function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (
 	if pa == nil or pb == nil then
 		return false, "not_found" :: ErrCode
 	end
-	local sp = Breed.child(pa.sp, pb.sp)
+	local sp = Breed.child(pa.sp, pb.sp, p.tier)
 	local feast, turns = Breed.cost(sp)
 	if p.shells < feast then
 		return false, "money" :: ErrCode

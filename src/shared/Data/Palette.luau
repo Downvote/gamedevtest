@@ -270,6 +270,9 @@ local UI: { [string]: number } = {
 	veil = 0xFFFFFF,
 	rule = 0xFFFFFF,
 	xp = 0xC9A6FF,
+	-- the two rarest rarities (Data/Traits, 2026-11-14): a rose pink and a starlight blue
+	mythic = 0xFF6EB4,
+	celestial = 0xA6F0FF,
 }
 
 local Palette: {

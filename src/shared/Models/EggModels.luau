@@ -3,7 +3,8 @@
 -- them under the trees, UI/HatchScene holds one up close while it hatches.
 --   EggModels.build(r, bare?, scale?) -> (model, parts, top, fx)   an egg of rarity r: its parts with their offsets
 --                                                          from its foot, the shell's top half (it flies off when it
---                                                          hatches), the rarity's moving lights (motes);
+--                                                          hatches), the rarity's moving lights (motes, beads on an
+--                                                          orbit);
 --                                                          `bare`: no bed of straw and no glow on the lawn; `scale`
 --                                                          times its size
 --   EggModels.hero(r, h) -> (model, parts, top, fx, cracks)  the hatch scene's egg up close, h studs tall
@@ -14,9 +15,10 @@ local WeatherData = require(script.Parent.Parent.Data.Weather)
 
 local EggModels = {}
 
-local SIZE: { [number]: number } = { 1.25, 1.3, 1.38, 1.48, 1.62 } -- rarer eggs are a little bigger
+local SIZE: { [number]: number } = { 1.25, 1.3, 1.38, 1.48, 1.62, 1.72, 1.82 } -- rarer eggs are a little bigger
 EggModels.SIZE = SIZE
--- Each rarity's shell (its colour and its marks) and glow (Traits.RARITY's colours: grey, green, blue, purple, gold):
+-- Each rarity's shell (its colour and its marks) and glow (Traits.RARITY's colours: grey, green, blue, purple, gold,
+-- rose, starlight):
 -- body, marks ("spots" freckles or stars, "band" a zigzag band round its middle), whether the marks glow, the glow on
 -- the lawn under it.
 export type Look = { body: string, mark: string, marks: string, glow: boolean, lawn: string? }
@@ -26,13 +28,17 @@ local LOOK: { [number]: Look } = {
 	{ body = "blue", mark = "white", marks = "spots", glow = true },
 	{ body = "purple", mark = "pink", marks = "spots", glow = true, lawn = "purple" },
 	{ body = "gold", mark = "yellow", marks = "band", glow = true, lawn = "yellow" },
+	{ body = "wall_trim", mark = "white", marks = "band", glow = true, lawn = "pink" },
+	{ body = "night", mark = "screen_on", marks = "spots", glow = true, lawn = "screen_on" },
 }
 EggModels.LOOK = LOOK
 
 -- An egg of rarity r (LOOK): a round shell on a bed of straw, its marks on it (freckles, stars or a zigzag band; glowing
 -- from rare up), and from epic up its lights: a glow on the lawn under it and two motes circling it (epic); a legendary
--- one twinkles instead (its beam of light went on 2026-11-14). Its parts' offsets from its foot; the top half (it flies off when it
--- hatches); the lights (moved every frame: stepEgg).
+-- one twinkles instead (its beam of light went on 2026-11-14). A mythic one is rose with a glowing white band, pink
+-- buds round its crown and two motes; a celestial one the dark blue of a night sky, its spots glowing like stars, white
+-- dust between them and a ring of little lights orbiting it, tilted like a planet's. Its parts' offsets from its foot;
+-- the top half (it flies off when it hatches); the lights (moved every frame: stepEgg).
 function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
 	local m = Blocks.model(nil, "TreeEgg")
 	local parts: { { p: BasePart, off: CFrame } } = {}
@@ -134,7 +140,27 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 			end
 		end
 	end
-	if r >= 5 then
+	if r == 7 then
+		-- a celestial egg: white dust between its glowing spots, and a ring of little lights orbiting it
+		for _, d in { { 0.22, 0.42, 0.1 }, { 0.62, 0.3, 0.33 }, { 0.75, -0.18, 0.3 }, { 0.42, 0.22, 0.4 }, { 0.15, -0.05, 0.43 } } do
+			ball(0.08 * s, CFrame.new(d[2] * s, y0 + d[1] * s, d[3] * s), "white", true, d[1] > 0.6)
+		end
+		for k = 1, 9 do
+			local c = ({ "white", "screen_on", "yellow" })[k % 3 + 1]
+			local bead = Blocks.part(m, { size = Vector3.new(0.16, 0.16, 0.16), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = bead, kind = "orbit", k = k })
+		end
+	elseif r == 6 then
+		-- a mythic egg: pink buds round its crown, two motes circling it (a pink one and a white one)
+		for k = 0, 4 do
+			local a = k * math.pi * 2 / 5 + 0.3
+			ball(0.15 * s, CFrame.new(math.cos(a) * 0.24 * s, y0 + 0.92 * s, math.sin(a) * 0.24 * s), "cherry", nil, true)
+		end
+		for k, c in { "cherry", "white" } do
+			local mote = Blocks.part(m, { size = Vector3.new(0.25, 0.25, 0.25), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
+			table.insert(fx, { p = mote, kind = "mote", k = k })
+		end
+	elseif r >= 5 then
 		-- a legendary egg: its gold sparks and stars twinkle round it (EggView); the band of light and the beam of light
 		-- that stood out of its top went (the request of 2026-11-14: "remove these rectangular effects everywhere,
 		-- instead make it twinkles")
@@ -160,10 +186,15 @@ end
 --   epic: purple with two pink stripes spiralling up it, glowing runes between them, a pink ring at its foot, three
 --     motes circling it;
 --   legendary: gold with a raised band set with red, blue and green gems in bezels, filigree scrolls, a crown of points
---     round its top and a halo of light turning over it (its beam went on 2026-11-14).
+--     round its top and a halo of light turning over it (its beam went on 2026-11-14);
+--   mythic: rose with two strings of pearls round its middle and a pink band between them, white crescent moons and
+--     little stars on its front, a ring of pearls round its top, a halo of pink and white lights over it and three
+--     motes circling it;
+--   celestial: the dark blue of a night sky, constellations (white stars joined by lilac dots), a few cyan stars, a gold star on its crown, a tilted ring of little lights
+--     orbiting it like a planet's and three motes.
 -- Its cracks (`cracks`: each part with its stage, 1 a short crack at the top, 2 running down and branching, 3 round its
 -- middle where the top comes off) are kept out of sight until the scene shows them; the top is what lies above the
--- middle crack. fx: "mote", "halo" (moved by the scene).
+-- middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
 export type Crack = { p: BasePart, off: CFrame, stage: number }
 local PROFILE: { { number } } = {
 	{ 0, 0 },
@@ -224,8 +255,8 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 	-- a mark painted on the shell: a thin disc of diameter d lying flat on it at (t, a) (its axis along the shell's
 	-- normal there, taken from the egg's middle)
 	local MID = Vector3.new(0, 0.45 * h, 0)
-	local function dab(t: number, a: number, d: number, color: string, neon: boolean?)
-		local p = at(t, a, 0.005)
+	local function dab(t: number, a: number, d: number, color: string, neon: boolean?, out: number?)
+		local p = at(t, a, out or 0.005)
 		local n = (p - MID).Unit
 		add(Vector3.new(0.05, d, d), CFrame.lookAt(p, p + n) * CFrame.Angles(0, math.pi / 2, 0), color, t, { neon = neon, shape = "Cylinder", name = "Mark" })
 	end
@@ -339,6 +370,75 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		end
 		for k, c in { "pink", "white", "purple" } do
 			local mote = Blocks.part(m, { size = Vector3.new(0.18, 0.18, 0.18) * u, cf = CFrame.new(0, h * 0.6, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
+			table.insert(fx, { p = mote, kind = "mote", k = k })
+		end
+	elseif r == 6 then
+		-- two strings of pearls round its middle, a pink band between them
+		for k = 0, 35 do
+			local a = k / 36 * math.pi * 2
+			dab(0.44, a, 0.16 * u, "cherry")
+			bead(0.395, a + 0.04, 0.085 * u, "white")
+			bead(0.485, a + 0.04, 0.085 * u, "white")
+		end
+		-- white polka dots in even rows all round it, over and under the band
+		for row, t in { 0.18, 0.28, 0.6, 0.7, 0.8 } do
+			local n = math.max(6, math.floor(prof(t) * 16 + 0.5))
+			for k = 0, n - 1 do
+				dab(t, (k + (row % 2) * 0.5) / n * math.pi * 2, 0.11 * u, "white")
+			end
+		end
+		-- a ring of pearls round its top, pink buds between them
+		for k = 0, 11 do
+			local a = k / 12 * math.pi * 2
+			bead(0.87, a, (if k % 2 == 0 then 0.11 else 0.08) * u, if k % 2 == 0 then "white" else "cherry")
+		end
+		-- the halo over it, pink and white, and three motes circling it
+		for k = 0, 19 do
+			local halo = Blocks.part(m, { size = Vector3.new(0.09, 0.09, 0.09) * u, cf = CFrame.new(0, h + 0.4, 0), color = if k % 2 == 0 then "white" else "pink", collide = false, query = false, neon = true, shape = "Ball", name = "Halo" })
+			table.insert(fx, { p = halo, kind = "halo", k = k })
+		end
+		for k, c in { "pink", "white", "cherry" } do
+			local mote = Blocks.part(m, { size = Vector3.new(0.18, 0.18, 0.18) * u, cf = CFrame.new(0, h * 0.6, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
+			table.insert(fx, { p = mote, kind = "mote", k = k })
+		end
+	elseif r >= 7 then
+		-- constellations: white stars joined by lilac dots where they lie far apart (every mark is at least a grid step,
+		-- Blocks' 0.25 studs, so they stand well apart), and a few cyan stars on their own
+		local groups: { { { number } } } = {
+			{ { 0.74, -0.85 }, { 0.62, -0.5 }, { 0.68, -0.1 }, { 0.52, 0.1 } },
+			{ { 0.3, 0.05 }, { 0.2, 0.5 }, { 0.33, 0.85 } },
+			{ { 0.82, 0.4 }, { 0.66, 0.75 } },
+		}
+		for _, g in groups do
+			for i, st in g do
+				local t, a = st[1], FRONT + st[2]
+				dab(t, a, 0.2 * u, "white")
+				local nx = g[i + 1]
+				if nx then
+					local t2, a2 = nx[1], FRONT + nx[2]
+					local len = (at(t, a) - at(t2, a2)).Magnitude
+					if len > 0.55 then
+						dab((t + t2) / 2, (a + a2) / 2, 0.2 * u, "crystal")
+					end
+				end
+			end
+		end
+		for _, st in { { 0.45, -0.7 }, { 0.5, 0.6 }, { 0.15, -0.35 }, { 0.86, -0.3 } } do
+			dab(st[1], FRONT + st[2], 0.2 * u, "screen_on")
+		end
+		-- a gold star on its crown: a bead and four smaller ones round it
+		bead(0.985, 0, 0.13 * u, "yellow")
+		for k = 0, 3 do
+			bead(0.955, FRONT + k * math.pi / 2, 0.07 * u, "yellow")
+		end
+		-- the ring of little lights orbiting it, and three motes
+		for k = 0, 27 do
+			local c = ({ "white", "screen_on", "crystal", "white" })[k % 4 + 1]
+			local orb = Blocks.part(m, { size = Vector3.new(0.08, 0.08, 0.08) * u, cf = CFrame.new(0, h * 0.5, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = orb, kind = "orbit", k = k })
+		end
+		for k, c in { "white", "screen_on", "yellow" } do
+			local mote = Blocks.part(m, { size = Vector3.new(0.16, 0.16, 0.16) * u, cf = CFrame.new(0, h * 0.6, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
 			table.insert(fx, { p = mote, kind = "mote", k = k })
 		end
 	else

@@ -179,9 +179,9 @@ function EggView.hatch(id: number, swap: number?)
 				end
 			end
 		end
-		local r = math.clamp(tonumber(data.r) or 1, 1, 5)
+		local r = math.clamp(tonumber(data.r) or 1, 1, Traits.RMAX)
 		UIKit.closePanel()
-		HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, 5) }, function()
+		HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, Traits.RMAX) }, function()
 			-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
 			if fromPanel and StateClient.view() ~= nil then
 				UIKit.openPanel("tree")
@@ -250,7 +250,7 @@ local function syncPlot(i: number, near: boolean, t: number)
 			local id, r, wx = string.match(entry, "^(%d+)%.(%d)%.?(%a*)$")
 			local n, rr = tonumber(id), tonumber(r)
 			if n and rr then
-				table.insert(list, { id = n, r = math.clamp(rr, 1, 5), wx = if wx and wx ~= "" then wx else nil })
+				table.insert(list, { id = n, r = math.clamp(rr, 1, Traits.RMAX), wx = if wx and wx ~= "" then wx else nil })
 				inList[n] = true
 				low = math.min(low, n)
 			end
@@ -413,8 +413,8 @@ local function stepEgg(e: Egg, t: number)
 		end
 		rp.p.CFrame = here
 	end
-	-- the rarity's lights: an epic egg's motes circle it, bobbing; a legendary egg's beam stands up out of its top,
-	-- breathing taller and shorter. Hatching or sinking, they go out (under the lawn).
+	-- the rarity's lights: an epic or mythic egg's motes circle it, bobbing; a celestial egg's ring of lights orbits it,
+	-- tilted like a planet's ring. Hatching or sinking, they go out (under the lawn).
 	local s = SIZE[e.r] or 1
 	local quiet = e.crack ~= nil or e.sink ~= nil
 	for _, f in e.fx do
@@ -424,6 +424,9 @@ local function stepEgg(e: Egg, t: number)
 			local a = t * 1.7 + e.ph + f.k * math.pi
 			local y = 0.06 + (0.62 + 0.12 * math.sin(t * 2.3 + f.k * 2)) * s
 			f.p.CFrame = cf * CFrame.new(math.cos(a) * 0.78 * s, y, math.sin(a) * 0.78 * s)
+		elseif f.kind == "orbit" then
+			local a = t * 0.9 + e.ph + f.k / 9 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * 0.85 * s, (0.62 + math.cos(a) * 0.2) * s, math.sin(a) * 0.85 * s)
 		elseif f.kind == "beam" then
 			local h = 2.2 + 0.5 * math.sin(t * 1.9 + e.ph)
 			local baseY = 0.06 + 1.1 * s
@@ -435,12 +438,13 @@ end
 
 -- The rarities' sparks over the eggs (2D, on the World canvas, at whole UI px: "particles are 1 px"): an uncommon egg
 -- lets a green leaf drift up now and then, a rare one twinkles (white and cyan stars blink round it), an epic one sends
--- pink and white sparks up, a legendary one gold sparks and gold stars. Only round eggs lying still (not rising,
--- sinking or hatching), at most SPARKS at once.
+-- pink and white sparks up, a legendary one gold sparks and gold stars, a mythic one pink stars and pink and white
+-- sparks, a celestial one long white and cyan glints and motes of every colour rising. Only round eggs lying still (not
+-- rising, sinking or hatching), at most SPARKS at once.
 type Spark = { egg: string, at: Vector3, vel: Vector3, born: number, life: number, kind: string, gui: GuiObject, frames: { GuiObject }?, sway: number }
 local sparks: { Spark } = {}
 local SPARKS = 140
-local EVERY: { [number]: number } = { 0, 0.8, 0.42, 0.26, 0.14 } -- seconds between an egg's sparks, by rarity (0: none)
+local EVERY: { [number]: number } = { 0, 0.8, 0.42, 0.26, 0.14, 0.11, 0.08 } -- seconds between an egg's sparks, by rarity (0: none)
 
 local function newSpark(e: Egg, foot: Vector3, t: number)
 	if #sparks >= SPARKS then
@@ -480,6 +484,18 @@ local function newSpark(e: Egg, foot: Vector3, t: number)
 		star({ "twinkle_1", "twinkle_2", "twinkle_1" }, at, 0.6)
 	elseif e.r == 4 then
 		dot(if math.random() < 0.6 then "pink" else "white", foot + Vector3.new(math.cos(a) * 0.55 * s, 0.3 * s, math.sin(a) * 0.55 * s), Vector3.new(0, 0.9 + math.random() * 0.4, 0), 1.3)
+	elseif e.r == 6 then
+		-- pink and white sparks rising, now and then a pink star blinking round it
+		dot(if math.random() < 0.6 then "cherry" else "white", foot + Vector3.new(math.cos(a) * 0.6 * s, 0.25 * s, math.sin(a) * 0.6 * s), Vector3.new(0, 1.1 + math.random() * 0.5, 0), 1.3)
+		if math.random() < 0.35 then
+			star({ "twinkle_p1", "twinkle_p2", "twinkle_p3", "twinkle_p2" }, foot + Vector3.new(math.cos(a + 1.3) * 0.7 * s, (0.3 + math.random() * 1.1) * s, math.sin(a + 1.3) * 0.7 * s), 0.6)
+		end
+	elseif e.r >= 7 then
+		-- motes of every colour rising, long glints opening and closing round it
+		dot(({ "white", "screen_on", "crystal", "yellow" })[math.random(1, 4)], foot + Vector3.new(math.cos(a) * 0.7 * s, 0.2 * s, math.sin(a) * 0.7 * s), Vector3.new(0, 0.8 + math.random() * 0.6, 0), 1.6)
+		if math.random() < 0.4 then
+			star({ "glint_1", "glint_2", "glint_3", "glint_2", "glint_1" }, foot + Vector3.new(math.cos(a + 2) * 0.8 * s, (0.3 + math.random() * 1.3) * s, math.sin(a + 2) * 0.8 * s), 0.75)
+		end
 	else
 		dot(if math.random() < 0.7 then "yellow" else "white", foot + Vector3.new(math.cos(a) * 0.6 * s, 0.2 * s, math.sin(a) * 0.6 * s), Vector3.new(0, 1.3 + math.random() * 0.6, 0), 1.2)
 		if math.random() < 0.3 then

@@ -2,9 +2,40 @@
 -- family twice, at most three, rarer kinds rolling better), the sums, the work shares and cleaning a save's list.
 local T = require("../TestKit")
 local Traits = require("../../build/luautest/shared/Data/Traits")
+local Tuning = require("../../build/luautest/shared/Config/Tuning")
+local Palette = require("../../build/luautest/shared/Data/Palette")
 local Util = require("../../build/luautest/shared/Logic/Util")
 
 return function()
+	T.it("seven rarities (2026-11-14: Mythic and Celestial past Legendary), each table by rarity as long, rarer is dearer and faster", function()
+		T.eq(Traits.RMAX, 7)
+		T.eq(#Traits.RARITY, Traits.RMAX)
+		T.eq(Traits.RARITY[6].name, "Mythic")
+		T.eq(Traits.RARITY[7].name, "Celestial")
+		for r, rd in Traits.RARITY do
+			T.truthy(Palette.ui[rd.color] ~= nil or Palette.colors[rd.color] ~= nil, rd.name .. ": a colour")
+			if r > 1 then
+				T.truthy(rd.weight < Traits.RARITY[r - 1].weight, rd.name .. " rarer than " .. Traits.RARITY[r - 1].name)
+			end
+		end
+		-- (much rarer than legendary: a mythic egg's weight a sixtieth of a legendary one's, a celestial one a tenth of that)
+		T.truthy(Traits.RARITY[6].weight * 20 <= Traits.RARITY[5].weight and Traits.RARITY[7].weight * 5 <= Traits.RARITY[6].weight, "far rarer")
+		for name, t in { RarityWork = Tuning.RarityWork, EggPrice = Tuning.EggPrice, SellPrice = Tuning.SellPrice, BreedShells = Tuning.BreedShells, BreedTurns = Tuning.BreedTurns } do
+			T.eq(#t, Traits.RMAX, name .. ": one a rarity")
+			for r = 2, #t do
+				T.truthy(t[r] > t[r - 1], name .. " grows with the rarity at " .. r)
+			end
+		end
+		T.eq(#Tuning.EggUp, Traits.RMAX - 1, "EggUp: a step from each rarity but the rarest")
+		local rng = Util.newRng(5)
+		for _, r in { 6, 7, 99 } do
+			for _ = 1, 50 do
+				local muts = Traits.roll(rng, r)
+				T.truthy(#muts <= Traits.MAX and #Traits.clean(muts) == #muts, "a clean roll at rarity " .. r)
+			end
+		end
+	end)
+
 	T.it("ten families of four tiers and the flaws; a higher tier gives more", function()
 		T.eq(#Traits.families, 10)
 		for _, f in Traits.families do

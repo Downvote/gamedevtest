@@ -6,6 +6,7 @@ local Breed = require("../../build/luautest/shared/Logic/Breed")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Plot = require("../../build/luautest/shared/Logic/Plot")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
+local Islets = require("../../build/luautest/shared/Data/Islets")
 local Traits = require("../../build/luautest/shared/Data/Traits")
 local Util = require("../../build/luautest/shared/Logic/Util")
 
@@ -31,7 +32,7 @@ local function friend(p: any, sp: string, muts: { string }?): number
 end
 
 return function()
-	T.it("what hatches: a pair of one kind its kind; else the kind nearest their average power; a legend from legends only", function()
+	T.it("what hatches: a pair of one kind its kind; else the kind nearest their average power; a legend from legends only, a mythic or celestial one from its own", function()
 		T.eq(Breed.child("clawdle", "clawdle"), "clawdle")
 		T.eq(Breed.child("solwyrm", "solwyrm"), "solwyrm")
 		local legends: { string } = {}
@@ -46,12 +47,14 @@ return function()
 				local c = Breed.child(a.id, b.id)
 				local d = Creatures.byId[c]
 				T.truthy(d ~= nil, a.id .. " x " .. b.id)
-				if a.id ~= b.id and not (a.rarity == 5 and b.rarity == 5) then
-					T.truthy(d.rarity < 5, a.id .. " x " .. b.id .. ": no legend")
+				-- (legendary and up: no rarer than the commoner parent)
+				local top = math.max(4, math.min(a.rarity, b.rarity))
+				if a.id ~= b.id then
+					T.truthy(d.rarity <= top, a.id .. " x " .. b.id .. ": no rarer than the commoner parent")
 					-- nearest the average
 					local avg = (a.power + b.power) / 2
 					for _, o in Creatures.list do
-						if o.rarity < 5 then
+						if o.rarity <= top then
 							T.truthy(math.abs(d.power - avg) <= math.abs(o.power - avg) + 1e-9, c .. " nearest for " .. a.id .. " x " .. b.id)
 						end
 					end
@@ -60,6 +63,23 @@ return function()
 			end
 		end
 		T.eq(Creatures.byId[Breed.child(legends[1], legends[2])].rarity, 5, "two legends: a legend")
+		local rare: { [number]: { string } } = { [6] = {}, [7] = {} }
+		for _, d in Creatures.list do
+			if rare[d.rarity] then
+				table.insert(rare[d.rarity], d.id)
+			end
+		end
+		T.truthy(Creatures.byId[Breed.child(rare[6][1], rare[6][2])].rarity >= 5, "two mythic ones: a legend or better")
+		T.eq(Creatures.byId[Breed.child(rare[7][1], rare[7][2])].rarity, 7, "two celestial ones: a celestial one")
+	end)
+	T.it("with the island's tier: only the kinds of land open there hatch, or the parents' own", function()
+		for _, a in Creatures.list do
+			for _, b in Creatures.list do
+				local c = Breed.child(a.id, b.id, 3)
+				local kind = Islets.list[Creatures.byId[c].islet]
+				T.truthy(kind.tier <= 3 or c == a.id or c == b.id, a.id .. " x " .. b.id .. " at tier 3: " .. c)
+			end
+		end
 	end)
 	T.it("inheriting: one both carry always passes on (the better tier, sometimes one better); one only a parent carries about half the time", function()
 		local rng = Util.newRng(8)

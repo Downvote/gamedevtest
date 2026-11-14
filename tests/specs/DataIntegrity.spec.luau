@@ -92,7 +92,7 @@ return function()
 			T.truthy(knacks[d.knack], d.id .. " knack " .. d.knack)
 			T.truthy(color(d.body) and color(d.accent), d.id .. " colours")
 			-- its rarity, its passive (named, effects Data/Traits knows) and its breeding rank
-			T.truthy(d.rarity >= 1 and d.rarity <= 5, d.id .. " rarity")
+			T.truthy(d.rarity >= 1 and d.rarity <= Traits.RMAX, d.id .. " rarity")
 			T.truthy(#d.passive.name > 0 and next(d.passive.fx) ~= nil, d.id .. " passive")
 			for k, v in d.passive.fx do
 				-- (costing less is the good way; charm in whole points)
@@ -129,7 +129,8 @@ return function()
 			end
 			T.truthy(color(d.color), d.name .. " colour")
 			T.truthy(#d.plural > 0 and #d.blurb > 0, d.name .. " words")
-			T.truthy(d.tier >= 1 and d.tier <= #Office.plans, d.name .. " tier")
+			-- (up to the last island, tier 20: the kinds past the capital open from tier 11)
+			T.truthy(d.tier >= 1 and d.tier <= math.max(#Office.plans, 20), d.name .. " tier")
 			opened[d.tier] = (opened[d.tier] or 0) + 1
 		end
 		T.truthy((opened[1] or 0) >= 2, "two kinds from the start")
