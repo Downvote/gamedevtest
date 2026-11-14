@@ -1190,8 +1190,9 @@ When the island grows into a new stage, the tree is built again at it.
 - **The Tree panel** (Open on the card, a tap on the tree, Eggs in the Driftlings panel, a quest's Go): on the left
   "New eggs every 10:00" (5:00 with the Quick Tree pass), "Next in 9:41" over a bar, "7 eggs a lot. In huts 6/8"
   (orange when full), the odds of each rarity now under "What it lays now" ("<0.1%" under a tenth of a percent, "not
-  yet" for a rarity none of the open kinds has), below tier 6 "A bigger island lays more eggs, and better ones." and
-  "Now and then an egg turns rarer as it hatches.";
+  yet" for a rarity none of the open kinds has), then, short of the last island, "Expand your island to increase the quality and amount of eggs per batch."
+  (one line in green since 2026-11-14, in place of "A bigger island lays more eggs, and better ones." and "Now and
+  then an egg turns rarer as it hatches.");
   on the right, under "Under the tree", every egg there, the rarest first, each with its egg, "Rare egg", "Hatches a
   rare one" and its price on a button that hatches it.
 - **The huts** (the Huts tab in Build mode, so many a tier: §4; the old nests: Driftling Hut 2 places, Cozy Burrow 4,

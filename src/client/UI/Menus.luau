@@ -853,15 +853,11 @@ local function buildTree(body: Frame, arg: any?)
 		UIKit.text(body, txt, UDim2.fromOffset(40, 10), UDim2.fromOffset(LW - 40, y), { x = "right", color = if odds[r] > 0 then UIKit.color("text") else UIKit.color("text_dim") })
 		y += 10
 	end
-	-- (Tuning.EggCount grows on some tiers, EggTier and EggLuck on every one to the last island)
+	-- (Tuning.EggCount grows on some tiers, EggTier and EggLuck on every one to the last island; one line in place of
+	-- the two that were here, the request of 2026-11-14: "Change the two green and yellow texts below the egg rarities
+	-- to ...")
 	if v.tier < #Tuning.TierCost and y + 24 <= H then
-		local more = if Tree.count(v.tier + 1) > Tree.count(v.tier) then "A bigger island lays more eggs, and better ones." else "A bigger island lays better eggs."
-		UIKit.text(body, more, UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true })
-		y += 24
-	end
-	-- (Logic/Tree.rise: an egg may hatch rarer than it was laid)
-	if y + 22 <= H then
-		UIKit.text(body, "Now and then an egg turns rarer as it hatches.", UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("accent"), wrap = true, name = "Rise" })
+		UIKit.text(body, "Expand your island to increase the quality and amount of eggs per batch.", UDim2.fromOffset(LW, math.min(32, H - y - 2)), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true, name = "Grow" })
 	end
 	-- the eggs now, the rarest first: the bag's (bought, won or given: GAME_DESIGN 14, free to hatch) over the tree's
 	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })

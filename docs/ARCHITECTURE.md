@@ -1249,7 +1249,7 @@ a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DE
 196: on the left `Pace` ("New eggs every 10:00", from `clutchSecs`: 5:00 with Quick Tree), `Next` ("Next in 2:41") over `TreeBar` (its fill
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
 "What it lays now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
-yet" at 0) and, below tier 6, "A bigger island lays more eggs, and better ones."; on the right `Eggs` ("Under the
+yet" at 0) and, short of the last tier, `Grow` "Expand your island to increase the quality and amount of eggs per batch."; on the right `Eggs` ("Under the
 tree") with `EggCount` ("16 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
