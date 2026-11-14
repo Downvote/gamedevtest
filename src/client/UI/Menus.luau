@@ -1,7 +1,7 @@
 --!strict
 -- The HUD's panels (docs/ARCHITECTURE.md 10.4; GAME_DESIGN 5-9): Driftlings (every one: where each lives and works,
 -- moving and selling), the Tree of Life (its eggs with their prices, when it lays the next, the odds; every hut full, the swap
--- picker), the Hatchery (two parents, an egg), Index (every driftling seen) and Looks (the founder's look). Every
+-- picker), the Hatchery (two parents, an egg) and Index (every driftling seen); Looks is UI/StoreUI's. Every
 -- action is a request; the panel rebuilds from the next view. The work picker is the same panel with an argument
 -- ({ pal = id }), the hut picker too ({ move = id }), the swap picker the tree's ({ hatch = id }).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,7 +13,6 @@ local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local WeatherData = require(ReplicatedStorage.Shared.Data.Weather)
-local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
@@ -24,6 +23,7 @@ local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
+local StoreUI = require(script.Parent.StoreUI)
 local RunService = game:GetService("RunService")
 
 local Menus = {}
@@ -313,7 +313,16 @@ local function buildHatch(body: Frame, arg: any?)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Two driftlings and a feast make an egg. It hatches a few minutes later and moves into a hut.", W)
+	-- (eggs warming: Finish now, the Finish Hatcheries product, GAME_DESIGN 14)
+	local warming = #(v.eggs or {}) > 0
+	local fw = if warming then 92 else 0
+	local top = hint(body, "Two driftlings and a feast make an egg. It hatches a few minutes later and moves into a hut.", W - fw)
+	if warming then
+		UIKit.button(body, "Finish now", UDim2.fromOffset(fw - 4, 12), UDim2.fromOffset(W - fw + 4, 0), function()
+			StoreUI.buy("HatcheryNow")
+		end, { name = "FinishNow", color = UIKit.color("button_warn") })
+		top = math.max(top, 14)
+	end
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local hs = hatcheries(v)
@@ -729,10 +738,10 @@ end
 -- its egg, its rarity, what it hatches and Hatch (its price in shells). With { hatch = id } (every hut full) the swap
 -- picker instead: the island's driftlings in huts, the weakest first, each with what it sells for and Swap (egg.hatch
 -- with it: it's sold and what hatches takes its place).
-local function buildSwap(body: Frame, v: Types.ClientView, id: number)
+local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: boolean?)
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	local egg: Types.Laid? = nil
-	for _, e in v.clutch do
+	for _, e in (if bag then v.bag or {} else v.clutch) :: { any } do
 		if e.id == id then
 			egg = e
 		end
@@ -745,7 +754,7 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 	end
 	local e = egg :: Types.Laid
 	local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
-	local top = hint(body, string.format("Every hut is full. Swap one out for the %s egg (%s shells): the one you pick is sold.", string.lower(rar.name), Numbers.coins(e.cost or 0)), W - 50)
+	local top = hint(body, if bag then string.format("Every hut is full. Swap one out for the %s egg from your bag: the one you pick is sold.", string.lower(rar.name)) else string.format("Every hut is full. Swap one out for the %s egg (%s shells): the one you pick is sold.", string.lower(rar.name), Numbers.coins(e.cost or 0)), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
 		UIKit.openPanel("tree")
 	end, { name = "Back", color = UIKit.color("plate_light") })
@@ -774,7 +783,11 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number)
 		UIKit.text(f, xr.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color("text_dim"), z = 4 })
 		mutLine(f, x.muts or {}, PX, 21, tw)
 		UIKit.button(f, "Swap", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 3), function()
-			EggView.hatch(id, x.id)
+			if bag then
+				EggView.hatchBag(id, x.id)
+			else
+				EggView.hatch(id, x.id)
+			end
 		end, { name = "SwapTake_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
 		UIKit.text(f, "Sells for " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("text_dim"), z = 4 })
 	end
@@ -791,7 +804,7 @@ local function buildTree(body: Frame, arg: any?)
 		return
 	end
 	if type(arg) == "table" and type(arg.hatch) == "number" then
-		buildSwap(body, v, arg.hatch)
+		buildSwap(body, v, arg.hatch, arg.bag == true)
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
@@ -850,16 +863,45 @@ local function buildTree(body: Frame, arg: any?)
 	if y + 22 <= H then
 		UIKit.text(body, "Now and then an egg turns rarer as it hatches.", UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("accent"), wrap = true, name = "Rise" })
 	end
-	-- the eggs now, the rarest first
+	-- the eggs now, the rarest first: the bag's (bought, won or given: GAME_DESIGN 14, free to hatch) over the tree's
 	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })
+	UIKit.text(body, string.format("%d eggs", #v.clutch), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = UIKit.color("text_dim"), name = "EggCount" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
+	list.Name = "List"
 	UIKit.vlist(list, 2)
+	local bag: { Types.Bagged } = table.clone(v.bag or {})
+	table.sort(bag, function(a: Types.Bagged, b: Types.Bagged): boolean
+		if a.r ~= b.r then
+			return a.r > b.r
+		end
+		return a.id < b.id
+	end)
+	local base = 0
+	if #bag > 0 then
+		local hf = row(list, 1, 12)
+		hf.Name = "BagHead"
+		UIKit.text(hf, string.format("Your eggs: %d", #bag), UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("good"), z = 4, name = "BagTitle" })
+		for k, e in bag do
+			local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
+			local f = row(list, 1 + k, 26)
+			f.Name = "BagEgg_" .. e.id
+			PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(6, 5), 4)
+			UIKit.text(f, rar.name, UDim2.fromOffset(RW - 86, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+			UIKit.text(f, "Free to hatch", UDim2.fromOffset(RW - 86, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+			local id = e.id
+			UIKit.button(f, "Hatch", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 6), function()
+				EggView.hatchBag(id)
+			end, { name = "BagHatch_" .. e.id, color = UIKit.color("button_ok") }).ZIndex = 4
+		end
+		base = 1 + #bag
+	end
 	local shown = EggView.best(v, #v.clutch)
 	if #shown == 0 then
-		local f = row(list, 1, 24)
+		local f = row(list, base + 1, 24)
 		UIKit.text(f, "No eggs left. The tree lays more soon.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 	end
-	for i, e in shown do
+	for i0, e in shown do
+		local i = base + i0
 		local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
 		-- (an egg the weather touched, GAME_DESIGN 13: where it was laid, and the mutation it hatches with on a third
 		-- line, the weather's icon before it)
@@ -944,60 +986,13 @@ local function buildIndex(body: Frame, _arg: any?)
 	end
 end
 
------------------------------------------------------------------- Looks: the founder
-local draft: Types.Look? = nil
-local LOOK_ROWS: { { key: string, label: string, n: number } } = {
-	{ key = "skin", label = "Skin", n = #Looks.skin },
-	{ key = "hair", label = "Hair", n = #Looks.hair },
-	{ key = "style", label = "Style", n = #Looks.styles },
-	{ key = "shirt", label = "Shirt", n = #Looks.shirt },
-}
-
-local function buildLooks(body: Frame, _arg: any?)
-	local v = StateClient.view()
-	if v == nil then
-		return
-	end
-	local d: Types.Look = draft or table.clone(v.founder)
-	draft = d
-	UIKit.portrait(body, d, 48, UDim2.fromOffset(4, 4))
-	for i, r in LOOK_ROWS do
-		local y = (i - 1) * 16
-		UIKit.text(body, r.label, UDim2.fromOffset(40, 12), UDim2.fromOffset(64, y), { color = UIKit.color("text") })
-		local function step(delta: number)
-			local cur = (d :: any)[r.key] :: number
-			;(d :: any)[r.key] = (cur - 1 + delta) % r.n + 1
-			Audio.play("flip")
-			UIKit.refreshPanel()
-		end
-		UIKit.button(body, "<", UDim2.fromOffset(14, 12), UDim2.fromOffset(106, y), function()
-			step(-1)
-		end, { name = "Prev_" .. r.key, color = UIKit.color("plate_light") })
-		UIKit.text(body, string.format("%d/%d", (d :: any)[r.key], r.n), UDim2.fromOffset(30, 12), UDim2.fromOffset(122, y), { x = "center", color = UIKit.color("text_dim") })
-		UIKit.button(body, ">", UDim2.fromOffset(14, 12), UDim2.fromOffset(154, y), function()
-			step(1)
-		end, { name = "Next_" .. r.key, color = UIKit.color("plate_light") })
-	end
-	UIKit.button(body, "Save look", UDim2.fromOffset(104, 14), UDim2.fromOffset(64, 66), function()
-		local res = ask("founder.set", { skin = d.skin, hair = d.hair, style = d.style, shirt = d.shirt }, "Looking good!")
-		if res.ok then
-			Audio.play("reward")
-		end
-	end, { name = "SaveLook", color = UIKit.color("button_ok") })
-end
-
 function Menus.init()
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("pal", { title = "Driftling", icon = "pal", w = 320, h = 182, build = buildPal })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
 	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 196, build = buildTree })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
-	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 200, h = 106, build = buildLooks })
-	UIKit.PanelChanged:Connect(function(name: string?)
-		if name ~= "looks" then
-			draft = nil
-		end
-	end)
+	-- (Looks, with the founder's pieces and titles, is UI/StoreUI's since 2026-11-14)
 
 end
 
