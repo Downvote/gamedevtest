@@ -56,6 +56,8 @@ type Egg = {
 	born: number, -- when it rose out of the lawn
 	sink: number?, -- when it started sinking back (a new lot replaced it)
 	crack: number?, -- when it started hatching
+	wait: boolean?, -- laid while the own island grows (Pixel/Grow): it stays under the lawn until the land has grown
+	pop: boolean?, -- it rose after the growth: with a little pop over the lawn and back
 }
 
 local eggs: { [string]: Egg } = {}
@@ -310,7 +312,9 @@ local function syncPlot(i: number, near: boolean, t: number)
 				end
 			end
 			held[slot] = true
-			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0 }
+			-- (laid by the own island's expansion while its new land grows in: it waits, then pops up)
+			local waitGrow = i == myPlot and (PixelRenderer.growing())
+			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0, wait = if waitGrow then true else nil }
 			came += 1
 		else
 			e.n = math.max(n, e.slot)
@@ -338,7 +342,14 @@ local function placeOf(e: Egg, t: number): (CFrame?, number)
 	end
 	local under = 0
 	if t < e.born + RISE then
-		under = (1 - ease((t - e.born) / RISE)) * DEEP
+		local u = (t - e.born) / RISE
+		if e.pop then
+			-- (out of the lawn with a little overshoot, then down into place: ease out with a back)
+			local k = math.clamp(u, 0, 1) - 1
+			under = -(k * k * (2.7 * k + 1.7)) * DEEP
+		else
+			under = (1 - ease(u)) * DEEP
+		end
 	end
 	if e.sink then
 		under = math.max(under, ease((t - (e.sink :: number)) / SINK) * DEEP)
@@ -359,6 +370,16 @@ local function placeOf(e: Egg, t: number): (CFrame?, number)
 end
 
 local function stepEgg(e: Egg, t: number)
+	if e.wait then
+		if PixelRenderer.growing() then
+			e.born = t + 0.05 -- (still under the lawn)
+		else
+			-- the land has grown: up it comes, one after another round the ring
+			e.wait = nil
+			e.pop = true
+			e.born = t + 0.15 + (e.slot % 10) * STAGGER
+		end
+	end
 	if e.sink and t - (e.sink :: number) > SINK then
 		drop(e)
 		return

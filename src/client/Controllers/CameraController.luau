@@ -7,7 +7,10 @@
 --   follow (the default): the view keeps the founder (the player's character) in the middle of the screen between
 --     the HUD's strips, wherever they walk, gliding a share of the way a frame (Tuning.CamGlide) in whole art px (at
 --     most what the renderer can scroll in a frame);
---   free (Build mode): the view stays where Build mode drags it (`panBy`), over the own plot;
+--   free (Build mode): the view still follows the founder, lowered a little (Build mode's tray covers the bottom of
+--     the screen), plus where Build mode drags it (`panBy`, kept over the own plot); a drag holds while the founder
+--     stands, and once they walk the view eases back onto them (the request of 2026-11-14: "in build mode, make the
+--     camera still follow the player as they walk around, even though it is displaced downwards abit");
 --   stage (`setStage`): the view frames a stage far from the street over the whole screen, clear of an overlay's
 --     top and bottom strips; it holds still (nothing opens one since the expeditions went).
 -- The ray plane sits Tuning.CamRayBack studs behind the plot's origin, so the whole street stays in front of it. In
@@ -63,8 +66,10 @@ local pixelLimit = Tuning.PixelTiers.high.h
 local classic = false
 local plot, tier = 1, 1
 local panX, panY = 0, 0 -- the pan now (whole art px)
-local free = false -- Build mode: the view stays where it is dragged
-local freeX, freeY = 0, 0
+local free = false -- Build mode: the view follows the founder lowered by `buildDown`, plus a drag
+local buildDown = 0 -- art px the view is lowered by in Build mode
+local dragX, dragY = 0, 0 -- art px Build mode's drag has moved the view from the founder
+local lastBaseX: number?, lastBaseY: number? = nil, nil -- the founder's follow target last frame (Build mode: did they walk?)
 local focus: Vector3? = nil -- a cutscene's point to follow instead of the founder (setFocus)
 local stage: Stage? = nil
 local stageShift = Vector3.zero -- an endless islet's camera: how far along the stage looks (setStageShift)
@@ -214,7 +219,6 @@ function CameraController.refit()
 		-- a new view starts where it should look (a cutscene's focus, the founder), never on the island's middle first
 		-- and gliding over: the stage closing on the way home must not swing the view across the land to the boat
 		panX, panY = v.grid.px, v.grid.py
-		freeX, freeY = panX, panY
 		panX, panY = targetOf(v)
 		CameraController.ViewChanged:Fire(v)
 	end
@@ -289,6 +293,37 @@ local function hudStrips(v: View): (number, number)
 	return top / v.K, bottom / v.K + 20
 end
 
+-- Build mode's view: a pan whose centre's ground point stays inside the own plot grown by Tuning.CamBuildPan.
+local function clampBuild(v: View, nx: number, ny: number): (number, number)
+	local ox, oz = Street.origin(v.plot)
+	local pr = Street.plot(v.tier)
+	local m = Tuning.CamBuildPan
+	local corners = { { pr.x0 - m, pr.z0 - m }, { pr.x1 + m, pr.z0 - m }, { pr.x0 - m, pr.z1 + m }, { pr.x1 + m, pr.z1 + m } }
+	local gx0, gy0, gx1, gy1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, c in corners do
+		local gx, gy = Raster.gridPoint(ROT12, v.grid, ox + c[1], Street.LAWN_Y, oz + c[2])
+		gx0, gy0, gx1, gy1 = math.min(gx0, gx), math.min(gy0, gy), math.max(gx1, gx), math.max(gy1, gy)
+	end
+	local W, H = v.fullX / v.K, v.fullY / v.K
+	return math.clamp(nx, math.floor(gx0 - W / 2), math.ceil(gx1 - W / 2)), math.clamp(ny, math.floor(gy0 - H / 2), math.ceil(gy1 - H / 2))
+end
+
+-- Build mode: the founder's own follow target (no drag, not lowered), or nil when there is none to follow.
+local function baseTarget(v: View): (number?, number?)
+	if v.stage or focus ~= nil then
+		return nil, nil
+	end
+	local root = founderRoot(v)
+	if root == nil then
+		return nil, nil
+	end
+	local p = root.Position
+	local gx, gy = Raster.gridPoint(ROT12, v.grid, p.X, Street.LAWN_Y + 1.5, p.Z)
+	local W, H = v.fullX / v.K, v.fullY / v.K
+	local top, bottom = hudStrips(v)
+	return math.floor(gx - W / 2 + 0.5), math.floor(gy - (top + (H - bottom + 20)) / 2 + 0.5)
+end
+
 -- Where the view should be this frame.
 local function target(v: View): (number, number)
 	if v.stage then
@@ -303,15 +338,15 @@ local function target(v: View): (number, number)
 		local gx1, gy1 = Raster.gridPoint(ROT12, v.grid, p.X, p.Y, p.Z)
 		return v.grid.px + math.floor(gx1 - gx0 + 0.5), v.grid.py + math.floor(gy1 - gy0 + 0.5)
 	end
-	if free then
-		return freeX, freeY
-	end
 	local p: Vector3
 	if focus then
 		p = focus :: Vector3
 	else
 		local root = founderRoot(v)
 		if root == nil then
+			if free then
+				return panX, panY -- (Build mode with no founder to follow: the view stays)
+			end
 			return v.grid.px, v.grid.py
 		end
 		p = root.Position
@@ -323,7 +358,12 @@ local function target(v: View): (number, number)
 	local top, bottom = hudStrips(v)
 	local tx = gx - W / 2
 	local ty = gy - (top + (H - bottom + 20)) / 2
-	return math.floor(tx + 0.5), math.floor(ty + 0.5)
+	tx, ty = math.floor(tx + 0.5), math.floor(ty + 0.5)
+	if free then
+		-- Build mode: lowered, plus the drag, the centre kept over the own plot
+		return clampBuild(v, tx + dragX, ty + buildDown + dragY)
+	end
+	return tx, ty
 end
 
 targetOf = target
@@ -339,6 +379,25 @@ local function step()
 	local v = current
 	if v == nil then
 		return
+	end
+	if free then
+		-- Build mode: a drag holds while the founder stands; once they walk it eases away, so the view comes back
+		-- onto them (in whole art px, a share a frame)
+		local bx, by = baseTarget(v)
+		if bx and by then
+			local lx, ly = lastBaseX, lastBaseY
+			if lx and ly and (bx ~= lx or by ~= ly) then
+				local function ease(d: number): number
+					if d == 0 then
+						return 0
+					end
+					local m = math.max(1, math.ceil(math.abs(d) * Tuning.CamBuildRecenter))
+					return d - math.sign(d) * math.min(m, math.abs(d))
+				end
+				dragX, dragY = ease(dragX), ease(dragY)
+			end
+			lastBaseX, lastBaseY = bx, by
+		end
 	end
 	local tx, ty = target(v)
 	-- a far jump (home from the other end of the street) snaps: the renderer bakes once at the new pan (on a stage the
@@ -392,12 +451,13 @@ function CameraController.settled(): boolean
 	return tx == panX and ty == panY
 end
 
+-- Build mode (true): the view keeps following the founder, lowered by half of `down` art px (Build mode's tray
+-- covers the bottom of the screen), and Build mode's drag (`panBy`) moves it from there; false: the plain follow.
 function CameraController.setFree(on: boolean, down: number?)
 	free = on
-	freeX, freeY = panX, panY
-	if on then
-		freeY = panY + math.floor((down or 0) / 2)
-	end
+	buildDown = if on then math.floor((down or 0) / 2) else 0
+	dragX, dragY = 0, 0
+	lastBaseX, lastBaseY = nil, nil
 end
 
 -- A microgame's stage takes the view (nil: back to the street; the renderer keeps the street's picture meanwhile).
@@ -430,25 +490,22 @@ function CameraController.isFree(): boolean
 	return free
 end
 
--- Build mode's drag: the world follows the pointer by (dx, dy) full-screen px, the view's centre kept over the own
--- plot (Tuning.CamBuildPan studs past its edges at most).
+-- Build mode's drag: the world follows the pointer by (dx, dy) full-screen px (the drag kept as an offset from the
+-- founder), the view's centre kept over the own plot (Tuning.CamBuildPan studs past its edges at most).
 function CameraController.panBy(dx: number, dy: number)
 	local v = CameraController.view()
-	local nx = freeX - math.floor(dx / v.K + 0.5)
-	local ny = freeY - math.floor(dy / v.K + 0.5)
-	-- clamp: the centre's ground point inside the plot grown by CamBuildPan
-	local ox, oz = Street.origin(v.plot)
-	local pr = Street.plot(v.tier)
-	local m = Tuning.CamBuildPan
-	local corners = { { pr.x0 - m, pr.z0 - m }, { pr.x1 + m, pr.z0 - m }, { pr.x0 - m, pr.z1 + m }, { pr.x1 + m, pr.z1 + m } }
-	local gx0, gy0, gx1, gy1 = math.huge, math.huge, -math.huge, -math.huge
-	for _, c in corners do
-		local gx, gy = Raster.gridPoint(ROT12, v.grid, ox + c[1], Street.LAWN_Y, oz + c[2])
-		gx0, gy0, gx1, gy1 = math.min(gx0, gx), math.min(gy0, gy), math.max(gx1, gx), math.max(gy1, gy)
-	end
-	local W, H = v.fullX / v.K, v.fullY / v.K
-	freeX = math.clamp(nx, math.floor(gx0 - W / 2), math.ceil(gx1 - W / 2))
-	freeY = math.clamp(ny, math.floor(gy0 - H / 2), math.ceil(gy1 - H / 2))
+	local fx, fy = baseTarget(v)
+	local bx: number = if fx then fx else panX - dragX
+	local by: number = if fy then fy else panY - buildDown - dragY
+	local nx = bx + dragX - math.floor(dx / v.K + 0.5)
+	local ny = by + buildDown + dragY - math.floor(dy / v.K + 0.5)
+	local cx, cy = clampBuild(v, nx, ny)
+	dragX, dragY = cx - bx, cy - by - buildDown
+end
+
+-- Build mode's drag now (art px from the founder, not counting the lowering): the sims check it.
+function CameraController.buildDrag(): (number, number)
+	return dragX, dragY
 end
 
 function CameraController.init() end

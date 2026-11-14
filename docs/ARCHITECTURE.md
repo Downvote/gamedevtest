@@ -83,7 +83,13 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > mesh around. please use bones and rigging to make more realistic and detailed movement. follow and use as many
 > animation principles when animating as well." (Audio `crack`, `crack_open`; HatchScene's `RISE` and `liftOf`;
 > AvatarView's ground ray `RespectCanCollide`; `Tree.wanted` and `Tree.ensure`; `Data/Palette` with pink sand, then
-> "not that pink, i meant a light pink, close to the color of actual sand"; `Models/DriftRig` and `Models/DriftMotion`)
+> "not that pink, i meant a light pink, close to the color of actual sand"; `Models/DriftRig` and `Models/DriftMotion`) Then "also, expanding the island dosent have a good
+> transition, it simply make the new land appear out of nowhere. could you make a transition such that it feels like the
+> island grows out the new land smoothly?" (`Pixel/Grow`; `PixelRenderer.growNext`, `growing`, `growFront`, `afterGrow`,
+> `growStats`; `Controllers/GrowFx`; `Tuning.GrowSecs`, `GrowArmSecs`; the `grow_surf` and `grow_sand` sounds; EggView's
+> eggs waiting for the land) and "also, in build mode, make the camera still follow the player as they walk around, even
+> though it is displaced downwards abit" (CameraController's Build mode follow and drag offset, `buildDrag`,
+> `Tuning.CamBuildRecenter`; BuildUI's ghost following a still mouse)
 
 ## 1. Layout and tooling
 
@@ -94,7 +100,7 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
                        maths, copied; Fx, the effects in the pixel layer), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
-                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
+                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs, GrowFx), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory, Grow), UI/* (UIKit, Hud,
                        Menus, BuildUI, PixelSprites, ArtData and ThumbData (generated), Words)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
                        (puts the loading card up first), LoadingCard, LoadingArt (generated: tools/preview/loading_art.sh)
@@ -186,7 +192,9 @@ every field.
   240, 340, 460, 600, 750, 900, 1,050, 1,200), `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520,
   600), `HomeCooldown`, `WalkSpeed`, `SwimSpeed` (11: in the sea), `JumpHeight`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
-  `CamFollowBox`, `CamGlide`, `CamBuildPan`, `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`).
+  `CamFollowBox`, `CamGlide`, `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
+  frame the founder walks), `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`), the island growing into its next
+  tier (`GrowSecs` 1.9: the moving coast's time; `GrowArmSecs` 3: how long an armed growth waits for its bake to begin).
 - `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0), `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
   Random Bakery's, each named in a comment) and `Music` (`{ day, night }`: lists of `{ id, gain }`, APM Music
@@ -596,7 +604,7 @@ clock }`. The view's `dayFrac` still moves (the HUD's calendar bar); nothing lig
 so the next play is on time), `preload(names)` (every voice of those events made and loaded now, on its own thread;
 nothing calls it since the fights went), `has(name)`, `EVENTS`: every sound by name (`click open close deny notice
 ding coin coins combo sparkle cheer tick flip pop`; the happy moments, each its own library sound: `newcomer`
-(`DoorChime`; nothing plays it since the villagers went), `grow` (the island grows, or the tree lays an epic or legendary egg: `BellTreeRun`), `friend`
+(`DoorChime`; nothing plays it since the villagers went), `grow` (the island has grown, or the tree lays an epic or legendary egg: `BellTreeRun`), `grow_surf` (the island growing: `Waves` from 0.4 s, 2.1 s long, its last 0.7 s faded), `grow_sand` (its sand settling: `StepSand1`, `StepSand2` or `LandSand`, pitched 0.7 to 0.85), `friend`
 (a Hatchery's egg hatched: `ChimeCluster`), `level_up` (a piece replaced: `SparkleTones`), `reward` (a quest claimed:
 `Triangle`), `egg` (`MusicBoxWind`), `rare` (a new lot of eggs, or one rare or better hatched: `SparklePass`; a common or uncommon one hatched plays `pop`); the hatch scene's egg: `crack` (a tap that cracks it: `CrackEgg1..3`, ProSoundEffects' "Crack Egg Crunchy", the crunch cut out, `ids`) and `crack_open` (the hatch: `EggBreak`, "Eggs Break 15"); the founder's feet (AvatarView):
 `step_grass step_sand step_wood` (two or three takes each, `ids`), `step_water` (wading through a river: `Pop`
@@ -650,9 +658,13 @@ the founder's ground point in the middle of the screen across and halfway betwee
 than the renderer can scroll in one (`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never
 falls behind into a re-bake; a target more than three quarters of the screen away snaps (one bake instead of a scroll
 that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
-(Roblox drops it mid-street before the server moves it home). Build mode: `setFree(true, down?)` starts from the pan
-now lowered by `down` art px (Build mode's tray height) and the view stays where `panBy(dx, dy)` (full-screen px) drags
-it, its centre within `CamBuildPan` studs of the plot; `isFree()`.
+(Roblox drops it mid-street before the server moves it home). Build mode (GAME_DESIGN 4.5: "make the camera still follow
+the player as they walk around, even though it is displaced downwards abit"): `setFree(true, down?)` keeps the follow,
+the target lowered by half of `down` art px (Build mode's tray height) plus a drag offset; `panBy(dx, dy)` (full-screen
+px) moves the offset, the target's centre kept within `CamBuildPan` studs of the plot (`clampBuild`); while the
+founder stands the offset holds, and each frame their follow target moves the offset shrinks by `CamBuildRecenter` of
+itself (at least an art px) until the view is back on them; with no founder to follow the view stays.
+`setFree(false)` drops the lowering and the offset; `isFree()`; `buildDrag() -> (dx, dy)` (the offset, art px: sims).
 `setFocus(p?, snap?)`: a cutscene's world point the pan keeps in the middle instead of the founder (unused since the walk in went), nil gives the
 founder back; `snap` jumps there at once (behind the blinds) instead of gliding. `settled()`: the pan has reached its
 target. `refit` on a new key starts the pan on the target (the founder or the focus), not on the island's middle.
@@ -683,7 +695,19 @@ far depth, no ids) and finished at once, so the first picture is there on the ne
 already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
 `afterBake(fn)` (fn runs once the picture shows the world as it is now: after the pending or running bake, at once
-when none is coming or the filter is off; Build mode's expansion cheers then), `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
+when none is coming or the filter is off),
+the island growing (GAME_DESIGN 4.4, `Pixel/Grow`): `growNext(plot?, from?, to?)` (Build mode's Expand arms it before it
+asks the server, nil disarms; while armed any change to the parts under Workspace.Plots re-bakes the layer whole behind
+the picture; the arm lapses after `GrowArmSecs` if no bake has begun, or once one under way is done with nothing
+grown), `growing() -> (on, e)` (armed or under way, and the moving coast's eased progress 0 .. 1), `growFront() -> {
+Vector3 }` (the world points the moving foam reached since the last call), `afterGrow(fn)` (fn runs when the growth ends,
+lapses or is cut short, at once when none is armed or under way: Build mode's cheer), `growStats() -> { count, active,
+changed, pending, fresh }`. The back bake's swap (`finishBake`) keeps the replaced picture's buffers and id tables
+(`prevTabs`) and hands both pictures to `Grow.begin` when armed (`startGrow`): `Grow.prep` a slice each frame (the old
+picture showing), then `Grow.step` each frame at the eased progress (needFull when pixels changed); a scroll shifts it
+with the layer (`Grow.shift`; one while it is still prepping finishes it first), a re-cast rect is adopted as the new
+picture (`Grow.adopt`), and a new bake, a new layer or the filter going off finishes it at once. The sea's wave phase is
+`waterPhase(wx, wz)`, shared with the bake. `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
 direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `debugStatic()`
 (CLI checks: layer, pan, bakes, ticks, `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`,
@@ -811,6 +835,26 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   shadowed tone of each static pixel is worked out once and cached (`sShadowC`) until the static layer changes (a
   bake, a pan, a re-cast), so a cloud's big shadow stays cheap.
 
+**`Pixel/Grow`** (GAME_DESIGN 4.4: "could you make a transition such that it feels like the island grows out the new land
+smoothly?"): no rays and no Instances. `begin(spec)` keeps the new picture's buffers, writes the old picture back on the
+layer whole (its part ids remapped into the layer's tables by `spec.remap`) and returns the state; `prep(state) -> ready`
+works out `PREP_PX` (26,000) pixels a frame: which differ (colour or depth; water by depth only), the world point of each
+picture's pixel from its depth (`spec.origin` plus `spec.look` times it), both tiers' coast distances there
+(`Street.cellDist` between the cells' centres, 99 past them), whether it stands on the ground or above it (higher than
+`LAWN_Y + 0.12`: a thing) and, for an old thing, when its part goes (the soonest of its pixels' times the moving coast
+turns the ground under them into the next layer); `step(state, e)` moves the coast to eased progress e: a spot's distance
+is `dOld - e * (dOld - dNew)`, its layer by `Street.BANDS`; each changed pixel shows the new picture where its layer is
+the moving one's (a new thing: from `NEW_THINGS` 0.9), else the old where its layer still is (an old thing: until its
+part's time), the nearer when both are, else the moving beach's layer drawn there (sand speckled with the wet sand's
+colour, wet sand, foam and shallows with water classes 3 and 2 and `spec.wave`'s phase so they ripple; the albedos
+`spec.tints`, shaded by `spec.toon` with the up normal and the ground's light, under ids from `spec.synthId`); things
+that barely move (both points under 0.25 studs) turn at 0.5; from `SETTLE` (0.93) every pixel still not new turns by a
+4 x 4 ordered dither, and at 1 all are new. Each pixel waits in one of 240 buckets for its next change (a band's edge
+crossing either of its points, its thing's time, `NEW_THINGS`, its dither time), so a frame touches only the pixels that
+change. `step` returns the world points where foam just came (one in 61, at most 8 a frame). `shift(state, dx, dy)`
+moves every kept buffer and list with a scroll (false while prepping); `adopt(state, x0, y0, x1, y1)` takes a re-cast
+rect as the new picture; `finish(state)` shows the new picture everywhere at once; `stats(state)`.
+
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
 keeps its `Text`. `Pixel/Snapshot` (copied): pixel-art pictures of models drawn analytically (`Render/Picture`), for
@@ -902,7 +946,10 @@ the lot's order from its first id, `lotFirst`, or, when that slot is taken or pa
 expansion's extra eggs after a hatch never land on another egg's spot), the ring as many slots as `Tuning.EggCount`
 by the island's tier. A
 whole new lot (every egg gone at once and new ones in) rises out of the lawn (`RISE` 0.6 s, `STAGGER` 0.12 s apart,
-from `DEEP` 1.4 studs under) while the old eggs sink (`SINK` 0.5 s); one gone while the rest stay, or one the own
+from `DEEP` 1.4 studs under) while the old eggs sink (`SINK` 0.5 s); an egg laid on the own island while it grows
+(`PixelRenderer.growing()`: the expansion's extra eggs) waits under the lawn (`wait`) until the growth is over, then
+rises one after another round the ring (0.15 s, then `STAGGER` by slot) with a little overshoot (`pop`: an ease out
+with a back); one gone while the rest stay, or one the own
 player just hatched, cracks (`CRACK` 0.9 s: a shake, then `Top` flies off turning and the rest sinks); every egg rocks
 for a moment every 7 s. No price tags or names over them (the request of 2026-11-13: "remove these, the eggs should be
 buyable only after the player clicks on the tree or enters the tree menu"). On tip 4 the `arrow_down_t` bobs over the
@@ -1067,7 +1114,9 @@ limit, `Plot.group` and `groupLimit`: the pieces on Work, Nature, Decor and Fun,
 fence lengths on Fences, the huts against `hutLimit` on Huts; orange when full); `Expand` ("Island max", greyed, at the
 top tier; `island.expand`, its price under it in `ExpandCost`; the fanfare and "Your island grew into Moonlit Bay.
 There's more to build now." (or how many buildings had to move), named from the answer's `tier`, wait for
-`PixelRenderer.afterBake`, 1.5 s at most) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
+`PixelRenderer.afterGrow`: Expand arms the growth with `PixelRenderer.growNext(plot origin, tier, tier + 1)` before it
+asks, and disarms it on a refusal; a safety net cheers once nothing is growing, `GrowArmSecs + GrowSecs + 3` s on at the
+soonest) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
 pixel-font copy of its words, `Query`, "Search" while empty, and `ClearSearch`), with the search button `SearchButton`
 just before it (16 wide, the 11 x 11 `mini_search` magnifier; it calls `focusSearch()`, the cursor into `Box`; the
 accent colour while a search is on): both on the tabs' plank right of the tabs when there are 80 px free there (the box
@@ -1103,7 +1152,8 @@ words, and the tray shrinks to the plate's height so more of the island shows (`
 and a card a replacement (`Swap_<id>`: its picture, its name, its room or charm, and `SwapTo_<id>` with
 `Plot.replaceCost`; the tray keeps its full height for them); a tap sends `plot.replace` (the `level_up` sound, "The
 Driftling Hut is a Cozy Burrow now.", `BuildFx.drop`). A tap on a placed piece of the own island (a ray into its
-`Static.Decor`) picks it up. A press dragged more than 8 px pans the view (`CameraController.panBy`). The keys (input
+`Static.Decor`) picks it up. A press dragged more than 8 px pans the view (`CameraController.panBy`); the view follows
+the founder, and when it moves a picked piece's ghost goes again to the cell under the mouse's last place (`hover`). The keys (input
 not already taken, so never while typing in the search box): R (`rotatePicked`: a quarter turn, a fence length between
 0 and 90), E or Return (`confirm`), C (`copyPicked`: a new pick of the same piece, turned the same way), X or Delete
 (`storePicked`: `plot.store`, then `BuildFx.cleared`), Esc (drops the pick, or with none closes Build mode).
@@ -1133,6 +1183,10 @@ plate a cell, or a bar an edge (`DrawGhost` in `Workspace.PixelDynamic`, parts `
 orange to lift, red where it can't. `debugDraw(cells, mode, keep?) -> plan` (the sims' and previews' stroke through
 tiles' cells or fences' corners, mode "line", "box" or "erase"; `keep` leaves the markers up without sending).
 
+`Controllers/GrowFx` (GAME_DESIGN 4.4): `start()` (a Heartbeat: when a growth starts, the `grow_surf` sound (the
+Waves clip, 2.1 s faded); while the coast is under 0.7 of the way, a soft `grow_sand` thump every 0.22 s and more as it
+slows; each frame up to four of `PixelRenderer.growFront()`'s points throw `Puffs.burst("drop", ...)` at the water's
+surface), `sprays()` (bursts so far: previews).
 `Controllers/BuildFx` (GAME_DESIGN 4.5): `drop(plot, uid, id, x, z, rot, lvl?)` (a piece put down: the server's model
 (found in the plot's `Decor` by its name's prefix `uid:id:x:z:rot:`) is held back, unparented, while a stand-in built
 by `DecorModels.build` (`DropIn`, registered with the renderer) falls `DROP_H` (1.6) studs in `DROP_T` (0.16 s),

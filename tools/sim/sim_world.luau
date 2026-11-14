@@ -724,6 +724,40 @@ local BuildUI = H.cmod(a, "UI.BuildUI")
 H.expect(H.clickNamed(a, "Menu_build"), "build", "the HUD's Build button")
 H.expect(BuildUI.isOpen() and CCa.isFree(), "build", "Build mode is open, the view free")
 E.run(0.4)
+-- the view still follows the founder in Build mode (2026-11-14: "in build mode, make the camera still follow the player
+-- as they walk around, even though it is displaced downwards abit"): a walk moves it, a drag moves it from there and
+-- holds while they stand, and walking on eases it back onto them
+do
+	local root = a.Character and a.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		local x0, z0 = root.Position.X, root.Position.Z
+		local px0, py0 = CCa.pan()
+		for k = 1, 10 do
+			a.Character:PivotTo(E.cf.new(x0 + k * 0.5, 3, z0 + k * 0.3))
+			E.run(0.05)
+		end
+		E.run(0.6)
+		local px1, py1 = CCa.pan()
+		H.expect(CCa.isFree() and (px1 ~= px0 or py1 ~= py0) and select(1, CCa.buildDrag()) == 0, "build", "Build mode: the view follows the founder as they walk", string.format("(%d, %d) -> (%d, %d)", px0, py0, px1, py1))
+		H.inClient(a, CCa.panBy, -120, -60)
+		E.run(0.6)
+		local dx, dy = CCa.buildDrag()
+		local px2, py2 = CCa.pan()
+		H.expect((dx ~= 0 or dy ~= 0) and (px2 ~= px1 or py2 ~= py1), "build", "a drag moves the view off the founder", string.format("drag %d %d, pan (%d, %d)", dx, dy, px2, py2))
+		E.run(0.8)
+		local dx2, dy2 = CCa.buildDrag()
+		H.expect(dx2 == dx and dy2 == dy, "build", "and it holds while they stand", string.format("drag %d %d", dx2, dy2))
+		for k = 1, 30 do
+			a.Character:PivotTo(E.cf.new(x0 + 5 - k * 0.17, 3, z0 + 3 - k * 0.1))
+			E.run(0.05)
+		end
+		E.run(0.6)
+		local dx3, dy3 = CCa.buildDrag()
+		H.expect(dx3 == 0 and dy3 == 0, "build", "walking on eases the view back onto them", string.format("drag %d %d", dx3, dy3))
+		a.Character:PivotTo(E.cf.new(x0, 3, z0))
+		E.run(1)
+	end
+end
 -- (the catalog: the Work tab's Farms row, then the Nature tab's Plants row; the tray's tab and row as BuildUI keeps them)
 H.clickNamed(a, "Tab_work", { wait = 0.3 })
 H.clickNamed(a, "Chip_farm", { wait = 0.3 })
