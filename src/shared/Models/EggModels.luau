@@ -201,9 +201,9 @@ end
 --   celestial: the dark blue of a night sky, constellations (white stars joined by lilac dots), a few cyan stars, a gold star on its crown, a tilted ring of little lights
 --     orbiting it like a planet's and three motes.
 -- Its cracks (`cracks`: each part with its stage, 1 a short crack at the top, 2 running down and branching, 3 round its
--- middle where the top comes off) are kept out of sight until the scene shows them; the top is what lies above the
--- middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
-export type Crack = { p: BasePart, off: CFrame, stage: number }
+-- middle where the top comes off; `core` the thin light line along each crack, over its dark rim) are kept out of
+-- sight until the scene shows them; the top is what lies above the middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
+export type Crack = { p: BasePart, off: CFrame, stage: number, core: boolean }
 -- (an egg's curve: the widest a little below the middle over a full, round base, the top narrowing to a softer point;
 -- "The eggs also look too much like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14)
 local PROFILE: { { number } } = {
@@ -519,23 +519,66 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		end
 	end
 	-- the cracks (out of sight until the scene shows them): a crack from the top down the front, its branch, then the
-	-- ring round the middle
+	-- ring round the middle. Each is a thin dark line (its rim) with a thinner core over it that the scene fills with
+	-- its rarity's light (the request of 2026-11-14: "cracks sometimes become filled like this, can you make it such
+	-- that light streams out instead when this happens?"): short pieces lying on the shell, each only half its width
+	-- past its ends, and small turns, so the lines never bunch into a blot where they turn or meet. They pool no light
+	-- on the shell ("PixelNoPool"): the light streams out of them instead (HatchScene's motes).
+	-- (three strips side by side at one height: a dark edge, the light core, a dark edge, each about one art px; the
+	-- turns a pixel or two, never as deep as the line is wide, so the line never folds over itself. They stand LIFT
+	-- studs off the shell's true surface: over the painted marks (plates about 0.13 studs proud of it) and past the
+	-- pixel filter's depth bias (Render/Raster: 0.03), or they would hide them; the ring keeps to the front of the egg,
+	-- well inside its outline, so standing off it never shows)
+	local EDGE, CORE, LIFT = 0.042 * u, 0.046 * u, 0.17
+	-- the shell's true radius at height share t: its slices are balls, so where the egg narrows a lower ball bulges
+	-- past the profile; and the point LIFT off it at azimuth a, with the shell's normal there
+	local function shellR(t: number): number
+		local y, best = t * h, 0
+		for k = 0, 24 do
+			local tk = 0.1 + k / 24 * 0.81
+			local rk = prof(tk) * R * 0.99
+			local dy = y - tk * h
+			if dy * dy < rk * rk then
+				best = math.max(best, math.sqrt(rk * rk - dy * dy))
+			end
+		end
+		return best
+	end
+	local function onShell(t: number, a: number): (Vector3, Vector3)
+		local rr = shellR(t)
+		local slope = (shellR(t + 0.01) - shellR(t - 0.01)) / (0.02 * h)
+		local radial = Vector3.new(math.cos(a), 0, math.sin(a))
+		local n = (radial - Vector3.yAxis * slope).Unit
+		return radial * rr + Vector3.new(0, t * h, 0) + n * LIFT, n
+	end
 	local function crack(path: { { number } }, stage: number)
 		for i = 1, #path - 1 do
 			local a0, a1 = path[i], path[i + 1]
-			local p0, p1 = at(a0[1], math.rad(a0[2]), 0.02), at(a1[1], math.rad(a1[2]), 0.02)
+			local p0, n0 = onShell(a0[1], math.rad(a0[2]))
+			local p1, n1 = onShell(a1[1], math.rad(a1[2]))
 			local mid = (p0 + p1) / 2
-			local off = CFrame.lookAt(mid, p1, Vector3.new(mid.X, 0, mid.Z).Unit)
-			local p = Blocks.part(m, { size = Vector3.new(0.07 * u, 0.05 * u, (p1 - p0).Magnitude + 0.04), cf = off, color = "ink", collide = false, query = false, name = "Crack" })
-			table.insert(cracks, { p = p, off = off, stage = stage })
+			local base = CFrame.lookAt(mid, p1, (n0 + n1).Unit)
+			local len = (p1 - p0).Magnitude
+			for k = -1, 1 do
+				local core = k == 0
+				local w = if core then CORE else EDGE
+				local off = base * CFrame.new(k * (CORE + EDGE) / 2, 0, 0)
+				local size = Vector3.new(w, 0.03 * u, len + w)
+				local p = Blocks.part(m, { size = size, cf = off, color = if core then "white" else "ink", collide = false, query = false, name = if core then "CrackCore" else "Crack" })
+				-- (its own size, off the 0.25 stud grid Blocks.part snaps to: snapped, a crack was a bar 0.25 wide
+				-- and deep, standing off the shell, and the lines ran together into blots)
+				p.Size = size
+				p:SetAttribute("PixelNoPool", true)
+				table.insert(cracks, { p = p, off = off, stage = stage, core = core })
+			end
 		end
 	end
-	crack({ { 0.95, 50 }, { 0.88, 40 }, { 0.83, 56 }, { 0.77, 44 } }, 1)
-	crack({ { 0.77, 44 }, { 0.71, 60 }, { 0.66, 47 }, { 0.6, 62 }, { 0.56, 50 } }, 2)
-	crack({ { 0.83, 56 }, { 0.78, 74 }, { 0.74, 88 }, { 0.69, 84 } }, 2)
+	crack({ { 0.95, 50 }, { 0.9, 47.5 }, { 0.85, 51 }, { 0.8, 48.5 }, { 0.76, 51 } }, 1)
+	crack({ { 0.76, 51 }, { 0.71, 48 }, { 0.66, 51.5 }, { 0.61, 49 }, { 0.56, 52 } }, 2)
+	crack({ { 0.85, 51 }, { 0.825, 57 }, { 0.8, 63 }, { 0.78, 69 }, { 0.75, 74 } }, 2)
 	local ring: { { number } } = {}
-	for k = 0, 16 do
-		table.insert(ring, { SPLIT + (if k % 2 == 0 then -0.02 else 0.025), -40 + k * 11 })
+	for k = 0, 12 do
+		table.insert(ring, { SPLIT + (if k % 2 == 0 then -0.01 else 0.012), -15 + k * 10 })
 	end
 	crack(ring, 3)
 	return m, parts, top, fx, cracks

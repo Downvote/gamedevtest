@@ -879,7 +879,8 @@ local function buildLight(s: Surf)
 		end
 		local area, sx, sy, any = 0, 0, 0, false
 		for _, p in d.parts do
-			if p.glow and p.part.Parent ~= nil then
+			-- (a part marked "PixelNoPool" glows but pools no light round it: a hatching egg's cracks)
+			if p.glow and p.part.Parent ~= nil and p.part:GetAttribute("PixelNoPool") ~= true then
 				local pos = p.part.Position
 				local fx, fy = Raster.project(cam, pos.X, pos.Y, pos.Z)
 				-- (the faces it shows: its two biggest sides, on the screen)

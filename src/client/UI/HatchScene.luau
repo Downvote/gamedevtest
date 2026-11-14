@@ -152,6 +152,8 @@ type Scene = {
 	fx: { { p: BasePart, kind: string, k: number } },
 	cracks: { EggModels.Crack },
 	glowing: boolean, -- the cracks lit from inside (nothing left to reveal: the next tap hatches it)
+	leakAcc: number, -- motes of light owed to the cracks' streams (a fraction carries to the next frame)
+	leaks: number, -- light motes let out of the cracks so far (sims and previews)
 	arrived: boolean, -- it has landed on the pedestal (a thud, dust, the rings start)
 	bounced: boolean, -- it has come down from its first bounce (a softer thud)
 	topOff: number?, -- when it hatched (the top flew off)
@@ -214,6 +216,13 @@ local function newEgg(s: Scene, r: number)
 	m.Parent = s.dyn
 	PixelRenderer.registerDynamic(m)
 	s.egg, s.parts, s.top, s.fx, s.cracks, s.glowing = m, parts, top, fx, cracks, false
+	-- (each crack's core in the rarity's light, under its dark rim: lit from inside, the light streams out of it,
+	-- stepLeaks)
+	for _, k in cracks do
+		if k.core then
+			k.p.Color = Blocks.color(RAY[r][2])
+		end
+	end
 end
 
 -- Twinkles round the egg (the request of 2026-11-14: "remove these rectangular effects everywhere, instead make it
@@ -583,8 +592,10 @@ local function glow(s: Scene)
 	end
 	s.glowing = true
 	for _, k in s.cracks do
-		k.p.Color = Blocks.color(RAY[s.r][2])
-		k.p.Material = Enum.Material.Neon
+		if k.core then
+			k.p.Color = Blocks.color(RAY[s.r][2])
+			k.p.Material = Enum.Material.Neon
+		end
 	end
 	PixelRenderer.refreshDynamic(s.egg :: Model)
 end
@@ -827,6 +838,47 @@ local function fireflies(s: Scene, c: number)
 end
 
 
+-- Light streaming out of the cracks (the request of 2026-11-14: "cracks sometimes become filled like this, can you
+-- make it such that light streams out instead when this happens?"): from a few places along each crack shown (every
+-- third piece of its core) 1 px motes of its light and of white flow out, away from the egg's middle on the screen and
+-- drifting up, a thin stream from each place; more and faster as it cracks further, the most once every crack is lit.
+local function stepLeaks(s: Scene, c: number, dt: number)
+	if s.topOff ~= nil or s.crack <= 0 or s.egg == nil then
+		s.leakAcc = 0
+		return
+	end
+	s.leakAcc += (if s.glowing then 60 else 10 + 8 * s.crack) * dt
+	if s.leakAcc < 1 then
+		return
+	end
+	local from: { BasePart } = {}
+	local cores = 0
+	for _, k in s.cracks do
+		if k.core then
+			cores += 1
+			if k.stage <= s.crack and cores % 3 == 1 then
+				table.insert(from, k.p)
+			end
+		end
+	end
+	if #from == 0 then
+		s.leakAcc = 0
+		return
+	end
+	local mx, my = PixelRenderer.projectPixel(eggMiddle(s.r) + Vector3.new(0, liftOf(c), 0))
+	local light = RAY[s.r][2]
+	while s.leakAcc >= 1 do
+		s.leakAcc -= 1
+		local px, py = PixelRenderer.projectPixel(from[math.random(1, #from)].Position)
+		local dx, dy = px - mx, py - my
+		local a = if dx * dx + dy * dy < 1 then -math.pi / 2 else math.atan2(dy, dx)
+		a += (math.random() - 0.5) * 0.35
+		local v = (if s.glowing then 34 else 20) + math.random() * 22
+		addDot(s, if math.random() < 0.55 then light else "white", nil, px, py, math.cos(a) * v, math.sin(a) * v - 4, -14, 0.35 + math.random() * 0.35)
+		s.leaks += 1
+	end
+end
+
 -- A twinkle now and then round the egg (from a rare one up), and round what hatched after: a rare one's go out a
 -- moment after the hatch, an epic or legendary one's stay. Each blinks through its frames where it appeared.
 local function stepTwinkles(s: Scene, c: number)
@@ -852,6 +904,7 @@ local function step(s: Scene, dt: number)
 	s.clock += d
 	local c = s.clock
 	stepEgg(s, c)
+	stepLeaks(s, c, d)
 	if s.phase == "breaking" and c - s.breakAt >= BREAK then
 		hatch(s)
 	end
@@ -995,6 +1048,8 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		fx = {},
 		cracks = {},
 		glowing = false,
+		leakAcc = 0,
+		leaks = 0,
 		arrived = false,
 		bounced = false,
 		topOff = nil,
@@ -1080,10 +1135,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, title: string, name: string, fresh: boolean, passive: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, leaks: number, title: string, name: string, fresh: boolean, passive: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, title = "", name = "", fresh = false, passive = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, leaks = 0, title = "", name = "", fresh = false, passive = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -1105,6 +1160,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		pal = s.pal ~= nil,
 		egg = s.egg ~= nil,
 		glowing = s.glowing,
+		leaks = s.leaks,
 		title = if t then t.Text else "",
 		name = if n then n.Text else "",
 		fresh = s.root:FindFirstChild("HatchNew") ~= nil, -- the "New!" tag by the name

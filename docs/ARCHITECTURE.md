@@ -906,7 +906,7 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `sat`, times `mr mg mb`, plus a blue `lift` in the shadows. `Grade { mr, mg, mb, lift, sat, lamps }`. Neon parts
   (`EMISSIVE` statics, `dynGlow` dynamics) keep their colour; round them `lightMap` (u8 a pixel, 0..3, rebuilt by
   `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second
-  for the moving lights; a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
+  for the moving lights; a dynamic part marked "PixelNoPool" glows but pools nothing, a hatching egg's cracks; a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
   warm light in three stepped rings (`RING`: 0.35, 0.65 and 1 of the radius, twice as wide as tall: the ground at
   2:1), each pool as big as its light (`lightRadius(area)`: `LIGHT_K` 1.2 x area ^ `LIGHT_POW` 0.6, between
   `LIGHT_MIN` 2 and `LIGHT_MAX` 22 art px): a static light is a patch of `EMISSIVE` pixels touching 8 ways (a flood
@@ -1504,7 +1504,10 @@ texSoft; `texOpt` in the draw). `EggModels.heroBottom(h)` is the lowest slice's 
 Each reveal tap plays Audio `crack` (pitch up with `crack`), and so does the tap that hatches it; the hatch plays
 `crack_open`. The egg shakes as it cracks (`stepEgg`; the request of 2026-11-14: "Make eggs shake while being cracked
 open"): a tap's shake (`kick`, 1 for a step up, 0.6 for a mutation) rocks it on its foot about the line the camera looks
-along and jumps it sideways along the camera's flat right, dying away over 0.6 s; once the cracks glow it trembles
+along and jumps it sideways along the camera's flat right, dying away over 0.6 s; light streams out of the cracks shown
+(`stepLeaks`: from every third core piece, 1 px dots of the rarity's light and white flying out away from the egg's
+middle on the screen, `10 + 8 * crack` a second, 60 once they glow; `leakAcc`, and `leaks` counted for
+`debugState`); once the cracks glow it trembles
 (0.15); the tap that hatches it starts phase "breaking": every crack shows, a crunch, and for `BREAK` 0.6 s it shakes
 harder and faster (0.55 rising to 1.45) before the shell opens.
 `play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
@@ -1538,8 +1541,11 @@ starry one white and cyan motes rise.
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
 the shine (white), the fx (`mote` x3 epic, mythic and celestial, `halo` x20 legendary and mythic, `orbit` x28 celestial: a tilted ring round its middle; with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
-stage }`: 1 a short crack at the top, 2 running down and branching, 3 round its middle; out of sight until the scene's
-taps reach its stage, Neon in the rarity's light once nothing is left to reveal). Parts above `SPLIT` (0.56) are the top.
+stage, core }`: 1 a short crack at the top, 2 running down and branching, 3 round the front of its middle; each piece of
+a crack three strips side by side, a dark edge, the `core`, a dark edge, at their exact sizes (off the 0.25 grid
+`Blocks.part` snaps to) and 0.17 studs off the shell's true surface (the balls' union, `shellR`), over the painted marks
+and past the raster's depth bias; "PixelNoPool"; out of sight until the scene's taps reach its stage; the scene colours
+the cores in the rarity's light and makes them Neon once nothing is left to reveal). Parts above `SPLIT` (0.56) are the top.
 `HatchBackdrop.paint(r, W, H, ex, ey) -> buffer` (the sky picture, RGBA at the art grid: banded sky with dithered
 seams (`SKIES[r].stops`, seven skies), the galaxy's band (`milky`, celestial), aurora, stars, sun, moon, two moons
 (`twomoons`, mythic) or a ringed planet (`planet` and its `ring`, celestial) with its halo, clouds, the egg's glow at

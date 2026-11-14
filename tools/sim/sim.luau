@@ -586,7 +586,7 @@ do
 			if hs.phase == "breaking" then
 				-- (the request of 2026-11-14: "Make eggs shake while being cracked open": the tap that hatches it
 				-- shakes it harder and harder, every crack showing, then the shell opens)
-				broke = { shake = hs.shake, crack = hs.crack, pal = hs.pal, glowing = hs.glowing }
+				broke = { shake = hs.shake, crack = hs.crack, pal = hs.pal, glowing = hs.glowing, leaks = hs.leaks }
 				E.run(0.45)
 				hs = H.inClient(p, HSp.debugState)
 			elseif not hs.pal then
@@ -595,6 +595,9 @@ do
 		end
 		H.expect(hs.pal and taps == hs.reveals + 1, "build", "each tap reveals a step up or a mutation, the one after them hatches it", string.format("%d taps, %d reveals", taps, hs.reveals))
 		H.expect(broke ~= nil and broke.shake > 0.7 and broke.crack == 3 and broke.glowing and not broke.pal and (hs.reveals == 0 or shook > 0.2), "build", "it shakes as it cracks: each tap, then harder as it breaks open, every crack lit", broke and string.format("shake %.2f at the break, cracks %d, %.2f a tap", broke.shake, broke.crack, shook) or "no break")
+		-- (the request of 2026-11-14: "cracks sometimes become filled like this, can you make it such that light streams
+		-- out instead when this happens?": light motes stream out of the cracks shown, and the cracks pool no light)
+		H.expect(broke ~= nil and broke.leaks > 0, "build", "light streams out of the cracks as it cracks", broke and tostring(broke.leaks) or "no break")
 		local crack1, open1 = H.inClient(p, Aud.playCount, "crack"), H.inClient(p, Aud.playCount, "crack_open")
 		H.expect(crack1 - crack0 == hs.reveals + 1 and open1 - open0 == 1, "build", "each reveal cracks it with a crunch, so does the tap that hatches it, and the shell opens with a sound", string.format("%d crunches for %d reveals, %d opens", crack1 - crack0, hs.reveals, open1 - open0))
 		E.run(0.8)
