@@ -63,17 +63,17 @@ local ORDER = 300 -- over everything the game draws
 
 -- the palette's and the UI theme's colours (0xRRGGBB), written out
 local C = {
-	ink = 0x2C1A20,
-	plate = 0x3E2629,
+	ink = 0x2A1C1C,
+	plate = 0x3D2924,
 	accent = 0xFFCB30,
 	accent_hi = 0xFFE48A,
 	title_aa = 0x9C6A1E,
-	text = 0xF8E8E4,
-	status = 0xF4D2CA,
-	frame_hi = 0xF0B5A0,
-	frame = 0xC47E68,
-	frame_lo = 0x8A5149,
-	frame_dark = 0x643937,
+	text = 0xF5EAD9,
+	status = 0xF3E1CF,
+	frame_hi = 0xEAB887,
+	frame = 0xBD8256,
+	frame_lo = 0x84553C,
+	frame_dark = 0x613D2B,
 }
 -- the sky from its top to the horizon, the sea from the horizon down
 local SKY = { 0x1C1934, 0x24203F, 0x2E2749, 0x3B2F5C, 0x4D3766, 0x66406C, 0x87496E, 0xAD576A, 0xD06C62, 0xE98B5E, 0xF4AD68 }
@@ -92,17 +92,17 @@ local DASH = 0x7A90C4
 -- the sun's path on the water, from the horizon toward us (each line's core, its ends a tone down), and its glow
 local PATH = { 0xFFF1C4, 0xFFD27A, 0xF4A660, 0xD9786A }
 local SHALLOW, SHALLOW_LIGHT, SHALLOW_OUT = 0x3A97A2, 0x56BCBC, 0x3A7894
-local FOAM, FOAM_DIM = 0xFCF3F2, 0xB8DEDE
-local WET, WET_HI = 0xC98A88, 0xDCA19E
-local SAND, SAND_HI, SAND_GRAIN = 0xF4BEBC, 0xFCDAD6, 0xE1A0A0
+local FOAM, FOAM_DIM = 0xF2F8F6, 0xB5DCE2
+local WET, WET_HI = 0xC8AC91, 0xDABFA6
+local SAND, SAND_HI, SAND_GRAIN = 0xF2DAC3, 0xFCEBDB, 0xDFC3A8
 local SHELL, SHELL_PINK = 0xFFF8EE, 0xF6B4C0
-local CLIFF, CLIFF_DARK = 0xC0846C, 0x88524A
+local CLIFF, CLIFF_DARK = 0xBD895C, 0x86573E
 local GRASS, GRASS_HI, GRASS_LIP, GRASS_TUFT = 0x72C476, 0x94D894, 0x48955A, 0x58A866
 local GRASS_DARK, GRASS_LIGHT = 0x62B46A, 0x84CF86
 local FLOWER_A, FLOWER_B = 0xFFE17A, 0xF6A6C8
-local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x988A9A, 0xCEC2D0, 0x72667A, 0x4C4254
-local PLAZA, PLAZA_RIM = 0xE8BEAA, 0xCC9A88
-local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xBC8E7C, 0xE0C0AC, 0x8E6456, 0x52362E
+local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x908A99, 0xCAC4D2, 0x6F697C, 0x4A4456
+local PLAZA, PLAZA_RIM = 0xE5CAB1, 0xCBAD91
+local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xB99276, 0xDDC3A6, 0x8C6852, 0x50382B
 local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 
 -- what the status says in each phase (and the tips, one after another)

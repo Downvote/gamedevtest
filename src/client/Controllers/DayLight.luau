@@ -26,10 +26,10 @@ local KEYS: { Key } = {
 	DAWN,
 	{ f = 0.07, mr = 1, mg = 1, mb = 1, lift = 0, sat = 1, lamps = 0 }, -- morning
 	{ f = 0.6, mr = 1, mg = 1, mb = 1, lift = 0, sat = 1, lamps = 0 }, -- the afternoon
-	{ f = 0.68, mr = 1.03, mg = 0.83, mb = 0.72, lift = 0, sat = 1.04, lamps = 0.25 }, -- a rosy golden dusk
+	{ f = 0.68, mr = 1.022, mg = 0.845, mb = 0.675, lift = 0, sat = 1.04, lamps = 0.25 }, -- a golden dusk, a little rosy
 	{ f = 0.75, mr = 0.64, mg = 0.54, mb = 0.8, lift = 8, sat = 0.86, lamps = 0.75 }, -- twilight
-	{ f = 0.81, mr = 0.39, mg = 0.4, mb = 0.67, lift = 16, sat = 0.7, lamps = 1 }, -- night
-	{ f = 0.95, mr = 0.39, mg = 0.4, mb = 0.67, lift = 16, sat = 0.7, lamps = 1 },
+	{ f = 0.81, mr = 0.367, mg = 0.415, mb = 0.663, lift = 16, sat = 0.7, lamps = 1 }, -- night
+	{ f = 0.95, mr = 0.367, mg = 0.415, mb = 0.663, lift = 16, sat = 0.7, lamps = 1 },
 	{ f = 1, mr = DAWN.mr, mg = DAWN.mg, mb = DAWN.mb, lift = DAWN.lift, sat = DAWN.sat, lamps = DAWN.lamps },
 }
 local STEPS = 6 -- a change between two keys goes in this many steps

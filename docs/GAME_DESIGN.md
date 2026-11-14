@@ -1,7 +1,8 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest, one of several asked together): "also, make the pallette more pinkish,
-> changing the sand pink and the rest of the pallette to match." (§2, the cozy colours)
+> The request (2026-11-14, one of several asked together): "also, make the pallette more pinkish, changing the sand
+> pink and the rest of the pallette to match." Then, the latest: "not that pink, i meant a light pink, close to the
+> color of actual sand" (§2, the pink sand)
 
 > The request (2026-11-14): "also, while the rare one quest is active or any rarity related quests, make it
 > such that an egg of that rarity will always spawn in the tree of life."
@@ -210,9 +211,9 @@ offline progress).
   steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
   respecting the pixel grid").
 - **Cozy light** (the request of 2026-11-13 at the top): the day's light is a little warm, like a late summer
-  afternoon, and since the pink pass below a touch rosy (`Palette.modes.day` 1.04, 0.98, 0.97: the moving things'
-  light the same). The dusk is a rosy gold (DayLight's grade 1.03, 0.83, 0.72), the night a little more violet. The
-  hatch scene's skies (§6.2) are the warmest of all: a sunset, a golden afternoon going pink at the horizon, moonlit
+  afternoon, with a faint blush since the pink sand below (`Palette.modes.day` 1.033, 0.995, 0.955: the moving
+  things' light the same). The dusk is a golden one, a little rosy (DayLight's grade 1.022, 0.845, 0.675), the night
+  a touch violet. The hatch scene's skies (§6.2) are the warmest of all: a sunset, a golden afternoon, moonlit
   nights.
 - **Cozy colours** (the request of 2026-11-13, "could everything use a more pastelish colour pallette?", then of
   2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use more cozy colors. saturate the game
@@ -220,16 +221,18 @@ offline progress).
   colourful hues of `Data/Palette` 15% fuller, greys, ink and white as they were): sunny greens, warm sand and wood,
   a clear aqua sea, bright berry reds and butter yellows. The interface, the sprites, the hatch scene's skies and the
   loading card keep their own warm colours.
-- **Pink led** (the request of 2026-11-14: "also, make the pallette more pinkish, changing the sand pink and the rest
-  of the pallette to match."): the beaches are pink sand (`sand` 0xFCC0B8, `sand_dark` 0xEC9E99; they were a warm
-  beige, 0xFBD99B and 0xE6B872), and the rest moved to go with it while staying rich and warm: a fresher green lawn
-  and leaves (`grass` 0x84DA72), a turquoise sea (`water` 0x2EBBC4, `shallow` 0x6FE0D2, the crests and the deep
-  water in the renderer to match), rosy wood (`wood` 0xD2896A), mauve rock and steel, pink-white foam, cream and
-  paper. The interface's plates are dark rosewood in frames of rosy planks (`frame` 0xC47E68), its quiet text pink
-  sand, its blue buttons lagoon turquoise. The sprites' ramps followed (greens to mint, cyan to turquoise, browns
-  rosier, greys a touch mauve, cream a touch pink), and the portraits, the build catalog's pictures and the loading
-  card were drawn again. The hatch scene's uncommon sky turns pink at the horizon over mint hills, its rare twilight
-  goes lavender and rose low down, its legendary gold a little rosier.
+- **Pink sand** (the request of 2026-11-14: "also, make the pallette more pinkish, changing the sand pink and the
+  rest of the pallette to match.", then "not that pink, i meant a light pink, close to the color of actual sand"):
+  the first pass made the beaches a strong pink (0xFCC0B8) with rosy wood, mauve rock and rosewood frames to match.
+  Too pink: the beaches are now a light pink close to real sand, a pale beige with a blush in it (`sand` 0xFCDEC2,
+  `sand_dark` 0xE9C5A3; the cozy sand was 0xFBD99B and 0xE6B872), the wet sand, the plaza's ring and the loading
+  card's beach the same. The fresher green lawn and leaves (`grass` 0x84DA72) and the turquoise sea (`water`
+  0x2EBBC4, `shallow` 0x6FE0D2, the crests and the deep water in the renderer to match) stay, since they sit well by
+  the paler sand. Everything else went most of the way back to the cozy colours, a quarter of the pink pass's blush
+  left in it: the wood (`wood` 0xD28B58), rock, steel, foam, cream and paper, the interface's driftwood plates and
+  plank frames (`frame` 0xBD8256), the sprites' browns, greys and creams, the dusk, and the hatch scene's skies. Its
+  quiet text is the colour of the sand. The portraits, the build catalog's pictures and the loading card were drawn
+  again.
 - **Surfaces** (the request of 2026-11-13, "textured objects" and "wood detail"): the filter gives the world's materials a texture as it bakes, the way Random Bakery gives its wood a
   grain: 1 px marks in a darker or lighter tone of the surface's own colour, few and quiet, so a lawn reads as grass
   and a plank as wood up close while the island still looks calm from afar. Grass, moss and leaves get a few little blades
