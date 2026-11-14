@@ -2085,6 +2085,24 @@ local function hatchScenario(code)
 	E.run(0.9)
 	capture(p, "hatch_egg")
 	log("hatch %s: landed: %.2f over its spot, %d rings spreading", code, state().lift, state().rings)
+	-- (the screen changes size while the egg waits, a window widened, then back: the title stays centred and the sky
+	-- follows the egg; the user's report of 2026-11-14, "it sometimes doesnt center the text here")
+	do
+		local cam = E.workspace.CurrentCamera
+		local old = E.viewport
+		log("hatch %s: title %.0f px off the middle on %dx%d", code, state().titleOff, old.X, old.Y)
+		E.viewport = v2(math.floor(old.X * 1.25), old.Y)
+		I.firePropChanged(cam, getD(cam), "ViewportSize")
+		E.flushDeferred()
+		E.run(0.6)
+		log("hatch %s: screen widened to %dx%d: title %.0f px off the middle", code, E.viewport.X, E.viewport.Y, state().titleOff)
+		capture(p, "hatch_wide")
+		E.viewport = old
+		I.firePropChanged(cam, getD(cam), "ViewportSize")
+		E.flushDeferred()
+		E.run(0.6)
+		log("hatch %s: back to %dx%d: title %.0f px off the middle", code, old.X, old.Y, state().titleOff)
+	end
 	local rises, mutsShown = 0, 0
 	for _ = 1, st.reveals do
 		local before = state()

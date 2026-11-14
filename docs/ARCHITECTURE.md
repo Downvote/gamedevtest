@@ -1488,7 +1488,7 @@ from a world point and blinking out by 1.1 s), `count()`.
 ends), `skip()` (a tap: the next reveal, else the hatch, else away; taps under `TAP_GAP` 0.22 s after the last count
 as one, and taps while the egg rises wait), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs),
 `debugState()` (`{ open, phase ("egg", "breaking", "hatched", "done"), r, hr, clock, lift, reveals, left, crack, shake,
-shown, muts, rays, shards, pal, egg, glowing, title, name, fresh }`; `shake` how hard it shakes this frame): `fresh` the "New!" tag shown). `res.new` (the result's `new`: a kind
+shown, muts, rays, shards, pal, egg, glowing, title, titleOff, name, fresh }`; `shake` how hard it shakes this frame): `fresh` the "New!" tag shown). `res.new` (the result's `new`: a kind
 never had) puts `HatchNew` beside `HatchName` when it shows: a 1-step-corner plate in `accent` with the ink outline
 and `Word` "New!" in `text_ink`, dropping 6 px into place at the name's right, ten `accent` dots and Audio "sparkle". The egg drops in (2026-11-14, in place of rising from below):
 `liftOf(clock)` is its height over its resting spot, `DROP_FROM` 9 studs falling to 0 over `FALL` 0.52 s (gravity),
@@ -1549,7 +1549,12 @@ for it while the mutations reveal; no "No mutations" plate since 2026-11-14; `de
 stage off (the island's picture comes back from the renderer's stash at once), the roots back, then `after`. The
 overlay is a `HatchScene` frame on the `Stage` canvas: `HatchTitle` (the egg's words and each step up; gone once it
 hatches, "remove the it hatched text"), `HatchName`, `HatchLine`, the plates `HatchMut_<i>`
-(`Name`, `Blurb`), `HatchHint` (on 0.85 s of every 1.2), `HatchFlash`, 1 px `HatchDot`s and `HatchStar` sprites, and the
+(`Name`, `Blurb`), `HatchHint` (on 0.85 s of every 1.2). The title, name, line and hint span the overlay by scale
+(`UDim2.new(1, 0, ...)`, the foot ones from its bottom), never by the canvas's size when made: the user's report of
+2026-11-14, "it sometimes doesnt center the text here" (a canvas that settled or changed size after the scene opened
+left them off centre). The Stage canvas's `Size` changing (`s.resize`, a deferred `relayout`) places the plates again
+by their `Slot` and `PlateW` attributes (`plateAt`), the "New!" tag by `newTagAt`, and paints the sky again round the
+egg (`backdrop`); `debugState().titleOff` is the title's box off the screen's middle in screen px. Also: `HatchFlash`, 1 px `HatchDot`s and `HatchStar` sprites, and the
 see-through `HatchTap`. `GLORY` by the rarity shown (seven rows, like `GRADE`, `RAY`, `EGG_H` and `TWINKLE`: each
 rarity's twinkle frames, `twinkle_*` up to epic, `spark_*` legendary, `twinkle_p1..p3` mythic, `glint_1..3` celestial):
 rays, rayLen, sparks, shards, flash, jolt, confetti, stars. Under the rose sky pink petals fall (`fireflies`), under the

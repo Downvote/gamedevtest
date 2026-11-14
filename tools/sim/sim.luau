@@ -570,6 +570,8 @@ do
 		H.expect(hs.phase == "egg" and hs.egg and not hs.pal, "build", "the egg floats there at once, waiting for a tap", string.format("phase %s", hs.phase))
 		-- (its title the rarity alone: "no need for "A x egg" for rarities for eggs, just do "Legendary" "Common" etc.")
 		H.expect(hs.title == Traits.RARITY[pick.r].name, "build", "the egg's title: its rarity alone", string.format("%q", hs.title))
+		-- (centred over the screen, by scale: the user's report of 2026-11-14, "it sometimes doesnt center the text here")
+		H.expect(math.abs(hs.titleOff) <= 1, "build", "the egg's title sits in the middle of the screen", string.format("%.1f px off", hs.titleOff))
 		-- (then "make the egg rise up into view when it is being opened", and since "Make the egg drop down and bounce a
 		-- bit instead of appearing by going up": it drops in from above onto its pedestal, and a tap while it comes
 		-- down waits; the cracks crunch, Audio "crack", and the hatch breaks it open, "crack_open")

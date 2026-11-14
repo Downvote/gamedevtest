@@ -179,6 +179,7 @@ type Scene = {
 	flash: Frame?,
 	beat: RBXScriptConnection?,
 	keys: RBXScriptConnection?,
+	resize: RBXScriptConnection?, -- the Stage canvas changing size (relayout)
 	closing: boolean,
 }
 
@@ -343,13 +344,15 @@ local function flash(s: Scene, k: number, color: Color3?)
 	end)
 end
 
+-- (the words at the top and the foot span the overlay by scale, not by the canvas's size when they were made: the
+-- canvas can settle or change after the scene opens, a window resized, the top bar's inset arriving, the pixel scale
+-- stepping, and a label as wide as the old canvas would sit off centre)
 local function setTitle(s: Scene, text: string, color: string)
-	local w = canvasSize()
 	local old = s.title
 	if old then
 		old:Destroy()
 	end
-	local t = UIKit.text(s.root, text, UDim2.fromOffset(w, 18), UDim2.fromOffset(0, 8), { x = "center", face = "big", kind = "title", color = UIKit.color(color), z = 33, name = "HatchTitle" })
+	local t = UIKit.text(s.root, text, UDim2.new(1, 0, 0, 18), UDim2.fromOffset(0, 8), { x = "center", face = "big", kind = "title", color = UIKit.color(color), z = 33, name = "HatchTitle" })
 	s.title = t
 	-- (it drops in: two px down to rest)
 	t.Position = UDim2.fromOffset(0, 5)
@@ -363,23 +366,28 @@ local function eggWords(r: number): string
 	return rar.name
 end
 
+-- Where the "New!" tag goes: just right of the name (never off the screen's right edge).
+local function newTagAt(nm: TextLabel): (number, number)
+	local w, h = canvasSize()
+	local nameW = UIKit.textWidth(nm.Text, "big")
+	local tw = UIKit.textWidth("New!") + 6
+	return math.min(w - tw - 2, math.floor((w + nameW) / 2) + 4), h - 40
+end
+
 -- What hatched, under it: its name in its rarity's colour, its rarity and knack.
 local function showName(s: Scene)
-	local w, h = canvasSize()
 	local def = Creatures.byId[s.res.sp]
 	local rar = Traits.RARITY[if def then def.rarity else s.r] or Traits.RARITY[1]
-	local nm = UIKit.text(s.root, if def then def.name else "A driftling", UDim2.fromOffset(w, 18), UDim2.fromOffset(0, h - 42), { x = "center", face = "big", kind = "title", color = UIKit.color(rar.color), z = 33, name = "HatchName" })
-	local line = UIKit.text(s.root, if def then string.format("%s, %s", rar.name, KNACK[def.knack] or "a hard worker") else rar.name, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, h - 24), { x = "center", color = UIKit.color("paper"), z = 33, name = "HatchLine" })
+	local nm = UIKit.text(s.root, if def then def.name else "A driftling", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 1, -42), { x = "center", face = "big", kind = "title", color = UIKit.color(rar.color), z = 33, name = "HatchName" })
+	local line = UIKit.text(s.root, if def then string.format("%s, %s", rar.name, KNACK[def.knack] or "a hard worker") else rar.name, UDim2.new(1, 0, 0, 10), UDim2.new(0, 0, 1, -24), { x = "center", color = UIKit.color("paper"), z = 33, name = "HatchLine" })
 	s.name, s.line = nm, line
-	nm.Position = UDim2.fromOffset(0, h - 36)
-	UIKit.tween(nm, 0.2, { Position = UDim2.fromOffset(0, h - 42) })
+	nm.Position = UDim2.new(0, 0, 1, -36)
+	UIKit.tween(nm, 0.2, { Position = UDim2.new(0, 0, 1, -42) })
 	-- (a kind never had before: a mango "New!" tag pops up at the name's right with a sparkle, the request of
 	-- 2026-11-14, "there should a tip saying "New!" If the creature caught is new")
 	if s.res.new == true then
-		local nameW = UIKit.textWidth(nm.Text, "big")
 		local tw = UIKit.textWidth("New!") + 6
-		local bx = math.min(w - tw - 2, math.floor((w + nameW) / 2) + 4)
-		local by = h - 40
+		local bx, by = newTagAt(nm)
 		local tag = UIKit.plate(s.root, UDim2.fromOffset(tw, 12), UDim2.fromOffset(bx, by - 6), UIKit.color("accent"), 0, 1)
 		tag.Name = "HatchNew"
 		tag.ZIndex = 34
@@ -451,6 +459,8 @@ local function showPassive(s: Scene)
 	local f = UIKit.glass(s.root, UDim2.fromOffset(width, height), UDim2.fromOffset(x + 30, y), 2)
 	f.Name = "HatchPassive"
 	f.ZIndex = 33
+	f:SetAttribute("Slot", 0)
+	f:SetAttribute("PlateW", width)
 	table.insert(s.plates, f)
 	s.passive = true
 	UIKit.tween(f, 0.2, { Position = UDim2.fromOffset(x, y) })
@@ -468,6 +478,8 @@ local function showMut(s: Scene, i: number)
 	local f = UIKit.glass(s.root, UDim2.fromOffset(PLATE_W, PLATE_H), UDim2.fromOffset(x + 30, y), 2)
 	f.Name = "HatchMut_" .. i
 	f.ZIndex = 33
+	f:SetAttribute("Slot", i)
+	f:SetAttribute("PlateW", PLATE_W)
 	table.insert(s.plates, f)
 	UIKit.tween(f, 0.2, { Position = UDim2.fromOffset(x, y) })
 	local m = Traits.byId[muts[i]]
@@ -492,8 +504,30 @@ local function setHint(s: Scene, text: string)
 	if old then
 		old:Destroy()
 	end
-	local w, h = canvasSize()
-	s.hint = UIKit.text(s.root, text, UDim2.fromOffset(w, 10), UDim2.fromOffset(0, h - 13), { x = "center", color = UIKit.color("text_dim"), z = 33, name = "HatchHint" })
+	s.hint = UIKit.text(s.root, text, UDim2.new(1, 0, 0, 10), UDim2.new(0, 0, 1, -13), { x = "center", color = UIKit.color("text_dim"), z = 33, name = "HatchHint" })
+end
+
+-- The screen changed size while the scene shows (the user's report of 2026-11-14: "it sometimes doesnt center the
+-- text here"): the words follow by themselves (scale), the plates and the "New!" tag are placed again for the new
+-- size and the sky is painted again round where the egg now is.
+local function relayout(s: Scene)
+	if scene ~= s or s.closing then
+		return
+	end
+	for _, f in s.plates do
+		local slot, width = f:GetAttribute("Slot"), f:GetAttribute("PlateW")
+		if typeof(slot) == "number" and typeof(width) == "number" then
+			local x, y = plateAt(s, slot, width)
+			f.Position = UDim2.fromOffset(x, y)
+		end
+	end
+	local tag = s.root:FindFirstChild("HatchNew")
+	local nm = s.name
+	if tag and tag:IsA("GuiObject") and nm then
+		local bx, by = newTagAt(nm)
+		tag.Position = UDim2.fromOffset(bx, by)
+	end
+	backdrop(s)
 end
 
 ------------------------------------------------------------------ the taps
@@ -1035,6 +1069,10 @@ local function restore(s: Scene)
 	if keys then
 		keys:Disconnect()
 	end
+	local resize = s.resize
+	if resize then
+		resize:Disconnect()
+	end
 	dropEgg(s)
 	for _, d in s.dots do
 		d.gui:Destroy()
@@ -1162,6 +1200,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		flash = nil,
 		beat = nil,
 		keys = nil,
+		resize = nil,
 		closing = false,
 	}
 	-- a tap anywhere: the next reveal (HatchScene.skip)
@@ -1175,6 +1214,24 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 	tap.Parent = root
 	tap.Activated:Connect(function()
 		HatchScene.skip()
+	end)
+	-- (the screen settling or changing size: lay the overlay out again once the Stage canvas has, in UI px: a change
+	-- of pixel scale can leave the screen size as it was and still change the canvas)
+	local relayoutPending = false
+	local laidW, laidH = canvasSize()
+	s.resize = UIKit.canvas("Stage"):GetPropertyChangedSignal("Size"):Connect(function()
+		if relayoutPending then
+			return
+		end
+		relayoutPending = true
+		task.defer(function()
+			relayoutPending = false
+			local w, h = canvasSize()
+			if w ~= laidW or h ~= laidH then
+				laidW, laidH = w, h
+				relayout(s)
+			end
+		end)
 	end)
 	s.keys = UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
 		if processed then
@@ -1231,10 +1288,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, beams: number, title: string, name: string, fresh: boolean, passive: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, beams: number, title: string, titleOff: number, name: string, fresh: boolean, passive: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, beams = 0, title = "", name = "", fresh = false, passive = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, beams = 0, title = "", titleOff = 0, name = "", fresh = false, passive = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -1258,6 +1315,8 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		glowing = s.glowing,
 		beams = s.beamsMade,
 		title = if t then t.Text else "",
+		-- how far the title's box sits off the middle of the screen, in screen px (0: centred)
+		titleOff = if t then (t.AbsolutePosition.X + t.AbsoluteSize.X / 2) - (s.root.AbsolutePosition.X + s.root.AbsoluteSize.X / 2) else 0,
 		name = if n then n.Text else "",
 		fresh = s.root:FindFirstChild("HatchNew") ~= nil, -- the "New!" tag by the name
 		passive = (function()
