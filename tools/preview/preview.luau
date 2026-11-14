@@ -735,6 +735,12 @@ end
 -- looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents picked
 -- through the panel).
 local function panelScenario(name)
+	-- (panel=store:<tab> / looks:<tab>: the Store on a tab, Looks on pieces or titles; GAME_DESIGN 14)
+	local arg = nil
+	local base, sub = string.match(name, "^(%w+):(%w+)$")
+	if base then
+		name, arg = base, sub
+	end
 	if name == "hatch" then
 		local pieces = table.clone(HARBOR)
 		table.insert(pieces, { "hatchery", 4, -18 })
@@ -742,11 +748,71 @@ local function panelScenario(name)
 	else
 		seedProfile(20, 2, { pieces = VILLAGE, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
 	end
+	-- (the harness's test ids sell at their suggested prices, as the Creator Dashboard would set them: before the join,
+	-- so the HUD's offers read them too)
+	local M = H.sharedServer("Config.Monetization")
+	if M and M.SuggestedRobux then
+		E.cloud.prices = E.cloud.prices or {}
+		for _, group in { M.GamePasses, M.DevProducts } do
+			for key, id in group do
+				if M.SuggestedRobux[key] then
+					E.cloud.prices[id] = M.SuggestedRobux[key]
+				end
+			end
+		end
+	end
 	local p = join(20, "Menus")
 	settle(p)
+	if name == "tree" then
+		-- (two eggs in the bag over the tree's lot: GAME_DESIGN 14)
+		local TreeB = H.sharedServer("Logic.Tree")
+		if TreeB then
+			TreeB.bagAdd(H.profile(p), 6)
+			TreeB.bagAdd(H.profile(p), 4)
+		end
+		H.push(p, 0.3)
+	end
+	if name == "store" or name == "looks" then
+		-- a player some way in: pieces owned (one of each slot worn), titles earned, three eggs in the bag, the pass
+		-- track at level 6 with level 1 claimed, VIP owned with today's gift waiting (a view first: the server starts
+		-- the track's season, Logic/Store.sync, so the points set below stay)
+		H.push(p, 0.3)
+		local prof = H.profile(p)
+		for _, id in { "strawhat", "flowercrown", "tricorn", "sunglasses", "heartshades", "lei", "pearls", "backpack", "butterflywings", "ukulele", "lantern", "sailor", "flowershirt" } do
+			prof.owned[id] = true
+		end
+		prof.founder.hat, prof.founder.face, prof.founder.neck = "flowercrown", "sunglasses", "lei"
+		prof.founder.back, prof.founder.hand, prof.founder.top = "butterflywings", "ukulele", "sailor"
+		for _, id in { "settler", "islander", "eggfinder", "luckyfind", "collector" } do
+			prof.titles[id] = true
+		end
+		prof.title = "islander"
+		local TreeL = H.sharedServer("Logic.Tree")
+		if TreeL then
+			TreeL.bagAdd(prof, 5)
+			TreeL.bagAdd(prof, 3)
+			TreeL.bagAdd(prof, 2)
+		end
+		local StoreL = H.sharedServer("Logic.Store")
+		if StoreL then
+			local xp = 0
+			for L = 1, 6 do
+				xp += StoreL.levelCost(L)
+			end
+			prof.track.xp = xp + 40
+			prof.track.got = { 1 }
+		end
+		prof.passes.VIP = true
+		prof.vipDay = -1
+		prof.gifts.vip = true
+		prof.shells = 250000
+		H.push(p, 0.6)
+	end
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
-		if name == "work" then
+		if name == "store" or name == "looks" then
+			H.openPanel(p, name, arg)
+		elseif name == "work" then
 			-- the work picker for the first driftling (Work on its card): every workplace with its speed there
 			H.openPanel(p, "pals", { pal = H.profile(p).pals[1].id })
 		elseif name == "pal" then
@@ -799,7 +865,7 @@ local function panelScenario(name)
 	else
 		log("no UIKit.openPanel: capturing the HUD")
 	end
-	capture(p, "panel_" .. name)
+	capture(p, "panel_" .. name .. (if arg then "_" .. arg else ""))
 	if name == "pal" and UIKit and UIKit.openPanel then
 		-- a neighbour's driftling, only to look at: what its island's Pals attribute says
 		H.openPanel(p, "pal", { id = 9, plot = 99, sp = "gullfin", muts = { "trader2", "rainy3" }, work = "patch", home = "nest", isle = "Bo's Isle" })
@@ -2339,7 +2405,7 @@ end
 local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
 for _, name in list do
 	local fn = SCEN[name]
-	local panel = string.match(name, "^panel=(%w+)$")
+	local panel = string.match(name, "^panel=([%w:]+)$")
 	if panel then
 		fn = function()
 			return panelScenario(panel)

@@ -187,8 +187,17 @@ function CharacterModels.build(look: Types.Look, name: string, seed: number?): R
 		parts[sp.name] = p
 		rest[sp.name] = CFrame.new(sp.at)
 	end
-	-- (the pieces worn: the hat and the face's on the seated head, the neck's, the back's and a top's on its torso; the
-	-- held ones stay off the desk)
+	-- (the pieces worn: the hat and the face's on the seated head, the neck's, the back's and a top's on its torso, the
+	-- top's colours on the shirt and sleeves; the held ones stay off the desk)
+	local top = if type(look.top) == "string" and look.top ~= "" then CosmeticModels.top(look.top) else nil
+	if top then
+		for n, key in { Torso = top.torso, ArmL = top.arms, ArmR = top.arms } :: { [string]: string? } do
+			local p = parts[n]
+			if p and key then
+				p.Color = Blocks.color(key)
+			end
+		end
+	end
 	local extra = addWorn(model, parts, rest, look, { head = Vector3.new(0, -1, -0.05), body = Vector3.new(0, -1, -0.1) })
 	model.PrimaryPart = parts.Torso
 	return { model = model, parts = parts, rest = rest, seed = seed or 0, extra = extra }

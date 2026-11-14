@@ -18,6 +18,7 @@ local Workspace = game:GetService("Workspace")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Palette = require(ReplicatedStorage.Shared.Data.Palette)
+local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local PixelFont = require(ReplicatedStorage.Shared.Render.PixelFont)
 local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
@@ -1273,10 +1274,12 @@ end
 ------------------------------------------------------------------ portraits
 -- A developer's portrait: their rig drawn by Pixel/Snapshot like the world (2:1, toon bands, ink outline), cached by
 -- look. Without EditableImages a plain swatch of their shirt colour stands in.
+-- (the seated rig wears the hat, face, neck, back and top pieces of the look: Models/CharacterModels)
 function UIKit.portrait(parent: Instance, look: Types.Look, size: number, pos: UDim2): GuiObject
 	local snap = nil
 	if Snapshot.available() then
-		local key = string.format("dev:%d.%d.%d.%d:%d", look.skin, look.hair, look.style, look.shirt, size)
+		-- (keyed by the whole look, the pieces worn too: Data/Looks.encode)
+		local key = "dev:" .. Looks.encode(look :: any) .. ":" .. size
 		snap = Snapshot.get(key, function(): Instance?
 			-- head and shoulders, turned to face the viewer (the world's camera looks from +X +Z: yaw 45)
 			local rig = CharacterModels.build(look, "Portrait", 0)
@@ -1297,7 +1300,6 @@ function UIKit.portrait(parent: Instance, look: Types.Look, size: number, pos: U
 		l.ZIndex = 3
 		return l
 	end
-	local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 	local f = UIKit.plate(parent, UDim2.fromOffset(size, size), pos, UIKit.color(Looks.shirt[look.shirt] or "blue"), 0, 2)
 	f.Name = "Portrait"
 	return f
