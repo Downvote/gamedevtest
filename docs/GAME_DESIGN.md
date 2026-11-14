@@ -1619,7 +1619,10 @@ text (the requests and how each was met) is in the history of this file, up to c
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud
-  on a desktop, from 8). A bigger island is seen a part at a time as you walk.
+  on a desktop, from 8). Then closer again, to match Random Bakery's shop ("zoom in into the island more. it should fit
+  like this, with the playable island as big as the bakery"): `CamFrame` 0.75, about 11 art px a stud, the first
+  island's grass filling the screen between the HUD's strips, the beach running out to the edges. A bigger island is
+  seen a part at a time as you walk.
 - Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
   and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
   beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole
@@ -1677,8 +1680,9 @@ them": the feet were found by a ray down that met a roof or a bench first, so th
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
 rain; `settings.sfx`), and Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need
 for an option to turn off the pixel filter"). A tap works at once and is kept with the profile. **The camera on a phone** (the screen's short
-side 500 px or less) fits a smaller box round the island's heart (`CamFramePhone` 0.75 against `CamFrame` 0.95: the
-request of 2026-11-14, "On mobile, zoom in to fit the island more"), so the island fills the screen; the view follows
+side 500 px or less) fits a smaller box round the island's heart (`CamFramePhone` 0.6 against `CamFrame` 0.75: the
+request of 2026-11-14, "On mobile, zoom in to fit the island more", and both came closer by the same share for "zoom in
+into the island more"), so the island fills the screen; the view follows
 the founder round the rest. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:
 

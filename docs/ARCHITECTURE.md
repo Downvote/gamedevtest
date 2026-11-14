@@ -781,9 +781,10 @@ Roblox camera shows the 3D world.
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
 Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the island's heart (`FRAME`, the same on every
-tier, shrunk about its middle by `Tuning.CamFrame`: 0.95, 9 art px a stud on a desktop (a phone, the screen's short side 500 px or less, `Tuning.CamFramePhone`: 0.75, a step closer, 2026-11-14); it was 1 (8 px), then 0.7 (12 px)
-after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 after "zoom out abit
-more. the whole island should still be visible", both 2026-11-14) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
+tier, shrunk about its middle by `Tuning.CamFrame`: 0.75, about 11 art px a stud on a desktop (a phone, the screen's short side 500 px or less, `Tuning.CamFramePhone`: 0.6, a step closer); it was 1 (8 px), then 0.7 (12 px)
+after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 (9 px) after "zoom out abit
+more. the whole island should still be visible", then 0.75 (the phone's 0.75 to 0.6) after "zoom in into the island
+more. it should fit like this, with the playable island as big as the bakery", all 2026-11-14) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
 `Raster.gridPhase`) whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`),
 and its scale the one zoom. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
 key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: anything else (the HUD's blocks, the
