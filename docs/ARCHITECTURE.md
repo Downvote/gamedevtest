@@ -1646,7 +1646,14 @@ over `FADE_IN` 4 s. `DENSITY` (spawns a second per 1000 layer px at full strengt
 0.45, leaves 0.4, haze 0.25, breezy 0.35; times 0.5 / 0.75 / 1 by the picture tier); rain and storm are streaks
 (`MAX_STREAKS` 1600) of `RAIN_RGB` drawn back along their motion with `Fx.mix`, splashing as they land; snow (sprites
 `fx_flake1..3` from ArtData's `fx_flake_1..3`), petals and leaves (`Fx.KINDS`, tinted), haze motes and splashes share
-one `Fx.newSystem(1000)`; fog is four banks of `FOG_RGB` in `FOG_STEPS` 4 even steps of see-through. The light: the
+one `Fx.newSystem(1000)`; fog is `FOG_CLOUDS` 8 `Cloud`s (`{ x, y, vx, born, w, h, dx, dy, d, b, low, n }`, 8 x the
+tier scale, at least 2): x, y in global art px (the cam's `gx`, `gy`, so they hang over the world as the view pans),
+drifting right at 2.5 to 6 px a second; `shapeCloud` lays out 4 to 7 flattened puffs on a cloud 110 to 210 px wide
+(times the screen's fit, `min(W / 640, H / 360)` clamped 0.6 .. 1.2) and half as tall and keeps each pixel's thickness
+step (`d`: 1/4 .. 1), its `BAYER` 4x4 threshold (`b`) and whether it is on the underside (`low`); a pixel draws when
+`d x strength x fade > b` (`FOG_FADE` 2.5 s), mixed at `FOG_ALPHA` 0.62 in `FOG_TOP` or `FOG_LOW`. The first clouds are
+spread in slots across the screen; one gone off downwind comes back upwind with a new shape, one left behind by a pan
+wraps to the far side. The light: the
 kind's grade stepped in `GRADE_STEPS` 4 over `GRADE_SECS` 2 through `DayLight.setWeather`; a storm flashes it (x1.28,
 lift +10) for 0.12 s every 7 to 16 s and plays `Audio.play("thunder")` 0.6 to 1.4 s after. Sounds: `Audio.ambience`
 "rain" (1.4 x rain), "downpour" (0.45 x storm), "wind" (0.5 x the breeze, half the blossom or leaves, 0.6 x storm).

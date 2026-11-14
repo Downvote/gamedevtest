@@ -1,4 +1,5 @@
 --!strict
+--!native
 -- The weather on the islands (GAME_DESIGN 13; docs/ARCHITECTURE.md 10.12), drawn in the pixel layer: one effect layer
 -- of its own (PixelRenderer.addFxLayer, Render/Fx: depth-tested pixels and sprites on whole art pixels, no parts, no
 -- rays). The request (2026-11-14): "also, make weather and seasons, and eggs spawns are affected by these with
@@ -7,7 +8,7 @@
 --   rain: thin streaks falling at a slant, a pixel or two of splash where they land, a soft drizzle loop;
 --   storm: heavier, faster rain, a darker light, now and then a soft flash of lightning and a roll of thunder;
 --   snow: flakes (a pixel, a round one, a star) drifting down and settling on what faces up for a moment;
---   fog: banks of pale mist drifting across the screen, thicker in their middles in a few even steps;
+--   fog: soft clouds of mist drifting over the island, dithered thicker in their middles, moving with the world;
 --   blossom wind: pink petals tumbling across on the wind; falling leaves: orange and red leaves;
 --   heat haze: pale motes rising off the ground; breezy: quick lines of wind and a few leaves blowing past;
 --   sunny: nothing but the light.
@@ -223,41 +224,125 @@ local function stepStreaks(ctx: Fx.Ctx, dt: number)
 	counts.drops, counts.lines = drops, lines
 end
 
--- Fog: a few wide banks drifting across in front of everything, pale and see-through, thicker in their middles. The
--- thickness goes in four even steps (bands of one tone each, the way pixel art shades), never a blur and never a
--- checker.
-local FOG_RGB = 0xF4F6FA
-local FOG_STEPS = 4
-local function drawFog(ctx: Fx.Ctx, k: number, now: number)
-	local W, H = ctx.W, ctx.H
-	local c = Fx.pack(FOG_RGB)
-	local n = 0
-	for b = 1, 4 do
-		local bw = math.floor(W * (0.55 + 0.12 * (b % 3)))
-		local bh = 12 + (b * 5) % 11
-		local speed = 3 + b * 1.3
-		local x0 = math.floor(((now * speed + b * 173) % (W + bw)) - bw)
-		local y0 = math.floor(H * (0.1 + 0.22 * (b - 1)) + math.sin(now * 0.2 + b) * 3)
-		for y = 0, bh - 1 do
-			local fy = 1 - math.abs((y + 0.5) / bh * 2 - 1)
-			local row = y0 + y
-			if row >= 0 and row < H then
-				for x = 0, bw - 1 do
-					local px = x0 + x
-					if px >= 0 and px < W then
-						local fx = 1 - math.abs((x + 0.5) / bw * 2 - 1)
-						local env = math.min(fx * 3, 1) * math.min(fy * 2, 1)
-						local q = math.floor(env * FOG_STEPS + 0.5) / FOG_STEPS
-						if q > 0 then
-							Fx.mix(ctx, px, row, 0, c, k * 0.3 * q, 1e9)
-							n += 1
-						end
-					end
+-- Fog (the request of 2026-11-14: "the fog weather dosent look good. polish it more, with dithered fog clouds that
+-- move"): soft clouds of mist hanging over the island, drifting slowly downwind. A cloud is a few overlapping
+-- flattened puffs, its top lumpy, its underside flatter. How thick it is at a pixel (thickest in the middle, thinning
+-- to its edge, in four steps) is drawn with a 4x4 ordered dither fixed to the cloud, so the pattern moves with it and
+-- never crawls: every pixel in the middle, three in four, every other one, then one in four at the edge. The underside
+-- is a shade cooler than the top (lit from above). The clouds hang over the world (they scroll with the island when
+-- the view pans), come and go by the same dither, and one that drifts off the screen comes back in from upwind with a
+-- new shape.
+local FOG_TOP, FOG_LOW = 0xF6F8FC, 0xDCE3EE
+local FOG_ALPHA = 0.62
+local FOG_CLOUDS = 8 -- clouds at once on the high tier (fewer on the lower ones)
+local FOG_FADE = 2.5 -- seconds a cloud takes to come in
+local BAYER = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 }
+-- a cloud: where it is (global art px: Raster cams carry their pan as gx, gy), how fast it drifts, when it came in,
+-- its size, and its pixels: each one's place, thickness step, dither threshold and whether it is on the underside
+type Cloud = { x: number, y: number, vx: number, born: number, w: number, h: number, dx: { number }, dy: { number }, d: { number }, b: { number }, low: { boolean }, n: number }
+local clouds: { Cloud } = {}
+
+-- A new cloud's shape, w art px wide.
+local function shapeCloud(c: Cloud, w: number)
+	local h = math.floor(w * 0.5)
+	local puffs: { { number } } = {}
+	local n = 4 + rng:NextInteger(0, 3)
+	for k = 1, n do
+		local u = (k - 0.5) / n
+		local r = w * (0.18 + rng:NextNumber() * 0.12) * (1 - math.abs(u - 0.5) * 0.6)
+		table.insert(puffs, { w * (0.12 + 0.76 * u) + (rng:NextNumber() - 0.5) * w * 0.06, h * 0.66 - rng:NextNumber() * h * 0.16, r })
+	end
+	local dx, dy, d, b, low = {}, {}, {}, {}, {}
+	local m = 0
+	for y = 0, h - 1 do
+		for x = 0, w - 1 do
+			local best, under = 0, false
+			for _, p in puffs do
+				local px, py, r = p[1], p[2], p[3]
+				local below = y + 0.5 > py
+				local ex = (x + 0.5 - px) / r
+				local ey = (y + 0.5 - py) / (r * (if below then 0.4 else 0.74))
+				local v = 1 - math.sqrt(ex * ex + ey * ey)
+				if v > best then
+					best, under = v, y + 0.5 > py + r * 0.08
 				end
+			end
+			-- (thickness in four steps: the core from a little under half way in)
+			local step = math.ceil(math.clamp(best / 0.45, 0, 1) * 4 - 1e-6) / 4
+			if step > 0 then
+				m += 1
+				dx[m], dy[m], d[m] = x, y, step
+				b[m] = (BAYER[(y % 4) * 4 + (x % 4) + 1] + 0.5) / 16
+				low[m] = under
 			end
 		end
 	end
-	counts.fog = n
+	c.w, c.h, c.dx, c.dy, c.d, c.b, c.low, c.n = w, h, dx, dy, d, b, low, m
+end
+
+-- A cloud put somewhere: the first ones spread over the screen (slot `slot` of `of`: across it, in staggered rows),
+-- one coming back just upwind of it.
+local function placeCloud(c: Cloud, cam: Raster.Cam, W: number, H: number, upwind: boolean, now: number, slot: number?, of: number?)
+	-- (sized to the screen: a phone's smaller picture gets smaller clouds, so they hang over it the same)
+	local fit = math.clamp(math.min(W / 640, H / 360), 0.6, 1.2)
+	shapeCloud(c, math.floor(rng:NextInteger(110, 210) * fit))
+	local lx, ly
+	if upwind or slot == nil or of == nil then
+		lx = -c.w - rng:NextInteger(0, 60)
+		ly = rng:NextInteger(math.floor(H * 0.04), math.floor(H * 0.8))
+	else
+		lx = math.floor((slot - 0.5) / of * W - c.w / 2 + rng:NextInteger(-20, 20))
+		ly = math.floor(H * (if slot % 2 == 0 then 0.12 else 0.5) + rng:NextInteger(-20, 30))
+	end
+	c.x, c.y = lx + cam.gx, ly + cam.gy
+	c.vx = 2.5 + rng:NextNumber() * 3.5
+	c.born = if upwind then now else now - FOG_FADE
+end
+
+local function drawFog(ctx: Fx.Ctx, k: number, now: number, dt: number, still: boolean, scale: number)
+	local W, H, cam = ctx.W, ctx.H, ctx.cam
+	local want = math.max(2, math.floor(FOG_CLOUDS * scale + 0.5))
+	while #clouds < want do
+		local c: Cloud = { x = 0, y = 0, vx = 0, born = 0, w = 0, h = 0, dx = {}, dy = {}, d = {}, b = {}, low = {}, n = 0 }
+		placeCloud(c, cam, W, H, false, now, #clouds + 1, want)
+		table.insert(clouds, c)
+	end
+	local top, under = Fx.pack(FOG_TOP), Fx.pack(FOG_LOW)
+	local drawn = 0
+	for i, c in clouds do
+		if i > want then
+			break
+		end
+		if not still then
+			c.x += c.vx * dt
+		end
+		local lx, ly = math.floor(c.x - cam.gx), math.floor(c.y - cam.gy)
+		-- (gone off downwind: back in from upwind with a new shape; left behind by the view as it pans: round to the
+		-- far side of the screen, so there are always clouds about the screen)
+		if lx > W + 4 then
+			placeCloud(c, cam, W, H, true, now)
+		elseif lx + c.w < -40 then
+			c.x += W + c.w + 40 + rng:NextInteger(0, 30)
+		end
+		if ly > H + 4 then
+			c.y -= H + c.h + 8
+		elseif ly + c.h < -4 then
+			c.y += H + c.h + 8
+		end
+		lx, ly = math.floor(c.x - cam.gx), math.floor(c.y - cam.gy)
+		if lx + c.w < 0 or lx >= W or ly + c.h < 0 or ly >= H then
+			continue
+		end
+		local kk = k * math.clamp((now - c.born) / FOG_FADE, 0, 1)
+		local dxs, dys, ds, bs, lows = c.dx, c.dy, c.d, c.b, c.low
+		for m = 1, c.n do
+			if ds[m] * kk > bs[m] then
+				Fx.mix(ctx, lx + dxs[m], ly + dys[m], 0, if lows[m] then under else top, FOG_ALPHA, 1e9)
+				drawn += 1
+			end
+		end
+	end
+	counts.fog = drawn
 end
 
 local function draw(ctx: Fx.Ctx)
@@ -314,9 +399,10 @@ local function draw(ctx: Fx.Ctx)
 	counts.flakes = Fx.step(ctx, flakes, dt, 12, still)
 	local fog = strength.fog or 0
 	if fog > 0.02 then
-		drawFog(ctx, fog, now)
+		drawFog(ctx, fog, now, dt, still, math.max(scale, 0.5))
 	else
 		counts.fog = 0
+		table.clear(clouds)
 	end
 end
 

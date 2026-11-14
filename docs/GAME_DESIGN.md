@@ -2092,7 +2092,12 @@ colour. Hatching it adds that mutation.
 **On the islands** (in the pixel layer, one art pixel at a time, no parts): rain falls in thin slanted streaks with a
 pixel or two of splash; a storm is heavier and faster with a greyer light, a short flash of lightning every 7 to 16
 seconds and thunder after it; snow drifts down in three flake sizes and settles for a moment on what faces up; fog
-drifts across in pale banks, thicker in their middles in four even steps; blossom wind blows pink petals across, falling
+hangs over the island in soft clouds that drift slowly downwind (the request of 2026-11-14: "the fog weather dosent
+look good. polish it more, with dithered fog clouds that move"): each cloud is a few flattened puffs with a lumpy top
+and a flatter, slightly cooler underside, thick in the middle and thinning to its edge through a 4x4 ordered dither
+(every pixel, three in four, every other one, one in four) that is fixed to the cloud, so it moves with it and never
+crawls; the clouds scroll with the island when the view pans, fade in through the same dither, and one that drifts off
+comes back from upwind with a new shape; blossom wind blows pink petals across, falling
 leaves orange and red leaves, heat haze sends pale motes up off the ground, a breeze draws quick wind lines. Each
 weather tints the bright day a little (`DayLight.setWeather`) and keeps it bright: rain and storms a touch cooler and
 greyer, snow and fog lighter, haze and leaves warmer. A new spell fades in over a few seconds. Sounds: a drizzle loop

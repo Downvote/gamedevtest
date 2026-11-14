@@ -1002,6 +1002,12 @@ local function weatherScenario(kind: string)
 		log("status lines: %s", tostring(cs.text))
 	end
 	capture(p, "weather_" .. kind)
+	if kind == "fog" then
+		-- (the clouds a few seconds on: drifted downwind)
+		E.run(6)
+		settle(p, 10, 0.5)
+		capture(p, "weather_fog_later")
+	end
 	if kind == "storm" and WV then
 		H.inClient(p, WV.debugFlash, 1)
 		E.run(0.2)
