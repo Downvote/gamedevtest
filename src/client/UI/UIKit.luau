@@ -1,6 +1,10 @@
 --!strict
 -- The interface kit (docs/ARCHITECTURE.md 10; Random Bakery's look): pixel-art plates with stepped corners, the pixel
--- font, no borders, all on the world's pixel grid. Every root's canvas is laid out in UI px, one UI px = one art
+-- font, no borders, all on the world's pixel grid. Since the request of 2026-11-14 ("make the ui appear like this
+-- instead, with a black transparent background and make it neater", with a picture of Random Bakery's HUD) every
+-- card, panel, bar and notice is black see-through glass (UIKit.glass: flat, small stepped corners, no outline,
+-- frame, bevel or shadow), an item in a list sits on a faint veil (UIKit.row), buttons are flat with a darker bottom
+-- lip, and a neutral button is a dark glass one with white words. Every root's canvas is laid out in UI px, one UI px = one art
 -- pixel = K screen px (UIScale K = PixelRenderer.pixelScale()), so the interface, the text and the world share one
 -- grid. Labels are drawn by Pixel/PixelText when EditableImages work, else they stay native in Press Start 2P.
 -- Conventions the sims rely on: a button is a TextButton whose child TextLabel holds its words; a disabled button has
@@ -274,7 +278,16 @@ end
 -- that much more room on every side), lit along the top and left, shaded along the bottom and right, seams between
 -- the planks and a nail head in each corner; `style.bevel` lights the plate's top row and shades its bottom one (a
 -- carved board: chips, rows). Content goes in it at ZIndex >= 1.
-export type PlateStyle = { edge: boolean?, shadow: boolean?, edgeColor: Color3?, wood: number?, bevel: boolean? }
+export type PlateStyle = { edge: boolean?, shadow: boolean?, edgeColor: Color3?, wood: number?, bevel: boolean?, glass: boolean?, row: boolean? }
+
+-- The look since 2026-11-14 (Random Bakery's HUD): black glass this see-through (BackgroundTransparency) behind the
+-- HUD's cards and bars, the panels, the tray and the notices; an item's veil over it (white, this see-through); a dark
+-- button's face (the glass a step darker); the padding inside a glass plate.
+UIKit.GLASS_ALPHA = 0.38
+UIKit.PANEL_ALPHA = 0.16 -- a panel's glass (its lists and words over the world: denser)
+UIKit.ROW_ALPHA = 0.9
+UIKit.DARK_ALPHA = 0.3
+UIKit.PAD = 4
 
 -- The wooden frame round a plate (style.wood = t px of planks): a child behind the plate's own rectangles, `t + 1`
 -- px out on every side. Its seams fall every PLANK px along the top and bottom (staggered) and down the sides.
@@ -360,6 +373,22 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 	local st: PlateStyle = style or {}
 	local edged = st.edge ~= false
 	local ink = st.edgeColor or UIKit.color("ink")
+	if st.glass or (st.wood and st.wood > 0) then
+		-- black see-through glass (the old frames of planks are gone: a `wood` plate is glass too): flat, its corners
+		-- at most two steps, no outline, frame, bevel or shadow
+		col = UIKit.color("glass")
+		a = if st.glass and alpha then alpha else UIKit.GLASS_ALPHA
+		k = math.min(k, 2)
+		edged = false
+		st = { edge = false }
+	elseif st.row then
+		-- an item's veil over the glass (or a tinted one: picked, ready)
+		col = c or UIKit.color("veil")
+		a = alpha or UIKit.ROW_ALPHA
+		k = math.min(k, 1)
+		edged = false
+		st = { edge = false }
+	end
 	-- a rectangle from `l` px in on the left to `r` px in on the right, `y` px down (from the top or, bottom, up)
 	local function rect(name: string, color: Color3, l: number, r: number, y: number, h: UDim, bottom: boolean?)
 		local q = Instance.new("Frame")
@@ -473,28 +502,23 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 	return f
 end
 
--- A title plank across a plate's top (GAME_DESIGN 2: the island's looks): a board of the frame's wood from row 1 to
--- row `h` inside the outline (its ends stepped with the plate's corner `k`), lit along its top, shaded along its
--- bottom, a little grain where the plate's width is known, and an ink rule under it (row h + 1).
-function UIKit.plank(frame: Frame, h: number, k: number?)
-	local kk = math.clamp(math.floor(k or 3), 1, 3)
-	local band = UIKit.color("frame")
-	for y = 1, kk - 1 do
-		local inset = 1 + kk - y
-		UIKit.rect(frame, UDim2.new(1, -2 * inset, 0, 1), UDim2.fromOffset(inset, y), band, 1).Name = "TitleBand"
-	end
-	UIKit.rect(frame, UDim2.new(1, -2, 0, h - kk + 1), UDim2.fromOffset(1, kk), band, 1).Name = "TitleBand"
-	UIKit.rect(frame, UDim2.new(1, -2 * (kk + 1), 0, 1), UDim2.fromOffset(kk + 1, 1), UIKit.color("frame_hi"), 1).Name = "TitleBand"
-	UIKit.rect(frame, UDim2.new(1, -2, 0, 1), UDim2.fromOffset(1, h), UIKit.color("frame_lo"), 1).Name = "TitleBand"
-	local w = frame.Size.X.Offset
-	if frame.Size.X.Scale == 0 and w > 40 then
-		local grain = band:Lerp(UIKit.color("frame_lo"), 0.45)
-		for _, g in { { 0.3, 0.09 }, { 0.62, 0.12 } } do
-			local y = if g[1] < 0.5 then math.floor(h / 2) - 1 else math.floor(h / 2) + 2
-			UIKit.rect(frame, UDim2.fromOffset(math.max(4, math.floor(w * g[2])), 1), UDim2.fromOffset(math.floor(w * g[1]), y), grain, 1).Name = "Grain"
-		end
-	end
-	UIKit.rect(frame, UDim2.new(1, -2, 0, 1), UDim2.fromOffset(1, h + 1), UIKit.color("ink"), 1).Name = "TitleRule"
+-- The rule under a card's or panel's title row (the title planks went with the frames on 2026-11-14): a faint line
+-- `UIKit.PAD` px in from each side, `h + 1` px down. (`k`, the old plank's corner, is not used.)
+function UIKit.plank(frame: Frame, h: number, _k: number?)
+	local r = UIKit.rect(frame, UDim2.new(1, -2 * UIKit.PAD, 0, 1), UDim2.fromOffset(UIKit.PAD, h + 1), UIKit.color("rule"), 1)
+	r.BackgroundTransparency = 0.84
+	r.Name = "TitleRule"
+end
+
+-- Black see-through glass (the look since 2026-11-14): every card, panel, bar and notice. `corner` 1 or 2 steps.
+function UIKit.glass(parent: Instance?, size: UDim2, pos: UDim2?, corner: number?): Frame
+	return UIKit.plate(parent, size, pos, nil, nil, corner or 2, { glass = true })
+end
+
+-- An item's veil over the glass (a row, a card in a list): white, faint; `c` tints it (picked, ready), `alpha` its
+-- see-through (UIKit.ROW_ALPHA by default).
+function UIKit.row(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, alpha: number?): Frame
+	return UIKit.plate(parent, size, pos, c, alpha, 1, { row = true })
 end
 
 function UIKit.setPlate(plate: Instance, c: Color3?, alpha: number?)
@@ -524,30 +548,55 @@ function UIKit.rect(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3, z: n
 end
 
 ------------------------------------------------------------------ buttons
-export type ButtonOpts = { color: Color3?, textColor: Color3?, enabled: boolean?, name: string?, face: string? }
+export type ButtonOpts = { color: Color3?, textColor: Color3?, enabled: boolean?, name: string?, face: string?, ghost: boolean? }
 
 local buttonColor: { [GuiButton]: Color3 } = {}
 
--- The plate colour a button shows now: its own (lighter while hovered) or the disabled grey.
+-- The plate a button shows now. A coloured button is flat in its colour with a darker lip along its bottom (lighter
+-- while hovered; the disabled grey). A neutral one (the old wooden colours: plate, plate_light, frame) is a dark glass
+-- button: the glass a step darker, white words, a faint veil while hovered. A ghost (opts.ghost: the menu bar's) shows
+-- no surface until the mouse is over it.
 local hovered: { [GuiButton]: boolean } = {}
+local neutralSet: { [string]: boolean }? = nil
+local function isNeutral(c: Color3): boolean
+	local set = neutralSet
+	if set == nil then
+		local n: { [string]: boolean } = {}
+		for _, key in { "plate", "plate_light", "frame", "frame_dark", "glass" } do
+			n[UIKit.color(key):ToHex()] = true
+		end
+		neutralSet = n
+		set = n
+	end
+	return (set :: { [string]: boolean })[c:ToHex()] == true
+end
+UIKit.isNeutral = isNeutral
 local function paintButton(b: GuiButton)
 	local plate = b:FindFirstChild("Plate")
 	if plate == nil then
 		return
 	end
-	local c = if b.AutoButtonColor then (buttonColor[b] or UIKit.color("button")) else UIKit.color("button_off")
-	if hovered[b] and b.AutoButtonColor then
-		c = c:Lerp(Color3.new(1, 1, 1), 0.18)
+	local base = buttonColor[b] or UIKit.color("button")
+	local on = b.AutoButtonColor
+	local hot = hovered[b] == true and on
+	local c, a, lipA = base, 0, 0
+	if b:GetAttribute("Ghost") then
+		c, a, lipA = UIKit.color("veil"), if hot then 0.84 else 1, 1
+	elseif isNeutral(base) then
+		c = if hot then UIKit.color("glass"):Lerp(Color3.new(1, 1, 1), 0.2) else UIKit.color("glass")
+		a = if on then UIKit.DARK_ALPHA else 0.55
+		lipA = 1
+	elseif not on then
+		c = UIKit.color("button_off")
+	elseif hot then
+		c = base:Lerp(Color3.new(1, 1, 1), 0.18)
 	end
-	UIKit.setPlate(plate, c)
-	-- the bevel: a lit top row, a shaded lip along the bottom
-	local shine = plate:FindFirstChild("Shine")
-	if shine and shine:IsA("Frame") then
-		shine.BackgroundColor3 = c:Lerp(Color3.new(1, 1, 1), 0.3)
-	end
+	UIKit.setPlate(plate, c, a)
+	-- the lip along the bottom: the face a shade darker (none on a dark or ghost button)
 	local lip = plate:FindFirstChild("Lip")
 	if lip and lip:IsA("Frame") then
-		lip.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.25)
+		lip.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.28)
+		lip.BackgroundTransparency = lipA
 	end
 end
 
@@ -579,12 +628,13 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 	b.ZIndex = 2
 	local col = o.color or UIKit.color("button")
 	buttonColor[b] = col
-	local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, col, 0, 2)
+	if o.ghost then
+		b:SetAttribute("Ghost", true)
+	end
+	-- flat, its corners stepped, no outline; a darker lip along the bottom (pressed, the button sinks a pixel)
+	local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, col, 0, 2, { edge = false })
 	plate.ZIndex = 1
-	-- a bevel inside the outline: a lit top row and a darker lip along the bottom (pressed, the button sinks a pixel)
-	local shine = UIKit.rect(plate, UDim2.new(1, -4, 0, 1), UDim2.fromOffset(2, 1), col:Lerp(Color3.new(1, 1, 1), 0.3), 1)
-	shine.Name = "Shine"
-	local lip = UIKit.rect(plate, UDim2.new(1, -4, 0, 1), UDim2.new(0, 2, 1, -2), col:Lerp(Color3.new(0, 0, 0), 0.25), 1)
+	local lip = UIKit.rect(plate, UDim2.new(1, -4, 0, 1), UDim2.new(0, 2, 1, -1), col:Lerp(Color3.new(0, 0, 0), 0.28), 1)
 	lip.Name = "Lip"
 	local l = UIKit.text(b, text, UDim2.new(1, -4, 1, 0), UDim2.fromOffset(2, 0), {
 		x = "center",
@@ -626,6 +676,8 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 	b.Parent = parent
 	if o.enabled == false then
 		UIKit.setEnabled(b, false)
+	else
+		paintButton(b)
 	end
 	return b
 end
@@ -797,18 +849,18 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Size = UDim2.fromScale(1, 1)
 	shade.ZIndex = 1
 	local fx, fy = math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)
-	-- a board of driftwood in a frame of planks (GAME_DESIGN 2: the island's looks)
-	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), UIKit.color("plate"), 0, 3, { shadow = true, wood = 3 })
+	-- black see-through glass (the look since 2026-11-14), the world dimmed behind it
+	local frame = UIKit.plate(shade, UDim2.fromOffset(sz.X, sz.Y), UDim2.fromOffset(fx, fy + 10), nil, UIKit.PANEL_ALPHA, 2, { glass = true })
 	frame.Name = "Frame"
 	frame.ZIndex = 2
-	-- the title: a plank across the top, a rule under it
-	UIKit.plank(frame, 15, 3)
-	local tx = 6
+	-- the title row: its icon and words, a faint rule under it
+	UIKit.plank(frame, 15)
+	local tx = UIKit.PAD + 1
 	if def.icon then
-		PixelSprites.image(frame, "mini_" .. def.icon, UDim2.fromOffset(5, 3), 3)
-		tx = 18
+		PixelSprites.image(frame, "mini_" .. def.icon, UDim2.fromOffset(UIKit.PAD + 1, 3), 3)
+		tx = UIKit.PAD + 14
 	end
-	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(tx, 2), { color = UIKit.color("paper"), kind = "shadow", under = UIKit.color("ink"), name = "Title", z = 3 })
+	UIKit.text(frame, def.title, UDim2.new(1, -40, 0, 14), UDim2.fromOffset(tx, 2), { color = UIKit.color("text"), kind = "shadow", under = UIKit.color("ink"), name = "Title", z = 3 })
 	-- the status line: notices while the panel is open land here instead of covering it
 	local titleW = UIKit.textWidth(def.title) + tx + 8
 	UIKit.text(frame, "", UDim2.new(1, -(titleW + UIKit.buttonWidth("Close", 4) + 8), 0, 14), UDim2.fromOffset(titleW, 2), { color = UIKit.color("text"), name = "Status", x = "right" })
@@ -828,7 +880,7 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Parent = canvas
 	openFrame = shade :: any
 	openName = name
-	UIKit.tween(shade, 0.15, { BackgroundTransparency = 0.5 })
+	UIKit.tween(shade, 0.15, { BackgroundTransparency = 0.45 })
 	UIKit.tween(frame, 0.15, { Position = UDim2.fromOffset(fx, fy) })
 	Audio.play("open")
 	local ok, err = pcall(function()
@@ -907,7 +959,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	local w = math.min(UIKit.textWidth(text) + 14, s.X - 16)
 	local lines = if UIKit.textWidth(text) + 14 > w then 2 else 1
 	local h = 6 + 10 * lines
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), UIKit.color("plate"), 0.08, 2, { shadow = true, wood = 2 })
+	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), 2)
 	f.Name = "Notice"
 	UIKit.rect(f, UDim2.new(0, 2, 1, -4), UDim2.fromOffset(2, 2), color or UIKit.color("accent"), 1)
 	local words = UIKit.text(f, text, UDim2.new(1, -12, 1, -2), UDim2.fromOffset(7, 1), { wrap = true, name = "Words" })

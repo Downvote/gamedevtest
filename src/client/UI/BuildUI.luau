@@ -659,7 +659,7 @@ local function showTip(card: GuiObject, def: Buildings.BuildingDef, v: Types.Cli
 	local h = 26 + nl * 10 + (if def.tier > v.tier then 10 else 0)
 	local at = card.AbsolutePosition - UIKit.canvasOrigin("Hud")
 	local x = math.clamp(math.floor(at.X + CARD_W / 2 - w / 2), 4, s.X - w - 4)
-	local f = UIKit.plate(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, s.Y - TRAY_H - 8 - h), UIKit.color("plate"), 0.03, 2, { bevel = true, shadow = true })
+	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, s.Y - TRAY_H - 8 - h), 2)
 	f.Name = "BuildTip"
 	f.ZIndex = 20
 	UIKit.text(f, def.name, UDim2.fromOffset(w - 8, 10), UDim2.fromOffset(4, 3), { color = UIKit.color("accent"), z = 22, name = "TipName" })
@@ -696,7 +696,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 			continue
 		end
 		local afford = v.shells >= cost.shells and v.wood >= cost.wood
-		local card = UIKit.plate(list, UDim2.fromOffset(88, CARD_H + 10), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
+		local card = UIKit.row(list, UDim2.fromOffset(88, CARD_H + 10), nil)
 		card.Name = "Swap_" .. id
 		card.LayoutOrder = k
 		picture(card, id, UDim2.fromOffset(3, 3), 4)
@@ -732,7 +732,7 @@ local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, 
 	-- a placing bar sits low in Bloxburg)
 	local keyed = UserInputService.KeyboardEnabled
 	local h = math.max(PIC + 8, 14 + nl * 10 + (if keyed then 12 else 0) + 3)
-	local info = UIKit.plate(f, UDim2.new(1, -8, 0, h), UDim2.fromOffset(4, 18), UIKit.color("plate_light"), 0, 2, { bevel = true })
+	local info = UIKit.row(f, UDim2.new(1, -8, 0, h), UDim2.fromOffset(4, 18))
 	info.Name = "Info"
 	picture(info, p.id, UDim2.fromOffset(4, 4), 4)
 	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
@@ -936,7 +936,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		local noRoom = def.kind == "nest" and hutsFull
 		local afford = v.shells >= def.shells and v.wood >= def.wood
 		local picked = pick ~= nil and pick.id == def.id
-		local card = UIKit.plate(list, UDim2.fromOffset(CARD_W, CARD_H), nil, if picked then UIKit.color("accent") else UIKit.color("plate_light"), 0, 2, { bevel = true })
+		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil, if picked then UIKit.color("accent") else nil, if picked then 0.55 else nil)
 		card.Name = "Card_" .. def.id
 		card.LayoutOrder = k
 		local goal = tutGoal(v)
@@ -1068,7 +1068,7 @@ end
 local function searchField(parent: Frame, w: number, pos: UDim2): Frame
 	local f = search
 	if f == nil then
-		local nf = UIKit.plate(nil, UDim2.fromOffset(w, 12), pos, UIKit.color("plate_light"), 0, 2, { bevel = true })
+		local nf = UIKit.row(nil, UDim2.fromOffset(w, 12), pos)
 		nf.Name = "BuildSearch"
 		local box = Instance.new("TextBox")
 		box.Name = "Box"
@@ -1138,7 +1138,7 @@ rebuild = function()
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	-- a workbench of driftwood in a frame of planks (GAME_DESIGN 2: the island's looks), its tabs on a plank
-	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 16, TRAY_H), UDim2.new(0, 8, 1, -6), UIKit.color("plate"), 0.03, 3, { shadow = true, wood = 3 })
+	local f = UIKit.plate(canvas, UDim2.fromOffset(s.X - 16, TRAY_H), UDim2.new(0, 8, 1, -6), nil, UIKit.PANEL_ALPHA, 2, { glass = true })
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "BuildTray"
 	UIKit.plank(f, 15, 3)
@@ -1534,7 +1534,8 @@ function BuildUI.open(onTab: string?)
 		end
 		local c = goalCard
 		if c and c.Parent then
-			UIKit.setPlate(c, UIKit.color("plate_light"):Lerp(UIKit.color("accent"), k))
+			-- (the card's veil glows toward the accent and back)
+			UIKit.setPlate(c, UIKit.color("veil"):Lerp(UIKit.color("accent"), k), UIKit.ROW_ALPHA - 0.4 * k)
 			if shine then
 				local b = c:FindFirstChildWhichIsA("GuiButton")
 				if b then
@@ -1544,7 +1545,7 @@ function BuildUI.open(onTab: string?)
 		end
 		local tb = goalTab
 		if tb and tb.Parent then
-			UIKit.setButtonColor(tb, UIKit.color("plate_light"):Lerp(UIKit.color("accent"), k))
+			UIKit.setButtonColor(tb, UIKit.color("button"):Lerp(UIKit.color("accent"), k))
 		end
 	end))
 	-- the stores every second: the tray follows what can be afforded (rebuilt when that changes)

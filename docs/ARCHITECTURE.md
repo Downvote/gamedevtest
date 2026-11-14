@@ -90,6 +90,10 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > eggs waiting for the land) and "also, in build mode, make the camera still follow the player as they walk around, even
 > though it is displaced downwards abit" (CameraController's Build mode follow and drag offset, `buildDrag`,
 > `Tuning.CamBuildRecenter`; BuildUI's ghost following a still mouse)
+> Then (with a picture of Random Bakery's HUD) "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
+> island more such that there isnt too much sea in the screen"
+> (`UIKit.glass`, `UIKit.row`, `GLASS_ALPHA`, `PANEL_ALPHA`, `ROW_ALPHA`, `DARK_ALPHA`, `PAD`; `Palette.ui` glass, veil,
+> rule, xp; ghost and dark buttons; Hud's top bar, status panel and `Hud.statusLine`; `Tuning.CamFrame`)
 
 ## 1. Layout and tooling
 
@@ -647,7 +651,8 @@ Roblox camera shows the 3D world.
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
 Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the island's heart (`FRAME`, the same on every
-tier) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
+tier, shrunk about its middle by `Tuning.CamFrame`: 0.7 since 2026-11-14, "zoom into the island more such that there
+isnt too much sea in the screen", about 1.4 times closer than at 1) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
 `Raster.gridPhase`) whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`),
 and its scale the one zoom. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
 key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: anything else (the HUD's blocks, the
@@ -867,20 +872,28 @@ it.
 Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
 with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `hex`, `P`, `size(root)`, `phone`,
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound), `setText`, `setTextColor`, `textWidth`,
-`lineHeight`, `lines(text, w, face?)` (how many lines a wrapped label breaks it into), `plate(parent, size, pos?, color?, alpha?, corner?, style?)` (stepped corners with a 1 px ink outline
+`lineHeight`, `lines(text, w, face?)` (how many lines a wrapped label breaks it into). The look since 2026-11-14
+("make the ui appear like this instead, with a black transparent background and make it neater", with a picture of
+Random Bakery's HUD): `glass(parent, size, pos?, corner?)` (black see-through glass: `Palette.ui.glass` at
+`GLASS_ALPHA` 0.38 transparency, corners of at most two steps, no outline, frame, bevel or shadow: every HUD block,
+the tray, the notices, the hatch scene's plates; a panel's glass at `PANEL_ALPHA` 0.16), `row(parent, size, pos?, c?,
+alpha?)` (an item's veil over the glass: `veil` white at `ROW_ALPHA` 0.9, one-step corners; `c` tints it, a picked
+card the accent at 0.55), `PAD` (4 UI px inside a block), `isNeutral(color)`; `plate` with `{ glass = true }` or the
+old `{ wood = t }` is glass, with `{ row = true }` a veil. `plate(parent, size, pos?, color?, alpha?, corner?, style?)` (stepped corners with a 1 px ink outline
 following them: "Fill" rects inside "Edge" rects, none overlapping; `style { edge = false }` a flat swatch, `{ shadow
 = true }` a 2 px drop shadow right and below, "Shadow"; the island's looks (GAME_DESIGN 2): `{ wood = t }` a frame of
 planks t px wide outside the outline and an ink outline round it ("Wood": a "Board" behind, "Hi" / "Lo" bevel rows,
 "Seam"s every `PLANK` px, a "Nail" in each corner; the plate then takes t + 1 px more on every side, the shadow moved
 out with it), `{ bevel = true }` a lit top row and a shaded bottom one, "BevelHi" / "BevelLo"), `plank(frame, h, k?)`
-(a title plank across a plate's top, rows 1 .. h: "TitleBand" rects lit along the top and shaded along the bottom,
-"Grain", an ink "TitleRule" at row h + 1), `setPlate` (the fill), `rect`, `button` (a TextButton with
-a child "Words" label over a plate with a bevel, "Shine" and "Lip", recoloured with it; disabled = `AutoButtonColor`
-false; fires on `Activated`), `setEnabled`, `setButtonText`,
+(since 2026-11-14 a faint white `TitleRule` at row h + 1, `PAD` in from each side: the planks went with the frames),
+`setPlate` (the fill), `rect`, `button` (a TextButton with a child "Words" label over a flat plate (no outline) with a
+darker 1 px "Lip"; a coloured button flat in its colour, lighter while hovered, `button_off` grey disabled; a neutral
+colour (`plate`, `plate_light`, `frame`, `frame_dark`, `glass`) makes a dark glass button: `glass` at `DARK_ALPHA`
+0.3, white words, a faint veil while hovered, no lip; `opts.ghost` (the menu bar) shows no surface until hovered,
+then a veil; `opts.textColor`; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
 `setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
-(`registerPanel(name, { title, icon?, w, h, build })`: a plate in a frame of planks (`wood = 3`) with a drop shadow over a `sea_shade` veil, as big as asked within the screen less 10 px each way (its frame fits), a `plank` title (the title in `paper`), a coral `Close` (`button_close`), a `TitleBand` with the
-`mini_<icon>` and the title, a `TitleRule` under it; `openPanel(name, arg)`, `closePanel`, `currentPanel`,
+(`registerPanel(name, { title, icon?, w, h, build })`: black glass at `PANEL_ALPHA` over a `sea_shade` veil (0.45 transparent), as big as asked within the screen less 10 px each way, the `mini_<icon>` and the title in white, a coral `Close` (`button_close`), a `TitleRule` under them; `openPanel(name, arg)`, `closePanel`, `currentPanel`,
 `refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
@@ -1005,14 +1018,21 @@ Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` 
 now), `setSuspended(on)` (a timing's A/B).
 
 ### 10.3 `Hud`
-The island's looks (GAME_DESIGN 2): the chips are carved boards in thin frames of planks (`CHIP_Y` 5), the cards in
-thick ones with their names on planks (`CARD_Y` = `TOP_H` + 15, 7 px in from the right), the menu bar stands on a
-`Dock` (a dark board in a thin frame, `DOCK` 6 px round the buttons); the camera's strips are kept clear of all of it.
-Chips (`Chip_wood`, `Chip_shells`, each an 11 px icon and the store easing to its value, flashing when it changes; no
-food chip since 2026-11-13; `Chip_day`, "Day 3" with the day's clock along its edge and a sun that sets into a moon;
-then `Home`, a button shown while the founder is off their own island, sending `char.home`; `MusicToggle` in the top
-right corner, the `mini_note`, sending `settings.set` music on / off, the note greyed while off), the menu bar
-(`Menu_build`, `Menu_pals`, `Menu_index`, `Menu_looks`, each with its icon; while Build mode is open the bar and the
+The look since 2026-11-14 (GAME_DESIGN 2, Random Bakery's HUD): every block is `UIKit.glass`, `EDGE` 5 UI px from the
+screen's edges, `GAP` 3 between blocks stacked in a column. The `TopBar` (`CHIP_Y` 4, `TOP_H` 14 tall) holds the chips
+side by side, `CHIP_GAP` 7 apart, each as wide as its words need (`CHIP_MIN`: 40, 40, 46; `layoutTop` when a value's
+text changes); the cards start at `CARD_Y` = `CHIP_Y` + `TOP_H` + 4; the right column `CARD_W` 116 wide (104 on a
+phone); the menu bar on one glass `Dock` (`DOCK` 3 round its ghost buttons); the camera's strips are kept clear of all
+of it. Chips (`Chip_wood`, `Chip_shells`, frames in the `TopBar`, each an 11 px icon and its `Value` easing to the
+store, the number flashing gold when it changes; no food chip since 2026-11-13; `Chip_day`, "Day 3" with the day's
+clock as a thin gold `DayBar` under its words; then `Home`, a button shown while the founder is off their own island, sending `char.home`; `MusicToggle` in the top
+right corner (a dark glass button), the `mini_note`, sending `settings.set` music on / off, the note greyed while off),
+the `Status` panel under the top bar on the left (`Hud.statusLine(name, icon?, text?, color?)`: adds, changes or, with
+a nil `text`, removes a line `Status_<name>` (an 11 px `mini_<icon>` and its `Text`); hidden while it has no lines and
+for a panel or Build mode; the `Quest` card sits under it; a module mounted from Hud can be handed `Hud.statusLine`),
+the menu bar
+(`Menu_build`, `Menu_pals`, `Menu_index`, `Menu_looks`, ghost buttons, each with its icon, Build's words in the
+accent; while Build mode is open the bar and the
 cards step aside and the tips banner sits on the tray (`BuildUI.trayHeight()`: lower while a piece is picked) with a
 Build mode wording (`TIPS_BUILD`)), the `IslandCard`
 on the right (the island's name for its tier, driftlings in huts / the huts' room (`Pals`), visitors, charm, and what
@@ -1024,14 +1044,15 @@ a turn makes of wood and shells a minute, `Rate_wood` and `Rate_shell`: `Numbers
 `PriceIcon`, `good` when the shells are there, else `text_dim`), or "No eggs right now", and over the rows the
 see-through `TreeCardTap` opening the "tree" panel (the card buys nothing itself); built again from each
 view only when the rows' ids, costs, whether the shells cover them or the number of eggs change (its `Key`
-attribute); on a phone the card at the top left; hidden in Build mode and while the "tree" panel is open), the questline's card `Quest` (GAME_DESIGN 9: down the left at `CARD_Y`, `QUEST_W`
+attribute); on a phone the card at the top left; the island card and it hidden in Build mode and while any panel is
+open, since 2026-11-14, so nothing shows through a panel's glass), the questline's card `Quest` (GAME_DESIGN 9: down the left under the `Status` panel, `QUEST_W`
 150, under the `TreeCard` on a phone; hidden while the tips are on and for a panel; `updateQuest(v)` from the view
 through `Quest.current` / `Quest.progress`, laid out again when the quest or its count changes, sliding in: the
 quest's `mini_` icon, `Title`, `Which` ("3/20"), `Words`, then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
 panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_<store>`, wood then shells) and
 `QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`: the steps of
 GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
-mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; a parchment note in a thin frame; on a
+mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; glass with white words; on a
 phone it keeps to the room left of the island card, wrapping to two lines), and the `DayBanner` (Fx "day" and "turn":
 the day, what hatched; over a panel or in Build mode a notice instead); Fx "eggs" (`onEggs`): "The Tree of Life laid new eggs." (with `more`, "The tree laid 2 more eggs.") and the `rare`
 sound, or, with an epic or legendary egg among them (or `turned`, the quest's egg, of any rarity: "A rare egg is
@@ -1105,8 +1126,9 @@ Other players' names float over their heads (World root). `founderPos()`, `count
 ### 10.7 `BuildUI` (Build mode), `BuildFx` and `Puffs`
 `open(tab?)` (the HUD's Build button; `tab`: the tray opens on that tab, the quests' Go; an old tab's name, `farm`
 `wood` `shop` or `gen`, opens Work on that row; a tip's tab still wins): closes any panel,
-`CameraController.setFree(true, TRAY_H + 8)` and lays out the tray `BuildTray` along the bottom (a workbench in a frame
-of planks, `wood = 3`, its tabs on a `plank`; `TRAY_H` (82) tall, shorter while a piece is picked, below). With nothing
+`CameraController.setFree(true, TRAY_H + 8)` and lays out the tray `BuildTray` along the bottom (black glass at
+`UIKit.PANEL_ALPHA` since 2026-11-14, its tabs dark glass buttons, the chosen one the accent, the cards faint veils, a
+picked one an accent veil; `TRAY_H` (82) tall, shorter while a piece is picked, below). With nothing
 picked it holds: the tabs `Tab_work Tab_nest Tab_path Tab_fence Tab_water Tab_nature Tab_decor Tab_fun` (Work, Huts,
 Paths, Fences, Water, Nature, Decor, Fun, each with its `mini_` icon `work nest path fence water nature decor fun`; the
 icons alone when the names don't fit; it opens on Work's Wood row); the count (`Count`: the tab's group against its

@@ -112,6 +112,10 @@ local Tuning = {
 	CamFov = 1, -- Roblox camera FieldOfView while the pixel filter is on (far away, visually orthographic)
 	CamOffFov = 8, -- the classic "off" style
 	CamPad = 4, -- art px kept free between the lodge's outline and the screen edges or a HUD block
+	-- the box round the island's heart the view fits, as a share of its old size (CameraController FRAME): smaller is
+	-- closer (the request of 2026-11-14: "zoom into the island more such that there isnt too much sea in the screen";
+	-- 1 before it, about 1.4 times as close now)
+	CamFrame = 0.7,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	CamGlide = 0.18, -- share of the way to its target the view moves a frame (in whole art px)
