@@ -1499,13 +1499,15 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   light changing with it. Then each mutation: a shake, a new crack, and its plate sliding in at the right with its name
   in its tier's colour, its star sprites and what it does ("Lucky", one star, "+5% egg luck"). Each of these taps runs the cracks a
   little further (three stages) with the crunch of a cracking shell, a little higher each time, and shakes the egg:
-  it rocks on its foot and jumps side to side, settling over half a second. Each crack is a thin line, a dark edge
-  either side of a core in the rarity's light, and light streams out of it: 1 px motes of that light and of white
-  flowing out from a few places along every crack shown, away from the egg, more as it cracks further (the request of
-  2026-11-14: "cracks sometimes become filled like this, can you make it such that light streams out instead when this
-  happens?"; the cracks had been bars a quarter of a stud wide standing off the shell, which ran together into blots).
-  Once nothing is left the cracks glow from inside and the light pours out faster, the egg trembles and the hint says
-  "Tap to hatch it".
+  it rocks on its foot and jumps side to side, settling over half a second. Each crack is a thin line glowing in the
+  rarity's light, no dark edge, and rays of light stream out of it: thin 1 px rays from places along every crack shown,
+  fanning out away from the egg, white at the crack and fading out toward their tips, each growing out, holding and
+  going while another comes from somewhere else, more and longer as it cracks further (the requests of 2026-11-14:
+  "cracks sometimes become filled like this, can you make it such that light streams out instead when this happens?",
+  then "make light stream out, as in rays of light streaming out, like the image. no need for the black outlines when
+  cracking"; the cracks had been bars a quarter of a stud wide standing off the shell, which ran together into blots).
+  A ray keeps to one of sixteen clean slopes (flat, 2:1, 1:1, 1:2, upright), so its steps are even. Once nothing is
+  left the cracks glow white and the most rays pour out, the egg trembles and the hint says "Tap to hatch it".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
 - **Shaking open** (the request of 2026-11-14: "Make eggs shake while being cracked open"): the tap that hatches it
   crunches, every crack shows, and the egg shakes harder and faster for a little over half a second before the shell

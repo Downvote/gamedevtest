@@ -1506,10 +1506,14 @@ texSoft; `texOpt` in the draw). `EggModels.heroBottom(h)` is the lowest slice's 
 Each reveal tap plays Audio `crack` (pitch up with `crack`), and so does the tap that hatches it; the hatch plays
 `crack_open`. The egg shakes as it cracks (`stepEgg`; the request of 2026-11-14: "Make eggs shake while being cracked
 open"): a tap's shake (`kick`, 1 for a step up, 0.6 for a mutation) rocks it on its foot about the line the camera looks
-along and jumps it sideways along the camera's flat right, dying away over 0.6 s; light streams out of the cracks shown
-(`stepLeaks`: from every third core piece, 1 px dots of the rarity's light and white flying out away from the egg's
-middle on the screen, `10 + 8 * crack` a second, 60 once they glow; `leakAcc`, and `leaks` counted for
-`debugState`); once the cracks glow it trembles
+along and jumps it sideways along the camera's flat right, dying away over 0.6 s; rays of light stream out of the cracks shown
+(`stepBeams`: `BEAM_COUNT` 4, 7 or 10 rays at once by the cracks shown, 14 once they glow; a `Beam` a holder at a
+crack piece's projected point with `BEAM_MAX` 44 one-px rects, seeded by `seedBeam`: the slope from `BEAM_DIRS` (16
+clean slopes) nearest the way out from the egg's middle, now and then the next one round, 8 + 3 x crack to 16 + 7 x
+crack px long (22 to 44 once they glow), white for its first quarter (half once they glow) then the rarity's light,
+see-through by `BEAM_FADE` a quarter; it grows out over 0.12 s, dims at 70% of its life (0.45 to 0.95 s, 0.3 to 0.7
+once they glow) and is seeded again elsewhere; `beamsMade` counted for `debugState.beams`); once the cracks glow it
+trembles
 (0.15); the tap that hatches it starts phase "breaking": every crack shows, a crunch, and for `BREAK` 0.6 s it shakes
 harder and faster (0.55 rising to 1.45) before the shell opens.
 `play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
@@ -1543,11 +1547,11 @@ starry one white and cyan motes rise.
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
 the shine (white), the fx (`mote` x3 epic, mythic and celestial, `halo` x20 legendary and mythic, `orbit` x28 celestial: a tilted ring round its middle; with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
-stage, core }`: 1 a short crack at the top, 2 running down and branching, 3 round the front of its middle; each piece of
-a crack three strips side by side, a dark edge, the `core`, a dark edge, at their exact sizes (off the 0.25 grid
-`Blocks.part` snaps to) and 0.17 studs off the shell's true surface (the balls' union, `shellR`), over the painted marks
-and past the raster's depth bias; "PixelNoPool"; out of sight until the scene's taps reach its stage; the scene colours
-the cores in the rarity's light and makes them Neon once nothing is left to reveal). Parts above `SPLIT` (0.56) are the top.
+stage }`: 1 a short crack at the top, 2 running down and branching, 3 round the front of its middle; each piece one
+Neon strip about two art px wide, no dark edge, at its exact size (off the 0.25 grid `Blocks.part` snaps to) and 0.17
+studs off the shell's true surface (the balls' union, `shellR`), over the painted marks and past the raster's depth
+bias; "PixelNoPool"; out of sight until the scene's taps reach its stage; the scene colours them in the rarity's light
+before the pixel filter takes the model in, and white once nothing is left to reveal). Parts above `SPLIT` (0.56) are the top.
 `HatchBackdrop.paint(r, W, H, ex, ey) -> buffer` (the sky picture, RGBA at the art grid: banded sky with dithered
 seams (`SKIES[r].stops`, seven skies), the galaxy's band (`milky`, celestial), aurora, stars, sun, moon, two moons
 (`twomoons`, mythic) or a ringed planet (`planet` and its `ring`, celestial) with its halo, clouds, the egg's glow at

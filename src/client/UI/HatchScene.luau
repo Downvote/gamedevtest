@@ -130,6 +130,8 @@ local KNACK: { [string]: string } = { farm = "good at farms", wood = "good with 
 type Reveal = { kind: string, r: number?, i: number? } -- "rise" (to rarity r) | "mut" (the i-th mutation)
 type Shard = { p: BasePart, v: Vector3, w: number, at: Vector3, born: number }
 type Dot = { gui: GuiObject, world: Vector3?, x: number, y: number, vx: number, vy: number, g: number, born: number, life: number, frames: { GuiObject }? }
+-- a ray of light out of a crack: its 1 px pixels in a holder at the crack (stepBeams)
+type Beam = { holder: Frame, px: { Frame }, from: BasePart?, len: number, born: number, life: number, shown: number, dim: boolean }
 type Scene = {
 	res: Result,
 	after: (() -> ())?,
@@ -152,8 +154,8 @@ type Scene = {
 	fx: { { p: BasePart, kind: string, k: number } },
 	cracks: { EggModels.Crack },
 	glowing: boolean, -- the cracks lit from inside (nothing left to reveal: the next tap hatches it)
-	leakAcc: number, -- motes of light owed to the cracks' streams (a fraction carries to the next frame)
-	leaks: number, -- light motes let out of the cracks so far (sims and previews)
+	beams: { Beam }, -- the rays of light out of the cracks (stepBeams)
+	beamsMade: number, -- rays let out so far (sims and previews)
 	arrived: boolean, -- it has landed on the pedestal (a thud, dust, the rings start)
 	bounced: boolean, -- it has come down from its first bounce (a softer thud)
 	topOff: number?, -- when it hatched (the top flew off)
@@ -213,16 +215,14 @@ end
 local function newEgg(s: Scene, r: number)
 	dropEgg(s)
 	local m, parts, top, fx, cracks = EggModels.hero(r, EGG_H[r] or 2.4)
+	-- (each crack glows in the rarity's light, rays streaming out of it: stepBeams; coloured before the pixel filter
+	-- takes the model in, which reads the colours then)
+	for _, k in cracks do
+		k.p.Color = Blocks.color(RAY[r][2])
+	end
 	m.Parent = s.dyn
 	PixelRenderer.registerDynamic(m)
 	s.egg, s.parts, s.top, s.fx, s.cracks, s.glowing = m, parts, top, fx, cracks, false
-	-- (each crack's core in the rarity's light, under its dark rim: lit from inside, the light streams out of it,
-	-- stepLeaks)
-	for _, k in cracks do
-		if k.core then
-			k.p.Color = Blocks.color(RAY[r][2])
-		end
-	end
 end
 
 -- Twinkles round the egg (the request of 2026-11-14: "remove these rectangular effects everywhere, instead make it
@@ -591,11 +591,9 @@ local function glow(s: Scene)
 		return
 	end
 	s.glowing = true
+	-- (white hot, and more rays: stepBeams)
 	for _, k in s.cracks do
-		if k.core then
-			k.p.Color = Blocks.color(RAY[s.r][2])
-			k.p.Material = Enum.Material.Neon
-		end
+		k.p.Color = Blocks.color("white")
 	end
 	PixelRenderer.refreshDynamic(s.egg :: Model)
 end
@@ -838,44 +836,118 @@ local function fireflies(s: Scene, c: number)
 end
 
 
--- Light streaming out of the cracks (the request of 2026-11-14: "cracks sometimes become filled like this, can you
--- make it such that light streams out instead when this happens?"): from a few places along each crack shown (every
--- third piece of its core) 1 px motes of its light and of white flow out, away from the egg's middle on the screen and
--- drifting up, a thin stream from each place; more and faster as it cracks further, the most once every crack is lit.
-local function stepLeaks(s: Scene, c: number, dt: number)
-	if s.topOff ~= nil or s.crack <= 0 or s.egg == nil then
-		s.leakAcc = 0
-		return
+-- Rays of light streaming out of the cracks (the requests of 2026-11-14: "cracks sometimes become filled like this, can
+-- you make it such that light streams out instead when this happens?", then "make light stream out, as in rays of
+-- light streaming out, like the image"): thin rays from places along the cracks shown, fanning out away from the egg's
+-- middle. A ray is a 1 px line on one of sixteen clean pixel-art slopes (flat, 2:1, 1:1, 1:2, upright: even steps,
+-- no jaggies), white at the crack, then the rarity's light, fading out in four steps toward its tip. It grows out
+-- fast, holds, dims, and goes, and another comes from somewhere else on the cracks. More rays and longer as the egg
+-- cracks further, the most and the whitest once every crack glows.
+local BEAM_DIRS: { { number } } = {
+	{ 1, 0 }, { 2, 1 }, { 1, 1 }, { 1, 2 }, { 0, 1 }, { -1, 2 }, { -1, 1 }, { -2, 1 },
+	{ -1, 0 }, { -2, -1 }, { -1, -1 }, { -1, -2 }, { 0, -1 }, { 1, -2 }, { 1, -1 }, { 2, -1 },
+}
+local BEAM_MAX = 44 -- px, the longest ray
+local BEAM_FADE = { 0.05, 0.3, 0.52, 0.74 } -- how see-through each quarter of a ray is, from the crack out
+local BEAM_COUNT = { 4, 7, 10 } -- rays at once by the cracks shown (14 once they glow)
+
+local function makeBeam(s: Scene): Beam
+	local holder = Instance.new("Frame")
+	holder.Name = "HatchBeam"
+	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	holder.Size = UDim2.fromOffset(1, 1)
+	holder.ZIndex = 29
+	holder.Visible = false
+	holder.Parent = s.root
+	local px: { Frame } = {}
+	for i = 1, BEAM_MAX do
+		local f = UIKit.rect(holder, UDim2.fromOffset(1, 1), UDim2.fromOffset(0, 0), UIKit.color("white"), 29)
+		f.Visible = false
+		px[i] = f
 	end
-	s.leakAcc += (if s.glowing then 60 else 10 + 8 * s.crack) * dt
-	if s.leakAcc < 1 then
-		return
+	return { holder = holder, px = px, from = nil, len = 0, born = -10, life = 0, shown = 0, dim = false }
+end
+
+-- A ray anew from a crack: its slope (outward from the egg's middle, now and then the next slope round, so they fan
+-- out), its length, its pixels' places, colours and fade.
+local function seedBeam(s: Scene, b: Beam, from: BasePart, mx: number, my: number, c: number)
+	local fx, fy = PixelRenderer.projectPixel(from.Position)
+	local a = math.atan2(fy - my, fx - mx)
+	local k = math.floor(a / (math.pi * 2) * 16 + 0.5) + math.random(-1, 1)
+	local d = BEAM_DIRS[k % 16 + 1]
+	local dx, dy = d[1], d[2]
+	local major = math.max(math.abs(dx), math.abs(dy))
+	local len = if s.glowing then math.random(22, BEAM_MAX) else math.random(8 + 3 * s.crack, 16 + 7 * s.crack)
+	len = math.min(len, BEAM_MAX)
+	local white = if s.glowing then 0.5 else 0.25
+	local light = UIKit.color(RAY[s.r][2])
+	local wc = UIKit.color("white")
+	for i = 1, BEAM_MAX do
+		local f = b.px[i]
+		f.Visible = false
+		if i <= len then
+			f.Position = UDim2.fromOffset(math.floor(i * dx / major), math.floor(i * dy / major))
+			f.BackgroundColor3 = if i <= len * white then wc else light
+			f.BackgroundTransparency = BEAM_FADE[math.min(4, math.floor((i - 1) / len * 4) + 1)]
+		end
 	end
+	b.from, b.len, b.born, b.shown, b.dim = from, len, c, 0, false
+	b.life = if s.glowing then 0.3 + math.random() * 0.4 else 0.45 + math.random() * 0.5
+	s.beamsMade += 1
+end
+
+local function stepBeams(s: Scene, c: number)
+	local want = if s.topOff ~= nil or s.egg == nil or s.crack <= 0 then 0 elseif s.glowing then 14 else BEAM_COUNT[math.min(s.crack, #BEAM_COUNT)]
 	local from: { BasePart } = {}
-	local cores = 0
-	for _, k in s.cracks do
-		if k.core then
-			cores += 1
-			if k.stage <= s.crack and cores % 3 == 1 then
+	if want > 0 then
+		for _, k in s.cracks do
+			if k.stage <= s.crack then
 				table.insert(from, k.p)
 			end
 		end
+		if #from == 0 then
+			want = 0
+		end
 	end
-	if #from == 0 then
-		s.leakAcc = 0
-		return
+	while #s.beams < want do
+		local b = makeBeam(s)
+		table.insert(s.beams, b)
 	end
 	local mx, my = PixelRenderer.projectPixel(eggMiddle(s.r) + Vector3.new(0, liftOf(c), 0))
-	local light = RAY[s.r][2]
-	while s.leakAcc >= 1 do
-		s.leakAcc -= 1
-		local px, py = PixelRenderer.projectPixel(from[math.random(1, #from)].Position)
-		local dx, dy = px - mx, py - my
-		local a = if dx * dx + dy * dy < 1 then -math.pi / 2 else math.atan2(dy, dx)
-		a += (math.random() - 0.5) * 0.35
-		local v = (if s.glowing then 34 else 20) + math.random() * 22
-		addDot(s, if math.random() < 0.55 then light else "white", nil, px, py, math.cos(a) * v, math.sin(a) * v - 4, -14, 0.35 + math.random() * 0.35)
-		s.leaks += 1
+	for i, b in s.beams do
+		if i > want then
+			b.holder.Visible = false
+			b.life = 0
+			continue
+		end
+		local src = b.from
+		if src == nil or src.Parent == nil or c - b.born >= b.life then
+			seedBeam(s, b, from[math.random(1, #from)], mx, my, c)
+			-- (the first rays start at different points of their lives, so they don't all come and go together)
+			if src == nil then
+				b.born = c - math.random() * b.life * 0.5
+			end
+		end
+		local age = c - b.born
+		local at = b.from :: BasePart
+		local fx, fy = PixelRenderer.projectPixel(at.Position)
+		b.holder.Position = UDim2.fromOffset(math.floor(fx), math.floor(fy))
+		b.holder.Visible = true
+		local n = math.floor(b.len * math.min(1, age / 0.12) + 0.5)
+		if n ~= b.shown then
+			for j = math.min(n, b.shown) + 1, math.max(n, b.shown) do
+				b.px[j].Visible = j <= n
+			end
+			b.shown = n
+		end
+		if not b.dim and age >= b.life * 0.7 then
+			b.dim = true
+			for j = 1, b.len do
+				local f = b.px[j]
+				f.BackgroundTransparency = math.min(0.92, f.BackgroundTransparency + 0.3)
+			end
+		end
 	end
 end
 
@@ -904,7 +976,7 @@ local function step(s: Scene, dt: number)
 	s.clock += d
 	local c = s.clock
 	stepEgg(s, c)
-	stepLeaks(s, c, d)
+	stepBeams(s, c)
 	if s.phase == "breaking" and c - s.breakAt >= BREAK then
 		hatch(s)
 	end
@@ -1048,8 +1120,8 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		fx = {},
 		cracks = {},
 		glowing = false,
-		leakAcc = 0,
-		leaks = 0,
+		beams = {},
+		beamsMade = 0,
 		arrived = false,
 		bounced = false,
 		topOff = nil,
@@ -1135,10 +1207,10 @@ function HatchScene.setQuick(on: boolean)
 end
 
 -- Sims and previews: what the scene shows now (`reveals`: the taps' reveals in all, `left`: still to come).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, leaks: number, title: string, name: string, fresh: boolean, passive: string }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, beams: number, title: string, name: string, fresh: boolean, passive: string }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, leaks = 0, title = "", name = "", fresh = false, passive = "" }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, beams = 0, title = "", name = "", fresh = false, passive = "" }
 	end
 	local t, n = s.title, s.name
 	return {
@@ -1160,7 +1232,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		pal = s.pal ~= nil,
 		egg = s.egg ~= nil,
 		glowing = s.glowing,
-		leaks = s.leaks,
+		beams = s.beamsMade,
 		title = if t then t.Text else "",
 		name = if n then n.Text else "",
 		fresh = s.root:FindFirstChild("HatchNew") ~= nil, -- the "New!" tag by the name

@@ -201,9 +201,9 @@ end
 --   celestial: the dark blue of a night sky, constellations (white stars joined by lilac dots), a few cyan stars, a gold star on its crown, a tilted ring of little lights
 --     orbiting it like a planet's and three motes.
 -- Its cracks (`cracks`: each part with its stage, 1 a short crack at the top, 2 running down and branching, 3 round its
--- middle where the top comes off; `core` the thin light line along each crack, over its dark rim) are kept out of
--- sight until the scene shows them; the top is what lies above the middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
-export type Crack = { p: BasePart, off: CFrame, stage: number, core: boolean }
+-- middle where the top comes off; each a thin glowing line, Neon) are kept out of sight until the scene shows them;
+-- the top is what lies above the middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
+export type Crack = { p: BasePart, off: CFrame, stage: number }
 -- (an egg's curve: the widest a little below the middle over a full, round base, the top narrowing to a softer point;
 -- "The eggs also look too much like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14)
 local PROFILE: { { number } } = {
@@ -519,17 +519,16 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		end
 	end
 	-- the cracks (out of sight until the scene shows them): a crack from the top down the front, its branch, then the
-	-- ring round the middle. Each is a thin dark line (its rim) with a thinner core over it that the scene fills with
-	-- its rarity's light (the request of 2026-11-14: "cracks sometimes become filled like this, can you make it such
-	-- that light streams out instead when this happens?"): short pieces lying on the shell, each only half its width
-	-- past its ends, and small turns, so the lines never bunch into a blot where they turn or meet. They pool no light
-	-- on the shell ("PixelNoPool"): the light streams out of them instead (HatchScene's motes).
-	-- (three strips side by side at one height: a dark edge, the light core, a dark edge, each about one art px; the
-	-- turns a pixel or two, never as deep as the line is wide, so the line never folds over itself. They stand LIFT
-	-- studs off the shell's true surface: over the painted marks (plates about 0.13 studs proud of it) and past the
-	-- pixel filter's depth bias (Render/Raster: 0.03), or they would hide them; the ring keeps to the front of the egg,
-	-- well inside its outline, so standing off it never shows)
-	local EDGE, CORE, LIFT = 0.042 * u, 0.046 * u, 0.17
+	-- ring round the front of its middle. Each is a thin line the scene lights from inside in its rarity's light, with
+	-- rays of light streaming out of it (HatchScene's beams), no dark edge (the requests of 2026-11-14: "cracks
+	-- sometimes become filled like this, can you make it such that light streams out instead when this happens?", then
+	-- "make light stream out, as in rays of light streaming out, like the image. no need for the black outlines when
+	-- cracking"): short pieces lying on the shell, each only half its width past its ends, the turns a pixel or two, so
+	-- a line never bunches into a blot where it turns or meets another. They pool no light on the shell ("PixelNoPool").
+	-- They stand LIFT studs off the shell's true surface: over the painted marks (plates about 0.13 studs proud of it)
+	-- and past the pixel filter's depth bias (Render/Raster: 0.03), or they would hide them; the ring keeps to the front
+	-- of the egg, well inside its outline, so standing off it never shows.
+	local WIDE, LIFT = 0.055 * u, 0.17 -- (about two art px wide)
 	-- the shell's true radius at height share t: its slices are balls, so where the egg narrows a lower ball bulges
 	-- past the profile; and the point LIFT off it at azimuth a, with the shell's normal there
 	local function shellR(t: number): number
@@ -559,18 +558,13 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			local mid = (p0 + p1) / 2
 			local base = CFrame.lookAt(mid, p1, (n0 + n1).Unit)
 			local len = (p1 - p0).Magnitude
-			for k = -1, 1 do
-				local core = k == 0
-				local w = if core then CORE else EDGE
-				local off = base * CFrame.new(k * (CORE + EDGE) / 2, 0, 0)
-				local size = Vector3.new(w, 0.03 * u, len + w)
-				local p = Blocks.part(m, { size = size, cf = off, color = if core then "white" else "ink", collide = false, query = false, name = if core then "CrackCore" else "Crack" })
-				-- (its own size, off the 0.25 stud grid Blocks.part snaps to: snapped, a crack was a bar 0.25 wide
-				-- and deep, standing off the shell, and the lines ran together into blots)
-				p.Size = size
-				p:SetAttribute("PixelNoPool", true)
-				table.insert(cracks, { p = p, off = off, stage = stage, core = core })
-			end
+			local size = Vector3.new(WIDE, 0.03 * u, len + WIDE)
+			local p = Blocks.part(m, { size = size, cf = base, color = "white", collide = false, query = false, neon = true, name = "Crack" })
+			-- (its own size, off the 0.25 stud grid Blocks.part snaps to: snapped, a crack was a bar 0.25 wide and
+			-- deep, standing off the shell, and the lines ran together into blots)
+			p.Size = size
+			p:SetAttribute("PixelNoPool", true)
+			table.insert(cracks, { p = p, off = base, stage = stage })
 		end
 	end
 	crack({ { 0.95, 50 }, { 0.9, 47.5 }, { 0.85, 51 }, { 0.8, 48.5 }, { 0.76, 51 } }, 1)
