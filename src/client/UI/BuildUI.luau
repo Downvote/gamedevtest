@@ -615,7 +615,7 @@ end
 local function about(def: Buildings.BuildingDef, lvl: number?): string
 	local say = def.blurb
 	if def.rate > 0 then
-		say = string.format("%s %s a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
+		say = string.format("%s %s shells a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
 	end
 	if def.slots > 0 then
 		local c = def.comfort + (Tuning.ComfortLvl[lvl or 1] or 0)

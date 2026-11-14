@@ -28,6 +28,13 @@ local Tuning = {
 	-- Data/Buildings lists for them, to two figures (the request of 2026-11-13: "make it much cheaper to buy work and
 	-- hut buildings")
 	BuildingPrice = 0.3,
+	-- a price that was paid in wood (every piece's, growing the island's: TierCost) costs WoodShells shells for each
+	-- wood since 2026-11-14, times WoodTierUp for each tier of the piece (or of the island grown to) past the second,
+	-- to two figures: the farms' and shops' shells go to building now too, and a big island's buildings pay for
+	-- themselves fast, so building costs more of them than it did of the wood, the more the bigger
+	-- (Data/Buildings.shellsFor, Logic/Island.expandCost)
+	WoodShells = 3,
+	WoodTierUp = 1.55,
 	StartShells = 360, -- the tips' buildings (a camp, a patch, a hut, a stall: 80 at BuildingPrice), the first eggs and plenty over (the old 300 wood and 60 shells together)
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"

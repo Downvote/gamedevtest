@@ -59,16 +59,27 @@ local TAB: { [string]: string } = { farm = "work", wood = "work", shop = "work",
 local SUB: { [string]: string } = { farm = "farm", wood = "wood", shop = "shop", gen = "gen", water = "tiles" }
 local FEEL: { [string]: string } = { path = "stone", water = "water", fence = "wood", farm = "plant" }
 
--- A Work or Huts tab building's price: Tuning.BuildingPrice of its listed price, to two figures (5 at least); any
--- other piece's as listed.
-local function priceOf(kind: string, listed: number): number
+-- A wood price in shells for a piece of a tier (Tuning.WoodShells for each wood, times WoodTierUp for each tier past the
+-- second), to two figures (1 at least; nothing stays nothing).
+local function shellsFor(wood: number, tier: number): number
+	if wood <= 0 then
+		return 0
+	end
+	local w = wood * Tuning.WoodShells * Tuning.WoodTierUp ^ math.max(0, tier - 2)
+	local step = 10 ^ math.max(0, math.floor(math.log10(w)) - 1)
+	return math.max(1, math.floor(w / step + 0.5) * step)
+end
+
+-- A piece's price in shells: its listed price (the wood it cost) in shells, a Work or Huts tab building's
+-- Tuning.BuildingPrice of that, to two figures (5 at least).
+local function priceOf(kind: string, listed: number, tier: number): number
 	local tab = TAB[kind]
 	if listed <= 0 or (tab ~= "work" and tab ~= "nest") then
-		return listed
+		return shellsFor(listed, tier)
 	end
 	local w = listed * Tuning.BuildingPrice
 	local step = 10 ^ math.max(0, math.floor(math.log10(w)) - 1)
-	return math.max(5, math.floor(w / step + 0.5) * step)
+	return shellsFor(math.max(5, math.floor(w / step + 0.5) * step), tier)
 end
 
 local function B(t: { [string]: any }): BuildingDef
@@ -76,7 +87,7 @@ local function B(t: { [string]: any }): BuildingDef
 		id = t.id,
 		name = t.name,
 		kind = t.kind,
-		shells = priceOf(t.kind, t.shells or 0),
+		shells = priceOf(t.kind, t.shells or 0, t.tier or 1),
 		w = t.w,
 		d = t.d,
 		rate = t.rate or 0,
@@ -386,4 +397,4 @@ for _, d in LIST do
 	BY_ID[d.id] = d
 end
 
-return table.freeze({ list = LIST, byId = BY_ID })
+return table.freeze({ list = LIST, byId = BY_ID, shellsFor = shellsFor })

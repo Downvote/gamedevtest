@@ -108,7 +108,8 @@ local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 -- what the status says in each phase (and the tips, one after another)
 local STATUS = { start = "Waking up your island", island = "Finding your island", picture = "Drawing your island" }
 local TIPS = {
-	"Wood pays for building. Shells hatch eggs.",
+	"Shells pay for every egg you hatch and everything you build.",
+	"Decor adds charm, and charm brings in more shells.",
 	"The Tree of Life lays new eggs every few minutes.",
 	"Rare driftlings work much faster than common ones.",
 	"When the huts are full, swap a weak one for a better one.",

@@ -1189,7 +1189,7 @@ checks("shares")
 
 ------------------------------------------------------------------ 10. the island grows: more eggs at once, dearer, better
 E.phase = "expand"
-prof.shells = 1e6 + Tuning.TierCost[2]
+prof.shells = 1e6 + Island.expandCost(1).shells
 H.push(p, 0.3)
 -- (two of the lot hatched first, so the extra eggs fill the places they left as well as the new ones)
 for k = 1, 2 do

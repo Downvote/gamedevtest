@@ -261,11 +261,11 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 end
 
 ------------------------------------------------------------------ the island's size
--- Growing the island to the next tier: its price in shells (it was wood until 2026-11-14: "allowing you to buy decor
--- and expansions with it"), nil at the biggest.
+-- Growing the island to the next tier: its price in shells, TierCost's wood at Tuning.WoodShells (it was wood until
+-- 2026-11-14: "allowing you to buy decor and expansions with it"), nil at the biggest.
 function Island.expandCost(tier: number): { shells: number }?
 	local w = Tuning.TierCost[tier + 1]
-	return if w then { shells = w } else nil
+	return if w then { shells = Buildings.shellsFor(w, tier + 1) } else nil
 end
 
 function Island.expand(p: Profile): (boolean, any)

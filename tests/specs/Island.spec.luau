@@ -180,7 +180,7 @@ return function()
 		local p = fresh()
 		T.truthy(Island.expand(p))
 		T.eq(p.tier, 2)
-		T.eq(p.shells, 1e6 - Tuning.TierCost[2], "shells")
+		T.eq(p.shells, 1e6 - (Island.expandCost(1) :: any).shells, "shells")
 		p.shells = 0
 		T.eq(select(2, Island.expand(p)), "money")
 		p.shells = 1e9
@@ -264,7 +264,7 @@ return function()
 		T.truthy(ok)
 		T.eq(#p.plot.placed, before, "none lost")
 		T.eq(data.cleared, 0)
-		T.eq(p.shells, shells - Tuning.TierCost[2], "nothing refunded")
+		T.eq(p.shells, shells - (Island.expandCost(1) :: any).shells, "nothing refunded")
 		local rest = {}
 		for _, q in p.plot.placed do
 			T.truthy(Plot.fits(p.tier, rest, q.id, q.x, q.z, q.rot), q.id .. " fits the bigger island")

@@ -1225,7 +1225,7 @@ res = H.req(p, "island.expand", {})
 H.expect(not res.ok and res.err == "money" and prof.tier == 1, "panels", "Expand short of shells is refused", tostring(res.err))
 -- expanding from the build tray: the next island was built ahead in the background, so the expansion swaps it in (no
 -- ~1,200 parts made in the frame of the click), and the cheer waits for the bigger island's picture
-prof.shells = Tuning.TierCost[2] + 800
+prof.shells = Island.expandCost(1).shells + 800
 H.push(p, 0.4)
 local PS = H.smod("PlotService")
 local guardNext = 0
@@ -1247,7 +1247,8 @@ H.expect(prof.tier == 2, "panels", "Expand: the island grows", tostring(prof.tie
 do
 	local own = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - tX) * 1.5 + 2
 	local moved = prof.shells - shellsX
-	H.expect(moved >= -Tuning.TierCost[2] - 2 and moved <= -Tuning.TierCost[2] + own, "panels", "for its shells", string.format("shells %+.1f (cost %d)", moved, Tuning.TierCost[2]))
+	local cost2 = Island.expandCost(1).shells
+	H.expect(moved >= -cost2 - 2 and moved <= -cost2 + own, "panels", "for its shells", string.format("shells %+.1f (cost %d)", moved, cost2))
 end
 local _, _, swaps1 = PS.debugNext(1)
 H.expect(swaps1 == swaps0 + 1, "panels", "the expansion swaps in the island built ahead", string.format("%d -> %d", swaps0, swaps1))
@@ -2524,7 +2525,7 @@ do
 	end
 	local nt, nready, swaps0 = PS.debugNext(1)
 	H.expect(nt == 10 and nready, "haven", "Driftling Haven is built ahead in the background", string.format("%s %s", tostring(nt), tostring(nready)))
-	prof.shells = Tuning.TierCost[10] + 3000000
+	prof.shells = Island.expandCost(9).shells + 3000000
 	H.push(p, 0.4)
 	H.clickNamed(p, "Menu_build", { wait = 0.4 })
 	H.clickNamed(p, "Tab_decor", { wait = 0.3 })
@@ -2542,7 +2543,7 @@ do
 	res = H.req(p, "plot.place", { id = "rainbowarch", x = 0, z = -20, rot = 0 })
 	H.expect(not res.ok and res.err == "locked", "haven", "and the server won't build it yet (locked)", tostring(res.err))
 	local cost = p.PlayerGui:FindFirstChild("ExpandCost", true)
-	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Tuning.TierCost[10])) ~= nil, "haven", "Expand on, its price the last step's shells", cost and table.concat(H.textsOf(cost), "/"))
+	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Island.expandCost(9).shells)) ~= nil, "haven", "Expand on, its price the last step's shells", cost and table.concat(H.textsOf(cost), "/"))
 	local wood1, f1, eggs1, tH = prof.shells, #fx, #prof.clutch.list, E.now()
 	H.clickNamed(p, "Expand", { wait = 0 })
 	local cheer = E.runUntil(function()
@@ -2550,7 +2551,7 @@ do
 	end, 2, 0.05)
 	local ownH = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - tH) * 1.5 + 2
 	local movedH = prof.shells - wood1
-	H.expect(prof.tier == 10 and movedH >= -Tuning.TierCost[10] - 2 and movedH <= -Tuning.TierCost[10] + ownH, "haven", "Expand: tier 10 for its shells", string.format("tier %d, shells %+.0f", prof.tier, movedH))
+	H.expect(prof.tier == 10 and movedH >= -Island.expandCost(9).shells - 2 and movedH <= -Island.expandCost(9).shells + ownH, "haven", "Expand: tier 10 for its shells", string.format("tier %d, shells %+.0f", prof.tier, movedH))
 	local grew = ""
 	for _, d in p.PlayerGui:GetDescendants() do
 		if d:IsA("TextLabel") and string.find(d.Text, "grew", 1, true) then
