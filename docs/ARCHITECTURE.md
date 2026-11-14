@@ -1650,10 +1650,11 @@ than a sixteenth of the piece's span made that thick; `Pixel/Snapshot` on five c
 The store's 11 x 11 icons (2026-11-14): `mini_store` (a stall with a striped awning: the menu bar's Store),
 `mini_crown` (VIP), `mini_ticket` (the pass track), `mini_gift` (the Starter Pack, VIP's gift), `mini_refresh` (two
 turning arrows: Shop Refresh), each with its `_sil`.
-Every `mini_` icon (52 of them, 2026-11-14) is hand-toned: `HAND(name, rows, ramps, flat?)` in `gen_art.py` takes 9 x 9
+Every `mini_` icon but the shell (51 of them, 2026-11-14) is hand-toned: `HAND(name, rows, ramps, flat?)` in `gen_art.py` takes 9 x 9
 rows where `1234`, `5678` and `abcd` are the dark, shadow, base and light tones of up to three `RAMPS`, `w` a white
-glint, `x` near-black, other letters the sprite's `flat` keys; the `ICONS` table holds 44 of them, eight more are their
-own `HAND` calls. `build()` gives a hand-toned sprite (`spec.hand`, each ramp character's ramp and tone) the same inner
+glint, `x` near-black, other letters the sprite's `flat` keys; the `ICONS` table holds 43 of them, eight more are their
+own `HAND` calls. `mini_shell` is the region-shaded scallop it was before (an `S` mask with its ribs in `org1`: "use the
+same shell sprite used before", 2026-11-14). `build()` gives a hand-toned sprite (`spec.hand`, each ramp character's ramp and tone) the same inner
 anti-aliasing as a shaded one: a ramp pixel that meets the outline only at a corner steps a tone down (light to base,
 base to shadow unless the corner is its top left, shadow to dark at its bottom right). `mini_heat` is a thermometer,
 `mini_takeup` an arrow up out of a tray.

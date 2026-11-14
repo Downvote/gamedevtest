@@ -487,7 +487,8 @@ floor, it just looks noisy", 2026-11-14),
   light from the top left on the real form (a sun's rays, an apple's round side, a log's cut end), white glints, the
   lines inside an icon in the material's dark tone (never ink), and one ink ring round the outside. Tones sit in
   clusters that follow the form, never rings that trace the outline (no banding); the ramps shift hue (shadows cooler,
-  lights warmer); each step of a curve is softened from the inside by a pixel a tone darker.
+  lights warmer); each step of a curve is softened from the inside by a pixel a tone darker. The shell (the shells
+  counter and every price) keeps the scallop it had before ("use the same shell sprite used before", 2026-11-14).
 
   > The requests (2026-11-14): "The driftling, hatchery, season icons, starter pack and tree icons look flat and
   > undetailed. Redo them. Reference the bakery game for icons", then "Do the same with all the other icons" and
