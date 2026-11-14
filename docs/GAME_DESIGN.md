@@ -1506,7 +1506,9 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   "cracks sometimes become filled like this, can you make it such that light streams out instead when this happens?",
   then "make light stream out, as in rays of light streaming out, like the image. no need for the black outlines when
   cracking"; the cracks had been bars a quarter of a stud wide standing off the shell, which ran together into blots).
-  A ray keeps to one of sixteen clean slopes (flat, 2:1, 1:1, 1:2, upright), so its steps are even. Once nothing is
+  A ray keeps to one of sixteen clean slopes (flat, 2:1, 1:1, 1:2, upright), so its steps are even. The rays move
+  only when the pixel picture is drawn again, from the cracks as it drew them, so they stay on the cracks while the
+  egg shakes ("some lightrays are misalinged with the cracks", 2026-11-14). Once nothing is
   left the cracks glow white and the most rays pour out, the egg trembles and the hint says "Tap to hatch it".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
 - **Shaking open** (the request of 2026-11-14: "Make eggs shake while being cracked open"): the tap that hatches it

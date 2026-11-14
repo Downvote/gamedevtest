@@ -2273,6 +2273,11 @@ local function compose()
 	prevRects = rects
 	stats.ticks += 1
 	stats.composeMs = (os.clock() - t0) * 1000
+	-- (what draws over the picture in step with it: PixelRenderer.onComposed)
+	local after = (PixelRenderer :: any)._composed
+	if after then
+		after()
+	end
 end
 
 ------------------------------------------------------------------ pans
@@ -2857,6 +2862,14 @@ function PixelRenderer.ready(): boolean
 	end
 	local s = surf
 	return s ~= nil and not baking and s.view.key == CameraController.view().key
+end
+
+-- fn runs right after each new picture is drawn (nil: none), with the world as that picture shows it: an overlay that
+-- must sit on a moving model (the hatch scene's rays on the egg's cracks) places itself then, not on every frame, since
+-- the picture is drawn fewer times a second than the screen. (Kept on the module table: the main chunk is at Luau's
+-- 200 registers.)
+function PixelRenderer.onComposed(fn: (() -> ())?)
+	(PixelRenderer :: any)._composed = fn
 end
 
 -- The layer shifted by whole art px (a hit's jolt on a minigame's stage); 0, 0 puts it back.

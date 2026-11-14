@@ -131,7 +131,7 @@ type Reveal = { kind: string, r: number?, i: number? } -- "rise" (to rarity r) |
 type Shard = { p: BasePart, v: Vector3, w: number, at: Vector3, born: number }
 type Dot = { gui: GuiObject, world: Vector3?, x: number, y: number, vx: number, vy: number, g: number, born: number, life: number, frames: { GuiObject }? }
 -- a ray of light out of a crack: its 1 px pixels in a holder at the crack (stepBeams)
-type Beam = { holder: Frame, px: { Frame }, from: BasePart?, len: number, born: number, life: number, shown: number, dim: boolean }
+type Beam = { holder: Frame, px: { Frame }, from: BasePart?, len: number, born: number, life: number, shown: number, dim: boolean, placed: boolean }
 type Scene = {
 	res: Result,
 	after: (() -> ())?,
@@ -156,6 +156,7 @@ type Scene = {
 	glowing: boolean, -- the cracks lit from inside (nothing left to reveal: the next tap hatches it)
 	beams: { Beam }, -- the rays of light out of the cracks (stepBeams)
 	beamsMade: number, -- rays let out so far (sims and previews)
+	placedAt: number, -- the scene clock when the rays were last put on their cracks (placeBeams)
 	arrived: boolean, -- it has landed on the pedestal (a thud, dust, the rings start)
 	bounced: boolean, -- it has come down from its first bounce (a softer thud)
 	topOff: number?, -- when it hatched (the top flew off)
@@ -866,7 +867,7 @@ local function makeBeam(s: Scene): Beam
 		f.Visible = false
 		px[i] = f
 	end
-	return { holder = holder, px = px, from = nil, len = 0, born = -10, life = 0, shown = 0, dim = false }
+	return { holder = holder, px = px, from = nil, len = 0, born = -10, life = 0, shown = 0, dim = false, placed = false }
 end
 
 -- A ray anew from a crack: its slope (outward from the egg's middle, now and then the next slope round, so they fan
@@ -892,9 +893,24 @@ local function seedBeam(s: Scene, b: Beam, from: BasePart, mx: number, my: numbe
 			f.BackgroundTransparency = BEAM_FADE[math.min(4, math.floor((i - 1) / len * 4) + 1)]
 		end
 	end
-	b.from, b.len, b.born, b.shown, b.dim = from, len, c, 0, false
+	b.from, b.len, b.born, b.shown, b.dim, b.placed = from, len, c, 0, false, false
 	b.life = if s.glowing then 0.3 + math.random() * 0.4 else 0.45 + math.random() * 0.5
 	s.beamsMade += 1
+end
+
+-- Each ray onto its crack where the picture shows it ("some lightrays are misalinged with the cracks", 2026-11-14): the
+-- pixel filter draws the egg fewer times a second than the screen, so the rays move only when it draws, from the
+-- cracks as it drew them (PixelRenderer.onComposed); a new ray waits for that before it shows.
+local function placeBeams(s: Scene)
+	s.placedAt = s.clock
+	for _, b in s.beams do
+		local at = b.from
+		if at and at.Parent ~= nil and b.life > 0 then
+			local fx, fy = PixelRenderer.projectPixel(at.Position)
+			b.holder.Position = UDim2.fromOffset(fx, fy)
+			b.placed = true
+		end
+	end
 end
 
 local function stepBeams(s: Scene, c: number)
@@ -915,6 +931,10 @@ local function stepBeams(s: Scene, c: number)
 		table.insert(s.beams, b)
 	end
 	local mx, my = PixelRenderer.projectPixel(eggMiddle(s.r) + Vector3.new(0, liftOf(c), 0))
+	-- (with no new picture for a while, the pixel filter off, they place themselves)
+	if c - s.placedAt > 0.25 then
+		placeBeams(s)
+	end
 	for i, b in s.beams do
 		if i > want then
 			b.holder.Visible = false
@@ -930,10 +950,7 @@ local function stepBeams(s: Scene, c: number)
 			end
 		end
 		local age = c - b.born
-		local at = b.from :: BasePart
-		local fx, fy = PixelRenderer.projectPixel(at.Position)
-		b.holder.Position = UDim2.fromOffset(math.floor(fx), math.floor(fy))
-		b.holder.Visible = true
+		b.holder.Visible = b.placed
 		local n = math.floor(b.len * math.min(1, age / 0.12) + 0.5)
 		if n ~= b.shown then
 			for j = math.min(n, b.shown) + 1, math.max(n, b.shown) do
@@ -1013,6 +1030,7 @@ local function restore(s: Scene)
 	if beat then
 		beat:Disconnect()
 	end
+	PixelRenderer.onComposed(nil)
 	local keys = s.keys
 	if keys then
 		keys:Disconnect()
@@ -1122,6 +1140,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		glowing = false,
 		beams = {},
 		beamsMade = 0,
+		placedAt = -10,
 		arrived = false,
 		bounced = false,
 		topOff = nil,
@@ -1194,6 +1213,11 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 			return
 		end
 		step(s, dt)
+	end)
+	PixelRenderer.onComposed(function()
+		if scene == s and not s.closing then
+			placeBeams(s)
+		end
 	end)
 end
 

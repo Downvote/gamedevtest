@@ -906,7 +906,9 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `sat`, times `mr mg mb`, plus a blue `lift` in the shadows. `Grade { mr, mg, mb, lift, sat, lamps }`. Neon parts
   (`EMISSIVE` statics, `dynGlow` dynamics) keep their colour; round them `lightMap` (u8 a pixel, 0..3, rebuilt by
   `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second
-  for the moving lights; a dynamic part marked "PixelNoPool" glows but pools nothing, a hatching egg's cracks; a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
+  for the moving lights; a dynamic part marked "PixelNoPool" glows but pools nothing, a hatching egg's cracks;
+  `PixelRenderer.onComposed(fn?)`: fn runs at the end of each `compose`, with the world as the new picture shows it
+  (an overlay on a moving model places itself then; kept on the module table, the main chunk being at 200 registers); a pan shifts it with the static layer, the strips coming in dark until the rebuild) pools
   warm light in three stepped rings (`RING`: 0.35, 0.65 and 1 of the radius, twice as wide as tall: the ground at
   2:1), each pool as big as its light (`lightRadius(area)`: `LIGHT_K` 1.2 x area ^ `LIGHT_POW` 0.6, between
   `LIGHT_MIN` 2 and `LIGHT_MAX` 22 art px): a static light is a patch of `EMISSIVE` pixels touching 8 ways (a flood
@@ -1512,7 +1514,10 @@ crack piece's projected point with `BEAM_MAX` 44 one-px rects, seeded by `seedBe
 clean slopes) nearest the way out from the egg's middle, now and then the next one round, 8 + 3 x crack to 16 + 7 x
 crack px long (22 to 44 once they glow), white for its first quarter (half once they glow) then the rarity's light,
 see-through by `BEAM_FADE` a quarter; it grows out over 0.12 s, dims at 70% of its life (0.45 to 0.95 s, 0.3 to 0.7
-once they glow) and is seeded again elsewhere; `beamsMade` counted for `debugState.beams`); once the cracks glow it
+once they glow) and is seeded again elsewhere; `beamsMade` counted for `debugState.beams`; the rays are put on their
+cracks by `placeBeams`, run from `PixelRenderer.onComposed` right after each new picture, so they sit where the
+picture drew the cracks (it draws 20 to 30 times a second, the screen 60: placed every frame they ran ahead of a
+shaking egg), a new ray hidden until then; with no picture for 0.25 s they place themselves); once the cracks glow it
 trembles
 (0.15); the tap that hatches it starts phase "breaking": every crack shows, a crunch, and for `BREAK` 0.6 s it shakes
 harder and faster (0.55 rising to 1.45) before the shell opens.
