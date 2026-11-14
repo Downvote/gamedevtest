@@ -74,8 +74,9 @@ local function mutLine(parent: Instance, muts: { string }, x: number, y: number,
 	end
 end
 
+-- A row of a panel's list: a faint veil over the panel's glass (the look since 2026-11-14), 2 px from the next.
 local function row(list: Instance, order: number, h: number): Frame
-	local f = UIKit.plate(list, UDim2.new(1, -6, 0, h), nil, UIKit.color("plate_light"), 0, 2, { bevel = true })
+	local f = UIKit.row(list, UDim2.new(1, -6, 0, h), nil)
 	f.Name = "Row"
 	f.LayoutOrder = order
 	return f
@@ -323,7 +324,8 @@ local function buildHatch(body: Frame, arg: any?)
 			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Hatching now."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
 			local bw = math.min(140, W - 40)
-			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("ink"), 4)
+			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("glass"), 4)
+			back.BackgroundTransparency = 0.25
 			back.Name = "EggBar"
 			local done = math.clamp(1 - egg.left / math.max(1, total), 0, 1)
 			UIKit.rect(back, UDim2.fromOffset(math.floor((bw - 2) * done), 2), UDim2.fromOffset(1, 1), UIKit.color("pink"), 5)
@@ -623,7 +625,8 @@ local function buildTree(body: Frame, arg: any?)
 	-- how often, and the bar to the next lot (run down by the client between the server's ticks)
 	UIKit.text(body, "New eggs every " .. clock(v.clutchSecs), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Pace" })
 	local next = UIKit.text(body, "Next in 0:00", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 10), { color = UIKit.color("text_dim"), name = "Next" })
-	local back = UIKit.rect(body, UDim2.fromOffset(LW, 4), UDim2.fromOffset(0, 21), UIKit.color("ink"), 3)
+	local back = UIKit.rect(body, UDim2.fromOffset(LW, 4), UDim2.fromOffset(0, 21), UIKit.color("glass"), 3)
+	back.BackgroundTransparency = 0.25
 	back.Name = "TreeBar"
 	local fill = UIKit.rect(back, UDim2.fromOffset(LW - 2, 2), UDim2.fromOffset(1, 1), UIKit.color("good"), 4)
 	local conn: RBXScriptConnection? = nil
@@ -729,7 +732,8 @@ local function buildIndex(body: Frame, _arg: any?)
 	grid.Parent = list
 	for i, d in Creatures.list do
 		local n = v.seen[d.id] or 0
-		local f = UIKit.plate(list, UDim2.fromOffset(60, 70), nil, if n >= 2 then UIKit.color("plate") else UIKit.color("plate_light"), 0, 2, { bevel = true })
+		-- (a veil over the glass; a stronger one once it has been met)
+		local f = UIKit.row(list, UDim2.fromOffset(60, 70), nil, nil, if n >= 2 then 0.84 else 0.92)
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]

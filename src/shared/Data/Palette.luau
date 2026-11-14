@@ -235,9 +235,10 @@ local MATCH: { [string]: number } = {
 	poor = 0xE8465B,
 }
 
--- The interface's own colours (UIKit), an island's (GAME_DESIGN 2: "more in theme with the island theme"): dark
--- driftwood plates in frames of warm planks with a faint blush (frame_*), nail heads, quiet text the colour of the
--- pink sand, buttons painted lagoon turquoise, mint, mango and coral, a sea-dark backdrop behind a panel.
+-- The interface's own colours (UIKit): since 2026-11-14 black see-through glass (glass, veil, rule) with white text,
+-- quiet text the colour of the pink sand, buttons painted lagoon turquoise, mint, mango and coral, a sea-dark backdrop
+-- behind a panel; the old driftwood plates and plank frames (plate, frame_*, nail_*) stay for the few swatches that
+-- still use them.
 local UI: { [string]: number } = {
 	ink = 0x2A1C1C,
 	plate = 0x3D2924,
@@ -262,6 +263,13 @@ local UI: { [string]: number } = {
 	nail_hi = 0xF7EEE2,
 	nail_lo = 0x6F5D55,
 	sea_shade = 0x0C2631,
+	-- the request of 2026-11-14 ("make the ui appear like this instead, with a black transparent background and make it
+	-- neater", with a picture of Random Bakery's HUD): the black glass behind every card, panel and bar (UIKit's
+	-- GLASS_ALPHA see-through), the faint veil an item sits on over it, its rule, a dark button's face
+	glass = 0x0A080C,
+	veil = 0xFFFFFF,
+	rule = 0xFFFFFF,
+	xp = 0xC9A6FF,
 }
 
 local Palette: {

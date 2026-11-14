@@ -1,5 +1,12 @@
 # Driftling Isle: Game Design
 
+> The request (2026-11-14, the latest, with a picture of Random Bakery's HUD): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
+> island more such that there isnt too much sea in the screen"
+
+So the interface is black see-through glass now, the bakery's way: one strip of icon and number pairs along the top, the
+cards and panels flat black at about 60% with small stepped corners and no frames, quiet labels with their numbers on the
+right, everything on one grid (§2). The camera sits about 1.4 times closer, so the island fills the screen (§8).
+
 > The requests (2026-11-14, the latest, asked together): "make sounds when cracking the egg. also, make the egg rise up
 > into view when it is being opened. also, there is a bug where the player snaps above buildings while walking over
 > them. also, while the rare one quest is active or any rarity related quests, make it such that an egg of that rarity
@@ -322,11 +329,28 @@ floor, it just looks noisy", 2026-11-14),
   highlight; a shaded cream ramp for muzzles, bellies and jaws, pink blush, the species' body colour with its
   markings in the accent. The same 1 px ink outline and lit-from-the-top-left shading as every sprite.
 
+  > The request (2026-11-14, with a picture of Random Bakery's HUD: a top bar of chips on one black see-through
+  > rounded panel, "Winter · 2 h" on a second one under it): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
+  > island more such that there isnt too much sea in the screen"
+
+  **Black glass** (`UIKit.glass`): every card, panel, bar, tip and notice is flat black glass (`Palette.ui.glass`,
+  62% opaque; a panel 84%, its lists over the world) with corners of two stepped pixels and no outline, frame, bevel
+  or shadow. The top bar is one strip: the wood, the shells and the day, each an 11 px icon and its number (as wide as
+  the number needs), a thin gold bar under "Day 12" for how far through the day it is; the music's note on its own
+  dark square in the top right. Under the top bar on the left a second strip holds lines like the season and the
+  weather (empty, it hides), and the quest's card under that. Down the right the island card and the Tree of Life's
+  card, the same width, 3 px apart: the name in gold, a faint rule under it, quiet labels with their numbers on the
+  right. The menu bar is one glass strip with its four words and icons on it (Build in gold), a faint veil under the
+  mouse. Inside a panel each row or card sits on a faint white veil; neutral buttons are dark glass with white words,
+  coloured buttons (Open, Claim, Sell, Close) flat in their colour with a darker lip. While a panel is open, or Build
+  mode, the cards step aside so nothing shows through the glass. Before (the requests below), the plates were dark
+  driftwood in frames of planks:
+
   > The request (2026-11-10): "also, polish the UI much more"
 
   > The request (2026-11-10): "make alot more polish to the UI and more in theme with the island theme"
 
-  The island's looks: the plates are dark driftwood (`Palette.ui`: warm browns, sand-coloured quiet text, buttons
+  The island's looks (until 2026-11-14): the plates were dark driftwood (`Palette.ui`: warm browns, sand-coloured quiet text, buttons
   painted lagoon blue, palm green, mango and coral; disabled ones driftwood grey), and everything that stands on its
   own sits in a frame of planks: lit along its top and left, shaded along its bottom and right, seams between the
   planks and a nail head in each corner. A panel has a thick frame and its title on a carved plank across the top (a
@@ -1197,7 +1221,10 @@ text (the requests and how each was met) is in the history of this file, up to c
   bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
   ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
-  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5).
+  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). Since
+  2026-11-14 it is about 1.4 times closer ("zoom into the island more such that there isnt too much sea in the
+  screen": the box round the island's heart it fits on screen is 0.7 of its old size, `Tuning.CamFrame`), so the
+  first island nearly fills the screen and a big one is seen a part at a time as you walk.
 - Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
   and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
   beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole

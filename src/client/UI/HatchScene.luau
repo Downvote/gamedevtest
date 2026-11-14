@@ -326,7 +326,7 @@ local function showMut(s: Scene, i: number)
 	local n = math.max(1, #muts)
 	local y0 = math.floor((h - n * (PLATE_H + 3)) / 2) - 6
 	local y = y0 + (i - 1) * (PLATE_H + 3)
-	local f = UIKit.plate(s.root, UDim2.fromOffset(PLATE_W, PLATE_H), UDim2.fromOffset(x + 30, y), UIKit.color("plate"), 0.04, 3, { shadow = true })
+	local f = UIKit.glass(s.root, UDim2.fromOffset(PLATE_W, PLATE_H), UDim2.fromOffset(x + 30, y), 2)
 	f.Name = "HatchMut_" .. i
 	f.ZIndex = 33
 	table.insert(s.plates, f)

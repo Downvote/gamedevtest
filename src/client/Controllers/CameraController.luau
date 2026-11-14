@@ -1,6 +1,6 @@
 --!strict
 -- The camera (docs/ARCHITECTURE.md 9.2; Random Bakery's view and its walk): orthographic, yaw 45°, pitch 30°, the 2:1
--- pixel-art grid. Its zoom is fixed: a box round the island's heart (FRAME, the same on every tier) is fitted on screen
+-- pixel-art grid. Its zoom is fixed: a box round the island's heart (FRAME times Tuning.CamFrame, the same on every tier) is fitted on screen
 -- as big as the grid allows, clear of the HUD's blocks (the "home" view). The view's grid (Raster.Grid: `a` art px per
 -- ground stud, its phase, the ray plane `l`) depends only on the plot, the screen and K; on it the view pans by whole
 -- art px (`pan()`), so the pixel renderer scrolls its picture instead of baking it again:
@@ -98,15 +98,19 @@ end
 -- The box the zoom is fitted to (plot-local, round the island's heart): about the old hut and its yard.
 local FRAME = { x0 = -12, z0 = -6, x1 = 14, z1 = 18, y1 = 6 }
 
+-- The box's corners, shrunk about its middle by Tuning.CamFrame (the request of 2026-11-14: "zoom into the island more
+-- such that there isnt too much sea in the screen": a smaller box is fitted bigger, so the view is closer).
 local function framePts(ox: number, oz: number): { number }
 	local f = Street.CENTER
+	local k = Tuning.CamFrame
+	local mx, mz = (FRAME.x0 + FRAME.x1) / 2, (FRAME.z0 + FRAME.z1) / 2
 	local pts = {}
 	for _, x in { FRAME.x0, FRAME.x1 } do
-		for _, y in { Street.LAWN_Y, FRAME.y1 } do
+		for _, y in { Street.LAWN_Y, Street.LAWN_Y + (FRAME.y1 - Street.LAWN_Y) * k } do
 			for _, z in { FRAME.z0, FRAME.z1 } do
-				table.insert(pts, ox + f.x + x)
+				table.insert(pts, ox + f.x + mx + (x - mx) * k)
 				table.insert(pts, y)
-				table.insert(pts, oz + f.z + z - 6)
+				table.insert(pts, oz + f.z + mz + (z - mz) * k - 6)
 			end
 		end
 	end
