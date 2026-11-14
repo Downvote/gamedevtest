@@ -674,9 +674,22 @@ end
 
 ------------------------------------------------------------------ lifecycle
 -- A new lot of eggs under the tree (Fx "eggs"): a short notice, a chime, and if an epic or legendary egg is among them
--- it's named (its rarity's colour, a burst on the tree's card).
+-- it's named (its rarity's colour, a burst on the tree's card). An egg turned for the quest on the go (`turned`,
+-- Logic/Tree.ensure) is named the same way.
 local function onEggs(msg: { [string]: any })
 	if type(msg.laid) ~= "table" then
+		return
+	end
+	local turned = tonumber(msg.turned)
+	if turned and Traits.RARITY[turned] then
+		local rar = Traits.RARITY[turned]
+		local a = if turned == 2 or turned == 4 then "An" else "A"
+		UIKit.notice(string.format("%s %s egg is waiting under the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
+		Audio.play("grow")
+		local tc = treeCard
+		if tc and tc.Parent and tc.Visible then
+			UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
+		end
 		return
 	end
 	local best = 1

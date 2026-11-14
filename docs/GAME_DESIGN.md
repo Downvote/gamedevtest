@@ -1,6 +1,12 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest): "could you also remove the transition that happens when clicking to hatch an
+> The request (2026-11-14, the latest): "also, while the rare one quest is active or any rarity related quests, make it
+> such that an egg of that rarity will always spawn in the tree of life."
+
+So while the quest on the go asks for a rarity ("An uncommon one", "A rare one", "An epic one") and isn't met yet, the
+eggs under the tree always hold one of it (§6, §9).
+
+> The request (2026-11-14): "could you also remove the transition that happens when clicking to hatch an
 > egg? you can simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each
 > click revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches"
 
@@ -718,6 +724,17 @@ island grows into a new stage, the tree is built again at it.
   saved, so leaving and coming back lays no new lot. A new island, and a save from before the eggs, gets its first lot
   the moment it arrives. On a brand-new island (nothing hatched yet and no driftling) the first lot has two commons in
   it, so the tips' first hatch is cheap.
+- **The quest's egg** (`Tree.wanted`, `Tree.ensure`; the request of 2026-11-14: "also, while the rare one quest is
+  active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of
+  life."): while the quest on the go asks for a rarity (an uncommon, a rare or an epic one) and the island hasn't had
+  one yet, the eggs under the tree always hold one of that rarity. Every lot laid while it's on has one: when the roll
+  gave none, the commonest egg of the lot (the first laid of those) turns into one, so the lot is no bigger. When such a
+  quest comes up partway through a lot (the last one claimed, or a save loaded with it on the go), that happens to the
+  lot already there, within a second: the egg keeps its place on the ring, its new shell rises out of the lawn, and a
+  notice says "A rare egg is waiting under the tree." It costs what any egg of its rarity costs on the island. Only an
+  egg commoner than asked turns (with every egg rarer still, nothing does), and only once the island's tier has kinds
+  of that rarity (an epic quest on an island with no epic kinds yet gets no help until it grows). Once one of that
+  rarity has hatched the quest is met and the lots are left to the odds again.
 - **Rarity** (`Tree.odds`, rolled when the egg is laid): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5,
   1.2) times the island's luck to the power of the steps. The luck is 1 plus `EggLuck` by the island's tier (0, 0.25,
   0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6) plus the huts' luck shares (Lucky and its family: `HutLuck`, 0.5 at most). A
@@ -1180,6 +1197,9 @@ eggs; more wood (a second Lumber Camp); three at work; build another hut (2 huts
 eggs hatch uncommon ones."); another farm (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); a rare
 one; grow your island (tier 2); build a boost; ten driftlings at work; meet twelve kinds; grow the island again (tier
 3); build a Hatchery; hatch an egg in it; an epic one; sixty hatched.
+While one of the rarity quests (an uncommon, a rare or an epic one) is on the go and not met, the tree always has an
+egg of that rarity waiting (§6, "The quest's egg"; the request of 2026-11-14: "also, while the rare one quest is
+active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of life.").
 The rewards are small (40 to 3,000: wood for the building quests, shells for the driftling ones, some both) next to
 what each step costs; the career's player (§10) doesn't claim them, so the economy's bounds are measured without them.
 A save from before keeps its place in the list.

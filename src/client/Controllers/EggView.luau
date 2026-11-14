@@ -314,6 +314,18 @@ local function syncPlot(i: number, near: boolean, t: number)
 			came += 1
 		else
 			e.n = math.max(n, e.slot)
+			if e.r ~= x.r then
+				-- (the same egg turned another rarity: the quest's egg, Logic/Tree.ensure): its new shell rises in its
+				-- place
+				local old = e.model
+				if old then
+					PixelRenderer.unregisterDynamic(old)
+					old:Destroy()
+				end
+				e.model, e.parts, e.top, e.fx = nil, {}, {}, {}
+				e.r = x.r
+				e.born = t
+			end
 		end
 	end
 end
