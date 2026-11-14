@@ -1469,7 +1469,7 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
 The egg bought is shown up close the moment Hatch is pressed (the requests at the top). There are no blinds and no
 wait: the egg floats on its own in front of a painted sky, and the player taps it open.
 
-- **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a banded sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
+- **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), and a deep starry sky with a ringed planet, the band of the galaxy slanting
   across it thick with stars and an aurora of teal and violet (celestial). Every sky has
@@ -1477,7 +1477,9 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   along the hills and no islets floating far off since 2026-11-14: "For the hatch screen, remove the trees in the
   background, and the floating islands as well", then "Remove the clouds in the hatch screen background as well"). Little flocks of birds flap by (day and
   twilight), shooting stars cross the night skies and stars twinkle (pink ones on the rose night, white, cyan, gold and
-  pink ones on the starry sky). Seeds and petals blow across by day, fireflies rise at night, pink petals fall slowly
+  pink ones on the starry sky). The sun and the moons are one flat tone with soft edges, with no darker band down
+  their far side and no stripes across the sunset's sun (the request of 2026-11-14, "for these, remove the dark
+  diagonal band. also, remove the line at the bottom of the sun for the common one"). Seeds and petals blow across by day, fireflies rise at night, pink petals fall slowly
   on the rose night and white and cyan motes rise on the starry one. Since 2026-11-14 ("Polish the egg opening
   backgrounds even more, drawing in a base for the eggs to land on") a round **pedestal** stands where the egg comes
   down: its top an ellipse with a lit rim at the back left, an inlaid ring (four gems on it from rare up) and the egg's

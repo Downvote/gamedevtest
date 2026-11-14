@@ -8,7 +8,7 @@
 -- Each rarity has its own sky (a cozy sunset for a common egg, a golden afternoon, a blue twilight, a violet night, a
 -- deep gold night, and since 2026-11-14 a rose night under two moons for a mythic egg and a deep starry sky with a
 -- ringed planet and the band of the galaxy across it for a celestial one): the sky in bands with ordered dither between
--- them (never a smear), the sun, the moons or the planet lit from the top left with anti-aliased edges, stars (single
+-- them (never a smear), the sun, the moons or the planet in one flat tone with anti-aliased edges, stars (single
 -- pixels and little crosses), aurora curtains on the rarest nights, three ranges of hills going darker toward the
 -- front and a glow round the egg in dithered rings. (The clouds, the trees along the nearest hills and the two islets
 -- floating far off went on 2026-11-14: "For the hatch screen, remove the trees in the background, and the floating
@@ -44,7 +44,7 @@ type Sky = {
 	stops: { number }, -- the sky's colours from the top down to the horizon
 	horizon: number, -- where the last stop is reached (share of the height)
 	body: string, -- "sun" | "crescent" | "moon" | "bigsun" | "twomoons" | "planet"
-	bodyC: { number }, -- its fill, its shade (the side away from the light), its spots
+	bodyC: { number }, -- its fill, the second moon's fill (mythic), its spots or bands
 	bodyR: number, -- its radius (share of the height)
 	stars: number,
 	milky: number?, -- the galaxy's band of light across the sky (its colour), thick with stars
@@ -317,7 +317,9 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			set(x, y, mix(base, 0xFFFFFF, if bright > 0.5 then 0.85 else 0.45))
 		end
 	end
-	-- the sun or the moon, up and to the left: lit from the top left, a darker side away from it, anti-aliased edges
+	-- the sun or the moon, up and to the left: one flat tone with anti-aliased edges (no darker band down its far side,
+	-- and the sunset's sun no stripes across its foot: the request of 2026-11-14, "for these, remove the dark diagonal
+	-- band. also, remove the line at the bottom of the sun for the common one")
 	local bc = sky.bodyC
 	local bx, by, br = W * 0.2, H * 0.24, H * sky.bodyR
 	if sky.body == "bigsun" then
@@ -349,20 +351,13 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				cover = math.min(cover, math.clamp(d2 - br * 0.85 + 0.5, 0, 1))
 			end
 			if cover > 0 then
-				local shade = (dx + dy) / br > 0.55
-				local c = if shade then bc[2] else bc[1]
+				local c = bc[1]
 				if sky.body == "moon" or sky.body == "twomoons" then
 					-- craters: three soft spots
 					for _, cr in { { -0.3, -0.2, 0.22 }, { 0.25, 0.3, 0.17 }, { 0.35, -0.35, 0.12 } } do
 						if (dx / br - cr[1]) ^ 2 + (dy / br - cr[2]) ^ 2 < cr[3] * cr[3] then
 							c = bc[3]
 						end
-					end
-				elseif sky.body == "sun" and r == 1 then
-					-- a sunset's bands across its lower half
-					local v = dy / br
-					if v > 0.15 and (math.floor((v - 0.15) * 9) % 2 == 1) then
-						c = bc[3]
 					end
 				elseif sky.body == "bigsun" then
 					local v = dy / br
@@ -372,7 +367,7 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				elseif sky.body == "planet" then
 					-- soft bands of cloud across it, wavy
 					local v = dy / br + math.sin(dx / br * 3) * 0.06
-					if math.floor((v + 1) * 3.5) % 2 == 1 and not shade then
+					if math.floor((v + 1) * 3.5) % 2 == 1 then
 						c = bc[3]
 					end
 				end
@@ -388,7 +383,7 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				local dx, dy = x + 0.5 - mx, y + 0.5 - my
 				local cover = math.clamp(mr + 0.5 - math.sqrt(dx * dx + dy * dy), 0, 1)
 				if cover > 0 then
-					local c = if (dx + dy) / mr > 0.5 then bc[3] else bc[2]
+					local c = bc[2]
 					set(x, y, if cover >= 0.75 then c elseif cover >= 0.25 then mix(get(x, y), c, 0.5) else get(x, y))
 				end
 			end
