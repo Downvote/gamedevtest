@@ -1135,7 +1135,9 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   islets floating far off, and a glow round the egg in dithered rings. Little flocks of birds flap by (day and
   twilight), shooting stars cross the night skies and stars twinkle. Seeds and petals blow across by day, fireflies
   rise at night.
-- **The egg** (`EggModels.hero`, 2.3 to 2.8 studs by rarity): a smooth shell of 25 overlapping slices, a white shine
+- **The egg** (`EggModels.hero`, 2.3 to 2.8 studs by rarity; drawn smaller since the request of 2026-11-14, "make the
+  egg and creature smaller in the hatching screen": the view takes in 1.45 times the room round it, so the egg and
+  what hatches are about two thirds of their old size on the screen): a smooth shell of 25 overlapping slices, a white shine
   high on its lit side, and its rarity's work painted on it as flat marks: freckles and sandy patches (common), a white
   zigzag band and a vine with leaves and a sprout on top (uncommon), white four-pointed stars and a frosty band with
   icicles (rare), two pink stripes spiralling up it with runes between them and three motes of light circling (epic), a
@@ -1154,7 +1156,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
 - **The hatch**: the shell breaks with a crack, a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
   hatched pops out where the egg was with one jump, arms up (the request of 2026-11-14: "make the pet jump only once
-  instead of a few times after hatching"; it used to jump three times). "It hatched", its name in its rarity's colour and "Rare,
+  instead of a few times after hatching"; it used to jump three times). The egg's title goes (no "It hatched" since the request of 2026-11-14,
+  "remove the it hatched text"); its name in its rarity's colour and "Rare,
   good at farms" under it, and "No mutations" on a plate if it has none. "Tap to go on" shows after a moment; that tap
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
   pressed there. The scene waits for that tap and never closes by itself.

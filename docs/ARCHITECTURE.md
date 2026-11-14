@@ -1269,7 +1269,9 @@ the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its fo
 (0, 0, 9000) with nothing under it), the rays (`HatchRays`: thin Neon blades in the camera's own plane, turning, behind
 the egg, rare and up), the bits of shell (`HatchShards`: thrown out at the hatch, falling away, gone after 2 s) and what
 hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle").
-`CameraController.setStage({ name = "hatch", ..., top = 30, bottom = 40, clear = true, empty = true })` frames the egg
+`CameraController.setStage({ name = "hatch", ..., top = 30, bottom = 40, clear = true, empty = true })` (its points
+the egg's room times `STAGE_ROOM` 1.45 about the egg's middle: "make the egg and creature smaller in the hatching
+screen") frames the egg
 on an empty see-through stage, so the renderer has its picture at once and `HatchBackdrop` shows round the egg; the HUD
 and World roots are disabled meanwhile, and so are the phone's touch controls (`GuiService.TouchControlsEnabled`, in a
 pcall); `DayLight.hold` holds the rarity's `GRADE`; `setOffset` jolts the picture at the hatch. A tap (`HatchTap`, or
@@ -1280,7 +1282,8 @@ the egg and slides in the plate `HatchMut_<i>`. Each runs `crack` one further (0
 to hatch it"; the next tap hatches it (phase "hatched": the top flies off, the rest falls, `HatchName` and `HatchLine`,
 a "No mutations" plate when there are none); 0.7 s later phase "done" and "Tap to go on", and that tap closes it: the
 stage off (the island's picture comes back from the renderer's stash at once), the roots back, then `after`. The
-overlay is a `HatchScene` frame on the `Stage` canvas: `HatchTitle`, `HatchName`, `HatchLine`, the plates `HatchMut_<i>`
+overlay is a `HatchScene` frame on the `Stage` canvas: `HatchTitle` (the egg's words and each step up; gone once it
+hatches, "remove the it hatched text"), `HatchName`, `HatchLine`, the plates `HatchMut_<i>`
 (`Name`, `Blurb`), `HatchHint` (on 0.85 s of every 1.2), `HatchFlash`, 1 px `HatchDot`s and `HatchStar` sprites, and the
 see-through `HatchTap`. `GLORY` by the rarity shown: rays, rayLen, sparks, shards, flash, jolt, confetti, stars.
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,

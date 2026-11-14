@@ -51,6 +51,10 @@ local FLOAT_Y = 1.2 -- the egg's foot above ORIGIN (it floats: nothing under it)
 local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8 } -- each rarity's egg up close (EggModels.hero), studs tall
 local PAL_SCALE = 1.35 -- what hatched, a little bigger than on the island
 local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is one)
+-- the box the stage view fits is this many times the egg's own room, about the egg's middle: bigger draws the egg and
+-- what hatches smaller on the screen (the request of 2026-11-14: "make the egg and creature smaller in the hatching
+-- screen"; it was 1)
+local STAGE_ROOM = 1.45
 local RISE = 0.95 -- seconds the egg takes to rise into view when the scene opens (taps wait for it)
 local RISE_FROM = 7 -- studs under its spot it starts, out of the picture
 
@@ -308,12 +312,12 @@ local function showName(s: Scene)
 	s.name, s.line = nm, line
 	nm.Position = UDim2.fromOffset(0, h - 36)
 	UIKit.tween(nm, 0.2, { Position = UDim2.fromOffset(0, h - 42) })
+	-- (the egg's title goes and nothing takes its place: the request of 2026-11-14, "remove the it hatched text")
 	local old = s.title
 	if old then
 		old:Destroy()
 		s.title = nil
 	end
-	setTitle(s, "It hatched", "paper")
 end
 
 -- One more of its mutations, on a plate sliding in at the right: its name and stars in its tier's colour, what it
@@ -857,10 +861,11 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 	scene = s
 	local pts: { number } = {}
 	local wide = 3.5
+	local midY = FLOAT_Y + 0.5 * (EGG_H[3] or 2.5)
 	for _, p in { { wide, FLOAT_Y - 0.6, -wide }, { -wide, FLOAT_Y - 0.6, wide }, { 2.2, FLOAT_Y - 1, 2.2 }, { -2.2, FLOAT_Y - 1, -2.2 }, { 0, FLOAT_Y + (EGG_H[5] or 2.8) + 1.4, 0 } } do
-		table.insert(pts, ORIGIN.X + p[1])
-		table.insert(pts, ORIGIN.Y + p[2])
-		table.insert(pts, ORIGIN.Z + p[3])
+		table.insert(pts, ORIGIN.X + p[1] * STAGE_ROOM)
+		table.insert(pts, ORIGIN.Y + midY + (p[2] - midY) * STAGE_ROOM)
+		table.insert(pts, ORIGIN.Z + p[3] * STAGE_ROOM)
 	end
 	CameraController.setStage({ name = "hatch", origin = ORIGIN, pts = pts, tight = nil, top = 30, bottom = 40, clear = true, empty = true })
 	backdrop(s)
