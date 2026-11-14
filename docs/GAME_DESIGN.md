@@ -2139,6 +2139,13 @@ the purchase went through only once the save holds it):
 | Shop Refresh | 19 | a new set in the rotating shop, till it turns over |
 | Starter Pack | 49 | once: an hour of shells, an epic and a legendary egg, the Explorer Hat and Explorer Shirt, the Early Bird title (bought again: half an hour of shells) |
 | Finish Hatcheries | 29 | every egg in the Hatcheries hatches now (none there: half an hour of shells) |
+| New Eggs | 25 | the Tree of Life lays a fresh lot now, the eggs lying there going (its clock run out: the server's next tick lays it, in the weather of the moment) |
+
+Where they are sold beside the Store (the request of 2026-11-14: "make a developer product to refresh eggs in the tree
+of life, and put the gamepass to cut the tree of life time to 5 min in the tree of life menu as well. add the free
+decor gamepass in the build menu"): the Tree of Life's panel has "New eggs now R$ 25" under its timer and, while it
+isn't owned, "Every 5 min: Quick Tree R$ 199" under that; Build mode has "Free Decor R$ 249" on a tab over the tray's
+right corner while that pass isn't owned. Each opens Roblox's purchase prompt.
 
 A "minutes of shells" reward is what the island makes in that many minutes now, at least `RewardFloor` (25) shells a
 minute times `EggTier` by its tier, so it means something on a new island and on Everdrift alike.
@@ -2236,7 +2243,9 @@ looks again. In the group: the gift comes once (a rare egg in the bag, `GroupEgg
 `GroupMins`: "Group gift: 1,500 shells and a rare egg.") and the island makes 10% more shells (`GroupBoost`, with the
 passes: x2 x1.25 x1.1) for as long as the player stays in it. Membership is looked at again at every join, so the
 boost goes if they leave the group (the gift stays had). Until the group is set the card's button reads "Soon". The
-HUD shows a "Group gift Free" chip until the gift is had (a tap opens the card).
+HUD shows a "Join the group" chip right under the Starter Pack while the player isn't in the group, then "Group gift
+Ready" until the gift is had (a tap opens the card; the request of 2026-11-14: "add a join group notification if the
+player hasnt joined the group below the starter pack as well"). The chips show once a group is set.
 
 ### 14.2 The Store screens (`UI/StoreUI`, the Tree panel, the Hatchery panel, Build mode, the HUD)
 
@@ -2284,7 +2293,7 @@ info plate, they go down for no shells, a replacement among them costs nothing, 
 
 **The HUD.** Under the right-hand cards, a small glass chip each: "Away earnings +3,240" while offline earnings wait
 (a tap opens the welcome-back card, §14.3), "Starter Pack R$ 49" until it is bought (a tap opens the Store on Eggs and
-more), "VIP gift Ready" on a day VIP's gift waits (a tap claims it) and "Group gift Free" until the group's gift is had
-(a tap opens the Store's Passes tab). On a phone the chip drops
+more), under it "Join the group" while the player isn't in the group and "Group gift Ready" once they are and the gift
+waits (a tap opens the Store's Passes tab), and "VIP gift Ready" on a day VIP's gift waits (a tap claims it). On a phone the chip drops
 the price when it would not fit.
 

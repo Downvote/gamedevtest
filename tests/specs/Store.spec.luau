@@ -150,6 +150,12 @@ return function()
 		local s2 = q.shells
 		Store.product(q, "HatcheryNow", 0)
 		T.truthy(q.shells > s2, "nothing to finish: shells")
+		-- the eggs refreshed: the tree's clock run out, so its next tick lays a fresh lot (Tree.step)
+		q.clutch.left = 300
+		local okE, dE = Store.product(q, "RefreshEggs", 0)
+		T.truthy(okE and q.clutch.left == 0 and dE.given[1].kind == "eggs", "a fresh lot comes at the next tick")
+		local laid = Tree.step(q, 0.1, Util.newRng(5), nil)
+		T.truthy(laid ~= nil and #laid == Tree.count(q.tier) and q.clutch.left > 0, "laid, the clock started again")
 		T.truthy(not (Store.product(q, "Nope", 0)))
 	end)
 

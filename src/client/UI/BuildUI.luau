@@ -42,6 +42,7 @@ local BuildFx = require(script.Parent.Parent.Controllers.BuildFx)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
+local StoreUI = require(script.Parent.StoreUI)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local Words = require(script.Parent.Words)
 
@@ -1578,6 +1579,22 @@ rebuild = function()
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
 		BuildUI.close()
 	end, { color = UIKit.color("accent"), name = "BuildDone" })
+	-- the Free Decor pass while it isn't owned, on a tab over the tray's right corner (the request of 2026-11-14:
+	-- "add the free decor gamepass in the build menu")
+	if not (v.passes and v.passes.FreeDecor) then
+		local words = "Free Decor " .. StoreUI.robuxText("FreeDecor")
+		local bw = UIKit.buttonWidth(words, 4) + 13
+		local fb = UIKit.button(f, words, UDim2.fromOffset(bw, 13), UDim2.new(1, -bw - 4, 0, -15), function()
+			StoreUI.buy("FreeDecor")
+		end, { name = "BuyFreeDecor", color = UIKit.color("button_ok") })
+		fb.ZIndex = 5
+		PixelSprites.image(fb, "mini_decor", UDim2.fromOffset(2, 1), 6)
+		local fw = fb:FindFirstChild("Words")
+		if fw and fw:IsA("GuiObject") then
+			fw.Position = UDim2.fromOffset(13, 0)
+			fw.Size = UDim2.new(1, -15, 1, 0)
+		end
+	end
 	if p == nil and not quick.on then
 		local list = UIKit.scroll(f, UDim2.new(1, -8, 0, CARD_H + 2), UDim2.fromOffset(4, 31))
 		list.Name = "Cards"

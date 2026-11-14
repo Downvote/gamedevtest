@@ -261,7 +261,7 @@ every field.
   egg laid in a kind is touched: rain, snow, blossom, leaves 0.35; haze, fog 0.3; storm 0.2), `WeatherTierW` (52, 30,
   13, 5: the touch's tier weights before the rarity's shift), `WeatherLuck` (`{ storm = 0.25 }`: rarity luck a kind
   adds to the eggs laid in it), `SeasonFavour` (3: a season's islets' kinds that many times as likely).
-- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14), `DevProducts`, `Group = { Id }` (the Roblox group for the group gift, 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
+- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14), `DevProducts` (RefreshEggs among them since 2026-11-14), `Group = { Id }` (the Roblox group for the group gift, 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
   Random Bakery's, each named in a comment; the weather's `RainLight` 9112852671, `RainHeavy` 9112858162, `WindGusts`
   9114057104 and `Thunder` 9120017047, measured with ffprobe) and `Music` (`{ day, night }`: lists of `{ id, gain }`, APM Music
@@ -1256,8 +1256,9 @@ phone Roblox's top bar and the menu bar). The store's `Offers` column (`StoreUI.
 again when `StoreUI.offerKey(v)` changes) sits under the right-hand column (the island card, and the tree's card on a
 desktop) and hides with the cards: `Offer_StarterPack` (until `gifts.starter`; its `Offer_StarterPack_Go` opens "store"
 on "eggs"), `Offer_VipGift` (VIP owned and `vipDay` not today; `Offer_VipGift_Go` sends `vip.daily`), `Offer_Offline`
-first while `offline` waits ("Away earnings", "+N": opens "welcome") and `Offer_Group` last while `groupOn` and the
-gift isn't had ("Group gift", "Free": opens "store" on "passes"), each a glass
+first while `offline` waits ("Away earnings", "+N": opens "welcome") and `Offer_Group` right after the Starter Pack
+while `groupOn`: "Join the group" / "Free gift" while `group.member` is false, "Group gift" / "Ready" while it is and
+`group.gift` isn't (both open "store" on "passes"), each a glass
 chip with its `mini_` icon, `Text` and, when both fit, `Sub` (its price or "Ready"). `Hud.start` runs `StoreUI.init()`
 after `Menus.init()`.
 
@@ -1592,7 +1593,13 @@ stops every one-shot (`Audio.play` returns false) and fades the loops to nothing
 (`StoreUI.rewardText(from, given)`: "<from>: <what>." with each thing when three or fewer, else counted; `from` a
 product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it from Looks.", Newcomer never). `StoreUI.buy(key)`
 hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `PromptProductPurchase` only when
-`Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". `StoreUI.eggRows(list, order, w) -> number`
+`Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". `StoreUI.robuxText(key)` is a key's price
+words ("R$ 25", the live price once known) for other panels' buy buttons: the tree panel's `TreeRefresh` ("New eggs
+now", `RefreshEggs`) and `TreeQuick` ("Every 5 min: Quick Tree", while `QuickTree` isn't owned) under its timer bar
+(the panel 226 tall for them), and Build mode's `BuyFreeDecor` (`mini_decor`, "Free Decor", on a tab over the tray's
+right corner while `FreeDecor` isn't owned). The `RefreshEggs` product (`Store.product`) runs the tree's clock out
+(`clutch.left = 0`) so `IslandService.step` lays a fresh lot at its next tick (Fx "eggs"); its `given` is
+`{ kind = "eggs", n }` ("a fresh lot of eggs under the tree"). `StoreUI.eggRows(list, order, w) -> number`
 puts the egg products at the end of another panel's list (the Tree of Life's) and returns the next LayoutOrder. Prices: `GetProductInfoAsync` once per set id
 in the background (`PriceInRobux`, the panel refreshed when it lands), else `SuggestedRobux`, written "R$ 399".
 "store": the tabs `Tab_passes`, `Tab_eggs`, `Tab_shop`, `Tab_track` (each a `mini_` icon and its words; the open one

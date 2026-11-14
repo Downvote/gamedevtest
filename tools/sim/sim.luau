@@ -481,6 +481,8 @@ local function trayOn()
 	return st, string.format("%s %s %s", tostring(st.tab), tostring(st.chip), tostring(st.goal))
 end
 H.expect(H.clickNamed(p, "Menu_build", { wait = 0.4 }) and BuildUI.isOpen(), "build", "Build mode opens")
+-- (the request of 2026-11-14: "add the free decor gamepass in the build menu")
+H.expect(H.buttonNamed(p, "BuyFreeDecor") ~= nil, "build", "Build mode offers the Free Decor pass (not owned)")
 local bst = H.inClient(p, BuildUI.debugState)
 H.expect(bst.tab == "work" and bst.chip == "wood" and bst.goal == "lumber" and goalCard("lumber") ~= nil, "build", "the first tip: the Work tab on its Wood row, the lumber camp's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
 H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
@@ -2977,6 +2979,15 @@ do
 	H.clickNamed(p, "Offer_StarterPack_Go", { wait = 0.4, optional = true })
 	H.expect(H.currentPanel(p) == "store" and H.buttonNamed(p, "Buy_StarterPack") ~= nil, "store", "the offer opens the Store on the Starter Pack", tostring(H.currentPanel(p)))
 	H.closePanel(p)
+	-- (the request of 2026-11-14: "add a join group notification if the player hasnt joined the group below the
+	-- starter pack as well")
+	do
+		local sp = p.PlayerGui:FindFirstChild("Offer_StarterPack", true)
+		local g = p.PlayerGui:FindFirstChild("Offer_Group", true)
+		local words = g and g:FindFirstChild("Text")
+		local said = if words and words:IsA("TextLabel") then words.Text else "none"
+		H.expect(sp and g and sp:IsA("GuiObject") and g:IsA("GuiObject") and said == "Join the group" and g.Position.Y.Offset == sp.Position.Y.Offset + 16, "store", "not in the group: \"Join the group\" right under the Starter Pack", said)
+	end
 	H.clickNamed(p, "Menu_store", { wait = 0.4 })
 	H.expect(H.currentPanel(p) == "store", "store", "the menu bar's Store opens it", tostring(H.currentPanel(p)))
 	local tabs = 0
@@ -3051,12 +3062,33 @@ do
 	H.expect(#fxSince(f1, "rewards") == 1 and statusSays("Epic Egg: an epic egg"), "store", "a notice says what it gave")
 	E.call(E.serverCtx, 15, MS.grant, s, "EggEpic", "sim-receipt-1")
 	H.expect(#prof.bag == bag0 + 1, "store", "the same receipt again pays nothing", tostring(#prof.bag))
+	-- (the request of 2026-11-14: "make a developer product to refresh eggs in the tree of life": New Eggs lays a
+	-- fresh lot at the server's next tick, told the usual way)
+	do
+		local ids0: { [number]: boolean } = {}
+		for _, e in prof.clutch.list do
+			ids0[e.id] = true
+		end
+		local f2 = #fx
+		local okR = E.call(E.serverCtx, 15, MS.grant, s, "RefreshEggs", "sim-receipt-eggs")
+		E.run(1.2)
+		local fresh = #prof.clutch.list > 0
+		for _, e in prof.clutch.list do
+			if ids0[e.id] then
+				fresh = false
+			end
+		end
+		H.expect(okR and fresh and #fxSince(f2, "eggs") >= 1 and statusSays("New Eggs"), "store", "New Eggs bought: the tree lays a fresh lot at once, told", string.format("%d eggs, fresh %s", #prof.clutch.list, tostring(fresh)))
+	end
 	-- the bag's egg hatched from the Tree panel for nothing (every hut full: the swap picker, then a swap)
 	local egg = prof.bag[#prof.bag]
 	local pals0, taken0 = #prof.pals, prof.stats.taken
 	H.openPanel(p, "tree")
 	E.run(0.4)
 	H.expect(H.buttonNamed(p, "BagHatch_" .. egg.id) ~= nil, "store", "the Tree panel lists the bag's egg with Hatch")
+	-- (the request of 2026-11-14: "make a developer product to refresh eggs in the tree of life, and put the gamepass to
+	-- cut the tree of life time to 5 min in the tree of life menu as well")
+	H.expect(H.buttonNamed(p, "TreeRefresh") ~= nil and (H.buttonNamed(p, "TreeQuick") ~= nil) == not (prof.passes and prof.passes.QuickTree), "store", "the Tree panel sells New Eggs and, without it, the Quick Tree pass")
 	-- (the request of 2026-11-14: "make it possible to purchase eggs in the tree of life menu below the eggs under the
 	-- tree tab": an egg a rarity from Uncommon up, each with its Robux, after the eggs lying there)
 	do

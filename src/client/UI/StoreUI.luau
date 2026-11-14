@@ -67,6 +67,7 @@ local PRODUCTS: { Item } = {
 	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of shells, an epic and a legendary egg, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
 	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Every egg warming in your Hatcheries hatches now.", icon = "mini_nest", pass = false },
 	{ key = "RefreshShop", name = "Shop Refresh", blurb = "Six new pieces in the shop right away.", icon = "mini_refresh", pass = false },
+	{ key = "RefreshEggs", name = "New Eggs", blurb = "The Tree of Life lays a fresh lot of eggs right away.", icon = "mini_tree", pass = false },
 }
 -- (the egg products, Uncommon to Celestial)
 for _, key in Store.PRODUCTS do
@@ -126,6 +127,8 @@ end
 local function robuxText(key: string): string
 	return "R$ " .. Numbers.coins(robux(key))
 end
+-- (other panels' buy buttons: "R$ 25", the live price once known)
+StoreUI.robuxText = robuxText
 
 -- Ask Roblox to sell `key` (a pass or a product): only one whose id is set; one that isn't says so.
 function StoreUI.buy(key: string)
@@ -219,6 +222,8 @@ function StoreUI.rewardText(from: string, given: { any }): string
 			table.insert(one, "the " .. (if t then t.name else "new") .. " title")
 		elseif g.kind == "shop" then
 			table.insert(one, "a new set in the shop")
+		elseif g.kind == "eggs" then
+			table.insert(one, "a fresh lot of eggs under the tree")
 		elseif g.kind == "pal" then
 			pals += 1
 			local d = Creatures.byId[tostring(g.id)]
@@ -1045,13 +1050,20 @@ function StoreUI.offers(parent: Instance, v: Types.ClientView, w: number): Frame
 			UIKit.openPanel("store", "eggs")
 		end })
 	end
-	if vipWaiting(v) then
-		table.insert(list, { name = "Offer_VipGift", text = "VIP gift", sub = "Ready", icon = "mini_crown", color = UIKit.color("accent"), go = claimVip })
-	end
-	if v.groupOn and not (v.group and v.group.gift) then
-		table.insert(list, { name = "Offer_Group", text = "Group gift", sub = "Free", icon = "mini_folk", color = UIKit.color("good"), go = function()
+	-- the group, under the Starter Pack: "Join the group" while the player isn't in it, its gift once they are and
+	-- it waits (the request of 2026-11-14: "add a join group notification if the player hasnt joined the group below
+	-- the starter pack as well"); only once a group is set (Config/Monetization.Group.Id)
+	if v.groupOn and not (v.group and v.group.member) then
+		table.insert(list, { name = "Offer_Group", text = "Join the group", sub = "Free gift", icon = "mini_folk", color = UIKit.color("good"), go = function()
 			UIKit.openPanel("store", "passes")
 		end })
+	elseif v.groupOn and not (v.group and v.group.gift) then
+		table.insert(list, { name = "Offer_Group", text = "Group gift", sub = "Ready", icon = "mini_folk", color = UIKit.color("good"), go = function()
+			UIKit.openPanel("store", "passes")
+		end })
+	end
+	if vipWaiting(v) then
+		table.insert(list, { name = "Offer_VipGift", text = "VIP gift", sub = "Ready", icon = "mini_crown", color = UIKit.color("accent"), go = claimVip })
 	end
 	if #list == 0 then
 		return nil

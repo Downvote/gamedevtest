@@ -43,7 +43,7 @@ type ErrCode = Types.ErrCode
 local Store = {}
 
 Store.PASSES = { "VIP", "DoubleIncome", "QuickTree", "FreeDecor", "PremiumTrack", "OfflinePass" }
-Store.PRODUCTS = { "EggUncommon", "EggRare", "EggEpic", "EggLegendary", "EggMythic", "EggCelestial", "RefreshShop", "StarterPack", "HatcheryNow" }
+Store.PRODUCTS = { "EggUncommon", "EggRare", "EggEpic", "EggLegendary", "EggMythic", "EggCelestial", "RefreshShop", "StarterPack", "HatcheryNow", "RefreshEggs" }
 -- the egg products' rarities
 Store.EGG_R = { EggUncommon = 2, EggRare = 3, EggEpic = 4, EggLegendary = 5, EggMythic = 6, EggCelestial = 7 } :: { [string]: number }
 Store.RECEIPTS = 50 -- purchase ids kept (a receipt Roblox sends again is known and not paid twice)
@@ -482,6 +482,12 @@ function Store.product(p: Profile, key: string, now: number): (boolean, any)
 			end
 			table.insert(given, addTitle(p, "earlybird"))
 		end
+	elseif key == "RefreshEggs" then
+		-- the Tree of Life lays a fresh lot now: its clock to 0, so the server's next tick lays it in the weather of the
+		-- moment, the ones lying there going (IslandService: Fx "eggs"; the request of 2026-11-14, "make a developer
+		-- product to refresh eggs in the tree of life")
+		p.clutch.left = 0
+		table.insert(given, { kind = "eggs", n = Tree.count(p.tier) })
 	elseif key == "HatcheryNow" then
 		if #p.eggs == 0 then
 			table.insert(given, addShells(p, Store.minutes(p, Tuning.FallbackMins)))

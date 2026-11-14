@@ -833,17 +833,33 @@ local function buildTree(body: Frame, arg: any?)
 			next.Text = text
 		end
 	end)
+	-- under the bar, new eggs now (a product) and, without it, the Quick Tree pass: the request of 2026-11-14, "make a
+	-- developer product to refresh eggs in the tree of life, and put the gamepass to cut the tree of life time to 5
+	-- min in the tree of life menu as well"
+	local dy = 28
+	local nb = UIKit.button(body, "New eggs now " .. StoreUI.robuxText("RefreshEggs"), UDim2.fromOffset(LW, 12), UDim2.fromOffset(0, dy), function()
+		StoreUI.buy("RefreshEggs")
+	end, { name = "TreeRefresh", color = UIKit.color("button_ok") })
+	nb.ZIndex = 4
+	dy += 14
+	if not (v.passes and v.passes.QuickTree) then
+		local qb = UIKit.button(body, "Every 5 min: Quick Tree " .. StoreUI.robuxText("QuickTree"), UDim2.fromOffset(LW, 12), UDim2.fromOffset(0, dy), function()
+			StoreUI.buy("QuickTree")
+		end, { name = "TreeQuick", color = UIKit.color("button_warn") })
+		qb.ZIndex = 4
+		dy += 14
+	end
 	local housed = 0
 	for _, x in v.pals do
 		if x.home ~= 0 then
 			housed += 1
 		end
 	end
-	UIKit.text(body, string.format("%d eggs a lot. In huts %d/%d", Tree.count(v.tier), housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 28), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
+	UIKit.text(body, string.format("%d eggs a lot. In huts %d/%d", Tree.count(v.tier), housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, dy + 1), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
 	-- the odds now, rarity by rarity
-	UIKit.text(body, "What it lays now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, 42), { color = UIKit.color("text_dim") })
+	UIKit.text(body, "What it lays now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, dy + 13), { color = UIKit.color("text_dim") })
 	local odds = Tree.odds(p)
-	local y = 52
+	local y = dy + 23
 	for r = 1, Traits.RMAX do
 		local rar = Traits.RARITY[r]
 		local pct = odds[r] * 100
@@ -987,7 +1003,7 @@ function Menus.init()
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("pal", { title = "Driftling", icon = "pal", w = 320, h = 182, build = buildPal })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })
-	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 196, build = buildTree })
+	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 226, build = buildTree })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, build = buildIndex })
 	-- (Looks, with the founder's pieces and titles, is UI/StoreUI's since 2026-11-14)
 
