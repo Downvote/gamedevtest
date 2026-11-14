@@ -382,7 +382,8 @@ Models (`src/shared/Models`, Roblox modules):
   (`palm`, and `emptyLot`'s and `ends`') have one smooth trunk (`palmTrunk`: six round `Trunk` segments along a curve
   from the foot into the crown, a `Trunk` ball at each joint as wide as the segment below, the two woods in turn,
   widths on the 1/8-stud grid and lengths exact so the joints meet); the crown, fronds and coconuts where they were.
-- `DecorModels.build(id, at, lvl?) -> Model` (every piece in `Data/Buildings`; `lvl` goes to the builder: a level
+- `DecorModels.build(id, at, lvl?) -> Model` (its `Decor` attribute the id and `At` the frame it was built at, for
+  Controllers/Spinners; every piece in `Data/Buildings`; `lvl` goes to the builder: a level
   kept from an older save, the tree's stage, or a water tile's neighbour mask plus 1; `at`: the footprint's centre on
   the grass, turned; each building with its doors, windows, ridged roofs with eaves and its own props (crates, barrels,
   sacks, pots, fences, lamps); a pennant (`PennantPole`, red at lvl 2, gold at 3) and a lamp at Lv 3, only on a
@@ -823,7 +824,9 @@ before the first picture: only the boat arrival, unused now, asked for it).
 
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
-progress)`, `registerDynamic(model, outline?)` (outline "self" or "player": a founder, outlined in white, GAME_DESIGN
+progress)`, `hideStatic(part)` (Controllers/Spinners: a static part leaves the picture, Transparency 1 so BakeCast
+looks through it, the rect it and its shadow cover cast again, or the stash marked dirty on a stage),
+`registerDynamic(model, outline?)` (outline "self" or "player": a founder, outlined in white, GAME_DESIGN
 14.1: Random Bakery's rim. Once every model and its ink edge is drawn, each founder's whole silhouette, hidden parts too,
 is drawn again flat into a scratch window of its parts' rect (`Raster.window`, a buffer grown on demand and never
 shrunk) and `Shading.rim` lays white on its edge pixels, dotted on the global grid where something nearer hides that
@@ -882,7 +885,10 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   its finished picture (always true in the classic style). `setOffset(dx, dy)`: the layer shifted by whole art px
   (a hit's jolt in a minigame).
 - **Water**: a part with a `PixelWater` attribute (1 the sea, 2 the shallows, and the ponds, fountains and the rivers
-  drawn on the island through `Parts.water`, 3 the foam, and a waterfall's white water) marks its pixels in the bake
+  drawn on the island through `Parts.water`, 3 the foam, and a waterfall's white water, 4 falling water: class 6, its
+  phase from its height and a little across, so pale streaks (`waterTone`: a crest and a lighter band under it, 14
+  phase units a cycle, 3 a frame) run down the little waterfall's and the Spring Grotto's falls; the 2026-11-14
+  request, "waterfalls having flowing water"; `waterColor`'s cache keyed `base * 32 + cls * 4 + tone`) marks its pixels in the bake
   (`sWClass`) with a wave phase from their ground position (`sWave`: bands across the sea, bent by two sines);
   `WATER_HZ` (6) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
   baked tone: crests a light blue (`WATER_CREST`), troughs darker (`mixShaded` mixes in the layer's packed format,
@@ -893,7 +899,11 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   along their length). With the water, `animateWind(s, frame)` moves pixels on the static layer without a ray: a
   canopy leans a pixel each way and rests in between (its leading edge's outline and leaf moved out over what lies
   farther behind it, never over anything nearer; its trailing edge's taken by what lay behind it, the outline a
-  pixel in); a flag's columns drop or lift a pixel along the wave (the lifted fold a shade darker). What it painted is
+  pixel in); a flag's columns drop or lift a pixel along the wave (the lifted fold a shade darker). Inside a crown
+  (a leaf pixel whose four neighbours are leaves too) the leaves rustle: clumps of 2 x 2 chosen by a hash and the
+  frame (4 of 64 at a time, 9 while the gust leans the canopy) take the tone of the leaf a pixel up and across, or on
+  a flat leaf `RUSTLE_LIGHT` at 0.16 or a shade at 0.1 (the 2026-11-14 request, "make them actually rustle like
+  leaves"); never a pixel the sway moves. What it painted is
   kept (`windSaved` / `windWrote`) and undone (`windRestore`) before the next wind frame, a pan, a stage's stash and
   a bake; a pixel something else has painted since is left alone. They belong to their layer (`windOn`): another
   layer's are dropped, never restored onto it.
@@ -1207,6 +1217,16 @@ or sway. `stats()` (what is alive and drawn, and the last tick's parts in ms: `m
 `msCreatures`), `birds(plot)` (`{ sp, state, x, y, z, on }`), `debugRun(on)` (the sims: the lives stepped on
 Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` (every bird, gull, fish and leaf due
 now), `setSuspended(on)` (a timing's A/B).
+
+`Spinners` (GAME_DESIGN 11; the request of 2026-11-14, "other models should be animated if possible too, such as
+windmills being able to spin"): every `SCAN_SECS` 1 the islands within `NEAR` 220 studs of the view are looked over,
+and each piece with a `SPECS` entry (windmill: `SailArm`, `Sail` round (0, 3.4, 0.9) on its Z, 0.9 rad/s; waterwheel:
+`Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; grandmill: `Paddle` round (1.6, 1.5, -0.6) on its X, 0.7)
+gets a turning copy: those parts cloned (anchored, no collision or query) into a `Spin_<name>` model in
+`workspace.PixelDynamic`, registered as a moving model, the originals hidden (`PixelRenderer.hideStatic`), each part
+kept as its offset from the hub (the model's `At` frame times the hub). Every Heartbeat the copies near the view turn
+(`hub * Angles(0, 0, phase + t * speed)` times each offset; still with reduced motion); a piece gone (moved, rebuilt,
+cleared) drops its copy at the next scan. `start()`, `debugState() -> { count, parts, ids, still }`.
 
 `BuildingTags` (GAME_DESIGN 4.6; the requests of 2026-11-14, "show capacities of work buildings when hovered over. if
 noone is working on a building, make a alert on top of said work building stating so. do the same for huts and

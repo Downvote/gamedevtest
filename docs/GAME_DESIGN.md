@@ -1639,7 +1639,15 @@ text (the requests and how each was met) is in the history of this file, up to c
 
 - **The wind:** leaves sway and flags ripple (the pixel filter, a few times a second like the water: palms, trees,
   bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
-  ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail.
+  ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail. Inside a crown the
+  leaves rustle (the request of 2026-11-14: "animate models better, such as trees swaying, instead of just shiftiing
+  side to side, make them actually rustle like leaves. other models should be animated if possible too, such as
+  windmills being able to spin and waterfalls having flowing water"): little clumps of leaves turn, catch the light
+  or show their shade side for a moment, twice as many while a gust passes, so the crown shimmers as the wind runs
+  through it.
+- **What turns and flows:** a windmill's sails turn slowly, a waterwheel turns with the stream (the other way round)
+  and so do the Grand Mill's paddles, on every island near the view; the little waterfall and the Spring Grotto's
+  falls run with pale streaks moving down them. Reduced motion keeps the sails and wheels still.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
   zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a

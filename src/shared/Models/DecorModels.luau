@@ -1060,7 +1060,7 @@ B.grotto = function(m, f)
 	ball(m, f, 1.4, 1.1, -1.1, 1.8, "rock", "Rock")
 	box(m, f, 0, 2.2, -1.2, 3.0, 0.6, 0.9, "rock", "Arch")
 	box(m, f, 0, 2.55, -1.2, 2.6, 0.2, 0.7, "grass_dark", "Moss")
-	box(m, f, 0, 1.2, -0.95, 0.5, 1.8, 0.08, "window", "Falls")
+	box(m, f, 0, 1.2, -0.95, 0.5, 1.8, 0.08, "shallow", "Falls"):SetAttribute("PixelWater", 4) -- (streaks run down it)
 	for k = 0, 4 do
 		local a = k * 1.25
 		ball(m, f, 0.2 + math.cos(a) * 1.4, 0.25, 0.6 + math.sin(a) * 1.4, 0.35, if k % 2 == 0 then "rock_dark" else "rock", "Stone")
@@ -2312,6 +2312,8 @@ end
 function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	local m = Blocks.model(nil, "Decor_" .. id)
 	m:SetAttribute("Decor", id)
+	-- (its frame, for what turns on it in the client: Controllers/Spinners)
+	m:SetAttribute("At", at)
 	local fn = B[id]
 	local l = lvl or 1
 	if fn then

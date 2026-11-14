@@ -276,7 +276,8 @@ local function staticIdOf(part: BasePart): number
 	end
 	albedos[nid] = rgb
 	local wk = part:GetAttribute("PixelWater")
-	waters[nid] = if type(wk) == "number" then wk else 0
+	-- (PixelWater 4: falling water, class 6: streaks running down it)
+	waters[nid] = if wk == 4 then 6 elseif type(wk) == "number" then wk else 0
 	-- the wind: leaves sway (class 4), flags ripple (class 5)
 	local wind = part:GetAttribute("PixelWind")
 	if waters[nid] == 0 and (wind == 1 or wind == 2) then
@@ -420,7 +421,7 @@ local FLAT_TOP = 0.9 -- thatch strokes only on faces whose normal looks up less 
 
 -- A part's texture for the view of layer s (NO_TEX: none).
 local function texInfoOf(s: Surf, part: BasePart, rgb: number, wcls: number): TexInfo
-	if rgb >= EMISSIVE or (wcls >= 1 and wcls <= 3) then
+	if rgb >= EMISSIVE or (wcls >= 1 and wcls <= 3) or wcls == 6 then
 		return NO_TEX
 	end
 	local kind = Shading.texKind(rgb)
@@ -626,6 +627,10 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 		elseif wcls == 5 then
 			-- flags: a quick wave along their length
 			wph = math.floor((wx * 1.6 + wz * 1.1) * 4) % 256
+		elseif wcls == 6 then
+			-- falling water: by height (the streaks run down it), each thin column of it a little apart from the next
+			local wy = oy + cam.ly * depth
+			wph = (math.floor(wy * 6) + math.floor((wx + wz) * 3) * 5) % 256
 		else
 			wph = waterPhase(wx, wz)
 		end
@@ -1661,6 +1666,11 @@ end
 local function waterTone(cls: number, ph: number, k: number): number
 	if cls == 3 then
 		return if (ph + k * 3) % 32 < 20 then 0 else 3
+	elseif cls == 6 then
+		-- falling water: a pale streak and a lighter band under it running down (the request of 2026-11-14,
+		-- "waterfalls having flowing water")
+		local t = (ph + k * 3) % 14
+		return if t < 2 then 1 elseif t < 4 then 3 else 0
 	end
 	local t = (ph + k * WATER_SPEED) % 64
 	if t < 2 then
@@ -1683,11 +1693,13 @@ local function waterColor(base: number, cls: number, tone: number): number
 	if tone == 0 then
 		return base
 	end
-	local key = base * 16 + cls * 4 + tone
+	local key = base * 32 + cls * 4 + tone -- (cls up to 6: room for it)
 	local c = waterTones[key]
 	if c == nil then
 		if tone == 1 then
-			c = mixShaded(WATER_CREST, base, if cls == 2 then 0.4 else 0.34)
+			c = mixShaded(WATER_CREST, base, if cls == 2 then 0.4 elseif cls == 6 then 0.45 else 0.34)
+		elseif cls == 6 then
+			c = mixShaded(WATER_CREST, base, 0.18)
 		elseif tone == 2 then
 			c = mixShaded(WATER_DEEP, base, 0.18)
 		else
@@ -1707,7 +1719,7 @@ local function animateWater(s: Surf): boolean
 	local changed = false
 	for i = 0, n - 1 do
 		local c = buffer.readu8(cls, i)
-		if c ~= 0 and c <= 3 then
+		if c ~= 0 and (c <= 3 or c == 6) then
 			local base = buffer.readu32(shade, i * 4)
 			local cur = buffer.readu32(color, i * 4)
 			local ph = buffer.readu8(wave, i)
@@ -1730,6 +1742,12 @@ end
 -- lay behind it showing a pixel further; a flag's columns hang a pixel lower in
 -- the wave's crests and lift a pixel in its troughs (the lifted ones a fold darker). What the wind paints is undone
 -- before the next frame, a scroll or a bake (`windRestore`).
+-- Inside a canopy the leaves rustle (the request of 2026-11-14: "trees swaying, instead of just shiftiing side to
+-- side, make them actually rustle like leaves"): a scattering of leaf pixels (each with all four neighbours leaves
+-- too, so the outline holds) turns at a time in clumps of 2 x 2, taking the tone of the leaf a pixel up and across
+-- from it, or on a flat leaf catching the light or turning its shade side a step; twice as many while a gust passes
+-- (the same gust that leans the canopy), each for a frame or two, so the crown shimmers as the wind runs through it.
+local RUSTLE_LIGHT = 0xF4F8C8 -- a leaf turned to the sun (mixed in at a fifth)
 
 local function animateWind(s: Surf, k: number): boolean
 	local any = windRestore(s)
@@ -1754,6 +1772,23 @@ local function animateWind(s: Surf, k: number): boolean
 			local c = buffer.readu8(cls, i)
 			if c == 4 then
 				local g = (buffer.readu8(wave, i) + k * 3) % 48
+				-- the rustle (inside the crown; never a pixel the sway below moves)
+				if windSaved[i] == nil and buffer.readu8(cls, i - 1) == 4 and buffer.readu8(cls, i + 1) == 4 and buffer.readu8(cls, i - W) == 4 and buffer.readu8(cls, i + W) == 4 then
+					-- (in clumps of 2 x 2: a clump of leaves turns together)
+					local cx, cy = x // 2, y // 2
+					local h = (cx * 37 + cy * 101 + ((cx * cy) % 13) * 17) % 64
+					local n = if g < 12 or (g >= 24 and g < 36) then 9 else 4
+					if (h + k * 5) % 64 < n then
+						local here = orig(i)
+						local from = if h % 3 == 0 then orig(i + W + 1) else orig(i - W - 1)
+						if from ~= here then
+							put(i, from)
+						else
+							-- (a flat leaf: it catches the light or turns its shade side, a step either way)
+							put(i, if h % 2 == 0 then mixShaded(RUSTLE_LIGHT, here, 0.16) else mixShaded(0x2B1E2E, here, 0.1))
+						end
+					end
+				end
 				local dx = if g < 12 then 1 elseif g >= 24 and g < 36 then -1 else 0
 				if dx ~= 0 then
 					local t, b = i + dx, i - dx
@@ -2836,6 +2871,32 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 		end
 	end
 	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel }
+end
+
+-- A static part leaves the picture (Controllers/Spinners: a turning copy of it is drawn as a moving model instead):
+-- looked through from now on (Transparency 1: BakeCast passes it by), the rect it and its shadow cover cast again.
+function PixelRenderer.hideStatic(part: BasePart)
+	if part.Transparency >= 0.95 then
+		return
+	end
+	part.Transparency = 1
+	if surf == nil then
+		return
+	end
+	if CameraController.view().stage then
+		local st = stash
+		if st then
+			st.dirty = true
+		end
+		return
+	end
+	if rebakeAt >= 0 then
+		return
+	end
+	local r = partRect(part)
+	if r then
+		queueRect(r)
+	end
 end
 
 function PixelRenderer.unregisterDynamic(model: Model)

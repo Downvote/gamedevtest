@@ -25,6 +25,7 @@ local GrowFx = require(script.Parent.Controllers.GrowFx)
 local Hud = require(script.Parent.UI.Hud)
 local DayLight = require(script.Parent.Controllers.DayLight)
 local WeatherView = require(script.Parent.Controllers.WeatherView)
+local Spinners = require(script.Parent.Controllers.Spinners)
 local WeatherChip = require(script.Parent.UI.WeatherChip)
 
 pcall(function()
@@ -50,6 +51,7 @@ GrowFx.start()
 Hud.start()
 -- the season and the weather (GAME_DESIGN 13): on the islands, then their lines in the HUD's status panel
 WeatherView.start()
+Spinners.start()
 WeatherChip.start()
 
 -- the card follows the first picture's bake and fades into it once it is on screen (or after a while regardless)

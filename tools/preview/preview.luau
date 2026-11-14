@@ -363,6 +363,33 @@ function SCEN.water()
 	return p
 end
 
+-- What moves on its own (the request of 2026-11-14: "animate models better, such as trees swaying, instead of just
+-- shiftiing side to side, make them actually rustle like leaves. other models should be animated if possible too,
+-- such as windmills being able to spin and waterfalls having flowing water"): the village on a tier 3 island with a
+-- windmill, a waterwheel, a little waterfall and the Grand Mill by the palms; the log lists the turning copies
+-- (Controllers/Spinners); then a frame every sixth of a second for two seconds (motion_000 .. motion_011: the leaves
+-- rustling, the sails and wheels turning, the falls running).
+function SCEN.motion()
+	local pieces = table.clone(VILLAGE)
+	for _, q in { { "windmill", -2, -10 }, { "waterwheel", -12, -6 }, { "littlefall", 13, 6 }, { "grandmill", 13, -9 }, { "palm", 2, -6 }, { "palm", -6, -9 } } do
+		table.insert(pieces, q)
+	end
+	seedProfile(2, 3, { pieces = pieces, pals = { "clawdle", "mossbun", "pebblit" } })
+	local p = join(2, "Wren")
+	settle(p)
+	E.run(2)
+	local SP = modOr(p, "Controllers.Spinners")
+	if SP then
+		local st = H.inClient(p, SP.debugState)
+		log("motion: %d turning copies (%s), %d parts turning, still %s", st.count, table.concat(st.ids, ", "), st.parts, tostring(st.still))
+	end
+	for k = 0, 11 do
+		capture(p, string.format("motion_%03d", k))
+		E.run(1 / 6)
+	end
+	return p
+end
+
 -- The islands' small lives in the pixel layer (GAME_DESIGN 8; Controllers/AmbientView): a harbour island with
 -- chimneys, a smokehouse, a grill, trees and a picket fence by the plaza. The birds called in (`debugHurry`) and landed
 -- (ambient), then a frame every eighth of a second for two seconds (ambient_000 .. 015: hops, pecks, tufts swaying,
