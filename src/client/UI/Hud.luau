@@ -36,6 +36,7 @@ local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
 local StoreUI = require(script.Parent.StoreUI)
 local SettingsUI = require(script.Parent.SettingsUI)
+local WelcomeUI = require(script.Parent.WelcomeUI)
 local BuildUI = require(script.Parent.BuildUI)
 
 local Hud = {}
@@ -1028,6 +1029,7 @@ function Hud.start()
 	Menus.init()
 	StoreUI.init()
 	SettingsUI.init()
+	WelcomeUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
 	-- the stores every second: the chips count, shells coming in rise from their chip ("+12") at most every 2 s
@@ -1115,6 +1117,8 @@ function Hud.start()
 		-- sounds off and on (UI/SettingsUI)
 		Audio.music("day")
 		SettingsUI.apply()
+		-- the welcome-back card, once a report, when nothing else is up (GAME_DESIGN 14.3)
+		WelcomeUI.step()
 		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
 		-- clear of the tray's and the panels' buttons) and while swimming; in the sea the founder swims slower
 		local char = Players.LocalPlayer.Character

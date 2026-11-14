@@ -183,7 +183,9 @@ next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, m
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
-`Profile` (the save, version 16 (the store, 2026-11-14: `passes` (pass key -> true, checked again at every join),
+`Profile` (the save, version 17 (offline earnings and the group, 2026-11-14: `seenAt` (the sea's clock when the island
+was last open, set every second while it is; 0 unknown: an older save earns nothing for its time away), `group`
+(`Group = { member, gift }`: in the group at the last check, its gift given)); 16 (the store, 2026-11-14: `passes` (pass key -> true, checked again at every join),
 `receipts` (the last 50 developer product PurchaseIds paid), `gifts` (`starter`, `vip`: the one-time gifts given),
 `vipDay` (the UTC day VIP's daily gift was claimed), `bag` ({ Bagged }), `owned` (cosmetic id -> true), `titles` (title
 id -> true; everyone has `newcomer`), `title` (worn, "" none), `shop` (`{ at, n }`: the rotation the refreshes bought
@@ -201,7 +203,9 @@ now (`{ Laid }`, each with its `cost`), `clutchLeft` the seconds till the next l
 (`Tree.secs`: 600, 300 with the Quick Tree pass); the store's (`passes gifts vipDay bag owned titles title track` as saved,
 `shopList` (the rotating shop's pieces now), `shopLeft` (seconds till it turns over), `shopRefresh` (refreshes bought in
 this rotation), `trackLevel`, `trackInto`, `trackNeed` (`Store.level`), `trackLeft` (seconds left in the season),
-`minuteShells` (`Store.perMinute`: what a minutes-of-shells reward pays a minute), `incomeMult` (`Island.passMult`)); `clock` the sea's clock (`WorldClock.now`) when the view was made (the season and the weather: also
+`minuteShells` (`Store.perMinute`: what a minutes-of-shells reward pays a minute), `incomeMult` (`Island.passMult`: the passes and the group), `offline` (`OfflineReport = { away, secs, shells }` waiting to
+be collected, else false), `offlineHours`, `offlinePct` (`Store.offlineCap` / 3600, `Store.offlinePct`), `offlineDouble`
+(`Store.offlineDouble`: Collect x2 free), `group`, `groupOn` (`Monetization.Group.Id` set)); `clock` the sea's clock (`WorldClock.now`) when the view was made (the season and the weather: also
 patched by every tick); no `tide` or `tideSecs`), `ErrCode` (with `hatcheries`: the island has all the Hatcheries its tier allows, 2026-11-14; `no_hut`: no hut built to hatch into; `full`: no room in that
 hut, every hut full for an `egg.hatch` with no swap, or the island's piece, tile or fence limit reached; `fixed`: the
 Tree of Life can't be cleared away; `huts`: the island's huts' limit reached; `money`: not enough shells; no `food`, no
@@ -257,7 +261,7 @@ every field.
   egg laid in a kind is touched: rain, snow, blossom, leaves 0.35; haze, fog 0.3; storm 0.2), `WeatherTierW` (52, 30,
   13, 5: the touch's tier weights before the rarity's shift), `WeatherLuck` (`{ storm = 0.25 }`: rarity luck a kind
   adds to the eggs laid in it), `SeasonFavour` (3: a season's islets' kinds that many times as likely).
-- `Config/Monetization.luau`: `GamePasses`, `DevProducts`, `Badges` (empty or 0), `Sounds` (the Creator Store
+- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14), `DevProducts`, `Group = { Id }` (the Roblox group for the group gift, 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
   Random Bakery's, each named in a comment; the weather's `RainLight` 9112852671, `RainHeavy` 9112858162, `WindGusts`
   9114057104 and `Thunder` 9120017047, measured with ffprobe) and `Music` (`{ day, night }`: lists of `{ id, gain }`, APM Music
@@ -294,6 +298,7 @@ ErrCode)` and changes the profile only on success:
 |---|---|
 | `Util` | copied from Random Bakery: `hash32`, `newRng(seed)` (xorshift32: `next int range chance weighted`), `pick`, `shuffle`, `Signal`, `round clamp lerp isFinite sig2 deepCopy count` |
 | `Island` | the turn and the day (GAME_DESIGN 3): `piece(p, uid)`, `nests` (the huts' room), `fxOf(pal) -> Fx` (its passive and mutations, `Traits.sum`), `charm` (every piece's, and each driftling in a hut: 1 + its charm share), `charmBonus(charm)` (`CharmMax` x charm / (charm + `CharmHalf`), never below nothing: what charm adds to every shell; `visitors` went on 2026-11-14), `works(id)` (a building that makes something: kind farm, wood or shop), `homes(p) -> { [key]: { uid, comfort } }` (each hut driftling's hut and its comfort (the hut's plus `ComfortLvl` by level), "p<id>", none for one with no hut), `boosts(p) -> { farm wood shop all }` (each kind of boost building once), `boostAt(b, knack)` (its own and "all", `BoostMax` at most), `palWork(p, pal) -> number` (its work share at its building's knack, `Traits.workAt`), `palBoost(p, pal, comfort?)` (`PalWork` x `RarityWork[rarity]` x max(0, 1 + `palWork` + the hut's comfort): what a driftling puts in), `rates(p) -> Rates` (`{ shells }` a turn; a farm, wood building or shop makes its rate times its driftlings' `palBoost` summed (`IdleOutput` with nobody), times 1 + `boostAt`, times `UpgradeMult` by level, all in shells; the whole times 1 + `charmBonus(charm)`; nothing eats), `step(p, dt) -> Rates` (the shells; counted in `stats.earned`), `randomLook(rng)` (the founder's first look), `freeJob(p, knack, fx?) -> uid` (a workplace with fewer than `HelpMax` driftlings: one of that knack first, else the one where `fx` works fastest (`Traits.workAt`), then the emptiest, farms before wood before shops, the first built; 0 none), `newDay(p)`, `arrange(p)` (the automatic arrangement, 2026-11-14: every hut driftling not `pin`ned to the free place where its output is highest, the best workers first (their best speed at any knack, then the lower id); a workplace's output is its rate x `UpgradeMult` x (1 + `boostAt`), a driftling's speed `PalWork` x `RarityWork` x max(0, 1 + `Traits.workAt` + its hut's comfort); ties: its own knack, then farm, wood, shop, then the first built; a pinned one keeps its place while it stands (gone: unpinned, arranged); one with no hut rests; run by `Tree.fillJobs`, `settle`, `add`, `hatch`, `expand`, `setHelp`, `autoWork`, so on every building change, hatch, sale, move, growth and load), `setHelp` (by the player's hand: only a driftling in a hut, at any workplace whatever its knack, or rest; `pin` set; `HelpMax` a building, the first there unpinned and sent back to the arrangement; then `arrange`; bad_payload for one with no hut or a building that makes nothing), `autoWork(p, id)` (unpinned and `arrange`d; data `{ work }`; not_found), `expandCost(tier) -> { shells }?` (`TierCost[tier + 1]` in shells, `Buildings.shellsFor(wood, tier + 1)`; nil at the top), `expand(p)` (max, money; data `{ tier, moved, cleared }`: `Plot.refit`), `setFounder` |
+| `Store` | the store (GAME_DESIGN 14): `PASSES`, `PRODUCTS`, `owns`, `setPass`, `vipDaily`, `perMinute` / `minutes`, `product`, `shopNow` / `buy`, `wear`, `setTitle`, `earn`, the track (`season sync addXp level claim`), `paid` / `remember`; offline earnings and the group (GAME_DESIGN 14.3, 2026-11-14): `offlineCap(p)` (seconds: `OfflineHours`, `OfflinePassHours` with the Offline Pass), `offlinePct(p)`, `offline(p, now) -> OfflineReport?` (from `seenAt` to now, capped, at that share of `Island.rates` now, whole shells; nil when `seenAt` is 0, under `OfflineMinSec` or nothing earned), `offlineDouble(p, now)` (an island's first `OfflineDoubleDays`), `collect(p, report, mult) -> shells` (the shells and `stats.earned`), `setGroup(p, member) -> (changed, gift?)` (`group.member`; the first time in it `group.gift` and a `GroupEgg` egg with `GroupMins` of shells); `Island.passMult` adds 1 + `GroupBoost` while `group.member` |
 | `Plot` | building (GAME_DESIGN 4): `ROTS`, the limits by tier `limit(tier)` (`PlotPieces`), `housingLimit(tier)` (`HousingLimit`: the room its huts may have together) and `housing(placed)` (the room its huts have), `hatcheryLimit(tier)` (`HatcheryLimit`) and `hatcheries(placed)`, `pathLimit(tier)` (`PathPieces`: path and water tiles together), `fenceLimit(tier)` (`FencePieces`); `huts(placed)` (the huts standing); what a piece is: `isPath(id)`, `isWater(id)`, `isTile(id)` (a path or water: 2 x 2, drawn on the even studs), `isFence(id)`, `isDrawn(id)` (a tile or a fence: Build mode's draw bar, never placed one at a time from a card), `isFixed(id)` (the Tree of Life: moved, never bought, cleared away or replaced), `onPaths(id)` (any piece but the tree, a fence, a tile and a piece with a `water` mark: decor, plants, fun pieces, huts and workplaces may stand on path tiles, and paths may be drawn under them; 2026-11-14), `group(id)` ("tile", "fence", "fixed" (the tree: never counted) or "piece": the limit it counts toward), `groupLimit(group, tier)`, `used(p, id) -> (n, limit)` (the pieces of its group and that group's limit); `footprint(id, rot)`, `rect`, `blockers(tier)` (the campfire's plaza; the path to the jetty went with the docks), `fits(tier, placed, id, x, z, rot, skip?) -> (ok, "outside" (a footprint cell not `Street.buildable`, a tile off the even studs, a fence off the grid, a piece marked "on" not wholly on water tiles) / "blocked" / "overlap" / "unknown")` (one piece never on another but: a piece marked `water` "over" or "on" on water tiles, and water dug under one; an `onPaths` piece (a hut or a workplace too) on path tiles, and paths drawn under one; tiles and fences never in each other's way; a fence length (`fenceFits`: from an even corner, rot 0 east or 90 south, each of its two studs with buildable grass on one side or the other, not through the plaza, the path or a piece's footprint but free to run along its side, not on another length) never inside a piece's footprint, so no piece goes down across a fence), `spot(tier, placed, id, x, z, rot) -> (x?, z?, rot?)` (the free spot nearest x, z: `Tree.plant` plants with it, `refit` moves with it), `unhouse(p, uid, keep?)` (a hut's driftlings past its first `keep` left with no hut, resting; `Tree.settle` moves them in again; was `toPen`), `place` (bad_payload (an unknown piece, a home of the old saves, the tree), locked, full (its group's limit), huts (a hut whose room `housing` + its slots would pass `housingLimit`), hatcheries (a Hatchery at `hatcheryLimit`), money (short of the shells), blocked; one waiting in the inventory goes down
 for nothing, else it's paid; data `{ i, uid, free }`), `move` (the tree too; blocked for the spot; no upgrades: taken out 2026-11-11; a level from an older save stays and counts), `replaceCost(q, id)` (the new price less `Refund` of the old, never below nothing), `replacements(q, tier)` (the others of its kind open at the tier, a decor piece's only from its own row: the same `tab` and `sub`, a tree for a tree, a bench for a bench; none for the tree or a drawn piece, which is drawn over instead), `replace(p, i, id)` (bad_payload (another kind, the same piece, the tree), locked, huts (a bigger hut whose extra room the housing limit hasn't), money, blocked (the new footprint where the old stands); a smaller hut keeps the driftlings it has room for, the rest left with no hut; the uid kept, the level 1, its driftlings staying (any driftling works anywhere); bad_payload too for a drawn piece or a decor piece from another row, the same rows `replacements` offers), `store` (fixed (the tree), egg; into the inventory, data `{ id }`; a hut's driftlings left with no
 hut); the inventory (2026-11-14): `INV_MAX` (9999 of a piece), `held(p, id)`, `clear(p, what) -> (ok, { removed })`
@@ -578,6 +583,8 @@ handler under pcall; success marks the session dirty).
 | `track.claim` | `lvl prem` (1 .. 30, a boolean) | `Store.claim` (data `{ lvl, prem, given }`; Fx rewards) | locked (not reached, or no Premium Track pass), full (claimed), bad_payload |
 | `bag.hatch` | `id swap` | `Tree.hatchBag` (a bag egg, no shells; Fx hatched with `bag = true`) | not_found, no_hut, full, bad_payload |
 | `vip.daily` | - | `Store.vipDaily` (data `{ given }`; Fx rewards) | locked (no VIP), cooldown (claimed this UTC day) |
+| `offline.collect` | `mode` ("free" or "double") | `Store.collect` of the session's `offline` report, x2 for "double" (data `{ shells }`) | not_found (nothing waiting), locked ("double" after `Store.offlineDouble`) |
+| `group.check` | - | `MonetizationService.checkGroup` (yields: `IsInGroupAsync`; data `{ member }`; Fx rewards from "group" the first time in it) | not_ready (no `Monetization.Group.Id`) |
 
 The building actions and `island.expand` still check shells (`money`) for a price in shells, which no piece or tier
 has now. The expedition actions (`exp.*`, `pouch.upgrade`) and `pal.release` are gone (2026-11-12), the villagers'
@@ -642,6 +649,13 @@ says isn't owned is taken off: a refund). `grant(s, key, purchaseId) -> (paid, s
 Roblox tries again, and the kept PurchaseId stops a second payment). IslandService's second tick also runs
 `Store.earn` (Fx `titles` { ids }), `Store.sync` (a new season), a minute's track points and marks the session dirty
 when the rotating shop turns over; the hatches, Hatchery eggs, quests and expansions add their track points.
+The group (GAME_DESIGN 14.3; `Monetization.Group = { Id }`, a table so the sims can set it): `checkGroup(s) -> member`
+(yields) asks `IsInGroupAsync` under pcall (no id or a failed check: nothing changes, false), then `Store.setGroup`
+(Fx `rewards` { from = "group" } with the gift the first time); `join` runs it in the background, the route
+`group.check` on the Store's Join. Offline earnings (GAME_DESIGN 14.3; IslandService): `IslandService.join(s)` (Main,
+right after `Session.create`, before the island is built) sets the session's `offline` from `Store.offline(profile,
+WorldClock.now())` and `seenAt` to now; the second tick keeps `seenAt` at now; `IslandService.leave(s)` (Main's leave
+and BindToClose, before the save) pays a report not collected (`Store.collect` x1) and sets `seenAt`.
 
 ### 7.6 Persistence (`DataService`, `Logic/Schema`)
 One key per player (`u_<userId>`) in `Tuning.DataStoreName`, a record `{ data = Profile, lock = { job, t }? }`.
@@ -1218,7 +1232,9 @@ mode or a panel is up, else `Tuning.JumpHeight` (the phone's jump button hides w
 phone Roblox's top bar and the menu bar). The store's `Offers` column (`StoreUI.offers(canvas, v, CARD_W)`, built
 again when `StoreUI.offerKey(v)` changes) sits under the right-hand column (the island card, and the tree's card on a
 desktop) and hides with the cards: `Offer_StarterPack` (until `gifts.starter`; its `Offer_StarterPack_Go` opens "store"
-on "eggs") and `Offer_VipGift` (VIP owned and `vipDay` not today; `Offer_VipGift_Go` sends `vip.daily`), each a glass
+on "eggs"), `Offer_VipGift` (VIP owned and `vipDay` not today; `Offer_VipGift_Go` sends `vip.daily`), `Offer_Offline`
+first while `offline` waits ("Away earnings", "+N": opens "welcome") and `Offer_Group` last while `groupOn` and the
+gift isn't had ("Group gift", "Free": opens "store" on "passes"), each a glass
 chip with its `mini_` icon, `Text` and, when both fit, `Sub` (its price or "Ready"). `Hud.start` runs `StoreUI.init()`
 after `Menus.init()`.
 
@@ -1496,6 +1512,16 @@ three ranges of hills with trees outlined in ink), `show(r, ex, ey)` (paints it 
 `HatchBackdrop` ScreenGui and starts the sky's life on `HatchSky`), `step(dt)` (birds in `WINGS` beats, a shooting
 star, twinkles: K x K frames at whole art px), `hide()`.
 
+### 10.15 The welcome-back card (`UI/WelcomeUI`; GAME_DESIGN 14.3)
+`WelcomeUI.init()` (Hud.start) registers "welcome" (title "Welcome back", `mini_shell`, 250 x 112): `Shells` ("+N
+shells", big, in the accent, after the `Shell` sprite), `Away` ("You were away for X. Your driftlings kept working, at
+30% pace." or, past the cap, "... worked the first 3 h of it, ..."; "at full pace" with the pass), without the Offline
+Pass `PassNote` with `SeePass` (opens "store" on "passes"), with it and past the cap `CapNote`, then `Collect`
+(`offline.collect` "free") and, while `offlineDouble`, `CollectDouble` ("double") with `DoubleNote`; a collect closes
+it with "Collected N shells." `WelcomeUI.step()` (Hud's heartbeat) opens it by itself once a report (keyed by its
+`away` and `shells`) when the loading card is down (`LoadingCard.state().up` false), no panel is open, Build mode is
+shut and the hatch scene isn't playing; it closes the card when the view has no report. `WelcomeUI.open()`.
+
 ### 10.14 Settings (`UI/SettingsUI`; GAME_DESIGN 9)
 The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`): `ROWS` Music (`settings.music`), Sounds
 (`settings.sfx`) and Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish), each a row of buttons `Set_<k>_<v>`, the chosen
@@ -1514,7 +1540,10 @@ hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `Pro
 in the background (`PriceInRobux`, the panel refreshed when it lands), else `SuggestedRobux`, written "R$ 399".
 "store": the tabs `Tab_passes`, `Tab_eggs`, `Tab_shop`, `Tab_track` (each a `mini_` icon and its words; the open one
 `button`), then the tab's `List` (scrolling):
-- passes: `Pass_<key>` rows (icon, `Name`, `Blurb`), `Buy_<key>` (its price, or "Owned" disabled); VIP owned: `VipGift`
+- passes: the group card `Group` first (GAME_DESIGN 14.3: `mini_folk`, "Our group", `Blurb` (the gift and the boost,
+  or "You're in the group" once in), `GroupJoin`: "Join" (`group.check`; not in yet: `GroupService:PromptJoinAsync`,
+  then `group.check` again), "Joined" disabled once `group.member`, "Soon" disabled while `groupOn` is false), then
+  `Pass_<key>` rows (icon, `Name`, `Blurb`; OfflinePass with `mini_moon`), `Buy_<key>` (its price, or "Owned" disabled); VIP owned: `VipGift`
   ("Daily gift" while `vipDay` isn't the sea clock's UTC day, sending `vip.daily`; else "Owned" and "Gift again
   tomorrow").
 - eggs: `Product_<key>` rows (the Starter Pack hidden once `gifts.starter`; Finish Hatcheries saying how many warm; the

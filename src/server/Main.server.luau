@@ -45,6 +45,8 @@ local function join(player: Player)
 	local seed = Util.hash32(tostring(player.UserId) .. ":start")
 	local profile = Schema.reconcile(raw, os.time(), seed)
 	local s = Session.create(player, profile, plot)
+	-- (offline earnings: what the island made while the player was away, GAME_DESIGN 14.3)
+	IslandService.join(s)
 	PlotService.build(s)
 	s.ready = true
 	PlotService.placeCharacter(s)
@@ -61,6 +63,7 @@ local function leave(player: Player)
 	end
 	Session.remove(player)
 	s.ready = false
+	IslandService.leave(s)
 	DataService.save(player.UserId, s.profile, true)
 	PlotService.release(s.plot)
 end
@@ -98,6 +101,7 @@ end)
 game:BindToClose(function()
 	local threads = {}
 	for player, s in Session.all() do
+		IslandService.leave(s)
 		table.insert(threads, task.spawn(DataService.save, player.UserId, s.profile, true))
 	end
 	task.wait(2)

@@ -162,6 +162,21 @@ local Tuning = {
 	TrackBase = 100,
 	TrackStep = 20,
 	TrackXp = { egg = 6, breed = 10, quest = 30, expand = 120, minute = 2 } :: { [string]: number },
+	-- offline earnings, as Random Bakery pays them (Logic/Store.offline; the request of 2026-11-14: "Add offline earnings
+	-- just like the bakery game, and a gamepass which allows for 24h offline earnings"): away at least OfflineMinSec,
+	-- the island keeps earning for up to OfflineHours at OfflinePct of its pace; the Offline Pass makes it
+	-- OfflinePassHours at OfflinePassPct. "Collect x2" is free for an island's first OfflineDoubleDays days.
+	OfflineMinSec = 300,
+	OfflineHours = 3,
+	OfflinePct = 0.3,
+	OfflinePassHours = 24,
+	OfflinePassPct = 1,
+	OfflineDoubleDays = 3,
+	-- the group gift (the request of 2026-11-14: "a group reward which gives a rare egg and some shells and a +10% boost
+	-- in earnings"): once, an egg of GroupEgg's rarity and GroupMins minutes of shells; GroupBoost more shells while in it
+	GroupEgg = 3,
+	GroupMins = 30,
+	GroupBoost = 0.1,
 
 	-- server
 	StepHz = 10,

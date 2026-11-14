@@ -28,8 +28,9 @@ local Schema = {}
 -- 5: the island (GAME_DESIGN 1: the game studio is gone); 10: the Tree of Life (the fights and expeditions gone);
 -- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
--- titles, the rotating shop, the pass track: GAME_DESIGN 14)
-Schema.VERSION = 16
+-- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
+-- group gift (GAME_DESIGN 14.3)
+Schema.VERSION = 17
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -129,6 +130,8 @@ function Schema.default(now: number, seed: number): Profile
 		title = "newcomer",
 		shop = { at = -1, n = 0 },
 		track = { s = -1, xp = 0, got = {}, gotP = {} },
+		seenAt = now,
+		group = { member = false, gift = false },
 	}
 	Tree.plant(p)
 	return p
@@ -396,6 +399,8 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		raw.title = "newcomer"
 		v = 16
 	end
+	-- 16 -> 17: offline earnings and the group gift (reconcile fills them in: an older save earns nothing for the time
+	-- before it was opened again)
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -548,6 +553,11 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		title = "",
 		shop = { at = -1, n = 0 },
 		track = { s = -1, xp = 0, got = {}, gotP = {} },
+		seenAt = num(r.seenAt, 0, 0, 1e11),
+		group = {
+			member = type(r.group) == "table" and r.group.member == true,
+			gift = type(r.group) == "table" and r.group.gift == true,
+		},
 	}
 	-- the store (GAME_DESIGN 14): passes by their keys (MonetizationService checks them again at the join), the last
 	-- receipts, the one-time gifts, the bag's eggs, the look with only owned pieces worn, a title earned, the shop's

@@ -18,6 +18,13 @@
 --   Cosmetics are worn one a slot (`wear`); titles (Data/Titles) are earned by play (`earn`) and one is worn (`setTitle`).
 --   The pass track (Data/Track): points from play (`addXp`), a season every Tuning.TrackSecs (`sync` starts a new one),
 --   each level's rewards claimed by hand (`claim`).
+--   Offline earnings (GAME_DESIGN 14.3, Random Bakery's way; the request of 2026-11-14: "Add offline earnings just like
+--   the bakery game, and a gamepass which allows for 24h offline earnings and a group reward which gives a rare egg and
+--   some shells and a +10% boost in earnings"): `offline` works out what the island made while its player was away
+--   (Profile.seenAt to now, capped at Tuning.OfflineHours at OfflinePct of its pace; the OfflinePass makes it
+--   OfflinePassHours at OfflinePassPct), `collect` pays it (x2 free in an island's first OfflineDoubleDays days).
+--   The group (`setGroup`): its gift once (a GroupEgg egg and GroupMins of shells), GroupBoost more shells while in it
+--   (Island.passMult).
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Cosmetics = require(script.Parent.Parent.Data.Cosmetics)
@@ -35,7 +42,7 @@ type ErrCode = Types.ErrCode
 
 local Store = {}
 
-Store.PASSES = { "VIP", "DoubleIncome", "QuickTree", "FreeDecor", "PremiumTrack" }
+Store.PASSES = { "VIP", "DoubleIncome", "QuickTree", "FreeDecor", "PremiumTrack", "OfflinePass" }
 Store.PRODUCTS = { "EggUncommon", "EggRare", "EggEpic", "EggLegendary", "EggMythic", "EggCelestial", "RefreshShop", "StarterPack", "HatcheryNow" }
 -- the egg products' rarities
 Store.EGG_R = { EggUncommon = 2, EggRare = 3, EggEpic = 4, EggLegendary = 5, EggMythic = 6, EggCelestial = 7 } :: { [string]: number }
@@ -151,6 +158,63 @@ function Store.vipDaily(p: Profile, now: number): (boolean, any)
 	end
 	p.vipDay = day
 	return true, { given = { addShells(p, Store.minutes(p, Tuning.VipDailyMins)), addEgg(p, Tuning.VipDailyEgg) } }
+end
+
+------------------------------------------------------------------ offline earnings and the group
+-- How long away counts, in seconds, and the share of the island's pace it earns meanwhile.
+function Store.offlineCap(p: Profile): number
+	return (if Store.owns(p, "OfflinePass") then Tuning.OfflinePassHours else Tuning.OfflineHours) * 3600
+end
+
+function Store.offlinePct(p: Profile): number
+	return if Store.owns(p, "OfflinePass") then Tuning.OfflinePassPct else Tuning.OfflinePct
+end
+
+-- What the island made while away (Profile.seenAt to `now`, the sea's clock): nil when the time is unknown, too short
+-- (under Tuning.OfflineMinSec) or the island makes nothing. Its pace is now's (Island.rates: the passes, the group
+-- and charm in).
+function Store.offline(p: Profile, now: number): Types.OfflineReport?
+	if p.seenAt <= 0 then
+		return nil
+	end
+	local away = math.floor(math.max(0, now - p.seenAt))
+	if away < Tuning.OfflineMinSec then
+		return nil
+	end
+	local secs = math.min(away, Store.offlineCap(p))
+	local perSec = Island.rates(p).shells / Tuning.TurnSeconds
+	local shells = math.floor(math.max(0, perSec) * secs * Store.offlinePct(p) + 1e-9)
+	if shells <= 0 then
+		return nil
+	end
+	return { away = away, secs = secs, shells = shells }
+end
+
+-- Whether "Collect x2" is free: the island's first Tuning.OfflineDoubleDays days.
+function Store.offlineDouble(p: Profile, now: number): boolean
+	return now - p.createdAt < Tuning.OfflineDoubleDays * 86400
+end
+
+-- Pays a report times `mult` (1, or 2 while Collect x2 is free): the shells and the stats. Returns what it paid.
+function Store.collect(p: Profile, report: Types.OfflineReport, mult: number): number
+	local n = math.max(0, math.floor(report.shells * mult))
+	p.shells += n
+	p.stats.earned += n
+	return n
+end
+
+-- In the group or not (checked at a join and on the Store's Claim): Profile.group.member, and the gift the first time
+-- in it. Returns whether membership changed and what the gift gave (nil: none).
+function Store.setGroup(p: Profile, member: boolean): (boolean, { Given }?)
+	local g = p.group
+	local was = g.member
+	g.member = member
+	local gift: { Given }? = nil
+	if member and not g.gift then
+		g.gift = true
+		gift = { addEgg(p, Tuning.GroupEgg), addShells(p, Store.minutes(p, Tuning.GroupMins)) }
+	end
+	return was ~= member, gift
 end
 
 ------------------------------------------------------------------ the rotating shop

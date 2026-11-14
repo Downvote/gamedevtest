@@ -219,6 +219,21 @@ function IslandService.init()
 		end
 		return ok, data
 	end)
+	-- offline earnings (GAME_DESIGN 14.3): the welcome-back card's Collect (or Collect x2, free in an island's first days)
+	Router.on("offline.collect", function(s, a)
+		local report = s.offline
+		if report == nil then
+			return false, "not_found"
+		end
+		local p = s.profile
+		if a.mode == "double" and not Store.offlineDouble(p, WorldClock.now()) then
+			return false, "locked"
+		end
+		s.offline = nil
+		local n = Store.collect(p, report, if a.mode == "double" then 2 else 1)
+		Session.markDirty(s)
+		return true, { shells = n }
+	end)
 	Router.on("settings.set", function(s, a)
 		if a.k == "pixel" and type(a.v) == "string" and PIXEL_TIERS[a.v] then
 			s.profile.settings.pixel = a.v
@@ -302,6 +317,8 @@ function IslandService.step(dt: number)
 			-- the store (GAME_DESIGN 14): titles earned by play (Fx "titles"), a new season of the pass track, a minute's
 			-- points, a new set in the rotating shop
 			local now = WorldClock.now()
+			-- (the island is open: offline earnings count from the last second it was)
+			p.seenAt = now
 			local titles = Store.earn(p)
 			if #titles > 0 then
 				Session.markDirty(s)
@@ -325,6 +342,24 @@ function IslandService.step(dt: number)
 			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = now, clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
 		end
 	end
+end
+
+-- A player arrives (Main, before the session is ready): what their island made while they were away waits on the
+-- welcome-back card (Logic/Store.offline: from Profile.seenAt to now, capped), and the clock of being here starts.
+function IslandService.join(s: Session.S)
+	local now = WorldClock.now()
+	s.offline = Store.offline(s.profile, now)
+	s.profile.seenAt = now
+end
+
+-- A player leaves (Main, before the save): offline earnings not collected yet are paid as shown (Collect), not lost.
+function IslandService.leave(s: Session.S)
+	local report = s.offline
+	if report then
+		s.offline = nil
+		Store.collect(s.profile, report, 1)
+	end
+	s.profile.seenAt = WorldClock.now()
 end
 
 return IslandService

@@ -56,6 +56,11 @@ export type Bagged = { id: number, r: number }
 -- The pass track (Data/Track; Logic/Store): the season these points are for (Logic/Store.season), the points, and the
 -- levels whose free and premium rewards were claimed.
 export type Track = { s: number, xp: number, got: { number }, gotP: { number } }
+-- What the island made while its player was away (Logic/Store.offline): `away` seconds gone, `secs` of them counted
+-- (the cap), `shells` to collect.
+export type OfflineReport = { away: number, secs: number, shells: number }
+-- The group gift (Logic/Store.setGroup): in the group now (as last checked), the gift given.
+export type Group = { member: boolean, gift: boolean }
 
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
 -- the kind and its mutations) and the island turns left (it hatches into a hut with room at the turn it reaches 0).
@@ -92,6 +97,9 @@ export type Profile = {
 	title: string, -- the title worn ("" none)
 	shop: { at: number, n: number }, -- the rotating shop: the rotation the refreshes are for, and how many were bought
 	track: Track,
+	-- offline earnings and the group (GAME_DESIGN 14.3; 2026-11-14)
+	seenAt: number, -- the sea's clock when the island was last open (0: unknown, nothing earned away)
+	group: Group,
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -136,7 +144,15 @@ export type ClientView = {
 	trackNeed: number, -- points the next level costs
 	trackLeft: number, -- seconds till the season ends
 	minuteShells: number, -- a minute of what the island makes now (the shells rewards: Logic/Store.minutes)
-	incomeMult: number, -- what the passes multiply the island's shells by (Logic/Island.passMult)
+	incomeMult: number, -- what the passes and the group multiply the island's shells by (Logic/Island.passMult)
+	-- offline earnings (GAME_DESIGN 14.3): what waits to be collected (false: nothing), the cap and the share of the
+	-- island's pace it earns away, whether "Collect x2" is free (an island's first days)
+	offline: OfflineReport | false,
+	offlineHours: number,
+	offlinePct: number,
+	offlineDouble: boolean,
+	group: Group,
+	groupOn: boolean, -- a group is set (Config/Monetization.Group.Id)
 }
 
 export type ErrCode =

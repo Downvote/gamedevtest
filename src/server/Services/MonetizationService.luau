@@ -9,6 +9,10 @@
 --   Products: paid only in ProcessReceipt, once each: the purchase id is kept with the profile (Store.remember: the
 --   last Store.RECEIPTS) and PurchaseGranted is answered only once the save holds it. A receipt Roblox sends again is
 --   known and granted without paying twice; one for a player not here (left, still loading) waits for a later try.
+--   The group (GAME_DESIGN 14.3; Config/Monetization.Group.Id, 0: none yet): at every join and on the Store's Claim
+--   ("group.check") the player's membership is checked (IsInGroupAsync); in it, the gift comes the first time (Fx
+--   "rewards" from "group") and the island makes Tuning.GroupBoost more shells while they stay (Island.passMult). A
+--   failed check leaves what the save had.
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,6 +22,7 @@ local Store = require(ReplicatedStorage.Shared.Logic.Store)
 local Session = require(script.Parent.Session)
 local DataService = require(script.Parent.DataService)
 local WorldClock = require(script.Parent.WorldClock)
+local Router = require(script.Parent.Router)
 
 local MonetizationService = {}
 
@@ -41,8 +46,42 @@ local function applyPass(s: Session.S, key: string, bought: boolean)
 	end
 end
 
--- The join's checks (Main, once the session is ready): each enabled pass, in parallel.
+-- Whether the player is in the group now (nil: no group set, or the check failed). Yields.
+local function inGroup(s: Session.S): boolean?
+	local gid = Monetization.Group.Id
+	if not Monetization.isEnabled(gid) then
+		return nil
+	end
+	local ok, res = pcall(function(): boolean
+		return s.player:IsInGroupAsync(gid)
+	end)
+	if not ok then
+		warn("[MonetizationService] couldn't check the group: " .. tostring(res))
+		return nil
+	end
+	return res == true
+end
+
+-- The group checked (a join, or the Store's Claim after joining): Profile.group, the gift the first time in it.
+-- Returns whether the player is in it now (false when unknown). Yields.
+function MonetizationService.checkGroup(s: Session.S): boolean
+	local member = inGroup(s)
+	if member == nil or Session.get(s.player) ~= s then
+		return false
+	end
+	local changed, gift = Store.setGroup(s.profile, member)
+	if changed or gift then
+		Session.markDirty(s)
+	end
+	if gift then
+		Session.fx(s, { kind = "rewards", from = "group", given = gift })
+	end
+	return member
+end
+
+-- The join's checks (Main, once the session is ready): each enabled pass, in parallel, and the group.
 function MonetizationService.join(s: Session.S)
+	task.spawn(MonetizationService.checkGroup, s)
 	for key, id in Monetization.GamePasses do
 		if Monetization.isEnabled(id) then
 			task.spawn(function()
@@ -123,6 +162,13 @@ function MonetizationService.init()
 		end
 	end
 	MarketplaceService.ProcessReceipt = processReceipt
+	-- (the Store's group card: Claim after joining the group, or a look whether the player is in it)
+	Router.on("group.check", function(s, _a)
+		if not Monetization.isEnabled(Monetization.Group.Id) then
+			return false, "not_ready"
+		end
+		return true, { member = MonetizationService.checkGroup(s) }
+	end)
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, bought: boolean)
 		local key = passKeys[passId]
 		local s = Session.get(player)

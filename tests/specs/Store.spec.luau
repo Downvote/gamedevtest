@@ -1,7 +1,8 @@
 -- The store (Logic/Store; GAME_DESIGN 14): the passes' effects (Double Income, VIP, Quick Tree, Free Decor, Premium
 -- Track), the products (eggs into the bag, a shop refresh, the starter pack once, the Hatcheries finished), the bag's
 -- eggs hatched for nothing, the rotating shop, wearing cosmetics and titles, titles earned, the pass track, the
--- receipts paid once and the save's new fields.
+-- receipts paid once and the save's new fields; offline earnings (the cap, the share, the Offline Pass, Collect x2 on
+-- an island's first days) and the group gift (once, with the group's boost while in it).
 local T = require("../TestKit")
 local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Store = require("../../build/luautest/shared/Logic/Store")
@@ -318,5 +319,85 @@ return function()
 			end
 		end
 		T.truthy(#Store.POOL >= Tuning.ShopSize * 4, "enough for the shop to rotate")
+	end)
+
+	T.it("offline earnings: nothing under five minutes, 3 h at 30% of the pace, 24 h at full pace with the pass", function()
+		local p = earner()
+		local perSec = Island.rates(p).shells / Tuning.TurnSeconds
+		T.truthy(perSec > 0)
+		p.seenAt = 0
+		T.eq(Store.offline(p, 1e6), nil) -- (unknown: an older save)
+		p.seenAt = 1000
+		T.eq(Store.offline(p, 1000 + Tuning.OfflineMinSec - 1), nil)
+		-- two hours away: all of it counts, at OfflinePct
+		local r = Store.offline(p, 1000 + 7200) :: any
+		T.truthy(r ~= nil)
+		T.eq(r.away, 7200)
+		T.eq(r.secs, 7200)
+		T.eq(r.shells, math.floor(perSec * 7200 * Tuning.OfflinePct + 1e-9))
+		-- a day away: only OfflineHours count
+		r = Store.offline(p, 1000 + 86400) :: any
+		T.eq(r.secs, Tuning.OfflineHours * 3600)
+		T.eq(r.shells, math.floor(perSec * Tuning.OfflineHours * 3600 * Tuning.OfflinePct + 1e-9))
+		-- the Offline Pass: OfflinePassHours at OfflinePassPct
+		p.passes.OfflinePass = true
+		T.eq(Store.offlineCap(p), Tuning.OfflinePassHours * 3600)
+		r = Store.offline(p, 1000 + 86400) :: any
+		T.eq(r.secs, 86400)
+		T.eq(r.shells, math.floor(perSec * 86400 * Tuning.OfflinePassPct + 1e-9))
+		r = Store.offline(p, 1000 + 3 * 86400) :: any
+		T.eq(r.secs, Tuning.OfflinePassHours * 3600)
+		-- collected: the shells and the stats; x2 free in the island's first days only
+		local s0, e0 = p.shells, p.stats.earned
+		T.eq(Store.collect(p, r, 2), r.shells * 2)
+		T.eq(p.shells, s0 + r.shells * 2)
+		T.eq(p.stats.earned, e0 + r.shells * 2)
+		p.createdAt = 0
+		T.truthy(Store.offlineDouble(p, Tuning.OfflineDoubleDays * 86400 - 1))
+		T.truthy(not (Store.offlineDouble(p, Tuning.OfflineDoubleDays * 86400)))
+		-- an island that makes nothing earns nothing away
+		local q = fresh()
+		q.seenAt = 1
+		T.eq(Store.offline(q, 1e5), nil)
+	end)
+
+	T.it("the group: the gift once (a rare egg and shells), more shells while in it, none after leaving", function()
+		local p = earner()
+		local base = Island.rates(p).shells
+		local bag0, sh0 = #p.bag, p.shells
+		local changed, gift = Store.setGroup(p, true)
+		T.truthy(changed)
+		T.truthy(gift ~= nil and #(gift :: any) == 2)
+		T.eq(#p.bag, bag0 + 1)
+		T.eq(p.bag[#p.bag].r, Tuning.GroupEgg)
+		T.truthy(p.shells > sh0)
+		T.truthy(p.group.member and p.group.gift)
+		T.near(Island.rates(p).shells, base * (1 + Tuning.GroupBoost), 1e-6)
+		-- (checked again: no second gift)
+		local c2, g2 = Store.setGroup(p, true)
+		T.truthy(not (c2))
+		T.eq(g2, nil)
+		-- left the group: the boost goes, the gift stays had
+		local c3, g3 = Store.setGroup(p, false)
+		T.truthy(c3)
+		T.eq(g3, nil)
+		T.near(Island.rates(p).shells, base, 1e-6)
+		local c4, g4 = Store.setGroup(p, true)
+		T.truthy(c4)
+		T.eq(g4, nil)
+		-- the save keeps both, and an older save starts out of the group with nothing earned away
+		local raw = Util.deepCopy(p)
+		raw.seenAt = 12345
+		local back = Schema.reconcile(raw, 99999, 7)
+		T.truthy(back.group.member and back.group.gift)
+		T.eq(back.seenAt, 12345)
+		local old = Util.deepCopy(p)
+		old.v = 16
+		old.group = nil
+		old.seenAt = nil
+		local up = Schema.reconcile(old, 99999, 7)
+		T.truthy(not (up.group.member or up.group.gift))
+		T.eq(up.seenAt, 0)
+		T.eq(Store.offline(up, 99999 + 7200), nil)
 	end)
 end

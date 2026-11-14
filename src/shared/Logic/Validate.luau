@@ -56,6 +56,9 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["track.claim"] = { lvl = "level", prem = "bool" },
 	["bag.hatch"] = { id = "int", swap = "int" },
 	["vip.daily"] = {},
+	-- offline earnings collected ("free", or "double" while it's free) and the group checked again (GAME_DESIGN 14.3)
+	["offline.collect"] = { mode = "collect" },
+	["group.check"] = {},
 }
 Validate.ACTIONS = ACTIONS
 
@@ -114,6 +117,8 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 1, Track.LEVELS)
 	elseif kind == "bool" then
 		return type(v) == "boolean"
+	elseif kind == "collect" then
+		return v == "free" or v == "double"
 	elseif kind == "any" then
 		local t = type(v)
 		return t == "string" and #v <= 32 or t == "number" or t == "boolean"

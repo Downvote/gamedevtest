@@ -2075,6 +2075,7 @@ at once):
 | Quick Tree | 199 | the Tree of Life lays every 5 minutes (`EggSecsPass`) |
 | Free Decor | 249 | decor, paths, water and fences cost nothing (`Plot.price`); while it is owned they sell back for nothing too, so no free piece turns into shells |
 | Premium Track | 349 | the pass track's premium side, this season and every one after |
+| Offline Pass | 199 | the island earns for up to 24 hours while its player is away, at its full pace (§14.3) |
 
 **The products** (paid once each in `ProcessReceipt`: the purchase id is saved with the profile, and Roblox is told
 the purchase went through only once the save holds it):
@@ -2149,11 +2150,37 @@ game's picture path (a top on a little body, a back piece turned to show its bac
 a 1 px ink outline, no half see-through pixels, the outline made again on the four sides. After changing a piece's
 model, `sh tools/preview/cosmetic_thumbs.sh` draws them again.
 
+### 14.3 Offline earnings and the group (`Logic/Store.offline`, `Store.setGroup`, `UI/WelcomeUI`)
+
+> The request (2026-11-14): "Add offline earnings just like the bakery game, and a gamepass which allows for 24h
+> offline earnings and a group reward which gives a rare egg and some shells and a +10% boost in earnings"
+
+**Offline earnings**, the way Random Bakery pays its takeaway window. The save keeps when the island was last open
+(`seenAt`, on the sea's clock, every second while the player is there). Back after at least five minutes
+(`OfflineMinSec`), the island has kept earning: up to 3 hours of the time away (`OfflineHours`) at 30% of what it makes
+now (`OfflinePct`). With the **Offline Pass** it is up to 24 hours (`OfflinePassHours`) at the full pace
+(`OfflinePassPct`). A save from before this has no time to count, so its first time back earns nothing.
+
+The **welcome-back card** opens by itself once the loading card has gone: "+3,240 shells" big, then "You were away for
+9 h 20 min. Your driftlings worked the first 3 h of it, at 30% pace." Without the pass, a line says what it gives ("Offline
+Pass: up to 24 h away, at full pace.") with See pass, which opens the Store's Passes tab. **Collect** pays it; in an
+island's first three days (`OfflineDoubleDays`) **Collect x2** is there too, free. Closed without collecting, it waits
+behind an "Away earnings +3,240" chip under the right-hand cards; leaving the game pays it as shown, so nothing is lost.
+
+**The group gift.** `Config/Monetization.Group.Id` holds the game's Roblox group (0 until it is made). The Store's
+Passes tab opens with a card for it: "Join our group for a rare egg and 30 minutes of shells, then 10% more shells
+while you stay." Join first looks whether the player is in the group already, opens Roblox's join prompt if not, then
+looks again. In the group: the gift comes once (a rare egg in the bag, `GroupEgg`, and 30 minutes of shells,
+`GroupMins`: "Group gift: 1,500 shells and a rare egg.") and the island makes 10% more shells (`GroupBoost`, with the
+passes: x2 x1.25 x1.1) for as long as the player stays in it. Membership is looked at again at every join, so the
+boost goes if they leave the group (the gift stays had). Until the group is set the card's button reads "Soon". The
+HUD shows a "Group gift Free" chip until the gift is had (a tap opens the card).
+
 ### 14.2 The Store screens (`UI/StoreUI`, the Tree panel, the Hatchery panel, Build mode, the HUD)
 
 **The Store.** A Store button closes the menu bar (`mini_store`, a beach stall). Its panel has four tabs along the top:
 
-- **Passes.** The five passes, each with a line on what it does and its price in Robux ("R$ 399": the live price once
+- **Passes.** The group card first (§14.3), then the six passes, each with a line on what it does and its price in Robux ("R$ 399": the live price once
   Roblox gives it, else the suggested one), Buy or Owned. Once VIP is owned its row has the daily gift's button
   ("Daily gift", then "Gift again tomorrow").
 - **Eggs and more.** The Starter Pack first (gone once bought), Finish Hatcheries (how many eggs are warming), Shop
@@ -2190,7 +2217,9 @@ says how often it lays ("New eggs every 10:00", 5:00 with Quick Tree).
 **Build mode.** With Free Decor, the decor, paths, water and fences read "Free" on their cards, in the tip and on the
 info plate, they go down for no shells, a replacement among them costs nothing, and in the inventory they sell for 0.
 
-**The HUD.** Under the right-hand cards, a small glass chip each: "Starter Pack R$ 49" until it is bought (a tap opens
-the Store on Eggs and more) and "VIP gift Ready" on a day VIP's gift waits (a tap claims it). On a phone the chip drops
+**The HUD.** Under the right-hand cards, a small glass chip each: "Away earnings +3,240" while offline earnings wait
+(a tap opens the welcome-back card, §14.3), "Starter Pack R$ 49" until it is bought (a tap opens the Store on Eggs and
+more), "VIP gift Ready" on a day VIP's gift waits (a tap claims it) and "Group gift Free" until the group's gift is had
+(a tap opens the Store's Passes tab). On a phone the chip drops
 the price when it would not fit.
 

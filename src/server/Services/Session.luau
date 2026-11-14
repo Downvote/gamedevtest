@@ -12,6 +12,7 @@ local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Store = require(ReplicatedStorage.Shared.Logic.Store)
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local WorldClock = require(script.Parent.WorldClock)
 
 export type S = {
@@ -28,6 +29,7 @@ export type S = {
 	reqTimes: { number },
 	minuteClock: number?, -- seconds toward the pass track's next minute of points (GAME_DESIGN 14)
 	shopRot: number?, -- the rotating shop's rotation last sent
+	offline: Types.OfflineReport?, -- what the island made while its player was away, waiting to be collected (GAME_DESIGN 14.3)
 }
 
 local Session = {}
@@ -117,6 +119,12 @@ function Session.view(s: S): Types.ClientView
 		trackLeft = trackLeft,
 		minuteShells = Store.perMinute(p),
 		incomeMult = Island.passMult(p),
+		offline = if s.offline then s.offline else false,
+		offlineHours = Store.offlineCap(p) / 3600,
+		offlinePct = Store.offlinePct(p),
+		offlineDouble = Store.offlineDouble(p, now),
+		group = p.group,
+		groupOn = Monetization.isEnabled(Monetization.Group.Id),
 	}
 end
 

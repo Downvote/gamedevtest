@@ -11,7 +11,12 @@ local Monetization = {
 		QuickTree = 0, -- the Tree of Life lays every 5 minutes in place of 10
 		FreeDecor = 0, -- decor, paths, water and fences cost nothing
 		PremiumTrack = 0, -- the pass track's premium side, this season and every one after
+		OfflinePass = 0, -- the island earns for up to 24 hours while the player is away, at its full pace (not 3 at 30%)
 	} :: { [string]: number },
+	-- the Roblox group (Community) whose members get the group gift once (a rare egg and shells) and 10% more shells
+	-- while they stay in it (Logic/Store.setGroup; MonetizationService checks at every join and on the Store's Claim).
+	-- Put the group's id here; 0: no group yet (the Store's group card says so and its button waits).
+	Group = { Id = 0 } :: { Id: number },
 	-- the developer products (MonetizationService: ProcessReceipt, Logic/Store.product)
 	DevProducts = {
 		EggUncommon = 0, -- an egg of that rarity into the bag, to hatch for nothing (any kind of that rarity)
@@ -31,6 +36,7 @@ local Monetization = {
 		QuickTree = 199,
 		FreeDecor = 249,
 		PremiumTrack = 349,
+		OfflinePass = 199,
 		EggUncommon = 15,
 		EggRare = 35,
 		EggEpic = 75,

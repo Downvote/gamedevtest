@@ -28,9 +28,11 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local GroupService = game:GetService("GroupService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Cosmetics = require(ReplicatedStorage.Shared.Data.Cosmetics)
 local Titles = require(ReplicatedStorage.Shared.Data.Titles)
 local Track = require(ReplicatedStorage.Shared.Data.Track)
@@ -57,6 +59,7 @@ local PASSES: { Item } = {
 	{ key = "QuickTree", name = "Quick Tree", blurb = "The Tree of Life lays new eggs every 5 minutes, not 10.", icon = "mini_tree", pass = true },
 	{ key = "FreeDecor", name = "Free Decor", blurb = "Decor, paths, water and fences cost nothing to put down.", icon = "mini_decor", pass = true },
 	{ key = "PremiumTrack", name = "Premium Track", blurb = "Opens the premium side of the pass track, this season and every one after.", icon = "mini_ticket", pass = true },
+	{ key = "OfflinePass", name = "Offline Pass", blurb = "Your island earns for up to 24 hours while you're away, at its full pace.", icon = "mini_moon", pass = true },
 }
 
 local PRODUCTS: { Item } = {
@@ -189,7 +192,7 @@ end
 
 -- What a purchase or a reward gave (Fx rewards' `given`), in one plain line: each thing when there are three or fewer,
 -- else counted ("2 eggs, 2 pieces").
-local FROM: { [string]: string } = { vip = "Today's VIP gift", track = "Pass track", VIP = "VIP's welcome gift" }
+local FROM: { [string]: string } = { vip = "Today's VIP gift", track = "Pass track", VIP = "VIP's welcome gift", group = "Group gift" }
 function StoreUI.rewardText(from: string, given: { any }): string
 	local head = FROM[from] or (if ITEM_BY[from] then ITEM_BY[from].name else "Got")
 	local parts: { string } = {}
@@ -351,11 +354,66 @@ end
 ------------------------------------------------------------------ the tabs
 local tab = "passes"
 
+-- The group card (GAME_DESIGN 14.3): Join (a check first, then Roblox's join prompt, then a check again), Joined once in.
+-- No group set yet: its button waits ("Soon").
+local joining = false
+local function joinGroup()
+	if joining then
+		return
+	end
+	local gid = Monetization.Group.Id
+	if not Monetization.isEnabled(gid) then
+		Audio.play("deny")
+		UIKit.notice("The group isn't open yet.", UIKit.color("text_dim"))
+		return
+	end
+	joining = true
+	Audio.play("click")
+	task.spawn(function()
+		local res = StateClient.request("group.check", {})
+		if not (res.ok and type(res.data) == "table" and res.data.member) then
+			pcall(function()
+				GroupService:PromptJoinAsync(gid)
+			end)
+			res = StateClient.request("group.check", {})
+		end
+		joining = false
+		if not (res.ok and type(res.data) == "table" and res.data.member) then
+			UIKit.notice("Join the group, then tap Join here again for your gift.", UIKit.color("text_dim"), 4)
+		end
+		if UIKit.currentPanel() == "store" then
+			UIKit.refreshPanel()
+		end
+	end)
+end
+
+local function groupRow(list: Instance, v: Types.ClientView, W: number, BW: number)
+	local g = v.group
+	local member = g ~= nil and g.member
+	local f = row(list, 0, 34, "Group")
+	spriteIn(f, "mini_folk", 3, 4, 14)
+	local pct = math.floor(Tuning.GroupBoost * 100 + 0.5)
+	local blurb = if member
+		then string.format("You're in the group: %d%% more shells while you stay.", pct)
+		else string.format("Join our group for a rare egg and %d minutes of shells, then %d%% more shells while you stay.", Tuning.GroupMins, pct)
+	UIKit.text(f, "Our group", UDim2.fromOffset(W - BW - 40, 10), UDim2.fromOffset(22, 2), { color = UIKit.color("good"), z = 4, name = "Name" })
+	UIKit.text(f, blurb, UDim2.fromOffset(W - BW - 32, 20), UDim2.fromOffset(22, 12), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
+	local on = v.groupOn
+	local text = if member then "Joined" elseif on then "Join" else "Soon"
+	local b = UIKit.button(f, text, UDim2.fromOffset(BW, 13), UDim2.fromOffset(W - BW - 10, 3), joinGroup, {
+		name = "GroupJoin",
+		color = if member or not on then UIKit.color("plate_light") else UIKit.color("button_ok"),
+		enabled = on and not member,
+	})
+	b.ZIndex = 4
+end
+
 local function buildPasses(body: Frame, v: Types.ClientView, W: number, H: number, top: number)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	list.Name = "List"
 	UIKit.vlist(list, 2)
 	local BW = 62
+	groupRow(list, v, W, BW)
 	for i, it in PASSES do
 		local has = owns(v, it.key)
 		local f = row(list, i, 34, "Pass_" .. it.key)
@@ -836,13 +894,22 @@ end
 -- What the offers show now (Hud rebuilds them when it changes).
 function StoreUI.offerKey(v: Types.ClientView): string
 	local starter = not (v.gifts and v.gifts.starter)
-	return string.format("%s|%s", if starter then "s" else "", if vipWaiting(v) then "v" else "")
+	local away = if v.offline ~= false then (v.offline :: Types.OfflineReport).shells else 0
+	local group = v.groupOn and not (v.group and v.group.gift)
+	return string.format("%s|%s|%d|%s", if starter then "s" else "", if vipWaiting(v) then "v" else "", away, if group then "g" else "")
 end
 
--- The offers' column (nil: none to show): the Starter Pack until bought (opens the Store's Eggs tab), VIP's gift on a
--- day it waits (claims it).
+-- The offers' column (nil: none to show): offline earnings not collected yet (opens the welcome-back card), the Starter
+-- Pack until bought (opens the Store's Eggs tab), VIP's gift on a day it waits (claims it), the group gift until it's
+-- had (opens the Store's Passes tab, where the group card is).
 function StoreUI.offers(parent: Instance, v: Types.ClientView, w: number): Frame?
 	local list: { { name: string, text: string, sub: string, icon: string, color: Color3, go: () -> () } } = {}
+	if v.offline ~= false then
+		local r = v.offline :: Types.OfflineReport
+		table.insert(list, { name = "Offer_Offline", text = "Away earnings", sub = "+" .. Numbers.coins(r.shells), icon = "mini_shell", color = UIKit.color("accent"), go = function()
+			UIKit.openPanel("welcome")
+		end })
+	end
 	if not (v.gifts and v.gifts.starter) then
 		table.insert(list, { name = "Offer_StarterPack", text = "Starter Pack", sub = robuxText("StarterPack"), icon = "mini_gift", color = UIKit.color("accent"), go = function()
 			UIKit.openPanel("store", "eggs")
@@ -850,6 +917,11 @@ function StoreUI.offers(parent: Instance, v: Types.ClientView, w: number): Frame
 	end
 	if vipWaiting(v) then
 		table.insert(list, { name = "Offer_VipGift", text = "VIP gift", sub = "Ready", icon = "mini_crown", color = UIKit.color("accent"), go = claimVip })
+	end
+	if v.groupOn and not (v.group and v.group.gift) then
+		table.insert(list, { name = "Offer_Group", text = "Group gift", sub = "Free", icon = "mini_folk", color = UIKit.color("good"), go = function()
+			UIKit.openPanel("store", "passes")
+		end })
 	end
 	if #list == 0 then
 		return nil
@@ -882,6 +954,7 @@ local PASS_THANKS: { [string]: string } = {
 	QuickTree = "Thanks! The Tree of Life lays every 5 minutes now.",
 	FreeDecor = "Thanks! Decor, paths, water and fences are free now.",
 	PremiumTrack = "Thanks! The premium side of the track is open.",
+	OfflinePass = "Thanks! Your island earns for up to 24 hours while you're away now.",
 }
 
 function StoreUI.init()

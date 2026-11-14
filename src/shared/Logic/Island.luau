@@ -168,14 +168,15 @@ function Island.rates(p: Profile): Rates
 	return out
 end
 
--- What the passes multiply every shell by (GAME_DESIGN 14): Double Income x Tuning.DoubleIncome, VIP 1 +
--- Tuning.VipIncome (both: x2 x 1.25).
+-- What the passes and the group multiply every shell by (GAME_DESIGN 14): Double Income x Tuning.DoubleIncome, VIP 1 +
+-- Tuning.VipIncome, in the group 1 + Tuning.GroupBoost (all three: x2 x 1.25 x 1.1).
 function Island.passMult(p: Profile): number
 	local ps = p.passes
+	local g = if p.group and p.group.member then 1 + Tuning.GroupBoost else 1
 	if ps == nil then
-		return 1
+		return g
 	end
-	return (if ps.DoubleIncome then Tuning.DoubleIncome else 1) * (if ps.VIP then 1 + Tuning.VipIncome else 1)
+	return (if ps.DoubleIncome then Tuning.DoubleIncome else 1) * (if ps.VIP then 1 + Tuning.VipIncome else 1) * g
 end
 
 -- dt seconds of the island's turns: what it made (fractions; the stats count the shells).

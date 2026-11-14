@@ -180,8 +180,11 @@ E.phase = "rejoin"
 local p2 = H.addPlayer({ userId = 9201, name = "Saver" })
 E.run(2)
 local after = E.deepCopy(H.profile(p2))
--- the clock ran a little since: the day's making (nothing happens offline)
+-- the clock ran a little since: the day's making (nothing earned away: gone only a few seconds, under
+-- Tuning.OfflineMinSec), and the island's open-clock (seenAt) moved on
 after.shells, after.stats.earned = before.shells, before.stats.earned
+H.expect(after.seenAt >= before.seenAt and H.session(p2).offline == nil, "save", "a few seconds away earn nothing offline", string.format("%s -> %s", tostring(before.seenAt), tostring(after.seenAt)))
+after.seenAt = before.seenAt
 -- (the eggs' clock ran on only while the player was here again, never while they were away)
 local away = E.SIM.now - leftAt
 local ran = before.clutch.left - after.clutch.left
@@ -221,7 +224,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 16, "save", "a version 12 save loads as version 16", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 17, "save", "a version 12 save loads as version 17", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -281,7 +284,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 16, "save", "a version 11 save loads as version 16", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 17, "save", "a version 11 save loads as version 17", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid. A tier-1 island has
 	-- few places an 8 by 8 tree fits, and the patch and the hut take them all: the patch makes room, its whole price
@@ -551,7 +554,7 @@ do
 	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
 	E.run(3)
 	local fp = H.profile(f13)
-	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 16", tostring(fp and fp.v))
+	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 17", tostring(fp and fp.v))
 	if fp then
 		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
 		H.expect(fp.wood == nil and fp.shells >= 300 + 90 + 25 * 2 + 120 and fp.shells < 300 + 90 + 25 * 2 + 120 + 2, "save", "their price back (two fences at 25, a hedge at 120) and the wood, as shells", string.format("%s %s", tostring(fp.shells), tostring(fp.wood)))
@@ -657,6 +660,8 @@ do
 			local afterW = E.deepCopy(H.profile(fw2))
 			if H.expect(afterW ~= nil, "save", "(the pond's owner back)") then
 				afterW.shells, afterW.stats.earned = beforeW.shells, beforeW.stats.earned
+				-- (the island's open-clock moves on: GAME_DESIGN 14.3)
+				afterW.seenAt = beforeW.seenAt
 				local ranW = beforeW.clutch.left - afterW.clutch.left
 				afterW.clutch.left = beforeW.clutch.left
 				local diffW = H.diff(beforeW, afterW)
@@ -720,6 +725,138 @@ do
 end
 
 ------------------------------------------------------------------ an old save (version 4: the game studio)
+------------------------------------------------------------------ offline earnings and the group (GAME_DESIGN 14.3)
+-- The request of 2026-11-14: "Add offline earnings just like the bakery game, and a gamepass which allows for 24h
+-- offline earnings and a group reward which gives a rare egg and some shells and a +10% boost in earnings". The island
+-- of the first player (earning) saved for other players, gone a while: two hours (all of it counts, at 30%: the
+-- welcome-back card by itself, Collect from it), thirty hours (3 h counted; left without collecting: paid on leave),
+-- thirty hours with the Offline Pass (24 h at full pace; Collect x2 refused once the island's first days are over), and
+-- a member of the group (its gift once, the boost, gone when they leave it).
+E.phase = "offline"
+local Store = H.sharedServer("Logic.Store")
+local IslandL = H.sharedServer("Logic.Island")
+local WorldClock = H.smod("WorldClock")
+local Mon = H.sharedServer("Config.Monetization")
+local base = E.deepCopy(H.profile(p2))
+base.passes = {}
+base.receipts = {}
+base.group = { member = false, gift = false }
+local function seedAway(uid, secs, edit)
+	local d = E.deepCopy(base)
+	d.seenAt = math.floor(WorldClock.now() - secs)
+	if edit then
+		edit(d)
+	end
+	seed(uid, { data = d })
+end
+-- (what a report should hold: all the time away up to the cap, at the share of the island's pace now)
+local function fair(prof, r): boolean
+	local perSec = IslandL.rates(prof).shells / Tuning.TurnSeconds
+	return math.abs(r.shells - perSec * r.secs * Store.offlinePct(prof)) <= 1.01 and r.secs == math.min(r.away, Store.offlineCap(prof))
+end
+local function said(r, prof): string
+	local want = if prof and r then IslandL.rates(prof).shells / Tuning.TurnSeconds * r.secs * Store.offlinePct(prof) else 0
+	return if r then string.format("%d shells for %d of %d s (the pace now makes it %.1f)", r.shells, r.secs, r.away, want) else "none"
+end
+-- two hours away
+seedAway(9220, 7200)
+local o1 = H.addPlayer({ userId = 9220, name = "Napper" })
+E.run(3)
+local s1 = H.session(o1)
+local r1 = s1 and s1.offline
+local pr1 = H.profile(o1)
+H.expect(r1 ~= nil and r1.away >= 7200 and r1.away < 7260 and r1.secs == r1.away and fair(pr1, r1), "offline", "two hours away: all of it counted, at 30% of the island's pace", said(r1))
+H.expect(pr1 ~= nil and math.abs(pr1.seenAt - WorldClock.now()) <= 2, "offline", "the island's open-clock runs again from the join", tostring(pr1 and pr1.seenAt))
+local v1 = H.view(o1)
+H.expect(v1 ~= nil and type(v1.offline) == "table" and r1 ~= nil and v1.offline.shells == r1.shells and v1.offlineHours == Tuning.OfflineHours and v1.offlinePct == Tuning.OfflinePct, "offline", "the view carries the report, the cap and the share", v1 and tostring(v1.offline))
+-- (the welcome-back card opens by itself once the loading card has gone: Collect pays it)
+E.runUntil(function()
+	return H.currentPanel(o1) == "welcome"
+end, 45, 0.5)
+H.expect(H.currentPanel(o1) == "welcome", "offline", "the welcome-back card opens by itself", tostring(H.currentPanel(o1)))
+local function label(p, name)
+	local l = p.PlayerGui:FindFirstChild(name, true)
+	return if l and l:IsA("TextLabel") then l.Text else nil
+end
+H.expect(r1 ~= nil and label(o1, "Shells") == "+" .. H.sharedServer("Logic.Numbers").coins(r1.shells) .. " shells" and H.buttonNamed(o1, "Collect") ~= nil and H.buttonNamed(o1, "SeePass") ~= nil, "offline", "the card: the shells, Collect, and the Offline Pass's line", tostring(label(o1, "Shells")))
+H.expect(v1 ~= nil and v1.offlineDouble and H.buttonNamed(o1, "CollectDouble") ~= nil, "offline", "a new island's first days: Collect x2 is there, free")
+local sh0 = pr1.shells
+H.clickNamed(o1, "Collect", { wait = 0.6 })
+local gotN = pr1.shells - sh0
+H.expect(r1 ~= nil and gotN >= r1.shells and gotN < r1.shells + 50 and H.session(o1).offline == nil and H.currentPanel(o1) ~= "welcome", "offline", "Collect pays it and the card goes", string.format("+%.1f for %s", gotN, said(r1)))
+local again = H.req(o1, "offline.collect", { mode = "free" })
+H.expect(not again.ok and again.err == "not_found", "offline", "nothing to collect twice", tostring(again.err))
+E.run(1)
+v1 = H.view(o1)
+H.expect(v1 ~= nil and v1.offline == false, "offline", "the view: nothing waiting")
+H.checkProfile(o1, "offline")
+E.removePlayer(o1, "leave")
+E.run(1)
+-- thirty hours away, not collected: paid on leave
+seedAway(9221, 30 * 3600)
+local o2 = H.addPlayer({ userId = 9221, name = "Traveller" })
+E.run(3)
+local r2 = H.session(o2) and H.session(o2).offline
+local pr2 = H.profile(o2)
+H.expect(r2 ~= nil and r2.secs == Tuning.OfflineHours * 3600 and r2.away >= 30 * 3600 and fair(pr2, r2), "offline", "thirty hours away: only the first three count", said(r2))
+local before2 = pr2.shells
+E.removePlayer(o2, "leave")
+E.run(2)
+local saved2 = record(9221)
+local sv2 = saved2 and saved2.value.data
+H.expect(sv2 ~= nil and r2 ~= nil and sv2.shells - before2 >= r2.shells - 0.01 and sv2.shells - before2 < r2.shells + 50 and math.abs(sv2.seenAt - WorldClock.now()) <= 3, "offline", "left without collecting: paid as shown, and the time of leaving saved", sv2 and string.format("+%.1f for %s", sv2.shells - before2, said(r2)) or "no record")
+-- thirty hours away with the Offline Pass, an island older than its first days
+-- (the sims give every pass an id, so the join asks Roblox: this player owns it)
+E.cloud.passes[9222] = { [Mon.GamePasses.OfflinePass] = true }
+seedAway(9222, 30 * 3600, function(d)
+	d.passes = { OfflinePass = true }
+	d.createdAt = math.floor(WorldClock.now() - 10 * 86400)
+end)
+local o3 = H.addPlayer({ userId = 9222, name = "Sleeper" })
+E.run(3)
+local r3 = H.session(o3) and H.session(o3).offline
+local pr3 = H.profile(o3)
+H.expect(r3 ~= nil and r3.secs == Tuning.OfflinePassHours * 3600 and fair(pr3, r3) and Store.offlinePct(pr3) == Tuning.OfflinePassPct, "offline", "the Offline Pass: 24 hours counted, at full pace", said(r3, pr3))
+local dbl = H.req(o3, "offline.collect", { mode = "double" })
+H.expect(not dbl.ok and dbl.err == "locked" and H.view(o3).offlineDouble == false, "offline", "Collect x2 only in an island's first days", tostring(dbl.err))
+local sh3 = pr3.shells
+local col = H.req(o3, "offline.collect", { mode = "free" })
+H.expect(col.ok and r3 ~= nil and col.data.shells == r3.shells and pr3.shells - sh3 >= r3.shells, "offline", "Collect pays the report", tostring(col.err))
+E.removePlayer(o3, "leave")
+E.run(1)
+-- a member of the group (its id set for this part)
+E.phase = "group"
+local gid0 = Mon.Group.Id
+Mon.Group.Id = 4242
+E.cloud.groups[9223] = { [4242] = true }
+seedAway(9223, 10)
+local o4 = H.addPlayer({ userId = 9223, name = "Member" })
+E.run(4)
+local pr4 = H.profile(o4)
+local function eggsR(prof, r): number
+	local n = 0
+	for _, b in prof.bag do
+		if b.r == r then
+			n += 1
+		end
+	end
+	return n
+end
+H.expect(pr4 ~= nil and pr4.group.member and pr4.group.gift and eggsR(pr4, Tuning.GroupEgg) == 1, "group", "in the group at the join: the gift (a rare egg in the bag, shells)", pr4 and string.format("member %s gift %s, %d rare", tostring(pr4.group.member), tostring(pr4.group.gift), eggsR(pr4, Tuning.GroupEgg)) or "")
+H.expect(pr4 ~= nil and math.abs(IslandL.passMult(pr4) - (1 + Tuning.GroupBoost)) < 1e-9 and H.view(o4).groupOn, "group", "10% more shells while in it", tostring(pr4 and IslandL.passMult(pr4)))
+local chk = H.req(o4, "group.check", {})
+H.expect(chk.ok and chk.data.member == true and eggsR(pr4, Tuning.GroupEgg) == 1, "group", "checked again: still in, no second gift", tostring(chk.err))
+E.cloud.groups[9223] = {}
+chk = H.req(o4, "group.check", {})
+H.expect(chk.ok and chk.data.member == false and not pr4.group.member and pr4.group.gift and IslandL.passMult(pr4) == 1, "group", "left the group: the boost goes, the gift stays had", tostring(chk.err))
+Mon.Group.Id = 0
+local off = H.req(o4, "group.check", {})
+H.expect(not off.ok and off.err == "not_ready", "group", "no group set: the check says so")
+Mon.Group.Id = gid0
+H.checkProfile(o4, "group")
+E.removePlayer(o4, "leave")
+E.run(1)
+
 E.phase = "old-save"
 seed(9205, { data = {
 	v = 4,

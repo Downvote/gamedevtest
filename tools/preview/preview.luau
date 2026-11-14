@@ -239,6 +239,10 @@ local function seedProfile(userId, tier, opts)
 		end
 	end
 	prof.clutch.left = opts.left or (Tuning.EggSecs - 60)
+	-- (opts.away: seconds since the island was last open, so it has offline earnings waiting: GAME_DESIGN 14.3)
+	if opts.away then
+		prof.seenAt = now - opts.away
+	end
 	for _, sp in opts.seen or {} do
 		prof.seen[sp] = math.max(prof.seen[sp] or 0, 1)
 	end
@@ -746,7 +750,8 @@ local function panelScenario(name)
 		table.insert(pieces, { "hatchery", 4, -18 })
 		seedProfile(20, 3, { pieces = pieces, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, shells = 9000, seen = { "glacior" } })
 	else
-		seedProfile(20, 2, { pieces = VILLAGE, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, seen = { "pebblit", "frondle", "twiggle", "magmole" } })
+		-- (panel=welcome: away nine hours and twenty minutes, the welcome-back card with its offline earnings)
+		seedProfile(20, 2, { pieces = VILLAGE, pals = { "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy" }, seen = { "pebblit", "frondle", "twiggle", "magmole" }, away = if name == "welcome" then 9 * 3600 + 1200 else nil })
 	end
 	-- (the harness's test ids sell at their suggested prices, as the Creator Dashboard would set them: before the join,
 	-- so the HUD's offers read them too)
