@@ -475,6 +475,15 @@ floor, it just looks noisy", 2026-11-14),
   32x32 (drawn from its model at that size, never shrunk or blown up), a build catalog picture 24x24 (the piece's
   model seen as the island shows it, drawn at that size and tidied the portraits' way), a small icon 11x11. The world and the driftlings are 3D and drawn by the pixel filter, so they keep the same
   grid, palette and outline.
+- **The small icons are drawn by hand**, pixel by pixel, the way Random Bakery draws its own: a few shared ramps,
+  light from the top left on the real form (a sun's rays, an apple's round side, a log's cut end), white glints, the
+  lines inside an icon in the material's dark tone (never ink), and one ink ring round the outside. Tones sit in
+  clusters that follow the form, never rings that trace the outline (no banding); the ramps shift hue (shadows cooler,
+  lights warmer); each step of a curve is softened from the inside by a pixel a tone darker.
+
+  > The requests (2026-11-14): "The driftling, hatchery, season icons, starter pack and tree icons look flat and
+  > undetailed. Redo them. Reference the bakery game for icons", then "Do the same with all the other icons" and
+  > "Remember to use anti aliasing within the outline, avoid banding and use hueshifting".
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
 - **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),

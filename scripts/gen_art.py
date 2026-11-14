@@ -171,82 +171,222 @@ load_thumbs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "thumbs.txt
 load_thumbs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cosmetic_thumbs.txt"), LOOKS, "look_", "cosmetic pictures", "cosmetic_thumbs.sh", "CosmeticThumbData")
 
 # ---------------------------------------------------------------- the small icons, 11 x 11 (chips, lists, the path)
-SMALL = {
-    # what the island has
-    "shell": [".........", ".FFFFFFF.", "FFFFFFFFF", "FFjFjFjFF", "FFjFjFjFF", ".FFjjjFF.", "..FFjFF..", "...FFF...", "........."],
-    "food": ["....n....", "....nll..", ".RRRnRRR.", "RRRRRRRRR", "RRRRRRRRR", "RRRRRRRRR", ".RRRRRRR.", ".RRRRRRR.", "..RR.RR.."],
-    "wood": [".........", "..NNNNyy.", ".NNNNyyyy", ".NNNNytyy", ".NNNNyyyy", "..NNNNyy.", ".........", ".........", "........."],
-    "sun": ["....Y....", ".Y..Y..Y.", "..YYYYY..", "..YYYYY..", "YYYYYYYYY", "..YYYYY..", "..YYYYY..", ".Y..Y..Y.", "....Y...."],
-    "moon": ["...BBB...", "..BBB....", ".BBB.....", ".BBB.....", ".BBB.....", ".BBB.....", "..BBB....", "...BBB...", "........."],
-    "charm": [".........", ".KK...KK.", "KKKK.KKKK", "KKKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K...."],
-    "folk": ["...NNN...", "..NNNNN..", "..NFFFN..", "..FkFkF..", "..FFFFF..", "...FFF...", ".BBBBBBB.", ".BBBBBBB.", "........."],
-    "pal": [".........", "..C...C..", ".CCC.CCC.", ".CCCCCCC.", ".CkCCCkC.", ".CCCCCCC.", ".CCCpCCC.", "..CCCCC..", "........."],
-    "visitor": ["...YYY...", ".YYYYYYY.", "..FFFFF..", "..FkFkF..", "..FFFFF..", "...FFF...", ".OOOOOOO.", ".OOOOOOO.", "........."],
-    # what can be built (the build tray's tabs)
-    "home": ["....R....", "...RRR...", "..RRRRR..", ".RRRRRRR.", "RRRRRRRRR", ".mmmmmmm.", ".mnnmmcm.", ".mnnmmmm.", ".mnnmmmm."],
-    "nest": [".........", "...WWW...", "..WWWWW..", "..WWWWW..", "NNNWWWNNN", "NNNNNNNNN", ".NdNNNdN.", "..NNNNN..", "........."],
-    # the Tree of Life: a round crown with glowing fruit on a short trunk, roots spreading
-    "tree": ["..GGGGG..", ".GGGGGGG.", "GGGyGGGGG", "GGGGGGyGG", ".GGGGGGG.", "...NNN...", "...NNN...", "..NNNNN..", ".NN...NN."],
-    "train": [".........", ".S.....S.", "SSS...SSS", "SSSxxxSSS", "SSS...SSS", ".S.....S.", ".........", ".........", "........."],
-    "boost": ["....G....", "...GGG...", "..GGGGG..", ".GGGGGGG.", "...GGG...", "...GGG...", "...GGG...", "...GGG...", "........."],
-    "path": [".........", "SSS......", "SSS.SSS..", "....SSS..", ".SSS.....", ".SSS.SSS.", ".....SSS.", "..SSS....", "..SSS...."],
-    "decor": ["..KK.KK..", ".KKKKKKK.", "..KKyKK..", ".KKKKKKK.", "..KK.KK..", "....G....", ".GG.G....", "..GGG.GG.", "....GGG.."],
-    # the build catalog's tabs (GAME_DESIGN 4): work (a hammer), fences, water, nature (a pine), fun (a balloon)
-    "work": [".........", ".SSSS....", "SSSSSS...", ".SSSSN...", ".....N...", "......N..", ".......N.", "........N", "........."],
-    "fence": [".........", "N...N...N", "NNNNNNNNN", "N...N...N", "N...N...N", "NNNNNNNNN", "N...N...N", "N...N...N", "........."],
-    "water": [".........", ".........", ".BB...BB.", "BBBB.BBBB", "BBBBBBBBB", ".........", ".BB...BB.", "BBBB.BBBB", "BBBBBBBBB"],
-    "nature": ["....G....", "...GGG...", "..GGGGG..", "...GGG...", "..GGGGG..", ".GGGGGGG.", "....N....", "....N....", "........."],
-    "fun": ["..RRR....", ".RRRRR...", ".RRRRR...", ".RRRRR...", "..RRR....", "...R.....", "...N.....", "....N....", "...N....."],
-    # marks for a route (drawn since the expeditions; kept for the icon set)
-    "start": ["..R......", "..RRR....", "..RRRRR..", "..RRR....", "..N......", "..N......", "..N......", ".NNN.....", "........."],
-    "loot": ["..N...N..", "...NNN...", "...ooo...", "..NNNNN..", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "..NNNNN..", "........."],
-    "chest": [".........", ".NNNNNNN.", "NNNNNNNNN", "YYYYYYYYY", "NNNNyNNNN", "NNNNNNNNN", "NNNNNNNNN", ".........", "........."],
-    "wild": ["..OO.OO..", "..OO.OO..", "OO.....OO", "OO.OOO.OO", "..OOOOO..", ".OOOOOOO.", ".OOOOOOO.", "..OO.OO..", "........."],
-    "rest": ["....O....", "...OO....", "...OYO...", "..OYYYO..", "..OYYYO..", ".N.OOO.N.", "..NNNNN..", ".N.....N.", "........."],
-    "boss": [".........", ".Y..Y..Y.", ".YY.Y.YY.", ".YYYYYYY.", ".YrYYYbY.", ".YYYYYYY.", ".........", ".........", "........."],
-    "star": ["....Y....", "....Y....", "...YYY...", "YYYYYYYYY", ".YYYYYYY.", "..YYYYY..", "..YY.YY..", ".Y.....Y.", "........."],
-    "boat": [".........", "....W....", "....WW...", "....WWW..", "....N....", ".NNNNNNN.", "..NNNNN..", "BBBBBBBBB", "........."],
-    # the build tray's search button: a round glass lens in a grey rim, a wooden handle down to the right
-    "search": ["..SSS....", ".SCCCS...", "SCCCCCS..", "SCCCCCS..", "SCCCCCS..", ".SCCCSN..", "..SSSNN..", "......NN.", ".......NN"],
-    # the music switch: two beamed notes
-    "note": ["...WWWWWW", "...WWWWWW", "...W....W", "...W....W", "...W....W", ".WWW..WWW", "WWWW.WWWW", "WWW..WWW.", "........."],
-    # the weather (GAME_DESIGN 13: the HUD's chip, the tree panel's touched eggs): a breeze's curls, a cloud and its
-    # drops, a dark cloud and a bolt, a grey cloud over banks of fog, a snowflake, a blossom, the sun over heat waves, a
-    # falling leaf
-    "breeze": [".........", "WWWWWW...", "......W..", "WWWWWW...", ".........", "..WWWWWWW", ".W.......", "..WWWW...", "........."],
-    "rain": ["...WWW...", ".WWWWWWW.", "WWWWWWWWW", ".WWWWWWW.", ".........", "..B...B..", "..B...B..", ".........", "....B...."],
-    "storm": ["...SSS...", ".SSSSSSS.", "SSSSSSSSS", ".SSSSSSS.", "....YY...", "...YY....", "..YYYY...", "....YY...", "...YY...."],
-    "fog": ["..SSSS...", ".SSSSSS..", "SSSSSSSS.", ".........", "SSSSSSSSS", ".........", ".SSSSSSS.", ".........", "..SSSSS.."],
-    "snow": ["....W....", ".W..W..W.", "..W.W.W..", "...WWW...", "WWWWWWWWW", "...WWW...", "..W.W.W..", ".W..W..W.", "....W...."],
-    "petal": ["...KKK...", "...KKK...", "KKK.K.KKK", "KKKKYKKKK", ".KKYYYKK.", "..KKYKK..", ".KKK.KKK.", ".KK...KK.", "........."],
-    "heat": ["...OOO...", "..OOOOO..", "..OOOOO..", "...OOO...", ".........", ".OO...OO.", "O..OOO..O", ".........", ".OO...OO."],
-    "leaf": ["....O....", "...OOO...", "..OOOOO..", ".OOOOOOO.", "OOOOOOOOO", ".OOOOOOO.", "..OOOOO..", "....N....", "....N...."],
-    # the seasons: a sprout, the sun, a red toadstool with white spots, a snowy pine
-    "season_spring": [".........", ".GG...GG.", "GGGG.GGGG", ".GGG.GGG.", "...GGG...", "....G....", "....G....", "..NNNNN..", "........."],
-    "season_summer": ["....Y....", ".Y..Y..Y.", "..YYYYY..", "..YYYYY..", "YYYYYYYYY", "..YYYYY..", "..YYYYY..", ".Y..Y..Y.", "....Y...."],
-    "season_autumn": ["..RRRRR..", ".RRWRRRR.", "RRRRRRWRR", "RWRRRRRRR", ".RRRRRRR.", "...EEE...", "...EEE...", "...EEE...", "..EEEEE.."],
-    "season_winter": ["....W....", "...WGW...", "..GGWGG..", "...GGG...", "..WGGGW..", ".GGGWGGG.", "GGWGGGWGG", "....N....", "....N...."],
-    # the Hatchery's button on the menu bar (2026-11-14): a cream egg with pink spots
-    "egg": ["...WWW...", "..WWWWW..", "..WKWWW..", ".WWWWKWW.", ".WWWWWWW.", "WKWWWWWWW", "WWWWWKWWW", ".WWWWWWW.", "..WWWWW.."],
-    # Build mode's inventory (2026-11-14): its tab, an open box with its flaps folded out and the dark inside showing;
-    # Quick remove's button, an orange arrow going down into the box
-    "inv": ["N.......N", "NN.....NN", ".NdddddN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN.", "........."],
-    "takeup": ["...OOO...", "...OOO...", ".OOOOOOO.", "..OOOOO..", "N..OOO..N", "NN..O..NN", ".NNNNNNN.", ".NNNNNNN.", ".NNNNNNN."],
-    # the store (GAME_DESIGN 14, 2026-11-14): the menu bar's Store, a beach stall with a striped awning; VIP's gold crown
-    # with a pink stone; the pass track's ticket with its notch; a gift box with a ribbon (the starter pack, VIP's daily
-    # gift); a new set in the shop, two turning arrows
-    "store": ["RWRWRWRWR", "RWRWRWRWR", ".RWRWRWR.", ".N.....N.", ".N.YYY.N.", ".N.YYY.N.", ".NNNNNNN.", ".NNNNNNN.", "........."],
-    "crown": [".........", "Y...Y...Y", "YY.YYY.YY", "YYYYYYYYY", "YYYYKYYYY", "YYYYYYYYY", ".YYYYYYY.", ".........", "........."],
-    "ticket": [".........", ".........", "TTTTTTTTT", "TTWTTTTTT", "..TTTTTTT", "TTWTTTTTT", "TTTTTTTTT", ".........", "........."],
-    "gift": ["..K...K..", "...K.K...", "QQQQKQQQQ", "QQQQKQQQQ", ".........", ".QQQKQQQ.", ".QQQKQQQ.", ".QQQKQQQ.", ".QQQKQQQ."],
-    "refresh": ["...GGGG..", "..G....G.", ".G.....GG", ".G....GGG", ".........", "BBB....B.", "BB.....B.", ".B....B..", "..BBBB..."],
-    # the menu bar's Settings (2026-11-14, in place of the music note): a steel gear, four teeth and four between them,
-    # a hole through its middle
-    "gear": ["...SSS...", ".S.SSS.S.", "..SSSSS..", "SSS...SSS", "SSS...SSS", "SSS...SSS", "..SSSSS..", ".S.SSS.S.", "...SSS..."],
+
+# Hand-toned icons, the way Random Bakery draws its own (its UI/PixelArt: every pixel's tone placed by hand from a few
+# shared ramps, light from the top left on the real form, white glints, the lines inside a sprite a material's dark tone,
+# never ink; one closed 1 px ink ring round the outside). The request of 2026-11-14: "The driftling, hatchery, season
+# icons, starter pack and tree icons look flat and undetailed. Redo them. Reference the bakery game for icons", then "Do
+# the same with all the other icons" and "Remember to use anti aliasing within the outline, avoid banding and use
+# hueshifting": the ramps are hue shifted (cooler shadows, warmer lights), tones sit in clusters that follow the form
+# (no rings of tone tracing the outline), and build() softens each step of a curve from the inside. Characters: "1" "2"
+# "3" "4" the first ramp's dark, shadow, base and light; "5" "6" "7" "8" the second's; "a" "b" "c" "d" the third's; "w"
+# a white glint; "x" a near-black (eyes, buttons); other letters the sprite's own `flat` keys.
+def HAND(name, rows, ramps, flat=None):
+    m = {"w": "wht", "x": "drk0"}
+    for i, r in enumerate(ramps):
+        for t, ch in enumerate(("1234", "5678", "abcd")[i]):
+            m[ch] = RAMPS[r][t]
+    m.update(flat or {})
+    S(name, rows, flat=m, shade=False, pad=True)
+    # each ramp character's ramp and tone, for the anti-aliasing pass inside the outline (build)
+    SPRITES[name]["hand"] = {ch: (r, t) for i, r in enumerate(ramps) for t, ch in enumerate(("1234", "5678", "abcd")[i])
+                             if ch not in (flat or {})}
+
+
+# a driftling: a round little sea sprite, ears up, cheeks pink, lit from the top left
+HAND("mini_pal", [
+    ".3.....2.",
+    ".4333332.",
+    "4w4333332",
+    "43x333x32",
+    "4p33133p2",
+    "333333322",
+    "333333221",
+    ".3332221.",
+    "..22111..",
+], ["C"], {"p": "pnk2"})
+# the Hatchery: a cream egg with pink spots, round and lit
+HAND("mini_egg", [
+    "...443...",
+    "..4w433..",
+    ".444p333.",
+    ".4443332.",
+    "44p333332",
+    "433333p22",
+    "333332222",
+    ".3322221.",
+    "..22111..",
+], ["E"], {"p": "pnk2"})
+# spring: a pink blossom with a gold heart on a green stem and leaf
+HAND("mini_season_spring", [
+    "..44433..",
+    ".4w43332.",
+    ".43dd332.",
+    ".43cd322.",
+    "..33222..",
+    "....6....",
+    ".786.....",
+    "..776....",
+    "....5....",
+], ["K", "G", "Y"])
+# summer: the sun, a round gold ball with orange rays
+HAND("mini_season_summer", [
+    "....7....",
+    ".6..7..6.",
+    "...443...",
+    "..4w433..",
+    "774433265",
+    "..43322..",
+    "...322...",
+    ".6..6..5.",
+    "....6....",
+], ["Y", "O"])
+# autumn: a maple leaf turning orange, a darker vein down it, a brown stem
+HAND("mini_season_autumn", [
+    "....4....",
+    ".4.443.3.",
+    ".44423332",
+    "444423332",
+    ".4442332.",
+    "..43222..",
+    ".3.326.2.",
+    "....6....",
+    "....5....",
+], ["O", "N"])
+# winter: a snowman, two round snowballs, coal eyes and buttons, a carrot nose, a red scarf
+HAND("mini_season_winter", [
+    "...443...",
+    "..4x4x3..",
+    "..44o32..",
+    "..87765..",
+    ".4w43332.",
+    "4443x3322",
+    "44433x322",
+    ".3332221.",
+    "..22111..",
+], ["W", "R"], {"o": "org2"})
+# the starter pack: a red gift box, its lid a little wider, a gold ribbon and bow
+HAND("mini_gift", [
+    "..87.76..",
+    "...876...",
+    "444484333",
+    "333376222",
+    ".4447332.",
+    ".4436322.",
+    ".3336222.",
+    ".3326221.",
+    ".2225111.",
+], ["R", "Y"])
+# the Tree of Life: a round green crown with gold fruit, a brown trunk on spreading roots
+HAND("mini_tree", [
+    "..44433..",
+    ".4w44333.",
+    "4444d3332",
+    "443333d22",
+    ".3332222.",
+    "...676...",
+    "...675...",
+    "..67755..",
+    ".66...55.",
+], ["G", "N", "Y"])
+
+# The rest of the small icons, hand-toned the same way (the request of 2026-11-14: "Do the same with all the other
+# icons"), each 9 x 9 inside its ink ring like the masks they replace, so every layout keeps its sizes.
+ICONS = {
+    # the shells: a scallop, its ribs fanning down to the hinge
+    "shell": (["..43433..", ".4434332.", "443434322", "434343222", ".3434322.", "..33322..", "...323...", "..43332..", "..32221.."], ["O"], None),
+    # food: a red apple, a brown stem and a green leaf
+    "food": (["....c.87.", ".444c433.", "44w443332", "444433332", "444333322", "433333222", ".3332222.", ".3322221.", "..22.11.."], ["R", "G", "N"], None),
+    # wood: a log lying down, its cut end showing the rings
+    "wood": ([".........", ".4444487.", "433338776", "333328656", "323238766", "222227765", ".1111766.", ".........", "........."], ["N", "E"], None),
+    # the sun: a gold ball with orange rays
+    "sun": (["....7....", ".6..7..6.", "...443...", "..4w433..", "774433265", "..43322..", "...322...", ".6..6..5.", "....6...."], ["Y", "O"], None),
+    # the moon: a pale crescent and a little star
+    "moon": (["..44433..", ".4443....", "4443..w..", "4432.....", "4432.....", "4332.....", "33322....", ".332221..", "..22211.."], ["E"], None),
+    # charm: a pink heart, its glint top left
+    "charm": ([".44...33.", "4w44.4332", "444443332", "444433322", ".4333322.", "..33222..", "...322...", "....2....", "........."], ["K"], None),
+    # a villager: a head and shoulders, brown hair, a blue shirt
+    "folk": (["..cddcb..", ".cdddccb.", ".c4443cb.", ".44x3x32.", ".4443332.", "..43322..", ".8877765.", "887777665", "877776655"], ["F", "B", "N"], None),
+    # Looks: a founder, orange hair, a green shirt
+    "visitor": (["..cddcb..", ".cdddccb.", ".c4443cb.", ".44x3x32.", ".4443332.", "..43322..", ".8877765.", "887777665", "877776655"], ["F", "G", "O"], None),
+    # home: a cream house, a red roof, a brown door
+    "home": (["....8....", "...887...", "..88776..", ".8877665.", "887776655", ".4433332.", ".44cc332.", ".43cb322.", ".33cb221."], ["E", "R", "N"], None),
+    # the huts: a twig nest with a cream egg in it
+    "nest": ([".........", "...887...", "..8w876..", "..87766..", "443766432", "434343432", ".3232322.", "..22221..", "........."], ["N", "E"], None),
+    # training: a steel dumbbell
+    "train": ([".........", ".........", ".43...32.", "443...332", "443443322", "332...221", ".32...21.", ".........", "........."], ["S"], None),
+    # a boost: a green arrow pointing up
+    "boost": (["....4....", "...443...", "..44433..", ".4443332.", "444433322", "...433...", "...432...", "...332...", "...221..."], ["G"], None),
+    # paths: stepping stones
+    "path": (["443......", "4332.....", ".221.443.", "....43322", "443..2211", "4332.....", ".221.443.", "....43322", ".....2211"], ["S"], None),
+    # decor: a pink flower in a clay pot, two leaves
+    "decor": (["...443...", "..4yy32..", "...332...", ".876.67..", "..7666...", "..dcccb..", "...dcb...", "...cbb...", "...bba..."], ["K", "G", "O"], {"y": "yel3"}),
+    # work: a spade, a steel blade on a wooden handle
+    "work": ([".......c.", "......cb.", ".....cb..", "....cb...", "..43b....", ".4432....", "44332....", "4322.....", ".21......"], ["S", "G", "N"], None),
+    # fences: two posts and two rails
+    "fence": ([".4.....3.", "443...332", "443444322", "432333322", "432...322", "432...322", "432333322", "332222221", "221...211"], ["N"], None),
+    # water: a blue drop with a white glint
+    "water": (["....4....", "...443...", "..4w433..", ".44w4332.", ".4443332.", "443333322", "433333222", ".3332221.", "..32211.."], ["B"], None),
+    # nature: a pine on a brown trunk
+    "nature": (["....4....", "...443...", "..44332..", "...433...", "..44332..", ".4433322.", "443332221", "....b....", "...cba..."], ["G", "G", "N"], None),
+    # fun: a red balloon on a string
+    "fun": (["...443...", "..4w433..", ".4443332.", ".4433322.", "..33322..", "...322...", "....2....", "....s....", ".....s..."], ["R"], {"s": "gry2"}),
+    # a start: a red flag on a pole
+    "start": ([".c443....", ".c44433..", ".c443322.", ".c4322...", ".c2......", ".c.......", ".c.......", ".c.......", "acb......"], ["R", "G", "N"], None),
+    # loot: a tied brown sack
+    "loot": (["...4.3...", "....3....", "...434...", "..44332..", ".4w43332.", "444433322", "443333222", ".3332221.", "..22111.."], ["N"], None),
+    # a chest: wood with a gold band and lock
+    "chest": ([".........", ".4444433.", "444434332", "888878776", "443383322", "433373322", "433333222", "332222221", "........."], ["N", "Y"], None),
+    # the wild: an orange paw print
+    "wild": (["..44.33..", "..43.32..", "44.....33", "43.....32", "...443...", "..44332..", ".4433322.", ".4332222.", "..22.21.."], ["O"], None),
+    # rest: a campfire, orange and gold flames on crossed logs
+    "rest": (["....7....", "...787...", "..78d76..", "..7dcd6..", "...ddc...", "44.....32", ".443.332.", "..44332..", ".43...32."], ["N", "O", "Y"], None),
+    # a boss: a silver crown with a red stone
+    "boss": ([".........", "4...4...3", "44.4w4.33", "444443332", "4443r3322", "444333322", "333332222", ".........", "........."], ["S"], {"r": "red2"}),
+    # a star, gold, a glint at its heart
+    "star": (["....4....", "...443...", "444w43332", ".4444332.", "..44332..", "..43322..", ".432.322.", ".32...21.", "........."], ["Y"], None),
+    # a boat: a brown hull, a white sail on its mast
+    "boat": (["....8....", "....88...", "....877..", "....8776.", "....c....", "c4444433.", ".4333322.", "..22221..", "........."], ["N", "W", "N"], None),
+    # search: a lens, a steel rim round blue glass, a wooden handle
+    "search": (["..4443...", ".4w8763..", "48877662.", "48776652.", "37766552.", ".3655522.", "..3222cb.", ".....cba.", "......ba."], ["S", "C", "N"], None),
+    # music: two beamed notes
+    "note": (["...44443.", "...43332.", "...4...3.", "...4...3.", "...4...3.", ".443.443.", "4433.4332", "3322.3221", ".21...11."], ["P"], None),
+    # a breeze: white streaks of wind
+    "breeze": ([".........", "444443...", ".....32..", "44444332.", ".........", ".4443....", "....32...", ".........", "........."], ["W"], None),
+    # rain: a cloud and its drops
+    "rain": (["...443...", ".44w4433.", "444443332", "433333322", ".2222221.", ".8..8..8.", ".6..6..6.", "8..8..8..", "6..6..6.."], ["W", "B"], None),
+    # a storm: a grey cloud and a gold bolt
+    "storm": (["...443...", ".4444433.", "444443332", "333333322", ".2228221.", "....88...", "...87....", "....7....", "...7....."], ["S", "Y"], None),
+    # fog: banks of grey mist
+    "fog": (["..44433..", ".4444333.", ".........", "444443322", ".........", ".4444332.", ".........", "..44332..", "........."], ["S"], None),
+    # snow: a white snowflake
+    "snow": (["....4....", ".4..4..3.", "..4.4.3..", "...434...", "444w44332", "...323...", "..3.3.2..", ".3..3..2.", "....2...."], ["W"], None),
+    # blossom: a pink five-petal flower, a gold heart
+    "petal": (["...443...", ".4.443.2.", "444yy3322", "44yyy3322", ".43y332..", ".43.322..", "..3..2...", ".........", "........."], ["K"], {"y": "yel3"}),
+    # haze: the sun over shimmering heat
+    "heat": (["...878...", "...876...", "...846...", "...836...", "...836...", "..34332..", ".34w3322.", ".3333221.", "..32211.."], ["R", "W"], None),
+    # leaves: a falling leaf, its vein down the middle, a brown stem
+    "leaf": ([".....443.", "....44432", "...444232", "..4443322", ".4442332.", ".442332..", ".42322...", ".c222....", "c........"], ["O", "N", "N"], None),
+    # the inventory: an open cardboard box
+    "inv": (["4.......3", "44.....33", "443444332", "433333322", "433343322", "433333322", "433333222", "332222221", "........."], ["N"], None),
+    # Quick remove: an orange arrow going down into the box
+    "takeup": (["....8....", "...887...", "..88776..", "...876...", "4..876..3", "44.876.32", "443444322", "433333222", "332222211"], ["N", "O"], None),
+    # the store: a stall, a red and cream awning, gold goods on a wooden counter
+    "store": (["e4e4e4e43", "e3e3e3e32", ".2.2.2.2.", ".c.....b.", ".c.87..b.", ".c.76..b.", "dccccbbba", "cbbbbbbaa", "........."], ["R", "Y", "N"], {"e": "crm3"}),
+    # VIP: a gold crown with a pink stone
+    "crown": ([".........", "4...4...3", "44.4w4.33", "444443332", "4443p3322", "444333322", "333332222", ".........", "........."], ["Y"], {"p": "pnk2"}),
+    # the pass track: a teal ticket, a notch each side, a perforated line
+    "ticket": ([".........", ".........", "444444443", "444244433", ".3323332.", "333233322", "222122221", ".........", "........."], ["C"], None),
+    # a new set: two turning arrows, green over blue
+    "refresh": (["..44433..", ".43...32.", "43...4321", "4.....32.", ".........", ".76.....8", "8765...78", ".76...76.", "..77766.."], ["G", "B"], None),
+    # Settings: a steel gear with a hole through it
+    "gear": (["...443...", ".4.443.3.", "..44433..", "443...332", "443...322", "433...322", "..33222..", ".3.322.2.", "...221..."], ["S"], None),
 }
-SMALL_FLAT = {"shell": {"j": "org1"}}  # a scallop's ribs, meeting at its hinge
-for k, rows in SMALL.items():
-    S("mini_" + k, rows, flat=SMALL_FLAT.get(k), pad=True)
+for _k, (_rows, _ramps, _flat) in ICONS.items():
+    for _r in _rows:
+        assert len(_r) == 9, (_k, _r)
+    assert len(_rows) == 9, _k
+    HAND("mini_" + _k, _rows, _ramps, _flat)
 
 # ---------------------------------------------------------------- the microgames' overlay: a note, the fuse's spark and bomb, a heart
 # (the microgames themselves are 3D now: Models/MicroModels on a stage the pixel filter draws)
@@ -620,6 +760,27 @@ def build(name, spec, recolor=None):
                 if solid[y][x] and (x in (0, w - 1) or y in (0, h - 1)):
                     sys.exit("%s: a solid pixel on the border at %d,%d: leave a 1 px margin for the outline" % (name, x, y))
         # inner anti-aliasing: a shaded region pixel that meets the outline only at a corner goes a tone down
+        hand = spec.get("hand")
+        if hand:
+            # (a hand-toned icon: the same rule on its ramp characters; glints, eyes and flat marks stay as drawn)
+            for y in range(1, h - 1):
+                for x in range(1, w - 1):
+                    rt = hand.get(grid[y][x])
+                    if rt is None:
+                        continue
+                    if any(outl[y + dy][x + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                        continue
+                    diag = [(dx, dy) for dx, dy in ((1, 1), (-1, 1), (1, -1), (-1, -1)) if outl[y + dy][x + dx]]
+                    if not diag:
+                        continue
+                    r, t = rt
+                    if t == 3:
+                        t = 2
+                    elif t == 2 and any(d != (-1, -1) for d in diag):
+                        t = 1
+                    elif t == 1 and (1, 1) in diag:
+                        t = 0
+                    px[y][x] = (PAL[RAMPS[r][t]], 1.0)
         if spec["shade"]:
             for y in range(1, h - 1):
                 for x in range(1, w - 1):
