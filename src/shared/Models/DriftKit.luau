@@ -107,6 +107,9 @@ end
 function Kit.finish(): Thing
 	local t = cur :: Thing
 	cur = nil
+	-- (lit as one smooth surface across its balls, never a heap of blotches: the request of 2026-11-14, "egg and
+	-- creature models look blotchy due to how they are detailed using balls and other small shapes", Render/Smooth)
+	t.model:SetAttribute("PixelSmooth", true)
 	return t
 end
 
@@ -498,6 +501,8 @@ local function facePart(kind: string, p: BasePart?, n: Vector3?)
 	if p then
 		local t = cur :: Thing
 		t.face[p.Name] = kind
+		-- (the face keeps its own light when the body is lit smooth: Render/Smooth)
+		p:SetAttribute("PixelOwn", true)
 		if n then
 			t.tuck[p.Name] = t.rest[p.Name]:VectorToObjectSpace(n.Unit) * -Kit.TUCK
 		end

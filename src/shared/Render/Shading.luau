@@ -1045,9 +1045,37 @@ function Shading.normalIndex(x: number, y: number, z: number): number
 	return qx * 9 + qy * 3 + qz
 end
 
--- Unit direction of a quantised normal index.
+-- Fine normals (2026-11-14): indices 27 .. 255 are 229 directions spread evenly over the sphere (a Fibonacci spiral),
+-- for the static parts of a model lit smooth (Render/Smooth: the Tree of Life), so a round surface shades in many
+-- small steps instead of the 27 directions' broad patches. Everything that asks whether a pixel faces up still sees
+-- only the coarse indices: a fine one never equals them.
+Shading.FINE0 = 27
+local FINE_N = 229
+do
+	local golden = math.pi * (3 - math.sqrt(5))
+	for k = 0, FINE_N - 1 do
+		local y = 1 - (k + 0.5) / FINE_N * 2
+		local rr = math.sqrt(math.max(0, 1 - y * y))
+		local a = golden * k
+		NX[28 + k], NY[28 + k], NZ[28 + k] = math.cos(a) * rr, y, math.sin(a) * rr
+	end
+end
+
+-- The fine index (27 .. 255) nearest a unit normal.
+function Shading.fineIndex(x: number, y: number, z: number): number
+	local best, bi = -2, 28
+	for k = 28, 27 + FINE_N do
+		local d = x * NX[k] + y * NY[k] + z * NZ[k]
+		if d > best then
+			best, bi = d, k
+		end
+	end
+	return bi - 1
+end
+
+-- Unit direction of a quantised normal index (0 .. 26 coarse, 27 .. 255 fine).
 function Shading.normalVec(index: number): (number, number, number)
-	local k = math.clamp(math.floor(index), 0, 26) + 1
+	local k = math.clamp(math.floor(index), 0, 26 + FINE_N) + 1
 	return NX[k], NY[k], NZ[k]
 end
 

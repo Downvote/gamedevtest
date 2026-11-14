@@ -2317,6 +2317,17 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 	if fn then
 		fn(m, at, l)
 	end
+	if id == "tree" then
+		-- (lit as one smooth surface across its balls, its crown, roots and trunk, so it never reads as a heap of
+		-- blotches: "This is also the case for the tree of life", 2026-11-14, Render/Smooth; the lawns round it keep
+		-- their own light)
+		m:SetAttribute("PixelSmooth", true)
+		for _, d in m:GetDescendants() do
+			if d:IsA("BasePart") and (d.Name == "Lawn" or d.Name == "EggLawn" or d.Name == "Moss") then
+				d:SetAttribute("PixelOwn", true)
+			end
+		end
+	end
 	-- (the tree's lvl is its stage, a water tile's its neighbours: no pennant; nor on a path or a fence)
 	local kind = KIND[id]
 	if l >= 2 and kind ~= "tree" and kind ~= "water" and kind ~= "path" and kind ~= "fence" then

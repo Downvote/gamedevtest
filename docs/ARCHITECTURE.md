@@ -946,6 +946,24 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   cell and never on a cell's last row or column, so marks never touch into a blob. The blob shadows and the contact
   shade draw a pixel's shadow tone as before (a darker mark at the shade band is the shade band). The dynamic layer
   has none: a pattern on the screen's grid would slide over a model as it moves.
+- **Smooth shading across a model's balls** (the request of 2026-11-14: "egg and creature models look blotchy due to
+  how they are detailed using balls and other small shapes. Could you smoothen these blotches out or detail them so
+  they look more natural?", then "This is also the case for the tree of life"; `Render/Smooth`, pure, and
+  `Pixel/SmoothParts`): a model with its "PixelSmooth" attribute true (every driftling, `Kit.finish`; both egg
+  builders; the Tree of Life, `DecorModels.build`) is lit as one surface. At a hit point `Smooth.normal` leans the
+  normal toward each ball's outward direction, weighted (1 - d / (`REACH` 0.5 x its radius))^2 by d, how far the point
+  is past that ball's surface (0 out of reach), so the light runs on across a join and down a chain of balls instead of
+  ringing each one. A part's role (`SmoothParts.role`): "PixelOwn" or Neon keeps its own normal (the face parts,
+  `facePart`; an egg's gems; the tree's Lawn, EggLawn and Moss), "PixelFollow" or any non-ball shape takes the body's
+  normal where it lies on it and its own where it stands off it (spots, blush, bands, an egg's marks), any other ball
+  leans and follows. Moving models (`registerDynamic`: `Dyn.smooth`, `DynPart.sm`): each frame the draw gathers the
+  model's balls (`texOpt.xs ys zs rs cnt`), each leaning or following part asks `Smooth.near` for the balls within its
+  bounding radius plus their reach (`texOpt.idx n`) and is drawn with `shadeTex`, which blends the normal before its
+  texture's lift (`texOpt.role`). The static bake (`castSample`): a hit on a smooth model's part asks
+  `SmoothParts.staticNormal` (the model's balls gathered once a bake; `SmoothParts.reset` at `startBake`) and stores
+  the result as a fine normal index, `Shading.fineIndex` (27 .. 255: 229 directions on a Fibonacci spiral, within 12
+  degrees of any direction; `Shading.normalVec` decodes both kinds; 0 .. 26 stay the world's coarse ones, so every
+  "faces up" test is unchanged). The renderer's `NX NY NZ` and `courseFams` tables hold all 256.
 - **Driftling textures** (the request of 2026-11-14, "apply texture to each of them"; `Render/DynTex`, pure): a dynamic
   part with a "PixelTex" attribute (its kind, `DynTex.KIND`, read at `registerDynamic`) is drawn with `shadeTex` where
   the view has at least `DynTex.MIN_PX_PER_STUD` (12) art px a stud: Raster hands every shade the hit's distance `t`

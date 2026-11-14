@@ -223,7 +223,7 @@ end
 -- The picture as 0xRRGGBB per pixel in a plain array (painted layer over layer), packed into RGBA at the end.
 type BaseAt = { x: number, y: number, w: number }
 
-function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number, base: BaseAt?): buffer
+function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number, ped: BaseAt?): buffer
 	local sky = SKIES[math.clamp(r, 1, #SKIES)]
 	local px: { number } = table.create(W * H, 0)
 	local function get(x: number, y: number): number
@@ -480,8 +480,8 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 		end
 	end
 	-- the pedestal the egg lands on
-	if base then
-		local cx, cy, bw = base.x, base.y, math.max(8, base.w)
+	if ped then
+		local cx, cy, bw = ped.x, ped.y, math.max(8, ped.w)
 		local ry = bw * 0.42
 		local sh = math.max(5, math.floor(bw * 0.34 + 0.5))
 		local function inTop(x: number, y: number): boolean
@@ -760,7 +760,6 @@ end
 local RING_EVERY = 0.85 -- seconds between two rings
 local RING_LIFE = 1.7 -- seconds a ring takes to spread to the pedestal's rim
 local ringImg: EditableImage? = nil
-local ringLabel: ImageLabel? = nil
 local ringBuf: buffer? = nil
 local ringW, ringH = 0, 0
 local ringCols: { number } = {}
@@ -802,7 +801,6 @@ makeRings = function(r: number, K: number)
 	l.Size = UDim2.fromOffset(w * K, h * K)
 	l.Position = UDim2.fromOffset((math.floor(base.x) - math.floor(w / 2)) * K, (math.floor(base.y) - math.floor(h / 2)) * K)
 	l.Parent = g
-	ringLabel = l
 	ringDirty = true
 end
 
@@ -989,7 +987,7 @@ function HatchBackdrop.hide()
 	if ri then
 		ri:Destroy()
 	end
-	ringImg, ringLabel, ringBuf, ringBase = nil, nil, nil, nil
+	ringImg, ringBuf, ringBase = nil, nil, nil
 	local im = image
 	if im then
 		im:Destroy()

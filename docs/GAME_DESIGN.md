@@ -475,6 +475,14 @@ floor, it just looks noisy", 2026-11-14),
   32x32 (drawn from its model at that size, never shrunk or blown up), a build catalog picture 24x24 (the piece's
   model seen as the island shows it, drawn at that size and tidied the portraits' way), a small icon 11x11. The world and the driftlings are 3D and drawn by the pixel filter, so they keep the same
   grid, palette and outline.
+- **Round things are lit as one surface.** An egg, a driftling or the Tree of Life is built from many overlapping
+  balls; each ball lit on its own would show its own rings of light, so a body read as a heap of blotches with a
+  crease at every join. They are lit as one smooth surface instead: where balls meet the light runs on across the
+  join, a tail or a branch shades along its own curve, and spots, blush, bands and an egg's marks shade with the body
+  under them like paint. Eyes, gems, glowing bits and the lawns keep their own light. (The requests of 2026-11-14:
+  "egg and creature models look blotchy due to how they are detailed using balls and other small shapes. Could you
+  smoothen these blotches out or detail them so they look more natural?", then "This is also the case for the tree of
+  life".)
 - **The small icons are drawn by hand**, pixel by pixel, the way Random Bakery draws its own: a few shared ramps,
   light from the top left on the real form (a sun's rays, an apple's round side, a log's cut end), white glints, the
   lines inside an icon in the material's dark tone (never ink), and one ink ring round the outside. Tones sit in

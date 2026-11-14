@@ -43,6 +43,8 @@ EggModels.LOOK = LOOK
 -- the top half (it flies off when it hatches); the lights (moved every frame: stepEgg).
 function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
 	local m = Blocks.model(nil, "TreeEgg")
+	-- (lit as one smooth surface across its balls, Render/Smooth: "egg and creature models look blotchy", 2026-11-14)
+	m:SetAttribute("PixelSmooth", true)
 	local parts: { { p: BasePart, off: CFrame } } = {}
 	local top: { BasePart } = {}
 	local fx: { { p: BasePart, kind: string, k: number } } = {}
@@ -82,6 +84,7 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 		local sp = { { 0.3, 0.3, 0.22 }, { 0.48, 0.05, 0.4 }, { 0.56, 0.38, -0.02 }, { 0.36, -0.2, 0.33 }, { 0.82, 0.18, 0.2 }, { 0.62, -0.12, 0.3 } }
 		for k, d in sp do
 			ball(0.17 * s, CFrame.new(d[2] * s, y0 + d[1] * s, d[3] * s), look.mark, look.glow, k == 5)
+			parts[#parts].p:SetAttribute("PixelFollow", true)
 		end
 	else
 		-- a zigzag band round its middle: dabs a little up and down in turn, all the way round
@@ -89,6 +92,7 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 			local a = k * math.pi / 6
 			local up = if k % 2 == 0 then 0.07 else -0.07
 			ball(0.16 * s, CFrame.new(math.cos(a) * 0.4 * s, y0 + (0.46 + up) * s, math.sin(a) * 0.4 * s), look.mark, look.glow)
+			parts[#parts].p:SetAttribute("PixelFollow", true)
 		end
 	end
 	-- an egg the weather touched (GAME_DESIGN 13: it hatches with that weather's mutation): a little piece of that
@@ -245,6 +249,9 @@ end
 
 function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } }, { Crack })
 	local m = Blocks.model(nil, "HeroEgg")
+	-- (lit as one smooth surface across its 25 slices, its marks shading with it: Render/Smooth; the request of
+	-- 2026-11-14, "egg and creature models look blotchy due to how they are detailed using balls and other small shapes")
+	m:SetAttribute("PixelSmooth", true)
 	local parts: { { p: BasePart, off: CFrame } } = {}
 	local top: { BasePart } = {}
 	local fx: { { p: BasePart, kind: string, k: number } } = {}
@@ -282,7 +289,8 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 	end
 	-- a bead standing out of the shell (gems, the crown's points)
 	local function bead(t: number, a: number, d: number, color: string, neon: boolean?)
-		add(Vector3.new(d, d, d), CFrame.new(at(t, a, d * 0.15)), color, t, { neon = neon, shape = "Ball", name = "Bead" })
+		local p = add(Vector3.new(d, d, d), CFrame.new(at(t, a, d * 0.15)), color, t, { neon = neon, shape = "Ball", name = "Bead" })
+		p:SetAttribute("PixelOwn", true) -- (a gem keeps its own light)
 	end
 	-- a flat piece lying on the shell at (t, a), `len` along its run from (t, a) to (t2, a2)
 	local function strip(t: number, a: number, t2: number, a2: number, w: number, color: string, neon: boolean?, name: string?): BasePart

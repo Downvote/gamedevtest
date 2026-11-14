@@ -59,6 +59,7 @@ local Palette = require(ReplicatedStorage.Shared.Data.Palette)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Shading = require(ReplicatedStorage.Shared.Render.Shading)
+local SmoothParts = require(script.Parent.SmoothParts)
 local Fx = require(ReplicatedStorage.Shared.Render.Fx)
 local DynTex = require(ReplicatedStorage.Shared.Render.DynTex)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -95,7 +96,7 @@ local WATER_SHALLOW = Palette.colors.shallow
 local NX: { number } = {}
 local NY: { number } = {}
 local NZ: { number } = {}
-for i = 0, 26 do
+for i = 0, 255 do
 	NX[i + 1], NY[i + 1], NZ[i + 1] = Shading.normalVec(i)
 end
 
@@ -131,10 +132,10 @@ type TexInfo = { kind: number, rgb: number, x0: number, y0: number, w: number, h
 type Texs = { [number]: TexInfo }
 local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
 
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
-type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean? }
+type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean?, smooth: boolean? }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
 ------------------------------------------------------------------ state
@@ -472,7 +473,7 @@ local courseRot: { number }? = nil
 local function courseFamOf(rot: { number }, ni: number): number
 	if courseRot ~= rot then
 		courseRot = rot
-		for i = 1, 27 do
+		for i = 1, 256 do
 			courseFams[i] = Shading.courseFam(rot, NX[i], NY[i], NZ[i])
 		end
 	end
@@ -566,6 +567,15 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	local mode = if own then (if shadows then BakeCast.SHADOW_TEST else BakeCast.SHADOW_OFF) else BakeCast.shadowMode(shadows, gx, gy)
 	local part, depth, ni, lit, rays, tint = BakeCast.cast(params, Vector3.new(ox, oy, oz), s.look, FAR, mode, SUN_V)
 	bakeRays += rays
+	if part ~= nil then
+		-- (a part of a model lit smooth, the Tree of Life: the normal blended across its balls, in a fine direction;
+		-- Render/Smooth)
+		local k0 = ni + 1
+		local snx, sny, snz = SmoothParts.staticNormal(part, ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth, NX[k0], NY[k0], NZ[k0])
+		if snx and sny and snz then
+			ni = Shading.fineIndex(snx, sny, snz)
+		end
+	end
 	local id, albedo = 0, 0
 	local shared = false
 	if part ~= nil then
@@ -1280,6 +1290,8 @@ local function startBake()
 	if s == nil then
 		return
 	end
+	-- (the smooth models' balls gathered again: the island may have changed)
+	SmoothParts.reset()
 	if growing then
 		endGrow()
 	end
@@ -1482,12 +1494,34 @@ local texShape = "Block"
 local texKind = 0
 -- the part's pattern seed, the studs added to its v (PixelTexV: a hatch-scene egg's slices share one pattern) and how
 -- far a mark steps (PixelTexSoft)
-local texOpt = { seed = 0, v = 0, soft = DynTex.SOFT }
+-- and, for a model lit smooth (Render/Smooth), its balls this frame (xs ys zs rs, cnt of them), the ones near the
+-- part being drawn (idx, n) and the part's role
+local texOpt = {
+	seed = 0,
+	v = 0,
+	soft = DynTex.SOFT,
+	xs = {} :: { number },
+	ys = {} :: { number },
+	zs = {} :: { number },
+	rs = {} :: { number },
+	cnt = 0,
+	idx = {} :: { number },
+	n = 0,
+	role = 0,
+}
 local texPx = 1 -- studs a layer pixel
 local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
 	local lift = 0
 	local cam = texCam
-	if t and cam then
+	local T = texOpt
+	if t and cam and T.role > 0 then
+		-- (lit smooth: the normal blended across the model's balls near the part)
+		local wx = cam.ox + x * cam.ix + y * cam.jx + t * cam.lx
+		local wy = cam.oy + x * cam.iy + y * cam.jy + t * cam.ly
+		local wz = cam.oz + x * cam.iz + y * cam.jz + t * cam.lz
+		nx, ny, nz = SmoothParts.Smooth.normal(T.xs, T.ys, T.zs, T.rs, T.idx, T.n, wx, wy, wz, nx, ny, nz, T.role)
+	end
+	if t and cam and texKind > 0 then
 		-- the hit point, from the pixel's ray (the same origin the solids step their rays from)
 		local ox = cam.ox + x * cam.ix + y * cam.jx
 		local oy = cam.oy + x * cam.iy + y * cam.jy
@@ -2154,6 +2188,22 @@ local function compose()
 			break
 		end
 		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		-- (a model lit smooth: its balls as they stand this frame; Render/Smooth)
+		local smooth = d.smooth
+		if smooth then
+			local T = texOpt
+			local cnt = 0
+			for _, p in d.parts do
+				local part = p.part
+				if p.sm == SmoothParts.Smooth.ROLE_BALL and part.Parent ~= nil and part.Transparency < 0.95 then
+					local pos, psz = part.Position, part.Size
+					cnt += 1
+					T.xs[cnt], T.ys[cnt], T.zs[cnt] = pos.X, pos.Y, pos.Z
+					T.rs[cnt] = math.min(psz.X, psz.Y, psz.Z) * 0.5
+				end
+			end
+			T.cnt = cnt
+		end
 		for _, p in d.parts do
 			local part = p.part
 			if part.Parent == nil or part.Transparency >= 0.95 then
@@ -2164,9 +2214,17 @@ local function compose()
 			local bx0, by0, bx1, by1 = Raster.boxRect(cam, cf12, sz.X, sz.Y, sz.Z)
 			if bx0 and by0 and bx1 and by1 then
 				local shade = if p.glow then shadeGlow else shadeLit
-				if texOn and p.tex > 0 then
-					texCF, texShape, texKind = cf12, p.shape, p.tex
+				local lean = smooth and (p.sm == SmoothParts.Smooth.ROLE_BALL or p.sm == SmoothParts.Smooth.ROLE_FOLLOW)
+				if (texOn and p.tex > 0) or lean then
+					texCF, texShape, texKind = cf12, p.shape, if texOn then p.tex else 0
 					texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
+					if lean then
+						local T = texOpt
+						T.n = SmoothParts.Smooth.near(T.xs, T.ys, T.zs, T.rs, T.cnt, cf12[1], cf12[2], cf12[3], 0.5 * sz.Magnitude, T.idx)
+						T.role = p.sm
+					else
+						texOpt.role = 0
+					end
 					shade = shadeTex
 				end
 				Raster.drawPart(s.frame, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade)
@@ -2726,6 +2784,8 @@ end
 
 function PixelRenderer.registerDynamic(model: Model, outline: string?)
 	local parts: { DynPart } = {}
+	-- (an egg, a driftling: lit as one smooth surface across its balls, Render/Smooth)
+	local smoothModel = model:GetAttribute("PixelSmooth") == true
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
 			local shape = "Block"
@@ -2753,6 +2813,8 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			-- (a pattern shared by several parts: PixelTexV lifts v by studs, PixelTexSeed keeps one seed; PixelTexSoft
 			-- how far its marks step, DynTex.SOFT unless set)
 			local tv, ts, tsoft = d:GetAttribute("PixelTexV"), d:GetAttribute("PixelTexSeed"), d:GetAttribute("PixelTexSoft")
+			-- (in a model lit smooth: the part's role, Render/Smooth)
+			local sm = if smoothModel then SmoothParts.role(d) else 0
 			table.insert(parts, {
 				part = d,
 				id = nextDyn,
@@ -2763,10 +2825,11 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 				texV = if type(tv) == "number" then tv else 0,
 				texSeed = if type(ts) == "number" then ts else nil,
 				texSoft = if type(tsoft) == "number" then tsoft else DynTex.SOFT,
+				sm = sm,
 			})
 		end
 	end
-	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self" }
+	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel }
 end
 
 function PixelRenderer.unregisterDynamic(model: Model)
