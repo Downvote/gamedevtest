@@ -359,7 +359,8 @@ function PlotService.sync(s: S)
 	set("Pals", table.concat(pals, ";"))
 	local eggs = {}
 	for _, e in p.clutch.list do
-		table.insert(eggs, string.format("%d.%d", e.id, e.r))
+		-- ("id.r", or "id.r.wx" for an egg the weather touched: every client marks it, GAME_DESIGN 13)
+		table.insert(eggs, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
 	set("Eggs", table.concat(eggs, ";"))
 	local f = p.founder

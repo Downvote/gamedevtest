@@ -12,14 +12,14 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 2701, `sim_save.luau` about 911, `sim_clock.luau` about 1238, `sim_world.luau` about 2512,
-`sim_tree.luau` about 1690).
+`sim.luau` about 2704, `sim_save.luau` about 911, `sim_clock.luau` about 1424, `sim_world.luau` about 2512,
+`sim_tree.luau` about 1681).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work ambient late
-loading themes hatches`, `panel=<pals|work|tree|hatch|index|looks>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
+loading themes hatches weathers`, `panel=<pals|work|tree|hatch|index|looks>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
 on its skeleton, eight frames a mood), `catalog=<group>` (a group of the build catalog: `ground fence
-nature theme theme2 fun`, a Build mode tab or ids) or `theme=<beach|garden|frost|zen|volcano|fairy>`. The loading card's
+nature theme theme2 fun`, a Build mode tab or ids), `theme=<beach|garden|frost|zen|volcano|fairy>` or `weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves>` (the village by its tree in that weather, two touched eggs, the HUD's season and weather lines). The loading card's
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows). The place file is
 `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 

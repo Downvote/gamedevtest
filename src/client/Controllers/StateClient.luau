@@ -18,6 +18,13 @@ StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
 StateClient.Tick = Util.Signal() :: Types.Signal<Types.ClientView>
 -- the time to the tree's next eggs as the server last said, and when (the client runs it down between its ticks)
 local clutchLeft, clutchAt = 0, 0
+-- the sea's clock as the server last said, and when (run on between ticks: the season and weather, Logic/Weather)
+local seaAt, seaClock = 0, 0
+local function tookClock(c: any)
+	if type(c) == "number" and c == c then
+		seaClock, seaAt = c, os.clock()
+	end
+end
 
 function StateClient.init()
 	local r = Net.clientInit()
@@ -28,6 +35,7 @@ function StateClient.init()
 			if type(left) == "number" and left == left then
 				clutchLeft, clutchAt = left, os.clock()
 			end
+			tookClock((v :: any).clock)
 			StateClient.Changed:Fire(v :: Types.ClientView)
 		end
 	end)
@@ -48,6 +56,10 @@ function StateClient.init()
 				if type(msg.clutchSecs) == "number" and msg.clutchSecs == msg.clutchSecs and msg.clutchSecs > 0 then
 					cur.clutchSecs = msg.clutchSecs
 				end
+				if type(msg.clock) == "number" and msg.clock == msg.clock then
+					tookClock(msg.clock)
+					cur.clock = msg.clock
+				end
 				StateClient.Tick:Fire(cur)
 			end
 			StateClient.Fx:Fire(msg)
@@ -65,6 +77,15 @@ function StateClient.clutchLeft(): (number, number)
 	local v = current
 	local secs = if v then v.clutchSecs else 1
 	return math.max(0, clutchLeft - (os.clock() - clutchAt)), secs
+end
+
+-- The sea's clock now (seconds: the server's last word run on by this client's clock; 0 before the first view): the
+-- season and the weather come from it (Logic/Weather.at).
+function StateClient.seaClock(): number
+	if seaAt == 0 then
+		return 0
+	end
+	return seaClock + (os.clock() - seaAt)
 end
 
 -- Wait (yielding) for the first view.

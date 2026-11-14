@@ -20,8 +20,10 @@ export type Pal = { id: number, sp: string, home: number, work: number, muts: { 
 
 -- An egg the Tree of Life laid round its roots (Logic/Tree; GAME_DESIGN 6): its id and its rarity (1 .. 5: its shell's
 -- colour); what hatches from it is rolled when the player hatches it. `cost` is on the client's copy only
--- (Session.view: its price on this island now).
-export type Laid = { id: number, r: number, cost: number? }
+-- (Session.view: its price on this island now). The weather it was laid in (GAME_DESIGN 13; Logic/Weather): `ss` the
+-- season (Data/Weather.SEASONS id), and when the weather touched it `wx` the kind (Data/Weather.KINDS id) and `wt` its
+-- mutation's tier (1 .. 4): it hatches with that weather's mutation.
+export type Laid = { id: number, r: number, cost: number?, ss: string?, wx: string?, wt: number? }
 -- The tree's eggs (saved): seconds till it lays the next lot (they replace the ones left), the eggs, the next egg's id.
 export type Clutch = { left: number, list: { Laid }, next: number }
 
@@ -62,6 +64,7 @@ export type ClientView = {
 	wood: number,
 	day: number,
 	dayFrac: number, -- how far into the sea's calendar day (0 dawn .. 1; a day is Tuning.DaySeconds: hours)
+	clock: number, -- the sea's clock (WorldClock.now: seconds); the season and the weather come from it (Logic/Weather)
 	tier: number,
 	founder: Look,
 	pals: { Pal }, -- every driftling

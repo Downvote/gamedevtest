@@ -8,6 +8,7 @@
 #             | theme=<beach|garden|frost|zen|volcano|fairy> | themes (all six) | hatch=<r><hr>
 #             | pals=<n> | pals=<id>,<id>,... (driftlings up close, eight a picture)
 #             | anim=<id> | anim=<id>:<mood>,<mood> (one driftling moving on its skeleton, eight frames a mood)
+#             | weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves> | weathers (all nine)
 #             | sea | visit | build | water | work | ambient | late | all
 #             | pportraits | pthumbs[=<k>of<n> | =<id>,<id>] (pictures for the sprites: portraits.sh, thumbs.sh)
 #             (preview.luau's SCEN; all = island village island3 sea build day)
@@ -32,7 +33,8 @@ case $scen in
 	all) scens="island village island3 sea build day" ;;
 	themes) scens="theme=beach theme=garden theme=frost theme=zen theme=volcano theme=fairy" ;;
 	hatches) scens="hatch=11 hatch=23 hatch=33 hatch=45 hatch=55" ;;
-	island|village|island2|island3|city|gallery|catalog=*|theme=*|hatch=*|pals=*|anim=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|ambient|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*) scens=$scen ;;
+	weathers) scens="weather=sunny weather=breezy weather=rain weather=storm weather=fog weather=snow weather=blossom weather=haze weather=leaves" ;;
+	island|village|island2|island3|city|gallery|catalog=*|theme=*|hatch=*|pals=*|anim=*|weather=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|ambient|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

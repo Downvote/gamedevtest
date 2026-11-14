@@ -56,6 +56,7 @@ local EVENTS: { [string]: EventDef } = {
 	hammer = { id = "Hammer", vol = 0.45, pitch = { 0.95, 1.05 }, cd = 0.2, from = 0.24, len = 0.17 },
 	gull = { id = "Gull", vol = 0.12, pitch = { 0.95, 1.1 }, cd = 4 },
 	birds = { id = "Birds", vol = 0.2, cd = 20 },
+	thunder = { id = "Thunder", vol = 0.35, pitch = { 0.85, 1 }, cd = 4, len = 6, fade = 1.5 }, -- a storm's thunder (WeatherView)
 	-- the founder's feet (AvatarView): a step on the lawn, the sand or the boards, a hop, a landing
 	step_grass = { id = "StepGrass1", ids = { "StepGrass1", "StepGrass2" }, vol = 1.1, pitch = { 0.9, 1.1 }, cd = 0.12 },
 	step_sand = { id = "StepSand1", ids = { "StepSand1", "StepSand2" }, vol = 0.6, pitch = { 0.9, 1.1 }, cd = 0.12 },
@@ -77,7 +78,7 @@ local EVENTS: { [string]: EventDef } = {
 	place_fire = { id = "Combo", vol = 0.35, pitch = { 0.8, 0.9 }, cd = 0.08 },
 }
 -- the ambience: looped sounds faded toward a volume (Audio.ambience)
-local LOOPS: { [string]: string } = { waves = "Waves", crickets = "Crickets" }
+local LOOPS: { [string]: string } = { waves = "Waves", crickets = "Crickets", rain = "RainLight", downpour = "RainHeavy", wind = "WindGusts" }
 -- stylua: ignore end
 Audio.EVENTS = EVENTS
 

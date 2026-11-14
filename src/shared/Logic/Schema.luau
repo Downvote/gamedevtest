@@ -14,6 +14,7 @@ local Util = require(script.Parent.Util)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
 local Tree = require(script.Parent.Tree)
+local Weather = require(script.Parent.Weather)
 
 type Profile = Types.Profile
 
@@ -485,7 +486,17 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 				if id > 0 and not eggIds[id] then
 					eggIds[id] = true
 					top = math.max(top, id)
-					table.insert(cl.list, { id = id, r = int(e.r, 1, 1, 5) })
+					-- (the season it was laid in and the weather that touched it, when known: GAME_DESIGN 13; an
+					-- older egg has neither)
+					local egg: Types.Laid = { id = id, r = int(e.r, 1, 1, 5) }
+					if Weather.knownSeason(e.ss) then
+						egg.ss = e.ss
+					end
+					if Weather.mutation(if Weather.known(e.wx) then e.wx else nil, 1) ~= nil then
+						egg.wx = e.wx
+						egg.wt = int(e.wt, 1, 1, 4)
+					end
+					table.insert(cl.list, egg)
 				end
 			end
 		end

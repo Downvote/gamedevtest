@@ -10,6 +10,7 @@
 --   EggModels.LOOK, EggModels.SIZE                         each rarity's shell and size
 -- "color each egg differently with different effects to allow players to distinguish easily between egg rarities"
 local Blocks = require(script.Parent.Blocks)
+local WeatherData = require(script.Parent.Parent.Data.Weather)
 
 local EggModels = {}
 
@@ -32,7 +33,7 @@ EggModels.LOOK = LOOK
 -- from rare up), and from epic up its lights: a glow on the lawn under it, two motes circling it (epic) or a beam of
 -- light standing up out of its top (legendary). Its parts' offsets from its foot; the top half (it flies off when it
 -- hatches); the lights (moved every frame: stepEgg).
-function EggModels.build(r: number, bare: boolean?, scale: number?): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
+function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
 	local m = Blocks.model(nil, "TreeEgg")
 	local parts: { { p: BasePart, off: CFrame } } = {}
 	local top: { BasePart } = {}
@@ -78,6 +79,59 @@ function EggModels.build(r: number, bare: boolean?, scale: number?): (Model, { {
 			local a = k * math.pi / 6
 			local up = if k % 2 == 0 then 0.07 else -0.07
 			ball(0.16 * s, CFrame.new(math.cos(a) * 0.4 * s, y0 + (0.46 + up) * s, math.sin(a) * 0.4 * s), look.mark, look.glow)
+		end
+	end
+	-- an egg the weather touched (GAME_DESIGN 13: it hatches with that weather's mutation): a little piece of that
+	-- weather over its crown, its own shape so it reads on any shell: a rain cloud with three drops under it, a dark
+	-- storm cloud with a bolt, a cap of snow, a pink flower, a fallen leaf, a small hot sun, puffs of mist round it.
+	-- What sits on or over the crown is part of the top half (it goes with the top when the egg hatches).
+	local wdef = if wx then WeatherData.byId[wx] else nil
+	if wdef and wdef.family then
+		local crown = y0 + 1.03 * s -- the top of the shell
+		local function cloud(y: number, color: string)
+			ball(0.34 * s, CFrame.new(0, y, 0), color, nil, true)
+			ball(0.26 * s, CFrame.new(-0.2 * s, y - 0.04 * s, 0.12 * s), color, nil, true)
+			ball(0.26 * s, CFrame.new(0.2 * s, y - 0.04 * s, -0.12 * s), color, nil, true)
+		end
+		if wdef.id == "rain" then
+			local y = crown + 0.36 * s
+			cloud(y, "white")
+			for k, d in { { -0.16, 0.1 }, { 0.02, -0.02 }, { 0.18, -0.12 } } do
+				ball(0.11 * s, CFrame.new(d[1] * s, y - (0.24 + 0.06 * (k % 2)) * s, d[2] * s), "blue", nil, true)
+			end
+		elseif wdef.id == "storm" then
+			local y = crown + 0.38 * s
+			cloud(y, "slate")
+			-- the bolt: two short bars in a zigzag, lit
+			add(Vector3.new(0.07 * s, 0.2 * s, 0.07 * s), CFrame.new(0.02 * s, y - 0.24 * s, 0) * CFrame.Angles(0, 0, 0.5), "yellow", true, true)
+			add(Vector3.new(0.07 * s, 0.18 * s, 0.07 * s), CFrame.new(-0.03 * s, y - 0.4 * s, 0) * CFrame.Angles(0, 0, -0.5), "yellow", true, true)
+		elseif wdef.id == "snow" then
+			-- a cap of snow over its top, a lump on it
+			-- (a ball sunk into the shell's top: only its dome shows, white over the shell)
+			ball(0.64 * s, CFrame.new(0, crown - 0.21 * s, 0), "snow", nil, true)
+			ball(0.2 * s, CFrame.new(0.06 * s, crown + 0.06 * s, -0.04 * s), "white", nil, true)
+		elseif wdef.id == "blossom" then
+			-- a flower on its crown: five petals round a yellow middle
+			for k = 0, 4 do
+				local a = k * math.pi * 2 / 5
+				ball(0.17 * s, CFrame.new(math.cos(a) * 0.13 * s, crown + 0.04 * s, math.sin(a) * 0.13 * s), "pink", nil, true)
+			end
+			ball(0.12 * s, CFrame.new(0, crown + 0.07 * s, 0), "yellow", nil, true)
+		elseif wdef.id == "leaves" then
+			-- a fallen leaf lying on its crown, its stalk up
+			add(Vector3.new(0.42 * s, 0.05 * s, 0.24 * s), CFrame.new(0, crown, 0) * CFrame.Angles(0.2, 0.7, 0.15), "maple", nil, true)
+			add(Vector3.new(0.2 * s, 0.05 * s, 0.12 * s), CFrame.new(0.12 * s, crown + 0.01 * s, -0.08 * s) * CFrame.Angles(0.2, 0.7, 0.15), "orange", nil, true)
+			add(Vector3.new(0.04 * s, 0.14 * s, 0.04 * s), CFrame.new(-0.14 * s, crown + 0.08 * s, 0.1 * s), "wood_dark", nil, true)
+		elseif wdef.id == "haze" then
+			-- a small hot sun over it
+			ball(0.3 * s, CFrame.new(0, crown + 0.34 * s, 0), "orange", true, true)
+			ball(0.18 * s, CFrame.new(-0.04 * s, crown + 0.38 * s, 0.04 * s), "yellow", true, true)
+		else
+			-- fog (and any other): puffs of mist round its middle
+			for k = 0, 4 do
+				local a = k * math.pi * 2 / 5 + 0.4
+				ball(0.26 * s, CFrame.new(math.cos(a) * 0.5 * s, y0 + (0.3 + 0.08 * (k % 2)) * s, math.sin(a) * 0.5 * s), "white")
+			end
 		end
 	end
 	if r >= 5 then

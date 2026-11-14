@@ -163,7 +163,7 @@ end
 local function eggsAttr(list)
 	local out = {}
 	for _, e in list do
-		table.insert(out, string.format("%d.%d", e.id, e.r))
+		table.insert(out, string.format("%d.%d", e.id, e.r) .. (if e.wx then "." .. e.wx else ""))
 	end
 	return table.concat(out, ";")
 end

@@ -31,6 +31,8 @@ local Traits = require(script.Parent.Parent.Data.Traits)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
 local Quest = require(script.Parent.Quest)
+local Weather = require(script.Parent.Weather)
+local WeatherData = require(script.Parent.Parent.Data.Weather)
 
 type Profile = Types.Profile
 type Pal = Types.Pal
@@ -98,11 +100,11 @@ function Tree.pool(tier: number): { { string } }
 end
 
 -- How likely each rarity of egg is now (shares that add to 1; a rarity none of the open kinds has gives its share to the
--- next commoner one).
-function Tree.odds(p: Profile, tier: number?): { number }
+-- next commoner one). `extra`: luck the weather adds (Logic/Weather.luck: a storm's eggs come rarer).
+function Tree.odds(p: Profile, tier: number?, extra: number?): { number }
 	local t = tier or p.tier
 	local pool = Tree.pool(t)
-	local f = Tree.luck(p, t)
+	local f = Tree.luck(p, t) + (extra or 0)
 	local w: { number } = {}
 	local total = 0
 	for r, rd in Traits.RARITY do
@@ -321,8 +323,9 @@ end
 
 ------------------------------------------------------------------ the eggs
 -- A kind and its mutations out of an egg of rarity `rarity` (of `knack` when one is asked for and the rarity has one),
--- mutations as a rarer one every EggMutTier tiers.
-function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?): (string, { string })
+-- mutations as a rarer one every EggMutTier tiers. `season`: the season the egg was laid in (Data/Weather): its own
+-- islets' kinds come Tuning.SeasonFavour times as often (when the rarity has any).
+function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season: string?): (string, { string })
 	local r = math.clamp(rarity, 1, 5)
 	local pool = Tree.pool(p.tier)
 	while r > 1 and #pool[r] == 0 do
@@ -341,6 +344,26 @@ function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?): (strin
 		end
 	end
 	local sp = list[rng:int(1, #list)]
+	local sdef = if season then WeatherData.seasonById[season] else nil
+	if sdef and knack == nil then
+		-- (the season's own kinds weigh more: a weighted pick in place of the plain one)
+		local fav: { [number]: boolean } = {}
+		for _, i in sdef.favour do
+			fav[i] = true
+		end
+		local total = 0
+		for _, x in list do
+			total += if fav[Creatures.byId[x].islet] then Tuning.SeasonFavour else 1
+		end
+		local roll = rng:next() * total
+		for _, x in list do
+			roll -= if fav[Creatures.byId[x].islet] then Tuning.SeasonFavour else 1
+			if roll < 0 then
+				sp = x
+				break
+			end
+		end
+	end
 	local mutR = math.min(5, r + math.floor((p.tier - 1) / Tuning.EggMutTier))
 	return sp, Traits.roll(rng, mutR)
 end
@@ -356,9 +379,9 @@ function Tree.rise(p: Profile, rng: Rng, r: number): number
 	return out
 end
 
--- An egg's rarity by the odds now.
-local function rarityRoll(p: Profile, rng: Rng): number
-	local odds = Tree.odds(p)
+-- An egg's rarity by the odds now (and the weather's luck: Logic/Weather.luck).
+local function rarityRoll(p: Profile, rng: Rng, wx: Weather.State?): number
+	local odds = Tree.odds(p, nil, Weather.luck(wx))
 	local x = rng:next()
 	for i = 5, 1, -1 do
 		x -= odds[i]
@@ -415,8 +438,11 @@ function Tree.ensure(p: Profile): Laid?
 	return pick
 end
 
--- Eggs up to the island's count (after it grew, or a lot just laid), the quest's egg among them (`ensure`).
-function Tree.fill(p: Profile, rng: Rng): { Laid }
+-- Eggs up to the island's count (after it grew, or a lot just laid), the quest's egg among them (`ensure`). `wx`: the
+-- season and weather now (Logic/Weather.at; GAME_DESIGN 13): each new egg keeps the season it was laid in, the
+-- weather may touch it (Weather.touch: it hatches with the weather's mutation) and a storm lays rarer eggs. A new
+-- island's first lot keeps its two plain commons for the tips.
+function Tree.fill(p: Profile, rng: Rng, wx: Weather.State?): { Laid }
 	local c = p.clutch
 	local laid: { Laid } = {}
 	local commons = 0
@@ -426,11 +452,19 @@ function Tree.fill(p: Profile, rng: Rng): { Laid }
 		end
 	end
 	while #c.list < Tree.count(p.tier) do
-		local r = if fresh(p) and commons < 2 then 1 else rarityRoll(p, rng)
+		local tips = fresh(p) and commons < 2
+		local r = if tips then 1 else rarityRoll(p, rng, wx)
 		if r == 1 then
 			commons += 1
 		end
 		local e: Laid = { id = c.next, r = r }
+		if wx and not tips then
+			e.ss = wx.season
+			local kind, tier = Weather.touch(rng, wx, r)
+			if kind then
+				e.wx, e.wt = kind, tier
+			end
+		end
 		c.next += 1
 		table.insert(c.list, e)
 		table.insert(laid, e)
@@ -440,28 +474,65 @@ function Tree.fill(p: Profile, rng: Rng): { Laid }
 end
 
 -- A new lot: the eggs left go, `count(tier)` new ones, the next lot `secs` away.
-function Tree.lay(p: Profile, rng: Rng): { Laid }
+function Tree.lay(p: Profile, rng: Rng, wx: Weather.State?): { Laid }
 	table.clear(p.clutch.list)
 	p.clutch.left = Tree.secs(p)
-	return Tree.fill(p, rng)
+	return Tree.fill(p, rng, wx)
 end
 
--- dt seconds of the tree: when its time comes it lays a new lot. Returns the new lot (nil: none laid).
-function Tree.step(p: Profile, dt: number, rng: Rng): { Laid }?
+-- dt seconds of the tree: when its time comes it lays a new lot (in the weather `wx`). Returns the new lot (nil: none
+-- laid).
+function Tree.step(p: Profile, dt: number, rng: Rng, wx: Weather.State?): { Laid }?
 	local c = p.clutch
 	c.left -= dt
 	if c.left <= 0 then
-		return Tree.lay(p, rng)
+		return Tree.lay(p, rng, wx)
 	end
 	return nil
 end
 
--- The eggs as the client sees them: each with its price on this island now.
+-- The eggs as the client sees them: each with its price on this island now, the season it was laid in and the
+-- weather that touched it.
 function Tree.view(p: Profile): { Laid }
 	local out: { Laid } = {}
 	for _, e in p.clutch.list do
-		table.insert(out, { id = e.id, r = e.r, cost = Tree.cost(p, e.r) })
+		table.insert(out, { id = e.id, r = e.r, cost = Tree.cost(p, e.r), ss = e.ss, wx = e.wx, wt = e.wt })
 	end
+	return out
+end
+
+-- The weather mutation an egg hatches with (nil: the weather didn't touch it).
+function Tree.weatherMut(e: Laid): string?
+	return Weather.mutation(e.wx, e.wt)
+end
+
+-- A driftling's mutations with the weather's one added: in place of the same family's, else on the end, else (the
+-- list full) in place of the lowest tier (a flaw first).
+local function withWeather(muts: { string }, id: string): { string }
+	local m = Traits.byId[id]
+	if m == nil then
+		return muts
+	end
+	local out = table.clone(muts)
+	for i, x in out do
+		local mx = Traits.byId[x]
+		if mx and mx.family == m.family then
+			out[i] = id
+			return out
+		end
+	end
+	if #out < Traits.MAX then
+		table.insert(out, id)
+		return out
+	end
+	local low, at = math.huge, 1
+	for i, x in out do
+		local t = (Traits.byId[x] :: any).tier
+		if t < low then
+			low, at = t, i
+		end
+	end
+	out[at] = id
 	return out
 end
 
@@ -518,7 +589,12 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	local knack = if p.stats.taken < #FIRST_KNACKS and #p.pals < #FIRST_KNACKS then FIRST_KNACKS[p.stats.taken + 1] else nil
 	-- (it may turn rarer as it hatches; never the tips' first two)
 	local hr = if knack then egg.r else Tree.rise(p, rng, egg.r)
-	local sp, muts = Tree.roll(p, rng, hr, knack)
+	local sp, muts = Tree.roll(p, rng, hr, knack, egg.ss)
+	-- (an egg the weather touched hatches with its mutation: GAME_DESIGN 13)
+	local wm = Tree.weatherMut(egg)
+	if wm then
+		muts = withWeather(Traits.clean(muts), wm)
+	end
 	local x: Pal = { id = p.nextId, sp = sp, home = home, work = 0, muts = Traits.clean(muts) }
 	p.nextId += 1
 	table.insert(p.pals, x)
@@ -529,7 +605,7 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	if def then
 		p.stats.best = math.max(p.stats.best, def.rarity)
 	end
-	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = cost, sold = sold, swapped = if out then swap else 0 }
+	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = cost, sold = sold, swapped = if out then swap else 0, wx = egg.wx, wm = wm }
 end
 
 -- A driftling sold (from a hut or with none): its price in shells; a hut's room goes to one waiting with no hut.

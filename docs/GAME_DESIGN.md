@@ -1,6 +1,16 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest, with a picture of Random Bakery's HUD): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
+> The request (2026-11-14, the latest): "also, make weather and seasons, and eggs spawns are affected by these with
+> different mutations"
+
+So the sea has seasons and weather now, the same for everyone, off the sea's clock: spring, summer, autumn and winter
+two and a half hours each, a new spell of weather every ten minutes (rain, a storm, fog, snow, blossom wind, heat haze,
+falling leaves, a breeze or plain sun), shown on the islands in the pixel layer and in two lines under the top bar. An
+egg the Tree of Life lays in rain, snow, fog, blossom, haze, leaves or a storm may be touched by it: it wears a little
+piece of that weather and hatches with that weather's own mutation. A season brings its own kinds of driftling out of
+the eggs more often (§13).
+
+> The request (2026-11-14, with a picture of Random Bakery's HUD): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
 > island more such that there isnt too much sea in the screen"
 
 So the interface is black see-through glass now, the bakery's way: one strip of icon and number pairs along the top, the
@@ -1546,3 +1556,68 @@ the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
 Trading between players, visiting with gifts, offline progress, purchases (no game passes or products:
 `Config/Monetization.luau` holds only the sound and music ids), other languages (English only; every string goes through
 `Locale/Lang.t`).
+
+## 13. Seasons and the weather (`Data/Weather`, `Logic/Weather`, `Controllers/WeatherView`, `UI/WeatherChip`)
+
+> The request (2026-11-14): "also, make weather and seasons, and eggs spawns are affected by these with different
+> mutations"
+
+**The clock.** The season and the weather come from the sea's clock (`WorldClock`, the same on every server and
+client), so everyone on the sea has the same sky and nothing is saved. A season lasts `Tuning.SeasonSecs` (2.5 hours):
+spring, summer, autumn, winter, round again. Each season splits into spells of `Tuning.WeatherSecs` (10 minutes, 15 a
+season); a spell's weather is drawn from its season's odds by a hash of the spell's number, and a storm never follows a
+storm (that spell gets the season's first kind instead).
+
+| Season | Weather odds (out of 100) | Kinds that come more often |
+| --- | --- | --- |
+| Spring | sunny 30, blossom wind 26, rain 24, breezy 14, storm 6 | Meadow and Mangrove |
+| Summer | sunny 38, heat haze 26, breezy 14, rain 12, storm 10 | Beach, Volcano and Reef |
+| Autumn | falling leaves 30, fog 22, rain 20, breezy 18, storm 10 | Bluffs and Ruins |
+| Winter | snow 40, sunny 22, fog 20, breezy 12, storm 6 | Snowfield and Grotto |
+
+**The eggs.** Every egg the Tree of Life lays remembers the season it was laid in, and its driftling is picked with
+that season's islets' kinds `Tuning.SeasonFavour` (3) times as likely (no change for a quest's chosen kind). An egg laid
+in a weather that has a mutation family is touched by it with `Tuning.WeatherTouch`: 35% in rain, snow, blossom wind
+and falling leaves, 30% in fog and heat haze, 20% in a storm. Sun and a breeze touch nothing. A new island's first lot
+keeps its two plain commons. A touched egg's tier is rolled from `Tuning.WeatherTierW` (52, 30, 13, 5 out of 100,
+shifted up for rarer eggs); a storm's touch is a tier better and never below tier 2, and a storm also adds
+`Tuning.WeatherLuck.storm` (0.25) to the eggs' rarity luck while it lasts.
+
+**The weather's mutations** (`Data/Traits`' weather families: never rolled any other way, so only the weather gives
+them; a hatchling keeps at most `Traits.MAX` mutations, a weather one replacing its lowest if it must):
+
+| Weather | Family | Tier 1 to 4 | Effect, tier 1 to 4 |
+| --- | --- | --- | --- |
+| Rain | rainy | Drizzly, Rainkissed, Downpour, Monsoon | +10, 20, 35, 55% at farms |
+| Snow | frosty | Chilly, Frosty, Snowbound, Glacial | +10, 20, 35, 55% at fishing |
+| Heat haze | sunny | Warm, Sunbaked, Sunkissed, Midsummer | +10, 20, 35, 55% at shops |
+| Blossom wind | bloomy | Budding, Petalled, Flowering, Springborn | +1, 2, 3, 5 charm |
+| Falling leaves | autumn | Russet, Amber, Copper, Goldleaf | +10, 20, 35, 55% at wood |
+| Fog | misty | Misty, Foggy, Veiled, Phantom | eggs 3, 6, 10, 16% sooner |
+| Storm | stormy | Gusty, Stormborn, Thunderous, Tempest | +6, 12, 20, 32% egg luck |
+
+**How a touched egg shows.** Under the tree it wears a small piece of its weather over its crown, its own shape so it
+reads on any shell: a white rain cloud with three blue drops, a dark storm cloud with a yellow bolt, a cap of snow, a
+pink flower, a fallen maple leaf, a little hot sun, puffs of mist round its middle. In the Tree panel its row says
+where it was laid ("Laid in the rain") with the weather's icon and the mutation it will hatch with, in its tier's
+colour. Hatching it adds that mutation.
+
+**On the islands** (in the pixel layer, one art pixel at a time, no parts): rain falls in thin slanted streaks with a
+pixel or two of splash; a storm is heavier and faster with a greyer light, a short flash of lightning every 7 to 16
+seconds and thunder after it; snow drifts down in three flake sizes and settles for a moment on what faces up; fog
+drifts across in pale banks, thicker in their middles in four even steps; blossom wind blows pink petals across, falling
+leaves orange and red leaves, heat haze sends pale motes up off the ground, a breeze draws quick wind lines. Each
+weather tints the bright day a little (`DayLight.setWeather`) and keeps it bright: rain and storms a touch cooler and
+greyer, snow and fog lighter, haze and leaves warmer. A new spell fades in over a few seconds. Sounds: a drizzle loop
+in rain, a heavy rain loop in a storm, wind gusts on a breezy, blossom or leafy day, the thunder (Roblox's licensed
+library, chosen by listening to their length and loudness with ffprobe, not by title). Reduced motion keeps the light
+and drops the particles; the lower picture tiers get fewer of them.
+
+**On the HUD.** Two lines in the status panel under the top bar: the season's icon, name and time left ("Winter · 2 h
+30 min"), then the weather's icon, name and time left in its spell ("Rain · 10 min"), a weather that touches eggs in a
+light tone of its colour. A notice says when the weather turns ("It started to rain.") or a season starts ("Winter is
+here. Snowfield and grotto kinds come more often.").
+
+**The economy.** The weather only adds: no egg costs more, none is taken away. The career model (`tests/Career.luau`)
+lays its eggs in the weather of its own clock, so the Economy spec's bounds (§10) are checked with the touches and the
+season's kinds in them.

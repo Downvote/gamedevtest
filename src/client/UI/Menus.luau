@@ -12,6 +12,7 @@ local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Islets = require(ReplicatedStorage.Shared.Data.Islets)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
+local WeatherData = require(ReplicatedStorage.Shared.Data.Weather)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
@@ -684,13 +685,24 @@ local function buildTree(body: Frame, arg: any?)
 	end
 	for i, e in shown do
 		local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
-		local f = row(list, i, 26)
+		-- (an egg the weather touched, GAME_DESIGN 13: where it was laid, and the mutation it hatches with on a third
+		-- line, the weather's icon before it)
+		local wdef = if e.wx then WeatherData.byId[e.wx] else nil
+		local wm = if wdef then Traits.byId[Traits.at(wdef.family or "", e.wt or 1)] else nil
+		local f = row(list, i, if wm then 36 else 26)
 		f.Name = "Egg_" .. e.id
 		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, 5), UDim2.fromOffset(6, 5), 4)
 		local tw = RW - 86
 		UIKit.text(f, rar.name .. " egg", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
 		local an = if e.r == 2 or e.r == 4 then "an" else "a"
-		UIKit.text(f, string.format("Hatches %s %s one", an, string.lower(rar.name)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+		if wdef and wm then
+			UIKit.text(f, wdef.laid, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, name = "Laid" })
+			PixelSprites.image(f, "mini_" .. wdef.icon, UDim2.fromOffset(24, 23), 4).Name = "WeatherIcon"
+			local tc = Traits.TIER_COLOR[wm.tier] or "text"
+			UIKit.text(f, wm.name .. " " .. (Traits.TIER_STARS[wm.tier] or ""), UDim2.fromOffset(tw - 13, 10), UDim2.fromOffset(37, 22), { color = UIKit.color(tc), z = 4, name = "WeatherMut" })
+		else
+			UIKit.text(f, string.format("Hatches %s %s one", an, string.lower(rar.name)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+		end
 		-- Hatch: its price (the shells and the shell icon after them)
 		local cost = e.cost or 0
 		local text = Numbers.coins(cost)

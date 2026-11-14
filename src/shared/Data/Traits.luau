@@ -48,6 +48,20 @@ local FAMILIES: { { family: string, key: string, names: { string }, values: { nu
 	{ family = "chopper", key = "wood", names = { "Chopper", "Woodsy", "Timberwise", "Forest Heart" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 	{ family = "trader", key = "shop", names = { "Chatty", "Smooth Talker", "Haggler", "Tycoon" }, values = { 0.12, 0.24, 0.4, 0.65 } },
 }
+-- The weather's families (GAME_DESIGN 13: "also, make weather and seasons, and eggs spawns are affected by these with
+-- different mutations"): an egg the Tree of Life lays in a weather may be touched by it (Logic/Weather.touch) and
+-- hatches with that weather's mutation. They never come from a plain roll (`roll` keeps to FAMILIES) or as a
+-- Hatchery's new mutation, only from the weather (a Hatchery passes one on and tiers it up like any other).
+local WEATHER_FAMILIES: { { family: string, key: string, names: { string }, values: { number }, weather: string } } = {
+	{ family = "rainy", weather = "rain", key = "farm", names = { "Drizzly", "Rainkissed", "Downpour", "Monsoon" }, values = { 0.1, 0.2, 0.35, 0.55 } },
+	{ family = "frosty", weather = "snow", key = "fish", names = { "Chilly", "Frosty", "Snowbound", "Glacial" }, values = { 0.1, 0.2, 0.35, 0.55 } },
+	{ family = "sunny", weather = "haze", key = "shop", names = { "Warm", "Sunbaked", "Sunkissed", "Midsummer" }, values = { 0.1, 0.2, 0.35, 0.55 } },
+	{ family = "bloomy", weather = "blossom", key = "charm", names = { "Budding", "Petalled", "Flowering", "Springborn" }, values = { 1, 2, 3, 5 } },
+	{ family = "autumn", weather = "leaves", key = "wood", names = { "Russet", "Amber", "Copper", "Goldleaf" }, values = { 0.1, 0.2, 0.35, 0.55 } },
+	{ family = "misty", weather = "fog", key = "tree", names = { "Misty", "Foggy", "Veiled", "Phantom" }, values = { 0.03, 0.06, 0.1, 0.16 } },
+	{ family = "stormy", weather = "storm", key = "luck", names = { "Gusty", "Stormborn", "Thunderous", "Tempest" }, values = { 0.06, 0.12, 0.2, 0.32 } },
+}
+
 -- The flaws (tier 0): a driftling can be born a little worse at something. A flaw belongs to the family of the same
 -- effect (a driftling is Lazy or Diligent, never both; a Hatchery tier-up turns a flaw into its family's first tier).
 local FLAWS: { { id: string, family: string, name: string, key: string, value: number } } = {
@@ -74,6 +88,13 @@ for _, f in FAMILIES do
 		BY_ID[m.id] = m
 	end
 end
+for _, f in WEATHER_FAMILIES do
+	for tier = 1, 4 do
+		local m: Mutation = { id = f.family .. tier, family = f.family, tier = tier, name = f.names[tier], blurb = "", fx = { [f.key] = f.values[tier] } }
+		table.insert(LIST, m)
+		BY_ID[m.id] = m
+	end
+end
 for _, f in FLAWS do
 	local m: Mutation = { id = f.id, family = f.family, tier = 0, name = f.name, blurb = "", fx = { [f.key] = f.value } }
 	table.insert(LIST, m)
@@ -82,6 +103,7 @@ end
 Traits.list = LIST
 Traits.byId = BY_ID
 Traits.families = FAMILIES
+Traits.weather = WEATHER_FAMILIES -- (the weather's families: Data/Weather, Logic/Weather)
 
 -- A family's mutation at a tier ("sturdy", 3 -> "sturdy3"), clamped to 1 .. 4.
 function Traits.at(family: string, tier: number): string

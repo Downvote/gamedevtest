@@ -27,10 +27,24 @@ local MIDDAY = 0.35 -- (what frac() says: anything that asks the hour finds it b
 local BIRDS_EVERY = 80 -- seconds between the birds' songs
 
 local held: Grade? = nil -- a grade held over the day's (the hatch scene's)
+-- the weather's light over the day's (Controllers/WeatherView; GAME_DESIGN 13): its multipliers times BRIGHT's, its
+-- lift added; nil: the plain bright day
+type WeatherGrade = { mr: number, mg: number, mb: number, lift: number, sat: number }
+local weather: Grade? = nil
 
 -- The grade at any time (the same bright day).
 function DayLight.at(_frac: number): Grade
 	return BRIGHT
+end
+
+-- The weather's light over the day's (nil: the plain day). The caller steps it (a few steps a change, never a smear:
+-- every new grade re-uploads the picture).
+function DayLight.setWeather(w: WeatherGrade?)
+	if w == nil then
+		weather = nil
+		return
+	end
+	weather = { mr = BRIGHT.mr * w.mr, mg = BRIGHT.mg * w.mg, mb = BRIGHT.mb * w.mb, lift = BRIGHT.lift + w.lift, sat = BRIGHT.sat * w.sat, lamps = 0 }
 end
 
 function DayLight.start()
@@ -50,7 +64,7 @@ function DayLight.start()
 			end)
 			return
 		end
-		PixelRenderer.setGrade(held or BRIGHT)
+		PixelRenderer.setGrade(held or weather or BRIGHT)
 	end)
 end
 
