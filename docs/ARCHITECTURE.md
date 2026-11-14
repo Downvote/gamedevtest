@@ -1330,7 +1330,8 @@ on an empty see-through stage, so the renderer has its picture at once and `Hatc
 and World roots are disabled meanwhile, and so are the phone's touch controls (`GuiService.TouchControlsEnabled`, in a
 pcall); `DayLight.hold` holds the rarity's `GRADE`; `setOffset` jolts the picture at the hatch. A tap (`HatchTap`, or
 Space, Enter, ButtonA) in phase "egg" takes the queue's head: a "rise" builds the next rarity's egg, its rays, its
-light and its sky with a flash, a hard shake, sparks and stars and "It turned <rarity>" as the title; a "mut" shakes
+light and its sky with a flash, a hard shake, sparks and stars and the new rarity's name alone as the title (as the
+egg's own title is its rarity's name: `eggWords`); a "mut" shakes
 the egg and slides in the plate `HatchMut_<i>`. Each runs `crack` one further (0 .. 3: a `Crack` shows while its
 `stage <= crack`). With the queue empty the cracks turn Neon in the rarity's light (`glowing`) and `HatchHint` says "Tap
 to hatch it"; the next tap hatches it (phase "hatched": the top flies off, the rest falls, `HatchName` and `HatchLine`,

@@ -305,9 +305,11 @@ local function setTitle(s: Scene, text: string, color: string)
 	UIKit.tween(t, 0.18, { Position = UDim2.fromOffset(0, 8) })
 end
 
+-- The egg's title: its rarity alone ("Legendary"; the request of 2026-11-14: "no need for "A x egg" for rarities for
+-- eggs, just do "Legendary" "Common" etc. do the same for "It turned x", just the rarity is enough").
 local function eggWords(r: number): string
 	local rar = Traits.RARITY[r] or Traits.RARITY[1]
-	return string.format("%s %s egg", if r == 2 or r == 4 then "An" else "A", string.lower(rar.name))
+	return rar.name
 end
 
 -- What hatched, under it: its name in its rarity's colour, its rarity and knack.
@@ -393,7 +395,7 @@ end
 
 ------------------------------------------------------------------ the taps
 -- A step up: a hard shake, a flash, the next rarity's egg (its cracks as far as they had got), its rays, its light
--- and its sky, sparks and stars, "It turned epic".
+-- and its sky, sparks and stars, the title the new rarity alone ("Epic").
 local function rise(s: Scene, r: number)
 	s.r = math.clamp(r, 1, Traits.RMAX)
 	newEgg(s, s.r)
@@ -411,7 +413,7 @@ local function rise(s: Scene, r: number)
 	Audio.play("level_up")
 	Audio.play("rare")
 	local rar = Traits.RARITY[s.r] or Traits.RARITY[1]
-	setTitle(s, "It turned " .. string.lower(rar.name), rar.color)
+	setTitle(s, rar.name, rar.color)
 end
 
 -- It hatches: a flash, the top flies off, bits of shell scatter, what hatched pops out (its name under it, "No

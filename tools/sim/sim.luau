@@ -515,6 +515,8 @@ do
 		-- up upgrade if there is any, otherwise it just hatches": no blinds, the egg there at once)
 		hs = H.inClient(p, HSp.debugState)
 		H.expect(hs.phase == "egg" and hs.egg and not hs.pal, "build", "the egg floats there at once, waiting for a tap", string.format("phase %s", hs.phase))
+		-- (its title the rarity alone: "no need for "A x egg" for rarities for eggs, just do "Legendary" "Common" etc.")
+		H.expect(hs.title == Traits.RARITY[pick.r].name, "build", "the egg's title: its rarity alone", string.format("%q", hs.title))
 		-- (then "make the egg rise up into view when it is being opened": it comes up from below, and a tap while it
 		-- rises waits; the cracks crunch, Audio "crack", and the hatch breaks it open, "crack_open")
 		H.expect(hs.lift < -0.5, "build", "it is still rising into view", string.format("%.2f studs under its spot at %.2f s", -hs.lift, hs.clock))
@@ -935,7 +937,7 @@ local function panelRows()
 		local f = pg:FindFirstChild("Egg_" .. e.id, true)
 		local name = f and f:FindFirstChild("Name")
 		local b = H.buttonNamed(p, "PanelHatch_" .. e.id, true)
-		if f and name and name.Text == Traits.RARITY[e.r].name .. " egg" and b and table.find(H.textsOf(b), Numbers.coins(e.cost)) then
+		if f and name and name.Text == Traits.RARITY[e.r].name and b and table.find(H.textsOf(b), Numbers.coins(e.cost)) then
 			rows += 1
 		end
 	end

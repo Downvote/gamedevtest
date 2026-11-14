@@ -320,7 +320,7 @@ local function buildHatch(body: Frame, arg: any?)
 			local r = if d then d.rarity else 1
 			local rar = Traits.RARITY[r] or Traits.RARITY[1]
 			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
-			UIKit.text(f, string.format("%s %s egg", if r == 2 or r == 4 then "An" else "A", rar.name), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
+			UIKit.text(f, rar.name, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
 			local _, total = Breed.cost(egg.sp)
 			local line = if egg.left > 0 then string.format("Hatches in %d turn%s", egg.left, if egg.left == 1 then "" else "s") else "Hatching now."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
@@ -849,7 +849,7 @@ local function buildTree(body: Frame, arg: any?)
 		f.Name = "Egg_" .. e.id
 		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(6, 5), 4)
 		local tw = RW - 86
-		UIKit.text(f, rar.name .. " egg", UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, rar.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
 		local an = if e.r == 2 or e.r == 4 then "an" else "a"
 		if wdef and wm then
 			UIKit.text(f, wdef.laid, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, name = "Laid" })

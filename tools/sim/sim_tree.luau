@@ -514,7 +514,7 @@ local function panelCheck(label)
 		local row = gui(p, "Egg_" .. e.id)
 		local b = H.buttonNamed(p, "PanelHatch_" .. e.id, true)
 		local nm = row and row:FindFirstChild("Name")
-		if not (row and H.guiVisible(row) and b and string.find(buttonText(b), Numbers.coins(e.cost), 1, true) and nm and nm.Text == Traits.RARITY[e.r].name .. " egg") then
+		if not (row and H.guiVisible(row) and b and string.find(buttonText(b), Numbers.coins(e.cost), 1, true) and nm and nm.Text == Traits.RARITY[e.r].name) then
 			badRow = badRow or string.format("%d: %s", e.id, buttonText(b))
 		end
 		if row then

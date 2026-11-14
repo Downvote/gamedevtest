@@ -1297,9 +1297,12 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   Then it hangs in the middle of the picture with nothing under it, bobbing and swaying, and every few seconds it
   gives a little wobble, as if asking to be tapped (the request of 2026-11-14: "make sounds when cracking the egg.
   also, make the egg rise up into view when it is being opened").
-- **The taps**: the title names the egg ("An epic egg") and "Tap the egg" blinks at the foot of the screen. Each tap
-  takes the next thing waiting inside. First each step up in rarity (`Tuning.EggUp`, the result's `hr`): a hard shake,
-  a flash, sparks and a ring of stars, "It turned legendary" and the next rarity's egg floating there, the sky and the
+- **The taps**: the title is the egg's rarity alone ("Epic"; the request of 2026-11-14: "no need for "A x egg" for
+  rarities for eggs, just do "Legendary" "Common" etc. do the same for "It turned x", just the rarity is enough"; the
+  tree's and the Hatchery's egg rows say just the rarity too) and "Tap the egg" blinks at the foot of the screen. Each
+  tap takes the next thing waiting inside. First each step up in rarity (`Tuning.EggUp`, the result's `hr`): a hard
+  shake, a flash, sparks and a ring of stars, the new rarity as the title ("Legendary") and the next rarity's egg
+  floating there, the sky and the
   light changing with it. Then each mutation: a shake, a new crack, and its plate sliding in at the right with its name
   and stars in its tier's colour and what it does ("Lucky *", "+5% egg luck"). Each of these taps runs the cracks a
   little further (three stages) with the crunch of a cracking shell, a little higher each time. Once nothing is left the cracks glow from inside and the hint says "Tap to hatch it".
