@@ -7,7 +7,8 @@
 -- egg is cream with brown freckles; an uncommon one green with a white zigzag band and a leaf drifting up off it now
 -- and then; a rare one sky blue with glowing white stars and twinkles round it; an epic one purple with glowing pink
 -- spots, two motes of light circling it, a purple glow on the lawn and pink sparks rising; a legendary one gold with a
--- band of light, a beam of light standing up out of it, a gold glow on the lawn and gold sparks rising), lying on the
+-- gold glow on the lawn, gold sparks rising and gold stars twinkling round it: no band or beam of light since
+-- 2026-11-14), lying on the
 -- tree's lawn on a ring round its stones
 -- (Models/DecorModels.EGG_RING), spaced evenly along the side the view looks at. A new lot rises out of the lawn one
 -- egg after another; the old ones left sink back into it. Now and then an egg rocks a little. The eggs carry no price

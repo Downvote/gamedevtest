@@ -142,8 +142,8 @@ ten tiers now, four longer islands past Sunspire Capital, and each brings more r
 
 Each rarity's egg has its own colour and marks, and the rarer ones their own lights: a common egg is cream with brown
 freckles, an uncommon one green with a white zigzag band, a rare one sky blue with glowing stars, an epic one purple
-with glowing spots and two motes of light circling it, and a legendary one gold with a beam of light standing up out
-of it (§6).
+with glowing spots and two motes of light circling it, and a legendary one gold with gold sparks and stars twinkling
+round it (§6).
 
 > Earlier that day: "never mind, bring back the tree of life and remove the converyer belt system. it now spawns eggs
 > around it that the player can choose to hatch for some shells. it spawns in 5 eggs around it, which refreshes every
@@ -915,7 +915,7 @@ island grows into a new stage, the tree is built again at it.
   | Uncommon | green | a white zigzag band round its middle | a leaf drifts up off it now and then |
   | Rare | sky blue | white stars that glow | white and cyan twinkles blink round it |
   | Epic | purple | pink spots that glow | a purple glow on the lawn under it, two motes of light (pink and white) circling and bobbing, pink and white sparks rising |
-  | Legendary | gold | a glowing yellow zigzag band, and a band of light round its middle | a beam of light standing up out of its top, breathing taller and shorter, a gold glow on the lawn, gold sparks and stars rising |
+  | Legendary | gold | a glowing yellow zigzag band | a gold glow on the lawn, gold sparks and stars rising and twinkling round it (its band and beam of light went on 2026-11-14: "remove these rectangular effects everywhere, instead make it twinkles") |
 
   The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
   whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
@@ -1162,8 +1162,9 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
   pressed there. The scene waits for that tap and never closes by itself.
 - **Grander by rarity** (`GLORY`, by the rarity it is at that moment): the light of dusk for the commoner ones, a blue,
-  violet or deep gold night for the rarer, the egg's own lights pooling round it; rays of light turning behind the egg
-  (8 from rare, 12 epic, 16 legendary); more sparks and shell; the picture jolts (rare up); confetti (epic up); a ring
+  violet or deep gold night for the rarer, the egg's own lights pooling round it; twinkles blinking in and out round the
+  egg and then round what hatched (from rare up, more the rarer: they took the place of rays of light, thin bars
+  turning behind it, after "remove these rectangular effects everywhere, instead make it twinkles", 2026-11-14); more sparks and shell; the picture jolts (rare up); confetti (epic up); a ring
   of stars (uncommon up); the sounds grow with it.
 - Two taps closer together than a fifth of a second count as one, so a double tap never skips a reveal. Space, Enter
   and a gamepad's A tap too. One scene at a time. With the pixel filter off (the classic look) the egg floats the same

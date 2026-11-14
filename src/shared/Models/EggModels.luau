@@ -3,7 +3,7 @@
 -- them under the trees, UI/HatchScene holds one up close while it hatches.
 --   EggModels.build(r, bare?, scale?) -> (model, parts, top, fx)   an egg of rarity r: its parts with their offsets
 --                                                          from its foot, the shell's top half (it flies off when it
---                                                          hatches), the rarity's moving lights (motes, a beam);
+--                                                          hatches), the rarity's moving lights (motes);
 --                                                          `bare`: no bed of straw and no glow on the lawn; `scale`
 --                                                          times its size
 --   EggModels.hero(r, h) -> (model, parts, top, fx, cracks)  the hatch scene's egg up close, h studs tall
@@ -30,8 +30,8 @@ local LOOK: { [number]: Look } = {
 EggModels.LOOK = LOOK
 
 -- An egg of rarity r (LOOK): a round shell on a bed of straw, its marks on it (freckles, stars or a zigzag band; glowing
--- from rare up), and from epic up its lights: a glow on the lawn under it, two motes circling it (epic) or a beam of
--- light standing up out of its top (legendary). Its parts' offsets from its foot; the top half (it flies off when it
+-- from rare up), and from epic up its lights: a glow on the lawn under it and two motes circling it (epic); a legendary
+-- one twinkles instead (its beam of light went on 2026-11-14). Its parts' offsets from its foot; the top half (it flies off when it
 -- hatches); the lights (moved every frame: stepEgg).
 function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } })
 	local m = Blocks.model(nil, "TreeEgg")
@@ -135,12 +135,9 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 		end
 	end
 	if r >= 5 then
-		-- a legendary egg: a band of light round its middle, and a beam standing up out of its top
-		add(Vector3.new(0.62 * s, 0.06, 0.62 * s), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
-		add(Vector3.new(0.06, 0.06, 0.9 * s), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
-		add(Vector3.new(0.9 * s, 0.06, 0.06), CFrame.new(0, y0 + 0.4 * s, 0), "yellow", true)
-		local beam = Blocks.part(m, { size = Vector3.new(0.25, 2, 0.25), cf = CFrame.new(0, y0 + 2 * s, 0), color = "yellow", collide = false, query = false, neon = true, name = "Beam" })
-		table.insert(fx, { p = beam, kind = "beam", k = 0 })
+		-- a legendary egg: its gold sparks and stars twinkle round it (EggView); the band of light and the beam of light
+		-- that stood out of its top went (the request of 2026-11-14: "remove these rectangular effects everywhere,
+		-- instead make it twinkles")
 	elseif r == 4 then
 		-- an epic egg: two motes of light circling it, a pink one and a white one
 		for k, c in { "pink", "white" } do
@@ -163,10 +160,10 @@ end
 --   epic: purple with two pink stripes spiralling up it, glowing runes between them, a pink ring at its foot, three
 --     motes circling it;
 --   legendary: gold with a raised band set with red, blue and green gems in bezels, filigree scrolls, a crown of points
---     round its top, a halo of light turning over it and a beam standing up out of it.
+--     round its top and a halo of light turning over it (its beam went on 2026-11-14).
 -- Its cracks (`cracks`: each part with its stage, 1 a short crack at the top, 2 running down and branching, 3 round its
 -- middle where the top comes off) are kept out of sight until the scene shows them; the top is what lies above the
--- middle crack. fx: "mote", "beam", "halo" (moved by the scene).
+-- middle crack. fx: "mote", "halo" (moved by the scene).
 export type Crack = { p: BasePart, off: CFrame, stage: number }
 local PROFILE: { { number } } = {
 	{ 0, 0 },
@@ -257,7 +254,7 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 	end
 	local u = h / 2.4 -- (sizes below are for an egg 2.4 studs tall)
 	-- the shine, where the light off the top left meets the view: an oval of white and a dot under it (marks are plain
-	-- colour: only the egg's real lights glow, the cracks' light, the motes, the halo and the beam, since anything that
+	-- colour: only the egg's real lights glow, the cracks' light, the motes and the halo, since anything that
 	-- glows pools light round it at night)
 	local SHINE = math.rad(95)
 	dab(0.72, SHINE, 0.24 * u, "white")
@@ -375,13 +372,12 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			bead(0.915, a, 0.07 * u, "yellow")
 			bead(0.945, a, 0.05 * u, "white")
 		end
-		-- the halo over it and the beam out of its top
+		-- the halo over it (the beam of light out of its top went: "remove these rectangular effects everywhere, instead
+		-- make it twinkles", 2026-11-14; the hatch scene's twinkles stand in for it)
 		for k = 0, 19 do
 			local halo = Blocks.part(m, { size = Vector3.new(0.09, 0.09, 0.09) * u, cf = CFrame.new(0, h + 0.4, 0), color = if k % 4 == 0 then "white" else "yellow", collide = false, query = false, neon = true, shape = "Ball", name = "Halo" })
 			table.insert(fx, { p = halo, kind = "halo", k = k })
 		end
-		local beam = Blocks.part(m, { size = Vector3.new(0.3, 2, 0.3), cf = CFrame.new(0, h + 1, 0), color = "yellow", collide = false, query = false, neon = true, name = "Beam" })
-		table.insert(fx, { p = beam, kind = "beam", k = 0 })
 	end
 	-- the cracks (out of sight until the scene shows them): a crack from the top down the front, its branch, then the
 	-- ring round the middle

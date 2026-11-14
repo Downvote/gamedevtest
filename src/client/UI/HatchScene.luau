@@ -18,7 +18,7 @@
 -- and what it does). When nothing is left the cracks glow and the next tap hatches it: a flash, the top flies off, bits
 -- of shell scatter and what hatched pops out, its name and rarity under it ("No mutations" on a plate if it has none).
 -- One more tap goes back to the island (its picture was kept, so it is there at once) and `after` runs.
--- The rarer it hatched as, the grander (GLORY): rays of light turning behind the egg (rare and up), more sparks and
+-- The rarer it hatched as, the grander (GLORY): twinkles round the egg (rare and up), more sparks and
 -- shell, a jolt of the picture, confetti, stars ringing it; the light of dusk for the commoner ones, a blue, violet or
 -- deep gold night for the rarer (DayLight.hold).
 --   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as) }
@@ -60,8 +60,8 @@ local RISE_FROM = 7 -- studs under its spot it starts, out of the picture
 
 -- How grand each rarity's scene is (by the rarity it is now; the hatch's by the rarity it hatched as).
 type Glory = {
-	rays: number, -- rays of light turning behind it
-	rayLen: number,
+	rays: number, -- twinkles round it at once, about (they took the place of rays of light)
+	rayLen: number, -- (unused since the twinkles)
 	sparks: number, -- sparks out of the crack
 	shards: number, -- bits of shell
 	flash: number, -- the white flash's strength (0 .. 1)
@@ -87,7 +87,7 @@ local GRADE: { PixelRenderer.Grade } = {
 	{ mr = 0.98, mg = 0.78, mb = 0.62, lift = 4, sat = 1.04, lamps = 0.9 },
 }
 
--- Each rarity's colours in the scene: its rays and its sparks (palette keys).
+-- Each rarity's colours in the scene: its sparks and its cracks' light (palette keys).
 local RAY: { { string } } = { { "cream", "white" }, { "green", "white" }, { "blue", "white" }, { "purple", "pink" }, { "gold", "yellow" } }
 
 local KNACK: { [string]: string } = { farm = "good at farms", fish = "good at fishing", wood = "good with wood", shop = "good at shops" }
@@ -118,7 +118,9 @@ type Scene = {
 	glowing: boolean, -- the cracks lit from inside (nothing left to reveal: the next tap hatches it)
 	arrived: boolean, -- it has risen into view (a soft chime as it gets there)
 	topOff: number?, -- when it hatched (the top flew off)
-	rays: { { p: BasePart, a: number, k: number } },
+	rays: { { p: BasePart, a: number, k: number } }, -- (none since the twinkles took their place)
+	twinkleN: number, -- twinkles round it at once, about (GLORY.rays; 0: none)
+	twinkleAt: number, -- the scene clock when the next one comes
 	shards: { Shard },
 	pal: MicroModels.Thing?,
 	popAt: number?,
@@ -153,10 +155,6 @@ local function at(x: number, y: number, z: number): Vector3
 	return ORIGIN + Vector3.new(x, y, z)
 end
 
--- The camera's own axes (world): toward the picture's right and up, and the way it looks.
-local LOOK = Vector3.new(-1, -1.15, -1).Unit
-local RIGHT = Vector3.new(1, 0, -1).Unit
-local UP = RIGHT:Cross(LOOK)
 
 ------------------------------------------------------------------ the egg and what hatches
 local function dropEgg(s: Scene)
@@ -176,24 +174,11 @@ local function newEgg(s: Scene, r: number)
 	s.egg, s.parts, s.top, s.fx, s.cracks, s.glowing = m, parts, top, fx, cracks, false
 end
 
--- The rays of light behind the egg: thin bright blades in the picture's own plane (they face the camera), turning
--- round the egg's middle a little behind it.
+-- Twinkles round the egg (the request of 2026-11-14: "remove these rectangular effects everywhere, instead make it
+-- twinkles": they took the place of rays of light, thin bright bars turning behind it): from a rare egg up, little
+-- stars blink in and out at random round it, more the rarer it is (GLORY.rays), and round what hatched after.
 local function newRays(s: Scene, r: number)
-	for _, ray in s.rays do
-		ray.p:Destroy()
-	end
-	table.clear(s.rays)
-	local g = glory(r)
-	if g.rays <= 0 then
-		return
-	end
-	local m = Blocks.model(nil, "HatchRays")
-	for k = 1, g.rays do
-		local p = Blocks.part(m, { size = Vector3.new(0.25, 0.05, 1), cf = CFrame.new(ORIGIN), color = RAY[r][(k % 2) + 1], neon = true, collide = false, query = false, name = "Ray" })
-		table.insert(s.rays, { p = p, a = (k - 1) / g.rays * math.pi * 2, k = k })
-	end
-	m.Parent = s.dyn
-	PixelRenderer.registerDynamic(m)
+	s.twinkleN = glory(r).rays
 end
 
 local function eggMiddle(r: number): Vector3
@@ -571,36 +556,7 @@ local function stepEgg(s: Scene, c: number)
 			f.p.CFrame = cf * CFrame.new(0, eh + 0.2 + Blocks.snap(hb) / 2, 0)
 		end
 	end
-	-- the rays: turning behind the egg, longer as the cracks spread, flaring when it hatches, then staying behind what
-	-- hatched (epic and up) or fading (rare)
-	if #s.rays > 0 then
-		local g = glory(r)
-		local len = g.rayLen * (0.55 + 0.15 * s.crack)
-		local wid = 0.2
-		if off then
-			local after = c - off
-			len = g.rayLen * (1 + 0.35 * math.max(0, 1 - after / 0.5))
-			if r <= 3 then
-				local fade = math.clamp(1 - (after - 0.6) / 0.8, 0, 1)
-				len *= fade
-				wid *= math.max(0.4, fade)
-			end
-		end
-		local mid = eggMiddle(r) + LOOK * 2.4 + Vector3.new(0, lift, 0)
-		len *= math.clamp(c / RISE, 0, 1) -- (the rays open out as it rises)
-		for _, ray in s.rays do
-			local a = ray.a + c * (0.35 + 0.05 * (ray.k % 3))
-			local dir = RIGHT * math.cos(a) + UP * math.sin(a)
-			local l = len * (if ray.k % 2 == 0 then 1 else 0.7)
-			if l < 0.1 then
-				ray.p.CFrame = CFrame.new(mid - Vector3.new(0, 30, 0))
-			else
-				local center = mid + dir * (0.6 + l / 2)
-				ray.p.Size = Vector3.new(wid, 0.05, l)
-				ray.p.CFrame = CFrame.lookAt(center, center + dir, -LOOK)
-			end
-		end
-	end
+
 end
 
 -- What hatched: popping out of the shell (small to a little over its size and back) with one jump and its arms up
@@ -680,6 +636,27 @@ local function fireflies(s: Scene, c: number)
 end
 
 
+-- A twinkle now and then round the egg (from a rare one up), and round what hatched after: a rare one's go out a
+-- moment after the hatch, an epic or legendary one's stay. Each blinks through its frames where it appeared.
+local function stepTwinkles(s: Scene, c: number)
+	local n = s.twinkleN
+	if n <= 0 or c < s.twinkleAt then
+		return
+	end
+	local off = s.topOff
+	if off and s.r <= 3 and c - (off :: number) > 1.4 then
+		return
+	end
+	local life = 0.55 + math.random() * 0.35
+	s.twinkleAt = c + 0.7 / n * (0.6 + math.random() * 0.8)
+	local px, py = PixelRenderer.projectPixel(eggMiddle(s.r) + Vector3.new(0, liftOf(c), 0))
+	local a = math.random() * math.pi * 2
+	local x = px + math.cos(a) * (20 + math.random() * 22)
+	local y = py + math.sin(a) * (16 + math.random() * 18)
+	local frames = if s.r >= 5 then { "spark_1", "spark_2", "spark_3", "spark_2" } else { "twinkle_1", "twinkle_2", "twinkle_1" }
+	addStar(s, frames, math.floor(x), math.floor(y), life, -3)
+end
+
 local function step(s: Scene, dt: number)
 	local d = math.min(dt, 0.1)
 	s.clock += d
@@ -691,6 +668,7 @@ local function step(s: Scene, dt: number)
 	end
 	stepPal(s, c)
 	stepShards(s, c, d)
+	stepTwinkles(s, c)
 	fireflies(s, c)
 	stepDots(s, d)
 	HatchBackdrop.step(d)
@@ -818,6 +796,8 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		arrived = false,
 		topOff = nil,
 		rays = {},
+		twinkleN = 0,
+		twinkleAt = 0,
 		shards = {},
 		pal = nil,
 		popAt = nil,

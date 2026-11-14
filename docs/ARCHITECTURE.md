@@ -969,10 +969,10 @@ scene) in `Workspace.PixelDynamic` (registered with the renderer): a bed of stra
 `cream` with `sand_dark` spots, uncommon `green` with a `white` band, rare `blue` with `white` spots, epic `purple`
 with `pink` spots, legendary `gold` with a `yellow` band; "spots" six dabs on the side facing the view, "band" twelve
 dabs a little up and down in turn round its middle; the marks Neon from rare up, so a light pool at night); the epic and
-legendary a thin Neon disc of `lawn` colour on the grass under it; the legendary also a Neon yellow band of light round
-its middle and a `Beam` standing up out of its top, the epic two Neon `Mote`s (pink, white). The motes and the beam
-are the egg's `fx`, moved every frame (`stepEgg`: the motes circle and bob, the beam breathes 2.2 +- 0.5 studs tall,
-both put under the lawn while the egg sinks or cracks). `SIZE[r]` (1.25 .. 1.62) a rarer one bigger. Its sparks
+legendary a thin Neon disc of `lawn` colour on the grass under it; the epic two Neon `Mote`s (pink, white): the egg's
+`fx`, moved every frame (`stepEgg`: they circle and bob, put under the lawn while the egg sinks or cracks). The
+legendary's band of light and `Beam` went on 2026-11-14 ("remove these rectangular effects everywhere, instead make it
+twinkles"): its gold sparks and stars twinkle round it. `SIZE[r]` (1.25 .. 1.62) a rarer one bigger. Its sparks
 (`stepSparks`, 2D on the World canvas at whole UI px): every `EVERY[r]` seconds or so (none, 0.8, 0.42, 0.26, 0.14)
 an egg lying still (risen, not sinking or cracking) sends one up: an uncommon a green 1 px leaf drifting up, a rare a
 `twinkle_1`/`twinkle_2` star blinking round it, an epic pink and white 1 px sparks rising, a legendary gold and white
@@ -1266,8 +1266,7 @@ Each reveal tap plays Audio `crack` (pitch up with `crack`), the hatch `crack_op
 `play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
 `{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
 the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`
-(0, 0, 9000) with nothing under it), the rays (`HatchRays`: thin Neon blades in the camera's own plane, turning, behind
-the egg, rare and up), the bits of shell (`HatchShards`: thrown out at the hatch, falling away, gone after 2 s) and what
+(0, 0, 9000) with nothing under it), the bits of shell (`HatchShards`: thrown out at the hatch, falling away, gone after 2 s) and what
 hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle").
 `CameraController.setStage({ name = "hatch", ..., top = 30, bottom = 40, clear = true, empty = true })` (its points
 the egg's room times `STAGE_ROOM` 1.45 about the egg's middle: "make the egg and creature smaller in the hatching
@@ -1288,7 +1287,7 @@ hatches, "remove the it hatched text"), `HatchName`, `HatchLine`, the plates `Ha
 see-through `HatchTap`. `GLORY` by the rarity shown: rays, rayLen, sparks, shards, flash, jolt, confetti, stars.
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
-the shine (white), the fx (`mote` x3 epic, `halo` x20 and `beam` legendary: with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
+the shine (white), the fx (`mote` x3 epic, `halo` x20 legendary: with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
 stage }`: 1 a short crack at the top, 2 running down and branching, 3 round its middle; out of sight until the scene's
 taps reach its stage, Neon in the rarity's light once nothing is left to reveal). Parts above `SPLIT` (0.56) are the top.
 `HatchBackdrop.paint(r, W, H, ex, ey) -> buffer` (the sky picture, RGBA at the art grid: banded sky with dithered
