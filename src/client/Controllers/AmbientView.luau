@@ -319,8 +319,12 @@ local function buildLand(I: Isle)
 					end
 				end
 			elseif l == Street.SAND then
-				table.insert(I.sand, ox + x + 0.5)
-				table.insert(I.sand, oz + z + 0.5)
+				-- (a perch on the beach only where the cells round it are beach too: a bird hops up to 0.7 studs from
+				-- its spot, and must not hop down onto the wet sand or up into the grass)
+				if Street.layer(tier, x - 1, z) == Street.SAND and Street.layer(tier, x + 1, z) == Street.SAND and Street.layer(tier, x, z - 1) == Street.SAND and Street.layer(tier, x, z + 1) == Street.SAND then
+					table.insert(I.sand, ox + x + 0.5)
+					table.insert(I.sand, oz + z + 0.5)
+				end
 			elseif l == Street.SHALLOW or l == Street.SEA_CELL then
 				local d = Street.cellDist(tier, x, z)
 				if d > Street.BANDS.foam + 0.8 and d < Street.BANDS.shallow + 3 and x % 2 == 0 and z % 2 == 0 then

@@ -526,16 +526,17 @@ do
 		a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
 		E.run(1)
 	end
-	-- at night they leave (and do not come back until morning)
+	-- no night (the request of 2026-11-14: "remove the day night cycle"): at the calendar's late hours the birds
+	-- are still about
 	H.inClient(a, DLa.debugSet, 0.88)
 	E.run(4)
 	H.inClient(a, AVa.debugHurry)
 	E.run(2)
-	local out = 0
+	local about = 0
 	for _, b in H.inClient(a, AVa.birds, myPlot) do
-		out += if b.state == "away" then 1 else 0
+		about += if b.state ~= "away" then 1 else 0
 	end
-	H.expect(out == #H.inClient(a, AVa.birds, myPlot), "ambient", "the birds are away at night", tostring(out))
+	H.expect(about >= 2, "ambient", "the birds stay about at every hour (no night)", tostring(about))
 	H.inClient(a, DLa.debugSet, nil)
 	H.inClient(a, AVa.debugRun, false)
 	E.run(0.5)
