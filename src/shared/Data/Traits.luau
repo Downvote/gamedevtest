@@ -9,8 +9,9 @@
 --   luckier) and cost (its eggs cost that much less: below 0 cheaper). 0.1 = +10%.
 --   Each species has a passive of its own (Data/Creatures `passive`); each driftling may carry up to MAX mutations
 --   (Pal.muts: ids "<family><tier>", tier 1 .. 4, or a flaw's id), rolled when it hatches.
---   Rarity (Data/Creatures `rarity`): 1 common .. 5 legendary: the tree lays rarer eggs less often, they cost more,
---   and what hatches works faster (Tuning.RarityWork), sells for more and rolls better mutations.
+--   Rarity (Data/Creatures `rarity`): 1 common .. 7 celestial (RMAX): the tree lays rarer eggs less often, they cost
+--   more, and what hatches works faster (Tuning.RarityWork), sells for more and rolls better mutations. Mythic and
+--   celestial (2026-11-14: "more egg rarities and creatures") belong to the kinds of land a tier 11 island and up opens.
 export type Fx = { [string]: number }
 
 export type Mutation = { id: string, family: string, tier: number, name: string, blurb: string, fx: Fx }
@@ -28,7 +29,10 @@ Traits.RARITY = {
 	{ name = "Rare", color = "button", weight = 16 },
 	{ name = "Epic", color = "purple", weight = 5 },
 	{ name = "Legendary", color = "accent", weight = 1.2 },
+	{ name = "Mythic", color = "mythic", weight = 0.02 },
+	{ name = "Celestial", color = "celestial", weight = 0.002 },
 } :: { Rarity }
+Traits.RMAX = #Traits.RARITY -- the rarest (every table by rarity has this many entries)
 
 -- A mutation's tier: its name's colour (UIKit) and how often a roll lands on it (flaws are tier 0).
 Traits.TIER_COLOR = { [0] = "bad", [1] = "text", [2] = "good", [3] = "button", [4] = "accent" } :: { [number]: string }
@@ -117,7 +121,7 @@ local TIER_W = { 16, 46, 25, 10, 3 }
 
 -- Mutations for a new driftling of a rarity (1 .. 5; a bigger island may roll it as a rarer one), no family twice.
 function Traits.roll(rng: any, rarity: number): { string }
-	local r = math.clamp(rarity or 1, 1, 5)
+	local r = math.clamp(rarity or 1, 1, Traits.RMAX)
 	local function pickW(ws: { number }): number
 		local total = 0
 		for _, w in ws do

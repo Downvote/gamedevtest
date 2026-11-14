@@ -1,8 +1,9 @@
 --!strict
 -- The driftlings (GAME_DESIGN 6): the creatures that hatch from the Tree of Life's eggs, all our own. Pure. Each comes
 -- from one kind of land (Data/Islets: a kind's driftlings hatch once the island reaches that kind's tier), has a knack
--- (the island buildings it helps at), a rarity (1 common .. 5 legendary, Data/Traits: the tree lays rarer eggs less
--- often, and rarer ones work faster) and a passive of its own (Data/Traits effects).
+-- (the island buildings it helps at), a rarity (1 common .. 7 celestial, Data/Traits: the tree lays rarer eggs less
+-- often, and rarer ones work faster) and a passive of its own (Data/Traits effects). The mythic and celestial ones
+-- live on the kinds of land a tier 11 island and up opens (Moonwood, Cloudtop, Starfall: 2026-11-14).
 --   knack: "farm" | "fish" | "wood" | "shop" (Data/Buildings' knack)
 --   hp, atk, def, spd: its make-up, which only ranks it for breeding (`power`)
 --   shape: its 3D model (Models/DriftModels: one of its body plans), body / accent: its palette colours
@@ -120,6 +121,27 @@ local LIST: { CreatureDef } = {
 	C({ id = "sentinel", name = "Sentinel", islet = 9, rarity = 3, hp = 38, atk = 12, def = 14, spd = 3, knack = "wood", shape = "golem", body = "rock", accent = "gold", blurb = "Still guards a door no one remembers.", pn = "Stone Guard", fx = { charm = 2, cost = -0.2, work = 0.1 } }),
 	C({ id = "runemoth", name = "Runemoth", islet = 9, rarity = 4, hp = 27, atk = 14, def = 8, spd = 12, knack = "shop", shape = "moth", body = "gold", accent = "purple", blurb = "Its wings are covered in old spells.", pn = "Rune Wings", fx = { tree = 0.06, luck = 0.1, shop = 0.3 } }),
 	C({ id = "solwyrm", name = "Solwyrm", islet = 9, rarity = 5, hp = 44, atk = 17, def = 12, spd = 9, knack = "farm", shape = "wyrm", body = "gold", accent = "white", blurb = "The ruins were built to honour it.", pn = "Sun Blessing", fx = { cost = -0.3, sell = 0.45, work = 0.25 } }),
+	-- Moonwoods (islet 10, tier 11: the first mythic one)
+	C({ id = "duskbun", name = "Duskbun", islet = 10, rarity = 1, hp = 30, atk = 11, def = 9, spd = 8, knack = "farm", shape = "bun", body = "slate", accent = "crystal", blurb = "Naps all day and gardens all night.", pn = "Night Shift", fx = { farm = 0.22, work = 0.06 } }),
+	C({ id = "hushpup", name = "Hushpup", islet = 10, rarity = 2, hp = 30, atk = 13, def = 8, spd = 12, knack = "shop", shape = "pup", body = "black", accent = "crystal", blurb = "Walks so softly the shop bell never rings.", pn = "Soft Paws", fx = { shop = 0.25, sell = 0.25 } }),
+	C({ id = "lunowl", name = "Lunowl", islet = 10, rarity = 3, hp = 31, atk = 13, def = 10, spd = 10, knack = "farm", shape = "owl", body = "white", accent = "crystal", blurb = "Counts the stars out loud and loses count every night.", pn = "Night Watch", fx = { farm = 0.3, tree = 0.05 } }),
+	C({ id = "wispkin", name = "Wispkin", islet = 10, rarity = 4, hp = 30, atk = 16, def = 9, spd = 14, knack = "wood", shape = "sprite", body = "crystal", accent = "white", blurb = "A little light that chops wood when nobody is looking.", pn = "Hidden Hands", fx = { wood = 0.35, work = 0.12 } }),
+	C({ id = "silverbark", name = "Silverbark", islet = 10, rarity = 5, hp = 48, atk = 16, def = 16, spd = 4, knack = "wood", shape = "golem", body = "steel", accent = "crystal", blurb = "The oldest tree in the wood. It walks when the moon is full.", pn = "Moonsap", fx = { wood = 0.45, cost = -0.3, work = 0.2 } }),
+	C({ id = "moonveil", name = "Moonveil", islet = 10, rarity = 6, hp = 40, atk = 19, def = 12, spd = 15, knack = "shop", shape = "bat", body = "night", accent = "cherry", blurb = "Its wings cover the moon. It gives it back by morning.", pn = "Eclipse Wings", fx = { shop = 0.5, luck = 0.18, sell = 0.6 } }),
+	-- Cloudtops (islet 11, tier 14: the first celestial one)
+	C({ id = "puffling", name = "Puffling", islet = 11, rarity = 1, hp = 34, atk = 12, def = 10, spd = 8, knack = "farm", shape = "blob", body = "white", accent = "window", blurb = "A loose bit of cloud that followed someone home.", pn = "Light Rain", fx = { farm = 0.25, cost = -0.1 } }),
+	C({ id = "cirrup", name = "Cirrup", islet = 11, rarity = 2, hp = 32, atk = 13, def = 9, spd = 13, knack = "shop", shape = "bird", body = "window", accent = "white", blurb = "Sings the weather a day before it comes.", pn = "Fair Forecast", fx = { shop = 0.25, tree = 0.04 } }),
+	C({ id = "cloudjelly", name = "Cloudjelly", islet = 11, rarity = 3, hp = 34, atk = 14, def = 10, spd = 9, knack = "farm", shape = "jelly", body = "white", accent = "pink", blurb = "Floats over the fields and waters them on the way.", pn = "Drizzle Drift", fx = { farm = 0.35, work = 0.08 } }),
+	C({ id = "billowbear", name = "Billowbear", islet = 11, rarity = 4, hp = 46, atk = 17, def = 14, spd = 6, knack = "wood", shape = "yeti", body = "white", accent = "slate", blurb = "Hugs storm clouds until they calm down.", pn = "Storm Hug", fx = { wood = 0.35, cost = -0.15, work = 0.1 } }),
+	C({ id = "skyshell", name = "Skyshell", islet = 11, rarity = 6, hp = 54, atk = 15, def = 18, spd = 5, knack = "farm", shape = "turtle", body = "window", accent = "white", blurb = "Carries a little cloud on its back with a farm on top.", pn = "Floating Field", fx = { farm = 0.55, work = 0.25, tree = 0.08 } }),
+	C({ id = "cloudwhale", name = "Cloudwhale", islet = 11, rarity = 7, hp = 60, atk = 18, def = 16, spd = 8, knack = "shop", shape = "seal", body = "ice", accent = "white", blurb = "Swims through the clouds. Its song makes them hum.", pn = "Sky Song", fx = { shop = 0.6, luck = 0.25, tree = 0.1 } }),
+	-- Starfalls (islet 12, tier 17)
+	C({ id = "glimmite", name = "Glimmite", islet = 12, rarity = 1, hp = 36, atk = 14, def = 12, spd = 7, knack = "wood", shape = "crab", body = "slate", accent = "screen_on", blurb = "Picks bits of fallen star out of the sand.", pn = "Star Picker", fx = { wood = 0.25, sell = 0.2 } }),
+	C({ id = "cometail", name = "Cometail", islet = 12, rarity = 3, hp = 34, atk = 16, def = 10, spd = 15, knack = "shop", shape = "lizard", body = "blue", accent = "yellow", blurb = "Its tail keeps glowing a second after it runs past.", pn = "Bright Trail", fx = { shop = 0.35, tree = 0.05 } }),
+	C({ id = "cratermole", name = "Cratermole", islet = 12, rarity = 5, hp = 44, atk = 19, def = 14, spd = 8, knack = "wood", shape = "mole", body = "basalt", accent = "screen_on", blurb = "Dug the crater wider looking for one more star.", pn = "Deep Dig", fx = { wood = 0.45, sell = 0.5, work = 0.2 } }),
+	C({ id = "nebulynx", name = "Nebulynx", islet = 12, rarity = 6, hp = 42, atk = 20, def = 12, spd = 16, knack = "shop", shape = "pup", body = "purple", accent = "screen_on", blurb = "There are tiny galaxies in its fur. It knows each one by name.", pn = "Pocket Galaxy", fx = { shop = 0.55, luck = 0.2, sell = 0.7 } }),
+	C({ id = "starweaver", name = "Starweaver", islet = 12, rarity = 7, hp = 44, atk = 21, def = 13, spd = 17, knack = "farm", shape = "moth", body = "night", accent = "crystal", blurb = "Spins new stars out of moonlight and hangs them up at dusk.", pn = "Star Loom", fx = { farm = 0.6, tree = 0.12, work = 0.35 } }),
+	C({ id = "novawyrm", name = "Novawyrm", islet = 12, rarity = 7, hp = 62, atk = 22, def = 16, spd = 10, knack = "wood", shape = "wyrm", body = "night", accent = "gold", blurb = "Sleeps curled round the whole crater. When it yawns, a star lights up.", pn = "First Light", fx = { wood = 0.6, cost = -0.4, luck = 0.22 } }),
 }
 -- stylua: ignore end
 
@@ -158,6 +180,13 @@ local LOOKS: { [string]: { any } } = {
 	lumajelly = { "sparkle", "purple", "jelly" },
 	pyredrake = { "slit", "orange", "scale" },    pyrelord = { "fierce", "berry_red", "scale" },   frostdrake = { "gem", "white", "scale" }, thunderdrake = { "wide", "yellow", "scale" },
 	mirewyrm = { "sleepy", "yellow", "scale" },   tidewyrm = { "ringed", "screen_on", "scale" },   abyssmaw = { "glow", "purple", "scale" }, solwyrm = { "slit", "gold", "scale" },
+	-- (the kinds of the tiers past the capital, 2026-11-14)
+	duskbun = { "sleepy", "crystal", "fluff" },   hushpup = { "lashes", "cherry", "fur" },         lunowl = { "wide", "yellow", "feather" },
+	wispkin = { "glow", "screen_on", "velvet" },  silverbark = { "gem", "crystal", "bark", "crystal" }, moonveil = { "ringed", "cherry", "velvet" },
+	puffling = { "happy", false, "fluff" },       cirrup = { "round", "blue", "feather" },         cloudjelly = { "sleepy", "pink", "jelly" },
+	billowbear = { "round", "slate", "fluff" },   skyshell = { "gem", "screen_on", "scale", "shell" }, cloudwhale = { "star", "yellow", "skin" },
+	glimmite = { "dot", false, "chitin" },        cometail = { "star", "yellow", "scale" },        cratermole = { "wide", "screen_on", "stone" },
+	nebulynx = { "gem", "screen_on", "fur" },     starweaver = { "star", "yellow", "velvet" },     novawyrm = { "star", "gold", "scale" },
 }
 -- stylua: ignore end
 for _, d in LIST do

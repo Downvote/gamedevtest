@@ -762,12 +762,12 @@ local function panelScenario(name)
 	return p
 end
 
--- The Tree of Life and its eggs (GAME_DESIGN 6): a village's tree with its lot of eggs round its roots (a rare one and
--- an epic among them), their prices over them, the founder in front of it (tree); a new lot rising out of the lawn,
+-- The Tree of Life and its eggs (GAME_DESIGN 6): a village's tree with its lot of eggs round its roots (a common, a
+-- rare, an epic, a legendary, a mythic and a celestial one, so each rarity's shell and lights show), their prices over them, the founder in front of it (tree); a new lot rising out of the lawn,
 -- the old one sinking (tree_lay); one hatched by its price tag, cracking, its driftling stepping out (tree_hatch); the
 -- glowing eggs at night (tree_night).
 function SCEN.tree()
-	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 2, 3, 4, 5, 1 } })
+	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7 } })
 	local p = join(21, "Grove")
 	settle(p)
 	local s = H.session(p)
@@ -1809,7 +1809,8 @@ local function themeScenario(name: string)
 end
 
 -- "hatch=<r><hr>": the hatch scene (UI/HatchScene; GAME_DESIGN 6.2) for an egg laid as rarity r that hatches as hr
--- (hr > r: it turns rarer on the way), a tier 10 island's kind of that rarity with a set of mutations by rarity. The
+-- (hr > r: it turns rarer on the way; 1 .. 7, mythic 6 and celestial 7), the first kind of that rarity with a set of
+-- mutations by rarity. The
 -- request of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can
 -- simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each click
 -- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches". Frames: the egg floating at
@@ -1834,7 +1835,7 @@ local function hatchScenario(code)
 			sp = d.id
 		end
 	end
-	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "swift2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" } }
+	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "swift2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" }, { "busy4", "grower3", "bright2" }, { "bright4", "swift4", "trader3", "fierce2" } }
 	local muts = MUTS[hr] or {}
 	H.inClient(p, function()
 		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr, new = (sp or "mossbun") ~= "mossbun" }, nil)

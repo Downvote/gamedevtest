@@ -6,10 +6,12 @@
 -- pixel K x K screen px, like the pixel layer), shown on a ScreenGui just behind the pixel layer: the stage's sky is
 -- see-through (CameraController Stage.clear), so the floating islet with the nest stands in front of it.
 -- Each rarity has its own sky (a cozy sunset for a common egg, a golden afternoon, a blue twilight, a violet night, a
--- deep gold night): the sky in bands with ordered dither between them (never a smear), the sun or the moon lit from the
--- top left with anti-aliased edges, stars (single pixels and little crosses), soft clouds with a 1 px outline, aurora
--- curtains on the two rarest nights, three ranges of hills going darker toward the front, the nearest with round and
--- pointed trees in outline, two little islets floating far off, and a glow round the egg in dithered rings.
+-- deep gold night, and since 2026-11-14 a rose night under two moons for a mythic egg and a deep starry sky with a
+-- ringed planet and the band of the galaxy across it for a celestial one): the sky in bands with ordered dither between
+-- them (never a smear), the sun, the moons or the planet lit from the top left with anti-aliased edges, stars (single
+-- pixels and little crosses), soft clouds with a 1 px outline, aurora curtains on the rarest nights, three ranges of
+-- hills going darker toward the front, the nearest with round and pointed trees in outline, two little islets floating
+-- far off, and a glow round the egg in dithered rings.
 --   HatchBackdrop.show(r, ex, ey)   paint rarity r's sky with the egg's glow at art pixel (ex, ey) and show it
 --   HatchBackdrop.step(dt)          the sky's life (a layer between the picture and the pixel layer, so the islet hides it):
 --                                   little flocks of birds flapping across a day or twilight sky, shooting stars and
@@ -28,10 +30,13 @@ local HatchBackdrop = {}
 type Sky = {
 	stops: { number }, -- the sky's colours from the top down to the horizon
 	horizon: number, -- where the last stop is reached (share of the height)
-	body: string, -- "sun" | "crescent" | "moon" | "bigsun"
+	body: string, -- "sun" | "crescent" | "moon" | "bigsun" | "twomoons" | "planet"
 	bodyC: { number }, -- its fill, its shade (the side away from the light), its spots
 	bodyR: number, -- its radius (share of the height)
 	stars: number,
+	milky: number?, -- the galaxy's band of light across the sky (its colour), thick with stars
+	ring: { number }?, -- the planet's ring: lit, shade
+	twinkle: { number }?, -- the twinkling stars' colours (on screen, `step`), and how many there are with them
 	clouds: { number }?, -- fill, shade, outline
 	aurora: { number }?,
 	hills: { { number } }, -- far to near: fill, rim
@@ -122,6 +127,42 @@ local SKIES: { Sky } = {
 		glowK = 0.8,
 		glowR = 0.55,
 	},
+	-- a rose night under two moons (mythic)
+	{
+		stops = { 0x1A0A26, 0x34113F, 0x581B58, 0x87286B, 0xC0457E, 0xF27F9E },
+		horizon = 0.78,
+		body = "twomoons",
+		bodyC = { 0xFFF0F4, 0xF2C8D8, 0xE4AEC6 },
+		bodyR = 0.13,
+		stars = 170,
+		twinkle = { 0xFFFFFF, 0xFFC8E4, 0xFF9CCB },
+		clouds = nil,
+		aurora = { 0xFF8CC6, 0xFFD2A8 },
+		hills = { { 0x8A3A6E, 0x9E4C80 }, { 0x63285A, 0x76346A }, { 0x3E1640, 0x4C1E4E } },
+		trees = { 0x2E0F32, 0x401A44, 0x16061A },
+		glow = 0xFFC6E2,
+		glowK = 0.84,
+		glowR = 0.58,
+	},
+	-- the deep starry sky: a ringed planet, the band of the galaxy (celestial)
+	{
+		stops = { 0x060820, 0x0C1238, 0x141F54, 0x1D3270, 0x29508A, 0x4C8EA8 },
+		horizon = 0.78,
+		body = "planet",
+		bodyC = { 0xC9F2FF, 0x84C0E6, 0xA2DCF6 },
+		bodyR = 0.1,
+		stars = 260,
+		milky = 0xB6C8FF,
+		ring = { 0xFFF0C8, 0xC8B49A },
+		twinkle = { 0xFFFFFF, 0xC4F6FF, 0xFFF0B0, 0xF8C4FF },
+		clouds = nil,
+		aurora = { 0x8CF2E8, 0xC6A8FF },
+		hills = { { 0x2C4C86, 0x3A5E98 }, { 0x1E3668, 0x2A447A }, { 0x12224A, 0x1A2E5A } },
+		trees = { 0x0E1A3A, 0x18284E, 0x050A1C },
+		glow = 0xD6F6FF,
+		glowK = 0.9,
+		glowR = 0.62,
+	},
 }
 
 ------------------------------------------------------------------ colours
@@ -159,7 +200,7 @@ end
 ------------------------------------------------------------------ painting
 -- The picture as 0xRRGGBB per pixel in a plain array (painted layer over layer), packed into RGBA at the end.
 function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number): buffer
-	local sky = SKIES[math.clamp(r, 1, 5)]
+	local sky = SKIES[math.clamp(r, 1, #SKIES)]
 	local px: { number } = table.create(W * H, 0)
 	local function get(x: number, y: number): number
 		return px[y * W + x + 1]
@@ -181,6 +222,38 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 		local row = y * W
 		for x = 0, W - 1 do
 			px[row + x + 1] = if k > bay(x, y) then b else a
+		end
+	end
+	-- the galaxy (the celestial sky): a broad band of light slanting up across it, brightest along its spine, in
+	-- dithered steps, a darker lane of dust down its middle, thick with stars
+	local milky = sky.milky
+	local function spine(x: number): number
+		return H * 0.5 - x * 0.42 + math.sin(x * 0.03) * H * 0.03
+	end
+	if milky then
+		local bw = H * 0.16
+		for y = 0, math.floor(hy) do
+			for x = 0, W - 1 do
+				local d = math.abs(y + 0.5 - spine(x + 0.5)) / bw
+				if d < 1 then
+					local k = (1 - d) ^ 1.3 * (0.75 + 0.25 * math.sin(x * 0.09 + y * 0.05))
+					if d < 0.16 and math.sin(x * 0.05) > -0.3 then
+						k *= 0.45 -- (the lane of dust)
+					end
+					local lvl = math.floor(k * 3 + bay(x, y))
+					if lvl > 0 then
+						set(x, y, mix(get(x, y), milky, lvl * 0.13))
+					end
+				end
+			end
+		end
+		for i = 1, 140 do
+			local x = math.floor(hash(i * 23 + 9) * W)
+			local off = (hash(i * 37 + 1) + hash(i * 41 + 2) - 1) * H * 0.14
+			local y = math.floor(spine(x + 0.5) + off)
+			if y >= 0 and y < hy then
+				set(x, y, mix(get(x, y), 0xFFFFFF, if hash(i * 5) > 0.6 then 0.9 else 0.5))
+			end
 		end
 	end
 	-- aurora curtains (the rarest nights): wavy ribbons hanging in streaks, fading at their edges in dither
@@ -254,7 +327,7 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			if cover > 0 then
 				local shade = (dx + dy) / br > 0.55
 				local c = if shade then bc[2] else bc[1]
-				if sky.body == "moon" then
+				if sky.body == "moon" or sky.body == "twomoons" then
 					-- craters: three soft spots
 					for _, cr in { { -0.3, -0.2, 0.22 }, { 0.25, 0.3, 0.17 }, { 0.35, -0.35, 0.12 } } do
 						if (dx / br - cr[1]) ^ 2 + (dy / br - cr[2]) ^ 2 < cr[3] * cr[3] then
@@ -272,8 +345,48 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 					if v > -0.05 and (math.floor((v + 0.05) * 7) % 2 == 1) then
 						c = bc[3]
 					end
+				elseif sky.body == "planet" then
+					-- soft bands of cloud across it, wavy
+					local v = dy / br + math.sin(dx / br * 3) * 0.06
+					if math.floor((v + 1) * 3.5) % 2 == 1 and not shade then
+						c = bc[3]
+					end
 				end
 				set(x, y, if cover >= 0.75 then c elseif cover >= 0.25 then mix(get(x, y), c, 0.5) else get(x, y))
+			end
+		end
+	end
+	-- the second, smaller moon (mythic), up and to the right of the first, lit the same way
+	if sky.body == "twomoons" then
+		local mx, my, mr = W * 0.36, H * 0.11, br * 0.42
+		for y = math.max(0, math.floor(my - mr - 1)), math.min(H - 1, math.ceil(my + mr + 1)) do
+			for x = math.max(0, math.floor(mx - mr - 1)), math.min(W - 1, math.ceil(mx + mr + 1)) do
+				local dx, dy = x + 0.5 - mx, y + 0.5 - my
+				local cover = math.clamp(mr + 0.5 - math.sqrt(dx * dx + dy * dy), 0, 1)
+				if cover > 0 then
+					local c = if (dx + dy) / mr > 0.5 then bc[3] else bc[2]
+					set(x, y, if cover >= 0.75 then c elseif cover >= 0.25 then mix(get(x, y), c, 0.5) else get(x, y))
+				end
+			end
+		end
+	end
+	-- the planet's ring (celestial): a tilted ellipse round it, behind it above and in front of it below, a gap in it
+	local ring = sky.ring
+	if sky.body == "planet" and ring then
+		local tilt = -0.32
+		local ca, sa = math.cos(tilt), math.sin(tilt)
+		local ra, rb = br * 2.05, br * 0.55
+		for y = math.max(0, math.floor(by - ra)), math.min(H - 1, math.ceil(by + ra)) do
+			for x = math.max(0, math.floor(bx - ra)), math.min(W - 1, math.ceil(bx + ra)) do
+				local dx, dy = x + 0.5 - bx, y + 0.5 - by
+				local u, v = dx * ca + dy * sa, -dx * sa + dy * ca
+				local e = math.sqrt((u / ra) ^ 2 + (v / rb) ^ 2)
+				local onBody = dx * dx + dy * dy <= br * br
+				if e > 0.74 and e < 1 and (v > 0 or not onBody) and not (e > 0.86 and e < 0.89) then
+					local c = if u > br * 0.6 then ring[2] else ring[1]
+					local edge = math.min(e - 0.74, 1 - e) * ra
+					set(x, y, if edge >= 0.6 then c else mix(get(x, y), c, 0.5))
+				end
 			end
 		end
 	end
@@ -497,7 +610,7 @@ local streak: Streak? = nil
 local streakAt = 0
 local twinkles: { Twinkle } = {}
 local lifeClock = 0
-local INK: { number } = { 0x6E4E78, 0x4F7A6A, 0x1F2A4C, 0, 0 } -- the birds' colour by rarity (none on the two nights)
+local INK: { number } = { 0x6E4E78, 0x4F7A6A, 0x1F2A4C, 0, 0, 0, 0 } -- the birds' colour by rarity (none on the nights)
 local newLife: (r: number, W: number, H: number, K: number) -> ()
 
 function HatchBackdrop.show(r: number, ex: number, ey: number)
@@ -584,11 +697,12 @@ newLife = function(r: number, W: number, H: number, K: number)
 	g.ResetOnSpawn = false
 	g.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	life = g
-	local sky = SKIES[math.clamp(r, 1, 5)]
-	-- twinkling stars: a few bright pixels that come and go
+	local sky = SKIES[math.clamp(r, 1, #SKIES)]
+	-- twinkling stars: a few bright pixels that come and go (more of them, in their own colours, on the two rarest)
 	if sky.stars > 0 then
-		for i = 1, 14 do
-			local f = pixel(g, if i % 3 == 0 then 0xFFF4C8 else 0xFFFFFF)
+		local tc = sky.twinkle or { 0xFFF4C8, 0xFFFFFF, 0xFFFFFF }
+		for i = 1, if sky.twinkle then 10 + #tc * 6 else 14 do
+			local f = pixel(g, tc[(i % #tc) + 1])
 			put(f, hash(i * 41 + 3) * W, hash(i * 59 + 1) * H * 0.5)
 			table.insert(twinkles, { f = f, ph = hash(i * 7) * 6.28, rate = 1.5 + hash(i * 13) * 2.5 })
 		end

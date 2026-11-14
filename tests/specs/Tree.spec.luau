@@ -283,6 +283,29 @@ return function()
 	end)
 
 	-- (the request of 2026-11-13: "eggs having a chance to skip to the next rarity during the cutscene")
+	T.it("mythic and celestial eggs: only once the kinds past the capital are open, dearer than legendary, never risen to early", function()
+		local p = fresh()
+		p.tier = 10
+		local pool10 = Tree.pool(10)
+		T.truthy(#pool10 == Traits.RMAX and #pool10[6] == 0 and #pool10[7] == 0, "none up to tier 10")
+		local odds = Tree.odds(p)
+		local sum = 0
+		for _, o in odds do
+			sum += o
+		end
+		T.truthy(#odds == Traits.RMAX and odds[6] == 0 and odds[7] == 0 and math.abs(sum - 1) < 1e-9, "tier 10: their shares go to legendary")
+		T.truthy(#Tree.pool(11)[6] > 0 and #Tree.pool(11)[7] == 0, "tier 11: the moonwoods' mythic one, no celestial yet")
+		T.truthy(#Tree.pool(14)[7] > 0, "tier 14: the cloudtops' celestial one")
+		T.truthy(#Tree.pool(17)[6] >= 3 and #Tree.pool(17)[7] >= 3, "tier 17: three of each")
+		local o17 = Tree.odds(p, 17)
+		T.truthy(o17[7] > 0 and o17[7] < o17[6] and o17[6] < o17[5], "tier 17: celestial rarer than mythic, mythic than legendary")
+		T.truthy(Tree.cost(p, 7) > Tree.cost(p, 6) and Tree.cost(p, 6) > Tree.cost(p, 5), "dearer by rarity")
+		local always = { next = function(): number return 0 end, int = function(_, a: number): number return a end } :: any
+		T.eq(Tree.rise(p, always, 5), 5, "a sure climb stops at legendary on a tier 10 island")
+		-- a mythic or celestial egg on an island without their kinds hatches as the next commoner one
+		local sp = Tree.roll(p, Util.newRng(3), 7)
+		T.eq(Creatures.byId[sp].rarity, 5)
+	end)
 	T.it("an egg may turn rarer as it hatches: EggUp a step, on while the rolls hold, never past the open kinds", function()
 		local p = fresh()
 		local always = { next = function(): number return 0 end, int = function(_, a: number): number return a end } :: any

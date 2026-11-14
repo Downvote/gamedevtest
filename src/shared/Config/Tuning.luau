@@ -34,7 +34,7 @@ local Tuning = {
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
 	PalWork = 0.6, -- a common driftling working at a building of its knack makes this share of its rate ...
-	RarityWork = { 1, 1.6, 2.5, 4, 7 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
+	RarityWork = { 1, 1.6, 2.5, 4, 7, 11, 17 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
 	HelpMax = 2, -- driftlings working at one building at most
 	VisitorCharm = 15, -- visitors a turn: 1 + charm / this ...
 	VisitorsMax = 14, -- ... at most
@@ -59,7 +59,7 @@ local Tuning = {
 	EggCount = { 5, 6, 7, 8, 9, 10, 10, 10, 10, 10 },
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
 	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off)
-	EggPrice = { 20, 90, 400, 2000, 10000 },
+	EggPrice = { 20, 90, 400, 2000, 10000, 60000, 400000 },
 	EggTier = { 1, 3, 8, 20, 45, 90, 160, 270, 420, 640 },
 	-- an egg's rarity: a rarity r's weight (Data/Traits.RARITY) times (1 + EggLuck by the island's tier + the huts'
 	-- luck)^(r - 1); what hatches rolls its mutations as one rarity better every EggMutTier tiers past the first
@@ -68,7 +68,7 @@ local Tuning = {
 	-- an egg may turn rarer as it hatches (the hatch scene shows it: the request of 2026-11-13, "eggs having a chance to
 	-- skip to the next rarity during the cutscene"): an egg of rarity r goes up one with EggUp[r], and on from there with
 	-- the next one's share while the rolls hold (never to a rarity the island has no driftlings of)
-	EggUp = { 0.06, 0.04, 0.025, 0.012 },
+	EggUp = { 0.06, 0.04, 0.025, 0.012, 0.006, 0.003 },
 	-- the seasons and the weather (Data/Weather, Logic/Weather; GAME_DESIGN 13: "also, make weather and seasons, and eggs
 	-- spawns are affected by these with different mutations"): one sea, one calendar for every island, worked out from
 	-- the sea's clock (WorldClock) from WeatherEpoch. A season lasts SeasonSecs (2 h 30 min: the four come round every
@@ -93,12 +93,12 @@ local Tuning = {
 	HutCost = 0.5, -- ... and their cost shares take this much off the eggs' price at most
 	-- selling a driftling (or swapping it out for a new hatchling): shells by its rarity, times 1 + SellTier x its
 	-- mutations' tiers, times its sell share
-	SellPrice = { 2, 7, 25, 85, 320 },
+	SellPrice = { 2, 7, 25, 85, 320, 1300, 5500 },
 	SellTier = 0.25,
 
 	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings and a feast make an egg; by the child's rarity
-	BreedShells = { 20, 80, 300, 1200, 5000 }, -- shells the feast takes
-	BreedTurns = { 3, 4, 6, 9, 14 }, -- island turns the egg takes to hatch
+	BreedShells = { 20, 80, 300, 1200, 5000, 22000, 90000 }, -- shells the feast takes
+	BreedTurns = { 3, 4, 6, 9, 14, 20, 28 }, -- island turns the egg takes to hatch
 	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does)
 	BreedTierUp = 0.3, -- one both carry comes out a tier better with this chance (a flaw: its family's first tier)
 	BreedNew = 0.15, -- the chance of a new mutation of its own (tier 1 or 2)

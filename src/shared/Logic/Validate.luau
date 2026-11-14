@@ -4,7 +4,7 @@
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
 --   "int"    a whole number in [0, 1e6] (a driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 16] (a look index)
---   "rarity" a whole number in [1, 5] (a driftling's rarity)
+--   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 7)
 --   "key"    a settings key ("pixel", "music")
 --   "coord"  a whole number in [-160, 64] (a plot-local stud: the biggest islands reach far north)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
@@ -14,6 +14,7 @@
 --   "tiles"  which tiles an eraser takes up: "path", "water" or "all"
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
+local Traits = require(script.Parent.Parent.Data.Traits)
 
 local Validate = {}
 
@@ -54,7 +55,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "small" then
 		return isInt(v, 1, 16)
 	elseif kind == "rarity" then
-		return isInt(v, 1, 5)
+		return isInt(v, 1, Traits.RMAX)
 	elseif kind == "coord" then
 		return isInt(v, -160, 64)
 	elseif kind == "cells" or kind == "edges" then

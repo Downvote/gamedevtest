@@ -54,6 +54,8 @@ PAL = {
     "crm0": 0xA86D60, "crm1": 0xDEAC88, "crm2": 0xFBE0BF, "crm3": 0xFFF5E4,  # cream: bellies, muzzles, jaws
     "tel0": 0x1A4C58, "tel1": 0x28827E, "tel2": 0x3CB4A8, "tel3": 0x84E0C8,  # teal: the island birds' backs
     "cor0": 0x7C2B40, "cor1": 0xC9504F, "cor2": 0xFF8A72, "cor3": 0xFFC09A,  # coral: a wren's breast
+    "ros0": 0x6E2448, "ros1": 0xB4466E, "ros2": 0xE77D9C, "ros3": 0xFFAFC2,  # rose: a mythic egg
+    "ind0": 0x10102E, "ind1": 0x1E2050, "ind2": 0x2E3272, "ind3": 0x46509A,  # night blue: a celestial egg
     # the tone markers of a tinted sprite (Render/Fx.TONES, the same four values): drawn in the world they take the
     # tones of a colour given at draw time (a tuft the lawn's under it, a leaf its tree's, a butterfly its own), here a
     # plain green so the contact sheet shows them
@@ -67,6 +69,7 @@ RAMPS = {
     "S": ["gry0", "gry1", "gry2", "gry3"], "F": ["skn0", "skn1", "skn2", "skn3"], "W": ["wht0", "wht1", "wht2", "wht"],
     "D": ["drk0", "drk1", "drk2", "drk3"], "M": ["bas0", "bas1", "bas2", "bas3"], "E": ["crm0", "crm1", "crm2", "crm3"],
     "T": ["tel0", "tel1", "tel2", "tel3"], "Q": ["cor0", "cor1", "cor2", "cor3"],
+    "H": ["ros0", "ros1", "ros2", "ros3"], "I": ["ind0", "ind1", "ind2", "ind3"],
 }
 FLAT = {
     "k": "ink", "w": "wht", "r": "red2", "o": "org2", "y": "yel2", "g": "grn2", "c": "cyn2", "b": "blu2", "p": "pnk2",
@@ -253,7 +256,8 @@ S("bombfuse", [
 # The tree's eggs (GAME_DESIGN 6), one a rarity, matching their 3D models (Controllers/EggView.LOOK: "color each egg
 # differently with different effects to allow players to distinguish easily between egg rarities"): a common egg cream
 # with brown freckles, an uncommon one green with a white zigzag band, a rare one sky blue with white stars, an epic one
-# purple with pink spots, a legendary one gold with a band of light.
+# purple with pink spots, a legendary one gold with a band of light, a mythic one rose with a white crescent moon and
+# a white band, a celestial one night blue with a little constellation of white and cyan stars.
 EGG = [
     "....AAAA....",
     "...AAAAAA...",
@@ -288,7 +292,41 @@ EGG_BAND = [
     "..AAAAAAAA..",
     "....AAAA....",
 ]
-for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w")], start=1):
+EGG_MOON = [
+    "....AAAA....",
+    "...AAAAAA...",
+    "..AAAAAAAA..",
+    "..AAAxxAAA..",
+    ".AAAxAAAAAA.",
+    ".AAAxAAAAAA.",
+    "AAAAxxAAAAAA",
+    "AAAAAAAAAAAA",
+    "xAxAxAxAxAxA",
+    "AxAxAxAxAxAx",
+    "AAAAAAAAAAAA",
+    ".AAAAAAAAAA.",
+    ".AAAAAAAAAA.",
+    "..AAAAAAAA..",
+    "....AAAA....",
+]
+EGG_STARS = [
+    "....AAAA....",
+    "...AAAAyA...",
+    "..AAAAAAAA..",
+    "..AxAAAAAA..",
+    ".AAAAAAAzAA.",
+    ".AAAAAAAAAA.",
+    "AAAAzAAAAAAA",
+    "AAAAAAAAAxAA",
+    "AAAAAAAAAAAA",
+    "AAxAAAzAAAAA",
+    "AAAAAAAAAAAA",
+    ".AAAAAAAAxA.",
+    ".AAAzAAAAAA.",
+    "..AAAAAAAA..",
+    "....AAAA....",
+]
+for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w"), (EGG_MOON, "H", "w"), (EGG_STARS, "I", "w")], start=1):
     S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask])
 # Build mode's puff of dust (Controllers/Puffs): a little cloud that swells, then thins out and breaks up.
 S("poof_1", [".......", ".......", "..ww...", ".wwws..", ".wsss..", "..ss...", "......."], outline=False, shade=False)
@@ -297,6 +335,14 @@ S("poof_3", [".......", ".w...w.", "w.....s", ".......", "s.....s", ".s...s.", "
 # A rare egg's twinkle (EggView's sparks): a small white star that opens and closes, cyan at its tips.
 S("twinkle_1", [".......", ".......", "...c...", "..cwc..", "...c...", ".......", "......."], outline=False, shade=False)
 S("twinkle_2", [".......", "...c...", "...w...", ".cwwwc.", "...w...", "...c...", "......."], outline=False, shade=False)
+# A mythic egg's twinkle: the same star in pink, opening to a cross with its corners lit.
+S("twinkle_p1", [".......", ".......", "...p...", "..pwp..", "...p...", ".......", "......."], outline=False, shade=False)
+S("twinkle_p2", [".......", "...p...", "...w...", ".pwwwp.", "...w...", "...p...", "......."], outline=False, shade=False)
+S("twinkle_p3", ["...p...", ".q.p.q.", "..qwq..", "ppwwwpp", "..qwq..", ".q.p.q.", "...p..."], outline=False, shade=False, flat={"q": "pnk3"})
+# A celestial egg's glint: a long thin cross of light that grows, then its diagonals in pink, cyan at the tips.
+S("glint_1", [".........", ".........", ".........", "....z....", "...zwz...", "....z....", ".........", ".........", "........."], outline=False, shade=False)
+S("glint_2", [".........", "....z....", "....z....", "....w....", ".zzwwwzz.", "....w....", "....z....", "....z....", "........."], outline=False, shade=False)
+S("glint_3", ["....c....", ".q..z..q.", "..q.w.q..", "....w....", "czwwwwwzc", "....w....", "..q.w.q..", ".q..z..q.", "....c...."], outline=False, shade=False, flat={"q": "pnk3"})
 S("heart", [".........", ".KK...KK.", "KKKK.KKKK", "KwKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K....", "........."])
 
 # ---------------------------------------------------------------- the islands' small lives (Controllers/AmbientView)

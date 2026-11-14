@@ -460,7 +460,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			earned = num(st.earned, 0, 0, 1e15),
 			taken = int(st.taken, 0, 0),
 			sold = int(st.sold, 0, 0),
-			best = math.max(best, int(st.best, 0, 0, 5)),
+			best = math.max(best, int(st.best, 0, 0, Traits.RMAX)),
 			hatched = int(st.hatched, 0, 0),
 		},
 		settings = {
@@ -488,7 +488,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					top = math.max(top, id)
 					-- (the season it was laid in and the weather that touched it, when known: GAME_DESIGN 13; an
 					-- older egg has neither)
-					local egg: Types.Laid = { id = id, r = int(e.r, 1, 1, 5) }
+					local egg: Types.Laid = { id = id, r = int(e.r, 1, 1, Traits.RMAX) }
 					if Weather.knownSeason(e.ss) then
 						egg.ss = e.ss
 					end
@@ -522,7 +522,9 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 				local uid = int(x.uid, 0, 0)
 				if hatcheries[uid] then
 					hatcheries[uid] = nil
-					table.insert(out.eggs, { uid = uid, a = int(x.a, 0, 0), b = int(x.b, 0, 0), sp = x.sp, muts = Traits.clean(x.muts), left = int(x.left, 0, 0, maxTurns) })
+					-- (no more turns than its kind's rarity takes)
+					local turns = Tuning.BreedTurns[Creatures.byId[x.sp].rarity] or maxTurns
+					table.insert(out.eggs, { uid = uid, a = int(x.a, 0, 0), b = int(x.b, 0, 0), sp = x.sp, muts = Traits.clean(x.muts), left = int(x.left, 0, 0, turns) })
 				end
 			end
 		end

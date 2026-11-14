@@ -468,7 +468,7 @@ seed(9209, { data = {
 			{ id = 3, r = 4 }, -- (the same id again)
 			"an egg",
 			{ id = -1, r = 1 }, -- (no id)
-			{ id = 7, r = 99 }, -- (past legendary)
+			{ id = 7, r = 99 }, -- (past celestial, the rarest)
 			{ id = 8, r = 0 },
 			{ id = 9.5, r = 2.7 },
 			{ id = 10, r = "rare" },
@@ -484,7 +484,7 @@ local jp = H.profile(j)
 H.expect(jp ~= nil, "save", "a save with junk eggs still loads")
 if jp then
 	local jc = jp.clutch
-	H.expect(eggsOf(jc) == "3.2;7.5;8.1;9.2;10.1", "save", "its eggs cleaned: one an id, rarities 1 to 5, at most the tree's five", eggsOf(jc))
+	H.expect(eggsOf(jc) == "3.2;7.7;8.1;9.2;10.1", "save", "its eggs cleaned: one an id, rarities 1 to 7, at most the tree's five", eggsOf(jc))
 	H.expect(jc.next == 11 and jc.left <= Tuning.EggSecs and jc.left > Tuning.EggSecs - 3, "save", "the next id past them, the clock cut to a lot's (no new lot laid)", string.format("next %d, %.1f s", jc.next, jc.left))
 	H.expect((treesOf(jp)) == 1, "save", "and its Tree of Life planted")
 	H.checkProfile(j, "corrupt-eggs")

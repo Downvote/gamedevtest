@@ -32,7 +32,7 @@ jobs=${PREVIEW_JOBS:-4}
 case $scen in
 	all) scens="island village island3 sea build day" ;;
 	themes) scens="theme=beach theme=garden theme=frost theme=zen theme=volcano theme=fairy" ;;
-	hatches) scens="hatch=11 hatch=23 hatch=33 hatch=45 hatch=55" ;;
+	hatches) scens="hatch=11 hatch=23 hatch=33 hatch=45 hatch=55 hatch=57 hatch=66 hatch=77" ;;
 	weathers) scens="weather=sunny weather=breezy weather=rain weather=storm weather=fog weather=snow weather=blossom weather=haze weather=leaves" ;;
 	island|village|island2|island3|city|gallery|catalog=*|theme=*|hatch=*|pals=*|anim=*|weather=*|day|dusk|night|dawn|tree|panel=*|sea|visit|build|buildui|expand|zoo|paths|water|work|ambient|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;

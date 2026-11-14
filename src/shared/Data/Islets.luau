@@ -1,8 +1,9 @@
 --!strict
 -- The kinds of land the driftlings come from (GAME_DESIGN 6). Pure. The driftlings of every kind open at the island's
 -- tier (`tier`) hatch from the tree's eggs: beaches and meadows from the start, then two more kinds with the second
--- tier, two with the third, and one with each tier after, so expanding the island brings new driftlings. The Index
--- lists the driftlings kind by kind.
+-- tier, two with the third, and one with each tier after to the sixth, so expanding the island brings new driftlings;
+-- past the capital the moonwoods at tier 11 (the first mythic driftling), the cloudtops at 14 (the first celestial one)
+-- and the starfalls at 17. The Index lists the driftlings kind by kind.
 --   wild: the kind's driftlings (Data/Creatures' islet: every one of the kind, the commonest first)
 local Creatures = require(script.Parent.Creatures)
 export type IsletDef = {
@@ -26,6 +27,9 @@ local LIST: { IsletDef } = {
 	{ id = 7, name = "Grotto", plural = "Grottoes", tier = 3, wild = {}, color = "purple", blurb = "Glowing crystals in a cave by the sea." },
 	{ id = 8, name = "Bluffs", plural = "Bluffs", tier = 5, wild = {}, color = "wood", blurb = "Grassy cliffs high in the sea wind." },
 	{ id = 9, name = "Ruins", plural = "Ruins", tier = 6, wild = {}, color = "sand_dark", blurb = "The broken stones of an old city." },
+	{ id = 10, name = "Moonwood", plural = "Moonwoods", tier = 11, wild = {}, color = "crystal", blurb = "A silver forest that wakes up when the sun goes down." },
+	{ id = 11, name = "Cloudtop", plural = "Cloudtops", tier = 14, wild = {}, color = "white", blurb = "Soft fields of cloud high over the sea." },
+	{ id = 12, name = "Starfall", plural = "Starfalls", tier = 17, wild = {}, color = "night", blurb = "A crater where stars fell long ago and kept on glowing." },
 }
 -- stylua: ignore end
 -- Each kind's driftlings: every species of its kind, the commonest first.

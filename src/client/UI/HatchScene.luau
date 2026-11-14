@@ -20,7 +20,8 @@
 -- One more tap goes back to the island (its picture was kept, so it is there at once) and `after` runs.
 -- The rarer it hatched as, the grander (GLORY): twinkles round the egg (rare and up), more sparks and
 -- shell, a jolt of the picture, confetti, stars ringing it; the light of dusk for the commoner ones, a blue, violet or
--- deep gold night for the rarer (DayLight.hold).
+-- deep gold night for the rarer, a rose night for a mythic one and a deep starry blue for a celestial one (DayLight.hold).
+-- A mythic egg's twinkles are pink, a celestial one's long glints of white and cyan, and petals or motes drift by.
 --   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as), new? (a kind never had: "New!") }
 --   HatchScene.isOpen(), HatchScene.skip() (a tap), HatchScene.debugState() (sims and previews: the phase and what is
 --   shown), HatchScene.setQuick(on) (sims: the scene ends at once, `after` still runs)
@@ -49,7 +50,7 @@ export type Result = { sp: string, muts: { string }, r: number, hr: number, new:
 
 local ORIGIN = Vector3.new(0, 0, 9000) -- far from the islands (z 0 .. -160)
 local FLOAT_Y = 1.2 -- the egg's foot above ORIGIN (it floats: nothing under it)
-local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8 } -- each rarity's egg up close (EggModels.hero), studs tall
+local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8, 2.9, 3.0 } -- each rarity's egg up close (EggModels.hero), studs tall
 local PAL_SCALE = 1.35 -- what hatched, a little bigger than on the island
 local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is one)
 -- the box the stage view fits is this many times the egg's own room, about the egg's middle: bigger draws the egg and
@@ -76,20 +77,37 @@ local GLORY: { Glory } = {
 	{ rays = 8, rayLen = 1.6, sparks = 26, shards = 10, flash = 0.4, jolt = 1, confetti = 0, stars = 5 },
 	{ rays = 12, rayLen = 2.1, sparks = 36, shards = 12, flash = 0.5, jolt = 2, confetti = 50, stars = 7 },
 	{ rays = 16, rayLen = 2.7, sparks = 50, shards = 14, flash = 0.6, jolt = 3, confetti = 110, stars = 10 },
+	{ rays = 21, rayLen = 0, sparks = 64, shards = 16, flash = 0.7, jolt = 4, confetti = 150, stars = 12 },
+	{ rays = 26, rayLen = 0, sparks = 80, shards = 18, flash = 0.8, jolt = 5, confetti = 200, stars = 14 },
 }
 
 -- The light of each rarity's scene (the renderer's grade, as DayLight's: a warm dusk for the commoner ones, then a blue
--- twilight, a violet night and a deep gold one; the egg's own lights pooling stronger the darker it is).
+-- twilight, a violet night, a deep gold one, a rose one and a starry blue one; the egg's own lights pooling stronger
+-- the darker it is).
 local GRADE: { PixelRenderer.Grade } = {
 	{ mr = 1.04, mg = 0.93, mb = 0.8, lift = 0, sat = 1.05, lamps = 0.3 },
 	{ mr = 0.98, mg = 0.96, mb = 0.8, lift = 2, sat = 1.05, lamps = 0.4 },
 	{ mr = 0.82, mg = 0.84, mb = 1.02, lift = 4, sat = 0.98, lamps = 0.6 },
 	{ mr = 0.84, mg = 0.7, mb = 1.0, lift = 6, sat = 0.98, lamps = 0.75 },
 	{ mr = 0.98, mg = 0.78, mb = 0.62, lift = 4, sat = 1.04, lamps = 0.9 },
+	{ mr = 1.0, mg = 0.86, mb = 0.94, lift = 5, sat = 1.02, lamps = 0.9 },
+	{ mr = 0.8, mg = 0.88, mb = 1.08, lift = 6, sat = 1.02, lamps = 0.6 }, -- (its ring of lights close round it: less pooling, so they never blot the shell)
 }
 
 -- Each rarity's colours in the scene: its sparks and its cracks' light (palette keys).
-local RAY: { { string } } = { { "cream", "white" }, { "green", "white" }, { "blue", "white" }, { "purple", "pink" }, { "gold", "yellow" } }
+local RAY: { { string } } = { { "cream", "white" }, { "green", "white" }, { "blue", "white" }, { "purple", "pink" }, { "gold", "yellow" }, { "pink", "cherry" }, { "crystal", "screen_on" } }
+
+-- Each rarity's twinkle (its frames, opening and closing): white and cyan stars, gold sparks for a legendary egg, pink
+-- stars for a mythic one, long white and cyan glints for a celestial one.
+local TWINKLE: { { string } } = {
+	{ "twinkle_1", "twinkle_2", "twinkle_1" },
+	{ "twinkle_1", "twinkle_2", "twinkle_1" },
+	{ "twinkle_1", "twinkle_2", "twinkle_1" },
+	{ "twinkle_1", "twinkle_2", "twinkle_1" },
+	{ "spark_1", "spark_2", "spark_3", "spark_2" },
+	{ "twinkle_p1", "twinkle_p2", "twinkle_p3", "twinkle_p2" },
+	{ "glint_1", "glint_2", "glint_3", "glint_2", "glint_1" },
+}
 
 local KNACK: { [string]: string } = { farm = "good at farms", fish = "good at fishing", wood = "good with wood", shop = "good at shops" }
 
@@ -144,7 +162,11 @@ local scene: Scene? = nil
 local quick = false
 
 local function glory(r: number): Glory
-	return GLORY[math.clamp(r, 1, 5)]
+	return GLORY[math.clamp(r, 1, #GLORY)]
+end
+
+local function twinkle(r: number): { string }
+	return TWINKLE[math.clamp(r, 1, #TWINKLE)]
 end
 
 local function ease(u: number): number
@@ -373,7 +395,7 @@ end
 -- A step up: a hard shake, a flash, the next rarity's egg (its cracks as far as they had got), its rays, its light
 -- and its sky, sparks and stars, "It turned epic".
 local function rise(s: Scene, r: number)
-	s.r = math.clamp(r, 1, 5)
+	s.r = math.clamp(r, 1, Traits.RMAX)
 	newEgg(s, s.r)
 	newRays(s, if s.r >= 3 then s.r else 0)
 	DayLight.hold(GRADE[s.r])
@@ -384,7 +406,7 @@ local function rise(s: Scene, r: number)
 	local px, py = PixelRenderer.projectPixel(eggMiddle(s.r))
 	for k = 1, 4 + s.r do
 		local a = k / (4 + s.r) * math.pi * 2
-		addStar(s, { "twinkle_1", "twinkle_2", "twinkle_1" }, px + math.cos(a) * 26, py + math.sin(a) * 20, 0.6)
+		addStar(s, twinkle(s.r), px + math.cos(a) * 26, py + math.sin(a) * 20, 0.6)
 	end
 	Audio.play("level_up")
 	Audio.play("rare")
@@ -447,7 +469,7 @@ local function hatch(s: Scene)
 		local px, py = PixelRenderer.projectPixel(mid)
 		for k = 1, g.stars do
 			local a = k / g.stars * math.pi * 2
-			addStar(s, if r >= 5 then { "spark_1", "spark_2", "spark_3" } else { "twinkle_1", "twinkle_2", "twinkle_1" }, px + math.cos(a) * 34, py + math.sin(a) * 26, 0.8 + k * 0.03, -6)
+			addStar(s, twinkle(r), px + math.cos(a) * 34, py + math.sin(a) * 26, 0.8 + k * 0.03, -6)
 		end
 	end
 	showName(s)
@@ -558,7 +580,7 @@ local function stepEgg(s: Scene, c: number)
 	if off and c - off > 0.6 and s.egg then
 		dropEgg(s)
 	end
-	-- the rarity's lights on the egg: motes circling it, a halo turning over it, a beam out of its top
+	-- the rarity's lights on the egg: motes circling it, a halo turning over it, a ring of lights orbiting it
 	local er = 0.37 * eh
 	for _, f in s.fx do
 		if off then
@@ -569,6 +591,10 @@ local function stepEgg(s: Scene, c: number)
 		elseif f.kind == "halo" then
 			local a = c * 0.9 + f.k / 20 * math.pi * 2
 			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 0.75, eh + 0.45 + 0.05 * math.sin(c * 2), math.sin(a) * er * 0.75)
+		elseif f.kind == "orbit" then
+			-- (a celestial egg's ring of lights: round its middle, tilted like a planet's ring)
+			local a = c * 0.7 + f.k / 28 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.7, eh * 0.5 + math.cos(a) * er * 0.45, math.sin(a) * er * 1.7)
 		elseif f.kind == "beam" then
 			local hb = 3.4 + 0.6 * math.sin(c * 1.9)
 			f.p.Size = Vector3.new(0.3, Blocks.snap(hb), 0.3)
@@ -639,11 +665,18 @@ local function stepDots(s: Scene, dt: number)
 end
 
 -- What drifts in the air (1 px dots): by day (a common or uncommon egg's sky) seeds and petals blowing across, by
--- night fireflies rising and blinking.
+-- night fireflies rising and blinking; under the rose night pink petals falling slowly, under the starry sky white and
+-- cyan motes rising.
 local function fireflies(s: Scene, c: number)
 	if math.random() < 0.08 then
 		local w, h = canvasSize()
-		if s.r <= 2 then
+		if s.r == 6 then
+			local x = math.random(0, math.max(1, w))
+			addDot(s, if math.random() < 0.6 then "cherry" else "pink", nil, x, -2, (math.random() - 0.3) * 8, 9 + math.random() * 6, 0, h / 10)
+		elseif s.r >= 7 then
+			local x, y = math.random(10, math.max(11, w - 10)), math.random(40, math.max(41, h - 30))
+			addDot(s, if math.random() < 0.5 then "white" else "screen_on", nil, x, y, (math.random() - 0.5) * 4, -8 - math.random() * 8, 0, 2.2)
+		elseif s.r <= 2 then
 			local y = math.random(20, math.max(21, h - 40))
 			addDot(s, if math.random() < 0.6 then "white" elseif math.random() < 0.5 then "pink" else "cream", nil, -2, y, 14 + math.random() * 10, (math.random() - 0.5) * 4, 1, w / 14)
 		else
@@ -672,8 +705,7 @@ local function stepTwinkles(s: Scene, c: number)
 	local a = math.random() * math.pi * 2
 	local x = px + math.cos(a) * (20 + math.random() * 22)
 	local y = py + math.sin(a) * (16 + math.random() * 18)
-	local frames = if s.r >= 5 then { "spark_1", "spark_2", "spark_3", "spark_2" } else { "twinkle_1", "twinkle_2", "twinkle_1" }
-	addStar(s, frames, math.floor(x), math.floor(y), life, -3)
+	addStar(s, twinkle(s.r), math.floor(x), math.floor(y), life, -3)
 end
 
 local function step(s: Scene, dt: number)
@@ -783,8 +815,8 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 	pcall(function()
 		GuiService.TouchControlsEnabled = false
 	end)
-	local r0 = math.clamp(res.r, 1, 5)
-	res.hr = math.clamp(res.hr, r0, 5)
+	local r0 = math.clamp(res.r, 1, Traits.RMAX)
+	res.hr = math.clamp(res.hr, r0, Traits.RMAX)
 	-- what the taps will reveal: each step up first, then each mutation
 	local queue: { Reveal } = {}
 	for r = r0 + 1, res.hr do

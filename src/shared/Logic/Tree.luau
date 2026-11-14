@@ -85,9 +85,12 @@ function Tree.luck(p: Profile, tier: number?): number
 	return 1 + Tuning.EggLuck[t] + extra
 end
 
--- The driftlings that hatch at a tier, by rarity (1 .. 5): every species of the kinds open there.
+-- The driftlings that hatch at a tier, by rarity (1 .. Traits.RMAX): every species of the kinds open there.
 function Tree.pool(tier: number): { { string } }
-	local out: { { string } } = { {}, {}, {}, {}, {} }
+	local out: { { string } } = {}
+	for r = 1, Traits.RMAX do
+		out[r] = {}
+	end
 	for _, k in Islets.list do
 		if k.tier <= tier then
 			for _, sp in k.wild do
@@ -111,8 +114,8 @@ function Tree.odds(p: Profile, tier: number?, extra: number?): { number }
 		w[r] = rd.weight * f ^ (r - 1)
 		total += w[r]
 	end
-	local out: { number } = { 0, 0, 0, 0, 0 }
-	for r = 5, 1, -1 do
+	local out: { number } = table.create(Traits.RMAX, 0)
+	for r = Traits.RMAX, 1, -1 do
 		local to = r
 		while to > 1 and #pool[to] == 0 do
 			to -= 1
@@ -188,7 +191,7 @@ end
 function Tree.cost(p: Profile, r: number): number
 	local tier = Tuning.EggTier[math.clamp(p.tier, 1, #Tuning.EggTier)]
 	local _, _, off = Tree.hutFx(p)
-	return math.max(1, math.floor(Tuning.EggPrice[math.clamp(r, 1, 5)] * tier * (1 - off) + 0.5))
+	return math.max(1, math.floor(Tuning.EggPrice[math.clamp(r, 1, Traits.RMAX)] * tier * (1 - off) + 0.5))
 end
 
 ------------------------------------------------------------------ the huts
@@ -326,7 +329,7 @@ end
 -- mutations as a rarer one every EggMutTier tiers. `season`: the season the egg was laid in (Data/Weather): its own
 -- islets' kinds come Tuning.SeasonFavour times as often (when the rarity has any).
 function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season: string?): (string, { string })
-	local r = math.clamp(rarity, 1, 5)
+	local r = math.clamp(rarity, 1, Traits.RMAX)
 	local pool = Tree.pool(p.tier)
 	while r > 1 and #pool[r] == 0 do
 		r -= 1
@@ -364,7 +367,8 @@ function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season:
 			end
 		end
 	end
-	local mutR = math.min(5, r + math.floor((p.tier - 1) / Tuning.EggMutTier))
+	-- (the tier's boost stops at legendary; a mythic or celestial one rolls as itself)
+	local mutR = math.max(r, math.min(5, r + math.floor((p.tier - 1) / Tuning.EggMutTier)))
 	return sp, Traits.roll(rng, mutR)
 end
 
@@ -372,8 +376,8 @@ end
 -- rarity the island's tree has no driftlings of (the hatch scene shows each step).
 function Tree.rise(p: Profile, rng: Rng, r: number): number
 	local pool = Tree.pool(p.tier)
-	local out = math.clamp(r, 1, 5)
-	while out < 5 and #pool[out + 1] > 0 and rng:next() < (Tuning.EggUp[out] or 0) do
+	local out = math.clamp(r, 1, Traits.RMAX)
+	while out < Traits.RMAX and #pool[out + 1] > 0 and rng:next() < (Tuning.EggUp[out] or 0) do
 		out += 1
 	end
 	return out
@@ -383,7 +387,7 @@ end
 local function rarityRoll(p: Profile, rng: Rng, wx: Weather.State?): number
 	local odds = Tree.odds(p, nil, Weather.luck(wx))
 	local x = rng:next()
-	for i = 5, 1, -1 do
+	for i = Traits.RMAX, 1, -1 do
 		x -= odds[i]
 		if x < 0 then
 			return i
@@ -407,7 +411,7 @@ function Tree.wanted(p: Profile): number
 	if q == nil or q.goal.kind ~= "best" then
 		return 0
 	end
-	local r = math.clamp(q.goal.n, 1, 5)
+	local r = math.clamp(q.goal.n, 1, Traits.RMAX)
 	if r <= 1 or p.stats.best >= r or #Tree.pool(p.tier)[r] == 0 then
 		return 0
 	end
