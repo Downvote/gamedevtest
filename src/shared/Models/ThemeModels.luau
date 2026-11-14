@@ -892,4 +892,145 @@ M.idol = function(m, f)
 	Parts.glow(m, g, -0.55, 0.45, 0.75, 0.25, 0.25, 0.25, "orange", "Flame")
 end
 
+------------------------------------------------------------------ the islands past Driftling Haven
+-- (the request of 2026-11-14: "allow expansion up to level 20 ... add decor")
+
+-- Beach Hut (3 x 3): a little hut on short stilts painted in stripes, a pitched roof, a deck with a rail where towels
+-- dry, a bucket on the step.
+M.beachhut = function(m, f)
+	for _, x in { -0.9, 0.9 } do
+		for _, z in { -0.9, 0.6 } do
+			box(m, f, x, 0.3, z, 0.25, 0.6, 0.25, "wood_dark", "Stilt")
+		end
+	end
+	box(m, f, 0, 0.62, 0, 2.5, 0.25, 2.5, "wood", "Deck")
+	for k = 0, 3 do
+		box(m, f, -0.75 + k * 0.5, 1.5, -0.5, 0.5, 1.5, 1.5, if k % 2 == 0 then "teal" else "white", "Wall")
+	end
+	Parts.wedge(m, f, 0, 2.5, -0.9, 2.25, 0.5, 0.75, "berry_red", 0, "Roof")
+	Parts.wedge(m, f, 0, 2.5, -0.1, 2.25, 0.5, 0.75, "berry_red", PI, "Roof")
+	box(m, f, 0, 1.25, 0.27, 0.5, 1.0, 0.25, "wood_dark", "Door")
+	box(m, f, 0, 1.0, 1.15, 2.5, 0.25, 0.25, "white", "Rail")
+	for _, x in { -1.15, 1.15 } do
+		box(m, f, x, 0.85, 1.15, 0.25, 0.5, 0.25, "white", "RailPost")
+	end
+	box(m, f, -0.7, 0.85, 1.25, 0.5, 0.5, 0.25, "orange", "Towel")
+	box(m, f, 0.6, 0.85, 1.25, 0.5, 0.5, 0.25, "pink", "Towel")
+	box(m, f, 0, 0.3, 1.4, 0.75, 0.25, 0.25, "wood", "Step")
+	cyl(m, f, 1.1, 0.15, 1.35, 0.25, 0.25, "blue", "Bucket")
+end
+
+-- Hedge Maze (5 x 5): low hedge walls in a little maze with a way in at the front, a fountain at its heart, roses in
+-- the corners.
+M.hedgemaze = function(m, f)
+	box(m, f, 0, 0.05, 0, 5, 0.25, 5, "grass", "Floor")
+	local walls = {
+		{ 0, -2.35, 4.75, 0.25 },
+		{ -2.35, 0, 0.25, 4.75 },
+		{ 2.35, 0, 0.25, 4.75 },
+		{ -1.5, 2.35, 1.75, 0.25 },
+		{ 1.5, 2.35, 1.75, 0.25 },
+		{ 0, 1.5, 3.0, 0.25 },
+		{ -1.5, 0.25, 0.25, 2.0 },
+		{ 1.5, -0.25, 0.25, 2.0 },
+		{ 0.25, -1.5, 2.25, 0.25 },
+	}
+	for k, w in walls do
+		box(m, f, w[1], 0.5, w[2], w[3], 0.75, w[4], if k % 2 == 0 then "leaf_dark" else "grass_dark", "Hedge")
+		box(m, f, w[1], 0.95, w[2], w[3], 0.25, w[4], "leaf", "HedgeTop")
+	end
+	cyl(m, f, 0, 0.2, 0.3, 1.0, 0.25, "rock", "FountainRim")
+	pool(m, f, 0, 0.3, 0.3, 0.75)
+	box(m, f, 0, 0.6, 0.3, 0.25, 0.5, 0.25, "white", "Jet")
+	for _, c in { { -2.0, -2.0 }, { 2.0, -2.0 }, { -2.0, 2.0 }, { 2.0, 2.0 } } do
+		ball(m, f, c[1], 1.15, c[2], 0.5, "berry_red", "Roses")
+	end
+end
+
+-- Red Barn (4 x 4): a red barn with white trim and a big X on its doors, a hay loft door up in the gable with hay
+-- sticking out, a weathervane, bales by the wall.
+M.redbarn = function(m, f)
+	box(m, f, 0, 1.1, -0.3, 3.5, 2.0, 3.0, "berry_red", "Walls")
+	box(m, f, 0, 0.12, -0.3, 3.75, 0.25, 3.25, "rock", "Footing")
+	Parts.wedge(m, f, 0, 2.6, -1.1, 3.75, 1.0, 1.75, "slate", 0, "Roof")
+	Parts.wedge(m, f, 0, 2.6, 0.5, 3.75, 1.0, 1.75, "slate", PI, "Roof")
+	box(m, f, 0, 0.9, 1.25, 1.75, 1.5, 0.25, "berry_red", "Doors")
+	for _, s in { -1, 1 } do
+		put(m, f, CFrame.new(s * 0.45, 0.9, 1.4) * CFrame.Angles(0, 0, s * 0.85), 0.25, 1.75, 0.25, "white", nil, "Brace")
+	end
+	box(m, f, 0, 1.7, 1.4, 1.75, 0.25, 0.25, "white", "Trim")
+	box(m, f, 0, 2.4, 1.3, 0.75, 0.5, 0.25, "wood_dark", "LoftDoor")
+	box(m, f, 0, 2.2, 1.45, 0.5, 0.25, 0.25, "straw", "Hay")
+	box(m, f, 0, 3.4, -0.3, 0.25, 0.75, 0.25, "steel_dark", "Vane")
+	put(m, f, CFrame.new(0.2, 3.7, -0.3), 0.75, 0.25, 0.25, "black", "Wedge", "Rooster")
+	for k = 0, 1 do
+		box(m, f, 1.4, 0.35 + k * 0.5, 1.6, 0.75, 0.5, 0.5, "straw", "Bale")
+	end
+	box(m, f, -1.4, 0.35, 1.6, 0.75, 0.5, 0.5, "straw", "Bale")
+end
+
+-- Old Galleon (5 x 3): an old ship sitting in the sand, leaning a little: its hull in dark planks with a gold rail, a
+-- broken mast with a torn sail, a stern cabin with lit windows, the figurehead, and a chest of gold beside it.
+M.galleon = function(m, f)
+	local h = CFrame.new(0, 0, -0.1) * CFrame.Angles(0, 0, 0.08)
+	put(m, f, h * CFrame.new(-0.25, 0.5, 0), 3.25, 1.0, 1.75, "wood_dark", nil, "Hull")
+	put(m, f, h * CFrame.new(-0.25, 1.1, 0), 3.5, 0.25, 2.0, "wood", nil, "Deck")
+	put(m, f, h * CFrame.new(1.75, 0.75, 0) * CFrame.Angles(0, -PI / 2, 0), 1.75, 1.0, 0.75, "wood_dark", "Wedge", "Bow")
+	put(m, f, h * CFrame.new(2.1, 1.35, 0), 0.5, 0.25, 0.25, "gold", nil, "Figurehead")
+	put(m, f, h * CFrame.new(-0.25, 1.35, 0.95), 3.25, 0.25, 0.25, "gold", nil, "Rail")
+	put(m, f, h * CFrame.new(-1.4, 1.6, 0), 1.0, 1.0, 1.75, "wood", nil, "Cabin")
+	put(m, f, h * CFrame.new(-1.4, 2.2, 0), 1.25, 0.25, 2.0, "wood_dark", nil, "CabinRoof")
+	for _, z in { -0.9, 0.9 } do
+		put(m, f, h * CFrame.new(-1.4, 1.65, z), 0.25, 0.25, 0.25, "yellow", nil, "Window")
+	end
+	put(m, f, h * CFrame.new(0.3, 2.3, 0) * CFrame.Angles(0, 0, -0.15), 0.25, 2.5, 0.25, "wood_dark", nil, "Mast")
+	put(m, f, h * CFrame.new(0.4, 3.0, 0), 0.25, 0.25, 1.75, "wood_dark", nil, "Yard")
+	put(m, f, h * CFrame.new(0.45, 2.5, 0.2), 0.25, 0.75, 1.25, "cream", nil, "Sail")
+	box(m, f, 1.5, 0.25, 1.15, 0.75, 0.5, 0.5, "wood", "Chest")
+	box(m, f, 1.5, 0.55, 1.15, 0.75, 0.25, 0.5, "gold", "Gold")
+	box(m, f, 2.1, 0.05, 1.2, 0.25, 0.25, 0.25, "gold", "Coin")
+end
+
+-- Flower Clock (3 x 3): a round bed of flowers in rings of colour with a clock's hours marked in white stones, two
+-- dark hands over it on a gold pin, a low stone rim.
+M.flowerclock = function(m, f)
+	cyl(m, f, 0, 0.12, 0, 2.75, 0.25, "rock", "Rim")
+	cyl(m, f, 0, 0.25, 0, 2.5, 0.25, "leaf_dark", "Bed")
+	for k, c in ({ { 2.0, "pink" }, { 1.5, "yellow" }, { 1.0, "purple" } } :: { { any } }) do
+		cyl(m, f, 0, 0.32 + k * 0.05, 0, c[1], 0.25, c[2], "Flowers")
+	end
+	for k = 0, 11 do
+		local a = k * PI / 6
+		box(m, f, math.sin(a) * 1.1, 0.42, math.cos(a) * 1.1, 0.25, 0.25, 0.25, "white", "Hour")
+	end
+	put(m, f, CFrame.new(0.3, 0.6, -0.15) * CFrame.Angles(0, 1.1, 0), 0.25, 0.25, 0.75, "black", nil, "HourHand")
+	put(m, f, CFrame.new(-0.05, 0.65, 0.45), 0.25, 0.25, 1.0, "black", nil, "MinuteHand")
+	cyl(m, f, 0, 0.7, 0, 0.25, 0.25, "gold", "Pin")
+end
+
+-- Temple Steps (4 x 4): a stepped mound of mossy stone, steps up the front between carved posts, a little shrine on
+-- top with a glowing stone, vines down its sides.
+M.templesteps = function(m, f)
+	for k = 0, 3 do
+		local s = 4 - k * 0.75
+		box(m, f, 0, 0.25 + k * 0.5, -k * 0.2, s, 0.5, s - 0.25, if k % 2 == 0 then "rock" else "slate", "Tier")
+		box(m, f, 0, 0.5 + k * 0.5, -k * 0.2, s, 0.25, s - 0.25, "moss", "Moss")
+	end
+	for k = 0, 3 do
+		box(m, f, 0, 0.25 + k * 0.5, 1.75 - k * 0.45, 1.0, 0.5, 0.5, "rock_dark", "Stair")
+	end
+	for _, x in { -0.75, 0.75 } do
+		box(m, f, x, 0.6, 1.7, 0.25, 1.0, 0.25, "rock_dark", "Post")
+		box(m, f, x, 1.2, 1.7, 0.5, 0.25, 0.25, "gold", "PostCap")
+	end
+	box(m, f, 0, 2.5, -0.7, 1.0, 1.0, 1.0, "rock", "Shrine")
+	Parts.wedge(m, f, 0, 3.25, -0.95, 1.25, 0.5, 0.5, "slate", 0, "ShrineRoof")
+	Parts.wedge(m, f, 0, 3.25, -0.45, 1.25, 0.5, 0.5, "slate", PI, "ShrineRoof")
+	box(m, f, 0, 2.4, -0.18, 0.5, 0.5, 0.25, "black", "Niche")
+	box(m, f, 0, 2.4, -0.1, 0.25, 0.25, 0.25, "teal", "Gem", true)
+	for _, c in { { -1.9, 0.5 }, { 1.9, -0.4 }, { -1.2, -1.3 } } do
+		box(m, f, c[1], 0.6, c[2], 0.25, 1.0, 0.25, "leaf", "Vine")
+	end
+end
+
 return M

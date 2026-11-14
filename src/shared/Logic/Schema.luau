@@ -348,7 +348,7 @@ local function piecesOf(v: any, tier: number): { Types.Piece }
 		local group = if def then Plot.group(def.id) else ""
 		if def and counts[group] < Plot.groupLimit(group, tier) then
 			local uid = int(q.uid, 0, 0)
-			local x, z, rot = int(q.x, 0, -160, 64), int(q.z, 0, -160, 64), int(q.rot, 0)
+			local x, z, rot = int(q.x, 0, -240, 64), int(q.z, 0, -240, 64), int(q.rot, 0)
 			-- (a fence runs east or south from an even corner)
 			local shape = if group == "fence" then (rot == 0 or rot == 90) and x % 2 == 0 and z % 2 == 0 else (rot == 0 or rot == 90 or rot == 180 or rot == 270)
 			-- (an old path tile moved off the even studs: refit clears it with its price back)

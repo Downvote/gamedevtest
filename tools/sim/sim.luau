@@ -15,7 +15,7 @@
 -- their tile), decor put down with its effects (BuildFx's drop, Puffs' particles, with the pixel filter on for them),
 -- Copy, Replace within the row, the keys R and Esc, the questline (Go on an old tab's name opening Work's row), then a
 -- malicious client (the fences' and tiles' payloads among the rest), then a second player, then the first island grown
--- past Sunspire Capital to Driftling Haven (tier 10, Island max, land north of z -64, the pieces of tiers 7 to 10 built
+-- on to Everdrift (tier 20, Island max, land far north of where Driftling Haven ended, the pieces of tiers 7 to 20 built
 -- up there). No villagers since 2026-11-12, no food since 2026-11-13, the Tree of Life's eggs in place of the tide
 -- since 2026-11-13, the build catalog since 2026-11-13. Every check is an H.expect; the SIM REPORT must show 0 findings
 -- and 0 errors.
@@ -2500,27 +2500,27 @@ end
 H.checkProfile(q, "second")
 mirror(q, "second")
 
------------------------------------------------------------------- 10. past Sunspire Capital
--- ("allow the player to expand their land even more")
--- The first island pushed to tier 9 (Skyreach Isle) as if expanded that far, then Expand from the tray to tier 10:
--- Driftling Haven, the last (the button says Island max after), its land reaching on north past where the old
--- islands ended (z -64), the pieces of tiers 7 to 10 open and built up there
-E.phase = "haven"
+------------------------------------------------------------------ 10. to the last island
+-- ("allow the player to expand their land even more"; the request of 2026-11-14: "allow expansion up to level 20")
+-- The first island pushed to tier 19 (Farshore) as if expanded that far, then Expand from the tray to tier 20:
+-- Everdrift, the last (the button says Island max after), its land reaching on north past where Driftling Haven
+-- (tier 10) ended, the pieces of tiers 7 to 20 open and built up there
+E.phase = "everdrift"
 do
 	local Office = H.sharedServer("Data.Office")
-	prof.tier = 9
+	prof.tier = 19
 	Plot.refit(prof)
 	PS.build(s)
 	H.push(p, 0.5)
-	H.expect(static:GetAttribute("Built") == 9 and Office.plan(9).name == "Skyreach Isle", "haven", "(the island at tier 9, Skyreach Isle)", tostring(static:GetAttribute("Built")))
+	H.expect(static:GetAttribute("Built") == 19 and Office.plan(19).name == "Farshore", "everdrift", "(the island at tier 19, Farshore)", tostring(static:GetAttribute("Built")))
 	local guard = 0
 	while not select(2, PS.debugNext(1)) and guard < 80 do
 		guard += 1
 		E.run(0.25)
 	end
 	local nt, nready, swaps0 = PS.debugNext(1)
-	H.expect(nt == 10 and nready, "haven", "Driftling Haven is built ahead in the background", string.format("%s %s", tostring(nt), tostring(nready)))
-	prof.wood = Tuning.TierCost[10] + 3000000
+	H.expect(nt == 20 and nready, "everdrift", "Everdrift is built ahead in the background", string.format("%s %s", tostring(nt), tostring(nready)))
+	prof.wood = Tuning.TierCost[20] + 3000000
 	H.push(p, 0.4)
 	H.clickNamed(p, "Menu_build", { wait = 0.4 })
 	H.clickNamed(p, "Tab_decor", { wait = 0.3 })
@@ -2533,38 +2533,39 @@ do
 		end
 		return nil, false
 	end
-	local lock, has = lockOf("rainbowarch")
-	H.expect(has and lock == "Lv10" and Buildings.byId.rainbowarch.tier == 10, "haven", "at tier 9 the Rainbow Arch waits for level 10", tostring(lock))
-	res = H.req(p, "plot.place", { id = "rainbowarch", x = 0, z = -20, rot = 0 })
-	H.expect(not res.ok and res.err == "locked", "haven", "and the server won't build it yet (locked)", tostring(res.err))
+	local lock, has = lockOf("seacrown")
+	H.expect(has and lock == "Lv20" and Buildings.byId.seacrown.tier == 20, "everdrift", "at tier 19 the Crown of the Sea waits for level 20", tostring(lock))
+	res = H.req(p, "plot.place", { id = "seacrown", x = 0, z = -20, rot = 0 })
+	H.expect(not res.ok and res.err == "locked", "everdrift", "and the server won't build it yet (locked)", tostring(res.err))
 	local cost = p.PlayerGui:FindFirstChild("ExpandCost", true)
-	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Tuning.TierCost[10])) ~= nil, "haven", "Expand on, its price the last step's wood", cost and table.concat(H.textsOf(cost), "/"))
+	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Tuning.TierCost[20])) ~= nil, "everdrift", "Expand on, its price the last step's wood", cost and table.concat(H.textsOf(cost), "/"))
 	local wood1, f1, eggs1 = prof.wood, #fx, #prof.clutch.list
 	H.clickNamed(p, "Expand", { wait = 0 })
 	local cheer = E.runUntil(function()
-		return statusSays("Your island grew into Driftling Haven.")
+		return statusSays("Your island grew into Everdrift.")
 	end, 2, 0.05)
-	H.expect(prof.tier == 10 and math.abs(prof.wood - (wood1 - Tuning.TierCost[10])) < 2, "haven", "Expand: tier 10 for its wood", string.format("tier %d, wood %+.0f", prof.tier, prof.wood - wood1))
+	H.expect(prof.tier == 20 and math.abs(prof.wood - (wood1 - Tuning.TierCost[20])) < 2, "everdrift", "Expand: tier 20 for its wood", string.format("tier %d, wood %+.0f", prof.tier, prof.wood - wood1))
 	local grew = ""
 	for _, d in p.PlayerGui:GetDescendants() do
 		if d:IsA("TextLabel") and string.find(d.Text, "grew", 1, true) then
 			grew = d.Text
 		end
 	end
-	H.expect(cheer and Office.plan(10).name == "Driftling Haven", "haven", "the cheer names the island it grew into: Driftling Haven", grew)
+	H.expect(cheer and Office.plan(20).name == "Everdrift", "everdrift", "the cheer names the island it grew into: Everdrift", grew)
 	local _, _, swaps1 = PS.debugNext(1)
 	E.run(0.5)
-	H.expect(swaps1 == swaps0 + 1 and static:GetAttribute("Built") == 10, "haven", "the island built ahead swapped in", string.format("%d -> %d, built %s", swaps0, swaps1, tostring(static:GetAttribute("Built"))))
+	H.expect(swaps1 == swaps0 + 1 and static:GetAttribute("Built") == 20, "everdrift", "the island built ahead swapped in", string.format("%d -> %d, built %s", swaps0, swaps1, tostring(static:GetAttribute("Built"))))
 	local maxB = H.buttonNamed(p, "Expand", true)
-	H.expect(maxB ~= nil and table.find(H.textsOf(maxB), "Island max") ~= nil and H.buttonNamed(p, "Expand") == nil and p.PlayerGui:FindFirstChild("ExpandCost", true) == nil, "haven", "the button says Island max after, greyed, no price", maxB and table.concat(H.textsOf(maxB), "/"))
+	H.expect(maxB ~= nil and table.find(H.textsOf(maxB), "Island max") ~= nil and H.buttonNamed(p, "Expand") == nil and p.PlayerGui:FindFirstChild("ExpandCost", true) == nil, "everdrift", "the button says Island max after, greyed, no price", maxB and table.concat(H.textsOf(maxB), "/"))
 	res = H.req(p, "island.expand", {})
-	H.expect(not res.ok and res.err == "max" and prof.tier == 10, "haven", "and the server grows it no more (max)", tostring(res.err))
-	H.expect(#prof.clutch.list == TreeL.count(10) and #prof.clutch.list >= eggs1 and #fxSince(f1, "eggs") >= (if TreeL.count(10) > eggs1 then 1 else 0), "haven", "the tree lays the biggest island's eggs", string.format("%d of %d", #prof.clutch.list, TreeL.count(10)))
-	-- the land reaches north past z -64, where the islands up to Sunspire Capital ended
-	local pr10, pr6 = Street.plot(10), Street.plot(6)
+	H.expect(not res.ok and res.err == "max" and prof.tier == 20, "everdrift", "and the server grows it no more (max)", tostring(res.err))
+	H.expect(#prof.clutch.list == TreeL.count(20) and #prof.clutch.list >= eggs1 and #fxSince(f1, "eggs") >= (if TreeL.count(20) > eggs1 then 1 else 0), "everdrift", "the tree lays the biggest island's eggs", string.format("%d of %d", #prof.clutch.list, TreeL.count(20)))
+	-- the land reaches north past where Driftling Haven (tier 10) ended
+	local pr20, pr10 = Street.plot(20), Street.plot(10)
+	local edge = pr10.z0 -- (z -106)
 	local north = 0
-	for x = math.floor(pr10.x0), math.floor(pr10.x1) do
-		if Street.buildable(10, x, -70) then
+	for x = math.floor(pr20.x0), math.floor(pr20.x1) do
+		if Street.buildable(20, x, edge - 20) then
 			north += 1
 		end
 	end
@@ -2572,11 +2573,11 @@ do
 	local landParts = 0
 	local landM = static:FindFirstChild("Land")
 	for _, d in (landM and landM:GetDescendants() or {}) do
-		if d:IsA("BasePart") and d.Position.Z < oz - 64 and math.abs(d.Position.X - ox) < 40 then
+		if d:IsA("BasePart") and d.Position.Z < oz + edge - 20 and math.abs(d.Position.X - ox) < 40 then
 			landParts += 1
 		end
 	end
-	H.expect(pr6.z0 >= -64 and pr10.z0 < -64 and north > 0 and landParts > 0, "haven", "the land reaches north of z -64 (grass to build on, the island's model there)", string.format("grass from z %d (Sunspire %d), %d cells at z -70, %d parts", pr10.z0, pr6.z0, north, landParts))
+	H.expect(pr20.z0 < edge - 60 and north > 0 and landParts > 0, "everdrift", "the land reaches far north of where Driftling Haven ended (grass to build on, the island's model there)", string.format("grass from z %d (Driftling Haven %d), %d cells at z %d, %d parts", pr20.z0, edge, north, edge - 20, landParts))
 	-- every card open now: no level on any of them
 	local locked = {}
 	for _, t in { "work", "nest", "path", "fence", "water", "nature", "decor", "fun" } do
@@ -2590,17 +2591,19 @@ do
 	end
 	local high = 0
 	for _, d in Buildings.list do
-		if d.tier >= 7 and d.tier <= 10 then
+		if d.tier >= 7 and d.tier <= 20 then
 			high += 1
 		end
 	end
-	H.expect(#locked == 0 and high >= 10, "haven", "every card open at tier 10, the pieces of tiers 7 to 10 among them", table.concat(locked, " "))
+	H.expect(#locked == 0 and high >= 40, "everdrift", "every card open at tier 20, the pieces of tiers 7 to 20 among them", table.concat(locked, " "))
 	H.clickNamed(p, "BuildDone", { wait = 0.3 })
-	-- tiers 7 to 10 built up north: a Rainbow Arch (10), a Crystal Fence (8), a Gilded Walk (7), a Lava Rock (7)
-	-- (the first spot north of z -64 where every one of the pieces at(x, z) gives, {dx, dz, rot} from it, fits)
+	-- tiers 7 to 20 built up north: a Crown of the Sea (20), a Driftling Citadel (20), a Geode (13), a Crystal Fence (8), a
+	-- Gilded Walk (7)
+	-- (the first spot north of Driftling Haven's end where every one of the pieces at(x, z) gives, {dx, dz, rot} from it,
+	-- fits)
 	local function northSpot(id, at)
-		for z = -66, math.floor(pr10.z0), -1 do
-			for x = math.floor(pr10.x0), math.floor(pr10.x1) do
+		for z = edge - 2, math.floor(pr20.z0), -1 do
+			for x = math.floor(pr20.x0), math.floor(pr20.x1) do
 				local ok = not Plot.isDrawn(id) or (x % 2 == 0 and z % 2 == 0)
 				for _, o in at or { { 0, 0, 0 } } do
 					ok = ok and Plot.fits(prof.tier, prof.plot.placed, id, x + o[1], z + o[2], o[3])
@@ -2612,29 +2615,32 @@ do
 		end
 		return nil, nil
 	end
+	-- (the dearest of them, the Crown of the Sea, is 12,000,000 wood: the store topped up for them)
+	prof.wood = 30000000
+	H.push(p, 0.3)
 	local got = {}
-	for _, id in { "rainbowarch", "lavarock" } do
+	for _, id in { "seacrown", "citadel", "geode" } do
 		local x, z = northSpot(id)
 		res = if x then H.req(p, "plot.place", { id = id, x = x, z = z, rot = 0 }) else { ok = false, err = "no spot" }
 		table.insert(got, string.format("%s %s", id, if res.ok then "ok" else tostring(res.err)))
-		H.expect(res.ok and z ~= nil and z < -64 and pieceAt(id, x, z) ~= nil, "haven", string.format("a %s (tier %d) built north of z -64", Buildings.byId[id].name, Buildings.byId[id].tier), tostring(res.err))
+		H.expect(res.ok and z ~= nil and z < edge and pieceAt(id, x, z) ~= nil, "everdrift", string.format("a %s (tier %d) built north of Driftling Haven's end", Buildings.byId[id].name, Buildings.byId[id].tier), tostring(res.err))
 	end
 	do
 		local x, z = northSpot("goldpath", { { 0, 0, 0 }, { 2, 0, 0 } })
 		res = if x then H.req(p, "plot.paint", { id = "goldpath", cells = string.format("%d,%d;%d,%d", x, z, x + 2, z) }) else { ok = false, err = "no spot" }
-		H.expect(res.ok and type(res.data) == "table" and res.data.placed == 2 and pieceAt("goldpath", x, z) ~= nil, "haven", "a Gilded Walk (tier 7) laid up there", tostring(res.err))
+		H.expect(res.ok and type(res.data) == "table" and res.data.placed == 2 and pieceAt("goldpath", x, z) ~= nil, "everdrift", "a Gilded Walk (tier 7) laid up there", tostring(res.err))
 		x, z = northSpot("crystalfence", { { 0, 0, 0 }, { 0, 0, 90 } })
 		res = if x then H.req(p, "plot.fence", { id = "crystalfence", edges = string.format("%d,%d,0;%d,%d,90", x, z, x, z) }) else { ok = false, err = "no spot" }
-		H.expect(res.ok and type(res.data) == "table" and res.data.placed == 2 and fenceOn({ x, z, 0 }) ~= nil and fenceOn({ x, z, 90 }) ~= nil, "haven", "a Crystal Fence (tier 8) run along the grid up there", tostring(res.err))
+		H.expect(res.ok and type(res.data) == "table" and res.data.placed == 2 and fenceOn({ x, z, 0 }) ~= nil and fenceOn({ x, z, 90 }) ~= nil, "everdrift", "a Crystal Fence (tier 8) run along the grid up there", tostring(res.err))
 	end
-	H.log("haven: %s", table.concat(got, ", "))
+	H.log("everdrift: %s", table.concat(got, ", "))
 	E.run(0.4)
 	local card = p.PlayerGui:FindFirstChild("IslandCard", true)
 	local title = card and card:FindFirstChild("Title", true)
-	H.expect(title ~= nil and title.Text == "Driftling Haven", "haven", "the HUD's island card says Driftling Haven", title and title.Text)
+	H.expect(title ~= nil and title.Text == "Everdrift", "everdrift", "the HUD's island card says Everdrift", title and title.Text)
 end
-H.checkProfile(p, "haven")
-mirror(p, "haven")
+H.checkProfile(p, "everdrift")
+mirror(p, "everdrift")
 H.checkProfile(p, "end")
 mirror(p, "end")
 

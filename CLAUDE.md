@@ -12,10 +12,10 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 2704, `sim_save.luau` about 911, `sim_clock.luau` about 1424, `sim_world.luau` about 2512,
+`sim.luau` about 2717, `sim_save.luau` about 915, `sim_clock.luau` about 1424, `sim_world.luau` about 2546,
 `sim_tree.luau` about 1681).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work ambient late
+village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui expand zoo paths water work ambient late
 loading themes hatches weathers`, `panel=<pals|work|tree|hatch|index|looks>`, `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
 on its skeleton, eight frames a mood), `catalog=<group>` (a group of the build catalog: `ground fence

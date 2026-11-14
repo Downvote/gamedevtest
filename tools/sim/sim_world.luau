@@ -18,8 +18,9 @@
 -- player; a newcomer's tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the
 -- clients near it, the price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away,
 -- bought or replaced; it moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other
--- piece clears away; a tier 10 island from a saved profile (its land far north of z -64, no walls up there either and
--- the seabed under the sea there, the founder at home up there, pieces, tiles and fences fitting there).
+-- piece clears away; a tier 20 island from a saved profile (its land far north of Driftling Haven's end, no walls up
+-- there either and the seabed under the sea there, the founder at home up there, pieces, tiles and fences fitting
+-- there, the pieces of tiers 11 to 20 built there, Build mode's button saying Island max).
 local E = require("./loader")
 local I = require("./inst")
 local H = require("./harness")
@@ -1589,8 +1590,8 @@ refused("NaN", "bad_payload", "plot.place", { id = "torch", x = 0 / 0, z = 20, r
 refused("index 0", "bad_payload", "plot.move", { i = 0, x = 20, z = 20, rot = 0 })
 refused("index 999", "bad_payload", "plot.store", { i = 999 })
 refused("a piece not there", "bad_payload", "plot.store", { i = #prof.plot.placed + 1 })
-refused("an index past any island's pieces", "bad_payload", "plot.store", { i = 4097 })
-refused("z past the far north", "bad_payload", "plot.place", { id = "torch", x = 0, z = -161, rot = 0 })
+refused("an index past any island's pieces", "bad_payload", "plot.store", { i = 8193 })
+refused("z past the far north", "bad_payload", "plot.place", { id = "torch", x = 0, z = -241, rot = 0 })
 refused("an upgrade (there are none now)", "unknown_action", "plot.upgrade", { i = 1 })
 refused("an extra field", "bad_payload", "plot.place", { id = "torch", x = 20, z = 20, rot = 0, price = 0 })
 refused("a home with a payload", "bad_payload", "char.home", { x = 1 })
@@ -1614,7 +1615,7 @@ do
 	end
 	refused("a fence turned 45 degrees", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4,45" })
 	refused("a fence turned 180", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4,180" })
-	refused("a fence edge out of range", "bad_payload", "plot.fence", { id = "picket", edges = "0,-162,0" })
+	refused("a fence edge out of range", "bad_payload", "plot.fence", { id = "picket", edges = "0,-242,0" })
 	refused("a fractional fence edge", "bad_payload", "plot.fence", { id = "picket", edges = "0.5,-4,0" })
 	refused("an edge with no way", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4" })
 	refused("junk edges", "bad_payload", "plot.fence", { id = "picket", edges = "0,-4,0;;2,-4,0" })
@@ -1834,11 +1835,11 @@ settled(c)
 H.checkMirror(c, "fixed")
 
 ------------------------------------------------------------------ 12. a big island (GAME_DESIGN 4: "allow the player to expand their land even more")
--- A tier 10 save (Driftling Haven, the last of the ten tiers) joins on the plot the last server-side neighbour leaves:
--- its land reaches far north of z -64 (where a plot's coordinates once ended), the invisible coast walls hold up there
--- (a wall on every edge between where a founder may stand and where they may not, far higher than a jump), the founder
--- walks up there and is still at home with the view on them, and pieces, tiles and fences fit up there (the saved oak
--- among them).
+-- A tier 20 save (Everdrift, the last of the twenty tiers since the request of 2026-11-14: "allow expansion up to level
+-- 20") joins on the plot the last server-side neighbour leaves: its land reaches far north of where Driftling Haven
+-- (tier 10) ended, no coast walls up there and the seabed under the sea past its north shore, the founder walks up
+-- there and is still at home with the view on them, pieces, tiles and fences fit up there (the saved oak among them),
+-- the pieces of tiers 11 to 20 build there, and Build mode's button says Island max.
 E.phase = "big-island"
 do
 	local last = extras[#extras]
@@ -1867,10 +1868,10 @@ do
 		created = E.SIM.now,
 		updated = E.SIM.now,
 	}
-	local big = H.addPlayer({ userId = 9430, name = "Haven" })
+	local big = H.addPlayer({ userId = 9430, name = "Everdrift" })
 	E.run(4)
 	local sb, bp = H.session(big), H.profile(big)
-	H.expect(sb ~= nil and sb.plot == freed and bp.tier == TB and plotModel(freed):GetAttribute("Tier") == TB, "big", "a tier 10 island takes the freed plot", string.format("%s on %s", tostring(bp and bp.tier), tostring(sb and sb.plot)))
+	H.expect(sb ~= nil and sb.plot == freed and bp.tier == TB and plotModel(freed):GetAttribute("Tier") == TB and TB == 20, "big", "a tier 20 island takes the freed plot", string.format("%s on %s", tostring(bp and bp.tier), tostring(sb and sb.plot)))
 	local bi = if sb then sb.plot else freed
 	local land = staticOf(bi) and staticOf(bi):FindFirstChild("Land")
 	local box = Street.origin(bi)
@@ -1881,7 +1882,7 @@ do
 			north = math.min(north, d.Position.Z - d.Size.Z / 2)
 		end
 	end
-	H.expect(pr.z0 < -100 and math.abs(north - pr.z0) < 0.01, "big", "its land reaches far north of z -64 (the lawn to its edge)", string.format("lawn to z %.2f, grass to %d", north, pr.z0))
+	H.expect(pr.z0 < Street.plot(10).z0 - 60 and math.abs(north - pr.z0) < 0.01, "big", "its land reaches far north of where Driftling Haven ended (the lawn to its edge)", string.format("lawn to z %.2f, grass to %d (Driftling Haven %d)", north, pr.z0, Street.plot(10).z0))
 	-- no walls in the far north either (the founder swims off any beach), and the seabed under the sea up there
 	H.expect(land ~= nil and land:FindFirstChild("Bound", true) == nil, "big", "no coast walls up north either")
 	local bedNorth = false
@@ -1899,7 +1900,7 @@ do
 	H.expect(oak ~= nil and decorB ~= nil and decorB:FindFirstChild(keyOf(oak)) ~= nil, "big", "the saved oak far north stands there", oak and keyOf(oak))
 	-- the founder walks up there: still on their own island (no Home button), the view keeping them in the middle
 	local CCb = H.cmod(big, "Controllers.CameraController")
-	local wz = -95
+	local wz = -180
 	local wxs = nil
 	for x = pr.x0, pr.x1 do
 		if wxs == nil and Street.buildable(TB, x, wz) then
@@ -1918,7 +1919,7 @@ do
 	local gx, gy = RasterW.gridPoint(v.rot12, v.grid, r.Position.X, Street.LAWN_Y + 1.5, r.Position.Z)
 	local sx2, sy2 = (gx - p1x) * v.K, (gy - p1y) * v.K
 	local mid = math.abs(sx2 - v.fullX / 2) <= v.fullX * 0.06 and sy2 >= v.fullY * 0.3 and sy2 <= v.fullY * 0.7
-	H.expect(r ~= nil and r.Position.Z < -90 and (p1x ~= p0x or p1y ~= p0y) and mid, "big", "the founder walks far north, the view following them there", string.format("%d,%d on %dx%d", sx2, sy2, v.fullX, v.fullY))
+	H.expect(r ~= nil and r.Position.Z < -170 and (p1x ~= p0x or p1y ~= p0y) and mid, "big", "the founder walks far north, the view following them there", string.format("%d,%d on %dx%d", sx2, sy2, v.fullX, v.fullY))
 	H.expect(H.buttonNamed(big, "Home") == nil, "big", "and they are still at home there (no Home button)")
 	-- pieces, tiles and fences fit up there: a torch on the northernmost grass a piece may stand on, a water tile, a
 	-- length of brick wall; past the island's edge refused
@@ -1955,8 +1956,47 @@ do
 		end
 	end
 	H.expect(ok1 and ok2 and ok3 and (nz or 0) < -100 and built == 4, "big", "a torch on its northernmost grass, a water tile and a wall up there: placed and built", string.format("torch at %s, %s %s %s, %d built", tostring(nz), tostring(ok1), tostring(ok2), tostring(ok3), built))
-	local off = H.req(big, "plot.place", { id = "oak", x = 0, z = -150, rot = 0 })
+	local off = H.req(big, "plot.place", { id = "oak", x = 0, z = pr.z0 - 12, rot = 0 })
 	H.expect(not off.ok and off.err == "blocked", "big", "past the island's northern edge: refused (blocked)", tostring(off.err))
+	-- the pieces of the tiers past Driftling Haven build up north (a hut, a workplace, a boost and a grand piece of
+	-- tier 20, 19, 17 and 14), each with its model
+	bp.wood = 1e8
+	local function pieceAt(id: string, x: number, z: number): any
+		for _, q in bp.plot.placed do
+			if q.id == id and q.x == x and q.z == z then
+				return q
+			end
+		end
+		return nil
+	end
+	local high = {}
+	for _, id in { "citadel", "vineyard", "tidebell", "canopymill", "ironwood", "seacrown" } do
+		local d = Buildings.byId[id]
+		local hx, hz = nil, nil
+		for z = Street.plot(10).z0 - 4, pr.z0, -1 do
+			for x = pr.x0, pr.x1 do
+				if hx == nil and Plot.fits(TB, placed, id, x, z, 0) then
+					hx, hz = x, z
+				end
+			end
+			if hx then
+				break
+			end
+		end
+		local rq = if hx then H.req(big, "plot.place", { id = id, x = hx, z = hz, rot = 0 }) else { ok = false, err = "no spot" }
+		E.run(0.3)
+		local q = if hx then pieceAt(id, hx :: number, hz :: number) else nil
+		table.insert(high, string.format("%s (tier %d) %s", id, d.tier, if rq.ok and q and decorB and decorB:FindFirstChild(keyOf(q)) then "built" else tostring(rq.err)))
+		H.expect(d.tier > 10 and rq.ok and q ~= nil and decorB ~= nil and decorB:FindFirstChild(keyOf(q)) ~= nil, "big", string.format("a %s (tier %d) placed far north and built", d.name, d.tier), tostring(rq.err))
+	end
+	H.log("big: %s", table.concat(high, ", "))
+	-- the expansion's button in Build mode: Island max, greyed, no price; the server grows it no more
+	H.clickNamed(big, "Menu_build", { wait = 0.4 })
+	local maxB = H.buttonNamed(big, "Expand", true)
+	H.expect(maxB ~= nil and table.find(H.textsOf(maxB), "Island max") ~= nil and H.buttonNamed(big, "Expand") == nil and big.PlayerGui:FindFirstChild("ExpandCost", true) == nil, "big", "Build mode's button says Island max, greyed, no price", maxB and table.concat(H.textsOf(maxB), "/"))
+	local more = H.req(big, "island.expand", {})
+	H.expect(not more.ok and more.err == "max" and bp.tier == 20, "big", "and the server grows it no more (max)", tostring(more.err))
+	H.clickNamed(big, "BuildDone", { wait = 0.3 })
 	H.checkProfile(big, "big island")
 	settled(big)
 	H.checkMirror(big, "big island")

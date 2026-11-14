@@ -99,7 +99,10 @@ function StreetLife.start()
 			fslant = (math.random() - 0.5) * 0.5
 			fweave = 0.5 + math.random() * 2
 			fwph = math.random() * 6
-			local z = Street.LOT.z0 + math.random() * (Street.SEA.z1 - Street.LOT.z0)
+			-- (somewhere near the view: the lots reach far north since the twenty tiers, and a flock anywhere along them
+			-- would seldom be seen)
+			local cz = CameraController.centerWorld().Z
+			local z = math.clamp(cz + (math.random() - 0.5) * 100, Street.LOT.z0, Street.SEA.z1)
 			local y = 13 + math.random() * 6
 			for i, bd in birds do
 				local back = 20 + i * 4 + math.random() * 2

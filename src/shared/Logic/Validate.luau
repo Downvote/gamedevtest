@@ -6,9 +6,9 @@
 --   "small"  a whole number in [1, 16] (a look index)
 --   "rarity" a whole number in [1, 5] (a driftling's rarity)
 --   "key"    a settings key ("pixel", "music")
---   "coord"  a whole number in [-160, 64] (a plot-local stud: the biggest islands reach far north)
+--   "coord"  a whole number in [-240, 64] (a plot-local stud: the biggest islands reach far north)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
---   "index"  a whole number in [1, 4096] (a placed piece: pieces, tiles and fences)
+--   "index"  a whole number in [1, 8192] (a placed piece: pieces, tiles and fences)
 --   "cells"  1 to 40 cells "x,z" joined by ";", each a coord (path or water tiles drawn or erased: Logic/Plot.paint)
 --   "edges"  1 to 40 edges "x,z,r" joined by ";", each a coord and r 0 or 90 (fences drawn or taken down: Plot.fence)
 --   "tiles"  which tiles an eraser takes up: "path", "water" or "all"
@@ -56,7 +56,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "rarity" then
 		return isInt(v, 1, 5)
 	elseif kind == "coord" then
-		return isInt(v, -160, 64)
+		return isInt(v, -240, 64)
 	elseif kind == "cells" or kind == "edges" then
 		if type(v) ~= "string" or #v < 3 or #v > 40 * 13 then
 			return false
@@ -66,12 +66,12 @@ local function check(kind: string, v: any): boolean
 			n += 1
 			if kind == "cells" then
 				local x, z = string.match(part, "^(%-?%d%d?%d?),(%-?%d%d?%d?)$")
-				if x == nil or not isInt(tonumber(x), -160, 64) or not isInt(tonumber(z), -160, 64) then
+				if x == nil or not isInt(tonumber(x), -240, 64) or not isInt(tonumber(z), -240, 64) then
 					return false
 				end
 			else
 				local x, z, r = string.match(part, "^(%-?%d%d?%d?),(%-?%d%d?%d?),(%d%d?)$")
-				if x == nil or not isInt(tonumber(x), -160, 64) or not isInt(tonumber(z), -160, 64) or (r ~= "0" and r ~= "90") then
+				if x == nil or not isInt(tonumber(x), -240, 64) or not isInt(tonumber(z), -240, 64) or (r ~= "0" and r ~= "90") then
 					return false
 				end
 			end
@@ -82,7 +82,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "rot" then
 		return v == 0 or v == 90 or v == 180 or v == 270
 	elseif kind == "index" then
-		return isInt(v, 1, 4096)
+		return isInt(v, 1, 8192)
 	elseif kind == "key" then
 		return type(v) == "string" and SETTINGS[v] == true
 	elseif kind == "any" then

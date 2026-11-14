@@ -19,6 +19,16 @@ local PLANS: { Plan } = {
 	{ tier = 8, name = "Evergreen Isle" },
 	{ tier = 9, name = "Skyreach Isle" },
 	{ tier = 10, name = "Driftling Haven" },
+	{ tier = 11, name = "Lantern Cove" },
+	{ tier = 12, name = "Saltwind Reach" },
+	{ tier = 13, name = "Kelpwood Isle" },
+	{ tier = 14, name = "Pearlstone Port" },
+	{ tier = 15, name = "Cloudberry Isle" },
+	{ tier = 16, name = "Amberfield" },
+	{ tier = 17, name = "Starfall Atoll" },
+	{ tier = 18, name = "Tidecrown" },
+	{ tier = 19, name = "Farshore" },
+	{ tier = 20, name = "Everdrift" },
 }
 Office.plans = PLANS
 

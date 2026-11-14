@@ -860,4 +860,125 @@ M.lavapool = function(m, f)
 	shard(m, f, 1.05, -0.6, true, 0.25, 0.25, 0.5, 0.5, "night")
 end
 
+------------------------------------------------------------------ the islands past Driftling Haven
+-- (the request of 2026-11-14: "allow expansion up to level 20 ... add decor")
+
+-- Frozen Waterfall (3 x 2): a cliff of blue-grey rock with snow on top, a fall of ice hanging down its front into a
+-- frozen pool, icicles along the edge, snow drifts.
+M.frozenfall = function(m, f)
+	Parts.box(m, f, 0, 1.25, -0.6, 3.0, 2.5, 0.75, "slate", "Cliff")
+	Parts.box(m, f, -0.9, 1.75, -0.35, 1.0, 1.5, 0.5, "rock_dark", "Cliff")
+	Parts.box(m, f, 0, 2.6, -0.5, 3.0, 0.25, 1.0, "snow", "Snow")
+	Parts.box(m, f, 0.3, 1.45, -0.1, 1.0, 2.25, 0.25, "ice", "Fall")
+	Parts.box(m, f, 0.3, 1.2, 0.05, 0.5, 1.5, 0.25, "white", "FallLight")
+	Parts.cyl(m, f, 0.3, 0.12, 0.45, 1.5, 0.25, "ice", "FrozenPool")
+	for k = 0, 4 do
+		Parts.box(m, f, -1.2 + k * 0.6, 2.25, -0.1, 0.25, 0.5, 0.25, "ice", "Icicle")
+	end
+	Parts.box(m, f, -1.2, 0.12, 0.6, 0.5, 0.25, 0.5, "snow", "Drift")
+	Parts.box(m, f, 1.3, 0.12, 0.5, 0.25, 0.25, 0.75, "snow", "Drift")
+end
+
+-- Cider Press (2 x 2): a wooden press on a stand, its big screw and handle over a tub of apples, a jug and a barrel.
+M.ciderpress = function(m, f)
+	for _, x in { -0.6, 0.6 } do
+		Parts.box(m, f, x, 0.75, -0.2, 0.25, 1.5, 0.25, "wood_dark", "Frame")
+	end
+	Parts.box(m, f, 0, 1.5, -0.2, 1.5, 0.25, 0.5, "wood_dark", "Beam")
+	Parts.cyl(m, f, 0, 0.5, -0.2, 1.0, 0.75, "wood", "Tub")
+	Parts.cyl(m, f, 0, 0.9, -0.2, 0.75, 0.25, "maple", "Apples")
+	Parts.cyl(m, f, 0, 1.2, -0.2, 0.25, 0.75, "steel_dark", "Screw")
+	Parts.box(m, f, 0, 1.75, -0.2, 1.0, 0.25, 0.25, "wood", "Handle")
+	Parts.cyl(m, f, 0.6, 0.25, 0.6, 0.5, 0.5, "clay", "Jug")
+	Parts.cyl(m, f, -0.55, 0.3, 0.6, 0.5, 0.5, "wood", "Barrel")
+	Parts.ball(m, f, -0.1, 0.12, 0.7, 0.25, "maple", "Apple")
+end
+
+-- Desert Obelisk (2 x 2): a tall four-sided stone needle on a stepped base, carved bands, a gold cap catching the sun.
+M.obelisk = function(m, f)
+	Parts.box(m, f, 0, 0.12, 0, 2.0, 0.25, 2.0, "sand_dark", "Base")
+	Parts.box(m, f, 0, 0.37, 0, 1.5, 0.25, 1.5, "sand", "Base")
+	Parts.box(m, f, 0, 2.0, 0, 0.75, 3.0, 0.75, "sand", "Needle")
+	for _, y in { 1.0, 1.75, 2.5 } do
+		Parts.box(m, f, 0, y, 0, 1.0, 0.25, 1.0, "clay", "Band")
+	end
+	for k = 0, 2 do
+		Parts.box(m, f, 0, 1.4 + k * 0.75, 0.4, 0.25, 0.25, 0.25, "sand_dark", "Carving")
+	end
+	wedgeAt(m, f, CFrame.new(0, 3.75, -0.19), 0.75, 0.5, 0.375, "gold", "Cap")
+	wedgeAt(m, f, CFrame.new(0, 3.75, 0.19) * CFrame.Angles(0, math.pi, 0), 0.75, 0.5, 0.375, "gold", "Cap")
+end
+
+-- Fairy Tree House (3 x 3): a fat old trunk with doors and lit windows at three heights, little balconies, steps
+-- winding up its side, a spotted mushroom roof on top and a fairy light at its foot.
+M.fairyhouse = function(m, f)
+	Parts.cyl(m, f, 0, 1.5, 0, 1.75, 3.0, "wood", "Trunk")
+	for k = 0, 3 do
+		local a = k * math.pi / 2 + 0.4
+		seg(m, f, v(math.sin(a) * 0.7, 0.4, math.cos(a) * 0.7), v(math.sin(a) * 1.3, 0.1, math.cos(a) * 1.3), 0.5, "wood_dark", "Root")
+	end
+	for i, y in { 0.5, 1.4, 2.3 } do
+		local a = (i - 1) * 1.2
+		local x, z = math.sin(a) * 0.85, math.cos(a) * 0.85
+		Parts.turned(m, f, x, y, z, 0.5, 0.5 + (if i == 1 then 0.25 else 0), 0.25, a, if i == 1 then "wood_dark" else "yellow", "Door", i > 1)
+		Parts.turned(m, f, x * 1.25, y - 0.35, z * 1.25, 0.75, 0.25, 0.5, a, "wood_dark", "Balcony")
+	end
+	for k = 0, 7 do
+		local a = k * 0.8 + 2.5
+		Parts.turned(m, f, math.sin(a) * 1.0, 0.25 + k * 0.33, math.cos(a) * 1.0, 0.5, 0.25, 0.25, a, "cream", "Step")
+	end
+	Parts.cyl(m, f, 0, 3.1, 0, 2.75, 0.25, "pink", "Roof")
+	Parts.ball(m, f, 0, 3.15, 0, 2.25, "pink", "Roof")
+	for k = 0, 3 do
+		local a = k * 1.6
+		Parts.ball(m, f, math.sin(a) * 0.8, 3.9, math.cos(a) * 0.8, 0.25, "white", "Spot")
+	end
+	Parts.glow(m, f, 1.1, 0.4, 1.0, 0.25, 0.25, 0.25, "yellow", "FairyLight")
+end
+
+-- Tea Pavilion (4 x 4): an open pavilion on a raised wooden floor, four dark posts under a sweeping roof with turned-up
+-- corners, mats, a low table with a kettle and a cup, a stone lantern by the step.
+M.teahouse = function(m, f)
+	Parts.box(m, f, 0, 0.25, -0.2, 3.5, 0.5, 3.25, "wood_dark", "Floor")
+	Parts.box(m, f, 0, 0.55, -0.2, 3.25, 0.25, 3.0, "straw", "Mats")
+	for _, x in { -1.5, 1.5 } do
+		for _, z in { -1.65, 1.25 } do
+			Parts.box(m, f, x, 1.5, z, 0.25, 2.0, 0.25, "wood_dark", "Post")
+		end
+	end
+	Parts.box(m, f, 0, 2.55, -0.2, 3.75, 0.25, 3.5, "berry_red", "Beam")
+	wedgeAt(m, f, CFrame.new(0, 3.05, -1.075), 4.0, 0.75, 1.75, "slate", "Roof")
+	wedgeAt(m, f, CFrame.new(0, 3.05, 0.675) * CFrame.Angles(0, math.pi, 0), 4.0, 0.75, 1.75, "slate", "Roof")
+	Parts.box(m, f, 0, 3.45, -0.2, 2.5, 0.25, 0.25, "slate", "Ridge")
+	for _, x in { -1.875, 1.875 } do
+		Parts.box(m, f, x, 2.8, -1.85, 0.25, 0.25, 0.25, "slate", "Tip")
+		Parts.box(m, f, x, 2.8, 1.45, 0.25, 0.25, 0.25, "slate", "Tip")
+	end
+	Parts.box(m, f, 0, 0.8, -0.3, 1.25, 0.25, 0.75, "wood", "Table")
+	Parts.cyl(m, f, -0.2, 1.05, -0.3, 0.5, 0.25, "steel_dark", "Kettle")
+	Parts.cyl(m, f, 0.3, 1.0, -0.2, 0.25, 0.25, "white", "Cup")
+	Parts.box(m, f, 0, 0.25, 1.65, 1.25, 0.5, 0.5, "wood", "Step")
+	Parts.box(m, f, 1.6, 0.4, 1.7, 0.5, 0.75, 0.5, "rock", "Lantern")
+	Parts.glow(m, f, 1.6, 0.9, 1.7, 0.25, 0.25, 0.25, "yellow", "Flame")
+	Parts.box(m, f, 1.6, 1.15, 1.7, 0.75, 0.25, 0.5, "rock", "LanternRoof")
+end
+
+-- Ember Forge (3 x 3): a basalt hearth glowing with fire, a chimney over it, an anvil on a stump in front with a hammer
+-- on it, a trough of lava cooling at the side.
+M.emberforge = function(m, f)
+	Parts.box(m, f, 0, 0.6, -0.8, 2.25, 1.25, 1.25, "basalt", "Hearth")
+	Parts.box(m, f, 0, 0.75, -0.15, 1.25, 0.5, 0.25, "black", "Mouth")
+	Parts.glow(m, f, 0, 0.65, -0.05, 1.0, 0.25, 0.25, "lava", "Fire")
+	Parts.glow(m, f, 0, 0.85, -0.05, 0.5, 0.25, 0.25, "yellow", "Fire")
+	Parts.box(m, f, 0, 2.0, -1.0, 0.75, 1.75, 0.75, "basalt", "Chimney")
+	Parts.box(m, f, 0, 2.95, -1.0, 1.0, 0.25, 1.0, "rock_dark", "ChimneyCap")
+	Parts.cyl(m, f, 0.3, 0.3, 0.75, 0.75, 0.5, "wood_dark", "Stump")
+	Parts.box(m, f, 0.3, 0.7, 0.75, 1.0, 0.25, 0.5, "steel_dark", "Anvil")
+	Parts.box(m, f, 0.3, 0.6, 0.75, 0.5, 0.25, 0.25, "steel_dark", "Anvil")
+	Parts.box(m, f, 0.5, 0.9, 0.75, 0.5, 0.25, 0.25, "wood", "Hammer")
+	Parts.box(m, f, 0.75, 0.9, 0.75, 0.25, 0.25, 0.25, "steel", "HammerHead")
+	Parts.box(m, f, -1.1, 0.25, 0.6, 0.75, 0.5, 1.25, "rock_dark", "Trough")
+	Parts.glow(m, f, -1.1, 0.5, 0.6, 0.5, 0.25, 1.0, "lava", "Lava")
+end
+
 return M

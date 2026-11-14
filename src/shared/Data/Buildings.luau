@@ -106,12 +106,21 @@ local LIST: { BuildingDef } = {
 	B({ id = "paddy", name = "Rice Terrace", kind = "farm", wood = 9800, w = 4, d = 4, rate = 510, knack = "farm", charm = 5, tier = 4, blurb = "Steps of rice in still water." }),
 	B({ id = "kelpfarm", name = "Kelp Farm", kind = "farm", wood = 28000, w = 4, d = 4, rate = 990, knack = "fish", charm = 6, tier = 5, blurb = "Rows of kelp in a sea pen." }),
 	B({ id = "skygarden", name = "Sky Garden", kind = "farm", wood = 76000, w = 5, d = 4, rate = 1800, knack = "farm", charm = 12, tier = 6, blurb = "Gardens stacked up a glass tower." }),
+	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
+	B({ id = "shroomcellar", name = "Mushroom Cellar", kind = "farm", wood = 200000, w = 4, d = 4, rate = 3300, knack = "farm", charm = 10, tier = 11, blurb = "Mushrooms grow in the dark under it." }),
+	B({ id = "pearlbeds", name = "Pearl Beds", kind = "farm", wood = 520000, w = 5, d = 4, rate = 5800, knack = "farm", charm = 14, tier = 13, blurb = "Oysters in clear water. Some hold a pearl." }),
+	B({ id = "honeyterrace", name = "Honey Terraces", kind = "farm", wood = 1500000, w = 5, d = 5, rate = 10500, knack = "farm", charm = 18, tier = 16, blurb = "Beehives on steps of flowers." }),
+	B({ id = "vineyard", name = "Grand Vineyard", kind = "farm", wood = 4200000, w = 5, d = 5, rate = 19000, knack = "farm", charm = 22, tier = 19, blurb = "Grapes on the vine, juice in the barrel." }),
 	-- wood
 	B({ id = "lumber", name = "Lumber Camp", kind = "wood", wood = 70, w = 4, d = 3, rate = 30, knack = "wood", blurb = "Chops wood." }),
 	B({ id = "sawmill", name = "Sawmill", kind = "wood", wood = 640, w = 4, d = 4, rate = 54, knack = "wood", charm = 1, tier = 2, blurb = "Saws more wood." }),
 	B({ id = "timber", name = "Timber Works", kind = "wood", wood = 2900, w = 4, d = 4, rate = 96, knack = "wood", charm = 2, tier = 3, blurb = "A crane and stacks of planks." }),
 	B({ id = "bamboo", name = "Bamboo Grove", kind = "wood", wood = 8300, w = 4, d = 3, rate = 180, knack = "wood", charm = 4, tier = 4, blurb = "Bamboo grows back by the day." }),
 	B({ id = "grandmill", name = "Grand Mill", kind = "wood", wood = 25000, w = 5, d = 4, rate = 330, knack = "wood", charm = 6, tier = 5, blurb = "A waterwheel turns its saws." }),
+	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
+	B({ id = "logflume", name = "Log Flume", kind = "wood", wood = 260000, w = 5, d = 4, rate = 900, knack = "wood", charm = 8, tier = 11, blurb = "Logs ride a water chute down to the yard." }),
+	B({ id = "ironwood", name = "Ironwood Yard", kind = "wood", wood = 800000, w = 5, d = 5, rate = 1700, knack = "wood", charm = 10, tier = 14, blurb = "Dark wood, nearly as hard as stone." }),
+	B({ id = "canopymill", name = "Canopy Mill", kind = "wood", wood = 2200000, w = 5, d = 5, rate = 3200, knack = "wood", charm = 14, tier = 17, blurb = "Saws turning high up in the trees." }),
 	-- shops: they sell to the visitors (shells)
 	B({ id = "stall", name = "Snack Stall", kind = "shop", wood = 100, w = 3, d = 2, rate = 36, knack = "shop", charm = 2, blurb = "Sells snacks to visitors." }),
 	B({ id = "cafe", name = "Beach Cafe", kind = "shop", wood = 990, w = 4, d = 3, rate = 120, knack = "shop", charm = 5, tier = 2, blurb = "Visitors stop here for a bite." }),
@@ -119,6 +128,10 @@ local LIST: { BuildingDef } = {
 	B({ id = "bakery", name = "Bakery", kind = "shop", wood = 15000, w = 4, d = 3, rate = 700, knack = "shop", charm = 12, tier = 4, blurb = "Warm bread for the whole town." }),
 	B({ id = "bazaar", name = "Grand Bazaar", kind = "shop", wood = 44000, w = 5, d = 4, rate = 1500, knack = "shop", charm = 20, tier = 5, blurb = "Stalls under striped awnings." }),
 	B({ id = "hotel", name = "Grand Hotel", kind = "shop", wood = 120000, w = 5, d = 5, rate = 3200, knack = "shop", charm = 35, tier = 6, blurb = "Visitors come from every sea." }),
+	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
+	B({ id = "nightmarket", name = "Night Market", kind = "shop", wood = 420000, w = 5, d = 4, rate = 6800, knack = "shop", charm = 40, tier = 12, blurb = "Lanterns lit, stalls open late." }),
+	B({ id = "theatre", name = "Seaside Theatre", kind = "shop", wood = 1100000, w = 5, d = 5, rate = 12000, knack = "shop", charm = 60, tier = 15, blurb = "A show every evening." }),
+	B({ id = "skytram", name = "Sky Tram", kind = "shop", wood = 3000000, w = 5, d = 5, rate = 21000, knack = "shop", charm = 80, tier = 18, blurb = "A ride over the island for a few shells." }),
 	-- huts (kind "nest"): room for driftlings, and comfort
 	B({ id = "nest", name = "Driftling Hut", kind = "nest", wood = 55, w = 2, d = 2, slots = 2, blurb = "Room for two driftlings. They work from here." }),
 	B({ id = "burrow", name = "Cozy Burrow", kind = "nest", wood = 420, w = 3, d = 3, slots = 4, charm = 1, comfort = 0.05, tier = 2, blurb = "Room for four." }),
@@ -126,6 +139,11 @@ local LIST: { BuildingDef } = {
 	B({ id = "roost", name = "Treetop Roost", kind = "nest", wood = 7100, w = 4, d = 4, slots = 6, charm = 5, comfort = 0.12, tier = 4, blurb = "Nests in a great tree." }),
 	B({ id = "grotto", name = "Spring Grotto", kind = "nest", wood = 20000, w = 4, d = 4, slots = 8, charm = 8, comfort = 0.18, tier = 5, blurb = "A warm spring under a rock." }),
 	B({ id = "palace", name = "Driftling Palace", kind = "nest", wood = 60000, w = 5, d = 5, slots = 12, charm = 14, comfort = 0.25, tier = 6, blurb = "The comfiest hut there is." }),
+	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
+	B({ id = "loft", name = "Lighthouse Loft", kind = "nest", wood = 180000, w = 5, d = 5, slots = 14, charm = 18, comfort = 0.3, tier = 11, blurb = "Bunks all the way up a striped tower." }),
+	B({ id = "coralmanor", name = "Coral Manor", kind = "nest", wood = 560000, w = 5, d = 5, slots = 16, charm = 24, comfort = 0.36, tier = 14, blurb = "Pink stone rooms round a warm pool." }),
+	B({ id = "cloudkeep", name = "Cloud Keep", kind = "nest", wood = 1700000, w = 6, d = 5, slots = 18, charm = 32, comfort = 0.42, tier = 17, blurb = "Soft beds in towers wrapped in cloud." }),
+	B({ id = "citadel", name = "Driftling Citadel", kind = "nest", wood = 5000000, w = 6, d = 6, slots = 20, charm = 45, comfort = 0.5, tier = 20, blurb = "Halls and towers for a whole crowd." }),
 	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
 	B({ id = "hatchery", name = "Hatchery", kind = "breed", wood = 3900, w = 4, d = 4, charm = 3, tier = 3, blurb = "Two driftlings and a feast make an egg." }),
 	-- boosts: every building of a knack makes more (each kind counts once)
@@ -136,6 +154,11 @@ local LIST: { BuildingDef } = {
 	B({ id = "watertower", name = "Water Tower", kind = "gen", wood = 13000, w = 3, d = 3, charm = 6, boost = "all", boostBy = 0.06, tier = 4, blurb = "Fresh water for all: everything +6%." }),
 	B({ id = "townhall", name = "Town Hall", kind = "gen", wood = 39000, w = 5, d = 4, charm = 30, boost = "all", boostBy = 0.1, tier = 5, blurb = "The town runs smoothly: everything +10%." }),
 	B({ id = "beacon", name = "Sun Beacon", kind = "gen", wood = 97000, w = 3, d = 3, charm = 40, boost = "all", boostBy = 0.15, tier = 6, blurb = "Its light never sets: everything +15%." }),
+	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
+	B({ id = "seedvault", name = "Seed Vault", kind = "gen", wood = 350000, w = 3, d = 3, charm = 12, boost = "farm", boostBy = 0.12, tier = 12, blurb = "The best seeds, kept cool: farms +12%." }),
+	B({ id = "guildhall", name = "Carpenters' Hall", kind = "gen", wood = 900000, w = 4, d = 3, charm = 20, boost = "wood", boostBy = 0.12, tier = 15, blurb = "Old hands teach the young: wood +12%." }),
+	B({ id = "tradehall", name = "Trade Hall", kind = "gen", wood = 1600000, w = 4, d = 4, charm = 30, boost = "shop", boostBy = 0.12, tier = 16, blurb = "Ships bring new goods to sell: shops +12%." }),
+	B({ id = "tidebell", name = "Tide Bell", kind = "gen", wood = 3500000, w = 3, d = 3, charm = 60, boost = "all", boostBy = 0.1, tier = 19, blurb = "Everyone works to its ring: everything +10%." }),
 	-- paths: 2 x 2 tiles of path and road, drawn (apart from the piece limit, with the water: Tuning.PathPieces)
 	B({ id = "dirtpath", name = "Dirt Path", kind = "path", wood = 5, w = 2, d = 2, feel = "sand", blurb = "A trodden path." }),
 	B({ id = "sandtrail", name = "Sand Trail", kind = "path", wood = 4, w = 2, d = 2, feel = "sand", blurb = "Soft sand, packed down." }),
@@ -213,6 +236,8 @@ local LIST: { BuildingDef } = {
 	B({ id = "willow", name = "Willow", kind = "decor", tab = "nature", sub = "trees", wood = 1800, w = 4, d = 4, charm = 15, tier = 4, feel = "plant", blurb = "Long branches down to the ground." }),
 	B({ id = "bigoak", name = "Great Oak", kind = "decor", tab = "nature", sub = "trees", wood = 6000, w = 5, d = 5, charm = 30, tier = 5, feel = "plant", blurb = "Older than anyone remembers." }),
 	B({ id = "snowpine", name = "Snowy Pine", kind = "decor", tab = "nature", sub = "trees", wood = 300, w = 2, d = 2, charm = 6, tier = 6, feel = "snow", blurb = "Branches heavy with snow." }),
+	B({ id = "starfruit", name = "Starfruit Tree", kind = "decor", tab = "nature", sub = "trees", wood = 2500, w = 3, d = 3, charm = 20, tier = 11, feel = "plant", blurb = "Its fruit grows in little gold stars." }),
+	B({ id = "redwood", name = "Redwood", kind = "decor", tab = "nature", sub = "trees", wood = 9000, w = 4, d = 4, charm = 45, tier = 17, feel = "plant", blurb = "Taller than a lighthouse." }),
 	-- nature: plants and flowers
 	B({ id = "fern", name = "Fern", kind = "decor", tab = "nature", sub = "plants", wood = 15, w = 1, d = 1, charm = 1, feel = "plant", blurb = "Feathery green fronds." }),
 	B({ id = "tallgrass", name = "Tall Grass", kind = "decor", tab = "nature", sub = "plants", wood = 12, w = 2, d = 2, charm = 1, feel = "plant", blurb = "Grass that sways." }),
@@ -231,6 +256,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "giantshroom", name = "Giant Mushroom", kind = "decor", tab = "nature", sub = "plants", wood = 400, w = 2, d = 2, charm = 6, tier = 4, feel = "plant", blurb = "A red cap you could sit under." }),
 	B({ id = "bonsai", name = "Bonsai", kind = "decor", tab = "nature", sub = "plants", wood = 350, w = 1, d = 1, charm = 5, tier = 4, feel = "plant", blurb = "A tiny old tree in a tray." }),
 	B({ id = "glowshroom", name = "Glow Mushrooms", kind = "decor", tab = "nature", sub = "plants", wood = 260, w = 1, d = 1, charm = 5, tier = 6, feel = "magic", blurb = "Blue caps that light up." }),
+	B({ id = "glassflowers", name = "Glass Flowers", kind = "decor", tab = "nature", sub = "plants", wood = 1800, w = 1, d = 1, charm = 14, tier = 15, feel = "magic", blurb = "Petals you can see through." }),
 	-- nature: rocks
 	B({ id = "boulder", name = "Boulder", kind = "decor", tab = "nature", sub = "rocks", wood = 25, w = 2, d = 2, charm = 1, feel = "stone", blurb = "One big round rock." }),
 	B({ id = "rockpile", name = "Rock Pile", kind = "decor", tab = "nature", sub = "rocks", wood = 30, w = 2, d = 2, charm = 1, feel = "stone", blurb = "A heap of smaller stones." }),
@@ -240,6 +266,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "snowrock", name = "Snowy Rock", kind = "decor", tab = "nature", sub = "rocks", wood = 120, w = 2, d = 2, charm = 3, tier = 6, feel = "snow", blurb = "A rock with a cap of snow." }),
 	B({ id = "basaltcols", name = "Basalt Columns", kind = "decor", tab = "nature", sub = "rocks", wood = 700, w = 2, d = 2, charm = 9, tier = 6, feel = "stone", blurb = "Six-sided pillars of black rock." }),
 	B({ id = "lavarock", name = "Lava Rock", kind = "decor", tab = "nature", sub = "rocks", wood = 900, w = 2, d = 2, charm = 11, tier = 7, feel = "fire", blurb = "Still glowing in the cracks." }),
+	B({ id = "geode", name = "Geode", kind = "decor", tab = "nature", sub = "rocks", wood = 3500, w = 2, d = 2, charm = 24, tier = 13, feel = "stone", blurb = "A plain rock split open, purple inside." }),
 	-- decor by theme: the beach
 	B({ id = "coconuts", name = "Coconut Pile", kind = "decor", sub = "beach", wood = 30, w = 1, d = 1, charm = 1, feel = "wood", blurb = "Fresh off the palm." }),
 	B({ id = "sandcastle", name = "Sandcastle", kind = "decor", sub = "beach", wood = 50, w = 2, d = 2, charm = 2, feel = "sand" }),
@@ -248,6 +275,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "shellpile", name = "Shell Pile", kind = "decor", sub = "beach", wood = 80, w = 2, d = 2, charm = 3, feel = "sand" }),
 	B({ id = "surfboards", name = "Surfboard Rack", kind = "decor", sub = "beach", wood = 140, w = 2, d = 1, charm = 3, tier = 2, blurb = "Three boards waiting for waves." }),
 	B({ id = "lifeguard", name = "Lifeguard Chair", kind = "decor", sub = "beach", wood = 700, w = 2, d = 2, charm = 9, tier = 3, blurb = "A tall chair to watch the sea." }),
+	B({ id = "beachhut", name = "Beach Hut", kind = "decor", sub = "beach", wood = 6000, w = 3, d = 3, charm = 30, tier = 12, blurb = "Towels drying on the rail." }),
 	-- the garden
 	B({ id = "gnome", name = "Garden Gnome", kind = "decor", sub = "garden", wood = 50, w = 1, d = 1, charm = 2, feel = "stone", blurb = "Red hat, very serious." }),
 	B({ id = "wheelbarrow", name = "Wheelbarrow", kind = "decor", sub = "garden", wood = 70, w = 2, d = 1, charm = 2, blurb = "Full of soil and a trowel." }),
@@ -258,6 +286,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "sundial", name = "Sundial", kind = "decor", sub = "garden", wood = 300, w = 1, d = 1, charm = 5, tier = 3, feel = "stone", blurb = "Tells the time when it's sunny." }),
 	B({ id = "gazebo", name = "Gazebo", kind = "decor", sub = "garden", wood = 4300, w = 4, d = 4, charm = 30, tier = 3 }),
 	B({ id = "topiary", name = "Topiary", kind = "decor", sub = "garden", wood = 900, w = 2, d = 2, charm = 7, tier = 4, feel = "plant" }),
+	B({ id = "hedgemaze", name = "Hedge Maze", kind = "decor", sub = "garden", wood = 12000, w = 5, d = 5, charm = 60, tier = 14, feel = "plant", blurb = "Easy to get lost in." }),
 	-- the farm
 	B({ id = "churns", name = "Milk Churns", kind = "decor", sub = "farm", wood = 40, w = 1, d = 1, charm = 1, feel = "metal", blurb = "Two tin churns by the gate." }),
 	B({ id = "haybale", name = "Hay Bale", kind = "decor", sub = "farm", wood = 30, w = 2, d = 1, charm = 1, feel = "plant", blurb = "Tied with twine." }),
@@ -267,6 +296,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "trough", name = "Water Trough", kind = "decor", sub = "farm", wood = 110, w = 2, d = 1, charm = 2, tier = 2, blurb = "Wooden, full to the brim." }),
 	B({ id = "cart", name = "Farm Cart", kind = "decor", sub = "farm", wood = 260, w = 3, d = 2, charm = 4, tier = 2, blurb = "Two wheels and a load of veg." }),
 	B({ id = "well", name = "Stone Well", kind = "decor", sub = "farm", wood = 300, w = 2, d = 2, charm = 5, tier = 2, feel = "stone", blurb = "A bucket on a rope." }),
+	B({ id = "redbarn", name = "Red Barn", kind = "decor", sub = "farm", wood = 7000, w = 4, d = 4, charm = 34, tier = 11, blurb = "Big doors and a hay loft." }),
 	-- the harbour
 	B({ id = "bollard", name = "Mooring Post", kind = "decor", sub = "harbour", wood = 30, w = 1, d = 1, charm = 1, blurb = "A rope wound round it." }),
 	B({ id = "buoy", name = "Buoy", kind = "decor", sub = "harbour", wood = 50, w = 1, d = 1, charm = 1, feel = "metal", blurb = "Red and white stripes." }),
@@ -276,6 +306,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "anchor", name = "Anchor", kind = "decor", sub = "harbour", wood = 160, w = 2, d = 1, charm = 3, tier = 2, feel = "metal", blurb = "Too heavy to lift." }),
 	B({ id = "shipwheel", name = "Ship's Wheel", kind = "decor", sub = "harbour", wood = 260, w = 1, d = 1, charm = 4, tier = 3, blurb = "From a ship long gone." }),
 	B({ id = "lighthouse", name = "Lighthouse", kind = "decor", sub = "harbour", wood = 9700, w = 4, d = 4, charm = 60, tier = 3, feel = "stone" }),
+	B({ id = "galleon", name = "Old Galleon", kind = "decor", sub = "harbour", wood = 30000, w = 5, d = 3, charm = 110, tier = 13, blurb = "Ran aground long ago and stayed." }),
 	-- the town
 	B({ id = "bin", name = "Bin", kind = "decor", sub = "town", wood = 25, w = 1, d = 1, charm = 1, feel = "metal", blurb = "Keeps the island tidy." }),
 	B({ id = "signpost", name = "Signpost", kind = "decor", sub = "town", wood = 40, w = 1, d = 1, charm = 1, blurb = "Points four ways at once." }),
@@ -285,36 +316,42 @@ local LIST: { BuildingDef } = {
 	B({ id = "newsstand", name = "Newsstand", kind = "decor", sub = "town", wood = 900, w = 2, d = 2, charm = 8, tier = 4, blurb = "Papers and postcards." }),
 	B({ id = "bandstand", name = "Bandstand", kind = "decor", sub = "town", wood = 11000, w = 4, d = 4, charm = 55, tier = 4 }),
 	B({ id = "clocktower", name = "Clock Tower", kind = "decor", sub = "town", wood = 15000, w = 3, d = 3, charm = 70, tier = 4, feel = "stone" }),
+	B({ id = "flowerclock", name = "Flower Clock", kind = "decor", sub = "town", wood = 8000, w = 3, d = 3, charm = 40, tier = 12, feel = "plant", blurb = "Its hands turn over a bed of flowers." }),
 	-- the jungle
 	B({ id = "tikimask", name = "Tiki Mask", kind = "decor", sub = "jungle", wood = 140, w = 1, d = 1, charm = 3, tier = 2, blurb = "A carved face on a post." }),
 	B({ id = "totem", name = "Totem Pole", kind = "decor", sub = "jungle", wood = 980, w = 2, d = 2, charm = 12, tier = 2 }),
 	B({ id = "parrotperch", name = "Parrot Perch", kind = "decor", sub = "jungle", wood = 220, w = 1, d = 1, charm = 4, tier = 3, blurb = "A carved parrot on a branch." }),
 	B({ id = "vinearch", name = "Vine Arch", kind = "decor", sub = "jungle", wood = 420, w = 3, d = 1, charm = 6, tier = 3, feel = "plant", blurb = "Two posts lost in creepers." }),
 	B({ id = "idol", name = "Mossy Idol", kind = "decor", sub = "jungle", wood = 1200, w = 2, d = 2, charm = 13, tier = 4, feel = "stone", blurb = "A big stone head, half buried." }),
+	B({ id = "templesteps", name = "Temple Steps", kind = "decor", sub = "jungle", wood = 20000, w = 4, d = 4, charm = 80, tier = 15, feel = "stone", blurb = "Stone steps up to a little shrine." }),
 	-- frost
 	B({ id = "snowman", name = "Snowman", kind = "decor", sub = "frost", wood = 80, w = 1, d = 1, charm = 2, tier = 2, feel = "snow", blurb = "Carrot nose, pebble smile." }),
 	B({ id = "sled", name = "Sled", kind = "decor", sub = "frost", wood = 160, w = 2, d = 1, charm = 3, tier = 6, feel = "snow", blurb = "Red runners, waiting for a hill." }),
 	B({ id = "icelantern", name = "Ice Lantern", kind = "decor", sub = "frost", wood = 200, w = 1, d = 1, charm = 4, tier = 6, feel = "snow", blurb = "A candle in a block of ice." }),
 	B({ id = "icesculpture", name = "Ice Sculpture", kind = "decor", sub = "frost", wood = 1100, w = 2, d = 2, charm = 12, tier = 6, feel = "snow", blurb = "A swan carved out of ice." }),
 	B({ id = "igloo", name = "Igloo", kind = "decor", sub = "frost", wood = 1500, w = 3, d = 3, charm = 14, tier = 6, feel = "snow", blurb = "Snow blocks in a dome." }),
+	B({ id = "frozenfall", name = "Frozen Waterfall", kind = "decor", sub = "frost", wood = 15000, w = 3, d = 2, charm = 65, tier = 16, feel = "snow", blurb = "Stopped in the middle of falling." }),
 	-- autumn
 	B({ id = "leafpile", name = "Leaf Pile", kind = "decor", sub = "autumn", wood = 30, w = 2, d = 2, charm = 1, tier = 2, feel = "plant", blurb = "Just right for jumping in." }),
 	B({ id = "basket", name = "Harvest Basket", kind = "decor", sub = "autumn", wood = 60, w = 1, d = 1, charm = 2, tier = 2, feel = "plant", blurb = "Apples, squash and a corn cob." }),
 	B({ id = "pumpkinstack", name = "Pumpkin Stack", kind = "decor", sub = "autumn", wood = 70, w = 1, d = 1, charm = 2, tier = 2, feel = "plant", blurb = "Three pumpkins, biggest at the bottom." }),
 	B({ id = "cornstalks", name = "Corn Stalks", kind = "decor", sub = "autumn", wood = 90, w = 2, d = 1, charm = 2, tier = 3, feel = "plant", blurb = "Dry stalks tied in bundles." }),
 	B({ id = "jackolantern", name = "Carved Pumpkin", kind = "decor", sub = "autumn", wood = 120, w = 1, d = 1, charm = 3, tier = 3, feel = "fire", blurb = "A grin lit from inside." }),
+	B({ id = "ciderpress", name = "Cider Press", kind = "decor", sub = "autumn", wood = 4000, w = 2, d = 2, charm = 22, tier = 13, blurb = "Apples go in the top." }),
 	-- the desert
 	B({ id = "waterjars", name = "Water Jars", kind = "decor", sub = "desert", wood = 80, w = 1, d = 1, charm = 2, tier = 3, feel = "stone", blurb = "Tall clay jars, cool inside." }),
 	B({ id = "claypots", name = "Clay Pots", kind = "decor", sub = "desert", wood = 90, w = 2, d = 1, charm = 2, tier = 3, feel = "stone", blurb = "Painted pots in a row." }),
 	B({ id = "rug", name = "Market Rug", kind = "decor", sub = "desert", wood = 300, w = 2, d = 2, charm = 5, tier = 5, feel = "cloth", blurb = "Woven red and gold." }),
 	B({ id = "stripedtent", name = "Striped Tent", kind = "decor", sub = "desert", wood = 1400, w = 3, d = 3, charm = 14, tier = 5, feel = "cloth", blurb = "Cool shade on a hot day." }),
 	B({ id = "sandarch", name = "Sandstone Arch", kind = "decor", sub = "desert", wood = 1600, w = 3, d = 1, charm = 15, tier = 5, feel = "stone", blurb = "A gateway of carved stone." }),
+	B({ id = "obelisk", name = "Desert Obelisk", kind = "decor", sub = "desert", wood = 9000, w = 2, d = 2, charm = 45, tier = 14, feel = "stone", blurb = "Carved on all four sides." }),
 	-- the fairy glade
 	B({ id = "fairylantern", name = "Fairy Lantern", kind = "decor", sub = "fairy", wood = 300, w = 1, d = 1, charm = 5, tier = 5, feel = "magic", blurb = "A jar of tiny lights." }),
 	B({ id = "mushroomring", name = "Mushroom Ring", kind = "decor", sub = "fairy", wood = 700, w = 3, d = 3, charm = 9, tier = 5, feel = "magic", blurb = "Don't step inside." }),
 	B({ id = "moonstone", name = "Moonstone", kind = "decor", sub = "fairy", wood = 2200, w = 2, d = 2, charm = 20, tier = 6, feel = "magic", blurb = "A pale stone that glows at night." }),
 	B({ id = "wishingwell", name = "Wishing Well", kind = "decor", sub = "fairy", wood = 2600, w = 2, d = 2, charm = 22, tier = 6, feel = "magic", blurb = "Coins shine at the bottom." }),
 	B({ id = "crystalarch", name = "Crystal Arch", kind = "decor", sub = "fairy", wood = 9000, w = 3, d = 1, charm = 50, tier = 8, feel = "magic", blurb = "Two crystals bent into an arch." }),
+	B({ id = "fairyhouse", name = "Fairy Tree House", kind = "decor", sub = "fairy", wood = 16000, w = 3, d = 3, charm = 70, tier = 16, feel = "magic", blurb = "Tiny doors all the way up the trunk." }),
 	-- the zen garden
 	B({ id = "rockgarden", name = "Rock Garden", kind = "decor", sub = "zen", wood = 70, w = 2, d = 2, charm = 2, feel = "stone" }),
 	B({ id = "bambooscreen", name = "Bamboo Screen", kind = "decor", sub = "zen", wood = 200, w = 2, d = 1, charm = 4, tier = 4, blurb = "Canes tied in a panel." }),
@@ -322,11 +359,13 @@ local LIST: { BuildingDef } = {
 	B({ id = "stonelantern", name = "Stone Lantern", kind = "decor", sub = "zen", wood = 400, w = 1, d = 1, charm = 6, tier = 4, feel = "stone", blurb = "A small light in a stone house." }),
 	B({ id = "zenbasin", name = "Water Basin", kind = "decor", sub = "zen", wood = 500, w = 1, d = 1, charm = 6, tier = 5, feel = "water", blurb = "Bamboo drips into a stone bowl." }),
 	B({ id = "lanterntower", name = "Lantern Tower", kind = "decor", sub = "zen", wood = 4800, w = 2, d = 2, charm = 32, tier = 7, feel = "stone", blurb = "Stone roofs stacked five high." }),
+	B({ id = "teahouse", name = "Tea Pavilion", kind = "decor", sub = "zen", wood = 25000, w = 4, d = 4, charm = 95, tier = 18, blurb = "Mats, a low table and the kettle on." }),
 	-- the volcano
 	B({ id = "firebasin", name = "Fire Basin", kind = "decor", sub = "volcano", wood = 900, w = 1, d = 1, charm = 10, tier = 7, feel = "fire", blurb = "Flames in an iron bowl." }),
 	B({ id = "steamvent", name = "Steam Vent", kind = "decor", sub = "volcano", wood = 1400, w = 2, d = 2, charm = 14, tier = 7, feel = "fire", blurb = "Hot breath from under the island." }),
 	B({ id = "obsidian", name = "Obsidian Spire", kind = "decor", sub = "volcano", wood = 5000, w = 2, d = 2, charm = 34, tier = 8, feel = "stone", blurb = "Black glass, sharp as a knife." }),
 	B({ id = "lavapool", name = "Lava Pool", kind = "decor", sub = "volcano", wood = 9000, w = 3, d = 3, charm = 50, tier = 9, feel = "fire", blurb = "Bubbling and much too hot." }),
+	B({ id = "emberforge", name = "Ember Forge", kind = "decor", sub = "volcano", wood = 22000, w = 3, d = 3, charm = 85, tier = 17, feel = "fire", blurb = "An anvil beside a pool of fire." }),
 	-- grand pieces
 	B({ id = "statue", name = "Guardian Statue", kind = "decor", sub = "grand", wood = 17000, w = 3, d = 3, charm = 90, tier = 3, feel = "stone" }),
 	B({ id = "grandarch", name = "Grand Arch", kind = "decor", sub = "grand", wood = 32000, w = 5, d = 2, charm = 120, tier = 5, feel = "stone" }),
@@ -337,6 +376,10 @@ local LIST: { BuildingDef } = {
 	B({ id = "bellspire", name = "Sky Bell Tower", kind = "decor", sub = "grand", wood = 520000, w = 3, d = 3, charm = 850, tier = 8, feel = "stone", blurb = "Its bell rings over every island." }),
 	B({ id = "crystalspire", name = "Crystal Spire", kind = "decor", sub = "grand", wood = 900000, w = 3, d = 3, charm = 1150, tier = 9, feel = "magic", blurb = "A tower grown out of crystal." }),
 	B({ id = "rainbowarch", name = "Rainbow Arch", kind = "decor", sub = "grand", wood = 1500000, w = 5, d = 2, charm = 1600, tier = 10, feel = "magic", blurb = "Every colour, end to end." }),
+	B({ id = "colossus", name = "Driftling Colossus", kind = "decor", sub = "grand", wood = 2400000, w = 4, d = 4, charm = 2100, tier = 12, feel = "stone", blurb = "A stone driftling as tall as a tower." }),
+	B({ id = "moonwell", name = "Moonwell", kind = "decor", sub = "grand", wood = 4200000, w = 4, d = 4, charm = 2800, tier = 15, feel = "magic", blurb = "A well that holds the moon." }),
+	B({ id = "stargate", name = "Star Gate", kind = "decor", sub = "grand", wood = 7000000, w = 5, d = 2, charm = 3600, tier = 18, feel = "magic", blurb = "A ring of stone full of stars." }),
+	B({ id = "seacrown", name = "Crown of the Sea", kind = "decor", sub = "grand", wood = 12000000, w = 5, d = 5, charm = 4500, tier = 20, feel = "metal", blurb = "Coral and gold, built up in rings." }),
 	-- fun: seats
 	B({ id = "logseats", name = "Log Seats", kind = "decor", tab = "fun", sub = "seats", wood = 50, w = 2, d = 2, charm = 2, blurb = "Logs round a stump table." }),
 	B({ id = "bench", name = "Bench", kind = "decor", tab = "fun", sub = "seats", wood = 160, w = 3, d = 2, charm = 4 }),
@@ -362,6 +405,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "trampoline", name = "Trampoline", kind = "decor", tab = "fun", sub = "play", wood = 1600, w = 3, d = 3, charm = 12, tier = 4, feel = "cloth", blurb = "Bounce as high as a hut." }),
 	B({ id = "carousel", name = "Merry-Go-Round", kind = "decor", tab = "fun", sub = "play", wood = 1800, w = 3, d = 3, charm = 13, tier = 4, feel = "metal", blurb = "Hold on and spin." }),
 	B({ id = "climbframe", name = "Climbing Frame", kind = "decor", tab = "fun", sub = "play", wood = 2400, w = 3, d = 3, charm = 15, tier = 5, blurb = "Bars, ropes and a lookout." }),
+	B({ id = "bigwheel", name = "Big Wheel", kind = "decor", tab = "fun", sub = "play", wood = 26000, w = 4, d = 2, charm = 100, tier = 13, feel = "metal", blurb = "Once round for the view." }),
 	-- fun: food and treats
 	B({ id = "grill", name = "Grill", kind = "decor", tab = "fun", sub = "treats", wood = 160, w = 1, d = 1, charm = 3, tier = 2, feel = "fire", blurb = "Smoke and something tasty." }),
 	B({ id = "lemonade", name = "Lemonade Stand", kind = "decor", tab = "fun", sub = "treats", wood = 300, w = 2, d = 1, charm = 5, tier = 2, blurb = "A jug, some cups, a sign." }),
