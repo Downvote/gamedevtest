@@ -79,10 +79,10 @@ local Tuning = {
 	-- the whole game unless a gamepass is bought"): nothing shortens it but the Quick Tree pass (EggSecsPass)
 	EggSecs = 600,
 	EggSecsPass = 300,
-	-- three times the eggs a lot since the same request (a lot every 10 minutes in place of every 3: about as many eggs
-	-- an hour as before, so the island grows at the pace GAME_DESIGN 10 promises); the world shows the EggShown rarest
-	-- of them round the roots (the ring's room), the tree's panel every one
-	EggCount = { 14, 16, 19, 22, 25, 27, 27, 27, 27, 27, 27, 27, 30, 30, 30, 30, 33, 33, 33, 33 },
+	-- the eggs a lot by the island's tier: back to the counts from before the 10 minute tree (the request of
+	-- 2026-11-14: "use the same amount of eggs each tree refresh had as before"; they had been tripled to keep the eggs
+	-- an hour); the world shows the EggShown rarest of them round the roots (the ring's room), the tree's panel every one
+	EggCount = { 5, 6, 7, 8, 9, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12 },
 	EggShown = 12,
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
 	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off). About a quarter of what they were since

@@ -755,7 +755,7 @@ running cancelled when the voice plays again; the voice stops when it is over) (
 reused). `playCount(name)`: how many times an event has played on this client (the sims: the footsteps). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
 (DayLight: the surf always; the crickets no longer, there is no night). `music(mood?)`: the background music, a mood's playlist of
 `Monetization.Music` ("day", "night"; nil: quiet) shuffled once and played round, track after track
-(`Music_<mood>` Sounds at `MUSIC_VOL` (0.2) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
+(`Music_<mood>` Sounds at `MUSIC_VOL` (0.4, twice the 0.2 it was since "make the music louder", 2026-11-14) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
 that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades
 it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mood every frame (night from 0.74 of the day to the dawn, else day) and `on` from
 `settings.music`.
@@ -1226,7 +1226,7 @@ line went on 2026-11-14), and what a turn makes of shells a minute, `Rate_shell`
 (GAME_DESIGN 6: the `mini_tree`, "Tree of Life" ("Eggs" on a phone) and `TreeOpen` opening the "tree" panel,
 `TreeNext` ("New eggs in 2:41") over `TreeBar` (an ink bar whose fill Heartbeat runs down from
 `StateClient.clutchLeft`), then a row each of `EggView.best(v, 3)` (on a phone `best(v, 1)`): `EggIcon_<id>` (the
-`egg_<rarity>` sprite), `EggName_<id>` (the rarity's name in its colour) and `CardPrice_<id>` (its cost, a label with
+small `mini_egg_<rarity>` sprite, 9x11, in line with the name: a row is 15 px), `EggName_<id>` (the rarity's name in its colour) and `CardPrice_<id>` (its cost, a label with
 `PriceIcon`, `good` when the shells are there, else `text_dim`), or "No eggs right now", and over the rows the
 see-through `TreeCardTap` opening the "tree" panel (the card buys nothing itself); built again from each
 view only when the rows' ids, costs, whether the shells cover them or the number of eggs change (its `Key`
@@ -1284,7 +1284,7 @@ a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DE
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
 "What it lays now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
 yet" at 0) and, short of the last tier, `Grow` "Expand your island to increase the quality and amount of eggs per batch."; on the right `Eggs` ("Under the
-tree") with `EggCount` ("16 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
+tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
 sprite, "Rare egg" in its colour, "Hatches a rare one" ("an" before uncommon and epic) and `PanelHatch_<id>` (its cost
@@ -1697,7 +1697,10 @@ since the tide went; `food` unused since the Work tab took the Farms tab's place
 `wild`, `rest`, `boss` and `boat` unused since the expeditions went), the eggs `egg_1` .. `egg_7` (12x15, lit as round shells by `sphere_tones` (S's `sphere`: the body's ramp by each pixel's slope on the egg's ellipse, light marks turning with it), matching
 `EggView.LOOK`: cream with brown freckles, green with a white zigzag band, sky blue with white stars, purple with pink
 spots, gold with a band of light, rose with a white crescent and band (ramp `H`), night blue with a little
-constellation (ramp `I`); the tree's card and panel and the Hatchery), the twinkles `twinkle_p1..p3` (7x7, pink) and
+constellation (ramp `I`); the common one's freckles a caramel core and a paler edge mixed into the shell's tone under
+them (the sphere's `mix`), soft and anti-aliased; the tree's panel, the store and the Hatchery), the small eggs
+`mini_egg_1` .. `mini_egg_7` (7x9 inside the outline, hand-toned with `HAND` from `MINI_EGG_TONES` and each rarity's
+marks in `MINI_EGG_MARKS`; the HUD's eggs card), the twinkles `twinkle_p1..p3` (7x7, pink) and
 `glint_1..3` (9x9, white and cyan, pink diagonals), the arrows `arrow_<dir>` (13x13) and
 `arrow_<dir>_t` (7x7), `note`, `heart`, `spark_1..3` (a gold spark: a legendary egg's, Build mode's twinkle),
 `twinkle_1`, `twinkle_2` (7x7: a small white star opening and closing, cyan at its tips: a rare egg's), `poof_1..3`

@@ -462,6 +462,21 @@ local function cardCheck(label)
 		end
 	end
 	H.expect(badRow == nil, "card", label .. ": each row's egg, rarity and price", tostring(badRow))
+	-- (each row's egg inside the card and clear of the row under it: "the egg icons seem to overlap each other and the
+	-- bottom one exceeds the border", 2026-11-14)
+	local cardBottom = card.AbsolutePosition.Y + card.AbsoluteSize.Y
+	local clash, prevBottom = nil, nil
+	for _, e in want do
+		local icon = card:FindFirstChild("EggIcon_" .. e.id, true)
+		if icon and icon:IsA("GuiObject") then
+			local top, bottom = icon.AbsolutePosition.Y, icon.AbsolutePosition.Y + icon.AbsoluteSize.Y
+			if (prevBottom ~= nil and top < prevBottom) or bottom >= cardBottom then
+				clash = clash or string.format("egg %d: %d..%d, the row above ends %s, the card %d", e.id, top, bottom, tostring(prevBottom), cardBottom)
+			end
+			prevBottom = bottom
+		end
+	end
+	H.expect(clash == nil, "card", label .. ": each egg in its own row, inside the card", tostring(clash))
 	H.expect(#named(p, "CardPrice_", false, card) == #want and #named(p, "EggName_", false, card) == #want, "card", label .. ": no other rows", string.format("%d rows, %d wanted", #named(p, "CardPrice_", false, card), #want))
 	H.expect(#named(p, "CardHatch_", false, card) == 0 and card:FindFirstChild("TreeCardTap", true) ~= nil, "card", label .. ": no buy buttons; the card opens the tree's panel")
 	if #want == 0 then
@@ -664,8 +679,8 @@ local firstIds = {}
 for id = 1, N1 do
 	table.insert(firstIds, tostring(id))
 end
-H.expect(N1 == Tuning.EggCount[1] and N1 == 14 and #c0.list == N1, "eggs", "the first lot laid at once: Tree.count(1), fourteen eggs (a lot every 10 minutes: GAME_DESIGN 6)", tostring(#c0.list))
-H.expect(idsOf(c0.list) == table.concat(firstIds, ",") and c0.next == N1 + 1, "eggs", "their ids 1 to 14, the next 15", idsOf(c0.list))
+H.expect(N1 == Tuning.EggCount[1] and N1 == 5 and #c0.list == N1, "eggs", "the first lot laid at once: Tree.count(1), five eggs (GAME_DESIGN 6)", tostring(#c0.list))
+H.expect(idsOf(c0.list) == table.concat(firstIds, ",") and c0.next == N1 + 1, "eggs", "their ids 1 to 5, the next 6", idsOf(c0.list))
 local commons = 0
 for _, e in c0.list do
 	if e.r == 1 then

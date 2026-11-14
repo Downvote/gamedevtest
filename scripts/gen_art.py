@@ -501,8 +501,105 @@ EGG_STARS = [
     ".AAAzAAAAAA.",
     "...AAAAAA...",
 ]
-for _r, (_mask, _body, _spot) in enumerate([(EGG, "E", "n"), (EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w"), (EGG_MOON, "H", "w"), (EGG_STARS, "I", "w")], start=1):
-    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask], sphere={"body": _body, "light": "wyz", "dark": "np"})
+# A common egg's freckles (the request of 2026-11-14: "the brown parts of the common egg is too noisy, make it anti
+# aliased and less contrast"): four soft ones and a faint fleck, each a caramel core ("n") with a paler edge ("f"),
+# both mixed into the shell's own tone under them (the sphere's "mix"), so they shade with the egg and never jump
+# out of it.
+EGG_FRECKLE = [
+    "....AAAA....",
+    "...AAAAAA...",
+    "...AAAAAA...",
+    "..AAAAffAA..",
+    "..AAAfnnfA..",
+    ".AAAAAffAAA.",
+    ".AfAAAAAAAA.",
+    "AfnfAAAAAAAA",
+    "AAfAAAAAAfAA",
+    "AAAAAAAAfnfA",
+    "AAAAAAAAAfAA",
+    "AAAffAAAAAAA",
+    ".AfnnfAAAAA.",
+    ".AAffAAAfAA.",
+    "...AAAAAA...",
+]
+FRECKLE_MIX = {"n": ("brn2", 0.85), "f": ("brn2", 0.4)}
+S("egg_1", [row.replace("A", "E") for row in EGG_FRECKLE], sphere={"body": "E", "light": "wyz", "dark": "p", "mix": FRECKLE_MIX})
+for _r, (_mask, _body, _spot) in enumerate([(EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w"), (EGG_MOON, "H", "w"), (EGG_STARS, "I", "w")], start=2):
+    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask], sphere={"body": _body, "light": "wyz", "dark": "p"})
+# The tree's eggs small, for the HUD's eggs card (its rows are 15 px: "the egg icons seem to overlap each other and the
+# bottom one exceeds the border. could you make egg sprite icons smaller?", 2026-11-14): drawn again at 7 x 9 inside
+# the outline (never the big ones scaled), the same shape (the top narrower, the base fuller), hand-toned like the other
+# mini icons, each rarity's colour and its mark at this size: the common egg's soft freckles, a zigzag band, a star,
+# pink spots, a band of light, a crescent moon over a band, a little constellation.
+MINI_EGG_TONES = [
+    "..443..",
+    ".4w433.",
+    ".44333.",
+    "4443332",
+    "4433332",
+    "3333322",
+    "3333222",
+    "3322221",
+    ".22111.",
+]
+MINI_EGG_MARKS = [
+    ("E", ["......."] * 2 + ["....f..", "...fn..", ".......", ".f.....", "fn...f.", ".f..fn.", "......."]),
+    ("G", ["......."] * 4 + [".w...w.", "w.w.w.w", "...w...", ".......", "......."]),
+    ("B", ["......."] * 2 + ["...z...", "..zvz..", "...z...", ".....w.", ".w.....", ".......", "......."]),
+    ("P", ["......."] * 3 + ["....p..", ".......", ".p.....", ".....p.", "..p....", "......."]),
+    ("Y", ["......."] * 4 + [".w...w.", "w.w.w.w", "...w...", ".......", "......."]),
+    ("H", ["......."] * 2 + ["..w....", ".w.....", "..w....", ".......", "w.w.w.w", ".w.w.w.", "......."]),
+    ("I", ["......."] * 2 + ["....v..", ".......", "..z....", "....v..", ".......", "...z...", "......."]),
+]
+
+
+def blend(a, b, t):
+    """The colour t of the way from a to b (0xRRGGBB)."""
+    out = 0
+    for sh in (16, 8, 0):
+        ca, cb = (a >> sh) & 0xFF, (b >> sh) & 0xFF
+        out |= int(round(ca + (cb - ca) * t)) << sh
+    return out
+
+
+def mini_egg(name, ramp, marks):
+    # a mark's colour from the shell's tone under it: "n"/"f" a freckle mixed into it (FRECKLE_MIX), "w" white that
+    # turns with the shell (the body's light in its shadow, its base at the rim), "v" white and "z" cyan always (a
+    # star's own light), "p" pink (a step darker in the shadow)
+    flat, rows, pool = {}, [], iter("efghijlmnoqrstuvyz")
+    keys = {}
+    for trow, mrow in zip(MINI_EGG_TONES, marks):
+        out = ""
+        for t, c in zip(trow, mrow):
+            if c == "." or t == ".":
+                out += t
+                continue
+            tone = "1234".index(t) if t in "1234" else 3
+            if c in FRECKLE_MIX:
+                tgt, amt = FRECKLE_MIX[c]
+                hexv = blend(PAL[RAMPS[ramp][tone]], PAL[tgt], amt)
+                key = "mix_%06X" % hexv
+                PAL[key] = hexv
+            elif c == "w":
+                key = "wht" if tone >= 2 else RAMPS[ramp][3 if tone == 1 else 2]
+            elif c == "v":
+                key = "wht"
+            elif c == "z":
+                key = "cyn3"
+            elif c == "p":
+                key = "pnk2" if tone >= 2 else "pnk1" if tone == 1 else RAMPS[ramp][0]
+            else:
+                sys.exit("%s: no mark %r" % (name, c))
+            if key not in keys:
+                keys[key] = next(pool)
+                flat[keys[key]] = key
+            out += keys[key]
+        rows.append(out)
+    HAND(name, rows, [ramp], flat)
+
+
+for _r, (_ramp, _marks) in enumerate(MINI_EGG_MARKS, start=1):
+    mini_egg("mini_egg_%d" % _r, _ramp, _marks)
 # Build mode's puff of dust (Controllers/Puffs): a little cloud that swells, then thins out and breaks up.
 S("poof_1", [".......", ".......", "..ww...", ".wwws..", ".wsss..", "..ss...", "......."], outline=False, shade=False)
 S("poof_2", [".......", "..ww...", ".wwwws.", "wwwssss", ".wssss.", "..sss..", "......."], outline=False, shade=False)
@@ -746,6 +843,10 @@ def build(name, spec, recolor=None):
                     sys.exit("%s: no ramp for %r" % (name, c))
                 t = tones[y][x] if spec["shade"] else 2
                 px[y][x] = (PAL[ramp[t]], 1.0)
+            elif sph and c in sph.get("mix", {}):
+                # (a mark mixed into the shell's own tone under it: a soft freckle that shades with the egg)
+                tgt, amt = sph["mix"][c]
+                px[y][x] = (blend(PAL[RAMPS[sph["body"]][tones[y][x]]], PAL[tgt], amt), 1.0)
             else:
                 key = flat.get(c)
                 if key is None:

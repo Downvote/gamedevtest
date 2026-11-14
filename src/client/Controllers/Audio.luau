@@ -185,7 +185,7 @@ end
 -- Config/Monetization.Music ("day", "night"; nil: quiet), shuffled and played track after track; a change of
 -- mood, and each track's last seconds, crossfade over MUSIC_FADE seconds. Audio.setMusicOn(false) fades it away (the
 -- settings' Music switch). Never yields.
-local MUSIC_VOL = 0.2
+local MUSIC_VOL = 0.4 -- (twice what it was: "make the music louder", 2026-11-14)
 local MUSIC_FADE = 3
 type Track = { s: Sound, mood: string, target: number, handed: boolean, gain: number }
 local mood: string? = nil

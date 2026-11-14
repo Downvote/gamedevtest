@@ -9,8 +9,9 @@
 > tree of life refresh to 5 minutes, and a gamepass that allows for decor and paths to be free"
 
 So the Tree of Life lays every ten minutes from the first island to the last; nothing a driftling has shortens it, and
-only the Quick Tree pass makes it five. Its lots are three times the size, so the islands grow at the same pace (§6,
-§10). Every founder is outlined in white with their name and a title over their head, titles come from play and the
+only the Quick Tree pass makes it five. Its lots were three times the size for a while, then went back to the old
+counts (5 to 12 a lot: "use the same amount of eggs each tree refresh had as before"), so the islands grow more slowly
+than they did with a lot every three minutes (§6, §10). Every founder is outlined in white with their name and a title over their head, titles come from play and the
 store, there are 83 cosmetics in six slots with a shop that turns over every four hours, and the game sells five passes
 (VIP, Double Income, Quick Tree, Free Decor, Premium Track) and nine products (an egg of any rarity from Uncommon up,
 a shop refresh, the starter pack, finishing the Hatcheries now), with a 30-level pass track that has a free and a
@@ -1051,8 +1052,9 @@ the crown, a third ring of light on the ground and a ring of low standing stones
 When the island grows into a new stage, the tree is built again at it.
 
 - **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (600) seconds the tree lays a new lot round its roots,
-  `EggCount` by the island's tier: 14, 16, 19, 22, 25, then 27 from the capital, 30 from Kelpwood Isle and 33 from
-  Starfall Atoll. The eggs still there from the last lot go as the new ones come. Ten minutes the whole game through
+  `EggCount` by the island's tier: 5, 6, 7, 8, 9, then 10 from the capital, 11 from Kelpwood Isle and 12 from Starfall
+  Atoll (the counts from before the 10 minute tree: the request of 2026-11-14, "use the same amount of eggs each tree
+  refresh had as before"; they had been three times that for a while). The eggs still there from the last lot go as the new ones come. Ten minutes the whole game through
   since the request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10 minutes
   throughout the whole game unless a gamepass is bought"): the huts' tree shares are gone (the Leafy family loads as
   Lucky, each passive's share became that much egg luck) and only the Quick Tree pass (§14) makes it five
@@ -1182,8 +1184,11 @@ When the island grows into a new stage, the tree is built again at it.
   The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
   whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
   several a second off a legendary one), only over eggs lying still and at most 140 at once; the motes and the beam go
-  out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_7`: the Tree card, the Tree panel and
-  the Hatchery; a white crescent and band on the mythic one, a little constellation on the celestial one) are drawn to
+  out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_7`: the Tree panel, the store and
+  the Hatchery; the Tree card has its own small ones, `mini_egg_1` .. `mini_egg_7`, 9 by 11 so each sits in its row: "the
+  egg icons seem to overlap each other and the bottom one exceeds the border. could you make egg sprite icons smaller?",
+  2026-11-14; the common egg's freckles are soft caramel with a paler edge since the same day: "the brown parts of the
+  common egg is too noisy, make it anti aliased and less contrast"; a white crescent and band on the mythic one, a little constellation on the celestial one) are drawn to
   match, lit as round shells since 2026-11-14 ("The egg sprites seem flat and have no depth. Reshade them":
   `gen_art.py`'s `sphere_tones`, each pixel's slope on the egg's curve lit from the top left: a soft highlight up there,
   the base over the middle, a shadow crescent and a deep rim round the lower right, the light marks turning with the
@@ -1774,16 +1779,15 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (3 to 9 minutes);
-- a steady supply: at least 12 hatched by half an hour (35 to 53), an epic within two hours (13 to 19 minutes); a
-  legendary comes at 18 to 36 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (10 minutes: the second lot);
+- a steady supply: at least 12 hatched by half an hour (15 to 18), an epic within two hours (10 to 30 minutes); a
+  legendary comes at 22 to 45 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  ten-thousandth: 1,300 to 2,100 shells of 23 to 79 million);
-- the island's second tier within 25 minutes (8 to 9), the third within 50 (24 to 31); at an hour, at least 12
-  driftlings in huts (32 to 56); Harbor Town (tier 4) not before 50 minutes (57 to 64), Coral City (tier 5) not before
-  90 (90 to 111), Sunspire Capital (tier 6) not before two hours (2 hours 14 and 2 hours 57 for two seeds, the third
-  saving for it at three hours; it was two and a half hours before the twenty tiers' cheaper levels), and nothing past
-  it within three hours;
+  ten-thousandth: 160 to 310 shells of 4.8 million);
+- the island's second tier within 25 minutes (11 to 12), the third within 50 (31 to 39); at an hour, at least 12
+  driftlings in huts (22 to 30); Harbor Town (tier 4) not before 50 minutes (86 to 106), Coral City (tier 5) not before
+  90 (2 hours 59 for one seed, the other two a few minutes past three hours), Sunspire Capital (tier 6) not before two
+  hours (4 hours 50 to 5 hours 9), and nothing past it within three hours;
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
   food.
 
@@ -1794,6 +1798,11 @@ city tiers with it, so every seed has the town in the second hour and one reache
 driftling work anywhere (2026-11-13) changed little: a driftling with no room at its knack now works somewhere else
 instead of resting, and the Career still builds for its knack and moves it there once that stands, so Harbor Town came
 about ten minutes later than before and Coral City half an hour later.
+
+Going back to the old lots on the 10 minute tree (2026-11-14: "use the same amount of eggs each tree refresh had as
+before") slowed the middle of the game: about a third as many eggs an hour as with lots three times the size, so
+Harbor Town comes at 86 to 106 minutes (was 57 to 64), Coral City at about three hours (was 90 to 111 minutes) and
+Sunspire Capital at about five. The early bounds all still hold.
 
 The cheaper work and hut buildings (2026-11-13, `Tuning.BuildingPrice` 0.3) moved everything up. At the new prices the
 old Career ran short of wood: it built wood only while wood came in slowly, a few cheap camps were enough for that, and
@@ -1843,23 +1852,24 @@ Driftling Haven a fifth cheaper, the town came at 55 to 59 minutes (was 57 to 65
 a half hours to two; with one store the town and the city sit about where they were and the capital comes sooner (the
 bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take about half an
 hour of the checker's time each): `luau tests/career.luau -a <seed> 1800` prints it. With today's settings (shells as
-the one store, the cheaper eggs, the automatic work, the housing limit, and since the request of 2026-11-14 the tree's
-lots every 10 minutes, three times the size) the three seeds reach each island at:
+the one store, the cheaper eggs, the automatic work, the housing limit, and since 2026-11-14 the tree's lots every 10
+minutes, 5 to 12 eggs each) the three seeds reach each island at:
 
 | Tier | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|
-| 7 Moonlit Bay | 4 h 24 | 4 h 09 | 4 h 06 |
-| 10 Driftling Haven | 10 h 43 | 9 h 57 | 9 h 33 |
-| 11 Lantern Cove | 13 h 25 | 12 h 37 | 12 h 05 |
-| 13 Kelpwood Isle | 17 h 26 | 16 h 03 | 15 h 45 |
-| 15 Cloudberry Isle | 20 h 21 | 18 h 51 | 18 h 34 |
-| 17 Starfall Atoll | 22 h 26 | 20 h 44 | 20 h 27 |
-| 20 Everdrift | 25 h 36 | 23 h 51 | 23 h 41 |
+| 7 Moonlit Bay | 7 h 40 | 8 h 31 | 8 h 41 |
+| 10 Driftling Haven | 15 h 53 | 16 h 44 | 17 h 23 |
+| 11 Lantern Cove | 18 h 39 | 19 h 33 | 20 h 03 |
+| 13 Kelpwood Isle | 22 h 18 | 23 h 26 | 23 h 44 |
+| 15 Cloudberry Isle | 24 h 31 | 25 h 58 | 26 h 03 |
+| 17 Starfall Atoll | 26 h 49 | 28 h 27 | 28 h 17 |
+| 20 Everdrift | 30 h 21 | 32 h 15 | 31 h 55 |
 
-(Before the 10 minute tree, with lots of 5 to 12 every three minutes, Everdrift came at 22 h 12 to 26 h 13: the bigger
-lots keep the pace.) Lantern Cove takes two and a half hours after Driftling Haven, the next two islands about two hours each, and from
-Kelpwood Isle on about an hour and a quarter each, as the island's income catches up with the prices. Everdrift comes
-in 23 to 26 hours, housing 772 to 814 driftlings on about 620 pieces with charm adding the full 100% to every shell.
+(Before the 10 minute tree, with the same lots every three minutes, Everdrift came at 22 h 12 to 26 h 13; with lots
+three times the size every 10 minutes, at 23 h 41 to 25 h 36.) Lantern Cove takes about two and three quarter hours
+after Driftling Haven, the next two islands about an hour and three quarters each, and from Kelpwood Isle on a little
+over an hour each, as the island's income catches up with the prices. Everdrift comes in 30 to 32 hours, housing 758
+to 788 driftlings on about 600 pieces with charm adding the full 100% to every shell.
 Getting there took two changes to the Career and two to the prices. The old Career filled a full island with idle
 lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Bay for good; now a building with no room left
 takes the weakest of its kind's place (above), which also brought Driftling Haven from never to inside a day. With the
@@ -2002,7 +2012,8 @@ reason.
   quiet: calm, drumless music that sits in the background. Soft acoustic island guitar by day (Campfire Stories,
   Tender Reflection, Home Camp), soft solo piano from the twilight (Gymnopedie No. 1, two Live Piano Stories), each
   evened out to the same loudness. Chosen by measuring the tracks (notes a second, the drums' share, the beat's strength, the
-  loudness section by section), not by their names. The Settings panel's Music switches it off and on.
+  loudness section by section), not by their names. The Settings panel's Music switches it off and on. It plays at
+  twice the volume it first had ("make the music louder", 2026-11-14).
 
   > The requests (2026-11-10): "also, find cozy background music"; "the background track is too upbeat and noisy.
   > find one that would fit well as background noise and is cozy"

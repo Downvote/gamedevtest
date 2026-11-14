@@ -567,8 +567,11 @@ local function updateTree(v: Types.ClientView)
 		local cost = e.cost or 0
 		local text = Numbers.coins(cost)
 		local bw = math.max(34, UIKit.textWidth(text) + 18)
-		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(PAD - 1, y), 4).Name = "EggIcon_" .. e.id
-		UIKit.text(f, rar.name, UDim2.fromOffset(w - bw - 22, 10), UDim2.fromOffset(PAD + 13, y + 2), { color = UIKit.color(rar.color), z = 4, name = "EggName_" .. e.id })
+		-- (the small egg, 9 x 11, in line with the name: the big one is taller than a row. The request of 2026-11-14:
+		-- "the egg icons seem to overlap each other and the bottom one exceeds the border. could you make egg sprite
+		-- icons smaller?")
+		PixelSprites.image(f, "mini_egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(PAD, y + 1), 4).Name = "EggIcon_" .. e.id
+		UIKit.text(f, rar.name, UDim2.fromOffset(w - bw - 21, 10), UDim2.fromOffset(PAD + 12, y + 2), { color = UIKit.color(rar.color), z = 4, name = "EggName_" .. e.id })
 		local can = v.shells >= cost
 		local price = UIKit.text(f, text, UDim2.fromOffset(bw - 14, 10), UDim2.fromOffset(w - bw - PAD + 1, y + 2), { x = "right", color = if can then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "CardPrice_" .. e.id })
 		PixelSprites.image(price, "mini_shell", UDim2.new(1, 2, 0, 0), 5).Name = "PriceIcon"
