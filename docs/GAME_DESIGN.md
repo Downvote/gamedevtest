@@ -1,6 +1,20 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest): "also, make weather and seasons, and eggs spawns are affected by these with
+> The request (2026-11-14, the latest): "also, make shells the main currency, allowing you to buy decor and
+> expansions with it. remove wood as a currency. the wood tab buildings will also now give shells. make it such that
+> creatures are adept in either wood, farm or shops as seen in the build tab instead of individual things like
+> fishing. remove the visitors mechanic, charm simply increases your shell gain."
+
+So shells are the only money now. Everything that made wood sells it for shells instead, and shells pay for the eggs,
+every building, decor, path and fence and for growing the island; an old save's wood is added to its shells. A price
+that was wood is `Tuning.WoodShells` (3) shells a wood, times `WoodTierUp` (1.55) for each tier past the second, since
+the farms' and shops' shells now go into building too (§4, §4.4, §10). Each driftling is good at one of the Work tab's
+three groups, farms, wood or shops: the twelve that fished moved, the sea's catchers to the farms and the rest to wood
+or shops, the Fishing Pier and the Kelp Farm count as farms, the Smokehouse boosts farms, and an old Angler mutation is
+a Green Thumb of the same tier (§6). The visitors are gone; charm raises every shell the island makes, up to double
+(§3).
+
+> The request (2026-11-14): "also, make weather and seasons, and eggs spawns are affected by these with
 > different mutations"
 
 So the sea has seasons and weather now, the same for everyone, off the sea's clock: spring, summer, autumn and winter
@@ -98,7 +112,7 @@ So the coast's layers are bevelled into diagonals and every stepped trunk is one
 So everything on the Work tab (farms, lumber, shops, boosts) and the Huts tab (the huts and the Hatchery) costs about
 a third of what it did (`Tuning.BuildingPrice` 0.3, to two figures: a Lumber Camp 21 wood, a Veggie Patch 12, a
 Driftling Hut 17, a Snack Stall 30, a Sawmill 190, a Hatchery 1,200, a Driftling Palace 18,000). Decor, paths, fences
-and water keep their prices, and growing the island costs what it did.
+and water keep their prices, and growing the island costs what it did. (Those prices are shells now: §4.)
 
 > The request (2026-11-13): "remove the docks area, it should just be an island. players can swim around
 > in water to reach other player islands."
@@ -113,7 +127,7 @@ name; a founder now appears on the plaza, and Home brings them back there.
 > The request (2026-11-13): "make it such that each creature can work at any place, and is no longer
 > restricted."
 
-So any driftling can work at any farm, fishing pier, lumber camp or shop. Its **knack** stays as what it's best at:
+So any driftling can work at any farm, lumber camp or shop. Its **knack** stays as what it's best at:
 its passive usually helps at buildings of its knack ("+15% at farms"), so it works a little faster there, and a new
 driftling goes to a free place of its knack first, else to the free place where it works fastest, rather than
 resting. The Driftlings panel's Work picker lists every workplace on the island with how fast this driftling works at
@@ -178,8 +192,8 @@ tree came back without its pen, its Speed and Luck upgrades and Equip best.
 > With the tide (2026-11-13): "also, make wood the main resource for building/expanding and shells the main resource
 > of getting new driftlings. remove food as a resource"
 
-That still holds: wood builds everything and grows the island, shells hatch the tree's eggs (§3). Food is gone. A save
-from before keeps its huts' driftlings and gets the old pen's back as shells (§10).
+That held until 2026-11-14, when shells became the only money (above, §3). Food is gone. A save from before keeps its
+huts' driftlings and gets the old pen's back as shells (§10).
 
 > The request (2026-11-12, later): "remove villagers, only creatures should be enough"
 
@@ -215,27 +229,27 @@ reference"), the pixel art rules (§2) and the polish requests (§11). The game 
 Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire on
 its grass and a Tree of Life behind the fire, the sea all round. Every few minutes the tree lays **eggs**
 round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
-then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build a Lumber Camp for wood, farms
-and shops for shells, and huts for the driftlings you hatch; each one works wherever you send it, a little faster at
+then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build lumber camps, farms and shops,
+which all sell for shells, and huts for the driftlings you hatch; each one works wherever you send it, a little faster at
 the kind of building it's good at, more the rarer it is. Paths, fences, rivers and decor in 13 themes give it a look of its own. The driftlings do all the work: there are
-no villagers. Wood pays for every building and for growing the island, shells pay for eggs, and once the huts are full a
-better hatchling can take a weak one's place. The islands of everyone on the server sit side by side on a shared sea, and
+no villagers. Shells pay for the eggs, every building and growing the island, decor's charm brings in more of them,
+and once the huts are full a better hatchling can take a weak one's place. The islands of everyone on the server sit side by side on a shared sea, and
 you swim from one to the next. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
 decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
 ## 1. The loop in one paragraph
 
-Build a Lumber Camp for wood, a Veggie Patch that sells what it grows for shells, and a Driftling Hut; each building
-works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its wood and shells. All the
+Build a Lumber Camp that sells the wood it cuts, a Veggie Patch that sells what it grows, and a Driftling Hut; each
+building works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its shells. All the
 while the Tree of Life lays a new lot of eggs every three minutes, five on a new island, and the ones left from the last
 lot go. Tap the tree (or an egg, or the Tree card) to see them and hatch one there: out comes a driftling of the
 egg's rarity, now and then of a rarer one, with mutations of its own, shown off in a short hatch scene. It
-moves into a hut and takes a place at a farm, pier, lumber camp or shop (its knack's first), adding to what it makes, a
+moves into a hut and takes a place at a farm, lumber camp or shop (its knack's first), adding to what it makes, a
 legendary seven times what a common one adds. Rarer eggs cost more, and on a bigger island every egg costs more, the
 tree lays more of them and the rare ones come more often. When every hut is full, the new one takes the place of one you
-pick, and that one is sold. Spend wood on more buildings, huts (so many a tier), and on decor, paths, fences and water
-(charm brings the visitors who buy at the shops), and expand the island for bigger buildings, more huts, more eggs and
+pick, and that one is sold. Spend shells on more buildings, huts (so many a tier), and on decor, paths, fences and
+water (their charm raises every shell the island makes), and expand the island for bigger buildings, more huts, more eggs and
 new kinds of driftling, and past the capital for more room and better eggs. Nothing happens while you are away (no
 offline progress).
 
@@ -296,7 +310,7 @@ floor, it just looks noisy", 2026-11-14),
   a little more, the driftlings' fur, feathers and scales half way). The lawn's 2D tufts are the lawn a shade off
   instead of a dark green stroke, and the flowers keep their colour a little softer. The marks are still there up
   close; from afar the island reads calmer. (The brightness was toned down to the picture's at the same time, §8.)
-- **The founders** (yours and your neighbours') and the **visitors** are little chibis: shorts over bare shins, shoes
+- **The founders** (yours and your neighbours') are little chibis: shorts over bare shins, shoes
   on light soles, a shirt with a collar, buttons and a belt with a buckle, sleeves over bare forearms and fists, ears,
   brows, a mouth and a glint in each eye; knees and elbows bend, and the face changes. **Driftlings** are small 3D
   creatures of our own design walking to their work and doing it, each with its own details (moss and stubby arms on
@@ -354,7 +368,7 @@ floor, it just looks noisy", 2026-11-14),
 
   **Black glass** (`UIKit.glass`): every card, panel, bar, tip and notice is flat black glass (`Palette.ui.glass`,
   62% opaque; a panel 84%, its lists over the world) with corners of two stepped pixels and no outline, frame, bevel
-  or shadow. The top bar is one strip: the wood, the shells and the day, each an 11 px icon and its number (as wide as
+  or shadow. The top bar is one strip: the shells and the day (the wood went on 2026-11-14), each an 11 px icon and its number (as wide as
   the number needs), a thin gold bar under "Day 12" for how far through the day it is; the music's note on its own
   dark square in the top right. Under the top bar on the left a second strip holds lines like the season and the
   weather (empty, it hides), and the quest's card under that. Down the right the island card and the Tree of Life's
@@ -427,27 +441,34 @@ floor, it just looks noisy", 2026-11-14),
 > The requests (2026-11-10): "days go by too fast, it should take a few hours at least for a day to pass. also,
 > lighting seems to not follow along with the camera as the camera moves"
 
+> The request (2026-11-14): "also, make shells the main currency, allowing you to buy decor and expansions with it.
+> remove wood as a currency. the wood tab buildings will also now give shells. make it such that creatures are adept
+> in either wood, farm or shops as seen in the build tab instead of individual things like fishing. remove the
+> visitors mechanic, charm simply increases your shell gain."
+
 - **A turn** is `TurnSeconds` (40 s) while you are on the server: the island's pace. Each building that makes
   something makes its rate a turn times what its driftlings put in (the island card shows it a minute: "+57/min"):
   `IdleOutput` (0.3) with nobody at it, else the sum of its driftlings' work (each `PalWork`, 0.6, times its rarity's
   `RarityWork` and its shares: §6), more again at Lv 2 and 3 (`UpgradeMult`: only a building upgraded in an older
   save is above Lv 1, since upgrades were taken out, §4). Nothing eats.
-- **Two stores** (the request of 2026-11-13 at the top: "make wood the main resource for building/expanding and
-  shells the main resource of getting new driftlings. remove food as a resource"). **Wood** comes from the wood
-  buildings and pays for every piece, path and replacement and for growing the island (§4). **Shells** come from the
-  farms, which sell what they grow or catch, and the shops, which sell to the visitors; they pay for the tree's
-  eggs (§6) and the Hatchery's feasts (§6.1). With food gone the buildings' rates moved: the Lumber Camp makes
-  30 wood a turn (it made 6), the other wood buildings three times what they made, and each farm sells three times
-  what it grew in food (a Veggie Patch 36 shells a turn). The shops kept their rates and no longer use anything up.
-  Hunger, eating and the food chip went with the food.
+- **One store: shells** (since 2026-11-14, above). Every building that makes something sells it for shells: a farm
+  what it grows or catches, a wood building what it cuts, a shop its snacks, meals and rooms. Shells pay for
+  everything: the tree's eggs (§6), the Hatchery's feasts (§6.1), every piece, path, fence and replacement (§4) and
+  growing the island (§4.4). The wood buildings make about what a farm of the same price makes (the Lumber Camp 36 a
+  turn, the Sawmill 130, Timber Works 240, the Bamboo Grove 440, the Grand Mill 880). Before that day there were two
+  stores (2026-11-13: "make wood the main resource for building/expanding and shells the main resource of getting new
+  driftlings. remove food as a resource"): wood built, shells hatched. An older save's wood is added to its shells as
+  it loads (§10). Food went the same week, and with it hunger and the food chip.
 - **A day** is `DaySeconds` (4 hours) of the sea's clock (`WorldClock`: one time of day for every island on the
   server, carried on across visits: it follows the real clock): the HUD shows the day count and how far through the
   day it is (a sun; there is no night since 2026-11-14, §8); each day's end while you play counts a day (a banner).
-- **Shops** sell to the visitors: their rate times visitors / `ShopVisitors` (at most double). **Visitors** a turn:
-  1 + charm / `VisitorCharm`, at most `VisitorsMax`.
-- **Charm:** every piece's charm, and one for each driftling living in a hut plus its charm share (Cute and its
-  family; `Island.charm`). Charm brings visitors; nobody moves in any more.
-- The stores reach the client every second; a new day brings its banner ("Day 12").
+- **Charm** is every piece's charm, and one for each driftling living in a hut plus its charm share (Cute and its
+  family; `Island.charm`). It raises every shell the island makes (`Island.charmBonus`): times 1 + `CharmMax` x charm
+  / (charm + `CharmHalf`), with `CharmMax` 1 and `CharmHalf` 200, so 50 charm is +20%, 200 is +50% and 600 is +75%,
+  never past double. The first decor counts the most. Shops sell at their plain rate: the visitors who bought there
+  went with the request (they were a number, a turn: 1 + charm / 15, and a shop sold its rate times visitors / 4).
+  The island card shows the charm and its bonus ("Charm bonus +43%").
+- The shells reach the client every second; a new day brings its banner ("Day 12").
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
 
@@ -477,7 +498,7 @@ The buildings that work or house (the tier each opens at in brackets):
 | **wood** | Lumber Camp (1), Sawmill (2), Timber Works (3), Bamboo Grove (4), Grand Mill (5) |
 | **shops** | Snack Stall (1), Beach Cafe (2), Seaside Inn (3), Bakery (4), Grand Bazaar (5), Grand Hotel (6) |
 | **huts** (room, comfort: §6) | Driftling Hut 2, Cozy Burrow 4 +5% (2), Driftling Den 5 +8% (3), Treetop Roost 6 +12% (4), Spring Grotto 8 +18% (5), Driftling Palace 12 +25% (6) |
-| **boosts** | Tool Shed (wood +10%), Windmill (farms +10%), Smokehouse (fishing +10%) (2), Market Hall (shops +12%) (3), Water Tower (all +6%) (4), Town Hall (all +10%) (5), Sun Beacon (all +15%) (6) |
+| **boosts** | Tool Shed (wood +10%), Windmill (farms +10%), Smokehouse (farms +10%) (2), Market Hall (shops +12%) (3), Water Tower (all +6%) (4), Town Hall (all +10%) (5), Sun Beacon (all +15%) (6) |
 | the **Hatchery** (3, §6.1) | |
 
 The rest are there for charm (§3) and for the look of the place:
@@ -521,10 +542,14 @@ save's old ones come up with their price back, §10). Every piece also has a **f
 water, metal, magic, sand, snow, cloth or fire), which picks what flies up and what it sounds like when it goes down
 (§4.5).
 
-Each is paid in wood when placed (since 2026-11-13 its old price in shells and wood added up and rounded; later that
-day the Work and Huts tabs' buildings went to `Tuning.BuildingPrice` (0.3) of that, to two figures: a Lumber Camp 21,
-a Veggie Patch 12, a Driftling Hut 17, a Snack Stall 30; the other pieces from 4 wood for a tile of Sand Trail to
-1,500,000 for the Rainbow Arch), on whole studs of the island's grass (a stud or more in from the sand), turned a
+Each is paid in shells when placed (the request at the top, 2026-11-14: "allowing you to buy decor and expansions
+with it"). Its price is what it cost in wood (since 2026-11-13 its old price in shells and wood added up and rounded,
+the Work and Huts tabs' buildings at `Tuning.BuildingPrice` (0.3) of that), at `Tuning.WoodShells` (3) shells a wood,
+times `WoodTierUp` (1.55) for each tier the piece opens at past the second, to two figures: a Lumber Camp 63, a Veggie
+Patch 36, a Driftling Hut 51, a Snack Stall 90, a Sawmill 570, a Hatchery 5,600, a Driftling Palace 310,000; a tile of
+Sand Trail 12, a Picket Fence length 24, the Rainbow Arch 150,000,000. The farms' and shops' shells go into building
+too now, and a big island's buildings pay for themselves in minutes, so building costs more shells than it did wood,
+the more the bigger the piece's tier (§10 measured it). Pieces go down on whole studs of the island's grass (a stud or more in from the sand), turned a
 quarter at a time, off the campfire's plaza, off every other piece and off water unless it
 is made to go over or on it (§4.3). Paths are the one thing a piece may share a spot with (a paved yard, below).
 
@@ -557,10 +582,10 @@ follows the grid lines), **Box** (drag a box and every free cell inside it is fi
 it), **Erase** (drag over them to take them up, half their price back), **Look around** (drag the view without
 drawing) and **Cancel**. While dragging, each 2 x 2 cell (or each length of fence) shows as a glowing plate: cyan where
 one goes down, yellow where one of another look is swapped for it, orange where one comes up, red where it can't (off
-the grass, on a piece, past the limit or the wood); the bar says how many and what they cost ("12 tiles, 180 wood").
+the grass, on a piece, past the limit or the shells); the bar says how many and what they cost ("12 tiles, 540 shells").
 Letting go lays them in one go (`plot.paint` or `plot.fence`, up to `PAINT_MAX` (40) a request: a long stroke goes in
 a few) or takes them up (`plot.unpaint`, `plot.unfence`). A cell that can't take one is skipped, never refused as a
-whole; running out of wood or room stops where it runs out. Tiles lie on the even studs (a tile's corner at even x and
+whole; running out of shells or room stops where it runs out. Tiles lie on the even studs (a tile's corner at even x and
 z), so they always meet edge to edge, and one moved in Build mode snaps to them. Drawing another look over a path, a
 water tile or a fence swaps it where it lies: half the old one's price back, the new one's paid.
 
@@ -583,10 +608,11 @@ Water keeps its own rules (§4.3).
 > big island that is well decorated should look like a well developed city. give players the ability to
 > replace/upgrade buildings as well, including homes of creatures and villagers"
 
-- **The tiers** (`TierCost`, in wood): Castaway Cay, Palm Isle (600 wood), Grand Isle (9,000), then **Harbor Town**
-  (60,000), **Coral City** (160,000) and **Sunspire Capital** (380,000), and since 2026-11-13 four longer islands past
-  the capital (§4.4), each coming about when the island before it is built up. (They were paid in shells and wood
-  until 2026-11-13; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
+- **The tiers** (`TierCost`, in wood, paid in shells since 2026-11-14 at the rate of §4.4): Castaway Cay, Palm Isle
+  (600 wood: 1,800 shells), Grand Isle (9,000: 42,000), then **Harbor Town** (60,000: 430,000), **Coral City** (160,000:
+  1,800,000) and **Sunspire Capital** (380,000: 6,600,000), and since 2026-11-13 four longer islands past the capital
+  (§4.4), each coming about when the island before it is built up. (They were paid in shells and wood until
+  2026-11-13, in wood until 2026-11-14; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
   early on"; Harbor Town went from 130,000 to 150,000 with the conveyor tide and down to 60,000 with the ten tiers,
   §10.) The island grows north each time (its south shore stays where it is), to twice tier 3's grass at the capital and
   nearly four times at Driftling Haven, and only ever gains land (each tier's shape joined to the smaller ones':
@@ -656,24 +682,25 @@ it is. The founder wades through rivers: each step splashes a few drops and make
 
 Ten tiers. The first six are the old ones with lower walls: Harbor Town 60,000 wood (was 150,000), Coral City 160,000
 (was 320,000), Sunspire Capital 380,000 (was 800,000), so the town comes in the second hour again and a city can come
-in the third (§10). Past the capital four more islands grow north, each as wide as the capital and longer than the one
+in the third (§10). Since 2026-11-14 they cost shells: `TierCost`'s wood at `Tuning.WoodShells` (3) a wood, times
+`WoodTierUp` (1.55) for each tier past the second (`Island.expandCost`), the table's last column. Past the capital four more islands grow north, each as wide as the capital and longer than the one
 before (`Data/Street`'s isles 7 to 10; the lot reaches 136 studs north of the island's origin for the biggest one's
 shallows): Moonlit Bay, Evergreen Isle, Skyreach Isle and Driftling Haven. On Driftling Haven the grass reaches more
 than a hundred studs north of the campfire, 6,608 cells of it, nearly four times a Grand Isle's and 1.8 times the
 capital's.
 
-| Tier | Island | Wood to grow to it | Grass (cells) | Pieces | Path and water tiles | Fence lengths | Huts | Eggs a lot |
-|---|---|---|---|---|---|---|---|---|
-| 1 | Castaway Cay | (the start) | 489 | 36 | 80 | 40 | 4 | 5 |
-| 2 | Palm Isle | 600 | 1,044 | 60 | 150 | 80 | 6 | 6 |
-| 3 | Grand Isle | 9,000 | 1,707 | 90 | 240 | 130 | 8 | 7 |
-| 4 | Harbor Town | 60,000 | 2,367 | 130 | 340 | 180 | 10 | 8 |
-| 5 | Coral City | 160,000 | 3,002 | 180 | 460 | 240 | 12 | 9 |
-| 6 | Sunspire Capital | 380,000 | 3,658 | 240 | 600 | 300 | 14 | 10 |
-| 7 | Moonlit Bay | 800,000 | 4,368 | 300 | 750 | 370 | 16 | 10 |
-| 8 | Evergreen Isle | 1,600,000 | 5,129 | 370 | 900 | 440 | 18 | 10 |
-| 9 | Skyreach Isle | 3,000,000 | 5,977 | 450 | 1,050 | 520 | 20 | 10 |
-| 10 | Driftling Haven | 5,000,000 | 6,608 | 540 | 1,200 | 600 | 22 | 10 |
+| Tier | Island | `TierCost` (wood) | Grass (cells) | Pieces | Path and water tiles | Fence lengths | Huts | Eggs a lot | Shells to grow to it |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Castaway Cay | (the start) | 489 | 36 | 80 | 40 | 4 | 5 | (the start) |
+| 2 | Palm Isle | 600 | 1,044 | 60 | 150 | 80 | 6 | 6 | 1,800 |
+| 3 | Grand Isle | 9,000 | 1,707 | 90 | 240 | 130 | 8 | 7 | 42,000 |
+| 4 | Harbor Town | 60,000 | 2,367 | 130 | 340 | 180 | 10 | 8 | 430,000 |
+| 5 | Coral City | 160,000 | 3,002 | 180 | 460 | 240 | 12 | 9 | 1,800,000 |
+| 6 | Sunspire Capital | 380,000 | 3,658 | 240 | 600 | 300 | 14 | 10 | 6,600,000 |
+| 7 | Moonlit Bay | 800,000 | 4,368 | 300 | 750 | 370 | 16 | 10 | 21,000,000 |
+| 8 | Evergreen Isle | 1,600,000 | 5,129 | 370 | 900 | 440 | 18 | 10 | 67,000,000 |
+| 9 | Skyreach Isle | 3,000,000 | 5,977 | 450 | 1,050 | 520 | 20 | 10 | 190,000,000 |
+| 10 | Driftling Haven | 5,000,000 | 6,608 | 540 | 1,200 | 600 | 22 | 10 | 500,000,000 |
 
 No new buildings or huts open past the capital and no new kinds hatch there. What a bigger island brings instead is
 room (the limits above, up to 264 driftlings in Palaces), the dearest decor (Gilded Walk, Lava Rock, the Lantern
@@ -684,7 +711,7 @@ Haven more than one egg in five is legendary), dearer ones (`EggTier` 160, 270, 
 roll three rarities up on Moonlit Bay and Evergreen Isle and four on the last two (§6). The tree stays at its last
 stage (`TreeStage` 4).
 
-- **Expand** (in the tray's header, its price in wood under it; "Island max" on Driftling Haven): the island grows,
+- **Expand** (in the tray's header, its price in shells under it; "Island max" on Driftling Haven): the island grows,
   its coast reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot
   (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
   fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
@@ -737,7 +764,7 @@ stage (`TreeStage` 4).
   box's words
   list the matching pieces from every tab, by name, row or tab ("lantern" finds the lanterns on every tab), like the
   bakery's decor box. It opens on Work's Wood row. Then the cards: each a 24 x 24 picture of the piece drawn from its
-  own model (§2) over its price in wood (red when you are short), the cheapest first, then the locked ones by the tier
+  own model (§2) over its price in shells (red when you are short), the cheapest first, then the locked ones by the tier
   they open at, each with "Lv7" in place of a price. A mouse over a card shows its tooltip: the name, its size ("3 x 3",
   "2 x 2 tiles", "2-stud lengths"), what it is and what it makes, a hut's room and comfort, its charm, "Goes over
   water." or "Goes on water.", its price and, while locked, "Opens at island level 7." A tap on a locked card says
@@ -778,7 +805,8 @@ stage (`TreeStage` 4).
 The request of 2026-11-12 quoted at the top of this file took them out: "remove villagers, only creatures should be
 enough". Gone with them: the homes and their beds, moving in (`MoveInCharm`), jobs and the Villagers panel
 (`folk.work`, `folk.dismiss`), `Data/Names`, the Folk attribute, the first tips' Tent and the castaway, and the menu's
-Villagers button. Visitors still come for the charm and buy at the shops. A building's work is its driftlings' (§3,
+Villagers button. The visitors who came for the charm went on 2026-11-14 (charm raises the shells now). A building's
+work is its driftlings' (§3,
 §6).
 
 ## 6. Driftlings and the Tree of Life (`Logic/Tree`, `Data/Creatures`, `Data/Traits`, the Tree panel, the Driftlings panel, the Index)
@@ -1073,8 +1101,12 @@ driftlings hatch once the island reaches that kind's tier, above):
 | Reefs | Coralcrab, Lumajelly, Pearlback, Novafox, Tidewyrm, Abyssmaw |
 | Ruins | Relicrab, Rubblet, Glyphowl, Sentinel, Runemoth, Solwyrm |
 
-Each has a **knack** (farms, fishing piers, lumber camps or shops: what it's best at; it may work anywhere, its
-passive usually helping at its knack's buildings), a 3D model built from parts
+Each has a **knack** (farms, wood or shops, the Work tab's three groups: what it's best at; it may work anywhere, its
+passive usually helping at its knack's buildings; since 2026-11-14 there is no fishing knack: "make it such that
+creatures are adept in either wood, farm or shops as seen in the build tab instead of individual things like
+fishing", so the twelve fishers moved, Clawdle, Gullfin, Floe, Coralcrab, Tidewyrm and Abyssmaw to farms, Glowbat,
+Mirewyrm and Breezle to wood, Murkle, Icetoad and Frostdrake to shops, and the Fishing Pier and the Kelp Farm count as
+farms), a 3D model built from parts
 (twenty body plans: blob, crab, bird, bun, lizard, owl, pup, mole, jelly, fox, wyrm, seal, bat, sprite, yeti, snail,
 turtle, frog, moth, golem and drake) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
 the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
@@ -1082,19 +1114,22 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 - **Rarity** (`Traits.RARITY`): Common, Uncommon, Rare, Epic, Legendary (name colours: grey, green, blue, purple,
   gold), the eggs' odds and the work it does above.
 - **A passive of its own** (`passive`: a name and its effects, every kind's different): shares at work (anywhere, or
-  at farms, fishing, lumber or shops), selling for more, charm, or for the whole island eggs sooner, luckier eggs or
-  cheaper eggs ("Snappy Pincers: +15% at fishing, +30% sell price", "Diving Beak: +25% at fishing, eggs 4% sooner").
+  at farms, lumber or shops), selling for more, charm, or for the whole island eggs sooner, luckier eggs or cheaper
+  eggs ("Snappy Pincers: +15% at farms, +30% sell price", "Diving Beak: +25% at farms, eggs 4% sooner"; the fishers'
+  shares went to their new knack's on 2026-11-14).
   The tree, luck and cost shares count only from a driftling in a hut. (Until 2026-11-13 the cost share was food
   eaten; on the tide it was the driftling's own price, and the tree share its arrivals.)
 - **Mutations** (`Data/Traits`, `Pal.muts`): a driftling comes with up to three (about one in three none), kept for
-  life. Ten families of four tiers, each tier rarer and stronger (the fighting families became island ones on
+  life. Nine families of four tiers, each tier rarer and stronger (the fighting families became island ones on
   2026-11-12 and the eating one the eggs' price on 2026-11-13, keeping their ids so old saves read them): Thrifty /
   Frugal / Modest / Selfless (eggs cost 15 / 30 / 50 / 80% less, the huts' together half off at most), Shiny / Glossy
   / Golden / Radiant (sells for 30 / 70 / 150 / 300% more), Cute / Sweet / Adorable / Beloved (+1 / 2 / 3 / 5 charm),
   Leafy / Blooming / Lush / Evergreen (eggs 4 / 8 / 14 / 22% sooner), Lucky / Blessed / Fortunate / Starborn (+5 /
   10 / 18 / 30% egg luck),
-  Busy .. Workaholic (+8 .. 40% work anywhere), and Green Thumb .. Bountiful, Angler .. Sea Sage, Chopper .. Forest
-  Heart, Chatty .. Tycoon (+12 .. 65% at farms, fishing, lumber, shops). Tier weights 46 / 25 / 10 / 3 (and 16 for a
+  Busy .. Workaholic (+8 .. 40% work anywhere), and Green Thumb .. Bountiful, Chopper .. Forest Heart, Chatty ..
+  Tycoon (+12 .. 65% at farms, lumber, shops). The Angler family (Angler .. Sea Sage, at fishing) went with fishing on
+  2026-11-14: a saved one loads as the Green Thumb of its tier (`Traits.clean`), and a driftling with both keeps the
+  first. Tier weights 46 / 25 / 10 / 3 (and 16 for a
   **flaw**: Greedy makes eggs cost 25% more, Dull sells for 20% less, Grumpy takes a charm, Sluggish and Lazy work 8 and 15%
   less; never beside its own family's strength); a rarer driftling rolls fewer flaws and more of the top tiers. Four
   at most (a Hatchery child can gain one, §6.1). Their names show in tier colours (with stars) on the Driftlings
@@ -1213,8 +1248,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   rising from the sand, leaning out and straightening under the crown, the rings in two woods in turn and a little
   narrower going up; the catalog's trees lost their steps too (§4).
 - **No house:** the island's heart is a plaza round a campfire (fire stones, logs, a flame with smoke, seats, a flag
-  and torches). Your sign stands on the south beach with the island's name over it. Visitors stroll the grass round
-  it. There are no docks (2026-11-13): the island stands alone in the sea.
+  and torches). Your sign stands on the south beach with the island's name over it. There are no docks (2026-11-13): the island stands alone in the sea.
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) move the same way.
@@ -1313,16 +1347,16 @@ profile). **The tips** (the banner over the menu bar, or over the build tray in 
 the stores come from:
 
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
-> to buy all the facilities required." (Since 2026-11-13 the stores are wood and shells, and the buildings take wood.)
+> to buy all the facilities required." (Since 2026-11-14 shells are the only store.)
 
-1 "Wood pays for everything you build. Tap Build and place a Lumber Camp."; 2 "Shells hatch eggs. Place a Veggie
-Patch. It sells what it grows."; 3 "Driftlings need somewhere to live. Place a Driftling Hut."; 4 "The Tree of Life
-laid eggs round its roots. Tap the tree to pick one to hatch." (an arrow bobs over your tree); 5 "Visitors
-buy snacks too. Place a Snack Stall for more shells."; 6 "The tree lays new eggs every few minutes. When the huts are
-full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
-("Place a Lumber Camp. Wood pays for everything you build."). Each moves on once what it asks is done, tip 4 once an
-egg has hatched. A new island starts with `StartWood` (300) wood and `StartShells` (60) shells: the camp, the patch,
-the hut and the stall of the tips cost 265 wood, and the shells pay for the first eggs (the first lot has two commons
+1 "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts."; 2 "Shells hatch eggs.
+Place a Veggie Patch. It sells what it grows."; 3 "Driftlings need somewhere to live. Place a Driftling Hut."; 4 "The
+Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch." (an arrow bobs over your tree); 5 "A Snack
+Stall sells snacks for shells too. Place one by the path."; 6 "The tree lays new eggs every few minutes. When the huts
+are full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
+("Place a Lumber Camp. It sells the wood it cuts for shells."). Each moves on once what it asks is done, tip 4 once an
+egg has hatched. A new island starts with `StartShells` (360, the old 300 wood and 60 shells together): the camp, the
+patch, the hut and the stall of the tips cost 240, and the rest pays for the first eggs (the first lot has two commons
 at 20 shells, and the first two hatches are good with wood and at a farm). (Until 2026-11-13 the tips asked for a
 patch, a camp, a stall, a hut and a level of the tree. A save from before keeps its step's number, and a step whose
 task is already done moves on at once.)
@@ -1340,15 +1374,15 @@ Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go 
 the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island has now or what its
 stats have kept (eggs hatched from the tree, sold, the Hatchery's hatched, the rarest had), so one already met can be
 claimed at once. Rewritten for the eggs (2026-11-13), in order: put a driftling to work; sell a driftling; hatch three
-eggs; more wood (a second Lumber Camp); three at work; build another hut (2 huts); an uncommon one ("Green-spotted
+eggs; another camp (a second Lumber Camp); three at work; build another hut (2 huts); an uncommon one ("Green-spotted
 eggs hatch uncommon ones."); another farm (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); a rare
 one; grow your island (tier 2); build a boost; ten driftlings at work; meet twelve kinds; grow the island again (tier
 3); build a Hatchery; hatch an egg in it; an epic one; sixty hatched.
 While one of the rarity quests (an uncommon, a rare or an epic one) is on the go and not met, the tree always has an
 egg of that rarity waiting (§6, "The quest's egg"; the request of 2026-11-14: "also, while the rare one quest is
 active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of life.").
-The rewards are small (40 to 3,000: wood for the building quests, shells for the driftling ones, some both) next to
-what each step costs; the career's player (§10) doesn't claim them, so the economy's bounds are measured without them.
+The rewards are small (40 to 3,000 shells; a quest that paid wood or both pays the same in shells since 2026-11-14) next
+to what each step costs; the career's player (§10) doesn't claim them, so the economy's bounds are measured without them.
 A save from before keeps its place in the list.
 
 **How the game talks** (every tip, notice, card and blurb; CLAUDE.md "Writing" keeps it as a standing rule). The
@@ -1365,7 +1399,10 @@ Sun Beacon is a name). Stat lines keep their "label: value" form.
 
 ## 10. Saves and the economy, checked
 
-The save is version 14 (`Logic/Schema`). It holds the tree's eggs (`clutch`: each egg's id and rarity, and the seconds
+The save is version 15 (`Logic/Schema`). A version 14 save (or older: after the steps below, some of which pay back in
+wood) has its wood added to its shells, one for one, and the wood goes (the request of 2026-11-14 at the top: "remove
+wood as a currency"); a wood that isn't a number, or below nothing, adds nothing. An Angler mutation it holds loads as
+the Green Thumb of its tier (§6). The save holds the tree's eggs (`clutch`: each egg's id and rarity, and the seconds
 to the next lot), checked on every load: rarities 1 to 5, ids unique, no more eggs than the island lays, the clock
 between nothing and three minutes. Its pieces are checked on every load too: each count against its own limit (the
 pieces, the path and water tiles together, the fence lengths, one Tree of Life), their places between -160 and 64 studs
@@ -1393,30 +1430,33 @@ its sea chart; a version 7 save also starts the questline; a version 6 save's dr
 studio's) keeps the founder's look, the settings and its start date and begins a fresh island with the tips.
 
 `tests/Career.luau` plays a sensible player through the same rules (`Logic/*`) for three seeds and three hours. Every
-five seconds they hatch the rarest egg under the tree they can afford (the cheaper first among eggs of one rarity):
+five seconds they grow the island if the shells cover it, then hatch the rarest egg under the tree they can afford (the
+cheaper first among eggs of one rarity; while saving up for the next tier, only one they could pay for three times):
 into a hut with room while a building has a free place or the egg is better than common, or, with every hut full, in a
 swap for their weakest when the egg is two rarities better than it. Then they build what the island lacks: the tips'
 buildings first (a camp, a patch, a hut, a stall), then a hut while every hut is full and there are places at work
 (at the huts' limit, a bigger hut in the smallest one's place, or where there is room once the small one is cleared),
-wood while it comes slowly or while saving for the next building would take over half an hour, a shop a tier, a farm more than the tier, a building for the knack with the most
-driftlings resting or working away from their knack (moving those to it once it stands, as a player would), and decor
-with wood to spare. The catalog has plenty of cheap decor, so the decor stops at a
+the workplace that pays back soonest (the best farm, wood building or shop open, by its rate over its price) while the
+shells come in slowly or while saving for the next tier would take over half an hour, a shop a tier, a farm more than
+the tier, a building for the knack with the most driftlings resting or working away from their knack (moving those to
+it once it stands, as a player would), and decor with shells to spare (one they could pay for four times). The catalog has plenty of cheap decor, so the decor stops at a
 third of the piece limit and two thirds stay for buildings (a player decorates, but not before the huts), and the
 player builds nothing that needs water. Once the island is going they save up for the next tier, and they
 expand as soon as they can (the extra eggs laid at once). Its random numbers are seeded through a hash, as the server
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (3 to 4 minutes);
-- a steady supply: at least 12 hatched by half an hour (37 to 47), an epic within two hours (11 to 17 minutes); a
-  legendary comes at 23 to 37 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched within 20 (4 to 16 minutes);
+- a steady supply: at least 12 hatched by half an hour (35 to 44), an epic within two hours (18 to 22 minutes); a
+  legendary comes at 47 to 51 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  thousandth: 330 to 440 shells of 0.9 to 1.4 million);
-- the island's second tier within 25 minutes (5 to 6), the third within 50 (26 to 32); at an hour, at least 12
-  driftlings in huts (40 to 50); Harbor Town (tier 4) not before 50 minutes (57 to 65), Coral City (tier 5) not before
-  90 (98 to 107), Sunspire Capital (tier 6) not before two and a half hours (2 hours 33 to 2 hours 47), and nothing
-  past it within three hours;
-- both stores are being made at every ten minutes of the three hours, they stay finite, and the save has no food.
+  ten-thousandth: 1,200 to 2,000 shells of 16 to 25 million);
+- the island's second tier within 25 minutes (7 to 8), the third within 50 (28 to 33); at an hour, at least 12
+  driftlings in huts (40); Harbor Town (tier 4) not before 50 minutes (67 to 72), Coral City (tier 5) not before 90
+  (117 to 123), Sunspire Capital (tier 6) not before two and a half hours (2 hours 40 and 2 hours 48 for two seeds,
+  the third not in three hours), and nothing past it within three hours;
+- shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
+  food.
 
 Harbor Town went from 130,000 to 150,000 wood with the conveyor tide, when one seed reached it in 91 minutes. With the
 eggs and the huts' limit it moved out of reach (one seed at 118 minutes, the other two not in three hours), and the
@@ -1435,8 +1475,19 @@ So the bounds moved by about a quarter. Eggs turning rarer as they hatch (`Tunin
 on its own: at 10%, 8%, 6% and 4% a step one seed reached the capital a minute inside the bound, so the chances went
 down to 6%, 4%, 2.5% and 1.2%; the first legendary moved earlier (from 80 minutes for one seed to 23 to 37 for all
 three), mostly because every hatch draws one more random number and the seeds' later rolls fall differently. By three
-hours the seeds have hatched 162 to 168 driftlings and house 100,
-the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
+hours the seeds had hatched 162 to 168 driftlings and housed 100, the huts' limit, and held 24,000 to 284,000 shells.
+
+One store (2026-11-14, the request at the top). With the wood prices simply read as shells, the island ran away: the
+farms' and shops' shells, which used to pile up for eggs, went into more farms and shops, and every seed had Harbor
+Town at 25 minutes and Driftling Haven at 70. The wood buildings' new rates and the charm bonus add to that. A flat
+`Tuning.WoodShells` of 3 shells a wood put the first hour back (Grand Isle at 26 to 28 minutes) but the bigger islands'
+buildings pay for themselves in minutes, so the town came at 50 to 60 minutes and the capital in the second hour. Making
+each tier past the second dearer again (`WoodTierUp`) settles it: at 1.5 one seed reached the capital at 2 hours 27,
+inside the bound; at 1.6 none did, and the town came at 72 to 83 minutes; 1.55 gives the numbers above, close to the
+two-store career's (the town at 57 to 65, the city at 98 to 107, the capital at 2 hours 33 to 2 hours 47). The career
+now builds from one purse, so while it saves for the next tier it keeps a reserve (an egg or a building only when it
+could pay for it three times). By three hours the seeds have hatched 193 to 198 driftlings and house 96 to 100, hold
+0.2 to 3.9 million shells, and their charm (540 to 1,050) adds 73 to 84% to every shell.
 
 ## 11. Polish and animation
 
@@ -1482,7 +1533,8 @@ the huts' limit, and the shells get spent: they hold 24,000 to 284,000.
   sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Driftling Isle" in the
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
-  ink plate, a new one every few seconds ("Wood pays for building. Shells hatch eggs.", "The Tree of Life lays new
+  ink plate, a new one every few seconds ("Shells pay for every egg you hatch and everything you build.", "Decor adds charm, and charm brings in more
+  shells.", "The Tree of Life lays new
   eggs every few minutes.", "Rare driftlings work much faster than common ones.", "When the huts are full, swap a weak
   one for a better one.", "Blue-spotted eggs hatch rare ones. Keep some shells for them.", "Grow the island and the
   tree lays more eggs, and better ones."). Everything is laid out from the screen's size each time it changes (the old
@@ -1611,7 +1663,7 @@ them; a hatchling keeps at most `Traits.MAX` mutations, a weather one replacing 
 | Weather | Family | Tier 1 to 4 | Effect, tier 1 to 4 |
 | --- | --- | --- | --- |
 | Rain | rainy | Drizzly, Rainkissed, Downpour, Monsoon | +10, 20, 35, 55% at farms |
-| Snow | frosty | Chilly, Frosty, Snowbound, Glacial | +10, 20, 35, 55% at fishing |
+| Snow | frosty | Chilly, Frosty, Snowbound, Glacial | +6, 12, 20, 32% work anywhere (at fishing until 2026-11-14) |
 | Heat haze | sunny | Warm, Sunbaked, Sunkissed, Midsummer | +10, 20, 35, 55% at shops |
 | Blossom wind | bloomy | Budding, Petalled, Flowering, Springborn | +1, 2, 3, 5 charm |
 | Falling leaves | autumn | Russet, Amber, Copper, Goldleaf | +10, 20, 35, 55% at wood |

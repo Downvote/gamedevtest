@@ -67,7 +67,7 @@ for _, n in { "Menu_build", "Menu_pals", "Menu_index", "Menu_looks" } do
 	H.expect(H.buttonNamed(p, n) ~= nil, "join", "the menu bar's " .. n)
 end
 H.expect(H.buttonNamed(p, "Menu_folk") == nil, "join", "no Villagers button (the driftlings do all the work)")
-H.expect(#H.buttons(p, "^Wood pays", true) == 0, "join", "(tips are text, not buttons)")
+H.expect(#H.buttons(p, "^Shells pay", true) == 0, "join", "(tips are text, not buttons)")
 -- the loading card (src/first/LoadingCard: ReplicatedFirst's Boot put it up before the rest arrived): it went up, its
 -- title centred on the canvas, and it is gone once the first picture is on screen
 do
@@ -2620,6 +2620,8 @@ do
 		return nil, nil
 	end
 	local got = {}
+	-- (the dearest pieces cost shells now, the more the higher their tier: enough for them all)
+	prof.shells = math.max(prof.shells, Buildings.byId.rainbowarch.shells + Buildings.byId.lavarock.shells + 1e6)
 	for _, id in { "rainbowarch", "lavarock" } do
 		local x, z = northSpot(id)
 		res = if x then H.req(p, "plot.place", { id = id, x = x, z = z, rot = 0 }) else { ok = false, err = "no spot" }

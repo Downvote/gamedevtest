@@ -144,7 +144,7 @@ for _, q in prof.plot.placed do
 		nestUid = q.uid
 	end
 end
-table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", home = nestUid, work = 0, muts = { "angler2", "lazy" } })
+table.insert(prof.pals, { id = prof.nextId, sp = "gullfin", home = nestUid, work = 0, muts = { "grower2", "lazy" } })
 prof.nextId += 1
 prof.seen.gullfin = 2
 prof.founder.shirt = 5
