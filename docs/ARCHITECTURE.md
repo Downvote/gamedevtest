@@ -841,7 +841,18 @@ neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_D
 toon bands and the palette LUT (the indoor tint inside the room) with each material's surface texture (9.3), then the
 ink outline (`Shading.outline`) and the contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings), the tree's eggs and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
-layer and outlined; only the old and new dirty rects are restored and uploaded. The **effect layers** (9.3,
+layer and outlined; only the old and new dirty rects are restored and uploaded. Besides Roblox's shapes, Raster draws
+three smooth solids (the request of 2026-11-15: "currently, all of them are modelled using blobs, which is unnatural";
+`Raster.drawSolid`, `Raster.hitSolid`, `Raster.SOLID_KIND`): "Ell" (the ellipsoid in the part's box), "Egg" (two half
+ellipsoids along its Y joined at an equator, the top `prm` of the height), "Cone" (a tapered limb along its X: two
+balls and the cone touching both, the -X end's radius sy/2 and the +X end's `prm` times it, its cross-section squashed
+to sz/sy) and "EggBot" / "EggTop" (an egg cut across, its part below or above the cut; `prm` = 10 x the cut's height
+in thousandths of the box from its bottom + the split). Per pixel the ray is taken into the part's frame (squashed
+round) and the quadratic solved; a row's columns are bounded by the roots of the silhouette's own quadratic. A part
+says it is one with its "PixelShape" attribute (and "PixelK" for `prm`): `registerDynamic` (`DynPart.prm`),
+`Snapshot`'s solids (`Picture.solid`'s `prm`, its shadow rays through `hitSolid`), `DynTex.uv` and `SmoothParts.role`
+read them; with the pixel filter off an ellipsoid or an egg shows through a sphere `SpecialMesh` and a limb as a
+cylinder. The **effect layers** (9.3,
 `Render/Fx`) draw over both every tick: 2D sprites and pixels in the world (the islands' small lives,
 `AmbientView`), depth-tested, colour only. Without EditableImages (or with Classic picked) the layer hides and the
 Roblox camera shows the 3D world.
@@ -1072,7 +1083,13 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   leans and follows. Moving models (`registerDynamic`: `Dyn.smooth`, `DynPart.sm`): each frame the draw gathers the
   model's balls (`texOpt.xs ys zs rs cnt`), each leaning or following part asks `Smooth.near` for the balls within its
   bounding radius plus their reach (`texOpt.idx n`) and is drawn with `shadeTex`, which blends the normal before its
-  texture's lift (`texOpt.role`). The static bake (`castSample`): a hit on a smooth model's part asks
+  texture's lift (`texOpt.role`). A following part lying on a smooth solid (the request of 2026-11-15; an ellipsoid,
+  an egg or a cut egg's half) takes that solid's normal too: the draw packs the model's solids each frame
+  (`Smooth.packSolid`, `SOLID_STRIDE` 18 numbers each: centre, rotation, inverse half sizes, an egg's equator and
+  halves; `texOpt.sol scnt`), each following part lists the ones within reach of it (`texOpt.sidx sn`), and
+  `Smooth.onSolids` gives the nearest one's gradient there and a weight (1 on its surface, 0 `SOLID_REACH` 0.12 studs
+  off it), blended into the normal in `shadeTex`. A smooth solid itself keeps its own normal (`SmoothParts.role`: its
+  "PixelShape" set). The static bake (`castSample`): a hit on a smooth model's part asks
   `SmoothParts.staticNormal` (the model's balls gathered once a bake; `SmoothParts.reset` at `startBake`) and stores
   the result as a fine normal index, `Shading.fineIndex` (27 .. 255: 229 directions on a Fibonacci spiral, within 12
   degrees of any direction; `Shading.normalVec` decodes both kinds; 0 .. 26 stay the world's coarse ones, so every
@@ -1081,8 +1098,8 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   part with a "PixelTex" attribute (its kind, `DynTex.KIND`, read at `registerDynamic`) is drawn with `shadeTex` where
   the view has at least `DynTex.MIN_PX_PER_STUD` (12) art px a stud: Raster hands every shade the hit's distance `t`
   along the pixel's ray (`Shade`'s seventh argument; the solids pass it, a uniform face never needs it), the shade
-  finds the hit point in the part's own frame, lays it flat round the part's axis (`DynTex.uv`: a ball round its Y, a
-  cylinder round its X, a box across and up) and `DynTex.lift(kind, u, v, px, seed)` says whether the pixel steps a
+  finds the hit point in the part's own frame, lays it flat round the part's axis (`DynTex.uv`: a ball, an ellipsoid
+  or an egg round its Y, a cylinder or a tapered limb round its X, a box across and up) and `DynTex.lift(kind, u, v, px, seed)` says whether the pixel steps a
   band lighter (+1) or darker (-1) on its ramp (`Shading.toonAt`'s lift, half of the step: `DynTex.SOFT` 0.5, a
   whole band before 2026-11-14). The patterns are measured in art px (`px`
   studs a pixel), so a mark is one pixel at any zoom: fur, fluff, feather, scale, shell, stone, brick, bark, crystal,
@@ -1237,7 +1254,11 @@ stalks sticking out, cream down for the legendary, pink and white blossom for th
 celestial; something by it from `TRIM[r]`: a pebble, a leaf and clover, a blue berry, a pink flower, petals,
 crystals; a small highlight on the shell's lit side, three gems in the legendary's band, a gold `Star` on the
 celestial's crown; the lawn glow from epic up 1.4 times the egg wide at `LAWN` 0.145, the tree's `EggLawn` height,
-so it shows), three `Shell` balls (the upper one `Top`, its top half) and its marks, by `LOOK[r]` (`EggModels.LOOK`,
+so it shows), the shell (since the request of 2026-11-15, "can you redo all the creatures and eggs ... currently, all
+of them are modelled using blobs, which is unnatural": one smooth egg `1.06 x SIZE` tall and `0.86 x SIZE` wide, split
+`SPLIT_EGG` 0.6, cut at `CUT` 0.6 of its height into an `EggBot` part `Shell` and an `EggTop` part `Top` that flies off,
+Raster.drawSolid; the nest's tufts flattened ellipsoids along its ring, its stalks tapered limbs, what lies by it and a
+touched egg's weather piece ellipsoids, drops eggs) and its marks, by `LOOK[r]` (`EggModels.LOOK`,
 also `EggView.LOOK`; the common's freckles in two sizes and two browns, the bands on the side the camera sees)
 (GAME_DESIGN 6: "color each egg differently with different effects"; `{ body, mark, marks, glow, lawn? }`: common
 `cream` with `sand_dark` spots, uncommon `green` with a `white` band, rare `blue` with `white` spots, epic `purple`
@@ -1679,7 +1700,7 @@ cue once the name is in), twelve `accent` and white dots, a `flare_*` sprite, an
 `liftOf(s, clock)` is its height over its resting spot: `DROP_FROM` 9 studs while it waits (`GLORY.wait`, `s.wait`),
 then falling to 0 over `FALL` 0.52 s (gravity), then the bounces `BOUNCE` { 0.75, 0.2 } studs over `BOUNCE_T`
 { 0.3, 0.18 } s (arcs), `DROP` 1 s after its wait (taps wait).
-It rests with its lowest slice on the pedestal's top at `FLOAT_Y` (`footY(r)` = `FLOAT_Y - EggModels.heroBottom(h)`);
+It rests with its foot on the pedestal's top at `FLOAT_Y` (`footY(r)` = `FLOAT_Y - EggModels.heroBottom(h)`);
 the first landing calls `landed(s, 1)` (Audio "pop" low, a kick of 0.35, ten dust dots from its foot), "sparkle" and
 `HatchBackdrop.land()`; the second `landed(s, 0.45)`. What hatched stands at `FLOAT_Y`. `debugState().rings` is
 `HatchBackdrop.rings()`. `backdrop(s)` passes the pedestal: its top centre (`projectPixel` of the spot at `FLOAT_Y`) and
@@ -1700,13 +1721,16 @@ shaft, 3 the outline) for the light. The skies have no clouds, no trees on the h
 HatchSky layer, 2 x half width by 0.84 x, centred on the top), redrawn each step while any spread: `land()` starts one
 and sets them going every `RING_EVERY` 0.85 s, each widening from half to 0.97 of the half width over `RING_LIFE` 1.7 s
 (ease out), a midpoint ellipse (height 0.42 of its width) in `ring`, then two steps toward the top's colour.
-`EggModels.hero` builds on the driftlings' 0.05-stud fine grid since 2026-11-15 (on the 0.25 grid its 25 slices
-jogged the outline), its marks nearly flush and painted on the side the camera sees: the uncommon's zigzag with a
-dark edge, a vine and a two-leaf `Sprout`; the rare's frost band with icicles; the legendary's five gems in gold
+`EggModels.hero` builds on the driftlings' 0.05-stud fine grid since 2026-11-15, its shell one smooth egg (since the
+request of 2026-11-15 to redo the eggs: an `EggBot` and an `EggTop` solid, `2 x 0.37h` wide, split 0.62, cut at
+`SPLIT` 0.56; `shellR` and `surf` from the egg's own curve), its marks within `WINDOW` 88 degrees of the front, nearly
+flush and painted on the side the camera sees, lit by the shell under them (`Smooth.onSolids`): the uncommon's zigzag with a
+dark edge, a vine and a `Sprout` (a tapered stem, two flat leaves); the rare's frost band with icicles; the legendary's five gems in gold
 bezels; the mythic's pearls kept off the outline; the celestial's constellations; the stars and glints thin crossed
-Neon bars marked `PixelNoPool` like the cracks, kept off the cracks' paths. Each shell slice gets `PixelTex` (`DynTex.EGG[r]`), `PixelTexV` (its height, so the slices share one
-pattern), `PixelTexSeed` (11 + r) and `PixelTexSoft` 0.8; PixelRenderer's dynamic parts read those three (texV, texSeed,
-texSoft; `texOpt` in the draw). `EggModels.heroBottom(h)` is the lowest slice's reach under the foot.
+Neon bars marked `PixelNoPool` like the cracks, kept off the cracks' paths. Both shell halves get `PixelTex`
+(`DynTex.EGG[r]`), `PixelTexSeed` (11 + r) and `PixelTexSoft` 0.8 (one frame, so the pattern runs on across the cut);
+PixelRenderer's dynamic parts read those (texV, texSeed, texSoft; `texOpt` in the draw). `EggModels.heroBottom(h)` is
+0: nothing of the smooth shell reaches under its foot.
 Each reveal tap plays Audio `crack` (pitch up with `crack`), and so does the tap that hatches it; the hatch plays
 `crack_open`. The egg shakes as it cracks (`stepEgg`; the request of 2026-11-14: "Make eggs shake while being cracked
 open"): a tap's shake (`kick`, 1 for a step up, 0.6 for a mutation) rocks it on its foot about the line the camera looks
@@ -1794,7 +1818,7 @@ rays, sparks, shards, flash, jolt, confetti, stars, wait, build, slow, show, bea
 the rose sky pink petals fall (`fireflies`; thick for 3.5 s after a mythic hatch), under the starry one white and cyan
 motes rise (and glints rain for 3.5 s after a celestial hatch); for 3 s after a legendary or rarer hatch twinkles fill
 the sky (`stepTwinkles`).
-`EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
+`EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell one smooth egg cut in two (above),
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
 the shine (white), the fx (`mote` x3 epic, mythic and celestial, `halo` x20 legendary and mythic, `orbit` x28 celestial: a tilted ring round its middle; with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
 stage }`: 1 a short crack at the top, 2 running down and branching, 3 round the front of its middle; each piece one

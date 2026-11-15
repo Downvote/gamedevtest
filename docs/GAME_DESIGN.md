@@ -1225,8 +1225,11 @@ When the island grows into a new stage, the tree is built again at it.
 - **A driftling with no hut**: one whose hut was cleared away or replaced by a smaller one, or a Hatchery's hatchling
   with no room, waits with no hut (`home` 0). It works nowhere and is not drawn on the island; the Driftlings panel
   lists it last ("No hut. It moves in when one has room.") and it moves in the moment a hut has room (`Tree.settle`).
-- **In the world** (`Controllers/EggView`): an egg is two spheres in a little nest of straw tufts, a broad one below
-  and a smaller one on top for an egg's curve, a rarer egg a little bigger. Since the request of 2026-11-15 ("can you
+- **In the world** (`Controllers/EggView`): an egg is one smooth egg shape in a little nest of straw, round and full
+  below and narrower at the top, a rarer egg a little bigger (since the request of 2026-11-15, "can you redo all the
+  creatures and eggs ... currently, all of them are modelled using blobs, which is unnatural": it was two spheres, one
+  on the other). It is made in two pieces cut a little above its middle, so the top can fly off when it hatches. The
+  nest is soft bundles of straw lying round its foot with a few stalks sticking out. Since the request of 2026-11-15 ("can you
   also do the same with creature and egg models?") each nest has something of its rarity by it (a pebble, a leaf and
   clover, a blue berry, a pink flower, petals, crystals), the rarer nests are lined with down, blossom or silver, the
   legendary egg wears three gems in its band and the celestial one a gold star on its crown, and the glow under the
@@ -1587,8 +1590,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   flowers line the bottom of the picture and its corners are a dithered step or two darker.
 - **The egg** (`EggModels.hero`, 2.3 to 3 studs by rarity; drawn smaller since the request of 2026-11-14, "make the
   egg and creature smaller in the hatching screen": the view takes in 1.45 times the room round it, so the egg and
-  what hatches are about two thirds of their old size on the screen): a smooth shell of 25 overlapping slices in an
-  egg's shape (the widest a little below the middle over a full round base, the top narrowing: "The eggs also look too
+  what hatches are about two thirds of their old size on the screen): a smooth shell, one true egg shape in two pieces
+  where it cracks (25 stacked balls until 2026-11-15; the widest a little below the middle over a full round base, the top narrowing: "The eggs also look too
   much like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14; the eggs under the tree and
   the egg icons have the fuller base too), its rarity's pattern drawn on it pixel by pixel ("Could you detail the eggs
   in the egg hatching screen more? You are allowed to draw in the detail on the eggs instead of adding more meshes":
