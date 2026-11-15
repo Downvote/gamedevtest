@@ -584,7 +584,8 @@ function Kit.limbs(name: string, pts: { Vector3 }, radii: { number }, color: str
 	end
 	local links = n or math.max(1, #pts - 1)
 	if not isFull then
-		links = math.max(1, math.min(links, math.ceil(links / 2)))
+		-- (fewer links on the islands, but a curve keeps at least two so it still bends)
+		links = math.max(math.min(links, 2), math.ceil(links / 2))
 	end
 	local prev = curveAt(pts, 0)
 	for i = 1, links do
