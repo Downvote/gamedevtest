@@ -1675,14 +1675,15 @@ text (the requests and how each was met) is in the history of this file, up to c
   > the wind, and swaying leaves."; the bug report: "it seems like the boats are buggy, the triangle part here is
   > supposed to be reversed" (the bow's wedge stood tall at its tip: turned over)
 
-- **The wind:** leaves sway and flags ripple (the pixel filter, a few times a second like the water: palms, trees,
-  bushes and tufts lean a pixel one way, rest and lean back, the sway drifting across the island; flags and pennants
-  ripple along their length, a lifted fold a shade darker). The boats' flags flutter as they sail. Inside a crown the
-  leaves rustle (the request of 2026-11-14: "animate models better, such as trees swaying, instead of just shiftiing
-  side to side, make them actually rustle like leaves. other models should be animated if possible too, such as
-  windmills being able to spin and waterfalls having flowing water"): little clumps of leaves turn, catch the light
-  or show their shade side for a moment, twice as many while a gust passes, so the crown shimmers as the wind runs
-  through it.
+- **The wind:** leaves rustle and flags ripple (the pixel filter, a few times a second like the water). The leaves
+  rustle at the crown's silhouette (the requests of 2026-11-14: "animate models better, such as trees swaying, instead
+  of just shiftiing side to side, make them actually rustle like leaves. other models should be animated if possible
+  too, such as windmills being able to spin and waterfalls having flowing water", and 2026-11-15: "when i meant the
+  rustling of leaves as animation, i meant rustling the sillouhette instead. theres no need for the random noise
+  animation inside the tree leaves"): along the edge of every palm, tree, bush and tuft, little clumps of leaves flick
+  out a pixel or pull in a pixel for a moment, each at its own time; when a gust runs across the island more of them
+  move and the edges facing the gust flick out, so the crown leans by its leaves. Inside a crown nothing moves. Flags
+  and pennants ripple along their length, a lifted fold a shade darker; the boats' flags flutter as they sail.
 - **What turns and flows:** a windmill's sails turn slowly, a waterwheel turns with the stream (the other way round)
   and so do the Grand Mill's paddles, on every island near the view; the little waterfall and the Spring Grotto's
   falls run with pale streaks moving down them. Reduced motion keeps the sails and wheels still.

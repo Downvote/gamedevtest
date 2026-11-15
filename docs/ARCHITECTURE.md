@@ -907,13 +907,16 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
 - **Wind** (GAME_DESIGN 8): a part with `PixelWind` 1 (leaves) or 2 (flags; `Blocks.windy` tags them) gets the class 4
   or 5 in `sWClass` (never on water) and its own phase in `sWave` (leaves: slow, across the island; flags: quick,
   along their length). With the water, `animateWind(s, frame)` moves pixels on the static layer without a ray: a
-  canopy leans a pixel each way and rests in between (its leading edge's outline and leaf moved out over what lies
-  farther behind it, never over anything nearer; its trailing edge's taken by what lay behind it, the outline a
-  pixel in); a flag's columns drop or lift a pixel along the wave (the lifted fold a shade darker). Inside a crown
-  (a leaf pixel whose four neighbours are leaves too) the leaves rustle: clumps of 2 x 2 chosen by a hash and the
-  frame (4 of 64 at a time, 9 while the gust leans the canopy) take the tone of the leaf a pixel up and across, or on
-  a flat leaf `RUSTLE_LIGHT` at 0.16 or a shade at 0.1 (the 2026-11-14 request, "make them actually rustle like
-  leaves"); never a pixel the sway moves. What it painted is
+  canopy's silhouette rustles (the requests of 2026-11-14, "make them actually rustle like leaves", and 2026-11-15,
+  "i meant rustling the sillouhette instead. theres no need for the random noise animation inside the tree leaves"):
+  an edge pixel (class 4 with a pixel not of it and farther behind above it, else to its left or right; a crown's foot
+  stays put) in a clump of 3 x 3 chosen by a hash and the frame (`RUSTLE_N` 6 of 64 at a time, `RUSTLE_GUST` 14 while
+  a gust passes: the leaf phase's two windows of 12 in 48, one each way) flicks out a pixel (the outline over what lies
+  behind, the leaf next to it where the outline was) or opens a pixel in (what lay behind where the outline was, the
+  outline a pixel in, when two leaf pixels stand behind it); in a gust the sides facing its way flick out and the
+  others in, else the clump's hash picks; nothing inside a crown moves (the canopy's whole-edge lean and the 2 x 2
+  inner clumps of 2026-11-14 are in this file's history); a flag's columns drop or lift a pixel along the wave (the
+  lifted fold a shade darker). What it painted is
   kept (`windSaved` / `windWrote`) and undone (`windRestore`) before the next wind frame, a pan, a stage's stash and
   a bake; a pixel something else has painted since is left alone. They belong to their layer (`windOn`): another
   layer's are dropped, never restored onto it.

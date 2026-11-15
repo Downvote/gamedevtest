@@ -1736,18 +1736,17 @@ local function animateWater(s: Surf): boolean
 end
 
 ------------------------------------------------------------------ the wind
--- Leaves sway and flags ripple without a ray: a canopy leans a pixel one way, rests, leans back, rests (about 2.7 s a
--- sway, the phase drifting slowly across the island): its edges (the outline and the leaf next to it) move a pixel
--- that way, the leading one out over what lies behind it (never over something nearer), the trailing one in, what
--- lay behind it showing a pixel further; a flag's columns hang a pixel lower in
--- the wave's crests and lift a pixel in its troughs (the lifted ones a fold darker). What the wind paints is undone
--- before the next frame, a scroll or a bake (`windRestore`).
--- Inside a canopy the leaves rustle (the request of 2026-11-14: "trees swaying, instead of just shiftiing side to
--- side, make them actually rustle like leaves"): a scattering of leaf pixels (each with all four neighbours leaves
--- too, so the outline holds) turns at a time in clumps of 2 x 2, taking the tone of the leaf a pixel up and across
--- from it, or on a flat leaf catching the light or turning its shade side a step; twice as many while a gust passes
--- (the same gust that leans the canopy), each for a frame or two, so the crown shimmers as the wind runs through it.
-local RUSTLE_LIGHT = 0xF4F8C8 -- a leaf turned to the sun (mixed in at a fifth)
+-- Leaves rustle and flags ripple without a ray. A canopy's silhouette rustles (the requests of 2026-11-14, "trees
+-- swaying, instead of just shiftiing side to side, make them actually rustle like leaves", and 2026-11-15, "i meant
+-- rustling the sillouhette instead. theres no need for the random noise animation inside the tree leaves"): along its
+-- edge (an outline pixel with something farther behind it above or beside it) little clumps of 3 x 3 flick out a pixel
+-- over what lies behind (the outline out, the leaf next to it where the outline was) or open a pixel in (what lay
+-- behind showing where the outline was, the outline a pixel in), each for a frame or two at its own time; while a gust
+-- passes (the phase drifting slowly across the island, a gust each way in turn) more of them move, the edges facing
+-- the gust flicking out and the others in, so the crown leans by its leaves. Inside a crown nothing moves. A flag's
+-- columns hang a pixel lower in the wave's crests and lift a pixel in its troughs (the lifted ones a fold darker).
+-- What the wind paints is undone before the next frame, a scroll or a bake (`windRestore`).
+local RUSTLE_N, RUSTLE_GUST = 6, 14 -- of 64: the edge clumps moving at a time, and while a gust passes
 
 local function animateWind(s: Surf, k: number): boolean
 	local any = windRestore(s)
@@ -1765,44 +1764,41 @@ local function animateWind(s: Surf, k: number): boolean
 		windWrote[i] = c
 		any = true
 	end
-	for y = 1, H - 2 do
+	-- (the edge's side, looked for in turn: the top, then the left and the right; a crown's foot stays put)
+	local sides = { -W, -1, 1 }
+	for y = 2, H - 3 do
 		local row = y * W
-		for x = 1, W - 2 do
+		for x = 2, W - 3 do
 			local i = row + x
 			local c = buffer.readu8(cls, i)
 			if c == 4 then
 				local g = (buffer.readu8(wave, i) + k * 3) % 48
-				-- the rustle (inside the crown; never a pixel the sway below moves)
-				if windSaved[i] == nil and buffer.readu8(cls, i - 1) == 4 and buffer.readu8(cls, i + 1) == 4 and buffer.readu8(cls, i - W) == 4 and buffer.readu8(cls, i + W) == 4 then
-					-- (in clumps of 2 x 2: a clump of leaves turns together)
-					local cx, cy = x // 2, y // 2
-					local h = (cx * 37 + cy * 101 + ((cx * cy) % 13) * 17) % 64
-					local n = if g < 12 or (g >= 24 and g < 36) then 9 else 4
-					if (h + k * 5) % 64 < n then
-						local here = orig(i)
-						local from = if h % 3 == 0 then orig(i + W + 1) else orig(i - W - 1)
-						if from ~= here then
-							put(i, from)
-						else
-							-- (a flat leaf: it catches the light or turns its shade side, a step either way)
-							put(i, if h % 2 == 0 then mixShaded(RUSTLE_LIGHT, here, 0.16) else mixShaded(0x2B1E2E, here, 0.1))
-						end
+				local gust = if g < 12 then 1 elseif g >= 24 and g < 36 then -1 else 0
+				local d = buffer.readf32(depth, i * 4) + 0.5
+				local dir = 0
+				for _, o in sides do
+					local t = i + o
+					if buffer.readu8(cls, t) ~= 4 and buffer.readf32(depth, t * 4) > d then
+						dir = o
+						break
 					end
 				end
-				local dx = if g < 12 then 1 elseif g >= 24 and g < 36 then -1 else 0
-				if dx ~= 0 then
-					local t, b = i + dx, i - dx
-					local d = buffer.readf32(depth, i * 4) + 0.5
-					if buffer.readu8(cls, t) ~= 4 and buffer.readf32(depth, t * 4) > d then
-						-- the leading edge: the outline moves out over what lies behind
-						put(t, orig(i))
-						if buffer.readu8(cls, b) == 4 then
-							put(i, orig(b))
+				if dir ~= 0 and windSaved[i] == nil then
+					local cx, cy = x // 3, y // 3
+					local h = (cx * 37 + cy * 101 + ((cx * cy) % 13) * 17) % 64
+					if (h + k * 5) % 64 < (if gust ~= 0 then RUSTLE_GUST else RUSTLE_N) then
+						-- (with a gust, the sides facing its way flick out and the others in; else by the clump)
+						local out = if gust ~= 0 and dir ~= -W then dir == gust else h % 2 == 0
+						local t, b = i + dir, i - dir
+						if out then
+							put(t, orig(i))
+							if buffer.readu8(cls, b) == 4 then
+								put(i, orig(b))
+							end
+						elseif buffer.readu8(cls, b) == 4 and buffer.readu8(cls, b - dir) == 4 then
+							put(i, orig(t))
+							put(b, orig(i))
 						end
-					elseif buffer.readu8(cls, b) ~= 4 and buffer.readf32(depth, b * 4) > d and buffer.readu8(cls, t) == 4 then
-						-- the trailing edge: what lies behind shows a pixel further in, the outline follows
-						put(i, orig(b))
-						put(t, orig(i))
 					end
 				end
 			elseif c == 5 then
