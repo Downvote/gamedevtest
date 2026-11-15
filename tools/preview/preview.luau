@@ -2519,11 +2519,12 @@ local function hatchScenario(code)
 	return p
 end
 
--- "pals=<n>" or "pals=<id>,<id>,...": driftlings up close (Models/DriftModels, built "full" as the hatch scene and the
+-- "pals=<n>" or "pals=<id>,<id>,..." ("palsw=" at the islands' level of detail; an id "shape.body.accent" builds a
+-- body plan in those colours): driftlings up close (Models/DriftModels, built "full" as the hatch scene and the
 -- portraits show them), eight to a picture in two rows of four on a patch of lawn far from the islands, framed by the
 -- camera's stage view; idle (pals_idle) and cheering (pals_cheer). Batch n is Data/Creatures.list's species 8n-7 ..
 -- 8n; the log lists them left to right, back row first, with each one's part count.
-local function palsScenario(arg)
+local function palsScenario(arg, lod)
 	seedProfile(62, 1, {})
 	local p = join(62, "Keeper")
 	settle(p, 30, 1)
@@ -2567,7 +2568,7 @@ local function palsScenario(arg)
 			local plan = string.split(id, ".")
 			local d = Creatures.byId[id] or (if #plan >= 2 then { id = id, shape = plan[1], body = plan[2], accent = plan[3] or plan[2] } else nil)
 			if d then
-				local th = if #plan >= 2 then MM.driftling(plan[1], plan[2], plan[3] or plan[2]) else MM.species(d.id)
+				local th = if #plan >= 2 then MM.driftling(plan[1], plan[2], plan[3] or plan[2], lod) else MM.species(d.id, lod)
 				th.model:SetAttribute("PixelShadow", 1)
 				th.model:SetAttribute("PixelGroundY", 0)
 				th.model.Parent = E.workspace
@@ -2870,6 +2871,13 @@ for _, name in list do
 	if palsArg then
 		fn = function()
 			return palsScenario(palsArg)
+		end
+	end
+	-- (palsw=: the same, built at the islands' lighter level of detail)
+	local palswArg = string.match(name, "^palsw=([%w_,%.]+)$")
+	if palswArg then
+		fn = function()
+			return palsScenario(palswArg, "world")
 		end
 	end
 	local wxArg = string.match(name, "^weather=(%a+)$")
