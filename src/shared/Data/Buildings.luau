@@ -155,7 +155,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "cloudkeep", name = "Cloud Keep", kind = "nest", shells = 1700000, w = 6, d = 5, slots = 18, charm = 32, comfort = 0.42, tier = 17, blurb = "Soft beds in towers wrapped in cloud." }),
 	B({ id = "citadel", name = "Driftling Citadel", kind = "nest", shells = 5000000, w = 6, d = 6, slots = 20, charm = 45, comfort = 0.5, tier = 20, blurb = "Halls and towers for a whole crowd." }),
 	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
-	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3900, w = 4, d = 4, charm = 3, tier = 3, blurb = "Two driftlings and a feast make an egg." }),
+	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3900, w = 4, d = 4, charm = 3, tier = 3, blurb = "Breed two driftlings for an egg." }),
 	-- boosts: every building of a knack makes more (each kind counts once)
 	B({ id = "toolshed", name = "Tool Shed", kind = "gen", shells = 1300, w = 2, d = 2, charm = 1, boost = "wood", boostBy = 0.1, tier = 2, blurb = "Sharp axes: wood +10%." }),
 	B({ id = "windmill", name = "Windmill", kind = "gen", shells = 1600, w = 3, d = 3, charm = 4, boost = "farm", boostBy = 0.1, tier = 2, blurb = "Grinds the harvest: farms +10%." }),

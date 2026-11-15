@@ -6,8 +6,8 @@
 -- the HUD's Tree card counting down), sooner with the huts' tree shares, the extra eggs laid at once when the island
 -- grows, and the clock running only while the player is here (nothing laid while they're away); nothing eating (no
 -- food since 2026-11-13: the stores only grow, even from none); a driftling waiting with no hut while every hut is
--- full, moving in once a hut goes up and going to work once a building of its knack does; the Hatchery's egg (a feast
--- of shells) hatching into a hut with room, or waiting with no hut; two islands each on their own clocks. (The huts are
+-- full, moving in once a hut goes up and going to work once a building of its knack does; the Hatchery's egg (paid for
+-- in shells) hatching into a hut with room, or waiting with no hut; two islands each on their own clocks. (The huts are
 -- full while the rates are measured, and nobody hatches one of the tree's eggs, so nobody new goes to work.)
 local E = require("./loader")
 local H = require("./harness")
@@ -515,12 +515,30 @@ do
 	H.clickNamed(p, "Slot_b_" .. uid, { wait = 0.4 })
 	H.expect(H.buttonNamed(p, "PickParent_" .. ids[1]) == nil, "hatchery", "the first parent is not offered again")
 	H.clickNamed(p, "PickParent_" .. ids[2], { wait = 0.4 })
-	-- the feast is paid in shells: none in store, no egg
+	-- the panel's words (2026-11-15: "say Breed two driftlings for an egg. also, specify what happens to the result,
+	-- such as mutations and rarity"): the rarity in the hint, the mutations on the pair's line, no feast
+	do
+		local hint = p.PlayerGui:FindFirstChild("Hint", true)
+		local cost = p.PlayerGui:FindFirstChild("Cost", true)
+		local ht = if hint then table.concat(H.textsOf(hint), " ") else ""
+		local ct = if cost then table.concat(H.textsOf(cost), " ") else ""
+		H.expect(string.find(ht, "Breed two driftlings for an egg.", 1, true) ~= nil and string.find(ht, "rarer eggs", 1, true) ~= nil, "hatchery", "the hint: breed two for an egg, rarer parents, rarer eggs", ht)
+		H.expect(string.find(ct, "Mutations both carry pass on", 1, true) ~= nil and string.find(ct, "half the time", 1, true) ~= nil, "hatchery", "the pair's line: what the mutations do", ct)
+		local panel = if hint then hint.Parent else nil
+		local feastSeen = false
+		for _, t in if panel then H.textsOf(panel) else {} do
+			if string.find(string.lower(t), "feast", 1, true) then
+				feastSeen = true
+			end
+		end
+		H.expect(not feastSeen, "hatchery", "no feast in the panel")
+	end
+	-- the egg is paid for in shells: none in store, no egg
 	local feast = Breed.cost("gullfin")
 	prof.shells = 0
 	H.push(p, 0.3)
 	H.openPanel(p, "hatch")
-	H.expect(H.buttonNamed(p, "Breed_" .. uid) == nil and H.buttonNamed(p, "Breed_" .. uid, true) ~= nil, "hatchery", "Breed is off without the feast's shells")
+	H.expect(H.buttonNamed(p, "Breed_" .. uid) == nil and H.buttonNamed(p, "Breed_" .. uid, true) ~= nil, "hatchery", "Breed is off without the shells")
 	H.expect(H.req(p, "breed.start", { uid = uid, a = ids[1], b = ids[2] }).err == "money", "hatchery", "and the server refuses it (money)")
 	-- (both eggs laid early in one turn, so they hatch on the same turn)
 	nextTurn()
@@ -533,7 +551,12 @@ do
 	local egg = prof.eggs[1]
 	H.expect(egg ~= nil and egg.uid == uid and egg.sp == "gullfin", "hatchery", "an egg of their kind is laid", tostring(egg and egg.sp))
 	local paid = shells0 - prof.shells
-	H.expect(paid <= feast + 1e-6 and paid >= feast - made, "hatchery", "the feast paid in shells", string.format("%.2f paid, the feast %d", paid, feast))
+	H.expect(paid <= feast + 1e-6 and paid >= feast - made, "hatchery", "the egg paid for in shells", string.format("%.2f paid, the price %d", paid, feast))
+	-- (Finish now sits in the warming egg's row, the hint the panel's whole width)
+	H.push(p, 0.3)
+	H.openPanel(p, "hatch")
+	local hrow = p.PlayerGui:FindFirstChild("Hatch_" .. uid, true)
+	H.expect(hrow ~= nil and hrow:FindFirstChild("FinishNow", true) ~= nil, "hatchery", "Finish now in the warming egg's row")
 	local swift = false
 	for _, id in egg and egg.muts or {} do
 		-- (the parents' Leafy mutation loads as Lucky since 2026-11-14)

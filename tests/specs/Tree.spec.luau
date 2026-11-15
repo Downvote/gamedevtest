@@ -65,6 +65,48 @@ return function()
 		T.truthy(need + eggs <= Tuning.StartShells, string.format("the tips' buildings %d and a rare and a common egg %d", need, eggs))
 	end)
 
+	T.it("the island's lean (never shown, 2026-11-15): its work buildings tip a new mutation's family", function()
+		local p = fresh()
+		T.deepEq(Tree.lean(p), {}, "no work buildings: every family alike")
+		build(p, "lumber")
+		local one = Tree.lean(p)
+		-- (one camp of four at least: 1 + MutLean / MutLeanFloor)
+		T.near(one.chopper, 1 + Tuning.MutLean / Tuning.MutLeanFloor, 1e-9)
+		T.eq(one.trader, nil)
+		T.eq(one.grower, nil)
+		build(p, "lumber")
+		build(p, "lumber")
+		build(p, "lumber")
+		build(p, "stall")
+		build(p, "nest") -- (a hut: no work, no lean)
+		local l = Tree.lean(p)
+		T.near(l.chopper, 1 + Tuning.MutLean * 4 / 5, 1e-9, "four camps of five work buildings")
+		T.near(l.trader, 1 + Tuning.MutLean * 1 / 5, 1e-9, "one stall of five")
+		T.eq(l.grower, nil)
+		-- what the tree lays on a wood island: Chopper far more often than on a shop island
+		local function count(ids: { string }, fam: string): number
+			local q = fresh()
+			for _, id in ids do
+				build(q, id)
+			end
+			local rng, n = Util.newRng(21), 0
+			for _ = 1, 3000 do
+				local _, muts = Tree.roll(q, rng, 3)
+				for _, id in muts do
+					if Traits.byId[id].family == fam then
+						n += 1
+					end
+				end
+			end
+			return n
+		end
+		local woody = { "lumber", "lumber", "lumber", "lumber", "lumber", "stall" }
+		local shoppy = { "stall", "stall", "stall", "stall", "stall", "lumber" }
+		local cw, cs = count(woody, "chopper"), count(shoppy, "chopper")
+		T.truthy(cw > cs * 1.5, string.format("Chopper on a wood island %d, on a shop island %d", cw, cs))
+		local tw, ts = count(woody, "trader"), count(shoppy, "trader")
+		T.truthy(ts > tw * 1.5, string.format("Chatty on a shop island %d, on a wood island %d", ts, tw))
+	end)
 	T.it("the tree lays EggCount eggs every EggSecs, the ones left going; each one's price", function()
 		local p = fresh()
 		local rng = Util.newRng(3)

@@ -119,6 +119,53 @@ return function()
 		T.eq(Traits.describe({ tree = 0.08 }), "")
 		T.eq(Traits.describe({}), "")
 	end)
+	T.it("a new mutation's family: all alike, or tipped by a lean (the island's work buildings, 2026-11-15)", function()
+		local ids: { string } = {}
+		for _, f in Traits.families do
+			table.insert(ids, f.family)
+		end
+		-- no lean: the plain pick, the same draws as before the lean
+		local a, b = Util.newRng(11), Util.newRng(11)
+		for _ = 1, 200 do
+			T.eq(Traits.pickFamily(a, ids, nil), ids[b:int(1, #ids)])
+			T.eq(Traits.pickFamily(a, ids, {}), ids[b:int(1, #ids)])
+		end
+		-- chopper weighing 3 against 1 for the other seven: 3 picks in 10
+		local rng = Util.newRng(12)
+		local n, N = 0, 20000
+		for _ = 1, N do
+			local f = Traits.pickFamily(rng, ids, { chopper = 3 })
+			T.truthy(table.find(ids, f) ~= nil)
+			if f == "chopper" then
+				n += 1
+			end
+		end
+		T.near(n / N, 3 / 10, 0.015, "chopper 3 in 10")
+		-- a family outside the list is never picked, whatever its weight
+		for _ = 1, 200 do
+			T.truthy(Traits.pickFamily(rng, { "sturdy", "armor" }, { chopper = 50 }) ~= "chopper")
+		end
+		-- a roll with a lean: more of that family, the roll's rules kept
+		local function share(lean: { [string]: number }?): number
+			local r, hit, all = Util.newRng(13), 0, 0
+			for _ = 1, 4000 do
+				local muts = Traits.roll(r, 3, lean)
+				T.deepEq(Traits.clean(muts), muts, "a clean list")
+				for _, id in muts do
+					local m = Traits.byId[id]
+					if m.tier > 0 then
+						all += 1
+						if m.family == "trader" then
+							hit += 1
+						end
+					end
+				end
+			end
+			return hit / math.max(1, all)
+		end
+		local plain, leant = share(nil), share({ trader = 3 })
+		T.truthy(leant > plain * 1.8, string.format("trader leant %.3f against plain %.3f", leant, plain))
+	end)
 	T.it("cleaning a save's list: known ids, a family once, at most four", function()
 		-- (a saved Leafy one is Lucky of the same tier since 2026-11-14)
 		T.deepEq(Traits.clean({ "swift2", "swift4", "x", 5, "lazy", "busy1", "fierce1", "armor3", "bright1" }), { "bright2", "lazy", "fierce1", "armor3" }, "Lazy and Diligent: one family")

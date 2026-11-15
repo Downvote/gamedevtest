@@ -315,6 +315,36 @@ function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 end
 
 ------------------------------------------------------------------ the eggs
+-- The island's lean, never shown to players (the request of 2026-11-15: "secretlyskew the player's mutation based on
+-- the buildings they have: if they have high amount of wood work buildings, they will have a higher chance of wood
+-- relation mutations. if they have high amount of shop ones, higher chance of shop related"): the mutation families
+-- that help at a knack (Data/Traits: grower farm, chopper wood, trader shop) weigh 1 + Tuning.MutLean x that knack's
+-- work buildings / max(all the island's work buildings, Tuning.MutLeanFloor); the rest weigh 1 (Traits.pickFamily).
+-- Empty when the island has no work buildings (every family alike).
+function Tree.lean(p: Profile): { [string]: number }
+	local by: { [string]: number } = {}
+	local total = 0
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and Island.works(q.id) and d.knack ~= "" then
+			by[d.knack] = (by[d.knack] or 0) + 1
+			total += 1
+		end
+	end
+	local out: { [string]: number } = {}
+	if total == 0 then
+		return out
+	end
+	local over = math.max(total, Tuning.MutLeanFloor)
+	for _, f in Traits.families do
+		local n = by[f.key]
+		if n then
+			out[f.family] = 1 + Tuning.MutLean * n / over
+		end
+	end
+	return out
+end
+
 -- A kind and its mutations out of an egg of rarity `rarity` (of `knack` when one is asked for and the rarity has one),
 -- mutations as a rarer one every EggMutTier tiers. `season`: the season the egg was laid in (Data/Weather): its own
 -- islets' kinds come Tuning.SeasonFavour times as often (when the rarity has any). `tier`: the island tier whose kinds
@@ -360,7 +390,7 @@ function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season:
 	end
 	-- (the tier's boost stops at legendary; a mythic or celestial one rolls as itself)
 	local mutR = math.max(r, math.min(5, r + math.floor((p.tier - 1) / Tuning.EggMutTier)))
-	return sp, Traits.roll(rng, mutR)
+	return sp, Traits.roll(rng, mutR, Tree.lean(p))
 end
 
 -- The rarity an egg of rarity `r` hatches as: one up with Tuning.EggUp[r], and on while the rolls hold, never past a

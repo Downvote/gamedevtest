@@ -123,6 +123,20 @@ return function()
 			T.eq(#m <= 4, true)
 		end
 		T.deepEq(Breed.inherit(nil, nil, Util.newRng(1)) ~= nil, true)
+		-- the island's lean (Tree.lean, 2026-11-15): a new one of its own mostly of the leant family
+		local lrng, lean, other = Util.newRng(9), 0, 0
+		for _ = 1, 6000 do
+			for _, id in Breed.inherit({ "fierce2" }, { "fierce1" }, lrng, { chopper = 6 }) do
+				local f = Traits.byId[id].family
+				if f == "chopper" then
+					lean += 1
+				elseif f ~= "fierce" then
+					other += 1
+				end
+			end
+		end
+		-- (chopper 6 against 1 for each of the six other free families: half of the new ones)
+		T.near(lean / math.max(1, lean + other), 0.5, 0.06, "Chopper half the time")
 	end)
 	T.it("laying an egg: a Hatchery with none, two of the island's own, the feast paid", function()
 		local p = fresh()

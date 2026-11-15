@@ -240,7 +240,7 @@ end
 ------------------------------------------------------------------ the Hatchery
 -- (GAME_DESIGN 6.1; Logic/Breed) Each Hatchery standing: its egg (the rarity's egg, the turns left, its parents), or
 -- two parents to pick (a picker of the driftlings at home), what they would likely hatch (its kind if met, else its
--- shape, and its rarity), the feast and the turns it takes, and Breed.
+-- shape, and its rarity), its price and the turns it takes, and Breed.
 type Pick = { a: number?, b: number? }
 local breedPick: { [number]: Pick } = {}
 
@@ -315,15 +315,12 @@ local function buildHatch(body: Frame, arg: any?)
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	-- (eggs warming: Finish now, the Finish Hatcheries product, GAME_DESIGN 14)
+	-- (the request of 2026-11-15: "say Breed two driftlings for an egg. also, specify what happens to the result, such
+	-- as mutations and rarity": the rarity here, the mutations on each pair's line; Finish now in the first warming
+	-- egg's row, so the words have the whole width)
 	local warming = #(v.eggs or {}) > 0
-	local fw = if warming then 92 else 0
-	local top = hint(body, "Two driftlings and a feast make an egg. It hatches a few minutes later and moves into a hut.", W - fw)
-	if warming then
-		UIKit.button(body, "Finish now", UDim2.fromOffset(fw - 4, 12), UDim2.fromOffset(W - fw + 4, 0), function()
-			StoreUI.buy("HatcheryNow")
-		end, { name = "FinishNow", color = UIKit.color("button_warn") })
-		top = math.max(top, 14)
-	end
+	local finishShown = false
+	local top = hint(body, "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Legendary and up need both parents that rare.", W)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local hs = hatcheries(v)
@@ -365,6 +362,12 @@ local function buildHatch(body: Frame, arg: any?)
 				return if cd then cd.name else "a friend"
 			end
 			UIKit.text(f, "From " .. nm(pa) .. " and " .. nm(pb), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 32), { color = UIKit.color("text_dim"), z = 4 })
+			if warming and not finishShown then
+				finishShown = true
+				UIKit.button(f, "Finish now", UDim2.fromOffset(88, 13), UDim2.new(1, -92, 0, 49), function()
+					StoreUI.buy("HatcheryNow")
+				end, { name = "FinishNow", color = UIKit.color("button_warn") }).ZIndex = 4
+			end
 		else
 			-- two parents to pick, what they would hatch, Breed
 			local pick: Pick = breedPick[q.uid] or {}
@@ -388,16 +391,20 @@ local function buildHatch(body: Frame, arg: any?)
 			if pa and pb then
 				local sp = Breed.child(pa.sp, pb.sp, v.tier)
 				local d = Creatures.byId[sp]
-				local feast, turns = Breed.cost(sp)
+				local price, turns = Breed.cost(sp)
 				local met = (v.seen[sp] or 0) >= 1
 				local rar = Traits.RARITY[if d then d.rarity else 1] or Traits.RARITY[1]
 				PixelSprites.image(f, if met then "icon_" .. sp else "icon_" .. sp .. "_sil", UDim2.fromOffset(214, 5), 4)
 				UIKit.text(f, if met and d then d.name else "???", UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 10), { color = UIKit.color(rar.color), z = 4, name = "Child" })
 				UIKit.text(f, rar.name, UDim2.fromOffset(W - 256, 10), UDim2.fromOffset(250, 19), { color = UIKit.color(rar.color), z = 4 })
 				-- (on two lines left of Breed when one is too narrow for it)
-				local costWords = string.format("A feast for %s shells, hatches in %s. Shared mutations always pass on.", Numbers.coins(feast), Numbers.duration(turns * Tuning.TurnSeconds))
+				-- ("the rest half the time": Tuning.BreedKeep; up to three lines left of Breed, the row taller for a third)
+				local costWords = string.format("Costs %s shells, hatches in %s. Mutations both carry pass on, maybe a tier up. The rest pass on half the time.", Numbers.coins(price), Numbers.duration(turns * Tuning.TurnSeconds))
 				local cw = if UIKit.textWidth(costWords) > W - 8 then W - 76 else W - 8
-				local cl = math.clamp(UIKit.lines(costWords, cw), 1, 2)
+				local cl = math.clamp(UIKit.lines(costWords, cw), 1, 3)
+				if cl == 3 then
+					f.Size = UDim2.new(1, -6, 0, 76)
+				end
 				UIKit.text(f, costWords, UDim2.fromOffset(cw, 10 * cl), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "Cost", wrap = cl > 1, y = "top" })
 				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 51), function()
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "There's an egg warming in the Hatchery.")
@@ -405,7 +412,7 @@ local function buildHatch(body: Frame, arg: any?)
 						breedPick[q.uid] = nil
 						Audio.play("egg")
 					end
-				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.shells >= feast }).ZIndex = 4
+				end, { name = "Breed_" .. q.uid, color = UIKit.color("button_ok"), enabled = v.shells >= price }).ZIndex = 4
 			else
 				UIKit.text(f, "Pick two driftlings.", UDim2.fromOffset(W - 8, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4 })
 			end

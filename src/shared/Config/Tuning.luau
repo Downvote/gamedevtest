@@ -130,12 +130,19 @@ local Tuning = {
 	SellPrice = { 2, 7, 25, 85, 320, 1300, 5500 },
 	SellTier = 0.25,
 
-	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings and a feast make an egg; by the child's rarity
-	BreedShells = { 20, 80, 300, 1200, 5000, 22000, 90000 }, -- shells the feast takes
+	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings bred for an egg; by the child's rarity
+	BreedShells = { 20, 80, 300, 1200, 5000, 22000, 90000 }, -- shells an egg costs
 	BreedTurns = { 3, 4, 6, 9, 14, 20, 28 }, -- island turns the egg takes to hatch
-	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does)
+	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does; the
+	-- Hatchery's line says "half the time")
 	BreedTierUp = 0.3, -- one both carry comes out a tier better with this chance (a flaw: its family's first tier)
 	BreedNew = 0.15, -- the chance of a new mutation of its own (tier 1 or 2)
+	-- the island's lean, never shown (the request of 2026-11-15: "secretlyskew the player's mutation based on the
+	-- buildings they have: if they have high amount of wood work buildings, they will have a higher chance of wood
+	-- relation mutations"): a new mutation's family that helps at a knack weighs 1 + MutLean x that knack's work
+	-- buildings / max(all the work buildings, MutLeanFloor) against 1 for the rest (Logic/Tree.lean)
+	MutLean = 2,
+	MutLeanFloor = 4,
 
 	-- the store (GAME_DESIGN 14; Logic/Store; the request of 2026-11-14: "make gamepasses for double income, developer
 	-- products for hatching any rarity of egg, refreshing shop, a starter pack, speeding up hatcheries, a gamepass track

@@ -166,7 +166,7 @@ local list: { Quest } = {
 	{
 		id = "hatchery",
 		title = "Build a Hatchery",
-		text = "It's on the Huts tab. Two driftlings and a feast make an egg there.",
+		text = "It's on the Huts tab. Breed two driftlings there for an egg.",
 		goal = { kind = "built", n = 1, of = "breed" },
 		reward = { shells = 800 },
 		go = "build:nest",
@@ -175,7 +175,7 @@ local list: { Quest } = {
 	{
 		id = "egg",
 		title = "Hatch an egg",
-		text = "Open the Hatchery, pick two driftlings and pay for a feast. It hatches a few minutes later.",
+		text = "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Mutations both carry pass on.",
 		goal = { kind = "hatched", n = 1 },
 		reward = { shells = 1200 },
 		go = "hatch",

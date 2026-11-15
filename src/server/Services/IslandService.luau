@@ -177,7 +177,7 @@ function IslandService.init()
 	Router.on("pal.sell", function(s, a)
 		return Tree.sell(s.profile, a.id)
 	end)
-	-- the Hatchery (GAME_DESIGN 6.1): two driftlings and a feast make an egg
+	-- the Hatchery (GAME_DESIGN 6.1): two driftlings bred for an egg
 	Router.on("breed.start", function(s, a)
 		return Breed.start(s.profile, a.uid, a.a, a.b, s.rng)
 	end)

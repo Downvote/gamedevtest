@@ -120,8 +120,34 @@ end
 local COUNT_W = { 34, 36, 22, 8 }
 local TIER_W = { 16, 46, 25, 10, 3 }
 
--- Mutations for a new driftling of a rarity (1 .. 5; a bigger island may roll it as a rarer one), no family twice.
-function Traits.roll(rng: any, rarity: number): { string }
+local FAMILY_IDS: { string } = {}
+for _, f in FAMILIES do
+	table.insert(FAMILY_IDS, f.family)
+end
+
+-- A family picked for a new mutation out of `families`: all alike, or by `lean` (a family's id -> its weight, 1 when
+-- absent; the island's work buildings tip it, Logic/Tree.lean).
+function Traits.pickFamily(rng: any, families: { string }, lean: { [string]: number }?): string
+	if lean == nil or next(lean) == nil then
+		return families[rng:int(1, #families)]
+	end
+	local total = 0
+	for _, f in families do
+		total += lean[f] or 1
+	end
+	local x = rng:next() * total
+	for _, f in families do
+		x -= lean[f] or 1
+		if x <= 0 then
+			return f
+		end
+	end
+	return families[#families]
+end
+
+-- Mutations for a new driftling of a rarity (1 .. 5; a bigger island may roll it as a rarer one), no family twice;
+-- `lean` tips which families come (Traits.pickFamily).
+function Traits.roll(rng: any, rarity: number, lean: { [string]: number }?): { string }
 	local r = math.clamp(rarity or 1, 1, Traits.RMAX)
 	local function pickW(ws: { number }): number
 		local total = 0
@@ -151,7 +177,7 @@ function Traits.roll(rng: any, rarity: number): { string }
 		if t == 0 then
 			id = FLAWS[rng:int(1, #FLAWS)].id
 		else
-			id = FAMILIES[rng:int(1, #FAMILIES)].family .. t
+			id = Traits.pickFamily(rng, FAMILY_IDS, lean) .. t
 		end
 		local m = BY_ID[id]
 		if m and not used[m.family] then

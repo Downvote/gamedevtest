@@ -1,6 +1,7 @@
 --!strict
 -- The Hatchery (GAME_DESIGN 6.1: "make a breeding system that also works like in palworld that unlocks after a certain
--- island level"): two driftlings and a feast make an egg; it hatches after a few island turns into a hut with room
+-- island level"; 2026-11-15: "say Breed two driftlings for an egg"): two driftlings bred for an egg; it hatches after a
+-- few island turns into a hut with room
 -- (Logic/Tree.add: with none it waits with no hut till one has room).
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
@@ -9,8 +10,9 @@
 --   given, only kinds of land open there (Data/Islets `tier`) hatch, besides the parents' own kinds.
 --   Its mutations (Data/Traits): one both parents carry always passes on (the better tier), and with `BreedTierUp`
 --   comes out a tier better (a shared flaw turns into its family's first tier); one only a parent carries passes on
---   with `BreedKeep`; with `BreedNew` it gains one of its own (tier 1 or 2 of a family neither carries). The best four.
---   An egg is laid at a Hatchery with no egg (one each), for a feast of `BreedShells` shells by the child's rarity (food
+--   with `BreedKeep`; with `BreedNew` it gains one of its own (tier 1 or 2 of a family neither carries; the island's
+--   work buildings tip which, Logic/Tree.lean, never shown). The best four.
+--   An egg is laid at a Hatchery with no egg (one each), for `BreedShells` shells by the child's rarity (food
 --   till 2026-11-13), and takes `BreedTurns` turns (Island.turn's, while the player is here).
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
@@ -61,15 +63,15 @@ function Breed.child(a: string, b: string, tier: number?): string
 	return if best then best.id else a
 end
 
--- The feast an egg of a kind takes (shells) and the turns it takes to hatch.
+-- What an egg of a kind costs (shells) and the turns it takes to hatch.
 function Breed.cost(sp: string): (number, number)
 	local d = Creatures.byId[sp]
 	local r = if d then d.rarity else 1
 	return Tuning.BreedShells[r] or Tuning.BreedShells[1], Tuning.BreedTurns[r] or Tuning.BreedTurns[1]
 end
 
--- A child's mutations from its parents' (rng: Util.newRng's).
-function Breed.inherit(ma: { string }?, mb: { string }?, rng: any): { string }
+-- A child's mutations from its parents' (rng: Util.newRng's; `lean`: Tree.lean's weights for a new one's family).
+function Breed.inherit(ma: { string }?, mb: { string }?, rng: any, lean: { [string]: number }?): { string }
 	type Pair = { family: string, a: string?, b: string? }
 	local order: { Pair } = {}
 	local byFam: { [string]: Pair } = {}
@@ -118,7 +120,7 @@ function Breed.inherit(ma: { string }?, mb: { string }?, rng: any): { string }
 			end
 		end
 		if #free > 0 then
-			table.insert(out, Traits.at(free[rng:int(1, #free)], rng:int(1, 2)))
+			table.insert(out, Traits.at(Traits.pickFamily(rng, free, lean), rng:int(1, 2)))
 		end
 	end
 	-- the best four
@@ -152,7 +154,7 @@ function Breed.eggAt(p: Profile, uid: number): Egg?
 end
 
 -- Lay an egg at the Hatchery `uid` from driftlings `a` and `b` (two of the island's own): not_found (no such Hatchery or
--- driftling), egg (an egg there already), bad_payload (the same one twice), money (not enough for the feast).
+-- driftling), egg (an egg there already), bad_payload (the same one twice), money (not enough shells).
 function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (boolean, any)
 	local q = Island.piece(p, uid)
 	local def = if q then Buildings.byId[q.id] else nil
@@ -170,12 +172,12 @@ function Breed.start(p: Profile, uid: number, a: number, b: number, rng: any): (
 		return false, "not_found" :: ErrCode
 	end
 	local sp = Breed.child(pa.sp, pb.sp, p.tier)
-	local feast, turns = Breed.cost(sp)
-	if p.shells < feast then
+	local price, turns = Breed.cost(sp)
+	if p.shells < price then
 		return false, "money" :: ErrCode
 	end
-	p.shells -= feast
-	local egg: Egg = { uid = uid, a = a, b = b, sp = sp, muts = Breed.inherit(pa.muts, pb.muts, rng), left = turns }
+	p.shells -= price
+	local egg: Egg = { uid = uid, a = a, b = b, sp = sp, muts = Breed.inherit(pa.muts, pb.muts, rng, Tree.lean(p)), left = turns }
 	table.insert(p.eggs, egg)
 	return true, egg
 end

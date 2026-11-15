@@ -548,7 +548,7 @@ floor, it just looks noisy", 2026-11-14),
   save is above Lv 1, since upgrades were taken out, §4). Nothing eats.
 - **One store: shells** (since 2026-11-14, above). Every building that makes something sells it for shells: a farm
   what it grows or catches, a wood building what it cuts, a shop its snacks, meals and rooms. Shells pay for
-  everything: the tree's eggs (§6), the Hatchery's feasts (§6.1), every piece, path, fence and replacement (§4) and
+  everything: the tree's eggs (§6), the Hatchery's eggs (§6.1), every piece, path, fence and replacement (§4) and
   growing the island (§4.4). The wood buildings make about what a farm of the same price makes (the Lumber Camp 36 a
   turn, the Sawmill 130, Timber Works 240, the Bamboo Grove 440, the Grand Mill 880). Before that day there were two
   stores (2026-11-13: "make wood the main resource for building/expanding and shells the main resource of getting new
@@ -1438,8 +1438,14 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
 ### 6.1 The Hatchery (`Logic/Breed`, the Hatchery panel)
 
 > The request (2026-11-10): "make a breeding system that also works like in palworld that unlocks after a certain
-> island level". The genre's system (two parents, a feast, an egg, the child's kind from the parents' strength, their
-> traits passed on) in our own buildings, numbers and words.
+> island level". The genre's system (two parents, an egg, the child's kind from the parents' strength, their traits
+> passed on) in our own buildings, numbers and words.
+>
+> The request (2026-11-15): "for hatchery quests, no need to say feast. say Breed two driftlings for an egg. also,
+> specify what happens to the result, such as mutations and rarity. also, secretlyskew the player's mutation based on
+> the buildings they have: if they have high amount of wood work buildings, they will have a higher chance of wood
+> relation mutations. if they have high amount of shop ones, higher chance of shop related, etc." So the word feast is
+> gone; the panel and the quests say what happens to the egg (below), and the island's lean (below) stays a secret.
 
 - **The Hatchery** (Huts tab, island tier 3: a warm nursery with a nest of speckled eggs and a heat lamp): one egg at a
   time each; one may stand on Grand Isle and more on bigger islands (`HatcheryLimit`, §4). Its panel opens from a tap
@@ -1447,9 +1453,16 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
   reaches tier 3) and from the Driftlings panel's Hatchery button (the request of 2026-11-14: "also, allow clicking on
   a hatchery to open the hatchery menu. add a hatchery tab once it is unlocked too"). A neighbour's Hatchery says
   "Someone else's Hatchery. Build one on your own island."
+- **The words**: the panel's hint over the rows says "Breed two driftlings for an egg. Rarer parents tend to make
+  rarer eggs. Legendary and up need both parents that rare." (true of `Breed.child`: over every pair the child's
+  rarity rises with the parents', though about one pair in five hatches outside the parents' own two rarities, so the
+  hint says "tend to"). Each pair's line says the price, the time and what the mutations do: "Costs 300 shells,
+  hatches in 12 min. Mutations both carry pass on, maybe a tier up. The rest pass on half the time." (three lines left
+  of Breed on a narrow panel, the row a line taller). Finish now sits in the first warming egg's row, so the hint has
+  the panel's whole width.
 - **Laying an egg**: tap each slot, pick a parent from your driftlings (not the other one); the
   panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
-  feast and how long it takes to hatch, in minutes or hours ("hatches in 4 min"); **Breed** pays the feast (`BreedShells` 20 / 80 / 300 / 1,200 / 5,000 / 22,000 /
+  price and how long it takes to hatch, in minutes or hours ("hatches in 4 min"); **Breed** pays it (`BreedShells` 20 / 80 / 300 / 1,200 / 5,000 / 22,000 /
   90,000 shells by the child's rarity; food till 2026-11-13) and lays the
   egg (`BreedTurns` 3 / 4 / 6 / 9 / 14 / 20 / 28 island turns, `TurnSeconds` each: 2 minutes for a common one, about 10
   for a legendary one, 19 for a celestial one, counting while you are on the island). The parents carry on as before.
@@ -1460,8 +1473,17 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
   never hatch early.
 - **What it inherits** (`Breed.inherit`): a mutation both parents carry always passes on, the better tier, and with
   `BreedTierUp` (30%) a tier better still (a shared flaw becomes its family's first tier); one only a parent carries
-  passes on half the time (`BreedKeep`); with `BreedNew` (15%) it gains one of its own (tier 1 or 2); the best four.
-  Breeding two that share a mutation, again and again, climbs it to the top tier.
+  passes on half the time (`BreedKeep`); with `BreedNew` (15%) it gains one of its own (tier 1 or 2, of a family
+  neither parent carries, tipped by the island's lean, below); the best four. Breeding two that share a mutation,
+  again and again, climbs it to the top tier.
+- **The island's lean** (`Tree.lean`, never shown to players: the request above, "secretlyskew"): the island's work
+  buildings tip which family a new mutation comes from, for the tree's eggs (`Tree.roll`, through `Traits.roll`) and
+  for a Hatchery egg's new mutation of its own (`Breed.inherit`). Each knack's family (Green Thumb for the farms,
+  Chopper for the wood buildings, Chatty for the shops) weighs 1 + `MutLean` (2) x that knack's work buildings /
+  the island's work buildings (at least `MutLeanFloor`, 4); every other family weighs 1. So an island of five Lumber
+  Camps and a Snack Stall rolls Chopper about twice as often as one of five stalls and a camp (2.67 against 1.33), and
+  one camp alone of the first four buildings makes Chopper 1.5. Huts, decor and boosts count for nothing. No text,
+  tip or panel mentions it.
 - **Hatching**: at each turn's end the eggs count down; a ready one hatches and moves into the comfiest hut with room
   (with none it waits with no hut, §6), and goes in the Index ("Floe hatched!" in the turn's banner). The panel shows
   each egg: its rarity's egg, the time left in minutes or hours over a bar ("Hatches in 2 min", `Numbers.duration`;
@@ -1764,7 +1786,10 @@ one ("Get a rare egg from the tree! There's always one under it while this quest
 user's words of 2026-11-14, "Get a rare egg from the tree! Save some shells for one. also, this quest spawns a rare egg
 below the tree if there isnt one already"); grow your island (tier 2); build a boost; ten driftlings at work; discover 12 unique creatures ("The Index lists every creature you
 discovered. Expanding your island lets you discover more.": the user's words of 2026-11-14, its title too); grow the island again (tier
-3); build a Hatchery; hatch an egg in it; an epic one; sixty hatched.
+3); build a Hatchery ("It's on the Huts tab. Breed two driftlings there for an egg."); hatch an egg in it ("Breed two
+driftlings for an egg. Rarer parents tend to make rarer eggs. Mutations both carry pass on.": the request of
+2026-11-15, "for hatchery quests, no need to say feast. say Breed two driftlings for an egg. also, specify what happens
+to the result, such as mutations and rarity"); an epic one; sixty hatched.
 While one of the rarity quests (an uncommon, a rare or an epic one) is on the go and not met, the tree always has an
 egg of that rarity waiting (§6, "The quest's egg"; the request of 2026-11-14: "also, while the rare one quest is
 active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of life.").
