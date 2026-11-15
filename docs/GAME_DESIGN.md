@@ -1673,8 +1673,20 @@ text (the requests and how each was met) is in the history of this file, up to c
 - **Detail everywhere:** palms that lean on curved trunks, rocks, shells, starfish, driftwood, seaweed and flowering tufts strewn by
   each island's own seed. Every building has its doors, windows, ridged roofs with eaves, crates,
   barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
-  the stall's awning, the lighthouse's lamp) and, at Lv 3, a lamp and a pennant. Driftlings have shiny eyes, cheeks
-  and a mouth.
+  the stall's awning, the lighthouse's lamp) and, from Lv 2, a pennant at its back corner (gold at Lv 3, with a lit
+  lantern on top of its pole). Driftlings have shiny eyes, cheeks and a mouth.
+- **Every building reworked** (the request of 2026-11-15: "could you rework and detail every building even more?
+  look at the bakery game for reference"). Like the bakery's shops, each of the 50 is a small scene now, two to four
+  times the parts it had, its silhouette and colours its own: the patch has a scarecrow with a bluebird on its hat
+  and a seed sack; the pier a blue fishing shack with a fish on the gable; the orchard four different fruit trees
+  behind a picket fence with a rose arch; the vineyard a press house, barrels and grapes on the rails. The sawmill's
+  blade cuts a log in an open bay, the timber yard has a crane lowering a bundle, the log flume carries logs down a
+  chute on trestles, the canopy mill climbs a huge trunk in railed decks. The stall has fish on ice and a lemonade jug,
+  the bakery a lit case of loaves and a cake, the theatre red curtains and a painted backdrop, the sky tram a car on
+  its cable. The nest is woven in rows with two speckled eggs, the burrow has a round teal door and a carrot patch,
+  the loft is a striped lighthouse with a cottage, the palace has onion domes and a moat. The tool shed has tools on a
+  board and a grindstone, the market stalls under striped awnings, the town hall a clock in its pediment, the tide
+  bell a pool with glowing crests. Pictures in the build catalog are drawn again from the new models.
 - **Boats** (`Models/BoatSpec`: one plan for the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
   seams, a painted band (gold trim from level 4), a rim, a bow (tall against the hull, flush with the rim, its keel
   sloping up to the stem's point), a stern with its rudder and tiller and a planked deck;

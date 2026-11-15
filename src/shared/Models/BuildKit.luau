@@ -103,17 +103,17 @@ local function door(m: Instance, f: CFrame, x: number, z: number, w: number, h: 
 	box(m, f, x, 0.06, z + 0.3, w + 0.25, 0.12, 0.45, "rock", "Step")
 end
 
+-- (sizes snap to the 0.25 grid: the straps and hoops stand a whole step proud, never on the body's own faces)
 local function crate(m: Instance, f: CFrame, x: number, y: number, z: number, s: number)
 	box(m, f, x, y + s / 2, z, s, s, s, "wood", "Crate")
-	box(m, f, x, y + s / 2, z, s + 0.04, 0.12, s + 0.04, "wood_dark", "Strap")
-	box(m, f, x, y + s / 2, z, 0.12, s + 0.04, s + 0.04, "wood_dark", "Strap")
+	box(m, f, x, y + s / 2, z, s + 0.25, 0.25, s + 0.25, "wood_dark", "Strap")
 end
 
 local function barrel(m: Instance, f: CFrame, x: number, y: number, z: number, s: number?)
 	local k = s or 1
 	cyl(m, f, x, y + 0.5 * k, z, 0.8 * k, 1.0 * k, "wood", "Barrel")
-	cyl(m, f, x, y + 0.2 * k, z, 0.86 * k, 0.1, "steel_dark", "Hoop")
-	cyl(m, f, x, y + 0.8 * k, z, 0.86 * k, 0.1, "steel_dark", "Hoop")
+	cyl(m, f, x, y + 0.2 * k, z, 0.8 * k + 0.25, 0.1, "steel_dark", "Hoop")
+	cyl(m, f, x, y + 0.8 * k, z, 0.8 * k + 0.25, 0.1, "steel_dark", "Hoop")
 	cyl(m, f, x, y + 1.02 * k, z, 0.7 * k, 0.05, "wood_dark", "Lid")
 end
 
@@ -185,10 +185,11 @@ local function awning(m: Model, f: CFrame, y: number, w: number, z: number, a: s
 	end
 end
 
--- A storey's box: walls of `color` w x h x d centred at (x, y0 + h / 2, z), a darker band at its foot.
+-- A storey's box: walls of `color` w x h x d from y0 up at (x, z), a darker band its lowest 0.25 (the walls stand on
+-- the band: the two never share a face, which would flicker).
 local function storey(m: Instance, f: CFrame, x: number, y0: number, z: number, w: number, h: number, d: number, color: string, band: string?)
-	box(m, f, x, y0 + h / 2, z, w, h, d, color, "Walls")
-	box(m, f, x, y0 + 0.12, z, w + 0.06, 0.24, d + 0.06, band or "rock", "Band")
+	box(m, f, x, y0 + 0.25 + (h - 0.25) / 2, z, w, h - 0.25, d, color, "Walls")
+	box(m, f, x, y0 + 0.125, z, w, 0.25, d, band or "rock", "Band")
 end
 
 -- A flat roof with a parapet over a w x d box whose top is at y.
@@ -227,15 +228,20 @@ local function blades(m: Instance, f: CFrame, x0: number, x1: number, y: number,
 	end
 end
 
--- An upgraded building's pennant: a pole at its back-left corner, the flag red at level 2, gold at 3.
+-- An upgraded building's pennant: a pole at its back-left corner (the corner every builder keeps clear), the flag red
+-- at level 2, gold at 3. At level 3 a second flag, and a lit lantern on the pole's top for its knob (it stood on the
+-- front corner once, where the reworked buildings keep their props).
 local function pennant(m: Model, f: CFrame, lvl: number, w: number, d: number)
 	local x, z = -w / 2 + 0.3, -d / 2 + 0.3
 	box(m, f, x, 1.6, z, 0.15, 3.2, 0.15, "wood_dark", "PennantPole")
-	ball(m, f, x, 3.25, z, 0.25, "gold", "Knob")
 	wedge(m, f, x + 0.45, 2.85, z, 0.75, 0.5, 0.08, if lvl >= 3 then "gold" else "berry_red", math.pi / 2, "Flag")
 	if lvl >= 3 then
 		wedge(m, f, x + 0.35, 2.3, z, 0.55, 0.35, 0.08, "berry_red", math.pi / 2, "Flag")
-		lamp(m, f, w / 2 - 0.25, d / 2 - 0.25)
+		box(m, f, x, 3.45, z, 0.5, 0.5, 0.5, "yellow", "LampLight", true)
+		box(m, f, x, 3.825, z, 0.75, 0.25, 0.75, "wood_dark", "LampCap")
+		ball(m, f, x, 4.0, z, 0.25, "gold", "Knob")
+	else
+		ball(m, f, x, 3.25, z, 0.25, "gold", "Knob")
 	end
 end
 
@@ -244,10 +250,11 @@ local function span(m: Instance, f: CFrame, a: Vector3, b: Vector3, w: number, h
 	return Blocks.part(m, { size = Vector3.new(w, h, (b - a).Magnitude), cf = f * CFrame.lookAt((a + b) / 2, b), color = color, name = name, collide = false })
 end
 
--- A round door facing +Z (a driftling's): a dark disc in a lighter ring.
+-- A round door facing +Z (a driftling's): a dark disc in a lighter ring. (A cylinder's axis is its X: turned a quarter
+-- round Y it lies along Z, the disc facing front; the old quarter turn round X left it facing the side.)
 local function roundDoor(m: Instance, f: CFrame, x: number, y: number, z: number, dia: number, color: string?)
-	cyl(m, f, x, y, z, dia + 0.25, 0.25, color or "wood", "DoorRing").CFrame = f * CFrame.new(x, y, z) * CFrame.Angles(math.pi / 2, 0, 0)
-	cyl(m, f, x, y, z + 0.05, dia, 0.25, "wood_dark", "Door").CFrame = f * CFrame.new(x, y, z + 0.05) * CFrame.Angles(math.pi / 2, 0, 0)
+	cyl(m, f, x, y, z, dia + 0.25, 0.25, color or "wood", "DoorRing").CFrame = f * CFrame.new(x, y, z) * CFrame.Angles(0, math.pi / 2, 0)
+	cyl(m, f, x, y, z + 0.05, dia, 0.25, "wood_dark", "Door").CFrame = f * CFrame.new(x, y, z + 0.05) * CFrame.Angles(0, math.pi / 2, 0)
 end
 
 -- A mushroom cap of dia at (x, y, z): a wide brim, a dome on it, a pale underside, a white spot or two.

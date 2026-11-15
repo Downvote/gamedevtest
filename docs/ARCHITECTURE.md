@@ -396,13 +396,35 @@ Models (`src/shared/Models`, Roblox modules):
   Controllers/Spinners; every piece in `Data/Buildings`; `lvl` goes to the builder: a level
   kept from an older save, the tree's stage, or a water tile's neighbour mask plus 1; `at`: the footprint's centre on
   the grass, turned; each building with its doors, windows, ridged roofs with eaves and its own props (crates, barrels,
-  sacks, pots, fences, lamps); a pennant (`PennantPole`, red at lvl 2, gold at 3) and a lamp at Lv 3, only on a
-  building (never on the tree, a path, a water tile or a fence, whose `lvl` means something else or nothing); the
+  sacks, pots, fences, lamps); a pennant (`PennantPole` at the back-left corner, which every builder keeps below 0.5
+  studs; red at lvl 2, gold at 3 with a second flag and a lit `LampLight` lantern under a `LampCap` on the pole's top
+  in place of its knob: since 2026-11-15, the front corner where the lamp stood holding the reworked buildings' props),
+  only on a building (never on the tree, a path, a water tile or a fence, whose `lvl` means something else or nothing); the
   pier's pond and the fountain's water `PixelWater` 2; parts don't collide; `Blocks.windy`), `has`. It holds the
   builders of the old pieces and the tree (64), the 18 huts, workplaces and boosts of tiers 11 to 20 (2026-11-14:
   `shroomcellar` .. `citadel`, with `span` (a box between two points), `roundDoor`, `cap` (a mushroom cap) and `spire`
   (a tower roof in narrowing rings)), and takes the rest from the catalog's model modules below, by id (a builder of
-  its own wins). The homes (Tent .. Manor) went with the villagers. `tube(m, f, pts, dia, color, name,
+  its own wins). The homes (Tent .. Manor) went with the villagers.
+  The 50 buildings' builders live in five group modules, each `B: { [id]: Builder }` merged into DecorModels' table
+  before the catalog's: `Models/FarmBuildings` (patch, pier, orchard, greenhouse, paddy, kelpfarm, skygarden,
+  shroomcellar, pearlbeds, honeyterrace, vineyard), `Models/WoodBuildings` (lumber, sawmill, timber, bamboo,
+  grandmill, logflume, ironwood, canopymill), `Models/ShopBuildings` (stall, cafe, inn, bakery, bazaar, hotel,
+  nightmarket, theatre, skytram), `Models/HomeBuildings` (nest, burrow, den, roost, grotto, palace, loft, coralmanor,
+  cloudkeep, citadel, hatchery) and `Models/BoostBuildings` (toolshed, windmill, smokehouse, market, watertower,
+  townhall, beacon, seedvault, guildhall, tradehall, tidebell). The request of 2026-11-15 ("could you rework and detail
+  every building even more? look at the bakery game for reference") rebuilt all 50 at two to four times the parts
+  (60 to 175 each), each with its own small helpers (shingled roofs in rows, windows with frames and flower boxes,
+  lanterns, crates and barrels with proud straps) inside its footprint and its pennant corner, every size a multiple
+  of 0.25 (`Blocks` snaps them) so no two faces of different colours lie in one plane. The spinners keep their names
+  and hubs (the windmill's `SailArm` and `Sail` round (0, 3.4, 0.9), the grand mill's 13 `Paddle`s round
+  (1.6, 1.5, -0.6)); water keeps `PixelWater` (2 still, 3 foam, 4 falling); smoke rises from parts named `Chimney` or
+  `Vent`; birds perch on `Ridge`. Their shared helpers are `Models/BuildKit` (`BuildKit.box`, `ball`, `cyl`, `log`,
+  `tube`, `palmTrunk`, `wedge`, `roof`, `window`, `sideWindow`, `door`, `crate`, `barrel`, `sack`, `pot`, `footing`,
+  `fence`, `fenceZ`, `lamp`, `fruitTree`, `awning`, `storey`, `flatRoof`, `streetLamp`, `blades`, `pennant`, `span`,
+  `roundDoor`, `cap`, `spire`); since that rework `roundDoor` faces +Z (a quarter turn round Y: the old turn round X
+  left the disc facing the side), `storey`'s walls stand on its band instead of around it, and `crate`'s strap and
+  `barrel`'s hoops stand a whole grid step proud (snapped, the old ones shared the body's faces and flickered).
+  `tube(m, f, pts, dia, color, name,
   cap?)`: a round trunk or strand through points, a cylinder between each two and a ball at each joint as wide as the
   segment below (widths on the 1/8-stud grid, lengths exact, so it bends with no gap or step); the Palm Tree's trunk is
   one (`palmTrunk`, as StreetModels' palms). The Tree of Life
