@@ -426,6 +426,83 @@ function SCEN.motion()
 	return p
 end
 
+-- The camera on the move (the report of 2026-11-15: "the camera moving is always very laggy. can this be fixed?"): the
+-- village, the founder walked east then north at walking speed (the camera following it), the renderer's frames timed
+-- (PixelRenderer.debugPerf: the scrolls, the composes, the full uploads and their grade, the whole frame), then as long
+-- standing still; pan_000 .. pan_005 a frame every half second of the walk.
+function SCEN.pan()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR == nil or PR.debugPerf == nil then
+		return p
+	end
+	local function report(label, secs)
+		local st = H.inClient(p, PR.debugPerf)
+		local f = math.max(1, st.frames)
+		local pf = math.max(1, st.panFrames)
+		log("pan %s: %d frames in %.1f s, %d panned; a frame %.2f ms; a pan's scroll %.2f ms (cast %.2f, ink %.2f); composes %.2f ms a frame (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f); %d full uploads, %.2f ms each (grade %.2f ms each), %d whole regrades; water %.2f ms and wind %.2f ms a frame; %d kept pictures used, %d models drawn", label, st.frames, secs, st.panFrames, st.stepMs / f, st.scrollMs / pf, st.castMs / pf, st.inkMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.uploads, st.uploadMs / math.max(1, st.uploads), st.gradeMs / math.max(1, st.uploads), st.regrades, st.waterMs / f, st.windMs / f, st.hits, st.draws)
+		if PR.debugGradeCheck then
+			local g = H.inClient(p, PR.debugGradeCheck)
+			log("pan %s grade check: %d of %d static pixels off, image %d off%s", label, g.off, g.checked, g.image, if g.recasting then " (a re-cast going)" else "")
+		end
+	end
+	-- (on the real clock, 60 frames a second, so the renderer's own timings are real ones: as the ambient timing does)
+	local realClock = os.clock
+	local sim0 = E.simClock
+	local off = E.SIM.lastClock - realClock() + 1
+	E.simClock = function()
+		local v = realClock() + off
+		E.SIM.lastClock = v
+		return v
+	end
+	local dt = 1 / 60
+	H.inClient(p, PR.debugPerf)
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	local at = root and root.Position or E.v3(0, 3, 0)
+	local speed = 16
+	local shot = 0
+	local wall0 = realClock()
+	for i = 1, 240 do
+		-- (round a square 12 studs a side: east, north, west, south, at walking speed)
+		local d = (i * dt * speed) % 48
+		local ox, oz
+		if d < 12 then
+			ox, oz = d, 0
+		elseif d < 24 then
+			ox, oz = 12, -(d - 12)
+		elseif d < 36 then
+			ox, oz = 12 - (d - 24), -12
+		else
+			ox, oz = 0, -12 + (d - 36)
+		end
+		p.Character:PivotTo(E.cf.new(at.X + ox, at.Y, at.Z + oz))
+		E.step(dt)
+	end
+	report("walking", realClock() - wall0)
+	wall0 = realClock()
+	for _ = 1, 240 do
+		E.step(dt)
+	end
+	report("standing", realClock() - wall0)
+	E.simClock = sim0
+	if PR.debugKeepCheck then
+		local kc = H.inClient(p, PR.debugKeepCheck)
+		log("pan kept pictures: %d of %d pixels differ from drawing every model afresh (%d kept pictures used)", kc.off, kc.checked, kc.hits)
+	end
+	-- (a few frames of the walk to look at)
+	for i = 1, 6 do
+		local d = (i * 0.5 * speed) % 48
+		p.Character:PivotTo(E.cf.new(at.X + math.min(d, 12), at.Y, at.Z - math.max(0, d - 12)))
+		E.run(0.5)
+		capture(p, string.format("pan_%03d", shot))
+		shot += 1
+	end
+	return p
+end
+
 -- A founder standing about (the requests of 2026-11-15: "the players eyes look too big, can they be 2 vertical lines
 -- instead? also, add more motion to the player, just like in the bakery game, like dozing off while afk"): up close
 -- on a lawn far from the islands, in rows of four (CharacterModels.poseFounder at the moment each one shows): standing

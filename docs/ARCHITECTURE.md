@@ -802,7 +802,8 @@ key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: any
 island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
 the founder's ground point in the middle of the screen across and halfway between the HUD's top and bottom strips
-(and the tips banner), on any island or swimming in the sea; the pan glides `CamGlide` of the way a frame, never more a frame
+(and the tips banner), on any island or swimming in the sea; the pan glides `CamGlide` of the way in a 60th of a second
+(`1 - (1 - CamGlide) ^ (dt x 60)` in a frame of dt seconds, so it keeps up as well at 30 frames a second), never more a frame
 than the renderer can scroll in one (`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never
 falls behind into a re-bake; a target more than three quarters of the screen away snaps (one bake instead of a scroll
 that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
@@ -874,6 +875,30 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   even-even anchor first with its sun ray, then the pixels sharing it), re-outlined with a pixel round them; at most
   `Tuning.PixelPanRays` rays a frame (a longer pan catches up over frames); a pan of half the layer or more re-bakes
   at the new pan behind the old picture. The next compose copies the whole static layer and uploads the whole image.
+- **What a frame costs while the view pans** (the request of 2026-11-15: "the camera moving is always very laggy"):
+  every pan composes and uploads the whole picture, so neither may cost the whole picture's Luau work. `SG` (one
+  table: the main chunk is at 200 registers) holds `SG.buf`, the static layer graded (`gradeSpan` over `sColor`,
+  `sId` and the lamps' pools), kept in step with it: a pan shifts it like the static buffers and grades only the
+  strips it casts (and 3 px round them, for their ink and contact shade); a re-cast rect, the water's changed pixels
+  and the wind's painted and restored pixels grade themselves again (`SG.rect`, `SG.px`); a bake, the island growing,
+  a stash coming back, a failed or removed effect layer, a new grade or dim and a rebuilt pool map clear `SG.ok`, and
+  the next whole upload grades it all once. A whole upload (`uploadAll(s, over, sticks, fxBook, fxN)`) copies `SG.buf`
+  and grades from the frame only what is drawn over the static picture: the moving models' rects, this tick's effect
+  pixels (their book) and the stuck pixels. Moving models keep their picture (`Dyn.cache`, `SG.keep` / `SG.blit`):
+  once a model has stood still through two draws its pixels that win against the static picture alone (colour, depth,
+  id, `PX_BYTES` 14 each) are kept, taken from the frame or, when another moving model drew into its rect, drawn again
+  into a scratch frame holding the static depths (`SG.scratchFor`). A kept picture stands for a draw while every part
+  stands as it did (CFrame, Size, shown), the static picture's epoch `SG.ver` is the same (bumped by anything that
+  changes the static picture except a pan), the scale is the same and the model lies wholly on the layer; it goes on
+  depth tested like the draw (`t + bias < depth`). A pan composes every frame, but the models still change at the
+  tier's `hz` (`SG.dynAcc`): between two of those a model shows its kept picture even when it has moved, except a
+  founder (the camera follows the own one; a rim is drawn where it stands now). Sims and previews:
+  `debugPerf()` (ms summed since the last read: frames, the scroll and its cast and ink, the compose and its copy,
+  models, outlines, rims and effects, whole uploads and their grade, whole regrades, the water and the wind, kept
+  pictures used and models drawn), `debugGradeCheck() -> { checked, off, image, recasting }` (`SG.buf` against grading
+  `sColor` afresh, and the last whole upload against grading the frame afresh) and `debugKeepCheck() -> { off, hits,
+  checked }` (two composes of one moment, with and without the kept pictures, the effects left out: the pixels that
+  differ). The `pan` preview walks the founder round a square and reports them.
 - **Invalidation**: a part that comes or goes anywhere under `Workspace.Plots` queues the global-art-px rect it and its
   sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
   the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
@@ -929,8 +954,9 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   never a glowing one (`dimOf`, cached per colour: greyer by 0.35 x dim, times 1 - 0.5 x dim, cooled); the dynamic
   things (the fighters, their effects) as they are.
 - **The time of day** (GAME_DESIGN 8; `setGrade(Grade?)`, `debugGrade() -> string` its key, "" by day): the layers
-  keep their daylight colours; every uploaded pixel (`uploadAll`, `uploadRect`) goes through `gradeOf` (cached per
-  colour and light level, cleared when the grade changes, which also uploads the whole picture): desaturated by
+  keep their daylight colours; every uploaded pixel (`uploadAll`, `uploadRect`; the static picture's through `SG.buf`,
+  above) goes through `gradeOf` (cached per colour and light level, cleared when the grade changes, which also
+  uploads the whole picture; `gradeSpan` grades a run of one colour of one part under one pool once): desaturated by
   `sat`, times `mr mg mb`, plus a blue `lift` in the shadows. `Grade { mr, mg, mb, lift, sat, lamps }`. Neon parts
   (`EMISSIVE` statics, `dynGlow` dynamics) keep their colour; round them `lightMap` (u8 a pixel, 0..3, rebuilt by
   `buildLight` when the picture moved or a part came or went, at most every `LIGHT_EVERY` seconds, and every second

@@ -135,7 +135,11 @@ local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0
 type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
-type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean?, smooth: boolean? }
+-- A moving model's picture last time it was drawn (DynCache in the compose section): its pixels that won against the
+-- static picture (dx, dy from the global art px (gx, gy), colour, depth, id: PX_BYTES each), its parts as they stood
+-- then, the static picture's epoch (SG.ver) and the scale. cache false: never kept (its ids wrap round).
+type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number }
+type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean?, smooth: boolean?, lo: number, hi: number, cache: DynCache? }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
 ------------------------------------------------------------------ state
@@ -196,7 +200,17 @@ local nextDyn = DYN_ID0
 local dynGlow: { [number]: boolean } = { [Fx.GLOW_ID] = true } -- dynamic part id -> Neon (it stays lit at night)
 local prevRects: { Rect } = {}
 local tickAcc = 0
-local stats = { ticks = 0, rays = 0, bakes = 0, composeMs = 0, scrolls = 0, scrollRays = 0, recasts = 0 }
+-- (`perf`: where a frame's time goes, ms summed since the last read: debugPerf; previews measure a walk with it)
+local stats = {
+	ticks = 0,
+	rays = 0,
+	bakes = 0,
+	composeMs = 0,
+	scrolls = 0,
+	scrollRays = 0,
+	recasts = 0,
+	perf = { frames = 0, panFrames = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0 },
+}
 local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
 -- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
 -- put back over the static picture wherever the frame takes it back (a model's rect restored, a full compose, last
@@ -286,6 +300,32 @@ local function staticIdOf(part: BasePart): number
 	return nid
 end
 
+-- The static picture graded (the grade section): the time of day's grade, the spotlight's dim and the lamps' pools
+-- over sColor, kept in step with it so a whole upload copies it and grades only what is drawn over it (the dynamic
+-- rects, the effects' pixels, the stuck ones). The request of 2026-11-15: "the camera moving is always very laggy":
+-- every pan used to grade the whole picture again, pixel by pixel. ok: buf matches sColor, sId and the lamps' pools
+-- of layer `on` under the grade now. Whatever changes them grades its own pixels again (a pan shifts buf and grades
+-- the strips it uncovers, a re-cast rect, the water's and the wind's pixels) or clears ok (a bake, the island growing,
+-- a new grade, the pools built again: the next upload grades it all).
+local SG = {
+	buf = nil :: buffer?,
+	out = nil :: buffer?, -- (the whole image graded, as it goes up)
+	on = nil :: Surf?,
+	ok = false,
+	ver = 0, -- the static picture's epoch: bumped whenever it changes other than by a pan (a model's kept picture is good within one)
+	dynAcc = 0, -- seconds since the moving models were last all due (they redraw at the tier's hz, panning or not)
+	off = false, -- (debugKeepCheck: every model drawn afresh)
+	quiet = false, -- (debugKeepCheck: the effects left out of a compose)
+	hits = 0, -- (kept pictures used, models drawn afresh: debugPerf)
+	draws = 0,
+	seq = 0, -- (bumped by every compose and every rect upload: debugGradeCheck)
+	fullAt = -1, -- (seq when the whole image last went up graded)
+	scratch = nil :: Raster.Frame?,
+	none = buffer.create(0),
+	px = (nil :: any) :: (s: Surf, i: number) -> (),
+	rect = (nil :: any) :: (s: Surf, x0: number, y0: number, x1: number, y1: number) -> (),
+}
+
 -- the wind's paint on the static layer (the wind section): undone before a scroll, a stash or a bake
 local windSaved: { [number]: number } = {} -- pixel -> its colour before the wind
 local windWrote: { [number]: number } = {} -- pixel -> the colour the wind painted
@@ -298,6 +338,7 @@ local function windRestore(s: Surf): boolean
 		for i, c in windSaved do
 			if buffer.readu32(color, i * 4) == windWrote[i] then
 				buffer.writeu32(color, i * 4, c)
+				SG.px(s, i)
 				any = true
 			end
 		end
@@ -907,6 +948,7 @@ local function buildLight(s: Surf)
 	end
 	lightStale = false
 	lightAt = os.clock()
+	SG.ok = false -- (the pools graded into the static picture moved)
 end
 
 -- A static pixel in the spotlight: darker, a little greyer and cooler (what moves stands out against it).
@@ -921,50 +963,84 @@ local function dimOf(c: number): number
 	return clampByte(nr) + clampByte(ng) * 256 + clampByte(nb) * 65536 + a
 end
 
--- n pixels of the frame from pixel i0, graded (the time of day) and dimmed (the spotlight) into out from
--- pixel o0.
-local function gradeSpan(s: Surf, i0: number, n: number, out: buffer, o0: number)
-	local src, fid = s.frame.color, s.frame.id
+-- n pixels of a picture (colours src, ids fid: the frame's or the static layer's) from pixel i0, graded (the time
+-- of day) and dimmed (the spotlight) into out from pixel o0.
+local function gradeSpan(src: buffer, fid: buffer, i0: number, n: number, out: buffer, o0: number)
 	local g = grade
 	local lm = if g and g.lamps > 0 then lightMap else nil
 	local map = gradeMap
 	local dmap = dimMap
+	-- (a run of one colour of one part under one pool, as pixel art is mostly: graded once)
+	local lastC, lastId, lastL, lastO = -1, -1, -1, 0
 	for k = 0, n - 1 do
 		local i = i0 + k
 		local c = buffer.readu32(src, i * 4)
 		local id = buffer.readu16(fid, i * 2)
+		local lvl = if lm then buffer.readu8(lm, i) else 0
 		local o = c
-		if c ~= 0 and not isGlow(id) then
-			if g then
-				local lvl = if lm then buffer.readu8(lm, i) else 0
-				local key = c + lvl * 4294967296
-				o = map[key]
-				if o == nil then
-					o = gradeOf(c, lvl)
-					map[key] = o
+		if c == lastC and id == lastId and lvl == lastL then
+			o = lastO
+		else
+			if c ~= 0 and not isGlow(id) then
+				if g then
+					local key = c + lvl * 4294967296
+					o = map[key]
+					if o == nil then
+						o = gradeOf(c, lvl)
+						map[key] = o
+					end
+				end
+				if dim > 0 and id < DYN_ID0 then
+					local d = dmap[o]
+					if d == nil then
+						d = dimOf(o)
+						dmap[o] = d
+					end
+					o = d
 				end
 			end
-			if dim > 0 and id < DYN_ID0 then
-				local d = dmap[o]
-				if d == nil then
-					d = dimOf(o)
-					dmap[o] = d
-				end
-				o = d
-			end
+			lastC, lastId, lastL, lastO = c, id, lvl, o
 		end
 		buffer.writeu32(out, (o0 + k) * 4, o)
 	end
 end
 
-local gradeBuf: buffer? = nil
+-- Pixel i of the static layer graded again into SG (when SG is in step with layer s).
+function SG.px(s: Surf, i: number)
+	local b = SG.buf
+	if SG.ok and SG.on == s and b then
+		gradeSpan(s.sColor, s.sId, i, 1, b, i)
+	end
+end
+
+-- A static layer rect (inclusive, clipped to the layer) graded again into SG.
+function SG.rect(s: Surf, x0: number, y0: number, x1: number, y1: number)
+	local b = SG.buf
+	if not (SG.ok and SG.on == s and b) then
+		return
+	end
+	x0, y0, x1, y1 = math.max(0, x0), math.max(0, y0), math.min(s.W - 1, x1), math.min(s.H - 1, y1)
+	if x0 > x1 or y0 > y1 then
+		return
+	end
+	local w = x1 - x0 + 1
+	for y = y0, y1 do
+		local i = y * s.W + x0
+		gradeSpan(s.sColor, s.sId, i, w, b :: buffer, i)
+	end
+end
 
 ------------------------------------------------------------------ upload
-local function uploadAll(s: Surf)
+-- The whole image up. Graded, the static picture comes from SG (graded all again only when out of step) and only what
+-- is drawn over it is graded from the frame: the rects `over` (the dynamic layer's, the effects'), the pixels the
+-- effects wrote this tick (fxn of them in book fxb) and the stuck ones (sticks). Nothing over it: the frame is the
+-- static picture alone (a bake).
+local function uploadAll(s: Surf, over: { Rect }?, sticks: boolean?, fxb: buffer?, fxn: number?)
 	local im = img
 	if im == nil then
 		return
 	end
+	local u0 = os.clock()
 	local f = s.frame
 	local src = f.color
 	if grade or dim > 0 then
@@ -973,17 +1049,59 @@ local function uploadAll(s: Surf)
 		if grade and (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= n or ((lightStale or now - lightAt >= 1) and now - lightAt >= LIGHT_EVERY)) then
 			buildLight(s)
 		end
-		local b = gradeBuf
+		local b = SG.out
 		if b == nil or buffer.len(b) ~= n * 4 then
 			b = buffer.create(n * 4)
-			gradeBuf = b
+			SG.out = b
 		end
-		gradeSpan(s, 0, n, b :: buffer, 0)
+		local g0 = os.clock()
+		local sg = SG.buf
+		if not SG.ok or SG.on ~= s or sg == nil or buffer.len(sg) ~= n * 4 then
+			if sg == nil or buffer.len(sg) ~= n * 4 then
+				sg = buffer.create(n * 4)
+				SG.buf = sg
+			end
+			gradeSpan(s.sColor, s.sId, 0, n, sg :: buffer, 0)
+			SG.on, SG.ok = s, true
+			stats.perf.regrades += 1
+		end
+		buffer.copy(b :: buffer, 0, sg :: buffer, 0, n * 4)
+		local W, H = s.W, s.H
+		local list: { Rect } = over or {}
+		for _, r in list do
+			local x0, y0, x1, y1 = math.max(0, r.x0), math.max(0, r.y0), math.min(W - 1, r.x1), math.min(H - 1, r.y1)
+			if x0 <= x1 then
+				for y = y0, y1 do
+					local i = y * W + x0
+					gradeSpan(f.color, f.id, i, x1 - x0 + 1, b :: buffer, i)
+				end
+			end
+		end
+		if fxb and fxn then
+			-- (this tick's effect pixels: the book they were written in)
+			for k = 0, fxn - 1 do
+				local i = buffer.readu32(fxb, k * 4)
+				if i < n then
+					gradeSpan(f.color, f.id, i, 1, b :: buffer, i)
+				end
+			end
+		end
+		if sticks then
+			for _, i in stickList do
+				if i < n then
+					gradeSpan(f.color, f.id, i, 1, b :: buffer, i)
+				end
+			end
+		end
+		stats.perf.gradeMs += (os.clock() - g0) * 1000
+		SG.fullAt = SG.seq
 		src = b :: buffer
 	end
 	pcall(function()
 		im:WritePixelsBuffer(Vector2.zero, Vector2.new(s.W, s.H), src)
 	end)
+	stats.perf.uploads += 1
+	stats.perf.uploadMs += (os.clock() - u0) * 1000
 end
 
 local function uploadRect(s: Surf, r: Rect)
@@ -999,12 +1117,13 @@ local function uploadRect(s: Surf, r: Rect)
 	local w, h = x1 - x0 + 1, y1 - y0 + 1
 	local b = buffer.create(w * h * 4)
 	local src = s.frame.color
+	SG.seq += 1
 	if grade or dim > 0 then
 		if grade and (grade :: Grade).lamps > 0 and (lightMap == nil or buffer.len(lightMap :: buffer) ~= s.W * s.H) then
 			buildLight(s)
 		end
 		for y = y0, y1 do
-			gradeSpan(s, y * s.W + x0, w, b, (y - y0) * w)
+			gradeSpan(s.frame.color, s.frame.id, y * s.W + x0, w, b, (y - y0) * w)
 		end
 	else
 		for y = y0, y1 do
@@ -1093,6 +1212,8 @@ local function endGrow()
 		staticChanged()
 		lightStale = true
 		needFull = true
+		SG.ok = false
+		SG.ver += 1
 	end
 	if g or growArm == nil then
 		local fns = afterGrowFns
@@ -1207,6 +1328,8 @@ local function finishBake(s: Surf, b: Surf)
 	buffer.copy(f.depth, 0, s.sDepth, 0, s.W * s.H * 4)
 	buffer.copy(f.id, 0, s.sId, 0, s.W * s.H * 2)
 	prevRects = {}
+	SG.ok = false
+	SG.ver += 1
 	uploadAll(s)
 	stats.bakes += 1
 	staticChanged()
@@ -1417,6 +1540,8 @@ local function buildSurf(v: CameraController.View)
 			invCur = nil
 			prevRects = {}
 			needFull = true
+			SG.ok = false
+			SG.ver += 1
 			staticChanged()
 			if image then
 				image.Visible = true
@@ -1727,6 +1852,7 @@ local function animateWater(s: Surf): boolean
 				local nc = waterColor(base, c, waterTone(c, ph, k))
 				if nc ~= cur then
 					buffer.writeu32(color, i * 4, nc)
+					SG.px(s, i)
 					changed = true
 				end
 			end
@@ -1769,6 +1895,7 @@ local function animateWind(s: Surf, k: number): boolean
 			windSaved[i] = buffer.readu32(color, i * 4)
 		end
 		buffer.writeu32(color, i * 4, c)
+		SG.px(s, i)
 		windWrote[i] = c
 		any = true
 	end
@@ -1989,6 +2116,8 @@ local function runFx(s: Surf, now: number): { Rect }
 			fxStats.layers = #fxLayers
 			staticChanged()
 			needFull = true
+			SG.ok = false
+			SG.ver += 1
 		end
 	end
 	local t1 = os.clock()
@@ -2175,7 +2304,203 @@ function Rims.drawAll(s: Surf, cx: number, cy: number)
 	table.clear(rects)
 end
 
-local function compose()
+------------------------------------------------------------------ the moving models' kept pictures (DynCache)
+-- The request of 2026-11-15: "the camera moving is always very laggy". A moving model that stands still (an egg on the
+-- lawn between its rocks, a hut's sign) is not drawn again every tick: its pixels from the last draw are put back where
+-- they belong on the layer (the grid is the world's, so a pan only moves them by whole art px), depth tested as the
+-- draw would be. A kept picture is used while every part stands as it did, the static picture is the same (SG.ver: a
+-- pan keeps it), the scale is the same and the model lies wholly on the layer. While the camera pans every frame is
+-- composed, but the moving models still change at the tier's hz like everywhere else: on a frame between two of
+-- those a model shows its kept picture even when it has moved since, except the founders (the camera follows the
+-- player's own, and a founder's white rim is drawn round where it stands now).
+local PX_BYTES = 14 -- a kept pixel: dx u16, dy u16, colour u32, depth f32, id u16
+
+-- Parts as they stand now against a snapshot (cfs, szs, gone); nil snapshot: never the same.
+function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?): boolean
+	if cfs == nil or szs == nil or gone == nil then
+		return false
+	end
+	for i, p in d.parts do
+		local part = p.part
+		if part.CFrame ~= cfs[i] or part.Size ~= szs[i] or (part.Parent == nil or part.Transparency >= 0.95) ~= gone[i] then
+			return false
+		end
+	end
+	return true
+end
+
+-- After model d was drawn afresh over layer rect (x0, y0)-(x1, y1): when it has stood still since its last draw, keep
+-- its picture (one that moves every tick never pays for this). The picture is its pixels against the static picture
+-- alone: taken from the frame when no other moving model drew into the rect, otherwise drawn again into a scratch
+-- frame holding the static depths (a model in front would leave holes in it). The rect must lie wholly on the layer.
+function SG.keep(s: Surf, d: Dyn, x0: number, y0: number, x1: number, y1: number, ppu: number, texOn: boolean)
+	local c = d.cache
+	local still = c ~= nil and SG.same(d, c.cfs, c.szs, c.gone)
+	local cfs, szs, gone = {}, {}, {}
+	for i, p in d.parts do
+		local part = p.part
+		cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
+	end
+	-- (the snapshot stays to tell next time whether it stood still: n 0 marks a picture not kept)
+	local keepIt = still and d.hi >= d.lo and x0 >= 0 and y0 >= 0 and x1 <= s.W - 1 and y1 <= s.H - 1
+	if not keepIt then
+		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
+		return
+	end
+	local W = s.W
+	local lo, hi = d.lo, d.hi
+	local src = s.frame
+	for y = y0, y1 do
+		local row = y * W
+		for x = x0, x1 do
+			local id = buffer.readu16(src.id, (row + x) * 2)
+			if id >= DYN_ID0 and (id < lo or id > hi) then
+				src = SG.scratchFor(s)
+				break
+			end
+		end
+		if src ~= s.frame then
+			break
+		end
+	end
+	if src ~= s.frame then
+		-- (drawn again against the static depths alone)
+		local w = x1 - x0 + 1
+		for y = y0, y1 do
+			local i = y * W + x0
+			buffer.copy(src.depth, i * 4, s.sDepth, i * 4, w * 4)
+			buffer.fill(src.id, i * 2, 0, w * 2)
+		end
+		SG.drawModel(src, d, s.cam, texOn)
+	end
+	local color, depth, ids = src.color, src.depth, src.id
+	local n = 0
+	for y = y0, y1 do
+		local row = y * W
+		for x = x0, x1 do
+			local id = buffer.readu16(ids, (row + x) * 2)
+			if id >= lo and id <= hi then
+				n += 1
+			end
+		end
+	end
+	local px = buffer.create(math.max(1, n) * PX_BYTES)
+	local k = 0
+	for y = y0, y1 do
+		local row = y * W
+		for x = x0, x1 do
+			local i = row + x
+			local id = buffer.readu16(ids, i * 2)
+			if id >= lo and id <= hi then
+				local o = k * PX_BYTES
+				buffer.writeu16(px, o, x - x0)
+				buffer.writeu16(px, o + 2, y - y0)
+				buffer.writeu32(px, o + 4, buffer.readu32(color, i * 4))
+				buffer.writef32(px, o + 8, buffer.readf32(depth, i * 4))
+				buffer.writeu16(px, o + 12, id)
+				k += 1
+			end
+		end
+	end
+	d.cache = { gx = x0 + s.cam.gx, gy = y0 + s.cam.gy, w = x1 - x0 + 1, h = y1 - y0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu }
+end
+
+-- The scratch frame a still model's clean picture is drawn in (the layer's size; made once a size).
+function SG.scratchFor(s: Surf): Raster.Frame
+	local f = SG.scratch
+	local n = s.W * s.H
+	if f == nil or f.W ~= s.W or f.H ~= s.H then
+		f = { W = s.W, H = s.H, color = buffer.create(n * 4), depth = buffer.create(n * 4), id = buffer.create(n * 2) }
+		SG.scratch = f
+	end
+	return f :: Raster.Frame
+end
+
+-- Puts model d's kept picture on the frame when it can stand for a draw this tick (fresh: every model is due, so only
+-- one that has not moved; otherwise a model that is not a founder may show it though it has moved). Returns the layer
+-- rect it covers, or nil (draw it).
+function SG.blit(s: Surf, d: Dyn, fresh: boolean, ppu: number): (number?, number?, number?, number?)
+	local c = d.cache
+	if c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu or SG.off then
+		return nil
+	end
+	if (fresh or d.rim) and not SG.same(d, c.cfs, c.szs, c.gone) then
+		return nil
+	end
+	local W = s.W
+	local x0, y0 = c.gx - s.cam.gx, c.gy - s.cam.gy
+	local x1, y1 = x0 + c.w - 1, y0 + c.h - 1
+	if x0 < 0 or y0 < 0 or x1 > W - 1 or y1 > s.H - 1 then
+		return nil
+	end
+	local f = s.frame
+	local color, depth, ids = f.color, f.depth, f.id
+	local bias = s.cam.bias
+	local px = c.px
+	for k = 0, c.n - 1 do
+		local o = k * PX_BYTES
+		local i = (y0 + buffer.readu16(px, o + 2)) * W + x0 + buffer.readu16(px, o)
+		local t = buffer.readf32(px, o + 8)
+		if t + bias < buffer.readf32(depth, i * 4) then
+			buffer.writeu32(color, i * 4, buffer.readu32(px, o + 4))
+			buffer.writef32(depth, i * 4, t)
+			buffer.writeu16(ids, i * 2, buffer.readu16(px, o + 12))
+		end
+	end
+	return x0, y0, x1, y1
+end
+
+-- Draws moving model d into frame f (the layer's, or the scratch a still model's clean picture is drawn in) at camera
+-- cam; returns the layer rect its parts cover (x0 > x1: none).
+function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean): (number, number, number, number)
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	-- (a model lit smooth: its balls as they stand this frame; Render/Smooth)
+	local smooth = d.smooth
+	if smooth then
+		local T = texOpt
+		local cnt = 0
+		for _, p in d.parts do
+			local part = p.part
+			if p.sm == SmoothParts.Smooth.ROLE_BALL and part.Parent ~= nil and part.Transparency < 0.95 then
+				local pos, psz = part.Position, part.Size
+				cnt += 1
+				T.xs[cnt], T.ys[cnt], T.zs[cnt] = pos.X, pos.Y, pos.Z
+				T.rs[cnt] = math.min(psz.X, psz.Y, psz.Z) * 0.5
+			end
+		end
+		T.cnt = cnt
+	end
+	for _, p in d.parts do
+		local part = p.part
+		if part.Parent == nil or part.Transparency >= 0.95 then
+			continue
+		end
+		local cf12 = { part.CFrame:GetComponents() }
+		local sz = part.Size
+		local bx0, by0, bx1, by1 = Raster.boxRect(cam, cf12, sz.X, sz.Y, sz.Z)
+		if bx0 and by0 and bx1 and by1 then
+			local shade = if p.glow then shadeGlow else shadeLit
+			local lean = smooth and (p.sm == SmoothParts.Smooth.ROLE_BALL or p.sm == SmoothParts.Smooth.ROLE_FOLLOW)
+			if (texOn and p.tex > 0) or lean then
+				texCF, texShape, texKind = cf12, p.shape, if texOn then p.tex else 0
+				texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
+				if lean then
+					local T = texOpt
+					T.n = SmoothParts.Smooth.near(T.xs, T.ys, T.zs, T.rs, T.cnt, cf12[1], cf12[2], cf12[3], 0.5 * sz.Magnitude, T.idx)
+					T.role = p.sm
+				else
+					texOpt.role = 0
+				end
+				shade = shadeTex
+			end
+			Raster.drawPart(f, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade)
+			x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
+		end
+	end
+	return x0, y0, x1, y1
+end
+
+local function compose(due: boolean?)
 	local s = surf
 	if s == nil then
 		return
@@ -2183,8 +2508,11 @@ local function compose()
 	local t0 = os.clock()
 	local cam = s.cam
 	panX, panY = cam.gx, cam.gy
+	SG.seq += 1
 	fxBooks(s)
 	local full = needFull
+	local pf = stats.perf
+	local k0 = os.clock()
 	if full then
 		local n = s.W * s.H
 		local f = s.frame
@@ -2206,6 +2534,8 @@ local function compose()
 		fxRestore(s)
 	end
 	local rects: { Rect } = {}
+	local k1 = os.clock()
+	pf.copyMs += (k1 - k0) * 1000
 	-- the blob shadows first (on the static picture), then the models over them
 	for model, d in dyns do
 		local first = d.parts[1]
@@ -2241,48 +2571,17 @@ local function compose()
 			break
 		end
 		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
-		-- (a model lit smooth: its balls as they stand this frame; Render/Smooth)
-		local smooth = d.smooth
-		if smooth then
-			local T = texOpt
-			local cnt = 0
-			for _, p in d.parts do
-				local part = p.part
-				if p.sm == SmoothParts.Smooth.ROLE_BALL and part.Parent ~= nil and part.Transparency < 0.95 then
-					local pos, psz = part.Position, part.Size
-					cnt += 1
-					T.xs[cnt], T.ys[cnt], T.zs[cnt] = pos.X, pos.Y, pos.Z
-					T.rs[cnt] = math.min(psz.X, psz.Y, psz.Z) * 0.5
-				end
+		-- (a still model, or one between two of its ticks while the view pans, from its kept picture)
+		local cx0, cy0, cx1, cy1 = SG.blit(s, d, due ~= false, pxPerStud)
+		if cx0 and cy0 and cx1 and cy1 then
+			x0, y0, x1, y1 = cx0, cy0, cx1, cy1
+			SG.hits += 1
+		else
+			x0, y0, x1, y1 = SG.drawModel(s.frame, d, cam, texOn)
+			if x0 <= x1 then
+				SG.keep(s, d, x0, y0, x1, y1, pxPerStud, texOn)
 			end
-			T.cnt = cnt
-		end
-		for _, p in d.parts do
-			local part = p.part
-			if part.Parent == nil or part.Transparency >= 0.95 then
-				continue
-			end
-			local cf12 = { part.CFrame:GetComponents() }
-			local sz = part.Size
-			local bx0, by0, bx1, by1 = Raster.boxRect(cam, cf12, sz.X, sz.Y, sz.Z)
-			if bx0 and by0 and bx1 and by1 then
-				local shade = if p.glow then shadeGlow else shadeLit
-				local lean = smooth and (p.sm == SmoothParts.Smooth.ROLE_BALL or p.sm == SmoothParts.Smooth.ROLE_FOLLOW)
-				if (texOn and p.tex > 0) or lean then
-					texCF, texShape, texKind = cf12, p.shape, if texOn then p.tex else 0
-					texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
-					if lean then
-						local T = texOpt
-						T.n = SmoothParts.Smooth.near(T.xs, T.ys, T.zs, T.rs, T.cnt, cf12[1], cf12[2], cf12[3], 0.5 * sz.Magnitude, T.idx)
-						T.role = p.sm
-					else
-						texOpt.role = 0
-					end
-					shade = shadeTex
-				end
-				Raster.drawPart(s.frame, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade)
-				x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
-			end
+			SG.draws += 1
 		end
 		if x0 <= x1 then
 			table.insert(rects, { x0 = x0 - 1, y0 = y0 - 1, x1 = x1 + 1, y1 = y1 + 1 })
@@ -2292,16 +2591,25 @@ local function compose()
 			end
 		end
 	end
+	local k2 = os.clock()
 	for _, r in rects do
 		Shading.outline(s.frame, r.x0, r.y0, r.x1, r.y1)
 	end
+	local k3 = os.clock()
 	-- the founders' white rims, once every model and its ink edge is in (a later model's ink must not cover one)
 	Rims.drawAll(s, s.W * 0.5, s.H * 0.5)
+	local k4 = os.clock()
 	-- the effects over everything (their changed pixels' tiles go up with the rest)
-	local fxRects = runFx(s, os.clock())
+	local fxRects: { Rect } = if SG.quiet then {} else runFx(s, os.clock())
+	local k5 = os.clock()
+	pf.dynMs += (k2 - k1) * 1000
+	pf.outlineMs += (k3 - k2) * 1000
+	pf.rimMs += (k4 - k3) * 1000
+	pf.fxMs += (k5 - k4) * 1000
 	if full then
 		needFull = false
-		uploadAll(s)
+		-- (the effects' pixels are graded one by one from their book: their tiles need nothing more)
+		uploadAll(s, rects, true, fxPrev, fxPrevN)
 	else
 		for _, r in fxRects do
 			uploadRect(s, r)
@@ -2325,6 +2633,7 @@ local function compose()
 	prevRects = rects
 	stats.ticks += 1
 	stats.composeMs = (os.clock() - t0) * 1000
+	stats.perf.composeMs += stats.composeMs
 	-- (what draws over the picture in step with it: PixelRenderer.onComposed)
 	local after = (PixelRenderer :: any)._composed
 	if after then
@@ -2424,6 +2733,12 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	shift(s.sShare, W, H, 1, sx, sy)
 	shift(s.sWClass, W, H, 1, sx, sy)
 	shift(s.sWave, W, H, 1, sx, sy)
+	local sg = SG.buf
+	if SG.ok and SG.on == s and sg and buffer.len(sg) == W * H * 4 then
+		shift(sg, W, H, 4, sx, sy) -- (the strips it uncovers are graded once cast, below)
+	else
+		SG.ok = false
+	end
 	local g = growing
 	if g then
 		Grow.shift(g, sx, sy)
@@ -2461,11 +2776,19 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	elseif sy < 0 then
 		table.insert(strips, { x0 = cx0, y0 = 0, x1 = cx1, y1 = -sy - 1 })
 	end
+	local c0 = os.clock()
 	for _, r in strips do
 		rays += castRect(s, r.x0, r.y0, r.x1, r.y1)
 	end
+	local c1 = os.clock()
 	for _, r in strips do
 		reoutline(s, r.x0, r.y0, r.x1, r.y1)
+	end
+	stats.perf.castMs += (c1 - c0) * 1000
+	stats.perf.inkMs += (os.clock() - c1) * 1000
+	-- (what a strip's cast, ink and contact shade touched: the strip and a few pixels round it)
+	for _, r in strips do
+		SG.rect(s, r.x0 - 3, r.y0 - 3, r.x1 + 3, r.y1 + 3)
 	end
 	stats.scrolls += 1
 	staticChanged()
@@ -2589,6 +2912,8 @@ local function processInvalidation()
 		end
 		if c.phase > 2 then
 			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
+			SG.rect(s, r.x0 - gx0 - 3, r.y0 - gy0 - 3, r.x1 - gx0 + 3, r.y1 - gy0 + 3)
+			SG.ver += 1
 			local g = growing
 			if g then
 				Grow.adopt(g, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
@@ -2635,7 +2960,7 @@ local function applyTier(want: string)
 end
 
 ------------------------------------------------------------------ lifecycle
-local function onHeartbeat(dt: number)
+local function frameStep(dt: number)
 	if not started or paused or tier == "off" then
 		return
 	end
@@ -2669,6 +2994,8 @@ local function onHeartbeat(dt: number)
 		end
 		if changed then
 			needFull = true
+			SG.ok = false
+			SG.ver += 1
 		end
 		if g.phase == "done" then
 			endGrow()
@@ -2677,7 +3004,13 @@ local function onHeartbeat(dt: number)
 	local s = surf
 	if s and not baking then
 		local tx, ty = CameraController.pan()
+		local sc0 = os.clock()
+		local before = stats.scrolls
 		scrollToward(s, tx, ty)
+		if stats.scrolls ~= before then
+			stats.perf.panFrames += 1
+			stats.perf.scrollMs += (os.clock() - sc0) * 1000
+		end
 		if baking then
 			return -- a jump started a bake
 		end
@@ -2689,19 +3022,29 @@ local function onHeartbeat(dt: number)
 		if waterClock >= 1 / WATER_HZ then
 			waterClock = 0
 			waterFrame += 1
+			local w0 = os.clock()
 			if animateWater(s) then
 				needFull = true
 			end
+			local w1 = os.clock()
 			if animateWind(s, waterFrame) then
 				needFull = true
 			end
+			stats.perf.waterMs += (w1 - w0) * 1000
+			stats.perf.windMs += (os.clock() - w1) * 1000
 		end
 	end
 	local hz = tierSpec(tier).hz
 	tickAcc += dt
+	SG.dynAcc += dt
 	if tickAcc >= 1 / hz or needFull then
 		tickAcc = 0
-		compose()
+		-- (the moving models change at hz even while a pan composes every frame)
+		local due = SG.dynAcc >= 1 / hz
+		if due then
+			SG.dynAcc = 0
+		end
+		compose(due)
 	end
 end
 
@@ -2786,7 +3129,12 @@ function PixelRenderer.start()
 	end
 	applyTier(setting)
 	watchCharacters()
-	RunService.Heartbeat:Connect(onHeartbeat)
+	RunService.Heartbeat:Connect(function(dt: number)
+		local t0 = os.clock()
+		frameStep(dt)
+		stats.perf.frames += 1
+		stats.perf.stepMs += (os.clock() - t0) * 1000
+	end)
 	task.spawn(watchStatic)
 end
 
@@ -2887,7 +3235,10 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			})
 		end
 	end
-	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel }
+	-- (its ids run lo .. hi unless they wrapped round past 65535: then hi < lo and its picture is never kept)
+	local lo = if #parts > 0 then parts[1].id else 0
+	local hi = if #parts > 0 then parts[#parts].id else -1
+	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel, lo = lo, hi = hi }
 end
 
 -- A static part leaves the picture (Controllers/Spinners: a turning copy of it is drawn as a moving model instead):
@@ -2930,6 +3281,7 @@ function PixelRenderer.refreshDynamic(model: Model)
 			p.glow = p.part.Material == Enum.Material.Neon
 			dynGlow[p.id] = p.glow
 		end
+		d.cache = nil
 	end
 end
 
@@ -3081,6 +3433,7 @@ function PixelRenderer.addFxLayer(name: string, draw: (ctx: Fx.Ctx) -> ()): () -
 		-- (what it stuck goes with it)
 		staticChanged()
 		needFull = true
+		SG.ok = false
 	end
 end
 
@@ -3159,6 +3512,7 @@ function PixelRenderer.setGrade(g: Grade?)
 	grade = g
 	table.clear(gradeMap)
 	needFull = true
+	SG.ok = false
 end
 
 -- The spotlight (nothing sets it now): the static picture darkened by k (0 .. 1, taken in tenths; each step
@@ -3171,6 +3525,7 @@ function PixelRenderer.setDim(k: number)
 	dim = q
 	table.clear(dimMap)
 	needFull = true
+	SG.ok = false
 end
 
 -- Sims and previews: the founders' rims last tick (how many, the white pixels laid, the ms they took) and the models
@@ -3193,6 +3548,82 @@ function PixelRenderer.hasRim(model: Model): boolean
 end
 
 -- Sims and previews: the spotlight's dimming now.
+-- Previews: where the frames' time went since the last read (ms summed: the scrolls of the frames that panned, the
+-- composes, the full uploads and their grade), then the counters start again.
+function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, hits: number, draws: number }
+	local perf = stats.perf
+	local out: any = table.clone(perf)
+	for k in perf do
+		perf[k] = 0
+	end
+	out.hits, out.draws = SG.hits, SG.draws
+	SG.hits, SG.draws = 0, 0
+	return out
+end
+
+-- Sims and previews: whether the graded static picture (SG) is in step with the static layer (off: its pixels that
+-- differ from grading sColor afresh; a re-cast still going may differ where it has got to), and whether the whole
+-- image last uploaded matches grading the frame afresh (image: pixels off, -1 when the last upload was not whole).
+function PixelRenderer.debugGradeCheck(): { checked: number, off: number, image: number, recasting: boolean }
+	local s = surf
+	local b = SG.buf
+	local out = { checked = 0, off = 0, image = -1, recasting = invCur ~= nil }
+	if s == nil or b == nil or not SG.ok or SG.on ~= s or not (grade or dim > 0) then
+		return out
+	end
+	local n = s.W * s.H
+	local t = buffer.create(n * 4)
+	gradeSpan(s.sColor, s.sId, 0, n, t, 0)
+	for i = 0, n - 1 do
+		if buffer.readu32(t, i * 4) ~= buffer.readu32(b, i * 4) then
+			out.off += 1
+		end
+	end
+	out.checked = n
+	local o = SG.out
+	if SG.fullAt == SG.seq and o and buffer.len(o) == n * 4 then
+		gradeSpan(s.frame.color, s.frame.id, 0, n, t, 0)
+		out.image = 0
+		for i = 0, n - 1 do
+			if buffer.readu32(t, i * 4) ~= buffer.readu32(o, i * 4) then
+				out.image += 1
+			end
+		end
+	end
+	return out
+end
+
+-- Sims and previews: the moving models' kept pictures against drawing every model afresh, at one moment: two whole
+-- composes (the effects left out), the first using the kept pictures that stand for a still model, the second drawing
+-- everything; off: the pixels (colour or id) that differ, hits: the kept pictures the first used.
+function PixelRenderer.debugKeepCheck(): { off: number, hits: number, checked: number }
+	local s = surf
+	if s == nil or baking then
+		return { off = -1, hits = 0, checked = 0 }
+	end
+	local n = s.W * s.H
+	SG.quiet = true
+	needFull = true
+	local h0 = SG.hits
+	compose(true)
+	local hits = SG.hits - h0
+	local a, ai = buffer.create(n * 4), buffer.create(n * 2)
+	buffer.copy(a, 0, s.frame.color, 0, n * 4)
+	buffer.copy(ai, 0, s.frame.id, 0, n * 2)
+	SG.off = true
+	needFull = true
+	compose(true)
+	SG.off, SG.quiet = false, false
+	local off = 0
+	for i = 0, n - 1 do
+		if buffer.readu32(a, i * 4) ~= buffer.readu32(s.frame.color, i * 4) or buffer.readu16(ai, i * 2) ~= buffer.readu16(s.frame.id, i * 2) then
+			off += 1
+		end
+	end
+	needFull = true
+	return { off = off, hits = hits, checked = n }
+end
+
 function PixelRenderer.debugDim(): number
 	return dim
 end

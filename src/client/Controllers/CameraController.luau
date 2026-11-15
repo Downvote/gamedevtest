@@ -5,8 +5,8 @@
 -- ground stud, its phase, the ray plane `l`) depends only on the plot, the screen and K; on it the view pans by whole
 -- art px (`pan()`), so the pixel renderer scrolls its picture instead of baking it again:
 --   follow (the default): the view keeps the founder (the player's character) in the middle of the screen between
---     the HUD's strips, wherever they walk, gliding a share of the way a frame (Tuning.CamGlide) in whole art px (at
---     most what the renderer can scroll in a frame);
+--     the HUD's strips, wherever they walk, gliding a share of the way (Tuning.CamGlide a 60th of a second, more in a
+--     longer frame) in whole art px (at most what the renderer can scroll in a frame);
 --   free (Build mode): the view still follows the founder, lowered a little (Build mode's tray covers the bottom of
 --     the screen), plus where Build mode drags it (`panBy`, kept over the own plot); a drag holds while the founder
 --     stands, and once they walk the view eases back onto them (the request of 2026-11-14: "in build mode, make the
@@ -380,7 +380,7 @@ local function panCaps(v: View): (number, number)
 	return math.max(1, math.floor(Tuning.PixelPanRays / (H * 1.5))), math.max(1, math.floor(Tuning.PixelPanRays / (W * 1.5)))
 end
 
-local function step()
+local function step(dt: number?)
 	local v = current
 	if v == nil then
 		return
@@ -414,12 +414,16 @@ local function step()
 		return
 	end
 	local capX, capY = panCaps(v)
+	-- (the share of the way a frame from the frame's length, so the view keeps up as well at 30 frames a second as at
+	-- 60: Tuning.CamGlide is the share at 60)
+	local secs = math.clamp(dt or 1 / 60, 1 / 240, 0.1)
+	local glide = 1 - (1 - Tuning.CamGlide) ^ (secs * 60)
 	local function toward(cur: number, to: number, cap: number): number
 		local d = to - cur
 		if d == 0 then
 			return cur
 		end
-		local move = math.min(cap, math.max(1, math.ceil(math.abs(d) * Tuning.CamGlide)))
+		local move = math.min(cap, math.max(1, math.ceil(math.abs(d) * glide)))
 		return cur + math.sign(d) * math.min(move, math.abs(d))
 	end
 	local nx, ny = toward(panX, tx, capX), toward(panY, ty, capY)
