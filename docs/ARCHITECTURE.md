@@ -914,7 +914,11 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   a gust passes: the leaf phase's two windows of 12 in 48, one each way) flicks out a pixel (the outline over what lies
   behind, the leaf next to it where the outline was) or opens a pixel in (what lay behind where the outline was, the
   outline a pixel in, when two leaf pixels stand behind it); in a gust the sides facing its way flick out and the
-  others in, else the clump's hash picks; nothing inside a crown moves (the canopy's whole-edge lean and the 2 x 2
+  others in, else the clump's hash picks; a move only where the outline stays one pixel thick (the report of
+  2026-11-15, "when the tree rustles, it seems to make thick outlines sometimes"): the edge pixel is ink
+  (`Shading.INK_PIXEL`, as the outline pass writes it), the leaf behind it and the pixel outside are not, the moved
+  ink touches no other ink across or beside it as the frame stands (this frame's earlier moves in), opening in needs
+  a second leaf behind, and no pixel moves twice in a frame; nothing inside a crown moves (the canopy's whole-edge lean and the 2 x 2
   inner clumps of 2026-11-14 are in this file's history); a flag's columns drop or lift a pixel along the wave (the
   lifted fold a shade darker). What it painted is
   kept (`windSaved` / `windWrote`) and undone (`windRestore`) before the next wind frame, a pan, a stage's stash and

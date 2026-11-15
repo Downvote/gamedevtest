@@ -1743,7 +1743,11 @@ end
 -- over what lies behind (the outline out, the leaf next to it where the outline was) or open a pixel in (what lay
 -- behind showing where the outline was, the outline a pixel in), each for a frame or two at its own time; while a gust
 -- passes (the phase drifting slowly across the island, a gust each way in turn) more of them move, the edges facing
--- the gust flicking out and the others in, so the crown leans by its leaves. Inside a crown nothing moves. A flag's
+-- the gust flicking out and the others in, so the crown leans by its leaves. A move happens only where it keeps the
+-- outline one pixel thick (the report of 2026-11-15: "when the tree rustles, it seems to make thick outlines
+-- sometimes"): the edge pixel is ink and the leaf behind it isn't (a frond two pixels thin, or an ink line inside the
+-- crown, never doubles up), flicking out never lands next to other ink, opening in needs a second leaf behind (the ink
+-- a pixel in still has leaf behind it), and no pixel moves twice in a frame. Inside a crown nothing moves. A flag's
 -- columns hang a pixel lower in the wave's crests and lift a pixel in its troughs (the lifted ones a fold darker).
 -- What the wind paints is undone before the next frame, a scroll or a bake (`windRestore`).
 local RUSTLE_N, RUSTLE_GUST = 6, 14 -- of 64: the edge clumps moving at a time, and while a gust passes
@@ -1752,8 +1756,12 @@ local function animateWind(s: Surf, k: number): boolean
 	local any = windRestore(s)
 	local W, H = s.W, s.H
 	local cls, wave, depth, color = s.sWClass, s.sWave, s.sDepth, s.sColor
+	local INK_PX = Shading.INK_PIXEL -- (an edge's ink, as the outline pass writes it)
 	local function orig(i: number): number
 		return windSaved[i] or buffer.readu32(color, i * 4)
+	end
+	local function now(i: number): number
+		return buffer.readu32(color, i * 4)
 	end
 	local function put(i: number, c: number)
 		windOn = s
@@ -1790,14 +1798,27 @@ local function animateWind(s: Surf, k: number): boolean
 						-- (with a gust, the sides facing its way flick out and the others in; else by the clump)
 						local out = if gust ~= 0 and dir ~= -W then dir == gust else h % 2 == 0
 						local t, b = i + dir, i - dir
-						if out then
-							put(t, orig(i))
-							if buffer.readu8(cls, b) == 4 then
-								put(i, orig(b))
+						local ci, cb, ct = orig(i), orig(b), orig(t)
+						-- (across the edge: the next pixel along it either side)
+						local side = if dir == 1 or dir == -1 then W else 1
+						if ci == INK_PX and cb ~= INK_PX and ct ~= INK_PX and buffer.readu8(cls, b) == 4 and windSaved[t] == nil and windSaved[b] == nil then
+							-- (the neighbours as they stand now, with this frame's earlier moves in: two moves never
+							-- meet side by side)
+							if out then
+								-- (the ink out a pixel, the leaf where it was; never onto a pixel touching other ink)
+								if now(t + dir) ~= INK_PX and now(t + side) ~= INK_PX and now(t - side) ~= INK_PX and windSaved[t + side] == nil and windSaved[t - side] == nil then
+									put(t, ci)
+									put(i, cb)
+								end
+							else
+								-- (what lay behind where the ink was, the ink a pixel in, a leaf still behind it and no
+								-- other ink beside it)
+								local c2 = b - dir
+								if buffer.readu8(cls, c2) == 4 and now(c2) ~= INK_PX and windSaved[c2] == nil and now(b + side) ~= INK_PX and now(b - side) ~= INK_PX and windSaved[b + side] == nil and windSaved[b - side] == nil then
+									put(i, ct)
+									put(b, ci)
+								end
 							end
-						elseif buffer.readu8(cls, b) == 4 and buffer.readu8(cls, b - dir) == 4 then
-							put(i, orig(t))
-							put(b, orig(i))
 						end
 					end
 				end

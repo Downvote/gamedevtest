@@ -172,6 +172,8 @@ end
 local function packRGB(rgb: number): number
 	return bit32.rshift(rgb, 16) + bit32.band(rgb, 0xFF00) + bit32.band(rgb, 0xFF) * 65536 + ALPHA
 end
+-- An ink line's pixel as the outline pass writes it (the renderer's wind tells an edge's ink from a leaf by it).
+Shading.INK_PIXEL = packRGB(INK)
 
 ------------------------------------------------------------------ API
 function Shading.pack(r: number, g: number, b: number): number

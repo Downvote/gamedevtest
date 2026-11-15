@@ -1694,7 +1694,10 @@ text (the requests and how each was met) is in the history of this file, up to c
   rustling of leaves as animation, i meant rustling the sillouhette instead. theres no need for the random noise
   animation inside the tree leaves"): along the edge of every palm, tree, bush and tuft, little clumps of leaves flick
   out a pixel or pull in a pixel for a moment, each at its own time; when a gust runs across the island more of them
-  move and the edges facing the gust flick out, so the crown leans by its leaves. Inside a crown nothing moves. Flags
+  move and the edges facing the gust flick out, so the crown leans by its leaves. The outline stays one pixel thick
+  as it moves (the report of 2026-11-15: "when the tree rustles, it seems to make thick outlines sometimes": a thin
+  frond or an edge next to another outline could double it): a clump only moves where its ink never meets other ink.
+  Inside a crown nothing moves. Flags
   and pennants ripple along their length, a lifted fold a shade darker; the boats' flags flutter as they sail.
 - **What turns and flows:** a windmill's sails turn slowly, a waterwheel turns with the stream (the other way round)
   and so do the Grand Mill's paddles, on every island near the view; the little waterfall and the Spring Grotto's
