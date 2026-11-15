@@ -1434,6 +1434,35 @@ end
 H.expect(other ~= nil and H.buttonNamed(p, "SwapWith_" .. other.id) ~= nil, "pals", "a full hut: swap with one of its driftlings")
 H.clickNamed(p, "SwapWith_" .. (if other then other.id else 0), { wait = 0.5 })
 H.expect(pal.home == hutA.uid and other ~= nil and other.home == hutB.uid, "pals", "swapped: it lives in the first hut again, the other in the second", string.format("%d / %s", pal.home, tostring(other and other.home)))
+-- a pointer over a driftling's row: what its numbers mean (the request of 2026-11-15: "when hovering or holding onto
+-- each creature, show what their mutation and stats do"); leaving the row hides it
+do
+	local I = require("./inst")
+	pal.muts = { "bright2", "fierce1" }
+	H.push(p, 0.3)
+	H.openPanel(p, "pals")
+	E.run(0.3)
+	local PT = H.cmod(p, "UI.PalTip")
+	local rowF = p.PlayerGui:FindFirstChild("Pal_" .. pal.id, true)
+	if rowF then
+		I.fire(I.getSig(rowF, "MouseEnter"), 40, 40)
+	end
+	E.run(0.1)
+	local st = H.inClient(p, PT.debugState)
+	local all = table.concat(st.texts, " | ")
+	local d = H.sharedServer("Data.Creatures").byId[pal.sp]
+	local function has(w)
+		return string.find(all, w, 1, true) ~= nil
+	end
+	H.expect(rowF ~= nil and st.shown and has("Works x") and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and has("Its egg luck counts while it lives in a hut") and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
+	local tipF = p.PlayerGui:FindFirstChild("PalTip", true)
+	H.expect(tipF ~= nil and tipF.Visible ~= false, "pals", "(the tip's card on the Popup root)")
+	if rowF then
+		I.fire(I.getSig(rowF, "MouseLeave"))
+	end
+	E.run(0.1)
+	H.expect(not H.inClient(p, PT.debugState).shown, "pals", "leaving the row hides it")
+end
 -- selling from the panel takes two taps
 do
 	local nPals, sold0, sh1, t1 = #prof.pals, prof.stats.sold, prof.shells, E.now()

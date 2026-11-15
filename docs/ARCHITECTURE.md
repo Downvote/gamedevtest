@@ -124,7 +124,7 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
                        AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs, GrowFx), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory, Grow), UI/* (UIKit, Hud,
-                       Menus, BuildUI, PixelSprites, ArtData and ThumbData (generated), Words)
+                       Menus, BuildUI, PixelSprites, ArtData and ThumbData (generated), Words, PalTip)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
                        (puts the loading card up first), LoadingCard, LoadingArt (generated: tools/preview/loading_art.sh)
 src/RbxCharacterSounds.client.luau  an empty LocalScript in StarterPlayerScripts under the name Roblox would give its own
@@ -1326,6 +1326,18 @@ chip with its `mini_` icon, `Text` and, when both fit, `Sub` (its price or "Read
 after `Menus.init()`.
 
 ### 10.4 Menus
+`UI/PalTip` (GAME_DESIGN 6, the request of 2026-11-15): `attach(target, pal)` on a row or button that shows one
+driftling (Menus' `Pal_<id>`, `SwapOut_<id>`, `Parent_<id>`, `Swap_<id>` rows and the Hatchery's `Slot_a/b_<uid>`):
+`MouseEnter` (not on a touch-only device) shows the tip at the pointer (`GetMouseLocation` less the Popup canvas's
+origin, in UI px), `InputChanged` mouse movement follows it, `MouseLeave` hides it; a touch held `HOLD_SECS` 0.35
+shows it above the finger (`InputObject.Position` plus the inset), `InputEnded` hides it; the target's `Destroying`
+(a panel built again) hides it. `show(pal, at, touch?)`, `hide()`, `lines(pal) -> { { text, color, tier?, title? } }`
+(the name with its rarity; "Works farms x.., wood x.., shops x.." from `RarityWork` x (1 + `Traits.workAt`) at each
+knack, or "Works x.. at any workplace" when they agree within 0.05; the rarity's base; the passive; each mutation (its
+name and stars by `TierStars`, then `Traits.describe(fx)`, on the next line when it doesn't fit); "Its <egg luck / egg
+price / charm> count(s) while it lives in a hut" for the keys it has; "Sells for N shells"), `debugState() -> { shown,
+texts }`. The card: glass made solid (`UIKit.setPlate` 0), `PalTip`, at most `TIP_W` 190 wide plus padding, a long
+line wrapped up to three, on the Popup root kept on the screen.
 `Menus` registers the panels (the villagers' "folk" went with them; each is built again with every view): "pal"
 (GAME_DESIGN 6, "One driftling's card"; title "Driftling", 320 x 182: `WorldView`'s pick opens it; `{ id }` the own
 island's from the view, `{ id, plot, sp, muts, work, home, isle }` a neighbour's; "That driftling isn't on your island

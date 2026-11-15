@@ -25,6 +25,7 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local TierStars = require(script.Parent.TierStars)
 local Words = require(script.Parent.Words)
 local StoreUI = require(script.Parent.StoreUI)
+local PalTip = require(script.Parent.PalTip)
 local RunService = game:GetService("RunService")
 
 local Menus = {}
@@ -281,6 +282,7 @@ local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, 
 		n += 1
 		local f = row(list, n, 38)
 		f.Name = "Parent_" .. x.id
+		PalTip.attach(f, x)
 		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 		UIKit.text(f, string.format("%s  %s", d.name, rar.name), UDim2.fromOffset(W - 106, 10), UDim2.fromOffset(PX, 4), { color = UIKit.color(rar.color), z = 4 })
@@ -378,6 +380,7 @@ local function buildHatch(body: Frame, arg: any?)
 				end, { name = "Slot_" .. key .. "_" .. q.uid, color = UIKit.color("plate") })
 				b.ZIndex = 4
 				if x then
+					PalTip.attach(b, x)
 					PixelSprites.image(b, "icon_" .. x.sp, UDim2.fromOffset(2, 2), 5)
 					local cd = Creatures.byId[x.sp]
 					UIKit.text(b, if cd then cd.name else x.sp, UDim2.fromOffset(58, 10), UDim2.fromOffset(36, 13), { color = UIKit.color("text"), z = 6 })
@@ -466,6 +469,7 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 					order += 1
 					local r = row(list, order, 36)
 					r.Name = "Swap_" .. x.id
+					PalTip.attach(r, x)
 					PixelSprites.image(r, "icon_" .. x.sp, UDim2.fromOffset(14, 2), 4)
 					local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 					UIKit.text(r, string.format("%s  %s", d.name, workWord(x)), UDim2.new(1, -126, 0, 10), UDim2.fromOffset(50, 13), { color = UIKit.color(rar.color), z = 4 })
@@ -505,6 +509,8 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	local dy = (pl - 1) * 10
 	local f = row(list, order, 44 + dy)
 	f.Name = "Pal_" .. x.id
+	-- (hover or hold: what its numbers mean, the request of 2026-11-15)
+	PalTip.attach(f, x)
 	PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 6), 4)
 	UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
 	UIKit.text(f, rar.name .. ", " .. string.lower(workWord(x)), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(PX + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4, name = "Rarity" })
@@ -807,6 +813,7 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 		end
 		local f = row(list, i, 38)
 		f.Name = "SwapOut_" .. x.id
+		PalTip.attach(f, x)
 		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
 		local xr = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 		local tw = W - 106

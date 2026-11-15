@@ -1068,6 +1068,23 @@ local function panelScenario(name)
 		elseif name == "work" then
 			-- the work picker for the first driftling (Work on its card): every workplace with its speed there
 			H.openPanel(p, "pals", { pal = H.profile(p).pals[1].id })
+		elseif name == "paltip" then
+			-- a driftling's tip over the Driftlings panel (the request of 2026-11-15: "when hovering or holding onto each
+			-- creature, show what their mutation and stats do"): the first one with a flaw and two mutations, one of
+			-- them for the whole island; the tip where a pointer over its row would put it
+			local prof = H.profile(p)
+			prof.pals[1].muts = { "bright2", "grower3", "lazy" }
+			H.push(p, 0.3)
+			H.openPanel(p, "pals")
+			E.run(0.3)
+			local PT = modOr(p, "UI.PalTip")
+			if PT then
+				H.inClient(p, function()
+					PT.show(prof.pals[1], E.v2(150, 70), false)
+				end)
+				local st = H.inClient(p, PT.debugState)
+				log("paltip: %s", table.concat(st.texts, " | "))
+			end
 		elseif name == "pal" then
 			-- one driftling's details (the request of 2026-11-14, "allow players to click on creatures to open up a
 			-- menu seeing their details"), opened as a player would, by a tap on it where it stands on the island

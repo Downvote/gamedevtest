@@ -212,6 +212,8 @@ local function showCard(s: Spot)
 	w += 2 * UIKit.PAD
 	-- (on the Popup root, over the HUD's cards: on a phone a building near the edge put its card under them)
 	local f = UIKit.glass(UIKit.canvas("Popup"), UDim2.fromOffset(w, 16 + 10 * #lines), nil, 2)
+	-- (nearly solid: it can sit over the HUD's cards)
+	UIKit.setPlate(f, nil, 0.1)
 	f.Name = "BuildingCard"
 	f.ZIndex = 6
 	f:SetAttribute("Words", words)

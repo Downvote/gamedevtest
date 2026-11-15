@@ -1047,6 +1047,18 @@ expanding the island increases the quality of eggs spawned and amount of eggs sp
 driftlings floated past on the tide; before that the tree grew one every few seconds into a pen, with Speed and Luck
 to buy.)
 
+> The request (2026-11-15): "when hovering or holding onto each creature, show what their mutation and stats do".
+
+**A driftling's tip** (`UI/PalTip`): every row that shows one driftling (the Driftlings panel, the Tree panel's swap
+list, the Hatchery's parent picker and its two parent slots, the hut picker's swaps) shows a tip while a mouse is over
+it, or while a finger holds it for a third of a second. The tip says the driftling's name and rarity; how fast it
+works at each kind of workplace ("Works farms x1.4, wood x0.8, shops x0.8", or "Works x1.1 at any workplace" when
+they match); what its rarity alone gives ("Common ones work x1.0 before passives and mutations"); its passive and what
+it does; each mutation with its stars and what it does ("Blessed: +10% egg luck"); a line saying the island-wide
+ones (egg luck, egg price, charm) count while it lives in a hut, naming only the ones it has; and what it sells for.
+It sits on top of everything, solid, by the pointer (above the finger on a phone), and goes when the pointer leaves
+or the finger lifts.
+
 **The Tree of Life** (`Logic/Tree`; its own piece in `Data/Buildings`: "tree", 8 x 8 studs, charm 6, never in the
 build tray). Every island has one. A new island has it behind the campfire (`Tree.SPOT`, the nearest free spot); a
 save from the tide gets one there too, and if the island is built full the pieces nearest that spot make room (paths
