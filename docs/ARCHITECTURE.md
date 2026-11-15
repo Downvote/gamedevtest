@@ -388,10 +388,26 @@ Models (`src/shared/Models`, Roblox modules):
   half-stud wedges. Coplanar parts of different colours never overlap (the lawn's tones split a cell between them).
   Collision is as it was: a filled notch never collides, a cell still wholly covered does (two wedges), and a cut cell
   of a solid layer keeps an invisible part where it stood (in `Bounds`, named as its layer). Parts at tiers 1, 5 and 10:
-  462, 1046 and 1517 before, about 660, 1540 and 2280 after (the island model, its props included). The palms
-  (`palm`, and `emptyLot`'s and `ends`') have one smooth trunk (`palmTrunk`: six round `Trunk` segments along a curve
-  from the foot into the crown, a `Trunk` ball at each joint as wide as the segment below, the two woods in turn,
-  widths on the 1/8-stud grid and lengths exact so the joints meet); the crown, fronds and coconuts where they were.
+  462, 1046 and 1517 before, about 660, 1540 and 2280 after (the island model, its props included; a tier-1 island
+  about 950 since the palms and the plaza were rebuilt on 2026-11-15). The palms (`palm(parent, at, s, lean)`,
+  rebuilt on 2026-11-15: "can you also rebuild the tree of life, and palm trees?") have one smooth trunk: seven round
+  `Trunk` segments along a curve from a flared foot into the crown, leaning out and coming upright under it, swelling
+  low down, a thin dark ring band at each joint (it closes the bend), lengths exact so the joints meet; a fibrous
+  boot; seven `Frond`s that rise, arch and droop, each two folds of leaflet blades hanging off its midrib, swept to
+  toothed edges, the upper ones `leaf` and the lower `leaf_dark` (they rustle), with a gap between two rising ones on
+  the side the camera sees (from +X +Z, worked out in the palm's own frame) so its coconuts and dead fronds show; two
+  young spear fronds in the middle, one or two dead fronds hanging, and a bunch of green and brown coconuts. About 60
+  parts. The plaza (`plaza`, the same day: "also, the campfire and seats in the middle"): a ring of 11 `FireStone`s of
+  two greys in varied shapes, some mossy, round an ash bed with charcoal and glowing embers; four logs crossed under a
+  stick, their cut ends pale, topping out under the flickering flame (`MicroModels` "flame": an Outer, a Mid and a
+  Tip narrowing up, its yellow Core showing at the front corner); static `Flame` tongues and a glow bed round where it
+  stands; a kettle on the back stone and a marshmallow toasting on a stick. Three log benches where the seats were
+  (radius 2.75, the south open): each a round bark `Seat` log planed flat on top (`SeatTop`), its cut ends ringed, a
+  knot and moss, a blanket, a cushion or mugs on it. A firewood stack, a chopping stump with its axe, a tin bucket,
+  a stump stool with a cushion on a woven mat. The `FlagPole` on a little cairn with a gold `PoleKnob`, its `Pennant`,
+  `PennantTip` and `PennantMark` rippling; the two torches with straw `TorchBinding`s, a `TorchRim` and two
+  `TorchFlame`s each. Flames, fronds, coconuts and small props don't collide; the stones, logs, benches, stumps,
+  bucket, firewood and poles do.
 - `DecorModels.build(id, at, lvl?) -> Model` (its `Decor` attribute the id and `At` the frame it was built at, for
   Controllers/Spinners; every piece in `Data/Buildings`; `lvl` goes to the builder: a level
   kept from an older save, the tree's stage, or a water tile's neighbour mask plus 1; `at`: the footprint's centre on
@@ -427,24 +443,33 @@ Models (`src/shared/Models`, Roblox modules):
   `tube(m, f, pts, dia, color, name,
   cap?)`: a round trunk or strand through points, a cylinder between each two and a ball at each joint as wide as the
   segment below (widths on the 1/8-stud grid, lengths exact, so it bends with no gap or step); the Palm Tree's trunk is
-  one (`palmTrunk`, as StreetModels' palms). The Tree of Life
+  one (the catalog's Palm Tree, `B.palm`, is StreetModels' palm a little fuller since 2026-11-15: eight fronds, five
+  coconuts, its crown where it was, a two-step sand mound at its foot with a fallen coconut, a split one showing its
+  white and a tuft of beach grass; about 77 parts). The Tree of Life
   (`tree`, 8 x 8; GAME_DESIGN 6 has the references it was drawn after): an `EggLawn` (7.8 studs across: its eggs lie
-  on it), a `Lawn` and `Moss`; a ring of standing `Stone`s (`StoneMoss` caps, a Neon `Glyph` on some, a gap at the
-  front); `Root`s in eight directions; a `Trunk` core (one cylinder from the ground, a ball on top) and three
-  braided `Strand`s (each a `tube`: upright from the ground, then round segments along a twist round the core, a ball
-  at each joint and on its top, the two woods in turn; nothing below the ground, so the model's box is as it was),
-  Neon `Rune`s up it; the
-  `Hollow` at the front with its glowing `Pod` (Neon), a `Lintel` and two `Jamb`s; `Branch` limbs forking out to the
-  leaf clouds (`Leaves`, `LeavesUnder`), each with `Blossom`, a `Vine` and `VineTip` hanging and Neon gold `Fruit`
-  under it; a `Ring` of gold Neon dashes on the ground, `Mote`s, mushrooms (`Stalk`, `Cap`) and `Flower`s; the
-  ground, the stones and the roots inside the inner 6 x 6, the eggs' lawn round them. Its stage (`lvl` 1 .. 6,
+  on it), a `Lawn` and `Moss`; a ring of standing `Stone`s at radius 2.3 (1.25 and 0.75 tall, times 1.2 from stage
+  4; `StoneMoss` tufts, gold from stage 4, moss down the face, `Lichen`, a Neon `Glyph` on some, a gap at the front);
+  `Root`s flaring from about 1.8 studs up the trunk, the big ones dipping into the ground and coming up again past the
+  stones, with rootlets (simpler behind the trunk); a `Trunk` core and three braided `Strand`s (each a `tube`, one
+  facing the camera, the other two ending either side of the doorway), `Knot`s with dark hearts and `BarkMoss` on the
+  camera's side, pale blue Neon `Rune`s upright where the strands face the camera (6 at stage 1 to 14 at stage 6,
+  every third with a dot); the `Hollow` at the front with its glowing `Pod` (Neon) in an arched frame (`Lintel`,
+  `Jamb`s, a keystone with a rune), a stone `Step` and a `Lantern` on a `Post` either side (from stage 1); a
+  `BirdHouse` (`BirdRoof`, `BirdHole`, `Perch`) on the trunk; round `Branch` limbs (tubes) out to the leaf clouds,
+  each one `Leaves` ball with `LeafPuff` lobes, `LeafLit` patches on the sunny side and `LeavesUnder` beneath (the
+  clouds at the back darker), `Blossom`, swaying `Vine`s (chalk, so they don't rustle) with `VineFlower`s and a
+  `VineTip`, and Neon gold `Fruit` on a `Stalk` under it; a `Ring` of gold Neon dashes on the ground, `Mote`s and
+  fireflies, mushrooms (`Stem`, `Cap` and `Spot` balls), `Flower`s and `Fallen` blossom; the ground, the stones and
+  the roots inside the inner 6 x 6, nothing standing between 3.05 and 3.85 studs out all the way round (the eggs).
+  About 435 parts at stage 1 and 817 at stage 6 (269 and 623 before the rebuild of 2026-11-15). Its stage (`lvl` 1 .. 6,
   `Tree.stage`) scales it above that ground: the trunk's girth, the limbs' and the ring of clouds' height, the top
   cloud's height (12.2 studs x 1, 1.18, 1.36, 1.55, 1.68, 1.8), the crown's spread and each cloud's size; more `Rune`s, lit
   `Glyph`s, `Blossom` and `Mote`s; `Lantern`s (Neon) from stage 2; eight ring clouds, four more above them and three
   `Fruit` a cloud from stage 3; from stage 4 blossom on every cloud, a `Halo` of gold Neon over the crown, gold caps on
   the stones and a second ring of light; from stage 5 a `Lantern` under every limb, a second, wider `Halo` and three
   `Floating` stones round the trunk (`FloatingMoss`, a `Glyph` each, a `Pebble`); at stage 6 `GoldLeaves` in the crown,
-  a third ring of light and a ring of `OuterStone`s with `OuterCap`s round the eggs' lawn (inside the 8 x 8); no Lv 3
+  a third ring of light and two low `OuterStone`s with `OuterCap`s in each corner of the lawn (radius 4.7 to 4.95,
+  off the eggs' ring, inside the 8 x 8); no Lv 3
   pennant (its `lvl` is a stage). `DecorModels.HOLLOW` (the hollow's
   foot in the model's frame: where a hatchling steps out when its egg's place is unknown, `EggView.hatchPoint`) and
   `DecorModels.EGG_RING` (3.45: the studs from its middle to the eggs' circle, `EggView`).

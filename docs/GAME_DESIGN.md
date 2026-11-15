@@ -1087,6 +1087,15 @@ on forked limbs, each with a dark underside, blossom, hanging vines and gold fru
 the ground, motes in the air, mushrooms and flowers at its foot. Round the stones a wide round lawn of moss holds its
 eggs (the footprint grew from 6 x 6 to 8 x 8 for them).
 
+**Rebuilt in more detail** (the request of 2026-11-15: "can you also rebuild the tree of life, and palm trees?", after
+every building was reworked the bakery's way). The same tree, finer: knots and moss on the bark, the runes facing the
+player, roots that flare from high on the trunk and dip into the ground and up again past the stones, taller stones
+with moss and lichen, a bigger glowing doorway in an arched frame with a stone step and a lantern either side, a bird
+house on the trunk, leaf clouds of more puffs lit on top and shaded underneath (the ones at the back darker, so the
+crown has depth), vines that sway with pink and white flowers on them, and mushrooms, flowers, fallen blossom and
+fireflies among the roots. Nothing stands on the eggs' ring, so every egg shows; at the last stage the low stones with
+gold caps sit in the lawn's corners instead of round the eggs.
+
 **It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4 from the capital, 5 from Lantern Cove,
 6 from Amberfield): stage 2 on a Palm Isle and a Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital to
 Driftling Haven. Each stage the trunk thickens, the crown spreads wider (half as wide again at the last) and climbs (the
@@ -1675,6 +1684,14 @@ text (the requests and how each was met) is in the history of this file, up to c
   barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
   the stall's awning, the lighthouse's lamp) and, from Lv 2, a pennant at its back corner (gold at Lv 3, with a lit
   lantern on top of its pole). Driftlings have shiny eyes, cheeks and a mouth.
+- **Palms and the campfire rebuilt** (the requests of 2026-11-15: "can you also rebuild the tree of life, and palm
+  trees?" and "also, the campfire and seats in the middle"). A palm's ringed trunk leans out in one smooth curve and
+  comes upright under its crown; its fronds rise, arch and droop with leaflets along them, two young ones spear up in
+  the middle, a dead frond or two hangs brown, and a bunch of coconuts sits under them. The campfire in the middle of
+  every island is a ring of mossy stones round glowing embers and crossed logs, a kettle on a stone and a
+  marshmallow on a stick; its three seats are log benches with a blanket, a cushion and mugs on them, with a firewood
+  stack, a chopping stump and its axe, a bucket and a stool on a woven mat round about; the flag stands on a little
+  cairn and the torches are bound with straw.
 - **Every building reworked** (the request of 2026-11-15: "could you rework and detail every building even more?
   look at the bakery game for reference"). Like the bakery's shops, each of the 50 is a small scene now, two to four
   times the parts it had, its silhouette and colours its own: the patch has a scarecrow with a bluebird on its hat

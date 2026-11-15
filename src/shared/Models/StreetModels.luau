@@ -15,7 +15,7 @@
 -- 2026-11-13: "could you bevel these to make them smoother, with rounded corners?"): every notch of a layer's stairs is
 -- half filled by a flat triangle (a wedge on its side) and a square corner cut back, so each edge runs straight, on a
 -- diagonal or along the grid, and turns in 45 degree steps (`bevelled`; the plaza's ring of sand too). The palms'
--- trunks are smooth curves of round segments joined by balls. The sea, the shallows and the foam carry a
+-- trunks are smooth curves of round segments with a ring at each joint. The sea, the shallows and the foam carry a
 -- "PixelWater" attribute (1, 2, 3): the pixel filter animates them. There are no docks: each island stands alone in
 -- the sea (the request of 2026-11-13: "remove the docks area, it should just be an island. players can swim around
 -- in water to reach other player islands"). The water lets the founders through to the seabed (Street.SEABED_Y), an
@@ -359,51 +359,126 @@ local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: num
 end
 
 ------------------------------------------------------------------ small things
--- A palm's trunk: one smooth curve from its foot up into the crown at (tx, ty) (f's frame; upright at the foot, leaning
--- out through the middle, upright again under the crown), round segments joined end to end with a ball at each joint
--- as wide as the segment below it, so it bends with no gap and no step. The rings of its bark in two woods in turn,
--- narrowing a little going up from w0 (widths on the 1/8-stud grid: an art pixel; DecorModels' Palm Tree the same).
+-- A palm's trunk: one smooth curve from its foot up into the crown at (tx, ty) (f's frame), leaning out from the foot
+-- and coming upright under the crown. Round `Trunk` segments joined end to end, with a dark ring at each joint a little
+-- wider than the bark (the scars old fronds leave), so it bends with no gap and no step; it swells a little low down
+-- and narrows going up (widths on the 1/8-stud grid: an art pixel; lengths exact, so the joints meet). Its foot
+-- spreads into the sand. DecorModels' Palm Tree is built the same way.
+local TRUNK_W = { 1.17, 1, 1, 0.95, 0.88, 0.82, 0.77 } -- (each segment's width from the foot up, a share of w0)
 local function palmTrunk(m: Instance, f: CFrame, tx: number, ty: number, w0: number)
-	local n = 6
+	local n = #TRUNK_W
 	local pts: { Vector3 } = {}
 	for j = 0, n do
 		local t = j / n
-		table.insert(pts, Vector3.new(tx * (3 * t * t - 2 * t * t * t), ty * t, 0))
+		table.insert(pts, Vector3.new(tx * (t + t * t - t * t * t), ty * t, 0))
 	end
 	for i = 1, n do
 		local a, b = pts[i], pts[i + 1]
-		local d = math.max(0.25, math.floor(w0 * (1 - (i - 1) * 0.055) * 8 + 0.5) / 8)
-		local color = if i % 2 == 1 then "wood" else "wood_dark"
-		local seg = Blocks.part(m, { size = Vector3.new(1, 1, 1), cf = f * CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), color = color, shape = "Cylinder", name = "Trunk" })
+		local d = math.max(0.25, math.floor(w0 * TRUNK_W[i] * 8 + 0.5) / 8)
+		local seg = Blocks.part(m, { size = Vector3.one, cf = f * CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), color = "wood", shape = "Cylinder", name = "Trunk" })
 		seg.Size = Vector3.new((b - a).Magnitude, d, d) -- (exact: the joints meet)
 		if i < n then
-			local joint = Blocks.part(m, { size = Vector3.new(1, 1, 1), cf = f * CFrame.new(b), color = color, shape = "Ball", name = "Trunk" })
-			joint.Size = Vector3.new(d, d, d)
+			-- (the ring: a thin round band across the joint, turned halfway between the two segments, so it closes the
+			-- bend too)
+			local c = pts[i + 2]
+			local ring = Blocks.part(m, { size = Vector3.one, cf = f * CFrame.lookAt(b, b + (b - a).Unit + (c - b).Unit) * CFrame.Angles(0, math.pi / 2, 0), color = "wood_dark", shape = "Cylinder", name = "Trunk" })
+			ring.Size = Vector3.new(0.19, d + 0.125, d + 0.125)
 		end
+	end
+	-- the foot, spreading into the sand
+	local foot = Blocks.part(m, { size = Vector3.one, cf = f * CFrame.new(0.04, -0.1, 0), color = "wood", shape = "Ball", name = "Trunk" })
+	local fd = math.floor(w0 * 1.45 * 8 + 0.5) / 8
+	foot.Size = Vector3.new(fd, fd, fd)
+end
+
+-- One palm frond from the crown's heart c (f's frame) out toward yaw `a` (radians about Y; 0 is +X): its midrib in
+-- segments that rise, arch over and droop, each { length, pitch in degrees, width, fold }. A fold (1) is a pair of
+-- leaflet blades hanging `hang` degrees either side of the midrib, the way a frond folds like a roof, swept a little
+-- toward the tip so the pair's outer corners stand out (the frond's edge goes in teeth, leaflets); otherwise (0) one
+-- blade: the bare stalk near the heart, the tip. Lengths and widths times s; each blade a little longer than its
+-- segment so the bends close.
+local SWEEP = math.rad(16)
+local function frond(m: Instance, f: CFrame, c: Vector3, a: number, segs: { { number } }, s: number, hang: number, color: string)
+	local dir = Vector3.new(math.cos(a), 0, -math.sin(a))
+	local h = math.rad(hang)
+	local p = c
+	for _, sg in segs do
+		local len = sg[1] * s
+		local pitch = math.rad(sg[2])
+		local hw = math.max(0.25, Blocks.snap(sg[3] * s))
+		local q = p + dir * (math.cos(pitch) * len) + Vector3.new(0, math.sin(pitch) * len, 0)
+		local cf = f * CFrame.lookAt((p + q) / 2, q)
+		local L = Blocks.snap(len + 0.25)
+		local size = Vector3.new(hw, 0.25, L)
+		if sg[4] == 1 then
+			for _, side in { 1, -1 } do
+				-- (turned about the corner at the midrib's start, so the pair stays closed there)
+				local cfh = cf * CFrame.new(0, 0, L / 2) * CFrame.Angles(0, 0, -side * h) * CFrame.Angles(0, side * SWEEP, 0) * CFrame.new(side * hw / 2, 0, -L / 2)
+				Blocks.part(m, { size = size, cf = cfh, color = color, name = "Frond", collide = false })
+			end
+		else
+			Blocks.part(m, { size = size, cf = cf, color = color, name = "Frond", collide = false })
+		end
+		p = q
 	end
 end
 
+-- The fronds' shapes: two folds of leaflets and the tip. The upper ones rise and arch, the lower ones droop.
+local FROND_UP = { { 1, 28, 0.5, 1 }, { 1, 0, 0.5, 1 }, { 0.75, -38, 0.5, 0 } }
+local FROND_LOW = { { 0.9, 8, 0.5, 1 }, { 1, -24, 0.5, 1 }, { 0.75, -58, 0.5, 0 } }
+local FROND_YOUNG = { { 0.85, 66, 0.25, 0 } }
+local FROND_DEAD = { { 0.45, -40, 0.25, 0 }, { 0.9, -78, 0.5, 1 } }
+
+-- The yaw (about f's Y, 0 along its +X) that faces the view: the camera looks from +X +Z (Tuning.CamYaw 45) and never
+-- turns, so a palm keeps a gap between two fronds on that side, its coconuts and dead fronds hanging there in sight.
+local function viewYaw(f: CFrame): number
+	local v = f:VectorToObjectSpace(Vector3.new(1, 0, 1))
+	return math.atan2(-v.Z, v.X)
+end
+
+-- A palm on the shore: the crown 1.8 studs out (at s 1, leaning toward +X after `lean`) and 5.4 up. Seven fronds round
+-- the heart in two greens (the upper ones lighter), two young ones spearing up from the middle, a dead one or two
+-- hanging under them, a fibrous boot where the fronds join the trunk, and a bunch of coconuts.
 local function palm(parent: Instance, at: CFrame, s: number, lean: number?)
 	local m = Blocks.model(nil, "Palm")
 	local f = at * CFrame.Angles(0, lean or 0, 0)
-	-- the crown 1.8 studs out (at s 1) and 5.4 up, the trunk's top reaching into it
 	local x = 1.8 * s
 	local top = 5.4 * s
-	palmTrunk(m, f, x, top - 0.1 * s, 0.75 * s)
-	ball(m, f, x + 0.25, top - 0.55, 0.3, 0.55 * s, "wood_dark")
-	ball(m, f, x - 0.2, top - 0.6, -0.25, 0.5 * s, "wood_dark")
-	box(m, f, x, top, 0, 1.25 * s, 0.5 * s, 1.25 * s, "leaf_dark", "Crown")
-	for k, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } } do
-		local long = k <= 4
-		local len = (if long then 2.75 else 2) * s
-		local cx, cz = x + d[1] * len / 2, d[2] * len / 2
-		local frond = Blocks.part(m, {
-			size = Vector3.new(len, 0.35 * s, 0.9 * s),
-			cf = f * CFrame.new(cx, top - 0.15 - (if long then 0.35 else 0.1) * s, cz) * CFrame.Angles(0, math.atan2(-d[2], d[1]), math.rad(if long then -12 else -6)),
-			color = if k % 2 == 0 then "leaf" else "leaf_dark",
-			name = "Frond",
-		})
-		local _ = frond
+	-- (a number from the palm's place: which fronds rise, its dead fronds and nuts)
+	local pp = at.Position
+	local hsh = (math.floor(pp.X * 3 + 0.5) * 7919 + math.floor(pp.Z * 3 + 0.5) * 104729) % 360
+	palmTrunk(m, f, x, top - 0.15 * s, 0.75 * s)
+	local heart = Vector3.new(x, top, 0)
+	local boot = ball(m, f, x, top - 0.3 * s, 0, 0.75 * s, "hair_brown")
+	boot.Name = "Boot"
+	local core = ball(m, f, x, top + 0.05 * s, 0, 0.5 * s, "leaf_dark")
+	core.Name = "Heart"
+	core.CanCollide = false
+	local va = viewYaw(f)
+	local turn = ((hsh % 7) - 3) * 0.06 -- (each crown turned a little its own way, the gap still in view)
+	for k = 0, 6 do
+		local a = va + turn + (k + 0.5) * math.pi * 2 / 7 + (((hsh + k * 37) % 5) - 2) * 0.05
+		-- (the two either side of the gap rise, so the nuts under them stay in sight)
+		local up = k % 2 == 0
+		local s2 = s * (0.92 + ((hsh + k * 53) % 4) * 0.05)
+		frond(m, f, heart + Vector3.new(math.cos(a), 0, -math.sin(a)) * 0.15 * s, a, if up then FROND_UP else FROND_LOW, s2, if up then 28 else 36, if up then "leaf" else "leaf_dark")
+	end
+	-- the young fronds, still furled, spearing up
+	for k = 0, 1 do
+		frond(m, f, heart + Vector3.new(0, 0.1 * s, 0), va + 0.9 + k * math.pi, FROND_YOUNG, s, 0, "leaf")
+	end
+	-- dead fronds hanging under the crown (one or two), folded shut, their tips near the trunk
+	for k = 0, if hsh % 3 == 0 then 0 else 1 do
+		local a = va + (if k == 0 then 1.6 else -1.7)
+		frond(m, f, heart + Vector3.new(math.cos(a) * 0.2 * s, -0.3 * s, -math.sin(a) * 0.2 * s), a, FROND_DEAD, s, 62, if k == 0 then "straw" else "wood")
+	end
+	-- the coconuts, green and brown, hanging in a bunch under the heart on the side in view (one behind)
+	for k = 0, 3 do
+		local a = va + turn + ({ -0.5, 0, 0.5, math.pi })[k + 1]
+		local r = 0.48 * s
+		local nut = ball(m, f, x + math.cos(a) * r, top - (if k == 1 then 0.8 else 0.6) * s, -math.sin(a) * r, 0.5, if k == 1 or k == 3 then "wood_dark" else "bamboo")
+		nut.Name = "Coconut"
+		nut.CanCollide = false
 	end
 	m.Parent = parent
 end
@@ -543,8 +618,14 @@ local function sign(m: Instance, at: CFrame, words: string?)
 	s.Parent = m
 end
 
--- The plaza round the campfire: a ring of sand on the grass, a ring of stones round the fire's logs and flames, three
--- log seats, a flagpole with the island's pennant and two torches.
+-- The plaza round the campfire: a ring of sand on the grass and in its middle the fire pit, a ring of stones of all
+-- sizes (two greys, some mossy) round a bed of ash, the charcoal glowing with embers, four logs crossed with a stick
+-- over them and their flames (WorldView puts a flickering flame and its smoke over the middle: `fireOn`), a kettle
+-- warming on a stone at the back and a marshmallow toasting on a stick. Round it three log benches (round logs with
+-- their tops planed flat, cut ends showing their rings, a knot, a cushion, a folded blanket, mugs), a stack of
+-- firewood, a chopping stump with its axe, a bucket, a stump stool with a cushion on a woven mat; the flagpole on its
+-- cairn with the island's pennant, and two tiki torches. The south side stays open toward the island's sign, where
+-- the founder appears.
 local function plaza(m: Instance, o: CFrame)
 	local c = Street.CENTER
 	local function inRing(x: number, z: number): boolean
@@ -555,30 +636,217 @@ local function plaza(m: Instance, o: CFrame)
 		return if inRing(x, z) then 1 else 0
 	end)
 	local at = o * CFrame.new(c.x, Street.LAWN_Y + 0.04, c.z)
-	for k = 0, 7 do
-		local a = k * math.pi / 4
-		box(m, at, math.cos(a) * 1.25, 0.2, math.sin(a) * 1.25, 0.6, 0.4, 0.6, if k % 2 == 0 then "rock" else "rock_dark", "FireStone")
+	-- (the sand's top here: Blocks snaps its 0.1 deep slabs to 0.25, so it stands at LAWN_Y + 0.115)
+	local SAND = 0.075
+	-- a part in the plaza's frame (`cf` relative to the fire's middle); the small things never collide
+	local function part(cf: CFrame, w: number, h: number, d: number, color: string, name: string, shape: ("Cylinder" | "Ball")?, neon: boolean?, solid: boolean?): BasePart
+		return Blocks.part(m, { size = Vector3.new(w, h, d), cf = at * cf, color = color, name = name, shape = shape, neon = neon, collide = solid == true })
 	end
-	box(m, at * CFrame.Angles(0, math.rad(30), 0), 0, 0.2, 0, 1.6, 0.35, 0.35, "wood_dark", "Log")
-	box(m, at * CFrame.Angles(0, math.rad(-40), 0), 0, 0.3, 0, 1.6, 0.35, 0.35, "wood", "Log")
-	box(m, at, 0, 0.65, 0, 0.75, 0.6, 0.75, "orange", "Flame", true)
-	box(m, at, 0, 1.1, 0, 0.4, 0.5, 0.4, "yellow", "Flame", true)
-	box(m, at, 0.2, 0.9, -0.2, 0.25, 0.3, 0.25, "berry_red", "Ember", true)
-	for _, s in { { -2.75, 0.5, 90 }, { 2.75, 0.25, 90 }, { 0, -2.75, 0 } } do
-		box(m, at * CFrame.new(s[1], 0, s[2]) * CFrame.Angles(0, math.rad(s[3]), 0), 0, 0.3, 0, 2.2, 0.55, 0.6, "wood", "Seat")
-		box(m, at * CFrame.new(s[1], 0, s[2]) * CFrame.Angles(0, math.rad(s[3]), 0), 0, 0.45, 0, 2.25, 0.1, 0.4, "wood_dark", "Bark")
+	-- an upright round slab (dia across, h high) centred at (x, y, z)
+	local function disc(x: number, y: number, z: number, dia: number, h: number, color: string, name: string, solid: boolean?): BasePart
+		return part(CFrame.new(x, y, z) * CFrame.Angles(0, 0, math.pi / 2), h, dia, dia, color, name, "Cylinder", nil, solid)
 	end
-	-- the flagpole and its pennant
-	box(m, at, 3, 2.5, -3, 0.25, 5, 0.25, "wood_dark", "FlagPole")
-	ball(m, at, 3, 5.1, -3, 0.4, "gold")
-	box(m, at, 3, 4.4, -2.1, 0.1, 1, 1.75, "berry_red", "Pennant")
-	box(m, at, 3, 4.4, -1.5, 0.1, 0.5, 0.5, "white", "Mark")
-	-- two tiki torches at the plaza's south edge
+	-- a round rod (a log, a stick) from a to b, dia thick, a quarter longer so it ends past both points
+	local function rod(a: Vector3, b: Vector3, dia: number, color: string, name: string, solid: boolean?): BasePart
+		return part(CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), (b - a).Magnitude + 0.25, dia, dia, color, name, "Cylinder", nil, solid)
+	end
+	-- a cut end on the rod a -> b at its b end: pale wood a step proud of the bark, a darker ring a step prouder
+	local function cutEnd(a: Vector3, b: Vector3, dia: number)
+		local u = (b - a).Unit
+		local e = b + u * 0.125
+		local spin = CFrame.Angles(0, math.pi / 2, 0)
+		part(CFrame.lookAt(e - u * 0.0625, e) * spin, 0.25, dia - 0.25, dia - 0.25, "sand_dark", "LogEnd", "Cylinder")
+		if dia >= 0.75 then
+			part(CFrame.lookAt(e, e + u) * spin, 0.25, 0.25, 0.25, "wood", "LogRing", "Cylinder")
+		end
+	end
+
+	------------------------------------------------------------------ the fire pit
+	-- the bed of ash, the charcoal, the embers glowing in it
+	disc(0, 0.0625, 0, 2.25, 0.25, "pavement", "Ash")
+	disc(0.05, 0.125, -0.05, 1.25, 0.25, "rock_dark", "Charcoal")
+	local EMBERS: { { x: number, z: number, c: string } } = {
+		{ x = 0.5, z = 0.2, c = "lava" },
+		{ x = -0.3, z = 0.45, c = "berry_red" },
+		{ x = -0.45, z = -0.25, c = "orange" },
+		{ x = 0.2, z = -0.5, c = "lava" },
+		{ x = 0.55, z = -0.15, c = "berry_red" },
+	}
+	for _, e in EMBERS do
+		part(CFrame.new(e.x, 0.25, e.z), 0.25, 0.25, 0.25, e.c, "Ember", nil, true)
+	end
+	-- the ring of stones: at an angle (degrees), of a kind (1 round, 2 flat and round, 3 a block), a size, a height, a
+	-- grey, mossy or not
+	local STONES: { { a: number, k: number, s: number, h: number, c: string, moss: boolean } } = {
+		{ a = 0, k = 2, s = 0.75, h = 0.5, c = "rock", moss = true },
+		{ a = 34, k = 1, s = 0.5, h = 0, c = "rock_dark", moss = false },
+		{ a = 63, k = 3, s = 0.75, h = 0.5, c = "rock", moss = false },
+		{ a = 96, k = 1, s = 0.75, h = 0, c = "rock", moss = false },
+		{ a = 128, k = 2, s = 0.5, h = 0.5, c = "rock_dark", moss = false },
+		{ a = 160, k = 3, s = 0.5, h = 0.5, c = "rock", moss = true },
+		{ a = 194, k = 1, s = 0.75, h = 0, c = "rock_dark", moss = false },
+		{ a = 226, k = 2, s = 0.75, h = 0.25, c = "rock", moss = false },
+		{ a = 258, k = 3, s = 0.75, h = 0.5, c = "rock_dark", moss = false },
+		{ a = 290, k = 1, s = 0.5, h = 0, c = "rock", moss = true },
+		{ a = 323, k = 2, s = 0.75, h = 0.5, c = "rock_dark", moss = false },
+	}
+	for _, st in STONES do
+		local a = math.rad(st.a)
+		local x, z = math.cos(a) * 1.3, math.sin(a) * 1.3
+		local kind, size, h, grey = st.k, st.s, st.h, st.c
+		local top
+		if kind == 1 then
+			-- (a round stone a third sunk in the sand)
+			part(CFrame.new(x, SAND + size * 0.2, z), size, size, size, grey, "FireStone", "Ball", nil, true)
+			top = SAND + size * 0.7
+		elseif kind == 2 then
+			disc(x, SAND + h / 2 - 0.05, z, size, h, grey, "FireStone", true)
+			top = SAND + h - 0.05
+		else
+			part(CFrame.new(x, SAND + h / 2 - 0.05, z) * CFrame.Angles(0, -a, 0.15), size, h, 0.5, grey, "FireStone", nil, nil, true)
+			top = SAND + h - 0.02
+		end
+		if st.moss then
+			if kind == 1 then
+				part(CFrame.new(x * 0.97, top - 0.14, z * 0.97), 0.5, 0.5, 0.5, "moss", "Moss", "Ball")
+			else
+				disc(x, top - 0.0625, z, 0.5, 0.25, "moss", "Moss")
+			end
+		end
+	end
+	-- four logs crossed in the middle (an X from the view), rising a little to where they burn, their outer ends cut,
+	-- and a stick across them
+	for k = 0, 3 do
+		local a = k * math.pi / 2
+		local u = Vector3.new(math.cos(a), 0, math.sin(a))
+		local foot, tip = u * 0.95 + Vector3.new(0, 0.4, 0), u * 0.1 + Vector3.new(0, 0.55, 0)
+		rod(tip, foot, 0.5, if k % 2 == 0 then "wood_dark" else "hair_brown", "Log", true)
+		cutEnd(tip, foot, 0.5)
+	end
+	rod(Vector3.new(-0.55, 0.62, 0.45), Vector3.new(0.5, 0.7, -0.4), 0.25, "wood", "Log")
+	-- the flames: a glowing bed on the logs, tongues round it in yellow and red-orange showing either side of the
+	-- flickering flame that stands in the middle, a hot yellow heart
+	part(CFrame.new(0, 0.55, 0) * CFrame.Angles(0, math.rad(45), 0), 0.75, 0.25, 0.75, "lava", "Flame", nil, true)
+	local TONGUES: { { a: number, r: number, h: number, c: string } } = {
+		{ a = 70, r = 0.38, h = 0.5, c = "yellow" },
+		{ a = 160, r = 0.4, h = 0.75, c = "orange" },
+		{ a = 250, r = 0.36, h = 0.5, c = "lava" },
+		{ a = 340, r = 0.4, h = 0.75, c = "orange" },
+		{ a = 20, r = 0.3, h = 0.5, c = "yellow" },
+	}
+	for _, t in TONGUES do
+		local a = math.rad(t.a)
+		local x, z = math.cos(a) * t.r, math.sin(a) * t.r
+		part(CFrame.new(x, 0.55 + t.h / 2, z) * CFrame.Angles(z * 0.5, 0, -x * 0.5), 0.25, t.h, 0.25, t.c, "Flame", nil, true)
+	end
+	part(CFrame.new(0, 0.8, 0), 0.25, 0.5, 0.25, "yellow", "Flame", nil, true)
+	-- a kettle warming on the flat stone at the back of the ring: its body, lid and knob, spout and handle
+	do
+		local ka = math.rad(226)
+		local kx, kz = math.cos(ka) * 1.3, math.sin(ka) * 1.3
+		local ky = SAND + 0.2 -- (the stone's top)
+		disc(kx, ky + 0.25, kz, 0.5, 0.5, "black", "Kettle")
+		disc(kx, ky + 0.5, kz, 0.75, 0.25, "steel_dark", "KettleLid")
+		part(CFrame.new(kx, ky + 0.7, kz), 0.25, 0.25, 0.25, "steel", "KettleKnob", "Ball")
+		part(CFrame.new(kx + 0.32, ky + 0.38, kz + 0.32) * CFrame.Angles(0, math.rad(-45), math.rad(35)), 0.5, 0.25, 0.25, "black", "KettleSpout")
+		part(CFrame.new(kx - 0.05, ky + 0.85, kz - 0.05) * CFrame.Angles(0, math.rad(45), 0), 0.75, 0.25, 0.25, "steel_dark", "KettleHandle")
+	end
+	-- a stick propped on a stone on the west side (clear of the fire's front), a marshmallow toasting on it
+	do
+		local a = math.rad(158)
+		local u = Vector3.new(math.cos(a), 0, math.sin(a))
+		local base, tip = u * 2.0 + Vector3.new(0, SAND + 0.12, 0), u * 0.65 + Vector3.new(0, 0.9, 0)
+		rod(base, tip, 0.25, "wood", "Stick")
+		part(CFrame.lookAt(tip, tip + (tip - base)) * CFrame.new(0, 0, -0.15), 0.25, 0.25, 0.25, "cream", "Marshmallow")
+	end
+
+	------------------------------------------------------------------ the seats
+	-- a log bench along its frame's X, `len` long: a round log on the sand, its top planed flat, its cut ends showing
+	-- their rings, a knot and a patch of moss on its bark
+	local function bench(f: CFrame, len: number)
+		local function at2(x: number, y: number, z: number): Vector3
+			return (f * CFrame.new(x, y, z)).Position
+		end
+		local ya = SAND + 0.3
+		part(f * CFrame.new(0, ya, 0), len, 0.75, 0.75, "wood_dark", "Seat", "Cylinder", nil, true)
+		part(f * CFrame.new(0, ya + 0.35, 0), len - 0.5, 0.25, 0.5, "wood", "SeatTop", nil, nil, true)
+		for _, sx in { 1, -1 } do
+			-- (cutEnd works from a rod's points, a quarter inside its ends)
+			cutEnd(at2(0, ya, 0), at2(sx * (len / 2 - 0.125), ya, 0), 0.75)
+		end
+		part(f * CFrame.new(len * 0.2, ya + 0.05, 0.4) * CFrame.Angles(0, math.pi / 2, 0), 0.25, 0.25, 0.25, "wood", "Knot", "Cylinder")
+		part(f * CFrame.new(-len * 0.3, ya + 0.2, -0.3) * CFrame.Angles(0.7, 0, 0), 0.5, 0.25, 0.25, "moss", "Moss")
+	end
+	local west = CFrame.new(-2.75, 0, 0.5) * CFrame.Angles(0, math.pi / 2, 0)
+	local east = CFrame.new(2.75, 0, 0.25) * CFrame.Angles(0, math.pi / 2, 0)
+	local north = CFrame.new(0, 0, -2.75)
+	bench(west, 2.25)
+	bench(east, 2)
+	bench(north, 2.25)
+	local seat = SAND + 0.775 -- (a bench's planed top)
+	-- on the benches: a folded blanket and a mug on the west one, a cushion on the north one, two mugs on the east one
+	part(west * CFrame.new(-0.5, seat + 0.125, 0), 0.75, 0.25, 0.75, "berry_red", "Blanket")
+	part(west * CFrame.new(-0.5, seat + 0.1875, 0), 0.25, 0.25, 1, "cream", "BlanketStripe")
+	disc((west * CFrame.new(0.55, 0, 0.05)).Position.X, seat + 0.125, (west * CFrame.new(0.55, 0, 0.05)).Position.Z, 0.25, 0.25, "white", "Mug")
+	part(north * CFrame.new(-0.45, seat + 0.125, 0) * CFrame.Angles(0, 0.3, 0), 0.75, 0.25, 0.5, "cherry", "Cushion")
+	for _, mz in { -0.35, 0.05 } do
+		local p = (east * CFrame.new(mz, 0, 0.05)).Position
+		disc(p.X, seat + 0.125, p.Z, 0.25, 0.25, if mz < 0 then "blue" else "pot", "Mug")
+	end
+	-- a little stack of firewood north-east between two benches, its cut ends toward the view
+	-- (each log: across the stack, its row, its wood)
+	local WOOD: { { z: number, row: number, c: string } } = {
+		{ z = -0.25, row = 0, c = "wood_dark" },
+		{ z = 0.25, row = 0, c = "hair_brown" },
+		{ z = 0, row = 1, c = "wood_dark" },
+	}
+	for _, l in WOOD do
+		local z = -1.95 + l.z
+		local y = SAND + 0.25 + l.row * 0.42
+		local a, b = Vector3.new(1.75, y, z), Vector3.new(2.5, y, z)
+		rod(a, b, 0.5, l.c, "Firewood", true)
+		cutEnd(a, b, 0.5)
+	end
+	-- the chopping stump, north-west, its axe stuck in it
+	disc(-2.05, SAND + 0.2, -2.05, 0.75, 0.5, "wood_dark", "Stump", true)
+	disc(-2.05, SAND + 0.4, -2.05, 0.5, 0.25, "sand_dark", "StumpTop")
+	part(CFrame.new(-2, SAND + 0.85, -2) * CFrame.Angles(0, 0.6, 0.5), 0.25, 0.75, 0.25, "wood", "AxeHandle")
+	part(CFrame.new(-2.1, SAND + 0.55, -2.07) * CFrame.Angles(0, 0.6, 0), 0.25, 0.25, 0.5, "steel", "AxeHead")
+	-- a tin bucket of water, south-east
+	disc(2.3, SAND + 0.2, 1.95, 0.5, 0.5, "steel", "Bucket", true)
+	disc(2.3, SAND + 0.375, 1.95, 0.25, 0.25, "water", "BucketWater")
+	part(CFrame.new(2.3, SAND + 0.6, 1.95) * CFrame.Angles(0, 0.8, 0), 0.5, 0.25, 0.25, "steel_dark", "BucketHandle")
+	-- a stump stool with a cushion, south-west, and a woven mat under it (three stripes side by side)
+	-- (the bark, the cut top a little proud of it, the cushion on that: no two sides of one width overlap)
+	disc(-2.2, SAND + 0.2, 2.2, 0.75, 0.5, "wood_dark", "Stool", true)
+	disc(-2.2, SAND + 0.425, 2.2, 0.5, 0.25, "sand_dark", "StoolTop")
+	disc(-2.2, SAND + 0.675, 2.2, 0.75, 0.25, "sofa", "StoolCushion")
+	for k, col in { "straw", "berry_red", "straw" } do
+		part(CFrame.new(-2.2, SAND + 0.05, 2.2) * CFrame.Angles(0, math.rad(45), 0) * CFrame.new((k - 2) * 0.25, 0, 0), 0.25, 0.25, 1.25, col, "Mat")
+	end
+
+	------------------------------------------------------------------ the flag and the torches
+	-- the flagpole on a little cairn, its gold knob, the island's pennant and its mark (a step proud both sides)
+	part(CFrame.new(3, 2.5, -3), 0.25, 5, 0.25, "wood_dark", "FlagPole", nil, nil, true)
+	part(CFrame.new(3, 5.1, -3), 0.5, 0.5, 0.5, "gold", "PoleKnob", "Ball")
+	for k, r in { { 2.7, -2.75, 0.5 }, { 3.25, -2.7, 0.5 }, { 3.05, -3.3, 0.75 } } do
+		part(CFrame.new(r[1], SAND + 0.05, r[2]), r[3], r[3], r[3], if k == 2 then "rock_dark" else "rock", "Cairn", "Ball")
+	end
+	-- (from the pole's face, never sharing it)
+	part(CFrame.new(3, 4.4, -2.25), 0.25, 1, 1.25, "berry_red", "Pennant")
+	part(CFrame.new(3, 4.4, -1.375), 0.25, 0.5, 0.5, "berry_red", "PennantTip")
+	part(CFrame.new(3, 4.4, -2.25), 0.5, 0.5, 0.5, "white", "PennantMark")
+	-- two tiki torches at the plaza's south edge: a pole bound with straw, a carved cup, a flame
 	for _, tx in { -2.5, 2.5 } do
 		local tf = o * CFrame.new(tx, Street.LAWN_Y, Street.PLAZA.z1 - 0.5)
-		box(m, tf, 0, 1.1, 0, 0.25, 2.2, 0.25, "wood_dark", "TorchPole")
-		box(m, tf, 0, 2.3, 0, 0.5, 0.35, 0.5, "wood", "TorchCup")
-		box(m, tf, 0, 2.6, 0, 0.3, 0.35, 0.3, "orange", "TorchFlame", true)
+		box(m, tf, 0, 0.95, 0, 0.25, 2, 0.25, "wood_dark", "TorchPole")
+		for _, y in { 0.6, 1.45 } do
+			Blocks.part(m, { size = Vector3.new(0.5, 0.25, 0.5), cf = tf * CFrame.new(0, y, 0), color = "straw", name = "TorchBinding", collide = false })
+		end
+		box(m, tf, 0, 2, 0, 0.5, 0.5, 0.5, "wood", "TorchCup")
+		Blocks.part(m, { size = Vector3.new(0.75, 0.25, 0.75), cf = tf * CFrame.new(0, 2.25, 0), color = "wood_dark", name = "TorchRim", collide = false })
+		Blocks.part(m, { size = Vector3.new(0.5, 0.5, 0.5), cf = tf * CFrame.new(0, 2.45, 0), color = "orange", name = "TorchFlame", neon = true, collide = false })
+		Blocks.part(m, { size = Vector3.new(0.25, 0.25, 0.25), cf = tf * CFrame.new(0.03, 2.7, 0.03), color = "yellow", name = "TorchFlame", neon = true, collide = false })
 	end
 end
 

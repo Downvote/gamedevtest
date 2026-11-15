@@ -457,10 +457,14 @@ BUILD.light = function(o)
 	return t
 end
 
+-- (the campfire's: WorldView squashes it by thirds. Wide at the foot and narrowing in two steps to a tip, a little
+-- off true so it seems to lick sideways, its yellow heart showing at the front; as tall as it always was)
 BUILD.flame = function(_o)
 	local t = new("flame", 1, 0.3)
-	add(t, "Outer", "Block", Vector3.new(0.5, 0.75, 0.5), Vector3.new(0, 0.375, 0), "orange", nil, true)
-	add(t, "Core", "Block", Vector3.new(0.25, 0.5, 0.25), Vector3.new(0, 0.3, 0.15), "yellow", nil, true)
+	add(t, "Outer", "Block", Vector3.new(0.5, 0.375, 0.5), Vector3.new(0, 0.1875, 0), "orange", nil, true)
+	add(t, "Mid", "Block", Vector3.new(0.375, 0.25, 0.375), Vector3.new(0.03, 0.5, -0.03), "orange", nil, true)
+	add(t, "Tip", "Block", Vector3.new(0.25, 0.25, 0.25), Vector3.new(-0.03, 0.625, 0.03), "lava", nil, true)
+	add(t, "Core", "Block", Vector3.new(0.25, 0.375, 0.25), Vector3.new(0.19, 0.2, 0.19), "yellow", nil, true)
 	return t
 end
 
