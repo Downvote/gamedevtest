@@ -531,10 +531,21 @@ Models (`src/shared/Models`, Roblox modules):
   level of detail. `Thing` adds `face` and `lod` ("full" | "world") to DriftModels' old fields.
   Looks (2026-11-14, "Can you use different eyes for each?"): `setLook({ eye?, iris?, body?, accent? })` (DriftModels.build
   sets it) picks `eye`'s style: sparkle, lashes, button, bead, dot, star, heart, round, wide, specs, slit, bar, ringed,
-  sleepy (a lid disc of the body colour), fierce (a brow rod), happy (an arch that never opens), glow (Neon), gem (a
-  diamond block), visor (a Neon rod), compound (a ring of beads); the round, wide and specs styles get a dark rim. Each
-  face part records `tuck[name]`, its sink against the normal it was made on in its own frame (a rod or a blade hides
-  as a disc does); a part without one sinks along its -X.
+  sleepy, fierce, happy, glow, gem, visor, compound. Since the request of 2026-11-15 ("the eyes still do not look
+  detailed or accurate and are mostly just simple discs") `Kit.eye` makes each eye an **eyeball**: an "Ell" solid
+  (`EYE_SIZE` by style, 1.15 x `d`; its depth 0.3 of its width, sunk so it meets the head at `EyeTex.EDGE` 0.9 of its
+  radius) in a frame whose +Z is the head's normal there, its "PixelEye" attribute the style and "PixelEyeIris",
+  "PixelEyeDark", "PixelEyeLid" (Color3s) and "PixelEyeSide" (-1 left, 1 right) what `Render/EyeTex` paints on it; a
+  face part "eye". Every style but happy also gets its blink lid: the same eyeball shape 1.08 x 1.1 x 1.15 as big in
+  the body colour, painted "closed", standing 0.04 studs over the eyeball's front, a face part "lid". Extras in 3D:
+  lashes (three tapered limbs at the outer top, full only), fierce's brow (a tapered limb slanting inward), specs' rim
+  (a ring of limbs, and the bridge's half, in the iris colour). The renderer (`registerDynamic`: `DynPart.eye`;
+  `SG.shadeEye`) and Snapshot (`Picture.Solid.eye`, the dominant layer's colour into the G-buffer, a lift as a step
+  toward white or black) paint an eyeball per pixel: the hit point in its frame gives (u, v) on its face,
+  `EyeTex.sample` the layers there, each lit by `Shading.toonAt` as its own palette colour (a catchlight or a lit eye
+  glowing), an edge layer mixed over its share (`Shading.softMix`). Each face part records `tuck[name]`, its sink
+  against the normal it was made on in its own frame (a rod or a blade hides as a disc does); a part without one sinks
+  along its -X.
 - `DriftPlansA..D`: the body plans built with the kit, each `(b, a) -> Thing` facing +Z with its feet at y 0, the old
   plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: about
   117 to 257 parts; world: 45 to 80 (the detail pass of 2026-11-15, "can you also do the same with creature and egg
@@ -1104,6 +1115,20 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   whole band before 2026-11-14). The patterns are measured in art px (`px`
   studs a pixel), so a mark is one pixel at any zoom: fur, fluff, feather, scale, shell, stone, brick, bark, crystal,
   skin, ice, velvet, chitin, jelly, ember. Below the threshold (the islands, 8 px a stud) parts draw plain.
+- **Driftling eyes** (the request of 2026-11-15, "the eyes still do not look detailed or accurate and are mostly just
+  simple discs"; `Render/EyeTex`, pure): `EyeTex.STYLE` (the twenty styles and "closed"), `EyeTex.sample(code, u, v,
+  side, ppu, iris, dark, lid, white) -> (rgb1, lift1, glow1, rgb2, lift2, glow2, k)`: the layers painted at (u, v) on
+  an eyeball's face (u across toward its +X, v up, each -1 .. 1; the visible eye within `EDGE` 0.9), stacked in order,
+  each a shape's signed distance turned into how much of the pixel it covers (0.5 - d x ppu, ppu the pixels to one
+  unit), the last partly covering one returned as the edge layer over its share k: the anti-aliasing. The parts: the
+  dark eye of a cute creature (a dark eyeball, the iris a crescent low in it lit a band lighter at its foot, a darker
+  pupil), the cartoon eye (a white that glows but for the lid's shadow over its top, the iris with a ring a band darker
+  and its lower half a band lighter, the pupil), a cat's slit (an ellipse 0.14 x 0.68) or a goat's bar (0.6 x 0.15) in
+  an eye all iris, a bird's broad ringed iris, beads with a ring and a ground reflection, two catchlights up toward the
+  light (the top left) and low on the other side, a star or a heart of light, a gem's four facets lit by quadrant, a
+  lit slot, a compound eye's hexagonal cells, the dark rim (about a pixel wide, heavier along the top: the upper lid's
+  lashes), a sleepy upper lid down to 0.14 + 0.12 u^2, a fierce one slanting down to the inner side, the shut lid's
+  dark line bowing down (a blink) or up (happy). An eye under 6 pixels across keeps its main colour and one catchlight.
 - **Effects** (`addFxLayer(name, draw: (Fx.Ctx) -> ()) -> () -> ()`; `Render/Fx`; the request of 2026-11-13: "use 2d
   details to add to the athmosphere, such as grass, wood detail, birds and other details"): each tick, after the
   dynamic models and their outline and before the upload, every layer (the newest first) gets a `Fx.Ctx` over the

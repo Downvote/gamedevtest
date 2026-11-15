@@ -1344,6 +1344,18 @@ necks, limbs, tails, ears and horns are smooth tubes that taper and bend; shells
 blush, stripes and the inside of an ear lie flat on the surface; leaves, feathers, fins and spikes are thin pointed
 blades. The eyes are big and glossy: a dark oval, a coloured iris low in it and two shines, and when they blink a
 soft curved lid takes their place. A closed mouth is a little smile that opens when the driftling cheers or yawns.
+**Real eyes** (the request of 2026-11-15: "these, are nice, but the eyes still do not look detailed or accurate and
+are mostly just simple discs"): each eye is now an eyeball, a smooth rounded eye set into the head so its front bulges
+a little, and the pixel filter paints it as it draws it, the way an eye texture is painted onto a sphere: the white or
+the dark of the eye, an iris with a darker ring round its edge and a lighter lower half where the light comes through,
+a pupil shaped to the animal (round; an upright slit for the cats and lizards; a level bar for the goats and toads),
+two catchlights where the light from the top left meets it, a dark rim where it sits in its lids, heavier along the
+top like lashes, and the lids themselves: a sleepy eye's heavy upper lid, a fierce one slanting down toward the nose
+under a brow, a happy one shut in an arch. The edges are smoothed with an in-between tone, so a pupil or an iris is
+round at any size, never a jagged stack of flat circles. A blink is a real lid now: the eyelid closes over the eyeball
+in the body's colour with the dark line of a shut eye across it. On the islands, where an eye is a few pixels, it
+keeps its colour and a catchlight.
+
 **Their own eyes and textures** (the request of 2026-11-14 at the top: "Can you use different eyes for each? Also,
 apply texture to each of them"): every kind of driftling has its own eyes, and no two that share a body plan look out
 the same way. There are twenty styles of eye: glossy sparkling ovals, the same with lashes, plain buttons, little beads
