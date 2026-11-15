@@ -53,6 +53,46 @@ local TRIM: { [number]: Trim } = {
 -- the nest sits on it and the glow over it.
 local LAWN = 0.145
 
+-- The shell is one smooth egg (Render/Raster.drawSolid; the request of 2026-11-15: "can you redo all the creatures and
+-- eggs ... currently, all of them are modelled using blobs, which is unnatural"): an egg cut across where it hatches, a
+-- bottom and a top that flies off. SPLIT_EGG: how much of its height the top end takes (an egg's narrower end);
+-- CUT: where the top comes off (share of the height from its foot).
+local SPLIT_EGG = 0.6
+local CUT = 0.6
+local FINE_GRID = 0.05
+local function fineSize(v: number): number
+	return math.max(FINE_GRID, math.floor(v / FINE_GRID + 0.5) * FINE_GRID)
+end
+-- A smooth solid part ("Ell", "Egg", "EggBot", "EggTop", "Cone") in model m at `cf`, `size` across (on the fine grid,
+-- not Blocks' quarter stud), its shape number `prm`; with the pixel filter off it shows as a sphere mesh or a cylinder.
+local function solidPart(m: Model, kind: string, size: Vector3, cf: CFrame, color: string, prm: number?, neon: boolean?, name: string?): BasePart
+	local p = Blocks.part(m, { size = size, cf = cf, color = color, collide = false, query = false, neon = neon, shape = (if kind == "Cone" then "Cylinder" else nil) :: any, name = name or "Shell" })
+	p.Size = Vector3.new(fineSize(size.X), fineSize(size.Y), fineSize(size.Z))
+	p:SetAttribute("PixelShape", kind)
+	if prm then
+		p:SetAttribute("PixelK", prm)
+	end
+	if kind ~= "Cone" then
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = p
+	end
+	return p
+end
+-- A cut egg's shape number: its split and where it is cut (Render/Raster's packing).
+local function cutPrm(split: number, cut: number): number
+	return 10 * math.floor(cut * 1000 + 0.5) + split
+end
+-- The radius of an egg `h` tall and `R` at its widest (its split SPLIT_EGG) at height y over its foot, and the slope
+-- of its side there (d radius / d y).
+local function eggR(h: number, R: number, y: number): (number, number)
+	local yE = h * (1 - SPLIT_EGG)
+	local hy = if y >= yE then h * SPLIT_EGG else h * (1 - SPLIT_EGG)
+	local u = math.clamp((y - yE) / hy, -0.999, 0.999)
+	local r = R * math.sqrt(1 - u * u)
+	return r, -R * u / (hy * math.sqrt(1 - u * u))
+end
+
 -- The camera looks from +x +z: the side of an egg at azimuth 45 degrees faces the view, and the side toward +z (a
 -- bigger azimuth) is the screen's left, where the light comes from.
 local FRONT = math.rad(45)
@@ -86,8 +126,17 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 		end
 		return p
 	end
+	-- a smooth solid of the egg (a cloud's puff, a raindrop, a petal), its own light like the nest's pieces
+	local function sol(kind: string, size: Vector3, off: CFrame, color: string, neon: boolean?, upper: boolean?, prm: number?): BasePart
+		local p = solidPart(m, kind, size, off, color, prm, neon, if upper then "Top" else "Shell")
+		table.insert(parts, { p = p, off = off })
+		if upper then
+			table.insert(top, p)
+		end
+		return p
+	end
 	local function ball(dia: number, off: CFrame, color: string, neon: boolean?, upper: boolean?)
-		add(Vector3.new(dia, dia, dia), off, color, neon, upper, "Ball")
+		sol("Ell", Vector3.new(dia, dia, dia), off, color, neon, upper)
 	end
 	-- the nest's pieces keep their own light (they lean nothing on the shell's smooth surface)
 	local function straw(size: Vector3, off: CFrame, color: string, shape: string?)
@@ -107,61 +156,60 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 	local rn = 0.6 * s - tuft / 2 -- the ring's middle, from the egg's axis
 	local ty = LAWN + tuft * 0.1 -- the tufts' middle
 	if not bare then
+		-- bundles of straw lying round the shell's foot, each a long soft oval along the ring
 		for k = -2, 2 do
 			local a = FRONT + k * math.pi / 4
-			add(Vector3.new(tuft, tuft, tuft), CFrame.new(math.cos(a) * rn, ty + (if k % 2 == 0 then 0 else 0.03), math.sin(a) * rn), trim.nest[k % 2 + 1], nil, nil, "Ball")
+			local radial = Vector3.new(math.cos(a), 0, math.sin(a))
+			local tang = Vector3.yAxis:Cross(radial)
+			local cf = CFrame.fromMatrix(radial * rn + Vector3.new(0, ty + (if k % 2 == 0 then 0 else 0.03), 0), tang, Vector3.yAxis, -radial)
+			sol("Ell", Vector3.new(tuft * 1.55, tuft * 0.72, tuft * 0.9), cf, trim.nest[k % 2 + 1]):SetAttribute("PixelOwn", true)
 		end
 		-- stray stalks standing up out of it, leaning out: one at the front left, one at the right
 		for _, st in { { 32, 0.45 }, { -70, 0.55 } } do
 			local a = FRONT + math.rad(st[1])
 			local radial = Vector3.new(math.cos(a), 0, math.sin(a))
-			straw(Vector3.new(0.25, 0.5, 0.25), CFrame.fromMatrix(radial * (rn + 0.08) + Vector3.new(0, ty + tuft * 0.45, 0), radial:Cross(Vector3.yAxis), Vector3.yAxis) * CFrame.Angles(st[2], 0, 0), trim.nest[1])
+			local base = radial * (rn + 0.06) + Vector3.new(0, ty + tuft * 0.2, 0)
+			local tipP = base + (Vector3.yAxis * math.cos(st[2]) + radial * math.sin(st[2])) * 0.42
+			local d = tipP - base
+			local cf = CFrame.fromMatrix((base + tipP) / 2, d.Unit, Vector3.yAxis:Cross(d.Unit).Unit:Cross(d.Unit))
+			sol("Cone", Vector3.new(d.Magnitude + 0.08, 0.08, 0.08), cf, trim.nest[1], nil, nil, 0.4)
 		end
 	end
-	-- the shell: a broad round bottom and a smaller round top, overlapping (an egg's curve); the top the half that flies
-	-- off when it hatches
+	-- the shell: one smooth egg, a full round base and a narrower top (an egg's curve, never a plain oval: "they should
+	-- be more like eggs, with a bigger base", 2026-11-14), cut where it hatches: the top flies off
 	local y0 = 0.06
-	local balls: { { y: number, r: number } } = {}
-	local function shell(dia: number, y: number, upper: boolean?)
-		local p = add(Vector3.new(dia, dia, dia), CFrame.new(0, y, 0), look.body, nil, upper, "Ball")
-		table.insert(balls, { y = y, r = p.Size.X / 2 })
+	local EH, ER = 1.06 * s, 0.43 * s -- its height and its widest radius
+	local eggCf = CFrame.new(0, y0 + EH / 2, 0)
+	local prm = cutPrm(SPLIT_EGG, CUT)
+	local function shellPart(kind: string, upper: boolean)
+		local p = solidPart(m, kind, Vector3.new(2 * ER, EH, 2 * ER), eggCf, look.body, prm, nil, if upper then "Top" else "Shell")
+		table.insert(parts, { p = p, off = eggCf })
+		if upper then
+			table.insert(top, p)
+		end
 	end
-	-- (a fuller base and a narrower top, never a plain oval: "The eggs also look too much like perfect ovals, they
-	-- should be more like eggs, with a bigger base", 2026-11-14)
-	shell(0.9 * s, y0 + 0.45 * s)
-	shell(0.74 * s, y0 + 0.62 * s)
-	shell(0.5 * s, y0 + 0.78 * s, true)
-	local crownY = 0
-	for _, b in balls do
-		crownY = math.max(crownY, b.y + b.r)
-	end
+	shellPart("EggBot", false)
+	shellPart("EggTop", true)
+	local crownY = y0 + EH
 	-- the shell's outside at height share h (of the egg's height) and `deg` degrees from the side facing the view: the
 	-- point and the shell's normal there
 	local function onShell(h: number, deg: number): (Vector3, Vector3)
 		local y = h * crownY
-		local best, by = 0, y0
-		for _, b in balls do
-			local dy = y - b.y
-			if dy * dy < b.r * b.r then
-				local rr = math.sqrt(b.r * b.r - dy * dy)
-				if rr > best then
-					best, by = rr, b.y
-				end
-			end
-		end
+		local rr, slope = eggR(EH, ER, y - y0)
 		local a = FRONT + math.rad(deg)
-		local pt = Vector3.new(math.cos(a) * best, y, math.sin(a) * best)
-		local n = pt - Vector3.new(0, by, 0)
+		local radial = Vector3.new(math.cos(a), 0, math.sin(a))
+		local pt = radial * rr + Vector3.new(0, y, 0)
+		local n = (radial - Vector3.yAxis * slope)
 		return pt, if n.Magnitude > 1e-6 then n.Unit else Vector3.yAxis
 	end
 	-- a mark set into the shell: a ball of diameter d sunk into it so only a round cap `poke` studs high shows (past
 	-- the pixel filter's depth bias, Render/Raster's 0.03, or it would hide in the shell), lit as the shell under it
-	-- (PixelFollow) so it shades like paint, or keeping its own light (`own`: a gem; a glowing one always does); above
-	-- 0.86 of the height it goes with the top
+	-- (PixelFollow: the smooth shell's normal, Render/Smooth.onSolids) so it shades like paint, or keeping its own light
+	-- (`own`: a gem; a glowing one always does); above the cut it goes with the top
 	local function mark(h: number, deg: number, d: number, color: string, poke: number, neon: boolean?, own: boolean?)
 		local pt, n = onShell(h, deg)
 		local dd = math.max(0.25, Blocks.snap(d))
-		local p = add(Vector3.new(dd, dd, dd), CFrame.new(pt + n * (poke - dd / 2)), color, neon, h > 0.86, "Ball")
+		local p = add(Vector3.new(dd, dd, dd), CFrame.new(pt + n * (poke - dd / 2)), color, neon, h > CUT + 0.02, "Ball")
 		p:SetAttribute(if own or neon then "PixelOwn" else "PixelFollow", true)
 		return p
 	end
@@ -203,15 +251,17 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 	if wdef and wdef.family then
 		local crown = y0 + 1.03 * s -- the top of the shell
 		local function cloud(y: number, color: string)
-			ball(0.34 * s, CFrame.new(0, y, 0), color, nil, true)
-			ball(0.26 * s, CFrame.new(-0.2 * s, y - 0.04 * s, 0.12 * s), color, nil, true)
-			ball(0.26 * s, CFrame.new(0.2 * s, y - 0.04 * s, -0.12 * s), color, nil, true)
+			-- (a soft cloud: a broad puff with two smaller ones either side, wider than tall)
+			sol("Ell", Vector3.new(0.4, 0.3, 0.4) * s, CFrame.new(0, y, 0), color, nil, true)
+			sol("Ell", Vector3.new(0.32, 0.24, 0.3) * s, CFrame.new(-0.2 * s, y - 0.05 * s, 0.12 * s), color, nil, true)
+			sol("Ell", Vector3.new(0.32, 0.24, 0.3) * s, CFrame.new(0.2 * s, y - 0.05 * s, -0.12 * s), color, nil, true)
 		end
 		if wdef.id == "rain" then
 			local y = crown + 0.36 * s
 			cloud(y, "white")
 			for k, d in { { -0.16, 0.1 }, { 0.02, -0.02 }, { 0.18, -0.12 } } do
-				ball(0.11 * s, CFrame.new(d[1] * s, y - (0.24 + 0.06 * (k % 2)) * s, d[2] * s), "blue", nil, true)
+				-- (drops: round below, pointed above)
+				sol("Egg", Vector3.new(0.1, 0.15, 0.1) * s, CFrame.new(d[1] * s, y - (0.25 + 0.06 * (k % 2)) * s, d[2] * s), "blue", nil, true, 0.68)
 			end
 		elseif wdef.id == "storm" then
 			local y = crown + 0.38 * s
@@ -221,20 +271,21 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 			add(Vector3.new(0.07 * s, 0.18 * s, 0.07 * s), CFrame.new(-0.03 * s, y - 0.4 * s, 0) * CFrame.Angles(0, 0, -0.5), "yellow", true, true)
 		elseif wdef.id == "snow" then
 			-- a cap of snow over its top, a lump on it
-			-- (a ball sunk into the shell's top: only its dome shows, white over the shell)
-			ball(0.64 * s, CFrame.new(0, crown - 0.21 * s, 0), "snow", nil, true)
-			ball(0.2 * s, CFrame.new(0.06 * s, crown + 0.06 * s, -0.04 * s), "white", nil, true)
+			-- (a flattened dome sunk over the shell's top: only its cap shows, white over the shell)
+			sol("Ell", Vector3.new(0.62, 0.36, 0.62) * s, CFrame.new(0, crown - 0.1 * s, 0), "snow", nil, true)
+			sol("Ell", Vector3.new(0.22, 0.15, 0.2) * s, CFrame.new(0.06 * s, crown + 0.07 * s, -0.04 * s), "white", nil, true)
 		elseif wdef.id == "blossom" then
 			-- a flower on its crown: five petals round a yellow middle
 			for k = 0, 4 do
 				local a = k * math.pi * 2 / 5
-				ball(0.17 * s, CFrame.new(math.cos(a) * 0.13 * s, crown + 0.04 * s, math.sin(a) * 0.13 * s), "pink", nil, true)
+				local cf = CFrame.new(math.cos(a) * 0.12 * s, crown + 0.04 * s, math.sin(a) * 0.12 * s) * CFrame.Angles(0, -a, 0)
+				sol("Ell", Vector3.new(0.2, 0.07, 0.13) * s, cf, "pink", nil, true)
 			end
 			ball(0.12 * s, CFrame.new(0, crown + 0.07 * s, 0), "yellow", nil, true)
 		elseif wdef.id == "leaves" then
 			-- a fallen leaf lying on its crown, its stalk up
-			add(Vector3.new(0.42 * s, 0.05 * s, 0.24 * s), CFrame.new(0, crown, 0) * CFrame.Angles(0.2, 0.7, 0.15), "maple", nil, true)
-			add(Vector3.new(0.2 * s, 0.05 * s, 0.12 * s), CFrame.new(0.12 * s, crown + 0.01 * s, -0.08 * s) * CFrame.Angles(0.2, 0.7, 0.15), "orange", nil, true)
+			sol("Ell", Vector3.new(0.46 * s, 0.06, 0.26 * s), CFrame.new(0, crown, 0) * CFrame.Angles(0.2, 0.7, 0.15), "maple", nil, true)
+			sol("Ell", Vector3.new(0.22 * s, 0.06, 0.12 * s), CFrame.new(0.12 * s, crown + 0.02 * s, -0.08 * s) * CFrame.Angles(0.2, 0.7, 0.15), "orange", nil, true)
 			add(Vector3.new(0.04 * s, 0.14 * s, 0.04 * s), CFrame.new(-0.14 * s, crown + 0.08 * s, 0.1 * s), "wood_dark", nil, true)
 		elseif wdef.id == "haze" then
 			-- a small hot sun over it
@@ -244,7 +295,7 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 			-- fog (and any other): puffs of mist round its middle
 			for k = 0, 4 do
 				local a = k * math.pi * 2 / 5 + 0.4
-				ball(0.26 * s, CFrame.new(math.cos(a) * 0.5 * s, y0 + (0.3 + 0.08 * (k % 2)) * s, math.sin(a) * 0.5 * s), "white")
+				sol("Ell", Vector3.new(0.34, 0.2, 0.3) * s, CFrame.new(math.cos(a) * 0.5 * s, y0 + (0.3 + 0.08 * (k % 2)) * s, math.sin(a) * 0.5 * s) * CFrame.Angles(0, -a, 0), "white")
 			end
 		end
 	end
@@ -255,23 +306,34 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 			return CFrame.new(math.cos(a) * (rn + out), LAWN + y, math.sin(a) * (rn + out))
 		end
 		local by = trim.by
+		local function own(p: BasePart)
+			p:SetAttribute("PixelOwn", true)
+		end
 		if by == "pebble" then
-			-- a grey pebble
-			straw(Vector3.new(0.25, 0.25, 0.25), at(-20, tuft / 2 + 0.05, 0.02), "rock", "Ball")
+			-- a smooth grey pebble, flatter than it is wide
+			own(sol("Ell", Vector3.new(0.26, 0.15, 0.2), at(-20, tuft / 2 + 0.06, 0.04) * CFrame.Angles(0, 0.6, 0), "rock"))
 		elseif by == "leaf" then
-			-- a green leaf tucked under the rim, and a clover
-			straw(Vector3.new(0.5, 0.25, 0.25), at(-24, tuft / 2, 0.02) * CFrame.Angles(0, math.rad(24) - FRONT, 0.15), "leaf")
-			straw(Vector3.new(0.25, 0.25, 0.25), at(28, tuft / 2 + 0.05, 0.02), "leaf_dark", "Ball")
+			-- a green leaf tucked under the rim, and a clover's three round leaves
+			own(sol("Ell", Vector3.new(0.48, 0.06, 0.2), at(-24, tuft / 2, 0.04) * CFrame.Angles(0, math.rad(24) - FRONT, 0.15), "leaf"))
+			for k = 0, 2 do
+				local a = k * math.pi * 2 / 3
+				own(sol("Ell", Vector3.new(0.13, 0.05, 0.13), at(28, tuft / 2 + 0.05, 0.05) * CFrame.new(math.cos(a) * 0.06, 0, math.sin(a) * 0.06), "leaf_dark"))
+			end
 		elseif by == "berry" then
-			-- a blue berry at the nest's edge
-			straw(Vector3.new(0.25, 0.25, 0.25), at(-20, tuft / 2 + 0.03, 0.04), "blue", "Ball")
+			-- a blue berry at the nest's edge, a leaf under it
+			own(sol("Ell", Vector3.new(0.17, 0.16, 0.17), at(-20, tuft / 2 + 0.04, 0.08), "blue"))
+			own(sol("Ell", Vector3.new(0.22, 0.05, 0.12), at(-12, tuft / 2 + 0.06, 0.03) * CFrame.Angles(0, 0.5, 0), "leaf_dark"))
 		elseif by == "flower" then
-			-- a little pink flower at the nest's edge
-			straw(Vector3.new(0.25, 0.25, 0.25), at(-20, tuft / 2, 0.08), "pink", "Ball")
+			-- a little pink flower at the nest's edge: five petals round a yellow middle
+			for k = 0, 4 do
+				local a = k * math.pi * 2 / 5
+				own(sol("Ell", Vector3.new(0.12, 0.05, 0.08), at(-20, tuft / 2, 0.1) * CFrame.new(math.cos(a) * 0.06, 0, math.sin(a) * 0.06) * CFrame.Angles(0, -a, 0), "pink"))
+			end
+			own(sol("Ell", Vector3.new(0.07, 0.06, 0.07), at(-20, tuft / 2, 0.12), "yellow"))
 		elseif by == "petals" then
 			-- pink petals fallen at the nest's front
-			straw(Vector3.new(0.25, 0.25, 0.25), at(-24, tuft / 2 + 0.03, 0.02), "cherry", "Ball")
-			straw(Vector3.new(0.25, 0.25, 0.25), at(16, tuft / 2 + 0.03, 0.02), "pink", "Ball")
+			own(sol("Ell", Vector3.new(0.16, 0.05, 0.1), at(-24, tuft / 2 + 0.03, 0.03) * CFrame.Angles(0, 0.8, 0.1), "cherry"))
+			own(sol("Ell", Vector3.new(0.14, 0.05, 0.09), at(16, tuft / 2 + 0.03, 0.03) * CFrame.Angles(0, -0.4, -0.1), "pink"))
 		elseif by == "crystals" then
 			-- two little crystals by the nest, a lilac one and a cyan one
 			straw(Vector3.new(0.25, 0.5, 0.25), at(-26, tuft / 2, 0.15) * CFrame.Angles(0, 0.7, 0.3), "crystal")
@@ -320,8 +382,8 @@ end
 ------------------------------------------------------------------ the hatch scene's egg
 -- The egg up close (UI/HatchScene): the request of 2026-11-13, "the egg hatching scene isnt detailed enough. add much
 -- much more detail to it, especially the egg". Built `h` studs tall on its foot, facing the view (the camera looks from
--- +x +z: the side at azimuth 45 degrees is the front). The shell is 25 overlapping balls along its axis, sized to an
--- egg's profile (broad low, narrow high) on a fine grid, so its outline is smooth; a shine high on the lit side (the
+-- +x +z: the side at azimuth 45 degrees is the front). The shell is one smooth egg (broad low, narrow high) cut in two
+-- where it hatches, so its outline is clean; a shine high on the lit side (the
 -- top left: a soft oval of the shell's lighter tone with a white glint in it); and the rarity's own work on it, painted
 -- as marks set into the shell, on the side the view sees (rebuilt finer on 2026-11-15: "can you also do the same with
 -- creature and egg models?"):
@@ -341,57 +403,23 @@ end
 -- middle where the top comes off; each a thin glowing line, Neon) are kept out of sight until the scene shows them;
 -- the top is what lies above the middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
 export type Crack = { p: BasePart, off: CFrame, stage: number }
--- (an egg's curve: the widest a little below the middle over a full, round base, the top narrowing to a softer point;
--- "The eggs also look too much like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14)
-local PROFILE: { { number } } = {
-	{ 0, 0 },
-	{ 0.03, 0.44 },
-	{ 0.08, 0.68 },
-	{ 0.15, 0.86 },
-	{ 0.24, 0.96 },
-	{ 0.34, 1 },
-	{ 0.42, 1 },
-	{ 0.52, 0.95 },
-	{ 0.62, 0.87 },
-	{ 0.72, 0.75 },
-	{ 0.81, 0.61 },
-	{ 0.88, 0.47 },
-	{ 0.94, 0.32 },
-	{ 0.98, 0.17 },
-	{ 1, 0 },
-}
-local function prof(t: number): number
-	local u = math.clamp(t, 0, 1)
-	for i = 1, #PROFILE - 1 do
-		local a, b = PROFILE[i], PROFILE[i + 1]
-		if u <= b[1] then
-			return a[2] + (b[2] - a[2]) * (u - a[1]) / math.max(1e-6, b[1] - a[1])
-		end
-	end
-	return 0
-end
 local SPLIT = 0.56 -- where the top comes off (share of the height)
 local FINE = 0.05
 local function fine(v: number): number
 	return math.max(FINE, math.floor(v / FINE + 0.5) * FINE)
 end
 
--- How far under its foot the hero egg's shell reaches (studs, below 0): its slices are balls, the lowest bulging past
--- the foot. The hatch scene sets the egg down on its pedestal by it.
-function EggModels.heroBottom(h: number): number
-	local R = 0.37 * h
-	local low = 0
-	for k = 0, 24 do
-		local t = 0.1 + k / 24 * 0.81
-		low = math.min(low, t * h - prof(t) * R * 0.99)
-	end
-	return low
+-- How far under its foot the hero egg's shell reaches (studs, below 0; the hatch scene sets the egg down on its
+-- pedestal by it).
+function EggModels.heroBottom(_h: number): number
+	-- (the shell is one smooth egg now: nothing bulges under its foot)
+	return 0
 end
 
 function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFrame } }, { BasePart }, { { p: BasePart, kind: string, k: number } }, { Crack })
 	local m = Blocks.model(nil, "HeroEgg")
-	-- (lit as one smooth surface across its 25 slices, its marks shading with it: Render/Smooth; the request of
-	-- 2026-11-14, "egg and creature models look blotchy due to how they are detailed using balls and other small shapes")
+	-- (its marks shade with its smooth shell: Render/Smooth.onSolids; the request of 2026-11-14, "egg and creature
+	-- models look blotchy due to how they are detailed using balls and other small shapes")
 	m:SetAttribute("PixelSmooth", true)
 	local parts: { { p: BasePart, off: CFrame } } = {}
 	local top: { BasePart } = {}
@@ -419,44 +447,44 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		end
 		return p
 	end
-	-- the shell
-	-- (25 slices: close enough that the light never steps where two meet)
-	-- (each slice wears the rarity's pattern, drawn by the pixel filter on the shell (Render/DynTex.EGG: freckles,
-	-- dapples, frost, swirls, a filigree, little flowers, stardust); the slices share one pattern: PixelTexV lifts each
-	-- one's v to its height on the egg, one seed for all. The request of 2026-11-14: "Could you detail the eggs in the
-	-- egg hatching screen more? You are allowed to draw in the detail on the eggs instead of adding more meshes")
+	-- the shell: one smooth egg (Render/Raster.drawSolid; the request of 2026-11-15, "currently, all of them are
+	-- modelled using blobs, which is unnatural"), its widest a little below the middle over a full round base, the top
+	-- narrowing to a softer point; cut at SPLIT, the top the half that flies off. Both halves wear the rarity's pattern,
+	-- drawn by the pixel filter on the shell (Render/DynTex.EGG: freckles, dapples, frost, swirls, a filigree, little
+	-- flowers, stardust), one seed for both so it runs on across the cut. The request of 2026-11-14: "Could you detail
+	-- the eggs in the egg hatching screen more? You are allowed to draw in the detail on the eggs instead of adding more
+	-- meshes"
 	local pattern = DynTex.EGG[r] or DynTex.EGG[1]
-	local slices: { { y: number, r: number } } = {}
-	for k = 0, 24 do
-		local t = 0.1 + k / 24 * 0.81
-		local d = prof(t) * R * 2 * 0.99
-		local p = add(Vector3.new(d, d, d), CFrame.new(0, t * h, 0), look.body, t, { shape = "Ball" })
-		table.insert(slices, { y = t * h, r = p.Size.X / 2 })
+	local HERO_SPLIT = 0.62 -- (its top end's share of the height: the egg's narrower end)
+	local shellCf = CFrame.new(0, h / 2, 0)
+	for _, kind in { "EggBot", "EggTop" } do
+		local upper = kind == "EggTop"
+		local p = solidPart(m, kind, Vector3.new(2 * R, h, 2 * R), shellCf, look.body, cutPrm(HERO_SPLIT, SPLIT), nil, if upper then "Top" else "Shell")
+		table.insert(parts, { p = p, off = shellCf })
+		if upper then
+			table.insert(top, p)
+		end
 		p:SetAttribute("PixelTex", pattern)
-		p:SetAttribute("PixelTexV", t * h)
 		p:SetAttribute("PixelTexSeed", 11 + r)
 		p:SetAttribute("PixelTexSoft", 0.8)
 	end
 	local u = h / 2.4 -- (sizes below are for an egg 2.4 studs tall)
-	-- the shell's true radius at height share t: its slices are balls (their sizes on the grid), so where the egg
-	-- narrows a lower ball bulges past the profile; and the point `out` studs off it at azimuth a, with the shell's
-	-- normal there
+	-- the shell's radius at height share t and the point `out` studs off it at azimuth a, with the shell's normal there
+	local yE = h * (1 - HERO_SPLIT)
 	local function shellR(t: number): number
-		local y, best = t * h, 0
-		for _, sl in slices do
-			local dy = y - sl.y
-			if dy * dy < sl.r * sl.r then
-				best = math.max(best, math.sqrt(sl.r * sl.r - dy * dy))
-			end
-		end
-		return best
+		local y = math.clamp(t, 0, 1) * h
+		local hy = if y >= yE then h * HERO_SPLIT else h * (1 - HERO_SPLIT)
+		local q = math.clamp((y - yE) / hy, -1, 1)
+		return R * math.sqrt(1 - q * q)
 	end
 	local function surf(t: number, a: number, out: number): (Vector3, Vector3)
+		local y = math.clamp(t, 0.002, 0.998) * h
 		local rr = shellR(t)
-		local slope = (shellR(t + 0.01) - shellR(t - 0.01)) / (0.02 * h)
+		local hy = if y >= yE then h * HERO_SPLIT else h * (1 - HERO_SPLIT)
 		local radial = Vector3.new(math.cos(a), 0, math.sin(a))
-		local n = (radial - Vector3.yAxis * slope).Unit
-		return radial * rr + Vector3.new(0, t * h, 0) + n * out, n
+		-- (the egg's gradient: out along the radius over R squared, up along the axis over its half's height squared)
+		local n = (radial * (rr / (R * R)) + Vector3.yAxis * ((y - yE) / (hy * hy))).Unit
+		return radial * rr + Vector3.new(0, y, 0) + n * out, n
 	end
 	-- A mark painted on the shell: a ball sunk into it at (t, a) so only a round cap about c studs across shows,
 	-- standing a hair proud of it (just past the pixel filter's depth bias, Render/Raster's 0.03; `over` lifts it over
@@ -512,8 +540,9 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		end
 		spot(t, a, len * 0.42, color, nil, true)
 	end
-	-- the side the view sees: within about 105 degrees of the front (nothing is painted round the back)
-	local WINDOW = math.rad(105)
+	-- the side the view sees: within about 88 degrees of the front, inside the outline (nothing is painted round the
+	-- back; on the smooth shell a mark past the edge would bump its outline)
+	local WINDOW = math.rad(88)
 	local function front(spread: number): number
 		return FRONT + (rnd() * 2 - 1) * spread
 	end
@@ -579,12 +608,22 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			end
 			prevT, prevA = t, a
 		end
-		-- a sprout on top: a little stem and two leaves of two little balls each, across the view (they keep their own
+		-- a sprout on top: a little stem and two leaves, each a flat pointed oval, across the view (they keep their own
 		-- light)
 		local across = Vector3.new(math.cos(FRONT + math.pi / 2), 0, math.sin(FRONT + math.pi / 2))
-		for _, d in { { x = 0, y = 0.08, d = 0.25, c = "leaf_dark" }, { x = 0.02, y = 0.2, d = 0.25, c = "leaf_dark" }, { x = -0.12, y = 0.27, d = 0.25, c = "leaf" }, { x = -0.24, y = 0.33, d = 0.25, c = "leaf" }, { x = 0.15, y = 0.3, d = 0.25, c = "leaf" }, { x = 0.27, y = 0.37, d = 0.25, c = "leaf" } } do
-			local p = add(Vector3.new(d.d, d.d, d.d), CFrame.new(across * d.x * u + Vector3.new(0, h + d.y * u, 0)), d.c, 1, { shape = "Ball", name = "Sprout" })
-			p:SetAttribute("PixelOwn", true)
+		local base = Vector3.new(0, h - 0.04, 0)
+		local stemTop = base + Vector3.new(0, 0.26 * u, 0)
+		local d = stemTop - base
+		local stem = solidPart(m, "Cone", Vector3.new(d.Magnitude + 0.1 * u, 0.1 * u, 0.1 * u), CFrame.fromMatrix((base + stemTop) / 2, d.Unit, across), "leaf_dark", 0.7, nil, "Sprout")
+		table.insert(parts, { p = stem, off = stem.CFrame })
+		table.insert(top, stem)
+		for _, sd in { -1, 1 } do
+			local dir = (across * sd * 0.9 + Vector3.yAxis * 0.45).Unit
+			local c = stemTop + dir * 0.17 * u
+			local leaf = solidPart(m, "Ell", Vector3.new(0.34 * u, 0.06, 0.18 * u), CFrame.fromMatrix(c, dir, dir:Cross(across):Cross(dir).Unit), "leaf", nil, nil, "Sprout")
+			leaf:SetAttribute("PixelOwn", true)
+			table.insert(parts, { p = leaf, off = leaf.CFrame })
+			table.insert(top, leaf)
 		end
 	elseif r == 3 then
 		-- white four-pointed stars over its front
@@ -602,7 +641,7 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 		band(0.42, 0.22 * u, 0.12 * u, "ice")
 		band(0.455, 0.07 * u, 0.2 * u, "white", nil, 0.05, 0.03)
 		for k = 0, 8 do
-			local a = FRONT - 1.45 + k * 0.36
+			local a = FRONT - 1.15 + k * 0.29
 			local len = 1 + (k % 3)
 			for j = 1, len do
 				spot(0.4 - j * 0.035, a, (0.15 - j * 0.035) * u, "ice")

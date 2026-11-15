@@ -80,7 +80,7 @@ DynTex.hash = hash
 -- own Y), "Cylinder" or "Cone" (round its own X, the axis Roblox cylinders run along) or anything else (a box: across
 -- and up).
 function DynTex.uv(shape: string, x: number, y: number, z: number): (number, number)
-	if shape == "Ball" or shape == "Ell" or shape == "Egg" then
+	if shape == "Ball" or shape == "Ell" or shape == "Egg" or shape == "EggBot" or shape == "EggTop" then
 		return math.atan2(z, x) * math.sqrt(x * x + z * z), y
 	elseif shape == "Cylinder" or shape == "Cone" then
 		return math.atan2(z, y) * math.sqrt(y * y + z * z), x

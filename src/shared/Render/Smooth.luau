@@ -19,6 +19,12 @@
 --       own normal (ox, oy, oz) and its role
 --   Smooth.near(xs, ys, zs, rs, count, cx, cy, cz, R, out) -> number
 --       the balls (1..count) whose reach comes within R of (cx, cy, cz), into out; how many
+-- A piece lying on a smooth solid (Render/Raster.drawSolid: an ellipsoid, an egg, a cut egg; the request of 2026-11-15,
+-- "currently, all of them are modelled using blobs") takes that solid's normal under it the same way (a spot on a
+-- body, a freckle on an egg's shell):
+--   Smooth.packSolid(S, k, cf12, sx, sy, sz, kind, prm)   the k-th solid (0-based) into S (SOLID_STRIDE numbers each)
+--   Smooth.onSolids(S, idx, n, px, py, pz) -> (nx, ny, nz, w)   the normal of the nearest of the solids listed in
+--       idx[1..n] (1-based) at (px, py, pz) and how much it holds there (1 on its surface, 0 SOLID_REACH studs off it)
 local Smooth = {}
 
 Smooth.ROLE_NONE = 0
@@ -112,6 +118,72 @@ function Smooth.normal(
 		return ox, oy, oz
 	end
 	return sx / len, sy / len, sz / len
+end
+
+------------------------------------------------------------------ pieces on smooth solids
+Smooth.SOLID_STRIDE = 18
+Smooth.SOLID_REACH = 0.12 -- studs off a solid's surface a piece still takes its normal (fading out by then)
+
+-- kind: 1 an ellipsoid, 2 an egg (prm its split), 4 and 5 the halves of a cut egg (prm packed: Render/Raster)
+function Smooth.packSolid(S: { number }, k: number, cf12: { number }, sx: number, sy: number, sz: number, kind: number, prm: number?)
+	local o = k * Smooth.SOLID_STRIDE
+	S[o + 1], S[o + 2], S[o + 3] = cf12[1], cf12[2], cf12[3]
+	for i = 4, 12 do
+		S[o + i] = cf12[i]
+	end
+	local hy = sy * 0.5
+	local ibTop, ibBot, ye = 1 / hy, 1 / hy, 0
+	if kind == 2 or kind == 4 or kind == 5 then
+		local packed = prm or 0.5
+		if kind ~= 2 then
+			packed -= math.floor(packed / 10) * 10
+		end
+		local f = math.clamp(packed, 0.2, 0.8)
+		ibTop, ibBot, ye = 1 / (sy * f), 1 / (sy * (1 - f)), hy - sy * f
+	end
+	S[o + 13] = 2 / sx
+	S[o + 14] = ibTop
+	S[o + 15] = 2 / sz
+	S[o + 16] = ye
+	S[o + 17] = ibBot
+	S[o + 18] = math.max(sx, sy, sz) * 0.5 -- (its reach, for picking the ones near a piece)
+end
+
+function Smooth.onSolids(S: { number }, idx: { number }, n: number, px: number, py: number, pz: number): (number, number, number, number)
+	local best = math.huge
+	local bx, by, bz = 0, 1, 0
+	local stride = Smooth.SOLID_STRIDE
+	for j = 1, n do
+		local o = (idx[j] - 1) * stride
+		local dx, dy, dz = px - S[o + 1], py - S[o + 2], pz - S[o + 3]
+		-- in its frame (its axes are the columns of the rotation)
+		local lx = dx * S[o + 4] + dy * S[o + 7] + dz * S[o + 10]
+		local ly = dx * S[o + 5] + dy * S[o + 8] + dz * S[o + 11] - S[o + 16]
+		local lz = dx * S[o + 6] + dy * S[o + 9] + dz * S[o + 12]
+		local ia, ic = S[o + 13], S[o + 15]
+		local ib = if ly >= 0 then S[o + 14] else S[o + 17]
+		local qx, qy, qz = lx * ia, ly * ib, lz * ic
+		local sl = math.sqrt(qx * qx + qy * qy + qz * qz)
+		local gx, gy, gz = lx * ia * ia, ly * ib * ib, lz * ic * ic
+		local gl = math.sqrt(gx * gx + gy * gy + gz * gz)
+		if gl > 1e-9 and sl > 1e-9 then
+			-- (how far off its surface: the level's step over the gradient's length)
+			local dist = math.abs(sl - 1) * sl / gl
+			if dist < best then
+				best = dist
+				local wx = S[o + 4] * gx + S[o + 5] * gy + S[o + 6] * gz
+				local wy = S[o + 7] * gx + S[o + 8] * gy + S[o + 9] * gz
+				local wz = S[o + 10] * gx + S[o + 11] * gy + S[o + 12] * gz
+				local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+				bx, by, bz = wx / l, wy / l, wz / l
+			end
+		end
+	end
+	if best == math.huge then
+		return 0, 1, 0, 0
+	end
+	local w = 1 - math.clamp(best / Smooth.SOLID_REACH, 0, 1)
+	return bx, by, bz, w
 end
 
 return Smooth

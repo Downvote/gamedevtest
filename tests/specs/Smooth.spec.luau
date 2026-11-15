@@ -95,4 +95,33 @@ return function()
 		T.truthy(worst > math.cos(math.rad(12)), "within 12 degrees: " .. math.deg(math.acos(worst)))
 		T.truthy(Shading.fineIndex(0, 1, 0) >= 27, "the top is fine too")
 	end)
+
+	T.it("a piece lying on a smooth solid takes the solid's normal, fading out a little way off it", function()
+		local S = {}
+		-- an ellipsoid 2 x 1 x 2 at (1, 2, 3), unturned
+		Smooth.packSolid(S, 0, { 1, 2, 3, 1, 0, 0, 0, 1, 0, 0, 0, 1 }, 2, 1, 2, 1, nil)
+		-- on its side: the normal points out sideways
+		local nx, ny, nz, w = Smooth.onSolids(S, { 1 }, 1, 2, 2, 3)
+		T.near(nx, 1, 1e-6)
+		T.near(ny, 0, 1e-6)
+		T.near(nz, 0, 1e-6)
+		T.near(w, 1, 1e-6)
+		-- on top
+		nx, ny, nz, w = Smooth.onSolids(S, { 1 }, 1, 1, 2.5, 3)
+		T.near(ny, 1, 1e-6)
+		T.near(w, 1, 1e-6)
+		-- half way round, where the slope leans: the gradient, not the direction from the middle
+		local a = math.rad(45)
+		local px, py = math.cos(a), 0.5 * math.sin(a)
+		nx, ny = Smooth.onSolids(S, { 1 }, 1, 1 + px, 2 + py, 3)
+		T.truthy(ny > nx, "steeper than the line from the middle: " .. nx .. ", " .. ny)
+		-- well off it: nothing
+		local _, _, _, w2 = Smooth.onSolids(S, { 1 }, 1, 1, 3, 3)
+		T.near(w2, 0, 1e-6)
+		-- an egg's narrow top: its own half's height
+		Smooth.packSolid(S, 1, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 }, 1, 2, 1, 2, 0.6)
+		local _, ey, _, ew = Smooth.onSolids(S, { 2 }, 1, 0, 1, 0)
+		T.near(ey, 1, 1e-6)
+		T.near(ew, 1, 1e-6)
+	end)
 end

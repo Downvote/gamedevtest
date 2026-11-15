@@ -308,6 +308,8 @@ end
 -- the strips it uncovers, a re-cast rect, the water's and the wind's pixels) or clears ok (a bake, the island growing,
 -- a new grade, the pools built again: the next upload grades it all).
 local SG = {
+	-- (the smooth solids pieces can lie on, by shape: Render/Smooth.packSolid's kinds)
+	solidKind = { Ell = 1, Egg = 2, EggBot = 4, EggTop = 5 } :: { [string]: number },
 	buf = nil :: buffer?,
 	out = nil :: buffer?, -- (the whole image graded, as it goes up)
 	on = nil :: Surf?,
@@ -1639,6 +1641,11 @@ local texOpt = {
 	idx = {} :: { number },
 	n = 0,
 	role = 0,
+	-- the model's smooth solids this frame (Render/Smooth.packSolid), how many, and the ones near the part being drawn
+	sol = {} :: { number },
+	scnt = 0,
+	sidx = {} :: { number },
+	sn = 0,
 }
 local texPx = 1 -- studs a layer pixel
 local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
@@ -1651,6 +1658,17 @@ local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: numb
 		local wy = cam.oy + x * cam.iy + y * cam.jy + t * cam.ly
 		local wz = cam.oz + x * cam.iz + y * cam.jz + t * cam.lz
 		nx, ny, nz = SmoothParts.Smooth.normal(T.xs, T.ys, T.zs, T.rs, T.idx, T.n, wx, wy, wz, nx, ny, nz, T.role)
+		if T.role == SmoothParts.Smooth.ROLE_FOLLOW and T.sn > 0 then
+			-- (a piece on a smooth solid: the solid's normal under it)
+			local sx, sy, sz, w = SmoothParts.Smooth.onSolids(T.sol, T.sidx, T.sn, wx, wy, wz)
+			if w > 0 then
+				local bx, by, bz = nx * (1 - w) + sx * w, ny * (1 - w) + sy * w, nz * (1 - w) + sz * w
+				local l = math.sqrt(bx * bx + by * by + bz * bz)
+				if l > 1e-6 then
+					nx, ny, nz = bx / l, by / l, bz / l
+				end
+			end
+		end
 	end
 	if t and cam and texKind > 0 then
 		-- the hit point, from the pixel's ray (the same origin the solids step their rays from)
@@ -2469,6 +2487,18 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 			end
 		end
 		T.cnt = cnt
+		-- (and its smooth solids: the pieces lying on them take their normals)
+		local sc = 0
+		for _, p in d.parts do
+			local part = p.part
+			local sk = SG.solidKind[p.shape]
+			if sk and not p.glow and part.Parent ~= nil and part.Transparency < 0.95 then
+				local psz = part.Size
+				SmoothParts.Smooth.packSolid(T.sol, sc, { part.CFrame:GetComponents() }, psz.X, psz.Y, psz.Z, sk, p.prm)
+				sc += 1
+			end
+		end
+		T.scnt = sc
 	end
 	for _, p in d.parts do
 		local part = p.part
@@ -2488,6 +2518,22 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 					local T = texOpt
 					T.n = SmoothParts.Smooth.near(T.xs, T.ys, T.zs, T.rs, T.cnt, cf12[1], cf12[2], cf12[3], 0.5 * sz.Magnitude, T.idx)
 					T.role = p.sm
+					-- (the solids within reach of this piece)
+					local sn = 0
+					if p.sm == SmoothParts.Smooth.ROLE_FOLLOW then
+						local S, stride = T.sol, SmoothParts.Smooth.SOLID_STRIDE
+						local reach = 0.5 * sz.Magnitude + SmoothParts.Smooth.SOLID_REACH
+						for k = 0, T.scnt - 1 do
+							local o = k * stride
+							local dx, dy, dz = cf12[1] - S[o + 1], cf12[2] - S[o + 2], cf12[3] - S[o + 3]
+							local lim = reach + S[o + 18]
+							if dx * dx + dy * dy + dz * dz <= lim * lim then
+								sn += 1
+								T.sidx[sn] = k + 1
+							end
+						end
+					end
+					T.sn = sn
 				else
 					texOpt.role = 0
 				end

@@ -1491,4 +1491,40 @@ return function()
 		end
 		T.truthy(diff <= 4, "pixels apart: " .. diff)
 	end)
+
+	T.it("smooth solids: an egg cut in two, its bottom and its top, together are the whole egg", function()
+		local cam = smallCam()
+		local cf = rotCf(0.1, 0.9, -0.2, 0.35, 0.8)
+		local sx, sy, sz, f = 1.5, 2.1, 1.5, 0.62
+		local prm = 10 * 560 + f -- (cut at 0.56 of the height)
+		local cutY = -sy / 2 + sy * 0.56
+		local n, both = 0, 0
+		for j = 0, cam.H - 1, 2 do
+			for i = 0, cam.W - 1, 2 do
+				local ox, oy, oz = Raster.origin(cam, i, j)
+				local e = Raster.hitSolid("Egg", cf, sx, sy, sz, f, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				local b = Raster.hitSolid("EggBot", cf, sx, sy, sz, prm, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				local t = Raster.hitSolid("EggTop", cf, sx, sy, sz, prm, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				T.eq(e ~= nil, b ~= nil or t ~= nil, "the halves cover the egg")
+				if e then
+					n += 1
+					local m = math.min(b or math.huge, t or math.huge)
+					T.near(m, e, 1e-6)
+					-- (each half's hit lies on its own side of the cut)
+					for _, h in { { b, true }, { t, false } } do
+						local tt = h[1]
+						if tt then
+							local px, py, pz = ox + tt * cam.lx - cf[1], oy + tt * cam.ly - cf[2], oz + tt * cam.lz - cf[3]
+							local ly = px * cf[5] + py * cf[8] + pz * cf[11]
+							T.truthy(if h[2] then ly <= cutY + 1e-6 else ly >= cutY - 1e-6, "on its side of the cut")
+						end
+					end
+					if b and t then
+						both += 1
+					end
+				end
+			end
+		end
+		T.truthy(n > 20 and both > 5, "covered " .. n .. ", " .. both .. " through both")
+	end)
 end

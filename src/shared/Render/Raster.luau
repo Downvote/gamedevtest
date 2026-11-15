@@ -1450,10 +1450,14 @@ end
 --   hull of the two), its whole length sx; the -X end's radius sy/2 and the +X end's `prm` times that when prm <= 1,
 --   or the +X end sy/2 and the -X end sy/2 / prm when prm > 1; its cross-section squashed to sz/sy across Z (a flat
 --   ear, a fin, a beaver's tail).
+-- * "EggBot" and "EggTop": an egg cut across, the part below or above the cut (a hatching egg's two halves: the top
+--   flies off). `prm` packs both numbers: the egg's split as above plus ten times the cut's height in thousandths of
+--   the box's height from its bottom (prm = 10 * round(cut * 1000) + split; a code of 0 cuts at the equator). The cut
+--   face is flat.
 -- Per pixel the ray is taken into the part's frame (and squashed so the shape is round); each is a quadratic.
 -- Raster.hitSolid casts one ray (shadows in pictures, the specs); Raster.drawSolid fills a frame.
-local SOLID_ELL, SOLID_EGG, SOLID_CONE = 1, 2, 3
-local SOLID_KIND: { [string]: number } = { Ell = SOLID_ELL, Egg = SOLID_EGG, Cone = SOLID_CONE }
+local SOLID_ELL, SOLID_EGG, SOLID_CONE, SOLID_EGGBOT, SOLID_EGGTOP = 1, 2, 3, 4, 5
+local SOLID_KIND: { [string]: number } = { Ell = SOLID_ELL, Egg = SOLID_EGG, Cone = SOLID_CONE, EggBot = SOLID_EGGBOT, EggTop = SOLID_EGGTOP }
 Raster.SOLID_KIND = SOLID_KIND
 
 -- the ellipsoid of inverse half sizes (ia, ib, ic) about the origin: the entry t of the ray q + t d (nil: a miss)
@@ -1470,6 +1474,21 @@ local function ellT(qx: number, qy: number, qz: number, dx: number, dy: number, 
 	return (-b - math.sqrt(disc)) / a
 end
 
+-- the same ellipsoid's entry and exit (nil: a miss)
+local function ellT2(qx: number, qy: number, qz: number, dx: number, dy: number, dz: number, ia: number, ib: number, ic: number): (number?, number)
+	local Qx, Qy, Qz = qx * ia, qy * ib, qz * ic
+	local Dx, Dy, Dz = dx * ia, dy * ib, dz * ic
+	local a = Dx * Dx + Dy * Dy + Dz * Dz
+	local b = Qx * Dx + Qy * Dy + Qz * Dz
+	local c = Qx * Qx + Qy * Qy + Qz * Qz - 1
+	local disc = b * b - a * c
+	if disc < 0 or a <= 1e-12 then
+		return nil, 0
+	end
+	local sq = math.sqrt(disc)
+	return (-b - sq) / a, (-b + sq) / a
+end
+
 -- A solid's shape numbers, in its own frame: what both the pixel fill and the one-ray cast need.
 type SolidGeo = {
 	kind: number,
@@ -1478,6 +1497,7 @@ type SolidGeo = {
 	ic: number,
 	ibBot: number, -- Egg: the bottom half's inverse half height
 	ye: number, -- Egg: the equator's height in the part's frame
+	yc: number, -- EggBot / EggTop: the cut's height in the part's frame
 	ax: number, -- Cone: the two balls' centres on X and their radii
 	bx: number,
 	ra: number,
@@ -1488,12 +1508,19 @@ local function solidGeo(kind: number, sx: number, sy: number, sz: number, prm: n
 	if hx <= 0 or hy <= 0 or hz <= 0 then
 		return nil
 	end
-	local g: SolidGeo = { kind = kind, ia = 1 / hx, ib = 1 / hy, ic = 1 / hz, ibBot = 1 / hy, ye = 0, ax = 0, bx = 0, ra = 0, rb = 0 }
-	if kind == SOLID_EGG then
-		local f = math.clamp(prm or 0.5, 0.2, 0.8)
+	local g: SolidGeo = { kind = kind, ia = 1 / hx, ib = 1 / hy, ic = 1 / hz, ibBot = 1 / hy, ye = 0, yc = 0, ax = 0, bx = 0, ra = 0, rb = 0 }
+	if kind == SOLID_EGG or kind == SOLID_EGGBOT or kind == SOLID_EGGTOP then
+		local packed = prm or 0.5
+		local code = 0
+		if kind ~= SOLID_EGG then
+			code = math.floor(packed / 10)
+			packed -= code * 10
+		end
+		local f = math.clamp(packed, 0.2, 0.8)
 		g.ib = 1 / (sy * f)
 		g.ibBot = 1 / (sy * (1 - f))
 		g.ye = hy - sy * f
+		g.yc = if code > 0 then -hy + sy * math.clamp(code / 1000, 0, 1) else g.ye
 	elseif kind == SOLID_CONE then
 		local k = prm or 1
 		local R = hy
@@ -1548,6 +1575,59 @@ local function solidHitLocal(g: SolidGeo, qx: number, qy: number, qz: number, dx
 		end
 		local t = best :: number
 		return t, (qx + t * dx) * ia * ia, (y0 + t * dy) * bib * bib, (qz + t * dz) * ic * ic
+	elseif kind == SOLID_EGGBOT or kind == SOLID_EGGTOP then
+		-- the egg (both halves, as above) cut by the plane y = yc: the part's span along the ray is the egg's entry to
+		-- exit clipped to the cut's side; the entry is on the shell, or on the flat cut
+		local y0 = qy - g.ye
+		local ia, ic = g.ia, g.ic
+		local tin, tout = math.huge, -math.huge
+		-- (the egg's span: from the earlier valid entry to the later valid exit of its two halves)
+		local a1, b1 = ellT2(qx, y0, qz, dx, dy, dz, ia, g.ib, ic)
+		if a1 then
+			if y0 + a1 * dy >= -1e-6 then
+				tin = math.min(tin, a1)
+			end
+			if y0 + b1 * dy >= -1e-6 then
+				tout = math.max(tout, b1)
+			end
+		end
+		local a2, b2 = ellT2(qx, y0, qz, dx, dy, dz, ia, g.ibBot, ic)
+		if a2 then
+			if y0 + a2 * dy <= 1e-6 then
+				tin = math.min(tin, a2)
+			end
+			if y0 + b2 * dy <= 1e-6 then
+				tout = math.max(tout, b2)
+			end
+		end
+		if tin > tout then
+			return nil, 0, 0, 0
+		end
+		-- the cut's side: below it for the bottom, above it for the top
+		local keepBelow = kind == SOLID_EGGBOT
+		local yq = qy - g.yc
+		local lo, hi = -math.huge, math.huge
+		if dy > 1e-12 or dy < -1e-12 then
+			local tp = -yq / dy
+			if (dy > 0) == keepBelow then
+				hi = tp -- (moving toward the cut's other side: in until the plane)
+			else
+				lo = tp
+			end
+		elseif (yq <= 0) ~= keepBelow then
+			return nil, 0, 0, 0
+		end
+		local t0, t1 = math.max(tin, lo), math.min(tout, hi)
+		if t0 > t1 then
+			return nil, 0, 0, 0
+		end
+		if lo > tin then
+			-- (in through the flat cut)
+			return t0, 0, if keepBelow then 1 else -1, 0
+		end
+		local yy = y0 + t0 * dy
+		local bib = if yy >= 0 then g.ib else g.ibBot
+		return t0, (qx + t0 * dx) * ia * ia, yy * bib * bib, (qz + t0 * dz) * ic * ic
 	end
 	-- the round cone (Inigo Quilez's intersector), in the frame where its cross-section is round
 	local sc = g.ic
@@ -1674,9 +1754,10 @@ local function rowSpan(g: SolidGeo, qx: number, qy: number, qz: number, sx_: num
 			local k0 = d2 * m5 - m1 * m1 + m1 * rr * ra * 2 - m0 * ra * ra
 			return k1 * k1 - k0 * k2
 		end
-		-- (an egg: its wider half's ellipsoid holds it)
-		local ib = if kind == SOLID_EGG then math.min(g.ib, g.ibBot) else g.ib
-		local yy = if kind == SOLID_EGG then y - g.ye else y
+		-- (an egg, whole or cut: its wider half's ellipsoid holds it)
+		local egg = kind == SOLID_EGG or kind == SOLID_EGGBOT or kind == SOLID_EGGTOP
+		local ib = if egg then math.min(g.ib, g.ibBot) else g.ib
+		local yy = if egg then y - g.ye else y
 		local ia, ic = g.ia, g.ic
 		local Qx, Qy, Qz = x * ia, yy * ib, z * ic
 		local Dx, Dy, Dz = dx * ia, dy * ib, dz * ic
