@@ -944,9 +944,9 @@ local function buildTree(body: Frame, arg: any?)
 			f.Name = "BagEgg_" .. e.id
 			PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(6, 5), 4)
 			UIKit.text(f, rar.name, UDim2.fromOffset(RW - 86, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-			UIKit.text(f, "Free to hatch", UDim2.fromOffset(RW - 86, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+			UIKit.text(f, "Free to hatch", UDim2.fromOffset(RW - 30, 10), UDim2.fromOffset(24, 14), { color = UIKit.color("text_dim"), z = 4 })
 			local id = e.id
-			UIKit.button(f, "Hatch", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 6), function()
+			UIKit.button(f, "Hatch", UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 1), function()
 				EggView.hatchBag(id)
 			end, { name = "BagHatch_" .. e.id, color = UIKit.color("button_ok") }).ZIndex = 4
 		end
@@ -976,14 +976,17 @@ local function buildTree(body: Frame, arg: any?)
 			local tc = Traits.TIER_COLOR[wm.tier] or "text"
 			TierStars.label(f, wm.name, wm.tier, 37, 22, { color = UIKit.color(tc), z = 4, name = "WeatherMut" })
 		else
-			UIKit.text(f, string.format("Hatches %s %s one", an, string.lower(rar.name)), UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4 })
+			-- ("Hatches an x creature": the request of 2026-11-15, in place of "an x one"; under the price, the row's
+			-- whole width)
+			UIKit.text(f, string.format("Hatches %s %s creature", an, string.lower(rar.name)), UDim2.fromOffset(RW - 30, 10), UDim2.fromOffset(24, 14), { color = UIKit.color("text_dim"), z = 4, name = "Hatches" })
 		end
 		-- Hatch: its price (the shells and the shell icon after them)
 		local cost = e.cost or 0
 		local text = Numbers.coins(cost)
 		local can = v.shells >= cost
 		local id = e.id
-		local b = UIKit.button(f, text, UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 6), function()
+		-- (beside the rarity's name, so the words under it have the row's width)
+		local b = UIKit.button(f, text, UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 1), function()
 			EggView.hatch(id)
 		end, { name = "PanelHatch_" .. e.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
 		b.ZIndex = 4

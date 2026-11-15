@@ -1372,7 +1372,7 @@ yet" at 0) and, short of the last tier, `Grow` "Expand your island to increase t
 tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
-sprite, "Rare egg" in its colour, "Hatches a rare one" ("an" before uncommon and epic) and `PanelHatch_<id>` (its cost
+sprite, "Rare egg" in its colour, "Hatches a rare creature" (`Hatches`; "an" before uncommon and epic) and `PanelHatch_<id>` (its cost
 and `PriceIcon`, sending `EggView.hatch`), or "No eggs left. The tree lays more soon."; under them `StoreUI.eggRows`:
 `BuyHead` ("Buy an egg") and a row an egg product from Uncommon up, `BuyEgg_<key>` (its `egg_<r>`, "Rare Egg" in its
 colour, "Free to hatch" and `Buy_<key>`, its Robux, `StoreUI.buy`); with `{ hatch = id }`, every

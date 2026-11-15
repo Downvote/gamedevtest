@@ -1269,7 +1269,8 @@ When the island grows into a new stage, the tree is built again at it.
   (one line in green since 2026-11-14, in place of "A bigger island lays more eggs, and better ones." and "Now and
   then an egg turns rarer as it hatches.");
   on the right, under "Under the tree", every egg there, the rarest first, each with its egg, "Rare egg", "Hatches a
-  rare one" and its price on a button that hatches it.
+  rare creature" (the request of 2026-11-15: "instead of x one, write "Hatches an x creature"") and its price on a
+  button that hatches it.
 - **The huts** (the Huts tab in Build mode, so many a tier: §4; the old nests: Driftling Hut 2 places, Cozy Burrow 4,
   Driftling Den 5, Treetop Roost 6, Spring Grotto 8, Driftling Palace 12; the home once called Grass Hut is now the
   Grass Shack so the names don't clash). A driftling in a hut adds its charm.
