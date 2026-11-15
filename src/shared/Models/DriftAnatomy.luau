@@ -88,7 +88,7 @@ local SHADE: { [string]: string } = {
 	slate = "night",
 	night = "black",
 	basalt = "black",
-	chalk = "rock",
+	chalk = "basalt", -- (the palette's chalk is a dark board green, not white)
 	cherry = "berry_red",
 	coral = "clay",
 }
@@ -102,7 +102,7 @@ function A.isDark(c: string): boolean
 	return DARK[c] == true
 end
 -- A pale colour (a white creature's markings and pads take a darker tone).
-local PALE: { [string]: boolean } = { white = true, cream = true, snow = true, window = true, chalk = true, ice = true }
+local PALE: { [string]: boolean } = { white = true, cream = true, snow = true, window = true, ice = true }
 function A.isPale(c: string): boolean
 	return PALE[c] == true
 end
@@ -115,7 +115,7 @@ function A.ink(b: string, a: string): string
 end
 -- A paler underside for a body colour (a belly, a muzzle, a chest): cream, or white on a cream body.
 function A.under(b: string): string
-	if b == "cream" or b == "sand" or b == "white" or b == "snow" or b == "chalk" then
+	if b == "cream" or b == "sand" or b == "white" or b == "snow" then
 		return "white"
 	elseif A.isDark(b) then
 		return "slate"
