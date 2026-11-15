@@ -1454,7 +1454,7 @@ do
 	local function has(w)
 		return string.find(all, w, 1, true) ~= nil
 	end
-	H.expect(rowF ~= nil and st.shown and has("Works x") and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and has("Its egg luck counts while it lives in a hut") and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
+	H.expect(rowF ~= nil and st.shown and string.find(all, "Works [%a ,%d%.x]-x%d") ~= nil and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and has("Its egg luck counts while it lives in a hut") and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
 	local tipF = p.PlayerGui:FindFirstChild("PalTip", true)
 	H.expect(tipF ~= nil and tipF.Visible ~= false, "pals", "(the tip's card on the Popup root)")
 	if rowF then
