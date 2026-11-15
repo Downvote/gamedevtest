@@ -432,6 +432,26 @@ STAR_T = ["..4..", ".443.", "44432", ".432.", ".3.2."]
 for _t, _ramp in enumerate(("W", "G", "C", "Y"), start=1):
     HAND("star_t%d" % _t, STAR_T, [_ramp])
 
+# ---------------------------------------------------------------- a dozing founder's Z's (Controllers/AvatarView)
+# The request (2026-11-15): "add more motion to the player, just like in the bakery game, like dozing off while afk".
+# A small z and a big Z by turns float up from the head, pale blue, lit along the top bar; each its own size.
+HAND("zz_s", [
+    "44443",
+    "...3.",
+    "..3..",
+    ".3...",
+    "33322",
+], ["B"])
+HAND("zz_b", [
+    "4444443",
+    "....43.",
+    "...43..",
+    "..43...",
+    ".43....",
+    "43.....",
+    "3333322",
+], ["B"])
+
 # ---------------------------------------------------------------- the microgames' overlay: a note, the fuse's spark and bomb, a heart
 # (the microgames themselves are 3D now: Models/MicroModels on a stage the pixel filter draws)
 S("note", [

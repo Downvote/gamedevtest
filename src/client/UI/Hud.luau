@@ -686,6 +686,7 @@ local function claimQuest()
 				end
 			end
 			Audio.play("reward")
+			AvatarView.cheer()
 			UIKit.notice("Quest done. " .. table.concat(parts, ", "), UIKit.color("good"), 3)
 		else
 			Audio.play("deny")

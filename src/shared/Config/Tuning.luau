@@ -239,6 +239,9 @@ local Tuning = {
 	-- the founders on the islands are drawn at this share of their built size, about their feet (the request of
 	-- 2026-11-14: "make the chacter smaller, about 75% the original size"); the character's own collision is unchanged
 	FounderScale = 0.75,
+	-- a founder left alone this long dozes off where it stands (the request of 2026-11-15: "like dozing off while afk";
+	-- the bakery's 40 s): no key, mouse or touch and no step for the own one, no step for another player's
+	DozeSecs = 40,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	CamGlide = 0.18, -- share of the way to its target the view moves a frame (in whole art px)

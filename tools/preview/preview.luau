@@ -390,6 +390,161 @@ function SCEN.motion()
 	return p
 end
 
+-- A founder standing about (the requests of 2026-11-15: "the players eyes look too big, can they be 2 vertical lines
+-- instead? also, add more motion to the player, just like in the bakery game, like dozing off while afk"): up close
+-- on a lawn far from the islands, in rows of four (CharacterModels.poseFounder at the moment each one shows): standing
+-- with its line eyes, a look round, a toe tap and a yawn (idle_1); a scratch, a hum, rocking and a stretch (idle_2);
+-- the doze halfway down a nod and at the bottom of one, a blink and the cheer (idle_3). Then the player's own founder
+-- on its island through Controllers/AvatarView, as the game draws it: standing a while (the log lists the fidgets
+-- each second), then left alone past Tuning.DozeSecs (AvatarView.debugAway), dozing with its Z's floating up
+-- (idle_doze_000 .. 005, a frame every third of a second).
+function SCEN.idle()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	local ctx = E.clientCtx(p)
+	local CM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.CharacterModels"))
+	local Blocks = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.Blocks"))
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
+	local CC = H.cmod(p, "Controllers.CameraController")
+	local hidden = {}
+	for _, g in p.PlayerGui:GetChildren() do
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "World" and g.Enabled then
+			g.Enabled = false
+			table.insert(hidden, g)
+		end
+	end
+	local OX, OZ = 0, 9400
+	local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+	local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+	local faceViewer = math.atan2(vx, vz)
+	H.inClient(p, function()
+		local m = Blocks.model(E.workspace, "IdleLawn")
+		Blocks.part(m, { size = E.v3(30, 1, 30), cf = E.cf.new(OX, -0.5, OZ), color = "grass" })
+	end)
+	-- the time a rig shows fidget `name` at progress u (FIDGET_SEC slots, picked by the slot and the seed)
+	local function timeFor(rig, name, u)
+		for slot = 2, 600 do
+			local tt = slot * CM.FIDGET_SEC + u * CM.FIDGET_LEN
+			local t = tt - (rig.seed % 11) * 0.6
+			local got = CM.fidgetAt(rig, t, 999)
+			if got == name then
+				return t
+			end
+		end
+		return nil
+	end
+	local rows = {
+		{ { "stand" }, { "look", 0.3 }, { "tap", 0.5 }, { "yawn", 0.55 } },
+		{ { "scratch", 0.5 }, { "hum", 0.5 }, { "rock", 0.4 }, { "stretch", 0.5 } },
+		{ { "doze", 0.45 }, { "doze", 0.84 }, { "blink" }, { "cheer" } },
+	}
+	local looks = {
+		{ skin = 1, hair = 2, style = 1, shirt = 1 }, { skin = 3, hair = 5, style = 6, shirt = 4 },
+		{ skin = 2, hair = 1, style = 3, shirt = 7 }, { skin = 4, hair = 7, style = 9, shirt = 2 },
+	}
+	for row, list in rows do
+		local things = {}
+		H.inClient(p, function()
+			for k, what in list do
+				local rig = CM.buildStanding(looks[k], "Idle_" .. row .. "_" .. k, row * 10 + k)
+				rig.model.Parent = E.workspace
+				PR.registerDynamic(rig.model, if k == 1 then "self" else "player")
+				local u = -5.4 + (k - 1) * 3.6
+				table.insert(things, { rig = rig, what = what, x = OX + ux * u, z = OZ + uz * u })
+			end
+			local pts = {}
+			for _, q in { { -7.4, -1.6 }, { 7.4, -1.6 }, { -7.4, 1.6 }, { 7.4, 1.6 } } do
+				for _, y in { 0, 5.2 } do
+					table.insert(pts, OX + ux * q[1] + vx * q[2])
+					table.insert(pts, y)
+					table.insert(pts, OZ + uz * q[1] + vz * q[2])
+				end
+			end
+			CC.setStage({ name = "idle" .. row, origin = E.v3(OX, 0, OZ), pts = pts, tight = nil, top = 12, bottom = 8 })
+		end)
+		local names = {}
+		local function pose()
+			for _, x in things do
+				local base = E.cf.new(x.x, 0, x.z) * E.cf.Angles(0, faceViewer + math.rad(25), 0)
+				local kind, u = x.what[1], x.what[2]
+				if kind == "stand" then
+					-- (a moment with the eyes open and no fidget)
+					local t = 0.05
+					while CM.blinking(x.rig.seed, t) or CM.fidgetAt(x.rig, t, 999) ~= nil do
+						t += 0.37
+					end
+					CM.poseFounder(x.rig, base, t, 0, 999, false, false, 0)
+				elseif kind == "blink" then
+					local t = 0.05
+					while not CM.blinking(x.rig.seed, t) or CM.fidgetAt(x.rig, t, 999) ~= nil do
+						t += 0.01
+					end
+					CM.poseFounder(x.rig, base, t, 0, 999, false, false, 0)
+				elseif kind == "doze" then
+					local t = CM.NOD_SEC * (10 + u) - (x.rig.seed % 5) * 0.4
+					CM.poseFounder(x.rig, base, t, 0, 999, true, false, 0)
+				elseif kind == "cheer" then
+					CM.poseAction(x.rig, base, 0.6, 0, "cheer")
+				else
+					local t = timeFor(x.rig, kind, u)
+					if t then
+						CM.poseFounder(x.rig, base, t, 0, 999, false, false, 0)
+					end
+				end
+			end
+		end
+		H.inClient(p, pose)
+		settle(p, 60, 0.5)
+		H.inClient(p, pose)
+		for _, x in things do
+			table.insert(names, x.what[1] .. (if x.what[2] then string.format("@%.2f", x.what[2]) else ""))
+		end
+		log("idle row %d: %s", row, table.concat(names, ", "))
+		E.step(E.dt)
+		capture(p, string.format("idle_%d", row))
+		H.inClient(p, function()
+			for _, x in things do
+				PR.unregisterDynamic(x.rig.model)
+				x.rig.model:Destroy()
+			end
+		end)
+	end
+	-- the own founder on its island, as the game draws it
+	for _, g in hidden do
+		g.Enabled = true
+	end
+	H.inClient(p, function()
+		CC.setStage(nil)
+	end)
+	settle(p, 30, 1)
+	local AV = modOr(p, "Controllers.AvatarView")
+	if AV then
+		local seen = {}
+		for _ = 1, 14 do
+			E.run(1)
+			local st = H.inClient(p, function()
+				return AV.debugIdle(p)
+			end)
+			table.insert(seen, string.format("%.0fs:%s", st.idle, st.fidget or "-"))
+		end
+		log("idle: standing %s", table.concat(seen, " "))
+		H.inClient(p, function()
+			AV.debugAway(60)
+		end)
+		E.run(2)
+		for k = 0, 5 do
+			local st = H.inClient(p, function()
+				return AV.debugIdle(p)
+			end)
+			log("idle doze %d: dozing %s, %d Z's in the air", k, tostring(st.dozing), st.zeds)
+			capture(p, string.format("idle_doze_%03d", k))
+			E.run(1 / 3)
+		end
+	end
+	return p
+end
+
 -- The islands' small lives in the pixel layer (GAME_DESIGN 8; Controllers/AmbientView): a harbour island with
 -- chimneys, a smokehouse, a grill, trees and a picket fence by the plaza. The birds called in (`debugHurry`) and landed
 -- (ambient), then a frame every eighth of a second for two seconds (ambient_000 .. 015: hops, pecks, tufts swaying,

@@ -342,6 +342,74 @@ local s3 = canvasA and canvasA:FindFirstChild("Sign_3")
 H.expect(s1 ~= nil and s1.Text == "Ava's Isle", "islands", "island 1's sign label", s1 and s1.Text)
 H.expect(s3 ~= nil and s3.Text == "Unclaimed isle", "islands", "open water's sign label", s3 and s3.Text)
 
+-- a founder standing about (the requests of 2026-11-15: "the players eyes look too big, can they be 2 vertical lines
+-- instead? also, add more motion to the player, just like in the bakery game, like dozing off while afk"): thin
+-- upright eyes and no glints; a fidget within a couple of slots of standing still; left alone past Tuning.DozeSecs
+-- it dozes, its eyes shut, Z's floating up on the World canvas; a few steps wake it, the Z's gone soon after
+E.phase = "idle"
+do
+	local AV = H.cmod(a, "Controllers.AvatarView")
+	local CMa = E.moduleIn(E.clientCtx(a), E.find("ReplicatedStorage.Shared.Models.CharacterModels"))
+	local rig = H.inClient(a, AV.debugRig, a)
+	local eye = rig and rig.parts.EyeL
+	local k = Tuning.FounderScale
+	local function eyeOpen()
+		return eye ~= nil and eye.Size.Y > eye.Size.X * 2
+	end
+	-- (a moment with the eyes open: not mid-blink)
+	for _ = 1, 10 do
+		if eyeOpen() then
+			break
+		end
+		E.run(0.05)
+	end
+	H.expect(eye ~= nil and math.abs(eye.Size.X - 0.125 * k) < 1e-3 and math.abs(eye.Size.Y - 0.375 * k) < 1e-3, "idle", "the eyes: thin upright lines at the founder's size", eye and string.format("%.3f x %.3f", eye.Size.X, eye.Size.Y))
+	H.expect(rig ~= nil and rig.parts.GlintL == nil and rig.parts.GlintR == nil, "idle", "no glints in the eyes")
+	local fidgets = {}
+	local st = H.inClient(a, AV.debugIdle, a)
+	for _ = 1, math.ceil(CMa.FIDGET_SEC * 3) do
+		E.run(1)
+		st = H.inClient(a, AV.debugIdle, a)
+		if st.fidget then
+			fidgets[st.fidget] = true
+		end
+	end
+	local names = {}
+	for f in fidgets do
+		table.insert(names, f)
+	end
+	H.expect(st.idle > CMa.FIDGET_SEC * 2 and not st.dozing and #names >= 1, "idle", "standing still: fidgets now and then, awake", string.format("idle %.1f s, %s", st.idle, table.concat(names, ",")))
+	H.inClient(a, AV.debugAway, Tuning.DozeSecs + 5)
+	E.run(CMa.NOD_SEC * 0.6)
+	st = H.inClient(a, AV.debugIdle, a)
+	local canvas = a.PlayerGui:FindFirstChild("World") and a.PlayerGui.World:FindFirstChild("Canvas")
+	local zedGuis = 0
+	for _, c in if canvas then canvas:GetChildren() else {} do
+		if c.Name == "Zed" then
+			zedGuis += 1
+		end
+	end
+	H.expect(st.dozing and st.zeds >= 1 and zedGuis == st.zeds, "idle", "left alone past DozeSecs: dozing, the Z's floating up on the World canvas", string.format("dozing %s, %d Z's, %d drawn", tostring(st.dozing), st.zeds, zedGuis))
+	H.expect(eye ~= nil and eye.Size.X > eye.Size.Y, "idle", "its eyes shut while it dozes", eye and string.format("%.3f x %.3f", eye.Size.X, eye.Size.Y))
+	-- a few steps: awake again (the own one also wakes at a key or a tap; a walk is what wakes another player's)
+	local r0 = rootOf(a)
+	local at = r0 and r0.Position or E.v3(0, 3, 0)
+	for step = 1, 10 do
+		a.Character:PivotTo(E.cf.new(at.X + step * 0.4, at.Y, at.Z))
+		E.run(0.05)
+	end
+	E.run(2)
+	st = H.inClient(a, AV.debugIdle, a)
+	H.expect(not st.dozing and st.zeds == 0 and st.idle < 3, "idle", "a few steps wake it; the Z's gone", string.format("dozing %s, %d Z's, idle %.1f s", tostring(st.dozing), st.zeds, st.idle))
+	-- the cheer (a quest claimed, the island grown)
+	H.inClient(a, AV.cheer)
+	E.run(0.2)
+	st = H.inClient(a, AV.debugIdle, a)
+	H.expect(st.cheering, "idle", "the own founder cheers")
+	a.Character:PivotTo(E.cf.new(at.X, at.Y, at.Z))
+	E.run(1)
+end
+
 ------------------------------------------------------------------ 3. swimming over to the neighbour
 E.phase = "walk"
 -- the sea between island 1 and island 2 is open to swim: across from one's east shallows to the other's west ones,

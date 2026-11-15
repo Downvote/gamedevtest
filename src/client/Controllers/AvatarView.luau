@@ -13,9 +13,19 @@
 -- sea (GAME_DESIGN 8: no docks since 2026-11-13, "players can swim around in water to reach other player islands") a
 -- founder swims: the rig sinks to its chest at the water's surface and crawls (treads water when still), splashing,
 -- the strokes heard; the HUD slows the character to Tuning.SwimSpeed there and holds its jump.
+-- Standing about (the request of 2026-11-15: "add more motion to the player, just like in the bakery game, like dozing
+-- off while afk"): a founder breathes, shifts its weight, blinks, and every few seconds still does a fidget
+-- (CharacterModels.poseFounder: a look round, a toe tap, a yawn, a scratch, a hum, rocking, a stretch). Left alone
+-- Tuning.DozeSecs it dozes off where it stands, nodding, and Z's float up from its head (`zz_s` and `zz_b`, on the
+-- World canvas at whole UI px, a pair a nod, floating up beside the name tag). The own founder counts the time since the player last touched a key,
+-- the mouse or the screen and since it last moved; another player's, since it last moved. A landing squashes the
+-- legs for a moment; a quest claimed or the island grown makes the own founder cheer (`cheer`). Reduced motion: no
+-- fidgets, the Z's stay put.
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
@@ -29,6 +39,7 @@ local Audio = require(script.Parent.Audio)
 local Puffs = require(script.Parent.Puffs)
 local NameTags = require(script.Parent.NameTags)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
+local PixelSprites = require(script.Parent.Parent.UI.PixelSprites)
 
 local AvatarView = {}
 
@@ -47,6 +58,10 @@ type Rec = {
 	floor: string, -- what the feet are on: "grass", "sand", "wood", "water" (a river on an island) or "swim" (the sea)
 	stepAt: number, -- when the own founder's next footstep sounds
 	ripple: Model, -- a ring of foam on the water round them while they swim (deep under the sea otherwise)
+	idle: number, -- seconds standing still on the ground (0 while walking, jumping, swimming or in a cutscene)
+	landAt: number, -- when it last landed from a jump (the squash)
+	zAt: number, -- when its next Z floats up while dozing
+	zBig: boolean, -- the next Z the big one
 }
 
 -- What a ground hit is, for the footsteps: the sea, its shallows and its foam (or the seabed under them) mean swimming,
@@ -75,6 +90,68 @@ local function floorOf(hit: RaycastResult?): string
 end
 
 local recs: { [Player]: Rec } = {}
+local inputAt = os.clock() -- when the player last touched a key, the mouse or the screen
+local cheerUntil = 0 -- the own founder cheers until then (`cheer`)
+local CHEER_SECS = 1.6
+local LAND_SECS = 0.2 -- a landing's squash
+local Z_LIFE, Z_POP, Z_BLINK = 1.8, 0.12, 0.3 -- a Z's life, its pop in and its blinking out (seconds)
+
+-- The Z's over dozing founders: each floats up and to the right of the head it came from, swaying, and blinks out.
+type Zed = { img: GuiObject, pl: Player, rec: Rec, t0: number, w: number, h: number }
+local zeds: { Zed } = {}
+
+local function quietMotion(): boolean
+	local ok, on = pcall(function(): boolean
+		return GuiService.ReducedMotionEnabled
+	end)
+	return ok and on == true
+end
+
+local function dozing(pl: Player, rec: Rec, t: number): boolean
+	if rec.idle < Tuning.DozeSecs then
+		return false
+	end
+	return pl ~= Players.LocalPlayer or t - inputAt >= Tuning.DozeSecs
+end
+
+-- A Z from a dozing founder's head (the small one, then the big one, by turns).
+local function puffZ(pl: Player, rec: Rec, t: number)
+	local name = if rec.zBig then "zz_b" else "zz_s"
+	rec.zBig = not rec.zBig
+	local img = PixelSprites.image(UIKit.canvas("World"), name, UDim2.fromOffset(0, 0), 6)
+	img.Name = "Zed"
+	img.Visible = false
+	local s = img.Size
+	table.insert(zeds, { img = img, pl = pl, rec = rec, t0 = t, w = s.X.Offset, h = s.Y.Offset })
+end
+
+local function stepZeds(t: number)
+	local still = quietMotion()
+	for i = #zeds, 1, -1 do
+		local z = zeds[i]
+		local age = t - z.t0
+		local rig = z.rec.rig
+		local head: BasePart? = rig.parts.Head
+		if age >= Z_LIFE or head == nil or recs[z.pl] ~= z.rec then
+			z.img:Destroy()
+			table.remove(zeds, i)
+			continue
+		end
+		local hp = head :: BasePart
+		local top = hp.Position + Vector3.new(0, hp.Size.Y * 0.5, 0)
+		local x0, y0, on = PixelRenderer.projectPixel(top)
+		local u = if still then 0 else age / Z_LIFE
+		-- (from just right of the name tag over the head, up and to the right, swaying; 2 px then 1 px low as it pops
+		-- in; blinking out at the end; whole UI px)
+		local half = math.floor(z.rec.tag.frame.Size.X.Offset / 2)
+		local pop = if age < Z_POP * 0.5 then 2 elseif age < Z_POP then 1 else 0
+		local dx = half + 1 + math.floor(u * 8 + (if still then 0 else math.sin(age * 9) * 1.5) + 0.5)
+		local dy = 2 - math.floor(u * 16 + 0.5) + pop
+		local blink = age > Z_LIFE - Z_BLINK and math.floor((age - (Z_LIFE - Z_BLINK)) / 0.08) % 2 == 1
+		z.img.Visible = on and not blink
+		z.img.Position = UDim2.fromOffset(x0 + dx, y0 + dy - z.h)
+	end
+end
 -- (swimming: the rig's feet this far under the water's surface, so it shows from the chest up)
 local SWIM_SINK = 1.8 * Tuning.FounderScale -- (to the chest of a founder drawn at FounderScale)
 local HIDDEN = CFrame.new(0, -60, 0)
@@ -244,7 +321,7 @@ local function step(dt: number)
 			local ripple = rippleModel()
 			ripple.Parent = dyn()
 			PixelRenderer.registerDynamic(ripple)
-			r = { rig = rig, sig = sig, last = nil, speed = 0, tag = NameTags.make(pl), char = nil, dustAt = 0, air = false, floor = "grass", stepAt = 0, ripple = ripple }
+			r = { rig = rig, sig = sig, last = nil, speed = 0, tag = NameTags.make(pl), char = nil, dustAt = 0, air = false, floor = "grass", stepAt = 0, ripple = ripple, idle = 0, landAt = -1, zAt = 0, zBig = false }
 			recs[pl] = r
 		end
 		local rec = r :: Rec
@@ -275,6 +352,7 @@ local function step(dt: number)
 			(override :: (CharacterModels.Rig, number, number) -> ())(rec.rig, t, dt)
 			rec.tag.frame.Visible = false
 			rec.last = nil
+			rec.idle = 0
 			continue
 		end
 		local pos = root.Position
@@ -297,6 +375,7 @@ local function step(dt: number)
 			-- heard, drops off the arms
 			base = CFrame.new(pos.X, Street.WATER_Y - SWIM_SINK, pos.Z) * CFrame.Angles(0, yaw, 0)
 			CharacterModels.poseAction(rec.rig, base, t, rec.speed, "swim")
+			rec.idle = 0
 			local surface = Vector3.new(pos.X, Street.WATER_Y + 0.1, pos.Z)
 			placeRipple(rec.ripple, Vector3.new(pos.X, Street.WATER_Y + 0.03, pos.Z), if math.floor(t * 2.5) % 2 == 0 then 1 else 1.25)
 			if wasFloor ~= "swim" then
@@ -320,6 +399,7 @@ local function step(dt: number)
 			placeRipple(rec.ripple, nil, 1)
 			-- a jump: knees up, arms up, off the ground with the character
 			CharacterModels.poseAction(rec.rig, base, t, 0, "jump")
+			rec.idle = 0
 			if mine and not rec.air then
 				Audio.play("jump")
 			end
@@ -327,6 +407,7 @@ local function step(dt: number)
 		else
 			placeRipple(rec.ripple, nil, 1)
 			if rec.air then
+				rec.landAt = t
 				-- landing: a puff of dust at the feet (and a thump: on the boards, a firmer step)
 				UIKit.bitsAt((base * CFrame.new(0, 0.1, 0)).Position, { "white", "text_dim" }, 4, 18, 40)
 				if mine then
@@ -343,7 +424,21 @@ local function step(dt: number)
 				Audio.play("step_" .. rec.floor)
 			end
 			rec.air = false
-			CharacterModels.poseStanding(rec.rig, base, t, rec.speed)
+			-- standing about: fidgets once still a while, the doze once left alone (the Z's a pair a nod), the cheer
+			rec.idle = if rec.speed > 1.5 then 0 else rec.idle + dt
+			local asleep = dozing(pl, rec, t)
+			local squash = if rec.landAt >= 0 and t - rec.landAt < LAND_SECS then 1 - (t - rec.landAt) / LAND_SECS else 0
+			if mine and t < cheerUntil then
+				CharacterModels.poseAction(rec.rig, base, t, rec.speed, "cheer")
+			else
+				CharacterModels.poseFounder(rec.rig, base, t, rec.speed, rec.idle, asleep, quietMotion(), squash)
+			end
+			if asleep and t >= rec.zAt then
+				rec.zAt = t + CharacterModels.NOD_SEC * 0.5
+				puffZ(pl, rec, t)
+			elseif not asleep then
+				rec.zAt = t + 1
+			end
 		end
 		-- a walk kicks up a puff of dust now and then, a run more often (in water: splashes; swimming has its own)
 		if rec.floor == "swim" then
@@ -365,6 +460,7 @@ local function step(dt: number)
 			drop(pl)
 		end
 	end
+	stepZeds(t)
 end
 
 -- The founder's position on this client (the local player's rig's feet), for the HUD and Build mode.
@@ -414,6 +510,48 @@ end
 function AvatarView.start()
 	RunService.Heartbeat:Connect(step)
 	Players.PlayerRemoving:Connect(drop)
+	-- (the player is here while they touch anything: a key, the mouse, the screen, a pad)
+	UserInputService.InputBegan:Connect(function()
+		inputAt = os.clock()
+	end)
+	UserInputService.InputChanged:Connect(function()
+		inputAt = os.clock()
+	end)
+end
+
+-- The own founder cheers a moment (a quest claimed, the island grown): arms up, waving, smiling. It wakes it too.
+function AvatarView.cheer()
+	cheerUntil = os.clock() + CHEER_SECS
+	inputAt = os.clock()
+	local r = recs[Players.LocalPlayer]
+	if r then
+		r.idle = 0
+	end
+end
+
+-- Sims and previews: a player's founder standing about (seconds still, dozing, the fidget now, the Z's in the air),
+-- and the clock of the last input moved back `secs` (as if the player had left the keys that long ago).
+function AvatarView.debugIdle(pl: Player): { idle: number, dozing: boolean, fidget: string?, zeds: number, cheering: boolean }
+	local r = recs[pl]
+	local t = os.clock()
+	if r == nil then
+		return { idle = 0, dozing = false, fidget = nil, zeds = 0, cheering = false }
+	end
+	local name = CharacterModels.fidgetAt(r.rig, t, r.idle)
+	local n = 0
+	for _, z in zeds do
+		if z.rec == r then
+			n += 1
+		end
+	end
+	return { idle = r.idle, dozing = dozing(pl, r, t), fidget = name, zeds = n, cheering = pl == Players.LocalPlayer and t < cheerUntil }
+end
+function AvatarView.debugAway(secs: number)
+	inputAt = os.clock() - secs
+	local r = recs[Players.LocalPlayer]
+	if r then
+		r.idle = math.max(r.idle, secs)
+	end
 end
 
 -- A player's founder look (the microgames' stage dresses the player's own rig in it).

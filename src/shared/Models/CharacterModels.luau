@@ -45,11 +45,12 @@ local function specs(look: Types.Look): { Spec }
 		{ name = "ShinR", size = Vector3.new(0.5, 1.25, 0.5), at = Vector3.new(0.32, -0.5, 0.75), color = "jeans" },
 		{ name = "Torso", size = Vector3.new(1.25, 1.25, 0.75), at = Vector3.new(0, 0.875, -0.1), color = shirt },
 		{ name = "Head", size = Vector3.new(1.5, 1.25, 1.25), at = Vector3.new(0, 2.125, -0.05), color = skin },
-		{ name = "EyeL", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(-0.35, 2.15, 0.5), color = "black" },
-		{ name = "EyeR", size = Vector3.new(0.25, 0.25, 0.25), at = Vector3.new(0.35, 2.15, 0.5), color = "black" },
-		-- a glint in each eye, the brows (the expressions move them), a mouth, ears
-		{ name = "GlintL", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(-0.41, 2.21, 0.6), color = "white" },
-		{ name = "GlintR", size = Vector3.new(0.125, 0.125, 0.125), at = Vector3.new(0.29, 2.21, 0.6), color = "white" },
+		-- the eyes: two thin upright lines (the request of 2026-11-15: "the players eyes look too big, can they be 2
+		-- vertical lines instead?"; the round eyes with a glint each are in this file's history), shut to a flat line
+		-- (the moods below)
+		{ name = "EyeL", size = Vector3.new(0.125, 0.375, 0.25), at = Vector3.new(-0.3125, 2.0625, 0.5), color = "black" },
+		{ name = "EyeR", size = Vector3.new(0.125, 0.375, 0.25), at = Vector3.new(0.3125, 2.0625, 0.5), color = "black" },
+		-- the brows (the expressions move them), a mouth, ears
 		{ name = "BrowL", size = Vector3.new(0.375, 0.125, 0.125), at = Vector3.new(-0.35, 2.36, 0.6), color = hair },
 		{ name = "BrowR", size = Vector3.new(0.375, 0.125, 0.125), at = Vector3.new(0.35, 2.36, 0.6), color = hair },
 		{ name = "Mouth", size = Vector3.new(0.25, 0.125, 0.125), at = Vector3.new(0, 1.8, 0.58), color = "black" },
@@ -204,7 +205,7 @@ function CharacterModels.build(look: Types.Look, name: string, seed: number?): R
 end
 
 local HEAD_PARTS = {
-	"Head", "EyeL", "EyeR", "GlintL", "GlintR", "BrowL", "BrowR", "Mouth", "EarL", "EarR", "CheekL", "CheekR", "HairCap", "Fringe",
+	"Head", "EyeL", "EyeR", "BrowL", "BrowR", "Mouth", "EarL", "EarR", "CheekL", "CheekR", "HairCap", "Fringe",
 	"HairBack", "LockL", "LockR", "Bun", "SpikeA", "SpikeB", "SpikeC",
 	-- (the hair styles of 2026-11-14: Data/Looks)
 	"CurlA", "CurlB", "CurlC", "CurlL", "CurlR", "PonyTie", "PonyTail", "TwinL", "TwinR", "TieL", "TieR", "Mohawk", "MohawkB",
@@ -394,18 +395,27 @@ export type Pose = {
 	armR: CFrame?,
 	elbowR: number?,
 	head: CFrame?,
+	roll: number?, -- the body tipped to its right (+) or left about the waist: a weight shift, a sway
 	mood: string?,
 }
 
--- The faces: the eyes' height (closed: a line), the brows' tilt and lift, the mouth's size and colour.
-type Mood = { eyeH: number, eyeDy: number, brow: number, browDy: number, mouth: Vector3, mouthColor: string, glint: boolean }
+-- The faces: the eyes (open: a thin upright line; shut: a flat one, `eyeW` x `eyeH` and `eyeDy` up), the brows' tilt
+-- and lift, the mouth's size and colour. "blink", "sleep", "snore" (a small round mouth at the bottom of a nod),
+-- "yawn" and "hum" are the founders' idle faces (poseFounder).
+type Mood = { eyeW: number, eyeH: number, eyeDy: number, brow: number, browDy: number, mouth: Vector3, mouthColor: string }
+local OPEN_W, OPEN_H, SHUT_W, SHUT_H = 0.125, 0.375, 0.25, 0.125
 local MOODS: { [string]: Mood } = {
-	calm = { eyeH = 0.25, eyeDy = 0, brow = 0, browDy = 0, mouth = Vector3.new(0.25, 0.125, 0.125), mouthColor = "black", glint = true },
-	fierce = { eyeH = 0.25, eyeDy = 0, brow = math.rad(24), browDy = -0.04, mouth = Vector3.new(0.375, 0.125, 0.125), mouthColor = "black", glint = true },
-	shout = { eyeH = 0.25, eyeDy = 0, brow = math.rad(24), browDy = -0.04, mouth = Vector3.new(0.25, 0.25, 0.125), mouthColor = "berry_red", glint = true },
-	hurt = { eyeH = 0.125, eyeDy = 0, brow = math.rad(-20), browDy = 0.04, mouth = Vector3.new(0.25, 0.25, 0.125), mouthColor = "berry_red", glint = false },
-	happy = { eyeH = 0.125, eyeDy = 0.06, brow = 0, browDy = 0.06, mouth = Vector3.new(0.375, 0.25, 0.125), mouthColor = "berry_red", glint = false },
-	ko = { eyeH = 0.125, eyeDy = -0.04, brow = math.rad(-12), browDy = 0, mouth = Vector3.new(0.125, 0.125, 0.125), mouthColor = "black", glint = false },
+	calm = { eyeW = OPEN_W, eyeH = OPEN_H, eyeDy = 0, brow = 0, browDy = 0, mouth = Vector3.new(0.25, 0.125, 0.125), mouthColor = "black" },
+	fierce = { eyeW = OPEN_W, eyeH = OPEN_H, eyeDy = 0, brow = math.rad(24), browDy = -0.04, mouth = Vector3.new(0.375, 0.125, 0.125), mouthColor = "black" },
+	shout = { eyeW = OPEN_W, eyeH = OPEN_H, eyeDy = 0, brow = math.rad(24), browDy = -0.04, mouth = Vector3.new(0.25, 0.25, 0.125), mouthColor = "berry_red" },
+	hurt = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = 0, brow = math.rad(-20), browDy = 0.04, mouth = Vector3.new(0.25, 0.25, 0.125), mouthColor = "berry_red" },
+	happy = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = 0.06, brow = 0, browDy = 0.06, mouth = Vector3.new(0.375, 0.25, 0.125), mouthColor = "berry_red" },
+	ko = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = -0.06, brow = math.rad(-12), browDy = 0, mouth = Vector3.new(0.125, 0.125, 0.125), mouthColor = "black" },
+	blink = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = -0.06, brow = 0, browDy = 0, mouth = Vector3.new(0.25, 0.125, 0.125), mouthColor = "black" },
+	sleep = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = -0.08, brow = math.rad(-6), browDy = -0.03, mouth = Vector3.new(0.125, 0.125, 0.125), mouthColor = "black" },
+	snore = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = -0.08, brow = math.rad(-6), browDy = -0.03, mouth = Vector3.new(0.125, 0.25, 0.125), mouthColor = "berry_red" },
+	yawn = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = -0.04, brow = math.rad(-10), browDy = 0.05, mouth = Vector3.new(0.25, 0.375, 0.125), mouthColor = "berry_red" },
+	hum = { eyeW = SHUT_W, eyeH = SHUT_H, eyeDy = 0.04, brow = 0, browDy = 0.05, mouth = Vector3.new(0.125, 0.125, 0.125), mouthColor = "berry_red" },
 }
 local moodOf: { [Rig]: string } = setmetatable({}, { __mode = "k" }) :: any
 local restOf: { [Rig]: { [string]: CFrame } } = setmetatable({}, { __mode = "k" }) :: any
@@ -416,6 +426,8 @@ local function setMood(rig: Rig, mood: string)
 	end
 	moodOf[rig] = mood
 	local m = MOODS[mood] or MOODS.calm
+	-- (sizes at the rig's own scale: a founder is drawn smaller, setScale)
+	local k = rig.scale or 1
 	local base = restOf[rig]
 	if base == nil then
 		base = table.clone(rig.rest)
@@ -425,21 +437,17 @@ local function setMood(rig: Rig, mood: string)
 		local sign = if side == "L" then -1 else 1
 		local eye = rig.parts["Eye" .. side]
 		if eye and base["Eye" .. side] then
-			eye.Size = Vector3.new(0.25, m.eyeH, 0.25)
+			eye.Size = Vector3.new(m.eyeW, m.eyeH, 0.25) * k
 			rig.rest["Eye" .. side] = base["Eye" .. side] * CFrame.new(0, m.eyeDy, 0)
 		end
 		local brow = rig.parts["Brow" .. side]
 		if brow and base["Brow" .. side] then
 			rig.rest["Brow" .. side] = base["Brow" .. side] * CFrame.new(0, m.browDy, 0) * CFrame.Angles(0, 0, -sign * m.brow)
 		end
-		local glint = rig.parts["Glint" .. side]
-		if glint then
-			glint.Transparency = if m.glint then 0 else 1
-		end
 	end
 	local mouth = rig.parts.Mouth
 	if mouth then
-		mouth.Size = m.mouth
+		mouth.Size = m.mouth * k
 		mouth.Color = Blocks.color(m.mouthColor)
 	end
 end
@@ -473,7 +481,7 @@ function CharacterModels.posePose(rig: Rig, base: CFrame, P: Pose)
 	limb(rig, root, THIGH_L, HIP_L, CFrame.Angles(-bend + (P.hipL or 0), 0, 0), SHIN_L, KNEE_L, CFrame.Angles(bend * 2 + (P.kneeL or 0), 0, 0))
 	limb(rig, root, THIGH_R, HIP_R, CFrame.Angles(-bend + (P.hipR or 0), 0, 0), SHIN_R, KNEE_R, CFrame.Angles(bend * 2 + (P.kneeR or 0), 0, 0))
 	-- the body leans and twists about the waist; the arms and the head go with it
-	local body = root * CFrame.new(WAIST) * CFrame.Angles(P.lean or 0, P.twist or 0, 0) * CFrame.new(-WAIST)
+	local body = root * CFrame.new(WAIST) * CFrame.Angles(P.lean or 0, P.twist or 0, -(P.roll or 0)) * CFrame.new(-WAIST)
 	for _, n in BODY_PARTS do
 		local p = rig.parts[n]
 		if p then
@@ -527,17 +535,41 @@ function CharacterModels.setScale(rig: Rig, k: number)
 	rig.scale = k
 end
 
--- The walk or the stand (breathing, looking round now and then) at `speed` studs a second, as a Pose.
+-- A number 0 .. 1 from two whole numbers (the same on every client: a founder's blinks and fidgets follow its seed).
+local function hash2(a: number, b: number): number
+	local x = math.sin(a * 127.1 + b * 311.7) * 43758.5453
+	return x - math.floor(x)
+end
+
+-- Whether a rig's eyes are shut for a blink at `t` (the bakery's way: a blink of 0.12 s somewhere in each 3.3 s, a
+-- second one just after now and then, so one comes every 2.6 to 5 s).
+local BLINK_SEG, BLINK_LEN = 3.3, 0.12
+local function blinking(seed: number, t: number): boolean
+	local tt = t + (seed % 7) * 0.9
+	local seg = math.floor(tt / BLINK_SEG)
+	local h = hash2(seg, seed + 7)
+	local at = tt - seg * BLINK_SEG - (0.3 + h * 2.4)
+	return (at >= 0 and at < BLINK_LEN) or (h > 0.7 and at >= 0.3 and at < 0.3 + BLINK_LEN)
+end
+CharacterModels.blinking = blinking
+
+-- The walk or the stand at `speed` studs a second, as a Pose. Standing: breathing, the weight shifting from foot to
+-- foot, the head wandering a little and glancing round now and then; blinking either way.
 local function walkPose(rig: Rig, t: number, speed: number): Pose
 	local ph = rig.seed * 1.3
 	local walk = math.clamp(speed / 16, 0, 1)
 	local cycle = (t + ph) * (if walk > 0.7 then 13 else 11)
 	local swing = math.sin(cycle) * math.rad(34) * walk
-	local bob = if walk > 0.05 then math.abs(math.cos(cycle)) * 0.12 * walk else math.sin((t + ph) * 2) * 0.03
+	local still = walk <= 0.05
+	local br = math.sin((t + ph) * 2 * math.pi * 0.45)
+	local bob = if not still then math.abs(math.cos(cycle)) * 0.12 * walk else (br + 1) * 0.0175
 	local headRot = CFrame.identity
-	if walk <= 0.05 then
+	local roll = 0
+	if still then
 		local look = math.sin((t + ph) * 0.6)
-		headRot = CFrame.Angles(0, if math.abs(look) > 0.85 then math.rad(20) * math.sign(look) else 0, 0)
+		local glance = if math.abs(look) > 0.85 then math.rad(20) * math.sign(look) else 0
+		headRot = CFrame.Angles(0.03 * br, glance + 0.12 * math.sin((t + ph) * 2 * math.pi * 0.17), 0.04 * math.sin((t + ph) * 2 * math.pi * 0.29))
+		roll = 0.025 * math.sin((t + ph) * 2 * math.pi * 0.21)
 	end
 	-- the knee bends as the leg swings back; the elbows bend a little
 	return {
@@ -552,13 +584,162 @@ local function walkPose(rig: Rig, t: number, speed: number): Pose
 		armR = CFrame.Angles(-swing * 0.8, 0, 0),
 		elbowR = math.rad(15) + math.max(0, swing) * 0.6,
 		head = headRot,
-		mood = "calm",
+		roll = roll,
+		mood = if blinking(rig.seed, t) then "blink" else "calm",
 	}
 end
 
 -- Pose a founder at `base` walking at `speed` studs a second (0: standing, breathing, looking round now and then).
 function CharacterModels.poseStanding(rig: Rig, base: CFrame, t: number, speed: number)
 	CharacterModels.posePose(rig, base, walkPose(rig, t, speed))
+end
+
+------------------------------------------------------------------ the founders' idle life
+-- The request (2026-11-15): "add more motion to the player, just like in the bakery game, like dozing off while afk".
+-- Standing still a while, a founder fidgets now and then (FIDGETS: a look round, a toe tap, a yawn, a scratch of the
+-- head, a hum, rocking on its heels, a stretch); left alone long enough it dozes off where it stands, its head
+-- nodding down slowly and jerking back up, its eyes shut, a small round mouth at the bottom of each nod (AvatarView
+-- counts the time and floats the Z's). Each fidget takes FIDGET_LEN at the start of a slot of FIDGET_SEC, picked by
+-- the slot and the rig's seed, eased in and out.
+local FIDGET_SEC, FIDGET_LEN = 6.5, 2.4
+local FIDGETS = { "look", "tap", "yawn", "scratch", "hum", "rock", "stretch", "look" }
+CharacterModels.FIDGET_SEC, CharacterModels.FIDGET_LEN = FIDGET_SEC, FIDGET_LEN
+CharacterModels.FIDGETS = FIDGETS
+
+-- 0 at the edges of u 0 .. 1, 1 between `a` and `b`, smooth on the way.
+local function hold(u: number, a: number, b: number): number
+	local function sm(x: number): number
+		x = math.clamp(x, 0, 1)
+		return x * x * (3 - 2 * x)
+	end
+	if u < a then
+		return sm(u / a)
+	elseif u > b then
+		return sm((1 - u) / (1 - b))
+	end
+	return 1
+end
+
+-- The fidget playing at `t` for a rig that has stood still `idle` seconds (one started before it stopped waits for
+-- the next slot): its name and progress u 0 .. 1, or nil.
+function CharacterModels.fidgetAt(rig: Rig, t: number, idle: number): (string?, number)
+	local tt = t + (rig.seed % 11) * 0.6
+	local slot = math.floor(tt / FIDGET_SEC)
+	local into = tt - slot * FIDGET_SEC
+	if into >= FIDGET_LEN or idle < into + 1.5 then
+		return nil, 0
+	end
+	local name = FIDGETS[1 + math.floor(hash2(slot, rig.seed) * #FIDGETS) % #FIDGETS]
+	return name, into / FIDGET_LEN
+end
+
+local function fidget(P: Pose, name: string, u: number, t: number)
+	local k = hold(u, 0.15, 0.85)
+	local tau = 2 * math.pi
+	if name == "look" then
+		-- a long look one way, then the other
+		local yaw = 0.7 * math.sin(tau * u) * k
+		P.head = CFrame.Angles(0, yaw, 0)
+		P.twist = 0.12 * yaw
+	elseif name == "tap" then
+		-- the right foot out a little, its toe tapping
+		local tap = math.max(0, math.sin(t * tau * 4))
+		P.hipR = -0.18 * k
+		P.kneeR = (0.1 + 0.35 * tap) * k
+		P.head = (P.head or CFrame.identity) * CFrame.Angles(0.05 * tap * k, 0, 0)
+	elseif name == "yawn" then
+		-- both arms up, the head back, eyes shut and the mouth wide at the top
+		local up = hold(u, 0.3, 0.75)
+		P.armL = CFrame.Angles(-0.3 * up, 0, -2.6 * up)
+		P.armR = CFrame.Angles(-0.3 * up, 0, 2.6 * up)
+		P.elbowL, P.elbowR = 0.5 * up, 0.5 * up
+		P.head = CFrame.Angles(-0.28 * up, 0, 0.06 * up)
+		P.lift = (P.lift or 0) + 0.05 * up
+		if up > 0.3 then
+			P.mood = "yawn"
+		end
+	elseif name == "scratch" then
+		-- the right hand up to the back of the head, scratching; the head tipped to it
+		local jit = 0.12 * math.sin(t * tau * 6)
+		P.armR = CFrame.Angles(-2.6 * k, 0, 0.5 * k)
+		P.elbowR = (1.5 + jit) * k
+		P.head = CFrame.Angles(0.06 * k, 0, 0.12 * k)
+	elseif name == "hum" then
+		-- swaying to a tune, the head a beat behind, eyes shut and smiling
+		local s = math.sin(t * tau * 1.1)
+		P.roll = (P.roll or 0) + 0.07 * s * k
+		P.head = CFrame.Angles(0, 0, 0.12 * math.sin(t * tau * 1.1 - 0.6) * k)
+		P.lift = (P.lift or 0) + 0.03 * math.abs(s) * k
+		if k > 0.5 then
+			P.mood = if math.sin(t * tau * 2.2) > 0.3 then "snore" else "hum"
+		end
+	elseif name == "rock" then
+		-- hands behind the back, rocking heel to toe
+		local r = math.sin(t * tau * 1.2)
+		-- (the arms in toward the middle of the back, so the hands meet there)
+		P.armL = CFrame.Angles(0.5 * k, 0, 0.32 * k)
+		P.armR = CFrame.Angles(0.5 * k, 0, -0.32 * k)
+		P.elbowL, P.elbowR = 0.3 * k, 0.3 * k
+		P.lean = 0.06 * r * k
+		P.lift = (P.lift or 0) + 0.04 * math.max(0, r) * k
+	elseif name == "stretch" then
+		-- arms straight up, up on the toes, leaning back a little; eyes shut at the top
+		local up = hold(u, 0.25, 0.7)
+		P.armL = CFrame.Angles(-2.9 * up, 0, -0.25 * up)
+		P.armR = CFrame.Angles(-2.9 * up, 0, 0.25 * up)
+		P.elbowL, P.elbowR = 0, 0
+		P.lean = -0.1 * up
+		P.lift = (P.lift or 0) + 0.06 * up
+		P.head = CFrame.Angles(-0.15 * up, 0, 0)
+		if up > 0.6 then
+			P.mood = "blink"
+		end
+	end
+end
+
+-- The doze: breathing slow, the head nodding down over 2.6 s and jerking back up, the body sagging with it, the arms
+-- hanging, eyes shut; a small round mouth at the bottom of each nod.
+local NOD_SEC = 3.05
+local function doze(P: Pose, rig: Rig, t: number)
+	local n = ((t + (rig.seed % 5) * 0.4) / NOD_SEC) % 1
+	local function ease(x: number): number
+		return x * x * (3 - 2 * x)
+	end
+	local droop = if n < 0.85 then ease(n / 0.85) else 1 - ease((n - 0.85) / 0.15)
+	P.head = CFrame.Angles(0.1 + 0.36 * droop, 0, 0.07 * droop)
+	P.crouch = 0.03 + 0.05 * droop
+	P.lean = 0.05 * droop
+	P.roll = 0.005
+	P.lift = 0.01 * math.sin(t * 1.4)
+	P.armL = CFrame.Angles(0.05, 0, -0.03)
+	P.armR = CFrame.Angles(0.05, 0, 0.03)
+	P.elbowL, P.elbowR = 0.1, 0.1
+	P.mood = if droop > 0.6 then "snore" else "sleep"
+end
+CharacterModels.NOD_SEC = NOD_SEC
+
+-- Pose a founder standing about (AvatarView): walking at `speed`, else standing still `idle` seconds; `dozing`, nodding
+-- off; `quiet` (reduced motion), no fidgets; `squash` (0 .. 1), a landing's crouch.
+function CharacterModels.poseFounder(rig: Rig, base: CFrame, t: number, speed: number, idle: number, dozing: boolean, quiet: boolean, squash: number?)
+	local P = walkPose(rig, t, speed)
+	if speed <= 0.8 then
+		if dozing then
+			doze(P, rig, t)
+		elseif not quiet then
+			local name, u = CharacterModels.fidgetAt(rig, t, idle)
+			if name then
+				fidget(P, name, u, t)
+			end
+		end
+	end
+	local sq = squash or 0
+	if sq > 0 then
+		P.crouch = (P.crouch or 0) + 0.22 * sq
+		P.armL = (P.armL or CFrame.identity) * CFrame.Angles(0, 0, -0.35 * sq)
+		P.armR = (P.armR or CFrame.identity) * CFrame.Angles(0, 0, 0.35 * sq)
+		P.head = (P.head or CFrame.identity) * CFrame.Angles(0.1 * sq, 0, 0)
+	end
+	CharacterModels.posePose(rig, base, P)
 end
 
 -- Work at a building on the island (GAME_DESIGN 5; WorldView): each a loop, `k` the beat's phase (0 .. 1, round and

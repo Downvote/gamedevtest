@@ -244,7 +244,8 @@ every field.
   mutation tier's share on a price); none of the tide's `TideSecs`, `TideLife`, `TidePrice`, `TideTier`, `TideRare`,
   `TideLuck`, `TideMutTier` or `HutTide`, and none of the old tree's `TreeSecs`, `TreeLuck`, `TreeMutLuck`,
   `TreeSpeedCost`, `TreeLuckCost`, `PenSafe`, `PenShown` or `TreeStages`), breeding (`BreedShells` (an egg's price by the
-  child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the island's lean (`MutLean`, `MutLeanFloor`), the server's step and rate limit, the sea
+  child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the island's lean (`MutLean`, `MutLeanFloor`),
+  the founders' doze (`DozeSecs` 40), the server's step and rate limit, the sea
   (`MaxPlots`, `PlotSpacing`, `PlotPieces` (buildings and decor by tier: 36, 60, 90, 130, 180, 240, 300, 370, 450, 540,
   then 60 more a tier to 1,140), `HousingLimit` (the driftlings an island's huts may house together by its tier, however many huts: 8, 24, 40, 60, 96,
   168, 192, 216, 240, 264, 336, 364, 392, 480, 512, 544, 648, 684, 720, 840; 2026-11-14, it was `HutLimit`, a count of
@@ -325,8 +326,17 @@ Models (`src/shared/Models`, Roblox modules):
   standing chibi: the founders and the visitors: soles, shoes, bare shins under shorts, a shirt with a belt and buckle,
   a collar and two buttons, sleeves, bare forearms and fists, the head raised a stud), `posePose(rig, base, Pose)`
   (`Pose { lean, twist, crouch (the knees bend to keep the feet down), lift, hipL/R, kneeL/R, armL/R (CFrames about
-  the shoulders), elbowL/R, head, mood }`; moods `calm fierce shout hurt happy ko` move the brows, open or shut the
-  eyes and the mouth), `poseStanding(rig, base, t, speed)` (the walk: knees and elbows bending, or the stand),
+  the shoulders), elbowL/R, head, roll (the body tipped about the waist), mood }`; moods `calm fierce shout hurt happy
+  ko blink sleep snore yawn hum` move the brows, open the eyes (a thin upright line, 0.125 x 0.375: the request of
+  2026-11-15, "can they be 2 vertical lines instead?"; no glints) or shut them (a flat line, 0.25 x 0.125) and size
+  the mouth, all at the rig's scale), `poseStanding(rig, base, t, speed)` (the walk: knees and elbows bending, or the
+  stand: breathing, the weight shifting, the head wandering and glancing round; a blink, `blinking(seed, t)`: 0.12 s
+  somewhere in each 3.3 s, now and then a second just after), `poseFounder(rig, base, t, speed, idle, dozing, quiet,
+  squash?)` (the stand plus a fidget, `fidgetAt(rig, t, idle) -> (name?, u)`: one of `FIDGETS` (look, tap, yawn,
+  scratch, hum, rock, stretch, look) for `FIDGET_LEN` 2.4 s at the start of each `FIDGET_SEC` 6.5 s slot, picked by
+  the slot and the seed, none begun before the rig stood still; or the doze: the head nodding down over 85% of
+  `NOD_SEC` 3.05 s and back up, the body sagging, the arms hanging, "sleep" and at the bottom "snore"; a landing's
+  crouch by `squash`),
   `poseAction(rig, base, t, speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`, `swim` (in the
   sea: a crawl when `speed` > 1, the arms turning over in turn and the legs kicking, leaning 30°; else treading
   water, the arms sweeping out and back with a slow bob), the
@@ -1392,6 +1402,17 @@ hatch scene; hidden too while a cutscene poses the own rig), placed over `Charac
 hat, worked out once a rig) every frame. `founderPos()`, `count()`, `lookOf(player)`, `debugTag(player) -> (name?,
 title?, shown)`, `debugRig(player) -> (rig?, outlined)` (CLI checks), `setOverride(fn?)` (a cutscene poses the own rig
 instead: `fn(rig, t, dt)` every frame; nil gives it back).
+Standing about (GAME_DESIGN 9, the request of 2026-11-15): each record counts `idle` (seconds on the ground slower than
+1.5 studs a second; 0 walking, jumping, swimming or in a cutscene) and poses the rig with
+`CharacterModels.poseFounder(rig, base, t, speed, idle, dozing, quiet, squash)`: `dozing` once `idle` passes
+`Tuning.DozeSecs` (40) and, for the own founder, nothing touched for as long (`UserInputService` InputBegan or
+InputChanged moves the clock); `quiet` is `GuiService.ReducedMotionEnabled` (no fidgets); `squash` 1 .. 0 over 0.2 s
+after a landing. A dozing founder puffs a Z every half `NOD_SEC` (the small `zz_s` and the big `zz_b` by turns,
+`PixelSprites` on the World canvas, named "Zed", z 6): each starts just right of its name tag at the head's height,
+rises 16 UI px and drifts 8 right over 1.8 s, swaying, popping in 2 then 1 px low, blinking out over its last 0.3 s
+(still with reduced motion), whole UI px. `cheer()` (Hud's quest claim, BuildUI's island grown) poses the own founder
+`poseAction` "cheer" for 1.6 s and wakes it. `debugIdle(player) -> { idle, dozing, fidget?, zeds, cheering }` and
+`debugAway(secs)` (the input clock moved back, `idle` at least that) for sims and previews.
 
 ### 10.7 `BuildUI` (Build mode), `BuildFx` and `Puffs`
 Prices are `Plot.price(view, id)` everywhere in Build mode (the cards, the tip, the info plate, a stroke's cost, the

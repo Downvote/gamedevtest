@@ -1732,6 +1732,18 @@ them": the feet were found by a ray down that met a roof or a bench first, so th
 > rises with it, knees up, and lands in a puff; the coast's invisible walls stood a little under a jump, so a jump
 > cleared them onto the sea: they then stood far higher; since 2026-11-13 there are no coast walls, the founders swim)
 
+**Standing about** (the requests of 2026-11-15: "the players eyes look too big, can they be 2 vertical lines instead?
+also, add more motion to the player, just like in the bakery game, like dozing off while afk"): the founder's eyes are
+two thin upright lines, shut to flat lines for a blink, a yawn or sleep. Standing still it breathes, shifts its weight,
+blinks every few seconds and glances round; every six and a half seconds or so it does a little fidget: a long look one
+way then the other, a toe tap, a yawn with both arms up, a scratch of the head, a hum (swaying, eyes shut), rocking on
+its heels with its hands behind its back, or a stretch on its toes. Left alone for 40 seconds (`Tuning.DozeSecs`, the
+bakery's: no key, mouse or touch and no step) it dozes off where it stands: the head nods down slowly and jerks back
+up, the eyes shut, a small round mouth at the bottom of each nod, and Z's float up beside its name tag, a small one and
+a big one by turns. Any key, tap or step wakes it. Other players' founders doze the same way when they haven't moved
+for 40 seconds. Landing from a jump squashes the legs for a moment, and claiming a quest or growing the island makes
+the founder cheer, arms up. With reduced motion on there are no fidgets and the Z's stay put.
+
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
 rain; `settings.sfx`), and Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need

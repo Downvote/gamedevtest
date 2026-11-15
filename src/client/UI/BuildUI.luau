@@ -44,6 +44,7 @@ local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local StoreUI = require(script.Parent.StoreUI)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
+local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local Words = require(script.Parent.Words)
 
 local BuildUI = {}
@@ -1371,6 +1372,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 				end
 				cheered = true
 				Audio.play("grow")
+				AvatarView.cheer()
 				local plan = Office.plan(grown or v.tier + 1)
 				UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s had to move.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s. There's more to build now.", plan.name), UIKit.color("good"), 4)
 			end

@@ -12,10 +12,10 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1; checks today:
-`sim.luau` about 3136, `sim_save.luau` about 1104, `sim_clock.luau` about 1445, `sim_world.luau` about 2599,
+`sim.luau` about 3136, `sim_save.luau` about 1104, `sim_clock.luau` about 1445, `sim_world.luau` about 2606,
 `sim_tree.luau` about 1906).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui inventory expand zoo paths water work motion ambient late
+village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui inventory expand zoo paths water work motion idle ambient late
 loading themes hatches weathers`, `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<pieces|titles>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing
 the cosmetics, with their white outlines and name tags), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
