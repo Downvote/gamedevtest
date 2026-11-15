@@ -70,7 +70,9 @@ local fires: { [number]: Fire } = {}
 local signLabels: { [number]: TextLabel } = {}
 local myPlot = 0
 local NEAR = 100 -- studs from the view's centre an island is peopled within
-local HOP = 4 -- studs a second
+-- studs a second a driftling walks (2026-11-15: a walk, not a bounce; at 4 its short legs could not keep up with
+-- the ground and it hopped along, now it steps at Models/DriftMotion's WALK rate)
+local WALK = 2.6
 local FAR_POSE = 40 -- studs from the view's centre past which a driftling is posed every fourth frame only
 local poseFrame = 0
 
@@ -497,11 +499,11 @@ local function stepWalker(w: Walker, t: number, dt: number)
 				w.untilT = t + 1.5 + w.rng:next() * 3
 			end
 		else
-			local step = math.min(d, HOP * dt)
+			local step = math.min(d, WALK * dt)
 			w.x += dx / d * step
 			w.z += dz / d * step
 			w.yaw = math.atan2(dx, dz)
-			speed = HOP
+			speed = WALK
 		end
 	elseif t >= w.untilT then
 		decide(w, t)
@@ -527,7 +529,7 @@ local function stepWalker(w: Walker, t: number, dt: number)
 		if (math.abs(w.x - cw.X) > FAR_POSE or math.abs(w.z - cw.Z) > FAR_POSE) and (poseFrame + w.id) % 4 ~= 0 then
 			return
 		end
-		-- alive on its skeleton (Models/DriftRig): the bouncy walk, the cheer's jumps, breathing, blinks, a wagging
+		-- alive on its skeleton (Models/DriftRig): the walk, the cheer's jumps, breathing, blinks, a wagging
 		-- tail, its work where it works (or a nap at its hut); the rig lifts and squashes it, so it is placed on the
 		-- ground
 		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then w.cheerMood elseif speed > 0 then "walk" elseif working then w.mood else "idle", 0)

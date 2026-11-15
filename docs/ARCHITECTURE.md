@@ -577,14 +577,20 @@ Models (`src/shared/Models`, Roblox modules):
   springs, parts, shared }`, `debugSprings(t)` (each spring's turn, degrees: the previews).
 - `DriftMotion` (pure, no instances; tests/specs/DriftMotion.spec.luau): `ease(id, x)` (`LINEAR SMOOTH OUT IN BACK
   HOLD`), `track(keys, u)` (keys `{ u, value, ease }`), the key sets `JUMP` (ty, sq, rx, leg: crouch, push off, the
-  arc, the fall, the landing squash, the settle), `STEP_SQ`, `LOOK`, `WEIGHT`, `YAWN`, `PECK`, `DIP`, `LUNGE`, `TWITCH`;
+  arc, the fall, the landing squash, the settle), `WALK` (`duty` 0.6, `amp` 0.55, `lift` 0.1, `bob` 0.035, `sq` 0.02,
+  `roll` 0.035, `twist` 0.05, `rate` 1.9 strides a second), `LOOK`, `WEIGHT`, `YAWN`, `PECK`, `DIP`, `LUNGE`, `TWITCH`;
   `newProg()`, `program(mood, t, age, k, gait, tempo, seed, out) -> Prog` (the shared values of a frame: the body's
   turns, shift and stretch `brx bry brz btx bty btz bsq`, the head's `hrx hry hrz htz hsq`, `jaw`, the ears, arm and
   leg modes, the stride or jump phase `u`, the tail, wing and fin waves, `shut`, `open`), `bone(prog, kind, side,
   phase) -> (rx, ry, rz, tx, ty, tz, sq)`. Moods: idle (breathing, the weight shifting every 8 s, a look about every
   6 s with a counter-turn first and an overshoot, a yawn every 11 s, ear twitches one at a time, blinks and double
-  blinks), walk by gait (a bouncy step with a squash at each contact for two and four legs, the head nodding a beat
-  late and keeping level, the arms swinging a beat behind the legs; a hop's jump; a slither's sway; a scuttle; flight),
+  blinks), walk by gait (since the request of 2026-11-15, "most creatures seem to walk around by bouncing instead of
+  actually walking. could you animate them to walk instead of bouncing?", a walk with no hop for two and four legs and
+  the hoppers too: each leg planted `duty` of the stride, sweeping back evenly, then lifted `lift` and swung forward
+  eased, legMode 1 by each leg's phase (four legs in diagonal pairs, two in turn) and legMode 7 for a hopper, whose legs
+  are built in step, by side; the body `bob` studs higher passing over a planted leg and `sq` squashed as the other
+  lands, rolling onto the planted side, the hips twisting, the head nodding a beat late and keeping level, the arms
+  swinging a beat behind the legs; a slither's sway; a scuttle; flight; hoppers still jump in cheer and hop),
   cheer and hop (jumps: cheer higher, arms up, mouth open), hooray (one jump from the mood's start, then the cheer's
   pose held: the hatch scene and a driftling just hatched on the island, WorldView's `cheerMood`), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
   squash wobbling back, flung back, ears folded back), ko, and the work moods peck, push, dip, wave and nap. `PITCH`

@@ -11,7 +11,8 @@
 -- about its pivot), a shift (tx, ty, tz, studs) and a stretch along the bone (sq: 1 as built, over 1 longer and
 -- thinner, under 1 squashed and wider, its volume kept). Where the twelve principles are:
 --   squash and stretch: the body squashes before a jump and on landing and stretches as it leaves the ground and as
---     it falls (`JUMP`), squashes at each step's contact and stretches between (`STEP_SQ`), breathes in and out,
+--     it falls (`JUMP`), settles a little at each step's contact and rises as it passes over the planted foot (`WALK`),
+--     breathes in and out,
 --     squashes on a hit and wobbles back, stretches into a peck or a lunge; ears stretch as they perk up.
 --   anticipation: a crouch before every jump, a lean back before a lunge, the head dipping the other way before it
 --     turns to look about, rising before a peck, a breath in before a yawn.
@@ -102,8 +103,13 @@ Motion.JUMP = {
 	-- (the legs: folding into the crouch, kicking back to push off, tucked in the air, reaching to land, bending)
 	leg = { { 0, 0 }, { 0.14, 0.55, OUT }, { 0.26, -0.5, IN }, { 0.44, 0.3, OUT }, { 0.7, -0.18, SMOOTH }, { 0.82, 0.42, OUT }, { 1, 0, SMOOTH } },
 }
--- A step's squash: squashed at the foot's contact, stretched at the top of the step.
-Motion.STEP_SQ = { { 0, 0.9 }, { 0.14, 1, OUT }, { 0.5, 1.05, SMOOTH }, { 0.86, 1, SMOOTH }, { 1, 0.9, IN } }
+-- A walk (the request of 2026-11-15: "most creatures seem to walk around by bouncing instead of actually walking.
+-- could you animate them to walk instead of bouncing?"): no hop. Each foot is planted for `duty` of the stride,
+-- sweeping back steadily as the body passes over it, then lifts and swings forward quickly (eased) to plant again,
+-- `lift` studs at the top of its swing; the body rises `bob` studs as it passes over a planted leg and settles as the
+-- other comes down (a slight squash `sq` there), rolls toward the planted side and twists its hips with the stride.
+-- `rate`: strides a second at tempo 1 (quicker than the old bouncy walk's, so the feet keep up with the ground).
+Motion.WALK = { duty = 0.6, amp = 0.55, lift = 0.1, bob = 0.035, sq = 0.02, roll = 0.035, twist = 0.05, rate = 1.9 }
 -- A look about (over 6 s): a small turn the other way first (anticipation), the turn past the mark and back, a hold,
 -- then home.
 Motion.LOOK = { { 0, 0 }, { 0.035, -0.1, OUT }, { 0.12, 1.08, OUT }, { 0.17, 1, SMOOTH }, { 0.38, 1, SMOOTH }, { 0.5, 0, SMOOTH }, { 1, 0 } }
@@ -157,7 +163,8 @@ export type Prog = {
 	armMode: number, -- 0 swaying, 1 swinging with the stride, 2 raised, 3 one waving, 4 forward, 5 striking
 	arm: number, -- the arms' turn (radians, about X: - raises them forward and up)
 	armZ: number,
-	legMode: number, -- 0 still, 1 walking, 2 jumping, 3 scuttling, 4 pacing, 5 folded, 6 dangling
+	legMode: number, -- 0 still, 1 walking, 2 jumping, 3 scuttling, 4 pacing, 5 folded, 6 dangling, 7 walking with the
+	-- legs taking turns left and right (a hopper's legs are built in step: Motion.WALK)
 	leg: number,
 	u: number, -- the stride's or jump's phase (0..1)
 	tailAmp: number,
@@ -283,19 +290,19 @@ function Motion.program(mood: string, t: number, age: number, k: number, gait: s
 	end
 	o.shut = blinking(t, seed)
 	if mood == "walk" then
-		-- one stride (two steps) every 0.7 s at tempo 1
-		local u = frac(tt * 9 / TAU + seed * 0.13)
+		-- one stride (two steps) every 1 / WALK.rate s at tempo 1
+		local W = Motion.WALK
+		local rate = W.rate * TAU
+		local u = frac(tt * W.rate + seed * 0.13)
 		o.u = u
-		o.tailAmp, o.tailF = 0.3, 9 * tempo
+		o.tailAmp, o.tailF = 0.3, rate * tempo
 		o.armMode = 1
-		o.wingAmp, o.wingF = 0.16, 9 * tempo
-		o.finAmp, o.finF = 0.3, 9 * tempo
-		if gait == "hop" then
-			jump(o, u, 0.6, 0.4)
-		elseif gait == "slither" then
+		o.wingAmp, o.wingF = 0.16, rate * tempo
+		o.finAmp, o.finF = 0.3, rate * tempo
+		if gait == "slither" then
 			o.brz = 0.1 * sin(TAU * u)
 			o.hry = -0.5 * 0.1 * sin(TAU * (u - 0.08))
-			o.tailAmp, o.tailF = 0.42, 9 * tempo
+			o.tailAmp, o.tailF = 0.42, rate * tempo
 			o.legMode = 1
 		elseif gait == "scuttle" then
 			o.legMode = 3
@@ -308,18 +315,19 @@ function Motion.program(mood: string, t: number, age: number, k: number, gait: s
 			o.legMode = 6
 			o.leg = 0.25
 		else
-			-- a bouncy walk: a little hop each step, squashed as the foot lands, the weight on the planted foot,
-			-- the hips twisting with the stride, the head nodding a beat after the step and keeping level
-			local s = frac(2 * u)
-			local hop = 4 * s * (1 - s)
-			o.bty = 0.2 * hop
-			o.bsq = track(Motion.STEP_SQ, s)
-			o.brz = 0.05 * sin(TAU * u)
-			o.bry = 0.035 * sin(TAU * u)
-			o.brx = 0.08
+			-- walking (bipeds, four-legged ones and the hoppers too, their legs taking turns): the body highest as it
+			-- passes over a planted leg (at a quarter of each foot's time on the ground past its plant), settling as
+			-- the other comes down, the weight rolling onto the planted side, the hips twisting with the stride, the
+			-- head nodding a beat after the step and keeping level against the roll
+			local over = cos(TAU * (2 * u - W.duty))
+			o.bty = W.bob * (0.5 + 0.5 * over)
+			o.bsq = 1 + W.sq * over
+			o.brz = W.roll * sin(TAU * (u - 0.05))
+			o.bry = W.twist * sin(TAU * u)
+			o.brx = if gait == "quad" then 0.04 else 0.06
 			o.hrz = -0.6 * o.brz
-			o.hrx = 0.07 * cos(TAU * (2 * u - 0.16))
-			o.legMode = 1
+			o.hrx = 0.04 * cos(TAU * (2 * u - W.duty - 0.12))
+			o.legMode = if gait == "hop" then 7 else 1
 		end
 	elseif mood == "cheer" or mood == "hop" or mood == "hooray" then
 		-- (a cheer jumps on and on; "hooray" jumps once, from the moment it starts, then holds the happy pose: the
@@ -536,11 +544,21 @@ function Motion.bone(o: Prog, kind: string, side: number, ph: number): (number, 
 		return rx, 0, rz, 0, 0, 0, 1
 	elseif kind == "leg" then
 		local m = o.legMode
-		if m == 1 or m == 4 then
-			-- swinging, the foot lifting on the way forward
-			local amp = if m == 4 then 0.36 else 0.5
+		if m == 1 or m == 7 then
+			-- a step (Motion.WALK): planted for `duty` of the stride, sweeping back at an even pace as the body goes
+			-- over it, then lifted and swung forward, eased, to plant again (a hopper's legs take turns by side)
+			local W = Motion.WALK
+			local p = frac(o.u + (if m == 7 then (if side < 0 then 0 else 0.5) else ph))
+			if p < W.duty then
+				return W.amp * (1 - 2 * p / W.duty), 0, 0, 0, 0, 0, 1
+			end
+			local s = (p - W.duty) / (1 - W.duty)
+			local e = s * s * (3 - 2 * s)
+			return W.amp * (2 * e - 1), 0, 0, 0, W.lift * sin(PI * s), 0, 1
+		elseif m == 4 then
+			-- pacing in place, the foot lifting on the way forward
 			local w = TAU * (o.u + ph)
-			return amp * sin(w), 0, 0, 0, 0.08 * max(0, cos(w)), 0, 1
+			return 0.36 * sin(w), 0, 0, 0, 0.08 * max(0, cos(w)), 0, 1
 		elseif m == 2 then
 			return o.leg * (if side < 0 then 1 else 0.92), 0, 0, 0, 0, 0, 1
 		elseif m == 3 then

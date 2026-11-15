@@ -28,7 +28,7 @@ return function()
 
 	T.it("a keyed curve meets its keys, and the looping ones close", function()
 		local J = Motion.JUMP
-		for name, keys in { jty = J.ty, jsq = J.sq, jrx = J.rx, jleg = J.leg, step = Motion.STEP_SQ, look = Motion.LOOK, weight = Motion.WEIGHT, peck = Motion.PECK, dip = Motion.DIP } do
+		for name, keys in { jty = J.ty, jsq = J.sq, jrx = J.rx, jleg = J.leg, look = Motion.LOOK, weight = Motion.WEIGHT, peck = Motion.PECK, dip = Motion.DIP } do
 			T.eq(keys[1][1], 0, name .. " starts at 0")
 			T.eq(keys[#keys][1], 1, name .. " ends at 1")
 			for i, k in keys do
@@ -91,14 +91,35 @@ return function()
 		end
 	end)
 
-	T.it("a walk squashes at each contact and stretches between", function()
+	T.it("a walk walks: no hop, a foot always on the ground, the body rising a little over the planted leg", function()
+		-- (the request of 2026-11-15: "most creatures seem to walk around by bouncing instead of actually walking")
 		local o = Motion.newProg()
-		local lo, hi = 9, 0
-		for i = 0, 140 do
-			Motion.program("walk", i / 200, 1, 0, "biped", 1, 0, o)
-			lo, hi = math.min(lo, o.bsq), math.max(hi, o.bsq)
+		local legs = {
+			biped = { { -1, 0 }, { 1, 0.5 } },
+			quad = { { -1, 0 }, { 1, 0.5 }, { -1, 0.5 }, { 1, 0 } },
+			hop = { { -1, 0 }, { 1, 0 } }, -- (a hopper's legs are built in step: the walk has them take turns)
+		}
+		for gait, set in legs do
+			local lo, hi, sqLo, sqHi, airborne = 9, -9, 9, 0, 0
+			for i = 0, 200 do
+				Motion.program("walk", i / 200, 1, 0, gait, 1, 0, o)
+				lo, hi = math.min(lo, o.bty), math.max(hi, o.bty)
+				sqLo, sqHi = math.min(sqLo, o.bsq), math.max(sqHi, o.bsq)
+				local planted = false
+				for _, l in set do
+					local _, _, _, _, ty = Motion.bone(o, "leg", l[1], l[2])
+					if ty <= 1e-6 then
+						planted = true
+					end
+				end
+				if not planted then
+					airborne += 1
+				end
+			end
+			T.truthy(lo >= 0 and hi <= 0.06 and hi > 0.01, string.format("%s: the body %.3f .. %.3f studs up", gait, lo, hi))
+			T.truthy(sqLo > 0.96 and sqHi < 1.04, string.format("%s: squash %.3f .. %.3f", gait, sqLo, sqHi))
+			T.eq(airborne, 0, gait .. ": frames with no foot on the ground")
 		end
-		T.truthy(lo < 0.95 and hi > 1.02, string.format("squash %.2f .. %.2f", lo, hi))
 	end)
 
 	T.it("a hooray jumps once, then holds the happy pose", function()

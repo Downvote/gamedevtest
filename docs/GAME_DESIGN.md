@@ -1385,8 +1385,18 @@ the drake's horns, two-part wings and spaded tail, and the sea serpent's coils a
 **Their moving parts:** every driftling stands on a small skeleton (body, head, jaw, ears, arms, legs, wings, fins,
 tail segments, eye stalks, pincers, tendrils, antennae), and each joint moves on its own. Idle, a driftling breathes,
 looks about now and then, yawns, twitches its ears, sways its tail and blinks. Walking, its legs step in pairs (a
-rabbit or frog hops on both hind legs, a crab scuttles, a seal or snail sways, a bat or moth flaps). Cheering, it
-looks up with its arms up and wags fast. At work it has its own moves (§11).
+crab scuttles, a seal or snail sways, a bat or moth flaps). Cheering, it looks up with its arms up and wags fast. At
+work it has its own moves (§11).
+
+> The request (2026-11-15): "most creatures seem to walk around by bouncing instead of actually walking. could you
+> animate them to walk instead of bouncing?"
+
+**A walk, not a bounce:** the two- and four-legged ones and the rabbits and frogs too walk now, with no hop in the
+step. Each foot stays planted for most of the stride, sliding back as the body passes over it, then lifts and swings
+forward to plant again: four legs in diagonal pairs, two (and a hopper's two hind legs) in turn. The body rises only a
+little as it passes over the planted foot and settles as the other comes down, rolls onto the planted side and twists
+its hips with the stride; the head nods a beat late. They step quicker and cover less ground a second (2.6 studs, was
+4), so their feet keep up with the ground. A rabbit or a frog still jumps when it cheers.
 
 > The request (2026-11-14): "right now, the models simply move by rotating or moving parts of the mesh around. please
 > use bones and rigging to make more realistic and detailed movement. follow and use as many animation principles
@@ -1401,7 +1411,7 @@ driftling is drawn from parts by the pixel filter, so the rig is worked out in t
 poses that ease in and out, blended from one mood into the next (no snapping), with springs on the floppy parts.
 The twelve principles, and where each one shows:
 - **Squash and stretch:** a crouch squashes before every jump, it stretches leaving the ground and falling, and
-  squashes hard on landing; each step of a walk squashes at the foot's contact; breathing; a hit squashes it flat for
+  squashes hard on landing; a walk settles a little at each foot's contact; breathing; a hit squashes it flat for
   a moment and it wobbles back.
 - **Anticipation:** the crouch before a jump, the lean back before a lunge, a little turn the other way before it
   turns to look about, the head going up before a peck, a breath in before a yawn.
