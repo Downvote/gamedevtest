@@ -579,9 +579,9 @@ end
 function MicroModels.species(id: string, lod: string?): Thing
 	local def = Creatures.byId[id]
 	if def == nil then
-		return MicroModels.driftling("blob", "steel", "steel_dark", lod)
+		return MicroModels.driftling("armadillo", "steel", "steel_dark", lod)
 	end
-	return MicroModels.driftling(def.shape, def.body, def.accent, lod, { eye = def.eye, iris = def.iris, tex = def.tex, tex2 = def.tex2 })
+	return MicroModels.driftling(def.shape, def.body, def.accent, lod, { id = def.id, eye = def.eye, iris = def.iris, tex = def.tex, tex2 = def.tex2, form = def.form })
 end
 
 -- A thing's moving parts for the moment, time t (seconds, its own clock: keep it running smoothly), mood, k 0..1 an

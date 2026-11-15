@@ -31,7 +31,8 @@
 --   gets the very same ray at any pan.
 --   Patterns that must not crawl when the view pans (dither, the shadow checker, dotted rims) use global coordinates.
 -- * Solids: Block (drawBox), Ball (drawSphere), Cylinder (along the part's X axis, diameter min(Y, Z); drawCylinder),
---   Wedge and CornerWedge (convex plane sets from Raster.planes; drawConvex); Raster.drawPart picks one by shape name.
+--   Wedge and CornerWedge (convex plane sets from Raster.planes; drawConvex), and the smooth Ell, Egg and Cone
+--   (drawSolid: an ellipsoid, an egg, a tapered limb); Raster.drawPart picks one by shape name.
 --   A part that covers no pixel centre (smaller than an art pixel) still draws the pixel under its centre. With a
 --   `mix` function a part is see-through: it blends into what is drawn and keeps the depth and id behind it.
 
@@ -1439,6 +1440,347 @@ function Raster.drawConvex(
 	return n
 end
 
+------------------------------------------------------------------ smooth solids (ellipsoids, eggs, tapered limbs)
+-- The driftlings and their eggs are sculpted from a few smooth shapes instead of heaps of balls (the request of
+-- 2026-11-15: "currently, all of them are modelled using blobs, which is unnatural"). Each fills its part's box:
+-- * "Ell": the ellipsoid inscribed in the box (half sizes sx/2, sy/2, sz/2).
+-- * "Egg": two half ellipsoids along the part's Y joined at an equator: the top half `prm` of the height (0.5 an
+--   ellipsoid, above that the top end longer and narrower, an egg), the bottom half the rest.
+-- * "Cone": a tapered limb along the part's X: two balls joined by the cone that touches both (a "round cone", the
+--   hull of the two), its whole length sx; the -X end's radius sy/2 and the +X end's `prm` times that when prm <= 1,
+--   or the +X end sy/2 and the -X end sy/2 / prm when prm > 1; its cross-section squashed to sz/sy across Z (a flat
+--   ear, a fin, a beaver's tail).
+-- Per pixel the ray is taken into the part's frame (and squashed so the shape is round); each is a quadratic.
+-- Raster.hitSolid casts one ray (shadows in pictures, the specs); Raster.drawSolid fills a frame.
+local SOLID_ELL, SOLID_EGG, SOLID_CONE = 1, 2, 3
+local SOLID_KIND: { [string]: number } = { Ell = SOLID_ELL, Egg = SOLID_EGG, Cone = SOLID_CONE }
+Raster.SOLID_KIND = SOLID_KIND
+
+-- the ellipsoid of inverse half sizes (ia, ib, ic) about the origin: the entry t of the ray q + t d (nil: a miss)
+local function ellT(qx: number, qy: number, qz: number, dx: number, dy: number, dz: number, ia: number, ib: number, ic: number): number?
+	local Qx, Qy, Qz = qx * ia, qy * ib, qz * ic
+	local Dx, Dy, Dz = dx * ia, dy * ib, dz * ic
+	local a = Dx * Dx + Dy * Dy + Dz * Dz
+	local b = Qx * Dx + Qy * Dy + Qz * Dz
+	local c = Qx * Qx + Qy * Qy + Qz * Qz - 1
+	local disc = b * b - a * c
+	if disc < 0 or a <= 1e-12 then
+		return nil
+	end
+	return (-b - math.sqrt(disc)) / a
+end
+
+-- A solid's shape numbers, in its own frame: what both the pixel fill and the one-ray cast need.
+type SolidGeo = {
+	kind: number,
+	ia: number, -- inverse half sizes (Ell, Egg's sides; Cone: 1 / the squash across Z in ic)
+	ib: number,
+	ic: number,
+	ibBot: number, -- Egg: the bottom half's inverse half height
+	ye: number, -- Egg: the equator's height in the part's frame
+	ax: number, -- Cone: the two balls' centres on X and their radii
+	bx: number,
+	ra: number,
+	rb: number,
+}
+local function solidGeo(kind: number, sx: number, sy: number, sz: number, prm: number?): SolidGeo?
+	local hx, hy, hz = sx * 0.5, sy * 0.5, sz * 0.5
+	if hx <= 0 or hy <= 0 or hz <= 0 then
+		return nil
+	end
+	local g: SolidGeo = { kind = kind, ia = 1 / hx, ib = 1 / hy, ic = 1 / hz, ibBot = 1 / hy, ye = 0, ax = 0, bx = 0, ra = 0, rb = 0 }
+	if kind == SOLID_EGG then
+		local f = math.clamp(prm or 0.5, 0.2, 0.8)
+		g.ib = 1 / (sy * f)
+		g.ibBot = 1 / (sy * (1 - f))
+		g.ye = hy - sy * f
+	elseif kind == SOLID_CONE then
+		local k = prm or 1
+		local R = hy
+		local ra, rb = R, R
+		if k <= 1 then
+			rb = R * math.max(k, 0.02)
+		else
+			ra = R / k
+		end
+		-- (the cross-section squashed across Z: in the round frame z is divided by sz / sy)
+		g.ic = sy / sz
+		local ax, bx = -hx + ra, hx - rb
+		if bx - ax <= math.abs(ra - rb) + 1e-6 then
+			-- (too short for its taper: the bigger ball holds the other; draw that ball)
+			if ra >= rb then
+				bx, rb = ax, ra
+			else
+				ax, ra = bx, rb
+			end
+		end
+		g.ax, g.bx, g.ra, g.rb = ax, bx, ra, rb
+	end
+	return g
+end
+
+-- The entry of the ray q + t d (in the part's frame, d of any length: t in units of d) into the solid, and its outward
+-- normal there in the part's frame (not unit). nil: a miss.
+local function solidHitLocal(g: SolidGeo, qx: number, qy: number, qz: number, dx: number, dy: number, dz: number): (number?, number, number, number)
+	local kind = g.kind
+	if kind == SOLID_ELL then
+		local t = ellT(qx, qy, qz, dx, dy, dz, g.ia, g.ib, g.ic)
+		if t == nil then
+			return nil, 0, 0, 0
+		end
+		local ia, ib, ic = g.ia, g.ib, g.ic
+		return t, (qx + t * dx) * ia * ia, (qy + t * dy) * ib * ib, (qz + t * dz) * ic * ic
+	elseif kind == SOLID_EGG then
+		local y0 = qy - g.ye
+		local ia, ic = g.ia, g.ic
+		local best: number? = nil
+		local bib = 0
+		local tt = ellT(qx, y0, qz, dx, dy, dz, ia, g.ib, ic)
+		if tt and y0 + tt * dy >= -1e-6 then
+			best, bib = tt, g.ib
+		end
+		local tb = ellT(qx, y0, qz, dx, dy, dz, ia, g.ibBot, ic)
+		if tb and y0 + tb * dy <= 1e-6 and (best == nil or tb < best) then
+			best, bib = tb, g.ibBot
+		end
+		if best == nil then
+			return nil, 0, 0, 0
+		end
+		local t = best :: number
+		return t, (qx + t * dx) * ia * ia, (y0 + t * dy) * bib * bib, (qz + t * dz) * ic * ic
+	end
+	-- the round cone (Inigo Quilez's intersector), in the frame where its cross-section is round
+	local sc = g.ic
+	local rzq, rzd = qz * sc, dz * sc
+	local len = math.sqrt(dx * dx + dy * dy + rzd * rzd)
+	if len <= 1e-12 then
+		return nil, 0, 0, 0
+	end
+	local il = 1 / len
+	local rdx, rdy, rdz = dx * il, dy * il, rzd * il
+	local ax, bx, ra, rb = g.ax, g.bx, g.ra, g.rb
+	local L = bx - ax
+	local oax, oay, oaz = qx - ax, qy, rzq
+	local obx = qx - bx
+	local m3 = rdx * oax + rdy * oay + rdz * oaz
+	local m5 = oax * oax + oay * oay + oaz * oaz
+	local m6 = obx * rdx + oay * rdy + oaz * rdz
+	local m7 = obx * obx + oay * oay + oaz * oaz
+	if L > 1e-9 then
+		local rr = ra - rb
+		local m0 = L * L
+		local m1 = L * oax
+		local m2 = L * rdx
+		local d2 = m0 - rr * rr
+		local k2 = d2 - m2 * m2
+		local k1 = d2 * m3 - m1 * m2 + m2 * rr * ra
+		local k0 = d2 * m5 - m1 * m1 + m1 * rr * ra * 2 - m0 * ra * ra
+		local h = k1 * k1 - k0 * k2
+		if h < 0 then
+			return nil, 0, 0, 0
+		end
+		if k2 > 1e-12 or k2 < -1e-12 then
+			local t = (-math.sqrt(h) - k1) / k2
+			local y = m1 - ra * rr + t * m2
+			if y > 0 and y < d2 then
+				-- (the side: d2 (oa + t rd) - ba y, back from the round frame)
+				local nx = d2 * (oax + t * rdx) - L * y
+				local ny = d2 * (oay + t * rdy)
+				local nz = d2 * (oaz + t * rdz)
+				return t * il, nx, ny, nz * sc
+			end
+		end
+	end
+	-- the end balls
+	local h1 = m3 * m3 - m5 + ra * ra
+	local h2 = m6 * m6 - m7 + rb * rb
+	local best: number? = nil
+	local nx, ny, nz = 0, 0, 0
+	if h1 > 0 then
+		local t = -m3 - math.sqrt(h1)
+		best = t
+		nx, ny, nz = oax + t * rdx, oay + t * rdy, oaz + t * rdz
+	end
+	if h2 > 0 then
+		local t = -m6 - math.sqrt(h2)
+		if best == nil or t < best then
+			best = t
+			nx, ny, nz = obx + t * rdx, oay + t * rdy, oaz + t * rdz
+		end
+	end
+	if best == nil then
+		return nil, 0, 0, 0
+	end
+	return (best :: number) * il, nx, ny, nz * sc
+end
+
+-- One ray o + t d (world, d unit) against a solid (shape "Ell" | "Egg" | "Cone"): the entry distance t and the unit
+-- outward normal (world), or nil.
+function Raster.hitSolid(shape: string, cf12: { number }, sx: number, sy: number, sz: number, prm: number?, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number): (number?, number, number, number)
+	local kind = SOLID_KIND[shape]
+	local g = if kind then solidGeo(kind, sx, sy, sz, prm) else nil
+	if g == nil then
+		return nil, 0, 0, 0
+	end
+	local px, py, pz = ox - cf12[1], oy - cf12[2], oz - cf12[3]
+	local qx = px * cf12[4] + py * cf12[7] + pz * cf12[10]
+	local qy = px * cf12[5] + py * cf12[8] + pz * cf12[11]
+	local qz = px * cf12[6] + py * cf12[9] + pz * cf12[12]
+	local lx = dx * cf12[4] + dy * cf12[7] + dz * cf12[10]
+	local ly = dx * cf12[5] + dy * cf12[8] + dz * cf12[11]
+	local lz = dx * cf12[6] + dy * cf12[9] + dz * cf12[12]
+	local t, nx, ny, nz = solidHitLocal(g, qx, qy, qz, lx, ly, lz)
+	if t == nil then
+		return nil, 0, 0, 0
+	end
+	local wx = cf12[4] * nx + cf12[5] * ny + cf12[6] * nz
+	local wy = cf12[7] * nx + cf12[8] * ny + cf12[9] * nz
+	local wz = cf12[10] * nx + cf12[11] * ny + cf12[12] * nz
+	local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+	if l <= 1e-12 then
+		return t, 0, 1, 0
+	end
+	return t, wx / l, wy / l, wz / l
+end
+
+-- How much of a row a solid can cover: its silhouette's test along a row is a quadratic in the column (the
+-- ellipsoid's discriminant, the cone's), so three samples give it and its roots bound the columns worth casting.
+-- Returns the first and last column (i0 > i1: none).
+local function rowSpan(g: SolidGeo, qx: number, qy: number, qz: number, sx_: number, sy_: number, sz_: number, dx: number, dy: number, dz: number, n: number): (number, number)
+	-- (the discriminant as a function of the step k from the row's first column)
+	local function disc(k: number): number
+		local x, y, z = qx + k * sx_, qy + k * sy_, qz + k * sz_
+		local kind = g.kind
+		if kind == SOLID_CONE then
+			-- the bounding ball pair's union is inside the infinite tangent cone; test that cone's discriminant, or
+			-- for a cone with no length the ball's
+			local sc = g.ic
+			local rz, rdz0 = z * sc, dz * sc
+			local len = math.sqrt(dx * dx + dy * dy + rdz0 * rdz0)
+			local rdx, rdy, rdz = dx / len, dy / len, rdz0 / len
+			local ax, bx, ra, rb = g.ax, g.bx, g.ra, g.rb
+			local L = bx - ax
+			local oax, oay, oaz = x - ax, y, rz
+			local m3 = rdx * oax + rdy * oay + rdz * oaz
+			local m5 = oax * oax + oay * oay + oaz * oaz
+			if L <= 1e-9 then
+				return m3 * m3 - m5 + ra * ra
+			end
+			local rr = ra - rb
+			local m0, m1, m2 = L * L, L * oax, L * rdx
+			local d2 = m0 - rr * rr
+			local k2 = d2 - m2 * m2
+			local k1 = d2 * m3 - m1 * m2 + m2 * rr * ra
+			local k0 = d2 * m5 - m1 * m1 + m1 * rr * ra * 2 - m0 * ra * ra
+			return k1 * k1 - k0 * k2
+		end
+		-- (an egg: its wider half's ellipsoid holds it)
+		local ib = if kind == SOLID_EGG then math.min(g.ib, g.ibBot) else g.ib
+		local yy = if kind == SOLID_EGG then y - g.ye else y
+		local ia, ic = g.ia, g.ic
+		local Qx, Qy, Qz = x * ia, yy * ib, z * ic
+		local Dx, Dy, Dz = dx * ia, dy * ib, dz * ic
+		local a = Dx * Dx + Dy * Dy + Dz * Dz
+		local b = Qx * Dx + Qy * Dy + Qz * Dz
+		local c = Qx * Qx + Qy * Qy + Qz * Qz - 1
+		return b * b - a * c
+	end
+	local h0, h1, h2 = disc(0), disc(1), disc(2)
+	local A = (h2 - 2 * h1 + h0) * 0.5
+	local B = h1 - h0 - A
+	local C = h0
+	if A >= -1e-12 then
+		return 0, n -- (not a downward parabola: cast the whole row)
+	end
+	local D = B * B - 4 * A * C
+	if D < 0 then
+		return 1, 0
+	end
+	local sq = math.sqrt(D)
+	local r0, r1 = (-B + sq) / (2 * A), (-B - sq) / (2 * A)
+	if r0 > r1 then
+		r0, r1 = r1, r0
+	end
+	return math.max(0, math.floor(r0) - 1), math.min(n, math.ceil(r1) + 1)
+end
+
+-- Fill a frame with a smooth solid (shape "Ell" | "Egg" | "Cone", see above). Returns the pixels written.
+function Raster.drawSolid(
+	f: Frame,
+	cam: Cam,
+	shape: string,
+	cf12: { number },
+	sx: number,
+	sy: number,
+	sz: number,
+	prm: number?,
+	rgb: number,
+	id: number,
+	shade: Shade,
+	mix: Mix?
+): number
+	local kind = SOLID_KIND[shape]
+	local g = if kind then solidGeo(kind, sx, sy, sz, prm) else nil
+	if g == nil then
+		return 0
+	end
+	local x0, y0, x1, y1 = Raster.boxRect(cam, cf12, sx, sy, sz)
+	if x0 == nil or y0 == nil or x1 == nil or y1 == nil then
+		return 0
+	end
+	local cx, cy, cz = cf12[1], cf12[2], cf12[3]
+	local r00, r10, r20 = cf12[4], cf12[7], cf12[10] -- the part's X
+	local r01, r11, r21 = cf12[5], cf12[8], cf12[11] -- Y
+	local r02, r12, r22 = cf12[6], cf12[9], cf12[12] -- Z
+	local lx, ly, lz = cam.lx, cam.ly, cam.lz
+	-- the ray's direction and its steps per column and per row, in the part's frame
+	local dx, dy, dz = lx * r00 + ly * r10 + lz * r20, lx * r01 + ly * r11 + lz * r21, lx * r02 + ly * r12 + lz * r22
+	local ix, iy, iz, jx, jy, jz = cam.ix, cam.iy, cam.iz, cam.jx, cam.jy, cam.jz
+	local six, siy, siz = ix * r00 + iy * r10 + iz * r20, ix * r01 + iy * r11 + iz * r21, ix * r02 + iy * r12 + iz * r22
+	local sjx, sjy, sjz = jx * r00 + jy * r10 + jz * r20, jx * r01 + jy * r11 + jz * r21, jx * r02 + jy * r12 + jz * r22
+	local ox, oy, oz = cam.ox - cx, cam.oy - cy, cam.oz - cz
+	local bqx, bqy, bqz = ox * r00 + oy * r10 + oz * r20, ox * r01 + oy * r11 + oz * r21, ox * r02 + oy * r12 + oz * r22
+	local W = f.W
+	local color, depth, ids = f.color, f.depth, f.id
+	local bias = cam.bias
+	local n = 0
+	for j = y0, y1 do
+		local row = j * W
+		local rqx, rqy, rqz = bqx + j * sjx + x0 * six, bqy + j * sjy + x0 * siy, bqz + j * sjz + x0 * siz
+		local k0, k1 = rowSpan(g, rqx, rqy, rqz, six, siy, siz, dx, dy, dz, x1 - x0)
+		for k = k0, k1 do
+			local i = x0 + k
+			local qx, qy, qz = rqx + k * six, rqy + k * siy, rqz + k * siz
+			local t, nx, ny, nz = solidHitLocal(g, qx, qy, qz, dx, dy, dz)
+			if t and t > 0 then
+				local idx = row + i
+				local o = idx * 4
+				if t < buffer.readf32(depth, o) - bias then
+					local wx = r00 * nx + r01 * ny + r02 * nz
+					local wy = r10 * nx + r11 * ny + r12 * nz
+					local wz = r20 * nx + r21 * ny + r22 * nz
+					local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+					if l > 1e-12 then
+						wx, wy, wz = wx / l, wy / l, wz / l
+					else
+						wx, wy, wz = 0, 1, 0
+					end
+					local c = shade(rgb, wx, wy, wz, i, j, t)
+					if mix then
+						buffer.writeu32(color, o, mix(c, buffer.readu32(color, o)))
+					else
+						buffer.writeu32(color, o, c)
+						buffer.writef32(depth, o, t)
+						buffer.writeu16(ids, idx * 2, id)
+					end
+					n += 1
+				end
+			end
+		end
+	end
+	return n
+end
+
 ------------------------------------------------------------------ any part
 -- A part smaller than an art pixel (its box spans under 2 px both ways and covers no pixel centre) draws the pixel
 -- under its centre, lit from above, depth-tested at its nearest point.
@@ -1488,7 +1830,8 @@ local function dot(f: Frame, cam: Cam, cf12: { number }, sx: number, sy: number,
 end
 
 -- Draw one part by its shape name: "Block", "Ball" (diameter min(sx, sy, sz)), "Cylinder", "Wedge",
--- "CornerWedge" (anything else draws as a Block). With `mix` the part is see-through (blends into the colour and
+-- "CornerWedge", the smooth solids "Ell", "Egg" and "Cone" (with their `prm`; see drawSolid) (anything else draws as a
+-- Block). With `mix` the part is see-through (blends into the colour and
 -- keeps the depth and id behind it). Sub-pixel parts draw one pixel (see dot). Returns the pixels written.
 function Raster.drawPart(
 	f: Frame,
@@ -1501,7 +1844,8 @@ function Raster.drawPart(
 	rgb: number,
 	id: number,
 	shade: Shade,
-	mix: Mix?
+	mix: Mix?,
+	prm: number?
 ): number
 	local n: number
 	if shape == "Ball" then
@@ -1510,6 +1854,8 @@ function Raster.drawPart(
 		n = Raster.drawCylinder(f, cam, cf12, sx, sy, sz, rgb, id, shade, mix)
 	elseif shape == "Wedge" or shape == "CornerWedge" then
 		n = Raster.drawConvex(f, cam, Raster.planes(shape, cf12, sx, sy, sz), cf12, sx, sy, sz, rgb, id, shade, mix)
+	elseif SOLID_KIND[shape] then
+		n = Raster.drawSolid(f, cam, shape, cf12, sx, sy, sz, prm, rgb, id, shade, mix)
 	else
 		n = Raster.drawBox(f, cam, cf12, sx, sy, sz, rgb, id, shade, mix)
 	end

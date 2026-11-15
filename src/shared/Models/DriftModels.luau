@@ -36,10 +36,21 @@ export type Thing = Kit.Thing
 
 ------------------------------------------------------------------ the body plans
 -- (Models/DriftPlansA..D, built with the kit: 20 plans, each a function of the body and accent colours)
-local PLANS: { [string]: (b: string, a: string) -> Thing } = {}
-for _, mod in { require(script.Parent.DriftPlansA), require(script.Parent.DriftPlansB), require(script.Parent.DriftPlansC), require(script.Parent.DriftPlansD) } do
-	for shape, fn in mod do
+type Form = { [string]: any }
+local PLANS: { [string]: (b: string, a: string, form: Form?) -> Thing } = {}
+local FORMS: { [string]: Form } = {}
+-- (the old ball-built plans, kept only while the new ones replace them)
+for _, mod in { require(script.Parent.DriftOldA), require(script.Parent.DriftOldB), require(script.Parent.DriftOldC), require(script.Parent.DriftOldD) } do
+	for shape, fn in mod :: any do
 		PLANS[shape] = fn
+	end
+end
+for _, mod in { require(script.Parent.DriftPlansA), require(script.Parent.DriftPlansB), require(script.Parent.DriftPlansC), require(script.Parent.DriftPlansD), require(script.Parent.DriftPlansE), require(script.Parent.DriftPlansF) } do
+	for shape, fn in mod.plans do
+		PLANS[shape] = fn
+	end
+	for id, f in mod.forms do
+		FORMS[id] = f
 	end
 end
 
@@ -51,12 +62,14 @@ end
 -- (the islands: fewer, bigger pieces), full when not given. `look` (its species': Data/Creatures) picks its eyes'
 -- style and iris colour (DriftKit.eye) and the textures its body and accent colours wear (each part of that colour,
 -- not the face, gets a "PixelTex" attribute: the pixel renderer patterns it, Render/DynTex).
-export type Look = { eye: string?, iris: string?, tex: string?, tex2: string? }
+export type Look = { id: string?, eye: string?, iris: string?, tex: string?, tex2: string?, form: Form? }
 function DriftModels.build(shape: string, body: string, accent: string, lod: string?, look: Look?): Thing
-	local fn = PLANS[shape] or PLANS.blob
+	local fn = PLANS[shape] or PLANS.armadillo or PLANS.pup
 	Kit.setFull(lod ~= "world")
 	Kit.setLook({ eye = look and look.eye, iris = look and look.iris, body = body, accent = accent })
-	local ok, t = pcall(fn, body, accent)
+	-- (its species' own form: Data/Creatures' when it gives one, else the plan module's for its id)
+	local form = if look then (look.form or (if look.id then FORMS[look.id] else nil)) else nil
+	local ok, t = pcall(fn, body, accent, form)
 	Kit.setFull(true)
 	Kit.setLook(nil)
 	if not ok then

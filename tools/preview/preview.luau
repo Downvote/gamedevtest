@@ -2563,9 +2563,11 @@ local function palsScenario(arg)
 		Blocks.part(m, { size = E.v3(30, 1, 30), cf = E.cf.new(OX, -0.5, OZ), color = "grass" })
 		local names = {}
 		for i, id in ids do
-			local d = Creatures.byId[id]
+			-- (an id "shape.body.accent" builds a body plan in those colours, no species needed)
+			local plan = string.split(id, ".")
+			local d = Creatures.byId[id] or (if #plan >= 2 then { id = id, shape = plan[1], body = plan[2], accent = plan[3] or plan[2] } else nil)
 			if d then
-				local th = MM.species(d.id)
+				local th = if #plan >= 2 then MM.driftling(plan[1], plan[2], plan[3] or plan[2]) else MM.species(d.id)
 				th.model:SetAttribute("PixelShadow", 1)
 				th.model:SetAttribute("PixelGroundY", 0)
 				th.model.Parent = E.workspace
@@ -2864,7 +2866,7 @@ for _, name in list do
 			return looksScenario(looksArg)
 		end
 	end
-	local palsArg = string.match(name, "^pals=([%w_,]+)$")
+	local palsArg = string.match(name, "^pals=([%w_,%.]+)$")
 	if palsArg then
 		fn = function()
 			return palsScenario(palsArg)

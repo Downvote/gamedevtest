@@ -22,7 +22,8 @@ local Raster = require(script.Parent.Raster)
 local Shading = require(script.Parent.Shading)
 
 export type Solid = {
-	shape: string, -- "Block" | "Ball" | "Cylinder" | "Wedge" | "CornerWedge" (anything else is a Block)
+	shape: string, -- "Block" | "Ball" | "Cylinder" | "Wedge" | "CornerWedge" | "Ell" | "Egg" | "Cone" (anything else is a Block)
+	prm: number?, -- an Egg's or a Cone's shape number (Raster.drawSolid)
 	cf: { number }, -- cf12: position and rotation
 	sx: number,
 	sy: number,
@@ -119,9 +120,10 @@ function Picture.shape(className: string, partType: string?): string
 end
 
 -- One part of a picture. alpha (default 1) is 1 - Transparency.
-function Picture.solid(shape: string, cf12: { number }, sx: number, sy: number, sz: number, rgb: number, glow: boolean?, alpha: number?): Solid
+function Picture.solid(shape: string, cf12: { number }, sx: number, sy: number, sz: number, rgb: number, glow: boolean?, alpha: number?, prm: number?): Solid
 	local s: Solid = {
 		shape = shape,
+		prm = prm,
 		cf = cf12,
 		sx = sx,
 		sy = sy,
@@ -137,7 +139,7 @@ function Picture.solid(shape: string, cf12: { number }, sx: number, sy: number, 
 	}
 	if shape == "Ball" then
 		s.br = 0.5 * math.min(sx, sy, sz)
-	elseif shape ~= "Cylinder" then
+	elseif shape ~= "Cylinder" and Raster.SOLID_KIND[shape] == nil then
 		s.planes = Raster.planes(shape, cf12, sx, sy, sz)
 	end
 	return s
@@ -287,6 +289,11 @@ local function blocks(s: Solid, ox: number, oy: number, oz: number, dx: number, 
 		end
 		return tOut > HIT_EPS
 	end
+	if Raster.SOLID_KIND[s.shape] then
+		-- (a smooth solid: its own entry, or a start inside it, before the light)
+		local t = Raster.hitSolid(s.shape, s.cf, s.sx, s.sy, s.sz, s.prm, ox, oy, oz, dx, dy, dz)
+		return t ~= nil and t > HIT_EPS and t < len
+	end
 	-- cylinder along the part's X axis
 	local c = s.cf
 	local ax, ay, az = c[4], c[7], c[10]
@@ -375,7 +382,7 @@ local function rasterSolid(job: Job, k: number)
 		buffer.writef32(normal, idx * 12 + 8, nz)
 		return 0
 	end
-	Raster.drawPart(job.frame, job.cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.rgb, k, capture)
+	Raster.drawPart(job.frame, job.cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.rgb, k, capture, nil, s.prm)
 end
 
 -- The job's ShadowGrid (margins a little wider than the discs, so rounding never drops a solid that blocks).
@@ -496,7 +503,7 @@ local function clearSolid(job: Job, k: number)
 	local function mix(over: number, under: number): number
 		return Shading.blend(over, under, a, true)
 	end
-	Raster.drawPart(job.frame, job.cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.rgb, 0, if s.glow then shadeGlow else shadeLit, mix)
+	Raster.drawPart(job.frame, job.cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.rgb, 0, if s.glow then shadeGlow else shadeLit, mix, s.prm)
 end
 
 -- Phase 4: ink.

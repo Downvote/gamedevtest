@@ -90,6 +90,7 @@ function Kit.new(shape: string, h: number, r: number, gait: string): Thing
 	}
 	cur = t
 	curJoint = "body"
+	Kit.faceOff()
 	return t
 end
 
@@ -493,6 +494,143 @@ function Kit.onBall(c: Vector3, r: number, dir: Vector3): (Vector3, Vector3)
 	return c + d * r, d
 end
 
+------------------------------------------------------------------ sculpting with smooth solids
+-- The request (2026-11-15): "can you redo all the creatures and eggs and add alot more extra ones with more variation
+-- to them? currently, all of them are modelled using blobs, which is unnatural. reference other models online to see
+-- how you should model them". So a driftling is sculpted the way a modeller blocks out a creature: a few smooth masses
+-- over a skeleton (an egg-shaped chest, a head with its own muzzle, legs that taper and bend at a knee or a hock, paws,
+-- hooves, a tail tapering to its tip), each one smooth shape instead of a heap of balls. The pixel filter draws them
+-- exactly (Render/Raster.drawSolid); a part carries its shape in its "PixelShape" attribute and the number that shapes
+-- it in "PixelK". With the pixel filter off (the classic style) an ellipsoid or an egg shows through a sphere mesh and
+-- a limb as a cylinder.
+
+-- A smooth solid part on the current joint.
+local function solid(name: string, kind: string, size: Vector3, cf: CFrame, color: string, prm: number?, neon: boolean?): BasePart
+	local p = Kit.part(name, if kind == "Cone" then "Cylinder" else "Block", size, cf, color, neon)
+	p:SetAttribute("PixelShape", kind)
+	if prm then
+		p:SetAttribute("PixelK", prm)
+	end
+	if kind ~= "Cone" then
+		local m = Instance.new("SpecialMesh")
+		m.MeshType = Enum.MeshType.Sphere
+		m.Parent = p
+	end
+	return p
+end
+
+-- An ellipsoid `size` across (full sizes), centred at `center`, turned by `rot` (`detail`: the full thing only).
+function Kit.ell(name: string, center: Vector3, size: Vector3, color: string, rot: CFrame?, detail: boolean?, neon: boolean?): BasePart?
+	if detail and not isFull then
+		return nil
+	end
+	return solid(name, "Ell", size, CFrame.new(center) * (rot or CFrame.identity), color, nil, neon)
+end
+
+-- An egg `size` across, its top end `split` of its height (0.5 an ellipsoid; 0.6 a hen's egg, narrower at the top),
+-- centred at `center` (the middle of its box), turned by `rot`: lying on its side it is a bird's body, a fish, a
+-- bee's abdomen; upright, an egg or a seal.
+function Kit.egg(name: string, center: Vector3, size: Vector3, split: number, color: string, rot: CFrame?, detail: boolean?, neon: boolean?): BasePart?
+	if detail and not isFull then
+		return nil
+	end
+	return solid(name, "Egg", size, CFrame.new(center) * (rot or CFrame.identity), color, split, neon)
+end
+
+-- A tapered limb from `a` (radius ra) to `b` (radius rb): two balls and the cone that touches both, so it is round at
+-- both ends and smooth along. `flat` (0..1, default 1) squashes its cross-section toward `flatN` (an ear's, a fin's,
+-- a beaver's tail's thin side faces flatN). The ball ends make joints: two limbs meeting at a point with the same
+-- radius there bend smoothly round it.
+function Kit.limb(name: string, a: Vector3, b: Vector3, ra: number, rb: number, color: string, flat: number?, flatN: Vector3?, detail: boolean?, neon: boolean?): BasePart?
+	if detail and not isFull then
+		return nil
+	end
+	local d = b - a
+	local len = d.Magnitude
+	ra, rb = math.max(ra, FINE / 2), math.max(rb, FINE / 2)
+	if len < 1e-4 then
+		return Kit.ell(name, a, V(2, 2, 2) * math.max(ra, rb), color, nil, nil, neon)
+	end
+	local x = d / len
+	-- the thin direction across the limb: flatN made square to it (any square direction when not flat)
+	local zc = flatN or (if math.abs(x.Y) < 0.9 then V(0, 1, 0) else V(1, 0, 0))
+	local z = zc - x * zc:Dot(x)
+	z = if z.Magnitude > 1e-5 then z.Unit else (if math.abs(x.Y) < 0.9 then V(0, 1, 0) else V(1, 0, 0))
+	local y = z:Cross(x)
+	local R = math.max(ra, rb)
+	local f = math.clamp(flat or 1, 0.1, 1)
+	local total = len + ra + rb
+	local c = a - x * ra + x * (total / 2)
+	return solid(name, "Cone", V(total, 2 * R, 2 * R * f), CFrame.fromMatrix(c, x, y, z), color, rb / ra, neon)
+end
+
+-- A chain of tapered limbs along the smooth curve through `pts` (a neck, a tail, a trunk, a horn that curls), its
+-- radius going through `radii` (spread evenly), in `n` links (the curve's points less one when not given; fewer on the
+-- islands). Returns the links.
+function Kit.limbs(name: string, pts: { Vector3 }, radii: { number }, color: string, n: number?, flat: number?, flatN: Vector3?, detail: boolean?, neon: boolean?): { BasePart }
+	local out: { BasePart } = {}
+	if detail and not isFull then
+		return out
+	end
+	local k = #radii
+	local function radiusAt(u: number): number
+		if k == 1 then
+			return radii[1]
+		end
+		local f = math.clamp(u, 0, 1) * (k - 1)
+		local i = math.min(math.floor(f), k - 2)
+		local s = f - i
+		return radii[i + 1] + (radii[i + 2] - radii[i + 1]) * s
+	end
+	local links = n or math.max(1, #pts - 1)
+	if not isFull then
+		links = math.max(1, math.min(links, math.ceil(links / 2)))
+	end
+	local prev = curveAt(pts, 0)
+	for i = 1, links do
+		local u0, u1 = (i - 1) / links, i / links
+		local q = curveAt(pts, u1)
+		local p = Kit.limb(name, prev, q, radiusAt(u0), radiusAt(u1), color, flat, flatN, nil, neon)
+		if p then
+			table.insert(out, p)
+		end
+		prev = q
+	end
+	return out
+end
+
+-- The face's surface from here on: eyes, blush and brows (Kit.eye, eyes, blush) sit on this ellipsoid (centre `c`, half
+-- sizes `half`, turned by `rot`) instead of a ball; Kit.faceOff (or the next Kit.new) goes back to balls.
+type FaceEll = { c: Vector3, half: Vector3, rot: CFrame }
+local faceE: FaceEll? = nil
+function Kit.faceOn(c: Vector3, half: Vector3, rot: CFrame?)
+	faceE = { c = c, half = half, rot = rot or CFrame.identity }
+end
+function Kit.faceOff()
+	faceE = nil
+end
+
+-- The point on an ellipsoid (centre c, half sizes h, turned by rot) in the direction `dir` from its centre, and the
+-- normal there.
+function Kit.onEll(c: Vector3, h: Vector3, rot: CFrame, dir: Vector3): (Vector3, Vector3)
+	local dl = rot:VectorToObjectSpace(dir.Unit)
+	local s = 1 / math.sqrt((dl.X / h.X) ^ 2 + (dl.Y / h.Y) ^ 2 + (dl.Z / h.Z) ^ 2)
+	local pl = dl * s
+	local nl = V(pl.X / (h.X * h.X), pl.Y / (h.Y * h.Y), pl.Z / (h.Z * h.Z)).Unit
+	return c + rot:VectorToWorldSpace(pl), rot:VectorToWorldSpace(nl)
+end
+
+-- The face's surface point and normal in the direction `dir` from the head's centre (the ellipsoid of Kit.faceOn, or
+-- the ball hc, hr).
+local function onFace(hc: Vector3, hr: number, dir: Vector3): (Vector3, Vector3)
+	local e = faceE
+	if e then
+		return Kit.onEll(e.c, e.half, e.rot, dir)
+	end
+	return Kit.onBall(hc, hr, dir)
+end
+Kit.onFace = onFace
+
 ------------------------------------------------------------------ the face
 -- A face part of `kind`; `n` the outward normal where it sits (world, as built): hidden, it sinks TUCK studs against
 -- it (in the part's own frame, whatever way the part lies: a disc faces out, a rod or a blade lies across). Without
@@ -537,7 +675,7 @@ end
 -- Every style but "happy" blinks: its parts tuck in and the lid (an arc of small balls) comes out.
 -- `iris` and `dark` are the plan's own wishes, used where the look gives none.
 function Kit.eye(side: string, hc: Vector3, hr: number, dir: Vector3, d: number, iris: string?, dark: string?)
-	local at, n = Kit.onBall(hc, hr, dir)
+	local at, n = onFace(hc, hr, dir)
 	-- the frame on the surface: right (screen-ish x) and up; outer: away from the face's middle
 	local up0 = V(0, 1, 0)
 	local right = up0:Cross(n)
@@ -556,6 +694,11 @@ function Kit.eye(side: string, hc: Vector3, hr: number, dir: Vector3, d: number,
 	end
 	-- a point on the head's surface near the eye, set out by layer k (brows, a glasses' bridge)
 	local function onHead(p: Vector3, k: number): Vector3
+		local e = faceE
+		if e then
+			local q, nn = Kit.onEll(e.c, e.half, e.rot, p - e.c)
+			return q + nn * (k * B + 0.02)
+		end
 		return hc + (p - hc).Unit * (hr + k * B + 0.02)
 	end
 	local function shines(k: number, big: number)
@@ -712,7 +855,7 @@ end
 function Kit.blush(hc: Vector3, hr: number, dir: Vector3, spread: number, drop: number, d: number, color: string?)
 	for _, side in { -1, 1 } do
 		local dd = (CFrame.Angles(0, side * spread, 0) * CFrame.Angles(drop, 0, 0)):VectorToWorldSpace(dir.Unit)
-		local at, n = Kit.onBall(hc, hr, dd)
+		local at, n = onFace(hc, hr, dd)
 		Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), at, n, d, 0.05, color or "pink", false, hr, nil, Kit.BIAS)
 	end
 end

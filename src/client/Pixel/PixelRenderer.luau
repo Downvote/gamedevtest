@@ -132,7 +132,7 @@ type TexInfo = { kind: number, rgb: number, x0: number, y0: number, w: number, h
 type Texs = { [number]: TexInfo }
 local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
 
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number? }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
 -- A moving model's picture last time it was drawn (DynCache in the compose section): its pixels that won against the
@@ -2268,7 +2268,7 @@ function Rims.draw(s: Surf, e: Dyn, r: Rect): number
 		local part = p.part
 		if part.Parent ~= nil and part.Transparency < 0.95 then
 			local sz = part.Size
-			Raster.drawPart(m, wcam, p.shape, { part.CFrame:GetComponents() }, sz.X, sz.Y, sz.Z, 0, p.id, Rims.flat)
+			Raster.drawPart(m, wcam, p.shape, { part.CFrame:GetComponents() }, sz.X, sz.Y, sz.Z, 0, p.id, Rims.flat, nil, p.prm)
 		end
 	end
 	return Shading.rim(s.frame, m, r.x0, r.y0, Rims.rgb, Rims.rgb, nil, true, s.cam.gx, s.cam.gy)
@@ -2493,7 +2493,7 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 				end
 				shade = shadeTex
 			end
-			Raster.drawPart(f, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade)
+			Raster.drawPart(f, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade, nil, p.prm)
 			x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
 		end
 	end
@@ -3206,6 +3206,12 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			elseif d:IsA("CornerWedgePart") then
 				shape = "CornerWedge"
 			end
+			-- (a smooth solid the driftling kit sculpts with: an ellipsoid, an egg, a tapered limb, Raster.drawSolid)
+			local solid = d:GetAttribute("PixelShape")
+			local prm = d:GetAttribute("PixelK")
+			if type(solid) == "string" and Raster.SOLID_KIND[solid] then
+				shape = solid
+			end
 			local attr = d:GetAttribute("PixelColor")
 			local rgb = if typeof(attr) == "Color3" then rgbOf(attr) else rgbOf(d.Color)
 			nextDyn += 1
@@ -3232,6 +3238,7 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 				texSeed = if type(ts) == "number" then ts else nil,
 				texSoft = if type(tsoft) == "number" then tsoft else DynTex.SOFT,
 				sm = sm,
+				prm = if type(prm) == "number" then prm else nil,
 			})
 		end
 	end

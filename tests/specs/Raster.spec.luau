@@ -1315,4 +1315,180 @@ return function()
 		end
 		T.truthy(half > 20, "glass over the background stays see-through (" .. half .. ")")
 	end)
+
+	-- the smooth solids (Raster.drawSolid): an ellipsoid, an egg and a tapered limb, checked against signed distances
+	-- marched along each pixel's ray, and every pixel the fill writes is one the one-ray cast hits
+	local function rotCf(x: number, y: number, z: number, ax: number, ay: number): { number }
+		-- CFrame.new(x, y, z) * CFrame.Angles(ax, ay, 0)
+		local ca, sa, cb, sb = math.cos(ax), math.sin(ax), math.cos(ay), math.sin(ay)
+		-- Rx(ax) * Ry(ay)
+		return { x, y, z, cb, 0, sb, sa * sb, ca, -sa * cb, -ca * sb, sa, ca * cb }
+	end
+	local function toLocal(cf: { number }, x: number, y: number, z: number): (number, number, number)
+		local px, py, pz = x - cf[1], y - cf[2], z - cf[3]
+		return px * cf[4] + py * cf[7] + pz * cf[10], px * cf[5] + py * cf[8] + pz * cf[11], px * cf[6] + py * cf[9] + pz * cf[12]
+	end
+	-- inside tests in the part's frame
+	local function insideEll(x: number, y: number, z: number, sx: number, sy: number, sz: number): boolean
+		return (x / (sx / 2)) ^ 2 + (y / (sy / 2)) ^ 2 + (z / (sz / 2)) ^ 2 <= 1
+	end
+	local function insideEgg(x: number, y: number, z: number, sx: number, sy: number, sz: number, f: number): boolean
+		local ye = sy / 2 - sy * f
+		local yy = y - ye
+		local hy = if yy >= 0 then sy * f else sy * (1 - f)
+		return (x / (sx / 2)) ^ 2 + (yy / hy) ^ 2 + (z / (sz / 2)) ^ 2 <= 1
+	end
+	local function insideCone(x: number, y: number, z: number, sx: number, sy: number, sz: number, k: number): boolean
+		local R = sy / 2
+		local ra, rb = R, R * k
+		if k > 1 then
+			ra, rb = R / k, R
+		end
+		local ax, bx = -sx / 2 + ra, sx / 2 - rb
+		-- the round cone's signed distance (Inigo Quilez's sdRoundCone): axial along X, radial across the squashed Z
+		local h = bx - ax
+		local axial, radial = x - ax, math.sqrt(y * y + (z * sy / sz) ^ 2)
+		local b = (ra - rb) / h
+		local a = math.sqrt(1 - b * b)
+		local kk = -b * radial + a * axial
+		local d
+		if kk < 0 then
+			d = math.sqrt(axial * axial + radial * radial) - ra
+		elseif kk > a * h then
+			d = math.sqrt((axial - h) ^ 2 + radial * radial) - rb
+		else
+			d = a * radial + b * axial - ra
+		end
+		return d <= 0
+	end
+
+	T.it("smooth solids: each pixel's first hit lies on the surface, nothing inside before it, misses stay outside", function()
+		local cam = smallCam()
+		local cases = {
+			{ "Ell", rotCf(0.3, 0.8, -0.2, 0.4, 0.7), 2.2, 1.4, 1.0, nil },
+			{ "Egg", rotCf(-0.4, 0.9, 0.3, 0.2, -0.5), 1.4, 2.0, 1.2, 0.6 },
+			{ "Egg", rotCf(0.1, 0.7, 0.1, 1.3, 0.3), 1.6, 1.6, 1.6, 0.5 },
+			{ "Cone", rotCf(0.2, 0.9, -0.1, 0.5, 0.9), 2.6, 0.8, 0.8, 0.4 },
+			{ "Cone", rotCf(-0.2, 1.0, 0.2, -0.7, 2.1), 2.4, 0.6, 0.6, 1.8 },
+			{ "Cone", rotCf(0.0, 0.8, 0.0, 0.3, -1.2), 2.0, 0.9, 0.45, 0.5 },
+		}
+		for _, c in cases do
+			local shape, cf, sx, sy, sz, prm = c[1], c[2], c[3], c[4], c[5], c[6]
+			local function inside(x: number, y: number, z: number): boolean
+				local lx, ly, lz = toLocal(cf, x, y, z)
+				if shape == "Ell" then
+					return insideEll(lx, ly, lz, sx, sy, sz)
+				elseif shape == "Egg" then
+					return insideEgg(lx, ly, lz, sx, sy, sz, prm)
+				end
+				return insideCone(lx, ly, lz, sx, sy, sz, prm)
+			end
+			local f = Raster.newFrame(cam.W, cam.H)
+			Raster.drawPart(f, cam, shape, cf, sx, sy, sz, 0, 7, function(_rgb, nx, ny, nz)
+				T.near(nx * nx + ny * ny + nz * nz, 1, 1e-6, "unit normal")
+				return 5
+			end, nil, prm)
+			local hits = 0
+			for j = 0, cam.H - 1, 2 do
+				for i = 0, cam.W - 1, 2 do
+					local ox, oy, oz = Raster.origin(cam, i, j)
+					local t, nx, ny, nz = Raster.hitSolid(shape, cf, sx, sy, sz, prm, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+					local drawn = buffer.readu16(f.id, (j * cam.W + i) * 2) == 7
+					if t then
+						hits += 1
+						local hx, hy, hz = ox + t * cam.lx, oy + t * cam.ly, oz + t * cam.lz
+						-- (just past the hit: inside; well short of it: outside; the normal faces the ray)
+						T.truthy(inside(hx + cam.lx * 0.004, hy + cam.ly * 0.004, hz + cam.lz * 0.004), shape .. ": just past the hit is inside")
+						T.truthy(not inside(hx - cam.lx * 0.004, hy - cam.ly * 0.004, hz - cam.lz * 0.004), shape .. ": just short of it is outside")
+						T.truthy(nx * cam.lx + ny * cam.ly + nz * cam.lz < 1e-6, shape .. ": the normal faces the viewer")
+						T.truthy(drawn, shape .. ": every hit pixel is drawn (" .. i .. ", " .. j .. ")")
+						T.near(buffer.readf32(f.depth, (j * cam.W + i) * 4), t, 1e-3)
+					else
+						T.truthy(not drawn, shape .. ": a missed pixel is not drawn")
+						-- march the ray through the box: never inside
+						for s = 0, 400 do
+							local tt = 140 + s * 0.05
+							if inside(ox + tt * cam.lx, oy + tt * cam.ly, oz + tt * cam.lz) then
+								-- (grazing rays may touch within the march step)
+								local t2 = Raster.hitSolid(shape, cf, sx * 1.01, sy * 1.01, sz * 1.01, prm, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+								T.truthy(t2 ~= nil, shape .. ": a miss never passes through it")
+								break
+							end
+						end
+					end
+				end
+			end
+			T.truthy(hits > 3, shape .. " covers pixels: " .. hits)
+		end
+	end)
+
+	T.it("smooth solids: an egg of 0.5 is the ellipsoid, a cone of equal ends is a capsule, a ball as Ell matches the sphere", function()
+		local cam = smallCam()
+		local cf = rotCf(0.2, 0.8, -0.3, 0.6, 0.4)
+		for j = 0, cam.H - 1, 3 do
+			for i = 0, cam.W - 1, 3 do
+				local ox, oy, oz = Raster.origin(cam, i, j)
+				local a = Raster.hitSolid("Ell", cf, 1.6, 2.0, 1.2, nil, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				local b = Raster.hitSolid("Egg", cf, 1.6, 2.0, 1.2, 0.5, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				T.eq(a == nil, b == nil)
+				if a and b then
+					T.near(a, b, 1e-6)
+				end
+				-- a ball of radius 0.7 at the centre: Ell of 1.4 each way
+				local e = Raster.hitSolid("Ell", cf, 1.4, 1.4, 1.4, nil, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				local qx, qy, qz = ox - cf[1], oy - cf[2], oz - cf[3]
+				local bb = qx * cam.lx + qy * cam.ly + qz * cam.lz
+				local disc = bb * bb - (qx * qx + qy * qy + qz * qz - 0.49)
+				if math.abs(disc) > 1e-4 then
+					T.eq(e ~= nil, disc > 0)
+					if e then
+						T.near(e, -bb - math.sqrt(disc), 1e-6)
+					end
+				end
+				-- a capsule along X: radius 0.4, ball centres 0.8 apart
+				local c = Raster.hitSolid("Cone", cf, 1.6, 0.8, 0.8, 1, ox, oy, oz, cam.lx, cam.ly, cam.lz)
+				local lx, ly, lz = toLocal(cf, ox, oy, oz)
+				local dx = cam.lx * cf[4] + cam.ly * cf[7] + cam.lz * cf[10]
+				local dy = cam.lx * cf[5] + cam.ly * cf[8] + cam.lz * cf[11]
+				local dz = cam.lx * cf[6] + cam.ly * cf[9] + cam.lz * cf[12]
+				-- (the capsule's distance along the ray, found by marching its signed distance)
+				local tt, hit = 0, nil
+				for _ = 1, 400 do
+					local px, py, pz = lx + tt * dx, ly + tt * dy, lz + tt * dz
+					local cx = math.clamp(px, -0.4, 0.4)
+					local d = math.sqrt((px - cx) ^ 2 + py * py + pz * pz) - 0.4
+					if d < 1e-7 then
+						hit = tt
+						break
+					end
+					tt += d
+					if tt > 400 then
+						break
+					end
+				end
+				if hit and c then
+					T.near(c, hit, 1e-3)
+				end
+			end
+		end
+	end)
+
+	T.it("smooth solids in pictures: a ball shaped Ell shades and outlines like a Ball", function()
+		local cf = rotCf(0, 0, 0, 0, 0)
+		local a = { Picture.solid("Ball", cf, 1, 1, 1, 0xC07040) }
+		local b = { Picture.solid("Ell", cf, 1, 1, 1, 0xC07040) }
+		local rot = Raster.rotation(45, ISO_PITCH)
+		local camA = Picture.fit({ rot }, a, 24, 24, 2)[1]
+		local ja = Picture.new(a, camA, { outline = "outer", shadows = true })
+		local jb = Picture.new(b, camA, { outline = "outer", shadows = true })
+		repeat until Picture.step(ja, math.huge)
+		repeat until Picture.step(jb, math.huge)
+		local diff = 0
+		for k = 0, 24 * 24 - 1 do
+			if buffer.readu32(ja.pixels, k * 4) ~= buffer.readu32(jb.pixels, k * 4) then
+				diff += 1
+			end
+		end
+		T.truthy(diff <= 4, "pixels apart: " .. diff)
+	end)
 end

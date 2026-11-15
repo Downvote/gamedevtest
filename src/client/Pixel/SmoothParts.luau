@@ -1,7 +1,8 @@
 --!strict
 -- Which parts the pixel filter lights smooth (Render/Smooth; docs/ARCHITECTURE.md 11), and their balls: a model with
 -- its "PixelSmooth" attribute true (an egg, a driftling, the Tree of Life) is lit as one surface. A part's role comes
--- from its shape and attributes: "PixelOwn" keeps its own normal (eyes, gems), "PixelFollow" follows the body without
+-- from its shape and attributes: "PixelOwn" keeps its own normal (eyes, gems; and a smooth solid, its "PixelShape"
+-- set: an ellipsoid, an egg or a tapered limb is one smooth surface already), "PixelFollow" follows the body without
 -- leaning it (a round spot set into a shell), a glowing part keeps its own, any other ball leans and follows, any
 -- other shape follows.
 --   SmoothParts.model(part) -> Model?            the smooth model the part is in (its nearest Model ancestor marked)
@@ -28,7 +29,8 @@ function SmoothParts.model(part: Instance): Model?
 end
 
 function SmoothParts.role(part: BasePart): number
-	local own = part:GetAttribute("PixelOwn") == true or part.Material == Enum.Material.Neon
+	-- (a smooth solid, Raster.drawSolid, is one smooth surface already: its own normal)
+	local own = part:GetAttribute("PixelOwn") == true or part.Material == Enum.Material.Neon or part:GetAttribute("PixelShape") ~= nil
 	local follow = part:GetAttribute("PixelFollow") == true
 	local isBall = part:IsA("Part") and (part :: Part).Shape == Enum.PartType.Ball
 	return Smooth.role(isBall, own, follow)

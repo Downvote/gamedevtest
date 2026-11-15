@@ -160,10 +160,15 @@ local function readSolids(root: Instance): { Picture.Solid }
 		local attr = p:GetAttribute("PixelColor")
 		local rgb = rgbOf(if typeof(attr) == "Color3" then attr else p.Color)
 		local shape = Picture.shape(p.ClassName, if p:IsA("Part") then p.Shape.Name else nil)
+		-- (a smooth solid the driftling kit sculpts with, Raster.drawSolid)
+		local solid, prm = p:GetAttribute("PixelShape"), p:GetAttribute("PixelK")
+		if type(solid) == "string" and Raster.SOLID_KIND[solid] then
+			shape = solid
+		end
 		local size = p.Size
 		table.insert(
 			list,
-			Picture.solid(shape, { p.CFrame:GetComponents() }, size.X, size.Y, size.Z, rgb, p.Material == Enum.Material.Neon, 1 - p.Transparency)
+			Picture.solid(shape, { p.CFrame:GetComponents() }, size.X, size.Y, size.Z, rgb, p.Material == Enum.Material.Neon, 1 - p.Transparency, if type(prm) == "number" then prm else nil)
 		)
 	end
 	if root:IsA("BasePart") then

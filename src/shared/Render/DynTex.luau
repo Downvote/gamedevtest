@@ -76,12 +76,13 @@ local function hash(a: number, b: number, k: number): number
 end
 DynTex.hash = hash
 
--- A point on a part laid out flat, in studs: (u round the part, v along it). shape "Ball" (round its own Y),
--- "Cylinder" (round its own X, the axis Roblox cylinders run along) or anything else (a box: across and up).
+-- A point on a part laid out flat, in studs: (u round the part, v along it). shape "Ball", "Ell" or "Egg" (round its
+-- own Y), "Cylinder" or "Cone" (round its own X, the axis Roblox cylinders run along) or anything else (a box: across
+-- and up).
 function DynTex.uv(shape: string, x: number, y: number, z: number): (number, number)
-	if shape == "Ball" then
+	if shape == "Ball" or shape == "Ell" or shape == "Egg" then
 		return math.atan2(z, x) * math.sqrt(x * x + z * z), y
-	elseif shape == "Cylinder" then
+	elseif shape == "Cylinder" or shape == "Cone" then
 		return math.atan2(z, y) * math.sqrt(y * y + z * z), x
 	end
 	return x + z, y
