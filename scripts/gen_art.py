@@ -669,6 +669,11 @@ S("twinkle_p3", ["...p...", ".q.p.q.", "..qwq..", "ppwwwpp", "..qwq..", ".q.p.q.
 S("glint_1", [".........", ".........", ".........", "....z....", "...zwz...", "....z....", ".........", ".........", "........."], outline=False, shade=False)
 S("glint_2", [".........", "....z....", "....z....", "....w....", ".zzwwwzz.", "....w....", "....z....", "....z....", "........."], outline=False, shade=False)
 S("glint_3", ["....c....", ".q..z..q.", "..q.w.q..", "....w....", "czwwwwwzc", "....w....", "..q.w.q..", ".q..z..q.", "....c...."], outline=False, shade=False, flat={"q": "pnk3"})
+# The hatch scene's flare (UI/HatchScene): a burst of white light where a crack opens, at a step up and by the "New!"
+# tag: a small cross that grows long arms, cream and pale gold at their tips, then its diagonals. Light, so no outline.
+S("flare_1", ["...........", "...........", "...........", "...........", ".....m.....", "....mwm....", ".....m.....", "...........", "...........", "...........", "..........."], outline=False, shade=False)
+S("flare_2", ["...........", "...........", ".....e.....", ".....m.....", "....mwm....", "..emwwwme..", "....mwm....", ".....m.....", ".....e.....", "...........", "..........."], outline=False, shade=False)
+S("flare_3", [".....e.....", ".....m.....", "..e..w..e..", "...m.w.m...", "....www....", "emwwwwwwwme", "....www....", "...m.w.m...", "..e..w..e..", ".....m.....", ".....e....."], outline=False, shade=False)
 S("heart", [".........", ".KK...KK.", "KKKK.KKKK", "KwKKKKKKK", "KKKKKKKKK", ".KKKKKKK.", "..KKKKK..", "...KKK...", "....K....", "........."])
 
 # ---------------------------------------------------------------- the islands' small lives (Controllers/AmbientView)

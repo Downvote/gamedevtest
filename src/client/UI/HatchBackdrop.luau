@@ -19,7 +19,12 @@
 -- its side lit on the left and shaded on the right with a carved band and the joints of its stones, standing on a
 -- fluted column of the same stone that rises from below the picture, a 1 px ink outline round it all, in each
 -- rarity's stone (BASES); tufts of grass and little flowers along the bottom, and
--- the corners a dithered step darker. Once the egg has landed (`land`) rings of light spread over the pedestal's top
+-- the corners a dithered step darker. Since 2026-11-15 ("it seems like the outline gets broken in the pillars. also, it
+-- dosent seem like the top part is casting a shadow on the bottom part of the pillar") the outline runs unbroken down
+-- the whole shaft (it stopped under the cap), each turn of it on a curve a step of anti-aliasing instead of a doubled
+-- pixel, the flutes keep off the shaft's edges, and the cap casts a shadow on the top of the shaft: a band two steps
+-- down the shaft's ramp at the lip and one step under it, deeper to the right (the light comes from the top left),
+-- stepping at the flutes. Once the egg has landed (`land`) rings of light spread over the pedestal's top
 -- from under it, one every RING_EVERY s, each a clean 1 px ellipse stepping from bright to faint as it widens (their
 -- own image on the sky's life layer, so the egg stands in front of them).
 --   HatchBackdrop.show(r, ex, ey, base?)   paint rarity r's sky with the egg's glow at art pixel (ex, ey) and show it;
@@ -29,6 +34,13 @@
 --   HatchBackdrop.step(dt)          the sky's life (a layer between the picture and the pixel layer, so the islet hides it):
 --                                   little flocks of birds flapping across a day or twilight sky, shooting stars and
 --                                   twinkling stars on a night one; all whole art pixels, solid colours
+--   HatchBackdrop.pulse()           one more ring over the pedestal now (a crack, a landing, the hatch)
+--   HatchBackdrop.light(l?)         the light behind the egg (UI/HatchScene, every frame; nil: none): its god rays,
+--                                   its halo, its shadow while it falls, rings (shockwaves, dust), motes behind it and
+--                                   the hush (the sky going dark); drawn on the next `step`, behind the egg and the
+--                                   pedestal ("the light behind the egg" below)
+--   HatchBackdrop.offset(dx, dy)    the picture and its life layer moved by whole art px (a jolt; 0, 0 back)
+--   HatchBackdrop.debugLight()      the god rays lit, whether the halo and the glow show, the hush (sims, previews)
 --   HatchBackdrop.hide()            take it away (and free its image)
 --   HatchBackdrop.paint(r, W, H, ex, ey, base?) -> buffer   the picture itself (RGBA, W x H)
 local Players = game:GetService("Players")
@@ -222,10 +234,15 @@ end
 ------------------------------------------------------------------ painting
 -- The picture as 0xRRGGBB per pixel in a plain array (painted layer over layer), packed into RGBA at the end.
 type BaseAt = { x: number, y: number, w: number }
+-- the last picture painted (0xRRGGBB per pixel, row by row) and its pedestal's pixels (1 the top, 2 the side and the
+-- shaft, 3 its outline): the light behind the egg blends over the one and keeps off the other
+local skyPx: { number }? = nil
+local pedMask: buffer? = nil
 
 function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: number, ped: BaseAt?): buffer
 	local sky = SKIES[math.clamp(r, 1, #SKIES)]
 	local px: { number } = table.create(W * H, 0)
+	skyPx, pedMask = px, nil
 	local function get(x: number, y: number): number
 		return px[math.clamp(y, 0, H - 1) * W + math.clamp(x, 0, W - 1) + 1]
 	end
@@ -497,21 +514,34 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			return (y >= cy - e and y <= cy + e + sh) or inColumn(x, y)
 		end
 		local colLit, col, colDark = mix(B.sideLit, B.ink, 0.12), mix(B.side, B.ink, 0.18), mix(B.sideDark, B.ink, 0.25)
+		local colDeep = mix(B.sideDark, B.ink, 0.42)
 		local colTop = math.floor(cy + sh)
-		for y = colTop, H - 1 do
+		-- (its first and last columns: no flute there, so the side's ink line stays one pixel wide)
+		local cx0, cx1 = math.ceil(cx - cw - 0.5), math.floor(cx + cw - 0.5)
+		-- the shaft's stone at (x, y), `shade` steps down its ramp (lit, plain, dark, deep): the cap's shadow is one or
+		-- two steps
+		local ramp = { colLit, col, colDark, colDeep }
+		local function shaft(x: number, y: number, shade: number): number
+			local dx = (x + 0.5 - cx) / cw
+			local t = (if dx < -0.4 then 1 elseif dx > 0.35 then 3 else 2) + shade
+			local c = ramp[math.min(4, t)]
+			if t > 4 then
+				c = mix(c, B.ink, 0.2)
+			end
+			if (x - math.floor(cx)) % 4 == 0 and x > cx0 and x < cx1 then
+				c = mix(c, B.ink, 0.22) -- (its fluting)
+			end
 			local fade = math.clamp((y - colTop) / math.max(1, H - colTop), 0, 1)
-			for x = math.floor(cx - cw), math.ceil(cx + cw) do
+			local lvl = math.floor(fade * 2 + bay(x, y) - 0.3)
+			if lvl > 0 then
+				c = mix(c, B.ink, 0.1 * lvl)
+			end
+			return c
+		end
+		for y = colTop, H - 1 do
+			for x = cx0, cx1 do
 				if inColumn(x + 0.5, y + 0.5) then
-					local dx = (x + 0.5 - cx) / cw
-					local c = if dx < -0.4 then colLit elseif dx > 0.35 then colDark else col
-					if (x - math.floor(cx)) % 4 == 0 then
-						c = mix(c, B.ink, 0.22) -- (its fluting)
-					end
-					local lvl = math.floor(fade * 2 + bay(x, y) - 0.3)
-					if lvl > 0 then
-						c = mix(c, B.ink, 0.1 * lvl)
-					end
-					set(x, y, c)
+					set(x, y, shaft(x, y, 0))
 				end
 			end
 		end
@@ -574,19 +604,80 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				set(gx + 1, gy2, mix(B.gem, B.trim, 0.5))
 			end
 		end
-		-- the ink outline round the whole of it
+		-- the cap's shadow on the shaft under it (the user's report of 2026-11-15: "it dosent seem like the top part is
+		-- casting a shadow on the bottom part of the pillar"): a band right under the cap's lip, its first row two steps
+		-- down the shaft's ramp and the rest one step, lit from the top left so it is shallow at the left and deeper to
+		-- the right (2 to 5 px), its depth stepping at the flutes
+		for x = cx0, cx1 do
+			local dx = (x + 0.5 - cx) / bw
+			local lip = math.floor(cy + ry * math.sqrt(math.max(0, 1 - dx * dx)) + sh - 0.5)
+			local fl = math.floor((x - cx0) / 4) * 4
+			local depth = math.max(2, math.floor(sh * (0.22 + 0.23 * fl / math.max(1, cx1 - cx0)) + 0.5))
+			for k = 1, depth do
+				local y = lip + k
+				if inColumn(x + 0.5, y + 0.5) then
+					set(x, y, shaft(x, y, if k == 1 then 2 else 1))
+				end
+			end
+		end
+		-- the ink outline round the whole of it, the cap and the shaft down past the picture's foot (the user's report
+		-- of 2026-11-15: "it seems like the outline gets broken in the pillars": the shaft had none below the cap): the
+		-- pixels just outside it (4-neighbours, so convex corners come out cut). Where the line turns on a curve, the
+		-- elbow (the line on two sides of it, the stone on the other two) is a step of anti-aliasing instead, the stone
+		-- next to it a step toward the ink, so the line runs on diagonally with no doubled pixels.
+		local mask = buffer.create(W * H) -- 1 the top, 2 the side and the shaft, 3 the outline (kept: `pedMask`)
+		local ex0, ex1 = math.max(0, math.floor(cx - bw) - 2), math.min(W - 1, math.ceil(cx + bw) + 2)
+		local ey0 = math.max(0, math.floor(cy - ry) - 2)
+		for y = ey0, H - 1 do
+			for x = ex0, ex1 do
+				if inBase(x + 0.5, y + 0.5) then
+					buffer.writeu8(mask, y * W + x, if inTop(x + 0.5, y + 0.5) then 1 else 2)
+				end
+			end
+		end
+		local function m(x: number, y: number): number
+			if x < 0 or y < 0 or x >= W or y >= H then
+				return 0
+			end
+			return buffer.readu8(mask, y * W + x)
+		end
 		local edge: { number } = {}
-		for y = math.floor(cy - ry) - 2, math.ceil(cy + ry + sh) + 2 do
-			for x = math.floor(cx - bw) - 2, math.ceil(cx + bw) + 2 do
-				if not inBase(x + 0.5, y + 0.5) and (inBase(x + 1.5, y + 0.5) or inBase(x - 0.5, y + 0.5) or inBase(x + 0.5, y + 1.5) or inBase(x + 0.5, y - 0.5)) then
+		for y = ey0, H - 1 do
+			for x = ex0, ex1 do
+				if m(x, y) == 0 and (m(x + 1, y) == 1 or m(x + 1, y) == 2 or m(x - 1, y) == 1 or m(x - 1, y) == 2 or m(x, y + 1) == 1 or m(x, y + 1) == 2 or m(x, y - 1) == 1 or m(x, y - 1) == 2) then
 					table.insert(edge, x)
 					table.insert(edge, y)
 				end
 			end
 		end
 		for i = 1, #edge, 2 do
+			buffer.writeu8(mask, edge[i + 1] * W + edge[i], 3)
+		end
+		local function stone(x: number, y: number): boolean
+			local v = m(x, y)
+			return v == 1 or v == 2
+		end
+		local elbows: { number } = {}
+		for i = 1, #edge, 2 do
+			local x, y = edge[i], edge[i + 1]
+			for _, d in { { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } } do
+				-- (the line to one side and above or below; the stone on the other side and the other way)
+				if m(x - d[1], y) == 3 and m(x, y - d[2]) == 3 and stone(x + d[1], y) and stone(x, y + d[2]) then
+					table.insert(elbows, x)
+					table.insert(elbows, y)
+					table.insert(elbows, get(x + d[1], y))
+					break
+				end
+			end
+		end
+		for i = 1, #edge, 2 do
 			set(edge[i], edge[i + 1], B.ink)
 		end
+		for i = 1, #elbows, 3 do
+			set(elbows[i], elbows[i + 1], mix(elbows[i + 2], B.ink, 0.45))
+			buffer.writeu8(mask, elbows[i + 1] * W + elbows[i], 2)
+		end
+		pedMask = mask
 		-- tufts of grass on the top's rim at the back, a little flower in each
 		for k = 1, 2 do
 			local a = if k == 1 then math.pi * 1.18 else math.pi * 1.72
@@ -639,6 +730,7 @@ type Bird = { x: number, y: number, vx: number, ph: number, px: { Frame } }
 type Streak = { x: number, y: number, age: number, px: { Frame } }
 type Twinkle = { f: Frame, ph: number, rate: number }
 local life: ScreenGui? = nil
+local layer: Frame? = nil -- everything on the life layer, in one frame (`offset` moves it with the picture)
 local lifeK = 1
 local lifeW, lifeH = 0, 0
 local lifeR = 1
@@ -652,6 +744,8 @@ local newLife: (r: number, W: number, H: number, K: number) -> ()
 
 local ringBase: BaseAt? = nil
 local makeRings: (r: number, K: number) -> ()
+local makeLight: (W: number, H: number, K: number) -> ()
+local backs: { Frame } = {} -- behind the picture, its top and bottom colours (shown at the edge while it jolts)
 
 function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
 	local K = math.max(1, math.floor(PixelRenderer.pixelScale()))
@@ -696,11 +790,33 @@ function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
 	l.ImageContent = Content.fromObject(im)
 	l.Size = UDim2.fromOffset(W * K, H * K)
 	l.Position = UDim2.fromOffset(0, 0)
+	l.ZIndex = 2
+	-- (behind it, the sky's top colour over its upper half and the nearest hills' under the lower, a step darker as the
+	-- corners are: what shows along an edge while the picture jolts by a few px)
+	local sky = SKIES[math.clamp(r, 1, #SKIES)]
+	for i = 1, 2 do
+		local old: Frame? = backs[i]
+		local b: Frame
+		if old and old.Parent ~= nil then
+			b = old
+		else
+			b = Instance.new("Frame")
+			b.Name = "Back"
+			b.BorderSizePixel = 0
+			b.ZIndex = 1
+			b.Parent = g
+			backs[i] = b
+		end
+		b.BackgroundColor3 = Color3.fromRGB(rgb(mix(if i == 1 then sky.stops[1] else sky.hills[#sky.hills][1], 0x000000, 0.16)))
+		b.Size = UDim2.new(1, 0, 0.5, 0)
+		b.Position = UDim2.fromScale(0, if i == 1 then 0 else 0.5)
+	end
 	if g then
 		g.Enabled = true
 	end
 	newLife(r, W, H, K)
 	makeRings(r, K)
+	makeLight(W, H, K)
 end
 
 local function pixel(parent: Instance, c: number): Frame
@@ -708,7 +824,8 @@ local function pixel(parent: Instance, c: number): Frame
 	f.BorderSizePixel = 0
 	f.BackgroundColor3 = Color3.fromRGB(rgb(c))
 	f.Size = UDim2.fromOffset(lifeK, lifeK)
-	f.Parent = parent
+	f.ZIndex = 5
+	f.Parent = layer or parent
 	return f
 end
 
@@ -739,6 +856,13 @@ newLife = function(r: number, W: number, H: number, K: number)
 	g.ResetOnSpawn = false
 	g.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	life = g
+	local lay = Instance.new("Frame")
+	lay.Name = "Layer"
+	lay.BackgroundTransparency = 1
+	lay.BorderSizePixel = 0
+	lay.Size = UDim2.fromScale(1, 1)
+	lay.Parent = g
+	layer = lay
 	local sky = SKIES[math.clamp(r, 1, #SKIES)]
 	-- twinkling stars: a few bright pixels that come and go (more of them, in their own colours, on the two rarest)
 	if sky.stars > 0 then
@@ -795,7 +919,8 @@ makeRings = function(r: number, K: number)
 	l.ImageContent = Content.fromObject(im)
 	l.Size = UDim2.fromOffset(w * K, h * K)
 	l.Position = UDim2.fromOffset((math.floor(base.x) - math.floor(w / 2)) * K, (math.floor(base.y) - math.floor(h / 2)) * K)
-	l.Parent = g
+	l.ZIndex = 6
+	l.Parent = layer or g
 	ringDirty = true
 end
 
@@ -875,8 +1000,546 @@ function HatchBackdrop.land()
 	ringDirty = true
 end
 
+-- One more ring over the pedestal now, between the steady ones (a crack, a landing, the hatch).
+function HatchBackdrop.pulse()
+	if #ringBorn < 8 then
+		table.insert(ringBorn, lifeClock)
+		ringDirty = true
+	end
+end
+
 function HatchBackdrop.rings(): number
 	return #ringBorn
+end
+
+------------------------------------------------------------------ the light behind the egg (UI/HatchScene)
+-- Three images of their own on the life layer, over the hush and under the twinkles and the rings, so the egg (the
+-- pixel layer) and the pedestal's rings stand in front of them; all whole art pixels of solid colour, blended over the
+-- painted sky in dithered steps the way the gold night's sun throws its beams. Each is drawn again only where and when
+-- it changes, as cheaply as it can be, since this runs on every client:
+--   the god rays (`Light.levels`, `lens`, `cols`): a fan of soft beams laid out round the egg's middle (`layFan`), the
+--     long ones and the short ones taking turns, each a thin wedge kept off the pedestal. The pixels a beam covers are
+--     listed once, nearest first, with how strong it is there (fading out along it, softer toward its edges) and their
+--     dither threshold, so a beam growing out or drawing in touches only the pixels between its old reach and its new
+--     one, and is drawn whole again only when its brightness or its colour changes a step. No beam ever turns (that is
+--     what would cost): they pulse, grow out, fade and change colour.
+--   the halo (`halo`, `haloK`): dithered rings of the egg's light round its middle, drawn again when its radius moves
+--     a few px or its strength a step.
+--   the glow: its shadow on the pedestal's top while it falls, clean 1 px rings (a shockwave, a ring of dust: each
+--     with a fainter ring just inside it, its anti-aliasing) and motes passing behind the egg; drawn again (at most 30
+--     times a second) in the box it covers. The halo and the glow keep off the pedestal's outline.
+--   the hush: the sky darkened toward the night colour under the light (a sheet over the painted sky).
+export type Ring = { x: number, y: number, r: number, flat: number, k: number, col: number }
+export type Light = {
+	x: number, -- the egg's middle at rest on the screen (art px): the fan's and the halo's centre
+	y: number,
+	rays: number, -- beams in the fan (0: none)
+	reach: number, -- the long ones' length (art px)
+	levels: { number }, -- each beam: how bright (0 .. 1), how far out it reaches now (0 .. 1), its colour (0xRRGGBB)
+	lens: { number },
+	cols: { number },
+	halo: number, -- the glow round the egg: radius (art px), strength (0 .. 1), colour
+	haloK: number,
+	haloCol: number,
+	shadow: { number }?, -- its shadow on the pedestal: x, y, half width, strength
+	rings: { Ring },
+	motes: { number }, -- x, y, colour, ... (behind the egg)
+	hush: number, -- 0 .. 1
+}
+-- a beam: its pixels nearest first (u32 index; u32 strength, how far along, dither threshold, a byte each), `cut[q]`
+-- how many of them lie within q twentieths of its length, its box, and what it was last drawn with
+type Beam = { pix: buffer, info: buffer, count: number, cut: { number }, box: { number }, lv: number, rc: number, col: number }
+type Fan = { x: number, y: number, n: number, reach: number, beams: { Beam } }
+
+local HUSH = 0x2E2A52 -- (Palette's night)
+local HUSH_MAX = 0.55 -- how dark the sky goes at hush 1
+local HALO_STEP = 3 -- px the halo's radius moves before it is drawn again
+local lightW, lightH = 0, 0
+local raysImg: EditableImage? = nil
+local raysBuf: buffer? = nil
+local haloImg: EditableImage? = nil
+local haloBuf: buffer? = nil
+local glowImg: EditableImage? = nil
+local glowBuf: buffer? = nil
+local hushFrame: Frame? = nil
+local fan: Fan? = nil
+local lightNow: Light? = nil
+local glowBox = { 0, 0, -1, -1 } -- what the glow covered when last drawn
+local haloBox = { 0, 0, -1, -1 }
+local haloKey = ""
+local glowAt = -1
+local raysBlank = true
+-- (1 - d) ^ 1.5 by d squared, in 256 steps: the halo's fall-off without a root or a power a pixel
+local FALL_OFF: { number } = {}
+for i = 0, 256 do
+	FALL_OFF[i + 1] = (1 - math.sqrt(math.min(1, i / 256))) ^ 1.5
+end
+
+local function newImageLabel(name: string, im: EditableImage, z: number): ImageLabel
+	local l = Instance.new("ImageLabel")
+	l.Name = name
+	l.BackgroundTransparency = 1
+	l.BorderSizePixel = 0
+	l.ResampleMode = Enum.ResamplerMode.Pixelated
+	l.ImageContent = Content.fromObject(im)
+	l.Size = UDim2.fromOffset(lightW * lifeK, lightH * lifeK)
+	l.ZIndex = z
+	l.Parent = layer
+	return l
+end
+
+-- Up a region of a W x H RGBA buffer into its image (the rows copied out: an image takes a buffer of the region's
+-- own size).
+local function upload(im: EditableImage, buf: buffer, x0: number, y0: number, x1: number, y1: number)
+	local ax, ay = math.max(0, x0), math.max(0, y0)
+	local bx, by = math.min(lightW - 1, x1), math.min(lightH - 1, y1)
+	if bx < ax or by < ay then
+		return
+	end
+	local w, h = bx - ax + 1, by - ay + 1
+	local out = buffer.create(w * h * 4)
+	for y = 0, h - 1 do
+		buffer.copy(out, y * w * 4, buf, ((ay + y) * lightW + ax) * 4, w * 4)
+	end
+	pcall(function()
+		im:WritePixelsBuffer(Vector2.new(ax, ay), Vector2.new(w, h), out)
+	end)
+end
+
+-- Clear a box of a buffer (rows of zeros).
+local function clearBox(buf: buffer, b: { number })
+	for y = math.max(0, b[2]), math.min(lightH - 1, b[4]) do
+		local x0 = math.max(0, b[1])
+		local w = math.min(lightW - 1, b[3]) - x0 + 1
+		if w > 0 then
+			buffer.fill(buf, (y * lightW + x0) * 4, 0, w * 4)
+		end
+	end
+end
+
+makeLight = function(W: number, H: number, K: number)
+	if layer == nil then
+		return
+	end
+	if raysImg == nil or lightW ~= W or lightH ~= H then
+		for _, im in { raysImg, haloImg, glowImg } do
+			if im then
+				im:Destroy()
+			end
+		end
+		raysImg, haloImg, glowImg = ImageMemory.create(W, H, "hatch light"), ImageMemory.create(W, H, "hatch light"), ImageMemory.create(W, H, "hatch light")
+		raysBuf, haloBuf, glowBuf = buffer.create(W * H * 4), buffer.create(W * H * 4), buffer.create(W * H * 4)
+	end
+	lightW, lightH = W, H
+	local ri, hi, gi, rb, hb, gb = raysImg, haloImg, glowImg, raysBuf, haloBuf, glowBuf
+	if ri == nil or hi == nil or gi == nil or rb == nil or hb == nil or gb == nil then
+		return
+	end
+	-- (a new picture: the light starts again from nothing over it)
+	local imgs: { EditableImage } = { ri, hi, gi }
+	for i, buf in { rb, hb, gb } do
+		buffer.fill(buf, 0, 0)
+		upload(imgs[i], buf, 0, 0, W - 1, H - 1)
+	end
+	fan, glowBox, haloBox, haloKey, glowAt, raysBlank = nil, { 0, 0, -1, -1 }, { 0, 0, -1, -1 }, "", -1, true
+	local hf = Instance.new("Frame")
+	hf.Name = "Hush"
+	hf.BorderSizePixel = 0
+	hf.BackgroundColor3 = Color3.fromRGB(rgb(HUSH))
+	hf.BackgroundTransparency = 1
+	hf.Size = UDim2.fromScale(1, 1)
+	hf.ZIndex = 1
+	hf.Parent = layer
+	hushFrame = hf
+	newImageLabel("Rays", ri, 2)
+	newImageLabel("Halo", hi, 3)
+	newImageLabel("Glow", gi, 4)
+	local _ = K
+end
+
+local function freeLight()
+	for _, im in { raysImg, haloImg, glowImg } do
+		if im then
+			im:Destroy()
+		end
+	end
+	raysImg, haloImg, glowImg, raysBuf, haloBuf, glowBuf, hushFrame, fan, lightNow = nil, nil, nil, nil, nil, nil, nil, nil, nil
+	lightW, lightH = 0, 0
+end
+
+-- The fan's beams round (cx, cy): n of them, the long ones `reach` px, every other one shorter, each the pixels of a
+-- thin wedge (row by row between its edges) off the pedestal and inside the picture, nearest first.
+local function layFan(cx: number, cy: number, n: number, reach: number): Fan
+	local W, H = lightW, lightH
+	local mask = pedMask
+	local spread = math.pi / n * 0.42 -- (each beam's half angle: the beams take 42% of the way round)
+	local ts = math.tan(spread)
+	local f: Fan = { x = cx, y = cy, n = n, reach = reach, beams = {} }
+	for i = 1, n do
+		local a = -math.pi / 2 + (i - 1) * math.pi * 2 / n
+		local len = reach * (if i % 2 == 1 then 1 else 0.64)
+		local ca, sa = math.cos(a), math.sin(a)
+		local far = len / math.cos(spread)
+		local tri = { cx, cy, cx + far * math.cos(a - spread), cy + far * math.sin(a - spread), cx + far * math.cos(a + spread), cy + far * math.sin(a + spread) }
+		local y0 = math.max(0, math.floor(math.min(tri[2], tri[4], tri[6])))
+		local y1 = math.min(H - 1, math.ceil(math.max(tri[2], tri[4], tri[6])))
+		local idx: { number } = {}
+		local inf: { number } = {}
+		local qs: { number } = {}
+		local bx0, by0, bx1, by1 = W, H, -1, -1
+		for y = y0, y1 do
+			local yc = y + 0.5
+			local lo, hi = math.huge, -math.huge
+			for e = 0, 2 do
+				local ax, ay = tri[e * 2 + 1], tri[e * 2 + 2]
+				local o = (e + 1) % 3
+				local qx, qy = tri[o * 2 + 1], tri[o * 2 + 2]
+				if (yc - ay) * (yc - qy) <= 0 and ay ~= qy then
+					local x = ax + (yc - ay) * (qx - ax) / (qy - ay)
+					lo, hi = math.min(lo, x), math.max(hi, x)
+				end
+			end
+			if hi >= lo then
+				for x = math.max(0, math.floor(lo)), math.min(W - 1, math.floor(hi)) do
+					local dx, dy = x + 0.5 - cx, yc - cy
+					local along = dx * ca + dy * sa
+					if along > 4 and along < len and (mask == nil or buffer.readu8(mask, y * W + x) == 0) then
+						local perp = math.abs(-dx * sa + dy * ca)
+						local soft = math.min(1, (1 - perp / (along * ts)) * 2.2)
+						local k = (1 - along / len) ^ 1.25 * soft
+						if k > 0.01 then
+							local q = math.floor(along / len * 255)
+							table.insert(idx, y * W + x)
+							table.insert(inf, math.floor(k * 255) + q * 256 + math.floor(bay(x, y) * 255) * 65536)
+							table.insert(qs, q)
+							bx0, by0, bx1, by1 = math.min(bx0, x), math.min(by0, y), math.max(bx1, x), math.max(by1, y)
+						end
+					end
+				end
+			end
+		end
+		-- nearest first (a count of each distance, then each pixel into its place: no sort)
+		local cnt = #idx
+		local at = table.create(257, 0)
+		for _, q in qs do
+			at[q + 2] += 1
+		end
+		for q = 2, 257 do
+			at[q] += at[q - 1]
+		end
+		local pb, ib = buffer.create(cnt * 4), buffer.create(cnt * 4)
+		for j = 1, cnt do
+			local q = qs[j] + 1
+			local o = at[q]
+			at[q] = o + 1
+			buffer.writeu32(pb, o * 4, idx[j])
+			buffer.writeu32(ib, o * 4, inf[j])
+		end
+		-- (cut[s + 1]: the pixels within s twentieths of the beam's length)
+		local cut: { number } = table.create(21, 0)
+		local count = table.create(256, 0)
+		for _, q in qs do
+			count[q + 1] += 1
+		end
+		local run, q = 0, 0
+		for st = 0, 20 do
+			while q <= 255 and q <= st / 20 * 255 do
+				run += count[q + 1]
+				q += 1
+			end
+			cut[st + 1] = run
+		end
+		f.beams[i] = { pix = pb, info = ib, count = cnt, cut = cut, box = { bx0, by0, bx1, by1 }, lv = 0, rc = 0, col = -1 }
+	end
+	return f
+end
+
+-- Pixels j0 .. j1 - 1 of a beam drawn at brightness lvl in colour col (lvl 0: cleared).
+local function beamPixels(b: Beam, j0: number, j1: number, lvl: number, col: number)
+	local buf, sky = raysBuf, skyPx
+	if buf == nil or sky == nil then
+		return
+	end
+	local pb, ib = b.pix, b.info
+	local cr, cg, cb = rgb(col)
+	for j = j0, j1 - 1 do
+		local p = buffer.readu32(pb, j * 4)
+		local out = 0
+		if lvl > 0 then
+			local v = buffer.readu32(ib, j * 4)
+			local step = math.min(4, math.floor(lvl * (v % 256) / 255 * 4 + bit32.rshift(v, 16) / 255))
+			if step > 0 then
+				local bg = sky[p + 1]
+				local a = step * 0.15
+				local r0, g0, b0 = bit32.rshift(bg, 16), bit32.band(bit32.rshift(bg, 8), 255), bit32.band(bg, 255)
+				out = math.floor(r0 + (cr - r0) * a + 0.5) + math.floor(g0 + (cg - g0) * a + 0.5) * 256 + math.floor(b0 + (cb - b0) * a + 0.5) * 65536 + 4278190080
+			end
+		end
+		buffer.writeu32(buf, p * 4, out)
+	end
+end
+
+local function drawRays(l: Light?)
+	local im, buf = raysImg, raysBuf
+	if im == nil or buf == nil then
+		return
+	end
+	local n = if l then l.rays else 0
+	if n <= 0 or l == nil then
+		if not raysBlank then
+			buffer.fill(buf, 0, 0)
+			upload(im, buf, 0, 0, lightW - 1, lightH - 1)
+			raysBlank, fan = true, nil
+		end
+		return
+	end
+	local x, y, reach = math.floor(l.x), math.floor(l.y), math.floor(l.reach)
+	local old = fan
+	local f: Fan
+	if old and old.n == n and old.x == x and old.y == y and old.reach == reach then
+		f = old
+	else
+		buffer.fill(buf, 0, 0)
+		f = layFan(x, y, n, reach)
+		fan = f
+		upload(im, buf, 0, 0, lightW - 1, lightH - 1)
+	end
+	local x0, y0, x1, y1 = lightW, lightH, -1, -1
+	for i, b in f.beams do
+		-- (in steps: an eighth of its brightness, a twentieth of its length)
+		local lv = math.floor(math.clamp(l.levels[i] or 0, 0, 1) * 8 + 0.5)
+		local rc = if lv == 0 then 0 else math.floor(math.clamp(l.lens[i] or 0, 0, 1) * 20 + 0.5)
+		local col = l.cols[i] or 0xFFFFFF
+		if lv ~= b.lv or col ~= b.col then
+			-- (brighter, dimmer or another colour: the whole beam again, out to its reach, the rest cleared)
+			beamPixels(b, 0, b.cut[rc + 1], lv / 8, col)
+			beamPixels(b, b.cut[rc + 1], b.cut[math.max(rc, b.rc) + 1], 0, col)
+		elseif rc > b.rc then
+			beamPixels(b, b.cut[b.rc + 1], b.cut[rc + 1], lv / 8, col)
+		elseif rc < b.rc then
+			beamPixels(b, b.cut[rc + 1], b.cut[b.rc + 1], 0, col)
+		else
+			continue
+		end
+		b.lv, b.rc, b.col = lv, rc, col
+		local bx = b.box
+		x0, y0, x1, y1 = math.min(x0, bx[1]), math.min(y0, bx[2]), math.max(x1, bx[3]), math.max(y1, bx[4])
+	end
+	if x1 >= x0 then
+		raysBlank = false
+		upload(im, buf, x0, y0, x1, y1)
+	end
+end
+
+-- The halo, when its radius has moved HALO_STEP px or its strength an eighth (dithered rings of its colour over the
+-- sky and the pedestal's top).
+local function drawHalo(l: Light?)
+	local im, buf, sky = haloImg, haloBuf, skyPx
+	if im == nil or buf == nil or sky == nil then
+		return
+	end
+	local hr = if l then math.floor(l.halo / HALO_STEP + 0.5) * HALO_STEP else 0
+	local hk = if l then math.floor(math.clamp(l.haloK, 0, 1) * 8 + 0.5) else 0
+	if hr < 2 or hk == 0 or l == nil then
+		hr, hk = 0, 0
+	end
+	local hx, hy = if l then math.floor(l.x) else 0, if l then math.floor(l.y) else 0
+	local key = string.format("%d %d %d %d %d", hr, hk, hx, hy, if l then l.haloCol else 0)
+	if key == haloKey then
+		return
+	end
+	haloKey = key
+	local ob = haloBox
+	clearBox(buf, ob)
+	local nb = { 0, 0, -1, -1 }
+	if hr > 0 and l then
+		local W, H = lightW, lightH
+		local mask = pedMask
+		local cr, cg, cb = rgb(l.haloCol)
+		local k3 = hk / 8 * 3
+		local r2 = hr * hr
+		nb = { math.max(0, hx - hr), math.max(0, hy - hr), math.min(W - 1, hx + hr), math.min(H - 1, hy + hr) }
+		for y = nb[2], nb[4] do
+			local dy = y + 0.5 - hy
+			for x = nb[1], nb[3] do
+				local dx = x + 0.5 - hx
+				local d2 = (dx * dx + dy * dy) / r2
+				if d2 < 1 then
+					local i = y * W + x
+					if mask == nil or buffer.readu8(mask, i) <= 1 then
+						local step = math.min(3, math.floor(k3 * FALL_OFF[math.floor(d2 * 256) + 1] + bay(x, y)))
+						if step > 0 then
+							local bg = sky[i + 1]
+							local a = step * 0.13
+							local r0, g0, b0 = bit32.rshift(bg, 16), bit32.band(bit32.rshift(bg, 8), 255), bit32.band(bg, 255)
+							buffer.writeu32(buf, i * 4, math.floor(r0 + (cr - r0) * a + 0.5) + math.floor(g0 + (cg - g0) * a + 0.5) * 256 + math.floor(b0 + (cb - b0) * a + 0.5) * 65536 + 4278190080)
+						end
+					end
+				end
+			end
+		end
+	end
+	haloBox = nb
+	upload(im, buf, math.min(ob[1], nb[1]), math.min(ob[2], nb[2]), math.max(ob[3], nb[3]), math.max(ob[4], nb[4]))
+end
+
+local function drawGlow(l: Light?)
+	local im, buf, sky = glowImg, glowBuf, skyPx
+	if im == nil or buf == nil or sky == nil then
+		return
+	end
+	local W, H = lightW, lightH
+	local mask = pedMask
+	local hush = if l then math.clamp(l.hush, 0, 1) * HUSH_MAX else 0
+	local ob = glowBox
+	clearBox(buf, ob)
+	local nb = { W, H, -1, -1 }
+	-- a pixel blended toward colour c by a (over the sky as the hush leaves it); `keep` the pedestal's parts it may cover
+	local function blend(x: number, y: number, c: number, a: number, keep: number)
+		if x < 0 or y < 0 or x >= W or y >= H then
+			return
+		end
+		local i = y * W + x
+		if mask then
+			local m = buffer.readu8(mask, i)
+			if m > keep then
+				return
+			end
+		end
+		local bg = sky[i + 1]
+		if hush > 0 then
+			bg = mix(bg, HUSH, hush)
+		end
+		buffer.writeu32(buf, i * 4, packed(mix(bg, c, a)))
+		nb[1], nb[2], nb[3], nb[4] = math.min(nb[1], x), math.min(nb[2], y), math.max(nb[3], x), math.max(nb[4], y)
+	end
+	if l then
+		-- its shadow on the pedestal's top, growing as it comes down
+		local sh = l.shadow
+		if sh and sh[3] >= 1 and sh[4] > 0 then
+			local sx, sy, sw = sh[1], sh[2], sh[3]
+			local sv = sw * 0.42
+			for y = math.floor(sy - sv), math.ceil(sy + sv) do
+				for x = math.floor(sx - sw), math.ceil(sx + sw) do
+					local d = ((x + 0.5 - sx) / sw) ^ 2 + ((y + 0.5 - sy) / sv) ^ 2
+					if d < 1 and x >= 0 and y >= 0 and x < W and y < H and (mask == nil or buffer.readu8(mask, y * W + x) == 1) then
+						local step = math.min(2, math.floor(sh[4] * (1 - d) * 2 + bay(x, y)))
+						if step > 0 then
+							blend(x, y, 0x2B1E2E, step * 0.16, 1)
+						end
+					end
+				end
+			end
+		end
+		-- the rings: a clean 1 px ellipse (the midpoint way) and a fainter one a pixel inside it
+		for _, rg in l.rings do
+			for pass = 0, 1 do
+				local a = math.floor(rg.r + 0.5) - pass
+				local b = math.floor(rg.r * rg.flat + 0.5) - pass
+				local k = math.floor(rg.k * (if pass == 0 then 1 else 0.5) * 5 + 0.5) / 5
+				if a >= 1 and b >= 1 and k > 0 then
+					local cx, cy = math.floor(rg.x), math.floor(rg.y)
+					local function plot(px: number, py: number)
+						blend(cx + px, cy + py, rg.col, k, 2)
+						blend(cx - px, cy + py, rg.col, k, 2)
+						if py ~= 0 then
+							blend(cx + px, cy - py, rg.col, k, 2)
+							blend(cx - px, cy - py, rg.col, k, 2)
+						end
+					end
+					local a2, b2 = a * a, b * b
+					local x, y = 0, b
+					local dx, dy = 0, 2 * a2 * y
+					local d1 = b2 - a2 * b + 0.25 * a2
+					while dx < dy do
+						plot(x, y)
+						x += 1
+						dx += 2 * b2
+						if d1 < 0 then
+							d1 += dx + b2
+						else
+							y -= 1
+							dy -= 2 * a2
+							d1 += dx - dy + b2
+						end
+					end
+					local d2 = b2 * (x + 0.5) ^ 2 + a2 * (y - 1) ^ 2 - a2 * b2
+					while y >= 0 do
+						plot(x, y)
+						y -= 1
+						dy -= 2 * a2
+						if d2 > 0 then
+							d2 += a2 - dy
+						else
+							x += 1
+							dx += 2 * b2
+							d2 += dx - dy + a2
+						end
+					end
+				end
+			end
+		end
+		-- motes behind the egg: single pixels of their colour
+		local mo = l.motes
+		for i = 1, #mo - 2, 3 do
+			blend(math.floor(mo[i]), math.floor(mo[i + 1]), mo[i + 2], 0.9, 1)
+		end
+	end
+	glowBox = nb
+	upload(im, buf, math.min(ob[1], nb[1]), math.min(ob[2], nb[2]), math.max(ob[3], nb[3]), math.max(ob[4], nb[4]))
+end
+
+-- The light behind the egg now (nil: none); drawn on the next step.
+function HatchBackdrop.light(l: Light?)
+	lightNow = l
+end
+
+local function drawLight()
+	if raysImg == nil then
+		return
+	end
+	local l = lightNow
+	local hf = hushFrame
+	if hf then
+		hf.BackgroundTransparency = 1 - (if l then math.clamp(l.hush, 0, 1) * HUSH_MAX else 0)
+	end
+	drawRays(l)
+	drawHalo(l)
+	-- (the glow at most 30 times a second, and once more to clear it when it has gone)
+	local busy = l ~= nil and (l.shadow ~= nil or #l.rings > 0 or #l.motes > 0)
+	if (busy or glowBox[3] >= glowBox[1]) and lifeClock - glowAt >= 1 / 30 then
+		glowAt = lifeClock
+		drawGlow(if busy then l else nil)
+	end
+end
+
+-- The picture and its light moved by whole art px (a jolt), 0, 0 puts them back.
+function HatchBackdrop.offset(dx: number, dy: number)
+	local K = lifeK
+	local pos = UDim2.fromOffset(math.floor(dx + 0.5) * K, math.floor(dy + 0.5) * K)
+	local l = label
+	if l then
+		l.Position = pos
+	end
+	local lay = layer
+	if lay then
+		lay.Position = pos
+	end
+end
+
+-- Sims and previews: the beams lit now, whether the halo and the glow show, the hush.
+function HatchBackdrop.debugLight(): { beams: number, halo: boolean, glow: boolean, hush: number }
+	local n = 0
+	local f = fan
+	if f then
+		for _, b in f.beams do
+			if b.lv > 0 and b.rc > 0 then
+				n += 1
+			end
+		end
+	end
+	local l = lightNow
+	return { beams = n, halo = haloBox[3] >= haloBox[1], glow = glowBox[3] >= glowBox[1], hush = if l then l.hush else 0 }
 end
 
 local function newBird(x: number, y: number, vx: number, ph: number): Bird
@@ -961,6 +1624,7 @@ function HatchBackdrop.step(dt: number)
 		ringDirty = #ringBorn > 0
 		drawRings()
 	end
+	drawLight()
 end
 
 function HatchBackdrop.hide()
@@ -983,6 +1647,12 @@ function HatchBackdrop.hide()
 		ri:Destroy()
 	end
 	ringImg, ringBuf, ringBase = nil, nil, nil
+	freeLight()
+	for _, b in backs do
+		b:Destroy()
+	end
+	table.clear(backs)
+	layer = nil
 	local im = image
 	if im then
 		im:Destroy()

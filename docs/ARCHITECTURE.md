@@ -1668,21 +1668,34 @@ from a world point and blinking out by 1.1 s), `count()`.
 ends), `skip()` (a tap: the next reveal, else the hatch, else away; taps under `TAP_GAP` 0.22 s after the last count
 as one, and taps while the egg rises wait), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs),
 `debugState()` (`{ open, phase ("egg", "breaking", "hatched", "done"), r, hr, clock, lift, reveals, left, crack, shake,
-shown, muts, rays, shards, pal, egg, glowing, title, titleOff, name, fresh }`; `shake` how hard it shakes this frame): `fresh` the "New!" tag shown). `res.new` (the result's `new`: a kind
+shown, muts, rays, shards, pal, egg, glowing, title, titleOff, name, fresh, passive, light, hush, slow, jolt, squash,
+letters, ribbon, stars, wait, build }`; `shake` how hard it shakes this frame; `fresh` the "New!" tag shown; `light` the
+god rays lit (`HatchBackdrop.debugLight`), `hush` how dark the sky is, `slow` the slow motion running, `jolt` the
+picture's offset (art px), `squash` the egg's, `letters` the name's letters in, `ribbon` its ribbon shown, `stars` the
+stars circling, `wait` and `build` this scene's). `res.new` (the result's `new`: a kind
 never had) puts `HatchNew` beside `HatchName` when it shows: a 1-step-corner plate in `accent` with the ink outline
-and `Word` "New!" in `text_ink`, dropping 6 px into place at the name's right, ten `accent` dots and Audio "sparkle". The egg drops in (2026-11-14, in place of rising from below):
-`liftOf(clock)` is its height over its resting spot, `DROP_FROM` 9 studs falling to 0 over `FALL` 0.52 s (gravity),
-then the bounces `BOUNCE` { 0.75, 0.2 } studs over `BOUNCE_T` { 0.3, 0.18 } s (arcs), `DROP` 1 s in all (taps wait).
+and `Word` "New!" in `text_ink`, slamming 16 px down into place at the name's right past its place and back (`showNew`, a
+cue once the name is in), twelve `accent` and white dots, a `flare_*` sprite, an 8-ray starburst and Audio "sparkle". The egg drops in (2026-11-14, in place of rising from below):
+`liftOf(s, clock)` is its height over its resting spot: `DROP_FROM` 9 studs while it waits (`GLORY.wait`, `s.wait`),
+then falling to 0 over `FALL` 0.52 s (gravity), then the bounces `BOUNCE` { 0.75, 0.2 } studs over `BOUNCE_T`
+{ 0.3, 0.18 } s (arcs), `DROP` 1 s after its wait (taps wait).
 It rests with its lowest slice on the pedestal's top at `FLOAT_Y` (`footY(r)` = `FLOAT_Y - EggModels.heroBottom(h)`);
 the first landing calls `landed(s, 1)` (Audio "pop" low, a kick of 0.35, ten dust dots from its foot), "sparkle" and
 `HatchBackdrop.land()`; the second `landed(s, 0.45)`. What hatched stands at `FLOAT_Y`. `debugState().rings` is
 `HatchBackdrop.rings()`. `backdrop(s)` passes the pedestal: its top centre (`projectPixel` of the spot at `FLOAT_Y`) and
 half width (the egg's widest, 0.37 h, times 2, along the camera's flat right). `HatchBackdrop.show(r, ex, ey, base?)`
 paints it (`BASES` by rarity: top, topLit, side lit, side, sideDark, trim, gem, ink, flower, ring): the column under it
-(0.58 of the half width, fluted every 4 px, dithered darker toward the foot, down past the picture's bottom), the side
-(joints every 9 px, the trim band at its foot), the top (lit rim, inlaid ring, the egg's dithered shadow, gems from rare
-up), the ink outline of the whole, two tufts on the rim; then the foreground tufts and the dithered corners for every
-sky. The skies have no clouds, no trees on the hills and no islets since 2026-11-14 (`Sky` lost `clouds` and `trees`;
+(0.58 of the half width, fluted every 4 px but not on its first and last columns, dithered darker toward the foot, down
+past the picture's bottom; `shaft(x, y, shade)` its stone `shade` steps down the ramp colLit, col, colDark, colDeep), the
+side (joints every 9 px, the trim band at its foot), the top (lit rim, inlaid ring, the egg's dithered shadow, gems from
+rare up), the cap's shadow on the shaft (since 2026-11-15, "it dosent seem like the top part is casting a shadow on the
+bottom part of the pillar": under the cap's lip, two steps down the ramp for a row then one step, 0.22 of the cap's
+height deep at the left to 0.45 at the right, stepping at the flutes), the ink outline of the whole down to the
+picture's foot (since 2026-11-15, "it seems like the outline gets broken in the pillars": it stopped 2 px under the cap;
+the 4-neighbour pixels outside it, each elbow on a curve a step of anti-aliasing, the stone mixed 0.45 toward the ink,
+instead of a doubled pixel), two tufts on the rim; then the foreground tufts and the dithered corners for every sky.
+`paint` keeps the picture's colours (`skyPx`) and a mask of the pedestal (`pedMask`: 1 the top, 2 the side and the
+shaft, 3 the outline) for the light. The skies have no clouds, no trees on the hills and no islets since 2026-11-14 (`Sky` lost `clouds` and `trees`;
 `hash2(x, y)` scatters pixels without lines). The rings: their own `EditableImage` ("Rings" on the
 HatchSky layer, 2 x half width by 0.84 x, centred on the top), redrawn each step while any spread: `land()` starts one
 and sets them going every `RING_EVERY` 0.85 s, each widening from half to 0.97 of the half width over `RING_LIFE` 1.7 s
@@ -1708,8 +1721,44 @@ cracks by `placeBeams`, run from `PixelRenderer.onComposed` right after each new
 picture drew the cracks (it draws 20 to 30 times a second, the screen 60: placed every frame they ran ahead of a
 shaking egg), a new ray hidden until then; with no picture for 0.25 s they place themselves); once the cracks glow it
 trembles
-(0.15); the tap that hatches it starts phase "breaking": every crack shows, a crunch, and for `BREAK` 0.6 s it shakes
-harder and faster (0.55 rising to 1.45) before the shell opens.
+(0.15); the tap that hatches it starts phase "breaking": every crack shows, a crunch, and for `GLORY.build` s (`s.build`,
+0.6 for a common egg up to 1.4) it shakes harder and faster (0.55 rising to 1.45) before the shell opens; a tap after
+0.35 s of it hatches it at once.
+The grander scene of 2026-11-15 ("make the egg revealing much more grander with more animations and effects"; GAME_DESIGN
+6.2): `GLORY` rows also carry `wait` (s before it falls), `build`, `slow` (real s of slow motion at the break, the
+scene's clock at `SLOW` 0.3: `s.clock` is the scene's, `s.real` real time, `s.slowUntil`), `show` (s from the break to
+"done", 0.7 for a common egg), `beams` (god rays in the fan, 0 for common), `reach` (their length, share of the screen's
+height), `hush` (the sky's darkening at the end of the build-up), `rings` (shockwaves at the break), `motes` (circling it
+while it waits), `hop` (studs what hatched leaps); `rayLen` went. The egg squashes and stretches (`squashOf`: the last
+`squash(s, k)` springing back, its breath while it waits, pulses of swelling in the build-up; applied to every part's
+offset (x and z times sx, y times sy) and size (times sx) in hundredths, `s.sizes`, `s.crackSizes`; `debugState().squash`),
+wobbles more often and harder the longer it waits (`s.wob`, from `s.landAt` or the last tap; a hop past 6 s), leaps
+`RISE_H` 0.8 studs and spins once over `RISE_T` 0.6 s at a step up (`s.riseAt`, a landing after), lifts 0.22 studs in an
+epic or rarer build-up, and its cracks blaze between white and `RAY[r][2]` there (`s.blaze`, `refreshDynamic`).
+`crackFx` at each reveal: a squash, a `FLARE` (`flare_1..3`) where the newest cracks are (`crackPoint`, from `s.cf`),
+sparks from there, every crack ray seeded again, `HatchBackdrop.pulse()`, a shockwave from rare up. `rise` adds the
+flash in the rarity's colour, a light burst (`s.lightAt`, `s.lightK`), two shockwaves, a jolt, stars flying out, Audio
+"ding" at 0.95 + 0.12 a step up (`s.rises`), the title slamming in white and turning (`setTitle(..., slam)`). The build-up
+plays Audio "tick" rising in pitch (`s.tick`) with sparks from a crack, "thunder" low from legendary up. `hatch` adds
+`GLORY.rings` shockwaves (cues 0.07 s apart, reaching further the rarer), a dust ring, the slow motion, a white
+silhouette (`MicroModels.recolor(thing, "white")` till `s.whiteUntil`), confetti with `alt` shades, and the card as cues
+(`cue(s, t, fn)`, run by `stepCues`; `finish` runs them all and ends every slide: a tap after 0.3 s in phase "hatched",
+or `show` s after the break). `stepPal`: grows from 0.3 stretched over `POP_UP` 0.12 s, leaps `GLORY.hop` studs (in the
+air 0.32 + 0.02 r s, stretched by its speed), lands (`s.palDown`: Audio "pop" and "jump", dust, a dust ring, a pulse,
+a jolt from rare up, `GLORY.stars` stars orbiting it: a `Dot`'s `orbit`, hidden behind it, frames looping), springs
+back from a squash, mood "idle" then "hooray" from 0.12 s after landing to 2.3 s, then "idle". The overlay's moving
+pieces (`slide(s, gui, to, dx, dy, dur, over)`, stepped by `stepMoves` on whole px, `back` overshooting about a tenth;
+`relayout` ends a plate's slide), starbursts (`starburst`: 4 or 8 rays of 1 px rects at z 36, shooting out in 0.1 s and
+going from the inside out), the stepped flash (`flash(s, k, color?, dur?)`, four steps), the jolt (`jolt(s, k)`,
+`stepJolt`: `PixelRenderer.setOffset`, `HatchBackdrop.offset` and the overlay root together, dying over 0.32 s),
+`HatchMote` frames (the motes in front of it; behind it they go to the backdrop), `HatchLetter` labels (rare up: the
+name's letters, `showLetters`, 0.035 s apart, z 36, the name's own label hidden), `HatchRibbon` (uncommon up: `ribbon`,
+1 px rects from `TAIL` and the band, the line in `text_ink` over it) and `HatchBurst` rects. `stepLight` fills a
+`HatchBackdrop.Light` every frame: the fan's beams (brightness by phase: 0.3 waiting from epic up, 0.4 glowing from rare
+up, 0.25 to 0.85 in the build-up from uncommon up, a burst fanning out over 0.3 s and fading over 1.2 s (1.6 at the
+hatch), 0.6 behind what hatched from epic up; a wave of brightness travelling round them; `SHINE[r]` colours, moving
+round the fan for mythic and celestial), the halo (`RAY[r][1]`), the shadow while it falls, the `waves` as rings, the
+motes behind it and `s.hush`.
 `play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
 `{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
 the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`
@@ -1726,10 +1775,10 @@ light and its sky with a flash, a hard shake, sparks and stars and the new rarit
 egg's own title is its rarity's name: `eggWords`); a "mut" shakes
 the egg and slides in the plate `HatchMut_<i>`. Each runs `crack` one further (0 .. 3: a `Crack` shows while its
 `stage <= crack`). With the queue empty the cracks turn Neon in the rarity's light (`glowing`) and `HatchHint` says "Tap
-to hatch it"; the next tap shakes it open (phase "breaking", `BREAK` s) and then it hatches (phase "hatched": the top flies off, the rest falls, `HatchName` and `HatchLine`,
+to hatch it"; the next tap shakes it open (phase "breaking", `s.build` s) and then it hatches (phase "hatched": the top flies off, the rest falls, `HatchName` and `HatchLine`,
 the passive's plate `HatchPassive` on top of the mutations' (`showPassive`: `mini_star`, its name in the accent, its
 `Traits.describe` words, as wide as they need up to the room right of the driftling, wrapping beyond; slot 0 kept free
-for it while the mutations reveal; no "No mutations" plate since 2026-11-14; `debugState().passive` its name); 0.7 s later phase "done" and "Tap to go on", and that tap closes it: the
+for it while the mutations reveal; no "No mutations" plate since 2026-11-14; `debugState().passive` its name); `GLORY.show` s later phase "done" and "Tap to go on", and that tap closes it: the
 stage off (the island's picture comes back from the renderer's stash at once), the roots back, then `after`. The
 overlay is a `HatchScene` frame on the `Stage` canvas: `HatchTitle` (the egg's words and each step up; gone once it
 hatches, "remove the it hatched text"), `HatchName`, `HatchLine`, the plates `HatchMut_<i>`
@@ -1741,8 +1790,10 @@ by their `Slot` and `PlateW` attributes (`plateAt`), the "New!" tag by `newTagAt
 egg (`backdrop`); `debugState().titleOff` is the title's box off the screen's middle in screen px. Also: `HatchFlash`, 1 px `HatchDot`s and `HatchStar` sprites, and the
 see-through `HatchTap`. `GLORY` by the rarity shown (seven rows, like `GRADE`, `RAY`, `EGG_H` and `TWINKLE`: each
 rarity's twinkle frames, `twinkle_*` up to epic, `spark_*` legendary, `twinkle_p1..p3` mythic, `glint_1..3` celestial):
-rays, rayLen, sparks, shards, flash, jolt, confetti, stars. Under the rose sky pink petals fall (`fireflies`), under the
-starry one white and cyan motes rise.
+rays, sparks, shards, flash, jolt, confetti, stars, wait, build, slow, show, beams, reach, hush, rings, motes, hop. Under
+the rose sky pink petals fall (`fireflies`; thick for 3.5 s after a mythic hatch), under the starry one white and cyan
+motes rise (and glints rain for 3.5 s after a celestial hatch); for 3 s after a legendary or rarer hatch twinkles fill
+the sky (`stepTwinkles`).
 `EggModels.hero(r, h) -> (model, parts, top, fx, cracks)`: the shell 25 balls along the axis sized to `PROFILE`,
 marks as flat Cylinder discs on the shell (`dab`), beads (`bead`: gems, the crown's points), strips (leaves, icicles),
 the shine (white), the fx (`mote` x3 epic, mythic and celestial, `halo` x20 legendary and mythic, `orbit` x28 celestial: a tilted ring round its middle; with the cracks' light the only Neon parts, since Neon pools light round it at night) and the cracks (`Crack = { p, off,
@@ -1756,8 +1807,20 @@ seams (`SKIES[r].stops`, seven skies), the galaxy's band (`milky`, celestial), a
 (`twomoons`, mythic) or a ringed planet (`planet` and its `ring`, celestial) with its halo, clouds, the egg's glow at
 (ex, ey), two far islets,
 three ranges of hills with trees outlined in ink), `show(r, ex, ey)` (paints it into an `EditableImage` on the
-`HatchBackdrop` ScreenGui and starts the sky's life on `HatchSky`), `step(dt)` (birds in `WINGS` beats, a shooting
-star, twinkles: K x K frames at whole art px), `hide()`.
+`HatchBackdrop` ScreenGui and starts the sky's life on `HatchSky`; behind the picture two `Back` frames in its top and
+bottom colours for an edge that shows while it jolts), `step(dt)` (birds in `WINGS` beats, a shooting
+star, twinkles: K x K frames at whole art px; the rings; the light), `pulse()` (one more ring now), `offset(dx, dy)` (the
+picture and the life layer's `Layer` frame moved by whole art px), `light(l?)` (`Light = { x, y, rays, reach, levels,
+lens, cols, halo, haloK, haloCol, shadow?, rings: { Ring = { x, y, r, flat, k, col } }, motes, hush }`, drawn on the
+next step: three `EditableImage`s of the picture's size on `Layer` over a `Hush` frame (the night colour, 0.55 at hush 1)
+and under the twinkles and the rings: "Rays" (the fan, `layFan`: n thin wedges, 42% of the way round, the long and the
+short (0.64) in turn, kept off the pedestal; each beam's pixels listed nearest first with their strength, how far
+along and their dither threshold, `cut[q]` the pixels within q twentieths of its length; a beam's brightness taken in
+eighths and its reach in twentieths, drawn again whole only when its brightness or colour changes, else only the pixels
+between its old and new reach; up to 4 steps of 0.15 toward its colour), "Halo" (drawn again when its radius moves
+`HALO_STEP` 3 px or its strength an eighth; 3 steps of 0.13, `FALL_OFF` by distance squared) and "Glow" (the shadow, the
+rings as midpoint ellipses with a half-strength one a pixel inside, the motes; at most 30 times a second, the box it
+covered cleared and uploaded); each upload a region's rows), `debugLight()`, `hide()`.
 
 ### 10.15 The welcome-back card (`UI/WelcomeUI`; GAME_DESIGN 14.3)
 `WelcomeUI.init()` (Hud.start) registers "welcome" (title "Welcome back", `mini_shell`, 250 x 112): `Shells` ("+N

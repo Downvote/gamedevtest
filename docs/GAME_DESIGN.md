@@ -1578,7 +1578,10 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   down: its top an ellipse with a lit rim at the back left, an inlaid ring (four gems on it from rare up) and the egg's
   dithered shadow, a tuft of grass with a flower at the back either side; its side lit on the left and shaded on the
   right with its stones' joints and a carved band at the foot; under it a fluted column of the same stone rising from
-  below the picture, a step darker toward its foot; a 1 px ink line round all of it. Each
+  below the picture, a step darker toward its foot; a 1 px ink line round all of it, unbroken down the whole shaft,
+  and the cap's shadow on the top of the shaft, deeper to the right (the user's report of 2026-11-15: "it seems like
+  the outline gets broken in the pillars. also, it dosent seem like the top part is casting a shadow on the bottom
+  part of the pillar"; the line used to stop just under the cap). Each
   rarity has its stone: warm sandstone, mossy stone, pale blue stone, violet stone with pink runes, cream marble trimmed
   with gold, rose quartz with pearl trim, dark starstone with cyan inlay and stars in it. Tufts of grass with little
   flowers line the bottom of the picture and its corners are a dithered step or two darker.
@@ -1598,7 +1601,7 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   band of gold set with red, blue and green gems, glints, a crown of points and a halo of light turning over it
   (legendary), rose with white polka dots, two strings of pearls round its middle with a pink band between them, a ring
   of pearls round its top, a halo of pink and white lights and three motes (mythic), the dark blue of a night sky with
-  three constellations of white stars joined by lilac dots, a few cyan stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes (celestial). When the scene opens it drops in from above onto the pedestal (the request of 2026-11-14: "Make the egg drop down and bounce a bit instead of appearing by going up"; it used to rise from below): it falls faster and faster for half a second, lands with a thud and a puff of dust and a little shake and a soft chime, bounces up and down again, then a smaller bounce; taps wait until it rests, about a second in all.
+  three constellations of white stars joined by lilac dots, a few cyan stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes (celestial). When the scene opens it drops in from above onto the pedestal (the request of 2026-11-14: "Make the egg drop down and bounce a bit instead of appearing by going up"; it used to rise from below): it falls faster and faster for half a second, lands with a thud and a puff of dust and a little shake and a soft chime, bounces up and down again, then a smaller bounce; taps wait until it rests, about a second in all after its wait (below).
   From the first landing **rings of light** spread over the pedestal's top from under it, one every 0.85 s, each a
   clean 1 px ellipse that widens to the rim in 1.7 s and steps from bright to faint (the request: "add an expanding
   circle ring that constantly emits below each egg in the egg hatching screen"); they go on for the whole scene. Then
@@ -1626,8 +1629,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   left the cracks glow white and the most rays pour out, the egg trembles and the hint says "Tap to hatch it".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
 - **Shaking open** (the request of 2026-11-14: "Make eggs shake while being cracked open"): the tap that hatches it
-  crunches, every crack shows, and the egg shakes harder and faster for a little over half a second before the shell
-  breaks.
+  crunches, every crack shows, and the egg shakes harder and faster before the shell breaks (a little over half a
+  second for a common egg, longer the rarer it is: the build-up below).
 - **The hatch**: the shell breaks with a crack, a flash, the top flies off, bits of shell scatter and the rest of the shell falls away, and what
   hatched pops out where the egg was with one jump, arms up (the request of 2026-11-14: "make the pet jump only once
   instead of a few times after hatching"; it used to jump three times). The egg's title goes (no "It hatched" since the request of 2026-11-14,
@@ -1651,6 +1654,41 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   egg and then round what hatched (from rare up, more the rarer: they took the place of rays of light, thin bars
   turning behind it, after "remove these rectangular effects everywhere, instead make it twinkles", 2026-11-14); more sparks and shell; the picture jolts (rare up); confetti (epic up); a ring
   of stars (uncommon up); the sounds grow with it.
+- **Grander at every stage** (the request of 2026-11-15: "make the egg revealing much more grander with more
+  animations and effects"; `GLORY` again sets how much, a common egg's kept quick: about a tenth of a second longer
+  than before, a celestial one's about three seconds longer):
+  - *The way in*: before it falls (0.12 s for a common egg up to 0.7 s for a celestial one) its shadow grows on the
+    pedestal, a twinkle blinks there from rare up and motes rise off it from epic up. It lands squashing on its foot,
+    a ring of dust spreads over the pedestal and the pedestal's rings pulse; from rare up the picture jolts and from
+    legendary up twinkles skip out over the pedestal.
+  - *Waiting*: it breathes in and out, wobbles more often and harder the longer it waits and, after a while, hops a
+    little. Motes circle it, passing behind it and in front of it (uncommon up), a halo of its light pulses round it
+    (rare up) and faint god rays stand behind it (epic up). The god rays are soft dithered beams fanning out round the
+    egg on the painted sky, behind the egg and the pedestal, long and short in turn; they never turn, but a wave of
+    brightness travels round them, and a mythic or celestial egg's change colour as it goes.
+  - *Each tap*: it squashes and springs back, a flare of white light opens where the new crack is, sparks fly from
+    there, the rays out of the cracks all flare out again and a ring pulses over the pedestal; from rare up a thin
+    shockwave spreads. A step up is the big beat: the egg leaps up spinning and comes back down squashing, a flash in
+    the new rarity's colour, god rays fanning out in it, two shockwaves, a jolt, stars flying out, a chime a step
+    higher each time, and the title dropping in white and turning to the new rarity's colour. A mutation's plate
+    slides in past its place and back, then a starburst in its tier's colour opens over its stars (sparkles run along
+    the plate from tier 3, and it blinks white at tier 4).
+  - *The build-up*: the tap that hatches it starts a build-up that grows with the rarity (0.6 s for a common egg, 1.4 s
+    for a celestial one): it shakes harder and faster and swells in pulses, its cracks blaze between white and its
+    light (uncommon up), more rays pour out of them, sparks spit, a crackle rises in pitch, the halo and the god rays
+    grow and, from rare up, the sky goes dark (a low rumble from legendary up). A tap after a third of a second breaks
+    it at once.
+  - *The break*: a flash, one to four shockwave rings, the top flying off, shell and confetti (each bit of confetti
+    flutters, turning its two shades), the god rays at full and the picture jolting; from legendary up the scene runs
+    in slow motion for a moment. What hatched shoots up out of the shell as a white silhouette, stretched tall, takes
+    its colours, lands squashing with a thud and a puff of dust, then jumps for joy with its arms up; stars circle it
+    (uncommon up; for good from legendary up).
+  - *The card*: the name slides up past its place and back (common, uncommon) or drops in letter by letter, each
+    letter white for a moment (rare up). From uncommon up its line sits on a ribbon in the rarity's colour with a
+    notched tail at each end. "New!" slams down with a flare, a starburst and a ring of bits, and the passive's plate
+    slides in with a starburst over its star. From legendary up the sky fills with twinkles for a while, a mythic egg's
+    petals fall thicker and a celestial one's sky rains glints; the god rays stay behind what hatched from epic up. A
+    tap while it all comes in shows the whole card at once.
 - Two taps closer together than a fifth of a second count as one, so a double tap never skips a reveal. Space, Enter
   and a gamepad's A tap too. One scene at a time. With the pixel filter off (the classic look) the egg floats the same
   way without the painted sky.

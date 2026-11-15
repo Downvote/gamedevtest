@@ -2382,11 +2382,15 @@ end
 -- mutations by rarity. The
 -- request of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can
 -- simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each click
--- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches". Frames: the egg dropping onto
--- its pedestal (hatch_dropping), resting there with rings spreading from under it (hatch_egg), after each tap's reveal (hatch_rise<k> for a step up, hatch_mut<k> for a
--- mutation), the tap that hatches it (hatch_shake: the egg shaking open, "Make eggs shake while being cracked open";
--- hatch_crack, just after the shell opens) and what hatched with its mutations listed
--- (hatch_reveal), then the island after one more tap (hatch_back).
+-- revealing a mutation or a tier up upgrade if there is any, otherwise it just hatches"; then of 2026-11-15, "make the
+-- egg revealing much more grander with more animations and effects". Frames: its shadow growing on the pedestal before
+-- it falls (hatch_wait), the egg dropping onto its pedestal (hatch_dropping), its first bounce (hatch_landing), resting
+-- there with rings spreading from under it (hatch_egg), each tap's reveal a tenth of a second in (hatch_rise<k>_hit,
+-- hatch_mut<k>_hit) and a moment later (hatch_rise<k> for a step up, hatch_mut<k> for a mutation), the tap that hatches
+-- it (hatch_shake: the egg shaking open, "Make eggs shake while being cracked open"; hatch_blaze near the end of its
+-- build-up; hatch_crack, just after the shell opens), what hatched coming out (hatch_pop), landed (hatch_out), its card
+-- coming in (hatch_card) and what hatched with its mutations listed (hatch_reveal), then the island after one more tap
+-- (hatch_back).
 local function hatchScenario(code)
 	local r = tonumber(string.sub(code, 1, 1)) or 1
 	local hr = tonumber(string.sub(code, 2, 2)) or r
@@ -2419,14 +2423,25 @@ local function hatchScenario(code)
 	local ready = PR and H.inClient(p, PR.ready)
 	local st = state()
 	log("hatch %s: opened at once: phase %s, renderer ready %s, %d reveals to tap", code, st.phase, tostring(ready), st.reveals)
-	-- (it drops in from above onto its pedestal and bounces: "Make the egg drop down and bounce a bit instead of
-	-- appearing by going up", 2026-11-14)
-	E.run(0.33)
+	-- (before it falls its shadow grows on the pedestal; then it drops in from above onto its pedestal and bounces:
+	-- "Make the egg drop down and bounce a bit instead of appearing by going up", 2026-11-14; it lands squashing, a
+	-- ring of dust over the pedestal)
+	local function runTo(t)
+		E.runUntil(function()
+			return state().clock >= t
+		end, 10, 0.05)
+	end
+	runTo(st.wait * 0.7)
+	capture(p, "hatch_wait")
+	runTo(st.wait + 0.3)
 	capture(p, "hatch_dropping")
-	log("hatch %s: dropping: %.2f studs over its spot", code, state().lift)
-	E.run(0.9)
+	log("hatch %s: dropping: %.2f studs over its spot (it waited %.2f s)", code, state().lift, st.wait)
+	runTo(st.wait + 0.6)
+	capture(p, "hatch_landing")
+	log("hatch %s: landing: squash %.2f, jolt %d", code, state().squash, state().jolt)
+	runTo(st.wait + 1.35)
 	capture(p, "hatch_egg")
-	log("hatch %s: landed: %.2f over its spot, %d rings spreading", code, state().lift, state().rings)
+	log("hatch %s: landed: %.2f over its spot, %d rings spreading, %d god rays lit", code, state().lift, state().rings, state().light)
 	-- (the screen changes size while the egg waits, a window widened, then back: the title stays centred and the sky
 	-- follows the egg; the user's report of 2026-11-14, "it sometimes doesnt center the text here")
 	do
@@ -2445,33 +2460,57 @@ local function hatchScenario(code)
 		E.run(0.6)
 		log("hatch %s: back to %dx%d: title %.0f px off the middle", code, old.X, old.Y, state().titleOff)
 	end
+	-- (each tap: a frame mid effect, "_hit", and one a moment later)
 	local rises, mutsShown = 0, 0
 	for _ = 1, st.reveals do
 		local before = state()
 		H.inClient(p, HS.skip)
-		E.run(0.3)
-		local after = state()
-		if after.r > before.r then
+		E.run(0.1)
+		local mid = state()
+		local label = if mid.r > before.r then "hatch_rise" .. (rises + 1) else "hatch_mut" .. (mutsShown + 1)
+		capture(p, label .. "_hit")
+		log("hatch %s: %s: squash %.2f, jolt %d, god rays %d", code, label, mid.squash, mid.jolt, mid.light)
+		E.run(0.2)
+		if mid.r > before.r then
 			rises += 1
-			capture(p, "hatch_rise" .. rises)
 		else
 			mutsShown += 1
-			capture(p, "hatch_mut" .. mutsShown)
 		end
+		capture(p, label)
 	end
 	st = state()
 	log("hatch %s: after %d taps: rarity %d, %d mutations shown, cracks %d, glowing %s, title %q", code, st.reveals, st.r, st.shown, st.crack, tostring(st.glowing), st.title)
+	-- (the tap that hatches it: the build-up, the break, what hatched coming out, its card)
 	H.inClient(p, HS.skip)
 	E.run(0.35)
 	st = state()
 	capture(p, "hatch_shake")
-	log("hatch %s: shaking open: phase %s, shake %.2f, cracks %d", code, st.phase, st.shake, st.crack)
-	E.run(0.43)
+	log("hatch %s: shaking open: phase %s, shake %.2f, cracks %d, build %.2f s, hush %.2f, god rays %d", code, st.phase, st.shake, st.crack, st.build, st.hush, st.light)
+	runTo(st.clock - 0.35 + st.build * 0.85)
+	st = state()
+	capture(p, "hatch_blaze")
+	log("hatch %s: about to break: shake %.2f, hush %.2f, god rays %d", code, st.shake, st.hush, st.light)
+	E.runUntil(function()
+		return state().phase ~= "breaking"
+	end, 5, 0.05)
+	st = state()
 	capture(p, "hatch_crack")
-	E.run(1.4)
+	log("hatch %s: the break: slow %s, jolt %d, god rays %d", code, tostring(st.slow), st.jolt, st.light)
+	local t0 = st.clock
+	runTo(t0 + 0.12)
+	capture(p, "hatch_pop")
+	runTo(t0 + 0.55)
+	capture(p, "hatch_out")
+	log("hatch %s: out: %d stars circling, letters %d", code, state().stars, state().letters)
+	runTo(t0 + 0.75)
+	capture(p, "hatch_card")
+	E.runUntil(function()
+		return state().phase == "done"
+	end, 5, 0.05)
+	E.run(0.4)
 	st = state()
 	capture(p, "hatch_reveal")
-	log("hatch %s: laid %d, hatched %d as %s: phase %s, %d mutations of %d, %s, title %q, name %q, New! %s", code, r, st.r, tostring(sp), st.phase, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name, tostring(st.fresh))
+	log("hatch %s: laid %d, hatched %d as %s: phase %s, %d mutations of %d, %s, title %q, name %q, New! %s, ribbon %s, %d letters, %d stars, god rays %d", code, r, st.r, tostring(sp), st.phase, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name, tostring(st.fresh), tostring(st.ribbon), st.letters, st.stars, st.light)
 	H.inClient(p, HS.skip)
 	E.run(0.2)
 	log("hatch %s: closed %s", code, tostring(not state().open))
