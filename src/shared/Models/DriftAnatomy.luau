@@ -645,7 +645,13 @@ function A.ears(h: Head, o: EarOpts)
 				Kit.limb("EarIn" .. s, inB, lerp(base, tipP, 0.82) + face * w * 0.1, w * 0.33, tipR * 0.7, o.inner, flat * 0.55, face)
 			end
 			if o.tip then
-				Kit.limb("EarTip" .. s, lerp(base, tipP, 0.6) + face * w * 0.02, tipP + dirUp * 0.02, w * 0.26, tipR * 1.05, o.tip, flat * 1.08, face)
+				-- (a sleeve over the ear's top: it shows only where it stands more than the pixel filter's depth bias, about
+				-- 0.03 studs, proud of the ear, across its flat side too)
+				local r0 = w * 0.5 + (tipR - w * 0.5) * 0.6
+				local m = 0.04
+				local rs0, rs1 = r0 + m, tipR + m
+				local fs = math.min(1, (r0 * flat + m) / rs0)
+				Kit.limb("EarTip" .. s, lerp(base, tipP, 0.6), tipP + dirUp * 0.02, rs0, rs1, o.tip, fs, face)
 			end
 		end
 	end
