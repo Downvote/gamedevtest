@@ -716,6 +716,25 @@ do
 		H.expect(shown and bt.card == string.format("%s Living here 1/%d", Buildings.byId.nest.name, Buildings.byId.nest.slots), "build", "a tap on the hut: its card, how many live there of its room", string.format("%s %q at %s, the ray met %s", tostring(shown), bt.card, tostring(hutTap), bt.hit))
 		E.run(3.2)
 		H.expect(H.inClient(p, BTp.debugState).card == "", "build", "the tap's card goes after a few seconds")
+		-- a tap on the lumber camp: how full, and what it earns a minute (the request of 2026-11-15: "while hovering over
+		-- a work building, show how much it is earning"; Island.output times the charm bonus and the passes)
+		local camp = pieceOf("lumber")
+		local campTap = nil
+		for _, sp in H.inClient(p, BTp.debugSpots) do
+			if camp and sp.uid == camp.uid then
+				campTap = sp.tap
+			end
+		end
+		E.raycastParts = true
+		local shownC = campTap ~= nil and H.inClient(p, BTp.tapAt, campTap)
+		E.raycastParts = nil
+		E.run(0.6)
+		bt = H.inClient(p, BTp.debugState)
+		local cv = H.view(p)
+		local made = Island.output(prof)[camp and camp.uid or 0] or 0
+		local want = string.format("Earns %s shells/min", Numbers.short(math.floor(made * (1 + cv.charmBonus) * cv.incomeMult * 60 / Tuning.TurnSeconds + 0.5)))
+		H.expect(shownC and bt.card == string.format("%s Workers 1/%d", Buildings.byId.lumber.name, Tuning.HelpMax) and bt.card2 == want, "build", "a tap on the lumber camp: its workers and what it earns a minute", string.format("%q / %q (want %q)", bt.card, bt.card2, want))
+		E.run(3.2)
 	end
 end
 do

@@ -329,6 +329,23 @@ function SCEN.village()
 			log("village: a tap on the %s (uid %d): card %s %q", pick.id, pick.uid, tostring(shown), H.inClient(p, BT.debugState).card)
 			capture(p, "village_card")
 		end
+		-- (a workplace's card: how full, what it earns a minute; the request of 2026-11-15)
+		E.run(3.2)
+		local work
+		for _, sp in H.inClient(p, BT.debugSpots) do
+			if sp.work and sp.n > 0 and sp.tap and work == nil then
+				work = sp
+			end
+		end
+		if work then
+			E.raycastParts = true
+			local shown = H.inClient(p, BT.tapAt, work.tap)
+			E.raycastParts = nil
+			E.run(0.3)
+			local st = H.inClient(p, BT.debugState)
+			log("village: a tap on the %s (uid %d): card %s %q / %q", work.id, work.uid, tostring(shown), st.card, st.card2)
+			capture(p, "village_work")
+		end
 	end
 	return p
 end
@@ -386,6 +403,25 @@ function SCEN.motion()
 	for k = 0, 11 do
 		capture(p, string.format("motion_%03d", k))
 		E.run(1 / 6)
+	end
+	-- (the windmill's card: the farms' boost from every boost building there, what one more adds; 2026-11-15)
+	local BT = modOr(p, "Controllers.BuildingTags")
+	if BT then
+		local mill
+		for _, sp in H.inClient(p, BT.debugSpots) do
+			if sp.kind == "boost" and sp.tap and mill == nil then
+				mill = sp
+			end
+		end
+		if mill then
+			E.raycastParts = true
+			local shown = H.inClient(p, BT.tapAt, mill.tap)
+			E.raycastParts = nil
+			E.run(0.3)
+			local st = H.inClient(p, BT.debugState)
+			log("motion: a tap on the %s: card %s %q / %q", mill.id, tostring(shown), st.card, st.card2)
+			capture(p, "motion_boost")
+		end
 	end
 	return p
 end

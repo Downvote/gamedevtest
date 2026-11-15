@@ -735,9 +735,14 @@ Water keeps its own rules (§4.3).
 - **Comfort** (huts): a driftling hatched goes to the comfiest hut with room. A driftling's comfort (its hut's, plus
   4% / 8% at a level 2 / 3 hut kept from an older save) makes it work that much more (`Island.palBoost`: 1 plus its
   share plus its comfort). The Driftlings panel shows each one's hut.
-- **Boost buildings**: every building of a knack makes more (`Island.boosts`); each kind of boost building counts
-  once however many stand, the "all" ones count at every knack, and the boosts at one knack stop at `BoostMax` (70%;
-  60% until the boosts of the islands past Driftling Haven, which no island short of them could reach).
+- **Boost buildings**: every building of a knack makes more (`Island.boosts`); the "all" ones count at every knack,
+  and the boosts at one knack stop at `BoostMax` (70%; 60% until the boosts of the islands past Driftling Haven, which
+  no island short of them could reach). They stack with less each time (the request of 2026-11-15: "make it such that
+  boost buildings can stack, but with diminishing returns"; till then a second of a kind gave nothing): the first of a
+  kind gives its whole share, a second `BoostStack` (half) of it, a third half of that, and so on, so two Windmills
+  give farms +15%, three +17.5%, and a kind can never give more than twice its own share. Different kinds each give
+  their whole share (a Windmill and a Smokehouse, +20%). Build mode's card for a boost building says so ("Each extra
+  one adds 50% of the one before.").
 - **The islands past Driftling Haven** (2026-11-14, the request at the top; §4.4 has which tier opens what). The
   workplaces make about twice the city's best on Lantern Cove and ten times it by Farshore (a turn with one common
   driftling: the Mushroom Cellar 3,300 shells, Pearl Beds 5,800, Honey Terraces 10,500, the Grand Vineyard 19,000; the
@@ -1013,6 +1018,17 @@ the word "Empty", bobbing a pixel (hidden while a panel is open). It goes the mo
 there. Neighbours' islands
 show neither: it is your own island to run. Benches, lamps and other decor in front of a building never hide it from
 the pointer; the Tree of Life does.
+
+> The request (2026-11-15): "when hovering over a boost building, show how much the total boosts of the certain of
+> building it is boosting with all other same type boost buildings together. also, while hovering over a work building,
+> show how much it is earning".
+
+A workplace's card has a second line with what it earns now, a minute ("Earns 120 shells/min": its rate, level,
+workers and the boosts at its knack, times the charm bonus and the passes, so the cards of all the workplaces add up to
+the top bar's rate). A boost building gets a card too (it takes no workers, so never an "Empty" tag): the boost its
+knack gets from every boost building there together ("Farms +15% from 2 boost buildings"; an "all" one, the
+everything boosts together, "Everything +16% from 2 boost buildings"), and under it what one more of its kind would add
+("One more adds +2.5%"), or "Boosts top out at 70%" once they reach the cap.
 
 ## 5. Villagers (gone)
 

@@ -715,6 +715,10 @@ local function about(def: Buildings.BuildingDef, lvl: number?): string
 	if def.charm >= 1 then
 		say ..= string.format(" Charm +%d.", math.floor(def.charm))
 	end
+	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare)
+	if def.kind == "gen" and def.boost ~= "" then
+		say ..= string.format(" Each extra one adds %d%% of the one before.", math.round(Tuning.BoostStack * 100))
+	end
 	if def.water == "on" then
 		say ..= " Goes on water."
 	elseif def.water == "over" then

@@ -102,18 +102,58 @@ function Island.homes(p: Profile): { [string]: Home }
 	return out
 end
 
--- The boost buildings' shares (GAME_DESIGN 4.1), by knack and "all": each kind of boost building counts once.
+-- The share the k-th boost building of one kind gives (k from 1): its whole share for the first, Tuning.BoostStack of
+-- it for a second, BoostStack² for a third and so on (the request of 2026-11-15: "make it such that boost buildings
+-- can stack, but with diminishing returns"; till then a second of a kind gave nothing).
+function Island.boostShare(id: string, k: number): number
+	local d = Buildings.byId[id]
+	if d == nil or d.kind ~= "gen" or d.boost == "" or k < 1 then
+		return 0
+	end
+	return d.boostBy * Tuning.BoostStack ^ (k - 1)
+end
+
+-- The boost buildings' shares (GAME_DESIGN 4.1), by knack and "all": every one counts, the copies of a kind less and
+-- less (boostShare).
 function Island.boosts(p: Profile): { [string]: number }
 	local out: { [string]: number } = { farm = 0, wood = 0, shop = 0, all = 0 }
-	local seen: { [string]: boolean } = {}
+	local n: { [string]: number } = {}
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
-		if d and d.kind == "gen" and d.boost ~= "" and not seen[d.id] then
-			seen[d.id] = true
-			out[d.boost] = (out[d.boost] or 0) + d.boostBy
+		if d and d.kind == "gen" and d.boost ~= "" then
+			local k = (n[d.id] or 0) + 1
+			n[d.id] = k
+			out[d.boost] = (out[d.boost] or 0) + Island.boostShare(d.id, k)
 		end
 	end
 	return out
+end
+
+-- What a boost building of piece id `id` stands for on the island (its card: GAME_DESIGN 4.6): its knack ("farm"
+-- "wood" "shop" or "all"), how many boost buildings work at that knack (its own kind's and the others', an "all" one
+-- counting at every knack), their boost there together before and after the cap (`BoostMax`; for an "all" one, the
+-- "all" share alone), and what one more of its kind would add.
+function Island.boostInfo(p: Profile, id: string): { knack: string, count: number, raw: number, total: number, more: number }
+	local d = Buildings.byId[id]
+	if d == nil or d.kind ~= "gen" or d.boost == "" then
+		return { knack = "", count = 0, raw = 0, total = 0, more = 0 }
+	end
+	local b = Island.boosts(p)
+	local count, same = 0, 0
+	for _, q in p.plot.placed do
+		local e = Buildings.byId[q.id]
+		if e and e.kind == "gen" and e.boost ~= "" and (e.boost == d.boost or e.boost == "all" or d.boost == "all") then
+			if d.boost ~= "all" or e.boost == "all" then
+				count += 1
+			end
+			if e.id == d.id then
+				same += 1
+			end
+		end
+	end
+	local raw = if d.boost == "all" then b.all or 0 else (b[d.boost] or 0) + (b.all or 0)
+	local total = if d.boost == "all" then math.min(Tuning.BoostMax, raw) else Island.boostAt(b, d.boost)
+	return { knack = d.boost, count = count, raw = raw, total = total, more = Island.boostShare(d.id, same + 1) }
 end
 
 -- The boost at a building of a knack: its own and every building's, `BoostMax` at most.
@@ -144,9 +184,11 @@ function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?): number
 	return Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0))
 end
 
--- What a turn makes now (the charm bonus and the passes in).
-function Island.rates(p: Profile): Rates
-	local out = { shells = 0 }
+-- What each workplace makes a turn before the charm bonus and the passes (uid -> shells): its rate x its level's
+-- multiplier x (its workers' shares, or IdleOutput with none) x (1 + the boosts at its knack). The client's building card
+-- (Controllers/BuildingTags) shows one times the view's charm bonus and income multiplier.
+function Island.output(p: Profile): { [number]: number }
+	local out: { [number]: number } = {}
 	local homes = Island.homes(p)
 	local boosts = Island.boosts(p)
 	-- the working driftlings' shares (each in a hut), added up at each building
@@ -161,11 +203,20 @@ function Island.rates(p: Profile): Rates
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop") then
 			local k = (helper[q.uid] or Tuning.IdleOutput) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
-			out.shells += d.rate * k
+			out[q.uid] = d.rate * k
 		end
 	end
-	out.shells *= (1 + Island.charmBonus(Island.charm(p))) * Island.passMult(p)
 	return out
+end
+
+-- What a turn makes now (the charm bonus and the passes in).
+function Island.rates(p: Profile): Rates
+	local made = Island.output(p)
+	local shells = 0
+	for _, q in p.plot.placed do
+		shells += made[q.uid] or 0
+	end
+	return { shells = shells * (1 + Island.charmBonus(Island.charm(p))) * Island.passMult(p) }
 end
 
 -- What the passes and the group multiply every shell by (GAME_DESIGN 14): Double Income x Tuning.DoubleIncome, VIP 1 +

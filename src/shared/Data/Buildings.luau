@@ -22,7 +22,8 @@
 --   charm: what it adds to the island's charm (more charm, more shells: Logic/Island.charmBonus)
 --   comfort: a hut's share added to its residents' work (Logic/Island.homes)
 --   boost / boostBy: a boost building's knack ("farm" "wood" "shop", or "all") and its share (each kind of boost
---          building counts once however many stand: Logic/Island.boosts)
+--          building gives its whole share, a second of its kind Tuning.BoostStack of it, a third that of the second's:
+--          Logic/Island.boosts)
 --   tier:  the island tier it needs
 --   tab / sub: where Build mode lists it (its tab, and the row of chips under it: a decor piece's theme, a nature
 --          piece's kind, a work building's kind); from its kind when not given

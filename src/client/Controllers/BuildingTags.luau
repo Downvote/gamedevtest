@@ -5,10 +5,17 @@
 --   The card: with a mouse, a workplace or a hut under the pointer gets a small glass card over its roof, its name in
 --   the accent and how full it is ("Workers 1/2", "Living here 2/2"); a tap on one shows the same card for a few
 --   seconds (a phone has no pointer). One card at a time, nothing while a panel is open or in Build mode.
+--   The request of 2026-11-15: "when hovering over a boost building, show how much the total boosts of the certain of
+--   building it is boosting with all other same type boost buildings together. also, while hovering over a work
+--   building, show how much it is earning". So a workplace's card says what it earns a minute too (Island.output, times
+--   the view's charm bonus and income multiplier), and a boost building gets a card of its own: the boost at its knack
+--   from every boost building there together ("Farms +15% from 2 boost buildings", Island.boostInfo; an "all" one,
+--   the "all" boosts together) and what one more of its kind would add (they stack, less each time: Tuning.BoostStack).
 --   The alerts: over every workplace no driftling works at, and every hut no driftling lives in, a small glass tag
 --   floats with the alert icon and "Empty" (the user's words, in place of "No workers" and "No one home"), bobbing a
 --   pixel. They go the moment one moves in.
--- Only the own island's, drawn in the World root (hidden with it on the hatch scene). WorldView drives it: step every
+-- Only the own island's: the alerts in the World root (hidden with it on the hatch scene), the card on the Popup root
+-- over the HUD (nothing while the camera has a stage). WorldView drives it: step every
 -- frame, hover from the pointer, tapAt from a tap.
 --   step(t, plot, hoverPos?, palHovered), tapAt(pos) -> boolean, debugState(), debugSpots()
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,6 +25,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local StateClient = require(script.Parent.StateClient)
 local CameraController = require(script.Parent.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
@@ -31,9 +39,10 @@ local SCAN_SECS = 0.5 -- the island's buildings looked over this often (they cha
 local HOVER_SECS = 0.1 -- the pointer's building looked for this often
 local CARD_TOP = 22 -- the card stays this far below the top of the HUD's canvas (UI px: the top bar's chips)
 
--- One building of the own island that houses or employs: its uid, piece id, model, the point over its roof (world),
--- whether it is a workplace (else a hut), its room, and how many work or live there now.
-type Spot = { uid: number, id: string, model: Model, top: Vector3, work: boolean, room: number, n: number }
+-- One building of the own island that houses, employs or boosts: its uid, piece id, model, the point over its roof
+-- (world), what it is ("work", "nest" or "boost"; `work` true for a workplace), its room (0 for a boost building), how
+-- many work or live there now, and its card's other lines (a workplace's earnings, a boost building's two lines).
+type Spot = { uid: number, id: string, model: Model, top: Vector3, work: boolean, kind: string, room: number, n: number, extra: { string } }
 
 local spots: { [number]: Spot } = {}
 local plotNow = 0
@@ -48,6 +57,13 @@ local cardUntil = 0 -- a tap's card: shown till then (0: the pointer's)
 local hoverUid = 0
 local hoverAt = 0
 local lastHit = "" -- what the last pick ray met (debugState)
+
+-- A boost building's knack in words, and a share as a percentage (whole, or to a tenth).
+local KNACK_WORD: { [string]: string } = { farm = "Farms", wood = "Wood", shop = "Shops", all = "Everything" }
+local function pct(x: number): string
+	local v = math.floor(x * 1000 + 0.5) / 10
+	return if v == math.floor(v) then string.format("%d%%", v) else string.format("%.1f%%", v)
+end
 
 local function plotModel(i: number): Model?
 	local plots = workspace:FindFirstChild("Plots")
@@ -74,13 +90,15 @@ local function scan(v: Types.ClientView)
 				continue
 			end
 			local work = Island.works(id)
-			if not work and def.kind ~= "nest" then
+			local boost = def.kind == "gen" and def.boost ~= ""
+			if not work and not boost and def.kind ~= "nest" then
 				continue
 			end
 			local s = spots[u]
 			if s == nil or s.model ~= c then
 				local cf, size = c:GetBoundingBox()
-				s = { uid = u, id = id, model = c, top = cf.Position + Vector3.new(0, size.Y / 2 + 0.4, 0), work = work, room = if work then Tuning.HelpMax else def.slots, n = 0 }
+				local kind = if work then "work" elseif boost then "boost" else "nest"
+				s = { uid = u, id = id, model = c, top = cf.Position + Vector3.new(0, size.Y / 2 + 0.4, 0), work = work, kind = kind, room = if work then Tuning.HelpMax elseif boost then 0 else def.slots, n = 0, extra = {} }
 				spots[u] = s
 			end
 			seen[u] = true
@@ -111,8 +129,24 @@ local function scan(v: Types.ClientView)
 			w.n += 1
 		end
 		local h = spots[pal.home]
-		if h and not h.work then
+		if h and h.kind == "nest" then
 			h.n += 1
+		end
+	end
+	-- the cards' other lines: what each workplace earns a minute, what each boost building's knack gets from them all
+	local prof: any = { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier }
+	local made = Island.output(prof)
+	local mult = (1 + (v.charmBonus or 0)) * (v.incomeMult or 1) * 60 / Tuning.TurnSeconds
+	for _, s in spots do
+		if s.kind == "work" then
+			s.extra = { string.format("Earns %s shells/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
+		elseif s.kind == "boost" then
+			local b = Island.boostInfo(prof, s.id)
+			local first = string.format("%s +%s from %d boost building%s", KNACK_WORD[b.knack] or "Everything", pct(b.total), b.count, if b.count == 1 then "" else "s")
+			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Boosts top out at %s", pct(Tuning.BoostMax)) else string.format("One more adds +%s", pct(b.more))
+			s.extra = { first, second }
+		else
+			s.extra = {}
 		end
 	end
 end
@@ -121,6 +155,7 @@ end
 local function fullness(s: Spot): string
 	return string.format(if s.work then "Workers %d/%d" else "Living here %d/%d", s.n, s.room)
 end
+
 -- ("Empty" over both: the user's words of 2026-11-14, "Make it say "Empty" instead of no one home or no workers")
 local function alertWords(_s: Spot): string
 	return "Empty"
@@ -142,28 +177,51 @@ local function dropCard()
 	card, cardUid, cardUntil = nil, 0, 0
 end
 
--- The card over spot s: its name over how full it is, rebuilt when the words change.
+-- The card over spot s: its name over its lines (a workplace: how full, what it earns; a hut: how full; a boost
+-- building: the boost at its knack, what one more adds), each with its icon, rebuilt when the words change.
 local function showCard(s: Spot)
 	local def = Buildings.byId[s.id]
 	local name = if def then def.name else s.id
-	local line = fullness(s)
+	type Line = { icon: string, text: string, color: string }
+	local lines: { Line } = {}
+	if s.kind == "boost" then
+		table.insert(lines, { icon = "mini_boost", text = s.extra[1] or "", color = "good" })
+		table.insert(lines, { icon = "mini_star", text = s.extra[2] or "", color = "text_dim" })
+	else
+		local full = s.n >= s.room
+		table.insert(lines, { icon = if s.work then "mini_work" else "mini_nest", text = fullness(s), color = if s.n == 0 then "bad" elseif full then "good" else "text" })
+		if s.work and s.extra[1] then
+			table.insert(lines, { icon = "mini_shell", text = s.extra[1], color = "text" })
+		end
+	end
+	local words = name
+	for _, l in lines do
+		words ..= "|" .. l.text
+	end
 	local c = card
-	if c and cardUid == s.uid and c:GetAttribute("Words") == name .. "|" .. line then
+	if c and cardUid == s.uid and c:GetAttribute("Words") == words then
 		return
 	end
 	if c then
 		c:Destroy()
 	end
-	local w = math.max(UIKit.textWidth(name), 13 + UIKit.textWidth(line)) + 2 * UIKit.PAD
-	local f = UIKit.glass(UIKit.canvas("World"), UDim2.fromOffset(w, 26), nil, 2)
+	local w = UIKit.textWidth(name)
+	for _, l in lines do
+		w = math.max(w, 13 + UIKit.textWidth(l.text))
+	end
+	w += 2 * UIKit.PAD
+	-- (on the Popup root, over the HUD's cards: on a phone a building near the edge put its card under them)
+	local f = UIKit.glass(UIKit.canvas("Popup"), UDim2.fromOffset(w, 16 + 10 * #lines), nil, 2)
 	f.Name = "BuildingCard"
 	f.ZIndex = 6
-	f:SetAttribute("Words", name .. "|" .. line)
+	f:SetAttribute("Words", words)
 	f:SetAttribute("Uid", s.uid)
 	UIKit.text(f, name, UDim2.fromOffset(w - 2 * UIKit.PAD, 10), UDim2.fromOffset(UIKit.PAD, 2), { color = UIKit.color("accent"), name = "Name", z = 7 })
-	PixelSprites.image(f, if s.work then "mini_work" else "mini_nest", UDim2.fromOffset(UIKit.PAD - 1, 13), 7)
-	local full = s.n >= s.room
-	UIKit.text(f, line, UDim2.fromOffset(w - 2 * UIKit.PAD - 13, 10), UDim2.fromOffset(UIKit.PAD + 12, 13), { color = UIKit.color(if s.n == 0 then "bad" elseif full then "good" else "text"), name = "Line", z = 7 })
+	for i, l in lines do
+		local y = 13 + (i - 1) * 10
+		PixelSprites.image(f, l.icon, UDim2.fromOffset(UIKit.PAD - 1, y), 7)
+		UIKit.text(f, l.text, UDim2.fromOffset(w - 2 * UIKit.PAD - 13, 10), UDim2.fromOffset(UIKit.PAD + 12, y), { color = UIKit.color(l.color), name = if i == 1 then "Line" else "Line" .. i, z = 7 })
+	end
 	card, cardUid = f, s.uid
 end
 
@@ -299,14 +357,14 @@ function BuildingTags.step(t: number, plot: number, hoverPos: Vector2?, palHover
 	showCard(s)
 	cardUntil = keep
 	local c = card :: Frame
-	-- (the card sits over the alert when there is one, kept on the screen and below the top bar's chips)
+	-- (the card sits over the alert when there is one, kept on the screen and below the top bar's chips; worked out on
+	-- the World canvas, which is full screen, then moved onto the Popup root's, which starts under the top bar's inset)
 	place(c, s.top, if alerts[s.uid] then 19 else 2)
 	if c.Visible then
-		local size = UIKit.size("World")
-		-- (the World canvas is full screen, the HUD's starts under the top bar's inset)
-		local top = math.ceil(UIKit.canvasOrigin("Hud").Y / UIKit.P()) + CARD_TOP
-		local x = math.clamp(c.Position.X.Offset, 2, math.max(2, size.X - c.Size.X.Offset - 2))
-		local y = math.clamp(c.Position.Y.Offset, top, math.max(top, size.Y - c.Size.Y.Offset - 2))
+		local d = (UIKit.canvasOrigin("Popup") - UIKit.canvasOrigin("World")) / UIKit.P()
+		local size = UIKit.size("Popup")
+		local x = math.clamp(c.Position.X.Offset - math.floor(d.X + 0.5), 2, math.max(2, size.X - c.Size.X.Offset - 2))
+		local y = math.clamp(c.Position.Y.Offset - math.floor(d.Y + 0.5), CARD_TOP, math.max(CARD_TOP, size.Y - c.Size.Y.Offset - 2))
 		c.Position = UDim2.fromOffset(x, y)
 	end
 end
@@ -314,13 +372,13 @@ end
 -- Sims and previews: each workplace and hut of the own island (its uid, piece id, whether it is a workplace, how many
 -- work or live there of its room) with the point a tap on its middle would have (an InputObject's: below the top bar),
 -- nil when off the screen.
-function BuildingTags.debugSpots(): { { uid: number, id: string, work: boolean, n: number, room: number, tap: Vector2? } }
+function BuildingTags.debugSpots(): { { uid: number, id: string, work: boolean, kind: string, n: number, room: number, tap: Vector2? } }
 	local out = {}
 	local inset = game:GetService("GuiService"):GetGuiInset()
 	for _, s in spots do
 		local cf = s.model:GetBoundingBox()
 		local at, on = PixelRenderer.project(cf.Position)
-		table.insert(out, { uid = s.uid, id = s.id, work = s.work, n = s.n, room = s.room, tap = if on then Vector2.new(at.X - inset.X, at.Y - inset.Y) else nil })
+		table.insert(out, { uid = s.uid, id = s.id, work = s.work, kind = s.kind, n = s.n, room = s.room, tap = if on then Vector2.new(at.X - inset.X, at.Y - inset.Y) else nil })
 	end
 	table.sort(out, function(a, b): boolean
 		return a.uid < b.uid
@@ -329,7 +387,7 @@ function BuildingTags.debugSpots(): { { uid: number, id: string, work: boolean, 
 end
 
 -- Sims and previews: the own island's workplaces and huts, the alerts showing and the card's words.
-function BuildingTags.debugState(): { spots: number, alerts: number, words: { string }, card: string, cardUid: number, hit: string }
+function BuildingTags.debugState(): { spots: number, alerts: number, words: { string }, card: string, card2: string, cardUid: number, hit: string }
 	local words: { string } = {}
 	local n = 0
 	for _, f in alerts do
@@ -347,11 +405,13 @@ function BuildingTags.debugState(): { spots: number, alerts: number, words: { st
 	local c = card
 	local line = if c then c:FindFirstChild("Line") else nil
 	local nm = if c then c:FindFirstChild("Name") else nil
+	local line2 = if c then c:FindFirstChild("Line2") else nil
 	return {
 		spots = count,
 		alerts = n,
 		words = words,
 		card = if c and line and line:IsA("TextLabel") and nm and nm:IsA("TextLabel") then nm.Text .. " " .. line.Text else "",
+		card2 = if line2 and line2:IsA("TextLabel") then line2.Text else "",
 		cardUid = cardUid,
 		hit = lastHit,
 	}

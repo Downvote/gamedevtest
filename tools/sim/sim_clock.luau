@@ -492,6 +492,56 @@ do
 			H.closePanel(p)
 		end
 	end
+	-- two windmills: they stack, the second at Tuning.BoostStack of the first (the request of 2026-11-15: "make it such
+	-- that boost buildings can stack, but with diminishing returns"); a tap on one: the farms' boost from both together
+	-- and what one more would add ("when hovering over a boost building, show how much the total boosts ... with all
+	-- other same type boost buildings together")
+	do
+		local farm0 = Island.boosts(prof).farm
+		local w1, w2 = place("windmill"), place("windmill")
+		local by = Buildings.byId.windmill.boostBy
+		H.expect(w1.ok and w2.ok and math.abs(Island.boosts(prof).farm - (farm0 + by + by * Tuning.BoostStack)) < 1e-9, "boost", "two windmills stack: the second gives BoostStack of the first", string.format("%s %s farm %.3f", tostring(w1.err), tostring(w2.err), Island.boosts(prof).farm))
+		H.push(p, 0.4)
+		E.run(0.7)
+		local BTc = H.cmod(p, "Controllers.BuildingTags")
+		local mill = nil
+		for _, sp in H.inClient(p, BTc.debugSpots) do
+			if sp.id == "windmill" and sp.kind == "boost" and sp.tap and mill == nil then
+				mill = sp
+			end
+		end
+		E.raycastParts = true
+		local shown = mill ~= nil and H.inClient(p, BTc.tapAt, mill.tap)
+		E.raycastParts = nil
+		E.run(0.3)
+		local st = H.inClient(p, BTc.debugState)
+		local info = Island.boostInfo(prof, "windmill")
+		local function pct(x)
+			local v = math.floor(x * 1000 + 0.5) / 10
+			return if v == math.floor(v) then string.format("%d%%", v) else string.format("%.1f%%", v)
+		end
+		local want1 = string.format("Windmill Farms +%s from %d boost buildings", pct(info.total), info.count)
+		local want2 = string.format("One more adds +%s", pct(by * Tuning.BoostStack * Tuning.BoostStack))
+		H.expect(shown and info.count == 2 and st.card == want1 and st.card2 == want2, "boost", "a tap on a windmill: the farms' boost from both, and what one more adds", string.format("%q / %q (want %q / %q)", st.card, st.card2, want1, want2))
+		local roomy = 0
+		for _, sp in H.inClient(p, BTc.debugSpots) do
+			if sp.kind == "boost" and sp.room ~= 0 then
+				roomy += 1
+			end
+		end
+		H.expect(roomy == 0, "boost", "a boost building takes no workers: no Empty alert over it", tostring(roomy))
+		-- (cleared away again for the checks below)
+		for _ = 1, 2 do
+			for i, q in prof.plot.placed do
+				if q.id == "windmill" then
+					H.req(p, "plot.store", { i = i })
+					break
+				end
+			end
+		end
+		H.push(p, 0.3)
+		E.run(3.2)
+	end
 	local uids = {}
 	for _, q in prof.plot.placed do
 		if q.id == "hatchery" then

@@ -73,6 +73,9 @@ local Tuning = {
 	ComfortLvl = { 0, 0.04, 0.08 },
 	BoostMax = 0.7, -- the boost buildings' shares at one knack together, at most (0.6 until the boosts of the islands past
 	-- Driftling Haven: no island short of them reaches it)
+	-- a second boost building of a kind gives this share of the first's, a third this share of the second's... (the
+	-- request of 2026-11-15: "make it such that boost buildings can stack, but with diminishing returns")
+	BoostStack = 0.5,
 
 	-- the Tree of Life's eggs (GAME_DESIGN 6; Logic/Tree: "bring back the tree of life ... it now spawns eggs around it
 	-- that the player can choose to hatch for some shells. it spawns in 5 eggs around it, which refreshes every few
