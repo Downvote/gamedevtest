@@ -657,187 +657,139 @@ function Kit.setLook(l: Look?)
 	look = l or {}
 end
 
--- One eye (side "L" or "R") on a head ball (centre `hc`, radius `hr`) looking out along `dir` from its centre, `d`
--- across, in the style of the driftling being built (Kit.setLook; "sparkle" when none):
---   sparkle  a dark oval, an iris low in it, a big shine and a small one
---   lashes   the same with three lashes at its outer top
---   button   one round dark disc and a shine        bead   a small one        dot   a tiny one, no shine
---   star     a dark oval with a four-point star in it          heart   a dark oval with a heart-shaped shine
---   round    white, a coloured iris, a black pupil  wide   a tall white eye, a small pupil
---   specs    round, in a ring of the iris colour (reading glasses)
---   slit     a coloured eye with an upright slit    bar    with a level bar (a goat's, a toad's)
---   ringed   a dark rim, a coloured iris filling it, a pupil
---   sleepy   a dark oval under a heavy lid of the body colour
---   fierce   a dark oval under a brow slanting down to the middle
---   happy    always shut: a little arch, like a smile
---   glow     lit in the iris colour with a white core       gem    a diamond of the iris colour on dark
---   visor    a lit slot across                      compound   a cluster of small dark beads (a moth's)
--- Every style but "happy" blinks: its parts tuck in and the lid (an arc of small balls) comes out.
--- `iris` and `dark` are the plan's own wishes, used where the look gives none.
+-- One eye (side "L" or "R") on the head (the ellipsoid of Kit.faceOn, or the ball at `hc` of radius `hr`) looking out
+-- along `dir` from its centre, `d` across, in the style of the driftling being built (Kit.setLook; "sparkle" when none).
+-- The request (2026-11-15): "the eyes still do not look detailed or accurate and are mostly just simple discs". So an
+-- eye is an eyeball: a smooth ellipsoid set into the head so its front bulges a little out of it, which the pixel
+-- filter paints as it draws it (Render/EyeTex: the white or the dark of the eye, the iris with its darker ring and
+-- lighter lower half, the pupil shaped to the animal, the catchlights, the rim, the lids), so every eye is a real
+-- rounded eye with its parts in the right places at any size, never a stack of flat discs. The styles:
+--   sparkle  the dark glossy eye of a cute creature: the iris a band of colour low in it, two catchlights
+--   lashes   the same with three lashes at its outer top         star / heart   a star or a heart of light in it
+--   button   a glossy black bead with a softer reflection low in it     bead   a smaller one     dot   a tiny one
+--   round    white, the iris ringed and lit from below, a round pupil      wide   a tall white eye, a small iris
+--   specs    round, in a pair of round spectacles (the owl that reads old carvings)
+--   slit     all iris with an upright slit pupil (a cat's, a lizard's)     bar   with a level bar (a goat's, a toad's)
+--   ringed   a bird's or an owl's: a broad iris with a darker ring round it and a big pupil
+--   sleepy   the dark eye under a heavy upper lid of the body colour        fierce   under a lid slanting down inward
+--   happy    always shut in an arch, like a smile turned over               glow   lit in its iris colour, a white core
+--   gem      a cut gem, its facets lit from the top left                    visor   a lit slot across a dark eye
+--   compound a dark dome of little round cells (a moth's, a beetle's)
+-- Every style but "happy" blinks: the eyeball tucks in and its lid (the same eyeball's shape a little bigger, in the
+-- body colour with the dark line of a shut eye across it) comes out over it. `iris` and `dark` are the plan's own
+-- wishes, used where the look gives none.
+local EYE_SIZE: { [string]: { number } } = {
+	-- across, up (shares of d)
+	wide = { 1, 1.22 },
+	dot = { 0.5, 0.5 },
+	bead = { 0.66, 0.66 },
+	button = { 0.92, 0.92 },
+	visor = { 1.12, 0.6 },
+	compound = { 1.05, 1.05 },
+	round = { 1, 1.05 },
+	specs = { 1, 1.05 },
+}
+local EYE_IRIS: { [string]: string } = {
+	sparkle = "blue",
+	lashes = "blue",
+	star = "yellow",
+	heart = "pink",
+	round = "blue",
+	wide = "blue",
+	specs = "blue",
+	slit = "yellow",
+	bar = "yellow",
+	ringed = "gold",
+	sleepy = "blue",
+	fierce = "orange",
+	glow = "yellow",
+	gem = "purple",
+	visor = "yellow",
+	compound = "purple",
+}
 function Kit.eye(side: string, hc: Vector3, hr: number, dir: Vector3, d: number, iris: string?, dark: string?)
 	local at, n = onFace(hc, hr, dir)
-	-- the frame on the surface: right (screen-ish x) and up; outer: away from the face's middle
+	-- the frame on the surface: right (the driftling's right, across the eye) and up; outer: away from the face's middle
 	local up0 = V(0, 1, 0)
 	local right = up0:Cross(n)
 	right = if right.Magnitude > 1e-4 then right.Unit else V(1, 0, 0)
 	local up = n:Cross(right).Unit
-	local outer = if side == "L" then -right else right
-	local th = 0.05
-	local col = dark or "black"
-	local B = Kit.BIAS
+	local sgn = if side == "L" then -1 else 1
+	local outer = right * sgn
 	local style = look.eye or "sparkle"
-	local irisC = look.iris or iris
-	local full = isFull
-	-- a face disc at `p`, `dd` across, on layer k (each a BIAS further out)
-	local function fd(name: string, p: Vector3, dd: number, color: string, k: number, detail: boolean?, neon: boolean?)
-		facePart("eye", Kit.disc(name .. side, p, n, dd, th, color, detail, hr, neon, k * B), n)
+	local irisC = look.iris or iris or EYE_IRIS[style] or "blue"
+	local col = dark or "black"
+	local lidC = look.body or "rock"
+	local sz = EYE_SIZE[style] or { 1, 1 }
+	-- (a little bigger than the old flat eyes: room for the iris, the pupil and the catchlights to read)
+	local w, h = d * sz[1] * 1.15, d * sz[2] * 1.15
+	-- (its depth: a flattened dome, so it bulges a little out of the head and never stands off it like a ball; it meets
+	-- the head at Render/EyeTex.EDGE of its radius, where the painted rim lies: 1 - sqrt(1 - 0.9^2) of its depth stands
+	-- out)
+	local c = math.max(FINE, 0.3 * math.max(w, h))
+	local prot = (1 - math.sqrt(1 - 0.9 * 0.9)) * c
+	local rot = CFrame.fromMatrix(Vector3.zero, right, up, n)
+	local function eyeball(name: string, size: Vector3, centre: Vector3, color: string, code: string): BasePart
+		local p = solid(name .. side, "Ell", size, CFrame.new(centre) * rot, color)
+		p:SetAttribute("PixelEye", code)
+		p:SetAttribute("PixelEyeIris", Blocks.color(irisC))
+		p:SetAttribute("PixelEyeDark", Blocks.color(col))
+		p:SetAttribute("PixelEyeLid", Blocks.color(lidC))
+		p:SetAttribute("PixelEyeSide", sgn)
+		return p
 	end
-	-- a point on the head's surface near the eye, set out by layer k (brows, a glasses' bridge)
+	local ball = eyeball("Eye", V(w, h, 2 * c), at - n * (c - prot), if style == "round" or style == "wide" or style == "specs" then "white" else col, style)
+	if style == "happy" then
+		-- (always shut: it never blinks)
+		ball:SetAttribute("PixelOwn", true)
+		Kit.keep(ball)
+	else
+		facePart("eye", ball, n)
+		-- the lid of a blink: the eyeball's shape a little bigger, standing just over it, hidden in the head until it shuts
+		local cl = c * 1.15
+		facePart("lid", eyeball("Lid", V(w * 1.08, h * 1.1, 2 * cl), at + n * (prot + 0.04 - cl), lidC, "closed"), n)
+	end
+	-- a point on the head's surface near the eye, set out by `k` studs (lashes, brows, the spectacles)
 	local function onHead(p: Vector3, k: number): Vector3
 		local e = faceE
 		if e then
 			local q, nn = Kit.onEll(e.c, e.half, e.rot, p - e.c)
-			return q + nn * (k * B + 0.02)
+			return q + nn * k
 		end
-		return hc + (p - hc).Unit * (hr + k * B + 0.02)
+		return hc + (p - hc).Unit * (hr + k)
 	end
-	local function shines(k: number, big: number)
-		fd("Shine", at + up * d * 0.2 - right * d * 0.16, math.max(0.1, d * big), "white", k)
-		fd("Shine", at - up * d * 0.22 + right * d * 0.18, math.max(0.05, d * 0.16), "white", k, true)
-	end
-	local function oval(color: string, w: number)
-		fd("Eye", at + up * d * 0.12, d * w, color, 1)
-		fd("Eye", at - up * d * 0.14, d * w, color, 1)
-	end
-	local blinks = true
-	if style == "button" then
-		fd("Eye", at, d * 0.9, col, 1)
-		fd("Shine", at + up * d * 0.18 - right * d * 0.16, math.max(0.1, d * 0.32), "white", 2)
-	elseif style == "bead" then
-		fd("Eye", at, d * 0.56, col, 1)
-		fd("Shine", at + up * d * 0.1 - right * d * 0.09, math.max(0.05, d * 0.2), "white", 2, true)
-	elseif style == "dot" then
-		fd("Eye", at, d * 0.42, col, 1)
-	elseif style == "round" or style == "specs" then
-		if style == "specs" then
-			-- the glasses: a rim of the iris colour round the eye, and the bridge's half toward the middle
-			fd("Rim", at, d * 1.2, irisC or "gold", 1)
-			if full then
-				local a = onHead(at - outer * d * 0.6, 2)
-				local b = onHead(at - outer * d * 0.6 - outer * d * 0.4 + up * d * 0.08, 2)
-				local r = Kit.rod("Bridge" .. side, a, b, 0.05, irisC or "gold")
-				local _ = r
+	if style == "lashes" and isFull then
+		-- three lashes curling out from the top outer edge of the lid
+		for i, a in { 0.35, 0.75, 1.15 } do
+			local base = at + (outer * math.cos(a) + up * math.sin(a)) * w * 0.46
+			local tip = base + (outer * math.cos(a - 0.15) + up * math.sin(a - 0.15)) * d * (0.16 + 0.04 * i) + n * 0.03
+			Kit.limb("Lash" .. side, onHead(base, 0.03), tip, 0.03, 0.01, col)
+		end
+	elseif style == "fierce" then
+		-- the brow: slanting down toward the middle of the face
+		local a = onHead(at + up * h * 0.62 + outer * w * 0.42, 0.04)
+		local b = onHead(at + up * h * 0.36 - outer * w * 0.46, 0.04)
+		Kit.limb("Brow" .. side, a, b, math.max(0.03, d * 0.07), math.max(0.03, d * 0.09), col)
+	elseif style == "specs" then
+		-- the spectacles: a round rim of the iris colour round the eye, and the bridge's half toward the middle
+		local ring = if isFull then 10 else 6
+		local prev: Vector3? = nil
+		local first: Vector3? = nil
+		for i = 0, ring do
+			local a = i / ring * 2 * math.pi
+			local q = onHead(at + (right * math.cos(a) * w + up * math.sin(a) * h) * 0.6, 0.05)
+			if prev then
+				Kit.limb("Rim" .. side, prev, q, 0.03, 0.03, irisC)
+			else
+				first = q
 			end
+			prev = q
 		end
-		local k0 = if style == "specs" then 1 else 0
-		-- (a dark rim round the white, so the eye reads on a pale face too)
-		fd("Rim", at, d * 1.1, col, k0 + 0.5)
-		fd("Eye", at, d * 0.98, "white", k0 + 1)
-		fd("Iris", at - up * d * 0.06 - outer * d * 0.04, d * 0.62, irisC or "blue", k0 + 2)
-		fd("Pupil", at - up * d * 0.06 - outer * d * 0.04, d * 0.34, col, k0 + 3)
-		fd("Shine", at + up * d * 0.08 - right * d * 0.12, math.max(0.05, d * 0.18), "white", k0 + 4)
-	elseif style == "wide" then
-		fd("Rim", at + up * d * 0.14, d * 1.12, col, 0.5)
-		fd("Rim", at - up * d * 0.12, d * 1.12, col, 0.5)
-		fd("Eye", at + up * d * 0.14, d, "white", 1)
-		fd("Eye", at - up * d * 0.12, d, "white", 1)
-		fd("Pupil", at - up * d * 0.02 - outer * d * 0.06, d * 0.32, col, 2)
-		if irisC and full then
-			fd("Iris", at - up * d * 0.02 - outer * d * 0.06, d * 0.48, irisC, 1.5, true)
-		end
-		fd("Shine", at + up * d * 0.06 - right * d * 0.1, math.max(0.05, d * 0.14), "white", 3)
-	elseif style == "slit" or style == "bar" then
-		fd("Eye", at, d * 0.98, irisC or "yellow", 1)
-		local half = if style == "slit" then up * d * 0.32 else right * d * 0.3
-		facePart("eye", Kit.rod("Pupil" .. side, at - half + n * (2 * B + 0.025), at + half + n * (2 * B + 0.025), d * 0.17, col), n)
-		fd("Shine", at + up * d * 0.2 - right * d * 0.18, math.max(0.05, d * 0.18), "white", 3)
-	elseif style == "ringed" then
-		fd("Eye", at, d * 1.06, col, 1)
-		fd("Iris", at, d * 0.84, irisC or "gold", 2)
-		fd("Pupil", at, d * 0.4, col, 3)
-		fd("Shine", at + up * d * 0.2 - right * d * 0.16, math.max(0.05, d * 0.2), "white", 4)
-		fd("Shine", at - up * d * 0.18 + right * d * 0.16, math.max(0.05, d * 0.1), "white", 4, true)
-	elseif style == "glow" then
-		fd("Eye", at, d * 0.86, irisC or "yellow", 1, false, true)
-		fd("Core", at + up * d * 0.04, d * 0.38, "white", 2, false, true)
-	elseif style == "gem" then
-		fd("Eye", at, d * 0.94, col, 1)
-		-- a diamond: a square turned on its corner, flat on the eye
-		local g = d * 0.42
-		local cf = CFrame.fromMatrix(at + n * (2 * B + 0.025), (right + up).Unit, (up - right).Unit, n)
-		facePart("eye", Kit.part("Gem" .. side, "Block", V(g, g, th), cf, irisC or "purple"), n)
-		fd("Shine", at + up * d * 0.12 - right * d * 0.1, math.max(0.05, d * 0.14), "white", 3)
-	elseif style == "visor" then
-		facePart("eye", Kit.rod("Eye" .. side, at - right * d * 0.36 + n * (B + 0.02), at + right * d * 0.36 + n * (B + 0.02), d * 0.32, irisC or "yellow", false, true), n)
-	elseif style == "compound" then
-		if full then
-			fd("Eye", at, d * 0.36, col, 1)
-			for i = 0, 5 do
-				local a = i / 6 * 2 * math.pi + 0.3
-				fd("Eye", at + (right * math.cos(a) + up * math.sin(a)) * d * 0.3, d * 0.34, if i % 2 == 0 then col else (irisC or col), 1)
-			end
-			fd("Shine", at + up * d * 0.24 - right * d * 0.2, math.max(0.05, d * 0.16), "white", 2)
-			fd("Shine", at + up * d * 0.02 + right * d * 0.06, 0.05, "white", 2)
-		else
-			fd("Eye", at, d * 0.9, col, 1)
-			fd("Shine", at + up * d * 0.2 - right * d * 0.16, math.max(0.1, d * 0.3), "white", 2)
-		end
-	elseif style == "happy" then
-		-- always shut: an arch bowing up, like a smile turned over (no lid: it never opens)
-		blinks = false
-		local m = if full then 4 else 3
-		for i = 0, m - 1 do
-			local s = -1 + 2 * i / (m - 1)
-			local p = at + right * s * d * 0.36 + up * ((1 - s * s) * d * 0.16 - d * 0.04) + n * (B + 0.02)
-			Kit.keep(Kit.part("Arch" .. side, "Ball", V(d * 0.22, d * 0.22, d * 0.22), along(p, n), col))
-		end
-	else
-		-- sparkle, lashes, star, heart, sleepy, fierce: a dark oval
-		oval(col, 0.92)
-		if style == "star" then
-			local c = at - up * d * 0.04 + n * (2 * B + 0.025)
-			local sc = irisC or "yellow"
-			local w = math.max(0.05, d * 0.11)
-			facePart("eye", Kit.rod("Star" .. side, c - up * d * 0.32, c + up * d * 0.32, w, sc), n)
-			facePart("eye", Kit.rod("Star" .. side, c - right * d * 0.28, c + right * d * 0.28, w, sc), n)
-			fd("Star", at - up * d * 0.04, math.max(0.05, d * 0.2), "white", 3)
-			fd("Shine", at + up * d * 0.24 - right * d * 0.2, math.max(0.05, d * 0.14), "white", 3)
-		elseif style == "heart" then
-			local hcol = irisC or "pink"
-			fd("Heart", at + up * d * 0.1 - right * d * 0.1, d * 0.28, hcol, 2)
-			fd("Heart", at + up * d * 0.1 + right * d * 0.1, d * 0.28, hcol, 2)
-			facePart("eye", Kit.blade("Heart" .. side, at + up * d * 0.06 + n * (2 * B + 0.025), at - up * d * 0.26 + n * (2 * B + 0.025), d * 0.46, th, n, hcol), n)
-			fd("Shine", at + up * d * 0.24 - right * d * 0.22, math.max(0.05, d * 0.12), "white", 3)
-		else
-			if irisC and full then
-				fd("Iris", at - up * d * 0.2, d * 0.5, irisC, 2, true)
-			end
-			shines(3, if style == "sleepy" then 0.28 else 0.36)
-		end
-		if style == "lashes" and full then
-			for i, a in { 0.15, 0.45, 0.75 } do
-				local base = at + (outer * math.cos(a) + up * math.sin(a)) * d * 0.46
-				local tip = base + (outer * math.cos(a + 0.2) + up * math.sin(a + 0.2)) * d * (0.18 + 0.04 * i)
-				Kit.rod("Lash" .. side, onHead(base, 1), onHead(tip, 1), 0.05, col)
-			end
-		elseif style == "sleepy" then
-			-- the heavy lid: a disc of the body colour over the eye's top, its lower edge a soft arc
-			fd("UpperLid", at + up * d * 0.44, d * 1.04, look.body or "rock", 4)
-		elseif style == "fierce" then
-			-- the brow: slanting down toward the middle of the face
-			local a = onHead(at + up * d * 0.62 + outer * d * 0.4, 2)
-			local b = onHead(at + up * d * 0.4 - outer * d * 0.42, 2)
-			Kit.rod("Brow" .. side, a, b, math.max(0.05, d * 0.16), col)
-		end
-	end
-	if blinks then
-		-- the lid: an arc bowing down (a content shut eye), hidden in the head until it shuts
-		local m = if isFull then 3 else 2
-		for i = 0, m - 1 do
-			local s = if m == 1 then 0 else -1 + 2 * i / (m - 1)
-			local p = at + right * s * d * 0.36 - up * (1 - s * s) * d * 0.12 + n * (Kit.BIAS + 0.02)
-			local b = Kit.part("Lid" .. side, "Ball", V(d * 0.24, d * 0.24, d * 0.24), along(p, n), col)
-			facePart("lid", b, n)
+		local _ = first
+		if isFull then
+			local a = onHead(at - outer * w * 0.6, 0.05)
+			local b = onHead(at - outer * w * 1.0 + up * h * 0.08, 0.05)
+			Kit.limb("Bridge" .. side, a, b, 0.03, 0.03, irisC)
 		end
 	end
 end

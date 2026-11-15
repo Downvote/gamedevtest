@@ -20,10 +20,13 @@
 -- model turn ink, so nothing of the model is lost) or on its rim ("inner", the world's way) or not at all ("none").
 local Raster = require(script.Parent.Raster)
 local Shading = require(script.Parent.Shading)
+local EyeTex = require(script.Parent.EyeTex)
 
 export type Solid = {
 	shape: string, -- "Block" | "Ball" | "Cylinder" | "Wedge" | "CornerWedge" | "Ell" | "Egg" | "Cone" (anything else is a Block)
 	prm: number?, -- an Egg's or a Cone's shape number (Raster.drawSolid)
+	-- a driftling's eye painted on it (Render/EyeTex): its style's code, its colours (0xRRGGBB) and its side
+	eye: { code: number, iris: number, dark: number, lid: number, side: number }?,
 	cf: { number }, -- cf12: position and rotation
 	sx: number,
 	sy: number,
@@ -374,9 +377,35 @@ local function rasterSolid(job: Job, k: number)
 	local W = job.W
 	local albedo, normal = job.albedo, job.normal
 	local flag = if s.glow then GLOW else 0
-	local function capture(rgb: number, nx: number, ny: number, nz: number, x: number, y: number): number
+	local eye = s.eye
+	local cam = job.cam
+	local function capture(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
 		local idx = y * W + x
-		buffer.writeu32(albedo, idx * 4, rgb + flag)
+		if eye and t then
+			-- (a painted eye: the layer covering most of the pixel, a band lighter or darker by a step toward white or
+			-- black, a catchlight lit)
+			local c = s.cf
+			local ox, oy, oz = Raster.origin(cam, x, y)
+			local px, py, pz = ox + t * cam.lx - c[1], oy + t * cam.ly - c[2], oz + t * cam.lz - c[3]
+			local u = (px * c[4] + py * c[7] + pz * c[10]) / math.max(1e-3, s.sx * 0.5)
+			local v = (px * c[5] + py * c[8] + pz * c[11]) / math.max(1e-3, s.sy * 0.5)
+			local ppu = math.min(s.sx, s.sy) * 0.5 * cam.s / cam.K
+			local a1, l1, g1, a2, l2, g2, k = EyeTex.sample(eye.code, u, v, eye.side, ppu, eye.iris, eye.dark, eye.lid, 0xF4F4F4)
+			local a, l, g = a1, l1, g1
+			if k >= 0.5 then
+				a, l, g = a2, l2, g2
+			end
+			if l ~= 0 and not g then
+				local r0, g0, b0 = bit32.rshift(a, 16), bit32.band(bit32.rshift(a, 8), 0xFF), bit32.band(a, 0xFF)
+				local towards = if l > 0 then 255 else 0
+				local m = if l > 0 then 0.35 else 0.3
+				a = math.floor(r0 + (towards - r0) * m) * 65536 + math.floor(g0 + (towards - g0) * m) * 256 + math.floor(b0 + (towards - b0) * m)
+			end
+			rgb = a
+			buffer.writeu32(albedo, idx * 4, rgb + (if g then GLOW else 0))
+		else
+			buffer.writeu32(albedo, idx * 4, rgb + flag)
+		end
 		buffer.writef32(normal, idx * 12, nx)
 		buffer.writef32(normal, idx * 12 + 4, ny)
 		buffer.writef32(normal, idx * 12 + 8, nz)

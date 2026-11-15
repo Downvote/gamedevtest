@@ -6,7 +6,7 @@ local SPECS = {
 	"DataIntegrity", "Traits", -- the content tables
 	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", "Store", -- the rules
 	"Schema", -- the save
-	"Shading", "Raster", "Rim", "Fx", "DynTex", "Smooth", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures, smooth shading
+	"Shading", "Raster", "Rim", "Fx", "DynTex", "Smooth", "EyeTex", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures, smooth shading, their eyes
 	"DriftMotion", -- the driftlings' motion on their skeletons
 	"Weather", -- the seasons and the weather, and the eggs they touch
 	"PixelFont", -- the pixel font

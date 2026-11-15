@@ -2522,7 +2522,7 @@ end
 -- "pals=<n>" or "pals=<id>,<id>,..." ("palsw=" at the islands' level of detail; an id "shape.body.accent" builds a
 -- body plan in those colours): driftlings up close (Models/DriftModels, built "full" as the hatch scene and the
 -- portraits show them), eight to a picture in two rows of four on a patch of lawn far from the islands, framed by the
--- camera's stage view; idle (pals_idle) and cheering (pals_cheer). Batch n is Data/Creatures.list's species 8n-7 ..
+-- camera's stage view; idle (pals_idle), cheering (pals_cheer) and hurt (pals_hurt: the lids shut, the mouth open). Batch n is Data/Creatures.list's species 8n-7 ..
 -- 8n; the log lists them left to right, back row first, with each one's part count.
 local function palsScenario(arg, lod)
 	seedProfile(62, 1, {})
@@ -2568,7 +2568,9 @@ local function palsScenario(arg, lod)
 			local plan = string.split(id, ".")
 			local d = Creatures.byId[id] or (if #plan >= 2 then { id = id, shape = plan[1], body = plan[2], accent = plan[3] or plan[2] } else nil)
 			if d then
-				local th = if #plan >= 2 then MM.driftling(plan[1], plan[2], plan[3] or plan[2], lod) else MM.species(d.id, lod)
+				-- (a fourth and fifth part pick the eyes' style and iris colour: "pup.orange.cream.slit.yellow")
+				local look = if plan[4] then { eye = plan[4], iris = plan[5] } else nil
+				local th = if #plan >= 2 then MM.driftling(plan[1], plan[2], plan[3] or plan[2], lod, look) else MM.species(d.id, lod)
 				th.model:SetAttribute("PixelShadow", 1)
 				th.model:SetAttribute("PixelGroundY", 0)
 				th.model.Parent = E.workspace
@@ -2594,7 +2596,8 @@ local function palsScenario(arg, lod)
 		end
 		CC.setStage({ name = "pals", origin = E.v3(OX, 0, OZ), pts = pts, tight = nil, top = 8, bottom = 8 })
 	end)
-	for _, mood in { "idle", "cheer" } do
+	-- (and hurt, its eyes shut and its mouth open: the lids of a blink)
+	for _, mood in { "idle", "cheer", "hurt" } do
 		H.inClient(p, function()
 			for j, x in things do
 				MM.animate(x.t, 0.6 + j * 0.37, mood, 0)

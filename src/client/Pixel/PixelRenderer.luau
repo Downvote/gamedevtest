@@ -132,7 +132,9 @@ type TexInfo = { kind: number, rgb: number, x0: number, y0: number, w: number, h
 type Texs = { [number]: TexInfo }
 local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0, h = 0, fam = 0, seed = 0 })
 
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number? }
+-- a painted eye (Render/EyeTex): its style's code, its colours (0xRRGGBB) and its side
+type EyeSpec = { code: number, iris: number, dark: number, lid: number, side: number }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number?, eye: EyeSpec? }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
 -- A moving model's picture last time it was drawn (DynCache in the compose section): its pixels that won against the
@@ -308,6 +310,11 @@ end
 -- the strips it uncovers, a re-cast rect, the water's and the wind's pixels) or clears ok (a bake, the island growing,
 -- a new grade, the pools built again: the next upload grades it all).
 local SG = {
+	-- (a driftling's painted eyes: Render/EyeTex, the eye being drawn, its shade: kept here, not as locals of their
+	-- own, for the module's top-level local limit)
+	EyeTex = require(ReplicatedStorage.Shared.Render.EyeTex),
+	eyeOpt = { code = 1, iris = 0, dark = 0, lid = 0, white = 0xF4F4F4, side = 1, hx = 0.1, hy = 0.1 },
+	shadeEye = nil :: Raster.Shade?,
 	-- (the smooth solids pieces can lie on, by shape: Render/Smooth.packSolid's kinds)
 	solidKind = { Ell = 1, Egg = 2, EggBot = 4, EggTop = 5 } :: { [string]: number },
 	buf = nil :: buffer?,
@@ -1687,6 +1694,34 @@ local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: numb
 	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift, texOpt.soft)
 end
 
+-- A driftling's eye (Render/EyeTex): the hit point on the eyeball in its own frame, its face's (u, v), the layers the
+-- eye paints there, each lit as its own palette colour (a catchlight glows), the edge layer mixed over in its share.
+SG.shadeEye = function(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
+	local cam = texCam
+	if t == nil or cam == nil then
+		return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, 0)
+	end
+	local E = SG.eyeOpt
+	local cf = texCF
+	local px = cam.ox + x * cam.ix + y * cam.jx + t * cam.lx - cf[1]
+	local py = cam.oy + x * cam.iy + y * cam.jy + t * cam.ly - cf[2]
+	local pz = cam.oz + x * cam.iz + y * cam.jz + t * cam.lz - cf[3]
+	local u = (px * cf[4] + py * cf[7] + pz * cf[10]) / E.hx
+	local v = (px * cf[5] + py * cf[8] + pz * cf[11]) / E.hy
+	local ppu = math.min(E.hx, E.hy) / texPx
+	local a1, l1, g1, a2, l2, g2, k = SG.EyeTex.sample(E.code, u, v, E.side, ppu, E.iris, E.dark, E.lid, E.white)
+	local gx, gy = x + panX, y + panY
+	local c1 = Shading.toonAt(a1, nx, ny, nz, if g1 then 2 else 1, gx, gy, Shading.INDOOR, if g1 then 0 else l1)
+	if k <= 0.04 then
+		return c1
+	end
+	local c2 = Shading.toonAt(a2, nx, ny, nz, if g2 then 2 else 1, gx, gy, Shading.INDOOR, if g2 then 0 else l2)
+	if k >= 0.96 then
+		return c2
+	end
+	return Shading.softMix(c1, c2, k)
+end
+
 -- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow), cached per pixel until the static
 -- layer changes (a bake, a pan, a re-cast).
 local function shadeShadowed(s: Surf, idx: number, x: number, y: number): number
@@ -2511,7 +2546,15 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 		if bx0 and by0 and bx1 and by1 then
 			local shade = if p.glow then shadeGlow else shadeLit
 			local lean = smooth and (p.sm == SmoothParts.Smooth.ROLE_BALL or p.sm == SmoothParts.Smooth.ROLE_FOLLOW)
-			if (texOn and p.tex > 0) or lean then
+			local eye = p.eye
+			if eye then
+				-- (a painted eye: Render/EyeTex)
+				texCF = cf12
+				local E = SG.eyeOpt
+				E.code, E.iris, E.dark, E.lid, E.side = eye.code, eye.iris, eye.dark, eye.lid, eye.side
+				E.hx, E.hy = math.max(1e-3, sz.X * 0.5), math.max(1e-3, sz.Y * 0.5)
+				shade = SG.shadeEye :: Raster.Shade
+			elseif (texOn and p.tex > 0) or lean then
 				texCF, texShape, texKind = cf12, p.shape, if texOn then p.tex else 0
 				texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
 				if lean then
@@ -3258,6 +3301,20 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			if type(solid) == "string" and Raster.SOLID_KIND[solid] then
 				shape = solid
 			end
+			-- (a driftling's eye: painted as it is drawn, Render/EyeTex)
+			local eyeStyle = d:GetAttribute("PixelEye")
+			local eye: EyeSpec? = nil
+			if type(eyeStyle) == "string" and SG.EyeTex.STYLE[eyeStyle] then
+				local ci, cd, cl = d:GetAttribute("PixelEyeIris"), d:GetAttribute("PixelEyeDark"), d:GetAttribute("PixelEyeLid")
+				local sd = d:GetAttribute("PixelEyeSide")
+				eye = {
+					code = SG.EyeTex.STYLE[eyeStyle],
+					iris = if typeof(ci) == "Color3" then rgbOf(ci) else 0x4060C0,
+					dark = if typeof(cd) == "Color3" then rgbOf(cd) else 0x202028,
+					lid = if typeof(cl) == "Color3" then rgbOf(cl) else 0x808080,
+					side = if type(sd) == "number" then sd else 1,
+				}
+			end
 			local attr = d:GetAttribute("PixelColor")
 			local rgb = if typeof(attr) == "Color3" then rgbOf(attr) else rgbOf(d.Color)
 			nextDyn += 1
@@ -3285,6 +3342,7 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 				texSoft = if type(tsoft) == "number" then tsoft else DynTex.SOFT,
 				sm = sm,
 				prm = if type(prm) == "number" then prm else nil,
+				eye = eye,
 			})
 		end
 	end

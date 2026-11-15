@@ -65,6 +65,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
+local EyeTex = require(ReplicatedStorage.Shared.Render.EyeTex)
 local Picture = require(ReplicatedStorage.Shared.Render.Picture)
 local PixelRenderer = require(script.Parent.PixelRenderer)
 local ImageMemory = require(script.Parent.ImageMemory)
@@ -166,10 +167,20 @@ local function readSolids(root: Instance): { Picture.Solid }
 			shape = solid
 		end
 		local size = p.Size
-		table.insert(
-			list,
-			Picture.solid(shape, { p.CFrame:GetComponents() }, size.X, size.Y, size.Z, rgb, p.Material == Enum.Material.Neon, 1 - p.Transparency, if type(prm) == "number" then prm else nil)
-		)
+		local sol = Picture.solid(shape, { p.CFrame:GetComponents() }, size.X, size.Y, size.Z, rgb, p.Material == Enum.Material.Neon, 1 - p.Transparency, if type(prm) == "number" then prm else nil)
+		-- (a driftling's eye, painted as it is drawn: Render/EyeTex)
+		local eyeStyle = p:GetAttribute("PixelEye")
+		if type(eyeStyle) == "string" and EyeTex.STYLE[eyeStyle] then
+			local ci, cd, cl, sd = p:GetAttribute("PixelEyeIris"), p:GetAttribute("PixelEyeDark"), p:GetAttribute("PixelEyeLid"), p:GetAttribute("PixelEyeSide")
+			sol.eye = {
+				code = EyeTex.STYLE[eyeStyle],
+				iris = if typeof(ci) == "Color3" then rgbOf(ci) else 0x4060C0,
+				dark = if typeof(cd) == "Color3" then rgbOf(cd) else 0x202028,
+				lid = if typeof(cl) == "Color3" then rgbOf(cl) else 0x808080,
+				side = if type(sd) == "number" then sd else 1,
+			}
+		end
+		table.insert(list, sol)
 	end
 	if root:IsA("BasePart") then
 		add(root)
