@@ -10,7 +10,16 @@
 -- are layered at least 0.08 apart (the top one's edge then reads as a clean line, a feather's edge); and where two
 -- must meet in one plane, a rod made before them covers the join (a finger bone, a vein, a feather's shaft, a fin ray).
 -- Patterns on a flat part (eye spots, bands) are discs thicker than it, centred on it, made before it: they show on
--- both sides.
+-- both sides. Thicker by enough once both snap to the fine grid: a disc 0.12 thick snaps to 0.1, and its face then
+-- stands only 0.025 off a 0.05 wedge's, too little to cover it (0.15 or more over a 0.05 part).
+--
+-- The request (2026-11-15): "can you also do the same with creature and egg models?" (after the buildings, the Tree of
+-- Life and the palms were rebuilt in much more detail, the bakery's way). Each plan got more of what makes its animal:
+-- the moth's wings are fans with veins running out from the root, the bat's and the drake's membranes are notched
+-- between the finger tips, the drake and the serpent have rows of flat spikes and the serpent has bands round its
+-- coils. What reads at a driftling's size is a clear shape and a pattern in its two colours; rows of tiny feathers or
+-- beads in a third colour read as noise, or as a string of pearls, so they are left out. On the islands each plan keeps
+-- about its old part count (a spike is one wedge).
 local Kit = require(script.Parent.DriftKit)
 
 local V = Vector3.new
@@ -177,6 +186,18 @@ local function bend(name: string, pts: { Vector3 }, radii: { number }, color: st
 	end
 end
 
+-- A dorsal spike (a spine, a scale ridge, a fin's point): one flat right triangle standing on the line from `f0` to
+-- `f1` with its point over `f1` at height `h` along `up`, `th` thick so it keeps a pixel side on. One part.
+local function spike(name: string, f0: Vector3, f1: Vector3, h: number, up: Vector3, th: number, color: string, detail: boolean?)
+	if detail and not full() then
+		return
+	end
+	local zu = (f1 - f0).Unit
+	local yv = up - zu * up:Dot(zu)
+	yv = if yv.Magnitude > 1e-4 then yv.Unit else V(0, 1, 0)
+	wedge(name, f0, f1, f1 + yv * h, th, color)
+end
+
 -- A smooth tube along the curve through `pts` that narrows from radii[1] to radii[#radii] (a serpent's body, an ear):
 -- links about `link` studs long (twice that on the islands), and at each joint a ball exactly as wide as the thicker
 -- link beside it, so the end of that link is capped round. (Kit.tube's joint balls are a little thinner than its
@@ -256,47 +277,73 @@ local function sail(name: string, f0: Vector3, f1: Vector3, top: Vector3, rays: 
 	wedge(name, f0, f1, tp, 0.05, color)
 end
 
--- A rounded wing (a moth's): a disc `d` out from the root along the angle `beta` (degrees, in the plane of `ex` and
--- `ey`), as wide as the wing fans `half` either side, and two right triangles from the root to where the wing's
--- straight edges meet the disc (the radius meets each at a right angle there), a vein made first down the middle
--- where they join. `spots`: discs on it, made first, each thinner than the one before (`size` times the disc's
--- radius across), at the disc's middle; `rim`: pale beads round its outer edge. Returns the disc's middle.
-local function lobe(name: string, root: Vector3, ex: Vector3, ey: Vector3, beta: number, half: number, d: number, color: string, vein: string, spots: { { col: string, size: number } }, rim: string?): Vector3
+-- A moth's wing as a fan of right triangles from its root (one wedge each, every other one a layer out; the lines
+-- between them run straight out from the root, with a vein along each on the full thing the way a moth's veins run). `rays` are the angles of the
+-- lines (degrees in the plane of `ex` and `ey`, in order round the wing); each triangle lies between two neighbours
+-- with its square corner on the one `sq` names (1: the first of the two, 2: the second) at `reach` from the root, its
+-- outer edge square to that line out to the other line, so the outer edge bows out where the reaches grow toward the
+-- middle. Made first (patterns on the wing, so they show on both sides): `spots` (discs thicker than the wing, `size`
+-- times the wing's mean reach across, centred at `spotAt`: an angle and a share of the reach), the veins (`vein`)
+-- and a pale line along the outer edge (`rim`). Returns the spots' centre.
+local function fan(name: string, root: Vector3, ex: Vector3, ey: Vector3, rays: { number }, sq: { number }, reach: { number }, color: string, vein: string, spots: { { col: string, size: number } }, spotAt: { number }, rim: string?): Vector3
 	local n = ex:Cross(ey).Unit
 	local function P(ang: number, dist: number): Vector3
 		return root + (ex * math.cos(R(ang)) + ey * math.sin(R(ang))) * dist
 	end
-	local r = d * math.sin(R(half))
-	local C = P(beta, d)
+	local mean = 0
+	for _, d in reach do
+		mean += d
+	end
+	mean /= #reach
+	local C = P(spotAt[1], spotAt[2] * mean)
 	for i, sp in spots do
 		if i == 1 or full() then
-			flat(name .. "Spot", C, n, r * sp.size, 0.12 + 0.07 * (#spots - i + 1), sp.col)
+			flat(name .. "Spot", C, n, mean * sp.size, 0.12 + 0.07 * (#spots - i + 1), sp.col)
 		end
 	end
-	if rim and full() then
-		-- (close enough to overlap: a scalloped edge)
-		local k = math.max(3, math.floor(r * math.rad(150) / 0.1))
-		for i = 0, k - 1 do
-			local ang = R(beta - 75 + i * 150 / (k - 1))
-			Kit.ball(name .. "Rim", C + (ex * math.cos(ang) + ey * math.sin(ang)) * r, 0.12, rim)
+	-- each triangle's square corner and far corner, and how far the wing reaches along each line
+	local tris = {}
+	local far: { number } = table.create(#rays, 0)
+	for k = 1, #rays - 1 do
+		local i0, i1 = k, k + 1
+		if sq[k] == 2 then
+			i0, i1 = i1, i0
 		end
+		local d = reach[k]
+		local d1 = d / math.cos(R(math.abs(rays[i1] - rays[i0])))
+		far[i0], far[i1] = math.max(far[i0], d), math.max(far[i1], d1)
+		table.insert(tris, { P(rays[i0], d), P(rays[i1], d1) })
 	end
 	if full() then
-		Kit.rod(name .. "Vein", root, C, 0.07, vein)
+		-- (the veins: along every line out from the root, nearly as far as the wing reaches there)
+		for k = 1, #rays do
+			Kit.rod(name .. "Vein", root, P(rays[k], far[k] * 0.96), 0.07, vein)
+		end
+		if rim then
+			-- (a ball at each end of each stretch, so the corners where the pale edge turns are round)
+			for _, tr in tris do
+				Kit.rod(name .. "Rim", tr[1], tr[2], 0.08, rim)
+				Kit.ball(name .. "Rim", tr[1], 0.1, rim)
+				Kit.ball(name .. "Rim", tr[2], 0.1, rim)
+			end
+		end
 	end
-	flat(name, C, n, 2 * r, 0.12, color)
-	local tl = d * math.cos(R(half))
-	wedge(name, root, P(beta + half, tl), C, 0.05, color)
-	wedge(name, root, P(beta - half, tl), C, 0.05, color)
+	-- (every other one a layer out, so neighbours never touch in one plane and no dotted join shows where no vein
+	-- covers it, on the islands)
+	for k, tr in tris do
+		local o = n * (if k % 2 == 0 then 0.08 else 0)
+		wedge(name, root + o, tr[1] + o, tr[2] + o, 0.05, color)
+	end
 	return C
 end
 
 ------------------------------------------------------------------ the gull
--- a gull with a fish's fin: a round body tipped up at the chest, a pale chest, a mantle in the accent (a gull's grey
--- back); a round head with big eyes, a crest of three plumes, a hooked beak in two parts with a red spot near the tip
--- of the lower part (it opens); plump folded wings with a scalloped edge and black pointed primaries with white spots
--- crossing over the tail; a fish's dorsal fin with rays on its back; a forked tail with fin rays; feathered thighs,
--- thin legs and webbed feet with three toes, claws and a hind toe
+-- a gull with a fish's fin: a round body tipped up at the chest, a pale breast from the chin down, a mantle in the
+-- accent (a gull's grey back); a round head with full cheeks, big eyes, a crest of three plumes, a hooked beak in two
+-- parts with a red spot near the tip of the lower part (it opens) and a fish's three gill slits behind each cheek;
+-- plump folded wings with a scalloped edge and black pointed primaries with white spots crossing over the tail; a
+-- fish's dorsal fin with rays on its back; a forked tail with fin rays under two covert feathers; feathered thighs,
+-- thin legs with a knobbly ankle, webbed feet with three toes, claws and a hind toe
 PLANS.bird = function(b, a)
 	local t = Kit.new("bird", 2.1, 0.9, "biped")
 	J("body", nil, V(0, 0.9, 0), "body")
@@ -307,6 +354,8 @@ PLANS.bird = function(b, a)
 	Kit.ovoid("Body", BC, V(0.6, 0.58, 0.74), b, CFrame.Angles(R(-14), 0, 0))
 	-- the chest and the mantle bulge clear of the body
 	Kit.ball("Chest", V(0, 0.9, 0.26), 0.98, "cream")
+	-- (and up the throat to the chin, so the pale breast runs from the beak to the belly)
+	Kit.ball("Throat", V(0, 1.3, 0.38), 0.6, "cream")
 	Kit.ball("Mantle", V(0, 1.22, -0.28), 0.9, a)
 
 	-- the head
@@ -327,6 +376,19 @@ PLANS.bird = function(b, a)
 	end
 	Kit.eyes(HC, HR, FWD, R(34), R(6), 0.26, a)
 	Kit.blush(HC, HR, FWD, R(52), R(16), 0.15)
+	-- the fish's gill slits: three short curved strokes behind each cheek
+	if full() then
+		for _, side in { -1, 1 } do
+			for k = 1, 3 do
+				local yaw = side * (100 + k * 15)
+				local p0 = Kit.onBall(HC, HR + 0.035, dir(yaw, -2 - k * 2))
+				local p1 = Kit.onBall(HC, HR + 0.035, dir(yaw + side * 4, -24 - k * 3))
+				local p2 = Kit.onBall(HC, HR + 0.035, dir(yaw, -44 - k * 2))
+				Kit.rod("Gill", p0, p1, 0.05, a)
+				Kit.rod("Gill", p1, p2, 0.05, a)
+			end
+		end
+	end
 	-- the upper beak, hooked, with its nostrils; a red inside shows when the lower part drops
 	local beak0 = HC + V(0, -0.08, 0.36)
 	if full() then
@@ -353,7 +415,7 @@ PLANS.bird = function(b, a)
 
 	for _, side in { -1, 1 } do
 		local s = sideName(side)
-		-- a folded wing: black primaries over the tail (made first), a plump wing (the coverts), a scalloped edge
+		-- a folded wing: black primaries over the tail (made first), the plump wing (the coverts) with its scalloped edge
 		J("wing" .. s, "body", M(side, 0.6, 1.35, 0), "wing", side)
 		local wn = V(side * 0.75, 0.66, 0).Unit
 		for k = 1, (if full() then 3 else 2) do
@@ -389,6 +451,7 @@ PLANS.bird = function(b, a)
 				wedge("Web" .. s, c, p, q, 0.05, "orange")
 			end
 			Kit.ball("HindToe" .. s, ank + V(0, -0.02, -0.08), 0.08, "orange")
+			Kit.ball("Ankle" .. s, ank + V(0, 0.04, 0), 0.13, "orange")
 		else
 			for i = 1, 3, 2 do
 				Kit.rod("Toe" .. s, ank, toes[i], 0.1, "orange")
@@ -399,7 +462,7 @@ PLANS.bird = function(b, a)
 		Kit.tuft("Trouser" .. s, M(side, 0.28, 0.4, 0.06), 0.1, b, 4, true)
 	end
 
-	-- the tail: a stub and a fork of two lobes with fin rays
+	-- the tail: a stub, two covert feathers over it and a fork of two lobes with fin rays
 	J("tail", "body", V(0, 0.95, -0.7), "tail", 0, 1)
 	local tb = V(0, 0.9, -0.84)
 	for _, side in { -1, 1 } do
@@ -418,15 +481,23 @@ PLANS.bird = function(b, a)
 		end
 		wedge("TailLobe", tip, tb + lift, top, 0.05, a)
 	end
+	if full() then
+		for _, side in { -1, 1 } do
+			local up = V(side * 0.25, 1, 0.15).Unit
+			local o = up * (if side > 0 then 0.08 else 0)
+			Kit.blade("TailCovert", M(side, 0.06, 1.2, -0.66) + o, M(side, 0.16, 1.07, -1.12) + o, 0.2, 0.05, up, a)
+		end
+	end
 	Kit.tube("TailBase", { V(0, 0.98, -0.6), V(0, 0.92, -0.9) }, { 0.2, 0.15 }, b)
 	return t
 end
 
 ------------------------------------------------------------------ the owl
--- an owl: an upright egg of a body with a pale chevroned breast; a broad head with two round facial discs, each
--- ringed with a rim of feathers, big eyes, a small hooked beak and ear tufts of three plumes; pale spots on the crown;
--- folded wings with rows of pale spots, a scalloped edge and rounded primaries; a short rounded tail; fluffy
--- feathered legs and three orange toes with black talons
+-- an owl: an upright egg of a body with a pale breast barred with four rows of chevrons; a broad head with two round
+-- facial discs, each ringed with a rim of feathers, big eyes, fluff at the back of the cheeks, a small hooked beak and
+-- ear tufts (a plume with a pointed feather either side); pale spots on the crown; folded wings with rows of pale
+-- spots, a scalloped edge and rounded primaries; a short rounded tail; fluffy feathered legs and three orange toes with
+-- black talons
 PLANS.owl = function(b, a)
 	local t = Kit.new("owl", 2.3, 0.9, "biped")
 	J("body", nil, V(0, 0.8, 0), "body")
@@ -434,11 +505,11 @@ PLANS.owl = function(b, a)
 	-- the chevrons first (strokes just clear of the breast), then the breast and the body
 	local belC, belR = V(0, 0.84, 0.2), 0.5
 	if full() then
-		for row = 0, 2 do
-			local n = if row == 0 then 3 else 2
+		for row = 0, 3 do
+			local n = if row % 2 == 0 then 3 else 2
 			for i = 1, n do
 				local yaw = (i - (n + 1) / 2) * 26
-				local pitch = 10 - row * 21
+				local pitch = 14 - row * 19
 				local tip = belC + dir(yaw, pitch - 7) * (belR + 0.035)
 				for _, sx in { -1, 1 } do
 					Kit.rod("Chevron", belC + dir(yaw + sx * 9, pitch) * (belR + 0.035), tip, 0.06, a)
@@ -492,6 +563,8 @@ PLANS.owl = function(b, a)
 		end
 		Kit.ball("Disc" .. s, Fc, 2 * rF, "cream")
 		Kit.eye(s, Fc, rF, dd, 0.3, "yellow")
+		-- fluff sticking out at the back of the cheek
+		Kit.tuft("CheekFluff" .. s, HC + M(side, 0.6, -0.26, -0.1), 0.1, b, 4, true)
 		local ca, cn = Kit.onBall(Fc, rF + LIFT, dir(side * 40, -30))
 		Kit.disc("Cheek" .. s, ca, cn, 0.14, 0.05, "pink", false, rF + LIFT)
 	end
@@ -506,13 +579,13 @@ PLANS.owl = function(b, a)
 
 	for _, side in { -1, 1 } do
 		local s = sideName(side)
-		-- the ear tufts: three plumes
+		-- the ear tufts: a plume with a pointed feather either side
 		J("ear" .. s, "head", M(side, 0.4, 2.25, 0), "ear", side)
+		-- (two pointed feathers of the accent's either side of the plume, facing forward and a little in)
+		local tf = V(side * -0.3, 0.1, 1).Unit
+		quill("TuftFeather" .. s, M(side, 0.28, 2.22, 0.12), M(side, 0.42, 2.64, 0.1), 0.17, tf, a, a, true)
+		quill("TuftFeather" .. s, M(side, 0.46, 2.18, -0.12), M(side, 0.8, 2.48, -0.22), 0.17, tf, a, a, true)
 		bend("Tuft" .. s, { M(side, 0.36, 2.2, 0.0), M(side, 0.5, 2.5, -0.04), M(side, 0.64, 2.72, -0.12) }, { 0.15, 0.1, 0.035 }, b, 1.5)
-		if full() then
-			Kit.tube("TuftSide" .. s, { M(side, 0.3, 2.24, 0.1), M(side, 0.44, 2.6, 0.08) }, { 0.09, 0.03 }, a, 2)
-			Kit.tube("TuftSide" .. s, { M(side, 0.46, 2.18, -0.1), M(side, 0.74, 2.48, -0.2) }, { 0.09, 0.03 }, a, 2)
-		end
 	end
 
 	for _, side in { -1, 1 } do
@@ -561,16 +634,20 @@ PLANS.owl = function(b, a)
 end
 
 ------------------------------------------------------------------ the bat
--- a bat: a round furry body with a pale chest and a collar of fluff; a round head with puffed cheeks, a muzzle with a
--- pink nose and nostrils, big eyes, a smile with two fangs over a chin that drops, huge pointed ears pink inside, a
--- tuft on top; wings of bone and membrane: an arm to the wrist with a thumb claw, three fingers fanning from it, the
--- membrane in panels between them scalloped between the finger tips, veins where its panels meet; little legs with
--- clawed toes
+-- a bat: a round furry body with a pale chest, a collar of fluff and tufts at the shoulders; a round head with puffed
+-- cheeks, a muzzle with a pink nose, a nose leaf and nostrils, big eyes, a smile with two fangs over a chin that
+-- drops, huge pointed ears pink inside with a tragus standing in each, a tuft on top; wings of bone and membrane: an
+-- arm to the wrist with a thumb claw, three knuckled fingers fanning from it, the membrane in panels between them,
+-- each notched between the finger tips, veins where its panels meet; little legs with clawed toes
 PLANS.bat = function(b, a)
 	local t = Kit.new("bat", 2.4, 1.3, "fly")
 	J("body", nil, V(0, 1.3, 0), "body")
 	Kit.ovoid("Body", V(0, 1.28, -0.02), V(0.46, 0.52, 0.42), b)
 	Kit.ball("Chest", V(0, 1.22, 0.2), 0.62, "cream")
+	-- fur tufts at the shoulders, where the wings meet the body
+	for _, side in { -1, 1 } do
+		Kit.tuft("Shoulder", M(side, 0.33, 1.56, 0.0), 0.09, b, 4, true)
+	end
 	local nRuff = if full() then 9 else 5
 	for i = 0, nRuff - 1 do
 		local ang = (i / (nRuff - 1) - 0.5) * math.pi * 1.3
@@ -588,6 +665,10 @@ PLANS.bat = function(b, a)
 	local MZ = HC + V(0, -0.12, 0.34)
 	Kit.ball("Muzzle", MZ, 0.35, b)
 	Kit.ball("Nose", MZ + V(0, 0.06, 0.16), 0.14, "pink")
+	-- the nose leaf: a small pointed flap standing up over the nose
+	if full() then
+		Kit.blade("NoseLeaf", MZ + V(0, 0.1, 0.17), MZ + V(0, 0.26, 0.13), 0.13, 0.05, V(0, 0.15, 1), "pink")
+	end
 	if full() then
 		for _, side in { -1, 1 } do
 			Kit.disc("Nostril", MZ + V(side * 0.03, 0.06, 0.25), V(side * 0.3, 0.1, 1), 0.04, 0.05, "black")
@@ -618,6 +699,11 @@ PLANS.bat = function(b, a)
 			Kit.rod("EarRidge" .. s, in0, in0:Lerp(in1, 0.8), 0.07, "pink")
 		end
 		Kit.blade("EarIn" .. s, in0, in1, 0.27, 0.05, front, "pink")
+		-- the tragus: a little pointed flap standing in front of the ear's opening
+		if full() then
+			local tg0 = e0 + front * 0.24 + V(0, 0.02, 0)
+			Kit.blade("Tragus" .. s, tg0, tg0 + V(-side * 0.02, 0.2, 0.02), 0.1, 0.05, front, b)
+		end
 		if full() then
 			smooth("Ear" .. s, { e0, M(side, 0.33, 2.48, 0.03), e2 }, { 0.19, 0.12, 0.03 }, b, 0.17)
 		else
@@ -645,10 +731,17 @@ PLANS.bat = function(b, a)
 		J("wing" .. s .. "2", "wing" .. s, M(side, 1.35, 1.62, -0.05), "wing", side, 1)
 		for _, tp in { T3, T4, T5 } do
 			limb("Finger" .. s, W, tp, 0.045, 0.035, b, nil, true)
+			-- (a knuckle halfway along)
+			Kit.ball("Knuckle" .. s, W:Lerp(tp, 0.5), 0.11, b, true)
 		end
 		cone("Thumb" .. s, W + V(0, 0.02, 0), W + M(side, 0.04, 0.17, 0.06), 0.05, "cream", true)
+		-- (each panel two right triangles, one along each finger, the second a layer behind: their trailing edges
+		-- cross in a notch between the finger tips)
+		local back = V(0, 0, -0.08)
 		web("Membrane" .. s, W, T3, T4, 0.95, a)
+		web("Membrane" .. s, W + back, T4 + back, T3 + back, 0.95, a)
 		web("Membrane" .. s, W, T4, T5, 0.95, a)
+		web("Membrane" .. s, W + back, T5 + back, T4 + back, 0.95, a)
 
 		-- a little leg with clawed toes
 		J("leg" .. s, "body", M(side, 0.2, 0.9, 0), "leg", side, if side < 0 then 0 else 0.5)
@@ -663,10 +756,11 @@ end
 
 ------------------------------------------------------------------ the moth
 -- a moth: a round fuzzy thorax with a collar of fluff and tufts on its back; a banded abdomen of four rings tapering
--- back; six thin legs; a round head with big eyes, a small smile, blush and a tuft of fuzz; feathery antennae (a curved
--- stalk with fine barbs both sides and a club at the tip); two pairs of wings, each a patch at its root in the body's
--- colour and a rounded field in the accent with a pale border, the forewing with an eye spot (a ring, a dark pupil
--- and a shine both sides), the hindwing a layer behind with a smaller dark spot
+-- back to a fuzzy tip; six thin legs bent at the knee; a round head with big eyes, a small smile, blush and a tuft of
+-- fuzz; feathery antennae (a curved stalk with seven fine barbs both sides and a club at the tip); two pairs of wings
+-- in the accent, each a fan with veins running out from its root and a pale edge: the forewing reaching up and out with
+-- an eye spot (a ring, a dark pupil and a shine both sides), the hindwing a rounder fan below and a layer behind with a
+-- smaller dark spot
 PLANS.moth = function(b, a)
 	local t = Kit.new("moth", 2.4, 1.4, "fly")
 	J("body", nil, V(0, 1.1, 0), "body")
@@ -686,11 +780,14 @@ PLANS.moth = function(b, a)
 	end
 	Kit.tuft("Fuzz", V(0, 1.6, -0.08), 0.12, b, nil, true)
 	Kit.tuft("Fuzz", V(0, 1.3, -0.3), 0.11, b, nil, true)
-	-- six thin legs hanging under the thorax
+	Kit.tuft("TailFuzz", V(0, 0.72, -0.98), 0.08, a, 4, true)
+	-- six thin legs hanging under the thorax, bent at the knee
 	if full() then
 		for _, side in { -1, 1 } do
 			for k = 0, 2 do
-				Kit.rod("Leg", M(side, 0.14, 0.96, 0.2 - k * 0.16), M(side, 0.3 + k * 0.04, 0.64, 0.34 - k * 0.3), 0.07, b)
+				local knee = M(side, 0.3 + k * 0.03, 0.88, 0.26 - k * 0.2)
+				Kit.rod("Leg", M(side, 0.14, 0.98, 0.2 - k * 0.16), knee, 0.08, b)
+				Kit.rod("Leg", knee, M(side, 0.34 + k * 0.04, 0.62, 0.34 - k * 0.3), 0.06, b)
 			end
 		end
 	end
@@ -712,12 +809,12 @@ PLANS.moth = function(b, a)
 		J("ant" .. s, "head", M(side, 0.15, 1.9, 0.6), "antenna", side)
 		local stalk = { M(side, 0.1, 1.88, 0.62), M(side, 0.24, 2.2, 0.72), M(side, 0.44, 2.42, 0.64) }
 		if full() then
-			for i = 1, 5 do
-				local u = 0.3 + (i - 1) * 0.15
+			for i = 1, 7 do
+				local u = 0.22 + (i - 1) * 0.12
 				local p = Kit.curveAt(stalk, u)
 				local tg = (Kit.curveAt(stalk, math.min(1, u + 0.03)) - Kit.curveAt(stalk, u - 0.03)).Unit
 				local sv = tg:Cross(FWD).Unit
-				local L = 0.19 - (i - 1) * 0.028
+				local L = 0.2 - (i - 1) * 0.022
 				for _, k in { -1, 1 } do
 					Kit.rod("Barb" .. s, p, p + sv * (k * L) + tg * 0.05, 0.05, a)
 				end
@@ -730,30 +827,32 @@ PLANS.moth = function(b, a)
 		end
 		Kit.ball("AntTip" .. s, stalk[3], 0.1, a)
 
-		-- the wings, swept back a little, the hindwing a layer behind the forewing: rounded lobes, an eye spot on the
-		-- forewing (a ring, a dark pupil, a shine either side), a dark spot on the hindwing, pale beads round their edges
+		-- the wings, swept back a little, the hindwing a layer behind the forewing: two fans with veins and a pale edge, an
+		-- eye spot (a ring, a dark pupil, a shine either side) on the forewing and a dark spot on the hindwing
 		J("wing" .. s, "body", M(side, 0.3, 1.35, 0), "wing", side)
 		local ex = V(side * math.cos(R(20)), 0, -math.sin(R(20)))
 		local ey = V(0, math.cos(R(14)), -math.sin(R(14)))
 		local n = ex:Cross(ey).Unit
-		local C = lobe("Forewing" .. s, M(side, 0.24, 1.44, -0.02), ex, ey, 18, 30, 0.92, a, b, { { col = "black", size = 0.4 }, { col = b, size = 0.78 } }, "cream")
+		local root = M(side, 0.24, 1.44, -0.02)
+		-- (the forewing reaching furthest up and out, its outer edge bowing out; the hindwing a rounder fan below)
+		local C = fan("Forewing" .. s, root, ex, ey, { 62, 41, 18, -5 }, { 1, 2, 2 }, { 1.32, 1.3, 1.2 }, a, b, { { col = "black", size = 0.26 }, { col = b, size = 0.5 } }, { 36, 0.62 }, "cream")
 		if full() then
 			for _, k in { -1, 1 } do
 				Kit.ball("SpotShine" .. s, C + ey * 0.05 - ex * 0.04 + n * (k * 0.13), 0.06, "white")
 			end
 		end
-		lobe("Hindwing" .. s, M(side, 0.22, 1.26, -0.06) - n * 0.1, ex, ey, -40, 32, 0.66, a, b, { { col = "black", size = 0.42 } }, "cream")
+		fan("Hindwing" .. s, M(side, 0.22, 1.26, -0.06) - n * 0.1, ex, ey, { -12, -36, -60, -84 }, { 1, 1, 2 }, { 0.8, 0.88, 0.86 }, a, b, { { col = "black", size = 0.3 } }, { -54, 0.55 }, "cream")
 	end
 	return t
 end
 
 ------------------------------------------------------------------ the drake
--- a baby dragon on four legs: a round body with a row of cream belly plates and spots on its flanks, spines down its
--- back; chunky legs with round feet and three cream claws each; a neck with throat plates up to a round head with a
--- snout (nostrils on top, two teeth over a smile), big eyes, horns that curve back and taper, fins for ears, little
--- spikes at the cheeks and a crest down the back of the head and neck; a lower jaw that drops; wings of bone and
--- membrane (an arm with a thumb claw, three fingers, the membrane scalloped between them); a tail in two parts with
--- spines, ending in a flat spade
+-- a baby dragon on four bent legs: a round body with a row of cream belly plates and spots on its flanks, a row of flat
+-- spikes down its back between two dotted stripes; chunky legs with round feet and three cream claws each; a neck with
+-- throat plates and a crest of spikes up to a round head with a snout (nostrils on top, two teeth over a smile), big
+-- eyes, horns that curve back and taper, fins for ears, a little spike at each cheek and a spike at the back of the
+-- head; a lower jaw that drops; wings of bone and membrane (an arm with a thumb claw, three fingers, the membrane
+-- notched between them); a tail in two parts with a spike on each, ending in a flat spade
 PLANS.drake = function(b, a)
 	local t = Kit.new("drake", 2.6, 1.4, "quad")
 	J("body", nil, V(0, 0.9, 0), "body")
@@ -765,6 +864,12 @@ PLANS.drake = function(b, a)
 				local at, nn = Kit.onBall(BC, 0.525 + LIFT, dir(side * c[1], c[2]))
 				Kit.disc("Spot", at, nn, c[3], 0.05, a, false, 0.525 + LIFT)
 			end
+			-- and a dotted stripe either side of the spines, one spot on each of the body's three balls
+			for _, c in { { 0.24, 0.5, 0.17 }, { 0, 0.525, 0.18 }, { -0.24, 0.5, 0.15 } } do
+				local ctr = BC + CFrame.Angles(R(-6), 0, 0):VectorToWorldSpace(V(0, 0, c[1]))
+				local at, nn = Kit.onBall(ctr, c[2] + LIFT, dir(side * 90, 60))
+				Kit.disc("Stripe", at, nn, c[3], 0.05, a, false, c[2] + LIFT)
+			end
 		end
 	end
 	Kit.ovoid("Body", BC, V(0.56, 0.52, 0.76), b, CFrame.Angles(R(-6), 0, 0))
@@ -774,10 +879,11 @@ PLANS.drake = function(b, a)
 			Kit.ball("Plate", V(c[1], c[2], c[3]), c[4], "cream")
 		end
 	end
-	-- spines down the back
-	for i, c in { { 0.14, 1.45, 0.28, 0.1 }, { -0.24, 1.44, 0.3, 0.11 }, { -0.6, 1.28, 0.22, 0.09 } } do
-		if full() or i == 2 then
-			cone("Spine", V(0, c[2], c[1]), V(0, c[2] + c[3], c[1] - c[3] * 0.55), c[4], a, true)
+	-- spines down the back: a row of flat spikes leaning back, the biggest over the shoulders (front foot z, its
+	-- height on the back, how tall; every other one on the islands)
+	for i, c in { { 0.42, 1.33, 0.2 }, { 0.2, 1.4, 0.27 }, { -0.04, 1.42, 0.27 }, { -0.28, 1.39, 0.23 }, { -0.5, 1.3, 0.18 } } do
+		if full() or i % 2 == 0 then
+			spike("Spine", V(0, c[2], c[1]), V(0, c[2] - 0.02, c[1] - 0.2), c[3], UP, 0.1, a)
 		end
 	end
 	-- four legs: a thigh, the leg, a round foot, claws
@@ -792,7 +898,11 @@ PLANS.drake = function(b, a)
 		end
 		Kit.ball("Foot" .. l.n, M(side, 0.38, 0.13, z + 0.1), 0.32, b)
 		if full() then
-			Kit.tube("Leg" .. l.n, { M(side, 0.36, 0.7, z), M(side, 0.39, 0.4, z + 0.02), M(side, 0.38, 0.18, z + 0.08) }, { 0.15, 0.13, 0.12 }, b)
+			-- (a hind leg bends forward at the knee and back at the hock, a foreleg back at the elbow)
+			local pts = if back
+				then { M(side, 0.36, 0.72, z - 0.02), M(side, 0.38, 0.46, z + 0.1), M(side, 0.39, 0.28, z - 0.03), M(side, 0.38, 0.17, z + 0.08) }
+				else { M(side, 0.36, 0.7, z), M(side, 0.38, 0.45, z - 0.04), M(side, 0.39, 0.27, z + 0.03), M(side, 0.38, 0.17, z + 0.08) }
+			Kit.tube("Leg" .. l.n, pts, { 0.16, 0.14, 0.12, 0.12 }, b)
 		else
 			Kit.rod("Leg" .. l.n, M(side, 0.36, 0.7, z), M(side, 0.38, 0.16, z + 0.08), 0.27, b)
 		end
@@ -802,14 +912,27 @@ PLANS.drake = function(b, a)
 	-- the head on its neck
 	J("head", "body", V(0, 1.25, 0.6), "head")
 	Kit.tube("Neck", if full() then { V(0, 1.1, 0.36), V(0, 1.46, 0.66), V(0, 1.78, 0.86) } else { V(0, 1.1, 0.36), V(0, 1.78, 0.86) }, { 0.28, 0.23, 0.22 }, b)
-	Kit.ball("Throat", V(0, 1.3, 0.74), 0.34, "cream", true)
-	Kit.ball("Throat", V(0, 1.56, 0.9), 0.3, "cream", true)
+	-- throat plates down the front of the neck, each bulging a little so the cream band's edges are scalloped
+	local neckPts = { V(0, 1.1, 0.36), V(0, 1.46, 0.66), V(0, 1.78, 0.86) }
+	for i, u in { 0.1, 0.34, 0.58, 0.82 } do
+		if full() or i == 2 then
+			local c = Kit.curveAt(neckPts, u)
+			local tg = (Kit.curveAt(neckPts, math.min(1, u + 0.03)) - Kit.curveAt(neckPts, math.max(0, u - 0.03))).Unit
+			local fr = V(1, 0, 0):Cross(tg).Unit
+			Kit.ball("Throat", c + fr * (0.25 - u * 0.05), if full() then 0.24 else 0.3, "cream")
+		end
+	end
+	-- the crest down the back of the neck and head: spikes standing out square to the neck
 	if full() then
-		cone("Crest", V(0, 1.72, 0.62), V(0, 1.92, 0.42), 0.09, a)
+		for _, c in { { 1.36, 0.4 }, { 1.58, 0.56 } } do
+			local nb = V(0, 0.6, -0.8)
+			local f0 = V(0, c[1], c[2]) + nb * 0.14
+			spike("Crest", f0, f0 + V(0, -0.12, -0.16), 0.16, nb, 0.1, a)
+		end
 	end
 	local HC = V(0, 1.98, 0.98)
 	local HR = 0.425
-	cone("Crest", HC + V(0, 0.36, -0.22), HC + V(0, 0.58, -0.46), 0.1, a, true)
+	spike("Crest", HC + V(0, 0.36, -0.12), HC + V(0, 0.28, -0.38), 0.24, V(0, 1, -0.3), 0.1, a)
 	Kit.ball("Head", HC, 2 * HR, b)
 	local SN1 = HC + V(0, -0.12, 0.62)
 	Kit.tube("Snout", { HC + V(0, -0.12, 0.22), SN1 }, { 0.24, 0.2 }, b)
@@ -832,6 +955,8 @@ PLANS.drake = function(b, a)
 			Kit.rod("Horn" .. s, HC + M(side, 0.18, 0.28, -0.1), HC + M(side, 0.31, 0.56, -0.5), 0.14, "cream")
 		end
 		quill("EarFin" .. s, HC + M(side, 0.34, 0.08, -0.12), HC + M(side, 0.62, 0.2, -0.44), 0.26, V(side, 0.25, 0.45), a, a, true)
+		-- a little spike at the back of each cheek, pointing back and out
+		spike("CheekSpike", HC + M(side, 0.3, -0.18, 0.02), HC + M(side, 0.36, -0.2, -0.22), 0.13, V(side, -0.4, 0), 0.08, a, true)
 	end
 	J("jaw", "head", V(0, 1.72, 1.15), "jaw")
 	Kit.ball("Tongue", V(0, 1.8, 1.34), 0.14, "berry_red", true)
@@ -865,16 +990,21 @@ PLANS.drake = function(b, a)
 		end
 		web("Membrane" .. s, W, T1, T2, 0.95, a)
 		web("Membrane" .. s, W, T2, T3, 0.95, a)
+		if full() then
+			-- (a second triangle along the other finger, a layer behind: the panel's edge notched between the tips)
+			local back = V(0, 0, -0.08)
+			web("Membrane" .. s, W + back, T2 + back, T1 + back, 0.95, a)
+			web("Membrane" .. s, W + back, T3 + back, T2 + back, 0.95, a)
+		end
 	end
 
 	-- the tail: two parts with spines, a spade at its end
 	J("tail1", "body", V(0, 0.85, -0.9), "tail", 0, 1)
 	bend("Tail", { V(0, 0.94, -0.66), V(0, 0.8, -1.1), V(0, 0.68, -1.6) }, { 0.32, 0.24, 0.17 }, b)
-	cone("TailSpine", V(0, 1.02, -1.0), V(0, 1.22, -1.16), 0.08, a, true)
-	if full() then
-		cone("TailSpine", V(0, 0.86, -1.38), V(0, 1.02, -1.52), 0.07, a)
-	end
+	spike("TailSpine", V(0, 1.12, -0.86), V(0, 1.03, -1.06), 0.17, UP, 0.1, a)
+	spike("TailSpine", V(0, 0.96, -1.24), V(0, 0.89, -1.42), 0.14, UP, 0.08, a, true)
 	J("tail2", "tail1", V(0, 0.7, -1.6), "tail", 0, 2)
+	spike("TailSpine", V(0, 0.8, -1.62), V(0, 0.75, -1.8), 0.11, UP, 0.08, a, true)
 	if full() then
 		Kit.rod("SpadeRib", V(0, 0.56, -2.18), V(0, 0.56, -2.62), 0.08, b)
 	end
@@ -891,9 +1021,10 @@ end
 
 ------------------------------------------------------------------ the sea serpent
 -- a sea serpent: a long smooth body tapering to its tail, arched in a hump with a finned frill on top and pale belly
--- scales under it, spots down its back; a tail fin with rays; a neck rising in a curve with pale throat scales down
--- its front; a round head with a snout (nostrils, two teeth over a smile), big eyes, short horns swept back, a finned
--- crest, whisker barbels and three gill plumes each side; a pale lower jaw that drops
+-- scales under it, spots and a ridge of flat spikes down its back, bands of the accent round its coils and tail; a tail
+-- fin with rays; a neck rising in a curve with pale throat scales down its front, a mane of spikes down its back and a
+-- swept fin either side of its base; a round head with a snout (nostrils, two teeth over a smile), big eyes, short
+-- horns swept back, a finned crest, long whiskers and three gill plumes each side; a pale lower jaw that drops
 PLANS.wyrm = function(b, a)
 	local t = Kit.new("wyrm", 2.9, 1.6, "slither")
 	J("body", nil, V(0, 0.5, -0.6), "body")
@@ -910,6 +1041,26 @@ PLANS.wyrm = function(b, a)
 		end
 	end
 	smooth("Body", body, br, b, 0.32)
+	-- bands of the accent round the coils, each a short ring a little wider than the body there
+	if full() then
+		for _, u in { 0.52, 0.66, 0.8, 0.94 } do
+			local p = Kit.curveAt(body, u)
+			local tg = (Kit.curveAt(body, math.min(1, u + 0.02)) - Kit.curveAt(body, math.max(0, u - 0.02))).Unit
+			local d = 2 * (0.42 - u * 0.06) + 0.12
+			Kit.part("Band", "Cylinder", V(0.14, d, d), Kit.along(p, tg), a)
+		end
+	end
+	-- a ridge of flat spikes along the top of the coils, the frill standing in for them over the hump (every other
+	-- one on the islands)
+	for i, u in { 0.05, 0.14, 0.52, 0.62, 0.72, 0.82, 0.92 } do
+		if full() or i % 2 == 0 then
+			local p0, p1 = Kit.curveAt(body, u), Kit.curveAt(body, u + 0.045)
+			local tg = (p1 - p0).Unit
+			local up = (UP - tg * UP:Dot(tg)).Unit
+			local r = 0.42 - u * 0.06
+			spike("Ridge", p0 + up * (r - 0.05), p1 + up * (r - 0.06), 0.26 - u * 0.08, up, 0.1, a)
+		end
+	end
 	-- pale scales under the hump
 	for i, u in { 0.24, 0.34, 0.44 } do
 		if full() or i == 2 then
@@ -924,6 +1075,12 @@ PLANS.wyrm = function(b, a)
 	-- the tail
 	J("tail1", "body", V(0.9, 0.45, -1.5), "tail", 0, 1)
 	smooth("Tail", { V(0.9, 0.38, -1.5), V(1.12, 0.33, -1.92), V(1.2, 0.3, -2.3) }, { 0.36, 0.31, 0.26 }, b, 0.3)
+	if full() then
+		local tp, tq = V(1.06, 0.345, -1.8), V(1.15, 0.32, -2.06)
+		Kit.part("Band", "Cylinder", V(0.14, 0.76, 0.76), Kit.along((tp + tq) / 2, tq - tp), a)
+	end
+	spike("Ridge", V(1.0, 0.68, -1.68), V(1.08, 0.64, -1.88), 0.13, UP, 0.08, a, true)
+	spike("Ridge", V(1.14, 0.6, -2.04), V(1.18, 0.56, -2.22), 0.11, UP, 0.08, a, true)
 	J("tail2", "tail1", V(1.2, 0.3, -2.3), "tail", 0, 2)
 	sail("TailFin", V(1.14, 0.42, -2.6), V(0.9, 0.3, -3.06), V(0.9, 0.95, -3.06), 3, a, b)
 	smooth("TailTip", { V(1.2, 0.3, -2.3), V(1.14, 0.28, -2.66), V(0.98, 0.26, -2.92) }, { 0.26, 0.19, 0.13 }, b, 0.24)
@@ -933,6 +1090,24 @@ PLANS.wyrm = function(b, a)
 	local neck = { V(0, 0.42, 0.32), V(0, 0.98, 0.4), V(0, 1.5, 0.5), V(0, 1.86, 0.66), V(0, 2.02, 0.8) }
 	local nr = { 0.42, 0.36, 0.32, 0.3, 0.3 }
 	smooth("Neck", neck, nr, b, 0.3)
+	-- a mane of spikes down the back of the neck, pointing back
+	if full() then
+		for _, u in { 0.4, 0.56, 0.72 } do
+			local p0, p1 = Kit.curveAt(neck, u + 0.06), Kit.curveAt(neck, u)
+			local tg = (p1 - p0).Unit
+			local bk = V(1, 0, 0):Cross(tg).Unit
+			local r = 0.42 - u * 0.13
+			spike("Mane", p0 + bk * (r - 0.05), p1 + bk * (r - 0.05), 0.16, bk, 0.08, a)
+		end
+	end
+	-- fins at the base of the neck, swept back
+	for _, side in { -1, 1 } do
+		local f0 = M(side, 0.3, 0.86, 0.46)
+		if full() then
+			Kit.rod("FinRay", f0, f0 + M(side, 0.26, -0.1, -0.34), 0.06, b)
+		end
+		wedge("PecFin", f0 + M(side, 0.3, -0.16, -0.4), f0, f0 + M(side, 0.06, -0.3, -0.06), 0.05, a)
+	end
 	for i, u in { 0.16, 0.32, 0.48, 0.64, 0.8 } do
 		if full() or i % 2 == 0 then
 			local p = Kit.curveAt(neck, u)
@@ -965,7 +1140,7 @@ PLANS.wyrm = function(b, a)
 			cone("Tooth", SN1 + M(side, 0.08, -0.14, 0.13), SN1 + M(side, 0.085, -0.24, 0.14), 0.035, "white")
 		end
 		bend("Horn" .. s, { HC + M(side, 0.2, 0.3, -0.12), HC + M(side, 0.3, 0.48, -0.36), HC + M(side, 0.3, 0.52, -0.58) }, { 0.08, 0.055, 0.02 }, "cream")
-		Kit.tube("Barbel" .. s, { SN1 + M(side, 0.17, -0.02, 0.0), SN1 + M(side, 0.34, -0.1, -0.06), SN1 + M(side, 0.44, -0.3, -0.22) }, { 0.035, 0.028, 0.018 }, a, nil, true)
+		Kit.tube("Barbel" .. s, { SN1 + M(side, 0.17, -0.02, 0.0), SN1 + M(side, 0.36, -0.06, -0.08), SN1 + M(side, 0.56, -0.24, -0.22), SN1 + M(side, 0.64, -0.48, -0.3) }, { 0.035, 0.03, 0.024, 0.018 }, a, nil, true)
 		for k, tp in { V(0.6, 0.14, -0.36), V(0.66, -0.06, -0.38), V(0.58, -0.26, -0.32) } do
 			if full() or k == 2 then
 				limb("Gill" .. s, HC + M(side, 0.34, -0.08, -0.12), HC + M(side, tp.X, tp.Y, tp.Z), 0.065, 0.03, a, 2)

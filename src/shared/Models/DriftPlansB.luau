@@ -87,11 +87,12 @@ local function eyesOn(balls: { BasePart }, c: Vector3, yaw: number, pitch: numbe
 	end
 end
 
--- Blush on a head of balls.
+-- Blush on a head of balls (set a little out: a body of many balls is not quite round under it, and a disc sunk into it
+-- shows only as a ring).
 local function blushOn(balls: { BasePart }, c: Vector3, yaw: number, pitch: number, d: number)
 	for _, side in { -1, 1 } do
 		local p, n, r = surf(balls, c, dir(side * yaw, pitch))
-		Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), p, n, d, 0.05, "pink", false, r)
+		Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), p, n, d, 0.05, "pink", false, r, nil, 0.05)
 	end
 end
 
@@ -132,47 +133,62 @@ local function membrane(name: string, pts: { Vector3 }, widths: { number }, norm
 end
 
 ------------------------------------------------------------------ the crab
--- a crab: a wide round carapace with small teeth along its front edge and pale spots, eyes on stalks, a smile and
--- blush under them; two big claws held in toward the middle (an upper arm, a wrist with a spine, a fat palm, a fixed
--- finger under and a hinged one over, both toothed on the inside and dark at the tip); three jointed legs a side,
--- dark at their points
+-- a crab: a wide, low carapace (wider than long, a little flat on top) with small teeth along its front edge, pale
+-- spots and a pale underside showing under its rim; eyes on stalks with a knob between them, a smile and blush under
+-- them; two big claws held in toward the middle (an upper arm, a wrist with a spine, a fat palm with knuckles along its
+-- top and spots on its side, a fixed finger under and a hinged one over, both toothed on the inside and dark at the
+-- tip); three jointed legs a side, knobbed at the knee and dark at their points
 PLANS.crab = function(b, a)
 	local t = Kit.new("crab", 1.6, 1.2, "scuttle")
 	local F = full()
 	J("body", nil, V(0, 0.75, 0), "body")
 	local SC = V(0, 0.8, -0.04)
-	-- (a big ball and one at each side: few big balls shade smooth)
-	local shell = {
-		Kit.ball("Shell", SC + V(0, 0.02, 0.02), 1.16, b) :: BasePart,
-		Kit.ball("Shell", SC + V(-0.46, -0.04, -0.02), 0.82, b) :: BasePart,
-		Kit.ball("Shell", SC + V(0.46, -0.04, -0.02), 0.82, b) :: BasePart,
-	}
+	local SH = V(0.8, 0.38, 0.56)
+	-- (three balls abreast down its length: one smooth surface; on the islands fewer, bigger ones)
+	local shell = blob("Shell", SC, SH, b, nil, nil, if F then 1 else 1.5)
+	-- the pale underside, its edge showing under the rim all round
+	Kit.disc("Under", SC + V(0, -0.34, 0.02), UP, 1.04, 0.14, "cream")
 	-- the teeth along the front edge
 	for _, side in { -1, 1 } do
-		local yaws: { number } = if F then { 34, 52, 70 } else { 40, 66 }
-		for _, yaw in yaws do
-			local p, n = surf(shell, SC, dir(side * yaw, 4))
-			Kit.ball("Tooth", p + n * 0.02, if F then 0.14 else 0.18, b)
+		local yaws: { number } = if F then { 36, 50, 64, 78 } else { 42, 68 }
+		for i, yaw in yaws do
+			local p, n = surf(shell, SC, dir(side * yaw, 2))
+			Kit.ball("Tooth", p + n * 0.02, if not F then 0.18 elseif i == 4 then 0.12 else 0.14, b)
+		end
+	end
+	-- two knobs on the brow between the eye stalks
+	if F then
+		for _, side in { -1, 1 } do
+			local p, n = surf(shell, SC, dir(side * 8, 26))
+			Kit.ball("Brow", p + n * 0.01, 0.13, b)
 		end
 	end
 	-- spots
-	for i, sp in { { 40, 48, 0.2 }, { -46, 42, 0.16 }, { 150, 46, 0.18 }, { -140, 52, 0.14 }, { 100, 30, 0.12 } } do
+	for i, sp in { { 40, 52, 0.2 }, { -46, 46, 0.16 }, { 150, 50, 0.18 }, { -140, 56, 0.14 }, { 100, 34, 0.12 }, { -96, 40, 0.1 }, { 176, 64, 0.1 } } do
 		local p, n, r = surf(shell, SC, dir(sp[1], sp[2]))
 		Kit.disc("Spot", p, n, sp[3], 0.05, "cream", i > 3, r)
 	end
-	-- the face on the front of the shell
-	local m, mn = surf(shell, SC, dir(0, -10))
+	-- the face on the front of the shell, and the little mouth plates under it
+	local m, mn = surf(shell, SC, dir(0, -4))
 	Kit.mouth(m + mn * 0.01, mn, 0.2)
-	blushOn(shell, SC, 32, -2, 0.18)
+	-- (the blush beside the smile, clear of the teeth: a tooth on it leaves only a ring of pink)
+	blushOn(shell, SC, 19, 4, 0.17)
+	if F then
+		for _, side in { -1, 1 } do
+			local p, n = surf(shell, SC, dir(side * 7, -34))
+			Kit.ball("MouthPlate", p + n * 0.02, 0.13, "cream")
+		end
+	end
 	for _, side in { -1, 1 } do
 		local s = if side < 0 then "L" else "R"
 		local x = side
 		Kit.on("body")
 		-- an eye on a stalk
 		J("stalk" .. s, "body", V(x * 0.28, 1.15, 0.42), "stalk", side)
-		local e0, e1 = V(x * 0.22, 1.06, 0.44), V(x * 0.3, 1.46, 0.5)
+		local e0, e1 = V(x * 0.22, 1.02, 0.42), V(x * 0.3, 1.46, 0.5)
 		if F then
-			Kit.tube("Stalk" .. s, { e0, V(x * 0.27, 1.28, 0.49), e1 }, { 0.075, 0.06 }, a, 1.6)
+			Kit.tube("Stalk" .. s, { e0, V(x * 0.27, 1.26, 0.49), e1 }, { 0.075, 0.06 }, a, 1.6)
+			Kit.ball("StalkRing" .. s, V(x * 0.295, 1.42, 0.5), 0.15, b)
 		else
 			Kit.rod("Stalk" .. s, e0, e1, 0.13, a)
 		end
@@ -181,9 +197,10 @@ PLANS.crab = function(b, a)
 		Kit.eye(s, EC, 0.18, dir(x * 14, 6), 0.28, a)
 		-- the claw
 		J("arm" .. s, "body", V(x * 0.85, 0.82, 0.35), "arm", side)
-		local a0, a1, a2 = V(x * 0.7, 0.74, 0.34), V(x * 0.95, 0.8, 0.5), V(x * 1.06, 0.86, 0.68)
+		local a0, a1, a2 = V(x * 0.62, 0.74, 0.3), V(x * 0.92, 0.8, 0.5), V(x * 1.06, 0.86, 0.68)
 		if F then
-			Kit.tube("Arm" .. s, { a0, a1, a2 }, { 0.11, 0.1 }, b, 1.4)
+			Kit.tube("Arm" .. s, { a0, a1, a2 }, { 0.12, 0.1 }, b, 1.4)
+			Kit.ball("Elbow" .. s, a1 + V(x * 0.02, 0.04, 0), 0.2, b)
 		else
 			Kit.rod("Arm" .. s, a0, a2, 0.2, b)
 		end
@@ -201,7 +218,17 @@ PLANS.crab = function(b, a)
 		Kit.ball("Wrist" .. s, W0, 0.27, b)
 		Kit.ball("WristSpine" .. s, W0 + V(0, 0.12, 0) + out * 0.04, 0.1, a, true)
 		local PC = H(0.24, 0.05, 0)
-		blob("Palm" .. s, PC, V(0.24, 0.27, 0.32), b, CFrame.lookAt(Vector3.zero, fw))
+		local palm = blob("Palm" .. s, PC, V(0.25, 0.28, 0.33), b, CFrame.lookAt(Vector3.zero, fw))
+		if F then
+			-- knuckles along the palm's top and a few spots on its outer side
+			for k = 0, 2 do
+				Kit.ball("Knuckle" .. s, H(0.1 + k * 0.13, 0.3 - k * 0.01, 0.02), 0.11, b)
+			end
+			for k, q in { { 0.14, 0.12 }, { 0.3, 0.02 }, { 0.2, -0.1 } } do
+				local p, n, r = surf(palm, PC, out + fw * (q[1] - 0.22) * 2 + UP * q[2] * 2)
+				Kit.disc("ClawSpot" .. s, p, n, if k == 1 then 0.1 else 0.08, 0.05, a, true, r)
+			end
+		end
 		local f0, f1, f2 = H(0.46, -0.1, 0), H(0.7, -0.12, 0), H(0.92, 0.0, 0)
 		if F then
 			Kit.tube("Finger" .. s, { f0, f1 }, { 0.13, 0.09 }, b)
@@ -228,17 +255,19 @@ PLANS.crab = function(b, a)
 			Kit.on("body")
 			J("leg" .. s .. i, "body", V(x * 0.82, 0.55, z), "leg", side, (i % 2) * 0.5)
 			local fz = ({ 0.12, 0, -0.14 })[i]
-			local hip = V(x * 0.72, 0.6, z)
-			local knee = V(x * 1.06, 0.8, z + fz * 0.6)
+			local hip = V(x * 0.7, 0.62, z)
+			local knee = V(x * 1.06, 0.82, z + fz * 0.6)
 			local ankle = V(x * 1.28, 0.42, z + fz * 1.2)
 			local tip = V(x * 1.36, 0.03, z + fz * 1.6)
 			if F then
-				Kit.tube("Leg" .. s .. i, { hip, knee, ankle }, { 0.08, 0.07, 0.055 }, b, 1.6)
+				Kit.tube("Leg" .. s .. i, { hip, knee }, { 0.085, 0.075 }, b, 1.6)
+				Kit.ball("Knee" .. s .. i, knee, 0.17, b)
+				Kit.tube("Shin" .. s .. i, { knee, ankle }, { 0.075, 0.06 }, b, 1.6)
+				Kit.ball("Ankle" .. s .. i, ankle, 0.13, a)
 				Kit.tube("LegTip" .. s .. i, { ankle, tip }, { 0.055, 0.018 }, a, 2)
 			else
 				Kit.rod("Leg" .. s .. i, hip, knee, 0.15, b)
 				Kit.rod("LegTip" .. s .. i, knee, tip, 0.12, a)
-				Kit.ball("Knee" .. s .. i, knee, 0.15, b)
 			end
 		end
 	end
@@ -246,75 +275,73 @@ PLANS.crab = function(b, a)
 end
 
 ------------------------------------------------------------------ the snail
--- a snail: a long soft foot with a pointed tail and bumps along its back, a shell coiling up to a point (each turn
--- thinner, knobs along the last one's shoulder, a lip round its mouth), a round head with a smile and blush, two short
--- feelers, the eyes on two long stalks
+-- a snail: a long soft foot with a pointed tail, bumps and a wet shine along its back and a pale frilled skirt along
+-- the ground; a round shell standing on its back, its sides flat with the coil drawn on them (each turn a ring in the
+-- shell's colour inside a band of the body's, smaller and pushed round a little more each time, so it winds in to a
+-- point), a shine on its top; a round head with a smile and blush, two short feelers, the eyes on two long stalks
 PLANS.snail = function(b, a)
 	local t = Kit.new("snail", 2.0, 1.1, "slither")
 	local F = full()
 	J("body", nil, V(0, 0.3, 0), "body")
 	Kit.tube("Foot", { V(0, 0.08, -1.06), V(0, 0.18, -0.68), V(0, 0.24, -0.15), V(0, 0.26, 0.35), V(0, 0.36, 0.72) }, { 0.06, 0.2, 0.3, 0.3, 0.27 }, b)
+	-- the skirt: a pale frilled edge along each side of the foot where it meets the ground (along the foot's side at
+	-- that height), thicker and thinner in turn
+	for _, side in { -1, 1 } do
+		local pts = { V(side * 0.12, 0.07, -0.86), V(side * 0.22, 0.06, -0.5), V(side * 0.275, 0.06, -0.1), V(side * 0.27, 0.06, 0.26), V(side * 0.22, 0.08, 0.5) }
+		if F then
+			Kit.tube("Skirt", pts, { 0.04, 0.075, 0.055, 0.075, 0.055, 0.075, 0.045 }, "cream", 0.6)
+		else
+			Kit.rod("Skirt", pts[2], V(side * 0.25, 0.06, 0.26), 0.14, "cream")
+		end
+	end
 	if F then
 		for i, z in { -0.62, -0.8, -0.94 } do
 			Kit.ball("Bump", V(0, 0.3 - i * 0.06, z), 0.08, b)
+		end
+		-- a wet shine along the top of the foot, in front of the shell and toward the tail
+		for _, q in { { 0.32, 0.56, 0.1 }, { 0.42, 0.57, 0.06 }, { -0.5, 0.42, 0.07 } } do
+			local c = V(0, q[2], q[1])
+			local n = V(0, 1, 0.25).Unit
+			Kit.disc("Wet", c + V(-0.06, 0, 0), n, q[3], 0.05, "white", true, 0.3, nil, 0.02)
 		end
 		for _, q in { V(-0.08, 0.6, 0.62), V(0.09, 0.57, 0.56), V(0, 0.64, 0.7) } do
 			Kit.ball("Bump", q, 0.07, b)
 		end
 	end
-	-- the shell: coiling up from its mouth (low at the front) round a spire leaning back, thinner each turn, each turn
-	-- sitting on the one below it
+	-- the shell: a thick round disc on edge with a ring of balls round its rim (round in outline, flat on its sides),
+	-- sitting a little into the foot
 	J("shell", "body", V(0, 0.55, -0.25), "shell")
-	local lean = R(26)
-	local ax = V(0, math.cos(lean), -math.sin(lean))
-	local e1 = V(1, 0, 0)
-	local e2 = e1:Cross(ax)
-	local B0 = V(0, 0.56, -0.3)
-	local W, r0, rho0 = 1.9, 0.36, 0.3
-	local H = rho0 * (W + 1) / (W - 1) * 0.8 -- (each turn sunk a little into the one below: surfaces just touching flicker)
-	local turns = if F then 2.6 else 2.2
-	local function coil(u: number): (Vector3, number)
-		local g = W ^ -u
-		local th = math.pi / 2 + u * 2 * math.pi
-		return B0 + ax * (H * (1 - g)) + (e1 * math.cos(th) + e2 * math.sin(th)) * (r0 * g), rho0 * g
+	local SC = V(0, 0.98, -0.34)
+	local SR, SW = 0.56, 0.52 -- its radius, and how thick it is side to side
+	local inner = SR - SW / 2
+	Kit.part("Shell", "Cylinder", V(SW, 2 * inner, 2 * inner), CFrame.new(SC), a)
+	local nrim = if F then 11 else 7
+	for i = 0, nrim - 1 do
+		local ang = i / nrim * 2 * math.pi
+		Kit.ball("ShellRim", SC + V(0, math.sin(ang), math.cos(ang)) * inner, SW, a)
 	end
-	-- (a chain of balls a little apart, as the bakery pipes cream: the dips between them are the shell's growth lines.
-	-- A tube bent this sharply shows its links' flat ends on the outside of each bend.)
-	local gap = if F then 0.5 else 0.85
-	local prev = coil(0)
-	local run = 0
-	Kit.ball("Shell", prev, 2 * rho0, a)
-	for i = 1, 400 do
-		local u = turns * i / 400
-		local p, r = coil(u)
-		run += (p - prev).Magnitude
-		prev = p
-		if run >= gap * r then
-			Kit.ball("Shell", p, 2 * r, a)
-			run = 0
+	-- the coil on each flat side: a disc in the body's colour, then one in the shell's colour a little smaller and set
+	-- off toward one side so the band shows as a crescent, and so on inward, each step turned on round the centre and a
+	-- step further out (the picture draws a part over another only where it is clearly nearer)
+	local rings: { number } = if F then { 0.3, 0.255, 0.19, 0.15, 0.095, 0.06 } else { 0.3, 0.24, 0.13 }
+	for _, side in { -1, 1 } do
+		local nrm = V(side, 0, 0)
+		local c = SC + nrm * (SW / 2)
+		local ang = R(200)
+		for k, r in rings do
+			if k > 1 then
+				local prev = rings[k - 1]
+				c += V(0, math.sin(ang), math.cos(ang)) * (prev - r) * 0.9
+				ang += R(150)
+			end
+			Kit.disc("Coil", c, nrm, 2 * r, 0.05, if k % 2 == 1 then b else a, false, nil, nil, (k - 1) * 0.045)
 		end
 	end
-	local tip, tr = coil(turns)
-	Kit.ball("ShellTip", tip + ax * tr * 0.6, tr * 2.2, a)
+	-- a shine on the shell's top, toward the front
 	if F then
-		-- knobs along the shoulder of the last turn, as a conch has
-		for k = 1, 7 do
-			local u = 0.12 + k * 0.11
-			local p, r = coil(u)
-			local th = math.pi / 2 + u * 2 * math.pi
-			local outw = e1 * math.cos(th) + e2 * math.sin(th)
-			Kit.ball("ShellKnob", p + (outw * 0.62 + ax * 0.78).Unit * r * 0.92, 0.14, a)
-		end
-		-- the lip round the shell's mouth
-		local p0, r0m = coil(0)
-		local p1 = coil(0.02)
-		local tdir = (p1 - p0).Unit
-		local q1 = tdir:Cross(UP).Unit
-		local q2 = q1:Cross(tdir).Unit
-		for k = 0, 7 do
-			local ang = k / 8 * 2 * math.pi
-			Kit.ball("ShellLip", p0 + (q1 * math.cos(ang) + q2 * math.sin(ang)) * r0m * 0.92, 0.12, a)
-		end
+		local d = V(0, 0.8, 0.6).Unit
+		Kit.disc("Gloss", SC + d * SR, d, 0.12, 0.05, "white", true, SW / 2, nil, 0.01)
+		Kit.disc("Gloss", SC + V(0.0, 0.62, 0.78).Unit * SR + V(0, -0.02, 0.04), d, 0.07, 0.05, "white", true, SW / 2, nil, 0.01)
 	end
 	-- the head
 	J("head", "body", V(0, 0.5, 0.85), "head")
@@ -328,7 +355,7 @@ PLANS.snail = function(b, a)
 		local f0 = HC + dir(side * 24, -14) * (HR - 0.04)
 		local f1 = f0 + V(side * 0.07, -0.08, 0.2)
 		Kit.tube("Feeler", { f0, f1 }, { 0.05, 0.035 }, b, nil, true)
-		Kit.ball("FeelerTip", f1, 0.09, b, true)
+		Kit.ball("FeelerTip", f1, 0.09, a, true)
 	end
 	for _, side in { -1, 1 } do
 		local s = if side < 0 then "L" else "R"
@@ -347,16 +374,19 @@ PLANS.snail = function(b, a)
 end
 
 ------------------------------------------------------------------ the turtle
--- a turtle: a domed shell with the seams of its plates drawn on it in the body's colour and a scalloped rim, a head
--- on a short neck with puffed cheeks, a round snout, nostrils, a smile and a lower beak that drops, four stumpy legs
--- with scales and claws, a pointed tail
+-- a turtle: a domed shell with the seams of its plates drawn on it in the body's colour (a ring of small plates round
+-- the rim, the middle row's plates with their first growth ring), a scalloped rim and a pale belly plate under it; a
+-- head on a short neck with a pale throat, puffed cheeks, a round snout with a little hooked beak, nostrils, a smile
+-- and a lower beak that drops with a pale chin; four stumpy legs with scales and claws, a pointed tail
 PLANS.turtle = function(b, a)
 	local t = Kit.new("turtle", 1.7, 1.2, "quad")
 	local F = full()
 	J("body", nil, V(0, 0.6, 0), "body")
-	local SC = V(0, 0.74, -0.08)
-	local SH = V(0.84, 0.48, 0.96)
+	local SC = V(0, 0.76, -0.08)
+	local SH = V(0.84, 0.47, 0.96)
 	local shell = blob("Shell", SC, SH, a)
+	-- the belly plate, its edge showing under the rim
+	Kit.disc("Plastron", V(0, 0.4, 0.04), UP, 1.46, 0.14, "cream", true)
 	-- the rim
 	local nr = if F then 18 else 8
 	for i = 0, nr - 1 do
@@ -365,10 +395,10 @@ PLANS.turtle = function(b, a)
 	end
 	-- the seams between its plates: a row of plates down the middle, three a side, a ring of small ones round the rim
 	-- (points across the shell from above, -1 to 1, laid on its surface)
-	local function onTop(u: number, v: number): Vector3
+	local function onTop(u: number, v: number, lift: number?): (Vector3, Vector3)
 		local y = math.sqrt(math.max(0, 1 - u * u - v * v))
 		local p, n = surf(shell, SC, V(u * SH.X, y * SH.Y, v * SH.Z))
-		return p + n * 0.03
+		return p + n * (lift or 0.03), n
 	end
 	-- (in short rods, so none cuts into the shell between its ends)
 	local function seam(uv: { number })
@@ -377,7 +407,7 @@ PLANS.turtle = function(b, a)
 			local u0, v0, u1, v1 = uv[i], uv[i + 1], uv[i + 2], uv[i + 3]
 			local k = math.max(1, math.ceil(math.sqrt((u1 - u0) ^ 2 + (v1 - v0) ^ 2) / (if F then 0.3 else 0.45)))
 			for j = (if i == 1 then 0 else 1), k do
-				table.insert(pts, onTop(u0 + (u1 - u0) * j / k, v0 + (v1 - v0) * j / k))
+				table.insert(pts, (onTop(u0 + (u1 - u0) * j / k, v0 + (v1 - v0) * j / k)))
 			end
 		end
 		line("Seam", pts, 0.06, b)
@@ -398,15 +428,29 @@ PLANS.turtle = function(b, a)
 		end
 		seam({ -0.17, 0.32, 0.17, 0.32 })
 		seam({ -0.17, -0.2, 0.17, -0.2 })
+		-- the rim's small plates: a short seam out from each corner of the ring to the edge
+		for i = 0, 13 do
+			local ang = i / 14 * 2 * math.pi
+			seam({ math.sin(ang) * 0.84, math.cos(ang) * 0.84, math.sin(ang) * 0.99, math.cos(ang) * 0.99 })
+		end
+		-- a small ring of the body's colour in the middle of each of the middle row's plates, its first growth
+		for _, v in { 0.58, 0.06, -0.5 } do
+			local c, cn = onTop(0, v, 0.0)
+			Kit.disc("Growth", c, cn, 0.16, 0.05, b, true, SH.Y)
+			Kit.disc("GrowthIn", c, cn, 0.08, 0.05, a, true, SH.Y, nil, 0.04)
+		end
 	else
 		-- (on the islands the middle row alone)
 		for _, x in { -1, 1 } do
 			seam({ x * 0.17, 0.8, x * 0.26, 0.3, x * 0.26, -0.3, x * 0.17, -0.8 })
 		end
+		seam({ -0.26, 0.3, 0.26, 0.3 })
+		seam({ -0.26, -0.3, 0.26, -0.3 })
 	end
 	-- the head
 	J("head", "body", V(0, 0.7, 0.95), "head")
 	limb("Neck", { V(0, 0.62, 0.6), V(0, 0.74, 0.92), V(0, 0.88, 1.1) }, { 0.21, 0.19 }, b, 1.3)
+	Kit.ball("Throat", V(0, 0.72, 1.04), 0.26, "cream", true)
 	local HC = V(0, 0.98, 1.3)
 	local HH = V(0.34, 0.31, 0.38)
 	local head = blob("Head", HC, HH, b)
@@ -418,9 +462,17 @@ PLANS.turtle = function(b, a)
 		local p, n = surf(head, HC, dir(side * 9, 12))
 		Kit.ball("Nostril", p + n * 0.01, 0.06, "black", true)
 	end
+	-- scales on the top of the head
+	for _, q in { { -16, 50, 0.12 }, { 16, 50, 0.12 }, { 0, 66, 0.14 } } do
+		local p, n, r = surf(head, HC, dir(q[1], q[2]))
+		Kit.disc("HeadScale", p, n, q[3], 0.05, a, true, r, nil, 0.02)
+	end
+	-- the little hook of the upper beak over the smile
+	local bt, btn = surf(head, HC, dir(0, -4))
+	Kit.ball("BeakTip", bt + btn * 0.01, if F then 0.12 else 0.14, a)
 	local m, mn = surf(head, HC, dir(0, -20))
 	Kit.mouth(m, mn, 0.24)
-	-- the lower beak, a lip round the bottom of the snout that drops when the mouth opens
+	-- the lower beak, a lip round the bottom of the snout that drops when the mouth opens, a pale chin behind it
 	J("jaw", "head", V(0, 0.8, 1.16), "jaw")
 	local lip: { Vector3 } = {}
 	for _, yaw in { -52, -26, 0, 26, 52 } do
@@ -429,6 +481,8 @@ PLANS.turtle = function(b, a)
 	end
 	if F then
 		Kit.tube("Beak", lip, { 0.07, 0.085, 0.07 }, a)
+		local c, cn, cr = surf(head, HC, dir(0, -62))
+		Kit.disc("Chin", c, cn, 0.22, 0.05, "cream", true, cr, nil, 0.02)
 	else
 		Kit.rod("Beak", lip[2], lip[4], 0.16, a)
 	end
@@ -444,9 +498,12 @@ PLANS.turtle = function(b, a)
 		else
 			Kit.tube("Leg" .. l.n, { top, foot }, { 0.2, 0.17 }, b)
 		end
-		Kit.ball("Foot" .. l.n, foot + V(0, -0.02, 0.05), 0.36, b)
-		Kit.toes("Claw" .. l.n, foot + V(0, -0.08, 0.18), 0.22, 0.09, 3, "cream")
-		Kit.disc("Scale" .. l.n, mid + V(x * 0.06, 0.04, 0.17), V(x * 0.3, 0.2, 1), 0.1, 0.05, a, true, 0.18)
+		Kit.ball("Foot" .. l.n, foot + V(0, -0.02, 0.05), 0.38, b)
+		Kit.toes("Claw" .. l.n, foot + V(0, -0.08, 0.2), 0.24, 0.1, 3, "cream")
+		-- scales down the front of the leg
+		Kit.disc("Scale" .. l.n, mid + V(x * 0.06, 0.04, 0.17), V(x * 0.3, 0.2, 1), 0.11, 0.05, a, true, 0.18, nil, 0.01)
+		Kit.disc("Scale" .. l.n, top:Lerp(mid, 0.4) + V(x * 0.1, 0.02, 0.17), V(x * 0.4, 0.3, 1), 0.09, 0.05, a, true, 0.19, nil, 0.01)
+		Kit.disc("Scale" .. l.n, mid:Lerp(foot, 0.6) + V(x * 0.03, 0, 0.17), V(x * 0.2, 0.1, 1), 0.08, 0.05, a, true, 0.17, nil, 0.01)
 	end
 	J("tail", "body", V(0, 0.5, -1.1), "tail", 0, 1)
 	limb("Tail", { V(0, 0.52, -0.95), V(0, 0.44, -1.2), V(0.03, 0.3, -1.38) }, { 0.13, 0.08, 0.03 }, b, 1.3)
@@ -457,7 +514,7 @@ end
 -- a frog: a squat body sloping up to the front with a pale belly, spots and warts; a wide flat head with big eyes on
 -- domes, ear discs, nostrils and a mouth from cheek to cheek, a lower jaw with a pale throat that drops open; thin
 -- front legs on four splayed fingers with round pads; folded hind legs (a fat thigh, the shin back along it, a long
--- foot) on webbed toes
+-- foot, bands across them in the accent) on webbed toes
 PLANS.frog = function(b, a)
 	local t = Kit.new("frog", 1.6, 1.1, "hop")
 	local F = full()
@@ -502,6 +559,18 @@ PLANS.frog = function(b, a)
 		table.insert(sm, p + n * 0.03)
 	end
 	line("Lip", sm, 0.05, "black")
+	-- a pale stripe along the upper lip, just over the seam
+	if F then
+		local up: { Vector3 } = {}
+		for i, yaw in yaws do
+			if i > 1 and i < #yaws then
+				local k = math.abs(yaw) / 76
+				local p, n = surf(head, HC, dir(yaw, -19 + 14 * k * k))
+				table.insert(up, p + n * 0.03)
+			end
+		end
+		line("LipStripe", up, 0.05, "cream")
+	end
 	Kit.ball("MouthIn", V(0, 0.76, 0.48), 0.36, "berry_red")
 	J("jaw", "head", V(0, 0.75, 0.3), "jaw")
 	if F then
@@ -509,7 +578,8 @@ PLANS.frog = function(b, a)
 	else
 		Kit.rod("Jaw", V(-0.3, 0.67, 0.5), V(0.3, 0.67, 0.5), 0.26, b)
 	end
-	Kit.ball("Throat", V(0, 0.6, 0.44), 0.42, "cream")
+	-- the throat sac, a pale balloon under the jaw
+	Kit.ball("Throat", V(0, 0.59, 0.46), 0.48, "cream")
 	Kit.ball("Tongue", V(0, 0.72, 0.5), 0.2, "pink", true)
 	for _, side in { -1, 1 } do
 		local s = if side < 0 then "L" else "R"
@@ -522,7 +592,7 @@ PLANS.frog = function(b, a)
 			for i, yaw in { -34, -8, 18, 44 } do
 				local tip = wr + V(0, -0.03, 0) + dir(side * yaw, -5) * (if i == 2 or i == 3 then 0.2 else 0.16)
 				Kit.rod("Finger" .. s, wr + V(0, -0.03, 0), tip, 0.06, b)
-				Kit.ball("FingerPad" .. s, tip, 0.1, a)
+				Kit.ball("FingerPad" .. s, tip, 0.11, a)
 			end
 		else
 			Kit.ball("Hand" .. s, wr + V(0, -0.02, 0.05), 0.2, b)
@@ -531,9 +601,21 @@ PLANS.frog = function(b, a)
 		J("leg" .. s, "body", V(side * 0.6, 0.45, -0.35), "leg", side, 0)
 		local hip, knee, ankle = V(side * 0.36, 0.5, -0.5), V(side * 0.74, 0.42, -0.02), V(side * 0.66, 0.12, -0.5)
 		if F then
-			Kit.tube("Thigh" .. s, { hip, (hip + knee) / 2 + V(side * 0.05, 0.06, 0), knee }, { 0.26, 0.22, 0.15 }, b, 1.2)
+			local thigh = { hip, (hip + knee) / 2 + V(side * 0.05, 0.06, 0), knee }
+			Kit.tube("Thigh" .. s, thigh, { 0.26, 0.22, 0.15 }, b, 1.2)
+			-- bands across the thigh and the shin in the accent, as many frogs have: a ring round the leg a little
+			-- wider than it
+			for _, q in { { 0.42, 0.226 }, { 0.72, 0.19 } } do
+				local u = q[1]
+				local c = Kit.curveAt(thigh, u)
+				local ax = Kit.curveAt(thigh, u + 0.04) - Kit.curveAt(thigh, u - 0.04)
+				Kit.disc("Band" .. s, c - ax.Unit * 0.025, ax, 2 * q[2] + 0.05, 0.05, a)
+			end
+			local sc = knee:Lerp(ankle, 0.5)
+			Kit.disc("Band" .. s, sc - (ankle - knee).Unit * 0.025, ankle - knee, 0.27, 0.05, a)
 		else
 			Kit.tube("Thigh" .. s, { hip, knee }, { 0.25, 0.16 }, b)
+			Kit.disc("Band" .. s, hip:Lerp(knee, 0.6), knee - hip, 0.44, 0.05, a)
 		end
 		limb("Shin" .. s, { knee, ankle }, { 0.13, 0.09 }, b, 1.3)
 		local toe0 = V(side * 0.82, 0.07, -0.12)
@@ -545,7 +627,7 @@ PLANS.frog = function(b, a)
 				local tip = toe0 + V(0, -0.01, 0) + dir(side * yaw, 0) * len
 				tips[i] = tip
 				Kit.rod("Toe" .. s, toe0, tip, 0.055, b)
-				Kit.ball("ToePad" .. s, tip, 0.1, a)
+				Kit.ball("ToePad" .. s, tip, 0.11, a)
 			end
 			for i = 1, 3 do
 				local p, q = toe0:Lerp(tips[i], 0.78), toe0:Lerp(tips[i + 1], 0.78)
@@ -559,8 +641,9 @@ PLANS.frog = function(b, a)
 end
 
 ------------------------------------------------------------------ the jellyfish
--- a jellyfish: a round bell that flares at its margin, a scalloped edge, four rings showing through its top, glowing
--- freckles, a face; six tendrils in two segments (the front three frilled arms, the back three thin and wavy)
+-- a jellyfish: a round bell that flares at its margin, a frilled edge of big and small scallops with a fringe of fine
+-- tentacles under it, four rings showing through its top, glowing freckles, a face; six tendrils in two segments (the
+-- front three ruffled ribbons in the accent, the back three thin and wavy)
 PLANS.jelly = function(b, a)
 	local t = Kit.new("jelly", 2.6, 1, "fly")
 	local F = full()
@@ -571,12 +654,21 @@ PLANS.jelly = function(b, a)
 	local nm = if F then 10 else 7
 	for i = 0, nm - 1 do
 		local ang = (i + 0.5) / nm * 2 * math.pi
-		Kit.ball("Margin", V(math.sin(ang) * 0.6, 1.42, math.cos(ang) * 0.6), 0.44, b)
+		Kit.ball("Margin", V(math.sin(ang) * 0.64, 1.42, math.cos(ang) * 0.64), 0.48, b)
 	end
+	-- the frilled edge: big scallops and small ones between them, a little lower (full); the fringe hangs from the
+	-- small ones
 	local ns = if F then 16 else 10
 	for i = 0, ns - 1 do
 		local ang = i / ns * 2 * math.pi
-		Kit.ball("Scallop", V(math.sin(ang) * 0.74, 1.24, math.cos(ang) * 0.74), if F then 0.24 else 0.3, a)
+		local small = F and i % 2 == 1
+		local r = if small then 0.82 else 0.8
+		Kit.ball("Scallop", V(math.sin(ang) * r, if small then 1.2 else 1.23, math.cos(ang) * r), if not F then 0.3 elseif small then 0.17 else 0.26, a)
+		if small then
+			local p0 = V(math.sin(ang) * 0.8, 1.14, math.cos(ang) * 0.8)
+			local sway = V(math.cos(ang), 0, -math.sin(ang)) * (if i % 4 == 1 then 0.05 else -0.05)
+			Kit.rod("Fringe", p0, p0 + V(0, -0.3 - (i % 4) * 0.03, 0) + sway + V(math.sin(ang), 0, math.cos(ang)) * 0.04, 0.05, b)
+		end
 	end
 	for k = 0, 3 do
 		local d = dir(45 + 90 * k, 56)
@@ -584,7 +676,7 @@ PLANS.jelly = function(b, a)
 		Kit.disc("Ring", p, d, 0.32, 0.05, a, false, BR)
 		Kit.disc("RingIn", p + d * 0.02, d, 0.14, 0.05, b, true, BR)
 	end
-	for i, f in { { 40, 30, 0.1 }, { -36, 38, 0.08 }, { 70, 10, 0.07 }, { -64, 16, 0.09 }, { 10, 70, 0.07 } } do
+	for i, f in { { 40, 30, 0.1 }, { -36, 38, 0.08 }, { 70, 10, 0.07 }, { -64, 16, 0.09 }, { 10, 70, 0.07 }, { 116, 40, 0.08 }, { -120, 26, 0.07 } } do
 		local d = dir(f[1], f[2])
 		Kit.disc("Freckle", C + d * BR, d, f[3], 0.05, "white", i > 2, BR, true)
 	end
@@ -592,6 +684,11 @@ PLANS.jelly = function(b, a)
 	local m, mn = Kit.onBall(C, BR, dir(0, -15))
 	Kit.mouth(m, mn, 0.2)
 	Kit.blush(C, BR, FWD, R(40), R(8), 0.18)
+	-- a ruffle on a ribbon: a small round flap standing off it, turned a little each time
+	local function ruffle(name: string, at: Vector3, out: Vector3, k: number)
+		local n = (out + V(0, 0.5 * (if k % 2 == 0 then 1 else -1), 0)).Unit
+		Kit.disc(name, at + out * 0.05, n, 0.17, 0.05, b)
+	end
 	for i, p in { { -0.5, 0.3 }, { 0, 0.45 }, { 0.5, 0.3 }, { -0.45, -0.35 }, { 0.05, -0.45 }, { 0.5, -0.3 } } do
 		local x, z = p[1], p[2]
 		local front = i <= 3
@@ -604,8 +701,12 @@ PLANS.jelly = function(b, a)
 		if F then
 			Kit.tube("Tendril" .. i, { q0, q1, q2 }, { r0, r0 * 0.8 }, col, 1.4)
 			if front then
-				Kit.ball("Frill" .. i, q1 + V(-w * 1.2, 0.08, 0), 0.12, b)
-				Kit.ball("Frill" .. i, q1 + V(w * 1.2, -0.12, 0.02), 0.11, b)
+				-- ruffles down both edges of the ribbon
+				local side = V(1, 0, 0)
+				ruffle("Frill" .. i, q0:Lerp(q1, 0.55), side, 0)
+				ruffle("Frill" .. i, q0:Lerp(q1, 0.75), -side, 1)
+				ruffle("Frill" .. i, q1:Lerp(q2, 0.25), side, 2)
+				ruffle("Frill" .. i, q1:Lerp(q2, 0.55), -side, 3)
 			end
 		else
 			Kit.rod("Tendril" .. i, q0, q2, r0 * 2, col)
@@ -615,7 +716,8 @@ PLANS.jelly = function(b, a)
 		if F then
 			Kit.tube("TendrilEnd" .. i, { q2, q3, q4 }, { r0 * 0.8, r0 * 0.4 }, col, 1.4)
 			if front then
-				Kit.ball("Frill" .. i, q3 + V(w * 1.1, 0.04, 0), 0.1, b)
+				ruffle("Frill" .. i, q2:Lerp(q3, 0.4), V(1, 0, 0), 4)
+				ruffle("Frill" .. i, q3:Lerp(q4, 0.2), V(-1, 0, 0), 5)
 			end
 		else
 			Kit.rod("TendrilEnd" .. i, q2, q4, r0 * 1.4, col)
@@ -626,9 +728,10 @@ PLANS.jelly = function(b, a)
 end
 
 ------------------------------------------------------------------ the sprite
--- a sprite: a small round body trailing off into a curl of light, a collar of petals, a glowing gem on its chest; a
--- big round head with a face, pointed ears and a halo of rays with lit tips; two pairs of thin wings with glowing
--- spots; little arms; sparkles about it
+-- a sprite: a small round body trailing off into a curl of light, a skirt of petals round its waist (long ones in the
+-- accent and short ones of its own colour between them), a glowing gem on its chest; a big round head with a face,
+-- pointed ears and a halo of rays with lit tips; two pairs of thin wings, each with a vein of its own colour down its
+-- middle and a glowing spot; little arms; sparkles about it
 PLANS.sprite = function(b, a)
 	local t = Kit.new("sprite", 2.4, 0.9, "fly")
 	local F = full()
@@ -640,12 +743,19 @@ PLANS.sprite = function(b, a)
 	else
 		Kit.tube("Wisp", { V(0, 1.0, -0.02), V(0.03, 0.68, -0.08), V(-0.14, 0.52, -0.06) }, { 0.23, 0.13, 0.05 }, b)
 	end
-	Kit.ball("Gem", TC + V(0, 0.02, 0.25), 0.14, a, false, true)
+	Kit.ball("Gem", TC + V(0, 0.04, 0.25), 0.14, a, false, true)
+	-- the skirt of petals round the waist, pointing down and out like an upside-down flower: long ones in the accent
+	-- from under the body's middle, short ones of its own colour between them a little higher
 	local np = if F then 6 else 4
 	for i = 0, np - 1 do
-		local d = dir((i + 0.5) / np * 360, -40)
-		local base = V(0, 1.32, 0) + V(d.X, 0, d.Z) * 0.18
-		Kit.blade("Petal", base, base + d * 0.34, 0.2, 0.05, UP, a)
+		local d = dir((i + 0.5) / np * 360, -42)
+		local base = TC + V(0, -0.12, 0) + V(d.X, 0, d.Z) * 0.2
+		Kit.blade("Petal", base, base + d * 0.42, 0.26, 0.05, (UP + d * 0.4).Unit, a)
+		if F then
+			local d2 = dir((i + 1) / np * 360, -30)
+			local b2 = TC + V(0, -0.04, 0) + V(d2.X, 0, d2.Z) * 0.22
+			Kit.blade("PetalIn", b2, b2 + d2 * 0.26, 0.18, 0.05, (UP + d2 * 0.4).Unit, b)
+		end
 	end
 	if F then
 		for _, sp in { { c = V(0.66, 1.72, 0.12), l = 0.2 }, { c = V(-0.6, 0.86, 0.22), l = 0.16 } } do
@@ -701,6 +811,11 @@ PLANS.sprite = function(b, a)
 		local f2 = membrane("WingLow" .. s, { lo0, lo1, lo2 }, { 0.12, 0.28, 0.2, 0.08 }, nrm, "white", if F then 5 else 2)
 		Kit.disc("WingSpot" .. s, up2 - (up2 - up1) * 0.25 + nrm * f1, nrm, 0.1, 0.05, a, true, nil, true)
 		Kit.disc("WingSpot" .. s, lo2 - (lo2 - lo1) * 0.3 + nrm * f2, nrm, 0.08, 0.05, a, true, nil, true)
+		if F then
+			-- a vein of its own colour down the middle of each wing, on its front face
+			line("WingVein" .. s, { up0 + nrm * f1, up1 + nrm * f1, up2 - (up2 - up1) * 0.45 + nrm * f1 }, 0.05, b)
+			line("WingVein" .. s, { lo0 + nrm * f2, lo1 + nrm * f2, lo2 - (lo2 - lo1) * 0.5 + nrm * f2 }, 0.05, b)
+		end
 		J("arm" .. s, "body", V(side * 0.26, 1.26, 0.04), "arm", side)
 		limb("Arm" .. s, { V(side * 0.24, 1.24, 0.04), V(side * 0.4, 1.06, 0.1), V(side * 0.42, 0.9, 0.18) }, { 0.075, 0.06, 0.055 }, b, 1.4)
 		Kit.ball("Hand" .. s, V(side * 0.43, 0.86, 0.2), 0.15, b)

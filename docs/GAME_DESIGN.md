@@ -1225,8 +1225,14 @@ When the island grows into a new stage, the tree is built again at it.
 - **A driftling with no hut**: one whose hut was cleared away or replaced by a smaller one, or a Hatchery's hatchling
   with no room, waits with no hut (`home` 0). It works nowhere and is not drawn on the island; the Driftlings panel
   lists it last ("No hut. It moves in when one has room.") and it moves in the moment a hut has room (`Tree.settle`).
-- **In the world** (`Controllers/EggView`): an egg is two spheres on a little bed of straw, a broad one below and a
-  smaller one on top for an egg's curve, a rarer egg a little bigger. Each rarity has its own colour, marks and lights
+- **In the world** (`Controllers/EggView`): an egg is two spheres in a little nest of straw tufts, a broad one below
+  and a smaller one on top for an egg's curve, a rarer egg a little bigger. Since the request of 2026-11-15 ("can you
+  also do the same with creature and egg models?") each nest has something of its rarity by it (a pebble, a leaf and
+  clover, a blue berry, a pink flower, petals, crystals), the rarer nests are lined with down, blossom or silver, the
+  legendary egg wears three gems in its band and the celestial one a gold star on its crown, and the glow under the
+  epic and rarer eggs shows on the lawn. Up close in the hatch scene the shell is smooth with its marks painted
+  clean: a sprouting vine on the uncommon, a frost band with icicles on the rare, gems in gold settings on the
+  legendary, pearls on the mythic, constellations on the celestial. Each rarity has its own colour, marks and lights
   (`EggView.LOOK`), so a player can tell the eggs apart at a glance:
 
   > The request (2026-11-13): "Also, color each egg differently with different effects to allow players to
@@ -1350,9 +1356,21 @@ driftling itself, so it turns and walks with it and never slides. It shows where
 hatch scene, close looks); on the islands, where a driftling is a figure a few pixels tall, it is left off, as it
 would only be noise.
 
-Up close (the hatch scene, the portraits) a driftling has 90 to 200 pieces: toes, whiskers, fur tufts, flecks and
-cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces
-(45 to 72), and one far from the view is posed every fourth frame.
+Up close (the hatch scene, the portraits) a driftling has about 120 to 260 pieces: toes, whiskers, fur tufts, flecks
+and cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces
+(45 to 80), and one far from the view is posed every fourth frame.
+
+**More detail on every body** (the request of 2026-11-15: "can you also do the same with creature and egg models?",
+after the buildings, the tree and the palms). Each plan got the pieces that make its animal read, within the same
+skeleton so every animation still fits: the snail a round shell standing on edge with its spiral drawn on both sides
+and a frilled foot; the crab a wide low shell with a pale underside, teeth, knuckled claws and ringed eye stalks; the
+turtle rim plates with growth rings, a hooked beak and scaled legs; the jelly a flared, frilled bell with fine
+tentacles; the moth fanned wings with veins, eye spots and feathery antennae; the bat notched wings with knuckles and
+a nose leaf; the drake flat spikes down its back, throat plates and bent legs; the wyrm banded coils, a ridge of
+spikes and neck fins; the pup round cone ears, cheek fluff and paw pads; the mole a star nose and fanned claws; the
+yeti shaggy locks hanging in tiers; the seal paddle flippers and fanned hind flippers; the stone golem pebbles, moss
+with flowers or glowing cracks by kind; the blob moss and a tiny mushroom; the bun a bent ear and a cream belly. The
+pieces a close look needs stay off the islands' lighter figures, which grew by a tenth at most.
 
 **Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`): each of the twenty body plans is built to read as its animal. The turtle has
 a domed shell with a ring of plates and a rim, a head on a neck with a beak, and flippered legs. The fox pup has a

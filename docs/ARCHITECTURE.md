@@ -536,9 +536,13 @@ Models (`src/shared/Models`, Roblox modules):
   face part records `tuck[name]`, its sink against the normal it was made on in its own frame (a rod or a blade hides
   as a disc does); a part without one sinks along its -X.
 - `DriftPlansA..D`: the body plans built with the kit, each `(b, a) -> Thing` facing +Z with its feet at y 0, the old
-  plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: 96 to
-  200 parts; world: 45 to 72. A: blob, bun; B: crab, snail, turtle, frog, jelly, sprite; C: bird, owl, bat, moth,
-  drake, wyrm; D: lizard, pup, mole, yeti, seal, golem (the golem's look follows its body colour).
+  plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: about
+  117 to 257 parts; world: 45 to 80 (the detail pass of 2026-11-15, "can you also do the same with creature and egg
+  models?", kept every joint and grew the world level by at most about 10% a plan: it is drawn every frame on the
+  islands). A: blob, bun; B: crab, snail, turtle, frog, jelly, sprite; C: bird, owl, bat, moth, drake, wyrm; D:
+  lizard, pup, mole, yeti, seal, golem (the golem's look follows its body colour: stone, or a tree golem for the
+  barks, Silverbark's steel among them since that pass). DriftPlansD's own `blade` helper passes its ends to
+  `Kit.blade` base first since then (it had them the wrong way round, every blade widest at its point).
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
   body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
   golem drake`, from `DriftPlansA..D`) in its species' body and accent colours, built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of
@@ -1221,8 +1225,14 @@ stay gone.)
 within `NEAR` (100) studs of the view's centre, synced every half second; an egg whose rarity changed under the same
 id, the quest's egg, gets its new shell and rises again) round its tree, found from the tree's decor
 model name (`uid:tree:x:z:rot:lvl`). Each egg is a `TreeEgg` model (`Models/EggModels.build(r)`, shared with the hatch
-scene) in `Workspace.PixelDynamic` (registered with the renderer): a bed of straw, three `Shell` balls (the upper one
-`Top`, its top half) and its marks, by `LOOK[r]` (`EggModels.LOOK`, also `EggView.LOOK`)
+scene) in `Workspace.PixelDynamic` (registered with the renderer): a nest (since the request of 2026-11-15, "can you
+also do the same with creature and egg models?": a ring of round straw tufts in two tones hugging the egg's foot with
+stalks sticking out, cream down for the legendary, pink and white blossom for the mythic, silver and white for the
+celestial; something by it from `TRIM[r]`: a pebble, a leaf and clover, a blue berry, a pink flower, petals,
+crystals; a small highlight on the shell's lit side, three gems in the legendary's band, a gold `Star` on the
+celestial's crown; the lawn glow from epic up 1.4 times the egg wide at `LAWN` 0.145, the tree's `EggLawn` height,
+so it shows), three `Shell` balls (the upper one `Top`, its top half) and its marks, by `LOOK[r]` (`EggModels.LOOK`,
+also `EggView.LOOK`; the common's freckles in two sizes and two browns, the bands on the side the camera sees)
 (GAME_DESIGN 6: "color each egg differently with different effects"; `{ body, mark, marks, glow, lawn? }`: common
 `cream` with `sand_dark` spots, uncommon `green` with a `white` band, rare `blue` with `white` spots, epic `purple`
 with `pink` spots, legendary `gold` with a `yellow` band, mythic `wall_trim` (rose) with a `white` band and five
@@ -1671,7 +1681,11 @@ sky. The skies have no clouds, no trees on the hills and no islets since 2026-11
 HatchSky layer, 2 x half width by 0.84 x, centred on the top), redrawn each step while any spread: `land()` starts one
 and sets them going every `RING_EVERY` 0.85 s, each widening from half to 0.97 of the half width over `RING_LIFE` 1.7 s
 (ease out), a midpoint ellipse (height 0.42 of its width) in `ring`, then two steps toward the top's colour.
-`EggModels.hero` gives each shell slice `PixelTex` (`DynTex.EGG[r]`), `PixelTexV` (its height, so the slices share one
+`EggModels.hero` builds on the driftlings' 0.05-stud fine grid since 2026-11-15 (on the 0.25 grid its 25 slices
+jogged the outline), its marks nearly flush and painted on the side the camera sees: the uncommon's zigzag with a
+dark edge, a vine and a two-leaf `Sprout`; the rare's frost band with icicles; the legendary's five gems in gold
+bezels; the mythic's pearls kept off the outline; the celestial's constellations; the stars and glints thin crossed
+Neon bars marked `PixelNoPool` like the cracks, kept off the cracks' paths. Each shell slice gets `PixelTex` (`DynTex.EGG[r]`), `PixelTexV` (its height, so the slices share one
 pattern), `PixelTexSeed` (11 + r) and `PixelTexSoft` 0.8; PixelRenderer's dynamic parts read those three (texV, texSeed,
 texSoft; `texOpt` in the draw). `EggModels.heroBottom(h)` is the lowest slice's reach under the foot.
 Each reveal tap plays Audio `crack` (pitch up with `crack`), and so does the tap that hatches it; the hatch plays
