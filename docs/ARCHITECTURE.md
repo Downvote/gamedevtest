@@ -1889,7 +1889,8 @@ motes behind it and `s.hush`.
 `{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
 the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`
 (0, 0, 9000) with nothing under it), the bits of shell (`HatchShards`: thrown out at the hatch, falling away, gone after 2 s) and what
-hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle").
+hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle"), turned
+`PAL_TURN` 30 degrees past facing the viewer: three quarters, as its portrait (the request of 2026-11-16).
 `CameraController.setStage({ name = "hatch", ..., top = 30, bottom = 40, clear = true, empty = true })` (its points
 the egg's room times `STAGE_ROOM` 1.45 about the egg's middle: "make the egg and creature smaller in the hatching
 screen") frames the egg

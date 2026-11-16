@@ -1765,7 +1765,9 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
     flutters, turning its two shades), the god rays at full and the picture jolting; from legendary up the scene runs
     in slow motion for a moment. What hatched shoots up out of the shell as a white silhouette, stretched tall, takes
     its colours, lands squashing with a thud and a puff of dust, then jumps for joy with its arms up; stars circle it
-    (uncommon up; for good from legendary up).
+    (uncommon up; for good from legendary up). It stands turned three quarters, as in its portrait, so its face and
+    the side of its body both show (the request of 2026-11-16: "could the creatures appear at a 3/4 angle instead of
+    facing the player?").
   - *The card*: the name slides up past its place and back (common, uncommon) or drops in letter by letter, each
     letter white for a moment (rare up). From uncommon up its line sits on a ribbon in the rarity's colour with a
     notched tail at each end. "New!" slams down with a flare, a starburst and a ring of bits, and the passive's plate

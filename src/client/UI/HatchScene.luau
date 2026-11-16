@@ -314,6 +314,8 @@ local function back(u: number): number
 	return 1 + 2.7 * x * x * x + 1.7 * x * x
 end
 
+local PAL_TURN = math.rad(30) -- the creature's turn from facing the viewer: three quarters, as the portraits
+
 local function at(x: number, y: number, z: number): Vector3
 	return ORIGIN + Vector3.new(x, y, z)
 end
@@ -1431,7 +1433,10 @@ local function stepPal(s: Scene, c: number)
 	-- 2026-11-14; the rig's "hooray" jumps once from when it starts)
 	local mood = if not s.palDown or c - s.palLand < 0.12 then "idle" elseif c - s.palLand < 2.3 then "hooray" else "idle"
 	MicroModels.animate(thing, c, mood, 0)
-	MicroModels.place(thing, CFrame.new(at(0, FLOAT_Y + hop, 0)) * CFrame.Angles(0, math.pi / 4, 0))
+	-- (turned three quarters, as its portrait: the world's view is from yaw 45, so 45 degrees faces us square on and
+	-- 30 more shows the face and the side of the body; the request of 2026-11-16, "could the creatures appear at a 3/4
+	-- angle instead of facing the player?")
+	MicroModels.place(thing, CFrame.new(at(0, FLOAT_Y + hop, 0)) * CFrame.Angles(0, math.pi / 4 + PAL_TURN, 0))
 end
 
 -- Bits of shell: flying out and falling away out of the picture (nothing to land on).
