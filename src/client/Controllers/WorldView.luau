@@ -59,7 +59,7 @@ type Walker = {
 	beat: number, -- the work's beats so far, last frame (a blow's chips as a beat passes its moment)
 	ph: number, -- where in its beat it started
 	cheerUntil: number,
-	cheerMood: string, -- "cheer" (jumping on) or "hooray" (one jump: a driftling just hatched)
+	cheerMood: string, -- "cheer" (jumping on); a driftling just hatched no longer celebrates (2026-11-16)
 	rng: Types.Rng,
 }
 
@@ -414,8 +414,7 @@ local function syncPlot(i: number, near: boolean)
 						end
 						local nw = newWalker(key, tonumber(id) or 0, i, sp, tonumber(work) or 0, hm, at, muts)
 						if at then
-							nw.cheerUntil = os.clock() + 1.2
-							nw.cheerMood = "hooray" -- (just hatched: one jump, 2026-11-14)
+							-- (just hatched: it stands a moment, idle, then goes; no jump for joy since 2026-11-16)
 							nw.untilT = os.clock() + 1.2
 						end
 						walkers[key] = nw

@@ -651,7 +651,7 @@ Models (`src/shared/Models`, Roblox modules):
   lands, rolling onto the planted side, the hips twisting, the head nodding a beat late and keeping level, the arms
   swinging a beat behind the legs; a slither's sway; a scuttle; flight; hoppers still jump in cheer and hop),
   cheer and hop (jumps: cheer higher, arms up, mouth open), hooray (one jump from the mood's start, then the cheer's
-  pose held: the hatch scene and a driftling just hatched on the island, WorldView's `cheerMood`), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
+  pose held; since 2026-11-16 nothing just hatched plays it: the hatch scene and WorldView keep it idle), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
   squash wobbling back, flung back, ears folded back), ko, and the work moods peck, push, dip, wave and nap. `PITCH`
   scales how far a long body (four legs, a serpent) tips.
   Since the request of 2026-11-16 ("Pose and animate them in ways that make them look natural and lively and bring
@@ -1898,7 +1898,7 @@ motes behind it and `s.hush`.
 `{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
 the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`
 (0, 0, 9000) with nothing under it), the bits of shell (`HatchShards`: thrown out at the hatch, falling away, gone after 2 s) and what
-hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "cheer" then "idle"), turned
+hatched (`MicroModels.species`, scaled up to `PAL_SCALE` 1.35 with an overshoot, "idle" throughout since 2026-11-16), turned
 `PAL_TURN` 30 degrees past facing the viewer: three quarters, as its portrait (the request of 2026-11-16).
 `CameraController.setStage({ name = "hatch", ..., top = 30, bottom = 40, clear = true, empty = true })` (its points
 the egg's room times `STAGE_ROOM` 1.45 about the egg's middle: "make the egg and creature smaller in the hatching

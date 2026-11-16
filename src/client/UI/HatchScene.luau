@@ -44,7 +44,7 @@
 --     (one to four), the top flying off, shell and confetti (fluttering: each bit turns its two shades), the god rays
 --     at full, the picture jolting; from legendary up the scene runs in slow motion for a moment (GLORY.slow). What
 --     hatched shoots up out of the shell as a white silhouette, stretched, takes its colours, lands squashing with a
---     thud and a puff of dust, then jumps for joy (its rig's "hooray"); stars circle it.
+--     thud and a puff of dust, then stands idle (no jump for joy since 2026-11-16); stars circle it.
 --   the card: the name slides up past its place and back (common, uncommon) or drops in letter by letter, each white
 --     for a moment (rare up); from uncommon up its line sits on a ribbon in the rarity's colour; "New!" slams down with
 --     a flare, a starburst and a ring of bits; the passive's plate slides in with a starburst. From legendary up the
@@ -1367,8 +1367,8 @@ local function stepEgg(s: Scene, c: number, d: number)
 end
 
 -- What hatched: up out of the shell as a white silhouette, stretched tall, taking its colours, a leap and down on the
--- pedestal squashing (a thud, a puff of dust, a ring, a jolt from rare up), springing back, then one jump for joy with
--- its arms up ("hooray", its rig's own jump) and stars circling it; then it stands where the egg was.
+-- pedestal squashing (a thud, a puff of dust, a ring, a jolt from rare up), springing back, stars circling it; then it
+-- stands where the egg was.
 local function stepPal(s: Scene, c: number)
 	local thing = s.pal
 	local pop = s.popAt
@@ -1429,10 +1429,9 @@ local function stepPal(s: Scene, c: number)
 	end
 	local sc = PAL_SCALE * grow
 	MicroModels.scale(thing, Vector3.new(sx * sc, sy * sc, sx * sc))
-	-- (its jump for joy once it has landed: "make the pet jump only once instead of a few times after hatching",
-	-- 2026-11-14; the rig's "hooray" jumps once from when it starts)
-	local mood = if not s.palDown or c - s.palLand < 0.12 then "idle" elseif c - s.palLand < 2.3 then "hooray" else "idle"
-	MicroModels.animate(thing, c, mood, 0)
+	-- (idle from the start: no jump for joy once it lands, the request of 2026-11-16, "remove the creatures celebrating
+	-- after hatching, just make them idle from the start of hatching")
+	MicroModels.animate(thing, c, "idle", 0)
 	-- (turned three quarters, as its portrait: the world's view is from yaw 45, so 45 degrees faces us square on and
 	-- 30 more shows the face and the side of the body; the request of 2026-11-16, "could the creatures appear at a 3/4
 	-- angle instead of facing the player?")
