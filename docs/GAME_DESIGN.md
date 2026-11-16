@@ -1362,7 +1362,10 @@ the same way. There are twenty styles of eye: glossy sparkling ovals, the same w
 and dots, a star or a heart in the shine, round cartoon eyes with a coloured iris, wide startled ones, reading glasses
 (the owl that reads old carvings), a cat's slit and a goat's bar, ringed owl eyes, heavy sleepy lids, a fierce brow,
 eyes shut in a happy arch, eyes that glow, crystal gems, a glowing visor slot (the guardian golem) and a moth's cluster
-of beads, each in the iris colour that suits the kind. All of them blink except the happy arches. And each wears a
+of beads, each in the iris colour that suits the kind. All of them blink except the happy arches. (Since the request
+of 2026-11-16, "Make all of their eyes small beads instead", every driftling has the little bead eyes: a small,
+glossy dark eye with a catchlight and a ring of its iris colour low in it; the other styles stay in the kit.) And
+each wears a
 texture on its body: fur, fluffy curls, feathers, scales, a shell's growth lines, stone specks and cracks, a fallen
 wall's courses of brick, bark, crystal facets, skin with pores, streaks of ice, velvet fuzz, a crab's pitted shell,
 a jelly's bubbles or cooled lava's bright cracks; a snail's or a turtle's shell and a crystal creature's crystals wear

@@ -11,21 +11,13 @@ local Looks = require("../../build/luautest/shared/Data/Looks")
 local Street = require("../../build/luautest/shared/Data/Street")
 local DynTex = require("../../build/luautest/shared/Render/DynTex")
 return function()
-	T.it("every driftling has its own eyes and a texture", function()
-		local eyes: { [string]: boolean } = {}
-		for _, e in Creatures.EYES do
-			eyes[e] = true
-		end
-		local byPlan: { [string]: { [string]: string } } = {}
+	T.it("every driftling has small bead eyes, an iris colour that exists and a texture", function()
+		-- (the request of 2026-11-16: "Make all of their eyes small beads instead")
 		for _, d in Creatures.list do
-			T.truthy(eyes[d.eye], d.id .. ": eye style " .. tostring(d.eye))
+			T.eq(d.eye, "bead", d.id .. ": eye style")
 			T.truthy(d.iris == nil or Palette.colors[d.iris] ~= nil, d.id .. ": iris " .. tostring(d.iris))
 			T.truthy(DynTex.kind(d.tex) > 0, d.id .. ": texture " .. tostring(d.tex))
 			T.truthy(d.tex2 == nil or DynTex.kind(d.tex2) > 0, d.id .. ": accent texture " .. tostring(d.tex2))
-			local plan = byPlan[d.shape] or {}
-			byPlan[d.shape] = plan
-			T.truthy(plan[d.eye] == nil, d.id .. " shares its eyes (" .. d.eye .. ") with " .. tostring(plan[d.eye]))
-			plan[d.eye] = d.id
 		end
 	end)
 
