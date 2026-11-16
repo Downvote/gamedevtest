@@ -168,6 +168,11 @@ local function readSolids(root: Instance): { Picture.Solid }
 		end
 		local size = p.Size
 		local sol = Picture.solid(shape, { p.CFrame:GetComponents() }, size.X, size.Y, size.Z, rgb, p.Material == Enum.Material.Neon, 1 - p.Transparency, if type(prm) == "number" then prm else nil)
+		-- (a member of a driftling's blended body: its radius kept as a share of its largest size, Raster.drawBlend)
+		local blend = p:GetAttribute("PixelBlend")
+		if type(blend) == "number" and blend > 0 then
+			sol.blend = blend * math.max(size.X, size.Y, size.Z)
+		end
 		-- (a driftling's eye, painted as it is drawn: Render/EyeTex)
 		local eyeStyle = p:GetAttribute("PixelEye")
 		if type(eyeStyle) == "string" and EyeTex.STYLE[eyeStyle] then

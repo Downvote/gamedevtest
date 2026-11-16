@@ -1527,4 +1527,96 @@ return function()
 		end
 		T.truthy(n > 20 and both > 5, "covered " .. n .. ", " .. both .. " through both")
 	end)
+
+	-- blended solids (Raster.drawBlend): one smooth surface over a creature's body parts
+	local function blendFrame(cam: Raster.Cam): Raster.Frame
+		local n = cam.W * cam.H
+		local depth = buffer.create(n * 4)
+		for i = 0, n - 1 do
+			buffer.writef32(depth, i * 4, 1e9)
+		end
+		return { W = cam.W, H = cam.H, color = buffer.create(n * 4), depth = depth, id = buffer.create(n * 2) }
+	end
+	local function covered(f: Raster.Frame): number
+		local n = 0
+		for i = 0, f.W * f.H - 1 do
+			if buffer.readf32(f.depth, i * 4) < 1e8 then
+				n += 1
+			end
+		end
+		return n
+	end
+	local function flatShade(m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number): number
+		return m
+	end
+
+	T.it("blended solids: a leg meeting a body fills the crease, far apart ones draw as they are", function()
+		-- (a close view, as the hatch scene's: 30 art pixels a stud)
+		local cam = Raster.cam(isoCf(0, 1, 0), 6, 640, 360, 2, BACK)
+		local k = 0.3
+		-- a body and a leg hanging from it (a cone down from inside the body)
+		local body = { 0, 1.4, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 }
+		local leg = { 0.5, 0.6, 0.2, 0, -1, 0, 1, 0, 0, 0, 0, 1 } -- (its X pointing down)
+		local function members(legCf: { number }): { Raster.BlendMember }
+			local a = Raster.blendMember(cam, "Ell", body, 2.2, 1.4, 1.6, nil, 0xF0C0A0, 7, k)
+			local b = Raster.blendMember(cam, "Cone", legCf, 1.4, 0.5, 0.5, 0.8, 0xF0C0A0, 8, k)
+			assert(a and b, "both members")
+			return { a, b }
+		end
+		local M = members(leg)
+		local plain = blendFrame(cam)
+		Raster.drawBlend(plain, cam, M, 2, 0, flatShade)
+		local smooth = blendFrame(cam)
+		local wrote = Raster.drawBlend(smooth, cam, M, 2, k, flatShade, 0)
+		T.truthy(wrote > 0, "drew")
+		-- the blend covers every pixel the plain union does, and more: the fillet round the leg's top
+		local more, lost = 0, 0
+		for i = 0, cam.W * cam.H - 1 do
+			local a, b = buffer.readf32(plain.depth, i * 4) < 1e8, buffer.readf32(smooth.depth, i * 4) < 1e8
+			if b and not a then
+				more += 1
+			elseif a and not b then
+				lost += 1
+			end
+		end
+		T.eq(lost, 0, "nothing of the plain union is lost")
+		T.truthy(more >= 3, "the crease filled: " .. more .. " more pixels")
+		-- (and the blended surface stands at or in front of the plain one everywhere)
+		local behind = 0
+		for i = 0, cam.W * cam.H - 1 do
+			if buffer.readf32(smooth.depth, i * 4) > buffer.readf32(plain.depth, i * 4) + 1e-3 then
+				behind += 1
+			end
+		end
+		T.eq(behind, 0, "never behind the plain surface")
+		-- a leg far from the body: drawn exactly as the plain solids
+		local far = { 4, 0.6, 0.2, 0, -1, 0, 1, 0, 0, 0, 0, 1 }
+		local M2 = members(far)
+		local p2, s2 = blendFrame(cam), blendFrame(cam)
+		Raster.drawBlend(p2, cam, M2, 2, 0, flatShade)
+		Raster.drawBlend(s2, cam, M2, 2, k, flatShade, 0)
+		T.eq(covered(s2), covered(p2), "nothing added between parts that do not meet")
+	end)
+
+	T.it("blended solids: the union's distance dips below both members at a join and its normal runs on across it", function()
+		local cam = smallCam()
+		local k = 0.4
+		-- two unit balls side by side, touching at x = 0
+		local a = Raster.blendMember(cam, "Ell", { -1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 }, 2, 2, 2, nil, 1, 1, k)
+		local b = Raster.blendMember(cam, "Ell", { 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 }, 2, 2, 2, nil, 2, 2, k)
+		assert(a and b, "both")
+		local M = { a, b }
+		-- just over the waist where they touch: outside both balls, inside the blend
+		local d, nx, ny, nz, own = Raster.blendField(M, 2, k, 0, 1.25, 0)
+		local dA = math.sqrt(1 + 0.25 * 0.25) - 1
+		T.truthy(d < 0 and dA > 0, "inside the union's fillet: " .. d)
+		T.near(nx, 0, 1e-6)
+		T.truthy(ny > 0.99, "its normal points straight up over the waist: " .. ny)
+		T.truthy(own == 1 or own == 2, "owned by a member")
+		-- far from the join each ball keeps its own surface and normal
+		local d2, n2x = Raster.blendField(M, 2, k, -2.5, 1, 0)
+		T.near(d2, 0.5, 1e-6)
+		T.near(n2x, -1, 1e-6)
+		local _ = nz
+	end)
 end

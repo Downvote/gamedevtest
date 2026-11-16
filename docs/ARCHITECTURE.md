@@ -579,7 +579,11 @@ Models (`src/shared/Models`, Roblox modules):
   frog, crab (Rubblet in a brick), beetle, snail, wyrm. E: seal (and the cloud whale), fish, ray, seahorse, octo, jelly,
   shroom, sprite (legs and ears now). F: bird (the heron, the phoenix, the swift...), owl, penguin, duck, bat, moth (the
   butterflies and the bee). Full about 40 to 120 parts, the islands' level about 26 to 60 (most of an old face's parts
-  went with the painted eyes). The old ball-built plans (DriftOldA..D) are gone.
+  went with the painted eyes). The old ball-built plans (DriftOldA..D) are gone. Up close the body is one blended
+  surface (9.1): `DriftModels.build` marks every smooth solid but the face, the lit bits and the thin details (under
+  `BLEND_MIN` 0.07 studs across its middle size) with "PixelBlend" (`BLEND` 0.07 x the height, as a share of the part's
+  largest size); `A.ears` and the elephant give each ear a thick root ("EarRoot", full level only) so the head runs
+  on into the ear.
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 37
   body plans (`PLANS`, from `DriftPlansA..F`: `pup cat bear otter monkey yeti deer ram elephant griffin drake bun mole
   hedgehog armadillo turtle golem lizard frog crab beetle snail wyrm seal fish ray seahorse octo jelly shroom sprite
@@ -891,7 +895,23 @@ round) and the quadratic solved; a row's columns are bounded by the roots of the
 says it is one with its "PixelShape" attribute (and "PixelK" for `prm`): `registerDynamic` (`DynPart.prm`),
 `Snapshot`'s solids (`Picture.solid`'s `prm`, its shadow rays through `hitSolid`), `DynTex.uv` and `SmoothParts.role`
 read them; with the pixel filter off an ellipsoid or an egg shows through a sphere `SpecialMesh` and a limb as a
-cylinder. The **effect layers** (9.3,
+cylinder. A driftling's body is drawn as one blended surface (the request of 2026-11-16: "You should not be able to
+see the shapes that the creatures consist of ... make them all look like one connected mesh"; `Raster.blendMember`,
+`Raster.drawBlend`, `Raster.blendWorth`, `Raster.blendField`): its body solids (parts with a "PixelBlend" attribute,
+the blend radius as a share of the part's largest size; `DriftModels.build` sets it, `registerDynamic` reads it into
+`DynPart.blend`, `Snapshot` into `Picture.Solid.blend`) are the smooth union of their distance fields, a polynomial
+smooth minimum folded over them thickest first, each member's own radius the model's or 0.6 x its smallest size if
+less (a thin antler or a flat ear meets the head in a small fillet). Each member is first drawn over its own
+silhouette (its exact hit, normal and member kept per pixel, and how many members cover it); only near pixels covered
+by two members does the union count: there the member's neighbours (members whose bounding balls come within the
+pair's radius, listed once a frame, and only those the pixel's ray passes near) give the field, and where it dips
+below the hit Newton steps along the ray move to the union's surface (a shift under a pixel keeps the hit), lit by
+the members' gradients mixed by the minimum's weights and coloured by the nearest member; the pixels just outside the
+silhouettes between two different members march the union for a fillet. With no step in depth at a join, the outline
+pass draws no ink along it. The details (eyes, claws, whiskers, teeth, lit bits) are drawn first as plain parts, so
+the body must be truly in front to cover them. Below `BLEND_MIN_PX` (3 art pixels of blend radius: the islands, where
+a driftling is a small figure among dozens) the members draw as plain solids; a still picture (`Picture`, the
+portraits) blends at any size. The **effect layers** (9.3,
 `Render/Fx`) draw over both every tick: 2D sprites and pixels in the world (the islands' small lives,
 `AmbientView`), depth-tested, colour only. Without EditableImages (or with Classic picked) the layer hides and the
 Roblox camera shows the 3D world.

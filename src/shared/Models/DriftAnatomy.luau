@@ -596,6 +596,11 @@ function A.ears(h: Head, o: EarOpts)
 		local baseDir = (CFrame.Angles(0, 0, -side * R(yaw)) * CFrame.Angles(R(-(o.back or 8)), 0, 0)):VectorToWorldSpace(UP)
 		local base = Kit.onEll(h.c, half, CFrame.identity, baseDir) - baseDir * w * 0.15
 		Kit.J("ear" .. s, "head", base, "ear", side)
+		if Kit.full() and kind ~= "tuft" then
+			-- the ear's root, thick where it grows from the head, so up close the blended body runs from the head
+			-- into the ear (Render/Raster.drawBlend) instead of a flat flap stuck on
+			Kit.ell("EarRoot" .. s, base, V(w * 0.6, w * 0.55, w * 0.5), o.c)
+		end
 		local outward = V(side, 0, 0)
 		local dirUp: Vector3
 		if kind == "droop" then

@@ -2607,6 +2607,32 @@ local function palsScenario(arg, lod)
 		settle(p, 60, 0.5)
 		capture(p, "pals_" .. mood)
 	end
+	-- (what drawing them costs up close: posed afresh every frame for a second, the renderer's model time a frame)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR and PR.debugPerf then
+		-- (on the real clock, so the renderer's own timings are real ones: as the pan scenario does)
+		local realClock = os.clock
+		local sim0 = E.simClock
+		local off = E.SIM.lastClock - realClock() + 1
+		E.simClock = function()
+			local v = realClock() + off
+			E.SIM.lastClock = v
+			return v
+		end
+		H.inClient(p, PR.debugPerf)
+		for f = 1, 30 do
+			H.inClient(p, function()
+				for j, x in things do
+					MM.animate(x.t, 1 + f / 30 + j * 0.37, "cheer", f / 30)
+					MM.place(x.t, E.cf.new(x.x, 0, x.z) * E.cf.Angles(0, faceViewer + math.rad(30), 0))
+				end
+			end)
+			E.run(1 / 30)
+		end
+		local st = H.inClient(p, PR.debugPerf)
+		E.simClock = sim0
+		log("pals perf: %d frames, models %.2f ms a frame (%d drawn)", st.frames, st.dynMs / math.max(1, st.frames), st.draws)
+	end
 	return p
 end
 

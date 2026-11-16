@@ -27,6 +27,8 @@ export type Solid = {
 	prm: number?, -- an Egg's or a Cone's shape number (Raster.drawSolid)
 	-- a driftling's eye painted on it (Render/EyeTex): its style's code, its colours (0xRRGGBB) and its side
 	eye: { code: number, iris: number, dark: number, lid: number, side: number }?,
+	-- a member of a driftling's blended body (Raster.drawBlend): its blend radius in studs
+	blend: number?,
 	cf: { number }, -- cf12: position and rotation
 	sx: number,
 	sy: number,
@@ -54,6 +56,7 @@ export type Job = {
 	cam: Raster.Cam,
 	solids: { Solid },
 	opaque: { number }, -- indices into solids
+	blend: { number }, -- the opaque ones drawn together as one blended surface (after the others)
 	clear: { number }, -- see-through ones
 	outline: string,
 	shadows: boolean,
@@ -340,9 +343,11 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		buffer.writef32(depth, i * 4, FAR)
 	end
 	local frame: Raster.Frame = { W = W, H = H, color = buffer.create(n * 4), depth = depth, id = buffer.create(n * 2) }
-	local opaque, clear = {}, {}
+	local opaque, clear, blend = {}, {}, {}
 	for i, s in solids do
-		if s.alpha >= 0.999 then
+		if s.alpha >= 0.999 and s.blend and s.blend > 0 and not s.glow and Raster.SOLID_KIND[s.shape] then
+			table.insert(blend, i)
+		elseif s.alpha >= 0.999 then
 			table.insert(opaque, i)
 		elseif s.alpha > 0.05 then
 			table.insert(clear, i)
@@ -355,6 +360,7 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		cam = cam,
 		solids = solids,
 		opaque = opaque,
+		blend = blend,
 		clear = clear,
 		outline = o.outline or "outer",
 		shadows = o.shadows ~= false,
@@ -412,6 +418,40 @@ local function rasterSolid(job: Job, k: number)
 		return 0
 	end
 	Raster.drawPart(job.frame, job.cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.rgb, k, capture, nil, s.prm)
+end
+
+-- Phase 1, last: the blended body (Raster.drawBlend) into the G-buffer, one radius for it (its members' averaged).
+local function rasterBlend(job: Job)
+	local list = job.blend
+	if #list == 0 then
+		return
+	end
+	local cam = job.cam
+	local W = job.W
+	local albedo, normal = job.albedo, job.normal
+	local k = 0
+	for _, i in list do
+		k += job.solids[i].blend or 0
+	end
+	k /= #list
+	local M: { Raster.BlendMember } = {}
+	for _, i in list do
+		local s = job.solids[i]
+		local m = Raster.blendMember(cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.prm, s.rgb, i, k)
+		if m then
+			table.insert(M, m)
+		end
+	end
+	local function capture(m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number): number
+		local idx = y * W + x
+		buffer.writeu32(albedo, idx * 4, rgb)
+		buffer.writef32(normal, idx * 12, nx)
+		buffer.writef32(normal, idx * 12 + 4, ny)
+		buffer.writef32(normal, idx * 12 + 8, nz)
+		return 0
+	end
+	-- (a still picture: blended at any size)
+	Raster.drawBlend(job.frame, cam, M, #M, k, capture, 0)
 end
 
 -- The job's ShadowGrid (margins a little wider than the discs, so rounding never drops a solid that blocks).
@@ -561,6 +601,7 @@ function Picture.step(job: Job, deadline: number): boolean
 		if job.phase == 1 then
 			local k = job.opaque[job.cursor]
 			if k == nil then
+				rasterBlend(job)
 				job.phase, job.cursor = 2, 0
 			else
 				rasterSolid(job, k)

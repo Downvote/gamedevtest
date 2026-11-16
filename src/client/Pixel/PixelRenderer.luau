@@ -134,7 +134,7 @@ local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0
 
 -- a painted eye (Render/EyeTex): its style's code, its colours (0xRRGGBB) and its side
 type EyeSpec = { code: number, iris: number, dark: number, lid: number, side: number }
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number?, eye: EyeSpec? }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number?, eye: EyeSpec?, blend: number? }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
 -- A moving model's picture last time it was drawn (DynCache in the compose section): its pixels that won against the
@@ -317,6 +317,14 @@ local SG = {
 	shadeEye = nil :: Raster.Shade?,
 	-- (the smooth solids pieces can lie on, by shape: Render/Smooth.packSolid's kinds)
 	solidKind = { Ell = 1, Egg = 2, EggBot = 4, EggTop = 5 } :: { [string]: number },
+	-- (a model's body drawn as one blended surface, Raster.drawBlend: its members this frame, their parts and frames,
+	-- the member whose texture is set up, and the shade that sets it)
+	blendM = {} :: { Raster.BlendMember },
+	blendP = {} :: { any },
+	blendCf = {} :: { { number } },
+	blendLast = 0,
+	blendTex = false,
+	shadeMember = nil :: Raster.BlendShade?,
 	buf = nil :: buffer?,
 	out = nil :: buffer?, -- (the whole image graded, as it goes up)
 	on = nil :: Surf?,
@@ -1722,6 +1730,19 @@ SG.shadeEye = function(rgb: number, nx: number, ny: number, nz: number, x: numbe
 	return Shading.softMix(c1, c2, k)
 end
 
+-- A member of a model's blended body (Raster.drawBlend): its texture set up when the member changes, then lit like any
+-- textured part, with the union's normal as it comes (no leaning: the blend is the smooth surface).
+SG.shadeMember = function(m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number): number
+	if m ~= SG.blendLast then
+		SG.blendLast = m
+		local p = SG.blendP[m]
+		texCF, texShape, texKind = SG.blendCf[m], p.shape, if SG.blendTex then p.tex else 0
+		texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
+		texOpt.role = 0
+	end
+	return shadeTex(rgb, nx, ny, nz, x, y, t)
+end
+
 -- A static pixel shaded as if in the sun's shadow (a dynamic model's blob shadow), cached per pixel until the static
 -- layer changes (a bake, a pan, a re-cast).
 local function shadeShadowed(s: Surf, idx: number, x: number, y: number): number
@@ -2535,13 +2556,29 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 		end
 		T.scnt = sc
 	end
+	-- (the body's blend radius: its members' shares of their sizes, averaged; drawn blended only where it shows)
+	local blendN, blendSum = 0, 0
+	for _, p in d.parts do
+		local part = p.part
+		if p.blend and part.Parent ~= nil and part.Transparency < 0.95 then
+			local sz = part.Size
+			blendN += 1
+			blendSum += p.blend * math.max(sz.X, sz.Y, sz.Z)
+		end
+	end
+	local blendOn = blendN > 1 and Raster.blendWorth(cam, blendSum / blendN)
 	for _, p in d.parts do
 		local part = p.part
 		if part.Parent == nil or part.Transparency >= 0.95 then
 			continue
 		end
-		local cf12 = { part.CFrame:GetComponents() }
 		local sz = part.Size
+		if p.blend and blendOn then
+			-- (the body's blended members go last, as one surface: the details under them, so an eye or a claw stands
+			-- clear of the body unless the body is truly in front)
+			continue
+		end
+		local cf12 = { part.CFrame:GetComponents() }
 		local bx0, by0, bx1, by1 = Raster.boxRect(cam, cf12, sz.X, sz.Y, sz.Z)
 		if bx0 and by0 and bx1 and by1 then
 			local shade = if p.glow then shadeGlow else shadeLit
@@ -2584,6 +2621,34 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 			end
 			Raster.drawPart(f, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade, nil, p.prm)
 			x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
+		end
+	end
+	if blendOn then
+		-- the blended body
+		local k = blendSum / blendN
+		local M, P, C = SG.blendM, SG.blendP, SG.blendCf
+		local n = 0
+		for _, p in d.parts do
+			local part = p.part
+			if p.blend and part.Parent ~= nil and part.Transparency < 0.95 then
+				local cf12 = { part.CFrame:GetComponents() }
+				local sz = part.Size
+				local m = Raster.blendMember(cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.prm, p.rgb, p.id, k)
+				if m then
+					n += 1
+					M[n], P[n], C[n] = m, p, cf12
+				end
+			end
+		end
+		for i = n + 1, #M do
+			M[i], P[i], C[i] = nil :: any, nil, nil :: any
+		end
+		if n > 0 then
+			SG.blendLast, SG.blendTex = 0, texOn
+			local w, bx0, by0, bx1, by1 = Raster.drawBlend(f, cam, M, n, k, SG.shadeMember :: Raster.BlendShade)
+			if w >= 0 and bx1 >= bx0 then
+				x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
+			end
 		end
 	end
 	return x0, y0, x1, y1
@@ -3301,6 +3366,9 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			if type(solid) == "string" and Raster.SOLID_KIND[solid] then
 				shape = solid
 			end
+			-- (a member of the model's blended body: its blend radius as a share of its largest size, Raster.drawBlend)
+			local blendAttr = d:GetAttribute("PixelBlend")
+			local blend = if type(blendAttr) == "number" and blendAttr > 0 and (shape == "Ell" or shape == "Egg" or shape == "Cone") then blendAttr else nil
 			-- (a driftling's eye: painted as it is drawn, Render/EyeTex)
 			local eyeStyle = d:GetAttribute("PixelEye")
 			local eye: EyeSpec? = nil
@@ -3343,6 +3411,7 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 				sm = sm,
 				prm = if type(prm) == "number" then prm else nil,
 				eye = eye,
+				blend = blend,
 			})
 		end
 	end

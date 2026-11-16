@@ -770,6 +770,10 @@ PLANS.elephant = function(b, a, form)
 		local c0 = at + V(s * ew * 0.42, -eh * 0.18, -0.04)
 		local rot = faceTo(n, V(0, 1, 0))
 		Kit.ell("Ear" .. sn, c0, V(ew, eh, 0.08), b, rot)
+		if full() then
+			-- (its root, thick where it leaves the head: up close the blended body runs on into the flap)
+			Kit.ell("EarRoot" .. sn, at + V(s * ew * 0.12, -eh * 0.08, 0), V(ew * 0.36, eh * 0.56, 0.26), b, rot)
+		end
 		Kit.ell("EarIn" .. sn, c0 + n * 0.035 + V(s * ew * 0.04, 0, 0), V(ew * 0.72, eh * 0.72, 0.05), f.earC or skinIn, rot, true)
 		local mark = f.bolts or f.cracks
 		if mark then

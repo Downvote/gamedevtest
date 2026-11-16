@@ -59,6 +59,8 @@ end
 -- style and iris colour (DriftKit.eye) and the textures its body and accent colours wear (each part of that colour,
 -- not the face, gets a "PixelTex" attribute: the pixel renderer patterns it, Render/DynTex).
 export type Look = { id: string?, eye: string?, iris: string?, tex: string?, tex2: string?, form: Form? }
+local BLEND = 0.07 -- the body's blend radius, a share of the driftling's height
+local BLEND_MIN = 0.07 -- studs: a solid thinner than this across (its middle size) is a detail, not blended
 function DriftModels.build(shape: string, body: string, accent: string, lod: string?, look: Look?): Thing
 	local fn = PLANS[shape] or PLANS.armadillo
 	Kit.setFull(lod ~= "world")
@@ -73,6 +75,24 @@ function DriftModels.build(shape: string, body: string, accent: string, lod: str
 		error(t)
 	end
 	Kit.finish()
+	-- The body drawn as one blended surface (Render/Raster.drawBlend; the request of 2026-11-16: "You should not be able
+	-- to see the shapes that the creatures consist of ... make them all look like one connected mesh instead of clearly
+	-- different simple shapes put together"): every smooth solid of the body is a member but the face, the lit bits and
+	-- the thin details (whiskers, lashes, claws, teeth: under BLEND_MIN across), which stay crisp and are drawn first.
+	-- The blend radius is BLEND times the driftling's height, kept as a share of each part's largest size so it scales
+	-- with the model.
+	local k = BLEND * t.h
+	for name, p in t.parts do
+		local sh = p:GetAttribute("PixelShape")
+		if t.face[name] == nil and p.Material ~= Enum.Material.Neon and p:GetAttribute("PixelEye") == nil and p:GetAttribute("PixelOwn") == nil and (sh == "Ell" or sh == "Egg" or sh == "Cone") then
+			local s = p.Size
+			local hi, lo = math.max(s.X, s.Y, s.Z), math.min(s.X, s.Y, s.Z)
+			local mid = s.X + s.Y + s.Z - hi - lo
+			if mid >= BLEND_MIN and hi > 0 then
+				p:SetAttribute("PixelBlend", k / hi)
+			end
+		end
+	end
 	local tex, tex2 = look and look.tex, look and look.tex2
 	if tex or tex2 then
 		local cb, ca = Blocks.color(body), Blocks.color(accent)

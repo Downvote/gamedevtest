@@ -1862,6 +1862,833 @@ function Raster.drawSolid(
 	return n
 end
 
+------------------------------------------------------------------ blended solids (one surface)
+-- The request (2026-11-16): "You should not be able to see the shapes that the creatures consist of. For example, the
+-- elephant can still be seen as spheres and cylinders in the leg, and the ears as well. ... make them all look like
+-- one connected mesh instead of clearly different simple shapes put together". So a driftling's body solids are drawn
+-- together as one surface: the smooth union of their distance fields (a polynomial smooth minimum of radius k folded
+-- over them), the way a sculptor's clay or a skinned mesh runs on where a leg meets the body, an ear the head, a
+-- muzzle the face: a fillet instead of a crease. The light follows it (the normal is the union's gradient, the
+-- members' normals mixed by the same weights the minimum mixes their distances with), and with no step in depth at a
+-- join the outline pass draws no ink along it. Each pixel takes the colour and id of the member nearest the surface
+-- there, so colour edges stay sharp on the smooth surface.
+-- Away from every join a pixel is its nearest member's own exact hit. Only where another member comes within k of
+-- that point does the ray march the union, a few steps from just in front of the plain hit; and only pixels within
+-- half of k of such a join look for a fillet outside every member's silhouette (where a crease seen edge on is filled).
+--   Raster.blendMember(cam, shape, cf12, sx, sy, sz, prm, rgb, id, k) -> BlendMember?   (an "Ell", "Egg" or "Cone")
+--   Raster.drawBlend(f, cam, members, n, k, shade, minPx?) -> (written, x0, y0, x1, y1)
+--       shade(m, rgb, nx, ny, nz, x, y, t): the colour for member m (1..n) at layer pixel (x, y), hit t along its ray;
+--       a blend radius under minPx art pixels (BLEND_MIN_PX unless given: 0 for a still picture) draws plain solids
+--   Raster.blendWorth(cam, k) -> boolean   whether a blend of radius k is drawn in this view
+--   Raster.blendField(members, n, k, x, y, z) -> (d, nx, ny, nz, m)   the union at a world point (specs, tools)
+export type BlendMember = {
+	g: SolidGeo,
+	rgb: number,
+	id: number,
+	k: number, -- its blend radius (the model's, less for a thin part)
+	ix: number, -- its place in the list drawBlend was given (what shade is told)
+	-- its rotation's columns (the part's X, Y, Z in world)
+	r00: number,
+	r10: number,
+	r20: number,
+	r01: number,
+	r11: number,
+	r21: number,
+	r02: number,
+	r12: number,
+	r22: number,
+	-- the camera ray in its frame: direction, steps per column and per row, origin of pixel (0, 0)
+	dx: number,
+	dy: number,
+	dz: number,
+	six: number,
+	siy: number,
+	siz: number,
+	sjx: number,
+	sjy: number,
+	sjz: number,
+	bqx: number,
+	bqy: number,
+	bqz: number,
+	-- the pixels its fillets can reach, the pixels it covers itself, and a bounding ball (world)
+	x0: number,
+	y0: number,
+	x1: number,
+	y1: number,
+	tx0: number,
+	ty0: number,
+	tx1: number,
+	ty1: number,
+	cx: number,
+	cy: number,
+	cz: number,
+	br: number,
+}
+export type BlendShade = (m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number) -> number
+local BLEND_THICK = 0.6 -- a part's blend radius is at most this share of how thick it is
+local BLEND_MIN_PX = 3 -- a blend radius under this many art pixels is not drawn (on the islands, where a driftling is
+-- a small figure among dozens, its fillets would be a pixel or two and the blend would cost four times the drawing)
+
+-- The distance from (x, y, z) in a solid's frame to its surface, below 0 inside: exact for the round cone and a ball,
+-- Inigo Quilez's close bound for an ellipsoid (an egg: its half on the point's side), and for a cone flattened across
+-- Z its round frame's distance over the squash (a bound).
+local function sdfLocal(g: SolidGeo, x: number, y: number, z: number): number
+	if g.kind == SOLID_CONE then
+		local sc = g.ic
+		local zs = z * sc
+		local u = x - g.ax
+		local rho = math.sqrt(y * y + zs * zs)
+		local L = g.bx - g.ax
+		local d: number
+		if L <= 1e-9 then
+			d = math.sqrt(u * u + rho * rho) - g.ra
+		else
+			local b = (g.ra - g.rb) / L
+			local a = math.sqrt(math.max(0, 1 - b * b))
+			local kk = a * u - b * rho
+			if kk < 0 then
+				d = math.sqrt(u * u + rho * rho) - g.ra
+			elseif kk > a * L then
+				local v = u - L
+				d = math.sqrt(v * v + rho * rho) - g.rb
+			else
+				d = rho * a + u * b - g.ra
+			end
+		end
+		if sc > 1 then
+			d /= sc
+		end
+		return d
+	end
+	local ia, ib, ic = g.ia, g.ib, g.ic
+	local yy = y
+	if g.kind ~= SOLID_ELL then
+		yy = y - g.ye
+		if yy < 0 then
+			ib = g.ibBot
+		end
+	end
+	local px, py, pz = x * ia, yy * ib, z * ic
+	local k0 = math.sqrt(px * px + py * py + pz * pz)
+	local qx, qy, qz = px * ia, py * ib, pz * ic
+	local k1 = math.sqrt(qx * qx + qy * qy + qz * qz)
+	if k1 < 1e-9 then
+		return -1 / math.max(ia, ib, ic)
+	end
+	return k0 * (k0 - 1) / k1
+end
+
+-- The outward direction of that distance's growth at (x, y, z) in the solid's frame (not unit).
+local function gradLocal(g: SolidGeo, x: number, y: number, z: number): (number, number, number)
+	if g.kind == SOLID_CONE then
+		local sc = g.ic
+		local zs = z * sc
+		local u = x - g.ax
+		local rho = math.sqrt(y * y + zs * zs)
+		local L = g.bx - g.ax
+		local gx: number, gy: number, gz: number
+		if L <= 1e-9 then
+			gx, gy, gz = u, y, zs
+		else
+			local b = (g.ra - g.rb) / L
+			local a = math.sqrt(math.max(0, 1 - b * b))
+			local kk = a * u - b * rho
+			if kk < 0 then
+				gx, gy, gz = u, y, zs
+			elseif kk > a * L then
+				gx, gy, gz = u - L, y, zs
+			elseif rho > 1e-9 then
+				gx, gy, gz = b, a * y / rho, a * zs / rho
+			else
+				gx, gy, gz = b, a, 0
+			end
+		end
+		local l = math.sqrt(gx * gx + gy * gy + gz * gz)
+		if l < 1e-12 then
+			return 1, 0, 0
+		end
+		return gx / l, gy / l, gz * sc / l
+	end
+	local ia, ib, ic = g.ia, g.ib, g.ic
+	local yy = y
+	if g.kind ~= SOLID_ELL then
+		yy = y - g.ye
+		if yy < 0 then
+			ib = g.ibBot
+		end
+	end
+	return x * ia * ia, yy * ib * ib, z * ic * ic
+end
+
+function Raster.blendMember(cam: Cam, shape: string, cf12: { number }, sx: number, sy: number, sz: number, prm: number?, rgb: number, id: number, k: number): BlendMember?
+	local kind = SOLID_KIND[shape]
+	if kind == nil or kind == SOLID_EGGBOT or kind == SOLID_EGGTOP then
+		return nil
+	end
+	local g = solidGeo(kind, sx, sy, sz, prm)
+	if g == nil then
+		return nil
+	end
+	-- (its own blend radius: the model's, or less for a thin part, so an antler's branch, a spike, a flat ear or a
+	-- patch of colour meets the body in a small fillet and keeps its shape)
+	local mk = math.min(k, BLEND_THICK * math.min(sx, sy, sz))
+	local e = 2 * mk
+	local x0, y0, x1, y1 = Raster.boxRect(cam, cf12, sx + e, sy + e, sz + e)
+	if x0 == nil or y0 == nil or x1 == nil or y1 == nil then
+		return nil
+	end
+	local tx0, ty0, tx1, ty1 = Raster.boxRect(cam, cf12, sx, sy, sz)
+	local r00, r10, r20 = cf12[4], cf12[7], cf12[10]
+	local r01, r11, r21 = cf12[5], cf12[8], cf12[11]
+	local r02, r12, r22 = cf12[6], cf12[9], cf12[12]
+	local lx, ly, lz = cam.lx, cam.ly, cam.lz
+	local ix, iy, iz, jx, jy, jz = cam.ix, cam.iy, cam.iz, cam.jx, cam.jy, cam.jz
+	local ox, oy, oz = cam.ox - cf12[1], cam.oy - cf12[2], cam.oz - cf12[3]
+	return {
+		g = g,
+		rgb = rgb,
+		id = id,
+		k = mk,
+		ix = 0,
+		r00 = r00,
+		r10 = r10,
+		r20 = r20,
+		r01 = r01,
+		r11 = r11,
+		r21 = r21,
+		r02 = r02,
+		r12 = r12,
+		r22 = r22,
+		dx = lx * r00 + ly * r10 + lz * r20,
+		dy = lx * r01 + ly * r11 + lz * r21,
+		dz = lx * r02 + ly * r12 + lz * r22,
+		six = ix * r00 + iy * r10 + iz * r20,
+		siy = ix * r01 + iy * r11 + iz * r21,
+		siz = ix * r02 + iy * r12 + iz * r22,
+		sjx = jx * r00 + jy * r10 + jz * r20,
+		sjy = jx * r01 + jy * r11 + jz * r21,
+		sjz = jx * r02 + jy * r12 + jz * r22,
+		bqx = ox * r00 + oy * r10 + oz * r20,
+		bqy = ox * r01 + oy * r11 + oz * r21,
+		bqz = ox * r02 + oy * r12 + oz * r22,
+		x0 = x0,
+		y0 = y0,
+		x1 = x1,
+		y1 = y1,
+		tx0 = tx0 or x0,
+		ty0 = ty0 or y0,
+		tx1 = tx1 or -1,
+		ty1 = ty1 or -1,
+		cx = cf12[1],
+		cy = cf12[2],
+		cz = cf12[3],
+		br = 0.5 * math.sqrt(sx * sx + sy * sy + sz * sz),
+	}
+end
+
+-- (scratch, kept between calls: the members in fold order, the candidates at a pixel, their points' starts in their
+-- frames, their distances, the shares the fold kept and their weights)
+local bOrd: { BlendMember } = {}
+local bcM: { BlendMember } = {}
+local bcQX: { number } = {}
+local bcQY: { number } = {}
+local bcQZ: { number } = {}
+local bcD: { number } = {}
+local bcH: { number } = {}
+local bcW: { number } = {}
+local bAdj: { number } = {} -- (each member's neighbours, itself among them, by place in the fold order: flattened)
+local bAdjS: { number } = {}
+local bAdjE: { number } = {}
+local bMask = buffer.create(4096)
+local bNear = buffer.create(4096)
+local bCnt = buffer.create(4096)
+local bOwn = buffer.create(4096)
+local bT = buffer.create(4096 * 4)
+local bN = buffer.create(4096 * 12)
+local bMaskN = 4096
+local function byK(a: BlendMember, b: BlendMember): boolean
+	if a.k ~= b.k then
+		return a.k > b.k
+	end
+	return a.ix < b.ix
+end
+
+function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: number, shade: BlendShade, minPx: number?): (number, number, number, number, number)
+	if n <= 0 then
+		return 0, 0, 0, -1, -1
+	end
+	local X0, Y0, X1, Y1 = math.huge, math.huge, -math.huge, -math.huge
+	-- (folded thickest first: each member meets what came before with its own radius, so a thin one never takes a
+	-- thick one's)
+	local O = bOrd
+	for i = 1, n do
+		local m = M[i]
+		m.ix = i
+		O[i] = m
+		X0, Y0, X1, Y1 = math.min(X0, m.x0), math.min(Y0, m.y0), math.max(X1, m.x1), math.max(Y1, m.y1)
+	end
+	for i = n + 1, #O do
+		O[i] = nil :: any
+	end
+	if n == 1 or k <= 1e-6 or k * cam.s / cam.K < (minPx or BLEND_MIN_PX) then
+		-- (nothing to blend with, or a blend too small to pay for: a driftling on the islands; plain solids)
+		local written = 0
+		for i = 1, n do
+			written += Raster.drawBlendOne(f, cam, M[i], i, shade)
+		end
+		return written, X0, Y0, X1, Y1
+	end
+	table.sort(O, byK)
+	-- each member's neighbours: the members whose bounding balls come within the pair's radius of its own (itself
+	-- included), in fold order. Only they can bend the surface near it.
+	local na = 0
+	for a = 1, n do
+		local ma = O[a]
+		bAdjS[a] = na + 1
+		for b = 1, n do
+			local mb = O[b]
+			local ex, ey, ez = ma.cx - mb.cx, ma.cy - mb.cy, ma.cz - mb.cz
+			local lim = ma.br + mb.br + math.min(ma.k, mb.k)
+			if b == a or ex * ex + ey * ey + ez * ez < lim * lim then
+				na += 1
+				bAdj[na] = b
+			end
+		end
+		bAdjE[a] = na
+	end
+	local w, h = X1 - X0 + 1, Y1 - Y0 + 1
+	-- (each pixel's state: 0 nothing, 1 a member's own hit, 2 a hit near a join)
+	if w * h > bMaskN then
+		bMaskN = w * h
+		bMask = buffer.create(bMaskN)
+		bNear = buffer.create(bMaskN)
+		bCnt = buffer.create(bMaskN)
+		bOwn = buffer.create(bMaskN)
+		bT = buffer.create(bMaskN * 4)
+		bN = buffer.create(bMaskN * 12)
+	end
+	local mask = bMask
+	buffer.fill(mask, 0, 0, w * h)
+	local W = f.W
+	local color, depth, ids = f.color, f.depth, f.id
+	local bias = cam.bias
+	local lx, ly, lz = cam.lx, cam.ly, cam.lz
+	local studPx = cam.K / cam.s -- studs a layer pixel
+	local eps = 0.15 * studPx
+	local written = 0
+	local cM, cQX, cQY, cQZ, cD, cH, cW = bcM, bcQX, bcQY, bcQZ, bcD, bcH, bcW
+
+	-- the candidates at pixel (i, j) owned by the member at place o: o and its neighbours; how many
+	local function gatherAdj(i: number, j: number, o: number): number
+		local nc = 0
+		for a = bAdjS[o], bAdjE[o] do
+			local r = bAdj[a]
+			local m = O[r]
+			local qx, qy, qz = m.bqx + j * m.sjx + i * m.six, m.bqy + j * m.sjy + i * m.siy, m.bqz + j * m.sjz + i * m.siz
+			-- (its own member always; a neighbour only if the ray passes within its reach of its bounding ball)
+			local along = qx * m.dx + qy * m.dy + qz * m.dz
+			local R = m.br + m.k
+			if r == o or qx * qx + qy * qy + qz * qz - along * along < R * R then
+				nc += 1
+				cM[nc] = m
+				cQX[nc], cQY[nc], cQZ[nc] = qx, qy, qz
+			end
+		end
+		return nc
+	end
+
+	-- the union's distance at t along the pixel's ray (the nc candidates), each candidate's distance left in cD and
+	-- the share the fold kept of what came before it in cH
+	local cFv = 0
+	local function field(nc: number, t: number): number
+		local d = 0
+		for c = 1, nc do
+			local m = cM[c]
+			local qx, qy, qz = cQX[c] + t * m.dx, cQY[c] + t * m.dy, cQZ[c] + t * m.dz
+			if c > 1 then
+				-- (too far to matter: its bounding ball keeps it at least the union's distance plus its radius off)
+				local lim = m.br + d + m.k
+				if lim > 0 and qx * qx + qy * qy + qz * qz > lim * lim then
+					cD[c] = math.huge
+					cH[c] = 1
+					continue
+				end
+			end
+			local dc = sdfLocal(m.g, qx, qy, qz)
+			cD[c] = dc
+			if c == 1 then
+				d = dc
+			else
+				local kc = m.k
+				if kc > 1e-6 then
+					local hh = math.clamp(0.5 + 0.5 * (dc - d) / kc, 0, 1)
+					cH[c] = hh
+					d = dc + (d - dc) * hh - kc * hh * (1 - hh)
+				elseif dc < d then
+					cH[c] = 0
+					d = dc
+				else
+					cH[c] = 1
+				end
+			end
+		end
+		cFv = d
+		return d
+	end
+
+	-- the weights each candidate's normal takes in the union's (field just evaluated): its own share times all the
+	-- later ones kept; and the nearest one
+	local function weights(nc: number): number
+		local own, best = 1, math.huge
+		local keep = 1
+		for c = nc, 1, -1 do
+			local dc = cD[c]
+			if dc < best then
+				best, own = dc, c
+			end
+			if c > 1 then
+				local hh = cH[c]
+				cW[c] = (1 - hh) * keep
+				keep *= hh
+			else
+				cW[c] = keep
+			end
+		end
+		return own
+	end
+
+	-- the union's surface near t along the ray (a plain hit, where the field is at most 0): Newton's steps, the
+	-- field's slope along the ray from the members' gradients mixed by their weights, each step held within kmax
+	local function newton(nc: number, t: number, kmax: number, ready: boolean?): number
+		for it = 1, 2 do
+			-- (the first time the field may already stand evaluated at t)
+			local F = if it == 1 and ready then cFv else field(nc, t)
+			if F < eps and F > -eps then
+				return t
+			end
+			weights(nc)
+			local slope = 0
+			for c = 1, nc do
+				local wc = cW[c]
+				if wc > 1e-3 and cD[c] < math.huge then
+					local m = cM[c]
+					local gx, gy, gz = gradLocal(m.g, cQX[c] + t * m.dx, cQY[c] + t * m.dy, cQZ[c] + t * m.dz)
+					local l = math.sqrt(gx * gx + gy * gy + gz * gz)
+					if l > 1e-12 then
+						slope += wc * (gx * m.dx + gy * m.dy + gz * m.dz) / l
+					end
+				end
+			end
+			if slope > -0.2 then
+				slope = -0.2 -- (seen nearly edge on: a short step)
+			end
+			local step = math.clamp(F / slope, -kmax, kmax)
+			t -= step
+		end
+		field(nc, t)
+		return t
+	end
+
+	-- the surface found at t (field just evaluated there): its owner (the nearest member) and the union's normal (the
+	-- members' gradients mixed by the minimum's weights), shaded and written if it wins the depth test
+	local function put(i: number, j: number, nc: number, t: number)
+		local o = (j * W + i) * 4
+		if t <= 0 or t >= buffer.readf32(depth, o) - bias then
+			return
+		end
+		local own = weights(nc)
+		local nx, ny, nz = 0, 0, 0
+		for c = 1, nc do
+			local wc = cW[c]
+			if wc > 1e-3 and cD[c] < math.huge then
+				local m = cM[c]
+				local gx, gy, gz = gradLocal(m.g, cQX[c] + t * m.dx, cQY[c] + t * m.dy, cQZ[c] + t * m.dz)
+				local wx = m.r00 * gx + m.r01 * gy + m.r02 * gz
+				local wy = m.r10 * gx + m.r11 * gy + m.r12 * gz
+				local wz = m.r20 * gx + m.r21 * gy + m.r22 * gz
+				local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+				if l > 1e-12 then
+					nx += wc * wx / l
+					ny += wc * wy / l
+					nz += wc * wz / l
+				end
+			end
+		end
+		local l = math.sqrt(nx * nx + ny * ny + nz * nz)
+		if l > 1e-9 then
+			nx, ny, nz = nx / l, ny / l, nz / l
+		else
+			nx, ny, nz = -lx, -ly, -lz
+		end
+		local m = cM[own]
+		buffer.writeu32(color, o, shade(m.ix, m.rgb, nx, ny, nz, i, j, t))
+		buffer.writef32(depth, o, t)
+		buffer.writeu16(ids, (j * W + i) * 2, m.id)
+		written += 1
+	end
+
+	-- the union's first surface along the ray between t0 (outside it) and t1: sphere tracing, and once a step lands
+	-- inside, halving between the last point outside and that one. The hit t or nil.
+	local function march(nc: number, t0: number, t1: number, steps: number): number?
+		local t = t0
+		local tOut = t0
+		local last = math.huge
+		for _ = 1, steps do
+			local d = field(nc, t)
+			if d > last then
+				return nil -- (past its closest approach and still outside: a miss)
+			end
+			last = d
+			if d < 0 then
+				-- (bracketed: tOut outside, t inside)
+				local a, b = tOut, t
+				for _ = 1, 8 do
+					local mid = (a + b) * 0.5
+					if field(nc, mid) < 0 then
+						b = mid
+					else
+						a = mid
+					end
+					if b - a < eps then
+						break
+					end
+				end
+				return b
+			end
+			if d < eps then
+				return t
+			end
+			tOut = t
+			t += math.max(d * 0.9, eps)
+			if t > t1 then
+				-- (at the end of the span: inside there, or nothing)
+				if field(nc, t1) < 0 then
+					t = t1
+				else
+					return nil
+				end
+			end
+		end
+		return nil
+	end
+
+	-- pass 1: each member over its own silhouette (as Raster.drawSolid), keeping each pixel's nearest hit (its t, its
+	-- member's place in the fold order, its normal) and how many members cover it
+	local cnt, ownB, tB, nB = bCnt, bOwn, bT, bN
+	buffer.fill(cnt, 0, 0, w * h)
+	for r = 1, n do
+		local m = O[r]
+		local g = m.g
+		local mdx, mdy, mdz = m.dx, m.dy, m.dz
+		local six, siy, siz, sjx, sjy, sjz = m.six, m.siy, m.siz, m.sjx, m.sjy, m.sjz
+		local mx0, mx1 = m.tx0, m.tx1
+		for j = m.ty0, m.ty1 do
+			local rqx, rqy, rqz = m.bqx + j * sjx + mx0 * six, m.bqy + j * sjy + mx0 * siy, m.bqz + j * sjz + mx0 * siz
+			local k0, k1 = rowSpan(g, rqx, rqy, rqz, six, siy, siz, mdx, mdy, mdz, mx1 - mx0)
+			local ro = (j - Y0) * w - X0
+			for kk = k0, k1 do
+				local i = mx0 + kk
+				local t, nx, ny, nz = solidHitLocal(g, rqx + kk * six, rqy + kk * siy, rqz + kk * siz, mdx, mdy, mdz)
+				if t and t > 0 then
+					local mo = ro + i
+					local c = buffer.readu8(cnt, mo)
+					if c == 0 or t < buffer.readf32(tB, mo * 4) then
+						buffer.writef32(tB, mo * 4, t)
+						buffer.writeu8(ownB, mo, r)
+						buffer.writef32(nB, mo * 12, m.r00 * nx + m.r01 * ny + m.r02 * nz)
+						buffer.writef32(nB, mo * 12 + 4, m.r10 * nx + m.r11 * ny + m.r12 * nz)
+						buffer.writef32(nB, mo * 12 + 8, m.r20 * nx + m.r21 * ny + m.r22 * nz)
+					end
+					if c < 255 then
+						buffer.writeu8(cnt, mo, c + 1)
+					end
+				end
+			end
+		end
+	end
+
+	-- the pixels a join may touch: where two members cover the same pixel, spread rpx each way (bNear bit 2)
+	local rpx = math.max(1, math.ceil(k / studPx))
+	local nearB = bNear
+	local function spread(flagOf: (o: number) -> boolean)
+		buffer.fill(nearB, 0, 0, w * h)
+		for y = 0, h - 1 do
+			local ro = y * w
+			local c = 0
+			for x = 0, math.min(rpx, w - 1) do
+				if flagOf(ro + x) then
+					c += 1
+				end
+			end
+			for x = 0, w - 1 do
+				if c > 0 then
+					buffer.writeu8(nearB, ro + x, 1)
+				end
+				local xin, xout = x + rpx + 1, x - rpx
+				if xin < w and flagOf(ro + xin) then
+					c += 1
+				end
+				if xout >= 0 and flagOf(ro + xout) then
+					c -= 1
+				end
+			end
+		end
+		for x = 0, w - 1 do
+			local c = 0
+			for y = 0, math.min(rpx, h - 1) do
+				c += bit32.band(buffer.readu8(nearB, y * w + x), 1)
+			end
+			for y = 0, h - 1 do
+				local o = y * w + x
+				if c > 0 then
+					buffer.writeu8(nearB, o, bit32.bor(buffer.readu8(nearB, o), 2))
+				end
+				local yin, yout = y + rpx + 1, y - rpx
+				if yin < h then
+					c += bit32.band(buffer.readu8(nearB, yin * w + x), 1)
+				end
+				if yout >= 0 then
+					c -= bit32.band(buffer.readu8(nearB, yout * w + x), 1)
+				end
+			end
+		end
+	end
+	spread(function(o: number): boolean
+		return buffer.readu8(cnt, o) >= 2
+	end)
+
+	-- pass 2: each covered pixel: its nearest member's own surface, or near a join the union's
+	for j = Y0, Y1 do
+		local ro = (j - Y0) * w - X0
+		for i = X0, X1 do
+			local mo = ro + i
+			if buffer.readu8(cnt, mo) == 0 then
+				continue
+			end
+			local tmin = buffer.readf32(tB, mo * 4)
+			local near = false
+			local nc = 0
+			if bit32.band(buffer.readu8(nearB, mo), 2) ~= 0 then
+				-- (does a neighbour of its member come within the pair's radius of the hit?)
+				local o = buffer.readu8(ownB, mo)
+				nc = gatherAdj(i, j, o)
+				if nc > 1 and field(nc, tmin) < -eps then
+					-- (the union dips below the member's surface here: a neighbour bends it)
+					near = true
+				end
+			end
+			if near then
+				buffer.writeu8(mask, mo, 2)
+				local kmax = 0
+				for c = 1, nc do
+					if cM[c].k > kmax then
+						kmax = cM[c].k
+					end
+				end
+				-- (the union's surface lies at or in front of the plain hit, where the field is at most 0; a shift
+				-- under a pixel keeps the hit and takes only the union's normal)
+				local t = tmin
+				if cFv < -studPx then
+					t = newton(nc, tmin, kmax, true)
+				end
+				put(i, j, nc, t)
+			else
+				-- (away from every join: the member's own surface and normal)
+				buffer.writeu8(mask, mo, 1)
+				local o = (j * W + i) * 4
+				if tmin < buffer.readf32(depth, o) - bias then
+					local m = O[buffer.readu8(ownB, mo)]
+					local wx, wy, wz = buffer.readf32(nB, mo * 12), buffer.readf32(nB, mo * 12 + 4), buffer.readf32(nB, mo * 12 + 8)
+					local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+					if l > 1e-12 then
+						wx, wy, wz = wx / l, wy / l, wz / l
+					else
+						wx, wy, wz = 0, 1, 0
+					end
+					buffer.writeu32(color, o, shade(m.ix, m.rgb, wx, wy, wz, i, j, tmin))
+					buffer.writef32(depth, o, tmin)
+					buffer.writeu16(ids, (j * W + i) * 2, m.id)
+					written += 1
+				end
+			end
+		end
+	end
+
+	-- pass 3: the pixels missing every member but near a join: a fillet may lie there (seen edge on, a crease filled)
+	spread(function(o: number): boolean
+		return buffer.readu8(mask, o) == 2
+	end)
+	for j = Y0, Y1 do
+		for i = X0, X1 do
+			local mo = (j - Y0) * w + (i - X0)
+			if buffer.readu8(mask, mo) ~= 0 or bit32.band(buffer.readu8(nearB, mo), 2) == 0 then
+				continue
+			end
+			-- (the nearest join pixel along the row, the column or a diagonal: its member and depth start the search)
+			local found = -1
+			for s = 1, rpx do
+				local x, y = i - X0, j - Y0
+				local l, r, u, dn = x - s >= 0, x + s < w, y - s >= 0, y + s < h
+				if l and buffer.readu8(mask, mo - s) == 2 then
+					found = mo - s
+				elseif r and buffer.readu8(mask, mo + s) == 2 then
+					found = mo + s
+				elseif u and buffer.readu8(mask, mo - s * w) == 2 then
+					found = mo - s * w
+				elseif dn and buffer.readu8(mask, mo + s * w) == 2 then
+					found = mo + s * w
+				elseif l and u and buffer.readu8(mask, mo - s - s * w) == 2 then
+					found = mo - s - s * w
+				elseif r and u and buffer.readu8(mask, mo + s - s * w) == 2 then
+					found = mo + s - s * w
+				elseif l and dn and buffer.readu8(mask, mo - s + s * w) == 2 then
+					found = mo - s + s * w
+				elseif r and dn and buffer.readu8(mask, mo + s + s * w) == 2 then
+					found = mo + s + s * w
+				end
+				if found >= 0 then
+					break
+				end
+			end
+			if found < 0 then
+				continue
+			end
+			-- (only between two members: covered pixels of different members on opposite sides within reach, as in
+			-- the notch where a leg meets the belly; elsewhere round the outline no fillet can stand)
+			local between = false
+			do
+				local x, y = i - X0, j - Y0
+				for dir = 1, 4 do
+					local sx, sy = if dir == 1 then 1 elseif dir == 2 then 0 elseif dir == 3 then 1 else 1, if dir == 1 then 0 elseif dir == 2 then 1 elseif dir == 3 then 1 else -1
+					local oa, ob = -1, -1
+					for s = 1, rpx do
+						local xa, ya = x + sx * s, y + sy * s
+						if oa < 0 and xa >= 0 and xa < w and ya >= 0 and ya < h then
+							local q = ya * w + xa
+							if buffer.readu8(cnt, q) > 0 then
+								oa = buffer.readu8(ownB, q)
+							end
+						end
+						local xb, yb = x - sx * s, y - sy * s
+						if ob < 0 and xb >= 0 and xb < w and yb >= 0 and yb < h then
+							local q = yb * w + xb
+							if buffer.readu8(cnt, q) > 0 then
+								ob = buffer.readu8(ownB, q)
+							end
+						end
+						if oa >= 0 and ob >= 0 then
+							break
+						end
+					end
+					if oa >= 0 and ob >= 0 and oa ~= ob then
+						between = true
+						break
+					end
+				end
+			end
+			if not between then
+				continue
+			end
+			local o = buffer.readu8(ownB, found)
+			local nc = gatherAdj(i, j, o)
+			if nc < 2 then
+				continue
+			end
+			local kmax = 0
+			for c = 1, nc do
+				if cM[c].k > kmax then
+					kmax = cM[c].k
+				end
+			end
+			local tNb = buffer.readf32(tB, found * 4)
+			local t = march(nc, math.max(tNb - 2 * kmax, 0), tNb + 2 * kmax, 12)
+			if t then
+				field(nc, t)
+				put(i, j, nc, t)
+			end
+		end
+	end
+	return written, X0, Y0, X1, Y1
+end
+
+-- Whether a blend of radius k (studs) is worth drawing in this view (BLEND_MIN_PX): when not, draw the members as
+-- plain solids.
+function Raster.blendWorth(cam: Cam, k: number): boolean
+	return k * cam.s / cam.K >= BLEND_MIN_PX
+end
+
+-- One member drawn alone (a model with a single body solid): its own exact surface, shaded as a member.
+function Raster.drawBlendOne(f: Frame, cam: Cam, m: BlendMember, mi: number, shade: BlendShade): number
+	local W = f.W
+	local color, depth, ids = f.color, f.depth, f.id
+	local bias = cam.bias
+	local written = 0
+	for j = m.y0, m.y1 do
+		for i = m.x0, m.x1 do
+			local qx, qy, qz = m.bqx + j * m.sjx + i * m.six, m.bqy + j * m.sjy + i * m.siy, m.bqz + j * m.sjz + i * m.siz
+			local t, nx, ny, nz = solidHitLocal(m.g, qx, qy, qz, m.dx, m.dy, m.dz)
+			if t and t > 0 then
+				local o = (j * W + i) * 4
+				if t < buffer.readf32(depth, o) - bias then
+					local wx = m.r00 * nx + m.r01 * ny + m.r02 * nz
+					local wy = m.r10 * nx + m.r11 * ny + m.r12 * nz
+					local wz = m.r20 * nx + m.r21 * ny + m.r22 * nz
+					local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+					if l > 1e-12 then
+						wx, wy, wz = wx / l, wy / l, wz / l
+					else
+						wx, wy, wz = 0, 1, 0
+					end
+					buffer.writeu32(color, o, shade(mi, m.rgb, wx, wy, wz, i, j, t))
+					buffer.writef32(depth, o, t)
+					buffer.writeu16(ids, (j * W + i) * 2, m.id)
+					written += 1
+				end
+			end
+		end
+	end
+	return written
+end
+
+-- The union at a world point: its distance, its normal and the nearest member (specs and tools).
+function Raster.blendField(M: { BlendMember }, n: number, k: number, x: number, y: number, z: number): (number, number, number, number, number)
+	local d = math.huge
+	local own, best = 0, math.huge
+	local nx, ny, nz = 0, 0, 0
+	for i = 1, n do
+		local m = M[i]
+		local ex, ey, ez = x - m.cx, y - m.cy, z - m.cz
+		local lxp = ex * m.r00 + ey * m.r10 + ez * m.r20
+		local lyp = ex * m.r01 + ey * m.r11 + ez * m.r21
+		local lzp = ex * m.r02 + ey * m.r12 + ez * m.r22
+		local dc = sdfLocal(m.g, lxp, lyp, lzp)
+		local gx, gy, gz = gradLocal(m.g, lxp, lyp, lzp)
+		local wx = m.r00 * gx + m.r01 * gy + m.r02 * gz
+		local wy = m.r10 * gx + m.r11 * gy + m.r12 * gz
+		local wz = m.r20 * gx + m.r21 * gy + m.r22 * gz
+		local l = math.sqrt(wx * wx + wy * wy + wz * wz)
+		if l > 1e-12 then
+			wx, wy, wz = wx / l, wy / l, wz / l
+		end
+		if dc < best then
+			best, own = dc, i
+		end
+		if d == math.huge then
+			d, nx, ny, nz = dc, wx, wy, wz
+		else
+			local kc = math.max(math.min(k, m.k), 1e-6)
+			local hh = math.clamp(0.5 + 0.5 * (dc - d) / kc, 0, 1)
+			d = dc + (d - dc) * hh - kc * hh * (1 - hh)
+			nx, ny, nz = wx + (nx - wx) * hh, wy + (ny - wy) * hh, wz + (nz - wz) * hh
+		end
+	end
+	local l = math.sqrt(nx * nx + ny * ny + nz * nz)
+	if l > 1e-12 then
+		nx, ny, nz = nx / l, ny / l, nz / l
+	end
+	return d, nx, ny, nz, own
+end
+
 ------------------------------------------------------------------ any part
 -- A part smaller than an art pixel (its box spans under 2 px both ways and covers no pixel centre) draws the pixel
 -- under its centre, lit from above, depth-tested at its nearest point.

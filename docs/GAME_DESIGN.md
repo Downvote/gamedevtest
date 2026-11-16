@@ -1414,6 +1414,20 @@ stone, basalt columns, blocks of ice, a walking tree.
 Up close (the hatch scene, the portraits) a driftling has about 40 to 120 pieces, on the islands about 26 to 60. A
 smooth form takes the place of many balls, so the islands draw them faster than before.
 
+> The request (2026-11-16): "You should not be able to see the shapes that the creatures consist of. For example, the
+> elephant can still be seen as spheres and cylinders in the leg, and the ears as well. Add more polygons to shapes and
+> make them all look like one connected mesh instead of clearly different simple shapes put together"
+
+**One body, not parts stuck together** (`Render/Raster.drawBlend`): up close a driftling's body is drawn as a single
+surface, the way a sculpted or skinned model is one mesh. Where a leg meets the body, an ear the head, a muzzle the
+face or a tail the rump, the surface runs on in a smooth fillet instead of meeting in a crease, the light follows it
+across the join, and no ink line falls along it; colour edges (a pale belly, a dark muzzle, an inner ear) stay sharp
+on the smooth surface. Thin parts (an antler's branches, a spike, a flat ear's edge) meet the body in a small fillet
+and keep their shape, and each ear grows from a thick root. The smooth forms have no facets to begin with (each is
+drawn exactly, pixel by pixel), so there are no polygons to add: the seams were what showed. The eyes, claws, teeth
+and whiskers stay crisp details on top. On the islands, where a driftling is a small figure among dozens, a fillet
+would be a pixel or two and the blend would cost four times the drawing, so there the parts draw as before.
+
 **Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`; the plans before 2026-11-15, kept here for their parts'
 story): each of the twenty body plans of that time was built to read as its animal. The turtle has
 a domed shell with a ring of plates and a rim, a head on a neck with a beak, and flippered legs. The fox pup has a
