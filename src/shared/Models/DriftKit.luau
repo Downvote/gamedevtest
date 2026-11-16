@@ -93,6 +93,7 @@ function Kit.new(shape: string, h: number, r: number, gait: string): Thing
 	cur = t
 	curJoint = "body"
 	Kit.faceOff()
+	Kit.faceClear()
 	return t
 end
 
@@ -606,6 +607,41 @@ end
 -- sizes `half`, turned by `rot`) instead of a ball; Kit.faceOff (or the next Kit.new) goes back to balls.
 type FaceEll = { c: Vector3, half: Vector3, rot: CFrame }
 local faceE: FaceEll? = nil
+
+-- What the face built so far is made of (the eyes and the mouth since Kit.new or Kit.faceClear), for the details that
+-- dress it after (Models/DriftAnatomy.face: brows over the eyes, a line from the nose down to the mouth). Each eye: its
+-- side, where it sits on the head and the frame there (n out of the head, right and up along it, outer away from the
+-- face's middle), its drawn width and height, its style, the joint it is on and the surface it sits on (the ellipsoid
+-- of Kit.faceOn, or the ball hc, hr).
+export type EyeRec = {
+	side: string,
+	at: Vector3,
+	n: Vector3,
+	right: Vector3,
+	up: Vector3,
+	outer: Vector3,
+	w: number,
+	h: number,
+	style: string,
+	joint: string,
+	ell: FaceEll?,
+	hc: Vector3,
+	hr: number,
+}
+export type MouthRec = { at: Vector3, n: Vector3, right: Vector3, up: Vector3, w: number, mid: Vector3, joint: string }
+export type FaceRec = { eyes: { EyeRec }, mouth: MouthRec? }
+local faceRec: FaceRec = { eyes = {} }
+function Kit.faceRec(): FaceRec
+	return faceRec
+end
+function Kit.faceClear()
+	faceRec = { eyes = {} }
+end
+
+-- The joint new parts go on now (a face detail goes on the joint its eyes went on).
+function Kit.joint(): string
+	return curJoint
+end
 function Kit.faceOn(c: Vector3, half: Vector3, rot: CFrame?)
 	faceE = { c = c, half = half, rot = rot or CFrame.identity }
 end
@@ -749,6 +785,7 @@ function Kit.eye(side: string, hc: Vector3, hr: number, dir: Vector3, d: number,
 		p:SetAttribute("PixelEyeSide", sgn)
 		return p
 	end
+	table.insert(faceRec.eyes, { side = side, at = at, n = n, right = right, up = up, outer = outer, w = w, h = h, style = style, joint = curJoint, ell = faceE, hc = hc, hr = hr })
 	local ball = eyeball("Eye", V(w, h, 2 * c), at - n * (c - prot), if style == "round" or style == "wide" or style == "specs" then "white" else col, style)
 	if style == "happy" then
 		-- (always shut: it never blinks)
@@ -833,6 +870,7 @@ function Kit.mouth(at: Vector3, n: Vector3, w: number, dark: string?, tongue: st
 	local up = nn:Cross(right).Unit
 	local th = math.max(0.05, w * 0.18)
 	local mid = at - up * w * 0.08 + nn * (Kit.BIAS + 0.02)
+	faceRec.mouth = { at = at, n = nn, right = right, up = up, w = w, mid = mid, joint = curJoint }
 	for _, side in { -1, 1 } do
 		local a = mid + right * side * w * 0.5 + up * w * 0.12
 		facePart("closed", Kit.rod("Smile", a, mid, th, col), nn)

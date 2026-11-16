@@ -268,6 +268,8 @@ PLANS.pup = function(b, a, form)
 		iris = A.iris(a, "blue"),
 		blush = f.blush ~= false and full(),
 		whiskers = false,
+		-- (its own dots of colour over the eyes in place of brows)
+		face = A.more(if f.brows then { brows = false } else nil, f.faceDetail),
 	})
 	-- the pale underside of the muzzle
 	local hs = k * hk
@@ -302,11 +304,11 @@ PLANS.pup = function(b, a, form)
 end
 
 -- Emberpup: the plain young fox, its tail tip a yellow flame.
-FORMS.emberpup = { tail = "flame", tipC = "yellow", tipK = 0.7 }
+FORMS.emberpup = { tail = "flame", tipC = "yellow", tipK = 0.7, faceDetail = { marks = { freckles = "yellow", glow = true } } }
 -- Skyfox: white cloud socks and bib, a cloud at the tail's tip.
-FORMS.skyfox = { tail = "cloud", tipC = "white", under = "white", sock = "white", earTip = "jeans", tipK = 0.62 }
+FORMS.skyfox = { tail = "cloud", tipC = "white", under = "white", sock = "white", earTip = "jeans", tipK = 0.62, faceDetail = { marks = { blaze = "white" } } }
 -- Novafox: a purple tail tip trailing stars.
-FORMS.novafox = { tail = "stars", tipC = "purple", sock = "orange", earTip = "purple", tailLen = 1.4, curl = 50 }
+FORMS.novafox = { tail = "stars", tipC = "purple", sock = "orange", earTip = "purple", tailLen = 1.4, curl = 50, faceDetail = { marks = { star = "white", glow = true } } }
 -- Hushpup: long, low and sleek, ears laid back, a slim tail, big soft crystal paws and two dots over the eyes.
 FORMS.hushpup = { long = 1.1, bulk = 0.86, legs = 1.04, sock = "black", paw = "crystal", paws = 1.3, pad = "pink", tailR = 0.13, tailLen = 1.45, tailUp = 10, curl = 24, tipC = "crystal", tipK = 0.62, brows = "crystal", earTip = false, ears = { len = 0.52, w = 0.34, back = 22 } }
 -- Sandkit: a fennec, small with huge ears and a black tail tip.
@@ -449,6 +451,8 @@ PLANS.cat = function(b, a, form)
 		cheeks = f.cheeks,
 		ink = if A.isDark(b) then a else nil,
 		whiskers = false,
+		-- (a lynx's own cheek ruffs in place of the tufts)
+		face = A.more(if f.ruffs then { cheeks = false } else nil, f.faceDetail),
 	})
 	-- whiskers from the pads (A.head's muzzle "cat": the pads either side of `mroot`)
 	local pr = mw * 0.34
@@ -538,17 +542,17 @@ PLANS.cat = function(b, a, form)
 end
 
 -- Nebulynx: a big long-legged lynx, glowing tufts, cheek ruffs, galaxy spots and a star at its tail's tip.
-FORMS.nebulynx = { k = 1.12, legs = 1.14, tufts = "screen_on", tuftNeon = true, ruffs = 1, galaxy = "screen_on", tail = "long", tipC = "night", tailStar = "screen_on", ears = { len = 0.5, w = 0.42 } }
+FORMS.nebulynx = { k = 1.12, legs = 1.14, tufts = "screen_on", tuftNeon = true, ruffs = 1, galaxy = "screen_on", tail = "long", tipC = "night", tailStar = "screen_on", ears = { len = 0.5, w = 0.42 }, faceDetail = { marks = { freckles = "screen_on", glow = true } } }
 -- Cinderkit: a black kitten, big-headed, orange paws and ear insides, its short tail tipped with a glowing coal.
 FORMS.cinderkit = { k = 0.86, head = 1.14, legs = 0.9, sock = "orange", paw = "orange", pad = "yellow", earIn = "orange", tail = "kitten", tipC = "orange", tipAt = 0.6, ember = true, mc = "basalt" }
 -- Thistlemane: a lion cub, round ears in a white dandelion puff of a mane, a white tail tuft.
 FORMS.thistlemane = { k = 0.92, head = 1.08, mane = "puff", maneC = "white", tail = "lion", tuft = "white", mc = "cream", ears = { kind = "round", w = 0.28, at = 0.4 } }
 -- Blazemane: a lion whose mane and tail tuft are fire.
-FORMS.blazemane = { k = 1.06, mane = "flame", maneC = "berry_red", tail = "lion", tuft = "flame", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 } }
+FORMS.blazemane = { k = 1.06, mane = "flame", maneC = "berry_red", tail = "lion", tuft = "flame", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 }, faceDetail = { marks = { blaze = "yellow" } } }
 -- Frostlynx: chunky and fluffy, big paws, white cheek ruffs and a chest ruff, tufts, a bobtail.
-FORMS.frostlynx = { bulk = 1.18, paws = 1.45, legR = 1.2, tufts = "white", ruffs = 2, ruffC = "white", chestRuff = true, under = "white", tail = "bob", tipC = "white", tipAt = 0.5, mc = "white" }
+FORMS.frostlynx = { bulk = 1.18, paws = 1.45, legR = 1.2, tufts = "white", ruffs = 2, ruffC = "white", chestRuff = true, under = "white", tail = "bob", tipC = "white", tipAt = 0.5, mc = "white", faceDetail = { marks = { freckles = "white" } } }
 -- Tombcat: slim and tall, huge upright ears, a gold collar and gold earrings, a long thin tail.
-FORMS.tombcat = { bulk = 0.84, long = 1.06, legs = 1.2, head = 0.94, collar = "gold", earrings = "gold", tail = "long", ears = { len = 0.66, w = 0.44, at = 0.34, back = 2 } }
+FORMS.tombcat = { bulk = 0.84, long = 1.06, legs = 1.2, head = 0.94, collar = "gold", earrings = "gold", tail = "long", ears = { len = 0.66, w = 0.44, at = 0.34, back = 2 }, faceDetail = { marks = { kohl = "black" } } }
 -- Gildmane: a regal lion, head held high in a full sand mane, a sand tail tuft.
 FORMS.gildmane = { k = 1.14, legs = 1.1, neck = 0.1, mane = "full", maneC = "sand", tail = "lion", tuft = "sand", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 } }
 
@@ -630,6 +634,7 @@ PLANS.bear = function(b, a, form)
 		iris = A.iris(a, "wood"),
 		blush = full(),
 		ink = if A.isDark(b) then a else nil,
+		face = A.more(nil, f.faceDetail),
 	})
 	A.ears(h, { kind = "round", w = 0.34 * k, at = 0.48, back = 8, c = b, inner = if full() then (f.earIn or under) else nil })
 	if f.headCloud then
@@ -736,6 +741,7 @@ local function seaOtter(b: string, a: string, f: Form): Kit.Thing
 		iris = A.iris(a, "wood_dark"),
 		blush = full(),
 		whiskers = false,
+		face = A.more(nil, f.faceDetail),
 	})
 	local pr = mw * 0.34
 	whiskers(hc + V(0, -mdrop - pr * 0.1, hs.Z * 0.275 + mlen * 0.45 + pr * 0.5), pr * 1.3, 0.2 * s1, "white")
@@ -830,6 +836,7 @@ PLANS.otter = function(b, a, form)
 		iris = A.iris(a, "wood_dark"),
 		blush = full(),
 		whiskers = false,
+		face = A.more(nil, f.faceDetail),
 	})
 	local mroot = hc + V(0, -mdrop, hs.Z * 0.275)
 	if mk == "cat" then
@@ -940,6 +947,19 @@ PLANS.monkey = function(b, a, form)
 	Kit.eyes(hc, (hs.X + hs.Y + hs.Z) / 6, FWD, R(23), R(6), 0.28 * k, "gold")
 	Kit.faceOff()
 	Kit.mouth(lerp(root, tip, 0.6) + P(0, -0.08, 0), V(0, -0.35, 1), 0.13 * k, "black")
+	-- the face's details (A.face): fluffy cheeks of the coat's colour, whisker dots along the dark muzzle; no brows
+	-- over the dark rings
+	A.face({
+		color = face,
+		c = hc,
+		half = hs / 2,
+		eyeSurf = false,
+		tuft = b,
+		muzzle = "snout",
+		snout = { a = root, b = tip, ra = 0.16 * k, rb = 0.075 * k, flat = 0.85 },
+		padC = A.markC(dark),
+		more = A.more({ brows = false }, f.faceDetail),
+	})
 	local h: A.Head = { c = hc, half = hs / 2, top = hc + UP * hs.Y / 2, front = hc + FWD * hs.Z / 2, nose = tip, mass = hm }
 	A.ears(h, { kind = "fox", len = 0.36 * k, w = 0.32 * k, at = 0.56, back = 12, c = b, inner = if full() then face else nil })
 	if f.hat then
@@ -1044,6 +1064,18 @@ PLANS.yeti = function(b, a, form)
 	end
 	Kit.on("head")
 	Kit.mouth(m, mn, 0.22 * k, A.ink(face, b))
+	-- the face's details (A.face): brows on the face, the line from the nose down to the mouth, tufts of the coat at
+	-- the cheeks
+	local mr = Kit.faceRec().mouth
+	A.face({
+		color = face,
+		c = hc,
+		half = fh,
+		ink = A.ink(face, b),
+		tuft = b,
+		lip = if mr then { np - UP * 0.06 * k + FWD * 0.03 * k, mr.mid + mr.up * 0.02 } else nil,
+		more = A.more(if f.crown then { crown = false } else nil, f.faceDetail),
+	})
 	if f.crown then
 		-- a crown of ice: a band round the brow and points of ice standing up from it, the middle one tallest
 		local pts: { Vector3 } = {}

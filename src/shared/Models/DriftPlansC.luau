@@ -214,6 +214,7 @@ PLANS.bun = function(b, a, form)
 		blush = true,
 		ink = ink,
 		whiskers = false,
+		face = A.more(if f.gem then { crown = false } else nil, f.faceDetail),
 	})
 	-- buck teeth under the nose
 	if full() then
@@ -355,6 +356,7 @@ PLANS.mole = function(b, a, form)
 		iris = A.iris(a, "gold"),
 		ink = ink,
 		blush = true,
+		faceLater = true,
 	})
 	local root = hc + V(0, -0.14 * k, hs.Z * 0.36)
 	local tipP = root + V(0, 0.03, 0.4) * k
@@ -375,6 +377,17 @@ PLANS.mole = function(b, a, form)
 		end
 	end
 	Kit.mouth(root + V(0, -0.14, 0.1) * k, V(0, -0.45, 1), 0.15 * k, ink)
+	-- the face's details (A.face): whisker dots along the snout
+	A.face({
+		color = b,
+		c = hc,
+		half = h.half,
+		ink = ink,
+		muzzle = "snout",
+		snout = { a = root, b = tipP, ra = 0.16 * k, rb = 0.075 * k, flat = 0.85 },
+		padC = A.markC(skin),
+		more = A.more(if f.tuft then { crown = false } else nil, f.faceDetail),
+	})
 	if f.star then
 		-- the star: a ring of fleshy rays round the end of the nose
 		local cnt = if full() then 10 else 5
@@ -536,6 +549,7 @@ PLANS.hedgehog = function(b, a, form)
 		iris = A.iris(a, "gold"),
 		ink = ink,
 		blush = true,
+		face = A.more(nil, f.faceDetail),
 	})
 	A.ears(h, { kind = "round", w = 0.17, at = 0.5, back = 20, c = face, inner = f.inner or "pink" })
 	return t
@@ -543,7 +557,7 @@ end
 
 FORMS.quartzle = { quill = "crystal", spine = "purple", tip = "crystal", mantle = "purple", inner = "crystal" }
 FORMS.burrowby = { face = "cream", spine = "wood_dark", tip = "cream", mantle = "wood_dark", apple = "berry_red", muzzle = "cream", len = 0.27 }
-FORMS.emberquill = { quill = "flame", spine = "basalt", mantle = "basalt", tip = "orange", hot = true, face = "rock_dark" }
+FORMS.emberquill = { quill = "flame", spine = "basalt", mantle = "basalt", tip = "orange", hot = true, face = "rock_dark", faceDetail = { marks = { freckles = "lava", glow = true } } }
 
 ------------------------------------------------------------------ the armadillo
 -- An armadillo: a soft body under a shell of plates (a front shield, bands across the middle that ride over each
@@ -651,6 +665,8 @@ PLANS.armadillo = function(b, a, form)
 		iris = A.iris(a, "blue"),
 		ink = ink,
 		blush = true,
+		-- (the plate on top of its head in place of a crown)
+		face = A.more({ crown = false }, f.faceDetail),
 	})
 	Kit.ell("HeadPlate", h.top + V(0, -0.06, -0.02), V(0.38, 0.14, 0.4), plate, CFrame.Angles(R(-10), 0, 0))
 	A.ears(h, { kind = "fox", len = f.ear or 0.3, w = 0.17, at = 0.4, back = 22, c = skin, inner = "pink" })
@@ -919,6 +935,7 @@ PLANS.turtle = function(b, a, form)
 		iris = A.iris(a, "gold"),
 		ink = ink,
 		blush = true,
+		face = A.more(nil, f.faceDetail),
 	})
 	Kit.limb("Neck", (if sea then P(0, 0.4, 0.66) else P(0, 0.56, 0.62)), hc - V(0, hs.Y * 0.22, hs.Z * 0.22), 0.21 * k, 0.19 * k, b)
 	Kit.ell("Throat", hc + V(0, -hs.Y * 0.32, hs.Z * 0.08), V(hs.X * 0.7, hs.Y * 0.4, hs.Z * 0.6), if belly == "white" then "white" else A.under(b), nil, true)
@@ -998,6 +1015,11 @@ local function flatFace(fc: Vector3, eyeD: number, sx: number, sy: number, iris:
 	end
 end
 
+-- The details of a golem's face (A.face) on the face it was given: no crown on a block's or a column's front.
+local function golemFace(color: string, f: Form, more: A.FaceMore?)
+	A.face({ color = color, more = A.more(A.more({ crown = false }, more), f.faceDetail) })
+end
+
 local function basaltGolem(b: string, a: string, f: Form): Kit.Thing
 	local t = Kit.new("golem", 2.6, 1.3, "biped")
 	local glow = f.glow or a
@@ -1025,6 +1047,7 @@ local function basaltGolem(b: string, a: string, f: Form): Kit.Thing
 	hexCol("HeadChip", V(0.12, 2.2, -0.02), V(0.2, 2.44, -0.08), 0.13, b, 15)
 	local fz = 0.06 + hs * math.sqrt(3) / 2 + 0.01
 	flatFace(V(0, 2.02, fz), 0.18, 0.125, 0.04, "yellow", glow, 0.16, -0.14)
+	golemFace(b, f)
 	if full() then
 		Kit.limb("Crack", V(0.2, 2.22, fz), V(0.15, 2.12, fz), 0.022, 0.022, glow, nil, nil, nil, true)
 	end
@@ -1074,6 +1097,7 @@ local function iceGolem(b: string, a: string, f: Form): Kit.Thing
 	slab("Head", hcf, V(0.56, 0.5, 0.5), b)
 	Kit.ell("HeadSnow", V(0.02, 2.26, 0.12), V(0.6, 0.14, 0.52), snow)
 	flatFace(V(0, 1.98, 0.14 + 0.26), 0.21, 0.14, 0.04, nil, ink, 0.16, -0.14, true)
+	golemFace(b, f)
 	if full() then
 		for i, x in { -0.18, 0.04, 0.2 } do
 			Kit.limb("Icicle", V(x, 1.74, 0.36), V(x, 1.6 - (i % 2) * 0.06, 0.37), 0.04, 0.012, snow)
@@ -1128,6 +1152,13 @@ local function guardGolem(b: string, a: string, f: Form): Kit.Thing
 	slab("Crest", CFrame.new(0, 2.39, -0.02), V(0.06, 0.08, 0.36), trim, true)
 	slab("VisorBand", CFrame.new(0, 2.0, 0.345), V(0.54, 0.16, 0.03), dk)
 	flatFace(V(0, 2.0, 0.36), 0.2, 0.14, 0, nil, "black", 0, 0)
+	golemFace(b, f)
+	if full() then
+		-- an old crack down the helmet's brow over the visor, a chip knocked out beside it
+		Kit.limb("HelmCrack", V(0.17, 2.2, 0.36), V(0.12, 2.14, 0.36), 0.022, 0.022, dk)
+		Kit.limb("HelmCrack", V(0.12, 2.14, 0.36), V(0.15, 2.09, 0.36), 0.022, 0.022, dk)
+		Kit.ell("HelmChip", V(-0.19, 2.17, 0.355), V(0.06, 0.05, 0.05), dk)
+	end
 	slab("Chin", CFrame.new(0, 1.8, 0.3), V(0.3, 0.08, 0.06), trim, true)
 	-- the arms: a pauldron with a gold edge at each shoulder, squared arms with gold cuffs, square fists
 	for _, side in { -1, 1 } do
@@ -1222,6 +1253,8 @@ local function treeGolem(b: string, a: string, f: Form): Kit.Thing
 	local bp = Kit.onEll(hc, V(0.42, 0.6, 0.42), CFrame.identity, A.dir(0, 22))
 	Kit.limbs("Brow", { bp + V(-0.26, -0.04, -0.06), bp + V(0, 0.02, 0.02), bp + V(0.26, -0.04, -0.06) }, { 0.045, 0.055, 0.045 }, bark, 2, 0.7, FWD)
 	Kit.ell("Nose", Kit.onEll(hc, V(0.42, 0.6, 0.42), CFrame.identity, A.dir(0, -2)), V(0.1, 0.09, 0.1), bark)
+	-- (its own brow of bark)
+	golemFace(b, f, { brows = false })
 	if f.beard then
 		-- a long beard of pale lichen
 		for i, x in { -0.14, 0, 0.14 } do
@@ -1289,10 +1322,10 @@ PLANS.golem = function(b, a, form)
 	return guardGolem(b, a, f)
 end
 
-FORMS.elderbark = { kind = "tree", crown = "leaf", leaf = "leaf", blossom = "pink" }
+FORMS.elderbark = { kind = "tree", crown = "leaf", leaf = "leaf", blossom = "pink", faceDetail = { marks = { freckles = "moss" } } }
 FORMS.basaltor = { kind = "basalt", glow = "orange" }
 FORMS.glacior = { kind = "ice", snow = "white", deep = "ice" }
 FORMS.sentinel = { kind = "guard", trim = "gold", dark = "rock_dark", moss = "moss" }
-FORMS.silverbark = { kind = "tree", crown = "crystal", leaf = "crystal", leaf2 = "white", beard = "white", fruit = "white", h = 2.8 }
+FORMS.silverbark = { kind = "tree", crown = "crystal", leaf = "crystal", leaf2 = "white", beard = "white", fruit = "white", h = 2.8, faceDetail = { marks = { freckles = "crystal", glow = true } } }
 
 return { plans = PLANS, forms = FORMS }

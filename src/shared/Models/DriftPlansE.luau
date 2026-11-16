@@ -211,6 +211,8 @@ local function sealPup(b: string, a: string, f: Form): Kit.Thing
 		eye = { R(27), R(14), 0.28 },
 		blush = true,
 		whiskers = false,
+		-- (its own brow spots)
+		face = A.more({ brows = false }, f.faceDetail),
 	})
 	-- short whiskers from the pads
 	if full() then
@@ -310,6 +312,8 @@ local function cloudWhale(b: string, a: string, f: Form): Kit.Thing
 		Kit.limbs("Smile", pts, { 0.03 }, "black", if full() then 3 else 1)
 	end
 	mouthOn(hc, half, V(0, -0.38, 1), 0.2)
+	-- the face's details (A.face), the blowhole on its crown
+	A.face({ color = b, c = hc, half = half, under = under, more = A.more({ crown = false }, f.faceDetail) })
 	-- the blowhole and its little cloud
 	local bh = Kit.onEll(hc, half, ID, V(0, 1, -0.2))
 	Kit.ell("Blowhole", bh, V(0.12, 0.06, 0.08), A.shade(b))
@@ -507,6 +511,8 @@ PLANS.fish = function(b, a, form)
 	else
 		mouthOn(hc, half, V(0, -0.32, 1), f.mouthW or 0.15, f.ink)
 	end
+	-- the face's details (A.face): a fish's soft brows, no scales on its crown
+	A.face({ color = b, c = hc, half = half, ink = f.ink, under = under, more = A.more({ brows = "soft", crown = false }, f.faceDetail) })
 	if f.lure then
 		-- the lamp: a stalk curving up and forward from the brow, a glowing bulb at its end, bobbing (kind "antenna")
 		local base = Kit.onEll(hc, half, ID, V(0, 1, 0.35))
@@ -602,6 +608,8 @@ FORMS.lumenfin = {
 -- Starfin: a slim night fish with long flowing glowing fins (a veil tail, a tall trailing dorsal, ribbon pectorals)
 -- and little stars on its back.
 FORMS.starfin = {
+	-- (its face: marks of its own)
+	faceDetail = { marks = { freckles = "screen_on", glow = true } },
 	h = 2.0,
 	cy = 1.2,
 	head = V(0.74, 0.78, 0.76),
@@ -711,6 +719,7 @@ PLANS.ray = function(b, a, form)
 	local e: { number } = f.eye or { 34, 34, 0.22 }
 	eyesOn(hc, hs / 2, R(e[1]), R(e[2]), e[3], f.iris, f.blush)
 	mouthOn(hc, hs / 2, V(0, -0.3, 1), f.mouthW or 0.26)
+	A.face({ color = b, c = hc, half = hs / 2, under = under, more = A.more(nil, f.faceDetail) })
 	return t
 end
 
@@ -814,6 +823,8 @@ PLANS.seahorse = function(b, a, form)
 	Kit.ell("Cheek", hc + V(0, -0.1, 0.06), V(hs.X * 0.9, hs.Y * 0.6, hs.Z * 0.8), f.cheek or b)
 	local e: { number } = f.eye or { 36, 10, 0.2 }
 	eyesOn(hc, hs / 2, R(e[1]), R(e[2]), e[3], f.iris, f.blush)
+	-- the face's details (A.face), its coronet on the crown
+	A.face({ color = b, c = hc, half = hs / 2, more = A.more({ crown = false }, f.faceDetail) })
 	-- the tiny fins behind the head
 	for _, side in { -1, 1 } do
 		local sname = if side < 0 then "L" else "R"
@@ -994,6 +1005,7 @@ PLANS.octo = function(b, a, form)
 	Kit.faceOff()
 	local at, nrm = Kit.onEll(fc, fh, mrot, V(0, -0.5, 1))
 	Kit.mouth(at, nrm, 0.14)
+	A.face({ color = b, c = fc, half = fh, rot = mrot, more = A.more(nil, f.faceDetail) })
 	-- spots on the mantle
 	if f.spots then
 		for i, sp in f.spots :: { { number } } do
@@ -1138,6 +1150,7 @@ PLANS.jelly = function(b, a, form)
 	end
 	Kit.faceOff()
 	mouthOn(ec, half, V(0, 0.02, 1), 0.16)
+	A.face({ color = b, c = ec, half = half, more = A.more(nil, f.faceDetail) })
 	-- forms
 	if f.rings then
 		-- four rings showing through the top of the bell, like a moon jelly's
@@ -1241,6 +1254,8 @@ PLANS.shroom = function(b, a, form)
 	local e: { number } = f.eye or { 24, 22, 0.24 }
 	eyesOn(fcen, fhalf, R(e[1]), R(e[2]), e[3], f.iris, f.blush or 0.15)
 	mouthOn(fcen, fhalf, V(0, 0.05, 1), 0.15)
+	-- the face's details (A.face): the face is on the stem, bare, under the cap
+	A.face({ color = stem, c = fcen, half = fhalf, more = A.more({ tex = "skin", brows = "soft", crown = false }, f.faceDetail) })
 	if f.collar then
 		-- a frilled collar (the ring a mushroom's veil leaves) round the top of the stem
 		local cy = topY - 0.22
@@ -1459,6 +1474,7 @@ PLANS.sprite = function(b, a, form)
 	local e: { number } = f.eye or { 27, 0, 0.28 }
 	eyesOn(hc, half, R(e[1]), R(e[2]), e[3], f.iris, if full() then 0.14 else nil, f.ink)
 	mouthOn(hc, half, V(0, -0.42, 1), 0.15, f.ink)
+	A.face({ color = skin, c = hc, half = half, ink = f.ink, more = A.more(nil, f.faceDetail) })
 	-- pointed ears out to the sides
 	for _, side in { -1, 1 } do
 		local s = if side < 0 then "L" else "R"

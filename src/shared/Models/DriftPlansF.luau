@@ -555,6 +555,8 @@ PLANS.bird = function(b, a, form)
 		ink = if A.isDark(f.headC or b) then ink else nil,
 		blush = f.blush,
 		mouth = false,
+		-- (its own crest, where it has one)
+		face = A.more(if f.crest then { crown = false } else nil, f.faceDetail),
 	})
 	if f.cheek then
 		-- pale cheeks or a face mask
@@ -694,6 +696,8 @@ FORMS.tidepip = {
 }
 
 FORMS.ashwing = {
+	-- (its face: marks of its own)
+	faceDetail = { marks = { freckles = "lava", glow = true } },
 	-- a phoenix: a flame of a gold crest, gold-edged wings, long plumes with gold tips, a burning gold breast
 	crest = "flame",
 	crestC = "gold",
@@ -1034,6 +1038,8 @@ PLANS.owl = function(b, a, form)
 	J("jaw", "head", br - V(0, hs * 0.1, 0), "jaw")
 	Kit.limb("BeakLow", br - V(0, hs * 0.1, -0.02), br + V(0, -hs * 0.16, hs * 0.08), hs * 0.05, hs * 0.02, A.shade(beakC))
 	Kit.on("head")
+	-- the face's details (A.face) on the facial disc, its ear tufts on the crown
+	A.face({ color = discC, c = fcen, half = fhalf, ink = ink, more = A.more({ crown = false }, f.faceDetail) })
 	if f.crescent then
 		-- a crescent moon on the brow
 		local q = {}
@@ -1258,6 +1264,7 @@ PLANS.penguin = function(b, a, form)
 		blush = f.blush ~= false,
 		mouth = false,
 		jaw = not puffin,
+		face = A.more(nil, f.faceDetail),
 	})
 	if f.cap then
 		-- a dark cap over the crown and down the nape, the face left pale
@@ -1434,6 +1441,7 @@ PLANS.duck = function(b, a, form)
 		ink = if A.isDark(headC) then A.ink(headC, a) else nil,
 		blush = f.blush ~= false,
 		mouth = false,
+		face = A.more(if f.fluff then { crown = false } else nil, f.faceDetail),
 	})
 	if f.fluff then
 		crest(hd, { kind = "fluff", c = f.fluff, len = 0.34 * S })
@@ -1633,6 +1641,7 @@ PLANS.bat = function(b, a, form)
 		blush = full(),
 		fangs = "white",
 		whiskers = false,
+		face = A.more(nil, f.faceDetail),
 	})
 	if f.noseLeaf and full() then
 		-- a leaf of skin standing up over the nose
@@ -1698,6 +1707,8 @@ FORMS.glowbat = {
 }
 
 FORMS.aurorawing = {
+	-- (its face: marks of its own)
+	faceDetail = { marks = { freckles = "pink", glow = true } },
 	-- a bat of the northern lights: each wing pink at the body through crystal to teal at the tips, long ears swept
 	-- back with pink tips, a white ruff
 	mem1 = "pink",
@@ -1957,6 +1968,7 @@ PLANS.moth = function(b, a, form)
 	Kit.faceOff()
 	local mAt, mN = Kit.onEll(hc, hh, CFrame.identity, V(0, -0.45, 1))
 	Kit.mouth(mAt, mN, 0.12 * hs, ink)
+	A.face({ color = f.headC or b, c = hc, half = hh, ink = ink, more = A.more(nil, f.faceDetail) })
 	-- the antennae
 	local ak = f.antennae or "feather"
 	for _, side in { -1, 1 } do
@@ -2053,6 +2065,8 @@ FORMS.runemoth = {
 }
 
 FORMS.starweaver = {
+	-- (its face: marks of its own)
+	faceDetail = { marks = { star = "crystal", glow = true } },
 	-- a moth of the night sky: night wings edged with crystal, stars on them, long tails trailing from the hindwings
 	wing = "night",
 	rim = "crystal",

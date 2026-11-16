@@ -307,6 +307,7 @@ PLANS.deer = function(b, a, form)
 		eye = { R(f.eyeSpread or 36), R(8), 0.3 * hs },
 		iris = A.iris(a, "wood_dark"),
 		blush = f.blush ~= false,
+		face = A.more(nil, f.faceDetail),
 	})
 	if f.beard then
 		-- a goat's beard hanging from the chin
@@ -477,10 +478,10 @@ FORMS.mossbuck = { horns = "antler", hornC = "wood", hornLen = 0.68, hornR = 0.1
 FORMS.peakhorn = { horns = "goat", hornC = "steel", hornLen = 0.6, hornR = 0.1, beard = "white", ears = "goat", hump = "white", shag = "white", leg = 0.78, wide = 0.68, tall = 0.66, hoof = "black", ruff = "white", mlen = 0.3, rump = false }
 FORMS.prismhorn = { horns = "spike", hornC = "crystal", hornLen = 0.72, hornR = 0.09, mane = "crystal", forelock = "crystal", tail = "horse", tailC = "crystal", ears = "horse", hoof = "crystal", leg = 1.0, neck = 0.62, mlen = 0.4, rump = false }
 FORMS.craglet = { horns = "nubs", hornC = "rock", ears = "goat", sock = "rock", hoof = "rock_dark", leg = 0.72, len = 1.0, wide = 0.6, tall = 0.6, head = 1.06, tail = "flick", neck = 0.42, mlen = 0.28 }
-FORMS.moonfawn = { hoof = "steel_dark", spots = "crystal", glow = true, crescent = "crystal", earIn = "crystal", earLen = 0.54, earW = 0.32, neck = 0.5 }
-FORMS.silverhoof = { horns = "spike", hornC = "steel", hornLen = 0.36, hornR = 0.065, mane = "steel", forelock = "steel", tail = "tuft", tailC = "steel", earLen = 0.4, hoof = "steel_dark", feather = "steel", leg = 1.08, neck = 0.66, len = 1.2, mlen = 0.42, h = 2.6, slim = 0.9, rump = false }
-FORMS.raindeer = { horns = "antler", hornC = "white", hornLen = 0.62, tines = 2, cloud = "white", earLen = 0.42 }
-FORMS.starhart = { horns = "antler", hornC = "crystal", hornLen = 0.84, hornR = 0.065, tines = 3, fork = true, spread = 1.3, starTips = "yellow", dots = "crystal", tail = "tuft", tailC = "crystal", hoof = "crystal", leg = 1.04, neck = 0.66, len = 1.22, h = 2.9, earLen = 0.44 }
+FORMS.moonfawn = { hoof = "steel_dark", spots = "crystal", glow = true, crescent = "crystal", earIn = "crystal", earLen = 0.54, earW = 0.32, neck = 0.5, faceDetail = { marks = { spots = "crystal", glow = true } } }
+FORMS.silverhoof = { horns = "spike", hornC = "steel", hornLen = 0.36, hornR = 0.065, mane = "steel", forelock = "steel", tail = "tuft", tailC = "steel", earLen = 0.4, hoof = "steel_dark", feather = "steel", leg = 1.08, neck = 0.66, len = 1.2, mlen = 0.42, h = 2.6, slim = 0.9, rump = false, faceDetail = { marks = { blaze = "steel" } } }
+FORMS.raindeer = { horns = "antler", hornC = "white", hornLen = 0.62, tines = 2, cloud = "white", earLen = 0.42, faceDetail = { marks = { freckles = "blue" } } }
+FORMS.starhart = { horns = "antler", hornC = "crystal", hornLen = 0.84, hornR = 0.065, tines = 3, fork = true, spread = 1.3, starTips = "yellow", dots = "crystal", tail = "tuft", tailC = "crystal", hoof = "crystal", leg = 1.04, neck = 0.66, len = 1.22, h = 2.9, earLen = 0.44, faceDetail = { marks = { star = "white", glow = true } } }
 
 ------------------------------------------------------------------ the ram (sheep and lambs)
 -- A ram's curled horn on the head (on the head's joint): it rises from the top of the head, curls back, down behind
@@ -613,6 +614,8 @@ PLANS.ram = function(b, a, form)
 		iris = A.iris(a, "blue"),
 		ink = if A.isDark(face) then ink else nil,
 		blush = true,
+		-- (a bare face in its wool: tufts of the wool at the cheeks)
+		face = A.more({ tex = "fluff", tuft = b }, f.faceDetail),
 	})
 	-- ears out to the sides, a little down
 	for _, s in { -1, 1 } do
@@ -653,9 +656,9 @@ PLANS.ram = function(b, a, form)
 end
 
 FORMS.puffling = { k = 0.82, h = 1.6, r = 0.9, cloudy = true, leg = 0.56, drops = true, nose = "jeans", hoof = "jeans", headK = 1.2 }
-FORMS.glimmerfleece = { horns = "small", hornC = "steel", face = "night", streaks = "screen_on", streak2 = "pink", h = 1.95 }
+FORMS.glimmerfleece = { horns = "small", hornC = "steel", face = "night", streaks = "screen_on", streak2 = "pink", h = 1.95, faceDetail = { marks = { freckles = "screen_on", glow = true } } }
 FORMS.galeram = { horns = "curl", hornC = "rock", face = "cream", forelock = true, rho = 0.24, hornR = 0.11, turn = 4.4, k = 1.06, h = 2.1, nose = "clay" }
-FORMS.cosmofleece = { horns = "curl", hornC = "screen_on", face = "night", stars = "white", star2 = "screen_on", rho = 0.2, turn = 3.9, k = 1.04, h = 2.1 }
+FORMS.cosmofleece = { horns = "curl", hornC = "screen_on", face = "night", stars = "white", star2 = "screen_on", rho = 0.2, turn = 3.9, k = 1.04, h = 2.1, faceDetail = { marks = { star = "screen_on", glow = true } } }
 
 ------------------------------------------------------------------ the elephant (calves and mammoths)
 -- A zigzag lying on a mass (a lightning mark, a glowing crack): through the surface points toward each of `dirs`
@@ -750,6 +753,7 @@ PLANS.elephant = function(b, a, form)
 		iris = A.iris(a, "wood_dark"),
 		blush = true,
 		mouth = false,
+		faceLater = true,
 	})
 	Kit.on("head")
 	-- the brow's dome
@@ -759,6 +763,8 @@ PLANS.elephant = function(b, a, form)
 	end
 	-- the mouth, under the trunk
 	Kit.mouth(hc + V(0, -hs.Y * 0.4, hs.Z * 0.4), V(0, -0.5, 1), 0.16, A.ink(b, a), "pink")
+	-- the face's details (A.face), the brow's dome left bare
+	A.face({ color = b, c = hc, half = hs / 2, more = A.more({ crown = false }, f.faceDetail) })
 	-- ears: big flat flaps spread out from the back of the head's sides, the lining facing forward
 	local es = f.ear or 1
 	for _, s in { -1, 1 } do
@@ -976,6 +982,8 @@ PLANS.griffin = function(b, a, form)
 		eye = { R(40), R(8), 0.27 },
 		iris = A.iris(f.iris or "gold", "gold"),
 		blush = false,
+		-- (its own crest, and its own brows where it has them)
+		face = A.more({ crown = false, brows = if f.brow then false else nil }, f.faceDetail),
 	})
 	Kit.on("head")
 	-- the cere where the beak meets the face, and the brow over each eye
@@ -1256,6 +1264,8 @@ PLANS.drake = function(b, a, form)
 		fangs = "white",
 		blush = f.blush ~= false,
 		tongue = "berry_red",
+		-- (its own brow ridges)
+		face = A.more(if f.brow == false then nil else { brows = false }, f.faceDetail),
 	})
 	Kit.on("head")
 	-- the brow ridge over each eye
@@ -1335,9 +1345,9 @@ PLANS.drake = function(b, a, form)
 	return t
 end
 
-FORMS.pyredrake = { horns = "swept", hornC = "cream", spines = "flame", spineC = "orange", core = "yellow", tip = "flame", mem = "orange", belly = "cream", claw = "cream", finC = "orange" }
+FORMS.pyredrake = { horns = "swept", hornC = "cream", spines = "flame", spineC = "orange", core = "yellow", tip = "flame", mem = "orange", belly = "cream", claw = "cream", finC = "orange", faceDetail = { marks = { freckles = "lava", glow = true } } }
 FORMS.pyrelord = { horns = "crown", hornC = "berry_red", spines = "plate", spineC = "berry_red", tip = "spade", spade = 0.52, mem = "berry_red", belly = "cream", noseHorn = true, beard = "berry_red", span = 1.3, fingerTips = "cream", k = 1.1, h = 2.9, r = 1.5, wide = 0.88, spineK = 1.25, brow = false, fins = false, headK = 1.04 }
-FORMS.frostdrake = { horns = "icicle", hornC = "ice", spines = "shard", spineC = "ice", core = "white", tip = "crystal", mem = "ice", memEdge = "white", belly = "white", frill = "ice", claw = "white" }
+FORMS.frostdrake = { horns = "icicle", hornC = "ice", spines = "shard", spineC = "ice", core = "white", tip = "crystal", mem = "ice", memEdge = "white", belly = "white", frill = "ice", claw = "white", faceDetail = { marks = { freckles = "white", glow = true } } }
 FORMS.thunderdrake = { horns = "zigzag", hornC = "yellow", spines = "bolt", spineC = "yellow", tip = "bolt", mem = "yellow", belly = "cream", claw = "yellow", finC = "yellow", lift = 1.15 }
 
 local _v, _r, _j, _f, _u, _w = V, R, J, full, UP, FWD

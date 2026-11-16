@@ -206,6 +206,10 @@ local function lizHead(hc: Vector3, W: number, L: number, H: number, split: numb
 			Kit.ell("Nostril", p + n * 0.005, V(0.06, 0.05, 0.06), A.shade(b), A.lie(n))
 		end
 	end
+	-- the face's details (A.face; its grin and nostrils are its own)
+	if not f.noEyes then
+		A.face({ color = b, ink = ink, under = under, more = A.more({ muzzle = false }, f.faceDetail) })
+	end
 	return m
 end
 
@@ -450,6 +454,8 @@ PLANS.lizard = function(b, a, form)
 			Kit.faceOff()
 		end
 		Kit.on("head")
+		-- the face's details on the skull (no brows on the turrets)
+		A.face({ color = b, c = hc, half = V(hs.X, hs.Y, hs.Z) / 2, rot = A.lie(A.dir(0, 4), UP), ink = ink, more = A.more({ brows = false, muzzle = false }, f.faceDetail) })
 		return t
 	elseif kind == "croc" then
 		local h = A.head({
@@ -466,6 +472,7 @@ PLANS.lizard = function(b, a, form)
 			ink = ink,
 			blush = false,
 			tongue = "pink",
+			face = A.more(nil, f.faceDetail),
 		})
 		-- a croc's grin: a row of teeth showing along the upper jaw
 		local root = hc + V(0, -(f.mdrop or 0.08) * big, hs.Y * 0.5 * 0.55)
@@ -625,6 +632,8 @@ PLANS.frog = function(b, a, form)
 		blush(hc, (hs.X + hs.Y + hs.Z) / 6, FWD, R(40), R(10), 0.17 * big)
 		Kit.faceOff()
 	end
+	-- the face's details (A.face): brows on the domes, unless a toad's heavy ones are there
+	A.face({ color = b, c = hc, half = hs / 2, ink = ink, under = under, more = A.more({ brows = if f.brow then false else nil, crown = if f.sprout then false else nil }, f.faceDetail) })
 	if f.sprout then
 		-- a sprout from between the eyes: a little stem, two leaves, a bud
 		local base = hc + V(0, hs.Y * 0.45, -hs.Z * 0.12)
@@ -892,6 +901,8 @@ PLANS.crab = function(b, a, form)
 			Kit.faceOff()
 			Kit.on("body")
 		end
+		-- the face's details (A.face) on the head end, its crown in the hole
+		A.face({ color = a, c = hc, half = V(0.25, 0.17, 0.18), ink = ink, more = A.more({ crown = false }, f.faceDetail) })
 		-- the claws: the right one much the bigger, as a hermit crab's is
 		crabClaw(-1, hc + V(-0.18, -0.08, 0.04), 0.78, a, f.tip or "sand_dark", 0.05)
 		crabClaw(1, hc + V(0.18, -0.08, 0.04), 1.12, a, f.tip or "sand_dark", 0.1)
@@ -953,6 +964,8 @@ PLANS.crab = function(b, a, form)
 		Kit.faceOff()
 		Kit.on("body")
 	end
+	-- the face's details (A.face) on the front of the shell
+	A.face({ color = b, c = shell.c, half = V(W / 2, H / 2, L * (1 - shell.split)), ink = ink, more = A.more(nil, f.faceDetail) })
 	-- the claws
 	local ck: number = f.claw or 1
 	for _, side in { -1, 1 } do
@@ -1018,7 +1031,7 @@ end
 FORMS.clawdle = { claw = 1.32, lift = 0.12, teeth = "spiky", spots = "cream" }
 FORMS.coralcrab = { claw = 0.9, crown = "orange", spots = "cherry", W = 1.36 }
 FORMS.relicrab = { W = 1.2, L = 1.0, H = 0.62, split = 0.52, y = 0.66, claw = 1.0, coins = "gold", teeth = false, tip = "wood_dark", legC = "sand_dark" }
-FORMS.glimmite = { W = 1.04, L = 0.94, H = 0.52, split = 0.5, y = 0.66, claw = 0.9, reach = 0.68, legR = 0.06, knee = 0.32, stalk = 0.2, stars = "screen_on", teeth = false, tip = "night", spots = "steel" }
+FORMS.glimmite = { W = 1.04, L = 0.94, H = 0.52, split = 0.5, y = 0.66, claw = 0.9, reach = 0.68, legR = 0.06, knee = 0.32, stalk = 0.2, stars = "screen_on", teeth = false, tip = "night", spots = "steel", faceDetail = { marks = { freckles = "screen_on", glow = true } } }
 FORMS.rubblet = { hermit = true, iris = "sand" }
 
 ------------------------------------------------------------------ the beetle (ground beetle, geode beetle, scarab, rhino)
@@ -1089,6 +1102,8 @@ PLANS.beetle = function(b, a, form)
 	Kit.mouth(mp + mn * 0.01, mn, 0.17, ink)
 	-- what the head carries at the front
 	local front = f.front or "mandibles"
+	-- the face's details (A.face; the mandibles, where it has them, are its own)
+	A.face({ color = b, c = hc, half = hs / 2, ink = ink, more = A.more(if front == "mandibles" then { mandibles = false } else nil, f.faceDetail) })
 	if front == "mandibles" then
 		for _, side in { -1, 1 } do
 			local m0 = hc + V(side * hs.X * 0.28, -hs.Y * 0.28, hs.Z * 0.36)
@@ -1344,6 +1359,8 @@ PLANS.snail = function(b, a, form)
 		Kit.faceOff()
 		Kit.on("head")
 	end
+	-- the face's details (A.face) on the head, the stalks standing from its crown
+	A.face({ color = b, c = hc, half = hs / 2, ink = ink, more = A.more({ crown = false }, f.faceDetail) })
 	-- the shell on its own joint
 	Kit.on("body")
 	J("shell", "body", V(0, 0.42, -0.26), "shell")
@@ -1684,6 +1701,8 @@ PLANS.wyrm = function(b, a, form)
 	blush(hc, avg, FWD, R(50), R(14), 0.14 * big)
 	Kit.faceOff()
 	Kit.mouth(s1 + V(0, -0.12, 0.17) * big, V(0, -0.2, 1), 0.2 * big, ink)
+	-- the face's details (A.face): a grin back along the snout (its brows are its own)
+	A.face({ color = b, c = hc, half = hs / 2, ink = ink, under = under, muzzle = "lizard", snout = { a = s0, b = s1, ra = 0.24 * big, rb = 0.21 * big, flat = 0.82 }, more = A.more({ brows = false }, f.faceDetail) })
 	-- the whiskers, trailing from the upper lip
 	local wl: number = (f.whisker or 1) * big
 	for _, side in { -1, 1 } do
@@ -1782,10 +1801,10 @@ PLANS.wyrm = function(b, a, form)
 end
 
 FORMS.mirewyrm = { horns = "gnarl", hornC = "wood", beard = "moss", mane = "moss", moss = "moss", brow = "yellow", droop = 1, whisker = 1.15, whiskerC = "yellow", eye = { R(30), R(14), 0.26 } }
-FORMS.tidewyrm = { horns = "fins", fin = "sail", arms = "fins", tailEnd = "fluke", mane = "screen_on", whisker = 0.7, under = "white", finC = "screen_on" }
-FORMS.abyssmaw = { horns = "drake", lure = "crystal", lureStalk = "purple", lights = "crystal", fangs = true, tailEnd = "glow", glow = "purple", arms = "none", spine = "purple", spineH = 0.24, mane = "purple", under = "slate" }
+FORMS.tidewyrm = { horns = "fins", fin = "sail", arms = "fins", tailEnd = "fluke", mane = "screen_on", whisker = 0.7, under = "white", finC = "screen_on", faceDetail = { marks = { freckles = "screen_on", glow = true } } }
+FORMS.abyssmaw = { horns = "drake", lure = "crystal", lureStalk = "purple", lights = "crystal", fangs = true, tailEnd = "glow", glow = "purple", arms = "none", spine = "purple", spineH = 0.24, mane = "purple", under = "slate", faceDetail = { marks = { freckles = "purple", glow = true } } }
 FORMS.solwyrm = { horns = "drake", hornC = "white", sun = "orange", sun2 = "yellow", sunC = "white", mane = "white", tailEnd = "flame", flame = "yellow", flame2 = "orange", gem = "berry_red", under = "white", claw = "white" }
-FORMS.novawyrm = { big = 1.1, horns = "antler", antler = 1.2, hornC = "gold", stars = "gold", pearl = "white", mane = "gold", whisker = 1.3, whiskerC = "gold", under = "gold", claw = "gold" }
+FORMS.novawyrm = { big = 1.1, horns = "antler", antler = 1.2, hornC = "gold", stars = "gold", pearl = "white", mane = "gold", whisker = 1.3, whiskerC = "gold", under = "gold", claw = "gold", faceDetail = { marks = { star = "gold", glow = true } } }
 
 local _v, _r, _j, _f, _u, _w = V, R, J, full, UP, FWD
 return { plans = PLANS, forms = FORMS }
