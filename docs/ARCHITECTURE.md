@@ -583,7 +583,14 @@ Models (`src/shared/Models`, Roblox modules):
   surface (9.1): `DriftModels.build` marks every smooth solid but the face, the lit bits and the thin details (under
   `BLEND_MIN` 0.07 studs across its middle size) with "PixelBlend" (`BLEND` 0.07 x the height, as a share of the part's
   largest size); `A.ears` and the elephant give each ear a thick root ("EarRoot", full level only) so the head runs
-  on into the ear.
+  on into the ear. Faces (the request of 2026-11-16, "Detail the faces of the creatures even more. Add more details based on
+  the shape and details of the creature's bodies"), full level only: `Kit.look()` (the species' look, its textures
+  `tex`/`tex2` among it), `Kit.faceRec()` (the eyes and mouth just built: `EyeRec`, `MouthRec`), `Kit.faceClear()`,
+  `Kit.joint()`; `A.face(o: FaceOpts)` (brows shaped by the eye style and the texture, a line from the nose to the
+  mouth, whisker dots, beak nostrils and gape line, lip scales, cheek tufts, feather or scale edges, freckles, glowing
+  freckles on ember, cracks on stone, a crown: a crest, a gem, a leaf, a frost star, a plate; `A.head` calls it, custom
+  heads call it themselves), `A.more(plan, species)` (a species' `faceDetail` form over the plan's: marks blaze, star,
+  spots, freckles, kohl, glow, crack, gem, leaf), `A.markC(c)`.
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 37
   body plans (`PLANS`, from `DriftPlansA..F`: `pup cat bear otter monkey yeti deer ram elephant griffin drake bun mole
   hedgehog armadillo turtle golem lizard frog crab beetle snail wyrm seal fish ray seahorse octo jelly shroom sprite
@@ -638,6 +645,28 @@ Models (`src/shared/Models`, Roblox modules):
   pose held: the hatch scene and a driftling just hatched on the island, WorldView's `cheerMood`), rest (the pose as built, eyes open: the portraits), attack (the `LUNGE` over k), hurt (by its age: a hard
   squash wobbling back, flung back, ears folded back), ko, and the work moods peck, push, dip, wave and nap. `PITCH`
   scales how far a long body (four legs, a serpent) tips.
+  Since the request of 2026-11-16 ("Pose and animate them in ways that make them look natural and lively and bring
+  out what they are more") each driftling has a manner: `program(..., style)` takes the rig's `style` (its plan's
+  name, or its form's `style`: `DriftModels.build` sets `rig.style`), `style(name)` gives `STYLE[name]` (one for each
+  of the 37 plans, fifteen for species: lion, horse, goat, chameleon, croc, axolotl, seaturtle, seaotter, whale, heron,
+  skybird, toad, hermit, bee, treant; and `default`, the old manner). A style is a flat table: `acts` (names in
+  `ACTS`) and `every` (seconds between them, 3 to 8); the carriage every frame (`lean head ear twitch tail tip sway
+  swayF wag breath breathT weight arm armOut wing wingAmp wingF hover hoverF finAmp finF small fluke`); the looks
+  (`look tilt snap lookBody reach`); the walk (`bob nod walkWag walkTail roll bend heavy hump pulse flyWing flyWingF`);
+  and `cheer` (jump, flap, leap, splash, claws, wave, wag, trumpet, clap, bounce, flutter, pound, binky). `ACTS[name] =
+  { dur, fn }` (about ninety: wag, sniff, shake, bow, groom, stretch, knead, howl, pounce, thump, situp, swivel,
+  graze, trunk, earflap, stomp, peck, preen, ruffle, flap, waddle, throat, pushup, tongue, snap, antennae, stalks,
+  retract, coil, drift, dart, pulse, wave, bounce, flutter, clap, chest, curl, dig, butt, oneleg, strike and more):
+  each eases in and out, starting and ending at rest, and scales a beat of fixed speed so nothing skips. Idle time is
+  cut into windows of `every` seconds offset by the seed; most windows play one act at a seeded moment (never the
+  window before's), the rest nothing (`actAt(style, t, seed, tempo)`, `act(prog, name, u, t, side, style)`). New
+  program fields (reset each frame): ears `earL earR earYL earYR`, arms `armL armR armLz armRz`, legs `legF legH
+  liftLeg legLift legUp plant free shuffle`, `tailRy tailTip wag`, `wingL wingR`, `finY finZ`, stalks `stalkSq stalkX
+  stalkZ stalkTurn`, tendrils and antennae `tendrilAmp tendrilRx tendrilTip tendrilRz flare antAmp antRx`.
+  `bone(prog, kind, side, phase, dx?, dz?)`: `dx, dz` the bone's pivot from the root's (`DriftRig`'s `Bone.dx/dz`), so
+  planted feet stay put while the body leans or rises and tendrils spread from the middle. The leg's sign: + rx swings
+  a hanging foot back, so a walk plants each foot ahead of the hip and sweeps it back (it used to slide), and `JUMP.leg`
+  is + forward. Pure arithmetic, nothing allocated a frame.
 
 ## 7. Server
 

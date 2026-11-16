@@ -1428,6 +1428,30 @@ drawn exactly, pixel by pixel), so there are no polygons to add: the seams were 
 and whiskers stay crisp details on top. On the islands, where a driftling is a small figure among dozens, a fillet
 would be a pixel or two and the blend would cost four times the drawing, so there the parts draw as before.
 
+> The request (2026-11-16): "Detail the faces of the creatures even more. Add more details based on the shape and
+> details of the creature's bodies. No need to detail that much outside of the egg hatching screen. Also, Pose and
+> animate them in ways that make them look natural and lively and bring out what they are more"
+
+**Faces that match the body** (the hatch scene and the portraits; on the islands faces stay as they were): brows
+shaped by the eyes and the coat (soft for big round eyes, a pale stripe on a bird, a scale ridge on a lizard, frost on
+an ice creature, a heavy ridge of stone or bark), a line from the nose to the mouth, whisker dots on a cat's pads,
+nostrils and the line between the halves of a beak, lip scales, cheek tufts on fur, feather or scale edges on the
+cheeks, freckles (glowing on the fiery ones), a crack on a stone cheek, and on the crown a little crest, a gem, a leaf
+or a frost star. Some species carry a mark from their name: the tomb cat's kohl lines, the fire foxes' blaze, the star
+creatures' star.
+
+**A manner of its own**: every kind of driftling holds itself and fidgets like its animal. A dog's tail is up and
+wagging, and now and then it sniffs, tilts its head, shakes itself off or play-bows; a cat holds its tail up with the
+tip curled, flicks it, licks a paw and stretches; a deer swivels its ears and grazes; an elephant swings its trunk,
+flaps its ears and stomps; birds peck, bob and preen; an owl turns its head right round; a frog pulses its throat and
+hops on the spot; a lizard does push-ups; a crab snaps its claws; a snail stretches its eye stalks; an octopus waves
+its arms; a fish drifts and darts. Some species have their own: the lion cubs, the horses, the goats, the chameleon,
+the crocodile, the axolotl, the sea turtles, the sea otter, the cloud whale, the heron that stands on one leg, the
+toads, the hermit crab, the bee and the walking trees. Each walks its own way (a bird's head bobs in step, an
+elephant sways heavily, a lizard bends from side to side) and cheers its own way (a bird flaps, a frog leaps, a crab
+raises its claws, an elephant trumpets). The acts come one at a time every few seconds, no two driftlings in step.
+Walking feet now stay planted on the ground.
+
 **Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`; the plans before 2026-11-15, kept here for their parts'
 story): each of the twenty body plans of that time was built to read as its animal. The turtle has
 a domed shell with a ring of plates and a rim, a head on a neck with a beak, and flippered legs. The fox pup has a

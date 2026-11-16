@@ -951,10 +951,10 @@ PLANS.turtle = function(b, a, form)
 end
 
 FORMS.shellback = { shell = "sand", seam = "sand_dark" }
-FORMS.pearlback = { sea = true, shell = "pink", seam = "coral", belly = "white", pearl = "white", clam = "cherry" }
-FORMS.skyshell = { sea = true, shell = "blue", seam = "jeans", belly = "white", cloud = "white", big = 1.12 }
+FORMS.pearlback = { style = "seaturtle", sea = true, shell = "pink", seam = "coral", belly = "white", pearl = "white", clam = "cherry" }
+FORMS.skyshell = { style = "seaturtle", sea = true, shell = "blue", seam = "jeans", belly = "white", cloud = "white", big = 1.12 }
 FORMS.snapmoss = { shell = "rock", seam = "basalt", keels = true, saw = true, moss = "leaf", hook = true, head = V(0.66, 0.56, 0.66), beak = "basalt", nails = "basalt" }
-FORMS.elderreef = { sea = true, shell = "teal", seam = "swamp", reef = "pink", reef2 = "coral", big = 1.15 }
+FORMS.elderreef = { style = "seaturtle", sea = true, shell = "teal", seam = "swamp", reef = "pink", reef2 = "coral", big = 1.15 }
 FORMS.templeback = { shell = "wood_dark", seam = "hair_brown", temple = "gold", big = 1.2 }
 FORMS.starshell = { shell = "black", seam = "night", stars = "yellow", glow = true, belly = "slate", big = 1.1 }
 
@@ -1322,10 +1322,10 @@ PLANS.golem = function(b, a, form)
 	return guardGolem(b, a, f)
 end
 
-FORMS.elderbark = { kind = "tree", crown = "leaf", leaf = "leaf", blossom = "pink", faceDetail = { marks = { freckles = "moss" } } }
+FORMS.elderbark = { style = "treant", kind = "tree", crown = "leaf", leaf = "leaf", blossom = "pink", faceDetail = { marks = { freckles = "moss" } } }
 FORMS.basaltor = { kind = "basalt", glow = "orange" }
 FORMS.glacior = { kind = "ice", snow = "white", deep = "ice" }
 FORMS.sentinel = { kind = "guard", trim = "gold", dark = "rock_dark", moss = "moss" }
-FORMS.silverbark = { kind = "tree", crown = "crystal", leaf = "crystal", leaf2 = "white", beard = "white", fruit = "white", h = 2.8, faceDetail = { marks = { freckles = "crystal", glow = true } } }
+FORMS.silverbark = { style = "treant", kind = "tree", crown = "crystal", leaf = "crystal", leaf2 = "white", beard = "white", fruit = "white", h = 2.8, faceDetail = { marks = { freckles = "crystal", glow = true } } }
 
 return { plans = PLANS, forms = FORMS }

@@ -341,7 +341,7 @@ FORMS.floe = {
 }
 -- Cloudwhale: a celestial whale of ice blue swimming through the clouds, a white chin with grooves, white flippers, a
 -- little cloud puffing from its blowhole and stars on its back.
-FORMS.cloudwhale = {
+FORMS.cloudwhale = { style = "whale",
 	whale = true,
 	under = "white",
 	finC = "white",

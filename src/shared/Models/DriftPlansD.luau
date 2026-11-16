@@ -545,9 +545,9 @@ end
 FORMS.frondle = { back = "spots", pads = true, tail = "leaf", tailLen = 1.0, spotsHead = true, under = "cream", eye = { R(28), R(26), 0.28 } }
 FORMS.reedle = { len = 1.4, wide = 0.5, tall = 0.4, y = 0.34, legR = 0.075, out = 0.24, back = "stripes", tail = "whip", tailLen = 1.45, tailR = 0.16, hs = V(0.62, 0.84, 0.46), hc = V(0, 0.58, 0.96), hsplit = 0.62, eye = { R(36), R(24), 0.24 }, fl = 0.18, claw = "wood_dark", sway = 0.3, grinBack = 56 }
 FORMS.cometail = { back = "trail", tail = "glow", tailLen = 1.05, headFins = true, claw = "jeans", eye = { R(34), R(24), 0.34 } }
-FORMS.gillo = { len = 1.1, wide = 0.72, tall = 0.52, y = 0.38, legR = 0.085, out = 0.18, back = "none", tail = "paddle", tailLen = 0.9, tailR = 0.2, fin = "cherry", hs = V(1.04, 0.72, 0.52), hc = V(0, 0.64, 0.8), hsplit = 0.5, eye = { R(34), R(22), 0.32 }, tilt = 18, gills = "coral", gillTip = "coral", toes = 4, ftoes = 4, fl = 0.12, under = "cherry", grin = 0.42, grinBack = 46 }
-FORMS.vinegeck = { len = 1.0, wide = 0.46, tall = 0.66, y = 0.52, arch = 0.14, split = 0.5, legR = 0.08, out = 0.16, tallLegs = true, mitten = true, back = "none", crest = "gold", stripe = "gold", tail = "curl", tailLen = 1.0, tailR = 0.14, curlR = 0.25, head = "chameleon", hs = V(0.54, 0.74, 0.54), hc = V(0, 0.9, 0.72) }
-FORMS.grinmire = { big = 1.1, len = 1.5, wide = 0.78, tall = 0.46, y = 0.34, legR = 0.105, out = 0.22, back = "scutes", tail = "croc", tailLen = 1.3, tailR = 0.24, head = "croc", hs = V(0.7, 0.62, 0.46), hc = V(0, 0.54, 0.95), mlen = 0.72, mw = 0.46, mdrop = 0.06, eye = { R(30), R(34), 0.24 }, claw = "sand_dark", toes = 3, ftoes = 3, fan = 44, under = "sand" }
+FORMS.gillo = { style = "axolotl", len = 1.1, wide = 0.72, tall = 0.52, y = 0.38, legR = 0.085, out = 0.18, back = "none", tail = "paddle", tailLen = 0.9, tailR = 0.2, fin = "cherry", hs = V(1.04, 0.72, 0.52), hc = V(0, 0.64, 0.8), hsplit = 0.5, eye = { R(34), R(22), 0.32 }, tilt = 18, gills = "coral", gillTip = "coral", toes = 4, ftoes = 4, fl = 0.12, under = "cherry", grin = 0.42, grinBack = 46 }
+FORMS.vinegeck = { style = "chameleon", len = 1.0, wide = 0.46, tall = 0.66, y = 0.52, arch = 0.14, split = 0.5, legR = 0.08, out = 0.16, tallLegs = true, mitten = true, back = "none", crest = "gold", stripe = "gold", tail = "curl", tailLen = 1.0, tailR = 0.14, curlR = 0.25, head = "chameleon", hs = V(0.54, 0.74, 0.54), hc = V(0, 0.9, 0.72) }
+FORMS.grinmire = { style = "croc", big = 1.1, len = 1.5, wide = 0.78, tall = 0.46, y = 0.34, legR = 0.105, out = 0.22, back = "scutes", tail = "croc", tailLen = 1.3, tailR = 0.24, head = "croc", hs = V(0.7, 0.62, 0.46), hc = V(0, 0.54, 0.95), mlen = 0.72, mw = 0.46, mdrop = 0.06, eye = { R(30), R(34), 0.24 }, claw = "sand_dark", toes = 3, ftoes = 3, fan = 44, under = "sand" }
 
 ------------------------------------------------------------------ the frog (tree frog, mud frog, toad)
 -- A real frog sits: the rump on the ground and the body sloping up to the shoulders, no neck, a wide flat head with
@@ -775,8 +775,8 @@ end
 
 FORMS.hopsprout = { pads = "pink", sprout = "grass", stem = "leaf_dark", bud = "pink", bands = "leaf_dark", under = "cream" }
 FORMS.murkle = { big = 1.06, wide = 1.0, tall = 0.66, sac = "sand", spots = "sand_dark", ridge = "sand_dark", ear = 1.4, earC = "sand", under = "sand", eyeD = 0.72 }
-FORMS.cindertoad = { toad = true, wide = 0.96, tall = 0.76, slope = 0.62, warts = "orange", glands = true, dome = 0.42, eyeD = 0.95, blush = false, under = "rock" }
-FORMS.icetoad = { toad = true, wide = 0.94, spots = "white", frost = "ice", icicles = "ice", brow = "white", under = "white", web = "ice" }
+FORMS.cindertoad = { style = "toad", toad = true, wide = 0.96, tall = 0.76, slope = 0.62, warts = "orange", glands = true, dome = 0.42, eyeD = 0.95, blush = false, under = "rock" }
+FORMS.icetoad = { style = "toad", toad = true, wide = 0.94, spots = "white", frost = "ice", icicles = "ice", brow = "white", under = "white", web = "ice" }
 
 ------------------------------------------------------------------ the crab (shore crab, box crab, spider crab, hermit)
 -- A real crab: a wide flattened carapace, broadest toward the front where a row of teeth runs along its edge, a pale
@@ -1032,7 +1032,7 @@ FORMS.clawdle = { claw = 1.32, lift = 0.12, teeth = "spiky", spots = "cream" }
 FORMS.coralcrab = { claw = 0.9, crown = "orange", spots = "cherry", W = 1.36 }
 FORMS.relicrab = { W = 1.2, L = 1.0, H = 0.62, split = 0.52, y = 0.66, claw = 1.0, coins = "gold", teeth = false, tip = "wood_dark", legC = "sand_dark" }
 FORMS.glimmite = { W = 1.04, L = 0.94, H = 0.52, split = 0.5, y = 0.66, claw = 0.9, reach = 0.68, legR = 0.06, knee = 0.32, stalk = 0.2, stars = "screen_on", teeth = false, tip = "night", spots = "steel", faceDetail = { marks = { freckles = "screen_on", glow = true } } }
-FORMS.rubblet = { hermit = true, iris = "sand" }
+FORMS.rubblet = { style = "hermit", hermit = true, iris = "sand" }
 
 ------------------------------------------------------------------ the beetle (ground beetle, geode beetle, scarab, rhino)
 -- A real beetle in three parts: the head (eyes on its sides, mandibles or a horn at the front, two antennae), the

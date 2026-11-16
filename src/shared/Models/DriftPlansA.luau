@@ -546,15 +546,15 @@ FORMS.nebulynx = { k = 1.12, legs = 1.14, tufts = "screen_on", tuftNeon = true, 
 -- Cinderkit: a black kitten, big-headed, orange paws and ear insides, its short tail tipped with a glowing coal.
 FORMS.cinderkit = { k = 0.86, head = 1.14, legs = 0.9, sock = "orange", paw = "orange", pad = "yellow", earIn = "orange", tail = "kitten", tipC = "orange", tipAt = 0.6, ember = true, mc = "basalt" }
 -- Thistlemane: a lion cub, round ears in a white dandelion puff of a mane, a white tail tuft.
-FORMS.thistlemane = { k = 0.92, head = 1.08, mane = "puff", maneC = "white", tail = "lion", tuft = "white", mc = "cream", ears = { kind = "round", w = 0.28, at = 0.4 } }
+FORMS.thistlemane = { style = "lion", k = 0.92, head = 1.08, mane = "puff", maneC = "white", tail = "lion", tuft = "white", mc = "cream", ears = { kind = "round", w = 0.28, at = 0.4 } }
 -- Blazemane: a lion whose mane and tail tuft are fire.
-FORMS.blazemane = { k = 1.06, mane = "flame", maneC = "berry_red", tail = "lion", tuft = "flame", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 }, faceDetail = { marks = { blaze = "yellow" } } }
+FORMS.blazemane = { style = "lion", k = 1.06, mane = "flame", maneC = "berry_red", tail = "lion", tuft = "flame", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 }, faceDetail = { marks = { blaze = "yellow" } } }
 -- Frostlynx: chunky and fluffy, big paws, white cheek ruffs and a chest ruff, tufts, a bobtail.
 FORMS.frostlynx = { bulk = 1.18, paws = 1.45, legR = 1.2, tufts = "white", ruffs = 2, ruffC = "white", chestRuff = true, under = "white", tail = "bob", tipC = "white", tipAt = 0.5, mc = "white", faceDetail = { marks = { freckles = "white" } } }
 -- Tombcat: slim and tall, huge upright ears, a gold collar and gold earrings, a long thin tail.
 FORMS.tombcat = { bulk = 0.84, long = 1.06, legs = 1.2, head = 0.94, collar = "gold", earrings = "gold", tail = "long", ears = { len = 0.66, w = 0.44, at = 0.34, back = 2 }, faceDetail = { marks = { kohl = "black" } } }
 -- Gildmane: a regal lion, head held high in a full sand mane, a sand tail tuft.
-FORMS.gildmane = { k = 1.14, legs = 1.1, neck = 0.1, mane = "full", maneC = "sand", tail = "lion", tuft = "sand", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 } }
+FORMS.gildmane = { style = "lion", k = 1.14, legs = 1.1, neck = 0.1, mane = "full", maneC = "sand", tail = "lion", tuft = "sand", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 } }
 
 ------------------------------------------------------------------ the bear
 -- A bear cub: a heavy round body low to the ground with a hump over the shoulders, a big round head with a short
@@ -853,7 +853,7 @@ PLANS.otter = function(b, a, form)
 end
 
 -- Kelpup: a sea otter sitting up, a cream head on a brown body, holding a pink shell to its chest.
-FORMS.kelpup = { sit = true, headC = "cream", shell = "pink" }
+FORMS.kelpup = { style = "seaotter", sit = true, headC = "cream", shell = "pink" }
 -- Slinkit: a mink, long and slim, small-headed with a pointed muzzle, a cream throat, a thin tail.
 FORMS.slinkit = { bulk = 0.78, long = 1.18, head = 0.86, arch = -0.1, muzzle = "fox", mlen = 0.22, throat = "cream", under = "cream", tailR = 0.13, h = 1.4 }
 -- Gustotter: pale and fluffy, white cheeks, clouds on its back, head and tail.

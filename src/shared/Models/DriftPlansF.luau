@@ -724,7 +724,7 @@ FORMS.ashwing = {
 	h = 2.4,
 }
 
-FORMS.stiltbeak = {
+FORMS.stiltbeak = { style = "heron",
 	-- a heron: very long legs, a long S of a neck, a straight dagger of a beak, a black plume off the nape
 	legH = 1.3,
 	heel = 0.62,
@@ -795,7 +795,7 @@ FORMS.sweepwing = {
 	throat = "cream",
 }
 
-FORMS.cloudpip = {
+FORMS.cloudpip = { style = "skybird",
 	-- a puff of a bird too light to land: a ball of white down, pink cheeks and wing edges, a tiny black beak, a long
 	-- narrow tail; it hangs in the air (its feet tucked up, fluttering)
 	gait = "fly",
@@ -2087,7 +2087,7 @@ FORMS.starweaver = {
 	r = 1.6,
 }
 
-FORMS.bumblet = {
+FORMS.bumblet = { style = "bee",
 	-- a bumblebee: a round fuzzy yellow body in black bands, a black tail with a sting, little round clear wings held
 	-- up, short elbowed antennae
 	wings = "round",

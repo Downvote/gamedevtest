@@ -2830,6 +2830,38 @@ local function animScenario(arg)
 	log("anim %s (%s, gait %s): %d bones, %d springs, %d parts, %d shared by two bones", def.id, def.shape, tostring(th.rig and th.rig.gait), st.bones, st.springs, st.parts, st.shared)
 	settle(p, 60, 0.5)
 	local GAP: { [string]: number } = { hooray = 0.25, idle = 0.3, walk = 0.0875, cheer = 0.0825, hop = 0.11, peck = 0.21, hurt = 0.1, nap = 0.4, wave = 0.1, dip = 0.375, push = 0.2, attack = 0.1, ko = 0.3 }
+	-- ("act_<name>" plays one idle act of DriftMotion through, nine frames from its start to its end; "idlelong" 24 frames of
+	-- idle 0.4 s apart)
+	local Motion = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.DriftMotion"))
+	local styleName = th.rig and th.rig.style or "default"
+	log("anim style %s", tostring(styleName))
+	H.inClient(p, function()
+		local quiet = table.clone(Motion.style(styleName))
+		quiet.acts = {}
+		Motion.STYLE.__quiet = quiet
+		local orig = Motion.program
+		Motion.program = function(mood, t, age, k, gait, tempo, seed, out, style)
+			local forced = string.match(mood, "^act_(.+)$")
+			if forced then
+				local o = orig("idle", t, age, k, gait, tempo, seed, out, "__quiet")
+				local A = Motion.ACTS[forced]
+				local u = math.clamp((age - 0.1) * tempo / A.dur, 0, 1)
+				Motion.act(o, forced, u, t * tempo, 1, style)
+				if o.jaw > 0.12 then
+					o.open = true
+				end
+				o.mood = mood
+				return o
+			end
+			if mood == "idlelong" then
+				mood = "idle"
+			end
+			return orig(mood, t, age, k, gait, tempo, seed, out, style)
+		end
+	end)
+	local tempo = H.inClient(p, function()
+		return DR.skeleton(th).tempo
+	end)
 	local moods = {}
 	for m in string.gmatch(if moodArg and moodArg ~= "" then moodArg else "idle,walk,cheer,peck,hurt", "[^,]+") do
 		table.insert(moods, m)
@@ -2837,8 +2869,22 @@ local function animScenario(arg)
 	local clock = 1
 	for _, mood in moods do
 		local gap = GAP[mood] or 0.12
-		for k = 1, 8 do
+		local nf = 8
+		local forced = string.match(mood, "^act_(.+)$")
+		if forced then
+			local dur = H.inClient(p, function()
+				return Motion.ACTS[forced].dur
+			end)
+			nf = 9
+			gap = dur / tempo / 8
+		elseif mood == "idlelong" then
+			nf, gap = 24, 0.4
+		end
+		for k = 1, nf do
 			local steps = math.max(1, math.floor(gap * 60 + 0.5))
+			if forced and k == 1 then
+				steps = 6
+			end
 			H.inClient(p, function()
 				for _ = 1, steps do
 					clock += 1 / 60

@@ -73,6 +73,10 @@ export type Bone = {
 	phase: number,
 	axis: Vector3, -- from the pivot toward its tail (unit)
 	len: number,
+	-- its pivot from the root's, across (dx) and along (dz), studs: DriftMotion keeps a leg's foot planted as the body
+	-- pitches by it, and spreads tendrils out from the middle
+	dx: number,
+	dz: number,
 	spring: Spring?,
 	children: { number },
 }
@@ -121,7 +125,7 @@ function Rig.skeleton(t: Kit.Thing): Skel
 	for i, name in rig.order do
 		local j = rig.joints[name]
 		index[name] = i
-		bones[i] = { name = name, parent = 0, pivot = j.pivot, kind = j.kind, side = j.side, phase = j.phase, axis = Vector3.yAxis, len = 0.3, spring = nil, children = {} }
+		bones[i] = { name = name, parent = 0, pivot = j.pivot, kind = j.kind, side = j.side, phase = j.phase, axis = Vector3.yAxis, len = 0.3, dx = 0, dz = 0, spring = nil, children = {} }
 	end
 	for i, name in rig.order do
 		local j = rig.joints[name]
@@ -171,6 +175,10 @@ function Rig.skeleton(t: Kit.Thing): Skel
 			root = i
 			break
 		end
+	end
+	local rp = bones[root].pivot
+	for _, b in bones do
+		b.dx, b.dz = b.pivot.X - rp.X, b.pivot.Z - rp.Z
 	end
 	-- the skin: each part on its bone, a small one near a joint shared with the bone across it
 	local skins: { Skin } = {}
@@ -318,9 +326,9 @@ function Rig.animate(t: Kit.Thing, time: number, mood: string, k: number?, sc: V
 	local root = sk.root
 	-- 2. forward kinematics, 3. the springs
 	for i, b in bones do
-		local rx, ry, rz, tx, ty, tz, sq = Motion.bone(cur, b.kind, b.side, b.phase)
+		local rx, ry, rz, tx, ty, tz, sq = Motion.bone(cur, b.kind, b.side, b.phase, b.dx, b.dz)
 		if blend < 1 then
-			local px, py, pz, qx, qy, qz, psq = Motion.bone(prev, b.kind, b.side, b.phase)
+			local px, py, pz, qx, qy, qz, psq = Motion.bone(prev, b.kind, b.side, b.phase, b.dx, b.dz)
 			rx, ry, rz = px + (rx - px) * blend, py + (ry - py) * blend, pz + (rz - pz) * blend
 			tx, ty, tz = qx + (tx - qx) * blend, qy + (ty - qy) * blend, qz + (tz - qz) * blend
 			sq = psq + (sq - psq) * blend
