@@ -29,6 +29,9 @@ export type Solid = {
 	eye: { code: number, iris: number, dark: number, lid: number, side: number }?,
 	-- a member of a driftling's blended body (Raster.drawBlend): its blend radius in studs
 	blend: number?,
+	-- a mark painted onto the surfaces under it, not drawn (Models/DriftKit's blush): its oval's three axes in world,
+	-- each over its radius (across, up, along the normal)
+	paint: { number }?,
 	cf: { number }, -- cf12: position and rotation
 	sx: number,
 	sy: number,
@@ -57,6 +60,7 @@ export type Job = {
 	solids: { Solid },
 	opaque: { number }, -- indices into solids
 	blend: { number }, -- the opaque ones drawn together as one blended surface (after the others)
+	paints: { number }, -- the marks painted on, not drawn
 	clear: { number }, -- see-through ones
 	outline: string,
 	shadows: boolean,
@@ -343,9 +347,11 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		buffer.writef32(depth, i * 4, FAR)
 	end
 	local frame: Raster.Frame = { W = W, H = H, color = buffer.create(n * 4), depth = depth, id = buffer.create(n * 2) }
-	local opaque, clear, blend = {}, {}, {}
+	local opaque, clear, blend, paints = {}, {}, {}, {}
 	for i, s in solids do
-		if s.alpha >= 0.999 and s.blend and s.blend > 0 and not s.glow and Raster.SOLID_KIND[s.shape] then
+		if s.paint then
+			table.insert(paints, i)
+		elseif s.alpha >= 0.999 and s.blend and s.blend > 0 and not s.glow and Raster.SOLID_KIND[s.shape] then
 			table.insert(blend, i)
 		elseif s.alpha >= 0.999 then
 			table.insert(opaque, i)
@@ -361,6 +367,7 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		solids = solids,
 		opaque = opaque,
 		blend = blend,
+		paints = paints,
 		clear = clear,
 		outline = o.outline or "outer",
 		shadows = o.shadows ~= false,
@@ -375,6 +382,39 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		shadowGrid = nil,
 		lastBlock = 0,
 	}
+end
+
+-- The colour a mark painted at the hit t of pixel (x, y) gives the surface there (Models/DriftKit's blush), or `rgb`:
+-- inside its oval the mark's colour, on the edge one step between the two.
+local function painted(job: Job, rgb: number, x: number, y: number, t: number): number
+	local cam = job.cam
+	local ox, oy, oz = Raster.origin(cam, x, y)
+	local px, py, pz = ox + t * cam.lx, oy + t * cam.ly, oz + t * cam.lz
+	local studPx = cam.K / cam.s
+	for _, i in job.paints do
+		local s = job.solids[i]
+		local pt = s.paint :: { number }
+		local dx, dy, dz = px - s.cf[1], py - s.cf[2], pz - s.cf[3]
+		local c = dx * pt[7] + dy * pt[8] + dz * pt[9]
+		if c > -1 and c < 1 then
+			local a = dx * pt[1] + dy * pt[2] + dz * pt[3]
+			local b = dx * pt[4] + dy * pt[5] + dz * pt[6]
+			local e = math.sqrt(a * a + b * b)
+			local sa = math.sqrt(pt[1] * pt[1] + pt[2] * pt[2] + pt[3] * pt[3])
+			local sb = math.sqrt(pt[4] * pt[4] + pt[5] * pt[5] + pt[6] * pt[6])
+			local half = 0.5 * studPx * math.max(sa, sb)
+			if e <= 1 - half then
+				return s.rgb
+			elseif e < 1 + half then
+				local q = s.rgb
+				local r = (bit32.rshift(rgb, 16) + bit32.rshift(q, 16)) // 2
+				local g = (bit32.band(bit32.rshift(rgb, 8), 0xFF) + bit32.band(bit32.rshift(q, 8), 0xFF)) // 2
+				local bb = (bit32.band(rgb, 0xFF) + bit32.band(q, 0xFF)) // 2
+				return r * 65536 + g * 256 + bb
+			end
+		end
+	end
+	return rgb
 end
 
 -- Phase 1: one opaque solid into the G-buffer (colour is written in phase 2).
@@ -410,6 +450,9 @@ local function rasterSolid(job: Job, k: number)
 			rgb = a
 			buffer.writeu32(albedo, idx * 4, rgb + (if g then GLOW else 0))
 		else
+			if t and #job.paints > 0 and not s.glow then
+				rgb = painted(job, rgb, x, y, t)
+			end
 			buffer.writeu32(albedo, idx * 4, rgb + flag)
 		end
 		buffer.writef32(normal, idx * 12, nx)
@@ -444,6 +487,9 @@ local function rasterBlend(job: Job)
 	end
 	local function capture(m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number): number
 		local idx = y * W + x
+		if #job.paints > 0 then
+			rgb = painted(job, rgb, x, y, t)
+		end
 		buffer.writeu32(albedo, idx * 4, rgb)
 		buffer.writef32(normal, idx * 12, nx)
 		buffer.writef32(normal, idx * 12 + 4, ny)
@@ -460,7 +506,12 @@ local function shadowGrid(job: Job): ShadowGrid
 	local u0, v0, u1, v1 = math.huge, math.huge, -math.huge, -math.huge
 	local boxes: { { number } } = {}
 	local top: { [number]: number } = {}
-	for _, k in job.opaque do
+	-- (the opaque solids and the blended body's members both cast shadows)
+	local casters = table.clone(job.opaque)
+	for _, k in job.blend do
+		table.insert(casters, k)
+	end
+	for _, k in casters do
 		local s = solids[k]
 		if not s.glow then
 			local mid, half = extent(s, 0, 1, 0)

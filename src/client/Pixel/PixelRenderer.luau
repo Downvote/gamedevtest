@@ -134,7 +134,7 @@ local NO_TEX: TexInfo = table.freeze({ kind = 0, rgb = -1, x0 = 0, y0 = 0, w = 0
 
 -- a painted eye (Render/EyeTex): its style's code, its colours (0xRRGGBB) and its side
 type EyeSpec = { code: number, iris: number, dark: number, lid: number, side: number }
-type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number?, eye: EyeSpec?, blend: number? }
+type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: number, tex: number, texV: number, texSeed: number?, texSoft: number, sm: number, prm: number?, eye: EyeSpec?, blend: number?, paint: { a: Vector3, b: Vector3, n: Vector3 }? }
 -- rim: a founder (registerDynamic outline "self" or "player"): a white rim in place of its ink edge (GAME_DESIGN 14.1);
 -- own: the local player's (drawn first when there are more than Rims.max)
 -- A moving model's picture last time it was drawn (DynCache in the compose section): its pixels that won against the
@@ -325,6 +325,15 @@ local SG = {
 	blendLast = 0,
 	blendTex = false,
 	shadeMember = nil :: Raster.BlendShade?,
+	-- (a model's marks painted on this frame, Kit.blush: per mark PAINT_STRIDE numbers, its centre, its oval's three
+	-- scaled axes in world, its colour, its edge's scale and its reach; how many; whether the part being drawn is near
+	-- one; each blend member's; the paint, and a plain shade that paints)
+	paints = {} :: { number },
+	paintN = 0,
+	paintOn = false,
+	blendPaint = {} :: { boolean },
+	paintAt = nil :: ((rgb: number, x: number, y: number, t: number) -> number)?,
+	shadePaint = nil :: Raster.Shade?,
 	buf = nil :: buffer?,
 	out = nil :: buffer?, -- (the whole image graded, as it goes up)
 	on = nil :: Surf?,
@@ -1699,6 +1708,9 @@ local function shadeTex(rgb: number, nx: number, ny: number, nz: number, x: numb
 		local u, v = DynTex.uv(texShape, lx, ly, lz)
 		lift = DynTex.lift(texKind, u, v + texOpt.v, texPx, texOpt.seed)
 	end
+	if t and SG.paintOn then
+		rgb = (SG.paintAt :: any)(rgb, x, y, t)
+	end
 	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, lift, texOpt.soft)
 end
 
@@ -1732,9 +1744,53 @@ end
 
 -- A member of a model's blended body (Raster.drawBlend): its texture set up when the member changes, then lit like any
 -- textured part, with the union's normal as it comes (no leaning: the blend is the smooth surface).
+-- A mark painted onto the face (Kit.blush; the request of 2026-11-16, "make the blushes drawn on instead of discs
+-- too"): the pixel's point on the surface, in each mark's oval (across and up the face, and along its normal); inside,
+-- the mark's colour, the head keeping its own light; on the edge, one step between the two (anti-aliased).
+local PAINT_STRIDE = 15
+SG.paintAt = function(rgb: number, x: number, y: number, t: number): number
+	local cam = texCam
+	if cam == nil then
+		return rgb
+	end
+	local px = cam.ox + x * cam.ix + y * cam.jx + t * cam.lx
+	local py = cam.oy + x * cam.iy + y * cam.jy + t * cam.ly
+	local pz = cam.oz + x * cam.iz + y * cam.jz + t * cam.lz
+	local P = SG.paints
+	for k = 0, SG.paintN - 1 do
+		local o = k * PAINT_STRIDE
+		local dx, dy, dz = px - P[o + 1], py - P[o + 2], pz - P[o + 3]
+		local c = dx * P[o + 10] + dy * P[o + 11] + dz * P[o + 12]
+		if c > -1 and c < 1 then
+			local a = dx * P[o + 4] + dy * P[o + 5] + dz * P[o + 6]
+			local b = dx * P[o + 7] + dy * P[o + 8] + dz * P[o + 9]
+			local e = math.sqrt(a * a + b * b)
+			local half = 0.5 * texPx * P[o + 14]
+			if e <= 1 - half then
+				return P[o + 13]
+			elseif e < 1 + half then
+				local q = P[o + 13]
+				local r = (bit32.rshift(rgb, 16) + bit32.rshift(q, 16)) // 2
+				local g = (bit32.band(bit32.rshift(rgb, 8), 0xFF) + bit32.band(bit32.rshift(q, 8), 0xFF)) // 2
+				local bb = (bit32.band(rgb, 0xFF) + bit32.band(q, 0xFF)) // 2
+				return r * 65536 + g * 256 + bb
+			end
+		end
+	end
+	return rgb
+end
+-- (a plain lit part near a mark: shadeLit's look, per pixel so it can paint)
+SG.shadePaint = function(rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number?): number
+	if t then
+		rgb = (SG.paintAt :: any)(rgb, x, y, t)
+	end
+	return Shading.toonAt(rgb, nx, ny, nz, 1, x + panX, y + panY, Shading.INDOOR, 0)
+end
+
 SG.shadeMember = function(m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number): number
 	if m ~= SG.blendLast then
 		SG.blendLast = m
+		SG.paintOn = SG.blendPaint[m] == true
 		local p = SG.blendP[m]
 		texCF, texShape, texKind = SG.blendCf[m], p.shape, if SG.blendTex then p.tex else 0
 		texOpt.seed, texOpt.v, texOpt.soft = p.texSeed or p.id % 97, p.texV, p.texSoft
@@ -2556,6 +2612,42 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 		end
 		T.scnt = sc
 	end
+	-- (the marks painted on: each one's oval this frame, world space)
+	local PS = SG.paints
+	local pn = 0
+	for _, p in d.parts do
+		local pt = p.paint
+		local part = p.part
+		if pt and part.Parent ~= nil then
+			local c = { part.CFrame:GetComponents() }
+			local o = pn * PAINT_STRIDE
+			PS[o + 1], PS[o + 2], PS[o + 3] = c[1], c[2], c[3]
+			local la, lb, ln = pt.a, pt.b, pt.n
+			for k, v in { la, lb, ln } do
+				local q = o + 1 + 3 * k
+				PS[q] = c[4] * v.X + c[5] * v.Y + c[6] * v.Z
+				PS[q + 1] = c[7] * v.X + c[8] * v.Y + c[9] * v.Z
+				PS[q + 2] = c[10] * v.X + c[11] * v.Y + c[12] * v.Z
+			end
+			PS[o + 13] = p.rgb
+			local sa, sb = la.Magnitude, lb.Magnitude
+			PS[o + 14] = math.max(sa, sb)
+			PS[o + 15] = 1 / math.max(1e-6, math.min(sa, sb, ln.Magnitude))
+			pn += 1
+		end
+	end
+	SG.paintN = pn
+	local function nearPaint(cx: number, cy: number, cz: number, r: number): boolean
+		for k = 0, pn - 1 do
+			local o = k * PAINT_STRIDE
+			local dx, dy, dz = cx - PS[o + 1], cy - PS[o + 2], cz - PS[o + 3]
+			local lim = r + PS[o + 15]
+			if dx * dx + dy * dy + dz * dz < lim * lim then
+				return true
+			end
+		end
+		return false
+	end
 	-- (the body's blend radius: its members' shares of their sizes, averaged; drawn blended only where it shows)
 	local blendN, blendSum = 0, 0
 	for _, p in d.parts do
@@ -2573,6 +2665,9 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 			continue
 		end
 		local sz = part.Size
+		if p.paint then
+			continue -- (painted onto the face, not drawn)
+		end
 		if p.blend and blendOn then
 			-- (the body's blended members go last, as one surface: the details under them, so an eye or a claw stands
 			-- clear of the body unless the body is truly in front)
@@ -2619,10 +2714,15 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 				end
 				shade = shadeTex
 			end
+			SG.paintOn = pn > 0 and not p.glow and eye == nil and nearPaint(cf12[1], cf12[2], cf12[3], 0.5 * sz.Magnitude)
+			if SG.paintOn and shade == shadeLit then
+				shade = SG.shadePaint :: Raster.Shade
+			end
 			Raster.drawPart(f, cam, p.shape, cf12, sz.X, sz.Y, sz.Z, p.rgb, p.id, shade, nil, p.prm)
 			x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
 		end
 	end
+	SG.paintOn = false
 	if blendOn then
 		-- the blended body
 		local k = blendSum / blendN
@@ -2637,6 +2737,7 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 				if m then
 					n += 1
 					M[n], P[n], C[n] = m, p, cf12
+					SG.blendPaint[n] = pn > 0 and nearPaint(cf12[1], cf12[2], cf12[3], 0.5 * sz.Magnitude)
 				end
 			end
 		end
@@ -2646,6 +2747,7 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 		if n > 0 then
 			SG.blendLast, SG.blendTex = 0, texOn
 			local w, bx0, by0, bx1, by1 = Raster.drawBlend(f, cam, M, n, k, SG.shadeMember :: Raster.BlendShade)
+			SG.paintOn = false
 			if w >= 0 and bx1 >= bx0 then
 				x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
 			end
@@ -3366,6 +3468,14 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 			if type(solid) == "string" and Raster.SOLID_KIND[solid] then
 				shape = solid
 			end
+			-- (a mark painted onto the face, not drawn: Kit.blush's "PixelPaint" oval)
+			local paint: { a: Vector3, b: Vector3, n: Vector3 }? = nil
+			if d:GetAttribute("PixelPaint") == true then
+				local pa, pb, pn = d:GetAttribute("PixelPaintA"), d:GetAttribute("PixelPaintB"), d:GetAttribute("PixelPaintN")
+				if typeof(pa) == "Vector3" and typeof(pb) == "Vector3" and typeof(pn) == "Vector3" then
+					paint = { a = pa, b = pb, n = pn }
+				end
+			end
 			-- (a member of the model's blended body: its blend radius as a share of its largest size, Raster.drawBlend)
 			local blendAttr = d:GetAttribute("PixelBlend")
 			local blend = if type(blendAttr) == "number" and blendAttr > 0 and (shape == "Ell" or shape == "Egg" or shape == "Cone") then blendAttr else nil
@@ -3412,6 +3522,7 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 				prm = if type(prm) == "number" then prm else nil,
 				eye = eye,
 				blend = blend,
+				paint = paint,
 			})
 		end
 	end

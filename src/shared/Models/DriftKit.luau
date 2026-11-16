@@ -852,11 +852,28 @@ function Kit.eyes(hc: Vector3, hr: number, dir: Vector3, spread: number, lift: n
 end
 
 -- Blush: a pink disc on each cheek.
+-- The blush is drawn on, not stuck on (the request of 2026-11-16: "make the blushes drawn on instead of discs too"): the
+-- disc is there for Roblox's own view, but the pixel filter paints it onto the face instead of drawing it. Its
+-- "PixelPaint" attributes give the oval it paints in the disc's own frame: PixelPaintA and PixelPaintB (across and up
+-- the face, each over its radius: an oval a little wider than tall) and PixelPaintN (along the face's normal, over how
+-- far either side of the disc it reaches), so every surface point of the head inside it takes the blush's colour and
+-- keeps its own light (Client/Pixel/PixelRenderer, Render/Picture).
 function Kit.blush(hc: Vector3, hr: number, dir: Vector3, spread: number, drop: number, d: number, color: string?)
 	for _, side in { -1, 1 } do
 		local dd = (CFrame.Angles(0, side * spread, 0) * CFrame.Angles(drop, 0, 0)):VectorToWorldSpace(dir.Unit)
 		local at, n = onFace(hc, hr, dd)
-		Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), at, n, d, 0.05, color or "pink", false, hr, nil, Kit.BIAS)
+		local p = Kit.disc("Cheek" .. (if side < 0 then "L" else "R"), at, n, d, 0.05, color or "pink", false, hr, nil, Kit.BIAS)
+		if p then
+			local nn = n.Unit
+			local right = V(0, 1, 0):Cross(nn)
+			right = if right.Magnitude > 1e-4 then right.Unit else V(1, 0, 0)
+			local up = nn:Cross(right).Unit
+			local ra, rb, reach = d * 0.5 * 1.15, d * 0.5 * 0.8, math.max(0.08, d * 0.45)
+			p:SetAttribute("PixelPaint", true)
+			p:SetAttribute("PixelPaintA", p.CFrame:VectorToObjectSpace(right) / ra)
+			p:SetAttribute("PixelPaintB", p.CFrame:VectorToObjectSpace(up) / rb)
+			p:SetAttribute("PixelPaintN", p.CFrame:VectorToObjectSpace(nn) / reach)
+		end
 	end
 end
 

@@ -590,7 +590,16 @@ Models (`src/shared/Models`, Roblox modules):
   mouth, whisker dots, beak nostrils and gape line, lip scales, cheek tufts, feather or scale edges, freckles, glowing
   freckles on ember, cracks on stone, a crown: a crest, a gem, a leaf, a frost star, a plate; `A.head` calls it, custom
   heads call it themselves), `A.more(plan, species)` (a species' `faceDetail` form over the plan's: marks blaze, star,
-  spots, freckles, kohl, glow, crack, gem, leaf), `A.markC(c)`.
+  spots, freckles, kohl, glow, crack, gem, leaf), `A.markC(c)`. Blushes are painted on (the request of 2026-11-16, "make the blushes drawn on instead
+  of discs too"): `Kit.blush` still builds its disc (Roblox's own view) but marks it "PixelPaint" with the oval it
+  paints, "PixelPaintA" and "PixelPaintB" (across and up the face, over their radii: a little wider than tall) and
+  "PixelPaintN" (along the normal, over its reach), in the disc's frame. The pixel filter never draws such a part:
+  `registerDynamic` keeps it as `DynPart.paint`, `drawModel` turns each mark's oval into world space a frame
+  (`SG.paints`), and every part near one (`SG.paintOn`, per blend member `SG.blendPaint`) is shaded through
+  `SG.paintAt` (inside the oval the mark's colour, the head's light kept; on its edge one step between the two; a
+  plain lit part near a mark takes `SG.shadePaint`, the per-pixel form of `shadeLit`). `Snapshot` reads the oval into
+  `Picture.Solid.paint` and `Picture` paints its G-buffer the same way (`job.paints`); the blended body's members cast
+  the picture's shadows as the opaque solids do.
 - `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 37
   body plans (`PLANS`, from `DriftPlansA..F`: `pup cat bear otter monkey yeti deer ram elephant griffin drake bun mole
   hedgehog armadillo turtle golem lizard frog crab beetle snail wyrm seal fish ray seahorse octo jelly shroom sprite

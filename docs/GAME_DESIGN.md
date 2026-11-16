@@ -1364,7 +1364,9 @@ and dots, a star or a heart in the shine, round cartoon eyes with a coloured iri
 eyes shut in a happy arch, eyes that glow, crystal gems, a glowing visor slot (the guardian golem) and a moth's cluster
 of beads, each in the iris colour that suits the kind. All of them blink except the happy arches. (Since the request
 of 2026-11-16, "Make all of their eyes small beads instead", every driftling has the little bead eyes: a small,
-glossy dark eye with a catchlight and a ring of its iris colour low in it; the other styles stay in the kit.) And
+glossy dark eye with a catchlight and a ring of its iris colour low in it; the other styles stay in the kit. And
+since "make the blushes drawn on instead of discs too", the pink cheeks are painted onto the face, a soft oval that
+follows the cheek's curve and light, not a disc stuck on.) And
 each wears a
 texture on its body: fur, fluffy curls, feathers, scales, a shell's growth lines, stone specks and cracks, a fallen
 wall's courses of brick, bark, crystal facets, skin with pores, streaks of ice, velvet fuzz, a crab's pitted shell,

@@ -168,6 +168,14 @@ local function readSolids(root: Instance): { Picture.Solid }
 		end
 		local size = p.Size
 		local sol = Picture.solid(shape, { p.CFrame:GetComponents() }, size.X, size.Y, size.Z, rgb, p.Material == Enum.Material.Neon, 1 - p.Transparency, if type(prm) == "number" then prm else nil)
+		-- (a mark painted onto the face, not drawn: Models/DriftKit's blush, its oval's axes turned into world)
+		if p:GetAttribute("PixelPaint") == true then
+			local pa, pb, pn = p:GetAttribute("PixelPaintA"), p:GetAttribute("PixelPaintB"), p:GetAttribute("PixelPaintN")
+			if typeof(pa) == "Vector3" and typeof(pb) == "Vector3" and typeof(pn) == "Vector3" then
+				local wa, wb, wn = p.CFrame:VectorToWorldSpace(pa), p.CFrame:VectorToWorldSpace(pb), p.CFrame:VectorToWorldSpace(pn)
+				sol.paint = { wa.X, wa.Y, wa.Z, wb.X, wb.Y, wb.Z, wn.X, wn.Y, wn.Z }
+			end
+		end
 		-- (a member of a driftling's blended body: its radius kept as a share of its largest size, Raster.drawBlend)
 		local blend = p:GetAttribute("PixelBlend")
 		if type(blend) == "number" and blend > 0 then
