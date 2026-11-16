@@ -922,7 +922,7 @@ local function buildTree(body: Frame, arg: any?)
 	end
 	-- the eggs now, the rarest first: the bag's (bought, won or given: GAME_DESIGN 14, free to hatch) over the tree's
 	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })
-	UIKit.text(body, string.format("%d eggs", #v.clutch), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = UIKit.color("text_dim"), name = "EggCount" })
+	UIKit.text(body, string.format("%d %s", #v.clutch, if #v.clutch == 1 then "egg" else "eggs"), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = UIKit.color("text_dim"), name = "EggCount" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
 	list.Name = "List"
 	UIKit.vlist(list, 2)

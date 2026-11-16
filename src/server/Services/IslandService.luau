@@ -54,9 +54,10 @@ local function tips(s: Session.S)
 end
 
 -- The quest's egg (Logic/Tree.ensure): while the quest on the go asks for a rarity, one egg of it is under the tree.
--- When an egg turns, the client hears of it (Fx "eggs" with `turned`: its rarity) and the view follows.
+-- When an egg turns (or is laid, with none to turn), the client hears of it (Fx "eggs" with `turned`: its rarity) and
+-- the view follows.
 local function questEgg(s: Session.S)
-	local e = Tree.ensure(s.profile)
+	local e = Tree.ensure(s.profile, Weather.at(WorldClock.now()))
 	if e then
 		Session.markDirty(s)
 		Session.fx(s, { kind = "eggs", laid = Tree.view(s.profile), more = 0, turned = e.r })

@@ -307,13 +307,26 @@ return function()
 		T.truthy(ok, tostring(data))
 		T.truthy(data.hr >= 3)
 		T.eq(Tree.wanted(p), 0, "the rare one had")
-		-- an egg already rarer than asked is left alone
+		-- an egg already rarer than asked is left alone; with nothing to turn, the tree lays one of that rarity
 		local q = island(rareQ, tier)
 		table.clear(q.clutch.list)
 		egg(q, 5)
 		egg(q, 4)
-		T.eq(Tree.ensure(q), nil, "every egg rarer: nothing turns")
-		T.eq(q.clutch.list[1].r, 5)
+		local next0 = q.clutch.next
+		local laid = Tree.ensure(q)
+		T.eq(q.clutch.list[1].r, 5, "the rarer ones stay")
+		T.eq(q.clutch.list[2].r, 4)
+		T.truthy(laid ~= nil and laid.r == 3 and laid.id == next0, "every egg rarer: a rare one laid")
+		T.eq(#q.clutch.list, 3)
+		T.eq(q.clutch.next, next0 + 1)
+		T.eq(Tree.ensure(q), nil, "once is enough")
+		-- the lot hatched out (the bug report of 2026-11-16: "the tree dosent have the rare egg in this quest"): the
+		-- empty tree lays one, in the season now
+		table.clear(q.clutch.list)
+		local e = Tree.ensure(q, { season = "autumn" } :: any)
+		T.truthy(e ~= nil and e.r == 3 and e.ss == "autumn", "an empty tree lays the quest's egg")
+		T.eq(#q.clutch.list, 1)
+		T.eq(Tree.ensure(q), nil)
 		-- a new island's first lot keeps its two commons
 		local n = Schema.default(0, 9)
 		n.tut, n.quest = 0, rareQ

@@ -1133,9 +1133,12 @@ When the island grows into a new stage, the tree is built again at it.
   quest comes up partway through a lot (the last one claimed, or a save loaded with it on the go), that happens to the
   lot already there, within a second: the egg keeps its place on the ring, its new shell rises out of the lawn, and a
   notice says "A rare egg is waiting under the tree." It costs what any egg of its rarity costs on the island. Only an
-  egg commoner than asked turns (with every egg rarer still, nothing does), and only once the island's tier has kinds
-  of that rarity (an epic quest on an island with no epic kinds yet gets no help until it grows). Once one of that
-  rarity has hatched the quest is met and the lots are left to the odds again.
+  egg commoner than asked turns. With nothing to turn, the tree lays one of that rarity on its own, in the season now:
+  the bug report of 2026-11-16, "there is a bug, the tree dosent have the rare egg in this quest", came from a lot
+  hatched out (or every egg left rarer than asked) before the quest was met, which left the tree with no such egg
+  until the next lot. The help waits until the island's tier has kinds of that rarity (an epic quest on an island with
+  no epic kinds yet gets no help until it grows). Once one of that rarity has hatched the quest is met and the lots are
+  left to the odds again.
 - **Rarity** (`Tree.odds`, rolled when the egg is laid): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5,
   1.2, and 0.02 for a mythic egg, 0.002 for a celestial one) times the island's luck to the power of the steps. The luck is 1 plus `EggLuck` by the island's tier (0, 0.25,
   0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6) plus the huts' luck shares (Lucky and its family: `HutLuck`, 0.5 at most). A

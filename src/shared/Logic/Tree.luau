@@ -440,10 +440,12 @@ function Tree.wanted(p: Profile): number
 end
 
 -- While a quest wants a rarity (`wanted`), the eggs under the tree hold one of it: with none there, the commonest egg
--- (the first laid of those) turns into one, keeping its id and its place on the ring, at that rarity's price. An
--- egg already rarer than the quest asks is left alone (with every egg rarer, nothing changes), and so is a new
--- island's first lot. Returns the egg that turned (nil: nothing changed).
-function Tree.ensure(p: Profile): Laid?
+-- (the first laid of those) turns into one, keeping its id and its place on the ring, at that rarity's price. With no
+-- egg to turn (every egg hatched, or every one left rarer than the quest asks), the tree lays one of that rarity on
+-- its own, in the season now (`wx`, as Tree.fill). The bug report (2026-11-16): "there is a bug, the tree dosent have
+-- the rare egg in this quest" (the lot hatched out, nothing was left to turn). A new island's first lot is left
+-- alone. Returns the egg that turned or was laid (nil: nothing changed).
+function Tree.ensure(p: Profile, wx: Weather.State?): Laid?
 	local r = Tree.wanted(p)
 	if r == 0 or fresh(p) then
 		return nil
@@ -459,8 +461,16 @@ function Tree.ensure(p: Profile): Laid?
 	end
 	if pick then
 		pick.r = r
+		return pick
 	end
-	return pick
+	local c = p.clutch
+	local e: Laid = { id = c.next, r = r }
+	if wx then
+		e.ss = wx.season
+	end
+	c.next += 1
+	table.insert(c.list, e)
+	return e
 end
 
 -- Eggs up to the island's count (after it grew, or a lot just laid), the quest's egg among them (`ensure`). `wx`: the
@@ -494,7 +504,7 @@ function Tree.fill(p: Profile, rng: Rng, wx: Weather.State?): { Laid }
 		table.insert(c.list, e)
 		table.insert(laid, e)
 	end
-	Tree.ensure(p)
+	Tree.ensure(p, wx)
 	return laid
 end
 

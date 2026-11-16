@@ -2653,6 +2653,22 @@ do
 	end, 2, E.dt)
 	E.run(0.3)
 	H.expect(wanted(prof.clutch.list) >= 1 and #prof.clutch.list == TreeL.count(prof.tier), "quests", "a new lot while it's on: one egg of that rarity among them", eggsAttr(prof.clutch.list))
+	-- the lot hatched out before the quest was met (the bug report of 2026-11-16: "there is a bug, the tree dosent have
+	-- the rare egg in this quest"): nothing is left to turn, so the tree lays one within a second
+	local lot0 = table.clone(prof.clutch.list)
+	local next0 = prof.clutch.next
+	table.clear(prof.clutch.list)
+	prof.clutch.left = 600
+	local f3 = #fx
+	E.run(1.4)
+	local heard3 = fxSince(f3, "eggs")
+	H.expect(#prof.clutch.list == 1 and wanted(prof.clutch.list) == 1 and prof.clutch.list[1].id == next0, "quests", "an empty tree lays the quest's egg within a second", eggsAttr(prof.clutch.list))
+	H.expect(#heard3 >= 1 and heard3[#heard3].turned == want, "quests", "the client hears of the laid one", tostring(#heard3))
+	H.expect(plot1:GetAttribute("Eggs") == eggsAttr(prof.clutch.list), "quests", "the plot's Eggs attribute shows it", tostring(plot1:GetAttribute("Eggs")))
+	table.clear(prof.clutch.list)
+	for _, e in lot0 do
+		table.insert(prof.clutch.list, e)
+	end
 	-- met: the help stops
 	prof.stats.best = want
 	H.expect(TreeL.wanted(prof) == 0, "quests", "met: no more help")
