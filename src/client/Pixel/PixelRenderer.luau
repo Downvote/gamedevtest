@@ -211,7 +211,7 @@ local stats = {
 	scrolls = 0,
 	scrollRays = 0,
 	recasts = 0,
-	perf = { frames = 0, panFrames = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0 },
+	perf = { frames = 0, panFrames = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0 },
 }
 local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
 -- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
@@ -310,6 +310,26 @@ end
 -- the strips it uncovers, a re-cast rect, the water's and the wind's pixels) or clears ok (a bake, the island growing,
 -- a new grade, the pools built again: the next upload grades it all).
 local SG = {
+	-- (the pan cache, Pixel/PanCache: a pan's strips that were on screen before are copied back, not cast again)
+	Tiles = require(script.Parent.PanCache),
+	panAt = -1, -- os.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
+	-- (the water's tone tables, and whether its next frame shades every water pixel: SG.waterSlice)
+	waterWas = table.create(7 * 256, 0) :: { number },
+	waterNow = table.create(7 * 256, 0) :: { number },
+	waterAll = true,
+	waterGrade = {} :: { [number]: number }, -- (a water colour and part -> its graded colour, under the grade named by waterGradeKey)
+	waterGradeKey = "",
+	-- (the water's next frame worked out a slice at a time: SG.waterSlice; the slices done this period, the pending
+	-- pixels as global x, global y, colour now, colour next, and whether this period shades every water pixel)
+	WATER_SLICES = 8,
+	waterDone = 0,
+	waterPend = {} :: { number },
+	waterPendN = 0,
+	waterAllNow = false,
+	-- (the wind's next frame the same way: SG.windSlice; its moves, the slices done, and whether a pan voided it)
+	windPend = {} :: { [number]: number },
+	windDone = 0,
+	windVoid = false,
 	-- (a driftling's painted eyes: Render/EyeTex, the eye being drawn, its shade: kept here, not as locals of their
 	-- own, for the module's top-level local limit)
 	EyeTex = require(ReplicatedStorage.Shared.Render.EyeTex),
@@ -1235,6 +1255,9 @@ local function endGrow()
 	if g then
 		Grow.finish(g)
 		growing = nil
+		SG.Tiles.clear()
+		SG.waterAll = true
+		SG.waterDone, SG.waterPendN = 0, 0
 		staticChanged()
 		lightStale = true
 		needFull = true
@@ -1335,10 +1358,14 @@ local function finishBake(s: Surf, b: Surf)
 		windOn = nil
 		table.clear(windSaved)
 		table.clear(windWrote)
+		SG.windVoid = true
+		table.clear(SG.windPend)
 		lightStale = true
 		back, backTabs = nil, nil
 	end
 	s.ready = true
+	SG.waterAll = true -- (the new picture's sea is its bare shade: the next water pass shades all of it)
+	SG.waterDone, SG.waterPendN = 0, 0
 	buffer.fill(s.sShadowC, 0, 0)
 	if tierSpec(tier).shadows then
 		refineShadows(s, 0, 0, s.W - 1, s.H - 1)
@@ -1450,6 +1477,11 @@ local function startBake()
 	if growing then
 		endGrow()
 	end
+	-- (a new picture of the island: the pan cache starts again; a stage's bake leaves the island's be)
+	if not s.view.stage then
+		SG.Tiles.setMax(Tuning.PixelPanCacheTiles)
+		SG.Tiles.clear()
+	end
 	if s.view.empty then
 		-- an empty see-through stage (CameraController's Stage.empty: only moving things in front of a 2D picture, the
 		-- hatch scene's egg): every pixel is the clear sky a ray would find, written at once, no rays and no wait
@@ -1550,6 +1582,8 @@ local function buildSurf(v: CameraController.View)
 	if old then
 		windRestore(old) -- (the wind's paint off the layer going away: a kept street picture comes back clean)
 	end
+	SG.windVoid = true
+	table.clear(SG.windPend)
 	if old and not baking and not old.view.stage and v.stage then
 		-- a stage takes the view: keep the street's finished picture
 		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), texs = table.clone(texs), nextId = nextId, dirty = false }
@@ -1568,6 +1602,8 @@ local function buildSurf(v: CameraController.View)
 			needFull = true
 			SG.ok = false
 			SG.ver += 1
+			SG.waterAll = true
+			SG.waterDone, SG.waterPendN = 0, 0
 			staticChanged()
 			if image then
 				image.Visible = true
@@ -1965,30 +2001,160 @@ local function waterColor(base: number, cls: number, tone: number): number
 	return c :: number
 end
 
--- One water frame: every water pixel not under an ink line (its colour is its baked shade or last frame's) shaded
--- for the frame now; true when any changed.
-local function animateWater(s: Surf): boolean
-	local n = s.W * s.H
+-- The water tones of the frame before and the frame now, by class and wave phase (index class * 256 + phase + 1;
+-- -1: a class the water pass leaves alone, leaves and flags).
+function SG.waterTables(k: number)
+	local was, now = SG.waterWas, SG.waterNow
+	for c = 0, 6 do
+		for ph = 0, 255 do
+			local j = c * 256 + ph + 1
+			if c == 0 or c == 4 or c == 5 then
+				was[j], now[j] = -1, -1
+			else
+				was[j], now[j] = waterTone(c, ph, k - 1), waterTone(c, ph, k)
+			end
+		end
+	end
+end
+
+-- The water's next frame, worked out a slice at a time and put on the picture all at once (the request of 2026-11-16,
+-- "is there any way to optimize the camera movement? it is still very laggy when moving around": the pass over every
+-- pixel of the layer was a 20 to 30 ms hitch six times a second, standing or walking). A slice is every
+-- SG.WATER_SLICES-th row of the world's art grid (a pan in between moves no pixel into another slice); the frame's
+-- period sees them all, a few rows a frame. In a slice, a water pixel not under an ink line (its colour its baked
+-- shade or this frame's) whose tone changes for the next frame (most of the sea, most frames, keeps its tone: the
+-- crest is two steps of the sixty-four), or every one when SG.waterAll asks (after a whole bake), goes in the pending
+-- list: its global art px, the colour it has and the one it takes. `SG.waterApply` puts them on when the frame comes.
+function SG.waterSlice(s: Surf, j: number)
+	local S = SG.WATER_SLICES
+	if j == 0 then
+		SG.waterTables(waterFrame + 1)
+		SG.waterAllNow = SG.waterAll
+		SG.waterAll = false
+		SG.waterPendN = 0
+	end
+	local W, H = s.W, s.H
 	local cls, wave, shade, color = s.sWClass, s.sWave, s.sShade, s.sColor
-	local k = waterFrame
-	local changed = false
-	for i = 0, n - 1 do
-		local c = buffer.readu8(cls, i)
-		if c ~= 0 and (c <= 3 or c == 6) then
-			local base = buffer.readu32(shade, i * 4)
-			local cur = buffer.readu32(color, i * 4)
-			local ph = buffer.readu8(wave, i)
-			if cur == base or cur == waterColor(base, c, waterTone(c, ph, k - 1)) then
-				local nc = waterColor(base, c, waterTone(c, ph, k))
-				if nc ~= cur then
-					buffer.writeu32(color, i * 4, nc)
-					SG.px(s, i)
-					changed = true
+	local was, now = SG.waterWas, SG.waterNow
+	local all = SG.waterAllNow
+	local pend = SG.waterPend
+	local pn = SG.waterPendN
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	for y = (j - gy0) % S, H - 1, S do
+		local row = y * W
+		for x = 0, W - 1 do
+			local i = row + x
+			local c = buffer.readu8(cls, i)
+			if c ~= 0 then
+				local jj = c * 256 + buffer.readu8(wave, i) + 1
+				local t1 = now[jj]
+				if t1 >= 0 then
+					local t0 = was[jj]
+					if t1 ~= t0 or all then
+						local base = buffer.readu32(shade, i * 4)
+						local cur = buffer.readu32(color, i * 4)
+						if cur == base or cur == waterColor(base, c, t0) then
+							local nc = waterColor(base, c, t1)
+							if nc ~= cur then
+								pend[pn + 1], pend[pn + 2], pend[pn + 3], pend[pn + 4] = x + gx0, y + gy0, cur, nc
+								pn += 4
+							end
+						end
+					end
 				end
 			end
 		end
 	end
+	SG.waterPendN = pn
+end
+
+-- The water frame worked out by the slices, put on the layer: each pending pixel still on it and still the colour it
+-- had (a pan, a re-cast or the wind may have changed it since) takes its new one. True when any changed.
+function SG.waterApply(s: Surf): boolean
+	local W, H = s.W, s.H
+	local color, ids = s.sColor, s.sId
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local pend = SG.waterPend
+	-- (a water pixel's graded colour from a little table of its own, by colour and part: the sea is a few colours,
+	-- and grading each written pixel on its own took most of the time; with the lamps' pools on, the plain way)
+	local gb = SG.buf
+	local gOn = SG.ok and SG.on == s and gb ~= nil
+	local lamps = grade ~= nil and (grade :: Grade).lamps > 0 and lightMap ~= nil
+	local wkey = gradeKey .. "|" .. dim
+	if SG.waterGradeKey ~= wkey then
+		table.clear(SG.waterGrade)
+		SG.waterGradeKey = wkey
+	end
+	local wg = SG.waterGrade
+	local changed = false
+	for k = 1, SG.waterPendN, 4 do
+		local x, y = pend[k] - gx0, pend[k + 1] - gy0
+		if x >= 0 and y >= 0 and x < W and y < H then
+			local i = y * W + x
+			if buffer.readu32(color, i * 4) == pend[k + 2] then
+				local nc = pend[k + 3]
+				buffer.writeu32(color, i * 4, nc)
+				changed = true
+				if gOn and not lamps then
+					local key = nc * 65536 + buffer.readu16(ids, i * 2)
+					local o = wg[key]
+					if o == nil then
+						gradeSpan(color, ids, i, 1, gb :: buffer, i)
+						wg[key] = buffer.readu32(gb :: buffer, i * 4)
+					else
+						buffer.writeu32(gb :: buffer, i * 4, o)
+					end
+				elseif gOn then
+					SG.px(s, i)
+				end
+			end
+		end
+	end
+	SG.waterPendN = 0
 	return changed
+end
+
+-- The water of a layer rect just cast or inked again (its colours are the bare shade) put at the frame now, so a
+-- strip a pan brings in shows the same sea as the rest; where its slice was already worked out this period, its next
+-- frame goes in the pending list too. The caller grades the rect again.
+function SG.waterFix(s: Surf, x0: number, y0: number, x1: number, y1: number)
+	if tier == "low" then
+		return
+	end
+	x0, y0 = math.max(0, x0), math.max(0, y0)
+	x1, y1 = math.min(s.W - 1, x1), math.min(s.H - 1, y1)
+	local cls, wave, shade, color = s.sWClass, s.sWave, s.sShade, s.sColor
+	local k = waterFrame
+	local S = SG.WATER_SLICES
+	local done = SG.waterDone
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local pend = SG.waterPend
+	for y = y0, y1 do
+		local row = y * s.W
+		local later = (y + gy0) % S < done
+		for x = x0, x1 do
+			local i = row + x
+			local c = buffer.readu8(cls, i)
+			if c ~= 0 and (c <= 3 or c == 6) then
+				local base = buffer.readu32(shade, i * 4)
+				if buffer.readu32(color, i * 4) == base then
+					local ph = buffer.readu8(wave, i)
+					local nc = waterColor(base, c, waterTone(c, ph, k))
+					if nc ~= base then
+						buffer.writeu32(color, i * 4, nc)
+					end
+					if later then
+						local nx = waterColor(base, c, waterTone(c, ph, k + 1))
+						if nx ~= nc then
+							local pn = SG.waterPendN
+							pend[pn + 1], pend[pn + 2], pend[pn + 3], pend[pn + 4] = x + gx0, y + gy0, nc, nx
+							SG.waterPendN = pn + 4
+						end
+					end
+				end
+			end
+		end
+	end
 end
 
 ------------------------------------------------------------------ the wind
@@ -2008,30 +2174,34 @@ end
 -- What the wind paints is undone before the next frame, a scroll or a bake (`windRestore`).
 local RUSTLE_N, RUSTLE_GUST = 6, 14 -- of 64: the edge clumps moving at a time, and while a gust passes
 
-local function animateWind(s: Surf, k: number): boolean
-	local any = windRestore(s)
+-- The wind's next frame, a slice at a time like the water's (SG.waterSlice: every SG.WATER_SLICES-th row of the
+-- world's grid; it was a full pass over the layer of about 14 ms, six times a second): the moves go in SG.windPend
+-- (pixel -> colour) and SG.windApply lays them all at once. A pan takes the paint off (windRestore) and leaves the
+-- frame being worked out void: the wind waits for the view to stand (the old way, its paint showed one frame in ten
+-- of a walk, a flicker).
+function SG.windSlice(s: Surf, k: number, j: number)
 	local W, H = s.W, s.H
 	local cls, wave, depth, color = s.sWClass, s.sWave, s.sDepth, s.sColor
 	local INK_PX = Shading.INK_PIXEL -- (an edge's ink, as the outline pass writes it)
+	local pend = SG.windPend
+	-- (the picture without the wind's paint, and as it will stand with this frame's moves worked out so far)
 	local function orig(i: number): number
 		return windSaved[i] or buffer.readu32(color, i * 4)
 	end
 	local function now(i: number): number
-		return buffer.readu32(color, i * 4)
+		return pend[i] or orig(i)
 	end
 	local function put(i: number, c: number)
-		windOn = s
-		if windSaved[i] == nil then
-			windSaved[i] = buffer.readu32(color, i * 4)
-		end
-		buffer.writeu32(color, i * 4, c)
-		SG.px(s, i)
-		windWrote[i] = c
-		any = true
+		pend[i] = c
 	end
 	-- (the edge's side, looked for in turn: the top, then the left and the right; a crown's foot stays put)
 	local sides = { -W, -1, 1 }
-	for y = 2, H - 3 do
+	local S = SG.WATER_SLICES
+	local first = (j - s.cam.gy) % S
+	while first < 2 do
+		first += S
+	end
+	for y = first, H - 3, S do
 		local row = y * W
 		for x = 2, W - 3 do
 			local i = row + x
@@ -2048,7 +2218,7 @@ local function animateWind(s: Surf, k: number): boolean
 						break
 					end
 				end
-				if dir ~= 0 and windSaved[i] == nil then
+				if dir ~= 0 and pend[i] == nil then
 					local cx, cy = x // 3, y // 3
 					local h = (cx * 37 + cy * 101 + ((cx * cy) % 13) * 17) % 64
 					if (h + k * 5) % 64 < (if gust ~= 0 then RUSTLE_GUST else RUSTLE_N) then
@@ -2058,12 +2228,12 @@ local function animateWind(s: Surf, k: number): boolean
 						local ci, cb, ct = orig(i), orig(b), orig(t)
 						-- (across the edge: the next pixel along it either side)
 						local side = if dir == 1 or dir == -1 then W else 1
-						if ci == INK_PX and cb ~= INK_PX and ct ~= INK_PX and buffer.readu8(cls, b) == 4 and windSaved[t] == nil and windSaved[b] == nil then
+						if ci == INK_PX and cb ~= INK_PX and ct ~= INK_PX and buffer.readu8(cls, b) == 4 and pend[t] == nil and pend[b] == nil then
 							-- (the neighbours as they stand now, with this frame's earlier moves in: two moves never
 							-- meet side by side)
 							if out then
 								-- (the ink out a pixel, the leaf where it was; never onto a pixel touching other ink)
-								if now(t + dir) ~= INK_PX and now(t + side) ~= INK_PX and now(t - side) ~= INK_PX and windSaved[t + side] == nil and windSaved[t - side] == nil then
+								if now(t + dir) ~= INK_PX and now(t + side) ~= INK_PX and now(t - side) ~= INK_PX and pend[t + side] == nil and pend[t - side] == nil then
 									put(t, ci)
 									put(i, cb)
 								end
@@ -2071,7 +2241,7 @@ local function animateWind(s: Surf, k: number): boolean
 								-- (what lay behind where the ink was, the ink a pixel in, a leaf still behind it and no
 								-- other ink beside it)
 								local c2 = b - dir
-								if buffer.readu8(cls, c2) == 4 and now(c2) ~= INK_PX and windSaved[c2] == nil and now(b + side) ~= INK_PX and now(b - side) ~= INK_PX and windSaved[b + side] == nil and windSaved[b - side] == nil then
+								if buffer.readu8(cls, c2) == 4 and now(c2) ~= INK_PX and pend[c2] == nil and now(b + side) ~= INK_PX and now(b - side) ~= INK_PX and pend[b + side] == nil and pend[b - side] == nil then
 									put(i, ct)
 									put(b, ci)
 								end
@@ -2097,6 +2267,25 @@ local function animateWind(s: Surf, k: number): boolean
 			end
 		end
 	end
+end
+
+
+-- The wind's frame worked out by the slices, put on: the last frame's paint taken off, this one's laid (each pixel's
+-- colour under it kept to take it off again: windRestore). True when any pixel changed.
+function SG.windApply(s: Surf): boolean
+	local any = windRestore(s)
+	local color = s.sColor
+	for i, c in SG.windPend do
+		windOn = s
+		if windSaved[i] == nil then
+			windSaved[i] = buffer.readu32(color, i * 4)
+		end
+		buffer.writeu32(color, i * 4, c)
+		SG.px(s, i)
+		windWrote[i] = c
+		any = true
+	end
+	table.clear(SG.windPend)
 	return any
 end
 
@@ -2460,12 +2649,19 @@ function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?
 end
 
 -- After model d was drawn afresh over layer rect (x0, y0)-(x1, y1): when it has stood still since its last draw, keep
--- its picture (one that moves every tick never pays for this). The picture is its pixels against the static picture
--- alone: taken from the frame when no other moving model drew into the rect, otherwise drawn again into a scratch
--- frame holding the static depths (a model in front would leave holes in it). The rect must lie wholly on the layer.
+-- its picture (one that moves every tick never pays for this). While the view pans, a model that moves is kept too
+-- (not a founder, which is drawn every frame): the frames between two of its ticks show it from there, as they do
+-- when the view stands (it changes at the tier's hz either way; without it a walk drew every driftling 60 times a
+-- second, the request of 2026-11-16: "is there any way to optimize the camera movement? it is still very laggy when
+-- moving around"). The picture is its pixels against the static picture alone: taken from the frame when no other
+-- moving model drew into the rect, otherwise drawn again into a scratch frame holding the static depths (a model in
+-- front would leave holes in it; one that moves is not drawn twice for that, it waits for a clear tick). The rect must
+-- lie wholly on the layer.
 function SG.keep(s: Surf, d: Dyn, x0: number, y0: number, x1: number, y1: number, ppu: number, texOn: boolean)
 	local c = d.cache
-	local still = c ~= nil and SG.same(d, c.cfs, c.szs, c.gone)
+	local same = c ~= nil and SG.same(d, c.cfs, c.szs, c.gone)
+	local moving = not same and not d.own and not d.rim and os.clock() - SG.panAt < 0.3
+	local still = same or moving
 	local cfs, szs, gone = {}, {}, {}
 	for i, p in d.parts do
 		local part = p.part
@@ -2492,6 +2688,10 @@ function SG.keep(s: Surf, d: Dyn, x0: number, y0: number, x1: number, y1: number
 		if src ~= s.frame then
 			break
 		end
+	end
+	if src ~= s.frame and moving then
+		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
+		return
 	end
 	if src ~= s.frame then
 		-- (drawn again against the static depths alone)
@@ -2919,7 +3119,7 @@ end
 
 -- Cast every pixel of a layer rect (inclusive) by the bake's last pass: the 2x2 anchors first, then the pixels that
 -- share their sun rays. Returns the rays cast.
-local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number): number
+local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number, noRefine: boolean?): number
 	x0, y0 = math.max(0, x0), math.max(0, y0)
 	x1, y1 = math.min(s.W - 1, x1), math.min(s.H - 1, y1)
 	if x0 > x1 or y0 > y1 then
@@ -2941,10 +3141,29 @@ local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number)
 		end
 	end
 	-- the rect's shadow edges (and its border's, which may meet a changed pixel) on the pixel grid
-	if shadows then
+	if shadows and not noRefine then
 		refineShadows(s, x0 - 1, y0 - 1, x1 + 1, y1 + 1)
 	end
 	return bakeRays - before
+end
+
+-- Whether the pan cache works for the layer now: the island's own view (not a stage), no growth going.
+function SG.tilesOk(s: Surf): boolean
+	return not s.view.stage and growing == nil and Tuning.PixelPanCacheTiles > 0
+end
+
+-- Whether a global art px rect meets a re-cast still queued or going (its pixels on the layer may be stale yet).
+function SG.pendingOver(x0: number, y0: number, x1: number, y1: number): boolean
+	local cur = invCur
+	if cur and not (cur.r.x1 < x0 or cur.r.x0 > x1 or cur.r.y1 < y0 or cur.r.y0 > y1) then
+		return true
+	end
+	for _, q in invQueue do
+		if not (q.x1 < x0 or q.x0 > x1 or q.y1 < y0 or q.y0 > y1) then
+			return true
+		end
+	end
+	return false
 end
 
 -- The ink and the contact shade over a layer rect and one pixel round it.
@@ -2961,6 +3180,8 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		return
 	end
 	windRestore(s)
+	SG.windVoid = true -- (the wind's frame being worked out is of the old pan: it waits for the view to stand)
+	table.clear(SG.windPend)
 	local W, H = s.W, s.H
 	local v = s.view
 	if math.abs(dx) >= W // 2 or math.abs(dy) >= H // 2 then
@@ -2978,6 +3199,28 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local gp = growing
 	if gp and gp.phase == "prep" then
 		endGrow() -- (still working its pixels out: the new picture at once rather than a stale one)
+	end
+	-- the strips about to scroll off are kept in the pan cache (a pan back over them copies them in again), all but
+	-- what a re-cast still has to redo
+	local cacheOn = SG.tilesOk(s)
+	if cacheOn then
+		local gx0, gy0 = cam.gx, cam.gy
+		local leave: { Rect } = {}
+		if sx > 0 then
+			table.insert(leave, { x0 = 0, y0 = 0, x1 = sx - 1, y1 = H - 1 })
+		elseif sx < 0 then
+			table.insert(leave, { x0 = W + sx, y0 = 0, x1 = W - 1, y1 = H - 1 })
+		end
+		if sy > 0 then
+			table.insert(leave, { x0 = 0, y0 = 0, x1 = W - 1, y1 = sy - 1 })
+		elseif sy < 0 then
+			table.insert(leave, { x0 = 0, y0 = H + sy, x1 = W - 1, y1 = H - 1 })
+		end
+		for _, r in leave do
+			if not SG.pendingOver(gx0 + r.x0, gy0 + r.y0, gx0 + r.x1, gy0 + r.y1) then
+				SG.Tiles.save(s, gx0, gy0, r.x0, r.y0, r.x1, r.y1)
+			end
+		end
 	end
 	for _, b in { s.sColor, s.sShade, s.sAlbedo, s.sDepth } do
 		shift(b, W, H, 4, sx, sy)
@@ -3033,12 +3276,30 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		table.insert(strips, { x0 = cx0, y0 = 0, x1 = cx1, y1 = -sy - 1 })
 	end
 	local c0 = os.clock()
+	local shadows = tierSpec(tier).shadows
 	for _, r in strips do
-		rays += castRect(s, r.x0, r.y0, r.x1, r.y1)
+		if cacheOn then
+			-- (a piece of the strip the cache holds whole is copied in; the rest is cast)
+			local gx1, gy1 = s.cam.gx, s.cam.gy
+			for _, q in SG.Tiles.split(gx1, gy1, r.x0, r.y0, r.x1, r.y1) do
+				if not SG.Tiles.load(s, gx1, gy1, q.x0, q.y0, q.x1, q.y1) then
+					rays += castRect(s, q.x0, q.y0, q.x1, q.y1, true)
+				end
+			end
+		else
+			rays += castRect(s, r.x0, r.y0, r.x1, r.y1, true)
+		end
+	end
+	-- the strips' shadow edges once they are all in (a strip's border meets the other strip and the old picture)
+	if shadows then
+		for _, r in strips do
+			rays += refineShadows(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
+		end
 	end
 	local c1 = os.clock()
 	for _, r in strips do
 		reoutline(s, r.x0, r.y0, r.x1, r.y1)
+		SG.waterFix(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
 	end
 	stats.perf.castMs += (c1 - c0) * 1000
 	stats.perf.inkMs += (os.clock() - c1) * 1000
@@ -3084,6 +3345,8 @@ end
 
 local function queueRect(r: Rect)
 	lightStale = true
+	-- (whatever the cache kept under it is cast again, on the layer or once a pan brings it in)
+	SG.Tiles.drop(r.x0, r.y0, r.x1, r.y1)
 	local s = surf
 	if s == nil then
 		return
@@ -3168,6 +3431,7 @@ local function processInvalidation()
 		end
 		if c.phase > 2 then
 			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
+			SG.waterFix(s, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
 			SG.rect(s, r.x0 - gx0 - 3, r.y0 - gy0 - 3, r.x1 - gx0 + 3, r.y1 - gy0 + 3)
 			SG.ver += 1
 			local g = growing
@@ -3211,6 +3475,7 @@ local function applyTier(want: string)
 		end
 	end
 	if before ~= tier then
+		SG.Tiles.clear() -- (another tier casts its shadows its own way)
 		PixelRenderer.Changed:Fire(tier)
 	end
 end
@@ -3264,6 +3529,7 @@ local function frameStep(dt: number)
 		local before = stats.scrolls
 		scrollToward(s, tx, ty)
 		if stats.scrolls ~= before then
+			SG.panAt = os.clock()
 			stats.perf.panFrames += 1
 			stats.perf.scrollMs += (os.clock() - sc0) * 1000
 		end
@@ -3275,19 +3541,39 @@ local function frameStep(dt: number)
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
 	if s and tier ~= "low" then
 		waterClock += dt
+		local w0 = os.clock()
+		-- (the next frame's slices due by now: all of them by the period's end; SG.waterSlice)
+		local S = SG.WATER_SLICES
+		local due = math.min(S, math.floor(waterClock * WATER_HZ * S))
+		while SG.waterDone < due do
+			SG.waterSlice(s, SG.waterDone)
+			SG.waterDone += 1
+		end
+		local w1 = os.clock()
+		while SG.windDone < due and not SG.windVoid do
+			SG.windSlice(s, waterFrame + 1, SG.windDone)
+			SG.windDone += 1
+		end
+		local w2 = os.clock()
 		if waterClock >= 1 / WATER_HZ then
 			waterClock = 0
+			if SG.waterApply(s) then
+				needFull = true
+			end
 			waterFrame += 1
-			local w0 = os.clock()
-			if animateWater(s) then
+			SG.waterDone = 0
+			local w3 = os.clock()
+			if SG.windVoid then
+				table.clear(SG.windPend)
+			elseif SG.windApply(s) then
 				needFull = true
 			end
-			local w1 = os.clock()
-			if animateWind(s, waterFrame) then
-				needFull = true
-			end
+			SG.windDone, SG.windVoid = 0, false
+			stats.perf.waterMs += (w1 - w0 + w3 - w2) * 1000
+			stats.perf.windMs += (w2 - w1 + os.clock() - w3) * 1000
+		else
 			stats.perf.waterMs += (w1 - w0) * 1000
-			stats.perf.windMs += (os.clock() - w1) * 1000
+			stats.perf.windMs += (w2 - w1) * 1000
 		end
 	end
 	local hz = tierSpec(tier).hz
@@ -3389,7 +3675,12 @@ function PixelRenderer.start()
 		local t0 = os.clock()
 		frameStep(dt)
 		stats.perf.frames += 1
-		stats.perf.stepMs += (os.clock() - t0) * 1000
+		local ms = (os.clock() - t0) * 1000
+		stats.perf.stepMs += ms
+		stats.perf.maxMs = math.max(stats.perf.maxMs, ms)
+		if ms > 25 then
+			stats.perf.slow += 1
+		end
 	end)
 	task.spawn(watchStatic)
 end
@@ -3841,7 +4132,7 @@ end
 -- Sims and previews: the spotlight's dimming now.
 -- Previews: where the frames' time went since the last read (ms summed: the scrolls of the frames that panned, the
 -- composes, the full uploads and their grade), then the counters start again.
-function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, hits: number, draws: number }
+function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, maxMs: number, slow: number, hits: number, draws: number }
 	local perf = stats.perf
 	local out: any = table.clone(perf)
 	for k in perf do
@@ -3849,6 +4140,90 @@ function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollM
 	end
 	out.hits, out.draws = SG.hits, SG.draws
 	SG.hits, SG.draws = 0, 0
+	out.cache = SG.Tiles.stats()
+	return out
+end
+
+-- Sims and previews: the sea as the water pass leaves it against shading every water pixel for the frame now (off:
+-- the water pixels showing a tone not the frame's; ink and the wind's paint are not water colours and are left out).
+function PixelRenderer.debugWaterCheck(): { off: number, checked: number, wind: number }
+	local s = surf
+	local wind = 0
+	for _ in windWrote do
+		wind += 1
+	end
+	local out = { off = -1, checked = 0, wind = wind }
+	if s == nil or baking or tier == "low" then
+		return out
+	end
+	out.off = 0
+	local cls, wave, shade, color = s.sWClass, s.sWave, s.sShade, s.sColor
+	for i = 0, s.W * s.H - 1 do
+		local c = buffer.readu8(cls, i)
+		if c ~= 0 and (c <= 3 or c == 6) then
+			local base = buffer.readu32(shade, i * 4)
+			local cur = buffer.readu32(color, i * 4)
+			if cur == base or cur == waterColor(base, c, 1) or cur == waterColor(base, c, 2) or cur == waterColor(base, c, 3) then
+				out.checked += 1
+				if cur ~= waterColor(base, c, waterTone(c, buffer.readu8(wave, i), waterFrame)) then
+					out.off += 1
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- Sims and previews: the static layer against casting all of it afresh at the pan it is at (a pan's strips, cast or
+-- taken back from the pan cache, should give the same pixels as one whole cast). off: the pixels whose part, depth,
+-- normal, light, water or shade differ. The layer is put back as it was afterwards.
+function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: number, lits: number, shades: number }
+	local s = surf
+	local out = { off = -1, checked = 0, ids = 0, lits = 0, shades = 0 }
+	if s == nil or baking or growing ~= nil then
+		return out
+	end
+	windRestore(s)
+	SG.windVoid = true
+	table.clear(SG.windPend)
+	local saved: { [string]: buffer } = {}
+	local names = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave" }
+	local sa = s :: any
+	for _, k in names do
+		saved[k] = buffer.create(buffer.len(sa[k]))
+		buffer.copy(saved[k], 0, sa[k], 0)
+	end
+	local rays0 = bakeRays
+	castRect(s, 0, 0, s.W - 1, s.H - 1)
+	bakeRays = rays0
+	out.off = 0
+	local n = s.W * s.H
+	for i = 0, n - 1 do
+		local idOff = buffer.readu16(s.sId, i * 2) ~= buffer.readu16(saved.sId, i * 2)
+		local litOff = buffer.readu8(s.sLit, i) ~= buffer.readu8(saved.sLit, i)
+		local shadeOff = buffer.readu32(s.sShade, i * 4) ~= buffer.readu32(saved.sShade, i * 4)
+		local other = math.abs(buffer.readf32(s.sDepth, i * 4) - buffer.readf32(saved.sDepth, i * 4)) > 1e-3
+			or buffer.readu8(s.sNormal, i) ~= buffer.readu8(saved.sNormal, i)
+			or buffer.readu32(s.sAlbedo, i * 4) ~= buffer.readu32(saved.sAlbedo, i * 4)
+			or buffer.readu8(s.sWClass, i) ~= buffer.readu8(saved.sWClass, i)
+			or buffer.readu8(s.sWave, i) ~= buffer.readu8(saved.sWave, i)
+		if idOff then
+			out.ids += 1
+		end
+		if litOff then
+			out.lits += 1
+		end
+		if shadeOff then
+			out.shades += 1
+		end
+		if idOff or litOff or shadeOff or other then
+			out.off += 1
+		end
+	end
+	out.checked = n
+	for _, k in names do
+		buffer.copy(sa[k], 0, saved[k], 0)
+	end
 	return out
 end
 

@@ -255,7 +255,8 @@ every field.
   `HomeCooldown`, `WalkSpeed`, `SwimSpeed` (11: in the sea), `JumpHeight`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamGlide`, `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
-  frame the founder walks), `PixelPanRays`, `PixelInvalidateRaysFrame`, `PixelMaxDyn`), the island growing into its next
+  frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
+`PixelInvalidateRaysFrame`, `PixelMaxDyn`), the island growing into its next
   tier (`GrowSecs` 1.9: the moving coast's time; `GrowArmSecs` 3: how long an armed growth waits for its bake to begin).
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
   `SeasonSecs` (9000: a season, a whole number of spells), `WeatherSecs` (600: a spell), `WeatherTouch` (the chance an
@@ -1037,9 +1038,24 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
   art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
-  even-even anchor first with its sun ray, then the pixels sharing it), re-outlined with a pixel round them; at most
-  `Tuning.PixelPanRays` rays a frame (a longer pan catches up over frames); a pan of half the layer or more re-bakes
-  at the new pan behind the old picture. The next compose copies the whole static layer and uploads the whole image.
+  even-even anchor first with its sun ray, then the pixels sharing it), their shadow edges refined once all of them are
+  in (`castRect(..., noRefine)`, then `refineShadows` over each strip and a pixel round it), re-outlined with a pixel
+  round them and their water set to the frame now (`SG.waterFix`); at most `Tuning.PixelPanRays` rays a frame (a
+  longer pan catches up over frames); a pan of half the layer or more re-bakes at the new pan behind the old picture.
+  The next compose copies the whole static layer and uploads the whole image.
+- **The pan cache** (`Pixel/PanCache`, `SG.Tiles`; the request of 2026-11-16: "is there any way to optimize the camera
+  movement? it is still very laggy when moving around"): the view is orthographic and pans by whole art px, so a static
+  pixel at a global art px is the same wherever the view stands. The strips a pan is about to scroll off are kept in
+  tiles of `PanCache.TILE` (32) x 32 global art px (`save(bufs, gx0, gy0, x0, y0, x1, y1)`: each channel the cast
+  writes, `sShade sAlbedo sDepth sNormal sLit sId sShare sWClass sWave`, in its own plane, a byte a pixel saying it is
+  good; 20 bytes a pixel), all but what a queued or running re-cast still covers (`SG.pendingOver`). A strip coming on
+  is cut along the tiles (`split`) and each piece the cache holds whole is copied in (`load -> boolean`), the rest
+  cast; the ink, the contact shade and the water are drawn again over both. `queueRect` drops the tiles under its rect
+  (`drop(gx0, gy0, gx1, gy1)`, on the layer or off it); a bake of the island's own view (not a stage's: the hatch scene
+  leaves it be), the growth's end and a new tier clear it (`clear`); `SG.tilesOk(s)`: only for the island's own view, no
+  growth going, `Tuning.PixelPanCacheTiles` above 0. At most that many tiles (768, about 15.7 MB); past it the one used
+  longest ago goes. `stats() -> { loaded, missed, saved, dropped, evicted, tiles }` (since the last read). Walking the
+  pan preview's square a second time, the strips' cast went from about 21 ms a frame to under 2.
 - **What a frame costs while the view pans** (the request of 2026-11-15: "the camera moving is always very laggy"):
   every pan composes and uploads the whole picture, so neither may cost the whole picture's Luau work. `SG` (one
   table: the main chunk is at 200 registers) holds `SG.buf`, the static layer graded (`gradeSpan` over `sColor`,
@@ -1057,13 +1073,36 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   changes the static picture except a pan), the scale is the same and the model lies wholly on the layer; it goes on
   depth tested like the draw (`t + bias < depth`). A pan composes every frame, but the models still change at the
   tier's `hz` (`SG.dynAcc`): between two of those a model shows its kept picture even when it has moved, except a
-  founder (the camera follows the own one; a rim is drawn where it stands now). Sims and previews:
-  `debugPerf()` (ms summed since the last read: frames, the scroll and its cast and ink, the compose and its copy,
-  models, outlines, rims and effects, whole uploads and their grade, whole regrades, the water and the wind, kept
-  pictures used and models drawn), `debugGradeCheck() -> { checked, off, image, recasting }` (`SG.buf` against grading
-  `sColor` afresh, and the last whole upload against grading the frame afresh) and `debugKeepCheck() -> { off, hits,
-  checked }` (two composes of one moment, with and without the kept pictures, the effects left out: the pixels that
-  differ). The `pan` preview walks the founder round a square and reports them.
+  founder (the camera follows the own one; a rim is drawn where it stands now). For that, while a pan is going (the
+  last within 0.3 s: `SG.panAt`), a model that moved since its last draw is kept as well (not a founder, nor a model
+  with another moving model in its rect: it is not drawn twice for it); before, the driftlings and the rocking eggs
+  were never kept and a walk drew them all 60 times a second. Sims and previews:
+  `debugPerf()` (ms summed since the last read: frames, the slowest frame `maxMs` and the frames over 25 ms `slow`, the
+  scroll and its cast and ink, the compose and its copy, models, outlines, rims and effects, whole uploads and their
+  grade, whole regrades, the water and the wind, kept pictures used and models drawn, the pan cache's `stats()` as
+  `cache`), `debugGradeCheck() -> { checked, off, image, recasting }` (`SG.buf` against grading `sColor` afresh, and
+  the last whole upload against grading the frame afresh), `debugKeepCheck() -> { off, hits, checked }` (two composes
+  of one moment, with and without the kept pictures, the effects left out: the pixels that differ),
+  `debugCastCheck() -> { off, checked, ids, lits, shades }` (the static layer against casting all of it afresh at its
+  pan, then put back: what pans and the pan cache left different; a few shadow-edge pixels is the usual) and
+  `debugWaterCheck() -> { off, checked, wind }` (the water pixels showing a tone not the frame's, and the pixels the
+  wind has painted). The `pan` preview walks the founder round a square twice (the second time over ground the pan
+  cache has kept), then stands, and reports them.
+- **The water and the wind, a slice at a time**: their frames come `WATER_HZ` (6) times a second, and each used to be
+  one pass over every pixel of the layer (about 20 to 30 ms for the water and 14 for the wind, a hitch six times a
+  second). Now the next frame is worked out a slice at a time over the period before it (`SG.WATER_SLICES`, 8: every
+  eighth row of the world's grid, so a pan in between moves no pixel into another slice; the slices due by the
+  period's share gone, all of them by its end) and put on all at once when it comes. `SG.waterSlice(s, j)`: in slice
+  j, a water pixel whose colour is its shade or this frame's tone and whose tone changes for the next frame (from
+  `SG.waterTables(k)`, each class's tone at each wave phase for frames k - 1 and k; every water pixel when
+  `SG.waterAll`, after a bake, the growth's end or a stash coming back) goes in `SG.waterPend` (global x, global y,
+  colour now, colour next). `SG.waterApply(s)` puts on each still on the layer and still that colour, grading it from
+  `SG.waterGrade` (water colour and part -> graded colour, under the grade and dim of `waterGradeKey`). `SG.waterFix`
+  also queues the next frame of a strip whose slice was already worked out. `SG.windSlice(s, k, j)` works out the
+  wind's moves of slice j into `SG.windPend` (pixel -> colour) against the picture without its paint (`orig`) and
+  with the moves so far (`now`); `SG.windApply(s)` takes the old paint off and lays the new. A pan takes the paint off
+  and voids the wind's frame (`SG.windVoid`): the wind waits for the view to stand (it used to show one frame in ten
+  of a walk, a flicker).
 - **Invalidation**: a part that comes or goes anywhere under `Workspace.Plots` queues the global-art-px rect it and its
   sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
   the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
@@ -1242,6 +1281,11 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   ground (a stage's thing put away under the floor); drawn before the models, restored with their rects. The
   shadowed tone of each static pixel is worked out once and cached (`sShadowC`) until the static layer changes (a
   bake, a pan, a re-cast), so a cloud's big shadow stays cheap.
+
+**`Pixel/PanCache`** (the request of 2026-11-16: "is there any way to optimize the camera movement? it is still very
+laggy when moving around"): the static picture's cast pixels kept by the world's art grid in 32 x 32 tiles, so a strip
+a pan brings back is copied, not cast (PixelRenderer's "The pan cache" above has its rules). No rays and no Instances:
+`TILE`, `BYTES_A_PIXEL`, `setMax(n)`, `clear()`, `size()`, `save`, `load`, `split`, `drop`, `stats()`.
 
 **`Pixel/Grow`** (GAME_DESIGN 4.4: "could you make a transition such that it feels like the island grows out the new land
 smoothly?"): no rays and no Instances. `begin(spec)` keeps the new picture's buffers, writes the old picture back on the

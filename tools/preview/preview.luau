@@ -443,7 +443,15 @@ function SCEN.pan()
 		local st = H.inClient(p, PR.debugPerf)
 		local f = math.max(1, st.frames)
 		local pf = math.max(1, st.panFrames)
+		log("pan %s: the slowest frame %.1f ms, %d over 25 ms", label, st.maxMs or 0, st.slow or 0)
 		log("pan %s: %d frames in %.1f s, %d panned; a frame %.2f ms; a pan's scroll %.2f ms (cast %.2f, ink %.2f); composes %.2f ms a frame (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f); %d full uploads, %.2f ms each (grade %.2f ms each), %d whole regrades; water %.2f ms and wind %.2f ms a frame; %d kept pictures used, %d models drawn", label, st.frames, secs, st.panFrames, st.stepMs / f, st.scrollMs / pf, st.castMs / pf, st.inkMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.uploads, st.uploadMs / math.max(1, st.uploads), st.gradeMs / math.max(1, st.uploads), st.regrades, st.waterMs / f, st.windMs / f, st.hits, st.draws)
+		if st.byModel then
+			log("pan %s by model: %s", label, st.byModel)
+		end
+		local c = st.cache
+		if c then
+			log("pan %s cache: %d strip pixels copied back, %d cast, %d saved, %d tiles kept (%d dropped, %d let go)", label, c.loaded, c.missed, c.saved, c.tiles, c.dropped, c.evicted)
+		end
 		if PR.debugGradeCheck then
 			local g = H.inClient(p, PR.debugGradeCheck)
 			log("pan %s grade check: %d of %d static pixels off, image %d off%s", label, g.off, g.checked, g.image, if g.recasting then " (a re-cast going)" else "")
@@ -482,11 +490,44 @@ function SCEN.pan()
 		E.step(dt)
 	end
 	report("walking", realClock() - wall0)
+	local function castCheck(label)
+		if PR.debugWaterCheck then
+			local w = H.inClient(p, PR.debugWaterCheck)
+			log("pan %s water check: %d of %d water pixels show a tone not the frame's; the wind's paint on %d pixels", label, w.off, w.checked, w.wind or 0)
+		end
+		if PR.debugCastCheck then
+			local c = H.inClient(p, PR.debugCastCheck)
+			log("pan %s cast check: %d of %d static pixels differ from one whole cast (part %d, light %d, shade %d)", label, c.off, c.checked, c.ids, c.lits, c.shades)
+		end
+	end
+	castCheck("walking")
+	-- (the same loop again: the ground has been seen once, so a pan's strips can come back from the pan cache)
+	H.inClient(p, PR.debugPerf)
+	wall0 = realClock()
+	for i = 241, 480 do
+		local d = (i * dt * speed) % 48
+		local ox, oz
+		if d < 12 then
+			ox, oz = d, 0
+		elseif d < 24 then
+			ox, oz = 12, -(d - 12)
+		elseif d < 36 then
+			ox, oz = 12 - (d - 24), -12
+		else
+			ox, oz = 0, -12 + (d - 36)
+		end
+		p.Character:PivotTo(E.cf.new(at.X + ox, at.Y, at.Z + oz))
+		E.step(dt)
+	end
+	report("walking again", realClock() - wall0)
+	castCheck("walking again")
+	H.inClient(p, PR.debugPerf)
 	wall0 = realClock()
 	for _ = 1, 240 do
 		E.step(dt)
 	end
 	report("standing", realClock() - wall0)
+	castCheck("standing")
 	E.simClock = sim0
 	if PR.debugKeepCheck then
 		local kc = H.inClient(p, PR.debugKeepCheck)

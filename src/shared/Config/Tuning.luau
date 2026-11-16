@@ -259,6 +259,7 @@ local Tuning = {
 	PixelBakeMsPerFrame = 6,
 	PixelMaxRayDist = 1400,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
+	PixelPanCacheTiles = 768, -- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 20 bytes a pixel, about 15.7 MB); 0: off
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	-- the island growing into its next tier (Pixel/Grow; GAME_DESIGN 4: "could you make a transition such that it feels
 	-- like the island grows out the new land smoothly?")

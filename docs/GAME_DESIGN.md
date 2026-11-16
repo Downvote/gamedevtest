@@ -1901,7 +1901,12 @@ text (the requests and how each was met) is in the history of this file, up to c
   on a desktop, from 8). Then closer again, to match Random Bakery's shop ("zoom in into the island more. it should fit
   like this, with the playable island as big as the bakery"): `CamFrame` 0.75, about 11 art px a stud, the first
   island's grass filling the screen between the HUD's strips, the beach running out to the edges. A bigger island is
-  seen a part at a time as you walk.
+  seen a part at a time as you walk. Walking should feel smooth (the request of 2026-11-16: "is there any way to
+  optimize the camera movement? it is still very laggy when moving around"): ground you have already walked past is
+  remembered by the pixel filter and comes back without being drawn again, the driftlings and eggs move at their own
+  steady rate while the view slides, and the sea's and the leaves' little animations are worked out a few rows a
+  frame instead of all at once six times a second. While you walk the leaves hold still; they rustle again once you
+  stop (before, their rustle flickered on for one frame in ten of a walk).
 - Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
   and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
   beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole
