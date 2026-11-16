@@ -94,6 +94,18 @@ do
 	local hudCard = p.PlayerGui:FindFirstChild("IslandCard", true)
 	local hudTop = p.PlayerGui:FindFirstChild("TopBar", true)
 	H.expect(hudCard ~= nil and hudTop ~= nil and math.abs(hudCard.AbsolutePosition.Y - hudTop.AbsolutePosition.Y) <= 1, "settings", "the island card moved up level with the top bar", hudCard and hudTop and string.format("%d vs %d", hudCard.AbsolutePosition.Y, hudTop.AbsolutePosition.Y) or "missing")
+	-- (its Working line: the driftlings at work out of all of them; the request of 2026-11-16, "can you make another
+	-- detail to show creatures working, with x/y, and x being creatures working and y being amount of creatures you
+	-- have?")
+	local working = 0
+	for _, x in prof.pals do
+		if x.work ~= 0 then
+			working += 1
+		end
+	end
+	local wl = hudCard and hudCard:FindFirstChild("Working", true)
+	local wr = hudCard and hudCard:FindFirstChild("WorkingR", true)
+	H.expect(wl ~= nil and wl.Text == "Working" and wr ~= nil and wr.Text == string.format("%d/%d", working, #prof.pals), "hud", "the island card's Working line: at work out of all the driftlings", wr and wr.Text or "missing")
 end
 H.expect(H.clickNamed(p, "Menu_settings", { wait = 0.4 }) and H.currentPanel(p) == "settings", "settings", "the menu bar's Settings opens the Settings panel", tostring(H.currentPanel(p)))
 for _, b in { "Set_music_on", "Set_music_off", "Set_sfx_on", "Set_sfx_off", "Set_pixel_high", "Set_pixel_medium", "Set_pixel_low" } do

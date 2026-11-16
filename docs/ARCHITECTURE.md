@@ -1557,8 +1557,10 @@ the Hatchery's: `buildBar` again when that changes; 2026-11-14), `Menu_index`, `
 its icon, Build's words in the accent; while Build mode is open the bar and the
 cards step aside and the tips banner sits on the tray (`BuildUI.trayHeight()`: lower while a piece is picked) with a
 Build mode wording (`TIPS_BUILD`)), the `IslandCard`
-on the right (the island's name for its tier, driftlings in huts / the huts' room (`Pals`), charm (`Charm`), the charm bonus (`CharmBonus`, "+43%"; the visitors'
-line went on 2026-11-14), and what a turn makes of shells a minute, `Rate_shell`: `Numbers.perMin`), the `TreeCard` under it
+on the right (the island's name for its tier, driftlings in huts / the huts' room (`Pals`), driftlings at work / all of
+them (`Working`, `mini_work`: one with a job, `Pal.work` not 0; the request of 2026-11-16, "can you make another detail
+to show creatures working, with x/y, and x being creatures working and y being amount of creatures you have?"), charm
+(`Charm`), the charm bonus (`CharmBonus`, "+43%"; the visitors' line went on 2026-11-14), and what a turn makes of shells a minute, `Rate_shell`: `Numbers.perMin`), the `TreeCard` under it
 (GAME_DESIGN 6: the `mini_tree`, "Tree of Life" ("Eggs" on a phone) and `TreeOpen` opening the "tree" panel,
 `TreeNext` ("New eggs in 2:41") over `TreeBar` (an ink bar whose fill Heartbeat runs down from
 `StateClient.clutchLeft`), then a row each of `EggView.best(v, 3)` (on a phone `best(v, 1)`): `EggIcon_<id>` (the

@@ -461,8 +461,19 @@ local function housedOf(v: Types.ClientView): number
 	return n
 end
 
+-- how many driftlings are at work (a job at a farm, camp or shop)
+local function workingOf(v: Types.ClientView): number
+	local n = 0
+	for _, x in v.pals do
+		if x.work ~= 0 then
+			n += 1
+		end
+	end
+	return n
+end
+
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%d|%d|%d", v.tier, housedOf(v), v.nests, math.floor(v.charm), math.round((v.charmBonus or 0) * 100), math.floor(v.rates.shells + 0.5))
+	return string.format("%d|%d/%d|%d/%d|%d|%d|%d", v.tier, housedOf(v), v.nests, workingOf(v), #v.pals, math.floor(v.charm), math.round((v.charmBonus or 0) * 100), math.floor(v.rates.shells + 0.5))
 end
 
 local function updateCard(v: Types.ClientView)
@@ -477,7 +488,7 @@ local function updateCard(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local h = 15 + 3 * LINE_H + 4 + LINE_H + 2
+	local h = 15 + 4 * LINE_H + 4 + LINE_H + 2
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, rightTop()), 2)
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
@@ -487,6 +498,10 @@ local function updateCard(v: Types.ClientView)
 	local y = 15
 	local housed = housedOf(v)
 	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
+	y += LINE_H
+	-- the driftlings at work out of all you have (the request of 2026-11-16: "can you make another detail to show
+	-- creatures working, with x/y, and x being creatures working and y being amount of creatures you have?")
+	line(f, "work", "Working", y, w, nil, string.format("%d/%d", workingOf(v), #v.pals), nil, "Working")
 	y += LINE_H
 	line(f, "charm", "Charm", y, w, nil, Numbers.int(math.floor(v.charm)), UIKit.color("pink"), "Charm")
 	y += LINE_H

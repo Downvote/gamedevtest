@@ -562,7 +562,10 @@ floor, it just looks noisy", 2026-11-14),
   / (charm + `CharmHalf`), with `CharmMax` 1 and `CharmHalf` 200, so 50 charm is +20%, 200 is +50% and 600 is +75%,
   never past double. The first decor counts the most. Shops sell at their plain rate: the visitors who bought there
   went with the request (they were a number, a turn: 1 + charm / 15, and a shop sold its rate times visitors / 4).
-  The island card shows the charm and its bonus ("Charm bonus +43%").
+  The island card shows the charm and its bonus ("Charm bonus +43%"). Above them it shows how many driftlings live
+  in huts out of the huts' room ("In huts 21/24") and how many are at work out of all you have ("Working 18/21"; the
+  request of 2026-11-16: "can you make another detail to show creatures working, with x/y, and x being creatures
+  working and y being amount of creatures you have?").
 - The shells reach the client every second; a new day brings its banner ("Day 12").
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
