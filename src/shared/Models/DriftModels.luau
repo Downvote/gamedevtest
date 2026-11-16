@@ -35,16 +35,12 @@ export type Thing = Kit.Thing
 
 
 ------------------------------------------------------------------ the body plans
--- (Models/DriftPlansA..D, built with the kit: 20 plans, each a function of the body and accent colours)
+-- (Models/DriftPlansA..F since the request of 2026-11-15, "currently, all of them are modelled using blobs, which is
+-- unnatural": 37 plans sculpted from smooth solids with Models/DriftAnatomy, each a function of the body and accent
+-- colours and the species' form, and the forms that make each species of a plan its own)
 type Form = { [string]: any }
 local PLANS: { [string]: (b: string, a: string, form: Form?) -> Thing } = {}
 local FORMS: { [string]: Form } = {}
--- (the old ball-built plans, kept only while the new ones replace them)
-for _, mod in { require(script.Parent.DriftOldA), require(script.Parent.DriftOldB), require(script.Parent.DriftOldC), require(script.Parent.DriftOldD) } do
-	for shape, fn in mod :: any do
-		PLANS[shape] = fn
-	end
-end
 for _, mod in { require(script.Parent.DriftPlansA), require(script.Parent.DriftPlansB), require(script.Parent.DriftPlansC), require(script.Parent.DriftPlansD), require(script.Parent.DriftPlansE), require(script.Parent.DriftPlansF) } do
 	for shape, fn in mod.plans do
 		PLANS[shape] = fn
@@ -64,7 +60,7 @@ end
 -- not the face, gets a "PixelTex" attribute: the pixel renderer patterns it, Render/DynTex).
 export type Look = { id: string?, eye: string?, iris: string?, tex: string?, tex2: string?, form: Form? }
 function DriftModels.build(shape: string, body: string, accent: string, lod: string?, look: Look?): Thing
-	local fn = PLANS[shape] or PLANS.armadillo or PLANS.pup
+	local fn = PLANS[shape] or PLANS.armadillo
 	Kit.setFull(lod ~= "world")
 	Kit.setLook({ eye = look and look.eye, iris = look and look.iris, body = body, accent = accent })
 	-- (its species' own form: Data/Creatures' when it gives one, else the plan module's for its id)

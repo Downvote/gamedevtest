@@ -1435,7 +1435,8 @@ H.expect(other ~= nil and H.buttonNamed(p, "SwapWith_" .. other.id) ~= nil, "pal
 H.clickNamed(p, "SwapWith_" .. (if other then other.id else 0), { wait = 0.5 })
 H.expect(pal.home == hutA.uid and other ~= nil and other.home == hutB.uid, "pals", "swapped: it lives in the first hut again, the other in the second", string.format("%d / %s", pal.home, tostring(other and other.home)))
 -- a pointer over a driftling's row: what its numbers mean (the request of 2026-11-15: "when hovering or holding onto
--- each creature, show what their mutation and stats do"); leaving the row hides it
+-- each creature, show what their mutation and stats do"); leaving the row hides it. (Its species is the one the sim
+-- hatched: a passive with egg price or charm adds itself to the island line, "Its egg luck and egg price count ...".)
 do
 	local I = require("./inst")
 	pal.muts = { "bright2", "fierce1" }
@@ -1454,7 +1455,7 @@ do
 	local function has(w)
 		return string.find(all, w, 1, true) ~= nil
 	end
-	H.expect(rowF ~= nil and st.shown and string.find(all, "Works [%a ,%d%.x]-x%d") ~= nil and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and has("Its egg luck counts while it lives in a hut") and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
+	H.expect(rowF ~= nil and st.shown and string.find(all, "Works [%a ,%d%.x]-x%d") ~= nil and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and (has("Its egg luck counts while it lives in a hut") or string.find(all, "Its egg luck[%a ,]- count while it lives in a hut") ~= nil) and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
 	local tipF = p.PlayerGui:FindFirstChild("PalTip", true)
 	H.expect(tipF ~= nil and tipF.Visible ~= false, "pals", "(the tip's card on the Popup root)")
 	if rowF then

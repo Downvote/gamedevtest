@@ -68,6 +68,17 @@ return function()
 		T.truthy(a2 == DARK or a2 == IRIS, "between the pupil and the iris")
 	end)
 
+	T.it("on a dark body the lines go light: a shut eye's line and a bead's rim show", function()
+		local BASALT = 0x403A38
+		local light = EyeTex.lineOn(BASALT, DARK, WHITE)
+		T.truthy(light ~= DARK and light % 256 > 0x90, "a light line: " .. string.format("%06X", light))
+		T.eq(EyeTex.lineOn(LID, DARK, WHITE), DARK, "a light body keeps the dark line")
+		local a1, _, _, a2, _, _, k = EyeTex.sample(S.happy, 0, 0.32, 1, 40, IRIS, DARK, BASALT, WHITE)
+		T.eq(if k >= 0.5 then a2 else a1, light, "the happy arch in the light line")
+		a1, _, _, a2, _, _, k = EyeTex.sample(S.button, 0, 0.86, 1, 40, IRIS, DARK, BASALT, WHITE)
+		T.eq(if k >= 0.5 then a2 else a1, light, "a bead ringed in it")
+	end)
+
 	T.it("a tiny eye keeps its main colour and one catchlight", function()
 		T.eq((at(S.round, 0.36, -0.06, 1, 2)), IRIS, "still the iris")
 		local _, _, glow = at(S.button, -0.3, 0.32, 1, 2)

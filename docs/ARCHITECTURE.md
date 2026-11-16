@@ -496,14 +496,15 @@ Models (`src/shared/Models`, Roblox modules):
   shallows), `hash(f, k?)` (a number 0 .. 1 from the tile's place)).
 - `MicroModels` (the driftlings and the island's small things): `build(kind, opts?) -> Thing` (`{ model, parts, rest, sizes,
   baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin, facing +Z), `driftling(shape, body,
-  accent)` (the 14 shapes `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm`), `sailboat`,
+  accent)` (the 37 body plans of `DriftModels`), `sailboat`,
   `ship` (a boat from `BoatSpec` at `opts.level`: its origin on the waterline; StreetLife's boats), `flutter(thing, t)` (a
   thing's `Flag...` parts ripple: their depth and height step through four frames), ambient kinds (`bird
   butterfly light flame crab ...`), `slab`, `grid`, `hoop`, and the fights' `aim`, `aimpath` and `aimring` (nothing
   builds them now), `place(t, cf)`, `scale(t, k)`,
   `recolor(t, color?)`, `show(t, on)`, `has`. `place` moves a thing's parts with one `Workspace:BulkMoveTo` (its part
   list kept per thing; part by part while the model is outside Workspace). Parts keep their sizes to the eighth of a stud (about an art px), not
-  Blocks' quarter. `species(id, lod?)` builds a species (Data/Creatures) with its look; `driftling(shape, body, accent, lod?, look?)` is `DriftModels.build` (below; WorldView builds "world",
+  Blocks' quarter. `species(id, lod?)` builds a species (Data/Creatures) with its look (and its id, for its plan's form; an unknown id
+  is a steel armadillo); `driftling(shape, body, accent, lod?, look?)` is `DriftModels.build` (below; WorldView builds "world",
   everything else the default "full"); `animate(t, time, mood, k?)` hands
   a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale` (its clock must run on smoothly: the
   springs and blends use it; WorldView places a driftling on the ground and the rig lifts it), and moves the other
@@ -546,22 +547,49 @@ Models (`src/shared/Models`, Roblox modules):
   glowing), an edge layer mixed over its share (`Shading.softMix`). Each face part records `tuck[name]`, its sink
   against the normal it was made on in its own frame (a rod or a blade hides as a disc does); a part without one sinks
   along its -X.
-- `DriftPlansA..D`: the body plans built with the kit, each `(b, a) -> Thing` facing +Z with its feet at y 0, the old
-  plans' joints (names, kinds, parents, sides, phases), heights and gaits kept so every mood still works. Full: about
-  117 to 257 parts; world: 45 to 80 (the detail pass of 2026-11-15, "can you also do the same with creature and egg
-  models?", kept every joint and grew the world level by at most about 10% a plan: it is drawn every frame on the
-  islands). A: blob, bun; B: crab, snail, turtle, frog, jelly, sprite; C: bird, owl, bat, moth, drake, wyrm; D:
-  lizard, pup, mole, yeti, seal, golem (the golem's look follows its body colour: stone, or a tree golem for the
-  barks, Silverbark's steel among them since that pass). DriftPlansD's own `blade` helper passes its ends to
-  `Kit.blade` base first since then (it had them the wrong way round, every blade widest at its point).
-- `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 20
-  body plans (`PLANS`: `blob crab bird bun lizard owl pup mole bat yeti seal sprite jelly wyrm snail turtle frog moth
-  golem drake`, from `DriftPlansA..D`) in its species' body and accent colours, built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of
+- `DriftAnatomy` (GAME_DESIGN 6, the request of 2026-11-15: "can you redo all the creatures and eggs and add alot more
+  extra ones with more variation to them? currently, all of them are modelled using blobs, which is unnatural.
+  reference other models online to see how you should model them"): the body parts the plans are sculpted from, on the
+  kit's smooth solids (`Kit.ell`, `Kit.egg`, `Kit.limb` (a tapered limb from a to b, radii ra and rb, `flat` squashing
+  its cross-section toward `flatN`), `Kit.limbs` (a chain along a Catmull-Rom curve; on the islands half the links, at
+  least two), `Kit.faceOn` / `faceOff` / `onEll` / `onFace`: the face's surface an ellipsoid). `A.body(name, c, d, len,
+  wide, tall, split, color) -> (part, Mass)` (an egg lying along d, the hips its narrow end), `A.blob`, `A.patch(name,
+  mass, d, shrink, out, color)` (a smaller copy pushed out toward d: a cap of colour curved with the body), `A.on`,
+  `A.reach`; `A.leg(n, side, phase, hip, opts)` (its joint and a "fore" leg down to a wrist, a "hind" one forward to
+  the knee and back to a hock, a "post", a "bird" leg with a feathered thigh and a bare shank, a "frog" leg folded;
+  feet "paw", "hoof", "claw", "pad", "bird", "web", "frog"), `A.paw`, `A.hoof`, `A.claws`, `A.birdFoot`; `A.head(opts)
+  -> Head` (the "head" and "jaw" joints, a cranium, a muzzle "fox" "dog" "cat" "bear" "deer" "pig" "beak" "duck"
+  "lizard" "frog" or "none", the nose, cheeks, the eyes on the cranium, blush and the mouth), `A.ears(head, opts)`
+  ("fox" "cat" "round" "long" "droop" "leaf" "tuft" "fin" "big"; an inside and a tip standing 0.04 studs proud),
+  `A.horns` ("nubs" "spike" "goat" "ram" "antler" "stag" "drake"), `A.tail(base, opts)` ("brush" "whip" "lizard"
+  "stub" "puff" "curl" "flat" "fluke" "plume" "club"), `A.wings` ("bird" folded or open, "bat", "insect"); colour
+  helpers `A.shade`, `A.under`, `A.ink`, `A.iris`, `A.isDark`, `A.isPale` (the palette's "chalk" is a dark board green,
+  0x2A5F3D, not white); `A.dir`, `A.lie`, `A.mx`, `A.lerp`. The plans add their own local helpers where these fall
+  short (DriftPlansE's `dot` and `eggOn`, DriftPlansF's `birdLeg`, DriftPlansB's camera-facing wings).
+- `DriftPlansA..F` (the same request): every body plan rebuilt on the smooth solids, sculpted the way a modeller
+  blocks a creature out over its skeleton, and each module's `forms` (Data/Creatures id -> the options its plan reads:
+  ears, tails, horns, manes, crests, props, proportions, markings), so no two species of a plan are recolours. Each
+  module returns `{ plans, forms }`; a plan is `(b, a, form?) -> Thing` facing +Z with its feet at y 0 (a form may set
+  `gait`: the cloud whale and Cloudpip fly). A: pup (foxes and the wolf), cat (lynxes, the kitten, lions, the temple
+  cat), bear, otter (Kelpup sits up and holds its shell: biped, arms), monkey (the lemur), yeti. B: deer (fawns, stags,
+  the goats, the unicorn, the kirin), ram (wool of soft puffs), elephant (the trunk on two "tendril" joints), griffin,
+  drake (a "neck" joint now). C: bun, mole, hedgehog, armadillo, turtle (tortoises on pillars, sea turtles on
+  flippers, props on the shells: a cloud farm, a reef, a temple), golem (stone, wood, ice and basalt from blocks,
+  wedges and hexagonal columns marked "PixelOwn"). D: lizard (the gecko, the axolotl, the chameleon, the crocodile),
+  frog, crab (Rubblet in a brick), beetle, snail, wyrm. E: seal (and the cloud whale), fish, ray, seahorse, octo, jelly,
+  shroom, sprite (legs and ears now). F: bird (the heron, the phoenix, the swift...), owl, penguin, duck, bat, moth (the
+  butterflies and the bee). Full about 40 to 120 parts, the islands' level about 26 to 60 (most of an old face's parts
+  went with the painted eyes). The old ball-built plans (DriftOldA..D) are gone.
+- `DriftModels` (GAME_DESIGN 6, "more detailed ... look more like the animals", "different moving parts"): the 37
+  body plans (`PLANS`, from `DriftPlansA..F`: `pup cat bear otter monkey yeti deer ram elephant griffin drake bun mole
+  hedgehog armadillo turtle golem lizard frog crab beetle snail wyrm seal fish ray seahorse octo jelly shroom sprite
+  bird owl penguin duck bat moth`; an unknown shape builds the armadillo) in its species' body and accent colours and
+  its form (`FORMS[look.id]`, or `look.form`), built on a skeleton: `Rig { joints (name -> { parent?, pivot, kind, side, phase }), order (parents first), of
   (part -> joint), gait ("quad" | "biped" | "hop" | "scuttle" | "slither" | "fly"), world }`. Joint kinds: `body` (the
   root), `head`, `neck`, `jaw`, `ear`, `arm`, `leg`, `tail` (segments in a chain, `phase` their order), `wing` (an
   outer segment as a child), `fin`, `stalk` (eye stalks), `pincer`, `tendril` (two segments), `antenna`, `shell`.
-  `build(shape, body, accent, lod?, look?) -> Thing` (with `rig`; `lod` "full", the default, or "world"; `look` `{ eye?,
-  iris?, tex?, tex2? }`: the eyes, and a "PixelTex" attribute on every non-face, non-Neon part of the body colour
+  `build(shape, body, accent, lod?, look?) -> Thing` (with `rig`; `lod` "full", the default, or "world"; `look` `{ id?, eye?,
+  iris?, tex?, tex2?, form? }`: the eyes, and a "PixelTex" attribute on every non-face, non-Neon part of the body colour
   (`tex`) or the accent (`tex2`)), `has(shape)`, `animate(t, time, mood, k?, squash)`: hands it to `DriftRig.animate`
   (below). The kit's `Rig` also carries `skel` and `anim` (DriftRig's skeleton and motion state, made when first
   posed) and `placed` (the CFrame `MicroModels.place` last put it at: the springs feel it move).

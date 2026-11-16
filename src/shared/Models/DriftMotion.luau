@@ -306,6 +306,9 @@ function Motion.program(mood: string, t: number, age: number, k: number, gait: s
 			o.legMode = 1
 		elseif gait == "scuttle" then
 			o.legMode = 3
+			-- (a crab's claws held up in front, bobbing with the steps; swung like a walker's arms they dipped to the
+			-- ground mid-stride)
+			o.armMode, o.arm = 2, -0.22 + 0.07 * sin(TAU * u * 3)
 			o.bty = 0.03 * abs(sin(TAU * u * 3))
 			o.brz = 0.03 * sin(TAU * u * 1.5)
 		elseif fly then

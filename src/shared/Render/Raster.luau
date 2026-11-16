@@ -1887,7 +1887,8 @@ local function dot(f: Frame, cam: Cam, cf12: { number }, sx: number, sy: number,
 		return 0 -- it covers a pixel centre (and was hidden there)
 	end
 	local i, j = math.floor(px), math.floor(py)
-	if i < 0 or j < 0 or i >= f.W or j >= f.H then
+	-- (written so a part at a NaN position, which compares false every way, is refused too)
+	if not (i >= 0 and j >= 0 and i < f.W and j < f.H) then
 		return 0
 	end
 	local t = d - math.min(hx, hy, hz)

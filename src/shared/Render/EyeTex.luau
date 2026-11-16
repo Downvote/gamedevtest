@@ -151,15 +151,37 @@ local function darkEye(u: number, v: number, iris: number, dark: number, white: 
 	paint(circle(u, v, 0, -0.08, 0.24), dark, -1, false)
 end
 
+-- How light a packed 0xRRGGBB colour looks, 0..1.
+local function luma(rgb: number): number
+	local r, g, b = floor(rgb / 65536) % 256, floor(rgb / 256) % 256, rgb % 256
+	return (0.3 * r + 0.59 * g + 0.11 * b) / 255
+end
+
+-- The line drawn round the eye and across a shut lid: the eye's dark, or on a dark body (where a dark line would not
+-- show: a basalt toad, a slate crab, a dark brown stag; under 0.43 light, which keeps the dark line on the coloured
+-- dark bodies, leaf_dark and berry_red, whose hue already sets it apart) the body's colour lightened most of the way
+-- to the white, the way pixel artists outline a dark shape inside a dark one.
+local function lineOn(lid: number, dark: number, white: number): number
+	if luma(lid) >= 0.43 or luma(dark) >= 0.3 then
+		return dark
+	end
+	local r, g, b = floor(lid / 65536) % 256, floor(lid / 256) % 256, lid % 256
+	local wr, wg, wb = floor(white / 65536) % 256, floor(white / 256) % 256, white % 256
+	local k = 0.55
+	return floor(r + (wr - r) * k + 0.5) * 65536 + floor(g + (wg - g) * k + 0.5) * 256 + floor(b + (wb - b) * k + 0.5)
+end
+EyeTex.lineOn = lineOn
+
 function EyeTex.sample(code: number, u: number, v: number, side: number, ppu: number, iris: number, dark: number, lid: number, white: number): (number, number, boolean, number, number, boolean, number)
 	PPU = max(1, ppu)
 	A_RGB, A_LIFT, A_GLOW = dark, 0, false
 	B_RGB, B_LIFT, B_GLOW, K = dark, 0, false, 0
 	local tiny = PPU < 3 -- (an eye only a few pixels across: its main colour and one catchlight)
+	local line = lineOn(lid, dark, white)
 	if code == 21 then
-		shut(u, v, lid, dark, false)
+		shut(u, v, lid, line, false)
 	elseif code == 16 then
-		shut(u, v, lid, dark, true)
+		shut(u, v, lid, line, true)
 	elseif code == 1 or code == 2 or code == 6 or code == 7 or code == 14 or code == 15 then
 		if tiny then
 			A_RGB = dark
@@ -182,12 +204,12 @@ function EyeTex.sample(code: number, u: number, v: number, side: number, ppu: nu
 			else
 				shines(u, v, white, 0.22, 0.1)
 			end
-			rim(u, v, dark)
+			rim(u, v, line)
 			if code == 14 then
-				upperLid(u, v, 0.14 + 0.12 * u * u, lid, dark)
+				upperLid(u, v, 0.14 + 0.12 * u * u, lid, line)
 			elseif code == 15 then
 				-- slanting down toward the middle of the face (the inner side is -side)
-				upperLid(u, v, 0.5 + 0.42 * u * side, lid, dark)
+				upperLid(u, v, 0.5 + 0.42 * u * side, lid, line)
 			end
 		end
 	elseif code == 3 or code == 4 or code == 5 then
@@ -203,6 +225,10 @@ function EyeTex.sample(code: number, u: number, v: number, side: number, ppu: nu
 			shines(u, v, white, 0.24, 0)
 		else
 			shines(u, v, white, if code == 3 then 0.26 else 0.24, 0.08)
+		end
+		if line ~= dark then
+			-- (a bead on a dark body: the light line round it, or it sinks into the body)
+			rim(u, v, line)
 		end
 	elseif code == 8 or code == 9 or code == 10 then
 		-- a cartoon eye: the white, the lid's shadow over its top, the iris with its darker ring and lighter lower half,

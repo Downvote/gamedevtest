@@ -726,9 +726,11 @@ function Kit.eye(side: string, hc: Vector3, hr: number, dir: Vector3, d: number,
 	local w, h = d * sz[1] * 1.15, d * sz[2] * 1.15
 	-- (its depth: a flattened dome, so it bulges a little out of the head and never stands off it like a ball; it meets
 	-- the head at Render/EyeTex.EDGE of its radius, where the painted rim lies: 1 - sqrt(1 - 0.9^2) of its depth stands
-	-- out)
-	local c = math.max(FINE, 0.3 * math.max(w, h))
-	local prot = (1 - math.sqrt(1 - 0.9 * 0.9)) * c
+	-- out; at least 0.04 studs, over the pixel filter's depth bias of 0.03, or a small eye, a dot or a bead, sinks under
+	-- the head and never shows)
+	local k = 1 - math.sqrt(1 - 0.9 * 0.9)
+	local c = math.max(FINE, 0.3 * math.max(w, h), 0.04 / k)
+	local prot = k * c
 	local rot = CFrame.fromMatrix(Vector3.zero, right, up, n)
 	local function eyeball(name: string, size: Vector3, centre: Vector3, color: string, code: string): BasePart
 		local p = solid(name .. side, "Ell", size, CFrame.new(centre) * rot, color)

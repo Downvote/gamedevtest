@@ -1371,9 +1371,8 @@ driftling itself, so it turns and walks with it and never slides. It shows where
 hatch scene, close looks); on the islands, where a driftling is a figure a few pixels tall, it is left off, as it
 would only be noise.
 
-Up close (the hatch scene, the portraits) a driftling has about 120 to 260 pieces: toes, whiskers, fur tufts, flecks
-and cracks. On the islands, where it is a small figure among dozens, it is the same shape with fewer, bigger pieces
-(45 to 80), and one far from the view is posed every fourth frame.
+On the islands, where a driftling is a small figure among dozens, it is the same shape with fewer, bigger pieces, and
+one far from the view is posed every fourth frame.
 
 **More detail on every body** (the request of 2026-11-15: "can you also do the same with creature and egg models?",
 after the buildings, the tree and the palms). Each plan got the pieces that make its animal read, within the same
@@ -1387,7 +1386,36 @@ yeti shaggy locks hanging in tiers; the seal paddle flippers and fanned hind fli
 with flowers or glowing cracks by kind; the blob moss and a tiny mushroom; the bun a bent ear and a cream belly. The
 pieces a close look needs stay off the islands' lighter figures, which grew by a tenth at most.
 
-**Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`): each of the twenty body plans is built to read as its animal. The turtle has
+> The request (2026-11-15): "can you redo all the creatures and eggs and add alot more extra ones with more variation
+> to them? currently, all of them are modelled using blobs, which is unnatural. reference other models online to see
+> how you should model them"
+
+**Sculpted, not heaped up** (`Models/DriftAnatomy`, `Models/DriftPlansA..F`): every driftling was rebuilt the way
+modellers block out a creature, after the references gathered for it (chibi and stylised animal modelling guides,
+quadruped anatomy for animators, bird anatomy for artists, shape language and silhouettes in creature design: the
+skeleton first, then the masses on it; the head a third to a half of the height for a young, friendly look; a
+silhouette that reads in a second). A body is no longer a heap of balls but a few smooth forms the pixel filter draws
+exactly: an egg-shaped body with the chest deeper than the hips, a head that is its own shape with a muzzle, a nose and
+a jaw, legs that come out of a shoulder or a haunch and taper and bend where the animal's bend (a dog's foreleg
+straight down to the wrist, its hind leg forward to the knee and back to a hock; a bird's thin leg with a heel and
+three toes forward and one back), paws, hooves, claws and webbed feet, and tails that taper to the tip. The outline is
+clean and the joins read as joins. There are thirty-seven body plans now (foxes and wolves, cats and lions, bears,
+otters, a lemur, yetis, deer and goats, sheep, elephants, griffins, dragons, rabbits, moles, hedgehogs, armadillos,
+turtles, golems, lizards, frogs, crabs, beetles, snails, sea serpents, seals and whales, fish, rays, seahorses, octopus
+and squid, jellyfish, mushroom folk, fairies, birds, owls, penguins, ducks, bats and moths), and each species of a plan
+has its own form so none is a recolour of another: Sandkit a fennec with huge ears, Rimekit a chunky arctic fox,
+Moonhowl a wolf with a heavy ruff; Thistlemane a lion cub with a dandelion mane that blows away; Mossbuck a stag with a
+bird's nest in its mossy antlers; Templeback a giant tortoise carrying a gold temple; Skyshell a sea turtle with a cloud
+farm on its back; Rubblet a hermit crab living in a fallen brick; Lumenfin an anglerfish with a lit lure; Ruinape a
+ring-tailed lemur in a stolen straw hat. Pebblit, Quartzle, Rubblet and Puffling, which were blobs, are an armadillo of
+stone plates, a crystal-quilled hedgehog, that hermit crab and a cloud lamb. The golems keep to their materials: carved
+stone, basalt columns, blocks of ice, a walking tree.
+
+Up close (the hatch scene, the portraits) a driftling has about 40 to 120 pieces, on the islands about 26 to 60. A
+smooth form takes the place of many balls, so the islands draw them faster than before.
+
+**Their bodies** (`Models/DriftModels`, `Models/DriftPlans*`; the plans before 2026-11-15, kept here for their parts'
+story): each of the twenty body plans of that time was built to read as its animal. The turtle has
 a domed shell with a ring of plates and a rim, a head on a neck with a beak, and flippered legs. The fox pup has a
 snout and nose, tall ears with dark tips, a fluffy chest and a bushy tail with a white tip. The crab has eyes on
 stalks, big claws with a hinged pincer and three legs a side. The gull has a beak in two halves, wings with a white
@@ -1450,23 +1478,26 @@ The twelve principles, and where each one shows:
 Up close (the hatch scene, the portraits) the parts' sizes squash with the body too; on the islands, where a
 driftling is a few pixels tall, only their places do, which keeps the frame cheap.
 
-Seventy-three driftlings of our own, five to seven to each of the twelve kinds of island (`Data/Islets`: a kind's
-driftlings hatch once the island reaches that kind's tier, above):
+A hundred and forty-five driftlings of our own, eleven to thirteen to each of the twelve kinds of island
+(`Data/Islets`: a kind's driftlings hatch once the island reaches that kind's tier, above). Seventy-two of them came
+with the request of 2026-11-15 ("add alot more extra ones with more variation to them"): six more to each kind, each
+at a rarity its kind already had, so the eggs, their odds and the economy are unchanged (a kind's tree never hatches
+a rarity it could not before):
 
 | Kind | Its driftlings (common .. celestial) |
 |---|---|
-| Beaches | Pebblit, Clawdle, Gullfin, Conchy, Shellback, Sunsprite |
-| Meadows | Mossbun, Frondle, Twiggle, Hopsprout, Bloomoth, Elderbark |
-| Mangroves | Murkle, Reedle, Bogsnail, Mudmole, Wispwing, Mirewyrm |
-| Volcanoes | Emberpup, Magmole, Scorchwing, Cindertoad, Basaltor, Pyredrake, Pyrelord |
-| Grottoes | Gemsnail, Glowbat, Quartzle, Crystowl, Prismoth |
-| Snowfields | Snowpuff, Floe, Frostling, Icetoad, Glacior, Frostdrake, Frostcrown |
-| Bluffs | Cloudbun, Breezle, Skyfox, Stormowl, Thunderdrake, Aurorawing |
-| Reefs | Coralcrab, Lumajelly, Pearlback, Novafox, Tidewyrm, Abyssmaw |
-| Ruins | Relicrab, Rubblet, Glyphowl, Sentinel, Runemoth, Solwyrm |
-| Moonwoods (tier 11) | Duskbun, Hushpup, Lunowl, Wispkin, Silverbark, Moonveil (mythic) |
-| Cloudtops (tier 14) | Puffling, Cirrup, Cloudjelly, Billowbear, Skyshell (mythic), Cloudwhale (celestial) |
-| Starfalls (tier 17) | Glimmite, Cometail, Cratermole, Nebulynx (mythic), Starweaver (celestial), Novawyrm (celestial) |
+| Beaches | Clawdle, Pebblit, Puffpod, Sandkit, Conchy, Gullfin, Kelpup, Tidepip, Kelphorse, Shellback, Duneray, Sunsprite |
+| Meadows | Burrowby, Frondle, Mossbun, Puddlet, Bumblet, Fawnlet, Hopsprout, Twiggle, Bloomoth, Thistlemane, Elderbark, Mossbuck |
+| Mangroves | Gillo, Murkle, Reedle, Slinkit, Bogsnail, Dabbler, Mudmole, Snapmoss, Stiltbeak, Wispwing, Grinmire, Mirewyrm |
+| Volcanoes | Cinderkit, Emberpup, Emberquill, Magmole, Cindertoad, Scorchwing, Smoulderbug, Basaltor, Obsidusk, Blazemane, Pyredrake, Ashwing, Pyrelord |
+| Grottoes | Gemsnail, Glowbat, Shardbug, Spored, Amethare, Lumenfin, Quartzle, Crystowl, Opalback, Prismhorn, Prismoth |
+| Snowfields | Floe, Rimekit, Slidget, Snowpuff, Frostling, Icetoad, Tuskle, Glacior, Peakhorn, Frostdrake, Frostlynx, Frostcrown, Glimmerfleece |
+| Bluffs | Breezle, Cloudbun, Craglet, Puffbill, Skyfox, Windhare, Stormowl, Sweepwing, Galeram, Thunderdrake, Aurorawing, Stormgriff |
+| Reefs | Coralcrab, Lumajelly, Squidge, Stripefin, Pearlback, Reefray, Coralcurl, Novafox, Tidegrip, Tidewyrm, Abyssmaw, Elderreef |
+| Ruins | Relicrab, Rubblet, Scarabit, Tombcat, Glyphowl, Vinegeck, Ruinape, Sentinel, Gildmane, Runemoth, Solwyrm, Templeback |
+| Moonwoods (tier 11) | Dimwing, Duskbun, Hushpup, Moonfawn, Duskbear, Lunowl, Moonshroom, Wispkin, Silverbark, Silverhoof, Moonhowl (mythic), Moonveil (mythic) |
+| Cloudtops (tier 14) | Cloudpip, Puffling, Cirrup, Gustotter, Cloudjelly, Raindeer, Billowbear, Stormphant, Cloudgriff (mythic), Skyshell (mythic), Cloudwhale (celestial), Skyherald (celestial) |
+| Starfalls (tier 17) | Craterbug, Glimmite, Twinkbun, Cometail, Starfin, Cratermole, Starshell, Cosmofleece (mythic), Nebulynx (mythic), Novawyrm (celestial), Starhart (celestial), Starweaver (celestial) |
 
 The three kinds past the capital (the request at the top) are a silver forest that wakes at sundown, soft fields of
 cloud over the sea and a crater where stars fell and kept on glowing. Their eighteen driftlings are good at farms,
@@ -1482,8 +1513,7 @@ creatures are adept in either wood, farm or shops as seen in the build tab inste
 fishing", so the twelve fishers moved, Clawdle, Gullfin, Floe, Coralcrab, Tidewyrm and Abyssmaw to farms, Glowbat,
 Mirewyrm and Breezle to wood, Murkle, Icetoad and Frostdrake to shops, and the Fishing Pier and the Kelp Farm count as
 farms), a 3D model built from parts
-(twenty body plans: blob, crab, bird, bun, lizard, owl, pup, mole, jelly, fox, wyrm, seal, bat, sprite, yeti, snail,
-turtle, frog, moth, golem and drake) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
+(thirty-seven body plans since 2026-11-15, below) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
 the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 
 - **Rarity** (`Traits.RARITY`, `Traits.RMAX` 7): Common, Uncommon, Rare, Epic, Legendary, Mythic, Celestial (name
@@ -1512,7 +1542,7 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
   followed by its tier in small star sprites (7x7, one a tier, white, green, teal or gold by the tier: the request
   of 2026-11-14, "the * in mutations should be replaced with small star sprites to show the rarity of mutations").
 
-The **Index** lists all seventy-three ("Seen 12 of 73 kinds"): a dark shape and its rarity until you have had one (a
+The **Index** lists all hundred and forty-five ("Seen 12 of 145 kinds"): a dark shape and its rarity until you have had one (a
 save from the tide keeps the ones it saw float by, on a lighter plate), then its name and passive. A kind not open yet
 says the island tier it hatches from ("These hatch from island Lv 4.").
 
