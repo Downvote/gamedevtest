@@ -280,7 +280,7 @@ end
 -- Work out a mood's shared values at time t into `out`. Moods: "idle", "walk", "cheer", "hop", "attack" (k), "hurt"
 -- and "ko" (by age), "hooray" (one jump from its start, then the happy pose held), the work moods "peck", "push",
 -- "dip", "wave", "nap", and "rest" (the pose as built, eyes open).
-function Motion.program(mood: string, t: number, age: number, k: number, gait: string, tempo: number, seed: number, out: Prog): Prog
+function Motion.program(mood: string, t: number, age: number, k: number, gait: string, tempo: number, seed: number, out: Prog, style: string?): Prog
 	local o = out
 	reset(o, mood, gait, t)
 	local fly = gait == "fly"

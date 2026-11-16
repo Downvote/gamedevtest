@@ -64,7 +64,7 @@ local BLEND_MIN = 0.07 -- studs: a solid thinner than this across (its middle si
 function DriftModels.build(shape: string, body: string, accent: string, lod: string?, look: Look?): Thing
 	local fn = PLANS[shape] or PLANS.armadillo
 	Kit.setFull(lod ~= "world")
-	Kit.setLook({ eye = look and look.eye, iris = look and look.iris, body = body, accent = accent })
+	Kit.setLook({ eye = look and look.eye, iris = look and look.iris, body = body, accent = accent, tex = look and look.tex, tex2 = look and look.tex2 })
 	-- (its species' own form: Data/Creatures' when it gives one, else the plan module's for its id)
 	local form = if look then (look.form or (if look.id then FORMS[look.id] else nil)) else nil
 	local ok, t = pcall(fn, body, accent, form)
@@ -75,6 +75,10 @@ function DriftModels.build(shape: string, body: string, accent: string, lod: str
 		error(t)
 	end
 	Kit.finish()
+	-- (its manner for the motion, Models/DriftMotion: the plan's own, or its form's)
+	if t.rig then
+		t.rig.style = if form and type(form.style) == "string" then form.style else shape
+	end
 	-- The body drawn as one blended surface (Render/Raster.drawBlend; the request of 2026-11-16: "You should not be able
 	-- to see the shapes that the creatures consist of ... make them all look like one connected mesh instead of clearly
 	-- different simple shapes put together"): every smooth solid of the body is a member but the face, the lit bits and

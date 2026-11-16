@@ -34,6 +34,8 @@ export type Rig = {
 	skel: any?, -- its skeleton and skin, worked out when first posed (Models/DriftRig)
 	anim: any?, -- its motion's state: the mood, the blend, the springs (Models/DriftRig)
 	placed: CFrame?, -- where MicroModels.place last put it (the springs feel its movement)
+	style: string?, -- its manner (Models/DriftMotion: its plan's own idle acts and carriage), the plan's name unless its
+	-- species' form names another
 }
 export type Thing = {
 	model: Model,
@@ -651,11 +653,17 @@ end
 
 -- The look of the driftling being built (DriftModels.build sets it from Data/Creatures): its eye style and iris colour
 -- (the request of 2026-11-14: "Can you use different eyes for each?") and its body colour (a sleepy eye's lid).
-export type Look = { eye: string?, iris: string?, body: string?, accent: string? }
+export type Look = { eye: string?, iris: string?, body: string?, accent: string?, tex: string?, tex2: string? }
 local look: Look = {}
 
 function Kit.setLook(l: Look?)
 	look = l or {}
+end
+
+-- The look of the driftling being built (its eye style, colours and the textures its body and accent colours wear:
+-- Data/Creatures), for builders that dress a face to match its body.
+function Kit.look(): Look
+	return look
 end
 
 -- One eye (side "L" or "R") on the head (the ellipsoid of Kit.faceOn, or the ball at `hc` of radius `hr`) looking out

@@ -295,7 +295,7 @@ function Rig.animate(t: Kit.Thing, time: number, mood: string, k: number?, sc: V
 		end
 	end
 	local kk = math.clamp(k or 0, 0, 1)
-	local cur = Motion.program(mood, time, time - st.moodAt, kk, rig.gait, sk.tempo, sk.seed, st.cur)
+	local cur = Motion.program(mood, time, time - st.moodAt, kk, rig.gait, sk.tempo, sk.seed, st.cur, rig.style)
 	local blend = 1
 	local prev = st.prev
 	local from = st.from
@@ -305,7 +305,7 @@ function Rig.animate(t: Kit.Thing, time: number, mood: string, k: number?, sc: V
 			st.from = nil
 		else
 			blend = Motion.ease(Motion.SMOOTH, e)
-			Motion.program(from, time, 10, kk, rig.gait, sk.tempo, sk.seed, prev)
+			Motion.program(from, time, 10, kk, rig.gait, sk.tempo, sk.seed, prev, rig.style)
 		end
 	end
 	local world, sqs = st.world, st.sq
