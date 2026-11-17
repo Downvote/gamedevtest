@@ -688,7 +688,7 @@ for _, e in c0.list do
 	end
 end
 H.expect(c0.list[2] ~= nil and c0.list[1].r == 1 and c0.list[2].r == 1 and commons >= 2, "eggs", "a new island's first lot: two commons first", string.format("%d commons", commons))
-H.expect(Tree.secs(prof) == Tuning.EggSecs and Tuning.EggSecs == 600, "eggs", "a lot every EggSecs: ten minutes", tostring(Tree.secs(prof)))
+H.expect(Tree.secs(prof) == Tuning.EggSecs and Tuning.EggSecs == 360, "eggs", "a lot every EggSecs: six minutes", tostring(Tree.secs(prof)))
 local layAt = E.now() - (Tree.secs(prof) - c0.left) -- when the first lot was laid
 H.expect(layAt >= joinT and layAt <= joinT + 2.2, "eggs", "laid when the player arrived", string.format("%.2f s after the join", layAt - joinT))
 local cheap = 0
@@ -1185,7 +1185,7 @@ end
 local wantLuck = 1 + Tuning.EggLuck[prof.tier] + math.clamp(lS, 0, Tuning.HutLuck)
 local wantCost = math.max(1, math.floor(Tuning.EggPrice[3] * Tuning.EggTier[prof.tier] * (1 - math.clamp(cS, 0, Tuning.HutCost)) + 0.5))
 H.push(p, 0.3)
-H.expect(Tree.secs(prof) == secs0 and secs0 == Tuning.EggSecs, "shares", "no share brings the eggs sooner: the tree keeps its 10 minutes", string.format("%.2f s, was %.2f", Tree.secs(prof), secs0))
+H.expect(Tree.secs(prof) == secs0 and secs0 == Tuning.EggSecs, "shares", "no share brings the eggs sooner: the tree keeps its 6 minutes", string.format("%.2f s, was %.2f", Tree.secs(prof), secs0))
 H.expect(Tree.luck(prof) > luck0 and math.abs(Tree.luck(prof) - wantLuck) < 1e-9, "shares", "a Lucky kind's luck share: luckier eggs", string.format("%.3f, was %.3f", Tree.luck(prof), luck0))
 H.expect(Tree.cost(prof, 3) < cost0 and Tree.cost(prof, 3) == wantCost, "shares", "a Thrifty kind's cost share: cheaper eggs", string.format("%d, was %d", Tree.cost(prof, 3), cost0))
 local odds1 = Tree.odds(prof)
@@ -1196,7 +1196,7 @@ for r = 2, 5 do
 	end
 end
 H.expect(top >= 3 and odds1[1] < odds0[1] and odds1[top] > odds0[top], "shares", "the odds lean rarer (fewer commons, more of the rarest open here)", string.format("common %.3f -> %.3f, rarity %d %.4f -> %.4f", odds0[1], odds1[1], top, odds0[top], odds1[top]))
--- (only the Quick Tree pass makes the wait shorter: five minutes)
+-- (only the Quick Tree pass makes the wait shorter: three minutes)
 prof.passes.QuickTree = true
 local wantSecs = Tuning.EggSecsPass
 H.push(p, 0.3)

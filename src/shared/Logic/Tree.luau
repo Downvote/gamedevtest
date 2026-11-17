@@ -6,7 +6,7 @@
 -- and amount of eggs spawned". Pure: IslandService calls these with the session's profile and Rng. Actions return
 -- (true, data?) or (false, ErrCode) and change the profile only when they succeed.
 --   Every island has its tree (a piece, `plant`: never bought, cleared away or replaced). Every `secs(p)` seconds
---   while the player is here (Tuning.EggSecs: ten minutes, five with the Quick Tree pass) it lays `count(tier)` eggs round its
+--   while the player is here (Tuning.EggSecs: six minutes, three with the Quick Tree pass) it lays `count(tier)` eggs round its
 --   roots (Tuning.EggCount: more on a bigger island), the ones left unhatched going (`step`, `lay`). An egg's rarity:
 --   Data/Traits.RARITY's weights, each rarity step's weight times the island's luck (`luck(p)`: Tuning.EggLuck by its
 --   tier and the huts' luck shares: a bigger island lays better eggs). A rarity none of the kinds open at the island's

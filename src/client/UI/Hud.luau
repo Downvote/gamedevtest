@@ -22,6 +22,7 @@ local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
+local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Quests = require(ReplicatedStorage.Shared.Data.Quests)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
@@ -473,7 +474,7 @@ local function workingOf(v: Types.ClientView): number
 end
 
 local function cardKey(v: Types.ClientView): string
-	return string.format("%d|%d/%d|%d/%d|%d|%d|%d", v.tier, housedOf(v), v.nests, workingOf(v), #v.pals, math.floor(v.charm), math.round((v.charmBonus or 0) * 100), math.floor(v.rates.shells + 0.5))
+	return string.format("%d|%d/%d|%d/%d|%d|%d|%d", v.tier, housedOf(v), v.nests, workingOf(v), Island.jobPlaces(v.pieces), math.floor(v.charm), math.round((v.charmBonus or 0) * 100), math.floor(v.rates.shells + 0.5))
 end
 
 local function updateCard(v: Types.ClientView)
@@ -499,9 +500,10 @@ local function updateCard(v: Types.ClientView)
 	local housed = housedOf(v)
 	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
 	y += LINE_H
-	-- the driftlings at work out of all you have (the request of 2026-11-16: "can you make another detail to show
-	-- creatures working, with x/y, and x being creatures working and y being amount of creatures you have?")
-	line(f, "work", "Working", y, w, nil, string.format("%d/%d", workingOf(v), #v.pals), nil, "Working")
+	-- the driftlings at work out of the places at work (Island.jobPlaces; the requests of 2026-11-16, "can you make
+	-- another detail to show creatures working, with x/y", and 2026-11-17, "for working, make it x/y, where x is
+	-- amount of creatures working and y being the amount of work spaces available")
+	line(f, "work", "Working", y, w, nil, string.format("%d/%d", workingOf(v), Island.jobPlaces(v.pieces)), nil, "Working")
 	y += LINE_H
 	line(f, "charm", "Charm", y, w, nil, Numbers.int(math.floor(v.charm)), UIKit.color("pink"), "Charm")
 	y += LINE_H

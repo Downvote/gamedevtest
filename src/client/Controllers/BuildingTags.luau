@@ -11,11 +11,9 @@
 --   the view's charm bonus and income multiplier), and a boost building gets a card of its own: the boost at its knack
 --   from every boost building there together ("Farms +15% from 2 boost buildings", Island.boostInfo; an "all" one,
 --   the "all" boosts together) and what one more of its kind would add (they stack, less each time: Tuning.BoostStack).
---   The alerts: over every workplace no driftling works at, and every hut no driftling lives in, a small glass tag
---   floats with the alert icon and "Empty" (the user's words, in place of "No workers" and "No one home"), bobbing a
---   pixel. They go the moment one moves in.
--- Only the own island's: the alerts in the World root (hidden with it on the hatch scene), the card on the Popup root
--- over the HUD (nothing while the camera has a stage). WorldView drives it: step every
+--   No alerts over empty buildings any more: the request of 2026-11-17, "remove the empty alert that appears above
+--   huts and work places" (they said "Empty" over every workplace nobody worked at and every hut nobody lived in).
+-- Only the own island's: the card on the Popup root over the HUD (nothing while the camera has a stage). WorldView drives it: step every
 -- frame, hover from the pointer, tapAt from a tap.
 --   step(t, plot, hoverPos?, palHovered), tapAt(pos) -> boolean, debugState(), debugSpots()
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -50,7 +48,6 @@ local scanAt = 0
 local decorOf: Instance? = nil
 local pickList: { Instance } = {} -- what the pointer's ray may meet: the workplaces, the huts and the tree (decor in
 -- front of a hut, a bench or a lamp, never hides it; the tree does)
-local alerts: { [number]: Frame } = {} -- uid -> its alert tag
 local card: Frame? = nil
 local cardUid = 0
 local cardUntil = 0 -- a tap's card: shown till then (0: the pointer's)
@@ -151,22 +148,9 @@ local function scan(v: Types.ClientView)
 	end
 end
 
--- The words of a building's card and its alert.
+-- The words of a building's card.
 local function fullness(s: Spot): string
 	return string.format(if s.work then "Workers %d/%d" else "Living here %d/%d", s.n, s.room)
-end
-
--- ("Empty" over both: the user's words of 2026-11-14, "Make it say "Empty" instead of no one home or no workers")
-local function alertWords(_s: Spot): string
-	return "Empty"
-end
-
-local function dropAlert(u: number)
-	local f = alerts[u]
-	if f then
-		f:Destroy()
-		alerts[u] = nil
-	end
 end
 
 local function dropCard()
@@ -227,24 +211,6 @@ local function showCard(s: Spot)
 	card, cardUid = f, s.uid
 end
 
--- The alert over spot s (made once; the words stay).
-local function alertFor(s: Spot): Frame
-	local old = alerts[s.uid]
-	if old then
-		return old
-	end
-	local words = alertWords(s)
-	local w = 13 + UIKit.textWidth(words) + 2 * UIKit.PAD - 1
-	local f = UIKit.glass(UIKit.canvas("World"), UDim2.fromOffset(w, 15), nil, 2)
-	f.Name = "BuildingAlert"
-	f.ZIndex = 5
-	f:SetAttribute("Uid", s.uid)
-	PixelSprites.image(f, "mini_alert", UDim2.fromOffset(UIKit.PAD - 2, 2), 6)
-	UIKit.text(f, words, UDim2.fromOffset(w - 13 - UIKit.PAD, 10), UDim2.fromOffset(UIKit.PAD + 10, 2), { color = UIKit.color("text"), name = "Words", z = 6 })
-	alerts[s.uid] = f
-	return f
-end
-
 -- Puts a frame centred over a world point, `up` UI px above it; hidden off the screen.
 local function place(f: GuiObject, at: Vector3, up: number)
 	local x, y, on = PixelRenderer.projectPixel(at)
@@ -297,15 +263,12 @@ function BuildingTags.tapAt(pos: Vector2): boolean
 	return true
 end
 
--- Every frame: the alerts over the empty buildings, the card over the one under the pointer (or tapped).
+-- Every frame: the card over the building under the pointer (or tapped).
 function BuildingTags.step(t: number, plot: number, hoverPos: Vector2?, palHovered: boolean)
 	local v = StateClient.view()
 	if plot ~= plotNow then
 		plotNow = plot
 		table.clear(spots)
-		for u in alerts do
-			dropAlert(u)
-		end
 		dropCard()
 		scanAt = 0
 	end
@@ -314,21 +277,6 @@ function BuildingTags.step(t: number, plot: number, hoverPos: Vector2?, palHover
 		scan(v)
 	end
 	local busy = CameraController.stage() ~= nil
-	-- the alerts (none while a panel is open: they showed faintly through its glass)
-	local hidden = busy or UIKit.currentPanel() ~= nil
-	local bob = if math.floor(t * 2) % 2 == 0 then 0 else 1
-	for u, s in spots do
-		if s.n == 0 and s.room > 0 and not hidden then
-			place(alertFor(s), s.top, 2 + bob)
-		else
-			dropAlert(u)
-		end
-	end
-	for u in alerts do
-		if spots[u] == nil then
-			dropAlert(u)
-		end
-	end
 	-- the card: a tap's while it lasts, else the pointer's (a mouse, no panel, not Build mode, no driftling under it)
 	if t >= hoverAt then
 		hoverAt = t + HOVER_SECS
@@ -359,9 +307,9 @@ function BuildingTags.step(t: number, plot: number, hoverPos: Vector2?, palHover
 	showCard(s)
 	cardUntil = keep
 	local c = card :: Frame
-	-- (the card sits over the alert when there is one, kept on the screen and below the top bar's chips; worked out on
-	-- the World canvas, which is full screen, then moved onto the Popup root's, which starts under the top bar's inset)
-	place(c, s.top, if alerts[s.uid] then 19 else 2)
+	-- (the card sits just over the roof, kept on the screen and below the top bar's chips; worked out on the World
+	-- canvas, which is full screen, then moved onto the Popup root's, which starts under the top bar's inset)
+	place(c, s.top, 2)
 	if c.Visible then
 		local d = (UIKit.canvasOrigin("Popup") - UIKit.canvasOrigin("World")) / UIKit.P()
 		local size = UIKit.size("Popup")
@@ -388,15 +336,18 @@ function BuildingTags.debugSpots(): { { uid: number, id: string, work: boolean, 
 	return out
 end
 
--- Sims and previews: the own island's workplaces and huts, the alerts showing and the card's words.
+-- Sims and previews: the own island's workplaces and huts, the alerts showing (none since 2026-11-17: any tag left
+-- named BuildingAlert in the World root counts) and the card's words.
 function BuildingTags.debugState(): { spots: number, alerts: number, words: { string }, card: string, card2: string, cardUid: number, hit: string }
 	local words: { string } = {}
 	local n = 0
-	for _, f in alerts do
-		n += 1
-		local l = f:FindFirstChild("Words")
-		if l and l:IsA("TextLabel") then
-			table.insert(words, l.Text)
+	for _, f in UIKit.canvas("World"):GetDescendants() do
+		if f.Name == "BuildingAlert" then
+			n += 1
+			local l = f:FindFirstChild("Words")
+			if l and l:IsA("TextLabel") then
+				table.insert(words, l.Text)
+			end
 		end
 	end
 	table.sort(words)

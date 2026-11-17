@@ -42,7 +42,7 @@ local function earner(): any
 end
 
 return function()
-	T.it("Double Income and VIP multiply every shell; Quick Tree lays every 5 minutes", function()
+	T.it("Double Income and VIP multiply every shell; Quick Tree lays every 3 minutes", function()
 		local p = earner()
 		local base = Island.rates(p).shells
 		T.truthy(base > 0)

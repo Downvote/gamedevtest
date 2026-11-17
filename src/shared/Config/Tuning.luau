@@ -64,9 +64,11 @@ local Tuning = {
 	-- ten tiers since "make more island progression and allow the player to expand their land even more"
 	-- (GAME_DESIGN 4): the old wall before Harbor Town lower, four bigger islands past Sunspire Capital; twenty since
 	-- the request of 2026-11-14 ("allow expansion up to level 20, you can make the previous levels of expansion a bit
-	-- cheaper too"): levels 2 to 10 a fifth off, levels 11 to 20 rising on from there
+	-- cheaper too"): levels 2 to 10 a fifth off, levels 11 to 20 rising on from there. Then the request of
+	-- 2026-11-17, "also, make expansion cheaper at lower levels": level 2 half off again, 3 to 7 less off the higher
+	-- they are (about 45, 40, 30, 20 and 10%), 8 and up as they were (480, 7200, 48000, 128000, 300000, 640000 before)
 	TierCost = {
-		0, 480, 7200, 48000, 128000, 300000, 640000, 1280000, 2400000, 4000000,
+		0, 240, 4000, 29000, 90000, 240000, 580000, 1280000, 2400000, 4000000,
 		5000000, 6000000, 7200000, 8600000, 10200000, 12000000, 14000000, 16500000, 19500000, 23000000,
 	},
 	-- the huts (GAME_DESIGN 4.1): a resident's comfort (its hut's, plus this by the hut's level) adds to its work
@@ -83,9 +85,11 @@ local Tuning = {
 	-- increases the quality of eggs spawned and amount of eggs spawned"): every EggSecs seconds the tree lays
 	-- EggCount[tier] eggs round its roots, the ones left unhatched going. Ten minutes the whole game through since the
 	-- request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10 minutes throughout
-	-- the whole game unless a gamepass is bought"): nothing shortens it but the Quick Tree pass (EggSecsPass)
-	EggSecs = 600,
-	EggSecsPass = 300,
+	-- the whole game unless a gamepass is bought"): nothing shortens it but the Quick Tree pass (EggSecsPass). Six
+	-- minutes and three with the pass since the request of 2026-11-17: "make the default time for egg refresh 6
+	-- minutes, and 3 minutes with gamepass"
+	EggSecs = 360,
+	EggSecsPass = 180,
 	-- the eggs a lot by the island's tier: back to the counts from before the 10 minute tree (the request of
 	-- 2026-11-14: "use the same amount of eggs each tree refresh had as before"; they had been tripled to keep the eggs
 	-- an hour), then two more on every island (the request of 2026-11-14: "increase the amount of eggs produced by the

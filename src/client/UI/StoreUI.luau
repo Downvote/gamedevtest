@@ -57,7 +57,7 @@ type Item = { key: string, name: string, blurb: string, icon: string, pass: bool
 local PASSES: { Item } = {
 	{ key = "VIP", name = "VIP", blurb = "25% more shells, a big welcome gift, a gift every day, six pieces and the VIP title.", icon = "mini_crown", pass = true },
 	{ key = "DoubleIncome", name = "Double Income", blurb = "Every shell your island makes counts twice.", icon = "mini_shell", pass = true },
-	{ key = "QuickTree", name = "Quick Tree", blurb = "The Tree of Life lays new eggs every 5 minutes, not 10.", icon = "mini_tree", pass = true },
+	{ key = "QuickTree", name = "Quick Tree", blurb = string.format("The Tree of Life lays new eggs every %d minutes, not %d.", Tuning.EggSecsPass // 60, Tuning.EggSecs // 60), icon = "mini_tree", pass = true },
 	{ key = "FreeDecor", name = "Free Decor", blurb = "Decor, paths, water and fences cost nothing to put down.", icon = "mini_decor", pass = true },
 	{ key = "PremiumTrack", name = "Premium Track", blurb = "Opens the premium side of the pass track, this season and every one after.", icon = "mini_ticket", pass = true },
 	{ key = "OfflinePass", name = "Offline Pass", blurb = "Your island earns for up to 24 hours while you're away, at its full pace.", icon = "mini_moon", pass = true },
@@ -1094,7 +1094,7 @@ end
 local PASS_THANKS: { [string]: string } = {
 	VIP = "Thanks! VIP is on: 25% more shells and a gift every day.",
 	DoubleIncome = "Thanks! Every shell counts twice now.",
-	QuickTree = "Thanks! The Tree of Life lays every 5 minutes now.",
+	QuickTree = string.format("Thanks! The Tree of Life lays every %d minutes now.", Tuning.EggSecsPass // 60),
 	FreeDecor = "Thanks! Decor, paths, water and fences are free now.",
 	PremiumTrack = "Thanks! The premium side of the track is open.",
 	OfflinePass = "Thanks! Your island earns for up to 24 hours while you're away now.",

@@ -167,6 +167,19 @@ function Island.works(id: string): boolean
 	return d ~= nil and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop")
 end
 
+-- The places at work on an island: Tuning.HelpMax at every workplace (`works`). The island card's Working line counts
+-- the driftlings at work out of these (the request of 2026-11-17: "for working, make it x/y, where x is amount of
+-- creatures working and y being the amount of work spaces available").
+function Island.jobPlaces(pieces: { Types.Piece }): number
+	local n = 0
+	for _, q in pieces do
+		if Island.works(q.id) then
+			n += Tuning.HelpMax
+		end
+	end
+	return n
+end
+
 -- A driftling's work share where it helps (Data/Traits.workAt: its passive's and mutations' work and the building's
 -- knack; at its own knack when it helps nowhere).
 function Island.palWork(p: Profile, pal: Types.Pal): number

@@ -94,9 +94,9 @@ do
 	local hudCard = p.PlayerGui:FindFirstChild("IslandCard", true)
 	local hudTop = p.PlayerGui:FindFirstChild("TopBar", true)
 	H.expect(hudCard ~= nil and hudTop ~= nil and math.abs(hudCard.AbsolutePosition.Y - hudTop.AbsolutePosition.Y) <= 1, "settings", "the island card moved up level with the top bar", hudCard and hudTop and string.format("%d vs %d", hudCard.AbsolutePosition.Y, hudTop.AbsolutePosition.Y) or "missing")
-	-- (its Working line: the driftlings at work out of all of them; the request of 2026-11-16, "can you make another
-	-- detail to show creatures working, with x/y, and x being creatures working and y being amount of creatures you
-	-- have?")
+	-- (its Working line: the driftlings at work out of the places at work; the requests of 2026-11-16, "can you make
+	-- another detail to show creatures working, with x/y", and 2026-11-17, "for working, make it x/y, where x is
+	-- amount of creatures working and y being the amount of work spaces available")
 	local working = 0
 	for _, x in prof.pals do
 		if x.work ~= 0 then
@@ -105,7 +105,13 @@ do
 	end
 	local wl = hudCard and hudCard:FindFirstChild("Working", true)
 	local wr = hudCard and hudCard:FindFirstChild("WorkingR", true)
-	H.expect(wl ~= nil and wl.Text == "Working" and wr ~= nil and wr.Text == string.format("%d/%d", working, #prof.pals), "hud", "the island card's Working line: at work out of all the driftlings", wr and wr.Text or "missing")
+	local places = 0
+	for _, q in prof.plot.placed do
+		if Island.works(q.id) then
+			places += Tuning.HelpMax
+		end
+	end
+	H.expect(wl ~= nil and wl.Text == "Working" and wr ~= nil and wr.Text == string.format("%d/%d", working, places), "hud", "the island card's Working line: at work out of the places at work (2026-11-17)", wr and wr.Text or "missing")
 end
 H.expect(H.clickNamed(p, "Menu_settings", { wait = 0.4 }) and H.currentPanel(p) == "settings", "settings", "the menu bar's Settings opens the Settings panel", tostring(H.currentPanel(p)))
 for _, b in { "Set_music_on", "Set_music_off", "Set_sfx_on", "Set_sfx_off", "Set_pixel_high", "Set_pixel_medium", "Set_pixel_low" } do
@@ -577,7 +583,8 @@ local BTp = H.cmod(p, "Controllers.BuildingTags")
 do
 	E.run(0.6)
 	local bt = H.inClient(p, BTp.debugState)
-	H.expect(bt.spots == 3 and bt.alerts == 3 and table.concat(bt.words, ",") == "Empty,Empty,Empty", "build", "with no driftling yet: \"Empty\" over the camp, the patch and the hut", string.format("%d spots, %d alerts: %s", bt.spots, bt.alerts, table.concat(bt.words, ",")))
+	-- (no alerts since the request of 2026-11-17: "remove the empty alert that appears above huts and work places")
+	H.expect(bt.spots == 3 and bt.alerts == 0, "build", "with no driftling yet: the camp, the patch and the hut known, no \"Empty\" over any of them", string.format("%d spots, %d alerts: %s", bt.spots, bt.alerts, table.concat(bt.words, ",")))
 end
 -- (the starting shells cover the rest of the tips with room for a second egg: "give the player more shells so every
 -- task is completable at the start without needing to wait")
@@ -709,11 +716,26 @@ do
 		local hut = pieceOf("nest")
 		H.expect(first ~= nil and hut ~= nil and first.home == hut.uid and first.work == pieceOf("lumber").uid, "build", "it moves into the hut and goes to work at the lumber camp", first and string.format("home %d work %d", first.home, first.work))
 		H.expect(prof.tut == 5, "build", "the tips move on to a shop", tostring(prof.tut))
-		-- (the camp has its worker and the hut someone living there: their alerts go, the patch's stays; a tap on the
-		-- hut shows how full it is, "show capacities of work buildings when hovered over", a phone's tap for the hover)
+		-- (the camp has its worker and the hut someone living there; a tap on the hut shows how full it is, "show capacities of work buildings when hovered over", a phone's tap for the hover)
 		E.run(0.6)
 		local bt = H.inClient(p, BTp.debugState)
-		H.expect(bt.alerts == 1, "build", "the camp and the hut no longer empty: only the patch's alert left", string.format("%d alerts", bt.alerts))
+		H.expect(bt.alerts == 0, "build", "no alerts over the buildings, empty or not", string.format("%d alerts", bt.alerts))
+		-- (the island card's Working line with workplaces standing: at work out of two places at each)
+		do
+			local at, places = 0, 0
+			for _, x in prof.pals do
+				if x.work ~= 0 then
+					at += 1
+				end
+			end
+			for _, q in prof.plot.placed do
+				if Island.works(q.id) then
+					places += Tuning.HelpMax
+				end
+			end
+			local wr = p.PlayerGui:FindFirstChild("WorkingR", true)
+			H.expect(places >= 4 and at >= 1 and wr ~= nil and wr.Text == string.format("%d/%d", at, places), "hud", "Working with the camp and the patch up: at work out of their places", wr and wr.Text or "missing")
+		end
 		local hutTap = nil
 		for _, sp in H.inClient(p, BTp.debugSpots) do
 			if sp.uid == hut.uid then
@@ -2670,7 +2692,7 @@ do
 	local lot0 = table.clone(prof.clutch.list)
 	local next0 = prof.clutch.next
 	table.clear(prof.clutch.list)
-	prof.clutch.left = 600
+	prof.clutch.left = TreeL.secs(prof) -- (no lot due while the check runs)
 	local f3 = #fx
 	E.run(1.4)
 	local heard3 = fxSince(f3, "eggs")

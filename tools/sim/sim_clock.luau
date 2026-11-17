@@ -267,19 +267,19 @@ do
 	H.expect(text == "New eggs in " .. clock(cl.left) or text == "New eggs in " .. clock(cl.left + E.dt), "eggs", "the Tree card counts down to the next lot", string.format("%q, %.2f s left", text, cl.left))
 	local width = if back then math.floor((back.Size.X.Offset - 2) * math.clamp(cl.left / cl.secs, 0, 1) + 0.5) else -1
 	H.expect(fill ~= nil and math.abs(fill.Size.X.Offset - width) <= 1 and width <= back.Size.X.Offset - 2, "eggs", "and its bar runs down with it", string.format("%s px, %d due", tostring(fill and fill.Size.X.Offset), width))
-	-- the tree keeps its 10 minutes whatever the huts hold (the request of 2026-11-14: "keep it at 10 minutes throughout
+	-- the tree keeps its 6 minutes (10 before 2026-11-17) whatever the huts hold (the request of 2026-11-14: "keep it at 10 minutes throughout
 	-- the whole game unless a gamepass is bought"): a once-Leafy driftling changes nothing; the Quick Tree pass makes it
 	-- five (the ticks say so, the next lot is wound to the shorter time)
 	local lush = prof.pals[1]
 	local muts0 = lush.muts
 	lush.muts = Traits.clean({ "swift3" })
 	H.push(p, 0.2)
-	H.expect(Tree.secs(prof) == Tuning.EggSecs and Tuning.EggSecs == 600, "eggs", "a once-Leafy driftling in a hut: still 10 minutes", tostring(Tree.secs(prof)))
+	H.expect(Tree.secs(prof) == Tuning.EggSecs and Tuning.EggSecs == 360, "eggs", "a once-Leafy driftling in a hut: still 6 minutes", tostring(Tree.secs(prof)))
 	lush.muts = muts0
 	prof.passes.QuickTree = true
 	H.push(p, 0.2)
 	local sooner = Tree.secs(prof)
-	H.expect(sooner == Tuning.EggSecsPass and sooner == 300, "eggs", "the Quick Tree pass: every 5 minutes", string.format("%.2f s", sooner))
+	H.expect(sooner == Tuning.EggSecsPass and sooner == 180, "eggs", "the Quick Tree pass: every 3 minutes", string.format("%.2f s", sooner))
 	local iT = #fx
 	E.runUntil(function()
 		return count("tick", iT) >= 1

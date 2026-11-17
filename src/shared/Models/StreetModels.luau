@@ -832,10 +832,22 @@ local function plaza(m: Instance, o: CFrame)
 	for k, r in { { 2.7, -2.75, 0.5 }, { 3.25, -2.7, 0.5 }, { 3.05, -3.3, 0.75 } } do
 		part(CFrame.new(r[1], SAND + 0.05, r[2]), r[3], r[3], r[3], if k == 2 then "rock_dark" else "rock", "Cairn", "Ball")
 	end
-	-- (from the pole's face, never sharing it)
-	part(CFrame.new(3, 4.4, -2.25), 0.25, 1, 1.25, "berry_red", "Pennant")
-	part(CFrame.new(3, 4.4, -1.375), 0.25, 0.5, 0.5, "berry_red", "PennantTip")
-	part(CFrame.new(3, 4.4, -2.25), 0.5, 0.5, 0.5, "white", "PennantMark")
+	-- the flag itself (the request of 2026-11-17: "make the flag look like an actual flag"; it was a red slab a
+	-- quarter stud thick with a white cube through it): thin cloth hung from just under the knob, from the pole's face
+	-- out to the south, in four panels turned a little each way so the light picks out its folds, the free end hanging a
+	-- touch lower; red with a white band through the middle. Named Pennant..., so the wind ripples it (Blocks.windy).
+	local FOLD = { 0, 0.16, 0, 0.16, 0.04 } -- each fold line's step out from the cloth's plane (studs, +X)
+	local PANEL = 0.42
+	for k = 1, 4 do
+		local a = Vector3.new(3 + FOLD[k], 4.45 - 0.035 * (k - 1), -2.875 + PANEL * (k - 1))
+		local b = Vector3.new(3 + FOLD[k + 1], 4.45 - 0.035 * k, -2.875 + PANEL * k)
+		local mid = (a + b) / 2
+		local face = CFrame.lookAt(mid, Vector3.new(b.X, mid.Y, b.Z))
+		local len = Vector2.new(b.X - a.X, b.Z - a.Z).Magnitude + 0.02 -- (a hair over, so the panels meet)
+		part(face * CFrame.new(0, 0.32, 0), 0.12, 0.36, len, "berry_red", "Pennant")
+		part(face, 0.12, 0.28, len, "white", "PennantBand")
+		part(face * CFrame.new(0, -0.32, 0), 0.12, 0.36, len, "berry_red", "Pennant")
+	end
 	-- two tiki torches at the plaza's south edge: a pole bound with straw, a carved cup, a flame
 	for _, tx in { -2.5, 2.5 } do
 		local tf = o * CFrame.new(tx, Street.LAWN_Y, Street.PLAZA.z1 - 0.5)

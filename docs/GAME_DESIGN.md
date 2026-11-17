@@ -1,6 +1,12 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-14, the latest): "remove anything that decreases the tree of life refresh, keep it at 10
+> The request (2026-11-17, the latest): "make the default time for egg refresh 6 minutes, and 3 minutes with gamepass"
+
+So the Tree of Life lays a new lot every six minutes (`Tuning.EggSecs` 360), and every three with the Quick Tree pass
+(`EggSecsPass` 180), on every island. The lots are the same size, so an hour lays two thirds more eggs than before and
+the islands grow sooner (§10 has the new measures). The pass's card and its thank-you say the minutes from Tuning.
+
+> The request before it (2026-11-14): "remove anything that decreases the tree of life refresh, keep it at 10
 > minutes throughout the whole game unless a gamepass is bought. make the player be outlined white like the bakery
 > game, with the name and title on top. make titles. make much more cosmetics, and a rotating shop for cosmetics. make
 > gamepasses for double income, developer products for hatching any rarity of egg, refreshing shop, a starter pack,
@@ -8,8 +14,8 @@
 > offering alot of rewards, and cosmetics, a title and a percentage increase to income, a gamepass that speeds up the
 > tree of life refresh to 5 minutes, and a gamepass that allows for decor and paths to be free"
 
-So the Tree of Life lays every ten minutes from the first island to the last; nothing a driftling has shortens it, and
-only the Quick Tree pass makes it five. Its lots were three times the size for a while, then went back to the old
+So the Tree of Life laid every ten minutes from the first island to the last (six since 2026-11-17, above); nothing a
+driftling has shortens it, and only the Quick Tree pass makes it shorter (five then, three now). Its lots were three times the size for a while, then went back to the old
 counts (5 to 12 a lot: "use the same amount of eggs each tree refresh had as before"), so the islands grow more slowly
 than they did with a lot every three minutes (§6, §10). Every founder is outlined in white with their name and a title over their head, titles come from play and the
 store, there are 83 cosmetics in six slots with a shop that turns over every four hours, and the game sells five passes
@@ -563,9 +569,10 @@ floor, it just looks noisy", 2026-11-14),
   never past double. The first decor counts the most. Shops sell at their plain rate: the visitors who bought there
   went with the request (they were a number, a turn: 1 + charm / 15, and a shop sold its rate times visitors / 4).
   The island card shows the charm and its bonus ("Charm bonus +43%"). Above them it shows how many driftlings live
-  in huts out of the huts' room ("In huts 21/24") and how many are at work out of all you have ("Working 18/21"; the
-  request of 2026-11-16: "can you make another detail to show creatures working, with x/y, and x being creatures
-  working and y being amount of creatures you have?").
+  in huts out of the huts' room ("In huts 21/24") and how many are at work out of the places at work, two at every
+  farm, camp and shop ("Working 18/24"; the requests of 2026-11-16, "can you make another detail to show creatures
+  working, with x/y", and 2026-11-17, "for working, make it x/y, where x is amount of creatures working and y being
+  the amount of work spaces available": it was out of all the driftlings you have for a day).
 - The shells reach the client every second; a new day brings its banner ("Day 12").
 
 ## 4. Building (`Data/Buildings`, `Logic/Plot`, Build mode)
@@ -724,8 +731,8 @@ Water keeps its own rules (§4.3).
 > replace/upgrade buildings as well, including homes of creatures and villagers"
 
 - **The tiers** (`TierCost`, in wood, paid in shells since 2026-11-14 at the rate of §4.4): Castaway Cay, Palm Isle
-  (480 wood: 2,400 shells), Grand Isle (7,200: 65,000), then **Harbor Town** (48,000: 780,000), **Coral City** (128,000:
-  3,700,000) and **Sunspire Capital** (300,000: 16,000,000), since 2026-11-13 four longer islands past the capital and
+  (240 wood: 1,200 shells), Grand Isle (4,000: 36,000), then **Harbor Town** (29,000: 470,000), **Coral City** (90,000:
+  2,600,000) and **Sunspire Capital** (240,000: 13,000,000; the low levels cheaper since 2026-11-17, §4.4), since 2026-11-13 four longer islands past the capital and
   since 2026-11-14 ten more past those, to Everdrift (23,000,000: 2,200,000,000; §4.4), each coming about when the
   island before it is built up (a fifth off every price up to Driftling Haven the same day). (They were paid in shells
   and wood until 2026-11-13, in wood until 2026-11-14; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
@@ -825,6 +832,11 @@ it is. The founder wades through rivers: each step splashes a few drops and make
 > The request (2026-11-14): "also, allow expansion up to level 20, you can make the previous levels of expansion a bit
 > cheaper too. add decor, huts, work buildings, more egg rarities and creatures and other details as required for this"
 
+> The request (2026-11-17): "also, make expansion cheaper at lower levels"
+
+Palm Isle half price again, then Grand Isle to Moonlit Bay less off the higher they are (about 45, 40, 30, 20 and 10%),
+Evergreen Isle and up as they were: the table's prices (the ones before in brackets). §10 has what it does to the pace.
+
 Twenty tiers. The first six are the old ones with lower walls (Harbor Town was 150,000 wood before the ten tiers, Coral
 City 320,000, Sunspire Capital 800,000), and since the twenty tiers every price from Palm Isle to Driftling Haven is a
 fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, the capital 300,000, Driftling Haven
@@ -843,12 +855,12 @@ Moonlit Bay (`WoodTierTop`, 7; `Island.expandCost`), the table's last column: pa
 | Tier | Island | `TierCost` (wood) | Grass (cells) | Pieces | Path and water tiles | Fence lengths | Room for driftlings | Eggs a lot | Shells to grow to it |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | Castaway Cay | (the start) | 489 | 36 | 80 | 40 | 8 | 5 | (the start) |
-| 2 | Palm Isle | 480 (was 600) | 1,044 | 60 | 150 | 80 | 24 | 6 | 2,400 |
-| 3 | Grand Isle | 7,200 (was 9,000) | 1,707 | 90 | 240 | 130 | 40 | 7 | 65,000 |
-| 4 | Harbor Town | 48,000 (was 60,000) | 2,367 | 130 | 340 | 180 | 60 | 8 | 780,000 |
-| 5 | Coral City | 128,000 (was 160,000) | 3,002 | 180 | 460 | 240 | 96 | 9 | 3,700,000 |
-| 6 | Sunspire Capital | 300,000 (was 380,000) | 3,658 | 240 | 600 | 300 | 168 | 10 | 16,000,000 |
-| 7 | Moonlit Bay | 640,000 (was 800,000) | 4,368 | 300 | 750 | 370 | 192 | 10 | 60,000,000 |
+| 2 | Palm Isle | 240 (480 till 2026-11-17, 600 before) | 1,044 | 60 | 150 | 80 | 24 | 6 | 1,200 (was 2,400) |
+| 3 | Grand Isle | 4,000 (7,200, 9,000) | 1,707 | 90 | 240 | 130 | 40 | 7 | 36,000 (65,000) |
+| 4 | Harbor Town | 29,000 (48,000, 60,000) | 2,367 | 130 | 340 | 180 | 60 | 8 | 470,000 (780,000) |
+| 5 | Coral City | 90,000 (128,000, 160,000) | 3,002 | 180 | 460 | 240 | 96 | 9 | 2,600,000 (3,700,000) |
+| 6 | Sunspire Capital | 240,000 (300,000, 380,000) | 3,658 | 240 | 600 | 300 | 168 | 10 | 13,000,000 (16,000,000) |
+| 7 | Moonlit Bay | 580,000 (640,000, 800,000) | 4,368 | 300 | 750 | 370 | 192 | 10 | 55,000,000 (60,000,000) |
 | 8 | Evergreen Isle | 1,280,000 (was 1,600,000) | 5,129 | 370 | 900 | 440 | 216 | 10 | 120,000,000 |
 | 9 | Skyreach Isle | 2,400,000 (was 3,000,000) | 5,977 | 450 | 1,050 | 520 | 240 | 10 | 230,000,000 |
 | 10 | Driftling Haven | 4,000,000 (was 5,000,000) | 6,608 | 540 | 1,200 | 600 | 264 | 10 | 380,000,000 |
@@ -1016,10 +1028,10 @@ On your own island, point at a workplace (a farm, camp or shop) or a hut and a s
 and how many work there of the two it takes ("Workers 1/2") or how many live there of its room ("Living here 2/2"), in
 red when it is empty and green when it is full. A phone has no pointer, so a tap on one shows the same card for three
 seconds. The card waits while a panel is open, in Build mode and while a driftling's name is showing under the pointer.
-Over every workplace nobody works at, and every hut nobody lives in, a little tag floats with an orange "!" badge and
-the word "Empty", bobbing a pixel (hidden while a panel is open). It goes the moment a driftling moves in or starts work
-there. Neighbours' islands
-show neither: it is your own island to run. Benches, lamps and other decor in front of a building never hide it from
+Nothing floats over an empty building any more: the request of 2026-11-17, "remove the empty alert that appears above
+huts and work places" (a little "Empty" tag with an orange "!" badge used to bob over every workplace nobody worked at
+and every hut nobody lived in). The card still says when one is empty, in red. Neighbours' islands show no card: it is
+your own island to run. Benches, lamps and other decor in front of a building never hide it from
 the pointer; the Tree of Life does.
 
 > The request (2026-11-15): "when hovering over a boost building, show how much the total boosts of the certain of
@@ -1028,7 +1040,7 @@ the pointer; the Tree of Life does.
 
 A workplace's card has a second line with what it earns now, a minute ("Earns 120 shells/min": its rate, level,
 workers and the boosts at its knack, times the charm bonus and the passes, so the cards of all the workplaces add up to
-the top bar's rate). A boost building gets a card too (it takes no workers, so never an "Empty" tag): the boost its
+the top bar's rate). A boost building gets a card too (it takes no workers): the boost its
 knack gets from every boost building there together ("Farms +15% from 2 boost buildings"; an "all" one, the
 everything boosts together, "Everything +16% from 2 boost buildings"), and under it what one more of its kind would add
 ("One more adds +2.5%"), or "Boosts top out at 70%" once they reach the cap.
@@ -1112,18 +1124,18 @@ light over the crown and three mossy stones round the trunk, each with its glowi
 the crown, a third ring of light on the ground and a ring of low standing stones with gold caps round the eggs' lawn.
 When the island grows into a new stage, the tree is built again at it.
 
-- **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (600) seconds the tree lays a new lot round its roots,
+- **Its eggs** (`Tree.step`, `Tree.lay`): every `EggSecs` (360) seconds the tree lays a new lot round its roots,
   `EggCount` by the island's tier: 7, 8, 9, 10, 11, then 12 from the capital, 13 from Kelpwood Isle and 14 from
   Starfall Atoll: the counts from before the 10 minute tree (the request of 2026-11-14, "use the same amount of eggs
   each tree refresh had as before"; they had been three times that for a while), then two more on every island (the
   request of 2026-11-14, "increase the amount of eggs produced by the tree by 2 across all expansions"). The ring round
   the roots shows the rarest twelve (fourteen there overlap at the biggest islands); the tree's panel, where they are
-  bought, lists every one. The eggs still there from the last lot go as the new ones come. Ten minutes the whole game through
-  since the request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10 minutes
-  throughout the whole game unless a gamepass is bought"): the huts' tree shares are gone (the Leafy family loads as
-  Lucky, each passive's share became that much egg luck) and only the Quick Tree pass (§14) makes it five
-  (`EggSecsPass`). A lot is about three times what it was when it came every three minutes, so an hour lays about as
-  many eggs as before and the islands keep the pace §10 promises. The world shows the `EggShown` (12) rarest of a lot
+  bought, lists every one. The eggs still there from the last lot go as the new ones come. One time the whole game
+  through since the request of 2026-11-14 ("remove anything that decreases the tree of life refresh, keep it at 10
+  minutes throughout the whole game unless a gamepass is bought"): the huts' tree shares are gone (the Leafy family
+  loads as Lucky, each passive's share became that much egg luck) and only the Quick Tree pass (§14) makes it shorter
+  (`EggSecsPass`). Six minutes, three with the pass, since the request of 2026-11-17 ("make the default time for egg
+  refresh 6 minutes, and 3 minutes with gamepass"); it was ten and five. The world shows the `EggShown` (12) rarest of a lot
   round the roots (`Tree.shown`: the ring's room); the Tree panel lists them all. The clock runs only while you are on the server, and the eggs and the time left are
   saved, so leaving and coming back lays no new lot. A new island, and a save from before the eggs, gets its first lot
   the moment it arrives. On a brand-new island (nothing hatched yet and no driftling) the first lot has two commons in
@@ -1287,7 +1299,7 @@ When the island grows into a new stage, the tree is built again at it.
   rarity's colour with a bell-tree run and sparkles over the card. The card steps aside in Build mode and while the
   Tree panel is open.
 - **The Tree panel** (Open on the card, a tap on the tree, Eggs in the Driftlings panel, a quest's Go): on the left
-  "New eggs every 10:00" (5:00 with the Quick Tree pass), "Next in 9:41" over a bar, "7 eggs a lot. In huts 6/8"
+  "New eggs every 6:00" (3:00 with the Quick Tree pass), "Next in 5:41" over a bar, "7 eggs a lot. In huts 6/8"
   (orange when full), the odds of each rarity now under "What it lays now" ("<0.1%" under a tenth of a percent, "not
   yet" for a rarity none of the open kinds has), then, short of the last island, "Expand your island to increase the quality and amount of eggs per batch."
   (one line in green since 2026-11-14, in place of "A bigger island lays more eggs, and better ones." and "Now and
@@ -1855,7 +1867,10 @@ text (the requests and how each was met) is in the history of this file, up to c
   every island is a ring of mossy stones round glowing embers and crossed logs, a kettle on a stone and a
   marshmallow on a stick; its three seats are log benches with a blanket, a cushion and mugs on them, with a firewood
   stack, a chopping stump and its axe, a bucket and a stool on a woven mat round about; the flag stands on a little
-  cairn and the torches are bound with straw.
+  cairn and the torches are bound with straw. The flag is thin cloth hung from just under the pole's gold knob, red
+  with a white band, in four panels turned a little each way so its folds catch the light, the free end a touch lower
+  (the request of 2026-11-17: "make the flag look like an actual flag"; it was a thick red slab with a white cube
+  through it).
 - **Every building reworked** (the request of 2026-11-15: "could you rework and detail every building even more?
   look at the bakery game for reference"). Like the bakery's shops, each of the 50 is a small scene now, two to four
   times the parts it had, its silhouette and colours its own: the patch has a scarecrow with a bluebird on its hat
@@ -2059,7 +2074,7 @@ wood) has its wood added to its shells, one for one, and the wood goes (the requ
 wood as a currency"); a wood that isn't a number, or below nothing, adds nothing. An Angler mutation it holds loads as
 the Green Thumb of its tier (§6). The save holds the tree's eggs (`clutch`: each egg's id and rarity, and the seconds
 to the next lot), checked on every load: rarities 1 to 5, ids unique, no more eggs than the island lays, the clock
-between nothing and ten minutes. Its pieces are checked on every load too: each count against its own limit (the
+between nothing and a lot's time (`EggSecs`). Its pieces are checked on every load too: each count against its own limit (the
 pieces, the path and water tiles together, the fence lengths, one Tree of Life), their places between -240 and 64 studs
 (the far islands reach that far north), a fence starting on an even corner and running east or south (any other is
 dropped), and a path or water tile off the even studs cleared with its whole price back. A version 13 save (before the
@@ -2107,17 +2122,17 @@ expand as soon as they can (the extra eggs laid at once). Its random numbers are
 seeds a session (a small seed's first draws are weak). `tests/specs/Economy.spec.luau` holds the economy to these
 bounds (in brackets what the three seeds measure):
 
-- a driftling at work within 3 minutes (20 seconds), a rare one hatched by the third lot, 21 minutes (11 to 20; it was
-  within 20, the second lot, until the two more eggs a lot of 2026-11-14 shuffled the rolls and one seed's second lot
-  held no rare egg: its first came from the third, at 20 minutes 5 seconds);
-- a steady supply: at least 12 hatched by half an hour (18 to 33), an epic within two hours (15 to 30 minutes); a
-  legendary comes at 40 to 50 minutes (no bound);
+- a driftling at work within 3 minutes (20 seconds), a rare one hatched by the third lot, 13 minutes with a lot every
+  six (7 to 12; with the ten minute tree it was 11 to 20);
+- a steady supply: at least 12 hatched by half an hour (32 to 41), an epic within two hours (13 to 24 minutes); a
+  legendary comes at 18 to 30 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  ten-thousandth: 240 to 370 shells of 6.8 to 13.6 million);
-- the island's second tier within 25 minutes (8 to 9), the third within 50 (29 to 38); at an hour, at least 12
-  driftlings in huts (30 to 40); Harbor Town (tier 4) not before 50 minutes (72 to 92), Coral City (tier 5) not before
-  90 (2 hours 12 to 2 hours 44), Sunspire Capital (tier 6) not before two hours (3 hours 43 to 4 hours 35), and nothing
-  past it within three hours;
+  ten-thousandth: 581 to 827 shells of 12.7 to 33 million);
+- the island's second tier within 25 minutes (5 to 6), the third within 50 (21 to 29); at an hour, at least 12
+  driftlings in huts (32 to 52); Harbor Town (tier 4) not before 40 minutes (48 to 75), Coral City (tier 5) not before
+  80 (1 hour 34 to 2 hours 5), Sunspire Capital (tier 6) not before two hours (2 hours 32 to 3 hours 26), and nothing
+  past it within three hours (one seed reaches Moonlit Bay at 4 hours 13). The town's and the city's floors were 50 and
+  90 minutes until the two requests of 2026-11-17 below;
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
   food.
 
@@ -2127,7 +2142,15 @@ islands sat on a Grand Isle for most of the second and third hours. The ten tier
 city tiers with it, so every seed has the town in the second hour and one reaches Coral City in the third. Letting any
 driftling work anywhere (2026-11-13) changed little: a driftling with no room at its knack now works somewhere else
 instead of resting, and the Career still builds for its knack and moves it there once that stands, so Harbor Town came
-about ten minutes later than before and Coral City half an hour later.
+about ten minutes later than before and Coral City half an hour later. The six minute tree (2026-11-17) brought the
+islands on sooner: the same three seeds with the ten minute tree and today's rules had Harbor Town at 83 to 110 minutes,
+Coral City at 2 hours 26 to 3 hours 22 and the capital at 4 hours (one seed) to past five; with a lot every six minutes
+two of the three seeds reach each of them 15 to 95 minutes sooner, the third about as before (its rolls held it at
+Grand Isle for an hour and a half). The same day the low levels got cheaper ("also, make expansion cheaper at lower
+levels", §4.4): Palm Isle 1,200 shells (2,400 before), Grand Isle 36,000 (65,000), Harbor Town 470,000 (780,000),
+Coral City 2,600,000 (3,700,000), Sunspire Capital 13,000,000 (16,000,000), Moonlit Bay 55,000,000 (60,000,000), the
+rest as they were. With both, every seed has Palm Isle at 5 or 6 minutes, Grand Isle by half an hour and the town
+within an hour and a quarter, and the slow seed no longer waits an hour and a half on Grand Isle.
 
 Going back to the old lots on the 10 minute tree (2026-11-14: "use the same amount of eggs each tree refresh had as
 before") slowed the middle of the game: about a third as many eggs an hour as with lots three times the size, so
@@ -2449,7 +2472,7 @@ at once):
 |---|---|---|
 | VIP | 399 | +25% shells (`VipIncome`), a welcome gift once (three hours of shells, two epic eggs, a legendary and a mythic egg, the six VIP pieces and the VIP title) and every UTC day a gift (20 minutes of shells and a rare egg) |
 | Double Income | 299 | every shell x2 (`DoubleIncome`; with VIP x2 x1.25) |
-| Quick Tree | 199 | the Tree of Life lays every 5 minutes (`EggSecsPass`) |
+| Quick Tree | 199 | the Tree of Life lays every 3 minutes, not 6 (`EggSecsPass`; 5 and 10 before 2026-11-17) |
 | Free Decor | 249 | decor, paths, water and fences cost nothing (`Plot.price`); while it is owned they sell back for nothing too, so no free piece turns into shells |
 | Premium Track | 349 | the pass track's premium side, this season and every one after |
 | Offline Pass | 199 | the island earns for up to 24 hours while its player is away, at its full pace (§14.3) |
@@ -2606,7 +2629,7 @@ what earns it ("Grow your island to level 7.", "Have a mythic driftling.", "Come
 **The bag in the Tree panel.** Over the eggs under the tree, "Your eggs: 2" and a row each, the rarest first, "Free to
 hatch" with Hatch. A bag egg hatches in the same hatch scene as the tree's; with every hut full the swap picker opens
 for it the same way ("Swap one out for the epic egg from your bag"). The panel's heading counts the lot ("16 eggs") and
-says how often it lays ("New eggs every 10:00", 5:00 with Quick Tree). Under the eggs under the tree, "Buy an egg" and
+says how often it lays ("New eggs every 6:00", 3:00 with Quick Tree). Under the eggs under the tree, "Buy an egg" and
 a row an egg from Uncommon to Celestial with its Robux, the same products as the Store's Eggs tab, each going into the
 bag at the top of the list (the request of 2026-11-14: "make it possible to purchase eggs in the tree of life menu below
 the eggs under the tree tab").
