@@ -270,7 +270,9 @@ local Tuning = {
 	GrowSecs = 1.9, -- seconds the coast takes to move out from the old shore to the new one (eased out)
 	GrowArmSecs = 3, -- seconds an armed growth waits for the bigger island's bake to begin before it lapses
 	PixelDisplayOrder = -100,
-	PixelMaxDyn = 80, -- dynamic models drawn a tick at most (an island's driftlings and founders)
+	PixelMaxDyn = 80, -- dynamic models drawn afresh a tick at most (an island's driftlings and founders; the rest show their kept pictures)
+	PixelDynMs = 8, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short)
+	PixelIncCompose = 1, -- 1: a compose redoes only the tiles where something changed and a pan shifts the finished frame (PixelRenderer's incremental compose); 0: every pan composes whole
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }
 

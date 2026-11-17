@@ -1924,7 +1924,16 @@ text (the requests and how each was met) is in the history of this file, up to c
   remembered by the pixel filter and comes back without being drawn again, the driftlings and eggs move at their own
   steady rate while the view slides, and the sea's and the leaves' little animations are worked out a few rows a
   frame instead of all at once six times a second. While you walk the leaves hold still; they rustle again once you
-  stop (before, their rustle flickered on for one frame in ten of a walk).
+  stop (before, their rustle flickered on for one frame in ten of a walk). A full island has to walk as smoothly as
+  a new one (the request of 2026-11-17: "As the game requires you to walk around in bigger islands and bigger islands
+  will have more buildings, do a stress test with the maximum amount of decor and buildings at the highest expansion
+  level. Try walking around to move the camera. It should be smooth. If not, find ways to optimize it"). The picture
+  is kept from frame to frame: walking slides it along and only the strip coming into view is drawn, and each frame
+  redraws only the patches where something moved. A driftling, egg, flame or turning sail far from the screen has
+  no model at all until it comes near, and in a big crowd the moving things each change a little less often rather
+  than the frame taking longer. No driftling ever blinks out in a crowd: each keeps its last picture until its turn
+  to be drawn again comes round. Campfire smoke and the lights round a rare egg move ten or twelve times a second,
+  like hand-drawn sprites.
 - Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
   and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
   beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole

@@ -768,8 +768,15 @@ end
 -- shading) every other pixel of the rect is reset to its base colour, so re-outlining a region also removes ink
 -- that no longer belongs there. Each neighbouring pair is compared once (a row pass, then a column pass): of two
 -- pixels with different ids, the nearer one is inked when the other lies more than the step behind it.
-function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: number, base: buffer?, depthTol: number?)
+-- dynFrom: ink only the pairs with a pixel whose id is at least this (the moving models over a static picture whose own
+-- ink is baked in: a pair of static pixels keeps what the bake gave it, which a pass over it may not, the bake's shadow
+-- edges and contact shade having been laid after its ink).
+function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: number, base: buffer?, depthTol: number?, dynFrom: number?)
 	local W, H = f.W, f.H
+	if dynFrom then
+		Shading.outlineDyn(f, x0, y0, x1, y1, depthTol, dynFrom)
+		return
+	end
 	if x0 < 0 then
 		x0 = 0
 	end
@@ -880,6 +887,56 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 				local a = row + x
 				local idA, idD = buffer.readu16(ids, a * 2), buffer.readu16(ids, (a + W) * 2)
 				if idD ~= idA and buffer.readf32(depth, a * 4) > buffer.readf32(depth, (a + W) * 4) + tol then
+					buffer.writeu32(color, (a + W) * 4, ink)
+				end
+			end
+		end
+	end
+end
+
+-- Shading.outline over a rect inking only the pairs with a pixel whose id is at least dynFrom (Shading.outline's dynFrom):
+-- the same pairs, each looked at once, the same ink where it is laid.
+function Shading.outlineDyn(f: FrameLike, x0: number, y0: number, x1: number, y1: number, depthTol: number?, dynFrom: number)
+	local W, H = f.W, f.H
+	x0, y0 = math.max(0, x0), math.max(0, y0)
+	x1, y1 = math.min(W - 1, x1), math.min(H - 1, y1)
+	if x0 > x1 or y0 > y1 then
+		return
+	end
+	local color, depth, ids = f.color, f.depth, f.id
+	local ink = packRGB(INK)
+	local tol = depthTol or OUTLINE_DEPTH
+	-- the row pairs (x, x + 1) that touch the rect: x in x0 - 1 .. x1, on its rows
+	local ha, hb = math.max(x0 - 1, 0), math.min(x1, W - 2)
+	for y = y0, y1 do
+		local row = y * W
+		local idA = buffer.readu16(ids, (row + ha) * 2)
+		for x = ha, hb do
+			local a = row + x
+			local idB = buffer.readu16(ids, (a + 1) * 2)
+			if idB ~= idA and (idA >= dynFrom or idB >= dynFrom) then
+				local da, db = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + 1) * 4)
+				if db > da + tol and x >= x0 then
+					buffer.writeu32(color, a * 4, ink)
+				elseif da > db + tol and x < x1 then
+					buffer.writeu32(color, (a + 1) * 4, ink)
+				end
+			end
+			idA = idB
+		end
+	end
+	-- the column pairs (y, y + 1) that touch the rect: y in y0 - 1 .. y1, on its columns
+	local va, vb = math.max(y0 - 1, 0), math.min(y1, H - 2)
+	for y = va, vb do
+		local row = y * W
+		for x = x0, x1 do
+			local a = row + x
+			local idA, idD = buffer.readu16(ids, a * 2), buffer.readu16(ids, (a + W) * 2)
+			if idD ~= idA and (idA >= dynFrom or idD >= dynFrom) then
+				local da, dd = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + W) * 4)
+				if dd > da + tol and y >= y0 then
+					buffer.writeu32(color, a * 4, ink)
+				elseif da > dd + tol and y < y1 then
 					buffer.writeu32(color, (a + W) * 4, ink)
 				end
 			end

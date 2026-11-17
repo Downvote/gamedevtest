@@ -142,10 +142,12 @@ local function step(t: number)
 	if quiet() then
 		return
 	end
-	local cx = CameraController.centerWorld().X
 	for _, s in spins do
-		-- (only those near the view move: the rest keep their last turn)
-		if math.abs(s.hub.Position.X - cx) > NEAR then
+		-- (only those on or near the screen move: the rest keep their last turn. It was the same east-west band of the
+		-- view, so on a long island every windmill from one end to the other turned and was drawn each frame: the
+		-- request of 2026-11-17, "do a stress test with the maximum amount of decor and buildings at the highest
+		-- expansion level")
+		if not PixelRenderer.nearScreen(s.hub.Position, 24) then
 			continue
 		end
 		local turn = s.hub * CFrame.Angles(0, 0, s.phase + t * s.speed)

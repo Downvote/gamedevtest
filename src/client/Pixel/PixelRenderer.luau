@@ -140,8 +140,33 @@ type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: 
 -- A moving model's picture last time it was drawn (DynCache in the compose section): its pixels that won against the
 -- static picture (dx, dy from the global art px (gx, gy), colour, depth, id: PX_BYTES each), its parts as they stood
 -- then, the static picture's epoch (SG.ver) and the scale. cache false: never kept (its ids wrap round).
-type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number }
-type Dyn = { model: Model, parts: { DynPart }, rim: boolean?, own: boolean?, smooth: boolean?, lo: number, hi: number, cache: DynCache? }
+-- shp: where the model's blob shadow is cast from as it was drawn (its PrimaryPart's position; nil: it cast none), so
+-- the shadow shown with a kept picture is the picture's, not the live model's.
+type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number, shp: Vector3? }
+-- (what it shows since the last compose, for the incremental compose: shC the kept picture put down, nil when it was
+-- drawn and not kept; shR its rect a pixel round, in global art px; sx, sy, srx, sry its blob shadow's centre (global
+-- art px) and radii, sR the shadow's rect (global); sChg, sIn whether this compose draws the shadow because it changed
+-- or because a changed tile meets it)
+type Dyn = {
+	model: Model,
+	parts: { DynPart },
+	rim: boolean?,
+	own: boolean?,
+	smooth: boolean?,
+	lo: number,
+	hi: number,
+	cache: DynCache?,
+	drawnAt: number?,
+	shC: DynCache?,
+	shR: Rect?,
+	sx: number?,
+	sy: number?,
+	srx: number?,
+	sry: number?,
+	sR: Rect?,
+	sChg: boolean?,
+	sIn: boolean?,
+}
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
 ------------------------------------------------------------------ state
@@ -168,7 +193,7 @@ local bakeGX, bakeGY = 0, 0
 local bakeRX0, bakeRY0, bakeRX1, bakeRY1 = 0, 0, -1, -1
 local bakeOX, bakeOY = 0, 0
 local bakeRays = 0
-local rebakeAt = -1 -- os.clock() when a pending re-bake starts (debounce)
+local rebakeAt = -1 -- SG.clock() when a pending re-bake starts (debounce)
 local rush = false -- a big change's re-bake: more ms a frame (the player is waiting to see it)
 -- A re-bake while a finished picture is on screen writes into these (fresh buffers and id tables) instead, so the
 -- picture keeps living meanwhile (the crew, driftlings, water and wind go on drawing over it at its camera); the
@@ -211,7 +236,7 @@ local stats = {
 	scrolls = 0,
 	scrollRays = 0,
 	recasts = 0,
-	perf = { frames = 0, panFrames = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0 },
+	perf = { frames = 0, panFrames = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
 }
 local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
 -- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
@@ -312,7 +337,8 @@ end
 local SG = {
 	-- (the pan cache, Pixel/PanCache: a pan's strips that were on screen before are copied back, not cast again)
 	Tiles = require(script.Parent.PanCache),
-	panAt = -1, -- os.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
+	panAt = -1, -- SG.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
+	need = {} :: { Dyn }, -- (a compose's models to draw afresh, in their order)
 	-- (the water's tone tables, and whether its next frame shades every water pixel: SG.waterSlice)
 	waterWas = table.create(7 * 256, 0) :: { number },
 	waterNow = table.create(7 * 256, 0) :: { number },
@@ -366,8 +392,45 @@ local SG = {
 	draws = 0,
 	seq = 0, -- (bumped by every compose and every rect upload: debugGradeCheck)
 	fullAt = -1, -- (seq when the whole image last went up graded)
-	scratch = nil :: Raster.Frame?,
+	-- (the clock the frame's budgets and the timings read: os.clock; a preview walking the world at a fixed 60 frames a
+	-- second hands its real clock in: PixelRenderer.debugClock)
+	clock = os.clock,
+	iso = nil :: Raster.Frame?,
+	ISO_M = 96,
+	isoCam = nil :: Raster.Cam?,
+	isoOf = nil :: Raster.Cam?,
+	farRow = nil :: buffer?,
 	none = buffer.create(0),
+	-- (the incremental compose: the layer's tiles to draw again, TILE art px square, a byte each, and their columns and
+	-- rows; global art px rects to draw again at the next compose; the frame as it stood before the effects, and the
+	-- layer it belongs to; whether this frame composes because the water or the wind changed what shows, whether a pan
+	-- shifted the frame, whether the whole image goes up; a debug check's draws without a budget, the models drawn
+	-- past the rect worked out for them (none, unless a part reaches past its box), the check armed and its last
+	-- result; a compose's changed models, unchanged ones, blob shadows and kept pictures to put down)
+	TILE = 4,
+	bits = buffer.create(0),
+	tcols = 0,
+	trows = 0,
+	dirty = {} :: { Rect },
+	base = nil :: { color: buffer, id: buffer }?,
+	incOn = nil :: Surf?,
+	touch = false,
+	panned = false,
+	upWhole = false,
+	noBudget = false,
+	incArm = false,
+	incResult = { off = -1, checked = 0, px = 0 },
+	snap = false,
+	markBy = {} :: { [string]: number }, -- (tiles each source marked, since the last debugPerf)
+	skips = 0, -- (models left out of a compose: past the tick's budget with no kept picture; since the last debugPerf)
+	skipWhy = {} :: { [string]: number },
+	sweep = 0,
+	strips = {} :: { Rect }, -- (layer rects a pan brought in this frame: SG.panShift)
+	snapped = nil :: { color: buffer, id: buffer, depth: buffer }?,
+	still = {} :: { Dyn },
+	shad = {} :: { Dyn },
+	live = (nil :: any) :: (s: Surf) -> boolean,
+	sync = (nil :: any) :: (s: Surf, i: number, old: number, new: number) -> (),
 	px = (nil :: any) :: (s: Surf, i: number) -> (),
 	rect = (nil :: any) :: (s: Surf, x0: number, y0: number, x1: number, y1: number) -> (),
 }
@@ -381,10 +444,15 @@ local function windRestore(s: Surf): boolean
 	local color = s.sColor
 	local any = false
 	if windOn == s then
+		local inc = not needFull and SG.live(s)
 		for i, c in windSaved do
-			if buffer.readu32(color, i * 4) == windWrote[i] then
+			local w = windWrote[i]
+			if buffer.readu32(color, i * 4) == w then
 				buffer.writeu32(color, i * 4, c)
 				SG.px(s, i)
+				if inc then
+					SG.sync(s, i, w, c)
+				end
 				any = true
 			end
 		end
@@ -1086,7 +1154,7 @@ local function uploadAll(s: Surf, over: { Rect }?, sticks: boolean?, fxb: buffer
 	if im == nil then
 		return
 	end
-	local u0 = os.clock()
+	local u0 = SG.clock()
 	local f = s.frame
 	local src = f.color
 	if grade or dim > 0 then
@@ -1100,7 +1168,7 @@ local function uploadAll(s: Surf, over: { Rect }?, sticks: boolean?, fxb: buffer
 			b = buffer.create(n * 4)
 			SG.out = b
 		end
-		local g0 = os.clock()
+		local g0 = SG.clock()
 		local sg = SG.buf
 		if not SG.ok or SG.on ~= s or sg == nil or buffer.len(sg) ~= n * 4 then
 			if sg == nil or buffer.len(sg) ~= n * 4 then
@@ -1114,12 +1182,27 @@ local function uploadAll(s: Surf, over: { Rect }?, sticks: boolean?, fxb: buffer
 		buffer.copy(b :: buffer, 0, sg :: buffer, 0, n * 4)
 		local W, H = s.W, s.H
 		local list: { Rect } = over or {}
+		-- (in each rect only the pixels the frame has other than the static picture's: the rest are graded in SG.buf,
+		-- copied above; a crowd's rects are mostly ground, and grading it all again was a fifth of a frame)
+		local fc, fi, sc, si = f.color, f.id, s.sColor, s.sId
 		for _, r in list do
 			local x0, y0, x1, y1 = math.max(0, r.x0), math.max(0, r.y0), math.min(W - 1, r.x1), math.min(H - 1, r.y1)
 			if x0 <= x1 then
 				for y = y0, y1 do
-					local i = y * W + x0
-					gradeSpan(f.color, f.id, i, x1 - x0 + 1, b :: buffer, i)
+					local row = y * W
+					local run = -1
+					for x = x0, x1 + 1 do
+						local i = row + x
+						local differs = x <= x1 and (buffer.readu32(fc, i * 4) ~= buffer.readu32(sc, i * 4) or buffer.readu16(fi, i * 2) ~= buffer.readu16(si, i * 2))
+						if differs then
+							if run < 0 then
+								run = i
+							end
+						elseif run >= 0 then
+							gradeSpan(fc, fi, run, i - run, b :: buffer, run)
+							run = -1
+						end
+					end
 				end
 			end
 		end
@@ -1139,7 +1222,7 @@ local function uploadAll(s: Surf, over: { Rect }?, sticks: boolean?, fxb: buffer
 				end
 			end
 		end
-		stats.perf.gradeMs += (os.clock() - g0) * 1000
+		stats.perf.gradeMs += (SG.clock() - g0) * 1000
 		SG.fullAt = SG.seq
 		src = b :: buffer
 	end
@@ -1147,7 +1230,7 @@ local function uploadAll(s: Surf, over: { Rect }?, sticks: boolean?, fxb: buffer
 		im:WritePixelsBuffer(Vector2.zero, Vector2.new(s.W, s.H), src)
 	end)
 	stats.perf.uploads += 1
-	stats.perf.uploadMs += (os.clock() - u0) * 1000
+	stats.perf.uploadMs += (SG.clock() - u0) * 1000
 end
 
 local function uploadRect(s: Surf, r: Rect)
@@ -1420,7 +1503,7 @@ local function bakeRun(s: Surf, b: Surf, deadline: number): boolean
 		local st = steps[bakePass]
 		while bakeGY <= bakeRY1 do
 			while bakeGX <= bakeRX1 do
-				if os.clock() > deadline then
+				if SG.clock() > deadline then
 					return false
 				end
 				local bx, by = bakeGX, bakeGY
@@ -1868,20 +1951,35 @@ do
 	end
 end
 
--- A blob shadow under a dynamic model; returns its rect on the layer (nil when none shows).
-local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
+-- A blob shadow's ellipse on layer s, under a dynamic model: its centre and radii in layer px, or nil when it casts
+-- none now. The centre lies on a 1/64 px grid of the world's art grid and the radii on 1/64 px, so a pan leaves the
+-- ellipse as it was and an incremental compose that draws it again draws the very pixels a whole compose does.
+-- held: the kept picture the model shows (its shadow is cast from where the model stood when it was drawn).
+function SG.shadowGeo(s: Surf, model: Model, first: BasePart, held: DynCache?): (number?, number, number, number)
 	local radius = model:GetAttribute("PixelShadow")
 	if type(radius) ~= "number" or radius <= 0 then
-		return nil
+		return nil, 0, 0, 0
 	end
 	local g = model:GetAttribute("PixelGroundY")
 	local ground = if type(g) == "number" then g else 0
-	local pp = model.PrimaryPart or first
-	local p = pp.Position
-	-- a model out of sight casts none: hidden (see-through) or parked below its ground (a thing put away),
-	-- which would else leave a blob on the floor where nothing stands
-	if pp.Transparency >= 0.95 or p.Y < ground - 1 then
-		return nil
+	local p: Vector3
+	if held then
+		local at = held.shp
+		if at == nil then
+			return nil, 0, 0, 0
+		end
+		p = at
+	else
+		local pp = model.PrimaryPart or first
+		-- a model out of sight casts none: hidden (see-through) or parked below its ground (a thing put away),
+		-- which would else leave a blob on the floor where nothing stands
+		if pp.Transparency >= 0.95 then
+			return nil, 0, 0, 0
+		end
+		p = pp.Position
+	end
+	if p.Y < ground - 1 then
+		return nil, 0, 0, 0
 	end
 	local h = math.max(0, p.Y - ground)
 	local r = radius * math.clamp(1 - h / 26, 0.45, 1)
@@ -1889,20 +1987,48 @@ local function drawShadow(s: Surf, model: Model, first: BasePart): Rect?
 	local cx, cy = Raster.project(cam, p.X, ground, p.Z)
 	local ex = Raster.project(cam, p.X + GROUND_R.X * r, ground, p.Z + GROUND_R.Z * r)
 	local _, ey = Raster.project(cam, p.X + GROUND_D.X * r, ground, p.Z + GROUND_D.Z * r)
-	local rx, ry = math.abs(ex - cx), math.abs(ey - cy)
+	local rx, ry = math.floor(math.abs(ex - cx) * 64 + 0.5) / 64, math.floor(math.abs(ey - cy) * 64 + 0.5) / 64
 	if rx < 0.5 or ry < 0.5 then
-		return nil
+		return nil, 0, 0, 0
+	end
+	local gx, gy = cam.gx, cam.gy
+	return math.floor((cx + gx) * 64 + 0.5) / 64 - gx, math.floor((cy + gy) * 64 + 0.5) / 64 - gy, rx, ry
+end
+
+-- The layer rect a blob shadow of centre (cx, cy) and radii (rx, ry) can darken, a pixel round it.
+function SG.shadowRect(cx: number, cy: number, rx: number, ry: number): (number, number, number, number)
+	return math.floor(cx - rx) - 1, math.floor(cy - ry) - 1, math.ceil(cx + rx) + 1, math.ceil(cy + ry) + 1
+end
+
+-- A blob shadow under a dynamic model; returns its rect on the layer (nil when none shows). The ellipse may be given
+-- (SG.shadowGeo's), else it is worked out.
+local function drawShadow(s: Surf, model: Model, first: BasePart, gcx: number?, gcy: number?, grx: number?, gry: number?, clip: boolean?): Rect?
+	local cx, cy, rx, ry
+	if gcx and gcy and grx and gry then
+		cx, cy, rx, ry = gcx, gcy, grx, gry
+	else
+		local ax, ay, arx, ary = SG.shadowGeo(s, model, first)
+		if ax == nil then
+			return nil
+		end
+		cx, cy, rx, ry = ax, ay, arx, ary
 	end
 	local W, H = s.W, s.H
 	local f = s.frame
 	local y0, y1 = math.max(0, math.floor(cy - ry)), math.min(H - 1, math.ceil(cy + ry))
 	local any = false
+	-- (clip: only in the incremental compose's marked tiles, where the frame was put back to the static picture)
+	local T, bits, cols = SG.TILE, SG.bits, SG.tcols
 	for y = y0, y1 do
 		local dy = (y + 0.5 - cy) / ry
 		if math.abs(dy) < 1 then
 			local half = rx * math.sqrt(1 - dy * dy)
 			local x0, x1 = math.max(0, math.floor(cx - half + 0.5)), math.min(W - 1, math.floor(cx + half + 0.5) - 1)
+			local trow = (y // T) * cols
 			for x = x0, x1 do
+				if clip and buffer.readu8(bits, trow + x // T) == 0 then
+					continue
+				end
 				local idx = y * W + x
 				local id = buffer.readu16(f.id, idx * 2)
 				-- the static picture only, never its ink lines or the sky
@@ -2087,11 +2213,13 @@ function SG.waterApply(s: Surf): boolean
 	end
 	local wg = SG.waterGrade
 	local changed = false
+	local inc = not needFull and SG.live(s)
 	for k = 1, SG.waterPendN, 4 do
 		local x, y = pend[k] - gx0, pend[k + 1] - gy0
 		if x >= 0 and y >= 0 and x < W and y < H then
 			local i = y * W + x
-			if buffer.readu32(color, i * 4) == pend[k + 2] then
+			local was = pend[k + 2]
+			if buffer.readu32(color, i * 4) == was then
 				local nc = pend[k + 3]
 				buffer.writeu32(color, i * 4, nc)
 				changed = true
@@ -2106,6 +2234,10 @@ function SG.waterApply(s: Surf): boolean
 					end
 				elseif gOn then
 					SG.px(s, i)
+				end
+				if inc then
+					-- (composing incrementally: the frame takes it now, SG.sync)
+					SG.sync(s, i, was, nc)
 				end
 			end
 		end
@@ -2275,13 +2407,18 @@ end
 function SG.windApply(s: Surf): boolean
 	local any = windRestore(s)
 	local color = s.sColor
+	local inc = not needFull and SG.live(s)
 	for i, c in SG.windPend do
 		windOn = s
+		local was = buffer.readu32(color, i * 4)
 		if windSaved[i] == nil then
-			windSaved[i] = buffer.readu32(color, i * 4)
+			windSaved[i] = was
 		end
 		buffer.writeu32(color, i * 4, c)
 		SG.px(s, i)
+		if inc then
+			SG.sync(s, i, was, c)
+		end
 		windWrote[i] = c
 		any = true
 	end
@@ -2349,14 +2486,13 @@ local function stickAt(i: number, c: number)
 	if s == nil or sc == nil or i * 4 >= buffer.len(sc) then
 		return
 	end
-	if buffer.readu32(sc, i * 4) == 0 then
+	local old = buffer.readu32(sc, i * 4)
+	if old == 0 then
 		table.insert(stickList, i)
 		stickLive += 1
 	end
 	buffer.writeu32(sc, i * 4, c)
-	if buffer.readu16(s.frame.id, i * 2) == buffer.readu16(s.sId, i * 2) then
-		buffer.writeu32(s.frame.color, i * 4, c)
-	end
+	SG.stickPut(s, i, old, c)
 	table.insert(stickDirty, i)
 end
 
@@ -2366,11 +2502,10 @@ local function unstickAt(i: number)
 	if s == nil or sc == nil or i * 4 >= buffer.len(sc) or buffer.readu32(sc, i * 4) == 0 then
 		return
 	end
+	local old = buffer.readu32(sc, i * 4)
 	buffer.writeu32(sc, i * 4, 0)
 	stickLive -= 1
-	if buffer.readu16(s.frame.id, i * 2) == buffer.readu16(s.sId, i * 2) then
-		buffer.writeu32(s.frame.color, i * 4, buffer.readu32(s.sColor, i * 4))
-	end
+	SG.stickPut(s, i, old, buffer.readu32(s.sColor, i * 4))
 	table.insert(stickDirty, i)
 	-- (the list keeps unstuck pixels until it is twice what is stuck: then it is rebuilt)
 	if #stickList > stickLive * 2 + 512 then
@@ -2422,7 +2557,7 @@ local function runFx(s: Surf, now: number): { Rect }
 	c.now = now
 	c.px, c.cap = fxCur, buffer.len(fxCur) // 4
 	Fx.reset(c)
-	local t0 = os.clock()
+	local t0 = SG.clock()
 	for i = #fxLayers, 1, -1 do
 		local L = fxLayers[i]
 		c.dt = math.clamp(now - L.last, 0, 0.25)
@@ -2439,7 +2574,7 @@ local function runFx(s: Surf, now: number): { Rect }
 			SG.ver += 1
 		end
 	end
-	local t1 = os.clock()
+	local t1 = SG.clock()
 	-- what changed: this tick's pixels against what the image shows, and the pixels the effects left
 	local shown, tiles = fxShown :: buffer, fxTiles :: buffer
 	local color = s.frame.color
@@ -2530,7 +2665,7 @@ local function runFx(s: Surf, now: number): { Rect }
 		up += (math.min(r.x1, W - 1) - r.x0 + 1) * (math.min(r.y1, H - 1) - r.y0 + 1)
 	end
 	fxStats.ms = (t1 - t0) * 1000
-	fxStats.bookMs = (os.clock() - t1) * 1000
+	fxStats.bookMs = (SG.clock() - t1) * 1000
 	fxStats.px = n
 	fxStats.changed = changed
 	fxStats.rects = #out
@@ -2595,7 +2730,7 @@ end
 
 -- Every founder drawn this tick gets its rim (at most Rims.max: the own one first, then the nearest to (cx, cy)).
 function Rims.drawAll(s: Surf, cx: number, cy: number)
-	local t0 = os.clock()
+	local t0 = SG.clock()
 	local list, rects = Rims.list, Rims.rects
 	local nr = #list
 	if nr > Rims.max then
@@ -2618,7 +2753,7 @@ function Rims.drawAll(s: Surf, cx: number, cy: number)
 		px += Rims.draw(s, list[i], rects[i])
 	end
 	local st = Rims.stats
-	st.drawn, st.px, st.ms = nr, px, (os.clock() - t0) * 1000
+	st.drawn, st.px, st.ms = nr, px, (SG.clock() - t0) * 1000
 	table.clear(list)
 	table.clear(rects)
 end
@@ -2648,135 +2783,335 @@ function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?
 	return true
 end
 
--- After model d was drawn afresh over layer rect (x0, y0)-(x1, y1): when it has stood still since its last draw, keep
--- its picture (one that moves every tick never pays for this). While the view pans, a model that moves is kept too
--- (not a founder, which is drawn every frame): the frames between two of its ticks show it from there, as they do
--- when the view stands (it changes at the tier's hz either way; without it a walk drew every driftling 60 times a
--- second, the request of 2026-11-16: "is there any way to optimize the camera movement? it is still very laggy when
--- moving around"). The picture is its pixels against the static picture alone: taken from the frame when no other
--- moving model drew into the rect, otherwise drawn again into a scratch frame holding the static depths (a model in
--- front would leave holes in it; one that moves is not drawn twice for that, it waits for a clear tick). The rect must
--- lie wholly on the layer.
-function SG.keep(s: Surf, d: Dyn, x0: number, y0: number, x1: number, y1: number, ppu: number, texOn: boolean)
-	local c = d.cache
-	local same = c ~= nil and SG.same(d, c.cfs, c.szs, c.gone)
-	local moving = not same and not d.own and not d.rim and os.clock() - SG.panAt < 0.3
-	local still = same or moving
+-- Model d drawn afresh. It goes into a scratch frame of its own (SG.isoFor: far and empty), so its picture is the whole
+-- model whatever else stands on the layer; the picture is kept (Dyn.cache) and put down on the frame depth tested, as a
+-- draw straight onto it would be. A kept picture stands for the model on a later tick while it has not moved, or past
+-- the tick's budget wherever it last stood. Before (the stress test of 2026-11-17, "do a stress test with the maximum
+-- amount of decor and buildings at the highest expansion level"), a model that moved every tick was kept only while the
+-- view panned and only with no other model in its rect, so in a crowd past the budget about 48 models a frame had no
+-- picture at all and were left out. A model partly off the layer is put down from the scratch and not kept. The
+-- scratch is wiped where it drew. Returns the layer rect its parts cover (x0 > x1: none).
+function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, number, number, number, number)
+	local iso, icam = SG.isoFor(s)
+	local M = SG.ISO_M
+	-- (drawn at the scratch's camera: a window M px larger all round, so a model standing past the layer's edge is
+	-- drawn whole; the shades read their pixel's global art px and world point from it)
+	local px0, py0, tc0 = panX, panY, texCam
+	panX, panY, texCam = icam.gx, icam.gy, icam
+	local ix0, iy0, ix1, iy1 = SG.drawModel(iso, d, icam, texOn)
+	panX, panY, texCam = px0, py0, tc0
 	local cfs, szs, gone = {}, {}, {}
 	for i, p in d.parts do
 		local part = p.part
 		cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
 	end
-	-- (the snapshot stays to tell next time whether it stood still: n 0 marks a picture not kept)
-	local keepIt = still and d.hi >= d.lo and x0 >= 0 and y0 >= 0 and x1 <= s.W - 1 and y1 <= s.H - 1
-	if not keepIt then
+	local IW, IH = iso.W, iso.H
+	local cx0, cy0 = math.max(0, math.floor(ix0)), math.max(0, math.floor(iy0))
+	local cx1, cy1 = math.min(IW - 1, math.ceil(ix1)), math.min(IH - 1, math.ceil(iy1))
+	-- (the layer rect its parts cover)
+	local x0, y0, x1, y1 = ix0 - M, iy0 - M, ix1 - M, iy1 - M
+	if cx0 > cx1 or cy0 > cy1 then
 		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
-		return
+		return nil, x0, y0, x1, y1
 	end
-	local W = s.W
-	local lo, hi = d.lo, d.hi
-	local src = s.frame
-	for y = y0, y1 do
-		local row = y * W
-		for x = x0, x1 do
-			local id = buffer.readu16(src.id, (row + x) * 2)
-			if id >= DYN_ID0 and (id < lo or id > hi) then
-				src = SG.scratchFor(s)
-				break
-			end
-		end
-		if src ~= s.frame then
-			break
-		end
-	end
-	if src ~= s.frame and moving then
-		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
-		return
-	end
-	if src ~= s.frame then
-		-- (drawn again against the static depths alone)
-		local w = x1 - x0 + 1
-		for y = y0, y1 do
-			local i = y * W + x0
-			buffer.copy(src.depth, i * 4, s.sDepth, i * 4, w * 4)
-			buffer.fill(src.id, i * 2, 0, w * 2)
-		end
-		SG.drawModel(src, d, s.cam, texOn)
-	end
-	local color, depth, ids = src.color, src.depth, src.id
+	local color, depth, ids = iso.color, iso.depth, iso.id
 	local n = 0
-	for y = y0, y1 do
-		local row = y * W
-		for x = x0, x1 do
-			local id = buffer.readu16(ids, (row + x) * 2)
-			if id >= lo and id <= hi then
+	for y = cy0, cy1 do
+		local row = y * IW
+		for x = cx0, cx1 do
+			if buffer.readu16(ids, (row + x) * 2) ~= 0 then
 				n += 1
 			end
 		end
 	end
 	local px = buffer.create(math.max(1, n) * PX_BYTES)
 	local k = 0
-	for y = y0, y1 do
-		local row = y * W
-		for x = x0, x1 do
+	for y = cy0, cy1 do
+		local row = y * IW
+		for x = cx0, cx1 do
 			local i = row + x
 			local id = buffer.readu16(ids, i * 2)
-			if id >= lo and id <= hi then
+			if id ~= 0 then
 				local o = k * PX_BYTES
-				buffer.writeu16(px, o, x - x0)
-				buffer.writeu16(px, o + 2, y - y0)
+				buffer.writeu16(px, o, x - cx0)
+				buffer.writeu16(px, o + 2, y - cy0)
 				buffer.writeu32(px, o + 4, buffer.readu32(color, i * 4))
 				buffer.writef32(px, o + 8, buffer.readf32(depth, i * 4))
 				buffer.writeu16(px, o + 12, id)
 				k += 1
 			end
 		end
+		-- (the scratch wiped behind it)
+		local i = row + cx0
+		buffer.copy(depth, i * 4, SG.farRow :: buffer, 0, (cx1 - cx0 + 1) * 4)
+		buffer.fill(ids, i * 2, 0, (cx1 - cx0 + 1) * 2)
 	end
-	d.cache = { gx = x0 + s.cam.gx, gy = y0 + s.cam.gy, w = x1 - x0 + 1, h = y1 - y0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu }
+	-- (whole: nothing of it fell past the scratch's edge)
+	local whole = ix0 >= 0 and iy0 >= 0 and ix1 <= IW - 1 and iy1 <= IH - 1
+	local pp = d.model.PrimaryPart or d.parts[1].part
+	local lx0, ly0 = cx0 - M, cy0 - M
+	local pic: DynCache = { gx = lx0 + s.cam.gx, gy = ly0 + s.cam.gy, w = cx1 - cx0 + 1, h = cy1 - cy0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu, shp = if pp.Transparency < 0.95 then pp.Position else nil }
+	if whole then
+		d.cache = pic
+	else
+		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
+	end
+	return pic, lx0, ly0, lx0 + pic.w - 1, ly0 + pic.h - 1
 end
 
--- The scratch frame a still model's clean picture is drawn in (the layer's size; made once a size).
-function SG.scratchFor(s: Surf): Raster.Frame
-	local f = SG.scratch
-	local n = s.W * s.H
-	if f == nil or f.W ~= s.W or f.H ~= s.H then
-		f = { W = s.W, H = s.H, color = buffer.create(n * 4), depth = buffer.create(n * 4), id = buffer.create(n * 2) }
-		SG.scratch = f
+-- What every moving model shows this compose and the blob shadow under it (both composes work from it): a model on the
+-- layer shows its kept picture when one stands for it this tick (SG.blitOk), else it is drawn afresh into its own
+-- scratch (SG.drawPic) within the tick's budget (Tuning.PixelDynMs of drawing and Tuning.PixelMaxDyn models; the
+-- founders always), the founders first, then a model with no picture at all, then the longest undrawn; past the
+-- budget it shows its kept picture a tick longer, where it last stood, or (with none) nothing. Its shadow is the
+-- picture's (cast from where the model stood when it was drawn), so the two go together; a model off the layer or with
+-- nothing to show casts its shadow from where it stands. Entries: the model, its picture and the layer rect it covers
+-- (pic nil: none), its shadow's centre and radii in layer px (sx nil: none).
+type PlanEntry = { d: Dyn, pic: DynCache?, x0: number, y0: number, x1: number, y1: number, sx: number?, sy: number, srx: number, sry: number }
+function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEntry }
+	local cam = s.cam
+	local W, H = s.W, s.H
+	local out: { PlanEntry } = {}
+	local need = SG.need
+	table.clear(need)
+	local at: { [Dyn]: PlanEntry } = {}
+	for model, d in dyns do
+		local first = d.parts[1]
+		local e: PlanEntry = { d = d, pic = nil, x0 = 0, y0 = 0, x1 = -1, y1 = -1, sx = nil, sy = 0, srx = 0, sry = 0 }
+		table.insert(out, e)
+		at[d] = e
+		if model.Parent == nil or first == nil then
+			continue
+		end
+		local fp = first.part.Position
+		local fx, fy = Raster.project(cam, fp.X, fp.Y, fp.Z)
+		if fx < -CULL or fy < -CULL or fx > W + CULL or fy > H + CULL then
+			continue
+		end
+		local c, x0, y0, x1, y1 = SG.blitOk(s, d, fresh, ppu)
+		if c then
+			e.pic, e.x0, e.y0, e.x1, e.y1 = c, x0, y0, x1, y1
+		elseif not SG.offPic(s, d, ppu) or not SG.same(d, (d.cache :: DynCache).cfs, (d.cache :: DynCache).szs, (d.cache :: DynCache).gone) then
+			-- (a model whose picture lies wholly off the layer and has not moved shows nothing and needs no draw)
+			table.insert(need, d)
+		end
 	end
-	return f :: Raster.Frame
+	if #need > 1 then
+		table.sort(need, function(a: Dyn, b: Dyn): boolean
+			local ao, bo = a.own == true or a.rim == true, b.own == true or b.rim == true
+			if ao ~= bo then
+				return ao
+			end
+			-- (one whose last picture lay wholly off the layer comes last: it most likely still does)
+			local af, bf = SG.offPic(s, a, ppu), SG.offPic(s, b, ppu)
+			if af ~= bf then
+				return bf
+			end
+			-- (then a model with no picture to show, which past the budget would be left out)
+			local an, bn = SG.bare(a, ppu), SG.bare(b, ppu)
+			if an ~= bn then
+				return an
+			end
+			return (a.drawnAt or 0) < (b.drawnAt or 0)
+		end)
+	end
+	local budgetEnd = SG.clock() + Tuning.PixelDynMs / 1000
+	local drawn = 0
+	for _, d in need do
+		local e = at[d]
+		if not SG.noBudget and (drawn >= Tuning.PixelMaxDyn or SG.clock() > budgetEnd) and not d.own and not d.rim then
+			local c, x0, y0, x1, y1 = SG.blitOk(s, d, false, ppu)
+			if c then
+				e.pic, e.x0, e.y0, e.x1, e.y1 = c, x0, y0, x1, y1
+			else
+				SG.skips += 1
+				local k = d.cache
+				local why = if k == nil then "never drawn" elseif k.n < 0 then "not kept" elseif k.ver ~= SG.ver then "old picture" elseif k.ppu ~= ppu then "other scale" else "moved, last seen off the layer"
+				SG.skipWhy[why] = (SG.skipWhy[why] or 0) + 1
+			end
+			continue
+		end
+		drawn += 1
+		local pic, x0, y0, x1, y1 = SG.drawPic(s, d, ppu, texOn)
+		d.drawnAt = SG.clock()
+		SG.draws += 1
+		if pic then
+			e.pic, e.x0, e.y0, e.x1, e.y1 = pic, x0, y0, x1, y1
+		end
+	end
+	for _, e in out do
+		local d = e.d
+		local model = d.model
+		local first = d.parts[1]
+		if model.Parent ~= nil and first ~= nil and model:GetAttribute("PixelShadow") ~= nil then
+			local cx, cy, rx, ry = SG.shadowGeo(s, model, first.part, e.pic)
+			if cx then
+				e.sx, e.sy, e.srx, e.sry = cx, cy, rx, ry
+			end
+		end
+	end
+	return out
 end
 
--- Puts model d's kept picture on the frame when it can stand for a draw this tick (fresh: every model is due, so only
--- one that has not moved; otherwise a model that is not a founder may show it though it has moved). Returns the layer
--- rect it covers, or nil (draw it).
-function SG.blit(s: Surf, d: Dyn, fresh: boolean, ppu: number): (number?, number?, number?, number?)
+-- Whether model d's kept picture (good at scale ppu) lies wholly off the layer.
+function SG.offPic(s: Surf, d: Dyn, ppu: number): boolean
+	local c = d.cache
+	if c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu then
+		return false
+	end
+	local x0, y0 = c.gx - s.cam.gx, c.gy - s.cam.gy
+	return x0 + c.w - 1 < 0 or y0 + c.h - 1 < 0 or x0 > s.W - 1 or y0 > s.H - 1
+end
+
+-- Whether model d has no kept picture that could stand for it (at scale ppu) on this layer.
+function SG.bare(d: Dyn, ppu: number): boolean
+	local c = d.cache
+	return c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu
+end
+
+-- The scratch frame a model is drawn afresh into, far and empty (each draw wipes what it wrote): the layer's size and
+-- SG.ISO_M px more all round (a model up to CULL px past the edge, and its own size, drawn whole), and its camera (the
+-- layer's, windowed out by that much; made again when the layer's camera changes).
+function SG.isoFor(s: Surf): (Raster.Frame, Raster.Cam)
+	local f = SG.iso
+	local M = SG.ISO_M
+	local IW, IH = s.W + 2 * M, s.H + 2 * M
+	if f == nil or f.W ~= IW or f.H ~= IH then
+		local n = IW * IH
+		local depth = buffer.create(n * 4)
+		local row = buffer.create(IW * 4)
+		for i = 0, IW - 1 do
+			buffer.writef32(row, i * 4, FAR)
+		end
+		for y = 0, IH - 1 do
+			buffer.copy(depth, y * IW * 4, row, 0, IW * 4)
+		end
+		SG.farRow = row
+		f = { W = IW, H = IH, color = buffer.create(n * 4), depth = depth, id = buffer.create(n * 2) }
+		SG.iso = f
+	end
+	local c = SG.isoCam
+	if c == nil or SG.isoOf ~= s.cam then
+		c = Raster.window(s.cam, -M, -M, IW, IH)
+		SG.isoCam, SG.isoOf = c, s.cam
+	end
+	return f :: Raster.Frame, c :: Raster.Cam
+end
+
+-- The models' rects for the ink pass, those that overlap joined while their box is no bigger than the two apart (a
+-- crowd's rects overlap a lot, and the ink pass over a pixel twice gives the same picture as once; the stress test of
+-- 2026-11-17 spent a fifth of a frame inking the same pixels over).
+function SG.mergeRects(rects: { Rect }): { Rect }
+	if #rects < 2 then
+		return rects
+	end
+	local out: { Rect } = {}
+	for _, r in rects do
+		table.insert(out, { x0 = r.x0, y0 = r.y0, x1 = r.x1, y1 = r.y1 })
+	end
+	local function area(q: Rect): number
+		return (q.x1 - q.x0 + 1) * (q.y1 - q.y0 + 1)
+	end
+	local merged = true
+	while merged do
+		merged = false
+		for i = #out, 2, -1 do
+			local a = out[i]
+			for j = i - 1, 1, -1 do
+				local b = out[j]
+				if a.x0 <= b.x1 and b.x0 <= a.x1 and a.y0 <= b.y1 and b.y0 <= a.y1 then
+					local u = { x0 = math.min(a.x0, b.x0), y0 = math.min(a.y0, b.y0), x1 = math.max(a.x1, b.x1), y1 = math.max(a.y1, b.y1) }
+					if area(u) <= area(a) + area(b) then
+						out[j] = u
+						table.remove(out, i)
+						merged = true
+						break
+					end
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- A drawn model's rect, a pixel round it, for the ink and the upload; a founder's for its white rim too.
+function SG.addRect(rects: { Rect }, d: Dyn, x0: number, y0: number, x1: number, y1: number)
+	if x0 > x1 then
+		return
+	end
+	table.insert(rects, { x0 = x0 - 1, y0 = y0 - 1, x1 = x1 + 1, y1 = y1 + 1 })
+	if d.rim then
+		local s = surf :: Surf
+		table.insert(Rims.list, d)
+		table.insert(Rims.rects, { x0 = math.max(0, x0), y0 = math.max(0, y0), x1 = math.min(s.W - 1, x1), y1 = math.min(s.H - 1, y1) })
+	end
+end
+
+-- Model d's kept picture when it can stand for a draw this tick (fresh: every model is due, so only one that has not
+-- moved; otherwise a model that is not a founder may show it though it has moved), and the layer rect it covers; nil:
+-- draw it.
+function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, number, number, number, number)
 	local c = d.cache
 	if c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu or SG.off then
-		return nil
+		return nil, 0, 0, 0, 0
 	end
 	if (fresh or d.rim) and not SG.same(d, c.cfs, c.szs, c.gone) then
-		return nil
+		return nil, 0, 0, 0, 0
 	end
-	local W = s.W
 	local x0, y0 = c.gx - s.cam.gx, c.gy - s.cam.gy
 	local x1, y1 = x0 + c.w - 1, y0 + c.h - 1
-	if x0 < 0 or y0 < 0 or x1 > W - 1 or y1 > s.H - 1 then
-		return nil
+	-- (a picture reaching off the layer is put down clipped: it was drawn whole, past the layer's edge)
+	if x1 < 0 or y1 < 0 or x0 > s.W - 1 or y0 > s.H - 1 then
+		return nil, 0, 0, 0, 0
 	end
+	return c, x0, y0, x1, y1
+end
+
+-- Kept picture c put down on the frame with its top left at layer (x0, y0), depth tested as the draw would be (where
+-- it already shows, nothing changes: a pixel it won has its own depth, which it does not beat).
+function SG.blitAt(s: Surf, c: DynCache, x0: number, y0: number)
+	local W, H = s.W, s.H
 	local f = s.frame
 	local color, depth, ids = f.color, f.depth, f.id
 	local bias = s.cam.bias
 	local px = c.px
+	if x0 >= 0 and y0 >= 0 and x0 + c.w <= W and y0 + c.h <= H then
+		for k = 0, c.n - 1 do
+			local o = k * PX_BYTES
+			local i = (y0 + buffer.readu16(px, o + 2)) * W + x0 + buffer.readu16(px, o)
+			local t = buffer.readf32(px, o + 8)
+			if t + bias < buffer.readf32(depth, i * 4) then
+				buffer.writeu32(color, i * 4, buffer.readu32(px, o + 4))
+				buffer.writef32(depth, i * 4, t)
+				buffer.writeu16(ids, i * 2, buffer.readu16(px, o + 12))
+			end
+		end
+		return
+	end
+	-- (reaching off the layer: its pixels on it)
 	for k = 0, c.n - 1 do
 		local o = k * PX_BYTES
-		local i = (y0 + buffer.readu16(px, o + 2)) * W + x0 + buffer.readu16(px, o)
-		local t = buffer.readf32(px, o + 8)
-		if t + bias < buffer.readf32(depth, i * 4) then
-			buffer.writeu32(color, i * 4, buffer.readu32(px, o + 4))
-			buffer.writef32(depth, i * 4, t)
-			buffer.writeu16(ids, i * 2, buffer.readu16(px, o + 12))
+		local x, y = x0 + buffer.readu16(px, o), y0 + buffer.readu16(px, o + 2)
+		if x >= 0 and y >= 0 and x < W and y < H then
+			local i = y * W + x
+			local t = buffer.readf32(px, o + 8)
+			if t + bias < buffer.readf32(depth, i * 4) then
+				buffer.writeu32(color, i * 4, buffer.readu32(px, o + 4))
+				buffer.writef32(depth, i * 4, t)
+				buffer.writeu16(ids, i * 2, buffer.readu16(px, o + 12))
+			end
 		end
 	end
+end
+
+-- Puts model d's kept picture on the frame when it can stand for a draw this tick (SG.blitOk). Returns the layer rect
+-- it covers, or nil (draw it).
+function SG.blit(s: Surf, d: Dyn, fresh: boolean, ppu: number): (number?, number?, number?, number?)
+	local c, x0, y0, x1, y1 = SG.blitOk(s, d, fresh, ppu)
+	if c == nil then
+		return nil
+	end
+	SG.blitAt(s, c, x0, y0)
 	return x0, y0, x1, y1
 end
 
@@ -2956,22 +3291,623 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 	return x0, y0, x1, y1
 end
 
+------------------------------------------------------------------ the incremental compose
+-- The stress test of 2026-11-17 ("do a stress test with the maximum amount of decor and buildings at the highest
+-- expansion level. Try walking around to move the camera. It should be smooth. If not, find ways to optimize it"): a
+-- whole compose puts every moving model on the screen back over the static picture, then inks and grades all of it,
+-- and while the view panned every frame was composed whole. On a full Everdrift that was most of a frame. Now the
+-- composed frame stays. A pan shifts it with the static layer (the grid is the world's, so every pixel moves by the
+-- same whole art px), and a compose redoes only the layer's tiles (SG.TILE art px square) where something changed:
+-- where a model that moved or changed its picture was and is, where a blob shadow moved, where a model went, the
+-- strips a pan brought in, a static pixel the water or the wind changed under a model. In those tiles the static
+-- picture goes back, the blob shadows over them are drawn again (whole: a shadow the tiles meet marks its own), then
+-- the models (an unchanged model the tiles meet is put down whole: outside them its pixels already show it, and a
+-- kept picture never beats its own depth), and the tiles are inked, graded and uploaded. `SG.base` keeps the frame as
+-- it stands before the effects: last tick's effect pixels are put back from it (the static picture alone would leave
+-- holes in the models they were over).
+
+-- Whether layer s composes incrementally now: its whole compose set SG.base up and the graded static picture is in
+-- step (not with the lamps' pools on: they are built again every LIGHT_EVERY s).
+function SG.live(s: Surf): boolean
+	if SG.incOn ~= s or Tuning.PixelIncCompose == 0 then
+		return false
+	end
+	local b = SG.base
+	local n = s.W * s.H
+	if b == nil or buffer.len(b.color) ~= n * 4 then
+		return false
+	end
+	local g = grade
+	if g and g.lamps > 0 then
+		return false
+	end
+	if g or dim > 0 then
+		local o = SG.out
+		return SG.ok and SG.on == s and o ~= nil and buffer.len(o) == n * 4
+	end
+	return true
+end
+
+-- Static pixel i of layer s changed from colour old to new (the water's or the wind's frame; SG.buf graded already):
+-- where the frame shows the static picture it takes the new colour, else the pixel's tile is drawn again.
+function SG.sync(s: Surf, i: number, old: number, new: number)
+	local f, b = s.frame, SG.base :: { color: buffer, id: buffer }
+	local sid = buffer.readu16(s.sId, i * 2)
+	if buffer.readu16(b.id, i * 2) == sid and buffer.readu32(b.color, i * 4) == old then
+		buffer.writeu32(b.color, i * 4, new)
+		-- (an effect over it keeps showing: it comes off next tick, from the base)
+		if buffer.readu16(f.id, i * 2) == sid and buffer.readu32(f.color, i * 4) == old then
+			buffer.writeu32(f.color, i * 4, new)
+			local o, g = SG.out, SG.buf
+			if o and g and (grade or dim > 0) then
+				buffer.writeu32(o, i * 4, buffer.readu32(g, i * 4))
+			end
+		end
+		SG.upWhole = true
+	else
+		local x, y = i % s.W + s.cam.gx, i // s.W + s.cam.gy
+		table.insert(SG.dirty, { x0 = x, y0 = y, x1 = x, y1 = y })
+	end
+	SG.touch = true
+end
+
+-- Pixel i graded again into the image's copy (the incremental compose keeps it in step with the frame).
+function SG.gradePx(s: Surf, i: number)
+	local o = SG.out
+	if SG.incOn == s and (grade or dim > 0) and o and buffer.len(o) == s.W * s.H * 4 then
+		gradeSpan(s.frame.color, s.frame.id, i, 1, o, i)
+	end
+end
+
+-- A sticky pixel i changed from colour old (0: none) to c (the static colour: unstuck): on the frame, and on the base,
+-- where each shows the static picture or the old sticky colour there (a blob shadow or a model over it stays).
+function SG.stickPut(s: Surf, i: number, old: number, c: number)
+	local sid = buffer.readu16(s.sId, i * 2)
+	local stat = buffer.readu32(s.sColor, i * 4)
+	local f = s.frame
+	if buffer.readu16(f.id, i * 2) == sid then
+		local cur = buffer.readu32(f.color, i * 4)
+		if cur == stat or (old ~= 0 and cur == old) then
+			buffer.writeu32(f.color, i * 4, c)
+			SG.gradePx(s, i)
+		end
+	end
+	local b = SG.base
+	if SG.incOn == s and b and buffer.len(b.color) == s.W * s.H * 4 and buffer.readu16(b.id, i * 2) == sid then
+		local cur = buffer.readu32(b.color, i * 4)
+		if cur == stat or (old ~= 0 and cur == old) then
+			buffer.writeu32(b.color, i * 4, c)
+		end
+	end
+end
+
+-- Before a pan drops the sticky pixels (their owner sticks them again where they now lie), each comes off the frame
+-- and the base where it shows.
+function SG.unstickFrame(s: Surf)
+	local sc = stickCol
+	if stickLive == 0 or sc == nil or buffer.len(sc) ~= s.W * s.H * 4 then
+		return
+	end
+	for _, i in stickList do
+		local c = buffer.readu32(sc, i * 4)
+		if c ~= 0 then
+			SG.stickPut(s, i, c, buffer.readu32(s.sColor, i * 4))
+		end
+	end
+end
+
+-- The tiles of layer s, all clean.
+function SG.tilesClear(s: Surf)
+	local T = SG.TILE
+	local c, r = (s.W + T - 1) // T, (s.H + T - 1) // T
+	if c ~= SG.tcols or r ~= SG.trows then
+		SG.tcols, SG.trows = c, r
+		SG.bits = buffer.create(c * r)
+	else
+		buffer.fill(SG.bits, 0, 0)
+	end
+end
+
+-- Marks the tiles under a layer rect (inclusive) to draw again; returns how many of them were clean.
+function SG.mark(x0: number, y0: number, x1: number, y1: number): number
+	local T = SG.TILE
+	local cols = SG.tcols
+	local tx0, ty0 = math.max(0, x0 // T), math.max(0, y0 // T)
+	local tx1, ty1 = math.min(cols - 1, x1 // T), math.min(SG.trows - 1, y1 // T)
+	local bits = SG.bits
+	local n = 0
+	for ty = ty0, ty1 do
+		local o = ty * cols
+		for tx = tx0, tx1 do
+			if buffer.readu8(bits, o + tx) == 0 then
+				buffer.writeu8(bits, o + tx, 1)
+				n += 1
+			end
+		end
+	end
+	return n
+end
+
+-- Whether a layer rect (inclusive) meets a marked tile (all: whether every tile under it is marked).
+function SG.hit(x0: number, y0: number, x1: number, y1: number, all: boolean?): boolean
+	local T = SG.TILE
+	local cols = SG.tcols
+	local tx0, ty0 = math.max(0, x0 // T), math.max(0, y0 // T)
+	local tx1, ty1 = math.min(cols - 1, x1 // T), math.min(SG.trows - 1, y1 // T)
+	local bits = SG.bits
+	for ty = ty0, ty1 do
+		local o = ty * cols
+		for tx = tx0, tx1 do
+			local on = buffer.readu8(bits, o + tx) ~= 0
+			if on and not all then
+				return true
+			elseif all and not on then
+				return false
+			end
+		end
+	end
+	return all == true
+end
+
+-- The marked tiles as layer rects (clipped to the layer): runs along each row of tiles, a run joined to the one above
+-- it when the two span the same columns.
+function SG.runs(s: Surf): { Rect }
+	local T = SG.TILE
+	local cols, rows = SG.tcols, SG.trows
+	local bits = SG.bits
+	local W, H = s.W, s.H
+	local out: { Rect } = {}
+	local open: { [number]: Rect } = {}
+	for ty = 0, rows - 1 do
+		local now: { [number]: Rect } = {}
+		local o = ty * cols
+		local tx = 0
+		while tx < cols do
+			if buffer.readu8(bits, o + tx) ~= 0 then
+				local a = tx
+				while tx + 1 < cols and buffer.readu8(bits, o + tx + 1) ~= 0 do
+					tx += 1
+				end
+				local key = a * 4096 + tx
+				local y1 = math.min(H - 1, ty * T + T - 1)
+				local up = open[key]
+				if up then
+					up.y1 = y1
+					now[key] = up
+				else
+					local r = { x0 = a * T, y0 = ty * T, x1 = math.min(W - 1, tx * T + T - 1), y1 = y1 }
+					table.insert(out, r)
+					now[key] = r
+				end
+			end
+			tx += 1
+		end
+		open = now
+	end
+	return out
+end
+
+-- What model d shows after a compose: kept picture c (nil: one that is not the same next time) over layer rect
+-- (x0, y0)-(x1, y1), remembered in global art px a pixel round it; a founder's rim goes round it (rim).
+function SG.shown(s: Surf, d: Dyn, c: DynCache?, x0: number, y0: number, x1: number, y1: number, rim: boolean)
+	local gx, gy = s.cam.gx, s.cam.gy
+	d.shC = c
+	d.shR = { x0 = x0 - 1 + gx, y0 = y0 - 1 + gy, x1 = x1 + 1 + gx, y1 = y1 + 1 + gy }
+	if rim and d.rim then
+		table.insert(Rims.list, d)
+		table.insert(Rims.rects, { x0 = math.max(0, x0), y0 = math.max(0, y0), x1 = math.min(s.W - 1, x1), y1 = math.min(s.H - 1, y1) })
+	end
+end
+
+-- A layer rect of the frame graded into the image's copy: the static picture's grade copied, the pixels the frame
+-- has other than the static picture's graded from it.
+function SG.gradeRect(s: Surf, r: Rect)
+	local W, H = s.W, s.H
+	local x0, y0, x1, y1 = math.max(0, r.x0), math.max(0, r.y0), math.min(W - 1, r.x1), math.min(H - 1, r.y1)
+	if x0 > x1 or y0 > y1 then
+		return
+	end
+	local out, sg = SG.out :: buffer, SG.buf :: buffer
+	local f = s.frame
+	local fc, fi, sc, si = f.color, f.id, s.sColor, s.sId
+	for y = y0, y1 do
+		local row = y * W
+		buffer.copy(out, (row + x0) * 4, sg, (row + x0) * 4, (x1 - x0 + 1) * 4)
+		local run = -1
+		for x = x0, x1 + 1 do
+			local i = row + x
+			local differs = x <= x1 and (buffer.readu32(fc, i * 4) ~= buffer.readu32(sc, i * 4) or buffer.readu16(fi, i * 2) ~= buffer.readu16(si, i * 2))
+			if differs then
+				if run < 0 then
+					run = i
+				end
+			elseif run >= 0 then
+				gradeSpan(fc, fi, run, i - run, out, run)
+				run = -1
+			end
+		end
+	end
+end
+
+-- A layer rect of the image (src: the graded copy, or the frame's colours ungraded) uploaded.
+function SG.upRect(s: Surf, r: Rect, src: buffer)
+	local im = img
+	if im == nil then
+		return
+	end
+	local W = s.W
+	local x0, y0, x1, y1 = math.max(0, r.x0), math.max(0, r.y0), math.min(W - 1, r.x1), math.min(s.H - 1, r.y1)
+	if x0 > x1 or y0 > y1 then
+		return
+	end
+	local w, h = x1 - x0 + 1, y1 - y0 + 1
+	local b = buffer.create(w * h * 4)
+	for y = y0, y1 do
+		buffer.copy(b, (y - y0) * w * 4, src, (y * W + x0) * 4, w * 4)
+	end
+	pcall(function()
+		im:WritePixelsBuffer(Vector2.new(x0, y0), Vector2.new(w, h), b)
+	end)
+	stats.perf.uploads += 1
+end
+
+-- The frame's rect kept as the base (the frame before the effects).
+function SG.toBase(s: Surf, r: Rect)
+	local W = s.W
+	local x0, y0, x1, y1 = math.max(0, r.x0), math.max(0, r.y0), math.min(W - 1, r.x1), math.min(s.H - 1, r.y1)
+	if x0 > x1 or y0 > y1 then
+		return
+	end
+	local b = SG.base :: { color: buffer, id: buffer }
+	local f = s.frame
+	local w = x1 - x0 + 1
+	for y = y0, y1 do
+		local o = y * W + x0
+		buffer.copy(b.color, o * 4, f.color, o * 4, w * 4)
+		buffer.copy(b.id, o * 2, f.id, o * 2, w * 2)
+	end
+end
+
+-- After a whole compose (before its effects): the base taken, every model's picture and blob shadow remembered by it,
+-- and layer s composes incrementally from now on when it can.
+function SG.incStart(s: Surf)
+	local n = s.W * s.H
+	if Tuning.PixelIncCompose == 0 or s.view.stage or SG.off or SG.quiet then
+		SG.incOn = nil
+		return
+	end
+	local b = SG.base
+	if b == nil or buffer.len(b.color) ~= n * 4 then
+		b = { color = buffer.create(n * 4), id = buffer.create(n * 2) }
+		SG.base = b
+	end
+	local bb = b :: { color: buffer, id: buffer }
+	buffer.copy(bb.color, 0, s.frame.color, 0, n * 4)
+	buffer.copy(bb.id, 0, s.frame.id, 0, n * 2)
+	SG.incOn = s
+end
+
+-- The incremental compose of layer s (due: the moving models are all due, as compose's).
+function SG.incCompose(s: Surf, due: boolean?)
+	local W, H = s.W, s.H
+	local n = W * H
+	local cam = s.cam
+	local gx, gy = cam.gx, cam.gy
+	local f = s.frame
+	local base = SG.base :: { color: buffer, id: buffer }
+	local pf = stats.perf
+	local k0 = SG.clock()
+	-- last tick's effects come off (the frame as it stood before them); their book is kept to grade those pixels
+	local oldBook, oldN = fxPrev, fxPrevN
+	local color, ids = f.color, f.id
+	for k = 0, oldN - 1 do
+		local i = buffer.readu32(oldBook, k * 4)
+		if i < n then
+			buffer.writeu32(color, i * 4, buffer.readu32(base.color, i * 4))
+			buffer.writeu16(ids, i * 2, buffer.readu16(base.id, i * 2))
+		end
+	end
+	SG.tilesClear(s)
+	local hit = SG.hit
+	local by = SG.markBy
+	local tag = "dirty"
+	local function mark(x0: number, y0: number, x1: number, y1: number): number
+		local k = SG.mark(x0, y0, x1, y1)
+		by[tag] = (by[tag] or 0) + k
+		return k
+	end
+	for _, r in SG.dirty do
+		mark(r.x0 - gx, r.y0 - gy, r.x1 - gx, r.y1 - gy)
+	end
+	tag = "sweep"
+	table.clear(SG.dirty)
+	-- (a band of the layer drawn again every compose, round and round: whatever a compose of a few tiles might leave
+	-- behind lasts a second or two at most)
+	local T = SG.TILE
+	SG.sweep += 1
+	if SG.sweep % 3 == 0 then
+		local row = (SG.sweep // 3) % math.max(1, SG.trows)
+		mark(0, row * T, W - 1, row * T + T - 1)
+	end
+	local strips = SG.strips
+	local ppu = cam.s / cam.K
+	local texOn = ppu >= DynTex.MIN_PX_PER_STUD
+	texCam = cam
+	texPx = 1 / ppu
+	local fresh = due ~= false
+	local still, shad = SG.still, SG.shad
+	table.clear(still)
+	table.clear(shad)
+	-- what every model shows now (SG.plan: the ones drawn afresh are drawn into their own scratch, the frame untouched)
+	local plan = SG.plan(s, fresh, ppu, texOn)
+	local chg: { PlanEntry } = {}
+	for _, e in plan do
+		local d = e.d
+		-- its blob shadow: unchanged, or off where it was and on where it is
+		tag = "shadow"
+		d.sIn = false
+		local old = d.sR
+		local cx = e.sx
+		if cx == nil then
+			if old then
+				mark(old.x0 - gx, old.y0 - gy, old.x1 - gx, old.y1 - gy)
+				d.sR, d.sx = nil, nil
+			end
+		elseif cx + gx == d.sx and e.sy + gy == d.sy and e.srx == d.srx and e.sry == d.sry then
+			d.sChg = false
+			table.insert(shad, d)
+		else
+			if old then
+				mark(old.x0 - gx, old.y0 - gy, old.x1 - gx, old.y1 - gy)
+			end
+			local sx0, sy0, sx1, sy1 = SG.shadowRect(cx, e.sy, e.srx, e.sry)
+			mark(sx0, sy0, sx1, sy1)
+			d.sR = { x0 = sx0 + gx, y0 = sy0 + gy, x1 = sx1 + gx, y1 = sy1 + gy }
+			d.sx, d.sy, d.srx, d.sry = cx + gx, e.sy + gy, e.srx, e.sry
+			d.sChg = true
+			table.insert(shad, d)
+		end
+		-- its picture: the same one where it was (unchanged), or off where it was and on where it is now
+		tag = if d.own or d.rim then "founder" elseif e.pic == nil then "gone" else "changed"
+		local pic = e.pic
+		if pic ~= nil and pic == d.shC and not d.rim then
+			table.insert(still, d)
+		else
+			local was = d.shR
+			if was then
+				mark(was.x0 - gx, was.y0 - gy, was.x1 - gx, was.y1 - gy)
+			end
+			if pic then
+				mark(e.x0 - 1, e.y0 - 1, e.x1 + 1, e.y1 + 1)
+				table.insert(chg, e)
+			else
+				d.shR, d.shC = nil, nil
+			end
+		end
+	end
+	-- where an unchanged model or blob shadow meets a strip a pan brought in (the strip is the static picture alone),
+	-- its tiles are drawn again
+	tag = "strips"
+	for _, r in strips do
+		for _, d in still do
+			local q = d.shR :: Rect
+			local x0, y0, x1, y1 = math.max(r.x0, q.x0 - gx), math.max(r.y0, q.y0 - gy), math.min(r.x1, q.x1 - gx), math.min(r.y1, q.y1 - gy)
+			if x0 <= x1 and y0 <= y1 then
+				mark(x0, y0, x1, y1)
+			end
+		end
+		for _, d in shad do
+			local q = d.sR
+			if q then
+				local x0, y0, x1, y1 = math.max(r.x0, q.x0 - gx), math.max(r.y0, q.y0 - gy), math.min(r.x1, q.x1 - gx), math.min(r.y1, q.y1 - gy)
+				if x0 <= x1 and y0 <= y1 then
+					mark(x0, y0, x1, y1)
+				end
+			end
+		end
+	end
+	-- an unchanged blob shadow the tiles meet is drawn again within them (clipped: outside, its pixels are as they were)
+	for _, d in shad do
+		local q = d.sR
+		if not d.sChg and q and hit(q.x0 - gx, q.y0 - gy, q.x1 - gx, q.y1 - gy) then
+			d.sIn = true
+		end
+	end
+	for _, r in strips do
+		restoreRect(s, r)
+	end
+	local runs = SG.runs(s)
+	for _, r in runs do
+		restoreRect(s, r)
+	end
+	local k1 = SG.clock()
+	pf.copyMs += (k1 - k0) * 1000
+	for _, d in shad do
+		if d.sChg or d.sIn then
+			drawShadow(s, d.model, d.parts[1].part, (d.sx :: number) - gx, (d.sy :: number) - gy, d.srx, d.sry, true)
+		end
+	end
+	-- the models: the unchanged ones the tiles meet put down again (outside them their pixels already show them, and a
+	-- kept picture never beats its own depth), the changed ones where they are now
+	for _, d in still do
+		local q = d.shR :: Rect
+		if hit(q.x0 - gx, q.y0 - gy, q.x1 - gx, q.y1 - gy) then
+			local c = d.shC :: DynCache
+			SG.blitAt(s, c, c.gx - gx, c.gy - gy)
+			SG.hits += 1
+		end
+	end
+	for _, e in chg do
+		local pic = e.pic :: DynCache
+		SG.blitAt(s, pic, e.x0, e.y0)
+		SG.hits += 1
+		SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, true)
+	end
+	local k2 = SG.clock()
+	for _, r in runs do
+		Shading.outline(f, r.x0, r.y0, r.x1, r.y1, nil, nil, DYN_ID0)
+	end
+	local k3 = SG.clock()
+	Rims.drawAll(s, W * 0.5, H * 0.5)
+	local k4 = SG.clock()
+	for _, list in { strips, runs } do
+		for _, r in list do
+			SG.toBase(s, r)
+		end
+	end
+	-- (a strip's pixels outside the tiles are the static picture's: its grade copied, before the effects, whose
+	-- pixels and the sticky ones they lay are graded one by one; the tiles are graded below)
+	local out = SG.out
+	local graded = (grade ~= nil or dim > 0) and out ~= nil
+	if graded then
+		local o, sg = out :: buffer, SG.buf :: buffer
+		for _, r in strips do
+			for y = r.y0, r.y1 do
+				local i = y * W + r.x0
+				buffer.copy(o, i * 4, sg, i * 4, (r.x1 - r.x0 + 1) * 4)
+			end
+		end
+	end
+	-- the effects over everything
+	local fxRects: { Rect } = if SG.quiet then {} else runFx(s, os.clock())
+	local k5 = SG.clock()
+	pf.dynMs += (k2 - k1) * 1000
+	pf.outlineMs += (k3 - k2) * 1000
+	pf.rimMs += (k4 - k3) * 1000
+	pf.fxMs += (k5 - k4) * 1000
+	-- graded: the tiles, and the effects' pixels (last tick's, taken off, and this tick's)
+	if graded then
+		for _, r in runs do
+			SG.gradeRect(s, r)
+		end
+		local o = out :: buffer
+		for k = 0, oldN - 1 do
+			local i = buffer.readu32(oldBook, k * 4)
+			if i < n then
+				gradeSpan(color, ids, i, 1, o, i)
+			end
+		end
+		for k = 0, fxPrevN - 1 do
+			local i = buffer.readu32(fxPrev, k * 4)
+			if i < n then
+				gradeSpan(color, ids, i, 1, o, i)
+			end
+		end
+		SG.fullAt = SG.seq
+	end
+	local k6 = SG.clock()
+	pf.gradeMs += (k6 - k5) * 1000
+	-- up: the whole image after a pan or a water frame (or when the rects are many), else the tiles and the effects'
+	local src = if graded then out :: buffer else f.color
+	local area = 0
+	for _, r in runs do
+		area += (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1)
+	end
+	pf.incPx += area
+	pf.incFrames += 1
+	if SG.panned or SG.upWhole or #runs + #fxRects > 3 * MAX_RECTS or area * 3 > n then
+		local im = img
+		if im then
+			pcall(function()
+				im:WritePixelsBuffer(Vector2.zero, Vector2.new(W, H), src)
+			end)
+			pf.uploads += 1
+		end
+	else
+		for _, r in runs do
+			SG.upRect(s, r, src)
+		end
+		for _, r in fxRects do
+			SG.upRect(s, r, src)
+		end
+	end
+	SG.panned, SG.upWhole, SG.touch = false, false, false
+	table.clear(strips)
+	pf.uploadMs += (SG.clock() - k6) * 1000
+	return area
+end
+
 local function compose(due: boolean?)
 	local s = surf
 	if s == nil then
 		return
 	end
-	local t0 = os.clock()
+	local t0 = SG.clock()
 	local cam = s.cam
 	panX, panY = cam.gx, cam.gy
 	SG.seq += 1
 	fxBooks(s)
+	-- (the incremental compose when the layer has one going: SG.incCompose)
+	local live = SG.live(s)
+	if not needFull and SG.incOn == s and not live then
+		needFull = true
+	end
+	if not needFull and live then
+		local arm = SG.incArm
+		SG.noBudget = arm
+		local area = SG.incCompose(s, due)
+		prevRects = {}
+		stats.ticks += 1
+		stats.composeMs = (SG.clock() - t0) * 1000
+		stats.perf.composeMs += stats.composeMs
+		if arm then
+			-- (debugIncCheck: the frame before the effects against a whole compose's at the same moment)
+			SG.incArm = false
+			local n = s.W * s.H
+			local b = SG.base :: { color: buffer, id: buffer }
+			local a, ai, ad = buffer.create(n * 4), buffer.create(n * 2), buffer.create(n * 4)
+			buffer.copy(a, 0, b.color, 0, n * 4)
+			buffer.copy(ai, 0, b.id, 0, n * 2)
+			buffer.copy(ad, 0, s.frame.depth, 0, n * 4)
+			-- (the whole compose's base is taken before its effects run: a lawn tuft they stick anew would differ)
+			SG.snap = true
+			needFull = true
+			compose(false)
+			local snap = SG.snapped :: { color: buffer, id: buffer, depth: buffer }
+			local off, ties = 0, 0
+			local bias = s.cam.bias
+			local seen: { string } = {}
+			for i = 0, n - 1 do
+				local ia, ib = buffer.readu16(ai, i * 2), buffer.readu16(snap.id, i * 2)
+				if buffer.readu32(a, i * 4) ~= buffer.readu32(snap.color, i * 4) or ia ~= ib then
+					local da, db = buffer.readf32(ad, i * 4), buffer.readf32(snap.depth, i * 4)
+					if ia >= DYN_ID0 and ib >= DYN_ID0 and ia ~= ib and math.abs(da - db) <= 2 * bias then
+						-- (two models within the depth bias of each other: the one put down first keeps the pixel)
+						ties += 1
+					else
+						off += 1
+						if #seen < 6 then
+							local x, y = i % s.W, i // s.W
+							local T = SG.TILE
+							local tile = buffer.readu8(SG.bits, (y // T) * SG.tcols + x // T)
+							table.insert(seen, string.format("(%d,%d) inc %06x id %d depth %.2f, whole %06x id %d depth %.2f, static %06x id %d, tile %d", x, y, buffer.readu32(a, i * 4) % 16777216, ia, da, buffer.readu32(snap.color, i * 4) % 16777216, ib, db, buffer.readu32(s.sColor, i * 4) % 16777216, buffer.readu16(s.sId, i * 2), tile))
+						end
+					end
+				end
+			end
+			SG.incResult = { off = off, ties = ties, checked = n, px = area, seen = table.concat(seen, "; ") } :: any
+			SG.noBudget = false
+			return
+		end
+		local after = (PixelRenderer :: any)._composed
+		if after then
+			after()
+		end
+		return
+	end
 	local full = needFull
 	local pf = stats.perf
-	local k0 = os.clock()
+	local k0 = SG.clock()
 	if full then
 		local n = s.W * s.H
 		local f = s.frame
+		pf.fullFrames += 1
+		-- (what every model shows is remembered afresh below, for the incremental composes after it)
+		for _, d in dyns do
+			d.shR, d.shC, d.sR, d.sx = nil, nil, nil, nil
+		end
+		table.clear(SG.dirty)
+		table.clear(SG.strips)
 		buffer.copy(f.color, 0, s.sColor, 0, n * 4)
 		buffer.copy(f.depth, 0, s.sDepth, 0, n * 4)
 		buffer.copy(f.id, 0, s.sId, 0, n * 2)
@@ -2990,82 +3926,79 @@ local function compose(due: boolean?)
 		fxRestore(s)
 	end
 	local rects: { Rect } = {}
-	local k1 = os.clock()
+	local k1 = SG.clock()
 	pf.copyMs += (k1 - k0) * 1000
-	-- the blob shadows first (on the static picture), then the models over them
-	for model, d in dyns do
-		local first = d.parts[1]
-		if model.Parent ~= nil and first ~= nil and model:GetAttribute("PixelShadow") ~= nil then
-			local r = drawShadow(s, model, first.part)
-			if r then
-				table.insert(rects, r)
-			end
-		end
-	end
-	local drawn = 0
 	-- (textures only where a driftling is drawn big enough for a one-pixel pattern to read: Render/DynTex)
 	local pxPerStud = cam.s / cam.K
 	local texOn = pxPerStud >= DynTex.MIN_PX_PER_STUD
 	texCam = cam
 	texPx = 1 / pxPerStud
-	for model, d in dyns do
-		if model.Parent == nil then
-			continue
+	-- What every model shows and its shadow (SG.plan: in a crowd, a full Everdrift's driftlings on the screen, the
+	-- request of 2026-11-17: "do a stress test with the maximum amount of decor and buildings at the highest expansion
+	-- level", every one of them changes a little less often rather than the frame taking ever longer). The blob
+	-- shadows go on first (on the static picture), then the models over them.
+	local plan = SG.plan(s, due ~= false, pxPerStud, texOn)
+	for _, e in plan do
+		local d = e.d
+		local cx = e.sx
+		if cx then
+			local r = drawShadow(s, d.model, d.parts[1].part, cx, e.sy, e.srx, e.sry)
+			if r then
+				table.insert(rects, r)
+			end
+			if full then
+				local x0, y0, x1, y1 = SG.shadowRect(cx, e.sy, e.srx, e.sry)
+				local gx, gy = cam.gx, cam.gy
+				d.sR = { x0 = x0 + gx, y0 = y0 + gy, x1 = x1 + gx, y1 = y1 + gy }
+				d.sx, d.sy, d.srx, d.sry = cx + gx, e.sy + gy, e.srx, e.sry
+			end
 		end
-		-- off the layer: skip it (one projected point: its first part)
-		local first = d.parts[1]
-		if first == nil then
-			continue
-		end
-		local fp = first.part.Position
-		local fx, fy = Raster.project(cam, fp.X, fp.Y, fp.Z)
-		if fx < -CULL or fy < -CULL or fx > s.W + CULL or fy > s.H + CULL then
-			continue
-		end
-		drawn += 1
-		if drawn > Tuning.PixelMaxDyn then
-			break
-		end
-		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
-		-- (a still model, or one between two of its ticks while the view pans, from its kept picture)
-		local cx0, cy0, cx1, cy1 = SG.blit(s, d, due ~= false, pxPerStud)
-		if cx0 and cy0 and cx1 and cy1 then
-			x0, y0, x1, y1 = cx0, cy0, cx1, cy1
+	end
+	for _, e in plan do
+		local pic = e.pic
+		if pic then
+			SG.blitAt(s, pic, e.x0, e.y0)
 			SG.hits += 1
-		else
-			x0, y0, x1, y1 = SG.drawModel(s.frame, d, cam, texOn)
-			if x0 <= x1 then
-				SG.keep(s, d, x0, y0, x1, y1, pxPerStud, texOn)
-			end
-			SG.draws += 1
-		end
-		if x0 <= x1 then
-			table.insert(rects, { x0 = x0 - 1, y0 = y0 - 1, x1 = x1 + 1, y1 = y1 + 1 })
-			if d.rim then
-				table.insert(Rims.list, d)
-				table.insert(Rims.rects, { x0 = math.max(0, x0), y0 = math.max(0, y0), x1 = math.min(s.W - 1, x1), y1 = math.min(s.H - 1, y1) })
-			end
+			SG.addRect(rects, e.d, e.x0, e.y0, e.x1, e.y1)
+			SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, false)
 		end
 	end
-	local k2 = os.clock()
-	for _, r in rects do
-		Shading.outline(s.frame, r.x0, r.y0, r.x1, r.y1)
+	local k2 = SG.clock()
+	local merged = SG.mergeRects(rects)
+	for _, r in merged do
+		Shading.outline(s.frame, r.x0, r.y0, r.x1, r.y1, nil, nil, DYN_ID0)
 	end
-	local k3 = os.clock()
+	local k3 = SG.clock()
 	-- the founders' white rims, once every model and its ink edge is in (a later model's ink must not cover one)
 	Rims.drawAll(s, s.W * 0.5, s.H * 0.5)
-	local k4 = os.clock()
+	local k4 = SG.clock()
+	if full then
+		-- (the frame before the effects: the incremental composes start from it)
+		SG.incStart(s)
+		if SG.snap then
+			-- (debugIncCheck: this compose's frame before the effects)
+			SG.snap = false
+			local f = s.frame
+			local n = s.W * s.H
+			local sc, si, sd = buffer.create(n * 4), buffer.create(n * 2), buffer.create(n * 4)
+			buffer.copy(sc, 0, f.color, 0, n * 4)
+			buffer.copy(si, 0, f.id, 0, n * 2)
+			buffer.copy(sd, 0, f.depth, 0, n * 4)
+			SG.snapped = { color = sc, id = si, depth = sd }
+		end
+	end
 	-- the effects over everything (their changed pixels' tiles go up with the rest)
 	local fxRects: { Rect } = if SG.quiet then {} else runFx(s, os.clock())
-	local k5 = os.clock()
+	local k5 = SG.clock()
 	pf.dynMs += (k2 - k1) * 1000
 	pf.outlineMs += (k3 - k2) * 1000
 	pf.rimMs += (k4 - k3) * 1000
 	pf.fxMs += (k5 - k4) * 1000
 	if full then
 		needFull = false
+		SG.panned, SG.upWhole, SG.touch = false, false, false
 		-- (the effects' pixels are graded one by one from their book: their tiles need nothing more)
-		uploadAll(s, rects, true, fxPrev, fxPrevN)
+		uploadAll(s, merged, true, fxPrev, fxPrevN)
 	else
 		for _, r in fxRects do
 			uploadRect(s, r)
@@ -3088,7 +4021,7 @@ local function compose(due: boolean?)
 	end
 	prevRects = rects
 	stats.ticks += 1
-	stats.composeMs = (os.clock() - t0) * 1000
+	stats.composeMs = (SG.clock() - t0) * 1000
 	stats.perf.composeMs += stats.composeMs
 	-- (what draws over the picture in step with it: PixelRenderer.onComposed)
 	local after = (PixelRenderer :: any)._composed
@@ -3115,6 +4048,57 @@ local function shift(b: buffer, W: number, H: number, e: number, dx: number, dy:
 			buffer.copy(b, (y * W + tx) * e, b, ((y + dy) * W + sx) * e, w * e)
 		end
 	end
+end
+
+-- A pan of the incremental compose (SG.incCompose): the finished frame, the base, the image's graded copy and the
+-- effects' books shift with the static layer (by sx, sy as `shift`'s dx, dy); the strips it brought in (and the
+-- pixels their cast, ink and contact shade touched round them: strips, layer rects at the new pan) are drawn again.
+function SG.panShift(s: Surf, sx: number, sy: number, strips: { Rect })
+	local W, H = s.W, s.H
+	local n = W * H
+	local f = s.frame
+	shift(f.color, W, H, 4, sx, sy)
+	shift(f.depth, W, H, 4, sx, sy)
+	shift(f.id, W, H, 2, sx, sy)
+	local b = SG.base :: { color: buffer, id: buffer }
+	shift(b.color, W, H, 4, sx, sy)
+	shift(b.id, W, H, 2, sx, sy)
+	local o = SG.out
+	if o and buffer.len(o) == n * 4 then
+		shift(o, W, H, 4, sx, sy)
+	end
+	-- (last tick's effect pixels where they now lie; those that left the layer dropped)
+	for k = 0, fxPrevN - 1 do
+		local i = buffer.readu32(fxPrev, k * 4)
+		if i < n then
+			local x, y = i % W - sx, i // W - sy
+			buffer.writeu32(fxPrev, k * 4, if x >= 0 and y >= 0 and x < W and y < H then y * W + x else n)
+		end
+	end
+	local sh = fxShown
+	if sh and buffer.len(sh) == n * 4 then
+		shift(sh, W, H, 4, sx, sy)
+		if sx > 0 then
+			for y = 0, H - 1 do
+				buffer.fill(sh, (y * W + W - sx) * 4, 0, sx * 4)
+			end
+		elseif sx < 0 then
+			for y = 0, H - 1 do
+				buffer.fill(sh, y * W * 4, 0, -sx * 4)
+			end
+		end
+		if sy > 0 then
+			buffer.fill(sh, (H - sy) * W * 4, 0, sy * W * 4)
+		elseif sy < 0 then
+			buffer.fill(sh, 0, 0, -sy * W * 4)
+		end
+	end
+	-- (the strips go in as the static picture alone: no model or blob shadow is drawn again for them unless one meets
+	-- them; the sticky pixels are all dropped by a pan, so there are none to put back either)
+	for _, r in strips do
+		table.insert(SG.strips, { x0 = math.max(0, r.x0 - 3), y0 = math.max(0, r.y0 - 3), x1 = math.min(W - 1, r.x1 + 3), y1 = math.min(H - 1, r.y1 + 3) })
+	end
+	SG.panned = true
 end
 
 -- Cast every pixel of a layer rect (inclusive) by the bake's last pass: the 2x2 anchors first, then the pixels that
@@ -3200,6 +4184,11 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	if gp and gp.phase == "prep" then
 		endGrow() -- (still working its pixels out: the new picture at once rather than a stale one)
 	end
+	-- (composing incrementally: the sticky pixels come off the frame before it shifts, as they are dropped below)
+	local inc = not needFull and SG.live(s)
+	if inc then
+		SG.unstickFrame(s)
+	end
 	-- the strips about to scroll off are kept in the pan cache (a pan back over them copies them in again), all but
 	-- what a re-cast still has to redo
 	local cacheOn = SG.tilesOk(s)
@@ -3275,7 +4264,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	elseif sy < 0 then
 		table.insert(strips, { x0 = cx0, y0 = 0, x1 = cx1, y1 = -sy - 1 })
 	end
-	local c0 = os.clock()
+	local c0 = SG.clock()
 	local shadows = tierSpec(tier).shadows
 	for _, r in strips do
 		if cacheOn then
@@ -3296,21 +4285,25 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 			rays += refineShadows(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
 		end
 	end
-	local c1 = os.clock()
+	local c1 = SG.clock()
 	for _, r in strips do
 		reoutline(s, r.x0, r.y0, r.x1, r.y1)
 		SG.waterFix(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
 	end
 	stats.perf.castMs += (c1 - c0) * 1000
-	stats.perf.inkMs += (os.clock() - c1) * 1000
+	stats.perf.inkMs += (SG.clock() - c1) * 1000
 	-- (what a strip's cast, ink and contact shade touched: the strip and a few pixels round it)
 	for _, r in strips do
 		SG.rect(s, r.x0 - 3, r.y0 - 3, r.x1 + 3, r.y1 + 3)
 	end
+	if inc and not needFull and SG.live(s) then
+		SG.panShift(s, sx, sy, strips)
+	else
+		needFull = true
+	end
 	stats.scrolls += 1
 	staticChanged()
 	stats.scrollRays += rays
-	needFull = true
 	lightStale = true
 end
 
@@ -3492,7 +4485,7 @@ local function frameStep(dt: number)
 	refreshExclude()
 	if baking then
 		local budget = Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8)
-		bakeSome(os.clock() + budget / 1000)
+		bakeSome(SG.clock() + budget / 1000)
 		if baking and back == nil then
 			return -- nothing on screen to keep alive (the first bake, a jump)
 		end
@@ -3505,7 +4498,7 @@ local function frameStep(dt: number)
 			growT0 = os.clock()
 		end
 	elseif g and surf then
-		local u = math.clamp((os.clock() - growT0) / Tuning.GrowSecs, 0, 1)
+		local u = math.clamp((SG.clock() - growT0) / Tuning.GrowSecs, 0, 1)
 		local e = 1 - (1 - u) ^ 3
 		local changed, front = Grow.step(g, e)
 		for _, f in front do
@@ -3525,13 +4518,13 @@ local function frameStep(dt: number)
 	local s = surf
 	if s and not baking then
 		local tx, ty = CameraController.pan()
-		local sc0 = os.clock()
+		local sc0 = SG.clock()
 		local before = stats.scrolls
 		scrollToward(s, tx, ty)
 		if stats.scrolls ~= before then
 			SG.panAt = os.clock()
 			stats.perf.panFrames += 1
-			stats.perf.scrollMs += (os.clock() - sc0) * 1000
+			stats.perf.scrollMs += (SG.clock() - sc0) * 1000
 		end
 		if baking then
 			return -- a jump started a bake
@@ -3541,7 +4534,7 @@ local function frameStep(dt: number)
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
 	if s and tier ~= "low" then
 		waterClock += dt
-		local w0 = os.clock()
+		local w0 = SG.clock()
 		-- (the next frame's slices due by now: all of them by the period's end; SG.waterSlice)
 		local S = SG.WATER_SLICES
 		local due = math.min(S, math.floor(waterClock * WATER_HZ * S))
@@ -3549,28 +4542,28 @@ local function frameStep(dt: number)
 			SG.waterSlice(s, SG.waterDone)
 			SG.waterDone += 1
 		end
-		local w1 = os.clock()
+		local w1 = SG.clock()
 		while SG.windDone < due and not SG.windVoid do
 			SG.windSlice(s, waterFrame + 1, SG.windDone)
 			SG.windDone += 1
 		end
-		local w2 = os.clock()
+		local w2 = SG.clock()
 		if waterClock >= 1 / WATER_HZ then
 			waterClock = 0
-			if SG.waterApply(s) then
+			if SG.waterApply(s) and not SG.live(s) then
 				needFull = true
 			end
 			waterFrame += 1
 			SG.waterDone = 0
-			local w3 = os.clock()
+			local w3 = SG.clock()
 			if SG.windVoid then
 				table.clear(SG.windPend)
-			elseif SG.windApply(s) then
+			elseif SG.windApply(s) and not SG.live(s) then
 				needFull = true
 			end
 			SG.windDone, SG.windVoid = 0, false
 			stats.perf.waterMs += (w1 - w0 + w3 - w2) * 1000
-			stats.perf.windMs += (w2 - w1 + os.clock() - w3) * 1000
+			stats.perf.windMs += (w2 - w1 + SG.clock() - w3) * 1000
 		else
 			stats.perf.waterMs += (w1 - w0) * 1000
 			stats.perf.windMs += (w2 - w1) * 1000
@@ -3579,7 +4572,7 @@ local function frameStep(dt: number)
 	local hz = tierSpec(tier).hz
 	tickAcc += dt
 	SG.dynAcc += dt
-	if tickAcc >= 1 / hz or needFull then
+	if tickAcc >= 1 / hz or needFull or SG.panned or SG.touch then
 		tickAcc = 0
 		-- (the moving models change at hz even while a pan composes every frame)
 		local due = SG.dynAcc >= 1 / hz
@@ -3672,10 +4665,10 @@ function PixelRenderer.start()
 	applyTier(setting)
 	watchCharacters()
 	RunService.Heartbeat:Connect(function(dt: number)
-		local t0 = os.clock()
+		local t0 = SG.clock()
 		frameStep(dt)
 		stats.perf.frames += 1
-		local ms = (os.clock() - t0) * 1000
+		local ms = (SG.clock() - t0) * 1000
 		stats.perf.stepMs += ms
 		stats.perf.maxMs = math.max(stats.perf.maxMs, ms)
 		if ms > 25 then
@@ -3820,6 +4813,7 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 	-- (its ids run lo .. hi unless they wrapped round past 65535: then hi < lo and its picture is never kept)
 	local lo = if #parts > 0 then parts[1].id else 0
 	local hi = if #parts > 0 then parts[#parts].id else -1
+	SG.forget(dyns[model])
 	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel, lo = lo, hi = hi }
 end
 
@@ -3850,7 +4844,22 @@ function PixelRenderer.hideStatic(part: BasePart)
 end
 
 function PixelRenderer.unregisterDynamic(model: Model)
+	SG.forget(dyns[model])
 	dyns[model] = nil
+end
+
+-- A moving model leaves (or is registered again): where it and its blob shadow showed is drawn again by the next
+-- incremental compose.
+function SG.forget(d: Dyn?)
+	if d == nil or SG.incOn == nil then
+		return
+	end
+	if d.shR then
+		table.insert(SG.dirty, d.shR)
+	end
+	if d.sR then
+		table.insert(SG.dirty, d.sR)
+	end
 end
 
 -- Re-colour a registered model's parts after their Color changed (a monitor lighting up).
@@ -3940,7 +4949,7 @@ end
 -- eased: quick at first, settling into place).
 function PixelRenderer.growing(): (boolean, number)
 	if growing then
-		local u = if growT0 < 0 then 0 else math.clamp((os.clock() - growT0) / Tuning.GrowSecs, 0, 1)
+		local u = if growT0 < 0 then 0 else math.clamp((SG.clock() - growT0) / Tuning.GrowSecs, 0, 1)
 		return true, 1 - (1 - u) ^ 3
 	end
 	return growArm ~= nil, 0
@@ -4078,6 +5087,24 @@ function PixelRenderer.screenRay(pos: Vector2): (Vector3, Vector3)
 end
 
 -- The art pixel (i, j) of the top-left grid that shows a world point (UI on a pixel canvas), and whether on screen.
+-- Whether a world point is on the screen or within `pad` art px of it (the pixel layer's; the camera's viewport in the
+-- classic style). The world view gives a driftling its model by it, the spinners turn by it.
+function PixelRenderer.nearScreen(world: Vector3, pad: number): boolean
+	local s = surf
+	if s and tier ~= "off" then
+		local px, py = Raster.project(s.cam, world.X, world.Y, world.Z)
+		return px >= -pad and py >= -pad and px < s.W + pad and py < s.H + pad
+	end
+	local cam = workspace.CurrentCamera
+	if cam == nil then
+		return true
+	end
+	local p = cam:WorldToViewportPoint(world)
+	local v = cam.ViewportSize
+	local k = pad * 3
+	return p.Z > 0 and p.X >= -k and p.Y >= -k and p.X < v.X + k and p.Y < v.Y + k
+end
+
 function PixelRenderer.projectPixel(world: Vector3): (number, number, boolean)
 	local pos, on = PixelRenderer.project(world)
 	local k = PixelRenderer.pixelScale()
@@ -4132,7 +5159,7 @@ end
 -- Sims and previews: the spotlight's dimming now.
 -- Previews: where the frames' time went since the last read (ms summed: the scrolls of the frames that panned, the
 -- composes, the full uploads and their grade), then the counters start again.
-function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, maxMs: number, slow: number, hits: number, draws: number }
+function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, maxMs: number, slow: number, hits: number, draws: number, incFrames: number, incPx: number, fullFrames: number }
 	local perf = stats.perf
 	local out: any = table.clone(perf)
 	for k in perf do
@@ -4140,6 +5167,21 @@ function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollM
 	end
 	out.hits, out.draws = SG.hits, SG.draws
 	SG.hits, SG.draws = 0, 0
+	local by = {}
+	for k, v in SG.markBy do
+		table.insert(by, string.format("%s %d", k, v))
+	end
+	table.sort(by)
+	out.markBy = table.concat(by, ", ")
+	table.clear(SG.markBy)
+	out.skips = SG.skips
+	SG.skips = 0
+	local why = {}
+	for k, v in SG.skipWhy do
+		table.insert(why, string.format("%s %d", k, v))
+	end
+	out.skipWhy = table.concat(why, ", ")
+	table.clear(SG.skipWhy)
 	out.cache = SG.Tiles.stats()
 	return out
 end
@@ -4288,6 +5330,26 @@ function PixelRenderer.debugKeepCheck(): { off: number, hits: number, checked: n
 	end
 	needFull = true
 	return { off = off, hits = hits, checked = n }
+end
+
+-- Sims and previews: the incremental compose against a whole compose at the same moment. Arms the check for the next
+-- incremental compose (drawn without the tick's budget, then composed whole at once, the frames before the effects
+-- compared) and returns the last one's result: off, the pixels (colour or id) that differ (-1: none ran yet); ties,
+-- those where two models meet within the depth bias (the one put down first keeps them); px, the art px it redid.
+function PixelRenderer.debugIncCheck(): { off: number, checked: number, px: number }
+	SG.incArm = true
+	return SG.incResult
+end
+
+-- Sims and previews: the clock the frame's budgets and timings read (nil: os.clock again).
+function PixelRenderer.debugClock(fn: (() -> number)?)
+	SG.clock = fn or os.clock
+end
+
+-- Whether the island composes incrementally now (SG.live).
+function PixelRenderer.debugInc(): boolean
+	local s = surf
+	return s ~= nil and SG.live(s)
 end
 
 function PixelRenderer.debugDim(): number

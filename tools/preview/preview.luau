@@ -198,6 +198,10 @@ local function seedProfile(userId, tier, opts)
 	prof.inv = opts.inv or prof.inv
 	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
+	-- (opts.fill(prof): lays pieces itself, the stress test's full island)
+	if opts.fill then
+		opts.fill(prof)
+	end
 	for _, d in opts.pieces or {} do
 		local done = false
 		for r = 0, if d[6] then 0 else 8 do
@@ -430,6 +434,333 @@ end
 -- village, the founder walked east then north at walking speed (the camera following it), the renderer's frames timed
 -- (PixelRenderer.debugPerf: the scrolls, the composes, the full uploads and their grade, the whole frame), then as long
 -- standing still; pan_000 .. pan_005 a frame every half second of the walk.
+-- The biggest island at every limit, walked across (the request of 2026-11-17: "As the game requires you to walk around
+-- in bigger islands and bigger islands will have more buildings, do a stress test with the maximum amount of decor and
+-- buildings at the highest expansion level. Try walking around to move the camera. It should be smooth."): Everdrift
+-- (tier 20) with its piece limit filled (42 Citadels for the 840 driftlings the huts may hold, the Hatcheries it may
+-- have, the boost buildings twice over, workplaces of every kind, then decor to the limit), a pond of water tiles,
+-- every path tile it may have and every fence length that fits, walkways two studs wide left between the blocks; 840
+-- driftlings. The founder walks the island's length and back across it at walking speed on the real clock; the log has
+-- the frames (the slowest, how many over 25 ms), the pixel filter's share and every script's (E.coTime: each
+-- connection's time by its source line, the server's and the client's).
+local function fillMax(prof)
+	local tier = prof.tier
+	local Plot = H.sharedServer("Logic.Plot")
+	local Buildings = H.sharedServer("Data.Buildings")
+	local Street = H.sharedServer("Data.Street")
+	local placed = prof.plot.placed
+	local occ = {}
+	local function key(x, z)
+		return (x + 512) * 4096 + (z + 2048)
+	end
+	local function mark(id, x, z, rot)
+		local r = Plot.rect(id, x, z, rot)
+		for cz = r.z0, r.z1 - 1 do
+			for cx = r.x0, r.x1 - 1 do
+				occ[key(cx, cz)] = true
+			end
+		end
+	end
+	local function free(id, x, z, rot)
+		local r = Plot.rect(id, x, z, rot)
+		for cz = r.z0, r.z1 - 1 do
+			for cx = r.x0, r.x1 - 1 do
+				if occ[key(cx, cz)] then
+					return false
+				end
+			end
+		end
+		return true
+	end
+	local function add(id, x, z, rot)
+		table.insert(placed, { uid = prof.nextId, id = id, x = x, z = z, rot = rot, lvl = 1 })
+		prof.nextId += 1
+	end
+	for _, q in placed do
+		mark(q.id, q.x, q.z, q.rot)
+	end
+	-- the island's cells (north first), walkways every 14 studs north-south and every 16 east-west kept clear
+	local X0, X1, Z0, Z1 = -34, 33, -198, 17
+	for z = Z0, Z1 do
+		for x = X0, X1 do
+			if (z % 14 == 0 or z % 14 == 1) or (x % 16 == 0 or x % 16 == 1) then
+				occ[key(x, z)] = true
+			end
+		end
+	end
+	-- a pond of water tiles, west of the middle
+	local water = 0
+	for z = -110, -100, 2 do
+		for x = -26, -14, 2 do
+			local id = if (x + z) % 4 == 0 then "lagoon" else "lilypond"
+			if free(id, x, z, 0) and Plot.fits(tier, placed, id, x, z, 0) then
+				add(id, x, z, 0)
+				mark(id, x, z, 0)
+				water += 1
+			end
+		end
+	end
+	-- the pieces, in proportion as they go (so each kind is spread over the whole island)
+	local groups = { huts = {}, breed = {}, boost = {}, work = {}, decor = {} }
+	for _, d in Buildings.list do
+		if d.tier <= tier then
+			if d.kind == "nest" and d.id == "citadel" then
+				table.insert(groups.huts, d.id)
+			elseif d.kind == "breed" then
+				table.insert(groups.breed, d.id)
+			elseif d.kind == "gen" then
+				table.insert(groups.boost, d.id)
+			elseif d.kind == "farm" or d.kind == "wood" or d.kind == "shop" then
+				table.insert(groups.work, d.id)
+			elseif d.kind == "decor" and (d.water or "") == "" then
+				table.insert(groups.decor, d.id)
+			end
+		end
+	end
+	local limit = Plot.limit(tier)
+	local want = { huts = math.ceil(Plot.housingLimit(tier) / Buildings.byId.citadel.slots), breed = Plot.hatcheryLimit(tier), boost = 2 * #groups.boost, work = 280 }
+	want.decor = limit - want.huts - want.breed - want.boost - want.work
+	local got = { huts = 0, breed = 0, boost = 0, work = 0, decor = 0 }
+	local ORDER = { "huts", "breed", "boost", "work", "decor" }
+	local cells = {}
+	for z = Z0, Z1 do
+		for x = X0, X1 do
+			if Street.buildable(tier, x, z) then
+				table.insert(cells, x * 65536 + (z + 32768))
+			end
+		end
+	end
+	local cursor = 1
+	local failed = 0
+	for k = 1, limit do
+		local pick, best = nil, -math.huge
+		for _, g in ORDER do
+			if got[g] < want[g] then
+				local owed = want[g] * k / limit - got[g]
+				if owed > best then
+					pick, best = g, owed
+				end
+			end
+		end
+		if pick == nil then
+			break
+		end
+		local list = groups[pick]
+		local id = list[got[pick] % #list + 1]
+		got[pick] += 1
+		local done = false
+		for n = 0, #cells - 1 do
+			local c = cells[(cursor + n - 1) % #cells + 1]
+			local x, z = c // 65536, c % 65536 - 32768
+			if free(id, x, z, 0) and Plot.fits(tier, placed, id, x, z, 0) then
+				add(id, x, z, 0)
+				mark(id, x, z, 0)
+				cursor = (cursor + n - 1) % #cells + 1
+				done = true
+				break
+			end
+		end
+		if not done then
+			failed += 1
+		end
+	end
+	-- every path tile it may have, over the whole island (under the buildings too), then the fences
+	local PATHS = { "cobble", "marblewalk", "brickroad", "goldpath", "starpath", "flagstone" }
+	local tiles = water
+	for z = Z0, Z1, 2 do
+		for x = X0 + (X0 % 2), X1, 2 do
+			if tiles >= Plot.pathLimit(tier) then
+				break
+			end
+			local id = PATHS[((x // 2) + (z // 2)) % #PATHS + 1]
+			if Plot.fits(tier, placed, id, x, z, 0) then
+				add(id, x, z, 0)
+				tiles += 1
+			end
+		end
+	end
+	local FENCES = { "picket", "hedgerow", "lanternrope", "crystalfence", "stonewall" }
+	local fences = 0
+	for z = Z0, Z1, 2 do
+		for x = X0 + (X0 % 2), X1, 2 do
+			for _, rot in { 0, 90 } do
+				if fences < Plot.fenceLimit(tier) then
+					local id = FENCES[((x // 2) * 3 + (z // 2)) % #FENCES + 1]
+					if Plot.fits(tier, placed, id, x, z, rot) then
+						add(id, x, z, rot)
+						fences += 1
+					end
+				end
+			end
+		end
+	end
+	log("stress fill: %d huts, %d hatcheries, %d boost buildings, %d workplaces, %d decor (%d of %d pieces, %d did not fit), %d water and %d path tiles (of %d), %d fence lengths (of %d)",
+		got.huts, got.breed, got.boost, got.work, got.decor, got.huts + got.breed + got.boost + got.work + got.decor - failed, limit, failed, water, tiles - water, Plot.pathLimit(tier), fences, Plot.fenceLimit(tier))
+end
+
+-- The incremental compose against a whole one (PixelRenderer.debugIncCheck), every `every` frames of a walk: `step`
+-- arms the next check and tallies the last one's result; `line` says how they went.
+local function incTally(p, PR, every)
+	local t = { n = 0, off = 0, worst = 0, px = 0, ties = 0 }
+	function t.step(i)
+		if PR.debugIncCheck == nil or i % every ~= 0 then
+			return
+		end
+		local r = H.inClient(p, PR.debugIncCheck)
+		if r.off >= 0 and r.checked > 0 and r ~= t.last then
+			t.n += 1
+			t.off += r.off
+			t.ties += r.ties or 0
+			t.worst = math.max(t.worst, r.off)
+			t.px += r.px
+			if r.off > 0 and r.seen then
+				log("incremental check off: %d px; %s", r.off, r.seen)
+			end
+		end
+		t.last = r
+	end
+	function t.line(): string
+		return string.format("%d incremental composes checked against whole ones: %d pixels off in all (the worst %d; %d more where two models meet within the depth bias), %d px redone each on average", t.n, t.off, t.worst, t.ties, t.px // math.max(1, t.n))
+	end
+	return t
+end
+
+function SCEN.stress(legs: number?)
+	local Tuning = H.sharedServer("Config.Tuning")
+	local Creatures = H.sharedServer("Data.Creatures")
+	local Plot = H.sharedServer("Logic.Plot")
+	local top = #Tuning.TierCost
+	local pals = {}
+	for k = 1, Plot.housingLimit(top) do
+		table.insert(pals, Creatures.list[(k - 1) % #Creatures.list + 1].id)
+	end
+	local t0 = os.clock()
+	seedProfile(19, top, { fill = fillMax, pals = pals, shells = 9e9 })
+	log("stress: seeded in %.1f s", os.clock() - t0)
+	t0 = os.clock()
+	local p = join(19, "Stress")
+	settle(p, 120, 2)
+	E.run(2)
+	local prof = H.profile(p)
+	local working = 0
+	for _, x in prof.pals do
+		if x.work ~= 0 then
+			working += 1
+		end
+	end
+	log("stress: joined and settled in %.1f s: tier %d, %d pieces placed in all, %d driftlings (%d at work)", os.clock() - t0, prof.tier, #prof.plot.placed, #prof.pals, working)
+	capture(p, "stress_start")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR == nil or PR.debugPerf == nil then
+		return p
+	end
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	-- (the world at 60 frames a second of its own time, however long a frame takes here: the moving things change as
+	-- often as they would in the game. The renderer's budgets and timings read the real clock: PixelRenderer.debugClock)
+	local realClock = os.clock
+	local sim0 = E.simClock
+	if PR.debugClock then
+		H.inClient(p, PR.debugClock, realClock)
+	end
+	local WV0 = modOr(p, "Controllers.WorldView")
+	if WV0 then
+		H.inClient(p, function()
+			WV0.clock = realClock
+		end)
+	end
+	local dt = 1 / 60
+	local speed = 16
+	-- the route: north up the middle, across to the west, back south along the west side, across east
+	local route = { { -2, 4 }, { -2, -180 }, { -26, -180 }, { -26, -30 }, { 24, -30 }, { 24, -120 } }
+	local lastMarks = nil
+	local function report(label, frames, wall)
+		local st = H.inClient(p, PR.debugPerf)
+		lastMarks = (st.markBy or "") .. string.format("; %d models left out of a compose (no picture to show: %s)", st.skips or 0, st.skipWhy or "")
+		local f = math.max(1, st.frames)
+		local pf = math.max(1, st.panFrames)
+		log("stress %s: %d frames in %.1f s (%.1f ms a frame of everything); the pixel filter %.2f ms a frame, the slowest %.1f ms, %d over 25 ms; scroll %.2f ms a pan (cast %.2f), composes %.2f (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f, grading %.2f, uploads %.2f; %d uploads), water %.2f, wind %.2f; %d kept pictures used, %d models drawn; %d incremental composes (%d px each), %d whole",
+			label, frames, wall, wall * 1000 / math.max(1, frames), st.stepMs / f, st.maxMs or 0, st.slow or 0, st.scrollMs / pf, st.castMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.gradeMs / f, st.uploadMs / f, st.uploads, st.waterMs / f, st.windMs / f, st.hits, st.draws, st.incFrames or 0, (st.incPx or 0) // math.max(1, st.incFrames or 0), st.fullFrames or 0)
+	end
+	local tally = incTally(p, PR, 20)
+	local function scripts(label, frames)
+		local ct = E.coTime or {}
+		if lastMarks then
+			log("stress %s tiles marked (all frames): %s", label, lastMarks)
+		end
+		local rows = {}
+		for k, v in ct do
+			table.insert(rows, { k = k, v = v })
+		end
+		table.sort(rows, function(a, b)
+			return a.v > b.v
+		end)
+		local parts = {}
+		for i = 1, math.min(14, #rows) do
+			table.insert(parts, string.format("%s %.2f", (string.gsub(rows[i].k, "^.*%.", "")), rows[i].v * 1000 / math.max(1, frames)))
+		end
+		log("stress %s scripts (ms a frame): %s", label, table.concat(parts, "; "))
+		local WV = modOr(p, "Controllers.WorldView")
+		if WV and WV.debugCost then
+			local c = H.inClient(p, WV.debugCost)
+			local n = math.max(1, c.frames)
+			log("stress %s world view (ms a frame): driftlings %.2f, poses %.2f, fires/chips/signs %.2f, building cards %.2f, eggs %.2f; %d models out, %d pooled", label, c.walk * 1000 / n, c.pose * 1000 / n, c.rest * 1000 / n, c.tags * 1000 / n, c.eggs * 1000 / n, c.dressed, c.pooled)
+		end
+	end
+	H.inClient(p, PR.debugPerf)
+	E.coTime = {}
+	local wall0 = realClock()
+	local frames = 0
+	local segWall, segFrames = realClock(), 0
+	local worstFrame, worstAt = 0, ""
+	for leg = 1, math.min(#route - 1, legs or #route) do
+		local a, b = route[leg], route[leg + 1]
+		local len = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
+		local n = math.max(1, math.floor(len / (speed * dt)))
+		for i = 1, n do
+			local u = i / n
+			local qx, qz = a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u
+			p.Character:PivotTo(E.cf.new(ox + qx, 3, qz))
+			local f0 = realClock()
+			E.step(dt)
+			local ms = (realClock() - f0) * 1000
+			if ms > worstFrame then
+				worstFrame, worstAt = ms, string.format("leg %d at %.0f, %.0f", leg, qx, qz)
+			end
+			frames += 1
+			segFrames += 1
+			-- (the checks on one leg only: each composes the whole frame once more, which the timings would carry)
+			if leg == 2 then
+				tally.step(frames)
+			end
+		end
+		report("leg " .. leg, segFrames, realClock() - segWall)
+		scripts("leg " .. leg, segFrames)
+		capture(p, string.format("stress_leg%d", leg))
+		E.coTime = {}
+		H.inClient(p, PR.debugPerf)
+		segWall, segFrames = realClock(), 0
+	end
+	log("stress: the whole walk %d frames, its slowest whole frame %.1f ms (%s)", frames, worstFrame, worstAt)
+	log("stress: %s", tally.line())
+	local _ = wall0
+	-- standing in the middle of it a few seconds
+	E.coTime = {}
+	H.inClient(p, PR.debugPerf)
+	local st0 = realClock()
+	for _ = 1, 180 do
+		E.step(dt)
+	end
+	report("standing", 180, realClock() - st0)
+	scripts("standing", 180)
+	E.coTime = nil
+	E.simClock = sim0
+	if PR.debugClock then
+		H.inClient(p, PR.debugClock, nil)
+	end
+	return p
+end
+
 function SCEN.pan()
 	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
 	local p = join(2, "Wren")
@@ -444,7 +775,7 @@ function SCEN.pan()
 		local f = math.max(1, st.frames)
 		local pf = math.max(1, st.panFrames)
 		log("pan %s: the slowest frame %.1f ms, %d over 25 ms", label, st.maxMs or 0, st.slow or 0)
-		log("pan %s: %d frames in %.1f s, %d panned; a frame %.2f ms; a pan's scroll %.2f ms (cast %.2f, ink %.2f); composes %.2f ms a frame (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f); %d full uploads, %.2f ms each (grade %.2f ms each), %d whole regrades; water %.2f ms and wind %.2f ms a frame; %d kept pictures used, %d models drawn", label, st.frames, secs, st.panFrames, st.stepMs / f, st.scrollMs / pf, st.castMs / pf, st.inkMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.uploads, st.uploadMs / math.max(1, st.uploads), st.gradeMs / math.max(1, st.uploads), st.regrades, st.waterMs / f, st.windMs / f, st.hits, st.draws)
+		log("pan %s: %d frames in %.1f s, %d panned; a frame %.2f ms; a pan's scroll %.2f ms (cast %.2f, ink %.2f); composes %.2f ms a frame (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f, grading %.2f); %d uploads, %d whole regrades; water %.2f ms and wind %.2f ms a frame; %d kept pictures used, %d models drawn; %d incremental composes (%d px each), %d whole", label, st.frames, secs, st.panFrames, st.stepMs / f, st.scrollMs / pf, st.castMs / pf, st.inkMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.gradeMs / f, st.uploads, st.regrades, st.waterMs / f, st.windMs / f, st.hits, st.draws, st.incFrames or 0, (st.incPx or 0) // math.max(1, st.incFrames or 0), st.fullFrames or 0)
 		if st.byModel then
 			log("pan %s by model: %s", label, st.byModel)
 		end
@@ -468,6 +799,7 @@ function SCEN.pan()
 	end
 	local dt = 1 / 60
 	H.inClient(p, PR.debugPerf)
+	local tally = incTally(p, PR, 20)
 	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 	local at = root and root.Position or E.v3(0, 3, 0)
 	local speed = 16
@@ -488,6 +820,7 @@ function SCEN.pan()
 		end
 		p.Character:PivotTo(E.cf.new(at.X + ox, at.Y, at.Z + oz))
 		E.step(dt)
+		tally.step(i)
 	end
 	report("walking", realClock() - wall0)
 	local function castCheck(label)
@@ -523,11 +856,13 @@ function SCEN.pan()
 	castCheck("walking again")
 	H.inClient(p, PR.debugPerf)
 	wall0 = realClock()
-	for _ = 1, 240 do
+	for i = 481, 720 do
 		E.step(dt)
+		tally.step(i)
 	end
 	report("standing", realClock() - wall0)
 	castCheck("standing")
+	log("pan: %s", tally.line())
 	E.simClock = sim0
 	if PR.debugKeepCheck then
 		local kc = H.inClient(p, PR.debugKeepCheck)
@@ -2994,6 +3329,13 @@ for _, name in list do
 	if palswArg then
 		fn = function()
 			return palsScenario(palswArg, "world")
+		end
+	end
+	-- (stress=<n>: the stress walk's first n legs only)
+	local stressLegs = string.match(name, "^stress=(%d)$")
+	if stressLegs then
+		fn = function()
+			return SCEN.stress(tonumber(stressLegs))
 		end
 	end
 	local wxArg = string.match(name, "^weather=(%a+)$")

@@ -76,9 +76,12 @@ I.onReparent = function(subtree, old, new)
 	if prevReparent then
 		prevReparent(subtree, old, new)
 	end
+	-- (only a part a ray can meet changes the trees: one with CanCollide and CanQuery off is in none of them, as in
+	-- Roblox; the driftlings' parts and the effects' bits come and go all the time)
 	local any = false
 	for _, x in subtree do
-		if isBasePart(getD(x).cls) then
+		local xd = getD(x)
+		if isBasePart(xd.cls) and (xd.props.CanCollide ~= false or xd.props.CanQuery ~= false) then
 			any = true
 			break
 		end

@@ -40,7 +40,7 @@ local CARD_TOP = 22 -- the card stays this far below the top of the HUD's canvas
 -- One building of the own island that houses, employs or boosts: its uid, piece id, model, the point over its roof
 -- (world), what it is ("work", "nest" or "boost"; `work` true for a workplace), its room (0 for a boost building), how
 -- many work or live there now, and its card's other lines (a workplace's earnings, a boost building's two lines).
-type Spot = { uid: number, id: string, model: Model, top: Vector3, work: boolean, kind: string, room: number, n: number, extra: { string } }
+type Spot = { uid: number, id: string, model: Model, top: Vector3, work: boolean, kind: string, room: number, n: number, extra: { string }? }
 
 local spots: { [number]: Spot } = {}
 local plotNow = 0
@@ -70,10 +70,56 @@ end
 
 -- The island's workplaces and huts from its Decor folder (a model a piece, named "uid:id:x:z:rot"), each with the point
 -- over its roof (its bounding box, kept while the model stays), and how many work or live there (the view's driftlings).
+-- The folder is looked over again only when a piece came or went, the counts only when a new view came (a full
+-- Everdrift has some 4,700 pieces: looking them all over and working out every workplace's earnings twice a second was
+-- a hitch, the request of 2026-11-17's stress test); a card's other lines are worked out when it shows (`extrasOf`).
+local scanDecor: Instance? = nil
+local scanDirty = true
+local scanConns: { RBXScriptConnection } = {}
+local scanView: Types.ClientView? = nil
 local function scan(v: Types.ClientView)
 	local m = plotModel(plotNow)
 	local decor = if m then m:FindFirstChild("Decor", true) else nil
+	if decor ~= scanDecor then
+		for _, c in scanConns do
+			c:Disconnect()
+		end
+		table.clear(scanConns)
+		scanDecor = decor
+		scanDirty = true
+		if decor then
+			table.insert(scanConns, decor.ChildAdded:Connect(function()
+				scanDirty = true
+			end))
+			table.insert(scanConns, decor.ChildRemoved:Connect(function()
+				scanDirty = true
+			end))
+		end
+	end
+	if not scanDirty and v == scanView then
+		return
+	end
+	scanView = v
 	decorOf = decor
+	if not scanDirty then
+		-- (a new view only: who works and lives where)
+		for _, s in spots do
+			s.n = 0
+			s.extra = nil
+		end
+		for _, pal in v.pals do
+			local w = spots[pal.work]
+			if w and w.work then
+				w.n += 1
+			end
+			local h = spots[pal.home]
+			if h and h.kind == "nest" then
+				h.n += 1
+			end
+		end
+		return
+	end
+	scanDirty = false
 	local seen: { [number]: boolean } = {}
 	if decor then
 		for _, c in decor:GetChildren() do
@@ -95,7 +141,7 @@ local function scan(v: Types.ClientView)
 			if s == nil or s.model ~= c then
 				local cf, size = c:GetBoundingBox()
 				local kind = if work then "work" elseif boost then "boost" else "nest"
-				s = { uid = u, id = id, model = c, top = cf.Position + Vector3.new(0, size.Y / 2 + 0.4, 0), work = work, kind = kind, room = if work then Tuning.HelpMax elseif boost then 0 else def.slots, n = 0, extra = {} }
+				s = { uid = u, id = id, model = c, top = cf.Position + Vector3.new(0, size.Y / 2 + 0.4, 0), work = work, kind = kind, room = if work then Tuning.HelpMax elseif boost then 0 else def.slots, n = 0, extra = nil }
 				spots[u] = s
 			end
 			seen[u] = true
@@ -119,6 +165,7 @@ local function scan(v: Types.ClientView)
 	end
 	for _, s in spots do
 		s.n = 0
+		s.extra = nil
 	end
 	for _, pal in v.pals do
 		local w = spots[pal.work]
@@ -130,22 +177,37 @@ local function scan(v: Types.ClientView)
 			h.n += 1
 		end
 	end
-	-- the cards' other lines: what each workplace earns a minute, what each boost building's knack gets from them all
-	local prof: any = { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier }
-	local made = Island.output(prof)
-	local mult = (1 + (v.charmBonus or 0)) * (v.incomeMult or 1) * 60 / Tuning.TurnSeconds
-	for _, s in spots do
+end
+
+-- A card's other lines, worked out when it shows (once a view): what a workplace earns a minute, what a boost
+-- building's knack gets from them all.
+local madeFor: Types.ClientView? = nil
+local made: { [number]: number } = {}
+local function extrasOf(s: Spot): { string }
+	local have = s.extra
+	if have then
+		return have
+	end
+	local v = scanView
+	local out: { string } = {}
+	if v then
+		local prof: any = { plot = { placed = v.pieces }, pals = v.pals, tier = v.tier }
 		if s.kind == "work" then
-			s.extra = { string.format("Earns %s shells/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
+			if madeFor ~= v then
+				made = Island.output(prof)
+				madeFor = v
+			end
+			local mult = (1 + (v.charmBonus or 0)) * (v.incomeMult or 1) * 60 / Tuning.TurnSeconds
+			out = { string.format("Earns %s shells/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
 		elseif s.kind == "boost" then
 			local b = Island.boostInfo(prof, s.id)
 			local first = string.format("%s +%s from %d boost building%s", KNACK_WORD[b.knack] or "Everything", pct(b.total), b.count, if b.count == 1 then "" else "s")
 			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Boosts top out at %s", pct(Tuning.BoostMax)) else string.format("One more adds +%s", pct(b.more))
-			s.extra = { first, second }
-		else
-			s.extra = {}
+			out = { first, second }
 		end
 	end
+	s.extra = out
+	return out
 end
 
 -- The words of a building's card.
@@ -168,14 +230,15 @@ local function showCard(s: Spot)
 	local name = if def then def.name else s.id
 	type Line = { icon: string, text: string, color: string }
 	local lines: { Line } = {}
+	local extra = extrasOf(s)
 	if s.kind == "boost" then
-		table.insert(lines, { icon = "mini_boost", text = s.extra[1] or "", color = "good" })
-		table.insert(lines, { icon = "mini_star", text = s.extra[2] or "", color = "text_dim" })
+		table.insert(lines, { icon = "mini_boost", text = extra[1] or "", color = "good" })
+		table.insert(lines, { icon = "mini_star", text = extra[2] or "", color = "text_dim" })
 	else
 		local full = s.n >= s.room
 		table.insert(lines, { icon = if s.work then "mini_work" else "mini_nest", text = fullness(s), color = if s.n == 0 then "bad" elseif full then "good" else "text" })
-		if s.work and s.extra[1] then
-			table.insert(lines, { icon = "mini_shell", text = s.extra[1], color = "text" })
+		if s.work and extra[1] then
+			table.insert(lines, { icon = "mini_shell", text = extra[1], color = "text" })
 		end
 	end
 	local words = name
@@ -271,6 +334,7 @@ function BuildingTags.step(t: number, plot: number, hoverPos: Vector2?, palHover
 		table.clear(spots)
 		dropCard()
 		scanAt = 0
+		scanDirty = true
 	end
 	if v and t >= scanAt then
 		scanAt = t + SCAN_SECS

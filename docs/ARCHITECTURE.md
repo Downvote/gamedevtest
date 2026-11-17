@@ -257,7 +257,8 @@ every field.
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamGlide`, `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelMaxDyn`), the island growing into its next
+`PixelInvalidateRaysFrame`, `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
+  drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)), the island growing into its next
   tier (`GrowSecs` 1.9: the moving coast's time; `GrowArmSecs` 3: how long an armed growth waits for its bake to begin).
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
   `SeasonSecs` (9000: a season, a whole number of spells), `WeatherSecs` (600: a spell), `WeatherTouch` (the chance an
@@ -924,7 +925,8 @@ neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_D
 toon bands and the palette LUT (the indoor tint inside the room) with each material's surface texture (9.3), then the
 ink outline (`Shading.outline`) and the contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings), the tree's eggs and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
-layer and outlined; only the old and new dirty rects are restored and uploaded. Besides Roblox's shapes, Raster draws
+layer and outlined; only the tiles where something changed are drawn again and uploaded (9.3, the incremental
+compose). Besides Roblox's shapes, Raster draws
 three smooth solids (the request of 2026-11-15: "currently, all of them are modelled using blobs, which is unnatural";
 `Raster.drawSolid`, `Raster.hitSolid`, `Raster.SOLID_KIND`): "Ell" (the ellipsoid in the part's box), "Egg" (two half
 ellipsoids along its Y joined at an equator, the top `prm` of the height), "Cone" (a tapered limb along its X: two
@@ -1034,7 +1036,9 @@ with the layer (`Grow.shift`; one while it is still prepping finishes it first),
 picture (`Grow.adopt`), and a new bake, a new layer or the filter going off finishes it at once. The sea's wave phase is
 `waterPhase(wx, wz)`, shared with the bake. `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
-direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `debugStatic()`
+direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `nearScreen(world,
+pad) -> boolean` (whether a world point lies on the layer or within `pad` art px of it: Controllers/WorldView dresses
+and undresses the driftlings by it, Controllers/Spinners turns only the sails near the screen), `debugStatic()`
 (CLI checks: layer, pan, bakes, ticks, `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
@@ -1043,7 +1047,10 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   in (`castRect(..., noRefine)`, then `refineShadows` over each strip and a pixel round it), re-outlined with a pixel
   round them and their water set to the frame now (`SG.waterFix`); at most `Tuning.PixelPanRays` rays a frame (a
   longer pan catches up over frames); a pan of half the layer or more re-bakes at the new pan behind the old picture.
-  The next compose copies the whole static layer and uploads the whole image.
+  Composing incrementally, the finished frame, its base, the image's graded copy and last tick's effect pixels shift
+  with the layer (`SG.panShift`; the sticky pixels come off first, `SG.unstickFrame`, as the pan drops them) and the
+  strips, with 3 px round them, go in as the static picture alone (`SG.strips`); otherwise the next compose copies the
+  whole static layer and uploads the whole image.
 - **The pan cache** (`Pixel/PanCache`, `SG.Tiles`; the request of 2026-11-16: "is there any way to optimize the camera
   movement? it is still very laggy when moving around"): the view is orthographic and pans by whole art px, so a static
   pixel at a global art px is the same wherever the view stands. The strips a pan is about to scroll off are kept in
@@ -1066,22 +1073,36 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   a stash coming back, a failed or removed effect layer, a new grade or dim and a rebuilt pool map clear `SG.ok`, and
   the next whole upload grades it all once. A whole upload (`uploadAll(s, over, sticks, fxBook, fxN)`) copies `SG.buf`
   and grades from the frame only what is drawn over the static picture: the moving models' rects, this tick's effect
-  pixels (their book) and the stuck pixels. Moving models keep their picture (`Dyn.cache`, `SG.keep` / `SG.blit`):
-  once a model has stood still through two draws its pixels that win against the static picture alone (colour, depth,
-  id, `PX_BYTES` 14 each) are kept, taken from the frame or, when another moving model drew into its rect, drawn again
-  into a scratch frame holding the static depths (`SG.scratchFor`). A kept picture stands for a draw while every part
-  stands as it did (CFrame, Size, shown), the static picture's epoch `SG.ver` is the same (bumped by anything that
-  changes the static picture except a pan), the scale is the same and the model lies wholly on the layer; it goes on
-  depth tested like the draw (`t + bias < depth`). A pan composes every frame, but the models still change at the
-  tier's `hz` (`SG.dynAcc`): between two of those a model shows its kept picture even when it has moved, except a
-  founder (the camera follows the own one; a rim is drawn where it stands now). For that, while a pan is going (the
-  last within 0.3 s: `SG.panAt`), a model that moved since its last draw is kept as well (not a founder, nor a model
-  with another moving model in its rect: it is not drawn twice for it); before, the driftlings and the rocking eggs
-  were never kept and a walk drew them all 60 times a second. Sims and previews:
+  pixels (their book) and the stuck pixels. Moving models keep their picture (`Dyn.cache`, a `DynCache`): a model
+  drawn afresh is drawn into a scratch frame of its own (`SG.drawPic` into `SG.isoFor`: far and empty, the layer's
+  size and `SG.ISO_M` (96) px more all round, at the layer's camera windowed out by that much, so a model past the
+  layer's edge is drawn whole; each draw wipes what it wrote), and every pixel of it (colour, depth, id, `PX_BYTES` 14
+  each) is kept with its parts' CFrames, Sizes and shown flags, the static picture's epoch `SG.ver` (bumped by
+  anything that changes the static picture except a pan), the scale, and where its blob shadow is cast from (`shp`,
+  its PrimaryPart's position). A kept picture stands for a draw while every part stands as it did, the epoch and the
+  scale are the same and it lies at least partly on the layer (`SG.blitOk`); it goes down depth tested like the draw
+  (`SG.blitAt`, `t + bias < depth`, clipped to the layer). The models still change at the tier's `hz` (`SG.dynAcc`):
+  between two of those a model shows its kept picture even when it has moved, except a founder. What every model
+  shows a compose is worked out first (`SG.plan` -> `{ PlanEntry }`: the model, its picture and layer rect, its
+  shadow's centre and radii): a kept picture that stands, or a draw afresh within the tick's budget
+  (`Tuning.PixelDynMs` of drawing, `Tuning.PixelMaxDyn` models, read on `SG.clock`), the founders first, then a model
+  with no picture at all (`SG.bare`), then the longest undrawn, a model whose last picture lay wholly off the layer
+  last (`SG.offPic`; one that has not moved since needs none); past the budget a model shows its kept picture a tick
+  longer where it last stood. Its blob shadow is its picture's (`SG.shadowGeo(s, model, first, held)`), so a model
+  and its shadow move together. Before (the stress test of 2026-11-17, "do a stress test with the maximum amount of
+  decor and buildings at the highest expansion level"), a model that moved every tick was kept only while the view
+  panned and only with no other model in its rect, and on a full Everdrift about 48 models a frame past the budget
+  had no picture and were left out (`debugPerf().skips` counts them, `skipWhy` says why). Sims and previews:
   `debugPerf()` (ms summed since the last read: frames, the slowest frame `maxMs` and the frames over 25 ms `slow`, the
   scroll and its cast and ink, the compose and its copy, models, outlines, rims and effects, whole uploads and their
   grade, whole regrades, the water and the wind, kept pictures used and models drawn, the pan cache's `stats()` as
-  `cache`), `debugGradeCheck() -> { checked, off, image, recasting }` (`SG.buf` against grading `sColor` afresh, and
+  `cache`, the incremental composes `incFrames` and the art px they redid `incPx`, the whole ones `fullFrames`, the
+  tiles each source marked `markBy`, the models left out `skips` and why `skipWhy`), `debugClock(fn?)` (the clock the
+  budgets and timings read, `SG.clock`: the stress preview walks the world at 60 frames a second of its own time and
+  hands its real clock in), `debugIncCheck() -> { off, ties, checked, px, seen }` (arms a check of the next incremental
+  compose: drawn without the budget, then composed whole at once and the frames before the effects compared; returns
+  the last one's result: `ties` the pixels where two models meet within the depth bias, which the one put down first
+  keeps), `debugInc()` (whether the island composes incrementally now), `debugGradeCheck() -> { checked, off, image, recasting }` (`SG.buf` against grading `sColor` afresh, and
   the last whole upload against grading the frame afresh), `debugKeepCheck() -> { off, hits, checked }` (two composes
   of one moment, with and without the kept pictures, the effects left out: the pixels that differ),
   `debugCastCheck() -> { off, checked, ids, lits, shades }` (the static layer against casting all of it afresh at its
@@ -1089,6 +1110,33 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `debugWaterCheck() -> { off, checked, wind }` (the water pixels showing a tone not the frame's, and the pixels the
   wind has painted). The `pan` preview walks the founder round a square twice (the second time over ground the pan
   cache has kept), then stands, and reports them.
+- **The incremental compose** (`SG.incCompose`; the stress test of 2026-11-17, "do a stress test with the maximum
+  amount of decor and buildings at the highest expansion level. Try walking around to move the camera. It should be
+  smooth. If not, find ways to optimize it"): a whole compose puts every moving model back over the static picture and
+  inks and grades it all, and while the view panned every frame was composed whole. Now the composed frame stays and
+  a compose redoes only the layer's tiles (`SG.TILE` 4 art px square, a byte each in `SG.bits`; `SG.mark`, `SG.hit`,
+  `SG.runs` the marked tiles as rects, a run joined to the one above it over the same columns) where something
+  changed: where a model's picture was and is when it is another picture or the same at another place (a founder
+  always), where a blob shadow was and is when it moved, where a model went (`SG.forget`: unregistered or registered
+  again; `SG.dirty`, global rects), a static pixel the water or the wind changed under a model or a shadow (`SG.sync`:
+  one that shows the static picture takes its new colour on the frame, the base and the graded copy at once and the
+  whole image goes up), and a band of tile rows round and round (one every third compose: whatever a compose of a few
+  tiles might leave lasts a few seconds at most). An unchanged model or shadow that meets a pan's strip has that part
+  marked too. In the tiles and the strips the static picture goes back (`restoreRect`, the sticky pixels with it), the
+  blob shadows the tiles meet are drawn again clipped to them (`drawShadow(..., clip)`), an unchanged model the tiles
+  meet is put down whole (outside them its pixels already show it, and a kept picture never beats its own depth), the
+  changed ones where they are now; then the tiles are inked (`Shading.outline(..., dynFrom)`: only pairs with a moving
+  model's pixel, the static picture's own ink staying as the bake left it), the founders' rims drawn, the tiles copied
+  to `SG.base` (the frame before the effects: last tick's effect pixels are put back from it, `fxPrev`, as the static
+  picture alone would leave holes in the models under them), the effects run, and the tiles, the strips and the
+  effects' pixels (both books) graded into `SG.out` (`SG.gradeRect`: the static grade copied, the pixels the frame has
+  other than the static picture graded from it) and uploaded (`SG.upRect`; the whole image after a pan or a water
+  frame, or when the rects are many). `SG.live(s)`: the layer's whole compose set `SG.base` up (`SG.incStart`, not on
+  a stage, not with the lamps' pools on), the graded static picture is in step, `Tuning.PixelIncCompose` is 1; a
+  bake, a re-cast, the island growing, a new grade or dim and an effect layer failing still compose whole. The sticky
+  pixels go on the base too (`SG.stickPut`: where it shows the static picture or the old sticky colour). On the
+  village walking the pan preview's square a frame costs as before (about 22.5 ms) and standing a quarter less; on a
+  full Everdrift (the `stress` preview) a frame's composing went from about 74 ms to under 30.
 - **The water and the wind, a slice at a time**: their frames come `WATER_HZ` (6) times a second, and each used to be
   one pass over every pixel of the layer (about 20 to 30 ms for the water and 14 for the wind, a hitch six times a
   second). Now the next frame is worked out a slice at a time over the period before it (`SG.WATER_SLICES`, 8: every
@@ -1118,7 +1166,7 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
 - The bake's rays are in the collision group `PixelRays` (the invisible walls never meet them) and exclude
   `Workspace.PixelDynamic` and every player's character (refreshed when characters come and
   go). Dynamic models whose first part lies more than `CULL` (48) art px off the layer are skipped; at most
-  `PixelMaxDyn` are drawn a tick.
+  `PixelMaxDyn` are drawn afresh a tick, within `PixelDynMs` (`SG.plan`).
 - **Stages** (nothing opens one now): a stage view bakes at the street's budget; the
   street's finished layer is kept aside (its buffers and part ids) and restored at once when the street's key comes
   back, unless a part under `Workspace.Plots` came or went meanwhile (then it bakes again). `ready()`: the view now has
@@ -1133,7 +1181,8 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
   `WATER_HZ` (6) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
   baked tone: crests a light blue (`WATER_CREST`), troughs darker (`mixShaded` mixes in the layer's packed format,
   `Shading.pack`: red in the low byte), the foam's white coming and going (`waterColor`, cached per class, tone
-  and phase), and the whole image uploads. Its shadows and the islanders over it stay put. A stage's water moves too.
+  and phase), and the whole image uploads (composing incrementally, each changed pixel goes straight onto the frame,
+  `SG.sync`). Its shadows and the islanders over it stay put. A stage's water moves too.
 - **Wind** (GAME_DESIGN 8): a part with `PixelWind` 1 (leaves) or 2 (flags; `Blocks.windy` tags them) gets the class 4
   or 5 in `sWClass` (never on water) and its own phase in `sWave` (leaves: slow, across the island; flags: quick,
   along their length). With the water, `animateWind(s, frame)` moves pixels on the static layer without a ray: a
@@ -1384,6 +1433,17 @@ neighbour's (2026-11-14); on a sign it shows `signCard(i)` (the day, driftlings 
 bits of the hatchling's rarity's colour at `EggView.hatchPoint`, a rare or better one's name floating up; a
 Hatchery's hatchling (Fx "turn" `hatched`) gets its name and pink bits over the Hatchery; `cheer(words, color)` makes
 the own islanders cheer. Its Heartbeat runs `EggView.step` with the view's centre (world x).
+Only the walkers near the screen have a model (the stress test of 2026-11-17, a full Everdrift's 840 driftlings): one
+within `MODEL_NEAR` (24) art px of the layer (`PixelRenderer.nearScreen` of its foot) is dressed (`dress`: a model of
+its kind from `pool[sig]`, else `MicroModels.species(sig, "world")` with `PixelShadow` 1 and `PixelGroundY` the
+lawn's, registered as a moving model) and one past `MODEL_FAR` (80) undressed (`undress`: unregistered, then parked at
+y -400 in the pool while it holds fewer than `POOL_MAX` (200), else destroyed; parked rather than unparented, so the
+scene's ray structures stay as they are). The dressed ones are posed through a budget (`posePals`): one walking every
+`POSE_WALK` (1/30 s), one standing, working or napping every `POSE_STILL` (1/15 s), the longest waiting first, at
+most `POSE_BUDGET` (6) a frame, about what the pixel filter draws afresh in a frame there. Each island's `Pals`
+attribute is parsed again only when it changed (`palsRead`). The campfire's smoke moves ten times a second with its
+flame. `debugCost()` (seconds in each part of the Heartbeat since the last read: `walk`, `pose`, `rest`, `tags`,
+`eggs`, `frames`, and the models `dressed` and `pooled`; `WorldView.clock` is the clock it reads).
 A driftling under a tap (GAME_DESIGN 6, "One driftling's card"; tried after `EggView.tapAt` and before the ray):
 `palAt(pos) -> Walker?` projects every walker (`PixelRenderer.project` of its foot and of its model's top, `Thing.h`) to
 a screen box, as wide as 0.6 of its height each side (8 px at least) and half its height plus 4 px up and down from
@@ -1507,7 +1567,8 @@ and each piece with a `SPECS` entry (windmill: `SailArm`, `Sail` round (0, 3.4, 
 `Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; grandmill: `Paddle` round (1.6, 1.5, -0.6) on its X, 0.7)
 gets a turning copy: those parts cloned (anchored, no collision or query) into a `Spin_<name>` model in
 `workspace.PixelDynamic`, registered as a moving model, the originals hidden (`PixelRenderer.hideStatic`), each part
-kept as its offset from the hub (the model's `At` frame times the hub). Every Heartbeat the copies near the view turn
+kept as its offset from the hub (the model's `At` frame times the hub). Every Heartbeat the copies near the screen
+(`PixelRenderer.nearScreen` of the hub, 24 art px) turn
 (`hub * Angles(0, 0, phase + t * speed)` times each offset; still with reduced motion); a piece gone (moved, rebuilt,
 cleared) drops its copy at the next scan. `start()`, `debugState() -> { count, parts, ids, still }`.
 
@@ -1516,10 +1577,12 @@ noone is working on a building, make a alert on top of said work building statin
 housing" and "Make it say "Empty""; 2026-11-15, the boost buildings' card and the workplaces' earnings; 2026-11-17, "remove
 the empty alert that appears above huts and work places"): the own
 island's workplaces (`Island.works`), huts (kind "nest") and boost buildings (kind "gen" with a `boost`), scanned from
-its `Decor` folder every `SCAN_SECS` 0.5 (a `Spot` `{ uid, id, model, top, work, kind, room, n, extra }`: `top` over
+its `Decor` folder when it changes (`ChildAdded` / `ChildRemoved`, or another plot; the stress test of 2026-11-17: a
+full Everdrift's thousand pieces were looked over whole twice a second), the counts worked out again from the view
+every `SCAN_SECS` 0.5 (a `Spot` `{ uid, id, model, top, work, kind, room, n, extra? }`: `top` over
 its bounding box, kept while the model stays; `kind` "work", "nest" or "boost"; `room` `Tuning.HelpMax` for a
 workplace, the hut's `slots`, 0 for a boost building; `n` the view's driftlings whose `work` / `home` it is;
-`extra` the card's other lines, worked out at each scan from the view as a profile: a workplace's "Earns N shells/min"
+`extra` the card's other lines, worked out for the card shown (`extrasOf`, once a view) from the view as a profile: a workplace's "Earns N shells/min"
 (`Island.output` x (1 + `charmBonus`) x `incomeMult` x 60 / `TurnSeconds`), a boost building's "Farms +15% from 2 boost
 buildings" (`Island.boostInfo`: Farms, Wood, Shops or Everything, the total to a tenth of a percent) and "One more adds
 +2.5%" or "Boosts top out at 70%"). WorldView drives it: `step(t, plot, hoverPos?, palHovered)` every Heartbeat (the plot

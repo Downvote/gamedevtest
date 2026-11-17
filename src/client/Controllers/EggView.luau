@@ -442,6 +442,8 @@ local function stepEgg(e: Egg, t: number)
 	-- tilted like a planet's ring. Hatching or sinking, they go out (under the lawn).
 	local s = SIZE[e.r] or 1
 	local quiet = e.crack ~= nil or e.sink ~= nil
+	-- (they move twelve times a second: in between the pixel filter shows the egg's kept picture)
+	t = math.floor(t * 12) / 12
 	for _, f in e.fx do
 		if quiet then
 			f.p.CFrame = CFrame.new(cf.Position - Vector3.new(0, 6, 0))

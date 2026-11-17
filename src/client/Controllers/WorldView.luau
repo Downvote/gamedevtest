@@ -61,6 +61,8 @@ type Walker = {
 	cheerUntil: number,
 	cheerMood: string, -- "cheer" (jumping on); a driftling just hatched no longer celebrates (2026-11-16)
 	rng: Types.Rng,
+	poseAt: number, -- os.clock() its model is due to be posed again (the frame's pose budget)
+	moodNow: string, -- what its model plays when posed: "walk", its work, "idle" or its cheer
 }
 
 local walkers: { [string]: Walker } = {} -- key: "<plot>:p<id>"
@@ -73,8 +75,28 @@ local NEAR = 100 -- studs from the view's centre an island is peopled within
 -- studs a second a driftling walks (2026-11-15: a walk, not a bounce; at 4 its short legs could not keep up with
 -- the ground and it hopped along, now it steps at Models/DriftMotion's WALK rate)
 local WALK = 2.6
-local FAR_POSE = 40 -- studs from the view's centre past which a driftling is posed every fourth frame only
-local poseFrame = 0
+-- A driftling has its model only near the screen (the request of 2026-11-17: "do a stress test with the maximum amount
+-- of decor and buildings at the highest expansion level. Try walking around to move the camera. It should be smooth":
+-- an Everdrift's 840 driftlings each built, registered with the pixel filter and posed every frame or fourth were most
+-- of a frame). Within MODEL_NEAR art px of the pixel layer it is dressed, past MODEL_FAR it gives the model back;
+-- given back, a model waits in a pool by kind (POOL_MAX at most) for the next of its kind to come near, still in the
+-- world but parked far under the sea and let go by the pixel filter: parts coming into the world and leaving it each
+-- time cost more than the model (the world's ray structures change with them). Away from the screen a driftling
+-- still walks to work and back, a few sums a frame.
+local MODEL_NEAR = 24
+local MODEL_FAR = 80
+local POOL_MAX = 200
+local PARKED = CFrame.new(0, -400, 0)
+-- The models near the screen are posed through a budget a frame, the longest waiting first: one walking every
+-- POSE_WALK seconds, one standing, working or napping every POSE_STILL, at most POSE_BUDGET a frame. On a busy
+-- island every one of them changes a little less often rather than the frame taking longer (between two poses the
+-- pixel filter shows its kept picture); on a small one all of them keep their rates. (6 a frame: about what the pixel
+-- filter draws afresh in a frame on a full Everdrift, the stress test of 2026-11-17; more were posed and never drawn.)
+local POSE_WALK = 1 / 30
+local POSE_STILL = 1 / 15
+local POSE_BUDGET = 6
+local pool: { [string]: { MicroModels.Thing } } = {}
+local pooled = 0
 
 -- What the work at each building is ("there are also no proper animations for creatures and villagers that are working
 -- on something in the island", 2026-11-11): its beat and what flies off at each (soil in the fields, wood chips at the
@@ -309,14 +331,16 @@ local function stepFire(f: Fire, t: number)
 	local k = math.floor(t * 10 + f.ph) % 3
 	MicroModels.scale(f.flame, Vector3.new(1, 0.85 + k * 0.15, 1))
 	MicroModels.place(f.flame, CFrame.new(f.x, Street.LAWN_Y + 0.55, f.z))
+	-- (the smoke moves ten times a second, with the flame: in between the pixel filter shows its kept picture; the stress
+	-- test of 2026-11-17 found it drawn afresh every frame, before every driftling)
+	local tq = math.floor(t * 10) / 10
 	for n, p in f.puffs do
-		local a = (t * 0.35 + n / 3 + f.ph) % 1
+		local a = (tq * 0.35 + n / 3 + f.ph) % 1
 		local size = if a < 0.45 then 0.5 else 0.25
 		p.Size = Vector3.new(size, size, size)
-		p.CFrame = CFrame.new(f.x + a * 1.5 + math.sin(t + n) * 0.25, Street.LAWN_Y + 1.6 + a * 4.5, f.z - a * 0.75)
+		p.CFrame = CFrame.new(f.x + a * 1.5 + math.sin(tq + n) * 0.25, Street.LAWN_Y + 1.6 + a * 4.5, f.z - a * 0.75)
 		p.Transparency = if a > 0.8 then 1 else 0
 	end
-	PixelRenderer.refreshDynamic(f.smoke)
 end
 
 local function drop(key: string)
@@ -330,6 +354,55 @@ local function drop(key: string)
 		model:Destroy()
 	end
 	walkers[key] = nil
+end
+
+-- Its model for a driftling come near the view: one of its kind from the pool, or a new one.
+local function dress(w: Walker)
+	if w.thing then
+		return
+	end
+	local list = pool[w.sig]
+	local t = if list then table.remove(list) else nil
+	if t then
+		pooled -= 1
+	else
+		local nt = MicroModels.species(w.sig, "world")
+		nt.model:SetAttribute("PixelShadow", 1)
+		nt.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
+		t = nt
+	end
+	local th = t :: MicroModels.Thing
+	if th.model.Parent == nil then
+		th.model.Parent = dyn()
+	end
+	-- (posed where it stands before the pixel filter first meets it, then at once by the budget)
+	MicroModels.animate(th, os.clock() + w.id, w.moodNow, 0)
+	MicroModels.place(th, CFrame.new(w.x, Street.LAWN_Y, w.z) * CFrame.Angles(0, w.yaw, 0))
+	PixelRenderer.registerDynamic(th.model)
+	w.thing = th
+	w.poseAt = 0
+end
+
+-- A driftling gone far from the view gives its model back (into the pool while it has room).
+local function undress(w: Walker)
+	local t = w.thing
+	if t == nil then
+		return
+	end
+	w.thing = nil
+	PixelRenderer.unregisterDynamic(t.model)
+	if pooled < POOL_MAX then
+		MicroModels.place(t, PARKED)
+		local list = pool[w.sig]
+		if list == nil then
+			list = {}
+			pool[w.sig] = list
+		end
+		table.insert(list, t)
+		pooled += 1
+	else
+		t.model:Destroy()
+	end
 end
 
 local function groundY(): number
@@ -367,14 +440,13 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 		cheerUntil = 0,
 		cheerMood = "cheer",
 		rng = rng,
+		poseAt = 0,
+		moodNow = "idle",
 	}
-	local def = Creatures.byId[sp]
-	local t = MicroModels.species(sp, "world")
-	t.model:SetAttribute("PixelShadow", 1)
-	t.model:SetAttribute("PixelGroundY", groundY())
-	t.model.Parent = dyn()
-	PixelRenderer.registerDynamic(t.model)
-	w.thing = t
+	-- (its model when it is near the screen: dress, from the frame loop)
+	if PixelRenderer.nearScreen(Vector3.new(x, Street.LAWN_Y, z), MODEL_NEAR) then
+		dress(w)
+	end
 	return w
 end
 
@@ -383,9 +455,17 @@ end
 -- off.
 local peopled: { [number]: boolean } = {}
 local born: { [string]: number } = {} -- key -> when it popped out (the arrival's cheer)
+-- (the Pals attribute last read for each island: read again only when it changed; a full Everdrift's is 840 entries)
+local palsRead: { [number]: string } = {}
 local function syncPlot(i: number, near: boolean)
 	local m = plotModel(i)
 	local want: { [string]: boolean } = {}
+	local owned = m ~= nil and near and (tonumber(m:GetAttribute("Owner")) or 0) ~= 0
+	local now = if owned and m then m:GetAttribute("Pals") else nil
+	if owned and type(now) == "string" and palsRead[i] == now and peopled[i] then
+		return
+	end
+	palsRead[i] = if owned and type(now) == "string" then now :: string else (nil :: any)
 	if m and near and (tonumber(m:GetAttribute("Owner")) or 0) ~= 0 then
 		local pals = m:GetAttribute("Pals")
 		if type(pals) == "string" then
@@ -508,6 +588,15 @@ local function stepWalker(w: Walker, t: number, dt: number)
 		decide(w, t)
 	end
 	local y = groundY()
+	-- (its model only near the screen)
+	local here = Vector3.new(w.x, y, w.z)
+	if w.thing == nil then
+		if PixelRenderer.nearScreen(here, MODEL_NEAR) then
+			dress(w)
+		end
+	elseif not PixelRenderer.nearScreen(here, MODEL_FAR) then
+		undress(w)
+	end
 	if w.thing then
 		local working = w.state == "work" and speed == 0 and t >= w.cheerUntil
 		-- its work's beat: at every other beat what it works at flies off (near the view only)
@@ -523,16 +612,34 @@ local function stepWalker(w: Walker, t: number, dt: number)
 			end
 			w.beat = beats
 		end
-		-- (one far from the view's centre, likely off screen, is posed every fourth frame, staggered by its id)
-		local cw = CameraController.centerWorld()
-		if (math.abs(w.x - cw.X) > FAR_POSE or math.abs(w.z - cw.Z) > FAR_POSE) and (poseFrame + w.id) % 4 ~= 0 then
-			return
+		-- (what its model plays when the budget poses it: posePals)
+		w.moodNow = if t < w.cheerUntil then w.cheerMood elseif speed > 0 then "walk" elseif working then w.mood else "idle"
+	end
+end
+
+-- The models near the screen posed, the longest waiting first, within POSE_BUDGET a frame: alive on its skeleton
+-- (Models/DriftRig): the walk, the cheer's jumps, breathing, blinks, a wagging tail, its work where it works (or a nap
+-- at its hut); the rig lifts and squashes it, so it is placed on the ground.
+local dueList: { Walker } = {}
+local function posePals(t: number)
+	table.clear(dueList)
+	for _, w in walkers do
+		if w.thing and t >= w.poseAt then
+			table.insert(dueList, w)
 		end
-		-- alive on its skeleton (Models/DriftRig): the walk, the cheer's jumps, breathing, blinks, a wagging
-		-- tail, its work where it works (or a nap at its hut); the rig lifts and squashes it, so it is placed on the
-		-- ground
-		MicroModels.animate(w.thing, t + w.id, if t < w.cheerUntil then w.cheerMood elseif speed > 0 then "walk" elseif working then w.mood else "idle", 0)
-		MicroModels.place(w.thing, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0))
+	end
+	if #dueList > POSE_BUDGET then
+		table.sort(dueList, function(a: Walker, b: Walker): boolean
+			return a.poseAt < b.poseAt
+		end)
+	end
+	local y = groundY()
+	for k = 1, math.min(#dueList, POSE_BUDGET) do
+		local w = dueList[k]
+		local th = w.thing :: MicroModels.Thing
+		MicroModels.animate(th, t + w.id, w.moodNow, 0)
+		MicroModels.place(th, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0))
+		w.poseAt = t + (if w.moodNow == "walk" then POSE_WALK else POSE_STILL)
 	end
 end
 
@@ -967,21 +1074,55 @@ function WorldView.start()
 				fireOn(i, near and m ~= nil and (tonumber(m:GetAttribute("Owner")) or 0) ~= 0)
 			end
 		end
-		poseFrame += 1
+		local k0 = WorldView.clock()
 		for _, w in walkers do
 			stepWalker(w, t, dt)
 		end
+		local k1 = WorldView.clock()
+		posePals(t)
+		local k2 = WorldView.clock()
 		for _, f in fires do
 			stepFire(f, t)
 		end
 		stepBits(dt)
 		updateSigns()
 		stepHover(t)
-		-- the own buildings: alerts over the empty ones, the card over the one under the pointer
+		local k3 = WorldView.clock()
+		-- the own buildings: the card over the one under the pointer
 		BuildingTags.step(t, myPlot, hoverPos, hoverKey ~= nil)
+		local k4 = WorldView.clock()
 		-- the tree's eggs on every island near the view
 		EggView.step(t, c.X)
+		local k5 = WorldView.clock()
+		local cost = WorldView.cost
+		cost.walk += k1 - k0
+		cost.pose += k2 - k1
+		cost.rest += k3 - k2
+		cost.tags += k4 - k3
+		cost.eggs += k5 - k4
+		cost.frames += 1
 	end)
+end
+
+-- Previews: where the frame loop's time went (seconds summed since the last read: the driftlings' steps, their poses,
+-- the fires, chips, signs and hover, the building cards, the eggs) and how many models are out and pooled.
+WorldView.cost = { walk = 0, pose = 0, rest = 0, tags = 0, eggs = 0, frames = 0 }
+-- (the clock those timings read: os.clock; a preview walking the world at a fixed 60 frames a second hands its real
+-- clock in)
+WorldView.clock = os.clock
+function WorldView.debugCost(): { [string]: number }
+	local out: { [string]: number } = table.clone(WorldView.cost)
+	for k in WorldView.cost do
+		WorldView.cost[k] = 0
+	end
+	local dressed = 0
+	for _, w in walkers do
+		if w.thing then
+			dressed += 1
+		end
+	end
+	out.dressed, out.pooled = dressed, pooled
+	return out
 end
 
 -- Sims: a tap on the screen at `pos` (screen px, as an InputObject's), as a player's tap is handled (a sign shows its
