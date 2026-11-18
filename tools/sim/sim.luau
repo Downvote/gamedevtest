@@ -122,6 +122,55 @@ H.expect(H.clickNamed(p, "Set_pixel_low", { wait = 0.5 }) and prof.settings.pixe
 H.expect(H.clickNamed(p, "Set_pixel_high", { wait = 0.5 }) and prof.settings.pixel == "high", "settings", "and High again", tostring(prof.settings.pixel))
 H.expect(H.req(p, "settings.set", { k = "sfx", v = "loud" }).err == "bad_payload", "settings", "a sounds value that isn't on or off: bad_payload")
 local _ = PRm
+-- the View slider (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10
+-- notches"): ten notches under its track, the default's marked, - and + step a notch, the camera follows a moment after
+-- the last one at that notch's art px a stud, and the notch is kept with the profile
+do
+	local CCs = H.cmod(p, "Controllers.CameraController")
+	local SUs = H.cmod(p, "UI.SettingsUI")
+	local panel = p.PlayerGui:FindFirstChild("Panel_settings", true)
+	local ticks, longTick = 0, 0
+	if panel then
+		for _, d in panel:GetDescendants() do
+			local i = tonumber(string.match(d.Name, "^ZoomTick_(%d+)$"))
+			if i then
+				ticks += 1
+				if d.Size.Y.Offset == 4 then
+					longTick = i
+				end
+			end
+		end
+	end
+	H.expect(ticks == 10 and longTick == Tuning.CamZoomDefault, "settings", "the View slider: ten notches, the default's tick longer", string.format("%d ticks, long %d", ticks, longTick))
+	H.expect(H.buttonNamed(p, "ZoomOut") ~= nil and H.buttonNamed(p, "ZoomIn") ~= nil and panel ~= nil and panel:FindFirstChild("ZoomKnob", true) ~= nil and panel:FindFirstChild("ZoomSlider", true) ~= nil, "settings", "with - and + at its ends, a knob and a track to drag")
+	H.expect(prof.settings.zoom == Tuning.CamZoomDefault and H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault and CCs.view().grid.a == 12, "settings", "a new player on the default notch, 12 art px a stud", string.format("%s %s %g", tostring(prof.settings.zoom), tostring(H.inClient(p, CCs.zoom)), CCs.view().grid.a))
+	local knob = panel and panel:FindFirstChild("ZoomKnob", true)
+	local kx0 = if knob and knob:IsA("GuiObject") then knob.Position.X.Offset else -1
+	H.clickNamed(p, "ZoomOut", { wait = 0.05 })
+	H.clickNamed(p, "ZoomOut", { wait = 0.05 })
+	local kx1 = if knob and knob:IsA("GuiObject") then knob.Position.X.Offset else -1
+	H.expect(kx1 < kx0 and H.inClient(p, SUs.zoom) == Tuning.CamZoomDefault - 2 and H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault, "settings", "two taps on -: the knob moves two notches at once, the camera waits for the last", string.format("knob %d -> %d, notch %d, camera %d", kx0, kx1, H.inClient(p, SUs.zoom), H.inClient(p, CCs.zoom)))
+	E.run(0.6)
+	local want = Tuning.CamZoomNotches[Tuning.CamZoomDefault - 2]
+	H.expect(H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault - 2 and CCs.view().grid.a == want and prof.settings.zoom == Tuning.CamZoomDefault - 2, "settings", "then the island at that notch, kept with the profile", string.format("%g art px a stud, saved %s", CCs.view().grid.a, tostring(prof.settings.zoom)))
+	-- the far ends: as a drag to them would; past them it stays
+	H.inClient(p, SUs.setZoom, 1)
+	E.run(0.6)
+	H.expect(CCs.view().grid.a == Tuning.CamZoomNotches[1] and prof.settings.zoom == 1, "settings", "dragged all the way out: the first notch", string.format("%g", CCs.view().grid.a))
+	H.clickNamed(p, "ZoomOut", { wait = 0.6 })
+	H.expect(prof.settings.zoom == 1, "settings", "and - does nothing past it", tostring(prof.settings.zoom))
+	H.inClient(p, SUs.setZoom, 10)
+	E.run(0.6)
+	H.expect(CCs.view().grid.a == Tuning.CamZoomNotches[10] and prof.settings.zoom == 10, "settings", "all the way in: the tenth", string.format("%g", CCs.view().grid.a))
+	H.clickNamed(p, "ZoomIn", { wait = 0.6 })
+	H.expect(prof.settings.zoom == 10, "settings", "and + does nothing past it", tostring(prof.settings.zoom))
+	for _, bad in { 0, 11, 2.5, "close" } do
+		H.expect(H.req(p, "settings.set", { k = "zoom", v = bad }).err == "bad_payload", "settings", "a View notch that isn't 1 to 10: bad_payload", tostring(bad))
+	end
+	H.inClient(p, SUs.setZoom, Tuning.CamZoomDefault)
+	E.run(0.6)
+	H.expect(CCs.view().grid.a == 12 and prof.settings.zoom == Tuning.CamZoomDefault, "settings", "and back to the default", string.format("%g", CCs.view().grid.a))
+end
 H.closePanel(p)
 -- the sounds (GAME_DESIGN 11): every event has a library sound, each of its takes too; the founder's feet are heard
 -- (the game's own step sounds: Roblox's are switched off by the empty RbxCharacterSounds)

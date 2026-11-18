@@ -1,7 +1,8 @@
 --!strict
 -- The camera (docs/ARCHITECTURE.md 9.2; Random Bakery's view and its walk): orthographic, yaw 45°, pitch 30°, the 2:1
--- pixel-art grid. Its zoom is fixed: a box round the island's heart (FRAME times Tuning.CamFrame, the same on every tier) is fitted on screen
--- as big as the grid allows, clear of the HUD's blocks (the "home" view). The view's grid (Raster.Grid: `a` art px per
+-- pixel-art grid. Its zoom on the islands is the Settings panel's View slider: one of ten notches, art px a stud
+-- (Tuning.CamZoomNotches; `setZoom`), the same on every screen and tier; a box round the island's heart (FRAME times
+-- Tuning.CamFrame) only says where the view starts, clear of the HUD's blocks (the "home" view). The view's grid (Raster.Grid: `a` art px per
 -- ground stud, its phase, the ray plane `l`) depends only on the plot, the screen and K; on it the view pans by whole
 -- art px (`pan()`), so the pixel renderer scrolls its picture instead of baking it again:
 --   follow (the default): the view keeps the founder (the player's character) in the middle of the screen between
@@ -75,6 +76,8 @@ local buildDown = 0 -- art px the view is lowered by in Build mode
 local dragX, dragY = 0, 0 -- art px Build mode's drag has moved the view from the founder
 local lastBaseX: number?, lastBaseY: number? = nil, nil -- the founder's follow target last frame (Build mode: did they walk?)
 local focus: Vector3? = nil -- a cutscene's point to follow instead of the founder (setFocus)
+local zoom = Tuning.CamZoomDefault -- the View slider's notch (setZoom)
+local savedZoom: number? = nil -- the notch the profile last said (a change there is applied; a tap waiting on it is not undone)
 local stage: Stage? = nil
 local stageShift = Vector3.zero -- an endless islet's camera: how far along the stage looks (setStageShift)
 
@@ -142,13 +145,14 @@ local function build(): View
 	local a: number
 	local sx, sy = fx / 2, fy / 2
 	if st == nil then
-		-- The islands: the same detail on every screen, Tuning.CamDetail art px a stud however big it is (the request
-		-- of 2026-11-18: "make it such that the pixel filter is, by default, on all devices, zoomed in to be at a good
-		-- level of detail. make it such that smaller windows or smaller devices will still receive the same amount of
-		-- detail as bigger ones"). The view was fitted to the frame box, so a phone's 195 art px drew the island at
-		-- about 6 a stud where a desktop drew it at 11. A smaller screen now shows less of the island, the founder in
-		-- the middle of it.
-		a = Raster.gridScale(Tuning.CamDetail, 1, false)
+		-- The islands: the same detail on every screen, the View slider's notch in art px a stud however big it is
+		-- (the request of 2026-11-18: "make it such that the pixel filter is, by default, on all devices, zoomed in to
+		-- be at a good level of detail. make it such that smaller windows or smaller devices will still receive the
+		-- same amount of detail as bigger ones"). The view was fitted to the frame box, so a phone's 195 art px drew
+		-- the island at about 6 a stud where a desktop drew it at 11. A smaller screen now shows less of the island,
+		-- the founder in the middle of it. Then the slider (the same day: "make a view slider for zooming the camera
+		-- in and out, with 10 notches"): 5 a stud far out to 16 close in, 12 by default.
+		a = Raster.gridScale(Tuning.CamZoomNotches[zoom] or Tuning.CamZoomNotches[Tuning.CamZoomDefault], 1, false)
 		local x, y = Raster.place(ROT12, fx, fy, bl, pad, pts, a * K * SQRT2)
 		if x ~= nil and y ~= nil then
 			sx, sy = x, y
@@ -563,6 +567,25 @@ function CameraController.panBy(dx: number, dy: number)
 	camY += dragY - ody
 end
 
+-- The View slider's notch (1 far out .. #Tuning.CamZoomNotches close in): the islands are drawn at that many art px a
+-- stud. A new notch is a new view (the pixel filter bakes the island again at the new scale; the old picture stays up
+-- meanwhile), the founder in the middle of it; Build mode's drag keeps the same studs.
+function CameraController.setZoom(n: number)
+	local z = math.clamp(math.floor(n + 0.5), 1, #Tuning.CamZoomNotches)
+	if z == zoom then
+		return
+	end
+	local from = Tuning.CamZoomNotches[zoom]
+	zoom = z
+	local k = Tuning.CamZoomNotches[z] / from
+	dragX, dragY = math.floor(dragX * k + 0.5), math.floor(dragY * k + 0.5)
+	CameraController.refit()
+end
+
+function CameraController.zoom(): number
+	return zoom
+end
+
 -- Build mode's drag now (art px from the founder, not counting the lowering): the sims check it.
 function CameraController.buildDrag(): (number, number)
 	return dragX, dragY
@@ -572,6 +595,13 @@ function CameraController.init() end
 
 function CameraController.start()
 	local function fromView(cv: Types.ClientView)
+		-- the View slider's notch as the profile keeps it (at the join, or from another device); a tap still on its
+		-- way to the server keeps what it set
+		local z = cv.settings.zoom
+		if type(z) == "number" and z ~= savedZoom then
+			savedZoom = z
+			CameraController.setZoom(z)
+		end
 		if cv.plot ~= plot or cv.tier ~= tier then
 			plot, tier = cv.plot, cv.tier
 			CameraController.refit()

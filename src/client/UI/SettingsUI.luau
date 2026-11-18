@@ -4,15 +4,23 @@
 --   Music     On / Off                  settings.music: the background music
 --   Sounds    On / Off                  settings.sfx: every one-shot sound and the island's loops (waves, birds, rain)
 --   Pixel art High / Medium / Low       settings.pixel: the pixel filter's detail (no Off: the user asked for none, 2026-11-14)
+--   View      - [ten notches] +         settings.zoom: the camera's zoom on the islands (the request of 2026-11-18: "make a
+--                                       view slider for zooming the camera in and out, with 10 notches"); drag the knob,
+--                                       tap a notch or the - and + at the ends
 -- A tap takes effect on this client at once (Audio, PixelRenderer) and is kept with the profile (settings.set); until the
--- server's view says the same, the tap's value is the one used.
--- API: SettingsUI.init(), SettingsUI.value(k) -> string, SettingsUI.apply() (Hud's heartbeat: music and sounds follow the
--- settings), SettingsUI.ROWS.
+-- server's view says the same, the tap's value is the one used. The View slider moves at once and the camera follows
+-- ZOOM_WAIT after the last notch, so a drag across several bakes the island once.
+-- API: SettingsUI.init(), SettingsUI.value(k) -> string, SettingsUI.zoom() -> number, SettingsUI.setZoom(n) (as a drag
+-- to notch n would: sims and previews), SettingsUI.apply() (Hud's heartbeat: music and sounds follow the settings),
+-- SettingsUI.ROWS.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
+local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.UIKit)
 
@@ -83,8 +91,161 @@ local function set(k: string, val: string)
 	UIKit.refreshPanel()
 end
 
+------------------------------------------------------------------ the View slider
+local NOTCHES = #Tuning.CamZoomNotches
+local ZOOM_WAIT = 0.3 -- seconds after the last notch before the camera follows and the notch is saved
+local pendingZoom: number? = nil -- a notch the server hasn't kept yet
+local zoomSeq = 0
+local showZoom: ((n: number) -> ())? = nil -- the open panel's knob
+
+-- The View slider's notch now: one not saved yet, else the profile's (the default until the view comes).
+function SettingsUI.zoom(): number
+	local v: Types.ClientView? = StateClient.view()
+	local saved = if v and type(v.settings.zoom) == "number" then v.settings.zoom :: number else Tuning.CamZoomDefault
+	local p = pendingZoom
+	if p ~= nil then
+		if saved == p then
+			pendingZoom = nil
+		end
+		return p
+	end
+	return saved
+end
+
+-- The knob to notch n (clamped); the camera and the save follow ZOOM_WAIT after the last one.
+function SettingsUI.setZoom(n: number)
+	local z = math.clamp(math.floor(n + 0.5), 1, NOTCHES)
+	if z == SettingsUI.zoom() then
+		return
+	end
+	pendingZoom = z
+	Audio.play("flip")
+	local show = showZoom
+	if show then
+		show(z)
+	end
+	zoomSeq += 1
+	local seq = zoomSeq
+	task.delay(ZOOM_WAIT, function()
+		if seq ~= zoomSeq then
+			return -- (a later notch takes over)
+		end
+		CameraController.setZoom(z)
+		local res = StateClient.request("settings.set", { k = "zoom", v = z })
+		if seq ~= zoomSeq then
+			return
+		end
+		if not res.ok then
+			pendingZoom = nil
+			CameraController.setZoom(SettingsUI.zoom())
+			UIKit.notice("That setting couldn't be saved. Try again in a moment.", UIKit.color("bad"))
+			if UIKit.currentPanel() == "settings" then
+				UIKit.refreshPanel()
+			end
+		end
+	end)
+end
+
 local PAD = 6
 local ROW_H = 22
+local KNOB_W = 7
+local TRACK_MIN = 110 -- UI px: a shorter track beside the label (a phone held upright) goes on a line of its own
+
+-- Whether the View slider gets a line of its own in a body w UI px wide (its track beside the label would be short).
+local function narrow(w: number): boolean
+	return w - PAD - 14 - (PAD + 62 + 14) < TRACK_MIN
+end
+
+-- A row's hint lines in a body w wide (it wraps on a narrow panel).
+local function hintLines(hint: string, w: number): number
+	return math.max(1, UIKit.lines(hint, w - 2 * PAD))
+end
+
+-- The View row at y: the label, then - [the track, its ten notches and the knob] + across the rest of the row (on a
+-- narrow panel, the label's own line and the slider under it, the body's whole width).
+local function viewRow(body: Frame, w: number, y: number)
+	UIKit.text(body, "View", UDim2.fromOffset(60, 12), UDim2.fromOffset(PAD, y + 2), { color = UIKit.color("text"), name = "Label_zoom" })
+	local own = narrow(w)
+	local BX0 = if own then PAD else PAD + 62
+	local TX0 = BX0 + 14
+	local TW = w - PAD - 14 - TX0
+	local TY = if own then y + 15 else y + 1
+	UIKit.button(body, "-", UDim2.fromOffset(12, 11), UDim2.fromOffset(BX0, TY), function()
+		SettingsUI.setZoom(SettingsUI.zoom() - 1)
+	end, { name = "ZoomOut" })
+	UIKit.button(body, "+", UDim2.fromOffset(12, 11), UDim2.fromOffset(w - PAD - 12, TY), function()
+		SettingsUI.setZoom(SettingsUI.zoom() + 1)
+	end, { name = "ZoomIn" })
+	-- the track: an ink frame round a groove, filled up to the knob
+	UIKit.rect(body, UDim2.fromOffset(TW, 5), UDim2.fromOffset(TX0, TY + 3), UIKit.color("ink"), 3)
+	UIKit.rect(body, UDim2.fromOffset(TW - 2, 3), UDim2.fromOffset(TX0 + 1, TY + 4), UIKit.color("plate"), 4)
+	local fill = UIKit.rect(body, UDim2.fromOffset(0, 3), UDim2.fromOffset(TX0 + 1, TY + 4), UIKit.color("accent"), 5)
+	-- a notch's knob x (whole UI px along the track)
+	local function knobX(i: number): number
+		return math.floor((TW - KNOB_W) * (i - 1) / (NOTCHES - 1) + 0.5)
+	end
+	-- the ten notches: a tick under the track at each (1 x 3 px), the default's a pixel longer
+	for i = 1, NOTCHES do
+		local long = i == Tuning.CamZoomDefault
+		UIKit.rect(body, UDim2.fromOffset(1, if long then 4 else 3), UDim2.fromOffset(TX0 + knobX(i) + 3, TY + 9), UIKit.color("text_dim"), 3).Name = "ZoomTick_" .. i
+	end
+	local knob = Instance.new("Frame")
+	knob.Name = "ZoomKnob"
+	knob.BackgroundTransparency = 1
+	knob.Size = UDim2.fromOffset(KNOB_W, 11)
+	knob.ZIndex = 6
+	knob.Parent = body
+	UIKit.rect(knob, UDim2.fromOffset(5, 11), UDim2.fromOffset(1, 0), UIKit.color("ink"), 6)
+	UIKit.rect(knob, UDim2.fromOffset(7, 9), UDim2.fromOffset(0, 1), UIKit.color("ink"), 6)
+	UIKit.rect(knob, UDim2.fromOffset(5, 9), UDim2.fromOffset(1, 1), UIKit.color("button_ok"), 7)
+	UIKit.rect(knob, UDim2.fromOffset(1, 7), UDim2.fromOffset(1, 2), UIKit.color("paper"), 8)
+	local function show(n: number)
+		local x = knobX(n)
+		knob.Position = UDim2.fromOffset(TX0 + x, TY)
+		fill.Size = UDim2.fromOffset(math.max(0, x + 2), 3)
+	end
+	show(SettingsUI.zoom())
+	showZoom = show
+	-- dragging along the track, or a tap on it, picks the nearest notch (mouse or touch)
+	local hit = Instance.new("TextButton")
+	hit.Name = "ZoomSlider"
+	hit.Text = ""
+	hit.BackgroundTransparency = 1
+	hit.AutoButtonColor = false
+	hit.Size = UDim2.fromOffset(TW, 15)
+	hit.Position = UDim2.fromOffset(TX0, TY - 2)
+	hit.ZIndex = 9
+	hit.Parent = body
+	local dragging = false
+	local function at(px: number)
+		local s = math.max(1e-6, hit.AbsoluteSize.X / TW) -- (screen px a UI px)
+		local u = (px - hit.AbsolutePosition.X) / s - (KNOB_W - 1) / 2
+		SettingsUI.setZoom(1 + u / (TW - KNOB_W) * (NOTCHES - 1))
+	end
+	hit.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			at(input.Position.X)
+		end
+	end)
+	local moved = UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			at(input.Position.X)
+		end
+	end)
+	local ended = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+	hit.Destroying:Connect(function()
+		moved:Disconnect()
+		ended:Disconnect()
+		if showZoom == show then
+			showZoom = nil
+		end
+	end)
+end
 
 local function build(body: Frame, _arg: any?)
 	local bw = body:GetAttribute("W")
@@ -110,14 +271,30 @@ local function build(body: Frame, _arg: any?)
 		end
 		y += ROW_H
 		if row.hint then
-			UIKit.text(body, row.hint, UDim2.fromOffset(w - 2 * PAD, 10), UDim2.fromOffset(PAD, y - 6), { color = UIKit.color("text_dim"), name = "Hint_" .. row.k })
-			y += 8
+			local n = hintLines(row.hint, w)
+			UIKit.text(body, row.hint, UDim2.fromOffset(w - 2 * PAD, 10 * n), UDim2.fromOffset(PAD, y - 6), { color = UIKit.color("text_dim"), wrap = n > 1, name = "Hint_" .. row.k })
+			y += 8 + 10 * (n - 1)
 		end
 	end
+	viewRow(body, w, y)
+end
+
+-- The panel's height for its width: the rows as build lays them out, a hint wrapping and the View slider on a line of
+-- its own on a narrow panel.
+local function heightFor(pw: number): number
+	local w = pw - 8
+	local y = 4
+	for _, row in ROWS do
+		y += ROW_H
+		if row.hint then
+			y += 8 + 10 * (hintLines(row.hint, w) - 1)
+		end
+	end
+	return y + (if narrow(w) then 30 else 16) + 4 + 20
 end
 
 function SettingsUI.init()
-	UIKit.registerPanel("settings", { title = "Settings", icon = "gear", w = 236, h = 104, build = build })
+	UIKit.registerPanel("settings", { title = "Settings", icon = "gear", w = 236, hFor = heightFor, build = build })
 end
 
 return SettingsUI

@@ -248,8 +248,13 @@ local Tuning = {
 	-- the pixel filter is, by default, on all devices, zoomed in to be at a good level of detail. make it such that
 	-- smaller windows or smaller devices will still receive the same amount of detail as bigger ones"). The frame box
 	-- above set the zoom until then, fitted to the screen: 11.25 on a 1080p desktop, 12 on a laptop, about 6 on a
-	-- phone. Now the box only says where the view starts; a smaller screen shows less of the island at this detail
-	CamDetail = 12,
+	-- phone. Now the box only says where the view starts; a smaller screen shows less of the island at this detail.
+	-- The Settings panel's View slider picks one of ten notches (the request of 2026-11-18: "make a view slider for
+	-- zooming the camera in and out, with 10 notches"): art px a stud at each, far out to close in, each a clean grid
+	-- scale (Raster.gridScale) and each step about the same share closer. A new player starts on CamZoomDefault, 12 a
+	-- stud, the detail every screen had before the slider.
+	CamZoomNotches = { 5, 6, 7, 8, 9, 10, 11, 12, 14, 16 },
+	CamZoomDefault = 8,
 	-- on a phone (the screen's short side 500 px or less) a smaller box: the request of 2026-11-14, "On mobile, zoom in to
 	-- fit the island more" (the camera follows the founder round the rest); 0.75 until the desktop view came closer
 	-- the same way (0.95 to 0.75)

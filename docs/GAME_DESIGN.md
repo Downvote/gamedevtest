@@ -2043,9 +2043,16 @@ the founder cheer, arms up. With reduced motion on there are no fidgets and the 
 
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
-rain; `settings.sfx`), and Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need
-for an option to turn off the pixel filter"). A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
-same detail as on a desktop (§8, the camera: 12 art px a stud since 2026-11-18), so it shows a part of the island round
+rain; `settings.sfx`), Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need
+for an option to turn off the pixel filter"), and View, a slider with ten notches that zooms the camera out and in
+(the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
+Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
+big island's middle all at once, to 16, close enough to see a driftling's freckles; each is about the same step closer
+than the last. A new player starts on the eighth, 12 a stud (the detail every screen had before the slider), and its
+tick under the track is a pixel longer so it's easy to find again. The knob moves at once; the island is drawn again
+at the new zoom a moment after the last notch, so dragging across several only redraws it once, and the old picture
+stays up while it does. A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
+same detail as on a desktop (§8, the camera: 12 art px a stud since 2026-11-18, or the View slider's notch), so it shows a part of the island round
 the founder and follows them; before, it fitted a smaller box round the island's heart (`CamFramePhone` 0.6 against
 `CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:

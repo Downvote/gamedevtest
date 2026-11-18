@@ -799,7 +799,8 @@ function UIKit.clearNotices()
 end
 
 -- Registered panels (Hud's menus): build(body, arg) fills the panel's body; UIKit.openPanel shows one at a time.
-type PanelDef = { title: string, build: (body: Frame, arg: any?) -> (), pause: boolean?, w: number?, h: number?, icon: string? }
+-- (hFor: the panel's height for the width the screen leaves it, in place of h: a narrow panel whose rows wrap)
+type PanelDef = { title: string, build: (body: Frame, arg: any?) -> (), pause: boolean?, w: number?, h: number?, hFor: ((w: number) -> number)?, icon: string? }
 local panels: { [string]: PanelDef } = {}
 local openName: string? = nil
 local openFrame: Frame? = nil
@@ -830,7 +831,8 @@ local function panelSize(def: PanelDef): Vector2
 	local s = UIKit.size("Modal")
 	-- (its frame of planks takes 4 px more on every side: it still fits the screen)
 	local w = math.min(def.w or 300, s.X - 10)
-	local h = math.min(def.h or 170, s.Y - 10)
+	local hFor = def.hFor
+	local h = math.min(if hFor then hFor(w) else def.h or 170, s.Y - 10)
 	return Vector2.new(w, h)
 end
 

@@ -1392,6 +1392,35 @@ end
 SCEN.island2 = islandScenario(2, "island2")
 SCEN.island3 = islandScenario(3, "island3")
 
+-- "zoom=<n>": the harbour island (island3's) with the Settings panel's View slider on notch n (the request of
+-- 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"), set as a drag to it would
+-- (SettingsUI.setZoom) and the island baked again at that scale. Frames zoom<n>_panel (the panel open on it) and
+-- zoom<n>.
+local function zoomScenario(n: number)
+	seedProfile(13, 3, { pieces = HARBOR, pals = PALS, shells = 65000 })
+	local p = join(13, "Isle3")
+	settle(p)
+	E.run(1)
+	H.openPanel(p, "settings")
+	E.run(0.4)
+	local SU = modOr(p, "UI.SettingsUI")
+	if SU then
+		H.inClient(p, SU.setZoom, n)
+	end
+	E.run(0.8)
+	settle(p, 60, 1)
+	E.run(1)
+	local CC = modOr(p, "Controllers.CameraController")
+	log("zoom: notch %s, saved %s", tostring(CC and H.inClient(p, CC.zoom)), tostring(H.profile(p).settings.zoom))
+	capture(p, string.format("zoom%d_panel", n))
+	H.closePanel(p)
+	E.run(0.5)
+	settle(p, 20, 0.5)
+	E.run(1)
+	capture(p, string.format("zoom%d", n))
+	return p
+end
+
 -- A tier-6 capital (GAME_DESIGN 4.1: "a big island that is well decorated should look like a well developed city"):
 -- brick roads in a grid (marble round the plaza, stone lanes between), the blocks filled with the town and city
 -- buildings, lamps and trees along the roads. Roads go exactly where they fit (else nowhere); buildings nearest.
@@ -3579,6 +3608,12 @@ for _, name in list do
 	if stressLegs then
 		fn = function()
 			return SCEN.stress(tonumber(stressLegs))
+		end
+	end
+	local zoomArg = string.match(name, "^zoom=(%d+)$")
+	if zoomArg then
+		fn = function()
+			return zoomScenario(tonumber(zoomArg) :: number)
 		end
 	end
 	local wxArg = string.match(name, "^weather=(%a+)$")

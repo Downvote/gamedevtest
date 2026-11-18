@@ -736,7 +736,7 @@ handler under pcall; success marks the session dirty).
 | `pal.sell` | `id` | `Tree.sell` (data `{ shells, sold }`) | not_found |
 | `egg.hatch` | `id swap` (an egg id under the tree; swap 0: none, else a hut driftling sold to make room) | `Tree.hatch`, the tips, Fx hatched (data `{ id, sp, muts, egg, r, hr, cost, sold, swapped, wx, wm, new }`) | not_found (a new lot replaced it), no_hut, money, full (every hut full and no swap: the client opens the swap picker), bad_payload |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
-| `settings.set` | `k` ("pixel", "music" or "sfx"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off) | bad_payload |
+| `settings.set` | `k` ("pixel", "music", "sfx" or "zoom"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
 | `char.home` | - | PlotService puts the founder on their path | cooldown (`Tuning.HomeCooldown`), not_ready |
@@ -976,10 +976,15 @@ tier, shrunk about its middle by `Tuning.CamFrame`: 0.75, about 11 art px a stud
 after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 (9 px) after "zoom out abit
 more. the whole island should still be visible", then 0.75 (the phone's 0.75 to 0.6) after "zoom in into the island
 more. it should fit like this, with the playable island as big as the bakery", all 2026-11-14) is placed on screen clear of the HUD's blocks (`setHudRects`, `Raster.place`; the screen's middle when it doesn't fit): that placement is the **home** pan (`view().grid.px/py`).
-The zoom is `Tuning.CamDetail` (12 art px a stud, `Raster.gridScale` of it) on every screen since 2026-11-18 ("make it
-such that smaller windows or smaller devices will still receive the same amount of detail as bigger ones"): it was the
-largest clean grid scale whose placement of the box was clear, so it followed the screen (11.25 on a 1080p desktop, 12
-on a laptop, 5 to 6.25 on phones). A stage's view (`Stage`) still fits its own points that way. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
+The zoom is the same on every screen since 2026-11-18 ("make it such that smaller windows or smaller devices will still
+receive the same amount of detail as bigger ones"): it was the largest clean grid scale whose placement of the box was
+clear, so it followed the screen (11.25 on a 1080p desktop, 12 on a laptop, 5 to 6.25 on phones). It is the Settings
+panel's View slider (the same day: "make a view slider for zooming the camera in and out, with 10 notches"):
+`setZoom(n)` picks notch n of `Tuning.CamZoomNotches` (5, 6, 7, 8, 9, 10, 11, 12, 14, 16 art px a stud, each a clean
+`Raster.gridScale`), `zoom()` reads it; `CamZoomDefault` 8 (12 a stud). A new notch is a new key: `refit` puts the pan
+on the founder and fires `ViewChanged`, and the renderer bakes the island again at the new scale (the old picture
+stays up meanwhile); Build mode's drag is scaled to keep its studs. `start` applies `settings.zoom` from the view when
+the saved value changes (the join, another device), so a tap still waiting on the server is not undone. A stage's view (`Stage`) still fits its own points that way. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
 key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: anything else (the HUD's blocks, the
 island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
@@ -1435,7 +1440,7 @@ colour (`plate`, `plate_light`, `frame`, `frame_dark`, `glass`) makes a dark gla
 then a veil; `opts.textColor`; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
 `setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
-(`registerPanel(name, { title, icon?, w, h, build })`: black glass at `PANEL_ALPHA` over a `sea_shade` veil (0.45 transparent), as big as asked within the screen less 10 px each way, the `mini_<icon>` and the title in white, a coral `Close` (`button_close`), a `TitleRule` under them; `openPanel(name, arg)`, `closePanel`, `currentPanel`,
+(`registerPanel(name, { title, icon?, w, h, hFor?, build })`, `hFor(w)` the height for the width the screen leaves it in place of `h` (Settings: its rows wrap on a narrow panel): black glass at `PANEL_ALPHA` over a `sea_shade` veil (0.45 transparent), as big as asked within the screen less 10 px each way, the `mini_<icon>` and the title in white, a coral `Close` (`button_close`), a `TitleRule` under them; `openPanel(name, arg)`, `closePanel`, `currentPanel`,
 `refreshPanel`, `PanelChanged`, `bodyWidth`, `bodyHeight`), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
@@ -2131,11 +2136,18 @@ it with "Collected N shells." `WelcomeUI.step()` (Hud's heartbeat) opens it by i
 shut and the hatch scene isn't playing; it closes the card when the view has no report. `WelcomeUI.open()`.
 
 ### 10.14 Settings (`UI/SettingsUI`; GAME_DESIGN 9)
-The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`): `ROWS` Music (`settings.music`), Sounds
+The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: 118 tall, more when narrow): `ROWS` Music (`settings.music`), Sounds
 (`settings.sfx`) and Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish), each a row of buttons `Set_<k>_<v>`, the chosen
 one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
 `Audio.setSoundsOn`, `PixelRenderer.setTier`) and sends `settings.set`; a refusal drops the pending value with a notice.
-`SettingsUI.value(k)`, `SettingsUI.apply()` (Hud's heartbeat: music and sounds follow the settings). `Audio.setSoundsOn(on)`
+Under them the View row (2026-11-18, `settings.zoom`): `ZoomOut` (-), the track (an ink frame round a groove, filled to
+the knob), its ten notches' ticks `ZoomTick_<i>` (1 x 3 px under the track, the default's 1 x 4), the 7 x 11 knob
+`ZoomKnob` and `ZoomIn` (+); `ZoomSlider` over the track takes a press and a drag (mouse or touch) and picks the nearest
+notch. On a narrow panel (a track beside the label would be under `TRACK_MIN` 110 UI px: a phone held upright) the
+slider goes on its own line under the label, the body's whole width, and a hint wraps (it was cut off there before).
+`SettingsUI.setZoom(n)` moves the knob at once with the flip sound; `ZOOM_WAIT` (0.3 s) after the last notch
+it calls `CameraController.setZoom` and sends `settings.set` (a refusal puts the camera back with a notice).
+`SettingsUI.zoom()` (the pending notch, else the view's), `SettingsUI.value(k)`, `SettingsUI.apply()` (Hud's heartbeat: music and sounds follow the settings). `Audio.setSoundsOn(on)`
 stops every one-shot (`Audio.play` returns false) and fades the loops to nothing; `Audio.soundsOn()`.
 
 ### 10.13 The Store and Looks (`UI/StoreUI`; GAME_DESIGN 14.2)

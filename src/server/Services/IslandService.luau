@@ -243,6 +243,10 @@ function IslandService.init()
 			-- the background music and the sounds (the Settings panel): on or off, kept with the profile
 			s.profile.settings[a.k] = a.v
 			return true, nil
+		elseif a.k == "zoom" and type(a.v) == "number" and a.v == math.floor(a.v) and a.v >= 1 and a.v <= #Tuning.CamZoomNotches then
+			-- the View slider's notch (the Settings panel, 2026-11-18): kept with the profile
+			s.profile.settings.zoom = a.v
+			return true, nil
 		end
 		return false, "bad_payload"
 	end)

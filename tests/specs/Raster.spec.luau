@@ -1619,4 +1619,18 @@ return function()
 		T.near(n2x, -1, 1e-6)
 		local _ = nz
 	end)
+	-- the Settings panel's View slider (2026-11-18: "make a view slider for zooming the camera in and out, with 10
+	-- notches"): ten notches, each a clean grid scale, each closer than the one before by a share that stays even
+	T.it("the View slider's ten notches are clean grid scales, far out to close in", function()
+		local n = Tuning.CamZoomNotches
+		T.eq(#n, 10)
+		T.eq(n[Tuning.CamZoomDefault], 12, "the default notch is the detail every screen had before")
+		for i, a in n do
+			T.eq(Raster.gridScale(a, 1, false), a, string.format("notch %d (%g) is clean", i, a))
+			if i > 1 then
+				local step = a / n[i - 1]
+				T.truthy(step > 1.05 and step < 1.25, string.format("notch %d is %.2f times notch %d", i, step, i - 1))
+			end
+		end
+	end)
 end
