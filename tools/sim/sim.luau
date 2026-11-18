@@ -2739,14 +2739,24 @@ do
 	H.clickNamed(p, "QuestClaim", { wait = 0.5 })
 	H.expect(prof.quest == 2 and prof.shells >= shells0 + (reward.shells or 0), "quests", "Claim pays the reward (shells) and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
 end
--- a quest's Go naming an old tab ("build:wood": Another camp) opens Build mode on Work's row of that name
+-- a quest's Go naming an old tab ("build:farm": Another farm, "build:gen": Build a boost) opens Build mode on Work's row
+-- of that name (the second camp's quest went on 2026-11-18: the first island's work spaces ran out before Another
+-- farm); the first of them not met yet here (a met one shows Claim instead)
 do
-	prof.quest = questAt("camp")
-	H.push(p, 0.5)
-	H.expect(Quests.list[questAt("camp")].go == "build:wood" and H.buttonNamed(p, "QuestGo") ~= nil, "quests", "the quest card: Another camp, with Go")
+	local qid: string? = nil
+	for _, id in { "farm", "boost" } do
+		prof.quest = questAt(id)
+		H.push(p, 0.5)
+		if H.buttonNamed(p, "QuestGo") ~= nil then
+			qid = id
+			break
+		end
+	end
+	H.expect(qid ~= nil, "quests", "the quest card of a quest building on Work's rows, with Go")
+	local row = if qid then string.match(Quests.list[questAt(qid)].go, "^build:(%w+)$") else nil
 	H.clickNamed(p, "QuestGo", { wait = 0.5 })
 	local st = H.inClient(p, BuildUI.debugState)
-	H.expect(H.inClient(p, BuildUI.isOpen) and st.tab == "work" and st.chip == "wood" and H.buttonNamed(p, "Buy_lumber") ~= nil, "quests", "Go on it opens Build mode on Work's Wood row", string.format("%s %s", tostring(st.tab), tostring(st.chip)))
+	H.expect(row ~= nil and H.inClient(p, BuildUI.isOpen) and st.tab == "work" and st.chip == row, "quests", "Go on it opens Build mode on Work's row of that name", string.format("%s: %s %s", tostring(qid), tostring(st.tab), tostring(st.chip)))
 	H.clickNamed(p, "BuildDone", { wait = 0.4 })
 end
 -- the tree's quests: "Hatch three eggs" counts the eggs hatched (two of three: Go opens the tree's panel, a claim is

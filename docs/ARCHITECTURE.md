@@ -183,7 +183,8 @@ next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, m
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
-`Profile` (the save, version 18 (the View slider's default moved to the sixth notch, 2026-11-18: a save still on
+`Profile` (the save, version 19 (the questline lost its fourth quest, Another camp, 2026-11-18: `quest` past it moves
+back one, so a save stays on the quest it was on); 18 (the View slider's default moved to the sixth notch, 2026-11-18: a save still on
 the eighth, the first default, loses it and reconcile gives it the new one; `settings.zoom`); 17 (offline earnings and the group, 2026-11-14: `seenAt` (the sea's clock when the island
 was last open, set every second while it is; 0 unknown: an older save earns nothing for its time away), `group`
 (`Group = { member, gift }`: in the group at the last check, its gift given)); 16 (the store, 2026-11-14: `passes` (pass key -> true, checked again at every join),

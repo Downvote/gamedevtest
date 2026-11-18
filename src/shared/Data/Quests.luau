@@ -9,6 +9,10 @@
 --   go: where its Go button takes the player: a panel ("pals" "index" "hatch" "tree") or Build mode ("build",
 --     or "build:<tab>")
 --   reward: shells (the one store since 2026-11-14; a quest that paid wood pays the same in shells)
+-- (No second Lumber Camp any more, 2026-11-18: "this quest is uncompletable without removing a work building. thus,
+-- remove the quest that asks you to make a second lumber camp". The first island has 8 work spaces, 2 a workplace: the
+-- tips' camp, farm and stall and the second camp filled them, so "Another farm" could not be built. The questline
+-- before the first expansion has to fit the first island's work spaces: Quest.spec checks it.)
 export type Goal = { kind: string, n: number, of: string? }
 export type Reward = { shells: number? }
 export type Quest = { id: string, title: string, text: string, goal: Goal, reward: Reward, go: string, icon: string }
@@ -42,15 +46,6 @@ local list: { Quest } = {
 		reward = { shells = 100 },
 		go = "tree",
 		icon = "tree",
-	},
-	{
-		id = "camp",
-		title = "Another camp",
-		text = "Build a second Lumber Camp. It sells what it cuts for shells.",
-		goal = { kind = "built", n = 2, of = "wood" },
-		reward = { shells = 80 },
-		go = "build:wood",
-		icon = "wood",
 	},
 	{
 		id = "three",

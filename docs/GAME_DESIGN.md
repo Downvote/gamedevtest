@@ -2088,13 +2088,13 @@ task is already done moves on at once.)
 > as assigning creatures to different work areas"
 
 **The questline** (`Data/Quests`, `Logic/Quest`): once the tips are over, one quest at a time in a card down the left
-under the chips (it steps aside for a panel). The card has the quest's icon and title, which of the twenty it is, what
+under the chips (it steps aside for a panel). The card has the quest's icon and title, which of the nineteen it is, what
 to do and where, and its progress with **Go**, which opens the place it needs (the Driftlings panel, the Tree panel,
 Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go turns into **Claim** (shining) next to
 the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island has now or what its
 stats have kept (eggs hatched from the tree, sold, the Hatchery's hatched, the rarest had), so one already met can be
 claimed at once. Rewritten for the eggs (2026-11-13), in order: put a driftling to work; sell a driftling; hatch three
-eggs; another camp (a second Lumber Camp); three at work ("Get three driftlings working. Each needs a bed in a hut (a
+eggs; three at work ("Get three driftlings working. Each needs a bed in a hut (a
 hut sleeps two) and a farm, camp or shop to work at.": the request of 2026-11-14, "for this step, specify that you need
 3 huts, and you need work buildings for them to work in"; a hut sleeps two, so it names beds, not three huts); build
 another hut (2 huts); an uncommon one ("Green-spotted
@@ -2106,7 +2106,12 @@ discovered. Expanding your island lets you discover more.": the user's words of 
 3); build a Hatchery ("It's on the Huts tab. Breed two driftlings there for an egg."); hatch an egg in it ("Breed two
 driftlings for an egg. Rarer parents tend to make rarer eggs. Mutations both carry pass on.": the request of
 2026-11-15, "for hatchery quests, no need to say feast. say Breed two driftlings for an egg. also, specify what happens
-to the result, such as mutations and rarity"); an epic one; sixty hatched.
+to the result, such as mutations and rarity"); an epic one; sixty hatched. Another camp (a second Lumber Camp) came
+after the three eggs until 2026-11-18: "this quest is uncompletable without removing a work building. thus, remove the
+quest that asks you to make a second lumber camp". The first island has 8 work spaces, 2 for each workplace there, and
+the tips' camp, farm and stall with the second camp used them all, so Another farm could not be built. Without it the
+tips and the quests before the first expansion use exactly the 8 (a spec keeps it so), and a save already in the
+questline stays on the quest it was on.
 While one of the rarity quests (an uncommon, a rare or an epic one) is on the go and not met, the tree always has an
 egg of that rarity waiting (§6, "The quest's egg"; the request of 2026-11-14: "also, while the rare one quest is
 active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of life.").

@@ -6,6 +6,7 @@ local Quests = require("../../build/luautest/shared/Data/Quests")
 local Quest = require("../../build/luautest/shared/Logic/Quest")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
+local Plot = require("../../build/luautest/shared/Logic/Plot")
 
 local KINDS = {
 	helpers = true,
@@ -121,5 +122,55 @@ return function()
 		T.eq((Schema.reconcile(far, 0, 1) :: any).quest, #Quests.list + 1, "past the last: all done")
 		far.quest = 5
 		T.eq((Schema.reconcile(far, 0, 1) :: any).quest, 5, "kept")
+	end)
+
+	-- 2026-11-18: "this quest is uncompletable without removing a work building. thus, remove the quest that asks you
+	-- to make a second lumber camp"
+	T.it("no second Lumber Camp; a save from before keeps its place in the questline", function()
+		local farmAt = 0
+		for i, q in Quests.list do
+			T.truthy(q.id ~= "camp", "the camp quest is gone")
+			if q.id == "farm" then
+				farmAt = i
+			end
+		end
+		T.eq(#Quests.list, 19)
+		T.eq(farmAt, 7, "Another farm is the seventh now")
+		local function from18(q: number): number
+			local old = Schema.default(0, 1) :: any
+			old.v = 18
+			old.quest = q
+			return (Schema.reconcile(Schema.migrate(old), 0, 1) :: any).quest
+		end
+		T.eq(from18(3), 3, "before the camp quest: the same")
+		T.eq(from18(4), 4, "on it: the next one, Three at work, now the fourth")
+		T.eq(Quests.list[from18(8)].id, "farm", "on Another farm (the eighth): still on it")
+		T.eq(from18(21), #Quests.list + 1, "all done: still all done")
+	end)
+
+	T.it("the quests before the first expansion fit the first island's work spaces", function()
+		-- the workplaces the tips have built (a camp, a farm, a stall), then the most each quest asks of a kind, at
+		-- the first island's places a workplace
+		local need: { [string]: number } = { wood = 1, farm = 1, shop = 1 }
+		for _, q in Quests.list do
+			if q.goal.kind == "tier" then
+				break
+			end
+			local of = q.goal.of
+			if q.goal.kind == "built" and of and need[of] ~= nil then
+				need[of] = math.max(need[of], q.goal.n)
+			end
+		end
+		local jobs = 0
+		for kind, n in need do
+			local each = math.huge
+			for _, d in Buildings.list do
+				if d.kind == kind and d.tier == 1 then
+					each = math.min(each, d.jobs)
+				end
+			end
+			jobs += n * each
+		end
+		T.truthy(jobs <= Plot.workLimit(1), string.format("%d work spaces asked for, %d on the first island", jobs, Plot.workLimit(1)))
 	end)
 end

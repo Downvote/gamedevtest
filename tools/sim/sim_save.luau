@@ -224,7 +224,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 18, "save", "a version 12 save loads as version 18", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 19, "save", "a version 12 save loads as version 19", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -284,7 +284,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 18, "save", "a version 11 save loads as version 18", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 19, "save", "a version 11 save loads as version 19", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid. A tier-1 island has
 	-- few places an 8 by 8 tree fits, and the patch and the hut take them all: the patch makes room, its whole price
@@ -556,7 +556,7 @@ do
 	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
 	E.run(3)
 	local fp = H.profile(f13)
-	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 18", tostring(fp and fp.v))
+	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 19", tostring(fp and fp.v))
 	if fp then
 		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
 		H.expect(fp.wood == nil and fp.shells >= 300 + 90 + 25 * 2 + 120 and fp.shells < 300 + 90 + 25 * 2 + 120 + 2, "save", "their price back (two fences at 25, a hedge at 120) and the wood, as shells", string.format("%s %s", tostring(fp.shells), tostring(fp.wood)))
@@ -868,7 +868,7 @@ for _, c in { { id = 9211, zoom = 8, want = Tuning.CamZoomDefault }, { id = 9212
 	local z = H.addPlayer({ userId = c.id, name = "Zoomer" .. c.zoom })
 	E.run(3)
 	local zp = H.profile(z)
-	H.expect(zp ~= nil and zp.v == 18 and zp.settings.zoom == c.want, "save", string.format("a version 17 save on notch %d loads on notch %d", c.zoom, c.want), tostring(zp and zp.settings.zoom))
+	H.expect(zp ~= nil and zp.v == Schema.VERSION and zp.settings.zoom == c.want, "save", string.format("a version 17 save on notch %d loads on notch %d", c.zoom, c.want), tostring(zp and zp.settings.zoom))
 	local CCz = H.cmod(z, "Controllers.CameraController")
 	H.expect(H.inClient(z, CCz.zoom) == c.want and CCz.view().grid.a == Tuning.CamZoomNotches[c.want], "save", "and its camera on that notch", string.format("%s, %g a stud", tostring(H.inClient(z, CCz.zoom)), CCz.view().grid.a))
 	z:Kick()

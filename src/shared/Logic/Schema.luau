@@ -30,7 +30,7 @@ local Schema = {}
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
 -- group gift (GAME_DESIGN 14.3)
-Schema.VERSION = 18
+Schema.VERSION = 19
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -413,6 +413,16 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 			st.zoom = nil
 		end
 		v = 18
+	end
+	-- 18 -> 19: the questline's fourth quest ("Another camp", a second Lumber Camp) went (the request of 2026-11-18:
+	-- "remove the quest that asks you to make a second lumber camp"). A save past it moves back one, so it stays on
+	-- the same quest; one on it goes on to the next ("Three at work", now the fourth).
+	if v < 19 then
+		local q = raw.quest
+		if type(q) == "number" and q == q and q > 4 then
+			raw.quest = q - 1
+		end
+		v = 19
 	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
