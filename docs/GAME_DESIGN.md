@@ -340,6 +340,11 @@ offline progress).
   ray is cast once for each 2x2 pixels, and every pixel on a shadow's edge then casts its own, so a shadow's edge
   steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
   respecting the pixel grid").
+- **Moving things:** a driftling walking on the island slides across the picture a pixel at a time, every tick, and
+  its pose changes as often as the frame's budget allows (the request of 2026-11-18: "make it such that overworld
+  creatures move smoother". On a busy island its picture used to stand still for a fifth of a second, then jump 4 to
+  7 pixels). Its round shadow lies only on the ground it walks on, never on a roof, an awning or a wall in front of it
+  (the report of 2026-11-18: "also, shadows clip through buildings").
 - **Cozy light** (the request of 2026-11-13 at the top): the day's light is a little warm, like a late summer
   afternoon, with a faint blush since the pink sand below (`Palette.modes.day` 1.033, 0.995, 0.955: the moving
   things' light the same), and since 2026-11-14 brighter all the time, with no dusk or night (§8). The hatch scene's

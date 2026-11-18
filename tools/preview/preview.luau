@@ -502,9 +502,20 @@ local function fillMax(prof)
 	end
 	-- the pieces, in proportion as they go (so each kind is spread over the whole island)
 	local groups = { huts = {}, breed = {}, boost = {}, work = {}, decor = {} }
+	-- (the citadel at the top tiers; a smaller island has its roomiest hut instead: the crowd preview)
+	local hutId = "citadel"
+	if Buildings.byId.citadel.tier > tier then
+		local best = nil
+		for _, d in Buildings.list do
+			if d.kind == "nest" and d.tier <= tier and (best == nil or (d.slots or 0) > (best.slots or 0)) then
+				best = d
+			end
+		end
+		hutId = best.id
+	end
 	for _, d in Buildings.list do
 		if d.tier <= tier then
-			if d.kind == "nest" and d.id == "citadel" then
+			if d.kind == "nest" and d.id == hutId then
 				table.insert(groups.huts, d.id)
 			elseif d.kind == "breed" then
 				table.insert(groups.breed, d.id)
@@ -518,7 +529,10 @@ local function fillMax(prof)
 		end
 	end
 	local limit = Plot.limit(tier)
-	local want = { huts = math.ceil(Plot.housingLimit(tier) / Buildings.byId.citadel.slots), breed = Plot.hatcheryLimit(tier), boost = 2 * #groups.boost, work = 280 }
+	local want = { huts = math.ceil(Plot.housingLimit(tier) / Buildings.byId[hutId].slots), breed = Plot.hatcheryLimit(tier), boost = 2 * #groups.boost, work = 280 }
+	if hutId ~= "citadel" then
+		want.work = math.min(280, math.max(0, (limit - want.huts - want.breed - want.boost) // 2))
+	end
 	want.decor = limit - want.huts - want.breed - want.boost - want.work
 	local got = { huts = 0, breed = 0, boost = 0, work = 0, decor = 0 }
 	local ORDER = { "huts", "breed", "boost", "work", "decor" }
@@ -623,6 +637,137 @@ local function incTally(p, PR, every)
 		return string.format("%d incremental composes checked against whole ones: %d pixels off in all (the worst %d; %d more where two models meet within the depth bias), %d px redone each on average", t.n, t.off, t.worst, t.ties, t.px // math.max(1, t.n))
 	end
 	return t
+end
+
+-- "crowd": a busy town's driftlings on the move (the request of 2026-11-18: "make it such that overworld creatures
+-- move smoother"). A Harbor Town (tier 4) filled to its limits with driftlings, walking to work and back; the world at
+-- 60 frames a second of its own time (the renderer's and WorldView's budgets on the real clock, as in stress). For
+-- three seconds every frame notes where each walking driftling's picture went down (PixelRenderer.debugShown): the
+-- log says how many times a second a walker's picture moved (the median and the slowest tenth) and how far it jumped
+-- (art px: the median jump and the largest), with the frame's cost; frames crowd_000 .. crowd_011, the last twelve
+-- at 30 a second (`make_gif.py <outdir> crowd <device> 30`).
+function SCEN.crowd()
+	local Creatures = H.sharedServer("Data.Creatures")
+	local Plot = H.sharedServer("Logic.Plot")
+	local tier = 4
+	local pals = {}
+	for k = 1, Plot.housingLimit(tier) do
+		table.insert(pals, Creatures.list[(k * 7 - 1) % #Creatures.list + 1].id)
+	end
+	seedProfile(23, tier, { fill = fillMax, pals = pals, shells = 9e6 })
+	local p = join(23, "Crowd")
+	settle(p, 60, 2)
+	E.run(6)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local WV = modOr(p, "Controllers.WorldView")
+	if PR == nil or WV == nil or PR.debugShown == nil or WV.debugMoving == nil then
+		log("crowd: no debug hooks")
+		return p
+	end
+	local housed, working = 0, 0
+	for _, x in H.profile(p).pals do
+		housed += if x.home ~= 0 then 1 else 0
+		working += if x.work ~= 0 then 1 else 0
+	end
+	log("crowd: %d driftlings, %d in huts, %d at work; %d drawn on the islands near the view, %d dressed", #H.profile(p).pals, housed, working, H.inClient(p, WV.rigCount), #H.inClient(p, WV.debugMoving))
+	local realClock = os.clock
+	if PR.debugClock then
+		H.inClient(p, PR.debugClock, realClock)
+	end
+	H.inClient(p, function()
+		WV.clock = realClock
+	end)
+	H.inClient(p, PR.debugPerf)
+	local seen = {} -- model -> { last x, y, moves, jumps = { ... }, frames }
+	local frames = 0
+	local wall0 = os.clock()
+	local function note()
+		for _, m in H.inClient(p, WV.debugMoving) do
+			if m.walking then
+				local x, y = H.inClient(p, PR.debugShown, m.model)
+				if x then
+					local r = seen[m.model]
+					if r == nil then
+						seen[m.model] = { x = x, y = y, moves = 0, jumps = {}, frames = 0 }
+					else
+						r.frames += 1
+						if x ~= r.x or y ~= r.y then
+							r.moves += 1
+							table.insert(r.jumps, math.max(math.abs(x - r.x), math.abs(y - r.y)))
+							r.x, r.y = x, y
+						end
+					end
+				end
+			end
+		end
+	end
+	local tally = incTally(p, PR, 10)
+	for f = 1, 180 do
+		E.step(1 / 60)
+		note()
+		tally.step(f)
+		frames += 1
+		if f > 156 and f % 2 == 0 then
+			capture(p, string.format("crowd_%03d", (f - 158) // 2))
+		end
+	end
+	local wall = os.clock() - wall0
+	local rates, jumps = {}, {}
+	for _, r in seen do
+		if r.frames >= 60 then
+			table.insert(rates, r.moves / (r.frames / 60))
+			for _, j in r.jumps do
+				table.insert(jumps, j)
+			end
+		end
+	end
+	table.sort(rates)
+	table.sort(jumps)
+	local function at(t, q)
+		if #t == 0 then
+			return 0
+		end
+		return t[math.clamp(math.floor(#t * q) + 1, 1, #t)]
+	end
+	local st = H.inClient(p, PR.debugPerf)
+	local wc = H.inClient(p, WV.debugCost)
+	local fr = math.max(1, st.frames)
+	log("crowd: %d driftlings, %d dressed; %d walkers followed a second or more: their pictures moved %.1f times a second (median), %.1f for the slowest tenth; jumps of %d art px (median), %d (the largest tenth), %d at most", #H.profile(p).pals, wc.dressed or 0, #rates, at(rates, 0.5), at(rates, 0.1), at(jumps, 0.5), at(jumps, 0.9), at(jumps, 1))
+	log("crowd: the pixel filter %.2f ms a frame (the slowest %.1f), models %.2f; %d kept pictures, %d drawn; WorldView poses %.2f ms a frame; %d frames in %.1f s", st.stepMs / fr, st.maxMs or 0, st.dynMs / fr, st.hits, st.draws, (wc.pose or 0) * 1000 / math.max(1, wc.frames or 1), frames, wall)
+	log("crowd: %s", tally.line())
+	-- a driftling held just behind a shop (the report of 2026-11-18, "also, shadows clip through buildings": its blob
+	-- shadow darkened the shop's awning in front of it): crowd_shadow, the log saying where
+	local Street = H.sharedServer("Data.Street")
+	local Buildings = H.sharedServer("Data.Buildings")
+	local plot = H.session(p).plot
+	local ox, oz = Street.origin(plot)
+	local prof = H.profile(p)
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	local shop, best = nil, math.huge
+	for _, q in prof.plot.placed do
+		local b = Buildings.byId[q.id]
+		if b and b.kind == "shop" and root then
+			local w, d = Plot.footprint(q.id, q.rot)
+			local dist = (E.v3(ox + q.x + w / 2, root.Position.Y, oz + q.z + d / 2) - root.Position).Magnitude
+			if dist < best then
+				shop, best = q, dist
+			end
+		end
+	end
+	local pal = prof.pals[1]
+	if shop and pal then
+		local w = Plot.footprint(shop.id, shop.rot)
+		local x, z = ox + shop.x + w / 2, oz + shop.z - 0.6
+		H.inClient(p, WV.holdPal, plot, pal.id, 30, x, z)
+		E.run(1.5)
+		log("crowd: driftling %d (%s) held just behind the %s at (%.1f, %.1f), %.0f studs from the founder", pal.id, pal.sp, shop.id, x, z, best)
+		capture(p, "crowd_shadow")
+		if PR.debugShadowCheck then
+			local sc = H.inClient(p, PR.debugShadowCheck)
+			log("crowd: %d blob shadows on the frame: %d pixels of roofs, awnings and walls in their ellipses, %d of them darkened; %d ground pixels darkened", sc.shadows, sc.high, sc.darkened, sc.ground)
+		end
+	end
+	return p
 end
 
 function SCEN.stress(legs: number?)

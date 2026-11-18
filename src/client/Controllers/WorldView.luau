@@ -63,6 +63,8 @@ type Walker = {
 	rng: Types.Rng,
 	poseAt: number, -- os.clock() its model is due to be posed again (the frame's pose budget)
 	moodNow: string, -- what its model plays when posed: "walk", its work, "idle" or its cheer
+	px: number, -- where its model was last put (world): the pixel filter slides its picture on from there
+	pz: number,
 }
 
 local walkers: { [string]: Walker } = {} -- key: "<plot>:p<id>"
@@ -378,6 +380,7 @@ local function dress(w: Walker)
 	-- (posed where it stands before the pixel filter first meets it, then at once by the budget)
 	MicroModels.animate(th, os.clock() + w.id, w.moodNow, 0)
 	MicroModels.place(th, CFrame.new(w.x, Street.LAWN_Y, w.z) * CFrame.Angles(0, w.yaw, 0))
+	w.px, w.pz = w.x, w.z
 	PixelRenderer.registerDynamic(th.model)
 	w.thing = th
 	w.poseAt = 0
@@ -442,6 +445,8 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 		rng = rng,
 		poseAt = 0,
 		moodNow = "idle",
+		px = x,
+		pz = z,
 	}
 	-- (its model when it is near the screen: dress, from the frame loop)
 	if PixelRenderer.nearScreen(Vector3.new(x, Street.LAWN_Y, z), MODEL_NEAR) then
@@ -639,7 +644,18 @@ local function posePals(t: number)
 		local th = w.thing :: MicroModels.Thing
 		MicroModels.animate(th, t + w.id, w.moodNow, 0)
 		MicroModels.place(th, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0))
+		w.px, w.pz = w.x, w.z
 		w.poseAt = t + (if w.moodNow == "walk" then POSE_WALK else POSE_STILL)
+	end
+	-- Every model near the screen, posed this frame or not, tells the pixel filter where its driftling is now: its
+	-- picture slides there by whole art px while its pose waits for the budget (the request of 2026-11-18, "make it
+	-- such that overworld creatures move smoother": on a busy island a walker's picture stood still for a fifth of a
+	-- second and then jumped 4 to 7 px).
+	for _, w in walkers do
+		local th = w.thing
+		if th then
+			PixelRenderer.glide(th.model, Vector3.new(w.x, y, w.z), Vector3.new(w.px, y, w.pz))
+		end
 	end
 end
 
@@ -1125,6 +1141,19 @@ function WorldView.debugCost(): { [string]: number }
 	return out
 end
 
+-- Previews: every dressed driftling's model, where it stands now (world studs) and whether it walks (the crowd
+-- preview's count of how often each one's picture moves).
+function WorldView.debugMoving(): { { model: Model, x: number, z: number, walking: boolean } }
+	local out = {}
+	for _, w in walkers do
+		local th = w.thing
+		if th then
+			table.insert(out, { model = th.model, x = w.x, z = w.z, walking = w.moodNow == "walk" })
+		end
+	end
+	return out
+end
+
 -- Sims: a tap on the screen at `pos` (screen px, as an InputObject's), as a player's tap is handled (a sign shows its
 -- card, a driftling its details).
 function WorldView.tapScreen(pos: Vector2)
@@ -1156,10 +1185,14 @@ function WorldView.palKeyAt(pos: Vector2): string?
 end
 
 -- Sims and previews: hold a driftling still where it stands (its walk, its work and its strolls wait) for `secs`, so a
--- tap at where it was drawn lands on it.
-function WorldView.holdPal(plot: number, id: number, secs: number)
+-- tap at where it was drawn lands on it; with `x`, `z` (world) it is put there first (the crowd preview's driftling
+-- behind a shop).
+function WorldView.holdPal(plot: number, id: number, secs: number, x: number?, z: number?)
 	local w = walkers[plot .. ":p" .. id]
 	if w then
+		if x and z then
+			w.x, w.z = x, z
+		end
 		w.tx, w.tz = w.x, w.z
 		w.state = "idle"
 		w.untilT = os.clock() + secs

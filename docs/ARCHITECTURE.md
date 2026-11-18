@@ -1054,7 +1054,11 @@ art pixel under an InputObject's Position, as `projectPixel` gives them), `scree
 direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `nearScreen(world,
 pad) -> boolean` (whether a world point lies on the layer or within `pad` art px of it: Controllers/WorldView dresses
 and undresses the driftlings by it, Controllers/Spinners turns only the sails near the screen), `debugStatic()`
-(CLI checks: layer, pan, bakes, ticks, `baking` and `behind` (a bake behind the picture), `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`,
+(CLI checks: layer, pan, bakes, ticks, `baking` and `behind` (a bake behind the picture), `scrolls`, `scrollRays`, `recasts`, `queued`),
+`glide(model, now?, posed?)` (Controllers/WorldView every frame: where a driftling stands and where its parts were
+posed; its kept picture slides between them), `debugShown(model) -> (x?, y?)` (where its picture went down last,
+layer px), `debugShadowCheck() -> { high, darkened, ground, shadows }` (the blob shadows' pixels on raised surfaces,
+those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
   art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
@@ -1103,7 +1107,13 @@ and undresses the driftlings by it, Controllers/Spinners turns only the sails ne
   (`Tuning.PixelDynMs` of drawing, `Tuning.PixelMaxDyn` models, read on `SG.clock`), the founders first, then a model
   with no picture at all (`SG.bare`), then the longest undrawn, a model whose last picture lay wholly off the layer
   last (`SG.offPic`; one that has not moved since needs none); past the budget a model shows its kept picture a tick
-  longer where it last stood. Its blob shadow is its picture's (`SG.shadowGeo(s, model, first, held)`), so a model
+  longer where it last stood. A kept picture slides with its model (`PixelRenderer.glide`: `Dyn.gNow`, where the model
+  stands now, and `DynCache.anchor`, where its parts stood when it was drawn): `SG.glideOf` gives the whole art px
+  across and down and the depth to add, the picture goes down there (`SG.blitAt(..., dz)`), its blob shadow moves by
+  the same px, and an incremental compose takes a picture shown at another place or depth as changed (`Dyn.shDz`).
+  (The request of 2026-11-18, "make it such that overworld creatures move smoother": on a busy island a walker was
+  posed and drawn a few times a second and its picture jumped 4 to 7 px between; now it moves about 27 times a
+  second, a pixel at a time, the `crowd` preview.) Its blob shadow is its picture's (`SG.shadowGeo(s, model, first, held)`), so a model
   and its shadow move together. Before (the stress test of 2026-11-17, "do a stress test with the maximum amount of
   decor and buildings at the highest expansion level"), a model that moved every tick was kept only while the view
   panned and only with no other model in its rect, and on a full Everdrift about 48 models a frame past the budget
@@ -1344,7 +1354,10 @@ and undresses the driftlings by it, Controllers/Spinners turns only the sails ne
 - **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; none while its PrimaryPart is see-through or below its
-  ground (a stage's thing put away under the floor); drawn before the models, restored with their rects. The
+  ground (a stage's thing put away under the floor); only on its ground: a static pixel whose surface (its ray's
+  origin plus the look times its depth) stands more than `SHADOW_LIFT` (0.9) studs over `PixelGroundY` is a roof, an
+  awning or a wall, and the blob passes it by (the report of 2026-11-18, "also, shadows clip through buildings": a
+  driftling behind a stall darkened the stall's awning in front of it); drawn before the models, restored with their rects. The
   shadowed tone of each static pixel is worked out once and cached (`sShadowC`) until the static layer changes (a
   bake, a pan, a re-cast), so a cloud's big shadow stays cheap.
 
@@ -1456,7 +1469,10 @@ lawn's, registered as a moving model) and one past `MODEL_FAR` (80) undressed (`
 y -400 in the pool while it holds fewer than `POOL_MAX` (200), else destroyed; parked rather than unparented, so the
 scene's ray structures stay as they are). The dressed ones are posed through a budget (`posePals`): one walking every
 `POSE_WALK` (1/30 s), one standing, working or napping every `POSE_STILL` (1/15 s), the longest waiting first, at
-most `POSE_BUDGET` (6) a frame, about what the pixel filter draws afresh in a frame there. Each island's `Pals`
+most `POSE_BUDGET` (6) a frame, about what the pixel filter draws afresh in a frame there. Between poses a walker's
+picture slides on: each frame every dressed walker hands the pixel filter where it is and where its model was last put
+(`Walker.px`, `pz`; `PixelRenderer.glide`). `debugMoving()` (previews: every dressed model, where it stands and whether
+it walks); `holdPal(plot, id, secs, x?, z?)` puts it at `x`, `z` first. Each island's `Pals`
 attribute is parsed again only when it changed (`palsRead`). The campfire's smoke moves ten times a second with its
 flame. `debugCost()` (seconds in each part of the Heartbeat since the last read: `walk`, `pose`, `rest`, `tags`,
 `eggs`, `frames`, and the models `dressed` and `pooled`; `WorldView.clock` is the clock it reads).

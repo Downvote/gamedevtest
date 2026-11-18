@@ -142,7 +142,7 @@ type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: 
 -- then, the static picture's epoch (SG.ver) and the scale. cache false: never kept (its ids wrap round).
 -- shp: where the model's blob shadow is cast from as it was drawn (its PrimaryPart's position; nil: it cast none), so
 -- the shadow shown with a kept picture is the picture's, not the live model's.
-type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number, shp: Vector3? }
+type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number, shp: Vector3?, anchor: Vector3? }
 -- (what it shows since the last compose, for the incremental compose: shC the kept picture put down, nil when it was
 -- drawn and not kept; shR its rect a pixel round, in global art px; sx, sy, srx, sry its blob shadow's centre (global
 -- art px) and radii, sR the shadow's rect (global); sChg, sIn whether this compose draws the shadow because it changed
@@ -159,6 +159,9 @@ type Dyn = {
 	drawnAt: number?,
 	shC: DynCache?,
 	shR: Rect?,
+	shDz: number?,
+	gNow: Vector3?,
+	gPosed: Vector3?,
 	sx: number?,
 	sy: number?,
 	srx: number?,
@@ -2021,6 +2024,10 @@ function SG.shadowRect(cx: number, cy: number, rx: number, ry: number): (number,
 	return math.floor(cx - rx) - 1, math.floor(cy - ry) - 1, math.ceil(cx + rx) + 1, math.ceil(cy + ry) + 1
 end
 
+-- studs over a model's ground (PixelGroundY) a surface may stand and still take its blob shadow (paths, flowers, a
+-- low step); a higher one (a roof, an awning, a wall in front of it) does not
+local SHADOW_LIFT = 0.9
+
 -- A blob shadow under a dynamic model; returns its rect on the layer (nil when none shows). The ellipse may be given
 -- (SG.shadowGeo's), else it is worked out.
 local function drawShadow(s: Surf, model: Model, first: BasePart, gcx: number?, gcy: number?, grx: number?, gry: number?, clip: boolean?): Rect?
@@ -2040,20 +2047,30 @@ local function drawShadow(s: Surf, model: Model, first: BasePart, gcx: number?, 
 	local any = false
 	-- (clip: only in the incremental compose's marked tiles, where the frame was put back to the static picture)
 	local T, bits, cols = SG.TILE, SG.bits, SG.tcols
+	-- Only on the ground the model stands on. The report of 2026-11-18, "also, shadows clip through buildings": a
+	-- driftling walking behind a stall had its blob darken the stall's awning, which stood in front of it on the
+	-- screen. A static pixel's surface lies where its ray met it (Raster.origin plus the look times its depth), and
+	-- one higher than SHADOW_LIFT over the model's ground is a roof, a wall or a sign: the blob passes it by.
+	local g = model:GetAttribute("PixelGroundY")
+	local top = (if type(g) == "number" then g else 0) + SHADOW_LIFT
+	local cam = s.cam
+	local ly, iy, sDepth = cam.ly, cam.iy, s.sDepth
 	for y = y0, y1 do
 		local dy = (y + 0.5 - cy) / ry
 		if math.abs(dy) < 1 then
 			local half = rx * math.sqrt(1 - dy * dy)
 			local x0, x1 = math.max(0, math.floor(cx - half + 0.5)), math.min(W - 1, math.floor(cx + half + 0.5) - 1)
 			local trow = (y // T) * cols
+			-- (the rays' height at the row's left: Raster.origin's y)
+			local oy0 = cam.goy + cam.gx * iy + (y + cam.gy) * cam.jy
 			for x = x0, x1 do
 				if clip and buffer.readu8(bits, trow + x // T) == 0 then
 					continue
 				end
 				local idx = y * W + x
 				local id = buffer.readu16(f.id, idx * 2)
-				-- the static picture only, never its ink lines or the sky
-				if id ~= 0 and id < DYN_ID0 and (buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) or (buffer.readu8(s.sWClass, idx) ~= 0 and buffer.readu8(s.sWClass, idx) <= 3)) then
+				-- the static picture only, never its ink lines or the sky, and only at the model's ground
+				if id ~= 0 and id < DYN_ID0 and oy0 + x * iy + ly * buffer.readf32(sDepth, idx * 4) <= top and (buffer.readu32(s.sColor, idx * 4) == buffer.readu32(s.sShade, idx * 4) or (buffer.readu8(s.sWClass, idx) ~= 0 and buffer.readu8(s.sWClass, idx) <= 3)) then
 					buffer.writeu32(f.color, idx * 4, shadeShadowed(s, idx, x, y))
 					any = true
 				end
@@ -2871,7 +2888,7 @@ function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, n
 	local whole = ix0 >= 0 and iy0 >= 0 and ix1 <= IW - 1 and iy1 <= IH - 1
 	local pp = d.model.PrimaryPart or d.parts[1].part
 	local lx0, ly0 = cx0 - M, cy0 - M
-	local pic: DynCache = { gx = lx0 + s.cam.gx, gy = ly0 + s.cam.gy, w = cx1 - cx0 + 1, h = cy1 - cy0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu, shp = if pp.Transparency < 0.95 then pp.Position else nil }
+	local pic: DynCache = { gx = lx0 + s.cam.gx, gy = ly0 + s.cam.gy, w = cx1 - cx0 + 1, h = cy1 - cy0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu, shp = if pp.Transparency < 0.95 then pp.Position else nil, anchor = d.gPosed }
 	if whole then
 		d.cache = pic
 	else
@@ -2888,7 +2905,31 @@ end
 -- picture's (cast from where the model stood when it was drawn), so the two go together; a model off the layer or with
 -- nothing to show casts its shadow from where it stands. Entries: the model, its picture and the layer rect it covers
 -- (pic nil: none), its shadow's centre and radii in layer px (sx nil: none).
-type PlanEntry = { d: Dyn, pic: DynCache?, x0: number, y0: number, x1: number, y1: number, sx: number?, sy: number, srx: number, sry: number }
+-- (dz: the depth its kept picture goes down with, gx, gy: how far it slid with the model, SG.glideOf)
+type PlanEntry = { d: Dyn, pic: DynCache?, x0: number, y0: number, x1: number, y1: number, dz: number, gx: number, gy: number, sx: number?, sy: number, srx: number, sry: number }
+
+-- How far model d has walked on since kept picture c was drawn (PixelRenderer.glide: a driftling between two of its
+-- poses): whole art px across and down the layer, and the depth to add to its pixels. The request of 2026-11-18, "make
+-- it such that overworld creatures move smoother": on a busy island a driftling is posed a few times a second (its
+-- pose and its picture within their budgets), and its picture stood still between poses and then jumped 4 to 7 px.
+-- Now the picture slides with it every tick by whole art px, and only its pose waits for the budget. (The grid is the
+-- world's, so the slide is the same at every pan.)
+function SG.glideOf(s: Surf, d: Dyn, c: DynCache): (number, number, number)
+	local now, at = d.gNow, c.anchor
+	if now == nil or at == nil then
+		return 0, 0, 0
+	end
+	local qx, qy, qz = now.X - at.X, now.Y - at.Y, now.Z - at.Z
+	if qx == 0 and qy == 0 and qz == 0 then
+		return 0, 0, 0
+	end
+	local cam = s.cam
+	local k = cam.s / cam.K
+	local a = qx * cam.rx + qy * cam.ry + qz * cam.rz
+	local b = qx * cam.ux + qy * cam.uy + qz * cam.uz
+	return math.floor(a * k + 0.5), math.floor(-b * k + 0.5), qx * cam.lx + qy * cam.ly + qz * cam.lz
+end
+
 function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEntry }
 	local cam = s.cam
 	local W, H = s.W, s.H
@@ -2896,9 +2937,18 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 	local need = SG.need
 	table.clear(need)
 	local at: { [Dyn]: PlanEntry } = {}
+	-- (picture c over layer rect x0..y1 for entry e, slid on with its model: nothing when that takes it off the layer)
+	local function put(e: PlanEntry, d: Dyn, c: DynCache, x0: number, y0: number, x1: number, y1: number)
+		local gx, gy, gz = SG.glideOf(s, d, c)
+		x0, y0, x1, y1 = x0 + gx, y0 + gy, x1 + gx, y1 + gy
+		if x1 < 0 or y1 < 0 or x0 > W - 1 or y0 > H - 1 then
+			return
+		end
+		e.pic, e.x0, e.y0, e.x1, e.y1, e.dz, e.gx, e.gy = c, x0, y0, x1, y1, gz, gx, gy
+	end
 	for model, d in dyns do
 		local first = d.parts[1]
-		local e: PlanEntry = { d = d, pic = nil, x0 = 0, y0 = 0, x1 = -1, y1 = -1, sx = nil, sy = 0, srx = 0, sry = 0 }
+		local e: PlanEntry = { d = d, pic = nil, x0 = 0, y0 = 0, x1 = -1, y1 = -1, dz = 0, gx = 0, gy = 0, sx = nil, sy = 0, srx = 0, sry = 0 }
 		table.insert(out, e)
 		at[d] = e
 		if model.Parent == nil or first == nil then
@@ -2911,7 +2961,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		end
 		local c, x0, y0, x1, y1 = SG.blitOk(s, d, fresh, ppu)
 		if c then
-			e.pic, e.x0, e.y0, e.x1, e.y1 = c, x0, y0, x1, y1
+			put(e, d, c, x0, y0, x1, y1)
 		elseif not SG.offPic(s, d, ppu) or not SG.same(d, (d.cache :: DynCache).cfs, (d.cache :: DynCache).szs, (d.cache :: DynCache).gone) then
 			-- (a model whose picture lies wholly off the layer and has not moved shows nothing and needs no draw)
 			table.insert(need, d)
@@ -2943,7 +2993,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		if not SG.noBudget and (drawn >= Tuning.PixelMaxDyn or SG.clock() > budgetEnd) and not d.own and not d.rim then
 			local c, x0, y0, x1, y1 = SG.blitOk(s, d, false, ppu)
 			if c then
-				e.pic, e.x0, e.y0, e.x1, e.y1 = c, x0, y0, x1, y1
+				put(e, d, c, x0, y0, x1, y1)
 			else
 				SG.skips += 1
 				local k = d.cache
@@ -2957,7 +3007,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		d.drawnAt = SG.clock()
 		SG.draws += 1
 		if pic then
-			e.pic, e.x0, e.y0, e.x1, e.y1 = pic, x0, y0, x1, y1
+			put(e, d, pic, x0, y0, x1, y1)
 		end
 	end
 	for _, e in out do
@@ -2967,7 +3017,8 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		if model.Parent ~= nil and first ~= nil and model:GetAttribute("PixelShadow") ~= nil then
 			local cx, cy, rx, ry = SG.shadowGeo(s, model, first.part, e.pic)
 			if cx then
-				e.sx, e.sy, e.srx, e.sry = cx, cy, rx, ry
+				-- (it slides with its picture, by the same whole px)
+				e.sx, e.sy, e.srx, e.sry = cx + e.gx, cy + e.gy, rx, ry
 			end
 		end
 	end
@@ -3090,8 +3141,9 @@ end
 
 -- Kept picture c put down on the frame with its top left at layer (x0, y0), depth tested as the draw would be (where
 -- it already shows, nothing changes: a pixel it won has its own depth, which it does not beat).
-function SG.blitAt(s: Surf, c: DynCache, x0: number, y0: number)
+function SG.blitAt(s: Surf, c: DynCache, x0: number, y0: number, dz: number?)
 	local W, H = s.W, s.H
+	local z = dz or 0
 	local f = s.frame
 	local color, depth, ids = f.color, f.depth, f.id
 	local bias = s.cam.bias
@@ -3100,7 +3152,7 @@ function SG.blitAt(s: Surf, c: DynCache, x0: number, y0: number)
 		for k = 0, c.n - 1 do
 			local o = k * PX_BYTES
 			local i = (y0 + buffer.readu16(px, o + 2)) * W + x0 + buffer.readu16(px, o)
-			local t = buffer.readf32(px, o + 8)
+			local t = buffer.readf32(px, o + 8) + z
 			if t + bias < buffer.readf32(depth, i * 4) then
 				buffer.writeu32(color, i * 4, buffer.readu32(px, o + 4))
 				buffer.writef32(depth, i * 4, t)
@@ -3115,7 +3167,7 @@ function SG.blitAt(s: Surf, c: DynCache, x0: number, y0: number)
 		local x, y = x0 + buffer.readu16(px, o), y0 + buffer.readu16(px, o + 2)
 		if x >= 0 and y >= 0 and x < W and y < H then
 			local i = y * W + x
-			local t = buffer.readf32(px, o + 8)
+			local t = buffer.readf32(px, o + 8) + z
 			if t + bias < buffer.readf32(depth, i * 4) then
 				buffer.writeu32(color, i * 4, buffer.readu32(px, o + 4))
 				buffer.writef32(depth, i * 4, t)
@@ -3510,9 +3562,10 @@ end
 
 -- What model d shows after a compose: kept picture c (nil: one that is not the same next time) over layer rect
 -- (x0, y0)-(x1, y1), remembered in global art px a pixel round it; a founder's rim goes round it (rim).
-function SG.shown(s: Surf, d: Dyn, c: DynCache?, x0: number, y0: number, x1: number, y1: number, rim: boolean)
+function SG.shown(s: Surf, d: Dyn, c: DynCache?, x0: number, y0: number, x1: number, y1: number, rim: boolean, dz: number?)
 	local gx, gy = s.cam.gx, s.cam.gy
 	d.shC = c
+	d.shDz = dz or 0
 	d.shR = { x0 = x0 - 1 + gx, y0 = y0 - 1 + gy, x1 = x1 + 1 + gx, y1 = y1 + 1 + gy }
 	if rim and d.rim then
 		table.insert(Rims.list, d)
@@ -3691,7 +3744,8 @@ function SG.incCompose(s: Surf, due: boolean?)
 		-- its picture: the same one where it was (unchanged), or off where it was and on where it is now
 		tag = if d.own or d.rim then "founder" elseif e.pic == nil then "gone" else "changed"
 		local pic = e.pic
-		if pic ~= nil and pic == d.shC and not d.rim then
+		local was0 = d.shR
+		if pic ~= nil and pic == d.shC and not d.rim and was0 ~= nil and was0.x0 + 1 == e.x0 + gx and was0.y0 + 1 == e.y0 + gy and d.shDz == e.dz then
 			table.insert(still, d)
 		else
 			local was = d.shR
@@ -3754,15 +3808,16 @@ function SG.incCompose(s: Surf, due: boolean?)
 		local q = d.shR :: Rect
 		if hit(q.x0 - gx, q.y0 - gy, q.x1 - gx, q.y1 - gy) then
 			local c = d.shC :: DynCache
-			SG.blitAt(s, c, c.gx - gx, c.gy - gy)
+			-- (where it went down last time: its kept picture, slid on with the model)
+			SG.blitAt(s, c, q.x0 + 1 - gx, q.y0 + 1 - gy, d.shDz)
 			SG.hits += 1
 		end
 	end
 	for _, e in chg do
 		local pic = e.pic :: DynCache
-		SG.blitAt(s, pic, e.x0, e.y0)
+		SG.blitAt(s, pic, e.x0, e.y0, e.dz)
 		SG.hits += 1
-		SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, true)
+		SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, true, e.dz)
 	end
 	local k2 = SG.clock()
 	for _, r in runs do
@@ -3978,10 +4033,10 @@ local function compose(due: boolean?)
 	for _, e in plan do
 		local pic = e.pic
 		if pic then
-			SG.blitAt(s, pic, e.x0, e.y0)
+			SG.blitAt(s, pic, e.x0, e.y0, e.dz)
 			SG.hits += 1
 			SG.addRect(rects, e.d, e.x0, e.y0, e.x1, e.y1)
-			SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, false)
+			SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, false, e.dz)
 		end
 	end
 	local k2 = SG.clock()
@@ -4870,6 +4925,16 @@ function PixelRenderer.hideStatic(part: BasePart)
 	end
 end
 
+-- Moving model `model` stands at `now` (world), its parts posed at `posed` (Controllers/WorldView: a driftling walks on
+-- every frame, its pose waits for the frame's budget). Its kept picture slides from where it was drawn to `now` by whole
+-- art px every tick (SG.glideOf), its blob shadow with it; nil: no more of it.
+function PixelRenderer.glide(model: Model, now: Vector3?, posed: Vector3?)
+	local d = dyns[model]
+	if d then
+		d.gNow, d.gPosed = now, posed
+	end
+end
+
 function PixelRenderer.unregisterDynamic(model: Model)
 	SG.forget(dyns[model])
 	dyns[model] = nil
@@ -5392,6 +5457,59 @@ function PixelRenderer.debugGrade(): string
 end
 
 -- CLI checks only: the layer, its bake and what the ticks cost.
+-- Previews: the blob shadows on the frame now, pixel by pixel in each one's ellipse: `high` static pixels of a surface
+-- more than 0.9 studs over the model's ground (a roof, an awning, a wall), `darkened` of those the shadow darkened
+-- (the report of 2026-11-18, "also, shadows clip through buildings": none since), `ground` the ground pixels it did.
+function PixelRenderer.debugShadowCheck(): { high: number, darkened: number, ground: number, shadows: number }
+	local out = { high = 0, darkened = 0, ground = 0, shadows = 0 }
+	local s = surf
+	if s == nil then
+		return out
+	end
+	local f, W, H, cam = s.frame, s.W, s.H, s.cam
+	for model, d in dyns do
+		local gcx, gcy, rx, ry = d.sx, d.sy, d.srx, d.sry
+		if gcx and gcy and rx and ry then
+			out.shadows += 1
+			local g = model:GetAttribute("PixelGroundY")
+			local top = (if type(g) == "number" then g else 0) + 0.9
+			local cx, cy = gcx - cam.gx, gcy - cam.gy
+			for y = math.max(0, math.floor(cy - ry)), math.min(H - 1, math.ceil(cy + ry)) do
+				local dy = (y + 0.5 - cy) / ry
+				if math.abs(dy) < 1 then
+					local half = rx * math.sqrt(1 - dy * dy)
+					local oy0 = cam.goy + cam.gx * cam.iy + (y + cam.gy) * cam.jy
+					for x = math.max(0, math.floor(cx - half + 0.5)), math.min(W - 1, math.floor(cx + half + 0.5) - 1) do
+						local idx = y * W + x
+						local id = buffer.readu16(f.id, idx * 2)
+						if id ~= 0 and id < DYN_ID0 then
+							local c = buffer.readu32(f.color, idx * 4)
+							local dark = c ~= buffer.readu32(s.sColor, idx * 4) and c == shadeShadowed(s, idx, x, y)
+							if oy0 + x * cam.iy + cam.ly * buffer.readf32(s.sDepth, idx * 4) > top then
+								out.high += 1
+								out.darkened += if dark then 1 else 0
+							elseif dark then
+								out.ground += 1
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- Previews: where moving model `model`'s picture went down in the last compose (the top left in layer px), or nil.
+function PixelRenderer.debugShown(model: Model): (number?, number?)
+	local d, s = dyns[model], surf
+	local r = if d then d.shR else nil
+	if r == nil or s == nil then
+		return nil, nil
+	end
+	return r.x0 + 1 - s.cam.gx, r.y0 + 1 - s.cam.gy
+end
+
 function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, behind: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number, px: number, py: number, scrolls: number, scrollRays: number, recasts: number, queued: number }
 	local s = surf
 	local n = 0
