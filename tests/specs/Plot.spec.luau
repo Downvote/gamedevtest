@@ -526,6 +526,96 @@ return function()
 		end
 		T.truthy((Plot.replace(p, bi, "nest")), "smaller is always fine")
 	end)
+	T.it("the work cap: workplaces take more driftlings, their places together within the driftling limit", function()
+		-- (the request of 2026-11-18: "increase the capacity of work buildings by alot, in turn, make a cap for the amount
+		-- of work spaces possible in each island expansion. it should match the number of max driftlings possible for
+		-- each expansion")
+		local most = 0
+		for _, d in Buildings.list do
+			local works = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
+			T.eq(d.jobs > 0, works, d.id .. ": places only at a workplace")
+			if works then
+				T.eq(d.jobs, Tuning.WorkRoom[d.tier], d.id .. ": its tier's room")
+				most = math.max(most, d.jobs)
+			end
+		end
+		T.eq(Buildings.byId.patch.jobs, 2, "the first island's workplaces keep 2")
+		T.truthy(most >= 16 * Buildings.byId.patch.jobs // 2, "the biggest take many more (16 times the old 2)")
+		T.eq(#Tuning.WorkRoom, #Tuning.TierCost, "a room for every tier")
+		for t = 1, #Tuning.HousingLimit do
+			T.eq(Plot.workLimit(t), Plot.housingLimit(t), "tier " .. t .. ": the cap is the driftling limit")
+			-- (the first island's 2-place workplaces fill any cap to the last place)
+			T.eq(Plot.workLimit(t) % Buildings.byId.patch.jobs, 0, "tier " .. t .. ": filled exactly")
+		end
+		T.truthy(Buildings.byId.lumber.jobs + Buildings.byId.patch.jobs + Buildings.byId.stall.jobs <= Plot.workLimit(1), "the tips' camp, patch and stall fit on the first island")
+		-- the first island: patches up to the cap, then no more workplaces; huts still go up
+		local p = fresh()
+		local cap = Plot.workLimit(1)
+		for _ = 1, cap // Buildings.byId.patch.jobs do
+			local x, z = spot(p, "patch")
+			T.truthy((Plot.place(p, "patch", x, z, 0)))
+		end
+		T.eq(Plot.work(p.plot.placed), cap, "every place the island may have")
+		local x, z = spot(p, "lumber")
+		local shells = p.shells
+		T.eq(select(2, Plot.place(p, "lumber", x, z, 0)), "work", "one workplace past the cap")
+		T.eq(p.shells, shells, "nothing paid")
+		local nx, nz = spot(p, "nest")
+		T.truthy((Plot.place(p, "nest", nx, nz, 0)), "a hut still goes up")
+		-- a bigger island: an orchard takes 6; Replace needs the room for the difference
+		p.tier = 2
+		local room = Plot.workLimit(2) - Plot.work(p.plot.placed)
+		local orchard = Buildings.byId.orchard.jobs
+		T.truthy(orchard >= 3 * Buildings.byId.patch.jobs, "an orchard takes three patches' driftlings")
+		while room >= orchard do
+			local ox, oz = spot(p, "orchard")
+			T.truthy((Plot.place(p, "orchard", ox, oz, 0)), "an orchard while there's room")
+			room -= orchard
+		end
+		while room >= Buildings.byId.patch.jobs do
+			local ox, oz = spot(p, "patch")
+			T.truthy((Plot.place(p, "patch", ox, oz, 0)))
+			room -= Buildings.byId.patch.jobs
+		end
+		T.eq(Plot.work(p.plot.placed), Plot.workLimit(2), "the cap full")
+		local pi, oi = 0, 0
+		for i, q in p.plot.placed do
+			if q.id == "patch" then
+				pi = i
+			elseif q.id == "orchard" then
+				oi = i
+			end
+		end
+		T.eq(select(2, Plot.replace(p, pi, "orchard")), "work", "a bigger workplace needs the room for the difference")
+		-- a smaller one always: its first workers stay, the rest rest
+		local ouid = p.plot.placed[oi].uid
+		for k = 1, orchard do
+			table.insert(p.pals, { id = 9000 + k, sp = "mossbun", home = 1, work = ouid, muts = {} })
+		end
+		T.truthy((Plot.replace(p, oi, "patch")), "smaller is always fine")
+		local still = 0
+		for _, x in p.pals do
+			still += if x.work == ouid then 1 else 0
+		end
+		T.eq(still, Buildings.byId.patch.jobs, "the patch keeps its first two workers")
+		-- two patches put away, then there's room for the orchard again
+		for _ = 1, 2 do
+			for i = #p.plot.placed, 1, -1 do
+				if p.plot.placed[i].id == "patch" and p.plot.placed[i].uid ~= ouid then
+					Plot.store(p, i)
+					break
+				end
+			end
+		end
+		T.truthy((Plot.replace(p, (function()
+			for i, q in p.plot.placed do
+				if q.uid == ouid then
+					return i
+				end
+			end
+			return 0
+		end)(), "orchard")), "back to an orchard once there's room")
+	end)
 	T.it("Hatcheries: one where they open, more on bigger islands", function()
 		-- (the request of 2026-11-14: "there should also be a hatchery limit per expansion. the first expansion where you
 		-- unlock hatcheries, make the limit 1")

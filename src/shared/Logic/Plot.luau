@@ -48,6 +48,23 @@ function Plot.housing(placed: { Piece }): number
 	end
 	return n
 end
+-- The places at work an island of `tier` may have (its workplaces' `jobs` together): its driftling limit (the request
+-- of 2026-11-18, "make a cap for the amount of work spaces possible in each island expansion. it should match the
+-- number of max driftlings possible for each expansion"), and the places its workplaces have now. An older island
+-- with more keeps them (only empty places past the limit: it never has more driftlings), and builds no more.
+function Plot.workLimit(tier: number): number
+	return Plot.housingLimit(tier)
+end
+function Plot.work(placed: { Piece }): number
+	local n = 0
+	for _, q in placed do
+		local d = Buildings.byId[q.id]
+		if d then
+			n += d.jobs
+		end
+	end
+	return n
+end
 function Plot.hatcheryLimit(tier: number): number
 	return Tuning.HatcheryLimit[math.clamp(math.floor(tier), 1, #Tuning.HatcheryLimit)]
 end
@@ -413,7 +430,8 @@ end
 
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (a hut's room under the housing limit,
--- Tuning.HousingLimit; a Hatchery under Tuning.HatcheryLimit), its price (shells; nothing for one waiting in the
+-- Tuning.HousingLimit; a workplace's places under the work cap, Plot.workLimit; a Hatchery under Tuning.HatcheryLimit),
+-- its price (shells; nothing for one waiting in the
 -- inventory; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
@@ -429,6 +447,9 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	end
 	if def.kind == "nest" and Plot.housing(p.plot.placed) + def.slots > Plot.housingLimit(p.tier) then
 		return false, "huts" :: ErrCode
+	end
+	if def.jobs > 0 and Plot.work(p.plot.placed) + def.jobs > Plot.workLimit(p.tier) then
+		return false, "work" :: ErrCode
 	end
 	if def.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier) then
 		return false, "hatcheries" :: ErrCode
@@ -804,7 +825,8 @@ end
 -- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a hut for a den, a patch for an
 -- orchard): its uid stays (its workers stay), its level starts again at 1. bad_payload
 -- (another kind, the same piece, the tree), locked (a bigger island's), money, blocked (the new footprint does
--- not fit there). A smaller hut keeps the driftlings it has room for; the rest are left with no hut.
+-- not fit there), huts or work (the room past the housing limit or the work cap). A smaller hut keeps the driftlings
+-- it has room for, the rest are left with no hut; a smaller workplace keeps its first workers, the rest rest.
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	local q = p.plot.placed[i]
 	local old, new = if q then Buildings.byId[q.id] else nil, Buildings.byId[id]
@@ -822,6 +844,10 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if new.kind == "nest" and new.slots > old.slots and Plot.housing(p.plot.placed) - old.slots + new.slots > Plot.housingLimit(p.tier) then
 		return false, "huts" :: ErrCode
 	end
+	-- (a bigger workplace likewise under the work cap)
+	if new.jobs > old.jobs and Plot.work(p.plot.placed) - old.jobs + new.jobs > Plot.workLimit(p.tier) then
+		return false, "work" :: ErrCode
+	end
 	local cost = Plot.replaceCost(q, id, p) :: { shells: number }
 	if p.shells < cost.shells then
 		return false, "money" :: ErrCode
@@ -835,7 +861,19 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	if new.kind == "nest" then
 		unhouse(p, q.uid, new.slots)
 	end
-	-- (its helpers stay: any driftling works anywhere)
+	-- (its helpers stay, any driftling works anywhere: as many as it takes, the first who came)
+	if new.jobs > 0 then
+		local at = 0
+		for _, x in p.pals do
+			if x.work == q.uid then
+				at += 1
+				if at > new.jobs then
+					x.work = 0
+					x.pin = nil
+				end
+			end
+		end
+	end
 	p.stats.built += 1
 	return true, { i = i, uid = q.uid, id = id }
 end

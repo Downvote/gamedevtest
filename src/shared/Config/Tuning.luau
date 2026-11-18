@@ -51,7 +51,12 @@ local Tuning = {
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
 	PalWork = 0.6, -- a common driftling working at a building of its knack makes this share of its rate ...
 	RarityWork = { 1, 1.6, 2.5, 4, 7, 11, 17 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
-	HelpMax = 2, -- driftlings working at one building at most
+	-- the driftlings one workplace (a farm, a wood building, a shop) takes, by the tier it opens at (Data/Buildings'
+	-- `jobs`). The request of 2026-11-18: "increase the capacity of work buildings by alot, in turn, make a cap for the
+	-- amount of work spaces possible in each island expansion. it should match the number of max driftlings possible
+	-- for each expansion" (WorkLimit). It was 2 everywhere. The first island's four keep 2: its cap is 8, and the tips
+	-- ask for a camp, a patch and a stall there
+	WorkRoom = { 2, 6, 8, 10, 12, 16, 16, 16, 16, 16, 20, 24, 24, 28, 28, 28, 32, 32, 32, 32 },
 	-- charm raises every shell the island makes (the request of 2026-11-14: "remove the visitors mechanic, charm simply
 	-- increases your shell gain"): times 1 + CharmMax x charm / (charm + CharmHalf), a soft curve: the first decor
 	-- counts the most, and the bonus never passes CharmMax

@@ -141,7 +141,7 @@ local function scan(v: Types.ClientView)
 			if s == nil or s.model ~= c then
 				local cf, size = c:GetBoundingBox()
 				local kind = if work then "work" elseif boost then "boost" else "nest"
-				s = { uid = u, id = id, model = c, top = cf.Position + Vector3.new(0, size.Y / 2 + 0.4, 0), work = work, kind = kind, room = if work then Tuning.HelpMax elseif boost then 0 else def.slots, n = 0, extra = nil }
+				s = { uid = u, id = id, model = c, top = cf.Position + Vector3.new(0, size.Y / 2 + 0.4, 0), work = work, kind = kind, room = if work then def.jobs elseif boost then 0 else def.slots, n = 0, extra = nil }
 				spots[u] = s
 			end
 			seen[u] = true

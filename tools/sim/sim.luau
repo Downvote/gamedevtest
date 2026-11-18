@@ -105,12 +105,7 @@ do
 	end
 	local wl = hudCard and hudCard:FindFirstChild("Working", true)
 	local wr = hudCard and hudCard:FindFirstChild("WorkingR", true)
-	local places = 0
-	for _, q in prof.plot.placed do
-		if Island.works(q.id) then
-			places += Tuning.HelpMax
-		end
-	end
+	local places = Island.jobPlaces(prof.plot.placed)
 	H.expect(wl ~= nil and wl.Text == "Working" and wr ~= nil and wr.Text == string.format("%d/%d", working, places), "hud", "the island card's Working line: at work out of the places at work (2026-11-17)", wr and wr.Text or "missing")
 end
 H.expect(H.clickNamed(p, "Menu_settings", { wait = 0.4 }) and H.currentPanel(p) == "settings", "settings", "the menu bar's Settings opens the Settings panel", tostring(H.currentPanel(p)))
@@ -728,11 +723,7 @@ do
 					at += 1
 				end
 			end
-			for _, q in prof.plot.placed do
-				if Island.works(q.id) then
-					places += Tuning.HelpMax
-				end
-			end
+			places += Island.jobPlaces(prof.plot.placed)
 			local wr = p.PlayerGui:FindFirstChild("WorkingR", true)
 			H.expect(places >= 4 and at >= 1 and wr ~= nil and wr.Text == string.format("%d/%d", at, places), "hud", "Working with the camp and the patch up: at work out of their places", wr and wr.Text or "missing")
 		end
@@ -767,7 +758,7 @@ do
 		local cv = H.view(p)
 		local made = Island.output(prof)[camp and camp.uid or 0] or 0
 		local want = string.format("Earns %s shells/min", Numbers.short(math.floor(made * (1 + cv.charmBonus) * cv.incomeMult * 60 / Tuning.TurnSeconds + 0.5)))
-		H.expect(shownC and bt.card == string.format("%s Workers 1/%d", Buildings.byId.lumber.name, Tuning.HelpMax) and bt.card2 == want, "build", "a tap on the lumber camp: its workers and what it earns a minute", string.format("%q / %q (want %q)", bt.card, bt.card2, want))
+		H.expect(shownC and bt.card == string.format("%s Workers 1/%d", Buildings.byId.lumber.name, Buildings.byId.lumber.jobs) and bt.card2 == want, "build", "a tap on the lumber camp: its workers and what it earns a minute", string.format("%q / %q (want %q)", bt.card, bt.card2, want))
 		E.run(3.2)
 	end
 end
@@ -1691,7 +1682,7 @@ do
 	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the burrow's card says No room", card and table.concat(H.textsOf(card), "/"))
 	H.clickNamed(p, "Buy_burrow", { includeDisabled = true, wait = 0.3 })
 	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("Your huts already hold"), "panels", "a tap on it picks nothing up and says why")
-	H.clickNamed(p, "Tab_work", { wait = 0.3 })
+	H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 	count = p.PlayerGui:FindFirstChild("Count", true)
 	local pieces = 0
 	for _, q in prof.plot.placed do
@@ -1699,7 +1690,7 @@ do
 			pieces += 1
 		end
 	end
-	H.expect(count ~= nil and pieces == #prof.plot.placed - 1 and count.Text == string.format("%d/%d", pieces, Plot.limit(prof.tier)), "panels", "the Work tab counts the pieces, the tree left out", count and count.Text)
+	H.expect(count ~= nil and pieces == #prof.plot.placed - 1 and count.Text == string.format("%d/%d", pieces, Plot.limit(prof.tier)), "panels", "the Decor tab counts the pieces, the tree left out", count and count.Text)
 	H.clickNamed(p, "BuildDone", { wait = 0.3 })
 	local function indexOf(uid)
 		for i, q in prof.plot.placed do
@@ -1727,6 +1718,79 @@ do
 		H.req(p, "plot.store", { i = indexOf(uid) })
 	end
 	H.expect(#prof.plot.placed <= n0 - #added, "panels", "(the huts added cleared away again)", string.format("%d pieces", #prof.plot.placed))
+end
+-- the work cap by the island's tier (Plot.workLimit: its driftling limit; GAME_DESIGN 4; the request of 2026-11-18:
+-- "increase the capacity of work buildings by alot, in turn, make a cap for the amount of work spaces possible in each
+-- island expansion. it should match the number of max driftlings possible for each expansion"): an orchard takes three
+-- patches' driftlings, workplaces up to the cap, one more refused (work) with nothing paid; in Build mode the Work tab
+-- counts the places at work out of the cap and a workplace's card says No room; a bigger workplace can't replace a
+-- smaller one at the cap. The workplaces added go again after
+do
+	prof.shells = math.max(prof.shells, 1e6)
+	local most = Plot.workLimit(prof.tier)
+	local patchJobs, orchardJobs = Buildings.byId.patch.jobs, Buildings.byId.orchard.jobs
+	H.expect(most == Plot.housingLimit(prof.tier) and orchardJobs == Tuning.WorkRoom[2] and orchardJobs >= 3 * patchJobs, "panels", "the work cap is the island's driftling limit; an orchard takes three patches' driftlings", string.format("cap %d, orchard %d, patch %d", most, orchardJobs, patchJobs))
+	local added = {}
+	local placedOk = Plot.work(prof.plot.placed) + patchJobs <= most
+	while placedOk and Plot.work(prof.plot.placed) + patchJobs <= most do
+		res = place(if Plot.work(prof.plot.placed) + orchardJobs <= most then "orchard" else "patch")
+		placedOk = res.ok
+		if res.ok then
+			table.insert(added, prof.plot.placed[#prof.plot.placed].uid)
+		end
+	end
+	H.expect(placedOk and Plot.work(prof.plot.placed) == most, "panels", "workplaces up to the cap", string.format("%d of %d places (%s)", Plot.work(prof.plot.placed), most, tostring(res.err)))
+	local n0, shells0 = #prof.plot.placed, prof.shells
+	res = place("lumber")
+	H.expect(not res.ok and res.err == "work" and #prof.plot.placed == n0 and prof.shells >= shells0, "panels", "one workplace past the cap is refused (work), nothing paid", tostring(res.err))
+	res = place("nest")
+	if res.ok then
+		table.insert(added, prof.plot.placed[#prof.plot.placed].uid)
+	end
+	H.expect(res.ok or res.err == "huts", "panels", "huts and decor still go up", tostring(res.err))
+	H.push(p, 0.3)
+	H.clickNamed(p, "Menu_build", { wait = 0.4 })
+	H.clickNamed(p, "Tab_work", { wait = 0.3 })
+	H.clickNamed(p, "Chip_farm", { wait = 0.25 })
+	local count = p.PlayerGui:FindFirstChild("Count", true)
+	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "panels", "the Work tab counts the places at work out of the cap", count and count.Text)
+	local card = H.buttonNamed(p, "Buy_orchard", true)
+	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the orchard's card says No room", card and table.concat(H.textsOf(card), "/"))
+	H.clickNamed(p, "Buy_orchard", { includeDisabled = true, wait = 0.3 })
+	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("Your workplaces already have a place"), "panels", "a tap on it picks nothing up and says why")
+	H.clickNamed(p, "BuildDone", { wait = 0.3 })
+	local function indexOf(uid)
+		for i, q in prof.plot.placed do
+			if q.uid == uid then
+				return i
+			end
+		end
+		return 0
+	end
+	local patchAt = 0
+	for _, uid in added do
+		local q = prof.plot.placed[indexOf(uid)]
+		if q and q.id == "patch" then
+			patchAt = indexOf(uid)
+		end
+	end
+	if patchAt > 0 then
+		res = H.req(p, "plot.replace", { i = patchAt, id = "orchard" })
+		H.expect(not res.ok and res.err == "work", "panels", "at the cap a bigger workplace can't replace a smaller one (work)", tostring(res.err))
+	end
+	-- (put away and sold, so the inventory is as it was)
+	local stored: { [string]: number } = {}
+	for k = #added, 1, -1 do
+		local q = prof.plot.placed[indexOf(added[k])]
+		if q then
+			stored[q.id] = (stored[q.id] or 0) + 1
+			H.req(p, "plot.store", { i = indexOf(added[k]) })
+		end
+	end
+	for id, n in stored do
+		H.req(p, "inv.sell", { id = id, n = n })
+	end
+	H.expect(Plot.work(prof.plot.placed) < most, "panels", "(the workplaces added cleared away again)", string.format("%d places", Plot.work(prof.plot.placed)))
 end
 H.checkProfile(p, "panels")
 mirror(p, "panels")
@@ -1830,6 +1894,9 @@ do
 	local function wantCount(tabKey)
 		if tabKey == "nest" then
 			return string.format("%d/%d", Plot.housing(prof.plot.placed), Plot.housingLimit(prof.tier))
+		elseif tabKey == "work" then
+			-- (the places at work against the work cap: the request of 2026-11-18)
+			return string.format("%d/%d", Plot.work(prof.plot.placed), Plot.workLimit(prof.tier))
 		end
 		local group = if tabKey == "path" or tabKey == "water" then "tile" elseif tabKey == "fence" then "fence" else "piece"
 		local n = 0

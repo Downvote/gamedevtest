@@ -708,6 +708,10 @@ local function about(def: Buildings.BuildingDef, lvl: number?): string
 	if def.rate > 0 then
 		say = string.format("%s %s shells a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
 	end
+	-- (its places: Data/Buildings' jobs, the request of 2026-11-18)
+	if def.jobs > 0 then
+		say ..= string.format(" Up to %d can work here.", def.jobs)
+	end
 	if def.slots > 0 then
 		local c = def.comfort + (Tuning.ComfortLvl[lvl or 1] or 0)
 		say = string.format("%s Room for %d.%s", say, def.slots, if c > 0 then string.format(" Comfort +%d%%.", math.round(c * 100)) else "")
@@ -1098,6 +1102,11 @@ local function invList(v: Types.ClientView): { Buildings.BuildingDef }
 	return out
 end
 
+-- Which limit a piece that won't fit ran into (its card's notice).
+local function roomErr(def: Buildings.BuildingDef): string
+	return if def.kind == "breed" then "hatcheries" elseif def.jobs > 0 then "work" else "huts"
+end
+
 -- The Inventory tab's cards: each piece waiting there and how many; a tap picks one to put down for nothing (Sell on:
 -- a tap sells one for its share of the price, the share shown on the card).
 local function invCards(list: ScrollingFrame, v: Types.ClientView)
@@ -1108,10 +1117,11 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 		return
 	end
 	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
+	local workLeft = Plot.workLimit(v.tier) - Plot.work(v.pieces)
 	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
 	for k, def in defs do
 		local n = heldOf(v, def.id)
-		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
+		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.jobs > 0 and def.jobs > workLeft) or (def.kind == "breed" and hatchFull)
 		-- (what it sells back for: nothing for a free piece while the Free Decor pass is owned, Plot.price)
 		local back = math.floor(Plot.price(v, def.id) * Tuning.Refund)
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil)
@@ -1131,7 +1141,7 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 				return
 			end
 			if noRoom then
-				UIKit.notice(Words.errText(if def.kind == "breed" then "hatcheries" else "huts"), UIKit.color("bad"))
+				UIKit.notice(Words.errText(roomErr(def)), UIKit.color("bad"))
 				Audio.play("deny")
 				return
 			end
@@ -1163,12 +1173,14 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		invCards(list, v)
 		return
 	end
-	-- (the housing limit: a hut whose room won't fit, Plot.housingLimit; the Hatcheries' limit)
+	-- (the housing limit: a hut whose room won't fit, Plot.housingLimit; the work cap: a workplace whose places won't,
+	-- Plot.workLimit; the Hatcheries' limit)
 	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
+	local workLeft = Plot.workLimit(v.tier) - Plot.work(v.pieces)
 	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
 	for k, def in listFor(v) do
 		local locked = def.tier > v.tier
-		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.kind == "breed" and hatchFull)
+		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.jobs > 0 and def.jobs > workLeft) or (def.kind == "breed" and hatchFull)
 		local held = heldOf(v, def.id)
 		local cost = Plot.price(v, def.id)
 		local afford = v.shells >= cost or held > 0
@@ -1188,7 +1200,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 				return
 			end
 			if noRoom then
-				UIKit.notice(Words.errText(if def.kind == "breed" then "hatcheries" else "huts"), UIKit.color("bad"))
+				UIKit.notice(Words.errText(roomErr(def)), UIKit.color("bad"))
 				Audio.play("deny")
 				return
 			end
@@ -1222,10 +1234,12 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 end
 
 -- The count shown for the tab: its pieces against its limit (the Huts tab: the room its huts have against the
--- housing limit; tiles and fences have their own).
+-- housing limit; the Work tab: its workplaces' places against the work cap; tiles and fences have their own).
 local function countFor(v: Types.ClientView): (number, number)
 	if tab == "nest" then
 		return Plot.housing(v.pieces), Plot.housingLimit(v.tier)
+	elseif tab == "work" then
+		return Plot.work(v.pieces), Plot.workLimit(v.tier)
 	end
 	local group = if tab == "path" or tab == "water" then "tile" elseif tab == "fence" then "fence" else "piece"
 	local n = 0

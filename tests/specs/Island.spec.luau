@@ -169,6 +169,7 @@ return function()
 		local p = fresh()
 		p.tier = 2
 		local hut = put(p, "burrow") -- (room for four)
+		local hut2 = put(p, "burrow") -- (four more: the orchard's places and two)
 		local patch = put(p, "patch") -- (rate 36)
 		local orchard = put(p, "orchard") -- (rate 102: the better farm)
 		local lumber = put(p, "lumber")
@@ -179,10 +180,21 @@ return function()
 		local epic = { id = p.nextId, sp = "sunsprite", home = hut, work = 0 } -- epic, farms +35%
 		p.nextId += 1
 		table.insert(p.pals, epic)
-		local woody = worker(p, "wood", hut, 0) -- a Pebblit, wood +15%
+		-- (more rare farmers, so the orchard's places are all taken by better workers than the Mossbun)
+		local more = {}
+		for _ = 1, Buildings.byId.orchard.jobs - 2 do
+			local x = { id = p.nextId, sp = "bloomoth", home = hut2, work = 0 }
+			p.nextId += 1
+			table.insert(p.pals, x)
+			table.insert(more, x)
+		end
+		local woody = worker(p, "wood", hut2, 0) -- a Pebblit, wood +15%
 		Island.arrange(p)
 		T.eq(epic.work, orchard, "the best worker at the best farm")
-		T.eq(rare.work, orchard, "the next best with it (two a building)")
+		T.eq(rare.work, orchard, "the next best with it")
+		for _, x in more do
+			T.eq(x.work, orchard, "the orchard's other places to the next best")
+		end
 		T.eq(common.work, patch, "the orchard full: the next farm")
 		T.eq(woody.work, lumber, "a woodworker at the wood")
 		-- a far better workplace of another kind wins over a poor one of its own (it makes more there)

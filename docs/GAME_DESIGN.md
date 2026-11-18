@@ -574,8 +574,8 @@ floor, it just looks noisy", 2026-11-14),
   never past double. The first decor counts the most. Shops sell at their plain rate: the visitors who bought there
   went with the request (they were a number, a turn: 1 + charm / 15, and a shop sold its rate times visitors / 4).
   The island card shows the charm and its bonus ("Charm bonus +43%"). Above them it shows how many driftlings live
-  in huts out of the huts' room ("In huts 21/24") and how many are at work out of the places at work, two at every
-  farm, camp and shop ("Working 18/24"; the requests of 2026-11-16, "can you make another detail to show creatures
+  in huts out of the huts' room ("In huts 21/24") and how many are at work out of the places at work, each farm,
+  camp and shop's own (§4, the work cap; "Working 18/24"; the requests of 2026-11-16, "can you make another detail to show creatures
   working, with x/y", and 2026-11-17, "for working, make it x/y, where x is amount of creatures working and y being
   the amount of work spaces available": it was out of all the driftlings you have for a day).
 - The shells reach the client every second; a new day brings its banner ("Day 12").
@@ -688,6 +688,30 @@ driftlings as this island allows. Grow the island for more room."). A bigger hut
 limit has room for the difference; a smaller one always can; and two small huts cleared make way for a bigger one. The
 Huts tab's count shows the room against the limit ("24/24"). A save housing more than its tier allows keeps its huts.
 (Until 2026-11-14 the limit was a number of huts: 4, then two more a tier.)
+
+> The request (2026-11-18): "increase the capacity of work buildings by alot, in turn, make a cap for the amount of
+> work spaces possible in each island expansion. it should match the number of max driftlings possible for each
+> expansion"
+
+**The work cap** (`WorkRoom`, Data/Buildings' `jobs`, `Plot.workLimit`, `Plot.work`): a workplace (a farm, a wood
+building, a shop) takes as many driftlings as its tier gives it, where every one took 2 before:
+
+| Opens at tier | 1 | 2 | 3 | 4 | 5 | 6 | 11 | 12 to 13 | 14 to 16 | 17 to 19 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Driftlings at work | 2 | 6 | 8 | 10 | 12 | 16 | 20 | 24 | 28 | 32 |
+
+So a Fruit Orchard takes three Veggie Patches' driftlings and a Grand Vineyard sixteen. The four on Castaway Cay keep
+2: its cap is 8, and the tips ask for a camp, a patch and a stall there. All of an island's places at work together stay
+within its cap, which is its driftling limit (the housing limit above: 8 on Castaway Cay up to 840 on Everdrift), so
+every driftling it can house has a place and no more. A workplace whose places won't fit shows "No room" on its card,
+and placing it is refused ("Your workplaces already have a place for every driftling this island can hold. Grow the
+island for more."). A bigger workplace replaces a smaller one only while the cap has room for the difference; a smaller
+one always can, keeping its first workers (the rest go back to the arrangement). The Work tab's count shows the places
+at work against the cap ("24/24"); a card's tip says how many can work there ("Up to 6 can work here."). A workplace's
+price was for its old two places: it is that times its places over two, so a place at work costs what it did and the
+pace stays where the economy's bounds hold it (§10; at the old prices a place cost up to sixteen times less, and the
+three seeds reached the capital and Moonlit Bay inside three hours). A save with more places than its cap keeps its
+workplaces: past the cap they can only stand empty, since it never has more driftlings, and it builds no more.
 
 > The request (2026-11-14): "there should also be a hatchery limit per expansion. the first expansion where you unlock
 > hatcheries, make the limit 1"
@@ -1219,8 +1243,8 @@ When the island grows into a new stage, the tree is built again at it.
   rarity rarer every `EggMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the city
   tiers, three on Moonlit Bay and Evergreen Isle, four on the last two, never past a legendary's roll; a mythic or
   celestial one rolls as itself). It moves
-  into the comfiest hut with room and goes to work through the arrangement below (`HelpMax`: 2 driftlings a
-  building), or rests in its hut until a place is free; the hatch scene plays (§6.2), then "It hatched a rare Wispwing." in its rarity's colour, and it goes in
+  into the comfiest hut with room and goes to work through the arrangement below (each workplace's places, its
+  `jobs`: §4, the work cap), or rests in its hut until a place is free; the hatch scene plays (§6.2), then "It hatched a rare Wispwing." in its rarity's colour, and it goes in
   the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
   Patch have help waiting. With no hut built the answer is "Build a hut first. Driftlings need somewhere to live."; an
   egg a new lot replaced before the tap reached the server, "That egg is gone. The tree laid new ones."
@@ -2124,13 +2148,14 @@ into a hut with room while a building has a free place or the egg is better than
 swap for their weakest when the egg is two rarities better than it. Then they build what the island lacks: the tips'
 buildings first (a camp, a patch, a hut, a stall), then a hut while every hut is full and there are places at work
 (at the huts' limit, a bigger hut in the smallest one's place, or where there is room once the small one is cleared),
-the workplace that pays back soonest (the best farm, wood building or shop open, by its rate over its price) while the
-shells come in slowly or while saving for the next tier would take over half an hour, a shop a tier, a farm more than
+the workplace that pays back soonest (the best farm, wood building or shop open, by what it makes with every place
+taken over its price) while the shells come in slowly or while saving for the next tier would take over half an hour, a shop a tier, a farm more than
 the tier, a building for the knack with the most driftlings resting or working away from their knack (moving those to
 it once it stands, as a player would), and decor with shells to spare (one they could pay for four times). When a
 building it wants has no room left (no spot for it, or the piece limit reached), the weakest building of that kind
 gives way to the best one the island has: replaced where it stands (its workers stay), or cleared and the new one
-built where there's room; and at the huts' limit with no room anywhere for a bigger hut, the weakest workplace nobody
+built where there's room; at the work cap, the weakest workplaces are put away until the best one fits, as a player
+trades three patches for an orchard (without that it filled the cap with twenty starter buildings and sat on Grand Isle); and at the huts' limit with no room anywhere for a bigger hut, the weakest workplace nobody
 works at comes down to make some. (Before the twenty tiers it filled a full island with idle lumber camps and stopped
 growing at Moonlit Bay: 243 wood buildings for 104 driftlings.) The catalog has plenty of cheap decor, so the decor stops at a
 third of the piece limit and two thirds stay for buildings (a player decorates, but not before the huts), and the
@@ -2141,15 +2166,16 @@ bounds (in brackets what the three seeds measure):
 
 - a driftling at work within 3 minutes (20 seconds), a rare one hatched by the third lot, 13 minutes with a lot every
   six (7 to 12; with the ten minute tree it was 11 to 20);
-- a steady supply: at least 12 hatched by half an hour (32 to 41), an epic within two hours (13 to 24 minutes); a
+- a steady supply: at least 12 hatched by half an hour (23 to 40), an epic within two hours (12 to 24 minutes); a
   legendary comes at 18 to 30 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
-  ten-thousandth: 581 to 827 shells of 12.7 to 33 million);
-- the island's second tier within 25 minutes (5 to 6), the third within 50 (21 to 29); at an hour, at least 12
-  driftlings in huts (32 to 52); Harbor Town (tier 4) not before 40 minutes (48 to 75), Coral City (tier 5) not before
-  80 (1 hour 34 to 2 hours 5), Sunspire Capital (tier 6) not before two hours (2 hours 32 to 3 hours 26), and nothing
-  past it within three hours (one seed reaches Moonlit Bay at 4 hours 13). The town's and the city's floors were 50 and
-  90 minutes until the two requests of 2026-11-17 below;
+  ten-thousandth: 378 to 718 shells of 12.2 to 38.7 million);
+- the island's second tier within 25 minutes (5 to 6), the third within 50 (26 to 33); at an hour, at least 12
+  driftlings in huts (40 to 50); Harbor Town (tier 4) not before 40 minutes (58 to 81), Coral City (tier 5) not before
+  80 (1 hour 36 to 2 hours 11), Sunspire Capital (tier 6) not before two hours (one seed at 2 hours 52, the other two
+  later than three hours), and nothing past it within three hours. The town's and the city's floors were 50 and 90
+  minutes until the two requests of 2026-11-17 below. (Measured with the work cap of 2026-11-18; before it the third
+  tier came at 21 to 29 minutes, the town at 48 to 75 and the city at 1 hour 34 to 2 hours 5);
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
   food.
 
@@ -2227,25 +2253,26 @@ Driftling Haven a fifth cheaper, the town came at 55 to 59 minutes (was 57 to 65
 a half hours to two; with one store the town and the city sit about where they were and the capital comes sooner (the
 bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take about half an
 hour of the checker's time each): `luau tests/career.luau -a <seed> 2100` prints it. With today's settings (shells as
-the one store, the cheaper eggs, the automatic work, the housing limit, and since 2026-11-14 the tree's lots every 10
-minutes, 7 to 14 eggs each since the two more of 2026-11-14) the three seeds reach each island at:
+the one store, the cheaper eggs, the automatic work, the housing limit, the tree's lots every 6 minutes with 7 to 14
+eggs each, and since 2026-11-18 the bigger workplaces under the work cap) the three seeds reach each island at:
 
 | Tier | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|
-| 7 Moonlit Bay | 6 h 36 | 8 h 05 | 6 h 15 |
-| 10 Driftling Haven | 14 h 15 | 16 h 36 | 13 h 33 |
-| 11 Lantern Cove | 17 h 02 | 19 h 28 | 16 h 21 |
-| 13 Kelpwood Isle | 20 h 39 | 23 h 20 | 20 h 10 |
-| 15 Cloudberry Isle | 23 h 53 | 26 h 14 | 23 h 15 |
-| 17 Starfall Atoll | 25 h 51 | 28 h 08 | 25 h 18 |
-| 20 Everdrift | 29 h 37 | 31 h 36 | 28 h 56 |
+| 7 Moonlit Bay | 4 h 16 | 3 h 42 | 3 h 59 |
+| 10 Driftling Haven | 9 h 01 | 6 h 55 | 9 h 42 |
+| 11 Lantern Cove | 10 h 05 | 8 h 11 | 12 h 38 |
+| 13 Kelpwood Isle | 12 h 10 | 10 h 24 | 15 h 10 |
+| 15 Cloudberry Isle | 14 h 15 | 12 h 46 | 17 h 12 |
+| 17 Starfall Atoll | 16 h 40 | 14 h 06 | 18 h 59 |
+| 20 Everdrift | 21 h 29 | 17 h 21 | 22 h 43 |
 
-(Before the 10 minute tree, with the same lots every three minutes, Everdrift came at 22 h 12 to 26 h 13; with lots
-three times the size every 10 minutes, at 23 h 41 to 25 h 36; with 5 to 12 eggs a lot every 10 minutes, at 30 h 21 to
-32 h 15.) Lantern Cove takes about two and three quarter hours
-after Driftling Haven, the next two islands about an hour and three quarters each, and from Kelpwood Isle on a little
-over an hour each, as the island's income catches up with the prices. Everdrift comes in 29 to 32 hours, housing
-about 730 driftlings on about 420 pieces when it does, with charm adding 98% to every shell.
+(With every workplace taking 2, before 2026-11-18, Moonlit Bay came at 6 h 15 to 8 h 05 and Everdrift at 28 h 56 to
+31 h 36: a place at work costs the same, but an island needs a dozen big workplaces where it needed a hundred small
+ones, so every driftling is at the best work much sooner. Before the 10 minute tree, with the same lots every three
+minutes, Everdrift came at 22 h 12 to 26 h 13; with lots three times the size every 10 minutes, at 23 h 41 to 25 h 36;
+with 5 to 12 eggs a lot every 10 minutes, at 30 h 21 to 32 h 15.) Everdrift comes in 17 to 23 hours, housing about
+730 driftlings on about 190 pieces when it does (about 420 before the work cap), with charm adding 93% to 97% to
+every shell.
 Getting there took two changes to the Career and two to the prices. The old Career filled a full island with idle
 lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Bay for good; now a building with no room left
 takes the weakest of its kind's place (above), which also brought Driftling Haven from never to inside a day. With the

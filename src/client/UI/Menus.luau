@@ -208,15 +208,15 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back
 		local icon = if d.kind == "shop" then "shell" elseif d.kind == "farm" then "food" elseif d.kind == "gen" then "boost" else d.kind
 		PixelSprites.image(f, "mini_" .. (if PixelSprites.has("mini_" .. icon) then icon else "work"), UDim2.fromOffset(4, 5), 4)
 		UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -124, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
-		-- (Tuning.HelpMax a building; one more sends the first there back to rest)
+		-- (its `jobs` a building; one more sends the first there back to rest)
 		local n = 0
 		for _, x in v.pals do
 			if x.work == q.uid and x.id ~= palId then
 				n += 1
 			end
 		end
-		local full = n >= Tuning.HelpMax
-		local status = if q.uid == current then "Here now" elseif full then "Full: the first there would rest" elseif n > 0 then string.format("%d of %d working", n, Tuning.HelpMax) else "Nobody yet"
+		local full = n >= d.jobs
+		local status = if q.uid == current then "Here now" elseif full then "Full: the first there would rest" elseif n > 0 then string.format("%d of %d working", n, d.jobs) else "Nobody yet"
 		UIKit.text(f, status, UDim2.new(1, -124, 0, 10), UDim2.fromOffset(18, 11), { color = if status == "Nobody yet" then UIKit.color("good") else UIKit.color("text_dim"), z = 4 })
 		-- how fast it works here: the fastest in the accent colour
 		UIKit.text(f, string.format("x%.1f", sp.speed), UDim2.fromOffset(32, 10), UDim2.new(1, -100, 0, 6), { x = "right", color = if sp.speed >= fastest - 1e-9 then UIKit.color("accent") else UIKit.color("text_dim"), z = 4, name = "Speed" })

@@ -68,7 +68,7 @@ local function build(p: any, id: string): boolean
 	end
 	-- (no room for one more of its count, or a hut past the huts' limit: no scan of the island for a spot)
 	local used, most = Plot.used(p, id)
-	if used >= most or (d.kind == "nest" and Plot.housing(p.plot.placed) + d.slots > Plot.housingLimit(p.tier)) or (d.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier)) then
+	if used >= most or (d.kind == "nest" and Plot.housing(p.plot.placed) + d.slots > Plot.housingLimit(p.tier)) or (d.jobs > 0 and Plot.work(p.plot.placed) + d.jobs > Plot.workLimit(p.tier)) or (d.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier)) then
 		return false
 	end
 	local x, z = spot(p, id)
@@ -130,23 +130,54 @@ local function upgrade(p: any, kind: string, k: number): boolean
 		Tree.fillJobs(p)
 		return true
 	end
-	if spot(p, bd.id) ~= nil and Plot.store(p, wi) then
+	if spot(p, bd.id) ~= nil and Plot.work(p.plot.placed) - worst.jobs + bd.jobs <= Plot.workLimit(p.tier) and Plot.store(p, wi) then
 		build(p, bd.id)
 		Tree.settle(p)
 		Tree.fillJobs(p)
 		return true
 	end
+	-- (the work cap full, Plot.workLimit: the weakest workplaces put away to make room for the best, as a player trades
+	-- three patches for an orchard)
+	local need = Plot.work(p.plot.placed) + bd.jobs - Plot.workLimit(p.tier)
+	if need > 0 then
+		local weak: { { i: number, rate: number, jobs: number } } = {}
+		for i, q in p.plot.placed do
+			local d = Buildings.byId[q.id]
+			if d and d.jobs > 0 and d.rate < bd.rate then
+				table.insert(weak, { i = i, rate = d.rate, jobs = d.jobs })
+			end
+		end
+		table.sort(weak, function(a, b)
+			return a.rate < b.rate
+		end)
+		local take: { number } = {}
+		local freed = 0
+		for _, w in weak do
+			if freed >= need then
+				break
+			end
+			table.insert(take, w.i)
+			freed += w.jobs
+		end
+		if freed >= need and #take > 0 then
+			table.sort(take, function(a, b)
+				return a > b
+			end)
+			for _, i in take do
+				Plot.store(p, i)
+			end
+			build(p, bd.id)
+			Tree.settle(p)
+			Tree.fillJobs(p)
+			return true
+		end
+	end
 	return false
 end
 
--- Places at work with nobody there (every workplace takes Tuning.HelpMax).
+-- Places at work with nobody there (every workplace takes its `jobs`).
 local function freeJobs(p: any): number
-	local jobs, at = 0, 0
-	for _, q in p.plot.placed do
-		if Island.works(q.id) then
-			jobs += Tuning.HelpMax
-		end
-	end
+	local jobs, at = Island.jobPlaces(p.plot.placed), 0
 	for _, pal in p.pals do
 		if pal.work ~= 0 then
 			at += 1
@@ -201,12 +232,7 @@ local function shop(p: any, rng: any): any
 	for _, x in list do
 		if x.cost * k <= p.shells then
 			if room > 0 then
-				local jobs = 0
-				for _, q in p.plot.placed do
-					if Island.works(q.id) then
-						jobs += Tuning.HelpMax
-					end
-				end
+				local jobs = Island.jobPlaces(p.plot.placed)
 				local at = 0
 				for _, pal in p.pals do
 					if pal.work ~= 0 then
@@ -251,8 +277,9 @@ local function payback(p: any, k: number): string?
 	for _, kind in { "farm", "wood", "shop" } do
 		local id = best(p, kind)
 		local d = if id then Buildings.byId[id] else nil
-		if d and p.shells >= d.shells * k and d.rate / math.max(1, d.shells) > score then
-			pick, score = d.id, d.rate / math.max(1, d.shells)
+		-- (what it makes full, its places all taken, for each shell)
+		if d and p.shells >= d.shells * k and d.rate * d.jobs / math.max(1, d.shells) > score then
+			pick, score = d.id, d.rate * d.jobs / math.max(1, d.shells)
 		end
 	end
 	return pick
@@ -290,12 +317,7 @@ local function plan(p: any, rng: any)
 	-- a hut when every hut is full and the island has work for more: the best one while the housing limit has room for
 	-- it, else the best that fits; at the limit, the smallest huts traded for the best one (more comfort)
 	if Tree.room(p) <= 0 then
-		local jobs = 0
-		for _, q in p.plot.placed do
-			if Island.works(q.id) then
-				jobs += Tuning.HelpMax
-			end
-		end
+		local jobs = Island.jobPlaces(p.plot.placed)
 		if jobs > housed then
 			-- (the housing limit, Plot.housingLimit: huts' room together, however many huts)
 			local room = Plot.housingLimit(p.tier) - Plot.housing(p.plot.placed)
@@ -365,7 +387,7 @@ local function plan(p: any, rng: any)
 						return
 					end
 					-- (no room anywhere: the weakest workplace nobody works at comes down to make some)
-					if freeJobs(p) >= Tuning.HelpMax then
+					if freeJobs(p) >= Buildings.byId.patch.jobs then
 						local taken: { [number]: boolean } = {}
 						for _, pal in p.pals do
 							if pal.work ~= 0 then
@@ -425,8 +447,13 @@ local function plan(p: any, rng: any)
 	end
 	for _, kind in wants do
 		if kind == "earn" then
-			local id = payback(p, if saving then 3 else 1)
+			local k = if saving then 3 else 1
+			local id = payback(p, k)
 			if id and build(p, id) then
+				return
+			end
+			-- (the work cap full: the weakest workplaces traded for it)
+			if id and upgrade(p, Buildings.byId[id].kind, k) then
 				return
 			end
 			continue

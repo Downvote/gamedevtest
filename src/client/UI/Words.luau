@@ -7,6 +7,7 @@ local ERRORS: { [string]: string } = {
 	money = "Not enough shells.",
 	no_hut = "Build a hut first. Driftlings need somewhere to live.",
 	huts = "Your huts already hold as many driftlings as this island allows. Grow the island for more room.",
+	work = "Your workplaces already have a place for every driftling this island can hold. Grow the island for more.",
 	hatcheries = "This island has all the Hatcheries it can hold. Grow it for another.",
 	busy = "Not right now.",
 	full = "Every hut is full. Swap one out, or build another hut.",

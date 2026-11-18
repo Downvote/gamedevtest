@@ -67,6 +67,7 @@ return function()
 
 	T.it("the island's lean (never shown, 2026-11-15): its work buildings tip a new mutation's family", function()
 		local p = fresh()
+		p.tier = 2 -- (room at work for six workplaces: the work cap, Plot.workLimit)
 		T.deepEq(Tree.lean(p), {}, "no work buildings: every family alike")
 		build(p, "lumber")
 		local one = Tree.lean(p)
@@ -86,6 +87,7 @@ return function()
 		-- what the tree lays on a wood island: Chopper far more often than on a shop island
 		local function count(ids: { string }, fam: string): number
 			local q = fresh()
+			q.tier = 2
 			for _, id in ids do
 				build(q, id)
 			end
@@ -592,7 +594,7 @@ return function()
 		end
 	end)
 
-	T.it("a driftling in a hut takes a job, its knack's first (HelpMax a building); one with no hut doesn't work", function()
+	T.it("a driftling in a hut takes a job, its knack's first (its jobs a building: a patch's 2); one with no hut doesn't work", function()
 		local p = fresh()
 		local patch = build(p, "patch")
 		build(p, "nest")
@@ -607,19 +609,20 @@ return function()
 				at += 1
 			end
 		end
-		T.eq(at, Tuning.HelpMax, "two at the patch")
+		local room = Buildings.byId.patch.jobs
+		T.eq(at, room, "two at the patch")
 		local resting = 0
 		for _, x in list do
 			resting += if x.work == 0 then 1 else 0
 		end
-		T.eq(resting, #list - Tuning.HelpMax, "the third rests: no other workplace")
+		T.eq(resting, #list - room, "the third rests: no other workplace")
 		local camp = build(p, "lumber")
 		Tree.fillJobs(p)
 		local atCamp = 0
 		for _, x in list do
 			atCamp += if x.work == camp then 1 else 0
 		end
-		T.eq(atCamp, #list - Tuning.HelpMax, "a farm driftling with no farm place takes the lumber camp")
+		T.eq(atCamp, #list - room, "a farm driftling with no farm place takes the lumber camp")
 		for _, x in list do
 			if x.work == camp then
 				x.work = 0

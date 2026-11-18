@@ -6,7 +6,7 @@
 -- and change the profile only when they succeed.
 --
 -- A turn (Tuning.TurnSeconds): each building of kind farm, wood or shop makes its rate (Data/Buildings) times
---   (the work of its driftlings, up to Tuning.HelpMax: each PalWork x its rarity's RarityWork x (1 + its work share +
+--   (the work of its driftlings, up to its `jobs`: each PalWork x its rarity's RarityWork x (1 + its work share +
 --   its hut's comfort), its work share its passive's and mutations' (Data/Traits: work and the building's knack; a
 --   driftling may work anywhere, its passive usually helping at its own knack's buildings);
 --   IdleOutput with none)
@@ -167,14 +167,15 @@ function Island.works(id: string): boolean
 	return d ~= nil and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop")
 end
 
--- The places at work on an island: Tuning.HelpMax at every workplace (`works`). The island card's Working line counts
+-- The places at work on an island: every workplace's `jobs` (`works`). The island card's Working line counts
 -- the driftlings at work out of these (the request of 2026-11-17: "for working, make it x/y, where x is amount of
 -- creatures working and y being the amount of work spaces available").
 function Island.jobPlaces(pieces: { Types.Piece }): number
 	local n = 0
 	for _, q in pieces do
-		if Island.works(q.id) then
-			n += Tuning.HelpMax
+		local d = Buildings.byId[q.id]
+		if d and Island.works(q.id) then
+			n += d.jobs
 		end
 	end
 	return n
@@ -258,8 +259,8 @@ function Island.randomLook(rng: Rng): Types.Look
 	return { skin = rng:int(1, #Looks.skin), hair = rng:int(1, #Looks.hair), style = rng:int(1, #Looks.styles), shirt = rng:int(1, #Looks.shirt) }
 end
 
--- A free place for a driftling of `knack` (with effects `fx`, Data/Traits): a workplace with fewer than Tuning.HelpMax
--- driftlings working there, or 0. Any driftling may work anywhere (the request of 2026-11-13: "make it such that each
+-- A free place for a driftling of `knack` (with effects `fx`, Data/Traits): a workplace with fewer driftlings working
+-- there than its `jobs`, or 0. Any driftling may work anywhere (the request of 2026-11-13: "make it such that each
 -- creature can work at any place, and is no longer restricted"); this picks the place it goes to by itself: a building
 -- of its own knack first (its passive helps there), else the one where it works fastest (`fx`); then the emptiest,
 -- farms before wood before shops, the first built.
@@ -275,7 +276,7 @@ function Island.freeJob(p: Profile, knack: string, fx: Traits.Fx?): number
 		for _, q in p.plot.placed do
 			local d = Buildings.byId[q.id]
 			local n = taken[q.uid] or 0
-			if d and d.kind == kind and n < Tuning.HelpMax then
+			if d and d.kind == kind and n < d.jobs then
 				-- (compared in order: its knack, its share there, room, then the kind's order and the first built)
 				local key = { if d.knack == knack then 1 else 0, if fx then Traits.workAt(fx, d.knack) else 0, -n, -k }
 				local better = bestKey == nil
@@ -324,7 +325,7 @@ function Island.arrange(p: Profile)
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 and Island.works(q.id) then
 			local out = d.rate * (Tuning.UpgradeMult[q.lvl or 1] or 1) * (1 + Island.boostAt(boosts, d.knack))
-			local sp: Spot = { uid = q.uid, out = out, n = Tuning.HelpMax, order = i }
+			local sp: Spot = { uid = q.uid, out = out, n = d.jobs, order = i }
 			spots[q.uid] = sp
 			local list = byKnack[d.knack]
 			if list == nil then
@@ -414,7 +415,7 @@ end
 
 -- A driftling living in a hut to any workplace (uid: a farm, a lumber camp or a shop, whatever its knack; it works best
 -- at its own) or resting (0), by the player's hand: it stays there (`pin`) while the rest are arranged round it
--- (Island.arrange). Tuning.HelpMax a building: a full one sends the helper that came first back to the arrangement.
+-- (Island.arrange). Its `jobs` a building: a full one sends the helper that came first back to the arrangement.
 -- One with no hut doesn't work, nor anywhere that makes nothing (bad_payload).
 function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	local who: Types.Pal? = nil
@@ -438,7 +439,7 @@ function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 				table.insert(there, pal)
 			end
 		end
-		if #there >= Tuning.HelpMax then
+		if #there >= (Buildings.byId[q.id] :: Buildings.BuildingDef).jobs then
 			there[1].work = 0
 			there[1].pin = nil
 		end

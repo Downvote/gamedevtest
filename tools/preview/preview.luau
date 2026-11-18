@@ -529,10 +529,25 @@ local function fillMax(prof)
 		end
 	end
 	local limit = Plot.limit(tier)
-	local want = { huts = math.ceil(Plot.housingLimit(tier) / Buildings.byId[hutId].slots), breed = Plot.hatcheryLimit(tier), boost = 2 * #groups.boost, work = 280 }
-	if hutId ~= "citadel" then
-		want.work = math.min(280, math.max(0, (limit - want.huts - want.breed - want.boost) // 2))
+	local want = { huts = math.ceil(Plot.housingLimit(tier) / Buildings.byId[hutId].slots), breed = Plot.hatcheryLimit(tier), boost = 2 * #groups.boost, work = 0 }
+	-- (the workplaces round their list, their places up to the work cap, Plot.workLimit: the request of 2026-11-18; one
+	-- that would pass it is skipped for the smaller ones after it, until the cap is full)
+	local workIds: { string } = {}
+	local workPlaces, k, misses = 0, 0, 0
+	while #groups.work > 0 and misses < #groups.work do
+		local id = groups.work[k % #groups.work + 1]
+		k += 1
+		local d = Buildings.byId[id]
+		if workPlaces + d.jobs <= Plot.workLimit(tier) then
+			workPlaces += d.jobs
+			table.insert(workIds, id)
+			misses = 0
+		else
+			misses += 1
+		end
 	end
+	groups.work = workIds
+	want.work = #workIds
 	want.decor = limit - want.huts - want.breed - want.boost - want.work
 	local got = { huts = 0, breed = 0, boost = 0, work = 0, decor = 0 }
 	local ORDER = { "huts", "breed", "boost", "work", "decor" }
@@ -608,8 +623,8 @@ local function fillMax(prof)
 			end
 		end
 	end
-	log("stress fill: %d huts, %d hatcheries, %d boost buildings, %d workplaces, %d decor (%d of %d pieces, %d did not fit), %d water and %d path tiles (of %d), %d fence lengths (of %d)",
-		got.huts, got.breed, got.boost, got.work, got.decor, got.huts + got.breed + got.boost + got.work + got.decor - failed, limit, failed, water, tiles - water, Plot.pathLimit(tier), fences, Plot.fenceLimit(tier))
+	log("stress fill: %d huts, %d hatcheries, %d boost buildings, %d workplaces (%d places of %d), %d decor (%d of %d pieces, %d did not fit), %d water and %d path tiles (of %d), %d fence lengths (of %d)",
+		got.huts, got.breed, got.boost, got.work, Plot.work(placed), Plot.workLimit(tier), got.decor, got.huts + got.breed + got.boost + got.work + got.decor - failed, limit, failed, water, tiles - water, Plot.pathLimit(tier), fences, Plot.fenceLimit(tier))
 end
 
 -- The incremental compose against a whole one (PixelRenderer.debugIncCheck), every `every` frames of a walk: `step`

@@ -19,6 +19,9 @@
 --          the Sawmill 130, Timber Works 240, the Bamboo Grove 440, the Grand Mill 880)
 --   knack: the driftlings that work there (Data/Creatures)
 --   slots: the driftlings a hut houses (its room)
+--   jobs:  the driftlings a workplace (farm, wood, shop) takes: Tuning.WorkRoom at its tier (the request of 2026-11-18,
+--          "increase the capacity of work buildings by alot": 2 everywhere before); all of them together stay within
+--          the island's work cap (Logic/Plot.workLimit, its driftling limit)
 --   charm: what it adds to the island's charm (more charm, more shells: Logic/Island.charmBonus)
 --   comfort: a hut's share added to its residents' work (Logic/Island.homes)
 --   boost / boostBy: a boost building's knack ("farm" "wood" "shop", or "all") and its share (each kind of boost
@@ -43,6 +46,7 @@ export type BuildingDef = {
 	rate: number,
 	knack: string,
 	slots: number,
+	jobs: number,
 	charm: number,
 	comfort: number,
 	boost: string,
@@ -84,16 +88,20 @@ local function priceOf(kind: string, listed: number, tier: number): number
 end
 
 local function B(t: { [string]: any }): BuildingDef
+	local works = t.kind == "farm" or t.kind == "wood" or t.kind == "shop"
+	local jobs = if works then Tuning.WorkRoom[math.clamp(t.tier or 1, 1, #Tuning.WorkRoom)] else 0
 	return {
 		id = t.id,
 		name = t.name,
 		kind = t.kind,
-		shells = priceOf(t.kind, t.shells or 0, t.tier or 1),
+		-- (a workplace's listed price was for 2 places: times its places over 2, so a place at work costs what it did)
+		shells = priceOf(t.kind, (t.shells or 0) * (if works then jobs / 2 else 1), t.tier or 1),
 		w = t.w,
 		d = t.d,
 		rate = t.rate or 0,
 		knack = t.knack or "",
 		slots = t.slots or 0,
+		jobs = jobs,
 		charm = t.charm or 0,
 		comfort = t.comfort or 0,
 		boost = t.boost or "",

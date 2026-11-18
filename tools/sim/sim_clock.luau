@@ -391,6 +391,17 @@ do
 	local rr = H.req(p, "pal.work", { id = crab.id, uid = 0 })
 	E.run(0.2)
 	H.expect(rr.ok and crab.work == 0, "work", "sent to rest", tostring(rr.err))
+	-- (the first island's work cap full, Plot.workLimit: a workplace nobody fishes at put away for the pier, as a
+	-- player makes room)
+	if Plot.work(prof.plot.placed) + Buildings.byId.pier.jobs > Plot.workLimit(prof.tier) then
+		for i = #prof.plot.placed, 1, -1 do
+			local b = Buildings.byId[prof.plot.placed[i].id]
+			if b and b.jobs > 0 and b.kind ~= "farm" then
+				H.req(p, "plot.store", { i = i })
+				break
+			end
+		end
+	end
 	local rp = place("pier")
 	H.expect(rp.ok, "work", "a fishing pier", tostring(rp.err))
 	E.run(0.3)
