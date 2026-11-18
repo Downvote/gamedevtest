@@ -184,6 +184,11 @@ return function()
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { zoom = 99 } }, 2000, 9) :: any).settings.zoom, #Tuning.CamZoomNotches, "past the last notch: the last")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { zoom = "close" } }, 2000, 9) :: any).settings.zoom, Tuning.CamZoomDefault, "a bad value: the default")
 		T.eq(Schema.default(2000, 9).settings.zoom, Tuning.CamZoomDefault, "a new save on the default notch")
+		-- 17 -> 18: the slider's first default (the eighth notch, written into every save) goes to the new one; a notch
+		-- the player picked stays
+		T.eq((Schema.reconcile({ v = 17, settings = { zoom = 8 } }, 2000, 9) :: any).settings.zoom, Tuning.CamZoomDefault, "a version 17 save on the old default: the new default")
+		T.eq((Schema.reconcile({ v = 17, settings = { zoom = 3 } }, 2000, 9) :: any).settings.zoom, 3, "a version 17 save on another notch keeps it")
+		T.eq((Schema.reconcile({ v = 18, settings = { zoom = 8 } }, 2000, 9) :: any).settings.zoom, 8, "the eighth picked since stays")
 		T.eq(#built(p), 0)
 		T.eq(treeCount(p), 1, "a tree")
 		T.eq(p.tut, 1, "the tips start over")

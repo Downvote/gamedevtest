@@ -1955,7 +1955,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   on a desktop, from 8). Then closer again, to match Random Bakery's shop ("zoom in into the island more. it should fit
   like this, with the playable island as big as the bakery"): `CamFrame` 0.75, about 11 art px a stud, the first
   island's grass filling the screen between the HUD's strips, the beach running out to the edges. A bigger island is
-  seen a part at a time as you walk. Since 2026-11-18 the detail is the same on every screen: 12 art px a stud on a
+  seen a part at a time as you walk. Since 2026-11-18 the detail is the same on every screen (12, now the View slider's notch, 10 by default): 12 art px a stud on a
   desktop, a laptop, a tablet and a phone alike (`Tuning.CamDetail`; the request: "make it such that the pixel filter
   is, by default, on all devices, zoomed in to be at a good level of detail. make it such that smaller windows or
   smaller devices will still receive the same amount of detail as bigger ones"). The zoom had been fitted to the
@@ -2048,11 +2048,13 @@ for an option to turn off the pixel filter"), and View, a slider with ten notche
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
 big island's middle all at once, to 16, close enough to see a driftling's freckles; each is about the same step closer
-than the last. A new player starts on the eighth, 12 a stud (the detail every screen had before the slider), and its
-tick under the track is a pixel longer so it's easy to find again. The knob moves at once; the island is drawn again
+than the last. A new player starts on the sixth, 10 a stud, a step further out than the 12 every screen had before the
+slider (the user's pick: "default view should be here", with the knob on the sixth notch; the slider started on the
+eighth, 12, and a save still on that goes to the new default). The default's tick under the track is a pixel longer so
+it's easy to find again. The knob moves at once; the island is drawn again
 at the new zoom a moment after the last notch, so dragging across several only redraws it once, and the old picture
 stays up while it does. A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
-same detail as on a desktop (§8, the camera: 12 art px a stud since 2026-11-18, or the View slider's notch), so it shows a part of the island round
+same detail as on a desktop (§8, the camera: the View slider's notch, 10 art px a stud by default), so it shows a part of the island round
 the founder and follows them; before, it fitted a smaller box round the island's heart (`CamFramePhone` 0.6 against
 `CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:

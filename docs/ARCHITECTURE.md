@@ -183,7 +183,8 @@ next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, m
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
-`Profile` (the save, version 17 (offline earnings and the group, 2026-11-14: `seenAt` (the sea's clock when the island
+`Profile` (the save, version 18 (the View slider's default moved to the sixth notch, 2026-11-18: a save still on
+the eighth, the first default, loses it and reconcile gives it the new one; `settings.zoom`); 17 (offline earnings and the group, 2026-11-14: `seenAt` (the sea's clock when the island
 was last open, set every second while it is; 0 unknown: an older save earns nothing for its time away), `group`
 (`Group = { member, gift }`: in the group at the last check, its gift given)); 16 (the store, 2026-11-14: `passes` (pass key -> true, checked again at every join),
 `receipts` (the last 50 developer product PurchaseIds paid), `gifts` (`starter`, `vip`: the one-time gifts given),
@@ -981,7 +982,8 @@ receive the same amount of detail as bigger ones"): it was the largest clean gri
 clear, so it followed the screen (11.25 on a 1080p desktop, 12 on a laptop, 5 to 6.25 on phones). It is the Settings
 panel's View slider (the same day: "make a view slider for zooming the camera in and out, with 10 notches"):
 `setZoom(n)` picks notch n of `Tuning.CamZoomNotches` (5, 6, 7, 8, 9, 10, 11, 12, 14, 16 art px a stud, each a clean
-`Raster.gridScale`), `zoom()` reads it; `CamZoomDefault` 8 (12 a stud). A new notch is a new key: `refit` puts the pan
+`Raster.gridScale`), `zoom()` reads it; `CamZoomDefault` 6 (10 a stud: the user's pick, "default view should be
+here"; it was 8, 12 a stud, and Schema's 17 -> 18 step moves a save still on 8 to the new default). A new notch is a new key: `refit` puts the pan
 on the founder and fires `ViewChanged`, and the renderer bakes the island again at the new scale (the old picture
 stays up meanwhile); Build mode's drag is scaled to keep its studs. `start` applies `settings.zoom` from the view when
 the saved value changes (the join, another device), so a tap still waiting on the server is not undone. A stage's view (`Stage`) still fits its own points that way. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the

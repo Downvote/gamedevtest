@@ -30,7 +30,7 @@ local Schema = {}
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
 -- group gift (GAME_DESIGN 14.3)
-Schema.VERSION = 17
+Schema.VERSION = 18
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -401,6 +401,19 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	end
 	-- 16 -> 17: offline earnings and the group gift (reconcile fills them in: an older save earns nothing for the time
 	-- before it was opened again)
+	if v < 17 then
+		v = 17
+	end
+	-- 17 -> 18: the View slider's default moved from the eighth notch to the sixth (the request of 2026-11-18, "default
+	-- view should be here"). The build that brought the slider wrote the eighth into every save it touched, so a save
+	-- on it goes to the new default (reconcile fills it in); any other notch was the player's own and stays.
+	if v < 18 then
+		local st = raw.settings
+		if type(st) == "table" and st.zoom == 8 then
+			st.zoom = nil
+		end
+		v = 18
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end

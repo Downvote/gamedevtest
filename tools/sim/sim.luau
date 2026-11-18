@@ -143,7 +143,7 @@ do
 	end
 	H.expect(ticks == 10 and longTick == Tuning.CamZoomDefault, "settings", "the View slider: ten notches, the default's tick longer", string.format("%d ticks, long %d", ticks, longTick))
 	H.expect(H.buttonNamed(p, "ZoomOut") ~= nil and H.buttonNamed(p, "ZoomIn") ~= nil and panel ~= nil and panel:FindFirstChild("ZoomKnob", true) ~= nil and panel:FindFirstChild("ZoomSlider", true) ~= nil, "settings", "with - and + at its ends, a knob and a track to drag")
-	H.expect(prof.settings.zoom == Tuning.CamZoomDefault and H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault and CCs.view().grid.a == 12, "settings", "a new player on the default notch, 12 art px a stud", string.format("%s %s %g", tostring(prof.settings.zoom), tostring(H.inClient(p, CCs.zoom)), CCs.view().grid.a))
+	H.expect(prof.settings.zoom == Tuning.CamZoomDefault and H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault and CCs.view().grid.a == 10, "settings", "a new player on the default notch, the sixth: 10 art px a stud", string.format("%s %s %g", tostring(prof.settings.zoom), tostring(H.inClient(p, CCs.zoom)), CCs.view().grid.a))
 	local knob = panel and panel:FindFirstChild("ZoomKnob", true)
 	local kx0 = if knob and knob:IsA("GuiObject") then knob.Position.X.Offset else -1
 	H.clickNamed(p, "ZoomOut", { wait = 0.05 })
@@ -169,7 +169,7 @@ do
 	end
 	H.inClient(p, SUs.setZoom, Tuning.CamZoomDefault)
 	E.run(0.6)
-	H.expect(CCs.view().grid.a == 12 and prof.settings.zoom == Tuning.CamZoomDefault, "settings", "and back to the default", string.format("%g", CCs.view().grid.a))
+	H.expect(CCs.view().grid.a == 10 and prof.settings.zoom == Tuning.CamZoomDefault, "settings", "and back to the default", string.format("%g", CCs.view().grid.a))
 end
 H.closePanel(p)
 -- the sounds (GAME_DESIGN 11): every event has a library sound, each of its takes too; the founder's feet are heard

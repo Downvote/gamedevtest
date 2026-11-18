@@ -617,21 +617,27 @@ do
 	local want = pace * Tuning.CamFollowSecs
 	H.expect(trail >= want * 0.6 and trail <= want * 1.4, "walk", "it trails a walking founder by their speed times CamFollowSecs", string.format("%.1f art px, about %.1f wanted", trail, want))
 	H.expect(shakes == 0, "walk", "a steady walk keeps the founder still on the screen (no pixel shake)", string.format("%d frames moved them over a pixel", shakes))
-	-- they stop: the view eases in, a little less each frame, and stops on them
-	local moving, back, past, lastStep = 0, 0, false, math.huge
+	-- they stop: the view eases in, a little less each frame, and stops on them (each axis on its own: its step in
+	-- whole art px never grows by more than the pixel its rounding can add)
+	local moving, back, past, lastX, lastY = 0, 0, false, math.huge, math.huge
 	local growing = 0
+	local stepList: { string } = {}
 	local lpx, lpy = CCa.pan()
 	for f = 1, 90 do
 		E.run(dt, dt)
 		local px, py = CCa.pan()
 		local st = math.abs(px - lpx) + math.abs(py - lpy)
+		if f <= 24 then
+			table.insert(stepList, string.format("%d,%d", px - lpx, py - lpy))
+		end
 		if st > 0 then
 			moving = f
 		end
-		if st > lastStep + 1 then
+		local ax, ay = math.abs(px - lpx), math.abs(py - lpy)
+		if ax > lastX + 1 or ay > lastY + 1 then
 			growing += 1
 		end
-		lastStep = st
+		lastX, lastY = ax, ay
 		lpx, lpy = px, py
 		local sx, sy = onScreen()
 		if (sx - sx0) * (sx1 - sx0) < -1 or (sy - sy0) * (sy1 - sy0) < -1 then
@@ -642,7 +648,7 @@ do
 		end
 	end
 	H.expect(moving >= 12, "walk", "once they stop the view eases in over a few frames, not at once", string.format("still moving %d frames on", moving))
-	H.expect(growing == 0 and not past, "walk", "slowing all the way, never past them", string.format("%d frames sped up, past %s", growing, tostring(past)))
+	H.expect(growing == 0 and not past, "walk", "slowing all the way, never past them", string.format("%d frames sped up, past %s (steps %s)", growing, tostring(past), table.concat(stepList, " ")))
 	H.expect(back > 0 and back <= 60, "walk", "and it is back on them within a second", string.format("frame %d", back))
 end
 a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
