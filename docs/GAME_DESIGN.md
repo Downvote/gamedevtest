@@ -2641,7 +2641,11 @@ for it the same way ("Swap one out for the epic egg from your bag"). The panel's
 says how often it lays ("New eggs every 6:00", 3:00 with Quick Tree). Under the eggs under the tree, "Buy an egg" and
 a row an egg from Uncommon to Celestial with its Robux, the same products as the Store's Eggs tab, each going into the
 bag at the top of the list (the request of 2026-11-14: "make it possible to purchase eggs in the tree of life menu below
-the eggs under the tree tab").
+the eggs under the tree tab"). An egg under the tree that costs more shells than you have still shows its price, and
+Hatch on it offers the same egg for Robux instead (the request of 2026-11-18: "if the player dosent have enough
+shells while buying an egg, make them go to purchasing it with robux instead"): "Not enough shells. You can buy a
+rare egg with Robux." and Roblox's purchase box for that rarity's egg (a common egg has none of its own, so the
+uncommon one). Bought, it waits in the bag, free to hatch. The swap picker does the same when every hut is full.
 
 **The Hatchery.** While an egg is warming, "Finish now" in the panel's top corner buys Finish Hatcheries.
 

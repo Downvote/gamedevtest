@@ -151,6 +151,36 @@ function StoreUI.buy(key: string)
 	end
 end
 
+-- The egg for Robux that stands for a tree egg of rarity r: the product of that rarity (Store.EGG_R), or the cheapest
+-- one above it (a common egg has none of its own: the uncommon one).
+function StoreUI.eggKey(r: number): string
+	local best, bestR = "EggUncommon", math.huge
+	for key, er in Store.EGG_R do
+		if er >= r and er < bestR then
+			best, bestR = key, er
+		end
+	end
+	return best
+end
+
+-- Not enough shells for a tree egg of rarity r (the request of 2026-11-18: "if the player dosent have enough shells
+-- while buying an egg, make them go to purchasing it with robux instead"): the egg of that rarity for Robux at once
+-- (StoreUI.eggKey; Roblox's purchase prompt). Bought, it waits in the bag at the top of the tree's list, free to
+-- hatch. Until the product is on sale it says so.
+function StoreUI.eggInstead(r: number)
+	local key = StoreUI.eggKey(r)
+	local id = idOf(key)
+	if not Monetization.isEnabled(id) then
+		Audio.play("deny")
+		UIKit.notice("Not enough shells. Eggs for Robux aren't on sale yet.", UIKit.color("text_dim"))
+		return
+	end
+	local rar = Traits.RARITY[Store.EGG_R[key] or 2] or Traits.RARITY[2]
+	local an = if rar.name == "Uncommon" or rar.name == "Epic" then "an" else "a"
+	UIKit.notice(string.format("Not enough shells. You can buy %s %s egg with Robux.", an, string.lower(rar.name)), UIKit.color("text_dim"))
+	StoreUI.buy(key)
+end
+
 local function owns(v: Types.ClientView, key: string): boolean
 	return v.passes ~= nil and v.passes[key] == true
 end

@@ -4423,6 +4423,12 @@ local function processInvalidation()
 			end
 		end
 		if c.phase > 2 then
+			-- the rect's shadow edges on the pixel grid, and its border's, which meet the old picture (the report of
+			-- 2026-11-18: "some shadows still appear stepped like this": a rect cast again on its own, when a part came
+			-- or went, kept its 2x2 blocks' shared sun and stepped two pixels at a time)
+			if shadows then
+				refineShadows(s, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
+			end
 			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
 			SG.waterFix(s, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
 			SG.rect(s, r.x0 - gx0 - 3, r.y0 - gy0 - 3, r.x1 - gx0 + 3, r.y1 - gy0 + 3)

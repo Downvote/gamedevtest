@@ -39,6 +39,8 @@ local Words = require(script.Parent.Parent.UI.Words)
 local HatchScene = require(script.Parent.Parent.UI.HatchScene)
 
 local EggView = {}
+-- (what a hatch refused for shells does: UI/Menus sets it to StoreUI.eggInstead, the egg for Robux instead)
+EggView.onShort = nil :: ((r: number) -> ())?
 
 -- one egg under a tree: its island, its place on the ring, its model and how it moves
 type Egg = {
@@ -198,6 +200,10 @@ function EggView.hatch(id: number, swap: number?)
 		played(if type(res.data) == "table" then res.data else {}, fromPanel)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id })
+	elseif res.err == "money" and EggView.onShort then
+		-- (short of shells: the egg of its rarity for Robux instead; UI/Menus sets the hook to StoreUI.eggInstead)
+		local hook = EggView.onShort :: (r: number) -> ()
+		hook(if e then e.r else 1)
 	else
 		Audio.play("deny")
 		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))

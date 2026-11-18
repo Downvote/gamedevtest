@@ -986,7 +986,14 @@ local function buildTree(body: Frame, arg: any?)
 		local can = v.shells >= cost
 		local id = e.id
 		-- (beside the rarity's name, so the words under it have the row's width)
+		local r = e.r
 		local b = UIKit.button(f, text, UDim2.fromOffset(56, 12), UDim2.new(1, -59, 0, 1), function()
+			-- (short of shells: the egg for Robux instead, StoreUI.eggInstead)
+			local now = StateClient.view()
+			if now and now.shells < cost then
+				StoreUI.eggInstead(r)
+				return
+			end
 			EggView.hatch(id)
 		end, { name = "PanelHatch_" .. e.id, color = if can then UIKit.color("button_ok") else UIKit.color("plate_light") })
 		b.ZIndex = 4
@@ -1049,6 +1056,8 @@ local function buildIndex(body: Frame, _arg: any?)
 end
 
 function Menus.init()
+	-- (a hatch the server refuses for shells, the swap picker's among them: the egg for Robux instead)
+	EggView.onShort = StoreUI.eggInstead
 	UIKit.registerPanel("pals", { title = "Driftlings", icon = "pal", w = 320, h = 186, build = buildPals })
 	UIKit.registerPanel("pal", { title = "Driftling", icon = "pal", w = 320, h = 182, build = buildPal })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, build = buildHatch })

@@ -1156,8 +1156,9 @@ and undresses the driftlings by it, Controllers/Spinners turns only the sails ne
   sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
   the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
   layer re-bake it (a new island), 0.15 s later and with 8 ms more a frame (`rush`); while that re-bake is pending a
-  part's rect is not worked out (an island's rebuild is ~2,500 of them in one frame). After a re-cast and at the end of a bake the shadow edges are refined
-  (`refineShadows`, the tiers with shadows). Rects in global px survive pans.
+  part's rect is not worked out (an island's rebuild is ~2,500 of them in one frame). After a re-cast (the rect and a
+  pixel round it: the report of 2026-11-18, "some shadows still appear stepped like this", a re-cast had kept its 2x2
+  blocks' shared sun) and at the end of a bake the shadow edges are refined (`refineShadows`, the tiers with shadows). Rects in global px survive pans.
 - **Re-bakes behind the picture**: a bake started while a finished picture is on screen (`Surf.ready`; not a jump,
   whose picture is of another place) casts into fresh buffers (`back`) with its own part ids (`backTabs`, swapped in
   only while `bakeSome` runs), so the frames go on meanwhile: the models, the water and the wind keep drawing over
@@ -1706,7 +1707,8 @@ tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
 sprite, "Rare egg" in its colour, "Hatches a rare creature" (`Hatches`; "an" before uncommon and epic) and `PanelHatch_<id>` (its cost
-and `PriceIcon`, sending `EggView.hatch`), or "No eggs left. The tree lays more soon."; under them `StoreUI.eggRows`:
+and `PriceIcon`, sending `EggView.hatch`, or with fewer shells than its cost `StoreUI.eggInstead(r)`), or "No eggs
+left. The tree lays more soon."; under them `StoreUI.eggRows`:
 `BuyHead` ("Buy an egg") and a row an egg product from Uncommon up, `BuyEgg_<key>` (its `egg_<r>`, "Rare Egg" in its
 colour, "Free to hatch" and `Buy_<key>`, its Robux, `StoreUI.buy`); with `{ hatch = id }`, every
 hut full, the swap picker: a hint naming the egg's rarity and cost ("Every hut is full. Swap one out for the rare egg
@@ -2101,7 +2103,13 @@ now", `RefreshEggs`) and `TreeQuick` ("Shorten cooldown permanently: R$ …", wh
 right corner while `FreeDecor` isn't owned). The `RefreshEggs` product (`Store.product`) runs the tree's clock out
 (`clutch.left = 0`) so `IslandService.step` lays a fresh lot at its next tick (Fx "eggs"); its `given` is
 `{ kind = "eggs", n }` ("a fresh lot of eggs under the tree"). `StoreUI.eggRows(list, order, w) -> number`
-puts the egg products at the end of another panel's list (the Tree of Life's) and returns the next LayoutOrder. Prices: `GetProductInfoAsync` once per set id
+puts the egg products at the end of another panel's list (the Tree of Life's) and returns the next LayoutOrder.
+`StoreUI.eggKey(r) -> string` (the egg product of rarity r, or the cheapest above it: `EggUncommon` for a common egg)
+and `StoreUI.eggInstead(r)` (the request of 2026-11-18: a tree egg short of shells, "Not enough shells. You can buy
+a rare egg with Robux." on the status line and `StoreUI.buy` of that product; until its id is set, "Not enough shells.
+Eggs for Robux aren't on sale yet."). The tree panel's Hatch calls it before asking when the view's shells fall short,
+and `EggView.hatch` calls `EggView.onShort` (set to it by `Menus.init`) when the server says `money` (the swap
+picker's Swap, a race). Prices: `GetProductInfoAsync` once per set id
 in the background (`PriceInRobux`, the panel refreshed when it lands), else `SuggestedRobux`, written "R$ 399".
 "store": the tabs `Tab_passes`, `Tab_eggs`, `Tab_shop`, `Tab_track` (each a `mini_` icon and its words; the open one
 `button`), then the tab's `List` (scrolling):

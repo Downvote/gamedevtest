@@ -1345,6 +1345,21 @@ do
 	local n0 = #prof.pals
 	res = H.req(p, "egg.hatch", { id = e.id, swap = prof.pals[1].id })
 	H.expect(not res.ok and res.err == "money" and #prof.pals == n0 and eggOf(e.id) ~= nil, "tree", "not enough shells", tostring(res.err))
+	-- the panel's Hatch short of shells goes to the egg for Robux instead (the request of 2026-11-18: "if the player
+	-- dosent have enough shells while buying an egg, make them go to purchasing it with robux instead"); the products
+	-- aren't on sale here, so it says so, and nothing hatches
+	H.push(p, 0.3)
+	H.openPanel(p, "tree")
+	local hb = H.buttonNamed(p, "PanelHatch_" .. e.id, true)
+	H.clickNamed(p, "PanelHatch_" .. e.id, { wait = 0.4, optional = true })
+	local said = ""
+	for _, x in p.PlayerGui:GetDescendants() do
+		if x:IsA("TextLabel") and string.find(x.Text, "shells", 1, true) and string.find(x.Text, "Robux", 1, true) then
+			said = x.Text
+		end
+	end
+	H.expect(#prof.pals == n0 and eggOf(e.id) ~= nil and said ~= "", "tree", "Hatch short of shells: the egg for Robux instead", string.format("%q (button %s, panel %s, view shells %s)", said, tostring(hb ~= nil), tostring(H.currentPanel(p)), tostring(H.view(p).shells)))
+	H.closePanel(p)
 	prof.shells = sh
 	res = H.req(p, "egg.hatch", { id = oldEgg or 424242, swap = prof.pals[1].id })
 	H.expect(not res.ok and res.err == "not_found" and #prof.pals == n0, "tree", "an egg of the lot the new one replaced", string.format("%s (%s)", tostring(res.err), tostring(oldEgg)))

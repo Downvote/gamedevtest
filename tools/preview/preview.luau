@@ -1835,6 +1835,33 @@ function SCEN.build()
 		tapWorld(E.v3(ox + cx + 2, Street.LAWN_Y, oz + cz + 1.5))
 		settle(p, 10, 0.5)
 		capture(p, "build")
+		-- (the camp's rect was cast again where it landed: its shadow's edges against one whole cast, which refines
+		-- every edge; the report of 2026-11-18, "some shadows still appear stepped like this")
+		if PR.debugCastCheck then
+			local c = H.inClient(p, PR.debugCastCheck)
+			log("build cast check: %d of %d static pixels differ from one whole cast (part %d, light %d, shade %d)", c.off, c.checked, c.ids, c.lits, c.shades)
+			-- (a rect cast again on its own, as when a part comes or goes: one building part hidden, its rect and its shadow's
+			-- re-cast, then the same check)
+			local st0 = H.inClient(p, PR.debugStatic)
+			local plotM = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirstChild("Plot_" .. tostring(H.session(p).plot))
+			local hid = 0
+			if plotM then
+				local best, bestV = nil, 0
+				for _, d in plotM:GetDescendants() do
+					if d:IsA("BasePart") and d.Transparency < 0.5 and d.Size.Y > 1 and d.Size.Y < 6 and d.Size.X * d.Size.Z > bestV and d.Size.X * d.Size.Z < 40 and d.Position.Y > Street.LAWN_Y + 1 then
+						best, bestV = d, d.Size.X * d.Size.Z
+					end
+				end
+				if best then
+					H.inClient(p, PR.hideStatic, best)
+					hid = 1
+				end
+			end
+			settle(p, 10, 0.5)
+			local st1 = H.inClient(p, PR.debugStatic)
+			local c2 = H.inClient(p, PR.debugCastCheck)
+			log("build re-cast check (%d part hidden, %d re-casts, %d bakes): %d of %d static pixels differ from one whole cast (part %d, light %d, shade %d)", hid, st1.recasts - st0.recasts, st1.bakes - st0.bakes, c2.off, c2.checked, c2.ids, c2.lits, c2.shades)
+		end
 		tapWorld(E.v3(ox + 0.5, Street.LAWN_Y, oz + 6.5))
 		settle(p, 10, 0.5)
 		capture(p, "build_red")
