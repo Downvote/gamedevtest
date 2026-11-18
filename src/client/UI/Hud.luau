@@ -812,9 +812,15 @@ local TIPS_BUILD: { [number]: string } = {
 	[5] = "Place a Snack Stall. It sells snacks for shells, and your first one is free.",
 }
 
--- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too).
+-- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too), above the
+-- Free Decor tab on the tray's corner while that shows (a phone held upright: the tip runs that far across)
 local function tipsLift(): number
-	return if BuildUI.isOpen() then BuildUI.trayHeight() + 12 else BAR_H + 2 * DOCK + EDGE + 4
+	if BuildUI.isOpen() then
+		local v = StateClient.view()
+		local chip = v ~= nil and not (v.passes and v.passes.FreeDecor)
+		return BuildUI.trayHeight() + (if chip then 18 else 12)
+	end
+	return BAR_H + 2 * DOCK + EDGE + 4
 end
 
 local function updateTips(v: Types.ClientView)
@@ -833,14 +839,17 @@ local function updateTips(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local ok = v.tut == 6
-	-- a glass note; on a phone it keeps to the room left of the island card (two lines if it must), so it never
-	-- covers the card
-	local room = if UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
+	-- a glass note; on a phone held sideways it keeps to the room left of the island card, which runs down the right
+	-- side there, so it never covers the card; on one held upright the card sits at the top, and the note takes the
+	-- width up to the jump button (it had the room left of the card there too, 59 px, and cut its words off after two
+	-- lines: "Shells pay / for..."). As many lines as its words need
+	local portrait = UIKit.phone() and s.Y > s.X
+	local room = if portrait then s.X - 64 elseif UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
 	local want = UIKit.textWidth(text) + (if ok then 40 else 12)
 	local w = math.min(want, room)
-	local lines = if want > w then 2 else 1
+	local lines = math.max(1, UIKit.lines(text, w - (if ok then 36 else 2 * PAD)))
 	local h = 5 + 10 * lines
-	local left = if UIKit.phone() then math.floor((s.X - CARD_W - 12 - w) / 2) else math.floor((s.X - w) / 2)
+	local left = if portrait then 10 elseif UIKit.phone() then math.floor((s.X - CARD_W - 12 - w) / 2) else math.floor((s.X - w) / 2)
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.new(0, left, 1, -tipsLift()), 2)
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "Tips"

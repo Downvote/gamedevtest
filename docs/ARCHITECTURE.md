@@ -1681,7 +1681,9 @@ panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Rewar
 `QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`, kept on the menu bar or the build tray every Heartbeat once its 0.2 s bounce is done, since the tray changes height with no word to the HUD and a correction during the bounce was overwritten by it: the user's report of 2026-11-14, "the tutorial tooltip sometimes gets hidden by the build menu after something is built"; the steps of
 GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
 mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; glass with white words; on a
-phone it keeps to the room left of the island card, wrapping to two lines), and the `DayBanner` (Fx "day" and "turn":
+phone held sideways it keeps to the room left of the island card, on one held upright to the width up to the jump
+button (2026-11-18: it had 59 px there and cut its words off), as many lines as its words need; in Build mode it sits
+over the tray and over the Free Decor tab on its corner while that shows, `tipsLift`), and the `DayBanner` (Fx "day" and "turn":
 the day, what hatched; over a panel or in Build mode a notice instead); Fx "eggs" (`onEggs`): "The Tree of Life has new eggs!" (with `more`, "The tree laid 2 more eggs.") and the `rare`
 sound, or, with an epic or legendary egg among them (or `turned`, the quest's egg, of any rarity: "A rare egg is
 waiting under the tree."), "An epic egg is waiting under the tree." in its rarity's colour, the `grow` sound and a
@@ -1871,7 +1873,9 @@ With a piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.Pix
 `Rotate`, `Place` / `Move here` (on while it fits) and, for a piece picked up off the island, `Copy` (not for the
 tree), `Replace` (when `Plot.replacements` has any) and `Store` ("Put away", greyed for the tree, `Plot.isFixed`),
 then `Cancel`; under them the `Info` plate (its picture, `What` ("Placing: Oak Tree", "Moving: Lumber Camp Lv2"),
-`Blurb` (what it is), the price of a new piece (`Held`, "3 in the inventory", for one waiting there) and, with a
+`Blurb` (what it is), the price of a new piece (`Held`, "3 in the inventory", for one waiting there: right of the
+name, or on a line of its own under it on a narrow plate, a phone held upright, where it ran over the name, 2026-11-18)
+and, with a
 keyboard, `Keys`: "R turns it. E puts it down. Esc stops.", "R turns it. C copies it. X puts it away. Esc puts it
 back." or "Esc stops drawing."), as tall as its
 words, and the tray shrinks to the plate's height so more of the island shows (`trayHeight()`: the tray's height now,

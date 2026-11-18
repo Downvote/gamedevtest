@@ -821,23 +821,32 @@ end
 local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, say: string, showPrice: boolean)
 	local def = Buildings.byId[p.id]
 	local w = f.Size.X.Offset - 8
-	local tw = w - 40 - (if showPrice then 96 else 0)
+	-- (the price sits right of the name; on a narrow plate, a phone held upright, it would run over the name and squeeze
+	-- the words to a word a line, so it goes on a line of its own under the name and the words take the whole width)
+	local narrow = showPrice and (32 + UIKit.textWidth(title) + 4 > w - 92 or w - 40 - 96 < 120)
+	local tw = w - 40 - (if showPrice and not narrow then 96 else 0)
+	local top = if narrow then 24 else 14
 	local nl = math.min(4, UIKit.lines(say, tw))
 	-- (as tall as its words: the tray shrinks to fit it while a piece is picked, so more of the island shows, the way
 	-- a placing bar sits low in Bloxburg)
 	local keyed = UserInputService.KeyboardEnabled
-	local h = math.max(PIC + 8, 14 + nl * 10 + (if keyed then 12 else 0) + 3)
+	local h = math.max(PIC + 8, top + nl * 10 + (if keyed then 12 else 0) + 3)
 	local info = UIKit.row(f, UDim2.new(1, -8, 0, h), UDim2.fromOffset(4, 18))
 	info.Name = "Info"
 	picture(info, p.id, UDim2.fromOffset(4, 4), 4)
 	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
-	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, 14), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
+	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, top), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
 	if def and showPrice then
 		local n = heldOf(v, p.id)
 		if n > 0 then
-			UIKit.text(info, string.format("%d in the inventory", n), UDim2.fromOffset(92, 10), UDim2.fromOffset(math.max(4, w - 92), 4), { x = "right", color = UIKit.color("accent"), z = 4, name = "Held" })
+			local held = string.format("%d in the inventory", n)
+			if narrow then
+				UIKit.text(info, held, UDim2.fromOffset(UIKit.textWidth(held) + 2, 10), UDim2.fromOffset(32, 13), { color = UIKit.color("accent"), z = 4, name = "Held" })
+			else
+				UIKit.text(info, held, UDim2.fromOffset(92, 10), UDim2.fromOffset(math.max(4, w - 92), 4), { x = "right", color = UIKit.color("accent"), z = 4, name = "Held" })
+			end
 		else
-			price(info, math.max(4, w - 92), 3, Plot.price(v, def.id), v)
+			price(info, if narrow then 32 else math.max(4, w - 92), if narrow then 13 else 3, Plot.price(v, def.id), v)
 		end
 	end
 	-- (with a keyboard: its keys, along the bottom)
