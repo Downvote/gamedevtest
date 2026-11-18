@@ -1057,15 +1057,20 @@ local function batWings(sh: Vector3, o: BatO)
 		end
 		local flank = p0 + (out * 0.08 - up * 0.3) * span + V(0, 0, -0.3)
 		J("wing" .. sn .. "2", "wing" .. sn, wrist, "wing", s, 1)
+		-- (the membrane is one skin: each panel's corners ride the arm, the hand or the body, and the rig stretches the
+		-- panel between them as the wing beats, so the fan and the panel back to the flank never part: Kit.tri with
+		-- joints; the request of 2026-11-18, "scorchwing and other bat type creatures have their wing parts seperated")
+		local jA, jH, jB = "wing" .. sn, "wing" .. sn .. "2", "body"
 		if not full() then
-			-- (the islands' wing: the leading finger, the membrane one flat triangle from the wrist out to the finger
-			-- tips and a flat fan back to the flank)
+			-- (the islands' wing: the leading finger, the membrane a flat triangle from the wrist out to the finger
+			-- tips, then back down to the flank)
 			local t1 = wrist + (out * 0.58 + up * 0.12) * span
 			local t3 = wrist + (out * 0.36 - up * 0.66) * span
 			Kit.limb("WingFinger" .. sn, wrist, t1, 0.05 * span, 0.03 * span, o.c)
-			Kit.blade("WingSkin" .. sn, lerp(lerp(t1, t3, 0.5), wrist, 0.1), wrist, (t3 - t1).Magnitude * 0.95, 0.05, nrm, o.mem)
+			Kit.tri("WingSkin" .. sn, wrist, lerp(t1, wrist, 0.05), lerp(t3, wrist, 0.05), 0.05, o.mem, nil, jH, jH, jH)
 			Kit.on("wing" .. sn)
-			Kit.limb("WingSkin" .. sn, lerp(elbow, wrist, 0.5), lerp(t3, flank, 0.45), 0.05 * span, (flank - t3).Magnitude * 0.3, o.mem, 0.12, nrm)
+			Kit.tri("WingSkin" .. sn, wrist, lerp(t3, wrist, 0.05), flank, 0.05, o.mem, nil, jA, jH, jB)
+			Kit.tri("WingSkin" .. sn, lerp(elbow, wrist, 0.5), wrist, flank, 0.05, o.mem, nil, jA, jA, jB)
 			continue
 		end
 		local nf = o.fingers or 3
@@ -1081,16 +1086,22 @@ local function batWings(sh: Vector3, o: BatO)
 				Kit.limb("FingerClaw" .. sn, tip, tip + (tip - wrist).Unit * 0.08 * span, 0.035 * span, 0.01, o.tips)
 			end
 		end
-		-- the membrane panels: flat triangles from the wrist to each pair of finger tips, short of the tips
-		local function panel(a0: Vector3, b0: Vector3, apex: Vector3, col: string)
+		-- the membrane panels: flat triangles from the wrist to each pair of finger tips, short of the tips (the
+		-- scalloped trailing edge), each corner on its bone
+		local function short(a0: Vector3, b0: Vector3, apex: Vector3): (Vector3, Vector3)
 			local mid = lerp(a0, b0, 0.5)
-			Kit.blade("WingSkin" .. sn, lerp(mid, apex, 0.14), apex, (b0 - a0).Magnitude * 0.92, 0.05, nrm, col)
+			return lerp(mid + (a0 - mid) * 0.92, apex, 0.14), lerp(mid + (b0 - mid) * 0.92, apex, 0.14)
 		end
 		for i = 1, nf - 1 do
-			panel(tips[i], tips[i + 1], wrist, if o.edge and i == 1 then o.edge else o.mem)
+			local a1, b1 = short(tips[i], tips[i + 1], wrist)
+			Kit.tri("WingSkin" .. sn, wrist, a1, b1, 0.05, if o.edge and i == 1 then o.edge else o.mem, nil, jH, jH, jH)
 		end
 		Kit.on("wing" .. sn)
-		panel(tips[nf], flank, lerp(elbow, wrist, 0.4), o.mem)
+		-- the last panel back down to the flank, and the sliver between it and the fan at the wrist
+		local apex = lerp(elbow, wrist, 0.4)
+		local tn, fl = short(tips[nf], flank, apex)
+		Kit.tri("WingSkin" .. sn, tn, fl, apex, 0.05, o.mem, nil, jH, jB, jA)
+		Kit.tri("WingSkin" .. sn, wrist, tn, apex, 0.05, o.mem, nil, jA, jH, jA)
 		-- the thumb's claw at the wrist, hooked forward
 		Kit.limb("Thumb" .. sn, wrist, wrist + (up * 0.08 + nrm * 0.1) * span, 0.045 * span, 0.012, o.claw, nil, nil, true)
 	end

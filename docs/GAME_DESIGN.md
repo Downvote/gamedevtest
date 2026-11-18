@@ -1403,7 +1403,10 @@ skeleton so every animation still fits: the snail a round shell standing on edge
 and a frilled foot; the crab a wide low shell with a pale underside, teeth, knuckled claws and ringed eye stalks; the
 turtle rim plates with growth rings, a hooked beak and scaled legs; the jelly a flared, frilled bell with fine
 tentacles; the moth fanned wings with veins, eye spots and feathery antennae; the bat notched wings with knuckles and
-a nose leaf; the drake flat spikes down its back, throat plates and bent legs; the wyrm banded coils, a ridge of
+a nose leaf (each wing one skin: the request of 2026-11-18, "scorchwing and other bat type creatures have their wing
+parts seperated instead of being one whole wing while they are flapping"; the membrane stretches between the arm, the
+fingers and the flank as the wing beats, and so does a drake's); the drake flat spikes down its back, throat plates and
+bent legs; the wyrm banded coils, a ridge of
 spikes and neck fins; the pup round cone ears, cheek fluff and paw pads; the mole a star nose and fanned claws; the
 yeti shaggy locks hanging in tiers; the seal paddle flippers and fanned hind flippers; the stone golem pebbles, moss
 with flowers or glowing cracks by kind; the blob moss and a tiny mushroom; the bun a bent ear and a cream belly. The

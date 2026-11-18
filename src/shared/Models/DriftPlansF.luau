@@ -90,38 +90,7 @@ local function turn(d: Vector3, yaw: number, pitch: number): Vector3
 	return (CFrame.fromAxisAngle(across.Unit, R(-pitch))):VectorToWorldSpace(h).Unit
 end
 
--- One flat right triangle (a single wedge): `sharp` its pointed corner, `corner` the square one, `top` the third.
-local function wedge(name: string, sharp: Vector3, corner: Vector3, top: Vector3, th: number, color: string, neon: boolean?): BasePart?
-	local z = corner - sharp
-	local L = z.Magnitude
-	if L < 0.03 then
-		return nil
-	end
-	local zu = z.Unit
-	local yv = top - corner
-	yv -= zu * yv:Dot(zu)
-	local H = yv.Magnitude
-	if H < 0.03 then
-		return nil
-	end
-	local yu = yv.Unit
-	local Ls, Hs = Kit.fine(L), Kit.fine(H)
-	return Kit.part(name, "Wedge", V(th, Hs, Ls), CFrame.fromMatrix(sharp + zu * (Ls / 2) + yu * (Hs / 2), yu:Cross(zu), yu, zu), color, neon)
-end
-
--- A flat triangle a, b, c (a membrane's panel): two right wedges meeting along its height onto its longest side.
-local function tri(name: string, a: Vector3, b: Vector3, c: Vector3, th: number, color: string, neon: boolean?)
-	local ab, ac, bc = (b - a).Magnitude, (c - a).Magnitude, (c - b).Magnitude
-	if ab >= ac and ab >= bc then
-		a, c = c, a
-	elseif ac >= ab and ac >= bc then
-		a, b = b, a
-	end
-	local u = (c - b).Unit
-	local d = b + u * (a - b):Dot(u)
-	wedge(name, b, d, a, th, color, neon)
-	wedge(name, c, d, a, th, color, neon)
-end
+-- (a membrane's flat triangle: Kit.tri, which with joints for its corners stretches as the wing bends)
 
 ------------------------------------------------------------------ bird parts (birds, owls, penguins, ducks)
 -- A bird's leg on its own joint: the feathered drumstick from the hip down and back to the heel, a bare stretch of
@@ -1562,19 +1531,22 @@ PLANS.bat = function(b, a, form)
 		end
 		J("wing" .. s, "body", Sh, "wing", side)
 		local inner = f.mem1 or mem
+		-- (the membrane is one skin: each panel's corners ride the arm, the hand or the body, and the rig stretches
+		-- the panel between them as the wing beats, so no panel parts from the next: Kit.tri with joints)
+		local jA, jH, jB = "wing" .. s, "wing" .. s .. "2", "body"
 		if full() then
 			Kit.limb("Arm" .. s, Sh, E, 0.085, 0.065, b)
 			Kit.limb("Arm" .. s, E, Wr, 0.065, 0.05, b)
-			tri("Membrane" .. s, Sh, E, Wr, 0.05, inner)
-			tri("Membrane" .. s, Sh, E, Bd, 0.05, inner)
-			tri("Membrane" .. s, E, Wr, Bd, 0.05, inner)
+			Kit.tri("Membrane" .. s, Sh, E, Wr, 0.05, inner, nil, jA, jA, jA)
+			Kit.tri("Membrane" .. s, Sh, E, Bd, 0.05, inner, nil, jA, jA, jB)
+			Kit.tri("Membrane" .. s, E, Wr, Bd, 0.05, inner, nil, jA, jA, jB)
 			local m5 = dip(F5, Bd, f.scallop or 0.2)
-			tri("Membrane" .. s, Wr, F5, m5, 0.05, inner)
-			tri("Membrane" .. s, Wr, m5, Bd, 0.05, inner)
+			Kit.tri("Membrane" .. s, Wr, F5, m5, 0.05, inner, nil, jA, jH, jA)
+			Kit.tri("Membrane" .. s, Wr, m5, Bd, 0.05, inner, nil, jA, jA, jB)
 		else
 			Kit.limb("Arm" .. s, Sh, Wr, 0.08, 0.05, b)
-			tri("Membrane" .. s, Sh, Wr, Bd, 0.05, inner)
-			tri("Membrane" .. s, Wr, F5, Bd, 0.05, inner)
+			Kit.tri("Membrane" .. s, Sh, Wr, Bd, 0.05, inner, nil, jA, jA, jB)
+			Kit.tri("Membrane" .. s, Wr, F5, Bd, 0.05, inner, nil, jA, jH, jB)
 		end
 		J("wing" .. s .. "2", "wing" .. s, Wr, "wing", side, 1)
 		local outer = f.mem2 or mem
@@ -1588,13 +1560,13 @@ PLANS.bat = function(b, a, form)
 			Kit.limb("Thumb" .. s, Wr, Wr + P(0.04, 0.14, 0.08), 0.04, 0.015, f.claw or "black")
 			local m45 = dip(F5, F4, f.scallop or 0.2)
 			local m34 = dip(F4, F3, f.scallop or 0.2)
-			tri("Membrane" .. s, Wr, F5, m45, 0.05, outer)
-			tri("Membrane" .. s, Wr, m45, F4, 0.05, outer)
-			tri("Membrane" .. s, Wr, F4, m34, 0.05, tipC)
-			tri("Membrane" .. s, Wr, m34, F3, 0.05, tipC)
+			Kit.tri("Membrane" .. s, Wr, F5, m45, 0.05, outer, nil, jH, jH, jH)
+			Kit.tri("Membrane" .. s, Wr, m45, F4, 0.05, outer, nil, jH, jH, jH)
+			Kit.tri("Membrane" .. s, Wr, F4, m34, 0.05, tipC, nil, jH, jH, jH)
+			Kit.tri("Membrane" .. s, Wr, m34, F3, 0.05, tipC, nil, jH, jH, jH)
 		else
-			tri("Membrane" .. s, Wr, F5, F4, 0.05, outer)
-			tri("Membrane" .. s, Wr, F4, F3, 0.05, tipC)
+			Kit.tri("Membrane" .. s, Wr, F5, F4, 0.05, outer, nil, jH, jH, jH)
+			Kit.tri("Membrane" .. s, Wr, F4, F3, 0.05, tipC, nil, jH, jH, jH)
 		end
 		-- the marks on the membrane (thicker than it, so they show from both sides)
 		local n = (F3 - Wr):Cross(F5 - Wr).Unit

@@ -92,8 +92,11 @@ export type Skin = {
 	shine: boolean,
 	blink: string?, -- an old-style "eye" or "mouth" part that changes size
 	size: Vector3,
+	mem: boolean?, -- half of a stretched panel (Kit.tri with joints): placed and sized by its membrane, not its bone
 }
-export type Skel = { bones: { Bone }, skins: { Skin }, root: number, ground: boolean, tempo: number, seed: number, full: boolean }
+-- A stretched panel (DriftKit's Membrane): its corners in rest space and the bone each rides, its wedges.
+type MemSkin = { a: Vector3, b: Vector3, c: Vector3, ba: number, bb: number, bc: number, n1: string?, n2: string?, p1: BasePart?, p2: BasePart?, th: number }
+export type Skel = { bones: { Bone }, skins: { Skin }, mem: { MemSkin }, root: number, ground: boolean, tempo: number, seed: number, full: boolean }
 type State = {
 	mood: string,
 	moodAt: number,
@@ -230,10 +233,41 @@ function Rig.skeleton(t: Kit.Thing): Skel
 			size = size,
 		})
 	end
+	-- the stretched panels: each corner on its joint's bone
+	local mems: { MemSkin } = {}
+	local memOf: { [string]: boolean } = {}
+	local declared: { Kit.Membrane } = rig.mem or {}
+	for _, m in declared do
+		table.insert(mems, {
+			a = m.a,
+			b = m.b,
+			c = m.c,
+			ba = index[m.ja] or root,
+			bb = index[m.jb] or root,
+			bc = index[m.jc] or root,
+			n1 = m.w1,
+			n2 = m.w2,
+			p1 = if m.w1 then t.parts[m.w1] else nil,
+			p2 = if m.w2 then t.parts[m.w2] else nil,
+			th = m.th,
+		})
+		if m.w1 then
+			memOf[m.w1] = true
+		end
+		if m.w2 then
+			memOf[m.w2] = true
+		end
+	end
+	for _, s in skins do
+		if memOf[s.name] then
+			s.mem = true
+		end
+	end
 	made += 1
 	local sk: Skel = {
 		bones = bones,
 		skins = skins,
+		mem = mems,
 		root = root,
 		ground = rig.gait ~= "fly",
 		-- (a bigger driftling moves a little slower: timing)
@@ -413,6 +447,47 @@ function Rig.animate(t: Kit.Thing, time: number, mood: string, k: number?, sc: V
 		end
 		rest[s.name] = CFrame.new(pos * sc) * rr.Rotation
 	end
+	-- the stretched panels: each corner where its bone puts it (stretched and squashed as a part's centre is), the two
+	-- wedges built again between them, so a wing's panels stay joined however its bones bend (the request of
+	-- 2026-11-18: "scorchwing and other bat type creatures have their wing parts seperated instead of being one whole
+	-- wing while they are flapping")
+	if #sk.mem > 0 then
+		local function corner(v: Vector3, bi: number): Vector3
+			local pos = world[bi] * v
+			local bsq = sqs[bi]
+			if bi ~= root and bsq ~= 1 then
+				local b, Wb = bones[bi], world[bi]
+				pos = stretchAt(pos, Wb * b.pivot, Wb:VectorToWorldSpace(b.axis), bsq)
+			end
+			if gsq ~= 1 then
+				pos = Vector3.new(pos.X * inv, gy0 + (pos.Y - gy0) * gsq, pos.Z * inv)
+			end
+			return pos * sc
+		end
+		for _, m in sk.mem do
+			local a, b, c = corner(m.a, m.ba), corner(m.b, m.bb), corner(m.c, m.bc)
+			local bcv = c - b
+			local len = bcv.Magnitude
+			if len < 1e-4 then
+				continue
+			end
+			local u = bcv / len
+			local d = b + u * math.clamp((a - b):Dot(u), 0, len)
+			for half = 1, 2 do
+				local name = if half == 1 then m.n1 else m.n2
+				local part = if half == 1 then m.p1 else m.p2
+				if name and part then
+					local cf, size = Kit.wedgeFrame(if half == 1 then b else c, d, a, m.th, false)
+					if cf then
+						rest[name] = cf
+						if part.Size ~= size then
+							part.Size = size
+						end
+					end
+				end
+			end
+		end
+	end
 	-- the sizes: up close they squash with the body (in steps, written only when they change); an old-style eye or
 	-- mouth part shrinks to blink and grows to open
 	local q = if sk.full then 1 + math.floor((gsq - 1) / SIZE_STEP + 0.5) * SIZE_STEP else 1
@@ -420,7 +495,7 @@ function Rig.animate(t: Kit.Thing, time: number, mood: string, k: number?, sc: V
 	st.sizeQ = q
 	local qi = 1 / math.sqrt(q)
 	for _, s in sk.skins do
-		if resize or s.blink then
+		if (resize or s.blink) and not s.mem then
 			local b = s.size
 			local sx, sy, sz = b.X * sc.X, b.Y * sc.Y, b.Z * sc.Z
 			if s.blink == "eye" and shut then

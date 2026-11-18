@@ -555,7 +555,11 @@ Models (`src/shared/Models`, Roblox modules):
   reference other models online to see how you should model them"): the body parts the plans are sculpted from, on the
   kit's smooth solids (`Kit.ell`, `Kit.egg`, `Kit.limb` (a tapered limb from a to b, radii ra and rb, `flat` squashing
   its cross-section toward `flatN`), `Kit.limbs` (a chain along a Catmull-Rom curve; on the islands half the links, at
-  least two), `Kit.faceOn` / `faceOff` / `onEll` / `onFace`: the face's surface an ellipsoid). `A.body(name, c, d, len,
+  least two), `Kit.tri(name, a, b, c, th, color, neon?, ja?, jb?, jc?)` (a flat triangle as two right wedges onto its
+  longest side, `Kit.wedgeFrame(sharp, corner, top, th, snap)` each; with a joint for each corner it is a `Membrane` on
+  `Rig.mem`, `{ a, b, c, ja, jb, jc, w1, w2, th }`, stretched by DriftRig as the joints move: the bats' and the drakes'
+  wing membranes, the request of 2026-11-18, "scorchwing and other bat type creatures have their wing parts seperated
+  instead of being one whole wing while they are flapping"), `Kit.faceOn` / `faceOff` / `onEll` / `onFace`: the face's surface an ellipsoid). `A.body(name, c, d, len,
   wide, tall, split, color) -> (part, Mass)` (an egg lying along d, the hips its narrow end), `A.blob`, `A.patch(name,
   mass, d, shrink, out, color)` (a smaller copy pushed out toward d: a cap of colour curved with the body), `A.on`,
   `A.reach`; `A.leg(n, side, phase, hip, opts)` (its joint and a "fore" leg down to a wrist, a "hind" one forward to
@@ -635,7 +639,11 @@ Models (`src/shared/Models`, Roblox modules):
   `world[b2] * r0` by `w`), stretched with its bone along its axis (volume kept), and everything squashed by the body
   bone's stretch from the ground (y 0; a flyer about its body's pivot), x and z by 1 / sqrt. Up close (`full`) the
   parts' sizes follow the body's squash in `SIZE_STEP` 0.05 steps, written only when they change; on the islands
-  ("world") only positions squash. Face parts tuck as before. `stretchAt(p, o, axis, s)`, `stats(t) -> { bones,
+  ("world") only positions squash. Face parts tuck as before. Then the membranes (`Skel.mem`): each corner where its
+  joint's bone puts it (stretched and squashed as a part's centre is), the triangle's foot on its longest side found
+  again, and its two wedges' frames and sizes written afresh (their skins marked `mem`, left out of the size step), so
+  a wing's panels on the arm, the hand and the body stay joined edge to edge however the wrist bends. Before, each
+  panel rode one bone whole and the ones crossing the wrist parted from the hand's. `stretchAt(p, o, axis, s)`, `stats(t) -> { bones,
   springs, parts, shared }`, `debugSprings(t)` (each spring's turn, degrees: the previews).
 - `DriftMotion` (pure, no instances; tests/specs/DriftMotion.spec.luau): `ease(id, x)` (`LINEAR SMOOTH OUT IN BACK
   HOLD`), `track(keys, u)` (keys `{ u, value, ease }`), the key sets `JUMP` (ty, sq, rx, leg: crouch, push off, the

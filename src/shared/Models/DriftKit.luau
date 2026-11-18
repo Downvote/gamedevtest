@@ -36,7 +36,13 @@ export type Rig = {
 	placed: CFrame?, -- where MicroModels.place last put it (the springs feel its movement)
 	style: string?, -- its manner (Models/DriftMotion: its plan's own idle acts and carriage), the plan's name unless its
 	-- species' form names another
+	mem: { Membrane }?, -- its stretched panels (Kit.tri with joints: a bat's wing)
 }
+-- A flat triangle whose corners each ride a joint (Kit.tri): the rig builds its two wedges again every frame between
+-- where its corners are, so the panels of a wing stretch as it bends and never part. `a` the corner over the longest
+-- side, `b` and `c` that side's ends (rest space), `ja`, `jb`, `jc` their joints, `w1` / `w2` the wedges' part names
+-- (b's half and c's half; nil when too thin to build), `th` the thickness.
+export type Membrane = { a: Vector3, b: Vector3, c: Vector3, ja: string, jb: string, jc: string, w1: string?, w2: string?, th: number }
 export type Thing = {
 	model: Model,
 	parts: { [string]: BasePart },
@@ -157,6 +163,54 @@ function Kit.part(name: string, shape: string, size: Vector3, cf: CFrame, color:
 	t.colors[n] = p.Color
 	;(t.rig :: Rig).of[n] = curJoint
 	return p
+end
+
+-- A right wedge from its sharp corner along to its square corner, up to `top` (the halves of Kit.tri): its centre frame
+-- and size, or nil when it is too thin. (fine: its sides on the fine grid, as a built part's; else exact, as the rig's
+-- frame by frame)
+function Kit.wedgeFrame(sharp: Vector3, corner: Vector3, top: Vector3, th: number, snap: boolean): (CFrame?, Vector3)
+	local z = corner - sharp
+	local L = z.Magnitude
+	if L < 0.03 then
+		return nil, Vector3.zero
+	end
+	local zu = z.Unit
+	local yv = top - corner
+	yv -= zu * yv:Dot(zu)
+	local H = yv.Magnitude
+	if H < 0.03 then
+		return nil, Vector3.zero
+	end
+	local yu = yv.Unit
+	local Ls, Hs = if snap then fine(L) else L, if snap then fine(H) else H
+	return CFrame.fromMatrix(sharp + zu * (Ls / 2) + yu * (Hs / 2), yu:Cross(zu), yu, zu), V(th, Hs, Ls)
+end
+
+-- A flat triangle a, b, c (a membrane's panel): two right wedges meeting along its height onto its longest side. With
+-- joints for its corners (ja, jb, jc) it stretches with them (Kit.Membrane: the request of 2026-11-18, "scorchwing and
+-- other bat type creatures have their wing parts seperated instead of being one whole wing while they are flapping");
+-- without, both halves ride the current joint like any part.
+function Kit.tri(name: string, a: Vector3, b: Vector3, c: Vector3, th: number, color: string, neon: boolean?, ja: string?, jb: string?, jc: string?)
+	local ab, ac, bc = (b - a).Magnitude, (c - a).Magnitude, (c - b).Magnitude
+	if ab >= ac and ab >= bc then
+		a, c = c, a
+		ja, jc = jc, ja
+	elseif ac >= ab and ac >= bc then
+		a, b = b, a
+		ja, jb = jb, ja
+	end
+	local u = (c - b).Unit
+	local d = b + u * (a - b):Dot(u)
+	local cf1, s1 = Kit.wedgeFrame(b, d, a, th, true)
+	local cf2, s2 = Kit.wedgeFrame(c, d, a, th, true)
+	local w1 = if cf1 then Kit.part(name, "Wedge", s1, cf1, color, neon) else nil
+	local w2 = if cf2 then Kit.part(name, "Wedge", s2, cf2, color, neon) else nil
+	if ja and jb and jc and (w1 or w2) then
+		local rig = (cur :: Thing).rig :: Rig
+		local list = rig.mem or {}
+		rig.mem = list
+		table.insert(list, { a = a, b = b, c = c, ja = ja, jb = jb, jc = jc, w1 = if w1 then w1.Name else nil, w2 = if w2 then w2.Name else nil, th = th })
+	end
 end
 
 -- The old form: a part centred at `at`, turned by `rot` about its centre.
