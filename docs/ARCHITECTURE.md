@@ -1026,6 +1026,13 @@ On a view with `clear` the pixels its rays miss are 0 (alpha 0) and the grade an
 the layer shows round the stage (`UI/HatchBackdrop`, a ScreenGui at `PixelDisplayOrder` - 2, its sky life at - 1).
 On a view with `empty` (`Stage.empty`, the hatch scene's) nothing is cast: the static picture is cleared (no colour,
 far depth, no ids) and finished at once, so the first picture is there on the next frame with only the moving things.
+When a stage takes the view, the island's finished picture is kept (the stash: its buffers, its id tables and the rects
+still to cast again on it) and comes back the moment the island's view does. One kept while a re-bake ran behind it or
+was due, or with a part come or gone since (`dirty`), still comes back at once and is baked again behind itself; an
+armed growth waits for that bake and grows out of it. (The report of 2026-11-18: "a glitch happens when expanding and
+then immediately hatching somthing after, which causes the filter to be disabled". Such a picture used to be dropped,
+so the island came back to a bake from nothing with the hatch scene's last frame left over the 3D world meanwhile.)
+Back from a stage with nothing kept (the screen changed size), the layer stays hidden until its bake fades in.
 `watchStage(root)` (unused now: a stage's static parts that come or go while it is in view re-cast their rects; a rect over one
 already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
@@ -1033,8 +1040,8 @@ hundreds of boxes, re-casts its union once instead of re-baking the whole pictur
 when none is coming or the filter is off),
 the island growing (GAME_DESIGN 4.4, `Pixel/Grow`): `growNext(plot?, from?, to?)` (Build mode's Expand arms it before it
 asks the server, nil disarms; while armed any change to the parts under Workspace.Plots re-bakes the layer whole behind
-the picture; the arm lapses after `GrowArmSecs` if no bake has begun, or once one under way is done with nothing
-grown), `growing() -> (on, e)` (armed or under way, and the moving coast's eased progress 0 .. 1), `growFront() -> {
+the picture; the arm lapses after `GrowArmSecs` if no bake has begun, is due or waits in a dirty stash, or once one
+under way is done with nothing grown), `growing() -> (on, e)` (armed or under way, and the moving coast's eased progress 0 .. 1), `growFront() -> {
 Vector3 }` (the world points the moving foam reached since the last call), `afterGrow(fn)` (fn runs when the growth ends,
 lapses or is cut short, at once when none is armed or under way: Build mode's cheer), `growStats() -> { count, active,
 changed, pending, fresh }`. The back bake's swap (`finishBake`) keeps the replaced picture's buffers and id tables
@@ -1047,7 +1054,7 @@ art pixel under an InputObject's Position, as `projectPixel` gives them), `scree
 direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `nearScreen(world,
 pad) -> boolean` (whether a world point lies on the layer or within `pad` art px of it: Controllers/WorldView dresses
 and undresses the driftlings by it, Controllers/Spinners turns only the sails near the screen), `debugStatic()`
-(CLI checks: layer, pan, bakes, ticks, `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`,
+(CLI checks: layer, pan, bakes, ticks, `baking` and `behind` (a bake behind the picture), `scrolls`, `scrollRays`, `recasts`, `queued`), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
   art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's

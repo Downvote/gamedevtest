@@ -266,13 +266,16 @@ local function staticChanged()
 	stickLive = 0
 end
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
--- the street's finished picture, kept while a microgame's stage has the view (restored when its key comes back)
-type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, texs: Texs, nextId: number, dirty: boolean }
-local stash: Stash? = nil
-
 -- invalidated rects in global art px, and the one being re-cast (its cursor: phase 1 anchors, phase 2 the rest)
+type InvCur = { r: Rect, phase: number, gx: number, gy: number }
 local invQueue: { Rect } = {}
-local invCur: { r: Rect, phase: number, gx: number, gy: number }? = nil
+local invCur: InvCur? = nil
+
+-- the island's finished picture, kept while a stage (the hatch scene's) has the view and put back when its key comes
+-- back; `dirty`: out of date (a bake was going on behind it or was due, or a part came or went meanwhile), so it is
+-- baked again behind the picture then; `inv`, `cur`: the rects still to cast again on it
+type Stash = { key: string, surf: Surf, ids: { [Instance]: number }, albedos: { [number]: number }, waters: { [number]: number }, texs: Texs, nextId: number, dirty: boolean, inv: { Rect }, cur: InvCur? }
+local stash: Stash? = nil
 
 -- what the bake's rays never see: the crew's rigs and every player's character
 local excluded: { Instance } = {}
@@ -1667,20 +1670,26 @@ local function buildSurf(v: CameraController.View)
 	end
 	SG.windVoid = true
 	table.clear(SG.windPend)
-	if old and not baking and not old.view.stage and v.stage then
-		-- a stage takes the view: keep the street's finished picture
-		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), texs = table.clone(texs), nextId = nextId, dirty = false }
+	if old and old.ready and not old.view.stage and v.stage then
+		-- a stage takes the view: keep the island's finished picture. The report of 2026-11-18, "a glitch happens
+		-- when expanding and then immediately hatching somthing after, which causes the filter to be disabled": a
+		-- picture with a re-bake going on behind it (or one due) was dropped, so the island came back to a bake from
+		-- nothing, the scene's last frame left over the world meanwhile. It is kept too now, out of date. (The id
+		-- tables here are always the picture's: a bake behind swaps its own in only inside bakeSome.)
+		local due = baking or rebakeAt >= 0
+		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), texs = table.clone(texs), nextId = nextId, dirty = due, inv = invQueue, cur = invCur }
+		rebakeAt = -1 -- (the island's re-bake waits for the island; the stage bakes its own picture now)
 	end
 	local st = stash
 	if st and not v.stage then
 		stash = nil
-		if st.key == v.key and not st.dirty and img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H then
+		if st.key == v.key and img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H then
 			surf = st.surf
 			staticIds, albedos, waters, texs, nextId = st.ids, st.albedos, st.waters, st.texs, st.nextId
 			baking = false
 			back, backTabs = nil, nil
-			invQueue = {}
-			invCur = nil
+			invQueue = if st.dirty then {} else st.inv
+			invCur = if st.dirty then nil else st.cur
 			prevRects = {}
 			needFull = true
 			SG.ok = false
@@ -1691,6 +1700,12 @@ local function buildSurf(v: CameraController.View)
 			if image then
 				image.Visible = true
 				image.ImageTransparency = 0
+			end
+			if st.dirty then
+				-- (on screen at once, baked again behind it; an expansion armed meanwhile grows out of it when that
+				-- is done)
+				rush = true
+				startBake()
 			end
 			return
 		end
@@ -1718,6 +1733,12 @@ local function buildSurf(v: CameraController.View)
 	end
 	im.Size = UDim2.fromOffset(W * K, H * K)
 	im.Visible = true
+	if old and old.view.stage and not v.stage then
+		-- back from a stage with no picture kept (the screen changed size meanwhile): the stage's last frame must not
+		-- stay over the world while the island bakes; the new picture fades in when it is done
+		shown = false
+		im.ImageTransparency = 1
+	end
 	local px, py = CameraController.pan()
 	local cam = Raster.gridCam(v.rot12, CameraController.gridAt(px, py), v.fullX, v.fullY, K, Tuning.CamRayBack)
 	local n = W * H
@@ -4938,8 +4959,11 @@ function PixelRenderer.growNext(plot: Vector3?, from: number?, to: number?)
 		if growArm ~= arm then
 			return
 		end
-		if baking or rebakeAt >= 0 then
-			task.delay(0.5, lapse) -- (its bake is under way: it starts when that is done)
+		local st = stash
+		if baking or rebakeAt >= 0 or (st ~= nil and st.dirty) then
+			-- (its bake is under way, due, or waits for the island's view to come back from a stage: it starts when
+			-- that is done)
+			task.delay(0.5, lapse)
 			return
 		end
 		-- (no bake came for it: nothing will grow, whoever waits goes on)
@@ -5368,7 +5392,7 @@ function PixelRenderer.debugGrade(): string
 end
 
 -- CLI checks only: the layer, its bake and what the ticks cost.
-function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number, px: number, py: number, scrolls: number, scrollRays: number, recasts: number, queued: number }
+function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, behind: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number, px: number, py: number, scrolls: number, scrollRays: number, recasts: number, queued: number }
 	local s = surf
 	local n = 0
 	for _ in dyns do
@@ -5379,6 +5403,7 @@ function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking:
 		H = if s then s.H else 0,
 		K = if s then s.K else 0,
 		baking = baking,
+		behind = back ~= nil,
 		shown = shown,
 		color = if s then s.frame.color else nil,
 		rays = bakeRays,

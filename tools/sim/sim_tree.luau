@@ -1456,6 +1456,80 @@ drawnCheck(p, sq, "first, the neighbour's after its hatch")
 H.checkProfile(q, "neighbour")
 H.checkMirror(q, "neighbour")
 eggMirror(q, "neighbour")
+
+------------------------------------------------------------------ 14. expanding, then hatching at once: the filter stays on
+-- The report of 2026-11-18: "a glitch happens when expanding and then immediately hatching somthing after, which causes
+-- the filter to be disabled". The island grows (the growth armed the way Build mode's Expand arms it) and a hatch scene
+-- opens while the bigger island still bakes behind the picture. When the scene ends, the island's picture is on screen
+-- at once with the bake going on behind it, never a bake from nothing with the scene's last frame left over the world,
+-- and the new land grows out of the old after.
+E.phase = "expand+hatch"
+do
+	local PS = H.smod("PlotService")
+	E.runUntil(function()
+		return select(2, PS.debugNext(s.plot)) == true
+	end, 20, 0.2)
+	local tier0 = prof.tier
+	local cost = Island.expandCost(tier0)
+	prof.shells = math.max(prof.shells, (if cost then cost.shells else 0) + 1000)
+	H.push(p, 0.3)
+	local PR = C.PR
+	-- (the pixel filter on for it through the setting, so the expansion's view keeps it; its first picture of the
+	-- island waited for)
+	E.editableImageMode = "ok"
+	H.req(p, "settings.set", { k = "pixel", v = "low" })
+	local first = E.runUntil(function()
+		return H.inClient(p, PR.firstPicture) == true and not H.inClient(p, PR.debugStatic).baking
+	end, 120, 0.1)
+	H.expect(first and H.inClient(p, PR.isActive), "expand+hatch", "(the pixel filter on, the island's first picture up)")
+	local grows0 = H.inClient(p, PR.growStats).count
+	local ox, oz = Street.origin(s.plot)
+	H.inClient(p, PR.growNext, E.v3(ox, 0, oz), tier0, tier0 + 1)
+	res = H.req(p, "island.expand", {})
+	H.expect(res.ok and prof.tier == tier0 + 1, "expand+hatch", "the island grows", string.format("%s, tier %d", tostring(res.err), prof.tier))
+	local under = E.runUntil(function()
+		return H.inClient(p, PR.debugStatic).baking
+	end, 5, 0.05)
+	local st0 = H.inClient(p, PR.debugStatic)
+	H.expect(under and st0.behind, "expand+hatch", "the bigger island bakes behind the picture", string.format("baking %s, behind %s", tostring(st0.baking), tostring(st0.behind)))
+	H.inClient(p, C.HS.setQuick, false)
+	H.inClient(p, function()
+		C.HS.play({ sp = "mossbun", muts = {}, r = 1, hr = 1, new = false }, nil)
+	end)
+	E.run(0.4)
+	local CCp = H.cmod(p, "Controllers.CameraController")
+	H.expect(H.inClient(p, C.HS.isOpen) and H.inClient(p, CCp.stage) ~= nil, "expand+hatch", "a hatch scene opens meanwhile (its stage has the view)")
+	local taps = 0
+	while taps < 80 and H.inClient(p, C.HS.isOpen) do
+		H.inClient(p, C.HS.skip)
+		E.run(0.25)
+		taps += 1
+	end
+	local layer = p.PlayerGui:FindFirstChild("PixelLayer")
+	local im = layer and layer:FindFirstChild("Image")
+	local st1 = H.inClient(p, PR.debugStatic)
+	local onScreen = im ~= nil and im.Visible and im.ImageTransparency == 0 and st1.shown
+	H.expect(not H.inClient(p, C.HS.isOpen) and H.inClient(p, PR.isActive) and onScreen and (st1.behind or not st1.baking), "expand+hatch", "the scene ends: the island's picture is back at once, the bake going on behind it", string.format("%d taps, filter %s, image %s/%s, baking %s behind %s", taps, tostring(H.inClient(p, PR.isActive)), tostring(im and im.Visible), tostring(im and im.ImageTransparency), tostring(st1.baking), tostring(st1.behind)))
+	local blank, waited = 0, 0
+	while waited < 240 do
+		local st = H.inClient(p, PR.debugStatic)
+		if st.baking and not st.behind then
+			blank += 1
+		end
+		if not st.baking and not (H.inClient(p, PR.growing)) then
+			break
+		end
+		E.run(0.05)
+		waited += 0.05
+	end
+	local gs = H.inClient(p, PR.growStats)
+	H.expect(blank == 0 and gs.count == grows0 + 1 and not gs.active, "expand+hatch", "then the bigger island grows out of the old, no moment without a picture", string.format("growths %d -> %d after %.2f s, %d frames with nothing behind the bake", grows0, gs.count, waited, blank))
+	H.inClient(p, C.HS.setQuick, true)
+	-- (the classic look again)
+	E.editableImageMode = "fail"
+	H.req(p, "settings.set", { k = "pixel", v = "high" })
+	H.inClient(p, PR.setTier, "off")
+end
 checks("end")
 
 report(E, H)

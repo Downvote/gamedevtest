@@ -2349,6 +2349,62 @@ function SCEN.expand()
 		log("build: the founder walked %.1f studs; the view moved from (%d, %d) to (%d, %d); still free %s, drag %d %d", math.sqrt((24 * 0.35) ^ 2 + (24 * 0.25) ^ 2), px0, py0, px1, py1, tostring(CC.isFree()), dx, dy)
 		capture(p, "build_walk")
 	end
+	-- the report of 2026-11-18: "a glitch happens when expanding and then immediately hatching somthing after, which
+	-- causes the filter to be disabled". Expand again and open a hatch while the bigger island still bakes behind
+	-- the picture: the island's picture must come back the moment the scene ends (kept while the scene had the view,
+	-- the bake going on behind it), then the island grows as before (expand_hatch with the scene up, expand_hatch_back
+	-- two frames after it ends, expand_hatch_grown once it has grown)
+	local HS = modOr(p, "UI.HatchScene")
+	local g3 = 0
+	while not select(2, PS.debugNext(1)) and g3 < 400 do
+		g3 += 1
+		E.step(E.dt)
+	end
+	local tier0 = H.profile(p).tier
+	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+	local k = 0
+	while k < 600 and not PR.debugStatic().baking do
+		E.step(E.dt)
+		k += 1
+	end
+	local st0 = PR.debugStatic()
+	log("expand+hatch: tier %d -> %d; the re-bake under way %s (behind the picture %s) %d frames after Expand", tier0, H.profile(p).tier, tostring(st0.baking), tostring(st0.behind), k)
+	if HS then
+		H.inClient(p, function()
+			HS.play({ sp = "mossbun", muts = {}, r = 1, hr = 1, new = false }, nil)
+		end)
+		E.run(0.6)
+		capture(p, "expand_hatch")
+		local taps = 0
+		while taps < 80 and H.inClient(p, HS.isOpen) do
+			H.inClient(p, HS.skip)
+			E.run(0.25)
+			taps += 1
+		end
+		local layer = p.PlayerGui:FindFirstChild("PixelLayer")
+		local im = layer and layer:FindFirstChild("Image")
+		local function pic()
+			local st = PR.debugStatic()
+			return string.format("baking %s behind %s shown %s image %s/%.2f", tostring(st.baking), tostring(st.behind), tostring(st.shown), tostring(im and im.Visible), im and im.ImageTransparency or -1)
+		end
+		log("expand+hatch: the scene closed after %d taps (open %s): %s", taps, tostring(H.inClient(p, HS.isOpen)), pic())
+		E.step(E.dt)
+		E.step(E.dt)
+		log("expand+hatch: two frames on: %s", pic())
+		capture(p, "expand_hatch_back")
+		local blank, f = 0, 0
+		while f < 3000 and (PR.debugStatic().baking or select(1, PR.growing())) do
+			local st = PR.debugStatic()
+			if st.baking and not st.behind then
+				blank += 1
+			end
+			E.step(E.dt)
+			f += 1
+		end
+		log("expand+hatch: baked and grown after %d frames (growths %d), %d of them with no island picture behind the bake: %s", f, PR.growStats().count, blank, pic())
+		settle(p, 6, 1)
+		capture(p, "expand_hatch_grown")
+	end
 	return p
 end
 
