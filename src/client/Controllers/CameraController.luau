@@ -5,8 +5,10 @@
 -- ground stud, its phase, the ray plane `l`) depends only on the plot, the screen and K; on it the view pans by whole
 -- art px (`pan()`), so the pixel renderer scrolls its picture instead of baking it again:
 --   follow (the default): the view keeps the founder (the player's character) in the middle of the screen between
---     the HUD's strips, wherever they walk, gliding a share of the way (Tuning.CamGlide a 60th of a second, more in a
---     longer frame) in whole art px (at most what the renderer can scroll in a frame);
+--     the HUD's strips, wherever they walk, on a soft spring (Tuning.CamFollowSecs): it eases off when they set out,
+--     trails them a little while they walk and eases in to stop on them once they stand (the request of 2026-11-18:
+--     "make the camera a smooth lerp follow the player like most top down games instead of sharply cutting to the
+--     player"); the pan is in whole art px (at most what the renderer can scroll in a frame);
 --   free (Build mode): the view still follows the founder, lowered a little (Build mode's tray covers the bottom of
 --     the screen), plus where Build mode drags it (`panBy`, kept over the own plot); a drag holds while the founder
 --     stands, and once they walk the view eases back onto them (the request of 2026-11-14: "in build mode, make the
@@ -66,6 +68,8 @@ local pixelLimit = Tuning.PixelTiers.high.h
 local classic = false
 local plot, tier = 1, 1
 local panX, panY = 0, 0 -- the pan now (whole art px)
+local camX, camY = 0, 0 -- the follow's own place (art px, not rounded): the pan is worked out from it every frame
+local velX, velY = 0, 0 -- how fast it moves (art px a second)
 local free = false -- Build mode: the view follows the founder lowered by `buildDown`, plus a drag
 local buildDown = 0 -- art px the view is lowered by in Build mode
 local dragX, dragY = 0, 0 -- art px Build mode's drag has moved the view from the founder
@@ -205,10 +209,10 @@ function CameraController.gridAt(px: number, py: number): Raster.Grid
 	return { a = g.a, q = g.q, phX = g.phX, phY = g.phY, l = g.l, px = px, py = py }
 end
 
--- The view's centre on the ground at the pan now (world studs).
-function CameraController.centerWorld(): Vector3
+-- The view's centre on the ground at pan (px, py) (world studs).
+local function centerAt(px: number, py: number): Vector3
 	local v = CameraController.view()
-	local cx, cy, cz = Raster.gridCenter(ROT12, CameraController.gridAt(panX, panY), v.fullX, v.fullY, v.K)
+	local cx, cy, cz = Raster.gridCenter(ROT12, CameraController.gridAt(px, py), v.fullX, v.fullY, v.K)
 	if math.abs(LY) > 1e-6 then
 		local t = (0 - cy) / LY
 		cx, cy, cz = cx + LX * t, cy + LY * t, cz + LZ * t
@@ -216,7 +220,13 @@ function CameraController.centerWorld(): Vector3
 	return Vector3.new(cx, cy, cz)
 end
 
--- Poses the Roblox camera on the view at the pan now.
+-- The view's centre on the ground at the pan now (world studs).
+function CameraController.centerWorld(): Vector3
+	return centerAt(panX, panY)
+end
+
+-- Poses the Roblox camera on the view at the pan now. (In the classic style, with no pixel filter to keep to its grid,
+-- it stands on the follow's own place, so the 3D view slides without the art pixel steps.)
 local function pose(v: View)
 	local cam = Workspace.CurrentCamera
 	if cam == nil then
@@ -224,13 +234,19 @@ local function pose(v: View)
 	end
 	local fov = if classic then Tuning.CamOffFov else Tuning.CamFov
 	local dist = v.viewH / (2 * math.tan(math.rad(fov) / 2))
-	local c = CameraController.centerWorld()
+	local c = if classic and not v.stage then centerAt(camX, camY) else centerAt(panX, panY)
 	cam.CameraType = Enum.CameraType.Scriptable
 	cam.FieldOfView = fov
 	cam.CFrame = CFrame.lookAt(c - v.look * dist, c)
 end
 
 local targetOf: (v: View) -> (number, number) -- (where the view should be: below)
+
+-- The view put on (tx, ty) at once, standing still there.
+local function jumpTo(tx: number, ty: number)
+	camX, camY, velX, velY = tx, ty, 0, 0
+	panX, panY = math.floor(tx + 0.5), math.floor(ty + 0.5)
+end
 
 function CameraController.refit()
 	local v = build()
@@ -239,8 +255,8 @@ function CameraController.refit()
 	if old == nil or old.key ~= v.key or old.plot ~= v.plot then
 		-- a new view starts where it should look (a cutscene's focus, the founder), never on the island's middle first
 		-- and gliding over: the stage closing on the way home must not swing the view across the land to the boat
-		panX, panY = v.grid.px, v.grid.py
-		panX, panY = targetOf(v)
+		jumpTo(v.grid.px, v.grid.py)
+		jumpTo(targetOf(v))
 		CameraController.ViewChanged:Fire(v)
 	end
 	pose(v)
@@ -345,7 +361,8 @@ local function baseTarget(v: View): (number?, number?)
 	return math.floor(gx - W / 2 + 0.5), math.floor(gy - (top + (H - bottom + 20)) / 2 + 0.5)
 end
 
--- Where the view should be this frame.
+-- Where the view should be this frame (art px; on the islands not rounded, so the follow moves as smoothly as the
+-- founder does).
 local function target(v: View): (number, number)
 	if v.stage then
 		local st = stage
@@ -366,7 +383,7 @@ local function target(v: View): (number, number)
 		local root = founderRoot(v)
 		if root == nil then
 			if free then
-				return panX, panY -- (Build mode with no founder to follow: the view stays)
+				return camX, camY -- (Build mode with no founder to follow: the view stays)
 			end
 			return v.grid.px, v.grid.py
 		end
@@ -379,7 +396,6 @@ local function target(v: View): (number, number)
 	local top, bottom = hudStrips(v)
 	local tx = gx - W / 2
 	local ty = gy - (top + (H - bottom + 20)) / 2
-	tx, ty = math.floor(tx + 0.5), math.floor(ty + 0.5)
 	if free then
 		-- Build mode: lowered, plus the drag, the centre kept over the own plot
 		return clampBuild(v, tx + dragX, ty + buildDown + dragY)
@@ -394,6 +410,26 @@ targetOf = target
 local function panCaps(v: View): (number, number)
 	local W, H = v.fullX / v.K, v.fullY / v.K
 	return math.max(1, math.floor(Tuning.PixelPanRays / (H * 1.5))), math.max(1, math.floor(Tuning.PixelPanRays / (W * 1.5)))
+end
+
+-- One axis of the follow a frame: a critically damped spring (Unity's SmoothDamp), `Tuning.CamFollowSecs` its smooth
+-- time. It sets off gently, trails a founder walking at a steady pace by their speed times that, and settles on them
+-- once they stand without going past. Returns the new place and speed.
+local function follow(cur: number, to: number, vel: number, dt: number): (number, number)
+	local w = 2 / Tuning.CamFollowSecs
+	local x = w * dt
+	local e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+	local off = cur - to
+	local t = (vel + w * off) * dt
+	local nv = (vel - w * t) * e
+	local out = to + (off + t) * e
+	if (to - cur > 0) == (out > to) then
+		out, nv = to, 0 -- (never past the target)
+	end
+	if math.abs(to - out) < 0.01 and math.abs(nv) < 0.5 then
+		out, nv = to, 0
+	end
+	return out, nv
 end
 
 local function step(dt: number?)
@@ -424,26 +460,27 @@ local function step(dt: number?)
 	-- a far jump (home from the other end of the street) snaps: the renderer bakes once at the new pan (on a stage the
 	-- view always glides: an endless islet's next area is a scroll away)
 	local W, H = v.fullX / v.K, v.fullY / v.K
-	if not v.stage and (math.abs(tx - panX) > W * 0.75 or math.abs(ty - panY) > H * 0.75) then
-		panX, panY = tx, ty
+	if not v.stage and (math.abs(tx - camX) > W * 0.75 or math.abs(ty - camY) > H * 0.75) then
+		jumpTo(tx, ty)
 		pose(v)
 		return
 	end
-	local capX, capY = panCaps(v)
-	-- (the share of the way a frame from the frame's length, so the view keeps up as well at 30 frames a second as at
-	-- 60: Tuning.CamGlide is the share at 60)
+	-- (the frame's length counts, so the view keeps up as well at 30 frames a second as at 60)
 	local secs = math.clamp(dt or 1 / 60, 1 / 240, 0.1)
-	local glide = 1 - (1 - Tuning.CamGlide) ^ (secs * 60)
-	local function toward(cur: number, to: number, cap: number): number
-		local d = to - cur
-		if d == 0 then
-			return cur
-		end
-		local move = math.min(cap, math.max(1, math.ceil(math.abs(d) * glide)))
-		return cur + math.sign(d) * math.min(move, math.abs(d))
-	end
-	local nx, ny = toward(panX, tx, capX), toward(panY, ty, capY)
-	if nx ~= panX or ny ~= panY then
+	local cx0, cy0 = camX, camY
+	camX, velX = follow(camX, tx, velX, secs)
+	camY, velY = follow(camY, ty, velY, secs)
+	-- The pan in whole art px. It is the target's pixel less the gap's: while the founder walks at a steady pace the gap
+	-- stays the same, so the pan steps with them pixel for pixel and they keep still on the screen (rounding the
+	-- follow's place on its own would shake them by a pixel); as the view closes in or falls back the gap changes a
+	-- pixel at a time. A frame moves it at most what the renderer can scroll in one (`panCaps`), so its picture never
+	-- falls behind into a re-bake (a quick Build mode drag catches up over a few frames).
+	local nx = math.floor(tx + 0.5) - math.floor(tx - camX + 0.5)
+	local ny = math.floor(ty + 0.5) - math.floor(ty - camY + 0.5)
+	local capX, capY = panCaps(v)
+	nx = panX + math.clamp(nx - panX, -capX, capX)
+	ny = panY + math.clamp(ny - panY, -capY, capY)
+	if nx ~= panX or ny ~= panY or (classic and (camX ~= cx0 or camY ~= cy0)) then
 		panX, panY = nx, ny
 		pose(v)
 	end
@@ -458,11 +495,8 @@ function CameraController.setFocus(p: Vector3?, snap: boolean?)
 	focus = p
 	local v = current
 	if snap and v and not v.stage then
-		local tx, ty = target(v)
-		if tx ~= panX or ty ~= panY then
-			panX, panY = tx, ty
-			pose(v)
-		end
+		jumpTo(target(v))
+		pose(v)
 	end
 end
 
@@ -473,7 +507,7 @@ function CameraController.settled(): boolean
 		return true
 	end
 	local tx, ty = target(v)
-	return tx == panX and ty == panY
+	return math.floor(tx + 0.5) == panX and math.floor(ty + 0.5) == panY
 end
 
 -- Build mode (true): the view keeps following the founder, lowered by half of `down` art px (Build mode's tray
@@ -499,11 +533,8 @@ function CameraController.setStageShift(shift: Vector3, snap: boolean?)
 	stageShift = shift
 	local v = current
 	if snap and v and v.stage then
-		local tx, ty = target(v)
-		if tx ~= panX or ty ~= panY then
-			panX, panY = tx, ty
-			pose(v)
-		end
+		jumpTo(target(v))
+		pose(v)
 	end
 end
 
@@ -516,7 +547,8 @@ function CameraController.isFree(): boolean
 end
 
 -- Build mode's drag: the world follows the pointer by (dx, dy) full-screen px (the drag kept as an offset from the
--- founder), the view's centre kept over the own plot (Tuning.CamBuildPan studs past its edges at most).
+-- founder), the view's centre kept over the own plot (Tuning.CamBuildPan studs past its edges at most). The follow's
+-- place moves with the drag at once (no spring between the pointer and the world).
 function CameraController.panBy(dx: number, dy: number)
 	local v = CameraController.view()
 	local fx, fy = baseTarget(v)
@@ -525,7 +557,10 @@ function CameraController.panBy(dx: number, dy: number)
 	local nx = bx + dragX - math.floor(dx / v.K + 0.5)
 	local ny = by + buildDown + dragY - math.floor(dy / v.K + 0.5)
 	local cx, cy = clampBuild(v, nx, ny)
+	local odx, ody = dragX, dragY
 	dragX, dragY = cx - bx, cy - by - buildDown
+	camX += dragX - odx
+	camY += dragY - ody
 end
 
 -- Build mode's drag now (art px from the founder, not counting the lowering): the sims check it.

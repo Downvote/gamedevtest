@@ -569,6 +569,82 @@ local pxs, pys = CCa.pan()
 H.expect(pxs ~= pxh or pys ~= pyh, "walk", "a walk across the own island moves the view too", string.format("%d,%d -> %d,%d", pxh, pyh, pxs, pys))
 centred("still in the middle")
 H.expect(H.buttonNamed(a, "Home") == nil, "walk", "the Home button stays away on the own island")
+-- The follow is a soft spring (the request of 2026-11-18: "make the camera a smooth lerp follow the player like most
+-- top down games instead of sharply cutting to the player"). Walked a 60th of a second at a time at the walking pace,
+-- the view sets off gently, trails the founder by about their speed times Tuning.CamFollowSecs, keeps them still on
+-- the screen while they walk steadily, and once they stop eases in onto them without going past.
+do
+	local r0 = rootOf(a)
+	local v = CCa.view()
+	local function onScreen(): (number, number)
+		local r = rootOf(a)
+		local gx, gy = RasterW.gridPoint(v.rot12, v.grid, r.Position.X, Street.LAWN_Y + 1.5, r.Position.Z)
+		local px, py = CCa.pan()
+		return gx - px, gy - py
+	end
+	local function ground(): (number, number)
+		local r = rootOf(a)
+		return RasterW.gridPoint(v.rot12, v.grid, r.Position.X, Street.LAWN_Y + 1.5, r.Position.Z)
+	end
+	local x0, z0 = r0.Position.X, r0.Position.Z
+	local sx0, sy0 = onScreen()
+	local g0x, g0y = ground()
+	local dt = 1 / 60
+	local walkFrames = 72 -- 1.2 s
+	local founderMoved, viewMoved = 0, 0
+	local shakes, lastSx, lastSy = 0, sx0, sy0
+	local p0x, p0y = CCa.pan()
+	for f = 1, walkFrames do
+		a.Character:PivotTo(E.cf.new(x0 - Tuning.WalkSpeed * dt * f, 3, z0))
+		E.run(dt, dt)
+		if f == 4 then
+			local gx, gy = ground()
+			local px, py = CCa.pan()
+			founderMoved = math.abs(gx - g0x) + math.abs(gy - g0y)
+			viewMoved = math.abs(px - p0x) + math.abs(py - p0y)
+		end
+		local sx, sy = onScreen()
+		if f > 45 and (math.abs(sx - lastSx) > 1.01 or math.abs(sy - lastSy) > 1.01) then
+			shakes += 1
+		end
+		lastSx, lastSy = sx, sy
+	end
+	H.expect(viewMoved < founderMoved * 0.65, "walk", "the view sets off gently as the founder starts to walk", string.format("view %.1f px, founder %.1f px in 4 frames", viewMoved, founderMoved))
+	local g1x, g1y = ground()
+	local pace = math.sqrt((g1x - g0x) ^ 2 + (g1y - g0y) ^ 2) / (walkFrames * dt) -- art px a second
+	local sx1, sy1 = onScreen()
+	local trail = math.sqrt((sx1 - sx0) ^ 2 + (sy1 - sy0) ^ 2)
+	local want = pace * Tuning.CamFollowSecs
+	H.expect(trail >= want * 0.6 and trail <= want * 1.4, "walk", "it trails a walking founder by their speed times CamFollowSecs", string.format("%.1f art px, about %.1f wanted", trail, want))
+	H.expect(shakes == 0, "walk", "a steady walk keeps the founder still on the screen (no pixel shake)", string.format("%d frames moved them over a pixel", shakes))
+	-- they stop: the view eases in, a little less each frame, and stops on them
+	local moving, back, past, lastStep = 0, 0, false, math.huge
+	local growing = 0
+	local lpx, lpy = CCa.pan()
+	for f = 1, 90 do
+		E.run(dt, dt)
+		local px, py = CCa.pan()
+		local st = math.abs(px - lpx) + math.abs(py - lpy)
+		if st > 0 then
+			moving = f
+		end
+		if st > lastStep + 1 then
+			growing += 1
+		end
+		lastStep = st
+		lpx, lpy = px, py
+		local sx, sy = onScreen()
+		if (sx - sx0) * (sx1 - sx0) < -1 or (sy - sy0) * (sy1 - sy0) < -1 then
+			past = true
+		end
+		if back == 0 and math.abs(sx - sx0) <= 1 and math.abs(sy - sy0) <= 1 then
+			back = f
+		end
+	end
+	H.expect(moving >= 12, "walk", "once they stop the view eases in over a few frames, not at once", string.format("still moving %d frames on", moving))
+	H.expect(growing == 0 and not past, "walk", "slowing all the way, never past them", string.format("%d frames sped up, past %s", growing, tostring(past)))
+	H.expect(back > 0 and back <= 60, "walk", "and it is back on them within a second", string.format("frame %d", back))
+end
 a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
 E.run(2.5)
 

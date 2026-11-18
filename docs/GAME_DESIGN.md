@@ -1944,7 +1944,11 @@ text (the requests and how each was met) is in the history of this file, up to c
   and so do the Grand Mill's paddles, on every island near the view; the little waterfall and the Spring Grotto's
   falls run with pale streaks moving down them. Reduced motion keeps the sails and wheels still.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
-  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). On
+  zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). It follows
+  on a soft spring (the request of 2026-11-18: "Could you make the camera a smooth lerp follow the player like most top
+  down games instead of sharply cutting to the player?"): when you set off it starts gently and trails you by about
+  three studs, and when you stop it eases in and comes to rest on you about half a second later. It used to keep
+  within about a stud of you and stop dead. A Build mode drag still moves the view with your finger at once. On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

@@ -262,7 +262,12 @@ local Tuning = {
 	DozeSecs = 40,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
-	CamGlide = 0.18, -- share of the way to its target the view moves in a 60th of a second (in whole art px; a longer frame moves more)
+	-- seconds: the follow's smooth time (a critically damped spring, the request of 2026-11-18: "make the camera a smooth
+	-- lerp follow the player like most top down games instead of sharply cutting to the player"). A walking founder is
+	-- trailed by their speed times this (3.2 studs at 16 a second) and the view settles on them about half a second
+	-- after they stop. Smaller: tighter; bigger: looser. (Before, the view moved 18% of the way a 60th of a second, at
+	-- least a whole art px a frame, and stopped dead on the founder.)
+	CamFollowSecs = 0.2,
 	CamBuildPan = 30, -- studs: in Build mode the view may be dragged this far past the plot's edges
 	CamBuildRecenter = 0.12, -- share of Build mode's drag the view gives back each frame the founder walks (it eases back onto them)
 	CamHudTop = 22, -- art px: the top HUD strip assumed until the HUD reports its blocks

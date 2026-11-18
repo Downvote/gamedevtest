@@ -257,7 +257,7 @@ every field.
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
   `HomeCooldown`, `WalkSpeed`, `SwimSpeed` (11: in the sea), `JumpHeight`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
-  `CamFollowBox`, `CamGlide`, `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
+  `CamFollowBox`, `CamFollowSecs` (0.2: the follow's smooth time), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
 `PixelInvalidateRaysFrame`, `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
   drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)), the island growing into its next
@@ -984,21 +984,28 @@ key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: any
 island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
 the founder's ground point in the middle of the screen across and halfway between the HUD's top and bottom strips
-(and the tips banner), on any island or swimming in the sea; the pan glides `CamGlide` of the way in a 60th of a second
-(`1 - (1 - CamGlide) ^ (dt x 60)` in a frame of dt seconds, so it keeps up as well at 30 frames a second), never more a frame
-than the renderer can scroll in one (`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never
-falls behind into a re-bake; a target more than three quarters of the screen away snaps (one bake instead of a scroll
-that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
+(and the tips banner), on any island or swimming in the sea. The target is not rounded; the follow's own place
+(`camX, camY`, art px) chases it on a critically damped spring (Unity's SmoothDamp, smooth time `CamFollowSecs` 0.2 s,
+the frame's dt counted) since 2026-11-18 ("make the camera a smooth lerp follow the player like most top down games
+instead of sharply cutting to the player"): it sets off gently, trails a steady walk by the founder's speed times
+`CamFollowSecs` (3.2 studs), and settles on them about half a second after they stop, never past them. (Before, the pan
+moved `CamGlide` 0.18 of the way a 60th of a second, at least an art px a frame, and stopped dead.) The pan is the
+target's pixel less the gap's (`round(t) - round(t - cam)` on each axis), so through a steady walk it steps with the
+founder pixel for pixel and they keep still on the screen; it moves at most what the renderer can scroll in a frame
+(`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake. In the
+classic style the Roblox camera stands on the unrounded place. A target more than three quarters of the screen away
+snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
 (Roblox drops it mid-street before the server moves it home). Build mode (GAME_DESIGN 4.5: "make the camera still follow
 the player as they walk around, even though it is displaced downwards abit"): `setFree(true, down?)` keeps the follow,
 the target lowered by half of `down` art px (Build mode's tray height) plus a drag offset; `panBy(dx, dy)` (full-screen
-px) moves the offset, the target's centre kept within `CamBuildPan` studs of the plot (`clampBuild`); while the
+px) moves the offset and the follow's place with it at once (no spring between the pointer and the world), the target's
+centre kept within `CamBuildPan` studs of the plot (`clampBuild`); while the
 founder stands the offset holds, and each frame their follow target moves the offset shrinks by `CamBuildRecenter` of
 itself (at least an art px) until the view is back on them; with no founder to follow the view stays.
 `setFree(false)` drops the lowering and the offset; `isFree()`; `buildDrag() -> (dx, dy)` (the offset, art px: sims).
 `setFocus(p?, snap?)`: a cutscene's world point the pan keeps in the middle instead of the founder (unused since the walk in went), nil gives the
-founder back; `snap` jumps there at once (behind the blinds) instead of gliding. `settled()`: the pan has reached its
-target. `refit` on a new key starts the pan on the target (the founder or the focus), not on the island's middle.
+founder back; `snap` jumps there at once (behind the blinds) instead of gliding. `settled()`: the pan is on its
+target's pixel. `refit` on a new key starts the pan on the target (the founder or the focus), not on the island's middle.
 A new tier's cells and the next one's are worked out 3 s after the view's tier changes (`Street.warm`).
 `gridAt(px, py)` (the grid at a pan), `centerWorld()` (the view's ground centre now), `view()`, `refit()`,
 `ViewChanged` (a new key: a new bake), `pixelK(size?)`, `setPixelLimit(h, classic)`. The Roblox camera is posed on the
