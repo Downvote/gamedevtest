@@ -1951,7 +1951,13 @@ text (the requests and how each was met) is in the history of this file, up to c
   on a desktop, from 8). Then closer again, to match Random Bakery's shop ("zoom in into the island more. it should fit
   like this, with the playable island as big as the bakery"): `CamFrame` 0.75, about 11 art px a stud, the first
   island's grass filling the screen between the HUD's strips, the beach running out to the edges. A bigger island is
-  seen a part at a time as you walk. Walking should feel smooth (the request of 2026-11-16: "is there any way to
+  seen a part at a time as you walk. Since 2026-11-18 the detail is the same on every screen: 12 art px a stud on a
+  desktop, a laptop, a tablet and a phone alike (`Tuning.CamDetail`; the request: "make it such that the pixel filter
+  is, by default, on all devices, zoomed in to be at a good level of detail. make it such that smaller windows or
+  smaller devices will still receive the same amount of detail as bigger ones"). The zoom had been fitted to the
+  screen, so a phone drew the island at about 6 art px a stud and a desktop at 11; now a smaller screen or window
+  shows less of the island around the founder, drawn as finely. The pixel size of the screen (K, the UI's too) is as
+  it was. The hatch scene still fits its egg to the screen. Walking should feel smooth (the request of 2026-11-16: "is there any way to
   optimize the camera movement? it is still very laggy when moving around"): ground you have already walked past is
   remembered by the pixel filter and comes back without being drawn again, the driftlings and eggs move at their own
   steady rate while the view slides, and the sea's and the leaves' little animations are worked out a few rows a
@@ -2034,11 +2040,10 @@ the founder cheer, arms up. With reduced motion on there are no fidgets and the 
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
 rain; `settings.sfx`), and Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need
-for an option to turn off the pixel filter"). A tap works at once and is kept with the profile. **The camera on a phone** (the screen's short
-side 500 px or less) fits a smaller box round the island's heart (`CamFramePhone` 0.6 against `CamFrame` 0.75: the
-request of 2026-11-14, "On mobile, zoom in to fit the island more", and both came closer by the same share for "zoom in
-into the island more"), so the island fills the screen; the view follows
-the founder round the rest. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
+for an option to turn off the pixel filter"). A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
+same detail as on a desktop (§8, the camera: 12 art px a stud since 2026-11-18), so it shows a part of the island round
+the founder and follows them; before, it fitted a smaller box round the island's heart (`CamFramePhone` 0.6 against
+`CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:
 
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells

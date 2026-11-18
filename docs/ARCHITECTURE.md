@@ -975,9 +975,11 @@ Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the is
 tier, shrunk about its middle by `Tuning.CamFrame`: 0.75, about 11 art px a stud on a desktop (a phone, the screen's short side 500 px or less, `Tuning.CamFramePhone`: 0.6, a step closer); it was 1 (8 px), then 0.7 (12 px)
 after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 (9 px) after "zoom out abit
 more. the whole island should still be visible", then 0.75 (the phone's 0.75 to 0.6) after "zoom in into the island
-more. it should fit like this, with the playable island as big as the bakery", all 2026-11-14) is fitted on screen clear of the HUD's blocks (`setHudRects`), at the largest clean grid scale (`Raster.gridScale`,
-`Raster.gridPhase`) whose placement is clear (`Raster.place`): that placement is the **home** pan (`view().grid.px/py`),
-and its scale the one zoom. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
+more. it should fit like this, with the playable island as big as the bakery", all 2026-11-14) is placed on screen clear of the HUD's blocks (`setHudRects`, `Raster.place`; the screen's middle when it doesn't fit): that placement is the **home** pan (`view().grid.px/py`).
+The zoom is `Tuning.CamDetail` (12 art px a stud, `Raster.gridScale` of it) on every screen since 2026-11-18 ("make it
+such that smaller windows or smaller devices will still receive the same amount of detail as bigger ones"): it was the
+largest clean grid scale whose placement of the box was clear, so it followed the screen (11.25 on a 1080p desktop, 12
+on a laptop, 5 to 6.25 on phones). A stage's view (`Stage`) still fits its own points that way. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
 key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: anything else (the HUD's blocks, the
 island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts

@@ -236,14 +236,20 @@ local Tuning = {
 	CamFov = 1, -- Roblox camera FieldOfView while the pixel filter is on (far away, visually orthographic)
 	CamOffFov = 8, -- the classic "off" style
 	CamPad = 4, -- art px kept free between the lodge's outline and the screen edges or a HUD block
-	-- the box round the island's heart the view fits, as a share of its old size (CameraController FRAME): smaller is
-	-- closer. The requests of 2026-11-14: "zoom into the island more such that there isnt too much sea in the screen"
+	-- the box round the island's heart the view fitted, as a share of its old size (CameraController FRAME): smaller was
+	-- closer (since 2026-11-18 the zoom is CamDetail on every screen, and the box only says where the view starts). The requests of 2026-11-14: "zoom into the island more such that there isnt too much sea in the screen"
 	-- (0.7: 12 art px a stud, from 8 at 1), then "zoom out abit more. the whole island should still be visible"
 	-- (0.95: 9 art px a stud; the grid snaps the zoom to whole steps: 0.85 gives 10, which clips the first island's
 	-- far shore), then "zoom in into the island more. it should fit like this, with the playable island as big as the
 	-- bakery" (0.75, about 11 art px a stud: the first island's grass fills the screen between the HUD's strips the way
 	-- Random Bakery's shop does, the beach running out to the edges)
 	CamFrame = 0.75,
+	-- the islands' detail: art px a stud on every screen, however big (the request of 2026-11-18: "make it such that
+	-- the pixel filter is, by default, on all devices, zoomed in to be at a good level of detail. make it such that
+	-- smaller windows or smaller devices will still receive the same amount of detail as bigger ones"). The frame box
+	-- above set the zoom until then, fitted to the screen: 11.25 on a 1080p desktop, 12 on a laptop, about 6 on a
+	-- phone. Now the box only says where the view starts; a smaller screen shows less of the island at this detail
+	CamDetail = 12,
 	-- on a phone (the screen's short side 500 px or less) a smaller box: the request of 2026-11-14, "On mobile, zoom in to
 	-- fit the island more" (the camera follows the founder round the rest); 0.75 until the desktop view came closer
 	-- the same way (0.95 to 0.75)

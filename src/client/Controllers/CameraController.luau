@@ -135,18 +135,34 @@ local function build(): View
 		}
 	end
 	local pad = Tuning.CamPad * K
-	local _, _, _, viewH = Raster.fit(ROT12, fx, fy, bl, pad, pts)
-	local aFit = (fy / viewH) / (K * SQRT2)
-	local a = Raster.gridScale(aFit, 1, false)
+	local a: number
 	local sx, sy = fx / 2, fy / 2
-	local cand = a
-	while cand >= 1 do
-		local x, y = Raster.place(ROT12, fx, fy, bl, pad, pts, cand * K * SQRT2)
+	if st == nil then
+		-- The islands: the same detail on every screen, Tuning.CamDetail art px a stud however big it is (the request
+		-- of 2026-11-18: "make it such that the pixel filter is, by default, on all devices, zoomed in to be at a good
+		-- level of detail. make it such that smaller windows or smaller devices will still receive the same amount of
+		-- detail as bigger ones"). The view was fitted to the frame box, so a phone's 195 art px drew the island at
+		-- about 6 a stud where a desktop drew it at 11. A smaller screen now shows less of the island, the founder in
+		-- the middle of it.
+		a = Raster.gridScale(Tuning.CamDetail, 1, false)
+		local x, y = Raster.place(ROT12, fx, fy, bl, pad, pts, a * K * SQRT2)
 		if x ~= nil and y ~= nil then
-			a, sx, sy = cand, x, y
-			break
+			sx, sy = x, y
 		end
-		cand = Raster.gridScale(cand - 0.25, 1, false)
+	else
+		-- a stage (the hatch scene) fits its own box, as big as the screen allows
+		local _, _, _, viewH = Raster.fit(ROT12, fx, fy, bl, pad, pts)
+		local aFit = (fy / viewH) / (K * SQRT2)
+		a = Raster.gridScale(aFit, 1, false)
+		local cand = a
+		while cand >= 1 do
+			local x, y = Raster.place(ROT12, fx, fy, bl, pad, pts, cand * K * SQRT2)
+			if x ~= nil and y ~= nil then
+				a, sx, sy = cand, x, y
+				break
+			end
+			cand = Raster.gridScale(cand - 0.25, 1, false)
+		end
 	end
 	local q = a * SQRT2
 	local phX, phY = Raster.gridPhase(a)
