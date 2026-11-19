@@ -1015,9 +1015,11 @@ local function flatFace(fc: Vector3, eyeD: number, sx: number, sy: number, iris:
 	end
 end
 
--- The details of a golem's face (A.face) on the face it was given: no crown on a block's or a column's front.
+-- The details of a golem's face (A.face) on the face it was given: no crown on a block's or a column's front. A flat
+-- face's eyes sit on flatFace's big stand-in ball, and A.face sizes brows and cheek marks by the head they sit on, so
+-- on a flat face they came out a ball's size: the brows floated as two lines over the head. A flat face has neither.
 local function golemFace(color: string, f: Form, more: A.FaceMore?)
-	A.face({ color = color, more = A.more(A.more({ crown = false }, more), f.faceDetail) })
+	A.face({ color = color, more = A.more(A.more({ crown = false, brows = false, cheeks = false }, more), f.faceDetail) })
 end
 
 local function basaltGolem(b: string, a: string, f: Form): Kit.Thing
@@ -1253,8 +1255,8 @@ local function treeGolem(b: string, a: string, f: Form): Kit.Thing
 	local bp = Kit.onEll(hc, V(0.42, 0.6, 0.42), CFrame.identity, A.dir(0, 22))
 	Kit.limbs("Brow", { bp + V(-0.26, -0.04, -0.06), bp + V(0, 0.02, 0.02), bp + V(0.26, -0.04, -0.06) }, { 0.045, 0.055, 0.045 }, bark, 2, 0.7, FWD)
 	Kit.ell("Nose", Kit.onEll(hc, V(0.42, 0.6, 0.42), CFrame.identity, A.dir(0, -2)), V(0.1, 0.09, 0.1), bark)
-	-- (its own brow of bark)
-	golemFace(b, f, { brows = false })
+	-- (its own brow of bark; a round face, so the bark's grain on its cheeks)
+	golemFace(b, f, { cheeks = true })
 	if f.beard then
 		-- a long beard of pale lichen
 		for i, x in { -0.14, 0, 0.14 } do
