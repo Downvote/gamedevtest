@@ -1717,7 +1717,9 @@ a moving model, the originals hidden (`PixelRenderer.hideStatic`) for good, each
 art px) nearest the view's middle are `active` and move; a copy that stops being active is put back at rest (`hub *
 off`, its pose as built), and with reduced motion none move. (A first version dropped the copies past the cap and
 showed their parts again: on a full island every pan cast parts in and out of the picture, the renderer baked again
-every second and drew nothing new, 2026-11-19.) Every Heartbeat the active copies still near the screen move: spin `hub *
+every second and drew nothing new, 2026-11-19.) Every `POSE_SECS` 0.05 (20 times a second, the pixel picture's own
+pace: posing all 40 every frame took about 2 ms a frame on a full island) the active copies still near the screen
+move: spin `hub *
 fromAxisAngle(axis, phase + t * speed) * off`, swing the same by `amp * sin(phase + t * speed)`, bob lifted by `amp *
 sin(...)` and rocked 0.06 rad round the axis; the phase is the part's own plus a piece's offset from its name and
 place. A piece gone (moved, rebuilt, cleared) drops its copy at the next scan. `start()`, `debugState() -> { count,

@@ -35,6 +35,8 @@ local SCAN_SECS = 1 -- the islands near the view looked over this often
 local NEAR = 220 -- studs from the view's middle (along the street) an island is near
 local MAX_MOVING = 40 -- pieces moving at a time (each a model the pixel filter draws afresh every tick it moves)
 local SCREEN_PAD = 24 -- art px off the screen a piece may stand and still move
+local POSE_SECS = 0.05 -- the moving parts posed this often (20 a second: the pixel picture's own pace; posing all of
+-- the 40 every frame took about 2 ms a frame on a full island, the stress test of 2026-11-19)
 local AXES: { [string]: Vector3 } = { X = Vector3.xAxis, Y = Vector3.yAxis, Z = Vector3.zAxis }
 
 -- A moving part as its builder marked it (Parts.move): what it does, round what, how fast and how far.
@@ -42,9 +44,12 @@ type Plan = { part: BasePart, kind: string, hub: Vector3, axis: string, speed: n
 type Mover = { p: BasePart, off: CFrame, kind: string, hub: CFrame, axis: Vector3, speed: number, amp: number, phase: number }
 type Spin = { model: Model, copy: Model, at: Vector3, movers: { Mover }, originals: { BasePart }, active: boolean }
 local spins: { [Model]: Spin } = {}
+-- (the ones moving now, for the tick: the cap's 40 at most)
+local active: { Spin } = {}
 -- (each piece's moving parts, looked for once: false for a piece with none)
 local plans: { [Model]: { Plan } | false } = setmetatable({} :: any, { __mode = "k" })
 local scanAt = 0
+local poseAt = 0
 
 local function dynFolder(): Folder
 	local f = workspace:FindFirstChild("PixelDynamic")
@@ -177,7 +182,9 @@ local function scan()
 			continue
 		end
 		for _, c in decor:GetChildren() do
-			if not c:IsA("Model") or spins[c] ~= nil then
+			-- (a piece looked at before, with no moving parts or with its copy, costs a lookup: a full island holds
+			-- thousands)
+			if spins[c :: any] ~= nil or plans[c :: any] == false or not c:IsA("Model") then
 				continue
 			end
 			local id = c:GetAttribute("Decor")
@@ -216,6 +223,10 @@ local function scan()
 		end
 		sp.active = now
 	end
+	table.clear(active)
+	for k = 1, math.min(#found, MAX_MOVING) do
+		table.insert(active, found[k].s)
+	end
 end
 
 -- Where a moving part stands at time t.
@@ -235,15 +246,16 @@ local function step(t: number)
 		scanAt = t + SCAN_SECS
 		scan()
 	end
-	if quiet() then
+	if quiet() or t < poseAt then
 		return
 	end
-	for _, s in spins do
+	poseAt = t + POSE_SECS
+	for _, s in active do
 		-- (only the ones picked to move, and of those only those still on the screen: the rest keep their pose. It was
 		-- the same east-west band of the view, so on a long island every windmill from one end to the other turned and
 		-- was drawn each frame: the request of 2026-11-17, "do a stress test with the maximum amount of decor and
 		-- buildings at the highest expansion level")
-		if not s.active or not PixelRenderer.nearScreen(s.at, SCREEN_PAD) then
+		if s.model.Parent == nil or not PixelRenderer.nearScreen(s.at, SCREEN_PAD) then
 			continue
 		end
 		for _, e in s.movers do
