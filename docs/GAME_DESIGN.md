@@ -1881,7 +1881,16 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), and a deep starry sky with a ringed planet, the band of the galaxy slanting
   across it thick with stars and an aurora of teal and violet (celestial). Every sky has
-  three ranges of hills going darker toward the front and a glow round the egg in dithered rings (no clouds, no trees
+  three ranges of hills going darker toward the front and a glow round the egg in dithered rings. Since 2026-11-19
+  ("the landscape's grass across all rarities is too even. also, the landscape's anti aliasing dosent match the color
+  much, and is banded") the hills are grassy and lit: each range has five tones of its own colour (the darker ones
+  leaning toward the sky's deep hue, the lightest toward the egg's glow), the slopes facing the light up and to the
+  left carry a lit cap that grows and thins with the slope, the far sides a darker one, and the grass breaks into
+  patches a tone lighter or darker that widen toward the front, with blades in clumps, tufts of three in the nearest
+  grass and a few flowers in the rarity's colour. A ridge has no rim line along it; where it steps, the step's end is
+  anti-aliased a pixel or few into the very colour behind it, and the sky reaches its horizon colour just above the
+  far crests, so no dithered seam lies on a ridge. The nearest grass darkens toward the bottom corners in its own
+  tones, with no dither over the land (no clouds, no trees
   along the hills and no islets floating far off since 2026-11-14: "For the hatch screen, remove the trees in the
   background, and the floating islands as well", then "Remove the clouds in the hatch screen background as well"). Little flocks of birds flap by (day and
   twilight), shooting stars cross the night skies and stars twinkle (pink ones on the rose night, white, cyan, gold and

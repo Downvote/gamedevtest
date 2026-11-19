@@ -2105,7 +2105,17 @@ bottom part of the pillar": under the cap's lip, two steps down the ramp for a r
 height deep at the left to 0.45 at the right, stepping at the flutes), the ink outline of the whole down to the
 picture's foot (since 2026-11-15, "it seems like the outline gets broken in the pillars": it stopped 2 px under the cap;
 the 4-neighbour pixels outside it, each elbow on a curve a step of anti-aliasing, the stone mixed 0.45 toward the ink,
-instead of a doubled pixel), two tufts on the rim; then the foreground tufts and the dithered corners for every sky.
+instead of a doubled pixel), two tufts on the rim. Since 2026-11-19 the sky's corners are darkened (dithered) before
+the land, and the land is painted per range (`ridgeOf(li, x)`; the sky's stops end at `hyS`, 3 px over the far range's
+highest crest, so no seam meets a ridge): a five-tone ramp from the range's `hills` pair (`deep` = the sky's first stop,
+`warm` = its `glow`); each column's rounded top (`topsOf`), a lit cap (slopes facing left) and a shaded cap (facing
+right) in whole px, none thinner than 2; patches from `vnoise` (smooth value noise on `lattice` points, cached per
+range) scaled by depth (`k` 0.6 at the range's highest top to 1.7 at the foot), lone pixels and one-pixel streaks
+cleaned away, the nearest range a tone or two darker toward the corners; only the pixels a nearer range leaves
+showing are worked out. The ridge is anti-aliased at its steps only: where a run sits a pixel under its neighbour,
+half the run (one to four px) on that side takes the neighbour's top tone mixed over what lies behind at
+(n - k) / (n + 1). Then blades in clumps (taller toward the front), tufts of three and flowers (`B.flower`) in the
+nearest grass.
 `paint` keeps the picture's colours (`skyPx`) and a mask of the pedestal (`pedMask`: 1 the top, 2 the side and the
 shaft, 3 the outline) for the light. The skies have no clouds, no trees on the hills and no islets since 2026-11-14 (`Sky` lost `clouds` and `trees`;
 `hash2(x, y)` scatters pixels without lines). The rings: their own `EditableImage` ("Rings" on the
@@ -2221,8 +2231,8 @@ before the pixel filter takes the model in, and white once nothing is left to re
 `HatchBackdrop.paint(r, W, H, ex, ey) -> buffer` (the sky picture, RGBA at the art grid: banded sky with dithered
 seams (`SKIES[r].stops`, seven skies), the galaxy's band (`milky`, celestial), aurora, stars, sun, moon, two moons
 (`twomoons`, mythic) or a ringed planet (`planet` and its `ring`, celestial) with its halo, clouds, the egg's glow at
-(ex, ey), two far islets,
-three ranges of hills with trees outlined in ink), `show(r, ex, ey)` (paints it into an `EditableImage` on the
+(ex, ey),
+three ranges of grassy hills, lit and patched, their ridges anti-aliased at the steps), `show(r, ex, ey)` (paints it into an `EditableImage` on the
 `HatchBackdrop` ScreenGui and starts the sky's life on `HatchSky`; behind the picture two `Back` frames in its top and
 bottom colours for an edge that shows while it jolts), `step(dt)` (birds in `WINGS` beats, a shooting
 star, twinkles: K x K frames at whole art px; the rings; the light), `pulse()` (one more ring now), `offset(dx, dy)` (the

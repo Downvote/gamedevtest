@@ -9,8 +9,9 @@
 -- deep gold night, and since 2026-11-14 a rose night under two moons for a mythic egg and a deep starry sky with a
 -- ringed planet and the band of the galaxy across it for a celestial one): the sky in bands with ordered dither between
 -- them (never a smear), the sun, the moons or the planet in one flat tone with anti-aliased edges, stars (single
--- pixels and little crosses), aurora curtains on the rarest nights, three ranges of hills going darker toward the
--- front and a glow round the egg in dithered rings. (The clouds, the trees along the nearest hills and the two islets
+-- pixels and little crosses), aurora curtains on the rarest nights, three ranges of grassy hills going darker toward
+-- the front (lit caps, patches, blades, tufts; ridges anti-aliased at their steps: see "the land" below) and a glow
+-- round the egg in dithered rings. (The clouds, the trees along the nearest hills and the two islets
 -- floating far off went on 2026-11-14: "For the hatch screen, remove the trees in the background, and the floating
 -- islands as well", then "Remove the clouds in the hatch screen background as well".)
 -- Since 2026-11-14 ("Polish the egg opening backgrounds even more, drawing in a base for the eggs to land on", and "add an
@@ -18,8 +19,7 @@
 -- top an ellipse with a lit rim at the back left, an inlaid ring (gems on it from rare up), the egg's dithered shadow,
 -- its side lit on the left and shaded on the right with a carved band and the joints of its stones, standing on a
 -- fluted column of the same stone that rises from below the picture, a 1 px ink outline round it all, in each
--- rarity's stone (BASES); tufts of grass and little flowers along the bottom, and
--- the corners a dithered step darker. Since 2026-11-15 ("it seems like the outline gets broken in the pillars. also, it
+-- rarity's stone (BASES); and the sky's corners a dithered step darker. Since 2026-11-15 ("it seems like the outline gets broken in the pillars. also, it
 -- dosent seem like the top part is casting a shadow on the bottom part of the pillar") the outline runs unbroken down
 -- the whole shaft (it stopped under the cap), each turn of it on a curve a step of anti-aliasing instead of a doubled
 -- pixel, the flutes keep off the shaft's edges, and the cap casts a shadow on the top of the shaft: a band two steps
@@ -231,6 +231,29 @@ local function hash2(x: number, y: number): number
 	return hash(x * 92821 + math.floor(hash(y * 7 + 13) * 1000003))
 end
 
+-- a lattice point's value for the smooth noise below (seed, a, b), kept in `cache` (the noise asks each point often)
+local function lattice(cache: { [number]: number }, seed: number, a: number, b: number): number
+	local key = (a + 4096) * 8192 + (b + 4096)
+	local h = cache[key]
+	if h == nil then
+		h = hash2(a * 3 + seed * 1013 + 50000, b * 5 + seed * 331 + 50000)
+		cache[key] = h
+	end
+	return h
+end
+
+-- smooth value noise (0 .. 1) at (u, v): soft blobs about one unit across, for the grass's patches and clumps
+local function vnoise(u: number, v: number, seed: number, cache: { [number]: number }): number
+	local xi, yi = math.floor(u), math.floor(v)
+	local fx, fy = u - xi, v - yi
+	fx = fx * fx * (3 - 2 * fx)
+	fy = fy * fy * (3 - 2 * fy)
+	local a, b = lattice(cache, seed, xi, yi), lattice(cache, seed, xi + 1, yi)
+	local c, d = lattice(cache, seed, xi, yi + 1), lattice(cache, seed, xi + 1, yi + 1)
+	local top = a + (b - a) * fx
+	return top + (c + (d - c) * fx - top) * fy
+end
+
 ------------------------------------------------------------------ painting
 -- The picture as 0xRRGGBB per pixel in a plain array (painted layer over layer), packed into RGBA at the end.
 type BaseAt = { x: number, y: number, w: number }
@@ -254,8 +277,21 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 	-- the sky: solid bands, each meeting the next in a short dithered seam
 	local stops = sky.stops
 	local hy = sky.horizon * H
+	-- range li's ridge (far to near) at x: a wavy line, art px down from the top
+	local function ridgeOf(li: number, x: number): number
+		local base = hy - H * 0.13 + li * H * 0.075
+		local amp = H * (0.05 - li * 0.008)
+		return base - amp * (0.6 + 0.4 * math.sin(x * (0.011 + li * 0.004) + li * 2.3)) - amp * 0.5 * math.sin(x * (0.031 + li * 0.006) + li)
+	end
+	-- (the sky reaches its horizon colour a little above the far range's highest crest, so no dithered seam lies along
+	-- a ridge: it read as the hills' anti-aliasing in the wrong colour)
+	local crest = hy
+	for x = 0, W - 1 do
+		crest = math.min(crest, ridgeOf(1, x + 0.5))
+	end
+	local hyS = math.max(H * 0.3, math.min(hy, crest - 3))
 	for y = 0, H - 1 do
-		local t = math.clamp(y / hy, 0, 1) * (#stops - 1)
+		local t = math.clamp(y / hyS, 0, 1) * (#stops - 1)
 		local i = math.min(#stops - 1, math.floor(t))
 		local f = t - i
 		local k = math.clamp((f - 0.3) / 0.4, 0, 1)
@@ -458,39 +494,230 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 	end
 	-- (no islets floating far off since 2026-11-14: "For the hatch screen, remove the trees in the background, and the
 	-- floating islands as well")
-	-- three ranges of hills, far to near, each a wavy ridge with a lit rim (no trees along the nearest since 2026-11-14)
-	for li, hl in sky.hills do
-		local base = hy - H * 0.13 + li * H * 0.075
-		local amp = H * (0.05 - li * 0.008)
-		local function ridge(x: number): number
-			return base - amp * (0.6 + 0.4 * math.sin(x * (0.011 + li * 0.004) + li * 2.3)) - amp * 0.5 * math.sin(x * (0.031 + li * 0.006) + li)
-		end
+	-- the corners a dithered step or two darker, framing the egg: the sky's only (the land darkens toward its corners
+	-- in its own tones, below)
+	for y = 0, H - 1 do
+		local vy = (y + 0.5) / H - 0.5
 		for x = 0, W - 1 do
-			local top = math.floor(ridge(x + 0.5))
-			for y = math.max(0, top), H - 1 do
-				px[y * W + x + 1] = if y == top then hl[2] else hl[1]
+			local vx = (x + 0.5) / W - 0.5
+			local d = vx * vx * 1.6 + vy * vy * 2.2
+			if d > 0.32 then
+				local lvl = math.floor(math.clamp((d - 0.32) / 0.22, 0, 1) * 2 + bay(x, y))
+				if lvl > 0 then
+					px[y * W + x + 1] = mix(px[y * W + x + 1], 0x000000, 0.08 * lvl)
+				end
 			end
 		end
 	end
-	-- the foreground: tufts of grass along the bottom (three blades, the middle tallest, the left one lit), a little
-	-- flower on some
-	local near = sky.hills[#sky.hills]
+	-- the land: three ranges of hills, far to near (the request of 2026-11-19: "the landscape's grass across all
+	-- rarities is too even. also, the landscape's anti aliasing dosent match the color much, and is banded").
+	-- Each range has a ramp of five tones from its own colours, the darker ones leaning to the sky's deep hue and the
+	-- lightest to the egg's glow. Its ridge has no rim line: where the ridge steps down a pixel, the end of the run
+	-- below carries the run above on for one to four pixels, each mixed from the very colour behind it toward the
+	-- hill's (a pixel artist's anti-aliasing: only at the steps, never a band along the edge). The slopes facing the
+	-- light (up and to the left) carry a lit cap that thickens and thins with the slope, the far sides a darker one.
+	-- Over that, the grass: patches a tone lighter or darker (soft noise, wider toward the front, lone pixels cleaned
+	-- away), blades gathered in clumps that grow taller toward the front, tufts of three in the nearest grass (the left
+	-- blade lit, the right in shade) with a few flowers in the rarity's colour, and the nearest grass a tone or two
+	-- darker toward the bottom corners. Only what shows is worked out: a range stops where the next one covers it.
 	local B = BASES[math.clamp(r, 1, #BASES)]
-	local bladeLit, blade = mix(near[2], 0xFFFFFF, 0.12), mix(near[1], near[2], 0.5)
-	for i = 1, math.floor(W / 6) do
-		local x = math.floor(hash(i * 71 + r * 5) * W)
-		local y = H - 1 - math.floor(hash(i * 83 + 3) * H * 0.08)
-		local tall = 2 + math.floor(hash(i * 97 + 1) * 3)
-		for k = -1, 1 do
-			local hgt = if k == 0 then tall else tall - 1
-			for j = 0, hgt - 1 do
-				set(x + k * 2 + (if j == hgt - 1 and k ~= 0 then k else 0), y - j, if k < 0 then bladeLit else blade)
+	local nHills = #sky.hills
+	local deep, warm = stops[1], sky.glow
+	local topsOf: { { number } } = {}
+	for li = 1, nHills do
+		local t = table.create(W, 0)
+		for x = 0, W - 1 do
+			t[x + 1] = math.floor(ridgeOf(li, x + 0.5) + 0.5)
+		end
+		topsOf[li] = t
+	end
+	for li, hl in sky.hills do
+		local tops = topsOf[li]
+		local nextTops: { number }? = topsOf[li + 1]
+		local isNear = li == nHills
+		local lowest = if li == 1 then 2 else 1
+		local highest = if isNear then 5 else 4
+		local fill, lit = hl[1], hl[2]
+		local ramp = { mix(fill, deep, 0.42), mix(fill, deep, 0.2), fill, lit, mix(lit, warm, 0.25) }
+		local minTop = H
+		for x = 1, W do
+			minTop = math.min(minTop, tops[x])
+		end
+		minTop = math.max(0, minTop)
+		local rows = H - minTop
+		if rows <= 0 then
+			continue
+		end
+		local seed = r * 17 + li * 5
+		local cacheA: { [number]: number }, cacheB: { [number]: number } = {}, {}
+		local cacheC: { [number]: number }, cacheD: { [number]: number } = {}, {}
+		-- how deep each column's lit cap and its shaded cap reach under its top
+		local capW: { number } = table.create(W, 0)
+		local darkW: { number } = table.create(W, 0)
+		local capT = H * (0.018 + 0.007 * li)
+		for x = 0, W - 1 do
+			local slope = (ridgeOf(li, x + 1.5) - ridgeOf(li, x - 0.5)) / 2
+			local wob = 0.7 + 0.6 * vnoise(x / 19, li * 3.1, seed + 7, cacheC)
+			-- (whole pixels down from the column's top, and none thinner than two: a cap a pixel thick came and went
+			-- from one column to the next along the ridge, a dashed line)
+			local cw = math.floor(math.clamp(0.45 - slope * 5, 0, 1) * capT * wob + 0.5)
+			local dw = math.floor(math.clamp(slope * 5 - 0.3, 0, 1) * capT * 0.8 * wob + 0.5)
+			capW[x + 1] = if cw >= 2 then cw else 0
+			darkW[x + 1] = if dw >= 2 then dw else 0
+		end
+		-- the tones (ramp index; 0 where this range doesn't show)
+		local tone = buffer.create(W * rows)
+		local sx, sy = 26, 7
+		for y = minTop, H - 1 do
+			local k = 0.6 + 1.1 * (y - minTop) / math.max(1, rows) -- how near the ground is here
+			local v = (y - minTop) / (sy * k)
+			local vy = (y + 0.5) / H - 0.5
+			for x = 0, W - 1 do
+				if y < tops[x + 1] or (nextTops and y >= nextTops[x + 1]) then
+					continue
+				end
+				local dy = y - tops[x + 1]
+				local b = 3
+				if dy < capW[x + 1] then
+					b = 4
+				elseif dy < darkW[x + 1] then
+					b = 2
+				end
+				local u = (x - W / 2) / (sx * k)
+				local n = vnoise(u, v, seed, cacheA) * 0.75 + vnoise(u * 2, v * 2, seed + 1, cacheB) * 0.25
+				if n < 0.33 then
+					b -= 1
+				elseif n > 0.68 then
+					b += 1
+				end
+				if isNear then
+					local vx = (x + 0.5) / W - 0.5
+					local d = vx * vx * 1.6 + vy * vy * 2.2 + (n - 0.5) * 0.25
+					if d > 0.9 then
+						b -= 2
+					elseif d > 0.64 then
+						b -= 1
+					end
+				end
+				buffer.writeu8(tone, (y - minTop) * W + x, math.clamp(b, lowest, highest))
 			end
 		end
-		if hash(i * 13 + 7) < 0.3 then
-			set(x, y - tall, B.flower)
+		local function toneAt(x: number, y: number): number
+			if x < 0 or x >= W or y < minTop or y >= H then
+				return 0
+			end
+			return buffer.readu8(tone, (y - minTop) * W + x)
+		end
+		-- (lone pixels go: one unlike all of its neighbours, three or four of them alike, takes theirs; and so does a
+		-- pixel between two alike above and below, so no patch thins to a one pixel streak)
+		for y = minTop, H - 1 do
+			for x = 0, W - 1 do
+				local c = toneAt(x, y)
+				local upT, dnT = toneAt(x, y - 1), toneAt(x, y + 1)
+				if c > 0 and upT > 0 and upT == dnT and upT ~= c then
+					buffer.writeu8(tone, (y - minTop) * W + x, upT)
+				elseif c > 0 then
+					local lT, rT = toneAt(x - 1, y), toneAt(x + 1, y)
+					if lT ~= c and rT ~= c and upT ~= c and dnT ~= c then
+						-- (all four unlike it: it takes the tone that three or four of them share)
+						local other = if lT > 0 then lT else rT
+						local seen, alike = 0, 0
+						for k = 1, 4 do
+							local nb = if k == 1 then lT elseif k == 2 then rT elseif k == 3 then upT else dnT
+							if nb > 0 then
+								seen += 1
+								if nb == other then
+									alike += 1
+								end
+							end
+						end
+						if other > 0 and seen >= 3 and alike == seen then
+							buffer.writeu8(tone, (y - minTop) * W + x, other)
+						end
+					end
+				end
+			end
+		end
+		for y = minTop, H - 1 do
+			local row = y * W
+			for x = 0, W - 1 do
+				local c = toneAt(x, y)
+				if c > 0 then
+					px[row + x + 1] = ramp[c]
+				end
+			end
+		end
+		-- the ridge's anti-aliasing: at each step down a pixel, the run above carries on over the end of the run below
+		-- for n pixels (half the run, one to four), mixed from what lies behind toward the hill, a step at a time
+		local function aa(x: number, y: number, c: number, a: number)
+			if y >= 0 and y < H and x >= 0 and x < W and not (nextTops and y >= nextTops[x + 1]) then
+				set(x, y, mix(get(x, y), c, a))
+			end
+		end
+		local x0 = 0
+		while x0 < W do
+			local t = tops[x0 + 1]
+			local x1 = x0
+			while x1 + 1 < W and tops[x1 + 2] == t do
+				x1 += 1
+			end
+			local n = math.clamp((x1 - x0 + 1) // 2, 1, 4)
+			if x0 > 0 and tops[x0] == t - 1 then
+				local c = ramp[math.max(1, toneAt(x0 - 1, t - 1))]
+				for k = 0, n - 1 do
+					aa(x0 + k, t - 1, c, (n - k) / (n + 1))
+				end
+			end
+			if x1 < W - 1 and tops[x1 + 2] == t - 1 then
+				local c = ramp[math.max(1, toneAt(x1 + 1, t - 1))]
+				for k = 0, n - 1 do
+					aa(x1 - k, t - 1, c, (n - k) / (n + 1))
+				end
+			end
+			x0 = x1 + 1
+		end
+		-- blades of grass, gathered in clumps, taller toward the front; tufts and flowers in the nearest grass
+		local function blade(x: number, y: number, h: number, lean: number, c: number)
+			for j = 0, h - 1 do
+				local bx = x + (if j == h - 1 and h >= 2 then lean else 0)
+				if toneAt(bx, y - j) > 0 then
+					set(bx, y - j, c)
+				end
+			end
+		end
+		local count = if isNear then math.floor(W * 1.2) elseif li == 1 then math.floor(W * 0.15) else math.floor(W * 0.3)
+		for i = 1, count do
+			local x = math.floor(hash(i * 31 + seed * 7) * W)
+			local y = minTop + math.floor(hash(i * 57 + seed * 3) * rows)
+			local b = toneAt(x, y)
+			if b == 0 or vnoise(x / 9, y / 4, seed + 11, cacheD) < 0.45 then
+				continue
+			end
+			local p = (y - minTop) / math.max(1, rows)
+			if isNear then
+				local h = 1 + math.floor(p * 3 + hash(i * 13 + 1) * 1.5)
+				if p > 0.35 and hash(i * 19 + 2) < 0.55 then
+					blade(x, y, h, 0, ramp[math.min(5, b + 1)])
+					blade(x - 1, y, h - 1, -1, ramp[math.min(5, b + 2)])
+					blade(x + 1, y, h - 1, 1, ramp[math.max(1, b - 1)])
+					if hash(i * 23 + 5) < 0.18 then
+						set(x, y - h, B.flower)
+						if p > 0.7 and toneAt(x, y - h - 1) > 0 then
+							set(x, y - h - 1, mix(B.flower, 0xFFFFFF, 0.45))
+						end
+					end
+				else
+					blade(x, y, h, if hash(i * 29 + 4) < 0.5 then -1 else 1, ramp[math.min(5, b + 1)])
+				end
+			else
+				local h = 1 + math.floor(hash(i * 13 + 1) * 1.6)
+				blade(x, y, h, 0, ramp[math.min(highest, b + 1)])
+			end
 		end
 	end
+	-- (the pedestal's own tufts, on its top's rim, in the nearest grass's tones)
+	local nearHl = sky.hills[nHills]
+	local bladeLit, bladeC = mix(nearHl[2], 0xFFFFFF, 0.12), mix(nearHl[1], nearHl[2], 0.5)
 	-- the pedestal the egg lands on
 	if ped then
 		local cx, cy, bw = ped.x, ped.y, math.max(8, ped.w)
@@ -685,24 +912,10 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			local fy = math.floor(cy + math.sin(a) * ry * 0.9)
 			for j = 0, 1 do
 				set(fx - 1, fy - j, bladeLit)
-				set(fx + 1, fy - j, blade)
+				set(fx + 1, fy - j, bladeC)
 			end
 			set(fx, fy - 2, bladeLit)
 			set(fx, fy - 3, B.flower)
-		end
-	end
-	-- the corners a dithered step or two darker, framing the egg
-	for y = 0, H - 1 do
-		local vy = (y + 0.5) / H - 0.5
-		for x = 0, W - 1 do
-			local vx = (x + 0.5) / W - 0.5
-			local d = vx * vx * 1.6 + vy * vy * 2.2
-			if d > 0.32 then
-				local lvl = math.floor(math.clamp((d - 0.32) / 0.22, 0, 1) * 2 + bay(x, y))
-				if lvl > 0 then
-					px[y * W + x + 1] = mix(px[y * W + x + 1], 0x000000, 0.08 * lvl)
-				end
-			end
 		end
 	end
 	-- packed
