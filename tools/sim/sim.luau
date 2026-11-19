@@ -1201,8 +1201,10 @@ do
 		end
 	end
 	H.expect(odds == 5, "tree", "the odds of each rarity", tostring(odds))
-	local head = body and body:FindFirstChild("Eggs")
-	H.expect(head ~= nil and head.Text == "Under the tree" and body:FindFirstChild("Jetty") == nil, "tree", "under the tree", head and head.Text)
+	-- (the left column scrolls since 2026-11-19: the heading is on the panel's body, its parent)
+	local panelBody = if body and body.Name == "Left" then body.Parent else body
+	local head = panelBody and panelBody:FindFirstChild("Eggs")
+	H.expect(head ~= nil and head.Text == "Under the tree" and panelBody:FindFirstChild("Jetty") == nil, "tree", "under the tree", head and head.Text)
 	local rows, all, n = panelRows()
 	H.expect(n == #prof.clutch.list and rows == n and all == n, "tree", "every egg under the tree with its rarity and Hatch at its price", string.format("%d of %d, %d rows", rows, n, all))
 	local card = pg:FindFirstChild("TreeCard", true)
@@ -1532,7 +1534,7 @@ do
 	local function has(w)
 		return string.find(all, w, 1, true) ~= nil
 	end
-	H.expect(rowF ~= nil and st.shown and string.find(all, "Works [%a ,%d%.x]-x%d") ~= nil and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and (has("Its egg luck counts while it lives in a hut") or string.find(all, "Its egg luck[%a ,]- count while it lives in a hut") ~= nil) and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
+	H.expect(rowF ~= nil and st.shown and string.find(all, "Works [%a ,%d%.x]-x%d") ~= nil and has(d.passive.name .. ": ") and has("Blessed: +10% egg luck") and has("Shiny: +30% sell price") and (has("Its egg luck counts while in a hut") or string.find(all, "Its egg luck[%a ,]- count while in a hut") ~= nil) and has("Sells for "), "pals", "over a driftling's row: its tip, how fast it works, its passive and each mutation and what they do", all)
 	local tipF = p.PlayerGui:FindFirstChild("PalTip", true)
 	H.expect(tipF ~= nil and tipF.Visible ~= false, "pals", "(the tip's card on the Popup root)")
 	if rowF then
