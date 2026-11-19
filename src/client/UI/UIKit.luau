@@ -10,10 +10,10 @@
 -- Conventions the sims rely on: a button is a TextButton whose child TextLabel holds its words; a disabled button has
 -- AutoButtonColor false; buttons fire Activated; UIKit.openPanel(name, arg) opens a registered panel.
 -- Since the request of 2026-11-19 ("Look at the bakery game and see its menu. Make a similarly polished and themed menu
--- for different tabs") a panel is a sheet: cream paper under a striped teal awning with a scalloped hem (its icon, its
--- title, a few props on a little shelf and a close mark on the awning). What a panel builds sits on the paper ("paper
--- mode", UIKit.withPaper): the kit's words take the paper's inks (UIKit.paperColor), a row is a plate a step lighter
--- than the paper, glass a step darker, a neutral button a paper one with ink words. The HUD stays dark glass.
+-- for different tabs") a panel is a sheet: a striped teal awning with a scalloped hem (its icon, its title, a few
+-- props on a little shelf and a close mark) over the panel's black glass. It was cream paper with dark words for a few
+-- hours; the request after ("please make it such that the menu and ui remain in dark mode, such that it is light text
+-- on black") brought the black glass and the light words back, the awning, tabs and headings staying.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -59,61 +59,6 @@ end
 
 function UIKit.hex(hex: number): Color3
 	return hexColor(hex)
-end
-
--- Paper mode (the module's header): on while a panel builds (UIKit.openPanel, UIKit.refreshPanel) and while a button
--- made on paper runs its click (a tab that rebuilds part of its sheet).
-local paperDepth = 0
-local PAPER_INKS: { [string]: string } = {
-	text = "sheet_ink",
-	text_dim = "sheet_dim",
-	accent = "paper_accent",
-	good = "paper_good",
-	bad = "paper_bad",
-	pink = "paper_pink",
-	orange = "paper_orange",
-	button = "paper_button",
-	yellow = "paper_yellow",
-	purple = "paper_purple",
-	mythic = "paper_mythic",
-	celestial = "paper_celestial",
-	xp = "paper_xp",
-}
-local paperMap: { [string]: Color3 }? = nil
--- The ink a colour of the dark glass look takes on paper: the white words dark brown, the bright ones deeper; a light
--- colour the table does not know is darkened until it reads on the cream.
-function UIKit.paperColor(c: Color3): Color3
-	local m = paperMap
-	if m == nil then
-		local n: { [string]: Color3 } = {}
-		for key, ink in PAPER_INKS do
-			n[UIKit.color(key):ToHex()] = UIKit.color(ink)
-		end
-		m = n
-		paperMap = n
-	end
-	local hit = (m :: { [string]: Color3 })[c:ToHex()]
-	if hit then
-		return hit
-	end
-	local lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
-	return if lum > 0.62 then c:Lerp(Color3.new(0, 0, 0), 0.45) else c
-end
-
-function UIKit.onPaper(): boolean
-	return paperDepth > 0
-end
-
--- Runs `fn` in paper mode (what it builds sits on a sheet's paper).
-function UIKit.withPaper(fn: () -> ())
-	paperDepth += 1
-	local ok, err = pcall(function()
-		fn()
-	end)
-	paperDepth -= 1
-	if not ok then
-		error(err, 0)
-	end
 end
 
 ------------------------------------------------------------------ roots and canvases
@@ -269,7 +214,6 @@ export type TextOpts = {
 	face: string?, -- "small" | "big"
 	z: number?,
 	name: string?,
-	raw: boolean?, -- on paper too, the colour and kind as given (words on a coloured plate)
 }
 
 local XA = { left = Enum.TextXAlignment.Left, center = Enum.TextXAlignment.Center, right = Enum.TextXAlignment.Right }
@@ -291,7 +235,6 @@ end
 -- A label in UI px. Its Text stays readable by the sims and screen readers; the pixel font draws it.
 function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, opts: TextOpts?): TextLabel
 	local o: TextOpts = opts or {}
-	local paper = paperDepth > 0 and o.raw ~= true
 	local l = Instance.new("TextLabel")
 	l.Name = o.name or "Label"
 	l.BackgroundTransparency = 1
@@ -299,17 +242,7 @@ function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, o
 	l.Size = size
 	l.Position = pos or UDim2.new()
 	l.Text = text
-	local col = o.color or UIKit.color("text")
-	local kind = o.kind or "shadow"
-	if paper then
-		-- on paper: the ink of its colour, flat (a shadow under dark words on cream only smudges them)
-		col = UIKit.paperColor(col)
-		if kind == "shadow" then
-			kind = "plain"
-		end
-		l:SetAttribute("Paper", true)
-	end
-	l.TextColor3 = col
+	l.TextColor3 = o.color or UIKit.color("text")
 	l.TextXAlignment = XA[o.x or "left"] or Enum.TextXAlignment.Left
 	l.TextYAlignment = YA[o.y or "center"] or Enum.TextYAlignment.Center
 	l.TextWrapped = o.wrap == true
@@ -323,9 +256,8 @@ function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, o
 	l.LineHeight = 1.25
 	if PixelText.available() then
 		PixelText.bind(l, {
-			kind = kind,
+			kind = o.kind or "shadow",
 			under = o.under or UIKit.color("ink"),
-			underShade = if paper and kind == "weight" then 0.62 else nil,
 			face = o.face or "small",
 			unit = 1,
 		})
@@ -340,8 +272,7 @@ function UIKit.setText(l: TextLabel, text: string)
 	end
 end
 
-function UIKit.setTextColor(l: TextLabel, c0: Color3)
-	local c = if l:GetAttribute("Paper") then UIKit.paperColor(c0) else c0
+function UIKit.setTextColor(l: TextLabel, c: Color3)
 	l.TextColor3 = c
 	if PixelText.isBound(l) then
 		PixelText.setColor(l, c)
@@ -452,27 +383,7 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 	local st: PlateStyle = style or {}
 	local edged = st.edge ~= false
 	local ink = st.edgeColor or UIKit.color("ink")
-	if paperDepth > 0 and st.glass then
-		-- glass inside a sheet: a card a step darker than the paper
-		col = UIKit.color("sheet_card")
-		a = 0
-		k = math.min(k, 2)
-		edged = false
-		st = { edge = false }
-	elseif paperDepth > 0 and st.row then
-		-- an item on a sheet: a plate a step lighter than the paper (a faint one, alpha past UIKit.ROW_ALPHA, nearer
-		-- the paper), or its tint (picked, ready) over the paper
-		if c == nil or c:ToHex() == UIKit.color("veil"):ToHex() then
-			col = if alpha and alpha > UIKit.ROW_ALPHA + 0.005 then UIKit.color("sheet_row"):Lerp(UIKit.color("sheet"), 0.6) else UIKit.color("sheet_row")
-			a = 0
-		else
-			col = c
-			a = alpha or 0.5
-		end
-		k = math.min(k, 1)
-		edged = false
-		st = { edge = false }
-	elseif st.glass or (st.wood and st.wood > 0) then
+	if st.glass or (st.wood and st.wood > 0) then
 		-- black see-through glass (the old frames of planks are gone: a `wood` plate is glass too): flat, its corners
 		-- at most two steps, no outline, frame, bevel or shadow
 		col = UIKit.color("glass")
@@ -679,23 +590,8 @@ local function paintButton(b: GuiButton)
 	local on = b.AutoButtonColor
 	local hot = hovered[b] == true and on
 	local c, a, lipA = base, 0, 0
-	local paper = b:GetAttribute("Paper") == true
-	local words = b:FindFirstChild("Words")
-	if paper and words and words:IsA("TextLabel") then
-		-- on a sheet: a neutral button is paper with ink words pressed into it (a light line under them), a coloured
-		-- one keeps white words with an ink shadow
-		local plain = isNeutral(base) and not b:GetAttribute("Ghost")
-		UIKit.setTextColor(words, if plain then UIKit.color(if on then "sheet_ink" else "sheet_dim") else UIKit.color(if on then "text" else "text_dim"))
-		if PixelText.isBound(words) then
-			PixelText.setUnder(words, if plain then UIKit.color("sheet_btn_hi") else UIKit.color("ink"))
-		end
-	end
 	if b:GetAttribute("Ghost") then
 		c, a, lipA = UIKit.color("veil"), if hot then 0.84 else 1, 1
-	elseif paper and isNeutral(base) then
-		c = UIKit.color(if hot then "sheet_btn_hi" else "sheet_btn")
-		a = if on then 0 else 0.4
-		lipA = a
 	elseif isNeutral(base) then
 		c = if hot then UIKit.color("glass"):Lerp(Color3.new(1, 1, 1), 0.2) else UIKit.color("glass")
 		a = if on then UIKit.DARK_ALPHA else 0.55
@@ -709,7 +605,7 @@ local function paintButton(b: GuiButton)
 	-- the lip along the bottom: the face a shade darker (none on a dark or ghost button)
 	local lip = plate:FindFirstChild("Lip")
 	if lip and lip:IsA("Frame") then
-		lip.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), if paper and isNeutral(base) then 0.16 else 0.28)
+		lip.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.28)
 		lip.BackgroundTransparency = lipA
 	end
 end
@@ -745,10 +641,6 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 	if o.ghost then
 		b:SetAttribute("Ghost", true)
 	end
-	local paper = paperDepth > 0
-	if paper then
-		b:SetAttribute("Paper", true)
-	end
 	-- flat, its corners stepped, no outline; a darker lip along the bottom (pressed, the button sinks a pixel)
 	local plate = UIKit.plate(b, UDim2.fromScale(1, 1), nil, col, 0, 2, { edge = false })
 	plate.ZIndex = 1
@@ -762,18 +654,12 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 		face = o.face,
 		z = 3,
 		name = "Words",
-		raw = true,
 	})
 	l.Active = false
 	b.Activated:Connect(function()
 		if b.AutoButtonColor then
 			Audio.play("click")
-			if paper then
-				-- (what a button on a sheet builds is on the paper too: a tab's page)
-				UIKit.withPaper(onClick)
-			else
-				onClick()
-			end
+			onClick()
 		else
 			Audio.play("deny")
 		end
@@ -814,7 +700,7 @@ function UIKit.setEnabled(b: GuiButton, on: boolean)
 	b.AutoButtonColor = on
 	paintButton(b)
 	local words = b:FindFirstChild("Words")
-	if words and words:IsA("TextLabel") and not b:GetAttribute("Paper") then
+	if words and words:IsA("TextLabel") then
 		UIKit.setTextColor(words, if on then UIKit.color("text") else UIKit.color("text_dim"))
 	end
 end
@@ -828,7 +714,7 @@ end
 
 function UIKit.setButtonColor(b: GuiButton, c: Color3)
 	buttonColor[b] = c
-	if b.AutoButtonColor or b:GetAttribute("Paper") then
+	if b.AutoButtonColor then
 		paintButton(b)
 	end
 end
@@ -899,7 +785,7 @@ function UIKit.scroll(parent: Instance?, size: UDim2, pos: UDim2?): ScrollingFra
 	s.Size = size
 	s.Position = pos or UDim2.new()
 	s.ScrollBarThickness = 3
-	s.ScrollBarImageColor3 = if paperDepth > 0 then UIKit.color("sheet_dim") else UIKit.color("text_dim")
+	s.ScrollBarImageColor3 = UIKit.color("text_dim")
 	s.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	s.CanvasSize = UDim2.new()
 	s.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -993,7 +879,7 @@ local function px(parent: Instance, x: number, y: number, w: number, h: number, 
 end
 
 -- The awning across a sheet's top (w UI px wide): teal canvas in wide stripes, a lit fold along its top, and its hem
--- cut in scallops that hang over the paper, each shaded underneath and outlined in ink (1 px, stepped).
+-- cut in scallops that hang over the glass, each shaded underneath and outlined in ink (1 px, stepped).
 local function awning(head: Frame, w: number)
 	local clip = Instance.new("Frame")
 	clip.Name = "Band"
@@ -1003,7 +889,7 @@ local function awning(head: Frame, w: number)
 	clip.Size = UDim2.new(1, 0, 0, AWNING)
 	clip.ZIndex = 2
 	clip.Parent = head
-	-- the band: the paper's stepped top corners, its lower edge cut straight (it runs on into the hem)
+	-- the band: the glass's stepped top corners, its lower edge cut straight (it runs on into the hem)
 	local band = UIKit.plate(clip, UDim2.new(1, 0, 0, AWNING + 4), nil, UIKit.color("awning"), 0, 2)
 	band.ZIndex = 2
 	local alt = UIKit.color("awning"):Lerp(UIKit.color("awning_alt"), 0.55)
@@ -1046,9 +932,6 @@ function UIKit.openPanel(name: string, arg: any?)
 	UIKit.closePanel()
 	UIKit.clearNotices()
 	openSeq += 1
-	-- (the chrome is never on paper, even when a button on another sheet opens this one)
-	local outer = paperDepth
-	paperDepth = 0
 	local canvas = UIKit.canvas("Modal")
 	local sz = panelSize(def)
 	local s = UIKit.size("Modal")
@@ -1071,13 +954,11 @@ function UIKit.openPanel(name: string, arg: any?)
 	frame.ZIndex = 2
 	frame.Active = true
 	frame.Parent = shade
-	-- the sheet: a soft shadow, then the cream paper in its ink outline
-	local shadow = UIKit.plate(frame, UDim2.fromScale(1, 1), UDim2.fromOffset(1, 2), UIKit.color("ink"), 0.62, 2, { edge = false })
-	shadow.Name = "Shadow"
-	shadow.ZIndex = 0
-	local paper = UIKit.plate(frame, UDim2.fromScale(1, 1), nil, UIKit.color("sheet"), 0, 2)
-	paper.Name = "Paper"
-	paper.ZIndex = 1
+	-- the sheet: black see-through glass (dark, light words: the request of 2026-11-19, "please make it such that the
+	-- menu and ui remain in dark mode"), the world dimmed behind it
+	local glass = UIKit.plate(frame, UDim2.fromScale(1, 1), nil, nil, UIKit.PANEL_ALPHA, 2, { glass = true })
+	glass.Name = "Glass"
+	glass.ZIndex = 1
 	-- the awning: icon, title, the status line, the props on their shelf, the close mark
 	local head = Instance.new("Frame")
 	head.Name = "Head"
@@ -1092,7 +973,7 @@ function UIKit.openPanel(name: string, arg: any?)
 		ic.Name = "Icon"
 		tx = 20
 	end
-	UIKit.text(head, def.title, UDim2.new(0, UIKit.textWidth(def.title) + 4, 0, 12), UDim2.fromOffset(tx, 4), { color = UIKit.color("sheet"), kind = "outline", under = UIKit.color("ink"), name = "Title", z = 5 })
+	UIKit.text(head, def.title, UDim2.new(0, UIKit.textWidth(def.title) + 4, 0, 12), UDim2.fromOffset(tx, 4), { color = UIKit.color("text"), kind = "outline", under = UIKit.color("ink"), name = "Title", z = 5 })
 	local right = sz.X - 19
 	local close = UIKit.button(head, "", UDim2.fromOffset(15, 15), UDim2.fromOffset(right, 2), function()
 		Audio.play("close")
@@ -1141,11 +1022,9 @@ function UIKit.openPanel(name: string, arg: any?)
 	UIKit.tween(shade, 0.15, { BackgroundTransparency = 0.45 })
 	UIKit.tween(frame, 0.15, { Position = UDim2.fromOffset(fx, fy) })
 	Audio.play("open")
-	paperDepth = 1
 	local ok, err = pcall(function()
 		def.build(body, arg)
 	end)
-	paperDepth = outer
 	if not ok then
 		warn("[UIKit] panel " .. name .. " failed: " .. tostring(err))
 	end
@@ -1171,12 +1050,9 @@ function UIKit.refreshPanel()
 		local list = body:FindFirstChild("List")
 		local pos = if list and list:IsA("ScrollingFrame") then list.CanvasPosition else nil
 		UIKit.clear(body)
-		local outer = paperDepth
-		paperDepth = 1
 		local ok, err = pcall(function()
 			def.build(body :: Frame, openArg)
 		end)
-		paperDepth = outer
 		if not ok then
 			warn("[UIKit] panel " .. name .. " failed: " .. tostring(err))
 		end
@@ -1199,7 +1075,7 @@ end
 
 ------------------------------------------------------------------ on the sheets
 -- A sheet's tabs (Random Bakery's plates): one button each, named `prefix .. id` ("Tab_" by default), its mini icon
--- before its words; the picked one deep teal with white words, the rest paper; a red dot on one that has something
+-- before its words; the picked one teal, the rest dark glass, white words on both; a red dot on one that has something
 -- waiting (`dot`). They run on to a second row when the body is too narrow. The height they took.
 export type Tab = { id: string, text: string, icon: string?, dot: boolean? }
 UIKit.TAB_H = 14
@@ -1218,7 +1094,7 @@ function UIKit.tabs(parent: Instance, items: { Tab }, picked: string, y: number,
 			if id ~= picked then
 				onPick(id)
 			end
-		end, { name = (prefix or "Tab_") .. id, color = if on then UIKit.color("paper_button") else UIKit.color("plate_light") })
+		end, { name = (prefix or "Tab_") .. id, color = if on then UIKit.color("button") else UIKit.color("plate_light") })
 		b.ZIndex = 4
 		local tx = 5
 		if it.icon then
@@ -1241,7 +1117,7 @@ function UIKit.tabs(parent: Instance, items: { Tab }, picked: string, y: number,
 	return (row + 1) * (UIKit.TAB_H + 2)
 end
 
--- A heading on a sheet: its mini icon, the words in the sheet's teal (bold), a little wave after them and, at the
+-- A heading on a sheet: its mini icon, the words in a light teal, a little wave after them and, at the
 -- right, a note (`right`: "3 of 8", a timer). Returns the label, the note and the height (12).
 function UIKit.heading(parent: Instance, text: string, y: number, icon: string?, right: string?): (TextLabel, TextLabel?, number)
 	local W = UIKit.bodyWidth(parent)
@@ -1251,7 +1127,7 @@ function UIKit.heading(parent: Instance, text: string, y: number, icon: string?,
 		x = 14
 	end
 	local tw = UIKit.textWidth(text)
-	local l = UIKit.text(parent, text, UDim2.fromOffset(tw + 2, 11), UDim2.fromOffset(x, y), { color = UIKit.color("sheet_head"), kind = "weight", name = "Heading", z = 4 })
+	local l = UIKit.text(parent, text, UDim2.fromOffset(tw + 2, 11), UDim2.fromOffset(x, y), { color = UIKit.color("sheet_head"), name = "Heading", z = 4 })
 	PixelSprites.image(parent, "sheet_wave", UDim2.fromOffset(x + tw + 4, y + 4), 4)
 	local note: TextLabel? = nil
 	if right then

@@ -476,20 +476,24 @@ floor, it just looks noisy", 2026-11-14),
   > The request (2026-11-19): "Look at the bakery game and see its menu. Make a similarly polished and themed menu for
   > different tabs."
 
-  **The sheets** (`UIKit.openPanel`, `UIKit.withPaper`, `UIKit.tabs`, `UIKit.heading`): every panel is a sheet of cream
-  paper (`Palette.ui.sheet`) in a 1 px ink outline with a soft shadow, under an awning: a teal band 20 UI px tall in
-  wide stripes of two teals with a lit fold along its top, cut at the bottom into scallops (9 px each, the band's
-  colour, shaded under, outlined in ink between them and along their bottoms) that hang over the paper. On the awning:
-  the panel's mini icon, its title in cream with an ink outline, the status line (notices while the panel is open), a
-  few of the panel's things on a little driftwood shelf (the Tree of Life's eggs, the Store's crown, a shell and a
-  ticket, the Rewards' egg, gift and Lucky Shell) and a close mark (a cream X, its own sprite, on a deep teal button).
-  On the paper: words in dark brown ink (`sheet_ink`, quieter ones `sheet_dim`), the bright colours of the HUD's look
-  deepened to read on cream (`paper_*`: a rarity's name, a good or bad number), no shadow under them; a row is a plate
-  a step lighter than the paper, a card a step darker, one waiting for the player (a reward ready, today's day) a soft
-  gold; a neutral button is paper with ink words pressed into it, a coloured one keeps its colour and white words. Tabs
-  are plates in a row, each its icon and word, the open one teal, a small red dot on one with something waiting; a
-  heading is teal, bold, its icon before it and a little wave after it, with a note at the right ("Best 5", "2 of 8
-  today"). The HUD (its bars, chips and cards) stays black glass, below.
+  > The request after it (2026-11-19, with screenshots of the cream sheets): "please make it such that the menu and
+  > ui remain in dark mode, such that it is light text on black text instead. it also seems like you changed the
+  > brightness of egg rarity colors, make it brighter again."
+
+  **The sheets** (`UIKit.openPanel`, `UIKit.tabs`, `UIKit.heading`): every panel is black see-through glass (as the
+  HUD, below) under an awning: a teal band 20 UI px tall in wide stripes of two teals with a lit fold along its top,
+  cut at the bottom into scallops (9 px each, the band's colour, shaded under, outlined in ink between them and along
+  their bottoms) that hang over the glass. On the awning: the panel's mini icon, its title in white with an ink
+  outline, the status line (notices while the panel is open), a few of the panel's things on a little driftwood shelf
+  (the Tree of Life's eggs, the Store's crown, a shell and a ticket, the Rewards' egg, gift and Lucky Shell) and a
+  close mark (an X, its own sprite, on a deep teal button). Under it the panel is as before: light words in their own
+  bright colours (a rarity's name in its colour), each row on a faint white veil, neutral buttons dark glass. Tabs are
+  buttons in a row, each its icon and word, the open one teal, a small red dot on one with something waiting; a
+  heading is a light teal, its icon before it and a little wave after it, with a note at the right ("Best 5", "2 of 8
+  today"). A row waiting to be claimed (a reward ready, today's day) glows gold, one already taken is fainter.
+  (For a few hours the panels were cream paper with dark ink words, every bright colour deepened to read on the cream,
+  rarity names among them; the request above brought the glass and the bright colours back. The paper's colouring
+  also leaked into the HUD and the hatch scene while a button on a panel waited on the server, which went with it.)
 
   > The request (2026-11-14, with a picture of Random Bakery's HUD: a top bar of chips on one black see-through
   > rounded panel, "Winter · 2 h" on a second one under it): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the

@@ -279,17 +279,10 @@ local UI: { [string]: number } = {
 	mythic = 0xFF6EB4,
 	celestial = 0xA6F0FF,
 	-- the sheets (the request of 2026-11-19: "Look at the bakery game and see its menu. Make a similarly polished and
-	-- themed menu for different tabs"): warm sand paper under a lagoon awning with beach stripes and a scalloped hem;
-	-- an item's plate a step lighter than the paper, a tab or a plain button a step darker, ink words
-	sheet = 0xFCEEDA,
-	sheet_row = 0xFFF9F0,
-	sheet_card = 0xF4E2CB,
-	sheet_btn = 0xEFDAC0,
-	sheet_btn_hi = 0xF7E7D2,
-	sheet_ink = 0x45302B,
-	sheet_dim = 0x8E7364,
-	sheet_head = 0x1D8A95,
-	sheet_feature = 0xFCE6A2,
+	-- themed menu for different tabs"): a lagoon awning with beach stripes and a scalloped hem over the panels' black
+	-- glass (the cream paper and its deeper inks went the same day: "please make it such that the menu and ui remain in
+	-- dark mode"); a heading's light teal, the props' driftwood shelf
+	sheet_head = 0x7FE3E6,
 	awning = 0x3AB0BA,
 	awning_alt = 0x5CC6CB,
 	awning_hi = 0x8EE0DD,
@@ -297,18 +290,6 @@ local UI: { [string]: number } = {
 	awning_dark = 0x1B5F6B,
 	shelf = 0xC98F5E,
 	shelf_lo = 0x8A5A3B,
-	-- the words' colours on the paper (UIKit.text while a sheet is built): each bright colour a deeper one of its hue
-	paper_accent = 0xC07A0B,
-	paper_good = 0x2D9148,
-	paper_bad = 0xC93A35,
-	paper_pink = 0xCC4C7C,
-	paper_orange = 0xC5600F,
-	paper_button = 0x1B8792,
-	paper_yellow = 0xB48700,
-	paper_purple = 0x7A4CC0,
-	paper_mythic = 0xD4428A,
-	paper_celestial = 0x2A98BC,
-	paper_xp = 0x7A58D2,
 }
 
 local Palette: {

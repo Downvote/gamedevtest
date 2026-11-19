@@ -208,10 +208,13 @@ end
 ------------------------------------------------------------------ pieces
 local PAD = 4
 local ROW_GAP = 3
+-- (on the panels' black glass: a row waiting to be claimed glows gold, one already taken is fainter than the rest)
+local READY_ALPHA = 0.72
+local GOT_ALPHA = 0.95
 
 -- A row on the sheet: an icon, a line in ink, a quieter line under it; returns the row.
 local function infoRow(list: Instance, y: number, w: number, h: number, icon: string, top: string, sub: string?, name: string, feature: boolean?): Frame
-	local f = UIKit.row(list, UDim2.fromOffset(w, h), UDim2.fromOffset(0, y), if feature then UIKit.color("sheet_feature") else nil, if feature then 0 else nil)
+	local f = UIKit.row(list, UDim2.fromOffset(w, h), UDim2.fromOffset(0, y), if feature then UIKit.color("accent") else nil, if feature then READY_ALPHA else nil)
 	f.Name = name
 	PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(PAD + 1, math.floor((h - 11) / 2)), 4)
 	UIKit.text(f, top, UDim2.fromOffset(w - 90, 10), UDim2.fromOffset(19, if sub then 2 else math.floor((h - 10) / 2)), { z = 4, name = "Top" })
@@ -223,8 +226,7 @@ end
 
 -- A small card: a label on top, an icon, words under it. state: "got" (dimmed, a tick), "now" (gold), "" (plain).
 local function card(list: Instance, x: number, y: number, w: number, h: number, label: string, icon: string, words: string, state: string, name: string): Frame
-	local c = if state == "now" then UIKit.color("sheet_feature") elseif state == "got" then UIKit.color("sheet_card") else nil
-	local f = UIKit.row(list, UDim2.fromOffset(w, h), UDim2.fromOffset(x, y), c, if c then 0 else nil)
+	local f = UIKit.row(list, UDim2.fromOffset(w, h), UDim2.fromOffset(x, y), if state == "now" then UIKit.color("accent") else nil, if state == "now" then READY_ALPHA elseif state == "got" then GOT_ALPHA else nil)
 	f.Name = name
 	UIKit.text(f, label, UDim2.fromOffset(w - 2, 10), UDim2.fromOffset(1, 2), { x = "center", color = UIKit.color(if state == "now" then "accent" else "text_dim"), z = 4, name = "Label" })
 	PixelSprites.image(f, "mini_" .. (if state == "got" then "check" else icon), UDim2.fromOffset(math.floor((w - 11) / 2), math.floor(h / 2) - 5), 4)
@@ -247,11 +249,11 @@ local function rightNote(f: Frame, text: string, name: string?, icon: string?)
 end
 
 local function bar(parent: Instance, x: number, y: number, w: number, frac: number, color: string)
-	-- a groove in the paper (its top edge in shade), the fill along it
-	local back = UIKit.rect(parent, UDim2.fromOffset(w, 4), UDim2.fromOffset(x, y), UIKit.color("sheet_card"), 4)
+	-- a dark groove, the fill along it
+	local back = UIKit.rect(parent, UDim2.fromOffset(w, 4), UDim2.fromOffset(x, y), UIKit.color("glass"), 4)
+	back.BackgroundTransparency = 0.25
 	back.Name = "Bar"
-	UIKit.rect(back, UDim2.new(1, 0, 0, 1), nil, UIKit.color("sheet_btn"):Lerp(UIKit.color("sheet_ink"), 0.25), 5).Name = "Edge"
-	local fill = UIKit.rect(back, UDim2.fromOffset(math.floor(w * math.clamp(frac, 0, 1) + 0.5), 3), UDim2.fromOffset(0, 1), UIKit.paperColor(UIKit.color(color)), 5)
+	local fill = UIKit.rect(back, UDim2.fromOffset(math.floor((w - 2) * math.clamp(frac, 0, 1) + 0.5), 2), UDim2.fromOffset(1, 1), UIKit.color(color), 5)
 	fill.Name = "Fill"
 end
 
@@ -352,7 +354,7 @@ local function buildTasks(list: ScrollingFrame, v: View, W: number): number
 			end
 		end
 		local text = Lang.fmt(t.text, { n = if t.id == "earn" then Numbers.coins(t.n) else tostring(t.n) })
-		local f = UIKit.row(list, UDim2.fromOffset(W, 28), UDim2.fromOffset(0, y), if t.done and not t.got then UIKit.color("sheet_feature") else nil, if t.done and not t.got then 0 else nil)
+		local f = UIKit.row(list, UDim2.fromOffset(W, 28), UDim2.fromOffset(0, y), if t.done and not t.got then UIKit.color("accent") else nil, if t.done and not t.got then READY_ALPHA else nil)
 		f.Name = "Task_" .. i
 		PixelSprites.image(f, "mini_" .. (if t.got then "check" else RewardsUI.icon(def.give[1])), UDim2.fromOffset(PAD + 1, 8), 4)
 		UIKit.text(f, text, UDim2.fromOffset(W - 100, 10), UDim2.fromOffset(19, 2), { z = 4, name = "Top" })
@@ -400,7 +402,7 @@ local function paintSpin()
 	for i = 1, #RewardsData.SPIN do
 		local c = root:FindFirstChild("Slice_" .. i, true)
 		if c then
-			UIKit.setPlate(c, if i == spinAt then UIKit.color("sheet_feature") else UIKit.color("sheet_row"), 0)
+			UIKit.setPlate(c, if i == spinAt then UIKit.color("accent") else UIKit.color("veil"), if i == spinAt then READY_ALPHA else UIKit.ROW_ALPHA)
 		end
 	end
 end
@@ -456,7 +458,7 @@ local function buildSpin(list: ScrollingFrame, v: View, W: number): number
 	local cw = math.floor((W - (cols - 1) * 3) / cols)
 	for i, s in RewardsData.SPIN do
 		local cx, cy = ((i - 1) % cols) * (cw + 3), y + ((i - 1) // cols) * 25
-		local f = UIKit.row(list, UDim2.fromOffset(cw, 22), UDim2.fromOffset(cx, cy), if i == spinAt then UIKit.color("sheet_feature") else UIKit.color("sheet_row"), 0)
+		local f = UIKit.row(list, UDim2.fromOffset(cw, 22), UDim2.fromOffset(cx, cy), if i == spinAt then UIKit.color("accent") else nil, if i == spinAt then READY_ALPHA else nil)
 		f.Name = "Slice_" .. i
 		PixelSprites.image(f, "mini_" .. RewardsUI.icon(s.give), UDim2.fromOffset(PAD, 5), 4)
 		local long = if s.give.kind == "shells" then RewardsUI.words(v, s.give) else Lang.t(s.label)
@@ -487,7 +489,7 @@ local function buildIndex(list: ScrollingFrame, v: View, W: number): number
 	for i, g in RewardsData.INDEX do
 		local got = table.find(r.indexGot, g.n) ~= nil
 		local can = not got and r.kinds >= g.n
-		local f = UIKit.row(list, UDim2.fromOffset(W, 24), UDim2.fromOffset(0, y), if can then UIKit.color("sheet_feature") else nil, if can then 0 else nil)
+		local f = UIKit.row(list, UDim2.fromOffset(W, 24), UDim2.fromOffset(0, y), if can then UIKit.color("accent") else nil, if can then READY_ALPHA else nil)
 		f.Name = "IndexGift_" .. i
 		PixelSprites.image(f, "mini_" .. (if got then "check" else RewardsUI.icon(g.give[1])), UDim2.fromOffset(PAD + 1, 6), 4)
 		UIKit.text(f, string.format("Find %d kinds", g.n), UDim2.fromOffset(W - 100, 10), UDim2.fromOffset(19, 2), { z = 4, name = "Top" })
@@ -529,12 +531,11 @@ local function codeBox(body: Frame, y: number, W: number): Frame
 		box.Size = UDim2.fromScale(1, 1)
 		box.ZIndex = 8
 		box.Parent = nf
-		local mirror = UIKit.text(nf, "Type a code", UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 3), { color = UIKit.color("text_dim"), kind = "plain", z = 7, name = "Typed", raw = true })
-		UIKit.setTextColor(mirror, UIKit.color("sheet_dim"))
+		local mirror = UIKit.text(nf, "Type a code", UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 3), { color = UIKit.color("text_dim"), z = 7, name = "Typed" })
 		box:GetPropertyChangedSignal("Text"):Connect(function()
 			local t = string.sub(box.Text, 1, 24)
 			UIKit.setText(mirror, if t ~= "" then string.upper(t) else "Type a code")
-			UIKit.setTextColor(mirror, UIKit.color(if t ~= "" then "sheet_ink" else "sheet_dim"))
+			UIKit.setTextColor(mirror, UIKit.color(if t ~= "" then "text" else "text_dim"))
 		end)
 		codeField = nf
 		f = nf

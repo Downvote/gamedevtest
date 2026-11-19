@@ -356,7 +356,8 @@ local function buildHatch(body: Frame, arg: any?)
 			local line = if egg.left > 0 then "Hatches in " .. Numbers.duration(egg.left * Tuning.TurnSeconds) else "Hatching now."
 			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
 			local bw = math.min(140, W - 40)
-			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("sheet_card"), 4)
+			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("glass"), 4)
+			back.BackgroundTransparency = 0.25
 			back.Name = "EggBar"
 			local done = math.clamp(1 - egg.left / math.max(1, total), 0, 1)
 			UIKit.rect(back, UDim2.fromOffset(math.floor((bw - 2) * done), 2), UDim2.fromOffset(1, 1), UIKit.color("pink"), 5)
