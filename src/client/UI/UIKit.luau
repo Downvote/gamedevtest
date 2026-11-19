@@ -1255,7 +1255,8 @@ function UIKit.heading(parent: Instance, text: string, y: number, icon: string?,
 	PixelSprites.image(parent, "sheet_wave", UDim2.fromOffset(x + tw + 4, y + 4), 4)
 	local note: TextLabel? = nil
 	if right then
-		note = UIKit.text(parent, right, UDim2.fromOffset(math.max(10, W - (x + tw + 24)), 11), UDim2.new(1, -math.max(10, W - (x + tw + 24)), 0, y), { color = UIKit.color("text_dim"), x = "right", name = "Note", z = 4 })
+		local nw = math.max(10, W - (x + tw + 24))
+		note = UIKit.text(parent, right, UDim2.fromOffset(nw, 11), UDim2.fromOffset(W - nw, y), { color = UIKit.color("text_dim"), x = "right", name = "Note", z = 4 })
 	end
 	return l, note, 12
 end

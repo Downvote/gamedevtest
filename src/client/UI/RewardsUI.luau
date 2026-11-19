@@ -529,7 +529,7 @@ local function codeBox(body: Frame, y: number, W: number): Frame
 		box.Size = UDim2.fromScale(1, 1)
 		box.ZIndex = 8
 		box.Parent = nf
-		local mirror = UIKit.text(nf, "Type a code", UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 3), { color = UIKit.color("text_dim"), z = 7, name = "Typed", raw = true })
+		local mirror = UIKit.text(nf, "Type a code", UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 3), { color = UIKit.color("text_dim"), kind = "plain", z = 7, name = "Typed", raw = true })
 		UIKit.setTextColor(mirror, UIKit.color("sheet_dim"))
 		box:GetPropertyChangedSignal("Text"):Connect(function()
 			local t = string.sub(box.Text, 1, 24)
@@ -616,6 +616,8 @@ local function build(body: Frame, arg: any?)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	list.AutomaticCanvasSize = Enum.AutomaticSize.None
 	local cw = W - 6
+	-- (its width for UIKit.heading's note, clear of the scroll bar)
+	list:SetAttribute("W", cw)
 	local h = 0
 	if tab == "today" then
 		h = buildToday(list, v, cw)
