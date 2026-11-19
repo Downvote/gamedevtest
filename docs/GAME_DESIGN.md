@@ -2095,7 +2095,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   a big wheel, a lighthouse's lamp, a clock's hands), swing (a swing's seats, a hammock, a bell, wind chimes, a hanging
   lantern or bucket) or bob (a buoy, a boat, a duck decoy, floating lanterns), each piece a little out of step with
   the next. At most 40 pieces move at a time, the ones on the screen nearest the middle of the view; the rest stand
-  still in their resting pose until the view comes to them. Flames throw up sparks that wink out (parts named Flame),
+  still in their resting pose until they are among them. Flames throw up sparks that wink out (parts named Flame),
   fountains throw spray from their jets that falls back into the basin (Spray), and crystals, gems and magic things
   twinkle now and then (Sparkle), all drawn in the ambient layer with the smoke and steam. Reduced motion keeps them
   all still.

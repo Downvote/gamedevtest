@@ -4822,37 +4822,7 @@ function PixelRenderer.hideStatic(part: BasePart)
 	if part.Transparency >= 0.95 then
 		return
 	end
-	-- (kept, for showStatic)
-	part:SetAttribute("PixelWasT", part.Transparency)
 	part.Transparency = 1
-	if surf == nil then
-		return
-	end
-	if CameraController.view().stage then
-		local st = stash
-		if st then
-			st.dirty = true
-		end
-		return
-	end
-	if rebakeAt >= 0 then
-		return
-	end
-	local r = partRect(part)
-	if r then
-		queueRect(r)
-	end
-end
-
--- A static part hideStatic took out comes back into the picture (Controllers/Spinners: its moving copy is let go while
--- the piece stays, out of the cap or off the screen): seen again at its old transparency, its rect cast again.
-function PixelRenderer.showStatic(part: BasePart)
-	local was = part:GetAttribute("PixelWasT")
-	if type(was) ~= "number" or part.Transparency < 0.95 then
-		return
-	end
-	part:SetAttribute("PixelWasT", nil)
-	part.Transparency = was
 	if surf == nil then
 		return
 	end

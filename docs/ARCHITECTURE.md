@@ -1118,8 +1118,7 @@ before the first picture: only the boat arrival, unused now, asked for it).
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
 progress)`, `hideStatic(part)` (Controllers/Spinners: a static part leaves the picture, Transparency 1 so BakeCast
-looks through it, its old transparency kept in `PixelWasT`, the rect it and its shadow cover cast again, or the stash
-marked dirty on a stage), `showStatic(part)` (the other way: back at its old transparency, its rect cast again),
+looks through it, the rect it and its shadow cover cast again, or the stash marked dirty on a stage),
 `registerDynamic(model, outline?)` (outline "self" or "player": a founder, outlined in white, GAME_DESIGN
 14.1: Random Bakery's rim. Once every model and its ink edge is drawn, each founder's whole silhouette, hidden parts too,
 is drawn again flat into a scratch window of its parts' rect (`Raster.window`, a buffer grown on demand and never
@@ -1711,16 +1710,18 @@ table by model): the parts its builder marked with `Parts.move` (attributes `Mov
 `MoveHub` a Vector3 in the piece's frame, `MoveAxis` "X" | "Y" | "Z", `MoveSpeed`, `MoveAmp`, `MovePhase`), or for
 an older building its `SPECS` entry by part name (windmill: `SailArm`, `Sail` round (0, 3.4, 0.9) on its Z, 0.9
 rad/s; waterwheel: `Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; grandmill: `Paddle` round (1.6, 1.5,
--0.6) on its X, 0.7). Of the pieces with moving parts whose frame is on the screen (`PixelRenderer.nearScreen`, 40 art
-px), the `MAX_MOVING` 40 nearest the view's middle have a moving copy: their moving parts cloned (anchored, no
-collision or query) into a `Spin_<name>` model in `workspace.PixelDynamic`, registered as a moving model, the
-originals hidden (`PixelRenderer.hideStatic`), each part kept as its offset from its hub (the model's `At` frame times
-the hub). The others, and every piece with reduced motion on, have their copies dropped and their parts shown again
-at rest (`PixelRenderer.showStatic`). Every Heartbeat the copies near the screen (24 art px) move: spin `hub *
+-0.6) on its X, 0.7). Every piece with moving parts on an island near the view gets a moving copy once: its moving
+parts cloned (anchored, no collision or query) into a `Spin_<name>` model in `workspace.PixelDynamic`, registered as
+a moving model, the originals hidden (`PixelRenderer.hideStatic`) for good, each part kept as its offset from its hub
+(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 40 on the screen (`PixelRenderer.nearScreen`, 24
+art px) nearest the view's middle are `active` and move; a copy that stops being active is put back at rest (`hub *
+off`, its pose as built), and with reduced motion none move. (A first version dropped the copies past the cap and
+showed their parts again: on a full island every pan cast parts in and out of the picture, the renderer baked again
+every second and drew nothing new, 2026-11-19.) Every Heartbeat the active copies still near the screen move: spin `hub *
 fromAxisAngle(axis, phase + t * speed) * off`, swing the same by `amp * sin(phase + t * speed)`, bob lifted by `amp *
 sin(...)` and rocked 0.06 rad round the axis; the phase is the part's own plus a piece's offset from its name and
 place. A piece gone (moved, rebuilt, cleared) drops its copy at the next scan. `start()`, `debugState() -> { count,
-parts, ids, kinds, still }`.
+moving, parts, ids, kinds, still }`.
 
 `BuildingTags` (GAME_DESIGN 4.6; the requests of 2026-11-14, "show capacities of work buildings when hovered over. if
 noone is working on a building, make a alert on top of said work building stating so. do the same for huts and
