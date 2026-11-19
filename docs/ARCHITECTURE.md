@@ -518,7 +518,14 @@ Models (`src/shared/Models`, Roblox modules):
   (42 pieces of the beach, garden, farm, harbour, town and jungle rows, six for tiers 11 to 20) and `ThemeMoreModels`
   (35 of frost, autumn, desert, fairy, zen and volcano, six for tiers 11 to 20), each theme in its own colours, its lights Neon so they glow at night, and
   `FunModels` (the 24 seats, lights, play pieces, treats and fountains not modelled before, the Big Wheel, the four
-  grand pieces of tiers 7 to 10 and the four of tiers 12 to 20). They build through `Parts` (the same shapes `DecorModels` uses, through `Blocks`: anchored, no
+  grand pieces of tiers 7 to 10 and the four of tiers 12 to 20). Since the request of 2026-11-19 ("detail all decor
+  more, some having animations, as much as in the bakery game and as much as the work/hut/ main buildings") every
+  decor builder in these modules and in `DecorModels` is about twice as detailed (20 to about 130 parts a piece), its
+  moving parts marked with `Parts.move` (Controllers/Spinners) and its flames, jets and gems named `Flame`, `Spray`
+  and `Sparkle` for the ambient layer; each module keeps its own small helpers for it (FenceModels `lap`, `tuft`,
+  `fern`, `ride`, `hangLantern`, `pad`; FunModels `mover`, `fall`, `tuft`, `bloom`; ThemeMoreModels `cone`, `swing`,
+  `snowpine`, `porthole`; DecorModels `at`, `discZ`, `discX`, `bar`, `onBall`, `ringOf`, `flower`, `tuft`, `lantern`,
+  `crystal`, `moveAll`). The waterwheel still turns by its parts' names (`Rim`, `Spoke`, `Paddle`). They build through `Parts` (the same shapes `DecorModels` uses, through `Blocks`: anchored, no
   collision, palette colours, the 0.25-stud grid, never thinner than 0.25, in the piece's frame: `box`, `turned`, `at`,
   `ball`, `cyl`, `log`, `logZ`, `wedge`, `glow` (Neon), `water` (a flat water part with `PixelWater` 2, moving like the
   shallows), `hash(f, k?)` (a number 0 .. 1 from the tile's place), `move(part, kind, hub, axis, speed, amp?, phase?)`
