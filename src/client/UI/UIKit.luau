@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -27,6 +28,7 @@ local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local PixelFont = require(ReplicatedStorage.Shared.Render.PixelFont)
 local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
+local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local PixelText = require(script.Parent.Parent.Pixel.PixelText)
@@ -184,6 +186,56 @@ end
 function UIKit.phone(): boolean
 	local vp = viewport()
 	return math.min(vp.X, vp.Y) <= 500
+end
+
+-- A touch screen first (touch and no mouse: a phone or a tablet, not a laptop with a touch screen), and a tablet (one
+-- that isn't a phone). The request of 2026-11-19: "make mobile and tablet as responsive and catered to as possible".
+function UIKit.touch(): boolean
+	return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+end
+function UIKit.tablet(): boolean
+	return UIKit.touch() and not UIKit.phone()
+end
+-- The screen px a finger needs to hit something (Apple's 44 pt; Android asks 48 dp): a smaller button on a touch screen
+-- gets a see-through pad round it that big (UIKit.button).
+UIKit.TOUCH_MIN = 44
+
+-- A long press on a touch screen (a finger held HOLD_SECS without lifting): `show` then, `hide` when it lifts or the
+-- target goes. The phone's way to see what a mouse sees by hovering (PalTip has its own; Build mode's cards use this).
+UIKit.HOLD_SECS = 0.35
+function UIKit.onHold(target: GuiObject, show: () -> (), hide: () -> ())
+	local down = 0
+	local shown = false
+	target.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		down += 1
+		local mine = down
+		task.delay(UIKit.HOLD_SECS, function()
+			if down == mine and target.Parent then
+				shown = true
+				show()
+			end
+		end)
+	end)
+	target.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		down += 1
+		if shown then
+			shown = false
+			hide()
+		end
+	end)
+end
+
+-- The money every panel's awning shows on a touch screen (Main.client: the view's shells, StateClient.Changed).
+local walletGet: (() -> number?)? = nil
+local walletChanged: any = nil
+function UIKit.setWallet(get: () -> number?, changed: any)
+	walletGet, walletChanged = get, changed
 end
 
 -- The top-left of a root's canvas in full-screen px (the world's art grid starts at the screen's corner).
@@ -656,14 +708,42 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 		name = "Words",
 	})
 	l.Active = false
-	b.Activated:Connect(function()
+	local function act()
 		if b.AutoButtonColor then
 			Audio.play("click")
 			onClick()
 		else
 			Audio.play("deny")
 		end
-	end)
+	end
+	b.Activated:Connect(act)
+	-- (on a touch screen a button smaller than a fingertip gets a see-through pad round it, TOUCH_MIN screen px each
+	-- way, that presses it too; the button looks the same)
+	if UIKit.touch() then
+		local need = math.ceil(UIKit.TOUCH_MIN / K)
+		local w = if size.X.Scale == 0 then size.X.Offset else need
+		local h = if size.Y.Scale == 0 then size.Y.Offset else need
+		local padX, padY = math.max(0, math.ceil((need - w) / 2)), math.max(0, math.ceil((need - h) / 2))
+		if padX > 0 or padY > 0 then
+			local hit = Instance.new("TextButton")
+			hit.Name = "Hit"
+			hit.Text = ""
+			hit.BackgroundTransparency = 1
+			hit.BorderSizePixel = 0
+			hit.AutoButtonColor = false
+			hit.Size = UDim2.new(1, padX * 2, 1, padY * 2)
+			hit.Position = UDim2.fromOffset(-padX, -padY)
+			hit.ZIndex = 4
+			hit.Activated:Connect(act)
+			hit.MouseButton1Down:Connect(function()
+				pressButton(b, true)
+			end)
+			hit.MouseButton1Up:Connect(function()
+				pressButton(b, false)
+			end)
+			hit.Parent = b
+		end
+	end
 	b.MouseEnter:Connect(function()
 		hovered[b] = true
 		paintButton(b)
@@ -892,6 +972,8 @@ end
 
 -- A sheet's awning (UI px): the band, then the scalloped hem under it; the body starts SHEET_TOP px down.
 local AWNING = 20
+-- (on a touch screen: 4 taller, for an exit button a finger can hit and the shells beside it)
+local AWNING_TOUCH = 24
 local HEM = 3
 local SHEET_TOP = AWNING + HEM + 2
 local SCALLOP = 9
@@ -899,11 +981,27 @@ UIKit.SHEET_TOP = SHEET_TOP
 
 -- The panel's size for the screen: as big as its def asks (its body that big, the awning on top), never past the
 -- canvas less a margin.
+-- The awning's height and where the body starts on this screen.
+local function awningH(): number
+	return if UIKit.touch() then AWNING_TOUCH else AWNING
+end
+local function sheetTop(): number
+	return awningH() + HEM + 2
+end
+
+-- A sheet's size: on a phone the whole screen under Roblox's top bar (the request of 2026-11-19: "Make menus fill the
+-- screen on mobile with currency showing and an exit button"); on a tablet about a third bigger than its design, up to
+-- the screen less a margin; elsewhere its design, within the screen.
 local function panelSize(def: PanelDef): Vector2
 	local s = UIKit.size("Modal")
-	local w = math.min(def.w or 300, s.X - 10)
+	if UIKit.phone() then
+		return Vector2.new(s.X, s.Y)
+	end
+	local grow = if UIKit.tablet() then 1.3 else 1
+	local w = math.min(math.floor((def.w or 300) * grow), s.X - (if UIKit.tablet() then 24 else 10))
 	local hFor = def.hFor
-	local h = math.min((if hFor then hFor(w) else def.h or 170) + SHEET_TOP - 17, s.Y - 8)
+	local base = if hFor then hFor(w) else math.floor((def.h or 170) * grow)
+	local h = math.min(base + sheetTop() - 17, s.Y - 8)
 	return Vector2.new(w, h)
 end
 
@@ -921,7 +1019,8 @@ end
 
 -- The awning across a sheet's top (w UI px wide): teal canvas in wide stripes, a lit fold along its top, and its hem
 -- cut in scallops that hang over the glass, each shaded underneath and outlined in ink (1 px, stepped).
-local function awning(head: Frame, w: number)
+local function awning(head: Frame, w: number, aw: number)
+	local AWNING = aw
 	local clip = Instance.new("Frame")
 	clip.Name = "Band"
 	clip.BackgroundTransparency = 1
@@ -986,6 +1085,8 @@ function UIKit.openPanel(name: string, arg: any?)
 	shade.Size = UDim2.fromScale(1, 1)
 	shade.ZIndex = 1
 	local fx, fy = math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)
+	local aw, top = awningH(), sheetTop()
+	local phone, touch = UIKit.phone(), UIKit.touch()
 	local frame = Instance.new("Frame")
 	frame.Name = "Frame"
 	frame.BackgroundTransparency = 1
@@ -997,40 +1098,74 @@ function UIKit.openPanel(name: string, arg: any?)
 	frame.Parent = shade
 	-- the sheet: black see-through glass (dark, light words: the request of 2026-11-19, "please make it such that the
 	-- menu and ui remain in dark mode"), the world dimmed behind it
-	local glass = UIKit.plate(frame, UDim2.fromScale(1, 1), nil, nil, UIKit.PANEL_ALPHA, 2, { glass = true })
+	-- (a phone's sheet fills the screen: square corners, nothing behind it to round off against)
+	local glass = UIKit.plate(frame, UDim2.fromScale(1, 1), nil, nil, if phone then 0.08 else UIKit.PANEL_ALPHA, if phone then 0 else 2, { glass = true })
 	glass.Name = "Glass"
 	glass.ZIndex = 1
 	-- the awning: icon, title, the status line, the props on their shelf, the close mark
 	local head = Instance.new("Frame")
 	head.Name = "Head"
 	head.BackgroundTransparency = 1
-	head.Size = UDim2.new(1, 0, 0, AWNING + HEM)
+	head.Size = UDim2.new(1, 0, 0, aw + HEM)
 	head.ZIndex = 2
 	head.Parent = frame
-	awning(head, sz.X)
+	awning(head, sz.X, aw)
 	local tx = 6
 	if def.icon then
-		local ic = PixelSprites.image(head, "mini_" .. def.icon, UDim2.fromOffset(6, 5), 5)
+		local ic = PixelSprites.image(head, "mini_" .. def.icon, UDim2.fromOffset(6, 5 + (aw - AWNING) // 2), 5)
 		ic.Name = "Icon"
 		tx = 20
 	end
-	UIKit.text(head, def.title, UDim2.new(0, UIKit.textWidth(def.title) + 4, 0, 12), UDim2.fromOffset(tx, 4), { color = UIKit.color("text"), kind = "outline", under = UIKit.color("ink"), name = "Title", z = 5 })
-	local right = sz.X - 19
-	local close = UIKit.button(head, "", UDim2.fromOffset(15, 15), UDim2.fromOffset(right, 2), function()
+	local ty = math.floor((aw - 12) / 2)
+	UIKit.text(head, def.title, UDim2.new(0, UIKit.textWidth(def.title) + 4, 0, 12), UDim2.fromOffset(tx, ty), { color = UIKit.color("text"), kind = "outline", under = UIKit.color("ink"), name = "Title", z = 5 })
+	-- the exit: 15 px, or 20 on a touch screen (its pad makes it a fingertip wide)
+	local cs = if touch then 20 else 15
+	local right = sz.X - cs - 4
+	local close = UIKit.button(head, "", UDim2.fromOffset(cs, cs), UDim2.fromOffset(right, math.floor((aw - cs) / 2)), function()
 		Audio.play("close")
 		UIKit.closePanel()
 	end, { color = UIKit.color("awning_dark"), name = "Close" })
 	close.ZIndex = 5
-	PixelSprites.image(close, "mini_close", UDim2.fromOffset(2, 1), 6)
+	PixelSprites.image(close, "mini_close", UDim2.fromOffset(math.floor((cs - 11) / 2), math.floor((cs - 11) / 2) - 1), 6)
+	-- the shells, on a touch screen (the top bar's chip is under the sheet there): kept up to date while it's open
+	if touch and walletGet then
+		local get = walletGet :: () -> number?
+		local n = get() or 0
+		local words = Numbers.short(math.floor(n))
+		local ww = UIKit.textWidth(words) + 18
+		right -= ww + 4
+		local chip = UIKit.plate(head, UDim2.fromOffset(ww, 14), UDim2.fromOffset(right, math.floor((aw - 14) / 2)), UIKit.color("awning_dark"), 0, 2)
+		chip.Name = "Wallet"
+		chip.ZIndex = 5
+		PixelSprites.image(chip, "mini_shell", UDim2.fromOffset(2, 1), 6)
+		local label = UIKit.text(chip, words, UDim2.fromOffset(ww - 16, 12), UDim2.fromOffset(14, 1), { color = UIKit.color("accent"), z = 6, name = "Shells" })
+		if walletChanged and walletChanged.Connect then
+			local conn: any = nil
+			conn = walletChanged:Connect(function()
+				if chip.Parent == nil then
+					if conn then
+						conn:Disconnect()
+					end
+					return
+				end
+				UIKit.setText(label, Numbers.short(math.floor(get() or 0)))
+			end)
+			chip.Destroying:Connect(function()
+				if conn then
+					conn:Disconnect()
+				end
+			end)
+		end
+	end
 	-- the props: little things of the panel's on a driftwood shelf, before the close mark
 	local props = def.props
-	if props and #props > 0 and sz.X >= 220 then
+	if props and #props > 0 and sz.X >= 220 and not phone then
 		local sw = #props * 12 + 3
 		right -= sw + 3
 		local shelf = Instance.new("Frame")
 		shelf.Name = "Props"
 		shelf.BackgroundTransparency = 1
-		shelf.Position = UDim2.fromOffset(right, 3)
+		shelf.Position = UDim2.fromOffset(right, 3 + math.floor((aw - AWNING) / 2))
 		shelf.Size = UDim2.fromOffset(sw, 16)
 		shelf.ZIndex = 4
 		shelf.Parent = head
@@ -1047,15 +1182,15 @@ function UIKit.openPanel(name: string, arg: any?)
 	end
 	-- the status line: notices while the panel is open land here instead of covering it
 	local titleW = UIKit.textWidth(def.title) + tx + 8
-	UIKit.text(head, "", UDim2.fromOffset(math.max(0, right - 4 - titleW), 12), UDim2.fromOffset(titleW, 4), { color = UIKit.color("text"), kind = "outline", name = "Status", x = "right", z = 5 })
+	UIKit.text(head, "", UDim2.fromOffset(math.max(0, right - 4 - titleW), 12), UDim2.fromOffset(titleW, ty), { color = UIKit.color("text"), kind = "outline", name = "Status", x = "right", z = 5 })
 	local body = Instance.new("Frame")
 	body.Name = "Body"
 	body.BackgroundTransparency = 1
-	body.Size = UDim2.new(1, -8, 1, -(SHEET_TOP + 3))
-	body.Position = UDim2.fromOffset(4, SHEET_TOP)
+	body.Size = UDim2.new(1, -8, 1, -(top + 3))
+	body.Position = UDim2.fromOffset(4, top)
 	body.ZIndex = 2
 	body:SetAttribute("W", sz.X - 8)
-	body:SetAttribute("H", sz.Y - SHEET_TOP - 3)
+	body:SetAttribute("H", sz.Y - top - 3)
 	body.Parent = frame
 	shade.Parent = canvas
 	openFrame = shade :: any

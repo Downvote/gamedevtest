@@ -534,7 +534,7 @@ do
 			local v = math.floor(x * 1000 + 0.5) / 10
 			return if v == math.floor(v) then string.format("%d%%", v) else string.format("%.1f%%", v)
 		end
-		local want1 = string.format("Windmill Everything +%s from %d boost buildings", pct(info.total), info.count)
+		local want1 = string.format("Windmill +%s to all from %d boosts", pct(info.total), info.count)
 		local want2 = string.format("One more adds +%s", pct(by * Tuning.BoostStack * Tuning.BoostStack))
 		H.expect(shown and info.count == 2 and st.card == want1 and st.card2 == want2, "boost", "a tap on a windmill: everything's boost from both, and what one more adds", string.format("%q / %q (want %q / %q)", st.card, st.card2, want1, want2))
 		local roomy = 0
@@ -706,7 +706,7 @@ do
 		local ht = if hint then table.concat(H.textsOf(hint), " ") else ""
 		local ct = if cost then table.concat(H.textsOf(cost), " ") else ""
 		H.expect(string.find(ht, "Breed two driftlings for an egg.", 1, true) ~= nil and string.find(ht, "best mutations", 1, true) ~= nil, "hatchery", "the hint: breed two for an egg, it gets their best mutations", ht)
-		H.expect(preview ~= nil and string.find(ct, "Costs " .. Numbers.coins(preview.price) .. " shells", 1, true) ~= nil, "hatchery", "the pair's line: the price and the time", ct)
+		H.expect(preview ~= nil and string.find(ct, Numbers.coins(preview.price) .. " shells, hatches in", 1, true) ~= nil, "hatchery", "the pair's line: the price and the time", ct)
 		local row = p.PlayerGui:FindFirstChild("Hatch_" .. uid, true)
 		local shown = 0
 		for _, id in if preview then preview.muts else {} do

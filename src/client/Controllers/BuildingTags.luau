@@ -202,8 +202,8 @@ local function extrasOf(s: Spot): { string }
 			out = { string.format("Earns %s shells/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
 		elseif s.kind == "boost" then
 			local b = Island.boostInfo(prof, s.id)
-			local first = string.format("Everything +%s from %d boost building%s", pct(b.total), b.count, if b.count == 1 then "" else "s")
-			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Boosts top out at %s", pct(Tuning.BoostMax)) else string.format("One more adds +%s", pct(b.more))
+			local first = string.format("+%s to all from %d boost%s", pct(b.total), b.count, if b.count == 1 then "" else "s")
+			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Max boost %s", pct(Tuning.BoostMax)) else string.format("One more adds +%s", pct(b.more))
 			out = { first, second }
 		end
 	end

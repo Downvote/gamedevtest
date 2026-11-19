@@ -1810,7 +1810,7 @@ do
 		H.clickNamed(b, "Clear_" .. what, { wait = 0.3 })
 		local btn = H.buttonNamed(b, "Clear_" .. what)
 		local label = btn and btn:FindFirstChildWhichIsA("TextLabel", true)
-		H.expect(n0 > 0 and count(group) == n0 and label ~= nil and string.find(label.Text, "Tap again", 1, true) ~= nil and string.find(label.Text, tostring(n0), 1, true) ~= nil, "limits", "Remove all " .. what .. ": the first tap only asks, saying how many", label and label.Text)
+		H.expect(n0 > 0 and count(group) == n0 and label ~= nil and string.find(label.Text, "Tap again", 1, true) ~= nil and string.find(label.Text, tostring(n0), 1, true) ~= nil, "limits", "Clear " .. what .. ": the first tap only asks, saying how many", label and label.Text)
 		H.clickNamed(b, "Clear_" .. what, { wait = 0.5 })
 		local okS, sayS = shellsNear(pb, s0, 0, t0)
 		H.expect(count(group) == 0 and heldAll() - held0 == n0 + floats and okS, "limits", "the second tap takes every one into the inventory, nothing paid back", string.format("%d left, %d more held (%d and %d floating), %s", count(group), heldAll() - held0, n0, floats, sayS))

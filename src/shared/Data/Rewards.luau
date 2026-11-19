@@ -91,7 +91,7 @@ local TASKS: { TaskDef } = {
 	{ id = "hatch", text = "Hatch {n} eggs", stat = "taken", base = 3, per = 0.5, max = 12, tier = 1, give = { egg(2), shells(2) } },
 	{ id = "build", text = "Place {n} pieces", stat = "built", base = 3, per = 0.4, max = 12, tier = 1, give = { shells(4) } },
 	{ id = "earn", text = "Earn {n} shells", stat = "earned", base = 0, per = 0, max = 0, mins = 20, tier = 1, give = { shells(4) } },
-	{ id = "play", text = "Spend {n} minutes on your island", stat = "play", base = 15, per = 0, max = 15, tier = 1, give = { spin(1) } },
+	{ id = "play", text = "Play {n} minutes", stat = "play", base = 15, per = 0, max = 15, tier = 1, give = { spin(1) } },
 	{ id = "sell", text = "Sell {n} driftlings", stat = "sold", base = 1, per = 0.25, max = 5, tier = 2, give = { shells(3.2), boost("luck", 10) } },
 	{ id = "breed", text = "Hatch {n} Hatchery eggs", stat = "hatched", base = 1, per = 0.1, max = 3, tier = 3, give = { egg(3) } },
 }

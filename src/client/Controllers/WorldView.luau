@@ -736,7 +736,7 @@ function WorldView.signCard(i: number)
 	end
 	local name = m:GetAttribute("StudioName")
 	if type(name) ~= "string" then
-		UIKit.notice("Nobody has claimed this one yet.", UIKit.color("text_dim"))
+		UIKit.notice("Nobody lives here yet.", UIKit.color("text_dim"))
 		return
 	end
 	local function n(k: string): number
@@ -753,7 +753,7 @@ function WorldView.signCard(i: number)
 		end
 		return c
 	end
-	UIKit.notice(string.format("%s: day %s, %d driftlings at home, charm %s", name, Numbers.int(n("Day")), count("Pals"), Numbers.int(n("Charm"))), UIKit.color("accent"), 5)
+	UIKit.notice(string.format("%s: day %s, %d driftlings, charm %s", name, Numbers.int(n("Day")), count("Pals"), Numbers.int(n("Charm"))), UIKit.color("accent"), 5)
 end
 
 -- The Tree of Life under a world hit: true for the own island's, false for a neighbour's, nil for anything else.
@@ -954,7 +954,7 @@ local function onTap(pos: Vector2)
 		UIKit.openPanel("tree")
 		return
 	elseif mine == false then
-		UIKit.notice("Someone else's Tree of Life. Yours is on your own island.", UIKit.color("text_dim"), 3)
+		UIKit.notice("Not your tree. Yours is at home.", UIKit.color("text_dim"), 3)
 		return
 	end
 	-- a Hatchery: the own one opens the Hatchery panel (the request of 2026-11-14: "allow clicking on a hatchery to open
@@ -964,7 +964,7 @@ local function onTap(pos: Vector2)
 		UIKit.openPanel("hatch")
 		return
 	elseif hatch == false then
-		UIKit.notice("Someone else's Hatchery. Build one on your own island.", UIKit.color("text_dim"), 3)
+		UIKit.notice("Not your Hatchery. Build one at home.", UIKit.color("text_dim"), 3)
 		return
 	end
 	-- a workplace or a hut of the own island: how full it is, for a few seconds (Controllers/BuildingTags; the request

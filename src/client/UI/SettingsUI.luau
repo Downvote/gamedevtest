@@ -35,7 +35,7 @@ local ROWS: { Row } = {
 		k = "pixel",
 		label = "Pixel art",
 		opts = { { v = "high", text = "High" }, { v = "medium", text = "Medium" }, { v = "low", text = "Low" } },
-		hint = "Less detail runs smoother on older phones.",
+		hint = "Lower runs smoother on older phones.",
 	},
 }
 SettingsUI.ROWS = ROWS
@@ -81,7 +81,7 @@ local function set(k: string, val: string)
 		local res = StateClient.request("settings.set", { k = k, v = val })
 		if not res.ok then
 			pending[k] = nil
-			UIKit.notice("That setting couldn't be saved. Try again in a moment.", UIKit.color("bad"))
+			UIKit.notice("Couldn't save that. Try again.", UIKit.color("bad"))
 		end
 		SettingsUI.apply()
 		if UIKit.currentPanel() == "settings" then
@@ -138,7 +138,7 @@ function SettingsUI.setZoom(n: number)
 		if not res.ok then
 			pendingZoom = nil
 			CameraController.setZoom(SettingsUI.zoom())
-			UIKit.notice("That setting couldn't be saved. Try again in a moment.", UIKit.color("bad"))
+			UIKit.notice("Couldn't save that. Try again.", UIKit.color("bad"))
 			if UIKit.currentPanel() == "settings" then
 				UIKit.refreshPanel()
 			end

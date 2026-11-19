@@ -273,14 +273,14 @@ local function buildToday(list: ScrollingFrame, v: View, W: number): number
 	UIKit.heading(list, "Daily reward", y, "gift", string.format("Best %d", d.best))
 	y += 14
 	-- the streak: today's claim, the next milestone
-	local streakTop = if d.ready then (if d.streak > 1 then string.format("Day %d of your streak", d.streak) else "Day 1 of a new streak") else string.format("%d day streak", d.streak)
+	local streakTop = if d.ready then (if d.streak > 1 then string.format("Streak day %d", d.streak) else "New streak, day 1") else string.format("%d day streak", d.streak)
 	local mile: RewardsData.Milestone? = nil
 	for _, m in RewardsData.MILESTONES do
 		if m.day == d.next then
 			mile = m
 		end
 	end
-	local sub = if mile then string.format("Day %d gift: %s.", mile.day, bundleWords(v, mile.give)) else "Every streak gift is yours."
+	local sub = if mile then string.format("Day %d gift: %s.", mile.day, bundleWords(v, mile.give)) else "All streak gifts claimed."
 	local f = infoRow(list, y, W, 24, "heat", streakTop, sub, "Streak", d.ready)
 	if d.ready then
 		rightButton(f, W, "Claim", "DailyClaim", function()
@@ -323,7 +323,7 @@ local function buildToday(list: ScrollingFrame, v: View, W: number): number
 		local row = infoRow(list, y, W, 24, RewardsUI.icon(g.give[1]), "Next gift", bundleWords(v, g.give) .. ".", "PlayGift")
 		rightNote(row, mmss(g.min * 60 - secs), "PlayTimer", "clock")
 	else
-		infoRow(list, y, W, 24, "check", "That's every gift for today", "More come tomorrow.", "PlayGift")
+		infoRow(list, y, W, 24, "check", "All done today", "More tomorrow.", "PlayGift")
 	end
 	y += 24 + ROW_GAP
 	local m = #RewardsData.PLAY
@@ -414,7 +414,7 @@ local function spin()
 	local res = StateClient.request("reward.spin", {})
 	if not res.ok then
 		Audio.play("deny")
-		UIKit.notice(if res.err == "not_done" then "No spins left. A free one comes tomorrow." else Words.errText(res.err), UIKit.color("bad"))
+		UIKit.notice(if res.err == "not_done" then "No spins left. Free one tomorrow." else Words.errText(res.err), UIKit.color("bad"))
 		return
 	end
 	local data: any = res.data
@@ -484,7 +484,7 @@ end
 local function buildIndex(list: ScrollingFrame, v: View, W: number): number
 	local r = rv(v)
 	local y = 0
-	UIKit.heading(list, "Gifts for the Index", y, "star", string.format("%d kinds found", r.kinds))
+	UIKit.heading(list, "Index gifts", y, "star", string.format("%d kinds found", r.kinds))
 	y += 14
 	for i, g in RewardsData.INDEX do
 		local got = table.find(r.indexGot, g.n) ~= nil
@@ -564,7 +564,7 @@ local function redeem()
 		box.Text = ""
 	else
 		Audio.play("deny")
-		UIKit.notice(if res.err == "used" then "You already used that code." elseif res.err == "not_found" then "That code doesn't work. Check the spelling." else Words.errText(res.err), UIKit.color("bad"))
+		UIKit.notice(if res.err == "used" then "Code already used." elseif res.err == "not_found" then "That code doesn't work." else Words.errText(res.err), UIKit.color("bad"))
 	end
 end
 
@@ -572,7 +572,7 @@ local function buildCodes(body: Frame, top: number, W: number)
 	local y = top
 	UIKit.heading(body, "Codes", y, "ticket")
 	y += 14
-	UIKit.text(body, "We post codes with updates and in the group. Type one in to get its gift.", UDim2.fromOffset(W, 20), UDim2.fromOffset(0, y), { color = UIKit.color("text_dim"), wrap = true, y = "top", z = 4, name = "CodesHow" })
+	UIKit.text(body, "Codes come with updates and in the group.", UDim2.fromOffset(W, 20), UDim2.fromOffset(0, y), { color = UIKit.color("text_dim"), wrap = true, y = "top", z = 4, name = "CodesHow" })
 	y += 24
 	codeBox(body, y, W)
 	local b = UIKit.button(body, "Redeem", UDim2.fromOffset(64, 16), UDim2.fromOffset(W - 64, y), redeem, { name = "Redeem", color = UIKit.color("button_ok") })

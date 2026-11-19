@@ -538,7 +538,7 @@ local function panelCheck(label)
 	H.expect(ordered, "panel", label .. ": the rarest first")
 	H.expect(#named(p, "Egg_", true) == #v.clutch, "panel", label .. ": no other rows", string.format("%d rows, %d eggs", #named(p, "Egg_", true), #v.clutch))
 	if #v.clutch == 0 then
-		H.expect(says(p, "No eggs left. The tree lays more soon."), "panel", label .. ": no eggs: it says so")
+		H.expect(says(p, "No eggs left. More soon."), "panel", label .. ": no eggs: it says so")
 	end
 end
 
@@ -629,7 +629,7 @@ local function lotCheck(label, at, old, next0, f0, st0, said)
 	for _, e in prof.clutch.list do
 		best = math.max(best, e.r)
 	end
-	H.expect(says(p, said or (if best >= 4 then "egg is waiting under the tree" else "The Tree of Life has new eggs!")), "lot", label .. ": the HUD says the tree laid", said)
+	H.expect(says(p, said or (if best >= 4 then "egg waits at the tree" else "The Tree of Life has new eggs!")), "lot", label .. ": the HUD says the tree laid", said)
 end
 
 -- the time the server's step laid the next lot: wait for it (no longer than `timeout`)
@@ -713,7 +713,7 @@ local n1s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 E.run(3)
 local n2s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 H.expect(n1s ~= nil and n2s ~= nil and n1s - n2s >= 2 and n1s - n2s <= 4, "card", "join: New eggs in m:ss counts down", string.format("%s then %s", tostring(n1s), tostring(n2s)))
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts.", "join", "the first tip")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Tap Build and place a Lumber Camp. It earns shells.", "join", "the first tip")
 -- Fx tick every second: the clock running down, and the seconds between two lots
 local i0 = #W.fx
 E.run(3.2)
@@ -735,7 +735,7 @@ E.phase = "piece"
 local ti = treeIndex(prof)
 local placed0 = #prof.plot.placed
 H.expect(rawErr(p, "plot.store", { i = ti }) == "fixed", "piece", "clearing the tree away: fixed")
-H.expect(H.inClient(p, C.Words.errText, "fixed") == "The Tree of Life stays on your island. You can move it.", "piece", "and the words for it")
+H.expect(H.inClient(p, C.Words.errText, "fixed") == "The tree stays. You can move it.", "piece", "and the words for it")
 local sx, sz = Plot.spot(prof.tier, prof.plot.placed, "tree", 14, 14, 0)
 H.expect(rawErr(p, "plot.place", { id = "tree", x = sx or 0, z = sz or 0, rot = 0 }) == "bad_payload", "piece", "placing another tree: bad_payload")
 H.expect(rawErr(p, "plot.replace", { i = ti, id = "nest" }) == "bad_payload" and rawErr(p, "plot.replace", { i = ti, id = "tree" }) == "bad_payload", "piece", "replacing the tree (with a hut, with itself): bad_payload")
@@ -873,7 +873,7 @@ res = place("nest")
 H.expect(res.ok and prof.tut == 4, "build", "a hut: on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
 local hutUid = res.data and res.data.uid
 H.push(p, 0.4)
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch.", "build", "the tip: hatch an egg")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "The tree laid eggs. Tap it to hatch one.", "build", "the tip: hatch an egg")
 H.expect(Tree.room(prof) == Buildings.byId.nest.slots, "build", "the hut's room", tostring(Tree.room(prof)))
 local keepShells = prof.shells
 prof.shells = Tree.cost(prof, first.r) - 1
@@ -902,7 +902,7 @@ H.expect(H.clickNamed(p, "PanelHatch_" .. pick.id, { wait = 0.6 }), "hatch", "Ha
 local x1 = hatched("card", pick, b, { home = hutUid })
 H.expect(x1 ~= nil and (x1.work == lumberUid or x1.work == patchUid), "hatch", "a new island's first hatchling: at work, at the lumber camp or the veggie patch", x1 and string.format("%s at %d", x1.sp, x1.work))
 H.expect(prof.tut == 5, "hatch", "the tips on to the shop", tostring(prof.tut))
-H.expect(says(p, "It hatched") and H.currentPanel(p) == "tree", "hatch", "the panel there again after the hatch scene, saying what hatched")
+H.expect(says(p, "Hatched ") and H.currentPanel(p) == "tree", "hatch", "the panel there again after the hatch scene, saying what hatched")
 H.closePanel(p)
 tagCheck(p, "card")
 cardCheck("card")
@@ -971,7 +971,7 @@ b = before(panelPick)
 H.expect(panelPick ~= nil and H.clickNamed(p, "PanelHatch_" .. panelPick.id, { wait = 0.6 }), "hatch", "Hatch on the tree panel")
 hatched("the panel", panelPick, b, { home = hut2 })
 H.expect(H.currentPanel(p) == "tree" and gui(p, "Egg_" .. panelPick.id) == nil, "hatch", "the panel stays open without it")
-H.expect(says(p, "It hatched"), "hatch", "the panel's status line says what hatched")
+H.expect(says(p, "Hatched "), "hatch", "the panel's status line says what hatched")
 panelCheck("after")
 H.closePanel(p)
 H.expect(H.guiVisible(gui(p, "TreeCard")), "hatch", "the card back once it closes")
@@ -1087,7 +1087,7 @@ for id = next3, next3 + Tree.count(prof.tier) - 1 do
 	table.insert(lot3Ids, tostring(id))
 end
 H.expect(keptOld == 0 and #prof.clutch.list == Tree.count(prof.tier) and idsOf(prof.clutch.list) == table.concat(lot3Ids, ","), "lot", "every egg left unhatched gone, a whole new lot", idsOf(prof.clutch.list))
-lotCheck("none hatched", at3, lot2, next3, f0, st0, "The tree laid new ones.")
+lotCheck("none hatched", at3, lot2, next3, f0, st0, "That egg is gone.")
 H.expect(sinkSeen, "lot", "the old ones sink back into the lawn")
 local gone = 0
 for _, e in lot2 do
@@ -1097,12 +1097,12 @@ for _, e in lot2 do
 end
 H.expect(gone == #lot2, "lot", "and are gone", string.format("%d of %d", gone, #lot2))
 H.expect(H.currentPanel(p) == "tree" and #named(p, "SwapOut_", true) == 0 and #named(p, "Egg_", true) == #prof.clutch.list, "lot", "the swap picker back on the list when its egg went", string.format("%d swap rows, %d egg rows", #named(p, "SwapOut_", true), #named(p, "Egg_", true)))
-H.expect(says(p, "That egg is gone. The tree laid new ones."), "lot", "and says why")
+H.expect(says(p, "That egg is gone."), "lot", "and says why")
 H.expect(rawErr(p, "egg.hatch", { id = picked.id, swap = prof.pals[1].id }) == "not_found" and #prof.pals == n0, "lot", "a swap for an egg gone: not_found, nothing sold")
 H.closePanel(p)
 H.inClient(p, C.EV.hatch, picked.id)
 E.run(0.2)
-H.expect(says(p, "That egg is gone. The tree laid new ones."), "lot", "the client hatching it: told it's gone")
+H.expect(says(p, "That egg is gone."), "lot", "the client hatching it: told it's gone")
 E.run(RISEN)
 drawnCheck(p, s, "lot 3")
 tagCheck(p, "lot 3")
@@ -1277,7 +1277,7 @@ local bestE = 1
 for _, e in ef[1] and ef[1].msg.laid or {} do
 	bestE = math.max(bestE, e.r)
 end
-H.expect(says(p, if bestE >= 4 then "egg is waiting under the tree" else string.format("The tree laid %d more eggs.", Tree.count(2) - n1)), "expand", "the HUD says how many more")
+H.expect(says(p, if bestE >= 4 then "egg waits at the tree" else string.format("The tree laid %d more eggs.", Tree.count(2) - n1)), "expand", "the HUD says how many more")
 local ratio = Tuning.EggTier[2] / Tuning.EggTier[1]
 local priced = true
 -- (less the huts' cost share: a driftling hatched earlier may have a passive that takes some off)
@@ -1430,7 +1430,7 @@ H.inClient(p, function()
 end)
 E.raycastParts = nil
 E.run(0.4)
-H.expect(H.currentPanel(p) == nil and says(p, "Someone else's Tree of Life. Yours is on your own island."), "neighbour", "a tap on the neighbour's tree: it says whose it is, no panel")
+H.expect(H.currentPanel(p) == nil and says(p, "Not your tree. Yours is at home."), "neighbour", "a tap on the neighbour's tree: it says whose it is, no panel")
 res = H.req(p, "char.home", {})
 E.run(1.5)
 -- the neighbour hatches one: the first client sees it crack and go

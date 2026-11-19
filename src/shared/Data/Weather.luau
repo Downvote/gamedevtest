@@ -12,7 +12,7 @@ export type Kind = {
 	id: string,
 	name: string, -- the HUD chip's word ("Rain")
 	laid: string, -- an egg it touched, in the tree panel ("Laid in the rain")
-	starts: string, -- the notice as it starts ("It started to rain.")
+	starts: string, -- the notice as it starts ("It's raining.")
 	family: string?, -- the mutation family its eggs carry (Data/Traits.weather); nil: it touches no egg
 	icon: string, -- the chip's 11 x 11 sprite (UI/ArtData "mini_<icon>")
 	grade: Grade?, -- the light it brings (nil: the day's own)
@@ -33,30 +33,30 @@ local Weather = {}
 Weather.KINDS = {
 	{ id = "sunny", name = "Sunny", laid = "Laid in the sun", starts = "The sun is out.", icon = "sun", mark = "yellow" },
 	{ id = "breezy", name = "Breezy", laid = "Laid in a breeze", starts = "A breeze picks up.", icon = "breeze", mark = "white" },
-	{ id = "rain", name = "Rain", laid = "Laid in the rain", starts = "It started to rain.", family = "rainy", icon = "rain", mark = "blue",
+	{ id = "rain", name = "Rain", laid = "Laid in the rain", starts = "It's raining.", family = "rainy", icon = "rain", mark = "blue",
 		grade = { mr = 0.93, mg = 0.96, mb = 1.03, lift = 6, sat = 0.84 } },
 	{ id = "storm", name = "Storm", laid = "Laid in a storm", starts = "A storm rolls in.", family = "stormy", icon = "storm", mark = "purple",
 		grade = { mr = 0.85, mg = 0.88, mb = 0.97, lift = 6, sat = 0.76 } },
-	{ id = "fog", name = "Fog", laid = "Laid in the fog", starts = "Fog drifts in from the sea.", family = "misty", icon = "fog", mark = "steel",
+	{ id = "fog", name = "Fog", laid = "Laid in the fog", starts = "Fog drifts in.", family = "misty", icon = "fog", mark = "steel",
 		grade = { mr = 1.01, mg = 1.02, mb = 1.04, lift = 16, sat = 0.8 } },
-	{ id = "snow", name = "Snow", laid = "Laid in the snow", starts = "It started to snow.", family = "frosty", icon = "snow", mark = "white",
+	{ id = "snow", name = "Snow", laid = "Laid in the snow", starts = "It's snowing.", family = "frosty", icon = "snow", mark = "white",
 		grade = { mr = 1.03, mg = 1.05, mb = 1.09, lift = 6, sat = 0.92 } },
-	{ id = "blossom", name = "Blossom wind", laid = "Laid in the blossom wind", starts = "Petals are blowing in.", family = "bloomy", icon = "petal", mark = "pink",
+	{ id = "blossom", name = "Blossom wind", laid = "Laid in the blossom wind", starts = "Petals on the wind.", family = "bloomy", icon = "petal", mark = "pink",
 		grade = { mr = 1.05, mg = 1.03, mb = 1.04, lift = 3, sat = 1.03 } },
 	{ id = "haze", name = "Heat haze", laid = "Laid in the heat", starts = "It's a hot one.", family = "sunny", icon = "heat", mark = "orange",
 		grade = { mr = 1.07, mg = 1.04, mb = 0.97, lift = 2, sat = 1.05 } },
-	{ id = "leaves", name = "Falling leaves", laid = "Laid under falling leaves", starts = "The leaves are coming down.", family = "autumn", icon = "leaf", mark = "orange",
+	{ id = "leaves", name = "Falling leaves", laid = "Laid under falling leaves", starts = "Leaves are falling.", family = "autumn", icon = "leaf", mark = "orange",
 		grade = { mr = 1.05, mg = 1.01, mb = 0.95, lift = 2, sat = 1.03 } },
 } :: { Kind }
 
 Weather.SEASONS = {
-	{ id = "spring", name = "Spring", icon = "season_spring", favour = { 2, 6, 11 }, blurb = "Meadow, mangrove and cloudtop kinds come more often.",
+	{ id = "spring", name = "Spring", icon = "season_spring", favour = { 2, 6, 11 }, blurb = "More meadow, mangrove and cloudtop kinds.",
 		odds = { { kind = "sunny", w = 30 }, { kind = "blossom", w = 26 }, { kind = "rain", w = 24 }, { kind = "breezy", w = 14 }, { kind = "storm", w = 6 } } },
-	{ id = "summer", name = "Summer", icon = "season_summer", favour = { 1, 3, 5 }, blurb = "Beach, volcano and reef kinds come more often.",
+	{ id = "summer", name = "Summer", icon = "season_summer", favour = { 1, 3, 5 }, blurb = "More beach, volcano and reef kinds.",
 		odds = { { kind = "sunny", w = 38 }, { kind = "haze", w = 26 }, { kind = "breezy", w = 14 }, { kind = "rain", w = 12 }, { kind = "storm", w = 10 } } },
-	{ id = "autumn", name = "Autumn", icon = "season_autumn", favour = { 8, 9, 10 }, blurb = "Bluff, ruin and moonwood kinds come more often.",
+	{ id = "autumn", name = "Autumn", icon = "season_autumn", favour = { 8, 9, 10 }, blurb = "More bluff, ruin and moonwood kinds.",
 		odds = { { kind = "leaves", w = 30 }, { kind = "breezy", w = 18 }, { kind = "rain", w = 20 }, { kind = "fog", w = 22 }, { kind = "storm", w = 10 } } },
-	{ id = "winter", name = "Winter", icon = "season_winter", favour = { 4, 7, 12 }, blurb = "Snowfield, grotto and starfall kinds come more often.",
+	{ id = "winter", name = "Winter", icon = "season_winter", favour = { 4, 7, 12 }, blurb = "More snowfield, grotto and starfall kinds.",
 		odds = { { kind = "snow", w = 40 }, { kind = "fog", w = 20 }, { kind = "sunny", w = 22 }, { kind = "breezy", w = 12 }, { kind = "storm", w = 6 } } },
 } :: { Season }
 -- stylua: ignore end

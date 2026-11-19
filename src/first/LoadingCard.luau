@@ -108,14 +108,14 @@ local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 -- what the status says in each phase (and the tips, one after another)
 local STATUS = { start = "Waking up your island", island = "Finding your island", picture = "Drawing your island" }
 local TIPS = {
-	"Shells pay for every egg you hatch and everything you build.",
-	"Decor adds charm, and charm brings in more shells.",
-	"Decor gives charm for every tile it covers, and more as the island grows.",
-	"The Tree of Life lays new eggs every few minutes.",
-	"Rare driftlings work much faster than common ones.",
-	"When the huts are full, swap a weak one for a better one.",
-	"Blue-spotted eggs hatch rare ones. Keep some shells for them.",
-	"Grow the island and the tree lays more eggs, and better ones.",
+	"Shells pay for eggs and buildings.",
+	"Decor adds charm. Charm brings more shells.",
+	"Decor gives charm for each tile it covers.",
+	"The tree lays new eggs every few minutes.",
+	"Rare driftlings work much faster.",
+	"Huts full? Swap a weak driftling for a better one.",
+	"Blue-spotted eggs hatch rare ones. Save shells for them.",
+	"A bigger island gets more eggs, and better ones.",
 }
 
 type Rect = { x0: number, y0: number, x1: number, y1: number }

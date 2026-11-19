@@ -18,18 +18,18 @@ export type IsletDef = {
 
 -- stylua: ignore start
 local LIST: { IsletDef } = {
-	{ id = 1, name = "Beach", plural = "Beaches", tier = 1, wild = {}, color = "sand", blurb = "Warm sand, tide pools and grumpy crabs." },
-	{ id = 2, name = "Meadow", plural = "Meadows", tier = 1, wild = {}, color = "leaf", blurb = "A green maze of ferns and mossy stones." },
-	{ id = 3, name = "Volcano", plural = "Volcanoes", tier = 3, wild = {}, color = "orange", blurb = "A smoking volcano with hot sands." },
-	{ id = 4, name = "Snowfield", plural = "Snowfields", tier = 2, wild = {}, color = "window", blurb = "Snowy peaks where nothing stays still." },
-	{ id = 5, name = "Reef", plural = "Reefs", tier = 4, wild = {}, color = "blue", blurb = "A sunken reef that glows at the bottom of the sea." },
-	{ id = 6, name = "Mangrove", plural = "Mangroves", tier = 2, wild = {}, color = "leaf_dark", blurb = "Tangled roots over warm brown water." },
-	{ id = 7, name = "Grotto", plural = "Grottoes", tier = 3, wild = {}, color = "purple", blurb = "Glowing crystals in a cave by the sea." },
-	{ id = 8, name = "Bluffs", plural = "Bluffs", tier = 5, wild = {}, color = "wood", blurb = "Grassy cliffs high in the sea wind." },
-	{ id = 9, name = "Ruins", plural = "Ruins", tier = 6, wild = {}, color = "sand_dark", blurb = "The broken stones of an old city." },
-	{ id = 10, name = "Moonwood", plural = "Moonwoods", tier = 11, wild = {}, color = "crystal", blurb = "A silver forest that wakes up when the sun goes down." },
-	{ id = 11, name = "Cloudtop", plural = "Cloudtops", tier = 14, wild = {}, color = "white", blurb = "Soft fields of cloud high over the sea." },
-	{ id = 12, name = "Starfall", plural = "Starfalls", tier = 17, wild = {}, color = "night", blurb = "A crater where stars fell long ago and kept on glowing." },
+	{ id = 1, name = "Beach", plural = "Beaches", tier = 1, wild = {}, color = "sand", blurb = "Warm sand and grumpy crabs." },
+	{ id = 2, name = "Meadow", plural = "Meadows", tier = 1, wild = {}, color = "leaf", blurb = "Ferns and mossy stones." },
+	{ id = 3, name = "Volcano", plural = "Volcanoes", tier = 3, wild = {}, color = "orange", blurb = "Smoke and hot sand." },
+	{ id = 4, name = "Snowfield", plural = "Snowfields", tier = 2, wild = {}, color = "window", blurb = "Cold, windy peaks." },
+	{ id = 5, name = "Reef", plural = "Reefs", tier = 4, wild = {}, color = "blue", blurb = "It glows on the sea floor." },
+	{ id = 6, name = "Mangrove", plural = "Mangroves", tier = 2, wild = {}, color = "leaf_dark", blurb = "Roots over warm brown water." },
+	{ id = 7, name = "Grotto", plural = "Grottoes", tier = 3, wild = {}, color = "purple", blurb = "A sea cave full of crystals." },
+	{ id = 8, name = "Bluffs", plural = "Bluffs", tier = 5, wild = {}, color = "wood", blurb = "Grassy cliffs in the wind." },
+	{ id = 9, name = "Ruins", plural = "Ruins", tier = 6, wild = {}, color = "sand_dark", blurb = "What's left of an old city." },
+	{ id = 10, name = "Moonwood", plural = "Moonwoods", tier = 11, wild = {}, color = "crystal", blurb = "A silver forest that wakes at dusk." },
+	{ id = 11, name = "Cloudtop", plural = "Cloudtops", tier = 14, wild = {}, color = "white", blurb = "Fields of cloud over the sea." },
+	{ id = 12, name = "Starfall", plural = "Starfalls", tier = 17, wild = {}, color = "night", blurb = "Fallen stars, still glowing." },
 }
 -- stylua: ignore end
 -- Each kind's driftlings: every species of its kind, the commonest first.

@@ -629,7 +629,7 @@ H.expect(prof.shells >= Buildings.byId.stall.shells + 2 * Tuning.EggPrice[2] * T
 local HSp = H.cmod(p, "UI.HatchScene")
 do
 	H.push(p, 0.3)
-	H.expect(statusSays("The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch."), "build", "the tip asks for an egg hatched")
+	H.expect(statusSays("The tree laid eggs. Tap it to hatch one."), "build", "the tip asks for an egg hatched")
 	-- (in the client: the cheapest such egg and the screen point in the middle of it, as a tap's position)
 	local function target()
 		local v = H.view(p)
@@ -734,8 +734,8 @@ do
 		H.expect(eggOf(pick.id) == nil, "build", "and the egg is gone from under the tree")
 		local hatched = fxSince(f1, "hatched")
 		H.expect(#hatched == 1 and type(hatched[1].data) == "table" and hatched[1].data.egg == pick.id and hatched[1].data.sp == (first and first.sp), "build", "the client hears of it (Fx hatched)", tostring(#hatched))
-		H.expect(statusSays("It hatched"), "build", "and says what hatched")
-		H.expect(type(hatched[1]) == "table" and type(hatched[1].data) == "table" and hatched[1].data.new == true and statusSays("New! It hatched"), "build", "a kind never had: the result says new, the notice starts with \"New!\"", tostring(hatched[1] and hatched[1].data and hatched[1].data.new))
+		H.expect(statusSays("Hatched "), "build", "and says what hatched")
+		H.expect(type(hatched[1]) == "table" and type(hatched[1].data) == "table" and hatched[1].data.new == true and statusSays("New! Hatched "), "build", "a kind never had: the result says new, the notice starts with \"New!\"", tostring(hatched[1] and hatched[1].data and hatched[1].data.new))
 		H.closePanel(p)
 		-- (from here on the scene ends at once: the hatches below test the rules and the panels, not the scene)
 		H.inClient(p, HSp.setQuick, true)
@@ -1272,7 +1272,7 @@ do
 					table.insert(shownWords, d.Text)
 				end
 			end
-			H.expect(type(got) == "table" and type(got.data) == "table" and got.data.new == false and statusSays("It hatched") and not statusSays("New!"), "tree", "a kind had before: not new, no \"New!\" in the notice", string.format("%s | %s", tostring(got and got.data and got.data.new), table.concat(shownWords, " / ")))
+			H.expect(type(got) == "table" and type(got.data) == "table" and got.data.new == false and statusSays("Hatched ") and not statusSays("New!"), "tree", "a kind had before: not new, no \"New!\" in the notice", string.format("%s | %s", tostring(got and got.data and got.data.new), table.concat(shownWords, " / ")))
 			table.clear(prof.titles)
 			for k, on in titles0 do
 				prof.titles[k] = on
@@ -1349,7 +1349,7 @@ do
 		H.expect(eggsSynced(p), "tree", "a whole view brings the new lot to the client")
 		E.run(0.3)
 		H.expect(H.currentPanel(p) == "tree" and H.buttonNamed(p, "SwapTake_" .. hutPal.id) == nil and p.PlayerGui:FindFirstChild("Pace", true) ~= nil, "tree", "the picker's egg gone, it gives way to the eggs under the tree", tostring(H.currentPanel(p)))
-		H.expect(statusSays("That egg is gone. The tree laid new ones."), "tree", "and says the egg is gone")
+		H.expect(statusSays("That egg is gone."), "tree", "and says the egg is gone")
 		local rows, all, n = panelRows()
 		H.expect(rows == n and all == n and n == #c.list, "tree", "the panel lists the new lot", string.format("%d of %d, %d rows", rows, n, all))
 		E.run(1.5 + Tuning.EggShown * 0.12)
@@ -1718,7 +1718,7 @@ do
 	local card = H.buttonNamed(p, "Buy_burrow", true)
 	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the burrow's card says No room", card and table.concat(H.textsOf(card), "/"))
 	H.clickNamed(p, "Buy_burrow", { includeDisabled = true, wait = 0.3 })
-	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("Your huts already hold"), "panels", "a tap on it picks nothing up and says why")
+	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("No more hut room"), "panels", "a tap on it picks nothing up and says why")
 	H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 	count = p.PlayerGui:FindFirstChild("Count", true)
 	local pieces = 0
@@ -1796,7 +1796,7 @@ do
 	local card = H.buttonNamed(p, "Buy_orchard", true)
 	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the orchard's card says No room", card and table.concat(H.textsOf(card), "/"))
 	H.clickNamed(p, "Buy_orchard", { includeDisabled = true, wait = 0.3 })
-	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("Your workplaces already have a place"), "panels", "a tap on it picks nothing up and says why")
+	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("No more work spots"), "panels", "a tap on it picks nothing up and says why")
 	H.clickNamed(p, "BuildDone", { wait = 0.3 })
 	local function indexOf(uid)
 		for i, q in prof.plot.placed do
@@ -2804,7 +2804,7 @@ do
 	H.expect(TreeL.wanted(prof) == want and wanted(prof.clutch.list) == 1 and idsOf(prof.clutch.list) == ids0, "quests", "a quest asking for a rarity: one egg of it under the tree within a second, the same eggs", string.format("%s: %s", qid, eggsAttr(prof.clutch.list)))
 	H.expect(#heard >= 1 and heard[#heard].turned == want and heard[#heard].more == 0, "quests", "the client hears of it (Fx eggs with turned)", tostring(#heard))
 	local rar = Traits.RARITY[want]
-	H.expect(statusSays(string.lower(rar.name) .. " egg is waiting under the tree."), "quests", "and a notice names it")
+	H.expect(statusSays(string.lower(rar.name) .. " egg waits at the tree."), "quests", "and a notice names it")
 	local v = H.view(p)
 	H.expect(v ~= nil and wanted(v.clutch) == 1, "quests", "the view has it, at its price")
 	H.expect(plot1:GetAttribute("Eggs") == eggsAttr(prof.clutch.list), "quests", "the plot's Eggs attribute follows", tostring(plot1:GetAttribute("Eggs")))
@@ -3298,7 +3298,7 @@ do
 			tabs += 1
 		end
 	end
-	H.expect(tabs == 4, "store", "its four tabs: Passes, Eggs and more, Shop, Track", tostring(tabs))
+	H.expect(tabs == 4, "store", "its four tabs: Passes, Eggs, Shop, Track", tostring(tabs))
 	-- the passes: each with its price; Buy asks Roblox for the pass
 	H.clickNamed(p, "Tab_passes", { wait = 0.3 })
 	local rows = 0
@@ -3458,7 +3458,7 @@ do
 	H.expect(H.buttonNamed(p, "Offer_VipGift_Go") ~= nil, "store", "VIP: today's gift waits on the HUD")
 	local f2, bag2 = #fx, #prof.bag
 	H.clickNamed(p, "Offer_VipGift_Go", { wait = 0.5, optional = true })
-	H.expect(prof.vipDay >= 0 and #prof.bag == bag2 + 1 and #fxSince(f2, "rewards") == 1 and statusSays("Today's VIP gift:"), "store", "a tap claims it: shells and an egg, told", string.format("day %d, bag %d -> %d", prof.vipDay, bag2, #prof.bag))
+	H.expect(prof.vipDay >= 0 and #prof.bag == bag2 + 1 and #fxSince(f2, "rewards") == 1 and statusSays("VIP gift:"), "store", "a tap claims it: shells and an egg, told", string.format("day %d, bag %d -> %d", prof.vipDay, bag2, #prof.bag))
 	H.push(p, 0.3)
 	H.expect(H.buttonNamed(p, "Offer_VipGift_Go") == nil, "store", "and the gift is gone till tomorrow")
 	StoreL.setPass(prof, "VIP", false)
@@ -3476,6 +3476,67 @@ do
 end
 H.checkProfile(p, "store")
 mirror(p, "store")
+
+-- phones and tablets (the request of 2026-11-19: "make mobile and tablet as responsive and catered to as possible ...
+-- Make menus fill the screen on mobile with currency showing and an exit button"): a phone's screen (touch, no mouse): a
+-- panel fills the screen under Roblox's top bar, the shells on its awning kept up to date, an exit button with a pad a
+-- fingertip wide, and a small button in the body padded too; a tablet's: the panel a third bigger than its design,
+-- within the screen; then back to the desktop, the panel its design again with no pads
+E.phase = "touch"
+do
+	local I = require("./inst")
+	local uis = I.getD(E.services.UserInputService).props
+	local vp0 = E.viewport
+	local UIKitC = H.cmod(p, "UI.UIKit")
+	local NumbersC = H.sharedServer("Logic.Numbers")
+	local function screen(w: number, h: number, touch: boolean)
+		E.viewport = E.v2(w, h)
+		uis.TouchEnabled, uis.MouseEnabled, uis.KeyboardEnabled = touch, not touch, not touch
+		E.run(0.5)
+	end
+	local function sheet()
+		local panel = p.PlayerGui:FindFirstChild("Panel_pals", true)
+		return if panel then panel:FindFirstChild("Frame") else nil
+	end
+	local K = H.inClient(p, UIKitC.P)
+	local need = math.ceil(44 / K)
+	screen(844, 390, true)
+	H.openPanel(p, "pals")
+	E.run(0.6)
+	local f = sheet()
+	local cs = H.inClient(p, UIKitC.size, "Modal")
+	H.expect(f ~= nil and f.Size.X.Offset == cs.X and f.Size.Y.Offset == cs.Y, "touch", "a phone: the panel fills the screen", string.format("%s vs %dx%d", if f then tostring(f.Size) else "none", cs.X, cs.Y))
+	local wallet = f and f:FindFirstChild("Wallet", true)
+	local shells = wallet and wallet:FindFirstChild("Shells", true)
+	H.expect(shells ~= nil and shells.Text == NumbersC.short(math.floor(prof.shells)), "touch", "with the shells on its awning", shells and shells.Text)
+	prof.shells += 12345
+	H.push(p, 0.4)
+	H.expect(shells ~= nil and shells.Text == NumbersC.short(math.floor(prof.shells)), "touch", "kept up to date while it's open", shells and shells.Text)
+	prof.shells -= 12345
+	local close = H.buttonNamed(p, "Close")
+	local hit = close and close:FindFirstChild("Hit")
+	H.expect(close ~= nil and close.Size.X.Offset >= 20 and hit ~= nil and close.Size.X.Offset + 2 * -hit.Position.X.Offset >= need, "touch", "an exit button a fingertip wide (44 screen px)", close and string.format("%d + pad %d, K %d", close.Size.X.Offset, hit and -hit.Position.X.Offset or 0, K))
+	local eggs = H.buttonNamed(p, "OpenTree")
+	local ehit = eggs and eggs:FindFirstChild("Hit")
+	H.expect(eggs ~= nil and ehit ~= nil and eggs.Size.Y.Offset + 2 * -ehit.Position.Y.Offset >= need, "touch", "a small button in the body padded too", eggs and tostring(eggs.Size))
+	H.expect(H.clickNamed(p, "Close", { wait = 0.4 }) and H.currentPanel(p) == nil, "touch", "and the exit closes it")
+	screen(1024, 768, true)
+	H.openPanel(p, "pals")
+	E.run(0.6)
+	f = sheet()
+	cs = H.inClient(p, UIKitC.size, "Modal")
+	H.expect(f ~= nil and f.Size.X.Offset > 320 and f.Size.X.Offset <= cs.X - 24 and f:FindFirstChild("Wallet", true) ~= nil, "touch", "a tablet: the panel bigger than its design, within the screen, the shells shown", f and tostring(f.Size))
+	H.closePanel(p)
+	E.viewport = vp0
+	uis.TouchEnabled, uis.MouseEnabled, uis.KeyboardEnabled = false, true, true
+	E.run(0.5)
+	H.openPanel(p, "pals")
+	E.run(0.6)
+	f = sheet()
+	local c2 = H.buttonNamed(p, "Close")
+	H.expect(f ~= nil and f.Size.X.Offset == 320 and f:FindFirstChild("Wallet", true) == nil and c2 ~= nil and c2:FindFirstChild("Hit") == nil, "touch", "back on the desktop: the panel its design, no pads", f and tostring(f.Size))
+	H.closePanel(p)
+end
 H.checkProfile(p, "end")
 mirror(p, "end")
 

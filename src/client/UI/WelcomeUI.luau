@@ -72,7 +72,7 @@ local function build(body: Frame, _arg: any?)
 	local v = StateClient.view()
 	local r = reportOf(v)
 	if v == nil or r == nil then
-		UIKit.text(body, "Nothing waiting. Your island is busy right now.", UDim2.new(1, -2 * PAD, 0, 10), UDim2.fromOffset(PAD, 6), { color = UIKit.color("text_dim"), name = "Empty" })
+		UIKit.text(body, "Nothing waiting right now.", UDim2.new(1, -2 * PAD, 0, 10), UDim2.fromOffset(PAD, 6), { color = UIKit.color("text_dim"), name = "Empty" })
 		return
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
@@ -81,8 +81,8 @@ local function build(body: Frame, _arg: any?)
 	UIKit.text(body, "+" .. Numbers.coins(r.shells) .. " shells", UDim2.fromOffset(W - 2 * PAD - 16, 18), UDim2.fromOffset(PAD + 15, 2), { face = "big", color = UIKit.color("accent"), name = "Shells" })
 	-- how long the player was away and how much of it counted
 	local line = if r.secs < r.away
-		then string.format("You were away for %s. Your driftlings worked the first %s of it, %s.", Numbers.duration(r.away), Numbers.duration(r.secs), pace(v.offlinePct))
-		else string.format("You were away for %s. Your driftlings kept working, %s.", Numbers.duration(r.away), pace(v.offlinePct))
+		then string.format("You were away %s. Your driftlings worked %s of it, %s.", Numbers.duration(r.away), Numbers.duration(r.secs), pace(v.offlinePct))
+		else string.format("You were away %s. Your driftlings kept working, %s.", Numbers.duration(r.away), pace(v.offlinePct))
 	UIKit.text(body, line, UDim2.fromOffset(W - 2 * PAD, 20), UDim2.fromOffset(PAD, 24), { color = UIKit.color("text"), wrap = true, y = "top", name = "Away" })
 	local y = 48
 	-- without the Offline Pass: what it would make of a long time away
@@ -98,7 +98,7 @@ local function build(body: Frame, _arg: any?)
 		b.ZIndex = 3
 		y += 15
 	elseif r.secs < r.away then
-		UIKit.text(body, string.format("They work up to %d h while you're away.", math.floor(v.offlineHours + 0.5)), UDim2.fromOffset(W - 2 * PAD, 10), UDim2.fromOffset(PAD, y + 1), { color = UIKit.color("text_dim"), name = "CapNote" })
+		UIKit.text(body, string.format("They work up to %d h while away.", math.floor(v.offlineHours + 0.5)), UDim2.fromOffset(W - 2 * PAD, 10), UDim2.fromOffset(PAD, y + 1), { color = UIKit.color("text_dim"), name = "CapNote" })
 		y += 15
 	end
 	-- Collect, and Collect x2 while it's free
@@ -116,7 +116,7 @@ local function build(body: Frame, _arg: any?)
 			collect("double")
 		end, { name = "CollectDouble", color = UIKit.color("accent") })
 		b2.ZIndex = 3
-		UIKit.text(body, string.format("Double is free for your first %d days.", Tuning.OfflineDoubleDays), UDim2.fromOffset(W - 2 * PAD, 10), UDim2.fromOffset(PAD, by - 12), { x = "center", color = UIKit.color("text_dim"), name = "DoubleNote" })
+		UIKit.text(body, string.format("Free x2 for your first %d days.", Tuning.OfflineDoubleDays), UDim2.fromOffset(W - 2 * PAD, 10), UDim2.fromOffset(PAD, by - 12), { x = "center", color = UIKit.color("text_dim"), name = "DoubleNote" })
 	end
 end
 

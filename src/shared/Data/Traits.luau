@@ -267,16 +267,16 @@ function Traits.clean(muts: any): { string }
 	return out
 end
 
--- An effect's words for the panels ("+24% work", "eggs cost 30% less", "+2 charm", "Hatchery eggs 12% sooner").
+-- An effect's words for the panels ("+24% work", "eggs cost 30% less", "+2 charm", "Hatchery 12% faster").
 local WORDS: { [string]: string } = {
 	work = "work",
-	aura = "work for every driftling",
+	aura = "work for all",
 	all = "all shells",
 	boost = "boost buildings",
 	charmPct = "charm",
 	sell = "sell price",
 	luck = "egg luck",
-	skip = "chance an egg hatches rarer",
+	skip = "rarer hatch chance",
 	away = "offline shells",
 }
 local function pct(v: number): string
@@ -293,9 +293,9 @@ function Traits.describe(fx: Fx): string
 			elseif k == "charm" then
 				table.insert(parts, string.format("%s%d charm", if v > 0 then "+" else "", math.round(v)))
 			elseif k == "hatch" then
-				table.insert(parts, string.format("Hatchery eggs %s%% %s", pct(v), if v > 0 then "sooner" else "later"))
+				table.insert(parts, string.format("Hatchery %s%% %s", pct(v), if v > 0 then "faster" else "slower"))
 			elseif k == "eggs" then
-				table.insert(parts, string.format("%s%d egg%s in every lot", if v > 0 then "+" else "", math.round(v), if math.abs(math.round(v)) == 1 then "" else "s"))
+				table.insert(parts, string.format("%s%d egg%s per lot", if v > 0 then "+" else "", math.round(v), if math.abs(math.round(v)) == 1 then "" else "s"))
 			else
 				table.insert(parts, string.format("%s%s%% %s", if v > 0 then "+" else "-", pct(v), WORDS[k] or k))
 			end

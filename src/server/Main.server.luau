@@ -29,7 +29,7 @@ local function join(player: Player)
 	PlotService.watchCharacters(player)
 	local plot = PlotService.claim(player)
 	if plot == 0 then
-		player:Kick("Every island on this sea is taken. Please join another server.")
+		player:Kick("This server is full. Try another one.")
 		return
 	end
 	local raw, ok = DataService.load(player.UserId)
@@ -39,7 +39,7 @@ local function join(player: Player)
 	end
 	if not ok then
 		PlotService.release(plot)
-		player:Kick("We couldn't open your island's save. Please rejoin in a moment.")
+		player:Kick("Couldn't load your save. Rejoin in a moment.")
 		return
 	end
 	local seed = Util.hash32(tostring(player.UserId) .. ":start")

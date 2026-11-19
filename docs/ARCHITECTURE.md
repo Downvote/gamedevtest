@@ -847,7 +847,7 @@ day is `Tuning.DaySeconds` (4 hours). The tips (`tips(s)`, `TIP_KIND`): 1 moves 
 farm, 3 a hut, 4 when an egg has hatched (`stats.taken` above 0 or any driftling), 5 a shop, 6 on OK (`tut.next`); a
 step whose task is already done moves on at once, several in a row if need be (an older save). Every building change
 (`rebuilt`) runs `Tree.settle` and `Tree.fillJobs` before the island's models are rebuilt; `egg.hatch` runs the tips and
-sends Fx "hatched"; `island.expand` runs `Tree.fill` and, when it laid any, sends Fx "eggs" with `more` the count. The quest's egg (`questEgg`: `Tree.ensure`) runs after `quest.claim` and `tut.next` and once a second on the clock's tick; when an egg turned it marks the session dirty and sends Fx "eggs" with `more` 0 and `turned` (the rarity), so the HUD says "A rare egg is waiting under the tree." and EggView, seeing the same egg id with another rarity on the plot's `Eggs` attribute, rebuilds its shell and lets it rise again.
+sends Fx "hatched"; `island.expand` runs `Tree.fill` and, when it laid any, sends Fx "eggs" with `more` the count. The quest's egg (`questEgg`: `Tree.ensure`) runs after `quest.claim` and `tut.next` and once a second on the clock's tick; when an egg turned it marks the session dirty and sends Fx "eggs" with `more` 0 and `turned` (the rarity), so the HUD says "A rare egg waits at the tree." and EggView, seeing the same egg id with another rarity on the plot's `Eggs` attribute, rebuilds its shell and lets it rise again.
 Nothing happens while the player is away: the tree's clock runs only in a ready session.
 
 ### 7.5 `PlotService` (the sea)
@@ -1512,14 +1512,14 @@ TextBox `Box` over the pixel font's `Query`, "Search" while empty, the clear mar
 `onChange(q)` with the words trimmed and in lower case whenever they change), `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
 (`registerPanel(name, { title, icon?, w, h, hFor?, props?, build })`, `hFor(w)` the height for the width the screen leaves it in place of `h` (Settings: its rows wrap on a narrow panel), the body that big with the awning on top (`SHEET_TOP` 25 UI px), within the screen less a few px; since 2026-11-19 ("Look at the bakery game and see its menu. Make a similarly polished and themed menu for different tabs") a **sheet** over a `sea_shade` veil (0.45 transparent): a "Frame" holding the "Glass" plate (black glass at `PANEL_ALPHA`), the "Head" (the awning: a "Band" clip with the `awning` plate, its "Stripe"s and "Fold"s, the "Hem" of `SCALLOP` 9 px scallops; the "Icon" `mini_<icon>`, the "Title" in cream with an ink outline, the "Status" line, the "Props" shelf with the def's `props` mini icons, the "Close" button (`awning_dark`, the `mini_close` sprite)) and the "Body"; `openPanel(name, arg)`, `openCount()` (openings so far: a panel takes its argument's tab once an opening), `closePanel`, `currentPanel`,
-`refreshPanel` (keeps the "List" scroll), `PanelChanged`, `bodyWidth`, `bodyHeight`). (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
+`refreshPanel` (keeps the "List" scroll), `PanelChanged`, `bodyWidth`, `bodyHeight`). Screens (2026-11-19, "make mobile and tablet as responsive and catered to as possible ... Make menus fill the screen on mobile with currency showing and an exit button"): `phone()` (a short side of 500 screen px or less), `touch()` (touch and no mouse), `tablet()` (touch, not a phone); `TOUCH_MIN` 44 screen px: on a touch screen `button` gives a button smaller than that a see-through "Hit" TextButton child round it (its pad, ZIndex 4) that presses it too; `onHold(target, show, hide)` (a finger held `HOLD_SECS` 0.35: show, lifted: hide); `setWallet(get, changed)` (Main.client: the view's shells and `StateClient.Changed`). A sheet on a phone is the Modal canvas's whole size (no margin, square glass corners), on a tablet 1.3 times its design within the canvas less 24; on a touch screen the awning is `AWNING_TOUCH` 24 tall (the body starts 4 lower), its exit 20 x 20 (else 15) and a "Wallet" chip before it (`mini_shell` and the "Shells" label, `Numbers.short`, set again on every `changed`); a phone's awning has no props shelf. (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
 rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
 canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top, as
 many lines as its words take at its width (`lines`), up to the screen less 16 px wide; while a panel is open, its
 status line next to the title instead when the words fit it, else the toast as usual (the request of 2026-11-19, "it
-seems like the text gets cut off for some alerts": "Every hut is full. Swap one out, or build another hut." needs 232
+seems like the text gets cut off for some alerts": "Every hut is full. Swap one out, or build another hut." (the words then) needed 232
 px, a 320 panel's line about 190); opening a panel clears the toasts, so nothing covers a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, the `Stage` root (DisplayOrder
 22, full screen: a microgame's overlay, its UI px the world's art px), `tween` (a UDim2 property
 eases on Heartbeat snapped to whole UI px, Quad out, the newest tween of a property winning; the rest through
@@ -1564,9 +1564,8 @@ world, looked for again every 0.5 s while missing, so no frame walks the island'
 `EggView.tapAt` first (an egg under the own tree: the tree panel); otherwise its ray (`PixelRenderer.screenRay` in the
 `PixelRays` collision group, as the picture's, so it passes the invisible seabed, shelves and world walls, which Roblox hits whatever
 their CanQuery says because they collide) on a Tree of Life (`treeOf`: a model with the `Decor` attribute "tree")
-opens the "tree" panel for the own one, or for a neighbour's says "Someone else's Tree of Life. Yours is on your own
-island."; on a Hatchery (`hatcheryOf`: `Decor` "hatchery") the "hatch" panel for the own one, a notice for a
-neighbour's (2026-11-14); on a sign it shows `signCard(i)` (the day, driftlings at home, charm). Fx "hatched" (`hatchedOne`) bursts
+opens the "tree" panel for the own one, or for a neighbour's says "Not your tree. Yours is at home."; on a Hatchery (`hatcheryOf`: `Decor` "hatchery") the "hatch" panel for the own one, a notice for a
+neighbour's (2026-11-14); on a sign it shows `signCard(i)` (the day, driftlings, charm). Fx "hatched" (`hatchedOne`) bursts
 bits of the hatchling's rarity's colour at `EggView.hatchPoint`, a rare or better one's name floating up; a
 Hatchery's hatchling (Fx "turn" `hatched`) gets its name and pink bits over the Hatchery; `cheer(words, color)` makes
 the own islanders cheer. Its Heartbeat runs `EggView.step` with the view's centre (world x).
@@ -1654,7 +1653,7 @@ sits 14 px in from the edge on the line from the screen's middle to the tree, `a
 the way it lies, bobbing along it. Build mode closes itself 0.8 s after the view's tip goes from 3 to 4 (the hut placed
 in it; BuildUI's `tutWas`), so the tree and the arrow show; opened again on tip 4 it stays. `hatch(id, swap?)` (sends `egg.hatch`; done, the panel shuts and
 `HatchScene.play({ sp, muts, r, hr, new }, after)` runs; `after` opens the tree panel again if Hatch was pressed there and
-says "It hatched a rare Wispwing." in its rarity's colour ("New! It hatched..." when the result's `new` is true), with what a swap sold for; the egg's place kept as the
+says "Hatched a rare Wispwing." in its rarity's colour ("New! Hatched..." when the result's `new` is true), with what a swap sold for; the egg's place kept as the
 island's hatch point; `full` opens the tree panel's swap picker `{ hatch = id }`; other refusals in words), `best(v, n) -> { Laid }` (the view's eggs, the rarest first, then the lower id; when the shells cover none of
 the best n, the best one they cover takes the last place: the HUD's card and the tree panel), `tapAt(pos) -> boolean`
 (a tap at an InputObject's position, below the top bar, so the inset is added back: when it lands on one of the own
@@ -1741,9 +1740,9 @@ every `SCAN_SECS` 0.5 (a `Spot` `{ uid, id, model, top, work, kind, room, n, ext
 its bounding box, kept while the model stays; `kind` "work", "nest" or "boost"; `room` the building's `jobs` for a
 workplace, the hut's `slots`, 0 for a boost building; `n` the view's driftlings whose `work` / `home` it is;
 `extra` the card's other lines, worked out for the card shown (`extrasOf`, once a view) from the view as a profile: a workplace's "Earns N shells/min"
-(`Island.output` x (1 + `charmBonus`) x `incomeMult` x 60 / `TurnSeconds`), a boost building's "Farms +15% from 2 boost
-buildings" (`Island.boostInfo`: Farms, Wood, Shops or Everything, the total to a tenth of a percent) and "One more adds
-+2.5%" or "Boosts top out at 70%"). WorldView drives it: `step(t, plot, hoverPos?, palHovered)` every Heartbeat (the plot
+(`Island.output` x (1 + `charmBonus`) x `incomeMult` x 60 / `TurnSeconds`), a boost building's "+15% to all from 2
+boosts" (`Island.boostInfo`: the total to a tenth of a percent) and "One more adds
++2.5%" or "Max boost 70%"). WorldView drives it: `step(t, plot, hoverPos?, palHovered)` every Heartbeat (the plot
 changing clears everything), `tapAt(pos) -> boolean` from `onTap` after the eggs, the driftlings, the tree and the
 Hatchery. No alerts over empty spots since 2026-11-17 (a `BuildingAlert` tag, "Empty", bobbed over each spot with `n`
 0). The `BuildingCard` (on the Popup root since 2026-11-15, over the HUD's cards, moved there from the World canvas's position by the two roots' origins; glass: `Name` in the
@@ -1797,7 +1796,7 @@ open, since 2026-11-14, so nothing shows through a panel's glass), the questline
 150, under the `TreeCard` on a phone; hidden while the tips are on and for a panel; `updateQuest(v)` from the view
 through `Quest.current` / `Quest.progress`, laid out again when the quest or its count changes, sliding in: the
 quest's `mini_` icon, `Title` (wrapping onto a second line when it is wider than its 106 px, the card growing by one
-line: "Discover 12 unique creatures"), `Which` ("3/20"), `Words` (up to four lines), then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
+line: "Discover 12 unique creatures" did till its title became "Find 12 kinds" on 2026-11-19; none wraps now), `Which` ("3/20"), `Words` (up to four lines), then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
 panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_shells`) and
 `QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`, kept on the menu bar or the build tray every Heartbeat once its 0.2 s bounce is done, since the tray changes height with no word to the HUD and a correction during the bounce was overwritten by it: the user's report of 2026-11-14, "the tutorial tooltip sometimes gets hidden by the build menu after something is built"; the steps of
 GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
@@ -1807,8 +1806,8 @@ button (2026-11-18: it had 59 px there and cut its words off), as many lines as 
 over the tray and over the Free Decor tab on its corner while that shows, `tipsLift`), and the `DayBanner` (Fx "day" and "turn":
 the day, what hatched; at least 140 wide, and as wide as its big-font title after the icon (`textWidth(title, "big")`
 + 28: "An egg hatched!" is 142) and each line; over a panel or in Build mode a notice instead); Fx "eggs" (`onEggs`): "The Tree of Life has new eggs!" (with `more`, "The tree laid 2 more eggs.") and the `rare`
-sound, or, with an epic or legendary egg among them (or `turned`, the quest's egg, of any rarity: "A rare egg is
-waiting under the tree."), "An epic egg is waiting under the tree." in its rarity's colour, the `grow` sound and a
+sound, or, with an epic or legendary egg among them (or `turned`, the quest's egg, of any rarity: "A rare egg
+waits at the tree."), "An epic egg waits at the tree." in its rarity's colour, the `grow` sound and a
 burst over the `TreeCard`. Shells coming in rise from their chip
 ("+12", at most every 2 s, from `StateClient.Tick`). Every frame it holds the founder's `JumpHeight` at 0 while Build
 mode or a panel is up, else `Tuning.JumpHeight` (the phone's jump button hides with it), and sets the music's mood
@@ -1831,15 +1830,15 @@ origin, in UI px), `InputChanged` mouse movement follows it, `MouseLeave` hides 
 shows it above the finger (`InputObject.Position` plus the inset), `InputEnded` hides it; the target's `Destroying`
 (a panel built again) hides it. `show(pal, at, touch?)`, `hide()`, `lines(pal) -> { { text, color, tier?, title? } }`
 (the name with its rarity; "Works farms x.., wood x.., shops x.." from `RarityWork` x (1 + `Traits.workAt`) at each
-knack, or "Works x.. at any workplace" when they agree within 0.05; the rarity's base; the passive; each mutation (its
+knack, or "Works x.. anywhere" when they agree within 0.05; the rarity's base; the passive; each mutation (its
 name and stars by `TierStars`, then `Traits.describe(fx)`, on the next line when it doesn't fit); "Its <egg luck / egg
-price / charm> count(s) while it lives in a hut" for the keys it has; "Sells for N shells"), `debugState() -> { shown,
+price / charm> count(s) while in a hut" for the keys it has; "Sells for N shells"), `debugState() -> { shown,
 texts }`. The card: glass made solid (`UIKit.setPlate` 0), `PalTip`, at most `TIP_W` 190 wide plus padding, a long
 line wrapped up to three, on the Popup root kept on the screen.
 `Menus` registers the panels (the villagers' "folk" went with them; each is built again with every view): "pal"
 (GAME_DESIGN 6, "One driftling's card"; title "Driftling", 320 x 182: `WorldView`'s pick opens it; `{ id }` the own
-island's from the view, `{ id, plot, sp, muts, work, home, isle }` a neighbour's; "That driftling isn't on your island
-any more." with `AllPals` when the own one is gone): `Portrait` (`icon_<species>` on a veil), `Name` (big, its rarity's
+island's from the view, `{ id, plot, sp, muts, work, home, isle }` a neighbour's; "That driftling is
+gone." with `AllPals` when the own one is gone): `Portrait` (`icon_<species>` on a veil), `Name` (big, its rarity's
 colour), `Rarity` ("Rare ***"), `Kind` (`Islets` name and "kind", the knack's words from `Data/Creatures`' `knack`),
 `Blurb` (its description, only when the body is 150 px tall or more: not on a phone); on the left `PassiveRow`
 (`Passive`, `PassiveFx` over two lines), then a line a mutation: `Mut_<id>` (its name in its tier's colour, the stars after it: `TierStars.label`),
@@ -1849,20 +1848,20 @@ its best": `Tree.worthAt` there, and the most over every knack in `Data/Building
 the Driftling Hut"), `Price` ("Sells for n shells", a neighbour's "Worth n shells"); the foot: the own one's `PalAll`,
 `PalWork` (the work picker `{ pal = id, back = "pal" }`), `PalMove` (the hut picker `{ move = id, back = "pal" }`: with
 `back = "pal"` both pickers' Back and a choice return to the card), `PalSell` (two taps; then the "pals" list); a
-neighbour's `ReadOnly` ("Lives on Bo's Isle. Only its keeper can move it."). "pals"
+neighbour's `ReadOnly` ("Lives on Bo's Isle."). "pals"
 (`OpenTree` ("Eggs") and, when a Hatchery stands, `OpenHatch` at the top, the hint beside them in up to three lines
-(`UIKit.lines`: "6 in huts (room for 8). New ones hatch from the Tree of Life's eggs."); a row a driftling, every one,
+(`UIKit.lines`: "6 in huts, room for 8. Hatch more at the tree."); a row a driftling, every one,
 the hardest workers first (`Tree.better`) and those with no hut last, `Pal_<id>`: portrait, name in its rarity's
 colour, its rarity, passive and its effects, mutations (`Mut_<id>` each), where it lives and helps (`Where`; "No hut.
-It moves in when one has room." in orange); `Move_<id>` opens the hut picker (the same panel with `{ move = id }`: a
+Waiting for room." in orange); `Move_<id>` opens the hut picker (the same panel with `{ move = id }`: a
 row a hut with its room, `Move_<uid>`; a full hut lists its driftlings with `SwapWith_<id>`, sending `pal.house { id,
 uid, swap }`), `Help_<id>` the work picker (a driftling in a hut only): every workplace on the island whatever its knack, the fastest for this driftling first (`Tree.worthAt`), each `Spot_<uid>` with its name, who works there, its speed `Speed` ("x1.1", the fastest in the accent colour) and `Go_<uid>` ("Here", "Swap" when full, else "Go"), then `Rest` (`Go_0`), `Sell_<id>` (two
 taps, `Tree.price`); with no driftling, "No driftlings yet. Tap an egg under the Tree of Life to hatch it." (or "Build
 a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DESIGN 6, title "Tree of Life", 380 x
 196: on the left `Pace` ("New eggs every 6:00", from `clutchSecs`: 3:00 with Quick Tree), `Next` ("Next in 2:41") over `TreeBar` (its fill
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
-"What it lays now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
-yet" at 0) and, short of the last tier, `Grow` "Expand your island to increase the quality and amount of eggs per batch."; on the right `Eggs` ("Under the
+"Odds now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
+yet" at 0) and, short of the last tier, `Grow` "Grow your island for rarer eggs and bigger lots."; on the right `Eggs` ("Under the
 tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
@@ -1871,11 +1870,11 @@ and `PriceIcon`, sending `EggView.hatch`, or with fewer shells than its cost `St
 left. The tree lays more soon."; under them `StoreUI.eggRows`:
 `BuyHead` ("Buy an egg") and a row an egg product from Uncommon up, `BuyEgg_<key>` (its `egg_<r>`, "Rare Egg" in its
 colour, "Free to hatch" and `Buy_<key>`, its Robux, `StoreUI.buy`); with `{ hatch = id }`, every
-hut full, the swap picker: a hint naming the egg's rarity and cost ("Every hut is full. Swap one out for the rare egg
-(1,200 shells): the one you pick is sold."), `Back`, and a row a hut driftling, the weakest first, `SwapOut_<id>`:
+hut full, the swap picker: a hint naming the egg's rarity and cost ("Huts full. Pick one to sell for the rare egg
+(1,200 shells)."), `Back`, and a row a hut driftling, the weakest first, `SwapOut_<id>`:
 portrait, name, rarity, how fast it works, mutations, "Sells for n" and `SwapTake_<id>`, sending `egg.hatch { id,
 swap }`; with `{ hatch = id, bag = true }` the same for a bag egg ("... for the epic egg from your bag ...",
-`SwapTake_<id>` sending `EggView.hatchBag(id, swap)`); once a new lot has replaced the egg, "That egg is gone. The tree laid new ones." and back to the tree
+`SwapTake_<id>` sending `EggView.hatchBag(id, swap)`); once a new lot has replaced the egg, "That egg is gone." and back to the tree
 panel), "hatch" (the `Hint`: "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Legendary and up need both parents that rare.", the panel's whole width; a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
 `EggName`, `EggLeft` ("Hatches in 3 min"), `EggBar`, its parents, `FinishNow` in the first warming egg's row: `StoreUI.buy("HatcheryNow")`) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
 picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`; over the list the search box
@@ -1887,16 +1886,16 @@ count; a flaw is 0) then the rarity, then the name and the id; typing or a new o
 building the panel, so the box keeps the keyboard; the words and the order stay in the module (`pickQuery`,
 `pickSort`) while the game runs; `NoParent` when nothing matches; `Menus.debugParents(other, q, sort) -> { id }` for
 the sims), the likely child
-(`Child`: its portrait if seen, else its shape and ???, its rarity), `Cost` ("Costs 300 shells, hatches in 12 min. Mutations both carry pass on, maybe a tier up. The rest pass on half the time.", up to three lines, the row 76 px for a third),
+(`Child`: its portrait if seen, else its shape and ???, its rarity), `Cost` ("300 shells, hatches in 12 min. Mutations both carry pass on, maybe a tier up. The rest pass on half the time.", up to three lines, the row 76 px for a third),
 `Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`, 90 tall in three columns: portrait or silhouette, name or "???" (65 px beside the
 portrait: Glimmerfleece's), the kind of island it comes from, its passive once seen with its effects in up to four
 lines from the top (`PassiveFx` 40 tall; it was 20 in a 70 card, and 37 kinds' effects ended in "..."); "Seen n of 55 kinds"; a kind not open yet says the island tier
-it hatches from: "These hatch from island Lv 4."). "looks" is `UI/StoreUI`'s since 2026-11-14 (10.13). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut first. Driftlings
-need somewhere to live."; `full`: "Every hut is full. Swap one out, or build another hut."; `not_found`: "That egg is
-gone. The tree laid new ones."; `fixed`: "The Tree of Life stays on your island. You can move it."; `huts`: "Your huts
-already hold as many driftlings as this island allows. Grow the island for more room."; `work`: "Your workplaces already
-have a place for every driftling this island can hold. Grow the island for more."; no `food`). In Build mode `BuildUI`
-words a refusal itself first (`buildErr`): `blocked` "It doesn't fit there.", and `full` by the count that ran out
+it hatches from: "From island Lv 4."). "looks" is `UI/StoreUI`'s since 2026-11-14 (10.13). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut
+first."; `full`: "Huts full. Swap one out or build a hut."; `not_found`: "That egg is
+gone."; `fixed`: "The tree stays. You can move it."; `huts`: "No more hut
+room. Grow the island."; `work`: "No more work spots.
+Grow the island."; no `food`). In Build mode `BuildUI`
+words a refusal itself first (`buildErr`): `blocked` "Doesn't fit there.", and `full` by the count that ran out
 (`Plot.group` of the piece: the paths and water, the fencing, or the island's pieces, each with "Grow the island");
 the rest go to `Words.errText`.
 
@@ -1982,18 +1981,18 @@ on a locked card, "No room" on a hut at the huts' limit), or, for one waiting in
 `Count` ("x3", low in the picture's right corner); the list from `Data/Buildings` (never the tree) by tab and row, the
 open ones first by price, then the locked ones by tier. The Inventory tab (2026-11-14) has no count; its row `InvRow`
 (scrolling sideways) holds `InvSell` ("Sell", or "Selling: tap a card" while on: orange) and `Clear_pieces`,
-`Clear_tiles`, `Clear_fences` ("Remove all buildings", "Remove all paths and water", "Remove all fences"; greyed when the
+`Clear_tiles`, `Clear_fences` ("Clear buildings", "Clear paths and water", "Clear fences"; greyed when the
 group has none; the first tap turns one to "Tap again to put away 18" in `button_close` red for `CLEAR_WAIT` (4) s,
-the second sends `plot.clear` and says "Put away 18. They wait in the Inventory tab."); its cards `InvCard_<id>` with
+the second sends `plot.clear` and says "Moved 18 to the Inventory."); its cards `InvCard_<id>` with
 `Inv_<id>` (by the tabs' order, then price; `Held` "Free" and `Count`; with Sell on, orange, the share it sells for in
 `Shells` and a tap sends `inv.sell` `{ id, n = 1 }`: "Sold a Lumber Camp for 55 shells."; else a tap picks it with
 `inv`, so only the ones waiting go down) or `InvEmpty` ("Nothing put away yet. ..."). A mouse over a card shows `BuildTip` (172 wide, over
 the tray: `TipName`, its size ("3 x 3", "2 x 2 tiles", "2-stud lengths"), `TipAbout` (its blurb, what it makes a
-minute for each common driftling, a workplace's places ("Up to 6 can work here."), a hut's room and comfort, its charm, "Goes over water." or "Goes on water."),
-`TipLocked` ("Opens at island level 7.") and its price, or `TipHeld` ("3 in your inventory. Free to put down.")). A tap on a card: a locked one says "Expand your island to
-level 7 to build this.", a hut at the limit `Words.errText("huts")`, a workplace at the cap `Words.errText("work")`; any other is picked, with a word on what to do
-("Tap the grass where it should go.", "Tap the water where it should float.", "Drag along the grid lines to put up a
-fence."...).
+minute for each common driftling, a workplace's places ("Up to 6 workers."), a hut's room and comfort, its charm, "Goes over water." or "Goes on water."),
+`TipLocked` ("Opens at island level 7.") and its price, or `TipHeld` ("3 in your inventory. Free to put down.")). A tap on a card: a locked one says "Needs island
+level 7.", a hut at the limit `Words.errText("huts")`, a workplace at the cap `Words.errText("work")`; any other is picked, with a word on what to do
+("Tap the grass to place it.", "Tap the water to place it.", "Drag along the grid
+lines."...).
 
 With a piece picked (`pick(id, rot?)`), a ghost model (`Ghost` in `Workspace.PixelDynamic`: the piece and its
 `Footprint`, a raised neon frame of four edges just above the grass (for a fence length, a bar along its line), cyan
@@ -2005,8 +2004,8 @@ then `Cancel`; under them the `Info` plate (its picture, `What` ("Placing: Oak T
 `Blurb` (what it is), the price of a new piece (`Held`, "3 in the inventory", for one waiting there: right of the
 name, or on a line of its own under it on a narrow plate, a phone held upright, where it ran over the name, 2026-11-18)
 and, with a
-keyboard, `Keys`: "R turns it. E puts it down. Esc stops.", "R turns it. C copies it. X puts it away. Esc puts it
-back." or "Esc stops drawing."), as tall as its
+keyboard, `Keys`: "R rotate. E place. Esc cancel.", "R rotate. C copy. X put away. Esc
+cancel." or "Esc stops drawing."), as tall as its
 words, and the tray shrinks to the plate's height so more of the island shows (`trayHeight()`: the tray's height now,
 `TRAY_H` with nothing picked; Hud's tips banner sits on it). `Replace` turns the bar to `ReplaceBack`, `ReplaceWhat`
 and a card a replacement (`Swap_<id>`: its picture, its name, its room or charm, and `SwapTo_<id>` with
@@ -2016,10 +2015,10 @@ Driftling Hut is a Cozy Burrow now.", `BuildFx.drop`). A tap on a placed piece o
 the founder, and when it moves a picked piece's ghost goes again to the cell under the mouse's last place (`hover`). The keys (input
 not already taken, so never while typing in the search box): R (`rotatePicked`: a quarter turn, a fence length between
 0 and 90), E or Return (`confirm`), C (`copyPicked`: a new pick of the same piece, turned the same way), X or Delete
-(`storePicked` through `storeAt(i)`: `plot.store`, then `BuildFx.cleared` and "Snack Stall put in the inventory."),
+(`storePicked` through `storeAt(i)`: `plot.store`, then `BuildFx.cleared` and "Snack Stall put away."),
 Esc (drops the pick, ends Quick remove, or with neither closes Build mode). `confirm()` sends `plot.place` (the piece
 stays picked for another copy, unless it was the tip's or the last one picked from the Inventory tab; a pick from the
-Inventory tab with none left there is dropped, never bought: "None left in the inventory.") or `plot.move`, then
+Inventory tab with none left there is dropped, never bought: "None left.") or `plot.move`, then
 `BuildFx.drop`; `close()`; `isOpen()`; `Changed: Signal<boolean>`. The tray is laid out again on each view, on
 `UIKit.Resized` and when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 Work's Wood row and
 the lumber camp, 2 Farms and the patch, 3 Huts and the hut, 5 Shops and the stall; tip 4, an egg hatched, has no
@@ -2241,8 +2240,8 @@ covered cleared and uploaded); each upload a region's rows), `debugLight()`, `hi
 
 ### 10.15 The welcome-back card (`UI/WelcomeUI`; GAME_DESIGN 14.3)
 `WelcomeUI.init()` (Hud.start) registers "welcome" (title "Welcome back", `mini_shell`, 250 x 112): `Shells` ("+N
-shells", big, in the accent, after the `Shell` sprite), `Away` ("You were away for X. Your driftlings kept working, at
-30% pace." or, past the cap, "... worked the first 3 h of it, ..."; "at full pace" with the pass), without the Offline
+shells", big, in the accent, after the `Shell` sprite), `Away` ("You were away X. Your driftlings kept working, at
+30% pace." or, past the cap, "... worked 3 h of it, ..."; "at full pace" with the pass), without the Offline
 Pass `PassNote` with `SeePass` (opens "store" on "passes"), with it and past the cap `CapNote`, then `Collect`
 (`offline.collect` "free") and, while `offlineDouble`, `CollectDouble` ("double") with `DoubleNote`; a collect closes
 it with "Collected N shells." `WelcomeUI.step()` (Hud's heartbeat) opens it by itself once a report (keyed by its
@@ -2268,30 +2267,30 @@ stops every one-shot (`Audio.play` returns false) and fades the loops to nothing
 `StoreUI.init()` registers "store" (title "Store", `mini_store`, 380 x 210; its argument a tab id) and "looks" (360 x
 200; argument "pieces" or "titles"), and words the store's Fx: `pass` with `bought` (a thanks line by key), `rewards`
 (`StoreUI.rewardText(from, given)`: "<from>: <what>." with each thing when three or fewer, else counted; `from` a
-product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it from Looks.", Newcomer never). `StoreUI.buy(key)`
+product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it in Looks.", Newcomer never). `StoreUI.buy(key)`
 hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `PromptProductPurchase` only when
-`Monetization.isEnabled(id)`; else the notice "That isn't on sale yet.". `StoreUI.robuxText(key)` is a key's price
+`Monetization.isEnabled(id)`; else the notice "Not on sale yet.". `StoreUI.robuxText(key)` is a key's price
 words ("R$ 25", the live price once known) for other panels' buy buttons: the tree panel's `TreeRefresh` ("New eggs
 now", `RefreshEggs`) and `TreeQuick` ("Shorten cooldown permanently: R$ …", while `QuickTree` isn't owned; 22 px tall with its words wrapped when they are wider than the button) under its timer bar
 (the panel 226 tall for them), and Build mode's `BuyFreeDecor` (`mini_decor`, "Free Decor", on a tab over the tray's
 right corner while `FreeDecor` isn't owned). The `RefreshEggs` product (`Store.product`) runs the tree's clock out
 (`clutch.left = 0`) so `IslandService.step` lays a fresh lot at its next tick (Fx "eggs"); its `given` is
-`{ kind = "eggs", n }` ("a fresh lot of eggs under the tree"). `StoreUI.eggRows(list, order, w) -> number`
+`{ kind = "eggs", n }` ("new eggs at the tree"). `StoreUI.eggRows(list, order, w) -> number`
 puts the egg products at the end of another panel's list (the Tree of Life's) and returns the next LayoutOrder.
 `StoreUI.eggKey(r) -> string` (the egg product of rarity r, or the cheapest above it: `EggUncommon` for a common egg)
-and `StoreUI.eggInstead(r)` (the request of 2026-11-18: a tree egg short of shells, "Not enough shells. You can buy
-a rare egg with Robux." on the status line and `StoreUI.buy` of that product; until its id is set, "Not enough shells.
-Eggs for Robux aren't on sale yet."). The tree panel's Hatch calls it before asking when the view's shells fall short,
+and `StoreUI.eggInstead(r)` (the request of 2026-11-18: a tree egg short of shells, "Not enough shells. Buy
+a rare egg with Robux?" on the status line and `StoreUI.buy` of that product; until its id is set, "Not enough
+shells."). The tree panel's Hatch calls it before asking when the view's shells fall short,
 and `EggView.hatch` calls `EggView.onShort` (set to it by `Menus.init`) when the server says `money` (the swap
 picker's Swap, a race). Prices: `GetProductInfoAsync` once per set id
 in the background (`PriceInRobux`, the panel refreshed when it lands), else `SuggestedRobux`, written "R$ 399".
 "store": the tabs `Tab_passes`, `Tab_eggs`, `Tab_shop`, `Tab_track` (each a `mini_` icon and its words; the open one
 `button`), then the tab's `List` (scrolling):
 - passes: the group card `Group` first (GAME_DESIGN 14.3: `mini_folk`, "Our group", `Blurb` (the gift and the boost,
-  or "You're in the group" once in), `GroupJoin`: "Join" (`group.check`; not in yet: `GroupService:PromptJoinAsync`,
+  or "You're in" once in), `GroupJoin`: "Join" (`group.check`; not in yet: `GroupService:PromptJoinAsync`,
   then `group.check` again), "Joined" disabled once `group.member`, "Soon" disabled while `groupOn` is false), then
   `Pass_<key>` rows (icon, `Name`, `Blurb`; OfflinePass with `mini_moon`), `Buy_<key>` (its price, or "Owned" disabled); VIP owned: `VipGift`
-  ("Daily gift" while `vipDay` isn't the sea clock's UTC day, sending `vip.daily`; else "Owned" and "Gift again
+  ("Daily gift" while `vipDay` isn't the sea clock's UTC day, sending `vip.daily`; else "Owned" and "Again
   tomorrow").
 - eggs: `Product_<key>` rows (the Starter Pack hidden once `gifts.starter`; Finish Hatcheries saying how many warm; the
   eggs `egg_<r>` in their colours), `Buy_<key>`, and `BagNote`.

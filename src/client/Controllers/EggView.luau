@@ -192,7 +192,7 @@ local function played(data: { [string]: any }, fromPanel: boolean)
 		if fromPanel and StateClient.view() ~= nil then
 			UIKit.openPanel("tree")
 		end
-		local said = if sold > 0 then string.format("It hatched %s. The one it replaced sold for %s shells.", what, Numbers.coins(sold)) else string.format("It hatched %s.", what)
+		local said = if sold > 0 then string.format("Hatched %s. The old one sold for %s shells.", what, Numbers.coins(sold)) else string.format("Hatched %s.", what)
 		UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
 	end)
 end

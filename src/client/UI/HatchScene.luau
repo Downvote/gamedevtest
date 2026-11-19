@@ -1179,7 +1179,7 @@ function HatchScene.skip()
 	end
 	if #s.queue == 0 then
 		glow(s)
-		setHint(s, "Tap to hatch it")
+		setHint(s, "Tap to hatch")
 	end
 end
 
@@ -2219,7 +2219,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 	CameraController.setStage({ name = "hatch", origin = ORIGIN, pts = pts, tight = nil, top = 30, bottom = 40, clear = true, empty = true })
 	backdrop(s)
 	setTitle(s, eggWords(s.r), (Traits.RARITY[s.r] or Traits.RARITY[1]).color)
-	setHint(s, if #queue > 0 then "Tap the egg" else "Tap to hatch it")
+	setHint(s, if #queue > 0 then "Tap the egg" else "Tap to hatch")
 	if #queue == 0 then
 		glow(s)
 	end

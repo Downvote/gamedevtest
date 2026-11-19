@@ -55,26 +55,26 @@ local StoreUI = {}
 type Item = { key: string, name: string, blurb: string, icon: string, pass: boolean }
 
 local PASSES: { Item } = {
-	{ key = "VIP", name = "VIP", blurb = "25% more shells, a big welcome gift, a gift every day, six pieces and the VIP title.", icon = "mini_crown", pass = true },
-	{ key = "DoubleIncome", name = "Double Income", blurb = "Every shell your island makes counts twice.", icon = "mini_shell", pass = true },
-	{ key = "QuickTree", name = "Quick Tree", blurb = string.format("The Tree of Life lays new eggs every %d minutes, not %d.", Tuning.EggSecsPass // 60, Tuning.EggSecs // 60), icon = "mini_tree", pass = true },
-	{ key = "FreeDecor", name = "Free Decor", blurb = "Decor, paths, water and fences cost nothing to put down.", icon = "mini_decor", pass = true },
-	{ key = "PremiumTrack", name = "Premium Track", blurb = "Opens the premium side of the pass track, this season and every one after.", icon = "mini_ticket", pass = true },
-	{ key = "OfflinePass", name = "Offline Pass", blurb = "Your island earns for up to 24 hours while you're away, at its full pace.", icon = "mini_moon", pass = true },
+	{ key = "VIP", name = "VIP", blurb = "25% more shells, a welcome gift, a daily gift, six pieces and the VIP title.", icon = "mini_crown", pass = true },
+	{ key = "DoubleIncome", name = "Double Income", blurb = "Your island earns double.", icon = "mini_shell", pass = true },
+	{ key = "QuickTree", name = "Quick Tree", blurb = string.format("New eggs every %d minutes, not %d.", Tuning.EggSecsPass // 60, Tuning.EggSecs // 60), icon = "mini_tree", pass = true },
+	{ key = "FreeDecor", name = "Free Decor", blurb = "Decor, paths, water and fences are free.", icon = "mini_decor", pass = true },
+	{ key = "PremiumTrack", name = "Premium Track", blurb = "Opens the premium track, every season.", icon = "mini_ticket", pass = true },
+	{ key = "OfflinePass", name = "Offline Pass", blurb = "Earn at full pace while away, up to 24 hours.", icon = "mini_moon", pass = true },
 }
 
 local PRODUCTS: { Item } = {
-	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of shells, an epic and a legendary egg, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
-	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Every egg warming in your Hatcheries hatches now.", icon = "mini_nest", pass = false },
-	{ key = "RefreshShop", name = "Shop Refresh", blurb = "Six new pieces in the shop right away.", icon = "mini_refresh", pass = false },
-	{ key = "RefreshEggs", name = "New Eggs", blurb = "The Tree of Life lays a fresh lot of eggs right away.", icon = "mini_tree", pass = false },
+	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of shells, epic and legendary eggs, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
+	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Hatch every Hatchery egg now.", icon = "mini_nest", pass = false },
+	{ key = "RefreshShop", name = "Shop Refresh", blurb = "Six new pieces in the shop now.", icon = "mini_refresh", pass = false },
+	{ key = "RefreshEggs", name = "New Eggs", blurb = "The tree lays new eggs now.", icon = "mini_tree", pass = false },
 }
 -- (the egg products, Uncommon to Celestial)
 for _, key in Store.PRODUCTS do
 	local r = Store.EGG_R[key]
 	if r then
 		local rar = Traits.RARITY[r]
-		table.insert(PRODUCTS, { key = key, name = rar.name .. " Egg", blurb = "Goes in your bag. Hatch it for nothing from the Tree of Life.", icon = "egg_" .. r, pass = false })
+		table.insert(PRODUCTS, { key = key, name = rar.name .. " Egg", blurb = "Goes in your bag. Free to hatch at the tree.", icon = "egg_" .. r, pass = false })
 	end
 end
 
@@ -88,7 +88,7 @@ end
 
 StoreUI.TABS = {
 	{ id = "passes", text = "Passes", icon = "crown" },
-	{ id = "eggs", text = "Eggs and more", icon = "egg" },
+	{ id = "eggs", text = "Eggs", icon = "egg" },
 	{ id = "shop", text = "Shop", icon = "store" },
 	{ id = "track", text = "Track", icon = "ticket" },
 }
@@ -135,7 +135,7 @@ function StoreUI.buy(key: string)
 	local id, pass = idOf(key)
 	if not Monetization.isEnabled(id) then
 		Audio.play("deny")
-		UIKit.notice("That isn't on sale yet.", UIKit.color("text_dim"))
+		UIKit.notice("Not on sale yet.", UIKit.color("text_dim"))
 		return
 	end
 	Audio.play("click")
@@ -172,12 +172,12 @@ function StoreUI.eggInstead(r: number)
 	local id = idOf(key)
 	if not Monetization.isEnabled(id) then
 		Audio.play("deny")
-		UIKit.notice("Not enough shells. Eggs for Robux aren't on sale yet.", UIKit.color("text_dim"))
+		UIKit.notice("Not enough shells.", UIKit.color("text_dim"))
 		return
 	end
 	local rar = Traits.RARITY[Store.EGG_R[key] or 2] or Traits.RARITY[2]
 	local an = if rar.name == "Uncommon" or rar.name == "Epic" then "an" else "a"
-	UIKit.notice(string.format("Not enough shells. You can buy %s %s egg with Robux.", an, string.lower(rar.name)), UIKit.color("text_dim"))
+	UIKit.notice(string.format("Not enough shells. Buy %s %s egg with Robux?", an, string.lower(rar.name)), UIKit.color("text_dim"))
 	StoreUI.buy(key)
 end
 
@@ -196,7 +196,7 @@ local function claimVip()
 		Audio.play("reward")
 	else
 		Audio.play("deny")
-		UIKit.notice(if res.err == "cooldown" then "You already had today's gift. Come back tomorrow." else Words.errText(res.err), UIKit.color("bad"))
+		UIKit.notice(if res.err == "cooldown" then "Claimed today. Come back tomorrow." else Words.errText(res.err), UIKit.color("bad"))
 	end
 end
 
@@ -227,15 +227,15 @@ end
 -- What a purchase or a reward gave (Fx rewards' `given`), in one plain line: each thing when there are three or fewer,
 -- else counted ("2 eggs, 2 pieces").
 local FROM: { [string]: string } = {
-	vip = "Today's VIP gift",
+	vip = "VIP gift",
 	track = "Pass track",
-	VIP = "VIP's welcome gift",
+	VIP = "VIP welcome gift",
 	group = "Group gift",
 	-- the Rewards sheet's (UI/RewardsUI)
 	daily = "Daily reward",
-	play = "Gift for playing",
+	play = "Playtime gift",
 	task = "Task done",
-	bonus = "All three tasks done",
+	bonus = "All tasks done",
 	spin = "Lucky Shell",
 	index = "Index gift",
 	code = "Code",
@@ -266,13 +266,13 @@ function StoreUI.rewardText(from: string, given: { any }): string
 			table.insert(one, "the " .. (if t then t.name else "new") .. " title")
 		elseif g.kind == "spin" then
 			local n = tonumber(g.n) or 1
-			table.insert(one, if n == 1 then "a spin of the Lucky Shell" else string.format("%d spins of the Lucky Shell", n))
+			table.insert(one, if n == 1 then "a Lucky Shell spin" else string.format("%d Lucky Shell spins", n))
 		elseif g.kind == "boost" then
 			table.insert(one, string.format("%s for %d min", BOOST_NAMES[tostring(g.id)] or "a boost", math.max(1, math.floor((tonumber(g.n) or 60) / 60 + 0.5))))
 		elseif g.kind == "shop" then
-			table.insert(one, "a new set in the shop")
+			table.insert(one, "a new shop set")
 		elseif g.kind == "eggs" then
-			table.insert(one, "a fresh lot of eggs under the tree")
+			table.insert(one, "new eggs at the tree")
 		elseif g.kind == "pal" then
 			pals += 1
 			local d = Creatures.byId[tostring(g.id)]
@@ -314,16 +314,16 @@ end
 local function howWords(t: Titles.Title): string
 	local h, n = t.how, t.n
 	if h == "start" then
-		return "Everyone starts with this one."
+		return "Everyone has this one."
 	elseif h == "tier" then
-		return string.format("Grow your island to level %d.", n)
+		return string.format("Reach island level %d.", n)
 	elseif h == "taken" then
 		return string.format("Hatch %s eggs.", Numbers.coins(n))
 	elseif h == "best" then
 		local rar = Traits.RARITY[math.clamp(n, 1, Traits.RMAX)]
 		return string.format("Have %s %s driftling.", an(rar.name), string.lower(rar.name))
 	elseif h == "seen" then
-		return if n > 0 then string.format("Find %d kinds for the Index.", n) else "Find every kind for the Index."
+		return if n > 0 then string.format("Find %d kinds.", n) else "Find every kind."
 	elseif h == "earned" then
 		return string.format("Make %s shells in all.", Numbers.coins(n))
 	elseif h == "hatched" then
@@ -331,13 +331,13 @@ local function howWords(t: Titles.Title): string
 	elseif h == "days" then
 		return string.format("Play on %d island days.", n)
 	elseif h == "owned" then
-		return string.format("Own %d pieces to wear.", n)
+		return string.format("Own %d pieces.", n)
 	elseif h == "vip" then
 		return "Comes with VIP."
 	elseif h == "starter" then
 		return "Comes with the Starter Pack."
 	elseif h == "track" then
-		return "A pass track reward."
+		return "From the pass track."
 	end
 	return ""
 end
@@ -420,7 +420,7 @@ local function joinGroup()
 	local gid = Monetization.Group.Id
 	if not Monetization.isEnabled(gid) then
 		Audio.play("deny")
-		UIKit.notice("The group isn't open yet.", UIKit.color("text_dim"))
+		UIKit.notice("No group yet.", UIKit.color("text_dim"))
 		return
 	end
 	joining = true
@@ -435,7 +435,7 @@ local function joinGroup()
 		end
 		joining = false
 		if not (res.ok and type(res.data) == "table" and res.data.member) then
-			UIKit.notice("Join the group, then tap Join here again for your gift.", UIKit.color("text_dim"), 4)
+			UIKit.notice("Joined? Tap Join again for your gift.", UIKit.color("text_dim"), 4)
 		end
 		if UIKit.currentPanel() == "store" then
 			UIKit.refreshPanel()
@@ -450,8 +450,8 @@ local function groupRow(list: Instance, v: Types.ClientView, W: number, BW: numb
 	spriteIn(f, "mini_folk", 3, 4, 14)
 	local pct = math.floor(Tuning.GroupBoost * 100 + 0.5)
 	local blurb = if member
-		then string.format("You're in the group: %d%% more shells while you stay.", pct)
-		else string.format("Join our group for a rare egg and %d minutes of shells, then %d%% more shells while you stay.", Tuning.GroupMins, pct)
+		then string.format("You're in: %d%% more shells.", pct)
+		else string.format("Join for a rare egg, %d minutes of shells and %d%% more shells.", Tuning.GroupMins, pct)
 	UIKit.text(f, "Our group", UDim2.fromOffset(W - BW - 40, 10), UDim2.fromOffset(22, 2), { color = UIKit.color("good"), z = 4, name = "Name" })
 	UIKit.text(f, blurb, UDim2.fromOffset(W - BW - 32, 20), UDim2.fromOffset(22, 12), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
 	local on = v.groupOn
@@ -487,7 +487,7 @@ local function buildPasses(body: Frame, v: Types.ClientView, W: number, H: numbe
 			end, { name = "VipGift", color = if waiting then UIKit.color("button_ok") else UIKit.color("plate_light"), enabled = waiting })
 			b.ZIndex = 4
 			if not waiting then
-				UIKit.text(f, "Gift again tomorrow", UDim2.fromOffset(BW + 8, 10), UDim2.fromOffset(bx - 4, 18), { x = "center", color = UIKit.color("text_dim"), z = 4 })
+				UIKit.text(f, "Again tomorrow", UDim2.fromOffset(BW + 8, 10), UDim2.fromOffset(bx - 4, 18), { x = "center", color = UIKit.color("text_dim"), z = 4 })
 			end
 		else
 			robuxButton(f, it.key, bx, 3, BW, has)
@@ -513,7 +513,7 @@ local function buildEggs(body: Frame, v: Types.ClientView, W: number, H: number,
 		UIKit.text(f, it.name, UDim2.fromOffset(W - BW - 40, 10), UDim2.fromOffset(24, 2), { color = color, z = 4, name = "Name" })
 		local blurb = it.blurb
 		if it.key == "HatcheryNow" then
-			blurb = if #(v.eggs or {}) > 0 then string.format("Every egg warming in your Hatcheries hatches now (%d warming).", #v.eggs) else "Every egg warming in your Hatcheries hatches now. None warming at the moment."
+			blurb = if #(v.eggs or {}) > 0 then string.format("Hatch every Hatchery egg now (%d warming).", #v.eggs) else "Hatch every Hatchery egg now. None warming."
 		end
 		UIKit.text(f, blurb, UDim2.fromOffset(W - BW - 34, if r then 10 else 20), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, wrap = r == nil, name = "Blurb" })
 		robuxButton(f, it.key, W - BW - 10, 3, BW)
@@ -521,7 +521,7 @@ local function buildEggs(body: Frame, v: Types.ClientView, W: number, H: number,
 	-- (where bought eggs go)
 	local n = #(v.bag or {})
 	local f = row(list, order + 1, 14, "BagNote")
-	UIKit.text(f, if n > 0 then string.format("%d %s in your bag. Hatch them from the Tree of Life.", n, if n == 1 then "egg" else "eggs") else "Eggs you buy wait in your bag at the Tree of Life.", UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 4 })
+	UIKit.text(f, if n > 0 then string.format("%d %s in your bag. Hatch at the tree.", n, if n == 1 then "egg" else "eggs") else "Bought eggs wait in your bag at the tree.", UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 4 })
 end
 
 -- The eggs on sale, as rows at the end of a list (the Tree of Life's panel, under the eggs lying there: the request of
@@ -600,7 +600,7 @@ local function buildShop(body: Frame, v: Types.ClientView, W: number, H: number,
 				local res = StateClient.request("look.wear", { slot = c.slot, id = id })
 				if res.ok then
 					Audio.play("flip")
-					UIKit.notice("You're wearing the " .. c.name .. ".", UIKit.color("good"))
+					UIKit.notice("Wearing the " .. c.name .. ".", UIKit.color("good"))
 				else
 					Audio.play("deny")
 					UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
@@ -615,10 +615,10 @@ local function buildShop(body: Frame, v: Types.ClientView, W: number, H: number,
 				local res = StateClient.request("shop.buy", { id = id })
 				if res.ok then
 					Audio.play("reward")
-					UIKit.notice("The " .. c.name .. " is yours. Wear it from Looks or here.", UIKit.color("good"))
+					UIKit.notice("The " .. c.name .. " is yours.", UIKit.color("good"))
 				else
 					Audio.play("deny")
-					UIKit.notice(if res.err == "not_found" then "The shop changed. Have a look at the new set." else Words.errText(res.err), UIKit.color("bad"))
+					UIKit.notice(if res.err == "not_found" then "The shop changed. Take a look." else Words.errText(res.err), UIKit.color("bad"))
 				end
 			end, { name = "ShopBuy_" .. id, color = if v.shells >= cost then UIKit.color("button_ok") else UIKit.color("plate_light") })
 			b.ZIndex = 4
@@ -678,7 +678,7 @@ local function buildTrack(body: Frame, v: Types.ClientView, W: number, H: number
 	local box = UIKit.row(body, UDim2.fromOffset(W - 2, boxH), UDim2.fromOffset(0, y))
 	box.Name = "TrackBox"
 	spriteIn(box, "mini_star", 3, 3, 11, 4)
-	local nextWords = if done then "Every level done" else string.format("Next: level %d", lvl + 1)
+	local nextWords = if done then "All done" else string.format("Next: level %d", lvl + 1)
 	if not roomy then
 		nextWords = string.format("Pass Track: level %d/%d", lvl, Track.LEVELS)
 	end
@@ -696,12 +696,12 @@ local function buildTrack(body: Frame, v: Types.ClientView, W: number, H: number
 		countdown(left, function(): number
 			local _, l = Store.season(StateClient.seaClock())
 			return l
-		end, "Ends in %s. Most things you do on the island give points.")
+		end, "Ends in %s. Most things earn points.")
 	end
 	y += boxH + 3
 	-- the premium pass, while it isn't owned
 	if not prem then
-		local words = "Premium in every season: Premium Track " .. robuxText("PremiumTrack")
+		local words = "Go Premium " .. robuxText("PremiumTrack")
 		local b = UIKit.button(body, words, UDim2.fromOffset(math.min(W - 2, UIKit.buttonWidth(words, 6)), 13), UDim2.fromOffset(0, y), function()
 			StoreUI.buy("PremiumTrack")
 		end, { name = "Buy_PremiumTrackTop", color = UIKit.color("button_ok") })
@@ -929,7 +929,7 @@ local function buildPieces(body: Frame, v: Types.ClientView, x0: number, W: numb
 	local RW = W - x0
 	if #have == 0 then
 		local f = row(list, 1, 34, "NoPieces")
-		UIKit.text(f, "None of these yet. The Store's shop has new pieces every few hours, and the pass track gives some.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		UIKit.text(f, "None yet. Find them in the shop or on the pass track.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
 		return
 	end
 	for i, c in have do
@@ -982,7 +982,7 @@ local function buildTitles(body: Frame, v: Types.ClientView, x0: number, W: numb
 			local res = StateClient.request("title.set", { id = t.id })
 			if res.ok then
 				Audio.play("flip")
-				UIKit.notice("Your title is " .. t.name .. " now.", UIKit.color("good"))
+				UIKit.notice("Title set: " .. t.name .. ".", UIKit.color("good"))
 			else
 				Audio.play("deny")
 				UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
@@ -1054,7 +1054,7 @@ local function buildLooks(body: Frame, arg: any?)
 		n += 1
 	end
 	UIKit.text(body, string.format("%d of %d pieces", n, #Cosmetics.list), UDim2.fromOffset(150, 10), UDim2.fromOffset(0, 82), { color = UIKit.color("text_dim"), name = "PieceCount" })
-	UIKit.button(body, "Shop for more", UDim2.fromOffset(90, 13), UDim2.fromOffset(0, 94), function()
+	UIKit.button(body, "Shop", UDim2.fromOffset(90, 13), UDim2.fromOffset(0, 94), function()
 		UIKit.openPanel("store", "shop")
 	end, { name = "LooksShop", color = UIKit.color("button_warn") })
 	-- the right side: pieces or titles
@@ -1145,12 +1145,12 @@ end
 
 ------------------------------------------------------------------ init
 local PASS_THANKS: { [string]: string } = {
-	VIP = "Thanks! VIP is on: 25% more shells and a gift every day.",
-	DoubleIncome = "Thanks! Every shell counts twice now.",
-	QuickTree = string.format("Thanks! The Tree of Life lays every %d minutes now.", Tuning.EggSecsPass // 60),
-	FreeDecor = "Thanks! Decor, paths, water and fences are free now.",
-	PremiumTrack = "Thanks! The premium side of the track is open.",
-	OfflinePass = "Thanks! Your island earns for up to 24 hours while you're away now.",
+	VIP = "Thanks! VIP is on.",
+	DoubleIncome = "Thanks! Shells count double now.",
+	QuickTree = string.format("Thanks! New eggs every %d minutes now.", Tuning.EggSecsPass // 60),
+	FreeDecor = "Thanks! Decor is free now.",
+	PremiumTrack = "Thanks! Premium track open.",
+	OfflinePass = "Thanks! You earn while away now, up to 24 hours.",
 }
 
 function StoreUI.init()
@@ -1173,7 +1173,7 @@ function StoreUI.init()
 			for _, id in msg.ids do
 				local t = Titles.byId[tostring(id)]
 				if t and t.how ~= "start" then
-					UIKit.notice("New title: " .. t.name .. ". Wear it from Looks.", UIKit.color(t.color), 4)
+					UIKit.notice("New title: " .. t.name .. ". Wear it in Looks.", UIKit.color(t.color), 4)
 				end
 			end
 		end

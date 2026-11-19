@@ -45,6 +45,14 @@ local Hud = {}
 
 local TOP_H = 14 -- the top bar's height
 local BAR_H = 14 -- a menu button's height
+-- (on a phone the menu's buttons are icons only, square and taller, so the bar is short enough to stay clear of
+-- Roblox's jump button at the bottom right: the request of 2026-11-19, "make mobile and tablet as responsive and
+-- catered to as possible"; each still gets UIKit's fingertip pad)
+local BAR_H_PHONE = 18
+local BTN_PHONE = 20
+local function barH(): number
+	return if UIKit.phone() then BAR_H_PHONE else BAR_H
+end
 local EDGE = 5 -- UI px between the HUD's blocks and the screen's edges
 local CHIP_Y = 4 -- the top bar's top
 local CARD_Y = CHIP_Y + TOP_H + 4 -- the cards' top (and the status panel's)
@@ -134,12 +142,12 @@ local function hudRects()
 		-- a phone (Random Bakery's rule): only Roblox's top bar and the menu bar are kept clear
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y },
-			r(math.floor(s.X / 2) - half, s.Y - BAR_H - 2 * DOCK - EDGE, math.floor(s.X / 2) + half, s.Y),
+			r(math.floor(s.X / 2) - half, s.Y - barH() - 2 * DOCK - EDGE, math.floor(s.X / 2) + half, s.Y),
 		}
 	else
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (CHIP_Y + TOP_H + 2) * K },
-			r(math.floor(s.X / 2) - half, s.Y - BAR_H - 2 * DOCK - EDGE, math.floor(s.X / 2) + half, s.Y),
+			r(math.floor(s.X / 2) - half, s.Y - barH() - 2 * DOCK - EDGE, math.floor(s.X / 2) + half, s.Y),
 			r(s.X - CARD_W - EDGE - 2, rightTop() - 2, s.X, rightTop() + CARD_MAX_H),
 		}
 	end
@@ -220,7 +228,7 @@ local function buildTop()
 	local hb = UIKit.button(canvas, "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(EDGE + w + GAP, CHIP_Y), function()
 		local res = StateClient.request("char.home", {})
 		if not res.ok and res.err ~= "cooldown" then
-			UIKit.notice("You can't go home right now.", UIKit.color("bad"))
+			UIKit.notice("Can't go home right now.", UIKit.color("bad"))
 		end
 	end, { name = "Home", color = UIKit.color("button_warn") })
 	hb.Visible = false
@@ -400,29 +408,34 @@ local function buildBar()
 	if bar then
 		bar:Destroy()
 	end
+	local phone = UIKit.phone()
+	local bh = barH()
+	local function widthOf(m: Menu): number
+		return if phone then BTN_PHONE else UIKit.buttonWidth(m.text, 4) + MENU_ICON
+	end
 	local total = 0
 	for _, m in menus() do
-		total += UIKit.buttonWidth(m.text, 4) + MENU_ICON + 2
+		total += widthOf(m) + 2
 	end
 	total -= 2
 	barW = total
 	local f = Instance.new("Frame")
 	f.Name = "MenuBar"
 	f.BackgroundTransparency = 1
-	f.Size = UDim2.fromOffset(total, BAR_H)
+	f.Size = UDim2.fromOffset(total, bh)
 	-- pinned to the canvas's bottom edge (not a measured y: it stays on screen while the canvas settles)
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Position = UDim2.new(0, math.floor((s.X - total) / 2), 1, -(DOCK + EDGE - 1))
 	f.Parent = canvas
 	-- one glass strip under the buttons (Random Bakery's bar): each button shows only its icon and words until the
 	-- mouse is over it; Build's words in the accent
-	local dock = UIKit.glass(f, UDim2.fromOffset(total + 2 * DOCK, BAR_H + 2 * DOCK), UDim2.fromOffset(-DOCK, -DOCK), 2)
+	local dock = UIKit.glass(f, UDim2.fromOffset(total + 2 * DOCK, bh + 2 * DOCK), UDim2.fromOffset(-DOCK, -DOCK), 2)
 	dock.Name = "Dock"
 	dock.ZIndex = 1
 	local x = 0
 	for _, m in menus() do
-		local w = UIKit.buttonWidth(m.text, 4) + MENU_ICON
-		local b = UIKit.button(f, m.text, UDim2.fromOffset(w, BAR_H), UDim2.fromOffset(x, 0), function()
+		local w = widthOf(m)
+		local b = UIKit.button(f, if phone then "" else m.text, UDim2.fromOffset(w, bh), UDim2.fromOffset(x, 0), function()
 			if m.panel == "build" then
 				BuildUI.open()
 			else
@@ -434,7 +447,7 @@ local function buildBar()
 			textColor = if m.panel == "build" then UIKit.color("accent") else nil,
 		})
 		b.ZIndex = 2
-		PixelSprites.image(b, "mini_" .. m.icon, UDim2.fromOffset(3, 2), 6)
+		PixelSprites.image(b, "mini_" .. m.icon, if phone then UDim2.fromOffset(math.floor((w - 11) / 2), math.floor((bh - 11) / 2)) else UDim2.fromOffset(3, 2), 6)
 		if m.panel == "rewards" then
 			-- the red dot over the gift while something waits (RewardsUI.ready; Hud's second shows and hides it)
 			local dot = UIKit.rect(b, UDim2.fromOffset(5, 5), UDim2.fromOffset(10, 0), UIKit.color("ink"), 7)
@@ -809,19 +822,19 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts.",
-	[2] = "Shells hatch eggs. Place a Veggie Patch. It sells what it grows.",
-	[3] = "Driftlings need somewhere to live. Place a Driftling Hut.",
-	[4] = "The Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch.",
-	[5] = "A Snack Stall sells snacks for shells too. Your first one is free. Place it by the path.",
-	[6] = "The tree lays new eggs every few minutes. When the huts are full, swap a weak one for a better one.",
+	[1] = "Tap Build and place a Lumber Camp. It earns shells.",
+	[2] = "Place a Veggie Patch for more shells.",
+	[3] = "Driftlings need a home. Place a Driftling Hut.",
+	[4] = "The tree laid eggs. Tap it to hatch one.",
+	[5] = "Place a Snack Stall by the path. The first one is free.",
+	[6] = "New eggs come every few minutes. Huts full? Swap a weak driftling for a better one.",
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
-	[1] = "Place a Lumber Camp. It sells the wood it cuts for shells.",
-	[2] = "Place a Veggie Patch. It sells its veggies for shells.",
-	[3] = "Place a Driftling Hut. Driftlings live there and go to work.",
-	[5] = "Place a Snack Stall. It sells snacks for shells, and your first one is free.",
+	[1] = "Place a Lumber Camp. It earns shells.",
+	[2] = "Place a Veggie Patch. It earns shells too.",
+	[3] = "Place a Driftling Hut. Driftlings live there.",
+	[5] = "Place a Snack Stall. The first one is free.",
 }
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too), above the
@@ -832,7 +845,7 @@ local function tipsLift(): number
 		local chip = v ~= nil and not (v.passes and v.passes.FreeDecor)
 		return BuildUI.trayHeight() + (if chip then 18 else 12)
 	end
-	return BAR_H + 2 * DOCK + EDGE + 4
+	return barH() + 2 * DOCK + EDGE + 4
 end
 
 local function updateTips(v: Types.ClientView)
@@ -902,7 +915,7 @@ local function onDay(msg: { [string]: any })
 			local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
 			if d then
 				hatched += 1
-				table.insert(lines, (if fresh[d.id] then "New! " else "") .. d.name .. " hatched!")
+				table.insert(lines, (if fresh[d.id] then "New: " else "") .. d.name .. " hatched")
 				fresh[d.id] = nil
 			end
 		end
@@ -974,7 +987,7 @@ local function onEggs(msg: { [string]: any })
 	if turned and Traits.RARITY[turned] then
 		local rar = Traits.RARITY[turned]
 		local a = if turned == 2 or turned == 4 then "An" else "A"
-		UIKit.notice(string.format("%s %s egg is waiting under the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
+		UIKit.notice(string.format("%s %s egg waits at the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
 		Audio.play("grow")
 		local tc = treeCard
 		if tc and tc.Parent and tc.Visible then
@@ -992,7 +1005,7 @@ local function onEggs(msg: { [string]: any })
 	if best >= 4 then
 		local rar = Traits.RARITY[best] or Traits.RARITY[1]
 		local a = if best == 4 then "An" else "A"
-		UIKit.notice(string.format("%s %s egg is waiting under the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
+		UIKit.notice(string.format("%s %s egg waits at the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
 		Audio.play("grow")
 		local tc = treeCard
 		if tc and tc.Parent and tc.Visible then

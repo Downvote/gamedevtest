@@ -496,6 +496,23 @@ floor, it just looks noisy", 2026-11-14),
   rarity names among them; the request above brought the glass and the bright colours back. The paper's colouring
   also leaked into the HUD and the hatch scene while a button on a panel waited on the server, which went with it.)
 
+  **Phones and tablets** (the request of 2026-11-19: "make mobile and tablet as responsive and catered to as possible.
+  You can research online how to do so as well. Make menus fill the screen on mobile with currency showing and an exit
+  button"). What the research said, and what the game does with it:
+  - A finger needs about 44 points (Apple) or 48 dp (Android) to hit something; the tap area can be bigger than what
+    shows. On a touch screen every button smaller than that gets a see-through pad round it, 44 screen px each way, so
+    it looks the same and is easy to hit.
+  - On a phone every panel fills the screen under Roblox's top bar (no margin, square corners), its awning 4 px taller
+    for a 20 px exit button (with its pad, a fingertip wide) and the shells beside it, kept up to date while it's open.
+    The props shelf steps aside for them.
+  - On a tablet a panel is about a third bigger than on a computer (within the screen less a margin), with the shells
+    and the bigger exit too, so the room a tablet has goes to bigger lists instead of empty sea.
+  - Hover is a mouse's: on a touch screen a long press (0.35 s) shows what a hover shows (a driftling's card, a build
+    piece's card), and a tap still does what a click does.
+  - Interactive things stay inside the safe area (the notch, Roblox's top bar): the HUD, panels and notices sit in
+    ScreenGuis that keep Roblox's core UI insets. The game is landscape only (StarterGui `LandscapeSensor`).
+  - On a phone the menu bar is icons only, square, so it stays clear of Roblox's jump button at the bottom right.
+
   > The request (2026-11-14, with a picture of Random Bakery's HUD: a top bar of chips on one black see-through
   > rounded panel, "Winter · 2 h" on a second one under it): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
   > island more such that there isnt too much sea in the screen"
@@ -677,7 +694,7 @@ Every decor piece's charm is its footprint's tiles times `DecorCharm` at the isl
 | Charm a tile | 1 | 1 | 1 | 2 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 17 | 19 |
 
 So a 3 x 3 Oak is 9 on a first island and 171 on the last, the same as any other 3 x 3 piece there, and everything
-already down brings more after each expansion (Build mode's cards say "Charm +9, more once the island grows.", on
+already down brings more after each expansion (Build mode's cards say "Charm +9, more as the island grows.", on
 the last island "Charm +171."). The numbers follow what the old decor gave: each piece had its own charm, from a quarter of a point a tile
 on the cheap plants to 360 a tile on the Grand row (the Sea Crown was 4,500), and all the decor an island of a tier
 could have averaged, weighted by size, 0.55 a tile on the first island, 1.5 on the fourth, 3.15 on the sixth, 8.18
@@ -780,8 +797,8 @@ The totals stay near the old ones (8, 24, 40, 60, 96, 168 on the capital ... 840
 a new hut opened and asked for many huts there. The huts grew with them (the Burrow held 4, the Den 5, the Roost 6, the
 Grotto 8, the Palace 12, the Loft 14, the Manor 16, the Keep 18, the Citadel 20), and their prices grew with their room,
 so a driftling's place in a hut costs what it did; their comfort and charm stayed. Huts can still be small: four
-Driftling Huts (two each) hold as many as a Cozy Burrow (eight), with no comfort where the burrow has some. A hut whose room won't fit shows "No room" on its card, and placing it is refused ("Your huts already hold as many
-driftlings as this island allows. Grow the island for more room."). A bigger hut replaces a smaller one only while the
+Driftling Huts (two each) hold as many as a Cozy Burrow (eight), with no comfort where the burrow has some. A hut whose room won't fit shows "No room" on its card, and placing it is refused ("No more hut room. Grow the
+island."). A bigger hut replaces a smaller one only while the
 limit has room for the difference; a smaller one always can; and two small huts cleared make way for a bigger one. The
 Huts tab's count shows the room against the limit ("24/24"). A save housing more than its tier allows keeps its huts.
 (Until 2026-11-14 the limit was a number of huts: 4, then two more a tier.)
@@ -807,10 +824,10 @@ growth exactly, and a played-through island fills both caps that way.) The four 
 2: its cap is 8, and the tips ask for a camp, a patch and a stall there. All of an island's places at work together stay
 within its cap, which is its driftling limit (the housing limit above: 8 on Castaway Cay up to 840 on Everdrift), so
 every driftling it can house has a place and no more. A workplace whose places won't fit shows "No room" on its card,
-and placing it is refused ("Your workplaces already have a place for every driftling this island can hold. Grow the
-island for more."). A bigger workplace replaces a smaller one only while the cap has room for the difference; a smaller
+and placing it is refused ("No more work spots. Grow the
+island."). A bigger workplace replaces a smaller one only while the cap has room for the difference; a smaller
 one always can, keeping its first workers (the rest go back to the arrangement). The Work tab's count shows the places
-at work against the cap ("24/24"); a card's tip says how many can work there ("Up to 6 can work here."). A workplace's
+at work against the cap ("24/24"); a card's tip says how many can work there ("Up to 6 workers."). A workplace's
 price was for its old two places: it is that times its places over two, so a place at work costs what it did and the
 pace stays where the economy's bounds hold it (§10; at the old prices a place cost up to sixteen times less, and the
 three seeds reached the capital and Moonlit Bay inside three hours). A save with more places than its cap keeps its
@@ -887,7 +904,7 @@ Water keeps its own rules (§4.3).
   kind gives its whole share, a second `BoostStack` (half) of it, a third half of that, and so on, so two Windmills
   give farms +15%, three +17.5%, and a kind can never give more than twice its own share. Different kinds each give
   their whole share (a Windmill and a Smokehouse, +20%). Build mode's card for a boost building says so ("Each extra
-  one adds 50% of the one before.").
+  adds 50% of the last.").
 - **The islands past Driftling Haven** (2026-11-14, the request at the top; §4.4 has which tier opens what). The
   workplaces make about twice the city's best on Lantern Cove and ten times it by Farshore (a turn with one common
   driftling: the Mushroom Cellar 3,300 shells, Pearl Beds 5,800, Honey Terraces 10,500, the Grand Vineyard 19,000; the
@@ -955,7 +972,7 @@ up only its own kind (Erase with a path picked leaves the water alone).
 
 What goes with water: a piece made to go **over** it (the bridges, the dock, the waterwheel, the little waterfall)
 stands on grass, on water or across both; one made to go **on** it (lily pads, reeds, stepping stones, the duck decoy,
-the rowboat, lotus flowers, floating lanterns) only on water, every stud of it ("Tap the water where it should float.";
+the rowboat, lotus flowers, floating lanterns) only on water, every stud of it ("Tap the water to place it.";
 on the grass its frame is red). Nothing else stands on water, and water can still be dug under a bridge or round a
 lily pad already there. Taking water up takes what floats on it with it, into the inventory too; a bridge stays where
 it is. The founder wades through rivers: each step splashes a few drops and makes a soft watery pop (`step_water`).
@@ -1046,7 +1063,7 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
   fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
   it, and it lays the bigger island's extra eggs at once (§6). The moment the server says yes: "Your island grew into
-  Moonlit Bay. There's more to build now."
+  Moonlit Bay."
 
   > The request (2026-11-14): "also, expanding the island dosent have a good transition, it simply make the new land
   > appear out of nowhere. could you make a transition such that it feels like the island grows out the new land
@@ -1128,17 +1145,17 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   they open at, each with "Lv7" in place of a price. A mouse over a card shows its tooltip: the name, its size ("3 x 3",
   "2 x 2 tiles", "2-stud lengths"), what it is and what it makes, a hut's room and comfort, its charm, "Goes over
   water." or "Goes on water.", its price and, while locked, "Opens at island level 7." A tap on a locked card says
-  "Expand your island to level 7 to build this."
+  "Needs island level 7."
 - **Placing**: a picked piece is a ghost on a raised frame where the mouse is (or the last tap): cyan where it fits, red
   where not; **Place** (a second click on the same spot, or E) builds it and keeps it picked for another; **Rotate** (R)
   turns it a quarter. A tap on a standing piece picks it up to **Move** it, **Copy** it (another of the same, turned the
   same way: C), **Replace** it (§4.1) or **Put it away** (X or Delete; into the inventory, below; not a Hatchery warming
   an egg; a hut's driftlings are left with no hut and move into the next hut with room, §6). Esc drops what is picked, and
   with nothing picked closes Build mode. Under the buttons an info plate shows the piece's picture, its name, what it is
-  and its price, and with a keyboard the keys ("R turns it. E puts it down. Esc stops."). While a piece is picked or a
+  and its price, and with a keyboard the keys ("R rotate. E place. Esc cancel."). While a piece is picked or a
   stroke drawn, the tray shrinks to the height of that plate, so more of the island shows (the tip's banner comes down
-  with it). The Tree of Life only moves: it has no Copy, Put away is greyed and nothing replaces it ("The Tree of Life
-  stays on your island. You can move it.").
+  with it). The Tree of Life only moves: it has no Copy, Put away is greyed and nothing replaces it ("The tree
+  stays. You can move it.").
 - **The inventory** (`Profile.inv`, `Plot.store`, `Plot.clear`, `Plot.sellHeld`):
 
   > The request (2026-11-14): "also, add an inventory system to build mode, players can remove buildings to put them in
@@ -1150,12 +1167,12 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   each, up to 9999). The **Inventory** tab lists them, sorted the way the tabs run, each card with "Free" under its
   picture and how many in the corner ("x3"); a tap picks one to put down, and it goes down for nothing. Picked from
   there, only the ones waiting go down: the last one down drops the pick, and a stroke stops where they run out
-  ("None left in the inventory."). A card on any other tab for a piece that waits there says "Free" too, and putting
+  ("None left."). A card on any other tab for a piece that waits there says "Free" too, and putting
   one down from it takes the inventory's first, then pays. The usual limits still hold (the pieces, the huts' room, the
   Hatcheries). The tab's row holds **Sell** (on, every card shows what one sells for, half its price, and a tap sells
-  one: "Sold a Lumber Camp for 55 shells.") and three **Remove all** buttons: **Remove all buildings** (every building
-  and decor piece but the tree, and never a Hatchery warming an egg), **Remove all paths and water** (with what floats
-  on it) and **Remove all fences**. The first tap asks ("Tap again to put away 18", for four seconds), the second takes
+  one: "Sold a Lumber Camp for 55 shells.") and three **Clear** buttons: **Clear buildings** (every building
+  and decor piece but the tree, and never a Hatchery warming an egg), **Clear paths and water** (with what floats
+  on it) and **Clear fences**. The first tap asks ("Tap again to put away 18", for four seconds), the second takes
   them all into the inventory; with none left the button is greyed. **Quick remove** swaps the tabs for its own bar:
   a tap on any piece puts it away at once with no menu (never the tree), and a drag over the island takes up the paths
   and water under it, or the fences with **Fences** on (**Box** for a box, **Look around** to move the view, **Stop** or
@@ -1206,8 +1223,8 @@ A workplace's card has a second line with what it earns now, a minute ("Earns 12
 workers and the boosts at its knack, times the charm bonus and the passes, so the cards of all the workplaces add up to
 the top bar's rate). A boost building gets a card too (it takes no workers): the boost its
 knack gets from every boost building there together ("Farms +15% from 2 boost buildings"; an "all" one, the
-everything boosts together, "Everything +16% from 2 boost buildings"), and under it what one more of its kind would add
-("One more adds +2.5%"), or "Boosts top out at 70%" once they reach the cap.
+everything boosts together, "+16% to all from 2 boosts"), and under it what one more of its kind would add
+("One more adds +2.5%"), or "Max boost 70%" once they reach the cap.
 
 ## 5. Villagers (gone)
 
@@ -1231,8 +1248,8 @@ to buy.)
 **A driftling's tip** (`UI/PalTip`): every row that shows one driftling (the Driftlings panel, the Tree panel's swap
 list, the Hatchery's parent picker and its two parent slots, the hut picker's swaps) shows a tip while a mouse is over
 it, or while a finger holds it for a third of a second. The tip says the driftling's name and rarity; how fast it
-works at each kind of workplace ("Works farms x1.4, wood x0.8, shops x0.8", or "Works x1.1 at any workplace" when
-they match); what its rarity alone gives ("Common ones work x1.0 before passives and mutations"); its passive and what
+works at each kind of workplace ("Works farms x1.4, wood x0.8, shops x0.8", or "Works x1.1 anywhere" when
+they match); what its rarity alone gives ("Common base speed x1.0"); its passive and what
 it does; each mutation with its stars and what it does ("Blessed: +10% egg luck"); a line saying the island-wide
 ones (egg luck, egg price, charm) count while it lives in a hut, naming only the ones it has; and what it sells for.
 It sits on top of everything, solid, by the pointer (above the finger on a phone), and goes when the pointer leaves
@@ -1311,7 +1328,7 @@ When the island grows into a new stage, the tree is built again at it.
   gave none, the commonest egg of the lot (the first laid of those) turns into one, so the lot is no bigger. When such a
   quest comes up partway through a lot (the last one claimed, or a save loaded with it on the go), that happens to the
   lot already there, within a second: the egg keeps its place on the ring, its new shell rises out of the lawn, and a
-  notice says "A rare egg is waiting under the tree." It costs what any egg of its rarity costs on the island. Only an
+  notice says "A rare egg waits at the tree." It costs what any egg of its rarity costs on the island. Only an
   egg commoner than asked turns. With nothing to turn, the tree lays one of that rarity on its own, in the season now:
   the bug report of 2026-11-16, "there is a bug, the tree dosent have the rare egg in this quest", came from a lot
   hatched out (or every egg left rarer than asked) before the quest was met, which left the tree with no such egg
@@ -1384,10 +1401,10 @@ When the island grows into a new stage, the tree is built again at it.
   tiers, three on Moonlit Bay and Evergreen Isle, four on the last two, never past a legendary's roll; a mythic or
   celestial one rolls as itself). It moves
   into the comfiest hut with room and goes to work through the arrangement below (each workplace's places, its
-  `jobs`: §4, the work cap), or rests in its hut until a place is free; the hatch scene plays (§6.2), then "It hatched a rare Wispwing." in its rarity's colour, and it goes in
+  `jobs`: §4, the work cap), or rests in its hut until a place is free; the hatch scene plays (§6.2), then "Hatched a rare Wispwing." in its rarity's colour, and it goes in
   the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
-  Patch have help waiting. With no hut built the answer is "Build a hut first. Driftlings need somewhere to live."; an
-  egg a new lot replaced before the tap reached the server, "That egg is gone. The tree laid new ones."
+  Patch have help waiting. With no hut built the answer is "Build a hut first."; an
+  egg a new lot replaced before the tap reached the server, "That egg is gone."
 - **Who works where** (`Island.arrange`):
 
   > The request (2026-11-14): "make it such that driftlings will automatically work at whatever they do best in, at
@@ -1407,11 +1424,11 @@ When the island grows into a new stage, the tree is built again at it.
   one there first back to the arrangement.
 - **Every hut full** (`full`): the Tree panel's swap picker opens, listing every driftling in a hut, the weakest first,
   each with what it sells for. Pick one and it is sold for its price (`Tree.price`, below) and the hatchling takes its
-  place ("It hatched an epic Pyredrake! The one it replaced sold for 7 shells."). If a new lot replaced the egg while
+  place ("Hatched an epic Pyredrake. The old one sold for 7 shells."). If a new lot replaced the egg while
   the picker is open, it says so and goes back to the Tree panel.
 - **A driftling with no hut**: one whose hut was cleared away or replaced by a smaller one, or a Hatchery's hatchling
   with no room, waits with no hut (`home` 0). It works nowhere and is not drawn on the island; the Driftlings panel
-  lists it last ("No hut. It moves in when one has room.") and it moves in the moment a hut has room (`Tree.settle`).
+  lists it last ("No hut. Waiting for room.") and it moves in the moment a hut has room (`Tree.settle`).
 - **In the world** (`Controllers/EggView`): an egg is one smooth egg shape in a little nest of straw, round and full
   below and narrower at the top, a rarer egg a little bigger (since the request of 2026-11-15, "can you redo all the
   creatures and eggs ... currently, all of them are modelled using blobs, which is unnatural": it was two spheres, one
@@ -1456,7 +1473,7 @@ When the island grows into a new stage, the tree is built again at it.
   Tree panel. A hatched egg is gone from under the tree when the hatch scene ends; the driftling steps out where it lay
   and walks off to its work. A neighbour's tree lays its eggs too; only the islands near the view have theirs drawn.
   While the tips ask for a hatch (step 4) an arrow bobs over your tree. A tap on your own tree opens the Tree panel; on
-  a neighbour's, "Someone else's Tree of Life. Yours is on your own island."
+  a neighbour's, "Not your tree. Yours is at home."
 - **The HUD's Tree card** (under the island card; on a phone at the top left): the tree's icon, "Tree of Life"
   ("Eggs" on a phone) and Open, "New eggs in 2:41" over a bar running down to the next lot, then the best three eggs
   now, the rarest first and the cheaper among them (if you can pay for none of them, the best one you can pay for takes
@@ -1469,8 +1486,8 @@ When the island grows into a new stage, the tree is built again at it.
   Tree panel is open.
 - **The Tree panel** (Open on the card, a tap on the tree, Eggs in the Driftlings panel, a quest's Go): on the left
   "New eggs every 6:00" (3:00 with the Quick Tree pass), "Next in 5:41" over a bar, "7 eggs a lot. In huts 6/8"
-  (orange when full), the odds of each rarity now under "What it lays now" ("<0.1%" under a tenth of a percent, "not
-  yet" for a rarity none of the open kinds has), then, short of the last island, "Expand your island to increase the quality and amount of eggs per batch."
+  (orange when full), the odds of each rarity now under "Odds now" ("<0.1%" under a tenth of a percent, "not
+  yet" for a rarity none of the open kinds has), then, short of the last island, "Grow your island for rarer eggs and bigger lots."
   (one line in green since 2026-11-14, in place of "A bigger island lays more eggs, and better ones." and "Now and
   then an egg turns rarer as it hatches.");
   on the right, under "Under the tree", every egg there, the rarest first, each with its egg, "Rare egg", "Hatches a
@@ -1494,7 +1511,7 @@ When the island grows into a new stage, the tree is built again at it.
   is the fastest it would work at any kind of workplace) or "Resting", its hut ("Lives in the Driftling Hut") and
   "Sells for 25 shells". Along the foot of your own: **All driftlings** (the list), **Work** and **Move** (the same
   pickers as the list's; their Back comes back to the card) and **Sell** (two taps, as in the list). A neighbour's
-  card shows the same, with "Worth 25 shells" and "Lives on Bo's Isle. Only its keeper can move it." in place of the
+  card shows the same, with "Worth 25 shells" and "Lives on Bo's Isle." in place of the
   buttons. The pick: each driftling drawn near the view is a box on the screen from its feet to the top of its model,
   about as wide as it is tall (never under a few pixels, so a small one is easy to hit); of the boxes under the tap,
   the one whose middle is nearest wins, and one hidden behind a hut or the tree (something nearer the camera along
@@ -1786,7 +1803,7 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 
 The **Index** lists all hundred and forty-five ("Seen 12 of 145 kinds"): a dark shape and its rarity until you have had one (a
 save from the tide keeps the ones it saw float by, on a lighter plate), then its name and passive. A kind not open yet
-says the island tier it hatches from ("These hatch from island Lv 4."). Each card has room for the longest name and four
+says the island tier it hatches from ("From island Lv 4."). Each card has room for the longest name and four
 lines of a passive's effects (they had two, and 37 kinds' ended in "...": the request of 2026-11-19, "it seems like
 the text gets cut off for some alerts").
 
@@ -1811,11 +1828,11 @@ the text gets cut off for some alerts").
   on the Hatchery itself, from the menu bar's **Hatchery** button (after Driftlings, with an egg icon, once the island
   reaches tier 3) and from the Driftlings panel's Hatchery button (the request of 2026-11-14: "also, allow clicking on
   a hatchery to open the hatchery menu. add a hatchery tab once it is unlocked too"). A neighbour's Hatchery says
-  "Someone else's Hatchery. Build one on your own island."
-- **The words**: the panel's hint over the rows says "Breed two driftlings for an egg. It gets their best mutations,
-  and one they share comes out a tier higher. Legendary and up need two parents that rare." With two parents picked,
+  "Not your Hatchery. Build one at home."
+- **The words**: the panel's hint over the rows says "Breed two driftlings for an egg. It gets their best mutations."
+  (shortened 2026-11-19 from a longer hint that also gave the tier rule and the rarity rule; the preview shows both) With two parents picked,
   the pair's row shows the egg's kind (its portrait once met, else a dark shape and ???) and rarity, "Hatches with:"
-  and its mutations in their tier colours and stars, and "Costs 300 shells, hatches in 12 min." beside Breed
+  and its mutations in their tier colours and stars, and "300 shells, hatches in 12 min." beside Breed
   (`Breed.preview`). An egg warming shows its mutations too. Finish now sits in the first warming egg's row.
 - **Picking a parent** (the request of 2026-11-19: "for hatchery, make a search function, and a sort by mutation
   rarity or creature rarity"): a slot opens a list of your driftlings (not the other parent) with a search box and
@@ -1823,7 +1840,7 @@ the text gets cut off for some alerts").
   mutations next among kinds just as rare. **Mutations** puts the rarest mutations first: the highest tier decides,
   then the next one down, then whoever has more (a flaw counts for nothing), with the rarer kind ahead when they tie.
   The search looks through each one's kind, rarity, passive and mutation names in any case ("gull", "mythic",
-  "workaholic"); nothing matching says "No driftling matches that. Try a kind, a rarity or a mutation." The words and
+  "workaholic"); nothing matching says "No match. Try a kind, rarity or mutation." The words and
   the order stay while the game runs, so the second slot's list opens the way the first one's was left.
 - **Laying an egg**: tap each slot, pick a parent from your driftlings (not the other one); the
   panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
@@ -1846,11 +1863,11 @@ the text gets cut off for some alerts").
 - **Its time**: `BreedTurns` times the huts' Hatchery shares (the Cozy family, the rain's, a few passives: each takes
   its share off what is left, down to `HatchMin`, 30% of the time), at least one turn.
 - **Hatching**: at each turn's end the eggs count down; a ready one hatches and moves into the comfiest hut with room
-  (with none it waits with no hut, §6), and goes in the Index ("Floe hatched!" in the turn's banner). The panel shows
+  (with none it waits with no hut, §6), and goes in the Index ("Floe hatched" in the turn's banner). The panel shows
   each egg: its rarity's egg, the time left in minutes or hours over a bar ("Hatches in 2 min", `Numbers.duration`;
   the request of 2026-11-14: "instead of "Hatches after x turns", describe it in minutes or hours for hatcheries"),
   its parents. A Hatchery holding an egg is not cleared
-  away ("An egg is still warming in that Hatchery."). On the island its name floats up over the Hatchery in pink.
+  away ("An egg is still warming there."). On the island its name floats up over the Hatchery in pink.
 
 ### 6.2 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `EggModels.hero`)
 
@@ -1921,7 +1938,7 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   A ray keeps to one of sixteen clean slopes (flat, 2:1, 1:1, 1:2, upright), so its steps are even. The rays move
   only when the pixel picture is drawn again, from the cracks as it drew them, so they stay on the cracks while the
   egg shakes ("some lightrays are misalinged with the cracks", 2026-11-14). Once nothing is
-  left the cracks glow white and the most rays pour out, the egg trembles and the hint says "Tap to hatch it".
+  left the cracks glow white and the most rays pour out, the egg trembles and the hint says "Tap to hatch".
   An egg with no step up and no mutation starts out like that, so its first tap hatches it.
 - **Shaking open** (the request of 2026-11-14: "Make eggs shake while being cracked open"): the tap that hatches it
   crunches, every crack shows, and the egg shakes harder and faster before the shell breaks (a little over half a
@@ -1938,8 +1955,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   little "New!" tag at its name's right, mango yellow with an ink outline, dropping in with a sparkle and a ring of
   yellow bits (the request of 2026-11-14: "there should a tip saying "New!" If the creature caught is new"). It is
   decided on the server before the hatch: the kind was never had (in the Index as seen only, or not at all), whatever
-  its mutations. After the scene the notice starts with it too: "New! It hatched a rare Wispwing." A Hatchery's
-  hatchling of a kind never had says it in the turn's banner ("New! Floe hatched!"). "Tap to go on" shows after a moment; that tap
+  its mutations. After the scene the notice starts with it too: "New! Hatched a rare Wispwing." A Hatchery's
+  hatchling of a kind never had says it in the turn's banner ("New: Floe hatched"). "Tap to go on" shows after a moment; that tap
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
   pressed there. The scene waits for that tap and never closes by itself.
 - **Grander by rarity** (`GLORY`, by the rarity it is at that moment): the light of dusk for the commoner ones, a blue,
@@ -2210,7 +2227,7 @@ the founder cheer, arms up. With reduced motion on there are no fidgets and the 
 
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
-rain; `settings.sfx`), Pixel art High / Medium / Low ("Less detail runs smoother on older phones."; no Off: "No need
+rain; `settings.sfx`), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
 for an option to turn off the pixel filter"), and View, a slider with ten notches that zooms the camera out and in
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
@@ -2229,17 +2246,17 @@ the stores come from:
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
 > to buy all the facilities required." (Since 2026-11-14 shells are the only store.)
 
-1 "Shells pay for everything. Tap Build and place a Lumber Camp. It sells the wood it cuts."; 2 "Shells hatch eggs.
-Place a Veggie Patch. It sells what it grows."; 3 "Driftlings need somewhere to live. Place a Driftling Hut."; 4 "The
-Tree of Life laid eggs round its roots. Tap the tree to pick one to hatch." (Build mode closes itself a moment after the
+1 "Tap Build and place a Lumber Camp. It earns shells."; 2 "Place a
+Veggie Patch for more shells."; 3 "Driftlings need a home. Place a Driftling Hut."; 4 "The tree laid
+eggs. Tap it to hatch one." (Build mode closes itself a moment after the
 hut goes down, and an arrow bobs over your tree, or with the tree off the screen points the way to it from the screen's
 edge: the request of 2026-11-14, "auto close the build tab when going to the hatching step and point towards the tree
-of life for the player to click"); 5 "A Snack
-Stall sells snacks for shells too. Your first one is free. Place it by the path." (a Snack Stall costs nothing while
+of life for the player to click"); 5 "Place a
+Snack Stall by the path. The first one is free." (a Snack Stall costs nothing while
 this tip is up, its card in the tray saying Free: the request of 2026-11-14, "make the first snack stall in the
-tutorial free"); 6 "The tree lays new eggs every few minutes. When the huts
-are full, swap a weak one for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
-("Place a Lumber Camp. It sells the wood it cuts for shells."). Each moves on once what it asks is done, tip 4 once an
+tutorial free"); 6 "New eggs come every few minutes. Huts full? Swap a
+weak driftling for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
+("Place a Lumber Camp. It earns shells."). Each moves on once what it asks is done, tip 4 once an
 egg has hatched. A new island starts with `StartShells` (600: the three tip buildings that cost at 305, the stall free,
 and room to fill the first hut with two eggs, say a rare and a common, so no tip waits on shells; it was 440, one common egg and the stall, and a
 player who hatched an uncommon or filled the hut had to wait for the stall: "the snack store part in the tutorial takes
@@ -2261,17 +2278,17 @@ Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go 
 the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island has now or what its
 stats have kept (eggs hatched from the tree, sold, the Hatchery's hatched, the rarest had), so one already met can be
 claimed at once. Rewritten for the eggs (2026-11-13), in order: put a driftling to work; sell a driftling; hatch three
-eggs; three at work ("Get three driftlings working. Each needs a bed in a hut (a
-hut sleeps two) and a farm, camp or shop to work at.": the request of 2026-11-14, "for this step, specify that you need
+eggs; three at work ("Each one needs a bed in a hut and a place to work.": the request of 2026-11-14, "for this step, specify that you need
 3 huts, and you need work buildings for them to work in"; a hut sleeps two, so it names beds, not three huts); build
 another hut (2 huts); an uncommon one ("Green-spotted
 eggs hatch uncommon ones."); another farm (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); a rare
-one ("Get a rare egg from the tree! There's always one under it while this quest is on. Save some shells for it.": the
+one ("Get a rare egg from the tree! Save some shells for one.": the
 user's words of 2026-11-14, "Get a rare egg from the tree! Save some shells for one. also, this quest spawns a rare egg
-below the tree if there isnt one already"); grow your island (tier 2); build a boost; ten driftlings at work; discover 12 unique creatures ("The Index lists every creature you
-discovered. Expanding your island lets you discover more.": the user's words of 2026-11-14, its title too); grow the island again (tier
+below the tree if there isnt one already"); grow your island (tier 2); build a boost; ten at work; find 12 kinds ("The Index lists every kind you've found. Bigger islands hatch new
+ones."; the user's words of 2026-11-14 were "Discover 12 unique creatures" and "The Index lists every creature you
+discovered. Expanding your island lets you discover more.", cut short on 2026-11-19); expand again (tier
 3); build a Hatchery ("It's on the Huts tab. Breed two driftlings there for an egg."); hatch an egg in it ("Breed two
-driftlings for an egg. Rarer parents tend to make rarer eggs. Mutations both carry pass on.": the request of
+driftlings for an egg. Rarer parents, rarer eggs. Mutations pass on.": the request of
 2026-11-15, "for hatchery quests, no need to say feast. say Breed two driftlings for an egg. also, specify what happens
 to the result, such as mutations and rarity"); an epic one; sixty hatched. Another camp (a second Lumber Camp) came
 after the three eggs until 2026-11-18: "this quest is uncompletable without removing a work building. thus, remove the
@@ -2293,10 +2310,10 @@ researched tells of machine-written text, and what replaced them here: an exclam
 Tap Build and place a Lumber Camp."); stock game phrases ("springs into action", "blocks the way", "appears!") now
 said plainly ("Everyone goes at once.", "is in the way.", "That's a legendary Pyrelord."); tidy quips built on a
 pattern, a mirrored pair or a list of three ("Snaps first, makes friends later.", "Half gull, half fish, all
-appetite.") now one plain observation ("Pinches anyone who gets close. It means well.", "Part gull, part fish.
-Always hungry."); empty praise ("Every driftling's dream.", "Visitors love it.") now what the thing is or does; a
-tip that ended on a moral ("sail often") now just stops. None of the stock AI words were in the game's text (the
-Sun Beacon is a name). Stat lines keep their "label: value" form.
+appetite.") now one plain observation ("Pinches people. It means well.", "Eats anything that floats."); empty
+praise ("Every driftling's dream.", "Visitors love it.") now what the thing is or does; a tip that ended on a moral
+("sail often") now just stops. None of the stock AI words were in the game's text (the Sun Beacon is a name).
+Stat lines keep their "label: value" form.
 
 ## 10. Saves and the economy, checked
 
@@ -2523,11 +2540,10 @@ reason.
   sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Driftling Isle" in the
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
-  ink plate, a new one every few seconds ("Shells pay for every egg you hatch and everything you build.", "Decor adds charm, and charm brings in more
-  shells.", "Decor gives charm for every tile it covers, and more as the island grows.", "The Tree of Life lays new
-  eggs every few minutes.", "Rare driftlings work much faster than common ones.", "When the huts are full, swap a weak
-  one for a better one.", "Blue-spotted eggs hatch rare ones. Keep some shells for them.", "Grow the island and the
-  tree lays more eggs, and better ones."). Everything is laid out from the screen's size each time it changes (the old
+  ink plate, a new one every few seconds ("Shells pay for eggs and buildings.", "Decor adds charm. Charm brings more shells.", "Decor
+  gives charm for each tile it covers.", "The tree lays new eggs every few minutes.", "Rare driftlings work much
+  faster.", "Huts full? Swap a weak driftling for a better one.", "Blue-spotted eggs hatch rare ones. Save shells
+  for them.", "A bigger island gets more eggs, and better ones."). Everything is laid out from the screen's size each time it changes (the old
   curtain took its size once, so on a window still settling its words sat left of the middle). Roblox's touch
   buttons are hidden while it is up. When the first picture is on screen the bar fills and the card fades into it.
   Without EditableImages it is a plain card (sky, sea, island, title, bar).
@@ -2684,8 +2700,8 @@ and drops the particles; the lower picture tiers get fewer of them.
 
 **On the HUD.** On the top bar's one line after the shells (`Hud.topChip`): the season's icon, name and time left
 ("Winter · 2 h 30 min"), then the weather's icon, name and time left in its spell ("Rain · 10 min"), a weather that
-touches eggs in a light tone of its colour. (Two lines in a panel under the top bar until 2026-11-14.) A notice says when the weather turns ("It started to rain.") or a season starts ("Winter is
-here. Snowfield and grotto kinds come more often.").
+touches eggs in a light tone of its colour. (Two lines in a panel under the top bar until 2026-11-14.) A notice says when the weather turns ("It's raining.") or a season starts ("Winter is
+here. More snowfield, grotto and starfall kinds.").
 
 **The economy.** The weather only adds: no egg costs more, none is taken away. The career model (`tests/Career.luau`)
 lays its eggs in the weather of its own clock, so the Economy spec's bounds (§10) are checked with the touches and the
@@ -2817,15 +2833,15 @@ model, `sh tools/preview/cosmetic_thumbs.sh` draws them again.
 now (`OfflinePct`). With the **Offline Pass** it is up to 24 hours (`OfflinePassHours`) at the full pace
 (`OfflinePassPct`). A save from before this has no time to count, so its first time back earns nothing.
 
-The **welcome-back card** opens by itself once the loading card has gone: "+3,240 shells" big, then "You were away for
-9 h 20 min. Your driftlings worked the first 3 h of it, at 30% pace." Without the pass, a line says what it gives ("Offline
+The **welcome-back card** opens by itself once the loading card has gone: "+3,240 shells" big, then "You were away
+9 h 20 min. Your driftlings worked 3 h of it, at 30% pace." Without the pass, a line says what it gives ("Offline
 Pass: 24 h at full pace.") with See pass, which opens the Store's Passes tab. **Collect** pays it; in an
 island's first three days (`OfflineDoubleDays`) **Collect x2** is there too, free. Closed without collecting, it waits
 behind an "Away earnings +3,240" chip under the right-hand cards; leaving the game pays it as shown, so nothing is lost.
 
 **The group gift.** `Config/Monetization.Group.Id` holds the game's Roblox group (0 until it is made). The Store's
-Passes tab opens with a card for it: "Join our group for a rare egg and 30 minutes of shells, then 10% more shells
-while you stay." Join first looks whether the player is in the group already, opens Roblox's join prompt if not, then
+Passes tab opens with a card for it: "Join for a rare egg, 30 minutes of shells and 10% more
+shells." Join first looks whether the player is in the group already, opens Roblox's join prompt if not, then
 looks again. In the group: the gift comes once (a rare egg in the bag, `GroupEgg`, and 30 minutes of shells,
 `GroupMins`: "Group gift: 1,500 shells and a rare egg.") and the island makes 10% more shells (`GroupBoost`, with the
 passes: x2 x1.25 x1.1) for as long as the player stays in it. Membership is looked at again at every join, so the
@@ -2840,8 +2856,8 @@ player hasnt joined the group below the starter pack as well"). The chips show o
 
 - **Passes.** The group card first (§14.3), then the six passes, each with a line on what it does and its price in Robux ("R$ 399": the live price once
   Roblox gives it, else the suggested one), Buy or Owned. Once VIP is owned its row has the daily gift's button
-  ("Daily gift", then "Gift again tomorrow").
-- **Eggs and more.** The Starter Pack first (gone once bought), Finish Hatcheries (how many eggs are warming), Shop
+  ("Daily gift", then "Again tomorrow").
+- **Eggs.** The Starter Pack first (gone once bought), Finish Hatcheries (how many eggs are warming), Shop
   Refresh, then the six eggs from Uncommon to Celestial in their rarity's colours. A line at the foot counts the eggs
   in the bag and says where to hatch them.
 - **Shop.** The rotating shop's six pieces, three to a row on a desktop (two on a narrow screen): the piece's picture,
@@ -2853,17 +2869,17 @@ player hasnt joined the group below the starter pack as well"). The chips show o
   Without the Premium Track pass the premium side shows a ticket and "Unlock R$ 349" sits over it. The list opens at
   the first level with something to claim.
 
-Buy hands the pass or product to Roblox's own purchase window; an item whose id isn't set yet says "That isn't on sale
+Buy hands the pass or product to Roblox's own purchase window; an item whose id isn't set yet says "Not on sale
 yet." What a purchase gives is told in a notice when it arrives ("Starter Pack: 3,000 shells, 2 eggs, 2 pieces and a
-title."), as are a pass bought ("Thanks! Every shell counts twice now."), the track's rewards ("Pass track: a rare
-egg.") and a title earned ("New title: Egg Hunter. Wear it from Looks.").
+title."), as are a pass bought ("Thanks! Shells count double now."), the track's rewards ("Pass track: a rare
+egg.") and a title earned ("New title: Egg Hunter. Wear it in Looks.").
 
 **Looks.** The founder's portrait with the title they wear under it, the free colours and hair style (Skin 6, Hair 10,
-Style 10, Shirt 15, then Save look), how many of the 83 pieces they own and "Shop for more" (the Store's Shop). On the
+Style 10, Shirt 15, then Save look), how many of the 83 pieces they own and "Shop" (the Store's Shop). On the
 right two tabs: **Pieces**, the six slots (Hat, Face, Neck, Back, Hand, Top) and the pieces owned in the one picked, the
 rarest first, each with Wear or Take off (a piece goes on at once; the colours wait for Save look); and **Titles**, "No
 title", then every title earned with what earned it and Wear (or Worn), then the ones still to earn, greyed, each with
-what earns it ("Grow your island to level 7.", "Have a mythic driftling.", "Comes with VIP.").
+what earns it ("Reach island level 7.", "Have a mythic driftling.", "Comes with VIP.").
 
 **The bag in the Tree panel.** Over the eggs under the tree, "Your eggs: 2" and a row each, the rarest first, "Free to
 hatch" with Hatch. A bag egg hatches in the same hatch scene as the tree's; with every hut full the swap picker opens
@@ -2873,8 +2889,8 @@ a row an egg from Uncommon to Celestial with its Robux, the same products as the
 bag at the top of the list (the request of 2026-11-14: "make it possible to purchase eggs in the tree of life menu below
 the eggs under the tree tab"). An egg under the tree that costs more shells than you have still shows its price, and
 Hatch on it offers the same egg for Robux instead (the request of 2026-11-18: "if the player dosent have enough
-shells while buying an egg, make them go to purchasing it with robux instead"): "Not enough shells. You can buy a
-rare egg with Robux." and Roblox's purchase box for that rarity's egg (a common egg has none of its own, so the
+shells while buying an egg, make them go to purchasing it with robux instead"): "Not enough shells. Buy a
+rare egg with Robux?" and Roblox's purchase box for that rarity's egg (a common egg has none of its own, so the
 uncommon one). Bought, it waits in the bag, free to hatch. The swap picker does the same when every hut is full.
 
 **The Hatchery.** While an egg is warming, "Finish now" in the panel's top corner buys Finish Hatcheries.
@@ -2920,7 +2936,7 @@ something on it waits:
 - **Index.** Gifts for kinds found (5, 10, 20, 35, 50, 75, 100, 125 and 145 kinds), each once (`reward.index`).
 - **Codes.** A box to type a code into and Redeem (`code.redeem`): trimmed and made upper case, each once a player,
   some with an end date (`Config/Codes`, on the server only: WELCOME, DRIFTLING, HATCHDAY, SPINME to start).
-  "That code doesn't work. Check the spelling." / "You already used that code."
+  "That code doesn't work." / "Code already used."
 
 > The request (2026-11-19): "shell rewards in gifts are too good. cut all of them by 60%."
 

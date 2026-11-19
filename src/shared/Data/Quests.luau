@@ -23,7 +23,7 @@ local list: { Quest } = {
 	{
 		id = "help",
 		title = "Put a driftling to work",
-		text = "A driftling in a hut can work at any farm, camp or shop. Open Driftlings to pick where.",
+		text = "Open Driftlings to pick where one works.",
 		goal = { kind = "helpers", n = 1 },
 		reward = { shells = 70 },
 		go = "pals",
@@ -32,7 +32,7 @@ local list: { Quest } = {
 	{
 		id = "sell",
 		title = "Sell a driftling",
-		text = "Open Driftlings and sell one you don't need. Rarer ones fetch more.",
+		text = "Sell a spare one in Driftlings. Rarer ones fetch more.",
 		goal = { kind = "sold", n = 1 },
 		reward = { shells = 40 },
 		go = "pals",
@@ -41,7 +41,7 @@ local list: { Quest } = {
 	{
 		id = "take3",
 		title = "Hatch three eggs",
-		text = "The Tree of Life lays eggs round its roots. Tap the tree to pick one to hatch.",
+		text = "Tap the tree to pick an egg.",
 		goal = { kind = "taken", n = 3 },
 		reward = { shells = 100 },
 		go = "tree",
@@ -50,7 +50,7 @@ local list: { Quest } = {
 	{
 		id = "three",
 		title = "Three at work",
-		text = "Get three driftlings working. Each needs a bed in a hut (a hut sleeps two) and a farm, camp or shop to work at.",
+		text = "Each one needs a bed in a hut and a place to work.",
 		goal = { kind = "helpers", n = 3 },
 		reward = { shells = 120 },
 		go = "pals",
@@ -59,7 +59,7 @@ local list: { Quest } = {
 	{
 		id = "huts",
 		title = "Build another hut",
-		text = "Huts are on the Huts tab. A driftling needs a free bed before you can take it in.",
+		text = "It's on the Huts tab. Each driftling needs a bed.",
 		goal = { kind = "built", n = 2, of = "nest" },
 		reward = { shells = 100 },
 		go = "build:nest",
@@ -68,7 +68,7 @@ local list: { Quest } = {
 	{
 		id = "uncommon",
 		title = "An uncommon one",
-		text = "Green eggs with a white zigzag hatch uncommon ones. They cost more and work faster.",
+		text = "Look for green eggs with a white zigzag. They work faster.",
 		goal = { kind = "best", n = 2 },
 		reward = { shells = 100 },
 		go = "tree",
@@ -79,7 +79,7 @@ local list: { Quest } = {
 		-- one more)
 		id = "farm",
 		title = "Another workplace",
-		text = "Build one more workplace. Each one sells what it makes for shells.",
+		text = "Build one more on the Work tab.",
 		goal = { kind = "built", n = 4, of = "work" },
 		reward = { shells = 120 },
 		go = "build:work",
@@ -88,7 +88,7 @@ local list: { Quest } = {
 	{
 		id = "paths",
 		title = "Lay a path",
-		text = "In Build mode open Paths, pick one and drag across the grass.",
+		text = "Open Paths in Build mode and drag across the grass.",
 		goal = { kind = "paths", n = 8 },
 		reward = { shells = 60 },
 		go = "build:path",
@@ -97,7 +97,7 @@ local list: { Quest } = {
 	{
 		id = "decor",
 		title = "Decorate",
-		text = "Place two things from the Decor tab. More charm, more shells from every building.",
+		text = "Place two from the Decor tab. Charm brings in more shells.",
 		goal = { kind = "decor", n = 2 },
 		reward = { shells = 100 },
 		go = "build:decor",
@@ -108,7 +108,7 @@ local list: { Quest } = {
 		title = "A rare one",
 		-- (the user's words of 2026-11-14: "Get a rare egg from the tree! Save some shells for one.", and the tree
 		-- keeps one under it while this quest is on: Logic/Tree.ensure)
-		text = "Get a rare egg from the tree! There's always one under it while this quest is on. Save some shells for it.",
+		text = "Get a rare egg from the tree! Save some shells for one.",
 		goal = { kind = "best", n = 3 },
 		reward = { shells = 200 },
 		go = "tree",
@@ -117,7 +117,7 @@ local list: { Quest } = {
 	{
 		id = "expand",
 		title = "Grow your island",
-		text = "In Build mode tap Expand. A bigger island fits more, and the tree lays more eggs, and better ones.",
+		text = "Tap Expand in Build mode. Bigger islands get more and better eggs.",
 		goal = { kind = "tier", n = 2 },
 		reward = { shells = 600 },
 		go = "build",
@@ -126,7 +126,7 @@ local list: { Quest } = {
 	{
 		id = "boost",
 		title = "Build a boost",
-		text = "Boosts make every building of one kind work faster. They're on the Boosts tab.",
+		text = "Boosts help every workplace. Find them under Work.",
 		goal = { kind = "built", n = 1, of = "gen" },
 		reward = { shells = 400 },
 		go = "build:gen",
@@ -134,8 +134,8 @@ local list: { Quest } = {
 	},
 	{
 		id = "housed",
-		title = "Ten driftlings at work",
-		text = "Build huts and buildings for them. Each building takes two helpers.",
+		title = "Ten at work",
+		text = "Build more huts and workplaces.",
 		goal = { kind = "helpers", n = 10 },
 		reward = { shells = 600 },
 		go = "pals",
@@ -143,9 +143,10 @@ local list: { Quest } = {
 	},
 	{
 		id = "index",
-		-- (the user's words of 2026-11-14)
-		title = "Discover 12 unique creatures",
-		text = "The Index lists every creature you discovered. Expanding your island lets you discover more.",
+		-- ("Discover 12 unique creatures", the user's words of 2026-11-14, cut short on 2026-11-19: "Across all text,
+		-- humanize it and shorten it as much as possible")
+		title = "Find 12 kinds",
+		text = "The Index lists every kind you've found. Bigger islands hatch new ones.",
 		goal = { kind = "seen", n = 12 },
 		reward = { shells = 500 },
 		go = "index",
@@ -153,8 +154,8 @@ local list: { Quest } = {
 	},
 	{
 		id = "town",
-		title = "Grow the island again",
-		text = "Expand once more. The Hatchery needs the room.",
+		title = "Expand again",
+		text = "The Hatchery needs the room.",
 		goal = { kind = "tier", n = 3 },
 		reward = { shells = 2300 },
 		go = "build",
@@ -172,7 +173,7 @@ local list: { Quest } = {
 	{
 		id = "egg",
 		title = "Hatch an egg",
-		text = "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Mutations both carry pass on.",
+		text = "Breed two driftlings for an egg. Rarer parents, rarer eggs. Mutations pass on.",
 		goal = { kind = "hatched", n = 1 },
 		reward = { shells = 1200 },
 		go = "hatch",
@@ -181,7 +182,7 @@ local list: { Quest } = {
 	{
 		id = "epic",
 		title = "An epic one",
-		text = "Epic driftlings work more than three times as fast as common ones.",
+		text = "Epics work over three times as fast as commons.",
 		goal = { kind = "best", n = 4 },
 		reward = { shells = 3000 },
 		go = "tree",
@@ -190,7 +191,7 @@ local list: { Quest } = {
 	{
 		id = "crowd",
 		title = "Sixty hatched",
-		text = "Hatch sixty eggs in all. Swap out the weak ones as better ones come.",
+		text = "Swap weak ones out as better ones hatch.",
 		goal = { kind = "taken", n = 60 },
 		reward = { shells = 3000 },
 		go = "tree",

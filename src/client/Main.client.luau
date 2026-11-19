@@ -41,6 +41,12 @@ CameraController.start()
 PixelRenderer.start()
 DayLight.start()
 UIKit.init()
+-- the shells on every sheet's awning on a touch screen (the request of 2026-11-19: "Make menus fill the screen on
+-- mobile with currency showing and an exit button")
+UIKit.setWallet(function(): number?
+	local v = StateClient.view()
+	return if v then v.shells else nil
+end, StateClient.Changed)
 WorldView.init()
 WorldView.start()
 AvatarView.start()

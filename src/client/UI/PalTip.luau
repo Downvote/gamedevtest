@@ -68,8 +68,8 @@ function PalTip.lines(pal: Types.Pal): { Line }
 	local base = Tuning.RarityWork[d.rarity] or 1
 	-- its work (the same at every workplace)
 	table.insert(out, { text = d.name, color = rar.color, title = rar.name })
-	table.insert(out, { text = string.format("Works %s at any workplace", times(base * (1 + Traits.work(fx)))), color = "text" })
-	table.insert(out, { text = string.format("%s ones work %s before passives and mutations", rar.name, times(base)), color = "text_dim" })
+	table.insert(out, { text = string.format("Works %s anywhere", times(base * (1 + Traits.work(fx)))), color = "text" })
+	table.insert(out, { text = string.format("%s base speed %s", rar.name, times(base)), color = "text_dim" })
 	table.insert(out, { text = d.passive.name .. ": " .. Traits.describe(d.passive.fx), color = "accent" })
 	local island: { [string]: boolean } = {}
 	for k in d.passive.fx do
@@ -100,7 +100,7 @@ function PalTip.lines(pal: Types.Pal): { Line }
 	end
 	if #names > 0 then
 		local said = if #names == 1 then names[1] else table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
-		table.insert(out, { text = string.format("Its %s count%s while it lives in a hut", said, if #names == 1 then "s" else ""), color = "text_dim" })
+		table.insert(out, { text = string.format("Its %s count%s while in a hut", said, if #names == 1 then "s" else ""), color = "text_dim" })
 	end
 	table.insert(out, { text = "Sells for " .. Numbers.coins(Tree.price(pal)) .. " shells", color = "text_dim" })
 	return out

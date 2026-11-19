@@ -192,10 +192,18 @@ return function(env)
 				add(id, x, z, 0)
 			end
 		end
-		-- (the tree's ring and the path to the avenue)
-		tileCol(STREET, -6, -8, 8)
-		tileCol(STREET, 4, -8, 8)
-		tileRow(STREET, -8, -6, 4)
+		-- (the tree's ring, round wherever the tree stands: on the first island it can't stand behind the campfire)
+		local tr = { x0 = -4, z0 = -6, x1 = 4, z1 = 2 }
+		for _, q in placed do
+			if def(q.id) and def(q.id).kind == "tree" then
+				tr = Plot.rect(q.id, q.x, q.z, q.rot)
+			end
+		end
+		local rx0, rx1 = tr.x0 - 2 - (tr.x0 % 2), tr.x1 + (tr.x1 % 2)
+		local rz0, rz1 = tr.z0 - 2 - (tr.z0 % 2), math.max(tr.z1, Street.PLAZA.z1)
+		tileCol(STREET, rx0, rz0, rz1)
+		tileCol(STREET, rx1, rz0, rz1)
+		tileRow(STREET, rz0, rx0, rx1)
 		-- the avenue, up the middle
 		tileCol(AVENUE, -2, zN, -10)
 		tileCol(AVENUE, 0, zN, -10)
@@ -232,8 +240,8 @@ return function(env)
 		end
 		-- the old town round the plaza (south of the first street)
 		local core0 = if #streets > 0 then -6 else zN
-		block(-60, -7, core0, zS - 1, "west", 0)
-		block(6, 60, core0, zS - 1, "east", 0)
+		block(-60, Street.PLAZA.x0 - 1, core0, zS - 1, "west", 0)
+		block(Street.PLAZA.x1 + 2, 60, core0, zS - 1, "east", 0)
 		for i, sz in streets do
 			local north = streets[i + 1]
 			local z0 = if north then north + 2 else zN
@@ -277,7 +285,10 @@ return function(env)
 			local deepest = 0
 			local lastEnd = nil
 			local misses = 0
-			while x < b.x1 - 2 and misses < 6 do
+			if b.x1 - b.x0 < 16 then
+				gap = 2
+			end
+			while x < b.x1 - 1 and misses < 14 do
 				local id = pickNext()
 				if id == nil then
 					break
@@ -312,11 +323,16 @@ return function(env)
 		-- Rows down a block from its street, a lane in front of each after the first, while the block has room.
 		local function rows(b: Block, pickNext: () -> string?, gap: number, between: ((number, number, number) -> ())?, placedAt: ((string, number, number) -> ())?)
 			local zFront = b.z1 - 2
-			while zFront - 3 > b.z0 do
+			local empty = 0
+			while zFront - 3 > b.z0 and empty < 4 do
 				local d = row(b, zFront, pickNext, gap, between, placedAt)
 				if d == 0 then
-					break
+					-- (nothing fit here: the tree, the coast; a little further up)
+					empty += 1
+					zFront -= 3
+					continue
 				end
+				empty = 0
 				local zl = zFront - d - 3
 				zl -= zl % 2
 				if zl - 3 <= b.z0 then
@@ -634,6 +650,53 @@ return function(env)
 				districtWork(b)
 			end
 		end
+		-- any huts or workplaces still owed (a small island's blocks are cut up by the tree and the coast): wherever they
+		-- fit, nearest the plaza first
+		local spots: { { x: number, z: number } } = {}
+		for zz = zS - 1, zN, -1 do
+			for xx = -34, 34 do
+				if Street.buildable(tier, xx, zz) then
+					table.insert(spots, { x = xx, z = zz })
+				end
+			end
+		end
+		table.sort(spots, function(a, b)
+			return math.abs(a.x) + math.abs(a.z - 6) < math.abs(b.x) + math.abs(b.z - 6)
+		end)
+		local function owed(list: { any }, room: () -> boolean)
+			for _, d in list do
+				local tries = 0
+				while room() and tries < 40 do
+					tries += 1
+					local placedOne = false
+					for _, sp in spots do
+						if add(d.id, sp.x, sp.z, 0) then
+							placedOne = true
+							break
+						end
+					end
+					if not placedOne then
+						break
+					end
+				end
+			end
+		end
+		owed(huts, function()
+			return used.house < L.house
+		end)
+		local allWork = {}
+		for _, act in { "farm", "wood", "shop" } do
+			for _, d in works[act] do
+				table.insert(allWork, d)
+			end
+		end
+		table.sort(allWork, function(a, b)
+			return a.jobs > b.jobs
+		end)
+		owed(allWork, function()
+			return used.work < L.work
+		end)
+
 		-- the parks and yards once every building has its place
 		for _, b in blocks do
 			if kinds[b] == "park" then
@@ -712,20 +775,26 @@ return function(env)
 				end
 				local x, z2 = xx + rnd(2), zz + rnd(2)
 				local kind = rnd(4)
+				local done = false
 				if kind == 0 then
-					if add(pick(BIGTREES), x, z2, 0) then
+					done = add(pick(BIGTREES), x, z2, 0)
+					if done then
 						add(pick(FLOWERS), x + 3, z2 + 1, 0)
 					end
 				elseif kind == 1 then
-					if add(pick(PLANTS), x, z2, 0) then
+					done = add(pick(PLANTS), x, z2, 0)
+					if done then
 						add(pick(ROCKS), x + 2, z2 + 1, 0)
 					end
 				elseif kind == 2 then
-					if add(pick(SMALLTREES), x, z2, 0) then
+					done = add(pick(SMALLTREES), x, z2, 0)
+					if done then
 						add(pick(PLANTS), x - 1, z2 + 2, 0)
 					end
-				else
-					add(pick(FLOWERS), x, z2, 0)
+				end
+				-- (no room for that: flowers, then a fern)
+				if not done and not add(pick(FLOWERS), x, z2, 0) then
+					add(best({ "fern", "mushrooms" }), x + 1, z2 + 1, 0)
 				end
 			end
 		end

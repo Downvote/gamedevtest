@@ -154,9 +154,9 @@ local confirmUntil = 0
 local CLEAR_WAIT = 4
 type Clear = { what: string, group: string, text: string }
 local CLEARS: { Clear } = {
-	{ what = "pieces", group = "piece", text = "Remove all buildings" },
-	{ what = "tiles", group = "tile", text = "Remove all paths and water" },
-	{ what = "fences", group = "fence", text = "Remove all fences" },
+	{ what = "pieces", group = "piece", text = "Clear buildings" },
+	{ what = "tiles", group = "tile", text = "Clear paths and water" },
+	{ what = "fences", group = "fence", text = "Clear fences" },
 }
 
 local function view(): Types.ClientView?
@@ -227,15 +227,15 @@ end
 -- own limit is "huts"), the rest as everywhere else.
 local function buildErr(err: string?, id: string?): string
 	if err == "blocked" then
-		return "It doesn't fit there."
+		return "Doesn't fit there."
 	elseif err == "full" and id then
 		local g = Plot.group(id)
 		if g == "tile" then
-			return "That's all the paths and water this island holds. Grow the island for more."
+			return "No more paths or water. Grow the island."
 		elseif g == "fence" then
-			return "That's all the fencing this island holds. Grow the island for more."
+			return "No more fences. Grow the island."
 		elseif g == "piece" then
-			return "This island has no room for more pieces. Grow it, or put something away."
+			return "No room. Grow the island or put something away."
 		end
 	end
 	return Words.errText(err)
@@ -644,7 +644,7 @@ local function finishStroke()
 	if #send == 0 then
 		Audio.play("deny")
 		local what = if fence then "fence" elseif p == nil then "path or water" elseif def and def.kind == "water" then "water" else "path"
-		local say = if erase then string.format("No %s there to take up.", what) elseif p and p.inv then "None left in the inventory." elseif fence then "No fence fits there." else "No tile fits there."
+		local say = if erase then string.format("No %s there to take up.", what) elseif p and p.inv then "None left." elseif fence then "No fence fits there." else "No tile fits there."
 		UIKit.notice(say, UIKit.color("bad"), 2)
 		return
 	end
@@ -680,7 +680,7 @@ local function finishStroke()
 		BuildFx.stroke(myPlot(), fxId, done, fence, lifted > 0)
 	end
 	if lifted > 0 then
-		UIKit.notice(string.format("%d in the inventory now.", lifted), UIKit.color("text_dim"), 1.5)
+		UIKit.notice(string.format("%d put away.", lifted), UIKit.color("text_dim"), 1.5)
 	end
 	-- (drawing from the Inventory tab: the last of them down, the pick goes)
 	if p and p.inv and changed >= heldBefore and pick == p then
@@ -709,11 +709,11 @@ end
 local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): string
 	local say = def.blurb
 	if def.rate > 0 then
-		say = string.format("%s %s shells a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
+		say = string.format("%s %s shells a minute per common worker.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
 	end
 	-- (its places: Data/Buildings' jobs, the request of 2026-11-18)
 	if def.jobs > 0 then
-		say ..= string.format(" Up to %d can work here.", def.jobs)
+		say ..= string.format(" Up to %d workers.", def.jobs)
 	end
 	if def.slots > 0 then
 		local c = def.comfort + (Tuning.ComfortLvl[lvl or 1] or 0)
@@ -721,13 +721,13 @@ local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): st
 	end
 	local charm = Buildings.charmOf(def, tier)
 	if def.kind == "decor" then
-		say ..= string.format(" Charm +%d%s.", math.floor(charm), if tier < #Tuning.DecorCharm then ", more once the island grows" else "")
+		say ..= string.format(" Charm +%d%s.", math.floor(charm), if tier < #Tuning.DecorCharm then ", more as the island grows" else "")
 	elseif charm >= 1 then
 		say ..= string.format(" Charm +%d.", math.floor(charm))
 	end
 	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare)
 	if def.kind == "gen" then
-		say ..= string.format(" Each extra one adds %d%% of the one before.", math.round(Tuning.BoostStack * 100))
+		say ..= string.format(" Each extra adds %d%% of the last.", math.round(Tuning.BoostStack * 100))
 	end
 	if def.water == "on" then
 		say ..= " Goes on water."
@@ -857,7 +857,7 @@ local function infoPlate(f: Frame, p: Pick, v: Types.ClientView, title: string, 
 	end
 	-- (with a keyboard: its keys, along the bottom)
 	if keyed then
-		local keys = if drawing() then "Esc stops drawing." elseif p.move then "R turns it. C copies it. X puts it away. Esc puts it back." else "R turns it. E puts it down. Esc stops."
+		local keys = if drawing() then "Esc stops drawing." elseif p.move then "R rotate. C copy. X put away. Esc cancel." else "R rotate. E place. Esc cancel."
 		UIKit.text(info, keys, UDim2.new(1, -40, 0, 10), UDim2.new(0, 32, 1, -12), { color = UIKit.color("text_dim"), z = 4, name = "Keys" })
 	end
 	return info
@@ -898,15 +898,15 @@ local function drawBar(f: Frame, p: Pick, v: Types.ClientView)
 	local noun = if fence then "fences" elseif def and def.kind == "water" then "water" else "paths"
 	local say
 	if draw.look then
-		say = "Drag to look around. Tap Look around again to draw."
+		say = "Drag to look around. Tap again to draw."
 	elseif draw.erase then
-		say = if draw.box then string.format("Drag a box over the %s to take them up. They go in your inventory.", noun) else string.format("Drag along the %s to take them up. They go in your inventory.", noun)
+		say = if draw.box then string.format("Drag a box over the %s to take them up.", noun) else string.format("Drag along the %s to take them up.", noun)
 	elseif fence then
-		say = if draw.box then "Drag a box to run a fence all the way round it." else "Drag along the grid lines to put up a fence."
+		say = if draw.box then "Drag a box to fence it in." else "Drag along the grid lines."
 	elseif def and def.kind == "water" then
-		say = if draw.box then "Drag a box to fill it with water. Bridges and lily pads go on top." else "Drag across the grass to dig a river."
+		say = if draw.box then "Drag a box to fill it with water." else "Drag across the grass to dig a river."
 	else
-		say = if draw.box then "Drag a box across the grass to fill it with tiles." else "Drag across the grass to lay a line of tiles."
+		say = if draw.box then "Drag a box to fill it with tiles." else "Drag to lay a line of tiles."
 	end
 	if def and def.blurb ~= "" and not draw.erase and not draw.look then
 		say = def.blurb .. " " .. say
@@ -930,7 +930,7 @@ local function storeAt(i: number): boolean
 	if res.ok then
 		BuildFx.cleared(myPlot(), q.id, q.x, q.z, q.rot)
 		local d = Buildings.byId[q.id]
-		UIKit.notice(string.format("%s put in the inventory.", if d then d.name else "Piece"), UIKit.color("text_dim"), 1.5)
+		UIKit.notice(string.format("%s put away.", if d then d.name else "Piece"), UIKit.color("text_dim"), 1.5)
 		return true
 	end
 	return false
@@ -959,7 +959,7 @@ local function copyPicked()
 		Audio.play("flip")
 		pick = { id = q.id, rot = q.rot, move = nil, x = q.x, z = q.z, set = false }
 		clearGhost()
-		UIKit.notice(if Plot.isDrawn(q.id) then "Drag to draw more of it." else "Tap the grass where the copy should go.", UIKit.color("text_dim"), 2.5)
+		UIKit.notice(if Plot.isDrawn(q.id) then "Drag to draw more." else "Tap where the copy goes.", UIKit.color("text_dim"), 2.5)
 		rebuild()
 	end
 end
@@ -1065,15 +1065,15 @@ local function pickPiece(def: Buildings.BuildingDef, fromInv: boolean)
 	Audio.play("flip")
 	local say
 	if def.kind == "fence" then
-		say = "Drag along the grid lines to put up a fence."
+		say = "Drag along the grid lines."
 	elseif def.kind == "water" then
-		say = "Drag across the grass to dig a river or a pond."
+		say = "Drag to dig a river or pond."
 	elseif def.kind == "path" then
-		say = "Drag across the grass to lay tiles."
+		say = "Drag to lay tiles."
 	elseif def.water == "on" then
-		say = "Tap the water where it should float."
+		say = "Tap the water to place it."
 	else
-		say = "Tap the grass where it should go."
+		say = "Tap the grass to place it."
 	end
 	UIKit.notice(say, UIKit.color("text_dim"), 2.5)
 	rebuild()
@@ -1128,7 +1128,7 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 	local defs = invList(v)
 	if #defs == 0 then
 		local w = UIKit.size("Hud").X - 32
-		UIKit.text(list, "Nothing put away yet. Pick up a piece on the island and tap Put away, or use Quick remove (the box by the tabs).", UDim2.fromOffset(w, 30), nil, { color = UIKit.color("text_dim"), wrap = true, name = "InvEmpty" })
+		UIKit.text(list, "Nothing put away yet. Pick up a piece and tap Put away, or use Quick remove.", UDim2.fromOffset(w, 30), nil, { color = UIKit.color("text_dim"), wrap = true, name = "InvEmpty" })
 		return
 	end
 	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
@@ -1179,6 +1179,10 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 			showTip(card, def, v)
 		end)
 		b.MouseLeave:Connect(closeTip)
+		-- (a long press shows the same card on a touch screen, where nothing hovers)
+		UIKit.onHold(b, function()
+			showTip(card, def, v)
+		end, closeTip)
 	end
 end
 
@@ -1210,7 +1214,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		end
 		local b = UIKit.button(card, "", UDim2.fromOffset(CARD_W - 4, CARD_H - 4), UDim2.fromOffset(2, 2), function()
 			if locked then
-				UIKit.notice(string.format("Expand your island to level %d to build this.", def.tier), UIKit.color("bad"))
+				UIKit.notice(string.format("Needs island level %d.", def.tier), UIKit.color("bad"))
 				Audio.play("deny")
 				return
 			end
@@ -1245,6 +1249,10 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			showTip(card, def, v)
 		end)
 		b.MouseLeave:Connect(closeTip)
+		-- (a long press shows the same card on a touch screen, where nothing hovers)
+		UIKit.onHold(b, function()
+			showTip(card, def, v)
+		end, closeTip)
 	end
 end
 
@@ -1298,10 +1306,10 @@ local function clearGroup(c: Clear)
 	if res.ok and type(res.data) == "table" then
 		local n = tonumber(res.data.removed) or 0
 		Audio.play("close")
-		UIKit.notice(string.format("Put away %d. They wait in the Inventory tab.", n), UIKit.color("good"), 3)
+		UIKit.notice(string.format("Moved %d to the Inventory.", n), UIKit.color("good"), 3)
 	else
 		Audio.play("deny")
-		UIKit.notice(if res.err == "not_found" then "There's nothing there to put away." else buildErr(res.err), UIKit.color("bad"))
+		UIKit.notice(if res.err == "not_found" then "Nothing to put away." else buildErr(res.err), UIKit.color("bad"))
 	end
 	task.defer(rebuild)
 end
@@ -1365,9 +1373,9 @@ local function quickBar(f: Frame)
 	local noun = if quick.fence then "fences" else "paths and water"
 	local say
 	if draw.look then
-		say = "Drag to look around. Tap Look around again to take things up."
+		say = "Drag to look around. Tap again to take things up."
 	else
-		say = string.format("Tap a building to put it in your inventory. %s", if draw.box then string.format("Drag a box to take up the %s in it.", noun) else string.format("Drag across the %s to take them up.", noun))
+		say = string.format("Tap a building to put it away. %s", if draw.box then string.format("Drag a box to take up the %s in it.", noun) else string.format("Drag across the %s to take them up.", noun))
 	end
 	local w = f.Size.X.Offset - 8
 	local tw = w - 40 - 96
@@ -1395,7 +1403,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 			Audio.play("grow")
 			AvatarView.cheer()
 			local plan = Office.plan(grown or v.tier + 1)
-			UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s had to move.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s. There's more to build now.", plan.name), UIKit.color("good"), 4)
+			UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s moved.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s.", plan.name), UIKit.color("good"), 4)
 		end
 	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells })
 	if cost then
@@ -1719,7 +1727,7 @@ function BuildUI.confirm()
 	if p.inv and not moving and heldBefore <= 0 then
 		-- (picked from the Inventory tab and none left there: it isn't bought instead)
 		Audio.play("deny")
-		UIKit.notice("None left in the inventory.", UIKit.color("bad"), 2)
+		UIKit.notice("None left.", UIKit.color("bad"), 2)
 		pick = nil
 		clearGhost()
 		rebuild()
