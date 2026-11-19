@@ -60,8 +60,6 @@ type Egg = {
 	born: number, -- when it rose out of the lawn
 	sink: number?, -- when it started sinking back (a new lot replaced it)
 	crack: number?, -- when it started hatching
-	wait: boolean?, -- laid while the own island grows (Pixel/Grow): it stays under the lawn until the land has grown
-	pop: boolean?, -- it rose after the growth: with a little pop over the lawn and back
 }
 
 local eggs: { [string]: Egg } = {}
@@ -100,10 +98,21 @@ local function ease(u: number): number
 end
 
 -- The Tree of Life on island i (its decor model's name: "uid:tree:x:z:rot:lvl"): its middle on the lawn (world) and
--- its turn (radians). Nil without one.
+-- its turn (radians). Nil without one. Every egg asks every frame, so the answer is kept with the tree's model and
+-- worked out again only once that model is gone (the request of 2026-11-19, "Expansion is very slow and laggy,
+-- especially at higher levels": an expansion builds the tree again at its next stage, last among the island's pieces,
+-- and each egg then read every piece's name each frame before reaching it, 38 ms a frame on a full tier 15 island).
+type TreeSpot = { model: Instance, at: Vector3, rot: number }
+local treeSpots: { [number]: TreeSpot } = {}
 local function treeAt(i: number): (Vector3?, number)
+	local hit = treeSpots[i]
+	if hit and hit.model.Parent ~= nil then
+		return hit.at, hit.rot
+	end
+	treeSpots[i] = nil
 	local m = plotModel(i)
-	local decor = if m then m:FindFirstChild("Decor", true) else nil
+	local st = if m then m:FindFirstChild("Static") else nil
+	local decor = if st then st:FindFirstChild("Decor") else nil
 	if decor == nil then
 		return nil, 0
 	end
@@ -113,7 +122,9 @@ local function treeAt(i: number): (Vector3?, number)
 		local xx, zz, r = tonumber(x), tonumber(z), tonumber(rot)
 		if xx and zz and r then
 			local w, d = Plot.footprint("tree", r)
-			return Vector3.new(ox + xx + w / 2, Street.LAWN_Y, oz + zz + d / 2), math.rad(r)
+			local at = Vector3.new(ox + xx + w / 2, Street.LAWN_Y, oz + zz + d / 2)
+			treeSpots[i] = { model = c, at = at, rot = math.rad(r) }
+			return at, math.rad(r)
 		end
 	end
 	return nil, 0
@@ -346,9 +357,7 @@ local function syncPlot(i: number, near: boolean, t: number)
 				end
 			end
 			held[slot] = true
-			-- (laid by the own island's expansion while its new land grows in: it waits, then pops up)
-			local waitGrow = i == myPlot and (PixelRenderer.growing())
-			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, wx = x.wx, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0, wait = if waitGrow then true else nil }
+			eggs[key] = { key = key, id = x.id, plot = i, r = x.r, wx = x.wx, slot = slot, n = n, parts = {}, top = {}, fx = {}, ph = (x.id * 0.618) % 1 * 6.28, born = t + came * STAGGER, spawnAt = 0 }
 			came += 1
 		else
 			e.n = math.max(n, e.slot)
@@ -377,13 +386,7 @@ local function placeOf(e: Egg, t: number): (CFrame?, number)
 	local under = 0
 	if t < e.born + RISE then
 		local u = (t - e.born) / RISE
-		if e.pop then
-			-- (out of the lawn with a little overshoot, then down into place: ease out with a back)
-			local k = math.clamp(u, 0, 1) - 1
-			under = -(k * k * (2.7 * k + 1.7)) * DEEP
-		else
-			under = (1 - ease(u)) * DEEP
-		end
+		under = (1 - ease(u)) * DEEP
 	end
 	if e.sink then
 		under = math.max(under, ease((t - (e.sink :: number)) / SINK) * DEEP)
@@ -404,16 +407,6 @@ local function placeOf(e: Egg, t: number): (CFrame?, number)
 end
 
 local function stepEgg(e: Egg, t: number)
-	if e.wait then
-		if PixelRenderer.growing() then
-			e.born = t + 0.05 -- (still under the lawn)
-		else
-			-- the land has grown: up it comes, one after another round the ring
-			e.wait = nil
-			e.pop = true
-			e.born = t + 0.15 + (e.slot % 10) * STAGGER
-		end
-	end
 	if e.sink and t - (e.sink :: number) > SINK then
 		drop(e)
 		return

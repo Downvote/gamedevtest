@@ -31,11 +31,17 @@ local PlotService = {}
 type S = Session.S
 
 local taken: { [number]: Player } = {}
--- Each occupied plot's island for the next tier, built ahead in the background (a few dozen parts a frame) so an
--- expansion swaps it in at once instead of making ~1,200 parts in one frame.
-local nextLand: { [number]: { tier: number, model: Model?, gen: number } } = {}
+-- Each occupied plot's island for the next tier, built ahead in the background (a few dozen parts a frame): only the
+-- land's chunks that the next tier changes (StreetModels.landPlan), so an expansion puts those in at once and takes
+-- the old ones out, and everything else stays (the request of 2026-11-19, "Expansion is very slow and laggy,
+-- especially at higher levels": the whole island used to be swapped, 4,400 parts at tier 15, every client receiving
+-- all of them and its pixel filter baking the whole picture again).
+-- The Tree of Life too, when the next tier grows it a stage (`tree`: its model at the next stage, named as buildDecor
+-- names it; a tree moved meanwhile is built again at the expansion instead).
+local nextLand: { [number]: { tier: number, chunks: { [string]: Model }?, tree: Model?, hold: Folder?, gen: number } } = {}
 local prebuildGen = 0
-local prebuildQueue: { { plot: number, tier: number, gen: number } } = {}
+type TreeSpot = { uid: number, x: number, z: number, rot: number }
+local prebuildQueue: { { plot: number, tier: number, gen: number, tree: TreeSpot? } } = {}
 local prebuilding = false
 local swaps = 0 -- expansions that swapped in an island built ahead (the sim checks it)
 local plotsFolder: Folder? = nil
@@ -103,50 +109,103 @@ local function replace(parent: Instance, name: string, make: (f: Folder) -> ())
 	end
 end
 
--- Builds the queued next islands one at a time, paced (Blocks.pace) so the server never stalls a frame on them.
+-- Plot i's island model (Static.Land.Land: its land's chunks, the plaza and the sign); nil on an empty lot.
+local function landModelOf(i: number): Model?
+	local f = staticOf(i):FindFirstChild("Land")
+	local m = if f then f:FindFirstChild("Land") else nil
+	return if m and m:IsA("Model") then m else nil
+end
+
+-- (each tier's plan, worked out once: it depends on the tier alone)
+local plans: { [number]: StreetModels.LandPlan } = {}
+local function planOf(tier: number): StreetModels.LandPlan
+	local p = plans[tier]
+	if p == nil then
+		p = StreetModels.landPlan(tier)
+		plans[tier] = p
+	end
+	return p
+end
+
+local function pieceKey(q: { uid: number, id: string, x: number, z: number, rot: number, lvl: number }): string
+	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, q.lvl or 1)
+end
+
+-- Where piece `id` at cell (x, z) turned `rot` stands on plot i (its model's pivot).
+local function pieceAt(i: number, id: string, x: number, z: number, rot: number): CFrame
+	local w, dd = Plot.footprint(id, rot)
+	return CFrame.new(originOf(i) + Vector3.new(x + w / 2, Street.LAWN_Y, z + dd / 2)) * CFrame.Angles(0, math.rad(rot), 0)
+end
+
+-- Builds the queued next islands' new chunks one plot at a time, paced (Blocks.pace) so the server never stalls a
+-- frame on them: the next tier's chunks that the island doesn't have now, into a folder of their own (not in the
+-- world, so nobody receives them yet).
 local function prebuildLoop()
 	if prebuilding then
 		return
 	end
 	prebuilding = true
 	while #prebuildQueue > 0 do
-		local job = table.remove(prebuildQueue, 1) :: { plot: number, tier: number, gen: number }
+		local job = table.remove(prebuildQueue, 1) :: { plot: number, tier: number, gen: number, tree: TreeSpot? }
 		local slot = nextLand[job.plot]
 		if slot and slot.gen == job.gen then
-			local holder = Instance.new("Folder")
+			local plan = planOf(job.tier)
+			local hold = Instance.new("Folder")
+			local made: { [string]: Model } = {}
+			local tree: Model? = nil
 			Blocks.pace(function()
 				task.wait()
 			end, 60)
-			local ok, m = pcall(StreetModels.land, holder, originOf(job.plot), job.tier)
+			local ok, err = pcall(function(): boolean
+				for _, c in plan.chunks do
+					local still = nextLand[job.plot]
+					if still == nil or still.gen ~= job.gen then
+						return false
+					end
+					local lm = landModelOf(job.plot)
+					if lm == nil or lm:FindFirstChild(c.name) == nil then
+						made[c.name] = StreetModels.landChunk(hold, originOf(job.plot), job.tier, c)
+					end
+				end
+				-- the tree at its next stage, where the next tier grows it one
+				local t = job.tree
+				local stage = Tree.stage(job.tier)
+				if t and stage ~= Tree.stage(job.tier - 1) then
+					local m = DecorModels.build(Tree.ID, pieceAt(job.plot, Tree.ID, t.x, t.z, t.rot), stage)
+					m.Name = pieceKey({ uid = t.uid, id = Tree.ID, x = t.x, z = t.z, rot = t.rot, lvl = stage })
+					m.Parent = hold
+					tree = m
+				end
+				return true
+			end)
 			Blocks.pace(nil)
 			local still = nextLand[job.plot]
 			if ok and still and still.gen == job.gen then
-				m.Parent = nil
-				still.model = m
+				still.chunks, still.tree, still.hold = made, tree, hold
 			else
 				if not ok then
-					warn("next island build failed: " .. tostring(m))
+					warn("next island build failed: " .. tostring(err))
 				end
+				hold:Destroy()
 			end
-			holder:Destroy()
 		end
 	end
 	prebuilding = false
 end
 
 -- Forget plot i's next island (a new one is queued when `tier` is given and the island can still grow).
-local function planNext(i: number, tier: number?)
+local function planNext(i: number, tier: number?, tree: TreeSpot?)
 	local old = nextLand[i]
-	if old and old.model then
-		old.model:Destroy()
+	if old and old.hold then
+		old.hold:Destroy()
 	end
 	nextLand[i] = nil
 	if tier == nil or Island.expandCost(tier) == nil then
 		return
 	end
 	prebuildGen += 1
-	nextLand[i] = { tier = tier + 1, model = nil, gen = prebuildGen }
-	table.insert(prebuildQueue, { plot = i, tier = tier + 1, gen = prebuildGen })
+	nextLand[i] = { tier = tier + 1, chunks = nil, tree = nil, hold = nil, gen = prebuildGen }
+	table.insert(prebuildQueue, { plot = i, tier = tier + 1, gen = prebuildGen, tree = tree })
 	task.defer(prebuildLoop)
 end
 
@@ -220,10 +279,6 @@ function PlotService.release(i: number)
 end
 
 ------------------------------------------------------------------ building a studio's plot
-local function pieceKey(q: { uid: number, id: string, x: number, z: number, rot: number, lvl: number }): string
-	return string.format("%d:%s:%d:%d:%d:%d", q.uid, q.id, q.x, q.z, q.rot, q.lvl or 1)
-end
-
 -- A water tile's neighbours (GAME_DESIGN 4.3): 1 + a bit for each side with water next to it (north 1, east 2, south
 -- 4, west 8), so its model draws its banks only where the water ends; it takes the level's place in the model's name,
 -- so a tile is built again when the water round it changes.
@@ -260,7 +315,7 @@ PlotService.waterMasks = waterMasks
 -- The decor by difference: keep the models whose piece is still there, build the new ones, remove the gone ones. The
 -- Tree of Life's model goes by its stage (Tree.stage: it grows grander with the island) in place of a level, so a new
 -- stage builds it again; a water tile's by its neighbours (waterMasks).
-function PlotService.buildDecor(s: S)
+function PlotService.buildDecor(s: S, pre: { [string]: Model }?)
 	local static = staticOf(s.plot)
 	local decor = static:FindFirstChild("Decor")
 	if decor == nil then
@@ -271,19 +326,35 @@ function PlotService.buildDecor(s: S)
 	end
 	local d = decor :: Instance
 	local want: { [string]: boolean } = {}
-	local o = originOf(s.plot)
+	-- (the models there now, by name, looked at once: a FindFirstChild a piece walked every child for each of them,
+	-- 3,500 by 3,500 at tier 15, on every expansion and every piece placed)
+	local have: { [string]: Instance } = {}
+	for _, c in d:GetChildren() do
+		have[c.Name] = c
+	end
 	local stage = Tree.stage(s.profile.tier)
 	local masks = waterMasks(s.profile.plot.placed)
 	for _, q in s.profile.plot.placed do
 		local lvl = if q.id == Tree.ID then stage elseif Plot.isWater(q.id) then masks[Street.cellKey(q.x, q.z)] or 1 else q.lvl or 1
 		local key = pieceKey({ uid = q.uid, id = q.id, x = q.x, z = q.z, rot = q.rot, lvl = lvl })
 		want[key] = true
-		if d:FindFirstChild(key) == nil then
-			local w, dd = Plot.footprint(q.id, q.rot)
-			local at = CFrame.new(o + Vector3.new(q.x + w / 2, Street.LAWN_Y, q.z + dd / 2)) * CFrame.Angles(0, math.rad(q.rot), 0)
-			local m = DecorModels.build(q.id, at, lvl)
-			m.Name = key
-			m.Parent = d
+		if not have[key] then
+			local ready = if pre then pre[key] else nil
+			if pre and ready then
+				-- (built ahead: the tree's next stage)
+				ready.Parent = d
+				pre[key] = nil
+			else
+				local m = DecorModels.build(q.id, pieceAt(s.plot, q.id, q.x, q.z, q.rot), lvl)
+				m.Name = key
+				m.Parent = d
+			end
+			have[key] = d -- (a second piece with the same key is built once, as before)
+		end
+	end
+	if pre then
+		for _, m in pre do
+			m:Destroy()
 		end
 	end
 	for _, c in d:GetChildren() do
@@ -301,31 +372,69 @@ function PlotService.build(s: S)
 	m:SetAttribute("StudioName", s.player.DisplayName .. "'s Isle")
 	local static = staticOf(s.plot)
 	local tier = s.profile.tier
+	local tree: TreeSpot? = nil
+	for _, q in s.profile.plot.placed do
+		if q.id == Tree.ID then
+			tree = { uid = q.uid, x = q.x, z = q.z, rot = q.rot }
+			break
+		end
+	end
+	local ahead: { [string]: Model } = {}
 	if static:GetAttribute("Built") ~= tier then
 		local o = originOf(s.plot)
-		-- built ahead in the background: swap it in (the slot forgets it, so planNext doesn't destroy it)
-		local ready = nextLand[s.plot]
-		local made: Model? = nil
-		if ready and ready.tier == tier then
-			made = ready.model
-			ready.model = nil
-		end
-		if made then
-			swaps += 1
-			replace(static, "Land", function(f)
-				made.Parent = f
-			end)
-		else
+		local lm = landModelOf(s.plot)
+		if lm == nil then
+			-- the first island on the lot (it was an empty sandbar): all of it
 			replace(static, "Land", function(f)
 				StreetModels.land(f, o, tier)
 			end)
+		else
+			-- another tier: the chunks it changes, built ahead in the background where they could be, go up first,
+			-- then the ones it no longer has come down; the rest of the island stays as it is
+			local plan = planOf(tier)
+			local ready = nextLand[s.plot]
+			local made: { [string]: Model } = (if ready and ready.tier == tier then ready.chunks else nil) or {}
+			if ready and ready.tier == tier and ready.chunks then
+				swaps += 1
+			end
+			-- (the tree built ahead at its next stage, kept out of the hold that planNext lets go below)
+			local t = if ready and ready.tier == tier then ready.tree else nil
+			if t then
+				t.Parent = nil
+				ahead[t.Name] = t
+				ready.tree = nil
+			end
+			local want: { [string]: boolean } = { Plaza = true, [plan.sign] = true }
+			for _, c in plan.chunks do
+				want[c.name] = true
+				if lm:FindFirstChild(c.name) == nil then
+					local pre = made[c.name]
+					if pre then
+						pre.Parent = lm
+						made[c.name] = nil
+					else
+						StreetModels.landChunk(lm, o, tier, c)
+					end
+				end
+			end
+			if lm:FindFirstChild(plan.sign) == nil then
+				StreetModels.landSign(lm, o, tier)
+			end
+			if lm:FindFirstChild("Plaza") == nil then
+				StreetModels.landPlaza(lm, o)
+			end
+			for _, ch in lm:GetChildren() do
+				if not want[ch.Name] then
+					ch:Destroy()
+				end
+			end
 		end
 		static:SetAttribute("Built", tier)
-		planNext(s.plot, tier)
+		planNext(s.plot, tier, tree)
 	elseif nextLand[s.plot] == nil then
-		planNext(s.plot, tier)
+		planNext(s.plot, tier, tree)
 	end
-	PlotService.buildDecor(s)
+	PlotService.buildDecor(s, ahead)
 	PlotService.sync(s)
 end
 
@@ -333,7 +442,7 @@ end
 -- expansions so far swapped one in (the sim's check).
 function PlotService.debugNext(i: number): (number?, boolean, number)
 	local n = nextLand[i]
-	return if n then n.tier else nil, n ~= nil and n.model ~= nil, swaps
+	return if n then n.tier else nil, n ~= nil and n.chunks ~= nil, swaps
 end
 
 -- The plot's attributes from the session (cheap: only changed values replicate).

@@ -136,9 +136,8 @@ follow the twelve principles of animation (§6).
 > smoothly?" and "also, in build mode, make the camera still follow the player as they walk around, even though it is
 > displaced downwards abit"
 
-So the bigger island grows out of the old one: its whole shore, beach, foam and shallows move out together over about
-two seconds, sea spray jumping where it pushes into the water, and the new palms and the extra eggs come once it has
-settled (§4.4). In Build mode the view still follows your founder as you walk, a little lower for the tray (§4.5).
+So the bigger island grew out of the old one over about two seconds (§4.4; gone again on 2026-11-19, see there). In
+Build mode the view still follows your founder as you walk, a little lower for the tray (§4.5).
 
 > The request (2026-11-14): "could you also remove the transition that happens when clicking to hatch an
 > egg? you can simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each
@@ -939,8 +938,8 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   its coast reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot
   (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
   fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
-  it, and it lays the bigger island's extra eggs at once (§6). Once the bigger island has grown in: "Your island grew
-  into Moonlit Bay. There's more to build now."
+  it, and it lays the bigger island's extra eggs at once (§6). The moment the server says yes: "Your island grew into
+  Moonlit Bay. There's more to build now."
 
   > The request (2026-11-14): "also, expanding the island dosent have a good transition, it simply make the new land
   > appear out of nowhere. could you make a transition such that it feels like the island grows out the new land
@@ -958,6 +957,35 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   thumps. The eggs the bigger island lays wait under the lawn until the land has grown, then pop up round the tree one
   after another with a little overshoot. The fanfare and the notice come at the end. Walking during it is fine: the
   growing picture scrolls with the view.
+
+  > The request (2026-11-19): "Expansion is very slow and laggy, especially at higher levels. Is it possible to
+  > optimize and speed it up? No need for the transition anymore"
+
+  The transition is gone: the new land is simply there, and the fanfare and the notice come the moment the server says
+  yes. Before, an expansion swapped the whole island (4,400 parts at tier 15), every player there received all of it,
+  and the pixel filter baked the whole picture again behind the old one (about four seconds of game time in the
+  simulator, then a 400 ms frame to finish), then the growth ran. The server's answer to the tap was slow on a big
+  island too, for reasons that had nothing to do with land: it checked every piece against every other to see what
+  still fit (1.1 s at tier 15 in the simulator, though a bigger island never takes a cell away), it looked every
+  piece's model up by walking all 3,500 of them (0.7 s, on every piece placed as well), and when the tree reached its
+  next stage it built the grand tree there and then. Each piece is now checked against its neighbours alone (95 ms),
+  the models are looked up in a table (18 ms), and the tree's next stage is built ahead with the next island's land. Now the land is built in chunks of 16 by 16 studs,
+  each named for what its cells hold, and the scatter on the coast (palms, rocks, shells, driftwood, seaweed, tufts) is
+  placed cell by cell from a hash of where it is, so a part of the island the bigger tier leaves alone comes out the
+  same. An island only ever gains land, so most chunks stay: past the first few tiers an expansion swaps about 25 of
+  the island's 50 to 80 chunks, all of them at the growing north end, built ahead in the background as before. The
+  pixel filter re-draws only what changed where it shows, so expanding from the plaza of a big island redraws nothing
+  on screen. That re-draw now stops each frame after 8 ms as well as after its 4,000 rays, and finishes its outlines
+  and shadow edges a dozen rows at a time; the end of a whole re-bake does too (it used to be one 340 to 410 ms frame).
+  The ambient life (tufts, birds, butterflies) keeps what it knows of the island when the island grows, where it used
+  to start over and look at every piece again in one frame (117 ms at tier 15). In the simulator at tier 15 the new
+  land is drawn about 180 frames after the tap with no frame of the drawing over 84 ms, and the island stands at
+  14 ms a frame afterwards as it did before (it was 83 ms until a rejoin). Two slowdowns that stayed after an expansion until a rejoin went too: each egg looked through every
+  piece's name every frame to find the Tree of Life (rebuilt last at its next stage), 38 ms a frame on a full tier 15
+  island in the simulator, and the island's name over its sign was found by searching the whole island every frame
+  (worse once the new land sat after the buildings). Both are kept now and looked up again only when they change.
+  Islands at the first tiers have a few more palms and shells than before; from about tier 10 the counts are as they
+  were.
 
   > The request (2026-11-11): "also, expanding the island causes the game to lag abit before the actual expansion"
 

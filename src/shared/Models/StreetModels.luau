@@ -863,99 +863,254 @@ local function plaza(m: Instance, o: CFrame)
 end
 
 -- Things round the coast, never on a cell a building may use: palms at the grass's edge, rocks in the shallows,
--- shells and starfish on the beach, driftwood, seaweed on the wet sand, tufts and flowers on the grass's rim.
-local function scatter(m: Instance, o: CFrame, tier: number, b: Rect, rng: Rng)
-	local cells: { [number]: { { x: number, z: number } } } = { {}, {}, {}, {}, {} }
-	local rim: { { x: number, z: number } } = {}
+-- shells and starfish on the beach, driftwood, seaweed on the wet sand, tufts and flowers on the grass's rim. Each
+-- cell decides for itself from a hash of where it is (no sequence of random draws across the island), so a part of
+-- the island that a bigger tier leaves as it was gets the same things in the same places: the land is built in
+-- chunks and an expansion keeps every chunk that comes out the same (`StreetModels.landPlan`). A cell holds one of a
+-- kind when its hash for that kind is under the kind's share and is the lowest among the kind's cells within `gap`
+-- studs of it (so they never crowd).
+type ScatterKind = { id: string, salt: number, p: number, gap: number }
+local SCATTER: { ScatterKind } = {
+	{ id = "palm", salt = 11, p = 0.16, gap = 5 },
+	{ id = "rock", salt = 23, p = 0.045, gap = 5 },
+	{ id = "foamrock", salt = 37, p = 0.05, gap = 4 },
+	{ id = "shell", salt = 41, p = 0.09, gap = 2 },
+	{ id = "drift", salt = 53, p = 0.02, gap = 5 },
+	{ id = "weed", salt = 67, p = 0.16, gap = 2 },
+	{ id = "tuft", salt = 79, p = 0.4, gap = 1.8 },
+}
+local SCATTER_REACH = 5 -- the widest gap: how far round a cell its things depend on the cells
+
+-- A number in [0, 1) from a cell and a salt, the same every time (no random state).
+local function hash01(x: number, z: number, salt: number): number
+	local h = (x * 73856093 + z * 19349663 + salt * 83492791) % 4294967296
+	h = bit32.bxor(h, bit32.rshift(h, 13))
+	local lo, hi = h % 65536, h // 65536
+	h = (lo * 1274126177 + ((hi * 1274126177) % 65536) * 65536) % 4294967296
+	h = bit32.bxor(h, bit32.rshift(h, 16))
+	return h / 4294967296
+end
+
+-- Whether cell (x, z) of the tier's island may hold one of kind k (its layer and coast distance; never by the sign).
+local function scatterOk(k: ScatterKind, tier: number, x: number, z: number, sx: number, sz: number): boolean
+	local cx, cz = x + 0.5 - sx, z + 0.5 - sz
+	-- (clear round the island's sign, wide: no palm leans in front of it)
+	if (math.abs(cx) < 3 and math.abs(cz) < 2.5) or cx * cx + cz * cz < (5 + k.gap / 2) ^ 2 then
+		return false
+	end
+	local l = Street.layer(tier, x, z)
+	local id = k.id
+	if id == "palm" then
+		return l == Street.SAND and Street.cellDist(tier, x, z) < 1.2
+	elseif id == "rock" then
+		return l == Street.SHALLOW
+	elseif id == "foamrock" then
+		return l == Street.FOAM
+	elseif id == "shell" or id == "drift" then
+		return l == Street.SAND
+	elseif id == "weed" then
+		return l == Street.WET
+	end
+	return l == Street.GRASS and not Street.buildable(tier, x, z)
+end
+
+-- The way out to sea from cell (x, z) (radians, as a palm leans): down the layers round it, grass to sea.
+local SEA_RANK = { [Street.GRASS] = 5, [Street.SAND] = 4, [Street.WET] = 3, [Street.FOAM] = 2, [Street.SHALLOW] = 1 }
+local function seaward(tier: number, x: number, z: number): number
+	local gx, gz = 0, 0
+	for dz = -1, 1 do
+		for dx = -1, 1 do
+			local r = SEA_RANK[Street.layer(tier, x + dx, z + dz)] or 0
+			gx -= r * dx
+			gz -= r * dz
+		end
+	end
+	if gx == 0 and gz == 0 then
+		return hash01(x, z, 5) * math.pi * 2
+	end
+	return math.atan2(-gz, gx)
+end
+
+-- The coast's things on the cells of rect b (whole studs, plot-local), from the cells round it too.
+local function scatterIn(m: Instance, o: CFrame, tier: number, b: Rect)
 	local sx, sz = Street.sign(tier)
-	for z = b.z0, b.z1 do
-		for x = b.x0, b.x1 do
-			local l = Street.layer(tier, x, z)
-			-- (clear round the island's sign)
-			local nearSign = math.abs(x + 0.5 - sx) < 3 and math.abs(z + 0.5 - sz) < 2.5
-			if l ~= Street.SEA_CELL and not nearSign then
-				table.insert(cells[l], { x = x, z = z })
-				if l == Street.GRASS and not Street.buildable(tier, x, z) then
-					table.insert(rim, { x = x, z = z })
+	local key = Street.cellKey
+	local blooms = { "pink", "yellow", "white", "purple", "berry_red" }
+	for _, k in SCATTER do
+		local g = math.ceil(k.gap)
+		local cand: { [number]: number } = {}
+		for z = b.z0 - g, b.z1 + g do
+			for x = b.x0 - g, b.x1 + g do
+				local h = hash01(x, z, k.salt)
+				if h < k.p and scatterOk(k, tier, x, z, sx, sz) then
+					cand[key(x, z)] = h
+				end
+			end
+		end
+		local g2 = k.gap * k.gap
+		for z = b.z0, b.z1 do
+			for x = b.x0, b.x1 do
+				local h = cand[key(x, z)]
+				if h == nil then
+					continue
+				end
+				local lowest = true
+				for dz = -g, g do
+					for dx = -g, g do
+						if (dx ~= 0 or dz ~= 0) and dx * dx + dz * dz < g2 then
+							local other = cand[key(x + dx, z + dz)]
+							if other and (other < h or (other == h and (dz < 0 or (dz == 0 and dx < 0)))) then
+								lowest = false
+							end
+						end
+					end
+				end
+				if not lowest then
+					continue
+				end
+				local px, pz = x + 0.5, z + 0.5
+				local turn = hash01(x, z, k.salt + 1) * 6
+				local id = k.id
+				if id == "palm" then
+					palm(m, o * CFrame.new(px, Street.SAND_Y, pz), 0.9 + hash01(x, z, k.salt + 2) * 0.3, seaward(tier, x, z))
+				elseif id == "rock" then
+					rocks(m, o * CFrame.new(px, Street.SHALLOW_Y - 0.2, pz) * CFrame.Angles(0, turn, 0), 0.8 + hash01(x, z, k.salt + 2) * 0.6, Util.newRng(math.floor(hash01(x, z, k.salt + 3) * 2147483647)))
+				elseif id == "foamrock" then
+					rocks(m, o * CFrame.new(px, Street.FOAM_Y - 0.25, pz) * CFrame.Angles(0, turn, 0), 0.6 + hash01(x, z, k.salt + 2) * 0.3, Util.newRng(math.floor(hash01(x, z, k.salt + 3) * 2147483647)))
+				elseif id == "shell" then
+					shell(m, o * CFrame.new(px, Street.SAND_Y, pz) * CFrame.Angles(0, turn, 0), 1 + math.floor(hash01(x, z, k.salt + 2) * 3))
+				elseif id == "drift" then
+					driftwood(m, o * CFrame.new(px, Street.SAND_Y, pz) * CFrame.Angles(0, turn, 0))
+				elseif id == "weed" then
+					seaweed(m, o * CFrame.new(px, Street.WET_Y, pz) * CFrame.Angles(0, turn, 0))
+				else
+					local bloom = if hash01(x, z, k.salt + 2) < 0.45 then blooms[1 + math.floor(hash01(x, z, k.salt + 3) * #blooms)] else nil
+					tuft(m, o * CFrame.new(px, Street.LAWN_Y, pz), bloom)
 				end
 			end
 		end
 	end
-	-- (the sign's spot taken first, wide: no palm leans in front of it)
-	local taken: { { x: number, z: number, r: number } } = { { x = sx, z = sz, r = 5 } }
-	local function clear(x: number, z: number, r: number): boolean
-		for _, t in taken do
-			if (t.x - x) ^ 2 + (t.z - z) ^ 2 < (t.r + r) ^ 2 then
-				return false
-			end
-		end
-		return true
-	end
-	local function pick(list: { { x: number, z: number } }, n: number, r: number, fn: (x: number, z: number) -> ())
-		local done, tries = 0, 0
-		while done < n and tries < n * 12 and #list > 0 do
-			tries += 1
-			local c = list[rng:int(1, #list)]
-			local x, z = c.x + 0.5, c.z + 0.5
-			if clear(x, z, r) then
-				table.insert(taken, { x = x, z = z, r = r })
-				fn(x, z)
-				done += 1
-			end
-		end
-	end
-	local isle = Street.isle(tier)
-	-- palms on the sand at the grass's edge, leaning out to sea
-	local palmsAt: { { x: number, z: number } } = {}
-	for _, c in cells[Street.SAND] do
-		if Street.cellDist(tier, c.x, c.z) < 1.2 then
-			table.insert(palmsAt, c)
-		end
-	end
-	pick(palmsAt, 3 + tier * 2, 4, function(x, z)
-		local lean = math.atan2(-(z - isle.cz), x - isle.cx)
-		palm(m, o * CFrame.new(x, Street.SAND_Y, z), 0.9 + rng:next() * 0.3, lean)
-	end)
-	pick(cells[Street.SHALLOW], 3 + tier * 2, 2.5, function(x, z)
-		rocks(m, o * CFrame.new(x, Street.SHALLOW_Y - 0.2, z) * CFrame.Angles(0, rng:next() * 6, 0), 0.8 + rng:next() * 0.6, rng)
-	end)
-	pick(cells[Street.FOAM], 2 + tier, 2, function(x, z)
-		rocks(m, o * CFrame.new(x, Street.FOAM_Y - 0.25, z) * CFrame.Angles(0, rng:next() * 6, 0), 0.6 + rng:next() * 0.3, rng)
-	end)
-	pick(cells[Street.SAND], 6 + tier * 4, 1, function(x, z)
-		shell(m, o * CFrame.new(x, Street.SAND_Y, z) * CFrame.Angles(0, rng:next() * 6, 0), rng:int(1, 3))
-	end)
-	pick(cells[Street.SAND], 1 + tier, 2.5, function(x, z)
-		driftwood(m, o * CFrame.new(x, Street.SAND_Y, z) * CFrame.Angles(0, rng:next() * 6, 0))
-	end)
-	pick(cells[Street.WET], 4 + tier * 3, 1, function(x, z)
-		seaweed(m, o * CFrame.new(x, Street.WET_Y, z) * CFrame.Angles(0, rng:next() * 6, 0))
-	end)
-	local blooms = { "pink", "yellow", "white", "purple", "berry_red" }
-	pick(rim, 10 + tier * 6, 0.9, function(x, z)
-		tuft(m, o * CFrame.new(x, Street.LAWN_Y, z), if rng:chance(0.45) then blooms[rng:int(1, #blooms)] else nil)
-	end)
 end
 
-function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Model
-	local m = Blocks.model(nil, "Land")
-	local o = CFrame.new(origin)
-	local b = Street.cellBounds(tier)
+------------------------------------------------------------------ the land in chunks
+-- The island's land is built in chunks of CHUNK x CHUNK cells (plot-local, on a grid from the plot's origin), each a
+-- model of its own named for what it holds: Chunk_<cx>_<cz>_<signature>, the signature a hash of the layer and
+-- coast-distance band of every cell in it and LAND_MARGIN cells round it (all its bevels, tones and scatter read), and
+-- of the sign's place when it is near. A bigger tier leaves most of the island as it was (Street.coast: an island only
+-- gains land), so most of its chunks come out with the same names, and the server keeps those (PlotService.build): an
+-- expansion builds, sends and re-draws only the chunks that changed (the request of 2026-11-19: "Expansion is very
+-- slow and laggy, especially at higher levels. Is it possible to optimize and speed it up?"). The plaza and the sign
+-- are children of their own. Splitting the ground at a chunk's edge draws no line: the pixel filter inks only where
+-- the depth jumps.
+StreetModels.CHUNK = 16
+local LAND_MARGIN = SCATTER_REACH + 1
+
+export type LandChunk = { name: string, rect: Rect }
+export type LandPlan = { chunks: { LandChunk }, sign: string }
+
+-- A cell's code for the signature: 0 the open sea, else its layer and which side of the coast distances read it is.
+local function cellCode(tier: number, x: number, z: number): number
+	local l = Street.layer(tier, x, z)
+	if l == Street.SEA_CELL then
+		return 0
+	end
+	local d = Street.cellDist(tier, x, z)
+	return l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
+end
+
+-- The lot's cells (a neighbour's water is theirs).
+local function lotCells(): Rect
 	local lot = Street.LOT
-	-- the cells inside the lot (a neighbour's water is theirs)
-	local cb = { x0 = math.max(b.x0, lot.x0), z0 = math.max(b.z0, lot.z0), x1 = math.min(b.x1, lot.x1 - 1), z1 = math.min(b.z1, lot.z1 - 1) }
-	coast(m, o, cb, function(x, z)
+	return { x0 = math.ceil(lot.x0), z0 = math.ceil(lot.z0), x1 = math.floor(lot.x1) - 1, z1 = math.floor(lot.z1) - 1 }
+end
+
+-- The island's sign's name at a tier (by its place on the south beach).
+function StreetModels.signName(tier: number): string
+	local sx, sz = Street.sign(tier)
+	return string.format("Sign_%d_%d", math.floor(sx * 2), math.floor(sz * 2))
+end
+
+-- The island's chunks at a tier (those with any of it in them), named for what they hold, and its sign's name.
+function StreetModels.landPlan(tier: number): LandPlan
+	local CH = StreetModels.CHUNK
+	local lc = lotCells()
+	local b = Street.cellBounds(tier)
+	local x0, z0 = math.max(b.x0, lc.x0), math.max(b.z0, lc.z0)
+	local x1, z1 = math.min(b.x1, lc.x1), math.min(b.z1, lc.z1)
+	local sx, sz = Street.sign(tier)
+	local M = LAND_MARGIN
+	local P1, P2 = 67108859, 67108837
+	local out: { LandChunk } = {}
+	for cz = z0 // CH, z1 // CH do
+		for cx = x0 // CH, x1 // CH do
+			local r = { x0 = math.max(cx * CH, lc.x0), z0 = math.max(cz * CH, lc.z0), x1 = math.min(cx * CH + CH - 1, lc.x1), z1 = math.min(cz * CH + CH - 1, lc.z1) }
+			local any = false
+			local h1, h2 = 7, 11
+			for z = r.z0 - M, r.z1 + M do
+				for x = r.x0 - M, r.x1 + M do
+					local c = cellCode(tier, x, z)
+					if c ~= 0 and x >= r.x0 and x <= r.x1 and z >= r.z0 and z <= r.z1 then
+						any = true
+					end
+					h1 = (h1 * 31 + c + 1) % P1
+					h2 = (h2 * 37 + c + 3) % P2
+				end
+			end
+			if not any then
+				continue
+			end
+			-- (the sign's place, where its clearing reaches the chunk's things)
+			if sx > r.x0 - M - 8 and sx < r.x1 + M + 8 and sz > r.z0 - M - 8 and sz < r.z1 + M + 8 then
+				h1 = (h1 * 31 + math.floor(sx * 2) + 4096) % P1
+				h2 = (h2 * 37 + math.floor(sz * 2) + 4096) % P2
+			end
+			table.insert(out, { name = string.format("Chunk_%d_%d_%07x%07x", cx, cz, h1, h2), rect = r })
+		end
+	end
+	return { chunks = out, sign = StreetModels.signName(tier) }
+end
+
+-- One chunk of the tier's land (StreetModels.landPlan's): its coast and the coast's things, into parent.
+function StreetModels.landChunk(parent: Instance, origin: Vector3, tier: number, c: LandChunk): Model
+	local m = Blocks.model(nil, c.name)
+	local o = CFrame.new(origin)
+	coast(m, o, c.rect, function(x, z)
 		return Street.layer(tier, x, z)
 	end, function(x, z)
 		return Street.cellDist(tier, x, z)
 	end)
-	local rng = Util.newRng(tier * 7919 + 13)
-	plaza(m, o)
-	scatter(m, o, tier, cb, rng)
-	-- the island's sign on its south beach (tapped: the island's card; its name floats over it)
+	scatterIn(m, o, tier, c.rect)
+	Blocks.windy(m) -- palms and tufts sway
+	m.Parent = parent
+	return m
+end
+
+-- The plaza round the campfire (the same on every tier).
+function StreetModels.landPlaza(parent: Instance, origin: Vector3): Model
+	local m = Blocks.model(nil, "Plaza")
+	plaza(m, CFrame.new(origin))
+	Blocks.windy(m) -- the plaza's pennant ripples
+	m.Parent = parent
+	return m
+end
+
+-- The island's sign on its south beach (tapped: the island's card; its name floats over it), named by its place.
+function StreetModels.landSign(parent: Instance, origin: Vector3, tier: number): Model
 	local sx, sz = Street.sign(tier)
-	sign(m, o * CFrame.new(sx, Street.SAND_Y, sz), "island")
-	Blocks.windy(m) -- palms and tufts sway, the plaza's pennant ripples
+	local m = Blocks.model(nil, StreetModels.signName(tier))
+	sign(m, CFrame.new(origin) * CFrame.new(sx, Street.SAND_Y, sz), "island")
+	m.Parent = parent
+	return m
+end
+
+-- The whole island at a tier: every chunk of its land, the plaza and the sign, under one model "Land".
+function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Model
+	local m = Blocks.model(nil, "Land")
+	for _, c in StreetModels.landPlan(tier).chunks do
+		StreetModels.landChunk(m, origin, tier, c)
+	end
+	StreetModels.landPlaza(m, origin)
+	StreetModels.landSign(m, origin, tier)
 	m.Parent = parent
 	return m
 end

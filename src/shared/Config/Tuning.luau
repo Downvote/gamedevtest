@@ -287,10 +287,9 @@ local Tuning = {
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelPanCacheTiles = 768, -- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 20 bytes a pixel, about 15.7 MB); 0: off
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
-	-- the island growing into its next tier (Pixel/Grow; GAME_DESIGN 4: "could you make a transition such that it feels
-	-- like the island grows out the new land smoothly?")
-	GrowSecs = 1.9, -- seconds the coast takes to move out from the old shore to the new one (eased out)
-	GrowArmSecs = 3, -- seconds an armed growth waits for the bigger island's bake to begin before it lapses
+	-- and at most this long a frame (a slow device or a slow stretch of rays spreads the re-cast over more frames: the
+	-- land's chunks an expansion swaps in used to cost one frame 200 ms in the simulator)
+	PixelInvalidateMs = 8,
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 80, -- dynamic models drawn afresh a tick at most (an island's driftlings and founders; the rest show their kept pictures)
 	PixelDynMs = 8, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short)

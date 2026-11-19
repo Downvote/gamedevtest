@@ -291,6 +291,47 @@ return function()
 		T.truthy(q.x > 8, "toward where it was")
 		T.eq(q.lvl, 2, "its level kept")
 	end)
+	T.it("refit tries each piece against its neighbours alone and finds the same overlaps as against all of them", function()
+		local p = fresh()
+		p.tier = 6
+		-- a crowded island: pieces laid in rows, a fence through one, two stacked on one spot and a tile under a hut
+		local placed: { any } = {}
+		local uid = 0
+		local function put(id: string, x: number, z: number, rot: number)
+			uid += 1
+			table.insert(placed, { uid = uid, id = id, x = x, z = z, rot = rot, lvl = 1 })
+		end
+		local b = Street.plot(p.tier)
+		for z = b.z0 + 2, b.z1 - 3, 3 do
+			for x = b.x0 + 2, b.x1 - 3, 3 do
+				if Street.buildable(p.tier, x, z) and Street.buildable(p.tier, x + 1, z + 1) then
+					put("torch", x, z, 0)
+				end
+			end
+		end
+		local n0 = #placed
+		local q = placed[n0 // 2]
+		put("torch", q.x, q.z, 0) -- stacked on another
+		put("picket", q.x - q.x % 2, q.z - q.z % 2 + 2, 0)
+		p.plot.placed = placed
+		p.nextId = uid + 1
+		-- the old rule, every piece against every one kept before it
+		local kept, homeless = {}, 0
+		for _, o in placed do
+			if Plot.fits(p.tier, kept, o.id, o.x, o.z, o.rot) then
+				table.insert(kept, o)
+			else
+				homeless += 1
+			end
+		end
+		T.truthy(homeless >= 1, "the stacked torch at least")
+		local moved, cleared = Plot.refit(p)
+		T.eq(moved + cleared, homeless, "the same pieces made room")
+		-- and an island already in order is left as it is
+		local before = #p.plot.placed
+		T.eq(select(1, Plot.refit(p)) + select(2, Plot.refit(p)), 0)
+		T.eq(#p.plot.placed, before)
+	end)
 	T.it("fences: drawn along the even grid lines, apart from the pieces; not through a building, along one is fine", function()
 		local p = fresh()
 		local ok, data = Plot.fence(p, "picket", { { 8, 4, 0 }, { 10, 4, 0 }, { 12, 4, 90 } })

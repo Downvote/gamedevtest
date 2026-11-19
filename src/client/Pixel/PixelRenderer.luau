@@ -66,7 +66,6 @@ local CameraController = require(script.Parent.Parent.Controllers.CameraControll
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local BakeCast = require(script.Parent.BakeCast)
 local ImageMemory = require(script.Parent.ImageMemory)
-local Grow = require(script.Parent.Grow)
 
 local PixelRenderer = {}
 PixelRenderer.Changed = Util.Signal() :: Types.Signal<Types.PixelTier>
@@ -195,6 +194,10 @@ local bakePass = 0
 local bakeGX, bakeGY = 0, 0
 local bakeRX0, bakeRY0, bakeRX1, bakeRY1 = 0, 0, -1, -1
 local bakeOX, bakeOY = 0, 0
+-- the bake's finishing passes, a band of rows at a time once every pixel is cast (bakePass 4): 1 the sun's rays at the
+-- shadows' edges, 2 the ink outline and the contact shade; bakeFinY the next band's first row
+local bakeFin, bakeFinY = 0, 0
+local FIN_ROWS = 12
 local bakeRays = 0
 local rebakeAt = -1 -- SG.clock() when a pending re-bake starts (debounce)
 local rush = false -- a big change's re-bake: more ms a frame (the player is waiting to see it)
@@ -205,17 +208,9 @@ type BackTabs = { ids: { [Instance]: number }, albedos: { [number]: number }, wa
 local back: Surf? = nil
 local backTabs: BackTabs? = nil
 local afterBake: { () -> () } = {} -- called once when the next bake is on screen (PixelRenderer.afterBake)
--- The island growing into its next tier (Pixel/Grow; GAME_DESIGN 4): Build mode's Expand arms it before it asks
--- (`growNext`); the bigger island's bake behind the picture then hands Grow both pictures instead of swapping, and the
--- coast moves out over Tuning.GrowSecs. `prevTabs`: the id tables of the picture a back bake replaced (its pixels
--- shown meanwhile keep their parts' colours and water through them).
-local growArm: { plot: Vector3, from: number, to: number }? = nil
-local growing: Grow.State? = nil
-local growT0 = 0
-local growFront: { Vector3 } = {} -- points the moving edge reached since growFront() was last asked
-local afterGrowFns: { () -> () } = {}
-local growCount = 0 -- growths started (previews and sims)
-local prevTabs: BackTabs? = nil
+-- (The island no longer grows into its next tier on the picture: the request of 2026-11-19, "Expansion is very slow and
+-- laggy, especially at higher levels. Is it possible to optimize and speed it up? No need for the transition anymore".
+-- The land's chunks that changed come and go like any part, re-cast where they show.)
 
 local staticIds: { [Instance]: number } = {}
 local albedos: { [number]: number } = {}
@@ -239,7 +234,7 @@ local stats = {
 	scrolls = 0,
 	scrollRays = 0,
 	recasts = 0,
-	perf = { frames = 0, panFrames = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
+	perf = { frames = 0, panFrames = 0, invMs = 0, invFinMs = 0, pokeMs = 0, pokes = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
 }
 local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
 -- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
@@ -270,7 +265,9 @@ local function staticChanged()
 end
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
 -- invalidated rects in global art px, and the one being re-cast (its cursor: phase 1 anchors, phase 2 the rest)
-type InvCur = { r: Rect, phase: number, gx: number, gy: number }
+-- phase 1 and 2: the cast (anchors, then the rest); 3: the shadow edges refined, 4: the ink and contact shade, each in
+-- bands of FIN_ROWS rows from global row fy; 5: done
+type InvCur = { r: Rect, phase: number, gx: number, gy: number, fy: number }
 local invQueue: { Rect } = {}
 local invCur: InvCur? = nil
 
@@ -338,7 +335,7 @@ end
 -- rects, the effects' pixels, the stuck ones). The request of 2026-11-15: "the camera moving is always very laggy":
 -- every pan used to grade the whole picture again, pixel by pixel. ok: buf matches sColor, sId and the lamps' pools
 -- of layer `on` under the grade now. Whatever changes them grades its own pixels again (a pan shifts buf and grades
--- the strips it uncovers, a re-cast rect, the water's and the wind's pixels) or clears ok (a bake, the island growing,
+-- the strips it uncovers, a re-cast rect, the water's and the wind's pixels) or clears ok (a bake,
 -- a new grade, the pools built again: the next upload grades it all).
 local SG = {
 	-- (the pan cache, Pixel/PanCache: a pan's strips that were on screen before are copied back, not cast again)
@@ -541,13 +538,7 @@ local function deactivate(why: string?)
 	prevRects = {}
 	rush = false
 	back, backTabs = nil, nil
-	growing, growArm = nil, nil
-	-- no bake (and no growth) is coming: whoever waits for one goes on now
-	local gfns = afterGrowFns
-	afterGrowFns = {}
-	for _, fn in gfns do
-		task.spawn(fn)
-	end
+	-- no bake is coming: whoever waits for one goes on now
 	local fns = afterBake
 	afterBake = {}
 	for _, fn in fns do
@@ -715,8 +706,7 @@ local function shadeAt(s: Surf, idx: number, x: number, y: number): number
 end
 
 -- One bake sample at global (gx, gy), filling the block up to (bx1, by1) (global, inclusive) on the layer.
--- The sea's wave phase at a world point (wavy lines across the world, about 10 studs apart): the bake's, and Pixel/Grow's
--- for the shallows and foam of a growing island's moving shore.
+-- The sea's wave phase at a world point (wavy lines across the world, about 10 studs apart): the bake's.
 local function waterPhase(wx: number, wz: number): number
 	local v = wx * 0.6 + wz * 0.35 + 1.6 * math.sin(wz * 0.23 + wx * 0.05) + 1.1 * math.sin(wx * 0.17)
 	return math.floor(v * 9.14) % 256
@@ -1337,107 +1327,9 @@ local function refineShadows(s: Surf, x0: number, y0: number, x1: number, y1: nu
 	return rays
 end
 
--- The growth's end (now, wherever it has got: a pan, a re-cast or a new bake can't wait): the new picture everywhere,
--- then whoever waits for it (Build mode's cheer).
-local function endGrow()
-	local g = growing
-	if g then
-		Grow.finish(g)
-		growing = nil
-		SG.Tiles.clear()
-		SG.waterAll = true
-		SG.waterDone, SG.waterPendN = 0, 0
-		staticChanged()
-		lightStale = true
-		needFull = true
-		SG.ok = false
-		SG.ver += 1
-	end
-	if g or growArm == nil then
-		local fns = afterGrowFns
-		afterGrowFns = {}
-		for _, fn in fns do
-			task.spawn(fn)
-		end
-	end
-end
-
--- A finished bake behind the picture of the own island grown a tier (armed by `growNext`): Grow shows the old
--- picture where the new one must wait for the moving coast.
-local function startGrow(s: Surf, old: Grow.Bufs)
-	local arm = growArm
-	growArm = nil
-	if arm == nil or s.view.stage then
-		endGrow()
-		return
-	end
-	local tabs = prevTabs
-	local NXl, NYl, NZl = NX, NY, NZ
-	-- (the layer's camera changes as it scrolls: the closures read it as it is)
-	local synth: { [number]: number } = {}
-	local TINTS = { [2] = Palette.colors.sand, [3] = Palette.colors.sand_dark, [4] = Palette.colors.foam, [5] = Palette.colors.shallow }
-	local function freshId(rgb: number, water: number): number
-		if nextId + 1 >= DYN_ID0 then
-			return 0
-		end
-		local nid = nextId
-		nextId += 1
-		albedos[nid] = rgb
-		waters[nid] = water
-		texs[nid] = NO_TEX
-		return nid
-	end
-	growing = Grow.begin({
-		live = s :: any,
-		old = old,
-		W = s.W,
-		H = s.H,
-		origin = function(i: number, j: number): (number, number, number)
-			return Raster.origin(s.cam, i, j)
-		end,
-		look = s.look,
-		far = FAR * 0.5,
-		plot = arm.plot,
-		from = arm.from,
-		to = arm.to,
-		remap = function(oid: number): number
-			-- (the old part's colour, water and texture under a fresh id in the layer's tables)
-			if tabs == nil then
-				return 0
-			end
-			local nid = freshId(tabs.albedos[oid] or 0, tabs.waters[oid] or 0)
-			if nid ~= 0 then
-				texs[nid] = tabs.texs[oid]
-			end
-			return nid
-		end,
-		tints = TINTS,
-		synthId = function(ly: number): number
-			local id = synth[ly]
-			if id == nil then
-				id = freshId(TINTS[ly] or 0, if ly == 4 then 3 elseif ly == 5 then 2 else 0)
-				synth[ly] = id
-			end
-			return id
-		end,
-		up = UP_INDEX,
-		toon = function(rgb: number, i: number): number
-			local ni = buffer.readu8(s.sNormal, i) + 1
-			return Shading.toonAt(rgb, NXl[ni], NYl[ni], NZl[ni], buffer.readu8(s.sLit, i), i % s.W + s.cam.gx, i // s.W + s.cam.gy, Shading.INDOOR, 0)
-		end,
-		wave = waterPhase,
-	})
-	growT0 = -1 -- (set when its pixels are worked out: Grow.prep)
-	growCount += 1
-	table.clear(growFront)
-end
-
-local function finishBake(s: Surf, b: Surf)
+-- (`done`: the finishing passes were run in bands as part of the bake, bakeRun's pass 4; else here, all at once)
+local function finishBake(s: Surf, b: Surf, done: boolean?)
 	baking = false
-	local old: Grow.Bufs? = nil
-	if b ~= s then
-		old = { sColor = s.sColor, sShade = s.sShade, sShadowC = s.sShadowC, sAlbedo = s.sAlbedo, sNormal = s.sNormal, sLit = s.sLit, sDepth = s.sDepth, sId = s.sId, sShare = s.sShare, sWClass = s.sWClass, sWave = s.sWave }
-	end
 	if b ~= s then
 		-- the bake behind the picture is done: its buffers become the layer's (the old picture's wind paint goes
 		-- with its buffers)
@@ -1456,15 +1348,13 @@ local function finishBake(s: Surf, b: Surf)
 	SG.waterAll = true -- (the new picture's sea is its bare shade: the next water pass shades all of it)
 	SG.waterDone, SG.waterPendN = 0, 0
 	buffer.fill(s.sShadowC, 0, 0)
-	if tierSpec(tier).shadows then
-		refineShadows(s, 0, 0, s.W - 1, s.H - 1)
+	if not done then
+		if tierSpec(tier).shadows then
+			refineShadows(s, 0, 0, s.W - 1, s.H - 1)
+		end
+		Shading.outline(s.static, 0, 0, s.W - 1, s.H - 1, s.sShade)
+		contactPass(s)
 	end
-	Shading.outline(s.static, 0, 0, s.W - 1, s.H - 1, s.sShade)
-	contactPass(s)
-	if old and growArm then
-		startGrow(s, old :: Grow.Bufs)
-	end
-	prevTabs = nil
 	local f = s.frame
 	buffer.copy(f.color, 0, s.sColor, 0, s.W * s.H * 4)
 	buffer.copy(f.depth, 0, s.sDepth, 0, s.W * s.H * 4)
@@ -1529,8 +1419,39 @@ local function bakeRun(s: Surf, b: Surf, deadline: number): boolean
 		end
 		bakePass += 1
 		bakeGX, bakeGY = bakeOX, bakeOY
+		if bakePass == 4 then
+			bakeFin, bakeFinY = 1, 0
+		end
 	end
-	finishBake(s, b)
+	-- (pass 4: the finishing passes over the new picture a band of rows at a time, the old one still showing, so the
+	-- frame that swaps it in only copies and uploads. They ran over the whole layer in that one frame: 344 ms of it in
+	-- the simulator after a tier 3 island grew, the request of 2026-11-19 "Expansion is very slow and laggy")
+	while bakeFin == 1 do
+		if SG.clock() > deadline then
+			return false
+		end
+		local y1 = math.min(b.H - 1, bakeFinY + FIN_ROWS - 1)
+		if shadows then
+			refineShadows(b, 0, bakeFinY, b.W - 1, y1)
+		end
+		bakeFinY = y1 + 1
+		if bakeFinY >= b.H then
+			bakeFin, bakeFinY = 2, 0
+		end
+	end
+	while bakeFin == 2 do
+		if SG.clock() > deadline then
+			return false
+		end
+		local y1 = math.min(b.H - 1, bakeFinY + FIN_ROWS - 1)
+		Shading.outline(b.static, 0, bakeFinY, b.W - 1, y1, b.sShade)
+		contactPass(b, 0, bakeFinY, b.W - 1, y1)
+		bakeFinY = y1 + 1
+		if bakeFinY >= b.H then
+			bakeFin, bakeFinY = 0, 0
+		end
+	end
+	finishBake(s, b, true)
 	return true
 end
 
@@ -1547,7 +1468,6 @@ local function bakeSome(deadline: number): boolean
 	end
 	local fIds, fAlb, fWat, fTex, fNext = staticIds, albedos, waters, texs, nextId
 	staticIds, albedos, waters, texs, nextId = t.ids, t.albedos, t.waters, t.texs, t.nextId
-	prevTabs = { ids = fIds, albedos = fAlb, waters = fWat, texs = fTex, nextId = fNext }
 	local done = bakeRun(s, b, deadline)
 	if not done then
 		t.nextId = nextId
@@ -1563,9 +1483,6 @@ local function startBake()
 	end
 	-- (the smooth models' balls gathered again: the island may have changed)
 	SmoothParts.reset()
-	if growing then
-		endGrow()
-	end
 	-- (a new picture of the island: the pan cache starts again; a stage's bake leaves the island's be)
 	if not s.view.stage then
 		SG.Tiles.setMax(Tuning.PixelPanCacheTiles)
@@ -1643,6 +1560,7 @@ local function startBake()
 	bakeOX, bakeOY = bakeRX0 - bakeRX0 % 4, bakeRY0 - bakeRY0 % 4
 	bakeGX, bakeGY = bakeOX, bakeOY
 	bakePass = 1
+	bakeFin, bakeFinY = 0, 0
 	baking = true
 	invQueue = {}
 	invCur = nil
@@ -1705,8 +1623,7 @@ local function buildSurf(v: CameraController.View)
 				image.ImageTransparency = 0
 			end
 			if st.dirty then
-				-- (on screen at once, baked again behind it; an expansion armed meanwhile grows out of it when that
-				-- is done)
+				-- (on screen at once, baked again behind it)
 				rush = true
 				startBake()
 			end
@@ -4207,9 +4124,9 @@ local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number,
 	return bakeRays - before
 end
 
--- Whether the pan cache works for the layer now: the island's own view (not a stage), no growth going.
+-- Whether the pan cache works for the layer now: the island's own view (not a stage).
 function SG.tilesOk(s: Surf): boolean
-	return not s.view.stage and growing == nil and Tuning.PixelPanCacheTiles > 0
+	return not s.view.stage and Tuning.PixelPanCacheTiles > 0
 end
 
 -- Whether a global art px rect meets a re-cast still queued or going (its pixels on the layer may be stale yet).
@@ -4256,10 +4173,6 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local mx = math.max(1, math.floor(budget / (H * 1.5)))
 	local my = math.max(1, math.floor(budget / (W * 1.5)))
 	local sx, sy = math.clamp(dx, -mx, mx), math.clamp(dy, -my, my)
-	local gp = growing
-	if gp and gp.phase == "prep" then
-		endGrow() -- (still working its pixels out: the new picture at once rather than a stale one)
-	end
 	-- (composing incrementally: the sticky pixels come off the frame before it shifts, as they are dropped below)
 	local inc = not needFull and SG.live(s)
 	if inc then
@@ -4302,10 +4215,6 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		shift(sg, W, H, 4, sx, sy) -- (the strips it uncovers are graded once cast, below)
 	else
 		SG.ok = false
-	end
-	local g = growing
-	if g then
-		Grow.shift(g, sx, sy)
 	end
 	-- the lamps' pools move with the picture (the strips coming in are dark until the next rebuild adds their lamps)
 	local lm = lightMap
@@ -4449,7 +4358,7 @@ local function queueRect(r: Rect)
 	for _, q in invQueue do
 		area += (math.min(q.x1, gx0 + s.W - 1) - math.max(q.x0, gx0) + 1) * (math.min(q.y1, gy0 + s.H - 1) - math.max(q.y0, gy0) + 1)
 	end
-	if area > s.W * s.H * REBAKE_SHARE or growArm ~= nil then
+	if area > s.W * s.H * REBAKE_SHARE then
 		-- a big change (the island grew): bake again, behind the old picture, soon (the parts of one rebuild land
 		-- together) and with a bigger budget a frame
 		rebakeAt = os.clock() + 0.15
@@ -4468,21 +4377,27 @@ local function processInvalidation()
 	end
 	local budget = Tuning.PixelInvalidateRaysFrame
 	local start = bakeRays
-	while bakeRays - start < budget do
+	local deadline = SG.clock() + Tuning.PixelInvalidateMs / 1000
+	while bakeRays - start < budget and SG.clock() < deadline do
 		local cur = invCur
 		if cur == nil then
 			local r = table.remove(invQueue, 1)
 			if r == nil then
 				return
 			end
-			cur = { r = r, phase = 1, gx = r.x0, gy = r.y0 }
+			cur = { r = r, phase = 1, gx = r.x0, gy = r.y0, fy = r.y0 - 1 }
 			invCur = cur
 		end
-		local c = cur :: { r: Rect, phase: number, gx: number, gy: number }
+		local c = cur :: InvCur
 		local r = c.r
 		local shadows = tierSpec(tier).shadows
 		local gx0, gy0 = s.cam.gx, s.cam.gy
+		local n = 0
 		while c.phase <= 2 and bakeRays - start < budget do
+			n += 1
+			if n % 32 == 0 and SG.clock() >= deadline then
+				break
+			end
 			local gx, gy = c.gx, c.gy
 			local x, y = gx - gx0, gy - gy0
 			if x >= 0 and y >= 0 and x < s.W and y < s.H and ((gx % 2 == 0 and gy % 2 == 0) == (c.phase == 1)) then
@@ -4498,21 +4413,40 @@ local function processInvalidation()
 				end
 			end
 		end
-		if c.phase > 2 then
-			-- the rect's shadow edges on the pixel grid, and its border's, which meet the old picture (the report of
-			-- 2026-11-18: "some shadows still appear stepped like this": a rect cast again on its own, when a part came
-			-- or went, kept its 2x2 blocks' shared sun and stepped two pixels at a time)
-			if shadows then
-				refineShadows(s, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
+		if c.phase == 3 or c.phase == 4 then
+			-- the finishing passes in bands of rows, within the frame's time (rects that land together merge, so one can
+			-- be most of the layer: the land's chunks an expansion swaps in used to finish in one 120 ms frame)
+			local f0 = SG.clock()
+			local fx0, fx1 = r.x0 - gx0 - 1, r.x1 - gx0 + 1
+			if c.phase == 3 and not shadows then
+				c.phase = 4
 			end
-			reoutline(s, r.x0 - gx0, r.y0 - gy0, r.x1 - gx0, r.y1 - gy0)
+			while c.phase == 3 and SG.clock() < deadline do
+				-- the rect's shadow edges on the pixel grid, and its border's, which meet the old picture (the report
+				-- of 2026-11-18: "some shadows still appear stepped like this": a rect cast again on its own, when a
+				-- part came or went, kept its 2x2 blocks' shared sun and stepped two pixels at a time)
+				refineShadows(s, fx0, c.fy - gy0, fx1, math.min(r.y1 + 1, c.fy + FIN_ROWS - 1) - gy0)
+				c.fy += FIN_ROWS
+				if c.fy > r.y1 + 1 then
+					c.phase, c.fy = 4, r.y0 - 1
+				end
+			end
+			while c.phase == 4 and SG.clock() < deadline do
+				-- the ink and the contact shade over the rect and a pixel round it (as reoutline draws them)
+				local y, yb = c.fy - gy0, math.min(r.y1 + 1, c.fy + FIN_ROWS - 1) - gy0
+				Shading.outline(s.static, fx0, y, fx1, yb, s.sShade)
+				contactPass(s, fx0, y, fx1, yb)
+				c.fy += FIN_ROWS
+				if c.fy > r.y1 + 1 then
+					c.phase = 5
+				end
+			end
+			stats.perf.invFinMs += (SG.clock() - f0) * 1000
+		end
+		if c.phase == 5 then
 			SG.waterFix(s, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
 			SG.rect(s, r.x0 - gx0 - 3, r.y0 - gy0 - 3, r.x1 - gx0 + 3, r.y1 - gy0 + 3)
 			SG.ver += 1
-			local g = growing
-			if g then
-				Grow.adopt(g, r.x0 - gx0 - 1, r.y0 - gy0 - 1, r.x1 - gx0 + 1, r.y1 - gy0 + 1)
-			end
 			buffer.fill(s.sShadowC, 0, 0)
 			invCur = nil
 			stats.recasts += 1
@@ -4572,31 +4506,6 @@ local function frameStep(dt: number)
 			return -- nothing on screen to keep alive (the first bake, a jump)
 		end
 	end
-	-- the island growing: the coast moves out (eased: quick at first, settling into place)
-	local g = growing
-	if g and surf and g.phase == "prep" then
-		-- (its pixels worked out over a few frames, the old picture showing meanwhile)
-		if Grow.prep(g) then
-			growT0 = os.clock()
-		end
-	elseif g and surf then
-		local u = math.clamp((SG.clock() - growT0) / Tuning.GrowSecs, 0, 1)
-		local e = 1 - (1 - u) ^ 3
-		local changed, front = Grow.step(g, e)
-		for _, f in front do
-			if #growFront < 64 then
-				table.insert(growFront, f)
-			end
-		end
-		if changed then
-			needFull = true
-			SG.ok = false
-			SG.ver += 1
-		end
-		if g.phase == "done" then
-			endGrow()
-		end
-	end
 	local s = surf
 	if s and not baking then
 		local tx, ty = CameraController.pan()
@@ -4611,7 +4520,9 @@ local function frameStep(dt: number)
 		if baking then
 			return -- a jump started a bake
 		end
+		local i0 = SG.clock()
 		processInvalidation()
+		stats.perf.invMs += (SG.clock() - i0) * 1000
 	end
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
 	if s and tier ~= "low" then
@@ -4687,10 +4598,13 @@ local function watchStatic()
 		if rebakeAt >= 0 then
 			return -- a whole re-bake is coming: no rect to work out (a rebuilt island is ~2,500 of these at once)
 		end
+		local p0 = SG.clock()
 		local r = partRect(d)
 		if r then
 			queueRect(r)
 		end
+		stats.perf.pokes += 1
+		stats.perf.pokeMs += (SG.clock() - p0) * 1000
 	end
 	plots.DescendantAdded:Connect(poke)
 	plots.DescendantRemoving:Connect(function(d: Instance)
@@ -4806,6 +4720,9 @@ function PixelRenderer.firstPicture(): (boolean, number)
 	local passShare = { 0, 1 / 21, 5 / 21 }
 	local weight = { 1 / 21, 4 / 21, 16 / 21 }
 	local rows = math.max(1, bakeRY1 - bakeRY0 + 1)
+	if bakePass > 3 then
+		return false, 0.99
+	end
 	local p = math.clamp(bakePass, 1, 3)
 	return false, math.clamp(passShare[p] + weight[p] * (bakeGY - bakeRY0) / rows, 0, 0.99)
 end
@@ -5006,73 +4923,6 @@ function PixelRenderer.afterBake(fn: () -> ())
 	table.insert(afterBake, fn)
 end
 
--- The own island is about to grow from tier `from` into `to` (Build mode's Expand, before it asks the server; nil:
--- not after all). The next big change re-bakes the layer behind the picture, and when that bake is done the new land
--- grows out of the old over Tuning.GrowSecs (Pixel/Grow) instead of appearing at once. The arm lapses after
--- Tuning.GrowArmSecs if no bake has come for it by then (the island out of view), or once one under way is done.
-function PixelRenderer.growNext(plot: Vector3?, from: number?, to: number?)
-	if plot == nil or from == nil or to == nil or surf == nil or tier == "off" then
-		growArm = nil
-		if plot == nil and growing == nil then
-			endGrow()
-		end
-		return
-	end
-	local arm = { plot = plot, from = from, to = to }
-	growArm = arm
-	local function lapse()
-		if growArm ~= arm then
-			return
-		end
-		local st = stash
-		if baking or rebakeAt >= 0 or (st ~= nil and st.dirty) then
-			-- (its bake is under way, due, or waits for the island's view to come back from a stage: it starts when
-			-- that is done)
-			task.delay(0.5, lapse)
-			return
-		end
-		-- (no bake came for it: nothing will grow, whoever waits goes on)
-		growArm = nil
-		if growing == nil then
-			endGrow()
-		end
-	end
-	task.delay(Tuning.GrowArmSecs, lapse)
-end
-
--- Whether the island is growing or about to (armed, its bake not done yet), and how far its coast has got (0 .. 1,
--- eased: quick at first, settling into place).
-function PixelRenderer.growing(): (boolean, number)
-	if growing then
-		local u = if growT0 < 0 then 0 else math.clamp((SG.clock() - growT0) / Tuning.GrowSecs, 0, 1)
-		return true, 1 - (1 - u) ^ 3
-	end
-	return growArm ~= nil, 0
-end
-
--- The world points the moving edge reached since the last call (Controllers/GrowFx throws spray up there).
-function PixelRenderer.growFront(): { Vector3 }
-	local out = growFront
-	growFront = {}
-	return out
-end
-
--- fn runs once the island has finished growing (or at once when none is armed or under way: the filter off).
-function PixelRenderer.afterGrow(fn: () -> ())
-	if growing == nil and growArm == nil then
-		task.spawn(fn)
-		return
-	end
-	table.insert(afterGrowFns, fn)
-end
-
--- Previews and sims: growths started, and the one under way (pixels that differ, still waiting, on the moving beach).
-function PixelRenderer.growStats(): { count: number, active: boolean, changed: number, pending: number, fresh: number }
-	local g = growing
-	local st = if g then Grow.stats(g) else nil
-	return { count = growCount, active = g ~= nil, changed = if st then st.changed else 0, pending = if st then st.pending else 0, fresh = if st then st.fresh else 0 }
-end
-
 -- A stage's folder of static parts (an endless islet's areas come and go as the party runs on): a part added or
 -- removed while the stage is in view re-casts the rect it covers, like the islands' (a whole re-bake is never needed:
 -- the areas are built and dropped out of sight).
@@ -5254,7 +5104,7 @@ end
 -- Sims and previews: the spotlight's dimming now.
 -- Previews: where the frames' time went since the last read (ms summed: the scrolls of the frames that panned, the
 -- composes, the full uploads and their grade), then the counters start again.
-function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, maxMs: number, slow: number, hits: number, draws: number, incFrames: number, incPx: number, fullFrames: number }
+function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollMs: number, composeMs: number, uploadMs: number, gradeMs: number, stepMs: number, invMs: number, invFinMs: number, pokeMs: number, pokes: number, uploads: number, regrades: number, castMs: number, inkMs: number, dynMs: number, outlineMs: number, rimMs: number, fxMs: number, waterMs: number, windMs: number, copyMs: number, maxMs: number, slow: number, hits: number, draws: number, incFrames: number, incPx: number, fullFrames: number }
 	local perf = stats.perf
 	local out: any = table.clone(perf)
 	for k in perf do
@@ -5317,7 +5167,7 @@ end
 function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: number, lits: number, shades: number }
 	local s = surf
 	local out = { off = -1, checked = 0, ids = 0, lits = 0, shades = 0 }
-	if s == nil or baking or growing ~= nil then
+	if s == nil or baking then
 		return out
 	end
 	windRestore(s)

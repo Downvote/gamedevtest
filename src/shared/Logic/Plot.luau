@@ -881,9 +881,50 @@ end
 -- After the island grew (its lodge bigger, its path and sign moved): every piece that no longer fits moves to the free
 -- spot nearest its old one (turned a quarter if that fits closer); one with no spot left is cleared away with its whole
 -- price back and its workers idle. Returns how many moved and how many were cleared.
+-- (the pieces kept so far, in blocks of 8 cells, so each piece is tried against its neighbours alone: Plot.fits looks
+-- only at pieces whose rect meets the one tried. Every piece against every other took a second at 3,500 pieces, on
+-- every expansion and every load; the request of 2026-11-19, "Expansion is very slow and laggy, especially at higher
+-- levels".)
+local NEAR_BLOCK = 8
+local function nearKeys(r: Rect, f: (number) -> ())
+	for bz = (r.z0 - 2) // NEAR_BLOCK, (r.z1 + 2) // NEAR_BLOCK do
+		for bx = (r.x0 - 2) // NEAR_BLOCK, (r.x1 + 2) // NEAR_BLOCK do
+			f((bz + 4096) * 8192 + bx + 4096)
+		end
+	end
+end
+
 function Plot.refit(p: Profile): (number, number)
 	local kept: { Piece } = {}
 	local homeless: { Piece } = {}
+	local grid: { [number]: { Piece } } = {}
+	local function keepPiece(q: Piece)
+		table.insert(kept, q)
+		nearKeys(Plot.rect(q.id, q.x, q.z, q.rot), function(k: number)
+			local l = grid[k]
+			if l == nil then
+				l = {}
+				grid[k] = l
+			end
+			table.insert(l, q)
+		end)
+	end
+	local function near(q: Piece): { Piece }
+		local out: { Piece } = {}
+		local seen: { [Piece]: boolean } = {}
+		nearKeys(Plot.rect(q.id, q.x, q.z, q.rot), function(k: number)
+			local l = grid[k]
+			if l then
+				for _, o in l do
+					if not seen[o] then
+						seen[o] = true
+						table.insert(out, o)
+					end
+				end
+			end
+		end)
+		return out
+	end
 	-- (the tree first: it keeps its place, the rest make room round it)
 	local order: { Piece } = {}
 	for _, q in p.plot.placed do
@@ -894,8 +935,8 @@ function Plot.refit(p: Profile): (number, number)
 		end
 	end
 	for _, q in order do
-		if Plot.fits(p.tier, kept, q.id, q.x, q.z, q.rot) then
-			table.insert(kept, q)
+		if Plot.fits(p.tier, near(q), q.id, q.x, q.z, q.rot) then
+			keepPiece(q)
 		else
 			table.insert(homeless, q)
 		end
@@ -913,11 +954,11 @@ function Plot.refit(p: Profile): (number, number)
 		end
 		if bx and bz and brot then
 			q.x, q.z, q.rot = bx, bz, brot
-			table.insert(kept, q)
+			keepPiece(q)
 			moved += 1
 		elseif Plot.isFixed(q.id) then
 			-- (the tree is never cleared away: it stays where it stood)
-			table.insert(kept, q)
+			keepPiece(q)
 		else
 			p.shells += Plot.price(p, q.id)
 			for _, x in p.pals do

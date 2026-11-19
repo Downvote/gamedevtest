@@ -1379,42 +1379,17 @@ end
 local function expandButton(f: Frame, v: Types.ClientView)
 	local cost = Island.expandCost(v.tier)
 	UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(54, 13), UDim2.new(1, -102, 0, 2), function()
-		-- the bigger island grows out of this one on the picture (Pixel/Grow), armed before the server swaps it in
-		local ox, oz = Street.origin(v.plot)
-		PixelRenderer.growNext(Vector3.new(ox, 0, oz), v.tier, v.tier + 1)
 		local res = ask("island.expand", {})
-		if not res.ok then
-			PixelRenderer.growNext(nil)
-		end
 		if res.ok then
-			-- cheer once the bigger island has grown in (the server swaps in the island it built ahead; the filter
-			-- re-bakes it in a few frames, then the coast moves out over Tuning.GrowSecs), at most a moment later
+			-- the cheer at once: the new land's chunks come in as the server swaps them, and the pixel filter draws the
+			-- ones on screen in a moment (no transition since 2026-11-19: "No need for the transition anymore")
 			local moved = if type(res.data) == "table" then tonumber(res.data.moved) or 0 else 0
 			-- (the island it grew into: the server's answer says, the view may still be the old one when this runs)
 			local grown = if type(res.data) == "table" then tonumber(res.data.tier) else nil
-			local cheered = false
-			local function cheer()
-				if cheered then
-					return
-				end
-				cheered = true
-				Audio.play("grow")
-				AvatarView.cheer()
-				local plan = Office.plan(grown or v.tier + 1)
-				UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s had to move.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s. There's more to build now.", plan.name), UIKit.color("good"), 4)
-			end
-			PixelRenderer.afterGrow(cheer)
-			-- (a safety net: afterGrow always comes, but never later than this once nothing is growing)
-			task.spawn(function()
-				local t0 = os.clock()
-				while not cheered and os.clock() - t0 < 30 do
-					task.wait(1)
-					if os.clock() - t0 > Tuning.GrowArmSecs + Tuning.GrowSecs + 3 and not PixelRenderer.growing() then
-						cheer()
-					end
-				end
-				cheer()
-			end)
+			Audio.play("grow")
+			AvatarView.cheer()
+			local plan = Office.plan(grown or v.tier + 1)
+			UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s had to move.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s. There's more to build now.", plan.name), UIKit.color("good"), 4)
 		end
 	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells })
 	if cost then
@@ -1671,7 +1646,8 @@ local function pieceAt(pos: Vector2): number?
 	params.FilterType = Enum.RaycastFilterType.Include
 	local plots = workspace:FindFirstChild("Plots")
 	local plotModel = if plots then plots:FindFirstChild("Plot_" .. myPlot()) else nil
-	local decor = if plotModel then plotModel:FindFirstChild("Decor", true) else nil
+	local st = if plotModel then plotModel:FindFirstChild("Static") else nil
+	local decor = if st then st:FindFirstChild("Decor") else nil
 	if decor == nil then
 		return nil
 	end

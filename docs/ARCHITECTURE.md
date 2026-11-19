@@ -123,7 +123,7 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
                        maths, copied; Fx, the effects in the pixel layer), Models (procedural models), Locale (Lang: English only)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
-                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs, GrowFx), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory, Grow), UI/* (UIKit, Hud,
+                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
                        Menus, BuildUI, PixelSprites, ArtData and ThumbData (generated), Words, PalTip)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
                        (puts the loading card up first), LoadingCard, LoadingArt (generated: tools/preview/loading_art.sh)
@@ -261,9 +261,9 @@ every field.
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.2: the follow's smooth time), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
-  drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)), the island growing into its next
-  tier (`GrowSecs` 1.9: the moving coast's time; `GrowArmSecs` 3: how long an armed growth waits for its bake to begin).
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
+  drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
+  and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
   `SeasonSecs` (9000: a season, a whole number of spells), `WeatherSecs` (600: a spell), `WeatherTouch` (the chance an
   egg laid in a kind is touched: rain, snow, blossom, leaves 0.35; haze, fog 0.3; storm 0.2), `WeatherTierW` (52, 30,
@@ -314,7 +314,8 @@ hut); the inventory (2026-11-14): `INV_MAX` (9999 of a piece), `held(p, id)`, `c
 (Remove all: "pieces" every piece but the tree and a Hatchery warming an egg, "tiles" every path and water tile with
 what floats, "fences" every length, all into the inventory; not_found when none, bad_payload for another group),
 `sellHeld(p, id, n) -> (ok, { sold, shells })` (up to n of those waiting sold for `Refund` of the price each; not_found,
-bad_payload), `cleanInv(v)` (a save's inventory: known pieces, never the tree, whole counts 1 .. `INV_MAX`), `refit(p) -> (moved, cleared)` (the tree first, keeping its place; pieces that do not fit move to the nearest free spot, or are cleared with their whole price back; a tile or a fence is never moved, only cleared; never the tree: after the island grew and when a save loads); huts housing past `housingLimit` and Hatcheries past `hatcheryLimit` in a save are kept; drawing (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a tile's cell and a fence's length, on the even studs), `PAINT_MAX` (40 cells or edges a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z": tiles' north-west corners), `edges(s) -> { {x, z, rot} }` and `edgeString(edges)` ("x,z,r;...": a length's corner and its way), `paint(p, id, cells) -> (ok, { placed, swapped, skipped })` (a path or water piece only; the cells in order: one with a tile of the same look passed over (skipped), one with a tile of another look of the same kind swapped for it (the old one into the inventory, the new one from it or paid, the uid kept, `stats.built`), a free cell that fits given a tile at rotation 0 (from the inventory first, for nothing), one that doesn't fit skipped; it stops at the tile limit or when the stores run out; bad_payload, locked, or full / money / blocked when none changed), `unpaint(p, cells, kind?) -> (ok, { removed, floated })` (every tile of `kind` ("path", "water" or "all") covering one of the cells' studs comes up into the inventory; anything marked "on" no longer wholly on water comes up with it, into the inventory too; a piece on path tiles stays where it stands; not_found), `fence(p, id, edges) -> (ok, { placed, swapped, skipped })` (a fence piece only; `paint`'s rules along the edges: another fence on an edge swapped, a new length where `fenceFits`, the fence limit; an edge turned other than 0 or 90 skipped), `unfence(p, edges) -> (ok, { removed })` (the lengths on those edges down, each into the inventory; not_found) |
+bad_payload), `cleanInv(v)` (a save's inventory: known pieces, never the tree, whole counts 1 .. `INV_MAX`), `refit(p) -> (moved, cleared)` (each piece tried against the kept pieces in the 8-cell blocks round it alone, which
+is all `fits` looks at; the tree first, keeping its place; pieces that do not fit move to the nearest free spot, or are cleared with their whole price back; a tile or a fence is never moved, only cleared; never the tree: after the island grew and when a save loads); huts housing past `housingLimit` and Hatcheries past `hatcheryLimit` in a save are kept; drawing (GAME_DESIGN 4: Build mode's draw bar): `PATH_STEP` (2: a tile's cell and a fence's length, on the even studs), `PAINT_MAX` (40 cells or edges a request), `cells(s) -> { {x, z} }` and `cellString(cells)` (the payload's "x,z;x,z": tiles' north-west corners), `edges(s) -> { {x, z, rot} }` and `edgeString(edges)` ("x,z,r;...": a length's corner and its way), `paint(p, id, cells) -> (ok, { placed, swapped, skipped })` (a path or water piece only; the cells in order: one with a tile of the same look passed over (skipped), one with a tile of another look of the same kind swapped for it (the old one into the inventory, the new one from it or paid, the uid kept, `stats.built`), a free cell that fits given a tile at rotation 0 (from the inventory first, for nothing), one that doesn't fit skipped; it stops at the tile limit or when the stores run out; bad_payload, locked, or full / money / blocked when none changed), `unpaint(p, cells, kind?) -> (ok, { removed, floated })` (every tile of `kind` ("path", "water" or "all") covering one of the cells' studs comes up into the inventory; anything marked "on" no longer wholly on water comes up with it, into the inventory too; a piece on path tiles stays where it stands; not_found), `fence(p, id, edges) -> (ok, { placed, swapped, skipped })` (a fence piece only; `paint`'s rules along the edges: another fence on an edge swapped, a new length where `fenceFits`, the fence limit; an edge turned other than 0 or 90 skipped), `unfence(p, edges) -> (ok, { removed })` (the lengths on those edges down, each into the inventory; not_found) |
 | `Weather` | the seasons and the weather from the sea's clock, pure (GAME_DESIGN 13): `season(t) -> (id, left, index)`, `kindOf(spell) -> id` (the season's odds by `Util.hash32("weather:" .. spell)`; a storm after a storm gives the season's first kind), `at(t) -> State` (`{ season, seasonLeft, kind, kindLeft, spell, year }`), `luck(state?)` (`WeatherLuck[kind]` or 0), `touch(rng, state?, rarity) -> (kind?, tier?)` (with `WeatherTouch[kind]` when the kind has a family; the tier from `WeatherTierW`, the first weight down 8 and the top two up 3 and 2 a rarity step; a storm's one better, 2 .. 4), `mutation(kind?, tier?) -> id?`, `known(kind)`, `knownSeason(id)`, `left(secs) -> string` ("2 h 10 min", "45 min"). `Logic/Tree` takes the weather as an optional last argument: `fill(p, rng, wx?)`, `lay(p, rng, wx?)`, `step(p, dt, rng, wx?)` (each new egg gets `ss` and maybe `wx`/`wt` from `Weather.touch`; the tips' two commons none; nil weather lays plain eggs, as the Career did before), `odds(p, tier?, extra?)` (`extra` the weather's luck), `roll(p, rng, rarity, knack?, season?)` (the season's favoured islets' kinds `SeasonFavour` times as likely when no knack is asked), `weatherMut(egg) -> id?`; `hatch` rolls with the egg's season and adds its weather mutation (replacing one of its family, else appended, else replacing the lowest tier when MAX are held), data also `{ wx, wm }` |
 | `Tree` | the Tree of Life, its eggs and the huts (GAME_DESIGN 6; `Logic/Tide` for a few hours on 2026-11-13): `ID` ("tree"), `SPOT` (-4, -6: behind the campfire), `hutFx(p) -> (tree, luck, cost)` (the huts' driftlings' shares, at most `HutTree` / `HutLuck` / `HutCost`; cost as a share off, 0 .. `HutCost`), `secs(p)` (`EggSecs` / (1 + the tree share): seconds between two lots), `count(tier)` (`EggCount[tier]`: eggs a lot), `stage(tier)` (`TreeStage[tier]`: the tree model's stage), `luck(p, tier?)` (1 + `EggLuck[tier]` + the luck share), `pool(tier) -> { { sp } }` (by rarity, the kinds open at the tier), `odds(p, tier?) -> { share }` (each rarity's weight x luck^(r - 1), a rarity the pool lacks given to the next commoner one), `worth(pal)` (`RarityWork` x (1 + its share at its knack): the lists' order and the weakest in a swap, kept per driftling table in a weak table, its kind and mutations never changing), `worthAt(pal, knack)` (the same at a building of `knack`: the work picker's speed at each workplace), `better(a, b)` (the better worker first, then the older), `price(pal)` (what it sells for: `SellPrice` x (1 + `SellTier` x its mutation tiers) x max(0.2, 1 + its sell share), whole shells, at least 1), `cost(p, r)` (an egg of rarity r: `EggPrice[r]` x `EggTier[tier]` x (1 - the cost share), whole shells, at least 1), `huts(p) -> { Hut }` (`{ uid, room, comfort, n }`, the comfiest first, then the first built), `room(p)` (the huts' free places), `settle(p) -> { id }` (the driftlings with no hut, the best first, into the huts with room, the comfiest first, each taking a free job, its knack's first (`Island.freeJob` with its effects): who moved), `fillJobs(p)` (resting hut driftlings to free jobs), `add(p, sp, muts) -> Pal` (a Hatchery's hatchling: the comfiest hut with room, or none; a free job; `seen` 2, `stats.best`), `roll(p, rng, rarity, knack?) -> (sp, muts)` (a kind of that rarity open at the tier, a commoner rarity when none is; of `knack` when asked and it has one; `Traits.roll` at the rarity + (tier - 1) // `EggMutTier`, that boost stopping at legendary, a mythic or celestial one rolling as itself, with `lean(p)`), `lean(p) -> { [family]: weight }` (never shown, 2026-11-15: each knack's family (grower, chopper, trader) 1 + `MutLean` x that knack's work buildings / max(all the work buildings, `MutLeanFloor`); empty with no work buildings), `fill(p, rng, wx?) -> { Laid }` (eggs up to `count(tier)`, each rarity by `odds`; on a new island (`stats.taken` 0, no driftling) the lot's first two commons; then `ensure(p, wx)`; the new ones), `wanted(p) -> number` (the rarity the quest on the go asks for (`Quest.current`, a "best" goal: the uncommon, rare and epic quests) while `stats.best` is under it and `pool(tier)` has that rarity; else 0), `ensure(p, wx?) -> Laid?` (with `wanted` above 0, no new island and no egg of that rarity in the lot, the commonest egg commoner than it (the first of those in the list) turns into one, its id and place kept; with none to turn (the lot hatched out, or every egg rarer), a new egg of that rarity is laid (`clutch.next`, the season of `wx` when given, no weather touch), even past `count(tier)`: the egg that turned or was laid, else nil; the request of 2026-11-14, "also, while the rare one quest is active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of life.", and the bug report of 2026-11-16, "there is a bug, the tree dosent have the rare egg in this quest"), `lay(p, rng) -> { Laid }` (a new lot: the list cleared, `left` = `secs(p)`, then `fill`), `step(p, dt, rng) -> { Laid }?` (`left` - dt; at 0 or below, `lay`; nil when nothing was laid), `view(p) -> { Laid }` (the client's copy, each egg with its `cost`), `rise(p, rng, r) -> number` (the rarity an egg of rarity r hatches as: up one with `Tuning.EggUp[r]` and on while the rolls hold, never to a rarity `pool(tier)` lacks), `hatch(p, id, swap, rng)` (not_found (no such egg: a new lot came), no_hut (no hut built), money, full (every hut full and swap 0), bad_payload (a swap that isn't in a hut); the shells paid, the egg gone, a swapped one sold (`price`, `stats.sold`, `stats.earned`) and its hut taken, else the comfiest with room; `rise` (not for the first two on a new island), then `roll` at that rarity (the first two of the knack "wood", then "farm"); a free job; `seen` 2, `stats.taken`, `stats.best`; data `{ id, sp, muts, egg, r, hr, cost, sold, swapped, wx, wm, new }`: `r` the rarity laid, `hr` the one it hatched as, `new` true when the kind was never had before, `seen` under 2 before the hatch: the hatch scene's "New!"), `sell(p, id)` (not_found; its price, `stats.sold`, `stats.earned`, then `settle` and `fillJobs`; data `{ shells, sold }`), `house(p, id, uid, swap)` (to another hut and a free job there, its knack's first; a full hut only in a swap with `swap` (one living there), which goes where this one was; not_found, bad_payload (not a hut, a swap not living there), full; then `settle` and `fillJobs`; data `{ moved }`), `piece(p) -> Piece?` (the tree's), `plant(p) -> Piece?` (an island with no tree gets one at the free spot nearest `SPOT`; on one built full the pieces nearest it make room, paths first, then decor, then the rest that houses nobody, each cleared with its whole price back). None of the tide's `State`, `new`, `start`, `drift`, `life`, `along`, `entry` or `take`, nor the old tree's pen, levels and `equipBest` |
 | `Breed` | the Hatchery (GAME_DESIGN 6.1): `child(a, b, tier?) -> sp` (a pair of one kind its kind, else the kind of power nearest their average, legendary and up no rarer than the commoner parent (a legend only from two legends or rarer, a mythic one from two mythic or rarer, a celestial one from two celestial); with `tier` only kinds of land open there, or the parents' own; the commoner, then the first id, on a tie; `start` passes the island's tier, the panel's preview too), `cost(sp) -> (shells, turns)` (`BreedShells`, `BreedTurns` by its rarity), `inherit(ma, mb, rng, lean?) -> muts` (shared: always, the better tier, `BreedTierUp` one better; one parent's: `BreedKeep`; `BreedNew` a tier 1 or 2 of a new family, `Traits.pickFamily` by `lean`; the best four), `eggAt(p, uid)`, `start(p, uid, a, b, rng)` (not_found, egg, bad_payload, money; the price paid in shells, `Tree.lean(p)` for the new mutation, `p.eggs` + 1), `turn(p) -> ({ Pal }, { sp })` (each egg a turn nearer; a ready one hatches into a hut with room, or none (`Tree.add`), `stats.hatched`; the second list: the kinds among them never had before, the banner's "New!") |
@@ -373,12 +374,24 @@ Models (`src/shared/Models`, Roblox modules):
   rotation (MicroModels.ship, StreetModels.boat).
 - `StreetModels` (no docks since 2026-11-13: no boardwalk, pier, boat, jetty, path, mailbox or coast walls): `road(parent,
   origin)` (a plot's water, `PixelWater` 1, `CanCollide` false, and the `Seabed` under it: an invisible floor, top at
-  `Street.SEABED_Y`, over the lot and the sea south of it), `land(parent, origin, tier)` (the island: its cells meshed
-  into rectangles layer by layer (the shallows `PixelWater` 2 and the foam 3, neither colliding, an invisible `Shelf`
-  under the foam halfway between the seabed and the wet sand as the step out of the sea; the wet sand, the beach, the
-  grass in two tones), the campfire's plaza (`FireStone`s, logs, a flame, seats, a flag, torches), the sign with its
-  `SignBoard` on the south beach (`Street.sign`), and palms, rocks, shells, starfish, driftwood, seaweed and tufts
-  strewn by the plot's own seed, kept clear of the sign; `Blocks.windy`), `emptyLot(parent, origin)` (open water and a
+  `Street.SEABED_Y`, over the lot and the sea south of it), `land(parent, origin, tier)` (the island, the model "Land":
+  its chunks, the plaza and the sign; GAME_DESIGN 4.4: "Expansion is very slow and laggy, especially at higher
+  levels", 2026-11-19), `landPlan(tier) -> { chunks = { { name, rect } }, sign }` (the island's chunks of `CHUNK` (16) x
+  16 cells, on a grid from the plot's origin and clipped to the lot, each with any of the island in it; a chunk's name
+  is `Chunk_<cx>_<cz>_<signature>`, two 26-bit hashes of every cell's code (`cellCode`: 0 the open sea, else its layer
+  and whether its coast distance is at most -1, over -0.9 and under 1.2: what the bevels, the grass's tone and the
+  scatter read) in it and `LAND_MARGIN` (6) cells round it, and of the sign's place when it is within reach, so a
+  chunk a bigger tier leaves alone keeps its name), `landChunk(parent, origin, tier, chunk)` (one chunk: its cells
+  meshed into rectangles layer by layer within the chunk (the shallows `PixelWater` 2 and the foam 3, neither colliding,
+  an invisible `Shelf` under the foam halfway between the seabed and the wet sand as the step out of the sea; the wet
+  sand, the beach, the grass in two tones; the bevels read the cells round it, so a chunk's edge shows nothing), then
+  the coast's things on its cells (`scatterIn`: palms, rocks, shells, starfish, driftwood, seaweed and tufts; a cell
+  holds one of a kind when `hash01(x, z, salt)` is under the kind's share `p` and lowest among the kind's cells within
+  `gap` studs, never by the sign; turns, sizes, a rock's pebbles and a tuft's bloom from more hashes; a palm leans
+  `seaward` down the layers round it); `Blocks.windy`), `landPlaza(parent, origin)` (the model "Plaza": the campfire's
+  plaza, `FireStone`s, logs, a flame, seats, a flag, torches), `landSign(parent, origin, tier)` (the model
+  `signName(tier)`, "Sign_<2x>_<2z>", holding the `PlotSign` with its `SignBoard` on the south beach, `Street.sign`),
+  `emptyLot(parent, origin)` (open water and a
   sandbar), `ends(parent)` (the sea past the ends with its seabed, sandbars past the walls, and the walls round the
   world, 40 studs high). The seabed, the shelves and the walls are invisible, in the collision group `Bounds`, which
   the pixel filter's rays (group `PixelRays`) pass through; the water lets a founder through, so they swim anywhere
@@ -784,8 +797,11 @@ free index, 0 when the sea is full: Main kicks), `release(i)` (back to open wate
 `build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets
 `Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs: the island for that tier built
 ahead is swapped in when it is ready, else it is built there and then) and `Decor` by difference
-(`buildDecor(s)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay; the Tree of
-Life's `lvl` is its stage, `Tree.stage(tier)`, so a new stage builds it again; a water tile's is 1 plus its neighbour
+(`buildDecor(s, ahead?)`: one model a piece, named `uid:id:x:z:rot:lvl`; models whose key is unchanged stay (the
+models there are put in a table by name once, not looked up one `FindFirstChild` a piece); the Tree of
+Life's `lvl` is its stage, `Tree.stage(tier)`, so a new stage builds it again, unless `ahead` holds it by that name
+(the next island's job builds the tree at its next stage when the next tier grows one: `nextLand[i].tree`, from the
+tree's place when the job was queued); a water tile's is 1 plus its neighbour
 mask, `waterMasks(placed) -> { [Street.cellKey(x, z)]: number }` (a bit for each side with a water tile next to it on
 the even grid: north 1, east 2, south 4, west 8), so a tile is built again when water is dug or taken up beside it),
 then `sync(s)`: the attributes `Tier`,
@@ -796,11 +812,18 @@ went), and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syn
 its view; only changed values replicate). A player leaving clears every attribute, `Eggs` with them, so their eggs
 go from every client. The founder: `watchCharacters(player)`,
 `placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`).
-**The next island, built ahead** (GAME_DESIGN 4: the lag before an expansion): after each `build` a plot that can
-still grow queues its next tier's `Land`; one background thread builds the queue, paced by `Blocks.pace` (60 parts a
-frame), into a model kept out of the workspace (`nextLand[i] = { tier, model, gen }`; a newer plan or `release`
-drops an older build). `init` works out every tier's cells first (`Street.warm`). `debugNext(i) -> (tier?, ready,
-swaps)` (the sims' check).
+**The next island, built ahead** (GAME_DESIGN 4: the lag before an expansion; the request of 2026-11-19, "Expansion
+is very slow and laggy, especially at higher levels"): the land is `StreetModels.landPlan(tier)`'s 16x16-cell chunks,
+each named for its cells (a chunk whose cells and margin did not change keeps its name from one tier to the next).
+After each `build` a plot that can still grow queues its next tier; one background thread builds only the chunks the
+current land lacks (`landModelOf(i)`, `Static.Land.Land`), paced by `Blocks.pace` (60 parts a frame), into a hold
+folder out of the workspace (`nextLand[i] = { tier, chunks, tree, hold, gen }`, the tree when the next tier grows it a stage; a newer plan or `release` destroys the hold).
+`planOf(tier)` caches each plan. The expansion's `build` then diffs the land in place: the new chunks go in first
+(prebuilt ones moved over, any missing built then), the sign and the plaza if their names changed, and only then the
+chunks the new plan no longer has are destroyed, so the island never shows a hole. A plot with no land model yet
+builds the whole `StreetModels.land`. At tier 15 to 16 about 25 of 68 chunks change; at the first two tiers all of
+them do. `init` works out every tier's cells first (`Street.warm`). `debugNext(i) -> (tier?, ready, swaps)` (the sims'
+check: `ready` is the hold's chunks built).
 
 ### 7.7 `MonetizationService` (GAME_DESIGN 14)
 Every id from `Config/Monetization` (`GamePasses`, `DevProducts`, `SuggestedRobux`; `isEnabled(id)`: 0 is not on sale and
@@ -1048,8 +1071,7 @@ On a view with `empty` (`Stage.empty`, the hatch scene's) nothing is cast: the s
 far depth, no ids) and finished at once, so the first picture is there on the next frame with only the moving things.
 When a stage takes the view, the island's finished picture is kept (the stash: its buffers, its id tables and the rects
 still to cast again on it) and comes back the moment the island's view does. One kept while a re-bake ran behind it or
-was due, or with a part come or gone since (`dirty`), still comes back at once and is baked again behind itself; an
-armed growth waits for that bake and grows out of it. (The report of 2026-11-18: "a glitch happens when expanding and
+was due, or with a part come or gone since (`dirty`), still comes back at once and is baked again behind itself. (The report of 2026-11-18: "a glitch happens when expanding and
 then immediately hatching somthing after, which causes the filter to be disabled". Such a picture used to be dropped,
 so the island came back to a bake from nothing with the hatch scene's last frame left over the 3D world meanwhile.)
 Back from a stage with nothing kept (the screen changed size), the layer stays hidden until its bake fades in.
@@ -1058,17 +1080,11 @@ already queued joins it while their box is no bigger than the two apart, so an e
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
 `afterBake(fn)` (fn runs once the picture shows the world as it is now: after the pending or running bake, at once
 when none is coming or the filter is off),
-the island growing (GAME_DESIGN 4.4, `Pixel/Grow`): `growNext(plot?, from?, to?)` (Build mode's Expand arms it before it
-asks the server, nil disarms; while armed any change to the parts under Workspace.Plots re-bakes the layer whole behind
-the picture; the arm lapses after `GrowArmSecs` if no bake has begun, is due or waits in a dirty stash, or once one
-under way is done with nothing grown), `growing() -> (on, e)` (armed or under way, and the moving coast's eased progress 0 .. 1), `growFront() -> {
-Vector3 }` (the world points the moving foam reached since the last call), `afterGrow(fn)` (fn runs when the growth ends,
-lapses or is cut short, at once when none is armed or under way: Build mode's cheer), `growStats() -> { count, active,
-changed, pending, fresh }`. The back bake's swap (`finishBake`) keeps the replaced picture's buffers and id tables
-(`prevTabs`) and hands both pictures to `Grow.begin` when armed (`startGrow`): `Grow.prep` a slice each frame (the old
-picture showing), then `Grow.step` each frame at the eased progress (needFull when pixels changed); a scroll shifts it
-with the layer (`Grow.shift`; one while it is still prepping finishes it first), a re-cast rect is adopted as the new
-picture (`Grow.adopt`), and a new bake, a new layer or the filter going off finishes it at once. The sea's wave phase is
+(the island growing into its next tier on the picture, `Pixel/Grow` with `growNext`, `growing`, `growFront`,
+`afterGrow` and `growStats`, went on 2026-11-19: "Expansion is very slow and laggy, especially at higher levels. Is it
+possible to optimize and speed it up? No need for the transition anymore". The land's chunks that an expansion swaps
+(StreetModels.landPlan) come and go like any part: their rects are re-cast where they show, the whole layer re-baked
+behind the picture only when they cover more than `REBAKE_SHARE` of it.) The sea's wave phase is
 `waterPhase(wx, wz)`, shared with the bake. `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
 direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `nearScreen(world,
@@ -1199,7 +1215,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   of a walk, a flicker).
 - **Invalidation**: a part that comes or goes anywhere under `Workspace.Plots` queues the global-art-px rect it and its
   sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
-  the rest), at most `Tuning.PixelInvalidateRaysFrame` rays a frame, then re-outlined; rects over a third of the
+  the rest), at most `Tuning.PixelInvalidateRaysFrame` rays and `Tuning.PixelInvalidateMs` a frame, then their shadow
+  edges refined and re-outlined `FIN_ROWS` rows at a time within the same time (phases 3 and 4 of `InvCur`); rects over a third of the
   layer re-bake it (a new island), 0.15 s later and with 8 ms more a frame (`rush`); while that re-bake is pending a
   part's rect is not worked out (an island's rebuild is ~2,500 of them in one frame). After a re-cast (the rect and a
   pixel round it: the report of 2026-11-18, "some shadows still appear stepped like this", a re-cast had kept its 2x2
@@ -1208,7 +1225,10 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   whose picture is of another place) casts into fresh buffers (`back`) with its own part ids (`backTabs`, swapped in
   only while `bakeSome` runs), so the frames go on meanwhile: the models, the water and the wind keep drawing over
   the old picture at its camera (no pans or re-casts until it ends). The finished bake's buffers become the layer's
-  and the whole image uploads. Before, the screen stood still for the whole bake.
+  and the whole image uploads. Before, the screen stood still for the whole bake. The finishing passes after the
+  last cast pass are banded too (`bakeFin`, `FIN_ROWS` 12 rows at a time within the frame's budget: the shadow edges
+  refined, then the ink outline and the contact shade), and `finishBake(s, b, true)` only swaps the buffers in. (They
+  used to run in one go, a 340 to 410 ms frame at the end of every re-bake: the expansion's worst hitch.)
 - The bake's rays are in the collision group `PixelRays` (the invisible walls never meet them) and exclude
   `Workspace.PixelDynamic` and every player's character (refreshed when characters come and
   go). Dynamic models whose first part lies more than `CULL` (48) art px off the layer are skipped; at most
@@ -1386,25 +1406,8 @@ laggy when moving around"): the static picture's cast pixels kept by the world's
 a pan brings back is copied, not cast (PixelRenderer's "The pan cache" above has its rules). No rays and no Instances:
 `TILE`, `BYTES_A_PIXEL`, `setMax(n)`, `clear()`, `size()`, `save`, `load`, `split`, `drop`, `stats()`.
 
-**`Pixel/Grow`** (GAME_DESIGN 4.4: "could you make a transition such that it feels like the island grows out the new land
-smoothly?"): no rays and no Instances. `begin(spec)` keeps the new picture's buffers, writes the old picture back on the
-layer whole (its part ids remapped into the layer's tables by `spec.remap`) and returns the state; `prep(state) -> ready`
-works out `PREP_PX` (26,000) pixels a frame: which differ (colour or depth; water by depth only), the world point of each
-picture's pixel from its depth (`spec.origin` plus `spec.look` times it), both tiers' coast distances there
-(`Street.cellDist` between the cells' centres, 99 past them), whether it stands on the ground or above it (higher than
-`LAWN_Y + 0.12`: a thing) and, for an old thing, when its part goes (the soonest of its pixels' times the moving coast
-turns the ground under them into the next layer); `step(state, e)` moves the coast to eased progress e: a spot's distance
-is `dOld - e * (dOld - dNew)`, its layer by `Street.BANDS`; each changed pixel shows the new picture where its layer is
-the moving one's (a new thing: from `NEW_THINGS` 0.9), else the old where its layer still is (an old thing: until its
-part's time), the nearer when both are, else the moving beach's layer drawn there (sand speckled with the wet sand's
-colour, wet sand, foam and shallows with water classes 3 and 2 and `spec.wave`'s phase so they ripple; the albedos
-`spec.tints`, shaded by `spec.toon` with the up normal and the ground's light, under ids from `spec.synthId`); things
-that barely move (both points under 0.25 studs) turn at 0.5; from `SETTLE` (0.93) every pixel still not new turns by a
-4 x 4 ordered dither, and at 1 all are new. Each pixel waits in one of 240 buckets for its next change (a band's edge
-crossing either of its points, its thing's time, `NEW_THINGS`, its dither time), so a frame touches only the pixels that
-change. `step` returns the world points where foam just came (one in 61, at most 8 a frame). `shift(state, dx, dy)`
-moves every kept buffer and list with a scroll (false while prepping); `adopt(state, x0, y0, x1, y1)` takes a re-cast
-rect as the new picture; `finish(state)` shows the new picture everywhere at once; `stats(state)`.
+**`Pixel/Grow`** went on 2026-11-19 with the island's growth on the picture (GAME_DESIGN 4.4: "No need for the
+transition anymore").
 
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
@@ -1472,7 +1475,8 @@ hatched: it steps out where its egg lay (`EggView.hatchPoint`) with a cheer and 
 stand along the building's front, turned three-quarters to the view (east or south). Only islands within 100 studs of
 the view's centre are drawn (synced every half second); each near owned island's campfire gets a flickering flame and
 rising smoke (`fireOn`, dynamic models). Each island's sign gets a World-root label (its name, the own in gold, or
-"Unclaimed isle"); a tap (`onTap`: a press let go within 8 px, not on the interface, not in Build mode) goes to
+"Unclaimed isle"; the `SignBoard` is looked up once in `Static.Land` and kept in `signBoards[i]` while it stays in the
+world, looked for again every 0.5 s while missing, so no frame walks the island's thousands of parts); a tap (`onTap`: a press let go within 8 px, not on the interface, not in Build mode) goes to
 `EggView.tapAt` first (an egg under the own tree: the tree panel); otherwise its ray (`PixelRenderer.screenRay` in the
 `PixelRays` collision group, as the picture's, so it passes the invisible seabed, shelves and world walls, which Roblox hits whatever
 their CanQuery says because they collide) on a Tree of Life (`treeOf`: a model with the `Decor` attribute "tree")
@@ -1515,7 +1519,10 @@ stay gone.)
 `EggView` (client, GAME_DESIGN 6): every island's eggs from its plot's `Eggs` attribute (`id.rarity`; the islands
 within `NEAR` (100) studs of the view's centre, synced every half second; an egg whose rarity changed under the same
 id, the quest's egg, gets its new shell and rises again) round its tree, found from the tree's decor
-model name (`uid:tree:x:z:rot:lvl`). Each egg is a `TreeEgg` model (`Models/EggModels.build(r)`, shared with the hatch
+model name (`uid:tree:x:z:rot:lvl`) and kept with that model (`treeSpots`) until it is gone: every egg asks every
+frame, and an expansion builds the tree again at its next stage, last among the island's pieces, so reading every
+piece's name each time cost 38 ms a frame on a full tier 15 island in the simulator (2026-11-19). The eggs a bigger
+island lays rise at once (they waited for the growth until it went). Each egg is a `TreeEgg` model (`Models/EggModels.build(r)`, shared with the hatch
 scene) in `Workspace.PixelDynamic` (registered with the renderer): a nest (since the request of 2026-11-15, "can you
 also do the same with creature and egg models?": a ring of round straw tufts in two tones hugging the egg's foot with
 stalks sticking out, cream down for the legendary, pink and white blossom for the mythic, silver and white for the
@@ -1584,7 +1591,8 @@ Every claimed plot whose island's box (its cells and shallows, `Street.cellBound
 (made when it comes into view, let go `ISLE_KEEP` 10 s after it leaves; looked at every `ISLE_EVERY` 0.5 s): its cells
 by the tier's shape (`buildLand`: tufts sown in patches, `Fx.patch(x, z) * 0.4` a grass cell, kept in 8-stud
 chunks culled to the screen; little flowers in clusters, 2.5 % of the cells; the dry beach; water cells 0.8 to 11 studs
-past the foam), and what its models hold (`scan`, again 0.6 s after a piece comes or goes in its `Static.Decor`: the
+past the foam), and what its models hold (`scan`, again 0.6 s after a piece comes or goes in its `Static.Decor` or a
+chunk in its land model, `Isle.landModel`; each of the land's chunks, or the empty lot as one, is looked at as a unit: the
 highest `Post`, `Rail` or `Top` of each fence, each `Ridge`, flat `Roof` and the sign's `Top` to perch on; `Flower`,
 `Bloom`, `Blossom`, `Petals`, `FlowerHeart` parts for the butterflies; `Leaves`, `Blossom` and `Leaf` parts a stud or
 more across, their colour, a blossom or a pale pink one dropping petals; `Chimney`, `Smoke`, `Coals` (and the
@@ -1848,10 +1856,8 @@ decor fun inv`; the icons alone when the names and the 180 px right of them don'
 limit, `Plot.group` and `groupLimit`: the pieces on Work, Nature, Decor and Fun, the tiles on Paths and Water, the
 fence lengths on Fences, the huts' room (`housing`) against `housingLimit` on Huts, the places at work (`work`) against `workLimit` on Work; a hut card whose slots won't fit, a workplace card whose `jobs` won't (2026-11-18) and the Hatchery's at `hatcheryLimit` greyed, "No room" / "Max", a tap saying why (`roomErr`: `huts`, `work` or `hatcheries`); orange when full); `Expand` ("Island max", greyed, at the
 top tier; `island.expand`, its price under it in `ExpandCost`; the fanfare and "Your island grew into Moonlit Bay.
-There's more to build now." (or how many buildings had to move), named from the answer's `tier`, wait for
-`PixelRenderer.afterGrow`: Expand arms the growth with `PixelRenderer.growNext(plot origin, tier, tier + 1)` before it
-asks, and disarms it on a refusal; a safety net cheers once nothing is growing, `GrowArmSecs + GrowSecs + 3` s on at the
-soonest) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
+There's more to build now." (or how many buildings had to move), named from the answer's `tier`, come the moment the
+answer does: no growth to wait for since 2026-11-19) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
 pixel-font copy of its words, `Query`, "Search" while empty, and `ClearSearch`), with the search button `SearchButton`
 just before it (16 wide, the 11 x 11 `mini_search` magnifier; it calls `focusSearch()`, the cursor into `Box`; the
 accent colour while a search is on): both on the tabs' plank right of the tabs when there are 80 px free there (the box
@@ -1942,10 +1948,7 @@ orange to lift, red where it can't. `debugDraw(cells, mode, keep?) -> plan` (the
 tiles' cells or fences' corners, mode "line", "box" or "erase", with Quick remove on its Erase stroke; `keep` leaves
 the markers up without sending).
 
-`Controllers/GrowFx` (GAME_DESIGN 4.4): `start()` (a Heartbeat: when a growth starts, the `grow_surf` sound (the
-Waves clip, 2.1 s faded); while the coast is under 0.7 of the way, a soft `grow_sand` thump every 0.22 s and more as it
-slows; each frame up to four of `PixelRenderer.growFront()`'s points throw `Puffs.burst("drop", ...)` at the water's
-surface), `sprays()` (bursts so far: previews).
+(`Controllers/GrowFx`, the growth's spray and sounds, went with the growth on 2026-11-19.)
 `Controllers/BuildFx` (GAME_DESIGN 4.5): `drop(plot, uid, id, x, z, rot, lvl?)` (a piece put down: the server's model
 (found in the plot's `Decor` by its name's prefix `uid:id:x:z:rot:`) is held back, unparented, while a stand-in built
 by `DecorModels.build` (`DropIn`, registered with the renderer) falls `DROP_H` (1.6) studs in `DROP_T` (0.16 s),

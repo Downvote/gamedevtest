@@ -1459,10 +1459,10 @@ eggMirror(q, "neighbour")
 
 ------------------------------------------------------------------ 14. expanding, then hatching at once: the filter stays on
 -- The report of 2026-11-18: "a glitch happens when expanding and then immediately hatching somthing after, which causes
--- the filter to be disabled". The island grows (the growth armed the way Build mode's Expand arms it) and a hatch scene
--- opens while the bigger island still bakes behind the picture. When the scene ends, the island's picture is on screen
--- at once with the bake going on behind it, never a bake from nothing with the scene's last frame left over the world,
--- and the new land grows out of the old after.
+-- the filter to be disabled". The island grows and a hatch scene opens while the bigger island's new land is still
+-- being drawn (behind the picture when it is a re-bake). When the scene ends, the island's picture is on screen at once,
+-- never a bake from nothing with the scene's last frame left over the world. (No growth on the picture since
+-- 2026-11-19: "No need for the transition anymore".)
 E.phase = "expand+hatch"
 do
 	local PS = H.smod("PlotService")
@@ -1482,16 +1482,11 @@ do
 		return H.inClient(p, PR.firstPicture) == true and not H.inClient(p, PR.debugStatic).baking
 	end, 120, 0.1)
 	H.expect(first and H.inClient(p, PR.isActive), "expand+hatch", "(the pixel filter on, the island's first picture up)")
-	local grows0 = H.inClient(p, PR.growStats).count
-	local ox, oz = Street.origin(s.plot)
-	H.inClient(p, PR.growNext, E.v3(ox, 0, oz), tier0, tier0 + 1)
 	res = H.req(p, "island.expand", {})
 	H.expect(res.ok and prof.tier == tier0 + 1, "expand+hatch", "the island grows", string.format("%s, tier %d", tostring(res.err), prof.tier))
-	local under = E.runUntil(function()
-		return H.inClient(p, PR.debugStatic).baking
-	end, 5, 0.05)
+	E.run(0.3)
 	local st0 = H.inClient(p, PR.debugStatic)
-	H.expect(under and st0.behind, "expand+hatch", "the bigger island bakes behind the picture", string.format("baking %s, behind %s", tostring(st0.baking), tostring(st0.behind)))
+	H.expect(not st0.baking or st0.behind, "expand+hatch", "the bigger island's new land is drawn behind the picture (a re-bake) or where it shows", string.format("baking %s, behind %s, %d re-casts waiting", tostring(st0.baking), tostring(st0.behind), st0.queued or 0))
 	H.inClient(p, C.HS.setQuick, false)
 	H.inClient(p, function()
 		C.HS.play({ sp = "mossbun", muts = {}, r = 1, hr = 1, new = false }, nil)
@@ -1516,14 +1511,13 @@ do
 		if st.baking and not st.behind then
 			blank += 1
 		end
-		if not st.baking and not (H.inClient(p, PR.growing)) then
+		if not st.baking then
 			break
 		end
 		E.run(0.05)
 		waited += 0.05
 	end
-	local gs = H.inClient(p, PR.growStats)
-	H.expect(blank == 0 and gs.count == grows0 + 1 and not gs.active, "expand+hatch", "then the bigger island grows out of the old, no moment without a picture", string.format("growths %d -> %d after %.2f s, %d frames with nothing behind the bake", grows0, gs.count, waited, blank))
+	H.expect(blank == 0 and not H.inClient(p, PR.debugStatic).baking, "expand+hatch", "then the bigger island's picture, no moment without one", string.format("after %.2f s, %d frames with nothing behind the bake", waited, blank))
 	H.inClient(p, C.HS.setQuick, true)
 	-- (the classic look again)
 	E.editableImageMode = "fail"

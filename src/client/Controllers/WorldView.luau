@@ -257,7 +257,8 @@ type Spot = { id: string, cx: number, cz: number, w: number, d: number, rot: num
 local function spotsOf(i: number): { [number]: Spot }
 	local out: { [number]: Spot } = {}
 	local m = plotModel(i)
-	local decor = if m then m:FindFirstChild("Decor", true) else nil
+	local st = if m then m:FindFirstChild("Static") else nil
+	local decor = if st then st:FindFirstChild("Decor") else nil
 	if decor == nil then
 		return out
 	end
@@ -660,10 +661,30 @@ local function posePals(t: number)
 end
 
 ------------------------------------------------------------------ island signs
+-- (each island's sign board, kept while it stands: the name over it is placed every frame, and looking it up meant a
+-- search through the whole island, every building's parts too once an expansion had put the new land after them; a
+-- lookup is tried again at most twice a second while there is none)
+local signBoards: { [number]: BasePart } = {}
+local signLooked: { [number]: number } = {}
 local function signPoint(i: number): Vector3?
-	local m = plotModel(i)
-	local board = if m then m:FindFirstChild("SignBoard", true) else nil
-	if board and board:IsA("BasePart") then
+	local board: BasePart? = signBoards[i]
+	if board == nil or (board :: BasePart).Parent == nil then
+		signBoards[i] = nil
+		board = nil
+		local now = os.clock()
+		if now - (signLooked[i] or -1) >= 0.5 then
+			signLooked[i] = now
+			local m = plotModel(i)
+			local st = if m then m:FindFirstChild("Static") else nil
+			local land = if st then st:FindFirstChild("Land") else nil
+			local b = if land then land:FindFirstChild("SignBoard", true) else nil
+			if b and b:IsA("BasePart") then
+				signBoards[i] = b
+				board = b
+			end
+		end
+	end
+	if board then
 		return board.Position + Vector3.new(0, 1.4, 0)
 	end
 	return nil

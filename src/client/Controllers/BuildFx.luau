@@ -51,7 +51,8 @@ end
 local function decorOf(plot: number): Instance?
 	local plots = workspace:FindFirstChild("Plots")
 	local m = if plots then plots:FindFirstChild("Plot_" .. plot) else nil
-	return if m then m:FindFirstChild("Decor", true) else nil
+	local st = if m then m:FindFirstChild("Static") else nil
+	return if st then st:FindFirstChild("Decor") else nil
 end
 
 -- Where a piece stands (world): its footprint's centre on the lawn, turned.

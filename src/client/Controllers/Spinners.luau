@@ -115,7 +115,8 @@ local function scan()
 			continue
 		end
 		local pm = plots:FindFirstChild("Plot_" .. i)
-		local decor = if pm then pm:FindFirstChild("Decor", true) else nil
+		local st = if pm then pm:FindFirstChild("Static") else nil
+		local decor = if st then st:FindFirstChild("Decor") else nil
 		if decor == nil then
 			continue
 		end

@@ -79,7 +79,8 @@ local scanConns: { RBXScriptConnection } = {}
 local scanView: Types.ClientView? = nil
 local function scan(v: Types.ClientView)
 	local m = plotModel(plotNow)
-	local decor = if m then m:FindFirstChild("Decor", true) else nil
+	local st = if m then m:FindFirstChild("Static") else nil
+	local decor = if st then st:FindFirstChild("Decor") else nil
 	if decor ~= scanDecor then
 		for _, c in scanConns do
 			c:Disconnect()

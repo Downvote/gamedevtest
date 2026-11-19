@@ -24,7 +24,7 @@ local Enum = E.Enum
 local CF = E.cf
 
 local R = {}
-E.raycastStats = { rays = 0, builds = 0, refits = 0, nodeTests = 0, itemTests = 0 }
+E.raycastStats = { rays = 0, builds = 0, refits = 0, nodeTests = 0, itemTests = 0, buildMs = 0 }
 local STATS = E.raycastStats
 
 ------------------------------------------------------------------ change tracking
@@ -296,6 +296,7 @@ end
 
 local function rebuild(c)
 	STATS.builds += 1
+	local b0 = os.clock()
 	table.clear(c.members)
 	table.clear(c.dirty)
 	c.anyDirty = false
@@ -342,6 +343,8 @@ local function rebuild(c)
 		buildNode(c, 1, n, 0)
 	end
 	c.version = structVersion
+	-- (the time this index takes to build: the simulator's own cost, which Roblox's raycasts do not have)
+	STATS.buildMs += (os.clock() - b0) * 1000
 end
 
 local function refit(c)

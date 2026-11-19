@@ -122,6 +122,7 @@ type Isle = {
 	fish: Fish?,
 	fishAt: number,
 	decor: Instance?,
+	landModel: Instance?, -- the island's land model (its chunks, plaza and sign: StreetModels.land)
 	seen: { [Instance]: any }, -- each model's spots (Spots), looked at once
 	conns: { RBXScriptConnection },
 	scanDirty: boolean,
@@ -466,29 +467,38 @@ local function scan(I: Isle)
 	local m = plotModel(I.plot)
 	local static = if m then m:FindFirstChild("Static") else nil
 	local land = if static then static:FindFirstChild("Land") else nil
+	-- (the island's land is built in chunks since 2026-11-19 and an expansion swaps only those that changed: each chunk,
+	-- the plaza and the sign is looked at on its own, once; an empty lot's sandbar is one model)
+	local landModel = if land then (land:FindFirstChild("Land") or land:FindFirstChild("EmptyLot")) else nil
 	local decor = if static then static:FindFirstChild("Decor") else nil
-	if decor ~= I.decor then
+	if decor ~= I.decor or landModel ~= I.landModel then
 		for _, c in I.conns do
 			c:Disconnect()
 		end
 		table.clear(I.conns)
 		I.decor = decor
-		if decor then
-			local function dirty()
-				I.scanDirty = true
-				I.scanAt = os.clock()
+		I.landModel = landModel
+		local function dirty()
+			I.scanDirty = true
+			I.scanAt = os.clock()
+		end
+		for _, f in { decor, landModel } do
+			if f then
+				table.insert(I.conns, f.ChildAdded:Connect(dirty))
+				table.insert(I.conns, f.ChildRemoved:Connect(dirty))
 			end
-			table.insert(I.conns, decor.ChildAdded:Connect(dirty))
-			table.insert(I.conns, decor.ChildRemoved:Connect(dirty))
 		end
 	end
 	local seen: { [Instance]: Spots } = {}
 	local order: { Spots } = {}
-	if land then
-		local had = I.seen[land]
-		local sp = if had then had else look(land, nil)
-		seen[land] = sp
-		table.insert(order, sp)
+	if landModel then
+		local units: { Instance } = if landModel.Name == "Land" then landModel:GetChildren() else { landModel :: Instance }
+		for _, u in units do
+			local had = I.seen[u]
+			local sp = if had then had else look(u, nil)
+			seen[u] = sp
+			table.insert(order, sp)
+		end
 	end
 	local covered: { [number]: boolean } = {}
 	if decor then
@@ -603,6 +613,7 @@ local function newIsle(i: number, tier: number): Isle
 		fish = nil,
 		fishAt = os.clock() + rand(4, 12),
 		decor = nil,
+		landModel = nil,
 		seen = {},
 		conns = {},
 		scanDirty = true,
@@ -661,8 +672,13 @@ local function updateIsles(cam: Raster.Cam, W: number, H: number, now: number)
 		local inView = x1 >= -40 and y1 >= -40 and x0 <= W + 40 and y0 <= H + 40
 		if inView then
 			if I and I.tier ~= tier then
-				dropIsle(I)
-				I = nil
+				-- the island grew: its land's tufts and shores are sown again for the new shape, but what its pieces
+				-- and kept chunks hold stays looked at (`seen`), so the scan after it looks at the new chunks alone.
+				-- (It used to start the island over: every piece looked at again in one frame, 117 ms at tier 15.)
+				I.tier = tier
+				buildLand(I)
+				I.scanDirty = true
+				I.scanAt = now
 			end
 			local cur = if I then I else newIsle(i, tier)
 			isles[i] = cur

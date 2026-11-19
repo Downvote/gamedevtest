@@ -2465,7 +2465,6 @@ function SCEN.expand()
 	local PS = H.smod("PlotService")
 	local PR = modOr(p, "Pixel.PixelRenderer")
 	local CC = modOr(p, "Controllers.CameraController")
-	local GF = modOr(p, "Controllers.GrowFx")
 	local EV = modOr(p, "Controllers.EggView")
 	local guard = 0
 	while not select(2, PS.debugNext(1)) and guard < 200 do
@@ -2480,46 +2479,25 @@ function SCEN.expand()
 	local bakes0, ticks0 = PR.debugStatic().bakes, PR.debugStatic().ticks
 	local eggs0 = EV and EV.count(1) or 0
 	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
-	-- the bigger island's bake behind the picture, then the growth
+	-- the cheer at once (no growth on the picture since 2026-11-19), then the bigger island's new land drawn where it
+	-- shows (a re-bake behind the picture when most of the screen changed, else its rects re-cast)
+	local cheered = false
+	for _, d in p.PlayerGui:GetDescendants() do
+		if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
+			cheered = true
+		end
+	end
 	local n = 0
-	while n < 3000 and PR.growStats().count == 0 do
+	while n < 3000 do
 		E.step(E.dt)
 		n += 1
+		local st = PR.debugStatic()
+		if not st.baking and (st.queued or 0) == 0 and n > 2 then
+			break
+		end
 	end
 	local _, _, swaps = PS.debugNext(1)
-	local gs = PR.growStats()
-	log("expand: tier %d, swaps %d; the re-bake took %d frames (E.dt %.3f), bakes %d -> %d, the picture composed %d times meanwhile; growth started %s: %d pixels differ, %d wait for the coast", H.profile(p).tier, swaps, n, E.dt, bakes0, PR.debugStatic().bakes, PR.debugStatic().ticks - ticks0, tostring(gs.active), gs.changed, gs.pending)
-	for _, at in { 0.25, 0.5, 0.75, 0.92 } do
-		local g2 = 0
-		while g2 < 900 do
-			local on, k = PR.growing()
-			if not on or k >= at then
-				break
-			end
-			E.step(E.dt)
-			g2 += 1
-		end
-		local st = PR.growStats()
-		local cheerNow = false
-		for _, d in p.PlayerGui:GetDescendants() do
-			if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
-				cheerNow = true
-			end
-		end
-		log("expand: growth at %.2f: %d pixels still wait, %d on the moving beach, spray %d, eggs drawn %d, cheer yet %s", select(2, PR.growing()), st.pending, st.fresh, GF and GF.sprays() or -1, EV and EV.count(1) or -1, tostring(cheerNow))
-		capture(p, string.format("expand_grow%02d", math.floor(at * 100 + 0.5)))
-	end
-	local cheered, m = false, 0
-	while m < 900 and not cheered do
-		E.step(E.dt)
-		m += 1
-		for _, d in p.PlayerGui:GetDescendants() do
-			if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
-				cheered = true
-			end
-		end
-	end
-	log("expand: grown (active %s, %d growths); the cheer %d frames after the last growth frame (%s); spray bursts %d", tostring(PR.growStats().active), PR.growStats().count, m, tostring(cheered), GF and GF.sprays() or -1)
+	log("expand: tier %d, swaps %d; the cheer at once %s; the new land drawn after %d frames (E.dt %.3f), bakes %d -> %d, %d re-casts, the picture composed %d times meanwhile", H.profile(p).tier, swaps, tostring(cheered), n, E.dt, bakes0, PR.debugStatic().bakes, PR.debugStatic().recasts, PR.debugStatic().ticks - ticks0)
 	settle(p, 10, 1.5)
 	log("expand: eggs drawn %d before, %d after", eggs0, EV and EV.count(1) or -1)
 	capture(p, "expand_after")
@@ -2582,7 +2560,7 @@ function SCEN.expand()
 		log("expand+hatch: two frames on: %s", pic())
 		capture(p, "expand_hatch_back")
 		local blank, f = 0, 0
-		while f < 3000 and (PR.debugStatic().baking or select(1, PR.growing())) do
+		while f < 3000 and PR.debugStatic().baking do
 			local st = PR.debugStatic()
 			if st.baking and not st.behind then
 				blank += 1
@@ -2590,12 +2568,180 @@ function SCEN.expand()
 			E.step(E.dt)
 			f += 1
 		end
-		log("expand+hatch: baked and grown after %d frames (growths %d), %d of them with no island picture behind the bake: %s", f, PR.growStats().count, blank, pic())
+		log("expand+hatch: baked after %d frames, %d of them with no island picture behind the bake: %s", f, blank, pic())
 		settle(p, 6, 1)
 		capture(p, "expand_hatch_grown")
 	end
 	return p
 end
+
+-- "expandperf=<tier>": what an expansion costs (the request of 2026-11-19: "Expansion is very slow and laggy,
+-- especially at higher levels. Is it possible to optimize and speed it up? No need for the transition anymore"): an
+-- island at that tier filled the way the stress test fills one, its next island built ahead; Expand clicked, then
+-- frame by frame on the real clock (60 frames a second of the world's own time) until the bigger island's picture is
+-- up and the island is quiet: the frames and seconds that took, the slowest frames, the land's parts before and after,
+-- every script's share. Frames expandperf_before and expandperf_after.
+local function expandPerf(tier: number)
+	local Tuning = H.sharedServer("Config.Tuning")
+	local Creatures = H.sharedServer("Data.Creatures")
+	local Plot = H.sharedServer("Logic.Plot")
+	local pals = {}
+	for k = 1, math.min(Plot.housingLimit(tier), 60) do
+		table.insert(pals, Creatures.list[(k - 1) % #Creatures.list + 1].id)
+	end
+	seedProfile(58, tier, { fill = fillMax, pals = pals, shells = 9e9 })
+	local p = join(58, "Grower")
+	settle(p, 120, 2)
+	E.run(2)
+	local PS = H.smod("PlotService")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local guard = 0
+	while not select(2, PS.debugNext(1)) and guard < 4000 do
+		guard += 1
+		E.step(E.dt)
+	end
+	local function landParts(): number
+		local plots = E.workspace:FindFirstChild("Plots")
+		local pm = plots and plots:FindFirstChild("Plot_1")
+		local st = pm and pm:FindFirstChild("Static")
+		local land = st and st:FindFirstChild("Land")
+		local n = 0
+		if land then
+			for _, d in land:GetDescendants() do
+				if d:IsA("BasePart") then
+					n += 1
+				end
+			end
+		end
+		return n
+	end
+	local prof = H.profile(p)
+	log("expandperf: tier %d, %d pieces, %d driftlings, %d land parts; the next island built ahead after %d frames", prof.tier, #prof.plot.placed, #prof.pals, landParts(), guard)
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 20, 1)
+	capture(p, "expandperf_before")
+	-- the real clock from here (PixelRenderer.debugClock: its budgets and timings)
+	local realClock = os.clock
+	local sim0 = E.simClock
+	if PR and PR.debugClock then
+		H.inClient(p, PR.debugClock, realClock)
+	end
+	local WV0 = modOr(p, "Controllers.WorldView")
+	if WV0 then
+		H.inClient(p, function()
+			WV0.clock = realClock
+		end)
+	end
+	local dt = 1 / 60
+	-- frames on the real clock: their times, the scripts' shares and the pixel filter's
+	local function run(label: string, maxFrames: number, stop: ((f: number) -> boolean)?, first: (() -> ())?): number
+		if PR then
+			H.inClient(p, PR.debugPerf)
+		end
+		E.coTime = {}
+		local rs = E.raycastStats
+		local builds0, buildMs0 = rs and rs.builds or 0, rs and rs.buildMs or 0
+		local ms: { number } = {}
+		local w0 = realClock()
+		local f = 0
+		while f < maxFrames do
+			local f0 = realClock()
+			if f == 0 and first then
+				first() -- (the press itself counts in the first frame: the server's swap answers it at once here)
+			end
+			E.step(dt)
+			f += 1
+			table.insert(ms, (realClock() - f0) * 1000)
+			if stop and stop(f) then
+				break
+			end
+		end
+		local wall = realClock() - w0
+		local sorted = table.clone(ms)
+		table.sort(sorted, function(a, b)
+			return a > b
+		end)
+		local over = 0
+		for _, x in ms do
+			if x > 25 then
+				over += 1
+			end
+		end
+		local top = {}
+		for i = 1, math.min(6, #sorted) do
+			table.insert(top, string.format("%.0f", sorted[i]))
+		end
+		local worstAt = {}
+		for i, x in ms do
+			if x >= (sorted[math.min(4, #sorted)] or 0) and #worstAt < 5 then
+				table.insert(worstAt, string.format("%d: %.0f", i, x))
+			end
+		end
+		log("expandperf %s: %d frames in %.2f s (%.1f ms a frame), %d over 25 ms; the slowest %s ms (frames %s)", label, f, wall, wall * 1000 / math.max(1, f), over, table.concat(top, ", "), table.concat(worstAt, "; "))
+		if PR then
+			local st = H.inClient(p, PR.debugPerf)
+			local fr = math.max(1, st.frames)
+			log("expandperf %s: the pixel filter %.2f ms a frame, the slowest %.1f ms; composes %.2f", label, st.stepMs / fr, st.maxMs or 0, st.composeMs / fr)
+			log("expandperf %s: %d parts came or went, their rects %.1f ms in all", label, st.pokes or 0, st.pokeMs or 0)
+			log("expandperf %s: re-casts %.2f (their finish %.2f), pans %.2f, uploads %.2f (%d), grades %.2f, water %.2f, wind %.2f; %d full composes (ms a frame)", label, (st.invMs or 0) / fr, (st.invFinMs or 0) / fr, st.scrollMs / fr, st.uploadMs / fr, st.uploads or 0, st.gradeMs / fr, st.waterMs / fr, st.windMs / fr, st.fullFrames or 0)
+		end
+		if rs then
+			-- (the simulator rebuilds its raycast index whenever a part comes or goes; Roblox's own raycasts do not,
+			-- so this time is in the frames above but would not be in the game's)
+			log("expandperf %s: the simulator's raycast index rebuilt %d times, %.0f ms in all (not a cost in Roblox)", label, rs.builds - builds0, (rs.buildMs or 0) - buildMs0)
+		end
+		local rows = {}
+		for k, v in E.coTime or {} do
+			table.insert(rows, { k = k, v = v })
+		end
+		table.sort(rows, function(a, b)
+			return a.v > b.v
+		end)
+		local parts = {}
+		for i = 1, math.min(12, #rows) do
+			table.insert(parts, string.format("%s %.2f", (string.gsub(rows[i].k, "^.*%.", "")), rows[i].v * 1000 / math.max(1, f)))
+		end
+		log("expandperf %s scripts (ms a frame): %s", label, table.concat(parts, "; "))
+		if WV0 and WV0.debugCost then
+			local c = H.inClient(p, WV0.debugCost)
+			local n = math.max(1, c.frames)
+			log("expandperf %s world view (ms a frame): driftlings %.2f, poses %.2f, fires/chips/signs %.2f, building cards %.2f, eggs %.2f; %d models out, %d pooled", label, c.walk * 1000 / n, c.pose * 1000 / n, c.rest * 1000 / n, c.tags * 1000 / n, c.eggs * 1000 / n, c.dressed, c.pooled)
+		end
+		E.coTime = nil
+		return f
+	end
+	if WV0 and WV0.debugCost then
+		H.inClient(p, WV0.debugCost)
+	end
+	run("standing before", 120)
+	local bakes0 = PR and PR.debugStatic().bakes or 0
+	local tier0 = prof.tier
+	local tierAt, shownAt = -1, -1
+	local frames = run("expanding", 700, function(f: number): boolean
+		if tierAt < 0 and H.profile(p).tier > tier0 then
+			tierAt = f
+		end
+		local st = PR and PR.debugStatic()
+		-- (the new land drawn: a re-bake behind the picture finished, or the rects it changed re-cast; none when it
+		-- changed off the screen)
+		local busy = PR ~= nil and st ~= nil and (st.baking or (st.queued or 0) > 0)
+		if shownAt < 0 and tierAt > 0 and f > tierAt + 20 and not busy then
+			shownAt = f
+		end
+		return shownAt > 0
+	end, function()
+		H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+	end)
+	local bakes = PR and PR.debugStatic().bakes or 0
+	log("expandperf: tier %d -> %d: the tier changed on frame %d, the new land drawn by frame %d (%d re-bakes); %d land parts now", tier0, H.profile(p).tier, tierAt, shownAt, bakes - bakes0, landParts())
+	run("standing after", 120)
+	E.coTime = nil
+	E.simClock = sim0
+	settle(p, 20, 1)
+	capture(p, "expandperf_after")
+	return p
+end
+SCEN.expandperf = expandPerf
 
 -- "late": the screen's size settles after the HUD is built, the two ways Roblox does it: (1) the top bar's inset
 -- arrives with no ViewportSize event (the roots shrink by it on their own), (2) a phone turns and the camera's
@@ -3608,6 +3754,12 @@ for _, name in list do
 	if stressLegs then
 		fn = function()
 			return SCEN.stress(tonumber(stressLegs))
+		end
+	end
+	local epArg = string.match(name, "^expandperf=(%d+)$")
+	if epArg then
+		fn = function()
+			return expandPerf(tonumber(epArg) :: number)
 		end
 	end
 	local zoomArg = string.match(name, "^zoom=(%d+)$")
