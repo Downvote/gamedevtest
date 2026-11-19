@@ -2005,7 +2005,7 @@ do
 	do
 		local d = Buildings.byId.sandcastle
 		local shown, name, about, locked = tipOf("sandcastle")
-		H.expect(shown and name == d.name and about ~= nil and string.find(about, "Charm +" .. math.floor(d.charm), 1, true) ~= nil and locked == nil, "tray", "a card's tooltip: its name and what it is, nothing locked", string.format("%s / %s / %s", tostring(name), tostring(about), tostring(locked)))
+		H.expect(shown and name == d.name and about ~= nil and string.find(about, "Charm +" .. math.floor(Buildings.charmOf(d, H.profile(p).tier)), 1, true) ~= nil and locked == nil, "tray", "a card's tooltip: its name and what it is, nothing locked", string.format("%s / %s / %s", tostring(name), tostring(about), tostring(locked)))
 		local lg = Buildings.byId.lifeguard
 		shown, name, about, locked = tipOf("lifeguard")
 		H.expect(lg.tier > prof.tier and shown and name == lg.name and locked == string.format("Opens at island level %d.", lg.tier), "tray", "a locked one's says the level it opens at", string.format("%s / %s", tostring(name), tostring(locked)))

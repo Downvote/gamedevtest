@@ -704,8 +704,9 @@ local function price(parent: Instance, x: number, y: number, shells: number, v: 
 	return x + 13 + UIKit.textWidth(t) + 2
 end
 
--- What a piece is, in a line: its blurb, what it makes, its room and comfort, its charm, its size.
-local function about(def: Buildings.BuildingDef, lvl: number?): string
+-- What a piece is, in a line: its blurb, what it makes, its room and comfort, its charm on an island of `tier` (a
+-- decor piece's a tile, growing with the island: Buildings.charmOf), its size.
+local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): string
 	local say = def.blurb
 	if def.rate > 0 then
 		say = string.format("%s %s shells a minute for each common driftling working here.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
@@ -718,8 +719,11 @@ local function about(def: Buildings.BuildingDef, lvl: number?): string
 		local c = def.comfort + (Tuning.ComfortLvl[lvl or 1] or 0)
 		say = string.format("%s Room for %d.%s", say, def.slots, if c > 0 then string.format(" Comfort +%d%%.", math.round(c * 100)) else "")
 	end
-	if def.charm >= 1 then
-		say ..= string.format(" Charm +%d.", math.floor(def.charm))
+	local charm = Buildings.charmOf(def, tier)
+	if def.kind == "decor" then
+		say ..= string.format(" Charm +%d%s.", math.floor(charm), if tier < #Tuning.DecorCharm then ", more once the island grows" else "")
+	elseif charm >= 1 then
+		say ..= string.format(" Charm +%d.", math.floor(charm))
 	end
 	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare)
 	if def.kind == "gen" then
@@ -746,7 +750,7 @@ local function showTip(card: GuiObject, def: Buildings.BuildingDef, v: Types.Cli
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = 172
-	local text = about(def)
+	local text = about(def, nil, v.tier)
 	local nl = UIKit.lines(text, w - 8)
 	local h = 26 + nl * 10 + (if def.tier > v.tier then 10 else 0)
 	local at = card.AbsolutePosition - UIKit.canvasOrigin("Hud")
@@ -797,7 +801,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 		card.Name = "Swap_" .. id
 		card.LayoutOrder = k
 		picture(card, id, UDim2.fromOffset(3, 3), 4)
-		local what = if d.slots > 0 then string.format("Room %d", d.slots) elseif d.charm >= 1 then string.format("Charm +%d", math.floor(d.charm)) else ""
+		local what = if d.slots > 0 then string.format("Room %d", d.slots) elseif Buildings.charmOf(d, v.tier) >= 1 then string.format("Charm +%d", math.floor(Buildings.charmOf(d, v.tier))) else ""
 		UIKit.text(card, d.name, UDim2.fromOffset(58, 10), UDim2.fromOffset(29, 3), { color = UIKit.color("text"), z = 4 })
 		UIKit.text(card, what, UDim2.fromOffset(58, 10), UDim2.fromOffset(29, 14), { color = UIKit.color("text_dim"), z = 4 })
 		local b = UIKit.button(card, "", UDim2.fromOffset(84, 14), UDim2.fromOffset(2, CARD_H - 6), function()
@@ -1016,7 +1020,7 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 	end, "Cancel")
 	-- what it is and costs
 	local name = (if def then def.name else p.id) .. (if q and q.lvl > 1 then " Lv" .. q.lvl else "")
-	infoPlate(f, p, v, (if p.move then "Moving: " else "Placing: ") .. name, if def then about(def, if q then q.lvl else 1) else "", q == nil and def ~= nil)
+	infoPlate(f, p, v, (if p.move then "Moving: " else "Placing: ") .. name, if def then about(def, if q then q.lvl else 1, v.tier) else "", q == nil and def ~= nil)
 end
 
 -- The tab's pieces in the chosen row: unlocked first, cheapest first; the locked ones after, by the level they open at.

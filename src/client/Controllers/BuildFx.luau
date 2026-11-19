@@ -18,6 +18,7 @@ local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
 local Audio = require(script.Parent.Audio)
 local Puffs = require(script.Parent.Puffs)
+local StateClient = require(script.Parent.StateClient)
 
 local BuildFx = {}
 
@@ -77,8 +78,11 @@ local function land(id: string, at: CFrame, height: number)
 	Puffs.burst(f.kinds[2], base, 6, r)
 	Puffs.burst("twinkle", at.Position + Vector3.new(0, height + 0.3, 0), 2, 0.4)
 	Audio.play(f.sound)
-	if def and def.charm >= 1 then
-		Puffs.float("+" .. math.floor(def.charm), at.Position + Vector3.new(0, height + 0.6, 0), UIKit.color("pink"), "mini_charm")
+	-- (its charm on this island now: a decor piece's grows with the island, Buildings.charmOf)
+	local v = StateClient.view()
+	local charm = if def then Buildings.charmOf(def, if v then v.tier else 1) else 0
+	if charm >= 1 then
+		Puffs.float("+" .. math.floor(charm), at.Position + Vector3.new(0, height + 0.6, 0), UIKit.color("pink"), "mini_charm")
 	end
 end
 

@@ -110,6 +110,7 @@ local STATUS = { start = "Waking up your island", island = "Finding your island"
 local TIPS = {
 	"Shells pay for every egg you hatch and everything you build.",
 	"Decor adds charm, and charm brings in more shells.",
+	"Decor gives charm for every tile it covers, and more as the island grows.",
 	"The Tree of Life lays new eggs every few minutes.",
 	"Rare driftlings work much faster than common ones.",
 	"When the huts are full, swap a weak one for a better one.",

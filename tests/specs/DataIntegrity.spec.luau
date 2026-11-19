@@ -56,7 +56,11 @@ return function()
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
 			T.truthy(makes == (d.act == "farm" or d.act == "wood" or d.act == "shop"), d.id .. " a workplace's look of work")
 			T.truthy((d.kind == "nest") == (d.slots > 0), d.id .. " huts have room")
-			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
+			-- (decor's charm is its tiles' at the island's tier, the same for its size whatever the piece: the requests
+			-- of 2026-11-19, "make decor all give the same amount of charm, scaling based on their size instead", "make
+			-- it such that the charm they give scale off expansions as well"; none of its own)
+			T.truthy(d.kind ~= "decor" or (d.charm == 0 and d.d >= 1 and Buildings.charmOf(d, 1) == Tuning.DecorCharm[1] * d.w * d.d), d.id .. " decor's charm is its tiles'")
+			T.truthy(d.kind ~= "decor" or Buildings.charmOf(d, 1) > 0, d.id .. " decor brings charm")
 			T.truthy((d.kind == "gen") == (d.boostBy > 0), d.id .. " a boost building boosts (everything)")
 			T.truthy((d :: any).boost == nil and (d :: any).knack == nil, d.id .. " no knack, no boost kind")
 			T.truthy(d.comfort == 0 or d.kind == "nest", d.id .. " comfort is a hut's")

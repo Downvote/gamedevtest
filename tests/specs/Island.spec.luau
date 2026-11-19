@@ -104,12 +104,33 @@ return function()
 		local plain = Island.rates(p).shells / cb(p)
 		T.truthy(farm > 0 and plain > 0)
 		put(p, "fountain")
-		T.eq(Island.charm(p), base + Buildings.byId.fountain.charm)
-		T.near(Island.rates(p).shells, plain * (1 + Island.charmBonus(base + Buildings.byId.fountain.charm)), 1e-9, "more charm, more shells")
+		local fc = Buildings.charmOf(Buildings.byId.fountain, p.tier)
+		T.eq(Island.charm(p), base + fc)
+		T.near(Island.rates(p).shells, plain * (1 + Island.charmBonus(base + fc)), 1e-9, "more charm, more shells")
 		for _ = 1, 30 do
 			put(p, "statue")
 		end
-		T.truthy(Island.rates(p).shells > plain * (1 + Island.charmBonus(base + Buildings.byId.fountain.charm)), "decor pays")
+		T.truthy(Island.rates(p).shells > plain * (1 + Island.charmBonus(base + fc)), "decor pays")
+	end)
+	T.it("decor: the same charm a tile whatever the piece, more on a bigger island", function()
+		-- (the requests of 2026-11-19: "make decor all give the same amount of charm, scaling based on their size
+		-- instead", then "make it such that the charm they give scale off expansions as well")
+		local fountain, fern = Buildings.byId.fountain, Buildings.byId.fern
+		for tier = 1, #Tuning.DecorCharm do
+			T.eq(Buildings.charmOf(fountain, tier), Tuning.DecorCharm[tier] * fountain.w * fountain.d)
+			T.eq(Buildings.charmOf(fern, tier) * fountain.w * fountain.d, Buildings.charmOf(fountain, tier) * fern.w * fern.d, "a tile is a tile")
+			if tier > 1 then
+				T.truthy(Tuning.DecorCharm[tier] >= Tuning.DecorCharm[tier - 1], "never less a tile when the island grows")
+			end
+		end
+		T.truthy(Tuning.DecorCharm[#Tuning.DecorCharm] > Tuning.DecorCharm[1], "more at the top")
+		T.eq(Buildings.charmOf(Buildings.byId.tree, 5), Buildings.byId.tree.charm, "other pieces keep their own")
+		-- an island's decor counts at its tier: the same pieces bring more once it has grown
+		local p = fresh()
+		put(p, "fountain")
+		local before = Island.charm(p)
+		p.tier = 10
+		T.eq(Island.charm(p) - before, (Tuning.DecorCharm[10] - Tuning.DecorCharm[1]) * fountain.w * fountain.d)
 	end)
 	T.it("a turn: what it made, the shells counted as earned", function()
 		local p = fresh()

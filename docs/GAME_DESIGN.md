@@ -619,7 +619,10 @@ floor, it just looks noisy", 2026-11-14),
 - **Charm** is every piece's charm, and one for each driftling living in a hut plus its charm share (Cute and its
   family; `Island.charm`). It raises every shell the island makes (`Island.charmBonus`): times 1 + `CharmMax` x charm
   / (charm + `CharmHalf`), with `CharmMax` 1 and `CharmHalf` 200, so 50 charm is +20%, 200 is +50% and 600 is +75%,
-  never past double. The first decor counts the most. Shops sell at their plain rate: the visitors who bought there
+  never past double. The first decor counts the most. Every decor piece (Nature, Decor, Fun and the Water tab's
+  bridges and floating pieces) gives the same charm for its size: `DecorCharm` at the island's tier for each tile it
+  covers (1 a tile on the first three islands, rising to 19 on the last: §4), whatever its tier or price, and every
+  piece already down brings more each time the island grows. Shops sell at their plain rate: the visitors who bought there
   went with the request (they were a number, a turn: 1 + charm / 15, and a shop sold its rate times visitors / 4).
   The island card shows the charm and its bonus ("Charm bonus +43%"). Above them it shows how many driftlings live
   in huts out of the huts' room ("In huts 21/24") and how many are at work out of the places at work, each farm,
@@ -661,6 +664,26 @@ The buildings that work or house (the tier each opens at in brackets):
 | the **Hatchery** (3, §6.1) | |
 
 The rest are there for charm (§3) and for the look of the place:
+
+> The requests (2026-11-19): "make decor all give the same amount of charm, scaling based on their size instead",
+> then "in order to match the previous charm decor gives, make it such that the charm they give scale off expansions
+> as well"
+
+Every decor piece's charm is its footprint's tiles times `DecorCharm` at the island's tier, the same for every piece:
+
+| Island tier | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Charm a tile | 1 | 1 | 1 | 2 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 17 | 19 |
+
+So a 3 x 3 Oak is 9 on a first island and 171 on the last, the same as any other 3 x 3 piece there, and everything
+already down brings more after each expansion (Build mode's cards say "Charm +9, more once the island grows.", on
+the last island "Charm +171."). The numbers follow what the old decor gave: each piece had its own charm, from a quarter of a point a tile
+on the cheap plants to 360 a tile on the Grand row (the Sea Crown was 4,500), and all the decor an island of a tier
+could have averaged, weighted by size, 0.55 a tile on the first island, 1.5 on the fourth, 3.15 on the sixth, 8.18
+on the tenth, 12.5 on the fifteenth and 19.2 on the twentieth. The rate is that, whole and rising every expansion.
+The dear pieces are dear for their looks now. Paths, fences and water tiles keep their own small charm (§4.1 to
+4.3), and so do buildings. The measured pacing (§10) is unchanged: its model player puts down no decor, its charm all
+from buildings and driftlings.
 
 | Row | Pieces |
 |---|---|
@@ -2467,7 +2490,7 @@ reason.
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
   ink plate, a new one every few seconds ("Shells pay for every egg you hatch and everything you build.", "Decor adds charm, and charm brings in more
-  shells.", "The Tree of Life lays new
+  shells.", "Decor gives charm for every tile it covers, and more as the island grows.", "The Tree of Life lays new
   eggs every few minutes.", "Rare driftlings work much faster than common ones.", "When the huts are full, swap a weak
   one for a better one.", "Blue-spotted eggs hatch rare ones. Keep some shells for them.", "Grow the island and the
   tree lays more eggs, and better ones."). Everything is laid out from the screen's size each time it changes (the old

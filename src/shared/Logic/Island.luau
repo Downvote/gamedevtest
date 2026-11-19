@@ -123,7 +123,15 @@ end
 -- charm share (the request of 2026-11-19: "a percentage boost to charm, while keeping some as a flat boost").
 function Island.charm(p: Profile, isle: Isle?): number
 	local i = isle or Island.isle(p)
-	return math.max(0, (count(p, "charm") + i.charm) * (1 + i.charmPct))
+	-- (a decor piece's grows with the island's tier: Buildings.charmOf)
+	local pieces = 0
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d then
+			pieces += Buildings.charmOf(d, p.tier)
+		end
+	end
+	return math.max(0, (pieces + i.charm) * (1 + i.charmPct))
 end
 
 -- What charm adds to every shell the island makes (0.25 = +25%): CharmMax x charm / (charm + CharmHalf), a soft curve

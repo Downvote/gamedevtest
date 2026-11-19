@@ -66,6 +66,13 @@ local Tuning = {
 	-- counts the most, and the bonus never passes CharmMax
 	CharmMax = 1,
 	CharmHalf = 200,
+	-- every decor piece's charm for each tile of its footprint (w x d), whatever it is, by the island's tier (the
+	-- requests of 2026-11-19: "make decor all give the same amount of charm, scaling based on their size instead",
+	-- then "in order to match the previous charm decor gives, make it such that the charm they give scale off
+	-- expansions as well"): what the old decor gave a tile on average, all of it an island of that tier could have,
+	-- weighted by size (0.55, 0.82, 1.24, 1.5, 1.91, 3.15, 3.93, 5, 6.34, 8.18, 8, 10.1, 10.1, 9.86, 12.5, 12.4, 12.2,
+	-- 15.4, 15.4, 19.2), whole and rising with every expansion
+	DecorCharm = { 1, 1, 1, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19 },
 	Refund = 0.5, -- clearing a piece away gives back this share of its price
 	UpgradeMult = { 1, 1.6, 2.3 }, -- a building that makes something, by its level (levels from before upgrades
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
