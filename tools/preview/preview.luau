@@ -2908,6 +2908,82 @@ local function cthumbsScenario(arg: string?)
 	return require("./cosmetic_thumbs")(env)
 end
 SCEN.cthumbs = cthumbsScenario
+-- "showcase=<tier>": a well decorated town on an island of that tier (the request of 2026-11-19: "could you make an
+-- example of a well decorated town across all expansions?"), laid out by tools/preview/showcase.luau within the game's
+-- rules and limits, its huts full of driftlings. Frames: showcase<tier>_far_1 .. (the View slider all the way out,
+-- the founder walking north up the avenue so every part of the island is seen once) and showcase<tier>_near_1 ..
+-- (the usual view: the plaza, then a few blocks up the island).
+local function showcaseScenario(tier: number)
+	local Plot = H.sharedServer("Logic.Plot")
+	local Creatures = H.sharedServer("Data.Creatures")
+	local plan = require("./showcase")({ Plot = Plot, Buildings = H.sharedServer("Data.Buildings"), Street = H.sharedServer("Data.Street"), log = log })
+	local info = nil
+	local pals = {}
+	for k = 1, math.min(Plot.housingLimit(tier), 40) do
+		table.insert(pals, Creatures.list[(k * 7 - 1) % #Creatures.list + 1].id)
+	end
+	local uid = 40 + tier
+	seedProfile(uid, tier, {
+		fill = function(prof)
+			info = plan(prof)
+		end,
+		pals = pals,
+		shells = 9e9,
+	})
+	local p = join(uid, "Showcase")
+	settle(p, 90, 2)
+	E.run(3)
+	local Street = H.sharedServer("Data.Street")
+	local ox = Street.origin(H.session(p).plot)
+	local zN = if info then info.zN else -10
+	local function walkTo(x: number, z: number)
+		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			p.Character:PivotTo(E.cf.new(ox + x, 3, z))
+			E.run(2)
+			settle(p, 60, 1)
+		end
+		E.run(1.5)
+	end
+	-- far out: the View slider's first notch
+	local SU = modOr(p, "UI.SettingsUI")
+	H.openPanel(p, "settings")
+	E.run(0.4)
+	if SU then
+		H.inClient(p, SU.setZoom, 1)
+	end
+	E.run(0.8)
+	H.closePanel(p)
+	E.run(0.5)
+	local k = 0
+	local z = 2
+	while true do
+		k += 1
+		walkTo(-1, z)
+		capture(p, string.format("showcase%d_far_%d", tier, k))
+		if z - 40 < zN + 10 then
+			break
+		end
+		z -= 60
+	end
+	-- the usual view: the plaza and a few blocks north
+	H.openPanel(p, "settings")
+	E.run(0.4)
+	if SU then
+		H.inClient(p, SU.setZoom, H.sharedServer("Config.Tuning").CamZoomDefault)
+	end
+	E.run(0.8)
+	H.closePanel(p)
+	E.run(0.5)
+	local near = { { -1, 4 }, { -14, -18 }, { 14, -18 }, { -14, -38 }, { 14, -38 } }
+	for i, s in near do
+		if s[2] >= zN + 4 then
+			walkTo(s[1], s[2])
+			capture(p, string.format("showcase%d_near_%d", tier, i))
+		end
+	end
+	return p
+end
+
 -- "alerts": the alerts with their longest words, so the log's OVERFLOW lines catch any cut short (the request of
 -- 2026-11-19, "it seems like the text gets cut off for some alerts", with "An egg hat..." over "Blazemane hatched!"):
 -- the banner for one egg hatched (alerts_hatch), for three with the longest kind's name, new (alerts_hatch3), the
@@ -3910,6 +3986,12 @@ for _, name in list do
 	if epArg then
 		fn = function()
 			return expandPerf(tonumber(epArg) :: number)
+		end
+	end
+	local showArg = string.match(name, "^showcase=(%d+)$")
+	if showArg then
+		fn = function()
+			return showcaseScenario(tonumber(showArg) :: number)
 		end
 	end
 	local zoomArg = string.match(name, "^zoom=(%d+)$")
