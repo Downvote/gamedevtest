@@ -266,45 +266,180 @@ local function palById(v: Types.ClientView, id: number?): Types.Pal?
 	return nil
 end
 
--- The parent picker: the island's driftlings (not the other parent), each with its passive and mutations.
-local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, slot: string)
-	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
-	local top = hint(body, "Pick a parent. Its kind and its mutations pass to the egg.", W)
-	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
-	UIKit.vlist(list, 2)
-	local pick: Pick = breedPick[uid] or {}
-	local other = if slot == "a" then pick.b else pick.a
-	local n = 0
+-- The parent picker's search and order (the request of 2026-11-19: "for hatchery, make a search function, and a sort
+-- by mutation rarity or creature rarity"). Both stay while the game runs, so the second parent's list opens the way the
+-- first one's was left.
+local pickQuery = ""
+local pickSort = "rarity" -- "rarity": the rarest kind first; "muts": the rarest mutations first
+
+-- A driftling's mutations as tiers, the highest first (the key the mutation order compares).
+local function mutTiers(x: Types.Pal): { number }
+	local out: { number } = {}
+	for _, id in Traits.clean(x.muts) do
+		local m = Traits.byId[id]
+		if m then
+			table.insert(out, m.tier)
+		end
+	end
+	table.sort(out, function(a, b)
+		return a > b
+	end)
+	return out
+end
+
+-- Whose mutations are rarer: the highest tier decides, then the next, then whoever has more. -1: a's, 1: b's, 0: even.
+local function cmpMuts(a: { number }, b: { number }): number
+	for i = 1, math.max(#a, #b) do
+		local x, y = a[i] or 0, b[i] or 0
+		if x ~= y then
+			return if x > y then -1 else 1
+		end
+	end
+	return 0
+end
+
+-- What the search looks through: the kind's name, its rarity, its passive and its mutations' names, in lower case.
+local function searchWords(x: Types.Pal, d: any): string
+	local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+	local words = { d.name, rar.name, d.passive.name }
+	for _, id in Traits.clean(x.muts) do
+		local m = Traits.byId[id]
+		if m then
+			table.insert(words, m.name)
+		end
+	end
+	return string.lower(table.concat(words, " "))
+end
+
+-- The driftlings the picker lists for a search and an order (not the other parent): the rarest first by the order
+-- picked, the other order breaking ties, then by name and the oldest first. Sims read it too.
+local function parentList(v: Types.ClientView, other: number?, q: string, sort: string): { Types.Pal }
+	type Entry = { x: Types.Pal, d: any, tiers: { number } }
+	local found: { Entry } = {}
 	for _, x in v.pals do
 		local d = Creatures.byId[x.sp]
 		if d == nil or x.id == other then
 			continue
 		end
-		n += 1
-		local f = row(list, n, 38)
-		f.Name = "Parent_" .. x.id
-		PalTip.attach(f, x)
-		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
-		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-		UIKit.text(f, string.format("%s  %s", d.name, rar.name), UDim2.fromOffset(W - 106, 10), UDim2.fromOffset(PX, 4), { color = UIKit.color(rar.color), z = 4 })
-		UIKit.text(f, d.passive.name, UDim2.fromOffset(W - 106, 10), UDim2.fromOffset(PX, 14), { color = UIKit.color("accent"), z = 4 })
-		mutLine(f, x.muts or {}, PX, 24, W - 106)
-		UIKit.button(f, "Pick", UDim2.fromOffset(46, 13), UDim2.new(1, -50, 0, 10), function()
-			local cur: Pick = breedPick[uid] or {}
-			if slot == "a" then
-				cur.a = x.id
-			else
-				cur.b = x.id
+		if q ~= "" and string.find(searchWords(x, d), q, 1, true) == nil then
+			continue
+		end
+		table.insert(found, { x = x, d = d, tiers = mutTiers(x) })
+	end
+	table.sort(found, function(a, b)
+		local byMuts = cmpMuts(a.tiers, b.tiers)
+		if sort == "muts" and byMuts ~= 0 then
+			return byMuts < 0
+		end
+		if a.d.rarity ~= b.d.rarity then
+			return a.d.rarity > b.d.rarity
+		end
+		if byMuts ~= 0 then
+			return byMuts < 0
+		end
+		if a.d.name ~= b.d.name then
+			return a.d.name < b.d.name
+		end
+		return a.x.id < b.x.id
+	end)
+	local out: { Types.Pal } = {}
+	for _, e in found do
+		table.insert(out, e.x)
+	end
+	return out
+end
+
+-- The parent picker: the island's driftlings (not the other parent), each with its passive and mutations; a search box
+-- and the two orders over the list. Typing or a new order fills the list again (the box stays, so the keyboard does
+-- too).
+local SORTS = { { id = "rarity", text = "Rarity" }, { id = "muts", text = "Mutations" } }
+local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, slot: string)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local top = hint(body, "Pick a parent. Its kind and its mutations pass to the egg.", W)
+	local pick: Pick = breedPick[uid] or {}
+	local other = if slot == "a" then pick.b else pick.a
+	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top - 14), UDim2.fromOffset(0, top + 14))
+	UIKit.vlist(list, 2)
+	local function fill()
+		for _, c in list:GetChildren() do
+			if c:IsA("GuiObject") then
+				c:Destroy()
 			end
-			breedPick[uid] = cur
-			Audio.play("pop")
-			UIKit.openPanel("hatch")
-		end, { name = "PickParent_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
+		end
+		list.CanvasPosition = Vector2.zero
+		local shown = parentList(v, other, pickQuery, pickSort)
+		for n, x in shown do
+			local d = Creatures.byId[x.sp]
+			if d == nil then
+				continue
+			end
+			local f = row(list, n, 38)
+			f.Name = "Parent_" .. x.id
+			PalTip.attach(f, x)
+			PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
+			local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+			UIKit.text(f, string.format("%s  %s", d.name, rar.name), UDim2.fromOffset(W - 106, 10), UDim2.fromOffset(PX, 4), { color = UIKit.color(rar.color), z = 4 })
+			UIKit.text(f, d.passive.name, UDim2.fromOffset(W - 106, 10), UDim2.fromOffset(PX, 14), { color = UIKit.color("accent"), z = 4 })
+			mutLine(f, x.muts or {}, PX, 24, W - 106)
+			UIKit.button(f, "Pick", UDim2.fromOffset(46, 13), UDim2.new(1, -50, 0, 10), function()
+				local cur: Pick = breedPick[uid] or {}
+				if slot == "a" then
+					cur.a = x.id
+				else
+					cur.b = x.id
+				end
+				breedPick[uid] = cur
+				Audio.play("pop")
+				UIKit.openPanel("hatch")
+			end, { name = "PickParent_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
+		end
+		if #shown == 0 then
+			local f = row(list, 1, 24)
+			f.Name = "NoParent"
+			local words = if pickQuery ~= "" then "No driftling matches that. Try a kind, a rarity or a mutation." else "No driftling to pick yet."
+			UIKit.text(f, words, UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		end
 	end
-	if n == 0 then
-		local f = row(list, 1, 24)
-		UIKit.text(f, "No driftling to pick yet.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4 })
+	-- the orders at the right ("Sort by" and a button each, the picked one teal), the search box in the room left
+	local x = W
+	local sortButtons: { [string]: TextButton } = {}
+	for k = #SORTS, 1, -1 do
+		local s = SORTS[k]
+		local bw = UIKit.buttonWidth(s.text, 5)
+		x -= bw
+		sortButtons[s.id] = UIKit.button(body, s.text, UDim2.fromOffset(bw, 12), UDim2.fromOffset(x, top), function()
+			if pickSort ~= s.id then
+				pickSort = s.id
+				Audio.play("pop")
+				for id, b in sortButtons do
+					UIKit.setButtonColor(b, if id == pickSort then UIKit.color("button") else UIKit.color("plate_light"))
+				end
+				fill()
+			end
+		end, { name = "Sort_" .. s.id, color = if pickSort == s.id then UIKit.color("button") else UIKit.color("plate_light") })
+		x -= 2
 	end
+	local lead = "Sort by"
+	local lw = UIKit.textWidth(lead) + 2
+	x -= lw + 2
+	UIKit.text(body, lead, UDim2.fromOffset(lw, 10), UDim2.fromOffset(x, top + 1), { color = UIKit.color("text_dim"), name = "SortLead" })
+	UIKit.searchBox(body, x - 6, UDim2.fromOffset(0, top), function(q: string)
+		pickQuery = q
+		fill()
+	end, "PalSearch", pickQuery)
+	fill()
+end
+
+-- Sims and previews: what the parent picker lists for a search and an order, and the order it opens with.
+function Menus.debugParents(other: number?, q: string, sort: string): { number }
+	local v = StateClient.view()
+	local out: { number } = {}
+	if v then
+		for _, x in parentList(v, other, q, sort) do
+			table.insert(out, x.id)
+		end
+	end
+	return out
 end
 
 local function buildHatch(body: Frame, arg: any?)

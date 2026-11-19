@@ -569,12 +569,129 @@ do
 		local x = Tree.add(prof, "gullfin", { "swift2", if k == 1 then "grower1" else "lazy" })
 		table.insert(ids, x.id)
 	end
+	-- (and two more for the parent picker's orders: the rarest kind with no mutations, a common one with a tier 4 one)
+	local rareId = Tree.add(prof, "pyrelord", {}).id
+	local mutId = Tree.add(prof, "gullfin", { Traits.at("busy", 4) }).id
 	H.push(p, 0.4)
 	-- through the panels as a player: the Driftlings panel's Hatchery button, a parent in each slot, Breed
 	H.openPanel(p, "pals")
 	H.clickNamed(p, "OpenHatch", { wait = 0.4 })
 	H.expect(H.currentPanel(p) == "hatch", "hatchery", "the Driftlings panel opens the Hatchery")
 	H.clickNamed(p, "Slot_a_" .. uid, { wait = 0.4 })
+	-- the parent picker's search and orders (the request of 2026-11-19: "for hatchery, make a search function, and a
+	-- sort by mutation rarity or creature rarity"): the rarest kind first, or the rarest mutations first; the search
+	-- looks through each one's kind, rarity, passive and mutations
+	do
+		local MenusC = H.cmod(p, "UI.Menus")
+		local CreaturesC = H.sharedServer("Data.Creatures")
+		local function listed(): { number }
+			local panel = p.PlayerGui:FindFirstChild("Panel_hatch", true)
+			local list = if panel then panel:FindFirstChild("List", true) else nil
+			local rows = {}
+			for _, c in if list then list:GetChildren() else {} do
+				local id = tonumber(string.match(c.Name, "^Parent_(%d+)$"))
+				if id then
+					table.insert(rows, { id = id, o = c.LayoutOrder })
+				end
+			end
+			table.sort(rows, function(a, b)
+				return a.o < b.o
+			end)
+			local out = {}
+			for _, r in rows do
+				table.insert(out, r.id)
+			end
+			return out
+		end
+		local function palOf(id)
+			for _, x in prof.pals do
+				if x.id == id then
+					return x
+				end
+			end
+			return nil
+		end
+		local function rarityOf(id): number
+			local x = palOf(id)
+			local d = if x then CreaturesC.byId[x.sp] else nil
+			return if d then d.rarity else 0
+		end
+		local function topTier(id): number
+			local x = palOf(id)
+			local best = 0
+			for _, m in Traits.clean(if x then x.muts else nil) do
+				local t = Traits.byId[m]
+				if t and t.tier > best then
+					best = t.tier
+				end
+			end
+			return best
+		end
+		local function wordsOf(x): string
+			local d = CreaturesC.byId[x.sp]
+			local w = { d.name, (Traits.RARITY[d.rarity] or Traits.RARITY[1]).name, d.passive.name }
+			for _, m in Traits.clean(x.muts) do
+				table.insert(w, Traits.byId[m].name)
+			end
+			return string.lower(table.concat(w, " "))
+		end
+		local function pos(list, id): number
+			return table.find(list, id) or 0
+		end
+		local box = p.PlayerGui:FindFirstChild("PalSearch", true)
+		local tb = if box then box:FindFirstChild("Box") else nil
+		H.expect(tb ~= nil and tb:IsA("TextBox") and H.buttonNamed(p, "Sort_rarity") ~= nil and H.buttonNamed(p, "Sort_muts") ~= nil, "hatchery", "the parent picker: a search box and two orders, Rarity and Mutations")
+		local all = listed()
+		local byRarity = true
+		for i = 2, #all do
+			if rarityOf(all[i]) > rarityOf(all[i - 1]) then
+				byRarity = false
+			end
+		end
+		H.expect(#all == #prof.pals and byRarity and pos(all, rareId) > 0 and pos(all, rareId) < pos(all, mutId), "hatchery", "every driftling, the rarest kind first (Rarity, the order it opens with)", string.format("%d of %d listed, Pyrelord %d, the Workaholic Gullfin %d", #all, #prof.pals, pos(all, rareId), pos(all, mutId)))
+		H.clickNamed(p, "Sort_muts", { wait = 0.2 })
+		local bym = listed()
+		local byMuts = true
+		for i = 2, #bym do
+			if topTier(bym[i]) > topTier(bym[i - 1]) then
+				byMuts = false
+			end
+		end
+		local want = H.inClient(p, MenusC.debugParents, nil, "", "muts")
+		H.expect(#bym == #all and byMuts and pos(bym, mutId) < pos(bym, rareId) and table.concat(bym, ",") == table.concat(want, ","), "hatchery", "Mutations: the rarest mutations first (a tier 4 one before the rarest kind with none)", string.format("Gullfin %d, Pyrelord %d", pos(bym, mutId), pos(bym, rareId)))
+		local function search(text: string): { number }
+			H.inClient(p, function()
+				(tb :: any).Text = text
+			end)
+			E.run(0.2)
+			return listed()
+		end
+		-- (what it finds is exactly the ones with those words, in any case)
+		local function exact(got: { number }, q: string): boolean
+			local n = 0
+			for _, x in prof.pals do
+				local has = string.find(wordsOf(x), string.lower(q), 1, true) ~= nil
+				if has then
+					n += 1
+				end
+				if has ~= (pos(got, x.id) > 0) then
+					return false
+				end
+			end
+			return n == #got
+		end
+		local byKind = search("Pyre")
+		H.expect(pos(byKind, rareId) > 0 and exact(byKind, "pyre"), "hatchery", "the search finds a kind by name (\"Pyre\": the Pyrelords)", #byKind .. " listed")
+		local mname = Traits.byId[Traits.at("busy", 4)].name
+		local byMut = search(string.upper(mname))
+		H.expect(pos(byMut, mutId) > 0 and exact(byMut, mname), "hatchery", "and a mutation by its name, in any case", mname .. ": " .. #byMut .. " listed")
+		local none = search("zzqx")
+		H.expect(#none == 0 and p.PlayerGui:FindFirstChild("NoParent", true) ~= nil, "hatchery", "nothing matching: a line saying so")
+		local back = search("")
+		H.expect(#back == #all, "hatchery", "an empty search lists them all again", #back .. " of " .. #all)
+		H.clickNamed(p, "Sort_rarity", { wait = 0.2 })
+		H.expect(table.concat(listed(), ",") == table.concat(all, ","), "hatchery", "and Rarity puts the rarest kind first again")
+	end
 	H.clickNamed(p, "PickParent_" .. ids[1], { wait = 0.4 })
 	H.clickNamed(p, "Slot_b_" .. uid, { wait = 0.4 })
 	H.expect(H.buttonNamed(p, "PickParent_" .. ids[1]) == nil, "hatchery", "the first parent is not offered again")

@@ -1814,6 +1814,14 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
   the pair's row shows the egg's kind (its portrait once met, else a dark shape and ???) and rarity, "Hatches with:"
   and its mutations in their tier colours and stars, and "Costs 300 shells, hatches in 12 min." beside Breed
   (`Breed.preview`). An egg warming shows its mutations too. Finish now sits in the first warming egg's row.
+- **Picking a parent** (the request of 2026-11-19: "for hatchery, make a search function, and a sort by mutation
+  rarity or creature rarity"): a slot opens a list of your driftlings (not the other parent) with a search box and
+  **Sort by Rarity / Mutations** over it. **Rarity** (the order it opens with) puts the rarest kind first, the rarest
+  mutations next among kinds just as rare. **Mutations** puts the rarest mutations first: the highest tier decides,
+  then the next one down, then whoever has more (a flaw counts for nothing), with the rarer kind ahead when they tie.
+  The search looks through each one's kind, rarity, passive and mutation names in any case ("gull", "mythic",
+  "workaholic"); nothing matching says "No driftling matches that. Try a kind, a rarity or a mutation." The words and
+  the order stay while the game runs, so the second slot's list opens the way the first one's was left.
 - **Laying an egg**: tap each slot, pick a parent from your driftlings (not the other one); the
   panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
   price and how long it takes to hatch, in minutes or hours ("hatches in 4 min"); **Breed** pays it (`BreedShells` 20 / 80 / 300 / 1,200 / 5,000 / 22,000 /

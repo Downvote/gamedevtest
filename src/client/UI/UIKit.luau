@@ -794,6 +794,47 @@ function UIKit.scroll(parent: Instance?, size: UDim2, pos: UDim2?): ScrollingFra
 	return s
 end
 
+-- A search box (Build mode's, the Hatchery's parent picker): a see-through TextBox ("Box") over the pixel font's copy
+-- of its words ("Query", "Search" while empty), a clear mark ("ClearSearch") while there are any. `onChange` gets the
+-- words in lower case, trimmed, whenever they change; `text` the words it starts with.
+function UIKit.searchBox(parent: Instance?, w: number, pos: UDim2, onChange: (q: string) -> (), name: string, text: string?): Frame
+	local f = UIKit.row(parent, UDim2.fromOffset(w, 12), pos)
+	f.Name = name
+	local box = Instance.new("TextBox")
+	box.Name = "Box"
+	box.Text = text or ""
+	box.PlaceholderText = ""
+	box.ClearTextOnFocus = false
+	box.MultiLine = false
+	box.TextTransparency = 1
+	box.TextStrokeTransparency = 1
+	box.TextSize = 1
+	box.BackgroundTransparency = 1
+	box.BorderSizePixel = 0
+	box.Size = UDim2.fromScale(1, 1)
+	box.ZIndex = 8
+	box.Parent = f
+	local mirror = UIKit.text(f, "Search", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 7, name = "Query" })
+	local clear = UIKit.button(f, "x", UDim2.fromOffset(12, 10), UDim2.new(1, -13, 0, 1), function()
+		box.Text = ""
+	end, { name = "ClearSearch", color = UIKit.color("plate_light") })
+	local last: string? = nil
+	local function show()
+		local q = string.lower((string.gsub(string.gsub(box.Text, "^%s+", ""), "%s+$", "")))
+		clear.Visible = q ~= ""
+		UIKit.setText(mirror, if q ~= "" then box.Text else "Search")
+		UIKit.setTextColor(mirror, if q ~= "" then UIKit.color("text") else UIKit.color("text_dim"))
+		if last ~= nil and q ~= last then
+			last = q
+			onChange(q)
+		end
+		last = q
+	end
+	show()
+	box:GetPropertyChangedSignal("Text"):Connect(show)
+	return f
+end
+
 ------------------------------------------------------------------ panels
 -- The notices on screen (UIKit.notice); a panel that opens clears them so none sits over it.
 local noticeList: { Frame } = {}

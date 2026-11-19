@@ -1413,38 +1413,13 @@ end
 local function searchField(parent: Frame, w: number, pos: UDim2): Frame
 	local f = search
 	if f == nil then
-		local nf = UIKit.row(nil, UDim2.fromOffset(w, 12), pos)
-		nf.Name = "BuildSearch"
-		local box = Instance.new("TextBox")
-		box.Name = "Box"
-		box.Text = ""
-		box.PlaceholderText = ""
-		box.ClearTextOnFocus = false
-		box.MultiLine = false
-		box.TextTransparency = 1
-		box.TextStrokeTransparency = 1
-		box.TextSize = 1
-		box.BackgroundTransparency = 1
-		box.BorderSizePixel = 0
-		box.Size = UDim2.fromScale(1, 1)
-		box.ZIndex = 8
-		box.Parent = nf
-		local mirror = UIKit.text(nf, "Search", UDim2.fromOffset(w - 16, 10), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 7, name = "Query" })
-		local clear = UIKit.button(nf, "x", UDim2.fromOffset(12, 10), UDim2.new(1, -13, 0, 1), function()
-			box.Text = ""
-		end, { name = "ClearSearch", color = UIKit.color("plate_light") })
-		clear.Visible = false
-		box:GetPropertyChangedSignal("Text"):Connect(function()
-			local q = string.lower((string.gsub(box.Text, "^%s+", "")))
-			clear.Visible = q ~= ""
-			UIKit.setText(mirror, if q ~= "" then box.Text else "Search")
-			UIKit.setTextColor(mirror, if q ~= "" then UIKit.color("text") else UIKit.color("text_dim"))
+		local nf = UIKit.searchBox(nil, w, pos, function(q: string)
 			if q ~= query then
 				query = q
 				cardScroll = 0
 				rebuild()
 			end
-		end)
+		end, "BuildSearch")
 		search = nf
 		f = nf
 	end

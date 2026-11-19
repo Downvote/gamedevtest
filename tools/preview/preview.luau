@@ -1810,6 +1810,33 @@ local function panelScenario(name)
 		log("no UIKit.openPanel: capturing the HUD")
 	end
 	capture(p, "panel_" .. name .. (if arg then "_" .. arg else ""))
+	if name == "hatch" and UIKit and UIKit.openPanel then
+		-- the parent picker (the request of 2026-11-19: "for hatchery, make a search function, and a sort by mutation
+		-- rarity or creature rarity"): the rarest kind first (panel_hatch_picker), then the rarest mutations first with a
+		-- search typed in (panel_hatch_search)
+		local prof = H.profile(p)
+		local slot = nil
+		for _, q in prof.plot.placed do
+			if q.id == "hatchery" and q.uid ~= (prof.eggs[1] and prof.eggs[1].uid or -1) then
+				slot = q.uid
+			end
+		end
+		if slot then
+			H.clickNamed(p, "Slot_a_" .. slot, { wait = 0.4 })
+			E.run(0.4)
+			capture(p, "panel_hatch_picker")
+			H.clickNamed(p, "Sort_muts", { wait = 0.3 })
+			local box = p.PlayerGui:FindFirstChild("PalSearch", true)
+			local tb = if box then box:FindFirstChild("Box") else nil
+			if tb then
+				H.inClient(p, function()
+					(tb :: any).Text = "Gull"
+				end)
+			end
+			E.run(0.4)
+			capture(p, "panel_hatch_search")
+		end
+	end
 	if name == "pal" and UIKit and UIKit.openPanel then
 		-- a neighbour's driftling, only to look at: what its island's Pals attribute says
 		H.openPanel(p, "pal", { id = 9, plot = 99, sp = "gullfin", muts = { "trader2", "rainy3" }, work = "patch", home = "nest", isle = "Bo's Isle" })

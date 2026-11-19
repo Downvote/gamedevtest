@@ -1506,7 +1506,10 @@ darker 1 px "Lip"; a coloured button flat in its colour, lighter while hovered, 
 colour (`plate`, `plate_light`, `frame`, `frame_dark`, `glass`) makes a dark glass button: `glass` at `DARK_ALPHA`
 0.3, white words, a faint veil while hovered, no lip; `opts.ghost` (the menu bar) shows no surface until hovered,
 then a veil; `opts.textColor`; disabled = `AutoButtonColor` false; fires on `Activated`), `setEnabled`, `setButtonText`,
-`setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `confetti(parent, n?,
+`setButtonColor`, `buttonWidth`, `bar -> (frame, set)`, `clear`, `vlist`, `hlist`, `scroll`, `searchBox(parent, w, pos,
+onChange, name, text?) -> Frame` (Build mode's `BuildSearch` and the Hatchery picker's `PalSearch`: a see-through
+TextBox `Box` over the pixel font's `Query`, "Search" while empty, the clear mark `ClearSearch` while there are words;
+`onChange(q)` with the words trimmed and in lower case whenever they change), `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
 (`registerPanel(name, { title, icon?, w, h, hFor?, props?, build })`, `hFor(w)` the height for the width the screen leaves it in place of `h` (Settings: its rows wrap on a narrow panel), the body that big with the awning on top (`SHEET_TOP` 25 UI px), within the screen less a few px; since 2026-11-19 ("Look at the bakery game and see its menu. Make a similarly polished and themed menu for different tabs") a **sheet** over a `sea_shade` veil (0.45 transparent): a "Frame" holding the "Glass" plate (black glass at `PANEL_ALPHA`), the "Head" (the awning: a "Band" clip with the `awning` plate, its "Stripe"s and "Fold"s, the "Hem" of `SCALLOP` 9 px scallops; the "Icon" `mini_<icon>`, the "Title" in cream with an ink outline, the "Status" line, the "Props" shelf with the def's `props` mini icons, the "Close" button (`awning_dark`, the `mini_close` sprite)) and the "Body"; `openPanel(name, arg)`, `openCount()` (openings so far: a panel takes its argument's tab once an opening), `closePanel`, `currentPanel`,
 `refreshPanel` (keeps the "List" scroll), `PanelChanged`, `bodyWidth`, `bodyHeight`). (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
@@ -1872,7 +1875,15 @@ swap }`; with `{ hatch = id, bag = true }` the same for a bag egg ("... for the 
 `SwapTake_<id>` sending `EggView.hatchBag(id, swap)`); once a new lot has replaced the egg, "That egg is gone. The tree laid new ones." and back to the tree
 panel), "hatch" (the `Hint`: "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Legendary and up need both parents that rare.", the panel's whole width; a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
 `EggName`, `EggLeft` ("Hatches in 3 min"), `EggBar`, its parents, `FinishNow` in the first warming egg's row: `StoreUI.buy("HatcheryNow")`) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
-picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`), the likely child
+picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`; over the list the search box
+`PalSearch` (`UIKit.searchBox`) and "Sort by" `Sort_rarity` / `Sort_muts`, the picked one teal (2026-11-19: "for
+hatchery, make a search function, and a sort by mutation rarity or creature rarity"): `parentList(v, other, q, sort)`
+keeps the driftlings whose kind, rarity, passive or mutation names hold the words and orders them, `rarity` by the
+kind's rarity then the mutations, `muts` by the mutations (their tiers highest first, compared in turn, then the
+count; a flaw is 0) then the rarity, then the name and the id; typing or a new order fills the "List" again without
+building the panel, so the box keeps the keyboard; the words and the order stay in the module (`pickQuery`,
+`pickSort`) while the game runs; `NoParent` when nothing matches; `Menus.debugParents(other, q, sort) -> { id }` for
+the sims), the likely child
 (`Child`: its portrait if seen, else its shape and ???, its rarity), `Cost` ("Costs 300 shells, hatches in 12 min. Mutations both carry pass on, maybe a tier up. The rest pass on half the time.", up to three lines, the row 76 px for a third),
 `Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`: portrait or silhouette, name or "???", the
 kind of island it comes from, its passive once seen; "Seen n of 55 kinds"; a kind not open yet says the island tier
