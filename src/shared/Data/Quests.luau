@@ -75,12 +75,14 @@ local list: { Quest } = {
 		icon = "star",
 	},
 	{
+		-- (a second farm till every workplace became one kind of work, 2026-11-19: the tips' camp, patch and stall and
+		-- one more)
 		id = "farm",
-		title = "Another farm",
-		text = "Build a second farm or a fishing pier. They sell what they grow for shells.",
-		goal = { kind = "built", n = 2, of = "farm" },
+		title = "Another workplace",
+		text = "Build one more workplace. Each one sells what it makes for shells.",
+		goal = { kind = "built", n = 4, of = "work" },
 		reward = { shells = 120 },
-		go = "build:farm",
+		go = "build:work",
 		icon = "shell",
 	},
 	{

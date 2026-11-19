@@ -36,6 +36,7 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
 local StoreUI = require(script.Parent.StoreUI)
+local RewardsUI = require(script.Parent.RewardsUI)
 local SettingsUI = require(script.Parent.SettingsUI)
 local WelcomeUI = require(script.Parent.WelcomeUI)
 local BuildUI = require(script.Parent.BuildUI)
@@ -371,6 +372,8 @@ local MENUS: { Menu } = {
 	{ text = "Driftlings", panel = "pals", icon = "pal" },
 	{ text = "Index", panel = "index", icon = "star" },
 	{ text = "Looks", panel = "looks", icon = "visitor" },
+	-- the rewards for coming back and playing (UI/RewardsUI, 2026-11-19): a red dot while something waits
+	{ text = "Gifts", panel = "rewards", icon = "gift" },
 	-- the store (GAME_DESIGN 14, 2026-11-14): passes, products, the rotating shop and the pass track
 	{ text = "Store", panel = "store", icon = "store" },
 	-- the settings (UI/SettingsUI, 2026-11-14: "Add a settings tab, replacing the music button"): music, sounds, pixel art
@@ -389,6 +392,7 @@ local function menus(): { Menu }
 	return out
 end
 local MENU_ICON = 13 -- a menu button's icon (11 px and a gap) before its words
+local giftDot: Frame? = nil
 
 local function buildBar()
 	local canvas = UIKit.canvas("Hud")
@@ -431,6 +435,14 @@ local function buildBar()
 		})
 		b.ZIndex = 2
 		PixelSprites.image(b, "mini_" .. m.icon, UDim2.fromOffset(3, 2), 6)
+		if m.panel == "rewards" then
+			-- the red dot over the gift while something waits (RewardsUI.ready; Hud's second shows and hides it)
+			local dot = UIKit.rect(b, UDim2.fromOffset(5, 5), UDim2.fromOffset(10, 0), UIKit.color("ink"), 7)
+			dot.Name = "Dot"
+			UIKit.rect(dot, UDim2.fromOffset(3, 3), UDim2.fromOffset(1, 1), UIKit.color("bad"), 8)
+			dot.Visible = false
+			giftDot = dot
+		end
 		local words = b:FindFirstChild("Words")
 		if words and words:IsA("GuiObject") then
 			words.Position = UDim2.fromOffset(MENU_ICON + 1, 0)
@@ -1065,6 +1077,7 @@ end
 function Hud.start()
 	Menus.init()
 	StoreUI.init()
+	RewardsUI.init()
 	SettingsUI.init()
 	WelcomeUI.init()
 	rebuild()
@@ -1117,6 +1130,7 @@ function Hud.start()
 		stack()
 	end)
 	local lastBeat = os.clock()
+	local rewardsAt = 0
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		local dt = math.min(0.1, now - lastBeat)
@@ -1167,6 +1181,20 @@ function Hud.start()
 		SettingsUI.apply()
 		-- the welcome-back card, once a report, when nothing else is up (GAME_DESIGN 14.3)
 		WelcomeUI.step()
+		-- the rewards (UI/RewardsUI): the Gifts button's dot, the next gift's and the timed boosts' lines, a few times a
+		-- second
+		if now - rewardsAt >= 0.25 then
+			rewardsAt = now
+			local rv = StateClient.view()
+			local dot = giftDot
+			if dot and dot.Parent then
+				local want = RewardsUI.ready(rv) > 0
+				if dot.Visible ~= want then
+					dot.Visible = want
+				end
+			end
+			RewardsUI.status(rv, Hud.statusLine)
+		end
 		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
 		-- clear of the tray's and the panels' buttons) and while swimming; in the sea the founder swims slower
 		local char = Players.LocalPlayer.Character

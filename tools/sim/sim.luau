@@ -1,7 +1,7 @@
 -- The main simulation: a new island end to end through the real client and its UI (the campfire, the sign, the Tree of
 -- Life with its first lot of eggs round its roots, the HUD with the tree's card, the tips), building what the tips ask
 -- in their order (a lumber camp, a veggie patch, a hut, then an egg hatched by tapping it, then a snack stall: the
--- starting shells cover them; Build mode turns its tray to Work's Wood row, then Farms, Huts and Shops), the
+-- starting shells cover them; Build mode turns its tray to Work's Workplaces row, then Huts, then back), the
 -- tree in Build mode (moved like any piece, never cleared away), the days turning (the stores grow, every building
 -- working a little with nobody at it), the tree's eggs (the plot's Eggs attribute, the ring every client lays them on,
 -- the price tags and their rules, the card's best three and the time to the next lot, hatching from the card, a tag and
@@ -364,22 +364,10 @@ local function secsIn(text)
 	local m, ss = string.match(text or "", "(%d+):(%d%d)")
 	return if m then tonumber(m) * 60 + tonumber(ss) else nil
 end
--- the rarity an egg of rarity r hatches at the island's tier (one none of the open kinds has falls to the next commoner),
--- and whether that rarity has a kind of `knack`
+-- the rarity an egg of rarity r hatches at (its own on every island since the request of 2026-11-19, "Make all eggs
+-- obtainable regardless of expansion level": one none of the open kinds has hatches a kind not open yet)
 local function hatchRarity(r)
-	local pool = TreeL.pool(prof.tier)
-	while r > 1 and #pool[r] == 0 do
-		r -= 1
-	end
 	return r
-end
-local function hasKnack(r, knack)
-	for _, sp in TreeL.pool(prof.tier)[hatchRarity(r)] do
-		if Creatures.byId[sp].knack == knack then
-			return true
-		end
-	end
-	return false
 end
 -- the shells the island may have earned on its own since t1 (a turn's rate over TurnSeconds, with room to spare;
 -- `rate`: the rate before a change that may have lowered it)
@@ -546,7 +534,7 @@ H.expect(H.clickNamed(p, "Menu_build", { wait = 0.4 }) and BuildUI.isOpen(), "bu
 -- (the request of 2026-11-14: "add the free decor gamepass in the build menu")
 H.expect(H.buttonNamed(p, "BuyFreeDecor") ~= nil, "build", "Build mode offers the Free Decor pass (not owned)")
 local bst = H.inClient(p, BuildUI.debugState)
-H.expect(bst.tab == "work" and bst.chip == "wood" and bst.goal == "lumber" and goalCard("lumber") ~= nil, "build", "the first tip: the Work tab on its Wood row, the lumber camp's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
+H.expect(bst.tab == "work" and bst.chip == "work" and bst.goal == "lumber" and goalCard("lumber") ~= nil, "build", "the first tip: the Work tab on its Workplaces row, the lumber camp's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
 H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
 H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 H.expect(H.inClient(p, BuildUI.debugState).tab == "decor", "build", "the player can still look round the other tabs")
@@ -584,7 +572,7 @@ do
 	H.expect(ok, "build", "the camp built from the tray: the next tip's banner sits above the tray, not under it", say)
 end
 bst = H.inClient(p, BuildUI.debugState)
-H.expect(bst.tab == "work" and bst.chip == "farm" and bst.goal == "patch" and H.buttonNamed(p, "Buy_patch") ~= nil and goalCard("patch") ~= nil, "build", "the camp built: the tray turns to Work's Farms row and the veggie patch", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
+H.expect(bst.tab == "work" and bst.chip == "work" and bst.goal == "patch" and H.buttonNamed(p, "Buy_patch") ~= nil and goalCard("patch") ~= nil, "build", "the camp built: the tray stays on Work's Workplaces row, the veggie patch's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
 H.expect(tipShown(), "build", "the next tip's banner over the tray")
 H.clickNamed(p, "BuildDone", { wait = 0.3 })
 H.expect(not BuildUI.isOpen() and tipShown(), "build", "Done: the tray goes, the tip stays")
@@ -742,7 +730,7 @@ do
 		local first = prof.pals[1]
 		local c = first and Creatures.byId[first.sp]
 		H.expect(#prof.pals == 1 and prof.stats.taken == 1 and paid(sh1, -pick.cost, t1, rate0), "build", "Hatch in the tree's panel hatches it for its shells", string.format("%d driftlings, %+.1f shells (cost %d)", #prof.pals, prof.shells - sh1, pick.cost))
-		H.expect(c ~= nil and c.rarity == hatchRarity(pick.r) and c.knack == "wood", "build", "a driftling of the egg's rarity, good with wood (a new island's first)", first and string.format("%s r%d", first.sp, pick.r))
+		H.expect(c ~= nil and c.rarity == hatchRarity(pick.r), "build", "a driftling of the egg's rarity (a new island's first)", first and string.format("%s r%d", first.sp, pick.r))
 		H.expect(eggOf(pick.id) == nil, "build", "and the egg is gone from under the tree")
 		local hatched = fxSince(f1, "hatched")
 		H.expect(#hatched == 1 and type(hatched[1].data) == "table" and hatched[1].data.egg == pick.id and hatched[1].data.sp == (first and first.sp), "build", "the client hears of it (Fx hatched)", tostring(#hatched))
@@ -814,7 +802,7 @@ end
 do
 	E.run(0.3)
 	local st, say = trayOn()
-	H.expect(st.tab == "work" and st.chip == "shop" and st.goal == "stall" and goalCard("stall") ~= nil, "build", "then on Work's Shops row for the shop tip, the stall's card pulsing", say)
+	H.expect(st.tab == "work" and st.chip == "work" and st.goal == "stall" and goalCard("stall") ~= nil, "build", "then on Work's Workplaces row for the shop tip, the stall's card pulsing", say)
 	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
 	local card = goalCard("stall")
 	H.expect(card ~= nil and table.find(H.textsOf(card), "Free") ~= nil, "build", "the tips' snack stall's card says Free", card and table.concat(H.textsOf(card), "/"))
@@ -999,7 +987,7 @@ local function weakest()
 	end
 	return weak
 end
--- a fishing pier, so every kind of the first island's driftlings has a building of its knack to work at
+-- a fishing pier, one more workplace
 prof.shells = math.max(prof.shells, 400)
 res = place("pier")
 H.expect(res.ok, "tree", "a fishing pier", tostring(res.err))
@@ -1085,7 +1073,7 @@ do
 		H.expect(#prof.pals == n0 + 1 and prof.stats.taken == 2 and paid(sh1, -pick.cost, t1, rate0), "tree", "Hatch in the panel hatches it for its shells", string.format("%d driftlings, %+.1f shells (cost %d)", #prof.pals, prof.shells - sh1, pick.cost))
 		H.expect(H.currentPanel(p) == "tree", "tree", "and the panel is there again after the hatch scene", tostring(H.currentPanel(p)))
 		H.closePanel(p)
-		H.expect(c ~= nil and c.rarity == hatchRarity(pick.r) and (c.knack == "farm" or not hasKnack(pick.r, "farm")), "tree", "a driftling of the egg's rarity (a new island's second: good at a farm)", x and string.format("%s r%d", x.sp, pick.r))
+		H.expect(c ~= nil and c.rarity == hatchRarity(pick.r), "tree", "a driftling of the egg's rarity (a new island's second)", x and string.format("%s r%d", x.sp, pick.r))
 		H.expect(x.home == pieceOf("nest").uid and eggOf(pick.id) == nil, "tree", "into the hut with room, the egg gone from under the tree", tostring(x.home))
 		local hatched = fxSince(f1, "hatched")
 		local data = hatched[1] and hatched[1].data
@@ -1469,7 +1457,7 @@ do
 	local none = pg and pg:FindFirstChild("Muts", true)
 	H.expect(if #(pal.muts or {}) > 0 then shown == #(pal.muts or {}) else none ~= nil, "pals", "its mutations on its row", string.format("%d of %d", shown, #(pal.muts or {})))
 end
--- Work: the work picker (every workplace, whatever its knack, its speed at each, and Rest); Rest, then back to work
+-- Work: the work picker (every workplace, what it would make at each a minute, and Rest); Rest, then back to work
 do
 	local job = pal.work
 	H.clickNamed(p, "Help_" .. pal.id, { wait = 0.4 })
@@ -1482,8 +1470,8 @@ do
 		end
 	end
 	local speed = p.PlayerGui:FindFirstChild("Speed", true)
-	H.expect(listed and n >= 3, "pals", "the work picker lists every workplace, whatever its knack", tostring(n))
-	H.expect(speed ~= nil and string.match(speed.Text, "^x%d+%.%d$") ~= nil, "pals", "with how fast it works at each", speed and speed.Text)
+	H.expect(listed and n >= 3, "pals", "the work picker lists every workplace", tostring(n))
+	H.expect(speed ~= nil and string.match(speed.Text, "^[%d%.]+[KMB]?/min$") ~= nil, "pals", "with what it would make at each a minute", speed and speed.Text)
 	H.clickNamed(p, "Go_0", { wait = 0.5 })
 	H.expect(pal.work == 0, "pals", "Rest: it stops work", tostring(pal.work))
 	H.openPanel(p, "pals", { pal = pal.id })
@@ -1800,7 +1788,7 @@ do
 	H.push(p, 0.3)
 	H.clickNamed(p, "Menu_build", { wait = 0.4 })
 	H.clickNamed(p, "Tab_work", { wait = 0.3 })
-	H.clickNamed(p, "Chip_farm", { wait = 0.25 })
+	H.clickNamed(p, "Chip_work", { wait = 0.25 })
 	local count = p.PlayerGui:FindFirstChild("Count", true)
 	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "panels", "the Work tab counts the places at work out of the cap", count and count.Text)
 	local card = H.buttonNamed(p, "Buy_orchard", true)
@@ -1857,7 +1845,7 @@ do
 	local PixelSpritesP = H.cmod(p, "UI.PixelSprites")
 	local TABS = { "work", "nest", "path", "fence", "water", "nature", "decor", "fun" }
 	local ROWS: { [string]: { string } } = {
-		work = { "farm", "wood", "shop", "gen" },
+		work = { "work", "gen" },
 		water = { "tiles", "bridge", "float" },
 		nature = { "trees", "plants", "rocks" },
 		decor = { "beach", "garden", "farm", "harbour", "town", "jungle", "frost", "autumn", "desert", "fairy", "zen", "volcano", "grand" },
@@ -2715,22 +2703,20 @@ H.closePanel(p)
 E.run(0.3)
 res = H.req(p, "quest.claim", {})
 H.expect(not res.ok and res.err == "not_done", "quests", "a claim before the goal is met is refused", tostring(res.err))
--- (a driftling sent to work at a building of another knack, the way the Driftlings panel's Work does: any driftling
--- works anywhere)
+-- (a driftling sent to work at another workplace, the way the Driftlings panel's Work does: any driftling works
+-- anywhere)
 local sent = false
 for _, x in prof.pals do
 	if x.home == 0 then
 		continue
 	end
-	local d = Creatures.byId[x.sp]
 	for _, q in prof.plot.placed do
-		local b = Buildings.byId[q.id]
-		if not sent and d and b and b.knack ~= d.knack and Island.works(q.id) then
+		if not sent and q.uid ~= x.work and Island.works(q.id) then
 			sent = H.req(p, "pal.work", { id = x.id, uid = q.uid }).ok
 		end
 	end
 end
-H.expect(sent, "quests", "a driftling sent to work at a building of another knack")
+H.expect(sent, "quests", "a driftling sent to work at another workplace")
 H.push(p, 0.5)
 H.expect(H.buttonNamed(p, "QuestClaim") ~= nil, "quests", "a driftling at work: Claim shows")
 do
@@ -2739,7 +2725,7 @@ do
 	H.clickNamed(p, "QuestClaim", { wait = 0.5 })
 	H.expect(prof.quest == 2 and prof.shells >= shells0 + (reward.shells or 0), "quests", "Claim pays the reward (shells) and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
 end
--- a quest's Go naming an old tab ("build:farm": Another farm, "build:gen": Build a boost) opens Build mode on Work's row
+-- a quest's Go naming a row ("build:work": Another workplace, "build:gen": Build a boost) opens Build mode on Work's row
 -- of that name (the second camp's quest went on 2026-11-18: the first island's work spaces ran out before Another
 -- farm); the first of them not met yet here (a met one shows Claim instead)
 do

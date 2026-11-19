@@ -67,6 +67,26 @@ export type Group = { member: boolean, gift: boolean }
 -- the kind and its mutations) and the island turns left (it hatches into a hut with room at the turn it reaches 0).
 export type Egg = { uid: number, a: number, b: number, sp: string, muts: { string }, left: number }
 
+-- The rewards for coming back and for playing (Data/Rewards, Logic/Rewards; GAME_DESIGN 15, 2026-11-19). Days are UTC
+-- days on the sea's clock (floor(clock / 86400)).
+--   daily: the last day the daily reward was claimed (-1 never), the streak then, the best streak, the milestones
+--     given (their days)
+--   play: the day `secs` (seconds on the island) count for, and the gifts claimed that day (their indices)
+--   tasks: the day they were dealt, each { id, n (the goal), at (the counter when dealt) } and whether it was claimed,
+--     and the bonus for all three
+--   spin: the day the free spin was last used, spins in hand, spins in all
+--   codes: the codes redeemed (upper case)
+--   index: the Index milestones claimed (their counts)
+export type TaskSave = { id: string, n: number, at: number }
+export type RewardsSave = {
+	daily: { last: number, streak: number, best: number, miles: { number } },
+	play: { day: number, secs: number, got: { number } },
+	tasks: { day: number, list: { TaskSave }, got: { boolean }, bonus: boolean },
+	spin: { day: number, extra: number, total: number },
+	codes: { [string]: boolean },
+	index: { got: { number } },
+}
+
 export type Profile = {
 	v: number,
 	shells: number, -- the one store: driftlings, building and growing the island (GAME_DESIGN 3; wood went 2026-11-14)
@@ -101,6 +121,10 @@ export type Profile = {
 	-- offline earnings and the group (GAME_DESIGN 14.3; 2026-11-14)
 	seenAt: number, -- the sea's clock when the island was last open (0: unknown, nothing earned away)
 	group: Group,
+	-- the rewards for coming back and playing (2026-11-19), and the timed boosts they give: id ("shells", "luck") ->
+	-- seconds left on the island
+	rewards: RewardsSave,
+	boosts: { [string]: number },
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -154,6 +178,10 @@ export type ClientView = {
 	offlineDouble: boolean,
 	group: Group,
 	groupOn: boolean, -- a group is set (Config/Monetization.Group.Id)
+	-- the rewards for coming back and playing (Logic/Rewards.view: the daily streak, playtime, tasks, spins, the
+	-- Index's milestones, how many wait) and the timed boosts running (id -> seconds left)
+	rewards: any,
+	boosts: { [string]: number },
 }
 
 export type ErrCode =
@@ -177,6 +205,7 @@ export type ErrCode =
 	| "no_room"
 	| "not_found"
 	| "not_done"
+	| "used"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }
 

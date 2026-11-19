@@ -573,7 +573,7 @@ return function()
 		-- each expansion")
 		local most = 0
 		for _, d in Buildings.list do
-			local works = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
+			local works = d.kind == "work"
 			T.eq(d.jobs > 0, works, d.id .. ": places only at a workplace")
 			if works then
 				T.eq(d.jobs, Tuning.WorkRoom[d.tier], d.id .. ": its tier's room")

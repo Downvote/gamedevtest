@@ -5,10 +5,11 @@
 -- wood as a currency": the prices that were wood are shells now, one for one), may be placed as often as the island's
 -- piece limit allows (Logic/Plot), and is built by Models/DecorModels. w x d: its footprint in whole studs facing south (a quarter turn
 -- swaps them).
---   kind:  "farm" (sells what it grows or catches) | "wood" (sells what it cuts) | "shop" (sells snacks and stays):
---          the Work tab's three groups, each making shells
+--   kind:  "work" (a workplace: it makes shells with driftlings working there; farms, wood buildings and shops were
+--          three kinds, the Work tab's three groups, till the request of 2026-11-19: "remove work building types.
+--          They all now fall in the same category of work")
 --          | "nest" (a driftlings' hut) | "breed" (the Hatchery: two driftlings make an egg, Logic/Breed) | "gen" (a
---          boost building: every building of a knack makes more) | "path" (a 2 x 2 tile of path or road: drawn, apart
+--          boost building: every workplace makes more) | "path" (a 2 x 2 tile of path or road: drawn, apart
 --          from the piece limit with the water, Tuning.PathPieces) | "water" (a 2 x 2 tile of water: drawn, for rivers
 --          and ponds; GAME_DESIGN 4: "add the ability to add water to make rivers") | "fence" (a 2-stud length of fence
 --          along a grid line: drawn, apart, Tuning.FencePieces; w 2, d 0) | "decor" (nature, themed decor and the
@@ -17,19 +18,21 @@
 --   rate:  the shells it makes a turn with one common driftling working there (Logic/Island). The wood buildings made
 --          wood until 2026-11-14; selling it, they make about what a farm of the same price makes (the Lumber Camp 36,
 --          the Sawmill 130, Timber Works 240, the Bamboo Grove 440, the Grand Mill 880)
---   knack: the driftlings that work there (Data/Creatures)
+--   act:   how its workers look at work (Controllers/WorldView: "farm" tends and harvests, "wood" chops, "shop"
+--          serves) and its icon in the work picker; nothing else tells workplaces apart
 --   slots: the driftlings a hut houses (its room)
---   jobs:  the driftlings a workplace (farm, wood, shop) takes: Tuning.WorkRoom at its tier (the request of 2026-11-18,
+--   jobs:  the driftlings a workplace takes: Tuning.WorkRoom at its tier (the request of 2026-11-18,
 --          "increase the capacity of work buildings by alot": 2 everywhere before); all of them together stay within
 --          the island's work cap (Logic/Plot.workLimit, its driftling limit)
 --   charm: what it adds to the island's charm (more charm, more shells: Logic/Island.charmBonus)
 --   comfort: a hut's share added to its residents' work (Logic/Island.homes)
---   boost / boostBy: a boost building's knack ("farm" "wood" "shop", or "all") and its share (each kind of boost
---          building gives its whole share, a second of its kind Tuning.BoostStack of it, a third that of the second's:
---          Logic/Island.boosts)
+--   boostBy: a boost building's share, for every workplace (each kind of boost building gives its whole share, a
+--          second of its kind Tuning.BoostStack of it, a third that of the second's: Logic/Island.boost). The ones for
+--          one kind of work boost everything since the request of 2026-11-19 ("All boost buildings should also just
+--          boost everything instead"), at a little over half their old share
 --   tier:  the island tier it needs
 --   tab / sub: where Build mode lists it (its tab, and the row of chips under it: a decor piece's theme, a nature
---          piece's kind, a work building's kind); from its kind when not given
+--          piece's kind); from its kind when not given
 --   water: "" | "over" (may stand over water tiles too: bridges, a dock, a waterwheel) | "on" (only on water tiles:
 --          lily pads, reeds, a rowboat)
 --   feel:  how putting it down looks and sounds (Build mode's effects: "wood" "stone" "plant" "water" "metal" "magic"
@@ -44,12 +47,11 @@ export type BuildingDef = {
 	w: number,
 	d: number,
 	rate: number,
-	knack: string,
+	act: string,
 	slots: number,
 	jobs: number,
 	charm: number,
 	comfort: number,
-	boost: string,
 	boostBy: number,
 	tier: number,
 	blurb: string,
@@ -60,9 +62,9 @@ export type BuildingDef = {
 }
 
 -- A kind's tab, chip row and feel when a piece doesn't give its own.
-local TAB: { [string]: string } = { farm = "work", wood = "work", shop = "work", gen = "work", nest = "nest", breed = "nest", path = "path", water = "water", fence = "fence", decor = "decor", tree = "" }
-local SUB: { [string]: string } = { farm = "farm", wood = "wood", shop = "shop", gen = "gen", water = "tiles" }
-local FEEL: { [string]: string } = { path = "stone", water = "water", fence = "wood", farm = "plant" }
+local TAB: { [string]: string } = { work = "work", gen = "work", nest = "nest", breed = "nest", path = "path", water = "water", fence = "fence", decor = "decor", tree = "" }
+local SUB: { [string]: string } = { work = "work", gen = "gen", water = "tiles" }
+local FEEL: { [string]: string } = { path = "stone", water = "water", fence = "wood" }
 
 -- A wood price in shells for a piece of a tier (Tuning.WoodShells for each wood, times WoodTierUp for each tier past the
 -- second up to WoodTierTop), to two figures (1 at least; nothing stays nothing).
@@ -88,7 +90,7 @@ local function priceOf(kind: string, listed: number, tier: number): number
 end
 
 local function B(t: { [string]: any }): BuildingDef
-	local works = t.kind == "farm" or t.kind == "wood" or t.kind == "shop"
+	local works = t.kind == "work"
 	local jobs = if works then Tuning.WorkRoom[math.clamp(t.tier or 1, 1, #Tuning.WorkRoom)] else 0
 	return {
 		id = t.id,
@@ -99,58 +101,57 @@ local function B(t: { [string]: any }): BuildingDef
 		w = t.w,
 		d = t.d,
 		rate = t.rate or 0,
-		knack = t.knack or "",
+		act = t.act or "",
 		slots = t.slots or 0,
 		jobs = jobs,
 		charm = t.charm or 0,
 		comfort = t.comfort or 0,
-		boost = t.boost or "",
 		boostBy = t.boostBy or 0,
 		tier = t.tier or 1,
 		blurb = t.blurb or "",
 		tab = t.tab or TAB[t.kind] or "decor",
 		sub = t.sub or SUB[t.kind] or "",
 		water = t.water or "",
-		feel = t.feel or FEEL[t.kind] or "wood",
+		feel = t.feel or FEEL[t.kind] or (if t.act == "farm" then "plant" else "wood"),
 	}
 end
 
 -- stylua: ignore start
 local LIST: { BuildingDef } = {
 	-- farms: they sell what they grow or catch (shells)
-	B({ id = "patch", name = "Veggie Patch", kind = "farm", shells = 40, w = 3, d = 3, rate = 36, knack = "farm", charm = 1, blurb = "Grows veggies to sell." }),
-	B({ id = "pier", name = "Fishing Pier", kind = "farm", shells = 160, w = 3, d = 3, rate = 60, knack = "farm", charm = 1, blurb = "Lands fish to sell." }),
-	B({ id = "orchard", name = "Fruit Orchard", kind = "farm", shells = 460, w = 4, d = 4, rate = 102, knack = "farm", charm = 3, tier = 2, blurb = "Lots of fruit to sell." }),
-	B({ id = "greenhouse", name = "Greenhouse", kind = "farm", shells = 2900, w = 4, d = 3, rate = 240, knack = "farm", charm = 4, tier = 3, blurb = "Something to sell all year." }),
-	B({ id = "paddy", name = "Rice Terrace", kind = "farm", shells = 9800, w = 4, d = 4, rate = 510, knack = "farm", charm = 5, tier = 4, blurb = "Steps of rice in still water." }),
-	B({ id = "kelpfarm", name = "Kelp Farm", kind = "farm", shells = 28000, w = 4, d = 4, rate = 990, knack = "farm", charm = 6, tier = 5, blurb = "Rows of kelp in a sea pen." }),
-	B({ id = "skygarden", name = "Sky Garden", kind = "farm", shells = 76000, w = 5, d = 4, rate = 1800, knack = "farm", charm = 12, tier = 6, blurb = "Gardens stacked up a glass tower." }),
+	B({ id = "patch", name = "Veggie Patch", kind = "work", act = "farm", shells = 40, w = 3, d = 3, rate = 36, charm = 1, blurb = "Grows veggies to sell." }),
+	B({ id = "pier", name = "Fishing Pier", kind = "work", act = "farm", shells = 160, w = 3, d = 3, rate = 60, charm = 1, blurb = "Lands fish to sell." }),
+	B({ id = "orchard", name = "Fruit Orchard", kind = "work", act = "farm", shells = 460, w = 4, d = 4, rate = 102, charm = 3, tier = 2, blurb = "Lots of fruit to sell." }),
+	B({ id = "greenhouse", name = "Greenhouse", kind = "work", act = "farm", shells = 2900, w = 4, d = 3, rate = 240, charm = 4, tier = 3, blurb = "Something to sell all year." }),
+	B({ id = "paddy", name = "Rice Terrace", kind = "work", act = "farm", shells = 9800, w = 4, d = 4, rate = 510, charm = 5, tier = 4, blurb = "Steps of rice in still water." }),
+	B({ id = "kelpfarm", name = "Kelp Farm", kind = "work", act = "farm", shells = 28000, w = 4, d = 4, rate = 990, charm = 6, tier = 5, blurb = "Rows of kelp in a sea pen." }),
+	B({ id = "skygarden", name = "Sky Garden", kind = "work", act = "farm", shells = 76000, w = 5, d = 4, rate = 1800, charm = 12, tier = 6, blurb = "Gardens stacked up a glass tower." }),
 	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
-	B({ id = "shroomcellar", name = "Mushroom Cellar", kind = "farm", shells = 200000, w = 4, d = 4, rate = 3300, knack = "farm", charm = 10, tier = 11, blurb = "Mushrooms grow in the dark under it." }),
-	B({ id = "pearlbeds", name = "Pearl Beds", kind = "farm", shells = 520000, w = 5, d = 4, rate = 5800, knack = "farm", charm = 14, tier = 13, blurb = "Oysters in clear water. Some hold a pearl." }),
-	B({ id = "honeyterrace", name = "Honey Terraces", kind = "farm", shells = 1500000, w = 5, d = 5, rate = 10500, knack = "farm", charm = 18, tier = 16, blurb = "Beehives on steps of flowers." }),
-	B({ id = "vineyard", name = "Grand Vineyard", kind = "farm", shells = 4200000, w = 5, d = 5, rate = 19000, knack = "farm", charm = 22, tier = 19, blurb = "Grapes on the vine, juice in the barrel." }),
+	B({ id = "shroomcellar", name = "Mushroom Cellar", kind = "work", act = "farm", shells = 200000, w = 4, d = 4, rate = 3300, charm = 10, tier = 11, blurb = "Mushrooms grow in the dark under it." }),
+	B({ id = "pearlbeds", name = "Pearl Beds", kind = "work", act = "farm", shells = 520000, w = 5, d = 4, rate = 5800, charm = 14, tier = 13, blurb = "Oysters in clear water. Some hold a pearl." }),
+	B({ id = "honeyterrace", name = "Honey Terraces", kind = "work", act = "farm", shells = 1500000, w = 5, d = 5, rate = 10500, charm = 18, tier = 16, blurb = "Beehives on steps of flowers." }),
+	B({ id = "vineyard", name = "Grand Vineyard", kind = "work", act = "farm", shells = 4200000, w = 5, d = 5, rate = 19000, charm = 22, tier = 19, blurb = "Grapes on the vine, juice in the barrel." }),
 	-- wood
-	B({ id = "lumber", name = "Lumber Camp", kind = "wood", shells = 70, w = 4, d = 3, rate = 36, knack = "wood", blurb = "Chops wood to sell." }),
-	B({ id = "sawmill", name = "Sawmill", kind = "wood", shells = 640, w = 4, d = 4, rate = 130, knack = "wood", charm = 1, tier = 2, blurb = "Saws planks to sell." }),
-	B({ id = "timber", name = "Timber Works", kind = "wood", shells = 2900, w = 4, d = 4, rate = 240, knack = "wood", charm = 2, tier = 3, blurb = "A crane and stacks of planks." }),
-	B({ id = "bamboo", name = "Bamboo Grove", kind = "wood", shells = 8300, w = 4, d = 3, rate = 440, knack = "wood", charm = 4, tier = 4, blurb = "Bamboo grows back by the day." }),
-	B({ id = "grandmill", name = "Grand Mill", kind = "wood", shells = 25000, w = 5, d = 4, rate = 880, knack = "wood", charm = 6, tier = 5, blurb = "A waterwheel turns its saws." }),
+	B({ id = "lumber", name = "Lumber Camp", kind = "work", act = "wood", shells = 70, w = 4, d = 3, rate = 36, blurb = "Chops wood to sell." }),
+	B({ id = "sawmill", name = "Sawmill", kind = "work", act = "wood", shells = 640, w = 4, d = 4, rate = 130, charm = 1, tier = 2, blurb = "Saws planks to sell." }),
+	B({ id = "timber", name = "Timber Works", kind = "work", act = "wood", shells = 2900, w = 4, d = 4, rate = 240, charm = 2, tier = 3, blurb = "A crane and stacks of planks." }),
+	B({ id = "bamboo", name = "Bamboo Grove", kind = "work", act = "wood", shells = 8300, w = 4, d = 3, rate = 440, charm = 4, tier = 4, blurb = "Bamboo grows back by the day." }),
+	B({ id = "grandmill", name = "Grand Mill", kind = "work", act = "wood", shells = 25000, w = 5, d = 4, rate = 880, charm = 6, tier = 5, blurb = "A waterwheel turns its saws." }),
 	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
-	B({ id = "logflume", name = "Log Flume", kind = "wood", shells = 260000, w = 5, d = 4, rate = 900, knack = "wood", charm = 8, tier = 11, blurb = "Logs ride a water chute down to the yard." }),
-	B({ id = "ironwood", name = "Ironwood Yard", kind = "wood", shells = 800000, w = 5, d = 5, rate = 1700, knack = "wood", charm = 10, tier = 14, blurb = "Dark wood, nearly as hard as stone." }),
-	B({ id = "canopymill", name = "Canopy Mill", kind = "wood", shells = 2200000, w = 5, d = 5, rate = 3200, knack = "wood", charm = 14, tier = 17, blurb = "Saws turning high up in the trees." }),
+	B({ id = "logflume", name = "Log Flume", kind = "work", act = "wood", shells = 260000, w = 5, d = 4, rate = 900, charm = 8, tier = 11, blurb = "Logs ride a water chute down to the yard." }),
+	B({ id = "ironwood", name = "Ironwood Yard", kind = "work", act = "wood", shells = 800000, w = 5, d = 5, rate = 1700, charm = 10, tier = 14, blurb = "Dark wood, nearly as hard as stone." }),
+	B({ id = "canopymill", name = "Canopy Mill", kind = "work", act = "wood", shells = 2200000, w = 5, d = 5, rate = 3200, charm = 14, tier = 17, blurb = "Saws turning high up in the trees." }),
 	-- shops: snacks, meals and rooms (shells)
-	B({ id = "stall", name = "Snack Stall", kind = "shop", shells = 100, w = 3, d = 2, rate = 36, knack = "shop", charm = 2, blurb = "Sells snacks by the path." }),
-	B({ id = "cafe", name = "Beach Cafe", kind = "shop", shells = 990, w = 4, d = 3, rate = 120, knack = "shop", charm = 5, tier = 2, blurb = "Iced drinks and a bite to eat." }),
-	B({ id = "inn", name = "Seaside Inn", kind = "shop", shells = 5700, w = 5, d = 4, rate = 340, knack = "shop", charm = 10, tier = 3, blurb = "Rooms with a view of the sea." }),
-	B({ id = "bakery", name = "Bakery", kind = "shop", shells = 15000, w = 4, d = 3, rate = 700, knack = "shop", charm = 12, tier = 4, blurb = "Warm bread for the whole town." }),
-	B({ id = "bazaar", name = "Grand Bazaar", kind = "shop", shells = 44000, w = 5, d = 4, rate = 1500, knack = "shop", charm = 20, tier = 5, blurb = "Stalls under striped awnings." }),
-	B({ id = "hotel", name = "Grand Hotel", kind = "shop", shells = 120000, w = 5, d = 5, rate = 3200, knack = "shop", charm = 35, tier = 6, blurb = "Five floors of rooms over the bay." }),
+	B({ id = "stall", name = "Snack Stall", kind = "work", act = "shop", shells = 100, w = 3, d = 2, rate = 36, charm = 2, blurb = "Sells snacks by the path." }),
+	B({ id = "cafe", name = "Beach Cafe", kind = "work", act = "shop", shells = 990, w = 4, d = 3, rate = 120, charm = 5, tier = 2, blurb = "Iced drinks and a bite to eat." }),
+	B({ id = "inn", name = "Seaside Inn", kind = "work", act = "shop", shells = 5700, w = 5, d = 4, rate = 340, charm = 10, tier = 3, blurb = "Rooms with a view of the sea." }),
+	B({ id = "bakery", name = "Bakery", kind = "work", act = "shop", shells = 15000, w = 4, d = 3, rate = 700, charm = 12, tier = 4, blurb = "Warm bread for the whole town." }),
+	B({ id = "bazaar", name = "Grand Bazaar", kind = "work", act = "shop", shells = 44000, w = 5, d = 4, rate = 1500, charm = 20, tier = 5, blurb = "Stalls under striped awnings." }),
+	B({ id = "hotel", name = "Grand Hotel", kind = "work", act = "shop", shells = 120000, w = 5, d = 5, rate = 3200, charm = 35, tier = 6, blurb = "Five floors of rooms over the bay." }),
 	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
-	B({ id = "nightmarket", name = "Night Market", kind = "shop", shells = 420000, w = 5, d = 4, rate = 6800, knack = "shop", charm = 40, tier = 12, blurb = "Lanterns lit, stalls open late." }),
-	B({ id = "theatre", name = "Seaside Theatre", kind = "shop", shells = 1100000, w = 5, d = 5, rate = 12000, knack = "shop", charm = 60, tier = 15, blurb = "A show every evening." }),
-	B({ id = "skytram", name = "Sky Tram", kind = "shop", shells = 3000000, w = 5, d = 5, rate = 21000, knack = "shop", charm = 80, tier = 18, blurb = "A ride over the island for a few shells." }),
+	B({ id = "nightmarket", name = "Night Market", kind = "work", act = "shop", shells = 420000, w = 5, d = 4, rate = 6800, charm = 40, tier = 12, blurb = "Lanterns lit, stalls open late." }),
+	B({ id = "theatre", name = "Seaside Theatre", kind = "work", act = "shop", shells = 1100000, w = 5, d = 5, rate = 12000, charm = 60, tier = 15, blurb = "A show every evening." }),
+	B({ id = "skytram", name = "Sky Tram", kind = "work", act = "shop", shells = 3000000, w = 5, d = 5, rate = 21000, charm = 80, tier = 18, blurb = "A ride over the island for a few shells." }),
 	-- huts (kind "nest"): room for driftlings, and comfort
 	B({ id = "nest", name = "Driftling Hut", kind = "nest", shells = 55, w = 2, d = 2, slots = 2, blurb = "Room for two driftlings. They work from here." }),
 	B({ id = "burrow", name = "Cozy Burrow", kind = "nest", shells = 420, w = 3, d = 3, slots = 4, charm = 1, comfort = 0.05, tier = 2, blurb = "Room for four." }),
@@ -165,19 +166,19 @@ local LIST: { BuildingDef } = {
 	B({ id = "citadel", name = "Driftling Citadel", kind = "nest", shells = 5000000, w = 6, d = 6, slots = 20, charm = 45, comfort = 0.5, tier = 20, blurb = "Halls and towers for a whole crowd." }),
 	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
 	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3900, w = 4, d = 4, charm = 3, tier = 3, blurb = "Breed two driftlings for an egg." }),
-	-- boosts: every building of a knack makes more (each kind counts once)
-	B({ id = "toolshed", name = "Tool Shed", kind = "gen", shells = 1300, w = 2, d = 2, charm = 1, boost = "wood", boostBy = 0.1, tier = 2, blurb = "Sharp axes: wood +10%." }),
-	B({ id = "windmill", name = "Windmill", kind = "gen", shells = 1600, w = 3, d = 3, charm = 4, boost = "farm", boostBy = 0.1, tier = 2, blurb = "Grinds the harvest: farms +10%." }),
-	B({ id = "smokehouse", name = "Smokehouse", kind = "gen", shells = 1500, w = 3, d = 3, charm = 2, boost = "farm", boostBy = 0.1, tier = 2, blurb = "Smoked fish keeps: farms +10%." }),
-	B({ id = "market", name = "Market Hall", kind = "gen", shells = 5500, w = 4, d = 3, charm = 8, boost = "shop", boostBy = 0.12, tier = 3, blurb = "Brings the buyers: shops +12%." }),
-	B({ id = "watertower", name = "Water Tower", kind = "gen", shells = 13000, w = 3, d = 3, charm = 6, boost = "all", boostBy = 0.06, tier = 4, blurb = "Fresh water for all: everything +6%." }),
-	B({ id = "townhall", name = "Town Hall", kind = "gen", shells = 39000, w = 5, d = 4, charm = 30, boost = "all", boostBy = 0.1, tier = 5, blurb = "The town runs smoothly: everything +10%." }),
-	B({ id = "beacon", name = "Sun Beacon", kind = "gen", shells = 97000, w = 3, d = 3, charm = 40, boost = "all", boostBy = 0.15, tier = 6, blurb = "Its light never sets: everything +15%." }),
+	-- boosts: every workplace makes more (a second of a kind counts less: Tuning.BoostStack)
+	B({ id = "toolshed", name = "Tool Shed", kind = "gen", shells = 1300, w = 2, d = 2, charm = 1, boostBy = 0.06, tier = 2, blurb = "Sharp axes for everyone: everything +6%." }),
+	B({ id = "windmill", name = "Windmill", kind = "gen", shells = 1600, w = 3, d = 3, charm = 4, boostBy = 0.06, tier = 2, blurb = "Grinds the harvest for the whole island: everything +6%." }),
+	B({ id = "smokehouse", name = "Smokehouse", kind = "gen", shells = 1500, w = 3, d = 3, charm = 2, boostBy = 0.06, tier = 2, blurb = "Smoked fish keeps the island fed: everything +6%." }),
+	B({ id = "market", name = "Market Hall", kind = "gen", shells = 5500, w = 4, d = 3, charm = 8, boostBy = 0.07, tier = 3, blurb = "Brings the buyers to every door: everything +7%." }),
+	B({ id = "watertower", name = "Water Tower", kind = "gen", shells = 13000, w = 3, d = 3, charm = 6, boostBy = 0.06, tier = 4, blurb = "Fresh water for all: everything +6%." }),
+	B({ id = "townhall", name = "Town Hall", kind = "gen", shells = 39000, w = 5, d = 4, charm = 30, boostBy = 0.1, tier = 5, blurb = "The town runs smoothly: everything +10%." }),
+	B({ id = "beacon", name = "Sun Beacon", kind = "gen", shells = 97000, w = 3, d = 3, charm = 40, boostBy = 0.15, tier = 6, blurb = "Its light never sets: everything +15%." }),
 	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
-	B({ id = "seedvault", name = "Seed Vault", kind = "gen", shells = 350000, w = 3, d = 3, charm = 12, boost = "farm", boostBy = 0.12, tier = 12, blurb = "The best seeds, kept cool: farms +12%." }),
-	B({ id = "guildhall", name = "Carpenters' Hall", kind = "gen", shells = 900000, w = 4, d = 3, charm = 20, boost = "wood", boostBy = 0.12, tier = 15, blurb = "Old hands teach the young: wood +12%." }),
-	B({ id = "tradehall", name = "Trade Hall", kind = "gen", shells = 1600000, w = 4, d = 4, charm = 30, boost = "shop", boostBy = 0.12, tier = 16, blurb = "Ships bring new goods to sell: shops +12%." }),
-	B({ id = "tidebell", name = "Tide Bell", kind = "gen", shells = 3500000, w = 3, d = 3, charm = 60, boost = "all", boostBy = 0.1, tier = 19, blurb = "Everyone works to its ring: everything +10%." }),
+	B({ id = "seedvault", name = "Seed Vault", kind = "gen", shells = 350000, w = 3, d = 3, charm = 12, boostBy = 0.07, tier = 12, blurb = "The best seeds, kept cool: everything +7%." }),
+	B({ id = "guildhall", name = "Carpenters' Hall", kind = "gen", shells = 900000, w = 4, d = 3, charm = 20, boostBy = 0.07, tier = 15, blurb = "Old hands teach the young: everything +7%." }),
+	B({ id = "tradehall", name = "Trade Hall", kind = "gen", shells = 1600000, w = 4, d = 4, charm = 30, boostBy = 0.07, tier = 16, blurb = "Ships bring new goods to sell: everything +7%." }),
+	B({ id = "tidebell", name = "Tide Bell", kind = "gen", shells = 3500000, w = 3, d = 3, charm = 60, boostBy = 0.1, tier = 19, blurb = "Everyone works to its ring: everything +10%." }),
 	-- paths: 2 x 2 tiles of path and road, drawn (apart from the piece limit, with the water: Tuning.PathPieces)
 	B({ id = "dirtpath", name = "Dirt Path", kind = "path", shells = 5, w = 2, d = 2, feel = "sand", blurb = "A trodden path." }),
 	B({ id = "sandtrail", name = "Sand Trail", kind = "path", shells = 4, w = 2, d = 2, feel = "sand", blurb = "Soft sand, packed down." }),

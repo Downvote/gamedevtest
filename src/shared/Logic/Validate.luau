@@ -58,6 +58,14 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["vip.daily"] = {},
 	-- offline earnings collected ("free", or "double" while it's free) and the group checked again (GAME_DESIGN 14.3)
 	["offline.collect"] = { mode = "collect" },
+	-- the rewards for coming back and playing (Logic/Rewards; GAME_DESIGN 15)
+	["reward.daily"] = {},
+	["reward.play"] = { i = "small" },
+	["reward.task"] = { i = "small" },
+	["reward.bonus"] = {},
+	["reward.spin"] = {},
+	["reward.index"] = { i = "small" },
+	["code.redeem"] = { code = "code" },
 	["group.check"] = {},
 }
 Validate.ACTIONS = ACTIONS
@@ -117,6 +125,8 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 1, Track.LEVELS)
 	elseif kind == "bool" then
 		return type(v) == "boolean"
+	elseif kind == "code" then
+		return type(v) == "string" and #v >= 1 and #v <= 32 and string.match(v, "^[%w_%- ]+$") ~= nil
 	elseif kind == "collect" then
 		return v == "free" or v == "double"
 	elseif kind == "any" then

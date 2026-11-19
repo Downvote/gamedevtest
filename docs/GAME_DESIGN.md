@@ -1,6 +1,33 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-17, the latest): "make the default time for egg refresh 6 minutes, and 3 minutes with gamepass"
+> The request (2026-11-19, the latest): "Look at the bakery game and see its menu. Make a similarly polished and themed
+> menu for different tabs. Also, add rewards for playtime, daily rewards, streak rewards, codes, and as many retention
+> features you can think of. Also, remove work building types. They all now fall in the same category of "work". In
+> hatchery, show the resultant mutation combination the pet will have. Always take the highest tier mutations to
+> combine with each other if possible. Also, add a higher, rarer tier of mutations which provide strong and unique
+> buffs. Make all eggs obtainable regardless of expansion level, but at a very low chance if they are higher rarity.
+> Passives and mutations that have different work building types now are just one. Also, make mutations that
+> decrease hatchery time, with diminishing returns if stacked. Make mutations and rework some passives to boost boost
+> buildings. Make mutations and rework some passives to give a percentage boost to charm, while keeping some as a flat
+> boost. All boost buildings should also just boost everything instead."
+
+So every panel is a sheet in Random Bakery's manner with our own colours: cream paper under a striped teal awning with
+a scalloped hem, the panel's icon and title on the awning, a few of its things on a little driftwood shelf and a close
+mark, tabs as plates (the open one teal), headings in teal with a little wave after them, and rows a step lighter than
+the paper (§2). A new **Rewards** sheet (the menu bar's Gifts, a red dot while something waits) has the daily reward
+and its streak, gifts for playing, three daily tasks with a bonus, the Lucky Shell (a free spin a day), gifts for the
+Index and codes; some rewards are timed boosts, Busy Day and Lucky Hour (§15). Farms, lumber camps and shops are one
+kind now, **work**: Build mode's Work tab has one list, any driftling works anywhere at its own pace, passives and
+mutations that helped at one kind help at all work, and every boost building boosts every workplace (§4, §6). The
+Hatchery shows the egg's kind, its mutations, its price and its time before Breed, and nothing about it is left to
+chance any more: the child takes the best tier of every family either parent carries, one both carry a tier higher,
+the highest tiers first (§6.1). Three mutation families that helped at one kind of work became new ones: Hatchery eggs
+sooner (several multiply, so each counts for less), stronger boost buildings and charm as a share, while the cute ones
+stay a flat charm; a few passives give those too. A fifth tier, the **wondrous** mutations, is very rare and gives
+things nothing else does (§6). The tree can lay every rarity on every island, the ones the island is too small for
+very seldom (§6).
+
+> The request before it (2026-11-17): "make the default time for egg refresh 6 minutes, and 3 minutes with gamepass"
 
 So the Tree of Life lays a new lot every six minutes (`Tuning.EggSecs` 360), and every three with the Quick Tree pass
 (`EggSecsPass` 180), on every island. The lots are the same size, so an hour lays two thirds more eggs than before and
@@ -446,6 +473,24 @@ floor, it just looks noisy", 2026-11-14),
   highlight; a shaded cream ramp for muzzles, bellies and jaws, pink blush, the species' body colour with its
   markings in the accent. The same 1 px ink outline and lit-from-the-top-left shading as every sprite.
 
+  > The request (2026-11-19): "Look at the bakery game and see its menu. Make a similarly polished and themed menu for
+  > different tabs."
+
+  **The sheets** (`UIKit.openPanel`, `UIKit.withPaper`, `UIKit.tabs`, `UIKit.heading`): every panel is a sheet of cream
+  paper (`Palette.ui.sheet`) in a 1 px ink outline with a soft shadow, under an awning: a teal band 20 UI px tall in
+  wide stripes of two teals with a lit fold along its top, cut at the bottom into scallops (9 px each, the band's
+  colour, shaded under, outlined in ink between them and along their bottoms) that hang over the paper. On the awning:
+  the panel's mini icon, its title in cream with an ink outline, the status line (notices while the panel is open), a
+  few of the panel's things on a little driftwood shelf (the Tree of Life's eggs, the Store's crown, a shell and a
+  ticket, the Rewards' egg, gift and Lucky Shell) and a close mark (a cream X, its own sprite, on a deep teal button).
+  On the paper: words in dark brown ink (`sheet_ink`, quieter ones `sheet_dim`), the bright colours of the HUD's look
+  deepened to read on cream (`paper_*`: a rarity's name, a good or bad number), no shadow under them; a row is a plate
+  a step lighter than the paper, a card a step darker, one waiting for the player (a reward ready, today's day) a soft
+  gold; a neutral button is paper with ink words pressed into it, a coloured one keeps its colour and white words. Tabs
+  are plates in a row, each its icon and word, the open one teal, a small red dot on one with something waiting; a
+  heading is teal, bold, its icon before it and a little wave after it, with a note at the right ("Best 5", "2 of 8
+  today"). The HUD (its bars, chips and cards) stays black glass, below.
+
   > The request (2026-11-14, with a picture of Random Bakery's HUD: a top bar of chips on one black see-through
   > rounded panel, "Winter · 2 h" on a second one under it): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
   > island more such that there isnt too much sea in the screen"
@@ -461,8 +506,8 @@ floor, it just looks noisy", 2026-11-14),
   quest's card under that. Down the right the island card and the Tree of Life's
   card, the same width, 3 px apart: the name in gold, a faint rule under it, quiet labels with their numbers on the
   right. The menu bar is one glass strip with its four words and icons on it (Build in gold), a faint veil under the
-  mouse. Inside a panel each row or card sits on a faint white veil; neutral buttons are dark glass with white words,
-  coloured buttons (Open, Claim, Sell, Close) flat in their colour with a darker lip. While a panel is open, or Build
+  mouse. (Inside a panel each row or card sat on a faint white veil and neutral buttons were dark glass with white
+  words, till the sheets above.) Coloured buttons (Open, Claim, Sell) are flat in their colour with a darker lip. While a panel is open, or Build
   mode, the cards step aside so nothing shows through the glass. Before (the requests below), the plates were dark
   driftwood in frames of planks:
 
@@ -773,9 +818,12 @@ Water keeps its own rules (§4.3).
 - **Comfort** (huts): a driftling hatched goes to the comfiest hut with room. A driftling's comfort (its hut's, plus
   4% / 8% at a level 2 / 3 hut kept from an older save) makes it work that much more (`Island.palBoost`: 1 plus its
   share plus its comfort). The Driftlings panel shows each one's hut.
-- **Boost buildings**: every building of a knack makes more (`Island.boosts`); the "all" ones count at every knack,
-  and the boosts at one knack stop at `BoostMax` (70%; 60% until the boosts of the islands past Driftling Haven, which
-  no island short of them could reach). They stack with less each time (the request of 2026-11-15: "make it such that
+- **Boost buildings**: every workplace makes more (`Island.boost`): since the request of 2026-11-19 ("All boost
+  buildings should also just boost everything instead") each boost building counts at every workplace, the ones that
+  boosted one kind of work at a little over half their old share (the Toolshed, Windmill and Smokehouse +6%, the
+  Market, Seed Vault, Carpenters' Hall and Trade Hall +7%), and together they stop at `BoostMax` (70%). The huts'
+  driftlings' boost shares (the Handy family, a few passives) then make the whole boost that much stronger (`IsleCap`
+  boost: twice at most). They stack with less each time (the request of 2026-11-15: "make it such that
   boost buildings can stack, but with diminishing returns"; till then a second of a kind gave nothing): the first of a
   kind gives its whole share, a second `BoostStack` (half) of it, a third half of that, and so on, so two Windmills
   give farms +15%, three +17.5%, and a kind can never give more than twice its own share. Different kinds each give
@@ -1213,9 +1261,14 @@ When the island grows into a new stage, the tree is built again at it.
   left to the odds again.
 - **Rarity** (`Tree.odds`, rolled when the egg is laid): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5,
   1.2, and 0.02 for a mythic egg, 0.002 for a celestial one) times the island's luck to the power of the steps. The luck is 1 plus `EggLuck` by the island's tier (0, 0.25,
-  0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6) plus the huts' luck shares (Lucky and its family: `HutLuck`, 0.5 at most). A
-  rarity none of the kinds open at the island's tier has falls to the next commoner one. Before the huts' shares (in
-  brackets, about how often an egg of that rarity is laid):
+  0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6) plus the huts' luck shares (Lucky and its family: `IsleCap` luck, 0.5 at
+  most) and a Lucky Hour while one runs (`TimedLuck` 0.5, §15). Since the request of 2026-11-19 ("Make all eggs
+  obtainable regardless of expansion level, but at a very low chance if they are higher rarity") a rarity none of the
+  kinds open at the island's tier has is still laid, at `EggEarly` (5%) of its weight: a legendary egg on Castaway Cay,
+  a mythic or celestial one short of tier 11. Such an egg hatches one of the kinds of its rarity not open yet. Any egg
+  hatches a kind not open yet now and then (`FarKind`, 3%). The Tree panel shows each rarity's odds ("<0.01%" for the
+  rarest); no rarity says "not yet" any more. The table below is from before (in brackets, about how often an egg of
+  that rarity is laid):
 
   | Island tier | Eggs a lot | Common | Uncommon | Rare | Epic | Legendary |
   |---|---|---|---|---|---|---|
@@ -1240,7 +1293,7 @@ When the island grows into a new stage, the tree is built again at it.
   new eggs rolled at the new odds ("The tree laid 1 more egg."); the eggs already there stay.
 - **The price** (`Tree.cost`): `EggPrice` by rarity (8, 36, 160, 800, 4,000 shells, 24,000 a mythic egg and 160,000 a
   celestial one) times `EggTier` by the island's tier (1, 2, 5, 12, 27, 54, 96, 160, 250, 380, then 460 up to 2,000 on
-  Everdrift; about a quarter of what they were since the request of 2026-11-14, "make eggs much cheaper"), less the huts' cost shares (Thrifty and its family: `HutCost`, half
+  Everdrift; about a quarter of what they were since the request of 2026-11-14, "make eggs much cheaper"), less the huts' cost shares (Thrifty and its family: `IsleCap` cost, half
   off at most; a Greedy one takes some of that share back but never makes eggs dearer). A bigger island earns more and
   lays better eggs, so its eggs cost more:
 
@@ -1628,40 +1681,48 @@ cheaper eggs: Moonveil's "Eclipse Wings" (+50% at shops, +60% sell price, +18% e
 sooner), Starweaver's "Star Loom" (+60% at farms, +35% work, eggs 12% sooner) and Novawyrm's "First Light" (+60% at
 lumber camps, eggs 40% cheaper, +22% egg luck).
 
-Each has a **knack** (farms, wood or shops, the Work tab's three groups: what it's best at; it may work anywhere, its
-passive usually helping at its knack's buildings; since 2026-11-14 there is no fishing knack: "make it such that
-creatures are adept in either wood, farm or shops as seen in the build tab instead of individual things like
-fishing", so the twelve fishers moved, Clawdle, Gullfin, Floe, Coralcrab, Tidewyrm and Abyssmaw to farms, Glowbat,
-Mirewyrm and Breezle to wood, Murkle, Icetoad and Frostdrake to shops, and the Fishing Pier and the Kelp Farm count as
-farms), a 3D model built from parts
+Each had a **knack** (farms, wood or shops) until the request of 2026-11-19 ("remove work building types. They all
+now fall in the same category of "work""): every driftling works at any workplace at the same pace, its rarity's, and
+a passive's share at one kind of work became a share at all work. Each has a 3D model built from parts
 (thirty-seven body plans since 2026-11-15, below) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
 the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 
 - **Rarity** (`Traits.RARITY`, `Traits.RMAX` 7): Common, Uncommon, Rare, Epic, Legendary, Mythic, Celestial (name
   colours: grey, green, blue, purple, gold, rose, starlight blue), the eggs' odds and the work it does above.
-- **A passive of its own** (`passive`: a name and its effects, every kind's different): shares at work (anywhere, or
-  at farms, lumber or shops), selling for more, charm, or for the whole island eggs sooner, luckier eggs or cheaper
-  eggs ("Snappy Pincers: +15% at farms, +30% sell price", "Diving Beak: +25% at farms, eggs 4% sooner"; the fishers'
-  shares went to their new knack's on 2026-11-14).
+- **A passive of its own** (`passive`: a name and its effects, every kind's different): a share at work, selling for
+  more, charm, or for the whole island luckier eggs, cheaper eggs, Hatchery eggs sooner, stronger boost buildings or
+  charm as a share ("Snappy Pincers: +15% work, +30% sell price"). Since the request of 2026-11-19 ("rework some
+  passives to boost boost buildings ... to give a percentage boost to charm, while keeping some as a flat boost") about
+  forty passives give one of the last three: the builders' kinds the boost buildings' share, the sweet and showy ones
+  charm as a share (others keep a flat charm), the nesting ones Hatchery time.
   The tree, luck and cost shares count only from a driftling in a hut. (Until 2026-11-13 the cost share was food
   eaten; on the tide it was the driftling's own price, and the tree share its arrivals.)
 - **Mutations** (`Data/Traits`, `Pal.muts`): a driftling comes with up to three (about one in three none), kept for
-  life. Nine families of four tiers, each tier rarer and stronger (the fighting families became island ones on
-  2026-11-12 and the eating one the eggs' price on 2026-11-13, keeping their ids so old saves read them): Thrifty /
-  Frugal / Modest / Selfless (eggs cost 15 / 30 / 50 / 80% less, the huts' together half off at most), Shiny / Glossy
-  / Golden / Radiant (sells for 30 / 70 / 150 / 300% more), Cute / Sweet / Adorable / Beloved (+1 / 2 / 3 / 5 charm),
-  Lucky / Blessed / Fortunate / Starborn (+5 / 10 / 18 / 30% egg luck; a saved Leafy / Blooming / Lush / Evergreen,
-  which brought the eggs sooner until 2026-11-14, loads as the Lucky one of its tier, and Sluggish joined the Busy
-  family's flaws),
-  Busy .. Workaholic (+8 .. 40% work anywhere), and Green Thumb .. Bountiful, Chopper .. Forest Heart, Chatty ..
-  Tycoon (+12 .. 65% at farms, lumber, shops). The Angler family (Angler .. Sea Sage, at fishing) went with fishing on
-  2026-11-14: a saved one loads as the Green Thumb of its tier (`Traits.clean`), and a driftling with both keeps the
-  first. Tier weights 46 / 25 / 10 / 3 (and 16 for a
-  **flaw**: Greedy makes eggs cost 25% more, Dull sells for 20% less, Grumpy takes a charm, Sluggish and Lazy work 8 and 15%
-  less; never beside its own family's strength); a rarer driftling rolls fewer flaws and more of the top tiers. Four
-  at most (a Hatchery child can gain one, §6.1). Their names show in tier colours on the Driftlings panel, each
-  followed by its tier in small star sprites (7x7, one a tier, white, green, teal or gold by the tier: the request
-  of 2026-11-14, "the * in mutations should be replaced with small star sprites to show the rarity of mutations").
+  life. Eight families of four tiers, each tier rarer and stronger (the ids are the saves' from the fights, gone
+  2026-11-12): Thrifty / Frugal / Modest / Selfless (eggs cost 15 / 30 / 50 / 80% less, the huts' together half off
+  at most), Shiny / Glossy / Golden / Radiant (sells for 30 / 70 / 150 / 300% more), Cute / Sweet / Adorable / Beloved
+  (+1 / 2 / 3 / 5 charm, flat), Lucky / Blessed / Fortunate / Starborn (+5 / 10 / 18 / 30% egg luck), Busy / Diligent /
+  Tireless / Workaholic (+12 / 24 / 40 / 65% work), and since the request of 2026-11-19 (the families that helped at
+  farms, lumber or shops became these, keeping each driftling's tier): Cozy / Broody / Nesting / Egg Keeper (Hatchery
+  eggs 6 / 12 / 20 / 30% sooner), Handy / Tinkerer / Foreman / Master Builder (boost buildings 6 / 12 / 20 / 32%
+  stronger) and Charming / Darling / Dazzling / Enchanting (+4 / 8 / 14 / 22% charm). The weather's seven families
+  (§13) follow the same change: rain's shorten the Hatchery, haze's raise charm as a share, the falling leaves' the boost
+  buildings.
+  The island's shares come from the driftlings in huts, each to its cap (`Island.isle`, `Tuning.IsleCap`). The
+  Hatchery shares **multiply** ("make mutations that decrease hatchery time, with diminishing returns if stacked"):
+  each takes its share off what is left, so two Egg Keepers make eggs 51% sooner, not 60%, and never more than 70%
+  sooner (`HatchMin` 0.3).
+  The **wondrous** tier (tier 5, rose, five stars: "add a higher, rarer tier of mutations which provide strong and
+  unique buffs"): six mutations of their own, each one family, never from the weather, never a flaw, about one roll in
+  four hundred (more on a rarer egg). For the whole island while the driftling lives in a hut: Goldtouched (+15% to
+  every shell), Maestro (+10% to every driftling's work), Twinborn (one more egg in every lot), Prismatic (an egg
+  hatches a rarity higher 6% more often), Dreamer (+50% offline earnings) and Heartsong (+30% charm and 8 charm).
+  Tier weights 46 / 25 / 10 / 3 / 0.25 (and 16 for a **flaw**: Greedy makes eggs cost 25% more, Dull sells for 20%
+  less, Grumpy takes a charm, Sluggish and Lazy work 8 and 15% less; never beside its own family's strength); a rarer
+  driftling rolls fewer flaws and more of the top tiers. Four at most. Their names show in tier colours on the
+  Driftlings panel, each followed by its tier in small star sprites (7x7, one a tier, white, green, teal, gold or rose:
+  the request of 2026-11-14, "the * in mutations should be replaced with small star sprites to show the rarity of
+  mutations").
 
 The **Index** lists all hundred and forty-five ("Seen 12 of 145 kinds"): a dark shape and its rarity until you have had one (a
 save from the tide keeps the ones it saw float by, on a lighter plate), then its name and passive. A kind not open yet
@@ -1677,7 +1738,11 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
 > specify what happens to the result, such as mutations and rarity. also, secretlyskew the player's mutation based on
 > the buildings they have: if they have high amount of wood work buildings, they will have a higher chance of wood
 > relation mutations. if they have high amount of shop ones, higher chance of shop related, etc." So the word feast is
-> gone; the panel and the quests say what happens to the egg (below), and the island's lean (below) stays a secret.
+> gone; the panel and the quests say what happens to the egg (below). (The island's lean went on 2026-11-19, below.)
+>
+> The request (2026-11-19): "In hatchery, show the resultant mutation combination the pet will have. Always take the
+> highest tier mutations to combine with each other if possible." So nothing about an egg is left to chance: the
+> panel shows its kind, its mutations, its price and its time before Breed, and that is what hatches.
 
 - **The Hatchery** (Huts tab, island tier 3: a warm nursery with a nest of speckled eggs and a heat lamp): one egg at a
   time each; one may stand on Grand Isle and more on bigger islands (`HatcheryLimit`, §4). Its panel opens from a tap
@@ -1685,13 +1750,11 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
   reaches tier 3) and from the Driftlings panel's Hatchery button (the request of 2026-11-14: "also, allow clicking on
   a hatchery to open the hatchery menu. add a hatchery tab once it is unlocked too"). A neighbour's Hatchery says
   "Someone else's Hatchery. Build one on your own island."
-- **The words**: the panel's hint over the rows says "Breed two driftlings for an egg. Rarer parents tend to make
-  rarer eggs. Legendary and up need both parents that rare." (true of `Breed.child`: over every pair the child's
-  rarity rises with the parents', though about one pair in five hatches outside the parents' own two rarities, so the
-  hint says "tend to"). Each pair's line says the price, the time and what the mutations do: "Costs 300 shells,
-  hatches in 12 min. Mutations both carry pass on, maybe a tier up. The rest pass on half the time." (three lines left
-  of Breed on a narrow panel, the row a line taller). Finish now sits in the first warming egg's row, so the hint has
-  the panel's whole width.
+- **The words**: the panel's hint over the rows says "Breed two driftlings for an egg. It gets their best mutations,
+  and one they share comes out a tier higher. Legendary and up need two parents that rare." With two parents picked,
+  the pair's row shows the egg's kind (its portrait once met, else a dark shape and ???) and rarity, "Hatches with:"
+  and its mutations in their tier colours and stars, and "Costs 300 shells, hatches in 12 min." beside Breed
+  (`Breed.preview`). An egg warming shows its mutations too. Finish now sits in the first warming egg's row.
 - **Laying an egg**: tap each slot, pick a parent from your driftlings (not the other one); the
   panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
   price and how long it takes to hatch, in minutes or hours ("hatches in 4 min"); **Breed** pays it (`BreedShells` 20 / 80 / 300 / 1,200 / 5,000 / 22,000 /
@@ -1703,19 +1766,15 @@ says the island tier it hatches from ("These hatch from island Lv 4.").
   rarer), a mythic one only from two mythic ones or rarer, a celestial one only from two celestial ones; and only a
   kind of land open at the island's tier hatches (or one of the parents' own kinds), so the kinds past the capital
   never hatch early.
-- **What it inherits** (`Breed.inherit`): a mutation both parents carry always passes on, the better tier, and with
-  `BreedTierUp` (30%) a tier better still (a shared flaw becomes its family's first tier); one only a parent carries
-  passes on half the time (`BreedKeep`); with `BreedNew` (15%) it gains one of its own (tier 1 or 2, of a family
-  neither parent carries, tipped by the island's lean, below); the best four. Breeding two that share a mutation,
-  again and again, climbs it to the top tier.
-- **The island's lean** (`Tree.lean`, never shown to players: the request above, "secretlyskew"): the island's work
-  buildings tip which family a new mutation comes from, for the tree's eggs (`Tree.roll`, through `Traits.roll`) and
-  for a Hatchery egg's new mutation of its own (`Breed.inherit`). Each knack's family (Green Thumb for the farms,
-  Chopper for the wood buildings, Chatty for the shops) weighs 1 + `MutLean` (2) x that knack's work buildings /
-  the island's work buildings (at least `MutLeanFloor`, 4); every other family weighs 1. So an island of five Lumber
-  Camps and a Snack Stall rolls Chopper about twice as often as one of five stalls and a camp (2.67 against 1.33), and
-  one camp alone of the first four buildings makes Chopper 1.5. Huts, decor and boosts count for nothing. No text,
-  tip or panel mentions it.
+- **What it inherits** (`Breed.inherit`, decided before the egg is laid): every family either parent carries, at the
+  better parent's tier; a family both carry one tier above the better of the two (at most tier 4; a wondrous one stays
+  itself; a flaw both carry turns into its family's first tier, a flaw only one carries is left behind); then the
+  highest tiers first, four at most. So breeding two that share a mutation again and again climbs it to the top tier,
+  and a wondrous parent always passes its wonder on. (Until 2026-11-19 a parent's own passed on half the time, a shared
+  one came out a tier up now and then, a new one came now and then and the island's work buildings secretly tipped its
+  family: all gone with the kinds of work.)
+- **Its time**: `BreedTurns` times the huts' Hatchery shares (the Cozy family, the rain's, a few passives: each takes
+  its share off what is left, down to `HatchMin`, 30% of the time), at least one turn.
 - **Hatching**: at each turn's end the eggs count down; a ready one hatches and moves into the comfiest hut with room
   (with none it waits with no hut, §6), and goes in the Index ("Floe hatched!" in the turn's banner). The panel shows
   each egg: its rarity's egg, the time left in minutes or hours over a bar ("Hatches in 2 min", `Numbers.duration`;
@@ -2744,3 +2803,42 @@ more), under it "Join the group" while the player isn't in the group and "Group 
 waits (a tap opens the Store's Passes tab), and "VIP gift Ready" on a day VIP's gift waits (a tap claims it). On a phone the chip drops
 the price when it would not fit.
 
+## 15. Rewards for coming back and for playing (`Logic/Rewards`, `Data/Rewards`, `Config/Codes`, `UI/RewardsUI`)
+
+> The request (2026-11-19): "add rewards for playtime, daily rewards, streak rewards, codes, and as many retention
+> features you can think of"
+
+The menu bar's **Gifts** (a gift icon, between Looks and Store) opens the Rewards sheet; a small red dot sits on it
+while something waits to be claimed (`Rewards.view.ready`). On the HUD's status strip under the top bar a line says
+"Gift in 3:12" (the next gift for playing) or "A gift is waiting" in gold, and a timed boost running has its own line
+("Lucky Hour 14:04"). Days are UTC days of the sea's clock. The sheet has five tabs, each with a red dot while
+something on it waits:
+
+- **Today: the daily reward and the streak.** One a day (`reward.daily`). Claimed the day after the last claim the
+  streak goes on, else it starts again at 1. The streak's day in a round of seven picks the reward (`DAILY`: 10 min of
+  shells; an uncommon egg and 5 min; 20 min and a spin; a rare egg and a Lucky Hour; 30 min and a Busy Day; an epic
+  egg and a spin; a legendary egg, an hour of shells and two spins), shown as seven cards (the seventh twice as wide),
+  the ones taken this round ticked, today's gold. A streak reaching 3, 7, 14, 30, 60 or 100 days also gives that
+  milestone's gift once (`MILESTONES`: the titles Back Again, Devoted, Island Heart and Tide Keeper among them), and
+  the row says the next one ("Day 7 gift: a legendary egg and 3 spins."). "Best 5" is the longest streak.
+- **Today: gifts for playing.** Minutes on the island today count up while the player is here (`Rewards.tick`, each
+  second; the server's second tells the client). Eight gifts at 2, 5, 10, 15, 20, 30, 45 and 60 minutes (`PLAY`),
+  each claimed by hand once its minutes are in (`reward.play`), shown as cards with the next one's time running down.
+- **Tasks.** Three a day (`Rewards.sync` deals them when the day turns), from the ones the island is big enough for:
+  hatch eggs, place pieces, earn shells (20 minutes of what the island makes when dealt), spend 15 minutes on the
+  island, sell driftlings, hatch Hatchery eggs. Each counts from the moment it was dealt, with a bar, and is claimed
+  when done (`reward.task`); all three claimed, the bonus (an epic egg, a spin and 15 min of shells: `reward.bonus`).
+- **Lucky Shell.** One free spin a day, more from the rewards (`reward.spin`). Nine prizes with their odds shown
+  (5, 15 or 30 min of shells, an uncommon, rare, epic or legendary egg, a Lucky Hour or a Busy Day of 15 min). A spin
+  runs a light over the prizes, two laps and on, slowing, and stops on the one won; only then does the sheet say what
+  it gave.
+- **Index.** Gifts for kinds found (5, 10, 20, 35, 50, 75, 100, 125 and 145 kinds), each once (`reward.index`).
+- **Codes.** A box to type a code into and Redeem (`code.redeem`): trimmed and made upper case, each once a player,
+  some with an end date (`Config/Codes`, on the server only: WELCOME, DRIFTLING, HATCHDAY, SPINME to start).
+  "That code doesn't work. Check the spelling." / "You already used that code."
+
+**The rewards themselves** are Data/Track's shapes (minutes of what the island makes now, an egg into the bag to hatch
+for nothing, a look, a title) and two of their own: spins of the Lucky Shell, and **timed boosts** (`Profile.boosts`,
+seconds left, running down only while the player is on the island, four hours at most): **Busy Day** (every shell x1.5,
+`TimedShells`) and **Lucky Hour** (+0.5 egg luck, `TimedLuck`). Every claim tells the player what came in the sheet's
+status line ("Daily reward: an uncommon egg and 1,642 shells."). The save keeps it all (`Profile.rewards`, version 20).

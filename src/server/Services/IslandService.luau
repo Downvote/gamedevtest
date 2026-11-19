@@ -17,6 +17,8 @@ local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Weather = require(ReplicatedStorage.Shared.Logic.Weather)
 local Store = require(ReplicatedStorage.Shared.Logic.Store)
+local Rewards = require(ReplicatedStorage.Shared.Logic.Rewards)
+local Codes = require(script.Parent.Parent.Config.Codes)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
 local Router = require(script.Parent.Router)
@@ -41,6 +43,10 @@ local function tips(s: Session.S)
 		local d = Buildings.byId[q.id]
 		if d then
 			has[d.kind] = true
+			-- (a workplace by what it does: the tips ask for a camp, a farm and a shop)
+			if d.act ~= "" then
+				has[d.act] = true
+			end
 		end
 	end
 	while p.tut >= 1 and p.tut <= 5 do
@@ -180,7 +186,7 @@ function IslandService.init()
 	end)
 	-- the Hatchery (GAME_DESIGN 6.1): two driftlings bred for an egg
 	Router.on("breed.start", function(s, a)
-		return Breed.start(s.profile, a.uid, a.a, a.b, s.rng)
+		return Breed.start(s.profile, a.uid, a.a, a.b)
 	end)
 	-- the founder's look (GAME_DESIGN 9): the player's attribute follows on the next sync
 	Router.on("founder.set", function(s, a)
@@ -219,6 +225,36 @@ function IslandService.init()
 			Session.fx(s, { kind = "rewards", from = "vip", given = data.given })
 		end
 		return ok, data
+	end)
+	-- the rewards for coming back and playing (GAME_DESIGN 15; Logic/Rewards): each claim tells the player what came
+	-- (Fx "rewards", the panel's notice and the flying shells)
+	local function reward(s: Session.S, from: string, ok: boolean, data: any): (boolean, any)
+		if ok then
+			Session.markDirty(s)
+			Session.fx(s, { kind = "rewards", from = from, given = data.given })
+		end
+		return ok, data
+	end
+	Router.on("reward.daily", function(s, _a)
+		return reward(s, "daily", Rewards.claimDaily(s.profile, WorldClock.now()))
+	end)
+	Router.on("reward.play", function(s, a)
+		return reward(s, "play", Rewards.claimPlay(s.profile, a.i, WorldClock.now()))
+	end)
+	Router.on("reward.task", function(s, a)
+		return reward(s, "task", Rewards.claimTask(s.profile, a.i, WorldClock.now()))
+	end)
+	Router.on("reward.bonus", function(s, _a)
+		return reward(s, "bonus", Rewards.claimBonus(s.profile, WorldClock.now()))
+	end)
+	Router.on("reward.spin", function(s, _a)
+		return reward(s, "spin", Rewards.spin(s.profile, s.rng, WorldClock.now()))
+	end)
+	Router.on("reward.index", function(s, a)
+		return reward(s, "index", Rewards.claimIndex(s.profile, a.i))
+	end)
+	Router.on("code.redeem", function(s, a)
+		return reward(s, "code", Rewards.redeem(s.profile, a.code, Codes :: any, WorldClock.now()))
 	end)
 	-- offline earnings (GAME_DESIGN 14.3): the welcome-back card's Collect (or Collect x2, free in an island's first days)
 	Router.on("offline.collect", function(s, a)
@@ -324,6 +360,11 @@ function IslandService.step(dt: number)
 			local now = WorldClock.now()
 			-- (the island is open: offline earnings count from the last second it was)
 			p.seenAt = now
+			-- today's playtime (a new day starts it again and deals the day's tasks: the whole view goes out)
+			if Rewards.sync(p, now) then
+				Session.markDirty(s)
+			end
+			Rewards.tick(p, now, 1)
 			local titles = Store.earn(p)
 			if #titles > 0 then
 				Session.markDirty(s)
@@ -344,7 +385,7 @@ function IslandService.step(dt: number)
 				s.shopRot = rot
 				Session.markDirty(s)
 			end
-			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = now, clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p) })
+			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = now, clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p), play = p.rewards.play.secs })
 		end
 	end
 end

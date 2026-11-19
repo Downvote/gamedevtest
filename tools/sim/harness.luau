@@ -451,8 +451,8 @@ function H.checkProfile(p, label)
 		if x.work ~= 0 then
 			local q = uids[x.work]
 			local b = q and Buildings.byId[q.id]
-			-- (any workplace, whatever its knack: a farm, a lumber camp or a shop)
-			H.expect(b ~= nil and d ~= nil and (b.kind == "farm" or b.kind == "wood" or b.kind == "shop") and (helps[x.work] or 0) < b.jobs, "profile", label .. ": a driftling at a bad or full spot", tostring(x.work))
+			-- (any workplace: one kind of work since 2026-11-19)
+			H.expect(b ~= nil and d ~= nil and b.kind == "work" and (helps[x.work] or 0) < b.jobs, "profile", label .. ": a driftling at a bad or full spot", tostring(x.work))
 			helps[x.work] = (helps[x.work] or 0) + 1
 		end
 	end

@@ -65,6 +65,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Palette = require(ReplicatedStorage.Shared.Data.Palette)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local EggModels = require(ReplicatedStorage.Shared.Models.EggModels)
@@ -179,8 +180,6 @@ local TWINKLE: { { string } } = {
 local FLARE = { "flare_1", "flare_2", "flare_3", "flare_2", "flare_1" }
 -- Confetti: each bit's two shades, the side it shows turning as it flutters down.
 local CONFETTI: { { string } } = { { "pink", "wall_trim" }, { "yellow", "gold" }, { "blue", "hair_blue" }, { "green", "leaf_dark" }, { "orange", "clay" }, { "crystal", "purple" }, { "white", "cherry" } }
-
-local KNACK: { [string]: string } = { farm = "good at farms", wood = "good with wood", shop = "good at shops" }
 
 ------------------------------------------------------------------ state
 type Reveal = { kind: string, r: number?, i: number? } -- "rise" (to rarity r) | "mut" (the i-th mutation)
@@ -710,14 +709,16 @@ local function showLetters(s: Scene, nm: TextLabel, color: Color3, start: number
 	return start + i * 0.035
 end
 
--- What hatched, under it: its name in its rarity's colour, its rarity and knack (on a ribbon from uncommon up). Its
+-- What hatched, under it: its name in its rarity's colour, its rarity and how fast it works (on a ribbon from uncommon
+-- up; it named the kind of work it was good at till every workplace became one kind, 2026-11-19). Its
 -- "New!" comes once the name is in.
 local function showName(s: Scene)
 	local def = Creatures.byId[s.res.sp]
 	local r = if def then def.rarity else s.r
 	local rar = Traits.RARITY[r] or Traits.RARITY[1]
 	local nm = UIKit.text(s.root, if def then def.name else "A driftling", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 1, -42), { x = "center", face = "big", kind = "title", color = UIKit.color(rar.color), z = 36, name = "HatchName" })
-	local words = if def then string.format("%s, %s", rar.name, KNACK[def.knack] or "a hard worker") else rar.name
+	local speed = if def then (Tuning.RarityWork[def.rarity] or 1) * (1 + Traits.work(Traits.sum(def.passive.fx, s.res.muts))) else 1
+	local words = if def then string.format("%s, works x%.1f", rar.name, speed) else rar.name
 	-- (on its ribbon from uncommon up, in ink)
 	local onRibbon = s.r >= 2
 	local line = UIKit.text(s.root, words, UDim2.new(1, 0, 0, 10), UDim2.new(0, 0, 1, -24), { x = "center", color = UIKit.color(if onRibbon then "text_ink" else "paper"), kind = if onRibbon then "plain" else nil, z = 35, name = "HatchLine" })

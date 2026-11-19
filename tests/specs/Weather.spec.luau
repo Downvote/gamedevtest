@@ -198,12 +198,12 @@ return function()
 		local fav, plainFav = 0, 0
 		local r2 = Util.newRng(77)
 		for _ = 1, 3000 do
-			local sp = Tree.roll(q, r2, 1, nil, "winter")
+			local sp = Tree.roll(q, r2, 1, "winter")
 			local isl = Creatures.byId[sp].islet
 			if isl == 4 or isl == 7 then
 				fav += 1
 			end
-			local sp2 = Tree.roll(q, r2, 1, nil, nil)
+			local sp2 = Tree.roll(q, r2, 1, nil)
 			local isl2 = Creatures.byId[sp2].islet
 			if isl2 == 4 or isl2 == 7 then
 				plainFav += 1

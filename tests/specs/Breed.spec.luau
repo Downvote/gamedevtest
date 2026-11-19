@@ -81,87 +81,76 @@ return function()
 			end
 		end
 	end)
-	T.it("inheriting: one both carry always passes on (the better tier, sometimes one better); one only a parent carries about half the time", function()
-		local rng = Util.newRng(8)
-		local both, up, single, new = 0, 0, 0, 0
-		local N = 3000
-		for _ = 1, N do
-			local m = Breed.inherit({ "fierce2", "lazy" }, { "fierce1", "grower3" }, rng)
-			T.truthy(#m <= Traits.MAX)
-			T.deepEq(Traits.clean(m), m, "a clean list")
-			local fam: { [string]: string } = {}
-			for _, id in m do
-				fam[Traits.byId[id].family] = id
-			end
-			T.truthy(fam.fierce == "fierce2" or fam.fierce == "fierce3", "the shared family: the better tier or one better")
-			both += 1
-			if fam.fierce == "fierce3" then
-				up += 1
-			end
-			if fam.busy == "lazy" then
-				single += 1
-			end
-			for f in fam do
-				if f ~= "fierce" and f ~= "busy" and f ~= "grower" then
-					new += 1
-				end
-			end
+	T.it("inheriting (2026-11-19): decided, the best tiers of both parents, a shared family a tier up, at most four", function()
+		-- (the request: "In hatchery, show the resultant mutation combination the pet will have. Always take the highest
+		-- tier mutations to combine with each other if possible")
+		local m = Breed.inherit({ "fierce2", "lazy" }, { "fierce1", "grower3" })
+		T.deepEq(m, { "fierce3", "grower3" }, "the shared family one above the better (2 -> 3), the other parent's own kept, a lone flaw left behind")
+		T.deepEq(Breed.inherit({ "fierce2", "lazy" }, { "fierce1", "grower3" }), m, "the same every time")
+		T.deepEq(Breed.inherit({ "frail" }, { "frail" }), { "sturdy1" }, "a shared flaw: its family's first tier")
+		T.deepEq(Breed.inherit({ "busy4" }, { "busy4" }), { "busy4" }, "never past tier 4")
+		T.deepEq(Breed.inherit({ "golden5" }, { "golden5" }), { "golden5" }, "a wondrous one stays itself")
+		-- the highest tiers first, at most four
+		local best = Breed.inherit({ "fierce4", "sturdy1", "armor2", "bright1" }, { "golden5", "busy3", "grower1", "chopper2" })
+		T.eq(#best, Traits.MAX)
+		T.deepEq(best, { "golden5", "fierce4", "busy3", "armor2" }, "the wondrous one, then 4, 3 and the better 2")
+		local tiers: { number } = {}
+		for _, id in best do
+			table.insert(tiers, Traits.byId[id].tier)
 		end
-		T.eq(both, N)
-		T.near(up / N, Tuning.BreedTierUp, 0.04, "a tier up now and then")
-		T.near(single / N, Tuning.BreedKeep, 0.04, "a single parent's about half the time")
-		T.near(new / N, Tuning.BreedNew, 0.03, "a new one of its own now and then")
-		-- a shared flaw: the flaw, or its family's first tier
-		for _ = 1, 200 do
-			local m = Breed.inherit({ "frail" }, { "frail" }, rng)
-			T.truthy(m[1] == "frail" or m[1] == "sturdy1" or Traits.byId[m[1]].tier >= 1, "frail or Sturdy")
-			T.truthy(table.find(m, "frail") or table.find(m, "sturdy1"), "the family passes on")
+		for k = 2, #tiers do
+			T.truthy(tiers[k] <= tiers[k - 1], "highest first")
 		end
-		-- the best four of many
-		for _ = 1, 200 do
-			local m = Breed.inherit({ "fierce4", "swift4", "sturdy4", "armor4" }, { "bright4", "busy4", "grower4", "chopper4" }, rng)
-			T.eq(#m <= 4, true)
+		T.deepEq(Breed.inherit(nil, nil), {})
+		T.deepEq(Traits.clean(best), best, "a clean list")
+	end)
+	T.it("the preview: what a pair makes, its mutations, price and turns; the huts' Hatchery shares shorten it", function()
+		local p = fresh()
+		local a = friend(p, "clawdle", { "fierce2" })
+		local b = friend(p, "gullfin", { "fierce2", "grower1" })
+		local pv = Breed.preview(p, a, b) :: any
+		T.truthy(pv ~= nil)
+		T.eq(pv.sp, Breed.child("clawdle", "gullfin", p.tier))
+		T.deepEq(pv.muts, { "fierce3", "grower1" })
+		local price, turns = Breed.cost(pv.sp)
+		T.eq(pv.price, price)
+		T.eq(pv.turns, turns, "nobody in a hut: the plain turns")
+		T.eq(Breed.preview(p, a, a), nil, "not one with itself")
+		T.eq(Breed.preview(p, a, 777), nil)
+		-- a driftling in a hut with a Hatchery share (2026-11-19: "mutations that decrease hatchery time, with
+		-- diminishing returns if stacked")
+		local hut = put(p, "nest")
+		for _, x in p.pals do
+			x.home = hut
+			x.muts = { "grower4" } -- Egg Keeper: 30% sooner
 		end
-		T.deepEq(Breed.inherit(nil, nil, Util.newRng(1)) ~= nil, true)
-		-- the island's lean (Tree.lean, 2026-11-15): a new one of its own mostly of the leant family
-		local lrng, lean, other = Util.newRng(9), 0, 0
-		for _ = 1, 6000 do
-			for _, id in Breed.inherit({ "fierce2" }, { "fierce1" }, lrng, { chopper = 6 }) do
-				local f = Traits.byId[id].family
-				if f == "chopper" then
-					lean += 1
-				elseif f ~= "fierce" then
-					other += 1
-				end
-			end
-		end
-		-- (chopper 6 against 1 for each of the six other free families: half of the new ones)
-		T.near(lean / math.max(1, lean + other), 0.5, 0.06, "Chopper half the time")
+		local _, t2 = Breed.cost(pv.sp, p)
+		T.eq(t2, math.max(1, math.ceil(turns * 0.7 * 0.7 - 1e-9)), "two of them: 30% off, then 30% of what is left")
+		T.truthy(t2 < turns)
 	end)
 	T.it("laying an egg: a Hatchery with none, two of the island's own, the feast paid", function()
 		local p = fresh()
-		local rng = Util.newRng(3)
 		local a = friend(p, "clawdle", { "fierce2" })
 		local b = friend(p, "gullfin", { "fierce2", "grower1" })
-		T.eq(select(2, Breed.start(p, 999, a, b, rng)), "not_found", "no Hatchery")
+		T.eq(select(2, Breed.start(p, 999, a, b)), "not_found", "no Hatchery")
 		local farm = put(p, "patch")
-		T.eq(select(2, Breed.start(p, farm, a, b, rng)), "not_found", "a farm is no Hatchery")
+		T.eq(select(2, Breed.start(p, farm, a, b)), "not_found", "a farm is no Hatchery")
 		local h = put(p, "hatchery")
-		T.eq(select(2, Breed.start(p, h, a, a, rng)), "bad_payload", "the same one twice")
-		T.eq(select(2, Breed.start(p, h, a, 777, rng)), "not_found", "a driftling not here")
-		local sp = Breed.child("clawdle", "gullfin")
-		local feast, turns = Breed.cost(sp)
+		T.eq(select(2, Breed.start(p, h, a, a)), "bad_payload", "the same one twice")
+		T.eq(select(2, Breed.start(p, h, a, 777)), "not_found", "a driftling not here")
+		local sp = Breed.child("clawdle", "gullfin", p.tier)
+		local feast, turns = Breed.cost(sp, p)
 		p.shells = feast - 1
-		T.eq(select(2, Breed.start(p, h, a, b, rng)), "money")
+		T.eq(select(2, Breed.start(p, h, a, b)), "money")
 		p.shells = feast + 5
-		local ok, egg = Breed.start(p, h, a, b, rng)
+		local ok, egg = Breed.start(p, h, a, b)
 		T.truthy(ok)
 		T.eq(p.shells, 5, "the feast paid in shells")
 		T.eq(egg.sp, sp)
 		T.eq(egg.left, turns)
-		T.truthy(table.find(egg.muts, "fierce2") or table.find(egg.muts, "fierce3"), "the shared mutation passes on")
+		T.deepEq(egg.muts, { "fierce3", "grower1" }, "what the preview showed: the shared one a tier up, the other kept")
 		T.eq(#p.eggs, 1)
-		T.eq(select(2, Breed.start(p, h, a, b, rng)), "egg", "one egg a Hatchery")
+		T.eq(select(2, Breed.start(p, h, a, b)), "egg", "one egg a Hatchery")
 		-- a rarer egg takes a bigger feast and more turns
 		T.truthy(Tuning.BreedShells[5] > Tuning.BreedShells[1] and Tuning.BreedTurns[5] > Tuning.BreedTurns[1])
 		-- not cleared away while it holds the egg
@@ -170,12 +159,12 @@ return function()
 	end)
 	T.it("hatching: the turns count down; it hatches into a hut with room, or waits with no hut (in the Index)", function()
 		local p = fresh()
-		local rng = Util.newRng(4)
+
 		local a = friend(p, "mossbun")
 		local b = friend(p, "mossbun")
 		local h = put(p, "hatchery")
 		local before = #p.pals
-		local _, egg = Breed.start(p, h, a, b, rng)
+		local _, egg = Breed.start(p, h, a, b)
 		T.eq(egg.sp, "mossbun")
 		for _ = 1, egg.left - 1 do
 			T.eq(#Breed.turn(p), 0)
@@ -202,11 +191,11 @@ return function()
 	end)
 	T.it("a Hatchery's hatchling of a kind never had is named as new (the notice's \"New!\")", function()
 		local p = fresh()
-		local rng = Util.newRng(5)
+
 		local a = friend(p, "clawdle")
 		local b = friend(p, "gullfin")
 		local h = put(p, "hatchery")
-		local _, egg = Breed.start(p, h, a, b, rng)
+		local _, egg = Breed.start(p, h, a, b)
 		p.seen[egg.sp] = 1 -- (met in the Index, never had)
 		egg.left = 1
 		local born, newKinds = Breed.turn(p)

@@ -142,16 +142,18 @@ local WORK_CHIPS: { [string]: Chips } = {
 	fish = { colors = { "water", "white", "window" }, n = 4, up = 7, out = 1.5, ahead = 2.6, y = -0.4 },
 	sell = { colors = { "gold" }, n = 1, up = 3, out = 0, glow = true, ahead = 0.9, y = 1.6 },
 }
--- what a driftling does where it helps (DriftModels' work moods): by the building's kind
+-- what a driftling does where it helps (DriftModels' work moods): by how the building's workers look at work (its
+-- `act`) or its kind
 local function palMoodOf(id: string): string
 	if id == "pier" or id == "kelpfarm" then
 		return "dip"
 	end
 	local d = Buildings.byId[id]
 	local kind = if d then d.kind else ""
-	if kind == "farm" then
+	local act = if d then d.act else ""
+	if act == "farm" then
 		return "peck"
-	elseif kind == "shop" then
+	elseif act == "shop" then
 		return "wave"
 	elseif kind == "nest" or kind == "breed" then
 		return "nap"

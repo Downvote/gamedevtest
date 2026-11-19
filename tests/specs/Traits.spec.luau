@@ -104,67 +104,74 @@ return function()
 		T.truthy(top5 > top1 * 1.3, "legends roll more tier 3 and 4")
 		T.truthy(flaws5 < flaws1, "and fewer flaws")
 	end)
-	T.it("sums: the passive and the mutations together; work at a knack", function()
-		local fx = Traits.sum({ cost = -0.1, farm = 0.15 }, { "sturdy2", "grower1", "lazy", "nope" })
+	T.it("sums: the passive and the mutations together; work is one share everywhere (2026-11-19)", function()
+		local fx = Traits.sum({ cost = -0.1, work = 0.15 }, { "sturdy2", "busy1", "grower1", "lazy", "nope" })
 		T.near(fx.cost, -0.4, 1e-9)
-		T.near(fx.farm, 0.27, 1e-9)
-		T.near(fx.work, -0.15, 1e-9)
-		T.near(Traits.workAt(fx, "farm"), 0.12, 1e-9)
-		T.near(Traits.workAt(fx, "wood"), -0.15, 1e-9)
-		T.eq(Traits.workAt({ work = -3 }, "farm"), -0.5, "never below -50%")
-		T.eq(Traits.describe({ cost = -0.3, farm = 0.27 }), "+27% at farms, eggs cost 30% less")
+		-- (a Lazy one and a Busy one are one family: clean keeps the first, sum takes the list as given)
+		T.near(fx.work, 0.15 + 0.12 - 0.15, 1e-9)
+		T.near(fx.hatch, 0.06, 1e-9, "the Grower family shortens the Hatchery now")
+		T.near(Traits.work(fx), 0.12, 1e-9)
+		T.eq(Traits.work({ work = -3 }), -0.5, "never below -50%")
+		T.eq((Traits :: any).workAt, nil, "no work at a knack")
+		T.eq(Traits.describe({ cost = -0.3, work = 0.27 }), "+27% work, eggs cost 30% less")
 		T.eq(Traits.describe({ work = -0.15 }), "-15% work")
-		T.eq(Traits.describe({ charm = 2, sell = 0.7, luck = 0.1 }), "+70% sell price, +2 charm, +10% egg luck")
-		-- (nothing brings the tree's eggs sooner any more: a `tree` share isn't one of the keys)
-		T.eq(Traits.describe({ tree = 0.08 }), "")
+		T.eq(Traits.describe({ charm = 2, sell = 0.7, luck = 0.1 }), "+2 charm, +10% egg luck, +70% sell price")
+		T.eq(Traits.describe({ hatch = 0.12, boost = 0.2, charmPct = 0.08 }), "Hatchery eggs 12% sooner, +20% boost buildings, +8% charm")
+		T.eq(Traits.describe({ eggs = 1, all = 0.15 }), "+15% all shells, +1 egg in every lot")
+		-- (nothing brings the tree's eggs sooner any more, and farms, wood and shops are no kinds of work now)
+		T.eq(Traits.describe({ tree = 0.08, farm = 0.2 }), "")
 		T.eq(Traits.describe({}), "")
 	end)
-	T.it("a new mutation's family: all alike, or tipped by a lean (the island's work buildings, 2026-11-15)", function()
-		local ids: { string } = {}
-		for _, f in Traits.families do
-			table.insert(ids, f.family)
+	T.it("the request of 2026-11-19: the kinds of work's families give Hatchery time, boost buildings and charm shares", function()
+		T.eq(Traits.byId.grower1.fx.hatch, 0.06)
+		T.eq(Traits.byId.chopper2.fx.boost, 0.12)
+		T.eq(Traits.byId.trader3.fx.charmPct, 0.14)
+		T.eq(Traits.byId.armor2.fx.charm, 2, "flat charm kept")
+		for _, f in Traits.weather do
+			T.truthy(f.key ~= "farm" and f.key ~= "wood" and f.key ~= "shop", f.family .. " no kind of work")
 		end
-		-- no lean: the plain pick, the same draws as before the lean
-		local a, b = Util.newRng(11), Util.newRng(11)
-		for _ = 1, 200 do
-			T.eq(Traits.pickFamily(a, ids, nil), ids[b:int(1, #ids)])
-			T.eq(Traits.pickFamily(a, ids, {}), ids[b:int(1, #ids)])
-		end
-		-- chopper weighing 3 against 1 for the other seven: 3 picks in 10
-		local rng = Util.newRng(12)
-		local n, N = 0, 20000
-		for _ = 1, N do
-			local f = Traits.pickFamily(rng, ids, { chopper = 3 })
-			T.truthy(table.find(ids, f) ~= nil)
-			if f == "chopper" then
-				n += 1
+		for _, m in Traits.list do
+			for k in m.fx do
+				T.truthy(table.find(Traits.KEYS, k) ~= nil, m.id .. ": " .. k .. " a known effect")
 			end
 		end
-		T.near(n / N, 3 / 10, 0.015, "chopper 3 in 10")
-		-- a family outside the list is never picked, whatever its weight
-		for _ = 1, 200 do
-			T.truthy(Traits.pickFamily(rng, { "sturdy", "armor" }, { chopper = 50 }) ~= "chopper")
+	end)
+	T.it("the wondrous mutations (tier 5): each its own family and effect, very seldom rolled, more for rarer kinds", function()
+		T.eq(Traits.TOP, 5)
+		T.truthy(#Traits.wonders >= 5)
+		local keys: { [string]: boolean } = {}
+		for _, w in Traits.wonders do
+			local m = Traits.byId[w.family .. "5"]
+			T.truthy(m ~= nil and m.tier == 5 and m.name == w.name, w.family .. "5")
+			T.eq(Traits.at(w.family, 2), m.id, "one tier: its own")
+			T.truthy(Traits.TIER_COLOR[5] ~= nil and Traits.TIER_NAME[5] == "Wondrous")
+			for k in m.fx do
+				keys[k] = true
+			end
 		end
-		-- a roll with a lean: more of that family, the roll's rules kept
-		local function share(lean: { [string]: number }?): number
-			local r, hit, all = Util.newRng(13), 0, 0
-			for _ = 1, 4000 do
-				local muts = Traits.roll(r, 3, lean)
-				T.deepEq(Traits.clean(muts), muts, "a clean list")
-				for _, id in muts do
-					local m = Traits.byId[id]
-					if m.tier > 0 then
-						all += 1
-						if m.family == "trader" then
-							hit += 1
-						end
+		-- (effects nothing at tiers 1 to 4 gives)
+		for _, k in { "all", "aura", "eggs", "skip", "away" } do
+			T.truthy(keys[k], "a wondrous " .. k)
+			for _, f in Traits.families do
+				T.truthy(f.key ~= k, f.family .. " never gives " .. k)
+			end
+		end
+		local function share(r: number): number
+			local rng, n, all = Util.newRng(77), 0, 0
+			for _ = 1, 40000 do
+				for _, id in Traits.roll(rng, r) do
+					all += 1
+					if Traits.byId[id].tier == 5 then
+						n += 1
 					end
 				end
 			end
-			return hit / math.max(1, all)
+			return n / math.max(1, all)
 		end
-		local plain, leant = share(nil), share({ trader = 3 })
-		T.truthy(leant > plain * 1.8, string.format("trader leant %.3f against plain %.3f", leant, plain))
+		local common, legend = share(1), share(5)
+		T.truthy(common > 0 and common < 0.006, string.format("a common one's mutation is wondrous %.4f of the time", common))
+		T.truthy(legend > common * 2 and legend < 0.02, string.format("a legend's %.4f", legend))
+		T.deepEq(Traits.clean({ "golden5", "busy4", "golden5" }), { "golden5", "busy4" }, "a family once")
 	end)
 	T.it("cleaning a save's list: known ids, a family once, at most four", function()
 		-- (a saved Leafy one is Lucky of the same tier since 2026-11-14)
@@ -173,9 +180,9 @@ return function()
 		T.eq(Traits.byId.sturdy2.blurb, "eggs cost 30% less")
 		T.eq(Traits.byId.fierce3.name, "Golden")
 		T.eq(Traits.byId.bright1.blurb, "+5% egg luck")
-		-- a saved Angler (fishing went into the farms on 2026-11-14) becomes a Green Thumb of its tier, once a family
-		T.deepEq(Traits.clean({ "angler2", "lazy" }), { "grower2", "lazy" }, "an Angler is a Green Thumb now")
-		T.deepEq(Traits.clean({ "grower1", "angler3" }), { "grower1" }, "never the family twice")
+		-- a saved Angler (fishing, then farms; one kind of work since 2026-11-19) becomes Busy of its tier, once a family
+		T.deepEq(Traits.clean({ "angler2", "grower1" }), { "busy2", "grower1" }, "an Angler is Busy now")
+		T.deepEq(Traits.clean({ "busy1", "angler3", "lazy" }), { "busy1" }, "never the family twice")
 		T.eq(Traits.byId.angler1, nil, "no new Anglers")
 		for _, k in Traits.KEYS do
 			T.truthy(k ~= "fish", "no fishing share")

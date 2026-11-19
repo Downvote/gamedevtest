@@ -8,9 +8,10 @@
 --   The request of 2026-11-15: "when hovering over a boost building, show how much the total boosts of the certain of
 --   building it is boosting with all other same type boost buildings together. also, while hovering over a work
 --   building, show how much it is earning". So a workplace's card says what it earns a minute too (Island.output, times
---   the view's charm bonus and income multiplier), and a boost building gets a card of its own: the boost at its knack
---   from every boost building there together ("Farms +15% from 2 boost buildings", Island.boostInfo; an "all" one,
---   the "all" boosts together) and what one more of its kind would add (they stack, less each time: Tuning.BoostStack).
+--   the view's charm bonus and income multiplier), and a boost building gets a card of its own: the boost every
+--   workplace gets from every boost building together, the driftlings' boost share in ("Everything +15% from 2 boost
+--   buildings", Island.boostInfo; each boosts everything since 2026-11-19) and what one more of its kind would add
+--   (they stack, less each time: Tuning.BoostStack).
 --   No alerts over empty buildings any more: the request of 2026-11-17, "remove the empty alert that appears above
 --   huts and work places" (they said "Empty" over every workplace nobody worked at and every hut nobody lived in).
 -- Only the own island's: the card on the Popup root over the HUD (nothing while the camera has a stage). WorldView drives it: step every
@@ -55,8 +56,7 @@ local hoverUid = 0
 local hoverAt = 0
 local lastHit = "" -- what the last pick ray met (debugState)
 
--- A boost building's knack in words, and a share as a percentage (whole, or to a tenth).
-local KNACK_WORD: { [string]: string } = { farm = "Farms", wood = "Wood", shop = "Shops", all = "Everything" }
+-- A share as a percentage (whole, or to a tenth).
 local function pct(x: number): string
 	local v = math.floor(x * 1000 + 0.5) / 10
 	return if v == math.floor(v) then string.format("%d%%", v) else string.format("%.1f%%", v)
@@ -134,7 +134,7 @@ local function scan(v: Types.ClientView)
 				continue
 			end
 			local work = Island.works(id)
-			local boost = def.kind == "gen" and def.boost ~= ""
+			local boost = def.kind == "gen"
 			if not work and not boost and def.kind ~= "nest" then
 				continue
 			end
@@ -181,7 +181,7 @@ local function scan(v: Types.ClientView)
 end
 
 -- A card's other lines, worked out when it shows (once a view): what a workplace earns a minute, what a boost
--- building's knack gets from them all.
+-- building's boost from them all.
 local madeFor: Types.ClientView? = nil
 local made: { [number]: number } = {}
 local function extrasOf(s: Spot): { string }
@@ -202,7 +202,7 @@ local function extrasOf(s: Spot): { string }
 			out = { string.format("Earns %s shells/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
 		elseif s.kind == "boost" then
 			local b = Island.boostInfo(prof, s.id)
-			local first = string.format("%s +%s from %d boost building%s", KNACK_WORD[b.knack] or "Everything", pct(b.total), b.count, if b.count == 1 then "" else "s")
+			local first = string.format("Everything +%s from %d boost building%s", pct(b.total), b.count, if b.count == 1 then "" else "s")
 			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Boosts top out at %s", pct(Tuning.BoostMax)) else string.format("One more adds +%s", pct(b.more))
 			out = { first, second }
 		end
@@ -225,7 +225,7 @@ local function dropCard()
 end
 
 -- The card over spot s: its name over its lines (a workplace: how full, what it earns; a hut: how full; a boost
--- building: the boost at its knack, what one more adds), each with its icon, rebuilt when the words change.
+-- building: the boost from them all, what one more adds), each with its icon, rebuilt when the words change.
 local function showCard(s: Spot)
 	local def = Buildings.byId[s.id]
 	local name = if def then def.name else s.id

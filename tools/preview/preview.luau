@@ -521,7 +521,7 @@ local function fillMax(prof)
 				table.insert(groups.breed, d.id)
 			elseif d.kind == "gen" then
 				table.insert(groups.boost, d.id)
-			elseif d.kind == "farm" or d.kind == "wood" or d.kind == "shop" then
+			elseif d.kind == "work" then
 				table.insert(groups.work, d.id)
 			elseif d.kind == "decor" and (d.water or "") == "" then
 				table.insert(groups.decor, d.id)
@@ -761,7 +761,7 @@ function SCEN.crowd()
 	local shop, best = nil, math.huge
 	for _, q in prof.plot.placed do
 		local b = Buildings.byId[q.id]
-		if b and b.kind == "shop" and root then
+		if b and b.act == "shop" and root then
 			local w, d = Plot.footprint(q.id, q.rot)
 			local dist = (E.v3(ox + q.x + w / 2, root.Position.Y, oz + q.z + d / 2) - root.Position).Magnitude
 			if dist < best then
@@ -1703,9 +1703,39 @@ local function panelScenario(name)
 		prof.shells = 250000
 		H.push(p, 0.6)
 	end
+	if name == "rewards" then
+		-- (panel=rewards[:<tab>]: a player on day 4 of a streak with today's reward waiting and day 7's gift ahead,
+		-- twelve minutes in today (two gifts for playing taken, the third waiting), today's tasks with one done and one
+		-- claimed, two spins, 12 kinds with the first Index gift taken, the Lucky Hour running; GAME_DESIGN 15)
+		H.push(p, 0.3)
+		local prof = H.profile(p)
+		local now = H.smod("WorldClock").now()
+		local today = math.floor(now / 86400)
+		local rw = prof.rewards
+		rw.daily.last, rw.daily.streak, rw.daily.best = today - 1, 3, 5
+		rw.daily.miles = { 3 }
+		rw.play.day, rw.play.secs, rw.play.got = today, 12 * 60 + 20, { 1, 2 }
+		rw.tasks.day = -1
+		local RewardsL = H.sharedServer("Logic.Rewards")
+		RewardsL.sync(prof, now)
+		if rw.tasks.list[1] then
+			rw.tasks.list[1].at -= rw.tasks.list[1].n
+			rw.tasks.got[1] = true
+		end
+		if rw.tasks.list[2] then
+			rw.tasks.list[2].at -= rw.tasks.list[2].n
+		end
+		rw.spin.day, rw.spin.extra = today - 1, 1
+		rw.index.got = { 5 }
+		for _, sp in { "pebblit", "frondle", "twiggle", "magmole", "clawdle", "gullfin", "mossbun", "emberpup", "shellback", "conchy", "frostling", "glacior" } do
+			prof.seen[sp] = 2
+		end
+		prof.boosts.luck = 14 * 60 + 5
+		H.push(p, 0.6)
+	end
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
-		if name == "store" or name == "looks" then
+		if name == "store" or name == "looks" or name == "rewards" then
 			H.openPanel(p, name, arg)
 		elseif name == "work" then
 			-- the work picker for the first driftling (Work on its card): every workplace with its speed there

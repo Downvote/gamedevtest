@@ -5,17 +5,17 @@
 -- the Economy spec plays whole sessions through the same functions. Actions return (true, data?) or (false, ErrCode)
 -- and change the profile only when they succeed.
 --
--- A turn (Tuning.TurnSeconds): each building of kind farm, wood or shop makes its rate (Data/Buildings) times
---   (the work of its driftlings, up to its `jobs`: each PalWork x its rarity's RarityWork x (1 + its work share +
---   its hut's comfort), its work share its passive's and mutations' (Data/Traits: work and the building's knack; a
---   driftling may work anywhere, its passive usually helping at its own knack's buildings);
---   IdleOutput with none)
---   x (1 + the boost buildings' share at its knack)
--- in shells, all of it: a farm sells what it grows, a wood building what it cuts, a shop its snacks and rooms (the
--- request of 2026-11-14: "make shells the main currency ... the wood tab buildings will also now give shells ... remove
--- the visitors mechanic, charm simply increases your shell gain"); then the whole is times 1 + the charm bonus
--- (`charmBonus`). Nothing eats (food went on 2026-11-13: "remove food as a resource"); a driftling with no hut doesn't
--- work.
+-- A turn (Tuning.TurnSeconds): each workplace (kind "work": farms, wood buildings and shops alike since the request of
+--   2026-11-19, "remove work building types. They all now fall in the same category of work") makes its rate
+--   (Data/Buildings) times (the work of its driftlings, up to its `jobs`: each PalWork x its rarity's RarityWork x (1 +
+--   its work share + its hut's comfort + the island's aura), its work share its passive's and mutations' (Data/Traits;
+--   a driftling may work anywhere); IdleOutput with none) x (1 + the boost: every boost building's share, BoostMax at
+--   most, times 1 + the huts' boost share)
+-- in shells, all of it (the request of 2026-11-14: "make shells the main currency ... remove the visitors mechanic,
+-- charm simply increases your shell gain"); then the whole is times 1 + the charm bonus (`charmBonus`), the passes,
+-- the huts' "all" share and a timed boost while one runs. Nothing eats (food went on 2026-11-13: "remove food as a
+-- resource"); a driftling with no hut doesn't work. What the huts' driftlings give the whole island (luck, cheaper eggs,
+-- quicker Hatcheries, stronger boosts, more charm and the wondrous mutations' effects): `isle`.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -63,15 +63,67 @@ function Island.fxOf(pal: Types.Pal): Traits.Fx
 	return Traits.sum(if d then d.passive.fx else nil, pal.muts)
 end
 
--- The charm: every piece's, and each driftling living in a hut (one each, and their charm share).
-function Island.charm(p: Profile): number
-	local n = count(p, "charm")
+-- What the huts' driftlings give the whole island (Data/Traits.ISLE), each summed and held to Tuning.IsleCap, but
+-- hatch, which multiplies: each driftling's share takes that much off the time left, so a second one counts for less
+-- than the first (the request of 2026-11-19: "make mutations that decrease hatchery time, with diminishing returns if
+-- stacked"), never below Tuning.HatchMin of it. `hatch` is the time's multiplier (1: no faster); `charm` the flat charm
+-- they add (one each and their charm shares, Island.charm). Worked out from the island's driftlings as they are.
+export type Isle = {
+	luck: number,
+	cost: number, -- a share off the eggs' price (0 .. its cap)
+	hatch: number, -- the Hatcheries' time multiplier (Tuning.HatchMin .. 1)
+	boost: number,
+	charmPct: number,
+	all: number,
+	aura: number,
+	eggs: number, -- whole eggs more a lot
+	skip: number,
+	away: number,
+	charm: number,
+}
+function Island.isle(p: Profile): Isle
+	local sum: { [string]: number } = {}
+	local hatch, charm = 1, 0
 	for _, x in p.pals do
 		if x.home ~= 0 then
-			n += 1 + (Island.fxOf(x).charm or 0)
+			local fx = Island.fxOf(x)
+			for _, k in Traits.ISLE do
+				local v = fx[k]
+				if v then
+					sum[k] = (sum[k] or 0) + v
+				end
+			end
+			local h = fx.hatch
+			if h and h > 0 then
+				hatch *= 1 - math.min(h, 0.9)
+			end
+			charm += 1 + (fx.charm or 0)
 		end
 	end
-	return math.max(0, n)
+	local cap = Tuning.IsleCap
+	local function held(k: string, v: number): number
+		return math.clamp(v, 0, cap[k] or math.huge)
+	end
+	return {
+		luck = held("luck", sum.luck or 0),
+		cost = held("cost", -(sum.cost or 0)),
+		hatch = math.max(Tuning.HatchMin, hatch),
+		boost = held("boost", sum.boost or 0),
+		charmPct = held("charmPct", sum.charmPct or 0),
+		all = held("all", sum.all or 0),
+		aura = held("aura", sum.aura or 0),
+		eggs = math.floor(held("eggs", sum.eggs or 0) + 1e-9),
+		skip = held("skip", sum.skip or 0),
+		away = held("away", sum.away or 0),
+		charm = charm,
+	}
+end
+
+-- The charm: every piece's and each driftling living in a hut (one each, and their charm shares), times 1 + the huts'
+-- charm share (the request of 2026-11-19: "a percentage boost to charm, while keeping some as a flat boost").
+function Island.charm(p: Profile, isle: Isle?): number
+	local i = isle or Island.isle(p)
+	return math.max(0, (count(p, "charm") + i.charm) * (1 + i.charmPct))
 end
 
 -- What charm adds to every shell the island makes (0.25 = +25%): CharmMax x charm / (charm + CharmHalf), a soft curve
@@ -107,64 +159,62 @@ end
 -- can stack, but with diminishing returns"; till then a second of a kind gave nothing).
 function Island.boostShare(id: string, k: number): number
 	local d = Buildings.byId[id]
-	if d == nil or d.kind ~= "gen" or d.boost == "" or k < 1 then
+	if d == nil or d.kind ~= "gen" or k < 1 then
 		return 0
 	end
 	return d.boostBy * Tuning.BoostStack ^ (k - 1)
 end
 
--- The boost buildings' shares (GAME_DESIGN 4.1), by knack and "all": every one counts, the copies of a kind less and
--- less (boostShare).
-function Island.boosts(p: Profile): { [string]: number }
-	local out: { [string]: number } = { farm = 0, wood = 0, shop = 0, all = 0 }
+-- The boost buildings' shares together (GAME_DESIGN 4.1), every one for every workplace since the request of
+-- 2026-11-19 ("All boost buildings should also just boost everything instead"): the copies of a kind less and less
+-- (boostShare).
+function Island.boostRaw(p: Profile): number
+	local out = 0
 	local n: { [string]: number } = {}
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
-		if d and d.kind == "gen" and d.boost ~= "" then
+		if d and d.kind == "gen" then
 			local k = (n[d.id] or 0) + 1
 			n[d.id] = k
-			out[d.boost] = (out[d.boost] or 0) + Island.boostShare(d.id, k)
+			out += Island.boostShare(d.id, k)
 		end
 	end
 	return out
 end
 
--- What a boost building of piece id `id` stands for on the island (its card: GAME_DESIGN 4.6): its knack ("farm"
--- "wood" "shop" or "all"), how many boost buildings work at that knack (its own kind's and the others', an "all" one
--- counting at every knack), their boost there together before and after the cap (`BoostMax`; for an "all" one, the
--- "all" share alone), and what one more of its kind would add.
-function Island.boostInfo(p: Profile, id: string): { knack: string, count: number, raw: number, total: number, more: number }
+-- The boost every workplace gets: the boost buildings' shares, `BoostMax` at most, times 1 + the huts' boost share
+-- (Data/Traits boost: "Make mutations and rework some passives to boost boost buildings").
+function Island.boost(p: Profile, isle: Isle?): number
+	local i = isle or Island.isle(p)
+	return math.min(Tuning.BoostMax, Island.boostRaw(p)) * (1 + i.boost)
+end
+
+-- What a boost building of piece id `id` stands for on the island (its card: GAME_DESIGN 4.6): how many boost
+-- buildings there are, their shares together before and after the cap and the driftlings' boost (`total`, every
+-- workplace's), the driftlings' multiplier, and what one more of its kind would add before it.
+function Island.boostInfo(p: Profile, id: string): { count: number, raw: number, total: number, mult: number, more: number }
 	local d = Buildings.byId[id]
-	if d == nil or d.kind ~= "gen" or d.boost == "" then
-		return { knack = "", count = 0, raw = 0, total = 0, more = 0 }
+	if d == nil or d.kind ~= "gen" then
+		return { count = 0, raw = 0, total = 0, mult = 1, more = 0 }
 	end
-	local b = Island.boosts(p)
+	local i = Island.isle(p)
 	local count, same = 0, 0
 	for _, q in p.plot.placed do
 		local e = Buildings.byId[q.id]
-		if e and e.kind == "gen" and e.boost ~= "" and (e.boost == d.boost or e.boost == "all" or d.boost == "all") then
-			if d.boost ~= "all" or e.boost == "all" then
-				count += 1
-			end
+		if e and e.kind == "gen" then
+			count += 1
 			if e.id == d.id then
 				same += 1
 			end
 		end
 	end
-	local raw = if d.boost == "all" then b.all or 0 else (b[d.boost] or 0) + (b.all or 0)
-	local total = if d.boost == "all" then math.min(Tuning.BoostMax, raw) else Island.boostAt(b, d.boost)
-	return { knack = d.boost, count = count, raw = raw, total = total, more = Island.boostShare(d.id, same + 1) }
-end
-
--- The boost at a building of a knack: its own and every building's, `BoostMax` at most.
-function Island.boostAt(b: { [string]: number }, knack: string): number
-	return math.min(Tuning.BoostMax, (b[knack] or 0) + (b.all or 0))
+	return { count = count, raw = Island.boostRaw(p), total = Island.boost(p, i), mult = 1 + i.boost, more = Island.boostShare(d.id, same + 1) }
 end
 
 -- Whether a building takes workers (it makes something).
 function Island.works(id: string): boolean
 	local d = Buildings.byId[id]
-	return d ~= nil and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop")
+	return d ~= nil and d.kind == "work"
 end
 
 -- The places at work on an island: every workplace's `jobs` (`works`). The island card's Working line counts
@@ -181,56 +231,62 @@ function Island.jobPlaces(pieces: { Types.Piece }): number
 	return n
 end
 
--- A driftling's work share where it helps (Data/Traits.workAt: its passive's and mutations' work and the building's
--- knack; at its own knack when it helps nowhere).
-function Island.palWork(p: Profile, pal: Types.Pal): number
-	local d = Creatures.byId[pal.sp]
-	local q = if pal.work ~= 0 then Island.piece(p, pal.work) else nil
-	local bd = if q then Buildings.byId[q.id] else nil
-	return Traits.workAt(Island.fxOf(pal), if bd then bd.knack else (if d then d.knack else ""))
+-- A driftling's work share (Data/Traits.work: its passive's and mutations' work; the same at every workplace).
+function Island.palWork(_p: Profile, pal: Types.Pal): number
+	return Traits.work(Island.fxOf(pal))
 end
 
 -- What a driftling makes at the building it works at, in shares of the building's rate: PalWork x its rarity's
--- RarityWork x (1 + its work share + its hut's comfort). `comfort`: its hut's (Island.homes), 0 with no hut.
-function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?): number
+-- RarityWork x (1 + its work share + its hut's comfort + the island's aura). `comfort`: its hut's (Island.homes), 0
+-- with no hut; `aura`: Island.isle's (a wondrous Maestro's), 0 when not given.
+function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?, aura: number?): number
 	local d = Creatures.byId[pal.sp]
 	local r = if d then d.rarity else 1
-	return Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0))
+	return Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Island.palWork(p, pal) + (comfort or 0) + (aura or 0))
 end
 
 -- What each workplace makes a turn before the charm bonus and the passes (uid -> shells): its rate x its level's
--- multiplier x (its workers' shares, or IdleOutput with none) x (1 + the boosts at its knack). The client's building card
+-- multiplier x (its workers' shares, or IdleOutput with none) x (1 + the boost). The client's building card
 -- (Controllers/BuildingTags) shows one times the view's charm bonus and income multiplier.
-function Island.output(p: Profile): { [number]: number }
+function Island.output(p: Profile, isle: Isle?): { [number]: number }
+	local i = isle or Island.isle(p)
 	local out: { [number]: number } = {}
 	local homes = Island.homes(p)
-	local boosts = Island.boosts(p)
+	local boost = Island.boost(p, i)
 	-- the working driftlings' shares (each in a hut), added up at each building
 	local helper: { [number]: number } = {}
 	for _, pal in p.pals do
 		local h = homes["p" .. pal.id]
 		if pal.work ~= 0 and h then
-			helper[pal.work] = (helper[pal.work] or 0) + Island.palBoost(p, pal, h.comfort)
+			helper[pal.work] = (helper[pal.work] or 0) + Island.palBoost(p, pal, h.comfort, i.aura)
 		end
 	end
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
-		if d and d.rate > 0 and (d.kind == "farm" or d.kind == "wood" or d.kind == "shop") then
-			local k = (helper[q.uid] or Tuning.IdleOutput) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + Island.boostAt(boosts, d.knack))
+		if d and d.rate > 0 and d.kind == "work" then
+			local k = (helper[q.uid] or Tuning.IdleOutput) * (Tuning.UpgradeMult[q.lvl] or 1) * (1 + boost)
 			out[q.uid] = d.rate * k
 		end
 	end
 	return out
 end
 
--- What a turn makes now (the charm bonus and the passes in).
+-- What a turn makes now: the workplaces' together, times 1 + the charm bonus, the passes, the huts' "all" share (a
+-- wondrous Goldtouched's) and a timed shells boost while one runs (Logic/Rewards: Profile.boosts).
 function Island.rates(p: Profile): Rates
-	local made = Island.output(p)
+	local i = Island.isle(p)
+	local made = Island.output(p, i)
 	local shells = 0
 	for _, q in p.plot.placed do
 		shells += made[q.uid] or 0
 	end
-	return { shells = shells * (1 + Island.charmBonus(Island.charm(p))) * Island.passMult(p) }
+	return { shells = shells * (1 + Island.charmBonus(Island.charm(p, i))) * Island.passMult(p) * (1 + i.all) * Island.timedMult(p) }
+end
+
+-- A timed shells boost (a reward's: Logic/Rewards) multiplies every shell by 1 + Tuning.TimedShells while it runs.
+function Island.timedMult(p: Profile): number
+	local b = p.boosts
+	return if b and (b.shells or 0) > 0 then 1 + Tuning.TimedShells else 1
 end
 
 -- What the passes and the group multiply every shell by (GAME_DESIGN 14): Double Income x Tuning.DoubleIncome, VIP 1 +
@@ -244,12 +300,28 @@ function Island.passMult(p: Profile): number
 	return (if ps.DoubleIncome then Tuning.DoubleIncome else 1) * (if ps.VIP then 1 + Tuning.VipIncome else 1) * g
 end
 
--- dt seconds of the island's turns: what it made (fractions; the stats count the shells).
+-- dt seconds of the island's turns: what it made (fractions; the stats count the shells). The timed boosts run down
+-- while the player is here (Profile.boosts: seconds left).
 function Island.step(p: Profile, dt: number): Rates
 	local r = Island.rates(p)
 	local k = dt / Tuning.TurnSeconds
 	p.shells += r.shells * k
 	p.stats.earned += r.shells * k
+	local b = p.boosts
+	if b then
+		local gone: { string } = {}
+		for key, left in b do
+			local t = left - dt
+			if t > 0 then
+				b[key] = t
+			else
+				table.insert(gone, key)
+			end
+		end
+		for _, key in gone do
+			b[key] = nil
+		end
+	end
 	return { shells = r.shells * k }
 end
 
@@ -259,38 +331,24 @@ function Island.randomLook(rng: Rng): Types.Look
 	return { skin = rng:int(1, #Looks.skin), hair = rng:int(1, #Looks.hair), style = rng:int(1, #Looks.styles), shirt = rng:int(1, #Looks.shirt) }
 end
 
--- A free place for a driftling of `knack` (with effects `fx`, Data/Traits): a workplace with fewer driftlings working
--- there than its `jobs`, or 0. Any driftling may work anywhere (the request of 2026-11-13: "make it such that each
--- creature can work at any place, and is no longer restricted"); this picks the place it goes to by itself: a building
--- of its own knack first (its passive helps there), else the one where it works fastest (`fx`); then the emptiest,
--- farms before wood before shops, the first built.
-function Island.freeJob(p: Profile, knack: string, fx: Traits.Fx?): number
+-- A free place at work: the workplace with fewer driftlings working there than its `jobs` that makes the most (its
+-- rate and level), then the emptiest, the first built; 0 with none. Any driftling may work anywhere (the request of
+-- 2026-11-13); every workplace is one kind of work since 2026-11-19.
+function Island.freeJob(p: Profile): number
 	local taken: { [number]: number } = {}
 	for _, pal in p.pals do
 		if pal.work ~= 0 then
 			taken[pal.work] = (taken[pal.work] or 0) + 1
 		end
 	end
-	local best, bestKey = 0, nil :: { number }?
-	for k, kind in { "farm", "wood", "shop" } do
-		for _, q in p.plot.placed do
-			local d = Buildings.byId[q.id]
-			local n = taken[q.uid] or 0
-			if d and d.kind == kind and n < d.jobs then
-				-- (compared in order: its knack, its share there, room, then the kind's order and the first built)
-				local key = { if d.knack == knack then 1 else 0, if fx then Traits.workAt(fx, d.knack) else 0, -n, -k }
-				local better = bestKey == nil
-				if bestKey then
-					for i = 1, #key do
-						if key[i] ~= bestKey[i] then
-							better = key[i] > bestKey[i]
-							break
-						end
-					end
-				end
-				if better then
-					best, bestKey = q.uid, key
-				end
+	local best, bestOut, bestN = 0, -1, math.huge
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		local n = taken[q.uid] or 0
+		if d and d.kind == "work" and n < d.jobs then
+			local out = d.rate * (Tuning.UpgradeMult[q.lvl or 1] or 1)
+			if out > bestOut + 1e-9 or (math.abs(out - bestOut) <= 1e-9 and n < bestN) then
+				best, bestOut, bestN = q.uid, out, n
 			end
 		end
 	end
@@ -305,33 +363,23 @@ end
 
 -- The automatic arrangement (the request of 2026-11-14: "make it such that driftlings will automatically work at
 -- whatever they do best in, at the best work areas"). Every driftling living in a hut that the player hasn't placed
--- by hand (`pin`) works where it makes the most shells: the best workers choose first (their best speed, then the
--- older), each taking the free place where its output is highest, a workplace's own (rate x level x the boosts at
--- its knack) times its speed there (Tuning.PalWork x its rarity's RarityWork x (1 + its work share at that knack +
--- its hut's comfort)). So it goes to the kind of work it does best, at the best workplace of that kind with room,
--- and only elsewhere when that kind is full or much better is free. Ties: its own knack, then farms, wood, shops,
--- then the first built. A pinned one keeps its place while that stands (its place gone, it goes back to the
--- arrangement); one with no hut rests. Runs whenever the island changes (Logic/Tree.fillJobs and settle, a hatch, a
--- building placed, replaced or cleared, a sale, a move, growing the island, a save loaded).
-local ARRANGE_KNACKS = { "farm", "wood", "shop" }
+-- by hand (`pin`) works where it makes the most shells: the best workers choose first (their speed, then the older),
+-- each taking the free place at the best workplace with room (rate x level; every workplace is one kind of work since
+-- 2026-11-19, so a driftling's speed is the same everywhere: Tuning.PalWork x its rarity's RarityWork x (1 + its work
+-- share + its hut's comfort)). Ties: the first built. A pinned one keeps its place while that stands (its place gone,
+-- it goes back to the arrangement); one with no hut rests. Runs whenever the island changes (Logic/Tree.fillJobs and
+-- settle, a hatch, a building placed, replaced or cleared, a sale, a move, growing the island, a save loaded).
 function Island.arrange(p: Profile)
 	local homes = Island.homes(p)
-	local boosts = Island.boosts(p)
-	-- the workplaces of each knack, the best first, and the places left at each
+	-- the workplaces, the best first, and the places left at each
 	type Spot = { uid: number, out: number, n: number, order: number }
-	local byKnack: { [string]: { Spot } } = { farm = {}, wood = {}, shop = {} }
+	local list: { Spot } = {}
 	local spots: { [number]: Spot } = {}
 	for i, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
 		if d and d.rate > 0 and Island.works(q.id) then
-			local out = d.rate * (Tuning.UpgradeMult[q.lvl or 1] or 1) * (1 + Island.boostAt(boosts, d.knack))
-			local sp: Spot = { uid = q.uid, out = out, n = d.jobs, order = i }
+			local sp: Spot = { uid = q.uid, out = d.rate * (Tuning.UpgradeMult[q.lvl or 1] or 1), n = d.jobs, order = i }
 			spots[q.uid] = sp
-			local list = byKnack[d.knack]
-			if list == nil then
-				list = {}
-				byKnack[d.knack] = list
-			end
 			table.insert(list, sp)
 		end
 	end
@@ -352,71 +400,44 @@ function Island.arrange(p: Profile)
 			table.insert(free, x)
 		end
 	end
-	for _, list in byKnack do
-		table.sort(list, function(a, b)
-			if math.abs(a.out - b.out) > 1e-9 then
-				return a.out > b.out
-			end
-			return a.order < b.order
-		end)
-	end
-	-- each one's speed at each knack, and its best
-	local speed: { [Types.Pal]: { [string]: number } } = {}
-	local best: { [Types.Pal]: number } = {}
+	table.sort(list, function(a, b)
+		if math.abs(a.out - b.out) > 1e-9 then
+			return a.out > b.out
+		end
+		return a.order < b.order
+	end)
+	-- each one's speed (the same at every workplace)
+	local speed: { [Types.Pal]: number } = {}
 	for _, x in free do
 		local c = homes["p" .. x.id].comfort
 		local d = Creatures.byId[x.sp]
 		local r = if d then d.rarity else 1
-		local fx = Island.fxOf(x)
-		local s: { [string]: number } = {}
-		local top = 0
-		for _, k in ARRANGE_KNACKS do
-			local v = Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Traits.workAt(fx, k) + c)
-			s[k] = v
-			top = math.max(top, v)
-		end
-		speed[x], best[x] = s, top
+		speed[x] = Tuning.PalWork * (Tuning.RarityWork[r] or 1) * math.max(0, 1 + Traits.work(Island.fxOf(x)) + c)
 	end
 	table.sort(free, function(a, b)
-		if math.abs(best[a] - best[b]) > 1e-9 then
-			return best[a] > best[b]
+		if math.abs(speed[a] - speed[b]) > 1e-9 then
+			return speed[a] > speed[b]
 		end
 		return a.id < b.id
 	end)
-	local head: { [string]: number } = { farm = 1, wood = 1, shop = 1 }
+	local head = 1
 	for _, x in free do
-		local d = Creatures.byId[x.sp]
-		local own = if d then d.knack else ""
-		local pick: Spot?, pickOut, pickRank = nil, -1, 99
-		for rank, k in ARRANGE_KNACKS do
-			local list = byKnack[k]
-			local h = head[k]
-			while list[h] and list[h].n <= 0 do
-				h += 1
-			end
-			head[k] = h
-			local sp = list[h]
-			if sp then
-				local out = sp.out * speed[x][k]
-				local rk = if k == own then 0 else rank
-				if out > pickOut + 1e-9 or (math.abs(out - pickOut) <= 1e-9 and rk < pickRank) then
-					pick, pickOut, pickRank = sp, out, rk
-				end
-			end
+		while list[head] and list[head].n <= 0 do
+			head += 1
 		end
-		if pick then
-			pick.n -= 1
-			x.work = pick.uid
+		local sp = list[head]
+		if sp then
+			sp.n -= 1
+			x.work = sp.uid
 		else
 			x.work = 0
 		end
 	end
 end
 
--- A driftling living in a hut to any workplace (uid: a farm, a lumber camp or a shop, whatever its knack; it works best
--- at its own) or resting (0), by the player's hand: it stays there (`pin`) while the rest are arranged round it
--- (Island.arrange). Its `jobs` a building: a full one sends the helper that came first back to the arrangement.
--- One with no hut doesn't work, nor anywhere that makes nothing (bad_payload).
+-- A driftling living in a hut to any workplace (uid) or resting (0), by the player's hand: it stays there (`pin`)
+-- while the rest are arranged round it (Island.arrange). Its `jobs` a building: a full one sends the helper that came
+-- first back to the arrangement. One with no hut doesn't work, nor anywhere that makes nothing (bad_payload).
 function Island.setHelp(p: Profile, id: number, uid: number): (boolean, any)
 	local who: Types.Pal? = nil
 	for _, pal in p.pals do

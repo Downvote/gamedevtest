@@ -10,14 +10,16 @@
 --   roots (Tuning.EggCount: more on a bigger island), the ones left unhatched going (`step`, `lay`). An egg's rarity:
 --   Data/Traits.RARITY's weights, each rarity step's weight times the island's luck (`luck(p)`: Tuning.EggLuck by its
 --   tier and the huts' luck shares: a bigger island lays better eggs). A rarity none of the kinds open at the island's
---   tier has (Data/Islets `tier`) falls to the next commoner one. Expanding the island lays the extra eggs at once
+--   tier has (Data/Islets `tier`) weighs Tuning.EggEarly of its weight: every rarity can come on every island, the rare
+--   ones very seldom (the request of 2026-11-19: "Make all eggs obtainable regardless of expansion level, but at a
+--   very low chance if they are higher rarity"). Expanding the island lays the extra eggs at once
 --   (`fill`). The eggs are saved (`p.clutch`), so leaving and coming back doesn't lay a new lot.
 --   Hatching one (`hatch`) costs shells (`cost`: Tuning.EggPrice by its rarity, times EggTier by the island's tier,
 --   less the huts' cost shares) and needs a hut with room; with every hut full the player names one of theirs to swap
 --   out (it is sold for its `price`). What hatches is one of the egg's rarity's driftlings among the kinds open at the
---   island's tier, with mutations (Traits.roll, as a rarer one every Tuning.EggMutTier tiers); a new island's first
---   two are good with wood and at a farm. It moves into the comfiest hut with room (or the swapped one's) and takes a
---   free place: at a building of its knack first, else wherever it works fastest (any driftling works anywhere).
+--   island's tier (with Tuning.FarKind, or when no open kind has that rarity, one of any kind), with mutations
+--   (Traits.roll, as a rarer one every Tuning.EggMutTier tiers). It moves into the comfiest hut with room (or the
+--   swapped one's) and takes the best free place at work (Island.arrange).
 --   A driftling without a hut (its hut cleared away or made smaller, a hatchling with no room) waits on the island,
 --   working nowhere, and moves in the moment a hut has room (`settle`).
 --   While the quest on the go asks for a rarity (`wanted`: the uncommon, rare and epic ones), the eggs under the tree
@@ -47,18 +49,10 @@ Tree.SPOT = { x = -4, z = -6 } -- where a new island's tree goes (the nearest fr
 
 ------------------------------------------------------------------ its numbers
 -- The huts' driftlings' luck and cost shares together (Data/Traits: Lucky, Thrifty and their kin, passives too), each
--- at most Tuning.HutLuck / HutCost (cost: a share off, 0 .. HutCost).
+-- to its cap (Island.isle, Tuning.IsleCap; cost: a share off).
 function Tree.hutFx(p: Profile): (number, number)
-	local luck, cost = 0, 0
-	for _, x in p.pals do
-		if x.home ~= 0 then
-			local d = Creatures.byId[x.sp]
-			local fx = Traits.sum(if d then d.passive.fx else nil, x.muts)
-			luck += fx.luck or 0
-			cost -= fx.cost or 0
-		end
-	end
-	return math.clamp(luck, 0, Tuning.HutLuck), math.clamp(cost, 0, Tuning.HutCost)
+	local i = Island.isle(p)
+	return i.luck, i.cost
 end
 
 -- Seconds between two lots of eggs: ten minutes the whole game through, five with the Quick Tree pass (the request
@@ -67,9 +61,14 @@ function Tree.secs(p: Profile): number
 	return if p.passes and p.passes.QuickTree then Tuning.EggSecsPass else Tuning.EggSecs
 end
 
--- How many eggs the tree lays on an island of `tier`.
+-- How many eggs the tree lays on an island of `tier` (and on this island: `lot`).
 function Tree.count(tier: number): number
 	return Tuning.EggCount[math.clamp(tier, 1, #Tuning.EggCount)]
+end
+
+-- The eggs a lot on this island: its tier's count and one more for each wondrous Twinborn in a hut (Island.isle).
+function Tree.lot(p: Profile): number
+	return Tree.count(p.tier) + Island.isle(p).eggs
 end
 
 -- The tree's stage (its model grows grander with the island: Models/DecorModels).
@@ -78,31 +77,46 @@ function Tree.stage(tier: number): number
 end
 
 -- The island's luck: each rarity step's weight is multiplied by this (`tier`: another tier, for a preview).
+-- A timed luck boost (a reward: Logic/Rewards) adds Tuning.TimedLuck while it runs.
 function Tree.luck(p: Profile, tier: number?): number
 	local t = math.clamp(tier or p.tier, 1, #Tuning.EggLuck)
 	local extra = Tree.hutFx(p)
-	return 1 + Tuning.EggLuck[t] + extra
+	local timed = if p.boosts and (p.boosts.luck or 0) > 0 then Tuning.TimedLuck else 0
+	return 1 + Tuning.EggLuck[t] + extra + timed
 end
 
--- The driftlings that hatch at a tier, by rarity (1 .. Traits.RMAX): every species of the kinds open there.
+-- The driftlings that hatch at a tier, by rarity (1 .. Traits.RMAX): every species of the kinds open there (a far
+-- kind's now and then too: Tree.roll).
+local pools: { [number]: { { string } } } = {}
+-- (worked out once a tier; Tree.resetPools forgets them: the simulator, after it moves a kind of land's tier)
+function Tree.resetPools()
+	table.clear(pools)
+end
 function Tree.pool(tier: number): { { string } }
+	local t = math.clamp(math.floor(tier), 0, 99)
+	local had = pools[t]
+	if had then
+		return had
+	end
 	local out: { { string } } = {}
 	for r = 1, Traits.RMAX do
 		out[r] = {}
 	end
 	for _, k in Islets.list do
-		if k.tier <= tier then
+		if k.tier <= t then
 			for _, sp in k.wild do
 				local d = Creatures.byId[sp]
 				table.insert(out[d.rarity], sp)
 			end
 		end
 	end
+	pools[t] = out
 	return out
 end
 
--- How likely each rarity of egg is now (shares that add to 1; a rarity none of the open kinds has gives its share to the
--- next commoner one). `extra`: luck the weather adds (Logic/Weather.luck: a storm's eggs come rarer).
+-- How likely each rarity of egg is now (shares that add to 1). A rarity none of the kinds open at the tier has weighs
+-- Tuning.EggEarly of its weight (it still comes, very seldom). `extra`: luck the weather adds (Logic/Weather.luck: a
+-- storm's eggs come rarer).
 function Tree.odds(p: Profile, tier: number?, extra: number?): { number }
 	local t = tier or p.tier
 	local pool = Tree.pool(t)
@@ -110,23 +124,19 @@ function Tree.odds(p: Profile, tier: number?, extra: number?): { number }
 	local w: { number } = {}
 	local total = 0
 	for r, rd in Traits.RARITY do
-		w[r] = rd.weight * f ^ (r - 1)
+		w[r] = rd.weight * f ^ (r - 1) * (if #pool[r] == 0 then Tuning.EggEarly else 1)
 		total += w[r]
 	end
 	local out: { number } = table.create(Traits.RMAX, 0)
-	for r = Traits.RMAX, 1, -1 do
-		local to = r
-		while to > 1 and #pool[to] == 0 do
-			to -= 1
-		end
-		out[to] += w[r] / total
+	for r = 1, Traits.RMAX do
+		out[r] = w[r] / total
 	end
 	return out
 end
 
 -- How much a driftling adds at work, the order its list is shown in and the weakest goes first in a swap: its
--- rarity's speed times 1 + its work share at its knack. (Kept per driftling table: its kind and mutations never change
--- once it is born; a changed one is worked out again.)
+-- rarity's speed times 1 + its work share. (Kept per driftling table: its kind and mutations never change once it is
+-- born; a changed one is worked out again.)
 type Kept = { sp: string, muts: { string }?, w: number }
 local kept: { [Pal]: Kept } = setmetatable({}, { __mode = "k" }) :: any
 function Tree.worth(x: Pal): number
@@ -139,19 +149,9 @@ function Tree.worth(x: Pal): number
 		return 0
 	end
 	local fx = Traits.sum(d.passive.fx, x.muts)
-	local w = (Tuning.RarityWork[d.rarity] or 1) * (1 + Traits.workAt(fx, d.knack))
+	local w = (Tuning.RarityWork[d.rarity] or 1) * (1 + Traits.work(fx))
 	kept[x] = { sp = x.sp, muts = x.muts, w = w }
 	return w
-end
-
--- How fast a driftling works at a building of `knack` (any driftling works anywhere; its passive and mutations may
--- help more at one knack than another): its rarity's speed times 1 + its work share there. The work picker shows it.
-function Tree.worthAt(x: Pal, knack: string): number
-	local d = Creatures.byId[x.sp]
-	if d == nil then
-		return 0
-	end
-	return (Tuning.RarityWork[d.rarity] or 1) * (1 + Traits.workAt(Traits.sum(d.passive.fx, x.muts), knack))
 end
 
 -- a before b: the better worker first, then the older
@@ -242,8 +242,7 @@ end
 
 -- A driftling just moved into a hut, or one that moved, goes to work through the arrangement (Island.arrange: where it
 -- makes the most, the best workers first; the request of 2026-11-14), which the callers run once they are done.
--- The driftlings with no hut move into the huts with room, the best first into the comfiest, each taking a free
--- place (its knack's first). Returns the ids moved.
+-- The driftlings with no hut move into the huts with room, the best first into the comfiest. Returns the ids moved.
 function Tree.settle(p: Profile): { number }
 	local moved: { number } = {}
 	local waiting: { Pal } = {}
@@ -294,7 +293,7 @@ local function sellOne(p: Profile, i: number): number
 end
 
 -- A new driftling (one taken in, or a hatchling): into the comfiest hut with room (none: it waits with no hut), at
--- a free place, its knack's first; in the Index, and the rarest had.
+-- the best free place at work; in the Index, and the rarest had.
 function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 	local x: Pal = { id = p.nextId, sp = sp, home = 0, work = 0, muts = Traits.clean(muts) }
 	p.nextId += 1
@@ -315,61 +314,23 @@ function Tree.add(p: Profile, sp: string, muts: { string }): Pal
 end
 
 ------------------------------------------------------------------ the eggs
--- The island's lean, never shown to players (the request of 2026-11-15: "secretlyskew the player's mutation based on
--- the buildings they have: if they have high amount of wood work buildings, they will have a higher chance of wood
--- relation mutations. if they have high amount of shop ones, higher chance of shop related"): the mutation families
--- that help at a knack (Data/Traits: grower farm, chopper wood, trader shop) weigh 1 + Tuning.MutLean x that knack's
--- work buildings / max(all the island's work buildings, Tuning.MutLeanFloor); the rest weigh 1 (Traits.pickFamily).
--- Empty when the island has no work buildings (every family alike).
-function Tree.lean(p: Profile): { [string]: number }
-	local by: { [string]: number } = {}
-	local total = 0
-	for _, q in p.plot.placed do
-		local d = Buildings.byId[q.id]
-		if d and Island.works(q.id) and d.knack ~= "" then
-			by[d.knack] = (by[d.knack] or 0) + 1
-			total += 1
-		end
-	end
-	local out: { [string]: number } = {}
-	if total == 0 then
-		return out
-	end
-	local over = math.max(total, Tuning.MutLeanFloor)
-	for _, f in Traits.families do
-		local n = by[f.key]
-		if n then
-			out[f.family] = 1 + Tuning.MutLean * n / over
-		end
-	end
-	return out
-end
+-- (The island's lean, a hidden tip of a new mutation's family toward its kinds of work building, went with the kinds
+-- on 2026-11-19.)
 
--- A kind and its mutations out of an egg of rarity `rarity` (of `knack` when one is asked for and the rarity has one),
--- mutations as a rarer one every EggMutTier tiers. `season`: the season the egg was laid in (Data/Weather): its own
--- islets' kinds come Tuning.SeasonFavour times as often (when the rarity has any). `tier`: the island tier whose kinds
--- may hatch (the island's own when nil; an egg held in the bag hatches from every kind: Tree.BAG_TIER).
-function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season: string?, tier: number?): (string, { string })
+-- A kind and its mutations out of an egg of rarity `rarity`, mutations as a rarer one every EggMutTier tiers. What
+-- hatches is one of the rarity's kinds open at `tier` (the island tier whose kinds may hatch: the island's own when
+-- nil; an egg held in the bag hatches from every kind: Tree.BAG_TIER), or with Tuning.FarKind (and always when no open
+-- kind has that rarity) one of every kind of it. `season`: the season the egg was laid in (Data/Weather): its own
+-- islets' kinds come Tuning.SeasonFavour times as often.
+function Tree.roll(p: Profile, rng: Rng, rarity: number, season: string?, tier: number?): (string, { string })
 	local r = math.clamp(rarity, 1, Traits.RMAX)
-	local pool = Tree.pool(tier or p.tier)
-	while r > 1 and #pool[r] == 0 do
-		r -= 1
-	end
-	local list = pool[r]
-	if knack then
-		local of: { string } = {}
-		for _, sp in list do
-			if Creatures.byId[sp].knack == knack then
-				table.insert(of, sp)
-			end
-		end
-		if #of > 0 then
-			list = of
-		end
+	local list = Tree.pool(tier or p.tier)[r]
+	if #list == 0 or rng:next() < Tuning.FarKind then
+		list = Tree.pool(Tree.BAG_TIER)[r]
 	end
 	local sp = list[rng:int(1, #list)]
 	local sdef = if season then WeatherData.seasonById[season] else nil
-	if sdef and knack == nil then
+	if sdef then
 		-- (the season's own kinds weigh more: a weighted pick in place of the plain one)
 		local fav: { [number]: boolean } = {}
 		for _, i in sdef.favour do
@@ -390,15 +351,16 @@ function Tree.roll(p: Profile, rng: Rng, rarity: number, knack: string?, season:
 	end
 	-- (the tier's boost stops at legendary; a mythic or celestial one rolls as itself)
 	local mutR = math.max(r, math.min(5, r + math.floor((p.tier - 1) / Tuning.EggMutTier)))
-	return sp, Traits.roll(rng, mutR, Tree.lean(p))
+	return sp, Traits.roll(rng, mutR)
 end
 
--- The rarity an egg of rarity `r` hatches as: one up with Tuning.EggUp[r], and on while the rolls hold, never past a
--- rarity the island's tree has no driftlings of (the hatch scene shows each step).
-function Tree.rise(p: Profile, rng: Rng, r: number, tier: number?): number
-	local pool = Tree.pool(tier or p.tier)
+-- The rarity an egg of rarity `r` hatches as: one up with Tuning.EggUp[r] plus the huts' skip share (a wondrous
+-- Prismatic's: Island.isle), and on while the rolls hold (the hatch scene shows each step). Every rarity hatches on
+-- every island since 2026-11-19 (Tree.roll takes a far kind's when no open kind has it).
+function Tree.rise(p: Profile, rng: Rng, r: number, _tier: number?): number
+	local skip = Island.isle(p).skip
 	local out = math.clamp(r, 1, Traits.RMAX)
-	while out < Traits.RMAX and #pool[out + 1] > 0 and rng:next() < (Tuning.EggUp[out] or 0) do
+	while out < Traits.RMAX and rng:next() < (Tuning.EggUp[out] or 0) + skip do
 		out += 1
 	end
 	return out
@@ -433,7 +395,7 @@ function Tree.wanted(p: Profile): number
 		return 0
 	end
 	local r = math.clamp(q.goal.n, 1, Traits.RMAX)
-	if r <= 1 or p.stats.best >= r or #Tree.pool(p.tier)[r] == 0 then
+	if r <= 1 or p.stats.best >= r then
 		return 0
 	end
 	return r
@@ -486,7 +448,8 @@ function Tree.fill(p: Profile, rng: Rng, wx: Weather.State?): { Laid }
 			commons += 1
 		end
 	end
-	while #c.list < Tree.count(p.tier) do
+	local lot = Tree.lot(p)
+	while #c.list < lot do
 		local tips = fresh(p) and commons < 2
 		local r = if tips then 1 else rarityRoll(p, rng, wx)
 		if r == 1 then
@@ -508,7 +471,7 @@ function Tree.fill(p: Profile, rng: Rng, wx: Weather.State?): { Laid }
 	return laid
 end
 
--- A new lot: the eggs left go, `count(tier)` new ones, the next lot `secs` away.
+-- A new lot: the eggs left go, `lot(p)` new ones, the next lot `secs` away.
 function Tree.lay(p: Profile, rng: Rng, wx: Weather.State?): { Laid }
 	table.clear(p.clutch.list)
 	p.clutch.left = Tree.secs(p)
@@ -588,7 +551,6 @@ local function withWeather(muts: { string }, id: string): { string }
 end
 
 ------------------------------------------------------------------ the player's actions
-local FIRST_KNACKS = { "wood", "farm" }
 
 -- Where a hatchling goes: the comfiest hut with room (its uid), or, every hut full, the place of `swap` (one of the
 -- player's in a hut). Returns (home uid, the one swapped out or nil) or (nil, nil, why).
@@ -663,11 +625,10 @@ function Tree.hatch(p: Profile, id: number, swap: number, rng: Rng): (boolean, a
 	end
 	p.shells -= cost
 	table.remove(p.clutch.list, at)
-	-- (a new island's first two: good with wood, then at a farm, the tips' first buildings)
-	local knack = if p.stats.taken < #FIRST_KNACKS and #p.pals < #FIRST_KNACKS then FIRST_KNACKS[p.stats.taken + 1] else nil
-	-- (it may turn rarer as it hatches; never the tips' first two)
-	local hr = if knack then egg.r else Tree.rise(p, rng, egg.r)
-	local sp, muts = Tree.roll(p, rng, hr, knack, egg.ss)
+	-- (it may turn rarer as it hatches; never a new island's first two, the tips')
+	local first = p.stats.taken < 2 and #p.pals < 2
+	local hr = if first then egg.r else Tree.rise(p, rng, egg.r)
+	local sp, muts = Tree.roll(p, rng, hr, if first then nil else egg.ss)
 	-- (an egg the weather touched hatches with its mutation: GAME_DESIGN 13)
 	local wm = Tree.weatherMut(egg)
 	if wm then
@@ -715,7 +676,7 @@ function Tree.hatchBag(p: Profile, id: number, swap: number, rng: Rng): (boolean
 	end
 	table.remove(p.bag, at)
 	local hr = Tree.rise(p, rng, egg.r, Tree.BAG_TIER)
-	local sp, muts = Tree.roll(p, rng, hr, nil, nil, Tree.BAG_TIER)
+	local sp, muts = Tree.roll(p, rng, hr, nil, Tree.BAG_TIER)
 	local x, sold, fresh = hatchling(p, sp, muts, home, out)
 	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = 0, sold = sold, swapped = if out then swap else 0, new = fresh, bag = true }
 end
@@ -790,7 +751,7 @@ end
 -- An island with no tree gets one (a new island, an older save) at the free spot nearest Tree.SPOT. On an island with
 -- no spot left (an older save built full), the pieces nearest it make room, paths first, then decor, then the rest
 -- that houses nobody, each cleared away with its whole price back. Returns the tree.
-local MAKE_ROOM: { [string]: number } = { path = 1, decor = 2, gen = 3, farm = 4, wood = 4, shop = 4 }
+local MAKE_ROOM: { [string]: number } = { path = 1, decor = 2, gen = 3, work = 4 }
 function Tree.plant(p: Profile): Types.Piece?
 	local have = Tree.piece(p)
 	if have then

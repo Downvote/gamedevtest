@@ -3,10 +3,11 @@
 -- hovering or holding onto each creature, show what their mutation and stats do". A row of a panel that shows one
 -- driftling (the Driftlings panel, the tree's swap list, the Hatchery's parent picker, the hut picker's swaps) gets a
 -- tip: with a mouse while the pointer is over it, on a phone while a finger holds it (HOLD_SECS). The tip, a glass card
--- on the Popup root next to the pointer (above the finger), says: its name and rarity; how fast it works at each kind
--- of workplace (its rarity's RarityWork times its passive and mutations there: Tree.worthAt's sums); its passive and
--- what it does; each mutation with its stars and what it does; when any of them counts for the whole island (egg luck,
--- egg cost, charm), that it does while the driftling lives in a hut; and what it sells for.
+-- on the Popup root next to the pointer (above the finger), says: its name and rarity; how fast it works (its rarity's
+-- RarityWork times its passive and mutations: Tree.worth; the same at every workplace since 2026-11-19); its passive
+-- and what it does; each mutation with its stars and what it does; when any of them counts for the whole island (egg
+-- luck, egg cost, Hatchery time, boost buildings, charm and the wondrous ones: Data/Traits.ISLE), that it does while
+-- the driftling lives in a hut; and what it sells for.
 --   PalTip.attach(target, pal)   hover and hold on a GuiObject show the tip for that driftling
 --   PalTip.show(pal, at), PalTip.hide()   at: a point on the Popup canvas (UI px)
 --   PalTip.lines(pal) -> { { text, color, tier? } }   the tip's lines (sims and previews)
@@ -28,8 +29,21 @@ local PalTip = {}
 
 local TIP_W = 190 -- the widest a tip's words run (UI px)
 local HOLD_SECS = 0.35 -- a finger held this long on a row shows its tip
-local KNACKS = { { "farm", "farms" }, { "wood", "wood" }, { "shop", "shops" } }
-local ISLAND_KEYS = { luck = "egg luck", cost = "egg price", charm = "charm" } -- what counts for the whole island
+-- what counts for the whole island, in the order it is named
+local ISLAND_ORDER = { "luck", "cost", "hatch", "boost", "charm", "charmPct", "all", "aura", "eggs", "skip", "away" }
+local ISLAND_KEYS: { [string]: string } = {
+	luck = "egg luck",
+	cost = "egg price",
+	hatch = "Hatchery speed",
+	boost = "boost",
+	charm = "charm",
+	charmPct = "charm share",
+	all = "shells share",
+	aura = "work for all",
+	eggs = "extra eggs",
+	skip = "rarer hatches",
+	away = "offline shells",
+}
 
 export type Line = { text: string, color: string, tier: number?, title: string? }
 
@@ -52,25 +66,9 @@ function PalTip.lines(pal: Types.Pal): { Line }
 	local muts = Traits.clean(pal.muts)
 	local fx = Traits.sum(d.passive.fx, muts)
 	local base = Tuning.RarityWork[d.rarity] or 1
-	-- its work at each kind of workplace (the same as everywhere: one number)
-	local parts: { string } = {}
-	local same = true
-	local first: number? = nil
-	for _, k in KNACKS do
-		local w = base * (1 + Traits.workAt(fx, k[1]))
-		if first == nil then
-			first = w
-		elseif math.abs(w - (first :: number)) > 0.049 then
-			same = false
-		end
-		table.insert(parts, k[2] .. " " .. times(w))
-	end
+	-- its work (the same at every workplace)
 	table.insert(out, { text = d.name, color = rar.color, title = rar.name })
-	if same then
-		table.insert(out, { text = string.format("Works %s at any workplace", times(first or base)), color = "text" })
-	else
-		table.insert(out, { text = "Works " .. table.concat(parts, ", "), color = "text" })
-	end
+	table.insert(out, { text = string.format("Works %s at any workplace", times(base * (1 + Traits.work(fx)))), color = "text" })
 	table.insert(out, { text = string.format("%s ones work %s before passives and mutations", rar.name, times(base)), color = "text_dim" })
 	table.insert(out, { text = d.passive.name .. ": " .. Traits.describe(d.passive.fx), color = "accent" })
 	local island: { [string]: boolean } = {}
@@ -95,8 +93,8 @@ function PalTip.lines(pal: Types.Pal): { Line }
 	end
 	-- (what counts for the whole island, named: "Its egg luck counts while it lives in a hut")
 	local names: { string } = {}
-	for _, k in { "luck", "cost", "charm" } do
-		if island[k] then
+	for _, k in ISLAND_ORDER do
+		if island[k] and table.find(names, ISLAND_KEYS[k]) == nil then
 			table.insert(names, ISLAND_KEYS[k])
 		end
 	end

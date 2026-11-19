@@ -22,7 +22,7 @@ local KINDS = {
 	hatched = true,
 }
 local PANELS = { pals = true, index = true, hatch = true, tree = true }
-local TABS = { farm = true, wood = true, shop = true, nest = true, gen = true, path = true, decor = true }
+local TABS = { work = true, nest = true, gen = true, path = true, decor = true }
 
 local function fresh(): any
 	local p = Schema.default(0, 1)
@@ -91,7 +91,7 @@ return function()
 		table.insert(p.plot.placed, { uid = 1, id = "patch", x = 0, z = 0, rot = 0, lvl = 2 })
 		table.insert(p.plot.placed, { uid = 2, id = "dirtpath", x = 2, z = 0, rot = 0, lvl = 1 })
 		table.insert(p.plot.placed, { uid = 3, id = "nest", x = 6, z = 0, rot = 0, lvl = 1 })
-		T.eq(Quest.count(f, { kind = "built", n = 2, of = "farm" }), 1, "one farm")
+		T.eq(Quest.count(f, { kind = "built", n = 4, of = "work" }), 1, "one workplace (one kind of work since 2026-11-19)")
 		T.eq(Quest.count(f, { kind = "paths", n = 8 }), if Buildings.byId.dirtpath then 1 else 0)
 		T.eq(Quest.count(f, { kind = "built", n = 1, of = "nest" }), 1)
 		p.seen.pebblit, p.seen.mossbun = 2, 2
@@ -135,7 +135,7 @@ return function()
 			end
 		end
 		T.eq(#Quests.list, 19)
-		T.eq(farmAt, 7, "Another farm is the seventh now")
+		T.eq(farmAt, 7, "Another workplace (Another farm till 2026-11-19) is the seventh now")
 		local function from18(q: number): number
 			local old = Schema.default(0, 1) :: any
 			old.v = 18
@@ -149,28 +149,24 @@ return function()
 	end)
 
 	T.it("the quests before the first expansion fit the first island's work spaces", function()
-		-- the workplaces the tips have built (a camp, a farm, a stall), then the most each quest asks of a kind, at
-		-- the first island's places a workplace
-		local need: { [string]: number } = { wood = 1, farm = 1, shop = 1 }
+		-- the workplaces the tips have built (a camp, a farm, a stall), then the most any quest asks for (one kind of
+		-- work since 2026-11-19), at the first island's places a workplace
+		local need = 3
 		for _, q in Quests.list do
 			if q.goal.kind == "tier" then
 				break
 			end
-			local of = q.goal.of
-			if q.goal.kind == "built" and of and need[of] ~= nil then
-				need[of] = math.max(need[of], q.goal.n)
+			if q.goal.kind == "built" and q.goal.of == "work" then
+				need = math.max(need, q.goal.n)
 			end
 		end
-		local jobs = 0
-		for kind, n in need do
-			local each = math.huge
-			for _, d in Buildings.list do
-				if d.kind == kind and d.tier == 1 then
-					each = math.min(each, d.jobs)
-				end
+		local each = math.huge
+		for _, d in Buildings.list do
+			if d.kind == "work" and d.tier == 1 then
+				each = math.min(each, d.jobs)
 			end
-			jobs += n * each
 		end
+		local jobs = need * each
 		T.truthy(jobs <= Plot.workLimit(1), string.format("%d work spaces asked for, %d on the first island", jobs, Plot.workLimit(1)))
 	end)
 end

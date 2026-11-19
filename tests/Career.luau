@@ -2,7 +2,7 @@
 -- own rules (Logic/Island, Plot, Tree: what the server runs) and logs it every ten minutes. Every few seconds they
 -- hatch the rarest egg under the Tree of Life they can afford (into a hut with room, or swapping out their weakest
 -- when it is a rarer egg than that one was), then build what the island lacks most with its shells (a hut while the huts are full and a good one
--- floats by, a building for driftlings resting with no work or working away from their knack, the workplace that pays back soonest while the
+-- floats by, a workplace for driftlings resting with no work, the workplace that pays back soonest while the
 -- shells come slowly, a shop a tier, decor with spare shells), and expand the island when they can. One store since 2026-11-14 (shells pay
 -- for everything), so while they save for the next tier they keep a reserve: an egg or a building only when they could pay for it three times.
 local Tuning = require("../build/luautest/shared/Config/Tuning")
@@ -85,10 +85,16 @@ local function build(p: any, id: string): boolean
 end
 
 -- The best building of a kind the island can have now (the highest tier first).
+-- A piece's group for this player: a workplace by what it does (its `act`: farms, wood, shops; one kind of work since
+-- 2026-11-19, the player still keeps a mix), anything else by its kind.
+local function groupOf(d: any): string
+	return if d.kind == "work" then d.act else d.kind
+end
+
 local function best(p: any, kind: string): string?
 	local pick: any = nil
 	for _, d in Buildings.list do
-		if d.kind == kind and d.tier <= p.tier and (pick == nil or d.tier > pick.tier or (d.tier == pick.tier and d.shells > pick.shells)) then
+		if groupOf(d) == kind and d.tier <= p.tier and (pick == nil or d.tier > pick.tier or (d.tier == pick.tier and d.shells > pick.shells)) then
 			pick = d
 		end
 	end
@@ -99,7 +105,7 @@ local function countKind(p: any, kind: string): number
 	local n = 0
 	for _, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
-		if d and d.kind == kind then
+		if d and groupOf(d) == kind then
 			n += 1
 		end
 	end
@@ -118,7 +124,7 @@ local function upgrade(p: any, kind: string, k: number): boolean
 	local worst: any, wi = nil, 0
 	for i, q in p.plot.placed do
 		local d = Buildings.byId[q.id]
-		if d and d.kind == kind and (worst == nil or d.rate < worst.rate) then
+		if d and groupOf(d) == kind and (worst == nil or d.rate < worst.rate) then
 			worst, wi = d, i
 		end
 	end
@@ -297,17 +303,13 @@ local function plan(p: any, rng: any)
 		end
 	end
 	local housed = 0
-	-- (the driftlings that want a building of their knack: resting, or working at another knack's, where they work
-	-- slower)
-	local resting: { [string]: number } = {}
+	-- (the driftlings resting in a hut with no place at work: one kind of work since 2026-11-19, any workplace will do)
+	local resting = 0
 	for _, x in p.pals do
 		if x.home ~= 0 then
 			housed += 1
-			local k = Creatures.byId[x.sp].knack
-			local q = if x.work ~= 0 then Island.piece(p, x.work) else nil
-			local bd = if q then Buildings.byId[q.id] else nil
-			if x.work == 0 or (bd and bd.knack ~= k) then
-				resting[k] = (resting[k] or 0) + 1
+			if x.work == 0 then
+				resting += 1
 			end
 		end
 	end
@@ -434,16 +436,8 @@ local function plan(p: any, rng: any)
 	if countKind(p, "farm") < p.tier + 1 then
 		table.insert(wants, "farm")
 	end
-	do
-		local most, pick = 0, nil
-		for knack, n in resting do
-			if n > most then
-				most, pick = n, knack
-			end
-		end
-		if pick then
-			table.insert(wants, "knack:" .. pick)
-		end
+	if resting > 0 and table.find(wants, "earn") == nil then
+		table.insert(wants, "earn")
 	end
 	for _, kind in wants do
 		if kind == "earn" then
@@ -453,23 +447,7 @@ local function plan(p: any, rng: any)
 				return
 			end
 			-- (the work cap full: the weakest workplaces traded for it)
-			if id and upgrade(p, Buildings.byId[id].kind, k) then
-				return
-			end
-			continue
-		end
-		if string.sub(kind, 1, 6) == "knack:" then
-			-- a building of that knack (the best the island can have now that it can afford, else a cheaper one)
-			local knack = string.sub(kind, 7)
-			local pick: any = nil
-			for _, d in Buildings.list do
-				-- (while saving for the next tier, only one it can easily afford)
-				local k = if saving then 3 else 1
-				if d.knack == knack and d.tier <= p.tier and p.shells >= d.shells * k and (pick == nil or d.tier > pick.tier) then
-					pick = d
-				end
-			end
-			if pick and build(p, pick.id) then
+			if id and upgrade(p, groupOf(Buildings.byId[id]), k) then
 				return
 			end
 			continue
@@ -484,7 +462,7 @@ local function plan(p: any, rng: any)
 		end
 		-- a cheaper one of the kind will do
 		for _, d in Buildings.list do
-			if d.kind == kind and (not saving or p.shells >= d.shells * 3) and build(p, d.id) then
+			if groupOf(d) == kind and (not saving or p.shells >= d.shells * 3) and build(p, d.id) then
 				return
 			end
 		end

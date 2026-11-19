@@ -141,7 +141,7 @@ return function()
 		build(q, "nest")
 		local a = Tree.add(q, "pebblit", {})
 		local b = Tree.add(q, "pebblit", {})
-		T.truthy((Breed.start(q, h, a.id, b.id, Util.newRng(2))))
+		T.truthy((Breed.start(q, h, a.id, b.id)))
 		T.eq(#q.eggs, 1)
 		local n0 = #q.pals
 		local okH, dH = Store.product(q, "HatcheryNow", 0)

@@ -65,49 +65,21 @@ return function()
 		T.truthy(need + eggs <= Tuning.StartShells, string.format("the tips' buildings %d and a rare and a common egg %d", need, eggs))
 	end)
 
-	T.it("the island's lean (never shown, 2026-11-15): its work buildings tip a new mutation's family", function()
+	T.it("no lean any more (2026-11-19): the island's work buildings tip nothing", function()
 		local p = fresh()
-		p.tier = 2 -- (room at work for six workplaces: the work cap, Plot.workLimit)
-		T.deepEq(Tree.lean(p), {}, "no work buildings: every family alike")
-		build(p, "lumber")
-		local one = Tree.lean(p)
-		-- (one camp of four at least: 1 + MutLean / MutLeanFloor)
-		T.near(one.chopper, 1 + Tuning.MutLean / Tuning.MutLeanFloor, 1e-9)
-		T.eq(one.trader, nil)
-		T.eq(one.grower, nil)
+		p.tier = 2
 		build(p, "lumber")
 		build(p, "lumber")
-		build(p, "lumber")
-		build(p, "stall")
-		build(p, "nest") -- (a hut: no work, no lean)
-		local l = Tree.lean(p)
-		T.near(l.chopper, 1 + Tuning.MutLean * 4 / 5, 1e-9, "four camps of five work buildings")
-		T.near(l.trader, 1 + Tuning.MutLean * 1 / 5, 1e-9, "one stall of five")
-		T.eq(l.grower, nil)
-		-- what the tree lays on a wood island: Chopper far more often than on a shop island
-		local function count(ids: { string }, fam: string): number
-			local q = fresh()
-			q.tier = 2
-			for _, id in ids do
-				build(q, id)
-			end
-			local rng, n = Util.newRng(21), 0
-			for _ = 1, 3000 do
-				local _, muts = Tree.roll(q, rng, 3)
-				for _, id in muts do
-					if Traits.byId[id].family == fam then
-						n += 1
-					end
-				end
-			end
-			return n
+		T.eq((Tree :: any).lean, nil, "gone with the kinds of work")
+		-- (a roll is the plain one whatever is built)
+		local q = fresh()
+		q.tier = 2
+		local a, b = Util.newRng(21), Util.newRng(21)
+		for _ = 1, 50 do
+			local _, m1 = Tree.roll(p, a, 3)
+			local _, m2 = Tree.roll(q, b, 3)
+			T.deepEq(m1, m2)
 		end
-		local woody = { "lumber", "lumber", "lumber", "lumber", "lumber", "stall" }
-		local shoppy = { "stall", "stall", "stall", "stall", "stall", "lumber" }
-		local cw, cs = count(woody, "chopper"), count(shoppy, "chopper")
-		T.truthy(cw > cs * 1.5, string.format("Chopper on a wood island %d, on a shop island %d", cw, cs))
-		local tw, ts = count(woody, "trader"), count(shoppy, "trader")
-		T.truthy(ts > tw * 1.5, string.format("Chatty on a shop island %d, on a wood island %d", ts, tw))
 	end)
 	T.it("the tree lays EggCount eggs every EggSecs, the ones left going; each one's price", function()
 		local p = fresh()
@@ -172,16 +144,13 @@ return function()
 		build(p, "patch")
 		build(p, "nest")
 		p.shells = 1e6
-		local knacks = {}
 		for k = 1, 2 do
 			local e = egg(p, 1)
 			local ok, data = Tree.hatch(p, e.id, 0, Util.newRng(k))
 			T.truthy(ok, tostring(data))
 			T.eq(data.hr, 1, "the tips' first two never turn rarer")
-			table.insert(knacks, Creatures.byId[data.sp].knack)
+			T.eq(Creatures.byId[data.sp].rarity, 1)
 		end
-		T.eq(knacks[1], "wood")
-		T.eq(knacks[2], "farm")
 	end)
 
 	-- (the request of 2026-11-14: "also, while the rare one quest is active or any rarity related quests, make it such
@@ -343,39 +312,47 @@ return function()
 	end)
 
 	-- (the request of 2026-11-13: "eggs having a chance to skip to the next rarity during the cutscene")
-	T.it("mythic and celestial eggs: only once the kinds past the capital are open, dearer than legendary, never risen to early", function()
+	T.it("every egg on every island (2026-11-19): a rarity no open kind has comes very seldom; dearer by rarity", function()
 		local p = fresh()
 		p.tier = 10
 		local pool10 = Tree.pool(10)
-		T.truthy(#pool10 == Traits.RMAX and #pool10[6] == 0 and #pool10[7] == 0, "none up to tier 10")
+		T.truthy(#pool10 == Traits.RMAX and #pool10[6] == 0 and #pool10[7] == 0, "no mythic or celestial kind open up to tier 10")
 		local odds = Tree.odds(p)
 		local sum = 0
 		for _, o in odds do
 			sum += o
 		end
-		T.truthy(#odds == Traits.RMAX and odds[6] == 0 and odds[7] == 0 and math.abs(sum - 1) < 1e-9, "tier 10: their shares go to legendary")
+		T.truthy(#odds == Traits.RMAX and odds[6] > 0 and odds[7] > 0 and math.abs(sum - 1) < 1e-9, "tier 10: mythic and celestial eggs can come")
+		T.truthy(odds[6] < odds[5] * 0.01 and odds[7] < odds[6], "very seldom: under a hundredth of the legendary ones")
+		-- (their weight is EggEarly of what it would be with their kinds open)
+		local q = fresh()
+		q.tier = 10
+		local o11 = Tree.odds(q, 11)
+		T.truthy(o11[6] > odds[6] * 5, "tier 11 opens the moonwoods: mythic eggs far less rare")
 		T.truthy(#Tree.pool(11)[6] > 0 and #Tree.pool(11)[7] == 0, "tier 11: the moonwoods' mythic one, no celestial yet")
-		T.truthy(#Tree.pool(14)[7] > 0, "tier 14: the cloudtops' celestial one")
 		T.truthy(#Tree.pool(17)[6] >= 3 and #Tree.pool(17)[7] >= 3, "tier 17: three of each")
 		local o17 = Tree.odds(p, 17)
 		T.truthy(o17[7] > 0 and o17[7] < o17[6] and o17[6] < o17[5], "tier 17: celestial rarer than mythic, mythic than legendary")
 		T.truthy(Tree.cost(p, 7) > Tree.cost(p, 6) and Tree.cost(p, 6) > Tree.cost(p, 5), "dearer by rarity")
-		local always = { next = function(): number return 0 end, int = function(_, a: number): number return a end } :: any
-		T.eq(Tree.rise(p, always, 5), 5, "a sure climb stops at legendary on a tier 10 island")
-		-- a mythic or celestial egg on an island without their kinds hatches as the next commoner one
+		-- a new island lays them too, rarer still
+		local n = fresh()
+		local o1 = Tree.odds(n)
+		T.truthy(o1[5] > 0 and o1[6] > 0 and o1[7] > 0 and o1[6] < 1e-4, string.format("tier 1: legendary %.5f, mythic %.6f", o1[5], o1[6]))
+		-- a mythic or celestial egg on an island without their kinds hatches one of them all the same
 		local sp = Tree.roll(p, Util.newRng(3), 7)
-		T.eq(Creatures.byId[sp].rarity, 5)
+		T.eq(Creatures.byId[sp].rarity, 7)
+		local sp6 = Tree.roll(n, Util.newRng(4), 6)
+		T.eq(Creatures.byId[sp6].rarity, 6)
 	end)
-	T.it("an egg may turn rarer as it hatches: EggUp a step, on while the rolls hold, never past the open kinds", function()
+	T.it("an egg may turn rarer as it hatches: EggUp a step (and the huts' skip share), on while the rolls hold", function()
 		local p = fresh()
 		local always = { next = function(): number return 0 end, int = function(_, a: number): number return a end } :: any
 		local never = { next = function(): number return 0.999 end, int = function(_, a: number): number return a end } :: any
-		-- (a new island has no legendary kind open: a sure climb stops at epic)
-		T.eq(Tree.rise(p, always, 1), 4)
+		-- (every rarity hatches on every island since 2026-11-19: a sure climb goes to the top)
+		T.eq(Tree.rise(p, always, 1), Traits.RMAX)
 		T.eq(Tree.rise(p, never, 2), 2)
 		p.tier = 10
-		T.eq(Tree.rise(p, always, 3), 5)
-		T.eq(Tree.rise(p, always, 5), 5)
+		T.eq(Tree.rise(p, always, 5), Traits.RMAX)
 		local rng = Util.newRng(21)
 		local up, n = 0, 4000
 		for _ = 1, n do
@@ -399,7 +376,7 @@ return function()
 				break
 			end
 			T.eq(data.r, 2)
-			T.truthy(data.hr >= 2 and data.hr <= 5)
+			T.truthy(data.hr >= 2 and data.hr <= Traits.RMAX)
 			T.eq(Creatures.byId[data.sp].rarity, data.hr, "it hatches the rarity it rose to")
 			if data.hr > 2 then
 				rose += 1
@@ -408,7 +385,7 @@ return function()
 		T.truthy(rose < 20, "most stay as laid: " .. rose)
 	end)
 
-	T.it("what hatches: the kinds open at the island's tier of the egg's rarity; rarer eggs less often", function()
+	T.it("what hatches: mostly the kinds open at the island's tier, now and then a far one (FarKind); rarer eggs less often", function()
 		local p = fresh()
 		local rng = Util.newRng(11)
 		local open: { [string]: boolean } = {}
@@ -419,17 +396,22 @@ return function()
 				end
 			end
 		end
+		local far, all = 0, 0
 		for r = 1, 4 do
-			for _ = 1, 40 do
+			for _ = 1, 400 do
 				local sp, muts = Tree.roll(p, rng, r)
-				T.truthy(open[sp], sp .. " is open at tier 1")
+				all += 1
+				if not open[sp] then
+					far += 1
+				end
 				T.truthy(#muts <= Traits.MAX)
 				T.eq(Creatures.byId[sp].rarity, r, "the egg's rarity")
 			end
 		end
-		-- (no legendary kind is open on a new island: a legendary egg there hatches the next commoner rarity)
+		T.truthy(far > 0 and far / all < Tuning.FarKind * 2, string.format("a far kind now and then: %d of %d", far, all))
+		-- (no legendary kind is open on a new island: a legendary egg there hatches a legendary one from further away)
 		local sp5 = Tree.roll(p, rng, 5)
-		T.truthy(open[sp5] and Creatures.byId[sp5].rarity < 5)
+		T.truthy(not open[sp5] and Creatures.byId[sp5].rarity == 5)
 		local counts = { 0, 0, 0, 0, 0 }
 		for _ = 1, 600 do
 			p.clutch.list = {}
@@ -465,7 +447,7 @@ return function()
 		T.truthy(Tree.luck(p) > l0, "luckier")
 		T.truthy(Tree.cost(p, 3) < c0, "cheaper")
 		local luck, cost = Tree.hutFx(p)
-		T.truthy(luck <= Tuning.HutLuck and cost <= Tuning.HutCost)
+		T.truthy(luck <= Tuning.IsleCap.luck and cost <= Tuning.IsleCap.cost)
 		-- only the Quick Tree pass makes it five
 		p.passes.QuickTree = true
 		T.eq(Tree.secs(p), Tuning.EggSecsPass)
@@ -594,14 +576,14 @@ return function()
 		end
 	end)
 
-	T.it("a driftling in a hut takes a job, its knack's first (its jobs a building: a patch's 2); one with no hut doesn't work", function()
+	T.it("a driftling in a hut takes a job, the best with room (its jobs a building: a patch's 2); one with no hut doesn't work", function()
 		local p = fresh()
 		local patch = build(p, "patch")
 		build(p, "nest")
 		build(p, "nest")
 		local list = {}
 		for _ = 1, 3 do
-			table.insert(list, pal(p, "mossbun")) -- farm
+			table.insert(list, pal(p, "mossbun"))
 		end
 		local at = 0
 		for _, x in list do
@@ -622,16 +604,16 @@ return function()
 		for _, x in list do
 			atCamp += if x.work == camp then 1 else 0
 		end
-		T.eq(atCamp, #list - room, "a farm driftling with no farm place takes the lumber camp")
+		T.eq(atCamp, #list - room, "the patch full: the lumber camp")
 		for _, x in list do
 			if x.work == camp then
 				x.work = 0
 			end
 		end
-		local patch2 = build(p, "patch")
+		build(p, "patch")
 		Tree.fillJobs(p)
 		for _, x in list do
-			T.truthy(x.home ~= 0 and (x.work == patch or x.work == patch2), "all three at work")
+			T.truthy(x.home ~= 0 and (x.work == patch or x.work == camp), "all three at work: as good a place, the first built")
 		end
 		local q = fresh()
 		local x = pal(q, "frondle") -- no hut on q

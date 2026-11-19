@@ -3,8 +3,8 @@
 # SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors, 0 issues everywhere.
 #   sim.luau        the main run: a new island (the loading card, the campfire, the Tree of Life with its first lot of
 #                   eggs, two cheap commons among them, the HUD's tree card, the tips), building in the tips' order for
-#                   wood (a camp, a patch, a hut, an egg hatched by tapping it, a stall; the tray turning to Work's
-#                   Wood row, Farms, Huts, Shops), the tree in Build mode (moved, never cleared away), the days
+#                   wood (a camp, a patch, a hut, an egg hatched by tapping it, a stall; the tray on Work's
+#                   Workplaces row, then Huts, then back), the tree in Build mode (moved, never cleared away), the days
 #                   turning, the eggs (the plot's Eggs attribute, the ring round the tree, the price tags and their
 #                   rules, the card's best three and the time to the next lot, hatching from the card, a tag and the
 #                   panel, the swap picker and its egg gone with a new lot, a new lot every Tree.secs, a tap on the
@@ -31,8 +31,10 @@
 #                   the next lot, a new lot with its Fx and a whole view, the old eggs gone, the Tree card counting
 #                   down, the huts' tree shares bringing lots sooner, a lot every Tree.secs, the extra eggs when the
 #                   island grows, the clock stopped while the player is away), wood and shells to the rates, open
-#                   menus holding nothing, nothing eating, waiting for a hut and then for work, the Hatchery (a feast
-#                   of shells, two eggs: one into a hut, one waiting), two islands, day and night
+#                   menus holding nothing, nothing eating, waiting for a hut and then for work, the Hatchery (the
+#                   egg's mutations shown before Breed and laid as shown, shells, two eggs: one into a hut, one
+#                   waiting), two islands, day and night, the rewards (Gifts and its dot, the daily reward over two
+#                   days, a gift for playing, the tasks and their bonus, the Lucky Shell, codes, an Index gift)
 #   sim_world.luau  the sea and the islands: the sea built at start, two islands with their trees, their driftlings
 #                   and both islands' eggs round the trees on every client (the plot's Eggs attribute), walking (the
 #                   camera follows, Home, a neighbour's driftling's card, only to look at), building for wood (place, move, no upgrades, clear away, every refusal, the

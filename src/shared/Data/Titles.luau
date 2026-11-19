@@ -10,6 +10,7 @@
 --     "days"    n island days lived                     "owned"  n cosmetics owned
 --     "vip"     the VIP pass                            "starter" the starter pack
 --     "track"   a pass track reward (Data/Track gives it)
+--     "reward"  a daily streak milestone (Data/Rewards gives it)
 --   `color`: its words' colour (UIKit / Palette keys).
 export type Title = { id: string, name: string, how: string, n: number, color: string }
 
@@ -62,5 +63,10 @@ T("vip", "VIP", "vip", 0, "accent")
 T("deckhand", "Deckhand", "track", 0, "good")
 T("firstmate", "First Mate", "track", 0, "button")
 T("captain", "Captain", "track", 0, "accent")
+-- the daily streak (Data/Rewards: 3, 14, 30 and 100 days in a row)
+T("dropin", "Back Again", "reward", 0, "good")
+T("devoted", "Devoted", "reward", 0, "button")
+T("islandheart", "Island Heart", "reward", 0, "purple")
+T("tidekeeper", "Tide Keeper", "reward", 0, "accent")
 
 return table.freeze({ list = LIST, byId = BY_ID })

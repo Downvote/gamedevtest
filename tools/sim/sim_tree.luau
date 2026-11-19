@@ -257,14 +257,11 @@ end
 -- the panel's words for a rarity's odds
 local function oddsWords(o)
 	local pct = o * 100
-	return if o <= 0 then "not yet" elseif pct < 0.1 then "<0.1%" elseif pct < 1 then string.format("%.1f%%", pct) else string.format("%d%%", math.round(pct))
+	return if o <= 0 then "none" elseif pct < 0.01 then "<0.01%" elseif pct < 0.1 then string.format("%.2f%%", pct) elseif pct < 1 then string.format("%.1f%%", pct) else string.format("%d%%", math.round(pct))
 end
--- what hatches from an egg of rarity r on an island of `tier`: that rarity, or the next commoner one any open kind has
-local function hatchRarity(tier, r)
-	local pool = Tree.pool(tier)
-	while r > 1 and #pool[r] == 0 do
-		r -= 1
-	end
+-- what hatches from an egg of rarity r on an island of `tier`: that rarity on every island since the request of
+-- 2026-11-19 ("Make all eggs obtainable regardless of expansion level": one no open kind has hatches a kind not open yet)
+local function hatchRarity(_tier, r)
 	return r
 end
 
@@ -300,14 +297,13 @@ local function pieceOf(uid)
 	end
 	return nil
 end
--- at work at a workplace (any knack: its own first when one had room), or no free place anywhere
+-- at work at a workplace, or no free place anywhere
 local function workingOrNoPlace(x)
-	local d = Creatures.byId[x.sp]
 	if x.work ~= 0 then
 		local q = pieceOf(x.work)
 		return q ~= nil and Island.works(q.id)
 	end
-	return Island.freeJob(prof, d.knack) == 0
+	return Island.freeJob(prof) == 0
 end
 local function housed()
 	local n = 0
@@ -760,7 +756,7 @@ H.expect(labelText(p, "What") == "Moving: Tree of Life", "piece", "a tap on the 
 H.expect(storeB ~= nil and storeB.AutoButtonColor == false and H.buttonNamed(p, "Replace", true) == nil and H.buttonNamed(p, "Place", true) ~= nil, "piece", "Move here, Clear away off, no Replace")
 H.clickNamed(p, "Cancel", { wait = 0.2 })
 local trayTree = false
-for _, t in { "farm", "wood", "shop", "nest", "gen", "path", "decor" } do
+for _, t in { "work", "nest", "path", "fence", "water", "nature", "decor", "fun" } do
 	H.clickNamed(p, "Tab_" .. t, { wait = 0.2, optional = true })
 	trayTree = trayTree or H.buttonNamed(p, "Buy_tree", true) ~= nil
 end
@@ -904,7 +900,7 @@ local b = before(pick)
 H.expect(H.clickNamed(p, "TreeCardTap", { wait = 0.4 }) and H.currentPanel(p) == "tree" and prof.stats.taken == b.taken, "hatch", "a tap on the card opens the tree's panel, nothing bought", tostring(H.currentPanel(p)))
 H.expect(H.clickNamed(p, "PanelHatch_" .. pick.id, { wait = 0.6 }), "hatch", "Hatch on the egg the card showed")
 local x1 = hatched("card", pick, b, { home = hutUid })
-H.expect(x1 ~= nil and Creatures.byId[x1.sp].knack == "wood" and x1.work == lumberUid, "hatch", "a new island's first hatchling: good with wood, at the lumber camp", x1 and string.format("%s at %d", x1.sp, x1.work))
+H.expect(x1 ~= nil and (x1.work == lumberUid or x1.work == patchUid), "hatch", "a new island's first hatchling: at work, at the lumber camp or the veggie patch", x1 and string.format("%s at %d", x1.sp, x1.work))
 H.expect(prof.tut == 5, "hatch", "the tips on to the shop", tostring(prof.tut))
 H.expect(says(p, "It hatched") and H.currentPanel(p) == "tree", "hatch", "the panel there again after the hatch scene, saying what hatched")
 H.closePanel(p)
@@ -925,7 +921,7 @@ H.expect(found and vis and H.currentPanel(p) == "tree", "hatch", "the card's Ope
 H.expect(H.clickNamed(p, "PanelHatch_" .. tagPick.id, { wait = 0.6 }), "hatch", "Hatch on it")
 local x2 = hatched("the card's Open", tagPick, b, { home = hutUid })
 H.closePanel(p)
-H.expect(x2 ~= nil and Creatures.byId[x2.sp].knack == "farm" and x2.work == patchUid, "hatch", "the second: at a farm, at the veggie patch", x2 and string.format("%s at %d", x2.sp, x2.work))
+H.expect(x2 ~= nil and (x2.work == lumberUid or x2.work == patchUid), "hatch", "the second: at work too, at the camp or the patch", x2 and string.format("%s at %d", x2.sp, x2.work))
 H.expect(Tree.room(prof) == 0, "hatch", "the hut full", tostring(Tree.room(prof)))
 -- (a second hut; a tap on the lawn hatches nothing, a tap on an egg hatches it)
 prof.shells = 50000
@@ -1182,8 +1178,8 @@ for _, x in prof.pals do
 		cS -= f.cost or 0
 	end
 end
-local wantLuck = 1 + Tuning.EggLuck[prof.tier] + math.clamp(lS, 0, Tuning.HutLuck)
-local wantCost = math.max(1, math.floor(Tuning.EggPrice[3] * Tuning.EggTier[prof.tier] * (1 - math.clamp(cS, 0, Tuning.HutCost)) + 0.5))
+local wantLuck = 1 + Tuning.EggLuck[prof.tier] + math.clamp(lS, 0, Tuning.IsleCap.luck)
+local wantCost = math.max(1, math.floor(Tuning.EggPrice[3] * Tuning.EggTier[prof.tier] * (1 - math.clamp(cS, 0, Tuning.IsleCap.cost)) + 0.5))
 H.push(p, 0.3)
 H.expect(Tree.secs(prof) == secs0 and secs0 == Tuning.EggSecs, "shares", "no share brings the eggs sooner: the tree keeps its 6 minutes", string.format("%.2f s, was %.2f", Tree.secs(prof), secs0))
 H.expect(Tree.luck(prof) > luck0 and math.abs(Tree.luck(prof) - wantLuck) < 1e-9, "shares", "a Lucky kind's luck share: luckier eggs", string.format("%.3f, was %.3f", Tree.luck(prof), luck0))
@@ -1334,6 +1330,7 @@ do
 			k.tier = prof.tier
 		end
 	end
+	Tree.resetPools()
 	local pool = Tree.pool(prof.tier)
 	H.expect(#pool[6] >= 3 and #pool[7] >= 3, "rarest", "the kinds past the capital bring mythic and celestial driftlings", string.format("%d mythic, %d celestial", #pool[6], #pool[7]))
 	local odds = Tree.odds(prof)
@@ -1371,6 +1368,7 @@ do
 	for k, t in moved do
 		k.tier = t
 	end
+	Tree.resetPools()
 	-- (a whole new lot for what follows)
 	prof.clutch.left = 0.05
 	local at = waitLot(5)
@@ -1444,7 +1442,7 @@ local qe = qprof.clutch.list[1]
 local seenBy = H.inClient(p, C.EV.count, sq.plot)
 local pf0 = #W.fx
 res = H.req(q, "egg.hatch", { id = qe.id, swap = 0 })
-H.expect(res.ok and #qprof.pals == 1 and Creatures.byId[qprof.pals[1].sp].knack == "wood", "neighbour", "the neighbour hatches its first egg (good with wood)", tostring(res.err))
+H.expect(res.ok and #qprof.pals == 1, "neighbour", "the neighbour hatches its first egg", tostring(res.err))
 local hq = fxSince(WQ, 0, "hatched")
 H.expect(#hq == 1 and #fxSince(W, pf0, "hatched") == 0, "neighbour", "Fx hatched to the neighbour only")
 E.run(0.6)

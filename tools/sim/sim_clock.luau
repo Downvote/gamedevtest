@@ -29,6 +29,7 @@ local Buildings = H.sharedServer("Data.Buildings")
 local Tree = H.sharedServer("Logic.Tree")
 local Traits = H.sharedServer("Data.Traits")
 local Breed = H.sharedServer("Logic.Breed")
+local Numbers = H.sharedServer("Logic.Numbers")
 local STORE = Tuning.DataStoreName .. "/global" -- the fake engine keys stores by name and scope
 
 local p = H.addPlayer({ userId = 9301, name = "Clock" })
@@ -379,7 +380,7 @@ do
 		for _, q in prof.plot.placed do
 			if q.uid == uid then
 				local b = Buildings.byId[q.id]
-				return b ~= nil and (b.kind == "farm" or b.kind == "wood" or b.kind == "shop")
+				return b ~= nil and b.kind == "work"
 			end
 		end
 		return false
@@ -396,7 +397,7 @@ do
 	if Plot.work(prof.plot.placed) + Buildings.byId.pier.jobs > Plot.workLimit(prof.tier) then
 		for i = #prof.plot.placed, 1, -1 do
 			local b = Buildings.byId[prof.plot.placed[i].id]
-			if b and b.jobs > 0 and b.kind ~= "farm" then
+			if b and b.jobs > 0 and b.act ~= "farm" then
 				H.req(p, "plot.store", { i = i })
 				break
 			end
@@ -508,10 +509,12 @@ do
 	-- and what one more would add ("when hovering over a boost building, show how much the total boosts ... with all
 	-- other same type boost buildings together")
 	do
-		local farm0 = Island.boosts(prof).farm
+		-- (every boost building boosts every workplace since the request of 2026-11-19: "All boost buildings should also
+		-- just boost everything instead")
+		local raw0 = Island.boostRaw(prof)
 		local w1, w2 = place("windmill"), place("windmill")
 		local by = Buildings.byId.windmill.boostBy
-		H.expect(w1.ok and w2.ok and math.abs(Island.boosts(prof).farm - (farm0 + by + by * Tuning.BoostStack)) < 1e-9, "boost", "two windmills stack: the second gives BoostStack of the first", string.format("%s %s farm %.3f", tostring(w1.err), tostring(w2.err), Island.boosts(prof).farm))
+		H.expect(w1.ok and w2.ok and math.abs(Island.boostRaw(prof) - (raw0 + by + by * Tuning.BoostStack)) < 1e-9, "boost", "two windmills stack: the second gives BoostStack of the first", string.format("%s %s raw %.3f", tostring(w1.err), tostring(w2.err), Island.boostRaw(prof)))
 		H.push(p, 0.4)
 		E.run(0.7)
 		local BTc = H.cmod(p, "Controllers.BuildingTags")
@@ -531,9 +534,9 @@ do
 			local v = math.floor(x * 1000 + 0.5) / 10
 			return if v == math.floor(v) then string.format("%d%%", v) else string.format("%.1f%%", v)
 		end
-		local want1 = string.format("Windmill Farms +%s from %d boost buildings", pct(info.total), info.count)
+		local want1 = string.format("Windmill Everything +%s from %d boost buildings", pct(info.total), info.count)
 		local want2 = string.format("One more adds +%s", pct(by * Tuning.BoostStack * Tuning.BoostStack))
-		H.expect(shown and info.count == 2 and st.card == want1 and st.card2 == want2, "boost", "a tap on a windmill: the farms' boost from both, and what one more adds", string.format("%q / %q (want %q / %q)", st.card, st.card2, want1, want2))
+		H.expect(shown and info.count == 2 and st.card == want1 and st.card2 == want2, "boost", "a tap on a windmill: everything's boost from both, and what one more adds", string.format("%q / %q (want %q / %q)", st.card, st.card2, want1, want2))
 		local roomy = 0
 		for _, sp in H.inClient(p, BTc.debugSpots) do
 			if sp.kind == "boost" and sp.room ~= 0 then
@@ -577,14 +580,24 @@ do
 	H.expect(H.buttonNamed(p, "PickParent_" .. ids[1]) == nil, "hatchery", "the first parent is not offered again")
 	H.clickNamed(p, "PickParent_" .. ids[2], { wait = 0.4 })
 	-- the panel's words (2026-11-15: "say Breed two driftlings for an egg. also, specify what happens to the result,
-	-- such as mutations and rarity"): the rarity in the hint, the mutations on the pair's line, no feast
+	-- such as mutations and rarity"; 2026-11-19: "In hatchery, show the resultant mutation combination the pet will
+	-- have"): the rule in the hint, the egg's own mutations (Logic/Breed.preview) and its price on the pair's line
+	local preview = Breed.preview(prof, ids[1], ids[2])
 	do
 		local hint = p.PlayerGui:FindFirstChild("Hint", true)
 		local cost = p.PlayerGui:FindFirstChild("Cost", true)
 		local ht = if hint then table.concat(H.textsOf(hint), " ") else ""
 		local ct = if cost then table.concat(H.textsOf(cost), " ") else ""
-		H.expect(string.find(ht, "Breed two driftlings for an egg.", 1, true) ~= nil and string.find(ht, "rarer eggs", 1, true) ~= nil, "hatchery", "the hint: breed two for an egg, rarer parents, rarer eggs", ht)
-		H.expect(string.find(ct, "Mutations both carry pass on", 1, true) ~= nil and string.find(ct, "half the time", 1, true) ~= nil, "hatchery", "the pair's line: what the mutations do", ct)
+		H.expect(string.find(ht, "Breed two driftlings for an egg.", 1, true) ~= nil and string.find(ht, "best mutations", 1, true) ~= nil, "hatchery", "the hint: breed two for an egg, it gets their best mutations", ht)
+		H.expect(preview ~= nil and string.find(ct, "Costs " .. Numbers.coins(preview.price) .. " shells", 1, true) ~= nil, "hatchery", "the pair's line: the price and the time", ct)
+		local row = p.PlayerGui:FindFirstChild("Hatch_" .. uid, true)
+		local shown = 0
+		for _, id in if preview then preview.muts else {} do
+			if row and row:FindFirstChild("Mut_" .. id, true) then
+				shown += 1
+			end
+		end
+		H.expect(preview ~= nil and row ~= nil and row:FindFirstChild("MutsLead", true) ~= nil and (shown == #preview.muts or (#preview.muts == 0 and row:FindFirstChild("Muts", true) ~= nil)), "hatchery", "the egg's mutations shown before Breed (Hatches with:)", string.format("%d of %d", shown, if preview then #preview.muts else -1))
 		local panel = if hint then hint.Parent else nil
 		local feastSeen = false
 		for _, t in if panel then H.textsOf(panel) else {} do
@@ -611,6 +624,7 @@ do
 	H.clickNamed(p, "Breed_" .. uid, { wait = 0.6 })
 	local egg = prof.eggs[1]
 	H.expect(egg ~= nil and egg.uid == uid and egg.sp == "gullfin", "hatchery", "an egg of their kind is laid", tostring(egg and egg.sp))
+	H.expect(egg ~= nil and preview ~= nil and table.concat(egg.muts, ",") == table.concat(preview.muts, ","), "hatchery", "with the very mutations the panel showed", egg and table.concat(egg.muts, ","))
 	local paid = shells0 - prof.shells
 	H.expect(paid <= feast + 1e-6 and paid >= feast - made, "hatchery", "the egg paid for in shells", string.format("%.2f paid, the price %d", paid, feast))
 	-- (Finish now sits in the warming egg's row, the hint the panel's whole width)
@@ -920,6 +934,131 @@ do
 		return if snd and snd:IsA("Sound") then snd.Volume else 0
 	end)
 	H.expect(loud == 0, "daynight", "no crickets through the calendar's night hours: there is no night", tostring(loud))
+end
+
+------------------------------------------------------------------ the rewards (GAME_DESIGN 15)
+-- The request (2026-11-19): "add rewards for playtime, daily rewards, streak rewards, codes, and as many retention
+-- features you can think of". Through the Rewards sheet as a player: the menu bar's Gifts and its dot, the daily reward
+-- and its streak over two days, a gift for playing, a task and the bonus, the Lucky Shell, the codes, an Index gift.
+E.phase = "rewards"
+do
+	local RewardsL = H.sharedServer("Logic.Rewards")
+	local RewardsD = H.sharedServer("Data.Rewards")
+	local WC = H.smod("WorldClock")
+	H.closePanel(p)
+	H.push(p, 0.4)
+	E.run(0.6)
+	local gifts = H.buttonNamed(p, "Menu_rewards")
+	local dot = gifts and gifts:FindFirstChild("Dot")
+	H.expect(gifts ~= nil and dot ~= nil and dot.Visible, "rewards", "the menu bar's Gifts, a red dot on it while something waits")
+	local st = p.PlayerGui:FindFirstChild("Status_gift", true)
+	H.expect(st ~= nil, "rewards", "the HUD's line about the next gift")
+	H.clickNamed(p, "Menu_rewards", { wait = 0.5 })
+	H.expect(H.currentPanel(p) == "rewards", "rewards", "Gifts opens the Rewards sheet", tostring(H.currentPanel(p)))
+	-- the daily reward: today's, then refused till tomorrow; tomorrow's goes on the streak
+	local n0 = #fx
+	H.clickNamed(p, "DailyClaim", { wait = 0.5 })
+	local d = prof.rewards.daily
+	local today = RewardsL.day(WC.now())
+	H.expect(d.last == today and d.streak >= 1, "rewards", "Claim takes today's reward", string.format("last %d today %d streak %d", d.last, today, d.streak))
+	local told = false
+	for i = n0 + 1, #fx do
+		if fx[i].kind == "rewards" and fx[i].from == "daily" then
+			told = true
+		end
+	end
+	H.expect(told, "rewards", "and says what came (Fx rewards)")
+	H.expect(H.req(p, "reward.daily", {}).err == "cooldown", "rewards", "a second claim the same day is refused (cooldown)")
+	local streak1 = d.streak
+	WC.shift(86400)
+	H.push(p, 0.5)
+	H.openPanel(p, "rewards", "today")
+	H.clickNamed(p, "DailyClaim", { wait = 0.5 })
+	H.expect(prof.rewards.daily.streak == streak1 + 1, "rewards", "the next day's claim carries the streak on", string.format("%d -> %d", streak1, prof.rewards.daily.streak))
+	-- a gift for playing: the first one's minutes in, Claim on the sheet
+	prof.rewards.play.secs = RewardsD.PLAY[1].min * 60 + 5
+	H.push(p, 0.5)
+	H.openPanel(p, "rewards", "today")
+	local s0 = prof.shells
+	H.clickNamed(p, "PlayClaim", { wait = 0.5 })
+	H.expect(table.find(prof.rewards.play.got, 1) ~= nil and prof.shells > s0, "rewards", "the first gift for playing claimed", string.format("got %d, shells %+d", #prof.rewards.play.got, prof.shells - s0))
+	H.expect(H.req(p, "reward.play", { i = 2 }).err == "not_done", "rewards", "the next one waits for its minutes (not_done)")
+	-- today's tasks: one done (its stat moved on from where it was dealt), Claim; the bonus once all three are in
+	H.openPanel(p, "rewards", "tasks")
+	local tk = prof.rewards.tasks
+	H.expect(#tk.list == RewardsD.TASK_COUNT, "rewards", "three tasks dealt today", tostring(#tk.list))
+	for _, t in tk.list do
+		t.at -= t.n + 1
+	end
+	if tk.list[1] and tk.list[1].id == "earn" then
+		-- (the shells task counts what the island earned)
+		prof.stats.earned += tk.list[1].n + 1
+	end
+	H.push(p, 0.5)
+	H.openPanel(p, "rewards", "tasks")
+	H.clickNamed(p, "TaskClaim_1", { wait = 0.4 })
+	H.expect(tk.got[1] == true, "rewards", "a done task claimed from the sheet")
+	H.expect(H.req(p, "reward.bonus", {}).err == "not_done", "rewards", "no bonus before all three are claimed")
+	for i = 2, #tk.list do
+		H.req(p, "reward.task", { i = i })
+	end
+	H.push(p, 0.4)
+	H.openPanel(p, "rewards", "tasks")
+	H.clickNamed(p, "BonusClaim", { wait = 0.4 })
+	H.expect(tk.bonus == true, "rewards", "the bonus for all three")
+	-- the Lucky Shell: the free spin (and the spins the rewards gave), the light stops on the prize
+	H.openPanel(p, "rewards", "spin")
+	local spins0 = RewardsL.spins(prof, WC.now())
+	local total0 = prof.rewards.spin.total
+	H.expect(spins0 >= 1, "rewards", "a spin in hand", tostring(spins0))
+	H.clickNamed(p, "Spin", { wait = 0.3 })
+	H.expect(prof.rewards.spin.total == total0 + 1, "rewards", "Spin turns the Lucky Shell", tostring(prof.rewards.spin.total))
+	E.run(6)
+	local said = H.inClient(p, function()
+		local sheet = p.PlayerGui:FindFirstChild("Panel_rewards", true)
+		local s = sheet and sheet:FindFirstChild("Status", true)
+		return if s and s:IsA("TextLabel") then s.Text else ""
+	end)
+	H.expect(string.find(said, "Lucky Shell", 1, true) ~= nil, "rewards", "once the light stops, the sheet says what it gave", said)
+	prof.rewards.spin.extra = 0
+	local rs = H.req(p, "reward.spin", {})
+	H.expect(not rs.ok and rs.err == "not_done", "rewards", "no spins left: refused (not_done)", tostring(rs.err))
+	-- the codes: a good one once, a used one, a made-up one
+	H.openPanel(p, "rewards", "codes")
+	local box = p.PlayerGui:FindFirstChild("CodeField", true)
+	local tb = box and box:FindFirstChild("Box")
+	if H.expect(tb ~= nil, "rewards", "the code box") then
+		local luck0 = prof.boosts.luck or 0
+		H.inClient(p, function()
+			tb.Text = "  welcome "
+		end)
+		H.clickNamed(p, "Redeem", { wait = 0.5 })
+		H.expect(prof.rewards.codes.WELCOME == true and (prof.boosts.luck or 0) > luck0, "rewards", "a code typed any case with spaces round it gives its gift (WELCOME: shells and a Lucky Hour)", tostring(prof.boosts.luck))
+		H.expect(H.req(p, "code.redeem", { code = "WELCOME" }).err == "used", "rewards", "the same code again: used")
+		H.expect(H.req(p, "code.redeem", { code = "NOTACODE" }).err == "not_found", "rewards", "a made-up code: not_found")
+		H.expect(H.req(p, "code.redeem", { code = string.rep("x", 400) }).err ~= nil, "rewards", "a very long code is refused")
+	end
+	-- the Lucky Hour on the HUD and in the eggs' luck
+	E.run(0.6)
+	H.expect(p.PlayerGui:FindFirstChild("Status_boost_luck", true) ~= nil, "rewards", "the Lucky Hour's line on the HUD")
+	H.expect(Tree.luck(prof) >= 1 + Tuning.EggLuck[prof.tier] + Tuning.TimedLuck - 1e-9, "rewards", "and the eggs that much luckier", string.format("%.2f", Tree.luck(prof)))
+	-- the Index's first gift
+	local need = RewardsD.INDEX[1].n
+	local CreaturesD = H.sharedServer("Data.Creatures")
+	local k = 0
+	for _, c in CreaturesD.list do
+		if k < need then
+			prof.seen[c.id] = 2
+			k += 1
+		end
+	end
+	H.push(p, 0.4)
+	H.openPanel(p, "rewards", "index")
+	H.clickNamed(p, "IndexClaim_1", { wait = 0.4 })
+	H.expect(table.find(prof.rewards.index.got, need) ~= nil, "rewards", "the Index's first gift claimed", tostring(#prof.rewards.index.got))
+	H.expect(H.req(p, "reward.index", { i = 1 }).err == "used", "rewards", "and only once (used)")
+	H.closePanel(p)
+	H.checkProfile(p, "rewards")
 end
 
 H.checkProfile(p, "end")

@@ -226,7 +226,21 @@ end
 
 -- What a purchase or a reward gave (Fx rewards' `given`), in one plain line: each thing when there are three or fewer,
 -- else counted ("2 eggs, 2 pieces").
-local FROM: { [string]: string } = { vip = "Today's VIP gift", track = "Pass track", VIP = "VIP's welcome gift", group = "Group gift" }
+local FROM: { [string]: string } = {
+	vip = "Today's VIP gift",
+	track = "Pass track",
+	VIP = "VIP's welcome gift",
+	group = "Group gift",
+	-- the Rewards sheet's (UI/RewardsUI)
+	daily = "Daily reward",
+	play = "Gift for playing",
+	task = "Task done",
+	bonus = "All three tasks done",
+	spin = "Lucky Shell",
+	index = "Index gift",
+	code = "Code",
+}
+local BOOST_NAMES: { [string]: string } = { shells = "Busy Day", luck = "Lucky Hour" }
 function StoreUI.rewardText(from: string, given: { any }): string
 	local head = FROM[from] or (if ITEM_BY[from] then ITEM_BY[from].name else "Got")
 	local parts: { string } = {}
@@ -250,6 +264,11 @@ function StoreUI.rewardText(from: string, given: { any }): string
 			titles += 1
 			local t = Titles.byId[tostring(g.id)]
 			table.insert(one, "the " .. (if t then t.name else "new") .. " title")
+		elseif g.kind == "spin" then
+			local n = tonumber(g.n) or 1
+			table.insert(one, if n == 1 then "a spin of the Lucky Shell" else string.format("%d spins of the Lucky Shell", n))
+		elseif g.kind == "boost" then
+			table.insert(one, string.format("%s for %d min", BOOST_NAMES[tostring(g.id)] or "a boost", math.max(1, math.floor((tonumber(g.n) or 60) / 60 + 0.5))))
 		elseif g.kind == "shop" then
 			table.insert(one, "a new set in the shop")
 		elseif g.kind == "eggs" then
@@ -389,6 +408,7 @@ end
 
 ------------------------------------------------------------------ the tabs
 local tab = "passes"
+local tabSeq = -1 -- (the opening whose argument picked the tab: UIKit.openCount)
 
 -- The group card (GAME_DESIGN 14.3): Join (a check first, then Roblox's join prompt, then a check again), Joined once in.
 -- No group set yet: its button waits ("Soon").
@@ -810,13 +830,14 @@ local function buildStore(body: Frame, arg: any?)
 	if v == nil then
 		return
 	end
-	if type(arg) == "string" then
+	if type(arg) == "string" and tabSeq ~= UIKit.openCount() then
 		for _, t in StoreUI.TABS do
 			if t.id == arg then
 				tab = arg
 			end
 		end
 	end
+	tabSeq = UIKit.openCount()
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	-- the tabs: each its icon and words, the one open in the accent
 	local x = 0
@@ -854,6 +875,7 @@ end
 ------------------------------------------------------------------ Looks: the founder, their pieces and titles
 local draft: Types.Look? = nil -- the colours and hair style being tried (saved with Save look)
 local looksTab = "pieces"
+local looksSeq = -1
 local slotTab = "hat"
 local LOOK_ROWS: { { key: string, label: string, n: number } } = {
 	{ key = "skin", label = "Skin", n = #Looks.skin },
@@ -982,9 +1004,10 @@ local function buildLooks(body: Frame, arg: any?)
 	if v == nil then
 		return
 	end
-	if arg == "pieces" or arg == "titles" then
+	if (arg == "pieces" or arg == "titles") and looksSeq ~= UIKit.openCount() then
 		looksTab = arg
 	end
+	looksSeq = UIKit.openCount()
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	-- the colours being tried, with the pieces worn now
 	local d: Types.Look = draft or { skin = v.founder.skin, hair = v.founder.hair, style = v.founder.style, shirt = v.founder.shirt }
@@ -1131,8 +1154,8 @@ local PASS_THANKS: { [string]: string } = {
 }
 
 function StoreUI.init()
-	UIKit.registerPanel("store", { title = "Store", icon = "store", w = 380, h = 210, build = buildStore })
-	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 360, h = 200, build = buildLooks })
+	UIKit.registerPanel("store", { title = "Store", icon = "store", w = 380, h = 210, props = { "crown", "shell", "ticket" }, build = buildStore })
+	UIKit.registerPanel("looks", { title = "Looks", icon = "visitor", w = 360, h = 200, props = { "crown", "petal" }, build = buildLooks })
 	UIKit.PanelChanged:Connect(function(name: string?)
 		if name ~= "looks" then
 			draft = nil
@@ -1142,7 +1165,8 @@ function StoreUI.init()
 		if msg.kind == "pass" and msg.bought then
 			Audio.play("reward")
 			UIKit.notice(PASS_THANKS[tostring(msg.key)] or "Thanks! Your pass is on.", UIKit.color("good"), 4)
-		elseif msg.kind == "rewards" and type(msg.given) == "table" then
+		elseif msg.kind == "rewards" and type(msg.given) == "table" and msg.from ~= "spin" then
+			-- (the Lucky Shell tells its own once its light stops: UI/RewardsUI)
 			Audio.play("reward")
 			UIKit.notice(StoreUI.rewardText(tostring(msg.from), msg.given), UIKit.color("accent"), 5)
 		elseif msg.kind == "titles" and type(msg.ids) == "table" then

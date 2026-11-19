@@ -172,7 +172,7 @@ end
 
 -- What the island made while away (Profile.seenAt to `now`, the sea's clock): nil when the time is unknown, too short
 -- (under Tuning.OfflineMinSec) or the island makes nothing. Its pace is now's (Island.rates: the passes, the group
--- and charm in).
+-- and charm in), times 1 + the huts' away share (Island.isle).
 function Store.offline(p: Profile, now: number): Types.OfflineReport?
 	if p.seenAt <= 0 then
 		return nil
@@ -183,7 +183,8 @@ function Store.offline(p: Profile, now: number): Types.OfflineReport?
 	end
 	local secs = math.min(away, Store.offlineCap(p))
 	local perSec = Island.rates(p).shells / Tuning.TurnSeconds
-	local shells = math.floor(math.max(0, perSec) * secs * Store.offlinePct(p) + 1e-9)
+	-- (a wondrous Dreamer in a hut makes the time away pay more: Island.isle's away share)
+	local shells = math.floor(math.max(0, perSec) * secs * Store.offlinePct(p) * (1 + Island.isle(p).away) + 1e-9)
 	if shells <= 0 then
 		return nil
 	end
@@ -487,7 +488,7 @@ function Store.product(p: Profile, key: string, now: number): (boolean, any)
 		-- moment, the ones lying there going (IslandService: Fx "eggs"; the request of 2026-11-14, "make a developer
 		-- product to refresh eggs in the tree of life")
 		p.clutch.left = 0
-		table.insert(given, { kind = "eggs", n = Tree.count(p.tier) })
+		table.insert(given, { kind = "eggs", n = Tree.lot(p) })
 	elseif key == "HatcheryNow" then
 		if #p.eggs == 0 then
 			table.insert(given, addShells(p, Store.minutes(p, Tuning.FallbackMins)))

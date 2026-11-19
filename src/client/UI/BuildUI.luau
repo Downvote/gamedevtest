@@ -69,7 +69,9 @@ local TABS: { Tab } = {
 	{ key = "inv", text = "Inventory", icon = "inv" },
 }
 local CHIPS: { [string]: { { string } } } = {
-	work = { { "", "All" }, { "farm", "Farms" }, { "wood", "Wood" }, { "shop", "Shops" }, { "gen", "Boosts" } },
+	-- (one kind of work since the request of 2026-11-19: "remove work building types. They all now fall in the same
+	-- category of work"; Farms, Wood and Shops were three rows)
+	work = { { "", "All" }, { "work", "Workplaces" }, { "gen", "Boosts" } },
 	water = { { "", "All" }, { "tiles", "Water" }, { "bridge", "Bridges" }, { "float", "On the water" } },
 	nature = { { "", "All" }, { "trees", "Trees" }, { "plants", "Plants" }, { "rocks", "Rocks" } },
 	decor = {
@@ -90,20 +92,20 @@ local CHIPS: { [string]: { { string } } } = {
 	},
 	fun = { { "", "All" }, { "seats", "Seats" }, { "lights", "Lights" }, { "play", "Play" }, { "treats", "Treats" }, { "fountains", "Fountains" } },
 }
--- the old tabs (the quests' Go: "build:wood"): Work's chips now
-local OLD_TABS: { [string]: string } = { farm = "farm", wood = "wood", shop = "shop", gen = "gen" }
+-- the old tabs (the quests' Go: "build:wood"): Work's chips now (the three kinds of work all its Workplaces)
+local OLD_TABS: { [string]: string } = { farm = "work", wood = "work", shop = "work", work = "work", gen = "gen" }
 local tab = "work"
-local chip: { [string]: string } = { work = "wood" }
+local chip: { [string]: string } = { work = "work" }
 
 -- The tips in Build mode (GAME_DESIGN 9: "make the tutorial show while in the build menu as well, and auto switches
 -- the player to the tab where the required buildings are in"): the tip's banner stays above the tray (UI/Hud), and
 -- opening Build mode, or a tip moving on while it is open, turns the tray to the tab (and row) of the building the tip
 -- asks for; that building's card (and its tab, while another is shown) pulses until it stands on the island.
 local TUT: { [number]: { tab: string, chip: string, id: string } } = {
-	[1] = { tab = "work", chip = "wood", id = "lumber" },
-	[2] = { tab = "work", chip = "farm", id = "patch" },
+	[1] = { tab = "work", chip = "work", id = "lumber" },
+	[2] = { tab = "work", chip = "work", id = "patch" },
 	[3] = { tab = "nest", chip = "", id = "nest" },
-	[5] = { tab = "work", chip = "shop", id = "stall" },
+	[5] = { tab = "work", chip = "work", id = "stall" },
 }
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
 local goalCard: Frame? = nil
@@ -720,7 +722,7 @@ local function about(def: Buildings.BuildingDef, lvl: number?): string
 		say ..= string.format(" Charm +%d.", math.floor(def.charm))
 	end
 	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare)
-	if def.kind == "gen" and def.boost ~= "" then
+	if def.kind == "gen" then
 		say ..= string.format(" Each extra one adds %d%% of the one before.", math.round(Tuning.BoostStack * 100))
 	end
 	if def.water == "on" then

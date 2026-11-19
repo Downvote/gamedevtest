@@ -189,6 +189,10 @@ after.seenAt = before.seenAt
 local away = E.SIM.now - leftAt
 local ran = before.clutch.left - after.clutch.left
 after.clutch.left = before.clutch.left
+-- (and today's seconds played counted on while the player was here again: Logic/Rewards.tick, never while away)
+local played = after.rewards.play.secs - before.rewards.play.secs
+H.expect(played >= 0 and played <= 3, "save", "today's time played counts on from where it was saved", string.format("%+d s", played))
+after.rewards.play.secs = before.rewards.play.secs
 local diff = H.diff(before, after)
 H.expect(diff == nil, "save", "the rejoined profile is the one saved (the same eggs, the same ids)", tostring(diff))
 H.expect(ran >= 0 and ran <= 2.05 and ran < away - 1.5, "save", "the eggs' clock where it stopped: it ran only since the player came back, not while away", string.format("%.2f s off the clock in %.1f s since leaving", ran, away))
@@ -224,7 +228,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 19, "save", "a version 12 save loads as version 19", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 20, "save", "a version 12 save loads as version 20", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -284,7 +288,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 19, "save", "a version 11 save loads as version 19", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 20, "save", "a version 11 save loads as version 20", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid. A tier-1 island has
 	-- few places an 8 by 8 tree fits, and the patch and the hut take them all: the patch makes room, its whole price
@@ -556,7 +560,7 @@ do
 	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
 	E.run(3)
 	local fp = H.profile(f13)
-	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 19", tostring(fp and fp.v))
+	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 20", tostring(fp and fp.v))
 	if fp then
 		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
 		H.expect(fp.wood == nil and fp.shells >= 300 + 90 + 25 * 2 + 120 and fp.shells < 300 + 90 + 25 * 2 + 120 + 2, "save", "their price back (two fences at 25, a hedge at 120) and the wood, as shells", string.format("%s %s", tostring(fp.shells), tostring(fp.wood)))
@@ -666,6 +670,8 @@ do
 				afterW.seenAt = beforeW.seenAt
 				local ranW = beforeW.clutch.left - afterW.clutch.left
 				afterW.clutch.left = beforeW.clutch.left
+				-- (and today's time played counts on while here: Logic/Rewards.tick)
+				afterW.rewards.play.secs = beforeW.rewards.play.secs
 				local diffW = H.diff(beforeW, afterW)
 				H.expect(diffW == nil and pieceList(afterW.plot.placed) == listW, "save", "rejoined: the very same island, fence by fence and tile by tile", tostring(diffW))
 				H.expect(ranW >= 0 and ranW < E.SIM.now - leftW - 1.5, "save", "(its eggs' clock where it stopped)", string.format("%.2f", ranW))

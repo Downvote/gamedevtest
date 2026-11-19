@@ -19,6 +19,8 @@ local Cosmetics = require(script.Parent.Parent.Data.Cosmetics)
 local Titles = require(script.Parent.Parent.Data.Titles)
 local Track = require(script.Parent.Parent.Data.Track)
 local Monetization = require(script.Parent.Parent.Config.Monetization)
+local RewardsData = require(script.Parent.Parent.Data.Rewards)
+local Rewards = require(script.Parent.Rewards)
 
 type Profile = Types.Profile
 
@@ -29,8 +31,8 @@ local Schema = {}
 -- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
--- group gift (GAME_DESIGN 14.3)
-Schema.VERSION = 19
+-- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15)
+Schema.VERSION = 20
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -132,6 +134,8 @@ function Schema.default(now: number, seed: number): Profile
 		track = { s = -1, xp = 0, got = {}, gotP = {} },
 		seenAt = now,
 		group = { member = false, gift = false },
+		rewards = Rewards.fresh(),
+		boosts = {},
 	}
 	Tree.plant(p)
 	return p
@@ -424,11 +428,94 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		v = 19
 	end
+	-- 19 -> 20: the rewards for coming back and playing and the timed boosts (the request of 2026-11-19: "add rewards
+	-- for playtime, daily rewards, streak rewards, codes"); reconcile starts them fresh. The same request made every
+	-- workplace one kind of work and gave the farm, wood and shop mutation families new effects (Data/Traits): their
+	-- ids stay, so a saved driftling keeps its mutations' tiers and nothing moves.
+	if v < 20 then
+		v = 20
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
 
 ------------------------------------------------------------------ reconcile
+-- The rewards' save (Types.RewardsSave) from anything: days and counts in range, known milestones, gifts and tasks,
+-- codes as short strings.
+local function intList(v: any, ok: (number) -> boolean, most: number): { number }
+	local out: { number } = {}
+	if type(v) == "table" then
+		for _, x in v do
+			if type(x) == "number" and x == x and x == math.floor(x) and ok(x) and table.find(out, x) == nil and #out < most then
+				table.insert(out, x)
+			end
+		end
+	end
+	return out
+end
+function Schema.rewards(v: any): Types.RewardsSave
+	local out = Rewards.fresh()
+	if type(v) ~= "table" then
+		return out
+	end
+	local dl = if type(v.daily) == "table" then v.daily else {}
+	local miles: { [number]: boolean } = {}
+	for _, m in RewardsData.MILESTONES do
+		miles[m.day] = true
+	end
+	out.daily = {
+		last = int(dl.last, -1, -1),
+		streak = int(dl.streak, 0, 0, 1e6),
+		best = int(dl.best, 0, 0, 1e6),
+		miles = intList(dl.miles, function(x)
+			return miles[x] == true
+		end, #RewardsData.MILESTONES),
+	}
+	out.daily.best = math.max(out.daily.best, out.daily.streak)
+	local pl = if type(v.play) == "table" then v.play else {}
+	out.play = {
+		day = int(pl.day, -1, -1),
+		secs = num(pl.secs, 0, 0, 86400),
+		got = intList(pl.got, function(x)
+			return x >= 1 and x <= #RewardsData.PLAY
+		end, #RewardsData.PLAY),
+	}
+	local tk = if type(v.tasks) == "table" then v.tasks else {}
+	local list: { Types.TaskSave } = {}
+	local got: { boolean } = {}
+	if type(tk.list) == "table" then
+		for i, t in tk.list do
+			if type(t) == "table" and type(t.id) == "string" and Rewards.taskDef[t.id] and #list < RewardsData.TASK_COUNT then
+				table.insert(list, { id = t.id, n = num(t.n, 1, 1, 1e15), at = num(t.at, 0, 0, 1e15) })
+				table.insert(got, type(tk.got) == "table" and tk.got[i] == true)
+			end
+		end
+	end
+	out.tasks = { day = if #list > 0 then int(tk.day, -1, -1) else -1, list = list, got = got, bonus = tk.bonus == true }
+	local sp = if type(v.spin) == "table" then v.spin else {}
+	out.spin = { day = int(sp.day, -1, -1), extra = int(sp.extra, 0, 0, 999), total = int(sp.total, 0, 0) }
+	if type(v.codes) == "table" then
+		local n = 0
+		for k, on in v.codes do
+			if type(k) == "string" and #k <= 32 and on == true and n < 200 then
+				out.codes[Rewards.norm(k)] = true
+				n += 1
+			end
+		end
+	end
+	local ix = if type(v.index) == "table" then v.index else {}
+	local ns: { [number]: boolean } = {}
+	for _, g in RewardsData.INDEX do
+		ns[g.n] = true
+	end
+	out.index = {
+		got = intList(ix.got, function(x)
+			return ns[x] == true
+		end, #RewardsData.INDEX),
+	}
+	return out
+end
+
 -- The pieces that exist, up to the island's limit, each with its own uid (where they stand is checked once the profile
 -- is whole: Plot.refit moves the ones that do not fit the island's coast, the shape of an older save's island).
 local function piecesOf(v: any, tier: number): { Types.Piece }
@@ -505,7 +592,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 					local work = int(x.work, 0, 0)
 					local q = byUid[work]
 					local b = if q then Buildings.byId[q.id] else nil
-					if home == 0 or b == nil or (b.kind ~= "farm" and b.kind ~= "wood" and b.kind ~= "shop") or (helpers[work] or 0) >= b.jobs then
+					if home == 0 or b == nil or b.kind ~= "work" or (helpers[work] or 0) >= b.jobs then
 						work = 0
 					end
 					if work ~= 0 then
@@ -582,7 +669,20 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			member = type(r.group) == "table" and r.group.member == true,
 			gift = type(r.group) == "table" and r.group.gift == true,
 		},
+		rewards = Schema.rewards(r.rewards),
+		boosts = {},
 	}
+	-- the timed boosts: known ones, their seconds in range
+	if type(r.boosts) == "table" then
+		for k, left in r.boosts do
+			if type(k) == "string" and RewardsData.BOOSTS[k] ~= nil then
+				local t = num(left, 0, 0, RewardsData.BOOST_MAX)
+				if t > 0 then
+					out.boosts[k] = t
+				end
+			end
+		end
+	end
 	-- the store (GAME_DESIGN 14): passes by their keys (MonetizationService checks them again at the join), the last
 	-- receipts, the one-time gifts, the bag's eggs, the look with only owned pieces worn, a title earned, the shop's
 	-- refreshes, the track's season
@@ -629,7 +729,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	local top = 0
 	if type(c.list) == "table" then
 		for _, e in c.list do
-			if type(e) == "table" and #cl.list < Tree.count(tier) then
+			-- (a lot's size: the tier's, and one more for each wondrous Twinborn in a hut)
+			if type(e) == "table" and #cl.list < Tree.lot(out) then
 				local id = int(e.id, 0, 0)
 				if id > 0 and not eggIds[id] then
 					eggIds[id] = true

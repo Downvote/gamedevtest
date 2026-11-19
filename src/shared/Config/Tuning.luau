@@ -49,9 +49,9 @@ local Tuning = {
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
-	PalWork = 0.6, -- a common driftling working at a building of its knack makes this share of its rate ...
+	PalWork = 0.6, -- a common driftling at work makes this share of its workplace's rate ...
 	RarityWork = { 1, 1.6, 2.5, 4, 7, 11, 17 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
-	-- the driftlings one workplace (a farm, a wood building, a shop) takes, by the tier it opens at (Data/Buildings'
+	-- the driftlings one workplace takes, by the tier it opens at (Data/Buildings'
 	-- `jobs`). The request of 2026-11-18: "increase the capacity of work buildings by alot, in turn, make a cap for the
 	-- amount of work spaces possible in each island expansion. it should match the number of max driftlings possible
 	-- for each expansion" (WorkLimit). It was 2 everywhere. The first island's four keep 2: its cap is 8, and the tips
@@ -78,8 +78,9 @@ local Tuning = {
 	},
 	-- the huts (GAME_DESIGN 4.1): a resident's comfort (its hut's, plus this by the hut's level) adds to its work
 	ComfortLvl = { 0, 0.04, 0.08 },
-	BoostMax = 0.7, -- the boost buildings' shares at one knack together, at most (0.6 until the boosts of the islands past
-	-- Driftling Haven: no island short of them reaches it)
+	BoostMax = 0.7, -- the boost buildings' shares together, at most, before the driftlings' boost share (0.6 until the
+	-- boosts of the islands past Driftling Haven; each boosts every workplace since 2026-11-19, the ones for one kind of
+	-- work at a little over half their old share, so a tier 6 island reaches it)
 	-- a second boost building of a kind gives this share of the first's, a third this share of the second's... (the
 	-- request of 2026-11-15: "make it such that boost buildings can stack, but with diminishing returns")
 	BoostStack = 0.5,
@@ -135,8 +136,6 @@ local Tuning = {
 	SeasonFavour = 3,
 	-- the tree's model grows grander with the island (its stage by tier, Models/DecorModels)
 	TreeStage = { 1, 2, 2, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6 },
-	HutLuck = 0.5, -- the huts' driftlings' luck shares add this much luck at most ...
-	HutCost = 0.5, -- ... and their cost shares take this much off the eggs' price at most
 	-- selling a driftling (or swapping it out for a new hatchling): shells by its rarity, times 1 + SellTier x its
 	-- mutations' tiers, times its sell share
 	SellPrice = { 2, 7, 25, 85, 320, 1300, 5500 },
@@ -145,16 +144,35 @@ local Tuning = {
 	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings bred for an egg; by the child's rarity
 	BreedShells = { 20, 80, 300, 1200, 5000, 22000, 90000 }, -- shells an egg costs
 	BreedTurns = { 3, 4, 6, 9, 14, 20, 28 }, -- island turns the egg takes to hatch
-	BreedKeep = 0.5, -- a parent's mutation passes on with this chance (one both parents carry always does; the
-	-- Hatchery's line says "half the time")
-	BreedTierUp = 0.3, -- one both carry comes out a tier better with this chance (a flaw: its family's first tier)
-	BreedNew = 0.15, -- the chance of a new mutation of its own (tier 1 or 2)
-	-- the island's lean, never shown (the request of 2026-11-15: "secretlyskew the player's mutation based on the
-	-- buildings they have: if they have high amount of wood work buildings, they will have a higher chance of wood
-	-- relation mutations"): a new mutation's family that helps at a knack weighs 1 + MutLean x that knack's work
-	-- buildings / max(all the work buildings, MutLeanFloor) against 1 for the rest (Logic/Tree.lean)
-	MutLean = 2,
-	MutLeanFloor = 4,
+	-- (BreedKeep, BreedTierUp and BreedNew, the chances a parent's mutation passed on, came out a tier better or a new
+	-- one came, went on 2026-11-19: a child's mutations are decided, shown before the egg is laid, the best tiers of
+	-- both parents', one both carry a tier better: Logic/Breed.inherit. The island's lean on a new mutation, MutLean and
+	-- MutLeanFloor, went the same day with the kinds of work building.)
+	-- the huts' driftlings' Hatchery shares multiply (each takes its share off what is left: the request of 2026-11-19,
+	-- "make mutations that decrease hatchery time, with diminishing returns if stacked"), down to this share of the time
+	HatchMin = 0.3,
+	-- what the huts' driftlings give the whole island (Data/Traits.ISLE, Logic/Island.isle), each at most this
+	IsleCap = {
+		luck = 0.5, -- egg luck (was HutLuck)
+		cost = 0.5, -- off the eggs' price (was HutCost)
+		boost = 1, -- the boost buildings at most twice as strong
+		charmPct = 2, -- charm at most three times
+		all = 0.6, -- the wondrous ones: every shell
+		aura = 0.4, -- every driftling at work
+		eggs = 3, -- eggs more in each lot
+		skip = 0.2, -- added to each step of Tuning.EggUp
+		away = 2, -- offline shells (x3 at most)
+	} :: { [string]: number },
+	-- the tree lays every rarity on every island (the request of 2026-11-19: "Make all eggs obtainable regardless of
+	-- expansion level, but at a very low chance if they are higher rarity"): a rarity none of the kinds open at the
+	-- island's tier has weighs EggEarly of its weight (mythic and celestial short of tier 11), and what hatches from an
+	-- egg is one of a kind not open yet with FarKind (any kind of its rarity), else one of the open kinds
+	EggEarly = 0.05,
+	FarKind = 0.03,
+	-- a timed shells boost (a reward: Logic/Rewards) multiplies every shell by 1 + this while it runs, and a timed luck
+	-- boost adds this much egg luck
+	TimedShells = 0.5,
+	TimedLuck = 0.5,
 
 	-- the store (GAME_DESIGN 14; Logic/Store; the request of 2026-11-14: "make gamepasses for double income, developer
 	-- products for hatching any rarity of egg, refreshing shop, a starter pack, speeding up hatcheries, a gamepass track

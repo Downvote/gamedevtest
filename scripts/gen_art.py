@@ -429,8 +429,56 @@ S("mini_shell", [".........", ".FFFFFFF.", "FFFFFFFFF", "FFjFjFjFF", "FFjFjFjFF"
 # small star sprites to show the rarity of mutations"): one 7 x 7 star a tier, in the tier's colour (UI's
 # Traits.TIER_COLOR: white, green, teal, gold), drawn at its own size for a 10 px line of text.
 STAR_T = ["..4..", ".443.", "44432", ".432.", ".3.2."]
-for _t, _ramp in enumerate(("W", "G", "C", "Y"), start=1):
+for _t, _ramp in enumerate(("W", "G", "C", "Y", "H"), start=1):
     HAND("star_t%d" % _t, STAR_T, [_ramp])
+# (the fifth, rose: a wondrous mutation, the tier the request of 2026-11-19 added: "add a higher, rarer tier of
+# mutations which provide strong and unique buffs")
+
+# ---------------------------------------------------------------- the sheets (UIKit.openPanel, UIKit.heading)
+# The request (2026-11-19): "Look at the bakery game and see its menu. Make a similarly polished and themed menu for
+# different tabs." The close mark on a sheet's awning: a cream X, its strokes two pixels wide, lit from the top left.
+HAND("mini_close", [
+    "44.....33",
+    "444...333",
+    ".444.333.",
+    "..44333..",
+    "...433...",
+    "..43322..",
+    ".3332222.",
+    "333...222",
+    "33.....22",
+], ["E"])
+# The Lucky Shell's spins (the Rewards sheet): a beach ball turned like a prize wheel, gold over teal, its seams in
+# brown meeting at a dark hub.
+HAND("mini_wheel", [
+    "..44a33..",
+    ".444a333.",
+    "4444a3333",
+    "4444a3332",
+    "aaaaxaaaa",
+    "8888a6665",
+    "8887a6655",
+    ".877a655.",
+    "..77a55..",
+], ["Y", "T", "E"])
+# The gifts for playing: a white clock face, its hands at ten past, lit from the top left.
+HAND("mini_clock", [
+    "..44433..",
+    ".4444333.",
+    "4444x3332",
+    "4444x3332",
+    "4444xxx32",
+    "433333322",
+    "333333222",
+    ".3332222.",
+    "..22211..",
+], ["W"])
+# The little wave after a heading on a sheet: a teal line rolling twice, a gold glint at its end.
+S("sheet_wave", [
+    ".tt...tt.....",
+    "t..t.t..t..y.",
+    "....t....t...",
+], flat={"t": "tel2", "y": "yel2"}, shade=False, outline=False)
 
 # ---------------------------------------------------------------- a dozing founder's Z's (Controllers/AvatarView)
 # The request (2026-11-15): "add more motion to the player, just like in the bakery game, like dozing off while afk".

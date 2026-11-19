@@ -26,7 +26,7 @@ return function()
 	end
 	T.it("buildings: unique ids, prices, footprints, kinds, what each makes", function()
 		local seen = {}
-		local kinds = { farm = true, wood = true, shop = true, nest = true, breed = true, gen = true, path = true, water = true, fence = true, decor = true, tree = true }
+		local kinds = { work = true, nest = true, breed = true, gen = true, path = true, water = true, fence = true, decor = true, tree = true }
 		local tabs = { work = true, nest = true, path = true, water = true, fence = true, nature = true, decor = true, fun = true }
 		local feels = { wood = true, stone = true, plant = true, water = true, metal = true, magic = true, sand = true, snow = true, cloth = true, fire = true }
 		for _, d in Buildings.list do
@@ -50,15 +50,15 @@ return function()
 			T.truthy(d.water == "" or d.kind == "decor", d.id .. " only decor stands over water")
 			T.truthy(d.kind ~= "decor" or d.sub ~= "", d.id .. " a row in its tab")
 			T.truthy(tree or (d.tier >= 1 and d.tier <= #Office.plans), d.id .. " tier")
-			local makes = d.kind == "farm" or d.kind == "wood" or d.kind == "shop"
+			-- (one kind of work since 2026-11-19: "remove work building types. They all now fall in the same category of
+			-- work"; `act` is only how its workers look at work)
+			local makes = d.kind == "work"
 			T.truthy(makes == (d.rate > 0), d.id .. " rate")
-			T.truthy(makes == (d.knack ~= ""), d.id .. " knack")
-			-- (the Work tab's three groups: "creatures are adept in either wood, farm or shops as seen in the build tab")
-			T.truthy(d.knack == "" or d.knack == d.kind, d.id .. " a workplace's knack is its group")
+			T.truthy(makes == (d.act == "farm" or d.act == "wood" or d.act == "shop"), d.id .. " a workplace's look of work")
 			T.truthy((d.kind == "nest") == (d.slots > 0), d.id .. " huts have room")
 			T.truthy(d.kind ~= "decor" or d.charm > 0, d.id .. " decor brings charm")
-			T.truthy((d.kind == "gen") == (d.boost ~= "" and d.boostBy > 0), d.id .. " a boost building boosts")
-			T.truthy(d.boost == "" or d.boost == "farm" or d.boost == "wood" or d.boost == "shop" or d.boost == "all", d.id .. " boost knack")
+			T.truthy((d.kind == "gen") == (d.boostBy > 0), d.id .. " a boost building boosts (everything)")
+			T.truthy((d :: any).boost == nil and (d :: any).knack == nil, d.id .. " no knack, no boost kind")
 			T.truthy(d.comfort == 0 or d.kind == "nest", d.id .. " comfort is a hut's")
 			T.truthy(d.kind ~= "path" or (d.w == 2 and d.d == 2), d.id .. " a path is a 2 x 2 tile")
 		end
@@ -69,14 +69,8 @@ return function()
 			T.eq(Buildings.byId[id].tier, 1, id .. " from the start")
 		end
 	end)
-	T.it("driftlings: unique ids, a kind each, a make-up, knacks a building has, colours", function()
+	T.it("driftlings: unique ids, a kind each, a make-up, no knack, colours", function()
 		local seen = {}
-		local knacks: { [string]: boolean } = {}
-		for _, b in Buildings.list do
-			if b.knack ~= "" then
-				knacks[b.knack] = true
-			end
-		end
 		local perIslet: { [number]: number } = {}
 		for _, d in Creatures.list do
 			T.truthy(not seen[d.id] and string.match(d.id, "^%w+$") ~= nil, d.id)
@@ -84,8 +78,7 @@ return function()
 			T.truthy(Islets.list[d.islet] ~= nil, d.id .. " islet")
 			perIslet[d.islet] = (perIslet[d.islet] or 0) + 1
 			T.truthy(d.hp > 0 and d.atk > 0 and d.def > 0 and d.spd > 0, d.id .. " stats")
-			T.truthy(knacks[d.knack], d.id .. " knack " .. d.knack)
-			T.truthy(d.knack == "farm" or d.knack == "wood" or d.knack == "shop", d.id .. " farm, wood or shops")
+			T.truthy((d :: any).knack == nil, d.id .. " no knack (2026-11-19)")
 			T.truthy(color(d.body) and color(d.accent), d.id .. " colours")
 			-- its rarity, its passive (named, effects Data/Traits knows) and its breeding rank
 			T.truthy(d.rarity >= 1 and d.rarity <= Traits.RMAX, d.id .. " rarity")
@@ -93,7 +86,9 @@ return function()
 			for k, v in d.passive.fx do
 				-- (costing less is the good way; charm in whole points)
 				local good = if k == "cost" then v < 0 and v > -1 elseif k == "charm" then v >= 1 and v == math.floor(v) else v > 0 and v < 1
-				T.truthy(table.find(Traits.KEYS, k) ~= nil and good, d.id .. " passive effect " .. k)
+				-- (a passive's effects: work, Hatchery time, boost buildings, charm (flat or a share), luck, cost and sell;
+				-- the wondrous effects are the tier 5 mutations' own)
+				T.truthy(table.find({ "work", "hatch", "boost", "charmPct", "charm", "luck", "cost", "sell" }, k) ~= nil and good, d.id .. " passive effect " .. k)
 			end
 			T.truthy(d.power > 0, d.id .. " power")
 		end

@@ -5,6 +5,7 @@ local SPECS = {
 	"Util", "Validate", "Numbers", -- helpers
 	"DataIntegrity", "Traits", -- the content tables
 	"Island", "Tree", "Breed", "Economy", "Plot", "Quest", "Store", -- the rules
+	"Rewards", -- the rewards for coming back and playing (2026-11-19)
 	"Schema", -- the save
 	"Shading", "Raster", "Rim", "Fx", "DynTex", "Smooth", "EyeTex", -- the pixel filter (from Random Bakery), its effects, the driftlings' textures, smooth shading, their eyes
 	"DriftMotion", -- the driftlings' motion on their skeletons

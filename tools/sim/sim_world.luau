@@ -974,13 +974,15 @@ do
 		E.run(1)
 	end
 end
--- (the catalog: the Work tab's Farms row, then the Nature tab's Plants row; the tray's tab and row as BuildUI keeps them)
+-- (the catalog: the Work tab's Workplaces row, then the Nature tab's Plants row; the tray's tab and row as BuildUI keeps
+-- them. One kind of work since the request of 2026-11-19: "remove work building types. They all now fall in the same
+-- category of work")
 H.clickNamed(a, "Tab_work", { wait = 0.3 })
-H.clickNamed(a, "Chip_farm", { wait = 0.3 })
+H.clickNamed(a, "Chip_work", { wait = 0.3 })
 do
 	local st = BuildUI.debugState()
-	H.expect(st.tab == "work" and st.chip == "farm", "build", "the Work tab on its Farms row", string.format("%s %s", st.tab, st.chip))
-	H.expect(H.buttonNamed(a, "Buy_patch") ~= nil and H.buttonNamed(a, "Buy_lumber", true) == nil, "build", "the Farms row offers the veggie patch (and no lumber camp)")
+	H.expect(st.tab == "work" and st.chip == "work", "build", "the Work tab on its Workplaces row", string.format("%s %s", st.tab, st.chip))
+	H.expect(H.buttonNamed(a, "Buy_patch") ~= nil and H.buttonNamed(a, "Buy_lumber") ~= nil and H.buttonNamed(a, "Buy_windmill", true) == nil, "build", "the Workplaces row offers the veggie patch and the lumber camp together (and no boost building)")
 	local orchard = H.buttonNamed(a, "Buy_orchard", true)
 	local lock = orchard and orchard:FindFirstChild("Lock", true)
 	H.expect(lock ~= nil and lock.Text == "Lv" .. Buildings.byId.orchard.tier, "build", "the orchard shows, locked with its level", lock and lock.Text)
