@@ -3078,15 +3078,33 @@ local function catalogScenario(group: string)
 			if type(id) == "string" and not seen[id] and table.find(ids, id) then
 				seen[id] = true
 				local n, moving = 0, 0
+				-- (and how far past its footprint any part reaches, in studs: the worst part's name)
+				local at = c:GetAttribute("At")
+				local d = H.sharedServer("Data.Buildings").byId[id]
+				local over, worst = 0, ""
 				for _, q in c:GetDescendants() do
 					if q:IsA("BasePart") then
 						n += 1
 						if q:GetAttribute("Move") ~= nil then
 							moving += 1
 						end
+						if typeof(at) == "CFrame" and d and string.sub(q.Name, 1, 7) ~= "Pennant" then
+							local cf, sz = at:ToObjectSpace(q.CFrame), q.Size / 2
+							for _, sx in { -1, 1 } do
+								for _, sy in { -1, 1 } do
+									for _, sz2 in { -1, 1 } do
+										local pt = cf * Vector3.new(sx * sz.X, sy * sz.Y, sz2 * sz.Z)
+										local o = math.max(math.abs(pt.X) - d.w / 2, math.abs(pt.Z) - math.max(d.d, 0.5) / 2)
+										if o > over then
+											over, worst = o, q.Name
+										end
+									end
+								end
+							end
+						end
 					end
 				end
-				log("catalog parts: %s %d (%d moving)", id, n, moving)
+				log("catalog parts: %s %d (%d moving)%s", id, n, moving, if over > 0.3 then string.format(", reaches %.2f past its footprint (%s)", over, worst) else "")
 			end
 		end
 	end
