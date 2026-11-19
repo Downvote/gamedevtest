@@ -652,7 +652,7 @@ The buildings that work or house (the tier each opens at in brackets):
 | **farms** | Veggie Patch, Fishing Pier (1), Fruit Orchard (2), Greenhouse (3), Rice Terrace (4), Kelp Farm (5), Sky Garden (6) |
 | **wood** | Lumber Camp (1), Sawmill (2), Timber Works (3), Bamboo Grove (4), Grand Mill (5) |
 | **shops** | Snack Stall (1), Beach Cafe (2), Seaside Inn (3), Bakery (4), Grand Bazaar (5), Grand Hotel (6) |
-| **huts** (room, comfort: §6) | Driftling Hut 2, Cozy Burrow 4 +5% (2), Driftling Den 5 +8% (3), Treetop Roost 6 +12% (4), Spring Grotto 8 +18% (5), Driftling Palace 12 +25% (6) |
+| **huts** (room, comfort: §6) | Driftling Hut 2, Cozy Burrow 8 +5% (2), Driftling Den 10 +8% (3), Treetop Roost 12 +12% (4), Spring Grotto 16 +18% (5), Driftling Palace 18 +25% (6) (room since 2026-11-19, §4) |
 | **boosts** | Tool Shed (wood +10%), Windmill (farms +10%), Smokehouse (farms +10%) (2), Market Hall (shops +12%) (3), Water Tower (all +6%) (4), Town Hall (all +10%) (5), Sun Beacon (all +15%) (6) |
 | the **Hatchery** (3, §6.1) | |
 
@@ -721,13 +721,25 @@ tiles on Paths and Water, the lengths on Fences and the huts' room on Huts, oran
 > The request (2026-11-14): "instead of a hut (building) limit per expansion, make it such that the limit of driftling
 > housing is the limit, such that you can have 2 driftling huts in the place of a cozy burrow at the cost of comfort"
 
+> The request (2026-11-19): "balance it as such: after an expansion, buff huts and work buildings such that buying 2
+> huts and 2 work buildings of the highest tier is enough to fill the cap, assuming you also maxxed out the caps before
+> expanding"
+
 **The housing limit** (`HousingLimit`, `Plot.housingLimit`, `Plot.housing`): an island's huts may house so many
-driftlings together, however many huts that takes: 8 on Castaway Cay, then 24, 40, 60, 96 and 168 on the capital,
-192, 216, 240 and 264 on the four islands past it, 336 on Lantern Cove, 480 on Pearlstone Port, 648 on Starfall Atoll
-and 840 on Everdrift. Each is what the old limit of huts held in that tier's biggest hut (four Driftling Huts, six Cozy
-Burrows, eight Dens and so on up to 42 Driftling Citadels), so an island has the same room as before, but now the huts
-can be small: two Driftling Huts (two each) hold as many as a Cozy Burrow (four), with no comfort where the burrow has
-some. A hut whose room won't fit shows "No room" on its card, and placing it is refused ("Your huts already hold as many
+driftlings together, however many huts that takes. Since the request above, every expansion adds exactly two of the
+newest hut's room, so an island that was full before it grew is full again with two of them:
+
+| Tier | 1 | 2 | 3 | 4 | 5 | 6 to 10 | 11 to 13 | 14 to 16 | 17 to 19 | 20 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Newest hut | Driftling Hut | Cozy Burrow | Driftling Den | Treetop Roost | Spring Grotto | Driftling Palace | Lighthouse Loft | Coral Manor | Cloud Keep | Driftling Citadel |
+| Its room | 2 | 8 | 10 | 12 | 16 | 18 | 22 | 26 | 30 | 34 |
+| Housing limit | 8 | 24 | 44 | 68 | 100 | 136, 172, 208, 244, 280 | 324, 368, 412 | 464, 516, 568 | 628, 688, 748 | 816 |
+
+The totals stay near the old ones (8, 24, 40, 60, 96, 168 on the capital ... 840 on Everdrift), which jumped at the tiers
+a new hut opened and asked for many huts there. The huts grew with them (the Burrow held 4, the Den 5, the Roost 6, the
+Grotto 8, the Palace 12, the Loft 14, the Manor 16, the Keep 18, the Citadel 20), and their prices grew with their room,
+so a driftling's place in a hut costs what it did; their comfort and charm stayed. Huts can still be small: four
+Driftling Huts (two each) hold as many as a Cozy Burrow (eight), with no comfort where the burrow has some. A hut whose room won't fit shows "No room" on its card, and placing it is refused ("Your huts already hold as many
 driftlings as this island allows. Grow the island for more room."). A bigger hut replaces a smaller one only while the
 limit has room for the difference; a smaller one always can; and two small huts cleared make way for a bigger one. The
 Huts tab's count shows the room against the limit ("24/24"). A save housing more than its tier allows keeps its huts.
@@ -737,14 +749,20 @@ Huts tab's count shows the room against the limit ("24/24"). A save housing more
 > work spaces possible in each island expansion. it should match the number of max driftlings possible for each
 > expansion"
 
-**The work cap** (`WorkRoom`, Data/Buildings' `jobs`, `Plot.workLimit`, `Plot.work`): a workplace (a farm, a wood
-building, a shop) takes as many driftlings as its tier gives it, where every one took 2 before:
+**The work cap** (`WorkRoom`, Data/Buildings' `jobs`, `Plot.workLimit`, `Plot.work`): a workplace takes as many
+driftlings as its tier gives it, where every one took 2 before 2026-11-18. Since the request of 2026-11-19 (above) it
+is as many as the newest hut holds, so two of the newest workplaces fill what an expansion adds to the cap:
 
-| Opens at tier | 1 | 2 | 3 | 4 | 5 | 6 | 11 | 12 to 13 | 14 to 16 | 17 to 19 |
+| Opens at tier | 1 | 2 | 3 | 4 | 5 | 6 | 11 to 13 | 14 to 16 | 17 to 18 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Driftlings at work | 2 | 6 | 8 | 10 | 12 | 16 | 20 | 24 | 28 | 32 |
+| Driftlings at work | 2 | 8 | 10 | 12 | 16 | 18 | 22 | 26 | 30 | 34 |
 
-So a Fruit Orchard takes three Veggie Patches' driftlings and a Grand Vineyard sixteen. The four on Castaway Cay keep
+(It was 6, 8, 10, 12, 16, then 20 to 32.) So a Fruit Orchard takes four Veggie Patches' driftlings and a Grand Vineyard
+seventeen. The Grand Vineyard opens on Everdrift (tier 20, with the Driftling Citadel) since then, 19 before, so the last
+expansion has a workplace of its own too; on tiers 7 to 10 the Sky Garden, the Grand Hotel and the Palace stay the
+newest. A workplace's price was always its tier's price for each of its places, so the bigger ones cost more in step.
+(`tests/specs/Plot.spec.luau` holds the rule: two of the newest hut and two of the newest workplace fill each tier's
+growth exactly, and a played-through island fills both caps that way.) The four on Castaway Cay keep
 2: its cap is 8, and the tips ask for a camp, a patch and a stall there. All of an island's places at work together stay
 within its cap, which is its driftling limit (the housing limit above: 8 on Castaway Cay up to 840 on Everdrift), so
 every driftling it can house has a place and no more. A workplace whose places won't fit shows "No room" on its card,
@@ -979,8 +997,8 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
 | 16 | | Honey Terraces | Trade Hall | Frozen Waterfall, Fairy Tree House |
 | 17 | Cloud Keep | Canopy Mill | | Redwood, Ember Forge |
 | 18 | | Sky Tram | | Tea Pavilion, Star Gate |
-| 19 | | Grand Vineyard | Tide Bell | |
-| 20 | Driftling Citadel | | | Crown of the Sea |
+| 19 | | | Tide Bell | |
+| 20 | Driftling Citadel | Grand Vineyard (19 until 2026-11-19) | | Crown of the Sea |
 
 - **Expand** (in the tray's header, its price in shells under it; "Island max" on Everdrift): the island grows,
   its coast reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot
@@ -1417,8 +1435,9 @@ When the island grows into a new stage, the tree is built again at it.
   on the right, under "Under the tree", every egg there, the rarest first, each with its egg, "Rare egg", "Hatches a
   rare creature" (the request of 2026-11-15: "instead of x one, write "Hatches an x creature"") and its price on a
   button that hatches it.
-- **The huts** (the Huts tab in Build mode, so many a tier: §4; the old nests: Driftling Hut 2 places, Cozy Burrow 4,
-  Driftling Den 5, Treetop Roost 6, Spring Grotto 8, Driftling Palace 12; the home once called Grass Hut is now the
+- **The huts** (the Huts tab in Build mode, so many a tier: §4; Driftling Hut 2 places, Cozy Burrow 8, Driftling Den
+  10, Treetop Roost 12, Spring Grotto 16, Driftling Palace 18, Lighthouse Loft 22, Coral Manor 26, Cloud Keep 30,
+  Driftling Citadel 34 since 2026-11-19; the home once called Grass Hut is now the
   Grass Shack so the names don't clash). A driftling in a hut adds its charm.
 - **Your pick:** the Driftlings panel lists every driftling, the hardest workers first, with **Move** (a picker: each
   hut with its room; a full hut offers to swap with one of its driftlings), **Work** (any workplace on the island,
@@ -2259,9 +2278,10 @@ swap for their weakest when the egg is two rarities better than it. Then they bu
 buildings first (a camp, a patch, a hut, a stall), then a hut while every hut is full and there are places at work
 (at the huts' limit, a bigger hut in the smallest one's place, or where there is room once the small one is cleared),
 the workplace that pays back soonest (the best farm, wood building or shop open, by what it makes with every place
-taken over its price) while the shells come in slowly or while saving for the next tier would take over half an hour, a shop a tier, a farm more than
-the tier, a building for the knack with the most driftlings resting or working away from their knack (moving those to
-it once it stands, as a player would), and decor with shells to spare (one they could pay for four times). When a
+taken over its price) while the shells come in slowly or while saving for the next tier would take over half an hour,
+the best workplace while the work cap has room for it, farms and shops by turns (since 2026-11-19: it wanted a shop a
+tier and a farm more than the tier, counting buildings, which stopped it half way to the cap once a workplace held 8 to
+34 driftlings), and decor with shells to spare (one they could pay for four times). When a
 building it wants has no room left (no spot for it, or the piece limit reached), the weakest building of that kind
 gives way to the best one the island has: replaced where it stands (its workers stay), or cleared and the new one
 built where there's room; at the work cap, the weakest workplaces are put away until the best one fits, as a player
@@ -2280,10 +2300,14 @@ bounds (in brackets what the three seeds measure):
   legendary comes at 18 to 30 minutes (no bound);
 - selling helps but the island earns: under two thirds of the shells over three hours come from selling (under a
   ten-thousandth: 378 to 718 shells of 12.2 to 38.7 million);
-- the island's second tier within 25 minutes (5 to 6), the third within 50 (26 to 33); at an hour, at least 12
-  driftlings in huts (40 to 50); Harbor Town (tier 4) not before 40 minutes (58 to 81), Coral City (tier 5) not before
-  80 (1 hour 36 to 2 hours 11), Sunspire Capital (tier 6) not before two hours (one seed at 2 hours 52, the other two
-  later than three hours), and nothing past it within three hours. The town's and the city's floors were 50 and 90
+- the island's second tier within 25 minutes (4 to 5), the third within 50 (28 to 31); at an hour, at least 12
+  driftlings in huts (44 on all three: Grand Isle's cap); Harbor Town (tier 4) not before 40 minutes (65 to 73), Coral
+  City (tier 5) not before 80 (1 hour 43 to 1 hour 56), Sunspire Capital (tier 6) not before two hours (one seed at 2
+  hours 56, the other two just past three hours), and nothing past it within three hours (Moonlit Bay at 4 hours 3 to 4
+  hours 23). Measured on 2026-11-19 with the bigger huts and workplaces and the model player filling the work cap; the
+  same model player on the numbers from before reached each tier within a few minutes of these (the town at 64 to 74,
+  the city at 1 hour 41 to 2 hours 3, the capital at 2 hours 50 to 3 hours 13), so the bigger buildings change how
+  many there are, not how fast an island grows. The town's and the city's floors were 50 and 90
   minutes until the two requests of 2026-11-17 below. (Measured with the work cap of 2026-11-18; before it the third
   tier came at 21 to 29 minutes, the town at 48 to 75 and the city at 1 hour 34 to 2 hours 5);
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no

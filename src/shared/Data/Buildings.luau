@@ -20,10 +20,16 @@
 --          the Sawmill 130, Timber Works 240, the Bamboo Grove 440, the Grand Mill 880)
 --   act:   how its workers look at work (Controllers/WorldView: "farm" tends and harvests, "wood" chops, "shop"
 --          serves) and its icon in the work picker; nothing else tells workplaces apart
---   slots: the driftlings a hut houses (its room)
+--   slots: the driftlings a hut houses (its room). Since the request of 2026-11-19 ("after an expansion, buff huts
+--          and work buildings such that buying 2 huts and 2 work buildings of the highest tier is enough to fill the
+--          cap, assuming you also maxxed out the caps before expanding") the newest hut an island has holds half of
+--          what its tier adds to the housing limit (Tuning.HousingLimit), and its listed price grew with its room, so
+--          a driftling's place in it costs what it did
 --   jobs:  the driftlings a workplace takes: Tuning.WorkRoom at its tier (the request of 2026-11-18,
---          "increase the capacity of work buildings by alot": 2 everywhere before); all of them together stay within
---          the island's work cap (Logic/Plot.workLimit, its driftling limit)
+--          "increase the capacity of work buildings by alot": 2 everywhere before; since 2026-11-19 as many as the
+--          newest hut holds, so two of the newest workplaces fill what a tier adds to the work cap); all of them
+--          together stay within the island's work cap (Logic/Plot.workLimit, its driftling limit). The Grand Vineyard
+--          opens at tier 20 since then (19 before), with the Driftling Citadel, so the last tier has a workplace too
 --   charm: what it adds to the island's charm (more charm, more shells: Logic/Island.charmBonus)
 --   comfort: a hut's share added to its residents' work (Logic/Island.homes)
 --   boostBy: a boost building's share, for every workplace (each kind of boost building gives its whole share, a
@@ -130,7 +136,7 @@ local LIST: { BuildingDef } = {
 	B({ id = "shroomcellar", name = "Mushroom Cellar", kind = "work", act = "farm", shells = 200000, w = 4, d = 4, rate = 3300, charm = 10, tier = 11, blurb = "Mushrooms grow in the dark under it." }),
 	B({ id = "pearlbeds", name = "Pearl Beds", kind = "work", act = "farm", shells = 520000, w = 5, d = 4, rate = 5800, charm = 14, tier = 13, blurb = "Oysters in clear water. Some hold a pearl." }),
 	B({ id = "honeyterrace", name = "Honey Terraces", kind = "work", act = "farm", shells = 1500000, w = 5, d = 5, rate = 10500, charm = 18, tier = 16, blurb = "Beehives on steps of flowers." }),
-	B({ id = "vineyard", name = "Grand Vineyard", kind = "work", act = "farm", shells = 4200000, w = 5, d = 5, rate = 19000, charm = 22, tier = 19, blurb = "Grapes on the vine, juice in the barrel." }),
+	B({ id = "vineyard", name = "Grand Vineyard", kind = "work", act = "farm", shells = 4200000, w = 5, d = 5, rate = 19000, charm = 22, tier = 20, blurb = "Grapes on the vine, juice in the barrel." }),
 	-- wood
 	B({ id = "lumber", name = "Lumber Camp", kind = "work", act = "wood", shells = 70, w = 4, d = 3, rate = 36, blurb = "Chops wood to sell." }),
 	B({ id = "sawmill", name = "Sawmill", kind = "work", act = "wood", shells = 640, w = 4, d = 4, rate = 130, charm = 1, tier = 2, blurb = "Saws planks to sell." }),
@@ -154,16 +160,16 @@ local LIST: { BuildingDef } = {
 	B({ id = "skytram", name = "Sky Tram", kind = "work", act = "shop", shells = 3000000, w = 5, d = 5, rate = 21000, charm = 80, tier = 18, blurb = "A ride over the island for a few shells." }),
 	-- huts (kind "nest"): room for driftlings, and comfort
 	B({ id = "nest", name = "Driftling Hut", kind = "nest", shells = 55, w = 2, d = 2, slots = 2, blurb = "Room for two driftlings. They work from here." }),
-	B({ id = "burrow", name = "Cozy Burrow", kind = "nest", shells = 420, w = 3, d = 3, slots = 4, charm = 1, comfort = 0.05, tier = 2, blurb = "Room for four." }),
-	B({ id = "den", name = "Driftling Den", kind = "nest", shells = 2200, w = 3, d = 3, slots = 5, charm = 3, comfort = 0.08, tier = 3, blurb = "A mossy den with soft beds." }),
-	B({ id = "roost", name = "Treetop Roost", kind = "nest", shells = 7100, w = 4, d = 4, slots = 6, charm = 5, comfort = 0.12, tier = 4, blurb = "Nests in a great tree." }),
-	B({ id = "grotto", name = "Spring Grotto", kind = "nest", shells = 20000, w = 4, d = 4, slots = 8, charm = 8, comfort = 0.18, tier = 5, blurb = "A warm spring under a rock." }),
-	B({ id = "palace", name = "Driftling Palace", kind = "nest", shells = 60000, w = 5, d = 5, slots = 12, charm = 14, comfort = 0.25, tier = 6, blurb = "The comfiest hut there is." }),
+	B({ id = "burrow", name = "Cozy Burrow", kind = "nest", shells = 840, w = 3, d = 3, slots = 8, charm = 1, comfort = 0.05, tier = 2, blurb = "Room for eight." }),
+	B({ id = "den", name = "Driftling Den", kind = "nest", shells = 4400, w = 3, d = 3, slots = 10, charm = 3, comfort = 0.08, tier = 3, blurb = "A mossy den with soft beds." }),
+	B({ id = "roost", name = "Treetop Roost", kind = "nest", shells = 14200, w = 4, d = 4, slots = 12, charm = 5, comfort = 0.12, tier = 4, blurb = "Nests in a great tree." }),
+	B({ id = "grotto", name = "Spring Grotto", kind = "nest", shells = 40000, w = 4, d = 4, slots = 16, charm = 8, comfort = 0.18, tier = 5, blurb = "A warm spring under a rock." }),
+	B({ id = "palace", name = "Driftling Palace", kind = "nest", shells = 90000, w = 5, d = 5, slots = 18, charm = 14, comfort = 0.25, tier = 6, blurb = "The comfiest hut there is." }),
 	-- (the islands past Driftling Haven, the request of 2026-11-14: "allow expansion up to level 20 ... add decor, huts, work buildings")
-	B({ id = "loft", name = "Lighthouse Loft", kind = "nest", shells = 180000, w = 5, d = 5, slots = 14, charm = 18, comfort = 0.3, tier = 11, blurb = "Bunks all the way up a striped tower." }),
-	B({ id = "coralmanor", name = "Coral Manor", kind = "nest", shells = 560000, w = 5, d = 5, slots = 16, charm = 24, comfort = 0.36, tier = 14, blurb = "Pink stone rooms round a warm pool." }),
-	B({ id = "cloudkeep", name = "Cloud Keep", kind = "nest", shells = 1700000, w = 6, d = 5, slots = 18, charm = 32, comfort = 0.42, tier = 17, blurb = "Soft beds in towers wrapped in cloud." }),
-	B({ id = "citadel", name = "Driftling Citadel", kind = "nest", shells = 5000000, w = 6, d = 6, slots = 20, charm = 45, comfort = 0.5, tier = 20, blurb = "Halls and towers for a whole crowd." }),
+	B({ id = "loft", name = "Lighthouse Loft", kind = "nest", shells = 280000, w = 5, d = 5, slots = 22, charm = 18, comfort = 0.3, tier = 11, blurb = "Bunks all the way up a striped tower." }),
+	B({ id = "coralmanor", name = "Coral Manor", kind = "nest", shells = 910000, w = 5, d = 5, slots = 26, charm = 24, comfort = 0.36, tier = 14, blurb = "Pink stone rooms round a warm pool." }),
+	B({ id = "cloudkeep", name = "Cloud Keep", kind = "nest", shells = 2800000, w = 6, d = 5, slots = 30, charm = 32, comfort = 0.42, tier = 17, blurb = "Soft beds in towers wrapped in cloud." }),
+	B({ id = "citadel", name = "Driftling Citadel", kind = "nest", shells = 8500000, w = 6, d = 6, slots = 34, charm = 45, comfort = 0.5, tier = 20, blurb = "Halls and towers for a whole crowd." }),
 	-- the Hatchery (GAME_DESIGN 6.1): an egg at a time
 	B({ id = "hatchery", name = "Hatchery", kind = "breed", shells = 3900, w = 4, d = 4, charm = 3, tier = 3, blurb = "Breed two driftlings for an egg." }),
 	-- boosts: every workplace makes more (a second of a kind counts less: Tuning.BoostStack)

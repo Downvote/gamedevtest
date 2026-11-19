@@ -55,8 +55,12 @@ local Tuning = {
 	-- `jobs`). The request of 2026-11-18: "increase the capacity of work buildings by alot, in turn, make a cap for the
 	-- amount of work spaces possible in each island expansion. it should match the number of max driftlings possible
 	-- for each expansion" (WorkLimit). It was 2 everywhere. The first island's four keep 2: its cap is 8, and the tips
-	-- ask for a camp, a patch and a stall there
-	WorkRoom = { 2, 6, 8, 10, 12, 16, 16, 16, 16, 16, 20, 24, 24, 28, 28, 28, 32, 32, 32, 32 },
+	-- ask for a camp, a patch and a stall there. Since the request of 2026-11-19 ("after an expansion, buff huts and
+	-- work buildings such that buying 2 huts and 2 work buildings of the highest tier is enough to fill the cap,
+	-- assuming you also maxxed out the caps before expanding") a tier's is what the newest hut an island of that
+	-- tier has holds, so two of the newest workplaces fill what the tier adds to the cap (HousingLimit: the Plot
+	-- spec holds it). It was { 2, 6, 8, 10, 12, 16, 16, 16, 16, 16, 20, 24, 24, 28, 28, 28, 32, 32, 32, 32 }
+	WorkRoom = { 2, 8, 10, 12, 16, 18, 18, 18, 18, 18, 22, 22, 22, 26, 26, 26, 30, 30, 30, 34 },
 	-- charm raises every shell the island makes (the request of 2026-11-14: "remove the visitors mechanic, charm simply
 	-- increases your shell gain"): times 1 + CharmMax x charm / (charm + CharmHalf), a soft curve: the first decor
 	-- counts the most, and the bonus never passes CharmMax
@@ -233,9 +237,12 @@ local Tuning = {
 	-- the driftlings an island's huts may house together, by its tier (GAME_DESIGN 4; the request of 2026-11-14:
 	-- "instead of a hut (building) limit per expansion, make it such that the limit of driftling housing is the limit,
 	-- such that you can have 2 driftling huts in the place of a cozy burrow at the cost of comfort"): however many huts
-	-- that takes. Each tier's is what its old hut limit held in its biggest huts (4 Driftling Huts, 6 Cozy Burrows, 8
-	-- Dens ... 42 Driftling Citadels), so the room is the same; small huts fill it with less comfort
-	HousingLimit = { 8, 24, 40, 60, 96, 168, 192, 216, 240, 264, 336, 364, 392, 480, 512, 544, 648, 684, 720, 840 },
+	-- that takes; small huts fill it with less comfort. Since the request of 2026-11-19 (WorkRoom, above) each tier adds
+	-- two of its newest hut's room (Data/Buildings `slots`: the Cozy Burrow 8, the Den 10, the Roost 12, the Grotto
+	-- 16, the Palace 18 from tier 6 to 10, the Loft 22, the Coral Manor 26, the Cloud Keep 30, the Citadel 34), so
+	-- an island full before it grew is full again with two of them; the totals stay near the old ones (8, 24, 40, 60,
+	-- 96, 168 .. 840, which jumped at the tiers a new hut opened). The work cap is the same (Plot.workLimit)
+	HousingLimit = { 8, 24, 44, 68, 100, 136, 172, 208, 244, 280, 324, 368, 412, 464, 516, 568, 628, 688, 748, 816 },
 	-- Hatcheries an island may have, by its tier (the request of 2026-11-14: "there should also be a hatchery limit per
 	-- expansion. the first expansion where you unlock hatcheries, make the limit 1"): one from Grand Isle, where they
 	-- open, a second on the capital, then one more every four tiers

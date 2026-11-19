@@ -528,7 +528,7 @@ return function()
 		-- a bigger island: a Cozy Burrow, or two Driftling Huts in its place (the same room, no comfort)
 		p.tier = 2
 		local room = Plot.housingLimit(2) - Plot.housing(p.plot.placed)
-		T.eq(Buildings.byId.burrow.slots, 2 * nest, "a burrow holds two huts' driftlings")
+		T.eq(Buildings.byId.burrow.slots, 4 * nest, "a burrow holds four huts' driftlings")
 		T.truthy(Buildings.byId.burrow.comfort > Buildings.byId.nest.comfort, "with more comfort")
 		while room >= nest do
 			local hx, hz = spot(p, "nest")
@@ -546,8 +546,8 @@ return function()
 			end
 		end
 		T.eq(select(2, Plot.replace(p, at, "burrow")), "huts", "a bigger hut needs the room for the difference")
-		-- two huts down, a burrow up: the same room, more comfort
-		for _ = 1, 2 do
+		-- four huts down, a burrow up: the same room, more comfort
+		for _ = 1, Buildings.byId.burrow.slots // nest do
 			for i = #p.plot.placed, 1, -1 do
 				if p.plot.placed[i].id == "nest" then
 					Plot.store(p, i)
@@ -556,7 +556,7 @@ return function()
 			end
 		end
 		hx, hz = spot(p, "burrow")
-		T.truthy((Plot.place(p, "burrow", hx, hz, 0)), "a burrow where two huts stood")
+		T.truthy((Plot.place(p, "burrow", hx, hz, 0)), "a burrow where four huts stood")
 		T.eq(Plot.housing(p.plot.placed), Plot.housingLimit(2), "the same room")
 		-- a smaller hut always replaces a bigger one
 		local bi = 0
@@ -566,6 +566,66 @@ return function()
 			end
 		end
 		T.truthy((Plot.replace(p, bi, "nest")), "smaller is always fine")
+	end)
+	T.it("after an expansion, two of the newest huts and two of the newest workplaces fill what it adds", function()
+		-- (the request of 2026-11-19: "after an expansion, buff huts and work buildings such that buying 2 huts and 2
+		-- work buildings of the highest tier is enough to fill the cap, assuming you also maxxed out the caps before
+		-- expanding")
+		local function newest(t: number, kind: string, field: string): (string?, number)
+			local id, best, bestTier = nil, 0, 0
+			for _, d in Buildings.list do
+				local v = (d :: any)[field] :: number
+				if d.kind == kind and d.tier <= t and (d.tier > bestTier or (d.tier == bestTier and v > best)) then
+					id, best, bestTier = d.id, v, d.tier
+				end
+			end
+			return id, best
+		end
+		for t = 2, #Tuning.HousingLimit do
+			local hut, slots = newest(t, "nest", "slots")
+			local work, jobs = newest(t, "work", "jobs")
+			local grew = Plot.housingLimit(t) - Plot.housingLimit(t - 1)
+			T.eq(2 * slots, grew, string.format("tier %d: two %s fill the %d more room", t, tostring(hut), grew))
+			T.eq(2 * jobs, Plot.workLimit(t) - Plot.workLimit(t - 1), string.format("tier %d: two %s fill the %d more places", t, tostring(work), grew))
+			-- (the newest is the biggest there: never a smaller hut or workplace for a later tier)
+			for _, d in Buildings.list do
+				if d.tier <= t and d.kind == "nest" then
+					T.truthy(d.slots <= slots, string.format("tier %d: %s no bigger than %s", t, d.id, tostring(hut)))
+				elseif d.tier <= t and d.kind == "work" then
+					T.truthy(d.jobs <= jobs, string.format("tier %d: %s no bigger than %s", t, d.id, tostring(work)))
+				end
+			end
+		end
+		-- played through: an island at its tier's caps grows, two of each go up and both caps are full again
+		local p = fresh()
+		p.shells = 1e12
+		local function full(t: number)
+			p.tier = t
+			local _, slots = newest(t, "nest", "slots")
+			local _, jobs = newest(t, "work", "jobs")
+			for _ = 1, 2 do
+				local hut = newest(t, "nest", "slots") :: string
+				local work = newest(t, "work", "jobs") :: string
+				local hx, hz = spot(p, hut)
+				T.truthy((Plot.place(p, hut, hx, hz, 0)), string.format("tier %d: a %s fits", t, hut))
+				local wx, wz = spot(p, work)
+				T.truthy((Plot.place(p, work, wx, wz, 0)), string.format("tier %d: a %s fits", t, work))
+			end
+			T.eq(Plot.housing(p.plot.placed), Plot.housingLimit(t), string.format("tier %d: the huts full (%d a hut)", t, slots))
+			T.eq(Plot.work(p.plot.placed), Plot.workLimit(t), string.format("tier %d: the workplaces full (%d a workplace)", t, jobs))
+		end
+		-- (the first island filled with its own, then each of the next few tiers by two and two)
+		for _ = 1, Plot.housingLimit(1) // Buildings.byId.nest.slots do
+			local hx, hz = spot(p, "nest")
+			Plot.place(p, "nest", hx, hz, 0)
+		end
+		for _ = 1, Plot.workLimit(1) // Buildings.byId.patch.jobs do
+			local x, z = spot(p, "patch")
+			Plot.place(p, "patch", x, z, 0)
+		end
+		for t = 2, 5 do
+			full(t)
+		end
 	end)
 	T.it("the work cap: workplaces take more driftlings, their places together within the driftling limit", function()
 		-- (the request of 2026-11-18: "increase the capacity of work buildings by alot, in turn, make a cap for the amount
@@ -603,7 +663,7 @@ return function()
 		T.eq(p.shells, shells, "nothing paid")
 		local nx, nz = spot(p, "nest")
 		T.truthy((Plot.place(p, "nest", nx, nz, 0)), "a hut still goes up")
-		-- a bigger island: an orchard takes 6; Replace needs the room for the difference
+		-- a bigger island: an orchard takes 8; Replace needs the room for the difference
 		p.tier = 2
 		local room = Plot.workLimit(2) - Plot.work(p.plot.placed)
 		local orchard = Buildings.byId.orchard.jobs

@@ -101,6 +101,18 @@ local function best(p: any, kind: string): string?
 	return if pick then pick.id else nil
 end
 
+-- The places at work a group's workplaces have together.
+local function placesOf(p: any, kind: string): number
+	local n = 0
+	for _, q in p.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and groupOf(d) == kind then
+			n += d.jobs
+		end
+	end
+	return n
+end
+
 local function countKind(p: any, kind: string): number
 	local n = 0
 	for _, q in p.plot.placed do
@@ -430,11 +442,17 @@ local function plan(p: any, rng: any)
 	if r.shells < 40 * p.tier or slowSave then
 		table.insert(wants, "earn")
 	end
-	if countKind(p, "shop") < p.tier then
-		table.insert(wants, "shop")
-	end
-	if countKind(p, "farm") < p.tier + 1 then
-		table.insert(wants, "farm")
+	-- the work cap's room filled with the best workplaces the island has, farms and shops by turns (a player's way since
+	-- the request of 2026-11-19, "buying 2 huts and 2 work buildings of the highest tier is enough to fill the cap":
+	-- workplaces hold many driftlings, so a count of buildings no longer says how much work there is)
+	if Plot.work(p.plot.placed) < Plot.workLimit(p.tier) then
+		if placesOf(p, "farm") <= placesOf(p, "shop") then
+			table.insert(wants, "farm")
+			table.insert(wants, "shop")
+		else
+			table.insert(wants, "shop")
+			table.insert(wants, "farm")
+		end
 	end
 	if resting > 0 and table.find(wants, "earn") == nil then
 		table.insert(wants, "earn")

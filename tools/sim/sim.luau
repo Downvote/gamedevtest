@@ -1737,16 +1737,18 @@ do
 		end
 		return 0
 	end
-	if #added >= 2 then
+	local swap = Buildings.byId.burrow.slots // nest
+	if #added >= swap then
 		res = H.req(p, "plot.replace", { i = indexOf(added[1]), id = "burrow" })
 		H.expect(not res.ok and res.err == "huts", "panels", "at the limit a bigger hut can't replace a small one (huts)", tostring(res.err))
-		-- two small huts make way for a burrow: the same room, with comfort
-		H.req(p, "plot.store", { i = indexOf(added[#added]) })
-		H.req(p, "plot.store", { i = indexOf(added[#added - 1]) })
-		table.remove(added)
-		table.remove(added)
+		-- small huts make way for a burrow (four of them since 2026-11-19, when a burrow grew to 8): the same room, with
+		-- comfort
+		for _ = 1, swap do
+			H.req(p, "plot.store", { i = indexOf(added[#added]) })
+			table.remove(added)
+		end
 		res = place("burrow")
-		H.expect(res.ok and Plot.housing(prof.plot.placed) == room, "panels", "two huts down, a burrow up: the same room", tostring(res.err))
+		H.expect(res.ok and Plot.housing(prof.plot.placed) == room, "panels", "small huts down, a burrow up: the same room", tostring(res.err))
 		if res.ok then
 			table.insert(added, prof.plot.placed[#prof.plot.placed].uid)
 		end

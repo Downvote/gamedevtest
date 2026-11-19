@@ -229,8 +229,9 @@ every field.
   `Buildings.shellsFor`, and growing the island's, `Island.expandCost`; GAME_DESIGN 4, 10), `StartShells` (600: the
   tips' buildings, 405, and two eggs for the first hut, a rare and a common, so no tip waits on shells; `StartWood` went with the wood), `TurnSeconds` (the island's pace),
   `DaySeconds` (the sea's day: hours), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
-  driftling's), `RarityWork` (a driftling's work by its rarity), `WorkRoom` (the driftlings a workplace takes by the tier it opens at: 2 on the first island, 6, 8, 10, 12, 16, then
-20 to 32; Data/Buildings' `jobs`; it was `HelpMax`, 2 everywhere, until 2026-11-18), `CharmMax` (1) and
+  driftling's), `RarityWork` (a driftling's work by its rarity), `WorkRoom` (the driftlings a workplace takes by the tier it opens at: 2 on the first island, then since 2026-11-19 as
+many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26, 30, 34; Data/Buildings' `jobs`; it was
+`HelpMax`, 2 everywhere, until 2026-11-18, then 6, 8, 10, 12, 16, 20 to 32), `CharmMax` (1) and
   `CharmHalf` (200: charm's bonus to every shell, `Island.charmBonus`; the visitors' numbers went on 2026-11-14),
   `Refund` (0.5: Replace's share of the old piece's price, and what an inventory piece sells for; nothing taken off the
   island is paid back since 2026-11-14: it goes into the inventory), `UpgradeMult` (a level from an older save; no
@@ -255,9 +256,11 @@ every field.
   child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the island's lean (`MutLean`, `MutLeanFloor`),
   the founders' doze (`DozeSecs` 40), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
   (`MaxPlots`, `PlotSpacing`, `PlotPieces` (buildings and decor by tier: 36, 60, 90, 130, 180, 240, 300, 370, 450, 540,
-  then 60 more a tier to 1,140), `HousingLimit` (the driftlings an island's huts may house together by its tier, however many huts: 8, 24, 40, 60, 96,
-  168, 192, 216, 240, 264, 336, 364, 392, 480, 512, 544, 648, 684, 720, 840; 2026-11-14, it was `HutLimit`, a count of
-  huts), `HatcheryLimit` (Hatcheries by tier: 0, 0, then 1 from tier 3, 2 from 6, 3 from 10, 4 from 14, 5 from 18), `PathPieces` (path and
+  then 60 more a tier to 1,140), `HousingLimit` (the driftlings an island's huts may house together by its tier, however many huts: since 2026-11-19
+  ("buying 2 huts and 2 work buildings of the highest tier is enough to fill the cap") each tier adds two of its newest
+  hut's `slots`: 8, 24, 44, 68, 100, 136, 172, 208, 244, 280, 324, 368, 412, 464, 516, 568, 628, 688, 748, 816 (it was 8,
+  24, 40, 60, 96, 168 .. 840; `Plot.spec` holds the rule for huts and workplaces both); 2026-11-14, it was `HutLimit`, a
+  count of huts), `HatcheryLimit` (Hatcheries by tier: 0, 0, then 1 from tier 3, 2 from 6, 3 from 10, 4 from 14, 5 from 18), `PathPieces` (path and
   water tiles together: 80, 150, 240, 340, 460, 600, 750, 900, 1,050, 1,200, then 120 more a tier to 2,400),
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
   `HomeCooldown`, `WalkSpeed`, `SwimSpeed` (11: in the sea), `JumpHeight`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
