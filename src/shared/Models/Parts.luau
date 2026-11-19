@@ -63,6 +63,24 @@ function Parts.water(m: Instance, f: CFrame, x: number, y: number, z: number, w:
 	return p
 end
 
+-- A part that moves on the island (Controllers/Spinners; the request of 2026-11-19: "detail all decor more, some
+-- having animations"). `kind`: "spin" turns it round `axis` ("X", "Y" or "Z" of the piece's frame) through `hub` at
+-- `speed` radians a second (below 0 the other way); "swing" rocks it round the same axis, `amp` radians either way,
+-- `speed` the pace of its sine (radians a second); "bob" lifts and lowers it by `amp` studs at that pace, rocking a
+-- little round the axis (a buoy, a boat). `hub` is in the piece's frame, the builder's own x, y, z. `phase` (radians)
+-- puts it out of step with the rest of the same piece (two seats of a swing). Every part of a piece with the same
+-- kind, hub, axis, speed, amp and phase moves together. The parts stay in the baked picture until the client's
+-- moving copy takes them out, so a still island (reduced motion, a thumbnail, Build mode's ghost) shows them at rest.
+function Parts.move(p: BasePart, kind: string, hub: Vector3, axis: string, speed: number, amp: number?, phase: number?): BasePart
+	p:SetAttribute("Move", kind)
+	p:SetAttribute("MoveHub", hub)
+	p:SetAttribute("MoveAxis", axis)
+	p:SetAttribute("MoveSpeed", speed)
+	p:SetAttribute("MoveAmp", amp or 0)
+	p:SetAttribute("MovePhase", phase or 0)
+	return p
+end
+
 -- A small hash of a piece's place (stable for a footprint): to vary a tile's stones or flowers between neighbours.
 -- `f` is the piece's frame; k picks another number from the same place.
 function Parts.hash(f: CFrame, k: number?): number

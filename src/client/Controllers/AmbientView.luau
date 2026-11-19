@@ -12,7 +12,10 @@
 --   night (the clock of Controllers/DayLight), their cores lit through the night's grade;
 -- * leaves and petals coming down from the trees now and then (in their tree's colour), smoke curling from the
 --   chimneys, the smokehouse's vent and the grills' coals, steam off the hot springs and the teapots (found by the
---   parts' names in the island's models: Chimney, Smoke, Coals, Steam, Teapot, Mug);
+--   parts' names in the island's models: Chimney, Smoke, Coals, Steam, Teapot, Mug); since the request of 2026-11-19
+--   ("detail all decor more, some having animations, as much as in the bakery game") sparks rising off the decor's
+--   flames (Flame), spray thrown up from its fountains' jets (Spray) and a twinkle now and then on its crystals and
+--   magic things (Sparkle);
 -- * glints of light on the sea now and then, and a fish jumping out of the water near the shore once in a while, a
 --   splash and a ring where it goes out and back in.
 -- Everything is culled to the screen (an island off it is let go after a while), scaled by the renderer's tier (low
@@ -62,6 +65,9 @@ local PUFFS: { [string]: { kind: string, every: number, life: number } } = {
 	Steam = { kind = "steam", every = 0.22, life = 1.4 },
 	Teapot = { kind = "steam", every = 0.4, life = 1 },
 	Mug = { kind = "steam", every = 0.5, life = 0.9 },
+	Flame = { kind = "ember", every = 0.5, life = 0.8 },
+	Spray = { kind = "spray", every = 0.1, life = 0.7 },
+	Sparkle = { kind = "sparkle", every = 1.6, life = 0.6 },
 }
 local VENTS: { [string]: boolean } = { smokehouse = true } -- pieces whose "Vent" smokes
 local LEAFY: { [string]: boolean } = { Leaves = true, Blossom = true, Leaf = true }
@@ -95,7 +101,7 @@ type Bfly = { x: number, y: number, z: number, tx: number, ty: number, tz: numbe
 -- pixels stuck, `pf` the frame they show, 0 none) and again only when its frame changes
 type Deco = { x: number, z: number, flower: boolean, tint: { number }?, phase: number, ver: number, i: number, j: number, d: number, ok: boolean, px: { number }, pf: number }
 type Chunk = { x: number, z: number, list: { Deco } }
-type Puff = { x: number, y: number, z: number, kind: string, every: number, life: number, nextAt: number, phase: number }
+type Puff = { x: number, y: number, z: number, kind: string, every: number, life: number, nextAt: number, phase: number, hx: number, hy: number, hz: number }
 type Canopy = { x: number, y: number, z: number, hx: number, hy: number, hz: number, tint: { number }, petal: boolean, nextAt: number }
 type Fish = { x0: number, z0: number, x1: number, z1: number, y: number, t0: number, dur: number, h: number }
 type Ripple = { x: number, y: number, z: number, t0: number }
@@ -443,7 +449,10 @@ local function look(model: Instance, id: string?): Spots
 		local puff = PUFFS[n] or (if n == "Vent" and id and VENTS[id] then PUFFS.Chimney else nil)
 		if puff then
 			local c = p.Position
-			table.insert(puffs, { x = c.X, y = topOf(p) + 0.05, z = c.Z, kind = puff.kind, every = puff.every, life = puff.life, nextAt = 0, phase = rand(0, 6.28) })
+			local sz = p.Size
+			-- (a sparkle shows anywhere on its part, the rest come off its top)
+			local y = if puff.kind == "sparkle" then c.Y else topOf(p) + 0.05
+			table.insert(puffs, { x = c.X, y = y, z = c.Z, kind = puff.kind, every = puff.every, life = puff.life, nextAt = 0, phase = rand(0, 6.28), hx = sz.X / 2, hy = sz.Y / 2, hz = sz.Z / 2 })
 		end
 	end
 	if top then
@@ -544,7 +553,7 @@ local function scan(I: Isle)
 			end
 		end
 		for _, q in sp.puffs do
-			if #puffs < 40 then
+			if #puffs < 64 then
 				table.insert(puffs, q)
 			end
 		end
@@ -1073,10 +1082,26 @@ local function stepPuffs(I: Isle, cam: Raster.Cam, W: number, H: number, now: nu
 			if not onLayer(cam, W, H, e.x, e.y, e.z, 12) then
 				e.nextAt = now + 0.5 -- off the screen: look again in a while
 			else
-				e.nextAt = now + e.every / scale
+				e.nextAt = now + e.every * rand(0.8, 1.25) / scale
+				if e.kind == "sparkle" then
+					-- a twinkle somewhere on the part (the sea's glint sprite)
+					if #glints < 40 then
+						table.insert(glints, { x = e.x + rand(-e.hx, e.hx) * 0.8, y = e.y + rand(-e.hy, e.hy) * 0.8, z = e.z + rand(-e.hz, e.hz) * 0.8, t0 = now, life = e.life * rand(0.8, 1.2) })
+					end
+					continue
+				end
 				local kind = Fx.KINDS[e.kind]
-				-- the same sway phase along a wisp (drifting slowly) draws one curl; it leans a little with the wind
-				Fx.spawn(wisps, kind, e.x + rand(-0.05, 0.05), e.y, e.z + rand(-0.05, 0.05), e.life * rand(0.85, 1.1), sxa * 0.22, sza * 0.22, 0, nil, e.phase + now * 0.35)
+				if e.kind == "spray" then
+					-- a drop thrown up from the jet, out a little, falling back into the basin
+					local a = rand(0, 6.28)
+					local out = rand(0.15, 0.7)
+					Fx.spawn(wisps, kind, e.x, e.y, e.z, e.life * rand(0.85, 1.15), math.cos(a) * out, math.sin(a) * out, rand(2.2, 3.4))
+				elseif e.kind == "ember" then
+					Fx.spawn(wisps, kind, e.x + rand(-e.hx, e.hx) * 0.6, e.y, e.z + rand(-e.hz, e.hz) * 0.6, e.life * rand(0.7, 1.2), sxa * 0.1, sza * 0.1, 0)
+				else
+					-- the same sway phase along a wisp (drifting slowly) draws one curl; it leans a little with the wind
+					Fx.spawn(wisps, kind, e.x + rand(-0.05, 0.05), e.y, e.z + rand(-0.05, 0.05), e.life * rand(0.85, 1.1), sxa * 0.22, sza * 0.22, 0, nil, e.phase + now * 0.35)
+				end
 			end
 		end
 	end

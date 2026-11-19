@@ -526,15 +526,17 @@ M.swing = function(m, f)
 		end
 	end
 	Parts.log(m, f, 0, 2.45, 0, 2.85, 0.25, "blue", "Bar")
-	for _, s in { { x = -0.55, swing = 0, c = "berry_red" }, { x = 0.55, swing = -R(22), c = "yellow" } } do
-		local x, swing = s.x, s.swing
+	for i, s in { { x = -0.55, c = "berry_red" }, { x = 0.55, c = "yellow" } } do
+		local x = s.x
 		box(m, f, x, 0.02, 0, 0.75, 0.25, 1.0, "sand_dark", "Worn")
-		local cf = CFrame.new(x, 2.4, 0) * CFrame.Angles(swing, 0, 0)
+		-- (each seat swings on its chains round the bar, the two out of step: Parts.move)
+		local cf = CFrame.new(x, 2.4, 0)
 		local len = 1.8
+		local hub, phase = V(x, 2.4, 0), if i == 1 then 0 else 2.2
 		for _, dx in { -0.3, 0.3 } do
-			at(m, f, cf * CFrame.new(dx, -len / 2, 0), 0.25, len, 0.25, "steel", "Chain")
+			Parts.move(at(m, f, cf * CFrame.new(dx, -len / 2, 0), 0.25, len, 0.25, "steel", "Chain"), "swing", hub, "X", 1.9, R(18), phase)
 		end
-		at(m, f, cf * CFrame.new(0, -len, 0), 0.75, 0.25, 0.5, s.c, "Seat")
+		Parts.move(at(m, f, cf * CFrame.new(0, -len, 0), 0.75, 0.25, 0.5, s.c, "Seat"), "swing", hub, "X", 1.9, R(18), phase)
 	end
 end
 

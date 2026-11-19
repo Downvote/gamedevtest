@@ -412,6 +412,9 @@ local KINDS: { [string]: Kind } = {
 	steam = { fall = 0.75, grav = 0, sway = 0.12, swayHz = 0.9, tumble = 0, land = false, linger = 0, fadeIn = 0.15, fadeOut = 0.9, rgb = 0xFFFFFF, alpha = 0.7, wide = 0.5 },
 	firefly = { fall = 0.03, grav = 0, sway = 0.6, swayHz = 0.15, tumble = 0, land = false, linger = 0, fadeIn = 0.8, fadeOut = 0.8, rgb = 0xEAFF8A, alpha = 1, blink = 2.6 },
 	drop = { fall = 0, grav = 14, sway = 0, swayHz = 1, tumble = 0, land = true, linger = 0, fadeIn = 0.02, fadeOut = 0.1, rgb = 0xEEF9F6, alpha = 1 },
+	-- (a flame's spark rising and winking out, and a fountain's spray thrown up and falling back: the decor's, 2026-11-19)
+	ember = { fall = 0.8, grav = 0, sway = 0.2, swayHz = 1.6, tumble = 0, land = false, linger = 0, fadeIn = 0.04, fadeOut = 0.25, rgb = 0xFFC861, alpha = 1, blink = 0.45 },
+	spray = { fall = 0, grav = 9, sway = 0, swayHz = 1, tumble = 0, land = true, linger = 0, fadeIn = 0.02, fadeOut = 0.08, rgb = 0xEEF9F6, alpha = 0.9 },
 }
 Fx.KINDS = KINDS
 

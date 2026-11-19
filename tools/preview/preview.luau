@@ -387,12 +387,14 @@ end
 -- What moves on its own (the request of 2026-11-14: "animate models better, such as trees swaying, instead of just
 -- shiftiing side to side, make them actually rustle like leaves. other models should be animated if possible too,
 -- such as windmills being able to spin and waterfalls having flowing water"): the village on a tier 3 island with a
--- windmill, a waterwheel, a little waterfall and the Grand Mill by the palms; the log lists the turning copies
--- (Controllers/Spinners); then a frame every sixth of a second for two seconds (motion_000 .. motion_011: the leaves
--- rustling, the sails and wheels turning, the falls running).
+-- windmill, a waterwheel, a little waterfall and the Grand Mill by the palms, and (the request of 2026-11-19: "detail
+-- all decor more, some having animations") a swing set, a fire pit and a little fountain; the log lists the moving
+-- copies (Controllers/Spinners); then a frame every sixth of a second for two seconds (motion_000 .. motion_011: the
+-- leaves rustling, the sails and wheels turning, the falls running, the swings swinging, sparks off the fire and spray
+-- off the fountain).
 function SCEN.motion()
 	local pieces = table.clone(VILLAGE)
-	for _, q in { { "windmill", -2, -10 }, { "waterwheel", -12, -6 }, { "littlefall", 13, 6 }, { "grandmill", 13, -9 }, { "palm", 2, -6 }, { "palm", -6, -9 } } do
+	for _, q in { { "windmill", -2, -10 }, { "waterwheel", -12, -6 }, { "littlefall", 13, 6 }, { "grandmill", 13, -9 }, { "palm", 2, -6 }, { "palm", -6, -9 }, { "swing", 6, 2 }, { "firepit", 9, 3 }, { "smallfountain", 3, 4 } } do
 		table.insert(pieces, q)
 	end
 	seedProfile(2, 3, { pieces = pieces, pals = { "clawdle", "mossbun", "pebblit" } })
@@ -3064,6 +3066,30 @@ local function catalogScenario(group: string)
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
 	local ox = Street.origin(H.session(p).plot)
+	do
+		-- each piece's parts, and how many of them move (Models/Parts.move), as the server built it
+		local plots = E.workspace:FindFirstChild("Plots")
+		local pm = plots and plots:FindFirstChild("Plot_" .. tostring(H.session(p).plot))
+		local st = pm and pm:FindFirstChild("Static")
+		local decor = st and st:FindFirstChild("Decor")
+		local seen = {}
+		for _, c in (if decor then decor:GetChildren() else {}) do
+			local id = c:GetAttribute("Decor")
+			if type(id) == "string" and not seen[id] and table.find(ids, id) then
+				seen[id] = true
+				local n, moving = 0, 0
+				for _, q in c:GetDescendants() do
+					if q:IsA("BasePart") then
+						n += 1
+						if q:GetAttribute("Move") ~= nil then
+							moving += 1
+						end
+					end
+				end
+				log("catalog parts: %s %d (%d moving)", id, n, moving)
+			end
+		end
+	end
 	local k = 0
 	-- (the frames on the founder's spots kept clear above, from the first row with a piece in it; at least one)
 	local sz0 = -80 + 14 * math.floor(((firstZ or -84) + 4 + 80) / 14)

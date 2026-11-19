@@ -311,5 +311,7 @@ BuildKit.span = span
 BuildKit.roundDoor = roundDoor
 BuildKit.cap = cap
 BuildKit.spire = spire
+-- (a part that moves on the island: Models/Parts.move)
+BuildKit.move = require(script.Parent.Parts).move
 
 return BuildKit
