@@ -1463,10 +1463,10 @@ When the island grows into a new stage, the tree is built again at it.
   egg icons seem to overlap each other and the bottom one exceeds the border. could you make egg sprite icons smaller?",
   2026-11-14; the common egg's freckles are soft caramel with a paler edge since the same day: "the brown parts of the
   common egg is too noisy, make it anti aliased and less contrast"; a white crescent and band on the mythic one, a little constellation on the celestial one) are drawn to
-  match, lit as round shells since 2026-11-14 ("The egg sprites seem flat and have no depth. Reshade them":
-  `gen_art.py`'s `sphere_tones`, each pixel's slope on the egg's curve lit from the top left: a soft highlight up there,
-  the base over the middle, a shadow crescent and a deep rim round the lower right, the light marks turning with the
-  shell). The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
+  match, lit as round shells since 2026-11-14 ("The egg sprites seem flat and have no depth. Reshade them"). Since
+  2026-11-19 the big ones are toned by hand the way the small ones are ("these bigger egg sprites in the menu arent
+  updated. they should look detailed like the smaller variants"): a light top left with a white catchlight, the base
+  over the middle, a shadow round the lower right, and each rarity's marks drawn over that, with no blotches. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
   side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
   lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the

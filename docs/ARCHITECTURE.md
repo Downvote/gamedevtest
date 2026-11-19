@@ -2418,11 +2418,10 @@ water nature fun start loot chest wild rest boss star boat`; `tree` the Tree of 
 round crown with glowing fruit on a short trunk); Build mode's tabs `work` (a hammer), `nest`, `path`, `fence`,
 `water`, `nature` (a pine), `decor` and `fun` (a balloon); `charm` (a heart) the "+N" over a piece put down; no `tide`
 since the tide went; `food` unused since the Work tab took the Farms tab's place; `train`, `start`, `loot`, `chest`,
-`wild`, `rest`, `boss` and `boat` unused since the expeditions went), the eggs `egg_1` .. `egg_7` (12x15, lit as round shells by `sphere_tones` (S's `sphere`: the body's ramp by each pixel's slope on the egg's ellipse, light marks turning with it), matching
+`wild`, `rest`, `boss` and `boat` unused since the expeditions went), the eggs `egg_1` .. `egg_7` (12x15 inside the outline, hand-toned with `HAND` like the small ones since 2026-11-19: `BIG_EGG_TONES` lights the shell from the top left, and `BIG_EGG_MARKS` holds each rarity's marks, taken from the egg masks by `egg_marks`; `sphere_tones` is still in `S` but no sprite uses it now), matching
 `EggView.LOOK`: cream with brown freckles, green with a white zigzag band, sky blue with white stars, purple with pink
 spots, gold with a band of light, rose with a white crescent and band (ramp `H`), night blue with a little
-constellation (ramp `I`); the common one's freckles a caramel core and a paler edge mixed into the shell's tone under
-them (the sphere's `mix`), soft and anti-aliased; the tree's panel, the store and the Hatchery), the small eggs
+constellation (ramp `I`); the common one's freckles a caramel core and a paler edge, soft and anti-aliased; the tree's panel, the store and the Hatchery), the small eggs
 `mini_egg_1` .. `mini_egg_7` (7x9 inside the outline, hand-toned with `HAND` from `MINI_EGG_TONES` and each rarity's
 marks in `MINI_EGG_MARKS`; the HUD's eggs card), the twinkles `twinkle_p1..p3` (7x7, pink) and
 `glint_1..3` (9x9, white and cyan, pink diagonals), the arrows `arrow_<dir>` (13x13) and

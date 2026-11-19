@@ -625,9 +625,6 @@ EGG_FRECKLE = [
     "...AAAAAA...",
 ]
 FRECKLE_MIX = {"n": ("brn2", 0.85), "f": ("brn2", 0.4)}
-S("egg_1", [row.replace("A", "E") for row in EGG_FRECKLE], sphere={"body": "E", "light": "wyz", "dark": "p", "mix": FRECKLE_MIX})
-for _r, (_mask, _body, _spot) in enumerate([(EGG_BAND, "G", "w"), (EGG, "B", "w"), (EGG, "P", "p"), (EGG_BAND, "Y", "w"), (EGG_MOON, "H", "w"), (EGG_STARS, "I", "w")], start=2):
-    S("egg_%d" % _r, [row.replace("A", _body).replace("x", _spot) for row in _mask], sphere={"body": _body, "light": "wyz", "dark": "p"})
 # The tree's eggs small, for the HUD's eggs card (its rows are 15 px: "the egg icons seem to overlap each other and the
 # bottom one exceeds the border. could you make egg sprite icons smaller?", 2026-11-14): drawn again at 7 x 9 inside
 # the outline (never the big ones scaled), the same shape (the top narrower, the base fuller), hand-toned like the other
@@ -664,13 +661,13 @@ def blend(a, b, t):
     return out
 
 
-def mini_egg(name, ramp, marks):
+def hand_egg(name, ramp, tones, marks):
     # a mark's colour from the shell's tone under it: "n"/"f" a freckle mixed into it (FRECKLE_MIX), "w" white that
     # turns with the shell (the body's light in its shadow, its base at the rim), "v" white and "z" cyan always (a
     # star's own light), "p" pink (a step darker in the shadow)
     flat, rows, pool = {}, [], iter("efghijlmnoqrstuvyz")
     keys = {}
-    for trow, mrow in zip(MINI_EGG_TONES, marks):
+    for trow, mrow in zip(tones, marks):
         out = ""
         for t, c in zip(trow, mrow):
             if c == "." or t == ".":
@@ -701,7 +698,64 @@ def mini_egg(name, ramp, marks):
 
 
 for _r, (_ramp, _marks) in enumerate(MINI_EGG_MARKS, start=1):
-    mini_egg("mini_egg_%d" % _r, _ramp, _marks)
+    hand_egg("mini_egg_%d" % _r, _ramp, MINI_EGG_TONES, _marks)
+# The menus' eggs (the Tree panel's rows, the Hatchery, the Store, the rewards: 12 x 15 inside the outline), hand-toned
+# the way the small ones are (the request of 2026-11-19: "these bigger egg sprites in the menu arent updated. they
+# should look detailed like the smaller variants"; they were shaded by the sphere pass and looked blotchy): four tones
+# lit from the top left in clean steps, a three-pixel shine, the lower right a step darker, the bottom rim darkest,
+# and each rarity's mark drawn at this size: the common egg's soft freckles, a zigzag band, a cyan star with two white
+# flecks, pink spots, a band of light, a crescent moon over a band, a constellation.
+BIG_EGG_TONES = [
+    "....4443....",
+    "...444333...",
+    "...4ww433...",
+    "..44w44333..",
+    "..44444332..",
+    ".4444433332.",
+    ".4444333332.",
+    "444433333332",
+    "444333333322",
+    "443333333222",
+    "333333332221",
+    "333333322221",
+    ".3333222221.",
+    ".2222222111.",
+    "...222111...",
+]
+
+
+def egg_marks(mask, keep):
+    # a mask's marks only (the shape's "A" and "." left blank), each kept char mapped (keep: char -> mark)
+    return ["".join(keep.get(c, ".") for c in row) for row in mask]
+
+
+BIG_EGG_MARKS = [
+    ("E", egg_marks(EGG_FRECKLE, {"f": "f", "n": "n"})),
+    ("G", egg_marks(EGG_BAND, {"x": "w"})),
+    ("B", [
+        "............",
+        "............",
+        "............",
+        "............",
+        "............",
+        ".........w..",
+        "............",
+        "........z...",
+        ".......zvz..",
+        "........z...",
+        "..w.........",
+        "............",
+        ".....w......",
+        "............",
+        "............",
+    ]),
+    ("P", egg_marks(EGG, {"x": "p"})),
+    ("Y", egg_marks(EGG_BAND, {"x": "w"})),
+    ("H", egg_marks(EGG_MOON, {"x": "w"})),
+    ("I", egg_marks(EGG_STARS, {"x": "v", "y": "v", "z": "z"})),
+]
+for _r, (_ramp, _marks) in enumerate(BIG_EGG_MARKS, start=1):
+    hand_egg("egg_%d" % _r, _ramp, BIG_EGG_TONES, _marks)
 # Build mode's puff of dust (Controllers/Puffs): a little cloud that swells, then thins out and breaks up.
 S("poof_1", [".......", ".......", "..ww...", ".wwws..", ".wsss..", "..ss...", "......."], outline=False, shade=False)
 S("poof_2", [".......", "..ww...", ".wwwws.", "wwwssss", ".wssss.", "..sss..", "......."], outline=False, shade=False)
