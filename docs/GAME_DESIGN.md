@@ -689,11 +689,11 @@ from buildings and driftlings.
 > much as the work/hut/ main buildings"
 
 Every one of the 188 decor pieces was built again in more detail, closer to the work buildings and huts (61 to 174
-parts each): a decor piece had 18 parts at the median and 4 at the least, now about twice as many and never fewer
-than 20, the late pieces rebuilt grandly (the Driftling Colossus 17 to 78, the Old Galleon 15 to 90, the Red Barn
-15 to 86, the Ember Forge 13 to 64, the Crown of the Sea 51 to 127). Trees have roots, bark, limbs and layered
-crowns with fallen leaves at the foot; rocks have chips, moss and pebbles; the themed pieces have trims, footings
-and small props of their theme; the fountains' and the Moonwell's water shows. About sixty pieces move (§11): the
+parts each): a decor piece had 18 parts at the median and 4 at the least, now 37 at the median and never fewer than
+20, the late pieces rebuilt grandly (the Driftling Colossus 17 to 78, the Old Galleon 15 to 90, the Red Barn 15 to 86,
+the Ember Forge 13 to 64, the Crown of the Sea 51 to 127). Trees have roots, bark, limbs and layered crowns with
+fallen leaves at the foot; rocks have chips, moss and pebbles; the themed pieces have trims, footings and small props
+of their theme; the fountains' and the Moonwell's water shows. 75 pieces have parts that move (§11): the
 merry-go-round and the big wheel turn, clock hands and the lighthouse's lens turn, swings, bells, lanterns, buckets,
 signs and wind chimes swing, boats, buoys, ducks and floating lanterns bob. Flames throw up sparks, fountains throw
 spray and gems twinkle.
