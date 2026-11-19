@@ -629,7 +629,7 @@ FRECKLE_MIX = {"n": ("brn2", 0.85), "f": ("brn2", 0.4)}
 # bottom one exceeds the border. could you make egg sprite icons smaller?", 2026-11-14): drawn again at 7 x 9 inside
 # the outline (never the big ones scaled), the same shape (the top narrower, the base fuller), hand-toned like the other
 # mini icons, each rarity's colour and its mark at this size: the common egg's soft freckles, a zigzag band, a star,
-# pink spots, a band of light, a crescent moon over a band, a little constellation.
+# the epic egg's spiral stripes round a rune, a band of light, a crescent moon over a band, a little constellation.
 MINI_EGG_TONES = [
     "..443..",
     ".4w433.",
@@ -645,10 +645,10 @@ MINI_EGG_MARKS = [
     ("E", ["......."] * 2 + ["....f..", "...fn..", ".......", ".f.....", "fn...f.", ".f..fn.", "......."]),
     ("G", ["......."] * 4 + [".w...w.", "w.w.w.w", "...w...", ".......", "......."]),
     ("B", ["......."] * 2 + ["...z...", "..zvz..", "...z...", ".....w.", ".w.....", ".......", "......."]),
-    ("P", ["......."] * 3 + ["....p..", ".......", ".p.....", ".....p.", "..p....", "......."]),
+    ("P", ["......."] * 1 + [".....s.", "....s..", "...s...", "..s.w.s", ".s...s.", "s...s..", "...s...", ".sssss."]),
     ("Y", ["......."] * 4 + [".w...w.", "w.w.w.w", "...w...", ".......", "......."]),
     ("H", ["......."] * 2 + ["..w....", ".w.....", "..w....", ".......", "w.w.w.w", ".w.w.w.", "......."]),
-    ("I", ["......."] * 2 + ["....v..", ".......", "..z....", "....v..", ".......", "...z...", "......."]),
+    ("I", [".......", "....g..", "......."] + ["..v....", ".......", "....v..", ".z.....", ".....z.", "......."]),
 ]
 
 
@@ -664,7 +664,9 @@ def blend(a, b, t):
 def hand_egg(name, ramp, tones, marks):
     # a mark's colour from the shell's tone under it: "n"/"f" a freckle mixed into it (FRECKLE_MIX), "w" white that
     # turns with the shell (the body's light in its shadow, its base at the rim), "v" white and "z" cyan always (a
-    # star's own light), "p" pink (a step darker in the shadow)
+    # star's own light), "p" pink (a step darker in the shadow), "s" a pink stripe shaded with the shell (its tone in
+    # the pink ramp, no lighter than the middle one so it holds on the lit side), "l" lilac (a constellation's dots), "a" pale blue (a star's points), "g" and "y" gold (a star's
+    # middle and points), "d" stardust (the shell's own tone a little bluer)
     flat, rows, pool = {}, [], iter("efghijlmnoqrstuvyz")
     keys = {}
     for trow, mrow in zip(tones, marks):
@@ -687,6 +689,20 @@ def hand_egg(name, ramp, tones, marks):
                 key = "cyn3"
             elif c == "p":
                 key = "pnk2" if tone >= 2 else "pnk1" if tone == 1 else RAMPS[ramp][0]
+            elif c == "s":
+                key = RAMPS["K"][min(tone, 2)]
+            elif c == "l":
+                key = "pur3" if tone >= 2 else "pur2"
+            elif c == "a":
+                key = "blu3" if tone >= 2 else "blu2"
+            elif c == "g":
+                key = "yel3"
+            elif c == "y":
+                key = "yel2" if tone >= 2 else "yel1"
+            elif c == "d":
+                hexv = blend(PAL[RAMPS[ramp][tone]], PAL["blu3"], 0.3)
+                key = "mix_%06X" % hexv
+                PAL[key] = hexv
             else:
                 sys.exit("%s: no mark %r" % (name, c))
             if key not in keys:
@@ -704,7 +720,7 @@ for _r, (_ramp, _marks) in enumerate(MINI_EGG_MARKS, start=1):
 # should look detailed like the smaller variants"; they were shaded by the sphere pass and looked blotchy): four tones
 # lit from the top left in clean steps, a three-pixel shine, the lower right a step darker, the bottom rim darkest,
 # and each rarity's mark drawn at this size: the common egg's soft freckles, a zigzag band, a cyan star with two white
-# flecks, pink spots, a band of light, a crescent moon over a band, a constellation.
+# flecks, an epic egg's spiral stripes and runes, a band of light, a crescent moon over a band, a night sky's stars.
 BIG_EGG_TONES = [
     "....4443....",
     "...444333...",
@@ -749,10 +765,46 @@ BIG_EGG_MARKS = [
         "............",
         "............",
     ]),
-    ("P", egg_marks(EGG, {"x": "p"})),
+    # epic: two pink stripes spiralling up it, runes between them (white dots round a pink one, pink ones round
+    # nothing on the lit side, a faint one in the shade) and a pink ring round its foot, the way its 3D egg is dressed
+    ("P", [
+        "............",
+        "............",
+        "........s...",
+        ".......ss...",
+        "..p...ss....",
+        ".p.p.ss.....",
+        "..p.ss......",
+        "...ss.w...ss",
+        "..ss.wpw.ss.",
+        ".ss...w.ss..",
+        "ss.....ss.w.",
+        "s.....ss....",
+        ".....ss.....",
+        ".ssssssssss.",
+        "............",
+    ]),
     ("Y", egg_marks(EGG_BAND, {"x": "w"})),
     ("H", egg_marks(EGG_MOON, {"x": "w"})),
-    ("I", egg_marks(EGG_STARS, {"x": "v", "y": "v", "z": "z"})),
+    # celestial: the night sky's egg, a gold star on its crown, a constellation (white stars joined by lilac dots), a
+    # four-pointed star, two cyan ones on their own and a little stardust
+    ("I", [
+        ".......y....",
+        "......ygy...",
+        ".......y....",
+        "............",
+        ".........z..",
+        "..v.l.v.....",
+        "..........d.",
+        "........l...",
+        ".....d......",
+        "...a......v.",
+        "..ava.......",
+        "...a.....d..",
+        ".......z....",
+        "...d........",
+        "............",
+    ]),
 ]
 for _r, (_ramp, _marks) in enumerate(BIG_EGG_MARKS, start=1):
     hand_egg("egg_%d" % _r, _ramp, BIG_EGG_TONES, _marks)

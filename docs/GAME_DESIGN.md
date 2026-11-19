@@ -1466,7 +1466,10 @@ When the island grows into a new stage, the tree is built again at it.
   match, lit as round shells since 2026-11-14 ("The egg sprites seem flat and have no depth. Reshade them"). Since
   2026-11-19 the big ones are toned by hand the way the small ones are ("these bigger egg sprites in the menu arent
   updated. they should look detailed like the smaller variants"): a light top left with a white catchlight, the base
-  over the middle, a shadow round the lower right, and each rarity's marks drawn over that, with no blotches. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
+  over the middle, a shadow round the lower right, and each rarity's marks drawn over that, with no blotches. The
+  epic and celestial icons were dressed like their 3D eggs the same day ("redetail these two with better theming."):
+  the epic one's two pink stripes spiral up it with runes between them and a pink ring round its foot, and the
+  celestial one is a night sky with a gold star on its crown, a constellation, a four-pointed star and stardust. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
   side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
   lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the
