@@ -648,7 +648,7 @@ MINI_EGG_MARKS = [
     ("P", ["......."] * 1 + [".....s.", "....s..", "...s...", "..s.w.s", ".s...s.", "s...s..", "...s...", ".sssss."]),
     ("Y", ["......."] * 4 + [".w...w.", "w.w.w.w", "...w...", ".......", "......."]),
     ("H", ["......."] * 2 + ["..w....", ".w.....", "..w....", ".......", "w.w.w.w", ".w.w.w.", "......."]),
-    ("I", [".......", "....g..", "......."] + ["..v....", ".......", "....v..", ".z.....", ".....z.", "......."]),
+    ("I", ["..g....", ".....m.", "....mM.", "...mvm.", "..mMm..", ".mMm.z.", "mvm....", "Mm...v.", "......."]),
 ]
 
 
@@ -666,7 +666,8 @@ def hand_egg(name, ramp, tones, marks):
     # turns with the shell (the body's light in its shadow, its base at the rim), "v" white and "z" cyan always (a
     # star's own light), "p" pink (a step darker in the shadow), "s" a pink stripe shaded with the shell (its tone in
     # the pink ramp, no lighter than the middle one so it holds on the lit side), "l" lilac (a constellation's dots), "a" pale blue (a star's points), "g" and "y" gold (a star's
-    # middle and points), "d" stardust (the shell's own tone a little bluer)
+    # middle and points), "d" stardust (the shell's own tone a little bluer), "m" and "M" the band of the galaxy (the
+    # shell's tone toward lilac at its edges, toward pale blue along its spine)
     flat, rows, pool = {}, [], iter("efghijlmnoqrstuvyz")
     keys = {}
     for trow, mrow in zip(tones, marks):
@@ -699,8 +700,9 @@ def hand_egg(name, ramp, tones, marks):
                 key = "yel3"
             elif c == "y":
                 key = "yel2" if tone >= 2 else "yel1"
-            elif c == "d":
-                hexv = blend(PAL[RAMPS[ramp][tone]], PAL["blu3"], 0.3)
+            elif c in ("d", "m", "M"):
+                tgt, amt = {"d": ("blu3", 0.3), "m": ("pur3", 0.42), "M": ("blu3", 0.64)}[c]
+                hexv = blend(PAL[RAMPS[ramp][tone]], PAL[tgt], amt)
                 key = "mix_%06X" % hexv
                 PAL[key] = hexv
             else:
@@ -786,23 +788,25 @@ BIG_EGG_MARKS = [
     ]),
     ("Y", egg_marks(EGG_BAND, {"x": "w"})),
     ("H", egg_marks(EGG_MOON, {"x": "w"})),
-    # celestial: the night sky's egg, a gold star on its crown, a constellation (white stars joined by lilac dots), a
-    # four-pointed star, two cyan ones on their own and a little stardust
+    # celestial: the night sky's egg, the way its hatch sky looks: the band of the galaxy slanting up across it (lilac
+    # at its edges, pale blue along its spine, stars in it), a gold star on its crown, a four-pointed star and cyan
+    # stars on their own, a little stardust (the request of 2026-11-19, "redetail these two with better theming.",
+    # then "you didnt apply the retheme for epic and celestial eggs": its first redraw read too close to the old one)
     ("I", [
         ".......y....",
         "......ygy...",
         ".......y....",
-        "............",
-        ".........z..",
-        "..v.l.v.....",
-        "..........d.",
-        "........l...",
-        ".....d......",
-        "...a......v.",
-        "..ava.......",
-        "...a.....d..",
-        ".......z....",
-        "...d........",
+        "........mm..",
+        ".......mMm..",
+        "..z...mvm...",
+        ".....mMm..d.",
+        "....mMm..z..",
+        "...mvm......",
+        "..mMm...a...",
+        ".mMm...ava..",
+        "mvm.....a...",
+        "Mm..........",
+        "......z.....",
         "............",
     ]),
 ]

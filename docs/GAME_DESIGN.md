@@ -1469,7 +1469,9 @@ When the island grows into a new stage, the tree is built again at it.
   over the middle, a shadow round the lower right, and each rarity's marks drawn over that, with no blotches. The
   epic and celestial icons were dressed like their 3D eggs the same day ("redetail these two with better theming."):
   the epic one's two pink stripes spiral up it with runes between them and a pink ring round its foot, and the
-  celestial one is a night sky with a gold star on its crown, a constellation, a four-pointed star and stardust. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
+  celestial one is a night sky with the band of the galaxy slanting across it the way its hatch sky has one, stars
+  in the band, a gold star on its crown and a four-pointed star (the band came after "you didnt apply the retheme for
+  epic and celestial eggs": the first celestial redraw looked too much like the old egg). The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
   side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
   lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the

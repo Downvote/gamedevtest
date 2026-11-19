@@ -2431,9 +2431,10 @@ since the tide went; `food` unused since the Work tab took the Farms tab's place
 `wild`, `rest`, `boss` and `boat` unused since the expeditions went), the eggs `egg_1` .. `egg_7` (12x15 inside the outline, hand-toned with `HAND` like the small ones since 2026-11-19: `BIG_EGG_TONES` lights the shell from the top left, and `BIG_EGG_MARKS` holds each rarity's marks, taken from the egg masks by `egg_marks`; `sphere_tones` is still in `S` but no sprite uses it now), matching
 `EggView.LOOK`: cream with brown freckles, green with a white zigzag band, sky blue with white stars, purple with two pink
 stripes spiralling up it, runes between them and a pink ring round its foot (marks `s`, `w`, `p`), gold with a band of
-light, rose with a white crescent and band (ramp `H`), night blue with a gold star on its crown, a constellation of
-white stars joined by lilac dots, a four-pointed star, two cyan stars and a little stardust (ramp `I`, marks `g`, `y`,
-`v`, `l`, `a`, `z`, `d`; the small ones the same marks at their size, since 2026-11-19: "redetail these two with
+light, rose with a white crescent and band (ramp `H`), night blue with the band of the galaxy slanting up across it
+(lilac at its edges, pale blue along its spine, white stars in it), a gold star on its crown, a four-pointed star, cyan
+stars and a little stardust (ramp `I`, marks `m`, `M`, `v`, `g`, `y`, `a`, `z`, `d`; the band since the same day's
+"you didnt apply the retheme for epic and celestial eggs", the first redraw having read too close to the old one; the small ones the same marks at their size, since 2026-11-19: "redetail these two with
 better theming."); the common one's freckles a caramel core and a paler edge, soft and anti-aliased; the tree's panel, the store and the Hatchery), the small eggs
 `mini_egg_1` .. `mini_egg_7` (7x9 inside the outline, hand-toned with `HAND` from `MINI_EGG_TONES` and each rarity's
 marks in `MINI_EGG_MARKS`; the HUD's eggs card), the twinkles `twinkle_p1..p3` (7x7, pink) and
