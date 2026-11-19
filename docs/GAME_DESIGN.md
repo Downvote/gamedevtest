@@ -2843,9 +2843,9 @@ while something waits to be claimed (`Rewards.view.ready`). On the HUD's status 
 something on it waits:
 
 - **Today: the daily reward and the streak.** One a day (`reward.daily`). Claimed the day after the last claim the
-  streak goes on, else it starts again at 1. The streak's day in a round of seven picks the reward (`DAILY`: 10 min of
-  shells; an uncommon egg and 5 min; 20 min and a spin; a rare egg and a Lucky Hour; 30 min and a Busy Day; an epic
-  egg and a spin; a legendary egg, an hour of shells and two spins), shown as seven cards (the seventh twice as wide),
+  streak goes on, else it starts again at 1. The streak's day in a round of seven picks the reward (`DAILY`: 4 min of
+  shells; an uncommon egg and 2 min; 8 min and a spin; a rare egg and a Lucky Hour; 12 min and a Busy Day; an epic
+  egg and a spin; a legendary egg, 24 min of shells and two spins), shown as seven cards (the seventh twice as wide),
   the ones taken this round ticked, today's gold. A streak reaching 3, 7, 14, 30, 60 or 100 days also gives that
   milestone's gift once (`MILESTONES`: the titles Back Again, Devoted, Island Heart and Tide Keeper among them), and
   the row says the next one ("Day 7 gift: a legendary egg and 3 spins."). "Best 5" is the longest streak.
@@ -2855,9 +2855,9 @@ something on it waits:
 - **Tasks.** Three a day (`Rewards.sync` deals them when the day turns), from the ones the island is big enough for:
   hatch eggs, place pieces, earn shells (20 minutes of what the island makes when dealt), spend 15 minutes on the
   island, sell driftlings, hatch Hatchery eggs. Each counts from the moment it was dealt, with a bar, and is claimed
-  when done (`reward.task`); all three claimed, the bonus (an epic egg, a spin and 15 min of shells: `reward.bonus`).
+  when done (`reward.task`); all three claimed, the bonus (an epic egg, a spin and 6 min of shells: `reward.bonus`).
 - **Lucky Shell.** One free spin a day, more from the rewards (`reward.spin`). Nine prizes with their odds shown
-  (5, 15 or 30 min of shells, an uncommon, rare, epic or legendary egg, a Lucky Hour or a Busy Day of 15 min). A spin
+  (2, 6 or 12 min of shells, an uncommon, rare, epic or legendary egg, a Lucky Hour or a Busy Day of 15 min). A spin
   runs a light over the prizes, two laps and on, slowing, and stops on the one won; only then does the sheet say what
   it gave.
 - **Index.** Gifts for kinds found (5, 10, 20, 35, 50, 75, 100, 125 and 145 kinds), each once (`reward.index`).
@@ -2865,8 +2865,14 @@ something on it waits:
   some with an end date (`Config/Codes`, on the server only: WELCOME, DRIFTLING, HATCHDAY, SPINME to start).
   "That code doesn't work. Check the spelling." / "You already used that code."
 
+> The request (2026-11-19): "shell rewards in gifts are too good. cut all of them by 60%."
+
+Every shells gift on this sheet, the codes' too, is 40% of what it was (the numbers above are the new ones; the
+gifts for playing give 1.2, 2, 4, 6 and 12 minutes of shells, the Index 4 and 8). Eggs, spins, boosts and titles
+are as they were. The Store's gifts (VIP's daily gift, the group's) are not on this sheet and kept theirs.
+
 **The rewards themselves** are Data/Track's shapes (minutes of what the island makes now, an egg into the bag to hatch
 for nothing, a look, a title) and two of their own: spins of the Lucky Shell, and **timed boosts** (`Profile.boosts`,
 seconds left, running down only while the player is on the island, four hours at most): **Busy Day** (every shell x1.5,
 `TimedShells`) and **Lucky Hour** (+0.5 egg luck, `TimedLuck`). Every claim tells the player what came in the sheet's
-status line ("Daily reward: an uncommon egg and 1,642 shells."). The save keeps it all (`Profile.rewards`, version 20).
+status line ("Daily reward: an uncommon egg and 657 shells."). The save keeps it all (`Profile.rewards`, version 20).

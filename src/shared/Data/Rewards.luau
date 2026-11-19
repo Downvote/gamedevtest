@@ -20,6 +20,8 @@
 --   `mins` minutes of what the island makes when dealt). BONUS when all three are claimed.
 --   SPIN: the Lucky Shell's slices (weights add to 100); one free spin a day, more from the rewards.
 --   INDEX: kinds in the Index (Profile.seen), once each.
+--   Every shells gift here (and the codes' in Config/Codes) is 40% of what it was: "shell rewards in gifts are too
+--   good. cut all of them by 60%." (2026-11-19). Eggs, spins, boosts and titles kept theirs.
 export type Reward = { kind: string, mins: number?, r: number?, id: string?, n: number? }
 export type Bundle = { Reward }
 export type Milestone = { day: number, give: Bundle }
@@ -56,51 +58,51 @@ end
 
 -- stylua: ignore start
 local DAILY: { Bundle } = {
-	{ shells(10) },
-	{ egg(2), shells(5) },
-	{ shells(20), spin(1) },
+	{ shells(4) },
+	{ egg(2), shells(2) },
+	{ shells(8), spin(1) },
 	{ egg(3), boost("luck", 15) },
-	{ shells(30), boost("shells", 15) },
+	{ shells(12), boost("shells", 15) },
 	{ egg(4), spin(1) },
-	{ egg(5), shells(60), spin(2) },
+	{ egg(5), shells(24), spin(2) },
 }
 
 local MILESTONES: { Milestone } = {
 	{ day = 3, give = { title("dropin"), egg(3) } },
 	{ day = 7, give = { egg(5), spin(3) } },
-	{ day = 14, give = { title("devoted"), egg(5), shells(120) } },
+	{ day = 14, give = { title("devoted"), egg(5), shells(48) } },
 	{ day = 30, give = { title("islandheart"), egg(6), spin(5) } },
-	{ day = 60, give = { egg(6), egg(6), shells(240) } },
+	{ day = 60, give = { egg(6), egg(6), shells(96) } },
 	{ day = 100, give = { title("tidekeeper"), egg(7) } },
 }
 
 local PLAY: { PlayGift } = {
-	{ min = 2, give = { shells(3) } },
-	{ min = 5, give = { shells(5) } },
+	{ min = 2, give = { shells(1.2) } },
+	{ min = 5, give = { shells(2) } },
 	{ min = 10, give = { egg(2) } },
-	{ min = 15, give = { shells(10), spin(1) } },
+	{ min = 15, give = { shells(4), spin(1) } },
 	{ min = 20, give = { boost("luck", 10) } },
-	{ min = 30, give = { egg(3), shells(15) } },
+	{ min = 30, give = { egg(3), shells(6) } },
 	{ min = 45, give = { boost("shells", 15), spin(1) } },
-	{ min = 60, give = { egg(4), shells(30) } },
+	{ min = 60, give = { egg(4), shells(12) } },
 }
 
 local TASKS: { TaskDef } = {
-	{ id = "hatch", text = "Hatch {n} eggs", stat = "taken", base = 3, per = 0.5, max = 12, tier = 1, give = { egg(2), shells(5) } },
-	{ id = "build", text = "Place {n} pieces", stat = "built", base = 3, per = 0.4, max = 12, tier = 1, give = { shells(10) } },
-	{ id = "earn", text = "Earn {n} shells", stat = "earned", base = 0, per = 0, max = 0, mins = 20, tier = 1, give = { shells(10) } },
+	{ id = "hatch", text = "Hatch {n} eggs", stat = "taken", base = 3, per = 0.5, max = 12, tier = 1, give = { egg(2), shells(2) } },
+	{ id = "build", text = "Place {n} pieces", stat = "built", base = 3, per = 0.4, max = 12, tier = 1, give = { shells(4) } },
+	{ id = "earn", text = "Earn {n} shells", stat = "earned", base = 0, per = 0, max = 0, mins = 20, tier = 1, give = { shells(4) } },
 	{ id = "play", text = "Spend {n} minutes on your island", stat = "play", base = 15, per = 0, max = 15, tier = 1, give = { spin(1) } },
-	{ id = "sell", text = "Sell {n} driftlings", stat = "sold", base = 1, per = 0.25, max = 5, tier = 2, give = { shells(8), boost("luck", 10) } },
+	{ id = "sell", text = "Sell {n} driftlings", stat = "sold", base = 1, per = 0.25, max = 5, tier = 2, give = { shells(3.2), boost("luck", 10) } },
 	{ id = "breed", text = "Hatch {n} Hatchery eggs", stat = "hatched", base = 1, per = 0.1, max = 3, tier = 3, give = { egg(3) } },
 }
 
-local BONUS: Bundle = { egg(4), spin(1), shells(15) }
+local BONUS: Bundle = { egg(4), spin(1), shells(6) }
 
 local SPIN: { Slice } = {
-	{ w = 30, give = shells(5), label = "5 min of shells" },
-	{ w = 20, give = shells(15), label = "15 min of shells" },
+	{ w = 30, give = shells(2), label = "2 min of shells" },
+	{ w = 20, give = shells(6), label = "6 min of shells" },
 	{ w = 16, give = egg(2), label = "Uncommon egg" },
-	{ w = 12, give = shells(30), label = "30 min of shells" },
+	{ w = 12, give = shells(12), label = "12 min of shells" },
 	{ w = 8, give = boost("luck", 15), label = "Lucky Hour, 15 min" },
 	{ w = 7, give = egg(3), label = "Rare egg" },
 	{ w = 4, give = boost("shells", 15), label = "Busy Day, 15 min" },
@@ -109,9 +111,9 @@ local SPIN: { Slice } = {
 }
 
 local INDEX: { IndexGift } = {
-	{ n = 5, give = { shells(10) } },
+	{ n = 5, give = { shells(4) } },
 	{ n = 10, give = { egg(3) } },
-	{ n = 20, give = { spin(2), shells(20) } },
+	{ n = 20, give = { spin(2), shells(8) } },
 	{ n = 35, give = { egg(4) } },
 	{ n = 50, give = { egg(4), spin(2) } },
 	{ n = 75, give = { egg(5) } },

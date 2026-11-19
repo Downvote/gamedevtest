@@ -4,8 +4,8 @@
 -- reward shapes) and an optional end (`ends`: the sea's clock, seconds; past it the code is gone). Once a player.
 -- Add a code here, ship, and post it.
 local Codes: { [string]: { give: { { kind: string, mins: number?, r: number?, id: string?, n: number? } }, ends: number? } } = {
-	WELCOME = { give = { { kind = "shells", mins = 15 }, { kind = "boost", id = "luck", mins = 30 } } },
-	DRIFTLING = { give = { { kind = "shells", mins = 30 }, { kind = "egg", r = 3 } } },
+	WELCOME = { give = { { kind = "shells", mins = 6 }, { kind = "boost", id = "luck", mins = 30 } } },
+	DRIFTLING = { give = { { kind = "shells", mins = 12 }, { kind = "egg", r = 3 } } },
 	HATCHDAY = { give = { { kind = "egg", r = 4 } } },
 	SPINME = { give = { { kind = "spin", n = 3 } } },
 }
