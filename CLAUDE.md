@@ -16,7 +16,7 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 `sim_tree.luau` about 1932).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui inventory expand zoo paths water work motion idle pan stress ambient late
-loading themes hatches weathers crowd`, `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<pieces|titles>`, `panel=rewards:<today|tasks|spin|index|codes>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
+loading themes hatches weathers crowd alerts`, `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<pieces|titles>`, `panel=rewards:<today|tasks|spin|index|codes>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing
 the cosmetics, with their white outlines and name tags), `stress=<n>` (the full-island stress walk's first n legs), `expandperf=<tier>` (a full island at that tier expanded once, every frame timed), `zoom=<1..10>` or `zooms` (the harbour island with the View slider on that notch, the Settings panel open and shut), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
 on its skeleton, eight frames a mood; a mood `act_<name>` plays one of DriftMotion's idle acts through in nine frames), `catalog=<group>` (a group of the build catalog: `ground fence

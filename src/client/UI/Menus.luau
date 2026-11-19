@@ -1158,29 +1158,33 @@ local function buildIndex(body: Frame, _arg: any?)
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - 14), UDim2.fromOffset(0, 14))
 	local cols = if W >= 300 then 3 else 2
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 70)
+	-- (90 tall: a passive's effects take up to four lines at a card's width, "+7.5% work, Hatchery eggs 4% sooner, +20%
+	-- sell price" three; they had two and ended in "...", the request of 2026-11-19: "it seems like the text gets cut
+	-- off for some alerts")
+	grid.CellSize = UDim2.fromOffset(math.floor((W - 6 - (cols - 1) * 3) / cols), 90)
 	grid.CellPadding = UDim2.fromOffset(3, 3)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = list
 	for i, d in Creatures.list do
 		local n = v.seen[d.id] or 0
 		-- (a veil over the glass; a stronger one once it has been met)
-		local f = UIKit.row(list, UDim2.fromOffset(60, 70), nil, nil, if n >= 2 then 0.84 else 0.92)
+		local f = UIKit.row(list, UDim2.fromOffset(60, 90), nil, nil, if n >= 2 then 0.84 else 0.92)
 		f.Name = "Entry_" .. d.id
 		f.LayoutOrder = i
 		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(3, 3), 4)
-		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -40, 0, 10), UDim2.fromOffset(37, 4), { color = if n >= 1 then UIKit.color(rar.color) else UIKit.color("text_dim"), z = 4, name = "Name" })
+		-- (the words start right of the 32 px portrait, 65 px for them: Glimmerfleece's name is 65)
+		PixelSprites.image(f, if n >= 1 then "icon_" .. d.id else "icon_" .. d.id .. "_sil", UDim2.fromOffset(2, 3), 4)
+		UIKit.text(f, if n >= 1 then d.name else "???", UDim2.new(1, -35, 0, 10), UDim2.fromOffset(35, 4), { color = if n >= 1 then UIKit.color(rar.color) else UIKit.color("text_dim"), z = 4, name = "Name" })
 		-- its rarity (always: a rare one is worth hoping for) and its kind of land, each a line beside the portrait
 		local kind = Islets.list[d.islet]
 		if kind then
-			UIKit.text(f, kind.plural, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(37, 22), { color = UIKit.color("text_dim"), z = 4, name = "Land" })
+			UIKit.text(f, kind.plural, UDim2.new(1, -35, 0, 10), UDim2.fromOffset(35, 22), { color = UIKit.color("text_dim"), z = 4, name = "Land" })
 		end
-		UIKit.text(f, rar.name, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(37, 13), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
+		UIKit.text(f, rar.name, UDim2.new(1, -35, 0, 10), UDim2.fromOffset(35, 13), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
 		if n >= 1 then
 			-- seen: its passive
 			UIKit.text(f, d.passive.name, UDim2.new(1, -6, 0, 10), UDim2.fromOffset(3, 38), { color = UIKit.color("accent"), z = 4, name = "Passive" })
-			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 20), UDim2.fromOffset(3, 48), { color = UIKit.color("text_dim"), wrap = true, z = 4, name = "PassiveFx" })
+			UIKit.text(f, Traits.describe(d.passive.fx), UDim2.new(1, -6, 0, 40), UDim2.fromOffset(3, 48), { color = UIKit.color("text_dim"), wrap = true, y = "top", z = 4, name = "PassiveFx" })
 		else
 			local from = if kind and kind.tier > v.tier then string.format("These hatch from island Lv %d.", kind.tier) else "Not seen yet."
 			UIKit.text(f, from, UDim2.new(1, -6, 0, 30), UDim2.fromOffset(3, 38), { color = UIKit.color("text_dim"), wrap = true, z = 4 })

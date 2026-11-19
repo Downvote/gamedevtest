@@ -484,7 +484,8 @@ floor, it just looks noisy", 2026-11-14),
   HUD, below) under an awning: a teal band 20 UI px tall in wide stripes of two teals with a lit fold along its top,
   cut at the bottom into scallops (9 px each, the band's colour, shaded under, outlined in ink between them and along
   their bottoms) that hang over the glass. On the awning: the panel's mini icon, its title in white with an ink
-  outline, the status line (notices while the panel is open), a few of the panel's things on a little driftwood shelf
+  outline, the status line (notices while the panel is open; one too long for it shows over the screen's top as
+  usual, so none is cut short: the request of 2026-11-19, "it seems like the text gets cut off for some alerts"), a few of the panel's things on a little driftwood shelf
   (the Tree of Life's eggs, the Store's crown, a shell and a ticket, the Rewards' egg, gift and Lucky Shell) and a
   close mark (an X, its own sprite, on a deep teal button). Under it the panel is as before: light words in their own
   bright colours (a rarity's name in its colour), each row on a faint white veil, neutral buttons dark glass. Tabs are
@@ -1785,7 +1786,9 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 
 The **Index** lists all hundred and forty-five ("Seen 12 of 145 kinds"): a dark shape and its rarity until you have had one (a
 save from the tide keeps the ones it saw float by, on a lighter plate), then its name and passive. A kind not open yet
-says the island tier it hatches from ("These hatch from island Lv 4.").
+says the island tier it hatches from ("These hatch from island Lv 4."). Each card has room for the longest name and four
+lines of a passive's effects (they had two, and 37 kinds' ended in "...": the request of 2026-11-19, "it seems like
+the text gets cut off for some alerts").
 
 ### 6.1 The Hatchery (`Logic/Breed`, the Hatchery panel)
 

@@ -1516,9 +1516,11 @@ colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), pan
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
 rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
-canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top; while a
-panel is open, its status line next to the title instead, and opening a panel clears the toasts, so nothing covers
-a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, the `Stage` root (DisplayOrder
+canvas's bottom edge so they stay on screen meanwhile), `notice(text, color, seconds)` (a toast at the top, as
+many lines as its words take at its width (`lines`), up to the screen less 16 px wide; while a panel is open, its
+status line next to the title instead when the words fit it, else the toast as usual (the request of 2026-11-19, "it
+seems like the text gets cut off for some alerts": "Every hut is full. Swap one out, or build another hut." needs 232
+px, a 320 panel's line about 190); opening a panel clears the toasts, so nothing covers a panel), `clearNotices`, `floatText(world, text, color, big)`, `portrait(parent, look, size, pos)`, the `Stage` root (DisplayOrder
 22, full screen: a microgame's overlay, its UI px the world's art px), `tween` (a UDim2 property
 eases on Heartbeat snapped to whole UI px, Quad out, the newest tween of a property winning; the rest through
 TweenService), `Resized`, the effects `burst(parent, x, y, colors, n?, speed?)` (1 px bits from a point of a frame), `burstOn(gui,
@@ -1803,7 +1805,8 @@ mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; gla
 phone held sideways it keeps to the room left of the island card, on one held upright to the width up to the jump
 button (2026-11-18: it had 59 px there and cut its words off), as many lines as its words need; in Build mode it sits
 over the tray and over the Free Decor tab on its corner while that shows, `tipsLift`), and the `DayBanner` (Fx "day" and "turn":
-the day, what hatched; over a panel or in Build mode a notice instead); Fx "eggs" (`onEggs`): "The Tree of Life has new eggs!" (with `more`, "The tree laid 2 more eggs.") and the `rare`
+the day, what hatched; at least 140 wide, and as wide as its big-font title after the icon (`textWidth(title, "big")`
++ 28: "An egg hatched!" is 142) and each line; over a panel or in Build mode a notice instead); Fx "eggs" (`onEggs`): "The Tree of Life has new eggs!" (with `more`, "The tree laid 2 more eggs.") and the `rare`
 sound, or, with an epic or legendary egg among them (or `turned`, the quest's egg, of any rarity: "A rare egg is
 waiting under the tree."), "An epic egg is waiting under the tree." in its rarity's colour, the `grow` sound and a
 burst over the `TreeCard`. Shells coming in rise from their chip
@@ -1885,8 +1888,9 @@ building the panel, so the box keeps the keyboard; the words and the order stay 
 `pickSort`) while the game runs; `NoParent` when nothing matches; `Menus.debugParents(other, q, sort) -> { id }` for
 the sims), the likely child
 (`Child`: its portrait if seen, else its shape and ???, its rarity), `Cost` ("Costs 300 shells, hatches in 12 min. Mutations both carry pass on, maybe a tier up. The rest pass on half the time.", up to three lines, the row 76 px for a third),
-`Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`: portrait or silhouette, name or "???", the
-kind of island it comes from, its passive once seen; "Seen n of 55 kinds"; a kind not open yet says the island tier
+`Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`, 90 tall in three columns: portrait or silhouette, name or "???" (65 px beside the
+portrait: Glimmerfleece's), the kind of island it comes from, its passive once seen with its effects in up to four
+lines from the top (`PassiveFx` 40 tall; it was 20 in a 70 card, and 37 kinds' effects ended in "..."); "Seen n of 55 kinds"; a kind not open yet says the island tier
 it hatches from: "These hatch from island Lv 4."). "looks" is `UI/StoreUI`'s since 2026-11-14 (10.13). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut first. Driftlings
 need somewhere to live."; `full`: "Every hut is full. Swap one out, or build another hut."; `not_found`: "That egg is
 gone. The tree laid new ones."; `fixed`: "The Tree of Life stays on your island. You can move it."; `huts`: "Your huts

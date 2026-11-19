@@ -1186,7 +1186,10 @@ local statusSeq = 0
 function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	local open = openFrame
 	local status = if open then open:FindFirstChild("Status", true) else nil
-	if status and status:IsA("TextLabel") then
+	-- (words too long for the awning's line go over the screen's top as usual instead of ending in "...": "Every hut is
+	-- full. Swap one out, or build another hut." needs 232 px and a 320 panel's line has about 190; the request of
+	-- 2026-11-19, "it seems like the text gets cut off for some alerts")
+	if status and status:IsA("TextLabel") and UIKit.textWidth(text) <= status.Size.X.Offset then
 		statusSeq += 1
 		local mine = statusSeq
 		UIKit.setText(status, text)
@@ -1201,7 +1204,8 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	local canvas = UIKit.canvas("Popup")
 	local s = UIKit.size("Popup")
 	local w = math.min(UIKit.textWidth(text) + 14, s.X - 16)
-	local lines = if UIKit.textWidth(text) + 14 > w then 2 else 1
+	-- (as many lines as the words take at that width: a long one on a narrow phone can need three)
+	local lines = math.max(1, UIKit.lines(text, w - 12))
 	local h = 6 + 10 * lines
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(math.floor((s.X - w) / 2), 24), 2)
 	f.Name = "Notice"

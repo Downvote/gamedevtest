@@ -926,7 +926,10 @@ local function onDay(msg: { [string]: any })
 	end
 	local canvas = UIKit.canvas("Popup")
 	local s = UIKit.size("Popup")
-	local w = 140
+	-- (wide enough for the title in the big font after the icon, and for each line: the title went unmeasured and
+	-- "An egg hatched!" (142 px) showed as "An egg hat...", the request of 2026-11-19: "it seems like the text gets cut
+	-- off for some alerts")
+	local w = math.max(140, UIKit.textWidth(title, "big") + 28)
 	for _, l in lines do
 		w = math.max(w, UIKit.textWidth(l) + 16)
 	end

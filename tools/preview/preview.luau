@@ -2908,6 +2908,55 @@ local function cthumbsScenario(arg: string?)
 	return require("./cosmetic_thumbs")(env)
 end
 SCEN.cthumbs = cthumbsScenario
+-- "alerts": the alerts with their longest words, so the log's OVERFLOW lines catch any cut short (the request of
+-- 2026-11-19, "it seems like the text gets cut off for some alerts", with "An egg hat..." over "Blazemane hatched!"):
+-- the banner for one egg hatched (alerts_hatch), for three with the longest kind's name, new (alerts_hatch3), the
+-- longest error as a notice (alerts_notice), and with the Driftlings panel open a short notice in its awning's line
+-- and a long one over the screen's top (alerts_panel).
+function SCEN.alerts()
+	seedProfile(23, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000 })
+	local p = join(23, "Alert")
+	settle(p)
+	local SC = modOr(p, "Controllers.StateClient")
+	local UIKitC = modOr(p, "UI.UIKit")
+	local WordsC = modOr(p, "UI.Words")
+	local Creatures = H.sharedServer("Data.Creatures")
+	if SC == nil or UIKitC == nil or WordsC == nil then
+		log("alerts: no StateClient, UIKit or Words")
+		return p
+	end
+	local longest = Creatures.list[1]
+	for _, d in Creatures.list do
+		if #d.name > #longest.name then
+			longest = d
+		end
+	end
+	local function fx(msg)
+		H.inClient(p, function()
+			SC.Fx:Fire(msg)
+		end)
+	end
+	fx({ kind = "turn", hatched = { { sp = "blazemane" } } })
+	E.run(0.6)
+	capture(p, "alerts_hatch")
+	E.run(4)
+	fx({ kind = "turn", hatched = { { sp = longest.id }, { sp = "blazemane" }, { sp = "gullfin" } }, fresh = { longest.id } })
+	E.run(0.6)
+	capture(p, "alerts_hatch3")
+	E.run(5)
+	H.inClient(p, UIKitC.notice, WordsC.errText("work"), UIKitC.color("bad"))
+	E.run(0.4)
+	capture(p, "alerts_notice")
+	E.run(4)
+	H.openPanel(p, "pals")
+	E.run(0.6)
+	H.inClient(p, UIKitC.notice, WordsC.errText("money"), UIKitC.color("bad"))
+	H.inClient(p, UIKitC.notice, WordsC.errText("full"), UIKitC.color("bad"))
+	E.run(0.4)
+	capture(p, "alerts_panel")
+	return p
+end
+
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
 -- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
 -- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, its actors, whether it painted).
