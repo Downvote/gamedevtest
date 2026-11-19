@@ -2076,6 +2076,16 @@ text (the requests and how each was met) is in the history of this file, up to c
 - **What turns and flows:** a windmill's sails turn slowly, a waterwheel turns with the stream (the other way round)
   and so do the Grand Mill's paddles, on every island near the view; the little waterfall and the Spring Grotto's
   falls run with pale streaks moving down them. Reduced motion keeps the sails and wheels still.
+  > The request (2026-11-19): "detail all decor more, some having animations, as much as in the bakery game and as
+  > much as the work/hut/ main buildings"
+- **Decor that moves:** a decor piece's builder can mark parts that move (`Parts.move`): they spin (a merry-go-round,
+  a big wheel, a lighthouse's lamp, a clock's hands), swing (a swing's seats, a hammock, a bell, wind chimes, a hanging
+  lantern or bucket) or bob (a buoy, a boat, a duck decoy, floating lanterns), each piece a little out of step with
+  the next. At most 40 pieces move at a time, the ones on the screen nearest the middle of the view; the rest stand
+  still in their resting pose until the view comes to them. Flames throw up sparks that wink out (parts named Flame),
+  fountains throw spray from their jets that falls back into the basin (Spray), and crystals, gems and magic things
+  twinkle now and then (Sparkle), all drawn in the ambient layer with the smoke and steam. Reduced motion keeps them
+  all still.
 - **The camera** follows your founder and always keeps them in the middle of the view between the HUD's strips, at one
   zoom on every tier; in Build mode it still follows, a little lower, and a drag moves it from there (§4.5). It follows
   on a soft spring (the request of 2026-11-18: "Could you make the camera a smooth lerp follow the player like most top

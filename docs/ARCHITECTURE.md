@@ -521,7 +521,10 @@ Models (`src/shared/Models`, Roblox modules):
   grand pieces of tiers 7 to 10 and the four of tiers 12 to 20). They build through `Parts` (the same shapes `DecorModels` uses, through `Blocks`: anchored, no
   collision, palette colours, the 0.25-stud grid, never thinner than 0.25, in the piece's frame: `box`, `turned`, `at`,
   `ball`, `cyl`, `log`, `logZ`, `wedge`, `glow` (Neon), `water` (a flat water part with `PixelWater` 2, moving like the
-  shallows), `hash(f, k?)` (a number 0 .. 1 from the tile's place)).
+  shallows), `hash(f, k?)` (a number 0 .. 1 from the tile's place), `move(part, kind, hub, axis, speed, amp?, phase?)`
+  (a part that moves in the client, Controllers/Spinners: "spin" round `axis` "X" | "Y" | "Z" of the piece's frame
+  through `hub` at `speed` rad/s, "swing" `amp` rad either way at that pace, "bob" `amp` studs up and down with a
+  little rock; its `Move*` attributes; also `BuildKit.move`; 2026-11-19)).
 - `MicroModels` (the driftlings and the island's small things): `build(kind, opts?) -> Thing` (`{ model, parts, rest, sizes,
   baseRest, baseSize, colors, h, r, kind }`, a few palette parts round the origin, facing +Z), `driftling(shape, body,
   accent)` (the 37 body plans of `DriftModels`), `sailboat`,
@@ -1108,7 +1111,8 @@ before the first picture: only the boat arrival, unused now, asked for it).
 ### 9.3 `PixelRenderer`
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
 progress)`, `hideStatic(part)` (Controllers/Spinners: a static part leaves the picture, Transparency 1 so BakeCast
-looks through it, the rect it and its shadow cover cast again, or the stash marked dirty on a stage),
+looks through it, its old transparency kept in `PixelWasT`, the rect it and its shadow cover cast again, or the stash
+marked dirty on a stage), `showStatic(part)` (the other way: back at its old transparency, its rect cast again),
 `registerDynamic(model, outline?)` (outline "self" or "player": a founder, outlined in white, GAME_DESIGN
 14.1: Random Bakery's rim. Once every model and its ink edge is drawn, each founder's whole silhouette, hidden parts too,
 is drawn again flat into a scratch window of its parts' rect (`Raster.window`, a buffer grown on demand and never
@@ -1665,8 +1669,11 @@ chunk in its land model, `Isle.landModel`; each of the land's chunks, or the emp
 highest `Post`, `Rail` or `Top` of each fence, each `Ridge`, flat `Roof` and the sign's `Top` to perch on; `Flower`,
 `Bloom`, `Blossom`, `Petals`, `FlowerHeart` parts for the butterflies; `Leaves`, `Blossom` and `Leaf` parts a stud or
 more across, their colour, a blossom or a pale pink one dropping petals; `Chimney`, `Smoke`, `Coals` (and the
-smokehouse's `Vent`) smoking, `Steam`, `Teapot`, `Mug` steaming; the cells the pieces cover, so no bird stands in a
-building). A tick (`draw`, nothing while `CameraController.view().stage`): `stepLife` (the birds, the butterflies,
+smokehouse's `Vent`) smoking, `Steam`, `Teapot`, `Mug` steaming, and since 2026-11-19 (the request "detail all decor
+more, some having animations") `Flame` throwing up sparks (`Fx.KINDS.ember`: rising, winking), `Spray` throwing drops
+up from a fountain's jet that fall back (`Fx.KINDS.spray`: launched up, falling, gone where they land) and `Sparkle`
+twinkling now and then somewhere on the part (the sea's glint sprite, at most 40 glints at a time); at most 64 such
+spots an island; the cells the pieces cover, so no bird stands in a building). A tick (`draw`, nothing while `CameraController.view().stage`): `stepLife` (the birds, the butterflies,
 leaves, wisps, a fish, fireflies), then the tufts and flowers (`drawDecos`: once per `ver`, whether the lawn itself
 shows at the tuft's foot (an up-facing static pixel at its depth whose albedo is the grass or the dark grass) and the
 lawn's tones there (`Fx.tones` of the static colour, pulled toward it: `softTones`, `TUFT_K` 0.38 of each step
@@ -1691,15 +1698,22 @@ Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` 
 now), `setSuspended(on)` (a timing's A/B).
 
 `Spinners` (GAME_DESIGN 11; the request of 2026-11-14, "other models should be animated if possible too, such as
-windmills being able to spin"): every `SCAN_SECS` 1 the islands within `NEAR` 220 studs of the view are looked over,
-and each piece with a `SPECS` entry (windmill: `SailArm`, `Sail` round (0, 3.4, 0.9) on its Z, 0.9 rad/s; waterwheel:
-`Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; grandmill: `Paddle` round (1.6, 1.5, -0.6) on its X, 0.7)
-gets a turning copy: those parts cloned (anchored, no collision or query) into a `Spin_<name>` model in
-`workspace.PixelDynamic`, registered as a moving model, the originals hidden (`PixelRenderer.hideStatic`), each part
-kept as its offset from the hub (the model's `At` frame times the hub). Every Heartbeat the copies near the screen
-(`PixelRenderer.nearScreen` of the hub, 24 art px) turn
-(`hub * Angles(0, 0, phase + t * speed)` times each offset; still with reduced motion); a piece gone (moved, rebuilt,
-cleared) drops its copy at the next scan. `start()`, `debugState() -> { count, parts, ids, still }`.
+windmills being able to spin", and of 2026-11-19, "detail all decor more, some having animations"): every `SCAN_SECS`
+1 the islands within `NEAR` 220 studs of the view are looked over. A piece's moving parts are found once (a weak
+table by model): the parts its builder marked with `Parts.move` (attributes `Move` "spin" | "swing" | "bob",
+`MoveHub` a Vector3 in the piece's frame, `MoveAxis` "X" | "Y" | "Z", `MoveSpeed`, `MoveAmp`, `MovePhase`), or for
+an older building its `SPECS` entry by part name (windmill: `SailArm`, `Sail` round (0, 3.4, 0.9) on its Z, 0.9
+rad/s; waterwheel: `Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; grandmill: `Paddle` round (1.6, 1.5,
+-0.6) on its X, 0.7). Of the pieces with moving parts whose frame is on the screen (`PixelRenderer.nearScreen`, 40 art
+px), the `MAX_MOVING` 40 nearest the view's middle have a moving copy: their moving parts cloned (anchored, no
+collision or query) into a `Spin_<name>` model in `workspace.PixelDynamic`, registered as a moving model, the
+originals hidden (`PixelRenderer.hideStatic`), each part kept as its offset from its hub (the model's `At` frame times
+the hub). The others, and every piece with reduced motion on, have their copies dropped and their parts shown again
+at rest (`PixelRenderer.showStatic`). Every Heartbeat the copies near the screen (24 art px) move: spin `hub *
+fromAxisAngle(axis, phase + t * speed) * off`, swing the same by `amp * sin(phase + t * speed)`, bob lifted by `amp *
+sin(...)` and rocked 0.06 rad round the axis; the phase is the part's own plus a piece's offset from its name and
+place. A piece gone (moved, rebuilt, cleared) drops its copy at the next scan. `start()`, `debugState() -> { count,
+parts, ids, kinds, still }`.
 
 `BuildingTags` (GAME_DESIGN 4.6; the requests of 2026-11-14, "show capacities of work buildings when hovered over. if
 noone is working on a building, make a alert on top of said work building stating so. do the same for huts and
