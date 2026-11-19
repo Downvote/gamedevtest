@@ -331,27 +331,106 @@ end
 
 -- The free spot nearest (x, z) where piece `id` fits (turned `rot`, or a quarter more if that is nearer), searched over
 -- the island's grass: x, z, rot, or nil when there is none (Logic/Tree plants the tree with it; refit moves pieces).
+-- Ties go to the turn asked for, then the lower z, then the lower x. The cells are tried ring by ring out from (x, z),
+-- and the search stops once no farther ring can come nearer than the spot found; a piece that floats (water "on") is
+-- tried only where every cell under it is water. (It tried every cell of the island, each against every piece: a
+-- lily pad left off its pond on a big island took seconds. The server review of 2026-11-19.)
 function Plot.spot(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number): (number?, number?, number?)
 	local pr = Street.plot(tier)
-	local best, bx, bz, brot = math.huge, nil, nil, rot
-	for _, r in { rot, (rot + 90) % 360 } do
-		for cz = math.floor(pr.z0) + 1, math.floor(pr.z1) - 1 do
-			for cx = math.floor(pr.x0) + 1, math.floor(pr.x1) - 1 do
-				local d = (cx - x) ^ 2 + (cz - z) ^ 2 + (if r == rot then 0 else 0.5)
-				if d < best and Plot.fits(tier, placed, id, cx, cz, r) then
-					best, bx, bz, brot = d, cx, cz, r
+	local zx0, zx1 = math.floor(pr.x0) + 1, math.floor(pr.x1) - 1
+	local zz0, zz1 = math.floor(pr.z0) + 1, math.floor(pr.z1) - 1
+	if zx0 > zx1 or zz0 > zz1 then
+		return nil, nil, nil
+	end
+	local def = Buildings.byId[id]
+	local wet: { [number]: boolean }? = nil
+	if def and def.water == "on" then
+		local w: { [number]: boolean } = {}
+		for _, q in placed do
+			if Plot.isWater(q.id) then
+				local qr = Plot.rect(q.id, q.x, q.z, q.rot)
+				for cz = qr.z0, qr.z1 - 1 do
+					for cx = qr.x0, qr.x1 - 1 do
+						w[Street.cellKey(cx, cz)] = true
+					end
 				end
 			end
 		end
+		wet = w
 	end
-	if bx == nil then
+	local function allWet(cx: number, cz: number, r: number): boolean
+		local w = wet
+		if w == nil then
+			return true
+		end
+		local fr = Plot.rect(id, cx, cz, r)
+		for qz = fr.z0, fr.z1 - 1 do
+			for qx = fr.x0, fr.x1 - 1 do
+				if not w[Street.cellKey(qx, qz)] then
+					return false
+				end
+			end
+		end
+		return true
+	end
+	local rots = { rot, (rot + 90) % 360 }
+	local best, bx, bz, brot, bri = math.huge, 0, 0, rot, 0
+	local found = false
+	local function try(cx: number, cz: number)
+		if cx < zx0 or cx > zx1 or cz < zz0 or cz > zz1 then
+			return
+		end
+		for ri, r in rots do
+			local d = (cx - x) ^ 2 + (cz - z) ^ 2 + (if ri == 1 then 0 else 0.5)
+			-- (nearer, or as near and first in the old scan's order: the turn, then z, then x)
+			local better = d < best or (d == best and (ri < bri or (ri == bri and (cz < bz or (cz == bz and cx < bx)))))
+			if better and allWet(cx, cz, r) and Plot.fits(tier, placed, id, cx, cz, r) then
+				best, bx, bz, brot, bri = d, cx, cz, r, ri
+				found = true
+			end
+		end
+	end
+	local ox, oz = math.floor(x + 0.5), math.floor(z + 0.5)
+	local far = math.max(math.abs(ox - zx0), math.abs(zx1 - ox), math.abs(oz - zz0), math.abs(zz1 - oz))
+	for ring = 0, far do
+		-- (every cell of this ring and those past it lies at least ring - 0.5 from (x, z))
+		local near = math.max(0, ring - 0.5)
+		if found and near * near > best then
+			break
+		end
+		if ring == 0 then
+			try(ox, oz)
+		else
+			for cx = ox - ring, ox + ring do
+				try(cx, oz - ring)
+				try(cx, oz + ring)
+			end
+			for cz = oz - ring + 1, oz + ring - 1 do
+				try(ox - ring, cz)
+				try(ox + ring, cz)
+			end
+		end
+	end
+	if not found then
 		return nil, nil, nil
 	end
 	return bx, bz, brot
 end
 
+-- The driftlings working at a workplace that is gone: back to the arrangement (Island.arrange). One the player put
+-- there by hand (`pin`) is no longer pinned: pinned with no work reads as resting by the player's hand, so it rested
+-- for good, through every load (the server review of 2026-11-19; GAME_DESIGN 6: "goes back to the arrangement").
+local function freeWorkers(p: Profile, uid: number)
+	for _, x in p.pals do
+		if x.work == uid then
+			x.work = 0
+			x.pin = nil
+		end
+	end
+end
+
 -- Driftlings out of a hut that is gone (cleared away, or past a smaller hut's room): no hut, resting (they move into
--- a hut with room again: Logic/Tree.settle).
+-- a hut with room again: Logic/Tree.settle), not pinned anywhere.
 local function unhouse(p: Profile, uid: number, keep: number?)
 	local list: { Types.Pal } = {}
 	for _, x in p.pals do
@@ -364,6 +443,7 @@ local function unhouse(p: Profile, uid: number, keep: number?)
 		if keep == nil or i > keep then
 			x.home = 0
 			x.work = 0
+			x.pin = nil
 		end
 	end
 end
@@ -621,11 +701,7 @@ local function clearOut(p: Profile, gone: { [number]: boolean })
 			if Buildings.byId[q.id] then
 				stow(p, q.id)
 			end
-			for _, x in p.pals do
-				if x.work == q.uid then
-					x.work = 0
-				end
-			end
+			freeWorkers(p, q.uid)
 			unhouse(p, q.uid)
 		else
 			table.insert(keep, q)
@@ -925,12 +1001,22 @@ function Plot.refit(p: Profile): (number, number)
 		end)
 		return out
 	end
-	-- (the tree first: it keeps its place, the rest make room round it)
+	-- (the tree first: it keeps its place, the rest make room round it; then the water, so what floats on it finds it
+	-- kept whatever order it was laid in: a lily pad moved onto a pond painted after it was put down once failed
+	-- here every load, and was looked for a spot all over the island)
 	local order: { Piece } = {}
 	for _, q in p.plot.placed do
 		if Plot.isFixed(q.id) then
-			table.insert(order, 1, q)
-		else
+			table.insert(order, q)
+		end
+	end
+	for _, q in p.plot.placed do
+		if not Plot.isFixed(q.id) and Plot.isWater(q.id) then
+			table.insert(order, q)
+		end
+	end
+	for _, q in p.plot.placed do
+		if not Plot.isFixed(q.id) and not Plot.isWater(q.id) then
 			table.insert(order, q)
 		end
 	end
@@ -961,11 +1047,7 @@ function Plot.refit(p: Profile): (number, number)
 			keepPiece(q)
 		else
 			p.shells += Plot.price(p, q.id)
-			for _, x in p.pals do
-				if x.work == q.uid then
-					x.work = 0
-				end
-			end
+			freeWorkers(p, q.uid)
 			unhouse(p, q.uid)
 			gone[q] = true
 			cleared += 1
@@ -1004,11 +1086,7 @@ function Plot.store(p: Profile, i: number): (boolean, any)
 		end
 		stow(p, q.id)
 	end
-	for _, pal in p.pals do
-		if pal.work == q.uid then
-			pal.work = 0
-		end
-	end
+	freeWorkers(p, q.uid)
 	unhouse(p, q.uid)
 	table.remove(p.plot.placed, i)
 	return true, { id = q.id }

@@ -109,7 +109,9 @@ end
 function MonetizationService.grant(s: Session.S, key: string, purchaseId: string): (boolean, boolean)
 	local p = s.profile
 	if Store.paid(p, purchaseId) then
-		return true, true
+		-- (paid before, by this server: Roblox asks again when the first answer was "not yet", the save having failed,
+		-- so it is saved again before the answer; it said "saved" without saving)
+		return true, DataService.save(s.player.UserId, p)
 	end
 	local ok, data = Store.product(p, key, WorldClock.now())
 	if not ok then

@@ -280,15 +280,18 @@ function Island.output(p: Profile, isle: Isle?): { [number]: number }
 end
 
 -- What a turn makes now: the workplaces' together, times 1 + the charm bonus, the passes, the huts' "all" share (a
--- wondrous Goldtouched's) and a timed shells boost while one runs (Logic/Rewards: Profile.boosts).
-function Island.rates(p: Profile): Rates
+-- wondrous Goldtouched's) and a timed shells boost while one runs (Logic/Rewards: Profile.boosts). steady: without
+-- the timed boost (the pace the time away and the rewards counted in minutes go by: a boost only runs while the player
+-- is here, so a banked one must not multiply every return's report; the server review of 2026-11-19).
+function Island.rates(p: Profile, steady: boolean?): Rates
 	local i = Island.isle(p)
 	local made = Island.output(p, i)
 	local shells = 0
 	for _, q in p.plot.placed do
 		shells += made[q.uid] or 0
 	end
-	return { shells = shells * (1 + Island.charmBonus(Island.charm(p, i))) * Island.passMult(p) * (1 + i.all) * Island.timedMult(p) }
+	local timed = if steady then 1 else Island.timedMult(p)
+	return { shells = shells * (1 + Island.charmBonus(Island.charm(p, i))) * Island.passMult(p) * (1 + i.all) * timed }
 end
 
 -- A timed shells boost (a reward's: Logic/Rewards) multiplies every shell by 1 + Tuning.TimedShells while it runs.
@@ -396,6 +399,7 @@ function Island.arrange(p: Profile)
 	for _, x in p.pals do
 		if x.home == 0 or homes["p" .. x.id] == nil then
 			x.work = 0
+			x.pin = nil
 		elseif x.pin then
 			local sp = if x.work ~= 0 then spots[x.work] else nil
 			if x.work ~= 0 and (sp == nil or sp.n <= 0) then

@@ -448,6 +448,23 @@ local function buildSpin(list: ScrollingFrame, v: View, W: number): number
 	local y = 0
 	UIKit.heading(list, "Lucky Shell", y, "wheel", if r.spins == 1 then "1 spin" else string.format("%d spins", r.spins))
 	y += 14
+	local bw = 96
+	local function spinButton(at: number)
+		local b = UIKit.button(list, if spinning then "Spinning" else "Spin", UDim2.fromOffset(bw, 18), UDim2.fromOffset(math.floor((W - bw) / 2), at), spin, {
+			name = "Spin",
+			color = UIKit.color("button_ok"),
+			enabled = r.spins > 0 and not spinning,
+		})
+		b.ZIndex = 5
+		PixelSprites.image(b, "mini_wheel", UDim2.fromOffset(6, 3), 6)
+	end
+	-- (on a phone the button comes first: under the prizes it sat below the fold of a landscape screen, the sweep of
+	-- 2026-11-19)
+	local phone = UIKit.phone()
+	if phone then
+		spinButton(y)
+		y += 22
+	end
 	UIKit.text(list, "One free spin a day. Gifts and tasks give more.", UDim2.fromOffset(W, 10), UDim2.fromOffset(0, y), { color = UIKit.color("text_dim"), z = 4, name = "SpinHow" })
 	y += 13
 	local total = 0
@@ -468,16 +485,11 @@ local function buildSpin(list: ScrollingFrame, v: View, W: number): number
 		UIKit.text(f, if pct >= 1 then string.format("%d%%", math.floor(pct + 0.5)) else string.format("%.1f%%", pct), UDim2.fromOffset(30, 10), UDim2.new(1, -33, 0, 6), { x = "right", color = UIKit.color("text_dim"), z = 4, name = "Odds" })
 	end
 	y += math.ceil(#RewardsData.SPIN / cols) * 25 + 2
-	local bw = 96
-	y += 4
-	local b = UIKit.button(list, if spinning then "Spinning" else "Spin", UDim2.fromOffset(bw, 18), UDim2.fromOffset(math.floor((W - bw) / 2), y), spin, {
-		name = "Spin",
-		color = UIKit.color("button_ok"),
-		enabled = r.spins > 0 and not spinning,
-	})
-	b.ZIndex = 5
-	PixelSprites.image(b, "mini_wheel", UDim2.fromOffset(6, 3), 6)
-	y += 20
+	if not phone then
+		y += 4
+		spinButton(y)
+		y += 20
+	end
 	return y
 end
 

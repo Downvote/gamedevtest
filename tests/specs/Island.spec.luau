@@ -6,6 +6,7 @@ local Tuning = require("../../build/luautest/shared/Config/Tuning")
 local Island = require("../../build/luautest/shared/Logic/Island")
 local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
+local Plot = require("../../build/luautest/shared/Logic/Plot")
 
 -- (an island with nothing on it)
 local function fresh(): any
@@ -247,6 +248,20 @@ return function()
 		end
 		Island.arrange(p)
 		T.truthy(epic.pin == nil and epic.work == cafe, "its place gone: the arrangement places it")
+		-- the same when the rules take the place away (Plot.store): the pin goes with it, where it once stayed with no
+		-- work, which reads as resting by hand, for good (the server review of 2026-11-19)
+		Island.setHelp(p, epic.id, orchard)
+		T.truthy(epic.pin == true and epic.work == orchard)
+		local oi = 0
+		for i, q in p.plot.placed do
+			if q.uid == orchard then
+				oi = i
+			end
+		end
+		T.truthy((Plot.store(p, oi)))
+		T.truthy(epic.pin == nil and epic.work == 0, "stored away: its pin goes too")
+		Island.arrange(p)
+		T.truthy(epic.work ~= 0, "and the arrangement puts it to work again")
 		-- no hut, no work; no room anywhere, rest
 		local homeless = { id = p.nextId, sp = "mossbun", home = 0, work = lumber }
 		p.nextId += 1

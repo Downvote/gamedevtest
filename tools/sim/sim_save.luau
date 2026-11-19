@@ -412,8 +412,58 @@ E.resume(co)
 E.run(1)
 rec = record(9201)
 H.expect(rec.value.data.shells == 777, "save", "a save never overwrites another server's live lock", tostring(rec.value.data.shells))
+local co2Saved: boolean? = nil
+local co2 = coroutine.create(function()
+	co2Saved = DataService.save(9201, H.profile(p3), false)
+end)
+E.tagThread(co2, E.serverCtx)
+E.resume(co2)
+E.run(1)
+H.expect(co2Saved == false, "save", "and says it saved nothing (a purchase is not answered as saved)", tostring(co2Saved))
 H.expect(rec.value.lock.job == "another-server", "save", "their lock stays")
 rec.value.lock = nil
+
+------------------------------------------------------------------ a save from a newer version of the game
+-- (the server review of 2026-11-19: an older server dropped what it did not know on its first save) the player is sent
+-- off to a newer server, the record untouched and unlocked
+E.phase = "newer-save"
+seed(9213, { data = { v = Schema.VERSION + 1, shells = 4242, tier = 2, fromTheFuture = true } })
+local kicks0 = #(E.kicks or {})
+local fu = H.addPlayer({ userId = 9213, name = "Traveller" })
+E.run(3)
+local kicked = (E.kicks or {})[kicks0 + 1]
+H.expect(H.session(fu) == nil and kicked ~= nil and kicked.userId == 9213, "save", "a save newer than the server: no session, the player sent to rejoin", kicked and tostring(kicked.msg))
+rec = record(9213)
+H.expect(rec.value.data.shells == 4242 and rec.value.data.fromTheFuture == true and rec.value.data.v == Schema.VERSION + 1, "save", "its record as it was", tostring(rec.value.data.v))
+H.expect(rec.value.lock == nil, "save", "and not left locked")
+
+------------------------------------------------------------------ a leaving save that fails at first
+-- (the server review of 2026-11-19: the leaving save was one try) two failures in a row, then it goes through
+E.phase = "leave-retry"
+seed(9214, { data = { v = Schema.VERSION, shells = 100, tier = 1, tut = 0, createdAt = 1000 } })
+local lr = H.addPlayer({ userId = 9214, name = "Leaver" })
+E.run(3)
+local lrp = H.profile(lr)
+H.expect(lrp ~= nil, "save", "the leaver joins")
+if lrp then
+	lrp.shells = 98765
+	E.ds.failNext = 2
+	lr:Kick()
+	E.run(8)
+	rec = record(9214)
+	H.expect(rec.value.data.shells >= 98765 and rec.value.lock == nil, "save", "a leaving save that fails twice is tried again: saved, unlocked", string.format("%s %s", tostring(rec.value.data.shells), tostring(rec.value.lock)))
+	-- an autosave that started before the leaving save and lands after it writes nothing and takes no lock
+	local DS = H.smod("DataService")
+	local late = coroutine.create(function()
+		local saved = DS.save(9214, lrp, false)
+		H.expect(saved == false, "save", "a save after the leaving one says it saved nothing", tostring(saved))
+	end)
+	E.tagThread(late, E.serverCtx)
+	E.resume(late)
+	E.run(1)
+	rec = record(9214)
+	H.expect(rec.value.lock == nil, "save", "and the record stays unlocked")
+end
 
 ------------------------------------------------------------------ a join that waits out a lock
 E.phase = "takeover"

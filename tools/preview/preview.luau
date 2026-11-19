@@ -1609,6 +1609,12 @@ function SCEN.everdrift()
 			settle(p, 30, 1)
 		end
 		E.run(1.5)
+		-- (the incremental compose's base in step with the frame after each jump's re-bake: none off)
+		local PR = modOr(p, "Pixel.PixelRenderer")
+		if PR and PR.debugBaseCheck then
+			local bc = H.inClient(p, PR.debugBaseCheck)
+			log("everdrift %d: the frame against its base, %d pixels off%s", i, bc.n, if bc.rows ~= "" then " (rows " .. string.sub(bc.rows, 1, 200) .. ")" else "")
+		end
 		capture(p, "everdrift_" .. i)
 	end
 	return p

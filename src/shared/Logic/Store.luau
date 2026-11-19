@@ -53,9 +53,10 @@ function Store.owns(p: Profile, key: string): boolean
 	return p.passes ~= nil and p.passes[key] == true
 end
 
--- A minute of shells: what the island makes in a minute now, at least Tuning.RewardFloor times EggTier by its tier.
+-- A minute of shells: what the island makes in a minute now (its steady pace: a timed boost left out), at least
+-- Tuning.RewardFloor times EggTier by its tier.
 function Store.perMinute(p: Profile): number
-	local r = Island.rates(p).shells * 60 / Tuning.TurnSeconds
+	local r = Island.rates(p, true).shells * 60 / Tuning.TurnSeconds
 	local floor = Tuning.RewardFloor * Tuning.EggTier[math.clamp(p.tier, 1, #Tuning.EggTier)]
 	return math.max(r, floor)
 end
@@ -153,8 +154,8 @@ function Store.vipDaily(p: Profile, now: number): (boolean, any)
 		return false, "locked" :: ErrCode
 	end
 	local day = math.floor(now / 86400)
-	if p.vipDay == day then
-		return false, "cooldown" :: ErrCode
+	if day <= p.vipDay then
+		return false, "cooldown" :: ErrCode -- (in order: a server whose clock runs behind gives no second gift)
 	end
 	p.vipDay = day
 	return true, { given = { addShells(p, Store.minutes(p, Tuning.VipDailyMins)), addEgg(p, Tuning.VipDailyEgg) } }
@@ -171,8 +172,9 @@ function Store.offlinePct(p: Profile): number
 end
 
 -- What the island made while away (Profile.seenAt to `now`, the sea's clock): nil when the time is unknown, too short
--- (under Tuning.OfflineMinSec) or the island makes nothing. Its pace is now's (Island.rates: the passes, the group
--- and charm in), times 1 + the huts' away share (Island.isle).
+-- (under Tuning.OfflineMinSec) or the island makes nothing. Its pace is now's steady one (Island.rates: the passes,
+-- the group and charm in, a timed boost not: it runs down only while the player is here), times 1 + the huts' away
+-- share (Island.isle).
 function Store.offline(p: Profile, now: number): Types.OfflineReport?
 	if p.seenAt <= 0 then
 		return nil
@@ -182,7 +184,7 @@ function Store.offline(p: Profile, now: number): Types.OfflineReport?
 		return nil
 	end
 	local secs = math.min(away, Store.offlineCap(p))
-	local perSec = Island.rates(p).shells / Tuning.TurnSeconds
+	local perSec = Island.rates(p, true).shells / Tuning.TurnSeconds
 	-- (a wondrous Dreamer in a hut makes the time away pay more: Island.isle's away share)
 	local shells = math.floor(math.max(0, perSec) * secs * Store.offlinePct(p) * (1 + Island.isle(p).away) + 1e-9)
 	if shells <= 0 then

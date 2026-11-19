@@ -18,6 +18,7 @@ local Tuning = {
 	AutosaveSec = 120,
 	LockTTL = 330, -- s: a session lock older than this is stale (a crashed server)
 	LoadRetries = 4,
+	SaveRetries = 3, -- tries at a leaving player's save (2 s, then 4 s between them)
 
 	-- the island (GAME_DESIGN 3-5): it makes and eats by the turn (TurnSeconds while the player is here: every rate is
 	-- a turn's); the calendar day (the clock, day and night, the day count) is DaySeconds of the sea's clock, the same

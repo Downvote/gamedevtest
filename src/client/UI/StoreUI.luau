@@ -206,24 +206,6 @@ local function an(word: string): string
 	return if c == "a" or c == "e" or c == "i" or c == "o" or c == "u" then "an" else "a"
 end
 
--- A reward's words (Data/Track's shape) for this player now: "1,200 shells", "an epic egg", "Tide Crown", "Title:
--- Captain".
-local function rewardWords(v: Types.ClientView, r: Track.Reward): string
-	if r.kind == "shells" then
-		return Numbers.coins(math.floor((v.minuteShells or 0) * (r.mins or 1))) .. " shells"
-	elseif r.kind == "egg" then
-		local rar = Traits.RARITY[math.clamp(r.r or 1, 1, Traits.RMAX)]
-		return string.format("%s %s egg", an(rar.name), string.lower(rar.name))
-	elseif r.kind == "look" then
-		local c = Cosmetics.byId[r.id or ""]
-		return if c then c.name else "a piece"
-	elseif r.kind == "title" then
-		local t = Titles.byId[r.id or ""]
-		return "Title: " .. (if t then t.name else "?")
-	end
-	return ""
-end
-
 -- What a purchase or a reward gave (Fx rewards' `given`), in one plain line: each thing when there are three or fewer,
 -- else counted ("2 eggs, 2 pieces").
 local FROM: { [string]: string } = {

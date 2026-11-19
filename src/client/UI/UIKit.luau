@@ -871,6 +871,26 @@ function UIKit.scroll(parent: Instance?, size: UDim2, pos: UDim2?): ScrollingFra
 	s.ScrollingDirection = Enum.ScrollingDirection.Y
 	s.ZIndex = 2
 	s.Parent = parent
+	-- a small arrow at the list's foot while there is more below (the 3 px bar alone was easy to miss on a phone, where
+	-- a sheet's last rows sit under the fold of a landscape screen: the sweep of 2026-11-19)
+	if parent then
+		local p, z = s.Position, s.Size
+		local cue = PixelSprites.image(parent, "arrow_down_t", UDim2.new(p.X.Scale + z.X.Scale * 0.5, p.X.Offset + z.X.Offset // 2 - 3, p.Y.Scale + z.Y.Scale, p.Y.Offset + z.Y.Offset - 8), 7)
+		cue.Name = "MoreBelow"
+		cue.Visible = false
+		local function update()
+			if cue.Parent == nil then
+				return
+			end
+			local can, win = s.AbsoluteCanvasSize.Y, s.AbsoluteWindowSize.Y
+			cue.Visible = s.Visible and can > win + 4 and s.CanvasPosition.Y + win < can - 4
+		end
+		s:GetPropertyChangedSignal("CanvasPosition"):Connect(update)
+		s:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(update)
+		s:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(update)
+		s:GetPropertyChangedSignal("Visible"):Connect(update)
+		task.defer(update)
+	end
 	return s
 end
 
@@ -918,11 +938,38 @@ end
 ------------------------------------------------------------------ panels
 -- The notices on screen (UIKit.notice); a panel that opens clears them so none sits over it.
 local noticeList: { Frame } = {}
+-- Each notice to its place in the stack, from the top: `new` (just made) slides down into its place, the others glide
+-- to theirs. A tween, not a plain set, so it takes over from a slide in still running: that one kept going to its old
+-- place, and three notices at once (the titles a hatch can bring) all ended up on one spot, one over another.
+-- (where the notices start: under the HUD's day banner while one shows over their spot, else 24: UIKit.setNoticeTop)
+local noticeTop: number? = nil
+local function restackNotices(new: Frame?)
+	local y = noticeTop or 24
+	for _, n in noticeList do
+		local x = n.Position.X.Offset
+		if n == new then
+			n.Position = UDim2.fromOffset(x, y - 8)
+			UIKit.tween(n, 0.18, { Position = UDim2.fromOffset(x, y) })
+		else
+			UIKit.tween(n, 0.12, { Position = UDim2.fromOffset(x, y) })
+		end
+		y += n.Size.Y.Offset + 8
+	end
+end
 function UIKit.clearNotices()
 	for _, n in noticeList do
 		n:Destroy()
 	end
 	table.clear(noticeList)
+end
+-- The notices start lower while something sits over their spot (the HUD's day banner: its bottom edge and a gap), and
+-- back at the top with nil; the ones showing move with it. The sweep of 2026-11-19 found a new day's banner over them.
+function UIKit.setNoticeTop(y: number?)
+	if noticeTop == y then
+		return
+	end
+	noticeTop = y
+	restackNotices(nil)
 end
 
 -- Registered panels (Hud's menus): build(body, arg) fills the panel's body; UIKit.openPanel shows one at a time.
@@ -1353,17 +1400,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 			old:Destroy()
 		end
 	end
-	local y = 24
-	for _, n in noticeList do
-		if n == f then
-			-- the new one slides down into its place
-			n.Position = UDim2.fromOffset(n.Position.X.Offset, y - 8)
-			UIKit.tween(n, 0.18, { Position = UDim2.fromOffset(n.Position.X.Offset, y) })
-		else
-			n.Position = UDim2.fromOffset(n.Position.X.Offset, y)
-		end
-		y += n.Size.Y.Offset + 8
-	end
+	restackNotices(f)
 	task.delay(seconds or 3.5, function()
 		if f.Parent == nil then
 			return
@@ -1396,6 +1433,8 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 			table.remove(noticeList, i)
 		end
 		f:Destroy()
+		-- (the ones under it move up into the gap)
+		restackNotices(nil)
 	end)
 end
 
@@ -1745,6 +1784,13 @@ function UIKit.tween(inst: Instance, time: number, props: { [string]: any })
 			if inst.Parent == nil or mapping == nil or mapping[k] ~= mine then
 				if conn then
 					conn:Disconnect()
+				end
+				-- (gone mid-tween: its entry goes too, or the table held every such frame for the session)
+				if mapping and mapping[k] == mine then
+					mapping[k] = nil
+					if next(mapping) == nil then
+						gridTweens[inst] = nil
+					end
 				end
 				return
 			end

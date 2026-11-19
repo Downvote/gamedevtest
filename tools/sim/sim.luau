@@ -1718,7 +1718,7 @@ do
 	local count = p.PlayerGui:FindFirstChild("Count", true)
 	H.expect(count ~= nil and count.Text == string.format("%d/%d", room, most), "panels", "the Huts tab counts the room out of the limit", count and count.Text)
 	local card = H.buttonNamed(p, "Buy_burrow", true)
-	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the burrow's card says No room", card and table.concat(H.textsOf(card), "/"))
+	H.expect(card ~= nil and table.find(H.textsOf(card), "Full") ~= nil, "panels", "the burrow's card says Full", card and table.concat(H.textsOf(card), "/"))
 	H.clickNamed(p, "Buy_burrow", { includeDisabled = true, wait = 0.3 })
 	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("No more hut room"), "panels", "a tap on it picks nothing up and says why")
 	H.clickNamed(p, "Tab_decor", { wait = 0.3 })
@@ -1796,7 +1796,7 @@ do
 	local count = p.PlayerGui:FindFirstChild("Count", true)
 	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "panels", "the Work tab counts the places at work out of the cap", count and count.Text)
 	local card = H.buttonNamed(p, "Buy_orchard", true)
-	H.expect(card ~= nil and table.find(H.textsOf(card), "No room") ~= nil, "panels", "the orchard's card says No room", card and table.concat(H.textsOf(card), "/"))
+	H.expect(card ~= nil and table.find(H.textsOf(card), "Full") ~= nil, "panels", "the orchard's card says Full", card and table.concat(H.textsOf(card), "/"))
 	H.clickNamed(p, "Buy_orchard", { includeDisabled = true, wait = 0.3 })
 	H.expect(H.buttonNamed(p, "Place", true) == nil and statusSays("No more work spots"), "panels", "a tap on it picks nothing up and says why")
 	H.clickNamed(p, "BuildDone", { wait = 0.3 })
@@ -1918,7 +1918,7 @@ do
 				if sawLocked then
 					table.insert(bad, "open after a locked one: " .. c.id)
 				end
-				if c.lock ~= nil and c.lock ~= "No room" then
+				if c.lock ~= nil and c.lock ~= "Full" then
 					table.insert(bad, string.format("%s says %s", c.id, tostring(c.lock)))
 				end
 				if d.shells < lastWood then
@@ -3203,7 +3203,7 @@ do
 		H.clickNamed(p, "Tab_" .. t, { wait = 0.2 })
 		H.clickNamed(p, "Chip_all", { optional = true, wait = 0.2 })
 		for _, c in TrayCheck.cards() do
-			if c.lock ~= nil and c.lock ~= "No room" then
+			if c.lock ~= nil and c.lock ~= "Full" then
 				table.insert(locked, c.id)
 			end
 		end
@@ -3478,6 +3478,58 @@ do
 end
 H.checkProfile(p, "store")
 mirror(p, "store")
+
+-- notices fired together each get their own place in the stack (three new titles at once, as a hatch can bring, all
+-- ended up on one spot: each one's slide in kept going to the place it was given first), and the ones under a notice
+-- that goes move up into its gap
+E.phase = "notices"
+do
+	H.closePanel(p)
+	E.run(0.3)
+	local function shown(): { any }
+		local out = {}
+		for _, d in p.PlayerGui:GetDescendants() do
+			if d.Name == "Notice" and d:IsA("Frame") and H.guiVisible(d) then
+				table.insert(out, d)
+			end
+		end
+		table.sort(out, function(a: any, b: any): boolean
+			return a.Position.Y.Offset < b.Position.Y.Offset
+		end)
+		return out
+	end
+	UIKitP.clearNotices()
+	UIKitP.notice("First of three notices at once.", nil, 2)
+	UIKitP.notice("Second of three.", nil, 4)
+	UIKitP.notice("And the third one, the longest of them all.", nil, 6)
+	E.run(0.6)
+	local ns = shown()
+	local ys = {}
+	for _, n in ns do
+		table.insert(ys, tostring(n.Position.Y.Offset))
+	end
+	local apart = #ns == 3
+	for i = 2, #ns do
+		apart = apart and ns[i].Position.Y.Offset >= ns[i - 1].Position.Y.Offset + ns[i - 1].Size.Y.Offset
+	end
+	H.expect(apart, "notices", "three notices at once each have their own place, one under another", table.concat(ys, ", "))
+	-- the first goes after 2 s: the other two move up
+	E.run(2.2)
+	local left = shown()
+	H.expect(#left == 2 and left[1].Position.Y.Offset == 24, "notices", "when the top one goes, the rest move up into its place", left[1] and tostring(left[1].Position.Y.Offset))
+	-- a new day's banner over their spot: they stack below it while it shows, and go back up after (the sweep of
+	-- 2026-11-19 found the banner over them)
+	UIKitP.setNoticeTop(70)
+	E.run(0.3)
+	local under = shown()
+	H.expect(#under == 2 and under[1].Position.Y.Offset == 70, "notices", "with a banner over their spot, the notices move down below it", under[1] and tostring(under[1].Position.Y.Offset))
+	UIKitP.setNoticeTop(nil)
+	E.run(0.3)
+	local back = shown()
+	H.expect(#back == 2 and back[1].Position.Y.Offset == 24, "notices", "and back up when it goes", back[1] and tostring(back[1].Position.Y.Offset))
+	UIKitP.clearNotices()
+	E.run(0.2)
+end
 
 -- phones and tablets (the request of 2026-11-19: "make mobile and tablet as responsive and catered to as possible ...
 -- Make menus fill the screen on mobile with currency showing and an exit button"): a phone's screen (touch, no mouse): a

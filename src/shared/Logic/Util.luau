@@ -76,6 +76,14 @@ function Util.newRng(seed: number): Rng
 	return (setmetatable({ state = s }, RngMethods) :: any) :: Rng
 end
 
+-- Mix n (any whole number) into a generator's state: the server stirs fresh randomness of its own into a session's
+-- generator before each request, so a client running the same generator cannot follow its draws.
+function Util.stir(rng: Rng, n: number)
+	local r = rng :: any
+	local s = bit32.bxor(r.state, math.floor(n) % TWO32)
+	r.state = if s == 0 then 0x9E3779B9 else s
+end
+
 function Util.pick<T>(rng: Rng, arr: { T }): T
 	return arr[rng:int(1, #arr)]
 end

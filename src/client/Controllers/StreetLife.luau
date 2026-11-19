@@ -17,8 +17,26 @@ local StreetLife = {}
 local BOAT_SPEED = 4 -- studs a second
 local started = false
 
-type Boat = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number, ph: number }
-type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number, lag: number }
+type Boat = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number, ph: number, parked: boolean? }
+type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number, lag: number, parked: boolean? }
+
+-- A boat or a gull is moved (its parts, its flags) only while it is near the view: art px past the layer's edge it
+-- still counts as near (a ship's half length, and some). Away from the view it sails or flies on as numbers, its model
+-- parked once under the sea floor, so no stale picture of it shows if the view turns its way (the four ships' hundreds
+-- of parts and the gulls were moved every frame wherever they were: about 3% of a frame's scripts on a full island).
+local NEAR_PX = 64
+local PARK = CFrame.new(0, -400, 0)
+local function nearView(t: MicroModels.Thing, rec: { parked: boolean? }, at: Vector3): boolean
+	if PixelRenderer.nearScreen(at, NEAR_PX) then
+		rec.parked = false
+		return true
+	end
+	if not rec.parked then
+		rec.parked = true
+		MicroModels.place(t, PARK)
+	end
+	return false
+end
 
 local function dyn(): Instance
 	local f = workspace:FindFirstChild("PixelDynamic")
@@ -85,11 +103,13 @@ function StreetLife.start()
 			elseif c.dir < 0 and c.x < b.x0 - 12 then
 				c.x = b.x1 + 12
 			end
-			local swell = math.sin(now * 1.6 + c.ph)
-			local bob = if swell > 0.3 then 0.25 elseif swell < -0.3 then 0 else 0.125
-			local roll = math.rad(if swell > 0.5 then 4 elseif swell < -0.5 then -4 else 0)
-			MicroModels.flutter(c.t, now + c.ph)
-			MicroModels.place(c.t, CFrame.new(c.x, Street.WATER_Y - 0.1 + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0) * CFrame.Angles(0, 0, roll))
+			if nearView(c.t, c, Vector3.new(c.x, Street.WATER_Y, c.z)) then
+				local swell = math.sin(now * 1.6 + c.ph)
+				local bob = if swell > 0.3 then 0.25 elseif swell < -0.3 then 0 else 0.125
+				local roll = math.rad(if swell > 0.5 then 4 elseif swell < -0.5 then -4 else 0)
+				MicroModels.flutter(c.t, now + c.ph)
+				MicroModels.place(c.t, CFrame.new(c.x, Street.WATER_Y - 0.1 + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0) * CFrame.Angles(0, 0, roll))
+			end
 		end
 		-- a flock crosses now and then
 		if now >= flockAt then
@@ -126,6 +146,9 @@ function StreetLife.start()
 			local vx, vz = fdir * 9, (fslant + sway * 0.25) * 9
 			bd.x += vx * dt
 			bd.z += vz * dt
+			if not nearView(bd.t, bd, Vector3.new(bd.x, bd.y, bd.z)) then
+				continue
+			end
 			local cf = CFrame.new(bd.x, bd.y + math.sin(now * 2 + bd.ph) * 0.5, bd.z) * CFrame.Angles(0, math.atan2(vx, vz), 0)
 			MicroModels.place(bd.t, cf)
 			local glide = math.sin(now * 0.5 + bd.ph * 3) > 0.4

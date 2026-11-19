@@ -1004,7 +1004,7 @@ do
 	H.expect(count ~= nil and count.Text == string.format("%d/%d", most, most), "build", "the Huts tab's count: the room of the limit", count and count.Text)
 	local hutCard = H.buttonNamed(a, "Buy_nest", true)
 	local words = if hutCard then table.concat(H.textsOf(hutCard), "/") else ""
-	H.expect(hutCard ~= nil and string.find(words, "No room", 1, true) ~= nil, "build", "the hut's card shows No room", words)
+	H.expect(hutCard ~= nil and string.find(words, "Full", 1, true) ~= nil, "build", "the hut's card shows Full", words)
 	H.clickNamed(a, "Buy_nest", { includeDisabled = true, wait = 0.3 })
 	local ghost = false
 	for _, d in E.workspace:GetDescendants() do
@@ -2366,6 +2366,13 @@ do
 	H.checkProfile(big, "big island")
 	settled(big)
 	H.checkMirror(big, "big island")
+	-- the pixel filter after all those re-bakes: the incremental compose's base in step with the frame, so taking an
+	-- effect off never puts back a pixel of the picture before (the sweep of 2026-11-19: rows of another spot's colours
+	-- trailing the leaves after a re-bake)
+	local PRb = H.cmod(big, "Pixel.PixelRenderer")
+	E.run(1)
+	local bc = PRb.debugBaseCheck()
+	H.expect(bc.n <= 0, "big", "after the re-bakes the frame's base matches the frame", string.format("%d off; rows %s", bc.n, string.sub(bc.rows, 1, 120)))
 end
 
 report(E, H)

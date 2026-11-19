@@ -655,6 +655,19 @@ return function()
 		T.eq(select(2, Tree.house(p, c.id, 0, 0)), "bad_payload", "no pen to move to")
 		T.eq(select(2, Tree.house(p, 99999, nest, 0)), "not_found")
 		T.eq(select(2, Tree.house(p, c.id, nest2, b.id)), "bad_payload", "the swap doesn't live there")
+		-- a driftling the player put to work by hand keeps that place through a move (its work was cleared while the
+		-- pin stayed, which reads as resting by hand: it rested for good; the server review of 2026-11-19)
+		local stall = 0
+		for _, q in p.plot.placed do
+			if q.id == "stall" then
+				stall = q.uid
+			end
+		end
+		T.truthy(Island.setHelp(p, c.id, stall))
+		T.truthy(c.pin == true and c.work == stall)
+		local room = build(p, "nest")
+		T.truthy(Tree.house(p, c.id, room, 0))
+		T.truthy(c.home == room and c.pin == true and c.work == stall, "moved, still at its picked place")
 	end)
 
 	T.it("selling: shells by rarity and mutations; a hut's room goes to one waiting with no hut", function()

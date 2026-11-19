@@ -485,7 +485,9 @@ floor, it just looks noisy", 2026-11-14),
   cut at the bottom into scallops (9 px each, the band's colour, shaded under, outlined in ink between them and along
   their bottoms) that hang over the glass. On the awning: the panel's mini icon, its title in white with an ink
   outline, the status line (notices while the panel is open; one too long for it shows over the screen's top as
-  usual, so none is cut short: the request of 2026-11-19, "it seems like the text gets cut off for some alerts"), a few of the panel's things on a little driftwood shelf
+  usual, so none is cut short: the request of 2026-11-19, "it seems like the text gets cut off for some alerts";
+  notices at the top stack one under another, each sliding into its place, the rest moving up as one goes, and below
+  a new day's banner while it shows: they all landed on one spot before), a few of the panel's things on a little driftwood shelf
   (the Tree of Life's eggs, the Store's crown, a shell and a ticket, the Rewards' egg, gift and Lucky Shell) and a
   close mark (an X, its own sprite, on a deep teal button). Under it the panel is as before: light words in their own
   bright colours (a rarity's name in its colour), each row on a faint white veil, neutral buttons dark glass. Tabs are
@@ -509,6 +511,9 @@ floor, it just looks noisy", 2026-11-14),
     and the bigger exit too, so the room a tablet has goes to bigger lists instead of empty sea.
   - Hover is a mouse's: on a touch screen a long press (0.35 s) shows what a hover shows (a driftling's card, a build
     piece's card), and a tap still does what a click does.
+  - A list with more below than fits shows a small down arrow at its foot until it's scrolled to the end, and on a
+    phone the Lucky Shell's Spin comes first, under the heading (below the prizes it fell under a landscape screen's
+    fold; the sweep of 2026-11-19).
   - Interactive things stay inside the safe area (the notch, Roblox's top bar): the HUD, panels and notices sit in
     ScreenGuis that keep Roblox's core UI insets. The game is landscape only (StarterGui `LandscapeSensor`).
   - On a phone the menu bar is icons only, square, so it stays clear of Roblox's jump button at the bottom right.
@@ -797,7 +802,7 @@ The totals stay near the old ones (8, 24, 40, 60, 96, 168 on the capital ... 840
 a new hut opened and asked for many huts there. The huts grew with them (the Burrow held 4, the Den 5, the Roost 6, the
 Grotto 8, the Palace 12, the Loft 14, the Manor 16, the Keep 18, the Citadel 20), and their prices grew with their room,
 so a driftling's place in a hut costs what it did; their comfort and charm stayed. Huts can still be small: four
-Driftling Huts (two each) hold as many as a Cozy Burrow (eight), with no comfort where the burrow has some. A hut whose room won't fit shows "No room" on its card, and placing it is refused ("No more hut room. Grow the
+Driftling Huts (two each) hold as many as a Cozy Burrow (eight), with no comfort where the burrow has some. A hut whose room won't fit shows "Full" on its card, and placing it is refused ("No more hut room. Grow the
 island."). A bigger hut replaces a smaller one only while the
 limit has room for the difference; a smaller one always can; and two small huts cleared make way for a bigger one. The
 Huts tab's count shows the room against the limit ("24/24"). A save housing more than its tier allows keeps its huts.
@@ -823,7 +828,7 @@ newest. A workplace's price was always its tier's price for each of its places, 
 growth exactly, and a played-through island fills both caps that way.) The four on Castaway Cay keep
 2: its cap is 8, and the tips ask for a camp, a patch and a stall there. All of an island's places at work together stay
 within its cap, which is its driftling limit (the housing limit above: 8 on Castaway Cay up to 840 on Everdrift), so
-every driftling it can house has a place and no more. A workplace whose places won't fit shows "No room" on its card,
+every driftling it can house has a place and no more. A workplace whose places won't fit shows "Full" on its card,
 and placing it is refused ("No more work spots. Grow the
 island."). A bigger workplace replaces a smaller one only while the cap has room for the difference; a smaller
 one always can, keeping its first workers (the rest go back to the arrangement). The Work tab's count shows the places
@@ -1420,8 +1425,10 @@ When the island grows into a new stage, the tree is built again at it.
   later gets the best farmers at once. The work picker (the card's and the Driftlings panel's Work) still lets you
   place one by hand: it stays there (`Pal.pin`) while the rest are arranged round it, and its card says "your pick".
   The picker's first row, **Auto**, hands it back to the arrangement. Resting by hand counts as a pick too. When a
-  picked workplace is cleared away, its driftling goes back to the arrangement. Picking a full workplace sends the
-  one there first back to the arrangement.
+  picked workplace is cleared away, put away or moved off by the island growing, its driftling goes back to the
+  arrangement (it used to stay "resting by hand" for good; the review of 2026-11-19), and a driftling moved to
+  another hut keeps the place it was picked for. Picking a full workplace sends the one there first back to the
+  arrangement.
 - **Every hut full** (`full`): the Tree panel's swap picker opens, listing every driftling in a hut, the weakest first,
   each with what it sells for. Pick one and it is sold for its price (`Tree.price`, below) and the hatchling takes its
   place ("Hatched an epic Pyredrake. The old one sold for 7 shells."). If a new lot replaced the egg while
@@ -1972,7 +1979,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   its mutations. After the scene the notice starts with it too: "New! Hatched a rare Wispwing." A Hatchery's
   hatchling of a kind never had says it in the turn's banner ("New: Floe hatched"). "Tap to go on" shows after a moment; that tap
   goes straight back to the island (its picture was kept, so it is there at once), the Tree panel back if Hatch was
-  pressed there. The scene waits for that tap and never closes by itself.
+  pressed there. The scene waits for that tap and never closes by itself. A second hatch while one plays waits its
+  turn: its scene starts when the first is tapped away (two quick hatches used to play over each other).
 - **Grander by rarity** (`GLORY`, by the rarity it is at that moment): the light of dusk for the commoner ones, a blue,
   violet or deep gold night for the rarer, a rose one for a mythic egg and a starry blue one for a celestial egg, the
   egg's own lights pooling round it (the twinkles gold sparks for a legendary egg, pink stars for a mythic one, long
@@ -2705,7 +2713,9 @@ and a flatter, slightly cooler underside, thick in the middle and thinning to it
 (every pixel, three in four, every other one, one in four) that is fixed to the cloud, so it moves with it and never
 crawls; the clouds scroll with the island when the view pans, fade in through the same dither, and one that drifts off
 comes back from upwind with a new shape; blossom wind blows pink petals across, falling
-leaves orange and red leaves, heat haze sends pale motes up off the ground, a breeze draws quick wind lines. Each
+leaves orange and red leaves, heat haze sends pale motes up off the ground, a breeze sends a few wisps of wind across
+(never more than seven at once: a near-white line with one small step in it, its ends fading, fading in and out as it
+goes; there used to be some fifty faint streaks that looked like a broken picture in a still frame) and leaves. Each
 weather tints the bright day a little (`DayLight.setWeather`) and keeps it bright: rain and storms a touch cooler and
 greyer, snow and fog lighter, haze and leaves warmer. A new spell fades in over a few seconds. Sounds: a drizzle loop
 in rain, a heavy rain loop in a storm, wind gusts on a breezy, blossom or leafy day, the thunder (Roblox's licensed
@@ -2845,7 +2855,10 @@ model, `sh tools/preview/cosmetic_thumbs.sh` draws them again.
 (`seenAt`, on the sea's clock, every second while the player is there). Back after at least five minutes
 (`OfflineMinSec`), the island has kept earning: up to 3 hours of the time away (`OfflineHours`) at 30% of what it makes
 now (`OfflinePct`). With the **Offline Pass** it is up to 24 hours (`OfflinePassHours`) at the full pace
-(`OfflinePassPct`). A save from before this has no time to count, so its first time back earns nothing.
+(`OfflinePassPct`). A save from before this has no time to count, so its first time back earns nothing. The pace
+counted is the island's own: a Busy Day boost left over doesn't count, since it only runs down while the player is
+here (a banked one used to multiply every return; the review of 2026-11-19). Rewards worth "minutes of shells" go by
+the same pace.
 
 The **welcome-back card** opens by itself once the loading card has gone: "+3,240 shells" big, then "You were away
 9 h 20 min. Your driftlings worked 3 h of it, at 30% pace." Without the pass, a line says what it gives ("Offline
@@ -2930,7 +2943,9 @@ while something waits to be claimed (`Rewards.view.ready`). On the HUD's status 
 something on it waits:
 
 - **Today: the daily reward and the streak.** One a day (`reward.daily`). Claimed the day after the last claim the
-  streak goes on, else it starts again at 1. The streak's day in a round of seven picks the reward (`DAILY`: 4 min of
+  streak goes on, else it starts again at 1. A day only counts when it is later than the last claim's, so a server
+  whose clock has fallen behind can't hand out the same day's reward, free spin or VIP gift twice (the review of
+  2026-11-19; the servers' clocks also catch up with the real time after a stall now). The streak's day in a round of seven picks the reward (`DAILY`: 4 min of
   shells; an uncommon egg and 2 min; 8 min and a spin; a rare egg and a Lucky Hour; 12 min and a Busy Day; an epic
   egg and a spin; a legendary egg, 24 min of shells and two spins), shown as seven cards (the seventh twice as wide),
   the ones taken this round ticked, today's gold. A streak reaching 3, 7, 14, 30, 60 or 100 days also gives that

@@ -60,6 +60,10 @@ type Egg = {
 	born: number, -- when it rose out of the lawn
 	sink: number?, -- when it started sinking back (a new lot replaced it)
 	crack: number?, -- when it started hatching
+	cf: CFrame?, -- where its parts were last put (unchanged: they are left alone)
+	fxT: number?, -- the twelfth of a second its lights were last put in
+	moveParts: { BasePart }?, -- its parts and their places, moved in one call (Workspace:BulkMoveTo)
+	moveCfs: { CFrame }?,
 }
 
 local eggs: { [string]: Egg } = {}
@@ -150,6 +154,11 @@ local function dress(e: Egg)
 	m.Parent = dyn()
 	PixelRenderer.registerDynamic(m)
 	e.model, e.parts, e.top, e.fx = m, parts, top, fx
+	local list: { BasePart } = table.create(#parts)
+	for i, rp in parts do
+		list[i] = rp.p
+	end
+	e.moveParts, e.moveCfs = list, table.create(#parts)
 end
 
 local function drop(e: Egg)
@@ -188,8 +197,9 @@ local function played(data: { [string]: any }, fromPanel: boolean)
 	local fresh = data.new == true
 	UIKit.closePanel()
 	HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, Traits.RMAX), new = fresh }, function()
-		-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line)
-		if fromPanel and StateClient.view() ~= nil then
+		-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line; not while
+		-- another hatch waits to play, whose scene comes next: then what hatched shows as a notice over it)
+		if fromPanel and StateClient.view() ~= nil and HatchScene.waiting() == 0 then
 			UIKit.openPanel("tree")
 		end
 		local said = if sold > 0 then string.format("Hatched %s. The old one sold for %s shells.", what, Numbers.coins(sold)) else string.format("Hatched %s.", what)
@@ -422,27 +432,40 @@ local function stepEgg(e: Egg, t: number)
 	end
 	dress(e)
 	local cf = at :: CFrame
+	-- (an egg lying still keeps its place frame after frame: its parts are put again only when it moved, rocks, rises,
+	-- sinks or cracks; every egg's dozens of parts written every frame came to about 2 ms a frame on a full island)
+	local moved = e.crack ~= nil or e.cf ~= cf
+	e.cf = cf
 	local k = if e.crack then (t - (e.crack :: number)) / CRACK else 0
-	for _, rp in e.parts do
-		local here = cf * rp.off
-		if e.crack and k >= 0.45 then
-			if table.find(e.top, rp.p) then
-				-- (the top flies up and off, turning)
-				local u = (k - 0.45) / 0.55
-				here = cf * CFrame.new(0.6 * u, 2.2 * u - 1.6 * u * u, 0) * CFrame.Angles(0, 0, -2.2 * u) * rp.off
-			else
-				-- (the rest sinks into the lawn)
-				here = here - Vector3.new(0, ease((k - 0.45) / 0.55) * 1.2, 0)
+	if moved then
+		local cfs = e.moveCfs :: { CFrame }
+		for i, rp in e.parts do
+			local here = cf * rp.off
+			if e.crack and k >= 0.45 then
+				if table.find(e.top, rp.p) then
+					-- (the top flies up and off, turning)
+					local u = (k - 0.45) / 0.55
+					here = cf * CFrame.new(0.6 * u, 2.2 * u - 1.6 * u * u, 0) * CFrame.Angles(0, 0, -2.2 * u) * rp.off
+				else
+					-- (the rest sinks into the lawn)
+					here = here - Vector3.new(0, ease((k - 0.45) / 0.55) * 1.2, 0)
+				end
 			end
+			cfs[i] = here
 		end
-		rp.p.CFrame = here
+		workspace:BulkMoveTo(e.moveParts :: { BasePart }, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 	end
 	-- the rarity's lights: an epic or mythic egg's motes circle it, bobbing; a celestial egg's ring of lights orbits it,
 	-- tilted like a planet's ring. Hatching or sinking, they go out (under the lawn).
 	local s = SIZE[e.r] or 1
 	local quiet = e.crack ~= nil or e.sink ~= nil
-	-- (they move twelve times a second: in between the pixel filter shows the egg's kept picture)
+	-- (they move twelve times a second: in between the pixel filter shows the egg's kept picture, and they are left
+	-- where they are)
 	t = math.floor(t * 12) / 12
+	if not moved and e.fxT == t then
+		return
+	end
+	e.fxT = t
 	for _, f in e.fx do
 		if quiet then
 			f.p.CFrame = CFrame.new(cf.Position - Vector3.new(0, 6, 0))

@@ -45,6 +45,12 @@ return function()
 		local _, again = Rewards.claimDaily(p, d0 + 9 * DAY)
 		T.eq(again.streak, 1)
 		T.eq(p.rewards.daily.best, 8)
+		-- a server whose clock runs a day behind gives no second claim (days compared in order: the server review of
+		-- 2026-11-19), and neither does the free spin
+		T.eq(select(2, Rewards.claimDaily(p, d0 + 8 * DAY)), "cooldown", "an earlier day than the last claim")
+		local sp = p.rewards.spin
+		sp.day, sp.extra = Rewards.day(d0 + 9 * DAY), 0
+		T.eq(Rewards.spins(p, d0 + 8 * DAY), 0, "no free spin on an earlier day")
 	end)
 	T.it("streak milestones: given once each, the day the streak reaches them (a title among them)", function()
 		local p = fresh()

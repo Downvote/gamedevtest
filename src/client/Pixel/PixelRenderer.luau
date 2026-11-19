@@ -1362,6 +1362,11 @@ local function finishBake(s: Surf, b: Surf, done: boolean?)
 	prevRects = {}
 	SG.ok = false
 	SG.ver += 1
+	-- (the next compose is a whole one, so the incremental composes start again from this picture: without it they
+	-- went on from the old picture's base, and every effect taken off the frame put back a pixel of the old place,
+	-- each moving leaf or wisp of wind leaving a row of another spot's colours behind it; the sweep of 2026-11-19
+	-- found them after a long walk's re-bake)
+	needFull = true
 	uploadAll(s)
 	stats.bakes += 1
 	staticChanged()
@@ -2865,15 +2870,22 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 	end
 	for model, d in dyns do
 		local first = d.parts[1]
+		local culled = model.Parent == nil or first == nil
+		if not culled then
+			local fp = (first :: DynPart).part.Position
+			local fx, fy = Raster.project(cam, fp.X, fp.Y, fp.Z)
+			culled = fx < -CULL or fy < -CULL or fx > W + CULL or fy > H + CULL
+		end
+		-- (off the layer now and nothing of it on the layer from before: no entry, nothing to show or to take off. A model
+		-- far away got a new entry every compose: the other islands' moving pieces, the boats and gulls out at sea, every
+		-- other founder)
+		if culled and d.shR == nil and d.sR == nil then
+			continue
+		end
 		local e: PlanEntry = { d = d, pic = nil, x0 = 0, y0 = 0, x1 = -1, y1 = -1, dz = 0, gx = 0, gy = 0, sx = nil, sy = 0, srx = 0, sry = 0 }
 		table.insert(out, e)
 		at[d] = e
-		if model.Parent == nil or first == nil then
-			continue
-		end
-		local fp = first.part.Position
-		local fx, fy = Raster.project(cam, fp.X, fp.Y, fp.Z)
-		if fx < -CULL or fy < -CULL or fx > W + CULL or fy > H + CULL then
+		if culled then
 			continue
 		end
 		local c, x0, y0, x1, y1 = SG.blitOk(s, d, fresh, ppu)
@@ -5244,6 +5256,43 @@ function PixelRenderer.debugGradeCheck(): { checked: number, off: number, image:
 		end
 	end
 	return out
+end
+
+-- Sims and previews: the incremental compose's base against its frame. Pixels where the frame differs from the base
+-- other than this tick's effects and the stuck ones: the base is out of step there, and taking an effect off would put
+-- back a wrong colour (n: how many, -1 when no incremental compose is going; rows: the rows with eight or more). The
+-- sweep of 2026-11-19 found a re-bake leaving the old place's base under the new picture.
+function PixelRenderer.debugBaseCheck(): { n: number, rows: string }
+	local s = surf
+	local b = SG.base
+	if s == nil or b == nil or SG.incOn ~= s then
+		return { n = -1, rows = "" }
+	end
+	local W, H = s.W, s.H
+	local skip: { [number]: boolean } = {}
+	for k = 0, fxPrevN - 1 do
+		skip[buffer.readu32(fxPrev, k * 4)] = true
+	end
+	for _, i in stickList do
+		skip[i] = true
+	end
+	local f = s.frame
+	local total = 0
+	local rows: { string } = {}
+	for y = 0, H - 1 do
+		local c = 0
+		for x = 0, W - 1 do
+			local i = y * W + x
+			if not skip[i] and buffer.readu32(f.color, i * 4) ~= buffer.readu32(b.color, i * 4) then
+				c += 1
+			end
+		end
+		total += c
+		if c >= 8 then
+			table.insert(rows, y .. ":" .. c)
+		end
+	end
+	return { n = total, rows = table.concat(rows, " ") }
 end
 
 -- Sims and previews: the moving models' kept pictures against drawing every model afresh, at one moment: two whole

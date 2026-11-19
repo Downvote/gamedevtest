@@ -198,9 +198,22 @@ wetParams.FilterType = Enum.RaycastFilterType.Exclude
 -- A player's look from their "Founder" attribute (Data/Looks.decode: indices clamped to the lists, a piece kept only
 -- when it is a known one of that slot), or one from their user id while there is none. The string is the rig's key:
 -- a new one rebuilds it.
+-- (each player's look as last decoded, by the attribute's words: decoded again only when they change; it was every
+-- player's every frame)
+local lookCache: { [Player]: { raw: string, look: Types.Look, sig: string } } = setmetatable({}, { __mode = "k" }) :: any
+local decodeLook: (pl: Player, s: string) -> (Types.Look, string)
 local function lookOf(pl: Player): (Types.Look, string)
 	local a = pl:GetAttribute("Founder")
 	local s = if type(a) == "string" then a else ""
+	local c = lookCache[pl]
+	if c and c.raw == s then
+		return c.look, c.sig
+	end
+	local look, sig = decodeLook(pl, s)
+	lookCache[pl] = { raw = s, look = look, sig = sig }
+	return look, sig
+end
+decodeLook = function(pl: Player, s: string): (Types.Look, string)
 	local d = Looks.decode(s)
 	if d then
 		local look: Types.Look = {
@@ -264,14 +277,33 @@ end
 -- Where a character's feet are: on the ground under it (the lawn, a floor, the boardwalk) while it stands there; in the
 -- air (a jump: Humanoid.FloorMaterial is Air) at its root's height less the root's height over the ground as it last
 -- stood (learnt, whatever the avatar's size), so the chibi leaves the ground with it. True while airborne.
-local function feetY(rec: Rec, char: Model, root: BasePart): (number, boolean)
+-- (what the ground rays leave out: the dynamic models and every character, set on the rays' params only when the
+-- characters change; it was rebuilt and set on both params for every player every frame)
+local filterList: { Instance } = {}
+local function updateFilter()
 	local list: { Instance } = { dyn() }
 	for _, p in Players:GetPlayers() do
-		if p.Character then
-			table.insert(list, p.Character)
+		local ch = p.Character
+		if ch then
+			table.insert(list, ch)
 		end
 	end
-	groundParams.FilterDescendantsInstances = list
+	local same = #list == #filterList
+	if same then
+		for i, x in list do
+			if filterList[i] ~= x then
+				same = false
+				break
+			end
+		end
+	end
+	if not same then
+		filterList = list
+		groundParams.FilterDescendantsInstances = list
+		wetParams.FilterDescendantsInstances = list
+	end
+end
+local function feetY(rec: Rec, char: Model, root: BasePart): (number, boolean)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	local inAir = hum ~= nil and hum.FloorMaterial == Enum.Material.Air
 	local hit = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), groundParams)
@@ -279,7 +311,6 @@ local function feetY(rec: Rec, char: Model, root: BasePart): (number, boolean)
 		rec.floor = floorOf(hit)
 		if rec.floor ~= "swim" then
 			-- (a river, pond or pool laid on the ground doesn't collide either: wading in it splashes)
-			wetParams.FilterDescendantsInstances = list
 			local wet = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), wetParams)
 			if wet and wet.Instance:GetAttribute("PixelWater") ~= nil and wet.Position.Y <= hit.Position.Y + 1 then
 				rec.floor = floorOf(wet)
@@ -302,6 +333,7 @@ end
 local function step(dt: number)
 	local t = os.clock()
 	local me = Players.LocalPlayer
+	updateFilter()
 	for _, pl in Players:GetPlayers() do
 		local char = pl.Character
 		local root = if char then char:FindFirstChild("HumanoidRootPart") else nil

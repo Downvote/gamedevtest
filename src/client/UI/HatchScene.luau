@@ -55,7 +55,9 @@
 -- the light of dusk for the commoner ones, a blue, violet or deep gold night for the rarer, a rose night for a mythic
 -- one and a deep starry blue for a celestial one (DayLight.hold). A mythic egg's twinkles are pink, a celestial one's
 -- long glints of white and cyan, and petals or motes drift by.
---   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as), new? (a kind never had: "New!") }
+--   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as), new? (a kind never had: "New!") };
+--                                     while a scene shows, the hatch waits and plays when it ends (HatchScene.waiting():
+--                                     how many wait)
 --   HatchScene.isOpen(), HatchScene.skip() (a tap), HatchScene.debugState() (sims and previews: the phase and what is
 --   shown), HatchScene.setQuick(on) (sims: the scene ends at once, `after` still runs)
 local GuiService = game:GetService("GuiService")
@@ -292,6 +294,8 @@ type Scene = {
 }
 
 local scene: Scene? = nil
+-- hatches that came while a scene showed, each played when the one before it ends
+local waiting: { { res: Result, after: (() -> ())? } } = {}
 local quick = false
 
 local function glory(r: number): Glory
@@ -2029,14 +2033,25 @@ closeScene = function(s: Scene)
 	if after then
 		after()
 	end
+	-- (a hatch that came while this one showed plays now, the sheet the first one brought back put away for it)
+	local nxt = table.remove(waiting, 1)
+	if nxt then
+		UIKit.closePanel()
+		HatchScene.play(nxt.res, nxt.after)
+	end
+end
+
+-- How many hatches wait for the scene showing now to end (EggView: the tree's sheet comes back only after the last).
+function HatchScene.waiting(): number
+	return #waiting
 end
 
 function HatchScene.play(res: Result, after: (() -> ())?)
 	if scene ~= nil then
-		-- (one at a time: a second hatch while one shows just says so when it ends)
-		if after then
-			task.defer(after)
-		end
+		-- (one at a time: a second hatch while one shows plays when it ends. It used to run its `after` at once, so the
+		-- tree's sheet came back over the scene still playing and the second egg's reveal never showed: a second Hatch
+		-- tapped while the first was on its way)
+		table.insert(waiting, { res = res, after = after })
 		return
 	end
 	if quick then

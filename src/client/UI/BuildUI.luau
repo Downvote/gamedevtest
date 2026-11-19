@@ -1232,7 +1232,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		if locked then
 			UIKit.text(b, string.format("Lv%d", def.tier), UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif noRoom then
-			UIKit.text(b, if def.kind == "breed" then "Max" else "No room", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
+			-- ("Full": "No room" needs 37 px and the card's line has 34, so it was cut short)
+			UIKit.text(b, if def.kind == "breed" then "Max" else "Full", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif held > 0 then
 			heldLine(b, held, 7)
 		elseif cost <= 0 then
@@ -1392,7 +1393,8 @@ end
 
 local function expandButton(f: Frame, v: Types.ClientView)
 	local cost = Island.expandCost(v.tier)
-	UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(54, 13), UDim2.new(1, -102, 0, 2), function()
+	-- (56 wide: "Island max" needs 51 px of words and the button keeps 2 a side; at 54 its last letter was cut)
+	UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(56, 13), UDim2.new(1, -104, 0, 2), function()
 		local res = ask("island.expand", {})
 		if res.ok then
 			-- the cheer at once: the new land's chunks come in as the server swaps them, and the pixel filter draws the
@@ -1411,7 +1413,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 		pf.Name = "ExpandCost"
 		pf.BackgroundTransparency = 1
 		pf.Size = UDim2.fromOffset(100, 11)
-		pf.Position = UDim2.new(1, -102, 0, 17)
+		pf.Position = UDim2.new(1, -104, 0, 17)
 		pf.Parent = f
 		price(pf, 0, 0, cost.shells, v)
 	end
@@ -1672,7 +1674,11 @@ local function moveGhostTo(pos: Vector2): boolean
 	end
 	local same = p.set and p.x == x and p.z == z
 	p.x, p.z, p.set = x, z, true
-	showGhost()
+	-- (built again only when it moves to another cell: the mouse's every move and the view's every panning frame
+	-- rebuilt the whole model and its footprint, and gave the pixel filter a new model each time)
+	if not same or ghost == nil then
+		showGhost()
+	end
 	return same
 end
 

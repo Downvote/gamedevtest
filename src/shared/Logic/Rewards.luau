@@ -82,7 +82,9 @@ export type Daily = {
 function Rewards.daily(p: Profile, now: number): Daily
 	local d = p.rewards.daily
 	local today = Rewards.day(now)
-	local ready = d.last ~= today
+	-- (days compared in order, never as "another day": a server whose clock runs behind would give today's again;
+	-- the server review of 2026-11-19)
+	local ready = today > d.last
 	local streak = if not ready then d.streak elseif d.last == today - 1 then d.streak + 1 else 1
 	local nextM = 0
 	for _, m in RewardsData.MILESTONES do
@@ -143,11 +145,11 @@ function Rewards.sync(p: Profile, now: number): boolean
 	local rw = p.rewards
 	local today = Rewards.day(now)
 	local changed = false
-	if rw.play.day ~= today then
+	if today > rw.play.day then
 		rw.play = { day = today, secs = 0, got = {} }
 		changed = true
 	end
-	if rw.tasks.day ~= today then
+	if today > rw.tasks.day then
 		local pool: { RewardsData.TaskDef } = {}
 		for _, t in RewardsData.TASKS do
 			if p.tier >= t.tier then
@@ -253,7 +255,7 @@ end
 -- Spins in hand: today's free one (not used yet) and the extra ones.
 function Rewards.spins(p: Profile, now: number): number
 	local sp = p.rewards.spin
-	return (if sp.day ~= Rewards.day(now) then 1 else 0) + sp.extra
+	return (if Rewards.day(now) > sp.day then 1 else 0) + sp.extra
 end
 
 -- A spin (the free one first): a slice by weight, its reward given. not_done: no spin in hand. The slice's index
@@ -261,7 +263,7 @@ end
 function Rewards.spin(p: Profile, rng: Rng, now: number): (boolean, any)
 	local sp = p.rewards.spin
 	local today = Rewards.day(now)
-	if sp.day ~= today then
+	if today > sp.day then
 		sp.day = today
 	elseif sp.extra > 0 then
 		sp.extra -= 1

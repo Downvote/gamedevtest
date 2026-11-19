@@ -270,6 +270,9 @@ end
 -- by mutation rarity or creature rarity"). Both stay while the game runs, so the second parent's list opens the way the
 -- first one's was left.
 local pickQuery = ""
+-- the picker's search box (kept across rebuilds) and the list its typing fills now
+local pickSearch: Frame? = nil
+local pickFill: (() -> ())? = nil
 local pickSort = "rarity" -- "rarity": the rarest kind first; "muts": the rarest mutations first
 
 -- A driftling's mutations as tiers, the highest first (the key the mutation order compares).
@@ -423,10 +426,27 @@ local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, 
 	local lw = UIKit.textWidth(lead) + 2
 	x -= lw + 2
 	UIKit.text(body, lead, UDim2.fromOffset(lw, 10), UDim2.fromOffset(x, top + 1), { color = UIKit.color("text_dim"), name = "SortLead" })
-	UIKit.searchBox(body, x - 6, UDim2.fromOffset(0, top), function(q: string)
-		pickQuery = q
-		fill()
-	end, "PalSearch", pickQuery)
+	-- (the box is kept while the sheet is rebuilt, as the Rewards' code box is: a view coming every turn rebuilt it and
+	-- took the keyboard away mid-word. Its typing fills whichever list is up now.)
+	pickFill = fill
+	local sb = pickSearch
+	if sb == nil or sb.Parent ~= body then
+		if sb then
+			sb:Destroy()
+		end
+		local nb = UIKit.searchBox(body, x - 6, UDim2.fromOffset(0, top), function(q: string)
+			pickQuery = q
+			local f = pickFill
+			if f then
+				f()
+			end
+		end, "PalSearch", pickQuery)
+		nb:SetAttribute("Keep", true)
+		pickSearch = nb
+	else
+		sb.Position = UDim2.fromOffset(0, top)
+		sb.Size = UDim2.fromOffset(x - 6, 12)
+	end
 	fill()
 end
 
@@ -450,6 +470,12 @@ local function buildHatch(body: Frame, arg: any?)
 	if type(arg) == "table" and type(arg.hatch) == "number" and (arg.slot == "a" or arg.slot == "b") then
 		buildParentPicker(body, v, arg.hatch, arg.slot)
 		return
+	end
+	-- (no picker: its kept search box goes)
+	local sb = pickSearch
+	if sb then
+		sb:Destroy()
+		pickSearch, pickFill = nil, nil
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	-- (eggs warming: Finish now, the Finish Hatcheries product, GAME_DESIGN 14)

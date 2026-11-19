@@ -36,13 +36,18 @@ export type S = {
 local Session = {}
 
 local sessions: { [Player]: S } = {}
+-- the server's own randomness (Roblox's generator, seeded by the engine; nothing a client sees): a session's generator
+-- starts from it and takes more of it before each request (Session.stir). The seed was the player's id and the join's
+-- second, and the generator is the shared one the client has, so a scripted client could find the seed and mirror
+-- every draw, hatching or spinning only when the next was a good one (the server review of 2026-11-19).
+local entropy = Random.new()
 
 function Session.create(player: Player, profile: Types.Profile, plot: number): S
 	local s: S = {
 		player = player,
 		profile = profile,
 		plot = plot,
-		rng = Util.newRng(Util.hash32(tostring(player.UserId) .. ":" .. tostring(os.time()))),
+		rng = Util.newRng(entropy:NextInteger(1, 4294967295)),
 		ready = false,
 		turnClock = 0,
 		dayIndex = WorldClock.dayIndex(),
@@ -59,6 +64,11 @@ end
 
 function Session.get(player: Player): S?
 	return sessions[player]
+end
+
+-- Fresh randomness into the session's generator (the Router, before each request).
+function Session.stir(s: S)
+	Util.stir(s.rng, entropy:NextInteger(0, 4294967295))
 end
 
 function Session.remove(player: Player)

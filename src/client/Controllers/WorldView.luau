@@ -461,8 +461,9 @@ end
 -- One island's driftlings from its attributes (only when near the view; far ones are let go). One new in a hut on an
 -- island already peopled just hatched (from the tree's egg, or a Hatchery's): it steps out where its egg lay and walks
 -- off.
+-- (peopled: an island with an owner whose driftlings were read; one near the view but unclaimed is not, so when a
+-- player claims it their driftlings walk out over it rather than all popping out of the tree's hollow at once)
 local peopled: { [number]: boolean } = {}
-local born: { [string]: number } = {} -- key -> when it popped out (the arrival's cheer)
 -- (the Pals attribute last read for each island: read again only when it changed; a full Everdrift's is 840 entries)
 local palsRead: { [number]: string } = {}
 local function syncPlot(i: number, near: boolean)
@@ -498,7 +499,6 @@ local function syncPlot(i: number, near: boolean)
 						if peopled[i] then
 							local hx, hz = EggView.hatchPoint(i)
 							at = Vector2.new(hx, hz)
-							born[key] = os.clock()
 						end
 						local nw = newWalker(key, tonumber(id) or 0, i, sp, tonumber(work) or 0, hm, at, muts)
 						if at then
@@ -526,7 +526,7 @@ local function syncPlot(i: number, near: boolean)
 			drop(key)
 		end
 	end
-	peopled[i] = m ~= nil and near
+	peopled[i] = owned
 end
 
 ------------------------------------------------------------------ moving them

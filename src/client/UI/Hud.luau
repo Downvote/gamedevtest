@@ -66,6 +66,9 @@ local LINE_H = 11
 local chips: { [string]: TextLabel } = {}
 local chipFrames: { [string]: Frame } = {}
 local chipIcons: { [string]: GuiObject } = {}
+-- what each chip set from outside (Hud.topChip) shows, put back when a resize builds the top bar again: the season's
+-- and the weather's chips came back empty and stayed so until their words next changed, up to a minute later
+local chipSaid: { [string]: { icon: string?, text: string, color: Color3? } } = {}
 local bar: Frame? = nil
 local barW = 0
 local card: Frame? = nil
@@ -258,7 +261,9 @@ local function layoutStatus()
 		end
 	end
 	st.Size = UDim2.fromOffset(STATUS_W, y + 1)
-	st.Visible = #statusOrder > 0
+	-- (stepping aside for Build mode and any panel, as `stack` has it: the lines change a few times a second, and each
+	-- change set it showing again over the panel)
+	st.Visible = #statusOrder > 0 and not (BuildUI.isOpen() or UIKit.currentPanel() ~= nil)
 end
 
 function Hud.statusLine(name: string, icon: string?, text: string?, color: Color3?)
@@ -294,12 +299,16 @@ function Hud.statusLine(name: string, icon: string?, text: string?, color: Color
 		l = nf
 	end
 	local line = l :: Frame
-	local ic = line:FindFirstChild("Icon")
-	if ic then
-		ic:Destroy()
-	end
-	if icon then
-		PixelSprites.image(line, "mini_" .. icon, UDim2.fromOffset(0, 0), 3).Name = "Icon"
+	-- (its icon made again only when it changes: the gift's line is set four times a second)
+	if line:GetAttribute("Icon") ~= (icon or "") then
+		line:SetAttribute("Icon", icon or "")
+		local ic = line:FindFirstChild("Icon")
+		if ic then
+			ic:Destroy()
+		end
+		if icon then
+			PixelSprites.image(line, "mini_" .. icon, UDim2.fromOffset(0, 0), 3).Name = "Icon"
+		end
 	end
 	local t = line:FindFirstChild("Text")
 	if t and t:IsA("TextLabel") then
@@ -352,6 +361,11 @@ end
 -- A chip on the top bar's line after the shells (UI/WeatherChip: "season", "weather"): its icon, its words and their
 -- colour; nil words take it away.
 function Hud.topChip(name: string, icon: string?, text: string?, color: Color3?)
+	if text then
+		chipSaid[name] = { icon = icon, text = text, color = color }
+	else
+		chipSaid[name] = nil
+	end
 	local f: Frame?, l: TextLabel? = chipFrames[name], chips[name]
 	if not f or not l then
 		return
@@ -959,6 +973,8 @@ local function onDay(msg: { [string]: any })
 	end
 	banner = f
 	UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(x, 30) })
+	-- (the notices make way below it while it shows: they share the top of the screen)
+	UIKit.setNoticeTop(30 + h + 6)
 	if #lines > 0 then
 		task.delay(0.3, function()
 			if f.Parent then
@@ -967,10 +983,17 @@ local function onDay(msg: { [string]: any })
 		end)
 	end
 	task.delay(2.6 + #lines * 0.5, function()
+		-- (the notices' spot given back even when the banner went with its canvas: a rebuild of the HUD)
+		if banner == f then
+			UIKit.setNoticeTop(nil)
+		end
 		if f.Parent then
 			UIKit.tween(f, 0.25, { Position = UDim2.fromOffset(x, -h - 10) })
 			task.wait(0.3)
 			f:Destroy()
+		end
+		if banner == f then
+			banner = nil
 		end
 	end)
 end
@@ -1074,6 +1097,9 @@ local function rebuild()
 	card, treeCard, tips, quest, homeButton, topBar = nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 104 else 116
 	buildTop()
+	for name, said in chipSaid do
+		Hud.topChip(name, said.icon, said.text, said.color)
+	end
 	-- the status panel keeps its lines across a rebuild (they come from other modules)
 	if status == nil then
 		local st = UIKit.glass(UIKit.canvas("Hud"), UDim2.fromOffset(QUEST_W, 4), UDim2.fromOffset(EDGE, CARD_Y), 2)

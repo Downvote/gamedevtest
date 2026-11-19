@@ -20,6 +20,10 @@ local store: GlobalDataStore? = nil
 local memory: { [string]: any } = {}
 local usingMemory = false
 local jobId = if game.JobId ~= "" then game.JobId else HttpService:GenerateGUID(false)
+-- the saves and unlocks going now (BindToClose waits for them), and the players whose leaving save has gone out: a
+-- later save from this server (an autosave that started before they left) never writes or locks their record again
+local pending = 0
+local released: { [number]: boolean } = {}
 
 function DataService.init()
 	local ok, s = pcall(function()
@@ -58,6 +62,7 @@ end
 -- store could not be read (the caller kicks: playing on would overwrite a save it could not see).
 function DataService.load(userId: number): (any, boolean)
 	local key = keyOf(userId)
+	released[userId] = nil
 	for attempt = 1, Tuning.LoadRetries do
 		local lockedByOther = false
 		local raw: any = nil
@@ -83,23 +88,76 @@ function DataService.load(userId: number): (any, boolean)
 	return nil, false
 end
 
--- Save a profile; release = also drop the lock (the player left).
+-- Save a profile; release = also drop the lock (the player left). Returns whether the record now holds it: false when
+-- the store failed, when another server holds the player's lock (nothing written: its save is newer), or for a save
+-- after the player's leaving one. A leaving save is tried Tuning.SaveRetries times (the store's cooldown on one key
+-- after an autosave, a hiccup): it is the last chance, and a lost one rolled the player back to the last autosave.
+-- (The server review of 2026-11-19: the leaving save was one try nothing waited for, and a skipped save said ok.)
 function DataService.save(userId: number, profile: Types.Profile, release: boolean?): boolean
+	if released[userId] and not release then
+		return false
+	end
+	if release then
+		released[userId] = true
+	end
 	local key = keyOf(userId)
-	local ok, err = update(key, function(old: any): any
-		local rec = if type(old) == "table" then old else {}
-		local lock = rec.lock
-		if type(lock) == "table" and lock.job ~= jobId and type(lock.t) == "number" and os.time() - lock.t < Tuning.LockTTL then
-			return nil -- another server took over: never overwrite its save
+	pending += 1
+	local wrote = false
+	local tries = if release then Tuning.SaveRetries else 1
+	for attempt = 1, tries do
+		local skipped = false
+		local ok, err = update(key, function(old: any): any
+			local rec = if type(old) == "table" then old else {}
+			local lock = rec.lock
+			if type(lock) == "table" and lock.job ~= jobId and type(lock.t) == "number" and os.time() - lock.t < Tuning.LockTTL then
+				skipped = true
+				return nil -- another server took over: never overwrite its save
+			end
+			if not release and released[userId] then
+				skipped = true
+				return nil -- (an autosave finishing after the leaving save: it would lock the record again)
+			end
+			rec.data = profile
+			rec.lock = if release then nil else { job = jobId, t = os.time() }
+			return rec
+		end)
+		if ok then
+			wrote = not skipped
+			break
 		end
-		rec.data = profile
-		rec.lock = if release then nil else { job = jobId, t = os.time() }
-		return rec
+		warn(string.format("[DataService] save %d failed (attempt %d): %s", userId, attempt, tostring(err)))
+		if attempt < tries then
+			task.wait(2 * attempt)
+		end
+	end
+	pending -= 1
+	return wrote
+end
+
+-- Drop this server's lock on a player's record without saving: a join that stopped before play (the player left while
+-- it loaded, or the save is newer than this server), so their next join elsewhere does not wait out the lock.
+function DataService.unlock(userId: number)
+	pending += 1
+	local ok, err = update(keyOf(userId), function(old: any): any
+		if type(old) ~= "table" then
+			return nil
+		end
+		local lock = old.lock
+		if type(lock) == "table" and lock.job == jobId then
+			old.lock = nil
+			return old
+		end
+		return nil
 	end)
 	if not ok then
-		warn(string.format("[DataService] save %d failed: %s", userId, tostring(err)))
+		warn(string.format("[DataService] unlock %d failed: %s", userId, tostring(err)))
 	end
-	return ok
+	pending -= 1
+end
+
+-- How many saves and unlocks are going (BindToClose waits for none).
+function DataService.pending(): number
+	return pending
 end
 
 function DataService.usingMemory(): boolean

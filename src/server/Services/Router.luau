@@ -42,6 +42,7 @@ function Router.handle(player: Player, action: any, payload: any): Types.Respons
 	if fn == nil then
 		return { ok = false, err = "unknown_action" }
 	end
+	Session.stir(s)
 	local okCall, good, data = pcall(fn, s, payload or {})
 	if not okCall then
 		warn(string.format("[Router] %s failed: %s", tostring(action), tostring(good)))

@@ -91,6 +91,7 @@ return function()
 		local ok2, why = Store.vipDaily(p, 100000 + 3600)
 		T.truthy(not ok2 and why == "cooldown")
 		T.truthy((Store.vipDaily(p, 100000 + 86400)), "the next day")
+		T.eq(select(2, Store.vipDaily(p, 100000)), "cooldown", "not again on a server whose clock runs a day behind")
 		local q = fresh()
 		local ok3, why3 = Store.vipDaily(q, 0)
 		T.truthy(not ok3 and why3 == "locked")
@@ -365,6 +366,15 @@ return function()
 		local q = fresh()
 		q.seenAt = 1
 		T.eq(Store.offline(q, 1e5), nil)
+		-- a timed shells boost banked (it runs down only while the player is here) does not multiply the time away,
+		-- nor the shells a reward counts in minutes (the server review of 2026-11-19)
+		local was = Store.offline(p, 1000 + 86400) :: any
+		local perMin = Store.perMinute(p)
+		p.boosts = { shells = 900 }
+		T.truthy(Island.rates(p).shells > Island.rates(p, true).shells)
+		local now = Store.offline(p, 1000 + 86400) :: any
+		T.eq(now.shells, was.shells)
+		T.eq(Store.perMinute(p), perMin)
 	end)
 
 	T.it("the group: the gift once (a rare egg and shells), more shells while in it, none after leaving", function()

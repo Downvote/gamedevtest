@@ -63,6 +63,10 @@ local flakes = Fx.newSystem(1000) -- snow, petals, leaves, motes, splashes
 type Streak = { x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number, age: number, len: number, wind: boolean }
 local streaks: { Streak } = {}
 local MAX_STREAKS = 1600
+-- a breezy day's wisps of wind on screen at once (at the high tier; fewer below). It was some fifty faint streaks,
+-- which in a still frame read as a broken picture rather than wind (the sweep of 2026-11-19).
+local MAX_WISPS = 7
+local WISP_RGB = 0xF6FAFF
 local strength: { [string]: number } = {} -- each kind's strength now (0 .. 1), fading in and out
 local shownKind = "sunny" -- the spell's kind (for the light and the sounds)
 local gradeFrom: Data.Grade? = nil -- the light being stepped from and to
@@ -154,8 +158,9 @@ local function spawnWind(cam: Raster.Cam, W: number, H: number)
 	if #streaks >= MAX_STREAKS then
 		return
 	end
-	local gx, _, gz = groundAt(cam, rng:NextNumber(-0.3, 0.2) * W, rng:NextNumber(0, 1) * H, LAWN_Y)
-	table.insert(streaks, { x = gx, y = LAWN_Y + rng:NextNumber(1, 5), z = gz, vx = cam.rx * 16, vy = 0, vz = cam.rz * 16, life = 1.6, age = 0, len = 1.6, wind = true })
+	local gx, _, gz = groundAt(cam, rng:NextNumber(-0.05, 0.7) * W, rng:NextNumber(0.05, 0.95) * H, LAWN_Y)
+	-- (len: the wisp's length in layer pixels, the same at every zoom)
+	table.insert(streaks, { x = gx, y = LAWN_Y + rng:NextNumber(1, 5), z = gz, vx = cam.rx * 16, vy = 0, vz = cam.rz * 16, life = 1.6, age = 0, len = rng:NextInteger(12, 20), wind = true })
 end
 
 local function spawnFlake(cam: Raster.Cam, W: number, H: number, kind: string)
@@ -182,9 +187,13 @@ end
 -- reaches the ground.
 local function stepStreaks(ctx: Fx.Ctx, dt: number)
 	local cam, W, H = ctx.cam, ctx.W, ctx.H
-	local rc, keep = Fx.pack(RAIN_RGB), {}
+	local rc, wc = Fx.pack(RAIN_RGB), Fx.pack(WISP_RGB)
 	local drops, lines = 0, 0
-	for _, s in streaks do
+	-- (the live ones kept in place, moved down over the gone: a new list every frame was up to 1,600 entries in a storm)
+	local kept = 0
+	local list = streaks
+	for i = 1, #list do
+		local s = list[i]
 		s.age += dt
 		s.x += s.vx * dt
 		s.y += s.vy * dt
@@ -203,24 +212,38 @@ local function stepStreaks(ctx: Fx.Ctx, dt: number)
 		if hy >= H + 4 or hx < -40 or hx >= W + 40 then
 			continue -- (gone off the bottom or the sides; one still above the top falls into view)
 		end
+		if s.wind then
+			-- a wisp: a near-white line of its own length straight back from its head, a pixel lower over its back
+			-- part (one step, no jaggies), its two ends fading out and the whole of it fading in and out
+			local fade = math.min(1, s.age * 4, (s.life - s.age) * 2)
+			local n = s.len
+			local x0, y0 = math.floor(hx + 0.5), math.floor(hy + 0.5)
+			for q = 0, n - 1 do
+				local u = q / (n - 1)
+				local a = 0.7 * fade * math.min(1, (1 - u) * 3, 0.3 + u * 3)
+				Fx.mix(ctx, x0 - q, y0 + (if u > 0.55 then 1 else 0), hd, wc, a)
+			end
+			lines += 1
+			kept += 1
+			list[kept] = s
+			continue
+		end
 		-- the trail: back along its motion
 		local sp = math.sqrt(s.vx * s.vx + s.vy * s.vy + s.vz * s.vz)
 		local k = s.len / math.max(0.01, sp)
 		local tx, ty = Raster.project(cam, s.x - s.vx * k, s.y - s.vy * k, s.z - s.vz * k)
 		local n = math.max(1, math.floor(math.max(math.abs(tx - hx), math.abs(ty - hy)) + 0.5))
-		local a = if s.wind then 0.35 * math.min(1, (s.life - s.age) * 2) else 0.75
 		for q = 0, n do
 			local u = q / n
-			Fx.mix(ctx, math.floor(hx + (tx - hx) * u), math.floor(hy + (ty - hy) * u), hd, rc, a * (1 - u * 0.5))
+			Fx.mix(ctx, math.floor(hx + (tx - hx) * u), math.floor(hy + (ty - hy) * u), hd, rc, 0.75 * (1 - u * 0.5))
 		end
-		if s.wind then
-			lines += 1
-		else
-			drops += 1
-		end
-		table.insert(keep, s)
+		drops += 1
+		kept += 1
+		list[kept] = s
 	end
-	streaks = keep
+	for i = #list, kept + 1, -1 do
+		list[i] = nil
+	end
 	counts.drops, counts.lines = drops, lines
 end
 
@@ -380,7 +403,10 @@ local function draw(ctx: Fx.Ctx)
 						spawnStreak(ctx.cam, ctx.W, ctx.H, id == "storm")
 					elseif id == "breezy" then
 						if rng:NextNumber() < 0.7 then
-							spawnWind(ctx.cam, ctx.W, ctx.H)
+							if counts.lines < math.ceil(MAX_WISPS * scale * s) and rng:NextNumber() < 0.08 then
+								spawnWind(ctx.cam, ctx.W, ctx.H)
+								counts.lines += 1
+							end
 						else
 							spawnFlake(ctx.cam, ctx.W, ctx.H, id)
 						end

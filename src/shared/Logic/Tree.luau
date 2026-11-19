@@ -725,12 +725,18 @@ function Tree.house(p: Profile, id: number, uid: number, swap: number): (boolean
 		return false, "full" :: ErrCode
 	end
 	local from = x.home
+	-- (a move keeps a place the player gave by hand: it stays pinned there, or resting; the rest are arranged again.
+	-- Its work was cleared before while the pin stayed, which reads as resting by hand: it rested for good)
 	if other then
 		other.home = from
-		other.work = 0
+		if not other.pin then
+			other.work = 0
+		end
 	end
 	x.home = uid
-	x.work = 0
+	if not x.pin then
+		x.work = 0
+	end
 	-- (a hut left with room takes in one waiting with no hut; the helpers' places freed fill too)
 	Tree.settle(p)
 	Tree.fillJobs(p)
@@ -781,6 +787,7 @@ function Tree.plant(p: Profile): Types.Piece?
 		for _, pal in p.pals do
 			if pal.work == q.uid then
 				pal.work = 0
+				pal.pin = nil
 			end
 		end
 		table.remove(p.plot.placed, bi)

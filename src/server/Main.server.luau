@@ -18,6 +18,7 @@ local Router = require(Services.Router)
 local PlotService = require(Services.PlotService)
 local IslandService = require(Services.IslandService)
 local MonetizationService = require(Services.MonetizationService)
+local WorldClock = require(Services.WorldClock)
 
 DataService.init()
 PlotService.init()
@@ -34,12 +35,24 @@ local function join(player: Player)
 	end
 	local raw, ok = DataService.load(player.UserId)
 	if player.Parent == nil then
+		-- (left while it loaded: the lock goes too, or their next join elsewhere waits it out)
 		PlotService.release(plot)
+		if ok then
+			DataService.unlock(player.UserId)
+		end
 		return
 	end
 	if not ok then
 		PlotService.release(plot)
 		player:Kick("Couldn't load your save. Rejoin in a moment.")
+		return
+	end
+	if type(raw) == "table" and type(raw.v) == "number" and raw.v > Schema.VERSION then
+		-- a save from a newer version of the game: this older server would drop what it doesn't know on its first
+		-- save (the server review of 2026-11-19), so the player goes to a new server instead
+		PlotService.release(plot)
+		DataService.unlock(player.UserId)
+		player:Kick("This server is out of date. Rejoin to play.")
 		return
 	end
 	local seed = Util.hash32(tostring(player.UserId) .. ":start")
@@ -85,6 +98,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 		acc -= STEP
 		IslandService.step(STEP)
 	end
+	-- (the sea's clock never left behind the real one by a stall: WorldClock.keepUp)
+	WorldClock.keepUp(os.time())
 	local now = os.clock()
 	for player, s in Session.all() do
 		if s.dirty and s.ready then
@@ -98,11 +113,19 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
+-- Shutting down: everyone still here leaves (saved, their lock dropped), and the server waits for every save going,
+-- the leaving ones of players already gone among them, up to 25 s (Roblox gives 30). It waited a fixed 2 s, and a save
+-- still queued on the store died with the server (the server review of 2026-11-19).
 game:BindToClose(function()
-	local threads = {}
-	for player, s in Session.all() do
-		IslandService.leave(s)
-		table.insert(threads, task.spawn(DataService.save, player.UserId, s.profile, true))
+	local list: { Player } = {}
+	for player in Session.all() do
+		table.insert(list, player)
 	end
-	task.wait(2)
+	for _, player in list do
+		task.spawn(leave, player)
+	end
+	local t0 = os.clock()
+	repeat
+		task.wait(0.25)
+	until DataService.pending() == 0 or os.clock() - t0 > 25
 end)
