@@ -735,24 +735,41 @@ do
 	local growing = 0
 	local stepList: { string } = {}
 	local lpx, lpy = CCa.pan()
+	-- past them: a step of the view back the way it came (an overshoot it then corrects), or the founder more than a
+	-- pixel on the far side of where they stood. The founder stops a fraction of a pixel off where they started, so a
+	-- sub-pixel offset either side is not an overshoot (2026-11-20: at the View slider's new default, 11 art px a stud,
+	-- the founder came to rest 0.4 px past on one axis with every step of the view the same way)
+	local dirX = if sx1 > sx0 then 1 elseif sx1 < sx0 then -1 else 0
+	local dirY = if sy1 > sy0 then 1 elseif sy1 < sy0 then -1 else 0
+	local stepX, stepY = 0, 0 -- (the way the view's first steps went on each axis)
 	for f = 1, 90 do
 		E.run(dt, dt)
 		local px, py = CCa.pan()
-		local st = math.abs(px - lpx) + math.abs(py - lpy)
+		local dx, dy = px - lpx, py - lpy
+		local st = math.abs(dx) + math.abs(dy)
 		if f <= 24 then
-			table.insert(stepList, string.format("%d,%d", px - lpx, py - lpy))
+			table.insert(stepList, string.format("%d,%d", dx, dy))
 		end
 		if st > 0 then
 			moving = f
 		end
-		local ax, ay = math.abs(px - lpx), math.abs(py - lpy)
+		if stepX == 0 and dx ~= 0 then
+			stepX = if dx > 0 then 1 else -1
+		end
+		if stepY == 0 and dy ~= 0 then
+			stepY = if dy > 0 then 1 else -1
+		end
+		if dx * stepX < 0 or dy * stepY < 0 then
+			past = true
+		end
+		local ax, ay = math.abs(dx), math.abs(dy)
 		if ax > lastX + 1 or ay > lastY + 1 then
 			growing += 1
 		end
 		lastX, lastY = ax, ay
 		lpx, lpy = px, py
 		local sx, sy = onScreen()
-		if (sx - sx0) * (sx1 - sx0) < -1 or (sy - sy0) * (sy1 - sy0) < -1 then
+		if (sx - sx0) * dirX < -1 or (sy - sy0) * dirY < -1 then
 			past = true
 		end
 		if back == 0 and math.abs(sx - sx0) <= 1 and math.abs(sy - sy0) <= 1 then
