@@ -373,7 +373,8 @@ offline progress).
   camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
 - **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
-  from one sun, sun shadows, a palette LUT, a 1 px ink outline, and the characters drawn analytically every tick on
+  from one sun, sun shadows, a palette LUT, a 1 px outline (each edge pixel a darker step of its own colour, §2),
+  and the characters drawn analytically every tick on
   top with the same projection. One pixel size K for the world, the UI and the text. Shadows keep the grid: the sun's
   ray is cast once for each 2x2 pixels, and every pixel on a shadow's edge then casts its own, so a shadow's edge
   steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
@@ -439,7 +440,8 @@ floor, it just looks noisy", 2026-11-14),
   Hatchery's cost), a mutation whose words don't fit beside its name takes a line of its own, the pass track's columns
   are as wide as "Legendary"; anything still too long ends in "..." inside its box, never past its edge, and the
   previews log every label that needed it.
-- **Interface:** pixel-art plates with stepped corners and a 1 px ink outline following them, the pixel font; the
+- **Interface:** pixel-art plates with stepped corners and a 1 px outline following them (a darker step of the
+  plate's colour, §2), the pixel font; the
   panels, cards, notices, the tip and the build tray cast a 2 px drop shadow; buttons are bevelled (a lit top row, a
   shaded lip) and sink a pixel when pressed; each panel has a title band with its icon, and each menu button its
   icon. Every driftling has a 32x32 portrait, every piece in the build catalog a 24x24 picture and the island's
@@ -453,7 +455,7 @@ floor, it just looks noisy", 2026-11-14),
   > Then: "the eyes are too big in the sprites and the eyes all look the same"
 
   So a portrait is the driftling itself: its 3D model drawn by the game's own picture path (the palette, the toon
-  bands, the shadows and the ink outline the island draws it with), standing at rest with its eyes open, turned 30
+  bands, the shadows and the outline the island draws it with), standing at rest with its eyes open, turned 30
   degrees past the world's view so its face turns toward us and its side still shows, fitted to 32 x 32. The first
   try, the model as the island shows it at 24 x 24, came out as small muddy shapes: a face was two or three pixels,
   black crease lines ran all through each creature, dark bodies sank into the outline and the eyes' shines came out
@@ -483,7 +485,7 @@ floor, it just looks noisy", 2026-11-14),
   the whole creature in a three-quarter view turned to the left, a big head (about half its height) over a small
   body, its feet on the bottom rows; two eyes, the far one narrower and the near one 2 px wide with a white
   highlight; a shaded cream ramp for muzzles, bellies and jaws, pink blush, the species' body colour with its
-  markings in the accent. The same 1 px ink outline and lit-from-the-top-left shading as every sprite.
+  markings in the accent. The same 1 px outline and lit-from-the-top-left shading as every sprite.
 
   > The request (2026-11-19): "Look at the bakery game and see its menu. Make a similarly polished and themed menu for
   > different tabs."
@@ -494,9 +496,9 @@ floor, it just looks noisy", 2026-11-14),
 
   **The sheets** (`UIKit.openPanel`, `UIKit.tabs`, `UIKit.heading`): every panel is black see-through glass (as the
   HUD, below) under an awning: a teal band 20 UI px tall in wide stripes of two teals with a lit fold along its top,
-  cut at the bottom into scallops (9 px each, the band's colour, shaded under, outlined in ink between them and along
-  their bottoms) that hang over the glass. On the awning: the panel's mini icon, its title in white with an ink
-  outline, the status line (notices while the panel is open; one too long for it shows over the screen's top as
+  cut at the bottom into scallops (9 px each, the band's colour, shaded under, outlined in a darker step of that
+  shade between them and along their bottoms) that hang over the glass. On the awning: the panel's mini icon, its
+  title in white with a grey outline (a darker step of the white), the status line (notices while the panel is open; one too long for it shows over the screen's top as
   usual, so none is cut short: the request of 2026-11-19, "it seems like the text gets cut off for some alerts";
   notices at the top stack one under another, each sliding into its place, the rest moving up as one goes, and below
   a new day's banner while it shows: they all landed on one spot before), a few of the panel's things on a little driftwood shelf
@@ -585,7 +587,8 @@ floor, it just looks noisy", 2026-11-14),
   life".)
 - **The small icons are drawn by hand**, pixel by pixel, the way Random Bakery draws its own: a few shared ramps,
   light from the top left on the real form (a sun's rays, an apple's round side, a log's cut end), white glints, the
-  lines inside an icon in the material's dark tone (never ink), and one ink ring round the outside. Tones sit in
+  lines inside an icon in the material's dark tone (never ink), and one outline round the outside (a darker step
+  of the colour inside it, below). Tones sit in
   clusters that follow the form, never rings that trace the outline (no banding); the ramps shift hue (shadows cooler,
   lights warmer); each step of a curve is softened from the inside by a pixel a tone darker. The shell (the shells
   counter and every price) keeps the scallop it had before ("use the same shell sprite used before", 2026-11-14).
@@ -595,8 +598,25 @@ floor, it just looks noisy", 2026-11-14),
   > "Remember to use anti aliasing within the outline, avoid banding and use hueshifting".
 - **The grid.** Sprites, scenes and effects sit at whole UI px: moves and tweens snap to whole pixels, particles are
   1 px bits, confetti 1 px pieces and 1x2 sticks (never a 2x2 block).
-- **A 1 px ink outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
-  and inner ink lines where shapes meet.
+- **A 1 px outline** round every sprite's silhouette (the 4-neighbours, so a convex corner is cut, never doubled),
+  and inner lines where shapes meet, never in pure black (selective outlining):
+
+  > The request (2026-11-20): "For outlines everywhere, no longer use pure black, but a darker version of suitable
+  > neighbouring pixels instead"
+
+  Every outline pixel is a darker step of the colour it borders: 0.45 of that colour plus 0.3 of the ink (0x2B1E2E),
+  so the hue stays and leans a little toward the ink's plum. A crown's edge is a deep green, a stone's a dark stone,
+  a white arrow's a mid grey. Which colour: the pixel's own where the edge falls on it (the world's lines where parts
+  meet), else the commonest colour beside it on the inside, the darker one on a tie. This holds everywhere a line is
+  drawn round something: the world and every model in it (`Render/Shading`'s `inkOf`), the pictures drawn from the
+  models (portraits, the build catalog's and the cosmetics' pictures, the loading card's art, the product icons'
+  subjects), the hand-drawn sprites (`scripts/gen_art.py`; the `#` lines inside a sprite too), the interface's plates,
+  chips, ribbons, dots and slider, the hatch scene's pedestal (leaning to its rarity's own dark), the loading card's
+  title, bar and rocks, the product icons and the game's thumbnails. Words take a stronger step so they stay
+  readable: an outlined word's outline and depth are 0.3 of its face colour plus 0.3 of the ink (white words get a
+  grey line, gold ones a deep olive). What stays dark on purpose: lines drawn on a thing (pupils, brows, a mouth, the
+  clock's hands on an icon), drop shadows (a word's 1 px shadow, a plate's shadow), dark backgrounds (a bar's track,
+  the tip's plate) and the painted skies, which have no outlines.
 - **Anti-aliasing, no jaggies.** A pixel that meets the outline only at a corner goes a step toward the shadow
   (never a dark speck on the lit side); skies blend between bands with a 1 px dither row; lines are drawn at clean slopes (a slash is a 1:1 diagonal).
 - **Shading:** matte cel steps over the whole silhouette, lit from the top left (never a band hugging each colour
@@ -615,7 +635,7 @@ floor, it just looks noisy", 2026-11-14),
 
   > The request (2026-11-10): "the sprites still look too busy and hard to read. make sure each sillouhette is
   > distinct enough to tell what the sprites are. the sprites also all look metallic"
-- **The outline is not anti-aliased on its outside:** the ink edge stands against the background as it is; the
+- **The outline is not anti-aliased on its outside:** the outline stands against the background as it is; the
   softening is inside (the anti-aliasing above).
 
 > The request (2026-11-10): "alot of the sprites seem to be pillow shaded without regard to texture. can you do some
@@ -1102,8 +1122,8 @@ small island runs out of width first, so its point is shallower, and a big one's
 spires at the bottom and crystal at some tips. Leafy vines hang from under the rim stones and smaller stones from the
 lower courses; tufts, flat stones and small round bushes sit on the grass's rim, never where a building may stand.
 The pixel filter lights each stone, a pale top, a mid front and a darker side; rim stones have a rounded cap, stones
-on the upper courses stand on a darker foot, dark soil and dark stone fill the crevices, and the ink line runs round
-each stone. The stone runs from a light warm beige at the top to a dusky violet at the bottom (the palette's `cliff`,
+on the upper courses stand on a darker foot, dark soil and dark stone fill the crevices, and an outline (a darker
+step of the stone) runs round each stone. The stone runs from a light warm beige at the top to a dusky violet at the bottom (the palette's `cliff`,
 `cliff_dark`, `cliff_deep` and `cliff_base`, all with the stone texture). Under the rim only the south and east
 sides are built: the camera never sees the north-west underside. From the camera the island reads as a floating
 chunk of land tapering down into the sky. Under the middle
@@ -2140,7 +2160,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   down: its top an ellipse with a lit rim at the back left, an inlaid ring (four gems on it from rare up) and the egg's
   dithered shadow, a tuft of grass with a flower at the back either side; its side lit on the left and shaded on the
   right with its stones' joints and a carved band at the foot; under it a fluted column of the same stone rising from
-  below the picture, a step darker toward its foot; a 1 px ink line round all of it, unbroken down the whole shaft,
+  below the picture, a step darker toward its foot; a 1 px outline round all of it (a darker step of the stone beside
+  it, leaning to the rarity's own dark), unbroken down the whole shaft,
   and the cap's shadow on the top of the shaft, deeper to the right (the user's report of 2026-11-15: "it seems like
   the outline gets broken in the pillars. also, it dosent seem like the top part is casting a shadow on the bottom
   part of the pillar"; the line used to stop just under the cap). Each
@@ -2202,7 +2223,7 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   with no mutations that plate is the only one (the request of 2026-11-14: "also, show the passive of creatures when
   hatching eggs, above all mutations. if no mutations, show this tab instead of the no mutations tab"; there was a
   "No mutations" plate before). The first of a kind you ever have gets a
-  little "New!" tag at its name's right, mango yellow with an ink outline, dropping in with a sparkle and a ring of
+  little "New!" tag at its name's right, mango yellow with a darker mango outline, dropping in with a sparkle and a ring of
   yellow bits (the request of 2026-11-14: "there should a tip saying "New!" If the creature caught is new"). It is
   decided on the server before the hatch: the kind was never had (in the Index as seen only, or not at all), whatever
   its mutations. After the scene the notice starts with it too: "New! Hatched a rare Wispwing." A Hatchery's
@@ -2777,7 +2798,7 @@ reason.
   wider in front (lit along its back edge, a small dark step down to the wet sand in front, grains and a few shells),
   then grass in darker and lighter patches with tufts and flowers, its front edge a darker lip. Out from the shore: a
   broken line of foam, the shallows lighter near the shore with a broken line of surf further out, dithered into the
-  sea. Rocks with an ink outline sit at the waterline and driftwood lies on the beach (the dirt path and the jetty went
+  sea. Rocks with an outline a darker step of the stone sit at the waterline and driftwood lies on the beach (the dirt path and the jetty went
   with the docks on 2026-11-13). The sprites on it were moved where the new coast came too close.
 - **The sun's path:** the sea round it is lifted into warm tones, wide along the horizon and closing to the path's
   width toward us. On that glow lie lines of light, close together near the horizon and further apart nearer the
@@ -3105,7 +3126,8 @@ striped, banded, dotted, a tattered cloak and candy corn).
 
 **The pictures.** Each piece has a 24 x 24 picture for the Store, drawn from its own model by the
 game's picture path (a top on a little body, a back piece turned to show its back) and tidied to the pixel art rules:
-a 1 px ink outline, no half see-through pixels, the outline made again on the four sides. After changing a piece's
+a 1 px outline a darker step of the colour beside it, no half see-through pixels, the outline made again on the
+four sides. After changing a piece's
 model, `sh tools/preview/cosmetic_thumbs.sh` draws them again.
 
 ### 14.3 Offline earnings and the group (`Logic/Store.offline`, `Store.setGroup`, `UI/WelcomeUI`)

@@ -59,6 +59,15 @@ function UIKit.color(key: string): Color3
 	return c
 end
 
+-- Selective outlining (the request of 2026-11-20: "For outlines everywhere, no longer use pure black, but a darker
+-- version of suitable neighbouring pixels instead"): an outline pixel is a darker step of the colour it borders, 0.45
+-- of it plus 0.3 of the ink, the step Render/Shading's inkOf takes in the world (words take a stronger one:
+-- Pixel/PixelText).
+function UIKit.inkOf(c: Color3): Color3
+	local k = UIKit.color("ink")
+	return Color3.new(c.R * 0.45 + k.R * 0.3, c.G * 0.45 + k.G * 0.3, c.B * 0.45 + k.B * 0.3)
+end
+
 function UIKit.hex(hex: number): Color3
 	return hexColor(hex)
 end
@@ -332,11 +341,11 @@ function UIKit.setTextColor(l: TextLabel, c: Color3)
 end
 
 ------------------------------------------------------------------ plates
--- A surface with stepped pixel corners and a 1 px ink outline that follows them (GAME_DESIGN 2: "use a 1 pixel
--- outline"): rectangles named "Fill" inside rectangles named "Edge", none overlapping, so a translucent plate stays
+-- A surface with stepped pixel corners and a 1 px outline that follows them (GAME_DESIGN 2: "use a 1 pixel
+-- outline"), a darker step of the plate's colour (UIKit.inkOf; `style.edgeColor` names another): rectangles named "Fill" inside rectangles named "Edge", none overlapping, so a translucent plate stays
 -- even. `style.edge = false` leaves the outline off (a flat swatch); `style.shadow` casts a 2 px drop shadow down
 -- and to the right (panels, cards, the tray). The island's looks (GAME_DESIGN 2): `style.wood` (2 or 3) frames it in
--- planks of driftwood that many px wide outside its outline (and another ink outline round them: the plate takes
+-- planks of driftwood that many px wide outside its outline (and another outline round them: the plate takes
 -- that much more room on every side), lit along the top and left, shaded along the bottom and right, seams between
 -- the planks and a nail head in each corner; `style.bevel` lights the plate's top row and shades its bottom one (a
 -- carved board: chips, rows). Content goes in it at ZIndex >= 1.
@@ -434,7 +443,6 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 	local a = alpha or 0
 	local st: PlateStyle = style or {}
 	local edged = st.edge ~= false
-	local ink = st.edgeColor or UIKit.color("ink")
 	if st.glass or (st.wood and st.wood > 0) then
 		-- black see-through glass (the old frames of planks are gone: a `wood` plate is glass too): flat, its corners
 		-- at most two steps, no outline, frame, bevel or shadow
@@ -451,6 +459,8 @@ function UIKit.plate(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3?, al
 		edged = false
 		st = { edge = false }
 	end
+	-- the outline: a darker step of the plate's own colour (selective outlining), unless the caller names one
+	local ink = st.edgeColor or UIKit.inkOf(col)
 	-- a rectangle from `l` px in on the left to `r` px in on the right, `y` px down (from the top or, bottom, up)
 	local function rect(name: string, color: Color3, l: number, r: number, y: number, h: UDim, bottom: boolean?)
 		local q = Instance.new("Frame")
@@ -1065,7 +1075,8 @@ local function px(parent: Instance, x: number, y: number, w: number, h: number, 
 end
 
 -- The awning across a sheet's top (w UI px wide): teal canvas in wide stripes, a lit fold along its top, and its hem
--- cut in scallops that hang over the glass, each shaded underneath and outlined in ink (1 px, stepped).
+-- cut in scallops that hang over the glass, each shaded underneath and outlined (1 px, stepped) in a darker step of
+-- its shade (UIKit.inkOf).
 local function awning(head: Frame, w: number, aw: number)
 	local AWNING = aw
 	local clip = Instance.new("Frame")
@@ -1088,7 +1099,7 @@ local function awning(head: Frame, w: number, aw: number)
 	end
 	px(clip, 3, 1, w - 6, 1, UIKit.color("awning_hi"), 4, "Fold")
 	px(clip, 1, 2, w - 2, 1, UIKit.color("awning_alt"), 4, "Fold")
-	-- the hem: scallops across, centred, the band's own colours; ink between them and along their bottoms
+	-- the hem: scallops across, centred, the band's own colours; the outline between them and along their bottoms
 	local hem = Instance.new("Frame")
 	hem.Name = "Hem"
 	hem.BackgroundTransparency = 1
@@ -1096,7 +1107,7 @@ local function awning(head: Frame, w: number, aw: number)
 	hem.Size = UDim2.new(1, 0, 0, HEM)
 	hem.ZIndex = 3
 	hem.Parent = head
-	local ink, lit, lo = UIKit.color("ink"), UIKit.color("awning"), UIKit.color("awning_lo")
+	local ink, lit, lo = UIKit.inkOf(UIKit.color("awning_lo")), UIKit.color("awning"), UIKit.color("awning_lo")
 	local n = math.max(1, math.floor((w - 2) / SCALLOP))
 	local x0 = 1 + math.floor(((w - 2) - n * SCALLOP) / 2)
 	px(hem, 0, 0, x0 + 1, 1, ink, 3)
@@ -1216,13 +1227,15 @@ function UIKit.openPanel(name: string, arg: any?)
 		shelf.Size = UDim2.fromOffset(sw, 16)
 		shelf.ZIndex = 4
 		shelf.Parent = head
-		px(shelf, 0, 13, sw, 1, UIKit.color("ink"), 4)
+		-- (its outline and brackets a darker step of the board: selective outlining)
+		local edge = UIKit.inkOf(UIKit.color("shelf_lo"))
+		px(shelf, 0, 13, sw, 1, edge, 4)
 		px(shelf, 1, 12, sw - 2, 1, UIKit.color("shelf"), 4)
 		px(shelf, 1, 13, sw - 2, 1, UIKit.color("shelf_lo"), 5)
-		px(shelf, 0, 12, 1, 1, UIKit.color("ink"), 4)
-		px(shelf, sw - 1, 12, 1, 1, UIKit.color("ink"), 4)
-		px(shelf, 2, 14, 1, 2, UIKit.color("ink"), 4)
-		px(shelf, sw - 3, 14, 1, 2, UIKit.color("ink"), 4)
+		px(shelf, 0, 12, 1, 1, edge, 4)
+		px(shelf, sw - 1, 12, 1, 1, edge, 4)
+		px(shelf, 2, 14, 1, 2, edge, 4)
+		px(shelf, sw - 3, 14, 1, 2, edge, 4)
 		for i, id in props do
 			PixelSprites.image(shelf, "mini_" .. id, UDim2.fromOffset(2 + (i - 1) * 12, 1), 5)
 		end
@@ -1332,7 +1345,7 @@ function UIKit.tabs(parent: Instance, items: { Tab }, picked: string, y: number,
 			UIKit.setText(words, it.text)
 		end
 		if it.dot then
-			local d = px(b, w - 4, -1, 4, 4, UIKit.color("ink"), 6, "Dot")
+			local d = px(b, w - 4, -1, 4, 4, UIKit.inkOf(UIKit.color("bad")), 6, "Dot")
 			px(d, 1, 1, 2, 2, UIKit.color("bad"), 6)
 		end
 		x += w + 2
@@ -1693,7 +1706,7 @@ function UIKit.confetti(parent: GuiObject, n: number?, colors: { string }?)
 end
 
 ------------------------------------------------------------------ portraits
--- A developer's portrait: their rig drawn by Pixel/Snapshot like the world (2:1, toon bands, ink outline), cached by
+-- A developer's portrait: their rig drawn by Pixel/Snapshot like the world (2:1, toon bands, the outline), cached by
 -- look. Without EditableImages a plain swatch of their shirt colour stands in.
 -- (the seated rig wears the hat, face, neck, back and top pieces of the look: Models/CharacterModels)
 function UIKit.portrait(parent: Instance, look: Types.Look, size: number, pos: UDim2): GuiObject

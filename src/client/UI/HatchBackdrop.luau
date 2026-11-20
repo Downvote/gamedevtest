@@ -20,8 +20,8 @@
 -- expanding circle ring that constantly emits below each egg") a round pedestal stands where the egg comes down: its
 -- top an ellipse with a lit rim at the back left, an inlaid ring (gems on it from rare up), the egg's dithered shadow,
 -- its side lit on the left and shaded on the right with a carved band and the joints of its stones, standing on a
--- fluted column of the same stone that rises from below the picture, a 1 px ink outline round it all, in each
--- rarity's stone (BASES); and the sky's corners a dithered step darker. Since 2026-11-15 ("it seems like the outline gets broken in the pillars. also, it
+-- fluted column of the same stone that rises from below the picture, a 1 px outline round it all, in each
+-- rarity's stone (BASES; since 2026-11-20 the outline is a darker step of the stone beside it, leaning to the base's ink); and the sky's corners a dithered step darker. Since 2026-11-15 ("it seems like the outline gets broken in the pillars. also, it
 -- dosent seem like the top part is casting a shadow on the bottom part of the pillar") the outline runs unbroken down
 -- the whole shaft (it stopped under the cap), each turn of it on a curve a step of anti-aliasing instead of a doubled
 -- pixel, the flutes keep off the shaft's edges, and the cap casts a shadow on the top of the shaft: a band two steps
@@ -213,7 +213,8 @@ local SKIES: { Sky } = {
 }
 
 -- Each rarity's pedestal (`paint`'s base): its top, the top's lit rim, its side lit, plain and shaded, the carved band
--- and the inlaid ring, the gems, the ink, the flowers along the bottom, the rings' light.
+-- and the inlaid ring, the gems, the ink (the dark its shading leans to, and its outline a little), the flowers along
+-- the bottom, the rings' light.
 type Base = { top: number, topLit: number, sideLit: number, side: number, sideDark: number, trim: number, gem: number, ink: number, flower: number, ring: number }
 local BASES: { Base } = {
 	-- warm sandstone under the sunset
@@ -957,11 +958,11 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				end
 			end
 		end
-		-- the ink outline round the whole of it, the cap and the shaft down past the picture's foot (the user's report
+		-- the outline round the whole of it, the cap and the shaft down past the picture's foot (the user's report
 		-- of 2026-11-15: "it seems like the outline gets broken in the pillars": the shaft had none below the cap): the
 		-- pixels just outside it (4-neighbours, so convex corners come out cut). Where the line turns on a curve, the
 		-- elbow (the line on two sides of it, the stone on the other two) is a step of anti-aliasing instead, the stone
-		-- next to it a step toward the ink, so the line runs on diagonally with no doubled pixels.
+		-- next to it a step toward the line, so the line runs on diagonally with no doubled pixels.
 		local mask = buffer.create(W * H) -- 1 the top, 2 the side and the shaft, 3 the outline (kept: `pedMask`)
 		local ex0, ex1 = math.max(0, math.floor(cx - bw) - 2), math.min(W - 1, math.ceil(cx + bw) + 2)
 		local ey0 = math.max(0, math.floor(cy - ry) - 2)
@@ -1007,11 +1008,47 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				end
 			end
 		end
+		-- (selective outlining, the request of 2026-11-20: "For outlines everywhere, no longer use pure black, but a
+		-- darker version of suitable neighbouring pixels instead": each pixel of the line a darker step of the stone
+		-- beside it, the commonest of its 4-neighbours there and the darker on a tie, leaning to the base's ink by the
+		-- step Render/Shading's inkOf takes; an elbow halfway between its stone and that line)
+		local kr, kg, kb = rgb(B.ink)
+		local function selInk(c: number): number
+			local r, g, b = rgb(c)
+			return math.floor(r * 0.45 + kr * 0.3 + 0.5) * 65536 + math.floor(g * 0.45 + kg * 0.3 + 0.5) * 256 + math.floor(b * 0.45 + kb * 0.3 + 0.5)
+		end
+		local function lum(c: number): number
+			local r, g, b = rgb(c)
+			return r * 0.3 + g * 0.59 + b * 0.11
+		end
+		local lineC: { number } = {}
 		for i = 1, #edge, 2 do
-			set(edge[i], edge[i + 1], B.ink)
+			local x, y = edge[i], edge[i + 1]
+			local beside: { number } = {}
+			for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+				if stone(x + d[1], y + d[2]) then
+					table.insert(beside, get(x + d[1], y + d[2]))
+				end
+			end
+			local best, bestN = beside[1], 0
+			for _, c in beside do
+				local n = 0
+				for _, c2 in beside do
+					if c2 == c then
+						n += 1
+					end
+				end
+				if n > bestN or (n == bestN and lum(c) < lum(best)) then
+					best, bestN = c, n
+				end
+			end
+			lineC[(i + 1) // 2] = if best then selInk(best) else B.ink
+		end
+		for i = 1, #edge, 2 do
+			set(edge[i], edge[i + 1], lineC[(i + 1) // 2])
 		end
 		for i = 1, #elbows, 3 do
-			set(elbows[i], elbows[i + 1], mix(elbows[i + 2], B.ink, 0.45))
+			set(elbows[i], elbows[i + 1], mix(elbows[i + 2], selInk(elbows[i + 2]), 0.5))
 			buffer.writeu8(mask, elbows[i + 1] * W + elbows[i], 2)
 		end
 		pedMask = mask

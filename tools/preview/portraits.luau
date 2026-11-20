@@ -16,6 +16,11 @@ return function(env)
 	local p = env.join(7302, "Painter")
 	env.settle(p, 30, 1)
 	local Snapshot = env.modOr(p, "Pixel.Snapshot")
+	-- (flat ink: the tidying finds the outline and the creases by the ink's colour, then gives each its darker step)
+	local ShadingMod = env.cshared(p, "Render.Shading")
+	if ShadingMod and ShadingMod.setFlatInk then
+		ShadingMod.setFlatInk(true)
+	end
 	local MM = env.cshared(p, "Models.MicroModels")
 	local Creatures = env.cshared(p, "Data.Creatures")
 	local Blocks = env.cshared(p, "Models.Blocks")

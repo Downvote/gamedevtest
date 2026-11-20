@@ -499,7 +499,7 @@ local function buildBar()
 		PixelSprites.image(b, "mini_" .. m.icon, if phone then UDim2.fromOffset(math.floor((w - 11) / 2), math.floor((bh - 11) / 2)) else UDim2.fromOffset(3, 2), 6)
 		if m.panel == "rewards" then
 			-- the red dot over the gift while something waits (RewardsUI.ready; Hud's second shows and hides it)
-			local dot = UIKit.rect(b, UDim2.fromOffset(5, 5), UDim2.fromOffset(10, 0), UIKit.color("ink"), 7)
+			local dot = UIKit.rect(b, UDim2.fromOffset(5, 5), UDim2.fromOffset(10, 0), UIKit.inkOf(UIKit.color("bad")), 7)
 			dot.Name = "Dot"
 			UIKit.rect(dot, UDim2.fromOffset(3, 3), UDim2.fromOffset(1, 1), UIKit.color("bad"), 8)
 			dot.Visible = false

@@ -176,8 +176,8 @@ local function viewRow(body: Frame, w: number, y: number)
 	UIKit.button(body, "+", UDim2.fromOffset(12, 11), UDim2.fromOffset(w - PAD - 12, TY), function()
 		SettingsUI.setZoom(SettingsUI.zoom() + 1)
 	end, { name = "ZoomIn" })
-	-- the track: an ink frame round a groove, filled up to the knob
-	UIKit.rect(body, UDim2.fromOffset(TW, 5), UDim2.fromOffset(TX0, TY + 3), UIKit.color("ink"), 3)
+	-- the track: a frame round a groove (a darker step of the groove: selective outlining), filled up to the knob
+	UIKit.rect(body, UDim2.fromOffset(TW, 5), UDim2.fromOffset(TX0, TY + 3), UIKit.inkOf(UIKit.color("plate")), 3)
 	UIKit.rect(body, UDim2.fromOffset(TW - 2, 3), UDim2.fromOffset(TX0 + 1, TY + 4), UIKit.color("plate"), 4)
 	local fill = UIKit.rect(body, UDim2.fromOffset(0, 3), UDim2.fromOffset(TX0 + 1, TY + 4), UIKit.color("accent"), 5)
 	-- a notch's knob x (whole UI px along the track)
@@ -195,8 +195,10 @@ local function viewRow(body: Frame, w: number, y: number)
 	knob.Size = UDim2.fromOffset(KNOB_W, 11)
 	knob.ZIndex = 6
 	knob.Parent = body
-	UIKit.rect(knob, UDim2.fromOffset(5, 11), UDim2.fromOffset(1, 0), UIKit.color("ink"), 6)
-	UIKit.rect(knob, UDim2.fromOffset(7, 9), UDim2.fromOffset(0, 1), UIKit.color("ink"), 6)
+	-- (its outline a darker step of its face)
+	local knobEdge = UIKit.inkOf(UIKit.color("button_ok"))
+	UIKit.rect(knob, UDim2.fromOffset(5, 11), UDim2.fromOffset(1, 0), knobEdge, 6)
+	UIKit.rect(knob, UDim2.fromOffset(7, 9), UDim2.fromOffset(0, 1), knobEdge, 6)
 	UIKit.rect(knob, UDim2.fromOffset(5, 9), UDim2.fromOffset(1, 1), UIKit.color("button_ok"), 7)
 	UIKit.rect(knob, UDim2.fromOffset(1, 7), UDim2.fromOffset(1, 2), UIKit.color("paper"), 8)
 	local function show(n: number)

@@ -1,5 +1,5 @@
 -- The game passes' and developer products' icons, part 1: the game's own models drawn through its picture path
--- (Pixel/Snapshot: the world's palette, toon bands, sun shadows and the 1 px ink outline) for the preview scenario
+-- (Pixel/Snapshot: the world's palette, toon bands, sun shadows and the 1 px outline) for the preview scenario
 -- "picons" (tools/README.md), each the subject of one or more icons (tools/preview/product_icons.py lays them on their
 -- badges with the overlays and scales them up: sh tools/preview/product_icons.sh does both).
 -- Output (the scenario's log): per subject `@@ICON <id> <w> <h> <RGBA hex>`.
@@ -8,6 +8,11 @@ return function(env)
 	local Instance, Vector2, CFrame = E.Instance, E.types.Vector2, E.types.CFrame
 	local p = env.join(7305, "Iconist")
 	local Snapshot = env.modOr(p, "Pixel.Snapshot")
+	-- (flat ink: the tidying finds the outline and the creases by the ink's colour, then gives each its darker step)
+	local ShadingMod = env.cshared(p, "Render.Shading")
+	if ShadingMod and ShadingMod.setFlatInk then
+		ShadingMod.setFlatInk(true)
+	end
 	if Snapshot == nil then
 		log("picons: this tree has no Pixel/Snapshot")
 		return p

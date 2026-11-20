@@ -207,9 +207,20 @@ function Shading.isInk(p: number): boolean
 	return inkSet[p] == true
 end
 
+-- Flat ink, for the preview tools that redraw a picture's outline themselves (tools/preview/gen_portraits.py finds the
+-- outline and the creases by the ink's colour, then gives each its darker step): every edge in the palette's ink.
+local flatInk = false
+function Shading.setFlatInk(on: boolean)
+	flatInk = on
+end
+
 -- Ink pixel i of a colour buffer W x H: its own colour a darker step, or where it has none (alpha 0: a picture's
 -- background on its outer rim) the first coloured 4-neighbour's; a pixel already ink is left as it is.
 local function inkAt(color: buffer, W: number, H: number, i: number)
+	if flatInk then
+		buffer.writeu32(color, i * 4, packRGB(INK))
+		return
+	end
 	local c = buffer.readu32(color, i * 4)
 	if inkSet[c] then
 		return

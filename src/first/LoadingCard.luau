@@ -24,8 +24,11 @@
 --   the campfire flickering and throwing embers, a Conchy cheering by it; a Frondle and a Pebblit wandering up and
 --   down the island with a Mossbun and a Clawdle at their heels, a Gullfin hopping along the front; the old boat rocking
 --   past out at sea, gulls crossing the sky, stars twinkling, wave crests and glints of sun coming and going;
--- * over the sky, centred: "Driftling Isle" in the pixel font's big face (gold, the title's ink outline), a short
---   status that follows the real phases, a progress bar in a frame of planks, and at the foot a tip on an ink plate.
+-- * over the sky, centred: "Driftling Isle" in the pixel font's big face (gold, its outline a darker step of the
+--   gold), a short status that follows the real phases, a progress bar in a frame of planks, and at the foot a tip on
+--   an ink plate. (Every outline here is a darker step of the colour inside it, never flat ink: the request of
+--   2026-11-20, "For outlines everywhere, no longer use pure black, but a darker version of suitable neighbouring
+--   pixels instead"; 0.45 of the colour plus 0.3 of the ink, 0.3 and 0.3 for words, as in the game.)
 -- Sprites are ImageLabels on the decoded atlas (one EditableImage), moved from one Heartbeat at most SCENE_FPS times a
 -- second, at whole UI px. Without EditableImages the card is a plain one: the sky, the sea, the title and the bar.
 --
@@ -66,6 +69,8 @@ local C = {
 	ink = 0x2A1C1C,
 	plate = 0x3D2924,
 	accent = 0xFFCB30,
+	title_ink = 0x594517, -- the title's outline: 0.3 of the gold plus 0.3 of the ink
+	bar_ink = 0x62432F, -- the bar frame's outline: 0.45 of the frame's wood plus 0.3 of the ink
 	accent_hi = 0xFFE48A,
 	title_aa = 0x9C6A1E,
 	text = 0xF5EAD9,
@@ -100,9 +105,9 @@ local CLIFF, CLIFF_DARK = 0xBD895C, 0x86573E
 local GRASS, GRASS_HI, GRASS_LIP, GRASS_TUFT = 0x72C476, 0x94D894, 0x48955A, 0x58A866
 local GRASS_DARK, GRASS_LIGHT = 0x62B46A, 0x84CF86
 local FLOWER_A, FLOWER_B = 0xFFE17A, 0xF6A6C8
-local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x908A99, 0xCAC4D2, 0x6F697C, 0x4A4456
+local ROCK_C, ROCK_LIT, ROCK_D, ROCK_INK = 0x908A99, 0xCAC4D2, 0x6F697C, 0x4D474D
 local PLAZA, PLAZA_RIM = 0xE5CAB1, 0xCBAD91
-local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xB99276, 0xDDC3A6, 0x8C6852, 0x50382B
+local LOG_C, LOG_LIT, LOG_D, LOG_INK = 0xB99276, 0xDDC3A6, 0x8C6852, 0x604A3E
 local STAR_DIM, STAR = 0x8E86B4, 0xD9D2F2
 
 -- what the status says in each phase (and the tips, one after another)
@@ -364,7 +369,7 @@ local function shoreR(L: Layout, a: number): number
 	return w / math.sqrt((c / L.rx) ^ 2 + (sn / rz) ^ 2)
 end
 
--- Rocks at the waterline: an ink outline, lit from the top left, the shadow side a tone down.
+-- Rocks at the waterline: an outline a darker step of the stone, lit from the top left, the shadow side a tone down.
 local ROCKS: { { string } } = {
 	{ "..kkk..", ".kLggk.", "kLgggdk", "kgggddk", ".kkkkk." },
 	{ ".kkk.", "kLgdk", "kggdk", ".kkk." },
@@ -1308,15 +1313,16 @@ local function build()
 		t.Parent = layer
 		S.title = { x0 = 0, y0 = L.titleY, x1 = W, y1 = L.titleY + 16 }
 	else
-		local _, r = centredText(layer, L, "Driftling Isle", L.titleY, true, "title", C.accent, C.ink, C.title_aa, 902)
+		local _, r = centredText(layer, L, "Driftling Isle", L.titleY, true, "title", C.accent, C.title_ink, C.title_aa, 902)
 		S.title = r
 		if S.atlasContent then
 			placeScene(L)
 		end
 	end
-	-- the bar in its frame of planks: ink, the frame's light top and dark foot, the track, the fill with its light top
+	-- the bar in its frame of planks: its outline, the frame's light top and dark foot, the track, the fill with its light
+	-- top
 	local bx = L.cx - math.floor(L.barW / 2)
-	rect(layer, bx - 3, L.barY - 3, L.barW + 6, 9, C.ink, 900, "BarInk")
+	rect(layer, bx - 3, L.barY - 3, L.barW + 6, 9, C.bar_ink, 900, "BarInk")
 	rect(layer, bx - 2, L.barY - 2, L.barW + 4, 7, C.frame, 900, "BarFrame")
 	rect(layer, bx - 2, L.barY - 2, L.barW + 4, 1, C.frame_hi, 900, "BarFrameHi")
 	rect(layer, bx - 2, L.barY + 4, L.barW + 4, 1, C.frame_lo, 900, "BarFrameLo")

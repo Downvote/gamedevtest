@@ -1,7 +1,7 @@
 --!strict
 -- A cosmetic's picture for the Store, the Looks panel and the reward cards (GAME_DESIGN 14.1; Data/Cosmetics): its
 -- 24 x 24 thumbnail, "look_<id>" in UI/CosmeticThumbData, drawn from the piece's own model the way the build catalog's
--- are (sh tools/preview/cosmetic_thumbs.sh; a top on a little body), a 1 px ink outline and tidied to the pixel art
+-- are (sh tools/preview/cosmetic_thumbs.sh; a top on a little body), a 1 px outline (a darker step of the colour beside it) and tidied to the pixel art
 -- rules. A piece with no picture yet shows its slot's mini icon.
 --   CosmeticIcons.image(parent, id, pos?, z?) -> GuiObject   the piece's picture (a slot icon for an unknown id)
 --   CosmeticIcons.size(id) -> (w, h)                          its size in UI px (24 x 24 for a picture)

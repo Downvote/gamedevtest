@@ -20,7 +20,7 @@
 --   out of it went with the sea on 2026-11-20, when the islands took to the sky.)
 -- Everything is culled to the screen (an island off it is let go after a while), scaled by the renderer's tier (low
 -- half, medium three quarters), paused with the renderer (no tick, no drawing) and drawn on whole art pixels, the
--- creatures with their ink outline (UI/ArtData's "fx_" sprites, scripts/gen_art.py). A screen that shows the island
+-- creatures with their outline (UI/ArtData's "fx_" sprites, scripts/gen_art.py). A screen that shows the island
 -- small (a phone) gets the small sprites. While a stage has the view (the hatch scene) none of it shows. Reduced
 -- motion (Roblox's setting): no particles, flights or sway; the birds sit still.
 --   start(), stats(), birds(plot), debugRun(on) (sims: live without a picture), debugHurry() (everything due now)

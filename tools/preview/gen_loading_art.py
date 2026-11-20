@@ -159,6 +159,40 @@ def decode_check(lines, w, h, palette, ns, first=None):
     return frames
 
 
+def fit_colours(members, n):
+    # at most n colours over a sequence and those based on it (one character a colour): the two closest merged, the
+    # rarer into the commoner, until they fit. The outline's darker steps (selective outlining: a step of the colour
+    # beside each edge pixel, never flat ink) are close together, so they go first.
+    counts = {}
+    for m in members:
+        for px in m["frames"]:
+            for c in px:
+                if c is not None:
+                    counts[c] = counts.get(c, 0) + 1
+    if len(counts) <= n:
+        return
+    remap = {c: c for c in counts}
+    cols = list(counts)
+    while len(cols) > n:
+        best = None
+        for i in range(len(cols)):
+            a = cols[i]
+            for j in range(i + 1, len(cols)):
+                b = cols[j]
+                d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+                if best is None or d < best[0]:
+                    best = (d, a, b)
+        _, a, b = best
+        keep, drop = (a, b) if counts[a] >= counts[b] else (b, a)
+        counts[keep] += counts.pop(drop)
+        cols.remove(drop)
+        for c, to in remap.items():
+            if to == drop:
+                remap[c] = keep
+    for m in members:
+        m["frames"] = [[None if c is None else remap[c] for c in px] for px in m["frames"]]
+
+
 def main():
     args = sys.argv[1:]
     sheet = atlas_png = None
@@ -192,6 +226,9 @@ def main():
         boxes[root] = (min(b[0] for b in bs), max(b[1] for b in bs), min(b[2] for b in bs), max(b[3] for b in bs))
     for name, s in seqs:
         crop(s, boxes.get(s.get("base") or name))
+    for name, s in seqs:
+        if not s.get("base"):
+            fit_colours([s] + [by_name[m] for m in groups.get(name, [])], 78)
     counts = {}
     for _, s in seqs:
         for px in s["frames"]:

@@ -161,6 +161,11 @@ is `DriftlingIsle-<short hash>.rbxl`.)
   thumbnails (1920 x 1080) and icon (512 x 512) are `art/thumbnails/thumb_<n>_<name>.png` and `art/thumbnails/icon.png`
   (`tools/preview/game_thumbs.sh`: frames of the game drawn by its pixel filter with the HUD off and no founder in them,
   driftlings drawn through Pixel/Snapshot over them, the title and captions in the pixel font, all on one 4x grid).
+  Every outline in these and in the loading card's art is a darker step of the colour beside it, never flat ink
+  (GAME_DESIGN 2): `product_icons.py`'s `Canvas.edge` and `outline` draw a shape's outline in ink and `Canvas.finish`
+  gives each pixel still showing `ink_of` the colours it rings; a word's outline and depth are `ink_of(face, 0.3,
+  0.3)`; `gen_thumbs.py` (`fit_colours`) and `gen_loading_art.py` merge a picture's closest colours when its outline
+  steps take it past the colours a character can name.
 - One function stays under 200 locals and upvalues (luau-compile checks it).
 - Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
 - Some modules keep the names of the games before this one (the plots along a "street", the island's tiers an
@@ -1084,6 +1089,9 @@ Without EditableImages (`fallback`): Frames and an Arcade TextLabel. `LoadingArt
 `seqs[name] = { w, h, ax, ay, dur, at, pal, px, base?, head?, flame? }`): `frond`, `frond_r`, `pebble`, `pebble_r`,
 `crab`, `crab_r`, `bun`, `bun_r`, `gullfin`, `gullfin_r`, `cheer` (a Conchy), `fire`, `palm`, `palm_b`, `nest`,
 `burrow`, `torch`, `flowers`, `bush`, `tree` (65 x 85, two frames: lit and dimmer), `boat`, and the hand-made `gull`, `star`, `crest`, `ember`, `glint`.
+The card's own outlines are darker steps of what they ring (`C.title_ink` the gold title's, 0.3 and 0.3; `C.bar_ink`
+the bar frame's, `ROCK_INK` and `LOG_INK`, 0.45 and 0.3), never `C.ink`, which stays for the words' drop shadow and the
+tip's plate.
 
 ### 8.1 `StateClient`
 `init`, `view() -> ClientView?`, `waitView`, `Changed: Signal<ClientView>`, `Fx: Signal<msg>`, `Tick:
@@ -1155,7 +1163,15 @@ behind the first curtain), sun visibility cast at each 2×2 block's even-even an
 pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
 neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_DESIGN 2), shaded with `Render/Shading`'s three
 toon bands and the palette LUT (the indoor tint inside the room) with each material's surface texture (9.3), then the
-ink outline (`Shading.outline`) and the contact shade at the foot of upright faces. The **dynamic layer** is the islanders (the hut driftlings), the tree's eggs and the founders: every tick (the tier's Hz) their parts
+outline (`Shading.outline`) and the contact shade at the foot of upright faces. The outline is selective (GAME_DESIGN
+2, the request of 2026-11-20: "For outlines everywhere, no longer use pure black, but a darker version of suitable
+neighbouring pixels instead"): each edge pixel becomes `Shading.inkOf(p)`, 0.45 of its own colour plus 0.3 of the
+palette's ink (cached per colour), or on a picture's outer rim (alpha 0) that of its first coloured 4-neighbour, or
+the flat ink `Shading.INK_PIXEL` where it has none. `Shading.isInk(p)` says whether a pixel is one of those edge
+colours (the wind pass tells an edge from a leaf by it; a pixel already an edge is never darkened twice).
+`Shading.setFlatInk(on)` draws every edge in the flat ink instead: only the picture scenarios set it
+(`portraits.luau`, `thumbs.luau`, `cosmetic_thumbs.luau`, `product_icons.luau`), so `tools/preview/gen_portraits.py`
+can find the outline and the creases by colour before it gives each its darker step. The **dynamic layer** is the islanders (the hut driftlings), the tree's eggs and the founders: every tick (the tier's Hz) their parts
 are drawn analytically with `Raster.drawPart` and the same orthographic camera, depth-tested against the static
 layer and outlined; only the tiles where something changed are drawn again and uploaded (9.3, the incremental
 compose). Besides Roblox's shapes, Raster draws
@@ -1646,7 +1662,11 @@ transition anymore").
 
 ### 9.4 Text and pictures
 `Pixel/PixelText` (copied): labels drawn in the pixel font into shared EditableImage atlas pages; a bound TextLabel
-keeps its `Text`. `PixelText.overflows() -> { { name, text, w, h, bw, bh, clipped } }` (previews and sims: the bound
+keeps its `Text`. A label bound with style `kind` "outline" or "title" and `under` the ink (or no `under`, or one
+as dark: every channel under 0.25) draws its outline and depth in a darker step of its own face colour, 0.3 of the
+face plus 0.3 of the palette's ink, following `setColor` and a changed `TextColor3` (selective outlining; a title on
+the big face is baked again); `underShade` and `setUnder` still name the colour outright, and the drop shadow of
+"shadow" and the weight of "weight" stay as given. `PixelText.overflows() -> { { name, text, w, h, bw, bh, clipped } }` (previews and sims: the bound
 labels on show whose words need more room than their box, a line too wide or too many lines; `clipped` when the label
 truncates them; the previews log each as an OVERFLOW line, the request of 2026-11-14, "there is a few boxes where text
 overflows. can you prevent this?"). `Pixel/Snapshot` (copied): pixel-art pictures of models drawn analytically (`Render/Picture`), for
@@ -1657,7 +1677,8 @@ it.
 
 ### 10.1 `UIKit`
 Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
-with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `hex`, `P`, `size(root)`, `phone`,
+with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `inkOf(c)` (an outline's colour
+beside `c`: 0.45 of it plus 0.3 of the UI's ink, the world's step; every outline the UI draws takes it), `hex`, `P`, `size(root)`, `phone`,
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound; `TextTruncate` AtEnd, so words too long for
 the box end in "..." inside it, the last line of a wrapped one too, never past its edge), `setText`, `setTextColor`, `textWidth`,
 `lineHeight`, `lines(text, w, face?)` (how many lines a wrapped label breaks it into). The look since 2026-11-14
@@ -1667,10 +1688,10 @@ Random Bakery's HUD): `glass(parent, size, pos?, corner?)` (black see-through gl
 the tray, the notices, the hatch scene's plates; a panel's glass at `PANEL_ALPHA` 0.16), `row(parent, size, pos?, c?,
 alpha?)` (an item's veil over the glass: `veil` white at `ROW_ALPHA` 0.9, one-step corners; `c` tints it, a picked
 card the accent at 0.55), `PAD` (4 UI px inside a block), `isNeutral(color)`; `plate` with `{ glass = true }` or the
-old `{ wood = t }` is glass, with `{ row = true }` a veil. `plate(parent, size, pos?, color?, alpha?, corner?, style?)` (stepped corners with a 1 px ink outline
+old `{ wood = t }` is glass, with `{ row = true }` a veil. `plate(parent, size, pos?, color?, alpha?, corner?, style?)` (stepped corners with a 1 px outline, `inkOf(color)` unless `style.edgeColor` names one,
 following them: "Fill" rects inside "Edge" rects, none overlapping; `style { edge = false }` a flat swatch, `{ shadow
 = true }` a 2 px drop shadow right and below, "Shadow"; the island's looks (GAME_DESIGN 2): `{ wood = t }` a frame of
-planks t px wide outside the outline and an ink outline round it ("Wood": a "Board" behind, "Hi" / "Lo" bevel rows,
+planks t px wide outside the outline and another outline round it ("Wood": a "Board" behind, "Hi" / "Lo" bevel rows,
 "Seam"s every `PLANK` px, a "Nail" in each corner; the plate then takes t + 1 px more on every side, the shadow moved
 out with it), `{ bevel = true }` a lit top row and a shaded bottom one, "BevelHi" / "BevelLo"), `plank(frame, h, k?)`
 (since 2026-11-14 a faint white `TitleRule` at row h + 1, `PAD` in from each side: the planks went with the frames),
@@ -2265,7 +2286,7 @@ letters, ribbon, stars, wait, build }`; `shake` how hard it shakes this frame; `
 god rays lit (`HatchBackdrop.debugLight`), `hush` how dark the sky is, `slow` the slow motion running, `jolt` the
 picture's offset (art px), `squash` the egg's, `letters` the name's letters in, `ribbon` its ribbon shown, `stars` the
 stars circling, `wait` and `build` this scene's). `res.new` (the result's `new`: a kind
-never had) puts `HatchNew` beside `HatchName` when it shows: a 1-step-corner plate in `accent` with the ink outline
+never had) puts `HatchNew` beside `HatchName` when it shows: a 1-step-corner plate in `accent` with its outline
 and `Word` "New!" in `text_ink`, slamming 16 px down into place at the name's right past its place and back (`showNew`, a
 cue once the name is in), twelve `accent` and white dots, a `flare_*` sprite, an 8-ray starburst and Audio "sparkle". The egg drops in (2026-11-14, in place of rising from below):
 `liftOf(s, clock)` is its height over its resting spot: `DROP_FROM` 9 studs while it waits (`GLORY.wait`, `s.wait`),
@@ -2282,10 +2303,12 @@ past the picture's bottom; `shaft(x, y, shade)` its stone `shade` steps down the
 side (joints every 9 px, the trim band at its foot), the top (lit rim, inlaid ring, the egg's dithered shadow, gems from
 rare up), the cap's shadow on the shaft (since 2026-11-15, "it dosent seem like the top part is casting a shadow on the
 bottom part of the pillar": under the cap's lip, two steps down the ramp for a row then one step, 0.22 of the cap's
-height deep at the left to 0.45 at the right, stepping at the flutes), the ink outline of the whole down to the
+height deep at the left to 0.45 at the right, stepping at the flutes), the outline of the whole down to the
 picture's foot (since 2026-11-15, "it seems like the outline gets broken in the pillars": it stopped 2 px under the cap;
-the 4-neighbour pixels outside it, each elbow on a curve a step of anti-aliasing, the stone mixed 0.45 toward the ink,
-instead of a doubled pixel), two tufts on the rim. Since 2026-11-19 the sky's corners are darkened (dithered) before
+the 4-neighbour pixels outside it, each elbow on a curve a step of anti-aliasing, halfway between the stone and the
+line, instead of a doubled pixel; since 2026-11-20 each pixel of it a darker step of the stone beside it, the
+commonest of its 4-neighbours there and the darker on a tie, 0.45 of it plus 0.3 of the base's `ink`), two tufts on
+the rim. Since 2026-11-19 the sky's corners are darkened (dithered) before
 the land, and the land is painted per range (`ridgeOf(li, x)`; the sky's stops end at `hyS`, 3 px over the far range's
 highest crest, so no seam meets a ridge): a five-tone ramp from the range's `hills` pair (`deep` = the sky's first stop,
 `warm` = its `glow`); each column's rounded top (`topsOf`), a lit cap (slopes facing left) and a shaded cap (facing
@@ -2733,19 +2756,26 @@ pixel (`.` clear, else an index into `pal` 0xRRGGBB with its `alpha`). How `gen_
 `cel_tones` over the whole silhouette (the base; a 1 px shadow along the bottom and right edges, two under a
 portrait's belly; a short light on the upper half of the top-left edges of masses 3 px thick), close hue-shifted
 ramps (`RAMPS`, `M` the magmole's warm basalt, `E` cream), no grain, curves inside the outline softened a step toward the
-shadow; the outline is never anti-aliased on its outside. The driftlings' portraits are not masks: `PORTRAITS`, read
+shadow; the outline is never anti-aliased on its outside. The outline (and a `#` line inside a sprite) is never flat
+ink since 2026-11-20 (selective outlining, GAME_DESIGN 2): `ink_of(c)` gives each outline pixel 0.45 of the colour
+beside it inside the silhouette plus 0.3 of the ink (`pick_beside`: the commonest of its 4-neighbours there, the
+darker on a tie; a `#` pixel takes its 4-neighbours that are not `#`, else its diagonals), the step `Shading.inkOf`
+takes in the world. A sprite's `_flash` keeps its outer ring (found by shape, `outer_ring`, not by the ink's colour)
+and turns the rest white; a `_sil` (not found yet) is one dark ring, `ink_of(drk1)`, round a see-through ink body.
+The driftlings' portraits are not masks: `PORTRAITS`, read
 from `scripts/portraits.txt` (GAME_DESIGN 2: each driftling's 3D model drawn by `Pixel/Snapshot` at 32 x 32, turned
 30 degrees, pitch 15, in the preview scenario `pportraits`, its head 1.45 times bigger and its eyes 1.1 again, in its
 body plan's style (`portraitPose` with `EYE_STYLE`: a size, an iris in the species' accent unless it is in `DULL` or
 too near the body, then the plan's own colour, a black `Pupil<L|R>` part as a dot, slit or bar, a Neon glint or none,
-a Neon glow for a sprite; a golem keeps its slits), then tidied by `tools/preview/gen_portraits.py`: binary alpha, the outline made again 1 px on
-the four sides, lone spikes and notches, the bands' dither settled, creases 1 px and a shade of the colour beside
+a Neon glow for a sprite; a golem keeps its slits; the scenario draws them in flat ink, `Shading.setFlatInk`), then
+tidied by `tools/preview/gen_portraits.py`: binary alpha, the outline made again 1 px on the four sides (each pixel
+`ink_of` the body colour beside it, the commonest there and the darker on a tie), lone spikes and notches, the bands' dither settled, creases 1 px and a shade of the colour beside
 them, dark bodies lifted (not the eyes), a little more saturation, near tones merged, curves softened inside; `sh tools/preview/portraits.sh` runs the three and remakes `ArtData`).
 The islands' small lives (`AmbientView`, drawn by `Render/Fx` into the pixel layer, not the interface) are `fx_`
 sprites in `ArtData`, hand-shaded with digit tones (`FX` and `GROUND` in `gen_art.py`; no `_flash`): `fx_pip`,
 `fx_wren`, `fx_gull` (four frames: sitting or standing, pecking, wings up, wings down; teal `T` and coral `Q` ramps),
 `fx_fish` (nose up, level, nose down), each with a small version (`fx_pips` ...) for a screen that shows the island
-small, all outlined in ink; and without an outline (ground and light, like the sparks) `fx_tuft` (upright, leaning
+small, all outlined (a darker step of the colour inside, like every sprite); and without an outline (ground and light, like the sparks) `fx_tuft` (upright, leaning
 with the wind, leaning back), `fx_flower`, their small `fx_tufts` and `fx_flowers`, `fx_bfly`, `fx_leaf`,
 `fx_petal`, `fx_glint`, `fx_ripple`. The pixels a tinted sprite draws in `tn0` .. `tn3` (the same values as
 `Fx.TONES`) take the tones of a colour given at draw time (`Fx.tones`, Render/Ramp's ramp).

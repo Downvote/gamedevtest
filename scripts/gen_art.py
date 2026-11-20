@@ -21,13 +21,18 @@
 #     upper half of the top-left edges of masses at least 3 px thick; no grain, no speckles, no white glints (the
 #     user: the sprites looked "too busy" and "metallic"); the ramps' steps are close and hue-shifted (shadows a
 #     little cooler, lights a little warmer);
-#   * draws a 1 px ink outline round the silhouette (the 4-neighbours: convex corners come out cut, so no double
-#     pixels at the turns) - a mask leaves a 1 px margin for it;
+#   * draws a 1 px outline round the silhouette (the 4-neighbours: convex corners come out cut, so no double pixels at
+#     the turns) - a mask leaves a 1 px margin for it. Since 2026-11-20 ("For outlines everywhere, no longer use pure
+#     black, but a darker version of suitable neighbouring pixels instead") the outline is selective: each outline
+#     pixel is a darker step of the sprite's pixel beside it (`ink_of`: 0.45 of that colour and 0.3 of the ink, the
+#     same step as the world's Shading.inkOf), the commonest of its neighbours where it touches more than one, so a
+#     green leaf's edge is a deep green, a cream egg's a dark cream;
 #   * softens the curves inside the outline: a pixel that meets the outline only at a corner goes a step toward the
 #     shadow (never a dark speck on the lit side); nothing outside the outline.
 # Mask characters: "." empty; an UPPERCASE letter a shaded region (REGIONS: R red, O orange, Y yellow, G green, C cyan,
 # B blue, P purple, K pink, N brown, S stone grey, F skin and peach, W white, D dark, M warm basalt, E cream); a lowercase letter or digit a flat colour
-# (FLAT, or the sprite's own "flat" map); "#" an ink line inside the sprite.
+# (FLAT, or the sprite's own "flat" map); "#" a line inside the sprite, a darker step of the colours beside it (no
+# longer flat ink since 2026-11-20).
 import argparse, math, os, sys
 
 # a pixel's character in ArtData and ThumbData (and in scripts/thumbs.txt): its colour's place in the sprite's palette
@@ -1112,6 +1117,30 @@ def cel_tones(grid, w, h):
     return tone
 
 
+INK_KEEP, INK_ADD = 0.45, 0.3  # a selective outline: of the colour beside it kept, of the ink added (Shading.inkOf)
+
+
+def ink_of(c, keep=INK_KEEP, add=INK_ADD):
+    """A darker step of colour c (0xRRGGBB) for an outline or a line beside it: leaning toward the ink's hue."""
+    k = PAL["ink"]
+    out = 0
+    for sh in (16, 8, 0):
+        out |= min(255, int(((c >> sh) & 0xFF) * keep + ((k >> sh) & 0xFF) * add + 0.5)) << sh
+    return out
+
+
+def lum_hex(c):
+    return 0.3 * ((c >> 16) & 0xFF) + 0.59 * ((c >> 8) & 0xFF) + 0.11 * (c & 0xFF)
+
+
+def pick_beside(cols):
+    """The colour an outline pixel takes its step from: the commonest of its neighbours', the darker on a tie."""
+    count = {}
+    for c in cols:
+        count[c] = count.get(c, 0) + 1
+    return max(count, key=lambda c: (count[c], -lum_hex(c)))
+
+
 def build(name, spec, recolor=None):
     rows = spec["rows"]
     h, w = len(rows), len(rows[0])
@@ -1134,7 +1163,7 @@ def build(name, spec, recolor=None):
             if c == ".":
                 continue
             if c == "#":
-                px[y][x] = (PAL["ink"], 1.0)
+                px[y][x] = None  # (a line inside: a darker step of what lies beside it, below)
             elif c.isupper():
                 ramp = RAMPS.get(c)
                 if ramp is None:
@@ -1215,12 +1244,29 @@ def build(name, spec, recolor=None):
                     elif t == 1 and (1, 1) in diag:
                         t = 0
                     px[y][x] = (PAL[RAMPS[c][t]], 1.0)
+    # the lines inside ("#"): a darker step of the colours beside them (their 4-neighbours first, else the corners)
+    lines(grid, px, w, h)
+    if spec["outline"]:
         for y in range(h):
             for x in range(w):
                 if outl[y][x]:
-                    px[y][x] = (PAL["ink"], 1.0)
+                    beside = [px[y + dy][x + dx][0] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                              if 0 <= x + dx < w and 0 <= y + dy < h and solid[y + dy][x + dx] and px[y + dy][x + dx] is not None]
+                    px[y][x] = (ink_of(pick_beside(beside)) if beside else PAL["ink"], 1.0)
         # (no anti-aliasing outside the outline: the silhouette stays crisp)
     return px
+
+
+def lines(grid, px, w, h):
+    todo = [(x, y) for y in range(h) for x in range(w) if grid[y][x] == "#"]
+    for x, y in todo:
+        beside = []
+        for ring in (((1, 0), (-1, 0), (0, 1), (0, -1)), ((1, 1), (-1, 1), (1, -1), (-1, -1))):
+            beside = [px[y + dy][x + dx][0] for dx, dy in ring
+                      if 0 <= x + dx < w and 0 <= y + dy < h and grid[y + dy][x + dx] not in ".#" and px[y + dy][x + dx] is not None]
+            if beside:
+                break
+        px[y][x] = (ink_of(pick_beside(beside)) if beside else PAL["ink"], 1.0)
 
 
 def pad_to(px, W, H):  # a sprite on a bigger canvas, bottom centre (an animation's frames share one size)
@@ -1229,14 +1275,36 @@ def pad_to(px, W, H):  # a sprite on a bigger canvas, bottom centre (an animatio
     return [[px[y - oy][x - ox] if 0 <= x - ox < w and 0 <= y - oy < h else None for x in range(W)] for y in range(H)]
 
 
+def outer_ring(px):
+    """An outlined sprite's outline: its opaque pixels with a clear (or no) 4-neighbour."""
+    h, w = len(px), len(px[0])
+    ring = set()
+    for y in range(h):
+        for x in range(w):
+            if px[y][x] is None:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if not (0 <= nx < w and 0 <= ny < h) or px[ny][nx] is None:
+                    ring.add((x, y))
+                    break
+    return ring
+
+
 def all_sprites():
     out = {}
+    outlined = set()
     for name, rows in PORTRAITS.items():
         out[name] = rows
+        outlined.add(name)
     for name, spec in SPRITES.items():
         out[name] = build(name, spec)
+        if spec["outline"]:
+            outlined.add(name)
         for vname, rec in spec["variants"].items():
             out[name + "_" + vname] = build(name, spec, rec)
+            if spec["outline"]:
+                outlined.add(name + "_" + vname)
     # an animation's frames (name_1, name_2, ...) on one canvas
     groups = {}
     for name in out:
@@ -1253,11 +1321,14 @@ def all_sprites():
             continue
         # a white flash (the fuse's bomb blinking) for the overlay's sprites, a dark silhouette (not found yet) for the
         # icons: the same outline
+        # (the outline: an outlined sprite's outer ring, its colours each a darker step of the pixel beside it)
+        ring = outer_ring(out[name]) if name in outlined else set()
         if not (name.startswith(("icon_", "mini_"))):
-            flash = [[None if p is None else ((PAL["wht"], 1.0) if p[1] == 1.0 and p[0] != PAL["ink"] else p) for p in r] for r in out[name]]
+            flash = [[None if p is None else (p if (x, y) in ring or p[1] < 1.0 else (PAL["wht"], 1.0)) for x, p in enumerate(r)] for y, r in enumerate(out[name])]
             out[name + "_flash"] = flash
         if name.startswith(("icon_", "mini_")):
-            sil = [[None if p is None else ((PAL["ink"], 0.55) if p[1] == 1.0 and p[0] != PAL["ink"] else p) for p in r] for r in out[name]]
+            # (not found yet: one dark shape, its rim the ink step of that dark, nothing of its colours showing)
+            sil = [[None if p is None else ((ink_of(PAL["drk1"]), 1.0) if (x, y) in ring else ((PAL["ink"], 0.55) if p[1] == 1.0 else p)) for x, p in enumerate(r)] for y, r in enumerate(out[name])]
             out[name + "_sil"] = sil
     return out
 

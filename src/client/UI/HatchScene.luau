@@ -601,9 +601,10 @@ local function newTagAt(nm: TextLabel): (number, number)
 	return math.min(w - tw - 2, math.floor((w + nameW) / 2) + 4), h - 40
 end
 
--- A ribbon in the rarity's colour under the line ("Rare, good at farms"): a band w px wide with a 1 px ink outline, a
+-- A ribbon in the rarity's colour under the line ("Rare, good at farms"): a band w px wide with a 1 px outline, a
 -- lighter top row and a darker bottom one, and a tail at each end a little lower and a shade darker, its end cut in a
--- notch. Drawn in 1 px rects on the overlay's grid.
+-- notch. Each outline a darker step of the colour inside it (UIKit.inkOf: selective outlining). Drawn in 1 px rects on
+-- the overlay's grid.
 local TAIL: { string } = {
 	"kkkkkkkkkk",
 	".kdddddddd",
@@ -642,7 +643,8 @@ local function ribbon(s: Scene, w: number, r: number): Frame
 					run += 1
 				end
 				if ch ~= "." then
-					local c = if ch == "k" then ink else (if side == 0 then dark else deep)
+					local fill = if side == 0 then dark else deep
+					local c = if ch == "k" then UIKit.inkOf(fill) else fill
 					local lx = if side == 0 then x - 1 else total - run
 					rect(lx, y + 3, run - x + 1, 1, c, 33)
 				end
@@ -651,7 +653,7 @@ local function ribbon(s: Scene, w: number, r: number): Frame
 		end
 	end
 	-- the band over them
-	rect(7, 0, w, 12, ink, 34)
+	rect(7, 0, w, 12, UIKit.inkOf(base), 34)
 	rect(8, 1, w - 2, 10, base, 34)
 	rect(8, 1, w - 2, 1, light, 34)
 	rect(8, 10, w - 2, 1, dark, 34)

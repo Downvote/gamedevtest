@@ -943,8 +943,8 @@ local function buildStage(parent: Instance, x: number, y: number, w: number, h: 
 	stage.Size = UDim2.fromOffset(w, h)
 	stage.ZIndex = 2
 	stage.Parent = parent
-	-- the frame: an ink outline, driftwood lit along its top and left and shaded along its right and bottom, a dark
-	-- line round the glass
+	-- the frame: an outline a darker step of the driftwood (UIKit.plate), the wood lit along its top and left and
+	-- shaded along its right and bottom, a dark line round the glass
 	local F = 4
 	local frame = UIKit.plate(stage, UDim2.fromScale(1, 1), nil, color("frame"), 0, 2)
 	frame.Name = "WindowFrame"
@@ -1057,8 +1057,8 @@ local function buildStage(parent: Instance, x: number, y: number, w: number, h: 
 end
 
 ------------------------------------------------------------------ the grid
--- A colour chip in a box `cell` px square: a rounded swatch with a 1 px ink outline, its top rows lit and its bottom
--- rows shaded (lit from the top left), a glint. `same`: an = on it (the "None" / "Same" chips).
+-- A colour chip in a box `cell` px square: a rounded swatch with a 1 px outline a darker step of its colour, its top
+-- rows lit and its bottom rows shaded (lit from the top left), a glint. `same`: an = on it (the "None" / "Same" chips).
 local function chip(parent: Instance, cell: number, c: Color3, same: boolean?)
 	local side = math.max(10, math.floor(cell * 0.62 + 0.5))
 	side -= side % 2
