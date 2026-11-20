@@ -403,9 +403,7 @@ Models (`src/shared/Models`, Roblox modules):
   standing rig's space), color, shape?, rot?, bone ("head" | "body" | "hand" | "handL"), neon?, moves? }`, a few parts
   each, cached; the module asserts every piece without a `kind` has its model), `top(id) -> { torso?, arms?, trim?, hide? }?`, `covers(id) -> "top" |
   "hood" | nil`, the anchors `HEAD` (0, 3.125, 0), `BODY` (0, 1.875, 0), `HAND` (0.8125, 1.39, 0).
-- `Blocks.windy(root)`: the wind's tags for the pixel filter (§9.3): every part named `Flag...` or `Pennant...` (not
-  a `...Pole`) gets `PixelWind` 2, every part in `leaf` or `leaf_dark` `PixelWind` 1 (water parts left alone). Called
-  by `StreetModels.landChunk` and `DecorModels.build` on their models.
+- (`Blocks.windy(root)`, the wind's `PixelWind` tags on leaves and flags, went on 2026-11-20 with the wind itself.)
 - `BoatSpec` (the boat's plan: only the loading card's art draws a boat now; the ambient sailboats went with the sea on
   2026-11-20, the pier's boat and `moor` with the docks on 2026-11-13): `MAX` (6), `dims(level) -> { L, W, H }`,
   `deck(level)` (the four places on deck, founder first: deck-top coordinates, +Z the bow), `deckOverWater(level)`, `parts(level) -> { { name, shape ("Block" "Wedge" "CylY"), size, cf (from the
@@ -421,7 +419,7 @@ Models (`src/shared/Models`, Roblox modules):
   the wall's, the lawn's edge and rim, and every course's wobbling edges from `cutsOf`)
   in it and `LAND_MARGIN` (3) cells round it, and of the sign's place when it is near; a cell further in than the
   deepest course's inner edge reads the same on every tier, so an expansion changes only the chunks along the old and
-  the new edge), `landChunk(parent, origin, tier, chunk)` (one chunk's `layers` and `scatterIn`; `Blocks.windy`),
+  the new edge), `landChunk(parent, origin, tier, chunk)` (one chunk's `layers` and `scatterIn`),
   `wallsName(tier)` ("Walls_<tier>") and `landWalls(parent, origin, tier)` (the invisible wall round the tier's grass,
   one model of its own: out of the chunks, so a chunk's box (what the pixel filter draws again or ahead when it comes
   or goes) is only as big as what shows of it), `landSign(parent, origin, tier)` (the model `signName(tier)`,
@@ -481,7 +479,7 @@ Models (`src/shared/Models`, Roblox modules):
   studs; red at lvl 2, gold at 3 with a second flag and a lit `LampLight` lantern under a `LampCap` on the pole's top
   in place of its knob: since 2026-11-15, the front corner where the lamp stood holding the reworked buildings' props),
   only on a building (never on the tree, a path, a water tile or a fence, whose `lvl` means something else or nothing); the
-  pier's pond and the fountain's water `PixelWater` 2; parts don't collide; `Blocks.windy`), `has`. It holds the
+  pier's pond and the fountain's water `PixelWater` 2; parts don't collide), `has`. It holds the
   builders of the old pieces and the tree (64), the 18 huts, workplaces and boosts of tiers 11 to 20 (2026-11-14:
   `shroomcellar` .. `citadel`, with `span` (a box between two points), `roundDoor`, `cap` (a mushroom cap) and `spire`
   (a tower roof in narrowing rings)), and takes the rest from the catalog's model modules below, by id (a builder of
@@ -1489,11 +1487,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `SG.waterAll`, after a bake, the growth's end or a stash coming back) goes in `SG.waterPend` (global x, global y,
   colour now, colour next). `SG.waterApply(s)` puts on each still on the layer and still that colour, grading it from
   `SG.waterGrade` (water colour and part -> graded colour, under the grade and dim of `waterGradeKey`). `SG.waterFix`
-  also queues the next frame of a strip whose slice was already worked out. `SG.windSlice(s, k, j)` works out the
-  wind's moves of slice j into `SG.windPend` (pixel -> colour) against the picture without its paint (`orig`) and
-  with the moves so far (`now`); `SG.windApply(s)` takes the old paint off and lays the new. A pan takes the paint off
-  and voids the wind's frame (`SG.windVoid`): the wind waits for the view to stand (it used to show one frame in ten
-  of a walk, a flicker).
+  also queues the next frame of a strip whose slice was already worked out. (`SG.windSlice` and `SG.windApply`, the
+  wind's own slices, went on 2026-11-20; `SG.windPend`, `windDone` and `windVoid` stay, always empty.)
 - **Invalidation**: a part that comes or goes anywhere under `Workspace.Plots` queues the global-art-px rect it and its
   sun shadow on the lawn cover (`partRect`); queued rects are re-cast pixel by pixel by the same rule (anchors, then
   the rest), at most `Tuning.PixelInvalidateRaysFrame` rays and `Tuning.PixelInvalidateMs` a frame, then their shadow
@@ -1530,26 +1525,11 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `Shading.pack`: red in the low byte), the foam's white coming and going (`waterColor`, cached per class, tone
   and phase), and the whole image uploads (composing incrementally, each changed pixel goes straight onto the frame,
   `SG.sync`). Its shadows and the islanders over it stay put. A stage's water moves too.
-- **Wind** (GAME_DESIGN 8): a part with `PixelWind` 1 (leaves) or 2 (flags; `Blocks.windy` tags them) gets the class 4
-  or 5 in `sWClass` (never on water) and its own phase in `sWave` (leaves: slow, across the island; flags: quick,
-  along their length). With the water, `animateWind(s, frame)` moves pixels on the static layer without a ray: a
-  canopy's silhouette rustles (the requests of 2026-11-14, "make them actually rustle like leaves", and 2026-11-15,
-  "i meant rustling the sillouhette instead. theres no need for the random noise animation inside the tree leaves"):
-  an edge pixel (class 4 with a pixel not of it and farther behind above it, else to its left or right; a crown's foot
-  stays put) in a clump of 3 x 3 chosen by a hash and the frame (`RUSTLE_N` 6 of 64 at a time, `RUSTLE_GUST` 14 while
-  a gust passes: the leaf phase's two windows of 12 in 48, one each way) flicks out a pixel (the outline over what lies
-  behind, the leaf next to it where the outline was) or opens a pixel in (what lay behind where the outline was, the
-  outline a pixel in, when two leaf pixels stand behind it); in a gust the sides facing its way flick out and the
-  others in, else the clump's hash picks; a move only where the outline stays one pixel thick (the report of
-  2026-11-15, "when the tree rustles, it seems to make thick outlines sometimes"): the edge pixel is ink
-  (`Shading.INK_PIXEL`, as the outline pass writes it), the leaf behind it and the pixel outside are not, the moved
-  ink touches no other ink across or beside it as the frame stands (this frame's earlier moves in), opening in needs
-  a second leaf behind, and no pixel moves twice in a frame; nothing inside a crown moves (the canopy's whole-edge lean and the 2 x 2
-  inner clumps of 2026-11-14 are in this file's history); a flag's columns drop or lift a pixel along the wave (the
-  lifted fold a shade darker). What it painted is
-  kept (`windSaved` / `windWrote`) and undone (`windRestore`) before the next wind frame, a pan, a stage's stash and
-  a bake; a pixel something else has painted since is left alone. They belong to their layer (`windOn`): another
-  layer's are dropped, never restored onto it.
+- **Wind** (GAME_DESIGN 8): gone since 2026-11-20 ("the outlines are still broken on the tree. no need to add rustling to
+  the tree and other objects anymore, these cause broken outlines"). It moved pixels of the static layer's outline
+  (a canopy's edge flicking out or in a pixel, a flag's columns dropping or lifting) on parts tagged `PixelWind`;
+  `sWClass` classes 4 and 5 are no longer given, nothing paints, and `windRestore` (still called before a scroll, a
+  stash and a bake) finds nothing to undo. The pass is in this file's history.
 - **A spotlight** (once the battles'; nothing sets it now: `setDim(k)`, `debugDim()`): the static picture darkened by `dim` (0 .. 1,
   in tenths: each step re-uploads the picture) in `gradeSpan` after the grade, a static pixel (`id < DYN_ID0`) only and
   never a glowing one (`dimOf`, cached per colour: greyer by 0.35 x dim, times 1 - 0.5 x dim, cooled); the dynamic

@@ -7,8 +7,7 @@
 --   deck(level) -> { Vector3 }  (where the party stands: the founder first, then three)
 -- Level 1 is a rowing sloop; 2 brings a cabin, a striped sail, a lantern, fenders and a life ring; 3 a bigger hull, a
 -- bowsprit and jib, barrels; 4 a foremast, a crow's nest, a figurehead and gold trim; 5 a chimney and a stern
--- lantern; 6 a mizzen mast and blue sails. Flags and pennants are named "Flag..." (they flutter:
--- MicroModels.flutter; marked PixelWind 2 for a static one in the pixel filter's wind).
+-- lantern; 6 a mizzen mast and blue sails. Flags and pennants are named "Flag..." (they flutter: MicroModels.flutter).
 
 export type Part = { name: string, shape: string, size: Vector3, cf: CFrame, color: string, neon: boolean?, wind: number? }
 export type Dims = { L: number, W: number, H: number }

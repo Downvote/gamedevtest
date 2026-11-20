@@ -324,11 +324,8 @@ local function staticIdOf(part: BasePart): number
 	local wk = part:GetAttribute("PixelWater")
 	-- (PixelWater 4: falling water, class 6: streaks running down it)
 	waters[nid] = if wk == 4 then 6 elseif type(wk) == "number" then wk else 0
-	-- the wind: leaves sway (class 4), flags ripple (class 5)
-	local wind = part:GetAttribute("PixelWind")
-	if waters[nid] == 0 and (wind == 1 or wind == 2) then
-		waters[nid] = 3 + (wind :: number)
-	end
+	-- (no wind classes since 2026-11-20: "no need to add rustling to the tree and other objects anymore, these cause
+	-- broken outlines"; leaves and flags hold still)
 	return nid
 end
 
@@ -358,7 +355,7 @@ local SG = {
 	waterPend = {} :: { number },
 	waterPendN = 0,
 	waterAllNow = false,
-	-- (the wind's next frame the same way: SG.windSlice; its moves, the slices done, and whether a pan voided it)
+	-- (the wind's frame, kept empty: the wind's pass went on 2026-11-20, the resets that clear these stay harmless)
 	windPend = {} :: { [number]: number },
 	windDone = 0,
 	windVoid = false,
@@ -2257,141 +2254,10 @@ function SG.waterFix(s: Surf, x0: number, y0: number, x1: number, y1: number)
 end
 
 ------------------------------------------------------------------ the wind
--- Leaves rustle and flags ripple without a ray. A canopy's silhouette rustles (the requests of 2026-11-14, "trees
--- swaying, instead of just shiftiing side to side, make them actually rustle like leaves", and 2026-11-15, "i meant
--- rustling the sillouhette instead. theres no need for the random noise animation inside the tree leaves"): along its
--- edge (an outline pixel with something farther behind it above or beside it) little clumps of 3 x 3 flick out a pixel
--- over what lies behind (the outline out, the leaf next to it where the outline was) or open a pixel in (what lay
--- behind showing where the outline was, the outline a pixel in), each for a frame or two at its own time; while a gust
--- passes (the phase drifting slowly across the island, a gust each way in turn) more of them move, the edges facing
--- the gust flicking out and the others in, so the crown leans by its leaves. A move happens only where it keeps the
--- outline one pixel thick (the report of 2026-11-15: "when the tree rustles, it seems to make thick outlines
--- sometimes"): the edge pixel is ink and the leaf behind it isn't (a frond two pixels thin, or an ink line inside the
--- crown, never doubles up), flicking out never lands next to other ink, opening in needs a second leaf behind (the ink
--- a pixel in still has leaf behind it), and no pixel moves twice in a frame. Inside a crown nothing moves. A flag's
--- columns hang a pixel lower in the wave's crests and lift a pixel in its troughs (the lifted ones a fold darker).
--- What the wind paints is undone before the next frame, a scroll or a bake (`windRestore`).
-local RUSTLE_N, RUSTLE_GUST = 6, 14 -- of 64: the edge clumps moving at a time, and while a gust passes
-
--- The wind's next frame, a slice at a time like the water's (SG.waterSlice: every SG.WATER_SLICES-th row of the
--- world's grid; it was a full pass over the layer of about 14 ms, six times a second): the moves go in SG.windPend
--- (pixel -> colour) and SG.windApply lays them all at once. A pan takes the paint off (windRestore) and leaves the
--- frame being worked out void: the wind waits for the view to stand (the old way, its paint showed one frame in ten
--- of a walk, a flicker).
-function SG.windSlice(s: Surf, k: number, j: number)
-	local W, H = s.W, s.H
-	local cls, wave, depth, color = s.sWClass, s.sWave, s.sDepth, s.sColor
-	local isInk = Shading.isInk -- (an edge's ink, as the outline pass writes it: a darker step of the pixel's colour)
-	local pend = SG.windPend
-	-- (the picture without the wind's paint, and as it will stand with this frame's moves worked out so far)
-	local function orig(i: number): number
-		return windSaved[i] or buffer.readu32(color, i * 4)
-	end
-	local function now(i: number): number
-		return pend[i] or orig(i)
-	end
-	local function put(i: number, c: number)
-		pend[i] = c
-	end
-	-- (the edge's side, looked for in turn: the top, then the left and the right; a crown's foot stays put)
-	local sides = { -W, -1, 1 }
-	local S = SG.WATER_SLICES
-	local first = (j - s.cam.gy) % S
-	while first < 2 do
-		first += S
-	end
-	for y = first, H - 3, S do
-		local row = y * W
-		for x = 2, W - 3 do
-			local i = row + x
-			local c = buffer.readu8(cls, i)
-			if c == 4 then
-				local g = (buffer.readu8(wave, i) + k * 3) % 48
-				local gust = if g < 12 then 1 elseif g >= 24 and g < 36 then -1 else 0
-				local d = buffer.readf32(depth, i * 4) + 0.5
-				local dir = 0
-				for _, o in sides do
-					local t = i + o
-					if buffer.readu8(cls, t) ~= 4 and buffer.readf32(depth, t * 4) > d then
-						dir = o
-						break
-					end
-				end
-				if dir ~= 0 and pend[i] == nil then
-					local cx, cy = x // 3, y // 3
-					local h = (cx * 37 + cy * 101 + ((cx * cy) % 13) * 17) % 64
-					if (h + k * 5) % 64 < (if gust ~= 0 then RUSTLE_GUST else RUSTLE_N) then
-						-- (with a gust, the sides facing its way flick out and the others in; else by the clump)
-						local out = if gust ~= 0 and dir ~= -W then dir == gust else h % 2 == 0
-						local t, b = i + dir, i - dir
-						local ci, cb, ct = orig(i), orig(b), orig(t)
-						-- (across the edge: the next pixel along it either side)
-						local side = if dir == 1 or dir == -1 then W else 1
-						if isInk(ci) and not isInk(cb) and not isInk(ct) and buffer.readu8(cls, b) == 4 and pend[t] == nil and pend[b] == nil then
-							-- (the neighbours as they stand now, with this frame's earlier moves in: two moves never
-							-- meet side by side)
-							if out then
-								-- (the ink out a pixel, the leaf where it was; never onto a pixel touching other ink)
-								if not isInk(now(t + dir)) and not isInk(now(t + side)) and not isInk(now(t - side)) and pend[t + side] == nil and pend[t - side] == nil then
-									put(t, ci)
-									put(i, cb)
-								end
-							else
-								-- (what lay behind where the ink was, the ink a pixel in, a leaf still behind it and no
-								-- other ink beside it)
-								local c2 = b - dir
-								if buffer.readu8(cls, c2) == 4 and not isInk(now(c2)) and pend[c2] == nil and not isInk(now(b + side)) and not isInk(now(b - side)) and pend[b + side] == nil and pend[b - side] == nil then
-									put(i, ct)
-									put(b, ci)
-								end
-							end
-						end
-					end
-				end
-			elseif c == 5 then
-				local g = (buffer.readu8(wave, i) + k * 5) % 32
-				local dy = if g < 12 then 1 elseif g >= 16 and g < 28 then -1 else 0
-				if dy ~= 0 then
-					local t = i + dy * W
-					if buffer.readu8(cls, t) ~= 5 and buffer.readf32(depth, t * 4) > buffer.readf32(depth, i * 4) + 0.5 then
-						put(t, orig(i))
-						if buffer.readu8(cls, i - dy * W) == 5 then
-							put(i, orig(i - dy * W))
-						end
-					elseif dy < 0 and buffer.readu8(cls, t) == 5 then
-						-- a lifted column's fold, a shade darker
-						put(i, mixShaded(0x2B1E2E, orig(i), 0.16))
-					end
-				end
-			end
-		end
-	end
-end
-
-
--- The wind's frame worked out by the slices, put on: the last frame's paint taken off, this one's laid (each pixel's
--- colour under it kept to take it off again: windRestore). True when any pixel changed.
-function SG.windApply(s: Surf): boolean
-	local any = windRestore(s)
-	local color = s.sColor
-	local inc = not needFull and SG.live(s)
-	for i, c in SG.windPend do
-		windOn = s
-		local was = buffer.readu32(color, i * 4)
-		if windSaved[i] == nil then
-			windSaved[i] = was
-		end
-		buffer.writeu32(color, i * 4, c)
-		SG.px(s, i)
-		if inc then
-			SG.sync(s, i, was, c)
-		end
-		windWrote[i] = c
-		any = true
-	end
-	table.clear(SG.windPend)
-	return any
-end
+-- The wind's pass (leaves rustling at a canopy's edge, flags rippling: 2026-11-14 to 2026-11-20) went with the request
+-- of 2026-11-20, "the outlines are still broken on the tree. no need to add rustling to the tree and other objects
+-- anymore, these cause broken outlines": it moved pixels of the outline itself. Nothing paints the wind now; its
+-- undo (`windRestore`) has nothing to undo.
 
 ------------------------------------------------------------------ effect layers (Render/Fx)
 -- Two books of written pixels swap every tick: the ones last tick's effects wrote (put back to the static picture
@@ -5075,11 +4941,6 @@ local function frameStep(dt: number)
 			SG.waterDone += 1
 		end
 		local w1 = SG.clock()
-		while SG.windDone < due and not SG.windVoid do
-			SG.windSlice(s, waterFrame + 1, SG.windDone)
-			SG.windDone += 1
-		end
-		local w2 = SG.clock()
 		if waterClock >= 1 / WATER_HZ then
 			waterClock = 0
 			if SG.waterApply(s) and not SG.live(s) then
@@ -5087,18 +4948,10 @@ local function frameStep(dt: number)
 			end
 			waterFrame += 1
 			SG.waterDone = 0
-			local w3 = SG.clock()
-			if SG.windVoid then
-				table.clear(SG.windPend)
-			elseif SG.windApply(s) and not SG.live(s) then
-				needFull = true
-			end
 			SG.windDone, SG.windVoid = 0, false
-			stats.perf.waterMs += (w1 - w0 + w3 - w2) * 1000
-			stats.perf.windMs += (w2 - w1 + SG.clock() - w3) * 1000
+			stats.perf.waterMs += (SG.clock() - w0) * 1000
 		else
 			stats.perf.waterMs += (w1 - w0) * 1000
-			stats.perf.windMs += (w2 - w1) * 1000
 		end
 	end
 	local hz = tierSpec(tier).hz

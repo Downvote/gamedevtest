@@ -34,11 +34,6 @@ local function put(m: Instance, f: CFrame, cf: CFrame, w: number, h: number, d: 
 	return Blocks.part(m, { size = Vector3.new(w, h, d), cf = f * cf, color = color, shape = shape, name = name, neon = neon, collide = false })
 end
 
--- Marks a part to sway in the wind the way the leaves do.
-local function sway(p: BasePart): BasePart
-	p:SetAttribute("PixelWind", 1)
-	return p
-end
 
 -- A square limb from a to b (points in f's frame), t thick.
 local function limb(m: Instance, f: CFrame, a: Vector3, b: Vector3, t: number, color: string, name: string?): BasePart
@@ -267,15 +262,15 @@ M.oak = function(m, f)
 		local c = V(math.sin(a) * 0.95, if k % 2 == 0 then 3.15 else 3.55, math.cos(a) * 0.95)
 		local col = if k % 2 == 0 then "leaf_dark" else "leaf"
 		ball(m, f, c.X, c.Y, c.Z, 1.5, col, if k % 2 == 1 then "Leaves" else "LeafClump")
-		sway(shine(m, f, c, 1.5, 0.5, if col == "leaf" then "green" else "leaf"))
+		shine(m, f, c, 1.5, 0.5, if col == "leaf" then "green" else "leaf")
 	end
 	for k = 0, 2 do
 		local a = k / 3 * TAU + 1.0
-		sway(ball(m, f, math.sin(a) * 0.55, 4.2, math.cos(a) * 0.55, 1.5, if k == 1 then "green" else "leaf", "LeafClump"))
+		ball(m, f, math.sin(a) * 0.55, 4.2, math.cos(a) * 0.55, 1.5, if k == 1 then "green" else "leaf", "LeafClump")
 	end
 	local top = V(-0.1, 4.7, 0.05)
-	sway(ball(m, f, top.X, top.Y, top.Z, 1.25, "green", "Leaves"))
-	sway(shine(m, f, top, 1.25, 0.5, "grass"))
+	ball(m, f, top.X, top.Y, top.Z, 1.25, "green", "Leaves")
+	shine(m, f, top, 1.25, 0.5, "grass")
 	-- in the grass
 	acorn(m, f, 0.85, 1.0)
 	acorn(m, f, -0.45, 1.25)
@@ -362,7 +357,7 @@ M.birch = function(m, f)
 	cyl(m, f, 0.55, 0.75, 0.55, 0.25, 1.5, "white", "Trunk")
 	box(m, f, 0.6, 0.7, 0.6, 0.25, 0.25, 0.25, "black", "Mark")
 	ball(m, f, 0.55, 1.6, 0.55, 0.75, "leaf", "LeafClump")
-	sway(ball(m, f, 0.78, 1.3, 0.45, 0.5, "green", "LeafClump"))
+	ball(m, f, 0.78, 1.3, 0.45, 0.5, "green", "LeafClump")
 	-- twigs
 	limb(m, f, V(-0.2, 2.6, -0.2), V(-0.75, 3.05, 0.15), 0.25, "black", "Twig")
 	limb(m, f, V(-0.2, 3.4, -0.2), V(0.35, 3.75, -0.65), 0.25, "black", "Twig")
@@ -384,7 +379,7 @@ M.birch = function(m, f)
 		if k == 1 or k == 3 or k == 4 or k == 7 then
 			ball(m, f, c[1] + 0.05, c[2] - 0.3, c[3] + 0.05, 0.75, "leaf_dark", "LeavesUnder")
 		end
-		sway(ball(m, f, c[1], c[2], c[3], c[4], c[5], c[6]))
+		ball(m, f, c[1], c[2], c[3], c[4], c[5], c[6])
 	end
 	-- catkins
 	for _, c in { { -0.75, 2.6, 0.35 }, { 0.85, 2.35, 0.25 }, { 0.3, 2.55, -0.6 } } do
@@ -420,22 +415,22 @@ M.cherry = function(m, f)
 	end
 	for k, c in clouds do
 		local big = if k == 5 then 1.75 else 1.5
-		sway(ball(m, f, c.X + 0.05, c.Y - 0.3, c.Z + 0.05, big * 0.85, "pink", "BlossomUnder"))
-		sway(ball(m, f, c.X, c.Y, c.Z, big, "cherry", "Blossom"))
+		ball(m, f, c.X + 0.05, c.Y - 0.3, c.Z + 0.05, big * 0.85, "pink", "BlossomUnder")
+		ball(m, f, c.X, c.Y, c.Z, big, "cherry", "Blossom")
 		local h = c + LIGHT * (big / 2 - 0.12)
-		sway(ball(m, f, h.X, h.Y, h.Z, if k == 5 then 0.5 else 0.25, "white", "Blossom"))
+		ball(m, f, h.X, h.Y, h.Z, if k == 5 then 0.5 else 0.25, "white", "Blossom")
 		-- single flowers dotted over its front, a deeper pink
 		for j, d in { V(0.7, 0.2, 0.6), V(-0.3, 0.1, 0.95) } do
 			local p = onBall(c, big / 2, d + V(0, 0, (k - 3) * 0.1), -0.06)
-			sway(ball(m, f, p.X, p.Y, p.Z, 0.25, if (j + k) % 3 == 0 then "white" else "pink", "Flower"))
+			ball(m, f, p.X, p.Y, p.Z, 0.25, if (j + k) % 3 == 0 then "white" else "pink", "Flower")
 		end
 	end
 	-- smaller puffs low round the edge, and sprays dipping below
 	for _, c in { { 1.2, 2.55, -0.35 }, { -0.55, 2.6, 1.15 }, { 0.8, 2.65, 1.0 } } do
-		sway(ball(m, f, c[1], c[2], c[3], 1.0, "cherry", "BlossomPuff"))
+		ball(m, f, c[1], c[2], c[3], 1.0, "cherry", "BlossomPuff")
 	end
 	for _, c in { { 1.05, 2.25, 0.65 }, { -0.95, 2.45, -0.05 }, { -0.3, 2.55, 0.95 }, { 0.4, 2.7, -0.95 } } do
-		sway(ball(m, f, c[1], c[2], c[3], 0.5, "pink", "Spray"))
+		ball(m, f, c[1], c[2], c[3], 0.5, "pink", "Spray")
 	end
 	-- petals on the grass
 	for k, p in { { 1.1, 0.9 }, { -0.9, 1.0 }, { 1.3, -0.4 }, { -0.2, 1.3 }, { 0.6, 1.25 }, { -1.25, 0.3 }, { 0.95, 0.25 }, { 0.2, 0.75 }, { -0.6, 1.35 }, { 1.35, 1.2 } } do
@@ -475,11 +470,11 @@ M.maple = function(m, f)
 		{ -0.45, 4.05, 0.55, 0.75, "yellow", "LeafClump" },
 	}
 	for _, c in crown do
-		sway(ball(m, f, c[1], c[2], c[3], c[4], c[5], c[6]))
+		ball(m, f, c[1], c[2], c[3], c[4], c[5], c[6])
 	end
 	for _, k in { 6, 7, 11, 12 } do
 		local c = crown[k]
-		sway(shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, if c[5] == "orange" then "yellow" else "orange"))
+		shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, if c[5] == "orange" then "yellow" else "orange")
 	end
 	-- a little heap of fallen leaves and more scattered round
 	for k, l in { { -0.8, 0.03, 1.0, 0.3 }, { -0.6, 0.06, 1.1, 1.4 }, { -0.75, 0.1, 1.2, 2.5 }, { -0.68, 0.16, 1.08, 0.9 } } do
@@ -539,9 +534,9 @@ M.jungletree = function(m, f)
 	-- vines from under the leaves, two in flower
 	for k, v in { { 1.45, 0.45, 2.25 }, { 0.3, 1.45, 1.75 }, { -1.2, 0.85, 1.5 }, { 1.05, -1.0, 1.75 }, { -0.7, -1.2, 1.25 }, { 0.95, 1.05, 1.25 } } do
 		local y = 4.35 - v[3] / 2
-		sway(box(m, f, v[1], y, v[2], 0.25, v[3], 0.25, if k % 2 == 0 then "moss" else "leaf_dark", "Vine"))
+		box(m, f, v[1], y, v[2], 0.25, v[3], 0.25, if k % 2 == 0 then "moss" else "leaf_dark", "Vine")
 		if k <= 2 then
-			sway(box(m, f, v[1], y - v[3] / 2 + 0.1, v[2] + 0.05, 0.25, 0.25, 0.25, if k == 1 then "pink" else "orange", "Flower"))
+			box(m, f, v[1], y - v[3] / 2 + 0.1, v[2] + 0.05, 0.25, 0.25, 0.25, if k == 1 then "pink" else "orange", "Flower")
 		end
 	end
 	-- at its foot
@@ -575,11 +570,11 @@ M.willow = function(m, f)
 		local c = V(math.sin(a) * 1.05, if k % 2 == 0 then 3.15 else 3.4, math.cos(a) * 1.05)
 		ball(m, f, c.X, c.Y, c.Z, 1.75, if k % 2 == 0 then "leaf_dark" else "leaf", "LeafClump")
 		if k % 2 == 1 or k == 0 then
-			sway(shine(m, f, c, 1.75, 0.5, "green"))
+			shine(m, f, c, 1.75, 0.5, "green")
 		end
 	end
-	sway(ball(m, f, -0.2, 4.6, 0.15, 1.0, "green", "LeafClump"))
-	sway(shine(m, f, V(0.3, 4.35, -0.25), 1.75, 0.5, "grass"))
+	ball(m, f, -0.2, 4.6, 0.15, 1.0, "green", "LeafClump")
+	shine(m, f, V(0.3, 4.35, -0.25), 1.75, 0.5, "grass")
 	-- the curtain: long strands round the outside, paler tips on some, a shorter ring inside
 	local lens = { 3.0, 2.25, 2.75, 2.0, 2.5 }
 	for k = 0, 13 do
@@ -587,7 +582,7 @@ M.willow = function(m, f)
 		local len = lens[k % 5 + 1]
 		Parts.turned(m, f, math.sin(a) * 1.7, 3.4 - len / 2, math.cos(a) * 1.7, 0.5, len, 0.25, a, if k % 2 == 0 then "leaf" else "leaf_dark", "Strand")
 		if len <= 2.75 and k % 2 == 1 then
-			sway(Parts.turned(m, f, math.sin(a) * 1.72, 3.4 - len - 0.2, math.cos(a) * 1.72, 0.25, 0.5, 0.25, a, "green", "StrandTip"))
+			Parts.turned(m, f, math.sin(a) * 1.72, 3.4 - len - 0.2, math.cos(a) * 1.72, 0.25, 0.5, 0.25, a, "green", "StrandTip")
 		end
 	end
 	for k = 0, 7 do
@@ -658,7 +653,7 @@ M.bigoak = function(m, f)
 			ball(m, f, c.X + 0.2, c.Y + big * 0.32, c.Z - 0.1, big * 0.6, if k % 2 == 0 then "leaf_dark" else "leaf", "LeafClump")
 		end
 		if k == 1 or k >= 9 then
-			sway(shine(m, f, c, big, 0.75, "green"))
+			shine(m, f, c, big, 0.75, "green")
 		end
 	end
 	-- the rope swing on a low limb out to the left, the limb turning to run across the view so both ropes show; the
@@ -706,16 +701,14 @@ M.snowpine = function(m, f)
 		if i == #tiers then
 			ys = math.max(ys, y0 + h + 0.1 - hs)
 		end
-		for _, p in cone(m, f, CFrame.new(0, ys, 0), ws, hs, "snow", "Snow") do
-			sway(p)
-		end
+		cone(m, f, CFrame.new(0, ys, 0), ws, hs, "snow", "Snow")
 		-- lumps of snow on the edge, where the view sees it
 		if i < #tiers then
-			sway(ball(m, f, -ws * 0.3, ys + 0.1, ws / 2, 0.5, "snow", "Snow"))
-			sway(ball(m, f, ws / 2, ys + 0.1, ws * 0.1, 0.5, "snow", "Snow"))
+			ball(m, f, -ws * 0.3, ys + 0.1, ws / 2, 0.5, "snow", "Snow")
+			ball(m, f, ws / 2, ys + 0.1, ws * 0.1, 0.5, "snow", "Snow")
 		end
 	end
-	sway(ball(m, f, 0, 3.85, 0, 0.5, "snow", "Snow"))
+	ball(m, f, 0, 3.85, 0, 0.5, "snow", "Snow")
 	box(m, f, 0.35, 0.55, 1.08, 0.25, 0.5, 0.25, "ice", "Icicle")
 	box(m, f, -0.4, 0.62, 1.08, 0.25, 0.25, 0.25, "ice", "Icicle")
 	box(m, f, 1.08, 0.55, -0.3, 0.25, 0.5, 0.25, "ice", "Icicle")
@@ -742,13 +735,11 @@ M.starfruit = function(m, f)
 	limb(m, f, V(-0.05, 2.1, -0.05), V(0.65, 2.45, -0.3), 0.25, "wood")
 	limb(m, f, V(0, 2.3, 0), V(0.4, 2.6, 0.55), 0.25, "wood")
 	for k, c in { { 0, 2.9, 0, 1.75 }, { -0.7, 2.5, 0.3, 1.25 }, { 0.75, 2.6, -0.35, 1.25 } } do
-		for _, p in clump(m, f, c[1], c[2], c[3], c[4], if k == 1 then "leaf" else "green", "leaf_dark") do
-			sway(p)
-		end
-		sway(shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, if k == 1 then "green" else "grass"))
+		clump(m, f, c[1], c[2], c[3], c[4], if k == 1 then "leaf" else "green", "leaf_dark")
+		shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, if k == 1 then "green" else "grass")
 	end
 	for _, c in ({ { 0.45, 2.65, 0.6, "leaf" }, { -0.45, 3.4, -0.45, "leaf" }, { 0.1, 3.65, 0.15, "green" } } :: { { any } }) do
-		sway(ball(m, f, c[1], c[2], c[3], 1.0, c[4], "LeafClump"))
+		ball(m, f, c[1], c[2], c[3], 1.0, c[4], "LeafClump")
 	end
 	-- the fruit: a cross of two glowing bars on a stalk; four of them swing on their stalks
 	for k, s in { { -0.6, 1.75, 0.75 }, { 0.5, 1.85, 0.65 }, { 0.95, 1.9, -0.15 }, { -0.95, 1.85, 0.05 }, { 0.15, 2.0, 0.95 } } do
@@ -794,15 +785,13 @@ M.redwood = function(m, f)
 		local y = 3.4 + k * 0.5
 		local dx, dz = math.sin(a), math.cos(a)
 		limb(m, f, V(0, y, 0), V(dx * 1.1, y + 0.3, dz * 1.1), 0.25, "wood_dark", "Branch")
-		sway(ball(m, f, dx * 1.25, y + 0.4, dz * 1.25, 0.75, if k % 2 == 0 then "leaf_dark" else "swamp", "Needles"))
-		sway(ball(m, f, dx * 1.25 + LIGHT.X * 0.25, y + 0.6, dz * 1.25 + LIGHT.Z * 0.25, 0.5, "leaf", "Needles"))
+		ball(m, f, dx * 1.25, y + 0.4, dz * 1.25, 0.75, if k % 2 == 0 then "leaf_dark" else "swamp", "Needles")
+		ball(m, f, dx * 1.25 + LIGHT.X * 0.25, y + 0.6, dz * 1.25 + LIGHT.Z * 0.25, 0.5, "leaf", "Needles")
 	end
 	-- the crown
 	local tiers = { { 2.5, 6.6, 1.5 }, { 2.0, 7.6, 1.5 }, { 1.5, 8.6, 1.25 }, { 1.0, 9.5, 1.0 } }
 	for i, t in tiers do
-		for _, p in cone(m, f, CFrame.new(0, t[2], 0), t[1], t[3], "leaf_dark", "Needles") do
-			sway(p)
-		end
+		cone(m, f, CFrame.new(0, t[2], 0), t[1], t[3], "leaf_dark", "Needles")
 		if i < #tiers then
 			coneTip(m, f, t[1], t[2], t[3], 0, -t[1] * 0.2, "leaf", "Needles")
 			coneTip(m, f, t[1], t[2], t[3], 1, t[1] * 0.1, "leaf", "Needles")
@@ -812,7 +801,7 @@ M.redwood = function(m, f)
 	-- round its foot: ferns, moss, a fallen log
 	for _, c in { { 1.4, 1.1 }, { -1.3, 0.75 }, { 1.45, -0.8 } } do
 		for j, d in { { -0.45, 0.45, 0.15 }, { 0.1, 0.55, 0.45 }, { 0.45, 0.4, -0.05 } } do
-			sway(blade(m, f, V(c[1], 0.1, c[2]), V(c[1] + d[1] * 0.9, d[2], c[2] + d[3] * 0.9), 0.5, if j == 2 then "leaf" else "leaf_dark", "Fern"))
+			blade(m, f, V(c[1], 0.1, c[2]), V(c[1] + d[1] * 0.9, d[2], c[2] + d[3] * 0.9), 0.5, if j == 2 then "leaf" else "leaf_dark", "Fern")
 		end
 	end
 	ball(m, f, 0.55, 0.45, 0.8, 0.5, "moss", "Moss")
@@ -844,11 +833,11 @@ M.fern = function(m, f)
 		local p3 = V(dx * 0.62 * r, 0.3, dz * 0.62 * r)
 		blade(m, f, p0, p1, 0.25, "leaf_dark", "Frond")
 		blade(m, f, p1, p2, 0.5, if k % 2 == 0 then "leaf" else "leaf_dark", "Frond")
-		sway(blade(m, f, p2, p3, 0.25, if k % 2 == 0 then "green" else "leaf", "Frond"))
+		blade(m, f, p2, p3, 0.25, if k % 2 == 0 then "green" else "leaf", "Frond")
 	end
 	for _, c in { { 0.08, -0.05, 0.75 }, { -0.1, 0.1, 0.6 } } do
 		box(m, f, c[1], c[3] / 2 + 0.1, c[2], 0.25, c[3], 0.25, "leaf_dark", "Fiddle")
-		sway(ball(m, f, c[1] + 0.06, c[3] + 0.15, c[2] + 0.06, 0.25, "green", "Fiddle"))
+		ball(m, f, c[1] + 0.06, c[3] + 0.15, c[2] + 0.06, 0.25, "green", "Fiddle")
 	end
 end
 
@@ -862,9 +851,9 @@ M.tallgrass = function(m, f)
 			local a = (k + r() * 0.6) / c[4] * TAU
 			local h = (0.8 + r() * 0.7) * c[3]
 			local cf = CFrame.new(c[1], 0, c[2]) * CFrame.Angles(0, a, 0) * CFrame.Angles(0.2 + r() * 0.3, 0, 0)
-			sway(put(m, f, cf * CFrame.new(0, h / 2, 0), 0.25, h, 0.25, colors[(k + ci) % 6 + 1], nil, "Blade"))
+			put(m, f, cf * CFrame.new(0, h / 2, 0), 0.25, h, 0.25, colors[(k + ci) % 6 + 1], nil, "Blade")
 			if (k == 2 or k == 5) and h > 0.7 then
-				sway(put(m, f, cf * CFrame.new(0, h + 0.2, 0), 0.25, 0.5, 0.25, if k == 2 then "straw" else "bamboo", nil, "Seed"))
+				put(m, f, cf * CFrame.new(0, h + 0.2, 0), 0.25, 0.5, 0.25, if k == 2 then "straw" else "bamboo", nil, "Seed")
 			end
 		end
 	end
@@ -888,14 +877,11 @@ M.berrybush = function(m, f)
 		{ -0.2, 1.25, -0.2, 0.75, "green" },
 	}
 	for _, c in clumps do
-		local p = ball(m, f, c[1], c[2], c[3], c[4], c[5], "Bush")
-		if c[5] == "green" then
-			sway(p)
-		end
+		ball(m, f, c[1], c[2], c[3], c[4], c[5], "Bush")
 	end
 	for _, k in { 3, 6, 7 } do
 		local c = clumps[k]
-		sway(shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, "green"))
+		shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, "green")
 	end
 	for _, l in { { -0.9, 0.35, 0.3 }, { 0.3, 0.3, 0.92 }, { 0.92, 0.45, -0.35 }, { -0.6, 0.85, 0.75 } } do
 		local tip = V(l[1], l[2], l[3])
@@ -937,17 +923,17 @@ M.tulips = function(m, f)
 		local h = if k % 2 == 1 then 0.7 else 0.55
 		local c = colors[k % 3 + 1]
 		box(m, f, x, 0.15 + h / 2, z, 0.25, h, 0.25, "leaf", "Stem")
-		sway(Parts.turned(m, f, x, 0.25 + h, z, 0.5, 0.25, 0.5, math.pi / 4, c, "Bloom"))
+		Parts.turned(m, f, x, 0.25 + h, z, 0.5, 0.25, 0.5, math.pi / 4, c, "Bloom")
 		for _, s in { -1, 1 } do
 			local p = V(x, 0.45 + h, z) + across * (s * 0.14)
-			sway(box(m, f, p.X, p.Y, p.Z, 0.25, 0.25, 0.25, c, "Petals"))
+			box(m, f, p.X, p.Y, p.Z, 0.25, 0.25, 0.25, c, "Petals")
 		end
 		local side = if k % 2 == 0 then 1 else -1
 		put(m, f, CFrame.new(x + 0.12 * side, 0.3, z + 0.15) * CFrame.Angles(0.5, 0.3 * side, 0), 0.25, 0.5, 0.25, if k % 2 == 0 then "leaf_dark" else "leaf", nil, "Leaf")
 	end
 	for _, b in ({ { 0.85, -0.15, "pink" }, { -0.85, 0.1, "berry_red" } } :: { { any } }) do
 		box(m, f, b[1], 0.3, b[2], 0.25, 0.5, 0.25, "leaf", "Stem")
-		sway(box(m, f, b[1], 0.6, b[2], 0.25, 0.25, 0.25, b[3], "Bud"))
+		box(m, f, b[1], 0.6, b[2], 0.25, 0.25, 0.25, b[3], "Bud")
 	end
 end
 
@@ -997,7 +983,7 @@ M.rosebush = function(m, f)
 	end
 	for _, k in { 3, 4, 8 } do
 		local c = clumps[k]
-		sway(shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, "green"))
+		shine(m, f, V(c[1], c[2], c[3]), c[4], 0.5, "green")
 	end
 	for _, l in { { -0.9, 0.5, 0.35 }, { 0.85, 0.35, 0.45 }, { 0.2, 0.3, 0.9 } } do
 		local tip = V(l[1], l[2], l[3])
@@ -1035,7 +1021,7 @@ M.sunflowers = function(m, f)
 	for k, s in { { -0.45, -0.45, 2.25, 1.25 }, { 0.6, -0.25, 1.85, 1.0 }, { -0.25, 0.6, 1.5, 1.0 } } do
 		local x, z, h, d = s[1], s[2], s[3], s[4]
 		cyl(m, f, x, 0.02, z, 0.5, 0.25, "wood_dark", "Soil")
-		sway(cyl(m, f, x, h / 2, z, 0.25, h, "leaf_dark", "Stalk"))
+		cyl(m, f, x, h / 2, z, 0.25, h, "leaf_dark", "Stalk")
 		blade(m, f, V(x, h * 0.3, z), V(x + 0.4, h * 0.25, z + 0.1), 0.5, "leaf", "Leaf")
 		blade(m, f, V(x, h * 0.5, z), V(x - 0.2, h * 0.45, z + 0.38), 0.5, "leaf_dark", "Leaf")
 		blade(m, f, V(x, h * 0.7, z), V(x + 0.25, h * 0.66, z - 0.3), 0.5, "leaf", "Leaf")
@@ -1054,9 +1040,9 @@ M.sunflowers = function(m, f)
 		end
 	end
 	-- a young one still in bud
-	sway(cyl(m, f, 0.6, 0.5, 0.6, 0.25, 1.0, "leaf_dark", "Stalk"))
+	cyl(m, f, 0.6, 0.5, 0.6, 0.25, 1.0, "leaf_dark", "Stalk")
 	blade(m, f, V(0.6, 0.45, 0.6), V(0.85, 0.4, 0.75), 0.5, "leaf", "Leaf")
-	sway(ball(m, f, 0.6, 1.05, 0.6, 0.5, "leaf", "Bud"))
+	ball(m, f, 0.6, 1.05, 0.6, 0.5, "leaf", "Bud")
 	box(m, f, 0.6, 1.25, 0.6, 0.25, 0.25, 0.25, "yellow", "Bloom")
 	-- at their feet
 	tuft(m, f, 0.85, 0.05)
@@ -1078,10 +1064,10 @@ M.lavender = function(m, f)
 			local tilt = if j == 3 then 0.05 else 0.38
 			local len = if j == 3 then 1.0 else 0.75
 			local cf = CFrame.new(x + (if j == 3 then 0 else math.sin(a) * 0.1), 0.2, z + (if j == 3 then 0 else math.cos(a) * 0.1)) * CFrame.Angles(0, a, 0) * CFrame.Angles(tilt, 0, 0)
-			sway(put(m, f, cf * CFrame.new(0, len / 2, 0), 0.25, len, 0.25, "moss", nil, "LavenderStem"))
-			sway(put(m, f, cf * CFrame.new(0, len + 0.25, 0), 0.25, 0.5, 0.25, "purple", nil, "Bloom"))
+			put(m, f, cf * CFrame.new(0, len / 2, 0), 0.25, len, 0.25, "moss", nil, "LavenderStem")
+			put(m, f, cf * CFrame.new(0, len + 0.25, 0), 0.25, 0.5, 0.25, "purple", nil, "Bloom")
 			if j ~= 1 then
-				sway(put(m, f, cf * CFrame.new(0, len + 0.55, 0), 0.25, 0.25, 0.25, "crystal", nil, "SpikeTip"))
+				put(m, f, cf * CFrame.new(0, len + 0.55, 0), 0.25, 0.25, 0.25, "crystal", nil, "SpikeTip")
 			end
 		end
 	end
@@ -1179,7 +1165,7 @@ M.monstera = function(m, f)
 	end
 	-- a new leaf still rolled up
 	stem(m, f, V(0, 0.15, 0), V(-0.1, 1.55, 0.1), 0.25, "leaf_dark", "Stalk")
-	sway(stem(m, f, V(-0.1, 1.55, 0.1), V(-0.15, 2.1, 0.15), 0.25, "green", "NewLeaf"))
+	stem(m, f, V(-0.1, 1.55, 0.1), V(-0.15, 2.1, 0.15), 0.25, "green", "NewLeaf")
 	-- air roots down to the ground
 	limb(m, f, V(0.2, 0.55, 0.2), V(0.5, 0.06, 0.55), 0.25, "wood", "AirRoot")
 	limb(m, f, V(0.25, 0.7, -0.1), V(0.7, 0.06, -0.2), 0.25, "wood", "AirRoot")
@@ -1288,7 +1274,7 @@ M.bonsai = function(m, f)
 	limb(m, f, b, V(0.05, 0.8, -0.3), 0.25, "wood_dark")
 	for _, p in ({ { -0.22, 0.9, 0.27, 0.75, "leaf" }, { 0.24, 1.1, -0.26, 0.75, "green" }, { 0.05, 1.33, 0, 1.0, "green" }, { 0.05, 0.85, -0.32, 0.5, "leaf" } } :: { { any } }) do
 		cyl(m, f, p[1], p[2], p[3], p[4], 0.25, "leaf_dark", "Pad")
-		sway(cyl(m, f, p[1] - 0.03, p[2] + 0.12, p[3] + 0.03, p[4] - 0.25, 0.25, p[5], "Pad"))
+		cyl(m, f, p[1] - 0.03, p[2] + 0.12, p[3] + 0.03, p[4] - 0.25, 0.25, p[5], "Pad")
 	end
 end
 
@@ -1420,7 +1406,7 @@ M.mossrock = function(m, f)
 	put(m, f, a, 1.5, 0.9, 1.25, "rock", nil, "Rock")
 	put(m, f, a * CFrame.new(0, 0.5, 0), 1.25, 0.25, 1.0, "moss", nil, "Moss")
 	ball(m, f, -0.1, 0.95, 0.25, 0.5, "moss", "Moss")
-	sway(ball(m, f, 0.35, 0.92, -0.05, 0.5, "grass", "Moss"))
+	ball(m, f, 0.35, 0.92, -0.05, 0.5, "grass", "Moss")
 	for _, d in { { -0.35, 0.75 }, { 0.0, 0.5 }, { 0.3, 0.75 } } do
 		put(m, f, a * CFrame.new(0.74, 0.5 - d[2] / 2, d[1]), 0.25, d[2], 0.25, "moss", nil, "Moss")
 	end
@@ -1590,7 +1576,7 @@ M.basaltcols = function(m, f)
 	put(m, f, CFrame.new(0.1, 0.2, 0.62) * CFrame.Angles(0, -0.5, math.pi / 2), 0.5, 0.75, 0.5, "basalt", nil, "Shard")
 	put(m, f, CFrame.new(0.65, 0.12, 0.05) * CFrame.Angles(0, 1.0, math.pi / 2), 0.25, 0.5, 0.5, "slate", nil, "Shard")
 	for j, d in { { -0.3, 0.45, 0.1 }, { 0.1, 0.5, 0.35 }, { 0.3, 0.35, -0.05 } } do
-		sway(blade(m, f, V(-0.6, 0.1, 0.6), V(-0.6 + d[1], d[2], 0.6 + d[3] * 0.6), 0.25, if j == 2 then "leaf" else "leaf_dark", "Fern"))
+		blade(m, f, V(-0.6, 0.1, 0.6), V(-0.6 + d[1], d[2], 0.6 + d[3] * 0.6), 0.25, if j == 2 then "leaf" else "leaf_dark", "Fern")
 	end
 	tuft(m, f, 0.5, 0.78)
 	pebble(m, f, -0.3, 0.82, "basalt", 0.25)

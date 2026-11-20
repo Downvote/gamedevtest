@@ -2439,18 +2439,17 @@ text (the requests and how each was met) is in the history of this file, up to c
   > the wind, and swaying leaves."; the bug report: "it seems like the boats are buggy, the triangle part here is
   > supposed to be reversed" (the bow's wedge stood tall at its tip: turned over)
 
-- **The wind:** leaves rustle and flags ripple (the pixel filter, a few times a second like the water). The leaves
-  rustle at the crown's silhouette (the requests of 2026-11-14: "animate models better, such as trees swaying, instead
-  of just shiftiing side to side, make them actually rustle like leaves. other models should be animated if possible
-  too, such as windmills being able to spin and waterfalls having flowing water", and 2026-11-15: "when i meant the
-  rustling of leaves as animation, i meant rustling the sillouhette instead. theres no need for the random noise
-  animation inside the tree leaves"): along the edge of every palm, tree, bush and tuft, little clumps of leaves flick
-  out a pixel or pull in a pixel for a moment, each at its own time; when a gust runs across the island more of them
-  move and the edges facing the gust flick out, so the crown leans by its leaves. The outline stays one pixel thick
-  as it moves (the report of 2026-11-15: "when the tree rustles, it seems to make thick outlines sometimes": a thin
-  frond or an edge next to another outline could double it): a clump only moves where its ink never meets other ink.
-  Inside a crown nothing moves. Flags
-  and pennants ripple along their length, a lifted fold a shade darker; the boats' flags flutter as they sail.
+- **The wind** (gone since 2026-11-20): leaves used to rustle at a crown's edge and flags ripple, a pixel of the outline
+  flicking out or in at a time (the requests of 2026-11-14 and 2026-11-15 asked for it at the silhouette).
+
+  > The request (2026-11-20, with a screenshot of the Tree of Life): "the outlines are still broken on the tree. no
+  > need to add rustling to the tree and other objects anymore, these cause broken outlines"
+
+  The rustle moved pixels of the outline itself, so every few frames some edge of every tree, palm, bush, tuft, vine
+  and flag showed a notch or a lump. Nothing rustles or ripples now: the models no longer mark leaves and flags for it
+  and the pixel filter no longer works it out, so outlines stay whole. Particles that drift (falling leaves and petals,
+  smoke, fireflies), the parts that really move (a windmill's sails, a swing, a hammock) and the driftlings are as
+  before.
 - **What turns and flows:** a windmill's sails turn slowly, a waterwheel turns with the stream (the other way round)
   and so do the Grand Mill's paddles, on every island near the view; the little waterfall and the Spring Grotto's
   falls run with pale streaks moving down them. Reduced motion keeps the sails and wheels still.
@@ -2485,9 +2484,8 @@ text (the requests and how each was met) is in the history of this file, up to c
   it was. The hatch scene still fits its egg to the screen. Walking should feel smooth (the request of 2026-11-16: "is there any way to
   optimize the camera movement? it is still very laggy when moving around"): ground you have already walked past is
   remembered by the pixel filter and comes back without being drawn again, the driftlings and eggs move at their own
-  steady rate while the view slides, and the sea's and the leaves' little animations are worked out a few rows a
-  frame instead of all at once six times a second. While you walk the leaves hold still; they rustle again once you
-  stop (before, their rustle flickered on for one frame in ten of a walk). A full island has to walk as smoothly as
+  steady rate while the view slides, and the water's little animation is worked out a few rows a frame instead of
+  all at once six times a second (the leaves' rustle was too, until it went on 2026-11-20). A full island has to walk as smoothly as
   a new one (the request of 2026-11-17: "As the game requires you to walk around in bigger islands and bigger islands
   will have more buildings, do a stress test with the maximum amount of decor and buildings at the highest expansion
   level. Try walking around to move the camera. It should be smooth. If not, find ways to optimize it"). The picture
@@ -2925,8 +2923,7 @@ reason.
   A driftling pecks at the ground in the fields,
   dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stand along the
   building's front, apart, turned three-quarters to the view so the work reads.
-- **The sky lives:** the sky runs through its own day and night, the sea of clouds drifts slowly below, leaves sway
-  and flags ripple in the wind, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
+- **The sky lives:** the sky runs through its own day and night, the sea of clouds drifts slowly below, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
   time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
   rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no
   clouds' shadows: the player asked for the "random shadow that appears sometimes" gone.)

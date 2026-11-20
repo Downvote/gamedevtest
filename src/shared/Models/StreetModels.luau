@@ -908,7 +908,6 @@ function StreetModels.landChunk(parent: Instance, origin: Vector3, tier: number,
 	layers(m, o, c.rect, dist)
 	local sx, sz = Street.sign(tier)
 	scatterIn(m, o, c.rect, dist, sx, sz)
-	Blocks.windy(m) -- the tufts, bushes and vines sway
 	m.Parent = parent
 	return m
 end
@@ -962,7 +961,6 @@ function StreetModels.emptyLot(parent: Instance, origin: Vector3): Model
 	layers(m, o, b, dist)
 	scatterIn(m, o, b, dist, 0.5, cz + 2.5)
 	sign(m, o * CFrame.new(0.5, Street.LAWN_Y, cz + 2.5), "empty")
-	Blocks.windy(m)
 	m.Parent = parent
 	return m
 end

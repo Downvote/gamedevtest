@@ -25,11 +25,6 @@ local function v(x: number, y: number, z: number): Vector3
 	return Vector3.new(x, y, z)
 end
 
--- Sways in the wind (leaves, cloth and steam in colours the wind does not pick up by itself).
-local function sway(p: BasePart): BasePart
-	p:SetAttribute("PixelWind", 1)
-	return p
-end
 
 -- A square stick of thickness t from a to b (points in f's frame): a twig, a stalk, a leg, a crystal. `twist` turns it
 -- about its own length (a crystal shows an edge).
@@ -352,13 +347,13 @@ M.leafpile = function(m, f)
 	for i, b in { { 0, 0.05, 0, 1.5 }, { 0.45, 0, 0.35, 1 }, { -0.45, 0, 0.3, 1 }, { -0.3, 0.15, -0.4, 0.75 }, { 0.4, 0.1, -0.35, 0.75 }, { 0.2, 0.38, 0.3, 0.75 }, { -0.28, 0.42, 0.08, 0.75 }, { 0.22, 0.52, -0.12, 0.5 } } do
 		Parts.ball(m, f, b[1], b[2], b[3], b[4], hue[i], if i <= 2 then "Leaves" else "Pile")
 	end
-	sway(Parts.ball(m, f, 0.02, 0.7, 0.05, 0.5, "straw", "Pile"))
+	Parts.ball(m, f, 0.02, 0.7, 0.05, 0.5, "straw", "Pile")
 	-- leaves on the heap and blown loose round it
 	for i, l in { { -0.2, 0.78, 0.3 }, { 0.45, 0.62, 0.55 }, { -0.55, 0.42, 0.45 }, { 0.15, 0.9, -0.2 }, { 0.62, 0.35, 0.05 }, { -0.1, 0.62, 0.62 } } do
-		sway(Parts.at(m, f, CFrame.new(l[1], l[2], l[3]) * CFrame.Angles(0.5, i * 0.9, 0.3), 0.5, 0.25, 0.25, if i % 3 == 0 then "brick" elseif i % 3 == 1 then "orange" else "straw", "Leaf"))
+		Parts.at(m, f, CFrame.new(l[1], l[2], l[3]) * CFrame.Angles(0.5, i * 0.9, 0.3), 0.5, 0.25, 0.25, if i % 3 == 0 then "brick" elseif i % 3 == 1 then "orange" else "straw", "Leaf")
 	end
 	for i, l in { { 0.75, 0.75, 0.3 }, { -0.8, 0.55, 1.2 }, { 0.2, 0.7, 2.1 }, { -0.7, -0.7, 0.7 }, { 0.85, -0.2, 1.7 }, { -0.15, -0.72, 2.6 }, { 0.5, 0.7, 0.9 } } do
-		sway(Parts.turned(m, f, l[1], 0.02, l[2], 0.5, 0.25, 0.25, l[3], if i % 4 == 0 then "brick" elseif i % 4 == 1 then "maple" elseif i % 4 == 2 then "straw" else "orange", "Leaf"))
+		Parts.turned(m, f, l[1], 0.02, l[2], 0.5, 0.25, 0.25, l[3], if i % 4 == 0 then "brick" elseif i % 4 == 1 then "maple" elseif i % 4 == 2 then "straw" else "orange", "Leaf")
 	end
 	-- the rake
 	seg(m, f, v(0.62, 0.08, 0.68), v(-0.05, 1.15, -0.1), 0.25, "wood", "Rake")
@@ -403,8 +398,8 @@ M.basket = function(m, f)
 	Parts.at(m, f, CFrame.new(0.02, 1.34, 0.02) * TOWARD, 0.5, 0.25, 0.25, "maple", "Ribbon")
 	-- an apple rolled out, leaves on the grass
 	Parts.ball(m, f, 0.32, 0.12, 0.36, 0.25, "berry_red", "Apple")
-	sway(Parts.turned(m, f, -0.2, 0.02, 0.22, 0.5, 0.25, 0.25, 0.8, "orange", "Leaf"))
-	sway(Parts.turned(m, f, 0.3, 0.02, -0.22, 0.25, 0.25, 0.5, 0.3, "maple", "Leaf"))
+	Parts.turned(m, f, -0.2, 0.02, 0.22, 0.5, 0.25, 0.25, 0.8, "orange", "Leaf")
+	Parts.turned(m, f, 0.3, 0.02, -0.22, 0.25, 0.25, 0.5, 0.3, "maple", "Leaf")
 end
 
 -- Pumpkin Stack (1 x 1): an orange pumpkin, a red one on it, a pale gold one on top, each with its lobes; a stem with a
@@ -421,8 +416,8 @@ M.pumpkinstack = function(m, f)
 	local a, b, c = ACROSS * 0.12 + v(0, 1.55, 0), ACROSS * 0.36 + v(0, 1.3, 0), ACROSS * 0.42 + v(0, 0.95, 0)
 	seg(m, f, a, b, 0.25, "moss", "Vine")
 	seg(m, f, b, c, 0.25, "moss", "Vine")
-	sway(Parts.at(m, f, CFrame.new(-0.15, 1.52, -0.1) * CFrame.Angles(0.3, 0.5, 0.5), 0.25, 0.25, 0.5, "moss", "Leaf"))
-	sway(Parts.at(m, f, CFrame.new(c + ACROSS * 0.02 + v(0, -0.15, 0)) * TOWARD, 0.25, 0.25, 0.25, "leaf_dark", "Leaf"))
+	Parts.at(m, f, CFrame.new(-0.15, 1.52, -0.1) * CFrame.Angles(0.3, 0.5, 0.5), 0.25, 0.25, 0.5, "moss", "Leaf")
+	Parts.at(m, f, CFrame.new(c + ACROSS * 0.02 + v(0, -0.15, 0)) * TOWARD, 0.25, 0.25, 0.25, "leaf_dark", "Leaf")
 	-- a striped gourd at their feet
 	Parts.ball(m, f, 0.36, 0.12, 0.36, 0.25, "cream", "Gourd")
 	Parts.ball(m, f, 0.38, 0.22, 0.4, 0.25, "green", "Gourd")
@@ -446,11 +441,11 @@ local function shock(m: Model, f: CFrame, cx: number, cz: number, h: number, tur
 	Parts.cyl(m, f, cx, tie, cz, 0.5, 0.25, "wood_dark", "Twine")
 	Parts.at(m, f, CFrame.new(cx + 0.18, tie, cz + 0.18) * TOWARD, 0.5, 0.25, 0.25, "maple", "Bow")
 	for _, s in { -1, 1 } do
-		sway(seg(m, f, v(cx, tie + 0.3, cz) + ACROSS * (s * 0.1), v(cx, tie - 0.05, cz) + ACROSS * (s * 0.45), 0.25, "sand", "Leaf"))
+		seg(m, f, v(cx, tie + 0.3, cz) + ACROSS * (s * 0.1), v(cx, tie - 0.05, cz) + ACROSS * (s * 0.45), 0.25, "sand", "Leaf")
 	end
 	local ear = v(cx, tie - 0.2, cz) + ACROSS * 0.2 + v(0.12, 0, 0.12)
 	seg(m, f, ear, ear + v(0.06, -0.45, 0.06), 0.25, "yellow", "Corn")
-	sway(seg(m, f, ear + v(-0.05, 0.05, 0.08), ear + v(-0.12, -0.3, 0.18), 0.25, "leaf", "Husk"))
+	seg(m, f, ear + v(-0.05, 0.05, 0.08), ear + v(-0.12, -0.3, 0.18), 0.25, "leaf", "Husk")
 end
 
 -- Corn Stalks (2 x 1): two shocks of dry stalks tied with twine and red bows, an ear of corn tucked in each, a small
@@ -493,8 +488,8 @@ M.jackolantern = function(m, f)
 	Parts.at(m, p, CFrame.new(0, cy + 0.48, 0) * CFrame.Angles(0, 0, 0.25), 0.25, 0.25, 0.25, "wood_dark", "Stem")
 	seg(m, p, v(0.02, cy + 0.55, 0), v(-0.22, cy + 0.6, 0.12), 0.25, "moss", "Vine")
 	seg(m, p, v(-0.22, cy + 0.6, 0.12), v(-0.35, cy + 0.42, 0.2), 0.25, "moss", "Vine")
-	sway(Parts.at(m, p, CFrame.new(0.18, cy + 0.42, -0.12) * CFrame.Angles(0.2, 0.4, -0.35), 0.5, 0.25, 0.25, "moss", "Leaf"))
-	sway(Parts.at(m, p, CFrame.new(-0.12, cy + 0.45, -0.22) * CFrame.Angles(-0.3, 0.2, 0.3), 0.25, 0.25, 0.5, "leaf_dark", "Leaf"))
+	Parts.at(m, p, CFrame.new(0.18, cy + 0.42, -0.12) * CFrame.Angles(0.2, 0.4, -0.35), 0.5, 0.25, 0.25, "moss", "Leaf")
+	Parts.at(m, p, CFrame.new(-0.12, cy + 0.45, -0.22) * CFrame.Angles(-0.3, 0.2, 0.3), 0.25, 0.25, 0.5, "leaf_dark", "Leaf")
 end
 
 ------------------------------------------------------------------ the desert
@@ -749,8 +744,8 @@ M.fairylantern = function(m, f)
 	seg(m, f, post + v(0, 1.62, 0), ACROSS * 0.02 + v(0, 1.82, 0), 0.25, "wood_dark", "Crook")
 	seg(m, f, ACROSS * 0.02 + v(0, 1.82, 0), ACROSS * 0.24 + v(0, 1.66, 0), 0.25, "wood_dark", "Crook")
 	Parts.box(m, f, post.X + 0.04, 1.3, post.Z + 0.04, 0.25, 0.25, 0.25, "pink", "Ribbon")
-	sway(Parts.box(m, f, post.X + 0.05, 0.55, post.Z + 0.06, 0.25, 0.25, 0.25, "leaf", "Ivy"))
-	sway(Parts.box(m, f, post.X - 0.04, 0.95, post.Z + 0.06, 0.25, 0.25, 0.25, "leaf_dark", "Ivy"))
+	Parts.box(m, f, post.X + 0.05, 0.55, post.Z + 0.06, 0.25, 0.25, 0.25, "leaf", "Ivy")
+	Parts.box(m, f, post.X - 0.04, 0.95, post.Z + 0.06, 0.25, 0.25, 0.25, "leaf_dark", "Ivy")
 	-- the jar on its cord, swinging from the crook's tip
 	local hook = ACROSS * 0.24 + v(0, 1.62, 0)
 	local jar = ACROSS * 0.24 + v(0, 0.92, 0)
@@ -1195,7 +1190,7 @@ M.steamvent = function(m, f)
 	Parts.cyl(m, f, 0.55, 0.22, 0.2, 0.25, 0.25, "orange", "Mouth", true)
 	-- the steam, its lower puffs rising and falling
 	for i, p in { { -0.1, 1.05, -0.1, 0.5 }, { 0, 1.5, -0.15, 0.75 }, { 0.15, 2.05, -0.25, 0.75 }, { 0.3, 2.55, -0.3, 0.5 }, { 0.45, 2.9, -0.35, 0.5 }, { 0.6, 0.55, 0.2, 0.25 } } do
-		local puff = sway(Parts.ball(m, f, p[1], p[2], p[3], p[4], "white", if i == 1 or i == 6 then "Steam" else "Cloud"))
+		local puff = Parts.ball(m, f, p[1], p[2], p[3], p[4], "white", if i == 1 or i == 6 then "Steam" else "Cloud")
 		if i >= 2 and i <= 4 then
 			Parts.move(puff, "bob", v(p[1], p[2], p[3]), "Y", 1.1 + i * 0.1, 0.1, i * 1.3)
 		end
@@ -1422,7 +1417,7 @@ M.ciderpress = function(m, f)
 	end
 	Parts.ball(m, f, -0.15, 0.12, 0.82, 0.25, "berry_red", "Apple")
 	Parts.ball(m, f, -0.9, 0.12, 0.05, 0.25, "maple", "Apple")
-	sway(Parts.turned(m, f, -0.15, 0.02, 0.6, 0.25, 0.25, 0.5, 0.6, "orange", "Leaf"))
+	Parts.turned(m, f, -0.15, 0.02, 0.6, 0.25, 0.25, 0.5, 0.6, "orange", "Leaf")
 end
 
 -- Desert Obelisk (2 x 2): a tall stone needle on three steps and a carved plinth: panels on all four sides of the
@@ -1536,7 +1531,7 @@ M.fairyhouse = function(m, f)
 	end
 	-- ivy
 	for _, l in { { 0.15, 0.55 }, { 1.0, 1.25 }, { -0.35, 1.7 }, { 1.1, 2.6 } } do
-		sway(Parts.turned(m, f, math.sin(l[1]) * 0.92, l[2], math.cos(l[1]) * 0.92, 0.25, 0.25, 0.25, l[1], "leaf", "Ivy"))
+		Parts.turned(m, f, math.sin(l[1]) * 0.92, l[2], math.cos(l[1]) * 0.92, 0.25, 0.25, 0.25, l[1], "leaf", "Ivy")
 	end
 	-- the mushroom roof
 	Parts.cyl(m, f, 0, 2.95, 0, 2.25, 0.25, "sand", "Gill")

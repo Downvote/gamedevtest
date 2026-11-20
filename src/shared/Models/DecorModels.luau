@@ -2285,7 +2285,6 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 			pennant(m, at, l, size[1], size[2])
 		end
 	end
-	Blocks.windy(m) -- leaves sway, pennants ripple
 	return m
 end
 
